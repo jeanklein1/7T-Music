@@ -361,3 +361,26 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+###############################################################################
+# 7T-Pawns project-specific ignores
+###############################################################################
+
+# JetBrains IDE
+.idea/
+
+# CMake build output (already covered by [Oo]ut/ above, but be explicit)
+out/build/
+
+# Backup archives - don't track zip files in git
+*.zip
+
+# Visual Studio CMake settings (machine-specific paths)
+CMakeSettings.json
+
+# Vite cache
+.vite/
+.vite-temp/
+
+# package-lock.json - optional, uncomment if you want to track it
+# package-lock.json
