@@ -1,35 +1,7 @@
 #pragma once
 
-/**
- * THE_BOARD CARTRIDGE -- Render Cartridge (Rasterized)
- * ==========================================================
- *
- * Trajectory-driven cell grid. Each cell holds a color that springs toward
- * goals or releases to idle. Musical polyphony drives the goals via hue rotation.
- *
- * EXECUTION ORDER (see world.wgsl for truth):
-*   Init (one-shot):
-*     0. Compute: gen_terrain_indices [2D] -- fills static index buffer
-*
-*   Frame (STREAMING PATCH MODE — current runtime):
-*     1. Upload signal (CPU -> GPU)
-*     2. Upload config  (CPU -> GPU)
-*     3. (Optional) Compute: compute_ribbon_rings [0D]
-*     4. Compute: update_world                   [0D]
-*     5. Compute: compute_vp                     [0D]
-*     6. Render: shadow pass (patch terrain + entities)
-*     7. Render: main pass   (patch terrain + pawn + sphere + ribbon)
-*
-*   Legacy cell/heightfield mode: REMOVED (bindings 0-2, 20-21, 24, 40-45 reserved)
-*
-* CORE PRINCIPLE:
- *   Every parameter is always under trajectory.
- *   The viewer sees VALUE, which emerges from dynamics.
- *   GOALS are set by couplings (here: polyphony -> hue rotation).
- *   IDLE is the artist's deliberate choice (here: checkerboard).
- *
- * See world.wgsl for the GPU scroll (single source of truth).
- */
+// THE_BOARD — Generative world engine. CPU orchestration.
+// See world.wgsl for GPU-side (single source of truth).
 
 #include "render/render_cartridge.hpp"
 #include "core/input_event.hpp"
@@ -86,75 +58,24 @@ namespace t7 {
         // =============================================================================
 
         class Cartridge : public RenderCartridge {
-
-
-            // =========================================================================
-            // TUNING SURFACE DIRECTORY — CPU-side compositional control
-            // =========================================================================
+            // ═══════════════════════════════════════════════════════════════
+            // DEPENDENCY LAYERS (top = foundation, bottom = leaf)
+            // ═══════════════════════════════════════════════════════════════
             //
-            // All constexpr tables that shape world generation.
-            // Change a number, recompile, see the result. No logic edits needed.
+            //   Seed Utilities        → pure math, no state, no dependencies
+            //   Terrain CPU           → reads seeds, evaluates height field
+            //   Entity Type Defs      → vocabulary of forms (tier tables, tracking structs)
+            //   Musical Coupling      → reads analysis signal, writes GPU params
+            //   Spawn Engine          → reads terrain + types, writes entity state
+            //   Gallery System        → reads pawn + entities, writes painting state
+            //   Mood System           → configures atmosphere, lighting, indoor shell
+            //   Patch Orchestrator    → stream_patches, tile system, frame-level coordination
+            //   Frame Loop            → update, render, dispatch (the entry points)
+            //   Public API            → RenderCartridge contract (initialize, on_input, etc.)
             //
-            // ── Atmosphere & Mood ─────────────────────────────────────────────
-            //   MOOD_TABLE[6]                  Sun, fog, ceiling, finite/open        ~line 305
-            //   PORTAL_COLORS[6]               Per-mood portal tint                  ~line 259
-            //   SCHEME_WEIGHTS[3]              Indoor lighting scheme probability    ~line 370
-            //   PAWN_AURA_DEFAULT              Aura radius, tint, height             ~line 2150
-            //
-            // ── Terrain Composition ───────────────────────────────────────────
-            //   ARCHETYPES[4]                  amp, bias, activation, weight          ~line 4273
-            //   ArchetypeSelectionRules        Neighbor coherence thresholds          ~line 4283
-            //   TERRAIN_EMISSION[4]            Token emit chance, budget, bias        ~line 4362
-            //   AMP_MOMENTUM_THRESHOLD/CARRY   Amplitude crescendo tuning            ~line 4375
-            //
-            // ── Population Themes (Compositional Regions) ─────────────────
-            //   THEMES[5]                       Spawn, tier, density, formation rules    ~line 4560
-            //   THEME_LATTICE_SPACING           500 wu — broad compositional zones       ~line 4532
-            //   THEME_SEED_BAND                 170 — decorrelated from terrain/density  ~line 4533
-            //   (Formation rules embedded per theme — each theme carries its own)
-            //
-            // ── Population Batch (Entity + GoL Layer) ──────────────────────
-            //   POP_CROSS_AFFINITY[3×3]         Cross-family spawn influence           ~line 4500
-            //   TIER_SCALE_PYRAMID/ARCH/COLUMN  Per-tier compositional size [0,1]      ~line 4520
-            //   POP_BATCH_SIZE                  Patches per observation window         ~line 4474
-            //   POP_TYPE_AFFINITY_STRENGTH      Max spawn boost for dominant type      ~line 4475
-            //   POP_SCALE_TENDENCY_STRENGTH     Max tier proximity boost               ~line 4476
-            //   POP_GOL_SUPPRESSION             GoL suppression per unit structure     ~line 4477
-            //   POP_MODE_AFFINITY/REPULSION     Batch mode probabilities               ~line 4480
-            //
-            // ── Formation Memory + Separation ─────────────────────────────
-            //   FORMATION_MEMORY_SIZE           Ring buffer depth (recent spawns)      ~line 5000
-            //   MIN_SEPARATION[3×3]             Cross-family minimum distance (wu)     ~line 5020
-            //
-            // ── Entity Tiers ──────────────────────────────────────────────────
-            //   ARCH_TIERS[3]                  Doorway/standard/monumental geometry   ~line 929
-            //   ArchConfig::SPAWN_CHANCE[4]    Per-archetype arch probability         ~line 960
-            //   COLUMN_TIERS[5]               Doric → antenna geometry               ~line 1112
-            //   ColumnConfig::SPAWN_CHANCE[4]  Per-archetype column probability       ~line 1144
-            //   PYRAMID_TIERS[3]              Obelisk/temple/colossus geometry        ~line 1483
-            //   PyramidConfig::SPAWN_CHANCE[4] Per-archetype pyramid probability      ~line 1497
-            //   AdjacencyRules                 Cross-entity clustering multipliers    ~line 2028
-            //
-            // ── Ribbons ───────────────────────────────────────────────────────
-            //   RIBBON_TIERS[3]               Serpentine/helix/streamer params        ~line 803
-            //   RibbonSpawnConfig              Cell size, spawn chance, render dist    ~line 654
-            //
-            // ── GoL Zones ─────────────────────────────────────────────────────
-            //   GOL_TIERS[7]                  Pillars → glacier tier params           ~line 2272
-            //   PULSE_TIERS[3]                Breathe/sparkle/drift params            ~line 2339
-            //   GoLZoneSpawnConfig             Spawn chance, zone size, height chance  ~line 2217
-            //   GoLColorMode::WEIGHTS          Color mode selection probabilities     ~line 2242
-            //
-            // ── Gallery & Paintings ───────────────────────────────────────────
-            //   GalleryConfig                  Spawn chances, spacing, size           ~line 3010
-            //
-            // For GPU-side tuning surfaces (palettes, mode fields, lattice spacings),
-            // see the companion directory in world.wgsl.
-            //
-
-            // =========================================================================
-            // S1 MEMBERS — Buffers, caches, mode flags, dead reckoning
-            // =========================================================================
+            // Each layer only reaches UP (toward foundations), never DOWN.
+            // Each bounded section is a future extraction target (.inl or .hpp).
+            // ═══════════════════════════════════════════════════════════════
 
         private:
 
@@ -202,309 +123,119 @@ namespace t7 {
             uint32_t activeMood_ = 0;
             float terrainAmpCeiling_ = 0.0f;    // mirrors GPU config.terrain_amp_ceiling
 
-            // ─── Polyphony-driven band motion ────────────────────────────
-            // Band activation order: fine(4) → detail(3) → local(2) → regional(1) → continental(0) → tectonic(5)
-            // First note animates fine ripples, full chord reshapes the continent.
-            static constexpr uint32_t BAND_ACTIVATION_ORDER[6] = { 4, 3, 2, 1, 0, 5 };
-            static constexpr float BAND_BLEND_ATTACK = 3.0f;   // 1/s — blend ramp up speed
-            static constexpr float BAND_BLEND_RELEASE = 2.0f;  // 1/s — blend ramp down speed
-            bool bandMotionActive_ = false;       // true when polyphony drives bands (mood 5 only)
-            float bandBlend_[6] = { -1.f, -1.f, -1.f, -1.f, -1.f, -1.f };  // per-band blend factor (-1 = activity field)
-            float bandPhaseOrigin_[6] = {};       // t_beats when band was activated
-            float bandBlendTarget_[6] = {};       // 0 or 1, driven by polyphony count
+            // ── SEED UTILITIES ──  → future: seed_utils.hpp
 
-            // ─── Musical animation modes (numpad toggles) ────────────────
-            // Each mode is an independently toggleable coupling circuit.
-            // When on: polyphony drives the mode's intensity through trajectory ramp.
-            // When off: intensity releases to 0 (idle).
-            //
-            // Future: each mode's source can be rewired to any analysis stat.
-            // Today: all modes read polyphony as their input signal.
-            //
-            //   Numpad 1 = terrain waves  (existing band motion — retroactively mode 0)
-            //   Numpad 2 = color shift    (smooth → discrete mode bias)
-            //   Numpad 3 = checker scatter (sparse survival threshold bias)
-            //   Numpad 4 = palette drift   (terrain color drifts toward target palette)
-            //   Numpad 5 = GoL tempo       (polyphony speeds up zones + scales height)
-            //   Numpad 6 = aura expansion (influence radius + height + tint intensity)
-
-            static constexpr uint32_t MMODE_TERRAIN_WAVES = 0;   // band motion (existing)
-            static constexpr uint32_t MMODE_COLOR_SHIFT = 1;
-            static constexpr uint32_t MMODE_CHECKER_SCATTER = 2;
-            static constexpr uint32_t MMODE_PALETTE_DRIFT = 3;
-            static constexpr uint32_t MMODE_GOL_TEMPO = 4;
-            static constexpr uint32_t MMODE_AURA_EXPAND = 5;
-            static constexpr uint32_t MMODE_COUNT = 6;   // numpad 1–6 (intensity-driven modes)
-
-            // Radial pulse mode: event-driven (no intensity trajectory).
-            // Toggle gates onset detection; existing pulses decay naturally.
-            static constexpr uint32_t MMODE_RADIAL_PULSE = 7;   // numpad 7 (separate from intensity array)
-
-            static constexpr float MMODE_ATTACK = 4.0f;    // 1/s — intensity ramp up
-            static constexpr float MMODE_RELEASE = 2.5f;   // 1/s — intensity ramp down
-
-            uint32_t mmodeMask_ = 0;              // bitfield: which modes are active
-            float mmodeIntensity_[MMODE_COUNT] = {};  // current [0,1] per mode (trajectory value)
-
-            // Palette drift: target palette index ramps smoothly to avoid color snaps
-            float paletteDriftTarget_ = 0.0f;       // current [0,3] — ramps toward desired
-            float paletteDriftDesired_ = 0.0f;      // set by polyphony mapping
-            static constexpr float PALETTE_DRIFT_TARGET_RATE = 2.0f;  // 1/s — smooth target transition
-
-            // Radial pulse ring buffer: 8 slots, circular write.
-            // Each slot: (origin_x, origin_z, onset_seconds, amplitude)
-            static constexpr uint32_t PULSE_RING_SIZE = 8;
-            static constexpr float PULSE_AMPLITUDE = 2.5f;     // world units of peak displacement
-            static constexpr float PULSE_MAX_AGE = 8.0f;       // seconds — must match WGSL
-            float pulseRing_[32] = {};              // 8 × 4 floats
-            uint32_t pulseWriteIdx_ = 0;            // next slot to write (wraps at 8)
-            float prevPolyphony_ = 0.0f;            // previous frame's polyphony (for onset detection)
-
-            bool is_mmode_on(uint32_t mode) const { return (mmodeMask_ & (1u << mode)) != 0; }
-            void toggle_mmode(uint32_t mode) {
-                mmodeMask_ ^= (1u << mode);
-                bool on = is_mmode_on(mode);
-                // Retroactive: mode 0 controls bandMotionActive_
-                if (mode == MMODE_TERRAIN_WAVES) {
-                    bandMotionActive_ = on;
-                    if (bandMotionActive_) {
-                        for (int i = 0; i < 6; i++) {
-                            bandBlend_[i] = 0.0f;
-                            bandBlendTarget_[i] = 0.0f;
-                            bandPhaseOrigin_[i] = 0.0f;
-                        }
-                        gpuState_.set_band_motion(bandBlend_, bandPhaseOrigin_);
-                        gpuState_.set_terrain_time(0.0f);
-                    }
-                    else {
-                        float inactive[6] = { -1.f, -1.f, -1.f, -1.f, -1.f, -1.f };
-                        float zeros[6] = {};
-                        gpuState_.set_band_motion(inactive, zeros);
-                        gpuState_.set_terrain_time(0.0f);
-                    }
-                }
-                // Mode 5 (aura expand): mark config dirty to push updated aura params
-                if (mode == MMODE_AURA_EXPAND) {
-                    auraCfgDirty_ = true;
-                }
-                static const char* MODE_NAMES[] = { "terrain_waves", "color_shift", "checker_scatter", "palette_drift", "gol_tempo", "aura_expand", "UNUSED", "radial_pulse" };
-                std::cout << "[MMode] " << MODE_NAMES[mode] << ": " << (on ? "ON" : "OFF") << "\n";
+            // Hashing utilities (mirror GPU hash functions for determinism)
+            static uint32_t cpu_hash(uint32_t seed, uint32_t property) {
+                uint32_t h = seed * 747796405u + property * 2891336453u + 1u;
+                h = ((h >> 16) ^ h) * 2654435769u;
+                h = ((h >> 16) ^ h) * 2654435769u;
+                h = (h >> 16) ^ h;
+                return h;
             }
 
-            GPUSpotLightArray cpuSpotLights_{};  // count=0 disables (outdoor)
-            bool spotLightActive_ = false;
-
-            // --- World Transition State Machine ---
-            enum class TransitionPhase { IDLE, FADE_OUT, TEARDOWN, FADE_IN };
-            TransitionPhase transitionPhase_ = TransitionPhase::IDLE;
-            float transitionTimer_ = 0.0f;
-            float transitionFadeDuration_ = 0.5f;   // seconds per fade direction
-            float transitionFadeAlpha_ = 0.0f;
-
-            // Portal destination — describes the world a door leads to.
-            // Also used as the pending transition target (keys + portal crossings).
-            struct PortalDestination {
-                uint32_t seed = 0;
-                bool finite = false;
-                uint32_t finite_radius = 2;
-                uint32_t mood = 0;               // 0=open, 1=finite (expandable)
-            };
-            PortalDestination pendingDestination_{};
-
-            // --- Finite patch mode ---
-            bool finiteMode_ = false;
-            uint32_t finiteRadius_ = 2;              // 2 → 5×5 = 25 patches
-
-            // --- Portal detection ---
-            static constexpr float PORTAL_DENSITY = 1.00f;  // fraction of Doorway arches that become portals (was 0.25)
-            static constexpr float PORTAL_TRIGGER_RADIUS = 10.5f;  // world units from arch center (3× scale)
-
-            // Portal color by mood (indexed by destination.mood)
-            static constexpr float PORTAL_COLORS[6][3] = {
-                { 0.90f, 0.45f, 0.70f },  // mood 0  open_default    — pink
-                { 0.72f, 0.45f, 0.85f },  // mood 1  open_sunset     — lilac
-                { 0.95f, 0.55f, 0.15f },  // mood 2  indoor_flat     — orange
-                { 0.95f, 0.80f, 0.20f },  // mood 3  indoor_vault    — yellow
-                { 0.85f, 0.20f, 0.15f },  // mood 4  finite_outdoor  — red
-                { 0.70f, 0.15f, 0.12f },  // mood 5  finite_outdoor_ref — dark red
-            };
-            static constexpr float PORTAL_COLOR_BACK[3] = { 0.35f, 0.55f, 0.90f };  // back-portal — blue
-
-            // ─── Mood System ─────────────────────────────────────────────
-            //
-            // Each mood defines an atmosphere: sun direction/color, fog,
-            // finite vs. open, patch radius. Portals pick a mood for
-            // their destination; the mood is applied during teardown.
-            //
-            // Moods 0-1: infinite outdoor.  Moods 2-3: finite indoor.  Mood 4: finite outdoor.  Mood 5: finite outdoor (reference clone).
-
-            enum class CeilingType : uint32_t {
-                NONE = 0,   // outdoor — no shell geometry
-                FLAT = 1,   // flat slab ceiling
-                VAULT = 2,   // catenary vault ceiling
-            };
-
-            struct MoodProfile {
-                bool   finite;
-                uint32_t finite_radius_min;
-                uint32_t finite_radius_max;
-                float  sun_direction[3];
-                float  sun_color[3];
-                float  sun_intensity;
-                float  sun_ambient;
-                float  fog_density;
-                float  fog_color[3];
-                // Indoor shell
-                bool   indoor;
-                CeilingType ceiling_type;
-                float  ceiling_height;
-                float  clear_color[3];      // background color (sky or dark ceiling)
-                float  wall_color[3];
-                float  ceiling_color[3];
-            };
-
-            static constexpr uint32_t MOOD_COUNT = 6;
-
-            //                                                                                                                                           indoor  ceil       ceil_h  clear_color            wall_color             ceil_color
-            static constexpr MoodProfile MOOD_TABLE[MOOD_COUNT] = {
-                /* 0  open_default        */  { false, 2, 2, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f} },
-                /* 1  open_sunset         */  { false, 2, 2, { 0.96f,-0.26f,-0.13f}, {1.0f, 0.75f, 0.45f}, 0.90f, 0.20f, 0.0050f, {0.95f, 0.70f, 0.45f},  false, CeilingType::NONE,  0.0f,  {0.95f, 0.70f, 0.45f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f} },
-                /* 2  indoor_flat         */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f, 0.0003f, {0.15f, 0.12f, 0.10f},  true,  CeilingType::FLAT,  20.0f, {0.15f, 0.12f, 0.10f}, {0.65f,0.58f,0.50f}, {0.60f,0.55f,0.48f} },
-                /* 3  indoor_vault        */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f, 0.0003f, {0.15f, 0.12f, 0.10f},  true,  CeilingType::VAULT, 25.0f, {0.15f, 0.12f, 0.10f}, {0.70f,0.62f,0.52f}, {0.65f,0.58f,0.50f} },
-                /* 4  finite_outdoor      */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f} },
-                /* 5  finite_outdoor_ref  */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f} },
-            };
-
-            static const char* mood_name(uint32_t mood) {
-                static const char* NAMES[] = { "open_default", "open_sunset", "indoor_flat", "indoor_vault", "finite_outdoor", "finite_outdoor_ref" };
-                return (mood < MOOD_COUNT) ? NAMES[mood] : "unknown";
+            static float cpu_hash_f(uint32_t seed, uint32_t property) {
+                return (float)cpu_hash(seed, property) / (float)0xFFFFFFFFu;
             }
 
-            // ─── Indoor Lighting Schemes ─────────────────────────────────
-            //
-            // Seed-driven procedural lighting for indoor moods. Each scheme
-            // defines a lighting character (which surfaces carry lights,
-            // how many, primary vs accent roles). Per-light parameters
-            // (position along surface, intensity, cone width, color warmth)
-            // are derived from activeSeed_ at mood transition time.
-            //
-            // Three schemes:
-            //   Cathedral — ceiling primary + two opposing wall sconces
-            //   Gallery   — two opposing wall lights, no ceiling (dramatic)
-            //   Sanctum   — single source, maximum contrast
-            //
-            // The seed also picks which wall pair (N/S or E/W) carries the
-            // sconces, so rooms with the same scheme still feel different.
-
-            enum class LightAnchor : uint32_t {
-                CEILING, WALL_NORTH, WALL_SOUTH, WALL_EAST, WALL_WEST
-            };
-
-            struct IndoorLightProp {
-                static constexpr uint32_t SCHEME = 1100u;
-                static constexpr uint32_t WALL_PAIR = 1101u;
-                static constexpr uint32_t ANCHOR_PICK = 1102u;
-                static constexpr uint32_t SLOT_BASE = 1110u;  // + slot*10 + field
-                // Per-slot field offsets
-                static constexpr uint32_t LATERAL = 0u;
-                static constexpr uint32_t HEIGHT = 1u;
-                static constexpr uint32_t INTENSITY = 2u;
-                static constexpr uint32_t INNER_CONE = 3u;
-                static constexpr uint32_t OUTER_CONE = 4u;
-                static constexpr uint32_t WARMTH = 5u;
-                static constexpr uint32_t AIM_PITCH = 6u;
-                static constexpr uint32_t AIM_YAW = 7u;
-            };
-
-            // Slot definition: anchor surface + gaussian ranges for the
-            // light's character. Position slide uses fixed sigmas.
-            // Direction is fully parameterised per slot:
-            //   aim_pitch — angle below horizontal (wall) or off-vertical (ceiling), radians
-            //   aim_yaw   — lateral rotation along the anchor surface, radians
-            struct LightSlotDef {
-                LightAnchor anchor;
-                float intensity_mean, intensity_sigma;
-                float inner_mean, inner_sigma;    // inner half-angle (radians)
-                float outer_mean, outer_sigma;    // outer half-angle (radians)
-                float warmth_mean, warmth_sigma;  // 0 = warm amber, 1 = cool blue
-                float aim_pitch_mean, aim_pitch_sigma;  // radians
-                float aim_yaw_mean, aim_yaw_sigma;      // radians
-            };
-
-            static constexpr float SCHEME_WEIGHTS[] = { 0.55f, 0.25f, 0.20f };
-            static constexpr uint32_t SCHEME_COUNT = 3;
-            static constexpr const char* SCHEME_NAMES[] = { "Cathedral", "Gallery", "Sanctum" };
-            static constexpr const char* ANCHOR_NAMES[] = { "ceiling", "wall_N", "wall_S", "wall_E", "wall_W" };
-
-            GPUPortalArray cpuPortalArray_{};
-            bool portalsDirty_ = true;   // true at boot → first upload guaranteed
-
-            // --- Back-portal (guaranteed exit from finite worlds) ---
-            // Position is configurable so special-case layouts can relocate it.
-            float backPortalPosition_[2] = { 10.0f, 0.0f };   // world XZ
-            bool  backPortalPending_ = false;
-            uint32_t backPortalReturnSeed_ = 0;
-            uint32_t backPortalReturnMood_ = 0;
-            uint32_t backPortalReturnRadius_ = 2;
-
-            // GPU pawn readback state machine: IDLE → COPIED → MAPPING → IDLE
-            // Reads full GPUPawnState: position (for patch streaming, photographer,
-            // ribbon spawning) and portal_trigger (for world transitions).
-            enum class PawnReadbackState { IDLE, COPIED, MAPPING };
-            PawnReadbackState pawnReadbackState_ = PawnReadbackState::IDLE;
-            int32_t readbackPortalTrigger_ = -1;
-            float pawnReadback_x_ = 0.0f;
-            float pawnReadback_z_ = 0.0f;
-
-            // --- Unified Pier System ─────────────────────────────────────────
-            //
-            // Deterministic slot addressing: test rig at 0-2, arch piers at 4-35,
-            // column piers at 36-67. CPU mirrors the GPU buffer for dead-reckoning
-            // step-height checks. No allocator — slot = f(entity_slot).
-            GPUPierInstance cpuPiers_[Dim::PIER_TOTAL]{};
-
-            // CPU-side pier evaluation (mirrors WGSL evaluate_pier)
-            static float cpu_evaluate_pier(float wx, float wz, const GPUPierInstance& inst) {
-                if (!inst.is_active) return 0.0f;
-                float dx = wx - inst.origin[0];
-                float dz = wz - inst.origin[1];
-                float c = std::cos(-inst.rotation);
-                float s = std::sin(-inst.rotation);
-                float lx = dx * c - dz * s;
-                float lz = dx * s + dz * c;
-                float hx = inst.half_size[0];
-                float hz = inst.half_size[1];
-                float blend = std::max(inst.edge_blend, 0.0f);
-                if (std::abs(lx) > hx + blend || std::abs(lz) > hz + blend) return 0.0f;
-                auto smooth = [](float edge0, float edge1, float x) -> float {
-                    float t = std::max(0.0f, std::min(1.0f, (x - edge0) / (edge1 - edge0)));
-                    return t * t * (3.0f - 2.0f * t);
-                    };
-                float mask = 1.0f;
-                if (blend > 0.001f) {
-                    float fx_lo = smooth(-hx - blend, -hx + blend, lx);
-                    float fx_hi = 1.0f - smooth(hx - blend, hx + blend, lx);
-                    float fz_lo = smooth(-hz - blend, -hz + blend, lz);
-                    float fz_hi = 1.0f - smooth(hz - blend, hz + blend, lz);
-                    mask = fx_lo * fx_hi * fz_lo * fz_hi;
-                }
-                else {
-                    if (std::abs(lx) > hx || std::abs(lz) > hz) return 0.0f;
-                }
-                if (mask < 0.001f) return 0.0f;
-                float t = std::max(0.0f, std::min(1.0f, (lx + hx) / std::max(2.0f * hx, 0.001f)));
-                float raw_h = inst.height_near + (inst.height_far - inst.height_near) * t;
-                return raw_h * mask;
+            static uint32_t tile_seed(uint32_t master_seed, int32_t gx, int32_t gz) {
+                uint32_t h = master_seed;
+                h ^= (uint32_t)gx * 73856093u;
+                h ^= (uint32_t)gz * 19349663u;
+                h = (h ^ (h >> 16)) * 2654435769u;
+                h = (h ^ (h >> 16)) * 2654435769u;
+                return h;
             }
 
-            float cpu_structure_height_at(float wx, float wz) const {
-                float best = 0.0f;
-                uint32_t count = std::min(gpuState_.config().pier_count, Dim::PIER_TOTAL);
+            // Derive finite world radius from seed within mood-defined bounds.
+            static uint32_t derive_finite_radius(uint32_t seed, const MoodProfile& mood) {
+                if (mood.finite_radius_min >= mood.finite_radius_max) return mood.finite_radius_min;
+                uint32_t range = mood.finite_radius_max - mood.finite_radius_min + 1;
+                return mood.finite_radius_min + cpu_hash(seed, 77u) % range;
+            }
+
+            // Biased mood selection for portal destinations.
+            // In finite mode: 55% indoor (moods 2-3), 25% infinite outdoor (moods 0-1), 20% finite outdoor (moods 4-5).
+            // In open mode: uniform across all moods.
+            uint32_t pick_portal_mood(uint32_t seed, uint32_t prop) const {
+                float roll = cpu_hash_f(seed, prop);
+                if (finiteMode_) {
+                    // 0.00–0.125: mood 0 (open_default)
+                    // 0.125–0.25: mood 1 (open_sunset)
+                    // 0.25–0.525: mood 2 (indoor_flat)
+                    // 0.525–0.80: mood 3 (indoor_vault)
+                    // 0.80–0.90:  mood 4 (finite_outdoor)
+                    // 0.90–1.00:  mood 5 (finite_outdoor_ref)
+                    if (roll < 0.125f) return 0;
+                    if (roll < 0.25f)  return 1;
+                    if (roll < 0.525f) return 2;
+                    if (roll < 0.80f)  return 3;
+                    if (roll < 0.90f)  return 4;
+                    return 5;
+                }
+                return cpu_hash(seed, prop) % MOOD_COUNT;
+            }
+
+            // CPU mirror of WGSL lattice_node_seed (must produce identical results)
+            static uint32_t cpu_lattice_node_seed(uint32_t master_seed, int32_t nx, int32_t nz, uint32_t band) {
+                uint32_t h = master_seed;
+                h ^= (uint32_t)nx * 73856093u;
+                h ^= (uint32_t)nz * 19349663u;
+                h ^= band * 83492791u;
+                h = (h ^ (h >> 16)) * 2654435769u;
+                h = (h ^ (h >> 16)) * 2654435769u;
+                return h;
+            }
+
+            static float cpu_smoothstep(float e0, float e1, float x) {
+                float t = std::max(0.0f, std::min(1.0f, (x - e0) / (e1 - e0)));
+                return t * t * (3.0f - 2.0f * t);
+            }
+
+            // CPU-side Gaussian sampling that mirrors the WGSL sample_gaussian exactly.
+            // (seed, property) → Box-Muller → truncated at ±3σ.
+            static float cpu_sample_gaussian(uint32_t seed, uint32_t property, float mean, float sigma) {
+                float u1 = std::max(cpu_hash_f(seed, property), 1e-6f);
+                float u2 = cpu_hash_f(seed, property + 1000u);  // matches GAUSSIAN_PAIR_OFFSET
+                float z = std::sqrt(-2.0f * std::log(u1)) * std::cos(2.0f * 3.14159265359f * u2);
+                z = std::max(-3.0f, std::min(3.0f, z));
+                return mean + z * sigma;
+            }
+
+
+            // Weighted tier selection from cumulative weights.
+            static uint32_t select_tier(uint32_t seed, uint32_t tier_prop,
+                const float* weights, uint32_t count) {
+                float roll = cpu_hash_f(seed, tier_prop);
+                float cumul = 0.0f;
+                for (uint32_t t = 0; t < count; t++) {
+                    cumul += weights[t];
+                    if (roll < cumul) return t;
+                }
+                return count - 1;
+            }
+
+            static uint32_t select_harmonic_ratio(uint32_t seed, uint32_t prop,
+                const HarmonicRatio* palette, uint32_t count) {
+                float roll = cpu_hash_f(seed, prop);
+                float cumul = 0.0f;
                 for (uint32_t i = 0; i < count; i++) {
-                    best = std::max(best, cpu_evaluate_pier(wx, wz, cpuPiers_[i]));
+                    cumul += palette[i].weight;
+                    if (roll < cumul) return i;
                 }
-                return best;
+                return count - 1;
             }
+
+            static uint32_t ribbon_cell_seed(uint32_t master_seed, int32_t cx, int32_t cz) {
+                uint32_t h = master_seed ^ 0xDEAD;
+                h ^= (uint32_t)cx * 73856093u;
+                h ^= (uint32_t)cz * 19349663u;
+                h = (h ^ (h >> 16)) * 2654435769u;
+                h = (h ^ (h >> 16)) * 2654435769u;
+                return h;
+            }
+
+            // ── TERRAIN CPU EVALUATION ──  → future: terrain_cpu.hpp
 
             // ─── CPU Terrain Height Evaluation ───────────────────────────────
             //
@@ -648,6 +379,59 @@ namespace t7 {
                 auto [amp, b] = cpu_tile_modifiers_at(wx, wz);
                 return raw_h * amp + b;
             }
+
+            // --- Unified Pier System ─────────────────────────────────────────
+            //
+            // Deterministic slot addressing: test rig at 0-2, arch piers at 4-35,
+            // column piers at 36-67. CPU mirrors the GPU buffer for dead-reckoning
+            // step-height checks. No allocator — slot = f(entity_slot).
+            GPUPierInstance cpuPiers_[Dim::PIER_TOTAL]{};
+
+            // CPU-side pier evaluation (mirrors WGSL evaluate_pier)
+            static float cpu_evaluate_pier(float wx, float wz, const GPUPierInstance& inst) {
+                if (!inst.is_active) return 0.0f;
+                float dx = wx - inst.origin[0];
+                float dz = wz - inst.origin[1];
+                float c = std::cos(-inst.rotation);
+                float s = std::sin(-inst.rotation);
+                float lx = dx * c - dz * s;
+                float lz = dx * s + dz * c;
+                float hx = inst.half_size[0];
+                float hz = inst.half_size[1];
+                float blend = std::max(inst.edge_blend, 0.0f);
+                if (std::abs(lx) > hx + blend || std::abs(lz) > hz + blend) return 0.0f;
+                auto smooth = [](float edge0, float edge1, float x) -> float {
+                    float t = std::max(0.0f, std::min(1.0f, (x - edge0) / (edge1 - edge0)));
+                    return t * t * (3.0f - 2.0f * t);
+                    };
+                float mask = 1.0f;
+                if (blend > 0.001f) {
+                    float fx_lo = smooth(-hx - blend, -hx + blend, lx);
+                    float fx_hi = 1.0f - smooth(hx - blend, hx + blend, lx);
+                    float fz_lo = smooth(-hz - blend, -hz + blend, lz);
+                    float fz_hi = 1.0f - smooth(hz - blend, hz + blend, lz);
+                    mask = fx_lo * fx_hi * fz_lo * fz_hi;
+                }
+                else {
+                    if (std::abs(lx) > hx || std::abs(lz) > hz) return 0.0f;
+                }
+                if (mask < 0.001f) return 0.0f;
+                float t = std::max(0.0f, std::min(1.0f, (lx + hx) / std::max(2.0f * hx, 0.001f)));
+                float raw_h = inst.height_near + (inst.height_far - inst.height_near) * t;
+                return raw_h * mask;
+            }
+
+            float cpu_structure_height_at(float wx, float wz) const {
+                float best = 0.0f;
+                uint32_t count = std::min(gpuState_.config().pier_count, Dim::PIER_TOTAL);
+                for (uint32_t i = 0; i < count; i++) {
+                    best = std::max(best, cpu_evaluate_pier(wx, wz, cpuPiers_[i]));
+                }
+                return best;
+            }
+
+            // ── ENTITY TYPE DEFINITIONS ──  → future: entity_types.hpp
+
             //
             // Ribbons exist at deterministic world locations on a coarse grid (~600 units).
             // Each cell has a probability of containing a ribbon. When the pawn is within
@@ -805,16 +589,7 @@ namespace t7 {
                 { 2.0f / 3.0f,  0.20f, "2:3" },   // fifth below
             };
 
-            static uint32_t select_harmonic_ratio(uint32_t seed, uint32_t prop,
-                const HarmonicRatio* palette, uint32_t count) {
-                float roll = cpu_hash_f(seed, prop);
-                float cumul = 0.0f;
-                for (uint32_t i = 0; i < count; i++) {
-                    cumul += palette[i].weight;
-                    if (roll < cumul) return i;
-                }
-                return count - 1;
-            }
+
 
             // ── Tier Profile (mean+sigma, matches GoLTierProfile pattern) ────
             static constexpr uint32_t RIBBON_TIER_COUNT = 3;
@@ -1051,15 +826,6 @@ namespace t7 {
                 static constexpr uint32_t COLOR_VAR_B = 623u;
             };
 
-            // CPU-side Gaussian sampling that mirrors the WGSL sample_gaussian exactly.
-            // (seed, property) → Box-Muller → truncated at ±3σ.
-            static float cpu_sample_gaussian(uint32_t seed, uint32_t property, float mean, float sigma) {
-                float u1 = std::max(cpu_hash_f(seed, property), 1e-6f);
-                float u2 = cpu_hash_f(seed, property + 1000u);  // matches GAUSSIAN_PAIR_OFFSET
-                float z = std::sqrt(-2.0f * std::log(u1)) * std::cos(2.0f * 3.14159265359f * u2);
-                z = std::max(-3.0f, std::min(3.0f, z));
-                return mean + z * sigma;
-            }
 
             // ─── Active Arch Tracking ────────────────────────────────────────
 
@@ -1099,7 +865,6 @@ namespace t7 {
             uint32_t activeArchCount_ = 0;
             bool archMeshGenPending_ = false;  // true → dispatch GPU mesh gen
             bool lightsDirty_ = true;      // set true at init, cleared after first upload
-
 
             // ─── Generative Columns ──────────────────────────────────────────
             //
@@ -1271,6 +1036,451 @@ namespace t7 {
             // (generate_column_mesh removed — replaced by GPU compute: column_mesh_gen)
 
             // ─── Column Spawning ─────────────────────────────────────────────
+
+            // ─── Generative Pyramids ─────────────────────────────────────────
+            //
+            // Three tiers: obelisk, temple, colossus. Each defined by a
+            // parameter row in the PYRAMID_TIERS matrix.
+            //
+            // Collision: pyramid height function baked into heightfield.
+            //   Pawn blocked by step-height on steep faces (no solid needed).
+            // Visual:    CPU-generated 4-face (pointed) or 5-face (truncated) mesh.
+            // Color:     sandstone (shared palette, distinct base tone).
+
+            enum class PyramidTier : uint32_t {
+                OBELISK = 0,     // tall narrow marker, pointed apex
+                TEMPLE = 1,      // medium, truncated platform top
+                COLOSSUS = 2,    // massive landmark, slight or no truncation
+                COUNT = 3
+            };
+
+            struct PyramidTierParams {
+                // ─── Base geometry ───────────────────────────────────────
+                float height_mean, height_sigma;
+                float base_half_mean, base_half_sigma;
+                float aspect_ratio_mean, aspect_ratio_sigma;
+                float truncation_mean, truncation_sigma;
+
+                // ─── Blending ────────────────────────────────────────────
+                float edge_blend_mean, edge_blend_sigma;
+
+                // ─── Appearance ──────────────────────────────────────────
+                float color_override;
+                float color_variance;
+
+                // ─── Selection ───────────────────────────────────────────
+                float weight;
+            };
+
+            //                              h_μ     σ    base_μ  σ    asp_μ  σ     trunc_μ σ     blend_μ σ     col%  var    weight
+            static constexpr PyramidTierParams PYRAMID_TIERS[] = {
+                /* OBELISK  */  {  28.0f, 6.0f,  16.0f, 3.0f,  1.0f, 0.15f,  0.00f, 0.00f,  1.5f, 0.3f,  0.10f, 0.04f,  0.50f },
+                /* TEMPLE   */  {  45.0f, 8.0f,  40.0f, 6.0f,  1.0f, 0.20f,  0.25f, 0.08f,  3.0f, 0.75f, 0.15f, 0.04f,  0.25f },
+                /* COLOSSUS */  {  78.0f, 14.4f, 60.0f, 9.6f,  1.0f, 0.10f,  0.05f, 0.04f,  3.6f, 1.0f,  0.20f, 0.04f,  0.25f },
+            };
+
+            static constexpr float PYRAMID_SANDSTONE_BASE[3] = { 0.80f, 0.72f, 0.58f };
+            static constexpr float PYRAMID_SANDSTONE_VARIANCE = 0.05f;
+
+            struct PyramidConfig {
+                // Flat spawn probability — terrain-independent (themes control variation)
+                static constexpr float SPAWN_CHANCE_BY_ARCHETYPE[4] = { 0.030f, 0.030f, 0.030f, 0.0f };
+                static constexpr float MOOD_MULTIPLIER[MOOD_COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f };
+                static constexpr float POSITION_JITTER = 0.25f;
+            };
+
+            struct PyramidProp {
+                static constexpr uint32_t SPAWN_ROLL = 800u;
+                static constexpr uint32_t POSITION_X = 801u;
+                static constexpr uint32_t POSITION_Z = 802u;
+                static constexpr uint32_t ROTATION = 803u;
+                static constexpr uint32_t TIER = 804u;
+                static constexpr uint32_t HEIGHT = 810u;
+                static constexpr uint32_t BASE_HALF = 811u;
+                static constexpr uint32_t ASPECT = 812u;
+                static constexpr uint32_t TRUNCATION = 813u;
+                static constexpr uint32_t EDGE_BLEND = 814u;
+                static constexpr uint32_t COLOR_OVER = 820u;
+                static constexpr uint32_t COLOR_VAR_R = 821u;
+                static constexpr uint32_t COLOR_VAR_G = 822u;
+                static constexpr uint32_t COLOR_VAR_B = 823u;
+            };
+
+            // ─── Active Pyramid Tracking ─────────────────────────────────────
+
+            struct ActivePyramid {
+                int32_t patch_gx = 0, patch_gz = 0;
+                bool active = false;
+                // Cached color (set at spawn, read by rebuild)
+                float col_r = 0.80f, col_g = 0.72f, col_b = 0.58f;
+
+                // Placement (computed once at spawn, immutable)
+                float cached_ground_y = 0.0f;         // absolute base Y for VS offset
+            };
+
+            ActivePyramid activePyramids_[Dim::MAX_PYRAMID_INSTANCES]{};
+            uint32_t activePyramidCount_ = 0;
+            bool pyramidMeshGenPending_ = false;  // true → dispatch GPU mesh gen
+
+            // CPU mirror of GPU pyramid instances (for heightfield baking)
+            GPUPyramidArray cpuPyramids_{};
+
+            // (generate_pyramid_mesh removed — replaced by GPU compute: pyramid_mesh_gen)
+
+            // ─── Pawn Aura System ─────────────────────────────────────────────
+            //
+            // Persistent terrain influence field centered on the pawn.
+            // Toroidal 64×64 grid of spring-driven cells that activate near
+            // the pawn and release when it moves away, leaving a decaying trail.
+            //
+            // Architecture follows the entity pattern:
+            //   PawnAuraProfile    — declarative parameter table
+            //   PawnAuraDeltaMode  — color differential strategy
+            //   GPUPawnAuraConfig  — per-frame GPU config (in state.hpp)
+            //   GPUPawnAuraCell    — per-cell state (in state.hpp)
+
+            struct PawnAuraDeltaMode {
+                static constexpr uint32_t CONVERGENT = 0;  // all cells shift toward signature tint
+                static constexpr uint32_t RANDOM = 1;  // each cell gets unique random delta
+            };
+
+            struct PawnAuraProfile {
+                float influence_radius;
+                float attack_stiffness;
+                float attack_damping;
+                float release_rate;
+                float tint_strength;
+                float tint_r, tint_g, tint_b;
+                uint32_t delta_mode;
+                float delta_magnitude;     // random mode: max offset per channel
+                uint32_t effect_mask;      // bit 0=color, bit 1=height
+                float height_scale;        // height extrusion in world units
+            };
+
+            static constexpr PawnAuraProfile PAWN_AURA_DEFAULT = {
+                20.0f,             // influence_radius
+                12.0f,             // attack_stiffness
+                0.7f,              // attack_damping
+                1.5f,              // release_rate
+                0.5f,              // tint_strength
+                0.4f, 0.2f, 0.5f, // tint RGB (purple)
+                PawnAuraDeltaMode::CONVERGENT,
+                0.3f,              // delta_magnitude (used in random mode)
+                0x3u,              // effect_mask: color tint + height
+                3.0f,              // height_scale
+            };
+
+            // Active profile — starts as default, can be swapped by landmarks/commands
+            PawnAuraProfile activeAuraProfile_ = PAWN_AURA_DEFAULT;
+            bool auraHeightEnabled_ = true;
+            bool auraEnabled_ = false;         // default off — numpad 3 toggles
+            bool auraNeedsClear_ = false;
+            bool auraCfgDirty_ = true;     // true at boot → first frame uploads full config
+
+            // Smooth raise/lower: auraPresence_ ramps 0→1 on enable, 1→0 on disable.
+            // Scales all aura parameters so terrain and pawn height change gradually.
+            float auraPresence_ = 0.0f;        // current [0,1] — trajectory value
+            static constexpr float AURA_PRESENCE_ATTACK = 1.0f;   // 1/s — ~3s to full (spring converges in ~0.5s)
+            static constexpr float AURA_PRESENCE_RELEASE = 1.5f;  // 1/s — ~2s to zero
+
+
+            // ─── GoL Zone System ─────────────────────────────────────────────
+            //
+            // Zone-local Game of Life. Each zone is a 32×32 automaton grid
+            // anchored to a mode lattice node (MODE_LATTICE_SPACING units).
+            // Zone detection replicates the GPU's tag_cell_behavior roll
+            // using the same deterministic seed, ensuring CPU and GPU agree.
+            //
+            // Architecture follows the Column entity pattern:
+            //   GoLZoneProp       — property index registry (seed-based rolls)
+            //   GoLZoneSpawnConfig — spawn chances and spatial constants
+            //   GoLTierProfile    — mean+sigma tier matrix (Gaussian sampling)
+            //   GoLColorMode      — color tier weights (declarative)
+            //   GoLZoneState      — per-instance runtime state
+
+            static constexpr float MODE_LATTICE_SPACING = 120.0f;
+            static constexpr float PATCH_CELL_SIZE = (float)Dim::PATCH_EXTENT / 16.0f;  // 3.125
+
+            // ── Property Index Registry (seed band 250, indices 920–939) ─────
+            struct GoLZoneProp {
+                static constexpr uint32_t SEED_BAND = 250u;
+                // Zone-level decisions
+                static constexpr uint32_t SPAWN_ROLL = 920u;
+                static constexpr uint32_t TIER = 921u;
+                static constexpr uint32_t HEIGHT_ROLL = 922u;
+                static constexpr uint32_t COLOR_ROLL = 923u;
+                // Per-zone continuous parameters (Gaussian draws)
+                static constexpr uint32_t DENSITY = 930u;
+                static constexpr uint32_t TICK_PERIOD = 931u;
+                static constexpr uint32_t SPRING = 932u;
+                static constexpr uint32_t HEIGHT = 933u;
+                static constexpr uint32_t TRANSITION = 934u;
+                // Per-zone color target
+                static constexpr uint32_t TARGET_R = 935u;
+                static constexpr uint32_t TARGET_G = 936u;
+                static constexpr uint32_t TARGET_B = 937u;
+                // Per-cell seeding
+                static constexpr uint32_t HEIGHT_FACTOR = 938u;
+            };
+
+            // ── Spawn Configuration ──────────────────────────────────────────
+            struct GoLZoneSpawnConfig {
+                static constexpr float SPAWN_CHANCE = 0.15f;  // fraction of checkerboard zones (was 0.10)
+                static constexpr float HEIGHT_CHANCE = 0.30f;  // fraction of zones that get extrusion (was 0.40)
+                static constexpr float ZONE_EXTENT = 100.0f; // 32 × 3.125 = cell-aligned
+                static constexpr float MODE_THRESHOLD = 0.50f;  // min interpolated mode for eligibility
+                // Per-cell height factor seeding (Gaussian draw per cell)
+                static constexpr float HEIGHT_FACTOR_MEAN = 1.0f;
+                static constexpr float HEIGHT_FACTOR_SIGMA = 0.15f;
+                static constexpr float HEIGHT_FACTOR_CLAMP_LO = 0.6f;
+                static constexpr float HEIGHT_FACTOR_CLAMP_HI = 1.4f;
+                // Lens target color range: color = hash * RANGE + LO
+                static constexpr float LENS_TARGET_LO = 0.2f;
+                static constexpr float LENS_TARGET_RANGE = 0.6f;
+            };
+
+            // ── Color Modes ──────────────────────────────────────────────────
+            struct GoLColorMode {
+                static constexpr uint32_t NEUTRAL = 0;  // no color change (height-only extrusion)
+                static constexpr uint32_t LENS = 1;  // shift toward per-zone target color
+                static constexpr uint32_t BLACKISH = 2;  // darken toward near-black
+                static constexpr uint32_t COUNT = 3;
+
+                // Weight matrix: color_mode selection weights
+                // Index 0 = NEUTRAL (only available if height_enabled)
+                // Index 1 = LENS
+                // Index 2 = BLACKISH
+                static constexpr float WEIGHTS_HEIGHT[COUNT] = { 0.30f, 0.40f, 0.30f };
+                static constexpr float WEIGHTS_NO_HEIGHT[COUNT] = { 0.00f, 0.55f, 0.45f };
+            };
+
+            // ── Tier Profile (mean+sigma, matches ColumnTierParams pattern) ──
+            static constexpr uint32_t GOL_TIER_COUNT = 7;
+
+            struct GoLTierProfile {
+                // ─── Initial conditions ──────────────────────────────────
+                float density_mean, density_sigma;
+
+                // ─── Temporal ────────────────────────────────────────────
+                float tick_period_mean, tick_period_sigma;
+
+                // ─── Visual transition ───────────────────────────────────
+                float spring_stiffness_mean, spring_stiffness_sigma;
+                float transition_fraction_mean, transition_fraction_sigma;
+
+                // ─── Height ──────────────────────────────────────────────
+                float alive_height_mean, alive_height_sigma;
+
+                // ─── Per-cell variation ──────────────────────────────────
+                float spring_variance;     // [0,1] per-cell spring speed scatter
+
+                // ─── Selection ───────────────────────────────────────────
+                float weight;
+                bool  force_no_height;
+            };
+
+            //                                                    dens_μ   σ    tick_μ  σ    spring_μ σ    trans_μ  σ     ht_μ    σ    sv    wt    no_h
+            static constexpr GoLTierProfile GOL_TIERS[GOL_TIER_COUNT] = {
+                /* 0: Pillars  */ { 0.30f, 0.05f,   8.0f, 2.0f,   0.5f, 0.1f,   0.05f, 0.01f,  30.0f, 9.0f,  0.30f,  0.10f, false },
+                /* 1: Sparse   */ { 0.15f, 0.05f,   2.0f, 0.5f,   4.0f, 1.0f,   0.12f, 0.03f,  18.0f, 6.0f,  0.20f,  0.20f, false },
+                /* 2: Moderate */ { 0.30f, 0.08f,   1.0f, 0.3f,   8.0f, 2.0f,   0.15f, 0.03f,   9.0f, 3.0f,  0.15f,  0.18f, false },
+                /* 3: Dense    */ { 0.45f, 0.10f,   0.5f, 0.15f, 12.0f, 3.0f,   0.25f, 0.05f,   6.0f, 1.5f,  0.10f,  0.10f, false },
+                /* 4: Flash    */ { 0.35f, 0.10f,  0.25f, 0.05f, 20.0f, 5.0f,   0.30f, 0.05f,   0.0f, 0.0f,  0.40f,  0.17f, true  },
+                /* 5: Monolith */ { 0.20f, 0.03f,  12.0f, 3.0f,   0.3f, 0.05f,  0.03f, 0.01f,  42.0f, 12.f,  0.05f,  0.12f, false },
+                /* 6: Glacier  */ { 0.12f, 0.03f,   4.0f, 1.0f,   2.0f, 0.5f,   0.08f, 0.02f,  24.0f, 7.5f,  0.25f,  0.13f, false },
+            };
+
+            static constexpr const char* GOL_TIER_NAMES[] = {
+                "Pillars", "Sparse", "Moderate", "Dense",
+                "Flash", "Monolith", "Glacier"
+            };
+
+            static constexpr const char* GOL_COLOR_NAMES[] = {
+                "neutral", "lens", "blackish"
+            };
+
+            // ── Algorithm Types ───────────────────────────────────────────────
+            struct AlgorithmType {
+                static constexpr uint32_t CONWAY = 0;
+                static constexpr uint32_t PULSE = 1;
+            };
+
+            // ── Boundary Modes ────────────────────────────────────────────────
+            struct BoundaryMode {
+                static constexpr uint32_t REFLECT = 0;
+                static constexpr uint32_t WRAP = 1;
+            };
+
+            // ── Pulse Tier Profile ────────────────────────────────────────────
+            //
+            // Pulse zones: periodic breathing of cell color/height, no neighbor rules.
+            // Each cell oscillates between terrain base and a displaced target.
+            static constexpr uint32_t PULSE_TIER_COUNT = 3;
+
+            struct PulseTierProfile {
+                // ─── Temporal ────────────────────────────────────────────
+                float tick_period_mean, tick_period_sigma;
+
+                // ─── Visual transition ───────────────────────────────────
+                float spring_stiffness_mean, spring_stiffness_sigma;
+                float transition_fraction_mean, transition_fraction_sigma;
+
+                // ─── Phase scatter ───────────────────────────────────────
+                float phase_randomness_mean, phase_randomness_sigma;
+
+                // ─── Tempo scatter ───────────────────────────────────────
+                float tempo_randomness_mean, tempo_randomness_sigma;
+
+                // ─── Height ──────────────────────────────────────────────
+                float alive_height_mean, alive_height_sigma;
+
+                // ─── Wander ──────────────────────────────────────────────
+                float wander_radius_mean, wander_radius_sigma;
+
+                // ─── Per-cell variation ──────────────────────────────────
+                float spring_variance;
+
+                // ─── Selection ───────────────────────────────────────────
+                float weight;
+                bool  force_no_height;
+                uint32_t boundary_mode;
+            };
+
+            //                                                        tick_μ   σ    spring_μ σ    trans_μ  σ    phase_μ  σ    tempo_μ σ    ht_μ   σ    wand_μ  σ    sv    wt    no_h  bnd
+            static constexpr PulseTierProfile PULSE_TIERS[PULSE_TIER_COUNT] = {
+                /* 0: Breathe  */ { 2.0f, 0.5f,   4.0f, 1.0f,   0.20f, 0.05f,   0.15f, 0.05f,   0.10f, 0.03f,   2.0f, 0.8f,  10.0f, 3.0f,   0.20f,  0.45f, false, BoundaryMode::REFLECT },
+                /* 1: Sparkle  */ { 0.5f, 0.15f, 12.0f, 3.0f,   0.25f, 0.05f,   0.90f, 0.10f,   0.60f, 0.15f,   0.0f, 0.0f,   5.0f, 2.0f,   0.50f,  0.30f, true,  BoundaryMode::REFLECT },
+                /* 2: Drift    */ { 4.0f, 1.0f,   1.5f, 0.4f,   0.10f, 0.03f,   0.50f, 0.15f,   0.40f, 0.10f,   4.0f, 1.5f,  25.0f, 8.0f,   0.35f,  0.25f, false, BoundaryMode::WRAP    },
+            };
+
+            static constexpr const char* PULSE_TIER_NAMES[] = {
+                "Breathe", "Sparkle", "Drift"
+            };
+
+            // Probability of a zone being Pulse (vs Conway)
+            static constexpr float PULSE_ALGORITHM_CHANCE = 0.35f;
+
+            // ── Property Indices for Pulse-specific parameters ────────────────
+            struct PulseZoneProp {
+                static constexpr uint32_t ALGORITHM_ROLL = 950u;
+                static constexpr uint32_t PULSE_TIER = 951u;
+                static constexpr uint32_t PHASE_RANDOM = 952u;
+                static constexpr uint32_t WANDER = 953u;
+                static constexpr uint32_t TEMPO_RANDOM = 954u;
+            };
+
+            // ── Per-Instance Runtime State ────────────────────────────────────
+            // CPU retains only what's needed for: tick mask computation, life seeding,
+            // and zone slot lifecycle. All visual/spring/color parameters are GPU-derived.
+            struct GoLZoneState {
+                int32_t zone_nx = 0, zone_nz = 0;
+                bool active = false;
+                uint32_t algorithm = AlgorithmType::CONWAY;
+                float tick_period = 1.0f;        // CPU derives this for tick mask (matches GPU)
+                float initial_density = 0.3f;    // CPU needs this for life buffer seeding
+                int32_t last_tick_index = -1;
+            };
+
+            GoLZoneState golZones_[Dim::MAX_GOL_ZONES]{};
+
+            // --- Entity Presence Flags -----------------------------------------------
+            //
+            // ── MUSICAL COUPLING STATE ──  → future: musical_coupling.hpp
+
+            // ─── Polyphony-driven band motion ────────────────────────────
+            // Band activation order: fine(4) → detail(3) → local(2) → regional(1) → continental(0) → tectonic(5)
+            // First note animates fine ripples, full chord reshapes the continent.
+            static constexpr uint32_t BAND_ACTIVATION_ORDER[6] = { 4, 3, 2, 1, 0, 5 };
+            static constexpr float BAND_BLEND_ATTACK = 3.0f;   // 1/s — blend ramp up speed
+            static constexpr float BAND_BLEND_RELEASE = 2.0f;  // 1/s — blend ramp down speed
+            bool bandMotionActive_ = false;       // true when polyphony drives bands (mood 5 only)
+            float bandBlend_[6] = { -1.f, -1.f, -1.f, -1.f, -1.f, -1.f };  // per-band blend factor (-1 = activity field)
+            float bandPhaseOrigin_[6] = {};       // t_beats when band was activated
+            float bandBlendTarget_[6] = {};       // 0 or 1, driven by polyphony count
+
+            // ─── Musical animation modes (numpad toggles) ────────────────
+            // Each mode is an independently toggleable coupling circuit.
+            // When on: polyphony drives the mode's intensity through trajectory ramp.
+            // When off: intensity releases to 0 (idle).
+            //
+            // Future: each mode's source can be rewired to any analysis stat.
+            // Today: all modes read polyphony as their input signal.
+            //
+            //   Numpad 1 = terrain waves  (existing band motion — retroactively mode 0)
+            //   Numpad 2 = color shift    (smooth → discrete mode bias)
+            //   Numpad 3 = checker scatter (sparse survival threshold bias)
+            //   Numpad 4 = palette drift   (terrain color drifts toward target palette)
+            //   Numpad 5 = GoL tempo       (polyphony speeds up zones + scales height)
+            //   Numpad 6 = aura expansion (influence radius + height + tint intensity)
+
+            static constexpr uint32_t MMODE_TERRAIN_WAVES = 0;   // band motion (existing)
+            static constexpr uint32_t MMODE_COLOR_SHIFT = 1;
+            static constexpr uint32_t MMODE_CHECKER_SCATTER = 2;
+            static constexpr uint32_t MMODE_PALETTE_DRIFT = 3;
+            static constexpr uint32_t MMODE_GOL_TEMPO = 4;
+            static constexpr uint32_t MMODE_AURA_EXPAND = 5;
+            static constexpr uint32_t MMODE_COUNT = 6;   // numpad 1–6 (intensity-driven modes)
+
+            // Radial pulse mode: event-driven (no intensity trajectory).
+            // Toggle gates onset detection; existing pulses decay naturally.
+            static constexpr uint32_t MMODE_RADIAL_PULSE = 7;   // numpad 7 (separate from intensity array)
+
+            static constexpr float MMODE_ATTACK = 4.0f;    // 1/s — intensity ramp up
+            static constexpr float MMODE_RELEASE = 2.5f;   // 1/s — intensity ramp down
+
+            uint32_t mmodeMask_ = 0;              // bitfield: which modes are active
+            float mmodeIntensity_[MMODE_COUNT] = {};  // current [0,1] per mode (trajectory value)
+
+            // Palette drift: target palette index ramps smoothly to avoid color snaps
+            float paletteDriftTarget_ = 0.0f;       // current [0,3] — ramps toward desired
+            float paletteDriftDesired_ = 0.0f;      // set by polyphony mapping
+            static constexpr float PALETTE_DRIFT_TARGET_RATE = 2.0f;  // 1/s — smooth target transition
+
+            // Radial pulse ring buffer: 8 slots, circular write.
+            // Each slot: (origin_x, origin_z, onset_seconds, amplitude)
+            static constexpr uint32_t PULSE_RING_SIZE = 8;
+            static constexpr float PULSE_AMPLITUDE = 2.5f;     // world units of peak displacement
+            static constexpr float PULSE_MAX_AGE = 8.0f;       // seconds — must match WGSL
+            float pulseRing_[32] = {};              // 8 × 4 floats
+            uint32_t pulseWriteIdx_ = 0;            // next slot to write (wraps at 8)
+            float prevPolyphony_ = 0.0f;            // previous frame's polyphony (for onset detection)
+
+            bool is_mmode_on(uint32_t mode) const { return (mmodeMask_ & (1u << mode)) != 0; }
+            void toggle_mmode(uint32_t mode) {
+                mmodeMask_ ^= (1u << mode);
+                bool on = is_mmode_on(mode);
+                // Retroactive: mode 0 controls bandMotionActive_
+                if (mode == MMODE_TERRAIN_WAVES) {
+                    bandMotionActive_ = on;
+                    if (bandMotionActive_) {
+                        for (int i = 0; i < 6; i++) {
+                            bandBlend_[i] = 0.0f;
+                            bandBlendTarget_[i] = 0.0f;
+                            bandPhaseOrigin_[i] = 0.0f;
+                        }
+                        gpuState_.set_band_motion(bandBlend_, bandPhaseOrigin_);
+                        gpuState_.set_terrain_time(0.0f);
+                    }
+                    else {
+                        float inactive[6] = { -1.f, -1.f, -1.f, -1.f, -1.f, -1.f };
+                        float zeros[6] = {};
+                        gpuState_.set_band_motion(inactive, zeros);
+                        gpuState_.set_terrain_time(0.0f);
+                    }
+                }
+                // Mode 5 (aura expand): mark config dirty to push updated aura params
+                if (mode == MMODE_AURA_EXPAND) {
+                    auraCfgDirty_ = true;
+                }
+                static const char* MODE_NAMES[] = { "terrain_waves", "color_shift", "checker_scatter", "palette_drift", "gol_tempo", "aura_expand", "UNUSED", "radial_pulse" };
+                std::cout << "[MMode] " << MODE_NAMES[mode] << ": " << (on ? "ON" : "OFF") << "\n";
+            }
+
+            GPUSpotLightArray cpuSpotLights_{};  // count=0 disables (outdoor)
+            bool spotLightActive_ = false;
+
+
+            // ── SPAWN ENGINE ──  → future: spawn_engine.inl
 
             void spawn_columns_for_patch(int32_t gx, int32_t gz, wgpu::Queue& queue) {
                 // Idempotency: skip if a column already exists at this patch
@@ -1553,95 +1763,6 @@ namespace t7 {
                 return true;
             }
 
-            // ─── Generative Pyramids ─────────────────────────────────────────
-            //
-            // Three tiers: obelisk, temple, colossus. Each defined by a
-            // parameter row in the PYRAMID_TIERS matrix.
-            //
-            // Collision: pyramid height function baked into heightfield.
-            //   Pawn blocked by step-height on steep faces (no solid needed).
-            // Visual:    CPU-generated 4-face (pointed) or 5-face (truncated) mesh.
-            // Color:     sandstone (shared palette, distinct base tone).
-
-            enum class PyramidTier : uint32_t {
-                OBELISK = 0,     // tall narrow marker, pointed apex
-                TEMPLE = 1,      // medium, truncated platform top
-                COLOSSUS = 2,    // massive landmark, slight or no truncation
-                COUNT = 3
-            };
-
-            struct PyramidTierParams {
-                // ─── Base geometry ───────────────────────────────────────
-                float height_mean, height_sigma;
-                float base_half_mean, base_half_sigma;
-                float aspect_ratio_mean, aspect_ratio_sigma;
-                float truncation_mean, truncation_sigma;
-
-                // ─── Blending ────────────────────────────────────────────
-                float edge_blend_mean, edge_blend_sigma;
-
-                // ─── Appearance ──────────────────────────────────────────
-                float color_override;
-                float color_variance;
-
-                // ─── Selection ───────────────────────────────────────────
-                float weight;
-            };
-
-            //                              h_μ     σ    base_μ  σ    asp_μ  σ     trunc_μ σ     blend_μ σ     col%  var    weight
-            static constexpr PyramidTierParams PYRAMID_TIERS[] = {
-                /* OBELISK  */  {  28.0f, 6.0f,  16.0f, 3.0f,  1.0f, 0.15f,  0.00f, 0.00f,  1.5f, 0.3f,  0.10f, 0.04f,  0.50f },
-                /* TEMPLE   */  {  45.0f, 8.0f,  40.0f, 6.0f,  1.0f, 0.20f,  0.25f, 0.08f,  3.0f, 0.75f, 0.15f, 0.04f,  0.25f },
-                /* COLOSSUS */  {  78.0f, 14.4f, 60.0f, 9.6f,  1.0f, 0.10f,  0.05f, 0.04f,  3.6f, 1.0f,  0.20f, 0.04f,  0.25f },
-            };
-
-            static constexpr float PYRAMID_SANDSTONE_BASE[3] = { 0.80f, 0.72f, 0.58f };
-            static constexpr float PYRAMID_SANDSTONE_VARIANCE = 0.05f;
-
-            struct PyramidConfig {
-                // Flat spawn probability — terrain-independent (themes control variation)
-                static constexpr float SPAWN_CHANCE_BY_ARCHETYPE[4] = { 0.030f, 0.030f, 0.030f, 0.0f };
-                static constexpr float MOOD_MULTIPLIER[MOOD_COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f };
-                static constexpr float POSITION_JITTER = 0.25f;
-            };
-
-            struct PyramidProp {
-                static constexpr uint32_t SPAWN_ROLL = 800u;
-                static constexpr uint32_t POSITION_X = 801u;
-                static constexpr uint32_t POSITION_Z = 802u;
-                static constexpr uint32_t ROTATION = 803u;
-                static constexpr uint32_t TIER = 804u;
-                static constexpr uint32_t HEIGHT = 810u;
-                static constexpr uint32_t BASE_HALF = 811u;
-                static constexpr uint32_t ASPECT = 812u;
-                static constexpr uint32_t TRUNCATION = 813u;
-                static constexpr uint32_t EDGE_BLEND = 814u;
-                static constexpr uint32_t COLOR_OVER = 820u;
-                static constexpr uint32_t COLOR_VAR_R = 821u;
-                static constexpr uint32_t COLOR_VAR_G = 822u;
-                static constexpr uint32_t COLOR_VAR_B = 823u;
-            };
-
-            // ─── Active Pyramid Tracking ─────────────────────────────────────
-
-            struct ActivePyramid {
-                int32_t patch_gx = 0, patch_gz = 0;
-                bool active = false;
-                // Cached color (set at spawn, read by rebuild)
-                float col_r = 0.80f, col_g = 0.72f, col_b = 0.58f;
-
-                // Placement (computed once at spawn, immutable)
-                float cached_ground_y = 0.0f;         // absolute base Y for VS offset
-            };
-
-            ActivePyramid activePyramids_[Dim::MAX_PYRAMID_INSTANCES]{};
-            uint32_t activePyramidCount_ = 0;
-            bool pyramidMeshGenPending_ = false;  // true → dispatch GPU mesh gen
-
-            // CPU mirror of GPU pyramid instances (for heightfield baking)
-            GPUPyramidArray cpuPyramids_{};
-
-            // (generate_pyramid_mesh removed — replaced by GPU compute: pyramid_mesh_gen)
 
             // ─── Pyramid Spawning ────────────────────────────────────────────
 
@@ -2053,7 +2174,6 @@ namespace t7 {
                 return culled;
             }
 
-
             // ─── Ground Footprint Registry ───────────────────────────────────
             //
             // Prevents grounded entities (pyramids, arches, columns, galleries)
@@ -2108,7 +2228,6 @@ namespace t7 {
                     }
                 }
             }
-
 
             // ─── Spawn Utilities ─────────────────────────────────────────────
             //
@@ -2280,260 +2399,6 @@ namespace t7 {
                 }
             }
 
-            // ─── Pawn Aura System ─────────────────────────────────────────────
-            //
-            // Persistent terrain influence field centered on the pawn.
-            // Toroidal 64×64 grid of spring-driven cells that activate near
-            // the pawn and release when it moves away, leaving a decaying trail.
-            //
-            // Architecture follows the entity pattern:
-            //   PawnAuraProfile    — declarative parameter table
-            //   PawnAuraDeltaMode  — color differential strategy
-            //   GPUPawnAuraConfig  — per-frame GPU config (in state.hpp)
-            //   GPUPawnAuraCell    — per-cell state (in state.hpp)
-
-            struct PawnAuraDeltaMode {
-                static constexpr uint32_t CONVERGENT = 0;  // all cells shift toward signature tint
-                static constexpr uint32_t RANDOM = 1;  // each cell gets unique random delta
-            };
-
-            struct PawnAuraProfile {
-                float influence_radius;
-                float attack_stiffness;
-                float attack_damping;
-                float release_rate;
-                float tint_strength;
-                float tint_r, tint_g, tint_b;
-                uint32_t delta_mode;
-                float delta_magnitude;     // random mode: max offset per channel
-                uint32_t effect_mask;      // bit 0=color, bit 1=height
-                float height_scale;        // height extrusion in world units
-            };
-
-            static constexpr PawnAuraProfile PAWN_AURA_DEFAULT = {
-                20.0f,             // influence_radius
-                12.0f,             // attack_stiffness
-                0.7f,              // attack_damping
-                1.5f,              // release_rate
-                0.5f,              // tint_strength
-                0.4f, 0.2f, 0.5f, // tint RGB (purple)
-                PawnAuraDeltaMode::CONVERGENT,
-                0.3f,              // delta_magnitude (used in random mode)
-                0x3u,              // effect_mask: color tint + height
-                3.0f,              // height_scale
-            };
-
-            // Active profile — starts as default, can be swapped by landmarks/commands
-            PawnAuraProfile activeAuraProfile_ = PAWN_AURA_DEFAULT;
-            bool auraHeightEnabled_ = true;
-            bool auraEnabled_ = false;         // default off — numpad 3 toggles
-            bool auraNeedsClear_ = false;
-            bool auraCfgDirty_ = true;     // true at boot → first frame uploads full config
-
-            // Smooth raise/lower: auraPresence_ ramps 0→1 on enable, 1→0 on disable.
-            // Scales all aura parameters so terrain and pawn height change gradually.
-            float auraPresence_ = 0.0f;        // current [0,1] — trajectory value
-            static constexpr float AURA_PRESENCE_ATTACK = 1.0f;   // 1/s — ~3s to full (spring converges in ~0.5s)
-            static constexpr float AURA_PRESENCE_RELEASE = 1.5f;  // 1/s — ~2s to zero
-
-            // ─── GoL Zone System ─────────────────────────────────────────────
-            //
-            // Zone-local Game of Life. Each zone is a 32×32 automaton grid
-            // anchored to a mode lattice node (MODE_LATTICE_SPACING units).
-            // Zone detection replicates the GPU's tag_cell_behavior roll
-            // using the same deterministic seed, ensuring CPU and GPU agree.
-            //
-            // Architecture follows the Column entity pattern:
-            //   GoLZoneProp       — property index registry (seed-based rolls)
-            //   GoLZoneSpawnConfig — spawn chances and spatial constants
-            //   GoLTierProfile    — mean+sigma tier matrix (Gaussian sampling)
-            //   GoLColorMode      — color tier weights (declarative)
-            //   GoLZoneState      — per-instance runtime state
-
-            static constexpr float MODE_LATTICE_SPACING = 120.0f;
-            static constexpr float PATCH_CELL_SIZE = (float)Dim::PATCH_EXTENT / 16.0f;  // 3.125
-
-            // ── Property Index Registry (seed band 250, indices 920–939) ─────
-            struct GoLZoneProp {
-                static constexpr uint32_t SEED_BAND = 250u;
-                // Zone-level decisions
-                static constexpr uint32_t SPAWN_ROLL = 920u;
-                static constexpr uint32_t TIER = 921u;
-                static constexpr uint32_t HEIGHT_ROLL = 922u;
-                static constexpr uint32_t COLOR_ROLL = 923u;
-                // Per-zone continuous parameters (Gaussian draws)
-                static constexpr uint32_t DENSITY = 930u;
-                static constexpr uint32_t TICK_PERIOD = 931u;
-                static constexpr uint32_t SPRING = 932u;
-                static constexpr uint32_t HEIGHT = 933u;
-                static constexpr uint32_t TRANSITION = 934u;
-                // Per-zone color target
-                static constexpr uint32_t TARGET_R = 935u;
-                static constexpr uint32_t TARGET_G = 936u;
-                static constexpr uint32_t TARGET_B = 937u;
-                // Per-cell seeding
-                static constexpr uint32_t HEIGHT_FACTOR = 938u;
-            };
-
-            // ── Spawn Configuration ──────────────────────────────────────────
-            struct GoLZoneSpawnConfig {
-                static constexpr float SPAWN_CHANCE = 0.15f;  // fraction of checkerboard zones (was 0.10)
-                static constexpr float HEIGHT_CHANCE = 0.30f;  // fraction of zones that get extrusion (was 0.40)
-                static constexpr float ZONE_EXTENT = 100.0f; // 32 × 3.125 = cell-aligned
-                static constexpr float MODE_THRESHOLD = 0.50f;  // min interpolated mode for eligibility
-                // Per-cell height factor seeding (Gaussian draw per cell)
-                static constexpr float HEIGHT_FACTOR_MEAN = 1.0f;
-                static constexpr float HEIGHT_FACTOR_SIGMA = 0.15f;
-                static constexpr float HEIGHT_FACTOR_CLAMP_LO = 0.6f;
-                static constexpr float HEIGHT_FACTOR_CLAMP_HI = 1.4f;
-                // Lens target color range: color = hash * RANGE + LO
-                static constexpr float LENS_TARGET_LO = 0.2f;
-                static constexpr float LENS_TARGET_RANGE = 0.6f;
-            };
-
-            // ── Color Modes ──────────────────────────────────────────────────
-            struct GoLColorMode {
-                static constexpr uint32_t NEUTRAL = 0;  // no color change (height-only extrusion)
-                static constexpr uint32_t LENS = 1;  // shift toward per-zone target color
-                static constexpr uint32_t BLACKISH = 2;  // darken toward near-black
-                static constexpr uint32_t COUNT = 3;
-
-                // Weight matrix: color_mode selection weights
-                // Index 0 = NEUTRAL (only available if height_enabled)
-                // Index 1 = LENS
-                // Index 2 = BLACKISH
-                static constexpr float WEIGHTS_HEIGHT[COUNT] = { 0.30f, 0.40f, 0.30f };
-                static constexpr float WEIGHTS_NO_HEIGHT[COUNT] = { 0.00f, 0.55f, 0.45f };
-            };
-
-            // ── Tier Profile (mean+sigma, matches ColumnTierParams pattern) ──
-            static constexpr uint32_t GOL_TIER_COUNT = 7;
-
-            struct GoLTierProfile {
-                // ─── Initial conditions ──────────────────────────────────
-                float density_mean, density_sigma;
-
-                // ─── Temporal ────────────────────────────────────────────
-                float tick_period_mean, tick_period_sigma;
-
-                // ─── Visual transition ───────────────────────────────────
-                float spring_stiffness_mean, spring_stiffness_sigma;
-                float transition_fraction_mean, transition_fraction_sigma;
-
-                // ─── Height ──────────────────────────────────────────────
-                float alive_height_mean, alive_height_sigma;
-
-                // ─── Per-cell variation ──────────────────────────────────
-                float spring_variance;     // [0,1] per-cell spring speed scatter
-
-                // ─── Selection ───────────────────────────────────────────
-                float weight;
-                bool  force_no_height;
-            };
-
-            //                                                    dens_μ   σ    tick_μ  σ    spring_μ σ    trans_μ  σ     ht_μ    σ    sv    wt    no_h
-            static constexpr GoLTierProfile GOL_TIERS[GOL_TIER_COUNT] = {
-                /* 0: Pillars  */ { 0.30f, 0.05f,   8.0f, 2.0f,   0.5f, 0.1f,   0.05f, 0.01f,  30.0f, 9.0f,  0.30f,  0.10f, false },
-                /* 1: Sparse   */ { 0.15f, 0.05f,   2.0f, 0.5f,   4.0f, 1.0f,   0.12f, 0.03f,  18.0f, 6.0f,  0.20f,  0.20f, false },
-                /* 2: Moderate */ { 0.30f, 0.08f,   1.0f, 0.3f,   8.0f, 2.0f,   0.15f, 0.03f,   9.0f, 3.0f,  0.15f,  0.18f, false },
-                /* 3: Dense    */ { 0.45f, 0.10f,   0.5f, 0.15f, 12.0f, 3.0f,   0.25f, 0.05f,   6.0f, 1.5f,  0.10f,  0.10f, false },
-                /* 4: Flash    */ { 0.35f, 0.10f,  0.25f, 0.05f, 20.0f, 5.0f,   0.30f, 0.05f,   0.0f, 0.0f,  0.40f,  0.17f, true  },
-                /* 5: Monolith */ { 0.20f, 0.03f,  12.0f, 3.0f,   0.3f, 0.05f,  0.03f, 0.01f,  42.0f, 12.f,  0.05f,  0.12f, false },
-                /* 6: Glacier  */ { 0.12f, 0.03f,   4.0f, 1.0f,   2.0f, 0.5f,   0.08f, 0.02f,  24.0f, 7.5f,  0.25f,  0.13f, false },
-            };
-
-            static constexpr const char* GOL_TIER_NAMES[] = {
-                "Pillars", "Sparse", "Moderate", "Dense",
-                "Flash", "Monolith", "Glacier"
-            };
-
-            static constexpr const char* GOL_COLOR_NAMES[] = {
-                "neutral", "lens", "blackish"
-            };
-
-            // ── Algorithm Types ───────────────────────────────────────────────
-            struct AlgorithmType {
-                static constexpr uint32_t CONWAY = 0;
-                static constexpr uint32_t PULSE = 1;
-            };
-
-            // ── Boundary Modes ────────────────────────────────────────────────
-            struct BoundaryMode {
-                static constexpr uint32_t REFLECT = 0;
-                static constexpr uint32_t WRAP = 1;
-            };
-
-            // ── Pulse Tier Profile ────────────────────────────────────────────
-            //
-            // Pulse zones: periodic breathing of cell color/height, no neighbor rules.
-            // Each cell oscillates between terrain base and a displaced target.
-            static constexpr uint32_t PULSE_TIER_COUNT = 3;
-
-            struct PulseTierProfile {
-                // ─── Temporal ────────────────────────────────────────────
-                float tick_period_mean, tick_period_sigma;
-
-                // ─── Visual transition ───────────────────────────────────
-                float spring_stiffness_mean, spring_stiffness_sigma;
-                float transition_fraction_mean, transition_fraction_sigma;
-
-                // ─── Phase scatter ───────────────────────────────────────
-                float phase_randomness_mean, phase_randomness_sigma;
-
-                // ─── Tempo scatter ───────────────────────────────────────
-                float tempo_randomness_mean, tempo_randomness_sigma;
-
-                // ─── Height ──────────────────────────────────────────────
-                float alive_height_mean, alive_height_sigma;
-
-                // ─── Wander ──────────────────────────────────────────────
-                float wander_radius_mean, wander_radius_sigma;
-
-                // ─── Per-cell variation ──────────────────────────────────
-                float spring_variance;
-
-                // ─── Selection ───────────────────────────────────────────
-                float weight;
-                bool  force_no_height;
-                uint32_t boundary_mode;
-            };
-
-            //                                                        tick_μ   σ    spring_μ σ    trans_μ  σ    phase_μ  σ    tempo_μ σ    ht_μ   σ    wand_μ  σ    sv    wt    no_h  bnd
-            static constexpr PulseTierProfile PULSE_TIERS[PULSE_TIER_COUNT] = {
-                /* 0: Breathe  */ { 2.0f, 0.5f,   4.0f, 1.0f,   0.20f, 0.05f,   0.15f, 0.05f,   0.10f, 0.03f,   2.0f, 0.8f,  10.0f, 3.0f,   0.20f,  0.45f, false, BoundaryMode::REFLECT },
-                /* 1: Sparkle  */ { 0.5f, 0.15f, 12.0f, 3.0f,   0.25f, 0.05f,   0.90f, 0.10f,   0.60f, 0.15f,   0.0f, 0.0f,   5.0f, 2.0f,   0.50f,  0.30f, true,  BoundaryMode::REFLECT },
-                /* 2: Drift    */ { 4.0f, 1.0f,   1.5f, 0.4f,   0.10f, 0.03f,   0.50f, 0.15f,   0.40f, 0.10f,   4.0f, 1.5f,  25.0f, 8.0f,   0.35f,  0.25f, false, BoundaryMode::WRAP    },
-            };
-
-            static constexpr const char* PULSE_TIER_NAMES[] = {
-                "Breathe", "Sparkle", "Drift"
-            };
-
-            // Probability of a zone being Pulse (vs Conway)
-            static constexpr float PULSE_ALGORITHM_CHANCE = 0.35f;
-
-            // ── Property Indices for Pulse-specific parameters ────────────────
-            struct PulseZoneProp {
-                static constexpr uint32_t ALGORITHM_ROLL = 950u;
-                static constexpr uint32_t PULSE_TIER = 951u;
-                static constexpr uint32_t PHASE_RANDOM = 952u;
-                static constexpr uint32_t WANDER = 953u;
-                static constexpr uint32_t TEMPO_RANDOM = 954u;
-            };
-
-            // ── Per-Instance Runtime State ────────────────────────────────────
-            // CPU retains only what's needed for: tick mask computation, life seeding,
-            // and zone slot lifecycle. All visual/spring/color parameters are GPU-derived.
-            struct GoLZoneState {
-                int32_t zone_nx = 0, zone_nz = 0;
-                bool active = false;
-                uint32_t algorithm = AlgorithmType::CONWAY;
-                float tick_period = 1.0f;        // CPU derives this for tick mask (matches GPU)
-                float initial_density = 0.3f;    // CPU needs this for life buffer seeding
-                int32_t last_tick_index = -1;
-            };
-
-            GoLZoneState golZones_[Dim::MAX_GOL_ZONES]{};
             uint32_t golZoneCount_ = 0;
 
             // Derive request queue: accumulated during patch gen, flushed once per frame.
@@ -3416,14 +3281,7 @@ namespace t7 {
                 uint32_t target_layer = 0;
             } pendingSnapshot_;
 
-            static uint32_t ribbon_cell_seed(uint32_t master_seed, int32_t cx, int32_t cz) {
-                uint32_t h = master_seed ^ 0xDEAD;
-                h ^= (uint32_t)cx * 73856093u;
-                h ^= (uint32_t)cz * 19349663u;
-                h = (h ^ (h >> 16)) * 2654435769u;
-                h = (h ^ (h >> 16)) * 2654435769u;
-                return h;
-            }
+
 
             // CPU mirror of WGSL ribbon_spine_at — evaluate one ring's world position.
             static void ribbon_spine_at_cpu(const GPURibbonState& r, float time, uint32_t ring_idx, float out[3]) {
@@ -3682,6 +3540,7 @@ namespace t7 {
             }
 
 
+            // ── GALLERY SYSTEM ──  → future: gallery.inl
 
             // ─── Slot Management ─────────────────────────────────────────────
 
@@ -4309,2933 +4168,170 @@ namespace t7 {
                 encoder.CopyTextureToTexture(&src, &dst, &extent);
             }
 
-            uint32_t activeSeed_ = 42;     // world master seed (mutable for world transitions)
-            // Patch dimensions aliased from Dim:: for local readability
-            static constexpr float    PATCH_EXTENT = Dim::PATCH_EXTENT;
-            static constexpr uint32_t GRID_RADIUS = Dim::PATCH_GRID_RADIUS;   // inner priority (3 → 7×7)
-            static constexpr uint32_t GRID_SIDE = Dim::PATCH_GRID_SIDE;
-            static constexpr uint32_t RENDER_RADIUS = Dim::PATCH_RENDER_RADIUS;  // visible radius (5)
-            static constexpr uint32_t RENDER_SIDE = Dim::PATCH_RENDER_SIDE;
-            static constexpr uint32_t PREGEN_RADIUS = Dim::PATCH_PREGEN_RADIUS; // deep pre-gen buffer (7)
-            static constexpr uint32_t MAX_PATCHES = Dim::MAX_ACTIVE_PATCHES;    // 225
+            // ── MOOD SYSTEM ──  → future: mood.inl
 
-            // Runtime render radius — toggleable within [GRID_RADIUS, RENDER_RADIUS].
-            // Buffers/textures always allocated for PREGEN_RADIUS.
-            // Visibility uses circular VISIBLE_RADIUS; RENDER_RADIUS retained for
-            // allocation bounds and GoL zone eviction.
-            uint32_t activeRadius_ = PREGEN_RADIUS;
+            // --- World Transition State Machine ---
+            enum class TransitionPhase { IDLE, FADE_OUT, TEARDOWN, FADE_IN };
+            TransitionPhase transitionPhase_ = TransitionPhase::IDLE;
+            float transitionTimer_ = 0.0f;
+            float transitionFadeDuration_ = 0.5f;   // seconds per fade direction
+            float transitionFadeAlpha_ = 0.0f;
 
-            struct ActivePatch {
-                int32_t grid_x = 0;
-                int32_t grid_z = 0;
-                uint32_t layer = 0;
-                bool valid = false;
-                bool spawned = false;    // true once entities have been spawned for this patch
-                bool generated = false;  // true once heightfield has been dispatched
-                bool animated = false;   // true if patch overlaps an active pool
-                bool pending_regen = false;  // true while waiting for regen (keeps rendering old data)
+            // Portal destination — describes the world a door leads to.
+            // Also used as the pending transition target (keys + portal crossings).
+            struct PortalDestination {
+                uint32_t seed = 0;
+                bool finite = false;
+                uint32_t finite_radius = 2;
+                uint32_t mood = 0;               // 0=open, 1=finite (expandable)
+            };
+            PortalDestination pendingDestination_{};
+
+            // --- Finite patch mode ---
+            bool finiteMode_ = false;
+            uint32_t finiteRadius_ = 2;              // 2 → 5×5 = 25 patches
+
+            // --- Portal detection ---
+            static constexpr float PORTAL_DENSITY = 1.00f;  // fraction of Doorway arches that become portals (was 0.25)
+            static constexpr float PORTAL_TRIGGER_RADIUS = 10.5f;  // world units from arch center (3× scale)
+
+            // Portal color by mood (indexed by destination.mood)
+            static constexpr float PORTAL_COLORS[6][3] = {
+                { 0.90f, 0.45f, 0.70f },  // mood 0  open_default    — pink
+                { 0.72f, 0.45f, 0.85f },  // mood 1  open_sunset     — lilac
+                { 0.95f, 0.55f, 0.15f },  // mood 2  indoor_flat     — orange
+                { 0.95f, 0.80f, 0.20f },  // mood 3  indoor_vault    — yellow
+                { 0.85f, 0.20f, 0.15f },  // mood 4  finite_outdoor  — red
+                { 0.70f, 0.15f, 0.12f },  // mood 5  finite_outdoor_ref — dark red
+            };
+            static constexpr float PORTAL_COLOR_BACK[3] = { 0.35f, 0.55f, 0.90f };  // back-portal — blue
+
+            // ─── Mood System ─────────────────────────────────────────────
+            //
+            // Each mood defines an atmosphere: sun direction/color, fog,
+            // finite vs. open, patch radius. Portals pick a mood for
+            // their destination; the mood is applied during teardown.
+            //
+            // Moods 0-1: infinite outdoor.  Moods 2-3: finite indoor.  Mood 4: finite outdoor.  Mood 5: finite outdoor (reference clone).
+
+            enum class CeilingType : uint32_t {
+                NONE = 0,   // outdoor — no shell geometry
+                FLAT = 1,   // flat slab ceiling
+                VAULT = 2,   // catenary vault ceiling
             };
 
-            ActivePatch patches_[MAX_PATCHES]{};
-            int32_t lastCenterX_ = INT32_MAX;  // force full regeneration on first frame
-            int32_t lastCenterZ_ = INT32_MAX;
-            uint32_t activePatchCount_ = 0;
-            uint32_t renderPatchCount_ = 0;  // visible patches (within circular VISIBLE_RADIUS)
-            uint32_t lod0PatchCount_ = 0;    // subset of rendered: within LOD_FULL_RADIUS (full mesh)
-            uint32_t allPatchCount_ = 0;     // all generated patches (including pre-gen ring)
-            uint32_t entitiesCulled_ = 0;    // entities hidden by distance culling this frame
-
-            // ─── Deferred Upload Flags ───────────────────────────────────
-            bool pierCountDirty_ = false;        // defer recompute_and_upload_pier_count
-            bool groundEntriesDirty_ = true;     // defer upload_ground_entries (true at boot)
-            bool patchInstancesDirty_ = true;    // defer LOD sort + upload_patch_instances
-            bool placementDirty_ = true;         // defer dispatch_placement_correction
-
-            // Free-list of available texture layers
-            uint32_t freeLayerStack_[MAX_PATCHES]{};
-            uint32_t freeLayerCount_ = MAX_PATCHES;
-
-            // ─── Dynamic Budgets ─────────────────────────────────────────
-            //
-            // Entity spawning and heightfield generation are both distance-
-            // driven and budgeted per frame. Spawning must complete before
-            // generation (piers affect heightfields), enforced by requiring
-            // spawned == true before a patch enters the generation scan.
-            static constexpr uint32_t SPAWN_BUDGET_PER_FRAME = 4;    // max patches to spawn entities for
-            static constexpr uint32_t ALLOC_BUDGET_PER_FRAME = 4;    // max patches to allocate per frame
-            static constexpr uint32_t EVICT_BUDGET_PER_FRAME = 4;    // max patches to evict per frame
-            static constexpr uint32_t PATCH_BUDGET_MIN = 1;
-            static constexpr uint32_t PATCH_BUDGET_MAX = 6;
-            static constexpr uint32_t PATCH_PENDING_TIER_1 = 3;
-            static constexpr uint32_t PATCH_PENDING_TIER_2 = 8;
-            static constexpr uint32_t PATCH_PENDING_TIER_3 = 20;
-            static constexpr uint32_t PATCH_PENDING_TIER_4 = 40;
-            static constexpr uint32_t PATCH_BUDGET_MOVE_THRESHOLD = 4;
-
-            uint32_t count_pending_patches() const {
-                uint32_t n = 0;
-                for (uint32_t i = 0; i < activePatchCount_; i++) {
-                    if (!patches_[i].valid) continue;
-                    if (patches_[i].pending_regen) { n++; continue; }
-                    if (patches_[i].spawned && !patches_[i].generated) n++;
-                }
-                return n;
-            }
-
-            uint32_t patches_budget_this_frame() const {
-                uint32_t pending = count_pending_patches();
-                uint32_t budget = PATCH_BUDGET_MIN;
-                if (pending >= PATCH_PENDING_TIER_4) budget = 6;
-                else if (pending >= PATCH_PENDING_TIER_3) budget = 4;
-                else if (pending >= PATCH_PENDING_TIER_2) budget = 3;
-                else if (pending >= PATCH_PENDING_TIER_1) budget = 2;
-
-                bool moving = (std::abs(inputState_.move_x) > 0.01f ||
-                    std::abs(inputState_.move_z) > 0.01f);
-                if (moving && pending > PATCH_BUDGET_MOVE_THRESHOLD)
-                    budget += 1;
-
-                return std::min(budget, PATCH_BUDGET_MAX);
-            }
-
-            // --- Tile World System ---------------------------------------------------
-            //
-            // Each patch is a tile with an archetype that configures its terrain
-            // character. Archetypes are rolled based on the spatial cache of
-            // neighboring tiles, creating coherent regions with variety.
-
-            // Hashing utilities (mirror GPU hash functions for determinism)
-            static uint32_t cpu_hash(uint32_t seed, uint32_t property) {
-                uint32_t h = seed * 747796405u + property * 2891336453u + 1u;
-                h = ((h >> 16) ^ h) * 2654435769u;
-                h = ((h >> 16) ^ h) * 2654435769u;
-                h = (h >> 16) ^ h;
-                return h;
-            }
-
-            static float cpu_hash_f(uint32_t seed, uint32_t property) {
-                return (float)cpu_hash(seed, property) / (float)0xFFFFFFFFu;
-            }
-
-            static uint32_t tile_seed(uint32_t master_seed, int32_t gx, int32_t gz) {
-                uint32_t h = master_seed;
-                h ^= (uint32_t)gx * 73856093u;
-                h ^= (uint32_t)gz * 19349663u;
-                h = (h ^ (h >> 16)) * 2654435769u;
-                h = (h ^ (h >> 16)) * 2654435769u;
-                return h;
-            }
-
-            // Derive finite world radius from seed within mood-defined bounds.
-            static uint32_t derive_finite_radius(uint32_t seed, const MoodProfile& mood) {
-                if (mood.finite_radius_min >= mood.finite_radius_max) return mood.finite_radius_min;
-                uint32_t range = mood.finite_radius_max - mood.finite_radius_min + 1;
-                return mood.finite_radius_min + cpu_hash(seed, 77u) % range;
-            }
-
-            // Biased mood selection for portal destinations.
-            // In finite mode: 55% indoor (moods 2-3), 25% infinite outdoor (moods 0-1), 20% finite outdoor (moods 4-5).
-            // In open mode: uniform across all moods.
-            uint32_t pick_portal_mood(uint32_t seed, uint32_t prop) const {
-                float roll = cpu_hash_f(seed, prop);
-                if (finiteMode_) {
-                    // 0.00–0.125: mood 0 (open_default)
-                    // 0.125–0.25: mood 1 (open_sunset)
-                    // 0.25–0.525: mood 2 (indoor_flat)
-                    // 0.525–0.80: mood 3 (indoor_vault)
-                    // 0.80–0.90:  mood 4 (finite_outdoor)
-                    // 0.90–1.00:  mood 5 (finite_outdoor_ref)
-                    if (roll < 0.125f) return 0;
-                    if (roll < 0.25f)  return 1;
-                    if (roll < 0.525f) return 2;
-                    if (roll < 0.80f)  return 3;
-                    if (roll < 0.90f)  return 4;
-                    return 5;
-                }
-                return cpu_hash(seed, prop) % MOOD_COUNT;
-            }
-
-            // CPU mirror of WGSL lattice_node_seed (must produce identical results)
-            static uint32_t cpu_lattice_node_seed(uint32_t master_seed, int32_t nx, int32_t nz, uint32_t band) {
-                uint32_t h = master_seed;
-                h ^= (uint32_t)nx * 73856093u;
-                h ^= (uint32_t)nz * 19349663u;
-                h ^= band * 83492791u;
-                h = (h ^ (h >> 16)) * 2654435769u;
-                h = (h ^ (h >> 16)) * 2654435769u;
-                return h;
-            }
-
-            // --- Three Archetypes ---------------------------------------------------
-            //
-            //  0: Mountainous — high amplitude, elevated, sparse fine detail
-            //  1: Varied      — moderate amplitude, wide range, balanced
-            //  2: Basin       — low amplitude, depressed, rich fine detail
-            //  3: Pool        — near-flat terrain, degenerate wave shape
-
-            static constexpr uint32_t ARCHETYPE_COUNT = 4;
-
-            struct ArchetypeProfile {
-                // ─── Terrain modifiers ───────────────────────────────
-                float amp_scale;           // height field amplitude multiplier
-                float height_bias;         // vertical offset (positive = elevated)
-                float activation_scale;    // activity field sensitivity
-
-                // ─── Selection ───────────────────────────────────────
-                float base_weight;         // prior probability (before neighbor influence)
-
-                // ─── Per-tile jitter ─────────────────────────────────
-                float amp_jitter_range;    // amp_scale *= 1 ± jitter/2
-                float bias_jitter_range;   // height_bias += uniform(-jitter/2, +jitter/2)
-            };
-
-            //                                     amp   bias   act   weight  amp_jit  bias_jit
-            static constexpr ArchetypeProfile ARCHETYPES[ARCHETYPE_COUNT] = {
-                /* 0: mountainous */  {  2.0f,   4.0f,  0.7f,  1.8f,   0.3f,    1.0f  },
-                /* 1: varied      */  {  1.0f,   0.0f,  1.0f,  1.3f,   0.3f,    1.0f  },
-                /* 2: basin       */  {  0.5f,  -2.0f,  1.3f,  1.0f,   0.3f,    1.0f  },
-                /* 3: pool        */  {  0.04f, -0.5f,  0.2f,  0.0f,   0.02f,   0.2f  },
-            };
-
-            // Neighbor coherence rules for archetype selection.
-            // These control how the presence of neighboring archetypes
-            // biases the selection for a new tile.
-            struct ArchetypeSelectionRules {
-                // Neighbor count thresholds and corresponding weight multipliers.
-                // Applied in order: first matching threshold wins.
-                static constexpr uint32_t DOMINANT_THRESHOLD = 4;    // >= this many → suppress
-                static constexpr float    DOMINANT_MULTIPLIER = 0.2f; // strongly reduced
-                static constexpr uint32_t COMMON_THRESHOLD = 2;    // >= this many → mild boost
-                static constexpr float    COMMON_MULTIPLIER = 1.5f;
-                static constexpr uint32_t PRESENT_THRESHOLD = 1;    // == this many → strong coherence
-                static constexpr float    PRESENT_MULTIPLIER = 2.0f;
-                // 0 neighbors: weight stays at base_weight (no modification)
-            };
-
-            // ── Entity Density Field ─────────────────────────────────────────
-            //
-            // Coarse spatial noise that creates dense and sparse regions.
-            // Evaluated per-tile in generate_tile_state, stored on TileState.
-            // All entity spawn gates multiply by this value.
-            //
-            //  ┌──────────────────────────────────┬───────────┬──────────────────────────────────────┐
-            //  │ Constant                         │ Value     │ Effect                                │
-            //  ├──────────────────────────────────┼───────────┼──────────────────────────────────────┤
-            //  │ DENSITY_LATTICE_SPACING          │ 250 wu    │ Region size (~5 patches)              │
-            //  │ DENSITY_SEED_BAND                │ 160       │ Decorrelated from terrain/color       │
-            //  │ DENSITY_EXPONENT                 │ 0.6       │ <1 = skew toward dense, >1 = sparse  │
-            //  │ DENSITY_MIN                      │ 0.1       │ Floor (never fully empty)             │
-            //  │ DENSITY_MAX                      │ 3.0       │ Ceiling (3× base spawn rates)         │
-            //  └──────────────────────────────────┴───────────┴──────────────────────────────────────┘
-
-            static constexpr float DENSITY_LATTICE_SPACING = 250.0f;
-            static constexpr uint32_t DENSITY_SEED_BAND = 160u;
-            static constexpr float DENSITY_EXPONENT = 0.6f;
-            static constexpr float DENSITY_MIN = 1.0f;
-            static constexpr float DENSITY_MAX = 1.0f;
-
-            // Entity families for observation indexing
-            struct PopFamily {
-                static constexpr uint32_t PYRAMID = 0;
-                static constexpr uint32_t ARCH = 1;
-                static constexpr uint32_t COLUMN = 2;
-                static constexpr uint32_t COUNT = 3;
-            };
-
-            // ─── Population Themes ───────────────────────────────────────────
-            //
-            // A theme is the compositional intent for a region. Like a palette
-            // slot sets color character, a theme sets entity character: what
-            // spawns, at what scale, how densely, and how it arranges itself.
-            //
-            // A stochastic lattice at THEME_LATTICE_SPACING picks which theme
-            // dominates at each point. Spawn weights blend smoothly across
-            // boundaries. Tier bias comes from the dominant theme (no blending).
-            //
-            // The transition theme is the default — most of the world. Sparse
-            // pyramids, small antennas, column clusters, occasional arch.
-            // Interesting themes are the exceptions that emerge from the field.
-            //
-            //  ┌──────────────────────────────────────────────────────────────────────────────────────────┐
-            //  │ THEME CONTROL SURFACE                                                                   │
-            //  ├──────────────────────┬──────────────────────┬────────────────────────────────────────────┤
-            //  │ Theme                │ Weight  Density      │ Character                                  │
-            //  ├──────────────────────┼──────────────────────┼────────────────────────────────────────────┤
-            //  │ 0: Transition        │  0.40   ×1.0         │ Sparse, quiet connective tissue            │
-            //  │ 1: Monumental        │  0.12   ×0.7         │ Big pyramids, monumental arches, imposing  │
-            //  │ 2: Colonnade         │  0.18   ×1.5         │ Dense columns, doorway arcades, no pyramid │
-            //  │ 3: Antenna path      │  0.15   ×1.2         │ Antenna corridor, colossal sentinels       │
-            //  │ 4: Barren            │  0.15   ×0.3         │ Near-empty, occasional obelisk             │
-            //  └──────────────────────┴──────────────────────┴────────────────────────────────────────────┘
-
-            static constexpr float THEME_LATTICE_SPACING = 500.0f;
-            static constexpr uint32_t THEME_SEED_BAND = 170u;
-            static constexpr uint32_t THEME_COUNT = 5;
-            static constexpr float THEME_BASE_WEIGHT = 10.0f;
-
-            struct FormationRule {
-                float formation_chance;        // [0,1] probability of attempting
-                float distance_mean;           // world units: spacing from sibling
-                float distance_sigma;          // jitter on spacing
-                float lateral_angle;           // radians: 0=inline, π/2=perpendicular
-                float lateral_angle_sigma;     // angular spread
-                uint32_t rotation_mode;        // 0=inherit, 1=follow line, 2=independent
-                float rotation_drift_sigma;    // per-step rotation jitter
-                float max_sibling_distance;    // ignore siblings farther than this
-            };
-
-            struct RotationMode {
-                static constexpr uint32_t INHERIT = 0;
-                static constexpr uint32_t FOLLOW_LINE = 1;
-                static constexpr uint32_t INDEPENDENT = 2;
-            };
-
-            // ── Theme Envelope ──────────────────────────────────────────────
-            //
-            // Single active theme at a time. When selected, its weight spikes
-            // and decays over a patch count. Cooldown prevents immediate
-            // repetition after expiry.
-
-            struct ThemeEnvelope {
-                int32_t  active = -1;              // theme index, or -1 (no bias)
-                uint32_t elapsed = 0;               // patches since this theme fired
-                uint32_t cooldowns[THEME_COUNT]{};  // per-theme remaining cooldown
-            };
-
-            // ── Formation Tip ───────────────────────────────────────────────
-            //
-            // One per family. The last placed entity's position + rotation.
-            // The next entity of that family (or one anchored to it) steps
-            // from this tip. Replaces the ring buffer + nearest-sibling search.
-
-            struct FormationTip {
-                float x = 0.0f;
-                float z = 0.0f;
-                float rotation = 0.0f;
-                bool  valid = false;
-            };
-
-            // ── Per-Anchor Formation Slot ───────────────────────────────────
-            //
-            // Each family can have different formation parameters depending on
-            // which family it anchors to. Slots keyed by anchor family index.
-            // -1 = self (same family). Only slots with ch > 0 are active.
-
-            struct FormationSlot {
-                float    ch = 0.0f;        // probability of attempting formation
-                float    di = 0.0f;        // step distance mean (world units)
-                float    ds = 0.0f;        // step distance sigma
-                float    an = 0.0f;        // angle relative to tip rotation (radians)
-                float    as = 0.0f;        // angle sigma
-                uint32_t rm = RotationMode::INDEPENDENT;  // rotation mode
-                float    dr = 0.0f;        // rotation drift sigma
-            };
-
-            // Maximum anchor slots per family (Self, Pyramid, Arch, Column = 4)
-            static constexpr uint32_t MAX_FORMATION_ANCHORS = 4;
-
-            struct FormationConfig {
-                int32_t        anchor = -1;  // currently active anchor (-1=self, 0=pyr, 1=arch, 2=col)
-                FormationSlot  slots[MAX_FORMATION_ANCHORS]{};  // indexed by anchor+1 (0=self, 1=pyr, 2=arch, 3=col)
-                const FormationSlot* active_slot() const {
-                    uint32_t idx = (uint32_t)(anchor + 1);
-                    if (idx >= MAX_FORMATION_ANCHORS) return nullptr;
-                    return (slots[idx].ch > 0.0f) ? &slots[idx] : nullptr;
-                }
-            };
-
-            struct PopulationTheme {
-                float spawn_weight[PopFamily::COUNT];          // multiplier on base spawn chance per family
-                float tier_wt_pyramid[3];                      // multiplier on pyramid tier base weights
-                float tier_wt_arch[3];                         // multiplier on arch tier base weights
-                float tier_wt_column[6];                       // multiplier on column tier base weights
-                float density_mult;                            // multiplier on entity_density
-
-                // Envelope parameters (replace lattice weight for theme selection)
-                float    spike;
-                uint32_t sustain;       // patches at full spike
-                uint32_t decay;         // patches for linear decay to base
-                uint32_t cooldown;      // patches before re-eligible after expiry
-
-                // Per-anchor formation (replaces single FormationRule per family)
-                FormationConfig formation[PopFamily::COUNT];
-
-                // Lattice weight (dormant — kept for backward compat)
-                float weight;
-            };
-
-            //  ┌──────────────────────────────────────────────────────────────────────────────┐
-            //  │ THEME PROFILES — Envelope-selected, differential tip formation                │
-            //  ├──────────────────┬────────┬────────┬────────┬─────────┬─────────────────────────┤
-            //  │ Theme            │ Pyr sp │ Arch sp│ Col sp │ Density │ Envelope                │
-            //  ├──────────────────┼────────┼────────┼────────┼─────────┼─────────────────────────┤
-            //  │ 0 Transition     │  0.4   │  0.3   │  0.7   │  ×1.0   │ 150/20/3/0             │
-            //  │ 1 Monumental     │  1.5   │  1.0   │  1.0   │  ×1.0   │ 150/10/10/8            │
-            //  │ 2 Colonnade      │  0.3   │  1.0   │  4.0   │  ×1.0   │ 150/15/6/6             │
-            //  │ 3 Antenna        │  0.5   │  0.5   │  4.0   │  ×1.0   │ 180/10/5/5             │
-            //  │ 4 Barren         │  0.4   │  0.3   │  0.5   │  ×1.0   │ 100/12/3/4             │
-            //  └──────────────────┴────────┴────────┴────────┴─────────┴─────────────────────────┘
-            //
-            //  Formation slots: { ch, di, ds, an, as, rm, dr }
-            //  FormationConfig: { anchor, { slot[Self], slot[Pyr], slot[Arch], slot[Col] } }
-            //  Active slot = slots[anchor+1] when ch > 0
-
-            static constexpr PopulationTheme THEMES[THEME_COUNT] = {
-                // ── 0: TRANSITION — sparse connective tissue, no formation ───
-                {   { 0.4f, 0.3f, 0.7f },                                       // spawn_weight
-                    { 1.0f, 1.0f, 1.0f },                                       // tier_pyr
-                    { 1.0f, 0.3f, 1.0f },                                       // tier_arch
-                    { 0.1f, 0.2f, 0.3f, 0.1f, 2.0f, 0.7f },                    // tier_col
-                    1.0f,                                                         // density
-                    150.0f, 20u, 3u, 0u,                                          // spike, sustain, decay, cooldown
-                    {   { -1, {} },                                               // pyramid: no formation
-                        { -1, {} },                                               // arch: no formation
-                        { -1, {} },                                               // column: no formation
-                    },
-                    0.21f                                                         // weight (dormant)
-                },
-                // ── 1: MONUMENTAL — big pyramids, arches anchor to pyramids, columns flank arches
-                {   { 1.5f, 1.0f, 1.0f },
-                    { 0.2f, 0.5f, 3.0f },
-                    { 2.0f, 0.1f, 3.0f },
-                    { 0.01f, 0.01f, 1.0f, 0.5f, 1.5f, 0.5f },
-                    1.0f,
-                    150.0f, 10u, 10u, 8u,
-                    {   { -1, {} },                                               // pyramid: no formation
-                        {  0, { {}, { 0.60f, 80.0f, 15.0f, 0.0f, 0.25f, 0, 0.15f }, {}, {} } },  // arch→pyramid
-                        {  1, { {}, {}, { 0.40f, 25.0f, 5.0f, 1.571f, 0.30f, 0, 0.05f }, {} } },  // column→arch
-                    },
-                    0.30f
-                },
-                // ── 2: COLONNADE — arch chains self, columns chain to columns ─
-                {   { 0.3f, 1.0f, 4.0f },
-                    { 1.0f, 1.0f, 1.0f },
-                    { 3.0f, 0.5f, 1.0f },
-                    { 0.3f, 3.0f, 5.0f, 0.2f, 0.1f, 0.1f },
-                    1.0f,
-                    150.0f, 15u, 6u, 6u,
-                    {   { -1, {} },                                               // pyramid: no formation
-                        { -1, { { 0.94f, 150.0f, 50.0f, 1.57f, 0.10f, 0, 0.10f }, {}, {}, {} } },  // arch→self
-                        {  2, { {}, {}, { 0.0f, 100.0f, 3.0f, 1.571f, 0.15f, 0, 0.05f },           // column: inactive arch slot
-                                        { 0.98f, 100.0f, 0.0f, 2.094f, 0.10f, 0, 0.0f } } },       // column→column (active)
-                    },
-                    0.31f
-                },
-                // ── 3: ANTENNA — inline column corridor ──────────────────────
-                {   { 0.5f, 0.5f, 4.0f },
-                    { 1.0f, 0.05f, 2.0f },
-                    { 1.0f, 0.2f, 0.8f },
-                    { 0.1f, 0.3f, 0.3f, 0.5f, 3.5f, 1.0f },
-                    1.0f,
-                    180.0f, 10u, 5u, 5u,
-                    {   { -1, {} },                                               // pyramid: no formation
-                        { -1, {} },                                               // arch: no formation
-                        { -1, { { 0.95f, 80.0f, 5.0f, 0.0f, 0.20f, 1, 0.10f }, {}, {}, {} } },  // column→self (follow)
-                    },
-                    0.18f
-                },
-                // ── 4: BARREN — near-empty, no formations ────────────────────
-                {   { 0.4f, 0.3f, 0.5f },
-                    { 2.0f, 0.5f, 0.2f },
-                    { 1.0f, 1.0f, 1.0f },
-                    { 0.2f, 0.5f, 0.5f, 1.0f, 1.0f, 1.0f },
-                    1.0f,
-                    100.0f, 12u, 3u, 4u,
-                    {   { -1, {} },
-                        { -1, {} },
-                        { -1, {} },
-                    },
-                    0.04f
-                },
-            };
-
-            // Select a theme at a lattice node from cumulative weights
-            static uint32_t select_theme_at_node(uint32_t node_seed) {
-                float roll = cpu_hash_f(node_seed, 370u);
-                float cumul = 0.0f;
-                float total = 0.0f;
-                for (uint32_t t = 0; t < THEME_COUNT; t++) total += THEMES[t].weight;
-                for (uint32_t t = 0; t < THEME_COUNT; t++) {
-                    cumul += THEMES[t].weight / total;
-                    if (roll < cumul) return t;
-                }
-                return THEME_COUNT - 1;
-            }
-
-            // ── Theme Envelope — sequential theme selection ──────────────────
-            //
-            // Replaces the lattice-based theme blend for spawn decisions.
-            // One theme is active at a time. Its weight spikes and decays
-            // over a patch count. Cooldown prevents immediate repetition.
-
-            static float theme_envelope_weight(const PopulationTheme& theme, uint32_t elapsed) {
-                if (elapsed < theme.sustain) return theme.spike;
-                if (elapsed < theme.sustain + theme.decay) {
-                    float t = (float)(elapsed - theme.sustain) / (float)theme.decay;
-                    return theme.spike + (THEME_BASE_WEIGHT - theme.spike) * t;
-                }
-                return THEME_BASE_WEIGHT;
-            }
-
-            // Called ONCE per patch, inside the spawn loop, BEFORE per-family gates.
-            // Returns the theme index to use for this patch.
-            uint32_t evaluate_theme_envelope(uint32_t tile_seed_value) {
-                auto& env = themeEnvelope_;
-
-                // Build effective weights
-                float weights[THEME_COUNT];
-                float total = 0.0f;
-                for (uint32_t i = 0; i < THEME_COUNT; i++) {
-                    if (env.cooldowns[i] > 0) {
-                        weights[i] = 0.0f;
-                    }
-                    else if ((int32_t)i == env.active) {
-                        weights[i] = theme_envelope_weight(THEMES[i], env.elapsed);
-                    }
-                    else {
-                        weights[i] = THEME_BASE_WEIGHT;
-                    }
-                    total += weights[i];
-                }
-                if (total < 0.001f) total = 1.0f;
-
-                // Roll from weights
-                float roll = cpu_hash_f(tile_seed_value, 370u);
-                uint32_t selected = THEME_COUNT - 1;
-                float cumul = 0.0f;
-                for (uint32_t i = 0; i < THEME_COUNT; i++) {
-                    cumul += weights[i] / total;
-                    if (roll < cumul) { selected = i; break; }
-                }
-
-                // State transitions
-                if ((int32_t)selected != env.active) {
-                    if (env.active >= 0) {
-                        env.cooldowns[env.active] = THEMES[env.active].cooldown;
-                    }
-                    env.active = (int32_t)selected;
-                    env.elapsed = 0;
-
-                    // Clear formation tips on theme change
-                    for (uint32_t f = 0; f < PopFamily::COUNT; f++) {
-                        formationTips_[f] = FormationTip{};
-                    }
-                }
-                else {
-                    env.elapsed++;
-                }
-
-                // Check expiry
-                if (env.active >= 0) {
-                    const auto& th = THEMES[env.active];
-                    if (env.elapsed >= th.sustain + th.decay) {
-                        env.cooldowns[env.active] = th.cooldown;
-                        env.active = -1;
-                        env.elapsed = 0;
-                    }
-                }
-
-                // Tick cooldowns
-                for (uint32_t i = 0; i < THEME_COUNT; i++) {
-                    if (env.cooldowns[i] > 0) env.cooldowns[i]--;
-                }
-
-                return selected;
-            }
-
-            // ─── Terrain Tokens ──────────────────────────────────────────────
-            //
-            // Carried compositional priors that bias sequential tile generation.
-            // Each token holds per-archetype weight multipliers and a generation
-            // budget that decrements with each primary tile generation.
-            // When budget reaches zero, the token is cleared.
-            //
-            // Tokens are READ inside generate_tile_state() (member access),
-            // TICKED and EMITTED by tick_terrain_tokens() after each primary
-            // tile generation. Neighbor padding calls do NOT tick.
-            //
-            // The mechanism:
-            //   1. Patch generates → reads active tokens as priors on archetype weights
-            //   2. Archetype outcome + its jitter properties → emission roll
-            //   3. Emission may push a new token (bias type + budget drawn stochastically)
-            //   4. All tokens decrement budget; dead tokens cleared
-            //
-            // The stack is small and fixed. If full, the oldest token (lowest budget)
-            // is evicted to make room. In practice, ≤4 are alive at any time.
-
-            static constexpr uint32_t MAX_TERRAIN_TOKENS = 8;
-
-            struct TerrainToken {
-                float archetype_bias[ARCHETYPE_COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f };
-                uint32_t budget = 0;
-                bool active = false;
-            };
-
-            TerrainToken terrainTokens_[MAX_TERRAIN_TOKENS]{};
-
-            // ── Emission Profiles ────────────────────────────────────────────
-            //
-            // Each archetype defines how it biases subsequent tile generation
-            // when it emits a terrain token. The emission mechanism:
-            //
-            //   1. After a tile generates, it rolls emit_chance to decide
-            //      whether it emits a token at all (0.0 = never, 1.0 = always).
-            //   2. If emitting, it rolls pivot_chance: continuation vs pivot.
-            //      Continuation carries the current terrain character forward.
-            //      Pivot transitions to a different landform.
-            //   3. Budget is drawn uniformly in [budget_min, budget_max]:
-            //      how many primary tile generations the token survives.
-            //   4. The bias vector multiplies into archetype selection weights
-            //      for all tiles generated while the token is alive.
-            //      Values >1.0 boost that archetype, <1.0 suppress it.
-            //
-            // Bias vector order: { mountainous, varied, basin, pool }
-            //
-            // Tuning these profiles IS the art direction for terrain composition.
-
-            struct TerrainEmissionProfile {
-                float emit_chance;                            // [0,1] probability of emitting any token
-                uint32_t budget_min, budget_max;              // generation lifespan range
-                float continuation_bias[ARCHETYPE_COUNT];     // archetype weight multipliers when continuing
-                float pivot_chance;                           // [0,1] probability of pivoting vs continuing
-                float pivot_bias[ARCHETYPE_COUNT];            // archetype weight multipliers when pivoting
-            };
-
-            //  ┌────────────────────┬────────┬─────────┬──────────────────────────────────────────┬────────┬──────────────────────────────────────────┐
-            //  │                    │ emit%  │ budget  │ continuation bias                         │ pivot% │ pivot bias                               │
-            //  │                    │        │ min max │ mount  varied basin  pool                 │        │ mount  varied basin  pool                 │
-            //  ├────────────────────┼────────┼─────────┼──────────────────────────────────────────┼────────┼──────────────────────────────────────────┤
-            //  │ 0: mountainous     │  0.45  │  2   5  │  2.0    1.5    0.3    0.0  (ridge runs)  │  0.25  │  0.3    2.0    1.5    0.0  (descend)     │
-            //  │ 1: varied          │  0.25  │  1   3  │  0.8    1.5    0.8    0.2  (neutral)     │  0.30  │  1.5    0.5    1.5    0.1  (diversify)   │
-            //  │ 2: basin           │  0.40  │  2   4  │  0.2    0.8    2.0    1.0  (flat runs)   │  0.20  │  0.5    1.5    0.5    0.3  (ascend)      │
-            //  │ 3: pool            │  0.20  │  1   2  │  0.0    0.5    1.5    1.5  (hold flat)   │  0.35  │  0.3    1.0    2.0    0.2  (drain out)   │
-            //  └────────────────────┴────────┴─────────┴──────────────────────────────────────────┴────────┴──────────────────────────────────────────┘
-            static constexpr TerrainEmissionProfile TERRAIN_EMISSION[ARCHETYPE_COUNT] = {
-                /* 0: mountainous */ { 0.45f,  2, 5,  { 2.0f, 1.5f, 0.3f, 0.0f },  0.25f, { 0.3f, 2.0f, 1.5f, 0.0f } },
-                /* 1: varied      */ { 0.25f,  1, 3,  { 0.8f, 1.5f, 0.8f, 0.2f },  0.30f, { 1.5f, 0.5f, 1.5f, 0.1f } },
-                /* 2: basin       */ { 0.40f,  2, 4,  { 0.2f, 0.8f, 2.0f, 1.0f },  0.20f, { 0.5f, 1.5f, 0.5f, 0.3f } },
-                /* 3: pool        */ { 0.20f,  1, 2,  { 0.0f, 0.5f, 1.5f, 1.5f },  0.35f, { 0.3f, 1.0f, 2.0f, 0.2f } },
-            };
-
-            // ── Amplitude Momentum ───────────────────────────────────────────
-            //
-            // When amp_jitter rolls extreme, the token also carries amplitude
-            // bias that nudges the next patch further in that direction.
-            // Creates natural ridgelines and depth sequences.
-
-            static constexpr float AMP_MOMENTUM_THRESHOLD = 0.15f;  // |jitter - 1.0| above this → emit amp momentum
-            static constexpr float AMP_MOMENTUM_CARRY = 0.6f;       // fraction of excess carried forward
-
-            // ─── Population Batch System ─────────────────────────────────────
-            //
-            // Entities spawn in observed batches. The first few entities of a
-            // batch define the neighborhood's character; the rest follow it.
-            //
-            // Two derived biases update LIVE as observations accumulate:
-            //   Type affinity — types that appeared more get boosted proportionally.
-            //   Scale tendency — average tier scale biases select_tier toward similar.
-            //
-            // After POP_BATCH_SIZE patches, the batch resets: a few "exploratory"
-            // patches with neutral priors, then the new batch character emerges.
-            //
-            // Each batch rolls a MODE at birth:
-            //   Affinity  — more of the same (columns attract columns)
-            //   Repulsion — opposites attract (columns push toward pyramids/arches)
-            //   Neutral   — no bias (pure independent rolls, breathing room)
-            //
-            // No hand-crafted affinity matrices. The correlation IS the aesthetic.
-            //
-            //  ┌──────────────────────────────────────────────────────────────────────────────────────────┐
-            //  │ POPULATION BATCH CONTROL SURFACE                                                        │
-            //  ├─────────────────────────────────┬───────────┬────────────────────────────────────────────┤
-            //  │ Constant                        │ Value     │ Effect                                     │
-            //  ├─────────────────────────────────┼───────────┼────────────────────────────────────────────┤
-            //  │ POP_BATCH_SIZE                  │  4        │ Patches per observation window              │
-            //  │ POP_TYPE_AFFINITY_STRENGTH      │  3.0      │ Max spawn boost for dominant type           │
-            //  │ POP_SCALE_TENDENCY_STRENGTH     │  2.0      │ Max tier proximity boost                    │
-            //  │ POP_GOL_SUPPRESSION             │  0.05     │ GoL chance reduction per unit structure     │
-            //  │ POP_MIN_OBSERVATIONS            │  2        │ Min entities before bias activates          │
-            //  │ POP_MODE_AFFINITY_CHANCE        │  0.50     │ Probability of affinity batch               │
-            //  │ POP_MODE_REPULSION_CHANCE       │  0.25     │ Probability of repulsion batch              │
-            //  │ (remainder)                     │  0.25     │ Probability of neutral batch                │
-            //  └─────────────────────────────────┴───────────┴────────────────────────────────────────────┘
-
-            struct PopBatchMode {
-                static constexpr uint32_t AFFINITY = 0;  // more of the same
-                static constexpr uint32_t REPULSION = 1;  // opposites attract
-                static constexpr uint32_t NEUTRAL = 2;  // pure independent rolls
-            };
-
-            static constexpr uint32_t POP_BATCH_SIZE = 16;
-            static constexpr float POP_TYPE_AFFINITY_STRENGTH = 0.0f;
-            static constexpr float POP_SCALE_TENDENCY_STRENGTH = 0.0f;
-            static constexpr float POP_GOL_SUPPRESSION = 0.05f;
-            static constexpr uint32_t POP_MIN_OBSERVATIONS = 1;
-            static constexpr float POP_MODE_AFFINITY_CHANCE = 0.0f;
-            static constexpr float POP_MODE_REPULSION_CHANCE = 0.0f;
-            // remainder (1.0) = neutral
-
-            // ── Cross-Family Affinity Matrix ──────────────────────────────────
-            //
-            // When family X is observed, how much does it influence family Y's
-            // spawn chance? Read as: row = observed, column = target.
-            // 1.0 = neutral. >1.0 = attracts. <1.0 = suppresses.
-            //
-            // In AFFINITY mode, values >1 boost the target.
-            // In REPULSION mode, the matrix is read inverted (1/value).
-            //
-            //  ┌──────────────────────────────────────────────────────────────────────────┐
-            //  │ CROSS-FAMILY AFFINITY              target →                              │
-            //  │ observed ↓          │  Pyramid     │  Arch        │  Column              │
-            //  ├──────────────────────┼──────────────┼──────────────┼──────────────────────┤
-            //  │ Pyramid              │  0.5 (rare)  │  2.0 (gates) │  1.5 (colonnades)   │
-            //  │ Arch                 │  0.8 (mild)  │  1.5 (chain) │  2.0 (flanking)     │
-            //  │ Column               │  0.3 (supp)  │  1.2 (mild)  │  1.8 (cluster)      │
-            //  └──────────────────────┴──────────────┴──────────────┴──────────────────────┘
-
-            static constexpr float POP_CROSS_AFFINITY[PopFamily::COUNT][PopFamily::COUNT] = {
-                //          target:  Pyramid  Arch    Column
-                /* Pyramid */     {  0.5f,    2.0f,   1.5f  },
-                /* Arch    */     {  0.8f,    1.5f,   2.0f  },
-                /* Column  */     {  0.3f,    1.2f,   1.8f  },
-            };
-
-            // ── Per-Tier Scale Character ──────────────────────────────────────
-            //
-            // Each tier declares its compositional "size character" on [0, 1].
-            // 0.0 = human-scale intimate. 1.0 = monumental/colossal.
-            // This replaces the linear tier_idx/(count-1) mapping.
-            //
-            // Used by record_population_observation to accumulate scale_sum,
-            // and by select_tier_biased to compute proximity to the tendency.
-            //
-            //  ┌──────────────────────────────────────────────────────────┐
-            //  │ TIER SCALE CHARACTER                                    │
-            //  ├──────────────────────────┬─────────┬────────────────────┤
-            //  │ Entity                   │ Scale   │ Character          │
-            //  ├──────────────────────────┼─────────┼────────────────────┤
-            //  │ Pyramid: Obelisk         │  0.35   │ tall but narrow    │
-            //  │ Pyramid: Temple          │  0.60   │ moderate platform  │
-            //  │ Pyramid: Colossus        │  1.00   │ massive landmark   │
-            //  ├──────────────────────────┼─────────┼────────────────────┤
-            //  │ Arch: Doorway            │  0.10   │ human passage      │
-            //  │ Arch: Standard           │  0.55   │ medium gateway     │
-            //  │ Arch: Monumental         │  0.95   │ cathedral-scale    │
-            //  ├──────────────────────────┼─────────┼────────────────────┤
-            //  │ Column: Pillar           │  0.15   │ squat post         │
-            //  │ Column: Doric            │  0.30   │ classical human    │
-            //  │ Column: Ornate           │  0.50   │ decorated medium   │
-            //  │ Column: Antenna          │  0.60   │ tall with drums    │
-            //  │ Column: Antenna Squat    │  0.45   │ wide + short drums │
-            //  │ Column: Antenna Colossal │  0.85   │ tower-scale        │
-            //  └──────────────────────────┴─────────┴────────────────────┘
-
-            static constexpr float TIER_SCALE_PYRAMID[] = { 0.35f, 0.60f, 1.00f };
-            static constexpr float TIER_SCALE_ARCH[] = { 0.10f, 0.55f, 0.95f };
-            static constexpr float TIER_SCALE_COLUMN[] = { 0.15f, 0.30f, 0.50f, 0.60f, 0.45f, 0.85f };
-
-            // Accessor: look up scale character by family + tier index.
-            static float tier_scale_character(uint32_t family, uint32_t tier_idx) {
-                switch (family) {
-                case PopFamily::PYRAMID: return (tier_idx < 3) ? TIER_SCALE_PYRAMID[tier_idx] : 0.5f;
-                case PopFamily::ARCH:    return (tier_idx < 3) ? TIER_SCALE_ARCH[tier_idx] : 0.5f;
-                case PopFamily::COLUMN:  return (tier_idx < 6) ? TIER_SCALE_COLUMN[tier_idx] : 0.5f;
-                default: return 0.5f;
-                }
-            }
-
-            struct PopulationBatch {
-                uint32_t type_count[PopFamily::COUNT] = {};  // entities per family
-                float scale_sum = 0.0f;        // sum of normalized tier positions [0,1]
-                uint32_t scale_n = 0;          // number of scale observations
-                uint32_t patches_elapsed = 0;  // patches since batch start
-                uint32_t mode = PopBatchMode::AFFINITY;  // rolled at batch birth
-            };
-
-            PopulationBatch popBatch_{};
-            uint32_t popBatchCounter_ = 0;  // global counter for deterministic mode rolls
-
-            // ── Recording ─────────────────────────────────────────────────────
-            //
-            // Called inside each spawn function after successful spawn.
-            // tier_idx: which tier was selected (0-based).
-            // tier_count: total tiers in that family (for normalization).
-
-            void record_population_observation(uint32_t family, uint32_t tier_idx) {
-                popBatch_.type_count[family]++;
-                float scale = tier_scale_character(family, tier_idx);
-                popBatch_.scale_sum += scale;
-                popBatch_.scale_n++;
-            }
-
-            // ── Batch Advance ─────────────────────────────────────────────────
-            //
-            // Called once per patch after all entity spawns complete.
-            // Increments patch counter; resets batch when budget expires.
-            // New batch rolls its mode from (seed, batchCounter).
-
-            void advance_population_batch() {
-                popBatch_.patches_elapsed++;
-                if (popBatch_.patches_elapsed >= POP_BATCH_SIZE) {
-                    popBatch_ = PopulationBatch{};
-                    // Roll batch mode deterministically
-                    popBatchCounter_++;
-                    uint32_t mode_seed = cpu_hash(activeSeed_ ^ popBatchCounter_, 330u);
-                    float mode_roll = cpu_hash_f(mode_seed, 331u);
-                    if (mode_roll < POP_MODE_AFFINITY_CHANCE) {
-                        popBatch_.mode = PopBatchMode::AFFINITY;
-                    }
-                    else if (mode_roll < POP_MODE_AFFINITY_CHANCE + POP_MODE_REPULSION_CHANCE) {
-                        popBatch_.mode = PopBatchMode::REPULSION;
-                    }
-                    else {
-                        popBatch_.mode = PopBatchMode::NEUTRAL;
-                    }
-                }
-            }
-
-            // ── Live Accessors (read current batch state) ─────────────────────
-            //
-            // Called inside spawn functions and GoL detection.
-            // Bias builds as observations accumulate within the batch.
-            // Before POP_MIN_OBSERVATIONS, returns neutral (1.0 / 0.0 / 0.5).
-            //
-            // In AFFINITY mode: types that appeared more get boosted.
-            // In REPULSION mode: types that appeared LESS get boosted.
-            // In NEUTRAL mode: always returns 1.0 (no bias).
-
-            float population_type_affinity(uint32_t family) const {
-                if (popBatch_.mode == PopBatchMode::NEUTRAL) return 1.0f;
-                uint32_t total = popBatch_.type_count[0] + popBatch_.type_count[1] + popBatch_.type_count[2];
-                if (total < POP_MIN_OBSERVATIONS) return 1.0f;
-                // Weighted sum: each observed family contributes its cross-affinity to the target
-                float influence = 0.0f;
-                for (uint32_t obs = 0; obs < PopFamily::COUNT; obs++) {
-                    float fraction = (float)popBatch_.type_count[obs] / (float)total;
-                    float affinity = POP_CROSS_AFFINITY[obs][family];
-                    if (popBatch_.mode == PopBatchMode::REPULSION) {
-                        affinity = (affinity > 0.01f) ? (1.0f / affinity) : 10.0f;  // invert
-                    }
-                    influence += fraction * affinity;
-                }
-                return 1.0f + (influence - 1.0f) * POP_TYPE_AFFINITY_STRENGTH;
-            }
-
-            float population_scale_tendency() const {
-                if (popBatch_.mode == PopBatchMode::NEUTRAL) return 0.5f;
-                if (popBatch_.scale_n < POP_MIN_OBSERVATIONS) return 0.5f;
-                float raw = popBatch_.scale_sum / (float)popBatch_.scale_n;
-                if (popBatch_.mode == PopBatchMode::REPULSION) {
-                    raw = 1.0f - raw;  // invert: small observations push toward large
-                }
-                return raw;
-            }
-
-            float population_automata_bias() const {
-                if (popBatch_.mode == PopBatchMode::NEUTRAL) return 0.0f;
-                uint32_t total = popBatch_.type_count[0] + popBatch_.type_count[1] + popBatch_.type_count[2];
-                if (total < POP_MIN_OBSERVATIONS) return 0.0f;
-                float avg_affinity = (population_type_affinity(0) +
-                    population_type_affinity(1) +
-                    population_type_affinity(2)) / 3.0f;
-                return -(avg_affinity - 1.0f) * POP_GOL_SUPPRESSION;
-            }
-
-            // ── Biased Tier Selection ─────────────────────────────────────────
-            //
-            // Applies scale tendency to tier weights before rolling.
-            // Tiers near the batch's average scale get boosted (affinity)
-            // or tiers FAR from it get boosted (repulsion).
-            // Falls back to unbiased select_tier in neutral mode or pre-observations.
-            //
-            // family: PopFamily index — needed to look up tier scale character.
-
-            uint32_t select_tier_biased(uint32_t seed, uint32_t tier_prop,
-                const float* base_weights, uint32_t count, uint32_t family) const {
-                if (popBatch_.mode == PopBatchMode::NEUTRAL ||
-                    popBatch_.scale_n < POP_MIN_OBSERVATIONS) {
-                    return select_tier(seed, tier_prop, base_weights, count);
-                }
-                float tendency = population_scale_tendency();
-                float weights[8];  // max tiers across all families
-                float total = 0.0f;
-                for (uint32_t t = 0; t < count && t < 8; t++) {
-                    float scale = tier_scale_character(family, t);
-                    float proximity = 1.0f - std::abs(scale - tendency);
-                    weights[t] = base_weights[t] * (1.0f + proximity * POP_SCALE_TENDENCY_STRENGTH);
-                    total += weights[t];
-                }
-                for (uint32_t t = 0; t < count; t++) weights[t] /= total;
-                float roll = cpu_hash_f(seed, tier_prop);
-                float cumul = 0.0f;
-                for (uint32_t t = 0; t < count; t++) {
-                    cumul += weights[t];
-                    if (roll < cumul) return t;
-                }
-                return count - 1;
-            }
-
-            // ─── Formation Memory ────────────────────────────────────────────
-            //
-            // Ring buffer of recent spawn records. Each spawn function reads
-            // the most recent sibling of its family and can override its own
-            // position/rotation to form spatial relationships.
-            //
-            // If the formation position fails footprint check, silent fallback
-            // to the original jittered position. When no sibling exists or the
-            // formation roll fails, placement is fully independent (as before).
-            //
-            //  ┌──────────────────────────────────────────────────────────────────────────────────────────┐
-            //  │ FORMATION CONTROL SURFACE                                                               │
-            //  ├──────────────────────────┬───────────────┬──────────────────────────────────────────────┤
-            //  │ Per-family rule           │ Value         │ Effect                                       │
-            //  ├──────────────────────────┼───────────────┼──────────────────────────────────────────────┤
-            //  │ formation_chance          │ [0,1]         │ Probability of attempting formation          │
-            //  │ distance_mean / sigma     │ world units   │ Spacing from sibling                         │
-            //  │ lateral_angle             │ radians       │ 0=inline, π/2=perpendicular to sibling face  │
-            //  │ lateral_angle_sigma       │ radians       │ Angular spread around lateral_angle           │
-            //  │ rotation_mode             │ 0/1/2         │ 0=inherit, 1=follow line, 2=independent      │
-            //  │ rotation_drift_sigma      │ radians       │ Per-step rotation jitter (curves)             │
-            //  │ max_sibling_distance      │ world units   │ Ignore siblings farther than this             │
-            //  └──────────────────────────┴───────────────┴──────────────────────────────────────────────┘
-
-            struct SpawnRecord {
-                float x = 0.0f, z = 0.0f;
-                float rotation = 0.0f;
-                uint32_t family = 0;
-                bool valid = false;
-            };
-
-            static constexpr uint32_t FORMATION_MEMORY_SIZE = 6;  // per family
-            SpawnRecord formationMemory_[PopFamily::COUNT][FORMATION_MEMORY_SIZE]{};
-            uint32_t formationWriteIdx_[PopFamily::COUNT] = { 0, 0, 0 };
-
-            void record_spawn(float x, float z, float rotation, uint32_t family) {
-                auto& idx = formationWriteIdx_[family];
-                formationMemory_[family][idx] = { x, z, rotation, family, true };
-                idx = (idx + 1) % FORMATION_MEMORY_SIZE;
-            }
-
-            // Find nearest sibling of a given family within max distance.
-            // Returns nullptr if none found.
-            const SpawnRecord* find_sibling(uint32_t family, float ref_x, float ref_z, float max_dist) const {
-                float best_dist_sq = max_dist * max_dist;
-                const SpawnRecord* best = nullptr;
-                for (uint32_t i = 0; i < FORMATION_MEMORY_SIZE; i++) {
-                    if (!formationMemory_[family][i].valid) continue;
-                    float dx = formationMemory_[family][i].x - ref_x;
-                    float dz = formationMemory_[family][i].z - ref_z;
-                    float d2 = dx * dx + dz * dz;
-                    if (d2 < best_dist_sq) {
-                        best_dist_sq = d2;
-                        best = &formationMemory_[family][i];
-                    }
-                }
-                return best;
-            }
-
-            // ── Theme Envelope State (replaces lattice-based selection) ─────
-            ThemeEnvelope themeEnvelope_{};
-            uint32_t active_theme_idx_ = 0;   // set per-patch by evaluate_theme_envelope
-
-            // ── Formation Tips (replaces ring buffer for differential tip) ──
-            FormationTip formationTips_[PopFamily::COUNT]{};
-
-            // ── Minimum Separation Matrix ─────────────────────────────────────
-            //
-            // Compositional spacing: how far apart entities of each family pair
-            // must be. Checked against formation memory before accepting any
-            // position (formation OR jittered). Adds an aesthetic breathing room
-            // layer on top of the physical footprint system.
-            //
-            // 0.0 = no minimum (exception — allow intimate proximity).
-            // Positive = minimum world-space distance.
-            //
-            // Read as: row = entity being placed, column = existing entity in memory.
-            // The check is asymmetric: placing an arch near a pyramid may have a
-            // different minimum than placing a pyramid near an arch.
-            //
-            //  ┌──────────────────────────────────────────────────────────────────────────────┐
-            //  │ MINIMUM SEPARATION (wu)         existing in memory →                         │
-            //  │ placing ↓           │  Pyramid      │  Arch         │  Column                │
-            //  ├──────────────────────┼───────────────┼───────────────┼────────────────────────┤
-            //  │ Pyramid              │  60 (sparse)  │  50 (wide)    │  30 (spacing)          │
-            //  │ Arch                 │  50 (wide)    │ 100 (corridor)│  60 (spacing)          │
-            //  │ Column               │  30 (spacing) │ 100 (spacing) │  60 (colonnade)        │
-            //  └──────────────────────┴───────────────┴───────────────┴────────────────────────┘
-            //
-            // Key exception: Arch→Pyramid = 0. Doorway arches (which become portals)
-            // are explicitly allowed on top of pyramids. The footprint system still
-            // prevents physical overlap of collision geometry — this matrix only
-            // governs aesthetic spacing.
-
-            static constexpr float MIN_SEPARATION[PopFamily::COUNT][PopFamily::COUNT] = {
-                //               near:  Pyramid  Arch    Column
-                /* placing Pyramid */ {  60.0f,  50.0f,  30.0f },
-                /* placing Arch    */ {  50.0f, 100.0f,  60.0f },
-                /* placing Column  */ {  30.0f, 100.0f,  60.0f },
-            };
-
-            // Check if a proposed position satisfies the separation matrix
-            // against all records in formation memory.
-            // Returns true if all separations are met.
-            bool check_separation(float px, float pz, uint32_t placing_family) const {
-                for (uint32_t fam = 0; fam < PopFamily::COUNT; fam++) {
-                    float min_dist = MIN_SEPARATION[placing_family][fam];
-                    if (min_dist <= 0.0f) continue;
-                    float min_dist_sq = min_dist * min_dist;
-                    for (uint32_t i = 0; i < FORMATION_MEMORY_SIZE; i++) {
-                        if (!formationMemory_[fam][i].valid) continue;
-                        float dx = px - formationMemory_[fam][i].x;
-                        float dz = pz - formationMemory_[fam][i].z;
-                        if (dx * dx + dz * dz < min_dist_sq) return false;
-                    }
-                }
-                return true;
-            }
-
-            // Propose a formation position relative to a sibling.
-            // Returns true if proposal is valid, writes to out_x, out_z, out_rotation.
-            // seed provides deterministic jitter draws.
-            bool propose_formation(const SpawnRecord& sibling, const FormationRule& rule,
-                uint32_t seed, float default_rotation,
-                float& out_x, float& out_z, float& out_rotation) const {
-
-                // Distance from sibling
-                float dist = std::max(5.0f,
-                    cpu_sample_gaussian(seed, 340u, rule.distance_mean, rule.distance_sigma));
-
-                // Direction: sibling's facing + lateral angle + jitter
-                float angle = sibling.rotation + rule.lateral_angle
-                    + cpu_sample_gaussian(seed, 342u, 0.0f, rule.lateral_angle_sigma);
-
-                out_x = sibling.x + std::cos(angle) * dist;
-                out_z = sibling.z + std::sin(angle) * dist;
-
-                // Rotation
-                switch (rule.rotation_mode) {
-                case RotationMode::INHERIT:
-                    out_rotation = sibling.rotation
-                        + cpu_sample_gaussian(seed, 344u, 0.0f, rule.rotation_drift_sigma);
-                    break;
-                case RotationMode::FOLLOW_LINE: {
-                    float dx = out_x - sibling.x;
-                    float dz = out_z - sibling.z;
-                    out_rotation = std::atan2(dz, dx)
-                        + cpu_sample_gaussian(seed, 344u, 0.0f, rule.rotation_drift_sigma);
-                    break;
-                }
-                default:
-                    out_rotation = default_rotation;
-                    break;
-                }
-
-                return true;
-            }
-
-            // --- Entity Presence Flags -----------------------------------------------
-            //
-            // Bitfield tracking what was spawned on a tile. Enables neighbor-aware
-            // spawn probability: columns cluster near arches, doorways cluster
-            // near pyramids, etc. Recorded at spawn time, cleared at eviction.
-
-            struct EntityPresence {
-                static constexpr uint32_t NONE = 0u;
-                static constexpr uint32_t PYRAMID = 1u << 0;
-                static constexpr uint32_t ARCH_DOORWAY = 1u << 1;
-                static constexpr uint32_t ARCH_STANDARD = 1u << 2;
-                static constexpr uint32_t ARCH_MONUMENTAL = 1u << 3;
-                static constexpr uint32_t ARCH_ANY = ARCH_DOORWAY | ARCH_STANDARD | ARCH_MONUMENTAL;
-                static constexpr uint32_t COLUMN = 1u << 4;
-                static constexpr uint32_t GALLERY = 1u << 5;
-                static constexpr uint32_t GOL_ZONE = 1u << 6;
-            };
-
-            // --- Tile State (what we remember about each generated tile) ----------
-
-            struct TileState {
-                uint32_t archetype = 1;      // default: varied
-                float height_bias = 0.0f;
-                float amp_scale = 1.0f;
-                float activation_scale = 1.0f;
-                uint32_t entity_flags = 0;   // EntityPresence bitfield
-                float amp_momentum = 0.0f;   // signed amplitude excess, carried by terrain tokens
-                float entity_density = 1.0f; // spatial density multiplier for entity spawning
-                // Theme: evaluated from theme lattice at tile generation time
-                float theme_spawn[PopFamily::COUNT] = { 1.0f, 1.0f, 1.0f }; // blended per-family spawn multiplier
-                uint32_t theme_idx = 0;      // dominant theme index (for tier bias + formation lookup)
-            };
-
-            // Spatial cache: keyed by (grid_x, grid_z)
-            struct GridKey {
-                int32_t x, z;
-                bool operator==(const GridKey& o) const { return x == o.x && z == o.z; }
-            };
-            struct GridKeyHash {
-                size_t operator()(const GridKey& k) const {
-                    return (size_t)k.x * 73856093u ^ (size_t)k.z * 19349663u;
-                }
-            };
-
-            std::unordered_map<GridKey, TileState, GridKeyHash> tileCache_;
-
-            // Forgetting radius: tiles beyond this many grid cells get evicted
-            static constexpr int32_t FORGET_RADIUS = (int32_t)PREGEN_RADIUS + 2;  // eviction radius (beyond pre-gen)
-
-            void evict_distant_tiles(int32_t centerX, int32_t centerZ) {
-                auto it = tileCache_.begin();
-                while (it != tileCache_.end()) {
-                    int32_t dx = it->first.x - centerX;
-                    int32_t dz = it->first.z - centerZ;
-                    if (dx < -FORGET_RADIUS || dx > FORGET_RADIUS ||
-                        dz < -FORGET_RADIUS || dz > FORGET_RADIUS) {
-                        it = tileCache_.erase(it);
-                    }
-                    else {
-                        ++it;
-                    }
-                }
-            }
-
-            // Build and upload GPUTileGrid from tile cache, centered on (cx, cz).
-            void upload_tile_grid_now(wgpu::Queue& queue, int32_t cx, int32_t cz) {
-                static constexpr int32_t TILE_PAD = 1;
-                int32_t rp = (int32_t)activeRadius_ + TILE_PAD;
-                uint32_t tileGridSide = 2 * (activeRadius_ + TILE_PAD) + 1;
-                GPUTileGrid grid{};
-                grid.origin_x = cx - rp;
-                grid.origin_z = cz - rp;
-                grid.side = tileGridSide;
-                grid.cell_extent = PATCH_EXTENT;
-
-                for (int32_t gz = cz - rp; gz <= cz + rp; gz++) {
-                    for (int32_t gx = cx - rp; gx <= cx + rp; gx++) {
-                        int32_t lx = gx - grid.origin_x;
-                        int32_t lz = gz - grid.origin_z;
-                        uint32_t idx = lz * tileGridSide + lx;
-                        auto it = tileCache_.find({ gx, gz });
-                        if (it != tileCache_.end()) {
-                            grid.entries[idx].amp_scale = it->second.amp_scale;
-                            grid.entries[idx].height_bias = it->second.height_bias;
-                            grid.entries[idx].activation_scale = it->second.activation_scale;
-                            grid.entries[idx].archetype = it->second.archetype;
-                        }
-                        else {
-                            grid.entries[idx].amp_scale = 1.0f;
-                            grid.entries[idx].height_bias = 0.0f;
-                            grid.entries[idx].activation_scale = 1.0f;
-                            grid.entries[idx].archetype = 1;
-                        }
-                    }
-                }
-                gpuState_.upload_tile_grid(queue, grid);
-            }
-
-            // --- Archetype Generation Rule ------------------------------------------
-            //
-            // Consult cached neighbors → weight archetypes → deterministic roll.
-            // All thresholds and multipliers live in ArchetypeSelectionRules.
-            // All per-archetype parameters live in the ARCHETYPES matrix.
-
-            TileState generate_tile_state(int32_t gx, int32_t gz) {
-                // Count neighbor archetypes
-                uint32_t neighbor_counts[ARCHETYPE_COUNT] = {};
-                uint32_t total_neighbors = 0;
-
-                for (int32_t dz = -1; dz <= 1; dz++) {
-                    for (int32_t dx = -1; dx <= 1; dx++) {
-                        if (dx == 0 && dz == 0) continue;
-                        auto it = tileCache_.find({ gx + dx, gz + dz });
-                        if (it != tileCache_.end()) {
-                            neighbor_counts[it->second.archetype]++;
-                            total_neighbors++;
-                        }
-                    }
-                }
-
-                // Build selection weights from archetype base weights + neighbor influence
-                float weights[ARCHETYPE_COUNT];
-                for (uint32_t a = 0; a < ARCHETYPE_COUNT; a++) {
-                    weights[a] = ARCHETYPES[a].base_weight;
-                }
-
-                // Pool archetype: mood-aware injection.
-                // Indoor: common (flat floors are natural).
-                // Outdoor: very rare (special feature).
-                static constexpr uint32_t POOL_IDX = 3;
-                if (MOOD_TABLE[activeMood_].indoor) {
-                    weights[POOL_IDX] = 1.5f;   // ~30% of indoor tiles become pools
-                }
-                else {
-                    weights[POOL_IDX] = 0.05f;  // ~1.5% of outdoor tiles
-                }
-
-                // ── Terrain token priors: multiply active tokens into weights ──
-                for (uint32_t t = 0; t < MAX_TERRAIN_TOKENS; t++) {
-                    if (!terrainTokens_[t].active) continue;
-                    for (uint32_t a = 0; a < ARCHETYPE_COUNT; a++) {
-                        weights[a] *= terrainTokens_[t].archetype_bias[a];
-                    }
-                }
-
-                if (total_neighbors > 0) {
-                    using R = ArchetypeSelectionRules;
-                    for (uint32_t a = 0; a < ARCHETYPE_COUNT; a++) {
-                        if (neighbor_counts[a] >= R::DOMINANT_THRESHOLD) {
-                            weights[a] *= R::DOMINANT_MULTIPLIER;
-                        }
-                        else if (neighbor_counts[a] >= R::COMMON_THRESHOLD) {
-                            weights[a] *= R::COMMON_MULTIPLIER;
-                        }
-                        else if (neighbor_counts[a] >= R::PRESENT_THRESHOLD) {
-                            weights[a] *= R::PRESENT_MULTIPLIER;
-                        }
-                    }
-                }
-
-                // Normalize and roll
-                float total_weight = 0.0f;
-                for (uint32_t a = 0; a < ARCHETYPE_COUNT; a++) total_weight += weights[a];
-                for (uint32_t a = 0; a < ARCHETYPE_COUNT; a++) weights[a] /= total_weight;
-
-                uint32_t seed = tile_seed(activeSeed_, gx, gz);
-                float roll = cpu_hash_f(seed, 300u);
-
-                uint32_t archetype = ARCHETYPE_COUNT - 1;
-                float cumulative = 0.0f;
-                for (uint32_t a = 0; a < ARCHETYPE_COUNT; a++) {
-                    cumulative += weights[a];
-                    if (roll < cumulative) { archetype = a; break; }
-                }
-
-                // Per-tile jitter from archetype profile
-                const auto& profile = ARCHETYPES[archetype];
-                float amp_jitter = 1.0f + (cpu_hash_f(seed, 301u) - 0.5f) * profile.amp_jitter_range;
-                float bias_jitter = (cpu_hash_f(seed, 302u) - 0.5f) * profile.bias_jitter_range;
-
-                TileState ts;
-                ts.archetype = archetype;
-                ts.amp_scale = profile.amp_scale * amp_jitter;
-                ts.height_bias = profile.height_bias + bias_jitter;
-                ts.activation_scale = profile.activation_scale;
-                ts.amp_momentum = amp_jitter - 1.0f;  // signed: positive = amplified, negative = dampened
-
-                // ── Entity density field (coarse spatial noise) ──────────
-                {
-                    float patch_cx = (gx + 0.5f) * PATCH_EXTENT;
-                    float patch_cz = (gz + 0.5f) * PATCH_EXTENT;
-                    float dlx = patch_cx / DENSITY_LATTICE_SPACING;
-                    float dlz = patch_cz / DENSITY_LATTICE_SPACING;
-                    int32_t dbx = (int32_t)std::floor(dlx);
-                    int32_t dbz = (int32_t)std::floor(dlz);
-                    float dfx = dlx - dbx, dfz = dlz - dbz;
-                    float dwx = dfx * dfx * (3.0f - 2.0f * dfx);
-                    float dwz = dfz * dfz * (3.0f - 2.0f * dfz);
-                    float density = 0.0f;
-                    for (int dz = 0; dz <= 1; dz++) for (int dx = 0; dx <= 1; dx++) {
-                        uint32_t ns = cpu_lattice_node_seed(activeSeed_, dbx + dx, dbz + dz, DENSITY_SEED_BAND);
-                        float raw = cpu_hash_f(ns, 350u);
-                        float shaped = std::pow(raw, DENSITY_EXPONENT);
-                        float w = ((dx == 1) ? dwx : (1.0f - dwx)) * ((dz == 1) ? dwz : (1.0f - dwz));
-                        density += shaped * w;
-                    }
-                    ts.entity_density = DENSITY_MIN + density * (DENSITY_MAX - DENSITY_MIN);
-                }
-
-                // ── Theme field (coarse compositional character) ─────────
-                {
-                    float patch_cx = (gx + 0.5f) * PATCH_EXTENT;
-                    float patch_cz = (gz + 0.5f) * PATCH_EXTENT;
-                    float tlx = patch_cx / THEME_LATTICE_SPACING;
-                    float tlz = patch_cz / THEME_LATTICE_SPACING;
-                    int32_t tbx = (int32_t)std::floor(tlx);
-                    int32_t tbz = (int32_t)std::floor(tlz);
-                    float tfx = tlx - tbx, tfz = tlz - tbz;
-                    float twx = tfx * tfx * (3.0f - 2.0f * tfx);
-                    float twz = tfz * tfz * (3.0f - 2.0f * tfz);
-
-                    // Blend spawn weights across 4 lattice nodes.
-                    // Track dominant node for discrete tier bias lookup.
-                    float blended_spawn[PopFamily::COUNT] = { 0.0f, 0.0f, 0.0f };
-                    float blended_density = 0.0f;
-                    float best_w = -1.0f;
-                    uint32_t dominant_theme = 0;
-
-                    for (int dz = 0; dz <= 1; dz++) for (int dx = 0; dx <= 1; dx++) {
-                        uint32_t ns = cpu_lattice_node_seed(activeSeed_, tbx + dx, tbz + dz, THEME_SEED_BAND);
-                        uint32_t tidx = select_theme_at_node(ns);
-                        const auto& theme = THEMES[tidx];
-                        float w = ((dx == 1) ? twx : (1.0f - twx)) * ((dz == 1) ? twz : (1.0f - twz));
-                        for (uint32_t f = 0; f < PopFamily::COUNT; f++) {
-                            blended_spawn[f] += theme.spawn_weight[f] * w;
-                        }
-                        blended_density += theme.density_mult * w;
-                        if (w > best_w) { best_w = w; dominant_theme = tidx; }
-                    }
-
-                    ts.theme_spawn[0] = blended_spawn[0];
-                    ts.theme_spawn[1] = blended_spawn[1];
-                    ts.theme_spawn[2] = blended_spawn[2];
-                    ts.theme_idx = dominant_theme;
-                    ts.entity_density *= blended_density;  // theme density stacks with spatial density
-                }
-
-                return ts;
-            }
-
-            // ─── Terrain Token Tick + Emission ───────────────────────────────
-            //
-            // Called ONCE per primary tile generation, NEVER for neighbor padding.
-            // Decrements all active token budgets, clears expired tokens,
-            // then evaluates the tile outcome for emission of a new token.
-
-            void tick_terrain_tokens(const TileState& outcome, uint32_t seed) {
-                // ── Tick existing tokens ─────────────────────────────────
-                for (uint32_t t = 0; t < MAX_TERRAIN_TOKENS; t++) {
-                    if (!terrainTokens_[t].active) continue;
-                    if (terrainTokens_[t].budget <= 1) {
-                        terrainTokens_[t].active = false;
-                    }
-                    else {
-                        terrainTokens_[t].budget--;
-                    }
-                }
-
-                // ── Emission from outcome ────────────────────────────────
-                const auto& ep = TERRAIN_EMISSION[outcome.archetype];
-
-                // Roll: does this outcome emit a token?
-                // Property index 310: decorrelated from archetype roll (300-302)
-                float emit_roll = cpu_hash_f(seed, 310u);
-                if (emit_roll >= ep.emit_chance) return;
-
-                // Roll: continuation or pivot?
-                float pivot_roll = cpu_hash_f(seed, 311u);
-                bool pivot = (pivot_roll < ep.pivot_chance);
-
-                // Budget draw (uniform in [budget_min, budget_max])
-                float budget_t = cpu_hash_f(seed, 312u);
-                uint32_t budget = ep.budget_min +
-                    (uint32_t)(budget_t * (float)(ep.budget_max - ep.budget_min + 1));
-                budget = std::min(budget, ep.budget_max);  // clamp rounding
-
-                // Build the token
-                TerrainToken token{};
-                const float* bias = pivot ? ep.pivot_bias : ep.continuation_bias;
-                for (uint32_t a = 0; a < ARCHETYPE_COUNT; a++) {
-                    token.archetype_bias[a] = bias[a];
-                }
-
-                // Amplitude momentum: if this patch rolled extreme, carry it
-                if (std::abs(outcome.amp_momentum) > AMP_MOMENTUM_THRESHOLD) {
-                    float carry = outcome.amp_momentum * AMP_MOMENTUM_CARRY;
-                    if (carry > 0.0f) {
-                        token.archetype_bias[0] *= (1.0f + carry);  // mountainous
-                    }
-                    else {
-                        token.archetype_bias[2] *= (1.0f - carry);  // basin (carry is negative)
-                    }
-                }
-
-                token.budget = budget;
-                token.active = true;
-
-                // ── Insert into stack ────────────────────────────────────
-                // Find a free slot. If none, evict the token with lowest budget.
-                uint32_t slot = MAX_TERRAIN_TOKENS;
-                uint32_t min_budget = UINT32_MAX;
-                uint32_t min_slot = 0;
-
-                for (uint32_t t = 0; t < MAX_TERRAIN_TOKENS; t++) {
-                    if (!terrainTokens_[t].active) { slot = t; break; }
-                    if (terrainTokens_[t].budget < min_budget) {
-                        min_budget = terrainTokens_[t].budget;
-                        min_slot = t;
-                    }
-                }
-                if (slot == MAX_TERRAIN_TOKENS) slot = min_slot;  // evict oldest
-
-                terrainTokens_[slot] = token;
-            }
-
-            // --- World teardown: reset all runtime state for world transition ---
-
-            void teardown_world(wgpu::Queue& queue) {
-                // Patches + tile cache
-                init_patch_system();
-                lastCenterX_ = INT32_MAX;  // force full regen on next frame
-                lastCenterZ_ = INT32_MAX;
-
-                // Terrain tokens
-                for (uint32_t t = 0; t < MAX_TERRAIN_TOKENS; t++) {
-                    terrainTokens_[t] = TerrainToken{};
-                }
-
-                // Population batch
-                popBatch_ = PopulationBatch{};
-                popBatchCounter_ = 0;
-
-                // Formation memory (per-family)
-                for (uint32_t f = 0; f < PopFamily::COUNT; f++) {
-                    for (uint32_t i = 0; i < FORMATION_MEMORY_SIZE; i++) formationMemory_[f][i] = SpawnRecord{};
-                    formationWriteIdx_[f] = 0;
-                }
-
-                // Theme envelope + formation tips
-                themeEnvelope_ = ThemeEnvelope{};
-                active_theme_idx_ = 0;
-                for (uint32_t f = 0; f < PopFamily::COUNT; f++) {
-                    formationTips_[f] = FormationTip{};
-                }
-
-                // Clear all entity piers (keep test rig at slots 0-2)
-                for (uint32_t i = Dim::PIER_ARCH_BASE; i < Dim::PIER_TOTAL; i++) {
-                    clear_pier(queue, i);
-                }
-
-                // Arches
-                for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++) {
-                    activeArches_[i] = ActiveArch{};
-                }
-                activeArchCount_ = 0;
-                portalsDirty_ = true;
-                gpuState_.set_arch_index_count(0);
-                // Clear all arch mesh gen param slots
-                {
-                    GPUArchMeshParams emptyParams{};
-                    for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++) {
-                        gpuState_.upload_arch_mesh_params_slot(queue, i, emptyParams);
-                    }
-                    archMeshGenPending_ = true;
-                }
-
-                // Columns
-                for (uint32_t i = 0; i < Dim::MAX_COLUMN_INSTANCES; i++) {
-                    activeColumns_[i] = ActiveColumn{};
-                }
-                activeColumnCount_ = 0;
-                gpuState_.set_column_index_count(0);
-                // Clear all column mesh gen param slots
-                {
-                    GPUColumnMeshParams emptyParams{};
-                    for (uint32_t i = 0; i < Dim::MAX_COLUMN_INSTANCES; i++) {
-                        gpuState_.upload_column_mesh_params_slot(queue, i, emptyParams);
-                    }
-                    columnMeshGenPending_ = true;
-                }
-
-                // Pyramids
-                for (uint32_t i = 0; i < Dim::MAX_PYRAMID_INSTANCES; i++) {
-                    activePyramids_[i] = ActivePyramid{};
-                }
-                activePyramidCount_ = 0;
-                cpuPyramids_ = GPUPyramidArray{};
-                gpuState_.upload_pyramids(queue, cpuPyramids_);
-                gpuState_.set_pyramid_index_count(0);
-                // Clear all mesh gen param slots (inactive → degenerates on next dispatch)
-                {
-                    GPUPyramidMeshParams emptyParams{};
-                    for (uint32_t i = 0; i < Dim::MAX_PYRAMID_INSTANCES; i++) {
-                        gpuState_.upload_pyramid_mesh_params_slot(queue, i, emptyParams);
-                    }
-                    pyramidMeshGenPending_ = true;
-                }
-
-                // GoL zones
-                for (uint32_t i = 0; i < Dim::MAX_GOL_ZONES; i++) {
-                    golZones_[i] = GoLZoneState{};
-                }
-                golZoneCount_ = 0;
-                activeZoneSlotCount_ = 0;
-                pendingDeriveRequests_.count = 0;
-                GPUGoLZoneArray emptyZones{};
-                gpuState_.upload_zone_config(queue, emptyZones);
-
-                // Ribbon
-                ribbonActive_ = false;
-
-                // Gallery / paintings — clear all exhibition + slots, keep staging intact
-                for (uint32_t i = 0; i < MAX_GALLERIES; i++) {
-                    galleryCenters_[i] = GalleryCenter{};
-                }
-                pendingSnapshot_.active = false;
-                pendingPromotionCount_ = 0;
-                wallFrameCount_ = 0;
-                activePaintingCount_ = 0;
-                // Clear all painting slots (CPU + GPU)
-                for (uint32_t i = 0; i < Dim::PAINTING_MAX_SLOTS; i++) {
-                    paintingSlots_[i] = GPUPaintingSlot{};
-                }
-                {
-                    GPUPaintingSlot empty[Dim::PAINTING_MAX_SLOTS]{};
-                    gpuState_.upload_painting_slots(queue, empty, Dim::PAINTING_MAX_SLOTS);
-                }
-                // Free all exhibition layers (staging persists across worlds)
-                for (uint32_t i = 0; i < Dim::EXHIBITION_LAYERS; i++) exhibitionOccupied_[i] = false;
-                exhibitionCount_ = 0;
-                // Snapshot staging: consumed flags persist — exhibited snapshots stay consumed.
-                // Only new captures (photographer overwrites) make a slot fresh again.
-                // Authored staging: rotate consumed slots with fresh images from disk.
-                rotate_authored_staging(queue);
-                for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) authoredStaging_[i].consumed = false;
-
-                // Footprints
-                for (uint32_t i = 0; i < MAX_FOOTPRINTS; i++) {
-                    footprints_[i] = GroundFootprint{};
-                }
-
-                // Aura
-                auraNeedsClear_ = true;
-                auraCfgDirty_ = true;
-
+            struct MoodProfile {
+                bool   finite;
+                uint32_t finite_radius_min;
+                uint32_t finite_radius_max;
+                float  sun_direction[3];
+                float  sun_color[3];
+                float  sun_intensity;
+                float  sun_ambient;
+                float  fog_density;
+                float  fog_color[3];
                 // Indoor shell
-                gpuState_.set_shell_index_count(0);
+                bool   indoor;
+                CeilingType ceiling_type;
+                float  ceiling_height;
+                float  clear_color[3];      // background color (sky or dark ceiling)
+                float  wall_color[3];
+                float  ceiling_color[3];
+            };
 
-                // Lights need re-upload with potentially new config
-                lightsDirty_ = true;
+            static constexpr uint32_t MOOD_COUNT = 6;
 
-                // Band motion: reset (apply_mood will re-initialize if needed)
-                bandMotionActive_ = false;
-                for (int i = 0; i < 6; i++) {
-                    bandBlend_[i] = -1.0f;
-                    bandBlendTarget_[i] = 0.0f;
-                    bandPhaseOrigin_[i] = 0.0f;
-                }
+            //                                                                                                                                           indoor  ceil       ceil_h  clear_color            wall_color             ceil_color
+            static constexpr MoodProfile MOOD_TABLE[MOOD_COUNT] = {
+                /* 0  open_default        */  { false, 2, 2, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f} },
+                /* 1  open_sunset         */  { false, 2, 2, { 0.96f,-0.26f,-0.13f}, {1.0f, 0.75f, 0.45f}, 0.90f, 0.20f, 0.0050f, {0.95f, 0.70f, 0.45f},  false, CeilingType::NONE,  0.0f,  {0.95f, 0.70f, 0.45f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f} },
+                /* 2  indoor_flat         */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f, 0.0003f, {0.15f, 0.12f, 0.10f},  true,  CeilingType::FLAT,  20.0f, {0.15f, 0.12f, 0.10f}, {0.65f,0.58f,0.50f}, {0.60f,0.55f,0.48f} },
+                /* 3  indoor_vault        */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f, 0.0003f, {0.15f, 0.12f, 0.10f},  true,  CeilingType::VAULT, 25.0f, {0.15f, 0.12f, 0.10f}, {0.70f,0.62f,0.52f}, {0.65f,0.58f,0.50f} },
+                /* 4  finite_outdoor      */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f} },
+                /* 5  finite_outdoor_ref  */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f} },
+            };
 
-                // Musical modes: reset intensities (mask stays — circuits remain wired)
-                for (uint32_t m = 0; m < MMODE_COUNT; m++) mmodeIntensity_[m] = 0.0f;
-                paletteDriftTarget_ = 0.0f;
-                paletteDriftDesired_ = 0.0f;
-                gpuState_.set_mode_color_shift(0.0f);
-                gpuState_.set_mode_checker_scatter(0.0f);
-                gpuState_.set_mode_palette_drift(0.0f, 0.0f, 0.0f);
-                gpuState_.set_mode_gol_scales(1.0f, 1.0f);
-                for (int i = 0; i < 32; i++) pulseRing_[i] = 0.0f;
-                pulseWriteIdx_ = 0;
-                prevPolyphony_ = 0.0f;
-                float zero_pulses[32] = {};
-                gpuState_.set_pulse_data(0, zero_pulses);
-
-                // Y correction
-
-                // New world decides its own upload frequency policy
-                gpuState_.set_config_dynamic(false);
+            static const char* mood_name(uint32_t mood) {
+                static const char* NAMES[] = { "open_default", "open_sunset", "indoor_flat", "indoor_vault", "finite_outdoor", "finite_outdoor_ref" };
+                return (mood < MOOD_COUNT) ? NAMES[mood] : "unknown";
             }
 
-            void init_patch_system() {
-                for (uint32_t i = 0; i < MAX_PATCHES; i++) {
-                    freeLayerStack_[i] = MAX_PATCHES - 1 - i;
-                }
-                freeLayerCount_ = MAX_PATCHES;
-                activePatchCount_ = 0;
-                renderPatchCount_ = 0;
-                lod0PatchCount_ = 0;
-                allPatchCount_ = 0;
-                gpuState_.config().placement_patch_count = 0;
-                tileCache_.clear();
-                pierCountDirty_ = true;
-                groundEntriesDirty_ = true;
-                patchInstancesDirty_ = true;
-                placementDirty_ = true;
-            }
-
-            // Test rig piers: ramp + plateau + block at pier slots 0-2.
-            // Same geometry as the old test rig solids, now as GPUPierInstance.
-            void setup_test_rig_piers(wgpu::Queue queue) {
-                // Ramp: height 0→3 along +X.
-                GPUPierInstance ramp{};
-                ramp.origin[0] = 12.0f;  ramp.origin[1] = 0.0f;
-                ramp.half_size[0] = 6.5f; ramp.half_size[1] = 3.0f;
-                ramp.height_near = 0.0f;  ramp.height_far = 3.0f;
-                ramp.rotation = 0.0f;
-                ramp.edge_blend = 0.5f;
-                ramp.tier = PierTier::TEST_RIG;
-                ramp.is_active = 1;
-                write_pier(queue, 0, ramp);
-
-                // Plateau: flat at height 3, overlaps ramp at x=18.
-                GPUPierInstance plat{};
-                plat.origin[0] = 21.0f;  plat.origin[1] = 0.0f;
-                plat.half_size[0] = 3.5f; plat.half_size[1] = 3.0f;
-                plat.height_near = 3.0f;  plat.height_far = 3.0f;
-                plat.rotation = 0.0f;
-                plat.edge_blend = 0.5f;
-                plat.tier = PierTier::TEST_RIG;
-                plat.is_active = 1;
-                write_pier(queue, 1, plat);
-
-                // Block: sharp edges → step-height walls (impassable).
-                GPUPierInstance block{};
-                block.origin[0] = 21.0f;  block.origin[1] = 0.0f;
-                block.half_size[0] = 1.2f; block.half_size[1] = 1.2f;
-                block.height_near = 5.0f;  block.height_far = 5.0f;
-                block.rotation = 0.0f;
-                block.edge_blend = 0.0f;
-                block.tier = PierTier::TEST_RIG;
-                block.is_active = 1;
-                write_pier(queue, 2, block);
-            }
-
-            // Batch-generate patches into the caller's command encoder.
-            // Two-pass heightfield: pass 1 evaluates ground_formed() per texel,
-            // pass 2 reads neighbors for gradients + evaluates complexity.
-            // Compute pass boundary between them provides the storage texture barrier.
-            // stagingOffset: slot index into the staging buffer, so multiple
-            // batches per frame don't overwrite each other's params.
-            void generate_patch_batch(wgpu::CommandEncoder& encoder, wgpu::Queue& queue,
-                const GPUPatchParams* params, uint32_t count,
-                uint32_t stagingOffset = 0) {
-                if (count == 0) return;
-
-                // One WriteBuffer: all params into staging at the given offset
-                gpuState_.upload_patch_staging(queue, params, count, stagingOffset);
-
-                for (uint32_t i = 0; i < count; i++) {
-                    // Copy this patch's params from staging slot → active params buffer
-                    encoder.CopyBufferToBuffer(
-                        gpuState_.patch_staging_buffer(), (stagingOffset + i) * sizeof(GPUPatchParams),
-                        gpuState_.patch_params_buffer(), 0,
-                        sizeof(GPUPatchParams));
-
-                    // Pass 1: heights only (one ground_formed per texel)
-                    {
-                        wgpu::ComputePassDescriptor cpd{};
-                        cpd.label = "Patch Heights (pass 1)";
-                        wgpu::ComputePassEncoder cp = encoder.BeginComputePass(&cpd);
-                        renderer_.dispatch_generate_patch_heights(cp, gpuState_.patch_gen_group(), GPUState::patch_heightfield_workgroups());
-                        cp.End();
-                    }
-
-                    // Pass boundary: storage texture write → read barrier
-
-                    // Pass 2: gradients from neighbor reads + complexity + cell colors
-                    {
-                        wgpu::ComputePassDescriptor cpd{};
-                        cpd.label = "Patch Gradients + Cells (pass 2)";
-                        wgpu::ComputePassEncoder cp = encoder.BeginComputePass(&cpd);
-                        renderer_.dispatch_generate_patch_gradients(cp, gpuState_.patch_gen_group(), GPUState::patch_heightfield_workgroups());
-                        renderer_.dispatch_generate_patch_cells(cp, gpuState_.patch_gen_group(), GPUState::patch_cell_workgroups());
-                        cp.End();
-                    }
-                }
-            }
-
-            GPUPatchParams make_patch_params(int32_t gx, int32_t gz, uint32_t layer) const {
-                GPUPatchParams p{};
-                p.origin[0] = (gx + 0.5f) * PATCH_EXTENT;
-                p.origin[1] = (gz + 0.5f) * PATCH_EXTENT;
-                p.extent = PATCH_EXTENT;
-                p.resolution = 256;
-                p.master_seed = activeSeed_;
-                p.time = 0.0f;
-                p.layer = layer;
-                p._pad1 = 0.0f;
-                return p;
-            }
-
-            uint32_t alloc_layer() {
-                if (freeLayerCount_ == 0) {
-                    // Safety: no free layers — recycle layer 0 rather than crash.
-                    // This shouldn't happen if eviction works correctly.
-                    return 0;
-                }
-                return freeLayerStack_[--freeLayerCount_];
-            }
-
-            void free_layer(uint32_t layer) {
-                freeLayerStack_[freeLayerCount_++] = layer;
-            }
-
-            // Check if grid coordinate is within the allocation window (activeRadius_ = PREGEN_RADIUS)
-            bool in_render_window(int32_t gx, int32_t gz, int32_t cx, int32_t cz) {
-                int32_t r = (int32_t)activeRadius_;
-                return gx >= cx - r && gx <= cx + r &&
-                    gz >= cz - r && gz <= cz + r;
-            }
-
-            // Check if grid coordinate is within the VISIBLE circle (Euclidean).
-            // Radius 5.5 in grid units: inscribes cleanly within the PREGEN square,
-            // drops ~24 corner patches that would be deep in fog anyway.
-            // Pre-gen patches outside this circle are allocated and generated but NOT rendered.
-            static constexpr float VISIBLE_RADIUS = 5.5f;
-            static constexpr float VISIBLE_RADIUS_SQ = VISIBLE_RADIUS * VISIBLE_RADIUS;
-
-            // Multi-LOD distance bands (grid units, Euclidean from center).
-            // LOD-0 (full 64×64 mesh): patches within LOD_FULL_RADIUS
-            // LOD-1 (half 32×32 mesh): patches between LOD_FULL_RADIUS and VISIBLE_RADIUS
-            static constexpr float LOD_FULL_RADIUS = 3.5f;
-            static constexpr float LOD_FULL_RADIUS_SQ = LOD_FULL_RADIUS * LOD_FULL_RADIUS;
-
-            // ─── Visibility Cylinder ─────────────────────────────────────
+            // ─── Indoor Lighting Schemes ─────────────────────────────────
             //
-            // World-space cylinder centered on the pawn's actual position.
-            // Patches enter the draw list when their nearest edge crosses
-            // inside the cylinder — one at a time as the pawn moves,
-            // not in batches when a grid boundary is crossed.
+            // Seed-driven procedural lighting for indoor moods. Each scheme
+            // defines a lighting character (which surfaces carry lights,
+            // how many, primary vs accent roles). Per-light parameters
+            // (position along surface, intensity, cone width, color warmth)
+            // are derived from activeSeed_ at mood transition time.
             //
-            // Grid-based allocation/eviction is unchanged; only the
-            // draw-list gate uses world-space distance.
-            static constexpr float VISIBILITY_CYLINDER_RADIUS = VISIBLE_RADIUS * PATCH_EXTENT;
-            static constexpr float VISIBILITY_CYLINDER_RADIUS_SQ = VISIBILITY_CYLINDER_RADIUS * VISIBILITY_CYLINDER_RADIUS;
-            static constexpr float LOD0_CYLINDER_RADIUS = LOD_FULL_RADIUS * PATCH_EXTENT;
-            static constexpr float LOD0_CYLINDER_RADIUS_SQ = LOD0_CYLINDER_RADIUS * LOD0_CYLINDER_RADIUS;
+            // Three schemes:
+            //   Cathedral — ceiling primary + two opposing wall sconces
+            //   Gallery   — two opposing wall lights, no ceiling (dramatic)
+            //   Sanctum   — single source, maximum contrast
+            //
+            // The seed also picks which wall pair (N/S or E/W) carries the
+            // sconces, so rooms with the same scheme still feel different.
+
+            enum class LightAnchor : uint32_t {
+                CEILING, WALL_NORTH, WALL_SOUTH, WALL_EAST, WALL_WEST
+            };
+
+            struct IndoorLightProp {
+                static constexpr uint32_t SCHEME = 1100u;
+                static constexpr uint32_t WALL_PAIR = 1101u;
+                static constexpr uint32_t ANCHOR_PICK = 1102u;
+                static constexpr uint32_t SLOT_BASE = 1110u;  // + slot*10 + field
+                // Per-slot field offsets
+                static constexpr uint32_t LATERAL = 0u;
+                static constexpr uint32_t HEIGHT = 1u;
+                static constexpr uint32_t INTENSITY = 2u;
+                static constexpr uint32_t INNER_CONE = 3u;
+                static constexpr uint32_t OUTER_CONE = 4u;
+                static constexpr uint32_t WARMTH = 5u;
+                static constexpr uint32_t AIM_PITCH = 6u;
+                static constexpr uint32_t AIM_YAW = 7u;
+            };
+
+            // Slot definition: anchor surface + gaussian ranges for the
+            // light's character. Position slide uses fixed sigmas.
+            // Direction is fully parameterised per slot:
+            //   aim_pitch — angle below horizontal (wall) or off-vertical (ceiling), radians
+            //   aim_yaw   — lateral rotation along the anchor surface, radians
+            struct LightSlotDef {
+                LightAnchor anchor;
+                float intensity_mean, intensity_sigma;
+                float inner_mean, inner_sigma;    // inner half-angle (radians)
+                float outer_mean, outer_sigma;    // outer half-angle (radians)
+                float warmth_mean, warmth_sigma;  // 0 = warm amber, 1 = cool blue
+                float aim_pitch_mean, aim_pitch_sigma;  // radians
+                float aim_yaw_mean, aim_yaw_sigma;      // radians
+            };
+
+            static constexpr float SCHEME_WEIGHTS[] = { 0.55f, 0.25f, 0.20f };
+            static constexpr uint32_t SCHEME_COUNT = 3;
+            static constexpr const char* SCHEME_NAMES[] = { "Cathedral", "Gallery", "Sanctum" };
+            static constexpr const char* ANCHOR_NAMES[] = { "ceiling", "wall_N", "wall_S", "wall_E", "wall_W" };
+
+            GPUPortalArray cpuPortalArray_{};
+            bool portalsDirty_ = true;   // true at boot → first upload guaranteed
+
+            // --- Back-portal (guaranteed exit from finite worlds) ---
+            // Position is configurable so special-case layouts can relocate it.
+            float backPortalPosition_[2] = { 10.0f, 0.0f };   // world XZ
+            bool  backPortalPending_ = false;
+            uint32_t backPortalReturnSeed_ = 0;
+            uint32_t backPortalReturnMood_ = 0;
+            uint32_t backPortalReturnRadius_ = 2;
+
+            // GPU pawn readback state machine: IDLE → COPIED → MAPPING → IDLE
+            // Reads full GPUPawnState: position (for patch streaming, photographer,
+            // ribbon spawning) and portal_trigger (for world transitions).
+            enum class PawnReadbackState { IDLE, COPIED, MAPPING };
+            PawnReadbackState pawnReadbackState_ = PawnReadbackState::IDLE;
+            int32_t readbackPortalTrigger_ = -1;
+            float pawnReadback_x_ = 0.0f;
+            float pawnReadback_z_ = 0.0f;
 
-            // Distance² from point (px,pz) to nearest edge of a patch AABB.
-            // Zero when the point is inside the patch.
-            static float patch_distance_sq(float px, float pz,
-                float origin_x, float origin_z, float half) {
-                float dx = std::max(0.0f, std::abs(px - origin_x) - half);
-                float dz = std::max(0.0f, std::abs(pz - origin_z) - half);
-                return dx * dx + dz * dz;
-            }
-
-            // Check if grid coordinate is within the priority window (GRID_RADIUS)
-            bool in_priority_window(int32_t gx, int32_t gz, int32_t cx, int32_t cz) {
-                int32_t r = (int32_t)GRID_RADIUS;
-                return gx >= cx - r && gx <= cx + r &&
-                    gz >= cz - r && gz <= cz + r;
-            }
-
-
-        public:
-            Cartridge() = default;
-
-            Cartridge(const Cartridge&) = delete;
-            Cartridge& operator=(const Cartridge&) = delete;
-
-
-            // =========================================================================
-            // S3 BOOT — Device init, pipeline creation, initial state
-            // =========================================================================
-
-            void initialize(wgpu::Device device) override {
-                device_ = device;
-                auto tGpu0 = std::chrono::high_resolution_clock::now();
-                gpuState_.init(device);
-                auto tGpu1 = std::chrono::high_resolution_clock::now();
-                std::cout << "[Cartridge] GPUState init:    "
-                    << std::chrono::duration_cast<std::chrono::milliseconds>(tGpu1 - tGpu0).count()
-                    << " ms\n";
-            }
-
-            bool init_renderer(
-                wgpu::TextureFormat colorFormat,
-                wgpu::TextureFormat depthFormat
-            ) {
-                colorFormat_ = colorFormat;
-                depthFormat_ = depthFormat;
-
-                auto t0 = std::chrono::high_resolution_clock::now();
-                if (!renderer_.init(
-                    device_,
-                    gpuState_,
-                    colorFormat,
-                    depthFormat
-                )) return false;
-
-                // Create offscreen textures with the actual swapchain format
-                if (!gpuState_.initOffscreenResources(colorFormat)) {
-                    std::cerr << "[Cartridge] Failed to init offscreen resources\n";
-                    return false;
-                }
-
-                auto t1 = std::chrono::high_resolution_clock::now();
-
-                // --- One-shot: generate terrain index buffer on GPU -----------------
-                {
-                    wgpu::CommandEncoder encoder = device_.CreateCommandEncoder();
-                    wgpu::ComputePassDescriptor desc{};
-                    desc.label = "Terrain Index Gen (one-shot)";
-                    wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&desc);
-                    renderer_.dispatch_generate_terrain_indices(
-                        pass,
-                        gpuState_.terrain_index_gen_group(),
-                        GPUState::terrain_mesh_workgroups()
-                    );
-                    pass.End();
-                    wgpu::CommandBuffer cmd = encoder.Finish();
-                    device_.GetQueue().Submit(1, &cmd);
-                }
-                auto t2 = std::chrono::high_resolution_clock::now();
-
-                init_patch_system();
-                setup_test_rig_piers(device_.GetQueue());
-
-                // Eager-load authored paintings at boot (avoids mid-frame stall on first gallery)
-                {
-                    wgpu::Queue q = device_.GetQueue();
-                    load_authored_textures(q);
-                }
-
-                auto t3 = std::chrono::high_resolution_clock::now();
-
-                std::cout << "[Cartridge] Renderer init:    "
-                    << std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count() << " ms\n";
-                std::cout << "[Cartridge] Terrain gen:      "
-                    << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() << " ms\n";
-                std::cout << "[Cartridge] Patch system:     "
-                    << std::chrono::duration_cast<std::chrono::milliseconds>(t3 - t2).count() << " ms\n";
-                std::cout << "[Cartridge] Total init:       "
-                    << std::chrono::duration_cast<std::chrono::milliseconds>(t3 - t0).count() << " ms\n";
-
-                return true;
-            }
-
-
-            void update(const AnalysisSignal& signal,
-                float aspect_ratio,
-                wgpu::Queue& queue) override {
-                // --- Build GPU signal from analysis + input -------------------------
-                GPUFrameSignal gpuSignal;
-
-                gpuSignal.t_seconds = signal.t_seconds;
-                gpuSignal.t_beats = signal.t_beats;
-                gpuSignal.dt = signal.dt;
-                gpuSignal.aspect_ratio = aspect_ratio;
-
-                for (size_t i = 0; i < signal.stats.size(); ++i) {
-                    gpuSignal.stats[i] = signal.stats[i];
-                }
-
-                gpuSignal.move_x = inputState_.move_x;
-                gpuSignal.move_z = inputState_.move_z;
-                gpuSignal.look_az_delta = inputState_.look_az_delta;
-                gpuSignal.look_el_delta = inputState_.look_el_delta;
-                gpuSignal.zoom_delta = inputState_.zoom_delta;
-                gpuSignal.pan_x_delta = inputState_.pan_x_delta;
-                gpuSignal.pan_y_delta = inputState_.pan_y_delta;
-                gpuSignal._pad1 = 0.0f;
-
-                currentBeats_ = signal.t_beats;
-                currentSeconds_ = signal.t_seconds;
-                currentDt_ = signal.dt;
-
-                // --- Upload to GPU --------------------------------------------------
-
-                // Aura presence trajectory: smooth ramp on enable/disable
-                {
-                    float target = auraEnabled_ ? 1.0f : 0.0f;
-                    float rate = (target > auraPresence_) ? AURA_PRESENCE_ATTACK : AURA_PRESENCE_RELEASE;
-                    float prev = auraPresence_;
-                    auraPresence_ = prev + (target - prev) * (1.0f - std::exp(-rate * currentDt_));
-                    if (auraPresence_ < 0.001f && target == 0.0f) auraPresence_ = 0.0f;
-                    if (auraPresence_ > 0.999f && target == 1.0f) auraPresence_ = 1.0f;
-                    if (auraPresence_ != prev) auraCfgDirty_ = true;
-                }
-
-                // Pawn aura height: presence × base height × expansion
-                // This same value is used by terrain VS for extrusion, so pawn and terrain always agree.
-                float aura_expand_mult = 1.0f + mmodeIntensity_[MMODE_AURA_EXPAND] * 3.0f;
-                float effective_aura_height = auraHeightEnabled_
-                    ? activeAuraProfile_.height_scale * auraPresence_ * aura_expand_mult : 0.0f;
-                gpuState_.set_pawn_aura_height(effective_aura_height);
-                gpuState_.set_aura_enabled(auraPresence_ > 0.001f);  // keep compute running while ramping down
-                gpuState_.set_world_seed(activeSeed_);
-                if (finiteMode_) {
-                    float bmin = -(float)finiteRadius_ * PATCH_EXTENT;
-                    float bmax = ((float)finiteRadius_ + 1.0f) * PATCH_EXTENT;
-                    gpuState_.set_world_bounds(bmin, bmin, bmax, bmax);
-                }
-                else {
-                    gpuState_.set_world_bounds(0.0f, 0.0f, 0.0f, 0.0f);
-                }
-
-                // --- Transition state machine ---
-                if (transitionPhase_ != TransitionPhase::IDLE) {
-                    transitionTimer_ += signal.dt;
-                    switch (transitionPhase_) {
-                    case TransitionPhase::FADE_OUT:
-                        transitionFadeAlpha_ = std::min(1.0f, transitionTimer_ / transitionFadeDuration_);
-                        if (transitionFadeAlpha_ >= 1.0f) {
-                            transitionPhase_ = TransitionPhase::TEARDOWN;
-                        }
-                        break;
-                    case TransitionPhase::TEARDOWN:
-                    {
-                        // Capture return seed + mood + radius before overwrite
-                        backPortalReturnSeed_ = activeSeed_;
-                        backPortalReturnMood_ = activeMood_;
-                        backPortalReturnRadius_ = finiteRadius_;
-
-                        activeSeed_ = pendingDestination_.seed;
-                        finiteMode_ = pendingDestination_.finite;
-                        finiteRadius_ = pendingDestination_.finite_radius;
-                        teardown_world(queue);
-                        // NOTE: do NOT force pawnReadbackState_ to IDLE here.
-                        // If a MapAsync is in-flight (MAPPING), forcing IDLE would
-                        // cause CopyBufferToBuffer to a still-mapped buffer.
-                        // The existing state machine guards will skip readback
-                        // until the pending callback resolves naturally.
-                        readbackPortalTrigger_ = -1;
-                        pawnReadback_x_ = 0.0f;
-                        pawnReadback_z_ = 0.0f;
-                        gpuState_.reset_pawn(queue);
-                        gpuState_.set_world_seed(activeSeed_);
-                        apply_mood(pendingDestination_.mood, queue);
-                        // Deactivate ribbon in finite mode (mood 5 spawns its own in apply_mood)
-                        if (finiteMode_ && ribbonActive_ && activeMood_ != 5) {
-                            uint32_t zero = 0u;
-                            queue.WriteBuffer(gpuState_.ribbon_buffer(),
-                                offsetof(GPURibbonState, is_visible), &zero, sizeof(uint32_t));
-                            ribbonActive_ = false;
-                        }
-                        // Schedule guaranteed back-portal in finite worlds
-                        backPortalPending_ = finiteMode_;
-
-                        transitionPhase_ = TransitionPhase::FADE_IN;
-                        transitionTimer_ = 0.0f;
-                        uint32_t side = finiteMode_ ? 2 * finiteRadius_ + 1 : 0;
-                        std::cout << "[World] Teardown complete, seed=" << activeSeed_
-                            << " mode=" << (finiteMode_ ? "finite" : "open")
-                            << (finiteMode_ ? " " + std::to_string(side) + "x" + std::to_string(side) : "")
-                            << "\n";
-                    }
-                    break;
-                    case TransitionPhase::FADE_IN:
-                        transitionFadeAlpha_ = std::max(0.0f, 1.0f - transitionTimer_ / transitionFadeDuration_);
-                        if (transitionFadeAlpha_ <= 0.0f) {
-                            transitionPhase_ = TransitionPhase::IDLE;
-                            transitionFadeAlpha_ = 0.0f;
-                        }
-                        break;
-                    default: break;
-                    }
-                }
-                gpuState_.set_fade(transitionFadeAlpha_, 0.0f, 0.0f, 0.0f);
-
-                gpuState_.upload_signal(queue, gpuSignal);
-
-                // ─── Polyphony-driven band motion ────────────────────────
-                if (bandMotionActive_) {
-                    float polyphony = signal.stats[0];
-                    uint32_t active_count = (uint32_t)std::max(0.0f, std::min(polyphony, 6.0f));
-
-                    // Set per-band targets: bands activate in order from fine to tectonic
-                    for (uint32_t i = 0; i < 6; i++) bandBlendTarget_[i] = 0.0f;
-                    for (uint32_t i = 0; i < active_count; i++) {
-                        bandBlendTarget_[BAND_ACTIVATION_ORDER[i]] = 1.0f;
-                    }
-
-                    float dt = signal.dt;
-                    bool changed = false;
-                    for (uint32_t i = 0; i < 6; i++) {
-                        float prev = bandBlend_[i];
-                        float target = bandBlendTarget_[i];
-
-                        // Capture phase origin at the moment a band activates
-                        if (target > 0.5f && prev < 0.01f) {
-                            bandPhaseOrigin_[i] = currentBeats_;
-                        }
-
-                        // Exponential ramp toward target
-                        float rate = (target > prev) ? BAND_BLEND_ATTACK : BAND_BLEND_RELEASE;
-                        bandBlend_[i] = prev + (target - prev) * (1.0f - std::exp(-rate * dt));
-
-                        // Snap to endpoints to avoid perpetual drift
-                        if (bandBlend_[i] < 0.001f && target == 0.0f) bandBlend_[i] = 0.0f;
-                        if (bandBlend_[i] > 0.999f && target == 1.0f) bandBlend_[i] = 1.0f;
-
-                        if (bandBlend_[i] != prev) changed = true;
-                    }
-
-                    if (changed) {
-                        gpuState_.set_band_motion(bandBlend_, bandPhaseOrigin_);
-                    }
-                    gpuState_.set_terrain_time(currentBeats_);
-                }
-
-                // ─── Musical animation modes: per-frame intensity ramp ───
-                {
-                    float polyphony = signal.stats[0];
-                    float dt = signal.dt;
-                    bool any_changed = false;
-
-                    for (uint32_t m = 0; m < MMODE_COUNT; m++) {
-                        // Skip mode 0 (terrain waves) — handled by band motion system above
-                        // Skip mode 3 (palette drift) — has its own steeper intensity curve below
-                        if (m == MMODE_TERRAIN_WAVES || m == MMODE_PALETTE_DRIFT) continue;
-
-                        bool on = is_mmode_on(m);
-                        float target = on ? std::min(polyphony / 6.0f, 1.0f) : 0.0f;
-                        float prev = mmodeIntensity_[m];
-                        float rate = (target > prev) ? MMODE_ATTACK : MMODE_RELEASE;
-                        float next = prev + (target - prev) * (1.0f - std::exp(-rate * dt));
-
-                        // Snap to endpoints
-                        if (next < 0.001f && target == 0.0f) next = 0.0f;
-                        if (next > 0.999f && target >= 1.0f) next = 1.0f;
-
-                        if (next != prev) {
-                            mmodeIntensity_[m] = next;
-                            any_changed = true;
-                        }
-                    }
-
-                    if (any_changed) {
-                        // Color shift: intensity → mode field bias
-                        gpuState_.set_mode_color_shift(mmodeIntensity_[MMODE_COLOR_SHIFT] * 0.6f);
-
-                        // Checker scatter: intensity → sparse threshold reduction
-                        gpuState_.set_mode_checker_scatter(mmodeIntensity_[MMODE_CHECKER_SCATTER] * 0.5f);
-
-                        // Aura expand: intensity scales aura parameters
-                        if (mmodeIntensity_[MMODE_AURA_EXPAND] > 0.0f || is_mmode_on(MMODE_AURA_EXPAND)) {
-                            auraCfgDirty_ = true;
-                        }
-
-                        // GoL tempo: intensity → tick slow-down + height boost
-                        // Inverse: more polyphony = slower GoL (contemplation).
-                        // When BPM detection arrives, this source gets swapped.
-                        {
-                            float gi = mmodeIntensity_[MMODE_GOL_TEMPO];
-                            // tick_scale > 1 = slower. Lerp from 1.0 up to 4.0 (4× slower at full)
-                            float tick_scale = 1.0f + gi * 3.0f;
-                            // height_scale > 1 = taller. Lerp from 1.0 up to 3.0
-                            float height_scale = 1.0f + gi * 2.0f;
-                            gpuState_.set_mode_gol_scales(tick_scale, height_scale);
-                        }
-                    }
-
-                    // Palette drift: smooth target transition + push to GPU
-                    // Uses its own intensity curve — steeper than generic mmodeIntensity
-                    // because palette colors are close and need strong push to read.
-                    {
-                        float poly = signal.stats[0];
-                        bool drift_on = is_mmode_on(MMODE_PALETTE_DRIFT);
-
-                        // Smooth palette mapping: ordered by contrast from sand baseline.
-                        //   1 note → green(2)  — biggest hue shift
-                        //   2 notes → grey(3)   — desaturated, clearly different
-                        //   3+ notes → salmon(1) — warm shift, completes cycle
-                        static constexpr float SMOOTH_PALETTE_MAP[] = { 0.0f, 2.0f, 3.0f, 1.0f };
-
-                        // Discrete tier mapping: cycle through all vocabularies.
-                        //   Idle   → whatever the threshold cascade gives (natural)
-                        //   1 note → tinted mono(1)    — desaturated, grey-tinted cells
-                        //   2 notes → chess colorful(4) — parity + vivid per-node colors
-                        //   3 notes → pure B&W(2)       — high contrast random assignment
-                        //   4+ notes → chess B&W(3)     — structured classic pattern
-                        // Full color(0) is the natural idle state for most cells,
-                        // so it's not a useful drift target — already there.
-                        static constexpr float DISCRETE_TIER_MAP[] = { 0.0f, 1.0f, 4.0f, 2.0f, 3.0f };
-
-                        if (drift_on && poly >= 1.0f) {
-                            uint32_t idx = std::min((uint32_t)poly, 3u);
-                            paletteDriftDesired_ = SMOOTH_PALETTE_MAP[idx];
-                        }
-                        if (!drift_on || poly < 0.5f) {
-                            paletteDriftDesired_ = 0.0f;
-                        }
-
-                        // Ramp target smoothly to avoid color snaps
-                        float prev_t = paletteDriftTarget_;
-                        paletteDriftTarget_ += (paletteDriftDesired_ - paletteDriftTarget_)
-                            * (1.0f - std::exp(-PALETTE_DRIFT_TARGET_RATE * dt));
-
-                        // Intensity: poly/3 so single note is partial, 3 notes = full
-                        float drift_intensity = drift_on
-                            ? std::min(poly / 3.0f, 1.0f) : 0.0f;
-                        // Use same exponential ramp as other modes for smooth on/off
-                        float prev_i = mmodeIntensity_[MMODE_PALETTE_DRIFT];
-                        float rate_i = (drift_intensity > prev_i) ? MMODE_ATTACK : MMODE_RELEASE;
-                        mmodeIntensity_[MMODE_PALETTE_DRIFT] = prev_i
-                            + (drift_intensity - prev_i) * (1.0f - std::exp(-rate_i * dt));
-                        float intensity = mmodeIntensity_[MMODE_PALETTE_DRIFT];
-
-                        // Discrete tier from lookup
-                        float discrete_tier = 0.0f;
-                        if (drift_on && poly >= 1.0f) {
-                            uint32_t tidx = std::min((uint32_t)poly, 4u);
-                            discrete_tier = DISCRETE_TIER_MAP[tidx];
-                        }
-
-                        if (intensity > 0.001f || paletteDriftTarget_ != prev_t) {
-                            gpuState_.set_mode_palette_drift(paletteDriftTarget_, intensity, discrete_tier);
-                        }
-                    }
-                }
-
-                // ─── Radial pulse onset detection ────────────────────────
-                {
-                    float poly = signal.stats[0];
-                    bool pulse_on = is_mmode_on(MMODE_RADIAL_PULSE);
-
-                    // Detect note onsets: polyphony increased since last frame
-                    if (pulse_on && poly > prevPolyphony_ + 0.5f) {
-                        float increase = poly - std::max(prevPolyphony_, 0.0f);
-                        // Emit one pulse per onset, amplitude proportional to note count
-                        uint32_t slot = pulseWriteIdx_ % PULSE_RING_SIZE;
-                        uint32_t base = slot * 4;
-                        pulseRing_[base + 0] = pawnReadback_x_;      // origin X
-                        pulseRing_[base + 1] = pawnReadback_z_;      // origin Z
-                        pulseRing_[base + 2] = currentSeconds_;      // onset time
-                        pulseRing_[base + 3] = PULSE_AMPLITUDE * std::min(increase, 3.0f);
-                        pulseWriteIdx_++;
-                        std::cout << "[Pulse] ONSET slot=" << slot
-                            << " pos=(" << pawnReadback_x_ << "," << pawnReadback_z_ << ")"
-                            << " t=" << currentSeconds_
-                            << " amp=" << pulseRing_[base + 3]
-                            << " poly=" << poly << " prev=" << prevPolyphony_
-                            << "\n";
-                    }
-                    prevPolyphony_ = poly;
-
-                    // Count active (non-expired) pulses and upload
-                    uint32_t active = 0;
-                    for (uint32_t i = 0; i < PULSE_RING_SIZE; i++) {
-                        float onset = pulseRing_[i * 4 + 2];
-                        float amp = pulseRing_[i * 4 + 3];
-                        if (amp > 0.001f && (currentSeconds_ - onset) < PULSE_MAX_AGE) {
-                            active = std::max(active, i + 1);
-                        }
-                    }
-                    // Always upload if any pulses exist (even decaying ones for GPU to evaluate)
-                    gpuState_.set_pulse_data(active, pulseRing_);
-                }
-
-                gpuState_.upload_config(queue);
-
-                // Pawn position comes from GPU readback (one-frame latency).
-                // See render() for the readback state machine.
-
-                // --- Clear deltas for next frame ------------------------------------
-                update_photographer(queue);
-                clear_input_deltas();
-            }
-
-
-            // ORDER (STREAMING PATCH MODE):
-            //   1. (Optional) Compute: compute_ribbon_rings   [0D] -- ring transforms for flying ribbon
-            //   2. Compute: update_world                      [0D] -- entities, trajectories, couplings
-            //   3. Compute: compute_vp                        [0D] -- camera VP + sun VP (shadow)
-            //   4. Render:  patch terrain instances           -- heightfield array sampled in VS
-            //   5. Render:  pawn entity                       -- chess pawn
-            //   6. Render:  sphere entity                     -- sphere
-            //   7. Render:  ribbon rings                      -- instanced ring geometry
-
-            void render(wgpu::CommandEncoder& encoder,
-                wgpu::TextureView backbuffer,
-                wgpu::TextureView depth) override {
-
-                wgpu::Queue queue = device_.GetQueue();
-
-                // --- GPU pawn readback (one-frame latency) ---
-                // Copies full GPUPawnState to staging each frame (after compute).
-                // Reads back position (for patch streaming, photographer, ribbon)
-                // and portal_trigger (for world transitions).
-                // State machine: IDLE → copy pawn buffer to staging → COPIED
-                //                COPIED → call MapAsync → MAPPING
-                //                MAPPING → callback fires, reads data → IDLE
-                if (pawnReadbackState_ == PawnReadbackState::COPIED) {
-                    pawnReadbackState_ = PawnReadbackState::MAPPING;
-                    gpuState_.pawn_readback_staging().MapAsync(
-                        wgpu::MapMode::Read, 0, GPUState::pawn_state_size(),
-                        wgpu::CallbackMode::AllowSpontaneous,
-                        [this](wgpu::MapAsyncStatus status, wgpu::StringView) {
-                            if (status == wgpu::MapAsyncStatus::Success) {
-                                auto* data = static_cast<const float*>(
-                                    gpuState_.pawn_readback_staging().GetConstMappedRange(
-                                        0, GPUState::pawn_state_size()));
-                                if (data) {
-                                    pawnReadback_x_ = data[0];   // pos[0]
-                                    pawnReadback_z_ = data[2];   // pos[2]
-                                    // portal_trigger is int32_t at offset 40 = float index 10
-                                    readbackPortalTrigger_ = reinterpret_cast<const int32_t*>(data)[10];
-                                }
-                                gpuState_.pawn_readback_staging().Unmap();
-                            }
-                            pawnReadbackState_ = PawnReadbackState::IDLE;
-                        });
-                }
-
-                // Check if GPU reported a portal trigger
-                if (readbackPortalTrigger_ >= 0 && transitionPhase_ == TransitionPhase::IDLE) {
-                    uint32_t arch_idx = static_cast<uint32_t>(readbackPortalTrigger_);
-                    readbackPortalTrigger_ = -1;
-                    if (arch_idx < Dim::MAX_ARCH_INSTANCES &&
-                        activeArches_[arch_idx].active &&
-                        activeArches_[arch_idx].is_portal) {
-                        pendingDestination_ = activeArches_[arch_idx].destination;
-                        transitionPhase_ = TransitionPhase::FADE_OUT;
-                        transitionTimer_ = 0.0f;
-                        std::cout << "[Portal] GPU trigger: arch " << arch_idx
-                            << " -> seed=" << pendingDestination_.seed
-                            << " finite=" << pendingDestination_.finite << "\n";
-                    }
-                }
-
-                stream_patches(encoder, queue);
-                if (!finiteMode_) {
-                    update_ribbon_spawning(pawnReadback_x_, pawnReadback_z_, currentSeconds_, queue);
-                }
-                else if (ribbonActive_) {
-                    // Mood-spawned ribbon in finite mode — update time only
-                    gpuState_.upload_ribbon_time(queue, currentSeconds_);
-                }
-
-                // ─── Entity mesh gen: single compute pass for all dirty families ──
-                {
-                    bool needArch = prepare_arch_mesh_gen(queue);
-                    bool needCol = prepare_column_mesh_gen(queue);
-                    bool needPyr = prepare_pyramid_mesh_gen(queue);
-
-                    if (needArch || needCol || needPyr) {
-                        wgpu::ComputePassDescriptor cpd{};
-                        cpd.label = "Entity Mesh Gen";
-                        wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
-                        if (needArch) {
-                            renderer_.dispatch_arch_mesh_gen(pass, gpuState_.arch_mesh_gen_group());
-                        }
-                        if (needCol) {
-                            renderer_.dispatch_column_mesh_gen(pass, gpuState_.column_mesh_gen_group());
-                        }
-                        if (needPyr) {
-                            renderer_.dispatch_pyramid_mesh_gen(pass, gpuState_.pyramid_mesh_gen_group());
-                        }
-                        pass.End();
-                    }
-                }
-                upload_portal_array(queue);
-                upload_lights(queue);
-                dispatch_compute(encoder);
-
-                // Copy full pawn state from GPU to staging (for readback next frame)
-                if (pawnReadbackState_ == PawnReadbackState::IDLE) {
-                    encoder.CopyBufferToBuffer(
-                        gpuState_.pawn_buffer(), 0,
-                        gpuState_.pawn_readback_staging(), 0,
-                        GPUState::pawn_state_size());
-                    pawnReadbackState_ = PawnReadbackState::COPIED;
-                }
-
-                // GoL zone compute — derive params + sync + evolve (separate passes for barrier)
-                if (golZoneCount_ > 0) {
-                    flush_zone_derive_requests(queue);
-                    upload_gol_zone_config(queue);
-
-                    {
-                        wgpu::ComputePassDescriptor cpd{};
-                        cpd.label = "GoL Zone Sync";
-                        wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
-                        renderer_.dispatch_zone_gol_sync(pass,
-                            gpuState_.zone_gol_compute_group(), activeZoneSlotCount_);
-                        pass.End();
-                    }
-                    {
-                        wgpu::ComputePassDescriptor cpd{};
-                        cpd.label = "GoL Zone Evolve";
-                        wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
-                        renderer_.dispatch_zone_gol_evolve(pass,
-                            gpuState_.zone_gol_compute_group(), activeZoneSlotCount_);
-                        pass.End();
-                    }
-
-                    // Mesh gen pass (Group 0 = compute entity, Group 1 = zone mesh gen)
-                    {
-                        wgpu::ComputePassDescriptor cpd{};
-                        cpd.label = "GoL Zone Mesh Gen";
-                        wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
-                        renderer_.dispatch_zone_mesh_reset(pass,
-                            gpuState_.zone_mesh_gen_group());
-                        renderer_.dispatch_zone_mesh_gen(pass,
-                            gpuState_.zone_mesh_gen_group(),
-                            activeZoneSlotCount_);
-                        pass.End();
-                    }
-                }
-
-                // Pawn aura compute — persistent terrain influence
-                // Run while presence > 0 (ramping down after toggle-off) or clearing
-                if (auraPresence_ > 0.0f || auraNeedsClear_) {
-                    if (auraCfgDirty_) {
-                        // Full config upload — profile changed or first frame
-                        auraCfgDirty_ = false;
-                        const auto& ap = activeAuraProfile_;
-                        // Aura expansion mode: scale radius, height, tint by intensity
-                        float aura_expand = mmodeIntensity_[MMODE_AURA_EXPAND];
-                        float radius_scale = 1.0f + aura_expand * 2.0f;    // up to 3× radius
-                        float tint_scale = 1.0f + aura_expand * 1.5f;      // up to 2.5× tint
-
-                        // Presence scales all aura params for smooth raise/lower
-                        float p = auraPresence_;
-
-                        GPUPawnAuraConfig auraCfg{};
-                        auraCfg.cell_size = PATCH_CELL_SIZE;
-                        auraCfg.influence_radius = ap.influence_radius * radius_scale * p;
-                        auraCfg.attack_stiffness = ap.attack_stiffness;
-                        auraCfg.attack_damping = ap.attack_damping;
-                        auraCfg.release_rate = (p > 0.01f) ? ap.release_rate : 999.0f;
-                        auraCfg.dt = currentDt_;
-                        auraCfg.effect_mask = ap.effect_mask;
-                        auraCfg.aura_n = 64;
-                        auraCfg.tint_strength = std::min(ap.tint_strength * tint_scale * p, 1.0f);
-                        auraCfg.tint_r = ap.tint_r;
-                        auraCfg.tint_g = ap.tint_g;
-                        auraCfg.tint_b = ap.tint_b;
-                        auraCfg.delta_mode = ap.delta_mode;
-                        auraCfg.delta_magnitude = ap.delta_magnitude;
-                        auraCfg.t_beats = currentBeats_;
-                        // height_scale gates the compute shader's R channel write (> 0.01 = enabled).
-                        // Actual terrain extrusion magnitude comes from config.pawn_aura_height in the VS.
-                        auraCfg.height_scale = (auraHeightEnabled_ && p > 0.01f) ? ap.height_scale : 0.0f;
-                        gpuState_.upload_pawn_aura_config(queue, auraCfg);
-                    }
-                    else {
-                        // Steady state — only dt and t_beats change per frame
-                        gpuState_.upload_pawn_aura_frame(queue, currentDt_, currentBeats_);
-                    }
-
-                    wgpu::ComputePassDescriptor cpd{};
-                    cpd.label = "Pawn Aura";
-                    wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
-                    renderer_.dispatch_compute_pawn_aura(pass,
-                        gpuState_.pawn_aura_compute_group(),
-                        GPUState::pawn_aura_workgroups());
-                    pass.End();
-
-                    // After one cleanup frame with release_rate=999, all cells are zero
-                    if (auraNeedsClear_) { auraNeedsClear_ = false; }
-                }
-
-                if (groundEntriesDirty_) {
-                    groundEntriesDirty_ = false;
-                    placementDirty_ = true;
-                    upload_ground_entries(queue);
-                }
-                if (placementDirty_) {
-                    placementDirty_ = false;
-                    dispatch_placement_correction(encoder);
-                }
-
-                render_shadow_pass(encoder);
-                render_main_pass(encoder, backbuffer, depth);
-                render_snapshot_pass(encoder);
-
-                // --- Flush pending texture promotions (staging → exhibition) ---
-                // Must run AFTER render_snapshot_pass so fresh captures are in staging
-                // before being copied to exhibition layers.
-                for (uint32_t i = 0; i < pendingPromotionCount_; i++) {
-                    auto& p = pendingPromotions_[i];
-                    wgpu::Texture src = p.is_snapshot
-                        ? gpuState_.snapshot_staging_texture()
-                        : gpuState_.authored_staging_texture();
-                    gpuState_.promote_to_exhibition(encoder, src, p.staging_layer, p.exhibition_layer);
-                }
-                pendingPromotionCount_ = 0;
-            }
-
-
-            // --- Per-frame ground entry upload: cached pier-top Y ---
-            // ground_y is computed once at spawn time and cached in Active* structs.
-            // This function is now a pure data-upload — no terrain evaluation.
-            void upload_ground_entries(wgpu::Queue& queue) {
-                // --- Arch ground entries ---
-                GPUArchGroundEntry archOrigins[Dim::MAX_ARCH_INSTANCES]{};
-                for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++) {
-                    if (!activeArches_[i].active) continue;
-                    const auto& pl = cpuPiers_[Dim::PIER_ARCH_BASE + i * 2];
-                    const auto& pr = cpuPiers_[Dim::PIER_ARCH_BASE + i * 2 + 1];
-                    archOrigins[i].pier_left_x = pl.origin[0];
-                    archOrigins[i].pier_left_z = pl.origin[1];
-                    archOrigins[i].pier_right_x = pr.origin[0];
-                    archOrigins[i].pier_right_z = pr.origin[1];
-                    archOrigins[i].is_active = 1;
-                    archOrigins[i].ground_y = activeArches_[i].cached_ground_y;
-                    archOrigins[i].pier_correction_left = 0.0f;
-                    archOrigins[i].pier_correction_right = 0.0f;
-                }
-                gpuState_.upload_arch_origins(queue, archOrigins, Dim::MAX_ARCH_INSTANCES);
-
-                // --- Column ground entries ---
-                GPUColumnGroundEntry columnOrigins[Dim::MAX_COLUMN_INSTANCES]{};
-                for (uint32_t i = 0; i < Dim::MAX_COLUMN_INSTANCES; i++) {
-                    if (!activeColumns_[i].active) continue;
-                    columnOrigins[i].center_x = activeColumns_[i].world_x;
-                    columnOrigins[i].center_z = activeColumns_[i].world_z;
-                    columnOrigins[i].is_active = 1;
-                    columnOrigins[i].ground_y = activeColumns_[i].cached_ground_y;
-                    columnOrigins[i].pier_correction = 0.0f;
-                }
-                gpuState_.upload_column_origins(queue, columnOrigins, Dim::MAX_COLUMN_INSTANCES);
-
-                // --- Pyramid ground entries ---
-                GPUPyramidGroundEntry pyramidOrigins[Dim::MAX_PYRAMID_INSTANCES]{};
-                for (uint32_t i = 0; i < Dim::MAX_PYRAMID_INSTANCES; i++) {
-                    if (!activePyramids_[i].active) continue;
-                    const auto& inst = cpuPyramids_.instances[i];
-                    pyramidOrigins[i].center_x = inst.origin[0];
-                    pyramidOrigins[i].center_z = inst.origin[1];
-                    pyramidOrigins[i].is_active = 1;
-                    pyramidOrigins[i].own_height = inst.height;
-                    pyramidOrigins[i].half_x = inst.half_size[0];
-                    pyramidOrigins[i].half_z = inst.half_size[1];
-                    pyramidOrigins[i].rotation = inst.rotation;
-                    pyramidOrigins[i].ground_y = activePyramids_[i].cached_ground_y;
-                }
-                gpuState_.upload_pyramid_origins(queue, pyramidOrigins, Dim::MAX_PYRAMID_INSTANCES);
-            }
-
-            // --- Entity placement Y-correction: heightfield sample - pier correction ---
-            // Runs unconditionally every frame, AFTER upload_ground_entries and BEFORE
-            // render passes (shadow + main read the corrected ground_y).
-            void dispatch_placement_correction(wgpu::CommandEncoder& encoder) {
-                wgpu::ComputePassDescriptor cpd{};
-                cpd.label = "Entity Placement Y Correction";
-                wgpu::ComputePassEncoder compute = encoder.BeginComputePass(&cpd);
-                renderer_.dispatch_entity_placement(
-                    compute, gpuState_.entity_placement_compute_group()
-                );
-                compute.End();
-            }
-
-
-            // --- Patch streaming: determine active 7×7 grid, generate new patches ---
-            void stream_patches(wgpu::CommandEncoder& encoder, wgpu::Queue& queue) {
-                // ─── Patch Generation Pipeline ─────────────────────────────────
-                //
-                // This function orchestrates terrain streaming. Every stage is
-                // continuous and budgeted per frame — no batched operations at
-                // grid boundaries except the lightweight grid shift event.
-                //
-                // ON GRID SHIFT (pawn crosses a patch boundary):
-                //   1. Update grid center
-                //   2. Evict distant tiles from spatial cache (map erase, no GPU)
-                //   3. Evict out-of-range GoL zones (flag clear + deactivate)
-                //   4. Re-upload tile grid with new origin
-                //   5. FULLREGEN ONLY — batch-allocate ALL, batch-spawn + generate
-                //      inner patches synchronously. Pawn needs ground immediately.
-                //
-                // CONTINUOUS EVICTION (every frame):
-                //   Scans patches outside the render window. Evicts up to
-                //   EVICT_BUDGET_PER_FRAME (farthest first): free layer, clear
-                //   entities, unregister footprints. Compact array afterward.
-                //
-                // CONTINUOUS ALLOCATION (every frame, after eviction):
-                //   Scans grid cells within activeRadius_ of pawn's world position.
-                //   Allocates missing patches up to ALLOC_BUDGET_PER_FRAME, nearest
-                //   first. Populates tile cache and re-uploads tile grid.
-                //
-                // DISTANCE-DRIVEN SPAWN (every frame, after allocation):
-                //   Scans unspawned patches, sorts by distance to pawn.
-                //   Spawns up to SPAWN_BUDGET_PER_FRAME (pyramids → arches → columns).
-                //
-                // DISTANCE-DRIVEN GENERATION (every frame, after spawn):
-                //   Scans spawned-but-ungenerated patches + pending regens.
-                //   Sorts by distance to pawn (nearest first), generates up to budget.
-                //
-                // VISIBILITY CYLINDER (render list gate):
-                //   World-space distance from pawn to patch edge. Patches enter
-                //   the draw list one at a time as the pawn moves.
-                //
-                // EXTERNALLY (in render(), after stream_patches returns):
-                //   - Entity mesh gen (single compute pass: arches + columns + pyramids)
-                //   - dispatch_compute (pawn, camera, VP)
-                //   - dispatch GoL zone compute (sync + evolve, if zones active)
-                //   - dispatch_placement_correction (Y-correct arches, columns, pyramids, paintings — decoupled from photographer)
-                //   - render passes (shadow, main, snapshot)
-                //
-                // GOL ZONE LIFECYCLE:
-                //   - detect_gol_zones_for_patch: after gallery spawn, checks mode lattice
-                //     nodes touched by the patch. Rolls spawn chance, checks footprint
-                //     registry for entity overlap. Seeds life buffer on success.
-                //   - evict_gol_zones_out_of_range: on grid shift, after tile eviction.
-                //   - upload_gol_zone_config: per frame, before GoL compute dispatch.
-
-                int32_t centerX, centerZ;
-                uint32_t patchStagingOffset = 0;  // running offset into staging buffer (multiple batches per frame)
-                bool tileGridDirty = false;        // coalesce tile grid uploads to one per frame
-                if (finiteMode_) {
-                    centerX = 0;
-                    centerZ = 0;
-                }
-                else {
-                    centerX = (int32_t)std::floor(pawnReadback_x_ / PATCH_EXTENT);
-                    centerZ = (int32_t)std::floor(pawnReadback_z_ / PATCH_EXTENT);
-                }
-
-                // In finite mode, cap the effective radius
-                uint32_t savedRadius = activeRadius_;
-                if (finiteMode_ && activeRadius_ > finiteRadius_) {
-                    activeRadius_ = finiteRadius_;
-                }
-
-                bool gridChanged = (centerX != lastCenterX_ || centerZ != lastCenterZ_);
-
-                if (gridChanged) {
-                    int32_t oldCX = lastCenterX_;
-                    int32_t oldCZ = lastCenterZ_;
-                    lastCenterX_ = centerX;
-                    lastCenterZ_ = centerZ;
-
-                    bool fullRegen = (oldCX == INT32_MAX);  // first frame
-
-                    // Lightweight cache maintenance (no GPU buffer writes)
-                    evict_distant_tiles(centerX, centerZ);
-                    evict_gol_zones_out_of_range(centerX, centerZ, queue);
-
-                    // Tile grid origin depends on grid center — re-upload
-                    // unconditionally so GPU heightfield gen reads correct
-                    // modifiers from the new origin.
-                    if (!fullRegen) {
-                        tileGridDirty = true;
-                    }
-
-                    // Guaranteed back-portal in finite worlds (fires once after teardown)
-                    // DEFERRED: must wait for tile cache below (portals need terrain heights)
-
-                    // ─── FULLREGEN: synchronous bootstrap ────────────────────
-                    //
-                    // First frame of a new world: batch-allocate ALL patches,
-                    // spawn + generate inner patches synchronously so the pawn
-                    // has ground immediately. Outer patches use the per-frame
-                    // distance-driven scans like everything else.
-                    if (fullRegen) {
-                        int32_t rr = (int32_t)activeRadius_;
-                        static constexpr int32_t TILE_PAD = 1;
-                        int32_t rp = rr + TILE_PAD;
-                        for (int32_t gz = centerZ - rp; gz <= centerZ + rp; gz++) {
-                            for (int32_t gx = centerX - rp; gx <= centerX + rp; gx++) {
-                                GridKey key{ gx, gz };
-                                if (tileCache_.find(key) == tileCache_.end()) {
-                                    TileState ts = generate_tile_state(gx, gz);
-                                    tick_terrain_tokens(ts, tile_seed(activeSeed_, gx, gz));
-                                    tileCache_[key] = ts;
-                                }
-                            }
-                        }
-
-                        // NOW spawn portals — tile cache is populated, terrain heights are correct
-                        if (backPortalPending_) {
-                            force_spawn_back_portal(queue);
-                        }
-                        for (int32_t gz = centerZ - rr; gz <= centerZ + rr; gz++) {
-                            for (int32_t gx = centerX - rr; gx <= centerX + rr; gx++) {
-                                bool found = false;
-                                for (uint32_t i = 0; i < activePatchCount_; i++) {
-                                    if (patches_[i].grid_x == gx && patches_[i].grid_z == gz) {
-                                        found = true; break;
-                                    }
-                                }
-                                if (!found && freeLayerCount_ > 0) {
-                                    uint32_t layer = alloc_layer();
-                                    patches_[activePatchCount_].grid_x = gx;
-                                    patches_[activePatchCount_].grid_z = gz;
-                                    patches_[activePatchCount_].layer = layer;
-                                    patches_[activePatchCount_].valid = true;
-                                    patches_[activePatchCount_].spawned = false;
-                                    patches_[activePatchCount_].generated = false;
-                                    patches_[activePatchCount_].animated = false;
-                                    patches_[activePatchCount_].pending_regen = false;
-                                    activePatchCount_++;
-                                }
-                            }
-                        }
-                        tileGridDirty = true;
-                        for (uint32_t i = 0; i < activePatchCount_; i++) {
-                            if (!patches_[i].valid || patches_[i].spawned) continue;
-                            if (!in_priority_window(patches_[i].grid_x, patches_[i].grid_z,
-                                centerX, centerZ)) continue;
-
-                            // Evaluate theme envelope for this patch
-                            active_theme_idx_ = evaluate_theme_envelope(
-                                tile_seed(activeSeed_, patches_[i].grid_x, patches_[i].grid_z));
-
-                            spawn_pyramids_for_patch(patches_[i].grid_x, patches_[i].grid_z, queue);
-                            spawn_arches_for_patch(patches_[i].grid_x, patches_[i].grid_z, queue);
-                            spawn_columns_for_patch(patches_[i].grid_x, patches_[i].grid_z, queue);
-                            advance_population_batch();
-                            patches_[i].spawned = true;
-                        }
-                        {
-                            // Flush tile grid before heightfield gen (GPU reads modifiers)
-                            if (tileGridDirty) { upload_tile_grid_now(queue, lastCenterX_, lastCenterZ_); tileGridDirty = false; }
-                            GPUPatchParams batchParams[MAX_PATCHES];
-                            uint32_t batchIdx[MAX_PATCHES];
-                            uint32_t batchCount = 0;
-                            for (uint32_t i = 0; i < activePatchCount_; i++) {
-                                if (patches_[i].spawned && !patches_[i].generated &&
-                                    in_priority_window(patches_[i].grid_x, patches_[i].grid_z,
-                                        centerX, centerZ)) {
-                                    batchParams[batchCount] = make_patch_params(
-                                        patches_[i].grid_x, patches_[i].grid_z, patches_[i].layer);
-                                    batchIdx[batchCount] = i;
-                                    batchCount++;
-                                }
-                            }
-                            generate_patch_batch(encoder, queue, batchParams, batchCount, patchStagingOffset);
-                            patchStagingOffset += batchCount;
-                            for (uint32_t b = 0; b < batchCount; b++) {
-                                patches_[batchIdx[b]].generated = true;
-                                spawn_gallery_for_patch(patches_[batchIdx[b]].grid_x,
-                                    patches_[batchIdx[b]].grid_z, queue);
-                                detect_gol_zones_for_patch(patches_[batchIdx[b]].grid_x,
-                                    patches_[batchIdx[b]].grid_z, queue);
-                            }
-                        }
-                    }
-                }
-
-                // ─── CONTINUOUS PATCH EVICTION ────────────────────────────────
-                //
-                // Every frame, scan for patches outside the render window
-                // (relative to grid center). Evict up to EVICT_BUDGET_PER_FRAME,
-                // farthest first. Frees layers for reuse by the allocation scan.
-                // Compact the array after eviction to remove holes.
-                {
-                    float pawn_wx = pawnReadback_x_;
-                    float pawn_wz = pawnReadback_z_;
-                    float half = PATCH_EXTENT * 0.5f;
-
-                    struct EvictCandidate { uint32_t idx; float dist2; };
-                    EvictCandidate candidates[MAX_PATCHES];
-                    uint32_t candidateCount = 0;
-
-                    for (uint32_t i = 0; i < activePatchCount_; i++) {
-                        if (!patches_[i].valid) continue;
-                        if (in_render_window(patches_[i].grid_x, patches_[i].grid_z,
-                            lastCenterX_, lastCenterZ_)) continue;
-                        float ox = (patches_[i].grid_x + 0.5f) * PATCH_EXTENT;
-                        float oz = (patches_[i].grid_z + 0.5f) * PATCH_EXTENT;
-                        float d2 = patch_distance_sq(pawn_wx, pawn_wz, ox, oz, half);
-                        candidates[candidateCount++] = { i, d2 };
-                    }
-
-                    // Sort by distance (farthest first)
-                    for (uint32_t i = 1; i < candidateCount; i++) {
-                        EvictCandidate key = candidates[i];
-                        uint32_t j = i;
-                        while (j > 0 && candidates[j - 1].dist2 < key.dist2) {
-                            candidates[j] = candidates[j - 1];
-                            j--;
-                        }
-                        candidates[j] = key;
-                    }
-
-                    uint32_t evictThisFrame = std::min(candidateCount, EVICT_BUDGET_PER_FRAME);
-                    for (uint32_t e = 0; e < evictThisFrame; e++) {
-                        uint32_t pi = candidates[e].idx;
-                        free_layer(patches_[pi].layer);
-                        evict_paintings_for_patch(patches_[pi].grid_x, patches_[pi].grid_z, queue);
-                        evict_arches_for_patch(patches_[pi].grid_x, patches_[pi].grid_z, queue);
-                        evict_columns_for_patch(patches_[pi].grid_x, patches_[pi].grid_z, queue);
-                        evict_pyramids_for_patch(patches_[pi].grid_x, patches_[pi].grid_z, queue);
-                        unregister_footprints_for_patch(patches_[pi].grid_x, patches_[pi].grid_z);
-                        patches_[pi].valid = false;
-                    }
-
-                    // Compact: remove invalid entries
-                    if (evictThisFrame > 0) {
-                        uint32_t write = 0;
-                        for (uint32_t i = 0; i < activePatchCount_; i++) {
-                            if (patches_[i].valid) {
-                                patches_[write++] = patches_[i];
-                            }
-                        }
-                        activePatchCount_ = write;
-                        patchInstancesDirty_ = true;
-                    }
-                }
-
-                // ─── CONTINUOUS PATCH ALLOCATION ──────────────────────────────
-                //
-                // Every frame, scan for grid cells within activeRadius_ of
-                // the pawn's actual world position that don't have patches.
-                // Allocate up to ALLOC_BUDGET_PER_FRAME, nearest first. This
-                // spreads allocation across idle frames so patches are ready
-                // before the grid shift that would have created them.
-                //
-                // The pawn's world position can be up to half a patch ahead
-                // of the grid center, so this naturally pre-allocates one
-                // ring in the direction of movement.
-                {
-                    int32_t pawnGX = (int32_t)std::floor(pawnReadback_x_ / PATCH_EXTENT);
-                    int32_t pawnGZ = (int32_t)std::floor(pawnReadback_z_ / PATCH_EXTENT);
-                    int32_t rr = (int32_t)activeRadius_;
-                    float pawn_wx = pawnReadback_x_;
-                    float pawn_wz = pawnReadback_z_;
-                    float half = PATCH_EXTENT * 0.5f;
-
-                    // O(1) patch existence lookup (replaces O(N) inner scan)
-                    std::unordered_set<GridKey, GridKeyHash> activePatchSet;
-                    activePatchSet.reserve(activePatchCount_);
-                    for (uint32_t i = 0; i < activePatchCount_; i++) {
-                        activePatchSet.insert({ patches_[i].grid_x, patches_[i].grid_z });
-                    }
-
-                    struct AllocCandidate { int32_t gx, gz; float dist2; };
-                    AllocCandidate candidates[MAX_PATCHES];
-                    uint32_t candidateCount = 0;
-
-                    for (int32_t gz = pawnGZ - rr; gz <= pawnGZ + rr; gz++) {
-                        for (int32_t gx = pawnGX - rr; gx <= pawnGX + rr; gx++) {
-                            // Must be within allocation window of grid center
-                            if (!in_render_window(gx, gz, lastCenterX_, lastCenterZ_)) continue;
-                            bool found = activePatchSet.count({ gx, gz }) > 0;
-                            if (!found && freeLayerCount_ > 0 && candidateCount < MAX_PATCHES) {
-                                float ox = (gx + 0.5f) * PATCH_EXTENT;
-                                float oz = (gz + 0.5f) * PATCH_EXTENT;
-                                float d2 = patch_distance_sq(pawn_wx, pawn_wz, ox, oz, half);
-                                candidates[candidateCount++] = { gx, gz, d2 };
-                            }
-                        }
-                    }
-
-                    // Sort by distance (nearest first)
-                    for (uint32_t i = 1; i < candidateCount; i++) {
-                        AllocCandidate key = candidates[i];
-                        uint32_t j = i;
-                        while (j > 0 && candidates[j - 1].dist2 > key.dist2) {
-                            candidates[j] = candidates[j - 1];
-                            j--;
-                        }
-                        candidates[j] = key;
-                    }
-
-                    bool allocated_any = false;
-                    uint32_t allocThisFrame = std::min(candidateCount, ALLOC_BUDGET_PER_FRAME);
-                    for (uint32_t a = 0; a < allocThisFrame; a++) {
-                        int32_t gx = candidates[a].gx;
-                        int32_t gz = candidates[a].gz;
-                        // Ensure tile cache entry (primary — ticks terrain tokens)
-                        GridKey key{ gx, gz };
-                        if (tileCache_.find(key) == tileCache_.end()) {
-                            TileState ts = generate_tile_state(gx, gz);
-                            tick_terrain_tokens(ts, tile_seed(activeSeed_, gx, gz));
-                            tileCache_[key] = ts;
-                        }
-                        // Also cache neighbors for tile grid padding
-                        for (int dz = -1; dz <= 1; dz++) for (int dx = -1; dx <= 1; dx++) {
-                            GridKey nk{ gx + dx, gz + dz };
-                            if (tileCache_.find(nk) == tileCache_.end()) {
-                                tileCache_[nk] = generate_tile_state(gx + dx, gz + dz);
-                            }
-                        }
-                        uint32_t layer = alloc_layer();
-                        patches_[activePatchCount_].grid_x = gx;
-                        patches_[activePatchCount_].grid_z = gz;
-                        patches_[activePatchCount_].layer = layer;
-                        patches_[activePatchCount_].valid = true;
-                        patches_[activePatchCount_].spawned = false;
-                        patches_[activePatchCount_].generated = false;
-                        patches_[activePatchCount_].animated = false;
-                        patches_[activePatchCount_].pending_regen = false;
-                        activePatchCount_++;
-                        allocated_any = true;
-                    }
-
-                    // Mark tile grid and patch instances dirty whenever new patches were allocated
-                    if (allocated_any) {
-                        tileGridDirty = true;
-                        patchInstancesDirty_ = true;
-                    }
-                }
-
-                // ─── DISTANCE-DRIVEN ENTITY SPAWNING ─────────────────────────
-                //
-                // Every frame, scan for unspawned patches. Sort by distance
-                // to pawn (nearest first), spawn up to SPAWN_BUDGET_PER_FRAME.
-                // Priority order within each patch: pyramids → arches → columns
-                // (largest footprint first, matching the ground hierarchy).
-                //
-                // Spawning must complete before generation — piers from spawned
-                // entities affect heightfield baking. The generation scan below
-                // only considers patches with spawned == true.
-                {
-                    float pawn_wx = pawnReadback_x_;
-                    float pawn_wz = pawnReadback_z_;
-                    float half = PATCH_EXTENT * 0.5f;
-
-                    struct SpawnCandidate { uint32_t idx; float dist2; };
-                    SpawnCandidate candidates[MAX_PATCHES];
-                    uint32_t candidateCount = 0;
-
-                    for (uint32_t i = 0; i < activePatchCount_; i++) {
-                        if (!patches_[i].valid || patches_[i].spawned) continue;
-                        float ox = (patches_[i].grid_x + 0.5f) * PATCH_EXTENT;
-                        float oz = (patches_[i].grid_z + 0.5f) * PATCH_EXTENT;
-                        float d2 = patch_distance_sq(pawn_wx, pawn_wz, ox, oz, half);
-                        candidates[candidateCount++] = { i, d2 };
-                    }
-
-                    for (uint32_t i = 1; i < candidateCount; i++) {
-                        SpawnCandidate key = candidates[i];
-                        uint32_t j = i;
-                        while (j > 0 && candidates[j - 1].dist2 > key.dist2) {
-                            candidates[j] = candidates[j - 1];
-                            j--;
-                        }
-                        candidates[j] = key;
-                    }
-
-                    uint32_t spawnThisFrame = std::min(candidateCount, SPAWN_BUDGET_PER_FRAME);
-                    for (uint32_t s = 0; s < spawnThisFrame; s++) {
-                        uint32_t pi = candidates[s].idx;
-                        int32_t pgx = patches_[pi].grid_x;
-                        int32_t pgz = patches_[pi].grid_z;
-
-                        // Evaluate theme envelope for this patch
-                        active_theme_idx_ = evaluate_theme_envelope(
-                            tile_seed(activeSeed_, pgx, pgz));
-
-                        spawn_pyramids_for_patch(pgx, pgz, queue);
-                        spawn_arches_for_patch(pgx, pgz, queue);
-                        spawn_columns_for_patch(pgx, pgz, queue);
-                        advance_population_batch();
-                        patches_[pi].spawned = true;
-                    }
-                }
-
-                // ─── DISTANCE-DRIVEN HEIGHTFIELD GENERATION ──────────────────
-                //
-                // Every frame, scan all spawned patches for pending work
-                // (ungenerated or pending_regen). Sort by world-space distance
-                // to pawn (nearest first) and generate up to budget.
-                //
-                // Regens (stale heightfields from new piers) are already
-                // inside the visibility cylinder, so they're always closer
-                // than frontier patches and naturally get priority.
-                {
-                    float pawn_wx = pawnReadback_x_;
-                    float pawn_wz = pawnReadback_z_;
-                    float half = PATCH_EXTENT * 0.5f;
-
-                    struct PendingWork { uint32_t idx; float dist2; };
-                    PendingWork pending[MAX_PATCHES];
-                    uint32_t pendingCount = 0;
-
-                    for (uint32_t i = 0; i < activePatchCount_; i++) {
-                        if (!patches_[i].valid || !patches_[i].spawned) continue;
-                        if (patches_[i].generated && !patches_[i].pending_regen) continue;
-                        float ox = (patches_[i].grid_x + 0.5f) * PATCH_EXTENT;
-                        float oz = (patches_[i].grid_z + 0.5f) * PATCH_EXTENT;
-                        float d2 = patch_distance_sq(pawn_wx, pawn_wz, ox, oz, half);
-                        pending[pendingCount++] = { i, d2 };
-                    }
-
-                    // Sort by distance (nearest first) — simple insertion sort,
-                    // N is small (typically < 30)
-                    for (uint32_t i = 1; i < pendingCount; i++) {
-                        PendingWork key = pending[i];
-                        uint32_t j = i;
-                        while (j > 0 && pending[j - 1].dist2 > key.dist2) {
-                            pending[j] = pending[j - 1];
-                            j--;
-                        }
-                        pending[j] = key;
-                    }
-
-                    uint32_t genThisFrame = std::min(pendingCount, patches_budget_this_frame());
-
-                    if (genThisFrame > 0) {
-                        // Flush tile grid before heightfield gen (GPU reads modifiers)
-                        if (tileGridDirty) { upload_tile_grid_now(queue, lastCenterX_, lastCenterZ_); tileGridDirty = false; }
-                        GPUPatchParams batchParams[MAX_PATCHES];
-                        uint32_t batchPatchIdx[MAX_PATCHES];
-                        uint32_t batchCount = 0;
-
-                        for (uint32_t i = 0; i < genThisFrame; i++) {
-                            uint32_t pi = pending[i].idx;
-                            batchParams[batchCount] = make_patch_params(
-                                patches_[pi].grid_x, patches_[pi].grid_z, patches_[pi].layer);
-                            batchPatchIdx[batchCount] = pi;
-                            batchCount++;
-                        }
-                        generate_patch_batch(encoder, queue, batchParams, batchCount, patchStagingOffset);
-                        patchStagingOffset += batchCount;
-
-                        for (uint32_t b = 0; b < batchCount; b++) {
-                            uint32_t pi = batchPatchIdx[b];
-                            bool was_regen = patches_[pi].pending_regen;
-                            patches_[pi].generated = true;
-                            patches_[pi].pending_regen = false;
-                            if (!was_regen) {
-                                spawn_gallery_for_patch(patches_[pi].grid_x, patches_[pi].grid_z, queue);
-                                detect_gol_zones_for_patch(patches_[pi].grid_x, patches_[pi].grid_z, queue);
-                            }
-                        }
-                        patchInstancesDirty_ = true;
-                    }
-                }
-
-                // Upload patch instances sorted by LOD band, then pre-gen ring.
-                // Layout: [0..lod0) LOD-0 full mesh, [lod0..render) LOD-1 half mesh,
-                //          [render..all) pre-gen ring (not drawn, used for placement).
-                // This lets render passes issue two indexed draws with firstInstance offset.
-                {
-                    GPUPatchInstance instances[MAX_PATCHES]{};
-                    uint32_t lod0Count = 0;
-                    uint32_t lod1Count = 0;
-                    uint32_t pregenCount = 0;
-
-                    // Temporary arrays for each band
-                    GPUPatchInstance lod0[MAX_PATCHES]{};
-                    GPUPatchInstance lod1[MAX_PATCHES]{};
-                    GPUPatchInstance pregen[MAX_PATCHES]{};
-
-                    // Visibility cylinder: world-space distance from pawn to
-                    // nearest patch edge. Patches cross the threshold one at a
-                    // time as the pawn moves — no batch pop on grid shifts.
-                    float pawn_wx = pawnReadback_x_;
-                    float pawn_wz = pawnReadback_z_;
-                    float half = PATCH_EXTENT * 0.5f;
-
-                    for (uint32_t i = 0; i < activePatchCount_; i++) {
-                        if (!patches_[i].generated) continue;
-
-                        float ox = (patches_[i].grid_x + 0.5f) * PATCH_EXTENT;
-                        float oz = (patches_[i].grid_z + 0.5f) * PATCH_EXTENT;
-
-                        GPUPatchInstance inst{};
-                        inst.origin[0] = ox;
-                        inst.origin[1] = oz;
-                        inst.extent = PATCH_EXTENT;
-                        inst.layer = patches_[i].layer;
-
-                        float d2 = patch_distance_sq(pawn_wx, pawn_wz, ox, oz, half);
-
-                        // Finite mode: all patches visible (walls define boundary, not fog)
-                        if (finiteMode_ || d2 <= VISIBILITY_CYLINDER_RADIUS_SQ) {
-                            if (d2 <= LOD0_CYLINDER_RADIUS_SQ) {
-                                lod0[lod0Count++] = inst;
-                            }
-                            else {
-                                lod1[lod1Count++] = inst;
-                            }
-                        }
-                        else {
-                            pregen[pregenCount++] = inst;
-                        }
-                    }
-
-                    // Pack: LOD-0, then LOD-1, then pregen
-                    uint32_t w = 0;
-                    std::memcpy(instances + w, lod0, lod0Count * sizeof(GPUPatchInstance)); w += lod0Count;
-                    std::memcpy(instances + w, lod1, lod1Count * sizeof(GPUPatchInstance)); w += lod1Count;
-                    std::memcpy(instances + w, pregen, pregenCount * sizeof(GPUPatchInstance)); w += pregenCount;
-
-                    gpuState_.upload_patch_instances(queue, instances, w);
-                    lod0PatchCount_ = lod0Count;
-                    renderPatchCount_ = lod0Count + lod1Count;
-                    allPatchCount_ = w;
-
-                    // Sync placement_patch_count so compute_entity_placement
-                    // can sample heightfields from the current frame's patch set.
-                    gpuState_.config().placement_patch_count = w;
-                    gpuState_.upload_placement_patch_count(queue);
-                }
-                placementDirty_ = placementDirty_ || patchInstancesDirty_;
-                patchInstancesDirty_ = false;
-
-                // ─── Entity distance culling ─────────────────────────────
-                entitiesCulled_ = update_entity_draw_visibility(queue);
-
-                // ─── Deferred uploads (one per frame max) ────────────────
-                if (tileGridDirty) upload_tile_grid_now(queue, lastCenterX_, lastCenterZ_);
-                flush_pier_count(queue);
-
-                // Restore radius if we capped it for finite mode
-                if (finiteMode_) { activeRadius_ = savedRadius; }
-            }
 
             // ─── Indoor Light Derivation ─────────────────────────────────
             //
@@ -7438,6 +4534,7 @@ namespace t7 {
                     << " (" << count << " lights, "
                     << (use_ew ? "E/W" : "N/S") << " walls)\n";
             }
+
 
             // --- Apply mood atmosphere ---
             //
@@ -7870,6 +4967,7 @@ namespace t7 {
                 s.frame_color[2] = frame.color[2];
                 s.patch_gx = gx; s.patch_gz = gz;
             }
+
 
             // ─── Wall Painting Placement (unified slots, multi-wall, mixing) ─
 
@@ -8631,7 +5729,2830 @@ namespace t7 {
                 gpuState_.upload_spot_lights(queue, cpuSpotLights_);
             }
 
-            // --- GPU compute: ribbon transforms, world update, VP matrix ---
+            // ── WORLD STATE & TILE SYSTEM ──
+
+            uint32_t activeSeed_ = 42;     // world master seed (mutable for world transitions)
+            // Patch dimensions aliased from Dim:: for local readability
+            static constexpr float    PATCH_EXTENT = Dim::PATCH_EXTENT;
+            static constexpr uint32_t GRID_RADIUS = Dim::PATCH_GRID_RADIUS;   // inner priority (3 → 7×7)
+            static constexpr uint32_t GRID_SIDE = Dim::PATCH_GRID_SIDE;
+            static constexpr uint32_t RENDER_RADIUS = Dim::PATCH_RENDER_RADIUS;  // visible radius (5)
+            static constexpr uint32_t RENDER_SIDE = Dim::PATCH_RENDER_SIDE;
+            static constexpr uint32_t PREGEN_RADIUS = Dim::PATCH_PREGEN_RADIUS; // deep pre-gen buffer (7)
+            static constexpr uint32_t MAX_PATCHES = Dim::MAX_ACTIVE_PATCHES;    // 225
+
+
+            // --- Three Archetypes ---------------------------------------------------
+            //
+            //  0: Mountainous — high amplitude, elevated, sparse fine detail
+            //  1: Varied      — moderate amplitude, wide range, balanced
+            //  2: Basin       — low amplitude, depressed, rich fine detail
+            //  3: Pool        — near-flat terrain, degenerate wave shape
+
+            static constexpr uint32_t ARCHETYPE_COUNT = 4;
+
+            struct ArchetypeProfile {
+                // ─── Terrain modifiers ───────────────────────────────
+                float amp_scale;           // height field amplitude multiplier
+                float height_bias;         // vertical offset (positive = elevated)
+                float activation_scale;    // activity field sensitivity
+
+                // ─── Selection ───────────────────────────────────────
+                float base_weight;         // prior probability (before neighbor influence)
+
+                // ─── Per-tile jitter ─────────────────────────────────
+                float amp_jitter_range;    // amp_scale *= 1 ± jitter/2
+                float bias_jitter_range;   // height_bias += uniform(-jitter/2, +jitter/2)
+            };
+
+            //                                     amp   bias   act   weight  amp_jit  bias_jit
+            static constexpr ArchetypeProfile ARCHETYPES[ARCHETYPE_COUNT] = {
+                /* 0: mountainous */  {  2.0f,   4.0f,  0.7f,  1.8f,   0.3f,    1.0f  },
+                /* 1: varied      */  {  1.0f,   0.0f,  1.0f,  1.3f,   0.3f,    1.0f  },
+                /* 2: basin       */  {  0.5f,  -2.0f,  1.3f,  1.0f,   0.3f,    1.0f  },
+                /* 3: pool        */  {  0.04f, -0.5f,  0.2f,  0.0f,   0.02f,   0.2f  },
+            };
+
+            // Neighbor coherence rules for archetype selection.
+            // These control how the presence of neighboring archetypes
+            // biases the selection for a new tile.
+            struct ArchetypeSelectionRules {
+                // Neighbor count thresholds and corresponding weight multipliers.
+                // Applied in order: first matching threshold wins.
+                static constexpr uint32_t DOMINANT_THRESHOLD = 4;    // >= this many → suppress
+                static constexpr float    DOMINANT_MULTIPLIER = 0.2f; // strongly reduced
+                static constexpr uint32_t COMMON_THRESHOLD = 2;    // >= this many → mild boost
+                static constexpr float    COMMON_MULTIPLIER = 1.5f;
+                static constexpr uint32_t PRESENT_THRESHOLD = 1;    // == this many → strong coherence
+                static constexpr float    PRESENT_MULTIPLIER = 2.0f;
+                // 0 neighbors: weight stays at base_weight (no modification)
+            };
+
+            // ── Entity Density Field ─────────────────────────────────────────
+            //
+            // Coarse spatial noise that creates dense and sparse regions.
+            // Evaluated per-tile in generate_tile_state, stored on TileState.
+            // All entity spawn gates multiply by this value.
+            //
+            //  ┌──────────────────────────────────┬───────────┬──────────────────────────────────────┐
+            //  │ Constant                         │ Value     │ Effect                                │
+            //  ├──────────────────────────────────┼───────────┼──────────────────────────────────────┤
+            //  │ DENSITY_LATTICE_SPACING          │ 250 wu    │ Region size (~5 patches)              │
+            //  │ DENSITY_SEED_BAND                │ 160       │ Decorrelated from terrain/color       │
+            //  │ DENSITY_EXPONENT                 │ 0.6       │ <1 = skew toward dense, >1 = sparse  │
+            //  │ DENSITY_MIN                      │ 0.1       │ Floor (never fully empty)             │
+            //  │ DENSITY_MAX                      │ 3.0       │ Ceiling (3× base spawn rates)         │
+            //  └──────────────────────────────────┴───────────┴──────────────────────────────────────┘
+
+            static constexpr float DENSITY_LATTICE_SPACING = 250.0f;
+            static constexpr uint32_t DENSITY_SEED_BAND = 160u;
+            static constexpr float DENSITY_EXPONENT = 0.6f;
+            static constexpr float DENSITY_MIN = 1.0f;
+            static constexpr float DENSITY_MAX = 1.0f;
+
+
+            // Entity families for observation indexing
+            struct PopFamily {
+                static constexpr uint32_t PYRAMID = 0;
+                static constexpr uint32_t ARCH = 1;
+                static constexpr uint32_t COLUMN = 2;
+                static constexpr uint32_t COUNT = 3;
+            };
+
+            // ─── Population Themes ───────────────────────────────────────────
+            //
+            // A theme is the compositional intent for a region. Like a palette
+            // slot sets color character, a theme sets entity character: what
+            // spawns, at what scale, how densely, and how it arranges itself.
+            //
+            // A stochastic lattice at THEME_LATTICE_SPACING picks which theme
+            // dominates at each point. Spawn weights blend smoothly across
+            // boundaries. Tier bias comes from the dominant theme (no blending).
+            //
+            // The transition theme is the default — most of the world. Sparse
+            // pyramids, small antennas, column clusters, occasional arch.
+            // Interesting themes are the exceptions that emerge from the field.
+            //
+            //  ┌──────────────────────────────────────────────────────────────────────────────────────────┐
+            //  │ THEME CONTROL SURFACE                                                                   │
+            //  ├──────────────────────┬──────────────────────┬────────────────────────────────────────────┤
+            //  │ Theme                │ Weight  Density      │ Character                                  │
+            //  ├──────────────────────┼──────────────────────┼────────────────────────────────────────────┤
+            //  │ 0: Transition        │  0.40   ×1.0         │ Sparse, quiet connective tissue            │
+            //  │ 1: Monumental        │  0.12   ×0.7         │ Big pyramids, monumental arches, imposing  │
+            //  │ 2: Colonnade         │  0.18   ×1.5         │ Dense columns, doorway arcades, no pyramid │
+            //  │ 3: Antenna path      │  0.15   ×1.2         │ Antenna corridor, colossal sentinels       │
+            //  │ 4: Barren            │  0.15   ×0.3         │ Near-empty, occasional obelisk             │
+            //  └──────────────────────┴──────────────────────┴────────────────────────────────────────────┘
+
+            static constexpr float THEME_LATTICE_SPACING = 500.0f;
+            static constexpr uint32_t THEME_SEED_BAND = 170u;
+            static constexpr uint32_t THEME_COUNT = 5;
+            static constexpr float THEME_BASE_WEIGHT = 10.0f;
+
+            struct FormationRule {
+                float formation_chance;        // [0,1] probability of attempting
+                float distance_mean;           // world units: spacing from sibling
+                float distance_sigma;          // jitter on spacing
+                float lateral_angle;           // radians: 0=inline, π/2=perpendicular
+                float lateral_angle_sigma;     // angular spread
+                uint32_t rotation_mode;        // 0=inherit, 1=follow line, 2=independent
+                float rotation_drift_sigma;    // per-step rotation jitter
+                float max_sibling_distance;    // ignore siblings farther than this
+            };
+
+            struct RotationMode {
+                static constexpr uint32_t INHERIT = 0;
+                static constexpr uint32_t FOLLOW_LINE = 1;
+                static constexpr uint32_t INDEPENDENT = 2;
+            };
+
+            // ── Theme Envelope ──────────────────────────────────────────────
+            //
+            // Single active theme at a time. When selected, its weight spikes
+            // and decays over a patch count. Cooldown prevents immediate
+            // repetition after expiry.
+
+            struct ThemeEnvelope {
+                int32_t  active = -1;              // theme index, or -1 (no bias)
+                uint32_t elapsed = 0;               // patches since this theme fired
+                uint32_t cooldowns[THEME_COUNT]{};  // per-theme remaining cooldown
+            };
+
+            // ── Formation Tip ───────────────────────────────────────────────
+            //
+            // One per family. The last placed entity's position + rotation.
+            // The next entity of that family (or one anchored to it) steps
+            // from this tip. Replaces the ring buffer + nearest-sibling search.
+
+            struct FormationTip {
+                float x = 0.0f;
+                float z = 0.0f;
+                float rotation = 0.0f;
+                bool  valid = false;
+            };
+
+            // ── Per-Anchor Formation Slot ───────────────────────────────────
+            //
+            // Each family can have different formation parameters depending on
+            // which family it anchors to. Slots keyed by anchor family index.
+            // -1 = self (same family). Only slots with ch > 0 are active.
+
+            struct FormationSlot {
+                float    ch = 0.0f;        // probability of attempting formation
+                float    di = 0.0f;        // step distance mean (world units)
+                float    ds = 0.0f;        // step distance sigma
+                float    an = 0.0f;        // angle relative to tip rotation (radians)
+                float    as = 0.0f;        // angle sigma
+                uint32_t rm = RotationMode::INDEPENDENT;  // rotation mode
+                float    dr = 0.0f;        // rotation drift sigma
+            };
+
+            // Maximum anchor slots per family (Self, Pyramid, Arch, Column = 4)
+            static constexpr uint32_t MAX_FORMATION_ANCHORS = 4;
+
+            struct FormationConfig {
+                int32_t        anchor = -1;  // currently active anchor (-1=self, 0=pyr, 1=arch, 2=col)
+                FormationSlot  slots[MAX_FORMATION_ANCHORS]{};  // indexed by anchor+1 (0=self, 1=pyr, 2=arch, 3=col)
+                const FormationSlot* active_slot() const {
+                    uint32_t idx = (uint32_t)(anchor + 1);
+                    if (idx >= MAX_FORMATION_ANCHORS) return nullptr;
+                    return (slots[idx].ch > 0.0f) ? &slots[idx] : nullptr;
+                }
+            };
+
+            struct PopulationTheme {
+                float spawn_weight[PopFamily::COUNT];          // multiplier on base spawn chance per family
+                float tier_wt_pyramid[3];                      // multiplier on pyramid tier base weights
+                float tier_wt_arch[3];                         // multiplier on arch tier base weights
+                float tier_wt_column[6];                       // multiplier on column tier base weights
+                float density_mult;                            // multiplier on entity_density
+
+                // Envelope parameters (replace lattice weight for theme selection)
+                float    spike;
+                uint32_t sustain;       // patches at full spike
+                uint32_t decay;         // patches for linear decay to base
+                uint32_t cooldown;      // patches before re-eligible after expiry
+
+                // Per-anchor formation (replaces single FormationRule per family)
+                FormationConfig formation[PopFamily::COUNT];
+
+                // Lattice weight (dormant — kept for backward compat)
+                float weight;
+            };
+
+            //  ┌──────────────────────────────────────────────────────────────────────────────┐
+            //  │ THEME PROFILES — Envelope-selected, differential tip formation                │
+            //  ├──────────────────┬────────┬────────┬────────┬─────────┬─────────────────────────┤
+            //  │ Theme            │ Pyr sp │ Arch sp│ Col sp │ Density │ Envelope                │
+            //  ├──────────────────┼────────┼────────┼────────┼─────────┼─────────────────────────┤
+            //  │ 0 Transition     │  0.4   │  0.3   │  0.7   │  ×1.0   │ 150/20/3/0             │
+            //  │ 1 Monumental     │  1.5   │  1.0   │  1.0   │  ×1.0   │ 150/10/10/8            │
+            //  │ 2 Colonnade      │  0.3   │  1.0   │  4.0   │  ×1.0   │ 150/15/6/6             │
+            //  │ 3 Antenna        │  0.5   │  0.5   │  4.0   │  ×1.0   │ 180/10/5/5             │
+            //  │ 4 Barren         │  0.4   │  0.3   │  0.5   │  ×1.0   │ 100/12/3/4             │
+            //  └──────────────────┴────────┴────────┴────────┴─────────┴─────────────────────────┘
+            //
+            //  Formation slots: { ch, di, ds, an, as, rm, dr }
+            //  FormationConfig: { anchor, { slot[Self], slot[Pyr], slot[Arch], slot[Col] } }
+            //  Active slot = slots[anchor+1] when ch > 0
+
+            static constexpr PopulationTheme THEMES[THEME_COUNT] = {
+                // ── 0: TRANSITION — sparse connective tissue, no formation ───
+                {   { 0.4f, 0.3f, 0.7f },                                       // spawn_weight
+                    { 1.0f, 1.0f, 1.0f },                                       // tier_pyr
+                    { 1.0f, 0.3f, 1.0f },                                       // tier_arch
+                    { 0.1f, 0.2f, 0.3f, 0.1f, 2.0f, 0.7f },                    // tier_col
+                    1.0f,                                                         // density
+                    150.0f, 20u, 3u, 0u,                                          // spike, sustain, decay, cooldown
+                    {   { -1, {} },                                               // pyramid: no formation
+                        { -1, {} },                                               // arch: no formation
+                        { -1, {} },                                               // column: no formation
+                    },
+                    0.21f                                                         // weight (dormant)
+                },
+                // ── 1: MONUMENTAL — big pyramids, arches anchor to pyramids, columns flank arches
+                {   { 1.5f, 1.0f, 1.0f },
+                    { 0.2f, 0.5f, 3.0f },
+                    { 2.0f, 0.1f, 3.0f },
+                    { 0.01f, 0.01f, 1.0f, 0.5f, 1.5f, 0.5f },
+                    1.0f,
+                    150.0f, 10u, 10u, 8u,
+                    {   { -1, {} },                                               // pyramid: no formation
+                        {  0, { {}, { 0.60f, 80.0f, 15.0f, 0.0f, 0.25f, 0, 0.15f }, {}, {} } },  // arch→pyramid
+                        {  1, { {}, {}, { 0.40f, 25.0f, 5.0f, 1.571f, 0.30f, 0, 0.05f }, {} } },  // column→arch
+                    },
+                    0.30f
+                },
+                // ── 2: COLONNADE — arch chains self, columns chain to columns ─
+                {   { 0.3f, 1.0f, 4.0f },
+                    { 1.0f, 1.0f, 1.0f },
+                    { 3.0f, 0.5f, 1.0f },
+                    { 0.3f, 3.0f, 5.0f, 0.2f, 0.1f, 0.1f },
+                    1.0f,
+                    150.0f, 15u, 6u, 6u,
+                    {   { -1, {} },                                               // pyramid: no formation
+                        { -1, { { 0.94f, 150.0f, 50.0f, 1.57f, 0.10f, 0, 0.10f }, {}, {}, {} } },  // arch→self
+                        {  2, { {}, {}, { 0.0f, 100.0f, 3.0f, 1.571f, 0.15f, 0, 0.05f },           // column: inactive arch slot
+                                        { 0.98f, 100.0f, 0.0f, 2.094f, 0.10f, 0, 0.0f } } },       // column→column (active)
+                    },
+                    0.31f
+                },
+                // ── 3: ANTENNA — inline column corridor ──────────────────────
+                {   { 0.5f, 0.5f, 4.0f },
+                    { 1.0f, 0.05f, 2.0f },
+                    { 1.0f, 0.2f, 0.8f },
+                    { 0.1f, 0.3f, 0.3f, 0.5f, 3.5f, 1.0f },
+                    1.0f,
+                    180.0f, 10u, 5u, 5u,
+                    {   { -1, {} },                                               // pyramid: no formation
+                        { -1, {} },                                               // arch: no formation
+                        { -1, { { 0.95f, 80.0f, 5.0f, 0.0f, 0.20f, 1, 0.10f }, {}, {}, {} } },  // column→self (follow)
+                    },
+                    0.18f
+                },
+                // ── 4: BARREN — near-empty, no formations ────────────────────
+                {   { 0.4f, 0.3f, 0.5f },
+                    { 2.0f, 0.5f, 0.2f },
+                    { 1.0f, 1.0f, 1.0f },
+                    { 0.2f, 0.5f, 0.5f, 1.0f, 1.0f, 1.0f },
+                    1.0f,
+                    100.0f, 12u, 3u, 4u,
+                    {   { -1, {} },
+                        { -1, {} },
+                        { -1, {} },
+                    },
+                    0.04f
+                },
+            };
+
+            // Select a theme at a lattice node from cumulative weights
+            static uint32_t select_theme_at_node(uint32_t node_seed) {
+                float roll = cpu_hash_f(node_seed, 370u);
+                float cumul = 0.0f;
+                float total = 0.0f;
+                for (uint32_t t = 0; t < THEME_COUNT; t++) total += THEMES[t].weight;
+                for (uint32_t t = 0; t < THEME_COUNT; t++) {
+                    cumul += THEMES[t].weight / total;
+                    if (roll < cumul) return t;
+                }
+                return THEME_COUNT - 1;
+            }
+
+            // ── Theme Envelope — sequential theme selection ──────────────────
+            //
+            // Replaces the lattice-based theme blend for spawn decisions.
+            // One theme is active at a time. Its weight spikes and decays
+            // over a patch count. Cooldown prevents immediate repetition.
+
+            static float theme_envelope_weight(const PopulationTheme& theme, uint32_t elapsed) {
+                if (elapsed < theme.sustain) return theme.spike;
+                if (elapsed < theme.sustain + theme.decay) {
+                    float t = (float)(elapsed - theme.sustain) / (float)theme.decay;
+                    return theme.spike + (THEME_BASE_WEIGHT - theme.spike) * t;
+                }
+                return THEME_BASE_WEIGHT;
+            }
+
+            // Called ONCE per patch, inside the spawn loop, BEFORE per-family gates.
+            // Returns the theme index to use for this patch.
+            uint32_t evaluate_theme_envelope(uint32_t tile_seed_value) {
+                auto& env = themeEnvelope_;
+
+                // Build effective weights
+                float weights[THEME_COUNT];
+                float total = 0.0f;
+                for (uint32_t i = 0; i < THEME_COUNT; i++) {
+                    if (env.cooldowns[i] > 0) {
+                        weights[i] = 0.0f;
+                    }
+                    else if ((int32_t)i == env.active) {
+                        weights[i] = theme_envelope_weight(THEMES[i], env.elapsed);
+                    }
+                    else {
+                        weights[i] = THEME_BASE_WEIGHT;
+                    }
+                    total += weights[i];
+                }
+                if (total < 0.001f) total = 1.0f;
+
+                // Roll from weights
+                float roll = cpu_hash_f(tile_seed_value, 370u);
+                uint32_t selected = THEME_COUNT - 1;
+                float cumul = 0.0f;
+                for (uint32_t i = 0; i < THEME_COUNT; i++) {
+                    cumul += weights[i] / total;
+                    if (roll < cumul) { selected = i; break; }
+                }
+
+                // State transitions
+                if ((int32_t)selected != env.active) {
+                    if (env.active >= 0) {
+                        env.cooldowns[env.active] = THEMES[env.active].cooldown;
+                    }
+                    env.active = (int32_t)selected;
+                    env.elapsed = 0;
+
+                    // Clear formation tips on theme change
+                    for (uint32_t f = 0; f < PopFamily::COUNT; f++) {
+                        formationTips_[f] = FormationTip{};
+                    }
+                }
+                else {
+                    env.elapsed++;
+                }
+
+                // Check expiry
+                if (env.active >= 0) {
+                    const auto& th = THEMES[env.active];
+                    if (env.elapsed >= th.sustain + th.decay) {
+                        env.cooldowns[env.active] = th.cooldown;
+                        env.active = -1;
+                        env.elapsed = 0;
+                    }
+                }
+
+                // Tick cooldowns
+                for (uint32_t i = 0; i < THEME_COUNT; i++) {
+                    if (env.cooldowns[i] > 0) env.cooldowns[i]--;
+                }
+
+                return selected;
+            }
+
+            // ─── Terrain Tokens ──────────────────────────────────────────────
+            //
+            // Carried compositional priors that bias sequential tile generation.
+            // Each token holds per-archetype weight multipliers and a generation
+            // budget that decrements with each primary tile generation.
+            // When budget reaches zero, the token is cleared.
+            //
+            // Tokens are READ inside generate_tile_state() (member access),
+            // TICKED and EMITTED by tick_terrain_tokens() after each primary
+            // tile generation. Neighbor padding calls do NOT tick.
+            //
+            // The mechanism:
+            //   1. Patch generates → reads active tokens as priors on archetype weights
+            //   2. Archetype outcome + its jitter properties → emission roll
+            //   3. Emission may push a new token (bias type + budget drawn stochastically)
+            //   4. All tokens decrement budget; dead tokens cleared
+            //
+            // The stack is small and fixed. If full, the oldest token (lowest budget)
+            // is evicted to make room. In practice, ≤4 are alive at any time.
+
+            static constexpr uint32_t MAX_TERRAIN_TOKENS = 8;
+
+            struct TerrainToken {
+                float archetype_bias[ARCHETYPE_COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f };
+                uint32_t budget = 0;
+                bool active = false;
+            };
+
+            TerrainToken terrainTokens_[MAX_TERRAIN_TOKENS]{};
+
+            // ── Emission Profiles ────────────────────────────────────────────
+            //
+            // Each archetype defines how it biases subsequent tile generation
+            // when it emits a terrain token. The emission mechanism:
+            //
+            //   1. After a tile generates, it rolls emit_chance to decide
+            //      whether it emits a token at all (0.0 = never, 1.0 = always).
+            //   2. If emitting, it rolls pivot_chance: continuation vs pivot.
+            //      Continuation carries the current terrain character forward.
+            //      Pivot transitions to a different landform.
+            //   3. Budget is drawn uniformly in [budget_min, budget_max]:
+            //      how many primary tile generations the token survives.
+            //   4. The bias vector multiplies into archetype selection weights
+            //      for all tiles generated while the token is alive.
+            //      Values >1.0 boost that archetype, <1.0 suppress it.
+            //
+            // Bias vector order: { mountainous, varied, basin, pool }
+            //
+            // Tuning these profiles IS the art direction for terrain composition.
+
+            struct TerrainEmissionProfile {
+                float emit_chance;                            // [0,1] probability of emitting any token
+                uint32_t budget_min, budget_max;              // generation lifespan range
+                float continuation_bias[ARCHETYPE_COUNT];     // archetype weight multipliers when continuing
+                float pivot_chance;                           // [0,1] probability of pivoting vs continuing
+                float pivot_bias[ARCHETYPE_COUNT];            // archetype weight multipliers when pivoting
+            };
+
+            //  ┌────────────────────┬────────┬─────────┬──────────────────────────────────────────┬────────┬──────────────────────────────────────────┐
+            //  │                    │ emit%  │ budget  │ continuation bias                         │ pivot% │ pivot bias                               │
+            //  │                    │        │ min max │ mount  varied basin  pool                 │        │ mount  varied basin  pool                 │
+            //  ├────────────────────┼────────┼─────────┼──────────────────────────────────────────┼────────┼──────────────────────────────────────────┤
+            //  │ 0: mountainous     │  0.45  │  2   5  │  2.0    1.5    0.3    0.0  (ridge runs)  │  0.25  │  0.3    2.0    1.5    0.0  (descend)     │
+            //  │ 1: varied          │  0.25  │  1   3  │  0.8    1.5    0.8    0.2  (neutral)     │  0.30  │  1.5    0.5    1.5    0.1  (diversify)   │
+            //  │ 2: basin           │  0.40  │  2   4  │  0.2    0.8    2.0    1.0  (flat runs)   │  0.20  │  0.5    1.5    0.5    0.3  (ascend)      │
+            //  │ 3: pool            │  0.20  │  1   2  │  0.0    0.5    1.5    1.5  (hold flat)   │  0.35  │  0.3    1.0    2.0    0.2  (drain out)   │
+            //  └────────────────────┴────────┴─────────┴──────────────────────────────────────────┴────────┴──────────────────────────────────────────┘
+            static constexpr TerrainEmissionProfile TERRAIN_EMISSION[ARCHETYPE_COUNT] = {
+                /* 0: mountainous */ { 0.45f,  2, 5,  { 2.0f, 1.5f, 0.3f, 0.0f },  0.25f, { 0.3f, 2.0f, 1.5f, 0.0f } },
+                /* 1: varied      */ { 0.25f,  1, 3,  { 0.8f, 1.5f, 0.8f, 0.2f },  0.30f, { 1.5f, 0.5f, 1.5f, 0.1f } },
+                /* 2: basin       */ { 0.40f,  2, 4,  { 0.2f, 0.8f, 2.0f, 1.0f },  0.20f, { 0.5f, 1.5f, 0.5f, 0.3f } },
+                /* 3: pool        */ { 0.20f,  1, 2,  { 0.0f, 0.5f, 1.5f, 1.5f },  0.35f, { 0.3f, 1.0f, 2.0f, 0.2f } },
+            };
+
+            // ── Amplitude Momentum ───────────────────────────────────────────
+            //
+            // When amp_jitter rolls extreme, the token also carries amplitude
+            // bias that nudges the next patch further in that direction.
+            // Creates natural ridgelines and depth sequences.
+
+            static constexpr float AMP_MOMENTUM_THRESHOLD = 0.15f;  // |jitter - 1.0| above this → emit amp momentum
+            static constexpr float AMP_MOMENTUM_CARRY = 0.6f;       // fraction of excess carried forward
+
+
+            // ─── Population Batch System ─────────────────────────────────────
+            //
+            // Entities spawn in observed batches. The first few entities of a
+            // batch define the neighborhood's character; the rest follow it.
+            //
+            // Two derived biases update LIVE as observations accumulate:
+            //   Type affinity — types that appeared more get boosted proportionally.
+            //   Scale tendency — average tier scale biases select_tier toward similar.
+            //
+            // After POP_BATCH_SIZE patches, the batch resets: a few "exploratory"
+            // patches with neutral priors, then the new batch character emerges.
+            //
+            // Each batch rolls a MODE at birth:
+            //   Affinity  — more of the same (columns attract columns)
+            //   Repulsion — opposites attract (columns push toward pyramids/arches)
+            //   Neutral   — no bias (pure independent rolls, breathing room)
+            //
+            // No hand-crafted affinity matrices. The correlation IS the aesthetic.
+            //
+            //  ┌──────────────────────────────────────────────────────────────────────────────────────────┐
+            //  │ POPULATION BATCH CONTROL SURFACE                                                        │
+            //  ├─────────────────────────────────┬───────────┬────────────────────────────────────────────┤
+            //  │ Constant                        │ Value     │ Effect                                     │
+            //  ├─────────────────────────────────┼───────────┼────────────────────────────────────────────┤
+            //  │ POP_BATCH_SIZE                  │  4        │ Patches per observation window              │
+            //  │ POP_TYPE_AFFINITY_STRENGTH      │  3.0      │ Max spawn boost for dominant type           │
+            //  │ POP_SCALE_TENDENCY_STRENGTH     │  2.0      │ Max tier proximity boost                    │
+            //  │ POP_GOL_SUPPRESSION             │  0.05     │ GoL chance reduction per unit structure     │
+            //  │ POP_MIN_OBSERVATIONS            │  2        │ Min entities before bias activates          │
+            //  │ POP_MODE_AFFINITY_CHANCE        │  0.50     │ Probability of affinity batch               │
+            //  │ POP_MODE_REPULSION_CHANCE       │  0.25     │ Probability of repulsion batch              │
+            //  │ (remainder)                     │  0.25     │ Probability of neutral batch                │
+            //  └─────────────────────────────────┴───────────┴────────────────────────────────────────────┘
+
+            struct PopBatchMode {
+                static constexpr uint32_t AFFINITY = 0;  // more of the same
+                static constexpr uint32_t REPULSION = 1;  // opposites attract
+                static constexpr uint32_t NEUTRAL = 2;  // pure independent rolls
+            };
+
+            static constexpr uint32_t POP_BATCH_SIZE = 16;
+            static constexpr float POP_TYPE_AFFINITY_STRENGTH = 0.0f;
+            static constexpr float POP_SCALE_TENDENCY_STRENGTH = 0.0f;
+            static constexpr float POP_GOL_SUPPRESSION = 0.05f;
+            static constexpr uint32_t POP_MIN_OBSERVATIONS = 1;
+            static constexpr float POP_MODE_AFFINITY_CHANCE = 0.0f;
+            static constexpr float POP_MODE_REPULSION_CHANCE = 0.0f;
+            // remainder (1.0) = neutral
+
+            // ── Cross-Family Affinity Matrix ──────────────────────────────────
+            //
+            // When family X is observed, how much does it influence family Y's
+            // spawn chance? Read as: row = observed, column = target.
+            // 1.0 = neutral. >1.0 = attracts. <1.0 = suppresses.
+            //
+            // In AFFINITY mode, values >1 boost the target.
+            // In REPULSION mode, the matrix is read inverted (1/value).
+            //
+            //  ┌──────────────────────────────────────────────────────────────────────────┐
+            //  │ CROSS-FAMILY AFFINITY              target →                              │
+            //  │ observed ↓          │  Pyramid     │  Arch        │  Column              │
+            //  ├──────────────────────┼──────────────┼──────────────┼──────────────────────┤
+            //  │ Pyramid              │  0.5 (rare)  │  2.0 (gates) │  1.5 (colonnades)   │
+            //  │ Arch                 │  0.8 (mild)  │  1.5 (chain) │  2.0 (flanking)     │
+            //  │ Column               │  0.3 (supp)  │  1.2 (mild)  │  1.8 (cluster)      │
+            //  └──────────────────────┴──────────────┴──────────────┴──────────────────────┘
+
+            static constexpr float POP_CROSS_AFFINITY[PopFamily::COUNT][PopFamily::COUNT] = {
+                //          target:  Pyramid  Arch    Column
+                /* Pyramid */     {  0.5f,    2.0f,   1.5f  },
+                /* Arch    */     {  0.8f,    1.5f,   2.0f  },
+                /* Column  */     {  0.3f,    1.2f,   1.8f  },
+            };
+
+            // ── Per-Tier Scale Character ──────────────────────────────────────
+            //
+            // Each tier declares its compositional "size character" on [0, 1].
+            // 0.0 = human-scale intimate. 1.0 = monumental/colossal.
+            // This replaces the linear tier_idx/(count-1) mapping.
+            //
+            // Used by record_population_observation to accumulate scale_sum,
+            // and by select_tier_biased to compute proximity to the tendency.
+            //
+            //  ┌──────────────────────────────────────────────────────────┐
+            //  │ TIER SCALE CHARACTER                                    │
+            //  ├──────────────────────────┬─────────┬────────────────────┤
+            //  │ Entity                   │ Scale   │ Character          │
+            //  ├──────────────────────────┼─────────┼────────────────────┤
+            //  │ Pyramid: Obelisk         │  0.35   │ tall but narrow    │
+            //  │ Pyramid: Temple          │  0.60   │ moderate platform  │
+            //  │ Pyramid: Colossus        │  1.00   │ massive landmark   │
+            //  ├──────────────────────────┼─────────┼────────────────────┤
+            //  │ Arch: Doorway            │  0.10   │ human passage      │
+            //  │ Arch: Standard           │  0.55   │ medium gateway     │
+            //  │ Arch: Monumental         │  0.95   │ cathedral-scale    │
+            //  ├──────────────────────────┼─────────┼────────────────────┤
+            //  │ Column: Pillar           │  0.15   │ squat post         │
+            //  │ Column: Doric            │  0.30   │ classical human    │
+            //  │ Column: Ornate           │  0.50   │ decorated medium   │
+            //  │ Column: Antenna          │  0.60   │ tall with drums    │
+            //  │ Column: Antenna Squat    │  0.45   │ wide + short drums │
+            //  │ Column: Antenna Colossal │  0.85   │ tower-scale        │
+            //  └──────────────────────────┴─────────┴────────────────────┘
+
+            static constexpr float TIER_SCALE_PYRAMID[] = { 0.35f, 0.60f, 1.00f };
+            static constexpr float TIER_SCALE_ARCH[] = { 0.10f, 0.55f, 0.95f };
+            static constexpr float TIER_SCALE_COLUMN[] = { 0.15f, 0.30f, 0.50f, 0.60f, 0.45f, 0.85f };
+
+            // Accessor: look up scale character by family + tier index.
+            static float tier_scale_character(uint32_t family, uint32_t tier_idx) {
+                switch (family) {
+                case PopFamily::PYRAMID: return (tier_idx < 3) ? TIER_SCALE_PYRAMID[tier_idx] : 0.5f;
+                case PopFamily::ARCH:    return (tier_idx < 3) ? TIER_SCALE_ARCH[tier_idx] : 0.5f;
+                case PopFamily::COLUMN:  return (tier_idx < 6) ? TIER_SCALE_COLUMN[tier_idx] : 0.5f;
+                default: return 0.5f;
+                }
+            }
+
+            struct PopulationBatch {
+                uint32_t type_count[PopFamily::COUNT] = {};  // entities per family
+                float scale_sum = 0.0f;        // sum of normalized tier positions [0,1]
+                uint32_t scale_n = 0;          // number of scale observations
+                uint32_t patches_elapsed = 0;  // patches since batch start
+                uint32_t mode = PopBatchMode::AFFINITY;  // rolled at batch birth
+            };
+
+            PopulationBatch popBatch_{};
+            uint32_t popBatchCounter_ = 0;  // global counter for deterministic mode rolls
+
+            // ── Recording ─────────────────────────────────────────────────────
+            //
+            // Called inside each spawn function after successful spawn.
+            // tier_idx: which tier was selected (0-based).
+            // tier_count: total tiers in that family (for normalization).
+
+            void record_population_observation(uint32_t family, uint32_t tier_idx) {
+                popBatch_.type_count[family]++;
+                float scale = tier_scale_character(family, tier_idx);
+                popBatch_.scale_sum += scale;
+                popBatch_.scale_n++;
+            }
+
+            // ── Batch Advance ─────────────────────────────────────────────────
+            //
+            // Called once per patch after all entity spawns complete.
+            // Increments patch counter; resets batch when budget expires.
+            // New batch rolls its mode from (seed, batchCounter).
+
+            void advance_population_batch() {
+                popBatch_.patches_elapsed++;
+                if (popBatch_.patches_elapsed >= POP_BATCH_SIZE) {
+                    popBatch_ = PopulationBatch{};
+                    // Roll batch mode deterministically
+                    popBatchCounter_++;
+                    uint32_t mode_seed = cpu_hash(activeSeed_ ^ popBatchCounter_, 330u);
+                    float mode_roll = cpu_hash_f(mode_seed, 331u);
+                    if (mode_roll < POP_MODE_AFFINITY_CHANCE) {
+                        popBatch_.mode = PopBatchMode::AFFINITY;
+                    }
+                    else if (mode_roll < POP_MODE_AFFINITY_CHANCE + POP_MODE_REPULSION_CHANCE) {
+                        popBatch_.mode = PopBatchMode::REPULSION;
+                    }
+                    else {
+                        popBatch_.mode = PopBatchMode::NEUTRAL;
+                    }
+                }
+            }
+
+            // ── Live Accessors (read current batch state) ─────────────────────
+            //
+            // Called inside spawn functions and GoL detection.
+            // Bias builds as observations accumulate within the batch.
+            // Before POP_MIN_OBSERVATIONS, returns neutral (1.0 / 0.0 / 0.5).
+            //
+            // In AFFINITY mode: types that appeared more get boosted.
+            // In REPULSION mode: types that appeared LESS get boosted.
+            // In NEUTRAL mode: always returns 1.0 (no bias).
+
+            float population_type_affinity(uint32_t family) const {
+                if (popBatch_.mode == PopBatchMode::NEUTRAL) return 1.0f;
+                uint32_t total = popBatch_.type_count[0] + popBatch_.type_count[1] + popBatch_.type_count[2];
+                if (total < POP_MIN_OBSERVATIONS) return 1.0f;
+                // Weighted sum: each observed family contributes its cross-affinity to the target
+                float influence = 0.0f;
+                for (uint32_t obs = 0; obs < PopFamily::COUNT; obs++) {
+                    float fraction = (float)popBatch_.type_count[obs] / (float)total;
+                    float affinity = POP_CROSS_AFFINITY[obs][family];
+                    if (popBatch_.mode == PopBatchMode::REPULSION) {
+                        affinity = (affinity > 0.01f) ? (1.0f / affinity) : 10.0f;  // invert
+                    }
+                    influence += fraction * affinity;
+                }
+                return 1.0f + (influence - 1.0f) * POP_TYPE_AFFINITY_STRENGTH;
+            }
+
+            float population_scale_tendency() const {
+                if (popBatch_.mode == PopBatchMode::NEUTRAL) return 0.5f;
+                if (popBatch_.scale_n < POP_MIN_OBSERVATIONS) return 0.5f;
+                float raw = popBatch_.scale_sum / (float)popBatch_.scale_n;
+                if (popBatch_.mode == PopBatchMode::REPULSION) {
+                    raw = 1.0f - raw;  // invert: small observations push toward large
+                }
+                return raw;
+            }
+
+            float population_automata_bias() const {
+                if (popBatch_.mode == PopBatchMode::NEUTRAL) return 0.0f;
+                uint32_t total = popBatch_.type_count[0] + popBatch_.type_count[1] + popBatch_.type_count[2];
+                if (total < POP_MIN_OBSERVATIONS) return 0.0f;
+                float avg_affinity = (population_type_affinity(0) +
+                    population_type_affinity(1) +
+                    population_type_affinity(2)) / 3.0f;
+                return -(avg_affinity - 1.0f) * POP_GOL_SUPPRESSION;
+            }
+
+            // ── Biased Tier Selection ─────────────────────────────────────────
+            //
+            // Applies scale tendency to tier weights before rolling.
+            // Tiers near the batch's average scale get boosted (affinity)
+            // or tiers FAR from it get boosted (repulsion).
+            // Falls back to unbiased select_tier in neutral mode or pre-observations.
+            //
+            // family: PopFamily index — needed to look up tier scale character.
+
+            uint32_t select_tier_biased(uint32_t seed, uint32_t tier_prop,
+                const float* base_weights, uint32_t count, uint32_t family) const {
+                if (popBatch_.mode == PopBatchMode::NEUTRAL ||
+                    popBatch_.scale_n < POP_MIN_OBSERVATIONS) {
+                    return select_tier(seed, tier_prop, base_weights, count);
+                }
+                float tendency = population_scale_tendency();
+                float weights[8];  // max tiers across all families
+                float total = 0.0f;
+                for (uint32_t t = 0; t < count && t < 8; t++) {
+                    float scale = tier_scale_character(family, t);
+                    float proximity = 1.0f - std::abs(scale - tendency);
+                    weights[t] = base_weights[t] * (1.0f + proximity * POP_SCALE_TENDENCY_STRENGTH);
+                    total += weights[t];
+                }
+                for (uint32_t t = 0; t < count; t++) weights[t] /= total;
+                float roll = cpu_hash_f(seed, tier_prop);
+                float cumul = 0.0f;
+                for (uint32_t t = 0; t < count; t++) {
+                    cumul += weights[t];
+                    if (roll < cumul) return t;
+                }
+                return count - 1;
+            }
+
+            // ─── Formation Memory ────────────────────────────────────────────
+            //
+            // Ring buffer of recent spawn records. Each spawn function reads
+            // the most recent sibling of its family and can override its own
+            // position/rotation to form spatial relationships.
+            //
+            // If the formation position fails footprint check, silent fallback
+            // to the original jittered position. When no sibling exists or the
+            // formation roll fails, placement is fully independent (as before).
+            //
+            //  ┌──────────────────────────────────────────────────────────────────────────────────────────┐
+            //  │ FORMATION CONTROL SURFACE                                                               │
+            //  ├──────────────────────────┬───────────────┬──────────────────────────────────────────────┤
+            //  │ Per-family rule           │ Value         │ Effect                                       │
+            //  ├──────────────────────────┼───────────────┼──────────────────────────────────────────────┤
+            //  │ formation_chance          │ [0,1]         │ Probability of attempting formation          │
+            //  │ distance_mean / sigma     │ world units   │ Spacing from sibling                         │
+            //  │ lateral_angle             │ radians       │ 0=inline, π/2=perpendicular to sibling face  │
+            //  │ lateral_angle_sigma       │ radians       │ Angular spread around lateral_angle           │
+            //  │ rotation_mode             │ 0/1/2         │ 0=inherit, 1=follow line, 2=independent      │
+            //  │ rotation_drift_sigma      │ radians       │ Per-step rotation jitter (curves)             │
+            //  │ max_sibling_distance      │ world units   │ Ignore siblings farther than this             │
+            //  └──────────────────────────┴───────────────┴──────────────────────────────────────────────┘
+
+            struct SpawnRecord {
+                float x = 0.0f, z = 0.0f;
+                float rotation = 0.0f;
+                uint32_t family = 0;
+                bool valid = false;
+            };
+
+            static constexpr uint32_t FORMATION_MEMORY_SIZE = 6;  // per family
+            SpawnRecord formationMemory_[PopFamily::COUNT][FORMATION_MEMORY_SIZE]{};
+            uint32_t formationWriteIdx_[PopFamily::COUNT] = { 0, 0, 0 };
+
+            void record_spawn(float x, float z, float rotation, uint32_t family) {
+                auto& idx = formationWriteIdx_[family];
+                formationMemory_[family][idx] = { x, z, rotation, family, true };
+                idx = (idx + 1) % FORMATION_MEMORY_SIZE;
+            }
+
+            // Find nearest sibling of a given family within max distance.
+            // Returns nullptr if none found.
+            const SpawnRecord* find_sibling(uint32_t family, float ref_x, float ref_z, float max_dist) const {
+                float best_dist_sq = max_dist * max_dist;
+                const SpawnRecord* best = nullptr;
+                for (uint32_t i = 0; i < FORMATION_MEMORY_SIZE; i++) {
+                    if (!formationMemory_[family][i].valid) continue;
+                    float dx = formationMemory_[family][i].x - ref_x;
+                    float dz = formationMemory_[family][i].z - ref_z;
+                    float d2 = dx * dx + dz * dz;
+                    if (d2 < best_dist_sq) {
+                        best_dist_sq = d2;
+                        best = &formationMemory_[family][i];
+                    }
+                }
+                return best;
+            }
+
+            // ── Theme Envelope State (replaces lattice-based selection) ─────
+            ThemeEnvelope themeEnvelope_{};
+            uint32_t active_theme_idx_ = 0;   // set per-patch by evaluate_theme_envelope
+
+            // ── Formation Tips (replaces ring buffer for differential tip) ──
+            FormationTip formationTips_[PopFamily::COUNT]{};
+
+            // ── Minimum Separation Matrix ─────────────────────────────────────
+            //
+            // Compositional spacing: how far apart entities of each family pair
+            // must be. Checked against formation memory before accepting any
+            // position (formation OR jittered). Adds an aesthetic breathing room
+            // layer on top of the physical footprint system.
+            //
+            // 0.0 = no minimum (exception — allow intimate proximity).
+            // Positive = minimum world-space distance.
+            //
+            // Read as: row = entity being placed, column = existing entity in memory.
+            // The check is asymmetric: placing an arch near a pyramid may have a
+            // different minimum than placing a pyramid near an arch.
+            //
+            //  ┌──────────────────────────────────────────────────────────────────────────────┐
+            //  │ MINIMUM SEPARATION (wu)         existing in memory →                         │
+            //  │ placing ↓           │  Pyramid      │  Arch         │  Column                │
+            //  ├──────────────────────┼───────────────┼───────────────┼────────────────────────┤
+            //  │ Pyramid              │  60 (sparse)  │  50 (wide)    │  30 (spacing)          │
+            //  │ Arch                 │  50 (wide)    │ 100 (corridor)│  60 (spacing)          │
+            //  │ Column               │  30 (spacing) │ 100 (spacing) │  60 (colonnade)        │
+            //  └──────────────────────┴───────────────┴───────────────┴────────────────────────┘
+            //
+            // Key exception: Arch→Pyramid = 0. Doorway arches (which become portals)
+            // are explicitly allowed on top of pyramids. The footprint system still
+            // prevents physical overlap of collision geometry — this matrix only
+            // governs aesthetic spacing.
+
+            static constexpr float MIN_SEPARATION[PopFamily::COUNT][PopFamily::COUNT] = {
+                //               near:  Pyramid  Arch    Column
+                /* placing Pyramid */ {  60.0f,  50.0f,  30.0f },
+                /* placing Arch    */ {  50.0f, 100.0f,  60.0f },
+                /* placing Column  */ {  30.0f, 100.0f,  60.0f },
+            };
+
+            // Check if a proposed position satisfies the separation matrix
+            // against all records in formation memory.
+            // Returns true if all separations are met.
+            bool check_separation(float px, float pz, uint32_t placing_family) const {
+                for (uint32_t fam = 0; fam < PopFamily::COUNT; fam++) {
+                    float min_dist = MIN_SEPARATION[placing_family][fam];
+                    if (min_dist <= 0.0f) continue;
+                    float min_dist_sq = min_dist * min_dist;
+                    for (uint32_t i = 0; i < FORMATION_MEMORY_SIZE; i++) {
+                        if (!formationMemory_[fam][i].valid) continue;
+                        float dx = px - formationMemory_[fam][i].x;
+                        float dz = pz - formationMemory_[fam][i].z;
+                        if (dx * dx + dz * dz < min_dist_sq) return false;
+                    }
+                }
+                return true;
+            }
+
+            // Propose a formation position relative to a sibling.
+            // Returns true if proposal is valid, writes to out_x, out_z, out_rotation.
+            // seed provides deterministic jitter draws.
+            bool propose_formation(const SpawnRecord& sibling, const FormationRule& rule,
+                uint32_t seed, float default_rotation,
+                float& out_x, float& out_z, float& out_rotation) const {
+
+                // Distance from sibling
+                float dist = std::max(5.0f,
+                    cpu_sample_gaussian(seed, 340u, rule.distance_mean, rule.distance_sigma));
+
+                // Direction: sibling's facing + lateral angle + jitter
+                float angle = sibling.rotation + rule.lateral_angle
+                    + cpu_sample_gaussian(seed, 342u, 0.0f, rule.lateral_angle_sigma);
+
+                out_x = sibling.x + std::cos(angle) * dist;
+                out_z = sibling.z + std::sin(angle) * dist;
+
+                // Rotation
+                switch (rule.rotation_mode) {
+                case RotationMode::INHERIT:
+                    out_rotation = sibling.rotation
+                        + cpu_sample_gaussian(seed, 344u, 0.0f, rule.rotation_drift_sigma);
+                    break;
+                case RotationMode::FOLLOW_LINE: {
+                    float dx = out_x - sibling.x;
+                    float dz = out_z - sibling.z;
+                    out_rotation = std::atan2(dz, dx)
+                        + cpu_sample_gaussian(seed, 344u, 0.0f, rule.rotation_drift_sigma);
+                    break;
+                }
+                default:
+                    out_rotation = default_rotation;
+                    break;
+                }
+
+                return true;
+            }
+
+            // --- Entity Presence Flags -----------------------------------------------
+            //
+            // Bitfield tracking what was spawned on a tile. Enables neighbor-aware
+            // spawn probability: columns cluster near arches, doorways cluster
+            // near pyramids, etc. Recorded at spawn time, cleared at eviction.
+
+            struct EntityPresence {
+                static constexpr uint32_t NONE = 0u;
+                static constexpr uint32_t PYRAMID = 1u << 0;
+                static constexpr uint32_t ARCH_DOORWAY = 1u << 1;
+                static constexpr uint32_t ARCH_STANDARD = 1u << 2;
+                static constexpr uint32_t ARCH_MONUMENTAL = 1u << 3;
+                static constexpr uint32_t ARCH_ANY = ARCH_DOORWAY | ARCH_STANDARD | ARCH_MONUMENTAL;
+                static constexpr uint32_t COLUMN = 1u << 4;
+                static constexpr uint32_t GALLERY = 1u << 5;
+                static constexpr uint32_t GOL_ZONE = 1u << 6;
+            };
+
+            // --- Tile State (what we remember about each generated tile) ----------
+
+            struct TileState {
+                uint32_t archetype = 1;      // default: varied
+                float height_bias = 0.0f;
+                float amp_scale = 1.0f;
+                float activation_scale = 1.0f;
+                uint32_t entity_flags = 0;   // EntityPresence bitfield
+                float amp_momentum = 0.0f;   // signed amplitude excess, carried by terrain tokens
+                float entity_density = 1.0f; // spatial density multiplier for entity spawning
+                // Theme: evaluated from theme lattice at tile generation time
+                float theme_spawn[PopFamily::COUNT] = { 1.0f, 1.0f, 1.0f }; // blended per-family spawn multiplier
+                uint32_t theme_idx = 0;      // dominant theme index (for tier bias + formation lookup)
+            };
+
+            // Spatial cache: keyed by (grid_x, grid_z)
+            struct GridKey {
+                int32_t x, z;
+                bool operator==(const GridKey& o) const { return x == o.x && z == o.z; }
+            };
+            struct GridKeyHash {
+                size_t operator()(const GridKey& k) const {
+                    return (size_t)k.x * 73856093u ^ (size_t)k.z * 19349663u;
+                }
+            };
+
+            std::unordered_map<GridKey, TileState, GridKeyHash> tileCache_;
+
+            // Forgetting radius: tiles beyond this many grid cells get evicted
+            static constexpr int32_t FORGET_RADIUS = (int32_t)PREGEN_RADIUS + 2;  // eviction radius (beyond pre-gen)
+
+            void evict_distant_tiles(int32_t centerX, int32_t centerZ) {
+                auto it = tileCache_.begin();
+                while (it != tileCache_.end()) {
+                    int32_t dx = it->first.x - centerX;
+                    int32_t dz = it->first.z - centerZ;
+                    if (dx < -FORGET_RADIUS || dx > FORGET_RADIUS ||
+                        dz < -FORGET_RADIUS || dz > FORGET_RADIUS) {
+                        it = tileCache_.erase(it);
+                    }
+                    else {
+                        ++it;
+                    }
+                }
+            }
+
+            // Build and upload GPUTileGrid from tile cache, centered on (cx, cz).
+            void upload_tile_grid_now(wgpu::Queue& queue, int32_t cx, int32_t cz) {
+                static constexpr int32_t TILE_PAD = 1;
+                int32_t rp = (int32_t)activeRadius_ + TILE_PAD;
+                uint32_t tileGridSide = 2 * (activeRadius_ + TILE_PAD) + 1;
+                GPUTileGrid grid{};
+                grid.origin_x = cx - rp;
+                grid.origin_z = cz - rp;
+                grid.side = tileGridSide;
+                grid.cell_extent = PATCH_EXTENT;
+
+                for (int32_t gz = cz - rp; gz <= cz + rp; gz++) {
+                    for (int32_t gx = cx - rp; gx <= cx + rp; gx++) {
+                        int32_t lx = gx - grid.origin_x;
+                        int32_t lz = gz - grid.origin_z;
+                        uint32_t idx = lz * tileGridSide + lx;
+                        auto it = tileCache_.find({ gx, gz });
+                        if (it != tileCache_.end()) {
+                            grid.entries[idx].amp_scale = it->second.amp_scale;
+                            grid.entries[idx].height_bias = it->second.height_bias;
+                            grid.entries[idx].activation_scale = it->second.activation_scale;
+                            grid.entries[idx].archetype = it->second.archetype;
+                        }
+                        else {
+                            grid.entries[idx].amp_scale = 1.0f;
+                            grid.entries[idx].height_bias = 0.0f;
+                            grid.entries[idx].activation_scale = 1.0f;
+                            grid.entries[idx].archetype = 1;
+                        }
+                    }
+                }
+                gpuState_.upload_tile_grid(queue, grid);
+            }
+
+            // --- Archetype Generation Rule ------------------------------------------
+            //
+            // Consult cached neighbors → weight archetypes → deterministic roll.
+            // All thresholds and multipliers live in ArchetypeSelectionRules.
+            // All per-archetype parameters live in the ARCHETYPES matrix.
+
+            TileState generate_tile_state(int32_t gx, int32_t gz) {
+                // Count neighbor archetypes
+                uint32_t neighbor_counts[ARCHETYPE_COUNT] = {};
+                uint32_t total_neighbors = 0;
+
+                for (int32_t dz = -1; dz <= 1; dz++) {
+                    for (int32_t dx = -1; dx <= 1; dx++) {
+                        if (dx == 0 && dz == 0) continue;
+                        auto it = tileCache_.find({ gx + dx, gz + dz });
+                        if (it != tileCache_.end()) {
+                            neighbor_counts[it->second.archetype]++;
+                            total_neighbors++;
+                        }
+                    }
+                }
+
+                // Build selection weights from archetype base weights + neighbor influence
+                float weights[ARCHETYPE_COUNT];
+                for (uint32_t a = 0; a < ARCHETYPE_COUNT; a++) {
+                    weights[a] = ARCHETYPES[a].base_weight;
+                }
+
+                // Pool archetype: mood-aware injection.
+                // Indoor: common (flat floors are natural).
+                // Outdoor: very rare (special feature).
+                static constexpr uint32_t POOL_IDX = 3;
+                if (MOOD_TABLE[activeMood_].indoor) {
+                    weights[POOL_IDX] = 1.5f;   // ~30% of indoor tiles become pools
+                }
+                else {
+                    weights[POOL_IDX] = 0.05f;  // ~1.5% of outdoor tiles
+                }
+
+                // ── Terrain token priors: multiply active tokens into weights ──
+                for (uint32_t t = 0; t < MAX_TERRAIN_TOKENS; t++) {
+                    if (!terrainTokens_[t].active) continue;
+                    for (uint32_t a = 0; a < ARCHETYPE_COUNT; a++) {
+                        weights[a] *= terrainTokens_[t].archetype_bias[a];
+                    }
+                }
+
+                if (total_neighbors > 0) {
+                    using R = ArchetypeSelectionRules;
+                    for (uint32_t a = 0; a < ARCHETYPE_COUNT; a++) {
+                        if (neighbor_counts[a] >= R::DOMINANT_THRESHOLD) {
+                            weights[a] *= R::DOMINANT_MULTIPLIER;
+                        }
+                        else if (neighbor_counts[a] >= R::COMMON_THRESHOLD) {
+                            weights[a] *= R::COMMON_MULTIPLIER;
+                        }
+                        else if (neighbor_counts[a] >= R::PRESENT_THRESHOLD) {
+                            weights[a] *= R::PRESENT_MULTIPLIER;
+                        }
+                    }
+                }
+
+                // Normalize and roll
+                float total_weight = 0.0f;
+                for (uint32_t a = 0; a < ARCHETYPE_COUNT; a++) total_weight += weights[a];
+                for (uint32_t a = 0; a < ARCHETYPE_COUNT; a++) weights[a] /= total_weight;
+
+                uint32_t seed = tile_seed(activeSeed_, gx, gz);
+                float roll = cpu_hash_f(seed, 300u);
+
+                uint32_t archetype = ARCHETYPE_COUNT - 1;
+                float cumulative = 0.0f;
+                for (uint32_t a = 0; a < ARCHETYPE_COUNT; a++) {
+                    cumulative += weights[a];
+                    if (roll < cumulative) { archetype = a; break; }
+                }
+
+                // Per-tile jitter from archetype profile
+                const auto& profile = ARCHETYPES[archetype];
+                float amp_jitter = 1.0f + (cpu_hash_f(seed, 301u) - 0.5f) * profile.amp_jitter_range;
+                float bias_jitter = (cpu_hash_f(seed, 302u) - 0.5f) * profile.bias_jitter_range;
+
+                TileState ts;
+                ts.archetype = archetype;
+                ts.amp_scale = profile.amp_scale * amp_jitter;
+                ts.height_bias = profile.height_bias + bias_jitter;
+                ts.activation_scale = profile.activation_scale;
+                ts.amp_momentum = amp_jitter - 1.0f;  // signed: positive = amplified, negative = dampened
+
+                // ── Entity density field (coarse spatial noise) ──────────
+                {
+                    float patch_cx = (gx + 0.5f) * PATCH_EXTENT;
+                    float patch_cz = (gz + 0.5f) * PATCH_EXTENT;
+                    float dlx = patch_cx / DENSITY_LATTICE_SPACING;
+                    float dlz = patch_cz / DENSITY_LATTICE_SPACING;
+                    int32_t dbx = (int32_t)std::floor(dlx);
+                    int32_t dbz = (int32_t)std::floor(dlz);
+                    float dfx = dlx - dbx, dfz = dlz - dbz;
+                    float dwx = dfx * dfx * (3.0f - 2.0f * dfx);
+                    float dwz = dfz * dfz * (3.0f - 2.0f * dfz);
+                    float density = 0.0f;
+                    for (int dz = 0; dz <= 1; dz++) for (int dx = 0; dx <= 1; dx++) {
+                        uint32_t ns = cpu_lattice_node_seed(activeSeed_, dbx + dx, dbz + dz, DENSITY_SEED_BAND);
+                        float raw = cpu_hash_f(ns, 350u);
+                        float shaped = std::pow(raw, DENSITY_EXPONENT);
+                        float w = ((dx == 1) ? dwx : (1.0f - dwx)) * ((dz == 1) ? dwz : (1.0f - dwz));
+                        density += shaped * w;
+                    }
+                    ts.entity_density = DENSITY_MIN + density * (DENSITY_MAX - DENSITY_MIN);
+                }
+
+                // ── Theme field (coarse compositional character) ─────────
+                {
+                    float patch_cx = (gx + 0.5f) * PATCH_EXTENT;
+                    float patch_cz = (gz + 0.5f) * PATCH_EXTENT;
+                    float tlx = patch_cx / THEME_LATTICE_SPACING;
+                    float tlz = patch_cz / THEME_LATTICE_SPACING;
+                    int32_t tbx = (int32_t)std::floor(tlx);
+                    int32_t tbz = (int32_t)std::floor(tlz);
+                    float tfx = tlx - tbx, tfz = tlz - tbz;
+                    float twx = tfx * tfx * (3.0f - 2.0f * tfx);
+                    float twz = tfz * tfz * (3.0f - 2.0f * tfz);
+
+                    // Blend spawn weights across 4 lattice nodes.
+                    // Track dominant node for discrete tier bias lookup.
+                    float blended_spawn[PopFamily::COUNT] = { 0.0f, 0.0f, 0.0f };
+                    float blended_density = 0.0f;
+                    float best_w = -1.0f;
+                    uint32_t dominant_theme = 0;
+
+                    for (int dz = 0; dz <= 1; dz++) for (int dx = 0; dx <= 1; dx++) {
+                        uint32_t ns = cpu_lattice_node_seed(activeSeed_, tbx + dx, tbz + dz, THEME_SEED_BAND);
+                        uint32_t tidx = select_theme_at_node(ns);
+                        const auto& theme = THEMES[tidx];
+                        float w = ((dx == 1) ? twx : (1.0f - twx)) * ((dz == 1) ? twz : (1.0f - twz));
+                        for (uint32_t f = 0; f < PopFamily::COUNT; f++) {
+                            blended_spawn[f] += theme.spawn_weight[f] * w;
+                        }
+                        blended_density += theme.density_mult * w;
+                        if (w > best_w) { best_w = w; dominant_theme = tidx; }
+                    }
+
+                    ts.theme_spawn[0] = blended_spawn[0];
+                    ts.theme_spawn[1] = blended_spawn[1];
+                    ts.theme_spawn[2] = blended_spawn[2];
+                    ts.theme_idx = dominant_theme;
+                    ts.entity_density *= blended_density;  // theme density stacks with spatial density
+                }
+
+                return ts;
+            }
+
+            // ─── Terrain Token Tick + Emission ───────────────────────────────
+            //
+            // Called ONCE per primary tile generation, NEVER for neighbor padding.
+            // Decrements all active token budgets, clears expired tokens,
+            // then evaluates the tile outcome for emission of a new token.
+
+            void tick_terrain_tokens(const TileState& outcome, uint32_t seed) {
+                // ── Tick existing tokens ─────────────────────────────────
+                for (uint32_t t = 0; t < MAX_TERRAIN_TOKENS; t++) {
+                    if (!terrainTokens_[t].active) continue;
+                    if (terrainTokens_[t].budget <= 1) {
+                        terrainTokens_[t].active = false;
+                    }
+                    else {
+                        terrainTokens_[t].budget--;
+                    }
+                }
+
+                // ── Emission from outcome ────────────────────────────────
+                const auto& ep = TERRAIN_EMISSION[outcome.archetype];
+
+                // Roll: does this outcome emit a token?
+                // Property index 310: decorrelated from archetype roll (300-302)
+                float emit_roll = cpu_hash_f(seed, 310u);
+                if (emit_roll >= ep.emit_chance) return;
+
+                // Roll: continuation or pivot?
+                float pivot_roll = cpu_hash_f(seed, 311u);
+                bool pivot = (pivot_roll < ep.pivot_chance);
+
+                // Budget draw (uniform in [budget_min, budget_max])
+                float budget_t = cpu_hash_f(seed, 312u);
+                uint32_t budget = ep.budget_min +
+                    (uint32_t)(budget_t * (float)(ep.budget_max - ep.budget_min + 1));
+                budget = std::min(budget, ep.budget_max);  // clamp rounding
+
+                // Build the token
+                TerrainToken token{};
+                const float* bias = pivot ? ep.pivot_bias : ep.continuation_bias;
+                for (uint32_t a = 0; a < ARCHETYPE_COUNT; a++) {
+                    token.archetype_bias[a] = bias[a];
+                }
+
+                // Amplitude momentum: if this patch rolled extreme, carry it
+                if (std::abs(outcome.amp_momentum) > AMP_MOMENTUM_THRESHOLD) {
+                    float carry = outcome.amp_momentum * AMP_MOMENTUM_CARRY;
+                    if (carry > 0.0f) {
+                        token.archetype_bias[0] *= (1.0f + carry);  // mountainous
+                    }
+                    else {
+                        token.archetype_bias[2] *= (1.0f - carry);  // basin (carry is negative)
+                    }
+                }
+
+                token.budget = budget;
+                token.active = true;
+
+                // ── Insert into stack ────────────────────────────────────
+                // Find a free slot. If none, evict the token with lowest budget.
+                uint32_t slot = MAX_TERRAIN_TOKENS;
+                uint32_t min_budget = UINT32_MAX;
+                uint32_t min_slot = 0;
+
+                for (uint32_t t = 0; t < MAX_TERRAIN_TOKENS; t++) {
+                    if (!terrainTokens_[t].active) { slot = t; break; }
+                    if (terrainTokens_[t].budget < min_budget) {
+                        min_budget = terrainTokens_[t].budget;
+                        min_slot = t;
+                    }
+                }
+                if (slot == MAX_TERRAIN_TOKENS) slot = min_slot;  // evict oldest
+
+                terrainTokens_[slot] = token;
+            }
+
+            // ── PATCH ORCHESTRATOR ──  → future: orchestrator.inl
+
+            // Runtime render radius — toggleable within [GRID_RADIUS, RENDER_RADIUS].
+            // Buffers/textures always allocated for PREGEN_RADIUS.
+            // Visibility uses circular VISIBLE_RADIUS; RENDER_RADIUS retained for
+            // allocation bounds and GoL zone eviction.
+            uint32_t activeRadius_ = PREGEN_RADIUS;
+
+
+            struct ActivePatch {
+                int32_t grid_x = 0;
+                int32_t grid_z = 0;
+                uint32_t layer = 0;
+                bool valid = false;
+                bool spawned = false;    // true once entities have been spawned for this patch
+                bool generated = false;  // true once heightfield has been dispatched
+                bool animated = false;   // true if patch overlaps an active pool
+                bool pending_regen = false;  // true while waiting for regen (keeps rendering old data)
+            };
+
+            ActivePatch patches_[MAX_PATCHES]{};
+            int32_t lastCenterX_ = INT32_MAX;  // force full regeneration on first frame
+            int32_t lastCenterZ_ = INT32_MAX;
+            uint32_t activePatchCount_ = 0;
+            uint32_t renderPatchCount_ = 0;  // visible patches (within circular VISIBLE_RADIUS)
+            uint32_t lod0PatchCount_ = 0;    // subset of rendered: within LOD_FULL_RADIUS (full mesh)
+            uint32_t allPatchCount_ = 0;     // all generated patches (including pre-gen ring)
+            uint32_t entitiesCulled_ = 0;    // entities hidden by distance culling this frame
+
+            // ─── Deferred Upload Flags ───────────────────────────────────
+            bool pierCountDirty_ = false;        // defer recompute_and_upload_pier_count
+            bool groundEntriesDirty_ = true;     // defer upload_ground_entries (true at boot)
+            bool patchInstancesDirty_ = true;    // defer LOD sort + upload_patch_instances
+            bool placementDirty_ = true;         // defer dispatch_placement_correction
+
+            // Free-list of available texture layers
+            uint32_t freeLayerStack_[MAX_PATCHES]{};
+            uint32_t freeLayerCount_ = MAX_PATCHES;
+
+            // ─── Dynamic Budgets ─────────────────────────────────────────
+            //
+            // Entity spawning and heightfield generation are both distance-
+            // driven and budgeted per frame. Spawning must complete before
+            // generation (piers affect heightfields), enforced by requiring
+            // spawned == true before a patch enters the generation scan.
+            static constexpr uint32_t SPAWN_BUDGET_PER_FRAME = 4;    // max patches to spawn entities for
+            static constexpr uint32_t ALLOC_BUDGET_PER_FRAME = 4;    // max patches to allocate per frame
+            static constexpr uint32_t EVICT_BUDGET_PER_FRAME = 4;    // max patches to evict per frame
+            static constexpr uint32_t PATCH_BUDGET_MIN = 1;
+            static constexpr uint32_t PATCH_BUDGET_MAX = 6;
+            static constexpr uint32_t PATCH_PENDING_TIER_1 = 3;
+            static constexpr uint32_t PATCH_PENDING_TIER_2 = 8;
+            static constexpr uint32_t PATCH_PENDING_TIER_3 = 20;
+            static constexpr uint32_t PATCH_PENDING_TIER_4 = 40;
+            static constexpr uint32_t PATCH_BUDGET_MOVE_THRESHOLD = 4;
+
+            uint32_t count_pending_patches() const {
+                uint32_t n = 0;
+                for (uint32_t i = 0; i < activePatchCount_; i++) {
+                    if (!patches_[i].valid) continue;
+                    if (patches_[i].pending_regen) { n++; continue; }
+                    if (patches_[i].spawned && !patches_[i].generated) n++;
+                }
+                return n;
+            }
+
+            uint32_t patches_budget_this_frame() const {
+                uint32_t pending = count_pending_patches();
+                uint32_t budget = PATCH_BUDGET_MIN;
+                if (pending >= PATCH_PENDING_TIER_4) budget = 6;
+                else if (pending >= PATCH_PENDING_TIER_3) budget = 4;
+                else if (pending >= PATCH_PENDING_TIER_2) budget = 3;
+                else if (pending >= PATCH_PENDING_TIER_1) budget = 2;
+
+                bool moving = (std::abs(inputState_.move_x) > 0.01f ||
+                    std::abs(inputState_.move_z) > 0.01f);
+                if (moving && pending > PATCH_BUDGET_MOVE_THRESHOLD)
+                    budget += 1;
+
+                return std::min(budget, PATCH_BUDGET_MAX);
+            }
+
+            // --- World teardown: reset all runtime state for world transition ---
+
+            void teardown_world(wgpu::Queue& queue) {
+                // Patches + tile cache
+                init_patch_system();
+                lastCenterX_ = INT32_MAX;  // force full regen on next frame
+                lastCenterZ_ = INT32_MAX;
+
+                // Terrain tokens
+                for (uint32_t t = 0; t < MAX_TERRAIN_TOKENS; t++) {
+                    terrainTokens_[t] = TerrainToken{};
+                }
+
+                // Population batch
+                popBatch_ = PopulationBatch{};
+                popBatchCounter_ = 0;
+
+                // Formation memory (per-family)
+                for (uint32_t f = 0; f < PopFamily::COUNT; f++) {
+                    for (uint32_t i = 0; i < FORMATION_MEMORY_SIZE; i++) formationMemory_[f][i] = SpawnRecord{};
+                    formationWriteIdx_[f] = 0;
+                }
+
+                // Theme envelope + formation tips
+                themeEnvelope_ = ThemeEnvelope{};
+                active_theme_idx_ = 0;
+                for (uint32_t f = 0; f < PopFamily::COUNT; f++) {
+                    formationTips_[f] = FormationTip{};
+                }
+
+                // Clear all entity piers (keep test rig at slots 0-2)
+                for (uint32_t i = Dim::PIER_ARCH_BASE; i < Dim::PIER_TOTAL; i++) {
+                    clear_pier(queue, i);
+                }
+
+                // Arches
+                for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++) {
+                    activeArches_[i] = ActiveArch{};
+                }
+                activeArchCount_ = 0;
+                portalsDirty_ = true;
+                gpuState_.set_arch_index_count(0);
+                // Clear all arch mesh gen param slots
+                {
+                    GPUArchMeshParams emptyParams{};
+                    for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++) {
+                        gpuState_.upload_arch_mesh_params_slot(queue, i, emptyParams);
+                    }
+                    archMeshGenPending_ = true;
+                }
+
+                // Columns
+                for (uint32_t i = 0; i < Dim::MAX_COLUMN_INSTANCES; i++) {
+                    activeColumns_[i] = ActiveColumn{};
+                }
+                activeColumnCount_ = 0;
+                gpuState_.set_column_index_count(0);
+                // Clear all column mesh gen param slots
+                {
+                    GPUColumnMeshParams emptyParams{};
+                    for (uint32_t i = 0; i < Dim::MAX_COLUMN_INSTANCES; i++) {
+                        gpuState_.upload_column_mesh_params_slot(queue, i, emptyParams);
+                    }
+                    columnMeshGenPending_ = true;
+                }
+
+                // Pyramids
+                for (uint32_t i = 0; i < Dim::MAX_PYRAMID_INSTANCES; i++) {
+                    activePyramids_[i] = ActivePyramid{};
+                }
+                activePyramidCount_ = 0;
+                cpuPyramids_ = GPUPyramidArray{};
+                gpuState_.upload_pyramids(queue, cpuPyramids_);
+                gpuState_.set_pyramid_index_count(0);
+                // Clear all mesh gen param slots (inactive → degenerates on next dispatch)
+                {
+                    GPUPyramidMeshParams emptyParams{};
+                    for (uint32_t i = 0; i < Dim::MAX_PYRAMID_INSTANCES; i++) {
+                        gpuState_.upload_pyramid_mesh_params_slot(queue, i, emptyParams);
+                    }
+                    pyramidMeshGenPending_ = true;
+                }
+
+                // GoL zones
+                for (uint32_t i = 0; i < Dim::MAX_GOL_ZONES; i++) {
+                    golZones_[i] = GoLZoneState{};
+                }
+                golZoneCount_ = 0;
+                activeZoneSlotCount_ = 0;
+                pendingDeriveRequests_.count = 0;
+                GPUGoLZoneArray emptyZones{};
+                gpuState_.upload_zone_config(queue, emptyZones);
+
+                // Ribbon
+                ribbonActive_ = false;
+
+                // Gallery / paintings — clear all exhibition + slots, keep staging intact
+                for (uint32_t i = 0; i < MAX_GALLERIES; i++) {
+                    galleryCenters_[i] = GalleryCenter{};
+                }
+                pendingSnapshot_.active = false;
+                pendingPromotionCount_ = 0;
+                wallFrameCount_ = 0;
+                activePaintingCount_ = 0;
+                // Clear all painting slots (CPU + GPU)
+                for (uint32_t i = 0; i < Dim::PAINTING_MAX_SLOTS; i++) {
+                    paintingSlots_[i] = GPUPaintingSlot{};
+                }
+                {
+                    GPUPaintingSlot empty[Dim::PAINTING_MAX_SLOTS]{};
+                    gpuState_.upload_painting_slots(queue, empty, Dim::PAINTING_MAX_SLOTS);
+                }
+                // Free all exhibition layers (staging persists across worlds)
+                for (uint32_t i = 0; i < Dim::EXHIBITION_LAYERS; i++) exhibitionOccupied_[i] = false;
+                exhibitionCount_ = 0;
+                // Snapshot staging: consumed flags persist — exhibited snapshots stay consumed.
+                // Only new captures (photographer overwrites) make a slot fresh again.
+                // Authored staging: rotate consumed slots with fresh images from disk.
+                rotate_authored_staging(queue);
+                for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) authoredStaging_[i].consumed = false;
+
+                // Footprints
+                for (uint32_t i = 0; i < MAX_FOOTPRINTS; i++) {
+                    footprints_[i] = GroundFootprint{};
+                }
+
+                // Aura
+                auraNeedsClear_ = true;
+                auraCfgDirty_ = true;
+
+                // Indoor shell
+                gpuState_.set_shell_index_count(0);
+
+                // Lights need re-upload with potentially new config
+                lightsDirty_ = true;
+
+                // Band motion: reset (apply_mood will re-initialize if needed)
+                bandMotionActive_ = false;
+                for (int i = 0; i < 6; i++) {
+                    bandBlend_[i] = -1.0f;
+                    bandBlendTarget_[i] = 0.0f;
+                    bandPhaseOrigin_[i] = 0.0f;
+                }
+
+                // Musical modes: reset intensities (mask stays — circuits remain wired)
+                for (uint32_t m = 0; m < MMODE_COUNT; m++) mmodeIntensity_[m] = 0.0f;
+                paletteDriftTarget_ = 0.0f;
+                paletteDriftDesired_ = 0.0f;
+                gpuState_.set_mode_color_shift(0.0f);
+                gpuState_.set_mode_checker_scatter(0.0f);
+                gpuState_.set_mode_palette_drift(0.0f, 0.0f, 0.0f);
+                gpuState_.set_mode_gol_scales(1.0f, 1.0f);
+                for (int i = 0; i < 32; i++) pulseRing_[i] = 0.0f;
+                pulseWriteIdx_ = 0;
+                prevPolyphony_ = 0.0f;
+                float zero_pulses[32] = {};
+                gpuState_.set_pulse_data(0, zero_pulses);
+
+                // Y correction
+
+                // New world decides its own upload frequency policy
+                gpuState_.set_config_dynamic(false);
+            }
+
+            void init_patch_system() {
+                for (uint32_t i = 0; i < MAX_PATCHES; i++) {
+                    freeLayerStack_[i] = MAX_PATCHES - 1 - i;
+                }
+                freeLayerCount_ = MAX_PATCHES;
+                activePatchCount_ = 0;
+                renderPatchCount_ = 0;
+                lod0PatchCount_ = 0;
+                allPatchCount_ = 0;
+                gpuState_.config().placement_patch_count = 0;
+                tileCache_.clear();
+                pierCountDirty_ = true;
+                groundEntriesDirty_ = true;
+                patchInstancesDirty_ = true;
+                placementDirty_ = true;
+            }
+
+            // Test rig piers: ramp + plateau + block at pier slots 0-2.
+            // Same geometry as the old test rig solids, now as GPUPierInstance.
+            void setup_test_rig_piers(wgpu::Queue queue) {
+                // Ramp: height 0→3 along +X.
+                GPUPierInstance ramp{};
+                ramp.origin[0] = 12.0f;  ramp.origin[1] = 0.0f;
+                ramp.half_size[0] = 6.5f; ramp.half_size[1] = 3.0f;
+                ramp.height_near = 0.0f;  ramp.height_far = 3.0f;
+                ramp.rotation = 0.0f;
+                ramp.edge_blend = 0.5f;
+                ramp.tier = PierTier::TEST_RIG;
+                ramp.is_active = 1;
+                write_pier(queue, 0, ramp);
+
+                // Plateau: flat at height 3, overlaps ramp at x=18.
+                GPUPierInstance plat{};
+                plat.origin[0] = 21.0f;  plat.origin[1] = 0.0f;
+                plat.half_size[0] = 3.5f; plat.half_size[1] = 3.0f;
+                plat.height_near = 3.0f;  plat.height_far = 3.0f;
+                plat.rotation = 0.0f;
+                plat.edge_blend = 0.5f;
+                plat.tier = PierTier::TEST_RIG;
+                plat.is_active = 1;
+                write_pier(queue, 1, plat);
+
+                // Block: sharp edges → step-height walls (impassable).
+                GPUPierInstance block{};
+                block.origin[0] = 21.0f;  block.origin[1] = 0.0f;
+                block.half_size[0] = 1.2f; block.half_size[1] = 1.2f;
+                block.height_near = 5.0f;  block.height_far = 5.0f;
+                block.rotation = 0.0f;
+                block.edge_blend = 0.0f;
+                block.tier = PierTier::TEST_RIG;
+                block.is_active = 1;
+                write_pier(queue, 2, block);
+            }
+
+            // Batch-generate patches into the caller's command encoder.
+            // Two-pass heightfield: pass 1 evaluates ground_formed() per texel,
+            // pass 2 reads neighbors for gradients + evaluates complexity.
+            // Compute pass boundary between them provides the storage texture barrier.
+            // stagingOffset: slot index into the staging buffer, so multiple
+            // batches per frame don't overwrite each other's params.
+            void generate_patch_batch(wgpu::CommandEncoder& encoder, wgpu::Queue& queue,
+                const GPUPatchParams* params, uint32_t count,
+                uint32_t stagingOffset = 0) {
+                if (count == 0) return;
+
+                // One WriteBuffer: all params into staging at the given offset
+                gpuState_.upload_patch_staging(queue, params, count, stagingOffset);
+
+                for (uint32_t i = 0; i < count; i++) {
+                    // Copy this patch's params from staging slot → active params buffer
+                    encoder.CopyBufferToBuffer(
+                        gpuState_.patch_staging_buffer(), (stagingOffset + i) * sizeof(GPUPatchParams),
+                        gpuState_.patch_params_buffer(), 0,
+                        sizeof(GPUPatchParams));
+
+                    // Pass 1: heights only (one ground_formed per texel)
+                    {
+                        wgpu::ComputePassDescriptor cpd{};
+                        cpd.label = "Patch Heights (pass 1)";
+                        wgpu::ComputePassEncoder cp = encoder.BeginComputePass(&cpd);
+                        renderer_.dispatch_generate_patch_heights(cp, gpuState_.patch_gen_group(), GPUState::patch_heightfield_workgroups());
+                        cp.End();
+                    }
+
+                    // Pass boundary: storage texture write → read barrier
+
+                    // Pass 2: gradients from neighbor reads + complexity + cell colors
+                    {
+                        wgpu::ComputePassDescriptor cpd{};
+                        cpd.label = "Patch Gradients + Cells (pass 2)";
+                        wgpu::ComputePassEncoder cp = encoder.BeginComputePass(&cpd);
+                        renderer_.dispatch_generate_patch_gradients(cp, gpuState_.patch_gen_group(), GPUState::patch_heightfield_workgroups());
+                        renderer_.dispatch_generate_patch_cells(cp, gpuState_.patch_gen_group(), GPUState::patch_cell_workgroups());
+                        cp.End();
+                    }
+                }
+            }
+
+            GPUPatchParams make_patch_params(int32_t gx, int32_t gz, uint32_t layer) const {
+                GPUPatchParams p{};
+                p.origin[0] = (gx + 0.5f) * PATCH_EXTENT;
+                p.origin[1] = (gz + 0.5f) * PATCH_EXTENT;
+                p.extent = PATCH_EXTENT;
+                p.resolution = 256;
+                p.master_seed = activeSeed_;
+                p.time = 0.0f;
+                p.layer = layer;
+                p._pad1 = 0.0f;
+                return p;
+            }
+
+            uint32_t alloc_layer() {
+                if (freeLayerCount_ == 0) {
+                    // Safety: no free layers — recycle layer 0 rather than crash.
+                    // This shouldn't happen if eviction works correctly.
+                    return 0;
+                }
+                return freeLayerStack_[--freeLayerCount_];
+            }
+
+            void free_layer(uint32_t layer) {
+                freeLayerStack_[freeLayerCount_++] = layer;
+            }
+
+            // Check if grid coordinate is within the allocation window (activeRadius_ = PREGEN_RADIUS)
+            bool in_render_window(int32_t gx, int32_t gz, int32_t cx, int32_t cz) {
+                int32_t r = (int32_t)activeRadius_;
+                return gx >= cx - r && gx <= cx + r &&
+                    gz >= cz - r && gz <= cz + r;
+            }
+
+            // Check if grid coordinate is within the VISIBLE circle (Euclidean).
+            // Radius 5.5 in grid units: inscribes cleanly within the PREGEN square,
+            // drops ~24 corner patches that would be deep in fog anyway.
+            // Pre-gen patches outside this circle are allocated and generated but NOT rendered.
+            static constexpr float VISIBLE_RADIUS = 5.5f;
+            static constexpr float VISIBLE_RADIUS_SQ = VISIBLE_RADIUS * VISIBLE_RADIUS;
+
+            // Multi-LOD distance bands (grid units, Euclidean from center).
+            // LOD-0 (full 64×64 mesh): patches within LOD_FULL_RADIUS
+            // LOD-1 (half 32×32 mesh): patches between LOD_FULL_RADIUS and VISIBLE_RADIUS
+            static constexpr float LOD_FULL_RADIUS = 3.5f;
+            static constexpr float LOD_FULL_RADIUS_SQ = LOD_FULL_RADIUS * LOD_FULL_RADIUS;
+
+            // ─── Visibility Cylinder ─────────────────────────────────────
+            //
+            // World-space cylinder centered on the pawn's actual position.
+            // Patches enter the draw list when their nearest edge crosses
+            // inside the cylinder — one at a time as the pawn moves,
+            // not in batches when a grid boundary is crossed.
+            //
+            // Grid-based allocation/eviction is unchanged; only the
+            // draw-list gate uses world-space distance.
+            static constexpr float VISIBILITY_CYLINDER_RADIUS = VISIBLE_RADIUS * PATCH_EXTENT;
+            static constexpr float VISIBILITY_CYLINDER_RADIUS_SQ = VISIBILITY_CYLINDER_RADIUS * VISIBILITY_CYLINDER_RADIUS;
+            static constexpr float LOD0_CYLINDER_RADIUS = LOD_FULL_RADIUS * PATCH_EXTENT;
+            static constexpr float LOD0_CYLINDER_RADIUS_SQ = LOD0_CYLINDER_RADIUS * LOD0_CYLINDER_RADIUS;
+
+            // Distance² from point (px,pz) to nearest edge of a patch AABB.
+            // Zero when the point is inside the patch.
+            static float patch_distance_sq(float px, float pz,
+                float origin_x, float origin_z, float half) {
+                float dx = std::max(0.0f, std::abs(px - origin_x) - half);
+                float dz = std::max(0.0f, std::abs(pz - origin_z) - half);
+                return dx * dx + dz * dz;
+            }
+
+            // Check if grid coordinate is within the priority window (GRID_RADIUS)
+            bool in_priority_window(int32_t gx, int32_t gz, int32_t cx, int32_t cz) {
+                int32_t r = (int32_t)GRID_RADIUS;
+                return gx >= cx - r && gx <= cx + r &&
+                    gz >= cz - r && gz <= cz + r;
+            }
+
+            // --- Patch streaming: determine active 7×7 grid, generate new patches ---
+            void stream_patches(wgpu::CommandEncoder& encoder, wgpu::Queue& queue) {
+                // ─── Patch Generation Pipeline ─────────────────────────────────
+                //
+                // This function orchestrates terrain streaming. Every stage is
+                // continuous and budgeted per frame — no batched operations at
+                // grid boundaries except the lightweight grid shift event.
+                //
+                // ON GRID SHIFT (pawn crosses a patch boundary):
+                //   1. Update grid center
+                //   2. Evict distant tiles from spatial cache (map erase, no GPU)
+                //   3. Evict out-of-range GoL zones (flag clear + deactivate)
+                //   4. Re-upload tile grid with new origin
+                //   5. FULLREGEN ONLY — batch-allocate ALL, batch-spawn + generate
+                //      inner patches synchronously. Pawn needs ground immediately.
+                //
+                // CONTINUOUS EVICTION (every frame):
+                //   Scans patches outside the render window. Evicts up to
+                //   EVICT_BUDGET_PER_FRAME (farthest first): free layer, clear
+                //   entities, unregister footprints. Compact array afterward.
+                //
+                // CONTINUOUS ALLOCATION (every frame, after eviction):
+                //   Scans grid cells within activeRadius_ of pawn's world position.
+                //   Allocates missing patches up to ALLOC_BUDGET_PER_FRAME, nearest
+                //   first. Populates tile cache and re-uploads tile grid.
+                //
+                // DISTANCE-DRIVEN SPAWN (every frame, after allocation):
+                //   Scans unspawned patches, sorts by distance to pawn.
+                //   Spawns up to SPAWN_BUDGET_PER_FRAME (pyramids → arches → columns).
+                //
+                // DISTANCE-DRIVEN GENERATION (every frame, after spawn):
+                //   Scans spawned-but-ungenerated patches + pending regens.
+                //   Sorts by distance to pawn (nearest first), generates up to budget.
+                //
+                // VISIBILITY CYLINDER (render list gate):
+                //   World-space distance from pawn to patch edge. Patches enter
+                //   the draw list one at a time as the pawn moves.
+                //
+                // EXTERNALLY (in render(), after stream_patches returns):
+                //   - Entity mesh gen (single compute pass: arches + columns + pyramids)
+                //   - dispatch_compute (pawn, camera, VP)
+                //   - dispatch GoL zone compute (sync + evolve, if zones active)
+                //   - dispatch_placement_correction (Y-correct arches, columns, pyramids, paintings — decoupled from photographer)
+                //   - render passes (shadow, main, snapshot)
+                //
+                // GOL ZONE LIFECYCLE:
+                //   - detect_gol_zones_for_patch: after gallery spawn, checks mode lattice
+                //     nodes touched by the patch. Rolls spawn chance, checks footprint
+                //     registry for entity overlap. Seeds life buffer on success.
+                //   - evict_gol_zones_out_of_range: on grid shift, after tile eviction.
+                //   - upload_gol_zone_config: per frame, before GoL compute dispatch.
+
+                int32_t centerX, centerZ;
+                uint32_t patchStagingOffset = 0;  // running offset into staging buffer (multiple batches per frame)
+                bool tileGridDirty = false;        // coalesce tile grid uploads to one per frame
+                if (finiteMode_) {
+                    centerX = 0;
+                    centerZ = 0;
+                }
+                else {
+                    centerX = (int32_t)std::floor(pawnReadback_x_ / PATCH_EXTENT);
+                    centerZ = (int32_t)std::floor(pawnReadback_z_ / PATCH_EXTENT);
+                }
+
+                // In finite mode, cap the effective radius
+                uint32_t savedRadius = activeRadius_;
+                if (finiteMode_ && activeRadius_ > finiteRadius_) {
+                    activeRadius_ = finiteRadius_;
+                }
+
+                bool gridChanged = (centerX != lastCenterX_ || centerZ != lastCenterZ_);
+
+                if (gridChanged) {
+                    int32_t oldCX = lastCenterX_;
+                    int32_t oldCZ = lastCenterZ_;
+                    lastCenterX_ = centerX;
+                    lastCenterZ_ = centerZ;
+
+                    bool fullRegen = (oldCX == INT32_MAX);  // first frame
+
+                    // Lightweight cache maintenance (no GPU buffer writes)
+                    evict_distant_tiles(centerX, centerZ);
+                    evict_gol_zones_out_of_range(centerX, centerZ, queue);
+
+                    // Tile grid origin depends on grid center — re-upload
+                    // unconditionally so GPU heightfield gen reads correct
+                    // modifiers from the new origin.
+                    if (!fullRegen) {
+                        tileGridDirty = true;
+                    }
+
+                    // Guaranteed back-portal in finite worlds (fires once after teardown)
+                    // DEFERRED: must wait for tile cache below (portals need terrain heights)
+
+                    // ─── FULLREGEN: synchronous bootstrap ────────────────────
+                    //
+                    // First frame of a new world: batch-allocate ALL patches,
+                    // spawn + generate inner patches synchronously so the pawn
+                    // has ground immediately. Outer patches use the per-frame
+                    // distance-driven scans like everything else.
+                    if (fullRegen) {
+                        int32_t rr = (int32_t)activeRadius_;
+                        static constexpr int32_t TILE_PAD = 1;
+                        int32_t rp = rr + TILE_PAD;
+                        for (int32_t gz = centerZ - rp; gz <= centerZ + rp; gz++) {
+                            for (int32_t gx = centerX - rp; gx <= centerX + rp; gx++) {
+                                GridKey key{ gx, gz };
+                                if (tileCache_.find(key) == tileCache_.end()) {
+                                    TileState ts = generate_tile_state(gx, gz);
+                                    tick_terrain_tokens(ts, tile_seed(activeSeed_, gx, gz));
+                                    tileCache_[key] = ts;
+                                }
+                            }
+                        }
+
+                        // NOW spawn portals — tile cache is populated, terrain heights are correct
+                        if (backPortalPending_) {
+                            force_spawn_back_portal(queue);
+                        }
+                        for (int32_t gz = centerZ - rr; gz <= centerZ + rr; gz++) {
+                            for (int32_t gx = centerX - rr; gx <= centerX + rr; gx++) {
+                                bool found = false;
+                                for (uint32_t i = 0; i < activePatchCount_; i++) {
+                                    if (patches_[i].grid_x == gx && patches_[i].grid_z == gz) {
+                                        found = true; break;
+                                    }
+                                }
+                                if (!found && freeLayerCount_ > 0) {
+                                    uint32_t layer = alloc_layer();
+                                    patches_[activePatchCount_].grid_x = gx;
+                                    patches_[activePatchCount_].grid_z = gz;
+                                    patches_[activePatchCount_].layer = layer;
+                                    patches_[activePatchCount_].valid = true;
+                                    patches_[activePatchCount_].spawned = false;
+                                    patches_[activePatchCount_].generated = false;
+                                    patches_[activePatchCount_].animated = false;
+                                    patches_[activePatchCount_].pending_regen = false;
+                                    activePatchCount_++;
+                                }
+                            }
+                        }
+                        tileGridDirty = true;
+                        for (uint32_t i = 0; i < activePatchCount_; i++) {
+                            if (!patches_[i].valid || patches_[i].spawned) continue;
+                            if (!in_priority_window(patches_[i].grid_x, patches_[i].grid_z,
+                                centerX, centerZ)) continue;
+
+                            // Evaluate theme envelope for this patch
+                            active_theme_idx_ = evaluate_theme_envelope(
+                                tile_seed(activeSeed_, patches_[i].grid_x, patches_[i].grid_z));
+
+                            spawn_pyramids_for_patch(patches_[i].grid_x, patches_[i].grid_z, queue);
+                            spawn_arches_for_patch(patches_[i].grid_x, patches_[i].grid_z, queue);
+                            spawn_columns_for_patch(patches_[i].grid_x, patches_[i].grid_z, queue);
+                            advance_population_batch();
+                            patches_[i].spawned = true;
+                        }
+                        {
+                            // Flush tile grid before heightfield gen (GPU reads modifiers)
+                            if (tileGridDirty) { upload_tile_grid_now(queue, lastCenterX_, lastCenterZ_); tileGridDirty = false; }
+                            GPUPatchParams batchParams[MAX_PATCHES];
+                            uint32_t batchIdx[MAX_PATCHES];
+                            uint32_t batchCount = 0;
+                            for (uint32_t i = 0; i < activePatchCount_; i++) {
+                                if (patches_[i].spawned && !patches_[i].generated &&
+                                    in_priority_window(patches_[i].grid_x, patches_[i].grid_z,
+                                        centerX, centerZ)) {
+                                    batchParams[batchCount] = make_patch_params(
+                                        patches_[i].grid_x, patches_[i].grid_z, patches_[i].layer);
+                                    batchIdx[batchCount] = i;
+                                    batchCount++;
+                                }
+                            }
+                            generate_patch_batch(encoder, queue, batchParams, batchCount, patchStagingOffset);
+                            patchStagingOffset += batchCount;
+                            for (uint32_t b = 0; b < batchCount; b++) {
+                                patches_[batchIdx[b]].generated = true;
+                                spawn_gallery_for_patch(patches_[batchIdx[b]].grid_x,
+                                    patches_[batchIdx[b]].grid_z, queue);
+                                detect_gol_zones_for_patch(patches_[batchIdx[b]].grid_x,
+                                    patches_[batchIdx[b]].grid_z, queue);
+                            }
+                        }
+                    }
+                }
+
+                // ─── CONTINUOUS PATCH EVICTION ────────────────────────────────
+                //
+                // Every frame, scan for patches outside the render window
+                // (relative to grid center). Evict up to EVICT_BUDGET_PER_FRAME,
+                // farthest first. Frees layers for reuse by the allocation scan.
+                // Compact the array after eviction to remove holes.
+                {
+                    float pawn_wx = pawnReadback_x_;
+                    float pawn_wz = pawnReadback_z_;
+                    float half = PATCH_EXTENT * 0.5f;
+
+                    struct EvictCandidate { uint32_t idx; float dist2; };
+                    EvictCandidate candidates[MAX_PATCHES];
+                    uint32_t candidateCount = 0;
+
+                    for (uint32_t i = 0; i < activePatchCount_; i++) {
+                        if (!patches_[i].valid) continue;
+                        if (in_render_window(patches_[i].grid_x, patches_[i].grid_z,
+                            lastCenterX_, lastCenterZ_)) continue;
+                        float ox = (patches_[i].grid_x + 0.5f) * PATCH_EXTENT;
+                        float oz = (patches_[i].grid_z + 0.5f) * PATCH_EXTENT;
+                        float d2 = patch_distance_sq(pawn_wx, pawn_wz, ox, oz, half);
+                        candidates[candidateCount++] = { i, d2 };
+                    }
+
+                    // Sort by distance (farthest first)
+                    for (uint32_t i = 1; i < candidateCount; i++) {
+                        EvictCandidate key = candidates[i];
+                        uint32_t j = i;
+                        while (j > 0 && candidates[j - 1].dist2 < key.dist2) {
+                            candidates[j] = candidates[j - 1];
+                            j--;
+                        }
+                        candidates[j] = key;
+                    }
+
+                    uint32_t evictThisFrame = std::min(candidateCount, EVICT_BUDGET_PER_FRAME);
+                    for (uint32_t e = 0; e < evictThisFrame; e++) {
+                        uint32_t pi = candidates[e].idx;
+                        free_layer(patches_[pi].layer);
+                        evict_paintings_for_patch(patches_[pi].grid_x, patches_[pi].grid_z, queue);
+                        evict_arches_for_patch(patches_[pi].grid_x, patches_[pi].grid_z, queue);
+                        evict_columns_for_patch(patches_[pi].grid_x, patches_[pi].grid_z, queue);
+                        evict_pyramids_for_patch(patches_[pi].grid_x, patches_[pi].grid_z, queue);
+                        unregister_footprints_for_patch(patches_[pi].grid_x, patches_[pi].grid_z);
+                        patches_[pi].valid = false;
+                    }
+
+                    // Compact: remove invalid entries
+                    if (evictThisFrame > 0) {
+                        uint32_t write = 0;
+                        for (uint32_t i = 0; i < activePatchCount_; i++) {
+                            if (patches_[i].valid) {
+                                patches_[write++] = patches_[i];
+                            }
+                        }
+                        activePatchCount_ = write;
+                        patchInstancesDirty_ = true;
+                    }
+                }
+
+                // ─── CONTINUOUS PATCH ALLOCATION ──────────────────────────────
+                //
+                // Every frame, scan for grid cells within activeRadius_ of
+                // the pawn's actual world position that don't have patches.
+                // Allocate up to ALLOC_BUDGET_PER_FRAME, nearest first. This
+                // spreads allocation across idle frames so patches are ready
+                // before the grid shift that would have created them.
+                //
+                // The pawn's world position can be up to half a patch ahead
+                // of the grid center, so this naturally pre-allocates one
+                // ring in the direction of movement.
+                {
+                    int32_t pawnGX = (int32_t)std::floor(pawnReadback_x_ / PATCH_EXTENT);
+                    int32_t pawnGZ = (int32_t)std::floor(pawnReadback_z_ / PATCH_EXTENT);
+                    int32_t rr = (int32_t)activeRadius_;
+                    float pawn_wx = pawnReadback_x_;
+                    float pawn_wz = pawnReadback_z_;
+                    float half = PATCH_EXTENT * 0.5f;
+
+                    // O(1) patch existence lookup (replaces O(N) inner scan)
+                    std::unordered_set<GridKey, GridKeyHash> activePatchSet;
+                    activePatchSet.reserve(activePatchCount_);
+                    for (uint32_t i = 0; i < activePatchCount_; i++) {
+                        activePatchSet.insert({ patches_[i].grid_x, patches_[i].grid_z });
+                    }
+
+                    struct AllocCandidate { int32_t gx, gz; float dist2; };
+                    AllocCandidate candidates[MAX_PATCHES];
+                    uint32_t candidateCount = 0;
+
+                    for (int32_t gz = pawnGZ - rr; gz <= pawnGZ + rr; gz++) {
+                        for (int32_t gx = pawnGX - rr; gx <= pawnGX + rr; gx++) {
+                            // Must be within allocation window of grid center
+                            if (!in_render_window(gx, gz, lastCenterX_, lastCenterZ_)) continue;
+                            bool found = activePatchSet.count({ gx, gz }) > 0;
+                            if (!found && freeLayerCount_ > 0 && candidateCount < MAX_PATCHES) {
+                                float ox = (gx + 0.5f) * PATCH_EXTENT;
+                                float oz = (gz + 0.5f) * PATCH_EXTENT;
+                                float d2 = patch_distance_sq(pawn_wx, pawn_wz, ox, oz, half);
+                                candidates[candidateCount++] = { gx, gz, d2 };
+                            }
+                        }
+                    }
+
+                    // Sort by distance (nearest first)
+                    for (uint32_t i = 1; i < candidateCount; i++) {
+                        AllocCandidate key = candidates[i];
+                        uint32_t j = i;
+                        while (j > 0 && candidates[j - 1].dist2 > key.dist2) {
+                            candidates[j] = candidates[j - 1];
+                            j--;
+                        }
+                        candidates[j] = key;
+                    }
+
+                    bool allocated_any = false;
+                    uint32_t allocThisFrame = std::min(candidateCount, ALLOC_BUDGET_PER_FRAME);
+                    for (uint32_t a = 0; a < allocThisFrame; a++) {
+                        int32_t gx = candidates[a].gx;
+                        int32_t gz = candidates[a].gz;
+                        // Ensure tile cache entry (primary — ticks terrain tokens)
+                        GridKey key{ gx, gz };
+                        if (tileCache_.find(key) == tileCache_.end()) {
+                            TileState ts = generate_tile_state(gx, gz);
+                            tick_terrain_tokens(ts, tile_seed(activeSeed_, gx, gz));
+                            tileCache_[key] = ts;
+                        }
+                        // Also cache neighbors for tile grid padding
+                        for (int dz = -1; dz <= 1; dz++) for (int dx = -1; dx <= 1; dx++) {
+                            GridKey nk{ gx + dx, gz + dz };
+                            if (tileCache_.find(nk) == tileCache_.end()) {
+                                tileCache_[nk] = generate_tile_state(gx + dx, gz + dz);
+                            }
+                        }
+                        uint32_t layer = alloc_layer();
+                        patches_[activePatchCount_].grid_x = gx;
+                        patches_[activePatchCount_].grid_z = gz;
+                        patches_[activePatchCount_].layer = layer;
+                        patches_[activePatchCount_].valid = true;
+                        patches_[activePatchCount_].spawned = false;
+                        patches_[activePatchCount_].generated = false;
+                        patches_[activePatchCount_].animated = false;
+                        patches_[activePatchCount_].pending_regen = false;
+                        activePatchCount_++;
+                        allocated_any = true;
+                    }
+
+                    // Mark tile grid and patch instances dirty whenever new patches were allocated
+                    if (allocated_any) {
+                        tileGridDirty = true;
+                        patchInstancesDirty_ = true;
+                    }
+                }
+
+                // ─── DISTANCE-DRIVEN ENTITY SPAWNING ─────────────────────────
+                //
+                // Every frame, scan for unspawned patches. Sort by distance
+                // to pawn (nearest first), spawn up to SPAWN_BUDGET_PER_FRAME.
+                // Priority order within each patch: pyramids → arches → columns
+                // (largest footprint first, matching the ground hierarchy).
+                //
+                // Spawning must complete before generation — piers from spawned
+                // entities affect heightfield baking. The generation scan below
+                // only considers patches with spawned == true.
+                {
+                    float pawn_wx = pawnReadback_x_;
+                    float pawn_wz = pawnReadback_z_;
+                    float half = PATCH_EXTENT * 0.5f;
+
+                    struct SpawnCandidate { uint32_t idx; float dist2; };
+                    SpawnCandidate candidates[MAX_PATCHES];
+                    uint32_t candidateCount = 0;
+
+                    for (uint32_t i = 0; i < activePatchCount_; i++) {
+                        if (!patches_[i].valid || patches_[i].spawned) continue;
+                        float ox = (patches_[i].grid_x + 0.5f) * PATCH_EXTENT;
+                        float oz = (patches_[i].grid_z + 0.5f) * PATCH_EXTENT;
+                        float d2 = patch_distance_sq(pawn_wx, pawn_wz, ox, oz, half);
+                        candidates[candidateCount++] = { i, d2 };
+                    }
+
+                    for (uint32_t i = 1; i < candidateCount; i++) {
+                        SpawnCandidate key = candidates[i];
+                        uint32_t j = i;
+                        while (j > 0 && candidates[j - 1].dist2 > key.dist2) {
+                            candidates[j] = candidates[j - 1];
+                            j--;
+                        }
+                        candidates[j] = key;
+                    }
+
+                    uint32_t spawnThisFrame = std::min(candidateCount, SPAWN_BUDGET_PER_FRAME);
+                    for (uint32_t s = 0; s < spawnThisFrame; s++) {
+                        uint32_t pi = candidates[s].idx;
+                        int32_t pgx = patches_[pi].grid_x;
+                        int32_t pgz = patches_[pi].grid_z;
+
+                        // Evaluate theme envelope for this patch
+                        active_theme_idx_ = evaluate_theme_envelope(
+                            tile_seed(activeSeed_, pgx, pgz));
+
+                        spawn_pyramids_for_patch(pgx, pgz, queue);
+                        spawn_arches_for_patch(pgx, pgz, queue);
+                        spawn_columns_for_patch(pgx, pgz, queue);
+                        advance_population_batch();
+                        patches_[pi].spawned = true;
+                    }
+                }
+
+                // ─── DISTANCE-DRIVEN HEIGHTFIELD GENERATION ──────────────────
+                //
+                // Every frame, scan all spawned patches for pending work
+                // (ungenerated or pending_regen). Sort by world-space distance
+                // to pawn (nearest first) and generate up to budget.
+                //
+                // Regens (stale heightfields from new piers) are already
+                // inside the visibility cylinder, so they're always closer
+                // than frontier patches and naturally get priority.
+                {
+                    float pawn_wx = pawnReadback_x_;
+                    float pawn_wz = pawnReadback_z_;
+                    float half = PATCH_EXTENT * 0.5f;
+
+                    struct PendingWork { uint32_t idx; float dist2; };
+                    PendingWork pending[MAX_PATCHES];
+                    uint32_t pendingCount = 0;
+
+                    for (uint32_t i = 0; i < activePatchCount_; i++) {
+                        if (!patches_[i].valid || !patches_[i].spawned) continue;
+                        if (patches_[i].generated && !patches_[i].pending_regen) continue;
+                        float ox = (patches_[i].grid_x + 0.5f) * PATCH_EXTENT;
+                        float oz = (patches_[i].grid_z + 0.5f) * PATCH_EXTENT;
+                        float d2 = patch_distance_sq(pawn_wx, pawn_wz, ox, oz, half);
+                        pending[pendingCount++] = { i, d2 };
+                    }
+
+                    // Sort by distance (nearest first) — simple insertion sort,
+                    // N is small (typically < 30)
+                    for (uint32_t i = 1; i < pendingCount; i++) {
+                        PendingWork key = pending[i];
+                        uint32_t j = i;
+                        while (j > 0 && pending[j - 1].dist2 > key.dist2) {
+                            pending[j] = pending[j - 1];
+                            j--;
+                        }
+                        pending[j] = key;
+                    }
+
+                    uint32_t genThisFrame = std::min(pendingCount, patches_budget_this_frame());
+
+                    if (genThisFrame > 0) {
+                        // Flush tile grid before heightfield gen (GPU reads modifiers)
+                        if (tileGridDirty) { upload_tile_grid_now(queue, lastCenterX_, lastCenterZ_); tileGridDirty = false; }
+                        GPUPatchParams batchParams[MAX_PATCHES];
+                        uint32_t batchPatchIdx[MAX_PATCHES];
+                        uint32_t batchCount = 0;
+
+                        for (uint32_t i = 0; i < genThisFrame; i++) {
+                            uint32_t pi = pending[i].idx;
+                            batchParams[batchCount] = make_patch_params(
+                                patches_[pi].grid_x, patches_[pi].grid_z, patches_[pi].layer);
+                            batchPatchIdx[batchCount] = pi;
+                            batchCount++;
+                        }
+                        generate_patch_batch(encoder, queue, batchParams, batchCount, patchStagingOffset);
+                        patchStagingOffset += batchCount;
+
+                        for (uint32_t b = 0; b < batchCount; b++) {
+                            uint32_t pi = batchPatchIdx[b];
+                            bool was_regen = patches_[pi].pending_regen;
+                            patches_[pi].generated = true;
+                            patches_[pi].pending_regen = false;
+                            if (!was_regen) {
+                                spawn_gallery_for_patch(patches_[pi].grid_x, patches_[pi].grid_z, queue);
+                                detect_gol_zones_for_patch(patches_[pi].grid_x, patches_[pi].grid_z, queue);
+                            }
+                        }
+                        patchInstancesDirty_ = true;
+                    }
+                }
+
+                // Upload patch instances sorted by LOD band, then pre-gen ring.
+                // Layout: [0..lod0) LOD-0 full mesh, [lod0..render) LOD-1 half mesh,
+                //          [render..all) pre-gen ring (not drawn, used for placement).
+                // This lets render passes issue two indexed draws with firstInstance offset.
+                {
+                    GPUPatchInstance instances[MAX_PATCHES]{};
+                    uint32_t lod0Count = 0;
+                    uint32_t lod1Count = 0;
+                    uint32_t pregenCount = 0;
+
+                    // Temporary arrays for each band
+                    GPUPatchInstance lod0[MAX_PATCHES]{};
+                    GPUPatchInstance lod1[MAX_PATCHES]{};
+                    GPUPatchInstance pregen[MAX_PATCHES]{};
+
+                    // Visibility cylinder: world-space distance from pawn to
+                    // nearest patch edge. Patches cross the threshold one at a
+                    // time as the pawn moves — no batch pop on grid shifts.
+                    float pawn_wx = pawnReadback_x_;
+                    float pawn_wz = pawnReadback_z_;
+                    float half = PATCH_EXTENT * 0.5f;
+
+                    for (uint32_t i = 0; i < activePatchCount_; i++) {
+                        if (!patches_[i].generated) continue;
+
+                        float ox = (patches_[i].grid_x + 0.5f) * PATCH_EXTENT;
+                        float oz = (patches_[i].grid_z + 0.5f) * PATCH_EXTENT;
+
+                        GPUPatchInstance inst{};
+                        inst.origin[0] = ox;
+                        inst.origin[1] = oz;
+                        inst.extent = PATCH_EXTENT;
+                        inst.layer = patches_[i].layer;
+
+                        float d2 = patch_distance_sq(pawn_wx, pawn_wz, ox, oz, half);
+
+                        // Finite mode: all patches visible (walls define boundary, not fog)
+                        if (finiteMode_ || d2 <= VISIBILITY_CYLINDER_RADIUS_SQ) {
+                            if (d2 <= LOD0_CYLINDER_RADIUS_SQ) {
+                                lod0[lod0Count++] = inst;
+                            }
+                            else {
+                                lod1[lod1Count++] = inst;
+                            }
+                        }
+                        else {
+                            pregen[pregenCount++] = inst;
+                        }
+                    }
+
+                    // Pack: LOD-0, then LOD-1, then pregen
+                    uint32_t w = 0;
+                    std::memcpy(instances + w, lod0, lod0Count * sizeof(GPUPatchInstance)); w += lod0Count;
+                    std::memcpy(instances + w, lod1, lod1Count * sizeof(GPUPatchInstance)); w += lod1Count;
+                    std::memcpy(instances + w, pregen, pregenCount * sizeof(GPUPatchInstance)); w += pregenCount;
+
+                    gpuState_.upload_patch_instances(queue, instances, w);
+                    lod0PatchCount_ = lod0Count;
+                    renderPatchCount_ = lod0Count + lod1Count;
+                    allPatchCount_ = w;
+
+                    // Sync placement_patch_count so compute_entity_placement
+                    // can sample heightfields from the current frame's patch set.
+                    gpuState_.config().placement_patch_count = w;
+                    gpuState_.upload_placement_patch_count(queue);
+                }
+                placementDirty_ = placementDirty_ || patchInstancesDirty_;
+                patchInstancesDirty_ = false;
+
+                // ─── Entity distance culling ─────────────────────────────
+                entitiesCulled_ = update_entity_draw_visibility(queue);
+
+                // ─── Deferred uploads (one per frame max) ────────────────
+                if (tileGridDirty) upload_tile_grid_now(queue, lastCenterX_, lastCenterZ_);
+                flush_pier_count(queue);
+
+                // Restore radius if we capped it for finite mode
+                if (finiteMode_) { activeRadius_ = savedRadius; }
+            }
+
+            // --- Per-frame ground entry upload: cached pier-top Y ---
+            // ground_y is computed once at spawn time and cached in Active* structs.
+            // This function is now a pure data-upload — no terrain evaluation.
+            void upload_ground_entries(wgpu::Queue& queue) {
+                // --- Arch ground entries ---
+                GPUArchGroundEntry archOrigins[Dim::MAX_ARCH_INSTANCES]{};
+                for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++) {
+                    if (!activeArches_[i].active) continue;
+                    const auto& pl = cpuPiers_[Dim::PIER_ARCH_BASE + i * 2];
+                    const auto& pr = cpuPiers_[Dim::PIER_ARCH_BASE + i * 2 + 1];
+                    archOrigins[i].pier_left_x = pl.origin[0];
+                    archOrigins[i].pier_left_z = pl.origin[1];
+                    archOrigins[i].pier_right_x = pr.origin[0];
+                    archOrigins[i].pier_right_z = pr.origin[1];
+                    archOrigins[i].is_active = 1;
+                    archOrigins[i].ground_y = activeArches_[i].cached_ground_y;
+                    archOrigins[i].pier_correction_left = 0.0f;
+                    archOrigins[i].pier_correction_right = 0.0f;
+                }
+                gpuState_.upload_arch_origins(queue, archOrigins, Dim::MAX_ARCH_INSTANCES);
+
+                // --- Column ground entries ---
+                GPUColumnGroundEntry columnOrigins[Dim::MAX_COLUMN_INSTANCES]{};
+                for (uint32_t i = 0; i < Dim::MAX_COLUMN_INSTANCES; i++) {
+                    if (!activeColumns_[i].active) continue;
+                    columnOrigins[i].center_x = activeColumns_[i].world_x;
+                    columnOrigins[i].center_z = activeColumns_[i].world_z;
+                    columnOrigins[i].is_active = 1;
+                    columnOrigins[i].ground_y = activeColumns_[i].cached_ground_y;
+                    columnOrigins[i].pier_correction = 0.0f;
+                }
+                gpuState_.upload_column_origins(queue, columnOrigins, Dim::MAX_COLUMN_INSTANCES);
+
+                // --- Pyramid ground entries ---
+                GPUPyramidGroundEntry pyramidOrigins[Dim::MAX_PYRAMID_INSTANCES]{};
+                for (uint32_t i = 0; i < Dim::MAX_PYRAMID_INSTANCES; i++) {
+                    if (!activePyramids_[i].active) continue;
+                    const auto& inst = cpuPyramids_.instances[i];
+                    pyramidOrigins[i].center_x = inst.origin[0];
+                    pyramidOrigins[i].center_z = inst.origin[1];
+                    pyramidOrigins[i].is_active = 1;
+                    pyramidOrigins[i].own_height = inst.height;
+                    pyramidOrigins[i].half_x = inst.half_size[0];
+                    pyramidOrigins[i].half_z = inst.half_size[1];
+                    pyramidOrigins[i].rotation = inst.rotation;
+                    pyramidOrigins[i].ground_y = activePyramids_[i].cached_ground_y;
+                }
+                gpuState_.upload_pyramid_origins(queue, pyramidOrigins, Dim::MAX_PYRAMID_INSTANCES);
+            }
+
+            // --- Entity placement Y-correction: heightfield sample - pier correction ---
+            // Runs unconditionally every frame, AFTER upload_ground_entries and BEFORE
+            // render passes (shadow + main read the corrected ground_y).
+            void dispatch_placement_correction(wgpu::CommandEncoder& encoder) {
+                wgpu::ComputePassDescriptor cpd{};
+                cpd.label = "Entity Placement Y Correction";
+                wgpu::ComputePassEncoder compute = encoder.BeginComputePass(&cpd);
+                renderer_.dispatch_entity_placement(
+                    compute, gpuState_.entity_placement_compute_group()
+                );
+                compute.End();
+            }
+
+            // ── FRAME LOOP ──  → future: stays in cartridge.hpp
+
+            void update(const AnalysisSignal& signal,
+                float aspect_ratio,
+                wgpu::Queue& queue) override {
+                // --- Build GPU signal from analysis + input -------------------------
+                GPUFrameSignal gpuSignal;
+
+                gpuSignal.t_seconds = signal.t_seconds;
+                gpuSignal.t_beats = signal.t_beats;
+                gpuSignal.dt = signal.dt;
+                gpuSignal.aspect_ratio = aspect_ratio;
+
+                for (size_t i = 0; i < signal.stats.size(); ++i) {
+                    gpuSignal.stats[i] = signal.stats[i];
+                }
+
+                gpuSignal.move_x = inputState_.move_x;
+                gpuSignal.move_z = inputState_.move_z;
+                gpuSignal.look_az_delta = inputState_.look_az_delta;
+                gpuSignal.look_el_delta = inputState_.look_el_delta;
+                gpuSignal.zoom_delta = inputState_.zoom_delta;
+                gpuSignal.pan_x_delta = inputState_.pan_x_delta;
+                gpuSignal.pan_y_delta = inputState_.pan_y_delta;
+                gpuSignal._pad1 = 0.0f;
+
+                currentBeats_ = signal.t_beats;
+                currentSeconds_ = signal.t_seconds;
+                currentDt_ = signal.dt;
+
+                // --- Upload to GPU --------------------------------------------------
+
+                // Aura presence trajectory: smooth ramp on enable/disable
+                {
+                    float target = auraEnabled_ ? 1.0f : 0.0f;
+                    float rate = (target > auraPresence_) ? AURA_PRESENCE_ATTACK : AURA_PRESENCE_RELEASE;
+                    float prev = auraPresence_;
+                    auraPresence_ = prev + (target - prev) * (1.0f - std::exp(-rate * currentDt_));
+                    if (auraPresence_ < 0.001f && target == 0.0f) auraPresence_ = 0.0f;
+                    if (auraPresence_ > 0.999f && target == 1.0f) auraPresence_ = 1.0f;
+                    if (auraPresence_ != prev) auraCfgDirty_ = true;
+                }
+
+                // Pawn aura height: presence × base height × expansion
+                // This same value is used by terrain VS for extrusion, so pawn and terrain always agree.
+                float aura_expand_mult = 1.0f + mmodeIntensity_[MMODE_AURA_EXPAND] * 3.0f;
+                float effective_aura_height = auraHeightEnabled_
+                    ? activeAuraProfile_.height_scale * auraPresence_ * aura_expand_mult : 0.0f;
+                gpuState_.set_pawn_aura_height(effective_aura_height);
+                gpuState_.set_aura_enabled(auraPresence_ > 0.001f);  // keep compute running while ramping down
+                gpuState_.set_world_seed(activeSeed_);
+                if (finiteMode_) {
+                    float bmin = -(float)finiteRadius_ * PATCH_EXTENT;
+                    float bmax = ((float)finiteRadius_ + 1.0f) * PATCH_EXTENT;
+                    gpuState_.set_world_bounds(bmin, bmin, bmax, bmax);
+                }
+                else {
+                    gpuState_.set_world_bounds(0.0f, 0.0f, 0.0f, 0.0f);
+                }
+
+                // --- Transition state machine ---
+                if (transitionPhase_ != TransitionPhase::IDLE) {
+                    transitionTimer_ += signal.dt;
+                    switch (transitionPhase_) {
+                    case TransitionPhase::FADE_OUT:
+                        transitionFadeAlpha_ = std::min(1.0f, transitionTimer_ / transitionFadeDuration_);
+                        if (transitionFadeAlpha_ >= 1.0f) {
+                            transitionPhase_ = TransitionPhase::TEARDOWN;
+                        }
+                        break;
+                    case TransitionPhase::TEARDOWN:
+                    {
+                        // Capture return seed + mood + radius before overwrite
+                        backPortalReturnSeed_ = activeSeed_;
+                        backPortalReturnMood_ = activeMood_;
+                        backPortalReturnRadius_ = finiteRadius_;
+
+                        activeSeed_ = pendingDestination_.seed;
+                        finiteMode_ = pendingDestination_.finite;
+                        finiteRadius_ = pendingDestination_.finite_radius;
+                        teardown_world(queue);
+                        // NOTE: do NOT force pawnReadbackState_ to IDLE here.
+                        // If a MapAsync is in-flight (MAPPING), forcing IDLE would
+                        // cause CopyBufferToBuffer to a still-mapped buffer.
+                        // The existing state machine guards will skip readback
+                        // until the pending callback resolves naturally.
+                        readbackPortalTrigger_ = -1;
+                        pawnReadback_x_ = 0.0f;
+                        pawnReadback_z_ = 0.0f;
+                        gpuState_.reset_pawn(queue);
+                        gpuState_.set_world_seed(activeSeed_);
+                        apply_mood(pendingDestination_.mood, queue);
+                        // Deactivate ribbon in finite mode (mood 5 spawns its own in apply_mood)
+                        if (finiteMode_ && ribbonActive_ && activeMood_ != 5) {
+                            uint32_t zero = 0u;
+                            queue.WriteBuffer(gpuState_.ribbon_buffer(),
+                                offsetof(GPURibbonState, is_visible), &zero, sizeof(uint32_t));
+                            ribbonActive_ = false;
+                        }
+                        // Schedule guaranteed back-portal in finite worlds
+                        backPortalPending_ = finiteMode_;
+
+                        transitionPhase_ = TransitionPhase::FADE_IN;
+                        transitionTimer_ = 0.0f;
+                        uint32_t side = finiteMode_ ? 2 * finiteRadius_ + 1 : 0;
+                        std::cout << "[World] Teardown complete, seed=" << activeSeed_
+                            << " mode=" << (finiteMode_ ? "finite" : "open")
+                            << (finiteMode_ ? " " + std::to_string(side) + "x" + std::to_string(side) : "")
+                            << "\n";
+                    }
+                    break;
+                    case TransitionPhase::FADE_IN:
+                        transitionFadeAlpha_ = std::max(0.0f, 1.0f - transitionTimer_ / transitionFadeDuration_);
+                        if (transitionFadeAlpha_ <= 0.0f) {
+                            transitionPhase_ = TransitionPhase::IDLE;
+                            transitionFadeAlpha_ = 0.0f;
+                        }
+                        break;
+                    default: break;
+                    }
+                }
+                gpuState_.set_fade(transitionFadeAlpha_, 0.0f, 0.0f, 0.0f);
+
+                gpuState_.upload_signal(queue, gpuSignal);
+
+                // ─── Polyphony-driven band motion ────────────────────────
+                if (bandMotionActive_) {
+                    float polyphony = signal.stats[0];
+                    uint32_t active_count = (uint32_t)std::max(0.0f, std::min(polyphony, 6.0f));
+
+                    // Set per-band targets: bands activate in order from fine to tectonic
+                    for (uint32_t i = 0; i < 6; i++) bandBlendTarget_[i] = 0.0f;
+                    for (uint32_t i = 0; i < active_count; i++) {
+                        bandBlendTarget_[BAND_ACTIVATION_ORDER[i]] = 1.0f;
+                    }
+
+                    float dt = signal.dt;
+                    bool changed = false;
+                    for (uint32_t i = 0; i < 6; i++) {
+                        float prev = bandBlend_[i];
+                        float target = bandBlendTarget_[i];
+
+                        // Capture phase origin at the moment a band activates
+                        if (target > 0.5f && prev < 0.01f) {
+                            bandPhaseOrigin_[i] = currentBeats_;
+                        }
+
+                        // Exponential ramp toward target
+                        float rate = (target > prev) ? BAND_BLEND_ATTACK : BAND_BLEND_RELEASE;
+                        bandBlend_[i] = prev + (target - prev) * (1.0f - std::exp(-rate * dt));
+
+                        // Snap to endpoints to avoid perpetual drift
+                        if (bandBlend_[i] < 0.001f && target == 0.0f) bandBlend_[i] = 0.0f;
+                        if (bandBlend_[i] > 0.999f && target == 1.0f) bandBlend_[i] = 1.0f;
+
+                        if (bandBlend_[i] != prev) changed = true;
+                    }
+
+                    if (changed) {
+                        gpuState_.set_band_motion(bandBlend_, bandPhaseOrigin_);
+                    }
+                    gpuState_.set_terrain_time(currentBeats_);
+                }
+
+                // ─── Musical animation modes: per-frame intensity ramp ───
+                {
+                    float polyphony = signal.stats[0];
+                    float dt = signal.dt;
+                    bool any_changed = false;
+
+                    for (uint32_t m = 0; m < MMODE_COUNT; m++) {
+                        // Skip mode 0 (terrain waves) — handled by band motion system above
+                        // Skip mode 3 (palette drift) — has its own steeper intensity curve below
+                        if (m == MMODE_TERRAIN_WAVES || m == MMODE_PALETTE_DRIFT) continue;
+
+                        bool on = is_mmode_on(m);
+                        float target = on ? std::min(polyphony / 6.0f, 1.0f) : 0.0f;
+                        float prev = mmodeIntensity_[m];
+                        float rate = (target > prev) ? MMODE_ATTACK : MMODE_RELEASE;
+                        float next = prev + (target - prev) * (1.0f - std::exp(-rate * dt));
+
+                        // Snap to endpoints
+                        if (next < 0.001f && target == 0.0f) next = 0.0f;
+                        if (next > 0.999f && target >= 1.0f) next = 1.0f;
+
+                        if (next != prev) {
+                            mmodeIntensity_[m] = next;
+                            any_changed = true;
+                        }
+                    }
+
+                    if (any_changed) {
+                        // Color shift: intensity → mode field bias
+                        gpuState_.set_mode_color_shift(mmodeIntensity_[MMODE_COLOR_SHIFT] * 0.6f);
+
+                        // Checker scatter: intensity → sparse threshold reduction
+                        gpuState_.set_mode_checker_scatter(mmodeIntensity_[MMODE_CHECKER_SCATTER] * 0.5f);
+
+                        // Aura expand: intensity scales aura parameters
+                        if (mmodeIntensity_[MMODE_AURA_EXPAND] > 0.0f || is_mmode_on(MMODE_AURA_EXPAND)) {
+                            auraCfgDirty_ = true;
+                        }
+
+                        // GoL tempo: intensity → tick slow-down + height boost
+                        // Inverse: more polyphony = slower GoL (contemplation).
+                        // When BPM detection arrives, this source gets swapped.
+                        {
+                            float gi = mmodeIntensity_[MMODE_GOL_TEMPO];
+                            // tick_scale > 1 = slower. Lerp from 1.0 up to 4.0 (4× slower at full)
+                            float tick_scale = 1.0f + gi * 3.0f;
+                            // height_scale > 1 = taller. Lerp from 1.0 up to 3.0
+                            float height_scale = 1.0f + gi * 2.0f;
+                            gpuState_.set_mode_gol_scales(tick_scale, height_scale);
+                        }
+                    }
+
+                    // Palette drift: smooth target transition + push to GPU
+                    // Uses its own intensity curve — steeper than generic mmodeIntensity
+                    // because palette colors are close and need strong push to read.
+                    {
+                        float poly = signal.stats[0];
+                        bool drift_on = is_mmode_on(MMODE_PALETTE_DRIFT);
+
+                        // Smooth palette mapping: ordered by contrast from sand baseline.
+                        //   1 note → green(2)  — biggest hue shift
+                        //   2 notes → grey(3)   — desaturated, clearly different
+                        //   3+ notes → salmon(1) — warm shift, completes cycle
+                        static constexpr float SMOOTH_PALETTE_MAP[] = { 0.0f, 2.0f, 3.0f, 1.0f };
+
+                        // Discrete tier mapping: cycle through all vocabularies.
+                        //   Idle   → whatever the threshold cascade gives (natural)
+                        //   1 note → tinted mono(1)    — desaturated, grey-tinted cells
+                        //   2 notes → chess colorful(4) — parity + vivid per-node colors
+                        //   3 notes → pure B&W(2)       — high contrast random assignment
+                        //   4+ notes → chess B&W(3)     — structured classic pattern
+                        // Full color(0) is the natural idle state for most cells,
+                        // so it's not a useful drift target — already there.
+                        static constexpr float DISCRETE_TIER_MAP[] = { 0.0f, 1.0f, 4.0f, 2.0f, 3.0f };
+
+                        if (drift_on && poly >= 1.0f) {
+                            uint32_t idx = std::min((uint32_t)poly, 3u);
+                            paletteDriftDesired_ = SMOOTH_PALETTE_MAP[idx];
+                        }
+                        if (!drift_on || poly < 0.5f) {
+                            paletteDriftDesired_ = 0.0f;
+                        }
+
+                        // Ramp target smoothly to avoid color snaps
+                        float prev_t = paletteDriftTarget_;
+                        paletteDriftTarget_ += (paletteDriftDesired_ - paletteDriftTarget_)
+                            * (1.0f - std::exp(-PALETTE_DRIFT_TARGET_RATE * dt));
+
+                        // Intensity: poly/3 so single note is partial, 3 notes = full
+                        float drift_intensity = drift_on
+                            ? std::min(poly / 3.0f, 1.0f) : 0.0f;
+                        // Use same exponential ramp as other modes for smooth on/off
+                        float prev_i = mmodeIntensity_[MMODE_PALETTE_DRIFT];
+                        float rate_i = (drift_intensity > prev_i) ? MMODE_ATTACK : MMODE_RELEASE;
+                        mmodeIntensity_[MMODE_PALETTE_DRIFT] = prev_i
+                            + (drift_intensity - prev_i) * (1.0f - std::exp(-rate_i * dt));
+                        float intensity = mmodeIntensity_[MMODE_PALETTE_DRIFT];
+
+                        // Discrete tier from lookup
+                        float discrete_tier = 0.0f;
+                        if (drift_on && poly >= 1.0f) {
+                            uint32_t tidx = std::min((uint32_t)poly, 4u);
+                            discrete_tier = DISCRETE_TIER_MAP[tidx];
+                        }
+
+                        if (intensity > 0.001f || paletteDriftTarget_ != prev_t) {
+                            gpuState_.set_mode_palette_drift(paletteDriftTarget_, intensity, discrete_tier);
+                        }
+                    }
+                }
+
+                // ─── Radial pulse onset detection ────────────────────────
+                {
+                    float poly = signal.stats[0];
+                    bool pulse_on = is_mmode_on(MMODE_RADIAL_PULSE);
+
+                    // Detect note onsets: polyphony increased since last frame
+                    if (pulse_on && poly > prevPolyphony_ + 0.5f) {
+                        float increase = poly - std::max(prevPolyphony_, 0.0f);
+                        // Emit one pulse per onset, amplitude proportional to note count
+                        uint32_t slot = pulseWriteIdx_ % PULSE_RING_SIZE;
+                        uint32_t base = slot * 4;
+                        pulseRing_[base + 0] = pawnReadback_x_;      // origin X
+                        pulseRing_[base + 1] = pawnReadback_z_;      // origin Z
+                        pulseRing_[base + 2] = currentSeconds_;      // onset time
+                        pulseRing_[base + 3] = PULSE_AMPLITUDE * std::min(increase, 3.0f);
+                        pulseWriteIdx_++;
+                        std::cout << "[Pulse] ONSET slot=" << slot
+                            << " pos=(" << pawnReadback_x_ << "," << pawnReadback_z_ << ")"
+                            << " t=" << currentSeconds_
+                            << " amp=" << pulseRing_[base + 3]
+                            << " poly=" << poly << " prev=" << prevPolyphony_
+                            << "\n";
+                    }
+                    prevPolyphony_ = poly;
+
+                    // Count active (non-expired) pulses and upload
+                    uint32_t active = 0;
+                    for (uint32_t i = 0; i < PULSE_RING_SIZE; i++) {
+                        float onset = pulseRing_[i * 4 + 2];
+                        float amp = pulseRing_[i * 4 + 3];
+                        if (amp > 0.001f && (currentSeconds_ - onset) < PULSE_MAX_AGE) {
+                            active = std::max(active, i + 1);
+                        }
+                    }
+                    // Always upload if any pulses exist (even decaying ones for GPU to evaluate)
+                    gpuState_.set_pulse_data(active, pulseRing_);
+                }
+
+                gpuState_.upload_config(queue);
+
+                // Pawn position comes from GPU readback (one-frame latency).
+                // See render() for the readback state machine.
+
+                // --- Clear deltas for next frame ------------------------------------
+                update_photographer(queue);
+                clear_input_deltas();
+            }
+
+            // ORDER (STREAMING PATCH MODE):
+            //   1. (Optional) Compute: compute_ribbon_rings   [0D] -- ring transforms for flying ribbon
+            //   2. Compute: update_world                      [0D] -- entities, trajectories, couplings
+            //   3. Compute: compute_vp                        [0D] -- camera VP + sun VP (shadow)
+            //   4. Render:  patch terrain instances           -- heightfield array sampled in VS
+            //   5. Render:  pawn entity                       -- chess pawn
+            //   6. Render:  sphere entity                     -- sphere
+            //   7. Render:  ribbon rings                      -- instanced ring geometry
+
+            void render(wgpu::CommandEncoder& encoder,
+                wgpu::TextureView backbuffer,
+                wgpu::TextureView depth) override {
+
+                wgpu::Queue queue = device_.GetQueue();
+
+                // --- GPU pawn readback (one-frame latency) ---
+                // Copies full GPUPawnState to staging each frame (after compute).
+                // Reads back position (for patch streaming, photographer, ribbon)
+                // and portal_trigger (for world transitions).
+                // State machine: IDLE → copy pawn buffer to staging → COPIED
+                //                COPIED → call MapAsync → MAPPING
+                //                MAPPING → callback fires, reads data → IDLE
+                if (pawnReadbackState_ == PawnReadbackState::COPIED) {
+                    pawnReadbackState_ = PawnReadbackState::MAPPING;
+                    gpuState_.pawn_readback_staging().MapAsync(
+                        wgpu::MapMode::Read, 0, GPUState::pawn_state_size(),
+                        wgpu::CallbackMode::AllowSpontaneous,
+                        [this](wgpu::MapAsyncStatus status, wgpu::StringView) {
+                            if (status == wgpu::MapAsyncStatus::Success) {
+                                auto* data = static_cast<const float*>(
+                                    gpuState_.pawn_readback_staging().GetConstMappedRange(
+                                        0, GPUState::pawn_state_size()));
+                                if (data) {
+                                    pawnReadback_x_ = data[0];   // pos[0]
+                                    pawnReadback_z_ = data[2];   // pos[2]
+                                    // portal_trigger is int32_t at offset 40 = float index 10
+                                    readbackPortalTrigger_ = reinterpret_cast<const int32_t*>(data)[10];
+                                }
+                                gpuState_.pawn_readback_staging().Unmap();
+                            }
+                            pawnReadbackState_ = PawnReadbackState::IDLE;
+                        });
+                }
+
+                // Check if GPU reported a portal trigger
+                if (readbackPortalTrigger_ >= 0 && transitionPhase_ == TransitionPhase::IDLE) {
+                    uint32_t arch_idx = static_cast<uint32_t>(readbackPortalTrigger_);
+                    readbackPortalTrigger_ = -1;
+                    if (arch_idx < Dim::MAX_ARCH_INSTANCES &&
+                        activeArches_[arch_idx].active &&
+                        activeArches_[arch_idx].is_portal) {
+                        pendingDestination_ = activeArches_[arch_idx].destination;
+                        transitionPhase_ = TransitionPhase::FADE_OUT;
+                        transitionTimer_ = 0.0f;
+                        std::cout << "[Portal] GPU trigger: arch " << arch_idx
+                            << " -> seed=" << pendingDestination_.seed
+                            << " finite=" << pendingDestination_.finite << "\n";
+                    }
+                }
+
+                stream_patches(encoder, queue);
+                if (!finiteMode_) {
+                    update_ribbon_spawning(pawnReadback_x_, pawnReadback_z_, currentSeconds_, queue);
+                }
+                else if (ribbonActive_) {
+                    // Mood-spawned ribbon in finite mode — update time only
+                    gpuState_.upload_ribbon_time(queue, currentSeconds_);
+                }
+
+                // ─── Entity mesh gen: single compute pass for all dirty families ──
+                {
+                    bool needArch = prepare_arch_mesh_gen(queue);
+                    bool needCol = prepare_column_mesh_gen(queue);
+                    bool needPyr = prepare_pyramid_mesh_gen(queue);
+
+                    if (needArch || needCol || needPyr) {
+                        wgpu::ComputePassDescriptor cpd{};
+                        cpd.label = "Entity Mesh Gen";
+                        wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
+                        if (needArch) {
+                            renderer_.dispatch_arch_mesh_gen(pass, gpuState_.arch_mesh_gen_group());
+                        }
+                        if (needCol) {
+                            renderer_.dispatch_column_mesh_gen(pass, gpuState_.column_mesh_gen_group());
+                        }
+                        if (needPyr) {
+                            renderer_.dispatch_pyramid_mesh_gen(pass, gpuState_.pyramid_mesh_gen_group());
+                        }
+                        pass.End();
+                    }
+                }
+                upload_portal_array(queue);
+                upload_lights(queue);
+                dispatch_compute(encoder);
+
+                // Copy full pawn state from GPU to staging (for readback next frame)
+                if (pawnReadbackState_ == PawnReadbackState::IDLE) {
+                    encoder.CopyBufferToBuffer(
+                        gpuState_.pawn_buffer(), 0,
+                        gpuState_.pawn_readback_staging(), 0,
+                        GPUState::pawn_state_size());
+                    pawnReadbackState_ = PawnReadbackState::COPIED;
+                }
+
+                // GoL zone compute — derive params + sync + evolve (separate passes for barrier)
+                if (golZoneCount_ > 0) {
+                    flush_zone_derive_requests(queue);
+                    upload_gol_zone_config(queue);
+
+                    {
+                        wgpu::ComputePassDescriptor cpd{};
+                        cpd.label = "GoL Zone Sync";
+                        wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
+                        renderer_.dispatch_zone_gol_sync(pass,
+                            gpuState_.zone_gol_compute_group(), activeZoneSlotCount_);
+                        pass.End();
+                    }
+                    {
+                        wgpu::ComputePassDescriptor cpd{};
+                        cpd.label = "GoL Zone Evolve";
+                        wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
+                        renderer_.dispatch_zone_gol_evolve(pass,
+                            gpuState_.zone_gol_compute_group(), activeZoneSlotCount_);
+                        pass.End();
+                    }
+
+                    // Mesh gen pass (Group 0 = compute entity, Group 1 = zone mesh gen)
+                    {
+                        wgpu::ComputePassDescriptor cpd{};
+                        cpd.label = "GoL Zone Mesh Gen";
+                        wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
+                        renderer_.dispatch_zone_mesh_reset(pass,
+                            gpuState_.zone_mesh_gen_group());
+                        renderer_.dispatch_zone_mesh_gen(pass,
+                            gpuState_.zone_mesh_gen_group(),
+                            activeZoneSlotCount_);
+                        pass.End();
+                    }
+                }
+
+                // Pawn aura compute — persistent terrain influence
+                // Run while presence > 0 (ramping down after toggle-off) or clearing
+                if (auraPresence_ > 0.0f || auraNeedsClear_) {
+                    if (auraCfgDirty_) {
+                        // Full config upload — profile changed or first frame
+                        auraCfgDirty_ = false;
+                        const auto& ap = activeAuraProfile_;
+                        // Aura expansion mode: scale radius, height, tint by intensity
+                        float aura_expand = mmodeIntensity_[MMODE_AURA_EXPAND];
+                        float radius_scale = 1.0f + aura_expand * 2.0f;    // up to 3× radius
+                        float tint_scale = 1.0f + aura_expand * 1.5f;      // up to 2.5× tint
+
+                        // Presence scales all aura params for smooth raise/lower
+                        float p = auraPresence_;
+
+                        GPUPawnAuraConfig auraCfg{};
+                        auraCfg.cell_size = PATCH_CELL_SIZE;
+                        auraCfg.influence_radius = ap.influence_radius * radius_scale * p;
+                        auraCfg.attack_stiffness = ap.attack_stiffness;
+                        auraCfg.attack_damping = ap.attack_damping;
+                        auraCfg.release_rate = (p > 0.01f) ? ap.release_rate : 999.0f;
+                        auraCfg.dt = currentDt_;
+                        auraCfg.effect_mask = ap.effect_mask;
+                        auraCfg.aura_n = 64;
+                        auraCfg.tint_strength = std::min(ap.tint_strength * tint_scale * p, 1.0f);
+                        auraCfg.tint_r = ap.tint_r;
+                        auraCfg.tint_g = ap.tint_g;
+                        auraCfg.tint_b = ap.tint_b;
+                        auraCfg.delta_mode = ap.delta_mode;
+                        auraCfg.delta_magnitude = ap.delta_magnitude;
+                        auraCfg.t_beats = currentBeats_;
+                        // height_scale gates the compute shader's R channel write (> 0.01 = enabled).
+                        // Actual terrain extrusion magnitude comes from config.pawn_aura_height in the VS.
+                        auraCfg.height_scale = (auraHeightEnabled_ && p > 0.01f) ? ap.height_scale : 0.0f;
+                        gpuState_.upload_pawn_aura_config(queue, auraCfg);
+                    }
+                    else {
+                        // Steady state — only dt and t_beats change per frame
+                        gpuState_.upload_pawn_aura_frame(queue, currentDt_, currentBeats_);
+                    }
+
+                    wgpu::ComputePassDescriptor cpd{};
+                    cpd.label = "Pawn Aura";
+                    wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
+                    renderer_.dispatch_compute_pawn_aura(pass,
+                        gpuState_.pawn_aura_compute_group(),
+                        GPUState::pawn_aura_workgroups());
+                    pass.End();
+
+                    // After one cleanup frame with release_rate=999, all cells are zero
+                    if (auraNeedsClear_) { auraNeedsClear_ = false; }
+                }
+
+                if (groundEntriesDirty_) {
+                    groundEntriesDirty_ = false;
+                    placementDirty_ = true;
+                    upload_ground_entries(queue);
+                }
+                if (placementDirty_) {
+                    placementDirty_ = false;
+                    dispatch_placement_correction(encoder);
+                }
+
+                render_shadow_pass(encoder);
+                render_main_pass(encoder, backbuffer, depth);
+                render_snapshot_pass(encoder);
+
+                // --- Flush pending texture promotions (staging → exhibition) ---
+                // Must run AFTER render_snapshot_pass so fresh captures are in staging
+                // before being copied to exhibition layers.
+                for (uint32_t i = 0; i < pendingPromotionCount_; i++) {
+                    auto& p = pendingPromotions_[i];
+                    wgpu::Texture src = p.is_snapshot
+                        ? gpuState_.snapshot_staging_texture()
+                        : gpuState_.authored_staging_texture();
+                    gpuState_.promote_to_exhibition(encoder, src, p.staging_layer, p.exhibition_layer);
+                }
+                pendingPromotionCount_ = 0;
+            }
+
+                for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++) {
+                    if (!activeArches_[i].active) continue;
+                    const auto& pl = cpuPiers_[Dim::PIER_ARCH_BASE + i * 2];
+                    const auto& pr = cpuPiers_[Dim::PIER_ARCH_BASE + i * 2 + 1];
+                    archOrigins[i].pier_left_x = pl.origin[0];
+                    archOrigins[i].pier_left_z = pl.origin[1];
+                    archOrigins[i].pier_right_x = pr.origin[0];
+                    archOrigins[i].pier_right_z = pr.origin[1];
+                    archOrigins[i].is_active = 1;
+                    archOrigins[i].ground_y = activeArches_[i].cached_ground_y;
+                    archOrigins[i].pier_correction_left = 0.0f;
+                    archOrigins[i].pier_correction_right = 0.0f;
+                }
+                gpuState_.upload_arch_origins(queue, archOrigins, Dim::MAX_ARCH_INSTANCES);
+
+                // --- Column ground entries ---
+                GPUColumnGroundEntry columnOrigins[Dim::MAX_COLUMN_INSTANCES]{};
+                for (uint32_t i = 0; i < Dim::MAX_COLUMN_INSTANCES; i++) {
+                    if (!activeColumns_[i].active) continue;
+                    columnOrigins[i].center_x = activeColumns_[i].world_x;
+                    columnOrigins[i].center_z = activeColumns_[i].world_z;
+                    columnOrigins[i].is_active = 1;
+                    columnOrigins[i].ground_y = activeColumns_[i].cached_ground_y;
+                    columnOrigins[i].pier_correction = 0.0f;
+                }
+                gpuState_.upload_column_origins(queue, columnOrigins, Dim::MAX_COLUMN_INSTANCES);
+
+                // --- Pyramid ground entries ---
+                GPUPyramidGroundEntry pyramidOrigins[Dim::MAX_PYRAMID_INSTANCES]{};
+                for (uint32_t i = 0; i < Dim::MAX_PYRAMID_INSTANCES; i++) {
+                    if (!activePyramids_[i].active) continue;
+                    const auto& inst = cpuPyramids_.instances[i];
+                    pyramidOrigins[i].center_x = inst.origin[0];
+                    pyramidOrigins[i].center_z = inst.origin[1];
+                    pyramidOrigins[i].is_active = 1;
+                    pyramidOrigins[i].own_height = inst.height;
+                    pyramidOrigins[i].half_x = inst.half_size[0];
+                    pyramidOrigins[i].half_z = inst.half_size[1];
+                    pyramidOrigins[i].rotation = inst.rotation;
+                    pyramidOrigins[i].ground_y = activePyramids_[i].cached_ground_y;
+                }
+
+
             void dispatch_compute(wgpu::CommandEncoder& encoder) {
                 wgpu::ComputePassDescriptor desc{};
                 desc.label = "Compute Phase";
@@ -8672,14 +8593,6 @@ namespace t7 {
 
                 compute.End();
             }
-
-            // --- Shadow depth pass ---
-            //
-            // Outdoor: single pass, directional sun VP, full 4096×4096 map.
-            // Indoor:  two-texture atlas — lights 0-1 on the sun map (repurposed),
-            //          lights 2-3 on the spot map. Each texture is split left/right
-            //          into 2048×4096 tiles. Doubles per-tile resolution vs the old
-            //          single-texture 2×2 grid, with zero extra memory.
 
             void render_shadow_pass(wgpu::CommandEncoder& encoder) {
                 if (spotLightActive_ && cpuSpotLights_.count > 0) {
@@ -8957,6 +8870,91 @@ namespace t7 {
                 pass.End();
             }
 
+            // ── PUBLIC API ──  → future: stays in cartridge.hpp
+
+        public:
+            Cartridge() = default;
+
+            Cartridge(const Cartridge&) = delete;
+            Cartridge& operator=(const Cartridge&) = delete;
+
+
+            // =========================================================================
+            // S3 BOOT — Device init, pipeline creation, initial state
+            // =========================================================================
+
+            void initialize(wgpu::Device device) override {
+                device_ = device;
+                auto tGpu0 = std::chrono::high_resolution_clock::now();
+                gpuState_.init(device);
+                auto tGpu1 = std::chrono::high_resolution_clock::now();
+                std::cout << "[Cartridge] GPUState init:    "
+                    << std::chrono::duration_cast<std::chrono::milliseconds>(tGpu1 - tGpu0).count()
+                    << " ms\n";
+            }
+
+            bool init_renderer(
+                wgpu::TextureFormat colorFormat,
+                wgpu::TextureFormat depthFormat
+            ) {
+                colorFormat_ = colorFormat;
+                depthFormat_ = depthFormat;
+
+                auto t0 = std::chrono::high_resolution_clock::now();
+                if (!renderer_.init(
+                    device_,
+                    gpuState_,
+                    colorFormat,
+                    depthFormat
+                )) return false;
+
+                // Create offscreen textures with the actual swapchain format
+                if (!gpuState_.initOffscreenResources(colorFormat)) {
+                    std::cerr << "[Cartridge] Failed to init offscreen resources\n";
+                    return false;
+                }
+
+                auto t1 = std::chrono::high_resolution_clock::now();
+
+                // --- One-shot: generate terrain index buffer on GPU -----------------
+                {
+                    wgpu::CommandEncoder encoder = device_.CreateCommandEncoder();
+                    wgpu::ComputePassDescriptor desc{};
+                    desc.label = "Terrain Index Gen (one-shot)";
+                    wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&desc);
+                    renderer_.dispatch_generate_terrain_indices(
+                        pass,
+                        gpuState_.terrain_index_gen_group(),
+                        GPUState::terrain_mesh_workgroups()
+                    );
+                    pass.End();
+                    wgpu::CommandBuffer cmd = encoder.Finish();
+                    device_.GetQueue().Submit(1, &cmd);
+                }
+                auto t2 = std::chrono::high_resolution_clock::now();
+
+                init_patch_system();
+                setup_test_rig_piers(device_.GetQueue());
+
+                // Eager-load authored paintings at boot (avoids mid-frame stall on first gallery)
+                {
+                    wgpu::Queue q = device_.GetQueue();
+                    load_authored_textures(q);
+                }
+
+                auto t3 = std::chrono::high_resolution_clock::now();
+
+                std::cout << "[Cartridge] Renderer init:    "
+                    << std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count() << " ms\n";
+                std::cout << "[Cartridge] Terrain gen:      "
+                    << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() << " ms\n";
+                std::cout << "[Cartridge] Patch system:     "
+                    << std::chrono::duration_cast<std::chrono::milliseconds>(t3 - t2).count() << " ms\n";
+                std::cout << "[Cartridge] Total init:       "
+                    << std::chrono::duration_cast<std::chrono::milliseconds>(t3 - t0).count() << " ms\n";
+
+                return true;
+            }
 
         public:
 
@@ -9206,6 +9204,215 @@ namespace t7 {
             bool reload_shaders() override { return renderer_.reload(); }
             const std::string& shader_path() const { return renderer_.shader_path(); }
 
+
+            // ── PRIVATE INPUT HANDLERS ──
+
+        private:
+
+            void on_key_down(int key) {
+                switch (key) {
+                case GLFW_KEY_UP:    keys_.forward = true; break;
+                case GLFW_KEY_DOWN:  keys_.backward = true; break;
+                case GLFW_KEY_LEFT:  keys_.left = true; break;
+                case GLFW_KEY_RIGHT: keys_.right = true; break;
+                case GLFW_KEY_1:
+                    gpuState_.toggle_freeze_sphere();
+                    break;
+                case GLFW_KEY_2:
+                    auraHeightEnabled_ = !auraHeightEnabled_;
+                    auraCfgDirty_ = true;
+                    std::cout << "[Aura] Height extrusion: " << (auraHeightEnabled_ ? "ON" : "OFF") << "\n";
+                    break;
+                case GLFW_KEY_3:
+                    auraEnabled_ = !auraEnabled_;
+                    auraCfgDirty_ = true;
+                    std::cout << "[Aura] Field: " << (auraEnabled_ ? "ON" : "OFF") << "\n";
+                    break;
+                case GLFW_KEY_5:
+                {
+                    if (transitionPhase_ != TransitionPhase::IDLE) break;
+                    uint32_t mood = 1;  // open_sunset
+                    const auto& mp = MOOD_TABLE[mood];
+                    uint32_t dest_seed = cpu_hash(activeSeed_, 999u);
+                    pendingDestination_ = { dest_seed, mp.finite, derive_finite_radius(dest_seed, mp), mood };
+                    transitionPhase_ = TransitionPhase::FADE_OUT;
+                    transitionTimer_ = 0.0f;
+                    std::cout << "[World] Transition (" << mood_name(mood) << "): seed " << activeSeed_
+                        << " -> " << pendingDestination_.seed << "\n";
+                }
+                break;
+                case GLFW_KEY_6:
+                {
+                    if (transitionPhase_ != TransitionPhase::IDLE) break;
+                    uint32_t mood = 2;  // indoor_flat
+                    const auto& mp = MOOD_TABLE[mood];
+                    uint32_t dest_seed = cpu_hash(activeSeed_, 999u);
+                    uint32_t radius = derive_finite_radius(dest_seed, mp);
+                    pendingDestination_ = { dest_seed, mp.finite, radius, mood };
+                    transitionPhase_ = TransitionPhase::FADE_OUT;
+                    transitionTimer_ = 0.0f;
+                    uint32_t side = 2 * radius + 1;
+                    std::cout << "[World] Transition (" << mood_name(mood) << " " << side << "x" << side
+                        << "): seed " << activeSeed_
+                        << " -> " << pendingDestination_.seed << "\n";
+                }
+                break;
+                case GLFW_KEY_7:
+                {
+                    if (transitionPhase_ != TransitionPhase::IDLE) break;
+                    uint32_t mood = 3;  // indoor_vault
+                    const auto& mp = MOOD_TABLE[mood];
+                    uint32_t dest_seed = cpu_hash(activeSeed_, 999u);
+                    uint32_t radius = derive_finite_radius(dest_seed, mp);
+                    pendingDestination_ = { dest_seed, mp.finite, radius, mood };
+                    transitionPhase_ = TransitionPhase::FADE_OUT;
+                    transitionTimer_ = 0.0f;
+                    uint32_t side = 2 * radius + 1;
+                    std::cout << "[World] Transition (" << mood_name(mood) << " " << side << "x" << side
+                        << "): seed " << activeSeed_
+                        << " -> " << pendingDestination_.seed << "\n";
+                }
+                break;
+                case GLFW_KEY_8:
+                {
+                    if (transitionPhase_ != TransitionPhase::IDLE) break;
+                    uint32_t mood = 4;  // finite_outdoor
+                    const auto& mp = MOOD_TABLE[mood];
+                    uint32_t dest_seed = cpu_hash(activeSeed_, 999u);
+                    uint32_t radius = derive_finite_radius(dest_seed, mp);
+                    pendingDestination_ = { dest_seed, mp.finite, radius, mood };
+                    transitionPhase_ = TransitionPhase::FADE_OUT;
+                    transitionTimer_ = 0.0f;
+                    uint32_t side = 2 * radius + 1;
+                    std::cout << "[World] Transition (" << mood_name(mood) << " " << side << "x" << side
+                        << "): seed " << activeSeed_
+                        << " -> " << pendingDestination_.seed << "\n";
+                }
+                break;
+                case GLFW_KEY_9:
+                {
+                    if (transitionPhase_ != TransitionPhase::IDLE) break;
+                    uint32_t mood = 5;  // finite_outdoor_ref
+                    const auto& mp = MOOD_TABLE[mood];
+                    uint32_t dest_seed = cpu_hash(activeSeed_, 999u);
+                    uint32_t radius = derive_finite_radius(dest_seed, mp);
+                    pendingDestination_ = { dest_seed, mp.finite, radius, mood };
+                    transitionPhase_ = TransitionPhase::FADE_OUT;
+                    transitionTimer_ = 0.0f;
+                    uint32_t side = 2 * radius + 1;
+                    std::cout << "[World] Transition (" << mood_name(mood) << " " << side << "x" << side
+                        << "): seed " << activeSeed_
+                        << " -> " << pendingDestination_.seed << "\n";
+                }
+                break;
+                // ─── Musical animation mode toggles (numpad) ─────────────
+                case GLFW_KEY_KP_1: toggle_mmode(MMODE_TERRAIN_WAVES);   break;
+                case GLFW_KEY_KP_2: toggle_mmode(MMODE_COLOR_SHIFT);     break;
+                case GLFW_KEY_KP_3: toggle_mmode(MMODE_CHECKER_SCATTER); break;
+                case GLFW_KEY_KP_4: toggle_mmode(MMODE_PALETTE_DRIFT);   break;
+                case GLFW_KEY_KP_5: toggle_mmode(MMODE_GOL_TEMPO);       break;
+                case GLFW_KEY_KP_6: toggle_mmode(MMODE_AURA_EXPAND);     break;
+                case GLFW_KEY_KP_7: toggle_mmode(MMODE_RADIAL_PULSE);    break;
+                case GLFW_KEY_LEFT_CONTROL:
+                case GLFW_KEY_RIGHT_CONTROL:
+                    toggle_fpv_mode();
+                    break;
+                case GLFW_KEY_LEFT_BRACKET:
+                    set_render_radius(activeRadius_ - 1);
+                    break;
+                case GLFW_KEY_RIGHT_BRACKET:
+                    set_render_radius(activeRadius_ + 1);
+                    break;
+                }
+                update_movement_intent();
+            }
+
+            void on_key_up(int key) {
+                switch (key) {
+                case GLFW_KEY_UP:    keys_.forward = false; break;
+                case GLFW_KEY_DOWN:  keys_.backward = false; break;
+                case GLFW_KEY_LEFT:  keys_.left = false; break;
+                case GLFW_KEY_RIGHT: keys_.right = false; break;
+                }
+                update_movement_intent();
+            }
+
+            void on_mouse_move(float dx, float dy) {
+                constexpr float sensitivity = 0.005f;
+                if (mouse_.left_dragging) {
+                    inputState_.look_az_delta += dx * sensitivity;
+                    inputState_.look_el_delta += dy * sensitivity;
+                }
+                if (mouse_.right_dragging) {
+                    inputState_.pan_x_delta += dx * sensitivity;
+                    inputState_.pan_y_delta -= dy * sensitivity;
+                }
+            }
+
+            void on_mouse_button(int button, bool pressed) {
+                if (button == 0) mouse_.left_dragging = pressed;
+                if (button == 1) mouse_.right_dragging = pressed;
+            }
+
+            void on_scroll(float delta) {
+                inputState_.zoom_delta -= delta * 2.0f;
+            }
+
+            void update_movement_intent() {
+                inputState_.move_x = 0.0f;
+                inputState_.move_z = 0.0f;
+
+                if (keys_.forward)  inputState_.move_z -= 1.0f;
+                if (keys_.backward) inputState_.move_z += 1.0f;
+                if (keys_.left)     inputState_.move_x -= 1.0f;
+                if (keys_.right)    inputState_.move_x += 1.0f;
+
+                float len = std::sqrt(inputState_.move_x * inputState_.move_x +
+                    inputState_.move_z * inputState_.move_z);
+                if (len > 1.0f) {
+                    inputState_.move_x /= len;
+                    inputState_.move_z /= len;
+                }
+            }
+
+            void clear_input_deltas() {
+                inputState_.look_az_delta = 0.0f;
+                inputState_.look_el_delta = 0.0f;
+                inputState_.zoom_delta = 0.0f;
+                inputState_.pan_x_delta = 0.0f;
+                inputState_.pan_y_delta = 0.0f;
+            }
+
+            void toggle_fpv_mode() {
+                fpvMode_ = !fpvMode_;
+                gpuState_.set_fpv_mode(fpvMode_ ? 1 : 0);
+                std::cout << "[the_board] Camera mode: "
+                    << (fpvMode_ ? "First-Person View" : "Orbit") << std::endl;
+            }
+
+            void set_render_radius(uint32_t r) {
+                r = std::max(r, GRID_RADIUS);
+                r = std::min(r, PREGEN_RADIUS);
+                if (r == activeRadius_) return;
+                activeRadius_ = r;
+                uint32_t side = 2 * r + 1;
+                std::cout << "[the_board] Render radius: " << r
+                    << " (" << side << "x" << side << " = " << side * side << " patches)" << std::endl;
+                // Force full re-evaluation on next frame
+                lastCenterX_ = INT32_MAX;
+                lastCenterZ_ = INT32_MAX;
+            }
+
+
+            // (S7 design mode wrappers removed — GPUState methods remain as the raw API
+            //  for future MIDI/console integration: enter_design_mode, enter_performance_mode,
+            //  set_mute_signal, set_mute_coupling, set_mute_couplings, set_pawn_speed,
+            //  set_camera_sensitivity, etc.)
+
+
+
+            // ── LIGHT MATRIX COMPUTATION ──
+
         private:
 
             // ─── Light Matrix Computation ─────────────────────────────────────
@@ -9373,6 +9580,7 @@ namespace t7 {
                     }
                 }
             }
+
         };
 
     } // namespace the_board
