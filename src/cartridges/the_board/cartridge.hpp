@@ -147,35 +147,6 @@ namespace t7 {
                 return h;
             }
 
-            // Derive finite world radius from seed within mood-defined bounds.
-            static uint32_t derive_finite_radius(uint32_t seed, const MoodProfile& mood) {
-                if (mood.finite_radius_min >= mood.finite_radius_max) return mood.finite_radius_min;
-                uint32_t range = mood.finite_radius_max - mood.finite_radius_min + 1;
-                return mood.finite_radius_min + cpu_hash(seed, 77u) % range;
-            }
-
-            // Biased mood selection for portal destinations.
-            // In finite mode: 55% indoor (moods 2-3), 25% infinite outdoor (moods 0-1), 20% finite outdoor (moods 4-5).
-            // In open mode: uniform across all moods.
-            uint32_t pick_portal_mood(uint32_t seed, uint32_t prop) const {
-                float roll = cpu_hash_f(seed, prop);
-                if (finiteMode_) {
-                    // 0.00–0.125: mood 0 (open_default)
-                    // 0.125–0.25: mood 1 (open_sunset)
-                    // 0.25–0.525: mood 2 (indoor_flat)
-                    // 0.525–0.80: mood 3 (indoor_vault)
-                    // 0.80–0.90:  mood 4 (finite_outdoor)
-                    // 0.90–1.00:  mood 5 (finite_outdoor_ref)
-                    if (roll < 0.125f) return 0;
-                    if (roll < 0.25f)  return 1;
-                    if (roll < 0.525f) return 2;
-                    if (roll < 0.80f)  return 3;
-                    if (roll < 0.90f)  return 4;
-                    return 5;
-                }
-                return cpu_hash(seed, prop) % MOOD_COUNT;
-            }
-
             // CPU mirror of WGSL lattice_node_seed (must produce identical results)
             static uint32_t cpu_lattice_node_seed(uint32_t master_seed, int32_t nx, int32_t nz, uint32_t band) {
                 uint32_t h = master_seed;
@@ -215,26 +186,6 @@ namespace t7 {
                 return count - 1;
             }
 
-            static uint32_t select_harmonic_ratio(uint32_t seed, uint32_t prop,
-                const HarmonicRatio* palette, uint32_t count) {
-                float roll = cpu_hash_f(seed, prop);
-                float cumul = 0.0f;
-                for (uint32_t i = 0; i < count; i++) {
-                    cumul += palette[i].weight;
-                    if (roll < cumul) return i;
-                }
-                return count - 1;
-            }
-
-            static uint32_t ribbon_cell_seed(uint32_t master_seed, int32_t cx, int32_t cz) {
-                uint32_t h = master_seed ^ 0xDEAD;
-                h ^= (uint32_t)cx * 73856093u;
-                h ^= (uint32_t)cz * 19349663u;
-                h = (h ^ (h >> 16)) * 2654435769u;
-                h = (h ^ (h >> 16)) * 2654435769u;
-                return h;
-            }
-
             // ── TERRAIN CPU EVALUATION ──  → future: terrain_cpu.hpp
 
             // ─── CPU Terrain Height Evaluation ───────────────────────────────
@@ -272,11 +223,6 @@ namespace t7 {
             static constexpr uint32_t CPU_WAVE_CR = 205u;
             static constexpr uint32_t CPU_WAVE_PH = 206u;
             static constexpr uint32_t CPU_WAVE_ACT = 208u;
-
-            static float cpu_smoothstep(float e0, float e1, float x) {
-                float t = std::max(0.0f, std::min(1.0f, (x - e0) / (e1 - e0)));
-                return t * t * (3.0f - 2.0f * t);
-            }
 
             static float cpu_directional_wave(float wx, float wz,
                 float nwx, float nwz, float freq, float amp, float damp,
@@ -589,7 +535,25 @@ namespace t7 {
                 { 2.0f / 3.0f,  0.20f, "2:3" },   // fifth below
             };
 
+            static uint32_t select_harmonic_ratio(uint32_t seed, uint32_t prop,
+                const HarmonicRatio* palette, uint32_t count) {
+                float roll = cpu_hash_f(seed, prop);
+                float cumul = 0.0f;
+                for (uint32_t i = 0; i < count; i++) {
+                    cumul += palette[i].weight;
+                    if (roll < cumul) return i;
+                }
+                return count - 1;
+            }
 
+            static uint32_t ribbon_cell_seed(uint32_t master_seed, int32_t cx, int32_t cz) {
+                uint32_t h = master_seed ^ 0xDEAD;
+                h ^= (uint32_t)cx * 73856093u;
+                h ^= (uint32_t)cz * 19349663u;
+                h = (h ^ (h >> 16)) * 2654435769u;
+                h = (h ^ (h >> 16)) * 2654435769u;
+                return h;
+            }
 
             // ── Tier Profile (mean+sigma, matches GoLTierProfile pattern) ────
             static constexpr uint32_t RIBBON_TIER_COUNT = 3;
@@ -4254,6 +4218,29 @@ namespace t7 {
             static const char* mood_name(uint32_t mood) {
                 static const char* NAMES[] = { "open_default", "open_sunset", "indoor_flat", "indoor_vault", "finite_outdoor", "finite_outdoor_ref" };
                 return (mood < MOOD_COUNT) ? NAMES[mood] : "unknown";
+            }
+
+            // Derive finite world radius from seed within mood-defined bounds.
+            static uint32_t derive_finite_radius(uint32_t seed, const MoodProfile& mood) {
+                if (mood.finite_radius_min >= mood.finite_radius_max) return mood.finite_radius_min;
+                uint32_t range = mood.finite_radius_max - mood.finite_radius_min + 1;
+                return mood.finite_radius_min + cpu_hash(seed, 77u) % range;
+            }
+
+            // Biased mood selection for portal destinations.
+            // In finite mode: 55% indoor (moods 2-3), 25% infinite outdoor (moods 0-1), 20% finite outdoor (moods 4-5).
+            // In open mode: uniform across all moods.
+            uint32_t pick_portal_mood(uint32_t seed, uint32_t prop) const {
+                float roll = cpu_hash_f(seed, prop);
+                if (finiteMode_) {
+                    if (roll < 0.125f) return 0;
+                    if (roll < 0.25f)  return 1;
+                    if (roll < 0.525f) return 2;
+                    if (roll < 0.80f)  return 3;
+                    if (roll < 0.90f)  return 4;
+                    return 5;
+                }
+                return cpu_hash(seed, prop) % MOOD_COUNT;
             }
 
             // ─── Indoor Lighting Schemes ─────────────────────────────────
@@ -9203,215 +9190,6 @@ namespace t7 {
 
             bool reload_shaders() override { return renderer_.reload(); }
             const std::string& shader_path() const { return renderer_.shader_path(); }
-
-
-            // ── PRIVATE INPUT HANDLERS ──
-
-        private:
-
-            void on_key_down(int key) {
-                switch (key) {
-                case GLFW_KEY_UP:    keys_.forward = true; break;
-                case GLFW_KEY_DOWN:  keys_.backward = true; break;
-                case GLFW_KEY_LEFT:  keys_.left = true; break;
-                case GLFW_KEY_RIGHT: keys_.right = true; break;
-                case GLFW_KEY_1:
-                    gpuState_.toggle_freeze_sphere();
-                    break;
-                case GLFW_KEY_2:
-                    auraHeightEnabled_ = !auraHeightEnabled_;
-                    auraCfgDirty_ = true;
-                    std::cout << "[Aura] Height extrusion: " << (auraHeightEnabled_ ? "ON" : "OFF") << "\n";
-                    break;
-                case GLFW_KEY_3:
-                    auraEnabled_ = !auraEnabled_;
-                    auraCfgDirty_ = true;
-                    std::cout << "[Aura] Field: " << (auraEnabled_ ? "ON" : "OFF") << "\n";
-                    break;
-                case GLFW_KEY_5:
-                {
-                    if (transitionPhase_ != TransitionPhase::IDLE) break;
-                    uint32_t mood = 1;  // open_sunset
-                    const auto& mp = MOOD_TABLE[mood];
-                    uint32_t dest_seed = cpu_hash(activeSeed_, 999u);
-                    pendingDestination_ = { dest_seed, mp.finite, derive_finite_radius(dest_seed, mp), mood };
-                    transitionPhase_ = TransitionPhase::FADE_OUT;
-                    transitionTimer_ = 0.0f;
-                    std::cout << "[World] Transition (" << mood_name(mood) << "): seed " << activeSeed_
-                        << " -> " << pendingDestination_.seed << "\n";
-                }
-                break;
-                case GLFW_KEY_6:
-                {
-                    if (transitionPhase_ != TransitionPhase::IDLE) break;
-                    uint32_t mood = 2;  // indoor_flat
-                    const auto& mp = MOOD_TABLE[mood];
-                    uint32_t dest_seed = cpu_hash(activeSeed_, 999u);
-                    uint32_t radius = derive_finite_radius(dest_seed, mp);
-                    pendingDestination_ = { dest_seed, mp.finite, radius, mood };
-                    transitionPhase_ = TransitionPhase::FADE_OUT;
-                    transitionTimer_ = 0.0f;
-                    uint32_t side = 2 * radius + 1;
-                    std::cout << "[World] Transition (" << mood_name(mood) << " " << side << "x" << side
-                        << "): seed " << activeSeed_
-                        << " -> " << pendingDestination_.seed << "\n";
-                }
-                break;
-                case GLFW_KEY_7:
-                {
-                    if (transitionPhase_ != TransitionPhase::IDLE) break;
-                    uint32_t mood = 3;  // indoor_vault
-                    const auto& mp = MOOD_TABLE[mood];
-                    uint32_t dest_seed = cpu_hash(activeSeed_, 999u);
-                    uint32_t radius = derive_finite_radius(dest_seed, mp);
-                    pendingDestination_ = { dest_seed, mp.finite, radius, mood };
-                    transitionPhase_ = TransitionPhase::FADE_OUT;
-                    transitionTimer_ = 0.0f;
-                    uint32_t side = 2 * radius + 1;
-                    std::cout << "[World] Transition (" << mood_name(mood) << " " << side << "x" << side
-                        << "): seed " << activeSeed_
-                        << " -> " << pendingDestination_.seed << "\n";
-                }
-                break;
-                case GLFW_KEY_8:
-                {
-                    if (transitionPhase_ != TransitionPhase::IDLE) break;
-                    uint32_t mood = 4;  // finite_outdoor
-                    const auto& mp = MOOD_TABLE[mood];
-                    uint32_t dest_seed = cpu_hash(activeSeed_, 999u);
-                    uint32_t radius = derive_finite_radius(dest_seed, mp);
-                    pendingDestination_ = { dest_seed, mp.finite, radius, mood };
-                    transitionPhase_ = TransitionPhase::FADE_OUT;
-                    transitionTimer_ = 0.0f;
-                    uint32_t side = 2 * radius + 1;
-                    std::cout << "[World] Transition (" << mood_name(mood) << " " << side << "x" << side
-                        << "): seed " << activeSeed_
-                        << " -> " << pendingDestination_.seed << "\n";
-                }
-                break;
-                case GLFW_KEY_9:
-                {
-                    if (transitionPhase_ != TransitionPhase::IDLE) break;
-                    uint32_t mood = 5;  // finite_outdoor_ref
-                    const auto& mp = MOOD_TABLE[mood];
-                    uint32_t dest_seed = cpu_hash(activeSeed_, 999u);
-                    uint32_t radius = derive_finite_radius(dest_seed, mp);
-                    pendingDestination_ = { dest_seed, mp.finite, radius, mood };
-                    transitionPhase_ = TransitionPhase::FADE_OUT;
-                    transitionTimer_ = 0.0f;
-                    uint32_t side = 2 * radius + 1;
-                    std::cout << "[World] Transition (" << mood_name(mood) << " " << side << "x" << side
-                        << "): seed " << activeSeed_
-                        << " -> " << pendingDestination_.seed << "\n";
-                }
-                break;
-                // ─── Musical animation mode toggles (numpad) ─────────────
-                case GLFW_KEY_KP_1: toggle_mmode(MMODE_TERRAIN_WAVES);   break;
-                case GLFW_KEY_KP_2: toggle_mmode(MMODE_COLOR_SHIFT);     break;
-                case GLFW_KEY_KP_3: toggle_mmode(MMODE_CHECKER_SCATTER); break;
-                case GLFW_KEY_KP_4: toggle_mmode(MMODE_PALETTE_DRIFT);   break;
-                case GLFW_KEY_KP_5: toggle_mmode(MMODE_GOL_TEMPO);       break;
-                case GLFW_KEY_KP_6: toggle_mmode(MMODE_AURA_EXPAND);     break;
-                case GLFW_KEY_KP_7: toggle_mmode(MMODE_RADIAL_PULSE);    break;
-                case GLFW_KEY_LEFT_CONTROL:
-                case GLFW_KEY_RIGHT_CONTROL:
-                    toggle_fpv_mode();
-                    break;
-                case GLFW_KEY_LEFT_BRACKET:
-                    set_render_radius(activeRadius_ - 1);
-                    break;
-                case GLFW_KEY_RIGHT_BRACKET:
-                    set_render_radius(activeRadius_ + 1);
-                    break;
-                }
-                update_movement_intent();
-            }
-
-            void on_key_up(int key) {
-                switch (key) {
-                case GLFW_KEY_UP:    keys_.forward = false; break;
-                case GLFW_KEY_DOWN:  keys_.backward = false; break;
-                case GLFW_KEY_LEFT:  keys_.left = false; break;
-                case GLFW_KEY_RIGHT: keys_.right = false; break;
-                }
-                update_movement_intent();
-            }
-
-            void on_mouse_move(float dx, float dy) {
-                constexpr float sensitivity = 0.005f;
-                if (mouse_.left_dragging) {
-                    inputState_.look_az_delta += dx * sensitivity;
-                    inputState_.look_el_delta += dy * sensitivity;
-                }
-                if (mouse_.right_dragging) {
-                    inputState_.pan_x_delta += dx * sensitivity;
-                    inputState_.pan_y_delta -= dy * sensitivity;
-                }
-            }
-
-            void on_mouse_button(int button, bool pressed) {
-                if (button == 0) mouse_.left_dragging = pressed;
-                if (button == 1) mouse_.right_dragging = pressed;
-            }
-
-            void on_scroll(float delta) {
-                inputState_.zoom_delta -= delta * 2.0f;
-            }
-
-            void update_movement_intent() {
-                inputState_.move_x = 0.0f;
-                inputState_.move_z = 0.0f;
-
-                if (keys_.forward)  inputState_.move_z -= 1.0f;
-                if (keys_.backward) inputState_.move_z += 1.0f;
-                if (keys_.left)     inputState_.move_x -= 1.0f;
-                if (keys_.right)    inputState_.move_x += 1.0f;
-
-                float len = std::sqrt(inputState_.move_x * inputState_.move_x +
-                    inputState_.move_z * inputState_.move_z);
-                if (len > 1.0f) {
-                    inputState_.move_x /= len;
-                    inputState_.move_z /= len;
-                }
-            }
-
-            void clear_input_deltas() {
-                inputState_.look_az_delta = 0.0f;
-                inputState_.look_el_delta = 0.0f;
-                inputState_.zoom_delta = 0.0f;
-                inputState_.pan_x_delta = 0.0f;
-                inputState_.pan_y_delta = 0.0f;
-            }
-
-            void toggle_fpv_mode() {
-                fpvMode_ = !fpvMode_;
-                gpuState_.set_fpv_mode(fpvMode_ ? 1 : 0);
-                std::cout << "[the_board] Camera mode: "
-                    << (fpvMode_ ? "First-Person View" : "Orbit") << std::endl;
-            }
-
-            void set_render_radius(uint32_t r) {
-                r = std::max(r, GRID_RADIUS);
-                r = std::min(r, PREGEN_RADIUS);
-                if (r == activeRadius_) return;
-                activeRadius_ = r;
-                uint32_t side = 2 * r + 1;
-                std::cout << "[the_board] Render radius: " << r
-                    << " (" << side << "x" << side << " = " << side * side << " patches)" << std::endl;
-                // Force full re-evaluation on next frame
-                lastCenterX_ = INT32_MAX;
-                lastCenterZ_ = INT32_MAX;
-            }
-
-
-            // (S7 design mode wrappers removed — GPUState methods remain as the raw API
-            //  for future MIDI/console integration: enter_design_mode, enter_performance_mode,
-            //  set_mute_signal, set_mute_coupling, set_mute_couplings, set_pawn_speed,
-            //  set_camera_sensitivity, etc.)
-
-
-
-            // ── LIGHT MATRIX COMPUTATION ──
 
         private:
 
