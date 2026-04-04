@@ -378,6 +378,18 @@ namespace t7 {
 
             // ── ENTITY TYPE DEFINITIONS ──  → future: entity_types.hpp
 
+            // Forward-declared from Mood System — needed by entity spawn configs
+            // and arch portal logic below.
+            static constexpr uint32_t MOOD_COUNT = 6;
+            static constexpr float PORTAL_DENSITY = 1.00f;
+            static constexpr float PORTAL_TRIGGER_RADIUS = 10.5f;
+            static constexpr float PORTAL_COLORS[6][3] = {
+                { 0.90f, 0.45f, 0.70f },  { 0.72f, 0.45f, 0.85f },
+                { 0.95f, 0.55f, 0.15f },  { 0.95f, 0.80f, 0.20f },
+                { 0.85f, 0.20f, 0.15f },  { 0.70f, 0.15f, 0.12f },
+            };
+            static constexpr float PORTAL_COLOR_BACK[3] = { 0.35f, 0.55f, 0.90f };
+
             //
             // Ribbons exist at deterministic world locations on a coarse grid (~600 units).
             // Each cell has a probability of containing a ribbon. When the pawn is within
@@ -4155,20 +4167,7 @@ namespace t7 {
             bool finiteMode_ = false;
             uint32_t finiteRadius_ = 2;              // 2 → 5×5 = 25 patches
 
-            // --- Portal detection ---
-            static constexpr float PORTAL_DENSITY = 1.00f;  // fraction of Doorway arches that become portals (was 0.25)
-            static constexpr float PORTAL_TRIGGER_RADIUS = 10.5f;  // world units from arch center (3× scale)
-
-            // Portal color by mood (indexed by destination.mood)
-            static constexpr float PORTAL_COLORS[6][3] = {
-                { 0.90f, 0.45f, 0.70f },  // mood 0  open_default    — pink
-                { 0.72f, 0.45f, 0.85f },  // mood 1  open_sunset     — lilac
-                { 0.95f, 0.55f, 0.15f },  // mood 2  indoor_flat     — orange
-                { 0.95f, 0.80f, 0.20f },  // mood 3  indoor_vault    — yellow
-                { 0.85f, 0.20f, 0.15f },  // mood 4  finite_outdoor  — red
-                { 0.70f, 0.15f, 0.12f },  // mood 5  finite_outdoor_ref — dark red
-            };
-            static constexpr float PORTAL_COLOR_BACK[3] = { 0.35f, 0.55f, 0.90f };  // back-portal — blue
+            // Portal constants: see forward declarations near ENTITY TYPE DEFINITIONS
 
             // ─── Mood System ─────────────────────────────────────────────
             //
@@ -4202,8 +4201,6 @@ namespace t7 {
                 float  wall_color[3];
                 float  ceiling_color[3];
             };
-
-            static constexpr uint32_t MOOD_COUNT = 6;
 
             //                                                                                                                                           indoor  ceil       ceil_h  clear_color            wall_color             ceil_color
             static constexpr MoodProfile MOOD_TABLE[MOOD_COUNT] = {
