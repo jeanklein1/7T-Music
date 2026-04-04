@@ -382,5 +382,9 @@ CMakeSettings.json
 .vite/
 .vite-temp/
 
+# Local-only folders (not needed for code collaboration)
+CASE/
+assets/
+
 # package-lock.json - optional, uncomment if you want to track it
 # package-lock.json
