@@ -52,30 +52,7 @@
 namespace t7 {
     namespace the_board {
 
-
-        // =============================================================================
-        // CARTRIDGE CLASS
-        // =============================================================================
-
         class Cartridge : public RenderCartridge {
-            // ═══════════════════════════════════════════════════════════════
-            // DEPENDENCY LAYERS (top = foundation, bottom = leaf)
-            // ═══════════════════════════════════════════════════════════════
-            //
-            //   Seed Utilities        → pure math, no state, no dependencies
-            //   Terrain CPU           → reads seeds, evaluates height field
-            //   Entity Type Defs      → vocabulary of forms (tier tables, tracking structs)
-            //   Musical Coupling      → reads analysis signal, writes GPU params
-            //   Spawn Engine          → reads terrain + types, writes entity state
-            //   Gallery System        → reads pawn + entities, writes painting state
-            //   Mood System           → configures atmosphere, lighting, indoor shell
-            //   Patch Orchestrator    → stream_patches, tile system, frame-level coordination
-            //   Frame Loop            → update, render, dispatch (the entry points)
-            //   Public API            → RenderCartridge contract (initialize, on_input, etc.)
-            //
-            // Each layer only reaches UP (toward foundations), never DOWN.
-            // Each bounded section is a future extraction target (.inl or .hpp).
-            // ═══════════════════════════════════════════════════════════════
 
         private:
 
@@ -85,7 +62,6 @@ namespace t7 {
 
             GPUState gpuState_;
             Renderer renderer_;
-
 
             struct InputState {
                 float move_x = 0.0f;
@@ -123,7 +99,294 @@ namespace t7 {
             uint32_t activeMood_ = 0;
             float terrainAmpCeiling_ = 0.0f;    // mirrors GPU config.terrain_amp_ceiling
 
-            // ── SEED UTILITIES ──  → future: seed_utils.hpp
+            // ═══════════════════════════════════════════════════════════════
+            // ── MUSICAL COUPLING STATE ─────────────────────────────────────
+            //
+            // Mode definitions, intensity trajectories, band motion state.
+            // The coupling layer: connects analysis signal to visual
+            // parameters across all systems.
+            //
+            // Per-frame application (polyphony → intensity → GPU writes)
+            // lives inline in update(), reading this state.
+            //
+            // All modes use polyphony as a proxy signal today.
+            // Future: rewire to chord detection, BPM, note pitch.
+            // ═══════════════════════════════════════════════════════════════
+
+            // ─── Polyphony-driven band motion ────────────────────────────
+            // Band activation order: fine(4) → detail(3) → local(2) → regional(1) → continental(0) → tectonic(5)
+            // First note animates fine ripples, full chord reshapes the continent.
+            static constexpr uint32_t BAND_ACTIVATION_ORDER[6] = { 4, 3, 2, 1, 0, 5 };
+            static constexpr float BAND_BLEND_ATTACK = 3.0f;   // 1/s — blend ramp up speed
+            static constexpr float BAND_BLEND_RELEASE = 2.0f;  // 1/s — blend ramp down speed
+            bool bandMotionActive_ = false;       // true when polyphony drives bands (mood 5 only)
+            float bandBlend_[6] = { -1.f, -1.f, -1.f, -1.f, -1.f, -1.f };  // per-band blend factor (-1 = activity field)
+            float bandPhaseOrigin_[6] = {};       // t_beats when band was activated
+            float bandBlendTarget_[6] = {};       // 0 or 1, driven by polyphony count
+
+            // ─── Musical animation modes (numpad toggles) ────────────────
+            // Each mode is an independently toggleable coupling circuit.
+            // When on: polyphony drives the mode's intensity through trajectory ramp.
+            // When off: intensity releases to 0 (idle).
+            //
+            // Future: each mode's source can be rewired to any analysis stat.
+            // Today: all modes read polyphony as their input signal.
+            //
+            //   Numpad 1 = terrain waves  (existing band motion — retroactively mode 0)
+            //   Numpad 2 = color shift    (smooth → discrete mode bias)
+            //   Numpad 3 = checker scatter (sparse survival threshold bias)
+            //   Numpad 4 = palette drift   (terrain color drifts toward target palette)
+            //   Numpad 5 = GoL tempo       (polyphony speeds up zones + scales height)
+            //   Numpad 6 = aura expansion (influence radius + height + tint intensity)
+
+            static constexpr uint32_t MMODE_TERRAIN_WAVES = 0;   // band motion (existing)
+            static constexpr uint32_t MMODE_COLOR_SHIFT = 1;
+            static constexpr uint32_t MMODE_CHECKER_SCATTER = 2;
+            static constexpr uint32_t MMODE_PALETTE_DRIFT = 3;
+            static constexpr uint32_t MMODE_GOL_TEMPO = 4;
+            static constexpr uint32_t MMODE_AURA_EXPAND = 5;
+            static constexpr uint32_t MMODE_COUNT = 6;   // numpad 1–6 (intensity-driven modes)
+
+            // Radial pulse mode: event-driven (no intensity trajectory).
+            // Toggle gates onset detection; existing pulses decay naturally.
+            static constexpr uint32_t MMODE_RADIAL_PULSE = 7;   // numpad 7 (separate from intensity array)
+
+            static constexpr float MMODE_ATTACK = 4.0f;    // 1/s — intensity ramp up
+            static constexpr float MMODE_RELEASE = 2.5f;   // 1/s — intensity ramp down
+
+            uint32_t mmodeMask_ = 0;              // bitfield: which modes are active
+            float mmodeIntensity_[MMODE_COUNT] = {};  // current [0,1] per mode (trajectory value)
+
+            // Palette drift: target palette index ramps smoothly to avoid color snaps
+            float paletteDriftTarget_ = 0.0f;       // current [0,3] — ramps toward desired
+            float paletteDriftDesired_ = 0.0f;      // set by polyphony mapping
+            static constexpr float PALETTE_DRIFT_TARGET_RATE = 2.0f;  // 1/s — smooth target transition
+
+            // Radial pulse ring buffer: 8 slots, circular write.
+            // Each slot: (origin_x, origin_z, onset_seconds, amplitude)
+            static constexpr uint32_t PULSE_RING_SIZE = 8;
+            static constexpr float PULSE_AMPLITUDE = 2.5f;     // world units of peak displacement
+            static constexpr float PULSE_MAX_AGE = 8.0f;       // seconds — must match WGSL
+            float pulseRing_[32] = {};              // 8 × 4 floats
+            uint32_t pulseWriteIdx_ = 0;            // next slot to write (wraps at 8)
+            float prevPolyphony_ = 0.0f;            // previous frame's polyphony (for onset detection)
+
+            bool is_mmode_on(uint32_t mode) const { return (mmodeMask_ & (1u << mode)) != 0; }
+            void toggle_mmode(uint32_t mode) {
+                mmodeMask_ ^= (1u << mode);
+                bool on = is_mmode_on(mode);
+                // Retroactive: mode 0 controls bandMotionActive_
+                if (mode == MMODE_TERRAIN_WAVES) {
+                    bandMotionActive_ = on;
+                    if (bandMotionActive_) {
+                        for (int i = 0; i < 6; i++) {
+                            bandBlend_[i] = 0.0f;
+                            bandBlendTarget_[i] = 0.0f;
+                            bandPhaseOrigin_[i] = 0.0f;
+                        }
+                        gpuState_.set_band_motion(bandBlend_, bandPhaseOrigin_);
+                        gpuState_.set_terrain_time(0.0f);
+                    }
+                    else {
+                        float inactive[6] = { -1.f, -1.f, -1.f, -1.f, -1.f, -1.f };
+                        float zeros[6] = {};
+                        gpuState_.set_band_motion(inactive, zeros);
+                        gpuState_.set_terrain_time(0.0f);
+                    }
+                }
+                // Mode 5 (aura expand): mark config dirty to push updated aura params
+                if (mode == MMODE_AURA_EXPAND) {
+                    auraCfgDirty_ = true;
+                }
+                static const char* MODE_NAMES[] = { "terrain_waves", "color_shift", "checker_scatter", "palette_drift", "gol_tempo", "aura_expand", "UNUSED", "radial_pulse" };
+                std::cout << "[MMode] " << MODE_NAMES[mode] << ": " << (on ? "ON" : "OFF") << "\n";
+            }
+
+            // ═══════════════════════════════════════════════════════════════
+            // ── END MUSICAL COUPLING STATE ─────────────────────────────────
+            // ═══════════════════════════════════════════════════════════════
+
+            GPUSpotLightArray cpuSpotLights_{};  // count=0 disables (outdoor)
+            bool spotLightActive_ = false;
+
+            // --- World Transition State Machine ---
+            enum class TransitionPhase { IDLE, FADE_OUT, TEARDOWN, FADE_IN };
+            TransitionPhase transitionPhase_ = TransitionPhase::IDLE;
+            float transitionTimer_ = 0.0f;
+            float transitionFadeDuration_ = 0.5f;   // seconds per fade direction
+            float transitionFadeAlpha_ = 0.0f;
+
+            // Portal destination — describes the world a door leads to.
+            // Also used as the pending transition target (keys + portal crossings).
+            struct PortalDestination {
+                uint32_t seed = 0;
+                bool finite = false;
+                uint32_t finite_radius = 2;
+                uint32_t mood = 0;               // 0=open, 1=finite (expandable)
+            };
+            PortalDestination pendingDestination_{};
+
+            // --- Finite patch mode ---
+            bool finiteMode_ = false;
+            uint32_t finiteRadius_ = 2;              // 2 → 5×5 = 25 patches
+
+            // --- Portal detection ---
+            static constexpr float PORTAL_DENSITY = 1.00f;  // fraction of Doorway arches that become portals (was 0.25)
+            static constexpr float PORTAL_TRIGGER_RADIUS = 10.5f;  // world units from arch center (3× scale)
+
+            // Portal color by mood (indexed by destination.mood)
+            static constexpr float PORTAL_COLORS[6][3] = {
+                { 0.90f, 0.45f, 0.70f },  // mood 0  open_default    — pink
+                { 0.72f, 0.45f, 0.85f },  // mood 1  open_sunset     — lilac
+                { 0.95f, 0.55f, 0.15f },  // mood 2  indoor_flat     — orange
+                { 0.95f, 0.80f, 0.20f },  // mood 3  indoor_vault    — yellow
+                { 0.85f, 0.20f, 0.15f },  // mood 4  finite_outdoor  — red
+                { 0.70f, 0.15f, 0.12f },  // mood 5  finite_outdoor_ref — dark red
+            };
+            static constexpr float PORTAL_COLOR_BACK[3] = { 0.35f, 0.55f, 0.90f };  // back-portal — blue
+
+            // ─── Mood System ─────────────────────────────────────────────
+            //
+            // Each mood defines an atmosphere: sun direction/color, fog,
+            // finite vs. open, patch radius. Portals pick a mood for
+            // their destination; the mood is applied during teardown.
+            //
+            // Moods 0-1: infinite outdoor.  Moods 2-3: finite indoor.  Mood 4: finite outdoor.  Mood 5: finite outdoor (reference clone).
+
+            enum class CeilingType : uint32_t {
+                NONE = 0,   // outdoor — no shell geometry
+                FLAT = 1,   // flat slab ceiling
+                VAULT = 2,   // catenary vault ceiling
+            };
+
+            struct MoodProfile {
+                bool   finite;
+                uint32_t finite_radius_min;
+                uint32_t finite_radius_max;
+                float  sun_direction[3];
+                float  sun_color[3];
+                float  sun_intensity;
+                float  sun_ambient;
+                float  fog_density;
+                float  fog_color[3];
+                // Indoor shell
+                bool   indoor;
+                CeilingType ceiling_type;
+                float  ceiling_height;
+                float  clear_color[3];      // background color (sky or dark ceiling)
+                float  wall_color[3];
+                float  ceiling_color[3];
+            };
+
+            static constexpr uint32_t MOOD_COUNT = 6;
+
+            //                                                                                                                                           indoor  ceil       ceil_h  clear_color            wall_color             ceil_color
+            static constexpr MoodProfile MOOD_TABLE[MOOD_COUNT] = {
+                /* 0  open_default        */  { false, 2, 2, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f} },
+                /* 1  open_sunset         */  { false, 2, 2, { 0.96f,-0.26f,-0.13f}, {1.0f, 0.75f, 0.45f}, 0.90f, 0.20f, 0.0050f, {0.95f, 0.70f, 0.45f},  false, CeilingType::NONE,  0.0f,  {0.95f, 0.70f, 0.45f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f} },
+                /* 2  indoor_flat         */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f, 0.0003f, {0.15f, 0.12f, 0.10f},  true,  CeilingType::FLAT,  20.0f, {0.15f, 0.12f, 0.10f}, {0.65f,0.58f,0.50f}, {0.60f,0.55f,0.48f} },
+                /* 3  indoor_vault        */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f, 0.0003f, {0.15f, 0.12f, 0.10f},  true,  CeilingType::VAULT, 25.0f, {0.15f, 0.12f, 0.10f}, {0.70f,0.62f,0.52f}, {0.65f,0.58f,0.50f} },
+                /* 4  finite_outdoor      */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f} },
+                /* 5  finite_outdoor_ref  */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f} },
+            };
+
+            static const char* mood_name(uint32_t mood) {
+                static const char* NAMES[] = { "open_default", "open_sunset", "indoor_flat", "indoor_vault", "finite_outdoor", "finite_outdoor_ref" };
+                return (mood < MOOD_COUNT) ? NAMES[mood] : "unknown";
+            }
+
+            // ─── Indoor Lighting Schemes ─────────────────────────────────
+            //
+            // Seed-driven procedural lighting for indoor moods. Each scheme
+            // defines a lighting character (which surfaces carry lights,
+            // how many, primary vs accent roles). Per-light parameters
+            // (position along surface, intensity, cone width, color warmth)
+            // are derived from activeSeed_ at mood transition time.
+            //
+            // Three schemes:
+            //   Cathedral — ceiling primary + two opposing wall sconces
+            //   Gallery   — two opposing wall lights, no ceiling (dramatic)
+            //   Sanctum   — single source, maximum contrast
+            //
+            // The seed also picks which wall pair (N/S or E/W) carries the
+            // sconces, so rooms with the same scheme still feel different.
+
+            enum class LightAnchor : uint32_t {
+                CEILING, WALL_NORTH, WALL_SOUTH, WALL_EAST, WALL_WEST
+            };
+
+            struct IndoorLightProp {
+                static constexpr uint32_t SCHEME = 1100u;
+                static constexpr uint32_t WALL_PAIR = 1101u;
+                static constexpr uint32_t ANCHOR_PICK = 1102u;
+                static constexpr uint32_t SLOT_BASE = 1110u;  // + slot*10 + field
+                // Per-slot field offsets
+                static constexpr uint32_t LATERAL = 0u;
+                static constexpr uint32_t HEIGHT = 1u;
+                static constexpr uint32_t INTENSITY = 2u;
+                static constexpr uint32_t INNER_CONE = 3u;
+                static constexpr uint32_t OUTER_CONE = 4u;
+                static constexpr uint32_t WARMTH = 5u;
+                static constexpr uint32_t AIM_PITCH = 6u;
+                static constexpr uint32_t AIM_YAW = 7u;
+            };
+
+            // Slot definition: anchor surface + gaussian ranges for the
+            // light's character. Position slide uses fixed sigmas.
+            // Direction is fully parameterised per slot:
+            //   aim_pitch — angle below horizontal (wall) or off-vertical (ceiling), radians
+            //   aim_yaw   — lateral rotation along the anchor surface, radians
+            struct LightSlotDef {
+                LightAnchor anchor;
+                float intensity_mean, intensity_sigma;
+                float inner_mean, inner_sigma;    // inner half-angle (radians)
+                float outer_mean, outer_sigma;    // outer half-angle (radians)
+                float warmth_mean, warmth_sigma;  // 0 = warm amber, 1 = cool blue
+                float aim_pitch_mean, aim_pitch_sigma;  // radians
+                float aim_yaw_mean, aim_yaw_sigma;      // radians
+            };
+
+            static constexpr float SCHEME_WEIGHTS[] = { 0.55f, 0.25f, 0.20f };
+            static constexpr uint32_t SCHEME_COUNT = 3;
+            static constexpr const char* SCHEME_NAMES[] = { "Cathedral", "Gallery", "Sanctum" };
+            static constexpr const char* ANCHOR_NAMES[] = { "ceiling", "wall_N", "wall_S", "wall_E", "wall_W" };
+
+            GPUPortalArray cpuPortalArray_{};
+            bool portalsDirty_ = true;   // true at boot → first upload guaranteed
+
+            // --- Back-portal (guaranteed exit from finite worlds) ---
+            // Position is configurable so special-case layouts can relocate it.
+            float backPortalPosition_[2] = { 10.0f, 0.0f };   // world XZ
+            bool  backPortalPending_ = false;
+            uint32_t backPortalReturnSeed_ = 0;
+            uint32_t backPortalReturnMood_ = 0;
+            uint32_t backPortalReturnRadius_ = 2;
+
+            // GPU pawn readback state machine: IDLE → COPIED → MAPPING → IDLE
+            // Reads full GPUPawnState: position (for patch streaming, photographer,
+            // ribbon spawning) and portal_trigger (for world transitions).
+            enum class PawnReadbackState { IDLE, COPIED, MAPPING };
+            PawnReadbackState pawnReadbackState_ = PawnReadbackState::IDLE;
+            int32_t readbackPortalTrigger_ = -1;
+            float pawnReadback_x_ = 0.0f;
+            float pawnReadback_z_ = 0.0f;
+
+            // --- Unified Pier System ─────────────────────────────────────────
+            //
+            // Deterministic slot addressing: test rig at 0-2, arch piers at 4-35,
+            // column piers at 36-67. CPU mirrors the GPU buffer for dead-reckoning
+            // step-height checks. No allocator — slot = f(entity_slot).
+            GPUPierInstance cpuPiers_[Dim::PIER_TOTAL]{};
+
+            // ═══════════════════════════════════════════════════════════════
+            // ── SEED UTILITIES ─────────────────────────────────────────────
+            //
+            // Pure math. Hash, Gaussian, tier selection.
+            // No member state. No domain knowledge.
+            // Every layer below depends on these; they depend on nothing.
+            //
+            // Candidates for standalone seed_utils.hpp extraction.
+            // ═══════════════════════════════════════════════════════════════
 
             // Hashing utilities (mirror GPU hash functions for determinism)
             static uint32_t cpu_hash(uint32_t seed, uint32_t property) {
@@ -173,7 +436,6 @@ namespace t7 {
                 return mean + z * sigma;
             }
 
-
             // Weighted tier selection from cumulative weights.
             static uint32_t select_tier(uint32_t seed, uint32_t tier_prop,
                 const float* weights, uint32_t count) {
@@ -186,7 +448,25 @@ namespace t7 {
                 return count - 1;
             }
 
-            // ── TERRAIN CPU EVALUATION ──  → future: terrain_cpu.hpp
+            // ═══════════════════════════════════════════════════════════════
+            // ── END SEED UTILITIES ─────────────────────────────────────────
+            // ═══════════════════════════════════════════════════════════════
+
+            // ═══════════════════════════════════════════════════════════════
+            // ── TERRAIN CPU EVALUATION ─────────────────────────────────────
+            //
+            // CPU mirror of the GPU terrain height pipeline.
+            // Dependency chain (each step calls the one above):
+            //   cpu_terrain_height_at  — raw wave field (static, standalone)
+            //   cpu_tile_modifiers_at  — archetype amp/bias (reads tileCache_)
+            //   cpu_terrain_base_at    — ground_terrain composite
+            //   cpu_evaluate_pier      — single pier height (static, takes GPUPierInstance)
+            //   cpu_structure_height_at— max pier height at point (reads cpuPiers_)
+            //
+            // The standalone functions (wave math) are candidates for
+            // terrain_cpu.hpp extraction. The member functions stay in
+            // terrain.inl when the class body is split.
+            // ═══════════════════════════════════════════════════════════════
 
             // ─── CPU Terrain Height Evaluation ───────────────────────────────
             //
@@ -326,13 +606,6 @@ namespace t7 {
                 return raw_h * amp + b;
             }
 
-            // --- Unified Pier System ─────────────────────────────────────────
-            //
-            // Deterministic slot addressing: test rig at 0-2, arch piers at 4-35,
-            // column piers at 36-67. CPU mirrors the GPU buffer for dead-reckoning
-            // step-height checks. No allocator — slot = f(entity_slot).
-            GPUPierInstance cpuPiers_[Dim::PIER_TOTAL]{};
-
             // CPU-side pier evaluation (mirrors WGSL evaluate_pier)
             static float cpu_evaluate_pier(float wx, float wz, const GPUPierInstance& inst) {
                 if (!inst.is_active) return 0.0f;
@@ -376,19 +649,27 @@ namespace t7 {
                 return best;
             }
 
-            // ── ENTITY TYPE DEFINITIONS ──  → future: entity_types.hpp
-
-            // Forward-declared from Mood System — needed by entity spawn configs
-            // and arch portal logic below.
-            static constexpr uint32_t MOOD_COUNT = 6;
-            static constexpr float PORTAL_DENSITY = 1.00f;
-            static constexpr float PORTAL_TRIGGER_RADIUS = 10.5f;
-            static constexpr float PORTAL_COLORS[6][3] = {
-                { 0.90f, 0.45f, 0.70f },  { 0.72f, 0.45f, 0.85f },
-                { 0.95f, 0.55f, 0.15f },  { 0.95f, 0.80f, 0.20f },
-                { 0.85f, 0.20f, 0.15f },  { 0.70f, 0.15f, 0.12f },
-            };
-            static constexpr float PORTAL_COLOR_BACK[3] = { 0.35f, 0.55f, 0.90f };
+            // ═══════════════════════════════════════════════════════════════
+            // ── END TERRAIN CPU EVALUATION ─────────────────────────────────
+            // ═══════════════════════════════════════════════════════════════
+            // ═══════════════════════════════════════════════════════════════
+            // ── ENTITY TYPE DEFINITIONS ────────────────────────────────────
+            //
+            // The vocabulary of forms. What each entity IS:
+            // tier profiles, property registries, tracking structs.
+            //
+            // Ribbon  — sky-level compound wave geometry
+            // Arch    — catenary arches with pier collision
+            // Column  — classical/antenna columns with capitals
+            // Pyramid — obelisk/temple/colossus terrain formations
+            //
+            // GoL/Pulse zone definitions are downstream (line ~2200+),
+            // separated by spawn infrastructure. Tagged separately.
+            //
+            // Each family follows the pattern:
+            //   Tier enum → TierParams struct → TIERS table →
+            //   Config → Prop registry → Active* tracking struct
+            // ═══════════════════════════════════════════════════════════════
 
             //
             // Ribbons exist at deterministic world locations on a coarse grid (~600 units).
@@ -399,55 +680,6 @@ namespace t7 {
             //
             // Cube count: 100–400. Cube size: pawn height (1.5) to 4× (6.0).
             // Flying height: 50–80 units. All wave params independently seeded.
-
-            // ─── Property Index Registry ─────────────────────────────────────
-            //
-            // Every property index used by cpu_hash_f(seed, prop) or
-            // hash_property(seed, prop). Ranges must not overlap within
-            // the same seed domain. Gaussian pairs use prop + 1000.
-            //
-            // ── CPU-side (seed = tile_seed or ribbon_cell_seed) ──────────────
-            //
-            //   Range        System          Seed function         Notes
-            //   ───────      ──────          ─────────────         ─────
-            //   300–302      Archetypes      tile_seed(activeSeed_, gx, gz)     roll, amp jitter, bias jitter
-            //   400–442      Ribbons         ribbon_cell_seed      wave params, color
-            //   500–530      Galleries       tile_seed(activeSeed_, gx, gz)     spawn roll, position, painting sel
-            //   600–623      Arches          tile_seed(activeSeed_, gx, gz)     spawn, tier, geometry, color
-            //   700–743      Columns         tile_seed(activeSeed_, gx, gz)     spawn, tier, geometry, color
-            //   800–823      Pyramids        tile_seed(activeSeed_, gx, gz)     spawn, tier, geometry, color
-            //   900+         (reserved)      tile_seed             next entity
-            //   1100–1149    Indoor lights   activeSeed_           scheme, wall pair, per-slot params
-            //
-            // ── GPU-side (seed = lattice_node_seed or cell_seed) ─────────────
-            //
-            //   Range        System          Seed function         Notes
-            //   ───────      ──────          ─────────────         ─────
-            //   200–208      Terrain waves   lattice_node_seed     type, freq, amp, phase, etc.
-            //   220–221      Activity field  lattice_node_seed     intensity, beat freq
-            //   500–520      Color fields    color_lattice_seed    palette, mode, transition, sparse
-            //   900, 910     Cell composition lattice_node_seed    cell_roll, sparse_roll
-            //   920–937      GoL zone tags   lattice_node_seed     GoLZoneProp:: (spawn, tier, height, color, Gaussian draws, target RGB)
-            //   950–954      Pulse zones     lattice_node_seed     PulseZoneProp:: (algorithm, tier, phase, wander, tempo)
-            //
-            // ── Lattice seed bands (GPU, via lattice_node_seed) ──────────────
-            //
-            //   Band         System
-            //   ────         ──────
-            //   0–5          Terrain wave bands (one per TerrainBand; 5=tectonic)
-            //   50           Activity field
-            //   100+0..14    Color fields (via color_lattice_seed offset)
-            //   200          Cell composition (per-cell seed in generate_patch_cells)
-            //   250          GoL zone decisions (per-zone seed in tag_cell_behavior)
-            //
-            // ── Standalone seeds (not property indices) ──────────────────────
-            //
-            //   Value        System
-            //   ─────        ──────
-            //   activeSeed_  config.world_seed (WGSL)
-            //   42           CELL_RANDOM_SEED_COLOR (WGSL, legacy cell system)
-            //   7            CELL_RANDOM_SEED_HEIGHT (WGSL, legacy cell system)
-            //
 
             // ─── Sky Ribbon System ─────────────────────────────────────────
             //
@@ -558,15 +790,6 @@ namespace t7 {
                 return count - 1;
             }
 
-            static uint32_t ribbon_cell_seed(uint32_t master_seed, int32_t cx, int32_t cz) {
-                uint32_t h = master_seed ^ 0xDEAD;
-                h ^= (uint32_t)cx * 73856093u;
-                h ^= (uint32_t)cz * 19349663u;
-                h = (h ^ (h >> 16)) * 2654435769u;
-                h = (h ^ (h >> 16)) * 2654435769u;
-                return h;
-            }
-
             // ── Tier Profile (mean+sigma, matches GoLTierProfile pattern) ────
             static constexpr uint32_t RIBBON_TIER_COUNT = 3;
 
@@ -672,7 +895,6 @@ namespace t7 {
             static constexpr float RIBBON_SPAWN_CHANCE = RibbonSpawnConfig::SPAWN_CHANCE;
             static constexpr float RIBBON_RENDER_DIST = RibbonSpawnConfig::RENDER_DIST;
             static constexpr float PAWN_HEIGHT_UNITS = 1.5f;     // matches WGSL PAWN_HEIGHT
-
 
             // ─── Generative Catenary Arches ──────────────────────────────────
             //
@@ -801,7 +1023,6 @@ namespace t7 {
                 static constexpr uint32_t COLOR_VAR_G = 622u;
                 static constexpr uint32_t COLOR_VAR_B = 623u;
             };
-
 
             // ─── Active Arch Tracking ────────────────────────────────────────
 
@@ -1011,8 +1232,6 @@ namespace t7 {
 
             // (generate_column_mesh removed — replaced by GPU compute: column_mesh_gen)
 
-            // ─── Column Spawning ─────────────────────────────────────────────
-
             // ─── Generative Pyramids ─────────────────────────────────────────
             //
             // Three tiers: obelisk, temple, colossus. Each defined by a
@@ -1103,360 +1322,32 @@ namespace t7 {
 
             // (generate_pyramid_mesh removed — replaced by GPU compute: pyramid_mesh_gen)
 
-            // ─── Pawn Aura System ─────────────────────────────────────────────
+            // ═══════════════════════════════════════════════════════════════
+            // ── END ENTITY TYPE DEFINITIONS ────────────────────────────────
+            // ═══════════════════════════════════════════════════════════════
+
+            // ═══════════════════════════════════════════════════════════════
+            // ── SPAWN ENGINE & ENTITY LIFECYCLE ────────────────────────────
             //
-            // Persistent terrain influence field centered on the pawn.
-            // Toroidal 64×64 grid of spring-driven cells that activate near
-            // the pawn and release when it moves away, leaving a decaying trail.
+            // How and when things appear. All spawn/evict logic, footprint
+            // registry, adjacency, population dynamics, entity runtime.
             //
-            // Architecture follows the entity pattern:
-            //   PawnAuraProfile    — declarative parameter table
-            //   PawnAuraDeltaMode  — color differential strategy
-            //   GPUPawnAuraConfig  — per-frame GPU config (in state.hpp)
-            //   GPUPawnAuraCell    — per-cell state (in state.hpp)
-
-            struct PawnAuraDeltaMode {
-                static constexpr uint32_t CONVERGENT = 0;  // all cells shift toward signature tint
-                static constexpr uint32_t RANDOM = 1;  // each cell gets unique random delta
-            };
-
-            struct PawnAuraProfile {
-                float influence_radius;
-                float attack_stiffness;
-                float attack_damping;
-                float release_rate;
-                float tint_strength;
-                float tint_r, tint_g, tint_b;
-                uint32_t delta_mode;
-                float delta_magnitude;     // random mode: max offset per channel
-                uint32_t effect_mask;      // bit 0=color, bit 1=height
-                float height_scale;        // height extrusion in world units
-            };
-
-            static constexpr PawnAuraProfile PAWN_AURA_DEFAULT = {
-                20.0f,             // influence_radius
-                12.0f,             // attack_stiffness
-                0.7f,              // attack_damping
-                1.5f,              // release_rate
-                0.5f,              // tint_strength
-                0.4f, 0.2f, 0.5f, // tint RGB (purple)
-                PawnAuraDeltaMode::CONVERGENT,
-                0.3f,              // delta_magnitude (used in random mode)
-                0x3u,              // effect_mask: color tint + height
-                3.0f,              // height_scale
-            };
-
-            // Active profile — starts as default, can be swapped by landmarks/commands
-            PawnAuraProfile activeAuraProfile_ = PAWN_AURA_DEFAULT;
-            bool auraHeightEnabled_ = true;
-            bool auraEnabled_ = false;         // default off — numpad 3 toggles
-            bool auraNeedsClear_ = false;
-            bool auraCfgDirty_ = true;     // true at boot → first frame uploads full config
-
-            // Smooth raise/lower: auraPresence_ ramps 0→1 on enable, 1→0 on disable.
-            // Scales all aura parameters so terrain and pawn height change gradually.
-            float auraPresence_ = 0.0f;        // current [0,1] — trajectory value
-            static constexpr float AURA_PRESENCE_ATTACK = 1.0f;   // 1/s — ~3s to full (spring converges in ~0.5s)
-            static constexpr float AURA_PRESENCE_RELEASE = 1.5f;  // 1/s — ~2s to zero
-
-
-            // ─── GoL Zone System ─────────────────────────────────────────────
+            // Internal structure:
+            //   Entity spawn/evict    — column, pyramid, arch per-patch lifecycle
+            //   Pier write helpers    — CPU↔GPU pier slot management
+            //   Entity culling        — distance-based draw visibility
+            //   Ground footprints     — overlap prevention registry
+            //   Spawn utilities       — shared gate, jitter, adjacency rules
+            //   Pawn aura             — persistent terrain influence field
+            //   GoL/Pulse zones       — definitions + detection + lifecycle
+            //   Ribbon management     — cell-based spawn/despawn + diagnostics
             //
-            // Zone-local Game of Life. Each zone is a 32×32 automaton grid
-            // anchored to a mode lattice node (MODE_LATTICE_SPACING units).
-            // Zone detection replicates the GPU's tag_cell_behavior roll
-            // using the same deterministic seed, ensuring CPU and GPU agree.
-            //
-            // Architecture follows the Column entity pattern:
-            //   GoLZoneProp       — property index registry (seed-based rolls)
-            //   GoLZoneSpawnConfig — spawn chances and spatial constants
-            //   GoLTierProfile    — mean+sigma tier matrix (Gaussian sampling)
-            //   GoLColorMode      — color tier weights (declarative)
-            //   GoLZoneState      — per-instance runtime state
+            // Depends on: entity definitions (tier profiles, Active* structs),
+            //             terrain (placement heights), seed utilities.
+            // Called by:  stream_patches() in the orchestrator.
+            // ═══════════════════════════════════════════════════════════════
 
-            static constexpr float MODE_LATTICE_SPACING = 120.0f;
-            static constexpr float PATCH_CELL_SIZE = (float)Dim::PATCH_EXTENT / 16.0f;  // 3.125
-
-            // ── Property Index Registry (seed band 250, indices 920–939) ─────
-            struct GoLZoneProp {
-                static constexpr uint32_t SEED_BAND = 250u;
-                // Zone-level decisions
-                static constexpr uint32_t SPAWN_ROLL = 920u;
-                static constexpr uint32_t TIER = 921u;
-                static constexpr uint32_t HEIGHT_ROLL = 922u;
-                static constexpr uint32_t COLOR_ROLL = 923u;
-                // Per-zone continuous parameters (Gaussian draws)
-                static constexpr uint32_t DENSITY = 930u;
-                static constexpr uint32_t TICK_PERIOD = 931u;
-                static constexpr uint32_t SPRING = 932u;
-                static constexpr uint32_t HEIGHT = 933u;
-                static constexpr uint32_t TRANSITION = 934u;
-                // Per-zone color target
-                static constexpr uint32_t TARGET_R = 935u;
-                static constexpr uint32_t TARGET_G = 936u;
-                static constexpr uint32_t TARGET_B = 937u;
-                // Per-cell seeding
-                static constexpr uint32_t HEIGHT_FACTOR = 938u;
-            };
-
-            // ── Spawn Configuration ──────────────────────────────────────────
-            struct GoLZoneSpawnConfig {
-                static constexpr float SPAWN_CHANCE = 0.15f;  // fraction of checkerboard zones (was 0.10)
-                static constexpr float HEIGHT_CHANCE = 0.30f;  // fraction of zones that get extrusion (was 0.40)
-                static constexpr float ZONE_EXTENT = 100.0f; // 32 × 3.125 = cell-aligned
-                static constexpr float MODE_THRESHOLD = 0.50f;  // min interpolated mode for eligibility
-                // Per-cell height factor seeding (Gaussian draw per cell)
-                static constexpr float HEIGHT_FACTOR_MEAN = 1.0f;
-                static constexpr float HEIGHT_FACTOR_SIGMA = 0.15f;
-                static constexpr float HEIGHT_FACTOR_CLAMP_LO = 0.6f;
-                static constexpr float HEIGHT_FACTOR_CLAMP_HI = 1.4f;
-                // Lens target color range: color = hash * RANGE + LO
-                static constexpr float LENS_TARGET_LO = 0.2f;
-                static constexpr float LENS_TARGET_RANGE = 0.6f;
-            };
-
-            // ── Color Modes ──────────────────────────────────────────────────
-            struct GoLColorMode {
-                static constexpr uint32_t NEUTRAL = 0;  // no color change (height-only extrusion)
-                static constexpr uint32_t LENS = 1;  // shift toward per-zone target color
-                static constexpr uint32_t BLACKISH = 2;  // darken toward near-black
-                static constexpr uint32_t COUNT = 3;
-
-                // Weight matrix: color_mode selection weights
-                // Index 0 = NEUTRAL (only available if height_enabled)
-                // Index 1 = LENS
-                // Index 2 = BLACKISH
-                static constexpr float WEIGHTS_HEIGHT[COUNT] = { 0.30f, 0.40f, 0.30f };
-                static constexpr float WEIGHTS_NO_HEIGHT[COUNT] = { 0.00f, 0.55f, 0.45f };
-            };
-
-            // ── Tier Profile (mean+sigma, matches ColumnTierParams pattern) ──
-            static constexpr uint32_t GOL_TIER_COUNT = 7;
-
-            struct GoLTierProfile {
-                // ─── Initial conditions ──────────────────────────────────
-                float density_mean, density_sigma;
-
-                // ─── Temporal ────────────────────────────────────────────
-                float tick_period_mean, tick_period_sigma;
-
-                // ─── Visual transition ───────────────────────────────────
-                float spring_stiffness_mean, spring_stiffness_sigma;
-                float transition_fraction_mean, transition_fraction_sigma;
-
-                // ─── Height ──────────────────────────────────────────────
-                float alive_height_mean, alive_height_sigma;
-
-                // ─── Per-cell variation ──────────────────────────────────
-                float spring_variance;     // [0,1] per-cell spring speed scatter
-
-                // ─── Selection ───────────────────────────────────────────
-                float weight;
-                bool  force_no_height;
-            };
-
-            //                                                    dens_μ   σ    tick_μ  σ    spring_μ σ    trans_μ  σ     ht_μ    σ    sv    wt    no_h
-            static constexpr GoLTierProfile GOL_TIERS[GOL_TIER_COUNT] = {
-                /* 0: Pillars  */ { 0.30f, 0.05f,   8.0f, 2.0f,   0.5f, 0.1f,   0.05f, 0.01f,  30.0f, 9.0f,  0.30f,  0.10f, false },
-                /* 1: Sparse   */ { 0.15f, 0.05f,   2.0f, 0.5f,   4.0f, 1.0f,   0.12f, 0.03f,  18.0f, 6.0f,  0.20f,  0.20f, false },
-                /* 2: Moderate */ { 0.30f, 0.08f,   1.0f, 0.3f,   8.0f, 2.0f,   0.15f, 0.03f,   9.0f, 3.0f,  0.15f,  0.18f, false },
-                /* 3: Dense    */ { 0.45f, 0.10f,   0.5f, 0.15f, 12.0f, 3.0f,   0.25f, 0.05f,   6.0f, 1.5f,  0.10f,  0.10f, false },
-                /* 4: Flash    */ { 0.35f, 0.10f,  0.25f, 0.05f, 20.0f, 5.0f,   0.30f, 0.05f,   0.0f, 0.0f,  0.40f,  0.17f, true  },
-                /* 5: Monolith */ { 0.20f, 0.03f,  12.0f, 3.0f,   0.3f, 0.05f,  0.03f, 0.01f,  42.0f, 12.f,  0.05f,  0.12f, false },
-                /* 6: Glacier  */ { 0.12f, 0.03f,   4.0f, 1.0f,   2.0f, 0.5f,   0.08f, 0.02f,  24.0f, 7.5f,  0.25f,  0.13f, false },
-            };
-
-            static constexpr const char* GOL_TIER_NAMES[] = {
-                "Pillars", "Sparse", "Moderate", "Dense",
-                "Flash", "Monolith", "Glacier"
-            };
-
-            static constexpr const char* GOL_COLOR_NAMES[] = {
-                "neutral", "lens", "blackish"
-            };
-
-            // ── Algorithm Types ───────────────────────────────────────────────
-            struct AlgorithmType {
-                static constexpr uint32_t CONWAY = 0;
-                static constexpr uint32_t PULSE = 1;
-            };
-
-            // ── Boundary Modes ────────────────────────────────────────────────
-            struct BoundaryMode {
-                static constexpr uint32_t REFLECT = 0;
-                static constexpr uint32_t WRAP = 1;
-            };
-
-            // ── Pulse Tier Profile ────────────────────────────────────────────
-            //
-            // Pulse zones: periodic breathing of cell color/height, no neighbor rules.
-            // Each cell oscillates between terrain base and a displaced target.
-            static constexpr uint32_t PULSE_TIER_COUNT = 3;
-
-            struct PulseTierProfile {
-                // ─── Temporal ────────────────────────────────────────────
-                float tick_period_mean, tick_period_sigma;
-
-                // ─── Visual transition ───────────────────────────────────
-                float spring_stiffness_mean, spring_stiffness_sigma;
-                float transition_fraction_mean, transition_fraction_sigma;
-
-                // ─── Phase scatter ───────────────────────────────────────
-                float phase_randomness_mean, phase_randomness_sigma;
-
-                // ─── Tempo scatter ───────────────────────────────────────
-                float tempo_randomness_mean, tempo_randomness_sigma;
-
-                // ─── Height ──────────────────────────────────────────────
-                float alive_height_mean, alive_height_sigma;
-
-                // ─── Wander ──────────────────────────────────────────────
-                float wander_radius_mean, wander_radius_sigma;
-
-                // ─── Per-cell variation ──────────────────────────────────
-                float spring_variance;
-
-                // ─── Selection ───────────────────────────────────────────
-                float weight;
-                bool  force_no_height;
-                uint32_t boundary_mode;
-            };
-
-            //                                                        tick_μ   σ    spring_μ σ    trans_μ  σ    phase_μ  σ    tempo_μ σ    ht_μ   σ    wand_μ  σ    sv    wt    no_h  bnd
-            static constexpr PulseTierProfile PULSE_TIERS[PULSE_TIER_COUNT] = {
-                /* 0: Breathe  */ { 2.0f, 0.5f,   4.0f, 1.0f,   0.20f, 0.05f,   0.15f, 0.05f,   0.10f, 0.03f,   2.0f, 0.8f,  10.0f, 3.0f,   0.20f,  0.45f, false, BoundaryMode::REFLECT },
-                /* 1: Sparkle  */ { 0.5f, 0.15f, 12.0f, 3.0f,   0.25f, 0.05f,   0.90f, 0.10f,   0.60f, 0.15f,   0.0f, 0.0f,   5.0f, 2.0f,   0.50f,  0.30f, true,  BoundaryMode::REFLECT },
-                /* 2: Drift    */ { 4.0f, 1.0f,   1.5f, 0.4f,   0.10f, 0.03f,   0.50f, 0.15f,   0.40f, 0.10f,   4.0f, 1.5f,  25.0f, 8.0f,   0.35f,  0.25f, false, BoundaryMode::WRAP    },
-            };
-
-            static constexpr const char* PULSE_TIER_NAMES[] = {
-                "Breathe", "Sparkle", "Drift"
-            };
-
-            // Probability of a zone being Pulse (vs Conway)
-            static constexpr float PULSE_ALGORITHM_CHANCE = 0.35f;
-
-            // ── Property Indices for Pulse-specific parameters ────────────────
-            struct PulseZoneProp {
-                static constexpr uint32_t ALGORITHM_ROLL = 950u;
-                static constexpr uint32_t PULSE_TIER = 951u;
-                static constexpr uint32_t PHASE_RANDOM = 952u;
-                static constexpr uint32_t WANDER = 953u;
-                static constexpr uint32_t TEMPO_RANDOM = 954u;
-            };
-
-            // ── Per-Instance Runtime State ────────────────────────────────────
-            // CPU retains only what's needed for: tick mask computation, life seeding,
-            // and zone slot lifecycle. All visual/spring/color parameters are GPU-derived.
-            struct GoLZoneState {
-                int32_t zone_nx = 0, zone_nz = 0;
-                bool active = false;
-                uint32_t algorithm = AlgorithmType::CONWAY;
-                float tick_period = 1.0f;        // CPU derives this for tick mask (matches GPU)
-                float initial_density = 0.3f;    // CPU needs this for life buffer seeding
-                int32_t last_tick_index = -1;
-            };
-
-            GoLZoneState golZones_[Dim::MAX_GOL_ZONES]{};
-
-            // --- Entity Presence Flags -----------------------------------------------
-            //
-            // ── MUSICAL COUPLING STATE ──  → future: musical_coupling.hpp
-
-            // ─── Polyphony-driven band motion ────────────────────────────
-            // Band activation order: fine(4) → detail(3) → local(2) → regional(1) → continental(0) → tectonic(5)
-            // First note animates fine ripples, full chord reshapes the continent.
-            static constexpr uint32_t BAND_ACTIVATION_ORDER[6] = { 4, 3, 2, 1, 0, 5 };
-            static constexpr float BAND_BLEND_ATTACK = 3.0f;   // 1/s — blend ramp up speed
-            static constexpr float BAND_BLEND_RELEASE = 2.0f;  // 1/s — blend ramp down speed
-            bool bandMotionActive_ = false;       // true when polyphony drives bands (mood 5 only)
-            float bandBlend_[6] = { -1.f, -1.f, -1.f, -1.f, -1.f, -1.f };  // per-band blend factor (-1 = activity field)
-            float bandPhaseOrigin_[6] = {};       // t_beats when band was activated
-            float bandBlendTarget_[6] = {};       // 0 or 1, driven by polyphony count
-
-            // ─── Musical animation modes (numpad toggles) ────────────────
-            // Each mode is an independently toggleable coupling circuit.
-            // When on: polyphony drives the mode's intensity through trajectory ramp.
-            // When off: intensity releases to 0 (idle).
-            //
-            // Future: each mode's source can be rewired to any analysis stat.
-            // Today: all modes read polyphony as their input signal.
-            //
-            //   Numpad 1 = terrain waves  (existing band motion — retroactively mode 0)
-            //   Numpad 2 = color shift    (smooth → discrete mode bias)
-            //   Numpad 3 = checker scatter (sparse survival threshold bias)
-            //   Numpad 4 = palette drift   (terrain color drifts toward target palette)
-            //   Numpad 5 = GoL tempo       (polyphony speeds up zones + scales height)
-            //   Numpad 6 = aura expansion (influence radius + height + tint intensity)
-
-            static constexpr uint32_t MMODE_TERRAIN_WAVES = 0;   // band motion (existing)
-            static constexpr uint32_t MMODE_COLOR_SHIFT = 1;
-            static constexpr uint32_t MMODE_CHECKER_SCATTER = 2;
-            static constexpr uint32_t MMODE_PALETTE_DRIFT = 3;
-            static constexpr uint32_t MMODE_GOL_TEMPO = 4;
-            static constexpr uint32_t MMODE_AURA_EXPAND = 5;
-            static constexpr uint32_t MMODE_COUNT = 6;   // numpad 1–6 (intensity-driven modes)
-
-            // Radial pulse mode: event-driven (no intensity trajectory).
-            // Toggle gates onset detection; existing pulses decay naturally.
-            static constexpr uint32_t MMODE_RADIAL_PULSE = 7;   // numpad 7 (separate from intensity array)
-
-            static constexpr float MMODE_ATTACK = 4.0f;    // 1/s — intensity ramp up
-            static constexpr float MMODE_RELEASE = 2.5f;   // 1/s — intensity ramp down
-
-            uint32_t mmodeMask_ = 0;              // bitfield: which modes are active
-            float mmodeIntensity_[MMODE_COUNT] = {};  // current [0,1] per mode (trajectory value)
-
-            // Palette drift: target palette index ramps smoothly to avoid color snaps
-            float paletteDriftTarget_ = 0.0f;       // current [0,3] — ramps toward desired
-            float paletteDriftDesired_ = 0.0f;      // set by polyphony mapping
-            static constexpr float PALETTE_DRIFT_TARGET_RATE = 2.0f;  // 1/s — smooth target transition
-
-            // Radial pulse ring buffer: 8 slots, circular write.
-            // Each slot: (origin_x, origin_z, onset_seconds, amplitude)
-            static constexpr uint32_t PULSE_RING_SIZE = 8;
-            static constexpr float PULSE_AMPLITUDE = 2.5f;     // world units of peak displacement
-            static constexpr float PULSE_MAX_AGE = 8.0f;       // seconds — must match WGSL
-            float pulseRing_[32] = {};              // 8 × 4 floats
-            uint32_t pulseWriteIdx_ = 0;            // next slot to write (wraps at 8)
-            float prevPolyphony_ = 0.0f;            // previous frame's polyphony (for onset detection)
-
-            bool is_mmode_on(uint32_t mode) const { return (mmodeMask_ & (1u << mode)) != 0; }
-            void toggle_mmode(uint32_t mode) {
-                mmodeMask_ ^= (1u << mode);
-                bool on = is_mmode_on(mode);
-                // Retroactive: mode 0 controls bandMotionActive_
-                if (mode == MMODE_TERRAIN_WAVES) {
-                    bandMotionActive_ = on;
-                    if (bandMotionActive_) {
-                        for (int i = 0; i < 6; i++) {
-                            bandBlend_[i] = 0.0f;
-                            bandBlendTarget_[i] = 0.0f;
-                            bandPhaseOrigin_[i] = 0.0f;
-                        }
-                        gpuState_.set_band_motion(bandBlend_, bandPhaseOrigin_);
-                        gpuState_.set_terrain_time(0.0f);
-                    }
-                    else {
-                        float inactive[6] = { -1.f, -1.f, -1.f, -1.f, -1.f, -1.f };
-                        float zeros[6] = {};
-                        gpuState_.set_band_motion(inactive, zeros);
-                        gpuState_.set_terrain_time(0.0f);
-                    }
-                }
-                // Mode 5 (aura expand): mark config dirty to push updated aura params
-                if (mode == MMODE_AURA_EXPAND) {
-                    auraCfgDirty_ = true;
-                }
-                static const char* MODE_NAMES[] = { "terrain_waves", "color_shift", "checker_scatter", "palette_drift", "gol_tempo", "aura_expand", "UNUSED", "radial_pulse" };
-                std::cout << "[MMode] " << MODE_NAMES[mode] << ": " << (on ? "ON" : "OFF") << "\n";
-            }
-
-            GPUSpotLightArray cpuSpotLights_{};  // count=0 disables (outdoor)
-            bool spotLightActive_ = false;
-
-
-            // ── SPAWN ENGINE ──  → future: spawn_engine.inl
+            // ─── Column Spawning ─────────────────────────────────────────────
 
             void spawn_columns_for_patch(int32_t gx, int32_t gz, wgpu::Queue& queue) {
                 // Idempotency: skip if a column already exists at this patch
@@ -1738,7 +1629,6 @@ namespace t7 {
                 // every frame by upload_ground_entries(), not here.
                 return true;
             }
-
 
             // ─── Pyramid Spawning ────────────────────────────────────────────
 
@@ -2241,18 +2131,6 @@ namespace t7 {
                 return result;
             }
 
-            // Weighted tier selection from cumulative weights.
-            static uint32_t select_tier(uint32_t seed, uint32_t tier_prop,
-                const float* weights, uint32_t count) {
-                float roll = cpu_hash_f(seed, tier_prop);
-                float cumul = 0.0f;
-                for (uint32_t t = 0; t < count; t++) {
-                    cumul += weights[t];
-                    if (roll < cumul) return t;
-                }
-                return count - 1;
-            }
-
             // Jittered world position within a patch.
             static void jittered_position(uint32_t seed, int32_t gx, int32_t gz,
                 uint32_t prop_x, uint32_t prop_z, float jitter,
@@ -2375,6 +2253,260 @@ namespace t7 {
                 }
             }
 
+            // ─── Pawn Aura System ─────────────────────────────────────────────
+            //
+            // Persistent terrain influence field centered on the pawn.
+            // Toroidal 64×64 grid of spring-driven cells that activate near
+            // the pawn and release when it moves away, leaving a decaying trail.
+            //
+            // Architecture follows the entity pattern:
+            //   PawnAuraProfile    — declarative parameter table
+            //   PawnAuraDeltaMode  — color differential strategy
+            //   GPUPawnAuraConfig  — per-frame GPU config (in state.hpp)
+            //   GPUPawnAuraCell    — per-cell state (in state.hpp)
+
+            struct PawnAuraDeltaMode {
+                static constexpr uint32_t CONVERGENT = 0;  // all cells shift toward signature tint
+                static constexpr uint32_t RANDOM = 1;  // each cell gets unique random delta
+            };
+
+            struct PawnAuraProfile {
+                float influence_radius;
+                float attack_stiffness;
+                float attack_damping;
+                float release_rate;
+                float tint_strength;
+                float tint_r, tint_g, tint_b;
+                uint32_t delta_mode;
+                float delta_magnitude;     // random mode: max offset per channel
+                uint32_t effect_mask;      // bit 0=color, bit 1=height
+                float height_scale;        // height extrusion in world units
+            };
+
+            static constexpr PawnAuraProfile PAWN_AURA_DEFAULT = {
+                20.0f,             // influence_radius
+                12.0f,             // attack_stiffness
+                0.7f,              // attack_damping
+                1.5f,              // release_rate
+                0.5f,              // tint_strength
+                0.4f, 0.2f, 0.5f, // tint RGB (purple)
+                PawnAuraDeltaMode::CONVERGENT,
+                0.3f,              // delta_magnitude (used in random mode)
+                0x3u,              // effect_mask: color tint + height
+                3.0f,              // height_scale
+            };
+
+            // Active profile — starts as default, can be swapped by landmarks/commands
+            PawnAuraProfile activeAuraProfile_ = PAWN_AURA_DEFAULT;
+            bool auraHeightEnabled_ = true;
+            bool auraEnabled_ = false;         // default off — numpad 3 toggles
+            bool auraNeedsClear_ = false;
+            bool auraCfgDirty_ = true;     // true at boot → first frame uploads full config
+
+            // Smooth raise/lower: auraPresence_ ramps 0→1 on enable, 1→0 on disable.
+            // Scales all aura parameters so terrain and pawn height change gradually.
+            float auraPresence_ = 0.0f;        // current [0,1] — trajectory value
+            static constexpr float AURA_PRESENCE_ATTACK = 1.0f;   // 1/s — ~3s to full (spring converges in ~0.5s)
+            static constexpr float AURA_PRESENCE_RELEASE = 1.5f;  // 1/s — ~2s to zero
+
+            // ─── GoL Zone System ─────────────────────────────────────────────
+            //
+            // Zone-local Game of Life. Each zone is a 32×32 automaton grid
+            // anchored to a mode lattice node (MODE_LATTICE_SPACING units).
+            // Zone detection replicates the GPU's tag_cell_behavior roll
+            // using the same deterministic seed, ensuring CPU and GPU agree.
+            //
+            // Architecture follows the Column entity pattern:
+            //   GoLZoneProp       — property index registry (seed-based rolls)
+            //   GoLZoneSpawnConfig — spawn chances and spatial constants
+            //   GoLTierProfile    — mean+sigma tier matrix (Gaussian sampling)
+            //   GoLColorMode      — color tier weights (declarative)
+            //   GoLZoneState      — per-instance runtime state
+
+            static constexpr float MODE_LATTICE_SPACING = 120.0f;
+            static constexpr float PATCH_CELL_SIZE = (float)Dim::PATCH_EXTENT / 16.0f;  // 3.125
+
+            // ── Property Index Registry (seed band 250, indices 920–939) ─────
+            struct GoLZoneProp {
+                static constexpr uint32_t SEED_BAND = 250u;
+                // Zone-level decisions
+                static constexpr uint32_t SPAWN_ROLL = 920u;
+                static constexpr uint32_t TIER = 921u;
+                static constexpr uint32_t HEIGHT_ROLL = 922u;
+                static constexpr uint32_t COLOR_ROLL = 923u;
+                // Per-zone continuous parameters (Gaussian draws)
+                static constexpr uint32_t DENSITY = 930u;
+                static constexpr uint32_t TICK_PERIOD = 931u;
+                static constexpr uint32_t SPRING = 932u;
+                static constexpr uint32_t HEIGHT = 933u;
+                static constexpr uint32_t TRANSITION = 934u;
+                // Per-zone color target
+                static constexpr uint32_t TARGET_R = 935u;
+                static constexpr uint32_t TARGET_G = 936u;
+                static constexpr uint32_t TARGET_B = 937u;
+                // Per-cell seeding
+                static constexpr uint32_t HEIGHT_FACTOR = 938u;
+            };
+
+            // ── Spawn Configuration ──────────────────────────────────────────
+            struct GoLZoneSpawnConfig {
+                static constexpr float SPAWN_CHANCE = 0.15f;  // fraction of checkerboard zones (was 0.10)
+                static constexpr float HEIGHT_CHANCE = 0.30f;  // fraction of zones that get extrusion (was 0.40)
+                static constexpr float ZONE_EXTENT = 100.0f; // 32 × 3.125 = cell-aligned
+                static constexpr float MODE_THRESHOLD = 0.50f;  // min interpolated mode for eligibility
+                // Per-cell height factor seeding (Gaussian draw per cell)
+                static constexpr float HEIGHT_FACTOR_MEAN = 1.0f;
+                static constexpr float HEIGHT_FACTOR_SIGMA = 0.15f;
+                static constexpr float HEIGHT_FACTOR_CLAMP_LO = 0.6f;
+                static constexpr float HEIGHT_FACTOR_CLAMP_HI = 1.4f;
+                // Lens target color range: color = hash * RANGE + LO
+                static constexpr float LENS_TARGET_LO = 0.2f;
+                static constexpr float LENS_TARGET_RANGE = 0.6f;
+            };
+
+            // ── Color Modes ──────────────────────────────────────────────────
+            struct GoLColorMode {
+                static constexpr uint32_t NEUTRAL = 0;  // no color change (height-only extrusion)
+                static constexpr uint32_t LENS = 1;  // shift toward per-zone target color
+                static constexpr uint32_t BLACKISH = 2;  // darken toward near-black
+                static constexpr uint32_t COUNT = 3;
+
+                // Weight matrix: color_mode selection weights
+                // Index 0 = NEUTRAL (only available if height_enabled)
+                // Index 1 = LENS
+                // Index 2 = BLACKISH
+                static constexpr float WEIGHTS_HEIGHT[COUNT] = { 0.30f, 0.40f, 0.30f };
+                static constexpr float WEIGHTS_NO_HEIGHT[COUNT] = { 0.00f, 0.55f, 0.45f };
+            };
+
+            // ── Tier Profile (mean+sigma, matches ColumnTierParams pattern) ──
+            static constexpr uint32_t GOL_TIER_COUNT = 7;
+
+            struct GoLTierProfile {
+                // ─── Initial conditions ──────────────────────────────────
+                float density_mean, density_sigma;
+
+                // ─── Temporal ────────────────────────────────────────────
+                float tick_period_mean, tick_period_sigma;
+
+                // ─── Visual transition ───────────────────────────────────
+                float spring_stiffness_mean, spring_stiffness_sigma;
+                float transition_fraction_mean, transition_fraction_sigma;
+
+                // ─── Height ──────────────────────────────────────────────
+                float alive_height_mean, alive_height_sigma;
+
+                // ─── Per-cell variation ──────────────────────────────────
+                float spring_variance;     // [0,1] per-cell spring speed scatter
+
+                // ─── Selection ───────────────────────────────────────────
+                float weight;
+                bool  force_no_height;
+            };
+
+            //                                                    dens_μ   σ    tick_μ  σ    spring_μ σ    trans_μ  σ     ht_μ    σ    sv    wt    no_h
+            static constexpr GoLTierProfile GOL_TIERS[GOL_TIER_COUNT] = {
+                /* 0: Pillars  */ { 0.30f, 0.05f,   8.0f, 2.0f,   0.5f, 0.1f,   0.05f, 0.01f,  30.0f, 9.0f,  0.30f,  0.10f, false },
+                /* 1: Sparse   */ { 0.15f, 0.05f,   2.0f, 0.5f,   4.0f, 1.0f,   0.12f, 0.03f,  18.0f, 6.0f,  0.20f,  0.20f, false },
+                /* 2: Moderate */ { 0.30f, 0.08f,   1.0f, 0.3f,   8.0f, 2.0f,   0.15f, 0.03f,   9.0f, 3.0f,  0.15f,  0.18f, false },
+                /* 3: Dense    */ { 0.45f, 0.10f,   0.5f, 0.15f, 12.0f, 3.0f,   0.25f, 0.05f,   6.0f, 1.5f,  0.10f,  0.10f, false },
+                /* 4: Flash    */ { 0.35f, 0.10f,  0.25f, 0.05f, 20.0f, 5.0f,   0.30f, 0.05f,   0.0f, 0.0f,  0.40f,  0.17f, true  },
+                /* 5: Monolith */ { 0.20f, 0.03f,  12.0f, 3.0f,   0.3f, 0.05f,  0.03f, 0.01f,  42.0f, 12.f,  0.05f,  0.12f, false },
+                /* 6: Glacier  */ { 0.12f, 0.03f,   4.0f, 1.0f,   2.0f, 0.5f,   0.08f, 0.02f,  24.0f, 7.5f,  0.25f,  0.13f, false },
+            };
+
+            static constexpr const char* GOL_TIER_NAMES[] = {
+                "Pillars", "Sparse", "Moderate", "Dense",
+                "Flash", "Monolith", "Glacier"
+            };
+
+            static constexpr const char* GOL_COLOR_NAMES[] = {
+                "neutral", "lens", "blackish"
+            };
+
+            // ── Algorithm Types ───────────────────────────────────────────────
+            struct AlgorithmType {
+                static constexpr uint32_t CONWAY = 0;
+                static constexpr uint32_t PULSE = 1;
+            };
+
+            // ── Boundary Modes ────────────────────────────────────────────────
+            struct BoundaryMode {
+                static constexpr uint32_t REFLECT = 0;
+                static constexpr uint32_t WRAP = 1;
+            };
+
+            // ── Pulse Tier Profile ────────────────────────────────────────────
+            //
+            // Pulse zones: periodic breathing of cell color/height, no neighbor rules.
+            // Each cell oscillates between terrain base and a displaced target.
+            static constexpr uint32_t PULSE_TIER_COUNT = 3;
+
+            struct PulseTierProfile {
+                // ─── Temporal ────────────────────────────────────────────
+                float tick_period_mean, tick_period_sigma;
+
+                // ─── Visual transition ───────────────────────────────────
+                float spring_stiffness_mean, spring_stiffness_sigma;
+                float transition_fraction_mean, transition_fraction_sigma;
+
+                // ─── Phase scatter ───────────────────────────────────────
+                float phase_randomness_mean, phase_randomness_sigma;
+
+                // ─── Tempo scatter ───────────────────────────────────────
+                float tempo_randomness_mean, tempo_randomness_sigma;
+
+                // ─── Height ──────────────────────────────────────────────
+                float alive_height_mean, alive_height_sigma;
+
+                // ─── Wander ──────────────────────────────────────────────
+                float wander_radius_mean, wander_radius_sigma;
+
+                // ─── Per-cell variation ──────────────────────────────────
+                float spring_variance;
+
+                // ─── Selection ───────────────────────────────────────────
+                float weight;
+                bool  force_no_height;
+                uint32_t boundary_mode;
+            };
+
+            //                                                        tick_μ   σ    spring_μ σ    trans_μ  σ    phase_μ  σ    tempo_μ σ    ht_μ   σ    wand_μ  σ    sv    wt    no_h  bnd
+            static constexpr PulseTierProfile PULSE_TIERS[PULSE_TIER_COUNT] = {
+                /* 0: Breathe  */ { 2.0f, 0.5f,   4.0f, 1.0f,   0.20f, 0.05f,   0.15f, 0.05f,   0.10f, 0.03f,   2.0f, 0.8f,  10.0f, 3.0f,   0.20f,  0.45f, false, BoundaryMode::REFLECT },
+                /* 1: Sparkle  */ { 0.5f, 0.15f, 12.0f, 3.0f,   0.25f, 0.05f,   0.90f, 0.10f,   0.60f, 0.15f,   0.0f, 0.0f,   5.0f, 2.0f,   0.50f,  0.30f, true,  BoundaryMode::REFLECT },
+                /* 2: Drift    */ { 4.0f, 1.0f,   1.5f, 0.4f,   0.10f, 0.03f,   0.50f, 0.15f,   0.40f, 0.10f,   4.0f, 1.5f,  25.0f, 8.0f,   0.35f,  0.25f, false, BoundaryMode::WRAP    },
+            };
+
+            static constexpr const char* PULSE_TIER_NAMES[] = {
+                "Breathe", "Sparkle", "Drift"
+            };
+
+            // Probability of a zone being Pulse (vs Conway)
+            static constexpr float PULSE_ALGORITHM_CHANCE = 0.35f;
+
+            // ── Property Indices for Pulse-specific parameters ────────────────
+            struct PulseZoneProp {
+                static constexpr uint32_t ALGORITHM_ROLL = 950u;
+                static constexpr uint32_t PULSE_TIER = 951u;
+                static constexpr uint32_t PHASE_RANDOM = 952u;
+                static constexpr uint32_t WANDER = 953u;
+                static constexpr uint32_t TEMPO_RANDOM = 954u;
+            };
+
+            // ── Per-Instance Runtime State ────────────────────────────────────
+            // CPU retains only what's needed for: tick mask computation, life seeding,
+            // and zone slot lifecycle. All visual/spring/color parameters are GPU-derived.
+            struct GoLZoneState {
+                int32_t zone_nx = 0, zone_nz = 0;
+                bool active = false;
+                uint32_t algorithm = AlgorithmType::CONWAY;
+                float tick_period = 1.0f;        // CPU derives this for tick mask (matches GPU)
+                float initial_density = 0.3f;    // CPU needs this for life buffer seeding
+                int32_t last_tick_index = -1;
+            };
+
+            GoLZoneState golZones_[Dim::MAX_GOL_ZONES]{};
             uint32_t golZoneCount_ = 0;
 
             // Derive request queue: accumulated during patch gen, flushed once per frame.
@@ -2968,6 +3100,290 @@ namespace t7 {
             // Adjust moodRibbonOffset_ to manually shift the anchor XZ.
             float moodRibbonOffset_[2] = { 0.0f, 0.0f };
 
+            static uint32_t ribbon_cell_seed(uint32_t master_seed, int32_t cx, int32_t cz) {
+                uint32_t h = master_seed ^ 0xDEAD;
+                h ^= (uint32_t)cx * 73856093u;
+                h ^= (uint32_t)cz * 19349663u;
+                h = (h ^ (h >> 16)) * 2654435769u;
+                h = (h ^ (h >> 16)) * 2654435769u;
+                return h;
+            }
+
+            // CPU mirror of WGSL ribbon_spine_at — evaluate one ring's world position.
+            static void ribbon_spine_at_cpu(const GPURibbonState& r, float time, uint32_t ring_idx, float out[3]) {
+                constexpr float PI = 3.14159265359f;
+                float t = (float)ring_idx / (float)std::max(r.cube_count - 1u, 1u);
+                float total_length = (float)r.cube_count * r.cube_size;
+
+                float along = (t - 0.5f) * total_length;
+                float lateral = std::sin(time * r.lateral_speed + t * r.lateral_cycles * 2.0f * PI) * r.lateral_amp;
+                float vertical = r.height + std::sin(time * r.vertical_speed + t * r.vertical_cycles * 2.0f * PI) * r.vertical_amp;
+
+                float c = std::cos(r.orientation);
+                float s = std::sin(r.orientation);
+                float rotated_along = along * c - lateral * s;
+                float rotated_lateral = along * s + lateral * c;
+
+                float twist_phase = time * r.twist_speed + t * r.twist_cycles * 2.0f * PI;
+                float twist_depth = std::sin(twist_phase) * 0.4f * r.twist_amp;
+                float twist_vert = std::cos(twist_phase) * 0.3f * r.twist_amp;
+
+                out[0] = r.anchor[0] + rotated_along;
+                out[1] = vertical + twist_vert;
+                out[2] = r.anchor[2] + rotated_lateral + twist_depth;
+            }
+
+            // CPU mirror of WGSL ribbon_tangent_at — central finite difference.
+            static void ribbon_tangent_cpu(const GPURibbonState& r, float time, uint32_t ring_idx, float out[3]) {
+                constexpr float eps = 0.0005f;
+                float t = (float)ring_idx / (float)std::max(r.cube_count - 1u, 1u);
+                // Evaluate spine at t±eps using the raw parametric form
+                auto eval = [&](float tp, float p[3]) {
+                    constexpr float PI = 3.14159265359f;
+                    float total_length = (float)r.cube_count * r.cube_size;
+                    float along = (tp - 0.5f) * total_length;
+                    float lateral = std::sin(time * r.lateral_speed + tp * r.lateral_cycles * 2.0f * PI) * r.lateral_amp;
+                    float vertical = r.height + std::sin(time * r.vertical_speed + tp * r.vertical_cycles * 2.0f * PI) * r.vertical_amp;
+                    float c = std::cos(r.orientation);
+                    float s = std::sin(r.orientation);
+                    float rotated_along = along * c - lateral * s;
+                    float rotated_lateral = along * s + lateral * c;
+                    float twist_phase = time * r.twist_speed + tp * r.twist_cycles * 2.0f * PI;
+                    float twist_depth = std::sin(twist_phase) * 0.4f * r.twist_amp;
+                    float twist_vert = std::cos(twist_phase) * 0.3f * r.twist_amp;
+                    p[0] = r.anchor[0] + rotated_along;
+                    p[1] = vertical + twist_vert;
+                    p[2] = r.anchor[2] + rotated_lateral + twist_depth;
+                    };
+                float a[3], b[3];
+                eval(t + eps, a);
+                eval(t - eps, b);
+                float dx = a[0] - b[0], dy = a[1] - b[1], dz = a[2] - b[2];
+                float len = std::sqrt(dx * dx + dy * dy + dz * dz);
+                if (len < 1e-8f) { out[0] = 1; out[1] = 0; out[2] = 0; return; }
+                out[0] = dx / len; out[1] = dy / len; out[2] = dz / len;
+            }
+
+            // CPU mirror of rotor construction — returns axis, angle, and whether it degenerated.
+            struct RotorDiag {
+                float axis[3];
+                float angle_deg;
+                float cross_len;   // length of cross(forward, tangent) — near 0 = degenerate
+                bool antiparallel; // tangent ≈ -forward
+            };
+            static RotorDiag ribbon_rotor_diag(const float tangent[3]) {
+                RotorDiag d{};
+                // forward = (1,0,0)
+                // cross(forward, tangent) = (0*tz - 0*ty, 0*tx - 1*tz, 1*ty - 0*tx)
+                //                         = (0, -tz, ty)
+                d.axis[0] = 0.0f;
+                d.axis[1] = -tangent[2];
+                d.axis[2] = tangent[1];
+                d.cross_len = std::sqrt(d.axis[1] * d.axis[1] + d.axis[2] * d.axis[2]);
+                float dot = tangent[0]; // dot((1,0,0), tangent)
+                d.angle_deg = std::acos(std::max(-1.0f, std::min(1.0f, dot))) * 57.2958f;
+                d.antiparallel = (d.cross_len < 0.001f && dot < 0.0f);
+                return d;
+            }
+
+            // Check a 3×3 neighborhood of ribbon cells around the pawn.
+            // Activate the closest ribbon within render distance.
+            void update_ribbon_spawning(float pawnX, float pawnZ, float time, wgpu::Queue& queue) {
+                // Hysteresis: if a ribbon is already active, keep it until pawn
+                // exceeds HOLD_DIST from its anchor. Prevents cell-boundary flip-flop.
+                if (ribbonActive_) {
+                    float dx = currentRibbon_.anchor[0] - pawnX;
+                    float dz = currentRibbon_.anchor[2] - pawnZ;
+                    float dist_sq = dx * dx + dz * dz;
+                    float hold_sq = RibbonSpawnConfig::HOLD_DIST * RibbonSpawnConfig::HOLD_DIST;
+
+                    if (dist_sq < hold_sq) {
+                        // Still in range — just update time
+                        gpuState_.upload_ribbon_time(queue, time);
+
+                        return;
+                    }
+                    // Out of hold range — deactivate and search for new
+                    uint32_t zero = 0u;
+                    queue.WriteBuffer(gpuState_.ribbon_buffer(),
+                        offsetof(GPURibbonState, is_visible), &zero, sizeof(uint32_t));
+                    ribbonActive_ = false;
+                }
+
+                // Search for new ribbon (sky objects — not capped by terrain radius)
+                float best_dist_sq = RIBBON_RENDER_DIST * RIBBON_RENDER_DIST;
+                bool found = false;
+                GPURibbonState best{};
+                uint32_t best_tier = 0;
+
+                for (int32_t dz = -1; dz <= 1; dz++) {
+                    for (int32_t dx = -1; dx <= 1; dx++) {
+                        int32_t cx = (int32_t)std::floor(pawnX / RIBBON_CELL_SIZE) + dx;
+                        int32_t cz = (int32_t)std::floor(pawnZ / RIBBON_CELL_SIZE) + dz;
+                        uint32_t seed = ribbon_cell_seed(activeSeed_, cx, cz);
+
+                        if (cpu_hash_f(seed, RibbonProp::SPAWN_ROLL) > RIBBON_SPAWN_CHANCE) continue;
+
+                        float ax = (float)cx * RIBBON_CELL_SIZE + cpu_hash_f(seed, RibbonProp::ANCHOR_X) * RIBBON_CELL_SIZE;
+                        float az = (float)cz * RIBBON_CELL_SIZE + cpu_hash_f(seed, RibbonProp::ANCHOR_Z) * RIBBON_CELL_SIZE;
+
+                        float ddx = ax - pawnX;
+                        float ddz = az - pawnZ;
+                        float dist_sq = ddx * ddx + ddz * ddz;
+                        if (dist_sq >= best_dist_sq) continue;
+
+                        best_dist_sq = dist_sq;
+                        found = true;
+
+                        best.anchor[0] = ax;
+                        best.anchor[1] = 0.0f;
+                        best.anchor[2] = az;
+                        best.time = time;
+
+                        float terrain_est = estimate_terrain_height(ax, az);
+                        best_tier = generate_flying_ribbon(best, seed, terrain_est);
+                    }
+                }
+
+                if (found) {
+                    currentRibbon_ = best;
+                    gpuState_.upload_ribbon(queue, best);
+                    ribbonActive_ = true;
+                    print_ribbon_diagnostic("Spawned", best, best_tier);
+                }
+            }
+
+            // Estimate terrain height from tile cache (rough CPU-side approximation).
+            float estimate_terrain_height(float wx, float wz) const {
+                int32_t tx = (int32_t)std::floor(wx / PATCH_EXTENT);
+                int32_t tz = (int32_t)std::floor(wz / PATCH_EXTENT);
+                auto it = tileCache_.find({ tx, tz });
+                if (it != tileCache_.end())
+                    return it->second.height_bias + it->second.amp_scale * 5.0f;
+                return 0.0f;
+            }
+
+            // Generate a flying ribbon from seed using tier-based Gaussian sampling.
+            // Returns the selected tier index for diagnostics.
+            static uint32_t generate_flying_ribbon(GPURibbonState& r, uint32_t seed, float terrain_est) {
+                r.is_visible = 1u;
+
+                // Tier selection (weighted cumulative)
+                float tier_roll = cpu_hash_f(seed, RibbonProp::TIER);
+                uint32_t tier = RIBBON_TIER_COUNT - 1;
+                float cumul = 0.0f;
+                for (uint32_t t = 0; t < RIBBON_TIER_COUNT; t++) {
+                    cumul += RIBBON_TIERS[t].weight;
+                    if (tier_roll < cumul) { tier = t; break; }
+                }
+                const auto& tp = RIBBON_TIERS[tier];
+
+                // Geometry — Gaussian draws
+                float count_f = std::max(20.0f,
+                    cpu_sample_gaussian(seed, RibbonProp::CUBE_COUNT, tp.cube_count_mean, tp.cube_count_sigma));
+                r.cube_count = std::min((uint32_t)count_f, Dim::RIBBON_MAX_RINGS);
+                r.cube_size = std::max(0.5f,
+                    cpu_sample_gaussian(seed, RibbonProp::CUBE_SIZE, tp.cube_size_mean, tp.cube_size_sigma));
+
+                // Altitude — Gaussian draw above terrain estimate
+                r.height = terrain_est + std::max(20.0f,
+                    cpu_sample_gaussian(seed, RibbonProp::HEIGHT, tp.height_mean, tp.height_sigma));
+
+                // Orientation — uniform [0, 2π)
+                r.orientation = cpu_hash_f(seed, RibbonProp::ORIENTATION) * 6.2831853f;
+
+                // Lateral wave (the fundamental)
+                r.lateral_amp = std::max(0.1f, cpu_sample_gaussian(seed, RibbonProp::LATERAL_AMP, tp.lateral_amp_mean, tp.lateral_amp_sigma));
+                r.lateral_cycles = std::max(0.1f, cpu_sample_gaussian(seed, RibbonProp::LATERAL_CYCLES, tp.lateral_cycles_mean, tp.lateral_cycles_sigma));
+                r.lateral_speed = std::max(0.005f, cpu_sample_gaussian(seed, RibbonProp::LATERAL_SPEED, tp.lateral_speed_mean, tp.lateral_speed_sigma));
+
+                // Vertical wave — amplitude independent, cycles and speed = lateral
+                r.vertical_amp = std::max(0.1f, cpu_sample_gaussian(seed, RibbonProp::VERTICAL_AMP, tp.vertical_amp_mean, tp.vertical_amp_sigma));
+                r.vertical_cycles = r.lateral_cycles;
+                r.vertical_speed = r.lateral_speed;
+
+                // Twist — amplitude independent, cycles and speed = lateral
+                r.twist_amp = std::max(0.0f, cpu_sample_gaussian(seed, RibbonProp::TWIST_AMP, tp.twist_amp_mean, tp.twist_amp_sigma));
+                r.twist_cycles = r.lateral_cycles;
+                r.twist_speed = r.lateral_speed;
+
+                // Color mode — weighted selection
+                float color_roll = cpu_hash_f(seed, RibbonProp::COLOR_ROLL);
+                r.color_mode = RibbonColorMode::COUNT - 1;
+                float ccum = 0.0f;
+                for (uint32_t c = 0; c < RibbonColorMode::COUNT; c++) {
+                    ccum += RibbonColorMode::WEIGHTS[c];
+                    if (color_roll < ccum) { r.color_mode = c; break; }
+                }
+
+                // Color — depends on mode
+                if (r.color_mode == RibbonColorMode::SMOOTH) {
+                    uint32_t pal_idx = (uint32_t)(cpu_hash_f(seed, RibbonProp::PALETTE_IDX) * RIBBON_SMOOTH_PALETTE_COUNT);
+                    if (pal_idx >= RIBBON_SMOOTH_PALETTE_COUNT) pal_idx = RIBBON_SMOOTH_PALETTE_COUNT - 1;
+                    float var = cpu_hash_f(seed, RibbonProp::COLOR_R) * 0.10f - 0.05f;
+                    r.color[0] = RIBBON_SMOOTH_PALETTE[pal_idx][0] + var;
+                    r.color[1] = RIBBON_SMOOTH_PALETTE[pal_idx][1] + var * 0.8f;
+                    r.color[2] = RIBBON_SMOOTH_PALETTE[pal_idx][2] + var * 0.6f;
+                }
+                else if (r.color_mode == RibbonColorMode::TINTED) {
+                    // Distinct warm/cool tints with visible saturation
+                    r.color[0] = cpu_hash_f(seed, RibbonProp::COLOR_R) * 0.45f + 0.40f;
+                    r.color[1] = cpu_hash_f(seed, RibbonProp::COLOR_G) * 0.40f + 0.35f;
+                    r.color[2] = cpu_hash_f(seed, RibbonProp::COLOR_B) * 0.45f + 0.35f;
+                }
+                else {
+                    // Contrast: darker base, future alternating segments in FS
+                    float hue = cpu_hash_f(seed, RibbonProp::COLOR_R);
+                    r.color[0] = 0.20f + hue * 0.35f;
+                    r.color[1] = 0.18f + (1.0f - hue) * 0.30f;
+                    r.color[2] = 0.22f + cpu_hash_f(seed, RibbonProp::COLOR_B) * 0.25f;
+                }
+
+                float total_len = (float)r.cube_count * r.cube_size;
+                float max_lateral = r.lateral_amp + 0.4f * r.twist_amp;
+                float max_vertical = r.vertical_amp + 0.3f * r.twist_amp;
+                float envelope_dia = 2.0f * std::max(max_lateral, max_vertical);
+
+                return tier;
+            }
+
+            static void print_ribbon_diagnostic(const char* context, const GPURibbonState& r, uint32_t tier) {
+                float total_len = (float)r.cube_count * r.cube_size;
+                float v_ratio = (r.lateral_cycles > 0.01f) ? r.vertical_cycles / r.lateral_cycles : 0.0f;
+                float t_ratio = (r.lateral_cycles > 0.01f) ? r.twist_cycles / r.lateral_cycles : 0.0f;
+                std::cout << "[Ribbon] " << context << ": " << RIBBON_TIER_NAMES[tier]
+                    << " (" << RIBBON_COLOR_NAMES[r.color_mode] << ")\n"
+                    << "  anchor=(" << r.anchor[0] << ", " << r.anchor[2] << ")"
+                    << "  height=" << r.height
+                    << "  orientation=" << (r.orientation * 57.2958f) << " deg\n"
+                    << "  geometry: " << r.cube_count << " rings x " << r.cube_size << "m = " << total_len << "m\n"
+                    << "  lateral:  amp=" << r.lateral_amp << "  cycles=" << r.lateral_cycles << "  speed=" << r.lateral_speed << "  (fundamental)\n"
+                    << "  vertical: amp=" << r.vertical_amp << "  cycles=" << r.vertical_cycles << "  speed=" << r.vertical_speed
+                    << "  (ratio=" << v_ratio << ")\n"
+                    << "  twist:    amp=" << r.twist_amp << "  cycles=" << r.twist_cycles << "  speed=" << r.twist_speed
+                    << "  (ratio=" << t_ratio << ")\n"
+                    << "  color=(" << r.color[0] << ", " << r.color[1] << ", " << r.color[2] << ")\n";
+            }
+
+            // ═══════════════════════════════════════════════════════════════
+            // ── END SPAWN ENGINE & ENTITY LIFECYCLE ────────────────────────
+            // ═══════════════════════════════════════════════════════════════
+
+            // ═══════════════════════════════════════════════════════════════
+            // ── GALLERY SYSTEM ─────────────────────────────────────────────
+            //
+            // The art system. Photographer, paintings, exhibitions.
+            // Reads pawn position + entity state; never writes back.
+            //
+            // Shot tiers → photographer capture → snapshot staging →
+            // gallery site spawning → painting slots → exhibition →
+            // snapshot render pass.
+            //
+            // Wall paintings + authored loading live downstream (~line 7700+)
+            // near apply_mood which triggers indoor placement.
+            // They join this block in Phase 2 (gallery.inl extraction).
+            // ═══════════════════════════════════════════════════════════════
+
             // ─── Self-Portrait Gallery (photographer system) ─────────────────
             //
             // ─── Shot Tiers ─────────────────────────────────────────────────
@@ -3256,267 +3672,6 @@ namespace t7 {
                 uint32_t target_slot = 0;
                 uint32_t target_layer = 0;
             } pendingSnapshot_;
-
-
-
-            // CPU mirror of WGSL ribbon_spine_at — evaluate one ring's world position.
-            static void ribbon_spine_at_cpu(const GPURibbonState& r, float time, uint32_t ring_idx, float out[3]) {
-                constexpr float PI = 3.14159265359f;
-                float t = (float)ring_idx / (float)std::max(r.cube_count - 1u, 1u);
-                float total_length = (float)r.cube_count * r.cube_size;
-
-                float along = (t - 0.5f) * total_length;
-                float lateral = std::sin(time * r.lateral_speed + t * r.lateral_cycles * 2.0f * PI) * r.lateral_amp;
-                float vertical = r.height + std::sin(time * r.vertical_speed + t * r.vertical_cycles * 2.0f * PI) * r.vertical_amp;
-
-                float c = std::cos(r.orientation);
-                float s = std::sin(r.orientation);
-                float rotated_along = along * c - lateral * s;
-                float rotated_lateral = along * s + lateral * c;
-
-                float twist_phase = time * r.twist_speed + t * r.twist_cycles * 2.0f * PI;
-                float twist_depth = std::sin(twist_phase) * 0.4f * r.twist_amp;
-                float twist_vert = std::cos(twist_phase) * 0.3f * r.twist_amp;
-
-                out[0] = r.anchor[0] + rotated_along;
-                out[1] = vertical + twist_vert;
-                out[2] = r.anchor[2] + rotated_lateral + twist_depth;
-            }
-
-            // CPU mirror of WGSL ribbon_tangent_at — central finite difference.
-            static void ribbon_tangent_cpu(const GPURibbonState& r, float time, uint32_t ring_idx, float out[3]) {
-                constexpr float eps = 0.0005f;
-                float t = (float)ring_idx / (float)std::max(r.cube_count - 1u, 1u);
-                // Evaluate spine at t±eps using the raw parametric form
-                auto eval = [&](float tp, float p[3]) {
-                    constexpr float PI = 3.14159265359f;
-                    float total_length = (float)r.cube_count * r.cube_size;
-                    float along = (tp - 0.5f) * total_length;
-                    float lateral = std::sin(time * r.lateral_speed + tp * r.lateral_cycles * 2.0f * PI) * r.lateral_amp;
-                    float vertical = r.height + std::sin(time * r.vertical_speed + tp * r.vertical_cycles * 2.0f * PI) * r.vertical_amp;
-                    float c = std::cos(r.orientation);
-                    float s = std::sin(r.orientation);
-                    float rotated_along = along * c - lateral * s;
-                    float rotated_lateral = along * s + lateral * c;
-                    float twist_phase = time * r.twist_speed + tp * r.twist_cycles * 2.0f * PI;
-                    float twist_depth = std::sin(twist_phase) * 0.4f * r.twist_amp;
-                    float twist_vert = std::cos(twist_phase) * 0.3f * r.twist_amp;
-                    p[0] = r.anchor[0] + rotated_along;
-                    p[1] = vertical + twist_vert;
-                    p[2] = r.anchor[2] + rotated_lateral + twist_depth;
-                    };
-                float a[3], b[3];
-                eval(t + eps, a);
-                eval(t - eps, b);
-                float dx = a[0] - b[0], dy = a[1] - b[1], dz = a[2] - b[2];
-                float len = std::sqrt(dx * dx + dy * dy + dz * dz);
-                if (len < 1e-8f) { out[0] = 1; out[1] = 0; out[2] = 0; return; }
-                out[0] = dx / len; out[1] = dy / len; out[2] = dz / len;
-            }
-
-            // CPU mirror of rotor construction — returns axis, angle, and whether it degenerated.
-            struct RotorDiag {
-                float axis[3];
-                float angle_deg;
-                float cross_len;   // length of cross(forward, tangent) — near 0 = degenerate
-                bool antiparallel; // tangent ≈ -forward
-            };
-            static RotorDiag ribbon_rotor_diag(const float tangent[3]) {
-                RotorDiag d{};
-                // forward = (1,0,0)
-                // cross(forward, tangent) = (0*tz - 0*ty, 0*tx - 1*tz, 1*ty - 0*tx)
-                //                         = (0, -tz, ty)
-                d.axis[0] = 0.0f;
-                d.axis[1] = -tangent[2];
-                d.axis[2] = tangent[1];
-                d.cross_len = std::sqrt(d.axis[1] * d.axis[1] + d.axis[2] * d.axis[2]);
-                float dot = tangent[0]; // dot((1,0,0), tangent)
-                d.angle_deg = std::acos(std::max(-1.0f, std::min(1.0f, dot))) * 57.2958f;
-                d.antiparallel = (d.cross_len < 0.001f && dot < 0.0f);
-                return d;
-            }
-
-            // Check a 3×3 neighborhood of ribbon cells around the pawn.
-            // Activate the closest ribbon within render distance.
-            void update_ribbon_spawning(float pawnX, float pawnZ, float time, wgpu::Queue& queue) {
-                // Hysteresis: if a ribbon is already active, keep it until pawn
-                // exceeds HOLD_DIST from its anchor. Prevents cell-boundary flip-flop.
-                if (ribbonActive_) {
-                    float dx = currentRibbon_.anchor[0] - pawnX;
-                    float dz = currentRibbon_.anchor[2] - pawnZ;
-                    float dist_sq = dx * dx + dz * dz;
-                    float hold_sq = RibbonSpawnConfig::HOLD_DIST * RibbonSpawnConfig::HOLD_DIST;
-
-                    if (dist_sq < hold_sq) {
-                        // Still in range — just update time
-                        gpuState_.upload_ribbon_time(queue, time);
-
-                        return;
-                    }
-                    // Out of hold range — deactivate and search for new
-                    uint32_t zero = 0u;
-                    queue.WriteBuffer(gpuState_.ribbon_buffer(),
-                        offsetof(GPURibbonState, is_visible), &zero, sizeof(uint32_t));
-                    ribbonActive_ = false;
-                }
-
-                // Search for new ribbon (sky objects — not capped by terrain radius)
-                float best_dist_sq = RIBBON_RENDER_DIST * RIBBON_RENDER_DIST;
-                bool found = false;
-                GPURibbonState best{};
-                uint32_t best_tier = 0;
-
-                for (int32_t dz = -1; dz <= 1; dz++) {
-                    for (int32_t dx = -1; dx <= 1; dx++) {
-                        int32_t cx = (int32_t)std::floor(pawnX / RIBBON_CELL_SIZE) + dx;
-                        int32_t cz = (int32_t)std::floor(pawnZ / RIBBON_CELL_SIZE) + dz;
-                        uint32_t seed = ribbon_cell_seed(activeSeed_, cx, cz);
-
-                        if (cpu_hash_f(seed, RibbonProp::SPAWN_ROLL) > RIBBON_SPAWN_CHANCE) continue;
-
-                        float ax = (float)cx * RIBBON_CELL_SIZE + cpu_hash_f(seed, RibbonProp::ANCHOR_X) * RIBBON_CELL_SIZE;
-                        float az = (float)cz * RIBBON_CELL_SIZE + cpu_hash_f(seed, RibbonProp::ANCHOR_Z) * RIBBON_CELL_SIZE;
-
-                        float ddx = ax - pawnX;
-                        float ddz = az - pawnZ;
-                        float dist_sq = ddx * ddx + ddz * ddz;
-                        if (dist_sq >= best_dist_sq) continue;
-
-                        best_dist_sq = dist_sq;
-                        found = true;
-
-                        best.anchor[0] = ax;
-                        best.anchor[1] = 0.0f;
-                        best.anchor[2] = az;
-                        best.time = time;
-
-                        float terrain_est = estimate_terrain_height(ax, az);
-                        best_tier = generate_flying_ribbon(best, seed, terrain_est);
-                    }
-                }
-
-                if (found) {
-                    currentRibbon_ = best;
-                    gpuState_.upload_ribbon(queue, best);
-                    ribbonActive_ = true;
-                    print_ribbon_diagnostic("Spawned", best, best_tier);
-                }
-            }
-
-            // Estimate terrain height from tile cache (rough CPU-side approximation).
-            float estimate_terrain_height(float wx, float wz) const {
-                int32_t tx = (int32_t)std::floor(wx / PATCH_EXTENT);
-                int32_t tz = (int32_t)std::floor(wz / PATCH_EXTENT);
-                auto it = tileCache_.find({ tx, tz });
-                if (it != tileCache_.end())
-                    return it->second.height_bias + it->second.amp_scale * 5.0f;
-                return 0.0f;
-            }
-
-            // Generate a flying ribbon from seed using tier-based Gaussian sampling.
-            // Returns the selected tier index for diagnostics.
-            static uint32_t generate_flying_ribbon(GPURibbonState& r, uint32_t seed, float terrain_est) {
-                r.is_visible = 1u;
-
-                // Tier selection (weighted cumulative)
-                float tier_roll = cpu_hash_f(seed, RibbonProp::TIER);
-                uint32_t tier = RIBBON_TIER_COUNT - 1;
-                float cumul = 0.0f;
-                for (uint32_t t = 0; t < RIBBON_TIER_COUNT; t++) {
-                    cumul += RIBBON_TIERS[t].weight;
-                    if (tier_roll < cumul) { tier = t; break; }
-                }
-                const auto& tp = RIBBON_TIERS[tier];
-
-                // Geometry — Gaussian draws
-                float count_f = std::max(20.0f,
-                    cpu_sample_gaussian(seed, RibbonProp::CUBE_COUNT, tp.cube_count_mean, tp.cube_count_sigma));
-                r.cube_count = std::min((uint32_t)count_f, Dim::RIBBON_MAX_RINGS);
-                r.cube_size = std::max(0.5f,
-                    cpu_sample_gaussian(seed, RibbonProp::CUBE_SIZE, tp.cube_size_mean, tp.cube_size_sigma));
-
-                // Altitude — Gaussian draw above terrain estimate
-                r.height = terrain_est + std::max(20.0f,
-                    cpu_sample_gaussian(seed, RibbonProp::HEIGHT, tp.height_mean, tp.height_sigma));
-
-                // Orientation — uniform [0, 2π)
-                r.orientation = cpu_hash_f(seed, RibbonProp::ORIENTATION) * 6.2831853f;
-
-                // Lateral wave (the fundamental)
-                r.lateral_amp = std::max(0.1f, cpu_sample_gaussian(seed, RibbonProp::LATERAL_AMP, tp.lateral_amp_mean, tp.lateral_amp_sigma));
-                r.lateral_cycles = std::max(0.1f, cpu_sample_gaussian(seed, RibbonProp::LATERAL_CYCLES, tp.lateral_cycles_mean, tp.lateral_cycles_sigma));
-                r.lateral_speed = std::max(0.005f, cpu_sample_gaussian(seed, RibbonProp::LATERAL_SPEED, tp.lateral_speed_mean, tp.lateral_speed_sigma));
-
-                // Vertical wave — amplitude independent, cycles and speed = lateral
-                r.vertical_amp = std::max(0.1f, cpu_sample_gaussian(seed, RibbonProp::VERTICAL_AMP, tp.vertical_amp_mean, tp.vertical_amp_sigma));
-                r.vertical_cycles = r.lateral_cycles;
-                r.vertical_speed = r.lateral_speed;
-
-                // Twist — amplitude independent, cycles and speed = lateral
-                r.twist_amp = std::max(0.0f, cpu_sample_gaussian(seed, RibbonProp::TWIST_AMP, tp.twist_amp_mean, tp.twist_amp_sigma));
-                r.twist_cycles = r.lateral_cycles;
-                r.twist_speed = r.lateral_speed;
-
-                // Color mode — weighted selection
-                float color_roll = cpu_hash_f(seed, RibbonProp::COLOR_ROLL);
-                r.color_mode = RibbonColorMode::COUNT - 1;
-                float ccum = 0.0f;
-                for (uint32_t c = 0; c < RibbonColorMode::COUNT; c++) {
-                    ccum += RibbonColorMode::WEIGHTS[c];
-                    if (color_roll < ccum) { r.color_mode = c; break; }
-                }
-
-                // Color — depends on mode
-                if (r.color_mode == RibbonColorMode::SMOOTH) {
-                    uint32_t pal_idx = (uint32_t)(cpu_hash_f(seed, RibbonProp::PALETTE_IDX) * RIBBON_SMOOTH_PALETTE_COUNT);
-                    if (pal_idx >= RIBBON_SMOOTH_PALETTE_COUNT) pal_idx = RIBBON_SMOOTH_PALETTE_COUNT - 1;
-                    float var = cpu_hash_f(seed, RibbonProp::COLOR_R) * 0.10f - 0.05f;
-                    r.color[0] = RIBBON_SMOOTH_PALETTE[pal_idx][0] + var;
-                    r.color[1] = RIBBON_SMOOTH_PALETTE[pal_idx][1] + var * 0.8f;
-                    r.color[2] = RIBBON_SMOOTH_PALETTE[pal_idx][2] + var * 0.6f;
-                }
-                else if (r.color_mode == RibbonColorMode::TINTED) {
-                    // Distinct warm/cool tints with visible saturation
-                    r.color[0] = cpu_hash_f(seed, RibbonProp::COLOR_R) * 0.45f + 0.40f;
-                    r.color[1] = cpu_hash_f(seed, RibbonProp::COLOR_G) * 0.40f + 0.35f;
-                    r.color[2] = cpu_hash_f(seed, RibbonProp::COLOR_B) * 0.45f + 0.35f;
-                }
-                else {
-                    // Contrast: darker base, future alternating segments in FS
-                    float hue = cpu_hash_f(seed, RibbonProp::COLOR_R);
-                    r.color[0] = 0.20f + hue * 0.35f;
-                    r.color[1] = 0.18f + (1.0f - hue) * 0.30f;
-                    r.color[2] = 0.22f + cpu_hash_f(seed, RibbonProp::COLOR_B) * 0.25f;
-                }
-
-                float total_len = (float)r.cube_count * r.cube_size;
-                float max_lateral = r.lateral_amp + 0.4f * r.twist_amp;
-                float max_vertical = r.vertical_amp + 0.3f * r.twist_amp;
-                float envelope_dia = 2.0f * std::max(max_lateral, max_vertical);
-
-                return tier;
-            }
-
-            static void print_ribbon_diagnostic(const char* context, const GPURibbonState& r, uint32_t tier) {
-                float total_len = (float)r.cube_count * r.cube_size;
-                float v_ratio = (r.lateral_cycles > 0.01f) ? r.vertical_cycles / r.lateral_cycles : 0.0f;
-                float t_ratio = (r.lateral_cycles > 0.01f) ? r.twist_cycles / r.lateral_cycles : 0.0f;
-                std::cout << "[Ribbon] " << context << ": " << RIBBON_TIER_NAMES[tier]
-                    << " (" << RIBBON_COLOR_NAMES[r.color_mode] << ")\n"
-                    << "  anchor=(" << r.anchor[0] << ", " << r.anchor[2] << ")"
-                    << "  height=" << r.height
-                    << "  orientation=" << (r.orientation * 57.2958f) << " deg\n"
-                    << "  geometry: " << r.cube_count << " rings x " << r.cube_size << "m = " << total_len << "m\n"
-                    << "  lateral:  amp=" << r.lateral_amp << "  cycles=" << r.lateral_cycles << "  speed=" << r.lateral_speed << "  (fundamental)\n"
-                    << "  vertical: amp=" << r.vertical_amp << "  cycles=" << r.vertical_cycles << "  speed=" << r.vertical_speed
-                    << "  (ratio=" << v_ratio << ")\n"
-                    << "  twist:    amp=" << r.twist_amp << "  cycles=" << r.twist_cycles << "  speed=" << r.twist_speed
-                    << "  (ratio=" << t_ratio << ")\n"
-                    << "  color=(" << r.color[0] << ", " << r.color[1] << ", " << r.color[2] << ")\n";
-            }
-
-
-            // ── GALLERY SYSTEM ──  → future: gallery.inl
 
             // ─── Slot Management ─────────────────────────────────────────────
 
@@ -4144,78 +4299,104 @@ namespace t7 {
                 encoder.CopyTextureToTexture(&src, &dst, &extent);
             }
 
-            // ── MOOD SYSTEM ──  → future: mood.inl
+            // ═══════════════════════════════════════════════════════════════
+            // ── END GALLERY SYSTEM ─────────────────────────────────────────
+            // ═══════════════════════════════════════════════════════════════
 
-            // --- World Transition State Machine ---
-            enum class TransitionPhase { IDLE, FADE_OUT, TEARDOWN, FADE_IN };
-            TransitionPhase transitionPhase_ = TransitionPhase::IDLE;
-            float transitionTimer_ = 0.0f;
-            float transitionFadeDuration_ = 0.5f;   // seconds per fade direction
-            float transitionFadeAlpha_ = 0.0f;
+            uint32_t activeSeed_ = 42;     // world master seed (mutable for world transitions)
+            // Patch dimensions aliased from Dim:: for local readability
+            static constexpr float    PATCH_EXTENT = Dim::PATCH_EXTENT;
+            static constexpr uint32_t GRID_RADIUS = Dim::PATCH_GRID_RADIUS;   // inner priority (3 → 7×7)
+            static constexpr uint32_t GRID_SIDE = Dim::PATCH_GRID_SIDE;
+            static constexpr uint32_t RENDER_RADIUS = Dim::PATCH_RENDER_RADIUS;  // visible radius (5)
+            static constexpr uint32_t RENDER_SIDE = Dim::PATCH_RENDER_SIDE;
+            static constexpr uint32_t PREGEN_RADIUS = Dim::PATCH_PREGEN_RADIUS; // deep pre-gen buffer (7)
+            static constexpr uint32_t MAX_PATCHES = Dim::MAX_ACTIVE_PATCHES;    // 225
 
-            // Portal destination — describes the world a door leads to.
-            // Also used as the pending transition target (keys + portal crossings).
-            struct PortalDestination {
-                uint32_t seed = 0;
-                bool finite = false;
-                uint32_t finite_radius = 2;
-                uint32_t mood = 0;               // 0=open, 1=finite (expandable)
+            // Runtime render radius — toggleable within [GRID_RADIUS, RENDER_RADIUS].
+            // Buffers/textures always allocated for PREGEN_RADIUS.
+            // Visibility uses circular VISIBLE_RADIUS; RENDER_RADIUS retained for
+            // allocation bounds and GoL zone eviction.
+            uint32_t activeRadius_ = PREGEN_RADIUS;
+
+            struct ActivePatch {
+                int32_t grid_x = 0;
+                int32_t grid_z = 0;
+                uint32_t layer = 0;
+                bool valid = false;
+                bool spawned = false;    // true once entities have been spawned for this patch
+                bool generated = false;  // true once heightfield has been dispatched
+                bool animated = false;   // true if patch overlaps an active pool
+                bool pending_regen = false;  // true while waiting for regen (keeps rendering old data)
             };
-            PortalDestination pendingDestination_{};
 
-            // --- Finite patch mode ---
-            bool finiteMode_ = false;
-            uint32_t finiteRadius_ = 2;              // 2 → 5×5 = 25 patches
+            ActivePatch patches_[MAX_PATCHES]{};
+            int32_t lastCenterX_ = INT32_MAX;  // force full regeneration on first frame
+            int32_t lastCenterZ_ = INT32_MAX;
+            uint32_t activePatchCount_ = 0;
+            uint32_t renderPatchCount_ = 0;  // visible patches (within circular VISIBLE_RADIUS)
+            uint32_t lod0PatchCount_ = 0;    // subset of rendered: within LOD_FULL_RADIUS (full mesh)
+            uint32_t allPatchCount_ = 0;     // all generated patches (including pre-gen ring)
+            uint32_t entitiesCulled_ = 0;    // entities hidden by distance culling this frame
 
-            // Portal constants: see forward declarations near ENTITY TYPE DEFINITIONS
+            // ─── Deferred Upload Flags ───────────────────────────────────
+            bool pierCountDirty_ = false;        // defer recompute_and_upload_pier_count
+            bool groundEntriesDirty_ = true;     // defer upload_ground_entries (true at boot)
+            bool patchInstancesDirty_ = true;    // defer LOD sort + upload_patch_instances
+            bool placementDirty_ = true;         // defer dispatch_placement_correction
 
-            // ─── Mood System ─────────────────────────────────────────────
+            // Free-list of available texture layers
+            uint32_t freeLayerStack_[MAX_PATCHES]{};
+            uint32_t freeLayerCount_ = MAX_PATCHES;
+
+            // ─── Dynamic Budgets ─────────────────────────────────────────
             //
-            // Each mood defines an atmosphere: sun direction/color, fog,
-            // finite vs. open, patch radius. Portals pick a mood for
-            // their destination; the mood is applied during teardown.
-            //
-            // Moods 0-1: infinite outdoor.  Moods 2-3: finite indoor.  Mood 4: finite outdoor.  Mood 5: finite outdoor (reference clone).
+            // Entity spawning and heightfield generation are both distance-
+            // driven and budgeted per frame. Spawning must complete before
+            // generation (piers affect heightfields), enforced by requiring
+            // spawned == true before a patch enters the generation scan.
+            static constexpr uint32_t SPAWN_BUDGET_PER_FRAME = 4;    // max patches to spawn entities for
+            static constexpr uint32_t ALLOC_BUDGET_PER_FRAME = 4;    // max patches to allocate per frame
+            static constexpr uint32_t EVICT_BUDGET_PER_FRAME = 4;    // max patches to evict per frame
+            static constexpr uint32_t PATCH_BUDGET_MIN = 1;
+            static constexpr uint32_t PATCH_BUDGET_MAX = 6;
+            static constexpr uint32_t PATCH_PENDING_TIER_1 = 3;
+            static constexpr uint32_t PATCH_PENDING_TIER_2 = 8;
+            static constexpr uint32_t PATCH_PENDING_TIER_3 = 20;
+            static constexpr uint32_t PATCH_PENDING_TIER_4 = 40;
+            static constexpr uint32_t PATCH_BUDGET_MOVE_THRESHOLD = 4;
 
-            enum class CeilingType : uint32_t {
-                NONE = 0,   // outdoor — no shell geometry
-                FLAT = 1,   // flat slab ceiling
-                VAULT = 2,   // catenary vault ceiling
-            };
-
-            struct MoodProfile {
-                bool   finite;
-                uint32_t finite_radius_min;
-                uint32_t finite_radius_max;
-                float  sun_direction[3];
-                float  sun_color[3];
-                float  sun_intensity;
-                float  sun_ambient;
-                float  fog_density;
-                float  fog_color[3];
-                // Indoor shell
-                bool   indoor;
-                CeilingType ceiling_type;
-                float  ceiling_height;
-                float  clear_color[3];      // background color (sky or dark ceiling)
-                float  wall_color[3];
-                float  ceiling_color[3];
-            };
-
-            //                                                                                                                                           indoor  ceil       ceil_h  clear_color            wall_color             ceil_color
-            static constexpr MoodProfile MOOD_TABLE[MOOD_COUNT] = {
-                /* 0  open_default        */  { false, 2, 2, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f} },
-                /* 1  open_sunset         */  { false, 2, 2, { 0.96f,-0.26f,-0.13f}, {1.0f, 0.75f, 0.45f}, 0.90f, 0.20f, 0.0050f, {0.95f, 0.70f, 0.45f},  false, CeilingType::NONE,  0.0f,  {0.95f, 0.70f, 0.45f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f} },
-                /* 2  indoor_flat         */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f, 0.0003f, {0.15f, 0.12f, 0.10f},  true,  CeilingType::FLAT,  20.0f, {0.15f, 0.12f, 0.10f}, {0.65f,0.58f,0.50f}, {0.60f,0.55f,0.48f} },
-                /* 3  indoor_vault        */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f, 0.0003f, {0.15f, 0.12f, 0.10f},  true,  CeilingType::VAULT, 25.0f, {0.15f, 0.12f, 0.10f}, {0.70f,0.62f,0.52f}, {0.65f,0.58f,0.50f} },
-                /* 4  finite_outdoor      */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f} },
-                /* 5  finite_outdoor_ref  */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f} },
-            };
-
-            static const char* mood_name(uint32_t mood) {
-                static const char* NAMES[] = { "open_default", "open_sunset", "indoor_flat", "indoor_vault", "finite_outdoor", "finite_outdoor_ref" };
-                return (mood < MOOD_COUNT) ? NAMES[mood] : "unknown";
+            uint32_t count_pending_patches() const {
+                uint32_t n = 0;
+                for (uint32_t i = 0; i < activePatchCount_; i++) {
+                    if (!patches_[i].valid) continue;
+                    if (patches_[i].pending_regen) { n++; continue; }
+                    if (patches_[i].spawned && !patches_[i].generated) n++;
+                }
+                return n;
             }
+
+            uint32_t patches_budget_this_frame() const {
+                uint32_t pending = count_pending_patches();
+                uint32_t budget = PATCH_BUDGET_MIN;
+                if (pending >= PATCH_PENDING_TIER_4) budget = 6;
+                else if (pending >= PATCH_PENDING_TIER_3) budget = 4;
+                else if (pending >= PATCH_PENDING_TIER_2) budget = 3;
+                else if (pending >= PATCH_PENDING_TIER_1) budget = 2;
+
+                bool moving = (std::abs(inputState_.move_x) > 0.01f ||
+                    std::abs(inputState_.move_z) > 0.01f);
+                if (moving && pending > PATCH_BUDGET_MOVE_THRESHOLD)
+                    budget += 1;
+
+                return std::min(budget, PATCH_BUDGET_MAX);
+            }
+
+            // --- Tile World System ---------------------------------------------------
+            //
+            // Each patch is a tile with an archetype that configures its terrain
+            // character. Archetypes are rolled based on the spatial cache of
+            // neighboring tiles, creating coherent regions with variety.
 
             // Derive finite world radius from seed within mood-defined bounds.
             static uint32_t derive_finite_radius(uint32_t seed, const MoodProfile& mood) {
@@ -4230,6 +4411,12 @@ namespace t7 {
             uint32_t pick_portal_mood(uint32_t seed, uint32_t prop) const {
                 float roll = cpu_hash_f(seed, prop);
                 if (finiteMode_) {
+                    // 0.00–0.125: mood 0 (open_default)
+                    // 0.125–0.25: mood 1 (open_sunset)
+                    // 0.25–0.525: mood 2 (indoor_flat)
+                    // 0.525–0.80: mood 3 (indoor_vault)
+                    // 0.80–0.90:  mood 4 (finite_outdoor)
+                    // 0.90–1.00:  mood 5 (finite_outdoor_ref)
                     if (roll < 0.125f) return 0;
                     if (roll < 0.25f)  return 1;
                     if (roll < 0.525f) return 2;
@@ -4239,1492 +4426,6 @@ namespace t7 {
                 }
                 return cpu_hash(seed, prop) % MOOD_COUNT;
             }
-
-            // ─── Indoor Lighting Schemes ─────────────────────────────────
-            //
-            // Seed-driven procedural lighting for indoor moods. Each scheme
-            // defines a lighting character (which surfaces carry lights,
-            // how many, primary vs accent roles). Per-light parameters
-            // (position along surface, intensity, cone width, color warmth)
-            // are derived from activeSeed_ at mood transition time.
-            //
-            // Three schemes:
-            //   Cathedral — ceiling primary + two opposing wall sconces
-            //   Gallery   — two opposing wall lights, no ceiling (dramatic)
-            //   Sanctum   — single source, maximum contrast
-            //
-            // The seed also picks which wall pair (N/S or E/W) carries the
-            // sconces, so rooms with the same scheme still feel different.
-
-            enum class LightAnchor : uint32_t {
-                CEILING, WALL_NORTH, WALL_SOUTH, WALL_EAST, WALL_WEST
-            };
-
-            struct IndoorLightProp {
-                static constexpr uint32_t SCHEME = 1100u;
-                static constexpr uint32_t WALL_PAIR = 1101u;
-                static constexpr uint32_t ANCHOR_PICK = 1102u;
-                static constexpr uint32_t SLOT_BASE = 1110u;  // + slot*10 + field
-                // Per-slot field offsets
-                static constexpr uint32_t LATERAL = 0u;
-                static constexpr uint32_t HEIGHT = 1u;
-                static constexpr uint32_t INTENSITY = 2u;
-                static constexpr uint32_t INNER_CONE = 3u;
-                static constexpr uint32_t OUTER_CONE = 4u;
-                static constexpr uint32_t WARMTH = 5u;
-                static constexpr uint32_t AIM_PITCH = 6u;
-                static constexpr uint32_t AIM_YAW = 7u;
-            };
-
-            // Slot definition: anchor surface + gaussian ranges for the
-            // light's character. Position slide uses fixed sigmas.
-            // Direction is fully parameterised per slot:
-            //   aim_pitch — angle below horizontal (wall) or off-vertical (ceiling), radians
-            //   aim_yaw   — lateral rotation along the anchor surface, radians
-            struct LightSlotDef {
-                LightAnchor anchor;
-                float intensity_mean, intensity_sigma;
-                float inner_mean, inner_sigma;    // inner half-angle (radians)
-                float outer_mean, outer_sigma;    // outer half-angle (radians)
-                float warmth_mean, warmth_sigma;  // 0 = warm amber, 1 = cool blue
-                float aim_pitch_mean, aim_pitch_sigma;  // radians
-                float aim_yaw_mean, aim_yaw_sigma;      // radians
-            };
-
-            static constexpr float SCHEME_WEIGHTS[] = { 0.55f, 0.25f, 0.20f };
-            static constexpr uint32_t SCHEME_COUNT = 3;
-            static constexpr const char* SCHEME_NAMES[] = { "Cathedral", "Gallery", "Sanctum" };
-            static constexpr const char* ANCHOR_NAMES[] = { "ceiling", "wall_N", "wall_S", "wall_E", "wall_W" };
-
-            GPUPortalArray cpuPortalArray_{};
-            bool portalsDirty_ = true;   // true at boot → first upload guaranteed
-
-            // --- Back-portal (guaranteed exit from finite worlds) ---
-            // Position is configurable so special-case layouts can relocate it.
-            float backPortalPosition_[2] = { 10.0f, 0.0f };   // world XZ
-            bool  backPortalPending_ = false;
-            uint32_t backPortalReturnSeed_ = 0;
-            uint32_t backPortalReturnMood_ = 0;
-            uint32_t backPortalReturnRadius_ = 2;
-
-            // GPU pawn readback state machine: IDLE → COPIED → MAPPING → IDLE
-            // Reads full GPUPawnState: position (for patch streaming, photographer,
-            // ribbon spawning) and portal_trigger (for world transitions).
-            enum class PawnReadbackState { IDLE, COPIED, MAPPING };
-            PawnReadbackState pawnReadbackState_ = PawnReadbackState::IDLE;
-            int32_t readbackPortalTrigger_ = -1;
-            float pawnReadback_x_ = 0.0f;
-            float pawnReadback_z_ = 0.0f;
-
-
-            // ─── Indoor Light Derivation ─────────────────────────────────
-            //
-            // Selects a lighting scheme from activeSeed_, then derives
-            // per-light parameters (position, direction, intensity, cone,
-            // color) from the seed. Called once at mood transition.
-
-            void derive_indoor_lights(uint32_t seed, float bmin, float bmax,
-                float ceiling_height, CeilingType ceiling_type = CeilingType::FLAT) {
-                cpuSpotLights_ = GPUSpotLightArray{};
-
-                float room_size = bmax - bmin;
-                float room_range = room_size * 0.8f;
-
-                // Scheme selection
-                uint32_t scheme = select_tier(seed, IndoorLightProp::SCHEME,
-                    SCHEME_WEIGHTS, SCHEME_COUNT);
-
-                // Wall pair: N/S or E/W — gives axis variety across seeds
-                bool use_ew = cpu_hash_f(seed, IndoorLightProp::WALL_PAIR) > 0.5f;
-                LightAnchor wall_a = use_ew ? LightAnchor::WALL_EAST : LightAnchor::WALL_NORTH;
-                LightAnchor wall_b = use_ew ? LightAnchor::WALL_WEST : LightAnchor::WALL_SOUTH;
-
-                // Build slot list based on scheme
-                LightSlotDef slots[MAX_SPOT_LIGHTS];
-                uint32_t count = 0;
-
-                switch (scheme) {
-                case 0:  // Cathedral: ceiling primary + 2 wall accents
-                    //                    anchor            int_m  int_s  inn_m inn_s out_m out_s warm_m warm_s  pitch_m pitch_s yaw_m  yaw_s
-                    slots[0] = { LightAnchor::CEILING, 8.0f, 2.5f, 0.6f, 0.2f, 1.2f, 0.15f, 0.35f, 0.20f,  0.0f,  0.12f, 0.0f, 0.12f };
-                    slots[1] = { wall_a,               5.0f, 1.5f, 0.4f, 0.15f, 1.0f, 0.15f, 0.20f, 0.15f,  0.60f, 0.40f, 0.0f, 0.30f };
-                    slots[2] = { wall_b,               5.0f, 1.5f, 0.4f, 0.15f, 1.0f, 0.15f, 0.75f, 0.15f,  0.60f, 0.40f, 0.0f, 0.30f };
-                    count = 3;
-                    break;
-                case 1:  // Gallery: 2 opposing wall lights, no ceiling
-                    slots[0] = { wall_a, 7.0f, 2.0f, 0.4f, 0.15f, 1.1f, 0.15f, 0.25f, 0.20f,  0.55f, 0.45f, 0.0f, 0.35f };
-                    slots[1] = { wall_b, 7.0f, 2.0f, 0.4f, 0.15f, 1.1f, 0.15f, 0.65f, 0.20f,  0.55f, 0.45f, 0.0f, 0.35f };
-                    count = 2;
-                    break;
-                case 2: {  // Sanctum: single dramatic source
-                    float anchor_roll = cpu_hash_f(seed, IndoorLightProp::ANCHOR_PICK);
-                    LightAnchor anchor = (anchor_roll < 0.55f) ? LightAnchor::CEILING
-                        : (anchor_roll < 0.775f) ? wall_a : wall_b;
-                    slots[0] = { anchor, 10.0f, 2.5f, 0.5f, 0.2f, 1.2f, 0.15f, 0.45f, 0.25f,  0.50f, 0.40f, 0.0f, 0.30f };
-                    count = 1;
-                    break;
-                }
-                }
-
-                // Derive each light from its slot spec + seed
-                for (uint32_t i = 0; i < count; i++) {
-                    const auto& s = slots[i];
-                    uint32_t base = IndoorLightProp::SLOT_BASE + i * 10;
-                    auto& L = cpuSpotLights_.lights[i];
-
-                    // Position: slide along anchor surface
-                    float lat = std::clamp(
-                        cpu_sample_gaussian(seed, base + IndoorLightProp::LATERAL, 0.5f, 0.15f),
-                        0.1f, 0.9f);
-                    float hfrac = std::clamp(
-                        cpu_sample_gaussian(seed, base + IndoorLightProp::HEIGHT, 0.65f, 0.10f),
-                        0.4f, 0.85f);
-
-                    float wall_off = 1.0f;
-                    float px, py, pz;
-
-                    // Position: anchor-dependent placement on surface
-                    switch (s.anchor) {
-                    case LightAnchor::CEILING:
-                        px = bmin + lat * room_size;
-                        py = ceiling_height - 0.5f;
-                        pz = bmin + hfrac * room_size;
-                        break;
-                    case LightAnchor::WALL_NORTH:
-                        px = bmin + lat * room_size;
-                        py = ceiling_height * hfrac;
-                        pz = bmax - wall_off;
-                        break;
-                    case LightAnchor::WALL_SOUTH:
-                        px = bmin + lat * room_size;
-                        py = ceiling_height * hfrac;
-                        pz = bmin + wall_off;
-                        break;
-                    case LightAnchor::WALL_EAST:
-                        px = bmax - wall_off;
-                        py = ceiling_height * hfrac;
-                        pz = bmin + lat * room_size;
-                        break;
-                    case LightAnchor::WALL_WEST:
-                        px = bmin + wall_off;
-                        py = ceiling_height * hfrac;
-                        pz = bmin + lat * room_size;
-                        break;
-                    }
-
-                    // Direction: seed-driven pitch + yaw per slot definition.
-                    //   pitch — angle below horizontal (wall) or off-vertical (ceiling)
-                    //   yaw   — lateral rotation along the anchor surface
-                    float pitch = cpu_sample_gaussian(seed, base + IndoorLightProp::AIM_PITCH,
-                        s.aim_pitch_mean, s.aim_pitch_sigma);
-                    float yaw = cpu_sample_gaussian(seed, base + IndoorLightProp::AIM_YAW,
-                        s.aim_yaw_mean, s.aim_yaw_sigma);
-
-                    float dx, dy, dz;
-                    if (s.anchor == LightAnchor::CEILING) {
-                        // pitch=0 → straight down; positive tilts off-vertical
-                        pitch = std::clamp(pitch, 0.0f, 0.50f);
-                        yaw = std::clamp(yaw, -0.60f, 0.60f);
-                        dx = std::sin(pitch) * std::sin(yaw);
-                        dy = -std::cos(pitch);
-                        dz = std::sin(pitch) * std::cos(yaw);
-                    }
-                    else {
-                        // pitch=0 → horizontal into room; π/2 → straight down
-                        // Floor at 0.08 ensures light never aims upward.
-                        // Ceiling at 1.45 (~83°) allows steep floor pools.
-                        pitch = std::clamp(pitch, 0.08f, 1.45f);
-                        yaw = std::clamp(yaw, -0.80f, 0.80f);
-                        float cp = std::cos(pitch), sp = std::sin(pitch);
-                        float sy = std::sin(yaw);
-                        switch (s.anchor) {
-                        case LightAnchor::WALL_NORTH: dx = sy; dy = -sp; dz = -cp; break;
-                        case LightAnchor::WALL_SOUTH: dx = sy; dy = -sp; dz = cp; break;
-                        case LightAnchor::WALL_EAST:  dx = -cp; dy = -sp; dz = sy; break;
-                        case LightAnchor::WALL_WEST:  dx = cp; dy = -sp; dz = sy; break;
-                        default: dx = 0; dy = -1; dz = 0; break;  // unreachable
-                        }
-                    }
-
-                    // Normalize direction
-                    float dlen = std::sqrt(dx * dx + dy * dy + dz * dz);
-                    dx /= dlen; dy /= dlen; dz /= dlen;
-
-                    // Intensity and cone angles
-                    float intensity = std::max(1.0f,
-                        cpu_sample_gaussian(seed, base + IndoorLightProp::INTENSITY,
-                            s.intensity_mean, s.intensity_sigma));
-                    float inner_half = std::max(0.2f,
-                        cpu_sample_gaussian(seed, base + IndoorLightProp::INNER_CONE,
-                            s.inner_mean, s.inner_sigma));
-                    float outer_half = std::max(inner_half + 0.3f,
-                        cpu_sample_gaussian(seed, base + IndoorLightProp::OUTER_CONE,
-                            s.outer_mean, s.outer_sigma));
-                    // Hard cap: outer cone must not exceed shadow map FOV capability.
-                    // At 1.3 rad (75°), shadow FOV = 2×1.3+0.2 = 2.8 rad → coverable.
-                    static constexpr float MAX_OUTER_HALF = 1.3f;
-                    outer_half = std::min(outer_half, MAX_OUTER_HALF);
-                    inner_half = std::min(inner_half, outer_half - 0.1f);
-
-                    // Color: warm amber (1.0,0.85,0.65) ↔ cool blue (0.80,0.88,1.0)
-                    float w = std::clamp(
-                        cpu_sample_gaussian(seed, base + IndoorLightProp::WARMTH,
-                            s.warmth_mean, s.warmth_sigma),
-                        0.0f, 1.0f);
-                    float cr = 1.00f + w * (0.80f - 1.00f);
-                    float cg = 0.85f + w * (0.88f - 0.85f);
-                    float cb = 0.65f + w * (1.00f - 0.65f);
-
-                    L.position[0] = px; L.position[1] = py; L.position[2] = pz;
-                    L.direction[0] = dx; L.direction[1] = dy; L.direction[2] = dz;
-                    L.color[0] = cr; L.color[1] = cg; L.color[2] = cb;
-                    L.intensity = intensity;
-                    L.inner_cone = std::cos(inner_half);
-                    L.outer_cone = std::cos(outer_half);
-                    L.range = (s.anchor == LightAnchor::CEILING)
-                        ? ceiling_height + 30.0f : room_range;
-
-                }
-
-                cpuSpotLights_.count = count;
-
-                // ─── Vault Uplight ───────────────────────────────────────
-                //
-                // If ceiling is VAULT and a slot is free, add an upward-facing
-                // floor light. Low intensity, very wide cone aimed at the crown.
-                // Self-shadowing reveals groin vault ridge structure.
-                if (ceiling_type == CeilingType::VAULT && count < MAX_SPOT_LIGHTS) {
-                    auto& L = cpuSpotLights_.lights[count];
-                    float center = (bmin + bmax) * 0.5f;
-                    L.position[0] = center;
-                    L.position[1] = 2.0f;           // near floor level
-                    L.position[2] = center;
-                    L.direction[0] = 0.0f;
-                    L.direction[1] = 1.0f;           // straight up
-                    L.direction[2] = 0.0f;
-                    L.color[0] = 0.95f;
-                    L.color[1] = 0.90f;
-                    L.color[2] = 0.80f;              // warm ambient
-                    L.intensity = 2.5f;               // subtle — structural reveal, not flood
-                    L.inner_cone = std::cos(0.9f);    // ~52° half-angle
-                    L.outer_cone = std::cos(1.25f);   // ~72° half-angle — within shadow FOV cap
-                    L.range = ceiling_height + 80.0f; // reach the crown with headroom
-                    count++;
-                    cpuSpotLights_.count = count;
-                    std::cout << "[Lighting] Added vault uplight (slot " << (count - 1) << ")\n";
-                }
-
-                std::cout << "[Lighting] " << SCHEME_NAMES[scheme]
-                    << " (" << count << " lights, "
-                    << (use_ew ? "E/W" : "N/S") << " walls)\n";
-            }
-
-
-            // --- Apply mood atmosphere ---
-            //
-            // Sets sun direction, sun color/intensity, fog, clear color,
-            // and indoor shell from the MOOD_TABLE. Called during TEARDOWN.
-
-            void apply_mood(uint32_t mood, wgpu::Queue& queue) {
-                mood = std::min(mood, MOOD_COUNT - 1);
-                activeMood_ = mood;
-                const auto& m = MOOD_TABLE[mood];
-
-                sunDirection_[0] = m.sun_direction[0];
-                sunDirection_[1] = m.sun_direction[1];
-                sunDirection_[2] = m.sun_direction[2];
-
-                // Push to GPU config so compute_vp builds the shadow VP from the correct direction
-                {
-                    float len = std::sqrt(m.sun_direction[0] * m.sun_direction[0] +
-                        m.sun_direction[1] * m.sun_direction[1] +
-                        m.sun_direction[2] * m.sun_direction[2]);
-                    gpuState_.set_sun_direction(m.sun_direction[0] / len,
-                        m.sun_direction[1] / len,
-                        m.sun_direction[2] / len);
-                }
-
-                sunColor_[0] = m.sun_color[0];
-                sunColor_[1] = m.sun_color[1];
-                sunColor_[2] = m.sun_color[2];
-                sunIntensity_ = m.sun_intensity;
-                sunAmbient_ = m.sun_ambient;
-
-                clearColor_[0] = m.clear_color[0];
-                clearColor_[1] = m.clear_color[1];
-                clearColor_[2] = m.clear_color[2];
-
-                gpuState_.set_fog(m.fog_density,
-                    m.fog_color[0], m.fog_color[1], m.fog_color[2]);
-                gpuState_.set_terrain_amp_ceiling(m.indoor ? 0.5f : 0.0f);
-                terrainAmpCeiling_ = m.indoor ? 0.5f : 0.0f;
-                lightsDirty_ = true;
-
-                // Spot lights: active only in indoor moods (count=0 disables)
-                cpuSpotLights_ = GPUSpotLightArray{};
-                if (m.indoor) {
-                    // Mute the sun VP coupling so compute_vp() stops writing
-                    // light_vp — it's now owned by CopyBufferToBuffer in the
-                    // atlas shadow loop.  Without this, the compute write and
-                    // per-tile copies contend over the same 64-byte slot.
-                    gpuState_.set_mute_coupling(Coupling::PAWN_TO_SUN_VP, true);
-
-                    float bmin = -(float)finiteRadius_ * PATCH_EXTENT;
-                    float bmax = ((float)finiteRadius_ + 1.0f) * PATCH_EXTENT;
-
-                    derive_indoor_lights(activeSeed_, bmin, bmax, m.ceiling_height, m.ceiling_type);
-
-                    for (uint32_t i = 0; i < cpuSpotLights_.count; i++) {
-                        compute_spot_light_vp(cpuSpotLights_.lights[i],
-                            cpuSpotLights_.lights[i].view_proj);
-                    }
-                    gpuState_.stage_spot_vps(queue, cpuSpotLights_);
-                    spotLightActive_ = true;
-                }
-                else {
-                    // Restore the sun VP coupling for outdoor directional shadows.
-                    gpuState_.set_mute_coupling(Coupling::PAWN_TO_SUN_VP, false);
-                    spotLightActive_ = false;
-                }
-
-                // Indoor shell: generate or clear
-                if (m.indoor && m.ceiling_type != CeilingType::NONE) {
-                    generate_indoor_shell(queue, m);
-                }
-                else {
-                    clear_indoor_shell(queue);
-                }
-
-                // Camera ceiling clamp: tell the GPU how high the camera can go
-                if (m.indoor) {
-                    float effective_ceiling = m.ceiling_height;
-                    if (m.ceiling_type == CeilingType::VAULT) {
-                        // Match the crown computation from generate_indoor_shell
-                        float bmin = -(float)finiteRadius_ * PATCH_EXTENT;
-                        float bmax = ((float)finiteRadius_ + 1.0f) * PATCH_EXTENT;
-                        float half_span = (bmax - bmin) * 0.5f;
-                        float paint_top = m.ceiling_height * 0.45f + 5.5f;
-                        float spring_h = paint_top + 8.0f;
-                        float min_rise = m.ceiling_height - spring_h;
-                        float rise = std::max(half_span * 0.30f, std::max(min_rise, 5.0f));
-                        effective_ceiling = spring_h + rise;
-                    }
-                    gpuState_.set_ceiling_height(effective_ceiling);
-                }
-                else {
-                    gpuState_.set_ceiling_height(0.0f);
-                }
-
-                // Polyphony-driven band motion: active when mode toggled on
-                // Band motion is retroactively mode 0 — respect mmodeMask_
-                bandMotionActive_ = is_mmode_on(MMODE_TERRAIN_WAVES);
-                if (bandMotionActive_) {
-                    for (int i = 0; i < 6; i++) {
-                        bandBlend_[i] = 0.0f;         // start fully frozen
-                        bandBlendTarget_[i] = 0.0f;
-                        bandPhaseOrigin_[i] = 0.0f;
-                    }
-                    gpuState_.set_band_motion(bandBlend_, bandPhaseOrigin_);
-                    gpuState_.set_terrain_time(0.0f);  // will advance per-frame in tick
-                }
-                else {
-                    float inactive[6] = { -1.f, -1.f, -1.f, -1.f, -1.f, -1.f };
-                    float zeros[6] = {};
-                    gpuState_.set_band_motion(inactive, zeros);
-                    gpuState_.set_terrain_time(0.0f);  // frozen for non-animated moods
-                    for (int i = 0; i < 6; i++) {
-                        bandBlend_[i] = -1.0f;
-                        bandBlendTarget_[i] = 0.0f;
-                        bandPhaseOrigin_[i] = 0.0f;
-                    }
-                }
-
-                // Reset all mode intensities on mood change (circuits stay wired, values reset)
-                for (uint32_t m = 0; m < MMODE_COUNT; m++) mmodeIntensity_[m] = 0.0f;
-                paletteDriftTarget_ = 0.0f;
-                paletteDriftDesired_ = 0.0f;
-                gpuState_.set_mode_color_shift(0.0f);
-                gpuState_.set_mode_checker_scatter(0.0f);
-                gpuState_.set_mode_palette_drift(0.0f, 0.0f, 0.0f);
-                gpuState_.set_mode_gol_scales(1.0f, 1.0f);
-                for (int i = 0; i < 32; i++) pulseRing_[i] = 0.0f;
-                pulseWriteIdx_ = 0;
-                prevPolyphony_ = 0.0f;
-                float zero_pulses[32] = {};
-                gpuState_.set_pulse_data(0, zero_pulses);
-
-                // ─── Mood 9 ribbon: seed-derived flying ribbon ───────────────
-                if (mood == 5) {
-                    uint32_t rseed = ribbon_cell_seed(activeSeed_, 0, 0);
-
-                    // Anchor: seed-derived position spread across the finite world + margin.
-                    // The ribbon can land outside terrain bounds — visible from afar.
-                    float spread = ((float)finiteRadius_ + 1.5f) * PATCH_EXTENT;
-                    float world_cx = 0.5f * PATCH_EXTENT;   // center of grid origin patch
-                    float world_cz = 0.5f * PATCH_EXTENT;
-                    float ax = world_cx + (cpu_hash_f(rseed, RibbonProp::ANCHOR_X) - 0.5f) * spread + moodRibbonOffset_[0];
-                    float az = world_cz + (cpu_hash_f(rseed, RibbonProp::ANCHOR_Z) - 0.5f) * spread + moodRibbonOffset_[1];
-
-                    GPURibbonState ribbon{};
-                    ribbon.anchor[0] = ax;
-                    ribbon.anchor[1] = 0.0f;
-                    ribbon.anchor[2] = az;
-                    ribbon.time = currentSeconds_;
-                    float terrain_est = cpu_terrain_base_at(ax, az);
-                    uint32_t rtier = generate_flying_ribbon(ribbon, rseed, terrain_est);
-                    gpuState_.upload_ribbon(queue, ribbon);
-                    currentRibbon_ = ribbon;
-                    ribbonActive_ = true;
-                    print_ribbon_diagnostic("Mood 9", ribbon, rtier);
-                }
-
-                std::cout << "[Mood] Applied: " << mood_name(mood)
-                    << " (mood=" << mood
-                    << (m.indoor ? " INDOOR" : " outdoor")
-                    << (bandMotionActive_ ? " BAND_MOTION" : "")
-                    << ")\n";
-            }
-
-            // ─── Authored Image Loading (staging model) ─────────────────
-
-            void load_authored_image_to_staging(wgpu::Queue& queue, uint32_t staging_layer, uint32_t disk_index, const char* path) {
-                int width = 0, height = 0, channels = 0;
-                unsigned char* data = stbi_load(path, &width, &height, &channels, 4);
-                if (!data) {
-                    // Try fallback paths
-                    std::string alt = std::string("7t/") + path;
-                    data = stbi_load(alt.c_str(), &width, &height, &channels, 4);
-                }
-                if (!data) {
-                    std::cerr << "[Authored] Failed to load: " << path << "\n";
-                    return;
-                }
-
-                std::cout << "[Authored] Loaded: " << path
-                    << " (" << width << "x" << height << ") → staging " << staging_layer << "\n";
-
-                constexpr uint32_t RES = Dim::PAINTING_RESOLUTION;
-                float scale = std::min((float)RES / width, (float)RES / height);
-                if (scale > 1.0f) scale = 1.0f;
-                uint32_t dst_w = std::min((uint32_t)(width * scale + 0.5f), RES);
-                uint32_t dst_h = std::min((uint32_t)(height * scale + 0.5f), RES);
-
-                std::vector<uint8_t> padded(RES * RES * 4, 0);
-                for (uint32_t dy = 0; dy < dst_h; ++dy) {
-                    float src_yf = (float)dy / scale;
-                    uint32_t sy0 = (uint32_t)src_yf;
-                    uint32_t sy1 = std::min(sy0 + 1, (uint32_t)(height - 1));
-                    float fy = src_yf - sy0;
-                    for (uint32_t dx = 0; dx < dst_w; ++dx) {
-                        float src_xf = (float)dx / scale;
-                        uint32_t sx0 = (uint32_t)src_xf;
-                        uint32_t sx1 = std::min(sx0 + 1, (uint32_t)(width - 1));
-                        float fx = src_xf - sx0;
-                        uint32_t i00 = (sy0 * width + sx0) * 4;
-                        uint32_t i10 = (sy0 * width + sx1) * 4;
-                        uint32_t i01 = (sy1 * width + sx0) * 4;
-                        uint32_t i11 = (sy1 * width + sx1) * 4;
-                        uint32_t di = (dy * RES + dx) * 4;
-                        for (int c = 0; c < 4; ++c) {
-                            float v = (1 - fx) * (1 - fy) * data[i00 + c] + fx * (1 - fy) * data[i10 + c]
-                                + (1 - fx) * fy * data[i01 + c] + fx * fy * data[i11 + c];
-                            padded[di + c] = (uint8_t)(v + 0.5f);
-                        }
-                    }
-                }
-
-                gpuState_.upload_authored_painting(queue, staging_layer, padded.data(), RES, RES);
-                stbi_image_free(data);
-
-                auto& rec = authoredStaging_[staging_layer];
-                rec.disk_index = disk_index;
-                rec.aspect_ratio = (height > 0) ? (float)width / (float)height : 1.0f;
-                rec.uv_scale_x = (float)dst_w / RES;
-                rec.uv_scale_y = (float)dst_h / RES;
-                rec.valid = true;
-                rec.consumed = false;
-
-                std::cout << "[Authored] Scaled → " << dst_w << "x" << dst_h
-                    << " (aspect " << rec.aspect_ratio << ")\n";
-            }
-
-            // ─── Paintings Folder Scan ─────────────────────────────────
-            // Scans assets/paintings/ for PAINTING_*.jpg/jpeg, sorted alphabetically.
-            // Called once at first load. The full collection lives on disk;
-            // a rotating 16-layer staging window loads into GPU memory.
-
-            void scan_paintings_folder() {
-                namespace fs = std::filesystem;
-                authoredDiskManifest_.clear();
-
-                // Try multiple base paths (build dir vs working dir)
-                static constexpr const char* SEARCH_DIRS[] = {
-                    "assets/paintings",
-                    "7t/assets/paintings",
-                };
-
-                fs::path found_dir;
-                for (const char* dir : SEARCH_DIRS) {
-                    if (fs::exists(dir) && fs::is_directory(dir)) {
-                        found_dir = dir;
-                        break;
-                    }
-                }
-                if (found_dir.empty()) {
-                    std::cout << "[Authored] No paintings folder found\n";
-                    return;
-                }
-
-                for (const auto& entry : fs::directory_iterator(found_dir)) {
-                    if (!entry.is_regular_file()) continue;
-                    std::string name = entry.path().filename().string();
-                    // Match PAINTING_*.jpg or PAINTING_*.jpeg (case-insensitive extension)
-                    if (name.rfind("PAINTING_", 0) != 0) continue;
-                    std::string ext = entry.path().extension().string();
-                    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
-                    if (ext != ".jpg" && ext != ".jpeg") continue;
-                    authoredDiskManifest_.push_back(entry.path().string());
-                }
-
-                // Sort by numeric value after PAINTING_ (not lexicographic)
-                // PAINTING_1 < PAINTING_2 < PAINTING_10 < PAINTING_100
-                auto extract_number = [](const std::string& path) -> int {
-                    namespace fs = std::filesystem;
-                    std::string name = fs::path(path).stem().string();  // "PAINTING_12"
-                    size_t pos = name.find('_');
-                    if (pos == std::string::npos || pos + 1 >= name.size()) return 0;
-                    try { return std::stoi(name.substr(pos + 1)); }
-                    catch (...) { return 0; }
-                    };
-                std::sort(authoredDiskManifest_.begin(), authoredDiskManifest_.end(),
-                    [&](const std::string& a, const std::string& b) {
-                        return extract_number(a) < extract_number(b);
-                    });
-
-                std::cout << "[Authored] Scanned " << found_dir.string()
-                    << " — found " << authoredDiskManifest_.size() << " paintings\n";
-            }
-
-            void load_authored_textures(wgpu::Queue& queue) {
-                if (authoredTexturesLoaded_) return;
-
-                // Scan folder on first load
-                if (authoredDiskManifest_.empty()) {
-                    scan_paintings_folder();
-                }
-                if (authoredDiskManifest_.empty()) {
-                    authoredTexturesLoaded_ = true;
-                    return;
-                }
-
-                // Fill staging with the first STAGING_LAYERS images from manifest
-                uint32_t manifest_size = (uint32_t)authoredDiskManifest_.size();
-                uint32_t to_load = std::min(manifest_size, Dim::STAGING_LAYERS);
-                for (uint32_t i = 0; i < to_load; i++) {
-                    load_authored_image_to_staging(queue, i, i, authoredDiskManifest_[i].c_str());
-                    if (authoredStaging_[i].valid) authoredStagedCount_++;
-                }
-                authoredWriteCursor_ = to_load % Dim::STAGING_LAYERS;
-                authoredDiskCursor_ = to_load % manifest_size;
-                authoredTexturesLoaded_ = true;
-                std::cout << "[Authored] Staged " << authoredStagedCount_
-                    << "/" << manifest_size << " images\n";
-            }
-
-            // Replace consumed authored staging slots with the next images from disk.
-            // Called at teardown — consumed slots get fresh paintings, unconsumed survive.
-            // The disk cursor walks through the entire manifest across world transitions,
-            // so the pawn sees different paintings in each world.
-            void rotate_authored_staging(wgpu::Queue& queue) {
-                if (authoredDiskManifest_.empty()) return;
-                uint32_t manifest_size = (uint32_t)authoredDiskManifest_.size();
-
-                // Collect disk indices currently in unconsumed (surviving) slots
-                // to avoid loading duplicates
-                bool disk_in_use[256]{};  // generous upper bound
-                for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) {
-                    if (authoredStaging_[i].valid && !authoredStaging_[i].consumed) {
-                        if (authoredStaging_[i].disk_index < 256)
-                            disk_in_use[authoredStaging_[i].disk_index] = true;
-                    }
-                }
-
-                uint32_t rotated = 0;
-                for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) {
-                    if (!authoredStaging_[i].consumed) continue;  // keep unconsumed
-
-                    // Find next disk image not already in a surviving slot
-                    uint32_t attempts = 0;
-                    while (attempts < manifest_size) {
-                        uint32_t disk_idx = authoredDiskCursor_;
-                        authoredDiskCursor_ = (authoredDiskCursor_ + 1) % manifest_size;
-                        if (disk_idx < 256 && disk_in_use[disk_idx]) {
-                            attempts++;
-                            continue;
-                        }
-                        // Load this image into the vacated staging slot
-                        load_authored_image_to_staging(queue, i, disk_idx,
-                            authoredDiskManifest_[disk_idx].c_str());
-                        if (disk_idx < 256) disk_in_use[disk_idx] = true;
-                        rotated++;
-                        break;
-                    }
-                    // If all manifest images are in surviving slots (unlikely with 50+),
-                    // the consumed slot just stays invalid
-                }
-
-                if (rotated > 0) {
-                    // Recount valid slots after rotation
-                    authoredStagedCount_ = 0;
-                    for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) {
-                        if (authoredStaging_[i].valid) authoredStagedCount_++;
-                    }
-                    std::cout << "[Authored] Rotated " << rotated
-                        << " slot(s), " << authoredStagedCount_ << " valid"
-                        << ", disk cursor at " << authoredDiskCursor_
-                        << "/" << manifest_size << "\n";
-                }
-            }
-
-            // Count how many valid authored staging entries aren't in usedAuthored[]
-            uint32_t count_unused_authored(const bool usedAuthored[]) const {
-                uint32_t count = 0;
-                for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) {
-                    if (authoredStaging_[i].valid && !authoredStaging_[i].consumed && !usedAuthored[i]) count++;
-                }
-                return count;
-            }
-
-            // Pick the next authored painting in alphabetical order (lowest disk_index first)
-            uint32_t pick_authored_staging(uint32_t /*seed*/, uint32_t /*prop*/) {
-                uint32_t best_slot = UINT32_MAX;
-                uint32_t best_disk = UINT32_MAX;
-                for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) {
-                    if (authoredStaging_[i].valid && !authoredStaging_[i].consumed
-                        && authoredStaging_[i].disk_index < best_disk) {
-                        best_disk = authoredStaging_[i].disk_index;
-                        best_slot = i;
-                    }
-                }
-                return best_slot;
-            }
-
-            // ─── Frame Style Presets ─────────────────────────────────────
-            struct FrameStyle {
-                float depth, width, recess;
-                float color[3];
-            };
-            // Authored: thick dark wood (museum frame)
-            static constexpr FrameStyle FRAME_AUTHORED = { 0.30f, 0.45f, 0.09f, { 0.25f, 0.15f, 0.08f } };
-            // Snapshot on wall: same museum frame (content is different, ceremony is the same)
-            static constexpr FrameStyle FRAME_SNAPSHOT = { 0.30f, 0.45f, 0.09f, { 0.25f, 0.15f, 0.08f } };
-
-            // ─── Slot Fill Helpers ────────────────────────────────────────
-
-            void fill_slot_wall_frame(
-                GPUPaintingSlot& s,
-                float x, float y, float z,
-                float nx, float ny, float nz,
-                float aspect_ratio, float base_height,
-                uint32_t layer, uint32_t content,
-                float uv_sx, float uv_sy,
-                const FrameStyle& frame,
-                int32_t gx, int32_t gz
-            ) {
-                s = {};
-                s.position[0] = x; s.position[1] = y; s.position[2] = z;
-                s.forward[0] = nx; s.forward[1] = ny; s.forward[2] = nz;
-                s.up[0] = 0.0f; s.up[1] = 1.0f; s.up[2] = 0.0f;
-                s.form_type = FormType::WALL_FRAME;
-                s.is_active = 1;
-                s.scale_x = base_height * aspect_ratio;
-                s.scale_y = base_height;
-                s.texture_layer = layer;
-                s.content_source = content;
-                s.uv_scale_x = uv_sx;
-                s.uv_scale_y = uv_sy;
-                s.frame_depth = frame.depth;
-                s.frame_width = frame.width;
-                s.canvas_recess = frame.recess;
-                s.frame_color[0] = frame.color[0];
-                s.frame_color[1] = frame.color[1];
-                s.frame_color[2] = frame.color[2];
-                s.patch_gx = gx; s.patch_gz = gz;
-            }
-
-
-            // ─── Wall Painting Placement (unified slots, multi-wall, mixing) ─
-
-            void place_wall_paintings(wgpu::Queue& queue, float bmin, float bmax, float ceiling_h) {
-                // Clear any existing wall paintings first (indoor→indoor transitions)
-                clear_wall_paintings(queue);
-
-                load_authored_textures(queue);
-
-                constexpr float PAINT_Y_FRAC = 0.45f;  // center height as fraction of ceiling
-                constexpr float WALL_OFFSET = 0.05f;    // distance from wall surface
-
-                float paint_y_base = ceiling_h * PAINT_Y_FRAC;
-                float wall_span = bmax - bmin;
-                float wall_center = (bmin + bmax) * 0.5f;
-
-                // Three-way site type: snapshot-only / mixed / authored-only
-                uint32_t site_seed = cpu_hash(activeSeed_, 5500u);
-                float site_roll = cpu_hash_f(site_seed, 0u);
-                enum class IndoorSiteType { SNAPSHOT_ONLY, MIXED, AUTHORED_ONLY };
-                IndoorSiteType site_type;
-                if (site_roll < GalleryConfig::INDOOR_SNAPSHOT_ONLY && snapshotCount_ > 0) {
-                    site_type = IndoorSiteType::SNAPSHOT_ONLY;
-                }
-                else if (site_roll < GalleryConfig::INDOOR_SNAPSHOT_ONLY + GalleryConfig::INDOOR_MIXED
-                    && snapshotCount_ > 0) {
-                    site_type = IndoorSiteType::MIXED;
-                }
-                else {
-                    site_type = IndoorSiteType::AUTHORED_ONLY;
-                }
-
-                // Wall definitions: position, normal, tangent (for spacing)
-                struct WallDef {
-                    float px, py, pz;    // wall center position
-                    float nx, ny, nz;    // inward normal
-                    float tx, tz;        // tangent direction (for spacing paintings along wall)
-                    float span;          // wall length
-                };
-                WallDef walls[] = {
-                    { wall_center, paint_y_base, bmin + WALL_OFFSET,   0,0,1,   1,0,  wall_span },
-                    { wall_center, paint_y_base, bmax - WALL_OFFSET,   0,0,-1,  -1,0, wall_span },
-                    { bmin + WALL_OFFSET, paint_y_base, wall_center,   1,0,0,   0,1,  wall_span },
-                    { bmax - WALL_OFFSET, paint_y_base, wall_center,  -1,0,0,   0,-1, wall_span },
-                };
-                constexpr uint32_t WALL_COUNT = 4;
-
-                // Roll how many walls get paintings (1–4), then shuffle to pick which
-                uint32_t wall_roll = cpu_hash(site_seed, 1u) % 4;  // 0–3
-                uint32_t active_wall_count = 1 + wall_roll;         // 1–4
-                uint32_t active_walls[4] = { 0, 1, 2, 3 };
-                // Fisher-Yates shuffle
-                for (uint32_t i = 3; i > 0; i--) {
-                    uint32_t j = cpu_hash(site_seed, 2u + i) % (i + 1);
-                    uint32_t tmp = active_walls[i];
-                    active_walls[i] = active_walls[j];
-                    active_walls[j] = tmp;
-                }
-
-                // Track which authored layers have been used across all walls (no duplicates)
-                bool usedAuthored[Dim::STAGING_LAYERS]{};
-
-                // ─── Size variation: three painting scales ────────────────────
-                // Intimate (small accent), Standard (default), Statement (focal point)
-                // Rolled per painting via seed — gives visual hierarchy on each wall.
-                struct PaintingScale {
-                    float height_lo, height_hi;
-                    float weight;
-                };
-                static constexpr PaintingScale INDOOR_SCALES[] = {
-                    { 3.0f,  5.5f,  0.25f },   // intimate — small, hung higher
-                    { 6.0f,  9.0f,  0.50f },   // standard — medium, eye level
-                    { 10.0f, 14.0f, 0.25f },   // statement — large focal piece
-                };
-                static constexpr uint32_t INDOOR_SCALE_COUNT = 3;
-
-                for (uint32_t aw = 0; aw < active_wall_count; aw++) {
-                    uint32_t w = active_walls[aw];
-                    const auto& wall = walls[w];
-                    uint32_t w_seed = cpu_hash(site_seed, 10u + w * 20u);
-
-                    uint32_t count = 1 + cpu_hash(w_seed, 0u) % 5;  // 1-5 per wall
-
-                    // Keep paintings away from corners
-                    constexpr float CORNER_MARGIN = 12.0f;
-                    float usable_span = std::max(wall.span - 2.0f * CORNER_MARGIN, wall.span * 0.3f);
-                    constexpr float PAINTING_GAP = 6.0f;  // gap between painting edges (was 3)
-
-                    // ─── Pre-compute widths to center the group on the wall ──
-                    float total_width = 0.0f;
-                    float painting_widths[8]{};
-                    float painting_heights[8]{};
-                    uint32_t effective_count = std::min(count, 8u);
-
-                    for (uint32_t p = 0; p < effective_count; p++) {
-                        uint32_t p_seed = cpu_hash(w_seed, 100u + p * 10u);
-
-                        // Scale selection (weighted)
-                        float scale_roll = cpu_hash_f(p_seed, 7u);
-                        float cumul = 0.0f;
-                        uint32_t scale_idx = INDOOR_SCALE_COUNT - 1;
-                        for (uint32_t si = 0; si < INDOOR_SCALE_COUNT; si++) {
-                            cumul += INDOOR_SCALES[si].weight;
-                            if (scale_roll < cumul) { scale_idx = si; break; }
-                        }
-                        float h = INDOOR_SCALES[scale_idx].height_lo
-                            + cpu_hash_f(p_seed, 3u) * (INDOOR_SCALES[scale_idx].height_hi - INDOOR_SCALES[scale_idx].height_lo);
-                        painting_heights[p] = h;
-
-                        // Estimate width from typical aspect ratio (~1.3)
-                        float est_aspect = 0.8f + cpu_hash_f(p_seed, 5u) * 0.8f;  // [0.8, 1.6]
-                        painting_widths[p] = h * est_aspect;
-                        total_width += painting_widths[p];
-                        if (p > 0) total_width += PAINTING_GAP;
-                    }
-
-                    // Trim paintings that don't fit
-                    while (effective_count > 1 && total_width > usable_span) {
-                        total_width -= painting_widths[effective_count - 1];
-                        total_width -= PAINTING_GAP;
-                        effective_count--;
-                    }
-
-                    // Center the group on the wall
-                    float group_start = wall_center - total_width * 0.5f;
-                    float cursor = group_start;
-
-                    for (uint32_t p = 0; p < effective_count; p++) {
-
-                        uint32_t slot = find_free_painting_slot();
-                        if (slot == UINT32_MAX) return;
-
-                        uint32_t p_seed = cpu_hash(w_seed, 100u + p * 10u);
-
-                        // Vertical position: scale-dependent offset from base
-                        // Intimate pieces: hung higher. Statement pieces: anchored lower.
-                        float scale_roll = cpu_hash_f(p_seed, 7u);
-                        float cumul = 0.0f;
-                        uint32_t scale_idx = INDOOR_SCALE_COUNT - 1;
-                        for (uint32_t si = 0; si < INDOOR_SCALE_COUNT; si++) {
-                            cumul += INDOOR_SCALES[si].weight;
-                            if (scale_roll < cumul) { scale_idx = si; break; }
-                        }
-
-                        float y_offset = 0.0f;
-                        if (scale_idx == 0) y_offset = 2.0f + cpu_hash_f(p_seed, 1u) * 2.0f;        // intimate: +2 to +4
-                        else if (scale_idx == 1) y_offset = (cpu_hash_f(p_seed, 1u) - 0.5f) * 3.0f;  // standard: -1.5 to +1.5
-                        else y_offset = -1.5f - cpu_hash_f(p_seed, 1u) * 2.0f;                        // statement: -1.5 to -3.5
-
-                        float py = wall.py + y_offset;
-
-                        // ─── Content decision (three-way) ────────────────
-                        bool use_snapshot = (site_type == IndoorSiteType::SNAPSHOT_ONLY)
-                            || (site_type == IndoorSiteType::MIXED
-                                && cpu_hash_f(p_seed, 2u) < GalleryConfig::INDOOR_MIX_SNAPSHOT_CHANCE);
-
-                        if (!use_snapshot && count_unused_authored(usedAuthored) == 0) {
-                            use_snapshot = true;
-                        }
-
-                        auto& s = paintingSlots_[slot];
-                        float paint_width = 0.0f;  // will be set by whichever path fills the slot
-
-                        if (use_snapshot) {
-                            uint32_t snap_stg = UINT32_MAX;
-                            for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) {
-                                if (snapshotStaging_[i].valid && !snapshotStaging_[i].consumed) {
-                                    snap_stg = i;
-                                    break;
-                                }
-                            }
-                            if (snap_stg == UINT32_MAX) {
-                                if (count_unused_authored(usedAuthored) == 0) continue;
-                                use_snapshot = false;
-                            }
-                            else {
-                                uint32_t exh = find_free_exhibition_layer();
-                                if (exh == UINT32_MAX) return;
-
-                                const auto& snap = snapshotStaging_[snap_stg];
-                                float height = painting_heights[p];
-                                paint_width = height * snap.aspect_ratio;
-
-                                // Safety check: actual width may differ from estimate
-                                float wall_right = wall_center + usable_span * 0.5f;
-                                if (cursor + paint_width > wall_right) break;
-
-                                float paint_center = cursor + paint_width * 0.5f;
-                                float px = wall.px + wall.tx * (paint_center - wall_center);
-                                float pz = wall.pz + wall.tz * (paint_center - wall_center);
-
-                                fill_slot_wall_frame(s,
-                                    px, py, pz,
-                                    wall.nx, wall.ny, wall.nz,
-                                    snap.aspect_ratio, height,
-                                    exh, ContentSource::SNAPSHOT,
-                                    1.0f, 1.0f,
-                                    FRAME_SNAPSHOT,
-                                    INT32_MAX, INT32_MAX);
-
-                                exhibitionOccupied_[exh] = true;
-                                exhibitionCount_++;
-                                snapshotStaging_[snap_stg].consumed = true;
-                                queue_promotion(true, snap_stg, exh);
-
-                                cursor += paint_width + PAINTING_GAP;
-                                gpuState_.upload_painting_slot(queue, slot, s);
-                                wallFrameCount_++;
-                                continue;
-                            }
-                        }
-
-                        if (!use_snapshot) {
-                            uint32_t auth_stg = pick_authored_staging(p_seed, 4u);
-                            if (auth_stg == UINT32_MAX) continue;
-                            if (usedAuthored[auth_stg]) {
-                                uint32_t best = UINT32_MAX, best_disk = UINT32_MAX;
-                                for (uint32_t a = 0; a < Dim::STAGING_LAYERS; a++) {
-                                    if (!usedAuthored[a] && authoredStaging_[a].valid && !authoredStaging_[a].consumed
-                                        && authoredStaging_[a].disk_index < best_disk) {
-                                        best_disk = authoredStaging_[a].disk_index;
-                                        best = a;
-                                    }
-                                }
-                                if (best == UINT32_MAX) continue;
-                                auth_stg = best;
-                            }
-
-                            uint32_t exh = find_free_exhibition_layer();
-                            if (exh == UINT32_MAX) return;
-
-                            usedAuthored[auth_stg] = true;
-
-                            const auto& img = authoredStaging_[auth_stg];
-                            float height = painting_heights[p];
-                            paint_width = height * img.aspect_ratio;
-
-                            // Safety check: actual width may differ from estimate
-                            float wall_right = wall_center + usable_span * 0.5f;
-                            if (cursor + paint_width > wall_right) break;
-
-                            float paint_center = cursor + paint_width * 0.5f;
-                            float px = wall.px + wall.tx * (paint_center - wall_center);
-                            float pz = wall.pz + wall.tz * (paint_center - wall_center);
-
-                            fill_slot_wall_frame(s,
-                                px, py, pz,
-                                wall.nx, wall.ny, wall.nz,
-                                img.aspect_ratio, height,
-                                exh, ContentSource::AUTHORED,
-                                img.uv_scale_x, img.uv_scale_y,
-                                FRAME_AUTHORED,
-                                INT32_MAX, INT32_MAX);
-
-                            exhibitionOccupied_[exh] = true;
-                            exhibitionCount_++;
-                            authoredStaging_[auth_stg].consumed = true;
-                            queue_promotion(false, auth_stg, exh);
-
-                            cursor += paint_width + PAINTING_GAP;
-                            gpuState_.upload_painting_slot(queue, slot, s);
-                            wallFrameCount_++;
-                        }
-                    }
-                }
-
-                const char* site_type_name = (site_type == IndoorSiteType::SNAPSHOT_ONLY) ? "SNAPSHOT"
-                    : (site_type == IndoorSiteType::MIXED) ? "MIXED" : "AUTHORED";
-                std::cout << "[WallPainting] Placed " << wallFrameCount_
-                    << " frame(s) across " << active_wall_count << " walls"
-                    << " (" << site_type_name << ")\n";
-            }
-
-            void clear_wall_paintings(wgpu::Queue& queue) {
-                for (uint32_t i = 0; i < Dim::PAINTING_MAX_SLOTS; i++) {
-                    if (paintingSlots_[i].is_active != 0 &&
-                        paintingSlots_[i].form_type == FormType::WALL_FRAME) {
-                        uint32_t exh = paintingSlots_[i].texture_layer;
-                        if (exh < Dim::EXHIBITION_LAYERS) {
-                            exhibitionOccupied_[exh] = false;
-                            exhibitionCount_--;
-                        }
-                        paintingSlots_[i].is_active = 0;
-                        gpuState_.deactivate_painting_slot(queue, i);
-                    }
-                }
-                wallFrameCount_ = 0;
-            }
-
-            // ─── Indoor Shell Generation ─────────────────────────────────
-            //
-            // Generates ceiling + wall geometry for indoor moods.
-            // Uploaded to shell VB/IB and drawn in main + shadow passes.
-            //
-            // Flat ceiling: 1 quad.  Vault ceiling: tessellated catenary.
-            // Walls: 4 quads from floor (y=0) to wall_height.
-
-            void clear_indoor_shell(wgpu::Queue& queue) {
-                gpuState_.set_shell_index_count(0);
-                clear_wall_paintings(queue);
-            }
-
-            // Helper: push a quad (2 triangles) into vertex/index vectors
-            static void push_quad(
-                std::vector<ShellVertex>& verts,
-                std::vector<uint32_t>& indices,
-                float ax, float ay, float az,
-                float bx, float by, float bz,
-                float cx, float cy, float cz,
-                float dx, float dy, float dz,
-                float nx, float ny, float nz,
-                const float* color
-            ) {
-                uint32_t base = static_cast<uint32_t>(verts.size());
-                verts.push_back({ { ax, ay, az }, { nx, ny, nz }, { color[0], color[1], color[2] } });
-                verts.push_back({ { bx, by, bz }, { nx, ny, nz }, { color[0], color[1], color[2] } });
-                verts.push_back({ { cx, cy, cz }, { nx, ny, nz }, { color[0], color[1], color[2] } });
-                verts.push_back({ { dx, dy, dz }, { nx, ny, nz }, { color[0], color[1], color[2] } });
-                indices.push_back(base); indices.push_back(base + 1); indices.push_back(base + 2);
-                indices.push_back(base); indices.push_back(base + 2); indices.push_back(base + 3);
-            }
-
-            void generate_indoor_shell(wgpu::Queue& queue, const MoodProfile& m) {
-                float bmin = -(float)finiteRadius_ * PATCH_EXTENT;
-                float bmax = ((float)finiteRadius_ + 1.0f) * PATCH_EXTENT;
-                float ch = m.ceiling_height;
-
-                std::vector<ShellVertex> verts;
-                std::vector<uint32_t> indices;
-                verts.reserve(2400);
-                indices.reserve(12000);
-
-                static constexpr float JOINT_OVERLAP = 3.0f;
-                static constexpr float WALL_FLOOR = -50.0f;
-
-                // ─── Compute wall height (depends on ceiling type) ───────
-                //
-                // For vault: spring line must clear paintings. Painting centers
-                // sit at ceiling_height × 0.45, half-height ≈ 5.5 units.
-                // Spring line = painting_top + margin.
-                float wall_h = ch;  // flat ceiling: walls go to ceiling
-                float crown_h = ch; // effective crown height for log
-                float rise = 0.0f;
-
-                if (m.ceiling_type == CeilingType::VAULT) {
-                    static constexpr float VAULT_RISE_FRACTION = 0.30f;
-                    static constexpr float SPRING_MARGIN = 8.0f;
-
-                    float half_span = (bmax - bmin) * 0.5f;
-                    float paint_center = ch * 0.45f;
-                    float paint_top = paint_center + 5.5f;
-                    wall_h = paint_top + SPRING_MARGIN;
-
-                    float min_rise = ch - wall_h;
-                    rise = std::max(half_span * VAULT_RISE_FRACTION, std::max(min_rise, 5.0f));
-                    crown_h = wall_h + rise;
-                }
-
-                float wall_top = wall_h + JOINT_OVERLAP;
-
-                // ─── 4 Walls (deep floor to wall_top) ────────────────────
-                // South wall (z = bmin, facing +Z into room)
-                push_quad(verts, indices,
-                    bmin, WALL_FLOOR, bmin, bmax, WALL_FLOOR, bmin,
-                    bmax, wall_top, bmin, bmin, wall_top, bmin,
-                    0.0f, 0.0f, 1.0f, m.wall_color);
-                // North wall (z = bmax, facing -Z into room)
-                push_quad(verts, indices,
-                    bmax, WALL_FLOOR, bmax, bmin, WALL_FLOOR, bmax,
-                    bmin, wall_top, bmax, bmax, wall_top, bmax,
-                    0.0f, 0.0f, -1.0f, m.wall_color);
-                // West wall (x = bmin, facing +X into room)
-                push_quad(verts, indices,
-                    bmin, WALL_FLOOR, bmax, bmin, WALL_FLOOR, bmin,
-                    bmin, wall_top, bmin, bmin, wall_top, bmax,
-                    1.0f, 0.0f, 0.0f, m.wall_color);
-                // East wall (x = bmax, facing -X into room)
-                push_quad(verts, indices,
-                    bmax, WALL_FLOOR, bmin, bmax, WALL_FLOOR, bmax,
-                    bmax, wall_top, bmax, bmax, wall_top, bmin,
-                    -1.0f, 0.0f, 0.0f, m.wall_color);
-
-                // ─── Ceiling ─────────────────────────────────────────────
-                if (m.ceiling_type == CeilingType::FLAT) {
-                    push_quad(verts, indices,
-                        bmin, ch, bmin, bmax, ch, bmin,
-                        bmax, ch, bmax, bmin, ch, bmax,
-                        0.0f, -1.0f, 0.0f, m.ceiling_color);
-                }
-                else if (m.ceiling_type == CeilingType::VAULT) {
-                    // ─── Groin vault (cross vault) ───────────────────────
-                    //
-                    // Two perpendicular catenary barrels; ceiling = min of both.
-                    // Rise scales with room span for real architectural depth.
-
-                    float half_x = (bmax - bmin) * 0.5f;
-                    float half_z = (bmax - bmin) * 0.5f;
-                    float center_x = (bmin + bmax) * 0.5f;
-                    float center_z = (bmin + bmax) * 0.5f;
-                    float cat_a_x = solve_catenary_a(half_x, rise);
-                    float cat_a_z = solve_catenary_a(half_z, rise);
-
-                    static constexpr uint32_t VAULT_N = 32;
-
-                    auto catenary_y = [&](float dist, float cat_a) -> float {
-                        return crown_h - cat_a * (std::cosh(dist / cat_a) - 1.0f);
-                        };
-
-                    uint32_t v_base = static_cast<uint32_t>(verts.size());
-                    for (uint32_t iz = 0; iz <= VAULT_N; iz++) {
-                        float tz = (float)iz / (float)VAULT_N;
-                        float z = bmin + tz * (bmax - bmin);
-                        float dz = z - center_z;
-
-                        for (uint32_t ix = 0; ix <= VAULT_N; ix++) {
-                            float tx = (float)ix / (float)VAULT_N;
-                            float x = bmin + tx * (bmax - bmin);
-                            float dx = x - center_x;
-
-                            float y_barrel_x = catenary_y(dx, cat_a_x);
-                            float y_barrel_z = catenary_y(dz, cat_a_z);
-                            float y = std::min(y_barrel_x, y_barrel_z);
-
-                            bool on_edge = (ix == 0 || ix == VAULT_N || iz == 0 || iz == VAULT_N);
-                            if (on_edge) {
-                                y = wall_h - JOINT_OVERLAP;
-                            }
-
-                            // Normal via finite differences
-                            float eps = (bmax - bmin) / (float)VAULT_N * 0.5f;
-                            float y_px = std::min(catenary_y(dx + eps, cat_a_x), catenary_y(dz, cat_a_z));
-                            float y_mx = std::min(catenary_y(dx - eps, cat_a_x), catenary_y(dz, cat_a_z));
-                            float y_pz = std::min(catenary_y(dx, cat_a_x), catenary_y(dz + eps, cat_a_z));
-                            float y_mz = std::min(catenary_y(dx, cat_a_x), catenary_y(dz - eps, cat_a_z));
-
-                            float ddx = (y_px - y_mx) / (2.0f * eps);
-                            float ddz = (y_pz - y_mz) / (2.0f * eps);
-                            float nmag = std::sqrt(ddx * ddx + 1.0f + ddz * ddz);
-                            float fnx = -ddx / nmag;
-                            float fny = -1.0f / nmag;
-                            float fnz = -ddz / nmag;
-
-                            if (on_edge) { fnx = 0.0f; fny = -1.0f; fnz = 0.0f; }
-
-                            verts.push_back({ { x, y, z }, { fnx, fny, fnz },
-                                { m.ceiling_color[0], m.ceiling_color[1], m.ceiling_color[2] } });
-                        }
-                    }
-
-                    for (uint32_t iz = 0; iz < VAULT_N; iz++) {
-                        for (uint32_t ix = 0; ix < VAULT_N; ix++) {
-                            uint32_t a = v_base + iz * (VAULT_N + 1) + ix;
-                            uint32_t b = a + 1;
-                            uint32_t c = a + (VAULT_N + 1);
-                            uint32_t d = c + 1;
-                            indices.push_back(a); indices.push_back(b); indices.push_back(c);
-                            indices.push_back(b); indices.push_back(d); indices.push_back(c);
-                        }
-                    }
-                }
-
-                uint32_t vc = std::min(static_cast<uint32_t>(verts.size()), Dim::SHELL_MAX_VERTICES);
-                uint32_t ic = std::min(static_cast<uint32_t>(indices.size()), Dim::SHELL_MAX_INDICES);
-
-                gpuState_.upload_shell_mesh(queue, verts.data(), vc, indices.data(), ic);
-
-                place_wall_paintings(queue, bmin, bmax, ch);
-
-                std::cout << "[Shell] Generated "
-                    << (m.ceiling_type == CeilingType::FLAT ? "FLAT" : "GROIN VAULT")
-                    << ": " << vc << " verts, " << ic << " indices"
-                    << " bounds=[" << bmin << "," << bmax << "]"
-                    << " wall_h=" << wall_h << " crown=" << crown_h
-                    << " rise=" << rise << "\n";
-            }
-
-            // --- Force-spawn a portal arch at a specific position ---
-            //
-            // General helper: places a Doorway arch with fixed tier-mean geometry,
-            // portal color, and the given destination. Returns the slot used, or
-            // UINT32_MAX if no slot was free.
-            uint32_t force_spawn_portal_at(wgpu::Queue& queue,
-                float cx, float cz, float rotation,
-                const PortalDestination& dest, bool is_back_portal) {
-
-                uint32_t slot = UINT32_MAX;
-                for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++) {
-                    if (!activeArches_[i].active) { slot = i; break; }
-                }
-                if (slot == UINT32_MAX) return UINT32_MAX;
-
-                const auto& tp = ARCH_TIERS[static_cast<uint32_t>(ArchTier::DOORWAY)];
-                float half_span = tp.span_mean * 0.5f;
-                float rise = tp.rise_mean;
-                float depth = tp.depth_mean;
-                float thickness = tp.thickness_mean;
-                float pier_height = tp.pier_height_mean;
-                float pier_padding = tp.pier_padding_mean;
-                float edge_blend = tp.edge_blend_mean;
-
-                float pier_half_x = thickness * 0.5f + pier_padding + edge_blend;
-                float pier_half_z = depth * 0.5f + pier_padding + edge_blend;
-
-                int32_t gx = static_cast<int32_t>(std::floor(cx / PATCH_EXTENT));
-                int32_t gz = static_cast<int32_t>(std::floor(cz / PATCH_EXTENT));
-
-                float cos_r = std::cos(rotation);
-                float sin_r = std::sin(rotation);
-                uint32_t pier_l_slot = Dim::PIER_ARCH_BASE + slot * 2;
-                uint32_t pier_r_slot = pier_l_slot + 1;
-
-                float pl_x = cx + (-half_span) * cos_r;
-                float pl_z = cz + (-half_span) * sin_r;
-                float pr_x = cx + half_span * cos_r;
-                float pr_z = cz + half_span * sin_r;
-
-                GPUPierInstance pl{};
-                pl.origin[0] = pl_x;  pl.origin[1] = pl_z;
-                pl.half_size[0] = pier_half_x;  pl.half_size[1] = pier_half_z;
-                pl.height_near = pier_height;  pl.height_far = pier_height;
-                pl.rotation = rotation;  pl.edge_blend = edge_blend;
-                pl.tier = PierTier::ARCH_DOORWAY;
-                pl.is_active = 1;
-                write_pier(queue, pier_l_slot, pl);
-
-                GPUPierInstance pr{};
-                pr.origin[0] = pr_x;  pr.origin[1] = pr_z;
-                pr.half_size[0] = pier_half_x;  pr.half_size[1] = pier_half_z;
-                pr.height_near = pier_height;  pr.height_far = pier_height;
-                pr.rotation = rotation;  pr.edge_blend = edge_blend;
-                pr.tier = PierTier::ARCH_DOORWAY;
-                pr.is_active = 1;
-                write_pier(queue, pier_r_slot, pr);
-
-                auto& aa = activeArches_[slot];
-                aa.patch_gx = gx;
-                aa.patch_gz = gz;
-                aa.active = true;
-                aa.draw_visible = true;
-                aa.world_x = cx;
-                aa.world_z = cz;
-                aa.rotation = rotation;
-                aa.half_span = half_span;
-                aa.total_height = pier_height + rise;
-                aa.tier = ArchTier::DOORWAY;
-                aa.depth = depth;
-                aa.thickness = thickness;
-                aa.rise = rise;
-                aa.pier_height = pier_height;
-                aa.burial = std::max(0.2f, pier_height * tp.burial);
-                aa.segs_u = tp.segs_u;
-                aa.segs_v = tp.segs_v;
-                aa.col_r = 0.75f;  aa.col_g = 0.68f;  aa.col_b = 0.60f;
-
-                {
-                    float tl = cpu_terrain_base_at(pl_x, pl_z);
-                    float tr = cpu_terrain_base_at(pr_x, pr_z);
-                    aa.cached_ground_y = std::min(tl + pier_height, tr + pier_height);
-                }
-
-                aa.is_portal = true;
-                aa.is_back_portal = is_back_portal;
-                aa.position_hash = cpu_hash(static_cast<uint32_t>(cx * 73856093.0f), static_cast<uint32_t>(cz * 19349663.0f));
-                aa.destination = dest;
-
-                activeArchCount_++;
-                portalsDirty_ = true;
-
-                const float* pc = is_back_portal
-                    ? PORTAL_COLOR_BACK
-                    : PORTAL_COLORS[dest.mood % MOOD_COUNT];
-                GPUArchMeshParams meshParams{};
-                meshParams.center_x = cx;
-                meshParams.center_z = cz;
-                meshParams.rotation = rotation;
-                meshParams.half_span = half_span;
-                meshParams.rise = rise;
-                meshParams.depth = depth;
-                meshParams.thickness = thickness;
-                meshParams.pier_height = pier_height;
-                meshParams.burial = aa.burial;
-                meshParams.catenary_a = solve_catenary_a(half_span, rise);
-                meshParams.segs_u = tp.segs_u;
-                meshParams.segs_v = tp.segs_v;
-                meshParams.color_r = pc[0];
-                meshParams.color_g = pc[1];
-                meshParams.color_b = pc[2];
-                meshParams.is_active = 1;
-                gpuState_.upload_arch_mesh_params_slot(queue, slot, meshParams);
-                archMeshGenPending_ = true;
-
-                return slot;
-            }
-
-            // --- Force-spawn the guaranteed back-portal ---
-            void force_spawn_back_portal(wgpu::Queue& queue) {
-                backPortalPending_ = false;
-
-                const auto& retMood = MOOD_TABLE[backPortalReturnMood_ % MOOD_COUNT];
-                PortalDestination dest{};
-                dest.seed = backPortalReturnSeed_;
-                dest.finite = retMood.finite;
-                dest.finite_radius = backPortalReturnRadius_;
-                dest.mood = backPortalReturnMood_;
-
-                float cx = backPortalPosition_[0];
-                float cz = backPortalPosition_[1];
-                uint32_t slot = force_spawn_portal_at(queue, cx, cz, 0.0f, dest, true);
-
-                if (slot != UINT32_MAX) {
-                    std::cout << "[Portal] Back-portal spawned at (" << cx << "," << cz
-                        << ") slot=" << slot
-                        << " -> return seed=" << backPortalReturnSeed_
-                        << " mood=" << mood_name(backPortalReturnMood_) << "\n";
-                }
-                else {
-                    std::cout << "[Portal] WARNING: no free arch slot for back-portal\n";
-                }
-
-                // Spawn additional forward portals around the room perimeter
-                force_spawn_finite_portals(queue);
-            }
-
-            // --- Forward portals in finite worlds ---
-            //
-            // Places seed-derived portals near the walls so the player can
-            // easily reach new worlds. Count scales with room size:
-            //   radius 1 (3×3):  1 extra portal
-            //   radius 2 (5×5):  2 extra portals
-            //   radius 3-4:      3 extra portals
-            //
-            // Positions are distributed along the room perimeter with seed-driven
-            // jitter so they feel organic, not mechanical.
-
-            void force_spawn_finite_portals(wgpu::Queue& queue) {
-                float bmin = -(float)finiteRadius_ * PATCH_EXTENT;
-                float bmax = ((float)finiteRadius_ + 1.0f) * PATCH_EXTENT;
-                float room_center = (bmin + bmax) * 0.5f;
-                float room_half = (bmax - bmin) * 0.5f;
-                float margin = 8.0f;  // distance from wall
-
-                uint32_t count = 1;
-                if (finiteRadius_ >= 2) count = 2;
-                if (finiteRadius_ >= 3) count = 3;
-
-                // Perimeter positions: distribute along the 4 walls
-                struct PortalSpot {
-                    float x, z, rotation;
-                };
-
-                // Fixed candidate positions: one per wall, offset from center
-                PortalSpot candidates[] = {
-                    // South wall, facing +Z (into room)
-                    { room_center, bmin + margin, 1.5708f },
-                    // East wall, facing -X (into room)
-                    { bmax - margin, room_center, 3.14159f },
-                    // North wall, facing -Z (into room)
-                    { room_center, bmax - margin, -1.5708f },
-                    // West wall, facing +X (into room)
-                    { bmin + margin, room_center, 0.0f },
-                };
-                uint32_t num_candidates = 4;
-
-                // Shuffle candidates with seed so different rooms use different walls
-                for (uint32_t i = num_candidates - 1; i > 0; i--) {
-                    uint32_t j = cpu_hash(activeSeed_, 7700u + i) % (i + 1);
-                    PortalSpot tmp = candidates[i];
-                    candidates[i] = candidates[j];
-                    candidates[j] = tmp;
-                }
-
-                uint32_t spawned = 0;
-                for (uint32_t i = 0; i < num_candidates && spawned < count; i++) {
-                    auto& spot = candidates[i];
-
-                    // Jitter position along the wall
-                    float jitter = (cpu_hash_f(activeSeed_, 7710u + i) - 0.5f) * room_half * 0.4f;
-                    // Apply jitter perpendicular to the wall normal
-                    float jx = spot.x, jz = spot.z;
-                    if (std::abs(spot.rotation - 1.5708f) < 0.1f || std::abs(spot.rotation + 1.5708f) < 0.1f) {
-                        jx += jitter;  // south/north wall: jitter along X
-                    }
-                    else {
-                        jz += jitter;  // east/west wall: jitter along Z
-                    }
-
-                    // Don't collide with back-portal (at backPortalPosition_)
-                    float dbx = jx - backPortalPosition_[0];
-                    float dbz = jz - backPortalPosition_[1];
-                    if (dbx * dbx + dbz * dbz < 10.0f * 10.0f) continue;
-
-                    // Generate destination
-                    uint32_t dest_seed = cpu_hash(activeSeed_, 7800u + i);
-                    uint32_t mood = pick_portal_mood(activeSeed_, 7900u + i);
-                    const auto& mp = MOOD_TABLE[mood];
-                    PortalDestination dest{};
-                    dest.seed = dest_seed;
-                    dest.mood = mood;
-                    dest.finite = mp.finite;
-                    dest.finite_radius = derive_finite_radius(dest_seed, mp);
-
-                    uint32_t slot = force_spawn_portal_at(queue, jx, jz, spot.rotation, dest, false);
-                    if (slot != UINT32_MAX) {
-                        std::cout << "[Portal] Forward portal " << (spawned + 1)
-                            << " at (" << jx << "," << jz
-                            << ") -> seed=" << dest_seed
-                            << " mood=" << mood_name(mood)
-                            << (dest.finite ? " FINITE" : " open") << "\n";
-                        spawned++;
-                    }
-                }
-
-                std::cout << "[Portal] Finite world: " << spawned << " forward portals + 1 back-portal\n";
-            }
-
-            // --- Upload portal array to GPU ---
-            void upload_portal_array(wgpu::Queue& queue) {
-                if (!portalsDirty_) return;
-                portalsDirty_ = false;
-
-                cpuPortalArray_ = GPUPortalArray{};
-                uint32_t count = 0;
-                for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES && count < MAX_GPU_PORTALS; i++) {
-                    if (!activeArches_[i].active || !activeArches_[i].is_portal) continue;
-                    auto& entry = cpuPortalArray_.portals[count];
-                    entry.x = activeArches_[i].world_x;
-                    entry.z = activeArches_[i].world_z;
-                    entry.trigger_radius = PORTAL_TRIGGER_RADIUS;
-                    entry.arch_index = i;
-                    count++;
-                }
-                cpuPortalArray_.count = count;
-                gpuState_.upload_portal_array(queue, cpuPortalArray_);
-            }
-
-            // --- Upload light uniforms (must precede compute for shadow VP) ---
-            void upload_lights(wgpu::Queue& queue) {
-                if (!lightsDirty_) return;
-                lightsDirty_ = false;
-
-                GPUDirectionalLight sun{};
-                float len = std::sqrt(sunDirection_[0] * sunDirection_[0] + sunDirection_[1] * sunDirection_[1] + sunDirection_[2] * sunDirection_[2]);
-                sun.direction[0] = sunDirection_[0] / len;
-                sun.direction[1] = sunDirection_[1] / len;
-                sun.direction[2] = sunDirection_[2] / len;
-
-                sun.color[0] = sunColor_[0];
-                sun.color[1] = sunColor_[1];
-                sun.color[2] = sunColor_[2];
-                sun.intensity = sunIntensity_;
-                sun.ambient = sunAmbient_;
-
-                gpuState_.upload_directional_light(queue, sun);
-
-                GPUPointLightArray pointLights{};
-                pointLights.count = 0;
-                gpuState_.upload_point_lights(queue, pointLights);
-
-                gpuState_.upload_spot_lights(queue, cpuSpotLights_);
-            }
-
-            // ── WORLD STATE & TILE SYSTEM ──
-
-            uint32_t activeSeed_ = 42;     // world master seed (mutable for world transitions)
-            // Patch dimensions aliased from Dim:: for local readability
-            static constexpr float    PATCH_EXTENT = Dim::PATCH_EXTENT;
-            static constexpr uint32_t GRID_RADIUS = Dim::PATCH_GRID_RADIUS;   // inner priority (3 → 7×7)
-            static constexpr uint32_t GRID_SIDE = Dim::PATCH_GRID_SIDE;
-            static constexpr uint32_t RENDER_RADIUS = Dim::PATCH_RENDER_RADIUS;  // visible radius (5)
-            static constexpr uint32_t RENDER_SIDE = Dim::PATCH_RENDER_SIDE;
-            static constexpr uint32_t PREGEN_RADIUS = Dim::PATCH_PREGEN_RADIUS; // deep pre-gen buffer (7)
-            static constexpr uint32_t MAX_PATCHES = Dim::MAX_ACTIVE_PATCHES;    // 225
-
 
             // --- Three Archetypes ---------------------------------------------------
             //
@@ -5793,7 +4494,6 @@ namespace t7 {
             static constexpr float DENSITY_EXPONENT = 0.6f;
             static constexpr float DENSITY_MIN = 1.0f;
             static constexpr float DENSITY_MAX = 1.0f;
-
 
             // Entity families for observation indexing
             struct PopFamily {
@@ -6186,7 +4886,6 @@ namespace t7 {
 
             static constexpr float AMP_MOMENTUM_THRESHOLD = 0.15f;  // |jitter - 1.0| above this → emit amp momentum
             static constexpr float AMP_MOMENTUM_CARRY = 0.6f;       // fraction of excess carried forward
-
 
             // ─── Population Batch System ─────────────────────────────────────
             //
@@ -6920,88 +5619,6 @@ namespace t7 {
                 terrainTokens_[slot] = token;
             }
 
-            // ── PATCH ORCHESTRATOR ──  → future: orchestrator.inl
-
-            // Runtime render radius — toggleable within [GRID_RADIUS, RENDER_RADIUS].
-            // Buffers/textures always allocated for PREGEN_RADIUS.
-            // Visibility uses circular VISIBLE_RADIUS; RENDER_RADIUS retained for
-            // allocation bounds and GoL zone eviction.
-            uint32_t activeRadius_ = PREGEN_RADIUS;
-
-
-            struct ActivePatch {
-                int32_t grid_x = 0;
-                int32_t grid_z = 0;
-                uint32_t layer = 0;
-                bool valid = false;
-                bool spawned = false;    // true once entities have been spawned for this patch
-                bool generated = false;  // true once heightfield has been dispatched
-                bool animated = false;   // true if patch overlaps an active pool
-                bool pending_regen = false;  // true while waiting for regen (keeps rendering old data)
-            };
-
-            ActivePatch patches_[MAX_PATCHES]{};
-            int32_t lastCenterX_ = INT32_MAX;  // force full regeneration on first frame
-            int32_t lastCenterZ_ = INT32_MAX;
-            uint32_t activePatchCount_ = 0;
-            uint32_t renderPatchCount_ = 0;  // visible patches (within circular VISIBLE_RADIUS)
-            uint32_t lod0PatchCount_ = 0;    // subset of rendered: within LOD_FULL_RADIUS (full mesh)
-            uint32_t allPatchCount_ = 0;     // all generated patches (including pre-gen ring)
-            uint32_t entitiesCulled_ = 0;    // entities hidden by distance culling this frame
-
-            // ─── Deferred Upload Flags ───────────────────────────────────
-            bool pierCountDirty_ = false;        // defer recompute_and_upload_pier_count
-            bool groundEntriesDirty_ = true;     // defer upload_ground_entries (true at boot)
-            bool patchInstancesDirty_ = true;    // defer LOD sort + upload_patch_instances
-            bool placementDirty_ = true;         // defer dispatch_placement_correction
-
-            // Free-list of available texture layers
-            uint32_t freeLayerStack_[MAX_PATCHES]{};
-            uint32_t freeLayerCount_ = MAX_PATCHES;
-
-            // ─── Dynamic Budgets ─────────────────────────────────────────
-            //
-            // Entity spawning and heightfield generation are both distance-
-            // driven and budgeted per frame. Spawning must complete before
-            // generation (piers affect heightfields), enforced by requiring
-            // spawned == true before a patch enters the generation scan.
-            static constexpr uint32_t SPAWN_BUDGET_PER_FRAME = 4;    // max patches to spawn entities for
-            static constexpr uint32_t ALLOC_BUDGET_PER_FRAME = 4;    // max patches to allocate per frame
-            static constexpr uint32_t EVICT_BUDGET_PER_FRAME = 4;    // max patches to evict per frame
-            static constexpr uint32_t PATCH_BUDGET_MIN = 1;
-            static constexpr uint32_t PATCH_BUDGET_MAX = 6;
-            static constexpr uint32_t PATCH_PENDING_TIER_1 = 3;
-            static constexpr uint32_t PATCH_PENDING_TIER_2 = 8;
-            static constexpr uint32_t PATCH_PENDING_TIER_3 = 20;
-            static constexpr uint32_t PATCH_PENDING_TIER_4 = 40;
-            static constexpr uint32_t PATCH_BUDGET_MOVE_THRESHOLD = 4;
-
-            uint32_t count_pending_patches() const {
-                uint32_t n = 0;
-                for (uint32_t i = 0; i < activePatchCount_; i++) {
-                    if (!patches_[i].valid) continue;
-                    if (patches_[i].pending_regen) { n++; continue; }
-                    if (patches_[i].spawned && !patches_[i].generated) n++;
-                }
-                return n;
-            }
-
-            uint32_t patches_budget_this_frame() const {
-                uint32_t pending = count_pending_patches();
-                uint32_t budget = PATCH_BUDGET_MIN;
-                if (pending >= PATCH_PENDING_TIER_4) budget = 6;
-                else if (pending >= PATCH_PENDING_TIER_3) budget = 4;
-                else if (pending >= PATCH_PENDING_TIER_2) budget = 3;
-                else if (pending >= PATCH_PENDING_TIER_1) budget = 2;
-
-                bool moving = (std::abs(inputState_.move_x) > 0.01f ||
-                    std::abs(inputState_.move_z) > 0.01f);
-                if (moving && pending > PATCH_BUDGET_MOVE_THRESHOLD)
-                    budget += 1;
-
-                return std::min(budget, PATCH_BUDGET_MAX);
-            }
-
             // --- World teardown: reset all runtime state for world transition ---
 
             void teardown_world(wgpu::Queue& queue) {
@@ -7338,6 +5955,689 @@ namespace t7 {
                 int32_t r = (int32_t)GRID_RADIUS;
                 return gx >= cx - r && gx <= cx + r &&
                     gz >= cz - r && gz <= cz + r;
+            }
+
+        public:
+            Cartridge() = default;
+
+            Cartridge(const Cartridge&) = delete;
+            Cartridge& operator=(const Cartridge&) = delete;
+
+            void initialize(wgpu::Device device) override {
+                device_ = device;
+                auto tGpu0 = std::chrono::high_resolution_clock::now();
+                gpuState_.init(device);
+                auto tGpu1 = std::chrono::high_resolution_clock::now();
+                std::cout << "[Cartridge] GPUState init:    "
+                    << std::chrono::duration_cast<std::chrono::milliseconds>(tGpu1 - tGpu0).count()
+                    << " ms\n";
+            }
+
+            bool init_renderer(
+                wgpu::TextureFormat colorFormat,
+                wgpu::TextureFormat depthFormat
+            ) {
+                colorFormat_ = colorFormat;
+                depthFormat_ = depthFormat;
+
+                auto t0 = std::chrono::high_resolution_clock::now();
+                if (!renderer_.init(
+                    device_,
+                    gpuState_,
+                    colorFormat,
+                    depthFormat
+                )) return false;
+
+                // Create offscreen textures with the actual swapchain format
+                if (!gpuState_.initOffscreenResources(colorFormat)) {
+                    std::cerr << "[Cartridge] Failed to init offscreen resources\n";
+                    return false;
+                }
+
+                auto t1 = std::chrono::high_resolution_clock::now();
+
+                // --- One-shot: generate terrain index buffer on GPU -----------------
+                {
+                    wgpu::CommandEncoder encoder = device_.CreateCommandEncoder();
+                    wgpu::ComputePassDescriptor desc{};
+                    desc.label = "Terrain Index Gen (one-shot)";
+                    wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&desc);
+                    renderer_.dispatch_generate_terrain_indices(
+                        pass,
+                        gpuState_.terrain_index_gen_group(),
+                        GPUState::terrain_mesh_workgroups()
+                    );
+                    pass.End();
+                    wgpu::CommandBuffer cmd = encoder.Finish();
+                    device_.GetQueue().Submit(1, &cmd);
+                }
+                auto t2 = std::chrono::high_resolution_clock::now();
+
+                init_patch_system();
+                setup_test_rig_piers(device_.GetQueue());
+
+                // Eager-load authored paintings at boot (avoids mid-frame stall on first gallery)
+                {
+                    wgpu::Queue q = device_.GetQueue();
+                    load_authored_textures(q);
+                }
+
+                auto t3 = std::chrono::high_resolution_clock::now();
+
+                std::cout << "[Cartridge] Renderer init:    "
+                    << std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count() << " ms\n";
+                std::cout << "[Cartridge] Terrain gen:      "
+                    << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() << " ms\n";
+                std::cout << "[Cartridge] Patch system:     "
+                    << std::chrono::duration_cast<std::chrono::milliseconds>(t3 - t2).count() << " ms\n";
+                std::cout << "[Cartridge] Total init:       "
+                    << std::chrono::duration_cast<std::chrono::milliseconds>(t3 - t0).count() << " ms\n";
+
+                return true;
+            }
+
+            void update(const AnalysisSignal& signal,
+                float aspect_ratio,
+                wgpu::Queue& queue) override {
+                // --- Build GPU signal from analysis + input -------------------------
+                GPUFrameSignal gpuSignal;
+
+                gpuSignal.t_seconds = signal.t_seconds;
+                gpuSignal.t_beats = signal.t_beats;
+                gpuSignal.dt = signal.dt;
+                gpuSignal.aspect_ratio = aspect_ratio;
+
+                for (size_t i = 0; i < signal.stats.size(); ++i) {
+                    gpuSignal.stats[i] = signal.stats[i];
+                }
+
+                gpuSignal.move_x = inputState_.move_x;
+                gpuSignal.move_z = inputState_.move_z;
+                gpuSignal.look_az_delta = inputState_.look_az_delta;
+                gpuSignal.look_el_delta = inputState_.look_el_delta;
+                gpuSignal.zoom_delta = inputState_.zoom_delta;
+                gpuSignal.pan_x_delta = inputState_.pan_x_delta;
+                gpuSignal.pan_y_delta = inputState_.pan_y_delta;
+                gpuSignal._pad1 = 0.0f;
+
+                currentBeats_ = signal.t_beats;
+                currentSeconds_ = signal.t_seconds;
+                currentDt_ = signal.dt;
+
+                // --- Upload to GPU --------------------------------------------------
+
+                // Aura presence trajectory: smooth ramp on enable/disable
+                {
+                    float target = auraEnabled_ ? 1.0f : 0.0f;
+                    float rate = (target > auraPresence_) ? AURA_PRESENCE_ATTACK : AURA_PRESENCE_RELEASE;
+                    float prev = auraPresence_;
+                    auraPresence_ = prev + (target - prev) * (1.0f - std::exp(-rate * currentDt_));
+                    if (auraPresence_ < 0.001f && target == 0.0f) auraPresence_ = 0.0f;
+                    if (auraPresence_ > 0.999f && target == 1.0f) auraPresence_ = 1.0f;
+                    if (auraPresence_ != prev) auraCfgDirty_ = true;
+                }
+
+                // Pawn aura height: presence × base height × expansion
+                // This same value is used by terrain VS for extrusion, so pawn and terrain always agree.
+                float aura_expand_mult = 1.0f + mmodeIntensity_[MMODE_AURA_EXPAND] * 3.0f;
+                float effective_aura_height = auraHeightEnabled_
+                    ? activeAuraProfile_.height_scale * auraPresence_ * aura_expand_mult : 0.0f;
+                gpuState_.set_pawn_aura_height(effective_aura_height);
+                gpuState_.set_aura_enabled(auraPresence_ > 0.001f);  // keep compute running while ramping down
+                gpuState_.set_world_seed(activeSeed_);
+                if (finiteMode_) {
+                    float bmin = -(float)finiteRadius_ * PATCH_EXTENT;
+                    float bmax = ((float)finiteRadius_ + 1.0f) * PATCH_EXTENT;
+                    gpuState_.set_world_bounds(bmin, bmin, bmax, bmax);
+                }
+                else {
+                    gpuState_.set_world_bounds(0.0f, 0.0f, 0.0f, 0.0f);
+                }
+
+                // --- Transition state machine ---
+                if (transitionPhase_ != TransitionPhase::IDLE) {
+                    transitionTimer_ += signal.dt;
+                    switch (transitionPhase_) {
+                    case TransitionPhase::FADE_OUT:
+                        transitionFadeAlpha_ = std::min(1.0f, transitionTimer_ / transitionFadeDuration_);
+                        if (transitionFadeAlpha_ >= 1.0f) {
+                            transitionPhase_ = TransitionPhase::TEARDOWN;
+                        }
+                        break;
+                    case TransitionPhase::TEARDOWN:
+                    {
+                        // Capture return seed + mood + radius before overwrite
+                        backPortalReturnSeed_ = activeSeed_;
+                        backPortalReturnMood_ = activeMood_;
+                        backPortalReturnRadius_ = finiteRadius_;
+
+                        activeSeed_ = pendingDestination_.seed;
+                        finiteMode_ = pendingDestination_.finite;
+                        finiteRadius_ = pendingDestination_.finite_radius;
+                        teardown_world(queue);
+                        // NOTE: do NOT force pawnReadbackState_ to IDLE here.
+                        // If a MapAsync is in-flight (MAPPING), forcing IDLE would
+                        // cause CopyBufferToBuffer to a still-mapped buffer.
+                        // The existing state machine guards will skip readback
+                        // until the pending callback resolves naturally.
+                        readbackPortalTrigger_ = -1;
+                        pawnReadback_x_ = 0.0f;
+                        pawnReadback_z_ = 0.0f;
+                        gpuState_.reset_pawn(queue);
+                        gpuState_.set_world_seed(activeSeed_);
+                        apply_mood(pendingDestination_.mood, queue);
+                        // Deactivate ribbon in finite mode (mood 5 spawns its own in apply_mood)
+                        if (finiteMode_ && ribbonActive_ && activeMood_ != 5) {
+                            uint32_t zero = 0u;
+                            queue.WriteBuffer(gpuState_.ribbon_buffer(),
+                                offsetof(GPURibbonState, is_visible), &zero, sizeof(uint32_t));
+                            ribbonActive_ = false;
+                        }
+                        // Schedule guaranteed back-portal in finite worlds
+                        backPortalPending_ = finiteMode_;
+
+                        transitionPhase_ = TransitionPhase::FADE_IN;
+                        transitionTimer_ = 0.0f;
+                        uint32_t side = finiteMode_ ? 2 * finiteRadius_ + 1 : 0;
+                        std::cout << "[World] Teardown complete, seed=" << activeSeed_
+                            << " mode=" << (finiteMode_ ? "finite" : "open")
+                            << (finiteMode_ ? " " + std::to_string(side) + "x" + std::to_string(side) : "")
+                            << "\n";
+                    }
+                    break;
+                    case TransitionPhase::FADE_IN:
+                        transitionFadeAlpha_ = std::max(0.0f, 1.0f - transitionTimer_ / transitionFadeDuration_);
+                        if (transitionFadeAlpha_ <= 0.0f) {
+                            transitionPhase_ = TransitionPhase::IDLE;
+                            transitionFadeAlpha_ = 0.0f;
+                        }
+                        break;
+                    default: break;
+                    }
+                }
+                gpuState_.set_fade(transitionFadeAlpha_, 0.0f, 0.0f, 0.0f);
+
+                gpuState_.upload_signal(queue, gpuSignal);
+
+                // ─── Polyphony-driven band motion ────────────────────────
+                if (bandMotionActive_) {
+                    float polyphony = signal.stats[0];
+                    uint32_t active_count = (uint32_t)std::max(0.0f, std::min(polyphony, 6.0f));
+
+                    // Set per-band targets: bands activate in order from fine to tectonic
+                    for (uint32_t i = 0; i < 6; i++) bandBlendTarget_[i] = 0.0f;
+                    for (uint32_t i = 0; i < active_count; i++) {
+                        bandBlendTarget_[BAND_ACTIVATION_ORDER[i]] = 1.0f;
+                    }
+
+                    float dt = signal.dt;
+                    bool changed = false;
+                    for (uint32_t i = 0; i < 6; i++) {
+                        float prev = bandBlend_[i];
+                        float target = bandBlendTarget_[i];
+
+                        // Capture phase origin at the moment a band activates
+                        if (target > 0.5f && prev < 0.01f) {
+                            bandPhaseOrigin_[i] = currentBeats_;
+                        }
+
+                        // Exponential ramp toward target
+                        float rate = (target > prev) ? BAND_BLEND_ATTACK : BAND_BLEND_RELEASE;
+                        bandBlend_[i] = prev + (target - prev) * (1.0f - std::exp(-rate * dt));
+
+                        // Snap to endpoints to avoid perpetual drift
+                        if (bandBlend_[i] < 0.001f && target == 0.0f) bandBlend_[i] = 0.0f;
+                        if (bandBlend_[i] > 0.999f && target == 1.0f) bandBlend_[i] = 1.0f;
+
+                        if (bandBlend_[i] != prev) changed = true;
+                    }
+
+                    if (changed) {
+                        gpuState_.set_band_motion(bandBlend_, bandPhaseOrigin_);
+                    }
+                    gpuState_.set_terrain_time(currentBeats_);
+                }
+
+                // ─── Musical animation modes: per-frame intensity ramp ───
+                {
+                    float polyphony = signal.stats[0];
+                    float dt = signal.dt;
+                    bool any_changed = false;
+
+                    for (uint32_t m = 0; m < MMODE_COUNT; m++) {
+                        // Skip mode 0 (terrain waves) — handled by band motion system above
+                        // Skip mode 3 (palette drift) — has its own steeper intensity curve below
+                        if (m == MMODE_TERRAIN_WAVES || m == MMODE_PALETTE_DRIFT) continue;
+
+                        bool on = is_mmode_on(m);
+                        float target = on ? std::min(polyphony / 6.0f, 1.0f) : 0.0f;
+                        float prev = mmodeIntensity_[m];
+                        float rate = (target > prev) ? MMODE_ATTACK : MMODE_RELEASE;
+                        float next = prev + (target - prev) * (1.0f - std::exp(-rate * dt));
+
+                        // Snap to endpoints
+                        if (next < 0.001f && target == 0.0f) next = 0.0f;
+                        if (next > 0.999f && target >= 1.0f) next = 1.0f;
+
+                        if (next != prev) {
+                            mmodeIntensity_[m] = next;
+                            any_changed = true;
+                        }
+                    }
+
+                    if (any_changed) {
+                        // Color shift: intensity → mode field bias
+                        gpuState_.set_mode_color_shift(mmodeIntensity_[MMODE_COLOR_SHIFT] * 0.6f);
+
+                        // Checker scatter: intensity → sparse threshold reduction
+                        gpuState_.set_mode_checker_scatter(mmodeIntensity_[MMODE_CHECKER_SCATTER] * 0.5f);
+
+                        // Aura expand: intensity scales aura parameters
+                        if (mmodeIntensity_[MMODE_AURA_EXPAND] > 0.0f || is_mmode_on(MMODE_AURA_EXPAND)) {
+                            auraCfgDirty_ = true;
+                        }
+
+                        // GoL tempo: intensity → tick slow-down + height boost
+                        // Inverse: more polyphony = slower GoL (contemplation).
+                        // When BPM detection arrives, this source gets swapped.
+                        {
+                            float gi = mmodeIntensity_[MMODE_GOL_TEMPO];
+                            // tick_scale > 1 = slower. Lerp from 1.0 up to 4.0 (4× slower at full)
+                            float tick_scale = 1.0f + gi * 3.0f;
+                            // height_scale > 1 = taller. Lerp from 1.0 up to 3.0
+                            float height_scale = 1.0f + gi * 2.0f;
+                            gpuState_.set_mode_gol_scales(tick_scale, height_scale);
+                        }
+                    }
+
+                    // Palette drift: smooth target transition + push to GPU
+                    // Uses its own intensity curve — steeper than generic mmodeIntensity
+                    // because palette colors are close and need strong push to read.
+                    {
+                        float poly = signal.stats[0];
+                        bool drift_on = is_mmode_on(MMODE_PALETTE_DRIFT);
+
+                        // Smooth palette mapping: ordered by contrast from sand baseline.
+                        //   1 note → green(2)  — biggest hue shift
+                        //   2 notes → grey(3)   — desaturated, clearly different
+                        //   3+ notes → salmon(1) — warm shift, completes cycle
+                        static constexpr float SMOOTH_PALETTE_MAP[] = { 0.0f, 2.0f, 3.0f, 1.0f };
+
+                        // Discrete tier mapping: cycle through all vocabularies.
+                        //   Idle   → whatever the threshold cascade gives (natural)
+                        //   1 note → tinted mono(1)    — desaturated, grey-tinted cells
+                        //   2 notes → chess colorful(4) — parity + vivid per-node colors
+                        //   3 notes → pure B&W(2)       — high contrast random assignment
+                        //   4+ notes → chess B&W(3)     — structured classic pattern
+                        // Full color(0) is the natural idle state for most cells,
+                        // so it's not a useful drift target — already there.
+                        static constexpr float DISCRETE_TIER_MAP[] = { 0.0f, 1.0f, 4.0f, 2.0f, 3.0f };
+
+                        if (drift_on && poly >= 1.0f) {
+                            uint32_t idx = std::min((uint32_t)poly, 3u);
+                            paletteDriftDesired_ = SMOOTH_PALETTE_MAP[idx];
+                        }
+                        if (!drift_on || poly < 0.5f) {
+                            paletteDriftDesired_ = 0.0f;
+                        }
+
+                        // Ramp target smoothly to avoid color snaps
+                        float prev_t = paletteDriftTarget_;
+                        paletteDriftTarget_ += (paletteDriftDesired_ - paletteDriftTarget_)
+                            * (1.0f - std::exp(-PALETTE_DRIFT_TARGET_RATE * dt));
+
+                        // Intensity: poly/3 so single note is partial, 3 notes = full
+                        float drift_intensity = drift_on
+                            ? std::min(poly / 3.0f, 1.0f) : 0.0f;
+                        // Use same exponential ramp as other modes for smooth on/off
+                        float prev_i = mmodeIntensity_[MMODE_PALETTE_DRIFT];
+                        float rate_i = (drift_intensity > prev_i) ? MMODE_ATTACK : MMODE_RELEASE;
+                        mmodeIntensity_[MMODE_PALETTE_DRIFT] = prev_i
+                            + (drift_intensity - prev_i) * (1.0f - std::exp(-rate_i * dt));
+                        float intensity = mmodeIntensity_[MMODE_PALETTE_DRIFT];
+
+                        // Discrete tier from lookup
+                        float discrete_tier = 0.0f;
+                        if (drift_on && poly >= 1.0f) {
+                            uint32_t tidx = std::min((uint32_t)poly, 4u);
+                            discrete_tier = DISCRETE_TIER_MAP[tidx];
+                        }
+
+                        if (intensity > 0.001f || paletteDriftTarget_ != prev_t) {
+                            gpuState_.set_mode_palette_drift(paletteDriftTarget_, intensity, discrete_tier);
+                        }
+                    }
+                }
+
+                // ─── Radial pulse onset detection ────────────────────────
+                {
+                    float poly = signal.stats[0];
+                    bool pulse_on = is_mmode_on(MMODE_RADIAL_PULSE);
+
+                    // Detect note onsets: polyphony increased since last frame
+                    if (pulse_on && poly > prevPolyphony_ + 0.5f) {
+                        float increase = poly - std::max(prevPolyphony_, 0.0f);
+                        // Emit one pulse per onset, amplitude proportional to note count
+                        uint32_t slot = pulseWriteIdx_ % PULSE_RING_SIZE;
+                        uint32_t base = slot * 4;
+                        pulseRing_[base + 0] = pawnReadback_x_;      // origin X
+                        pulseRing_[base + 1] = pawnReadback_z_;      // origin Z
+                        pulseRing_[base + 2] = currentSeconds_;      // onset time
+                        pulseRing_[base + 3] = PULSE_AMPLITUDE * std::min(increase, 3.0f);
+                        pulseWriteIdx_++;
+                        std::cout << "[Pulse] ONSET slot=" << slot
+                            << " pos=(" << pawnReadback_x_ << "," << pawnReadback_z_ << ")"
+                            << " t=" << currentSeconds_
+                            << " amp=" << pulseRing_[base + 3]
+                            << " poly=" << poly << " prev=" << prevPolyphony_
+                            << "\n";
+                    }
+                    prevPolyphony_ = poly;
+
+                    // Count active (non-expired) pulses and upload
+                    uint32_t active = 0;
+                    for (uint32_t i = 0; i < PULSE_RING_SIZE; i++) {
+                        float onset = pulseRing_[i * 4 + 2];
+                        float amp = pulseRing_[i * 4 + 3];
+                        if (amp > 0.001f && (currentSeconds_ - onset) < PULSE_MAX_AGE) {
+                            active = std::max(active, i + 1);
+                        }
+                    }
+                    // Always upload if any pulses exist (even decaying ones for GPU to evaluate)
+                    gpuState_.set_pulse_data(active, pulseRing_);
+                }
+
+                gpuState_.upload_config(queue);
+
+                // Pawn position comes from GPU readback (one-frame latency).
+                // See render() for the readback state machine.
+
+                // --- Clear deltas for next frame ------------------------------------
+                update_photographer(queue);
+                clear_input_deltas();
+            }
+
+            // ORDER (STREAMING PATCH MODE):
+            //   1. (Optional) Compute: compute_ribbon_rings   [0D] -- ring transforms for flying ribbon
+            //   2. Compute: update_world                      [0D] -- entities, trajectories, couplings
+            //   3. Compute: compute_vp                        [0D] -- camera VP + sun VP (shadow)
+            //   4. Render:  patch terrain instances           -- heightfield array sampled in VS
+            //   5. Render:  pawn entity                       -- chess pawn
+            //   6. Render:  sphere entity                     -- sphere
+            //   7. Render:  ribbon rings                      -- instanced ring geometry
+
+            void render(wgpu::CommandEncoder& encoder,
+                wgpu::TextureView backbuffer,
+                wgpu::TextureView depth) override {
+
+                wgpu::Queue queue = device_.GetQueue();
+
+                // --- GPU pawn readback (one-frame latency) ---
+                // Copies full GPUPawnState to staging each frame (after compute).
+                // Reads back position (for patch streaming, photographer, ribbon)
+                // and portal_trigger (for world transitions).
+                // State machine: IDLE → copy pawn buffer to staging → COPIED
+                //                COPIED → call MapAsync → MAPPING
+                //                MAPPING → callback fires, reads data → IDLE
+                if (pawnReadbackState_ == PawnReadbackState::COPIED) {
+                    pawnReadbackState_ = PawnReadbackState::MAPPING;
+                    gpuState_.pawn_readback_staging().MapAsync(
+                        wgpu::MapMode::Read, 0, GPUState::pawn_state_size(),
+                        wgpu::CallbackMode::AllowSpontaneous,
+                        [this](wgpu::MapAsyncStatus status, wgpu::StringView) {
+                            if (status == wgpu::MapAsyncStatus::Success) {
+                                auto* data = static_cast<const float*>(
+                                    gpuState_.pawn_readback_staging().GetConstMappedRange(
+                                        0, GPUState::pawn_state_size()));
+                                if (data) {
+                                    pawnReadback_x_ = data[0];   // pos[0]
+                                    pawnReadback_z_ = data[2];   // pos[2]
+                                    // portal_trigger is int32_t at offset 40 = float index 10
+                                    readbackPortalTrigger_ = reinterpret_cast<const int32_t*>(data)[10];
+                                }
+                                gpuState_.pawn_readback_staging().Unmap();
+                            }
+                            pawnReadbackState_ = PawnReadbackState::IDLE;
+                        });
+                }
+
+                // Check if GPU reported a portal trigger
+                if (readbackPortalTrigger_ >= 0 && transitionPhase_ == TransitionPhase::IDLE) {
+                    uint32_t arch_idx = static_cast<uint32_t>(readbackPortalTrigger_);
+                    readbackPortalTrigger_ = -1;
+                    if (arch_idx < Dim::MAX_ARCH_INSTANCES &&
+                        activeArches_[arch_idx].active &&
+                        activeArches_[arch_idx].is_portal) {
+                        pendingDestination_ = activeArches_[arch_idx].destination;
+                        transitionPhase_ = TransitionPhase::FADE_OUT;
+                        transitionTimer_ = 0.0f;
+                        std::cout << "[Portal] GPU trigger: arch " << arch_idx
+                            << " -> seed=" << pendingDestination_.seed
+                            << " finite=" << pendingDestination_.finite << "\n";
+                    }
+                }
+
+                stream_patches(encoder, queue);
+                if (!finiteMode_) {
+                    update_ribbon_spawning(pawnReadback_x_, pawnReadback_z_, currentSeconds_, queue);
+                }
+                else if (ribbonActive_) {
+                    // Mood-spawned ribbon in finite mode — update time only
+                    gpuState_.upload_ribbon_time(queue, currentSeconds_);
+                }
+
+                // ─── Entity mesh gen: single compute pass for all dirty families ──
+                {
+                    bool needArch = prepare_arch_mesh_gen(queue);
+                    bool needCol = prepare_column_mesh_gen(queue);
+                    bool needPyr = prepare_pyramid_mesh_gen(queue);
+
+                    if (needArch || needCol || needPyr) {
+                        wgpu::ComputePassDescriptor cpd{};
+                        cpd.label = "Entity Mesh Gen";
+                        wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
+                        if (needArch) {
+                            renderer_.dispatch_arch_mesh_gen(pass, gpuState_.arch_mesh_gen_group());
+                        }
+                        if (needCol) {
+                            renderer_.dispatch_column_mesh_gen(pass, gpuState_.column_mesh_gen_group());
+                        }
+                        if (needPyr) {
+                            renderer_.dispatch_pyramid_mesh_gen(pass, gpuState_.pyramid_mesh_gen_group());
+                        }
+                        pass.End();
+                    }
+                }
+                upload_portal_array(queue);
+                upload_lights(queue);
+                dispatch_compute(encoder);
+
+                // Copy full pawn state from GPU to staging (for readback next frame)
+                if (pawnReadbackState_ == PawnReadbackState::IDLE) {
+                    encoder.CopyBufferToBuffer(
+                        gpuState_.pawn_buffer(), 0,
+                        gpuState_.pawn_readback_staging(), 0,
+                        GPUState::pawn_state_size());
+                    pawnReadbackState_ = PawnReadbackState::COPIED;
+                }
+
+                // GoL zone compute — derive params + sync + evolve (separate passes for barrier)
+                if (golZoneCount_ > 0) {
+                    flush_zone_derive_requests(queue);
+                    upload_gol_zone_config(queue);
+
+                    {
+                        wgpu::ComputePassDescriptor cpd{};
+                        cpd.label = "GoL Zone Sync";
+                        wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
+                        renderer_.dispatch_zone_gol_sync(pass,
+                            gpuState_.zone_gol_compute_group(), activeZoneSlotCount_);
+                        pass.End();
+                    }
+                    {
+                        wgpu::ComputePassDescriptor cpd{};
+                        cpd.label = "GoL Zone Evolve";
+                        wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
+                        renderer_.dispatch_zone_gol_evolve(pass,
+                            gpuState_.zone_gol_compute_group(), activeZoneSlotCount_);
+                        pass.End();
+                    }
+
+                    // Mesh gen pass (Group 0 = compute entity, Group 1 = zone mesh gen)
+                    {
+                        wgpu::ComputePassDescriptor cpd{};
+                        cpd.label = "GoL Zone Mesh Gen";
+                        wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
+                        renderer_.dispatch_zone_mesh_reset(pass,
+                            gpuState_.zone_mesh_gen_group());
+                        renderer_.dispatch_zone_mesh_gen(pass,
+                            gpuState_.zone_mesh_gen_group(),
+                            activeZoneSlotCount_);
+                        pass.End();
+                    }
+                }
+
+                // Pawn aura compute — persistent terrain influence
+                // Run while presence > 0 (ramping down after toggle-off) or clearing
+                if (auraPresence_ > 0.0f || auraNeedsClear_) {
+                    if (auraCfgDirty_) {
+                        // Full config upload — profile changed or first frame
+                        auraCfgDirty_ = false;
+                        const auto& ap = activeAuraProfile_;
+                        // Aura expansion mode: scale radius, height, tint by intensity
+                        float aura_expand = mmodeIntensity_[MMODE_AURA_EXPAND];
+                        float radius_scale = 1.0f + aura_expand * 2.0f;    // up to 3× radius
+                        float tint_scale = 1.0f + aura_expand * 1.5f;      // up to 2.5× tint
+
+                        // Presence scales all aura params for smooth raise/lower
+                        float p = auraPresence_;
+
+                        GPUPawnAuraConfig auraCfg{};
+                        auraCfg.cell_size = PATCH_CELL_SIZE;
+                        auraCfg.influence_radius = ap.influence_radius * radius_scale * p;
+                        auraCfg.attack_stiffness = ap.attack_stiffness;
+                        auraCfg.attack_damping = ap.attack_damping;
+                        auraCfg.release_rate = (p > 0.01f) ? ap.release_rate : 999.0f;
+                        auraCfg.dt = currentDt_;
+                        auraCfg.effect_mask = ap.effect_mask;
+                        auraCfg.aura_n = 64;
+                        auraCfg.tint_strength = std::min(ap.tint_strength * tint_scale * p, 1.0f);
+                        auraCfg.tint_r = ap.tint_r;
+                        auraCfg.tint_g = ap.tint_g;
+                        auraCfg.tint_b = ap.tint_b;
+                        auraCfg.delta_mode = ap.delta_mode;
+                        auraCfg.delta_magnitude = ap.delta_magnitude;
+                        auraCfg.t_beats = currentBeats_;
+                        // height_scale gates the compute shader's R channel write (> 0.01 = enabled).
+                        // Actual terrain extrusion magnitude comes from config.pawn_aura_height in the VS.
+                        auraCfg.height_scale = (auraHeightEnabled_ && p > 0.01f) ? ap.height_scale : 0.0f;
+                        gpuState_.upload_pawn_aura_config(queue, auraCfg);
+                    }
+                    else {
+                        // Steady state — only dt and t_beats change per frame
+                        gpuState_.upload_pawn_aura_frame(queue, currentDt_, currentBeats_);
+                    }
+
+                    wgpu::ComputePassDescriptor cpd{};
+                    cpd.label = "Pawn Aura";
+                    wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
+                    renderer_.dispatch_compute_pawn_aura(pass,
+                        gpuState_.pawn_aura_compute_group(),
+                        GPUState::pawn_aura_workgroups());
+                    pass.End();
+
+                    // After one cleanup frame with release_rate=999, all cells are zero
+                    if (auraNeedsClear_) { auraNeedsClear_ = false; }
+                }
+
+                if (groundEntriesDirty_) {
+                    groundEntriesDirty_ = false;
+                    placementDirty_ = true;
+                    upload_ground_entries(queue);
+                }
+                if (placementDirty_) {
+                    placementDirty_ = false;
+                    dispatch_placement_correction(encoder);
+                }
+
+                render_shadow_pass(encoder);
+                render_main_pass(encoder, backbuffer, depth);
+                render_snapshot_pass(encoder);
+
+                // --- Flush pending texture promotions (staging → exhibition) ---
+                // Must run AFTER render_snapshot_pass so fresh captures are in staging
+                // before being copied to exhibition layers.
+                for (uint32_t i = 0; i < pendingPromotionCount_; i++) {
+                    auto& p = pendingPromotions_[i];
+                    wgpu::Texture src = p.is_snapshot
+                        ? gpuState_.snapshot_staging_texture()
+                        : gpuState_.authored_staging_texture();
+                    gpuState_.promote_to_exhibition(encoder, src, p.staging_layer, p.exhibition_layer);
+                }
+                pendingPromotionCount_ = 0;
+            }
+
+            // --- Per-frame ground entry upload: cached pier-top Y ---
+            // ground_y is computed once at spawn time and cached in Active* structs.
+            // This function is now a pure data-upload — no terrain evaluation.
+            void upload_ground_entries(wgpu::Queue& queue) {
+                // --- Arch ground entries ---
+                GPUArchGroundEntry archOrigins[Dim::MAX_ARCH_INSTANCES]{};
+                for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++) {
+                    if (!activeArches_[i].active) continue;
+                    const auto& pl = cpuPiers_[Dim::PIER_ARCH_BASE + i * 2];
+                    const auto& pr = cpuPiers_[Dim::PIER_ARCH_BASE + i * 2 + 1];
+                    archOrigins[i].pier_left_x = pl.origin[0];
+                    archOrigins[i].pier_left_z = pl.origin[1];
+                    archOrigins[i].pier_right_x = pr.origin[0];
+                    archOrigins[i].pier_right_z = pr.origin[1];
+                    archOrigins[i].is_active = 1;
+                    archOrigins[i].ground_y = activeArches_[i].cached_ground_y;
+                    archOrigins[i].pier_correction_left = 0.0f;
+                    archOrigins[i].pier_correction_right = 0.0f;
+                }
+                gpuState_.upload_arch_origins(queue, archOrigins, Dim::MAX_ARCH_INSTANCES);
+
+                // --- Column ground entries ---
+                GPUColumnGroundEntry columnOrigins[Dim::MAX_COLUMN_INSTANCES]{};
+                for (uint32_t i = 0; i < Dim::MAX_COLUMN_INSTANCES; i++) {
+                    if (!activeColumns_[i].active) continue;
+                    columnOrigins[i].center_x = activeColumns_[i].world_x;
+                    columnOrigins[i].center_z = activeColumns_[i].world_z;
+                    columnOrigins[i].is_active = 1;
+                    columnOrigins[i].ground_y = activeColumns_[i].cached_ground_y;
+                    columnOrigins[i].pier_correction = 0.0f;
+                }
+                gpuState_.upload_column_origins(queue, columnOrigins, Dim::MAX_COLUMN_INSTANCES);
+
+                // --- Pyramid ground entries ---
+                GPUPyramidGroundEntry pyramidOrigins[Dim::MAX_PYRAMID_INSTANCES]{};
+                for (uint32_t i = 0; i < Dim::MAX_PYRAMID_INSTANCES; i++) {
+                    if (!activePyramids_[i].active) continue;
+                    const auto& inst = cpuPyramids_.instances[i];
+                    pyramidOrigins[i].center_x = inst.origin[0];
+                    pyramidOrigins[i].center_z = inst.origin[1];
+                    pyramidOrigins[i].is_active = 1;
+                    pyramidOrigins[i].own_height = inst.height;
+                    pyramidOrigins[i].half_x = inst.half_size[0];
+                    pyramidOrigins[i].half_z = inst.half_size[1];
+                    pyramidOrigins[i].rotation = inst.rotation;
+                    pyramidOrigins[i].ground_y = activePyramids_[i].cached_ground_y;
+                }
+                gpuState_.upload_pyramid_origins(queue, pyramidOrigins, Dim::MAX_PYRAMID_INSTANCES);
+            }
+
+            // --- Entity placement Y-correction: heightfield sample - pier correction ---
+            // Runs unconditionally every frame, AFTER upload_ground_entries and BEFORE
+            // render passes (shadow + main read the corrected ground_y).
+            void dispatch_placement_correction(wgpu::CommandEncoder& encoder) {
+                wgpu::ComputePassDescriptor cpd{};
+                cpd.label = "Entity Placement Y Correction";
+                wgpu::ComputePassEncoder compute = encoder.BeginComputePass(&cpd);
+                renderer_.dispatch_entity_placement(
+                    compute, gpuState_.entity_placement_compute_group()
+                );
+                compute.End();
             }
 
             // --- Patch streaming: determine active 7×7 grid, generate new patches ---
@@ -7888,655 +7188,1426 @@ namespace t7 {
                 if (finiteMode_) { activeRadius_ = savedRadius; }
             }
 
-            // --- Per-frame ground entry upload: cached pier-top Y ---
-            // ground_y is computed once at spawn time and cached in Active* structs.
-            // This function is now a pure data-upload — no terrain evaluation.
-            void upload_ground_entries(wgpu::Queue& queue) {
-                // --- Arch ground entries ---
-                GPUArchGroundEntry archOrigins[Dim::MAX_ARCH_INSTANCES]{};
-                for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++) {
-                    if (!activeArches_[i].active) continue;
-                    const auto& pl = cpuPiers_[Dim::PIER_ARCH_BASE + i * 2];
-                    const auto& pr = cpuPiers_[Dim::PIER_ARCH_BASE + i * 2 + 1];
-                    archOrigins[i].pier_left_x = pl.origin[0];
-                    archOrigins[i].pier_left_z = pl.origin[1];
-                    archOrigins[i].pier_right_x = pr.origin[0];
-                    archOrigins[i].pier_right_z = pr.origin[1];
-                    archOrigins[i].is_active = 1;
-                    archOrigins[i].ground_y = activeArches_[i].cached_ground_y;
-                    archOrigins[i].pier_correction_left = 0.0f;
-                    archOrigins[i].pier_correction_right = 0.0f;
-                }
-                gpuState_.upload_arch_origins(queue, archOrigins, Dim::MAX_ARCH_INSTANCES);
+            // ═══════════════════════════════════════════════════════════════
+            // ── MOOD SYSTEM (IMPLEMENTATION) ───────────────────────────────
+            //
+            // What kind of world this is. Atmosphere, indoor lighting,
+            // shell geometry, portals. Configures everything above.
+            //
+            // derive_indoor_lights → apply_mood → indoor shell →
+            // portal spawning → upload_portal_array → upload_lights.
+            //
+            // Mood state declarations (MoodProfile, MOOD_TABLE, CeilingType,
+            // transition SM, portal constants) live at the top of the class
+            // (~lines 194-345) as core state.
+            //
+            // teardown_world() lives upstream (~line 5580) near the
+            // patch system it resets.
+            // ═══════════════════════════════════════════════════════════════
 
-                // --- Column ground entries ---
-                GPUColumnGroundEntry columnOrigins[Dim::MAX_COLUMN_INSTANCES]{};
-                for (uint32_t i = 0; i < Dim::MAX_COLUMN_INSTANCES; i++) {
-                    if (!activeColumns_[i].active) continue;
-                    columnOrigins[i].center_x = activeColumns_[i].world_x;
-                    columnOrigins[i].center_z = activeColumns_[i].world_z;
-                    columnOrigins[i].is_active = 1;
-                    columnOrigins[i].ground_y = activeColumns_[i].cached_ground_y;
-                    columnOrigins[i].pier_correction = 0.0f;
-                }
-                gpuState_.upload_column_origins(queue, columnOrigins, Dim::MAX_COLUMN_INSTANCES);
+            // ─── Indoor Light Derivation ─────────────────────────────────
+            //
+            // Selects a lighting scheme from activeSeed_, then derives
+            // per-light parameters (position, direction, intensity, cone,
+            // color) from the seed. Called once at mood transition.
 
-                // --- Pyramid ground entries ---
-                GPUPyramidGroundEntry pyramidOrigins[Dim::MAX_PYRAMID_INSTANCES]{};
-                for (uint32_t i = 0; i < Dim::MAX_PYRAMID_INSTANCES; i++) {
-                    if (!activePyramids_[i].active) continue;
-                    const auto& inst = cpuPyramids_.instances[i];
-                    pyramidOrigins[i].center_x = inst.origin[0];
-                    pyramidOrigins[i].center_z = inst.origin[1];
-                    pyramidOrigins[i].is_active = 1;
-                    pyramidOrigins[i].own_height = inst.height;
-                    pyramidOrigins[i].half_x = inst.half_size[0];
-                    pyramidOrigins[i].half_z = inst.half_size[1];
-                    pyramidOrigins[i].rotation = inst.rotation;
-                    pyramidOrigins[i].ground_y = activePyramids_[i].cached_ground_y;
-                }
-                gpuState_.upload_pyramid_origins(queue, pyramidOrigins, Dim::MAX_PYRAMID_INSTANCES);
-            }
+            void derive_indoor_lights(uint32_t seed, float bmin, float bmax,
+                float ceiling_height, CeilingType ceiling_type = CeilingType::FLAT) {
+                cpuSpotLights_ = GPUSpotLightArray{};
 
-            // --- Entity placement Y-correction: heightfield sample - pier correction ---
-            // Runs unconditionally every frame, AFTER upload_ground_entries and BEFORE
-            // render passes (shadow + main read the corrected ground_y).
-            void dispatch_placement_correction(wgpu::CommandEncoder& encoder) {
-                wgpu::ComputePassDescriptor cpd{};
-                cpd.label = "Entity Placement Y Correction";
-                wgpu::ComputePassEncoder compute = encoder.BeginComputePass(&cpd);
-                renderer_.dispatch_entity_placement(
-                    compute, gpuState_.entity_placement_compute_group()
-                );
-                compute.End();
-            }
+                float room_size = bmax - bmin;
+                float room_range = room_size * 0.8f;
 
-            // ── FRAME LOOP ──  → future: stays in cartridge.hpp
+                // Scheme selection
+                uint32_t scheme = select_tier(seed, IndoorLightProp::SCHEME,
+                    SCHEME_WEIGHTS, SCHEME_COUNT);
 
-            void update(const AnalysisSignal& signal,
-                float aspect_ratio,
-                wgpu::Queue& queue) override {
-                // --- Build GPU signal from analysis + input -------------------------
-                GPUFrameSignal gpuSignal;
+                // Wall pair: N/S or E/W — gives axis variety across seeds
+                bool use_ew = cpu_hash_f(seed, IndoorLightProp::WALL_PAIR) > 0.5f;
+                LightAnchor wall_a = use_ew ? LightAnchor::WALL_EAST : LightAnchor::WALL_NORTH;
+                LightAnchor wall_b = use_ew ? LightAnchor::WALL_WEST : LightAnchor::WALL_SOUTH;
 
-                gpuSignal.t_seconds = signal.t_seconds;
-                gpuSignal.t_beats = signal.t_beats;
-                gpuSignal.dt = signal.dt;
-                gpuSignal.aspect_ratio = aspect_ratio;
+                // Build slot list based on scheme
+                LightSlotDef slots[MAX_SPOT_LIGHTS];
+                uint32_t count = 0;
 
-                for (size_t i = 0; i < signal.stats.size(); ++i) {
-                    gpuSignal.stats[i] = signal.stats[i];
-                }
-
-                gpuSignal.move_x = inputState_.move_x;
-                gpuSignal.move_z = inputState_.move_z;
-                gpuSignal.look_az_delta = inputState_.look_az_delta;
-                gpuSignal.look_el_delta = inputState_.look_el_delta;
-                gpuSignal.zoom_delta = inputState_.zoom_delta;
-                gpuSignal.pan_x_delta = inputState_.pan_x_delta;
-                gpuSignal.pan_y_delta = inputState_.pan_y_delta;
-                gpuSignal._pad1 = 0.0f;
-
-                currentBeats_ = signal.t_beats;
-                currentSeconds_ = signal.t_seconds;
-                currentDt_ = signal.dt;
-
-                // --- Upload to GPU --------------------------------------------------
-
-                // Aura presence trajectory: smooth ramp on enable/disable
-                {
-                    float target = auraEnabled_ ? 1.0f : 0.0f;
-                    float rate = (target > auraPresence_) ? AURA_PRESENCE_ATTACK : AURA_PRESENCE_RELEASE;
-                    float prev = auraPresence_;
-                    auraPresence_ = prev + (target - prev) * (1.0f - std::exp(-rate * currentDt_));
-                    if (auraPresence_ < 0.001f && target == 0.0f) auraPresence_ = 0.0f;
-                    if (auraPresence_ > 0.999f && target == 1.0f) auraPresence_ = 1.0f;
-                    if (auraPresence_ != prev) auraCfgDirty_ = true;
-                }
-
-                // Pawn aura height: presence × base height × expansion
-                // This same value is used by terrain VS for extrusion, so pawn and terrain always agree.
-                float aura_expand_mult = 1.0f + mmodeIntensity_[MMODE_AURA_EXPAND] * 3.0f;
-                float effective_aura_height = auraHeightEnabled_
-                    ? activeAuraProfile_.height_scale * auraPresence_ * aura_expand_mult : 0.0f;
-                gpuState_.set_pawn_aura_height(effective_aura_height);
-                gpuState_.set_aura_enabled(auraPresence_ > 0.001f);  // keep compute running while ramping down
-                gpuState_.set_world_seed(activeSeed_);
-                if (finiteMode_) {
-                    float bmin = -(float)finiteRadius_ * PATCH_EXTENT;
-                    float bmax = ((float)finiteRadius_ + 1.0f) * PATCH_EXTENT;
-                    gpuState_.set_world_bounds(bmin, bmin, bmax, bmax);
-                }
-                else {
-                    gpuState_.set_world_bounds(0.0f, 0.0f, 0.0f, 0.0f);
-                }
-
-                // --- Transition state machine ---
-                if (transitionPhase_ != TransitionPhase::IDLE) {
-                    transitionTimer_ += signal.dt;
-                    switch (transitionPhase_) {
-                    case TransitionPhase::FADE_OUT:
-                        transitionFadeAlpha_ = std::min(1.0f, transitionTimer_ / transitionFadeDuration_);
-                        if (transitionFadeAlpha_ >= 1.0f) {
-                            transitionPhase_ = TransitionPhase::TEARDOWN;
-                        }
-                        break;
-                    case TransitionPhase::TEARDOWN:
-                    {
-                        // Capture return seed + mood + radius before overwrite
-                        backPortalReturnSeed_ = activeSeed_;
-                        backPortalReturnMood_ = activeMood_;
-                        backPortalReturnRadius_ = finiteRadius_;
-
-                        activeSeed_ = pendingDestination_.seed;
-                        finiteMode_ = pendingDestination_.finite;
-                        finiteRadius_ = pendingDestination_.finite_radius;
-                        teardown_world(queue);
-                        // NOTE: do NOT force pawnReadbackState_ to IDLE here.
-                        // If a MapAsync is in-flight (MAPPING), forcing IDLE would
-                        // cause CopyBufferToBuffer to a still-mapped buffer.
-                        // The existing state machine guards will skip readback
-                        // until the pending callback resolves naturally.
-                        readbackPortalTrigger_ = -1;
-                        pawnReadback_x_ = 0.0f;
-                        pawnReadback_z_ = 0.0f;
-                        gpuState_.reset_pawn(queue);
-                        gpuState_.set_world_seed(activeSeed_);
-                        apply_mood(pendingDestination_.mood, queue);
-                        // Deactivate ribbon in finite mode (mood 5 spawns its own in apply_mood)
-                        if (finiteMode_ && ribbonActive_ && activeMood_ != 5) {
-                            uint32_t zero = 0u;
-                            queue.WriteBuffer(gpuState_.ribbon_buffer(),
-                                offsetof(GPURibbonState, is_visible), &zero, sizeof(uint32_t));
-                            ribbonActive_ = false;
-                        }
-                        // Schedule guaranteed back-portal in finite worlds
-                        backPortalPending_ = finiteMode_;
-
-                        transitionPhase_ = TransitionPhase::FADE_IN;
-                        transitionTimer_ = 0.0f;
-                        uint32_t side = finiteMode_ ? 2 * finiteRadius_ + 1 : 0;
-                        std::cout << "[World] Teardown complete, seed=" << activeSeed_
-                            << " mode=" << (finiteMode_ ? "finite" : "open")
-                            << (finiteMode_ ? " " + std::to_string(side) + "x" + std::to_string(side) : "")
-                            << "\n";
-                    }
+                switch (scheme) {
+                case 0:  // Cathedral: ceiling primary + 2 wall accents
+                    //                    anchor            int_m  int_s  inn_m inn_s out_m out_s warm_m warm_s  pitch_m pitch_s yaw_m  yaw_s
+                    slots[0] = { LightAnchor::CEILING, 8.0f, 2.5f, 0.6f, 0.2f, 1.2f, 0.15f, 0.35f, 0.20f,  0.0f,  0.12f, 0.0f, 0.12f };
+                    slots[1] = { wall_a,               5.0f, 1.5f, 0.4f, 0.15f, 1.0f, 0.15f, 0.20f, 0.15f,  0.60f, 0.40f, 0.0f, 0.30f };
+                    slots[2] = { wall_b,               5.0f, 1.5f, 0.4f, 0.15f, 1.0f, 0.15f, 0.75f, 0.15f,  0.60f, 0.40f, 0.0f, 0.30f };
+                    count = 3;
                     break;
-                    case TransitionPhase::FADE_IN:
-                        transitionFadeAlpha_ = std::max(0.0f, 1.0f - transitionTimer_ / transitionFadeDuration_);
-                        if (transitionFadeAlpha_ <= 0.0f) {
-                            transitionPhase_ = TransitionPhase::IDLE;
-                            transitionFadeAlpha_ = 0.0f;
-                        }
+                case 1:  // Gallery: 2 opposing wall lights, no ceiling
+                    slots[0] = { wall_a, 7.0f, 2.0f, 0.4f, 0.15f, 1.1f, 0.15f, 0.25f, 0.20f,  0.55f, 0.45f, 0.0f, 0.35f };
+                    slots[1] = { wall_b, 7.0f, 2.0f, 0.4f, 0.15f, 1.1f, 0.15f, 0.65f, 0.20f,  0.55f, 0.45f, 0.0f, 0.35f };
+                    count = 2;
+                    break;
+                case 2: {  // Sanctum: single dramatic source
+                    float anchor_roll = cpu_hash_f(seed, IndoorLightProp::ANCHOR_PICK);
+                    LightAnchor anchor = (anchor_roll < 0.55f) ? LightAnchor::CEILING
+                        : (anchor_roll < 0.775f) ? wall_a : wall_b;
+                    slots[0] = { anchor, 10.0f, 2.5f, 0.5f, 0.2f, 1.2f, 0.15f, 0.45f, 0.25f,  0.50f, 0.40f, 0.0f, 0.30f };
+                    count = 1;
+                    break;
+                }
+                }
+
+                // Derive each light from its slot spec + seed
+                for (uint32_t i = 0; i < count; i++) {
+                    const auto& s = slots[i];
+                    uint32_t base = IndoorLightProp::SLOT_BASE + i * 10;
+                    auto& L = cpuSpotLights_.lights[i];
+
+                    // Position: slide along anchor surface
+                    float lat = std::clamp(
+                        cpu_sample_gaussian(seed, base + IndoorLightProp::LATERAL, 0.5f, 0.15f),
+                        0.1f, 0.9f);
+                    float hfrac = std::clamp(
+                        cpu_sample_gaussian(seed, base + IndoorLightProp::HEIGHT, 0.65f, 0.10f),
+                        0.4f, 0.85f);
+
+                    float wall_off = 1.0f;
+                    float px, py, pz;
+
+                    // Position: anchor-dependent placement on surface
+                    switch (s.anchor) {
+                    case LightAnchor::CEILING:
+                        px = bmin + lat * room_size;
+                        py = ceiling_height - 0.5f;
+                        pz = bmin + hfrac * room_size;
                         break;
-                    default: break;
-                    }
-                }
-                gpuState_.set_fade(transitionFadeAlpha_, 0.0f, 0.0f, 0.0f);
-
-                gpuState_.upload_signal(queue, gpuSignal);
-
-                // ─── Polyphony-driven band motion ────────────────────────
-                if (bandMotionActive_) {
-                    float polyphony = signal.stats[0];
-                    uint32_t active_count = (uint32_t)std::max(0.0f, std::min(polyphony, 6.0f));
-
-                    // Set per-band targets: bands activate in order from fine to tectonic
-                    for (uint32_t i = 0; i < 6; i++) bandBlendTarget_[i] = 0.0f;
-                    for (uint32_t i = 0; i < active_count; i++) {
-                        bandBlendTarget_[BAND_ACTIVATION_ORDER[i]] = 1.0f;
-                    }
-
-                    float dt = signal.dt;
-                    bool changed = false;
-                    for (uint32_t i = 0; i < 6; i++) {
-                        float prev = bandBlend_[i];
-                        float target = bandBlendTarget_[i];
-
-                        // Capture phase origin at the moment a band activates
-                        if (target > 0.5f && prev < 0.01f) {
-                            bandPhaseOrigin_[i] = currentBeats_;
-                        }
-
-                        // Exponential ramp toward target
-                        float rate = (target > prev) ? BAND_BLEND_ATTACK : BAND_BLEND_RELEASE;
-                        bandBlend_[i] = prev + (target - prev) * (1.0f - std::exp(-rate * dt));
-
-                        // Snap to endpoints to avoid perpetual drift
-                        if (bandBlend_[i] < 0.001f && target == 0.0f) bandBlend_[i] = 0.0f;
-                        if (bandBlend_[i] > 0.999f && target == 1.0f) bandBlend_[i] = 1.0f;
-
-                        if (bandBlend_[i] != prev) changed = true;
+                    case LightAnchor::WALL_NORTH:
+                        px = bmin + lat * room_size;
+                        py = ceiling_height * hfrac;
+                        pz = bmax - wall_off;
+                        break;
+                    case LightAnchor::WALL_SOUTH:
+                        px = bmin + lat * room_size;
+                        py = ceiling_height * hfrac;
+                        pz = bmin + wall_off;
+                        break;
+                    case LightAnchor::WALL_EAST:
+                        px = bmax - wall_off;
+                        py = ceiling_height * hfrac;
+                        pz = bmin + lat * room_size;
+                        break;
+                    case LightAnchor::WALL_WEST:
+                        px = bmin + wall_off;
+                        py = ceiling_height * hfrac;
+                        pz = bmin + lat * room_size;
+                        break;
                     }
 
-                    if (changed) {
-                        gpuState_.set_band_motion(bandBlend_, bandPhaseOrigin_);
-                    }
-                    gpuState_.set_terrain_time(currentBeats_);
-                }
+                    // Direction: seed-driven pitch + yaw per slot definition.
+                    //   pitch — angle below horizontal (wall) or off-vertical (ceiling)
+                    //   yaw   — lateral rotation along the anchor surface
+                    float pitch = cpu_sample_gaussian(seed, base + IndoorLightProp::AIM_PITCH,
+                        s.aim_pitch_mean, s.aim_pitch_sigma);
+                    float yaw = cpu_sample_gaussian(seed, base + IndoorLightProp::AIM_YAW,
+                        s.aim_yaw_mean, s.aim_yaw_sigma);
 
-                // ─── Musical animation modes: per-frame intensity ramp ───
-                {
-                    float polyphony = signal.stats[0];
-                    float dt = signal.dt;
-                    bool any_changed = false;
-
-                    for (uint32_t m = 0; m < MMODE_COUNT; m++) {
-                        // Skip mode 0 (terrain waves) — handled by band motion system above
-                        // Skip mode 3 (palette drift) — has its own steeper intensity curve below
-                        if (m == MMODE_TERRAIN_WAVES || m == MMODE_PALETTE_DRIFT) continue;
-
-                        bool on = is_mmode_on(m);
-                        float target = on ? std::min(polyphony / 6.0f, 1.0f) : 0.0f;
-                        float prev = mmodeIntensity_[m];
-                        float rate = (target > prev) ? MMODE_ATTACK : MMODE_RELEASE;
-                        float next = prev + (target - prev) * (1.0f - std::exp(-rate * dt));
-
-                        // Snap to endpoints
-                        if (next < 0.001f && target == 0.0f) next = 0.0f;
-                        if (next > 0.999f && target >= 1.0f) next = 1.0f;
-
-                        if (next != prev) {
-                            mmodeIntensity_[m] = next;
-                            any_changed = true;
-                        }
-                    }
-
-                    if (any_changed) {
-                        // Color shift: intensity → mode field bias
-                        gpuState_.set_mode_color_shift(mmodeIntensity_[MMODE_COLOR_SHIFT] * 0.6f);
-
-                        // Checker scatter: intensity → sparse threshold reduction
-                        gpuState_.set_mode_checker_scatter(mmodeIntensity_[MMODE_CHECKER_SCATTER] * 0.5f);
-
-                        // Aura expand: intensity scales aura parameters
-                        if (mmodeIntensity_[MMODE_AURA_EXPAND] > 0.0f || is_mmode_on(MMODE_AURA_EXPAND)) {
-                            auraCfgDirty_ = true;
-                        }
-
-                        // GoL tempo: intensity → tick slow-down + height boost
-                        // Inverse: more polyphony = slower GoL (contemplation).
-                        // When BPM detection arrives, this source gets swapped.
-                        {
-                            float gi = mmodeIntensity_[MMODE_GOL_TEMPO];
-                            // tick_scale > 1 = slower. Lerp from 1.0 up to 4.0 (4× slower at full)
-                            float tick_scale = 1.0f + gi * 3.0f;
-                            // height_scale > 1 = taller. Lerp from 1.0 up to 3.0
-                            float height_scale = 1.0f + gi * 2.0f;
-                            gpuState_.set_mode_gol_scales(tick_scale, height_scale);
-                        }
-                    }
-
-                    // Palette drift: smooth target transition + push to GPU
-                    // Uses its own intensity curve — steeper than generic mmodeIntensity
-                    // because palette colors are close and need strong push to read.
-                    {
-                        float poly = signal.stats[0];
-                        bool drift_on = is_mmode_on(MMODE_PALETTE_DRIFT);
-
-                        // Smooth palette mapping: ordered by contrast from sand baseline.
-                        //   1 note → green(2)  — biggest hue shift
-                        //   2 notes → grey(3)   — desaturated, clearly different
-                        //   3+ notes → salmon(1) — warm shift, completes cycle
-                        static constexpr float SMOOTH_PALETTE_MAP[] = { 0.0f, 2.0f, 3.0f, 1.0f };
-
-                        // Discrete tier mapping: cycle through all vocabularies.
-                        //   Idle   → whatever the threshold cascade gives (natural)
-                        //   1 note → tinted mono(1)    — desaturated, grey-tinted cells
-                        //   2 notes → chess colorful(4) — parity + vivid per-node colors
-                        //   3 notes → pure B&W(2)       — high contrast random assignment
-                        //   4+ notes → chess B&W(3)     — structured classic pattern
-                        // Full color(0) is the natural idle state for most cells,
-                        // so it's not a useful drift target — already there.
-                        static constexpr float DISCRETE_TIER_MAP[] = { 0.0f, 1.0f, 4.0f, 2.0f, 3.0f };
-
-                        if (drift_on && poly >= 1.0f) {
-                            uint32_t idx = std::min((uint32_t)poly, 3u);
-                            paletteDriftDesired_ = SMOOTH_PALETTE_MAP[idx];
-                        }
-                        if (!drift_on || poly < 0.5f) {
-                            paletteDriftDesired_ = 0.0f;
-                        }
-
-                        // Ramp target smoothly to avoid color snaps
-                        float prev_t = paletteDriftTarget_;
-                        paletteDriftTarget_ += (paletteDriftDesired_ - paletteDriftTarget_)
-                            * (1.0f - std::exp(-PALETTE_DRIFT_TARGET_RATE * dt));
-
-                        // Intensity: poly/3 so single note is partial, 3 notes = full
-                        float drift_intensity = drift_on
-                            ? std::min(poly / 3.0f, 1.0f) : 0.0f;
-                        // Use same exponential ramp as other modes for smooth on/off
-                        float prev_i = mmodeIntensity_[MMODE_PALETTE_DRIFT];
-                        float rate_i = (drift_intensity > prev_i) ? MMODE_ATTACK : MMODE_RELEASE;
-                        mmodeIntensity_[MMODE_PALETTE_DRIFT] = prev_i
-                            + (drift_intensity - prev_i) * (1.0f - std::exp(-rate_i * dt));
-                        float intensity = mmodeIntensity_[MMODE_PALETTE_DRIFT];
-
-                        // Discrete tier from lookup
-                        float discrete_tier = 0.0f;
-                        if (drift_on && poly >= 1.0f) {
-                            uint32_t tidx = std::min((uint32_t)poly, 4u);
-                            discrete_tier = DISCRETE_TIER_MAP[tidx];
-                        }
-
-                        if (intensity > 0.001f || paletteDriftTarget_ != prev_t) {
-                            gpuState_.set_mode_palette_drift(paletteDriftTarget_, intensity, discrete_tier);
-                        }
-                    }
-                }
-
-                // ─── Radial pulse onset detection ────────────────────────
-                {
-                    float poly = signal.stats[0];
-                    bool pulse_on = is_mmode_on(MMODE_RADIAL_PULSE);
-
-                    // Detect note onsets: polyphony increased since last frame
-                    if (pulse_on && poly > prevPolyphony_ + 0.5f) {
-                        float increase = poly - std::max(prevPolyphony_, 0.0f);
-                        // Emit one pulse per onset, amplitude proportional to note count
-                        uint32_t slot = pulseWriteIdx_ % PULSE_RING_SIZE;
-                        uint32_t base = slot * 4;
-                        pulseRing_[base + 0] = pawnReadback_x_;      // origin X
-                        pulseRing_[base + 1] = pawnReadback_z_;      // origin Z
-                        pulseRing_[base + 2] = currentSeconds_;      // onset time
-                        pulseRing_[base + 3] = PULSE_AMPLITUDE * std::min(increase, 3.0f);
-                        pulseWriteIdx_++;
-                        std::cout << "[Pulse] ONSET slot=" << slot
-                            << " pos=(" << pawnReadback_x_ << "," << pawnReadback_z_ << ")"
-                            << " t=" << currentSeconds_
-                            << " amp=" << pulseRing_[base + 3]
-                            << " poly=" << poly << " prev=" << prevPolyphony_
-                            << "\n";
-                    }
-                    prevPolyphony_ = poly;
-
-                    // Count active (non-expired) pulses and upload
-                    uint32_t active = 0;
-                    for (uint32_t i = 0; i < PULSE_RING_SIZE; i++) {
-                        float onset = pulseRing_[i * 4 + 2];
-                        float amp = pulseRing_[i * 4 + 3];
-                        if (amp > 0.001f && (currentSeconds_ - onset) < PULSE_MAX_AGE) {
-                            active = std::max(active, i + 1);
-                        }
-                    }
-                    // Always upload if any pulses exist (even decaying ones for GPU to evaluate)
-                    gpuState_.set_pulse_data(active, pulseRing_);
-                }
-
-                gpuState_.upload_config(queue);
-
-                // Pawn position comes from GPU readback (one-frame latency).
-                // See render() for the readback state machine.
-
-                // --- Clear deltas for next frame ------------------------------------
-                update_photographer(queue);
-                clear_input_deltas();
-            }
-
-            // ORDER (STREAMING PATCH MODE):
-            //   1. (Optional) Compute: compute_ribbon_rings   [0D] -- ring transforms for flying ribbon
-            //   2. Compute: update_world                      [0D] -- entities, trajectories, couplings
-            //   3. Compute: compute_vp                        [0D] -- camera VP + sun VP (shadow)
-            //   4. Render:  patch terrain instances           -- heightfield array sampled in VS
-            //   5. Render:  pawn entity                       -- chess pawn
-            //   6. Render:  sphere entity                     -- sphere
-            //   7. Render:  ribbon rings                      -- instanced ring geometry
-
-            void render(wgpu::CommandEncoder& encoder,
-                wgpu::TextureView backbuffer,
-                wgpu::TextureView depth) override {
-
-                wgpu::Queue queue = device_.GetQueue();
-
-                // --- GPU pawn readback (one-frame latency) ---
-                // Copies full GPUPawnState to staging each frame (after compute).
-                // Reads back position (for patch streaming, photographer, ribbon)
-                // and portal_trigger (for world transitions).
-                // State machine: IDLE → copy pawn buffer to staging → COPIED
-                //                COPIED → call MapAsync → MAPPING
-                //                MAPPING → callback fires, reads data → IDLE
-                if (pawnReadbackState_ == PawnReadbackState::COPIED) {
-                    pawnReadbackState_ = PawnReadbackState::MAPPING;
-                    gpuState_.pawn_readback_staging().MapAsync(
-                        wgpu::MapMode::Read, 0, GPUState::pawn_state_size(),
-                        wgpu::CallbackMode::AllowSpontaneous,
-                        [this](wgpu::MapAsyncStatus status, wgpu::StringView) {
-                            if (status == wgpu::MapAsyncStatus::Success) {
-                                auto* data = static_cast<const float*>(
-                                    gpuState_.pawn_readback_staging().GetConstMappedRange(
-                                        0, GPUState::pawn_state_size()));
-                                if (data) {
-                                    pawnReadback_x_ = data[0];   // pos[0]
-                                    pawnReadback_z_ = data[2];   // pos[2]
-                                    // portal_trigger is int32_t at offset 40 = float index 10
-                                    readbackPortalTrigger_ = reinterpret_cast<const int32_t*>(data)[10];
-                                }
-                                gpuState_.pawn_readback_staging().Unmap();
-                            }
-                            pawnReadbackState_ = PawnReadbackState::IDLE;
-                        });
-                }
-
-                // Check if GPU reported a portal trigger
-                if (readbackPortalTrigger_ >= 0 && transitionPhase_ == TransitionPhase::IDLE) {
-                    uint32_t arch_idx = static_cast<uint32_t>(readbackPortalTrigger_);
-                    readbackPortalTrigger_ = -1;
-                    if (arch_idx < Dim::MAX_ARCH_INSTANCES &&
-                        activeArches_[arch_idx].active &&
-                        activeArches_[arch_idx].is_portal) {
-                        pendingDestination_ = activeArches_[arch_idx].destination;
-                        transitionPhase_ = TransitionPhase::FADE_OUT;
-                        transitionTimer_ = 0.0f;
-                        std::cout << "[Portal] GPU trigger: arch " << arch_idx
-                            << " -> seed=" << pendingDestination_.seed
-                            << " finite=" << pendingDestination_.finite << "\n";
-                    }
-                }
-
-                stream_patches(encoder, queue);
-                if (!finiteMode_) {
-                    update_ribbon_spawning(pawnReadback_x_, pawnReadback_z_, currentSeconds_, queue);
-                }
-                else if (ribbonActive_) {
-                    // Mood-spawned ribbon in finite mode — update time only
-                    gpuState_.upload_ribbon_time(queue, currentSeconds_);
-                }
-
-                // ─── Entity mesh gen: single compute pass for all dirty families ──
-                {
-                    bool needArch = prepare_arch_mesh_gen(queue);
-                    bool needCol = prepare_column_mesh_gen(queue);
-                    bool needPyr = prepare_pyramid_mesh_gen(queue);
-
-                    if (needArch || needCol || needPyr) {
-                        wgpu::ComputePassDescriptor cpd{};
-                        cpd.label = "Entity Mesh Gen";
-                        wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
-                        if (needArch) {
-                            renderer_.dispatch_arch_mesh_gen(pass, gpuState_.arch_mesh_gen_group());
-                        }
-                        if (needCol) {
-                            renderer_.dispatch_column_mesh_gen(pass, gpuState_.column_mesh_gen_group());
-                        }
-                        if (needPyr) {
-                            renderer_.dispatch_pyramid_mesh_gen(pass, gpuState_.pyramid_mesh_gen_group());
-                        }
-                        pass.End();
-                    }
-                }
-                upload_portal_array(queue);
-                upload_lights(queue);
-                dispatch_compute(encoder);
-
-                // Copy full pawn state from GPU to staging (for readback next frame)
-                if (pawnReadbackState_ == PawnReadbackState::IDLE) {
-                    encoder.CopyBufferToBuffer(
-                        gpuState_.pawn_buffer(), 0,
-                        gpuState_.pawn_readback_staging(), 0,
-                        GPUState::pawn_state_size());
-                    pawnReadbackState_ = PawnReadbackState::COPIED;
-                }
-
-                // GoL zone compute — derive params + sync + evolve (separate passes for barrier)
-                if (golZoneCount_ > 0) {
-                    flush_zone_derive_requests(queue);
-                    upload_gol_zone_config(queue);
-
-                    {
-                        wgpu::ComputePassDescriptor cpd{};
-                        cpd.label = "GoL Zone Sync";
-                        wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
-                        renderer_.dispatch_zone_gol_sync(pass,
-                            gpuState_.zone_gol_compute_group(), activeZoneSlotCount_);
-                        pass.End();
-                    }
-                    {
-                        wgpu::ComputePassDescriptor cpd{};
-                        cpd.label = "GoL Zone Evolve";
-                        wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
-                        renderer_.dispatch_zone_gol_evolve(pass,
-                            gpuState_.zone_gol_compute_group(), activeZoneSlotCount_);
-                        pass.End();
-                    }
-
-                    // Mesh gen pass (Group 0 = compute entity, Group 1 = zone mesh gen)
-                    {
-                        wgpu::ComputePassDescriptor cpd{};
-                        cpd.label = "GoL Zone Mesh Gen";
-                        wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
-                        renderer_.dispatch_zone_mesh_reset(pass,
-                            gpuState_.zone_mesh_gen_group());
-                        renderer_.dispatch_zone_mesh_gen(pass,
-                            gpuState_.zone_mesh_gen_group(),
-                            activeZoneSlotCount_);
-                        pass.End();
-                    }
-                }
-
-                // Pawn aura compute — persistent terrain influence
-                // Run while presence > 0 (ramping down after toggle-off) or clearing
-                if (auraPresence_ > 0.0f || auraNeedsClear_) {
-                    if (auraCfgDirty_) {
-                        // Full config upload — profile changed or first frame
-                        auraCfgDirty_ = false;
-                        const auto& ap = activeAuraProfile_;
-                        // Aura expansion mode: scale radius, height, tint by intensity
-                        float aura_expand = mmodeIntensity_[MMODE_AURA_EXPAND];
-                        float radius_scale = 1.0f + aura_expand * 2.0f;    // up to 3× radius
-                        float tint_scale = 1.0f + aura_expand * 1.5f;      // up to 2.5× tint
-
-                        // Presence scales all aura params for smooth raise/lower
-                        float p = auraPresence_;
-
-                        GPUPawnAuraConfig auraCfg{};
-                        auraCfg.cell_size = PATCH_CELL_SIZE;
-                        auraCfg.influence_radius = ap.influence_radius * radius_scale * p;
-                        auraCfg.attack_stiffness = ap.attack_stiffness;
-                        auraCfg.attack_damping = ap.attack_damping;
-                        auraCfg.release_rate = (p > 0.01f) ? ap.release_rate : 999.0f;
-                        auraCfg.dt = currentDt_;
-                        auraCfg.effect_mask = ap.effect_mask;
-                        auraCfg.aura_n = 64;
-                        auraCfg.tint_strength = std::min(ap.tint_strength * tint_scale * p, 1.0f);
-                        auraCfg.tint_r = ap.tint_r;
-                        auraCfg.tint_g = ap.tint_g;
-                        auraCfg.tint_b = ap.tint_b;
-                        auraCfg.delta_mode = ap.delta_mode;
-                        auraCfg.delta_magnitude = ap.delta_magnitude;
-                        auraCfg.t_beats = currentBeats_;
-                        // height_scale gates the compute shader's R channel write (> 0.01 = enabled).
-                        // Actual terrain extrusion magnitude comes from config.pawn_aura_height in the VS.
-                        auraCfg.height_scale = (auraHeightEnabled_ && p > 0.01f) ? ap.height_scale : 0.0f;
-                        gpuState_.upload_pawn_aura_config(queue, auraCfg);
+                    float dx, dy, dz;
+                    if (s.anchor == LightAnchor::CEILING) {
+                        // pitch=0 → straight down; positive tilts off-vertical
+                        pitch = std::clamp(pitch, 0.0f, 0.50f);
+                        yaw = std::clamp(yaw, -0.60f, 0.60f);
+                        dx = std::sin(pitch) * std::sin(yaw);
+                        dy = -std::cos(pitch);
+                        dz = std::sin(pitch) * std::cos(yaw);
                     }
                     else {
-                        // Steady state — only dt and t_beats change per frame
-                        gpuState_.upload_pawn_aura_frame(queue, currentDt_, currentBeats_);
+                        // pitch=0 → horizontal into room; π/2 → straight down
+                        // Floor at 0.08 ensures light never aims upward.
+                        // Ceiling at 1.45 (~83°) allows steep floor pools.
+                        pitch = std::clamp(pitch, 0.08f, 1.45f);
+                        yaw = std::clamp(yaw, -0.80f, 0.80f);
+                        float cp = std::cos(pitch), sp = std::sin(pitch);
+                        float sy = std::sin(yaw);
+                        switch (s.anchor) {
+                        case LightAnchor::WALL_NORTH: dx = sy; dy = -sp; dz = -cp; break;
+                        case LightAnchor::WALL_SOUTH: dx = sy; dy = -sp; dz = cp; break;
+                        case LightAnchor::WALL_EAST:  dx = -cp; dy = -sp; dz = sy; break;
+                        case LightAnchor::WALL_WEST:  dx = cp; dy = -sp; dz = sy; break;
+                        default: dx = 0; dy = -1; dz = 0; break;  // unreachable
+                        }
                     }
 
-                    wgpu::ComputePassDescriptor cpd{};
-                    cpd.label = "Pawn Aura";
-                    wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
-                    renderer_.dispatch_compute_pawn_aura(pass,
-                        gpuState_.pawn_aura_compute_group(),
-                        GPUState::pawn_aura_workgroups());
-                    pass.End();
+                    // Normalize direction
+                    float dlen = std::sqrt(dx * dx + dy * dy + dz * dz);
+                    dx /= dlen; dy /= dlen; dz /= dlen;
 
-                    // After one cleanup frame with release_rate=999, all cells are zero
-                    if (auraNeedsClear_) { auraNeedsClear_ = false; }
+                    // Intensity and cone angles
+                    float intensity = std::max(1.0f,
+                        cpu_sample_gaussian(seed, base + IndoorLightProp::INTENSITY,
+                            s.intensity_mean, s.intensity_sigma));
+                    float inner_half = std::max(0.2f,
+                        cpu_sample_gaussian(seed, base + IndoorLightProp::INNER_CONE,
+                            s.inner_mean, s.inner_sigma));
+                    float outer_half = std::max(inner_half + 0.3f,
+                        cpu_sample_gaussian(seed, base + IndoorLightProp::OUTER_CONE,
+                            s.outer_mean, s.outer_sigma));
+                    // Hard cap: outer cone must not exceed shadow map FOV capability.
+                    // At 1.3 rad (75°), shadow FOV = 2×1.3+0.2 = 2.8 rad → coverable.
+                    static constexpr float MAX_OUTER_HALF = 1.3f;
+                    outer_half = std::min(outer_half, MAX_OUTER_HALF);
+                    inner_half = std::min(inner_half, outer_half - 0.1f);
+
+                    // Color: warm amber (1.0,0.85,0.65) ↔ cool blue (0.80,0.88,1.0)
+                    float w = std::clamp(
+                        cpu_sample_gaussian(seed, base + IndoorLightProp::WARMTH,
+                            s.warmth_mean, s.warmth_sigma),
+                        0.0f, 1.0f);
+                    float cr = 1.00f + w * (0.80f - 1.00f);
+                    float cg = 0.85f + w * (0.88f - 0.85f);
+                    float cb = 0.65f + w * (1.00f - 0.65f);
+
+                    L.position[0] = px; L.position[1] = py; L.position[2] = pz;
+                    L.direction[0] = dx; L.direction[1] = dy; L.direction[2] = dz;
+                    L.color[0] = cr; L.color[1] = cg; L.color[2] = cb;
+                    L.intensity = intensity;
+                    L.inner_cone = std::cos(inner_half);
+                    L.outer_cone = std::cos(outer_half);
+                    L.range = (s.anchor == LightAnchor::CEILING)
+                        ? ceiling_height + 30.0f : room_range;
+
                 }
 
-                if (groundEntriesDirty_) {
-                    groundEntriesDirty_ = false;
-                    placementDirty_ = true;
-                    upload_ground_entries(queue);
-                }
-                if (placementDirty_) {
-                    placementDirty_ = false;
-                    dispatch_placement_correction(encoder);
+                cpuSpotLights_.count = count;
+
+                // ─── Vault Uplight ───────────────────────────────────────
+                //
+                // If ceiling is VAULT and a slot is free, add an upward-facing
+                // floor light. Low intensity, very wide cone aimed at the crown.
+                // Self-shadowing reveals groin vault ridge structure.
+                if (ceiling_type == CeilingType::VAULT && count < MAX_SPOT_LIGHTS) {
+                    auto& L = cpuSpotLights_.lights[count];
+                    float center = (bmin + bmax) * 0.5f;
+                    L.position[0] = center;
+                    L.position[1] = 2.0f;           // near floor level
+                    L.position[2] = center;
+                    L.direction[0] = 0.0f;
+                    L.direction[1] = 1.0f;           // straight up
+                    L.direction[2] = 0.0f;
+                    L.color[0] = 0.95f;
+                    L.color[1] = 0.90f;
+                    L.color[2] = 0.80f;              // warm ambient
+                    L.intensity = 2.5f;               // subtle — structural reveal, not flood
+                    L.inner_cone = std::cos(0.9f);    // ~52° half-angle
+                    L.outer_cone = std::cos(1.25f);   // ~72° half-angle — within shadow FOV cap
+                    L.range = ceiling_height + 80.0f; // reach the crown with headroom
+                    count++;
+                    cpuSpotLights_.count = count;
+                    std::cout << "[Lighting] Added vault uplight (slot " << (count - 1) << ")\n";
                 }
 
-                render_shadow_pass(encoder);
-                render_main_pass(encoder, backbuffer, depth);
-                render_snapshot_pass(encoder);
-
-                // --- Flush pending texture promotions (staging → exhibition) ---
-                // Must run AFTER render_snapshot_pass so fresh captures are in staging
-                // before being copied to exhibition layers.
-                for (uint32_t i = 0; i < pendingPromotionCount_; i++) {
-                    auto& p = pendingPromotions_[i];
-                    wgpu::Texture src = p.is_snapshot
-                        ? gpuState_.snapshot_staging_texture()
-                        : gpuState_.authored_staging_texture();
-                    gpuState_.promote_to_exhibition(encoder, src, p.staging_layer, p.exhibition_layer);
-                }
-                pendingPromotionCount_ = 0;
+                std::cout << "[Lighting] " << SCHEME_NAMES[scheme]
+                    << " (" << count << " lights, "
+                    << (use_ew ? "E/W" : "N/S") << " walls)\n";
             }
 
+            // --- Apply mood atmosphere ---
+            //
+            // Sets sun direction, sun color/intensity, fog, clear color,
+            // and indoor shell from the MOOD_TABLE. Called during TEARDOWN.
+
+            void apply_mood(uint32_t mood, wgpu::Queue& queue) {
+                mood = std::min(mood, MOOD_COUNT - 1);
+                activeMood_ = mood;
+                const auto& m = MOOD_TABLE[mood];
+
+                sunDirection_[0] = m.sun_direction[0];
+                sunDirection_[1] = m.sun_direction[1];
+                sunDirection_[2] = m.sun_direction[2];
+
+                // Push to GPU config so compute_vp builds the shadow VP from the correct direction
+                {
+                    float len = std::sqrt(m.sun_direction[0] * m.sun_direction[0] +
+                        m.sun_direction[1] * m.sun_direction[1] +
+                        m.sun_direction[2] * m.sun_direction[2]);
+                    gpuState_.set_sun_direction(m.sun_direction[0] / len,
+                        m.sun_direction[1] / len,
+                        m.sun_direction[2] / len);
+                }
+
+                sunColor_[0] = m.sun_color[0];
+                sunColor_[1] = m.sun_color[1];
+                sunColor_[2] = m.sun_color[2];
+                sunIntensity_ = m.sun_intensity;
+                sunAmbient_ = m.sun_ambient;
+
+                clearColor_[0] = m.clear_color[0];
+                clearColor_[1] = m.clear_color[1];
+                clearColor_[2] = m.clear_color[2];
+
+                gpuState_.set_fog(m.fog_density,
+                    m.fog_color[0], m.fog_color[1], m.fog_color[2]);
+                gpuState_.set_terrain_amp_ceiling(m.indoor ? 0.5f : 0.0f);
+                terrainAmpCeiling_ = m.indoor ? 0.5f : 0.0f;
+                lightsDirty_ = true;
+
+                // Spot lights: active only in indoor moods (count=0 disables)
+                cpuSpotLights_ = GPUSpotLightArray{};
+                if (m.indoor) {
+                    // Mute the sun VP coupling so compute_vp() stops writing
+                    // light_vp — it's now owned by CopyBufferToBuffer in the
+                    // atlas shadow loop.  Without this, the compute write and
+                    // per-tile copies contend over the same 64-byte slot.
+                    gpuState_.set_mute_coupling(Coupling::PAWN_TO_SUN_VP, true);
+
+                    float bmin = -(float)finiteRadius_ * PATCH_EXTENT;
+                    float bmax = ((float)finiteRadius_ + 1.0f) * PATCH_EXTENT;
+
+                    derive_indoor_lights(activeSeed_, bmin, bmax, m.ceiling_height, m.ceiling_type);
+
+                    for (uint32_t i = 0; i < cpuSpotLights_.count; i++) {
+                        compute_spot_light_vp(cpuSpotLights_.lights[i],
+                            cpuSpotLights_.lights[i].view_proj);
+                    }
+                    gpuState_.stage_spot_vps(queue, cpuSpotLights_);
+                    spotLightActive_ = true;
+                }
+                else {
+                    // Restore the sun VP coupling for outdoor directional shadows.
+                    gpuState_.set_mute_coupling(Coupling::PAWN_TO_SUN_VP, false);
+                    spotLightActive_ = false;
+                }
+
+                // Indoor shell: generate or clear
+                if (m.indoor && m.ceiling_type != CeilingType::NONE) {
+                    generate_indoor_shell(queue, m);
+                }
+                else {
+                    clear_indoor_shell(queue);
+                }
+
+                // Camera ceiling clamp: tell the GPU how high the camera can go
+                if (m.indoor) {
+                    float effective_ceiling = m.ceiling_height;
+                    if (m.ceiling_type == CeilingType::VAULT) {
+                        // Match the crown computation from generate_indoor_shell
+                        float bmin = -(float)finiteRadius_ * PATCH_EXTENT;
+                        float bmax = ((float)finiteRadius_ + 1.0f) * PATCH_EXTENT;
+                        float half_span = (bmax - bmin) * 0.5f;
+                        float paint_top = m.ceiling_height * 0.45f + 5.5f;
+                        float spring_h = paint_top + 8.0f;
+                        float min_rise = m.ceiling_height - spring_h;
+                        float rise = std::max(half_span * 0.30f, std::max(min_rise, 5.0f));
+                        effective_ceiling = spring_h + rise;
+                    }
+                    gpuState_.set_ceiling_height(effective_ceiling);
+                }
+                else {
+                    gpuState_.set_ceiling_height(0.0f);
+                }
+
+                // Polyphony-driven band motion: active when mode toggled on
+                // Band motion is retroactively mode 0 — respect mmodeMask_
+                bandMotionActive_ = is_mmode_on(MMODE_TERRAIN_WAVES);
+                if (bandMotionActive_) {
+                    for (int i = 0; i < 6; i++) {
+                        bandBlend_[i] = 0.0f;         // start fully frozen
+                        bandBlendTarget_[i] = 0.0f;
+                        bandPhaseOrigin_[i] = 0.0f;
+                    }
+                    gpuState_.set_band_motion(bandBlend_, bandPhaseOrigin_);
+                    gpuState_.set_terrain_time(0.0f);  // will advance per-frame in tick
+                }
+                else {
+                    float inactive[6] = { -1.f, -1.f, -1.f, -1.f, -1.f, -1.f };
+                    float zeros[6] = {};
+                    gpuState_.set_band_motion(inactive, zeros);
+                    gpuState_.set_terrain_time(0.0f);  // frozen for non-animated moods
+                    for (int i = 0; i < 6; i++) {
+                        bandBlend_[i] = -1.0f;
+                        bandBlendTarget_[i] = 0.0f;
+                        bandPhaseOrigin_[i] = 0.0f;
+                    }
+                }
+
+                // Reset all mode intensities on mood change (circuits stay wired, values reset)
+                for (uint32_t m = 0; m < MMODE_COUNT; m++) mmodeIntensity_[m] = 0.0f;
+                paletteDriftTarget_ = 0.0f;
+                paletteDriftDesired_ = 0.0f;
+                gpuState_.set_mode_color_shift(0.0f);
+                gpuState_.set_mode_checker_scatter(0.0f);
+                gpuState_.set_mode_palette_drift(0.0f, 0.0f, 0.0f);
+                gpuState_.set_mode_gol_scales(1.0f, 1.0f);
+                for (int i = 0; i < 32; i++) pulseRing_[i] = 0.0f;
+                pulseWriteIdx_ = 0;
+                prevPolyphony_ = 0.0f;
+                float zero_pulses[32] = {};
+                gpuState_.set_pulse_data(0, zero_pulses);
+
+                // ─── Mood 9 ribbon: seed-derived flying ribbon ───────────────
+                if (mood == 5) {
+                    uint32_t rseed = ribbon_cell_seed(activeSeed_, 0, 0);
+
+                    // Anchor: seed-derived position spread across the finite world + margin.
+                    // The ribbon can land outside terrain bounds — visible from afar.
+                    float spread = ((float)finiteRadius_ + 1.5f) * PATCH_EXTENT;
+                    float world_cx = 0.5f * PATCH_EXTENT;   // center of grid origin patch
+                    float world_cz = 0.5f * PATCH_EXTENT;
+                    float ax = world_cx + (cpu_hash_f(rseed, RibbonProp::ANCHOR_X) - 0.5f) * spread + moodRibbonOffset_[0];
+                    float az = world_cz + (cpu_hash_f(rseed, RibbonProp::ANCHOR_Z) - 0.5f) * spread + moodRibbonOffset_[1];
+
+                    GPURibbonState ribbon{};
+                    ribbon.anchor[0] = ax;
+                    ribbon.anchor[1] = 0.0f;
+                    ribbon.anchor[2] = az;
+                    ribbon.time = currentSeconds_;
+                    float terrain_est = cpu_terrain_base_at(ax, az);
+                    uint32_t rtier = generate_flying_ribbon(ribbon, rseed, terrain_est);
+                    gpuState_.upload_ribbon(queue, ribbon);
+                    currentRibbon_ = ribbon;
+                    ribbonActive_ = true;
+                    print_ribbon_diagnostic("Mood 9", ribbon, rtier);
+                }
+
+                std::cout << "[Mood] Applied: " << mood_name(mood)
+                    << " (mood=" << mood
+                    << (m.indoor ? " INDOOR" : " outdoor")
+                    << (bandMotionActive_ ? " BAND_MOTION" : "")
+                    << ")\n";
+            }
+
+            // ─── Indoor Shell Generation ─────────────────────────────────
+            //
+            // Generates ceiling + wall geometry for indoor moods.
+            // Uploaded to shell VB/IB and drawn in main + shadow passes.
+            //
+            // Flat ceiling: 1 quad.  Vault ceiling: tessellated catenary.
+            // Walls: 4 quads from floor (y=0) to wall_height.
+
+            void clear_indoor_shell(wgpu::Queue& queue) {
+                gpuState_.set_shell_index_count(0);
+                clear_wall_paintings(queue);
+            }
+
+            // Helper: push a quad (2 triangles) into vertex/index vectors
+            static void push_quad(
+                std::vector<ShellVertex>& verts,
+                std::vector<uint32_t>& indices,
+                float ax, float ay, float az,
+                float bx, float by, float bz,
+                float cx, float cy, float cz,
+                float dx, float dy, float dz,
+                float nx, float ny, float nz,
+                const float* color
+            ) {
+                uint32_t base = static_cast<uint32_t>(verts.size());
+                verts.push_back({ { ax, ay, az }, { nx, ny, nz }, { color[0], color[1], color[2] } });
+                verts.push_back({ { bx, by, bz }, { nx, ny, nz }, { color[0], color[1], color[2] } });
+                verts.push_back({ { cx, cy, cz }, { nx, ny, nz }, { color[0], color[1], color[2] } });
+                verts.push_back({ { dx, dy, dz }, { nx, ny, nz }, { color[0], color[1], color[2] } });
+                indices.push_back(base); indices.push_back(base + 1); indices.push_back(base + 2);
+                indices.push_back(base); indices.push_back(base + 2); indices.push_back(base + 3);
+            }
+
+            void generate_indoor_shell(wgpu::Queue& queue, const MoodProfile& m) {
+                float bmin = -(float)finiteRadius_ * PATCH_EXTENT;
+                float bmax = ((float)finiteRadius_ + 1.0f) * PATCH_EXTENT;
+                float ch = m.ceiling_height;
+
+                std::vector<ShellVertex> verts;
+                std::vector<uint32_t> indices;
+                verts.reserve(2400);
+                indices.reserve(12000);
+
+                static constexpr float JOINT_OVERLAP = 3.0f;
+                static constexpr float WALL_FLOOR = -50.0f;
+
+                // ─── Compute wall height (depends on ceiling type) ───────
+                //
+                // For vault: spring line must clear paintings. Painting centers
+                // sit at ceiling_height × 0.45, half-height ≈ 5.5 units.
+                // Spring line = painting_top + margin.
+                float wall_h = ch;  // flat ceiling: walls go to ceiling
+                float crown_h = ch; // effective crown height for log
+                float rise = 0.0f;
+
+                if (m.ceiling_type == CeilingType::VAULT) {
+                    static constexpr float VAULT_RISE_FRACTION = 0.30f;
+                    static constexpr float SPRING_MARGIN = 8.0f;
+
+                    float half_span = (bmax - bmin) * 0.5f;
+                    float paint_center = ch * 0.45f;
+                    float paint_top = paint_center + 5.5f;
+                    wall_h = paint_top + SPRING_MARGIN;
+
+                    float min_rise = ch - wall_h;
+                    rise = std::max(half_span * VAULT_RISE_FRACTION, std::max(min_rise, 5.0f));
+                    crown_h = wall_h + rise;
+                }
+
+                float wall_top = wall_h + JOINT_OVERLAP;
+
+                // ─── 4 Walls (deep floor to wall_top) ────────────────────
+                // South wall (z = bmin, facing +Z into room)
+                push_quad(verts, indices,
+                    bmin, WALL_FLOOR, bmin, bmax, WALL_FLOOR, bmin,
+                    bmax, wall_top, bmin, bmin, wall_top, bmin,
+                    0.0f, 0.0f, 1.0f, m.wall_color);
+                // North wall (z = bmax, facing -Z into room)
+                push_quad(verts, indices,
+                    bmax, WALL_FLOOR, bmax, bmin, WALL_FLOOR, bmax,
+                    bmin, wall_top, bmax, bmax, wall_top, bmax,
+                    0.0f, 0.0f, -1.0f, m.wall_color);
+                // West wall (x = bmin, facing +X into room)
+                push_quad(verts, indices,
+                    bmin, WALL_FLOOR, bmax, bmin, WALL_FLOOR, bmin,
+                    bmin, wall_top, bmin, bmin, wall_top, bmax,
+                    1.0f, 0.0f, 0.0f, m.wall_color);
+                // East wall (x = bmax, facing -X into room)
+                push_quad(verts, indices,
+                    bmax, WALL_FLOOR, bmin, bmax, WALL_FLOOR, bmax,
+                    bmax, wall_top, bmax, bmax, wall_top, bmin,
+                    -1.0f, 0.0f, 0.0f, m.wall_color);
+
+                // ─── Ceiling ─────────────────────────────────────────────
+                if (m.ceiling_type == CeilingType::FLAT) {
+                    push_quad(verts, indices,
+                        bmin, ch, bmin, bmax, ch, bmin,
+                        bmax, ch, bmax, bmin, ch, bmax,
+                        0.0f, -1.0f, 0.0f, m.ceiling_color);
+                }
+                else if (m.ceiling_type == CeilingType::VAULT) {
+                    // ─── Groin vault (cross vault) ───────────────────────
+                    //
+                    // Two perpendicular catenary barrels; ceiling = min of both.
+                    // Rise scales with room span for real architectural depth.
+
+                    float half_x = (bmax - bmin) * 0.5f;
+                    float half_z = (bmax - bmin) * 0.5f;
+                    float center_x = (bmin + bmax) * 0.5f;
+                    float center_z = (bmin + bmax) * 0.5f;
+                    float cat_a_x = solve_catenary_a(half_x, rise);
+                    float cat_a_z = solve_catenary_a(half_z, rise);
+
+                    static constexpr uint32_t VAULT_N = 32;
+
+                    auto catenary_y = [&](float dist, float cat_a) -> float {
+                        return crown_h - cat_a * (std::cosh(dist / cat_a) - 1.0f);
+                        };
+
+                    uint32_t v_base = static_cast<uint32_t>(verts.size());
+                    for (uint32_t iz = 0; iz <= VAULT_N; iz++) {
+                        float tz = (float)iz / (float)VAULT_N;
+                        float z = bmin + tz * (bmax - bmin);
+                        float dz = z - center_z;
+
+                        for (uint32_t ix = 0; ix <= VAULT_N; ix++) {
+                            float tx = (float)ix / (float)VAULT_N;
+                            float x = bmin + tx * (bmax - bmin);
+                            float dx = x - center_x;
+
+                            float y_barrel_x = catenary_y(dx, cat_a_x);
+                            float y_barrel_z = catenary_y(dz, cat_a_z);
+                            float y = std::min(y_barrel_x, y_barrel_z);
+
+                            bool on_edge = (ix == 0 || ix == VAULT_N || iz == 0 || iz == VAULT_N);
+                            if (on_edge) {
+                                y = wall_h - JOINT_OVERLAP;
+                            }
+
+                            // Normal via finite differences
+                            float eps = (bmax - bmin) / (float)VAULT_N * 0.5f;
+                            float y_px = std::min(catenary_y(dx + eps, cat_a_x), catenary_y(dz, cat_a_z));
+                            float y_mx = std::min(catenary_y(dx - eps, cat_a_x), catenary_y(dz, cat_a_z));
+                            float y_pz = std::min(catenary_y(dx, cat_a_x), catenary_y(dz + eps, cat_a_z));
+                            float y_mz = std::min(catenary_y(dx, cat_a_x), catenary_y(dz - eps, cat_a_z));
+
+                            float ddx = (y_px - y_mx) / (2.0f * eps);
+                            float ddz = (y_pz - y_mz) / (2.0f * eps);
+                            float nmag = std::sqrt(ddx * ddx + 1.0f + ddz * ddz);
+                            float fnx = -ddx / nmag;
+                            float fny = -1.0f / nmag;
+                            float fnz = -ddz / nmag;
+
+                            if (on_edge) { fnx = 0.0f; fny = -1.0f; fnz = 0.0f; }
+
+                            verts.push_back({ { x, y, z }, { fnx, fny, fnz },
+                                { m.ceiling_color[0], m.ceiling_color[1], m.ceiling_color[2] } });
+                        }
+                    }
+
+                    for (uint32_t iz = 0; iz < VAULT_N; iz++) {
+                        for (uint32_t ix = 0; ix < VAULT_N; ix++) {
+                            uint32_t a = v_base + iz * (VAULT_N + 1) + ix;
+                            uint32_t b = a + 1;
+                            uint32_t c = a + (VAULT_N + 1);
+                            uint32_t d = c + 1;
+                            indices.push_back(a); indices.push_back(b); indices.push_back(c);
+                            indices.push_back(b); indices.push_back(d); indices.push_back(c);
+                        }
+                    }
+                }
+
+                uint32_t vc = std::min(static_cast<uint32_t>(verts.size()), Dim::SHELL_MAX_VERTICES);
+                uint32_t ic = std::min(static_cast<uint32_t>(indices.size()), Dim::SHELL_MAX_INDICES);
+
+                gpuState_.upload_shell_mesh(queue, verts.data(), vc, indices.data(), ic);
+
+                place_wall_paintings(queue, bmin, bmax, ch);
+
+                std::cout << "[Shell] Generated "
+                    << (m.ceiling_type == CeilingType::FLAT ? "FLAT" : "GROIN VAULT")
+                    << ": " << vc << " verts, " << ic << " indices"
+                    << " bounds=[" << bmin << "," << bmax << "]"
+                    << " wall_h=" << wall_h << " crown=" << crown_h
+                    << " rise=" << rise << "\n";
+            }
+
+            // --- Force-spawn a portal arch at a specific position ---
+            //
+            // General helper: places a Doorway arch with fixed tier-mean geometry,
+            // portal color, and the given destination. Returns the slot used, or
+            // UINT32_MAX if no slot was free.
+            uint32_t force_spawn_portal_at(wgpu::Queue& queue,
+                float cx, float cz, float rotation,
+                const PortalDestination& dest, bool is_back_portal) {
+
+                uint32_t slot = UINT32_MAX;
                 for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++) {
-                    if (!activeArches_[i].active) continue;
-                    const auto& pl = cpuPiers_[Dim::PIER_ARCH_BASE + i * 2];
-                    const auto& pr = cpuPiers_[Dim::PIER_ARCH_BASE + i * 2 + 1];
-                    archOrigins[i].pier_left_x = pl.origin[0];
-                    archOrigins[i].pier_left_z = pl.origin[1];
-                    archOrigins[i].pier_right_x = pr.origin[0];
-                    archOrigins[i].pier_right_z = pr.origin[1];
-                    archOrigins[i].is_active = 1;
-                    archOrigins[i].ground_y = activeArches_[i].cached_ground_y;
-                    archOrigins[i].pier_correction_left = 0.0f;
-                    archOrigins[i].pier_correction_right = 0.0f;
+                    if (!activeArches_[i].active) { slot = i; break; }
                 }
-                gpuState_.upload_arch_origins(queue, archOrigins, Dim::MAX_ARCH_INSTANCES);
+                if (slot == UINT32_MAX) return UINT32_MAX;
 
-                // --- Column ground entries ---
-                GPUColumnGroundEntry columnOrigins[Dim::MAX_COLUMN_INSTANCES]{};
-                for (uint32_t i = 0; i < Dim::MAX_COLUMN_INSTANCES; i++) {
-                    if (!activeColumns_[i].active) continue;
-                    columnOrigins[i].center_x = activeColumns_[i].world_x;
-                    columnOrigins[i].center_z = activeColumns_[i].world_z;
-                    columnOrigins[i].is_active = 1;
-                    columnOrigins[i].ground_y = activeColumns_[i].cached_ground_y;
-                    columnOrigins[i].pier_correction = 0.0f;
+                const auto& tp = ARCH_TIERS[static_cast<uint32_t>(ArchTier::DOORWAY)];
+                float half_span = tp.span_mean * 0.5f;
+                float rise = tp.rise_mean;
+                float depth = tp.depth_mean;
+                float thickness = tp.thickness_mean;
+                float pier_height = tp.pier_height_mean;
+                float pier_padding = tp.pier_padding_mean;
+                float edge_blend = tp.edge_blend_mean;
+
+                float pier_half_x = thickness * 0.5f + pier_padding + edge_blend;
+                float pier_half_z = depth * 0.5f + pier_padding + edge_blend;
+
+                int32_t gx = static_cast<int32_t>(std::floor(cx / PATCH_EXTENT));
+                int32_t gz = static_cast<int32_t>(std::floor(cz / PATCH_EXTENT));
+
+                float cos_r = std::cos(rotation);
+                float sin_r = std::sin(rotation);
+                uint32_t pier_l_slot = Dim::PIER_ARCH_BASE + slot * 2;
+                uint32_t pier_r_slot = pier_l_slot + 1;
+
+                float pl_x = cx + (-half_span) * cos_r;
+                float pl_z = cz + (-half_span) * sin_r;
+                float pr_x = cx + half_span * cos_r;
+                float pr_z = cz + half_span * sin_r;
+
+                GPUPierInstance pl{};
+                pl.origin[0] = pl_x;  pl.origin[1] = pl_z;
+                pl.half_size[0] = pier_half_x;  pl.half_size[1] = pier_half_z;
+                pl.height_near = pier_height;  pl.height_far = pier_height;
+                pl.rotation = rotation;  pl.edge_blend = edge_blend;
+                pl.tier = PierTier::ARCH_DOORWAY;
+                pl.is_active = 1;
+                write_pier(queue, pier_l_slot, pl);
+
+                GPUPierInstance pr{};
+                pr.origin[0] = pr_x;  pr.origin[1] = pr_z;
+                pr.half_size[0] = pier_half_x;  pr.half_size[1] = pier_half_z;
+                pr.height_near = pier_height;  pr.height_far = pier_height;
+                pr.rotation = rotation;  pr.edge_blend = edge_blend;
+                pr.tier = PierTier::ARCH_DOORWAY;
+                pr.is_active = 1;
+                write_pier(queue, pier_r_slot, pr);
+
+                auto& aa = activeArches_[slot];
+                aa.patch_gx = gx;
+                aa.patch_gz = gz;
+                aa.active = true;
+                aa.draw_visible = true;
+                aa.world_x = cx;
+                aa.world_z = cz;
+                aa.rotation = rotation;
+                aa.half_span = half_span;
+                aa.total_height = pier_height + rise;
+                aa.tier = ArchTier::DOORWAY;
+                aa.depth = depth;
+                aa.thickness = thickness;
+                aa.rise = rise;
+                aa.pier_height = pier_height;
+                aa.burial = std::max(0.2f, pier_height * tp.burial);
+                aa.segs_u = tp.segs_u;
+                aa.segs_v = tp.segs_v;
+                aa.col_r = 0.75f;  aa.col_g = 0.68f;  aa.col_b = 0.60f;
+
+                {
+                    float tl = cpu_terrain_base_at(pl_x, pl_z);
+                    float tr = cpu_terrain_base_at(pr_x, pr_z);
+                    aa.cached_ground_y = std::min(tl + pier_height, tr + pier_height);
                 }
-                gpuState_.upload_column_origins(queue, columnOrigins, Dim::MAX_COLUMN_INSTANCES);
 
-                // --- Pyramid ground entries ---
-                GPUPyramidGroundEntry pyramidOrigins[Dim::MAX_PYRAMID_INSTANCES]{};
-                for (uint32_t i = 0; i < Dim::MAX_PYRAMID_INSTANCES; i++) {
-                    if (!activePyramids_[i].active) continue;
-                    const auto& inst = cpuPyramids_.instances[i];
-                    pyramidOrigins[i].center_x = inst.origin[0];
-                    pyramidOrigins[i].center_z = inst.origin[1];
-                    pyramidOrigins[i].is_active = 1;
-                    pyramidOrigins[i].own_height = inst.height;
-                    pyramidOrigins[i].half_x = inst.half_size[0];
-                    pyramidOrigins[i].half_z = inst.half_size[1];
-                    pyramidOrigins[i].rotation = inst.rotation;
-                    pyramidOrigins[i].ground_y = activePyramids_[i].cached_ground_y;
+                aa.is_portal = true;
+                aa.is_back_portal = is_back_portal;
+                aa.position_hash = cpu_hash(static_cast<uint32_t>(cx * 73856093.0f), static_cast<uint32_t>(cz * 19349663.0f));
+                aa.destination = dest;
+
+                activeArchCount_++;
+                portalsDirty_ = true;
+
+                const float* pc = is_back_portal
+                    ? PORTAL_COLOR_BACK
+                    : PORTAL_COLORS[dest.mood % MOOD_COUNT];
+                GPUArchMeshParams meshParams{};
+                meshParams.center_x = cx;
+                meshParams.center_z = cz;
+                meshParams.rotation = rotation;
+                meshParams.half_span = half_span;
+                meshParams.rise = rise;
+                meshParams.depth = depth;
+                meshParams.thickness = thickness;
+                meshParams.pier_height = pier_height;
+                meshParams.burial = aa.burial;
+                meshParams.catenary_a = solve_catenary_a(half_span, rise);
+                meshParams.segs_u = tp.segs_u;
+                meshParams.segs_v = tp.segs_v;
+                meshParams.color_r = pc[0];
+                meshParams.color_g = pc[1];
+                meshParams.color_b = pc[2];
+                meshParams.is_active = 1;
+                gpuState_.upload_arch_mesh_params_slot(queue, slot, meshParams);
+                archMeshGenPending_ = true;
+
+                return slot;
+            }
+
+            // --- Force-spawn the guaranteed back-portal ---
+            void force_spawn_back_portal(wgpu::Queue& queue) {
+                backPortalPending_ = false;
+
+                const auto& retMood = MOOD_TABLE[backPortalReturnMood_ % MOOD_COUNT];
+                PortalDestination dest{};
+                dest.seed = backPortalReturnSeed_;
+                dest.finite = retMood.finite;
+                dest.finite_radius = backPortalReturnRadius_;
+                dest.mood = backPortalReturnMood_;
+
+                float cx = backPortalPosition_[0];
+                float cz = backPortalPosition_[1];
+                uint32_t slot = force_spawn_portal_at(queue, cx, cz, 0.0f, dest, true);
+
+                if (slot != UINT32_MAX) {
+                    std::cout << "[Portal] Back-portal spawned at (" << cx << "," << cz
+                        << ") slot=" << slot
+                        << " -> return seed=" << backPortalReturnSeed_
+                        << " mood=" << mood_name(backPortalReturnMood_) << "\n";
+                }
+                else {
+                    std::cout << "[Portal] WARNING: no free arch slot for back-portal\n";
                 }
 
+                // Spawn additional forward portals around the room perimeter
+                force_spawn_finite_portals(queue);
+            }
 
+            // --- Forward portals in finite worlds ---
+            //
+            // Places seed-derived portals near the walls so the player can
+            // easily reach new worlds. Count scales with room size:
+            //   radius 1 (3×3):  1 extra portal
+            //   radius 2 (5×5):  2 extra portals
+            //   radius 3-4:      3 extra portals
+            //
+            // Positions are distributed along the room perimeter with seed-driven
+            // jitter so they feel organic, not mechanical.
+
+            void force_spawn_finite_portals(wgpu::Queue& queue) {
+                float bmin = -(float)finiteRadius_ * PATCH_EXTENT;
+                float bmax = ((float)finiteRadius_ + 1.0f) * PATCH_EXTENT;
+                float room_center = (bmin + bmax) * 0.5f;
+                float room_half = (bmax - bmin) * 0.5f;
+                float margin = 8.0f;  // distance from wall
+
+                uint32_t count = 1;
+                if (finiteRadius_ >= 2) count = 2;
+                if (finiteRadius_ >= 3) count = 3;
+
+                // Perimeter positions: distribute along the 4 walls
+                struct PortalSpot {
+                    float x, z, rotation;
+                };
+
+                // Fixed candidate positions: one per wall, offset from center
+                PortalSpot candidates[] = {
+                    // South wall, facing +Z (into room)
+                    { room_center, bmin + margin, 1.5708f },
+                    // East wall, facing -X (into room)
+                    { bmax - margin, room_center, 3.14159f },
+                    // North wall, facing -Z (into room)
+                    { room_center, bmax - margin, -1.5708f },
+                    // West wall, facing +X (into room)
+                    { bmin + margin, room_center, 0.0f },
+                };
+                uint32_t num_candidates = 4;
+
+                // Shuffle candidates with seed so different rooms use different walls
+                for (uint32_t i = num_candidates - 1; i > 0; i--) {
+                    uint32_t j = cpu_hash(activeSeed_, 7700u + i) % (i + 1);
+                    PortalSpot tmp = candidates[i];
+                    candidates[i] = candidates[j];
+                    candidates[j] = tmp;
+                }
+
+                uint32_t spawned = 0;
+                for (uint32_t i = 0; i < num_candidates && spawned < count; i++) {
+                    auto& spot = candidates[i];
+
+                    // Jitter position along the wall
+                    float jitter = (cpu_hash_f(activeSeed_, 7710u + i) - 0.5f) * room_half * 0.4f;
+                    // Apply jitter perpendicular to the wall normal
+                    float jx = spot.x, jz = spot.z;
+                    if (std::abs(spot.rotation - 1.5708f) < 0.1f || std::abs(spot.rotation + 1.5708f) < 0.1f) {
+                        jx += jitter;  // south/north wall: jitter along X
+                    }
+                    else {
+                        jz += jitter;  // east/west wall: jitter along Z
+                    }
+
+                    // Don't collide with back-portal (at backPortalPosition_)
+                    float dbx = jx - backPortalPosition_[0];
+                    float dbz = jz - backPortalPosition_[1];
+                    if (dbx * dbx + dbz * dbz < 10.0f * 10.0f) continue;
+
+                    // Generate destination
+                    uint32_t dest_seed = cpu_hash(activeSeed_, 7800u + i);
+                    uint32_t mood = pick_portal_mood(activeSeed_, 7900u + i);
+                    const auto& mp = MOOD_TABLE[mood];
+                    PortalDestination dest{};
+                    dest.seed = dest_seed;
+                    dest.mood = mood;
+                    dest.finite = mp.finite;
+                    dest.finite_radius = derive_finite_radius(dest_seed, mp);
+
+                    uint32_t slot = force_spawn_portal_at(queue, jx, jz, spot.rotation, dest, false);
+                    if (slot != UINT32_MAX) {
+                        std::cout << "[Portal] Forward portal " << (spawned + 1)
+                            << " at (" << jx << "," << jz
+                            << ") -> seed=" << dest_seed
+                            << " mood=" << mood_name(mood)
+                            << (dest.finite ? " FINITE" : " open") << "\n";
+                        spawned++;
+                    }
+                }
+
+                std::cout << "[Portal] Finite world: " << spawned << " forward portals + 1 back-portal\n";
+            }
+
+            // --- Upload portal array to GPU ---
+            void upload_portal_array(wgpu::Queue& queue) {
+                if (!portalsDirty_) return;
+                portalsDirty_ = false;
+
+                cpuPortalArray_ = GPUPortalArray{};
+                uint32_t count = 0;
+                for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES && count < MAX_GPU_PORTALS; i++) {
+                    if (!activeArches_[i].active || !activeArches_[i].is_portal) continue;
+                    auto& entry = cpuPortalArray_.portals[count];
+                    entry.x = activeArches_[i].world_x;
+                    entry.z = activeArches_[i].world_z;
+                    entry.trigger_radius = PORTAL_TRIGGER_RADIUS;
+                    entry.arch_index = i;
+                    count++;
+                }
+                cpuPortalArray_.count = count;
+                gpuState_.upload_portal_array(queue, cpuPortalArray_);
+            }
+
+            // --- Upload light uniforms (must precede compute for shadow VP) ---
+            void upload_lights(wgpu::Queue& queue) {
+                if (!lightsDirty_) return;
+                lightsDirty_ = false;
+
+                GPUDirectionalLight sun{};
+                float len = std::sqrt(sunDirection_[0] * sunDirection_[0] + sunDirection_[1] * sunDirection_[1] + sunDirection_[2] * sunDirection_[2]);
+                sun.direction[0] = sunDirection_[0] / len;
+                sun.direction[1] = sunDirection_[1] / len;
+                sun.direction[2] = sunDirection_[2] / len;
+
+                sun.color[0] = sunColor_[0];
+                sun.color[1] = sunColor_[1];
+                sun.color[2] = sunColor_[2];
+                sun.intensity = sunIntensity_;
+                sun.ambient = sunAmbient_;
+
+                gpuState_.upload_directional_light(queue, sun);
+
+                GPUPointLightArray pointLights{};
+                pointLights.count = 0;
+                gpuState_.upload_point_lights(queue, pointLights);
+
+                gpuState_.upload_spot_lights(queue, cpuSpotLights_);
+            }
+
+            // ═══════════════════════════════════════════════════════════════
+            // ── END MOOD SYSTEM (IMPLEMENTATION) ───────────────────────────
+            // ═══════════════════════════════════════════════════════════════
+
+            // ─── Gallery: Wall Paintings + Authored Loading ───────────────
+            // (Called by apply_mood / generate_indoor_shell for indoor worlds.
+            //  Joins the main GALLERY SYSTEM block in Phase 2.)
+
+            // ─── Authored Image Loading (staging model) ─────────────────
+
+            void load_authored_image_to_staging(wgpu::Queue& queue, uint32_t staging_layer, uint32_t disk_index, const char* path) {
+                int width = 0, height = 0, channels = 0;
+                unsigned char* data = stbi_load(path, &width, &height, &channels, 4);
+                if (!data) {
+                    // Try fallback paths
+                    std::string alt = std::string("7t/") + path;
+                    data = stbi_load(alt.c_str(), &width, &height, &channels, 4);
+                }
+                if (!data) {
+                    std::cerr << "[Authored] Failed to load: " << path << "\n";
+                    return;
+                }
+
+                std::cout << "[Authored] Loaded: " << path
+                    << " (" << width << "x" << height << ") → staging " << staging_layer << "\n";
+
+                constexpr uint32_t RES = Dim::PAINTING_RESOLUTION;
+                float scale = std::min((float)RES / width, (float)RES / height);
+                if (scale > 1.0f) scale = 1.0f;
+                uint32_t dst_w = std::min((uint32_t)(width * scale + 0.5f), RES);
+                uint32_t dst_h = std::min((uint32_t)(height * scale + 0.5f), RES);
+
+                std::vector<uint8_t> padded(RES * RES * 4, 0);
+                for (uint32_t dy = 0; dy < dst_h; ++dy) {
+                    float src_yf = (float)dy / scale;
+                    uint32_t sy0 = (uint32_t)src_yf;
+                    uint32_t sy1 = std::min(sy0 + 1, (uint32_t)(height - 1));
+                    float fy = src_yf - sy0;
+                    for (uint32_t dx = 0; dx < dst_w; ++dx) {
+                        float src_xf = (float)dx / scale;
+                        uint32_t sx0 = (uint32_t)src_xf;
+                        uint32_t sx1 = std::min(sx0 + 1, (uint32_t)(width - 1));
+                        float fx = src_xf - sx0;
+                        uint32_t i00 = (sy0 * width + sx0) * 4;
+                        uint32_t i10 = (sy0 * width + sx1) * 4;
+                        uint32_t i01 = (sy1 * width + sx0) * 4;
+                        uint32_t i11 = (sy1 * width + sx1) * 4;
+                        uint32_t di = (dy * RES + dx) * 4;
+                        for (int c = 0; c < 4; ++c) {
+                            float v = (1 - fx) * (1 - fy) * data[i00 + c] + fx * (1 - fy) * data[i10 + c]
+                                + (1 - fx) * fy * data[i01 + c] + fx * fy * data[i11 + c];
+                            padded[di + c] = (uint8_t)(v + 0.5f);
+                        }
+                    }
+                }
+
+                gpuState_.upload_authored_painting(queue, staging_layer, padded.data(), RES, RES);
+                stbi_image_free(data);
+
+                auto& rec = authoredStaging_[staging_layer];
+                rec.disk_index = disk_index;
+                rec.aspect_ratio = (height > 0) ? (float)width / (float)height : 1.0f;
+                rec.uv_scale_x = (float)dst_w / RES;
+                rec.uv_scale_y = (float)dst_h / RES;
+                rec.valid = true;
+                rec.consumed = false;
+
+                std::cout << "[Authored] Scaled → " << dst_w << "x" << dst_h
+                    << " (aspect " << rec.aspect_ratio << ")\n";
+            }
+
+            // ─── Paintings Folder Scan ─────────────────────────────────
+            // Scans assets/paintings/ for PAINTING_*.jpg/jpeg, sorted alphabetically.
+            // Called once at first load. The full collection lives on disk;
+            // a rotating 16-layer staging window loads into GPU memory.
+
+            void scan_paintings_folder() {
+                namespace fs = std::filesystem;
+                authoredDiskManifest_.clear();
+
+                // Try multiple base paths (build dir vs working dir)
+                static constexpr const char* SEARCH_DIRS[] = {
+                    "assets/paintings",
+                    "7t/assets/paintings",
+                };
+
+                fs::path found_dir;
+                for (const char* dir : SEARCH_DIRS) {
+                    if (fs::exists(dir) && fs::is_directory(dir)) {
+                        found_dir = dir;
+                        break;
+                    }
+                }
+                if (found_dir.empty()) {
+                    std::cout << "[Authored] No paintings folder found\n";
+                    return;
+                }
+
+                for (const auto& entry : fs::directory_iterator(found_dir)) {
+                    if (!entry.is_regular_file()) continue;
+                    std::string name = entry.path().filename().string();
+                    // Match PAINTING_*.jpg or PAINTING_*.jpeg (case-insensitive extension)
+                    if (name.rfind("PAINTING_", 0) != 0) continue;
+                    std::string ext = entry.path().extension().string();
+                    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+                    if (ext != ".jpg" && ext != ".jpeg") continue;
+                    authoredDiskManifest_.push_back(entry.path().string());
+                }
+
+                // Sort by numeric value after PAINTING_ (not lexicographic)
+                // PAINTING_1 < PAINTING_2 < PAINTING_10 < PAINTING_100
+                auto extract_number = [](const std::string& path) -> int {
+                    namespace fs = std::filesystem;
+                    std::string name = fs::path(path).stem().string();  // "PAINTING_12"
+                    size_t pos = name.find('_');
+                    if (pos == std::string::npos || pos + 1 >= name.size()) return 0;
+                    try { return std::stoi(name.substr(pos + 1)); }
+                    catch (...) { return 0; }
+                    };
+                std::sort(authoredDiskManifest_.begin(), authoredDiskManifest_.end(),
+                    [&](const std::string& a, const std::string& b) {
+                        return extract_number(a) < extract_number(b);
+                    });
+
+                std::cout << "[Authored] Scanned " << found_dir.string()
+                    << " — found " << authoredDiskManifest_.size() << " paintings\n";
+            }
+
+            void load_authored_textures(wgpu::Queue& queue) {
+                if (authoredTexturesLoaded_) return;
+
+                // Scan folder on first load
+                if (authoredDiskManifest_.empty()) {
+                    scan_paintings_folder();
+                }
+                if (authoredDiskManifest_.empty()) {
+                    authoredTexturesLoaded_ = true;
+                    return;
+                }
+
+                // Fill staging with the first STAGING_LAYERS images from manifest
+                uint32_t manifest_size = (uint32_t)authoredDiskManifest_.size();
+                uint32_t to_load = std::min(manifest_size, Dim::STAGING_LAYERS);
+                for (uint32_t i = 0; i < to_load; i++) {
+                    load_authored_image_to_staging(queue, i, i, authoredDiskManifest_[i].c_str());
+                    if (authoredStaging_[i].valid) authoredStagedCount_++;
+                }
+                authoredWriteCursor_ = to_load % Dim::STAGING_LAYERS;
+                authoredDiskCursor_ = to_load % manifest_size;
+                authoredTexturesLoaded_ = true;
+                std::cout << "[Authored] Staged " << authoredStagedCount_
+                    << "/" << manifest_size << " images\n";
+            }
+
+            // Replace consumed authored staging slots with the next images from disk.
+            // Called at teardown — consumed slots get fresh paintings, unconsumed survive.
+            // The disk cursor walks through the entire manifest across world transitions,
+            // so the pawn sees different paintings in each world.
+            void rotate_authored_staging(wgpu::Queue& queue) {
+                if (authoredDiskManifest_.empty()) return;
+                uint32_t manifest_size = (uint32_t)authoredDiskManifest_.size();
+
+                // Collect disk indices currently in unconsumed (surviving) slots
+                // to avoid loading duplicates
+                bool disk_in_use[256]{};  // generous upper bound
+                for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) {
+                    if (authoredStaging_[i].valid && !authoredStaging_[i].consumed) {
+                        if (authoredStaging_[i].disk_index < 256)
+                            disk_in_use[authoredStaging_[i].disk_index] = true;
+                    }
+                }
+
+                uint32_t rotated = 0;
+                for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) {
+                    if (!authoredStaging_[i].consumed) continue;  // keep unconsumed
+
+                    // Find next disk image not already in a surviving slot
+                    uint32_t attempts = 0;
+                    while (attempts < manifest_size) {
+                        uint32_t disk_idx = authoredDiskCursor_;
+                        authoredDiskCursor_ = (authoredDiskCursor_ + 1) % manifest_size;
+                        if (disk_idx < 256 && disk_in_use[disk_idx]) {
+                            attempts++;
+                            continue;
+                        }
+                        // Load this image into the vacated staging slot
+                        load_authored_image_to_staging(queue, i, disk_idx,
+                            authoredDiskManifest_[disk_idx].c_str());
+                        if (disk_idx < 256) disk_in_use[disk_idx] = true;
+                        rotated++;
+                        break;
+                    }
+                    // If all manifest images are in surviving slots (unlikely with 50+),
+                    // the consumed slot just stays invalid
+                }
+
+                if (rotated > 0) {
+                    // Recount valid slots after rotation
+                    authoredStagedCount_ = 0;
+                    for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) {
+                        if (authoredStaging_[i].valid) authoredStagedCount_++;
+                    }
+                    std::cout << "[Authored] Rotated " << rotated
+                        << " slot(s), " << authoredStagedCount_ << " valid"
+                        << ", disk cursor at " << authoredDiskCursor_
+                        << "/" << manifest_size << "\n";
+                }
+            }
+
+            // Count how many valid authored staging entries aren't in usedAuthored[]
+            uint32_t count_unused_authored(const bool usedAuthored[]) const {
+                uint32_t count = 0;
+                for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) {
+                    if (authoredStaging_[i].valid && !authoredStaging_[i].consumed && !usedAuthored[i]) count++;
+                }
+                return count;
+            }
+
+            // Pick the next authored painting in alphabetical order (lowest disk_index first)
+            uint32_t pick_authored_staging(uint32_t /*seed*/, uint32_t /*prop*/) {
+                uint32_t best_slot = UINT32_MAX;
+                uint32_t best_disk = UINT32_MAX;
+                for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) {
+                    if (authoredStaging_[i].valid && !authoredStaging_[i].consumed
+                        && authoredStaging_[i].disk_index < best_disk) {
+                        best_disk = authoredStaging_[i].disk_index;
+                        best_slot = i;
+                    }
+                }
+                return best_slot;
+            }
+
+            // ─── Frame Style Presets ─────────────────────────────────────
+            struct FrameStyle {
+                float depth, width, recess;
+                float color[3];
+            };
+            // Authored: thick dark wood (museum frame)
+            static constexpr FrameStyle FRAME_AUTHORED = { 0.30f, 0.45f, 0.09f, { 0.25f, 0.15f, 0.08f } };
+            // Snapshot on wall: same museum frame (content is different, ceremony is the same)
+            static constexpr FrameStyle FRAME_SNAPSHOT = { 0.30f, 0.45f, 0.09f, { 0.25f, 0.15f, 0.08f } };
+
+            // ─── Slot Fill Helpers ────────────────────────────────────────
+
+            void fill_slot_wall_frame(
+                GPUPaintingSlot& s,
+                float x, float y, float z,
+                float nx, float ny, float nz,
+                float aspect_ratio, float base_height,
+                uint32_t layer, uint32_t content,
+                float uv_sx, float uv_sy,
+                const FrameStyle& frame,
+                int32_t gx, int32_t gz
+            ) {
+                s = {};
+                s.position[0] = x; s.position[1] = y; s.position[2] = z;
+                s.forward[0] = nx; s.forward[1] = ny; s.forward[2] = nz;
+                s.up[0] = 0.0f; s.up[1] = 1.0f; s.up[2] = 0.0f;
+                s.form_type = FormType::WALL_FRAME;
+                s.is_active = 1;
+                s.scale_x = base_height * aspect_ratio;
+                s.scale_y = base_height;
+                s.texture_layer = layer;
+                s.content_source = content;
+                s.uv_scale_x = uv_sx;
+                s.uv_scale_y = uv_sy;
+                s.frame_depth = frame.depth;
+                s.frame_width = frame.width;
+                s.canvas_recess = frame.recess;
+                s.frame_color[0] = frame.color[0];
+                s.frame_color[1] = frame.color[1];
+                s.frame_color[2] = frame.color[2];
+                s.patch_gx = gx; s.patch_gz = gz;
+            }
+
+            // ─── Wall Painting Placement (unified slots, multi-wall, mixing) ─
+
+            void place_wall_paintings(wgpu::Queue& queue, float bmin, float bmax, float ceiling_h) {
+                // Clear any existing wall paintings first (indoor→indoor transitions)
+                clear_wall_paintings(queue);
+
+                load_authored_textures(queue);
+
+                constexpr float PAINT_Y_FRAC = 0.45f;  // center height as fraction of ceiling
+                constexpr float WALL_OFFSET = 0.05f;    // distance from wall surface
+
+                float paint_y_base = ceiling_h * PAINT_Y_FRAC;
+                float wall_span = bmax - bmin;
+                float wall_center = (bmin + bmax) * 0.5f;
+
+                // Three-way site type: snapshot-only / mixed / authored-only
+                uint32_t site_seed = cpu_hash(activeSeed_, 5500u);
+                float site_roll = cpu_hash_f(site_seed, 0u);
+                enum class IndoorSiteType { SNAPSHOT_ONLY, MIXED, AUTHORED_ONLY };
+                IndoorSiteType site_type;
+                if (site_roll < GalleryConfig::INDOOR_SNAPSHOT_ONLY && snapshotCount_ > 0) {
+                    site_type = IndoorSiteType::SNAPSHOT_ONLY;
+                }
+                else if (site_roll < GalleryConfig::INDOOR_SNAPSHOT_ONLY + GalleryConfig::INDOOR_MIXED
+                    && snapshotCount_ > 0) {
+                    site_type = IndoorSiteType::MIXED;
+                }
+                else {
+                    site_type = IndoorSiteType::AUTHORED_ONLY;
+                }
+
+                // Wall definitions: position, normal, tangent (for spacing)
+                struct WallDef {
+                    float px, py, pz;    // wall center position
+                    float nx, ny, nz;    // inward normal
+                    float tx, tz;        // tangent direction (for spacing paintings along wall)
+                    float span;          // wall length
+                };
+                WallDef walls[] = {
+                    { wall_center, paint_y_base, bmin + WALL_OFFSET,   0,0,1,   1,0,  wall_span },
+                    { wall_center, paint_y_base, bmax - WALL_OFFSET,   0,0,-1,  -1,0, wall_span },
+                    { bmin + WALL_OFFSET, paint_y_base, wall_center,   1,0,0,   0,1,  wall_span },
+                    { bmax - WALL_OFFSET, paint_y_base, wall_center,  -1,0,0,   0,-1, wall_span },
+                };
+                constexpr uint32_t WALL_COUNT = 4;
+
+                // Roll how many walls get paintings (1–4), then shuffle to pick which
+                uint32_t wall_roll = cpu_hash(site_seed, 1u) % 4;  // 0–3
+                uint32_t active_wall_count = 1 + wall_roll;         // 1–4
+                uint32_t active_walls[4] = { 0, 1, 2, 3 };
+                // Fisher-Yates shuffle
+                for (uint32_t i = 3; i > 0; i--) {
+                    uint32_t j = cpu_hash(site_seed, 2u + i) % (i + 1);
+                    uint32_t tmp = active_walls[i];
+                    active_walls[i] = active_walls[j];
+                    active_walls[j] = tmp;
+                }
+
+                // Track which authored layers have been used across all walls (no duplicates)
+                bool usedAuthored[Dim::STAGING_LAYERS]{};
+
+                // ─── Size variation: three painting scales ────────────────────
+                // Intimate (small accent), Standard (default), Statement (focal point)
+                // Rolled per painting via seed — gives visual hierarchy on each wall.
+                struct PaintingScale {
+                    float height_lo, height_hi;
+                    float weight;
+                };
+                static constexpr PaintingScale INDOOR_SCALES[] = {
+                    { 3.0f,  5.5f,  0.25f },   // intimate — small, hung higher
+                    { 6.0f,  9.0f,  0.50f },   // standard — medium, eye level
+                    { 10.0f, 14.0f, 0.25f },   // statement — large focal piece
+                };
+                static constexpr uint32_t INDOOR_SCALE_COUNT = 3;
+
+                for (uint32_t aw = 0; aw < active_wall_count; aw++) {
+                    uint32_t w = active_walls[aw];
+                    const auto& wall = walls[w];
+                    uint32_t w_seed = cpu_hash(site_seed, 10u + w * 20u);
+
+                    uint32_t count = 1 + cpu_hash(w_seed, 0u) % 5;  // 1-5 per wall
+
+                    // Keep paintings away from corners
+                    constexpr float CORNER_MARGIN = 12.0f;
+                    float usable_span = std::max(wall.span - 2.0f * CORNER_MARGIN, wall.span * 0.3f);
+                    constexpr float PAINTING_GAP = 6.0f;  // gap between painting edges (was 3)
+
+                    // ─── Pre-compute widths to center the group on the wall ──
+                    float total_width = 0.0f;
+                    float painting_widths[8]{};
+                    float painting_heights[8]{};
+                    uint32_t effective_count = std::min(count, 8u);
+
+                    for (uint32_t p = 0; p < effective_count; p++) {
+                        uint32_t p_seed = cpu_hash(w_seed, 100u + p * 10u);
+
+                        // Scale selection (weighted)
+                        float scale_roll = cpu_hash_f(p_seed, 7u);
+                        float cumul = 0.0f;
+                        uint32_t scale_idx = INDOOR_SCALE_COUNT - 1;
+                        for (uint32_t si = 0; si < INDOOR_SCALE_COUNT; si++) {
+                            cumul += INDOOR_SCALES[si].weight;
+                            if (scale_roll < cumul) { scale_idx = si; break; }
+                        }
+                        float h = INDOOR_SCALES[scale_idx].height_lo
+                            + cpu_hash_f(p_seed, 3u) * (INDOOR_SCALES[scale_idx].height_hi - INDOOR_SCALES[scale_idx].height_lo);
+                        painting_heights[p] = h;
+
+                        // Estimate width from typical aspect ratio (~1.3)
+                        float est_aspect = 0.8f + cpu_hash_f(p_seed, 5u) * 0.8f;  // [0.8, 1.6]
+                        painting_widths[p] = h * est_aspect;
+                        total_width += painting_widths[p];
+                        if (p > 0) total_width += PAINTING_GAP;
+                    }
+
+                    // Trim paintings that don't fit
+                    while (effective_count > 1 && total_width > usable_span) {
+                        total_width -= painting_widths[effective_count - 1];
+                        total_width -= PAINTING_GAP;
+                        effective_count--;
+                    }
+
+                    // Center the group on the wall
+                    float group_start = wall_center - total_width * 0.5f;
+                    float cursor = group_start;
+
+                    for (uint32_t p = 0; p < effective_count; p++) {
+
+                        uint32_t slot = find_free_painting_slot();
+                        if (slot == UINT32_MAX) return;
+
+                        uint32_t p_seed = cpu_hash(w_seed, 100u + p * 10u);
+
+                        // Vertical position: scale-dependent offset from base
+                        // Intimate pieces: hung higher. Statement pieces: anchored lower.
+                        float scale_roll = cpu_hash_f(p_seed, 7u);
+                        float cumul = 0.0f;
+                        uint32_t scale_idx = INDOOR_SCALE_COUNT - 1;
+                        for (uint32_t si = 0; si < INDOOR_SCALE_COUNT; si++) {
+                            cumul += INDOOR_SCALES[si].weight;
+                            if (scale_roll < cumul) { scale_idx = si; break; }
+                        }
+
+                        float y_offset = 0.0f;
+                        if (scale_idx == 0) y_offset = 2.0f + cpu_hash_f(p_seed, 1u) * 2.0f;        // intimate: +2 to +4
+                        else if (scale_idx == 1) y_offset = (cpu_hash_f(p_seed, 1u) - 0.5f) * 3.0f;  // standard: -1.5 to +1.5
+                        else y_offset = -1.5f - cpu_hash_f(p_seed, 1u) * 2.0f;                        // statement: -1.5 to -3.5
+
+                        float py = wall.py + y_offset;
+
+                        // ─── Content decision (three-way) ────────────────
+                        bool use_snapshot = (site_type == IndoorSiteType::SNAPSHOT_ONLY)
+                            || (site_type == IndoorSiteType::MIXED
+                                && cpu_hash_f(p_seed, 2u) < GalleryConfig::INDOOR_MIX_SNAPSHOT_CHANCE);
+
+                        if (!use_snapshot && count_unused_authored(usedAuthored) == 0) {
+                            use_snapshot = true;
+                        }
+
+                        auto& s = paintingSlots_[slot];
+                        float paint_width = 0.0f;  // will be set by whichever path fills the slot
+
+                        if (use_snapshot) {
+                            uint32_t snap_stg = UINT32_MAX;
+                            for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) {
+                                if (snapshotStaging_[i].valid && !snapshotStaging_[i].consumed) {
+                                    snap_stg = i;
+                                    break;
+                                }
+                            }
+                            if (snap_stg == UINT32_MAX) {
+                                if (count_unused_authored(usedAuthored) == 0) continue;
+                                use_snapshot = false;
+                            }
+                            else {
+                                uint32_t exh = find_free_exhibition_layer();
+                                if (exh == UINT32_MAX) return;
+
+                                const auto& snap = snapshotStaging_[snap_stg];
+                                float height = painting_heights[p];
+                                paint_width = height * snap.aspect_ratio;
+
+                                // Safety check: actual width may differ from estimate
+                                float wall_right = wall_center + usable_span * 0.5f;
+                                if (cursor + paint_width > wall_right) break;
+
+                                float paint_center = cursor + paint_width * 0.5f;
+                                float px = wall.px + wall.tx * (paint_center - wall_center);
+                                float pz = wall.pz + wall.tz * (paint_center - wall_center);
+
+                                fill_slot_wall_frame(s,
+                                    px, py, pz,
+                                    wall.nx, wall.ny, wall.nz,
+                                    snap.aspect_ratio, height,
+                                    exh, ContentSource::SNAPSHOT,
+                                    1.0f, 1.0f,
+                                    FRAME_SNAPSHOT,
+                                    INT32_MAX, INT32_MAX);
+
+                                exhibitionOccupied_[exh] = true;
+                                exhibitionCount_++;
+                                snapshotStaging_[snap_stg].consumed = true;
+                                queue_promotion(true, snap_stg, exh);
+
+                                cursor += paint_width + PAINTING_GAP;
+                                gpuState_.upload_painting_slot(queue, slot, s);
+                                wallFrameCount_++;
+                                continue;
+                            }
+                        }
+
+                        if (!use_snapshot) {
+                            uint32_t auth_stg = pick_authored_staging(p_seed, 4u);
+                            if (auth_stg == UINT32_MAX) continue;
+                            if (usedAuthored[auth_stg]) {
+                                uint32_t best = UINT32_MAX, best_disk = UINT32_MAX;
+                                for (uint32_t a = 0; a < Dim::STAGING_LAYERS; a++) {
+                                    if (!usedAuthored[a] && authoredStaging_[a].valid && !authoredStaging_[a].consumed
+                                        && authoredStaging_[a].disk_index < best_disk) {
+                                        best_disk = authoredStaging_[a].disk_index;
+                                        best = a;
+                                    }
+                                }
+                                if (best == UINT32_MAX) continue;
+                                auth_stg = best;
+                            }
+
+                            uint32_t exh = find_free_exhibition_layer();
+                            if (exh == UINT32_MAX) return;
+
+                            usedAuthored[auth_stg] = true;
+
+                            const auto& img = authoredStaging_[auth_stg];
+                            float height = painting_heights[p];
+                            paint_width = height * img.aspect_ratio;
+
+                            // Safety check: actual width may differ from estimate
+                            float wall_right = wall_center + usable_span * 0.5f;
+                            if (cursor + paint_width > wall_right) break;
+
+                            float paint_center = cursor + paint_width * 0.5f;
+                            float px = wall.px + wall.tx * (paint_center - wall_center);
+                            float pz = wall.pz + wall.tz * (paint_center - wall_center);
+
+                            fill_slot_wall_frame(s,
+                                px, py, pz,
+                                wall.nx, wall.ny, wall.nz,
+                                img.aspect_ratio, height,
+                                exh, ContentSource::AUTHORED,
+                                img.uv_scale_x, img.uv_scale_y,
+                                FRAME_AUTHORED,
+                                INT32_MAX, INT32_MAX);
+
+                            exhibitionOccupied_[exh] = true;
+                            exhibitionCount_++;
+                            authoredStaging_[auth_stg].consumed = true;
+                            queue_promotion(false, auth_stg, exh);
+
+                            cursor += paint_width + PAINTING_GAP;
+                            gpuState_.upload_painting_slot(queue, slot, s);
+                            wallFrameCount_++;
+                        }
+                    }
+                }
+
+                const char* site_type_name = (site_type == IndoorSiteType::SNAPSHOT_ONLY) ? "SNAPSHOT"
+                    : (site_type == IndoorSiteType::MIXED) ? "MIXED" : "AUTHORED";
+                std::cout << "[WallPainting] Placed " << wallFrameCount_
+                    << " frame(s) across " << active_wall_count << " walls"
+                    << " (" << site_type_name << ")\n";
+            }
+
+            void clear_wall_paintings(wgpu::Queue& queue) {
+                for (uint32_t i = 0; i < Dim::PAINTING_MAX_SLOTS; i++) {
+                    if (paintingSlots_[i].is_active != 0 &&
+                        paintingSlots_[i].form_type == FormType::WALL_FRAME) {
+                        uint32_t exh = paintingSlots_[i].texture_layer;
+                        if (exh < Dim::EXHIBITION_LAYERS) {
+                            exhibitionOccupied_[exh] = false;
+                            exhibitionCount_--;
+                        }
+                        paintingSlots_[i].is_active = 0;
+                        gpuState_.deactivate_painting_slot(queue, i);
+                    }
+                }
+                wallFrameCount_ = 0;
+            }
+
+            // --- GPU compute: ribbon transforms, world update, VP matrix ---
             void dispatch_compute(wgpu::CommandEncoder& encoder) {
                 wgpu::ComputePassDescriptor desc{};
                 desc.label = "Compute Phase";
@@ -8577,6 +8648,14 @@ namespace t7 {
 
                 compute.End();
             }
+
+            // --- Shadow depth pass ---
+            //
+            // Outdoor: single pass, directional sun VP, full 4096×4096 map.
+            // Indoor:  two-texture atlas — lights 0-1 on the sun map (repurposed),
+            //          lights 2-3 on the spot map. Each texture is split left/right
+            //          into 2048×4096 tiles. Doubles per-tile resolution vs the old
+            //          single-texture 2×2 grid, with zero extra memory.
 
             void render_shadow_pass(wgpu::CommandEncoder& encoder) {
                 if (spotLightActive_ && cpuSpotLights_.count > 0) {
@@ -8854,92 +8933,6 @@ namespace t7 {
                 pass.End();
             }
 
-            // ── PUBLIC API ──  → future: stays in cartridge.hpp
-
-        public:
-            Cartridge() = default;
-
-            Cartridge(const Cartridge&) = delete;
-            Cartridge& operator=(const Cartridge&) = delete;
-
-
-            // =========================================================================
-            // S3 BOOT — Device init, pipeline creation, initial state
-            // =========================================================================
-
-            void initialize(wgpu::Device device) override {
-                device_ = device;
-                auto tGpu0 = std::chrono::high_resolution_clock::now();
-                gpuState_.init(device);
-                auto tGpu1 = std::chrono::high_resolution_clock::now();
-                std::cout << "[Cartridge] GPUState init:    "
-                    << std::chrono::duration_cast<std::chrono::milliseconds>(tGpu1 - tGpu0).count()
-                    << " ms\n";
-            }
-
-            bool init_renderer(
-                wgpu::TextureFormat colorFormat,
-                wgpu::TextureFormat depthFormat
-            ) {
-                colorFormat_ = colorFormat;
-                depthFormat_ = depthFormat;
-
-                auto t0 = std::chrono::high_resolution_clock::now();
-                if (!renderer_.init(
-                    device_,
-                    gpuState_,
-                    colorFormat,
-                    depthFormat
-                )) return false;
-
-                // Create offscreen textures with the actual swapchain format
-                if (!gpuState_.initOffscreenResources(colorFormat)) {
-                    std::cerr << "[Cartridge] Failed to init offscreen resources\n";
-                    return false;
-                }
-
-                auto t1 = std::chrono::high_resolution_clock::now();
-
-                // --- One-shot: generate terrain index buffer on GPU -----------------
-                {
-                    wgpu::CommandEncoder encoder = device_.CreateCommandEncoder();
-                    wgpu::ComputePassDescriptor desc{};
-                    desc.label = "Terrain Index Gen (one-shot)";
-                    wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&desc);
-                    renderer_.dispatch_generate_terrain_indices(
-                        pass,
-                        gpuState_.terrain_index_gen_group(),
-                        GPUState::terrain_mesh_workgroups()
-                    );
-                    pass.End();
-                    wgpu::CommandBuffer cmd = encoder.Finish();
-                    device_.GetQueue().Submit(1, &cmd);
-                }
-                auto t2 = std::chrono::high_resolution_clock::now();
-
-                init_patch_system();
-                setup_test_rig_piers(device_.GetQueue());
-
-                // Eager-load authored paintings at boot (avoids mid-frame stall on first gallery)
-                {
-                    wgpu::Queue q = device_.GetQueue();
-                    load_authored_textures(q);
-                }
-
-                auto t3 = std::chrono::high_resolution_clock::now();
-
-                std::cout << "[Cartridge] Renderer init:    "
-                    << std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count() << " ms\n";
-                std::cout << "[Cartridge] Terrain gen:      "
-                    << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() << " ms\n";
-                std::cout << "[Cartridge] Patch system:     "
-                    << std::chrono::duration_cast<std::chrono::milliseconds>(t3 - t2).count() << " ms\n";
-                std::cout << "[Cartridge] Total init:       "
-                    << std::chrono::duration_cast<std::chrono::milliseconds>(t3 - t0).count() << " ms\n";
-
-                return true;
-            }
-
         public:
 
             void on_input(const InputEvent& event) override {
@@ -9158,18 +9151,7 @@ namespace t7 {
                 lastCenterZ_ = INT32_MAX;
             }
 
-
-            // (S7 design mode wrappers removed — GPUState methods remain as the raw API
-            //  for future MIDI/console integration: enter_design_mode, enter_performance_mode,
-            //  set_mute_signal, set_mute_coupling, set_mute_couplings, set_pawn_speed,
-            //  set_camera_sensitivity, etc.)
-
-
         public:
-
-            // =========================================================================
-            // S8 PROPERTIES — Contract overrides and hot reload
-            // =========================================================================
 
             void get_clear_color(float& r, float& g, float& b) const override {
                 r = clearColor_[0];
@@ -9355,7 +9337,6 @@ namespace t7 {
                     }
                 }
             }
-
         };
 
     } // namespace the_board
