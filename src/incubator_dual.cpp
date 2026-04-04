@@ -5,7 +5,7 @@
  * Minimal runtime for developing cartridge pairs.
  * Cartridge selection is controlled from CMakeLists.txt:
  *
- *   set(ACTIVE_RENDER_CARTRIDGE "n_dimensional_4")
+ *   set(ACTIVE_RENDER_CARTRIDGE "the_board")
  *   set(ACTIVE_ANALYSIS_CARTRIDGE "polyphony_basic")
  *
  * CMake passes these as compile definitions (INCUBATE_RENDER, INCUBATE_ANALYSIS).
@@ -20,7 +20,7 @@
  *   Render cartridges:
  *   | Folder name          | Namespace              | Class     |
  *   |----------------------|------------------------|-----------|
- *   | n_dimensional_4/     | t7::n_dimensional_4    | Cartridge |
+ *   | the_board/     | t7::the_board    | Cartridge |
  *
  * INPUT ROUTING:
  *   - Music keys (A-Z, etc.) -> Analysis cartridge
@@ -36,7 +36,7 @@
 #endif
 
 #ifndef INCUBATE_RENDER
-#define INCUBATE_RENDER n_dimensional_4
+#define INCUBATE_RENDER the_board
 #endif
 
 // =========================================================================
@@ -63,7 +63,7 @@
 // The compiler ignores them -- the macro includes below pull in the same files.
 #if defined(__INTELLISENSE__)
 #include "analysis/polyphony_basic/canvas.hpp"
-#include "cartridges/n_dimensional_4/cartridge.hpp"
+#include "cartridges/the_board/cartridge.hpp"
 #else
 #include ANALYSIS_HEADER(INCUBATE_ANALYSIS)
 #include RENDER_HEADER(INCUBATE_RENDER)

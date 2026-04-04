@@ -58,7 +58,7 @@
 #include <cmath>
 
 namespace t7 {
-    namespace n_dimensional_4 {
+    namespace the_board {
 
         // =====================================================================
         // S1 DIMENSIONS — Grid sizes, mesh resolutions, buffer capacities
@@ -4046,5 +4046,5 @@ namespace t7 {
             }
         };
 
-    } // namespace n_dimensional_4
+    } // namespace the_board
 } // namespace t7

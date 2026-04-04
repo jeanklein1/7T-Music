@@ -33,8 +33,8 @@
 
 #include "render/render_cartridge.hpp"
 #include "core/input_event.hpp"
-#include "cartridges/n_dimensional_4/state.hpp"
-#include "cartridges/n_dimensional_4/renderer.hpp"
+#include "cartridges/the_board/state.hpp"
+#include "cartridges/the_board/renderer.hpp"
 #include <cmath>
 #include <cstring>
 #include <iostream>
@@ -78,7 +78,7 @@
 #endif
 
 namespace t7 {
-    namespace n_dimensional_4 {
+    namespace the_board {
 
 
         // =============================================================================
@@ -9159,7 +9159,7 @@ namespace t7 {
             void toggle_fpv_mode() {
                 fpvMode_ = !fpvMode_;
                 gpuState_.set_fpv_mode(fpvMode_ ? 1 : 0);
-                std::cout << "[n_dimensional_4] Camera mode: "
+                std::cout << "[the_board] Camera mode: "
                     << (fpvMode_ ? "First-Person View" : "Orbit") << std::endl;
             }
 
@@ -9169,7 +9169,7 @@ namespace t7 {
                 if (r == activeRadius_) return;
                 activeRadius_ = r;
                 uint32_t side = 2 * r + 1;
-                std::cout << "[n_dimensional_4] Render radius: " << r
+                std::cout << "[the_board] Render radius: " << r
                     << " (" << side << "x" << side << " = " << side * side << " patches)" << std::endl;
                 // Force full re-evaluation on next frame
                 lastCenterX_ = INT32_MAX;
@@ -9375,5 +9375,5 @@ namespace t7 {
             }
         };
 
-    } // namespace n_dimensional_4
+    } // namespace the_board
 } // namespace t7

@@ -31,7 +31,7 @@
 //
 // See world.wgsl for the GPU shader (single source of truth).
 
-#include "cartridges/n_dimensional_4/state.hpp"
+#include "cartridges/the_board/state.hpp"
 #include <webgpu/webgpu_cpp.h>
 #include <string>
 #include <fstream>
@@ -41,7 +41,7 @@
 #include <iostream>
 
 namespace t7 {
-    namespace n_dimensional_4 {
+    namespace the_board {
 
 
         // =====================================================================
@@ -937,8 +937,8 @@ namespace t7 {
                 else {
                     // First load: search for the shader
                     std::array<const char*, 6> paths = {
-                        "../../../src/cartridges/n_dimensional_4/world.wgsl",
-                        "src/cartridges/n_dimensional_4/world.wgsl",
+                        "../../../src/cartridges/the_board/world.wgsl",
+                        "src/cartridges/the_board/world.wgsl",
                     };
 
                     const char* loadedPath = nullptr;
@@ -2083,5 +2083,5 @@ namespace t7 {
             }
         };
 
-    } // namespace n_dimensional_4
+    } // namespace the_board
 } // namespace t7

@@ -246,7 +246,7 @@ dawn_lib(LIB_SPIRV_TOOLS_OPT    "third_party/spirv-tools/source/opt/Debug/SPIRV-
 # Set INCUBATOR_ONLY=ON during development to hide the main target entirely.
 # The main target pulls ALL cartridges and pollutes IntelliSense.
 
-set(ACTIVE_RENDER_CARTRIDGE "n_dimensional_4" CACHE STRING "Render cartridge under development")
+set(ACTIVE_RENDER_CARTRIDGE "the_board" CACHE STRING "Render cartridge under development")
 set(ACTIVE_ANALYSIS_CARTRIDGE "polyphony_basic" CACHE STRING "Analysis cartridge under development")
 option(INCUBATOR_ONLY "Build only incubator targets (cleaner IntelliSense)" ON)
 

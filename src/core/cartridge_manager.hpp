@@ -36,7 +36,7 @@
 #include "cartridges/gallery_raymarch/cartridge.hpp"
 #include "cartridges/gallery/cartridge.hpp"
 #include "cartridges/n_dimensional_2/cartridge.hpp"
-#include "cartridges/n_dimensional_4/cartridge.hpp"
+#include "cartridges/the_board/cartridge.hpp"
 #include "cartridges/world_compute/cartridge.hpp"
 #include "cartridges/terrain_pawn/cartridge.hpp"
 #include "cartridges/playground_hybrid/cartridge.hpp"
@@ -84,10 +84,10 @@ public:
         }
 
                 // ─── N-Dimensional 4 ──────────────────────────────────────────────
-        nDimensional4_ = std::make_unique<n_dimensional_4::Cartridge>();
-        nDimensional4_->initialize(device);
-        if (!nDimensional4_->init_renderer(colorFormat, depthFormat)) {
-            std::cerr << "[CartridgeManager] Failed: n_dimensional_4\n";
+        theBoard_ = std::make_unique<the_board::Cartridge>();
+        theBoard_->initialize(device);
+        if (!theBoard_->init_renderer(colorFormat, depthFormat)) {
+            std::cerr << "[CartridgeManager] Failed: the_board\n";
             return false;
         }
 
@@ -236,7 +236,7 @@ public:
         
         
         case CartridgeId::N_DIMENSIONAL_4:
-            active_ = nDimensional4_.get();
+            active_ = theBoard_.get();
             activeId_ = target;
              break;
 
@@ -323,7 +323,7 @@ private:
     std::unique_ptr<gallery_raymarch::Cartridge> galleryRaymarch_;
     std::unique_ptr<gallery::Cartridge> gallery_;
     std::unique_ptr<n_dimensional_2::Cartridge> nDimensional2_;
-    std::unique_ptr<n_dimensional_4::Cartridge> nDimensional4_;
+    std::unique_ptr<the_board::Cartridge> theBoard_;
     std::unique_ptr<world_compute::Cartridge> worldCompute_;
     std::unique_ptr<terrain_pawn::Cartridge> terrainPawn_;
     std::unique_ptr<pawn_rasterize::Cartridge> pawnRasterize_;
