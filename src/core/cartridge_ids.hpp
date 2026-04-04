@@ -22,7 +22,7 @@ namespace CartridgeId {
     constexpr uint32_t PAWN_RASTERIZE     = 6;
     constexpr uint32_t PLAYGROUND_HYBRID  = 7;
     constexpr uint32_t SPECIES_STUDIO     = 8;
-    constexpr uint32_t N_DIMENSIONAL_4    = 9;
+    constexpr uint32_t THE_BOARD          = 9;
 
 } // namespace CartridgeId
 } // namespace t7

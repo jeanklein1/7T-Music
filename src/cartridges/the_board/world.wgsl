@@ -1,4 +1,4 @@
-// N-DIMENSIONAL_4 CARTRIDGE — GPU Scroll
+// THE_BOARD CARTRIDGE — GPU Scroll
 //
 // ═══════════════════════════════════════════════════════════════════════
 // TUNING SURFACE DIRECTORY — GPU-side compositional control

@@ -235,7 +235,7 @@ public:
              break;
         
         
-        case CartridgeId::N_DIMENSIONAL_4:
+        case CartridgeId::THE_BOARD:
             active_ = theBoard_.get();
             activeId_ = target;
              break;
@@ -345,7 +345,7 @@ private:
             case CartridgeId::GALLERY_RAYMARCH: return "Gallery Raymarch";
             case CartridgeId::GALLERY: return "Gallery";
             case CartridgeId::N_DIMENSIONAL_2: return "N-Dimensional 2";
-            case CartridgeId::N_DIMENSIONAL_4: return "N-Dimensional 4";
+            case CartridgeId::THE_BOARD: return "The Board";
             case CartridgeId::WORLD_COMPUTE: return "World Compute";
             case CartridgeId::TERRAIN_PAWN: return "Terrain Pawn";
             case CartridgeId::PAWN_RASTERIZE: return "Pawn Rasterize";

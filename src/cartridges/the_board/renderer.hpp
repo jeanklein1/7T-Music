@@ -1,6 +1,6 @@
 #pragma once
 
-// N-DIMENSIONAL_4 CARTRIDGE -- Renderer (Rasterized)
+// THE_BOARD CARTRIDGE -- Renderer (Rasterized)
 // ==================================================
 //
 // Pipeline management for patch-streaming rasterized rendering.
@@ -970,7 +970,7 @@ namespace t7 {
 
                 wgpu::ShaderModuleDescriptor desc{};
                 desc.nextInChain = &wgslSource;
-                desc.label = "world.wgsl (N-Dimensional_4 Cartridge)";
+                desc.label = "world.wgsl (The_Board Cartridge)";
 
                 auto tShader0 = std::chrono::high_resolution_clock::now();
                 shaderModule_ = device_.CreateShaderModule(&desc);

@@ -1,6 +1,6 @@
 #pragma once
 
-// N-DIMENSIONAL_4 CARTRIDGE — GPU State Management (Rasterized)
+// THE_BOARD CARTRIDGE — GPU State Management (Rasterized)
 // =============================================================
 //
 // CPU/GPU data contract: structs, buffers, textures, bind groups.

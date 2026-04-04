@@ -1,7 +1,7 @@
 #pragma once
 
 /**
- * N-DIMENSIONAL_4 CARTRIDGE -- Render Cartridge (Rasterized)
+ * THE_BOARD CARTRIDGE -- Render Cartridge (Rasterized)
  * ==========================================================
  *
  * Trajectory-driven cell grid. Each cell holds a color that springs toward
