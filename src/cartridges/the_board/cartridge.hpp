@@ -1630,6 +1630,26 @@ namespace t7 {
                 return true;
             }
 
+            // ─── Pyramid Selection (identity + geometry, position-independent) ─
+            //
+            // Captures everything from the spawn gate, tier selection, and
+            // Gaussian parameter sampling.  Populated by select_pyramid_for_patch,
+            // consumed by place_pyramid_from_selection.
+
+            struct PyramidSelection {
+                uint32_t seed;
+                int32_t  trigger_gx, trigger_gz;
+                uint32_t theme_idx;
+                uint32_t slot;
+                uint32_t tier_idx;
+                float height;
+                float half_x, half_z;
+                float truncation;
+                float edge_blend;
+                float footprint_r;
+                float col_r, col_g, col_b;
+            };
+
             // ─── Pyramid Placement (plan output) ─────────────────────────────
             //
             // Complete description of a pyramid to be committed. Terrain
@@ -1671,7 +1691,13 @@ namespace t7 {
 
             // ─── Pyramid Spawning ────────────────────────────────────────────
 
-            bool plan_pyramid_for_patch(int32_t gx, int32_t gz, PyramidPlacement& plan) {
+            // ─── select_pyramid_for_patch ────────────────────────────────
+            //
+            // Phase 1: identity + geometry.  Idempotency check, spawn gate,
+            // slot search, tier selection, Gaussian sampling, footprint_r,
+            // color resolution.  Position-independent.
+
+            bool select_pyramid_for_patch(int32_t gx, int32_t gz, PyramidSelection& sel) {
                 // Idempotency
                 for (uint32_t i = 0; i < Dim::MAX_PYRAMID_INSTANCES; i++) {
                     if (activePyramids_[i].active &&
@@ -1679,10 +1705,6 @@ namespace t7 {
                         return false;
                     }
                 }
-
-                // ─── PLAN ────────────────────────────────────────────────────
-                // Everything below until the commit marker is CPU-only.
-                // No GPU writes. No queue touched. Pure spatial negotiation.
 
                 uint32_t nflags = neighbor_entity_flags(gx, gz);
                 float adj_mod = adjacency_modifier_pyramid(nflags);
@@ -1709,7 +1731,6 @@ namespace t7 {
                 float pyramid_weights[] = { PYRAMID_TIERS[0].weight, PYRAMID_TIERS[1].weight, PYRAMID_TIERS[2].weight };
                 for (uint32_t t = 0; t < 3; t++) pyramid_weights[t] *= THEMES[tile_theme_idx].tier_wt_pyramid[t];
                 uint32_t tier_idx = select_tier_biased(ctx.seed, PyramidProp::TIER, pyramid_weights, static_cast<uint32_t>(PyramidTier::COUNT), PopFamily::PYRAMID);
-                PyramidTier tier = static_cast<PyramidTier>(tier_idx);
                 const auto& tp = PYRAMID_TIERS[tier_idx];
 
                 float height = std::max(20.0f, cpu_sample_gaussian(ctx.seed, PyramidProp::HEIGHT, tp.height_mean, tp.height_sigma));
@@ -1724,34 +1745,74 @@ namespace t7 {
                 float max_height = 1.5f * 2.0f * std::max(half_x, half_z);
                 height = std::min(height, max_height);
 
+                float footprint_r = std::max(half_x, half_z) + edge_blend;
+
+                // Write selection
+                sel.seed = ctx.seed;
+                sel.trigger_gx = gx;
+                sel.trigger_gz = gz;
+                sel.theme_idx = tile_theme_idx;
+                sel.slot = slot;
+                sel.tier_idx = tier_idx;
+                sel.height = height;
+                sel.half_x = half_x;
+                sel.half_z = half_z;
+                sel.truncation = truncation;
+                sel.edge_blend = edge_blend;
+                sel.footprint_r = footprint_r;
+
+                // Color: resolve fully during selection
+                if (cpu_hash_f(ctx.seed, PyramidProp::COLOR_OVER) < tp.color_override) {
+                    // Pyramid uses same COLOR_OVER property but currently no palette — just variance
+                    sel.col_r = PYRAMID_SANDSTONE_BASE[0] + (cpu_hash_f(ctx.seed, PyramidProp::COLOR_VAR_R) - 0.5f) * PYRAMID_SANDSTONE_VARIANCE * 2.0f;
+                    sel.col_g = PYRAMID_SANDSTONE_BASE[1] + (cpu_hash_f(ctx.seed, PyramidProp::COLOR_VAR_G) - 0.5f) * PYRAMID_SANDSTONE_VARIANCE * 2.0f;
+                    sel.col_b = PYRAMID_SANDSTONE_BASE[2] + (cpu_hash_f(ctx.seed, PyramidProp::COLOR_VAR_B) - 0.5f) * PYRAMID_SANDSTONE_VARIANCE * 2.0f;
+                }
+                else {
+                    sel.col_r = PYRAMID_SANDSTONE_BASE[0] + (cpu_hash_f(ctx.seed, PyramidProp::COLOR_VAR_R) - 0.5f) * PYRAMID_SANDSTONE_VARIANCE * 2.0f;
+                    sel.col_g = PYRAMID_SANDSTONE_BASE[1] + (cpu_hash_f(ctx.seed, PyramidProp::COLOR_VAR_G) - 0.5f) * PYRAMID_SANDSTONE_VARIANCE * 2.0f;
+                    sel.col_b = PYRAMID_SANDSTONE_BASE[2] + (cpu_hash_f(ctx.seed, PyramidProp::COLOR_VAR_B) - 0.5f) * PYRAMID_SANDSTONE_VARIANCE * 2.0f;
+                }
+
+                return true;
+            }
+
+            // ─── place_pyramid_from_selection ────────────────────────────────
+            //
+            // Phase 2: position negotiation.  Jittered position, formation
+            // override, separation + footprint, ground_y, GPU instance,
+            // regen AABB, bookkeeping.  Reads a const PyramidSelection,
+            // writes a PyramidPlacement.  Returns false if position rejected.
+
+            bool place_pyramid_from_selection(const PyramidSelection& sel, PyramidPlacement& plan) {
+                // World position
                 float cx, cz;
-                jittered_position(ctx.seed, gx, gz, PyramidProp::POSITION_X, PyramidProp::POSITION_Z,
+                jittered_position(sel.seed, sel.trigger_gx, sel.trigger_gz, PyramidProp::POSITION_X, PyramidProp::POSITION_Z,
                     PyramidConfig::POSITION_JITTER, cx, cz);
-                float rotation = cpu_hash_f(ctx.seed, PyramidProp::ROTATION) * 6.283185f;
+                float rotation = cpu_hash_f(sel.seed, PyramidProp::ROTATION) * 6.283185f;
 
                 // Formation override: differential tip system
-                float footprint_r = std::max(half_x, half_z) + edge_blend;
                 float orig_cx = cx, orig_cz = cz, orig_rot = rotation;
                 bool used_formation = false;
                 {
-                    const auto& fconfig = THEMES[tile_theme_idx].formation[PopFamily::PYRAMID];
+                    const auto& fconfig = THEMES[sel.theme_idx].formation[PopFamily::PYRAMID];
                     const auto* fslot = fconfig.active_slot();
-                    if (fslot && cpu_hash_f(ctx.seed, 360u) < fslot->ch) {
+                    if (fslot && cpu_hash_f(sel.seed, 360u) < fslot->ch) {
                         uint32_t anchor_fam = (fconfig.anchor >= 0) ? (uint32_t)fconfig.anchor : PopFamily::PYRAMID;
                         const auto& tip = formationTips_[anchor_fam];
                         if (tip.valid) {
-                            float di = std::max(0.0f, cpu_sample_gaussian(ctx.seed, 340u, fslot->di, fslot->ds));
-                            float ang = tip.rotation + fslot->an + cpu_sample_gaussian(ctx.seed, 342u, 0.0f, fslot->as);
+                            float di = std::max(0.0f, cpu_sample_gaussian(sel.seed, 340u, fslot->di, fslot->ds));
+                            float ang = tip.rotation + fslot->an + cpu_sample_gaussian(sel.seed, 342u, 0.0f, fslot->as);
                             float fx = tip.x + std::cos(ang) * di;
                             float fz = tip.z + std::sin(ang) * di;
                             float frot = rotation;
                             if (fslot->rm == RotationMode::INHERIT) {
-                                frot = tip.rotation + cpu_sample_gaussian(ctx.seed, 344u, 0.0f, fslot->dr);
+                                frot = tip.rotation + cpu_sample_gaussian(sel.seed, 344u, 0.0f, fslot->dr);
                             }
                             else if (fslot->rm == RotationMode::FOLLOW_LINE) {
-                                frot = std::atan2(fz - tip.z, fx - tip.x) + cpu_sample_gaussian(ctx.seed, 344u, 0.0f, fslot->dr);
+                                frot = std::atan2(fz - tip.z, fx - tip.x) + cpu_sample_gaussian(sel.seed, 344u, 0.0f, fslot->dr);
                             }
-                            if (check_separation(fx, fz, PopFamily::PYRAMID) && footprint_clear(fx, fz, footprint_r)) {
+                            if (check_separation(fx, fz, PopFamily::PYRAMID) && footprint_clear(fx, fz, sel.footprint_r)) {
                                 cx = fx; cz = fz; rotation = frot;
                                 used_formation = true;
                             }
@@ -1761,50 +1822,41 @@ namespace t7 {
 
                 // Position acceptance: separation + footprint
                 bool position_ok = check_separation(cx, cz, PopFamily::PYRAMID)
-                    && footprint_clear(cx, cz, footprint_r);
+                    && footprint_clear(cx, cz, sel.footprint_r);
                 if (!position_ok && used_formation) {
                     cx = orig_cx; cz = orig_cz; rotation = orig_rot;
                     used_formation = false;
                     position_ok = check_separation(cx, cz, PopFamily::PYRAMID)
-                        && footprint_clear(cx, cz, footprint_r);
+                        && footprint_clear(cx, cz, sel.footprint_r);
                 }
                 if (!position_ok) return false;
                 int32_t host_gx = (int32_t)std::floor(cx / PATCH_EXTENT);
                 int32_t host_gz = (int32_t)std::floor(cz / PATCH_EXTENT);
-                if (register_footprint(cx, cz, footprint_r, host_gx, host_gz) == UINT32_MAX) return false;
+                if (register_footprint(cx, cz, sel.footprint_r, host_gx, host_gz) == UINT32_MAX) return false;
 
                 // ─── Populate placement (plan output) ────────────────────────
 
                 plan = PyramidPlacement{};
-                plan.slot = slot;
-                plan.trigger_gx = gx;
-                plan.trigger_gz = gz;
+                plan.slot = sel.slot;
+                plan.trigger_gx = sel.trigger_gx;
+                plan.trigger_gz = sel.trigger_gz;
                 plan.host_gx = host_gx;
                 plan.host_gz = host_gz;
-                plan.tier_idx = tier_idx;
+                plan.tier_idx = sel.tier_idx;
                 plan.cx = cx;
                 plan.cz = cz;
                 plan.rotation = rotation;
 
-                plan.height = height;
-                plan.half_x = half_x;
-                plan.half_z = half_z;
-                plan.truncation = truncation;
-                plan.edge_blend = edge_blend;
-                plan.footprint_r = footprint_r;
+                plan.height = sel.height;
+                plan.half_x = sel.half_x;
+                plan.half_z = sel.half_z;
+                plan.truncation = sel.truncation;
+                plan.edge_blend = sel.edge_blend;
+                plan.footprint_r = sel.footprint_r;
 
-                // Color: resolve fully during planning
-                if (cpu_hash_f(ctx.seed, PyramidProp::COLOR_OVER) < tp.color_override) {
-                    // Pyramid uses same COLOR_OVER property but currently no palette — just variance
-                    plan.col_r = PYRAMID_SANDSTONE_BASE[0] + (cpu_hash_f(ctx.seed, PyramidProp::COLOR_VAR_R) - 0.5f) * PYRAMID_SANDSTONE_VARIANCE * 2.0f;
-                    plan.col_g = PYRAMID_SANDSTONE_BASE[1] + (cpu_hash_f(ctx.seed, PyramidProp::COLOR_VAR_G) - 0.5f) * PYRAMID_SANDSTONE_VARIANCE * 2.0f;
-                    plan.col_b = PYRAMID_SANDSTONE_BASE[2] + (cpu_hash_f(ctx.seed, PyramidProp::COLOR_VAR_B) - 0.5f) * PYRAMID_SANDSTONE_VARIANCE * 2.0f;
-                }
-                else {
-                    plan.col_r = PYRAMID_SANDSTONE_BASE[0] + (cpu_hash_f(ctx.seed, PyramidProp::COLOR_VAR_R) - 0.5f) * PYRAMID_SANDSTONE_VARIANCE * 2.0f;
-                    plan.col_g = PYRAMID_SANDSTONE_BASE[1] + (cpu_hash_f(ctx.seed, PyramidProp::COLOR_VAR_G) - 0.5f) * PYRAMID_SANDSTONE_VARIANCE * 2.0f;
-                    plan.col_b = PYRAMID_SANDSTONE_BASE[2] + (cpu_hash_f(ctx.seed, PyramidProp::COLOR_VAR_B) - 0.5f) * PYRAMID_SANDSTONE_VARIANCE * 2.0f;
-                }
+                plan.col_r = sel.col_r;
+                plan.col_g = sel.col_g;
+                plan.col_b = sel.col_b;
 
                 // Ground Y: 5-point min sample of terrain at base corners
                 {
@@ -1846,6 +1898,14 @@ namespace t7 {
                 record_spawn(plan.cx, plan.cz, plan.rotation, PopFamily::PYRAMID);
 
                 return true;
+            }
+
+            // ─── plan_pyramid_for_patch (wrapper) ────────────────────────────
+
+            bool plan_pyramid_for_patch(int32_t gx, int32_t gz, PyramidPlacement& plan) {
+                PyramidSelection sel;
+                if (!select_pyramid_for_patch(gx, gz, sel)) return false;
+                return place_pyramid_from_selection(sel, plan);
             }
 
             void spawn_pyramids_for_patch(int32_t gx, int32_t gz, wgpu::Queue& queue) {
@@ -2323,6 +2383,42 @@ namespace t7 {
                 return a;
             }
 
+            // ─── Arch Selection (identity + geometry, position-independent) ─
+            //
+            // Captures everything from the spawn gate, tier selection,
+            // Gaussian sampling, portal promotion, and color resolution.
+            // Populated by select_arch_for_patch, consumed by
+            // place_arch_from_selection.
+
+            struct ArchSelection {
+                uint32_t seed;
+                int32_t  trigger_gx, trigger_gz;
+                uint32_t theme_idx;
+                uint32_t slot;
+                uint32_t tier_idx;
+                ArchTier tier;
+                float half_span;
+                float rise;
+                float depth;
+                float thickness;
+                float pier_height;
+                float pier_padding;
+                float edge_blend;
+                float pier_half_x, pier_half_z;
+                float footprint_r;
+                float burial;
+                uint32_t segs_u, segs_v;
+                float catenary_a;
+                float total_height;
+                float col_r, col_g, col_b;
+                float mesh_col_r, mesh_col_g, mesh_col_b;
+                bool is_portal;
+                bool is_back_portal;
+                uint32_t position_hash;
+                PortalDestination destination;
+                uint32_t presence_flag;
+            };
+
             // ─── Arch Placement (plan output) ────────────────────────────────
             //
             // Complete description of an arch to be committed. Pier-mounted
@@ -2601,7 +2697,14 @@ namespace t7 {
 
             // ─── Arch Spawning (tied to patch streaming — placeholder) ────────
 
-            bool plan_arch_for_patch(int32_t gx, int32_t gz, ArchPlacement& plan) {
+            // ─── select_arch_for_patch ───────────────────────────────────
+            //
+            // Phase 1: identity + geometry.  Idempotency check, spawn gate,
+            // slot search, tier selection, Gaussian sampling, pier geometry,
+            // footprint_r, color, portal promotion, mesh color, presence_flag.
+            // Position-independent.
+
+            bool select_arch_for_patch(int32_t gx, int32_t gz, ArchSelection& sel) {
                 // Idempotency: skip if an arch already exists at this patch
                 for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++) {
                     if (activeArches_[i].active &&
@@ -2609,10 +2712,6 @@ namespace t7 {
                         return false;
                     }
                 }
-
-                // ─── PLAN ────────────────────────────────────────────────────
-                // Everything below until the commit marker is CPU-only.
-                // No GPU writes. No queue touched. Pure spatial negotiation.
 
                 uint32_t nflags = neighbor_entity_flags(gx, gz);
                 float adj_mod = adjacency_modifier_arch(nflags);
@@ -2654,35 +2753,120 @@ namespace t7 {
 
                 float pier_half_x = thickness * 0.5f + pier_padding + edge_blend;
                 float pier_half_z = depth * 0.5f + pier_padding + edge_blend;
+                float footprint_r = half_span + std::max(pier_half_x, pier_half_z);
 
+                // Write selection
+                sel.seed = ctx.seed;
+                sel.trigger_gx = gx;
+                sel.trigger_gz = gz;
+                sel.theme_idx = tile_theme_idx;
+                sel.slot = slot;
+                sel.tier_idx = tier_idx;
+                sel.tier = tier;
+                sel.half_span = half_span;
+                sel.rise = target_h;
+                sel.depth = depth;
+                sel.thickness = thickness;
+                sel.pier_height = pier_height;
+                sel.pier_padding = pier_padding;
+                sel.edge_blend = edge_blend;
+                sel.pier_half_x = pier_half_x;
+                sel.pier_half_z = pier_half_z;
+                sel.footprint_r = footprint_r;
+                sel.burial = std::max(0.2f, pier_height * tp.burial);
+                sel.segs_u = tp.segs_u;
+                sel.segs_v = tp.segs_v;
+                sel.catenary_a = solve_catenary_a(half_span, target_h);
+                sel.total_height = pier_height + target_h;
+
+                // Color: resolve base color during selection
+                if (cpu_hash_f(ctx.seed, ArchProp::COLOR_OVER) < tp.color_override) {
+                    uint32_t pal_idx = cpu_hash(ctx.seed, ArchProp::COLOR_OVER + 1u) % ARCH_PALETTE_COUNT;
+                    sel.col_r = ARCH_PALETTE[pal_idx][0] + (cpu_hash_f(ctx.seed, ArchProp::COLOR_VAR_R) - 0.5f) * 0.06f;
+                    sel.col_g = ARCH_PALETTE[pal_idx][1] + (cpu_hash_f(ctx.seed, ArchProp::COLOR_VAR_G) - 0.5f) * 0.06f;
+                    sel.col_b = ARCH_PALETTE[pal_idx][2] + (cpu_hash_f(ctx.seed, ArchProp::COLOR_VAR_B) - 0.5f) * 0.06f;
+                }
+                else {
+                    sel.col_r = ARCH_SANDSTONE_BASE[0] + (cpu_hash_f(ctx.seed, ArchProp::COLOR_VAR_R) - 0.5f) * ARCH_SANDSTONE_VARIANCE * 2.0f;
+                    sel.col_g = ARCH_SANDSTONE_BASE[1] + (cpu_hash_f(ctx.seed, ArchProp::COLOR_VAR_G) - 0.5f) * ARCH_SANDSTONE_VARIANCE * 2.0f;
+                    sel.col_b = ARCH_SANDSTONE_BASE[2] + (cpu_hash_f(ctx.seed, ArchProp::COLOR_VAR_B) - 0.5f) * ARCH_SANDSTONE_VARIANCE * 2.0f;
+                }
+
+                // Portal promotion: resolve fully during selection (uses seed)
+                sel.is_portal = false;
+                sel.is_back_portal = false;
+                sel.position_hash = cpu_hash(ctx.seed, ArchProp::ROTATION + 100u);
+                sel.destination = PortalDestination{};
+
+                if (tier == ArchTier::DOORWAY) {
+                    float portal_roll = cpu_hash_f(ctx.seed, ArchProp::ROTATION + 200u);
+                    if (portal_roll < PORTAL_DENSITY) {
+                        sel.is_portal = true;
+                        uint32_t dest_seed = cpu_hash(sel.position_hash, 1u);
+                        uint32_t mood = pick_portal_mood(sel.position_hash, 2u);
+                        const auto& mp = MOOD_TABLE[mood];
+                        sel.destination.seed = dest_seed;
+                        sel.destination.mood = mood;
+                        sel.destination.finite = mp.finite;
+                        sel.destination.finite_radius = derive_finite_radius(dest_seed, mp);
+                    }
+                }
+
+                // Mesh color: portal overrides base color
+                sel.mesh_col_r = sel.col_r;
+                sel.mesh_col_g = sel.col_g;
+                sel.mesh_col_b = sel.col_b;
+                if (sel.is_portal) {
+                    const float* pc = PORTAL_COLORS[sel.destination.mood % MOOD_COUNT];
+                    sel.mesh_col_r = pc[0];
+                    sel.mesh_col_g = pc[1];
+                    sel.mesh_col_b = pc[2];
+                }
+
+                // Entity presence flag (tier-specific for adjacency system)
+                sel.presence_flag = (tier == ArchTier::DOORWAY) ? EntityPresence::ARCH_DOORWAY
+                    : (tier == ArchTier::STANDARD) ? EntityPresence::ARCH_STANDARD
+                    : EntityPresence::ARCH_MONUMENTAL;
+
+                return true;
+            }
+
+            // ─── place_arch_from_selection ────────────────────────────────
+            //
+            // Phase 2: position negotiation.  Jittered position, formation
+            // override, separation + footprint, pier feet, pier instances,
+            // ground_y, regen AABB, bookkeeping.  Reads a const ArchSelection,
+            // writes an ArchPlacement.  Returns false if position rejected.
+
+            bool place_arch_from_selection(const ArchSelection& sel, ArchPlacement& plan) {
+                // World position
                 float cx, cz;
-                jittered_position(ctx.seed, gx, gz, ArchProp::POSITION_X, ArchProp::POSITION_Z,
+                jittered_position(sel.seed, sel.trigger_gx, sel.trigger_gz, ArchProp::POSITION_X, ArchProp::POSITION_Z,
                     ArchConfig::POSITION_JITTER, cx, cz);
-                float rotation = cpu_hash_f(ctx.seed, ArchProp::ROTATION) * 6.283185f;
+                float rotation = cpu_hash_f(sel.seed, ArchProp::ROTATION) * 6.283185f;
 
                 // Formation override: differential tip system
-                float arch_footprint_r = half_span + std::max(pier_half_x, pier_half_z);
                 float orig_cx = cx, orig_cz = cz, orig_rot = rotation;
                 bool used_formation = false;
                 {
-                    const auto& fconfig = THEMES[tile_theme_idx].formation[PopFamily::ARCH];
+                    const auto& fconfig = THEMES[sel.theme_idx].formation[PopFamily::ARCH];
                     const auto* fslot = fconfig.active_slot();
-                    if (fslot && cpu_hash_f(ctx.seed, 350u) < fslot->ch) {
+                    if (fslot && cpu_hash_f(sel.seed, 350u) < fslot->ch) {
                         uint32_t anchor_fam = (fconfig.anchor >= 0) ? (uint32_t)fconfig.anchor : PopFamily::ARCH;
                         const auto& tip = formationTips_[anchor_fam];
                         if (tip.valid) {
-                            float di = std::max(0.0f, cpu_sample_gaussian(ctx.seed, 340u, fslot->di, fslot->ds));
-                            float ang = tip.rotation + fslot->an + cpu_sample_gaussian(ctx.seed, 342u, 0.0f, fslot->as);
+                            float di = std::max(0.0f, cpu_sample_gaussian(sel.seed, 340u, fslot->di, fslot->ds));
+                            float ang = tip.rotation + fslot->an + cpu_sample_gaussian(sel.seed, 342u, 0.0f, fslot->as);
                             float fx = tip.x + std::cos(ang) * di;
                             float fz = tip.z + std::sin(ang) * di;
                             float frot = rotation;
                             if (fslot->rm == RotationMode::INHERIT) {
-                                frot = tip.rotation + cpu_sample_gaussian(ctx.seed, 344u, 0.0f, fslot->dr);
+                                frot = tip.rotation + cpu_sample_gaussian(sel.seed, 344u, 0.0f, fslot->dr);
                             }
                             else if (fslot->rm == RotationMode::FOLLOW_LINE) {
-                                frot = std::atan2(fz - tip.z, fx - tip.x) + cpu_sample_gaussian(ctx.seed, 344u, 0.0f, fslot->dr);
+                                frot = std::atan2(fz - tip.z, fx - tip.x) + cpu_sample_gaussian(sel.seed, 344u, 0.0f, fslot->dr);
                             }
-                            if (check_separation(fx, fz, PopFamily::ARCH) && footprint_clear(fx, fz, arch_footprint_r)) {
+                            if (check_separation(fx, fz, PopFamily::ARCH) && footprint_clear(fx, fz, sel.footprint_r)) {
                                 cx = fx; cz = fz; rotation = frot;
                                 used_formation = true;
                             }
@@ -2692,97 +2876,61 @@ namespace t7 {
 
                 // Position acceptance: separation + footprint
                 bool position_ok = check_separation(cx, cz, PopFamily::ARCH)
-                    && footprint_clear(cx, cz, arch_footprint_r);
+                    && footprint_clear(cx, cz, sel.footprint_r);
                 if (!position_ok && used_formation) {
                     cx = orig_cx; cz = orig_cz; rotation = orig_rot;
                     used_formation = false;
                     position_ok = check_separation(cx, cz, PopFamily::ARCH)
-                        && footprint_clear(cx, cz, arch_footprint_r);
+                        && footprint_clear(cx, cz, sel.footprint_r);
                 }
                 if (!position_ok) return false;
                 int32_t host_gx = (int32_t)std::floor(cx / PATCH_EXTENT);
                 int32_t host_gz = (int32_t)std::floor(cz / PATCH_EXTENT);
-                if (register_footprint(cx, cz, arch_footprint_r, host_gx, host_gz) == UINT32_MAX) return false;
+                if (register_footprint(cx, cz, sel.footprint_r, host_gx, host_gz) == UINT32_MAX) return false;
 
                 // ─── Populate placement (plan output) ────────────────────────
 
                 plan = ArchPlacement{};
-                plan.slot = slot;
-                plan.trigger_gx = gx;
-                plan.trigger_gz = gz;
+                plan.slot = sel.slot;
+                plan.trigger_gx = sel.trigger_gx;
+                plan.trigger_gz = sel.trigger_gz;
                 plan.host_gx = host_gx;
                 plan.host_gz = host_gz;
-                plan.tier_idx = tier_idx;
-                plan.tier = tier;
+                plan.tier_idx = sel.tier_idx;
+                plan.tier = sel.tier;
                 plan.cx = cx;
                 plan.cz = cz;
                 plan.rotation = rotation;
 
-                plan.half_span = half_span;
-                plan.rise = target_h;
-                plan.depth = depth;
-                plan.thickness = thickness;
-                plan.pier_height = pier_height;
-                plan.pier_padding = pier_padding;
-                plan.edge_blend = edge_blend;
-                plan.footprint_r = arch_footprint_r;
-                plan.burial = std::max(0.2f, pier_height * tp.burial);
-                plan.segs_u = tp.segs_u;
-                plan.segs_v = tp.segs_v;
-                plan.catenary_a = solve_catenary_a(half_span, target_h);
-                plan.total_height = pier_height + target_h;
+                plan.half_span = sel.half_span;
+                plan.rise = sel.rise;
+                plan.depth = sel.depth;
+                plan.thickness = sel.thickness;
+                plan.pier_height = sel.pier_height;
+                plan.pier_padding = sel.pier_padding;
+                plan.edge_blend = sel.edge_blend;
+                plan.footprint_r = sel.footprint_r;
+                plan.burial = sel.burial;
+                plan.segs_u = sel.segs_u;
+                plan.segs_v = sel.segs_v;
+                plan.catenary_a = sel.catenary_a;
+                plan.total_height = sel.total_height;
 
-                plan.pier_half_x = pier_half_x;
-                plan.pier_half_z = pier_half_z;
+                plan.pier_half_x = sel.pier_half_x;
+                plan.pier_half_z = sel.pier_half_z;
 
-                // Color: resolve base color during planning
-                if (cpu_hash_f(ctx.seed, ArchProp::COLOR_OVER) < tp.color_override) {
-                    uint32_t pal_idx = cpu_hash(ctx.seed, ArchProp::COLOR_OVER + 1u) % ARCH_PALETTE_COUNT;
-                    plan.col_r = ARCH_PALETTE[pal_idx][0] + (cpu_hash_f(ctx.seed, ArchProp::COLOR_VAR_R) - 0.5f) * 0.06f;
-                    plan.col_g = ARCH_PALETTE[pal_idx][1] + (cpu_hash_f(ctx.seed, ArchProp::COLOR_VAR_G) - 0.5f) * 0.06f;
-                    plan.col_b = ARCH_PALETTE[pal_idx][2] + (cpu_hash_f(ctx.seed, ArchProp::COLOR_VAR_B) - 0.5f) * 0.06f;
-                }
-                else {
-                    plan.col_r = ARCH_SANDSTONE_BASE[0] + (cpu_hash_f(ctx.seed, ArchProp::COLOR_VAR_R) - 0.5f) * ARCH_SANDSTONE_VARIANCE * 2.0f;
-                    plan.col_g = ARCH_SANDSTONE_BASE[1] + (cpu_hash_f(ctx.seed, ArchProp::COLOR_VAR_G) - 0.5f) * ARCH_SANDSTONE_VARIANCE * 2.0f;
-                    plan.col_b = ARCH_SANDSTONE_BASE[2] + (cpu_hash_f(ctx.seed, ArchProp::COLOR_VAR_B) - 0.5f) * ARCH_SANDSTONE_VARIANCE * 2.0f;
-                }
+                plan.col_r = sel.col_r;
+                plan.col_g = sel.col_g;
+                plan.col_b = sel.col_b;
+                plan.mesh_col_r = sel.mesh_col_r;
+                plan.mesh_col_g = sel.mesh_col_g;
+                plan.mesh_col_b = sel.mesh_col_b;
 
-                // Portal promotion: resolve fully during planning (uses seed)
-                plan.is_portal = false;
-                plan.is_back_portal = false;
-                plan.position_hash = cpu_hash(ctx.seed, ArchProp::ROTATION + 100u);
-                plan.destination = PortalDestination{};
-
-                if (plan.tier == ArchTier::DOORWAY) {
-                    float portal_roll = cpu_hash_f(ctx.seed, ArchProp::ROTATION + 200u);
-                    if (portal_roll < PORTAL_DENSITY) {
-                        plan.is_portal = true;
-                        uint32_t dest_seed = cpu_hash(plan.position_hash, 1u);
-                        uint32_t mood = pick_portal_mood(plan.position_hash, 2u);
-                        const auto& mp = MOOD_TABLE[mood];
-                        plan.destination.seed = dest_seed;
-                        plan.destination.mood = mood;
-                        plan.destination.finite = mp.finite;
-                        plan.destination.finite_radius = derive_finite_radius(dest_seed, mp);
-                    }
-                }
-
-                // Mesh color: portal overrides base color
-                plan.mesh_col_r = plan.col_r;
-                plan.mesh_col_g = plan.col_g;
-                plan.mesh_col_b = plan.col_b;
-                if (plan.is_portal) {
-                    const float* pc = PORTAL_COLORS[plan.destination.mood % MOOD_COUNT];
-                    plan.mesh_col_r = pc[0];
-                    plan.mesh_col_g = pc[1];
-                    plan.mesh_col_b = pc[2];
-                }
-
-                // Entity presence flag (tier-specific for adjacency system)
-                plan.presence_flag = (plan.tier == ArchTier::DOORWAY) ? EntityPresence::ARCH_DOORWAY
-                    : (plan.tier == ArchTier::STANDARD) ? EntityPresence::ARCH_STANDARD
-                    : EntityPresence::ARCH_MONUMENTAL;
+                plan.is_portal = sel.is_portal;
+                plan.is_back_portal = sel.is_back_portal;
+                plan.position_hash = sel.position_hash;
+                plan.destination = sel.destination;
+                plan.presence_flag = sel.presence_flag;
 
                 // Pier foot positions (derived from center + rotation + half_span)
                 float cos_r = std::cos(plan.rotation);
@@ -2842,6 +2990,14 @@ namespace t7 {
                 record_spawn(plan.cx, plan.cz, plan.rotation, PopFamily::ARCH);
 
                 return true;
+            }
+
+            // ─── plan_arch_for_patch (wrapper) ───────────────────────────────
+
+            bool plan_arch_for_patch(int32_t gx, int32_t gz, ArchPlacement& plan) {
+                ArchSelection sel;
+                if (!select_arch_for_patch(gx, gz, sel)) return false;
+                return place_arch_from_selection(sel, plan);
             }
 
             void spawn_arches_for_patch(int32_t gx, int32_t gz, wgpu::Queue& queue) {
