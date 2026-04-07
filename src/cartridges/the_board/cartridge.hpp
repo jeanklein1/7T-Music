@@ -1237,6 +1237,40 @@ namespace t7 {
 // ─────────────────────────────────────────────────────────────────
 
 
+// ─── Column Selection (identity + geometry, position-independent) ─
+//
+// Captures everything from the spawn gate, tier selection, and
+// Gaussian parameter sampling — the entity's identity and geometry —
+// without knowing WHERE it goes.  Populated by select_column_for_patch,
+// consumed by place_column_from_selection.
+
+            struct ColumnSelection {
+                uint32_t seed;
+                int32_t  trigger_gx, trigger_gz;
+                uint32_t theme_idx;
+                uint32_t slot;
+                uint32_t tier_idx;
+                float height;
+                float shaft_radius;
+                float taper;
+                float entasis;
+                uint32_t base_layers;
+                float base_height;
+                float base_overhang;
+                uint32_t cap_layers;
+                float cap_height;
+                float cap_overhang;
+                float solid_padding;
+                float solid_height;
+                float edge_blend;
+                float solid_half;
+                float burial;
+                uint32_t segs_around;
+                uint32_t shaft_rings;
+                float col_r, col_g, col_b;
+                float drum_colors[9];
+            };
+
 // ─── Column Placement (plan output) ──────────────────────────────
 //
 // Complete description of a column to be committed. Populated by
@@ -1280,7 +1314,13 @@ namespace t7 {
 
             // ─── Column Spawning ─────────────────────────────────────────────
 
-            bool plan_column_for_patch(int32_t gx, int32_t gz, ColumnPlacement& plan) {
+            // ─── select_column_for_patch ─────────────────────────────────
+            //
+            // Phase 1: identity + geometry.  Idempotency check, spawn gate,
+            // slot search, tier selection, all Gaussian parameter sampling,
+            // solid_half, color resolution.  Position-independent.
+
+            bool select_column_for_patch(int32_t gx, int32_t gz, ColumnSelection& sel) {
                 // Idempotency: skip if a column already exists at this patch
                 for (uint32_t i = 0; i < Dim::MAX_COLUMN_INSTANCES; i++) {
                     if (activeColumns_[i].active &&
@@ -1288,10 +1328,6 @@ namespace t7 {
                         return false;
                     }
                 }
-
-                // ─── PLAN ────────────────────────────────────────────────────
-                // Everything below until the commit marker is CPU-only.
-                // No GPU writes. No queue touched. Pure spatial negotiation.
 
                 uint32_t nflags = neighbor_entity_flags(gx, gz);
                 float adj_mod = adjacency_modifier_column(nflags);
@@ -1338,14 +1374,7 @@ namespace t7 {
                 float solid_height = std::max(0.6f, cpu_sample_gaussian(ctx.seed, ColumnProp::SOLID_HEIGHT, tp.solid_height_mean, tp.solid_height_sigma));
                 float edge_blend = std::max(0.1f, cpu_sample_gaussian(ctx.seed, ColumnProp::EDGE_BLEND, tp.edge_blend_mean, tp.edge_blend_sigma));
 
-                // World position
-                float cx, cz;
-                jittered_position(ctx.seed, gx, gz, ColumnProp::POSITION_X, ColumnProp::POSITION_Z,
-                    ColumnConfig::POSITION_JITTER, cx, cz);
-                // Columns are cylindrical — "rotation" is used only for formation chain direction
-                float col_formation_rot = cpu_hash_f(ctx.seed, 355u) * 6.283185f;
-
-                // Solid: square footprint (computed before formation for inline footprint check)
+                // Solid: square footprint radius
                 // Classical columns: covers the widest part (base/capital overhang)
                 // Antennas: just wraps the post (2× post diameter), not the drums
                 float max_radius;
@@ -1357,99 +1386,46 @@ namespace t7 {
                 }
                 float solid_half = max_radius + solid_padding + edge_blend;
 
-                // Formation override: differential tip system
-                float orig_cx = cx, orig_cz = cz;
-                bool used_formation = false;
-                {
-                    const auto& fconfig = THEMES[tile_theme_idx].formation[PopFamily::COLUMN];
-                    const auto* fslot = fconfig.active_slot();
-                    if (fslot && cpu_hash_f(ctx.seed, 356u) < fslot->ch) {
-                        uint32_t anchor_fam = (fconfig.anchor >= 0) ? (uint32_t)fconfig.anchor : PopFamily::COLUMN;
-                        const auto& tip = formationTips_[anchor_fam];
-                        if (tip.valid) {
-                            float di = std::max(0.0f, cpu_sample_gaussian(ctx.seed, 340u, fslot->di, fslot->ds));
-                            float ang = tip.rotation + fslot->an + cpu_sample_gaussian(ctx.seed, 342u, 0.0f, fslot->as);
-                            float fx = tip.x + std::cos(ang) * di;
-                            float fz = tip.z + std::sin(ang) * di;
-                            float frot = col_formation_rot;
-                            if (fslot->rm == RotationMode::INHERIT) {
-                                frot = tip.rotation + cpu_sample_gaussian(ctx.seed, 344u, 0.0f, fslot->dr);
-                            }
-                            else if (fslot->rm == RotationMode::FOLLOW_LINE) {
-                                frot = std::atan2(fz - tip.z, fx - tip.x) + cpu_sample_gaussian(ctx.seed, 344u, 0.0f, fslot->dr);
-                            }
-                            if (check_separation(fx, fz, PopFamily::COLUMN) && footprint_clear(fx, fz, solid_half)) {
-                                cx = fx; cz = fz; col_formation_rot = frot;
-                                used_formation = true;
-                            }
-                        }
-                    }
-                }
+                // Write selection
+                sel.seed = ctx.seed;
+                sel.trigger_gx = gx;
+                sel.trigger_gz = gz;
+                sel.theme_idx = tile_theme_idx;
+                sel.slot = slot;
+                sel.tier_idx = tier_idx;
+                sel.height = height;
+                sel.shaft_radius = shaft_radius;
+                sel.taper = col_taper;
+                sel.entasis = entasis_val;
+                sel.base_layers = base_layers;
+                sel.base_height = base_height;
+                sel.base_overhang = base_overhang;
+                sel.cap_layers = cap_layers;
+                sel.cap_height = cap_height;
+                sel.cap_overhang = cap_overhang;
+                sel.solid_padding = solid_padding;
+                sel.solid_height = solid_height;
+                sel.edge_blend = edge_blend;
+                sel.solid_half = solid_half;
+                sel.burial = std::max(0.2f, solid_height * tp.burial);
+                sel.segs_around = tp.segs_around;
+                sel.shaft_rings = tp.shaft_rings;
 
-                // Position acceptance: separation + footprint
-                bool position_ok = check_separation(cx, cz, PopFamily::COLUMN)
-                    && footprint_clear(cx, cz, solid_half);
-                if (!position_ok && used_formation) {
-                    cx = orig_cx; cz = orig_cz;
-                    col_formation_rot = cpu_hash_f(ctx.seed, 355u) * 6.283185f;
-                    used_formation = false;
-                    position_ok = check_separation(cx, cz, PopFamily::COLUMN)
-                        && footprint_clear(cx, cz, solid_half);
-                }
-                if (!position_ok) return false;
-                int32_t host_gx = (int32_t)std::floor(cx / PATCH_EXTENT);
-                int32_t host_gz = (int32_t)std::floor(cz / PATCH_EXTENT);
-                if (register_footprint(cx, cz, solid_half, host_gx, host_gz) == UINT32_MAX) return false;
-
-                // ─── Populate placement (plan output) ────────────────────────
-                //
-                // Everything the commit needs is captured here. The planning
-                // phase is complete. Below this point, only plan fields are read.
-
-                plan = ColumnPlacement{};
-                plan.slot = slot;
-                plan.trigger_gx = gx;
-                plan.trigger_gz = gz;
-                plan.host_gx = host_gx;
-                plan.host_gz = host_gz;
-                plan.tier_idx = tier_idx;
-                plan.cx = cx;
-                plan.cz = cz;
-                plan.formation_rot = col_formation_rot;
-
-                plan.height = height;
-                plan.shaft_radius = shaft_radius;
-                plan.taper = col_taper;
-                plan.entasis = entasis_val;
-                plan.base_layers = base_layers;
-                plan.base_height = base_height;
-                plan.base_overhang = base_overhang;
-                plan.cap_layers = cap_layers;
-                plan.cap_height = cap_height;
-                plan.cap_overhang = cap_overhang;
-                plan.solid_padding = solid_padding;
-                plan.solid_height = solid_height;
-                plan.edge_blend = edge_blend;
-                plan.solid_half = solid_half;
-                plan.burial = std::max(0.2f, solid_height * tp.burial);
-                plan.segs_around = tp.segs_around;
-                plan.shaft_rings = tp.shaft_rings;
-
-                // Color: resolve fully during planning (no seed access needed at commit)
+                // Color: resolve fully during selection (no seed access needed later)
                 if (cpu_hash_f(ctx.seed, ColumnProp::COLOR_OVER) < tp.color_override) {
                     uint32_t pal_idx = cpu_hash(ctx.seed, ColumnProp::COLOR_OVER + 1u) % COLUMN_PALETTE_COUNT;
-                    plan.col_r = COLUMN_PALETTE[pal_idx][0] + (cpu_hash_f(ctx.seed, ColumnProp::COLOR_VAR_R) - 0.5f) * 0.06f;
-                    plan.col_g = COLUMN_PALETTE[pal_idx][1] + (cpu_hash_f(ctx.seed, ColumnProp::COLOR_VAR_G) - 0.5f) * 0.06f;
-                    plan.col_b = COLUMN_PALETTE[pal_idx][2] + (cpu_hash_f(ctx.seed, ColumnProp::COLOR_VAR_B) - 0.5f) * 0.06f;
+                    sel.col_r = COLUMN_PALETTE[pal_idx][0] + (cpu_hash_f(ctx.seed, ColumnProp::COLOR_VAR_R) - 0.5f) * 0.06f;
+                    sel.col_g = COLUMN_PALETTE[pal_idx][1] + (cpu_hash_f(ctx.seed, ColumnProp::COLOR_VAR_G) - 0.5f) * 0.06f;
+                    sel.col_b = COLUMN_PALETTE[pal_idx][2] + (cpu_hash_f(ctx.seed, ColumnProp::COLOR_VAR_B) - 0.5f) * 0.06f;
                 }
                 else {
-                    plan.col_r = COLUMN_SANDSTONE_BASE[0] + (cpu_hash_f(ctx.seed, ColumnProp::COLOR_VAR_R) - 0.5f) * COLUMN_SANDSTONE_VARIANCE * 2.0f;
-                    plan.col_g = COLUMN_SANDSTONE_BASE[1] + (cpu_hash_f(ctx.seed, ColumnProp::COLOR_VAR_G) - 0.5f) * COLUMN_SANDSTONE_VARIANCE * 2.0f;
-                    plan.col_b = COLUMN_SANDSTONE_BASE[2] + (cpu_hash_f(ctx.seed, ColumnProp::COLOR_VAR_B) - 0.5f) * COLUMN_SANDSTONE_VARIANCE * 2.0f;
+                    sel.col_r = COLUMN_SANDSTONE_BASE[0] + (cpu_hash_f(ctx.seed, ColumnProp::COLOR_VAR_R) - 0.5f) * COLUMN_SANDSTONE_VARIANCE * 2.0f;
+                    sel.col_g = COLUMN_SANDSTONE_BASE[1] + (cpu_hash_f(ctx.seed, ColumnProp::COLOR_VAR_G) - 0.5f) * COLUMN_SANDSTONE_VARIANCE * 2.0f;
+                    sel.col_b = COLUMN_SANDSTONE_BASE[2] + (cpu_hash_f(ctx.seed, ColumnProp::COLOR_VAR_B) - 0.5f) * COLUMN_SANDSTONE_VARIANCE * 2.0f;
                 }
 
-                // Antenna drum colors: resolve fully during planning
-                std::memset(plan.drum_colors, 0, sizeof(plan.drum_colors));
+                // Antenna drum colors: resolve fully during selection
+                std::memset(sel.drum_colors, 0, sizeof(sel.drum_colors));
                 if (is_antenna_tier(tier_idx)) {
                     static constexpr float DRUM_PALETTE[][3] = {
                         { 0.85f, 0.55f, 0.35f },  // terracotta
@@ -1464,16 +1440,117 @@ namespace t7 {
                     uint32_t d2 = (d1 + 1 + cpu_hash(ctx.seed, 851u) % (DRUM_PAL_COUNT - 1)) % DRUM_PAL_COUNT;
                     uint32_t d3 = (d2 + 1 + cpu_hash(ctx.seed, 852u) % (DRUM_PAL_COUNT - 2)) % DRUM_PAL_COUNT;
                     float v = 0.04f;
-                    plan.drum_colors[0] = DRUM_PALETTE[d1][0] + (cpu_hash_f(ctx.seed, 860u) - 0.5f) * v;
-                    plan.drum_colors[1] = DRUM_PALETTE[d1][1] + (cpu_hash_f(ctx.seed, 861u) - 0.5f) * v;
-                    plan.drum_colors[2] = DRUM_PALETTE[d1][2] + (cpu_hash_f(ctx.seed, 862u) - 0.5f) * v;
-                    plan.drum_colors[3] = DRUM_PALETTE[d2][0] + (cpu_hash_f(ctx.seed, 863u) - 0.5f) * v;
-                    plan.drum_colors[4] = DRUM_PALETTE[d2][1] + (cpu_hash_f(ctx.seed, 864u) - 0.5f) * v;
-                    plan.drum_colors[5] = DRUM_PALETTE[d2][2] + (cpu_hash_f(ctx.seed, 865u) - 0.5f) * v;
-                    plan.drum_colors[6] = DRUM_PALETTE[d3][0] + (cpu_hash_f(ctx.seed, 866u) - 0.5f) * v;
-                    plan.drum_colors[7] = DRUM_PALETTE[d3][1] + (cpu_hash_f(ctx.seed, 867u) - 0.5f) * v;
-                    plan.drum_colors[8] = DRUM_PALETTE[d3][2] + (cpu_hash_f(ctx.seed, 868u) - 0.5f) * v;
+                    sel.drum_colors[0] = DRUM_PALETTE[d1][0] + (cpu_hash_f(ctx.seed, 860u) - 0.5f) * v;
+                    sel.drum_colors[1] = DRUM_PALETTE[d1][1] + (cpu_hash_f(ctx.seed, 861u) - 0.5f) * v;
+                    sel.drum_colors[2] = DRUM_PALETTE[d1][2] + (cpu_hash_f(ctx.seed, 862u) - 0.5f) * v;
+                    sel.drum_colors[3] = DRUM_PALETTE[d2][0] + (cpu_hash_f(ctx.seed, 863u) - 0.5f) * v;
+                    sel.drum_colors[4] = DRUM_PALETTE[d2][1] + (cpu_hash_f(ctx.seed, 864u) - 0.5f) * v;
+                    sel.drum_colors[5] = DRUM_PALETTE[d2][2] + (cpu_hash_f(ctx.seed, 865u) - 0.5f) * v;
+                    sel.drum_colors[6] = DRUM_PALETTE[d3][0] + (cpu_hash_f(ctx.seed, 866u) - 0.5f) * v;
+                    sel.drum_colors[7] = DRUM_PALETTE[d3][1] + (cpu_hash_f(ctx.seed, 867u) - 0.5f) * v;
+                    sel.drum_colors[8] = DRUM_PALETTE[d3][2] + (cpu_hash_f(ctx.seed, 868u) - 0.5f) * v;
                 }
+
+                return true;
+            }
+
+            // ─── place_column_from_selection ─────────────────────────────────
+            //
+            // Phase 2: position negotiation.  Jittered position, formation
+            // override, separation + footprint, host patch, pier geometry,
+            // bookkeeping.  Reads a const ColumnSelection, writes a
+            // ColumnPlacement.  Returns false if position rejected.
+
+            bool place_column_from_selection(const ColumnSelection& sel, ColumnPlacement& plan) {
+                // World position
+                float cx, cz;
+                jittered_position(sel.seed, sel.trigger_gx, sel.trigger_gz, ColumnProp::POSITION_X, ColumnProp::POSITION_Z,
+                    ColumnConfig::POSITION_JITTER, cx, cz);
+                // Columns are cylindrical — "rotation" is used only for formation chain direction
+                float col_formation_rot = cpu_hash_f(sel.seed, 355u) * 6.283185f;
+
+                // Formation override: differential tip system
+                float orig_cx = cx, orig_cz = cz;
+                bool used_formation = false;
+                {
+                    const auto& fconfig = THEMES[sel.theme_idx].formation[PopFamily::COLUMN];
+                    const auto* fslot = fconfig.active_slot();
+                    if (fslot && cpu_hash_f(sel.seed, 356u) < fslot->ch) {
+                        uint32_t anchor_fam = (fconfig.anchor >= 0) ? (uint32_t)fconfig.anchor : PopFamily::COLUMN;
+                        const auto& tip = formationTips_[anchor_fam];
+                        if (tip.valid) {
+                            float di = std::max(0.0f, cpu_sample_gaussian(sel.seed, 340u, fslot->di, fslot->ds));
+                            float ang = tip.rotation + fslot->an + cpu_sample_gaussian(sel.seed, 342u, 0.0f, fslot->as);
+                            float fx = tip.x + std::cos(ang) * di;
+                            float fz = tip.z + std::sin(ang) * di;
+                            float frot = col_formation_rot;
+                            if (fslot->rm == RotationMode::INHERIT) {
+                                frot = tip.rotation + cpu_sample_gaussian(sel.seed, 344u, 0.0f, fslot->dr);
+                            }
+                            else if (fslot->rm == RotationMode::FOLLOW_LINE) {
+                                frot = std::atan2(fz - tip.z, fx - tip.x) + cpu_sample_gaussian(sel.seed, 344u, 0.0f, fslot->dr);
+                            }
+                            if (check_separation(fx, fz, PopFamily::COLUMN) && footprint_clear(fx, fz, sel.solid_half)) {
+                                cx = fx; cz = fz; col_formation_rot = frot;
+                                used_formation = true;
+                            }
+                        }
+                    }
+                }
+
+                // Position acceptance: separation + footprint
+                bool position_ok = check_separation(cx, cz, PopFamily::COLUMN)
+                    && footprint_clear(cx, cz, sel.solid_half);
+                if (!position_ok && used_formation) {
+                    cx = orig_cx; cz = orig_cz;
+                    col_formation_rot = cpu_hash_f(sel.seed, 355u) * 6.283185f;
+                    used_formation = false;
+                    position_ok = check_separation(cx, cz, PopFamily::COLUMN)
+                        && footprint_clear(cx, cz, sel.solid_half);
+                }
+                if (!position_ok) return false;
+                int32_t host_gx = (int32_t)std::floor(cx / PATCH_EXTENT);
+                int32_t host_gz = (int32_t)std::floor(cz / PATCH_EXTENT);
+                if (register_footprint(cx, cz, sel.solid_half, host_gx, host_gz) == UINT32_MAX) return false;
+
+                // ─── Populate placement (plan output) ────────────────────────
+                //
+                // Everything the commit needs is captured here. The planning
+                // phase is complete. Below this point, only plan fields are read.
+
+                plan = ColumnPlacement{};
+                plan.slot = sel.slot;
+                plan.trigger_gx = sel.trigger_gx;
+                plan.trigger_gz = sel.trigger_gz;
+                plan.host_gx = host_gx;
+                plan.host_gz = host_gz;
+                plan.tier_idx = sel.tier_idx;
+                plan.cx = cx;
+                plan.cz = cz;
+                plan.formation_rot = col_formation_rot;
+
+                plan.height = sel.height;
+                plan.shaft_radius = sel.shaft_radius;
+                plan.taper = sel.taper;
+                plan.entasis = sel.entasis;
+                plan.base_layers = sel.base_layers;
+                plan.base_height = sel.base_height;
+                plan.base_overhang = sel.base_overhang;
+                plan.cap_layers = sel.cap_layers;
+                plan.cap_height = sel.cap_height;
+                plan.cap_overhang = sel.cap_overhang;
+                plan.solid_padding = sel.solid_padding;
+                plan.solid_height = sel.solid_height;
+                plan.edge_blend = sel.edge_blend;
+                plan.solid_half = sel.solid_half;
+                plan.burial = sel.burial;
+                plan.segs_around = sel.segs_around;
+                plan.shaft_rings = sel.shaft_rings;
+
+                plan.col_r = sel.col_r;
+                plan.col_g = sel.col_g;
+                plan.col_b = sel.col_b;
+                std::memcpy(plan.drum_colors, sel.drum_colors, sizeof(plan.drum_colors));
 
                 // Ground Y: CPU terrain at final position + pier height
                 plan.cached_ground_y = cpu_terrain_base_at(plan.cx, plan.cz) + plan.solid_height;
@@ -1499,6 +1576,14 @@ namespace t7 {
                 record_spawn(plan.cx, plan.cz, plan.formation_rot, PopFamily::COLUMN);
 
                 return true;
+            }
+
+            // ─── plan_column_for_patch (wrapper) ─────────────────────────────
+
+            bool plan_column_for_patch(int32_t gx, int32_t gz, ColumnPlacement& plan) {
+                ColumnSelection sel;
+                if (!select_column_for_patch(gx, gz, sel)) return false;
+                return place_column_from_selection(sel, plan);
             }
 
             void spawn_columns_for_patch(int32_t gx, int32_t gz, wgpu::Queue& queue) {
