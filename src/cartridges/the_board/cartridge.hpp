@@ -2483,6 +2483,82 @@ namespace t7 {
                 uint32_t presence_flag;
             };
 
+            // ─── Entity Selection Queue ─────────────────────────────────────
+            //
+            // Lightweight tagged entry holding one family's selection.
+            // Produced by select_entities_for_patch, consumed by
+            // drain_entity_queue. The queue decouples WHAT exists from
+            // WHERE it goes — selections are position-independent.
+
+            struct EntityQueueEntry {
+                uint32_t family;    // PopFamily index (PYRAMID=0, ARCH=1, COLUMN=2)
+                int32_t  gx, gz;    // trigger patch (for commit bookkeeping)
+                union {
+                    PyramidSelection pyramid;
+                    ArchSelection    arch;
+                    ColumnSelection  column;
+                };
+                EntityQueueEntry() : family(0), gx(0), gz(0) { std::memset(&column, 0, sizeof(column)); }
+            };
+
+            std::vector<EntityQueueEntry> entityQueue_;
+
+            void select_entities_for_patch(int32_t gx, int32_t gz) {
+                {
+                    EntityQueueEntry e;
+                    e.family = PopFamily::PYRAMID;
+                    e.gx = gx; e.gz = gz;
+                    if (select_pyramid_for_patch(gx, gz, e.pyramid)) {
+                        entityQueue_.push_back(e);
+                    }
+                }
+                {
+                    EntityQueueEntry e;
+                    e.family = PopFamily::ARCH;
+                    e.gx = gx; e.gz = gz;
+                    if (select_arch_for_patch(gx, gz, e.arch)) {
+                        entityQueue_.push_back(e);
+                    }
+                }
+                {
+                    EntityQueueEntry e;
+                    e.family = PopFamily::COLUMN;
+                    e.gx = gx; e.gz = gz;
+                    if (select_column_for_patch(gx, gz, e.column)) {
+                        entityQueue_.push_back(e);
+                    }
+                }
+            }
+
+            void drain_entity_queue(wgpu::Queue& queue) {
+                for (auto& e : entityQueue_) {
+                    switch (e.family) {
+                    case PopFamily::PYRAMID: {
+                        PyramidPlacement plan;
+                        if (place_pyramid_from_selection(e.pyramid, plan)) {
+                            commit_pyramid(plan, e.gx, e.gz, queue);
+                        }
+                        break;
+                    }
+                    case PopFamily::ARCH: {
+                        ArchPlacement plan;
+                        if (place_arch_from_selection(e.arch, plan)) {
+                            commit_arch(plan, e.gx, e.gz, queue);
+                        }
+                        break;
+                    }
+                    case PopFamily::COLUMN: {
+                        ColumnPlacement plan;
+                        if (place_column_from_selection(e.column, plan)) {
+                            commit_column(plan, e.gx, e.gz, queue);
+                        }
+                        break;
+                    }
+                    }
+                }
+                entityQueue_.clear();
+            }
+
             // ─── Patch Plan (batch planning/commit interface) ────────────────
             //
             // Collects entity placements for one patch. plan_entities_for_patch
@@ -6647,6 +6723,7 @@ namespace t7 {
                 // Population batch
                 popBatch_ = PopulationBatch{};
                 popBatchCounter_ = 0;
+                entityQueue_.clear();
 
                 // Formation memory (per-family)
                 for (uint32_t f = 0; f < PopFamily::COUNT; f++) {
@@ -7733,8 +7810,6 @@ namespace t7 {
                         }
                         tileGridDirty = true;
                         // Plan all entities for inner patches (CPU-only, serial)
-                        PatchPlan regenPlans[MAX_PATCHES];
-                        uint32_t regenPlanCount = 0;
                         for (uint32_t i = 0; i < activePatchCount_; i++) {
                             if (!patches_[i].valid || patches_[i].spawned) continue;
                             if (!in_priority_window(patches_[i].grid_x, patches_[i].grid_z,
@@ -7744,13 +7819,10 @@ namespace t7 {
                             active_theme_idx_ = evaluate_theme_envelope(
                                 tile_seed(activeSeed_, patches_[i].grid_x, patches_[i].grid_z));
 
-                            plan_entities_for_patch(patches_[i].grid_x, patches_[i].grid_z,
-                                regenPlans[regenPlanCount++]);
+                            select_entities_for_patch(patches_[i].grid_x, patches_[i].grid_z);
+                            drain_entity_queue(queue);
+                            advance_population_batch();
                             patches_[i].spawned = true;
-                        }
-                        // Commit all planned entities (GPU writes, batched)
-                        for (uint32_t i = 0; i < regenPlanCount; i++) {
-                            commit_patch_plan(regenPlans[i], queue);
                         }
                         {
                             // Flush tile grid before heightfield gen (GPU reads modifiers)
@@ -7976,9 +8048,6 @@ namespace t7 {
                     uint32_t spawnThisFrame = std::min(candidateCount, SPAWN_BUDGET_PER_FRAME);
 
                     // Plan entities for all patches in this frame's budget (CPU-only)
-                    PatchPlan spawnPlans[SPAWN_BUDGET_PER_FRAME];
-                    uint32_t spawnPlanCount = 0;
-                    uint32_t spawnPatchIdx[SPAWN_BUDGET_PER_FRAME];
                     for (uint32_t s = 0; s < spawnThisFrame; s++) {
                         uint32_t pi = candidates[s].idx;
                         int32_t pgx = patches_[pi].grid_x;
@@ -7988,15 +8057,10 @@ namespace t7 {
                         active_theme_idx_ = evaluate_theme_envelope(
                             tile_seed(activeSeed_, pgx, pgz));
 
-                        plan_entities_for_patch(pgx, pgz, spawnPlans[spawnPlanCount]);
-                        spawnPatchIdx[spawnPlanCount] = pi;
-                        spawnPlanCount++;
-                    }
-
-                    // Commit all planned entities (GPU writes, batched)
-                    for (uint32_t s = 0; s < spawnPlanCount; s++) {
-                        commit_patch_plan(spawnPlans[s], queue);
-                        patches_[spawnPatchIdx[s]].spawned = true;
+                        select_entities_for_patch(pgx, pgz);
+                        drain_entity_queue(queue);
+                        advance_population_batch();
+                        patches_[pi].spawned = true;
                     }
                 }
 
