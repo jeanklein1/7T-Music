@@ -7820,10 +7820,11 @@ namespace t7 {
                                 tile_seed(activeSeed_, patches_[i].grid_x, patches_[i].grid_z));
 
                             select_entities_for_patch(patches_[i].grid_x, patches_[i].grid_z);
-                            drain_entity_queue(queue);
                             advance_population_batch();
                             patches_[i].spawned = true;
                         }
+                        // Place + commit all selected entities across patches
+                        drain_entity_queue(queue);
                         {
                             // Flush tile grid before heightfield gen (GPU reads modifiers)
                             if (tileGridDirty) { upload_tile_grid_now(queue, lastCenterX_, lastCenterZ_); tileGridDirty = false; }
@@ -8058,10 +8059,12 @@ namespace t7 {
                             tile_seed(activeSeed_, pgx, pgz));
 
                         select_entities_for_patch(pgx, pgz);
-                        drain_entity_queue(queue);
                         advance_population_batch();
                         patches_[pi].spawned = true;
                     }
+
+                    // Place + commit all selected entities across patches
+                    drain_entity_queue(queue);
                 }
 
                 // ─── DISTANCE-DRIVEN HEIGHTFIELD GENERATION ──────────────────
