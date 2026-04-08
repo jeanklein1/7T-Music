@@ -7923,14 +7923,11 @@ namespace t7 {
                                 }
                                 if (!found && freeLayerCount_ > 0) {
                                     uint32_t layer = alloc_layer();
+                                    patches_[activePatchCount_] = ActivePatch{};
                                     patches_[activePatchCount_].grid_x = gx;
                                     patches_[activePatchCount_].grid_z = gz;
                                     patches_[activePatchCount_].layer = layer;
                                     patches_[activePatchCount_].valid = true;
-                                    patches_[activePatchCount_].spawned = false;
-                                    patches_[activePatchCount_].generated = false;
-                                    patches_[activePatchCount_].animated = false;
-                                    patches_[activePatchCount_].pending_regen = false;
                                     activePatchCount_++;
                                 }
                             }
@@ -8116,14 +8113,11 @@ namespace t7 {
                             }
                         }
                         uint32_t layer = alloc_layer();
+                        patches_[activePatchCount_] = ActivePatch{};
                         patches_[activePatchCount_].grid_x = gx;
                         patches_[activePatchCount_].grid_z = gz;
                         patches_[activePatchCount_].layer = layer;
                         patches_[activePatchCount_].valid = true;
-                        patches_[activePatchCount_].spawned = false;
-                        patches_[activePatchCount_].generated = false;
-                        patches_[activePatchCount_].animated = false;
-                        patches_[activePatchCount_].pending_regen = false;
                         activePatchCount_++;
                         allocated_any = true;
                     }
