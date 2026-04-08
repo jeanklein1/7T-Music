@@ -1909,6 +1909,59 @@ namespace t7 {
                 gpuState_.upload_pyramids(queue, cpuPyramids_);
             }
 
+            void evict_patch_entities(ActivePatch& patch, wgpu::Queue& queue) {
+                int32_t gx = patch.grid_x, gz = patch.grid_z;
+                bool had_pyramid = false;
+
+                for (uint32_t i = 0; i < patch.entity_ref_count; i++) {
+                    uint32_t slot = patch.entity_refs[i].slot;
+                    switch (patch.entity_refs[i].family) {
+                    case PopFamily::PYRAMID:
+                        cpuPyramids_.instances[slot] = GPUPyramidInstance{};
+                        activePyramids_[slot].active = false;
+                        activePyramidCount_--;
+                        groundEntriesDirty_ = true;
+                        { GPUPyramidMeshParams ep{}; gpuState_.upload_pyramid_mesh_params_slot(queue, slot, ep); }
+                        pyramidMeshGenPending_ = true;
+                        had_pyramid = true;
+                        break;
+                    case PopFamily::ARCH:
+                        clear_pier(queue, Dim::PIER_ARCH_BASE + slot * 2);
+                        clear_pier(queue, Dim::PIER_ARCH_BASE + slot * 2 + 1);
+                        activeArches_[slot].active = false;
+                        activeArchCount_--;
+                        portalsDirty_ = true;
+                        { GPUArchMeshParams ep{}; gpuState_.upload_arch_mesh_params_slot(queue, slot, ep); }
+                        archMeshGenPending_ = true;
+                        break;
+                    case PopFamily::COLUMN:
+                        clear_pier(queue, Dim::PIER_COLUMN_BASE + slot);
+                        activeColumns_[slot].active = false;
+                        activeColumnCount_--;
+                        { GPUColumnMeshParams ep{}; gpuState_.upload_column_mesh_params_slot(queue, slot, ep); }
+                        columnMeshGenPending_ = true;
+                        break;
+                    }
+                }
+
+                // Clear entity presence flags for all families on this tile
+                clear_entity_presence(gx, gz, EntityPresence::PYRAMID);
+                clear_entity_presence(gx, gz, EntityPresence::ARCH_ANY);
+                clear_entity_presence(gx, gz, EntityPresence::COLUMN);
+
+                // Pyramid count fixup (only if any were evicted)
+                if (had_pyramid) {
+                    uint32_t max_idx = 0;
+                    for (uint32_t i = 0; i < Dim::MAX_PYRAMID_INSTANCES; i++) {
+                        if (activePyramids_[i].active) max_idx = i + 1;
+                    }
+                    cpuPyramids_.count = max_idx;
+                    gpuState_.upload_pyramids(queue, cpuPyramids_);
+                }
+
+                patch.entity_ref_count = 0;
+            }
+
             // ─── GPU Pyramid Mesh Generation ─────────────────────────────
             //
             // Dispatches the compute shader that generates all 8 pyramid mesh
@@ -2575,17 +2628,34 @@ namespace t7 {
             // portal array, mesh gen flags — all render-layer state.
             // Does NOT touch: formation tips, footprints, spawn records.
 
+            // Find the ActivePatch entry for a given grid coordinate.
+            // Returns nullptr if not found (should not happen for host patches
+            // within the allocation window).
+            ActivePatch* find_patch(int32_t gx, int32_t gz) {
+                for (uint32_t i = 0; i < activePatchCount_; i++) {
+                    if (patches_[i].valid && patches_[i].grid_x == gx && patches_[i].grid_z == gz)
+                        return &patches_[i];
+                }
+                return nullptr;
+            }
+
             void commit_entity_queue(wgpu::Queue& queue) {
                 for (auto& pe : placementResults_) {
                     switch (pe.family) {
                     case PopFamily::PYRAMID:
                         commit_pyramid(pe.pyramid, pe.gx, pe.gz, queue);
+                        if (auto* host = find_patch(pe.pyramid.host_gx, pe.pyramid.host_gz))
+                            host->record_entity(PopFamily::PYRAMID, pe.pyramid.slot);
                         break;
                     case PopFamily::ARCH:
                         commit_arch(pe.arch, pe.gx, pe.gz, queue);
+                        if (auto* host = find_patch(pe.arch.host_gx, pe.arch.host_gz))
+                            host->record_entity(PopFamily::ARCH, pe.arch.slot);
                         break;
                     case PopFamily::COLUMN:
                         commit_column(pe.column, pe.gx, pe.gz, queue);
+                        if (auto* host = find_patch(pe.column.host_gx, pe.column.host_gz))
+                            host->record_entity(PopFamily::COLUMN, pe.column.slot);
                         break;
                     }
                 }
@@ -5404,6 +5474,21 @@ namespace t7 {
                 bool generated = false;  // true once heightfield has been dispatched
                 bool animated = false;   // true if patch overlaps an active pool
                 bool pending_regen = false;  // true while waiting for regen (keeps rendering old data)
+
+                // Entity ownership (recorded at commit, read at eviction)
+                struct EntityRef {
+                    uint32_t family;   // PopFamily index
+                    uint32_t slot;     // index into Active* array
+                };
+                static constexpr uint32_t MAX_ENTITY_REFS = 6;
+                EntityRef entity_refs[MAX_ENTITY_REFS]{};
+                uint32_t entity_ref_count = 0;
+
+                void record_entity(uint32_t family, uint32_t slot) {
+                    if (entity_ref_count < MAX_ENTITY_REFS) {
+                        entity_refs[entity_ref_count++] = { family, slot };
+                    }
+                }
             };
 
             ActivePatch patches_[MAX_PATCHES]{};
@@ -7885,9 +7970,7 @@ namespace t7 {
                         uint32_t pi = candidates[e].idx;
                         free_layer(patches_[pi].layer);
                         evict_paintings_for_patch(patches_[pi].grid_x, patches_[pi].grid_z, queue);
-                        evict_arches_for_patch(patches_[pi].grid_x, patches_[pi].grid_z, queue);
-                        evict_columns_for_patch(patches_[pi].grid_x, patches_[pi].grid_z, queue);
-                        evict_pyramids_for_patch(patches_[pi].grid_x, patches_[pi].grid_z, queue);
+                        evict_patch_entities(patches_[pi], queue);
                         unregister_footprints_for_patch(patches_[pi].grid_x, patches_[pi].grid_z);
                         patches_[pi].valid = false;
                     }
