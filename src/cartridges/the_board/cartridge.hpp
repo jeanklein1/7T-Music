@@ -1349,6 +1349,7 @@ namespace t7 {
                     if (!activeColumns_[i].active) { slot = i; break; }
                 }
                 if (slot == UINT32_MAX) return false;
+                std::cout << "[DIAG:SEL] col slot=" << slot << " patch=(" << gx << "," << gz << ")\n";
 
                 // Tier selection (theme tier bias applied to base weights)
                 float column_weights[] = {
@@ -1694,6 +1695,7 @@ namespace t7 {
                     if (!activePyramids_[i].active) { slot = i; break; }
                 }
                 if (slot == UINT32_MAX) return false;
+                std::cout << "[DIAG:SEL] pyr slot=" << slot << " patch=(" << gx << "," << gz << ")\n";
 
                 // Tier selection (theme tier bias applied to base weights)
                 float pyramid_weights[] = { PYRAMID_TIERS[0].weight, PYRAMID_TIERS[1].weight, PYRAMID_TIERS[2].weight };
@@ -2503,6 +2505,9 @@ namespace t7 {
                         pe.gx = e.gx; pe.gz = e.gz;
                         if (place_pyramid_from_selection(e.pyramid, pe.pyramid)) {
                             placementResults_.push_back(pe);
+                            std::cout << "[DIAG:PLACE] pyr slot=" << e.pyramid.slot << " pos=(" << pe.pyramid.cx << "," << pe.pyramid.cz << ") host=(" << pe.pyramid.host_gx << "," << pe.pyramid.host_gz << ")\n";
+                        } else {
+                            std::cout << "[DIAG:PLACE] pyr slot=" << e.pyramid.slot << " FAIL patch=(" << e.gx << "," << e.gz << ")\n";
                         }
                         break;
                     }
@@ -2512,6 +2517,9 @@ namespace t7 {
                         pe.gx = e.gx; pe.gz = e.gz;
                         if (place_arch_from_selection(e.arch, pe.arch)) {
                             placementResults_.push_back(pe);
+                            std::cout << "[DIAG:PLACE] arch slot=" << e.arch.slot << " pos=(" << pe.arch.cx << "," << pe.arch.cz << ") host=(" << pe.arch.host_gx << "," << pe.arch.host_gz << ")\n";
+                        } else {
+                            std::cout << "[DIAG:PLACE] arch slot=" << e.arch.slot << " FAIL patch=(" << e.gx << "," << e.gz << ")\n";
                         }
                         break;
                     }
@@ -2521,6 +2529,9 @@ namespace t7 {
                         pe.gx = e.gx; pe.gz = e.gz;
                         if (place_column_from_selection(e.column, pe.column)) {
                             placementResults_.push_back(pe);
+                            std::cout << "[DIAG:PLACE] col slot=" << e.column.slot << " pos=(" << pe.column.cx << "," << pe.column.cz << ") host=(" << pe.column.host_gx << "," << pe.column.host_gz << ")\n";
+                        } else {
+                            std::cout << "[DIAG:PLACE] col slot=" << e.column.slot << " FAIL patch=(" << e.gx << "," << e.gz << ")\n";
                         }
                         break;
                     }
@@ -2781,6 +2792,7 @@ namespace t7 {
                     if (!activeArches_[i].active) { slot = i; break; }
                 }
                 if (slot == UINT32_MAX) return false;
+                std::cout << "[DIAG:SEL] arch slot=" << slot << " patch=(" << gx << "," << gz << ")\n";
 
                 // Tier selection (theme tier bias applied to base weights)
                 float arch_weights[] = { ARCH_TIERS[0].weight, ARCH_TIERS[1].weight, ARCH_TIERS[2].weight };
@@ -5399,6 +5411,15 @@ namespace t7 {
             }
 
             void evict_patch_entities(ActivePatch& patch, wgpu::Queue& queue) {
+                if (patch.entity_ref_count > 0) {
+                    float wx = (patch.grid_x + 0.5f) * PATCH_EXTENT;
+                    float wz = (patch.grid_z + 0.5f) * PATCH_EXTENT;
+                    float dx = wx - pawnReadback_x_, dz = wz - pawnReadback_z_;
+                    std::cout << "[DIAG:EVICT] patch(" << patch.grid_x << "," << patch.grid_z
+                              << ") dist=" << std::sqrt(dx*dx+dz*dz)
+                              << " refs=" << patch.entity_ref_count << "\n";
+                }
+
                 int32_t gx = patch.grid_x, gz = patch.grid_z;
                 bool had_pyramid = false;
 
@@ -5413,6 +5434,7 @@ namespace t7 {
                         { GPUPyramidMeshParams ep{}; gpuState_.upload_pyramid_mesh_params_slot(queue, slot, ep); }
                         pyramidMeshGenPending_ = true;
                         had_pyramid = true;
+                        std::cout << "[DIAG:EVICT]   pyr slot=" << slot << "\n";
                         break;
                     case PopFamily::ARCH:
                         clear_pier(queue, Dim::PIER_ARCH_BASE + slot * 2);
@@ -5422,6 +5444,7 @@ namespace t7 {
                         portalsDirty_ = true;
                         { GPUArchMeshParams ep{}; gpuState_.upload_arch_mesh_params_slot(queue, slot, ep); }
                         archMeshGenPending_ = true;
+                        std::cout << "[DIAG:EVICT]   arch slot=" << slot << "\n";
                         break;
                     case PopFamily::COLUMN:
                         clear_pier(queue, Dim::PIER_COLUMN_BASE + slot);
@@ -5429,6 +5452,7 @@ namespace t7 {
                         activeColumnCount_--;
                         { GPUColumnMeshParams ep{}; gpuState_.upload_column_mesh_params_slot(queue, slot, ep); }
                         columnMeshGenPending_ = true;
+                        std::cout << "[DIAG:EVICT]   col slot=" << slot << "\n";
                         break;
                     }
                 }
@@ -5449,6 +5473,78 @@ namespace t7 {
                 }
 
                 patch.entity_ref_count = 0;
+            }
+
+            void audit_entity_integrity() {
+                // Count actual active slots
+                uint32_t act_a = 0, act_c = 0, act_p = 0;
+                for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++) if (activeArches_[i].active) act_a++;
+                for (uint32_t i = 0; i < Dim::MAX_COLUMN_INSTANCES; i++) if (activeColumns_[i].active) act_c++;
+                for (uint32_t i = 0; i < Dim::MAX_PYRAMID_INSTANCES; i++) if (activePyramids_[i].active) act_p++;
+
+                // Count consistency
+                if (act_a != activeArchCount_)
+                    std::cout << "[DIAG:AUDIT] ARCH COUNT active=" << act_a << " tracked=" << activeArchCount_ << "\n";
+                if (act_c != activeColumnCount_)
+                    std::cout << "[DIAG:AUDIT] COL COUNT active=" << act_c << " tracked=" << activeColumnCount_ << "\n";
+                if (act_p != activePyramidCount_)
+                    std::cout << "[DIAG:AUDIT] PYR COUNT active=" << act_p << " tracked=" << activePyramidCount_ << "\n";
+
+                // Collect refs from all patches
+                bool ra[Dim::MAX_ARCH_INSTANCES]{};
+                bool rc[Dim::MAX_COLUMN_INSTANCES]{};
+                bool rp[Dim::MAX_PYRAMID_INSTANCES]{};
+                for (uint32_t p = 0; p < activePatchCount_; p++) {
+                    if (!patches_[p].valid) continue;
+                    for (uint32_t r = 0; r < patches_[p].entity_ref_count; r++) {
+                        auto& ref = patches_[p].entity_refs[r];
+                        switch (ref.family) {
+                        case PopFamily::PYRAMID:
+                            if (ref.slot < Dim::MAX_PYRAMID_INSTANCES) {
+                                if (rp[ref.slot]) std::cout << "[DIAG:AUDIT] DUP REF pyr slot=" << ref.slot << " patch=(" << patches_[p].grid_x << "," << patches_[p].grid_z << ")\n";
+                                rp[ref.slot] = true;
+                            } break;
+                        case PopFamily::ARCH:
+                            if (ref.slot < Dim::MAX_ARCH_INSTANCES) {
+                                if (ra[ref.slot]) std::cout << "[DIAG:AUDIT] DUP REF arch slot=" << ref.slot << " patch=(" << patches_[p].grid_x << "," << patches_[p].grid_z << ")\n";
+                                ra[ref.slot] = true;
+                            } break;
+                        case PopFamily::COLUMN:
+                            if (ref.slot < Dim::MAX_COLUMN_INSTANCES) {
+                                if (rc[ref.slot]) std::cout << "[DIAG:AUDIT] DUP REF col slot=" << ref.slot << " patch=(" << patches_[p].grid_x << "," << patches_[p].grid_z << ")\n";
+                                rc[ref.slot] = true;
+                            } break;
+                        }
+                    }
+                }
+
+                // Ghost: active but no ref (will never be evicted)
+                for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++)
+                    if (activeArches_[i].active && !ra[i])
+                        std::cout << "[DIAG:AUDIT] GHOST arch slot=" << i << " host=(" << activeArches_[i].host_gx << "," << activeArches_[i].host_gz << ")\n";
+                for (uint32_t i = 0; i < Dim::MAX_COLUMN_INSTANCES; i++)
+                    if (activeColumns_[i].active && !rc[i])
+                        std::cout << "[DIAG:AUDIT] GHOST col slot=" << i << " host=(" << activeColumns_[i].host_gx << "," << activeColumns_[i].host_gz << ")\n";
+                for (uint32_t i = 0; i < Dim::MAX_PYRAMID_INSTANCES; i++)
+                    if (activePyramids_[i].active && !rp[i])
+                        std::cout << "[DIAG:AUDIT] GHOST pyr slot=" << i << " host=(" << activePyramids_[i].host_gx << "," << activePyramids_[i].host_gz << ")\n";
+
+                // Orphan: ref but not active (ref points to freed slot)
+                for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++)
+                    if (!activeArches_[i].active && ra[i])
+                        std::cout << "[DIAG:AUDIT] ORPHAN arch slot=" << i << "\n";
+                for (uint32_t i = 0; i < Dim::MAX_COLUMN_INSTANCES; i++)
+                    if (!activeColumns_[i].active && rc[i])
+                        std::cout << "[DIAG:AUDIT] ORPHAN col slot=" << i << "\n";
+                for (uint32_t i = 0; i < Dim::MAX_PYRAMID_INSTANCES; i++)
+                    if (!activePyramids_[i].active && rp[i])
+                        std::cout << "[DIAG:AUDIT] ORPHAN pyr slot=" << i << "\n";
+
+                // Ref overflow: any patch at capacity
+                for (uint32_t p = 0; p < activePatchCount_; p++) {
+                    if (patches_[p].valid && patches_[p].entity_ref_count >= ActivePatch::MAX_ENTITY_REFS)
+                        std::cout << "[DIAG:AUDIT] REF FULL patch=(" << patches_[p].grid_x << "," << patches_[p].grid_z << ") count=" << patches_[p].entity_ref_count << "\n";
+                }
             }
 
             // ─── Deferred Upload Flags ───────────────────────────────────
@@ -8239,6 +8335,8 @@ namespace t7 {
                 // ─── Deferred uploads (one per frame max) ────────────────
                 if (tileGridDirty) upload_tile_grid_now(queue, lastCenterX_, lastCenterZ_);
                 flush_pier_count(queue);
+
+                audit_entity_integrity();
 
                 // Restore radius if we capped it for finite mode
                 if (finiteMode_) { activeRadius_ = savedRadius; }
