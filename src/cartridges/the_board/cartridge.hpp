@@ -2475,6 +2475,25 @@ namespace t7 {
 
             std::vector<EntityQueueEntry> entityQueue_;
 
+            // ─── Placement Results ──────────────────────────────────────────
+            //
+            // Output of place_entity_queue: entities that passed spatial
+            // negotiation and are ready for GPU commit. Tagged union mirrors
+            // EntityQueueEntry but holds Placement structs instead of Selections.
+
+            struct PlacementEntry {
+                uint32_t family;
+                int32_t  gx, gz;
+                union {
+                    PyramidPlacement pyramid;
+                    ArchPlacement    arch;
+                    ColumnPlacement  column;
+                };
+                PlacementEntry() : family(0), gx(0), gz(0) { std::memset(&arch, 0, sizeof(arch)); }
+            };
+
+            std::vector<PlacementEntry> placementResults_;
+
             void select_entities_for_patch(int32_t gx, int32_t gz) {
                 {
                     EntityQueueEntry e;
@@ -2502,33 +2521,75 @@ namespace t7 {
                 }
             }
 
-            void drain_entity_queue(wgpu::Queue& queue) {
+            // ─── Place: spatial negotiation (no GPU writes) ──────────────
+            //
+            // Processes entityQueue_ in FIFO order. Each selection goes through
+            // formation, separation, footprint. Successful placements are pushed
+            // to placementResults_. Failed placements are silently dropped.
+            // Clears entityQueue_ when done.
+            //
+            // Mutates: formationTips_, footprints_, spawn records, population batch.
+            // Does NOT touch: GPU queue, GPU buffers, Active* arrays.
+
+            void place_entity_queue() {
                 for (auto& e : entityQueue_) {
                     switch (e.family) {
                     case PopFamily::PYRAMID: {
-                        PyramidPlacement plan;
-                        if (place_pyramid_from_selection(e.pyramid, plan)) {
-                            commit_pyramid(plan, e.gx, e.gz, queue);
+                        PlacementEntry pe;
+                        pe.family = PopFamily::PYRAMID;
+                        pe.gx = e.gx; pe.gz = e.gz;
+                        if (place_pyramid_from_selection(e.pyramid, pe.pyramid)) {
+                            placementResults_.push_back(pe);
                         }
                         break;
                     }
                     case PopFamily::ARCH: {
-                        ArchPlacement plan;
-                        if (place_arch_from_selection(e.arch, plan)) {
-                            commit_arch(plan, e.gx, e.gz, queue);
+                        PlacementEntry pe;
+                        pe.family = PopFamily::ARCH;
+                        pe.gx = e.gx; pe.gz = e.gz;
+                        if (place_arch_from_selection(e.arch, pe.arch)) {
+                            placementResults_.push_back(pe);
                         }
                         break;
                     }
                     case PopFamily::COLUMN: {
-                        ColumnPlacement plan;
-                        if (place_column_from_selection(e.column, plan)) {
-                            commit_column(plan, e.gx, e.gz, queue);
+                        PlacementEntry pe;
+                        pe.family = PopFamily::COLUMN;
+                        pe.gx = e.gx; pe.gz = e.gz;
+                        if (place_column_from_selection(e.column, pe.column)) {
+                            placementResults_.push_back(pe);
                         }
                         break;
                     }
                     }
                 }
                 entityQueue_.clear();
+            }
+
+            // ─── Commit: GPU writes from placement results ──────────────
+            //
+            // Iterates placementResults_, writes GPU state for each entity.
+            // Clears placementResults_ when done.
+            //
+            // Mutates: GPU buffers via queue, Active* arrays, pier mirrors,
+            // portal array, mesh gen flags — all render-layer state.
+            // Does NOT touch: formation tips, footprints, spawn records.
+
+            void commit_entity_queue(wgpu::Queue& queue) {
+                for (auto& pe : placementResults_) {
+                    switch (pe.family) {
+                    case PopFamily::PYRAMID:
+                        commit_pyramid(pe.pyramid, pe.gx, pe.gz, queue);
+                        break;
+                    case PopFamily::ARCH:
+                        commit_arch(pe.arch, pe.gx, pe.gz, queue);
+                        break;
+                    case PopFamily::COLUMN:
+                        commit_column(pe.column, pe.gx, pe.gz, queue);
+                        break;
+                    }
+                }
+                placementResults_.clear();
             }
 
             // ─── Commit Functions ─────────────────────────────────────────────
@@ -6651,6 +6712,7 @@ namespace t7 {
                 popBatch_ = PopulationBatch{};
                 popBatchCounter_ = 0;
                 entityQueue_.clear();
+                placementResults_.clear();
 
                 // Formation memory (per-family)
                 for (uint32_t f = 0; f < PopFamily::COUNT; f++) {
@@ -7751,7 +7813,8 @@ namespace t7 {
                             patches_[i].spawned = true;
                         }
                         // Place + commit all selected entities across patches
-                        drain_entity_queue(queue);
+                        place_entity_queue();
+                        commit_entity_queue(queue);
                         {
                             // Flush tile grid before heightfield gen (GPU reads modifiers)
                             if (tileGridDirty) { upload_tile_grid_now(queue, lastCenterX_, lastCenterZ_); tileGridDirty = false; }
@@ -7991,7 +8054,8 @@ namespace t7 {
                     }
 
                     // Place + commit all selected entities across patches
-                    drain_entity_queue(queue);
+                    place_entity_queue();
+                    commit_entity_queue(queue);
                 }
 
                 // ─── DISTANCE-DRIVEN HEIGHTFIELD GENERATION ──────────────────
