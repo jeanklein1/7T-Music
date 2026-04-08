@@ -1909,59 +1909,6 @@ namespace t7 {
                 gpuState_.upload_pyramids(queue, cpuPyramids_);
             }
 
-            void evict_patch_entities(ActivePatch& patch, wgpu::Queue& queue) {
-                int32_t gx = patch.grid_x, gz = patch.grid_z;
-                bool had_pyramid = false;
-
-                for (uint32_t i = 0; i < patch.entity_ref_count; i++) {
-                    uint32_t slot = patch.entity_refs[i].slot;
-                    switch (patch.entity_refs[i].family) {
-                    case PopFamily::PYRAMID:
-                        cpuPyramids_.instances[slot] = GPUPyramidInstance{};
-                        activePyramids_[slot].active = false;
-                        activePyramidCount_--;
-                        groundEntriesDirty_ = true;
-                        { GPUPyramidMeshParams ep{}; gpuState_.upload_pyramid_mesh_params_slot(queue, slot, ep); }
-                        pyramidMeshGenPending_ = true;
-                        had_pyramid = true;
-                        break;
-                    case PopFamily::ARCH:
-                        clear_pier(queue, Dim::PIER_ARCH_BASE + slot * 2);
-                        clear_pier(queue, Dim::PIER_ARCH_BASE + slot * 2 + 1);
-                        activeArches_[slot].active = false;
-                        activeArchCount_--;
-                        portalsDirty_ = true;
-                        { GPUArchMeshParams ep{}; gpuState_.upload_arch_mesh_params_slot(queue, slot, ep); }
-                        archMeshGenPending_ = true;
-                        break;
-                    case PopFamily::COLUMN:
-                        clear_pier(queue, Dim::PIER_COLUMN_BASE + slot);
-                        activeColumns_[slot].active = false;
-                        activeColumnCount_--;
-                        { GPUColumnMeshParams ep{}; gpuState_.upload_column_mesh_params_slot(queue, slot, ep); }
-                        columnMeshGenPending_ = true;
-                        break;
-                    }
-                }
-
-                // Clear entity presence flags for all families on this tile
-                clear_entity_presence(gx, gz, EntityPresence::PYRAMID);
-                clear_entity_presence(gx, gz, EntityPresence::ARCH_ANY);
-                clear_entity_presence(gx, gz, EntityPresence::COLUMN);
-
-                // Pyramid count fixup (only if any were evicted)
-                if (had_pyramid) {
-                    uint32_t max_idx = 0;
-                    for (uint32_t i = 0; i < Dim::MAX_PYRAMID_INSTANCES; i++) {
-                        if (activePyramids_[i].active) max_idx = i + 1;
-                    }
-                    cpuPyramids_.count = max_idx;
-                    gpuState_.upload_pyramids(queue, cpuPyramids_);
-                }
-
-                patch.entity_ref_count = 0;
-            }
-
             // ─── GPU Pyramid Mesh Generation ─────────────────────────────
             //
             // Dispatches the compute shader that generates all 8 pyramid mesh
@@ -2627,17 +2574,6 @@ namespace t7 {
             // Mutates: GPU buffers via queue, Active* arrays, pier mirrors,
             // portal array, mesh gen flags — all render-layer state.
             // Does NOT touch: formation tips, footprints, spawn records.
-
-            // Find the ActivePatch entry for a given grid coordinate.
-            // Returns nullptr if not found (should not happen for host patches
-            // within the allocation window).
-            ActivePatch* find_patch(int32_t gx, int32_t gz) {
-                for (uint32_t i = 0; i < activePatchCount_; i++) {
-                    if (patches_[i].valid && patches_[i].grid_x == gx && patches_[i].grid_z == gz)
-                        return &patches_[i];
-                }
-                return nullptr;
-            }
 
             void commit_entity_queue(wgpu::Queue& queue) {
                 for (auto& pe : placementResults_) {
@@ -5499,6 +5435,70 @@ namespace t7 {
             uint32_t lod0PatchCount_ = 0;    // subset of rendered: within LOD_FULL_RADIUS (full mesh)
             uint32_t allPatchCount_ = 0;     // all generated patches (including pre-gen ring)
             uint32_t entitiesCulled_ = 0;    // entities hidden by distance culling this frame
+
+            // Find the ActivePatch entry for a given grid coordinate.
+            // Returns nullptr if not found (should not happen for host patches
+            // within the allocation window).
+            ActivePatch* find_patch(int32_t gx, int32_t gz) {
+                for (uint32_t i = 0; i < activePatchCount_; i++) {
+                    if (patches_[i].valid && patches_[i].grid_x == gx && patches_[i].grid_z == gz)
+                        return &patches_[i];
+                }
+                return nullptr;
+            }
+
+            void evict_patch_entities(ActivePatch& patch, wgpu::Queue& queue) {
+                int32_t gx = patch.grid_x, gz = patch.grid_z;
+                bool had_pyramid = false;
+
+                for (uint32_t i = 0; i < patch.entity_ref_count; i++) {
+                    uint32_t slot = patch.entity_refs[i].slot;
+                    switch (patch.entity_refs[i].family) {
+                    case PopFamily::PYRAMID:
+                        cpuPyramids_.instances[slot] = GPUPyramidInstance{};
+                        activePyramids_[slot].active = false;
+                        activePyramidCount_--;
+                        groundEntriesDirty_ = true;
+                        { GPUPyramidMeshParams ep{}; gpuState_.upload_pyramid_mesh_params_slot(queue, slot, ep); }
+                        pyramidMeshGenPending_ = true;
+                        had_pyramid = true;
+                        break;
+                    case PopFamily::ARCH:
+                        clear_pier(queue, Dim::PIER_ARCH_BASE + slot * 2);
+                        clear_pier(queue, Dim::PIER_ARCH_BASE + slot * 2 + 1);
+                        activeArches_[slot].active = false;
+                        activeArchCount_--;
+                        portalsDirty_ = true;
+                        { GPUArchMeshParams ep{}; gpuState_.upload_arch_mesh_params_slot(queue, slot, ep); }
+                        archMeshGenPending_ = true;
+                        break;
+                    case PopFamily::COLUMN:
+                        clear_pier(queue, Dim::PIER_COLUMN_BASE + slot);
+                        activeColumns_[slot].active = false;
+                        activeColumnCount_--;
+                        { GPUColumnMeshParams ep{}; gpuState_.upload_column_mesh_params_slot(queue, slot, ep); }
+                        columnMeshGenPending_ = true;
+                        break;
+                    }
+                }
+
+                // Clear entity presence flags for all families on this tile
+                clear_entity_presence(gx, gz, EntityPresence::PYRAMID);
+                clear_entity_presence(gx, gz, EntityPresence::ARCH_ANY);
+                clear_entity_presence(gx, gz, EntityPresence::COLUMN);
+
+                // Pyramid count fixup (only if any were evicted)
+                if (had_pyramid) {
+                    uint32_t max_idx = 0;
+                    for (uint32_t i = 0; i < Dim::MAX_PYRAMID_INSTANCES; i++) {
+                        if (activePyramids_[i].active) max_idx = i + 1;
+                    }
+                    cpuPyramids_.count = max_idx;
+                    gpuState_.upload_pyramids(queue, cpuPyramids_);
+                }
+
+                patch.entity_ref_count = 0;
+            }
 
             // ─── Deferred Upload Flags ───────────────────────────────────
             bool pierCountDirty_ = false;        // defer recompute_and_upload_pier_count
