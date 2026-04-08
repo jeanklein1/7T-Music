@@ -1578,24 +1578,6 @@ namespace t7 {
                 return true;
             }
 
-            void evict_columns_for_patch(int32_t gx, int32_t gz, wgpu::Queue& queue) {
-                for (uint32_t i = 0; i < Dim::MAX_COLUMN_INSTANCES; i++) {
-                    if (activeColumns_[i].active &&
-                        activeColumns_[i].host_gx == gx && activeColumns_[i].host_gz == gz) {
-                        clear_pier(queue, Dim::PIER_COLUMN_BASE + i);
-                        activeColumns_[i].active = false;
-                        activeColumnCount_--;
-
-                        // Mark slot inactive for GPU mesh gen
-                        GPUColumnMeshParams emptyParams{};
-                        gpuState_.upload_column_mesh_params_slot(queue, i, emptyParams);
-                        columnMeshGenPending_ = true;
-
-                    }
-                }
-                clear_entity_presence(gx, gz, EntityPresence::COLUMN);
-            }
-
             // ─── Column mesh gen preparation ──────────────────────────────
             // CPU-side prep: draw range + ground origin upload.
             // Returns true if a dispatch is needed.
@@ -1884,29 +1866,6 @@ namespace t7 {
                 record_spawn(plan.cx, plan.cz, plan.rotation, PopFamily::PYRAMID);
 
                 return true;
-            }
-
-            void evict_pyramids_for_patch(int32_t gx, int32_t gz, wgpu::Queue& queue) {
-                for (uint32_t i = 0; i < Dim::MAX_PYRAMID_INSTANCES; i++) {
-                    if (activePyramids_[i].active &&
-                        activePyramids_[i].host_gx == gx && activePyramids_[i].host_gz == gz) {
-                        cpuPyramids_.instances[i] = GPUPyramidInstance{};
-                        activePyramids_[i].active = false;
-                        activePyramidCount_--;
-                        groundEntriesDirty_ = true;
-                        GPUPyramidMeshParams emptyParams{};  // is_active = 0
-                        gpuState_.upload_pyramid_mesh_params_slot(queue, i, emptyParams);
-                        pyramidMeshGenPending_ = true;
-
-                    }
-                }
-                clear_entity_presence(gx, gz, EntityPresence::PYRAMID);
-                uint32_t max_idx = 0;
-                for (uint32_t i = 0; i < Dim::MAX_PYRAMID_INSTANCES; i++) {
-                    if (activePyramids_[i].active) max_idx = i + 1;
-                }
-                cpuPyramids_.count = max_idx;
-                gpuState_.upload_pyramids(queue, cpuPyramids_);
             }
 
             // ─── GPU Pyramid Mesh Generation ─────────────────────────────
@@ -2495,12 +2454,14 @@ namespace t7 {
             std::vector<PlacementEntry> placementResults_;
 
             void select_entities_for_patch(int32_t gx, int32_t gz) {
+                ActivePatch* trigger = find_patch(gx, gz);
                 {
                     EntityQueueEntry e;
                     e.family = PopFamily::PYRAMID;
                     e.gx = gx; e.gz = gz;
                     if (select_pyramid_for_patch(gx, gz, e.pyramid)) {
                         entityQueue_.push_back(e);
+                        if (trigger) { trigger->has_pyramid_selection = true; trigger->pyramid_selection = e.pyramid; }
                     }
                 }
                 {
@@ -2509,6 +2470,7 @@ namespace t7 {
                     e.gx = gx; e.gz = gz;
                     if (select_arch_for_patch(gx, gz, e.arch)) {
                         entityQueue_.push_back(e);
+                        if (trigger) { trigger->has_arch_selection = true; trigger->arch_selection = e.arch; }
                     }
                 }
                 {
@@ -2517,6 +2479,7 @@ namespace t7 {
                     e.gx = gx; e.gz = gz;
                     if (select_column_for_patch(gx, gz, e.column)) {
                         entityQueue_.push_back(e);
+                        if (trigger) { trigger->has_column_selection = true; trigger->column_selection = e.column; }
                     }
                 }
             }
@@ -3074,28 +3037,6 @@ namespace t7 {
                 record_spawn(plan.cx, plan.cz, plan.rotation, PopFamily::ARCH);
 
                 return true;
-            }
-
-            void evict_arches_for_patch(int32_t gx, int32_t gz, wgpu::Queue& queue) {
-                for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++) {
-                    if (activeArches_[i].active &&
-                        activeArches_[i].host_gx == gx && activeArches_[i].host_gz == gz) {
-
-                        // Clear pier slots (deterministic from arch slot index)
-                        clear_pier(queue, Dim::PIER_ARCH_BASE + i * 2);
-                        clear_pier(queue, Dim::PIER_ARCH_BASE + i * 2 + 1);
-                        activeArches_[i].active = false;
-                        activeArchCount_--;
-                        portalsDirty_ = true;
-
-                        // Mark slot inactive for GPU mesh gen
-                        GPUArchMeshParams emptyParams{};  // is_active = 0
-                        gpuState_.upload_arch_mesh_params_slot(queue, i, emptyParams);
-                        archMeshGenPending_ = true;
-
-                    }
-                }
-                clear_entity_presence(gx, gz, EntityPresence::ARCH_ANY);
             }
 
             // ─── GPU Arch Mesh Generation ─────────────────────────────────
@@ -5425,6 +5366,16 @@ namespace t7 {
                         entity_refs[entity_ref_count++] = { family, slot };
                     }
                 }
+
+                // Entity selections (what this patch decided to spawn)
+                // Stored at selection time, persist until patch eviction.
+                // The world plan: queryable description of intended entities.
+                bool has_pyramid_selection = false;
+                bool has_arch_selection = false;
+                bool has_column_selection = false;
+                PyramidSelection pyramid_selection{};
+                ArchSelection arch_selection{};
+                ColumnSelection column_selection{};
             };
 
             ActivePatch patches_[MAX_PATCHES]{};
