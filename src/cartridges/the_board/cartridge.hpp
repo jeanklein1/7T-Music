@@ -1578,20 +1578,6 @@ namespace t7 {
                 return true;
             }
 
-            // ─── plan_column_for_patch (wrapper) ─────────────────────────────
-
-            bool plan_column_for_patch(int32_t gx, int32_t gz, ColumnPlacement& plan) {
-                ColumnSelection sel;
-                if (!select_column_for_patch(gx, gz, sel)) return false;
-                return place_column_from_selection(sel, plan);
-            }
-
-            void spawn_columns_for_patch(int32_t gx, int32_t gz, wgpu::Queue& queue) {
-                ColumnPlacement plan;
-                if (!plan_column_for_patch(gx, gz, plan)) return;
-                commit_column(plan, gx, gz, queue);
-            }
-
             void evict_columns_for_patch(int32_t gx, int32_t gz, wgpu::Queue& queue) {
                 for (uint32_t i = 0; i < Dim::MAX_COLUMN_INSTANCES; i++) {
                     if (activeColumns_[i].active &&
@@ -1898,20 +1884,6 @@ namespace t7 {
                 record_spawn(plan.cx, plan.cz, plan.rotation, PopFamily::PYRAMID);
 
                 return true;
-            }
-
-            // ─── plan_pyramid_for_patch (wrapper) ────────────────────────────
-
-            bool plan_pyramid_for_patch(int32_t gx, int32_t gz, PyramidPlacement& plan) {
-                PyramidSelection sel;
-                if (!select_pyramid_for_patch(gx, gz, sel)) return false;
-                return place_pyramid_from_selection(sel, plan);
-            }
-
-            void spawn_pyramids_for_patch(int32_t gx, int32_t gz, wgpu::Queue& queue) {
-                PyramidPlacement plan;
-                if (!plan_pyramid_for_patch(gx, gz, plan)) return;
-                commit_pyramid(plan, gx, gz, queue);
             }
 
             void evict_pyramids_for_patch(int32_t gx, int32_t gz, wgpu::Queue& queue) {
@@ -2559,37 +2531,6 @@ namespace t7 {
                 entityQueue_.clear();
             }
 
-            // ─── Patch Plan (batch planning/commit interface) ────────────────
-            //
-            // Collects entity placements for one patch. plan_entities_for_patch
-            // fills it (CPU-only, serial); commit_patch_plan writes to GPU
-            // (batchable across patches).
-
-            struct PatchPlan {
-                int32_t gx = 0, gz = 0;
-                bool has_pyramid = false;
-                bool has_arch = false;
-                bool has_column = false;
-                PyramidPlacement pyramid;
-                ArchPlacement arch;
-                ColumnPlacement column;
-            };
-
-            void plan_entities_for_patch(int32_t gx, int32_t gz, PatchPlan& out) {
-                out.gx = gx;
-                out.gz = gz;
-                out.has_pyramid = plan_pyramid_for_patch(gx, gz, out.pyramid);
-                out.has_arch = plan_arch_for_patch(gx, gz, out.arch);
-                out.has_column = plan_column_for_patch(gx, gz, out.column);
-                advance_population_batch();
-            }
-
-            void commit_patch_plan(const PatchPlan& p, wgpu::Queue& queue) {
-                if (p.has_pyramid) commit_pyramid(p.pyramid, p.gx, p.gz, queue);
-                if (p.has_arch)    commit_arch(p.arch, p.gx, p.gz, queue);
-                if (p.has_column)  commit_column(p.column, p.gx, p.gz, queue);
-            }
-
             // ─── Commit Functions ─────────────────────────────────────────────
             //
             // Each takes a const placement ref and a queue. Pure GPU data
@@ -3066,20 +3007,6 @@ namespace t7 {
                 record_spawn(plan.cx, plan.cz, plan.rotation, PopFamily::ARCH);
 
                 return true;
-            }
-
-            // ─── plan_arch_for_patch (wrapper) ───────────────────────────────
-
-            bool plan_arch_for_patch(int32_t gx, int32_t gz, ArchPlacement& plan) {
-                ArchSelection sel;
-                if (!select_arch_for_patch(gx, gz, sel)) return false;
-                return place_arch_from_selection(sel, plan);
-            }
-
-            void spawn_arches_for_patch(int32_t gx, int32_t gz, wgpu::Queue& queue) {
-                ArchPlacement plan;
-                if (!plan_arch_for_patch(gx, gz, plan)) return;
-                commit_arch(plan, gx, gz, queue);
             }
 
             void evict_arches_for_patch(int32_t gx, int32_t gz, wgpu::Queue& queue) {
