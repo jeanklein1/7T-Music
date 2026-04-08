@@ -2557,21 +2557,46 @@ namespace t7 {
             void commit_entity_queue(wgpu::Queue& queue) {
                 for (auto& pe : placementResults_) {
                     switch (pe.family) {
-                    case PopFamily::PYRAMID:
-                        commit_pyramid(pe.pyramid, pe.gx, pe.gz, queue);
-                        if (auto* host = find_patch(pe.pyramid.host_gx, pe.pyramid.host_gz))
+                    case PopFamily::PYRAMID: {
+                        auto* host = find_patch(pe.pyramid.host_gx, pe.pyramid.host_gz);
+                        if (host) {
+                            commit_pyramid(pe.pyramid, pe.gx, pe.gz, queue);
                             host->record_entity(PopFamily::PYRAMID, pe.pyramid.slot);
+                        } else {
+                            // Formation overshoot: host patch not allocated yet — reject
+                            activePyramids_[pe.pyramid.slot].active = false;
+                            std::cout << "[DIAG:REJECT] pyr slot=" << pe.pyramid.slot
+                                      << " host=(" << pe.pyramid.host_gx << "," << pe.pyramid.host_gz
+                                      << ") — no host patch\n";
+                        }
                         break;
-                    case PopFamily::ARCH:
-                        commit_arch(pe.arch, pe.gx, pe.gz, queue);
-                        if (auto* host = find_patch(pe.arch.host_gx, pe.arch.host_gz))
+                    }
+                    case PopFamily::ARCH: {
+                        auto* host = find_patch(pe.arch.host_gx, pe.arch.host_gz);
+                        if (host) {
+                            commit_arch(pe.arch, pe.gx, pe.gz, queue);
                             host->record_entity(PopFamily::ARCH, pe.arch.slot);
+                        } else {
+                            activeArches_[pe.arch.slot].active = false;
+                            std::cout << "[DIAG:REJECT] arch slot=" << pe.arch.slot
+                                      << " host=(" << pe.arch.host_gx << "," << pe.arch.host_gz
+                                      << ") — no host patch\n";
+                        }
                         break;
-                    case PopFamily::COLUMN:
-                        commit_column(pe.column, pe.gx, pe.gz, queue);
-                        if (auto* host = find_patch(pe.column.host_gx, pe.column.host_gz))
+                    }
+                    case PopFamily::COLUMN: {
+                        auto* host = find_patch(pe.column.host_gx, pe.column.host_gz);
+                        if (host) {
+                            commit_column(pe.column, pe.gx, pe.gz, queue);
                             host->record_entity(PopFamily::COLUMN, pe.column.slot);
+                        } else {
+                            activeColumns_[pe.column.slot].active = false;
+                            std::cout << "[DIAG:REJECT] col slot=" << pe.column.slot
+                                      << " host=(" << pe.column.host_gx << "," << pe.column.host_gz
+                                      << ") — no host patch\n";
+                        }
                         break;
+                    }
                     }
                 }
                 placementResults_.clear();
