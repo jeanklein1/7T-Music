@@ -1349,6 +1349,7 @@ namespace t7 {
                     if (!activeColumns_[i].active) { slot = i; break; }
                 }
                 if (slot == UINT32_MAX) return false;
+                activeColumns_[slot].active = true;  // [SLOT-FIX] Reserve
                 std::cout << "[DIAG:SEL] col slot=" << slot << " patch=(" << gx << "," << gz << ")\n";
 
                 // Tier selection (theme tier bias applied to base weights)
@@ -1695,6 +1696,7 @@ namespace t7 {
                     if (!activePyramids_[i].active) { slot = i; break; }
                 }
                 if (slot == UINT32_MAX) return false;
+                activePyramids_[slot].active = true;  // [SLOT-FIX] Reserve
                 std::cout << "[DIAG:SEL] pyr slot=" << slot << " patch=(" << gx << "," << gz << ")\n";
 
                 // Tier selection (theme tier bias applied to base weights)
@@ -2507,6 +2509,7 @@ namespace t7 {
                             placementResults_.push_back(pe);
                             std::cout << "[DIAG:PLACE] pyr slot=" << e.pyramid.slot << " pos=(" << pe.pyramid.cx << "," << pe.pyramid.cz << ") host=(" << pe.pyramid.host_gx << "," << pe.pyramid.host_gz << ")\n";
                         } else {
+                            activePyramids_[e.pyramid.slot].active = false;  // [SLOT-FIX] Un-reserve
                             std::cout << "[DIAG:PLACE] pyr slot=" << e.pyramid.slot << " FAIL patch=(" << e.gx << "," << e.gz << ")\n";
                         }
                         break;
@@ -2519,6 +2522,7 @@ namespace t7 {
                             placementResults_.push_back(pe);
                             std::cout << "[DIAG:PLACE] arch slot=" << e.arch.slot << " pos=(" << pe.arch.cx << "," << pe.arch.cz << ") host=(" << pe.arch.host_gx << "," << pe.arch.host_gz << ")\n";
                         } else {
+                            activeArches_[e.arch.slot].active = false;  // [SLOT-FIX] Un-reserve
                             std::cout << "[DIAG:PLACE] arch slot=" << e.arch.slot << " FAIL patch=(" << e.gx << "," << e.gz << ")\n";
                         }
                         break;
@@ -2531,6 +2535,7 @@ namespace t7 {
                             placementResults_.push_back(pe);
                             std::cout << "[DIAG:PLACE] col slot=" << e.column.slot << " pos=(" << pe.column.cx << "," << pe.column.cz << ") host=(" << pe.column.host_gx << "," << pe.column.host_gz << ")\n";
                         } else {
+                            activeColumns_[e.column.slot].active = false;  // [SLOT-FIX] Un-reserve
                             std::cout << "[DIAG:PLACE] col slot=" << e.column.slot << " FAIL patch=(" << e.gx << "," << e.gz << ")\n";
                         }
                         break;
@@ -2792,6 +2797,7 @@ namespace t7 {
                     if (!activeArches_[i].active) { slot = i; break; }
                 }
                 if (slot == UINT32_MAX) return false;
+                activeArches_[slot].active = true;  // [SLOT-FIX] Reserve
                 std::cout << "[DIAG:SEL] arch slot=" << slot << " patch=(" << gx << "," << gz << ")\n";
 
                 // Tier selection (theme tier bias applied to base weights)
