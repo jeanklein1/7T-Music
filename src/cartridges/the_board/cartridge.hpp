@@ -962,10 +962,9 @@ namespace t7 {
                 COUNT = 3
             };
 
-            // Combined tier count (GPU tier indices: 0–2 column, 3–5 antenna)
+            // Tier counts (GPU tier indices: 0–2 column, 3–5 antenna)
             static constexpr uint32_t COLUMN_TIER_COUNT = static_cast<uint32_t>(ColumnTier::COUNT);
             static constexpr uint32_t ANTENNA_TIER_COUNT = static_cast<uint32_t>(AntennaTier::COUNT);
-            static constexpr uint32_t COLUMN_ANTENNA_TOTAL = COLUMN_TIER_COUNT + ANTENNA_TIER_COUNT;
 
             // ─── Tier Parameter Struct ───────────────────────────────────────
             //
@@ -1033,17 +1032,6 @@ namespace t7 {
                 /* COLOSSAL */ { 125.0f, 25.0f,  3.00f, 0.50f,  0.85f, 0.05f, 0.00f, 0.0f,   2.0f, 0.5f,  7.5f, 1.5f,  17.5f, 3.5f,    0.0f, 0.0f,  7.5f, 1.5f,   0.0f, 0.0f,    1.95f, 0.39f, 12.0f, 2.4f,  1.0f, 0.20f,   0.40f, 0.20f,  20, 8,   0.13f },
             };
 
-            // Combined tier accessor: index 0–2 → COLUMN_TIERS, 3–5 → ANTENNA_TIERS.
-            // Preserves GPU tier index contract (WGSL branches on tier >= 3).
-            static const ColumnTierParams& combined_column_tier(uint32_t idx) {
-                return (idx < COLUMN_TIER_COUNT) ? COLUMN_TIERS[idx] : ANTENNA_TIERS[idx - COLUMN_TIER_COUNT];
-            }
-
-            // True if combined tier index refers to an antenna (tier >= 3)
-            static bool is_antenna_tier(uint32_t tier_idx) {
-                return tier_idx >= COLUMN_TIER_COUNT;
-            }
-
             // Column palette (extends independently from arch palette)
             static constexpr float COLUMN_PALETTE[][3] = {
                 { 0.82f, 0.80f, 0.78f },   // 0: light grey stone
@@ -1088,6 +1076,36 @@ namespace t7 {
                 static constexpr uint32_t COLOR_VAR_B = 743u;
             };
 
+            struct AntennaConfig {
+                static constexpr float SPAWN_CHANCE_BY_ARCHETYPE[4] = { 0.025f, 0.025f, 0.025f, 0.0f };
+                static constexpr float MOOD_MULTIPLIER[MOOD_COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f };
+                static constexpr float POSITION_JITTER = 0.35f;
+            };
+
+            struct AntennaProp {
+                static constexpr uint32_t SPAWN_ROLL = 900u;
+                static constexpr uint32_t POSITION_X = 901u;
+                static constexpr uint32_t POSITION_Z = 902u;
+                static constexpr uint32_t TIER = 903u;
+                static constexpr uint32_t HEIGHT = 910u;
+                static constexpr uint32_t SHAFT_RADIUS = 911u;
+                static constexpr uint32_t TAPER = 912u;
+                static constexpr uint32_t ENTASIS = 913u;
+                static constexpr uint32_t BASE_LAYERS = 914u;
+                static constexpr uint32_t BASE_HEIGHT = 915u;
+                static constexpr uint32_t BASE_OVERHANG = 916u;
+                static constexpr uint32_t CAPITAL_LAYERS = 920u;
+                static constexpr uint32_t CAPITAL_HEIGHT = 921u;
+                static constexpr uint32_t CAPITAL_OVERHANG = 922u;
+                static constexpr uint32_t SOLID_PADDING = 930u;
+                static constexpr uint32_t SOLID_HEIGHT = 931u;
+                static constexpr uint32_t EDGE_BLEND = 932u;
+                static constexpr uint32_t COLOR_OVER = 940u;
+                static constexpr uint32_t COLOR_VAR_R = 941u;
+                static constexpr uint32_t COLOR_VAR_G = 942u;
+                static constexpr uint32_t COLOR_VAR_B = 943u;
+            };
+
             // ─── Active Column Tracking ──────────────────────────────────────
 
             struct ActiveColumn {
@@ -1122,9 +1140,11 @@ namespace t7 {
                 float cached_ground_y = 0.0f;         // absolute pier-top Y for VS offset
             };
 
-            ActiveColumn activeColumns_[Dim::MAX_COLUMN_INSTANCES]{};
+            ActiveColumn activeColumns_[Dim::MAX_COLUMN_ONLY]{};
+            ActiveColumn activeAntennas_[Dim::MAX_ANTENNA_ONLY]{};
             uint32_t activeColumnCount_ = 0;
-            bool columnMeshGenPending_ = false;  // true → dispatch GPU mesh gen
+            uint32_t activeAntennaCount_ = 0;
+            bool columnMeshGenPending_ = false;  // true → dispatch GPU mesh gen (shared by column + antenna)
 
             // (generate_column_mesh removed — replaced by GPU compute: column_mesh_gen)
 
@@ -1455,20 +1475,19 @@ namespace t7 {
             bool select_column_for_patch(int32_t gx, int32_t gz, ColumnSelection& sel) {
                 // ── Shared preamble (template call) ──
                 auto gate = run_spawn_preamble(gx, gz,
-                    activeColumns_, Dim::MAX_COLUMN_INSTANCES,
+                    activeColumns_, Dim::MAX_COLUMN_ONLY,
                     ColumnProp::SPAWN_ROLL, ColumnConfig::SPAWN_CHANCE_BY_ARCHETYPE,
                     ColumnConfig::MOOD_MULTIPLIER,
                     PopFamily::COLUMN, "col");
                 if (!gate.ok) return false;
 
-                // ── Family-specific: tier selection ──
+                // ── Family-specific: tier selection (classical columns only) ──
                 float column_weights[] = {
-                    COLUMN_TIERS[0].weight, COLUMN_TIERS[1].weight, COLUMN_TIERS[2].weight,
-                    ANTENNA_TIERS[0].weight, ANTENNA_TIERS[1].weight, ANTENNA_TIERS[2].weight
+                    COLUMN_TIERS[0].weight, COLUMN_TIERS[1].weight, COLUMN_TIERS[2].weight
                 };
-                for (uint32_t t = 0; t < COLUMN_ANTENNA_TOTAL; t++) column_weights[t] *= THEMES[gate.theme_idx].tier_wt_column[t];
-                uint32_t tier_idx = select_tier_biased(gate.seed, ColumnProp::TIER, column_weights, COLUMN_ANTENNA_TOTAL, PopFamily::COLUMN);
-                const auto& tp = combined_column_tier(tier_idx);
+                for (uint32_t t = 0; t < COLUMN_TIER_COUNT; t++) column_weights[t] *= THEMES[gate.theme_idx].tier_wt_column[t];
+                uint32_t tier_idx = select_tier_biased(gate.seed, ColumnProp::TIER, column_weights, COLUMN_TIER_COUNT, PopFamily::COLUMN);
+                const auto& tp = COLUMN_TIERS[tier_idx];
 
                 // ── Family-specific: Gaussian sampling ──
                 float height = std::max(1.0f, cpu_sample_gaussian(gate.seed, ColumnProp::HEIGHT, tp.height_mean, tp.height_sigma));
@@ -1485,14 +1504,8 @@ namespace t7 {
                 float solid_height = std::max(0.6f, cpu_sample_gaussian(gate.seed, ColumnProp::SOLID_HEIGHT, tp.solid_height_mean, tp.solid_height_sigma));
                 float edge_blend = std::max(0.1f, cpu_sample_gaussian(gate.seed, ColumnProp::EDGE_BLEND, tp.edge_blend_mean, tp.edge_blend_sigma));
 
-                // ── Family-specific: solid_half ──
-                float max_radius;
-                if (is_antenna_tier(tier_idx)) {
-                    max_radius = shaft_radius * 2.0f;
-                }
-                else {
-                    max_radius = shaft_radius + std::max(base_overhang, cap_overhang);
-                }
+                // ── Family-specific: solid_half (classical column formula) ──
+                float max_radius = shaft_radius + std::max(base_overhang, cap_overhang);
                 float solid_half = max_radius + solid_padding + edge_blend;
 
                 // ── Write selection ──
@@ -1533,32 +1546,110 @@ namespace t7 {
                     sel.col_b = COLUMN_SANDSTONE_BASE[2] + (cpu_hash_f(gate.seed, ColumnProp::COLOR_VAR_B) - 0.5f) * COLUMN_SANDSTONE_VARIANCE * 2.0f;
                 }
 
-                // Antenna drum colors: resolve fully during selection
+                // Classical columns have no drum colors
                 std::memset(sel.drum_colors, 0, sizeof(sel.drum_colors));
-                if (is_antenna_tier(tier_idx)) {
-                    static constexpr float DRUM_PALETTE[][3] = {
-                        { 0.85f, 0.55f, 0.35f },  // terracotta
-                        { 0.45f, 0.60f, 0.70f },  // steel blue
-                        { 0.70f, 0.65f, 0.45f },  // ochre
-                        { 0.55f, 0.70f, 0.55f },  // sage
-                        { 0.75f, 0.50f, 0.55f },  // dusty rose
-                        { 0.60f, 0.55f, 0.68f },  // lavender grey
-                    };
-                    static constexpr uint32_t DRUM_PAL_COUNT = 6;
-                    uint32_t d1 = cpu_hash(gate.seed, 850u) % DRUM_PAL_COUNT;
-                    uint32_t d2 = (d1 + 1 + cpu_hash(gate.seed, 851u) % (DRUM_PAL_COUNT - 1)) % DRUM_PAL_COUNT;
-                    uint32_t d3 = (d2 + 1 + cpu_hash(gate.seed, 852u) % (DRUM_PAL_COUNT - 2)) % DRUM_PAL_COUNT;
-                    float v = 0.04f;
-                    sel.drum_colors[0] = DRUM_PALETTE[d1][0] + (cpu_hash_f(gate.seed, 860u) - 0.5f) * v;
-                    sel.drum_colors[1] = DRUM_PALETTE[d1][1] + (cpu_hash_f(gate.seed, 861u) - 0.5f) * v;
-                    sel.drum_colors[2] = DRUM_PALETTE[d1][2] + (cpu_hash_f(gate.seed, 862u) - 0.5f) * v;
-                    sel.drum_colors[3] = DRUM_PALETTE[d2][0] + (cpu_hash_f(gate.seed, 863u) - 0.5f) * v;
-                    sel.drum_colors[4] = DRUM_PALETTE[d2][1] + (cpu_hash_f(gate.seed, 864u) - 0.5f) * v;
-                    sel.drum_colors[5] = DRUM_PALETTE[d2][2] + (cpu_hash_f(gate.seed, 865u) - 0.5f) * v;
-                    sel.drum_colors[6] = DRUM_PALETTE[d3][0] + (cpu_hash_f(gate.seed, 866u) - 0.5f) * v;
-                    sel.drum_colors[7] = DRUM_PALETTE[d3][1] + (cpu_hash_f(gate.seed, 867u) - 0.5f) * v;
-                    sel.drum_colors[8] = DRUM_PALETTE[d3][2] + (cpu_hash_f(gate.seed, 868u) - 0.5f) * v;
+
+                return true;
+            }
+
+            // ─── select_antenna_for_patch ─────────────────────────────────
+            //
+            // Antenna selection: independent family with ANTENNA_TIERS.
+            // GPU tier = tier_idx + COLUMN_TIER_COUNT (maps 0→3, 1→4, 2→5).
+            // Solid half uses antenna formula (shaft_radius * 2.0f).
+            // Always generates drum colors.
+
+            bool select_antenna_for_patch(int32_t gx, int32_t gz, ColumnSelection& sel) {
+                auto gate = run_spawn_preamble(gx, gz,
+                    activeAntennas_, Dim::MAX_ANTENNA_ONLY,
+                    AntennaProp::SPAWN_ROLL, AntennaConfig::SPAWN_CHANCE_BY_ARCHETYPE,
+                    AntennaConfig::MOOD_MULTIPLIER,
+                    PopFamily::ANTENNA, "ant");
+                if (!gate.ok) return false;
+
+                // Tier selection (antenna tiers only)
+                float antenna_weights[] = {
+                    ANTENNA_TIERS[0].weight, ANTENNA_TIERS[1].weight, ANTENNA_TIERS[2].weight
+                };
+                for (uint32_t t = 0; t < ANTENNA_TIER_COUNT; t++) antenna_weights[t] *= THEMES[gate.theme_idx].tier_wt_antenna[t];
+                uint32_t tier_idx = select_tier_biased(gate.seed, AntennaProp::TIER, antenna_weights, ANTENNA_TIER_COUNT, PopFamily::ANTENNA);
+                const auto& tp = ANTENNA_TIERS[tier_idx];
+
+                // Gaussian sampling (same parameters as column)
+                float height = std::max(1.0f, cpu_sample_gaussian(gate.seed, AntennaProp::HEIGHT, tp.height_mean, tp.height_sigma));
+                float shaft_radius = std::max(0.1f, cpu_sample_gaussian(gate.seed, AntennaProp::SHAFT_RADIUS, tp.shaft_radius_mean, tp.shaft_radius_sigma));
+                float col_taper = std::max(0.5f, std::min(1.0f, cpu_sample_gaussian(gate.seed, AntennaProp::TAPER, tp.taper_mean, tp.taper_sigma)));
+                float entasis_val = std::max(0.0f, cpu_sample_gaussian(gate.seed, AntennaProp::ENTASIS, tp.entasis_mean, tp.entasis_sigma));
+                uint32_t base_layers = (uint32_t)std::max(0.0f, std::round(cpu_sample_gaussian(gate.seed, AntennaProp::BASE_LAYERS, tp.base_layers_mean, tp.base_layers_sigma)));
+                float base_height = std::max(0.0f, cpu_sample_gaussian(gate.seed, AntennaProp::BASE_HEIGHT, tp.base_height_mean, tp.base_height_sigma));
+                float base_overhang = std::max(0.0f, cpu_sample_gaussian(gate.seed, AntennaProp::BASE_OVERHANG, tp.base_overhang_mean, tp.base_overhang_sigma));
+                uint32_t cap_layers = (uint32_t)std::max(0.0f, std::round(cpu_sample_gaussian(gate.seed, AntennaProp::CAPITAL_LAYERS, tp.capital_layers_mean, tp.capital_layers_sigma)));
+                float cap_height = std::max(0.0f, cpu_sample_gaussian(gate.seed, AntennaProp::CAPITAL_HEIGHT, tp.capital_height_mean, tp.capital_height_sigma));
+                float cap_overhang = std::max(0.0f, cpu_sample_gaussian(gate.seed, AntennaProp::CAPITAL_OVERHANG, tp.capital_overhang_mean, tp.capital_overhang_sigma));
+                float solid_padding = std::max(0.05f, cpu_sample_gaussian(gate.seed, AntennaProp::SOLID_PADDING, tp.solid_padding_mean, tp.solid_padding_sigma));
+                float solid_height = std::max(0.6f, cpu_sample_gaussian(gate.seed, AntennaProp::SOLID_HEIGHT, tp.solid_height_mean, tp.solid_height_sigma));
+                float edge_blend = std::max(0.1f, cpu_sample_gaussian(gate.seed, AntennaProp::EDGE_BLEND, tp.edge_blend_mean, tp.edge_blend_sigma));
+
+                // Antenna solid_half: wraps the post (2× post diameter), not drums
+                float max_radius = shaft_radius * 2.0f;
+                float solid_half = max_radius + solid_padding + edge_blend;
+
+                // Write selection — GPU tier offset by COLUMN_TIER_COUNT
+                sel.seed = gate.seed;
+                sel.trigger_gx = gx;
+                sel.trigger_gz = gz;
+                sel.slot = gate.slot;
+                sel.tier_idx = tier_idx + COLUMN_TIER_COUNT;
+                sel.height = height;
+                sel.shaft_radius = shaft_radius;
+                sel.taper = col_taper;
+                sel.entasis = entasis_val;
+                sel.base_layers = base_layers;
+                sel.base_height = base_height;
+                sel.base_overhang = base_overhang;
+                sel.cap_layers = cap_layers;
+                sel.cap_height = cap_height;
+                sel.cap_overhang = cap_overhang;
+                sel.solid_padding = solid_padding;
+                sel.solid_height = solid_height;
+                sel.edge_blend = edge_blend;
+                sel.solid_half = solid_half;
+                sel.burial = std::max(0.2f, solid_height * tp.burial);
+                sel.segs_around = tp.segs_around;
+                sel.shaft_rings = tp.shaft_rings;
+
+                // Color
+                if (cpu_hash_f(gate.seed, AntennaProp::COLOR_OVER) < tp.color_override) {
+                    uint32_t pal_idx = cpu_hash(gate.seed, AntennaProp::COLOR_OVER + 1u) % COLUMN_PALETTE_COUNT;
+                    sel.col_r = COLUMN_PALETTE[pal_idx][0] + (cpu_hash_f(gate.seed, AntennaProp::COLOR_VAR_R) - 0.5f) * 0.06f;
+                    sel.col_g = COLUMN_PALETTE[pal_idx][1] + (cpu_hash_f(gate.seed, AntennaProp::COLOR_VAR_G) - 0.5f) * 0.06f;
+                    sel.col_b = COLUMN_PALETTE[pal_idx][2] + (cpu_hash_f(gate.seed, AntennaProp::COLOR_VAR_B) - 0.5f) * 0.06f;
+                } else {
+                    sel.col_r = COLUMN_SANDSTONE_BASE[0] + (cpu_hash_f(gate.seed, AntennaProp::COLOR_VAR_R) - 0.5f) * COLUMN_SANDSTONE_VARIANCE * 2.0f;
+                    sel.col_g = COLUMN_SANDSTONE_BASE[1] + (cpu_hash_f(gate.seed, AntennaProp::COLOR_VAR_G) - 0.5f) * COLUMN_SANDSTONE_VARIANCE * 2.0f;
+                    sel.col_b = COLUMN_SANDSTONE_BASE[2] + (cpu_hash_f(gate.seed, AntennaProp::COLOR_VAR_B) - 0.5f) * COLUMN_SANDSTONE_VARIANCE * 2.0f;
                 }
+
+                // Antenna drum colors: always generated
+                static constexpr float DRUM_PALETTE[][3] = {
+                    { 0.85f, 0.55f, 0.35f }, { 0.45f, 0.60f, 0.70f },
+                    { 0.70f, 0.65f, 0.45f }, { 0.55f, 0.70f, 0.55f },
+                    { 0.75f, 0.50f, 0.55f }, { 0.60f, 0.55f, 0.68f },
+                };
+                static constexpr uint32_t DRUM_PAL_COUNT = 6;
+                uint32_t d1 = cpu_hash(gate.seed, 850u) % DRUM_PAL_COUNT;
+                uint32_t d2 = (d1 + 1 + cpu_hash(gate.seed, 851u) % (DRUM_PAL_COUNT - 1)) % DRUM_PAL_COUNT;
+                uint32_t d3 = (d2 + 1 + cpu_hash(gate.seed, 852u) % (DRUM_PAL_COUNT - 2)) % DRUM_PAL_COUNT;
+                float v = 0.04f;
+                sel.drum_colors[0] = DRUM_PALETTE[d1][0] + (cpu_hash_f(gate.seed, 860u) - 0.5f) * v;
+                sel.drum_colors[1] = DRUM_PALETTE[d1][1] + (cpu_hash_f(gate.seed, 861u) - 0.5f) * v;
+                sel.drum_colors[2] = DRUM_PALETTE[d1][2] + (cpu_hash_f(gate.seed, 862u) - 0.5f) * v;
+                sel.drum_colors[3] = DRUM_PALETTE[d2][0] + (cpu_hash_f(gate.seed, 863u) - 0.5f) * v;
+                sel.drum_colors[4] = DRUM_PALETTE[d2][1] + (cpu_hash_f(gate.seed, 864u) - 0.5f) * v;
+                sel.drum_colors[5] = DRUM_PALETTE[d2][2] + (cpu_hash_f(gate.seed, 865u) - 0.5f) * v;
+                sel.drum_colors[6] = DRUM_PALETTE[d3][0] + (cpu_hash_f(gate.seed, 866u) - 0.5f) * v;
+                sel.drum_colors[7] = DRUM_PALETTE[d3][1] + (cpu_hash_f(gate.seed, 867u) - 0.5f) * v;
+                sel.drum_colors[8] = DRUM_PALETTE[d3][2] + (cpu_hash_f(gate.seed, 868u) - 0.5f) * v;
 
                 return true;
             }
@@ -1648,14 +1739,18 @@ namespace t7 {
 
                 uint32_t maxSlot = 0;
                 bool anyActive = false;
-                for (uint32_t i = 0; i < Dim::MAX_COLUMN_INSTANCES; i++) {
+                for (uint32_t i = 0; i < Dim::MAX_COLUMN_ONLY; i++) {
                     if (activeColumns_[i].active) { maxSlot = i; anyActive = true; }
+                }
+                for (uint32_t i = 0; i < Dim::MAX_ANTENNA_ONLY; i++) {
+                    if (activeAntennas_[i].active) {
+                        maxSlot = i + Dim::ANTENNA_SLOT_OFFSET;
+                        anyActive = true;
+                    }
                 }
                 gpuState_.set_column_index_count(anyActive
                     ? (maxSlot + 1) * Dim::CMG_MAX_INDICES_PER_SLOT : 0);
 
-                // Ground entries (center position, corrections) are uploaded
-                // every frame by upload_ground_entries(), not here.
                 return true;
             }
 
@@ -1979,8 +2074,7 @@ namespace t7 {
             }
 
             // Rebuild GPUColumnMeshParams from cached ActiveColumn data.
-            GPUColumnMeshParams build_column_mesh_params(uint32_t slot) const {
-                const auto& c = activeColumns_[slot];
+            static GPUColumnMeshParams build_column_mesh_params_from(const ActiveColumn& c) {
                 GPUColumnMeshParams p{};
                 p.center_x = c.world_x;
                 p.center_z = c.world_z;
@@ -2012,6 +2106,10 @@ namespace t7 {
                 p.drum_color_g3 = c.drum_colors[7];
                 p.drum_color_b3 = c.drum_colors[8];
                 return p;
+            }
+
+            GPUColumnMeshParams build_column_mesh_params(uint32_t slot) const {
+                return build_column_mesh_params_from(activeColumns_[slot]);
             }
 
             // Scan all active entities, toggle draw_visible with hysteresis,
@@ -2051,7 +2149,7 @@ namespace t7 {
                 }
 
                 // Columns
-                for (uint32_t i = 0; i < Dim::MAX_COLUMN_INSTANCES; i++) {
+                for (uint32_t i = 0; i < Dim::MAX_COLUMN_ONLY; i++) {
                     if (!activeColumns_[i].active) continue;
                     const auto& c = activeColumns_[i];
                     float dx = c.world_x - pawnReadback_x_;
@@ -2078,6 +2176,37 @@ namespace t7 {
                     }
 
                     if (!activeColumns_[i].draw_visible) culled++;
+                }
+
+                // Antennas
+                for (uint32_t i = 0; i < Dim::MAX_ANTENNA_ONLY; i++) {
+                    if (!activeAntennas_[i].active) continue;
+                    const auto& c = activeAntennas_[i];
+                    float dx = c.world_x - pawnReadback_x_;
+                    float dz = c.world_z - pawnReadback_z_;
+                    float dist = std::sqrt(dx * dx + dz * dz);
+                    uint32_t gpu_slot = i + Dim::ANTENNA_SLOT_OFFSET;
+
+                    float cull_far = ENTITY_CULL_BASE + c.height * ENTITY_CULL_COL_SCALE;
+                    float cull_near = cull_far - ENTITY_CULL_HYSTERESIS;
+
+                    bool should_show = c.draw_visible
+                        ? (dist <= cull_far)
+                        : (dist <= cull_near);
+
+                    if (should_show != c.draw_visible) {
+                        activeAntennas_[i].draw_visible = should_show;
+                        if (should_show) {
+                            gpuState_.upload_column_mesh_params_slot(queue, gpu_slot, build_column_mesh_params_from(c));
+                        }
+                        else {
+                            GPUColumnMeshParams empty{};
+                            gpuState_.upload_column_mesh_params_slot(queue, gpu_slot, empty);
+                        }
+                        columnMeshGenPending_ = true;
+                    }
+
+                    if (!activeAntennas_[i].draw_visible) culled++;
                 }
 
                 return culled;
@@ -2202,7 +2331,8 @@ namespace t7 {
                 static constexpr uint32_t PYRAMID = 0;
                 static constexpr uint32_t ARCH = 1;
                 static constexpr uint32_t COLUMN = 2;
-                static constexpr uint32_t COUNT = 3;
+                static constexpr uint32_t ANTENNA = 3;
+                static constexpr uint32_t COUNT = 4;
             };
 
             // Entity presence flags — bitfield tracking what was spawned on
@@ -2215,8 +2345,9 @@ namespace t7 {
                 static constexpr uint32_t ARCH_MONUMENTAL = 1u << 3;
                 static constexpr uint32_t ARCH_ANY = ARCH_DOORWAY | ARCH_STANDARD | ARCH_MONUMENTAL;
                 static constexpr uint32_t COLUMN = 1u << 4;
-                static constexpr uint32_t GALLERY = 1u << 5;
-                static constexpr uint32_t GOL_ZONE = 1u << 6;
+                static constexpr uint32_t ANTENNA = 1u << 5;
+                static constexpr uint32_t GALLERY = 1u << 6;
+                static constexpr uint32_t GOL_ZONE = 1u << 7;
             };
 
             // ─── Adjacency Affinity Matrix ───────────────────────────────────
@@ -2227,13 +2358,14 @@ namespace t7 {
             //          ARCH_MONUMENTAL(3), COLUMN(4)
             // All 1.0f = neutral. Tune to create compositional vocabulary.
 
-            static constexpr uint32_t ADJACENCY_BITS = 5;
+            static constexpr uint32_t ADJACENCY_BITS = 6;
 
             static constexpr float ADJACENCY_BOOST[PopFamily::COUNT][ADJACENCY_BITS] = {
-                //         PYR   A_DW  A_ST  A_MN  COL
-                /* PYR */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
-                /* ARCH */{ 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
-                /* COL */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
+                //         PYR   A_DW  A_ST  A_MN  COL   ANT
+                /* PYR */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
+                /* ARCH */{ 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
+                /* COL */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
+                /* ANT */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
             };
 
             static float adjacency_modifier(uint32_t family, uint32_t neighbor_flags) {
@@ -2405,12 +2537,13 @@ namespace t7 {
             // WHERE it goes — selections are position-independent.
 
             struct EntityQueueEntry {
-                uint32_t family;    // PopFamily index (PYRAMID=0, ARCH=1, COLUMN=2)
+                uint32_t family;    // PopFamily index
                 int32_t  gx, gz;    // trigger patch (for commit bookkeeping)
                 union {
                     PyramidSelection pyramid;
                     ArchSelection    arch;
                     ColumnSelection  column;
+                    ColumnSelection  antenna;
                 };
                 EntityQueueEntry() : family(0), gx(0), gz(0) { std::memset(&column, 0, sizeof(column)); }
             };
@@ -2430,6 +2563,7 @@ namespace t7 {
                     PyramidPlacement pyramid;
                     ArchPlacement    arch;
                     ColumnPlacement  column;
+                    ColumnPlacement  antenna;
                 };
                 PlacementEntry() : family(0), gx(0), gz(0) { std::memset(&arch, 0, sizeof(arch)); }
             };
@@ -2556,6 +2690,77 @@ namespace t7 {
                 meshParams.drum_color_g3 = plan.drum_colors[7];
                 meshParams.drum_color_b3 = plan.drum_colors[8];
                 gpuState_.upload_column_mesh_params_slot(queue, plan.slot, meshParams);
+                columnMeshGenPending_ = true;
+            }
+
+            void commit_antenna(const ColumnPlacement& plan, int32_t trigger_gx, int32_t trigger_gz, wgpu::Queue& queue) {
+                uint32_t gpu_slot = plan.slot + Dim::ANTENNA_SLOT_OFFSET;
+                write_pier(queue, Dim::PIER_COLUMN_BASE + gpu_slot, plan.pier);
+
+                auto& ac = activeAntennas_[plan.slot];
+                ac.patch_gx = trigger_gx;
+                ac.patch_gz = trigger_gz;
+                ac.host_gx = plan.host_gx;
+                ac.host_gz = plan.host_gz;
+                ac.active = true;
+                ac.draw_visible = true;
+                ac.world_x = plan.cx;
+                ac.world_z = plan.cz;
+                ac.height = plan.height;
+                ac.shaft_radius = plan.shaft_radius;
+                ac.taper = plan.taper;
+                ac.entasis = plan.entasis;
+                ac.base_layers = plan.base_layers;
+                ac.base_height = plan.base_height;
+                ac.base_overhang = plan.base_overhang;
+                ac.cap_layers = plan.cap_layers;
+                ac.cap_height = plan.cap_height;
+                ac.cap_overhang = plan.cap_overhang;
+                ac.solid_height = plan.solid_height;
+                ac.burial = plan.burial;
+                ac.segs_around = plan.segs_around;
+                ac.shaft_rings = plan.shaft_rings;
+                ac.tier_idx = plan.tier_idx;
+                ac.cached_ground_y = plan.cached_ground_y;
+                ac.col_r = plan.col_r;
+                ac.col_g = plan.col_g;
+                ac.col_b = plan.col_b;
+                std::memcpy(ac.drum_colors, plan.drum_colors, sizeof(plan.drum_colors));
+
+                activeAntennaCount_++;
+                record_entity_presence(plan.host_gx, plan.host_gz, EntityPresence::ANTENNA);
+
+                GPUColumnMeshParams meshParams{};
+                meshParams.center_x = plan.cx;
+                meshParams.center_z = plan.cz;
+                meshParams.height = plan.height;
+                meshParams.shaft_radius = plan.shaft_radius;
+                meshParams.taper = plan.taper;
+                meshParams.entasis = plan.entasis;
+                meshParams.base_height = plan.base_height;
+                meshParams.base_overhang = plan.base_overhang;
+                meshParams.capital_height = plan.cap_height;
+                meshParams.capital_overhang = plan.cap_overhang;
+                meshParams.burial = plan.burial;
+                meshParams.color_r = plan.col_r;
+                meshParams.color_g = plan.col_g;
+                meshParams.color_b = plan.col_b;
+                meshParams.base_layers = plan.base_layers;
+                meshParams.capital_layers = plan.cap_layers;
+                meshParams.segs_around = plan.segs_around;
+                meshParams.shaft_rings = plan.shaft_rings;
+                meshParams.is_active = 1;
+                meshParams.tier = plan.tier_idx;
+                meshParams.drum_color_r1 = plan.drum_colors[0];
+                meshParams.drum_color_g1 = plan.drum_colors[1];
+                meshParams.drum_color_b1 = plan.drum_colors[2];
+                meshParams.drum_color_r2 = plan.drum_colors[3];
+                meshParams.drum_color_g2 = plan.drum_colors[4];
+                meshParams.drum_color_b2 = plan.drum_colors[5];
+                meshParams.drum_color_r3 = plan.drum_colors[6];
+                meshParams.drum_color_g3 = plan.drum_colors[7];
+                meshParams.drum_color_b3 = plan.drum_colors[8];
+                gpuState_.upload_column_mesh_params_slot(queue, gpu_slot, meshParams);
                 columnMeshGenPending_ = true;
             }
 
@@ -5287,9 +5492,10 @@ namespace t7 {
             void audit_entity_integrity() {
 #ifdef DIAG_ENTITY_LIFECYCLE
                 // Count actual active slots
-                uint32_t act_a = 0, act_c = 0, act_p = 0;
+                uint32_t act_a = 0, act_c = 0, act_n = 0, act_p = 0;
                 for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++) if (activeArches_[i].active) act_a++;
-                for (uint32_t i = 0; i < Dim::MAX_COLUMN_INSTANCES; i++) if (activeColumns_[i].active) act_c++;
+                for (uint32_t i = 0; i < Dim::MAX_COLUMN_ONLY; i++) if (activeColumns_[i].active) act_c++;
+                for (uint32_t i = 0; i < Dim::MAX_ANTENNA_ONLY; i++) if (activeAntennas_[i].active) act_n++;
                 for (uint32_t i = 0; i < Dim::MAX_PYRAMID_INSTANCES; i++) if (activePyramids_[i].active) act_p++;
 
                 // Count consistency
@@ -5297,12 +5503,15 @@ namespace t7 {
                     std::cout << "[DIAG:AUDIT] ARCH COUNT active=" << act_a << " tracked=" << activeArchCount_ << "\n";
                 if (act_c != activeColumnCount_)
                     std::cout << "[DIAG:AUDIT] COL COUNT active=" << act_c << " tracked=" << activeColumnCount_ << "\n";
+                if (act_n != activeAntennaCount_)
+                    std::cout << "[DIAG:AUDIT] ANT COUNT active=" << act_n << " tracked=" << activeAntennaCount_ << "\n";
                 if (act_p != activePyramidCount_)
                     std::cout << "[DIAG:AUDIT] PYR COUNT active=" << act_p << " tracked=" << activePyramidCount_ << "\n";
 
                 // Collect refs from all patches
                 bool ra[Dim::MAX_ARCH_INSTANCES]{};
-                bool rc[Dim::MAX_COLUMN_INSTANCES]{};
+                bool rc[Dim::MAX_COLUMN_ONLY]{};
+                bool rn[Dim::MAX_ANTENNA_ONLY]{};
                 bool rp[Dim::MAX_PYRAMID_INSTANCES]{};
                 for (uint32_t p = 0; p < activePatchCount_; p++) {
                     if (!patches_[p].valid) continue;
@@ -5320,9 +5529,14 @@ namespace t7 {
                                 ra[ref.slot] = true;
                             } break;
                         case PopFamily::COLUMN:
-                            if (ref.slot < Dim::MAX_COLUMN_INSTANCES) {
+                            if (ref.slot < Dim::MAX_COLUMN_ONLY) {
                                 if (rc[ref.slot]) std::cout << "[DIAG:AUDIT] DUP REF col slot=" << ref.slot << " patch=(" << patches_[p].grid_x << "," << patches_[p].grid_z << ")\n";
                                 rc[ref.slot] = true;
+                            } break;
+                        case PopFamily::ANTENNA:
+                            if (ref.slot < Dim::MAX_ANTENNA_ONLY) {
+                                if (rn[ref.slot]) std::cout << "[DIAG:AUDIT] DUP REF ant slot=" << ref.slot << " patch=(" << patches_[p].grid_x << "," << patches_[p].grid_z << ")\n";
+                                rn[ref.slot] = true;
                             } break;
                         }
                     }
@@ -5332,9 +5546,12 @@ namespace t7 {
                 for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++)
                     if (activeArches_[i].active && !ra[i])
                         std::cout << "[DIAG:AUDIT] GHOST arch slot=" << i << " host=(" << activeArches_[i].host_gx << "," << activeArches_[i].host_gz << ")\n";
-                for (uint32_t i = 0; i < Dim::MAX_COLUMN_INSTANCES; i++)
+                for (uint32_t i = 0; i < Dim::MAX_COLUMN_ONLY; i++)
                     if (activeColumns_[i].active && !rc[i])
                         std::cout << "[DIAG:AUDIT] GHOST col slot=" << i << " host=(" << activeColumns_[i].host_gx << "," << activeColumns_[i].host_gz << ")\n";
+                for (uint32_t i = 0; i < Dim::MAX_ANTENNA_ONLY; i++)
+                    if (activeAntennas_[i].active && !rn[i])
+                        std::cout << "[DIAG:AUDIT] GHOST ant slot=" << i << " host=(" << activeAntennas_[i].host_gx << "," << activeAntennas_[i].host_gz << ")\n";
                 for (uint32_t i = 0; i < Dim::MAX_PYRAMID_INSTANCES; i++)
                     if (activePyramids_[i].active && !rp[i])
                         std::cout << "[DIAG:AUDIT] GHOST pyr slot=" << i << " host=(" << activePyramids_[i].host_gx << "," << activePyramids_[i].host_gz << ")\n";
@@ -5343,9 +5560,12 @@ namespace t7 {
                 for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++)
                     if (!activeArches_[i].active && ra[i])
                         std::cout << "[DIAG:AUDIT] ORPHAN arch slot=" << i << "\n";
-                for (uint32_t i = 0; i < Dim::MAX_COLUMN_INSTANCES; i++)
+                for (uint32_t i = 0; i < Dim::MAX_COLUMN_ONLY; i++)
                     if (!activeColumns_[i].active && rc[i])
                         std::cout << "[DIAG:AUDIT] ORPHAN col slot=" << i << "\n";
+                for (uint32_t i = 0; i < Dim::MAX_ANTENNA_ONLY; i++)
+                    if (!activeAntennas_[i].active && rn[i])
+                        std::cout << "[DIAG:AUDIT] ORPHAN ant slot=" << i << "\n";
                 for (uint32_t i = 0; i < Dim::MAX_PYRAMID_INSTANCES; i++)
                     if (!activePyramids_[i].active && rp[i])
                         std::cout << "[DIAG:AUDIT] ORPHAN pyr slot=" << i << "\n";
@@ -5690,6 +5910,51 @@ namespace t7 {
                 self->renderer_.dispatch_column_mesh_gen(pass, self->gpuState_.column_mesh_gen_group());
             }
 
+            // ── Antenna dispatch wrappers ──
+
+            static bool dispatch_select_antenna(Cartridge* self,
+                int32_t gx, int32_t gz, EntityQueueEntry& e)
+            {
+                return self->select_antenna_for_patch(gx, gz, e.antenna);
+            }
+
+            static bool dispatch_place_antenna(Cartridge* self,
+                EntityQueueEntry& e, PlacementEntry& pe)
+            {
+                pe.family = e.family; pe.gx = e.gx; pe.gz = e.gz;
+                if (self->place_column_from_selection(e.antenna, pe.antenna)) {
+#ifdef DIAG_ENTITY_LIFECYCLE
+                    std::cout << "[DIAG:PLACE] ant slot=" << pe.antenna.slot
+                        << " pos=(" << pe.antenna.cx << "," << pe.antenna.cz
+                        << ") host=(" << pe.antenna.host_gx << "," << pe.antenna.host_gz << ")\n";
+#endif
+                    return true;
+                }
+                self->activeAntennas_[e.antenna.slot].active = false;
+#ifdef DIAG_ENTITY_LIFECYCLE
+                std::cout << "[DIAG:PLACE] ant slot=" << e.antenna.slot
+                    << " FAIL patch=(" << e.gx << "," << e.gz << ")\n";
+#endif
+                return false;
+            }
+
+            static void dispatch_commit_antenna(Cartridge* self,
+                PlacementEntry& pe, wgpu::Queue& queue)
+            {
+                auto* host = self->find_patch(pe.antenna.host_gx, pe.antenna.host_gz);
+                if (host) {
+                    self->commit_antenna(pe.antenna, pe.gx, pe.gz, queue);
+                    host->record_entity(PopFamily::ANTENNA, pe.antenna.slot);
+                } else {
+                    self->activeAntennas_[pe.antenna.slot].active = false;
+#ifdef DIAG_ENTITY_LIFECYCLE
+                    std::cout << "[DIAG:REJECT] ant slot=" << pe.antenna.slot
+                        << " host=(" << pe.antenna.host_gx << "," << pe.antenna.host_gz
+                        << ") — no host patch\n";
+#endif
+                }
+            }
+
             // ── Eviction dispatch wrappers ──
 
             static void dispatch_evict_pyramid(Cartridge* self,
@@ -5741,6 +6006,20 @@ namespace t7 {
 #endif
             }
 
+            static void dispatch_evict_antenna(Cartridge* self,
+                uint32_t slot, wgpu::Queue& queue)
+            {
+                uint32_t gpu_slot = slot + Dim::ANTENNA_SLOT_OFFSET;
+                self->clear_pier(queue, Dim::PIER_COLUMN_BASE + gpu_slot);
+                self->activeAntennas_[slot].active = false;
+                self->activeAntennaCount_--;
+                { GPUColumnMeshParams ep{}; self->gpuState_.upload_column_mesh_params_slot(queue, gpu_slot, ep); }
+                self->columnMeshGenPending_ = true;
+#ifdef DIAG_ENTITY_LIFECYCLE
+                std::cout << "[DIAG:EVICT]   ant slot=" << slot << "\n";
+#endif
+            }
+
             // ── Dispatch table (order matches PopFamily enum) ──
 
             static constexpr FamilyDispatch FAMILY_DISPATCH[PopFamily::COUNT] = {
@@ -5753,6 +6032,9 @@ namespace t7 {
                 { dispatch_select_column,  dispatch_place_column,  dispatch_commit_column,
                   dispatch_evict_column,  dispatch_prepare_mesh_column,  dispatch_mesh_gen_column,
                   EntityPresence::COLUMN, "col" },
+                { dispatch_select_antenna, dispatch_place_antenna, dispatch_commit_antenna,
+                  dispatch_evict_antenna, dispatch_prepare_mesh_column,  dispatch_mesh_gen_column,
+                  EntityPresence::ANTENNA, "ant" },
             };
 
             // ─── Population Themes ───────────────────────────────────────────
@@ -5802,7 +6084,8 @@ namespace t7 {
                 float spawn_weight[PopFamily::COUNT];          // multiplier on base spawn chance per family
                 float tier_wt_pyramid[3];                      // multiplier on pyramid tier base weights
                 float tier_wt_arch[3];                         // multiplier on arch tier base weights
-                float tier_wt_column[6];                       // multiplier on column tier base weights
+                float tier_wt_column[3];                       // multiplier on column tier base weights (Pillar, Doric, Ornate)
+                float tier_wt_antenna[3];                      // multiplier on antenna tier base weights (Antenna, Squat, Colossal)
                 float density_mult;                            // multiplier on entity_density
 
                 // Envelope parameters (replace lattice weight for theme selection)
@@ -5829,46 +6112,51 @@ namespace t7 {
 
             static constexpr PopulationTheme THEMES[THEME_COUNT] = {
                 // ── 0: TRANSITION — sparse connective tissue ─────────────────
-                {   { 0.4f, 0.3f, 0.7f },                                       // spawn_weight
+                {   { 0.4f, 0.3f, 0.7f, 0.3f },                                 // spawn_weight [pyr, arch, col, ant]
                     { 1.0f, 1.0f, 1.0f },                                       // tier_pyr
                     { 1.0f, 0.3f, 1.0f },                                       // tier_arch
-                    { 0.1f, 0.2f, 0.3f, 0.1f, 2.0f, 0.7f },                    // tier_col
+                    { 0.1f, 0.2f, 0.3f },                                       // tier_col [Pillar, Doric, Ornate]
+                    { 0.1f, 2.0f, 0.7f },                                       // tier_ant [Antenna, Squat, Colossal]
                     1.0f,                                                         // density
                     150.0f, 20u, 3u, 0u,                                          // spike, sustain, decay, cooldown
                     0.21f                                                         // weight
                 },
                 // ── 1: MONUMENTAL — big pyramids, varied arches, heavy columns
-                {   { 1.5f, 1.0f, 1.0f },
+                {   { 1.5f, 1.0f, 1.0f, 0.5f },
                     { 0.2f, 0.5f, 3.0f },
                     { 2.0f, 0.1f, 3.0f },
-                    { 0.01f, 0.01f, 1.0f, 0.5f, 1.5f, 0.5f },
+                    { 0.01f, 0.01f, 1.0f },
+                    { 0.5f, 1.5f, 0.5f },
                     1.0f,
                     150.0f, 10u, 10u, 8u,
                     0.30f
                 },
                 // ── 2: COLONNADE — dense columns, moderate arches ────────────
-                {   { 0.3f, 1.0f, 4.0f },
+                {   { 0.3f, 1.0f, 4.0f, 0.5f },
                     { 1.0f, 1.0f, 1.0f },
                     { 3.0f, 0.5f, 1.0f },
-                    { 0.3f, 3.0f, 5.0f, 0.2f, 0.1f, 0.1f },
+                    { 0.3f, 3.0f, 5.0f },
+                    { 0.2f, 0.1f, 0.1f },
                     1.0f,
                     150.0f, 15u, 6u, 6u,
                     0.31f
                 },
-                // ── 3: ANTENNA — inline column corridor ──────────────────────
-                {   { 0.5f, 0.5f, 4.0f },
+                // ── 3: ANTENNA — antenna-dominant corridor ───────────────────
+                {   { 0.5f, 0.5f, 1.0f, 4.0f },
                     { 1.0f, 0.05f, 2.0f },
                     { 1.0f, 0.2f, 0.8f },
-                    { 0.1f, 0.3f, 0.3f, 0.5f, 3.5f, 1.0f },
+                    { 0.1f, 0.3f, 0.3f },
+                    { 0.5f, 3.5f, 1.0f },
                     1.0f,
                     180.0f, 10u, 5u, 5u,
                     0.18f
                 },
                 // ── 4: BARREN — near-empty ───────────────────────────────────
-                {   { 0.4f, 0.3f, 0.5f },
+                {   { 0.4f, 0.3f, 0.5f, 0.3f },
                     { 2.0f, 0.5f, 0.2f },
                     { 1.0f, 1.0f, 1.0f },
-                    { 0.2f, 0.5f, 0.5f, 1.0f, 1.0f, 1.0f },
+                    { 0.2f, 0.5f, 0.5f },
+                    { 1.0f, 1.0f, 1.0f },
                     1.0f,
                     100.0f, 12u, 3u, 4u,
                     0.04f
@@ -6116,10 +6404,11 @@ namespace t7 {
             //  └──────────────────────┴──────────────┴──────────────┴──────────────────────┘
 
             static constexpr float POP_CROSS_AFFINITY[PopFamily::COUNT][PopFamily::COUNT] = {
-                //          target:  Pyramid  Arch    Column
-                /* Pyramid */     {  0.5f,    2.0f,   1.5f  },
-                /* Arch    */     {  0.8f,    1.5f,   2.0f  },
-                /* Column  */     {  0.3f,    1.2f,   1.8f  },
+                //          target:  Pyramid  Arch    Column  Antenna
+                /* Pyramid */     {  0.5f,    2.0f,   1.5f,   1.5f  },
+                /* Arch    */     {  0.8f,    1.5f,   2.0f,   2.0f  },
+                /* Column  */     {  0.3f,    1.2f,   1.8f,   1.0f  },
+                /* Antenna */     {  0.3f,    1.2f,   1.0f,   1.8f  },
             };
 
             // ── Per-Tier Scale Character ──────────────────────────────────────
@@ -6154,14 +6443,16 @@ namespace t7 {
 
             static constexpr float TIER_SCALE_PYRAMID[] = { 0.35f, 0.60f, 1.00f };
             static constexpr float TIER_SCALE_ARCH[] = { 0.10f, 0.55f, 0.95f };
-            static constexpr float TIER_SCALE_COLUMN[] = { 0.15f, 0.30f, 0.50f, 0.60f, 0.45f, 0.85f };
+            static constexpr float TIER_SCALE_COLUMN[] = { 0.15f, 0.30f, 0.50f };
+            static constexpr float TIER_SCALE_ANTENNA[] = { 0.60f, 0.45f, 0.85f };
 
             // Accessor: look up scale character by family + tier index.
             static float tier_scale_character(uint32_t family, uint32_t tier_idx) {
                 switch (family) {
                 case PopFamily::PYRAMID: return (tier_idx < 3) ? TIER_SCALE_PYRAMID[tier_idx] : 0.5f;
                 case PopFamily::ARCH:    return (tier_idx < 3) ? TIER_SCALE_ARCH[tier_idx] : 0.5f;
-                case PopFamily::COLUMN:  return (tier_idx < 6) ? TIER_SCALE_COLUMN[tier_idx] : 0.5f;
+                case PopFamily::COLUMN:  return (tier_idx < 3) ? TIER_SCALE_COLUMN[tier_idx] : 0.5f;
+                case PopFamily::ANTENNA: return (tier_idx < 3) ? TIER_SCALE_ANTENNA[tier_idx] : 0.5f;
                 default: return 0.5f;
                 }
             }
@@ -6330,7 +6621,7 @@ namespace t7 {
 
             static constexpr uint32_t SPAWN_MEMORY_SIZE = 6;  // per family
             SpawnRecord recentSpawns_[PopFamily::COUNT][SPAWN_MEMORY_SIZE]{};
-            uint32_t spawnWriteIdx_[PopFamily::COUNT] = { 0, 0, 0 };
+            uint32_t spawnWriteIdx_[PopFamily::COUNT] = { 0, 0, 0, 0 };
 
             void record_spawn(float x, float z, float rotation, uint32_t family) {
                 auto& idx = spawnWriteIdx_[family];
@@ -6371,10 +6662,11 @@ namespace t7 {
             // governs aesthetic spacing.
 
             static constexpr float MIN_SEPARATION[PopFamily::COUNT][PopFamily::COUNT] = {
-                //               near:  Pyramid  Arch    Column
-                /* placing Pyramid */ {  60.0f,  50.0f,  30.0f },
-                /* placing Arch    */ {  50.0f, 100.0f,  60.0f },
-                /* placing Column  */ {  30.0f, 100.0f,  60.0f },
+                //               near:  Pyramid  Arch    Column  Antenna
+                /* placing Pyramid */ {  60.0f,  50.0f,  30.0f,  30.0f },
+                /* placing Arch    */ {  50.0f, 100.0f,  60.0f,  60.0f },
+                /* placing Column  */ {  30.0f, 100.0f,  60.0f,  40.0f },
+                /* placing Antenna */ {  30.0f, 100.0f,  40.0f,  60.0f },
             };
 
             // Check if a proposed position satisfies the separation matrix
@@ -6406,7 +6698,7 @@ namespace t7 {
                 float amp_momentum = 0.0f;   // signed amplitude excess, carried by terrain tokens
                 float entity_density = 1.0f; // spatial density multiplier for entity spawning
                 // Theme: evaluated from theme lattice at tile generation time
-                float theme_spawn[PopFamily::COUNT] = { 1.0f, 1.0f, 1.0f }; // blended per-family spawn multiplier
+                float theme_spawn[PopFamily::COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f }; // blended per-family spawn multiplier
                 uint32_t theme_idx = 0;      // dominant theme index (for tier bias + formation lookup)
             };
 
@@ -6600,7 +6892,7 @@ namespace t7 {
 
                     // Blend spawn weights across 4 lattice nodes.
                     // Track dominant node for discrete tier bias lookup.
-                    float blended_spawn[PopFamily::COUNT] = { 0.0f, 0.0f, 0.0f };
+                    float blended_spawn[PopFamily::COUNT] = { 0.0f, 0.0f, 0.0f, 0.0f };
                     float blended_density = 0.0f;
                     float best_w = -1.0f;
                     uint32_t dominant_theme = 0;
@@ -6617,9 +6909,8 @@ namespace t7 {
                         if (w > best_w) { best_w = w; dominant_theme = tidx; }
                     }
 
-                    ts.theme_spawn[0] = blended_spawn[0];
-                    ts.theme_spawn[1] = blended_spawn[1];
-                    ts.theme_spawn[2] = blended_spawn[2];
+                    for (uint32_t f = 0; f < PopFamily::COUNT; f++)
+                        ts.theme_spawn[f] = blended_spawn[f];
                     ts.theme_idx = dominant_theme;
                     ts.entity_density *= blended_density;  // theme density stacks with spatial density
                 }
@@ -6752,11 +7043,15 @@ namespace t7 {
                     archMeshGenPending_ = true;
                 }
 
-                // Columns
-                for (uint32_t i = 0; i < Dim::MAX_COLUMN_INSTANCES; i++) {
+                // Columns + Antennas
+                for (uint32_t i = 0; i < Dim::MAX_COLUMN_ONLY; i++) {
                     activeColumns_[i] = ActiveColumn{};
                 }
+                for (uint32_t i = 0; i < Dim::MAX_ANTENNA_ONLY; i++) {
+                    activeAntennas_[i] = ActiveColumn{};
+                }
                 activeColumnCount_ = 0;
+                activeAntennaCount_ = 0;
                 gpuState_.set_column_index_count(0);
                 // Clear all column mesh gen param slots
                 {

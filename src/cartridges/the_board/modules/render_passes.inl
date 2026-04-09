@@ -41,15 +41,24 @@
                 }
                 gpuState_.upload_arch_origins(queue, archOrigins, Dim::MAX_ARCH_INSTANCES);
 
-                // --- Column ground entries ---
+                // --- Column + antenna ground entries (shared GPU buffer, split arrays) ---
                 GPUColumnGroundEntry columnOrigins[Dim::MAX_COLUMN_INSTANCES]{};
-                for (uint32_t i = 0; i < Dim::MAX_COLUMN_INSTANCES; i++) {
+                for (uint32_t i = 0; i < Dim::MAX_COLUMN_ONLY; i++) {
                     if (!activeColumns_[i].active) continue;
                     columnOrigins[i].center_x = activeColumns_[i].world_x;
                     columnOrigins[i].center_z = activeColumns_[i].world_z;
                     columnOrigins[i].is_active = 1;
                     columnOrigins[i].ground_y = activeColumns_[i].cached_ground_y;
                     columnOrigins[i].pier_correction = 0.0f;
+                }
+                for (uint32_t i = 0; i < Dim::MAX_ANTENNA_ONLY; i++) {
+                    if (!activeAntennas_[i].active) continue;
+                    uint32_t gpu_slot = i + Dim::ANTENNA_SLOT_OFFSET;
+                    columnOrigins[gpu_slot].center_x = activeAntennas_[i].world_x;
+                    columnOrigins[gpu_slot].center_z = activeAntennas_[i].world_z;
+                    columnOrigins[gpu_slot].is_active = 1;
+                    columnOrigins[gpu_slot].ground_y = activeAntennas_[i].cached_ground_y;
+                    columnOrigins[gpu_slot].pier_correction = 0.0f;
                 }
                 gpuState_.upload_column_origins(queue, columnOrigins, Dim::MAX_COLUMN_INSTANCES);
 

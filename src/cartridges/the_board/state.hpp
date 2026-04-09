@@ -150,6 +150,10 @@ namespace t7 {
 
             // Generative columns — GPU mesh gen (slot-based addressing)
             constexpr uint32_t MAX_COLUMN_INSTANCES = 32;
+            constexpr uint32_t MAX_COLUMN_ONLY = 16;            // classical columns: slots 0-15
+            constexpr uint32_t MAX_ANTENNA_ONLY = 16;            // antennas: slots 16-31
+            constexpr uint32_t ANTENNA_SLOT_OFFSET = 16;         // GPU slot offset for antenna family
+            static_assert(MAX_COLUMN_ONLY + MAX_ANTENNA_ONLY == MAX_COLUMN_INSTANCES);
             constexpr uint32_t CMG_MAX_VERTS_PER_SLOT  = 1500;  // ornate worst case: 1249
             constexpr uint32_t CMG_MAX_INDICES_PER_SLOT = 6000;  // ornate worst case: 5880 (divisible by 3)
             constexpr uint32_t CMG_TOTAL_VERTICES = MAX_COLUMN_INSTANCES * CMG_MAX_VERTS_PER_SLOT;   // 48000
