@@ -5252,6 +5252,15 @@ namespace t7 {
                 return nullptr;
             }
 
+            // Hook: full eviction of a single patch.
+            void evict_patch(uint32_t pi, wgpu::Queue& queue) {
+                free_layer(patches_[pi].layer);
+                evict_paintings_for_patch(patches_[pi].grid_x, patches_[pi].grid_z, queue);
+                evict_patch_entities(patches_[pi], queue);
+                unregister_footprints_for_patch(patches_[pi].grid_x, patches_[pi].grid_z);
+                patches_[pi].valid = false;
+            }
+
             void evict_patch_entities(ActivePatch& patch, wgpu::Queue& queue) {
 #ifdef DIAG_ENTITY_LIFECYCLE
                 if (patch.entity_ref_count > 0) {
@@ -7088,6 +7097,12 @@ namespace t7 {
                 commit_entity_queue(queue);
             }
 
+            // Hook: fires once when a patch transitions SPAWNED → GENERATED.
+            void on_patch_first_generated(uint32_t pi, wgpu::Queue& queue) {
+                spawn_gallery_for_patch(patches_[pi].grid_x, patches_[pi].grid_z, queue);
+                detect_gol_zones_for_patch(patches_[pi].grid_x, patches_[pi].grid_z, queue);
+            }
+
             // Process heightfield generation for pre-collected patch candidates.
             void generate_selected_patches(
                 const PatchCandidate* candidates, uint32_t count,
@@ -7114,8 +7129,7 @@ namespace t7 {
                     bool first_gen = (patches_[pi].phase == PatchPhase::SPAWNED);
                     patches_[pi].phase = PatchPhase::GENERATED;
                     if (first_gen) {
-                        spawn_gallery_for_patch(patches_[pi].grid_x, patches_[pi].grid_z, queue);
-                        detect_gol_zones_for_patch(patches_[pi].grid_x, patches_[pi].grid_z, queue);
+                        on_patch_first_generated(pi, queue);
                     }
                 }
                 patchInstancesDirty_ = true;
@@ -7918,12 +7932,7 @@ namespace t7 {
 
                     uint32_t evictThisFrame = std::min(count, EVICT_BUDGET_PER_FRAME);
                     for (uint32_t e = 0; e < evictThisFrame; e++) {
-                        uint32_t pi = candidates[e].idx;
-                        free_layer(patches_[pi].layer);
-                        evict_paintings_for_patch(patches_[pi].grid_x, patches_[pi].grid_z, queue);
-                        evict_patch_entities(patches_[pi], queue);
-                        unregister_footprints_for_patch(patches_[pi].grid_x, patches_[pi].grid_z);
-                        patches_[pi].valid = false;
+                        evict_patch(candidates[e].idx, queue);
                     }
 
                     if (evictThisFrame > 0) {
