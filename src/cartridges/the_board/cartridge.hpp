@@ -1317,8 +1317,8 @@ namespace t7 {
 
             // ── Helper 2: NegotiatePosition ─────────────────────────────
             //
-            // Replaces the formation-override + separation + footprint
-            // block in every place_*_from_selection.  Returns the
+            // Jittered position → separation + footprint check →
+            // host patch + footprint registration.  Returns the
             // accepted position or failure.
 
             struct PositionResult {
@@ -1330,8 +1330,8 @@ namespace t7 {
             PositionResult negotiate_position(
                 uint32_t seed, int32_t trigger_gx, int32_t trigger_gz,
                 uint32_t pos_x_prop, uint32_t pos_z_prop, float jitter,
-                uint32_t rotation_seed_prop, uint32_t formation_gate_prop,
-                float footprint_r, uint32_t family, uint32_t theme_idx)
+                uint32_t rotation_seed_prop,
+                float footprint_r, uint32_t family)
             {
                 PositionResult r{};
                 r.ok = false;
@@ -1341,53 +1341,12 @@ namespace t7 {
                     pos_x_prop, pos_z_prop, jitter, r.cx, r.cz);
                 r.rotation = cpu_hash_f(seed, rotation_seed_prop) * 6.283185f;
 
-                // 2. Formation override
-                float orig_cx = r.cx, orig_cz = r.cz, orig_rot = r.rotation;
-                bool used_formation = false;
-                {
-                    const auto& fconfig = THEMES[theme_idx].formation[family];
-                    const auto* fslot = fconfig.active_slot();
-                    if (fslot && cpu_hash_f(seed, formation_gate_prop) < fslot->ch) {
-                        uint32_t anchor_fam = (fconfig.anchor >= 0)
-                            ? (uint32_t)fconfig.anchor : family;
-                        const auto& tip = formationTips_[anchor_fam];
-                        if (tip.valid) {
-                            float di = std::max(0.0f,
-                                cpu_sample_gaussian(seed, 340u, fslot->di, fslot->ds));
-                            float ang = tip.rotation + fslot->an +
-                                cpu_sample_gaussian(seed, 342u, 0.0f, fslot->as);
-                            float fx = tip.x + std::cos(ang) * di;
-                            float fz = tip.z + std::sin(ang) * di;
-                            float frot = r.rotation;
-                            if (fslot->rm == RotationMode::INHERIT) {
-                                frot = tip.rotation +
-                                    cpu_sample_gaussian(seed, 344u, 0.0f, fslot->dr);
-                            }
-                            else if (fslot->rm == RotationMode::FOLLOW_LINE) {
-                                frot = std::atan2(fz - tip.z, fx - tip.x) +
-                                    cpu_sample_gaussian(seed, 344u, 0.0f, fslot->dr);
-                            }
-                            if (check_separation(fx, fz, family) &&
-                                footprint_clear(fx, fz, footprint_r)) {
-                                r.cx = fx; r.cz = fz; r.rotation = frot;
-                                used_formation = true;
-                            }
-                        }
-                    }
-                }
+                // 2. Separation + footprint check
+                if (!check_separation(r.cx, r.cz, family) ||
+                    !footprint_clear(r.cx, r.cz, footprint_r))
+                    return r;
 
-                // 3. Separation + footprint check
-                bool position_ok = check_separation(r.cx, r.cz, family)
-                    && footprint_clear(r.cx, r.cz, footprint_r);
-                if (!position_ok && used_formation) {
-                    r.cx = orig_cx; r.cz = orig_cz; r.rotation = orig_rot;
-                    used_formation = false;
-                    position_ok = check_separation(r.cx, r.cz, family)
-                        && footprint_clear(r.cx, r.cz, footprint_r);
-                }
-                if (!position_ok) return r;
-
-                // 4. Host patch + footprint registration
+                // 3. Host patch + footprint registration
                 r.host_gx = (int32_t)std::floor(r.cx / PATCH_EXTENT);
                 r.host_gz = (int32_t)std::floor(r.cz / PATCH_EXTENT);
                 if (register_footprint(r.cx, r.cz, footprint_r,
@@ -1405,7 +1364,6 @@ namespace t7 {
                 float cx, float cz, float rotation)
             {
                 record_population_observation(family, tier_idx);
-                formationTips_[family] = { cx, cz, rotation, true };
                 record_spawn(cx, cz, rotation, family);
             }
 
@@ -1616,8 +1574,8 @@ namespace t7 {
                     sel.trigger_gx, sel.trigger_gz,
                     ColumnProp::POSITION_X, ColumnProp::POSITION_Z,
                     ColumnConfig::POSITION_JITTER,
-                    355u, 356u,
-                    sel.solid_half, PopFamily::COLUMN, sel.theme_idx);
+                    355u,
+                    sel.solid_half, PopFamily::COLUMN);
                 if (!pos.ok) return false;
 
                 // ── Family-specific: populate placement ──
@@ -1839,8 +1797,8 @@ namespace t7 {
                     sel.trigger_gx, sel.trigger_gz,
                     PyramidProp::POSITION_X, PyramidProp::POSITION_Z,
                     PyramidConfig::POSITION_JITTER,
-                    PyramidProp::ROTATION, 360u,
-                    sel.footprint_r, PopFamily::PYRAMID, sel.theme_idx);
+                    PyramidProp::ROTATION,
+                    sel.footprint_r, PopFamily::PYRAMID);
                 if (!pos.ok) return false;
 
                 // ── Family-specific: populate placement ──
@@ -2530,7 +2488,7 @@ namespace t7 {
             // to placementResults_. Failed placements are silently dropped.
             // Clears entityQueue_ when done.
             //
-            // Mutates: formationTips_, footprints_, spawn records, population batch.
+            // Mutates: footprints_, spawn records, population batch.
             // Does NOT touch: GPU queue, GPU buffers, Active* arrays.
 
             void place_entity_queue() {
@@ -2945,8 +2903,8 @@ namespace t7 {
                     sel.trigger_gx, sel.trigger_gz,
                     ArchProp::POSITION_X, ArchProp::POSITION_Z,
                     ArchConfig::POSITION_JITTER,
-                    ArchProp::ROTATION, 350u,
-                    sel.footprint_r, PopFamily::ARCH, sel.theme_idx);
+                    ArchProp::ROTATION,
+                    sel.footprint_r, PopFamily::ARCH);
                 if (!pos.ok) return false;
 
                 // ── Family-specific: populate placement ──
