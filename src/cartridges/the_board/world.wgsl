@@ -3668,6 +3668,29 @@ fn shadow_ribbon_vs(@builtin(vertex_index) vid: u32) -> ShadowVarying {
     return out;
 }
 
+// §6.6 FADE OVERLAY
+// Fullscreen triangle for transition fade. Drawn last with alpha blending.
+// Reads fade_alpha and fade_color from DesignConfig.
+
+struct FadeVarying {
+    @builtin(position) pos: vec4<f32>,
+}
+
+@vertex
+fn fade_overlay_vs(@builtin(vertex_index) vid: u32) -> FadeVarying {
+    // Fullscreen triangle from vertex ID (covers clip space)
+    let x = f32(i32(vid & 1u)) * 4.0 - 1.0;
+    let y = f32(i32(vid >> 1u)) * 4.0 - 1.0;
+    var out: FadeVarying;
+    out.pos = vec4(x, y, 0.0, 1.0);
+    return out;
+}
+
+@fragment
+fn fade_overlay_fs(in: FadeVarying) -> @location(0) vec4<f32> {
+    return vec4(config.fade_color, config.fade_alpha);
+}
+
 // §7.0 GLOBAL BINDINGS
 
 // --- Compute bindings (Group 0: buffers, 20-slot system ranges)
@@ -6057,30 +6080,6 @@ fn shadow_wall_painting_vs(@builtin(vertex_index) vid: u32) -> ShadowVarying {
     var out: ShadowVarying;
     out.clip_pos = render_vp.light_vp * vec4(geom.world_pos, 1.0);
     return out;
-}
-
-
-// §6.6 FADE OVERLAY
-// Fullscreen triangle for transition fade. Drawn last with alpha blending.
-// Reads fade_alpha and fade_color from DesignConfig.
-
-struct FadeVarying {
-    @builtin(position) pos: vec4<f32>,
-}
-
-@vertex
-fn fade_overlay_vs(@builtin(vertex_index) vid: u32) -> FadeVarying {
-    // Fullscreen triangle from vertex ID (covers clip space)
-    let x = f32(i32(vid & 1u)) * 4.0 - 1.0;
-    let y = f32(i32(vid >> 1u)) * 4.0 - 1.0;
-    var out: FadeVarying;
-    out.pos = vec4(x, y, 0.0, 1.0);
-    return out;
-}
-
-@fragment
-fn fade_overlay_fs(in: FadeVarying) -> @location(0) vec4<f32> {
-    return vec4(config.fade_color, config.fade_alpha);
 }
 
 
