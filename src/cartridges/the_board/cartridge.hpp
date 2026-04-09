@@ -1236,6 +1236,8 @@ namespace t7 {
 // Depends on: entities.inl, terrain_cpu.inl, seed_utils.inl
 // ─────────────────────────────────────────────────────────────────
 
+// #define DIAG_ENTITY_LIFECYCLE   // uncomment to enable spawn/evict diagnostics
+
 
 // ─── Shared Spawn Helpers ────────────────────────────────────────
 //
@@ -1305,9 +1307,10 @@ namespace t7 {
                 if (slot == UINT32_MAX) return r;
                 active_arr[slot].active = true;
 
-                // 10. Diagnostic
+#ifdef DIAG_ENTITY_LIFECYCLE
                 std::cout << "[DIAG:SEL] " << diag_name << " slot=" << slot
                           << " patch=(" << gx << "," << gz << ")\n";
+#endif
 
                 r.seed = ctx.seed;
                 r.slot = slot;
@@ -1377,7 +1380,6 @@ namespace t7 {
             struct ColumnSelection {
                 uint32_t seed;
                 int32_t  trigger_gx, trigger_gz;
-                uint32_t theme_idx;
                 uint32_t slot;
                 uint32_t tier_idx;
                 float height;
@@ -1417,7 +1419,7 @@ namespace t7 {
 
                 // Accepted position
                 float cx, cz;
-                float formation_rot;
+                float rotation;
 
                 // Sampled geometry (from tier Gaussians)
                 float height, shaft_radius, taper, entasis;
@@ -1497,7 +1499,7 @@ namespace t7 {
                 sel.seed = gate.seed;
                 sel.trigger_gx = gx;
                 sel.trigger_gz = gz;
-                sel.theme_idx = gate.theme_idx;
+
                 sel.slot = gate.slot;
                 sel.tier_idx = tier_idx;
                 sel.height = height;
@@ -1588,7 +1590,7 @@ namespace t7 {
                 plan.tier_idx = sel.tier_idx;
                 plan.cx = pos.cx;
                 plan.cz = pos.cz;
-                plan.formation_rot = pos.rotation;
+                plan.rotation = pos.rotation;
 
                 plan.height = sel.height;
                 plan.shaft_radius = sel.shaft_radius;
@@ -1632,7 +1634,7 @@ namespace t7 {
 
                 // ── Shared tail bookkeeping ──
                 record_placement_bookkeeping(PopFamily::COLUMN, plan.tier_idx,
-                    plan.cx, plan.cz, plan.formation_rot);
+                    plan.cx, plan.cz, plan.rotation);
 
                 return true;
             }
@@ -1666,7 +1668,6 @@ namespace t7 {
             struct PyramidSelection {
                 uint32_t seed;
                 int32_t  trigger_gx, trigger_gz;
-                uint32_t theme_idx;
                 uint32_t slot;
                 uint32_t tier_idx;
                 float height;
@@ -1758,7 +1759,7 @@ namespace t7 {
                 sel.seed = gate.seed;
                 sel.trigger_gx = gx;
                 sel.trigger_gz = gz;
-                sel.theme_idx = gate.theme_idx;
+
                 sel.slot = gate.slot;
                 sel.tier_idx = tier_idx;
                 sel.height = height;
@@ -2321,7 +2322,6 @@ namespace t7 {
             struct ArchSelection {
                 uint32_t seed;
                 int32_t  trigger_gx, trigger_gz;
-                uint32_t theme_idx;
                 uint32_t slot;
                 uint32_t tier_idx;
                 ArchTier tier;
@@ -2451,14 +2451,12 @@ namespace t7 {
             std::vector<PlacementEntry> placementResults_;
 
             void select_entities_for_patch(int32_t gx, int32_t gz) {
-                ActivePatch* trigger = find_patch(gx, gz);
                 {
                     EntityQueueEntry e;
                     e.family = PopFamily::PYRAMID;
                     e.gx = gx; e.gz = gz;
                     if (select_pyramid_for_patch(gx, gz, e.pyramid)) {
                         entityQueue_.push_back(e);
-                        if (trigger) { trigger->has_pyramid_selection = true; trigger->pyramid_selection = e.pyramid; }
                     }
                 }
                 {
@@ -2467,7 +2465,6 @@ namespace t7 {
                     e.gx = gx; e.gz = gz;
                     if (select_arch_for_patch(gx, gz, e.arch)) {
                         entityQueue_.push_back(e);
-                        if (trigger) { trigger->has_arch_selection = true; trigger->arch_selection = e.arch; }
                     }
                 }
                 {
@@ -2476,7 +2473,6 @@ namespace t7 {
                     e.gx = gx; e.gz = gz;
                     if (select_column_for_patch(gx, gz, e.column)) {
                         entityQueue_.push_back(e);
-                        if (trigger) { trigger->has_column_selection = true; trigger->column_selection = e.column; }
                     }
                 }
             }
@@ -2500,10 +2496,14 @@ namespace t7 {
                         pe.gx = e.gx; pe.gz = e.gz;
                         if (place_pyramid_from_selection(e.pyramid, pe.pyramid)) {
                             placementResults_.push_back(pe);
+#ifdef DIAG_ENTITY_LIFECYCLE
                             std::cout << "[DIAG:PLACE] pyr slot=" << e.pyramid.slot << " pos=(" << pe.pyramid.cx << "," << pe.pyramid.cz << ") host=(" << pe.pyramid.host_gx << "," << pe.pyramid.host_gz << ")\n";
+#endif
                         } else {
-                            activePyramids_[e.pyramid.slot].active = false;  // [SLOT-FIX] Un-reserve
+                            activePyramids_[e.pyramid.slot].active = false;
+#ifdef DIAG_ENTITY_LIFECYCLE
                             std::cout << "[DIAG:PLACE] pyr slot=" << e.pyramid.slot << " FAIL patch=(" << e.gx << "," << e.gz << ")\n";
+#endif
                         }
                         break;
                     }
@@ -2513,10 +2513,14 @@ namespace t7 {
                         pe.gx = e.gx; pe.gz = e.gz;
                         if (place_arch_from_selection(e.arch, pe.arch)) {
                             placementResults_.push_back(pe);
+#ifdef DIAG_ENTITY_LIFECYCLE
                             std::cout << "[DIAG:PLACE] arch slot=" << e.arch.slot << " pos=(" << pe.arch.cx << "," << pe.arch.cz << ") host=(" << pe.arch.host_gx << "," << pe.arch.host_gz << ")\n";
+#endif
                         } else {
-                            activeArches_[e.arch.slot].active = false;  // [SLOT-FIX] Un-reserve
+                            activeArches_[e.arch.slot].active = false;
+#ifdef DIAG_ENTITY_LIFECYCLE
                             std::cout << "[DIAG:PLACE] arch slot=" << e.arch.slot << " FAIL patch=(" << e.gx << "," << e.gz << ")\n";
+#endif
                         }
                         break;
                     }
@@ -2526,10 +2530,14 @@ namespace t7 {
                         pe.gx = e.gx; pe.gz = e.gz;
                         if (place_column_from_selection(e.column, pe.column)) {
                             placementResults_.push_back(pe);
+#ifdef DIAG_ENTITY_LIFECYCLE
                             std::cout << "[DIAG:PLACE] col slot=" << e.column.slot << " pos=(" << pe.column.cx << "," << pe.column.cz << ") host=(" << pe.column.host_gx << "," << pe.column.host_gz << ")\n";
+#endif
                         } else {
-                            activeColumns_[e.column.slot].active = false;  // [SLOT-FIX] Un-reserve
+                            activeColumns_[e.column.slot].active = false;
+#ifdef DIAG_ENTITY_LIFECYCLE
                             std::cout << "[DIAG:PLACE] col slot=" << e.column.slot << " FAIL patch=(" << e.gx << "," << e.gz << ")\n";
+#endif
                         }
                         break;
                     }
@@ -2545,7 +2553,7 @@ namespace t7 {
             //
             // Mutates: GPU buffers via queue, Active* arrays, pier mirrors,
             // portal array, mesh gen flags — all render-layer state.
-            // Does NOT touch: formation tips, footprints, spawn records.
+            // Does NOT touch: footprints, spawn records.
 
             void commit_entity_queue(wgpu::Queue& queue) {
                 for (auto& pe : placementResults_) {
@@ -2556,11 +2564,12 @@ namespace t7 {
                             commit_pyramid(pe.pyramid, pe.gx, pe.gz, queue);
                             host->record_entity(PopFamily::PYRAMID, pe.pyramid.slot);
                         } else {
-                            // Formation overshoot: host patch not allocated yet — reject
                             activePyramids_[pe.pyramid.slot].active = false;
+#ifdef DIAG_ENTITY_LIFECYCLE
                             std::cout << "[DIAG:REJECT] pyr slot=" << pe.pyramid.slot
                                       << " host=(" << pe.pyramid.host_gx << "," << pe.pyramid.host_gz
                                       << ") — no host patch\n";
+#endif
                         }
                         break;
                     }
@@ -2571,9 +2580,11 @@ namespace t7 {
                             host->record_entity(PopFamily::ARCH, pe.arch.slot);
                         } else {
                             activeArches_[pe.arch.slot].active = false;
+#ifdef DIAG_ENTITY_LIFECYCLE
                             std::cout << "[DIAG:REJECT] arch slot=" << pe.arch.slot
                                       << " host=(" << pe.arch.host_gx << "," << pe.arch.host_gz
                                       << ") — no host patch\n";
+#endif
                         }
                         break;
                     }
@@ -2584,9 +2595,11 @@ namespace t7 {
                             host->record_entity(PopFamily::COLUMN, pe.column.slot);
                         } else {
                             activeColumns_[pe.column.slot].active = false;
+#ifdef DIAG_ENTITY_LIFECYCLE
                             std::cout << "[DIAG:REJECT] col slot=" << pe.column.slot
                                       << " host=(" << pe.column.host_gx << "," << pe.column.host_gz
                                       << ") — no host patch\n";
+#endif
                         }
                         break;
                     }
@@ -2818,7 +2831,7 @@ namespace t7 {
                 sel.seed = gate.seed;
                 sel.trigger_gx = gx;
                 sel.trigger_gz = gz;
-                sel.theme_idx = gate.theme_idx;
+
                 sel.slot = gate.slot;
                 sel.tier_idx = tier_idx;
                 sel.tier = tier;
@@ -5337,15 +5350,7 @@ namespace t7 {
                     }
                 }
 
-                // Entity selections (what this patch decided to spawn)
-                // Stored at selection time, persist until patch eviction.
-                // The world plan: queryable description of intended entities.
-                bool has_pyramid_selection = false;
-                bool has_arch_selection = false;
-                bool has_column_selection = false;
-                PyramidSelection pyramid_selection{};
-                ArchSelection arch_selection{};
-                ColumnSelection column_selection{};
+
             };
 
             ActivePatch patches_[MAX_PATCHES]{};
@@ -5369,6 +5374,7 @@ namespace t7 {
             }
 
             void evict_patch_entities(ActivePatch& patch, wgpu::Queue& queue) {
+#ifdef DIAG_ENTITY_LIFECYCLE
                 if (patch.entity_ref_count > 0) {
                     float wx = (patch.grid_x + 0.5f) * PATCH_EXTENT;
                     float wz = (patch.grid_z + 0.5f) * PATCH_EXTENT;
@@ -5377,6 +5383,7 @@ namespace t7 {
                               << ") dist=" << std::sqrt(dx*dx+dz*dz)
                               << " refs=" << patch.entity_ref_count << "\n";
                 }
+#endif
 
                 int32_t gx = patch.grid_x, gz = patch.grid_z;
                 bool had_pyramid = false;
@@ -5392,7 +5399,9 @@ namespace t7 {
                         { GPUPyramidMeshParams ep{}; gpuState_.upload_pyramid_mesh_params_slot(queue, slot, ep); }
                         pyramidMeshGenPending_ = true;
                         had_pyramid = true;
+#ifdef DIAG_ENTITY_LIFECYCLE
                         std::cout << "[DIAG:EVICT]   pyr slot=" << slot << "\n";
+#endif
                         break;
                     case PopFamily::ARCH:
                         clear_pier(queue, Dim::PIER_ARCH_BASE + slot * 2);
@@ -5402,7 +5411,9 @@ namespace t7 {
                         portalsDirty_ = true;
                         { GPUArchMeshParams ep{}; gpuState_.upload_arch_mesh_params_slot(queue, slot, ep); }
                         archMeshGenPending_ = true;
+#ifdef DIAG_ENTITY_LIFECYCLE
                         std::cout << "[DIAG:EVICT]   arch slot=" << slot << "\n";
+#endif
                         break;
                     case PopFamily::COLUMN:
                         clear_pier(queue, Dim::PIER_COLUMN_BASE + slot);
@@ -5410,7 +5421,9 @@ namespace t7 {
                         activeColumnCount_--;
                         { GPUColumnMeshParams ep{}; gpuState_.upload_column_mesh_params_slot(queue, slot, ep); }
                         columnMeshGenPending_ = true;
+#ifdef DIAG_ENTITY_LIFECYCLE
                         std::cout << "[DIAG:EVICT]   col slot=" << slot << "\n";
+#endif
                         break;
                     }
                 }
@@ -5434,6 +5447,7 @@ namespace t7 {
             }
 
             void audit_entity_integrity() {
+#ifdef DIAG_ENTITY_LIFECYCLE
                 // Count actual active slots
                 uint32_t act_a = 0, act_c = 0, act_p = 0;
                 for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++) if (activeArches_[i].active) act_a++;
@@ -5503,6 +5517,7 @@ namespace t7 {
                     if (patches_[p].valid && patches_[p].entity_ref_count >= ActivePatch::MAX_ENTITY_REFS)
                         std::cout << "[DIAG:AUDIT] REF FULL patch=(" << patches_[p].grid_x << "," << patches_[p].grid_z << ") count=" << patches_[p].entity_ref_count << "\n";
                 }
+#endif
             }
 
             // ─── Deferred Upload Flags ───────────────────────────────────
@@ -5725,7 +5740,7 @@ namespace t7 {
                 uint32_t decay;         // patches for linear decay to base
                 uint32_t cooldown;      // patches before re-eligible after expiry
 
-                // Lattice weight (dormant — kept for backward compat)
+                // Lattice node weight (spatial distribution of themes)
                 float weight;
             };
 
@@ -5749,7 +5764,7 @@ namespace t7 {
                     { 0.1f, 0.2f, 0.3f, 0.1f, 2.0f, 0.7f },                    // tier_col
                     1.0f,                                                         // density
                     150.0f, 20u, 3u, 0u,                                          // spike, sustain, decay, cooldown
-                    0.21f                                                         // weight (dormant)
+                    0.21f                                                         // weight
                 },
                 // ── 1: MONUMENTAL — big pyramids, varied arches, heavy columns
                 {   { 1.5f, 1.0f, 1.0f },
@@ -6242,32 +6257,14 @@ namespace t7 {
                 bool valid = false;
             };
 
-            static constexpr uint32_t FORMATION_MEMORY_SIZE = 6;  // per family
-            SpawnRecord formationMemory_[PopFamily::COUNT][FORMATION_MEMORY_SIZE]{};
-            uint32_t formationWriteIdx_[PopFamily::COUNT] = { 0, 0, 0 };
+            static constexpr uint32_t SPAWN_MEMORY_SIZE = 6;  // per family
+            SpawnRecord recentSpawns_[PopFamily::COUNT][SPAWN_MEMORY_SIZE]{};
+            uint32_t spawnWriteIdx_[PopFamily::COUNT] = { 0, 0, 0 };
 
             void record_spawn(float x, float z, float rotation, uint32_t family) {
-                auto& idx = formationWriteIdx_[family];
-                formationMemory_[family][idx] = { x, z, rotation, family, true };
-                idx = (idx + 1) % FORMATION_MEMORY_SIZE;
-            }
-
-            // Find nearest sibling of a given family within max distance.
-            // Returns nullptr if none found.
-            const SpawnRecord* find_sibling(uint32_t family, float ref_x, float ref_z, float max_dist) const {
-                float best_dist_sq = max_dist * max_dist;
-                const SpawnRecord* best = nullptr;
-                for (uint32_t i = 0; i < FORMATION_MEMORY_SIZE; i++) {
-                    if (!formationMemory_[family][i].valid) continue;
-                    float dx = formationMemory_[family][i].x - ref_x;
-                    float dz = formationMemory_[family][i].z - ref_z;
-                    float d2 = dx * dx + dz * dz;
-                    if (d2 < best_dist_sq) {
-                        best_dist_sq = d2;
-                        best = &formationMemory_[family][i];
-                    }
-                }
-                return best;
+                auto& idx = spawnWriteIdx_[family];
+                recentSpawns_[family][idx] = { x, z, rotation, family, true };
+                idx = (idx + 1) % SPAWN_MEMORY_SIZE;
             }
 
             // ── Theme Envelope State (replaces lattice-based selection) ─────
@@ -6317,10 +6314,10 @@ namespace t7 {
                     float min_dist = MIN_SEPARATION[placing_family][fam];
                     if (min_dist <= 0.0f) continue;
                     float min_dist_sq = min_dist * min_dist;
-                    for (uint32_t i = 0; i < FORMATION_MEMORY_SIZE; i++) {
-                        if (!formationMemory_[fam][i].valid) continue;
-                        float dx = px - formationMemory_[fam][i].x;
-                        float dz = pz - formationMemory_[fam][i].z;
+                    for (uint32_t i = 0; i < SPAWN_MEMORY_SIZE; i++) {
+                        if (!recentSpawns_[fam][i].valid) continue;
+                        float dx = px - recentSpawns_[fam][i].x;
+                        float dz = pz - recentSpawns_[fam][i].z;
                         if (dx * dx + dz * dz < min_dist_sq) return false;
                     }
                 }
@@ -6673,8 +6670,8 @@ namespace t7 {
 
                 // Formation memory (per-family)
                 for (uint32_t f = 0; f < PopFamily::COUNT; f++) {
-                    for (uint32_t i = 0; i < FORMATION_MEMORY_SIZE; i++) formationMemory_[f][i] = SpawnRecord{};
-                    formationWriteIdx_[f] = 0;
+                    for (uint32_t i = 0; i < SPAWN_MEMORY_SIZE; i++) recentSpawns_[f][i] = SpawnRecord{};
+                    spawnWriteIdx_[f] = 0;
                 }
 
                 // Theme envelope
