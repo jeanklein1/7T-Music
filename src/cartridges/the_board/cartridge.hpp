@@ -2273,11 +2273,11 @@ namespace t7 {
                 int32_t pg_z1 = (int32_t)std::floor(max_wz / PATCH_EXTENT);
 
                 for (uint32_t p = 0; p < activePatchCount_; p++) {
-                    if (!patches_[p].generated || patches_[p].pending_regen) continue;
+                    if (patches_[p].phase != PatchPhase::GENERATED) continue;
                     if (patches_[p].grid_x == home_gx && patches_[p].grid_z == home_gz) continue;
                     if (patches_[p].grid_x >= pg_x0 && patches_[p].grid_x <= pg_x1 &&
                         patches_[p].grid_z >= pg_z0 && patches_[p].grid_z <= pg_z1) {
-                        patches_[p].pending_regen = true;
+                        patches_[p].phase = PatchPhase::NEEDS_REGEN;
                     }
                 }
             }
@@ -5199,15 +5199,20 @@ namespace t7 {
             // allocation bounds and GoL zone eviction.
             uint32_t activeRadius_ = PREGEN_RADIUS;
 
+            enum class PatchPhase : uint8_t {
+                ALLOCATED,      // layer assigned, tile cached, no entities yet
+                SPAWNED,        // entities selected + placed + committed
+                GENERATED,      // heightfield computed, gallery + GoL spawned
+                NEEDS_REGEN,    // heightfield stale (new pier in range)
+            };
+
             struct ActivePatch {
                 int32_t grid_x = 0;
                 int32_t grid_z = 0;
                 uint32_t layer = 0;
                 bool valid = false;
-                bool spawned = false;    // true once entities have been spawned for this patch
-                bool generated = false;  // true once heightfield has been dispatched
+                PatchPhase phase = PatchPhase::ALLOCATED;
                 bool animated = false;   // true if patch overlaps an active pool
-                bool pending_regen = false;  // true while waiting for regen (keeps rendering old data)
 
                 // Entity ownership (recorded at commit, read at eviction)
                 struct EntityRef {
@@ -5375,8 +5380,8 @@ namespace t7 {
                 uint32_t n = 0;
                 for (uint32_t i = 0; i < activePatchCount_; i++) {
                     if (!patches_[i].valid) continue;
-                    if (patches_[i].pending_regen) { n++; continue; }
-                    if (patches_[i].spawned && !patches_[i].generated) n++;
+                    if (patches_[i].phase == PatchPhase::SPAWNED ||
+                        patches_[i].phase == PatchPhase::NEEDS_REGEN) n++;
                 }
                 return n;
             }
@@ -6989,6 +6994,47 @@ namespace t7 {
                 return dx * dx + dz * dz;
             }
 
+            // ── Distance-sorted patch scan helper ──────────────────────────
+
+            struct PatchCandidate {
+                uint32_t idx;
+                float dist2;
+            };
+
+            template<typename Pred>
+            uint32_t collect_sorted_patches(
+                PatchCandidate* out,
+                float pawn_wx, float pawn_wz,
+                Pred&& pred,
+                bool nearest_first) const
+            {
+                float half = PATCH_EXTENT * 0.5f;
+                uint32_t count = 0;
+                for (uint32_t i = 0; i < activePatchCount_; i++) {
+                    if (!patches_[i].valid) continue;
+                    if (!pred(patches_[i])) continue;
+                    float ox = (patches_[i].grid_x + 0.5f) * PATCH_EXTENT;
+                    float oz = (patches_[i].grid_z + 0.5f) * PATCH_EXTENT;
+                    float d2 = patch_distance_sq(pawn_wx, pawn_wz, ox, oz, half);
+                    out[count++] = { i, d2 };
+                }
+                for (uint32_t i = 1; i < count; i++) {
+                    PatchCandidate key = out[i];
+                    uint32_t j = i;
+                    if (nearest_first) {
+                        while (j > 0 && out[j - 1].dist2 > key.dist2) {
+                            out[j] = out[j - 1]; j--;
+                        }
+                    } else {
+                        while (j > 0 && out[j - 1].dist2 < key.dist2) {
+                            out[j] = out[j - 1]; j--;
+                        }
+                    }
+                    out[j] = key;
+                }
+                return count;
+            }
+
             // Check if grid coordinate is within the priority window (GRID_RADIUS)
             bool in_priority_window(int32_t gx, int32_t gz, int32_t cx, int32_t cz) {
                 int32_t r = (int32_t)GRID_RADIUS;
@@ -7758,7 +7804,7 @@ namespace t7 {
                         tileGridDirty = true;
                         // Plan all entities for inner patches (CPU-only, serial)
                         for (uint32_t i = 0; i < activePatchCount_; i++) {
-                            if (!patches_[i].valid || patches_[i].spawned) continue;
+                            if (!patches_[i].valid || patches_[i].phase != PatchPhase::ALLOCATED) continue;
                             if (!in_priority_window(patches_[i].grid_x, patches_[i].grid_z,
                                 centerX, centerZ)) continue;
 
@@ -7768,7 +7814,7 @@ namespace t7 {
 
                             select_entities_for_patch(patches_[i].grid_x, patches_[i].grid_z);
                             advance_population_batch();
-                            patches_[i].spawned = true;
+                            patches_[i].phase = PatchPhase::SPAWNED;
                         }
                         // Place + commit all selected entities across patches
                         place_entity_queue();
@@ -7780,7 +7826,7 @@ namespace t7 {
                             uint32_t batchIdx[MAX_PATCHES];
                             uint32_t batchCount = 0;
                             for (uint32_t i = 0; i < activePatchCount_; i++) {
-                                if (patches_[i].spawned && !patches_[i].generated &&
+                                if (patches_[i].phase == PatchPhase::SPAWNED &&
                                     in_priority_window(patches_[i].grid_x, patches_[i].grid_z,
                                         centerX, centerZ)) {
                                     batchParams[batchCount] = make_patch_params(
@@ -7792,7 +7838,7 @@ namespace t7 {
                             generate_patch_batch(encoder, queue, batchParams, batchCount, patchStagingOffset);
                             patchStagingOffset += batchCount;
                             for (uint32_t b = 0; b < batchCount; b++) {
-                                patches_[batchIdx[b]].generated = true;
+                                patches_[batchIdx[b]].phase = PatchPhase::GENERATED;
                                 spawn_gallery_for_patch(patches_[batchIdx[b]].grid_x,
                                     patches_[batchIdx[b]].grid_z, queue);
                                 detect_gol_zones_for_patch(patches_[batchIdx[b]].grid_x,
@@ -7809,36 +7855,15 @@ namespace t7 {
                 // farthest first. Frees layers for reuse by the allocation scan.
                 // Compact the array after eviction to remove holes.
                 {
-                    float pawn_wx = pawnReadback_x_;
-                    float pawn_wz = pawnReadback_z_;
-                    float half = PATCH_EXTENT * 0.5f;
+                    PatchCandidate candidates[MAX_PATCHES];
+                    uint32_t count = collect_sorted_patches(candidates,
+                        pawnReadback_x_, pawnReadback_z_,
+                        [&](const ActivePatch& p) {
+                            return !in_render_window(p.grid_x, p.grid_z,
+                                lastCenterX_, lastCenterZ_);
+                        }, false);  // farthest first
 
-                    struct EvictCandidate { uint32_t idx; float dist2; };
-                    EvictCandidate candidates[MAX_PATCHES];
-                    uint32_t candidateCount = 0;
-
-                    for (uint32_t i = 0; i < activePatchCount_; i++) {
-                        if (!patches_[i].valid) continue;
-                        if (in_render_window(patches_[i].grid_x, patches_[i].grid_z,
-                            lastCenterX_, lastCenterZ_)) continue;
-                        float ox = (patches_[i].grid_x + 0.5f) * PATCH_EXTENT;
-                        float oz = (patches_[i].grid_z + 0.5f) * PATCH_EXTENT;
-                        float d2 = patch_distance_sq(pawn_wx, pawn_wz, ox, oz, half);
-                        candidates[candidateCount++] = { i, d2 };
-                    }
-
-                    // Sort by distance (farthest first)
-                    for (uint32_t i = 1; i < candidateCount; i++) {
-                        EvictCandidate key = candidates[i];
-                        uint32_t j = i;
-                        while (j > 0 && candidates[j - 1].dist2 < key.dist2) {
-                            candidates[j] = candidates[j - 1];
-                            j--;
-                        }
-                        candidates[j] = key;
-                    }
-
-                    uint32_t evictThisFrame = std::min(candidateCount, EVICT_BUDGET_PER_FRAME);
+                    uint32_t evictThisFrame = std::min(count, EVICT_BUDGET_PER_FRAME);
                     for (uint32_t e = 0; e < evictThisFrame; e++) {
                         uint32_t pi = candidates[e].idx;
                         free_layer(patches_[pi].layer);
@@ -7848,13 +7873,10 @@ namespace t7 {
                         patches_[pi].valid = false;
                     }
 
-                    // Compact: remove invalid entries
                     if (evictThisFrame > 0) {
                         uint32_t write = 0;
                         for (uint32_t i = 0; i < activePatchCount_; i++) {
-                            if (patches_[i].valid) {
-                                patches_[write++] = patches_[i];
-                            }
+                            if (patches_[i].valid) patches_[write++] = patches_[i];
                         }
                         activePatchCount_ = write;
                         patchInstancesDirty_ = true;
@@ -7963,50 +7985,22 @@ namespace t7 {
                 // entities affect heightfield baking. The generation scan below
                 // only considers patches with spawned == true.
                 {
-                    float pawn_wx = pawnReadback_x_;
-                    float pawn_wz = pawnReadback_z_;
-                    float half = PATCH_EXTENT * 0.5f;
+                    PatchCandidate candidates[MAX_PATCHES];
+                    uint32_t count = collect_sorted_patches(candidates,
+                        pawnReadback_x_, pawnReadback_z_,
+                        [](const ActivePatch& p) {
+                            return p.phase == PatchPhase::ALLOCATED;
+                        }, true);  // nearest first
 
-                    struct SpawnCandidate { uint32_t idx; float dist2; };
-                    SpawnCandidate candidates[MAX_PATCHES];
-                    uint32_t candidateCount = 0;
-
-                    for (uint32_t i = 0; i < activePatchCount_; i++) {
-                        if (!patches_[i].valid || patches_[i].spawned) continue;
-                        float ox = (patches_[i].grid_x + 0.5f) * PATCH_EXTENT;
-                        float oz = (patches_[i].grid_z + 0.5f) * PATCH_EXTENT;
-                        float d2 = patch_distance_sq(pawn_wx, pawn_wz, ox, oz, half);
-                        candidates[candidateCount++] = { i, d2 };
-                    }
-
-                    for (uint32_t i = 1; i < candidateCount; i++) {
-                        SpawnCandidate key = candidates[i];
-                        uint32_t j = i;
-                        while (j > 0 && candidates[j - 1].dist2 > key.dist2) {
-                            candidates[j] = candidates[j - 1];
-                            j--;
-                        }
-                        candidates[j] = key;
-                    }
-
-                    uint32_t spawnThisFrame = std::min(candidateCount, SPAWN_BUDGET_PER_FRAME);
-
-                    // Plan entities for all patches in this frame's budget (CPU-only)
+                    uint32_t spawnThisFrame = std::min(count, SPAWN_BUDGET_PER_FRAME);
                     for (uint32_t s = 0; s < spawnThisFrame; s++) {
                         uint32_t pi = candidates[s].idx;
-                        int32_t pgx = patches_[pi].grid_x;
-                        int32_t pgz = patches_[pi].grid_z;
-
-                        // Evaluate theme envelope for this patch
                         active_theme_idx_ = evaluate_theme_envelope(
-                            tile_seed(activeSeed_, pgx, pgz));
-
-                        select_entities_for_patch(pgx, pgz);
+                            tile_seed(activeSeed_, patches_[pi].grid_x, patches_[pi].grid_z));
+                        select_entities_for_patch(patches_[pi].grid_x, patches_[pi].grid_z);
                         advance_population_batch();
-                        patches_[pi].spawned = true;
+                        patches_[pi].phase = PatchPhase::SPAWNED;
                     }
-
-                    // Place + commit all selected entities across patches
                     place_entity_queue();
                     commit_entity_queue(queue);
                 }
@@ -8021,60 +8015,34 @@ namespace t7 {
                 // inside the visibility cylinder, so they're always closer
                 // than frontier patches and naturally get priority.
                 {
-                    float pawn_wx = pawnReadback_x_;
-                    float pawn_wz = pawnReadback_z_;
-                    float half = PATCH_EXTENT * 0.5f;
+                    PatchCandidate candidates[MAX_PATCHES];
+                    uint32_t count = collect_sorted_patches(candidates,
+                        pawnReadback_x_, pawnReadback_z_,
+                        [](const ActivePatch& p) {
+                            return p.phase == PatchPhase::SPAWNED ||
+                                   p.phase == PatchPhase::NEEDS_REGEN;
+                        }, true);  // nearest first
 
-                    struct PendingWork { uint32_t idx; float dist2; };
-                    PendingWork pending[MAX_PATCHES];
-                    uint32_t pendingCount = 0;
-
-                    for (uint32_t i = 0; i < activePatchCount_; i++) {
-                        if (!patches_[i].valid || !patches_[i].spawned) continue;
-                        if (patches_[i].generated && !patches_[i].pending_regen) continue;
-                        float ox = (patches_[i].grid_x + 0.5f) * PATCH_EXTENT;
-                        float oz = (patches_[i].grid_z + 0.5f) * PATCH_EXTENT;
-                        float d2 = patch_distance_sq(pawn_wx, pawn_wz, ox, oz, half);
-                        pending[pendingCount++] = { i, d2 };
-                    }
-
-                    // Sort by distance (nearest first) — simple insertion sort,
-                    // N is small (typically < 30)
-                    for (uint32_t i = 1; i < pendingCount; i++) {
-                        PendingWork key = pending[i];
-                        uint32_t j = i;
-                        while (j > 0 && pending[j - 1].dist2 > key.dist2) {
-                            pending[j] = pending[j - 1];
-                            j--;
-                        }
-                        pending[j] = key;
-                    }
-
-                    uint32_t genThisFrame = std::min(pendingCount, patches_budget_this_frame());
-
+                    uint32_t genThisFrame = std::min(count, patches_budget_this_frame());
                     if (genThisFrame > 0) {
-                        // Flush tile grid before heightfield gen (GPU reads modifiers)
                         if (tileGridDirty) { upload_tile_grid_now(queue, lastCenterX_, lastCenterZ_); tileGridDirty = false; }
                         GPUPatchParams batchParams[MAX_PATCHES];
-                        uint32_t batchPatchIdx[MAX_PATCHES];
+                        uint32_t batchIdx[MAX_PATCHES];
                         uint32_t batchCount = 0;
-
                         for (uint32_t i = 0; i < genThisFrame; i++) {
-                            uint32_t pi = pending[i].idx;
+                            uint32_t pi = candidates[i].idx;
                             batchParams[batchCount] = make_patch_params(
                                 patches_[pi].grid_x, patches_[pi].grid_z, patches_[pi].layer);
-                            batchPatchIdx[batchCount] = pi;
+                            batchIdx[batchCount] = pi;
                             batchCount++;
                         }
                         generate_patch_batch(encoder, queue, batchParams, batchCount, patchStagingOffset);
                         patchStagingOffset += batchCount;
-
                         for (uint32_t b = 0; b < batchCount; b++) {
-                            uint32_t pi = batchPatchIdx[b];
-                            bool was_regen = patches_[pi].pending_regen;
-                            patches_[pi].generated = true;
-                            patches_[pi].pending_regen = false;
-                            if (!was_regen) {
+                            uint32_t pi = batchIdx[b];
+                            bool first_gen = (patches_[pi].phase == PatchPhase::SPAWNED);
+                            patches_[pi].phase = PatchPhase::GENERATED;
+                            if (first_gen) {
                                 spawn_gallery_for_patch(patches_[pi].grid_x, patches_[pi].grid_z, queue);
                                 detect_gol_zones_for_patch(patches_[pi].grid_x, patches_[pi].grid_z, queue);
                             }
@@ -8106,7 +8074,8 @@ namespace t7 {
                     float half = PATCH_EXTENT * 0.5f;
 
                     for (uint32_t i = 0; i < activePatchCount_; i++) {
-                        if (!patches_[i].generated) continue;
+                        if (patches_[i].phase != PatchPhase::GENERATED &&
+                            patches_[i].phase != PatchPhase::NEEDS_REGEN) continue;
 
                         float ox = (patches_[i].grid_x + 0.5f) * PATCH_EXTENT;
                         float oz = (patches_[i].grid_z + 0.5f) * PATCH_EXTENT;
