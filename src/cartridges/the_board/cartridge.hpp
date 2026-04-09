@@ -1265,7 +1265,7 @@ namespace t7 {
                 int32_t gx, int32_t gz,
                 ActiveT* active_arr, uint32_t max_instances,
                 uint32_t spawn_roll_prop, const float* spawn_chance_table,
-                const float* mood_mult, float (*adj_fn)(uint32_t),
+                const float* mood_mult,
                 uint32_t family, const char* diag_name)
             {
                 SpawnGatePreambleResult r{};
@@ -1282,7 +1282,7 @@ namespace t7 {
 
                 // 2-6. Spawn modifier chain
                 uint32_t nflags = neighbor_entity_flags(gx, gz);
-                float adj_mod = adj_fn(nflags);
+                float adj_mod = adjacency_modifier(family, nflags);
                 adj_mod *= mood_mult[activeMood_];
                 adj_mod *= population_type_affinity(family);
                 r.theme_idx = active_theme_idx_;
@@ -1457,7 +1457,7 @@ namespace t7 {
                 auto gate = run_spawn_preamble(gx, gz,
                     activeColumns_, Dim::MAX_COLUMN_INSTANCES,
                     ColumnProp::SPAWN_ROLL, ColumnConfig::SPAWN_CHANCE_BY_ARCHETYPE,
-                    ColumnConfig::MOOD_MULTIPLIER, adjacency_modifier_column,
+                    ColumnConfig::MOOD_MULTIPLIER,
                     PopFamily::COLUMN, "col");
                 if (!gate.ok) return false;
 
@@ -1730,7 +1730,7 @@ namespace t7 {
                 auto gate = run_spawn_preamble(gx, gz,
                     activePyramids_, Dim::MAX_PYRAMID_INSTANCES,
                     PyramidProp::SPAWN_ROLL, PyramidConfig::SPAWN_CHANCE_BY_ARCHETYPE,
-                    PyramidConfig::MOOD_MULTIPLIER, adjacency_modifier_pyramid,
+                    PyramidConfig::MOOD_MULTIPLIER,
                     PopFamily::PYRAMID, "pyr");
                 if (!gate.ok) return false;
 
@@ -2197,65 +2197,29 @@ namespace t7 {
                 return flags;
             }
 
-            // ─── Adjacency Affinity Rules ─────────────────────────────────────
+            // ─── Adjacency Affinity Matrix ───────────────────────────────────
             //
-            // Multipliers applied to spawn probability based on what neighbors
-            // have. Values > 1.0 boost spawning, < 1.0 suppress it.
-            // These create compositional vocabulary: colonnades flanking arches,
-            // processional doorways near pyramids, etc.
+            // ADJACENCY_BOOST[spawning_family][presence_bit] — multiplier
+            // on spawn chance when neighbors have that presence.
+            // Columns: PYRAMID(0), ARCH_DOORWAY(1), ARCH_STANDARD(2),
+            //          ARCH_MONUMENTAL(3), COLUMN(4)
+            // All 1.0f = neutral. Tune to create compositional vocabulary.
 
-            struct AdjacencyRules {
-                // Columns are drawn to arches (flanking colonnades)
-                static constexpr float COLUMN_NEAR_ARCH_STANDARD = 1.0f;
-                static constexpr float COLUMN_NEAR_ARCH_MONUMENTAL = 1.0f;
-                static constexpr float COLUMN_NEAR_PYRAMID = 1.0f;
+            static constexpr uint32_t ADJACENCY_BITS = 5;
 
-                // Doorway arches cluster near pyramids (processional gates)
-                static constexpr float ARCH_DOORWAY_NEAR_PYRAMID = 1.0f;
-                // Doorway arches also drawn to other arches (gateway sequences)
-                static constexpr float ARCH_DOORWAY_NEAR_ARCH = 1.0f;
-
-                // Standard/Monumental arches anchor their own space (slight self-suppression)
-                static constexpr float ARCH_LARGE_NEAR_ARCH = 1.0f;
-
-                // Pyramids suppress other pyramids (one per region)
-                static constexpr float PYRAMID_NEAR_PYRAMID = 1.0f;
-                // Pyramids attract doorway arches in return
-                static constexpr float PYRAMID_NEAR_ARCH_DOORWAY = 1.0f;
+            static constexpr float ADJACENCY_BOOST[PopFamily::COUNT][ADJACENCY_BITS] = {
+                //         PYR   A_DW  A_ST  A_MN  COL
+                /* PYR */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
+                /* ARCH */{ 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
+                /* COL */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
             };
 
-            // Compute adjacency modifier for a specific entity type.
-            // Arches: generic modifier at spawn gate (tier not yet known).
-            // The pyramid affinity and self-suppression are averaged across tiers.
-            static float adjacency_modifier_arch(uint32_t neighbor_flags) {
+            static float adjacency_modifier(uint32_t family, uint32_t neighbor_flags) {
                 float mod = 1.0f;
-                // Pyramids attract arches (processional gates, temple entries)
-                if (neighbor_flags & EntityPresence::PYRAMID)
-                    mod *= AdjacencyRules::ARCH_DOORWAY_NEAR_PYRAMID;
-                // Existing arches create a mild clustering tendency
-                // (doorways chain, but large arches self-suppress — net effect: slight boost)
-                if (neighbor_flags & EntityPresence::ARCH_ANY)
-                    mod *= AdjacencyRules::ARCH_DOORWAY_NEAR_ARCH;
-                return mod;
-            }
-
-            static float adjacency_modifier_column(uint32_t neighbor_flags) {
-                float mod = 1.0f;
-                if (neighbor_flags & EntityPresence::ARCH_STANDARD)
-                    mod *= AdjacencyRules::COLUMN_NEAR_ARCH_STANDARD;
-                if (neighbor_flags & EntityPresence::ARCH_MONUMENTAL)
-                    mod *= AdjacencyRules::COLUMN_NEAR_ARCH_MONUMENTAL;
-                if (neighbor_flags & EntityPresence::PYRAMID)
-                    mod *= AdjacencyRules::COLUMN_NEAR_PYRAMID;
-                return mod;
-            }
-
-            static float adjacency_modifier_pyramid(uint32_t neighbor_flags) {
-                float mod = 1.0f;
-                if (neighbor_flags & EntityPresence::PYRAMID)
-                    mod *= AdjacencyRules::PYRAMID_NEAR_PYRAMID;
-                if (neighbor_flags & EntityPresence::ARCH_DOORWAY)
-                    mod *= AdjacencyRules::PYRAMID_NEAR_ARCH_DOORWAY;
+                for (uint32_t bit = 0; bit < ADJACENCY_BITS; bit++) {
+                    if (neighbor_flags & (1u << bit))
+                        mod *= ADJACENCY_BOOST[family][bit];
+                }
                 return mod;
             }
 
@@ -2691,7 +2655,7 @@ namespace t7 {
                 auto gate = run_spawn_preamble(gx, gz,
                     activeArches_, Dim::MAX_ARCH_INSTANCES,
                     ArchProp::SPAWN_ROLL, ArchConfig::SPAWN_CHANCE_BY_ARCHETYPE,
-                    ArchConfig::MOOD_MULTIPLIER, adjacency_modifier_arch,
+                    ArchConfig::MOOD_MULTIPLIER,
                     PopFamily::ARCH, "arch");
                 if (!gate.ok) return false;
 
@@ -5272,64 +5236,14 @@ namespace t7 {
                               << " refs=" << patch.entity_ref_count << "\n";
                 }
 #endif
+                for (uint32_t i = 0; i < patch.entity_ref_count; i++) {
+                    auto& ref = patch.entity_refs[i];
+                    FAMILY_DISPATCH[ref.family].evict_slot(this, ref.slot, queue);
+                }
 
                 int32_t gx = patch.grid_x, gz = patch.grid_z;
-                bool had_pyramid = false;
-
-                for (uint32_t i = 0; i < patch.entity_ref_count; i++) {
-                    uint32_t slot = patch.entity_refs[i].slot;
-                    switch (patch.entity_refs[i].family) {
-                    case PopFamily::PYRAMID:
-                        cpuPyramids_.instances[slot] = GPUPyramidInstance{};
-                        activePyramids_[slot].active = false;
-                        activePyramidCount_--;
-                        groundEntriesDirty_ = true;
-                        { GPUPyramidMeshParams ep{}; gpuState_.upload_pyramid_mesh_params_slot(queue, slot, ep); }
-                        pyramidMeshGenPending_ = true;
-                        had_pyramid = true;
-#ifdef DIAG_ENTITY_LIFECYCLE
-                        std::cout << "[DIAG:EVICT]   pyr slot=" << slot << "\n";
-#endif
-                        break;
-                    case PopFamily::ARCH:
-                        clear_pier(queue, Dim::PIER_ARCH_BASE + slot * 2);
-                        clear_pier(queue, Dim::PIER_ARCH_BASE + slot * 2 + 1);
-                        activeArches_[slot].active = false;
-                        activeArchCount_--;
-                        portalsDirty_ = true;
-                        { GPUArchMeshParams ep{}; gpuState_.upload_arch_mesh_params_slot(queue, slot, ep); }
-                        archMeshGenPending_ = true;
-#ifdef DIAG_ENTITY_LIFECYCLE
-                        std::cout << "[DIAG:EVICT]   arch slot=" << slot << "\n";
-#endif
-                        break;
-                    case PopFamily::COLUMN:
-                        clear_pier(queue, Dim::PIER_COLUMN_BASE + slot);
-                        activeColumns_[slot].active = false;
-                        activeColumnCount_--;
-                        { GPUColumnMeshParams ep{}; gpuState_.upload_column_mesh_params_slot(queue, slot, ep); }
-                        columnMeshGenPending_ = true;
-#ifdef DIAG_ENTITY_LIFECYCLE
-                        std::cout << "[DIAG:EVICT]   col slot=" << slot << "\n";
-#endif
-                        break;
-                    }
-                }
-
-                // Clear entity presence flags for all families on this tile
-                clear_entity_presence(gx, gz, EntityPresence::PYRAMID);
-                clear_entity_presence(gx, gz, EntityPresence::ARCH_ANY);
-                clear_entity_presence(gx, gz, EntityPresence::COLUMN);
-
-                // Pyramid count fixup (only if any were evicted)
-                if (had_pyramid) {
-                    uint32_t max_idx = 0;
-                    for (uint32_t i = 0; i < Dim::MAX_PYRAMID_INSTANCES; i++) {
-                        if (activePyramids_[i].active) max_idx = i + 1;
-                    }
-                    cpuPyramids_.count = max_idx;
-                    gpuState_.upload_pyramids(queue, cpuPyramids_);
-                }
+                for (uint32_t f = 0; f < PopFamily::COUNT; f++)
+                    clear_entity_presence(gx, gz, FAMILY_DISPATCH[f].presence_clear_flag);
 
                 patch.entity_ref_count = 0;
             }
@@ -5582,6 +5496,8 @@ namespace t7 {
                 bool (*try_select)(Cartridge* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
                 bool (*try_place)(Cartridge* self, EntityQueueEntry& e, PlacementEntry& pe);
                 void (*try_commit)(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue);
+                void (*evict_slot)(Cartridge* self, uint32_t slot, wgpu::Queue& queue);
+                uint32_t presence_clear_flag;
                 const char* name;
             };
 
@@ -5720,12 +5636,66 @@ namespace t7 {
                 }
             }
 
+            // ── Eviction dispatch wrappers ──
+
+            static void dispatch_evict_pyramid(Cartridge* self,
+                uint32_t slot, wgpu::Queue& queue)
+            {
+                self->cpuPyramids_.instances[slot] = GPUPyramidInstance{};
+                self->activePyramids_[slot].active = false;
+                self->activePyramidCount_--;
+                self->groundEntriesDirty_ = true;
+                { GPUPyramidMeshParams ep{}; self->gpuState_.upload_pyramid_mesh_params_slot(queue, slot, ep); }
+                self->pyramidMeshGenPending_ = true;
+
+                uint32_t max_idx = 0;
+                for (uint32_t i = 0; i < Dim::MAX_PYRAMID_INSTANCES; i++) {
+                    if (self->activePyramids_[i].active) max_idx = i + 1;
+                }
+                self->cpuPyramids_.count = max_idx;
+                self->gpuState_.upload_pyramids(queue, self->cpuPyramids_);
+#ifdef DIAG_ENTITY_LIFECYCLE
+                std::cout << "[DIAG:EVICT]   pyr slot=" << slot << "\n";
+#endif
+            }
+
+            static void dispatch_evict_arch(Cartridge* self,
+                uint32_t slot, wgpu::Queue& queue)
+            {
+                self->clear_pier(queue, Dim::PIER_ARCH_BASE + slot * 2);
+                self->clear_pier(queue, Dim::PIER_ARCH_BASE + slot * 2 + 1);
+                self->activeArches_[slot].active = false;
+                self->activeArchCount_--;
+                self->portalsDirty_ = true;
+                { GPUArchMeshParams ep{}; self->gpuState_.upload_arch_mesh_params_slot(queue, slot, ep); }
+                self->archMeshGenPending_ = true;
+#ifdef DIAG_ENTITY_LIFECYCLE
+                std::cout << "[DIAG:EVICT]   arch slot=" << slot << "\n";
+#endif
+            }
+
+            static void dispatch_evict_column(Cartridge* self,
+                uint32_t slot, wgpu::Queue& queue)
+            {
+                self->clear_pier(queue, Dim::PIER_COLUMN_BASE + slot);
+                self->activeColumns_[slot].active = false;
+                self->activeColumnCount_--;
+                { GPUColumnMeshParams ep{}; self->gpuState_.upload_column_mesh_params_slot(queue, slot, ep); }
+                self->columnMeshGenPending_ = true;
+#ifdef DIAG_ENTITY_LIFECYCLE
+                std::cout << "[DIAG:EVICT]   col slot=" << slot << "\n";
+#endif
+            }
+
             // ── Dispatch table (order matches PopFamily enum) ──
 
             static constexpr FamilyDispatch FAMILY_DISPATCH[PopFamily::COUNT] = {
-                { dispatch_select_pyramid, dispatch_place_pyramid, dispatch_commit_pyramid, "pyr" },
-                { dispatch_select_arch,    dispatch_place_arch,    dispatch_commit_arch,    "arch" },
-                { dispatch_select_column,  dispatch_place_column,  dispatch_commit_column,  "col" },
+                { dispatch_select_pyramid, dispatch_place_pyramid, dispatch_commit_pyramid,
+                  dispatch_evict_pyramid, EntityPresence::PYRAMID, "pyr" },
+                { dispatch_select_arch,    dispatch_place_arch,    dispatch_commit_arch,
+                  dispatch_evict_arch,    EntityPresence::ARCH_ANY, "arch" },
+                { dispatch_select_column,  dispatch_place_column,  dispatch_commit_column,
+                  dispatch_evict_column,  EntityPresence::COLUMN, "col" },
             };
 
             // ─── Population Themes ───────────────────────────────────────────
