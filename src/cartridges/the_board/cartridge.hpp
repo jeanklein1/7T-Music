@@ -5700,23 +5700,6 @@ namespace t7 {
             static constexpr uint32_t THEME_COUNT = 5;
             static constexpr float THEME_BASE_WEIGHT = 10.0f;
 
-            struct FormationRule {
-                float formation_chance;        // [0,1] probability of attempting
-                float distance_mean;           // world units: spacing from sibling
-                float distance_sigma;          // jitter on spacing
-                float lateral_angle;           // radians: 0=inline, π/2=perpendicular
-                float lateral_angle_sigma;     // angular spread
-                uint32_t rotation_mode;        // 0=inherit, 1=follow line, 2=independent
-                float rotation_drift_sigma;    // per-step rotation jitter
-                float max_sibling_distance;    // ignore siblings farther than this
-            };
-
-            struct RotationMode {
-                static constexpr uint32_t INHERIT = 0;
-                static constexpr uint32_t FOLLOW_LINE = 1;
-                static constexpr uint32_t INDEPENDENT = 2;
-            };
-
             // ── Theme Envelope ──────────────────────────────────────────────
             //
             // Single active theme at a time. When selected, its weight spikes
@@ -5727,48 +5710,6 @@ namespace t7 {
                 int32_t  active = -1;              // theme index, or -1 (no bias)
                 uint32_t elapsed = 0;               // patches since this theme fired
                 uint32_t cooldowns[THEME_COUNT]{};  // per-theme remaining cooldown
-            };
-
-            // ── Formation Tip ───────────────────────────────────────────────
-            //
-            // One per family. The last placed entity's position + rotation.
-            // The next entity of that family (or one anchored to it) steps
-            // from this tip. Replaces the ring buffer + nearest-sibling search.
-
-            struct FormationTip {
-                float x = 0.0f;
-                float z = 0.0f;
-                float rotation = 0.0f;
-                bool  valid = false;
-            };
-
-            // ── Per-Anchor Formation Slot ───────────────────────────────────
-            //
-            // Each family can have different formation parameters depending on
-            // which family it anchors to. Slots keyed by anchor family index.
-            // -1 = self (same family). Only slots with ch > 0 are active.
-
-            struct FormationSlot {
-                float    ch = 0.0f;        // probability of attempting formation
-                float    di = 0.0f;        // step distance mean (world units)
-                float    ds = 0.0f;        // step distance sigma
-                float    an = 0.0f;        // angle relative to tip rotation (radians)
-                float    as = 0.0f;        // angle sigma
-                uint32_t rm = RotationMode::INDEPENDENT;  // rotation mode
-                float    dr = 0.0f;        // rotation drift sigma
-            };
-
-            // Maximum anchor slots per family (Self, Pyramid, Arch, Column = 4)
-            static constexpr uint32_t MAX_FORMATION_ANCHORS = 4;
-
-            struct FormationConfig {
-                int32_t        anchor = -1;  // currently active anchor (-1=self, 0=pyr, 1=arch, 2=col)
-                FormationSlot  slots[MAX_FORMATION_ANCHORS]{};  // indexed by anchor+1 (0=self, 1=pyr, 2=arch, 3=col)
-                const FormationSlot* active_slot() const {
-                    uint32_t idx = (uint32_t)(anchor + 1);
-                    if (idx >= MAX_FORMATION_ANCHORS) return nullptr;
-                    return (slots[idx].ch > 0.0f) ? &slots[idx] : nullptr;
-                }
             };
 
             struct PopulationTheme {
@@ -5784,15 +5725,12 @@ namespace t7 {
                 uint32_t decay;         // patches for linear decay to base
                 uint32_t cooldown;      // patches before re-eligible after expiry
 
-                // Per-anchor formation (replaces single FormationRule per family)
-                FormationConfig formation[PopFamily::COUNT];
-
                 // Lattice weight (dormant — kept for backward compat)
                 float weight;
             };
 
             //  ┌──────────────────────────────────────────────────────────────────────────────┐
-            //  │ THEME PROFILES — Envelope-selected, differential tip formation                │
+            //  │ THEME PROFILES — Envelope-selected                                            │
             //  ├──────────────────┬────────┬────────┬────────┬─────────┬─────────────────────────┤
             //  │ Theme            │ Pyr sp │ Arch sp│ Col sp │ Density │ Envelope                │
             //  ├──────────────────┼────────┼────────┼────────┼─────────┼─────────────────────────┤
@@ -5802,50 +5740,33 @@ namespace t7 {
             //  │ 3 Antenna        │  0.5   │  0.5   │  4.0   │  ×1.0   │ 180/10/5/5             │
             //  │ 4 Barren         │  0.4   │  0.3   │  0.5   │  ×1.0   │ 100/12/3/4             │
             //  └──────────────────┴────────┴────────┴────────┴─────────┴─────────────────────────┘
-            //
-            //  Formation slots: { ch, di, ds, an, as, rm, dr }
-            //  FormationConfig: { anchor, { slot[Self], slot[Pyr], slot[Arch], slot[Col] } }
-            //  Active slot = slots[anchor+1] when ch > 0
 
             static constexpr PopulationTheme THEMES[THEME_COUNT] = {
-                // ── 0: TRANSITION — sparse connective tissue, no formation ───
+                // ── 0: TRANSITION — sparse connective tissue ─────────────────
                 {   { 0.4f, 0.3f, 0.7f },                                       // spawn_weight
                     { 1.0f, 1.0f, 1.0f },                                       // tier_pyr
                     { 1.0f, 0.3f, 1.0f },                                       // tier_arch
                     { 0.1f, 0.2f, 0.3f, 0.1f, 2.0f, 0.7f },                    // tier_col
                     1.0f,                                                         // density
                     150.0f, 20u, 3u, 0u,                                          // spike, sustain, decay, cooldown
-                    {   { -1, {} },                                               // pyramid: no formation
-                        { -1, {} },                                               // arch: no formation
-                        { -1, {} },                                               // column: no formation
-                    },
                     0.21f                                                         // weight (dormant)
                 },
-                // ── 1: MONUMENTAL — big pyramids, arches anchor to pyramids, columns flank arches
+                // ── 1: MONUMENTAL — big pyramids, varied arches, heavy columns
                 {   { 1.5f, 1.0f, 1.0f },
                     { 0.2f, 0.5f, 3.0f },
                     { 2.0f, 0.1f, 3.0f },
                     { 0.01f, 0.01f, 1.0f, 0.5f, 1.5f, 0.5f },
                     1.0f,
                     150.0f, 10u, 10u, 8u,
-                    {   { -1, {} },                                               // pyramid: no formation
-                        {  0, { {}, { 0.60f, 80.0f, 15.0f, 0.0f, 0.25f, 0, 0.15f }, {}, {} } },  // arch→pyramid
-                        {  1, { {}, {}, { 0.40f, 25.0f, 5.0f, 1.571f, 0.30f, 0, 0.05f }, {} } },  // column→arch
-                    },
                     0.30f
                 },
-                // ── 2: COLONNADE — arch chains self, columns chain to columns ─
+                // ── 2: COLONNADE — dense columns, moderate arches ────────────
                 {   { 0.3f, 1.0f, 4.0f },
                     { 1.0f, 1.0f, 1.0f },
                     { 3.0f, 0.5f, 1.0f },
                     { 0.3f, 3.0f, 5.0f, 0.2f, 0.1f, 0.1f },
                     1.0f,
                     150.0f, 15u, 6u, 6u,
-                    {   { -1, {} },                                               // pyramid: no formation
-                        { -1, { { 0.94f, 150.0f, 50.0f, 1.57f, 0.10f, 0, 0.10f }, {}, {}, {} } },  // arch→self
-                        {  2, { {}, {}, { 0.0f, 100.0f, 3.0f, 1.571f, 0.15f, 0, 0.05f },           // column: inactive arch slot
-                                        { 0.98f, 100.0f, 0.0f, 2.094f, 0.10f, 0, 0.0f } } },       // column→column (active)
-                    },
                     0.31f
                 },
                 // ── 3: ANTENNA — inline column corridor ──────────────────────
@@ -5855,23 +5776,15 @@ namespace t7 {
                     { 0.1f, 0.3f, 0.3f, 0.5f, 3.5f, 1.0f },
                     1.0f,
                     180.0f, 10u, 5u, 5u,
-                    {   { -1, {} },                                               // pyramid: no formation
-                        { -1, {} },                                               // arch: no formation
-                        { -1, { { 0.95f, 80.0f, 5.0f, 0.0f, 0.20f, 1, 0.10f }, {}, {}, {} } },  // column→self (follow)
-                    },
                     0.18f
                 },
-                // ── 4: BARREN — near-empty, no formations ────────────────────
+                // ── 4: BARREN — near-empty ───────────────────────────────────
                 {   { 0.4f, 0.3f, 0.5f },
                     { 2.0f, 0.5f, 0.2f },
                     { 1.0f, 1.0f, 1.0f },
                     { 0.2f, 0.5f, 0.5f, 1.0f, 1.0f, 1.0f },
                     1.0f,
                     100.0f, 12u, 3u, 4u,
-                    {   { -1, {} },
-                        { -1, {} },
-                        { -1, {} },
-                    },
                     0.04f
                 },
             };
@@ -5943,10 +5856,6 @@ namespace t7 {
                     env.active = (int32_t)selected;
                     env.elapsed = 0;
 
-                    // Clear formation tips on theme change
-                    for (uint32_t f = 0; f < PopFamily::COUNT; f++) {
-                        formationTips_[f] = FormationTip{};
-                    }
                 }
                 else {
                     env.elapsed++;
@@ -6365,9 +6274,6 @@ namespace t7 {
             ThemeEnvelope themeEnvelope_{};
             uint32_t active_theme_idx_ = 0;   // set per-patch by evaluate_theme_envelope
 
-            // ── Formation Tips (replaces ring buffer for differential tip) ──
-            FormationTip formationTips_[PopFamily::COUNT]{};
-
             // ── Minimum Separation Matrix ─────────────────────────────────────
             //
             // Compositional spacing: how far apart entities of each family pair
@@ -6418,45 +6324,6 @@ namespace t7 {
                         if (dx * dx + dz * dz < min_dist_sq) return false;
                     }
                 }
-                return true;
-            }
-
-            // Propose a formation position relative to a sibling.
-            // Returns true if proposal is valid, writes to out_x, out_z, out_rotation.
-            // seed provides deterministic jitter draws.
-            bool propose_formation(const SpawnRecord& sibling, const FormationRule& rule,
-                uint32_t seed, float default_rotation,
-                float& out_x, float& out_z, float& out_rotation) const {
-
-                // Distance from sibling
-                float dist = std::max(5.0f,
-                    cpu_sample_gaussian(seed, 340u, rule.distance_mean, rule.distance_sigma));
-
-                // Direction: sibling's facing + lateral angle + jitter
-                float angle = sibling.rotation + rule.lateral_angle
-                    + cpu_sample_gaussian(seed, 342u, 0.0f, rule.lateral_angle_sigma);
-
-                out_x = sibling.x + std::cos(angle) * dist;
-                out_z = sibling.z + std::sin(angle) * dist;
-
-                // Rotation
-                switch (rule.rotation_mode) {
-                case RotationMode::INHERIT:
-                    out_rotation = sibling.rotation
-                        + cpu_sample_gaussian(seed, 344u, 0.0f, rule.rotation_drift_sigma);
-                    break;
-                case RotationMode::FOLLOW_LINE: {
-                    float dx = out_x - sibling.x;
-                    float dz = out_z - sibling.z;
-                    out_rotation = std::atan2(dz, dx)
-                        + cpu_sample_gaussian(seed, 344u, 0.0f, rule.rotation_drift_sigma);
-                    break;
-                }
-                default:
-                    out_rotation = default_rotation;
-                    break;
-                }
-
                 return true;
             }
 
@@ -6810,12 +6677,9 @@ namespace t7 {
                     formationWriteIdx_[f] = 0;
                 }
 
-                // Theme envelope + formation tips
+                // Theme envelope
                 themeEnvelope_ = ThemeEnvelope{};
                 active_theme_idx_ = 0;
-                for (uint32_t f = 0; f < PopFamily::COUNT; f++) {
-                    formationTips_[f] = FormationTip{};
-                }
 
                 // Clear all entity piers (keep test rig at slots 0-2)
                 for (uint32_t i = Dim::PIER_ARCH_BASE; i < Dim::PIER_TOTAL; i++) {
