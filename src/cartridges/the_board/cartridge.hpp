@@ -5364,7 +5364,7 @@ namespace t7 {
             // Entity spawning and heightfield generation are both distance-
             // driven and budgeted per frame. Spawning must complete before
             // generation (piers affect heightfields), enforced by requiring
-            // spawned == true before a patch enters the generation scan.
+            // phase must be SPAWNED before a patch enters the generation scan.
             static constexpr uint32_t SPAWN_BUDGET_PER_FRAME = 4;    // max patches to spawn entities for
             static constexpr uint32_t ALLOC_BUDGET_PER_FRAME = 4;    // max patches to allocate per frame
             static constexpr uint32_t EVICT_BUDGET_PER_FRAME = 4;    // max patches to evict per frame
@@ -7042,6 +7042,56 @@ namespace t7 {
                     gz >= cz - r && gz <= cz + r;
             }
 
+            // Process entity spawn for pre-collected patch candidates.
+            void spawn_selected_patches(
+                const PatchCandidate* candidates, uint32_t count,
+                wgpu::Queue& queue)
+            {
+                for (uint32_t s = 0; s < count; s++) {
+                    uint32_t pi = candidates[s].idx;
+                    active_theme_idx_ = evaluate_theme_envelope(
+                        tile_seed(activeSeed_, patches_[pi].grid_x, patches_[pi].grid_z));
+                    select_entities_for_patch(patches_[pi].grid_x, patches_[pi].grid_z);
+                    advance_population_batch();
+                    patches_[pi].phase = PatchPhase::SPAWNED;
+                }
+                place_entity_queue();
+                commit_entity_queue(queue);
+            }
+
+            // Process heightfield generation for pre-collected patch candidates.
+            void generate_selected_patches(
+                const PatchCandidate* candidates, uint32_t count,
+                wgpu::CommandEncoder& encoder, wgpu::Queue& queue,
+                uint32_t& patchStagingOffset, bool& tileGridDirty)
+            {
+                if (count == 0) return;
+                if (tileGridDirty) {
+                    upload_tile_grid_now(queue, lastCenterX_, lastCenterZ_);
+                    tileGridDirty = false;
+                }
+                GPUPatchParams batchParams[MAX_PATCHES];
+                uint32_t batchIdx[MAX_PATCHES];
+                for (uint32_t i = 0; i < count; i++) {
+                    uint32_t pi = candidates[i].idx;
+                    batchParams[i] = make_patch_params(
+                        patches_[pi].grid_x, patches_[pi].grid_z, patches_[pi].layer);
+                    batchIdx[i] = pi;
+                }
+                generate_patch_batch(encoder, queue, batchParams, count, patchStagingOffset);
+                patchStagingOffset += count;
+                for (uint32_t b = 0; b < count; b++) {
+                    uint32_t pi = batchIdx[b];
+                    bool first_gen = (patches_[pi].phase == PatchPhase::SPAWNED);
+                    patches_[pi].phase = PatchPhase::GENERATED;
+                    if (first_gen) {
+                        spawn_gallery_for_patch(patches_[pi].grid_x, patches_[pi].grid_z, queue);
+                        detect_gol_zones_for_patch(patches_[pi].grid_x, patches_[pi].grid_z, queue);
+                    }
+                }
+                patchInstancesDirty_ = true;
+            }
+
         public:
             Cartridge() = default;
 
@@ -7802,49 +7852,27 @@ namespace t7 {
                             }
                         }
                         tileGridDirty = true;
-                        // Plan all entities for inner patches (CPU-only, serial)
-                        for (uint32_t i = 0; i < activePatchCount_; i++) {
-                            if (!patches_[i].valid || patches_[i].phase != PatchPhase::ALLOCATED) continue;
-                            if (!in_priority_window(patches_[i].grid_x, patches_[i].grid_z,
-                                centerX, centerZ)) continue;
 
-                            // Evaluate theme envelope for this patch
-                            active_theme_idx_ = evaluate_theme_envelope(
-                                tile_seed(activeSeed_, patches_[i].grid_x, patches_[i].grid_z));
+                        // Spawn inner patches
+                        PatchCandidate spawnCands[MAX_PATCHES];
+                        uint32_t spawnCount = collect_sorted_patches(spawnCands,
+                            pawnReadback_x_, pawnReadback_z_,
+                            [&](const ActivePatch& p) {
+                                return p.phase == PatchPhase::ALLOCATED &&
+                                       in_priority_window(p.grid_x, p.grid_z, centerX, centerZ);
+                            }, true);
+                        spawn_selected_patches(spawnCands, spawnCount, queue);
 
-                            select_entities_for_patch(patches_[i].grid_x, patches_[i].grid_z);
-                            advance_population_batch();
-                            patches_[i].phase = PatchPhase::SPAWNED;
-                        }
-                        // Place + commit all selected entities across patches
-                        place_entity_queue();
-                        commit_entity_queue(queue);
-                        {
-                            // Flush tile grid before heightfield gen (GPU reads modifiers)
-                            if (tileGridDirty) { upload_tile_grid_now(queue, lastCenterX_, lastCenterZ_); tileGridDirty = false; }
-                            GPUPatchParams batchParams[MAX_PATCHES];
-                            uint32_t batchIdx[MAX_PATCHES];
-                            uint32_t batchCount = 0;
-                            for (uint32_t i = 0; i < activePatchCount_; i++) {
-                                if (patches_[i].phase == PatchPhase::SPAWNED &&
-                                    in_priority_window(patches_[i].grid_x, patches_[i].grid_z,
-                                        centerX, centerZ)) {
-                                    batchParams[batchCount] = make_patch_params(
-                                        patches_[i].grid_x, patches_[i].grid_z, patches_[i].layer);
-                                    batchIdx[batchCount] = i;
-                                    batchCount++;
-                                }
-                            }
-                            generate_patch_batch(encoder, queue, batchParams, batchCount, patchStagingOffset);
-                            patchStagingOffset += batchCount;
-                            for (uint32_t b = 0; b < batchCount; b++) {
-                                patches_[batchIdx[b]].phase = PatchPhase::GENERATED;
-                                spawn_gallery_for_patch(patches_[batchIdx[b]].grid_x,
-                                    patches_[batchIdx[b]].grid_z, queue);
-                                detect_gol_zones_for_patch(patches_[batchIdx[b]].grid_x,
-                                    patches_[batchIdx[b]].grid_z, queue);
-                            }
-                        }
+                        // Generate inner patches
+                        PatchCandidate genCands[MAX_PATCHES];
+                        uint32_t genCount = collect_sorted_patches(genCands,
+                            pawnReadback_x_, pawnReadback_z_,
+                            [&](const ActivePatch& p) {
+                                return p.phase == PatchPhase::SPAWNED &&
+                                       in_priority_window(p.grid_x, p.grid_z, centerX, centerZ);
+                            }, true);
+                        generate_selected_patches(genCands, genCount,
+                            encoder, queue, patchStagingOffset, tileGridDirty);
                     }
                 }
 
@@ -7983,32 +8011,22 @@ namespace t7 {
                 //
                 // Spawning must complete before generation — piers from spawned
                 // entities affect heightfield baking. The generation scan below
-                // only considers patches with spawned == true.
+                // only considers patches with phase == SPAWNED or NEEDS_REGEN.
                 {
                     PatchCandidate candidates[MAX_PATCHES];
                     uint32_t count = collect_sorted_patches(candidates,
                         pawnReadback_x_, pawnReadback_z_,
                         [](const ActivePatch& p) {
                             return p.phase == PatchPhase::ALLOCATED;
-                        }, true);  // nearest first
-
-                    uint32_t spawnThisFrame = std::min(count, SPAWN_BUDGET_PER_FRAME);
-                    for (uint32_t s = 0; s < spawnThisFrame; s++) {
-                        uint32_t pi = candidates[s].idx;
-                        active_theme_idx_ = evaluate_theme_envelope(
-                            tile_seed(activeSeed_, patches_[pi].grid_x, patches_[pi].grid_z));
-                        select_entities_for_patch(patches_[pi].grid_x, patches_[pi].grid_z);
-                        advance_population_batch();
-                        patches_[pi].phase = PatchPhase::SPAWNED;
-                    }
-                    place_entity_queue();
-                    commit_entity_queue(queue);
+                        }, true);
+                    spawn_selected_patches(candidates,
+                        std::min(count, SPAWN_BUDGET_PER_FRAME), queue);
                 }
 
                 // ─── DISTANCE-DRIVEN HEIGHTFIELD GENERATION ──────────────────
                 //
                 // Every frame, scan all spawned patches for pending work
-                // (ungenerated or pending_regen). Sort by world-space distance
+                // (SPAWNED or NEEDS_REGEN). Sort by world-space distance
                 // to pawn (nearest first) and generate up to budget.
                 //
                 // Regens (stale heightfields from new piers) are already
@@ -8021,34 +8039,10 @@ namespace t7 {
                         [](const ActivePatch& p) {
                             return p.phase == PatchPhase::SPAWNED ||
                                    p.phase == PatchPhase::NEEDS_REGEN;
-                        }, true);  // nearest first
-
-                    uint32_t genThisFrame = std::min(count, patches_budget_this_frame());
-                    if (genThisFrame > 0) {
-                        if (tileGridDirty) { upload_tile_grid_now(queue, lastCenterX_, lastCenterZ_); tileGridDirty = false; }
-                        GPUPatchParams batchParams[MAX_PATCHES];
-                        uint32_t batchIdx[MAX_PATCHES];
-                        uint32_t batchCount = 0;
-                        for (uint32_t i = 0; i < genThisFrame; i++) {
-                            uint32_t pi = candidates[i].idx;
-                            batchParams[batchCount] = make_patch_params(
-                                patches_[pi].grid_x, patches_[pi].grid_z, patches_[pi].layer);
-                            batchIdx[batchCount] = pi;
-                            batchCount++;
-                        }
-                        generate_patch_batch(encoder, queue, batchParams, batchCount, patchStagingOffset);
-                        patchStagingOffset += batchCount;
-                        for (uint32_t b = 0; b < batchCount; b++) {
-                            uint32_t pi = batchIdx[b];
-                            bool first_gen = (patches_[pi].phase == PatchPhase::SPAWNED);
-                            patches_[pi].phase = PatchPhase::GENERATED;
-                            if (first_gen) {
-                                spawn_gallery_for_patch(patches_[pi].grid_x, patches_[pi].grid_z, queue);
-                                detect_gol_zones_for_patch(patches_[pi].grid_x, patches_[pi].grid_z, queue);
-                            }
-                        }
-                        patchInstancesDirty_ = true;
-                    }
+                        }, true);
+                    generate_selected_patches(candidates,
+                        std::min(count, patches_budget_this_frame()),
+                        encoder, queue, patchStagingOffset, tileGridDirty);
                 }
 
                 // Upload patch instances sorted by LOD band, then pre-gen ring.
