@@ -2450,162 +2450,6 @@ namespace t7 {
 
             std::vector<PlacementEntry> placementResults_;
 
-            // ─── Family Dispatch Table ──────────────────────────────────────
-            //
-            // Table-driven dispatch for the select/place/commit pipeline.
-            // Adding a new entity family: write select/place/commit functions,
-            // add union members, add 3 wrappers, add 1 row here.
-
-            struct FamilyDispatch {
-                bool (*try_select)(Cartridge* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
-                bool (*try_place)(Cartridge* self, EntityQueueEntry& e, PlacementEntry& pe);
-                void (*try_commit)(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue);
-                const char* name;
-            };
-
-            // ── Pyramid dispatch wrappers ──
-
-            static bool dispatch_select_pyramid(Cartridge* self,
-                int32_t gx, int32_t gz, EntityQueueEntry& e)
-            {
-                return self->select_pyramid_for_patch(gx, gz, e.pyramid);
-            }
-
-            static bool dispatch_place_pyramid(Cartridge* self,
-                EntityQueueEntry& e, PlacementEntry& pe)
-            {
-                pe.family = e.family; pe.gx = e.gx; pe.gz = e.gz;
-                if (self->place_pyramid_from_selection(e.pyramid, pe.pyramid)) {
-#ifdef DIAG_ENTITY_LIFECYCLE
-                    std::cout << "[DIAG:PLACE] pyr slot=" << pe.pyramid.slot
-                        << " pos=(" << pe.pyramid.cx << "," << pe.pyramid.cz
-                        << ") host=(" << pe.pyramid.host_gx << "," << pe.pyramid.host_gz << ")\n";
-#endif
-                    return true;
-                }
-                self->activePyramids_[e.pyramid.slot].active = false;
-#ifdef DIAG_ENTITY_LIFECYCLE
-                std::cout << "[DIAG:PLACE] pyr slot=" << e.pyramid.slot
-                    << " FAIL patch=(" << e.gx << "," << e.gz << ")\n";
-#endif
-                return false;
-            }
-
-            static void dispatch_commit_pyramid(Cartridge* self,
-                PlacementEntry& pe, wgpu::Queue& queue)
-            {
-                auto* host = self->find_patch(pe.pyramid.host_gx, pe.pyramid.host_gz);
-                if (host) {
-                    self->commit_pyramid(pe.pyramid, pe.gx, pe.gz, queue);
-                    host->record_entity(PopFamily::PYRAMID, pe.pyramid.slot);
-                } else {
-                    self->activePyramids_[pe.pyramid.slot].active = false;
-#ifdef DIAG_ENTITY_LIFECYCLE
-                    std::cout << "[DIAG:REJECT] pyr slot=" << pe.pyramid.slot
-                        << " host=(" << pe.pyramid.host_gx << "," << pe.pyramid.host_gz
-                        << ") — no host patch\n";
-#endif
-                }
-            }
-
-            // ── Arch dispatch wrappers ──
-
-            static bool dispatch_select_arch(Cartridge* self,
-                int32_t gx, int32_t gz, EntityQueueEntry& e)
-            {
-                return self->select_arch_for_patch(gx, gz, e.arch);
-            }
-
-            static bool dispatch_place_arch(Cartridge* self,
-                EntityQueueEntry& e, PlacementEntry& pe)
-            {
-                pe.family = e.family; pe.gx = e.gx; pe.gz = e.gz;
-                if (self->place_arch_from_selection(e.arch, pe.arch)) {
-#ifdef DIAG_ENTITY_LIFECYCLE
-                    std::cout << "[DIAG:PLACE] arch slot=" << pe.arch.slot
-                        << " pos=(" << pe.arch.cx << "," << pe.arch.cz
-                        << ") host=(" << pe.arch.host_gx << "," << pe.arch.host_gz << ")\n";
-#endif
-                    return true;
-                }
-                self->activeArches_[e.arch.slot].active = false;
-#ifdef DIAG_ENTITY_LIFECYCLE
-                std::cout << "[DIAG:PLACE] arch slot=" << e.arch.slot
-                    << " FAIL patch=(" << e.gx << "," << e.gz << ")\n";
-#endif
-                return false;
-            }
-
-            static void dispatch_commit_arch(Cartridge* self,
-                PlacementEntry& pe, wgpu::Queue& queue)
-            {
-                auto* host = self->find_patch(pe.arch.host_gx, pe.arch.host_gz);
-                if (host) {
-                    self->commit_arch(pe.arch, pe.gx, pe.gz, queue);
-                    host->record_entity(PopFamily::ARCH, pe.arch.slot);
-                } else {
-                    self->activeArches_[pe.arch.slot].active = false;
-#ifdef DIAG_ENTITY_LIFECYCLE
-                    std::cout << "[DIAG:REJECT] arch slot=" << pe.arch.slot
-                        << " host=(" << pe.arch.host_gx << "," << pe.arch.host_gz
-                        << ") — no host patch\n";
-#endif
-                }
-            }
-
-            // ── Column dispatch wrappers ──
-
-            static bool dispatch_select_column(Cartridge* self,
-                int32_t gx, int32_t gz, EntityQueueEntry& e)
-            {
-                return self->select_column_for_patch(gx, gz, e.column);
-            }
-
-            static bool dispatch_place_column(Cartridge* self,
-                EntityQueueEntry& e, PlacementEntry& pe)
-            {
-                pe.family = e.family; pe.gx = e.gx; pe.gz = e.gz;
-                if (self->place_column_from_selection(e.column, pe.column)) {
-#ifdef DIAG_ENTITY_LIFECYCLE
-                    std::cout << "[DIAG:PLACE] col slot=" << pe.column.slot
-                        << " pos=(" << pe.column.cx << "," << pe.column.cz
-                        << ") host=(" << pe.column.host_gx << "," << pe.column.host_gz << ")\n";
-#endif
-                    return true;
-                }
-                self->activeColumns_[e.column.slot].active = false;
-#ifdef DIAG_ENTITY_LIFECYCLE
-                std::cout << "[DIAG:PLACE] col slot=" << e.column.slot
-                    << " FAIL patch=(" << e.gx << "," << e.gz << ")\n";
-#endif
-                return false;
-            }
-
-            static void dispatch_commit_column(Cartridge* self,
-                PlacementEntry& pe, wgpu::Queue& queue)
-            {
-                auto* host = self->find_patch(pe.column.host_gx, pe.column.host_gz);
-                if (host) {
-                    self->commit_column(pe.column, pe.gx, pe.gz, queue);
-                    host->record_entity(PopFamily::COLUMN, pe.column.slot);
-                } else {
-                    self->activeColumns_[pe.column.slot].active = false;
-#ifdef DIAG_ENTITY_LIFECYCLE
-                    std::cout << "[DIAG:REJECT] col slot=" << pe.column.slot
-                        << " host=(" << pe.column.host_gx << "," << pe.column.host_gz
-                        << ") — no host patch\n";
-#endif
-                }
-            }
-
-            // ── Dispatch table (order matches PopFamily enum) ──
-
-            static constexpr FamilyDispatch FAMILY_DISPATCH[PopFamily::COUNT] = {
-                { dispatch_select_pyramid, dispatch_place_pyramid, dispatch_commit_pyramid, "pyr" },
-                { dispatch_select_arch,    dispatch_place_arch,    dispatch_commit_arch,    "arch" },
-                { dispatch_select_column,  dispatch_place_column,  dispatch_commit_column,  "col" },
-            };
-
             // ─── Select / Place / Commit dispatch loops ─────────────────────
 
             void select_entities_for_patch(int32_t gx, int32_t gz) {
@@ -5726,6 +5570,162 @@ namespace t7 {
                 static constexpr uint32_t ARCH = 1;
                 static constexpr uint32_t COLUMN = 2;
                 static constexpr uint32_t COUNT = 3;
+            };
+
+            // ─── Family Dispatch Table ──────────────────────────────────────
+            //
+            // Table-driven dispatch for the select/place/commit pipeline.
+            // Adding a new entity family: write select/place/commit functions,
+            // add union members, add 3 wrappers, add 1 row here.
+
+            struct FamilyDispatch {
+                bool (*try_select)(Cartridge* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
+                bool (*try_place)(Cartridge* self, EntityQueueEntry& e, PlacementEntry& pe);
+                void (*try_commit)(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue);
+                const char* name;
+            };
+
+            // ── Pyramid dispatch wrappers ──
+
+            static bool dispatch_select_pyramid(Cartridge* self,
+                int32_t gx, int32_t gz, EntityQueueEntry& e)
+            {
+                return self->select_pyramid_for_patch(gx, gz, e.pyramid);
+            }
+
+            static bool dispatch_place_pyramid(Cartridge* self,
+                EntityQueueEntry& e, PlacementEntry& pe)
+            {
+                pe.family = e.family; pe.gx = e.gx; pe.gz = e.gz;
+                if (self->place_pyramid_from_selection(e.pyramid, pe.pyramid)) {
+#ifdef DIAG_ENTITY_LIFECYCLE
+                    std::cout << "[DIAG:PLACE] pyr slot=" << pe.pyramid.slot
+                        << " pos=(" << pe.pyramid.cx << "," << pe.pyramid.cz
+                        << ") host=(" << pe.pyramid.host_gx << "," << pe.pyramid.host_gz << ")\n";
+#endif
+                    return true;
+                }
+                self->activePyramids_[e.pyramid.slot].active = false;
+#ifdef DIAG_ENTITY_LIFECYCLE
+                std::cout << "[DIAG:PLACE] pyr slot=" << e.pyramid.slot
+                    << " FAIL patch=(" << e.gx << "," << e.gz << ")\n";
+#endif
+                return false;
+            }
+
+            static void dispatch_commit_pyramid(Cartridge* self,
+                PlacementEntry& pe, wgpu::Queue& queue)
+            {
+                auto* host = self->find_patch(pe.pyramid.host_gx, pe.pyramid.host_gz);
+                if (host) {
+                    self->commit_pyramid(pe.pyramid, pe.gx, pe.gz, queue);
+                    host->record_entity(PopFamily::PYRAMID, pe.pyramid.slot);
+                } else {
+                    self->activePyramids_[pe.pyramid.slot].active = false;
+#ifdef DIAG_ENTITY_LIFECYCLE
+                    std::cout << "[DIAG:REJECT] pyr slot=" << pe.pyramid.slot
+                        << " host=(" << pe.pyramid.host_gx << "," << pe.pyramid.host_gz
+                        << ") — no host patch\n";
+#endif
+                }
+            }
+
+            // ── Arch dispatch wrappers ──
+
+            static bool dispatch_select_arch(Cartridge* self,
+                int32_t gx, int32_t gz, EntityQueueEntry& e)
+            {
+                return self->select_arch_for_patch(gx, gz, e.arch);
+            }
+
+            static bool dispatch_place_arch(Cartridge* self,
+                EntityQueueEntry& e, PlacementEntry& pe)
+            {
+                pe.family = e.family; pe.gx = e.gx; pe.gz = e.gz;
+                if (self->place_arch_from_selection(e.arch, pe.arch)) {
+#ifdef DIAG_ENTITY_LIFECYCLE
+                    std::cout << "[DIAG:PLACE] arch slot=" << pe.arch.slot
+                        << " pos=(" << pe.arch.cx << "," << pe.arch.cz
+                        << ") host=(" << pe.arch.host_gx << "," << pe.arch.host_gz << ")\n";
+#endif
+                    return true;
+                }
+                self->activeArches_[e.arch.slot].active = false;
+#ifdef DIAG_ENTITY_LIFECYCLE
+                std::cout << "[DIAG:PLACE] arch slot=" << e.arch.slot
+                    << " FAIL patch=(" << e.gx << "," << e.gz << ")\n";
+#endif
+                return false;
+            }
+
+            static void dispatch_commit_arch(Cartridge* self,
+                PlacementEntry& pe, wgpu::Queue& queue)
+            {
+                auto* host = self->find_patch(pe.arch.host_gx, pe.arch.host_gz);
+                if (host) {
+                    self->commit_arch(pe.arch, pe.gx, pe.gz, queue);
+                    host->record_entity(PopFamily::ARCH, pe.arch.slot);
+                } else {
+                    self->activeArches_[pe.arch.slot].active = false;
+#ifdef DIAG_ENTITY_LIFECYCLE
+                    std::cout << "[DIAG:REJECT] arch slot=" << pe.arch.slot
+                        << " host=(" << pe.arch.host_gx << "," << pe.arch.host_gz
+                        << ") — no host patch\n";
+#endif
+                }
+            }
+
+            // ── Column dispatch wrappers ──
+
+            static bool dispatch_select_column(Cartridge* self,
+                int32_t gx, int32_t gz, EntityQueueEntry& e)
+            {
+                return self->select_column_for_patch(gx, gz, e.column);
+            }
+
+            static bool dispatch_place_column(Cartridge* self,
+                EntityQueueEntry& e, PlacementEntry& pe)
+            {
+                pe.family = e.family; pe.gx = e.gx; pe.gz = e.gz;
+                if (self->place_column_from_selection(e.column, pe.column)) {
+#ifdef DIAG_ENTITY_LIFECYCLE
+                    std::cout << "[DIAG:PLACE] col slot=" << pe.column.slot
+                        << " pos=(" << pe.column.cx << "," << pe.column.cz
+                        << ") host=(" << pe.column.host_gx << "," << pe.column.host_gz << ")\n";
+#endif
+                    return true;
+                }
+                self->activeColumns_[e.column.slot].active = false;
+#ifdef DIAG_ENTITY_LIFECYCLE
+                std::cout << "[DIAG:PLACE] col slot=" << e.column.slot
+                    << " FAIL patch=(" << e.gx << "," << e.gz << ")\n";
+#endif
+                return false;
+            }
+
+            static void dispatch_commit_column(Cartridge* self,
+                PlacementEntry& pe, wgpu::Queue& queue)
+            {
+                auto* host = self->find_patch(pe.column.host_gx, pe.column.host_gz);
+                if (host) {
+                    self->commit_column(pe.column, pe.gx, pe.gz, queue);
+                    host->record_entity(PopFamily::COLUMN, pe.column.slot);
+                } else {
+                    self->activeColumns_[pe.column.slot].active = false;
+#ifdef DIAG_ENTITY_LIFECYCLE
+                    std::cout << "[DIAG:REJECT] col slot=" << pe.column.slot
+                        << " host=(" << pe.column.host_gx << "," << pe.column.host_gz
+                        << ") — no host patch\n";
+#endif
+                }
+            }
+
+            // ── Dispatch table (order matches PopFamily enum) ──
+
+            static constexpr FamilyDispatch FAMILY_DISPATCH[PopFamily::COUNT] = {
+                { dispatch_select_pyramid, dispatch_place_pyramid, dispatch_commit_pyramid, "pyr" },
+                { dispatch_select_arch,    dispatch_place_arch,    dispatch_commit_arch,    "arch" },
+                { dispatch_select_column,  dispatch_place_column,  dispatch_commit_column,  "col" },
             };
 
             // ─── Population Themes ───────────────────────────────────────────
