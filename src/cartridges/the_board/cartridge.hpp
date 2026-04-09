@@ -2197,6 +2197,28 @@ namespace t7 {
                 return flags;
             }
 
+            // Entity families for observation indexing
+            struct PopFamily {
+                static constexpr uint32_t PYRAMID = 0;
+                static constexpr uint32_t ARCH = 1;
+                static constexpr uint32_t COLUMN = 2;
+                static constexpr uint32_t COUNT = 3;
+            };
+
+            // Entity presence flags — bitfield tracking what was spawned on
+            // a tile. Enables neighbor-aware spawn probability.
+            struct EntityPresence {
+                static constexpr uint32_t NONE = 0u;
+                static constexpr uint32_t PYRAMID = 1u << 0;
+                static constexpr uint32_t ARCH_DOORWAY = 1u << 1;
+                static constexpr uint32_t ARCH_STANDARD = 1u << 2;
+                static constexpr uint32_t ARCH_MONUMENTAL = 1u << 3;
+                static constexpr uint32_t ARCH_ANY = ARCH_DOORWAY | ARCH_STANDARD | ARCH_MONUMENTAL;
+                static constexpr uint32_t COLUMN = 1u << 4;
+                static constexpr uint32_t GALLERY = 1u << 5;
+                static constexpr uint32_t GOL_ZONE = 1u << 6;
+            };
+
             // ─── Adjacency Affinity Matrix ───────────────────────────────────
             //
             // ADJACENCY_BOOST[spawning_family][presence_bit] — multiplier
@@ -5478,14 +5500,6 @@ namespace t7 {
             static constexpr float DENSITY_MIN = 1.0f;
             static constexpr float DENSITY_MAX = 1.0f;
 
-            // Entity families for observation indexing
-            struct PopFamily {
-                static constexpr uint32_t PYRAMID = 0;
-                static constexpr uint32_t ARCH = 1;
-                static constexpr uint32_t COLUMN = 2;
-                static constexpr uint32_t COUNT = 3;
-            };
-
             // ─── Family Dispatch Table ──────────────────────────────────────
             //
             // Table-driven dispatch for the select/place/commit pipeline.
@@ -6337,24 +6351,6 @@ namespace t7 {
                 }
                 return true;
             }
-
-            // --- Entity Presence Flags -----------------------------------------------
-            //
-            // Bitfield tracking what was spawned on a tile. Enables neighbor-aware
-            // spawn probability: columns cluster near arches, doorways cluster
-            // near pyramids, etc. Recorded at spawn time, cleared at eviction.
-
-            struct EntityPresence {
-                static constexpr uint32_t NONE = 0u;
-                static constexpr uint32_t PYRAMID = 1u << 0;
-                static constexpr uint32_t ARCH_DOORWAY = 1u << 1;
-                static constexpr uint32_t ARCH_STANDARD = 1u << 2;
-                static constexpr uint32_t ARCH_MONUMENTAL = 1u << 3;
-                static constexpr uint32_t ARCH_ANY = ARCH_DOORWAY | ARCH_STANDARD | ARCH_MONUMENTAL;
-                static constexpr uint32_t COLUMN = 1u << 4;
-                static constexpr uint32_t GALLERY = 1u << 5;
-                static constexpr uint32_t GOL_ZONE = 1u << 6;
-            };
 
             // --- Tile State (what we remember about each generated tile) ----------
 
