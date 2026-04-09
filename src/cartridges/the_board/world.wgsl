@@ -6,53 +6,74 @@
 //
 // All constants that shape terrain, color, and cell behavior.
 // Change a number, recompile, see the result. No logic edits needed.
+// Section references (§N.M) are stable; search by section number.
 //
-// ── Color Palettes ────────────────────────────────────────────────
-//   PALETTE_CENTER[4]             Sand/salmon/green/grey RGB          ~line 1133
-//   PALETTE_LIGHT[4]              Light variant per palette           ~line 1139
-//   PALETTE_VARIANCE[4]           Per-cell noise amplitude            ~line 1145
-//   PALETTE_WEIGHT[4]             Selection probability               ~line 1151
-//   COLOR_PAWN                    Pawn entity color                   ~line 1348
+// ── Color Palettes (§2.2) ─────────────────────────────────────────
+//   PALETTE_CENTER[4]             Sand/salmon/green/grey RGB
+//   PALETTE_LIGHT[4]              Light variant per palette
+//   PALETTE_VARIANCE[4]           Per-cell noise amplitude
+//   PALETTE_WEIGHT[4]             Selection probability
+//   COLOR_PAWN                    Pawn entity color
 //
-// ── Spatial Field Lattices ────────────────────────────────────────
-//   PALETTE_LATTICE_SPACING       300 wu — palette blob size          ~line 1159
-//   MODE_LATTICE_SPACING          120 wu — smooth/discrete clusters   ~line 1160
-//   MODE_DISCRETE_THRESHOLD       0.70 — gate for checkerboard        ~line 1161
-//   MODE_BIAS_EXPONENT            5.0 — quintic: ~83% smooth          ~line 1162
-//   TRANSITION_LATTICE_SPACING    200 wu — blend/scatter zones        ~line 1163
-//   SPARSE_BASE_SPACING           160 wu — isolated cell regions      ~line 1164
-//   SPARSE_CLUSTER_SPACING        40 wu — small dense patches         ~line 1165
-//   CHESS_LATTICE_SPACING         55 wu — B&W alternation zones       ~line 809
-//   DISCRETE_COLOR_LATTICE_SPACING  80 wu — colored cell blobs        ~line 894
-//   DISCRETE_MONO_LATTICE_SPACING   250 wu — B&W tendency zones       ~line 895
+// ── Spatial Field Lattices (§2.2) ─────────────────────────────────
+//   PALETTE_LATTICE_SPACING       300 wu — palette blob size
+//   MODE_LATTICE_SPACING          120 wu — smooth/discrete clusters
+//   MODE_DISCRETE_THRESHOLD       0.70 — gate for checkerboard
+//   MODE_BIAS_EXPONENT            5.0 — quintic: ~83% smooth
+//   TRANSITION_LATTICE_SPACING    200 wu — blend/scatter zones
+//   SPARSE_BASE_SPACING           160 wu — isolated cell regions
+//   SPARSE_CLUSTER_SPACING        40 wu — small dense patches
+//   CHESS_LATTICE_SPACING         55 wu — B&W alternation zones
+//   DISCRETE_COLOR_LATTICE_SPACING  80 wu — colored cell blobs
+//   DISCRETE_MONO_LATTICE_SPACING   250 wu — B&W tendency zones
 //
-// ── Terrain-Mode Coupling ─────────────────────────────────────────
-//   COUPLING_LATTICE_SPACING      250 wu — where coupling is active   ~line 1168
-//   COUPLING_STRENGTH_EXPONENT    3.0 — cubic: ~50% coupled           ~line 1169
-//   MODE_COUPLING_MAGNITUDE       0.25 — max mode shift               ~line 1170
-//   ARCHETYPE_MODE_CHARACTER[4]   Per-archetype coupling direction     ~line 1171
+// ── Terrain-Mode Coupling (§2.2) ──────────────────────────────────
+//   COUPLING_LATTICE_SPACING      250 wu — where coupling is active
+//   COUPLING_STRENGTH_EXPONENT    3.0 — cubic: ~50% coupled
+//   MODE_COUPLING_MAGNITUDE       0.25 — max mode shift
+//   ARCHETYPE_MODE_CHARACTER[4]   Per-archetype coupling direction
 //
-// ── Terrain Waves ─────────────────────────────────────────────────
-//   WAVE_THRESHOLD[6]             Per-band activity gate              ~line 233
-//   ACTIVITY_LATTICE_SPACING      400 wu — activity envelope          ~line 224
+// ── Terrain Waves (§1.6) ──────────────────────────────────────────
+//   WAVE_THRESHOLD[6]             Per-band activity gate
+//   ACTIVITY_LATTICE_SPACING      400 wu — activity envelope
 //
-// ── GoL Zones ─────────────────────────────────────────────────────
-//   GOL_TIERS[7]                  Tier params (density, tick, spring)  ~line 1272
-//   PULSE_TIERS[3]                Pulse algorithm params               ~line 1326
-//   GOL_ZONE_SPAWN_CHANCE         0.15 — fraction of discrete zones    ~line 1238
-//   GOL_ZONE_HEIGHT_CHANCE        0.30 — fraction with extrusion       ~line 1239
-//   GOL_COLOR_WEIGHTS             Color mode probabilities             ~line 3902
+// ── GoL Zones (§2.2, §7.0b) ──────────────────────────────────────
+//   GOL_TIERS[7]                  Tier params (density, tick, spring)
+//   PULSE_TIERS[3]                Pulse algorithm params
+//   GOL_ZONE_SPAWN_CHANCE         0.15 — fraction of discrete zones
+//   GOL_ZONE_HEIGHT_CHANCE        0.30 — fraction with extrusion
+//   GOL_COLOR_WEIGHTS             Color mode probabilities
 //
-// ── Pawn ──────────────────────────────────────────────────────────
-//   PAWN_HEIGHT / PAWN_RADIUS     Physical dimensions                  ~line 1170
-//   PAWN_STEP_HEIGHT              Max terrain step                     ~line 1175
+// ── Pawn (§2.2) ──────────────────────────────────────────────────
+//   PAWN_HEIGHT / PAWN_RADIUS     Physical dimensions
+//   PAWN_STEP_HEIGHT              Max terrain step
 //
-// ── Radial Pulses ─────────────────────────────────────────────────
-//   PULSE_SPEED / MAX_AGE / DAMPING  Ring dynamics                    ~line 1895
+// ── Radial Pulses (§3.5) ─────────────────────────────────────────
+//   PULSE_SPEED / MAX_AGE / DAMPING  Ring dynamics
 //
 // For CPU-side tuning surfaces (moods, entity tiers, spawn chances,
 // terrain tokens), see the companion directory in cartridge.hpp.
 // ═══════════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════════
+// SECTION MAP
+// ═══════════════════════════════════════════════════════════════════════
+//
+// §1    FOUNDATIONS         PGA algebra, trajectories, utilities, terrain height
+// §2    STATE               Structs, constants, muting control
+// §3    COUPLINGS           Signal/input/terrain/entity cross-wiring
+// §4    DYNAMICS            PGA motor integration (pawn, camera)
+// §5    COMPOSITION         0D update split across compute entry points
+// §6    RENDERING           Lighting, terrain VS/FS, entity VS/FS, ribbon, shadows
+// §7    COMPUTE             Bindings, entry points, GoL zones, pawn aura
+// §8    GALLERY             Photographer, terrain paintings, wall paintings
+// §9    ENTITY MESH GEN     GPU-sovereign geometry: pyramids, arches, columns
+//
+// Subsystem-specific bindings live with their consumers (§7, §8, §9).
+// Global bindings (signal, config, VP, render mirrors, lights) are in §7.0.
+
+// §1 FOUNDATIONS
+// §1.1 PROJECTIVE GEOMETRIC ALGEBRA
 
 struct Motor {
     p0: vec4<f32>,  // [s, e23, e31, e12]     — scalar + rotation bivectors
@@ -162,7 +183,7 @@ fn trajectory_release(t: Trajectory, goal: f32, dt: f32, rate: f32) -> Trajector
 }
 
 
-// §1.4 COORDINATE SYSTEMS
+// §1.3 COORDINATE SYSTEMS
 
 // (legacy chart constants removed — CHART_EXTENT, CHART_HEIGHT_RESOLUTION, CHART_SURFACE_COLOR_RESOLUTION)
 
@@ -182,7 +203,7 @@ const PATCH_MESH_STRIDE: u32 = PATCH_MESH_N + 1u;
 // (legacy CELL_GRID_SIZE, MAX_CELL_GRID_SIZE, proximity_field_index removed)
 
 
-// §1.5 UTILITIES
+// §1.4 UTILITIES
 
 // (hsv_to_rgb and rgb_to_hsv removed — unused color space conversions)
 
@@ -204,7 +225,7 @@ fn quat_rotate(q: vec4<f32>, v: vec3<f32>) -> vec3<f32> {
     return 2.0 * dot(u, v) * u + (s * s - dot(u, u)) * v + 2.0 * s * cross(u, v);
 }
 
-// §1.6 DETERMINISTIC RANDOMNESS
+// §1.5 DETERMINISTIC RANDOMNESS
 
 // (legacy cell-based random functions removed: hash_cell_id, random_float,
 //  random_float_range, random_vec3, random_vec3_range — replaced by hash_property system)
@@ -233,7 +254,7 @@ fn sample_gaussian(seed: u32, property: u32, mean: f32, sigma: f32) -> f32 {
 }
 
 
-// §1.7 TERRAIN HEIGHT FUNCTION
+// §1.6 TERRAIN HEIGHT FUNCTION
 // Stateless terrain height evaluation. Given (world_xz, master_seed, time),
 struct TerrainBand {
     spacing: f32,        // lattice spacing (world units between nodes)
@@ -2272,7 +2293,8 @@ fn dynamics_terrain_gradient_max(amplitude_scale: f32) -> f32 {
     return max_grad * amplitude_scale * HEIGHT_MAX_AMPLITUDE * 1.5;
 }
 
-// §4.2 PGA DYNAMICS
+// §4 DYNAMICS
+// §4.1 PGA MOTOR INTEGRATION
 // These functions use Projective Geometric Algebra for elegant transformations.
 fn pga_color_motor(current_rgb: vec3<f32>, hue_speed: f32, sat_push: f32, val_climb: f32, dt: f32) -> vec3<f32> {
     // 1. CONVERT COLOR TO POINT
@@ -2393,7 +2415,7 @@ fn compose_camera_position_from_orbit(aim_point: vec3<f32>, cam: CameraState) ->
     return look_at + offset;
 }
 
-// §5.1 0D COMPOSITION — Now split into 4 entry points (§7.0):
+// §5.1 0D COMPOSITION — Now split into 4 entry points (§7.1):
 //   update_terrain_config, update_pawn, update_camera, update_sphere
 struct VPMatrix {
     m: mat4x4<f32>,
@@ -2444,7 +2466,7 @@ fn build_view_projection_matrix(
 }
 
 
-// §6.0 LIGHTING SYSTEM
+// §6.1 LIGHTING SYSTEM
 // Directional light (sun/moon) with shadow map + N point lights (lamp posts).
 struct DirectionalLight {
     direction: vec3<f32>,     // normalized, points FROM light toward scene
@@ -2734,7 +2756,7 @@ fn shade_lit(world_pos: vec3<f32>, normal: vec3<f32>, base_color: vec3<f32>) -> 
 }
 
 
-// §6.1b PATCH TERRAIN RENDERING
+// §6.2 PATCH TERRAIN RENDERING
 // Instanced rendering of streaming terrain patches. Each instance is one
 struct PatchTerrainVarying {
     @builtin(position) clip_pos: vec4<f32>,
@@ -3126,7 +3148,7 @@ fn entity_fs(in: EntityVarying) -> @location(0) vec4<f32> {
 }
 
 
-// §6.3.1 SHADOW PASS VERTEX SHADERS
+// §6.4 SHADOW PASS VERTEX SHADERS
 // Depth-only rendering from the light's point of view.
 struct ShadowVarying {
     @builtin(position) clip_pos: vec4<f32>,
@@ -3327,7 +3349,7 @@ fn shadow_shell_vs(in: ShellVertexInput) -> ShadowVarying {
     return out;
 }
 
-// §6.3.3 SKY RIBBON ENTITY
+// §6.5 SKY RIBBON ENTITY
 // A continuous square-section tube animated by wave superposition.
 fn ribbon_spine_at(t: f32, ribbon: RibbonState) -> vec3<f32> {
     let total_length = f32(ribbon.cube_count) * ribbon.cube_size;
@@ -3646,7 +3668,7 @@ fn shadow_ribbon_vs(@builtin(vertex_index) vid: u32) -> ShadowVarying {
     return out;
 }
 
-// §7.1 BINDINGS
+// §7.0 GLOBAL BINDINGS
 
 // --- Compute bindings (Group 0: buffers, 20-slot system ranges)
 @group(0) @binding(0)   var<uniform>             signal: FrameSignal;
@@ -3708,6 +3730,8 @@ struct PortalArray {
 @group(1) @binding(26) var shadow_sampler: sampler_comparison;
 @group(1) @binding(27) var spot_shadow_map: texture_depth_2d;     // spot atlas lights 2-3 (indoor)
 
+// §7.0a PATCH GENERATION BINDINGS
+
 // --- Shared mesh vertex struct (used by zone extrusion mesh gen)
 // (legacy cell mesh gen bindings 40-45 removed — reserved for future use)
 struct CellMeshVertex {
@@ -3735,6 +3759,8 @@ struct CellMeshVertex {
 @group(0) @binding(340) var<storage, read> patch_instances: array<PatchInstance>;
 @group(1) @binding(28) var patch_heightfield_array_read: texture_2d_array<f32>;
 @group(1) @binding(29) var patch_cell_color_array_read: texture_2d_array<f32>;
+
+// §7.0b GOL ZONE DEFINITIONS
 
 // --- GoL zone system (Group 0: bindings 160-162, dedicated layout)
 struct GoLZoneConfig {
@@ -3918,6 +3944,8 @@ struct GoLZoneArray {
     zones: array<GoLZoneConfig, 8>,
 }
 
+// §7.0c PAWN AURA HELPERS
+
 // --- Pawn Aura: persistent terrain influence via toroidal spring grid
 const PAWN_AURA_N: i32 = 64;
 const PAWN_AURA_EMPTY: i32 = 0x7FFFFFFF;
@@ -3977,6 +4005,8 @@ struct PawnAuraCell {
     _pad0: f32,
     _pad1: f32,
 }
+
+// §7.0d SYSTEM BINDINGS
 
 @group(0) @binding(160) var<storage, read_write> zone_config: GoLZoneArray;
 @group(0) @binding(161) var<storage, read_write> zone_life: array<f32>;
@@ -4197,7 +4227,7 @@ const ZONE_MESH_MAX_VERTICES: u32 = 50000u;
 const ZONE_MESH_MAX_INDICES: u32 = 75000u;
 
 
-// §7.2 ENTRY POINTS
+// §7.1 COMPUTE ENTRY POINTS
 // Execution order (critical for correctness):
 @compute @workgroup_size(1)
 fn update_terrain_config() {
@@ -4825,7 +4855,7 @@ fn generate_patch_cells(@builtin(global_invocation_id) id: vec3<u32>) {
 }
 
 
-// §7.3 GOL ZONE COMPUTE — Zone-local Game of Life
+// §7.2 GOL ZONE COMPUTE — Zone-local Game of Life
 // Two compute passes per frame (when zones are active):
 const GOL_ZONE_STRIDE: u32 = 7168u;     // floats per zone (7 slots × 1024 cells)
 const GOL_CELL_VISUAL: u32 = 0u;        // slot 0: height spring visual [0,1]
@@ -4959,7 +4989,7 @@ fn zone_gol_evolve(@builtin(global_invocation_id) gid: vec3<u32>) {
 }
 
 
-// §7.4 GOL ZONE MESH GENERATION — Cell extrusion geometry
+// §7.3 GOL ZONE MESH GENERATION — Cell extrusion geometry
 
 
 
@@ -5215,6 +5245,156 @@ fn shadow_zone_extrusion_vs(
     var out: ShadowVarying;
     out.clip_pos = render_vp.light_vp * vec4(world_pos, 1.0);
     return out;
+}
+
+
+// §7.4 PAWN AURA — Persistent terrain influence via toroidal spring grid
+// Single dispatch over 64×64 toroidal grid. Each thread:
+const AURA_BEAT_PERIOD: f32 = 2.0;
+
+@compute @workgroup_size(8, 8, 1)
+fn compute_pawn_aura(@builtin(global_invocation_id) gid: vec3<u32>) {
+    let sx = i32(gid.x);
+    let sz = i32(gid.y);
+    let N = PAWN_AURA_N;
+    if (sx >= N || sz >= N) { return; }
+
+    let slot_idx = u32(sz * N + sx);
+    var cell = pawn_aura_cells[slot_idx];
+
+    let pawn_xz = pawn_state.pos.xz;
+    let cs = pawn_aura_cfg.cell_size;
+    let radius = pawn_aura_cfg.influence_radius;
+    let dt = pawn_aura_cfg.dt;
+    let t_beats = pawn_aura_cfg.t_beats;
+
+    // Which world cell near the pawn maps to this slot via toroidal hash?
+    let pgx = i32(floor(pawn_xz.x / cs));
+    let pgz = i32(floor(pawn_xz.y / cs));
+
+    // Nearest cell to pawn satisfying gx ≡ sx (mod N), gz ≡ sz (mod N)
+    let gx = sx + N * i32(round(f32(pgx - sx) / f32(N)));
+    let gz = sz + N * i32(round(f32(pgz - sz) / f32(N)));
+
+    let cell_center = (vec2(f32(gx), f32(gz)) + 0.5) * cs;
+    let dist = distance(cell_center, pawn_xz);
+    let stimulus = smoothstep(radius, 0.0, dist);
+
+    let is_occupied = (cell.cell_gx != PAWN_AURA_EMPTY);
+    let matches = (cell.cell_gx == gx && cell.cell_gz == gz);
+
+    if (stimulus > 0.001) {
+        // Cell is within pawn influence
+        if (!is_occupied || matches || cell.intensity < 0.05) {
+            // Allocate new or update existing
+            if (!matches) {
+                cell.cell_gx = gx;
+                cell.cell_gz = gz;
+                cell.velocity = 0.0;
+                cell.color_osc = 0.0;
+                cell.color_osc_vel = 0.0;
+                if (!is_occupied) { cell.intensity = 0.0; }
+
+                // Compute contextual color delta based on delta_mode
+                if (pawn_aura_cfg.delta_mode == AURA_DELTA_RANDOM) {
+                    let h = u32(gx) * 374761393u + u32(gz) * 668265263u;
+                    let mag = pawn_aura_cfg.delta_magnitude;
+                    cell.delta_r = (f32((h) & 0xFFFFu) / 32767.5 - 1.0) * mag;
+                    cell.delta_g = (f32((h >> 8u) & 0xFFFFu) / 32767.5 - 1.0) * mag;
+                    cell.delta_b = (f32((h >> 16u) & 0xFFFFu) / 32767.5 - 1.0) * mag;
+                } else {
+                    let terrain_color = gol_composite_cell_color(cell_center);
+                    let tint = vec3(pawn_aura_cfg.tint_r, pawn_aura_cfg.tint_g, pawn_aura_cfg.tint_b);
+                    cell.delta_r = tint.r - terrain_color.r;
+                    cell.delta_g = tint.g - terrain_color.g;
+                    cell.delta_b = tint.b - terrain_color.b;
+                }
+            }
+
+            // Attack spring: critically damped toward stimulus
+            let goal = stimulus;
+            let d = cell.intensity - goal;
+            let stiff = pawn_aura_cfg.attack_stiffness;
+            let damp = pawn_aura_cfg.attack_damping;
+            let spring_f = -stiff * d;
+            let damp_f = -damp * sqrt(stiff) * cell.velocity;
+            cell.velocity += (spring_f + damp_f) * dt;
+            cell.intensity += cell.velocity * dt;
+            cell.intensity = clamp(cell.intensity, 0.0, 1.0);
+
+            // Directional height bias: updates every frame as pawn turns.
+            // Center = peak (1.0). Forward = gentle ramp down. Behind = steep drop.
+            // This makes the pawn the highest point with a leading ramp.
+            if (dist > 0.5) {
+                let to_cell = (cell_center - pawn_xz) / dist;
+                let heading = pawn_state.heading;
+                let forward = vec2(sin(heading), cos(heading));
+                let facing = dot(to_cell, forward);  // -1=behind, +1=in front
+                // Forward cells: gentle ramp (0.6–0.85). Behind: steeper (0.2–0.5).
+                let forward_factor = clamp(facing * 0.15 + 0.7, 0.2, 0.85);
+                // Distance falloff: closer to center = closer to 1.0
+                let dist_falloff = 1.0 - smoothstep(0.0, radius, dist);
+                cell.height_delta = mix(forward_factor, 1.0, dist_falloff * dist_falloff);
+            } else {
+                // At pawn center: peak height exactly 1.0
+                cell.height_delta = 1.0;
+            }
+
+            // Color oscillation spring: target cycles between 0 and 1 every AURA_BEAT_PERIOD beats.
+            // Per-cell phase offset for sparkle.
+            let cell_hash = u32(cell.cell_gx) * 73856093u + u32(cell.cell_gz) * 19349663u;
+            let cell_phase = f32(cell_hash & 0xFFFFu) / 65535.0 * 0.3;  // small phase scatter
+            let osc_phase = (t_beats + cell_phase) / AURA_BEAT_PERIOD;
+            let osc_target = sin(osc_phase * 2.0 * PI) * 0.5 + 0.5;
+
+            // Spring toward oscillation target (shares stiffness with attack spring)
+            let osc_d = cell.color_osc - osc_target;
+            let osc_spring = -stiff * 0.5 * osc_d;  // softer than attack spring
+            let osc_damp = -damp * sqrt(stiff * 0.5) * cell.color_osc_vel;
+            cell.color_osc_vel += (osc_spring + osc_damp) * dt;
+            cell.color_osc += cell.color_osc_vel * dt;
+            cell.color_osc = clamp(cell.color_osc, 0.0, 1.0);
+
+        }
+    } else if (is_occupied) {
+        // Outside influence — release toward zero
+        let decay = 1.0 - exp(-pawn_aura_cfg.release_rate * dt);
+        cell.intensity *= (1.0 - decay);
+        cell.color_osc *= (1.0 - decay);  // oscillation fades with trail
+        cell.velocity = 0.0;
+        cell.color_osc_vel = 0.0;
+
+        // Clear dead entries
+        if (cell.intensity < 0.001) {
+            cell.cell_gx = PAWN_AURA_EMPTY;
+            cell.cell_gz = PAWN_AURA_EMPTY;
+            cell.intensity = 0.0;
+            cell.velocity = 0.0;
+            cell.delta_r = 0.0;
+            cell.delta_g = 0.0;
+            cell.delta_b = 0.0;
+            cell.height_delta = 0.0;
+            cell.color_osc = 0.0;
+            cell.color_osc_vel = 0.0;
+        }
+    }
+
+    pawn_aura_cells[slot_idx] = cell;
+
+    // Write to texture:
+    //   R = height blend (0 when height disabled via height_scale=0)
+    //   GBA = pre-multiplied color delta (modulated by oscillation)
+    if (cell.intensity > 0.001) {
+        let color_blend = cell.intensity * pawn_aura_cfg.tint_strength * cell.color_osc;
+        let height_blend = select(cell.intensity * cell.height_delta, 0.0, pawn_aura_cfg.height_scale < 0.01);
+        textureStore(pawn_aura_tex_write, vec2<i32>(gid.xy),
+            vec4(height_blend,
+                 cell.delta_r * color_blend,
+                 cell.delta_g * color_blend,
+                 cell.delta_b * color_blend));
+    } else {
+        textureStore(pawn_aura_tex_write, vec2<i32>(gid.xy), vec4(0.0));
+    }
 }
 
 
@@ -5880,157 +6060,7 @@ fn shadow_wall_painting_vs(@builtin(vertex_index) vid: u32) -> ShadowVarying {
 }
 
 
-// §7.6 PAWN AURA — Persistent terrain influence via toroidal spring grid
-// Single dispatch over 64×64 toroidal grid. Each thread:
-const AURA_BEAT_PERIOD: f32 = 2.0;
-
-@compute @workgroup_size(8, 8, 1)
-fn compute_pawn_aura(@builtin(global_invocation_id) gid: vec3<u32>) {
-    let sx = i32(gid.x);
-    let sz = i32(gid.y);
-    let N = PAWN_AURA_N;
-    if (sx >= N || sz >= N) { return; }
-
-    let slot_idx = u32(sz * N + sx);
-    var cell = pawn_aura_cells[slot_idx];
-
-    let pawn_xz = pawn_state.pos.xz;
-    let cs = pawn_aura_cfg.cell_size;
-    let radius = pawn_aura_cfg.influence_radius;
-    let dt = pawn_aura_cfg.dt;
-    let t_beats = pawn_aura_cfg.t_beats;
-
-    // Which world cell near the pawn maps to this slot via toroidal hash?
-    let pgx = i32(floor(pawn_xz.x / cs));
-    let pgz = i32(floor(pawn_xz.y / cs));
-
-    // Nearest cell to pawn satisfying gx ≡ sx (mod N), gz ≡ sz (mod N)
-    let gx = sx + N * i32(round(f32(pgx - sx) / f32(N)));
-    let gz = sz + N * i32(round(f32(pgz - sz) / f32(N)));
-
-    let cell_center = (vec2(f32(gx), f32(gz)) + 0.5) * cs;
-    let dist = distance(cell_center, pawn_xz);
-    let stimulus = smoothstep(radius, 0.0, dist);
-
-    let is_occupied = (cell.cell_gx != PAWN_AURA_EMPTY);
-    let matches = (cell.cell_gx == gx && cell.cell_gz == gz);
-
-    if (stimulus > 0.001) {
-        // Cell is within pawn influence
-        if (!is_occupied || matches || cell.intensity < 0.05) {
-            // Allocate new or update existing
-            if (!matches) {
-                cell.cell_gx = gx;
-                cell.cell_gz = gz;
-                cell.velocity = 0.0;
-                cell.color_osc = 0.0;
-                cell.color_osc_vel = 0.0;
-                if (!is_occupied) { cell.intensity = 0.0; }
-
-                // Compute contextual color delta based on delta_mode
-                if (pawn_aura_cfg.delta_mode == AURA_DELTA_RANDOM) {
-                    let h = u32(gx) * 374761393u + u32(gz) * 668265263u;
-                    let mag = pawn_aura_cfg.delta_magnitude;
-                    cell.delta_r = (f32((h) & 0xFFFFu) / 32767.5 - 1.0) * mag;
-                    cell.delta_g = (f32((h >> 8u) & 0xFFFFu) / 32767.5 - 1.0) * mag;
-                    cell.delta_b = (f32((h >> 16u) & 0xFFFFu) / 32767.5 - 1.0) * mag;
-                } else {
-                    let terrain_color = gol_composite_cell_color(cell_center);
-                    let tint = vec3(pawn_aura_cfg.tint_r, pawn_aura_cfg.tint_g, pawn_aura_cfg.tint_b);
-                    cell.delta_r = tint.r - terrain_color.r;
-                    cell.delta_g = tint.g - terrain_color.g;
-                    cell.delta_b = tint.b - terrain_color.b;
-                }
-            }
-
-            // Attack spring: critically damped toward stimulus
-            let goal = stimulus;
-            let d = cell.intensity - goal;
-            let stiff = pawn_aura_cfg.attack_stiffness;
-            let damp = pawn_aura_cfg.attack_damping;
-            let spring_f = -stiff * d;
-            let damp_f = -damp * sqrt(stiff) * cell.velocity;
-            cell.velocity += (spring_f + damp_f) * dt;
-            cell.intensity += cell.velocity * dt;
-            cell.intensity = clamp(cell.intensity, 0.0, 1.0);
-
-            // Directional height bias: updates every frame as pawn turns.
-            // Center = peak (1.0). Forward = gentle ramp down. Behind = steep drop.
-            // This makes the pawn the highest point with a leading ramp.
-            if (dist > 0.5) {
-                let to_cell = (cell_center - pawn_xz) / dist;
-                let heading = pawn_state.heading;
-                let forward = vec2(sin(heading), cos(heading));
-                let facing = dot(to_cell, forward);  // -1=behind, +1=in front
-                // Forward cells: gentle ramp (0.6–0.85). Behind: steeper (0.2–0.5).
-                let forward_factor = clamp(facing * 0.15 + 0.7, 0.2, 0.85);
-                // Distance falloff: closer to center = closer to 1.0
-                let dist_falloff = 1.0 - smoothstep(0.0, radius, dist);
-                cell.height_delta = mix(forward_factor, 1.0, dist_falloff * dist_falloff);
-            } else {
-                // At pawn center: peak height exactly 1.0
-                cell.height_delta = 1.0;
-            }
-
-            // Color oscillation spring: target cycles between 0 and 1 every AURA_BEAT_PERIOD beats.
-            // Per-cell phase offset for sparkle.
-            let cell_hash = u32(cell.cell_gx) * 73856093u + u32(cell.cell_gz) * 19349663u;
-            let cell_phase = f32(cell_hash & 0xFFFFu) / 65535.0 * 0.3;  // small phase scatter
-            let osc_phase = (t_beats + cell_phase) / AURA_BEAT_PERIOD;
-            let osc_target = sin(osc_phase * 2.0 * PI) * 0.5 + 0.5;
-
-            // Spring toward oscillation target (shares stiffness with attack spring)
-            let osc_d = cell.color_osc - osc_target;
-            let osc_spring = -stiff * 0.5 * osc_d;  // softer than attack spring
-            let osc_damp = -damp * sqrt(stiff * 0.5) * cell.color_osc_vel;
-            cell.color_osc_vel += (osc_spring + osc_damp) * dt;
-            cell.color_osc += cell.color_osc_vel * dt;
-            cell.color_osc = clamp(cell.color_osc, 0.0, 1.0);
-
-        }
-    } else if (is_occupied) {
-        // Outside influence — release toward zero
-        let decay = 1.0 - exp(-pawn_aura_cfg.release_rate * dt);
-        cell.intensity *= (1.0 - decay);
-        cell.color_osc *= (1.0 - decay);  // oscillation fades with trail
-        cell.velocity = 0.0;
-        cell.color_osc_vel = 0.0;
-
-        // Clear dead entries
-        if (cell.intensity < 0.001) {
-            cell.cell_gx = PAWN_AURA_EMPTY;
-            cell.cell_gz = PAWN_AURA_EMPTY;
-            cell.intensity = 0.0;
-            cell.velocity = 0.0;
-            cell.delta_r = 0.0;
-            cell.delta_g = 0.0;
-            cell.delta_b = 0.0;
-            cell.height_delta = 0.0;
-            cell.color_osc = 0.0;
-            cell.color_osc_vel = 0.0;
-        }
-    }
-
-    pawn_aura_cells[slot_idx] = cell;
-
-    // Write to texture:
-    //   R = height blend (0 when height disabled via height_scale=0)
-    //   GBA = pre-multiplied color delta (modulated by oscillation)
-    if (cell.intensity > 0.001) {
-        let color_blend = cell.intensity * pawn_aura_cfg.tint_strength * cell.color_osc;
-        let height_blend = select(cell.intensity * cell.height_delta, 0.0, pawn_aura_cfg.height_scale < 0.01);
-        textureStore(pawn_aura_tex_write, vec2<i32>(gid.xy),
-            vec4(height_blend,
-                 cell.delta_r * color_blend,
-                 cell.delta_g * color_blend,
-                 cell.delta_b * color_blend));
-    } else {
-        textureStore(pawn_aura_tex_write, vec2<i32>(gid.xy), vec4(0.0));
-    }
-}
-
-
-// --- §7 FADE OVERLAY ---
+// §6.6 FADE OVERLAY
 // Fullscreen triangle for transition fade. Drawn last with alpha blending.
 // Reads fade_alpha and fade_color from DesignConfig.
 
@@ -6062,12 +6092,12 @@ fn fade_overlay_fs(in: FadeVarying) -> @location(0) vec4<f32> {
 // Each entity family writes into fixed per-slot regions of pre-allocated
 // VB/IB buffers. Inactive slots receive degenerate (zero-area) triangles.
 //
-// Phase 1: Pyramids. Phases 2-3 (arches, columns) follow same pattern.
+// Three families: pyramids (§9.0), arches (§9.1), columns (§9.2).
 //
 // Vertex format: matches ArchVertex (pos[3], normal[3], color[3], index:u32)
 // = 10 × f32 per vertex = 40 bytes. VB is accessed as array<f32>.
 
-// ── Constants ─────────────────────────────────────────────────────────
+// §9.0 PYRAMID MESH GENERATION
 
 const PMG_MAX_VERTS_PER_SLOT: u32  = 36u;   // truncated: 12 tris × 3 (sides + top + bottom)
 const PMG_MAX_INDICES_PER_SLOT: u32 = 36u;  // unindexed triangles (1:1 vert:idx)
