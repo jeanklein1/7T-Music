@@ -5507,15 +5507,18 @@ namespace t7 {
 
             // ─── Family Dispatch Table ──────────────────────────────────────
             //
-            // Table-driven dispatch for the select/place/commit pipeline.
-            // Adding a new entity family: write select/place/commit functions,
-            // add union members, add 3 wrappers, add 1 row here.
+            // Table-driven dispatch for the full entity lifecycle:
+            // select, place, commit, evict, and mesh generation.
+            // Adding a new entity family: write select/place/commit/
+            // prepare_mesh functions, add wrappers, add 1 row here.
 
             struct FamilyDispatch {
                 bool (*try_select)(Cartridge* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
                 bool (*try_place)(Cartridge* self, EntityQueueEntry& e, PlacementEntry& pe);
                 void (*try_commit)(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue);
                 void (*evict_slot)(Cartridge* self, uint32_t slot, wgpu::Queue& queue);
+                bool (*prepare_mesh)(Cartridge* self, wgpu::Queue& queue);
+                void (*dispatch_mesh)(Cartridge* self, wgpu::ComputePassEncoder& pass);
                 uint32_t presence_clear_flag;
                 const char* name;
             };
@@ -5655,6 +5658,29 @@ namespace t7 {
                 }
             }
 
+            // ── Mesh gen dispatch wrappers ──
+
+            static bool dispatch_prepare_mesh_pyramid(Cartridge* self, wgpu::Queue& queue) {
+                return self->prepare_pyramid_mesh_gen(queue);
+            }
+            static void dispatch_mesh_gen_pyramid(Cartridge* self, wgpu::ComputePassEncoder& pass) {
+                self->renderer_.dispatch_pyramid_mesh_gen(pass, self->gpuState_.pyramid_mesh_gen_group());
+            }
+
+            static bool dispatch_prepare_mesh_arch(Cartridge* self, wgpu::Queue& queue) {
+                return self->prepare_arch_mesh_gen(queue);
+            }
+            static void dispatch_mesh_gen_arch(Cartridge* self, wgpu::ComputePassEncoder& pass) {
+                self->renderer_.dispatch_arch_mesh_gen(pass, self->gpuState_.arch_mesh_gen_group());
+            }
+
+            static bool dispatch_prepare_mesh_column(Cartridge* self, wgpu::Queue& queue) {
+                return self->prepare_column_mesh_gen(queue);
+            }
+            static void dispatch_mesh_gen_column(Cartridge* self, wgpu::ComputePassEncoder& pass) {
+                self->renderer_.dispatch_column_mesh_gen(pass, self->gpuState_.column_mesh_gen_group());
+            }
+
             // ── Eviction dispatch wrappers ──
 
             static void dispatch_evict_pyramid(Cartridge* self,
@@ -5710,11 +5736,14 @@ namespace t7 {
 
             static constexpr FamilyDispatch FAMILY_DISPATCH[PopFamily::COUNT] = {
                 { dispatch_select_pyramid, dispatch_place_pyramid, dispatch_commit_pyramid,
-                  dispatch_evict_pyramid, EntityPresence::PYRAMID, "pyr" },
+                  dispatch_evict_pyramid, dispatch_prepare_mesh_pyramid, dispatch_mesh_gen_pyramid,
+                  EntityPresence::PYRAMID, "pyr" },
                 { dispatch_select_arch,    dispatch_place_arch,    dispatch_commit_arch,
-                  dispatch_evict_arch,    EntityPresence::ARCH_ANY, "arch" },
+                  dispatch_evict_arch,    dispatch_prepare_mesh_arch,    dispatch_mesh_gen_arch,
+                  EntityPresence::ARCH_ANY, "arch" },
                 { dispatch_select_column,  dispatch_place_column,  dispatch_commit_column,
-                  dispatch_evict_column,  EntityPresence::COLUMN, "col" },
+                  dispatch_evict_column,  dispatch_prepare_mesh_column,  dispatch_mesh_gen_column,
+                  EntityPresence::COLUMN, "col" },
             };
 
             // ─── Population Themes ───────────────────────────────────────────
@@ -7563,22 +7592,18 @@ namespace t7 {
 
                 // ─── Entity mesh gen: single compute pass for all dirty families ──
                 {
-                    bool needArch = prepare_arch_mesh_gen(queue);
-                    bool needCol = prepare_column_mesh_gen(queue);
-                    bool needPyr = prepare_pyramid_mesh_gen(queue);
-
-                    if (needArch || needCol || needPyr) {
+                    bool dirty[PopFamily::COUNT];
+                    bool anyDirty = false;
+                    for (uint32_t f = 0; f < PopFamily::COUNT; f++) {
+                        dirty[f] = FAMILY_DISPATCH[f].prepare_mesh(this, queue);
+                        anyDirty = anyDirty || dirty[f];
+                    }
+                    if (anyDirty) {
                         wgpu::ComputePassDescriptor cpd{};
                         cpd.label = "Entity Mesh Gen";
                         wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
-                        if (needArch) {
-                            renderer_.dispatch_arch_mesh_gen(pass, gpuState_.arch_mesh_gen_group());
-                        }
-                        if (needCol) {
-                            renderer_.dispatch_column_mesh_gen(pass, gpuState_.column_mesh_gen_group());
-                        }
-                        if (needPyr) {
-                            renderer_.dispatch_pyramid_mesh_gen(pass, gpuState_.pyramid_mesh_gen_group());
+                        for (uint32_t f = 0; f < PopFamily::COUNT; f++) {
+                            if (dirty[f]) FAMILY_DISPATCH[f].dispatch_mesh(this, pass);
                         }
                         pass.End();
                     }
