@@ -1237,6 +1237,178 @@ namespace t7 {
 // ─────────────────────────────────────────────────────────────────
 
 
+// ─── Shared Spawn Helpers ────────────────────────────────────────
+//
+// Extracted scaffold shared by all three families (column, pyramid,
+// arch).  Session 1: columns call these.  Pyramid and arch still
+// use the inline code (before reference).  Session 2 migrates them.
+
+            // ── Helper 1: SpawnGatePreamble ──────────────────────────────
+            //
+            // Replaces the idempotency-through-slot-reservation block
+            // (~25 lines) at the top of every select_*_for_patch.
+            // Templated on the active-slot array type so it works with
+            // ActiveColumn, ActiveArch, ActivePyramid — all three share
+            // .active, .patch_gx, .patch_gz fields.
+
+            struct SpawnGatePreambleResult {
+                uint32_t seed;          // from evaluate_spawn_gate
+                uint32_t slot;          // reserved slot index
+                uint32_t theme_idx;     // active_theme_idx_ at evaluation time
+                bool ok;                // false = early exit (idempotency, gate, no slot)
+            };
+
+            template<typename ActiveT>
+            SpawnGatePreambleResult run_spawn_preamble(
+                int32_t gx, int32_t gz,
+                ActiveT* active_arr, uint32_t max_instances,
+                uint32_t spawn_roll_prop, const float* spawn_chance_table,
+                const float* mood_mult, float (*adj_fn)(uint32_t),
+                uint32_t family, const char* diag_name)
+            {
+                SpawnGatePreambleResult r{};
+                r.ok = false;
+
+                // 1. Idempotency
+                for (uint32_t i = 0; i < max_instances; i++) {
+                    if (active_arr[i].active &&
+                        active_arr[i].patch_gx == gx &&
+                        active_arr[i].patch_gz == gz) {
+                        return r;
+                    }
+                }
+
+                // 2-6. Spawn modifier chain
+                uint32_t nflags = neighbor_entity_flags(gx, gz);
+                float adj_mod = adj_fn(nflags);
+                adj_mod *= mood_mult[activeMood_];
+                adj_mod *= population_type_affinity(family);
+                r.theme_idx = active_theme_idx_;
+                {
+                    auto dit = tileCache_.find({ gx, gz });
+                    if (dit != tileCache_.end()) {
+                        adj_mod *= dit->second.entity_density;
+                        adj_mod *= dit->second.theme_spawn[family];
+                    }
+                }
+
+                // 7. Spawn gate
+                auto ctx = evaluate_spawn_gate(gx, gz, spawn_roll_prop,
+                    spawn_chance_table, adj_mod);
+                if (!ctx.passed) return r;
+
+                // 8-9. Find and reserve slot
+                uint32_t slot = UINT32_MAX;
+                for (uint32_t i = 0; i < max_instances; i++) {
+                    if (!active_arr[i].active) { slot = i; break; }
+                }
+                if (slot == UINT32_MAX) return r;
+                active_arr[slot].active = true;
+
+                // 10. Diagnostic
+                std::cout << "[DIAG:SEL] " << diag_name << " slot=" << slot
+                          << " patch=(" << gx << "," << gz << ")\n";
+
+                r.seed = ctx.seed;
+                r.slot = slot;
+                r.ok = true;
+                return r;
+            }
+
+            // ── Helper 2: NegotiatePosition ─────────────────────────────
+            //
+            // Replaces the formation-override + separation + footprint
+            // block in every place_*_from_selection.  Returns the
+            // accepted position or failure.
+
+            struct PositionResult {
+                float cx, cz, rotation;
+                int32_t host_gx, host_gz;
+                bool ok;
+            };
+
+            PositionResult negotiate_position(
+                uint32_t seed, int32_t trigger_gx, int32_t trigger_gz,
+                uint32_t pos_x_prop, uint32_t pos_z_prop, float jitter,
+                uint32_t rotation_seed_prop, uint32_t formation_gate_prop,
+                float footprint_r, uint32_t family, uint32_t theme_idx)
+            {
+                PositionResult r{};
+                r.ok = false;
+
+                // 1. Jittered position
+                jittered_position(seed, trigger_gx, trigger_gz,
+                    pos_x_prop, pos_z_prop, jitter, r.cx, r.cz);
+                r.rotation = cpu_hash_f(seed, rotation_seed_prop) * 6.283185f;
+
+                // 2. Formation override
+                float orig_cx = r.cx, orig_cz = r.cz, orig_rot = r.rotation;
+                bool used_formation = false;
+                {
+                    const auto& fconfig = THEMES[theme_idx].formation[family];
+                    const auto* fslot = fconfig.active_slot();
+                    if (fslot && cpu_hash_f(seed, formation_gate_prop) < fslot->ch) {
+                        uint32_t anchor_fam = (fconfig.anchor >= 0)
+                            ? (uint32_t)fconfig.anchor : family;
+                        const auto& tip = formationTips_[anchor_fam];
+                        if (tip.valid) {
+                            float di = std::max(0.0f,
+                                cpu_sample_gaussian(seed, 340u, fslot->di, fslot->ds));
+                            float ang = tip.rotation + fslot->an +
+                                cpu_sample_gaussian(seed, 342u, 0.0f, fslot->as);
+                            float fx = tip.x + std::cos(ang) * di;
+                            float fz = tip.z + std::sin(ang) * di;
+                            float frot = r.rotation;
+                            if (fslot->rm == RotationMode::INHERIT) {
+                                frot = tip.rotation +
+                                    cpu_sample_gaussian(seed, 344u, 0.0f, fslot->dr);
+                            }
+                            else if (fslot->rm == RotationMode::FOLLOW_LINE) {
+                                frot = std::atan2(fz - tip.z, fx - tip.x) +
+                                    cpu_sample_gaussian(seed, 344u, 0.0f, fslot->dr);
+                            }
+                            if (check_separation(fx, fz, family) &&
+                                footprint_clear(fx, fz, footprint_r)) {
+                                r.cx = fx; r.cz = fz; r.rotation = frot;
+                                used_formation = true;
+                            }
+                        }
+                    }
+                }
+
+                // 3. Separation + footprint check
+                bool position_ok = check_separation(r.cx, r.cz, family)
+                    && footprint_clear(r.cx, r.cz, footprint_r);
+                if (!position_ok && used_formation) {
+                    r.cx = orig_cx; r.cz = orig_cz; r.rotation = orig_rot;
+                    used_formation = false;
+                    position_ok = check_separation(r.cx, r.cz, family)
+                        && footprint_clear(r.cx, r.cz, footprint_r);
+                }
+                if (!position_ok) return r;
+
+                // 4. Host patch + footprint registration
+                r.host_gx = (int32_t)std::floor(r.cx / PATCH_EXTENT);
+                r.host_gz = (int32_t)std::floor(r.cz / PATCH_EXTENT);
+                if (register_footprint(r.cx, r.cz, footprint_r,
+                    r.host_gx, r.host_gz) == UINT32_MAX) return r;
+
+                r.ok = true;
+                return r;
+            }
+
+            // ── Helper 3: record_placement_bookkeeping ──────────────────
+            //
+            // Tail bookkeeping shared by all three families.
+
+            void record_placement_bookkeeping(uint32_t family, uint32_t tier_idx,
+                float cx, float cz, float rotation)
+            {
+                record_population_observation(family, tier_idx);
+                formationTips_[family] = { cx, cz, rotation, true };
+                record_spawn(cx, cz, rotation, family);
+            }
+
 // ─── Column Selection (identity + geometry, position-independent) ─
 //
 // Captures everything from the spawn gate, tier selection, and
@@ -1321,64 +1493,39 @@ namespace t7 {
             // solid_half, color resolution.  Position-independent.
 
             bool select_column_for_patch(int32_t gx, int32_t gz, ColumnSelection& sel) {
-                // Idempotency: skip if a column already exists at this patch
-                for (uint32_t i = 0; i < Dim::MAX_COLUMN_INSTANCES; i++) {
-                    if (activeColumns_[i].active &&
-                        activeColumns_[i].patch_gx == gx && activeColumns_[i].patch_gz == gz) {
-                        return false;
-                    }
-                }
+                // ── Shared preamble (template call) ──
+                auto gate = run_spawn_preamble(gx, gz,
+                    activeColumns_, Dim::MAX_COLUMN_INSTANCES,
+                    ColumnProp::SPAWN_ROLL, ColumnConfig::SPAWN_CHANCE_BY_ARCHETYPE,
+                    ColumnConfig::MOOD_MULTIPLIER, adjacency_modifier_column,
+                    PopFamily::COLUMN, "col");
+                if (!gate.ok) return false;
 
-                uint32_t nflags = neighbor_entity_flags(gx, gz);
-                float adj_mod = adjacency_modifier_column(nflags);
-                adj_mod *= ColumnConfig::MOOD_MULTIPLIER[activeMood_];
-                adj_mod *= population_type_affinity(PopFamily::COLUMN);
-                uint32_t tile_theme_idx = active_theme_idx_;
-                {
-                    auto dit = tileCache_.find({ gx, gz }); if (dit != tileCache_.end()) {
-                        adj_mod *= dit->second.entity_density;
-                        adj_mod *= dit->second.theme_spawn[PopFamily::COLUMN];
-                    }
-                }
-                auto ctx = evaluate_spawn_gate(gx, gz, ColumnProp::SPAWN_ROLL,
-                    ColumnConfig::SPAWN_CHANCE_BY_ARCHETYPE, adj_mod);
-                if (!ctx.passed) return false;
-
-                uint32_t slot = UINT32_MAX;
-                for (uint32_t i = 0; i < Dim::MAX_COLUMN_INSTANCES; i++) {
-                    if (!activeColumns_[i].active) { slot = i; break; }
-                }
-                if (slot == UINT32_MAX) return false;
-                activeColumns_[slot].active = true;  // [SLOT-FIX] Reserve
-                std::cout << "[DIAG:SEL] col slot=" << slot << " patch=(" << gx << "," << gz << ")\n";
-
-                // Tier selection (theme tier bias applied to base weights)
+                // ── Family-specific: tier selection ──
                 float column_weights[] = {
                     COLUMN_TIERS[0].weight, COLUMN_TIERS[1].weight, COLUMN_TIERS[2].weight,
                     ANTENNA_TIERS[0].weight, ANTENNA_TIERS[1].weight, ANTENNA_TIERS[2].weight
                 };
-                for (uint32_t t = 0; t < COLUMN_ANTENNA_TOTAL; t++) column_weights[t] *= THEMES[tile_theme_idx].tier_wt_column[t];
-                uint32_t tier_idx = select_tier_biased(ctx.seed, ColumnProp::TIER, column_weights, COLUMN_ANTENNA_TOTAL, PopFamily::COLUMN);
+                for (uint32_t t = 0; t < COLUMN_ANTENNA_TOTAL; t++) column_weights[t] *= THEMES[gate.theme_idx].tier_wt_column[t];
+                uint32_t tier_idx = select_tier_biased(gate.seed, ColumnProp::TIER, column_weights, COLUMN_ANTENNA_TOTAL, PopFamily::COLUMN);
                 const auto& tp = combined_column_tier(tier_idx);
 
-                // Derive all parameters from seed (used for pier footprint + GPU mesh params).
-                float height = std::max(1.0f, cpu_sample_gaussian(ctx.seed, ColumnProp::HEIGHT, tp.height_mean, tp.height_sigma));
-                float shaft_radius = std::max(0.1f, cpu_sample_gaussian(ctx.seed, ColumnProp::SHAFT_RADIUS, tp.shaft_radius_mean, tp.shaft_radius_sigma));
-                float col_taper = std::max(0.5f, std::min(1.0f, cpu_sample_gaussian(ctx.seed, ColumnProp::TAPER, tp.taper_mean, tp.taper_sigma)));
-                float entasis_val = std::max(0.0f, cpu_sample_gaussian(ctx.seed, ColumnProp::ENTASIS, tp.entasis_mean, tp.entasis_sigma));
-                uint32_t base_layers = (uint32_t)std::max(0.0f, std::round(cpu_sample_gaussian(ctx.seed, ColumnProp::BASE_LAYERS, tp.base_layers_mean, tp.base_layers_sigma)));
-                float base_height = std::max(0.0f, cpu_sample_gaussian(ctx.seed, ColumnProp::BASE_HEIGHT, tp.base_height_mean, tp.base_height_sigma));
-                float base_overhang = std::max(0.0f, cpu_sample_gaussian(ctx.seed, ColumnProp::BASE_OVERHANG, tp.base_overhang_mean, tp.base_overhang_sigma));
-                uint32_t cap_layers = (uint32_t)std::max(0.0f, std::round(cpu_sample_gaussian(ctx.seed, ColumnProp::CAPITAL_LAYERS, tp.capital_layers_mean, tp.capital_layers_sigma)));
-                float cap_height = std::max(0.0f, cpu_sample_gaussian(ctx.seed, ColumnProp::CAPITAL_HEIGHT, tp.capital_height_mean, tp.capital_height_sigma));
-                float cap_overhang = std::max(0.0f, cpu_sample_gaussian(ctx.seed, ColumnProp::CAPITAL_OVERHANG, tp.capital_overhang_mean, tp.capital_overhang_sigma));
-                float solid_padding = std::max(0.05f, cpu_sample_gaussian(ctx.seed, ColumnProp::SOLID_PADDING, tp.solid_padding_mean, tp.solid_padding_sigma));
-                float solid_height = std::max(0.6f, cpu_sample_gaussian(ctx.seed, ColumnProp::SOLID_HEIGHT, tp.solid_height_mean, tp.solid_height_sigma));
-                float edge_blend = std::max(0.1f, cpu_sample_gaussian(ctx.seed, ColumnProp::EDGE_BLEND, tp.edge_blend_mean, tp.edge_blend_sigma));
+                // ── Family-specific: Gaussian sampling ──
+                float height = std::max(1.0f, cpu_sample_gaussian(gate.seed, ColumnProp::HEIGHT, tp.height_mean, tp.height_sigma));
+                float shaft_radius = std::max(0.1f, cpu_sample_gaussian(gate.seed, ColumnProp::SHAFT_RADIUS, tp.shaft_radius_mean, tp.shaft_radius_sigma));
+                float col_taper = std::max(0.5f, std::min(1.0f, cpu_sample_gaussian(gate.seed, ColumnProp::TAPER, tp.taper_mean, tp.taper_sigma)));
+                float entasis_val = std::max(0.0f, cpu_sample_gaussian(gate.seed, ColumnProp::ENTASIS, tp.entasis_mean, tp.entasis_sigma));
+                uint32_t base_layers = (uint32_t)std::max(0.0f, std::round(cpu_sample_gaussian(gate.seed, ColumnProp::BASE_LAYERS, tp.base_layers_mean, tp.base_layers_sigma)));
+                float base_height = std::max(0.0f, cpu_sample_gaussian(gate.seed, ColumnProp::BASE_HEIGHT, tp.base_height_mean, tp.base_height_sigma));
+                float base_overhang = std::max(0.0f, cpu_sample_gaussian(gate.seed, ColumnProp::BASE_OVERHANG, tp.base_overhang_mean, tp.base_overhang_sigma));
+                uint32_t cap_layers = (uint32_t)std::max(0.0f, std::round(cpu_sample_gaussian(gate.seed, ColumnProp::CAPITAL_LAYERS, tp.capital_layers_mean, tp.capital_layers_sigma)));
+                float cap_height = std::max(0.0f, cpu_sample_gaussian(gate.seed, ColumnProp::CAPITAL_HEIGHT, tp.capital_height_mean, tp.capital_height_sigma));
+                float cap_overhang = std::max(0.0f, cpu_sample_gaussian(gate.seed, ColumnProp::CAPITAL_OVERHANG, tp.capital_overhang_mean, tp.capital_overhang_sigma));
+                float solid_padding = std::max(0.05f, cpu_sample_gaussian(gate.seed, ColumnProp::SOLID_PADDING, tp.solid_padding_mean, tp.solid_padding_sigma));
+                float solid_height = std::max(0.6f, cpu_sample_gaussian(gate.seed, ColumnProp::SOLID_HEIGHT, tp.solid_height_mean, tp.solid_height_sigma));
+                float edge_blend = std::max(0.1f, cpu_sample_gaussian(gate.seed, ColumnProp::EDGE_BLEND, tp.edge_blend_mean, tp.edge_blend_sigma));
 
-                // Solid: square footprint radius
-                // Classical columns: covers the widest part (base/capital overhang)
-                // Antennas: just wraps the post (2× post diameter), not the drums
+                // ── Family-specific: solid_half ──
                 float max_radius;
                 if (is_antenna_tier(tier_idx)) {
                     max_radius = shaft_radius * 2.0f;
@@ -1388,12 +1535,12 @@ namespace t7 {
                 }
                 float solid_half = max_radius + solid_padding + edge_blend;
 
-                // Write selection
-                sel.seed = ctx.seed;
+                // ── Write selection ──
+                sel.seed = gate.seed;
                 sel.trigger_gx = gx;
                 sel.trigger_gz = gz;
-                sel.theme_idx = tile_theme_idx;
-                sel.slot = slot;
+                sel.theme_idx = gate.theme_idx;
+                sel.slot = gate.slot;
                 sel.tier_idx = tier_idx;
                 sel.height = height;
                 sel.shaft_radius = shaft_radius;
@@ -1414,16 +1561,16 @@ namespace t7 {
                 sel.shaft_rings = tp.shaft_rings;
 
                 // Color: resolve fully during selection (no seed access needed later)
-                if (cpu_hash_f(ctx.seed, ColumnProp::COLOR_OVER) < tp.color_override) {
-                    uint32_t pal_idx = cpu_hash(ctx.seed, ColumnProp::COLOR_OVER + 1u) % COLUMN_PALETTE_COUNT;
-                    sel.col_r = COLUMN_PALETTE[pal_idx][0] + (cpu_hash_f(ctx.seed, ColumnProp::COLOR_VAR_R) - 0.5f) * 0.06f;
-                    sel.col_g = COLUMN_PALETTE[pal_idx][1] + (cpu_hash_f(ctx.seed, ColumnProp::COLOR_VAR_G) - 0.5f) * 0.06f;
-                    sel.col_b = COLUMN_PALETTE[pal_idx][2] + (cpu_hash_f(ctx.seed, ColumnProp::COLOR_VAR_B) - 0.5f) * 0.06f;
+                if (cpu_hash_f(gate.seed, ColumnProp::COLOR_OVER) < tp.color_override) {
+                    uint32_t pal_idx = cpu_hash(gate.seed, ColumnProp::COLOR_OVER + 1u) % COLUMN_PALETTE_COUNT;
+                    sel.col_r = COLUMN_PALETTE[pal_idx][0] + (cpu_hash_f(gate.seed, ColumnProp::COLOR_VAR_R) - 0.5f) * 0.06f;
+                    sel.col_g = COLUMN_PALETTE[pal_idx][1] + (cpu_hash_f(gate.seed, ColumnProp::COLOR_VAR_G) - 0.5f) * 0.06f;
+                    sel.col_b = COLUMN_PALETTE[pal_idx][2] + (cpu_hash_f(gate.seed, ColumnProp::COLOR_VAR_B) - 0.5f) * 0.06f;
                 }
                 else {
-                    sel.col_r = COLUMN_SANDSTONE_BASE[0] + (cpu_hash_f(ctx.seed, ColumnProp::COLOR_VAR_R) - 0.5f) * COLUMN_SANDSTONE_VARIANCE * 2.0f;
-                    sel.col_g = COLUMN_SANDSTONE_BASE[1] + (cpu_hash_f(ctx.seed, ColumnProp::COLOR_VAR_G) - 0.5f) * COLUMN_SANDSTONE_VARIANCE * 2.0f;
-                    sel.col_b = COLUMN_SANDSTONE_BASE[2] + (cpu_hash_f(ctx.seed, ColumnProp::COLOR_VAR_B) - 0.5f) * COLUMN_SANDSTONE_VARIANCE * 2.0f;
+                    sel.col_r = COLUMN_SANDSTONE_BASE[0] + (cpu_hash_f(gate.seed, ColumnProp::COLOR_VAR_R) - 0.5f) * COLUMN_SANDSTONE_VARIANCE * 2.0f;
+                    sel.col_g = COLUMN_SANDSTONE_BASE[1] + (cpu_hash_f(gate.seed, ColumnProp::COLOR_VAR_G) - 0.5f) * COLUMN_SANDSTONE_VARIANCE * 2.0f;
+                    sel.col_b = COLUMN_SANDSTONE_BASE[2] + (cpu_hash_f(gate.seed, ColumnProp::COLOR_VAR_B) - 0.5f) * COLUMN_SANDSTONE_VARIANCE * 2.0f;
                 }
 
                 // Antenna drum colors: resolve fully during selection
@@ -1438,19 +1585,19 @@ namespace t7 {
                         { 0.60f, 0.55f, 0.68f },  // lavender grey
                     };
                     static constexpr uint32_t DRUM_PAL_COUNT = 6;
-                    uint32_t d1 = cpu_hash(ctx.seed, 850u) % DRUM_PAL_COUNT;
-                    uint32_t d2 = (d1 + 1 + cpu_hash(ctx.seed, 851u) % (DRUM_PAL_COUNT - 1)) % DRUM_PAL_COUNT;
-                    uint32_t d3 = (d2 + 1 + cpu_hash(ctx.seed, 852u) % (DRUM_PAL_COUNT - 2)) % DRUM_PAL_COUNT;
+                    uint32_t d1 = cpu_hash(gate.seed, 850u) % DRUM_PAL_COUNT;
+                    uint32_t d2 = (d1 + 1 + cpu_hash(gate.seed, 851u) % (DRUM_PAL_COUNT - 1)) % DRUM_PAL_COUNT;
+                    uint32_t d3 = (d2 + 1 + cpu_hash(gate.seed, 852u) % (DRUM_PAL_COUNT - 2)) % DRUM_PAL_COUNT;
                     float v = 0.04f;
-                    sel.drum_colors[0] = DRUM_PALETTE[d1][0] + (cpu_hash_f(ctx.seed, 860u) - 0.5f) * v;
-                    sel.drum_colors[1] = DRUM_PALETTE[d1][1] + (cpu_hash_f(ctx.seed, 861u) - 0.5f) * v;
-                    sel.drum_colors[2] = DRUM_PALETTE[d1][2] + (cpu_hash_f(ctx.seed, 862u) - 0.5f) * v;
-                    sel.drum_colors[3] = DRUM_PALETTE[d2][0] + (cpu_hash_f(ctx.seed, 863u) - 0.5f) * v;
-                    sel.drum_colors[4] = DRUM_PALETTE[d2][1] + (cpu_hash_f(ctx.seed, 864u) - 0.5f) * v;
-                    sel.drum_colors[5] = DRUM_PALETTE[d2][2] + (cpu_hash_f(ctx.seed, 865u) - 0.5f) * v;
-                    sel.drum_colors[6] = DRUM_PALETTE[d3][0] + (cpu_hash_f(ctx.seed, 866u) - 0.5f) * v;
-                    sel.drum_colors[7] = DRUM_PALETTE[d3][1] + (cpu_hash_f(ctx.seed, 867u) - 0.5f) * v;
-                    sel.drum_colors[8] = DRUM_PALETTE[d3][2] + (cpu_hash_f(ctx.seed, 868u) - 0.5f) * v;
+                    sel.drum_colors[0] = DRUM_PALETTE[d1][0] + (cpu_hash_f(gate.seed, 860u) - 0.5f) * v;
+                    sel.drum_colors[1] = DRUM_PALETTE[d1][1] + (cpu_hash_f(gate.seed, 861u) - 0.5f) * v;
+                    sel.drum_colors[2] = DRUM_PALETTE[d1][2] + (cpu_hash_f(gate.seed, 862u) - 0.5f) * v;
+                    sel.drum_colors[3] = DRUM_PALETTE[d2][0] + (cpu_hash_f(gate.seed, 863u) - 0.5f) * v;
+                    sel.drum_colors[4] = DRUM_PALETTE[d2][1] + (cpu_hash_f(gate.seed, 864u) - 0.5f) * v;
+                    sel.drum_colors[5] = DRUM_PALETTE[d2][2] + (cpu_hash_f(gate.seed, 865u) - 0.5f) * v;
+                    sel.drum_colors[6] = DRUM_PALETTE[d3][0] + (cpu_hash_f(gate.seed, 866u) - 0.5f) * v;
+                    sel.drum_colors[7] = DRUM_PALETTE[d3][1] + (cpu_hash_f(gate.seed, 867u) - 0.5f) * v;
+                    sel.drum_colors[8] = DRUM_PALETTE[d3][2] + (cpu_hash_f(gate.seed, 868u) - 0.5f) * v;
                 }
 
                 return true;
@@ -1464,72 +1611,26 @@ namespace t7 {
             // ColumnPlacement.  Returns false if position rejected.
 
             bool place_column_from_selection(const ColumnSelection& sel, ColumnPlacement& plan) {
-                // World position
-                float cx, cz;
-                jittered_position(sel.seed, sel.trigger_gx, sel.trigger_gz, ColumnProp::POSITION_X, ColumnProp::POSITION_Z,
-                    ColumnConfig::POSITION_JITTER, cx, cz);
-                // Columns are cylindrical — "rotation" is used only for formation chain direction
-                float col_formation_rot = cpu_hash_f(sel.seed, 355u) * 6.283185f;
+                // ── Shared position negotiation ──
+                auto pos = negotiate_position(sel.seed,
+                    sel.trigger_gx, sel.trigger_gz,
+                    ColumnProp::POSITION_X, ColumnProp::POSITION_Z,
+                    ColumnConfig::POSITION_JITTER,
+                    355u, 356u,
+                    sel.solid_half, PopFamily::COLUMN, sel.theme_idx);
+                if (!pos.ok) return false;
 
-                // Formation override: differential tip system
-                float orig_cx = cx, orig_cz = cz;
-                bool used_formation = false;
-                {
-                    const auto& fconfig = THEMES[sel.theme_idx].formation[PopFamily::COLUMN];
-                    const auto* fslot = fconfig.active_slot();
-                    if (fslot && cpu_hash_f(sel.seed, 356u) < fslot->ch) {
-                        uint32_t anchor_fam = (fconfig.anchor >= 0) ? (uint32_t)fconfig.anchor : PopFamily::COLUMN;
-                        const auto& tip = formationTips_[anchor_fam];
-                        if (tip.valid) {
-                            float di = std::max(0.0f, cpu_sample_gaussian(sel.seed, 340u, fslot->di, fslot->ds));
-                            float ang = tip.rotation + fslot->an + cpu_sample_gaussian(sel.seed, 342u, 0.0f, fslot->as);
-                            float fx = tip.x + std::cos(ang) * di;
-                            float fz = tip.z + std::sin(ang) * di;
-                            float frot = col_formation_rot;
-                            if (fslot->rm == RotationMode::INHERIT) {
-                                frot = tip.rotation + cpu_sample_gaussian(sel.seed, 344u, 0.0f, fslot->dr);
-                            }
-                            else if (fslot->rm == RotationMode::FOLLOW_LINE) {
-                                frot = std::atan2(fz - tip.z, fx - tip.x) + cpu_sample_gaussian(sel.seed, 344u, 0.0f, fslot->dr);
-                            }
-                            if (check_separation(fx, fz, PopFamily::COLUMN) && footprint_clear(fx, fz, sel.solid_half)) {
-                                cx = fx; cz = fz; col_formation_rot = frot;
-                                used_formation = true;
-                            }
-                        }
-                    }
-                }
-
-                // Position acceptance: separation + footprint
-                bool position_ok = check_separation(cx, cz, PopFamily::COLUMN)
-                    && footprint_clear(cx, cz, sel.solid_half);
-                if (!position_ok && used_formation) {
-                    cx = orig_cx; cz = orig_cz;
-                    col_formation_rot = cpu_hash_f(sel.seed, 355u) * 6.283185f;
-                    used_formation = false;
-                    position_ok = check_separation(cx, cz, PopFamily::COLUMN)
-                        && footprint_clear(cx, cz, sel.solid_half);
-                }
-                if (!position_ok) return false;
-                int32_t host_gx = (int32_t)std::floor(cx / PATCH_EXTENT);
-                int32_t host_gz = (int32_t)std::floor(cz / PATCH_EXTENT);
-                if (register_footprint(cx, cz, sel.solid_half, host_gx, host_gz) == UINT32_MAX) return false;
-
-                // ─── Populate placement (plan output) ────────────────────────
-                //
-                // Everything the commit needs is captured here. The planning
-                // phase is complete. Below this point, only plan fields are read.
-
+                // ── Family-specific: populate placement ──
                 plan = ColumnPlacement{};
                 plan.slot = sel.slot;
                 plan.trigger_gx = sel.trigger_gx;
                 plan.trigger_gz = sel.trigger_gz;
-                plan.host_gx = host_gx;
-                plan.host_gz = host_gz;
+                plan.host_gx = pos.host_gx;
+                plan.host_gz = pos.host_gz;
                 plan.tier_idx = sel.tier_idx;
-                plan.cx = cx;
-                plan.cz = cz;
-                plan.formation_rot = col_formation_rot;
+                plan.cx = pos.cx;
+                plan.cz = pos.cz;
+                plan.formation_rot = pos.rotation;
 
                 plan.height = sel.height;
                 plan.shaft_radius = sel.shaft_radius;
@@ -1554,10 +1655,10 @@ namespace t7 {
                 plan.col_b = sel.col_b;
                 std::memcpy(plan.drum_colors, sel.drum_colors, sizeof(plan.drum_colors));
 
-                // Ground Y: CPU terrain at final position + pier height
+                // ── Family-specific: ground Y ──
                 plan.cached_ground_y = cpu_terrain_base_at(plan.cx, plan.cz) + plan.solid_height;
 
-                // Pier geometry (ready to write)
+                // ── Family-specific: pier geometry ──
                 plan.pier_slot = Dim::PIER_COLUMN_BASE + plan.slot;
                 plan.pier = GPUPierInstance{};
                 plan.pier.origin[0] = plan.cx;
@@ -1571,11 +1672,9 @@ namespace t7 {
                 plan.pier.tier = PierTier::COL_PILLAR + plan.tier_idx;
                 plan.pier.is_active = 1;
 
-                // Planning-phase bookkeeping (formation tips, population batch)
-                // These mutate planner state and must run before the next entity plans.
-                record_population_observation(PopFamily::COLUMN, plan.tier_idx);
-                formationTips_[PopFamily::COLUMN] = { plan.cx, plan.cz, plan.formation_rot, true };
-                record_spawn(plan.cx, plan.cz, plan.formation_rot, PopFamily::COLUMN);
+                // ── Shared tail bookkeeping ──
+                record_placement_bookkeeping(PopFamily::COLUMN, plan.tier_idx,
+                    plan.cx, plan.cz, plan.formation_rot);
 
                 return true;
             }
