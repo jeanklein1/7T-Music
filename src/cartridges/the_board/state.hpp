@@ -2354,10 +2354,10 @@ namespace t7 {
             bool createBladeMesh() {
                 bladeVertexBuffer_ = makeBuffer("Blade VB (GPU mesh gen)",
                     Dim::BLADEG_TOTAL_VERTICES * sizeof(ArchVertex),
-                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::Vertex);
+                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst);
                 bladeIndexBuffer_ = makeBuffer("Blade IB (GPU mesh gen)",
                     Dim::BLADEG_TOTAL_INDICES * sizeof(uint32_t),
-                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::Index);
+                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::Index | wgpu::BufferUsage::CopyDst);
                 bladeGroundBuffer_ = makeBuffer("Blade Ground Y",
                     Dim::MAX_BLADE_INSTANCES * sizeof(GPUBladeClusterGroundEntry),
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);
@@ -3135,9 +3135,9 @@ namespace t7 {
                 // -- Photographer compute layout (Group 0) -- VP + terrain coupling --
                 // Reads GPU pawn position + config → builds VP, clamps camera above terrain,
                 // corrects entity + painting Y positions from baked heightfield + GoL zones.
-                // 10 storage buffers + 2 uniform + 1 texture + 1 sampler = 14 entries.
+                // 9 storage buffers + 2 uniform + 1 texture + 1 sampler = 13 entries.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 14> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 13> entries{};
 
                     // pawn_state: read actual GPU pawn position
                     entries[0].binding = 60;
@@ -3217,9 +3217,9 @@ namespace t7 {
                 // Runs every frame, unconditionally. Samples the baked heightfield
                 // and subtracts CPU-computed pier_correction to isolate each entity's
                 // own pier contribution (removing foreign pier contamination).
-                // 11 entries: config + pawn + painting slots + heightfield + entity grounds + GoL.
+                // 12 entries: config + pawn + painting slots + heightfield + entity grounds + GoL + blade.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 13> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 14> entries{};
 
                     entries[0].binding = 1;
                     entries[0].visibility = wgpu::ShaderStage::Compute;
