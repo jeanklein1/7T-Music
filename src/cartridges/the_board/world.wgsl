@@ -6233,7 +6233,7 @@ fn pyramid_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
     // ── Inactive: write degenerate indices ───────────────────────
     if (p.is_active == 0u) {
         for (var i = 0u; i < PMG_MAX_INDICES_PER_SLOT; i++) {
-            pmg_indices[slot_ib + i] = 0u;
+            pmg_indices[slot_ib + i] = slot_vb;
         }
         return;
     }
@@ -6303,7 +6303,7 @@ fn pyramid_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
 
     // ── Zero remaining indices (pointed: 12→30, truncated: fills 30) ─
     for (var i = vi; i < PMG_MAX_INDICES_PER_SLOT; i++) {
-        pmg_indices[slot_ib + i] = 0u;
+        pmg_indices[slot_ib + i] = slot_vb;
     }
 }
 
@@ -6598,7 +6598,7 @@ fn arch_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
         let chunk = AMG_MAX_INDICES_PER_SLOT / 4u;
         let start = slot_ib + sub_mesh * chunk;
         for (var i = 0u; i < chunk; i++) {
-            amg_indices[start + i] = 0u;
+            amg_indices[start + i] = slot_vb;
         }
         return;
     }
@@ -6648,7 +6648,7 @@ fn arch_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
             // Total used = 2*shell_indices + 2*cap_indices.
             let total_used = 2u * shell_indices + 2u * cap_indices;
             for (var i = total_used; i < AMG_MAX_INDICES_PER_SLOT; i++) {
-                amg_indices[slot_ib + i] = 0u;
+                amg_indices[slot_ib + i] = slot_vb;
             }
         }
         case 3u: {
@@ -6753,7 +6753,7 @@ fn column_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
     // ── Inactive: zero all indices ─────────────────────────────
     if (p.is_active == 0u) {
         for (var i = 0u; i < CMG_MAX_INDICES_PER_SLOT; i++) {
-            cmg_indices[slot_ib + i] = 0u;
+            cmg_indices[slot_ib + i] = slot_vb;
         }
         return;
     }
@@ -7168,7 +7168,7 @@ fn column_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
     // ── Zero remaining indices ─────────────────────────────────
     let used = ii - slot_ib;
     for (var i = used; i < CMG_MAX_INDICES_PER_SLOT; i++) {
-        cmg_indices[slot_ib + i] = 0u;
+        cmg_indices[slot_ib + i] = slot_vb;
     }
 }
 
@@ -7233,7 +7233,7 @@ fn palm_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
 
     if (p.is_active == 0u) {
         for (var i = 0u; i < PALMG_MAX_INDICES_PER_SLOT; i++) {
-            palmg_indices[ib_base + i] = 0u;
+            palmg_indices[ib_base + i] = vb_base;
         }
         return;
     }
@@ -7459,7 +7459,7 @@ fn palm_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
 
     // Zero remaining indices (degenerate padding)
     for (var i = ii; i < PALMG_MAX_INDICES_PER_SLOT; i++) {
-        palmg_indices[ib_base + i] = 0u;
+        palmg_indices[ib_base + i] = vb_base;
     }
 }
 
