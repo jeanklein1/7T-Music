@@ -7615,8 +7615,9 @@ fn cactus_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
         }
     }
 
-    // ── TRUNK CAP ──
+    // ── TRUNK CAP (stitched to top ring) ──
 
+    let top_ring_vi = trunk_steps * around;  // first vertex of trunk's last ring
     let top_lean = p.lean * p.height;
     let cap_cx = cx + top_lean * lean_cos;
     let cap_cz = cz + top_lean * lean_sin;
@@ -7626,6 +7627,7 @@ fn cactus_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
     let cap_col_g = p.body_g * 0.6 + p.rib_g * 0.4;
     let cap_col_b = p.body_b * 0.6 + p.rib_b * 0.4;
 
+    // Single tip vertex above center
     let cap_tip_vi = vi;
     cactusg_write_vertex(vb_base + vi,
         cap_cx, cap_y + cap_r * 0.6, cap_cz,
@@ -7633,22 +7635,12 @@ fn cactus_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
         cap_col_r, cap_col_g, cap_col_b, slot);
     vi++;
 
-    let cap_ring_vi = vi;
-    let cap_segs = min(around, 12u);
-    for (var seg = 0u; seg < cap_segs; seg++) {
-        let angle = f32(seg) / f32(cap_segs) * 2.0 * PI;
-        cactusg_write_vertex(vb_base + vi,
-            cap_cx + cos(angle) * cap_r, cap_y, cap_cz + sin(angle) * cap_r,
-            0.0, 1.0, 0.0,
-            cap_col_r, cap_col_g, cap_col_b, slot);
-        vi++;
-    }
-
-    for (var seg = 0u; seg < cap_segs; seg++) {
-        let next = (seg + 1u) % cap_segs;
+    // Fan from tip to trunk's existing top ring — no separate cap ring
+    for (var seg = 0u; seg < around; seg++) {
+        let next = (seg + 1u) % around;
         cactusg_indices[ib_base + ii] = vb_base + cap_tip_vi; ii++;
-        cactusg_indices[ib_base + ii] = vb_base + cap_ring_vi + seg; ii++;
-        cactusg_indices[ib_base + ii] = vb_base + cap_ring_vi + next; ii++;
+        cactusg_indices[ib_base + ii] = vb_base + top_ring_vi + seg; ii++;
+        cactusg_indices[ib_base + ii] = vb_base + top_ring_vi + next; ii++;
     }
 
     // ── ARMS: ribbed columns along upward-curving paths ──

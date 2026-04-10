@@ -1467,7 +1467,7 @@ namespace t7 {
             static constexpr float CACTUS_RIB_BASE[3]  = { 0.35f, 0.55f, 0.30f };
 
             struct CactusConfig {
-                static constexpr float SPAWN_CHANCE_BY_ARCHETYPE[4] = { 0.0f, 0.020f, 0.020f, 0.0f };
+                static constexpr float SPAWN_CHANCE_BY_ARCHETYPE[4] = { 0.0f, 0.100f, 0.100f, 0.0f };  // DEBUG: 5× spawn rate
                 static constexpr float MOOD_MULTIPLIER[MOOD_COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f };
                 static constexpr float POSITION_JITTER = 0.35f;
             };
