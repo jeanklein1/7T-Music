@@ -7173,6 +7173,8 @@ struct PalmMeshParams {
     trunk_segs: u32, frond_segs: u32,
     is_active: u32,
     _pad0: f32,
+    _pad1: f32,
+    _pad2: f32,
 }
 
 const PALMG_MAX_VERTS_PER_SLOT: u32 = 1200u;

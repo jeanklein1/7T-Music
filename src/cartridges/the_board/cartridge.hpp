@@ -1192,7 +1192,7 @@ namespace t7 {
             static constexpr float PALM_AGED_BASE[3]  = { 0.35f, 0.38f, 0.18f };
 
             struct PalmConfig {
-                static constexpr float SPAWN_CHANCE_BY_ARCHETYPE[4] = { 0.0f, 0.020f, 0.020f, 0.0f };
+                static constexpr float SPAWN_CHANCE_BY_ARCHETYPE[4] = { 0.2f, 0.2f, 0.2f, 0.5f };
                 static constexpr float MOOD_MULTIPLIER[MOOD_COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f };
                 static constexpr float POSITION_JITTER = 0.45f;
             };
