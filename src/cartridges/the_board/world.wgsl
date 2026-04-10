@@ -7886,7 +7886,7 @@ fn blade_cluster_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
 
     let cx = p.center_x;
     let cz = p.center_z;
-    let n_blades = 1u;  // DIAGNOSTIC: force single blade per cluster
+    let n_blades = u32(max(2.0, p.blade_count));
     let segs = max(3u, p.blade_segs);
     let GA = PI * (3.0 - sqrt(5.0));
 
@@ -8029,7 +8029,12 @@ fn blade_cluster_vs(in: ArchVertexInput) -> EntityVarying {
     out.clip_pos = render_vp.m * vec4(world_pos, 1.0);
     out.world_pos = world_pos;
     out.normal = in.normal;
-    out.entity_color = in.color;
+    // DIAGNOSTIC: override color by slot index
+    let diag_slot = u32(in.arch_index);
+    let diag_r = f32(diag_slot % 3u) / 2.0;
+    let diag_g = f32((diag_slot / 3u) % 3u) / 2.0;
+    let diag_b = f32((diag_slot / 9u) % 3u) / 2.0;
+    out.entity_color = vec3(diag_r, diag_g, diag_b);
     return out;
 }
 
