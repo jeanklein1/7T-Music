@@ -327,14 +327,15 @@
                     gpuState_.cactus_index_count()
                 );
 
-                renderer_.draw_shadow_blade(
-                    pass,
-                    gpuState_.render_entity_group(),
-                    gpuState_.shadow_texture_group(),
-                    gpuState_.blade_vertex_buffer(),
-                    gpuState_.blade_index_buffer(),
-                    gpuState_.blade_index_count()
-                );
+                // DIAGNOSTIC: blade draw disabled to isolate artifact source
+                // renderer_.draw_shadow_blade(
+                //     pass,
+                //     gpuState_.render_entity_group(),
+                //     gpuState_.shadow_texture_group(),
+                //     gpuState_.blade_vertex_buffer(),
+                //     gpuState_.blade_index_buffer(),
+                //     gpuState_.blade_index_count()
+                // );
 
                 renderer_.draw_shadow_shell(
                     pass,
@@ -451,14 +452,15 @@
                     gpuState_.cactus_index_count()
                 );
 
-                renderer_.draw_blade(
-                    pass,
-                    gpuState_.render_entity_group(),
-                    gpuState_.render_texture_group(),
-                    gpuState_.blade_vertex_buffer(),
-                    gpuState_.blade_index_buffer(),
-                    gpuState_.blade_index_count()
-                );
+                // DIAGNOSTIC: blade draw disabled to isolate artifact source
+                // renderer_.draw_blade(
+                //     pass,
+                //     gpuState_.render_entity_group(),
+                //     gpuState_.render_texture_group(),
+                //     gpuState_.blade_vertex_buffer(),
+                //     gpuState_.blade_index_buffer(),
+                //     gpuState_.blade_index_count()
+                // );
 
                 renderer_.draw_shell(
                     pass,
