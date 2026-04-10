@@ -5506,6 +5506,9 @@ struct PalmGroundEntry {
     is_active: u32,
     _pad0: f32, _pad1: f32, _pad2: f32, _pad3: f32,
 }
+@group(0) @binding(150) var<storage, read_write> palm_ground: array<PalmGroundEntry, 24>;
+@group(0) @binding(151) var<storage, read_write> cactus_ground: array<CactusGroundEntry, 20>;
+@group(0) @binding(152) var<storage, read_write> blade_ground: array<BladeClusterGroundEntry, 32>;
 
 // --- Terrain Height Sampling
 fn sample_terrain_y_at(world_xz: vec2<f32>, patch_count: u32) -> f32 {
@@ -7852,7 +7855,7 @@ fn bladeg_write_vertex(abs_idx: u32, px: f32, py: f32, pz: f32,
     bladeg_vertices[base + 6u] = cr;
     bladeg_vertices[base + 7u] = cg;
     bladeg_vertices[base + 8u] = cb;
-    bladeg_vertices[base + 9u] = bitcast<f32>(entity_idx);
+    bladeg_vertices[base + 9u] = f32(entity_idx);
 }
 
 fn blade_hash(seed: u32, prop: u32) -> f32 {
@@ -7884,11 +7887,8 @@ fn blade_cluster_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
 
     let cx = p.center_x;
     let cz = p.center_z;
-    // Clamp to stay within vertex/index budget:
-    // verts_per_blade = (segs+1)*2, indices_per_blade = segs*6
-    // At 10 blades × 15 segs: 320 verts, 900 indices (within 500/2000)
-    let n_blades = min(10u, u32(max(2.0, p.blade_count)));
-    let segs = clamp(p.blade_segs, 3u, 15u);
+    let n_blades = u32(max(2.0, p.blade_count));
+    let segs = max(3u, p.blade_segs);
     let GA = PI * (3.0 - sqrt(5.0));
 
     for (var b = 0u; b < n_blades; b++) {
