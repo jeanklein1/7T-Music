@@ -7205,18 +7205,241 @@ fn palmg_write_vertex(abs_idx: u32, px: f32, py: f32, pz: f32,
 fn palm_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
     let slot = gid.x;
     if (slot >= PALMG_MAX_SLOTS) { return; }
-    let p = palmg_params[slot];
-    let slot_ib = slot * PALMG_MAX_INDICES_PER_SLOT;
 
-    // Stub: zero all indices (degenerate triangles — invisible)
-    for (var i = 0u; i < PALMG_MAX_INDICES_PER_SLOT; i++) {
-        palmg_indices[slot_ib + i] = 0u;
+    let p = palmg_params[slot];
+    let vb_base = slot * PALMG_MAX_VERTS_PER_SLOT;
+    let ib_base = slot * PALMG_MAX_INDICES_PER_SLOT;
+
+    if (p.is_active == 0u) {
+        for (var i = 0u; i < PALMG_MAX_INDICES_PER_SLOT; i++) {
+            palmg_indices[ib_base + i] = 0u;
+        }
+        return;
     }
 
-    if (p.is_active == 0u) { return; }
+    var vi = 0u;
+    var ii = 0u;
 
-    // TODO: implement trunk + frond geometry
-    // Port from 7t_palm_designer.jsx trunkProfile() and frondGeometry()
+    let cx = p.center_x;
+    let cz = p.center_z;
+    let burial = p.burial;
+    let lean_cos = cos(p.lean_dir);
+    let lean_sin = sin(p.lean_dir);
+
+    // ── TRUNK: surface of revolution with taper + bark rings + lean ──
+
+    let trunk_rings = min(u32(max(8.0, p.bark_rings)), 40u);
+    let trunk_segs = min(p.trunk_segs, 24u);
+
+    for (var ring = 0u; ring <= trunk_rings; ring++) {
+        let t = f32(ring) / f32(trunk_rings);
+
+        var r = p.base_r + (p.top_r - p.base_r) * t;
+        let ring_phase = t * p.bark_rings * 2.0 * PI;
+        r += sin(ring_phase) * p.bark_depth * (1.0 - t * 0.5);
+        r = max(0.01, r);
+
+        let lean_mag = p.lean * p.height * t * t;
+        let lean_x = lean_mag * lean_cos;
+        let lean_z = lean_mag * lean_sin;
+        let y = t * p.height - burial;
+
+        let shade = 0.85 + 0.15 * t;
+        let cr = p.trunk_r * shade;
+        let cg = p.trunk_g * shade;
+        let cb = p.trunk_b * shade;
+
+        for (var seg = 0u; seg < trunk_segs; seg++) {
+            let angle = f32(seg) / f32(trunk_segs) * 2.0 * PI;
+            let ca = cos(angle);
+            let sa = sin(angle);
+
+            palmg_write_vertex(vb_base + vi,
+                cx + lean_x + ca * r, y, cz + lean_z + sa * r,
+                ca, 0.0, sa,
+                cr, cg, cb, slot);
+            vi++;
+        }
+    }
+
+    // Trunk indices: quads between consecutive rings
+    for (var ring = 0u; ring < trunk_rings; ring++) {
+        for (var seg = 0u; seg < trunk_segs; seg++) {
+            let next_seg = (seg + 1u) % trunk_segs;
+            let row0 = ring * trunk_segs;
+            let row1 = (ring + 1u) * trunk_segs;
+
+            let v00 = vb_base + row0 + seg;
+            let v10 = vb_base + row1 + seg;
+            let v11 = vb_base + row1 + next_seg;
+            let v01 = vb_base + row0 + next_seg;
+
+            palmg_indices[ib_base + ii] = v00; ii++;
+            palmg_indices[ib_base + ii] = v10; ii++;
+            palmg_indices[ib_base + ii] = v11; ii++;
+            palmg_indices[ib_base + ii] = v00; ii++;
+            palmg_indices[ib_base + ii] = v11; ii++;
+            palmg_indices[ib_base + ii] = v01; ii++;
+        }
+    }
+
+    // ── CROWN CAP: triangle fan at trunk top ──
+
+    let top_lean_mag = p.lean * p.height;
+    let crown_lean_x = top_lean_mag * lean_cos;
+    let crown_lean_z = top_lean_mag * lean_sin;
+    let crown_y = p.height - burial;
+    let crown_r = p.top_r * 1.3;
+
+    let crown_cr = p.trunk_r * 0.6 + p.frond_r * 0.4;
+    let crown_cg = p.trunk_g * 0.6 + p.frond_g * 0.4;
+    let crown_cb = p.trunk_b * 0.6 + p.frond_b * 0.4;
+
+    let cap_tip_vi = vi;
+    palmg_write_vertex(vb_base + vi,
+        cx + crown_lean_x, crown_y + crown_r * 0.6, cz + crown_lean_z,
+        0.0, 1.0, 0.0,
+        crown_cr, crown_cg, crown_cb, slot);
+    vi++;
+
+    let cap_ring_vi = vi;
+    for (var seg = 0u; seg < trunk_segs; seg++) {
+        let angle = f32(seg) / f32(trunk_segs) * 2.0 * PI;
+        palmg_write_vertex(vb_base + vi,
+            cx + crown_lean_x + cos(angle) * crown_r,
+            crown_y,
+            cz + crown_lean_z + sin(angle) * crown_r,
+            0.0, 1.0, 0.0,
+            crown_cr, crown_cg, crown_cb, slot);
+        vi++;
+    }
+
+    for (var seg = 0u; seg < trunk_segs; seg++) {
+        let next_seg = (seg + 1u) % trunk_segs;
+        palmg_indices[ib_base + ii] = vb_base + cap_tip_vi; ii++;
+        palmg_indices[ib_base + ii] = vb_base + cap_ring_vi + seg; ii++;
+        palmg_indices[ib_base + ii] = vb_base + cap_ring_vi + next_seg; ii++;
+    }
+
+    // ── FRONDS: radial quad strips with golden-angle packing ──
+
+    let golden_angle = PI * (3.0 - sqrt(5.0));
+    let n_fronds = min(u32(max(3.0, p.frond_count)), 18u);
+    let frond_segs = min(p.frond_segs, 14u);
+    let crown_frond_y = crown_y + crown_r * 0.3;
+
+    for (var f = 0u; f < n_fronds; f++) {
+        let base_angle = f32(f) * golden_angle;
+        let rank = f32(f) / max(1.0, f32(n_fronds - 1u));
+
+        let elev_top = p.crown_spread * PI * 0.42;
+        let elev_bot = -p.crown_skirt * PI * 0.25;
+        let elevation = elev_bot + (elev_top - elev_bot) * rank;
+
+        let droop_scale = 0.25 + 0.75 * (1.0 - rank);
+        let len_scale = 0.6 + 0.4 * (1.0 - rank);
+
+        let cos_az = cos(base_angle);
+        let sin_az = sin(base_angle);
+        let cos_el = cos(elevation);
+        let sin_el = sin(elevation);
+        let fwd_x = cos_az * cos_el;
+        let fwd_y = sin_el;
+        let fwd_z = sin_az * cos_el;
+
+        // Right vector: cross(forward, up)
+        var right_x: f32; var right_y: f32; var right_z: f32;
+        if (sin_el > 0.95) {
+            right_x = -sin_az; right_y = 0.0; right_z = cos_az;
+        } else {
+            let rx = fwd_z; let rz = -fwd_x;
+            let rl = sqrt(rx * rx + rz * rz);
+            if (rl > 0.001) {
+                right_x = rx / rl; right_y = 0.0; right_z = rz / rl;
+            } else {
+                right_x = -sin_az; right_y = 0.0; right_z = cos_az;
+            }
+        }
+
+        let frond_len = p.frond_len * len_scale;
+        let frond_vi_start = vi;
+
+        for (var s = 0u; s <= frond_segs; s++) {
+            let t = f32(s) / f32(frond_segs);
+            let dist = t * frond_len;
+
+            let arch_up = p.frond_arch * frond_len * sin(t * PI * 0.4);
+            let droop_down = p.frond_droop * frond_len * t * t * t * droop_scale;
+            let dy = arch_up - droop_down;
+
+            let mx = cx + crown_lean_x + fwd_x * dist;
+            let my = crown_frond_y + fwd_y * dist + dy;
+            let mz = cz + crown_lean_z + fwd_z * dist;
+
+            let w = p.frond_width * (1.0 - t * 0.85) * (0.3 + 0.7 * min(1.0, t * 3.0));
+            let half_w = w * 0.5;
+            let px_off = right_x * half_w;
+            let py_off = right_y * half_w;
+            let pz_off = right_z * half_w;
+
+            // Color: blend young→aged by rank + tip aging
+            let aged_blend = rank;
+            let fr = p.aged_r + (p.frond_r - p.aged_r) * aged_blend;
+            let fg = p.aged_g + (p.frond_g - p.aged_g) * aged_blend;
+            let fb = p.aged_b + (p.frond_b - p.aged_b) * aged_blend;
+            let tip_age = min(1.0, t * t * (1.0 - rank * 0.7)) * 0.3;
+            let seg_r = fr + (p.aged_r - fr) * tip_age;
+            let seg_g = fg + (p.aged_g - fg) * tip_age;
+            let seg_b = fb + (p.aged_b - fb) * tip_age;
+            let seg_shade = 0.75 + 0.25 * t;
+            let frond_var = f32(f % 3u) * 0.03;
+
+            let ny_approx = 0.8;
+            let nx_approx = fwd_x * 0.2;
+            let nz_approx = fwd_z * 0.2;
+
+            // Left vertex
+            palmg_write_vertex(vb_base + vi,
+                mx + px_off, my + py_off, mz + pz_off,
+                nx_approx, ny_approx, nz_approx,
+                min(1.0, seg_r * seg_shade - frond_var * 0.5),
+                min(1.0, seg_g * seg_shade + frond_var),
+                min(1.0, seg_b * seg_shade - frond_var * 0.5),
+                slot);
+            vi++;
+
+            // Right vertex
+            palmg_write_vertex(vb_base + vi,
+                mx - px_off, my - py_off, mz - pz_off,
+                -nx_approx, ny_approx, -nz_approx,
+                min(1.0, seg_r * seg_shade - frond_var * 0.5),
+                min(1.0, seg_g * seg_shade + frond_var),
+                min(1.0, seg_b * seg_shade - frond_var * 0.5),
+                slot);
+            vi++;
+        }
+
+        // Quad strip indices for this frond
+        for (var s = 0u; s < frond_segs; s++) {
+            let base_v = vb_base + frond_vi_start + s * 2u;
+            let left0  = base_v;
+            let right0 = base_v + 1u;
+            let left1  = base_v + 2u;
+            let right1 = base_v + 3u;
+
+            palmg_indices[ib_base + ii] = left0;  ii++;
+            palmg_indices[ib_base + ii] = left1;  ii++;
+            palmg_indices[ib_base + ii] = right1; ii++;
+            palmg_indices[ib_base + ii] = left0;  ii++;
+            palmg_indices[ib_base + ii] = right1; ii++;
+            palmg_indices[ib_base + ii] = right0; ii++;
+        }
+    }
+
+    // Zero remaining indices (degenerate padding)
+    for (var i = ii; i < PALMG_MAX_INDICES_PER_SLOT; i++) {
+        palmg_indices[ib_base + i] = 0u;
+    }
 }
 
 // ─── Palm vertex shaders ─────────────────────────────────────────────
