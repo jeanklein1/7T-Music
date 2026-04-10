@@ -1413,6 +1413,7 @@ namespace t7 {
                 mp.is_active = 1;
                 gpuState_.upload_palm_mesh_params_slot(queue, plan.slot, mp);
                 palmMeshGenPending_ = true;
+                groundEntriesDirty_ = true;
             }
 
             bool prepare_palm_mesh_gen(wgpu::Queue& queue) {
@@ -1738,6 +1739,7 @@ namespace t7 {
                 mp.seed = plan.seed_val;
                 gpuState_.upload_blade_mesh_params_slot(queue, plan.slot, mp);
                 bladeMeshGenPending_ = true;
+                groundEntriesDirty_ = true;
             }
 
             bool prepare_blade_mesh_gen(wgpu::Queue& queue) {
@@ -1918,6 +1920,7 @@ namespace t7 {
                 mp.seed = plan.seed_val;
                 gpuState_.upload_cactus_mesh_params_slot(queue, plan.slot, mp);
                 cactusMeshGenPending_ = true;
+                groundEntriesDirty_ = true;
             }
 
             bool prepare_cactus_mesh_gen(wgpu::Queue& queue) {
@@ -6872,6 +6875,7 @@ namespace t7 {
                 self->activePalmCount_--;
                 { GPUPalmMeshParams ep{}; self->gpuState_.upload_palm_mesh_params_slot(queue, slot, ep); }
                 self->palmMeshGenPending_ = true;
+                self->groundEntriesDirty_ = true;
 #ifdef DIAG_ENTITY_LIFECYCLE
                 std::cout << "[DIAG:EVICT]   palm slot=" << slot << "\n";
 #endif
@@ -6938,6 +6942,7 @@ namespace t7 {
                 self->activeCactusCount_--;
                 { GPUCactusMeshParams ep{}; self->gpuState_.upload_cactus_mesh_params_slot(queue, slot, ep); }
                 self->cactusMeshGenPending_ = true;
+                self->groundEntriesDirty_ = true;
 #ifdef DIAG_ENTITY_LIFECYCLE
                 std::cout << "[DIAG:EVICT]   cact slot=" << slot << "\n";
 #endif
@@ -6999,6 +7004,7 @@ namespace t7 {
                 self->activeBladeCount_--;
                 { GPUBladeClusterMeshParams ep{}; self->gpuState_.upload_blade_mesh_params_slot(queue, slot, ep); }
                 self->bladeMeshGenPending_ = true;
+                self->groundEntriesDirty_ = true;
 #ifdef DIAG_ENTITY_LIFECYCLE
                 std::cout << "[DIAG:EVICT]   blad slot=" << slot << "\n";
 #endif
