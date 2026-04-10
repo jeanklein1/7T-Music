@@ -7559,7 +7559,7 @@ fn cactus_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
     let lean_sin = sin(p.lean_dir);
 
     let ribs = u32(max(4.0, p.ribs));
-    let around = max(ribs * 2u, 12u);
+    let around = min(max(ribs * 2u, 12u), 20u);
     let trunk_steps = min(u32(p.trunk_segs), 20u);
 
     // ── TRUNK: ribbed surface of revolution ──
@@ -7657,7 +7657,7 @@ fn cactus_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
     let n_arms = min(u32(max(0.0, p.arm_count)), 4u);
     let arm_segs_u = min(u32(p.arm_segs), 12u);
     let arm_ribs = max(4u, ribs - 2u);
-    let arm_around = max(arm_ribs * 2u, 8u);
+    let arm_around = min(max(arm_ribs * 2u, 8u), 12u);
 
     for (var a = 0u; a < n_arms; a++) {
         let arm_az = f32(a) * golden_angle + cactus_hash(p.seed, 1050u + a) * 0.5;
