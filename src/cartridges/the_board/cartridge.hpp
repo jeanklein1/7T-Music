@@ -2613,7 +2613,8 @@ namespace t7 {
                 static constexpr uint32_t COLUMN = 2;
                 static constexpr uint32_t ANTENNA = 3;
                 static constexpr uint32_t PALM = 4;
-                static constexpr uint32_t COUNT = 5;
+                static constexpr uint32_t CACTUS = 5;
+                static constexpr uint32_t COUNT = 6;
             };
 
             // Entity presence flags — bitfield tracking what was spawned on
@@ -2628,8 +2629,9 @@ namespace t7 {
                 static constexpr uint32_t COLUMN = 1u << 4;
                 static constexpr uint32_t ANTENNA = 1u << 5;
                 static constexpr uint32_t PALM = 1u << 6;
-                static constexpr uint32_t GALLERY = 1u << 7;
-                static constexpr uint32_t GOL_ZONE = 1u << 8;
+                static constexpr uint32_t CACTUS = 1u << 7;
+                static constexpr uint32_t GALLERY = 1u << 8;
+                static constexpr uint32_t GOL_ZONE = 1u << 9;
             };
 
             // ─── Adjacency Affinity Matrix ───────────────────────────────────
@@ -2640,15 +2642,16 @@ namespace t7 {
             //          ARCH_MONUMENTAL(3), COLUMN(4)
             // All 1.0f = neutral. Tune to create compositional vocabulary.
 
-            static constexpr uint32_t ADJACENCY_BITS = 7;
+            static constexpr uint32_t ADJACENCY_BITS = 8;
 
             static constexpr float ADJACENCY_BOOST[PopFamily::COUNT][ADJACENCY_BITS] = {
-                //         PYR   A_DW  A_ST  A_MN  COL   ANT   PALM
-                /* PYR */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
-                /* ARCH */{ 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
-                /* COL */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
-                /* ANT */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
-                /* PALM */{ 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
+                //         PYR   A_DW  A_ST  A_MN  COL   ANT   PALM  CACT
+                /* PYR */  { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
+                /* ARCH */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
+                /* COL */  { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
+                /* ANT */  { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
+                /* PALM */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
+                /* CACT */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
             };
 
             static float adjacency_modifier(uint32_t family, uint32_t neighbor_flags) {

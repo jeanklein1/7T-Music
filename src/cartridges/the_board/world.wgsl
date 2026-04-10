@@ -3727,7 +3727,7 @@ struct PortalArray {
 @group(0) @binding(220) var<storage, read> render_terrain: TerrainState;
 @group(0) @binding(260) var<storage, read> render_pawn: PawnState;
 @group(0) @binding(280) var<storage, read> render_camera: CameraState;
-@group(0) @binding(300) var<storage, read> render_sphere: SphereState;
+@group(0) @binding(300) var<uniform> render_sphere: SphereState;
 
 // --- Ribbon (Group 0: render, binding 360)
 @group(0) @binding(360) var<uniform> render_ribbon: RibbonState;
@@ -3736,6 +3736,15 @@ struct PortalArray {
 @group(0) @binding(381) var<storage, read> render_column_ground: array<ColumnGroundEntry, 32>;
 @group(0) @binding(382) var<storage, read> render_pyramid_ground: array<PyramidGroundEntry, 8>;
 @group(0) @binding(383) var<storage, read> render_palm_ground: array<PalmGroundEntry, 24>;
+
+struct CactusGroundEntry {
+    center_x: f32,   // 1
+    center_z: f32,   // 2
+    ground_y: f32,   // 3
+    is_active: u32,  // 4
+    _pad0: f32, _pad1: f32, _pad2: f32, _pad3: f32,  // 5-8 = 32 bytes
+}
+@group(0) @binding(384) var<storage, read> render_cactus_ground: array<CactusGroundEntry, 20>;
 
 // --- Ribbon compute (Group 0: binding 121, separate pipeline layout)
 // Written by compute_ribbon_rings, read by ribbon VS via render_ring_xforms.
@@ -5489,6 +5498,7 @@ struct PalmGroundEntry {
     _pad0: f32, _pad1: f32, _pad2: f32, _pad3: f32,
 }
 @group(0) @binding(150) var<storage, read_write> palm_ground: array<PalmGroundEntry, 24>;
+@group(0) @binding(151) var<storage, read_write> cactus_ground: array<CactusGroundEntry, 20>;
 
 // --- Terrain Height Sampling
 fn sample_terrain_y_at(world_xz: vec2<f32>, patch_count: u32) -> f32 {
@@ -7464,6 +7474,111 @@ fn palm_vs(in: ArchVertexInput) -> EntityVarying {
 fn shadow_palm_vs(in: ArchVertexInput) -> ShadowVarying {
     let idx = u32(in.arch_index);
     let ground_y = render_palm_ground[idx].ground_y;
+    var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
+    world_pos.y += terrain_wave_overlay(world_pos.xz);
+    var out: ShadowVarying;
+    out.clip_pos = render_vp.light_vp * vec4(world_pos, 1.0);
+    return out;
+}
+
+// ─── §9.4 CACTUS MESH GENERATION (ribbed columnar trunk + forking arms) ──
+
+// 21 floats + 4 uint32_t + 7 pad floats = 32 fields × 4 = 128 bytes
+struct CactusMeshParams {
+    center_x: f32, center_z: f32,              // 1-2
+    height: f32, radius: f32, taper: f32,      // 3-5
+    ribs: f32, rib_depth: f32,                 // 6-7
+    lean: f32, lean_dir: f32,                  // 8-9
+    cap_round: f32,                            // 10
+    arm_count: f32,                            // 11
+    arm_height: f32, arm_length: f32, arm_radius: f32,  // 12-14
+    arm_curve: f32,                            // 15
+    body_r: f32, body_g: f32, body_b: f32,     // 16-18
+    rib_r: f32, rib_g: f32, rib_b: f32,        // 19-21
+    trunk_segs: u32, arm_segs: u32,            // 22-23
+    is_active: u32,                            // 24
+    seed: u32,                                 // 25
+    _pad0: f32, _pad1: f32, _pad2: f32, _pad3: f32, _pad4: f32, _pad5: f32, _pad6: f32,  // 26-32 = 128 bytes
+}
+
+const CACTUSG_MAX_VERTS_PER_SLOT: u32 = 1500u;
+const CACTUSG_MAX_INDICES_PER_SLOT: u32 = 8000u;
+const CACTUSG_FLOATS_PER_VERTEX: u32 = 10u;
+const CACTUSG_MAX_SLOTS: u32 = 20u;
+
+@group(0) @binding(183) var<storage, read>       cactusg_params: array<CactusMeshParams, 20>;
+@group(0) @binding(184) var<storage, read_write>  cactusg_vertices: array<f32>;
+@group(0) @binding(185) var<storage, read_write>  cactusg_indices: array<u32>;
+
+fn cactusg_write_vertex(abs_idx: u32, px: f32, py: f32, pz: f32,
+                        nx: f32, ny: f32, nz: f32,
+                        cr: f32, cg: f32, cb: f32, entity_idx: u32) {
+    let base = abs_idx * CACTUSG_FLOATS_PER_VERTEX;
+    cactusg_vertices[base + 0u] = px;
+    cactusg_vertices[base + 1u] = py;
+    cactusg_vertices[base + 2u] = pz;
+    cactusg_vertices[base + 3u] = nx;
+    cactusg_vertices[base + 4u] = ny;
+    cactusg_vertices[base + 5u] = nz;
+    cactusg_vertices[base + 6u] = cr;
+    cactusg_vertices[base + 7u] = cg;
+    cactusg_vertices[base + 8u] = cb;
+    cactusg_vertices[base + 9u] = bitcast<f32>(entity_idx);
+}
+
+fn cactus_hash(seed: u32, prop: u32) -> f32 {
+    var h = seed * 747796405u + prop * 2891336453u + 1u;
+    h = ((h >> 16u) ^ h) * 2654435769u;
+    h = ((h >> 16u) ^ h) * 2654435769u;
+    h = (h >> 16u) ^ h;
+    return f32(h) / 4294967295.0;
+}
+
+@compute @workgroup_size(1, 1, 1)
+fn cactus_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
+    let slot = gid.x;
+    if (slot >= CACTUSG_MAX_SLOTS) { return; }
+
+    let p = cactusg_params[slot];
+    let vb_base = slot * CACTUSG_MAX_VERTS_PER_SLOT;
+    let ib_base = slot * CACTUSG_MAX_INDICES_PER_SLOT;
+
+    if (p.is_active == 0u) {
+        for (var i = 0u; i < CACTUSG_MAX_INDICES_PER_SLOT; i++) {
+            cactusg_indices[ib_base + i] = 0u;
+        }
+        return;
+    }
+
+    var vi = 0u;
+    var ii = 0u;
+
+    // Stub: zero all indices (degenerate — invisible until kernel implemented)
+    for (var i = 0u; i < CACTUSG_MAX_INDICES_PER_SLOT; i++) {
+        cactusg_indices[ib_base + i] = 0u;
+    }
+}
+
+// ─── Cactus vertex shaders ──────────────────────────────────────────
+
+@vertex
+fn cactus_vs(in: ArchVertexInput) -> EntityVarying {
+    let idx = u32(in.arch_index);
+    let ground_y = render_cactus_ground[idx].ground_y;
+    var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
+    world_pos.y += terrain_wave_overlay(world_pos.xz);
+    var out: EntityVarying;
+    out.clip_pos = render_vp.m * vec4(world_pos, 1.0);
+    out.world_pos = world_pos;
+    out.normal = in.normal;
+    out.entity_color = in.color;
+    return out;
+}
+
+@vertex
+fn shadow_cactus_vs(in: ArchVertexInput) -> ShadowVarying {
+    let idx = u32(in.arch_index);
+    let ground_y = render_cactus_ground[idx].ground_y;
     var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
     world_pos.y += terrain_wave_overlay(world_pos.xz);
     var out: ShadowVarying;

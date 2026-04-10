@@ -122,6 +122,9 @@ namespace t7 {
             constexpr const char* PALM_MESH_GEN = "palm_mesh_gen";
             constexpr const char* PALM_VS = "palm_vs";
             constexpr const char* SHADOW_PALM_VS = "shadow_palm_vs";
+            constexpr const char* CACTUS_MESH_GEN = "cactus_mesh_gen";
+            constexpr const char* CACTUS_VS = "cactus_vs";
+            constexpr const char* SHADOW_CACTUS_VS = "shadow_cactus_vs";
 
             // Fade overlay (fullscreen transition)
             constexpr const char* FADE_OVERLAY_VS = "fade_overlay_vs";
@@ -159,6 +162,7 @@ namespace t7 {
             wgpu::BindGroupLayout archMeshGenLayout_;
             wgpu::BindGroupLayout columnMeshGenLayout_;
             wgpu::BindGroupLayout palmMeshGenLayout_;
+            wgpu::BindGroupLayout cactusMeshGenLayout_;
             wgpu::TextureFormat colorFormat_;
             wgpu::TextureFormat depthFormat_;
 
@@ -191,6 +195,7 @@ namespace t7 {
             wgpu::RenderPipeline archPipeline_;          // Catenary arch entity
             wgpu::RenderPipeline columnPipeline_;        // Generative column entity
             wgpu::RenderPipeline palmPipeline_;          // Palm tree entity
+            wgpu::RenderPipeline cactusPipeline_;         // Cactus entity
             wgpu::RenderPipeline pyramidPipeline_;       // Generative pyramid entity
             wgpu::RenderPipeline shellPipeline_;         // Indoor shell (ceiling + walls)
 
@@ -201,6 +206,7 @@ namespace t7 {
             wgpu::RenderPipeline shadowArchPipeline_;
             wgpu::RenderPipeline shadowColumnPipeline_;
             wgpu::RenderPipeline shadowPalmPipeline_;
+            wgpu::RenderPipeline shadowCactusPipeline_;
             wgpu::RenderPipeline shadowPyramidPipeline_;
             wgpu::RenderPipeline shadowShellPipeline_;
 
@@ -245,6 +251,7 @@ namespace t7 {
             wgpu::ComputePipeline archMeshGenPipeline_;
             wgpu::ComputePipeline columnMeshGenPipeline_;
             wgpu::ComputePipeline palmMeshGenPipeline_;
+            wgpu::ComputePipeline cactusMeshGenPipeline_;
 
 
         public:
@@ -288,6 +295,7 @@ namespace t7 {
                 archMeshGenLayout_ = gpuState.arch_mesh_gen_layout();
                 columnMeshGenLayout_ = gpuState.column_mesh_gen_layout();
                 palmMeshGenLayout_ = gpuState.palm_mesh_gen_layout();
+                cactusMeshGenLayout_ = gpuState.cactus_mesh_gen_layout();
                 colorFormat_ = colorFormat;
                 depthFormat_ = depthFormat;
 
@@ -549,6 +557,15 @@ namespace t7 {
                 pass.DispatchWorkgroups(Dim::MAX_PALM_INSTANCES, 1, 1);
             }
 
+            void dispatch_cactus_mesh_gen(
+                wgpu::ComputePassEncoder& pass,
+                wgpu::BindGroup meshGenGroup
+            ) {
+                pass.SetPipeline(cactusMeshGenPipeline_);
+                pass.SetBindGroup(0, meshGenGroup);
+                pass.DispatchWorkgroups(Dim::MAX_CACTUS_INSTANCES, 1, 1);
+            }
+
             // Zone extrusion rendering
             void draw_zone_extrusion(
                 wgpu::RenderPassEncoder& pass,
@@ -688,6 +705,22 @@ namespace t7 {
                 uint32_t indexCount
             ) {
                 pass.SetPipeline(palmPipeline_);
+                pass.SetBindGroup(0, entityBindGroup);
+                pass.SetBindGroup(1, textureBindGroup);
+                pass.SetVertexBuffer(0, vertexBuffer);
+                pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint32);
+                pass.DrawIndexed(indexCount);
+            }
+
+            void draw_cactus(
+                wgpu::RenderPassEncoder& pass,
+                wgpu::BindGroup entityBindGroup,
+                wgpu::BindGroup textureBindGroup,
+                wgpu::Buffer vertexBuffer,
+                wgpu::Buffer indexBuffer,
+                uint32_t indexCount
+            ) {
+                pass.SetPipeline(cactusPipeline_);
                 pass.SetBindGroup(0, entityBindGroup);
                 pass.SetBindGroup(1, textureBindGroup);
                 pass.SetVertexBuffer(0, vertexBuffer);
@@ -876,6 +909,22 @@ namespace t7 {
                 uint32_t indexCount
             ) {
                 pass.SetPipeline(shadowPalmPipeline_);
+                pass.SetBindGroup(0, entityBindGroup);
+                pass.SetBindGroup(1, textureBindGroup);
+                pass.SetVertexBuffer(0, vertexBuffer);
+                pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint32);
+                pass.DrawIndexed(indexCount);
+            }
+
+            void draw_shadow_cactus(
+                wgpu::RenderPassEncoder& pass,
+                wgpu::BindGroup entityBindGroup,
+                wgpu::BindGroup textureBindGroup,
+                wgpu::Buffer vertexBuffer,
+                wgpu::Buffer indexBuffer,
+                uint32_t indexCount
+            ) {
+                pass.SetPipeline(shadowCactusPipeline_);
                 pass.SetBindGroup(0, entityBindGroup);
                 pass.SetBindGroup(1, textureBindGroup);
                 pass.SetVertexBuffer(0, vertexBuffer);
@@ -1398,6 +1447,23 @@ namespace t7 {
                     if (!palmMeshGenPipeline_) return false;
                 }
 
+                // Cactus mesh gen compute pipeline
+                {
+                    std::array<wgpu::BindGroupLayout, 1> layouts = { cactusMeshGenLayout_ };
+                    wgpu::PipelineLayoutDescriptor pld{};
+                    pld.bindGroupLayoutCount = layouts.size();
+                    pld.bindGroupLayouts = layouts.data();
+                    wgpu::PipelineLayout pl = device_.CreatePipelineLayout(&pld);
+                    if (!pl) return false;
+                    wgpu::ComputePipelineDescriptor desc{};
+                    desc.label = "Cactus Mesh Gen";
+                    desc.layout = pl;
+                    desc.compute.module = shaderModule_;
+                    desc.compute.entryPoint = Entry::CACTUS_MESH_GEN;
+                    cactusMeshGenPipeline_ = device_.CreateComputePipeline(&desc);
+                    if (!cactusMeshGenPipeline_) return false;
+                }
+
                 return true;
             }
 
@@ -1639,6 +1705,13 @@ namespace t7 {
                     desc.primitive.cullMode = wgpu::CullMode::None;
                     palmPipeline_ = device_.CreateRenderPipeline(&desc);
                     if (!palmPipeline_) return false;
+
+                    // Cactus pipeline — same vertex format, no backface culling
+                    desc.label = "Cactus (Rasterized)";
+                    desc.vertex.entryPoint = Entry::CACTUS_VS;
+                    desc.primitive.cullMode = wgpu::CullMode::None;
+                    cactusPipeline_ = device_.CreateRenderPipeline(&desc);
+                    if (!cactusPipeline_) return false;
 
                     // Pyramid pipeline — same vertex format as arch/column, Back culling.
                     desc.label = "Generative Pyramid (Rasterized)";
@@ -2010,6 +2083,13 @@ namespace t7 {
                         desc.primitive.cullMode = wgpu::CullMode::None;
                         shadowPalmPipeline_ = device_.CreateRenderPipeline(&desc);
                         if (!shadowPalmPipeline_) return false;
+
+                        // Shadow Cactus
+                        desc.label = "Shadow Cactus";
+                        desc.vertex.entryPoint = Entry::SHADOW_CACTUS_VS;
+                        desc.primitive.cullMode = wgpu::CullMode::None;
+                        shadowCactusPipeline_ = device_.CreateRenderPipeline(&desc);
+                        if (!shadowCactusPipeline_) return false;
 
                         // Shadow Pyramid — same vertex format, Back culling
                         desc.label = "Shadow Generative Pyramid";

@@ -173,6 +173,13 @@ namespace t7 {
             constexpr uint32_t PALMG_TOTAL_VERTICES = MAX_PALM_INSTANCES * PALMG_MAX_VERTS_PER_SLOT;   // 28800
             constexpr uint32_t PALMG_TOTAL_INDICES  = MAX_PALM_INSTANCES * PALMG_MAX_INDICES_PER_SLOT; // 144000
 
+            // Generative cacti — GPU mesh gen (slot-based addressing)
+            constexpr uint32_t MAX_CACTUS_INSTANCES = 20;
+            constexpr uint32_t CACTUSG_MAX_VERTS_PER_SLOT  = 1500;
+            constexpr uint32_t CACTUSG_MAX_INDICES_PER_SLOT = 8000;
+            constexpr uint32_t CACTUSG_TOTAL_VERTICES = MAX_CACTUS_INSTANCES * CACTUSG_MAX_VERTS_PER_SLOT;
+            constexpr uint32_t CACTUSG_TOTAL_INDICES  = MAX_CACTUS_INSTANCES * CACTUSG_MAX_INDICES_PER_SLOT;
+
             // GoL zone system — per-zone automaton grids
             constexpr uint32_t MAX_GOL_ZONES = 8;
             constexpr uint32_t GOL_ZONE_GRID = 32;      // cells per zone side
@@ -664,6 +671,35 @@ namespace t7 {
         };
         static_assert(sizeof(GPUPalmGroundEntry) == 32, "GPUPalmGroundEntry must be 32 bytes");
 
+        // ─── Cactus GPU structs ──────────────────────────────────────────
+        // 21 floats + 4 uint32_t = 100 bytes data + 28 bytes pad = 128
+        struct alignas(16) GPUCactusMeshParams {
+            float center_x, center_z;                    // 2 floats
+            float height, radius, taper;                 // 3 floats
+            float ribs, rib_depth;                       // 2 floats
+            float lean, lean_dir;                        // 2 floats
+            float cap_round;                             // 1 float
+            float arm_count;                             // 1 float
+            float arm_height, arm_length, arm_radius;    // 3 floats
+            float arm_curve;                             // 1 float
+            float body_r, body_g, body_b;                // 3 floats
+            float rib_r, rib_g, rib_b;                   // 3 floats  = 21 floats
+            uint32_t trunk_segs, arm_segs;               // 2 uint32
+            uint32_t is_active;                          // 1 uint32
+            uint32_t seed;                               // 1 uint32  = 4 uint32 = 25 fields = 100 bytes
+            float _pad0, _pad1, _pad2, _pad3, _pad4, _pad5, _pad6;  // 7 pad = 128 bytes
+        };
+        static_assert(sizeof(GPUCactusMeshParams) == 128, "GPUCactusMeshParams must be 128 bytes");
+
+        struct alignas(16) GPUCactusGroundEntry {
+            float center_x;
+            float center_z;
+            float ground_y;
+            uint32_t is_active;
+            float _pad0, _pad1, _pad2, _pad3;
+        };
+        static_assert(sizeof(GPUCactusGroundEntry) == 32, "GPUCactusGroundEntry must be 32 bytes");
+
         // GoL zone config — per-zone parameters for compute + fragment shader
         struct alignas(16) GPUGoLZoneConfig {
             float origin[2];
@@ -1026,6 +1062,11 @@ namespace t7 {
             wgpu::Buffer palmMeshParamsBuffer_;
             uint32_t palmIndexCount_ = 0;
 
+            wgpu::Buffer cactusVertexBuffer_, cactusIndexBuffer_;
+            wgpu::Buffer cactusGroundBuffer_;
+            wgpu::Buffer cactusMeshParamsBuffer_;
+            uint32_t cactusIndexCount_ = 0;
+
             wgpu::Buffer pyramidVertexBuffer_, pyramidIndexBuffer_;
             wgpu::Buffer pyramidGroundBuffer_;  // per-pyramid ground Y correction
             wgpu::Buffer pyramidInstancesBuffer_;  // GPU-side pyramid array for heightfield baking
@@ -1040,10 +1081,12 @@ namespace t7 {
             wgpu::BindGroupLayout archMeshGenLayout_;    // bindings 193-195
             wgpu::BindGroupLayout columnMeshGenLayout_;  // bindings 196-198
             wgpu::BindGroupLayout palmMeshGenLayout_;    // bindings 180-182
+            wgpu::BindGroupLayout cactusMeshGenLayout_;  // bindings 183-185
             wgpu::BindGroup pyramidMeshGenBindGroup_;
             wgpu::BindGroup archMeshGenBindGroup_;
             wgpu::BindGroup columnMeshGenBindGroup_;
             wgpu::BindGroup palmMeshGenBindGroup_;
+            wgpu::BindGroup cactusMeshGenBindGroup_;
 
             // GoL zone system buffers
             wgpu::Buffer zoneConfigBuffer_;        // GPUGoLZoneArray storage (read_write)
@@ -1724,6 +1767,24 @@ namespace t7 {
                     sizeof(GPUPalmGroundEntry) * std::min(count, Dim::MAX_PALM_INSTANCES));
             }
 
+            // --- Cactus accessors and upload ---
+            wgpu::Buffer cactus_vertex_buffer() const { return cactusVertexBuffer_; }
+            wgpu::Buffer cactus_index_buffer() const { return cactusIndexBuffer_; }
+            wgpu::Buffer cactus_ground_buffer() const { return cactusGroundBuffer_; }
+            uint32_t cactus_index_count() const { return cactusIndexCount_; }
+            void set_cactus_index_count(uint32_t count) { cactusIndexCount_ = count; }
+            void upload_cactus_mesh_params_slot(wgpu::Queue& queue, uint32_t slot, const GPUCactusMeshParams& params) {
+                queue.WriteBuffer(cactusMeshParamsBuffer_,
+                    slot * sizeof(GPUCactusMeshParams),
+                    &params, sizeof(GPUCactusMeshParams));
+            }
+            wgpu::BindGroupLayout cactus_mesh_gen_layout() const { return cactusMeshGenLayout_; }
+            wgpu::BindGroup cactus_mesh_gen_group() const { return cactusMeshGenBindGroup_; }
+            void upload_cactus_origins(wgpu::Queue& queue, const GPUCactusGroundEntry* entries, uint32_t count) {
+                queue.WriteBuffer(cactusGroundBuffer_, 0, entries,
+                    sizeof(GPUCactusGroundEntry) * std::min(count, Dim::MAX_CACTUS_INSTANCES));
+            }
+
             // --- Pyramid accessors and upload ---
             wgpu::Buffer pyramid_vertex_buffer() const { return pyramidVertexBuffer_; }
             wgpu::Buffer pyramid_index_buffer() const { return pyramidIndexBuffer_; }
@@ -1933,7 +1994,7 @@ namespace t7 {
                 pawnBuffer_ = makeBuffer("Pawn State", sizeof(GPUPawnState),
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::CopySrc);
                 cameraBuffer_ = makeBuffer("Camera State", sizeof(GPUCameraState), SU);
-                sphereBuffer_ = makeBuffer("Sphere State", sizeof(GPUSphereState), SU);
+                sphereBuffer_ = makeBuffer("Sphere State", sizeof(GPUSphereState), SU | wgpu::BufferUsage::Uniform);
                 ribbonBuffer_ = makeBuffer("Ribbon State", sizeof(GPURibbonState), SU | wgpu::BufferUsage::Uniform);
                 ringTransformsBuffer_ = makeBuffer("Ring Transforms",
                     sizeof(GPURibbonRingTransform) * Dim::RIBBON_MAX_RINGS,
@@ -2055,7 +2116,7 @@ namespace t7 {
                     q.WriteBuffer(patchIndexBufferLOD1_, 0, idx.data(), idx.size() * 4);
                 }
 
-                return createSphereMesh() && createArchMesh() && createColumnMesh() && createPalmMesh() && createPyramidMesh() && createShellMesh() && createGoLZoneBuffers();
+                return createSphereMesh() && createArchMesh() && createColumnMesh() && createPalmMesh() && createCactusMesh() && createPyramidMesh() && createShellMesh() && createGoLZoneBuffers();
             }
 
             // (createCellMeshBuffers removed — legacy cell mesh gen)
@@ -2197,6 +2258,34 @@ namespace t7 {
                 {
                     std::vector<uint8_t> zeros(Dim::PALMG_TOTAL_VERTICES * sizeof(ArchVertex), 0);
                     device_.GetQueue().WriteBuffer(palmVertexBuffer_, 0, zeros.data(), zeros.size());
+                }
+                return true;
+            }
+
+            bool createCactusMesh() {
+                cactusVertexBuffer_ = makeBuffer("Cactus VB (GPU mesh gen)",
+                    Dim::CACTUSG_TOTAL_VERTICES * sizeof(ArchVertex),
+                    wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Storage);
+                cactusIndexBuffer_ = makeBuffer("Cactus IB (GPU mesh gen)",
+                    Dim::CACTUSG_TOTAL_INDICES * sizeof(uint32_t),
+                    wgpu::BufferUsage::Index | wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Storage);
+                cactusGroundBuffer_ = makeBuffer("Cactus Ground Y",
+                    Dim::MAX_CACTUS_INSTANCES * sizeof(GPUCactusGroundEntry),
+                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
+                cactusMeshParamsBuffer_ = makeBuffer("Cactus Mesh Params",
+                    Dim::MAX_CACTUS_INSTANCES * sizeof(GPUCactusMeshParams),
+                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
+                if (!cactusVertexBuffer_ || !cactusIndexBuffer_ || !cactusGroundBuffer_ ||
+                    !cactusMeshParamsBuffer_) return false;
+                cactusIndexCount_ = 0;
+                {
+                    GPUCactusMeshParams emptyParams[Dim::MAX_CACTUS_INSTANCES]{};
+                    device_.GetQueue().WriteBuffer(cactusMeshParamsBuffer_, 0, emptyParams,
+                        sizeof(GPUCactusMeshParams) * Dim::MAX_CACTUS_INSTANCES);
+                }
+                {
+                    std::vector<uint8_t> zeros(Dim::CACTUSG_TOTAL_VERTICES * sizeof(ArchVertex), 0);
+                    device_.GetQueue().WriteBuffer(cactusVertexBuffer_, 0, zeros.data(), zeros.size());
                 }
                 return true;
             }
@@ -2588,7 +2677,7 @@ namespace t7 {
                 // Vertex shaders need entity state for positioning + VP for transform.
                 // Fragment shaders need camera for fog distance.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 18> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 19> entries{};
 
                     entries[0].binding = 1;    // config (uniform — fog, world_seed, aura_enabled, fade)
                     entries[0].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
@@ -2616,7 +2705,7 @@ namespace t7 {
 
                     entries[6].binding = 300;
                     entries[6].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
-                    entries[6].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+                    entries[6].buffer.type = wgpu::BufferBindingType::Uniform;
 
                     entries[7].binding = 320;
                     entries[7].visibility = wgpu::ShaderStage::Fragment;
@@ -2667,6 +2756,10 @@ namespace t7 {
                     entries[17].binding = 383;
                     entries[17].visibility = wgpu::ShaderStage::Vertex;
                     entries[17].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+
+                    entries[18].binding = 384;
+                    entries[18].visibility = wgpu::ShaderStage::Vertex;
+                    entries[18].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Render Entity Layout";
@@ -3033,7 +3126,7 @@ namespace t7 {
                 // own pier contribution (removing foreign pier contamination).
                 // 11 entries: config + pawn + painting slots + heightfield + entity grounds + GoL.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 12> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 13> entries{};
 
                     entries[0].binding = 1;
                     entries[0].visibility = wgpu::ShaderStage::Compute;
@@ -3083,6 +3176,10 @@ namespace t7 {
                     entries[11].binding = 150;
                     entries[11].visibility = wgpu::ShaderStage::Compute;
                     entries[11].buffer.type = wgpu::BufferBindingType::Storage;
+
+                    entries[12].binding = 151;
+                    entries[12].visibility = wgpu::ShaderStage::Compute;
+                    entries[12].buffer.type = wgpu::BufferBindingType::Storage;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Entity Placement Compute Layout";
@@ -3302,6 +3399,26 @@ namespace t7 {
                     if (!palmMeshGenLayout_) return false;
                 }
 
+                // Cactus mesh gen layout (bindings 183-185)
+                {
+                    std::array<wgpu::BindGroupLayoutEntry, 3> entries{};
+                    entries[0].binding = 183;
+                    entries[0].visibility = wgpu::ShaderStage::Compute;
+                    entries[0].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+                    entries[1].binding = 184;
+                    entries[1].visibility = wgpu::ShaderStage::Compute;
+                    entries[1].buffer.type = wgpu::BufferBindingType::Storage;
+                    entries[2].binding = 185;
+                    entries[2].visibility = wgpu::ShaderStage::Compute;
+                    entries[2].buffer.type = wgpu::BufferBindingType::Storage;
+                    wgpu::BindGroupLayoutDescriptor desc{};
+                    desc.label = "Cactus Mesh Gen Layout";
+                    desc.entryCount = entries.size();
+                    desc.entries = entries.data();
+                    cactusMeshGenLayout_ = device_.CreateBindGroupLayout(&desc);
+                    if (!cactusMeshGenLayout_) return false;
+                }
+
 
                 // -- Bind group instances ------------------------------------
 
@@ -3385,7 +3502,7 @@ namespace t7 {
 
                 // Render entity bind group (18 entries: config + spaced by system +200)
                 {
-                    std::array<wgpu::BindGroupEntry, 18> entries{};
+                    std::array<wgpu::BindGroupEntry, 19> entries{};
 
                     entries[0].binding = 1;
                     entries[0].buffer = configBuffer_;
@@ -3459,6 +3576,10 @@ namespace t7 {
                     entries[17].binding = 383;
                     entries[17].buffer = palmGroundBuffer_;
                     entries[17].size = sizeof(GPUPalmGroundEntry) * Dim::MAX_PALM_INSTANCES;
+
+                    entries[18].binding = 384;
+                    entries[18].buffer = cactusGroundBuffer_;
+                    entries[18].size = sizeof(GPUCactusGroundEntry) * Dim::MAX_CACTUS_INSTANCES;
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Render Entity BindGroup";
@@ -3676,7 +3797,7 @@ namespace t7 {
 
                 // Photographer render entity bind group (same layout as main, different VP)
                 {
-                    std::array<wgpu::BindGroupEntry, 18> entries{};
+                    std::array<wgpu::BindGroupEntry, 19> entries{};
                     entries[0].binding = 1;
                     entries[0].buffer = configBuffer_;
                     entries[0].size = sizeof(GPUDesignConfig);
@@ -3731,6 +3852,9 @@ namespace t7 {
                     entries[17].binding = 383;
                     entries[17].buffer = palmGroundBuffer_;
                     entries[17].size = sizeof(GPUPalmGroundEntry) * Dim::MAX_PALM_INSTANCES;
+                    entries[18].binding = 384;
+                    entries[18].buffer = cactusGroundBuffer_;
+                    entries[18].size = sizeof(GPUCactusGroundEntry) * Dim::MAX_CACTUS_INSTANCES;
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Photographer Render Entity BindGroup";
@@ -3793,7 +3917,7 @@ namespace t7 {
 
                 // Entity placement compute bind group (heightfield sampling + pier correction)
                 {
-                    std::array<wgpu::BindGroupEntry, 12> entries{};
+                    std::array<wgpu::BindGroupEntry, 13> entries{};
                     entries[0].binding = 1;
                     entries[0].buffer = configBuffer_;
                     entries[0].size = sizeof(GPUDesignConfig);
@@ -3829,6 +3953,10 @@ namespace t7 {
                     entries[11].binding = 150;
                     entries[11].buffer = palmGroundBuffer_;
                     entries[11].size = sizeof(GPUPalmGroundEntry) * Dim::MAX_PALM_INSTANCES;
+
+                    entries[12].binding = 151;
+                    entries[12].buffer = cactusGroundBuffer_;
+                    entries[12].size = sizeof(GPUCactusGroundEntry) * Dim::MAX_CACTUS_INSTANCES;
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Entity Placement Compute BindGroup";
@@ -4032,6 +4160,27 @@ namespace t7 {
                     desc.entries = entries.data();
                     palmMeshGenBindGroup_ = device_.CreateBindGroup(&desc);
                     if (!palmMeshGenBindGroup_) return false;
+                }
+
+                // Cactus mesh gen bind group
+                {
+                    std::array<wgpu::BindGroupEntry, 3> entries{};
+                    entries[0].binding = 183;
+                    entries[0].buffer = cactusMeshParamsBuffer_;
+                    entries[0].size = Dim::MAX_CACTUS_INSTANCES * sizeof(GPUCactusMeshParams);
+                    entries[1].binding = 184;
+                    entries[1].buffer = cactusVertexBuffer_;
+                    entries[1].size = Dim::CACTUSG_TOTAL_VERTICES * sizeof(ArchVertex);
+                    entries[2].binding = 185;
+                    entries[2].buffer = cactusIndexBuffer_;
+                    entries[2].size = Dim::CACTUSG_TOTAL_INDICES * sizeof(uint32_t);
+                    wgpu::BindGroupDescriptor desc{};
+                    desc.label = "Cactus Mesh Gen BindGroup";
+                    desc.layout = cactusMeshGenLayout_;
+                    desc.entryCount = entries.size();
+                    desc.entries = entries.data();
+                    cactusMeshGenBindGroup_ = device_.CreateBindGroup(&desc);
+                    if (!cactusMeshGenBindGroup_) return false;
                 }
 
                 return true;

@@ -88,6 +88,17 @@
                     palmOrigins[i].ground_y = activePalms_[i].cached_ground_y;
                 }
                 gpuState_.upload_palm_origins(queue, palmOrigins, Dim::MAX_PALM_INSTANCES);
+
+                // --- Cactus ground entries ---
+                GPUCactusGroundEntry cactusOrigins[Dim::MAX_CACTUS_INSTANCES]{};
+                for (uint32_t i = 0; i < Dim::MAX_CACTUS_INSTANCES; i++) {
+                    if (!activeCacti_[i].active) continue;
+                    cactusOrigins[i].center_x = activeCacti_[i].world_x;
+                    cactusOrigins[i].center_z = activeCacti_[i].world_z;
+                    cactusOrigins[i].is_active = 1;
+                    cactusOrigins[i].ground_y = activeCacti_[i].cached_ground_y;
+                }
+                gpuState_.upload_cactus_origins(queue, cactusOrigins, Dim::MAX_CACTUS_INSTANCES);
             }
 
             // --- Entity placement Y-correction: heightfield sample - pier correction ---
@@ -296,6 +307,15 @@
                     gpuState_.palm_index_count()
                 );
 
+                renderer_.draw_shadow_cactus(
+                    pass,
+                    gpuState_.render_entity_group(),
+                    gpuState_.shadow_texture_group(),
+                    gpuState_.cactus_vertex_buffer(),
+                    gpuState_.cactus_index_buffer(),
+                    gpuState_.cactus_index_count()
+                );
+
                 renderer_.draw_shadow_shell(
                     pass,
                     gpuState_.render_entity_group(),
@@ -400,6 +420,15 @@
                     gpuState_.palm_vertex_buffer(),
                     gpuState_.palm_index_buffer(),
                     gpuState_.palm_index_count()
+                );
+
+                renderer_.draw_cactus(
+                    pass,
+                    gpuState_.render_entity_group(),
+                    gpuState_.render_texture_group(),
+                    gpuState_.cactus_vertex_buffer(),
+                    gpuState_.cactus_index_buffer(),
+                    gpuState_.cactus_index_count()
                 );
 
                 renderer_.draw_shell(
