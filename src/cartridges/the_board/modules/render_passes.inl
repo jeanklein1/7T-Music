@@ -77,7 +77,6 @@
                     pyramidOrigins[i].ground_y = activePyramids_[i].cached_ground_y;
                 }
                 gpuState_.upload_pyramid_origins(queue, pyramidOrigins, Dim::MAX_PYRAMID_INSTANCES);
-            }
 
                 // --- Palm ground entries ---
                 GPUPalmGroundEntry palmOrigins[Dim::MAX_PALM_INSTANCES]{};
