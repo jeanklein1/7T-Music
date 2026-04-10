@@ -7553,8 +7553,237 @@ fn cactus_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
     var vi = 0u;
     var ii = 0u;
 
-    // Stub: zero all indices (degenerate — invisible until kernel implemented)
-    for (var i = 0u; i < CACTUSG_MAX_INDICES_PER_SLOT; i++) {
+    let cx = p.center_x;
+    let cz = p.center_z;
+    let lean_cos = cos(p.lean_dir);
+    let lean_sin = sin(p.lean_dir);
+
+    let ribs = u32(max(4.0, p.ribs));
+    let around = max(ribs * 2u, 12u);
+    let trunk_steps = min(u32(p.trunk_segs), 20u);
+
+    // ── TRUNK: ribbed surface of revolution ──
+
+    for (var ring = 0u; ring <= trunk_steps; ring++) {
+        let t = f32(ring) / f32(trunk_steps);
+        let r_base = p.radius * (1.0 + (p.taper - 1.0) * t);
+
+        let cap_start = 1.0 - p.cap_round * 0.3;
+        let cap_t = max(0.0, (t - cap_start) / (p.cap_round * 0.3 + 0.001));
+        let cap_scale = select(1.0, cos(cap_t * PI * 0.5), cap_t > 0.0);
+
+        let lean_mag = p.lean * p.height * t * t;
+        let lx = lean_mag * lean_cos;
+        let lz = lean_mag * lean_sin;
+        let y = t * p.height;
+        let shade = 0.85 + 0.15 * t;
+
+        for (var seg = 0u; seg < around; seg++) {
+            let angle = f32(seg) / f32(around) * 2.0 * PI;
+            let rib_phase = angle * f32(ribs) / (2.0 * PI);
+            let rib_mod = 1.0 + cos(rib_phase * 2.0 * PI) * p.rib_depth;
+            let r = r_base * rib_mod * cap_scale;
+
+            let ca = cos(angle);
+            let sa = sin(angle);
+
+            let rib_frac = (cos(rib_phase * 2.0 * PI) + 1.0) * 0.5;
+            let cr = (p.body_r + (p.rib_r - p.body_r) * rib_frac * 0.6) * shade;
+            let cg = (p.body_g + (p.rib_g - p.body_g) * rib_frac * 0.6) * shade;
+            let cb = (p.body_b + (p.rib_b - p.body_b) * rib_frac * 0.6) * shade;
+
+            cactusg_write_vertex(vb_base + vi,
+                cx + lx + ca * r, y, cz + lz + sa * r,
+                ca, 0.0, sa, cr, cg, cb, slot);
+            vi++;
+        }
+    }
+
+    // Trunk indices
+    for (var ring = 0u; ring < trunk_steps; ring++) {
+        for (var seg = 0u; seg < around; seg++) {
+            let next_seg = (seg + 1u) % around;
+            let row0 = ring * around;
+            let row1 = (ring + 1u) * around;
+
+            cactusg_indices[ib_base + ii] = vb_base + row0 + seg; ii++;
+            cactusg_indices[ib_base + ii] = vb_base + row1 + seg; ii++;
+            cactusg_indices[ib_base + ii] = vb_base + row1 + next_seg; ii++;
+            cactusg_indices[ib_base + ii] = vb_base + row0 + seg; ii++;
+            cactusg_indices[ib_base + ii] = vb_base + row1 + next_seg; ii++;
+            cactusg_indices[ib_base + ii] = vb_base + row0 + next_seg; ii++;
+        }
+    }
+
+    // ── TRUNK CAP ──
+
+    let top_lean = p.lean * p.height;
+    let cap_cx = cx + top_lean * lean_cos;
+    let cap_cz = cz + top_lean * lean_sin;
+    let cap_y = p.height;
+    let cap_r = p.radius * p.taper * 0.6;
+    let cap_col_r = p.body_r * 0.6 + p.rib_r * 0.4;
+    let cap_col_g = p.body_g * 0.6 + p.rib_g * 0.4;
+    let cap_col_b = p.body_b * 0.6 + p.rib_b * 0.4;
+
+    let cap_tip_vi = vi;
+    cactusg_write_vertex(vb_base + vi,
+        cap_cx, cap_y + cap_r * 0.6, cap_cz,
+        0.0, 1.0, 0.0,
+        cap_col_r, cap_col_g, cap_col_b, slot);
+    vi++;
+
+    let cap_ring_vi = vi;
+    let cap_segs = min(around, 12u);
+    for (var seg = 0u; seg < cap_segs; seg++) {
+        let angle = f32(seg) / f32(cap_segs) * 2.0 * PI;
+        cactusg_write_vertex(vb_base + vi,
+            cap_cx + cos(angle) * cap_r, cap_y, cap_cz + sin(angle) * cap_r,
+            0.0, 1.0, 0.0,
+            cap_col_r, cap_col_g, cap_col_b, slot);
+        vi++;
+    }
+
+    for (var seg = 0u; seg < cap_segs; seg++) {
+        let next = (seg + 1u) % cap_segs;
+        cactusg_indices[ib_base + ii] = vb_base + cap_tip_vi; ii++;
+        cactusg_indices[ib_base + ii] = vb_base + cap_ring_vi + seg; ii++;
+        cactusg_indices[ib_base + ii] = vb_base + cap_ring_vi + next; ii++;
+    }
+
+    // ── ARMS: ribbed columns along upward-curving paths ──
+
+    let golden_angle = PI * (3.0 - sqrt(5.0));
+    let n_arms = min(u32(max(0.0, p.arm_count)), 4u);
+    let arm_segs_u = min(u32(p.arm_segs), 12u);
+    let arm_ribs = max(4u, ribs - 2u);
+    let arm_around = max(arm_ribs * 2u, 8u);
+
+    for (var a = 0u; a < n_arms; a++) {
+        let arm_az = f32(a) * golden_angle + cactus_hash(p.seed, 1050u + a) * 0.5;
+        let fork_frac = p.arm_height + (cactus_hash(p.seed, 1060u + a) - 0.5) * 0.15;
+        let fork_y = p.height * fork_frac;
+        let arm_len = p.arm_length * (0.8 + cactus_hash(p.seed, 1070u + a) * 0.4);
+        let arm_r = p.arm_radius * (0.85 + cactus_hash(p.seed, 1080u + a) * 0.3);
+
+        let lean_at_fork = p.lean * p.height * fork_frac * fork_frac;
+        let fork_x = cx + cos(arm_az) * p.radius * p.taper * 0.9 + lean_at_fork * lean_cos * 0.3;
+        let fork_z = cz + sin(arm_az) * p.radius * p.taper * 0.9 + lean_at_fork * lean_sin * 0.3;
+
+        let out_x = cos(arm_az);
+        let out_z = sin(arm_az);
+
+        var apx = fork_x;
+        var apy = fork_y;
+        var apz = fork_z;
+        let seg_len = arm_len / f32(arm_segs_u);
+
+        let arm_vi_start = vi;
+
+        for (var s = 0u; s <= arm_segs_u; s++) {
+            let t = f32(s) / f32(arm_segs_u);
+            let blend = t * p.arm_curve;
+            let dx = out_x * (1.0 - blend);
+            let dy = blend;
+            let dz = out_z * (1.0 - blend);
+            let dl = sqrt(dx * dx + dy * dy + dz * dz);
+            let ndx = dx / max(dl, 0.001);
+            let ndy = dy / max(dl, 0.001);
+            let ndz = dz / max(dl, 0.001);
+
+            let seg_r = arm_r * (1.0 - t * 0.3);
+
+            var rx: f32; var rz: f32;
+            if (abs(ndy) > 0.95) {
+                rx = 1.0; rz = 0.0;
+            } else {
+                rx = ndz; rz = -ndx;
+                let rl = sqrt(rx * rx + rz * rz);
+                rx /= max(rl, 0.001);
+                rz /= max(rl, 0.001);
+            }
+            let fx = 0.0 - rz * ndy;
+            let fy = rz * ndx - rx * ndz;
+            let fz = rx * ndy;
+
+            let arm_shade = 0.85 + 0.15 * t;
+
+            for (var seg = 0u; seg < arm_around; seg++) {
+                let angle = f32(seg) / f32(arm_around) * 2.0 * PI;
+                let ca = cos(angle);
+                let sa = sin(angle);
+
+                let arm_rib_phase = angle * f32(arm_ribs) / (2.0 * PI);
+                let arm_rib_mod = 1.0 + cos(arm_rib_phase * 2.0 * PI) * p.rib_depth * 0.8;
+                let r = seg_r * arm_rib_mod;
+
+                let vx = apx + (rx * ca + fx * sa) * r;
+                let vy = apy + fy * sa * r;
+                let vz = apz + (rz * ca + fz * sa) * r;
+
+                let arm_rib_frac = (cos(arm_rib_phase * 2.0 * PI) + 1.0) * 0.5;
+                let cr = (p.body_r + (p.rib_r - p.body_r) * arm_rib_frac * 0.6) * arm_shade;
+                let cg = (p.body_g + (p.rib_g - p.body_g) * arm_rib_frac * 0.6) * arm_shade;
+                let cb = (p.body_b + (p.rib_b - p.body_b) * arm_rib_frac * 0.6) * arm_shade;
+
+                cactusg_write_vertex(vb_base + vi,
+                    vx, vy, vz, ca, 0.0, sa, cr, cg, cb, slot);
+                vi++;
+            }
+
+            if (s < arm_segs_u) {
+                apx += ndx * seg_len;
+                apy += ndy * seg_len;
+                apz += ndz * seg_len;
+            }
+        }
+
+        // Arm indices
+        for (var s = 0u; s < arm_segs_u; s++) {
+            for (var seg = 0u; seg < arm_around; seg++) {
+                let next_seg = (seg + 1u) % arm_around;
+                let row0 = arm_vi_start + s * arm_around;
+                let row1 = arm_vi_start + (s + 1u) * arm_around;
+
+                cactusg_indices[ib_base + ii] = vb_base + row0 + seg; ii++;
+                cactusg_indices[ib_base + ii] = vb_base + row1 + seg; ii++;
+                cactusg_indices[ib_base + ii] = vb_base + row1 + next_seg; ii++;
+                cactusg_indices[ib_base + ii] = vb_base + row0 + seg; ii++;
+                cactusg_indices[ib_base + ii] = vb_base + row1 + next_seg; ii++;
+                cactusg_indices[ib_base + ii] = vb_base + row0 + next_seg; ii++;
+            }
+        }
+
+        // Arm cap
+        let arm_cap_r = arm_r * 0.6;
+        let arm_cap_tip = vi;
+        cactusg_write_vertex(vb_base + vi,
+            apx, apy + arm_cap_r * 0.6, apz,
+            0.0, 1.0, 0.0,
+            cap_col_r, cap_col_g, cap_col_b, slot);
+        vi++;
+
+        let arm_cap_ring = vi;
+        let arm_cap_segs = min(arm_around, 8u);
+        for (var seg = 0u; seg < arm_cap_segs; seg++) {
+            let angle = f32(seg) / f32(arm_cap_segs) * 2.0 * PI;
+            cactusg_write_vertex(vb_base + vi,
+                apx + cos(angle) * arm_cap_r, apy, apz + sin(angle) * arm_cap_r,
+                0.0, 1.0, 0.0,
+                cap_col_r, cap_col_g, cap_col_b, slot);
+            vi++;
+        }
+
+        for (var seg = 0u; seg < arm_cap_segs; seg++) {
+            let next = (seg + 1u) % arm_cap_segs;
+            cactusg_indices[ib_base + ii] = vb_base + arm_cap_tip; ii++;
+            cactusg_indices[ib_base + ii] = vb_base + arm_cap_ring + seg; ii++;
+            cactusg_indices[ib_base + ii] = vb_base + arm_cap_ring + next; ii++;
+        }
+    }
+
+    // Zero remaining indices
+    for (var i = ii; i < CACTUSG_MAX_INDICES_PER_SLOT; i++) {
         cactusg_indices[ib_base + i] = 0u;
     }
 }
