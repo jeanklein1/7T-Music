@@ -8029,12 +8029,7 @@ fn blade_cluster_vs(in: ArchVertexInput) -> EntityVarying {
     out.clip_pos = render_vp.m * vec4(world_pos, 1.0);
     out.world_pos = world_pos;
     out.normal = in.normal;
-    // DIAGNOSTIC: override color by slot index
-    let diag_slot = u32(in.arch_index);
-    let diag_r = f32(diag_slot % 3u) / 2.0;
-    let diag_g = f32((diag_slot / 3u) % 3u) / 2.0;
-    let diag_b = f32((diag_slot / 9u) % 3u) / 2.0;
-    out.entity_color = vec3(diag_r, diag_g, diag_b);
+    out.entity_color = in.color;
     return out;
 }
 
