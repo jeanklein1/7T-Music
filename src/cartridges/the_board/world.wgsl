@@ -7540,6 +7540,8 @@ fn cactus_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
     if (slot >= CACTUSG_MAX_SLOTS) { return; }
 
     let p = cactusg_params[slot];
+    // DIAGNOSTIC: force no arms to isolate trunk rendering
+    let forced_arm_count = 0.0;
     let vb_base = slot * CACTUSG_MAX_VERTS_PER_SLOT;
     let ib_base = slot * CACTUSG_MAX_INDICES_PER_SLOT;
 
@@ -7654,7 +7656,7 @@ fn cactus_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
     // ── ARMS: ribbed columns along upward-curving paths ──
 
     let golden_angle = PI * (3.0 - sqrt(5.0));
-    let n_arms = min(u32(max(0.0, p.arm_count)), 4u);
+    let n_arms = min(u32(max(0.0, forced_arm_count)), 4u);  // DIAGNOSTIC: was p.arm_count
     let arm_segs_u = min(u32(p.arm_segs), 12u);
     let arm_ribs = max(4u, ribs - 2u);
     let arm_around = min(max(arm_ribs * 2u, 8u), 12u);
