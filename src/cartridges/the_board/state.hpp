@@ -3217,9 +3217,9 @@ namespace t7 {
                 // Runs every frame, unconditionally. Samples the baked heightfield
                 // and subtracts CPU-computed pier_correction to isolate each entity's
                 // own pier contribution (removing foreign pier contamination).
-                // 12 entries: config + pawn + painting slots + heightfield + entity grounds + GoL + blade.
+                // 13 entries: config + pawn + painting slots + heightfield + entity grounds + GoL.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 14> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 13> entries{};
 
                     entries[0].binding = 1;
                     entries[0].visibility = wgpu::ShaderStage::Compute;
@@ -3273,10 +3273,6 @@ namespace t7 {
                     entries[12].binding = 151;
                     entries[12].visibility = wgpu::ShaderStage::Compute;
                     entries[12].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    entries[13].binding = 152;
-                    entries[13].visibility = wgpu::ShaderStage::Compute;
-                    entries[13].buffer.type = wgpu::BufferBindingType::Storage;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Entity Placement Compute Layout";
@@ -4042,7 +4038,7 @@ namespace t7 {
 
                 // Entity placement compute bind group (heightfield sampling + pier correction)
                 {
-                    std::array<wgpu::BindGroupEntry, 14> entries{};
+                    std::array<wgpu::BindGroupEntry, 13> entries{};
                     entries[0].binding = 1;
                     entries[0].buffer = configBuffer_;
                     entries[0].size = sizeof(GPUDesignConfig);
@@ -4082,10 +4078,6 @@ namespace t7 {
                     entries[12].binding = 151;
                     entries[12].buffer = cactusGroundBuffer_;
                     entries[12].size = sizeof(GPUCactusGroundEntry) * Dim::MAX_CACTUS_INSTANCES;
-
-                    entries[13].binding = 152;
-                    entries[13].buffer = bladeGroundBuffer_;
-                    entries[13].size = sizeof(GPUBladeClusterGroundEntry) * Dim::MAX_BLADE_INSTANCES;
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Entity Placement Compute BindGroup";
