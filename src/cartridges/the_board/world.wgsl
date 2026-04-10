@@ -7886,7 +7886,7 @@ fn blade_cluster_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
 
     let cx = p.center_x;
     let cz = p.center_z;
-    let n_blades = u32(max(2.0, p.blade_count));
+    let n_blades = 1u;  // DIAGNOSTIC: force single blade per cluster
     let segs = max(3u, p.blade_segs);
     let GA = PI * (3.0 - sqrt(5.0));
 
