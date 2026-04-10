@@ -125,6 +125,9 @@ namespace t7 {
             constexpr const char* CACTUS_MESH_GEN = "cactus_mesh_gen";
             constexpr const char* CACTUS_VS = "cactus_vs";
             constexpr const char* SHADOW_CACTUS_VS = "shadow_cactus_vs";
+            constexpr const char* BLADE_MESH_GEN = "blade_cluster_mesh_gen";
+            constexpr const char* BLADE_VS = "blade_cluster_vs";
+            constexpr const char* SHADOW_BLADE_VS = "shadow_blade_cluster_vs";
 
             // Fade overlay (fullscreen transition)
             constexpr const char* FADE_OVERLAY_VS = "fade_overlay_vs";
@@ -163,6 +166,7 @@ namespace t7 {
             wgpu::BindGroupLayout columnMeshGenLayout_;
             wgpu::BindGroupLayout palmMeshGenLayout_;
             wgpu::BindGroupLayout cactusMeshGenLayout_;
+            wgpu::BindGroupLayout bladeMeshGenLayout_;
             wgpu::TextureFormat colorFormat_;
             wgpu::TextureFormat depthFormat_;
 
@@ -196,6 +200,7 @@ namespace t7 {
             wgpu::RenderPipeline columnPipeline_;        // Generative column entity
             wgpu::RenderPipeline palmPipeline_;          // Palm tree entity
             wgpu::RenderPipeline cactusPipeline_;         // Cactus entity
+            wgpu::RenderPipeline bladePipeline_;          // Blade cluster entity
             wgpu::RenderPipeline pyramidPipeline_;       // Generative pyramid entity
             wgpu::RenderPipeline shellPipeline_;         // Indoor shell (ceiling + walls)
 
@@ -207,6 +212,7 @@ namespace t7 {
             wgpu::RenderPipeline shadowColumnPipeline_;
             wgpu::RenderPipeline shadowPalmPipeline_;
             wgpu::RenderPipeline shadowCactusPipeline_;
+            wgpu::RenderPipeline shadowBladePipeline_;
             wgpu::RenderPipeline shadowPyramidPipeline_;
             wgpu::RenderPipeline shadowShellPipeline_;
 
@@ -252,6 +258,7 @@ namespace t7 {
             wgpu::ComputePipeline columnMeshGenPipeline_;
             wgpu::ComputePipeline palmMeshGenPipeline_;
             wgpu::ComputePipeline cactusMeshGenPipeline_;
+            wgpu::ComputePipeline bladeMeshGenPipeline_;
 
 
         public:
@@ -296,6 +303,7 @@ namespace t7 {
                 columnMeshGenLayout_ = gpuState.column_mesh_gen_layout();
                 palmMeshGenLayout_ = gpuState.palm_mesh_gen_layout();
                 cactusMeshGenLayout_ = gpuState.cactus_mesh_gen_layout();
+                bladeMeshGenLayout_ = gpuState.blade_mesh_gen_layout();
                 colorFormat_ = colorFormat;
                 depthFormat_ = depthFormat;
 
@@ -566,6 +574,15 @@ namespace t7 {
                 pass.DispatchWorkgroups(Dim::MAX_CACTUS_INSTANCES, 1, 1);
             }
 
+            void dispatch_blade_mesh_gen(
+                wgpu::ComputePassEncoder& pass,
+                wgpu::BindGroup group
+            ) {
+                pass.SetPipeline(bladeMeshGenPipeline_);
+                pass.SetBindGroup(0, group);
+                pass.DispatchWorkgroups(Dim::MAX_BLADE_INSTANCES, 1, 1);
+            }
+
             // Zone extrusion rendering
             void draw_zone_extrusion(
                 wgpu::RenderPassEncoder& pass,
@@ -721,6 +738,22 @@ namespace t7 {
                 uint32_t indexCount
             ) {
                 pass.SetPipeline(cactusPipeline_);
+                pass.SetBindGroup(0, entityBindGroup);
+                pass.SetBindGroup(1, textureBindGroup);
+                pass.SetVertexBuffer(0, vertexBuffer);
+                pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint32);
+                pass.DrawIndexed(indexCount);
+            }
+
+            void draw_blade(
+                wgpu::RenderPassEncoder& pass,
+                wgpu::BindGroup entityBindGroup,
+                wgpu::BindGroup textureBindGroup,
+                wgpu::Buffer vertexBuffer,
+                wgpu::Buffer indexBuffer,
+                uint32_t indexCount
+            ) {
+                pass.SetPipeline(bladePipeline_);
                 pass.SetBindGroup(0, entityBindGroup);
                 pass.SetBindGroup(1, textureBindGroup);
                 pass.SetVertexBuffer(0, vertexBuffer);
@@ -925,6 +958,22 @@ namespace t7 {
                 uint32_t indexCount
             ) {
                 pass.SetPipeline(shadowCactusPipeline_);
+                pass.SetBindGroup(0, entityBindGroup);
+                pass.SetBindGroup(1, textureBindGroup);
+                pass.SetVertexBuffer(0, vertexBuffer);
+                pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint32);
+                pass.DrawIndexed(indexCount);
+            }
+
+            void draw_shadow_blade(
+                wgpu::RenderPassEncoder& pass,
+                wgpu::BindGroup entityBindGroup,
+                wgpu::BindGroup textureBindGroup,
+                wgpu::Buffer vertexBuffer,
+                wgpu::Buffer indexBuffer,
+                uint32_t indexCount
+            ) {
+                pass.SetPipeline(shadowBladePipeline_);
                 pass.SetBindGroup(0, entityBindGroup);
                 pass.SetBindGroup(1, textureBindGroup);
                 pass.SetVertexBuffer(0, vertexBuffer);
@@ -1464,6 +1513,23 @@ namespace t7 {
                     if (!cactusMeshGenPipeline_) return false;
                 }
 
+                // Blade mesh gen compute pipeline
+                {
+                    std::array<wgpu::BindGroupLayout, 1> layouts = { bladeMeshGenLayout_ };
+                    wgpu::PipelineLayoutDescriptor pld{};
+                    pld.bindGroupLayoutCount = layouts.size();
+                    pld.bindGroupLayouts = layouts.data();
+                    wgpu::PipelineLayout pl = device_.CreatePipelineLayout(&pld);
+                    if (!pl) return false;
+                    wgpu::ComputePipelineDescriptor desc{};
+                    desc.label = "Blade Mesh Gen";
+                    desc.layout = pl;
+                    desc.compute.module = shaderModule_;
+                    desc.compute.entryPoint = Entry::BLADE_MESH_GEN;
+                    bladeMeshGenPipeline_ = device_.CreateComputePipeline(&desc);
+                    if (!bladeMeshGenPipeline_) return false;
+                }
+
                 return true;
             }
 
@@ -1712,6 +1778,13 @@ namespace t7 {
                     desc.primitive.cullMode = wgpu::CullMode::None;
                     cactusPipeline_ = device_.CreateRenderPipeline(&desc);
                     if (!cactusPipeline_) return false;
+
+                    // Blade cluster pipeline — no backface culling (flat quads visible from both sides)
+                    desc.label = "Blade Cluster (Rasterized)";
+                    desc.vertex.entryPoint = Entry::BLADE_VS;
+                    desc.primitive.cullMode = wgpu::CullMode::None;
+                    bladePipeline_ = device_.CreateRenderPipeline(&desc);
+                    if (!bladePipeline_) return false;
 
                     // Pyramid pipeline — same vertex format as arch/column, Back culling.
                     desc.label = "Generative Pyramid (Rasterized)";
@@ -2090,6 +2163,13 @@ namespace t7 {
                         desc.primitive.cullMode = wgpu::CullMode::None;
                         shadowCactusPipeline_ = device_.CreateRenderPipeline(&desc);
                         if (!shadowCactusPipeline_) return false;
+
+                        // Shadow Blade Cluster
+                        desc.label = "Shadow Blade Cluster";
+                        desc.vertex.entryPoint = Entry::SHADOW_BLADE_VS;
+                        desc.primitive.cullMode = wgpu::CullMode::None;
+                        shadowBladePipeline_ = device_.CreateRenderPipeline(&desc);
+                        if (!shadowBladePipeline_) return false;
 
                         // Shadow Pyramid — same vertex format, Back culling
                         desc.label = "Shadow Generative Pyramid";

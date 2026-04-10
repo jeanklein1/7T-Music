@@ -1513,6 +1513,246 @@ namespace t7 {
             uint32_t activeCactusCount_ = 0;
             bool cactusMeshGenPending_ = false;
 
+            // ─── Generative Blade Clusters ──────────────────────────────────
+            //
+            // Ground-level leaf clusters: 3-7 thick pointed blades from a
+            // single ground point. Three tiers: Sprout / Clump / Thicket.
+            // Geometry: flat quad strips along curved midribs, golden-angle packed.
+
+            enum class BladeClusterTier : uint32_t { SPROUT = 0, CLUMP = 1, THICKET = 2, COUNT = 3 };
+            static constexpr uint32_t BLADE_TIER_COUNT = static_cast<uint32_t>(BladeClusterTier::COUNT);
+
+            struct BladeClusterTierParams {
+                float blade_count_mean, blade_count_sigma;
+                float blade_h_mean, blade_h_sigma;
+                float blade_h_var_mean, blade_h_var_sigma;
+                float blade_w_mean, blade_w_sigma;
+                float splay_mean, splay_sigma;
+                float curve_mean, curve_sigma;
+                float twist_mean, twist_sigma;
+                float taper_mean, taper_sigma;
+                float color_over, color_var;
+                uint32_t blade_segs;
+                float weight;
+            };
+
+            static constexpr BladeClusterTierParams BLADE_TIERS[] = {
+                // Sprout — tiny, 3-4 blades, ground punctuation
+                { 3.0f, 0.5f,   1.8f, 0.4f,   0.35f, 0.08f,   0.30f, 0.06f,
+                  0.18f, 0.06f,  0.12f, 0.04f,  0.05f, 0.02f,  0.85f, 0.05f,
+                  0.15f, 0.06f,  5,  0.50f },
+                // Clump — classic painting bush, 4-6 blades
+                { 5.0f, 1.0f,   3.2f, 0.6f,   0.40f, 0.10f,   0.45f, 0.08f,
+                  0.25f, 0.08f,  0.18f, 0.06f,  0.08f, 0.03f,  0.82f, 0.05f,
+                  0.20f, 0.06f,  6,  0.35f },
+                // Thicket — taller, denser, 5-7 blades
+                { 6.0f, 1.0f,   5.5f, 1.2f,   0.45f, 0.10f,   0.55f, 0.10f,
+                  0.30f, 0.10f,  0.22f, 0.08f,  0.10f, 0.04f,  0.80f, 0.06f,
+                  0.25f, 0.08f,  7,  0.15f },
+            };
+
+            static constexpr float BLADE_BODY_BASE[3]  = { 0.28f, 0.52f, 0.22f };
+            static constexpr float BLADE_AGED_BASE[3]  = { 0.48f, 0.45f, 0.28f };
+
+            struct BladeClusterConfig {
+                static constexpr float SPAWN_CHANCE_BY_ARCHETYPE[4] = { 0.0f, 0.025f, 0.025f, 0.0f };
+                static constexpr float MOOD_MULTIPLIER[MOOD_COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f };
+                static constexpr float POSITION_JITTER = 0.30f;
+            };
+
+            struct BladeProp {
+                static constexpr uint32_t SPAWN_ROLL  = 1100u;
+                static constexpr uint32_t POSITION_X  = 1101u;
+                static constexpr uint32_t POSITION_Z  = 1102u;
+                static constexpr uint32_t ROTATION    = 1103u;
+                static constexpr uint32_t TIER        = 1104u;
+                static constexpr uint32_t BLADE_COUNT = 1110u;
+                static constexpr uint32_t HEIGHT      = 1111u;
+                static constexpr uint32_t HEIGHT_VAR  = 1112u;
+                static constexpr uint32_t WIDTH       = 1113u;
+                static constexpr uint32_t SPLAY       = 1114u;
+                static constexpr uint32_t CURVE       = 1115u;
+                static constexpr uint32_t TWIST       = 1116u;
+                static constexpr uint32_t TAPER       = 1117u;
+                static constexpr uint32_t COLOR_VAR_R = 1120u;
+                static constexpr uint32_t COLOR_VAR_G = 1121u;
+                static constexpr uint32_t COLOR_VAR_B = 1122u;
+            };
+
+            struct ActiveBlade {
+                int32_t patch_gx = 0, patch_gz = 0;
+                int32_t host_gx = 0, host_gz = 0;
+                bool active = false;
+                bool draw_visible = true;
+                float world_x = 0.0f, world_z = 0.0f;
+                float height = 0.0f;
+                float radius = 0.0f;
+                uint32_t tier_idx = 0;
+                float cached_ground_y = 0.0f;
+            };
+
+            ActiveBlade activeBlades_[Dim::MAX_BLADE_INSTANCES]{};
+            uint32_t activeBladeCount_ = 0;
+            bool bladeMeshGenPending_ = false;
+
+            // ─── Blade Cluster Selection
+
+            struct BladeClusterSelection {
+                uint32_t seed;
+                int32_t  trigger_gx, trigger_gz;
+                uint32_t slot;
+                uint32_t tier_idx;
+                float blade_count;
+                float blade_h, blade_h_var, blade_w;
+                float splay, curve, twist, taper;
+                float solid_half;
+                float burial;
+                float blade_r, blade_g, blade_b;
+                float aged_r, aged_g, aged_b;
+                uint32_t blade_segs;
+                uint32_t seed_val;
+            };
+
+            // ─── Blade Cluster Placement
+
+            struct BladeClusterPlacement {
+                uint32_t slot;
+                int32_t  trigger_gx, trigger_gz;
+                int32_t  host_gx, host_gz;
+                uint32_t tier_idx;
+                float cx, cz, rotation;
+                float blade_count;
+                float blade_h, blade_h_var, blade_w;
+                float splay, curve, twist, taper;
+                float solid_half;
+                float burial;
+                float blade_r, blade_g, blade_b;
+                float aged_r, aged_g, aged_b;
+                uint32_t blade_segs;
+                uint32_t seed_val;
+                float cached_ground_y;
+            };
+
+            // ─── Blade Cluster Spawning
+
+            bool select_blade_for_patch(int32_t gx, int32_t gz, BladeClusterSelection& sel) {
+                auto gate = run_spawn_preamble(gx, gz,
+                    activeBlades_, Dim::MAX_BLADE_INSTANCES,
+                    BladeProp::SPAWN_ROLL, BladeClusterConfig::SPAWN_CHANCE_BY_ARCHETYPE,
+                    BladeClusterConfig::MOOD_MULTIPLIER,
+                    PopFamily::BLADE, "blad");
+                if (!gate.ok) return false;
+
+                float blade_weights[] = { BLADE_TIERS[0].weight, BLADE_TIERS[1].weight, BLADE_TIERS[2].weight };
+                for (uint32_t t = 0; t < BLADE_TIER_COUNT; t++) blade_weights[t] *= THEMES[gate.theme_idx].tier_wt_blade[t];
+                uint32_t tier_idx = select_tier_biased(gate.seed, BladeProp::TIER, blade_weights, BLADE_TIER_COUNT, PopFamily::BLADE);
+                const auto& tp = BLADE_TIERS[tier_idx];
+
+                float blade_count = std::max(2.0f, std::round(cpu_sample_gaussian(gate.seed, BladeProp::BLADE_COUNT, tp.blade_count_mean, tp.blade_count_sigma)));
+                float blade_h = std::max(0.5f, cpu_sample_gaussian(gate.seed, BladeProp::HEIGHT, tp.blade_h_mean, tp.blade_h_sigma));
+                float blade_h_var = std::max(0.0f, cpu_sample_gaussian(gate.seed, BladeProp::HEIGHT_VAR, tp.blade_h_var_mean, tp.blade_h_var_sigma));
+                float blade_w = std::max(0.05f, cpu_sample_gaussian(gate.seed, BladeProp::WIDTH, tp.blade_w_mean, tp.blade_w_sigma));
+                float splay = std::max(0.0f, cpu_sample_gaussian(gate.seed, BladeProp::SPLAY, tp.splay_mean, tp.splay_sigma));
+                float curve = std::max(0.0f, cpu_sample_gaussian(gate.seed, BladeProp::CURVE, tp.curve_mean, tp.curve_sigma));
+                float twist = std::max(0.0f, cpu_sample_gaussian(gate.seed, BladeProp::TWIST, tp.twist_mean, tp.twist_sigma));
+                float taper = std::max(0.3f, cpu_sample_gaussian(gate.seed, BladeProp::TAPER, tp.taper_mean, tp.taper_sigma));
+
+                float solid_half = blade_w * 0.5f;
+
+                sel.seed = gate.seed;
+                sel.trigger_gx = gx;
+                sel.trigger_gz = gz;
+                sel.slot = gate.slot;
+                sel.tier_idx = tier_idx;
+                sel.blade_count = blade_count;
+                sel.blade_h = blade_h; sel.blade_h_var = blade_h_var; sel.blade_w = blade_w;
+                sel.splay = splay; sel.curve = curve; sel.twist = twist; sel.taper = taper;
+                sel.solid_half = solid_half;
+                sel.burial = 0.0f;
+                sel.blade_segs = tp.blade_segs;
+
+                // Colors
+                sel.blade_r = BLADE_BODY_BASE[0] + (cpu_hash_f(gate.seed, BladeProp::COLOR_VAR_R) - 0.5f) * tp.color_var;
+                sel.blade_g = BLADE_BODY_BASE[1] + (cpu_hash_f(gate.seed, BladeProp::COLOR_VAR_G) - 0.5f) * tp.color_var;
+                sel.blade_b = BLADE_BODY_BASE[2] + (cpu_hash_f(gate.seed, BladeProp::COLOR_VAR_B) - 0.5f) * tp.color_var;
+                sel.aged_r = BLADE_AGED_BASE[0] + (cpu_hash_f(gate.seed, BladeProp::COLOR_VAR_R + 10u) - 0.5f) * tp.color_var;
+                sel.aged_g = BLADE_AGED_BASE[1] + (cpu_hash_f(gate.seed, BladeProp::COLOR_VAR_G + 10u) - 0.5f) * tp.color_var;
+                sel.aged_b = BLADE_AGED_BASE[2] + (cpu_hash_f(gate.seed, BladeProp::COLOR_VAR_B + 10u) - 0.5f) * tp.color_var;
+                sel.seed_val = gate.seed;
+
+                return true;
+            }
+
+            bool place_blade_from_selection(const BladeClusterSelection& sel, BladeClusterPlacement& plan) {
+                auto pos = negotiate_position(sel.seed,
+                    sel.trigger_gx, sel.trigger_gz,
+                    BladeProp::POSITION_X, BladeProp::POSITION_Z,
+                    BladeClusterConfig::POSITION_JITTER,
+                    BladeProp::ROTATION,
+                    sel.solid_half, PopFamily::BLADE);
+                if (!pos.ok) return false;
+
+                plan = BladeClusterPlacement{};
+                plan.slot = sel.slot;
+                plan.trigger_gx = sel.trigger_gx; plan.trigger_gz = sel.trigger_gz;
+                plan.host_gx = pos.host_gx; plan.host_gz = pos.host_gz;
+                plan.tier_idx = sel.tier_idx;
+                plan.cx = pos.cx; plan.cz = pos.cz; plan.rotation = pos.rotation;
+                plan.blade_count = sel.blade_count;
+                plan.blade_h = sel.blade_h; plan.blade_h_var = sel.blade_h_var; plan.blade_w = sel.blade_w;
+                plan.splay = sel.splay; plan.curve = sel.curve; plan.twist = sel.twist; plan.taper = sel.taper;
+                plan.solid_half = sel.solid_half; plan.burial = sel.burial;
+                plan.blade_r = sel.blade_r; plan.blade_g = sel.blade_g; plan.blade_b = sel.blade_b;
+                plan.aged_r = sel.aged_r; plan.aged_g = sel.aged_g; plan.aged_b = sel.aged_b;
+                plan.blade_segs = sel.blade_segs;
+                plan.seed_val = sel.seed_val;
+                plan.cached_ground_y = cpu_terrain_base_at(plan.cx, plan.cz);
+
+                record_placement_bookkeeping(PopFamily::BLADE, plan.tier_idx,
+                    plan.cx, plan.cz, plan.rotation);
+
+                return true;
+            }
+
+            void commit_blade(const BladeClusterPlacement& plan, int32_t trigger_gx, int32_t trigger_gz, wgpu::Queue& queue) {
+                auto& ab = activeBlades_[plan.slot];
+                ab.patch_gx = trigger_gx; ab.patch_gz = trigger_gz;
+                ab.host_gx = plan.host_gx; ab.host_gz = plan.host_gz;
+                ab.active = true; ab.draw_visible = true;
+                ab.world_x = plan.cx; ab.world_z = plan.cz;
+                ab.height = plan.blade_h; ab.radius = plan.blade_w + plan.splay;
+                ab.tier_idx = plan.tier_idx;
+                ab.cached_ground_y = plan.cached_ground_y;
+                activeBladeCount_++;
+                record_entity_presence(plan.host_gx, plan.host_gz, EntityPresence::BLADE);
+
+                GPUBladeClusterMeshParams mp{};
+                mp.center_x = plan.cx; mp.center_z = plan.cz;
+                mp.blade_count = plan.blade_count;
+                mp.blade_h = plan.blade_h; mp.blade_h_var = plan.blade_h_var; mp.blade_w = plan.blade_w;
+                mp.splay = plan.splay; mp.curve = plan.curve; mp.twist = plan.twist; mp.taper = plan.taper;
+                mp.blade_r = plan.blade_r; mp.blade_g = plan.blade_g; mp.blade_b = plan.blade_b;
+                mp.aged_r = plan.aged_r; mp.aged_g = plan.aged_g; mp.aged_b = plan.aged_b;
+                mp.blade_segs = plan.blade_segs;
+                mp.is_active = 1;
+                mp.seed = plan.seed_val;
+                gpuState_.upload_blade_mesh_params_slot(queue, plan.slot, mp);
+                bladeMeshGenPending_ = true;
+            }
+
+            bool prepare_blade_mesh_gen(wgpu::Queue& queue) {
+                if (!bladeMeshGenPending_) return false;
+                bladeMeshGenPending_ = false;
+                uint32_t maxSlot = 0;
+                bool anyActive = false;
+                for (uint32_t i = 0; i < Dim::MAX_BLADE_INSTANCES; i++) {
+                    if (activeBlades_[i].active) { maxSlot = i; anyActive = true; }
+                }
+                gpuState_.set_blade_index_count(anyActive
+                    ? (maxSlot + 1) * Dim::BLADEG_MAX_INDICES_PER_SLOT : 0);
+                return true;
+            }
+
             // ─── Cactus Selection ───────────────────────────────────────────
 
             struct CactusSelection {
@@ -2879,7 +3119,8 @@ namespace t7 {
                 static constexpr uint32_t ANTENNA = 3;
                 static constexpr uint32_t PALM = 4;
                 static constexpr uint32_t CACTUS = 5;
-                static constexpr uint32_t COUNT = 6;
+                static constexpr uint32_t BLADE = 6;
+                static constexpr uint32_t COUNT = 7;
             };
 
             // Entity presence flags — bitfield tracking what was spawned on
@@ -2897,6 +3138,7 @@ namespace t7 {
                 static constexpr uint32_t CACTUS = 1u << 7;
                 static constexpr uint32_t GALLERY = 1u << 8;
                 static constexpr uint32_t GOL_ZONE = 1u << 9;
+                static constexpr uint32_t BLADE = 1u << 10;
             };
 
             // ─── Adjacency Affinity Matrix ───────────────────────────────────
@@ -2907,16 +3149,17 @@ namespace t7 {
             //          ARCH_MONUMENTAL(3), COLUMN(4)
             // All 1.0f = neutral. Tune to create compositional vocabulary.
 
-            static constexpr uint32_t ADJACENCY_BITS = 8;
+            static constexpr uint32_t ADJACENCY_BITS = 9;
 
             static constexpr float ADJACENCY_BOOST[PopFamily::COUNT][ADJACENCY_BITS] = {
-                //         PYR   A_DW  A_ST  A_MN  COL   ANT   PALM  CACT
-                /* PYR */  { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
-                /* ARCH */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
-                /* COL */  { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
-                /* ANT */  { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
-                /* PALM */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
-                /* CACT */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
+                //         PYR   A_DW  A_ST  A_MN  COL   ANT   PALM  CACT  BLAD
+                /* PYR  */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
+                /* ARCH */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
+                /* COL  */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
+                /* ANT  */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
+                /* PALM */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
+                /* CACT */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
+                /* BLAD */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
             };
 
             static float adjacency_modifier(uint32_t family, uint32_t neighbor_flags) {
@@ -3097,6 +3340,7 @@ namespace t7 {
                     ColumnSelection  antenna;
                     PalmSelection    palm;
                     CactusSelection  cactus;
+                    BladeClusterSelection blade;
                 };
                 EntityQueueEntry() : family(0), gx(0), gz(0) { std::memset(&column, 0, sizeof(column)); }
             };
@@ -3119,6 +3363,7 @@ namespace t7 {
                     ColumnPlacement  antenna;
                     PalmPlacement    palm;
                     CactusPlacement  cactus;
+                    BladeClusterPlacement blade;
                 };
                 PlacementEntry() : family(0), gx(0), gz(0) { std::memset(&arch, 0, sizeof(arch)); }
             };
@@ -6707,6 +6952,65 @@ namespace t7 {
                 self->renderer_.dispatch_cactus_mesh_gen(pass, self->gpuState_.cactus_mesh_gen_group());
             }
 
+            // ── Blade cluster dispatch wrappers ──
+
+            static bool dispatch_select_blade(Cartridge* self,
+                int32_t gx, int32_t gz, EntityQueueEntry& e)
+            {
+                return self->select_blade_for_patch(gx, gz, e.blade);
+            }
+
+            static bool dispatch_place_blade(Cartridge* self,
+                EntityQueueEntry& e, PlacementEntry& pe)
+            {
+                pe.family = e.family; pe.gx = e.gx; pe.gz = e.gz;
+                if (self->place_blade_from_selection(e.blade, pe.blade)) {
+#ifdef DIAG_ENTITY_LIFECYCLE
+                    std::cout << "[DIAG:PLACE] blad slot=" << pe.blade.slot
+                        << " pos=(" << pe.blade.cx << "," << pe.blade.cz
+                        << ") host=(" << pe.blade.host_gx << "," << pe.blade.host_gz << ")\n";
+#endif
+                    return true;
+                }
+                self->activeBlades_[e.blade.slot].active = false;
+                return false;
+            }
+
+            static void dispatch_commit_blade(Cartridge* self,
+                PlacementEntry& pe, wgpu::Queue& queue)
+            {
+                auto* host = self->find_patch(pe.blade.host_gx, pe.blade.host_gz);
+                if (host) {
+                    self->commit_blade(pe.blade, pe.gx, pe.gz, queue);
+                    host->record_entity(PopFamily::BLADE, pe.blade.slot);
+                } else {
+                    self->activeBlades_[pe.blade.slot].active = false;
+#ifdef DIAG_ENTITY_LIFECYCLE
+                    std::cout << "[DIAG:REJECT] blad slot=" << pe.blade.slot
+                        << " — host patch gone\n";
+#endif
+                }
+            }
+
+            static void dispatch_evict_blade(Cartridge* self,
+                uint32_t slot, wgpu::Queue& queue)
+            {
+                self->activeBlades_[slot].active = false;
+                self->activeBladeCount_--;
+                { GPUBladeClusterMeshParams ep{}; self->gpuState_.upload_blade_mesh_params_slot(queue, slot, ep); }
+                self->bladeMeshGenPending_ = true;
+#ifdef DIAG_ENTITY_LIFECYCLE
+                std::cout << "[DIAG:EVICT]   blad slot=" << slot << "\n";
+#endif
+            }
+
+            static bool dispatch_prepare_mesh_blade(Cartridge* self, wgpu::Queue& queue) {
+                return self->prepare_blade_mesh_gen(queue);
+            }
+            static void dispatch_mesh_gen_blade(Cartridge* self, wgpu::ComputePassEncoder& pass) {
+                self->renderer_.dispatch_blade_mesh_gen(pass, self->gpuState_.blade_mesh_gen_group());
+            }
+
             // ── Dispatch table (order matches PopFamily enum) ──
 
             static constexpr FamilyDispatch FAMILY_DISPATCH[PopFamily::COUNT] = {
@@ -6728,6 +7032,9 @@ namespace t7 {
                 { dispatch_select_cactus, dispatch_place_cactus, dispatch_commit_cactus,
                   dispatch_evict_cactus, dispatch_prepare_mesh_cactus, dispatch_mesh_gen_cactus,
                   EntityPresence::CACTUS, "cact" },
+                { dispatch_select_blade, dispatch_place_blade, dispatch_commit_blade,
+                  dispatch_evict_blade, dispatch_prepare_mesh_blade, dispatch_mesh_gen_blade,
+                  EntityPresence::BLADE, "blad" },
             };
 
             // ─── Population Themes ───────────────────────────────────────────
@@ -6781,6 +7088,7 @@ namespace t7 {
                 float tier_wt_antenna[3];                      // multiplier on antenna tier base weights (Antenna, Squat, Colossal)
                 float tier_wt_palm[3];                         // multiplier on palm tier base weights (Sapling, Coastal, Royal)
                 float tier_wt_cactus[3];                       // multiplier on cactus tier base weights (Finger, Saguaro, Candelabra)
+                float tier_wt_blade[3];                        // multiplier on blade tier base weights (Sprout, Clump, Thicket)
                 float density_mult;                            // multiplier on entity_density
 
                 // Envelope parameters (replace lattice weight for theme selection)
@@ -6807,23 +7115,25 @@ namespace t7 {
 
             static constexpr PopulationTheme THEMES[THEME_COUNT] = {
                 // ── 0: TRANSITION — sparse connective tissue ─────────────────
-                {   { 0.4f, 0.3f, 0.7f, 0.3f, 0.3f, 0.3f },                      // spawn_weight [pyr, arch, col, ant, palm, cact]
+                {   { 0.4f, 0.3f, 0.7f, 0.3f, 0.3f, 0.3f, 0.5f },              // spawn_weight [pyr, arch, col, ant, palm, cact, blade]
                     { 1.0f, 1.0f, 1.0f },                                       // tier_pyr
                     { 1.0f, 0.3f, 1.0f },                                       // tier_arch
                     { 0.1f, 0.2f, 0.3f },                                       // tier_col
                     { 0.1f, 2.0f, 0.7f },                                       // tier_ant
                     { 1.0f, 1.0f, 1.0f },                                       // tier_palm
                     { 1.0f, 1.0f, 1.0f },                                       // tier_cactus
+                    { 1.0f, 1.0f, 1.0f },                                       // tier_blade
                     1.0f,                                                         // density
                     150.0f, 20u, 3u, 0u,                                          // spike, sustain, decay, cooldown
                     0.21f                                                         // weight
                 },
                 // ── 1: MONUMENTAL — big pyramids, varied arches, heavy columns
-                {   { 1.5f, 1.0f, 1.0f, 0.5f, 0.2f, 0.2f },
+                {   { 1.5f, 1.0f, 1.0f, 0.5f, 0.2f, 0.2f, 0.5f },
                     { 0.2f, 0.5f, 3.0f },
                     { 2.0f, 0.1f, 3.0f },
                     { 0.01f, 0.01f, 1.0f },
                     { 0.5f, 1.5f, 0.5f },
+                    { 1.0f, 1.0f, 1.0f },
                     { 1.0f, 1.0f, 1.0f },
                     { 1.0f, 1.0f, 1.0f },
                     1.0f,
@@ -6831,11 +7141,12 @@ namespace t7 {
                     0.30f
                 },
                 // ── 2: COLONNADE — dense columns, moderate arches ────────────
-                {   { 0.3f, 1.0f, 4.0f, 0.5f, 0.3f, 0.3f },
+                {   { 0.3f, 1.0f, 4.0f, 0.5f, 0.3f, 0.3f, 0.5f },
                     { 1.0f, 1.0f, 1.0f },
                     { 3.0f, 0.5f, 1.0f },
                     { 0.3f, 3.0f, 5.0f },
                     { 0.2f, 0.1f, 0.1f },
+                    { 1.0f, 1.0f, 1.0f },
                     { 1.0f, 1.0f, 1.0f },
                     { 1.0f, 1.0f, 1.0f },
                     1.0f,
@@ -6843,11 +7154,12 @@ namespace t7 {
                     0.31f
                 },
                 // ── 3: ANTENNA — antenna-dominant corridor ───────────────────
-                {   { 0.5f, 0.5f, 1.0f, 4.0f, 0.5f, 0.5f },
+                {   { 0.5f, 0.5f, 1.0f, 4.0f, 0.5f, 0.5f, 0.5f },
                     { 1.0f, 0.05f, 2.0f },
                     { 1.0f, 0.2f, 0.8f },
                     { 0.1f, 0.3f, 0.3f },
                     { 0.5f, 3.5f, 1.0f },
+                    { 1.0f, 1.0f, 1.0f },
                     { 1.0f, 1.0f, 1.0f },
                     { 1.0f, 1.0f, 1.0f },
                     1.0f,
@@ -6855,10 +7167,11 @@ namespace t7 {
                     0.18f
                 },
                 // ── 4: BARREN — near-empty ───────────────────────────────────
-                {   { 0.4f, 0.3f, 0.5f, 0.3f, 0.2f, 0.2f },
+                {   { 0.4f, 0.3f, 0.5f, 0.3f, 0.2f, 0.2f, 0.1f },
                     { 2.0f, 0.5f, 0.2f },
                     { 1.0f, 1.0f, 1.0f },
                     { 0.2f, 0.5f, 0.5f },
+                    { 1.0f, 1.0f, 1.0f },
                     { 1.0f, 1.0f, 1.0f },
                     { 1.0f, 1.0f, 1.0f },
                     { 1.0f, 1.0f, 1.0f },
@@ -7801,6 +8114,20 @@ namespace t7 {
                         gpuState_.upload_cactus_mesh_params_slot(queue, i, emptyParams);
                     }
                     cactusMeshGenPending_ = true;
+                }
+
+                // Blade clusters
+                for (uint32_t i = 0; i < Dim::MAX_BLADE_INSTANCES; i++) {
+                    activeBlades_[i] = ActiveBlade{};
+                }
+                activeBladeCount_ = 0;
+                gpuState_.set_blade_index_count(0);
+                {
+                    GPUBladeClusterMeshParams emptyParams{};
+                    for (uint32_t i = 0; i < Dim::MAX_BLADE_INSTANCES; i++) {
+                        gpuState_.upload_blade_mesh_params_slot(queue, i, emptyParams);
+                    }
+                    bladeMeshGenPending_ = true;
                 }
 
                 // Pyramids

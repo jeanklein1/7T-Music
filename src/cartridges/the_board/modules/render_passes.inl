@@ -99,6 +99,17 @@
                     cactusOrigins[i].ground_y = activeCacti_[i].cached_ground_y;
                 }
                 gpuState_.upload_cactus_origins(queue, cactusOrigins, Dim::MAX_CACTUS_INSTANCES);
+
+                // --- Blade cluster ground entries ---
+                GPUBladeClusterGroundEntry bladeOrigins[Dim::MAX_BLADE_INSTANCES]{};
+                for (uint32_t i = 0; i < Dim::MAX_BLADE_INSTANCES; i++) {
+                    if (!activeBlades_[i].active) continue;
+                    bladeOrigins[i].center_x = activeBlades_[i].world_x;
+                    bladeOrigins[i].center_z = activeBlades_[i].world_z;
+                    bladeOrigins[i].is_active = 1;
+                    bladeOrigins[i].ground_y = activeBlades_[i].cached_ground_y;
+                }
+                gpuState_.upload_blade_origins(queue, bladeOrigins, Dim::MAX_BLADE_INSTANCES);
             }
 
             // --- Entity placement Y-correction: heightfield sample - pier correction ---
@@ -316,6 +327,15 @@
                     gpuState_.cactus_index_count()
                 );
 
+                renderer_.draw_shadow_blade(
+                    pass,
+                    gpuState_.render_entity_group(),
+                    gpuState_.shadow_texture_group(),
+                    gpuState_.blade_vertex_buffer(),
+                    gpuState_.blade_index_buffer(),
+                    gpuState_.blade_index_count()
+                );
+
                 renderer_.draw_shadow_shell(
                     pass,
                     gpuState_.render_entity_group(),
@@ -429,6 +449,15 @@
                     gpuState_.cactus_vertex_buffer(),
                     gpuState_.cactus_index_buffer(),
                     gpuState_.cactus_index_count()
+                );
+
+                renderer_.draw_blade(
+                    pass,
+                    gpuState_.render_entity_group(),
+                    gpuState_.render_texture_group(),
+                    gpuState_.blade_vertex_buffer(),
+                    gpuState_.blade_index_buffer(),
+                    gpuState_.blade_index_count()
                 );
 
                 renderer_.draw_shell(
