@@ -1751,7 +1751,7 @@ namespace t7 {
                     if (activeBlades_[i].active) { maxSlot = i; anyActive = true; }
                 }
                 gpuState_.set_blade_index_count(anyActive
-                    ? (maxSlot + 1) * Dim::BLADEG_MAX_INDICES_PER_SLOT : 0);
+                    ? 1 * Dim::BLADEG_MAX_INDICES_PER_SLOT : 0);  // DIAGNOSTIC: slot 0 only
                 return true;
             }
 
