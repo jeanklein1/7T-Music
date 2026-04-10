@@ -3735,7 +3735,7 @@ struct PortalArray {
 @group(0) @binding(380) var<storage, read> render_arch_ground: array<ArchGroundEntry, 16>;
 @group(0) @binding(381) var<storage, read> render_column_ground: array<ColumnGroundEntry, 32>;
 @group(0) @binding(382) var<storage, read> render_pyramid_ground: array<PyramidGroundEntry, 8>;
-@group(0) @binding(383) var<storage, read> render_palm_ground: array<PalmGroundEntry, 24>;
+@group(0) @binding(383) var<uniform> render_palm_ground: array<PalmGroundEntry, 24>;
 
 struct CactusGroundEntry {
     center_x: f32,   // 1
@@ -3744,7 +3744,7 @@ struct CactusGroundEntry {
     is_active: u32,  // 4
     _pad0: f32, _pad1: f32, _pad2: f32, _pad3: f32,  // 5-8 = 32 bytes
 }
-@group(0) @binding(384) var<storage, read> render_cactus_ground: array<CactusGroundEntry, 20>;
+@group(0) @binding(384) var<uniform> render_cactus_ground: array<CactusGroundEntry, 20>;
 
 // --- Ribbon compute (Group 0: binding 121, separate pipeline layout)
 // Written by compute_ribbon_rings, read by ribbon VS via render_ring_xforms.

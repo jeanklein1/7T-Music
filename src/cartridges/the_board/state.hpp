@@ -2241,7 +2241,7 @@ namespace t7 {
                     wgpu::BufferUsage::Index | wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Storage);
                 palmGroundBuffer_ = makeBuffer("Palm Ground Y",
                     Dim::MAX_PALM_INSTANCES * sizeof(GPUPalmGroundEntry),
-                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
+                    wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);
                 palmMeshParamsBuffer_ = makeBuffer("Palm Mesh Params",
                     Dim::MAX_PALM_INSTANCES * sizeof(GPUPalmMeshParams),
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
@@ -2271,7 +2271,7 @@ namespace t7 {
                     wgpu::BufferUsage::Index | wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Storage);
                 cactusGroundBuffer_ = makeBuffer("Cactus Ground Y",
                     Dim::MAX_CACTUS_INSTANCES * sizeof(GPUCactusGroundEntry),
-                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
+                    wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);
                 cactusMeshParamsBuffer_ = makeBuffer("Cactus Mesh Params",
                     Dim::MAX_CACTUS_INSTANCES * sizeof(GPUCactusMeshParams),
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
@@ -2755,11 +2755,11 @@ namespace t7 {
                     // Palm ground Y (VS reads)
                     entries[17].binding = 383;
                     entries[17].visibility = wgpu::ShaderStage::Vertex;
-                    entries[17].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+                    entries[17].buffer.type = wgpu::BufferBindingType::Uniform;
 
                     entries[18].binding = 384;
                     entries[18].visibility = wgpu::ShaderStage::Vertex;
-                    entries[18].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+                    entries[18].buffer.type = wgpu::BufferBindingType::Uniform;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Render Entity Layout";
