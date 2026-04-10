@@ -166,6 +166,13 @@ namespace t7 {
             constexpr uint32_t PMG_TOTAL_VERTICES = MAX_PYRAMID_INSTANCES * PMG_MAX_VERTS_PER_SLOT;   // 288
             constexpr uint32_t PMG_TOTAL_INDICES  = MAX_PYRAMID_INSTANCES * PMG_MAX_INDICES_PER_SLOT; // 288
 
+            // Generative palms — GPU mesh gen (slot-based addressing)
+            constexpr uint32_t MAX_PALM_INSTANCES = 24;
+            constexpr uint32_t PALMG_MAX_VERTS_PER_SLOT  = 1200;
+            constexpr uint32_t PALMG_MAX_INDICES_PER_SLOT = 6000;
+            constexpr uint32_t PALMG_TOTAL_VERTICES = MAX_PALM_INSTANCES * PALMG_MAX_VERTS_PER_SLOT;   // 28800
+            constexpr uint32_t PALMG_TOTAL_INDICES  = MAX_PALM_INSTANCES * PALMG_MAX_INDICES_PER_SLOT; // 144000
+
             // GoL zone system — per-zone automaton grids
             constexpr uint32_t MAX_GOL_ZONES = 8;
             constexpr uint32_t GOL_ZONE_GRID = 32;      // cells per zone side
@@ -627,6 +634,36 @@ namespace t7 {
         };
         static_assert(sizeof(GPUColumnMeshParams) == 128, "GPUColumnMeshParams must be 128 bytes");
 
+        // ─── Palm GPU structs ─────────────────────────────────────────────
+        struct alignas(16) GPUPalmMeshParams {
+            float center_x, center_z;
+            float height;
+            float base_r, top_r;
+            float lean, lean_dir;
+            float bark_rings, bark_depth;
+            float frond_count;
+            float frond_len, frond_width;
+            float frond_droop, frond_arch;
+            float crown_spread, crown_skirt;
+            float burial;
+            float trunk_r, trunk_g, trunk_b;
+            float frond_r, frond_g, frond_b;
+            float aged_r, aged_g, aged_b;
+            uint32_t trunk_segs, frond_segs;
+            uint32_t is_active;
+            float _pad0;
+        };
+        static_assert(sizeof(GPUPalmMeshParams) == 128, "GPUPalmMeshParams must be 128 bytes");
+
+        struct alignas(16) GPUPalmGroundEntry {
+            float center_x;
+            float center_z;
+            float ground_y;
+            uint32_t is_active;
+            float _pad0, _pad1, _pad2, _pad3;
+        };
+        static_assert(sizeof(GPUPalmGroundEntry) == 32, "GPUPalmGroundEntry must be 32 bytes");
+
         // GoL zone config — per-zone parameters for compute + fragment shader
         struct alignas(16) GPUGoLZoneConfig {
             float origin[2];
@@ -984,6 +1021,11 @@ namespace t7 {
             wgpu::Buffer columnMeshParamsBuffer_;  // GPU mesh gen: per-slot parameters
             uint32_t columnIndexCount_ = 0;
 
+            wgpu::Buffer palmVertexBuffer_, palmIndexBuffer_;
+            wgpu::Buffer palmGroundBuffer_;
+            wgpu::Buffer palmMeshParamsBuffer_;
+            uint32_t palmIndexCount_ = 0;
+
             wgpu::Buffer pyramidVertexBuffer_, pyramidIndexBuffer_;
             wgpu::Buffer pyramidGroundBuffer_;  // per-pyramid ground Y correction
             wgpu::Buffer pyramidInstancesBuffer_;  // GPU-side pyramid array for heightfield baking
@@ -997,9 +1039,11 @@ namespace t7 {
             wgpu::BindGroupLayout pyramidMeshGenLayout_;  // bindings 190-192
             wgpu::BindGroupLayout archMeshGenLayout_;    // bindings 193-195
             wgpu::BindGroupLayout columnMeshGenLayout_;  // bindings 196-198
+            wgpu::BindGroupLayout palmMeshGenLayout_;    // bindings 180-182
             wgpu::BindGroup pyramidMeshGenBindGroup_;
             wgpu::BindGroup archMeshGenBindGroup_;
             wgpu::BindGroup columnMeshGenBindGroup_;
+            wgpu::BindGroup palmMeshGenBindGroup_;
 
             // GoL zone system buffers
             wgpu::Buffer zoneConfigBuffer_;        // GPUGoLZoneArray storage (read_write)
@@ -1659,6 +1703,27 @@ namespace t7 {
                     sizeof(GPUColumnGroundEntry) * std::min(count, Dim::MAX_COLUMN_INSTANCES));
             }
 
+            // --- Palm accessors and upload ---
+            wgpu::Buffer palm_vertex_buffer() const { return palmVertexBuffer_; }
+            wgpu::Buffer palm_index_buffer() const { return palmIndexBuffer_; }
+            wgpu::Buffer palm_ground_buffer() const { return palmGroundBuffer_; }
+            uint32_t palm_index_count() const { return palmIndexCount_; }
+            void set_palm_index_count(uint32_t count) { palmIndexCount_ = count; }
+
+            void upload_palm_mesh_params_slot(wgpu::Queue& queue, uint32_t slot, const GPUPalmMeshParams& params) {
+                queue.WriteBuffer(palmMeshParamsBuffer_,
+                    slot * sizeof(GPUPalmMeshParams),
+                    &params, sizeof(GPUPalmMeshParams));
+            }
+
+            wgpu::BindGroupLayout palm_mesh_gen_layout() const { return palmMeshGenLayout_; }
+            wgpu::BindGroup palm_mesh_gen_group() const { return palmMeshGenBindGroup_; }
+
+            void upload_palm_origins(wgpu::Queue& queue, const GPUPalmGroundEntry* entries, uint32_t count) {
+                queue.WriteBuffer(palmGroundBuffer_, 0, entries,
+                    sizeof(GPUPalmGroundEntry) * std::min(count, Dim::MAX_PALM_INSTANCES));
+            }
+
             // --- Pyramid accessors and upload ---
             wgpu::Buffer pyramid_vertex_buffer() const { return pyramidVertexBuffer_; }
             wgpu::Buffer pyramid_index_buffer() const { return pyramidIndexBuffer_; }
@@ -1990,7 +2055,7 @@ namespace t7 {
                     q.WriteBuffer(patchIndexBufferLOD1_, 0, idx.data(), idx.size() * 4);
                 }
 
-                return createSphereMesh() && createArchMesh() && createColumnMesh() && createPyramidMesh() && createShellMesh() && createGoLZoneBuffers();
+                return createSphereMesh() && createArchMesh() && createColumnMesh() && createPalmMesh() && createPyramidMesh() && createShellMesh() && createGoLZoneBuffers();
             }
 
             // (createCellMeshBuffers removed — legacy cell mesh gen)
@@ -2103,6 +2168,36 @@ namespace t7 {
                 std::cout << "[GPUState] Column buffers (GPU mesh gen): "
                     << Dim::CMG_TOTAL_VERTICES << " vert, "
                     << Dim::CMG_TOTAL_INDICES << " index capacity\n";
+                return true;
+            }
+
+            bool createPalmMesh() {
+                palmVertexBuffer_ = makeBuffer("Palm VB (GPU mesh gen)",
+                    Dim::PALMG_TOTAL_VERTICES * sizeof(ArchVertex),
+                    wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Storage);
+                palmIndexBuffer_ = makeBuffer("Palm IB (GPU mesh gen)",
+                    Dim::PALMG_TOTAL_INDICES * sizeof(uint32_t),
+                    wgpu::BufferUsage::Index | wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Storage);
+                palmGroundBuffer_ = makeBuffer("Palm Ground Y",
+                    Dim::MAX_PALM_INSTANCES * sizeof(GPUPalmGroundEntry),
+                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
+                palmMeshParamsBuffer_ = makeBuffer("Palm Mesh Params",
+                    Dim::MAX_PALM_INSTANCES * sizeof(GPUPalmMeshParams),
+                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
+
+                if (!palmVertexBuffer_ || !palmIndexBuffer_ || !palmGroundBuffer_ ||
+                    !palmMeshParamsBuffer_) return false;
+
+                palmIndexCount_ = 0;
+                {
+                    GPUPalmMeshParams emptyParams[Dim::MAX_PALM_INSTANCES]{};
+                    device_.GetQueue().WriteBuffer(palmMeshParamsBuffer_, 0, emptyParams,
+                        sizeof(GPUPalmMeshParams) * Dim::MAX_PALM_INSTANCES);
+                }
+                {
+                    std::vector<uint8_t> zeros(Dim::PALMG_TOTAL_VERTICES * sizeof(ArchVertex), 0);
+                    device_.GetQueue().WriteBuffer(palmVertexBuffer_, 0, zeros.data(), zeros.size());
+                }
                 return true;
             }
 
@@ -2493,7 +2588,7 @@ namespace t7 {
                 // Vertex shaders need entity state for positioning + VP for transform.
                 // Fragment shaders need camera for fog distance.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 17> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 18> entries{};
 
                     entries[0].binding = 1;    // config (uniform — fog, world_seed, aura_enabled, fade)
                     entries[0].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
@@ -2567,6 +2662,11 @@ namespace t7 {
                     entries[16].binding = 25;
                     entries[16].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
                     entries[16].buffer.type = wgpu::BufferBindingType::Uniform;
+
+                    // Palm ground Y (VS reads)
+                    entries[17].binding = 383;
+                    entries[17].visibility = wgpu::ShaderStage::Vertex;
+                    entries[17].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Render Entity Layout";
@@ -2933,7 +3033,7 @@ namespace t7 {
                 // own pier contribution (removing foreign pier contamination).
                 // 11 entries: config + pawn + painting slots + heightfield + entity grounds + GoL.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 11> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 12> entries{};
 
                     entries[0].binding = 1;
                     entries[0].visibility = wgpu::ShaderStage::Compute;
@@ -2979,6 +3079,10 @@ namespace t7 {
                     entries[10].binding = 161;
                     entries[10].visibility = wgpu::ShaderStage::Compute;
                     entries[10].buffer.type = wgpu::BufferBindingType::Storage;
+
+                    entries[11].binding = 150;
+                    entries[11].visibility = wgpu::ShaderStage::Compute;
+                    entries[11].buffer.type = wgpu::BufferBindingType::Storage;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Entity Placement Compute Layout";
@@ -3174,6 +3278,29 @@ namespace t7 {
                     if (!columnMeshGenLayout_) return false;
                 }
 
+                // Palm mesh gen layout (bindings 180-182)
+                {
+                    std::array<wgpu::BindGroupLayoutEntry, 3> entries{};
+
+                    entries[0].binding = 180;
+                    entries[0].visibility = wgpu::ShaderStage::Compute;
+                    entries[0].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+
+                    entries[1].binding = 181;
+                    entries[1].visibility = wgpu::ShaderStage::Compute;
+                    entries[1].buffer.type = wgpu::BufferBindingType::Storage;
+
+                    entries[2].binding = 182;
+                    entries[2].visibility = wgpu::ShaderStage::Compute;
+                    entries[2].buffer.type = wgpu::BufferBindingType::Storage;
+
+                    wgpu::BindGroupLayoutDescriptor desc{};
+                    desc.label = "Palm Mesh Gen Layout";
+                    desc.entryCount = entries.size();
+                    desc.entries = entries.data();
+                    palmMeshGenLayout_ = device_.CreateBindGroupLayout(&desc);
+                    if (!palmMeshGenLayout_) return false;
+                }
 
 
                 // -- Bind group instances ------------------------------------
@@ -3256,9 +3383,9 @@ namespace t7 {
                     if (!computeEntityBindGroup_) return false;
                 }
 
-                // Render entity bind group (17 entries: config + spaced by system +200)
+                // Render entity bind group (18 entries: config + spaced by system +200)
                 {
-                    std::array<wgpu::BindGroupEntry, 17> entries{};
+                    std::array<wgpu::BindGroupEntry, 18> entries{};
 
                     entries[0].binding = 1;
                     entries[0].buffer = configBuffer_;
@@ -3328,6 +3455,10 @@ namespace t7 {
                     entries[16].binding = 25;
                     entries[16].buffer = tileGridBuffer_;
                     entries[16].size = sizeof(GPUTileGrid);
+
+                    entries[17].binding = 383;
+                    entries[17].buffer = palmGroundBuffer_;
+                    entries[17].size = sizeof(GPUPalmGroundEntry) * Dim::MAX_PALM_INSTANCES;
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Render Entity BindGroup";
@@ -3545,7 +3676,7 @@ namespace t7 {
 
                 // Photographer render entity bind group (same layout as main, different VP)
                 {
-                    std::array<wgpu::BindGroupEntry, 17> entries{};
+                    std::array<wgpu::BindGroupEntry, 18> entries{};
                     entries[0].binding = 1;
                     entries[0].buffer = configBuffer_;
                     entries[0].size = sizeof(GPUDesignConfig);
@@ -3597,6 +3728,9 @@ namespace t7 {
                     entries[16].binding = 25;
                     entries[16].buffer = tileGridBuffer_;
                     entries[16].size = sizeof(GPUTileGrid);
+                    entries[17].binding = 383;
+                    entries[17].buffer = palmGroundBuffer_;
+                    entries[17].size = sizeof(GPUPalmGroundEntry) * Dim::MAX_PALM_INSTANCES;
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Photographer Render Entity BindGroup";
@@ -3659,7 +3793,7 @@ namespace t7 {
 
                 // Entity placement compute bind group (heightfield sampling + pier correction)
                 {
-                    std::array<wgpu::BindGroupEntry, 11> entries{};
+                    std::array<wgpu::BindGroupEntry, 12> entries{};
                     entries[0].binding = 1;
                     entries[0].buffer = configBuffer_;
                     entries[0].size = sizeof(GPUDesignConfig);
@@ -3691,6 +3825,10 @@ namespace t7 {
                     entries[10].binding = 161;
                     entries[10].buffer = zoneLifeBuffer_;
                     entries[10].size = Dim::MAX_GOL_ZONES * Dim::GOL_ZONE_LIFE_STRIDE * sizeof(float);
+
+                    entries[11].binding = 150;
+                    entries[11].buffer = palmGroundBuffer_;
+                    entries[11].size = sizeof(GPUPalmGroundEntry) * Dim::MAX_PALM_INSTANCES;
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Entity Placement Compute BindGroup";
@@ -3869,6 +4007,31 @@ namespace t7 {
                     desc.entries = entries.data();
                     columnMeshGenBindGroup_ = device_.CreateBindGroup(&desc);
                     if (!columnMeshGenBindGroup_) return false;
+                }
+
+                // Palm mesh gen bind group
+                {
+                    std::array<wgpu::BindGroupEntry, 3> entries{};
+
+                    entries[0].binding = 180;
+                    entries[0].buffer = palmMeshParamsBuffer_;
+                    entries[0].size = Dim::MAX_PALM_INSTANCES * sizeof(GPUPalmMeshParams);
+
+                    entries[1].binding = 181;
+                    entries[1].buffer = palmVertexBuffer_;
+                    entries[1].size = Dim::PALMG_TOTAL_VERTICES * sizeof(ArchVertex);
+
+                    entries[2].binding = 182;
+                    entries[2].buffer = palmIndexBuffer_;
+                    entries[2].size = Dim::PALMG_TOTAL_INDICES * sizeof(uint32_t);
+
+                    wgpu::BindGroupDescriptor desc{};
+                    desc.label = "Palm Mesh Gen BindGroup";
+                    desc.layout = palmMeshGenLayout_;
+                    desc.entryCount = entries.size();
+                    desc.entries = entries.data();
+                    palmMeshGenBindGroup_ = device_.CreateBindGroup(&desc);
+                    if (!palmMeshGenBindGroup_) return false;
                 }
 
                 return true;
