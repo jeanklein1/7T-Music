@@ -2241,7 +2241,7 @@ namespace t7 {
                     wgpu::BufferUsage::Index | wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Storage);
                 palmGroundBuffer_ = makeBuffer("Palm Ground Y",
                     Dim::MAX_PALM_INSTANCES * sizeof(GPUPalmGroundEntry),
-                    wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);
+                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);
                 palmMeshParamsBuffer_ = makeBuffer("Palm Mesh Params",
                     Dim::MAX_PALM_INSTANCES * sizeof(GPUPalmMeshParams),
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
@@ -2271,7 +2271,7 @@ namespace t7 {
                     wgpu::BufferUsage::Index | wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Storage);
                 cactusGroundBuffer_ = makeBuffer("Cactus Ground Y",
                     Dim::MAX_CACTUS_INSTANCES * sizeof(GPUCactusGroundEntry),
-                    wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);
+                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);
                 cactusMeshParamsBuffer_ = makeBuffer("Cactus Mesh Params",
                     Dim::MAX_CACTUS_INSTANCES * sizeof(GPUCactusMeshParams),
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
