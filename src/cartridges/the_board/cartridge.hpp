@@ -1428,6 +1428,271 @@ namespace t7 {
                 return true;
             }
 
+            // ─── Generative Cacti ─────────────────────────────────────────────
+            //
+            // Three tiers: Finger, Saguaro, Candelabra. Ribbed columnar trunk
+            // with optional forking arms. No piers, no collision solids, no
+            // heightfield contribution.
+
+            enum class CactusTier : uint32_t { FINGER = 0, SAGUARO = 1, CANDELABRA = 2, COUNT = 3 };
+            static constexpr uint32_t CACTUS_TIER_COUNT = static_cast<uint32_t>(CactusTier::COUNT);
+
+            struct CactusTierParams {
+                float height_mean, height_sigma;
+                float radius_mean, radius_sigma;
+                float taper_mean, taper_sigma;
+                float ribs_mean, ribs_sigma;
+                float rib_depth_mean, rib_depth_sigma;
+                float lean_mean, lean_sigma;
+                float cap_round_mean, cap_round_sigma;
+                float arm_count_mean, arm_count_sigma;
+                float arm_height_mean, arm_height_sigma;
+                float arm_length_mean, arm_length_sigma;
+                float arm_radius_mean, arm_radius_sigma;
+                float arm_curve_mean, arm_curve_sigma;
+                float color_over;
+                float color_var;
+                uint32_t trunk_segs, arm_segs;
+                float weight;
+            };
+
+            //                                   h_μ  σ     r_μ    σ      tp_μ   σ     ribs_μ σ   rd_μ   σ     ln_μ  σ     cr_μ  σ     ac_μ  σ     ah_μ  σ     al_μ  σ     ar_μ   σ     acv_μ  σ     co   cv    ts  as   wt
+            static constexpr CactusTierParams CACTUS_TIERS[] = {
+                /* FINGER     */ { 3.0f, 1.0f,  0.15f,0.03f, 0.85f,0.05f, 8.0f,1.0f,  0.04f,0.01f, 0.1f,0.05f, 0.6f,0.1f, 0.0f,0.0f, 0.5f,0.1f, 1.0f,0.3f, 0.08f,0.02f, 0.7f,0.1f,  0.1f, 0.04f, 12, 6,  0.50f },
+                /* SAGUARO    */ { 8.0f, 2.0f,  0.35f,0.06f, 0.9f, 0.04f, 12.0f,2.0f, 0.05f,0.01f, 0.08f,0.04f,0.5f,0.1f, 1.5f,0.7f, 0.45f,0.1f,3.0f,0.8f, 0.2f, 0.04f, 0.6f,0.15f, 0.15f,0.03f, 16, 8,  0.35f },
+                /* CANDELABRA */ { 14.0f,3.0f,  0.45f,0.08f, 0.92f,0.03f, 16.0f,2.0f, 0.06f,0.01f, 0.05f,0.03f,0.4f,0.1f, 3.0f,0.8f, 0.4f, 0.1f,5.0f,1.0f, 0.25f,0.05f, 0.5f,0.15f, 0.2f, 0.03f, 20, 10, 0.15f },
+            };
+
+            static constexpr float CACTUS_BODY_BASE[3] = { 0.30f, 0.45f, 0.25f };
+            static constexpr float CACTUS_RIB_BASE[3]  = { 0.35f, 0.55f, 0.30f };
+
+            struct CactusConfig {
+                static constexpr float SPAWN_CHANCE_BY_ARCHETYPE[4] = { 0.0f, 0.020f, 0.020f, 0.0f };
+                static constexpr float MOOD_MULTIPLIER[MOOD_COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f };
+                static constexpr float POSITION_JITTER = 0.35f;
+            };
+
+            struct CactusProp {
+                static constexpr uint32_t SPAWN_ROLL = 1000u;
+                static constexpr uint32_t POSITION_X = 1001u;
+                static constexpr uint32_t POSITION_Z = 1002u;
+                static constexpr uint32_t ROTATION = 1003u;
+                static constexpr uint32_t TIER = 1004u;
+                static constexpr uint32_t HEIGHT = 1010u;
+                static constexpr uint32_t RADIUS = 1011u;
+                static constexpr uint32_t TAPER = 1012u;
+                static constexpr uint32_t RIBS = 1013u;
+                static constexpr uint32_t RIB_DEPTH = 1014u;
+                static constexpr uint32_t LEAN = 1015u;
+                static constexpr uint32_t LEAN_DIR = 1016u;
+                static constexpr uint32_t CAP_ROUND = 1017u;
+                static constexpr uint32_t ARM_COUNT = 1020u;
+                static constexpr uint32_t ARM_HEIGHT = 1021u;
+                static constexpr uint32_t ARM_LENGTH = 1022u;
+                static constexpr uint32_t ARM_RADIUS = 1023u;
+                static constexpr uint32_t ARM_CURVE = 1024u;
+                static constexpr uint32_t COLOR_OVER = 1030u;
+                static constexpr uint32_t COLOR_VAR_R = 1031u;
+                static constexpr uint32_t COLOR_VAR_G = 1032u;
+                static constexpr uint32_t COLOR_VAR_B = 1033u;
+            };
+
+            struct ActiveCactus {
+                int32_t patch_gx = 0, patch_gz = 0;
+                int32_t host_gx = 0, host_gz = 0;
+                bool active = false;
+                bool draw_visible = true;
+                float world_x = 0.0f, world_z = 0.0f;
+                float height = 0.0f;
+                float radius = 0.0f;
+                uint32_t tier_idx = 0;
+                float cached_ground_y = 0.0f;
+            };
+
+            ActiveCactus activeCacti_[Dim::MAX_CACTUS_INSTANCES]{};
+            uint32_t activeCactusCount_ = 0;
+            bool cactusMeshGenPending_ = false;
+
+            // ─── Cactus Selection ───────────────────────────────────────────
+
+            struct CactusSelection {
+                uint32_t seed;
+                int32_t  trigger_gx, trigger_gz;
+                uint32_t slot;
+                uint32_t tier_idx;
+                float height, radius, taper;
+                float ribs, rib_depth;
+                float lean, lean_dir;
+                float cap_round;
+                float arm_count, arm_height, arm_length, arm_radius, arm_curve;
+                float solid_half;
+                float burial;
+                float body_r, body_g, body_b;
+                float rib_r, rib_g, rib_b;
+                uint32_t trunk_segs, arm_segs;
+                uint32_t seed_val;
+            };
+
+            // ─── Cactus Placement ───────────────────────────────────────────
+
+            struct CactusPlacement {
+                uint32_t slot;
+                int32_t  trigger_gx, trigger_gz;
+                int32_t  host_gx, host_gz;
+                uint32_t tier_idx;
+                float cx, cz, rotation;
+                float height, radius, taper;
+                float ribs, rib_depth;
+                float lean, lean_dir;
+                float cap_round;
+                float arm_count, arm_height, arm_length, arm_radius, arm_curve;
+                float solid_half;
+                float burial;
+                float body_r, body_g, body_b;
+                float rib_r, rib_g, rib_b;
+                uint32_t trunk_segs, arm_segs;
+                uint32_t seed_val;
+                float cached_ground_y;
+            };
+
+            // ─── Cactus Spawning ────────────────────────────────────────────
+
+            bool select_cactus_for_patch(int32_t gx, int32_t gz, CactusSelection& sel) {
+                auto gate = run_spawn_preamble(gx, gz,
+                    activeCacti_, Dim::MAX_CACTUS_INSTANCES,
+                    CactusProp::SPAWN_ROLL, CactusConfig::SPAWN_CHANCE_BY_ARCHETYPE,
+                    CactusConfig::MOOD_MULTIPLIER,
+                    PopFamily::CACTUS, "cact");
+                if (!gate.ok) return false;
+
+                float cactus_weights[] = { CACTUS_TIERS[0].weight, CACTUS_TIERS[1].weight, CACTUS_TIERS[2].weight };
+                for (uint32_t t = 0; t < CACTUS_TIER_COUNT; t++) cactus_weights[t] *= THEMES[gate.theme_idx].tier_wt_cactus[t];
+                uint32_t tier_idx = select_tier_biased(gate.seed, CactusProp::TIER, cactus_weights, CACTUS_TIER_COUNT, PopFamily::CACTUS);
+                const auto& tp = CACTUS_TIERS[tier_idx];
+
+                float height = std::max(1.0f, cpu_sample_gaussian(gate.seed, CactusProp::HEIGHT, tp.height_mean, tp.height_sigma));
+                float radius = std::max(0.05f, cpu_sample_gaussian(gate.seed, CactusProp::RADIUS, tp.radius_mean, tp.radius_sigma));
+                float taper = std::max(0.5f, cpu_sample_gaussian(gate.seed, CactusProp::TAPER, tp.taper_mean, tp.taper_sigma));
+                float ribs = std::max(4.0f, std::round(cpu_sample_gaussian(gate.seed, CactusProp::RIBS, tp.ribs_mean, tp.ribs_sigma)));
+                float rib_depth = std::max(0.0f, cpu_sample_gaussian(gate.seed, CactusProp::RIB_DEPTH, tp.rib_depth_mean, tp.rib_depth_sigma));
+                float lean = std::max(0.0f, cpu_sample_gaussian(gate.seed, CactusProp::LEAN, tp.lean_mean, tp.lean_sigma));
+                float lean_dir = cpu_hash_f(gate.seed, CactusProp::LEAN_DIR) * 6.283185f;
+                float cap_round = std::max(0.0f, cpu_sample_gaussian(gate.seed, CactusProp::CAP_ROUND, tp.cap_round_mean, tp.cap_round_sigma));
+                float arm_count = std::max(0.0f, std::round(cpu_sample_gaussian(gate.seed, CactusProp::ARM_COUNT, tp.arm_count_mean, tp.arm_count_sigma)));
+                float arm_height = std::max(0.1f, cpu_sample_gaussian(gate.seed, CactusProp::ARM_HEIGHT, tp.arm_height_mean, tp.arm_height_sigma));
+                float arm_length = std::max(0.5f, cpu_sample_gaussian(gate.seed, CactusProp::ARM_LENGTH, tp.arm_length_mean, tp.arm_length_sigma));
+                float arm_radius = std::max(0.03f, cpu_sample_gaussian(gate.seed, CactusProp::ARM_RADIUS, tp.arm_radius_mean, tp.arm_radius_sigma));
+                float arm_curve = std::max(0.0f, cpu_sample_gaussian(gate.seed, CactusProp::ARM_CURVE, tp.arm_curve_mean, tp.arm_curve_sigma));
+
+                float solid_half = radius + 0.5f;
+
+                sel.seed = gate.seed;
+                sel.trigger_gx = gx;
+                sel.trigger_gz = gz;
+                sel.slot = gate.slot;
+                sel.tier_idx = tier_idx;
+                sel.height = height;
+                sel.radius = radius; sel.taper = taper;
+                sel.ribs = ribs; sel.rib_depth = rib_depth;
+                sel.lean = lean; sel.lean_dir = lean_dir;
+                sel.cap_round = cap_round;
+                sel.arm_count = arm_count; sel.arm_height = arm_height;
+                sel.arm_length = arm_length; sel.arm_radius = arm_radius;
+                sel.arm_curve = arm_curve;
+                sel.solid_half = solid_half;
+                sel.burial = 0.0f;
+                sel.trunk_segs = tp.trunk_segs; sel.arm_segs = tp.arm_segs;
+
+                // Colors
+                sel.body_r = CACTUS_BODY_BASE[0] + (cpu_hash_f(gate.seed, CactusProp::COLOR_VAR_R) - 0.5f) * tp.color_var;
+                sel.body_g = CACTUS_BODY_BASE[1] + (cpu_hash_f(gate.seed, CactusProp::COLOR_VAR_G) - 0.5f) * tp.color_var;
+                sel.body_b = CACTUS_BODY_BASE[2] + (cpu_hash_f(gate.seed, CactusProp::COLOR_VAR_B) - 0.5f) * tp.color_var;
+                sel.rib_r = CACTUS_RIB_BASE[0] + (cpu_hash_f(gate.seed, CactusProp::COLOR_VAR_R + 10u) - 0.5f) * tp.color_var;
+                sel.rib_g = CACTUS_RIB_BASE[1] + (cpu_hash_f(gate.seed, CactusProp::COLOR_VAR_G + 10u) - 0.5f) * tp.color_var;
+                sel.rib_b = CACTUS_RIB_BASE[2] + (cpu_hash_f(gate.seed, CactusProp::COLOR_VAR_B + 10u) - 0.5f) * tp.color_var;
+                sel.seed_val = gate.seed;
+
+                return true;
+            }
+
+            bool place_cactus_from_selection(const CactusSelection& sel, CactusPlacement& plan) {
+                auto pos = negotiate_position(sel.seed,
+                    sel.trigger_gx, sel.trigger_gz,
+                    CactusProp::POSITION_X, CactusProp::POSITION_Z,
+                    CactusConfig::POSITION_JITTER,
+                    CactusProp::ROTATION,
+                    sel.solid_half, PopFamily::CACTUS);
+                if (!pos.ok) return false;
+
+                plan = CactusPlacement{};
+                plan.slot = sel.slot;
+                plan.trigger_gx = sel.trigger_gx; plan.trigger_gz = sel.trigger_gz;
+                plan.host_gx = pos.host_gx; plan.host_gz = pos.host_gz;
+                plan.tier_idx = sel.tier_idx;
+                plan.cx = pos.cx; plan.cz = pos.cz; plan.rotation = pos.rotation;
+                plan.height = sel.height; plan.radius = sel.radius; plan.taper = sel.taper;
+                plan.ribs = sel.ribs; plan.rib_depth = sel.rib_depth;
+                plan.lean = sel.lean; plan.lean_dir = sel.lean_dir;
+                plan.cap_round = sel.cap_round;
+                plan.arm_count = sel.arm_count; plan.arm_height = sel.arm_height;
+                plan.arm_length = sel.arm_length; plan.arm_radius = sel.arm_radius;
+                plan.arm_curve = sel.arm_curve;
+                plan.solid_half = sel.solid_half; plan.burial = sel.burial;
+                plan.body_r = sel.body_r; plan.body_g = sel.body_g; plan.body_b = sel.body_b;
+                plan.rib_r = sel.rib_r; plan.rib_g = sel.rib_g; plan.rib_b = sel.rib_b;
+                plan.trunk_segs = sel.trunk_segs; plan.arm_segs = sel.arm_segs;
+                plan.seed_val = sel.seed_val;
+                plan.cached_ground_y = cpu_terrain_base_at(plan.cx, plan.cz);
+
+                record_placement_bookkeeping(PopFamily::CACTUS, plan.tier_idx,
+                    plan.cx, plan.cz, plan.rotation);
+
+                return true;
+            }
+
+            void commit_cactus(const CactusPlacement& plan, int32_t trigger_gx, int32_t trigger_gz, wgpu::Queue& queue) {
+                auto& ac = activeCacti_[plan.slot];
+                ac.patch_gx = trigger_gx; ac.patch_gz = trigger_gz;
+                ac.host_gx = plan.host_gx; ac.host_gz = plan.host_gz;
+                ac.active = true; ac.draw_visible = true;
+                ac.world_x = plan.cx; ac.world_z = plan.cz;
+                ac.height = plan.height; ac.radius = plan.radius;
+                ac.tier_idx = plan.tier_idx;
+                ac.cached_ground_y = plan.cached_ground_y;
+                activeCactusCount_++;
+                record_entity_presence(plan.host_gx, plan.host_gz, EntityPresence::CACTUS);
+
+                GPUCactusMeshParams mp{};
+                mp.center_x = plan.cx; mp.center_z = plan.cz;
+                mp.height = plan.height; mp.radius = plan.radius; mp.taper = plan.taper;
+                mp.ribs = plan.ribs; mp.rib_depth = plan.rib_depth;
+                mp.lean = plan.lean; mp.lean_dir = plan.lean_dir;
+                mp.cap_round = plan.cap_round;
+                mp.arm_count = plan.arm_count;
+                mp.arm_height = plan.arm_height; mp.arm_length = plan.arm_length;
+                mp.arm_radius = plan.arm_radius; mp.arm_curve = plan.arm_curve;
+                mp.body_r = plan.body_r; mp.body_g = plan.body_g; mp.body_b = plan.body_b;
+                mp.rib_r = plan.rib_r; mp.rib_g = plan.rib_g; mp.rib_b = plan.rib_b;
+                mp.trunk_segs = plan.trunk_segs; mp.arm_segs = plan.arm_segs;
+                mp.is_active = 1;
+                mp.seed = plan.seed_val;
+                gpuState_.upload_cactus_mesh_params_slot(queue, plan.slot, mp);
+                cactusMeshGenPending_ = true;
+            }
+
+            bool prepare_cactus_mesh_gen(wgpu::Queue& queue) {
+                if (!cactusMeshGenPending_) return false;
+                cactusMeshGenPending_ = false;
+                uint32_t maxSlot = 0;
+                bool anyActive = false;
+                for (uint32_t i = 0; i < Dim::MAX_CACTUS_INSTANCES; i++) {
+                    if (activeCacti_[i].active) { maxSlot = i; anyActive = true; }
+                }
+                gpuState_.set_cactus_index_count(anyActive
+                    ? (maxSlot + 1) * Dim::CACTUSG_MAX_INDICES_PER_SLOT : 0);
+                return true;
+            }
+
             // ─── Generative Pyramids ─────────────────────────────────────────
             //
             // Three tiers: obelisk, temple, colossus. Each defined by a
@@ -2831,6 +3096,7 @@ namespace t7 {
                     ColumnSelection  column;
                     ColumnSelection  antenna;
                     PalmSelection    palm;
+                    CactusSelection  cactus;
                 };
                 EntityQueueEntry() : family(0), gx(0), gz(0) { std::memset(&column, 0, sizeof(column)); }
             };
@@ -2852,6 +3118,7 @@ namespace t7 {
                     ColumnPlacement  column;
                     ColumnPlacement  antenna;
                     PalmPlacement    palm;
+                    CactusPlacement  cactus;
                 };
                 PlacementEntry() : family(0), gx(0), gz(0) { std::memset(&arch, 0, sizeof(arch)); }
             };
@@ -6374,6 +6641,72 @@ namespace t7 {
                 self->renderer_.dispatch_palm_mesh_gen(pass, self->gpuState_.palm_mesh_gen_group());
             }
 
+            // ── Cactus dispatch wrappers ──
+
+            static bool dispatch_select_cactus(Cartridge* self,
+                int32_t gx, int32_t gz, EntityQueueEntry& e)
+            {
+                return self->select_cactus_for_patch(gx, gz, e.cactus);
+            }
+
+            static bool dispatch_place_cactus(Cartridge* self,
+                EntityQueueEntry& e, PlacementEntry& pe)
+            {
+                pe.family = e.family; pe.gx = e.gx; pe.gz = e.gz;
+                if (self->place_cactus_from_selection(e.cactus, pe.cactus)) {
+#ifdef DIAG_ENTITY_LIFECYCLE
+                    std::cout << "[DIAG:PLACE] cact slot=" << pe.cactus.slot
+                        << " pos=(" << pe.cactus.cx << "," << pe.cactus.cz
+                        << ") host=(" << pe.cactus.host_gx << "," << pe.cactus.host_gz << ")\n";
+#endif
+                    return true;
+                }
+                self->activeCacti_[e.cactus.slot].active = false;
+#ifdef DIAG_ENTITY_LIFECYCLE
+                std::cout << "[DIAG:PLACE] cact slot=" << e.cactus.slot
+                    << " FAIL patch=(" << e.gx << "," << e.gz << ")\n";
+#endif
+                return false;
+            }
+
+            static void dispatch_commit_cactus(Cartridge* self,
+                PlacementEntry& pe, wgpu::Queue& queue)
+            {
+                auto* host = self->find_patch(pe.cactus.host_gx, pe.cactus.host_gz);
+                if (host) {
+                    self->commit_cactus(pe.cactus, pe.gx, pe.gz, queue);
+                    host->record_entity(PopFamily::CACTUS, pe.cactus.slot);
+                } else {
+                    self->activeCacti_[pe.cactus.slot].active = false;
+#ifdef DIAG_ENTITY_LIFECYCLE
+                    std::cout << "[DIAG:REJECT] cact slot=" << pe.cactus.slot
+                        << " host=(" << pe.cactus.host_gx << "," << pe.cactus.host_gz
+                        << ") — no host patch\n";
+#endif
+                }
+            }
+
+            static void dispatch_evict_cactus(Cartridge* self,
+                uint32_t slot, wgpu::Queue& queue)
+            {
+                self->activeCacti_[slot].active = false;
+                self->activeCactusCount_--;
+                { GPUCactusMeshParams ep{}; self->gpuState_.upload_cactus_mesh_params_slot(queue, slot, ep); }
+                self->cactusMeshGenPending_ = true;
+#ifdef DIAG_ENTITY_LIFECYCLE
+                std::cout << "[DIAG:EVICT]   cact slot=" << slot << "\n";
+#endif
+            }
+
+            // ── Mesh gen dispatch wrappers (cactus) ──
+
+            static bool dispatch_prepare_mesh_cactus(Cartridge* self, wgpu::Queue& queue) {
+                return self->prepare_cactus_mesh_gen(queue);
+            }
+            static void dispatch_mesh_gen_cactus(Cartridge* self, wgpu::ComputePassEncoder& pass) {
+                self->renderer_.dispatch_cactus_mesh_gen(pass, self->gpuState_.cactus_mesh_gen_group());
+            }
+
             // ── Dispatch table (order matches PopFamily enum) ──
 
             static constexpr FamilyDispatch FAMILY_DISPATCH[PopFamily::COUNT] = {
@@ -6392,6 +6725,9 @@ namespace t7 {
                 { dispatch_select_palm,   dispatch_place_palm,   dispatch_commit_palm,
                   dispatch_evict_palm,   dispatch_prepare_mesh_palm,   dispatch_mesh_gen_palm,
                   EntityPresence::PALM, "palm" },
+                { dispatch_select_cactus, dispatch_place_cactus, dispatch_commit_cactus,
+                  dispatch_evict_cactus, dispatch_prepare_mesh_cactus, dispatch_mesh_gen_cactus,
+                  EntityPresence::CACTUS, "cact" },
             };
 
             // ─── Population Themes ───────────────────────────────────────────
@@ -6444,6 +6780,7 @@ namespace t7 {
                 float tier_wt_column[3];                       // multiplier on column tier base weights (Pillar, Doric, Ornate)
                 float tier_wt_antenna[3];                      // multiplier on antenna tier base weights (Antenna, Squat, Colossal)
                 float tier_wt_palm[3];                         // multiplier on palm tier base weights (Sapling, Coastal, Royal)
+                float tier_wt_cactus[3];                       // multiplier on cactus tier base weights (Finger, Saguaro, Candelabra)
                 float density_mult;                            // multiplier on entity_density
 
                 // Envelope parameters (replace lattice weight for theme selection)
@@ -6470,54 +6807,59 @@ namespace t7 {
 
             static constexpr PopulationTheme THEMES[THEME_COUNT] = {
                 // ── 0: TRANSITION — sparse connective tissue ─────────────────
-                {   { 0.4f, 0.3f, 0.7f, 0.3f, 0.3f },                             // spawn_weight [pyr, arch, col, ant, palm]
+                {   { 0.4f, 0.3f, 0.7f, 0.3f, 0.3f, 0.3f },                      // spawn_weight [pyr, arch, col, ant, palm, cact]
                     { 1.0f, 1.0f, 1.0f },                                       // tier_pyr
                     { 1.0f, 0.3f, 1.0f },                                       // tier_arch
                     { 0.1f, 0.2f, 0.3f },                                       // tier_col
                     { 0.1f, 2.0f, 0.7f },                                       // tier_ant
                     { 1.0f, 1.0f, 1.0f },                                       // tier_palm
+                    { 1.0f, 1.0f, 1.0f },                                       // tier_cactus
                     1.0f,                                                         // density
                     150.0f, 20u, 3u, 0u,                                          // spike, sustain, decay, cooldown
                     0.21f                                                         // weight
                 },
                 // ── 1: MONUMENTAL — big pyramids, varied arches, heavy columns
-                {   { 1.5f, 1.0f, 1.0f, 0.5f, 0.2f },
+                {   { 1.5f, 1.0f, 1.0f, 0.5f, 0.2f, 0.2f },
                     { 0.2f, 0.5f, 3.0f },
                     { 2.0f, 0.1f, 3.0f },
                     { 0.01f, 0.01f, 1.0f },
                     { 0.5f, 1.5f, 0.5f },
+                    { 1.0f, 1.0f, 1.0f },
                     { 1.0f, 1.0f, 1.0f },
                     1.0f,
                     150.0f, 10u, 10u, 8u,
                     0.30f
                 },
                 // ── 2: COLONNADE — dense columns, moderate arches ────────────
-                {   { 0.3f, 1.0f, 4.0f, 0.5f, 0.3f },
+                {   { 0.3f, 1.0f, 4.0f, 0.5f, 0.3f, 0.3f },
                     { 1.0f, 1.0f, 1.0f },
                     { 3.0f, 0.5f, 1.0f },
                     { 0.3f, 3.0f, 5.0f },
                     { 0.2f, 0.1f, 0.1f },
+                    { 1.0f, 1.0f, 1.0f },
                     { 1.0f, 1.0f, 1.0f },
                     1.0f,
                     150.0f, 15u, 6u, 6u,
                     0.31f
                 },
                 // ── 3: ANTENNA — antenna-dominant corridor ───────────────────
-                {   { 0.5f, 0.5f, 1.0f, 4.0f, 0.5f },
+                {   { 0.5f, 0.5f, 1.0f, 4.0f, 0.5f, 0.5f },
                     { 1.0f, 0.05f, 2.0f },
                     { 1.0f, 0.2f, 0.8f },
                     { 0.1f, 0.3f, 0.3f },
                     { 0.5f, 3.5f, 1.0f },
+                    { 1.0f, 1.0f, 1.0f },
                     { 1.0f, 1.0f, 1.0f },
                     1.0f,
                     180.0f, 10u, 5u, 5u,
                     0.18f
                 },
                 // ── 4: BARREN — near-empty ───────────────────────────────────
-                {   { 0.4f, 0.3f, 0.5f, 0.3f, 0.2f },
+                {   { 0.4f, 0.3f, 0.5f, 0.3f, 0.2f, 0.2f },
                     { 2.0f, 0.5f, 0.2f },
                     { 1.0f, 1.0f, 1.0f },
                     { 0.2f, 0.5f, 0.5f },
+                    { 1.0f, 1.0f, 1.0f },
                     { 1.0f, 1.0f, 1.0f },
                     { 1.0f, 1.0f, 1.0f },
                     1.0f,
@@ -6767,12 +7109,13 @@ namespace t7 {
             //  └──────────────────────┴──────────────┴──────────────┴──────────────────────┘
 
             static constexpr float POP_CROSS_AFFINITY[PopFamily::COUNT][PopFamily::COUNT] = {
-                //          target:  Pyramid  Arch    Column  Antenna  Palm
-                /* Pyramid */     {  0.5f,    2.0f,   1.5f,   1.5f,   1.0f },
-                /* Arch    */     {  0.8f,    1.5f,   2.0f,   2.0f,   1.0f },
-                /* Column  */     {  0.3f,    1.2f,   1.8f,   1.0f,   1.0f },
-                /* Antenna */     {  0.3f,    1.2f,   1.0f,   1.8f,   1.0f },
-                /* Palm    */     {  0.3f,    1.0f,   1.0f,   1.0f,   1.5f },
+                //          target:  Pyramid  Arch    Column  Antenna  Palm    Cactus
+                /* Pyramid */     {  0.5f,    2.0f,   1.5f,   1.5f,   1.0f,   1.0f },
+                /* Arch    */     {  0.8f,    1.5f,   2.0f,   2.0f,   1.0f,   1.0f },
+                /* Column  */     {  0.3f,    1.2f,   1.8f,   1.0f,   1.0f,   1.0f },
+                /* Antenna */     {  0.3f,    1.2f,   1.0f,   1.8f,   1.0f,   1.0f },
+                /* Palm    */     {  0.3f,    1.0f,   1.0f,   1.0f,   1.5f,   1.0f },
+                /* Cactus  */     {  1.0f,    1.0f,   1.0f,   1.0f,   1.0f,   1.5f },
             };
 
             // ── Per-Tier Scale Character ──────────────────────────────────────
@@ -6810,6 +7153,7 @@ namespace t7 {
             static constexpr float TIER_SCALE_COLUMN[] = { 0.15f, 0.30f, 0.50f };
             static constexpr float TIER_SCALE_ANTENNA[] = { 0.60f, 0.45f, 0.85f };
             static constexpr float TIER_SCALE_PALM[] = { 0.20f, 0.45f, 0.75f };
+            static constexpr float TIER_SCALE_CACTUS[] = { 0.15f, 0.40f, 0.70f };
 
             // Accessor: look up scale character by family + tier index.
             static float tier_scale_character(uint32_t family, uint32_t tier_idx) {
@@ -6819,6 +7163,7 @@ namespace t7 {
                 case PopFamily::COLUMN:  return (tier_idx < 3) ? TIER_SCALE_COLUMN[tier_idx] : 0.5f;
                 case PopFamily::ANTENNA: return (tier_idx < 3) ? TIER_SCALE_ANTENNA[tier_idx] : 0.5f;
                 case PopFamily::PALM:    return (tier_idx < 3) ? TIER_SCALE_PALM[tier_idx] : 0.5f;
+                case PopFamily::CACTUS:  return (tier_idx < 3) ? TIER_SCALE_CACTUS[tier_idx] : 0.5f;
                 default: return 0.5f;
                 }
             }
@@ -6987,7 +7332,7 @@ namespace t7 {
 
             static constexpr uint32_t SPAWN_MEMORY_SIZE = 6;  // per family
             SpawnRecord recentSpawns_[PopFamily::COUNT][SPAWN_MEMORY_SIZE]{};
-            uint32_t spawnWriteIdx_[PopFamily::COUNT] = { 0, 0, 0, 0, 0 };
+            uint32_t spawnWriteIdx_[PopFamily::COUNT] = { 0, 0, 0, 0, 0, 0 };
 
             void record_spawn(float x, float z, float rotation, uint32_t family) {
                 auto& idx = spawnWriteIdx_[family];
@@ -7028,12 +7373,13 @@ namespace t7 {
             // governs aesthetic spacing.
 
             static constexpr float MIN_SEPARATION[PopFamily::COUNT][PopFamily::COUNT] = {
-                //               near:  Pyramid  Arch    Column  Antenna  Palm
-                /* placing Pyramid */ {  60.0f,  50.0f,  30.0f,  30.0f,  30.0f },
-                /* placing Arch    */ {  50.0f, 100.0f,  60.0f,  60.0f,  40.0f },
-                /* placing Column  */ {  30.0f, 100.0f,  60.0f,  40.0f,  30.0f },
-                /* placing Antenna */ {  30.0f, 100.0f,  40.0f,  60.0f,  30.0f },
-                /* placing Palm    */ {  30.0f,  40.0f,  30.0f,  30.0f,  40.0f },
+                //               near:  Pyramid  Arch    Column  Antenna  Palm    Cactus
+                /* placing Pyramid */ {  60.0f,  50.0f,  30.0f,  30.0f,  30.0f,  30.0f },
+                /* placing Arch    */ {  50.0f, 100.0f,  60.0f,  60.0f,  40.0f,  30.0f },
+                /* placing Column  */ {  30.0f, 100.0f,  60.0f,  40.0f,  30.0f,  30.0f },
+                /* placing Antenna */ {  30.0f, 100.0f,  40.0f,  60.0f,  30.0f,  30.0f },
+                /* placing Palm    */ {  30.0f,  40.0f,  30.0f,  30.0f,  40.0f,  30.0f },
+                /* placing Cactus  */ {  30.0f,  30.0f,  30.0f,  30.0f,  30.0f,  40.0f },
             };
 
             // Check if a proposed position satisfies the separation matrix
@@ -7065,7 +7411,7 @@ namespace t7 {
                 float amp_momentum = 0.0f;   // signed amplitude excess, carried by terrain tokens
                 float entity_density = 1.0f; // spatial density multiplier for entity spawning
                 // Theme: evaluated from theme lattice at tile generation time
-                float theme_spawn[PopFamily::COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f }; // blended per-family spawn multiplier
+                float theme_spawn[PopFamily::COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f }; // blended per-family spawn multiplier
                 uint32_t theme_idx = 0;      // dominant theme index (for tier bias + formation lookup)
             };
 
@@ -7259,7 +7605,7 @@ namespace t7 {
 
                     // Blend spawn weights across 4 lattice nodes.
                     // Track dominant node for discrete tier bias lookup.
-                    float blended_spawn[PopFamily::COUNT] = { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
+                    float blended_spawn[PopFamily::COUNT] = { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
                     float blended_density = 0.0f;
                     float best_w = -1.0f;
                     uint32_t dominant_theme = 0;
@@ -7441,6 +7787,20 @@ namespace t7 {
                         gpuState_.upload_palm_mesh_params_slot(queue, i, emptyParams);
                     }
                     palmMeshGenPending_ = true;
+                }
+
+                // Cacti
+                for (uint32_t i = 0; i < Dim::MAX_CACTUS_INSTANCES; i++) {
+                    activeCacti_[i] = ActiveCactus{};
+                }
+                activeCactusCount_ = 0;
+                gpuState_.set_cactus_index_count(0);
+                {
+                    GPUCactusMeshParams emptyParams{};
+                    for (uint32_t i = 0; i < Dim::MAX_CACTUS_INSTANCES; i++) {
+                        gpuState_.upload_cactus_mesh_params_slot(queue, i, emptyParams);
+                    }
+                    cactusMeshGenPending_ = true;
                 }
 
                 // Pyramids
