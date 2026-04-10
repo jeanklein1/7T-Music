@@ -7210,7 +7210,7 @@ fn palmg_write_vertex(abs_idx: u32, px: f32, py: f32, pz: f32,
     palmg_vertices[base + 6u] = cr;
     palmg_vertices[base + 7u] = cg;
     palmg_vertices[base + 8u] = cb;
-    palmg_vertices[base + 9u] = bitcast<f32>(entity_idx);
+    palmg_vertices[base + 9u] = f32(entity_idx);
 }
 
 @compute @workgroup_size(1, 1, 1)
@@ -7523,7 +7523,7 @@ fn cactusg_write_vertex(abs_idx: u32, px: f32, py: f32, pz: f32,
     cactusg_vertices[base + 6u] = cr;
     cactusg_vertices[base + 7u] = cg;
     cactusg_vertices[base + 8u] = cb;
-    cactusg_vertices[base + 9u] = bitcast<f32>(entity_idx);
+    cactusg_vertices[base + 9u] = f32(entity_idx);
 }
 
 fn cactus_hash(seed: u32, prop: u32) -> f32 {
