@@ -79,6 +79,18 @@
                 gpuState_.upload_pyramid_origins(queue, pyramidOrigins, Dim::MAX_PYRAMID_INSTANCES);
             }
 
+                // --- Palm ground entries ---
+                GPUPalmGroundEntry palmOrigins[Dim::MAX_PALM_INSTANCES]{};
+                for (uint32_t i = 0; i < Dim::MAX_PALM_INSTANCES; i++) {
+                    if (!activePalms_[i].active) continue;
+                    palmOrigins[i].center_x = activePalms_[i].world_x;
+                    palmOrigins[i].center_z = activePalms_[i].world_z;
+                    palmOrigins[i].is_active = 1;
+                    palmOrigins[i].ground_y = activePalms_[i].cached_ground_y;
+                }
+                gpuState_.upload_palm_origins(queue, palmOrigins, Dim::MAX_PALM_INSTANCES);
+            }
+
             // --- Entity placement Y-correction: heightfield sample - pier correction ---
             // Runs unconditionally every frame, AFTER upload_ground_entries and BEFORE
             // render passes (shadow + main read the corrected ground_y).
@@ -276,6 +288,15 @@
                     gpuState_.column_index_count()
                 );
 
+                renderer_.draw_shadow_palm(
+                    pass,
+                    gpuState_.render_entity_group(),
+                    gpuState_.shadow_texture_group(),
+                    gpuState_.palm_vertex_buffer(),
+                    gpuState_.palm_index_buffer(),
+                    gpuState_.palm_index_count()
+                );
+
                 renderer_.draw_shadow_shell(
                     pass,
                     gpuState_.render_entity_group(),
@@ -371,6 +392,15 @@
                     gpuState_.column_vertex_buffer(),
                     gpuState_.column_index_buffer(),
                     gpuState_.column_index_count()
+                );
+
+                renderer_.draw_palm(
+                    pass,
+                    gpuState_.render_entity_group(),
+                    gpuState_.render_texture_group(),
+                    gpuState_.palm_vertex_buffer(),
+                    gpuState_.palm_index_buffer(),
+                    gpuState_.palm_index_count()
                 );
 
                 renderer_.draw_shell(

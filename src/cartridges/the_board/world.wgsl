@@ -3735,6 +3735,7 @@ struct PortalArray {
 @group(0) @binding(380) var<storage, read> render_arch_ground: array<ArchGroundEntry, 16>;
 @group(0) @binding(381) var<storage, read> render_column_ground: array<ColumnGroundEntry, 32>;
 @group(0) @binding(382) var<storage, read> render_pyramid_ground: array<PyramidGroundEntry, 8>;
+@group(0) @binding(383) var<storage, read> render_palm_ground: array<PalmGroundEntry, 24>;
 
 // --- Ribbon compute (Group 0: binding 121, separate pipeline layout)
 // Written by compute_ribbon_rings, read by ribbon VS via render_ring_xforms.
@@ -5480,6 +5481,15 @@ struct PyramidGroundEntry {
 };
 @group(0) @binding(149) var<storage, read_write> pyramid_ground: array<PyramidGroundEntry, 8>;
 
+struct PalmGroundEntry {
+    center_x: f32,
+    center_z: f32,
+    ground_y: f32,
+    is_active: u32,
+    _pad0: f32, _pad1: f32, _pad2: f32, _pad3: f32,
+}
+@group(0) @binding(150) var<storage, read_write> palm_ground: array<PalmGroundEntry, 24>;
+
 // --- Terrain Height Sampling
 fn sample_terrain_y_at(world_xz: vec2<f32>, patch_count: u32) -> f32 {
     for (var i = 0u; i < patch_count; i++) {
@@ -7143,5 +7153,97 @@ fn column_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
     }
 }
 
+
+// ─── §9.3 PALM MESH GENERATION (trunk + radial frond crown) ──────────────
+
+struct PalmMeshParams {
+    center_x: f32, center_z: f32,
+    height: f32,
+    base_r: f32, top_r: f32,
+    lean: f32, lean_dir: f32,
+    bark_rings: f32, bark_depth: f32,
+    frond_count: f32,
+    frond_len: f32, frond_width: f32,
+    frond_droop: f32, frond_arch: f32,
+    crown_spread: f32, crown_skirt: f32,
+    burial: f32,
+    trunk_r: f32, trunk_g: f32, trunk_b: f32,
+    frond_r: f32, frond_g: f32, frond_b: f32,
+    aged_r: f32, aged_g: f32, aged_b: f32,
+    trunk_segs: u32, frond_segs: u32,
+    is_active: u32,
+    _pad0: f32,
+}
+
+const PALMG_MAX_VERTS_PER_SLOT: u32 = 1200u;
+const PALMG_MAX_INDICES_PER_SLOT: u32 = 6000u;
+const PALMG_FLOATS_PER_VERTEX: u32 = 10u;
+const PALMG_MAX_SLOTS: u32 = 24u;
+const PALMG_TOTAL_INDICES: u32 = 144000u;
+
+@group(0) @binding(180) var<storage, read>       palmg_params: array<PalmMeshParams, 24>;
+@group(0) @binding(181) var<storage, read_write>  palmg_vertices: array<f32>;
+@group(0) @binding(182) var<storage, read_write>  palmg_indices: array<u32>;
+
+fn palmg_write_vertex(abs_idx: u32, px: f32, py: f32, pz: f32,
+                      nx: f32, ny: f32, nz: f32,
+                      cr: f32, cg: f32, cb: f32, entity_idx: u32) {
+    let base = abs_idx * PALMG_FLOATS_PER_VERTEX;
+    palmg_vertices[base + 0u] = px;
+    palmg_vertices[base + 1u] = py;
+    palmg_vertices[base + 2u] = pz;
+    palmg_vertices[base + 3u] = nx;
+    palmg_vertices[base + 4u] = ny;
+    palmg_vertices[base + 5u] = nz;
+    palmg_vertices[base + 6u] = cr;
+    palmg_vertices[base + 7u] = cg;
+    palmg_vertices[base + 8u] = cb;
+    palmg_vertices[base + 9u] = bitcast<f32>(entity_idx);
+}
+
+@compute @workgroup_size(1, 1, 1)
+fn palm_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
+    let slot = gid.x;
+    if (slot >= PALMG_MAX_SLOTS) { return; }
+    let p = palmg_params[slot];
+    let slot_ib = slot * PALMG_MAX_INDICES_PER_SLOT;
+
+    // Stub: zero all indices (degenerate triangles — invisible)
+    for (var i = 0u; i < PALMG_MAX_INDICES_PER_SLOT; i++) {
+        palmg_indices[slot_ib + i] = 0u;
+    }
+
+    if (p.is_active == 0u) { return; }
+
+    // TODO: implement trunk + frond geometry
+    // Port from 7t_palm_designer.jsx trunkProfile() and frondGeometry()
+}
+
+// ─── Palm vertex shaders ─────────────────────────────────────────────
+
+@vertex
+fn palm_vs(in: ArchVertexInput) -> EntityVarying {
+    let idx = u32(in.arch_index);
+    let ground_y = render_palm_ground[idx].ground_y;
+    var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
+    world_pos.y += terrain_wave_overlay(world_pos.xz);
+    var out: EntityVarying;
+    out.clip_pos = render_vp.m * vec4(world_pos, 1.0);
+    out.world_pos = world_pos;
+    out.normal = in.normal;
+    out.entity_color = in.color;
+    return out;
+}
+
+@vertex
+fn shadow_palm_vs(in: ArchVertexInput) -> ShadowVarying {
+    let idx = u32(in.arch_index);
+    let ground_y = render_palm_ground[idx].ground_y;
+    var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
+    world_pos.y += terrain_wave_overlay(world_pos.xz);
+    var out: ShadowVarying;
+    out.clip_pos = render_vp.light_vp * vec4(world_pos, 1.0);
+    return out;
+}
 
 // END OF SCROLL

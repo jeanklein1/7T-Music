@@ -1148,6 +1148,286 @@ namespace t7 {
 
             // (generate_column_mesh removed — replaced by GPU compute: column_mesh_gen)
 
+            // ─── Generative Palms ────────────────────────────────────────────
+            //
+            // Three tiers: Sapling, Coastal, Royal. Tapered trunk with lean +
+            // bark rings, crowned with radial fronds. No piers, no collision
+            // solids, no heightfield contribution.
+
+            enum class PalmTier : uint32_t { SAPLING = 0, COASTAL = 1, ROYAL = 2, COUNT = 3 };
+            static constexpr uint32_t PALM_TIER_COUNT = static_cast<uint32_t>(PalmTier::COUNT);
+
+            struct PalmTierParams {
+                float height_mean, height_sigma;
+                float base_r_mean, base_r_sigma;
+                float top_r_mean, top_r_sigma;
+                float lean_mean, lean_sigma;
+                float bark_rings_mean, bark_rings_sigma;
+                float bark_depth_mean, bark_depth_sigma;
+                float frond_count_mean, frond_count_sigma;
+                float frond_len_mean, frond_len_sigma;
+                float frond_width_mean, frond_width_sigma;
+                float frond_droop_mean, frond_droop_sigma;
+                float frond_arch_mean, frond_arch_sigma;
+                float crown_spread_mean, crown_spread_sigma;
+                float crown_skirt_mean, crown_skirt_sigma;
+                float solid_padding_mean, solid_padding_sigma;
+                float edge_blend_mean, edge_blend_sigma;
+                float color_over;
+                float burial;
+                float trunk_var, frond_var;
+                uint32_t trunk_segs, frond_segs;
+                float weight;
+            };
+
+            //                                h_μ    σ    br_μ   σ    tr_μ   σ    lean_μ σ    bark_μ σ    bd_μ   σ     fc_μ  σ    fl_μ  σ    fw_μ  σ    fd_μ  σ    fa_μ  σ    cs_μ  σ    ck_μ  σ    sp_μ  σ    eb_μ  σ    co%  bur  tv   fv   ts  fs   wt
+            static constexpr PalmTierParams PALM_TIERS[] = {
+                /* SAPLING  */ { 8.0f, 2.0f,  0.25f,0.05f, 0.12f,0.02f, 0.15f,0.05f, 8.0f,2.0f,  0.03f,0.01f, 7.0f,1.0f,  3.0f,0.5f,  0.8f,0.15f, 0.3f,0.1f, 0.4f,0.1f, 0.6f,0.1f, 0.3f,0.1f, 0.5f,0.1f, 0.5f,0.1f, 0.1f, 0.1f, 0.06f,0.04f, 12, 4,  0.50f },
+                /* COASTAL  */ { 16.0f,3.0f,  0.40f,0.08f, 0.15f,0.03f, 0.20f,0.08f, 12.0f,3.0f, 0.04f,0.01f, 11.0f,2.0f, 5.0f,0.8f,  1.2f,0.2f,  0.5f,0.15f,0.5f,0.12f,0.7f,0.1f, 0.4f,0.1f, 0.8f,0.15f,0.8f,0.15f,0.15f, 0.15f,0.05f,0.03f, 16, 5,  0.35f },
+                /* ROYAL    */ { 28.0f,5.0f,  0.55f,0.10f, 0.18f,0.04f, 0.10f,0.05f, 18.0f,4.0f, 0.05f,0.01f, 15.0f,2.0f, 7.0f,1.0f,  1.5f,0.3f,  0.6f,0.15f,0.6f,0.15f,0.8f,0.1f, 0.5f,0.1f, 1.0f,0.2f, 1.0f,0.2f, 0.20f, 0.2f, 0.04f,0.03f, 20, 6,  0.15f },
+            };
+
+            static constexpr float PALM_TRUNK_BASE[3] = { 0.45f, 0.35f, 0.25f };
+            static constexpr float PALM_FROND_BASE[3] = { 0.25f, 0.45f, 0.20f };
+            static constexpr float PALM_AGED_BASE[3]  = { 0.35f, 0.38f, 0.18f };
+
+            struct PalmConfig {
+                static constexpr float SPAWN_CHANCE_BY_ARCHETYPE[4] = { 0.0f, 0.020f, 0.020f, 0.0f };
+                static constexpr float MOOD_MULTIPLIER[MOOD_COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f };
+                static constexpr float POSITION_JITTER = 0.45f;
+            };
+
+            struct PalmProp {
+                static constexpr uint32_t SPAWN_ROLL = 950u;
+                static constexpr uint32_t POSITION_X = 951u;
+                static constexpr uint32_t POSITION_Z = 952u;
+                static constexpr uint32_t ROTATION = 953u;
+                static constexpr uint32_t TIER = 954u;
+                static constexpr uint32_t HEIGHT = 960u;
+                static constexpr uint32_t BASE_R = 961u;
+                static constexpr uint32_t TOP_R = 962u;
+                static constexpr uint32_t LEAN = 963u;
+                static constexpr uint32_t LEAN_DIR = 964u;
+                static constexpr uint32_t BARK_RINGS = 965u;
+                static constexpr uint32_t BARK_DEPTH = 966u;
+                static constexpr uint32_t FROND_COUNT = 970u;
+                static constexpr uint32_t FROND_LEN = 971u;
+                static constexpr uint32_t FROND_WIDTH = 972u;
+                static constexpr uint32_t FROND_DROOP = 973u;
+                static constexpr uint32_t FROND_ARCH = 974u;
+                static constexpr uint32_t CROWN_SPREAD = 975u;
+                static constexpr uint32_t CROWN_SKIRT = 976u;
+                static constexpr uint32_t SOLID_PADDING = 980u;
+                static constexpr uint32_t EDGE_BLEND = 981u;
+                static constexpr uint32_t COLOR_OVER = 990u;
+                static constexpr uint32_t COLOR_VAR_R = 991u;
+                static constexpr uint32_t COLOR_VAR_G = 992u;
+                static constexpr uint32_t COLOR_VAR_B = 993u;
+            };
+
+            struct ActivePalm {
+                int32_t patch_gx = 0, patch_gz = 0;
+                int32_t host_gx = 0, host_gz = 0;
+                bool active = false;
+                bool draw_visible = true;
+                float world_x = 0.0f, world_z = 0.0f;
+                float height = 0.0f;
+                float base_r = 0.0f;
+                uint32_t tier_idx = 0;
+                float cached_ground_y = 0.0f;
+            };
+
+            ActivePalm activePalms_[Dim::MAX_PALM_INSTANCES]{};
+            uint32_t activePalmCount_ = 0;
+            bool palmMeshGenPending_ = false;
+
+            // ─── Palm Selection ──────────────────────────────────────────────
+
+            struct PalmSelection {
+                uint32_t seed;
+                int32_t  trigger_gx, trigger_gz;
+                uint32_t slot;
+                uint32_t tier_idx;
+                float height, base_r, top_r;
+                float lean, lean_dir;
+                float bark_rings, bark_depth;
+                float frond_count, frond_len, frond_width;
+                float frond_droop, frond_arch;
+                float crown_spread, crown_skirt;
+                float solid_padding, edge_blend;
+                float solid_half;
+                float burial;
+                float trunk_r, trunk_g, trunk_b;
+                float frond_r, frond_g, frond_b;
+                float aged_r, aged_g, aged_b;
+                uint32_t trunk_segs, frond_segs;
+            };
+
+            // ─── Palm Placement ──────────────────────────────────────────────
+
+            struct PalmPlacement {
+                uint32_t slot;
+                int32_t  trigger_gx, trigger_gz;
+                int32_t  host_gx, host_gz;
+                uint32_t tier_idx;
+                float cx, cz, rotation;
+                float height, base_r, top_r;
+                float lean, lean_dir;
+                float bark_rings, bark_depth;
+                float frond_count, frond_len, frond_width;
+                float frond_droop, frond_arch;
+                float crown_spread, crown_skirt;
+                float solid_half;
+                float burial;
+                float trunk_r, trunk_g, trunk_b;
+                float frond_r, frond_g, frond_b;
+                float aged_r, aged_g, aged_b;
+                uint32_t trunk_segs, frond_segs;
+                float cached_ground_y;
+            };
+
+            // ─── Palm Spawning ───────────────────────────────────────────────
+
+            bool select_palm_for_patch(int32_t gx, int32_t gz, PalmSelection& sel) {
+                auto gate = run_spawn_preamble(gx, gz,
+                    activePalms_, Dim::MAX_PALM_INSTANCES,
+                    PalmProp::SPAWN_ROLL, PalmConfig::SPAWN_CHANCE_BY_ARCHETYPE,
+                    PalmConfig::MOOD_MULTIPLIER,
+                    PopFamily::PALM, "palm");
+                if (!gate.ok) return false;
+
+                float palm_weights[] = { PALM_TIERS[0].weight, PALM_TIERS[1].weight, PALM_TIERS[2].weight };
+                for (uint32_t t = 0; t < PALM_TIER_COUNT; t++) palm_weights[t] *= THEMES[gate.theme_idx].tier_wt_palm[t];
+                uint32_t tier_idx = select_tier_biased(gate.seed, PalmProp::TIER, palm_weights, PALM_TIER_COUNT, PopFamily::PALM);
+                const auto& tp = PALM_TIERS[tier_idx];
+
+                float height = std::max(2.0f, cpu_sample_gaussian(gate.seed, PalmProp::HEIGHT, tp.height_mean, tp.height_sigma));
+                float base_r = std::max(0.1f, cpu_sample_gaussian(gate.seed, PalmProp::BASE_R, tp.base_r_mean, tp.base_r_sigma));
+                float top_r = std::max(0.05f, cpu_sample_gaussian(gate.seed, PalmProp::TOP_R, tp.top_r_mean, tp.top_r_sigma));
+                float lean = std::max(0.0f, cpu_sample_gaussian(gate.seed, PalmProp::LEAN, tp.lean_mean, tp.lean_sigma));
+                float lean_dir = cpu_hash_f(gate.seed, PalmProp::LEAN_DIR) * 6.283185f;
+                float bark_rings = std::max(3.0f, cpu_sample_gaussian(gate.seed, PalmProp::BARK_RINGS, tp.bark_rings_mean, tp.bark_rings_sigma));
+                float bark_depth = std::max(0.0f, cpu_sample_gaussian(gate.seed, PalmProp::BARK_DEPTH, tp.bark_depth_mean, tp.bark_depth_sigma));
+                float frond_count = std::max(3.0f, std::round(cpu_sample_gaussian(gate.seed, PalmProp::FROND_COUNT, tp.frond_count_mean, tp.frond_count_sigma)));
+                float frond_len = std::max(1.0f, cpu_sample_gaussian(gate.seed, PalmProp::FROND_LEN, tp.frond_len_mean, tp.frond_len_sigma));
+                float frond_width = std::max(0.3f, cpu_sample_gaussian(gate.seed, PalmProp::FROND_WIDTH, tp.frond_width_mean, tp.frond_width_sigma));
+                float frond_droop = std::max(0.0f, cpu_sample_gaussian(gate.seed, PalmProp::FROND_DROOP, tp.frond_droop_mean, tp.frond_droop_sigma));
+                float frond_arch = std::max(0.0f, cpu_sample_gaussian(gate.seed, PalmProp::FROND_ARCH, tp.frond_arch_mean, tp.frond_arch_sigma));
+                float crown_spread = std::max(0.1f, cpu_sample_gaussian(gate.seed, PalmProp::CROWN_SPREAD, tp.crown_spread_mean, tp.crown_spread_sigma));
+                float crown_skirt = std::max(0.0f, cpu_sample_gaussian(gate.seed, PalmProp::CROWN_SKIRT, tp.crown_skirt_mean, tp.crown_skirt_sigma));
+                float solid_padding = std::max(0.1f, cpu_sample_gaussian(gate.seed, PalmProp::SOLID_PADDING, tp.solid_padding_mean, tp.solid_padding_sigma));
+                float edge_blend = std::max(0.1f, cpu_sample_gaussian(gate.seed, PalmProp::EDGE_BLEND, tp.edge_blend_mean, tp.edge_blend_sigma));
+
+                float solid_half = base_r + solid_padding + edge_blend;
+
+                sel.seed = gate.seed;
+                sel.trigger_gx = gx;
+                sel.trigger_gz = gz;
+                sel.slot = gate.slot;
+                sel.tier_idx = tier_idx;
+                sel.height = height;
+                sel.base_r = base_r; sel.top_r = top_r;
+                sel.lean = lean; sel.lean_dir = lean_dir;
+                sel.bark_rings = bark_rings; sel.bark_depth = bark_depth;
+                sel.frond_count = frond_count; sel.frond_len = frond_len; sel.frond_width = frond_width;
+                sel.frond_droop = frond_droop; sel.frond_arch = frond_arch;
+                sel.crown_spread = crown_spread; sel.crown_skirt = crown_skirt;
+                sel.solid_padding = solid_padding; sel.edge_blend = edge_blend;
+                sel.solid_half = solid_half;
+                sel.burial = tp.burial;
+                sel.trunk_segs = tp.trunk_segs; sel.frond_segs = tp.frond_segs;
+
+                // Colors
+                sel.trunk_r = PALM_TRUNK_BASE[0] + (cpu_hash_f(gate.seed, PalmProp::COLOR_VAR_R) - 0.5f) * tp.trunk_var;
+                sel.trunk_g = PALM_TRUNK_BASE[1] + (cpu_hash_f(gate.seed, PalmProp::COLOR_VAR_G) - 0.5f) * tp.trunk_var;
+                sel.trunk_b = PALM_TRUNK_BASE[2] + (cpu_hash_f(gate.seed, PalmProp::COLOR_VAR_B) - 0.5f) * tp.trunk_var;
+                sel.frond_r = PALM_FROND_BASE[0] + (cpu_hash_f(gate.seed, PalmProp::COLOR_VAR_R + 10u) - 0.5f) * tp.frond_var;
+                sel.frond_g = PALM_FROND_BASE[1] + (cpu_hash_f(gate.seed, PalmProp::COLOR_VAR_G + 10u) - 0.5f) * tp.frond_var;
+                sel.frond_b = PALM_FROND_BASE[2] + (cpu_hash_f(gate.seed, PalmProp::COLOR_VAR_B + 10u) - 0.5f) * tp.frond_var;
+                sel.aged_r = PALM_AGED_BASE[0] + (cpu_hash_f(gate.seed, PalmProp::COLOR_VAR_R + 20u) - 0.5f) * tp.frond_var;
+                sel.aged_g = PALM_AGED_BASE[1] + (cpu_hash_f(gate.seed, PalmProp::COLOR_VAR_G + 20u) - 0.5f) * tp.frond_var;
+                sel.aged_b = PALM_AGED_BASE[2] + (cpu_hash_f(gate.seed, PalmProp::COLOR_VAR_B + 20u) - 0.5f) * tp.frond_var;
+
+                return true;
+            }
+
+            bool place_palm_from_selection(const PalmSelection& sel, PalmPlacement& plan) {
+                auto pos = negotiate_position(sel.seed,
+                    sel.trigger_gx, sel.trigger_gz,
+                    PalmProp::POSITION_X, PalmProp::POSITION_Z,
+                    PalmConfig::POSITION_JITTER,
+                    PalmProp::ROTATION,
+                    sel.solid_half, PopFamily::PALM);
+                if (!pos.ok) return false;
+
+                plan = PalmPlacement{};
+                plan.slot = sel.slot;
+                plan.trigger_gx = sel.trigger_gx; plan.trigger_gz = sel.trigger_gz;
+                plan.host_gx = pos.host_gx; plan.host_gz = pos.host_gz;
+                plan.tier_idx = sel.tier_idx;
+                plan.cx = pos.cx; plan.cz = pos.cz; plan.rotation = pos.rotation;
+                plan.height = sel.height; plan.base_r = sel.base_r; plan.top_r = sel.top_r;
+                plan.lean = sel.lean; plan.lean_dir = sel.lean_dir;
+                plan.bark_rings = sel.bark_rings; plan.bark_depth = sel.bark_depth;
+                plan.frond_count = sel.frond_count; plan.frond_len = sel.frond_len; plan.frond_width = sel.frond_width;
+                plan.frond_droop = sel.frond_droop; plan.frond_arch = sel.frond_arch;
+                plan.crown_spread = sel.crown_spread; plan.crown_skirt = sel.crown_skirt;
+                plan.solid_half = sel.solid_half; plan.burial = sel.burial;
+                plan.trunk_r = sel.trunk_r; plan.trunk_g = sel.trunk_g; plan.trunk_b = sel.trunk_b;
+                plan.frond_r = sel.frond_r; plan.frond_g = sel.frond_g; plan.frond_b = sel.frond_b;
+                plan.aged_r = sel.aged_r; plan.aged_g = sel.aged_g; plan.aged_b = sel.aged_b;
+                plan.trunk_segs = sel.trunk_segs; plan.frond_segs = sel.frond_segs;
+                plan.cached_ground_y = cpu_terrain_base_at(plan.cx, plan.cz);
+
+                record_placement_bookkeeping(PopFamily::PALM, plan.tier_idx,
+                    plan.cx, plan.cz, plan.rotation);
+
+                return true;
+            }
+
+            void commit_palm(const PalmPlacement& plan, int32_t trigger_gx, int32_t trigger_gz, wgpu::Queue& queue) {
+                auto& ap = activePalms_[plan.slot];
+                ap.patch_gx = trigger_gx; ap.patch_gz = trigger_gz;
+                ap.host_gx = plan.host_gx; ap.host_gz = plan.host_gz;
+                ap.active = true; ap.draw_visible = true;
+                ap.world_x = plan.cx; ap.world_z = plan.cz;
+                ap.height = plan.height; ap.base_r = plan.base_r;
+                ap.tier_idx = plan.tier_idx;
+                ap.cached_ground_y = plan.cached_ground_y;
+                activePalmCount_++;
+                record_entity_presence(plan.host_gx, plan.host_gz, EntityPresence::PALM);
+
+                GPUPalmMeshParams mp{};
+                mp.center_x = plan.cx; mp.center_z = plan.cz;
+                mp.height = plan.height; mp.base_r = plan.base_r; mp.top_r = plan.top_r;
+                mp.lean = plan.lean; mp.lean_dir = plan.lean_dir;
+                mp.bark_rings = plan.bark_rings; mp.bark_depth = plan.bark_depth;
+                mp.frond_count = plan.frond_count; mp.frond_len = plan.frond_len; mp.frond_width = plan.frond_width;
+                mp.frond_droop = plan.frond_droop; mp.frond_arch = plan.frond_arch;
+                mp.crown_spread = plan.crown_spread; mp.crown_skirt = plan.crown_skirt;
+                mp.burial = plan.burial;
+                mp.trunk_r = plan.trunk_r; mp.trunk_g = plan.trunk_g; mp.trunk_b = plan.trunk_b;
+                mp.frond_r = plan.frond_r; mp.frond_g = plan.frond_g; mp.frond_b = plan.frond_b;
+                mp.aged_r = plan.aged_r; mp.aged_g = plan.aged_g; mp.aged_b = plan.aged_b;
+                mp.trunk_segs = plan.trunk_segs; mp.frond_segs = plan.frond_segs;
+                mp.is_active = 1;
+                gpuState_.upload_palm_mesh_params_slot(queue, plan.slot, mp);
+                palmMeshGenPending_ = true;
+            }
+
+            bool prepare_palm_mesh_gen(wgpu::Queue& queue) {
+                if (!palmMeshGenPending_) return false;
+                palmMeshGenPending_ = false;
+                uint32_t maxSlot = 0;
+                bool anyActive = false;
+                for (uint32_t i = 0; i < Dim::MAX_PALM_INSTANCES; i++) {
+                    if (activePalms_[i].active) { maxSlot = i; anyActive = true; }
+                }
+                gpuState_.set_palm_index_count(anyActive
+                    ? (maxSlot + 1) * Dim::PALMG_MAX_INDICES_PER_SLOT : 0);
+                return true;
+            }
+
             // ─── Generative Pyramids ─────────────────────────────────────────
             //
             // Three tiers: obelisk, temple, colossus. Each defined by a
@@ -2332,7 +2612,8 @@ namespace t7 {
                 static constexpr uint32_t ARCH = 1;
                 static constexpr uint32_t COLUMN = 2;
                 static constexpr uint32_t ANTENNA = 3;
-                static constexpr uint32_t COUNT = 4;
+                static constexpr uint32_t PALM = 4;
+                static constexpr uint32_t COUNT = 5;
             };
 
             // Entity presence flags — bitfield tracking what was spawned on
@@ -2346,8 +2627,9 @@ namespace t7 {
                 static constexpr uint32_t ARCH_ANY = ARCH_DOORWAY | ARCH_STANDARD | ARCH_MONUMENTAL;
                 static constexpr uint32_t COLUMN = 1u << 4;
                 static constexpr uint32_t ANTENNA = 1u << 5;
-                static constexpr uint32_t GALLERY = 1u << 6;
-                static constexpr uint32_t GOL_ZONE = 1u << 7;
+                static constexpr uint32_t PALM = 1u << 6;
+                static constexpr uint32_t GALLERY = 1u << 7;
+                static constexpr uint32_t GOL_ZONE = 1u << 8;
             };
 
             // ─── Adjacency Affinity Matrix ───────────────────────────────────
@@ -2358,14 +2640,15 @@ namespace t7 {
             //          ARCH_MONUMENTAL(3), COLUMN(4)
             // All 1.0f = neutral. Tune to create compositional vocabulary.
 
-            static constexpr uint32_t ADJACENCY_BITS = 6;
+            static constexpr uint32_t ADJACENCY_BITS = 7;
 
             static constexpr float ADJACENCY_BOOST[PopFamily::COUNT][ADJACENCY_BITS] = {
-                //         PYR   A_DW  A_ST  A_MN  COL   ANT
-                /* PYR */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
-                /* ARCH */{ 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
-                /* COL */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
-                /* ANT */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
+                //         PYR   A_DW  A_ST  A_MN  COL   ANT   PALM
+                /* PYR */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
+                /* ARCH */{ 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
+                /* COL */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
+                /* ANT */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
+                /* PALM */{ 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
             };
 
             static float adjacency_modifier(uint32_t family, uint32_t neighbor_flags) {
@@ -2544,6 +2827,7 @@ namespace t7 {
                     ArchSelection    arch;
                     ColumnSelection  column;
                     ColumnSelection  antenna;
+                    PalmSelection    palm;
                 };
                 EntityQueueEntry() : family(0), gx(0), gz(0) { std::memset(&column, 0, sizeof(column)); }
             };
@@ -2564,6 +2848,7 @@ namespace t7 {
                     ArchPlacement    arch;
                     ColumnPlacement  column;
                     ColumnPlacement  antenna;
+                    PalmPlacement    palm;
                 };
                 PlacementEntry() : family(0), gx(0), gz(0) { std::memset(&arch, 0, sizeof(arch)); }
             };
@@ -5955,6 +6240,51 @@ namespace t7 {
                 }
             }
 
+            // ── Palm dispatch wrappers ──
+
+            static bool dispatch_select_palm(Cartridge* self,
+                int32_t gx, int32_t gz, EntityQueueEntry& e)
+            {
+                return self->select_palm_for_patch(gx, gz, e.palm);
+            }
+
+            static bool dispatch_place_palm(Cartridge* self,
+                EntityQueueEntry& e, PlacementEntry& pe)
+            {
+                pe.family = e.family; pe.gx = e.gx; pe.gz = e.gz;
+                if (self->place_palm_from_selection(e.palm, pe.palm)) {
+#ifdef DIAG_ENTITY_LIFECYCLE
+                    std::cout << "[DIAG:PLACE] palm slot=" << pe.palm.slot
+                        << " pos=(" << pe.palm.cx << "," << pe.palm.cz
+                        << ") host=(" << pe.palm.host_gx << "," << pe.palm.host_gz << ")\n";
+#endif
+                    return true;
+                }
+                self->activePalms_[e.palm.slot].active = false;
+#ifdef DIAG_ENTITY_LIFECYCLE
+                std::cout << "[DIAG:PLACE] palm slot=" << e.palm.slot
+                    << " FAIL patch=(" << e.gx << "," << e.gz << ")\n";
+#endif
+                return false;
+            }
+
+            static void dispatch_commit_palm(Cartridge* self,
+                PlacementEntry& pe, wgpu::Queue& queue)
+            {
+                auto* host = self->find_patch(pe.palm.host_gx, pe.palm.host_gz);
+                if (host) {
+                    self->commit_palm(pe.palm, pe.gx, pe.gz, queue);
+                    host->record_entity(PopFamily::PALM, pe.palm.slot);
+                } else {
+                    self->activePalms_[pe.palm.slot].active = false;
+#ifdef DIAG_ENTITY_LIFECYCLE
+                    std::cout << "[DIAG:REJECT] palm slot=" << pe.palm.slot
+                        << " host=(" << pe.palm.host_gx << "," << pe.palm.host_gz
+                        << ") — no host patch\n";
+#endif
+                }
+            }
+
             // ── Eviction dispatch wrappers ──
 
             static void dispatch_evict_pyramid(Cartridge* self,
@@ -6020,6 +6350,27 @@ namespace t7 {
 #endif
             }
 
+            static void dispatch_evict_palm(Cartridge* self,
+                uint32_t slot, wgpu::Queue& queue)
+            {
+                self->activePalms_[slot].active = false;
+                self->activePalmCount_--;
+                { GPUPalmMeshParams ep{}; self->gpuState_.upload_palm_mesh_params_slot(queue, slot, ep); }
+                self->palmMeshGenPending_ = true;
+#ifdef DIAG_ENTITY_LIFECYCLE
+                std::cout << "[DIAG:EVICT]   palm slot=" << slot << "\n";
+#endif
+            }
+
+            // ── Mesh gen dispatch wrappers (palm) ──
+
+            static bool dispatch_prepare_mesh_palm(Cartridge* self, wgpu::Queue& queue) {
+                return self->prepare_palm_mesh_gen(queue);
+            }
+            static void dispatch_mesh_gen_palm(Cartridge* self, wgpu::ComputePassEncoder& pass) {
+                self->renderer_.dispatch_palm_mesh_gen(pass, self->gpuState_.palm_mesh_gen_group());
+            }
+
             // ── Dispatch table (order matches PopFamily enum) ──
 
             static constexpr FamilyDispatch FAMILY_DISPATCH[PopFamily::COUNT] = {
@@ -6035,6 +6386,9 @@ namespace t7 {
                 { dispatch_select_antenna, dispatch_place_antenna, dispatch_commit_antenna,
                   dispatch_evict_antenna, dispatch_prepare_mesh_column,  dispatch_mesh_gen_column,
                   EntityPresence::ANTENNA, "ant" },
+                { dispatch_select_palm,   dispatch_place_palm,   dispatch_commit_palm,
+                  dispatch_evict_palm,   dispatch_prepare_mesh_palm,   dispatch_mesh_gen_palm,
+                  EntityPresence::PALM, "palm" },
             };
 
             // ─── Population Themes ───────────────────────────────────────────
@@ -6086,6 +6440,7 @@ namespace t7 {
                 float tier_wt_arch[3];                         // multiplier on arch tier base weights
                 float tier_wt_column[3];                       // multiplier on column tier base weights (Pillar, Doric, Ornate)
                 float tier_wt_antenna[3];                      // multiplier on antenna tier base weights (Antenna, Squat, Colossal)
+                float tier_wt_palm[3];                         // multiplier on palm tier base weights (Sapling, Coastal, Royal)
                 float density_mult;                            // multiplier on entity_density
 
                 // Envelope parameters (replace lattice weight for theme selection)
@@ -6112,50 +6467,55 @@ namespace t7 {
 
             static constexpr PopulationTheme THEMES[THEME_COUNT] = {
                 // ── 0: TRANSITION — sparse connective tissue ─────────────────
-                {   { 0.4f, 0.3f, 0.7f, 0.3f },                                 // spawn_weight [pyr, arch, col, ant]
+                {   { 0.4f, 0.3f, 0.7f, 0.3f, 0.3f },                             // spawn_weight [pyr, arch, col, ant, palm]
                     { 1.0f, 1.0f, 1.0f },                                       // tier_pyr
                     { 1.0f, 0.3f, 1.0f },                                       // tier_arch
-                    { 0.1f, 0.2f, 0.3f },                                       // tier_col [Pillar, Doric, Ornate]
-                    { 0.1f, 2.0f, 0.7f },                                       // tier_ant [Antenna, Squat, Colossal]
+                    { 0.1f, 0.2f, 0.3f },                                       // tier_col
+                    { 0.1f, 2.0f, 0.7f },                                       // tier_ant
+                    { 1.0f, 1.0f, 1.0f },                                       // tier_palm
                     1.0f,                                                         // density
                     150.0f, 20u, 3u, 0u,                                          // spike, sustain, decay, cooldown
                     0.21f                                                         // weight
                 },
                 // ── 1: MONUMENTAL — big pyramids, varied arches, heavy columns
-                {   { 1.5f, 1.0f, 1.0f, 0.5f },
+                {   { 1.5f, 1.0f, 1.0f, 0.5f, 0.2f },
                     { 0.2f, 0.5f, 3.0f },
                     { 2.0f, 0.1f, 3.0f },
                     { 0.01f, 0.01f, 1.0f },
                     { 0.5f, 1.5f, 0.5f },
+                    { 1.0f, 1.0f, 1.0f },
                     1.0f,
                     150.0f, 10u, 10u, 8u,
                     0.30f
                 },
                 // ── 2: COLONNADE — dense columns, moderate arches ────────────
-                {   { 0.3f, 1.0f, 4.0f, 0.5f },
+                {   { 0.3f, 1.0f, 4.0f, 0.5f, 0.3f },
                     { 1.0f, 1.0f, 1.0f },
                     { 3.0f, 0.5f, 1.0f },
                     { 0.3f, 3.0f, 5.0f },
                     { 0.2f, 0.1f, 0.1f },
+                    { 1.0f, 1.0f, 1.0f },
                     1.0f,
                     150.0f, 15u, 6u, 6u,
                     0.31f
                 },
                 // ── 3: ANTENNA — antenna-dominant corridor ───────────────────
-                {   { 0.5f, 0.5f, 1.0f, 4.0f },
+                {   { 0.5f, 0.5f, 1.0f, 4.0f, 0.5f },
                     { 1.0f, 0.05f, 2.0f },
                     { 1.0f, 0.2f, 0.8f },
                     { 0.1f, 0.3f, 0.3f },
                     { 0.5f, 3.5f, 1.0f },
+                    { 1.0f, 1.0f, 1.0f },
                     1.0f,
                     180.0f, 10u, 5u, 5u,
                     0.18f
                 },
                 // ── 4: BARREN — near-empty ───────────────────────────────────
-                {   { 0.4f, 0.3f, 0.5f, 0.3f },
+                {   { 0.4f, 0.3f, 0.5f, 0.3f, 0.2f },
                     { 2.0f, 0.5f, 0.2f },
                     { 1.0f, 1.0f, 1.0f },
                     { 0.2f, 0.5f, 0.5f },
+                    { 1.0f, 1.0f, 1.0f },
                     { 1.0f, 1.0f, 1.0f },
                     1.0f,
                     100.0f, 12u, 3u, 4u,
@@ -6404,11 +6764,12 @@ namespace t7 {
             //  └──────────────────────┴──────────────┴──────────────┴──────────────────────┘
 
             static constexpr float POP_CROSS_AFFINITY[PopFamily::COUNT][PopFamily::COUNT] = {
-                //          target:  Pyramid  Arch    Column  Antenna
-                /* Pyramid */     {  0.5f,    2.0f,   1.5f,   1.5f  },
-                /* Arch    */     {  0.8f,    1.5f,   2.0f,   2.0f  },
-                /* Column  */     {  0.3f,    1.2f,   1.8f,   1.0f  },
-                /* Antenna */     {  0.3f,    1.2f,   1.0f,   1.8f  },
+                //          target:  Pyramid  Arch    Column  Antenna  Palm
+                /* Pyramid */     {  0.5f,    2.0f,   1.5f,   1.5f,   1.0f },
+                /* Arch    */     {  0.8f,    1.5f,   2.0f,   2.0f,   1.0f },
+                /* Column  */     {  0.3f,    1.2f,   1.8f,   1.0f,   1.0f },
+                /* Antenna */     {  0.3f,    1.2f,   1.0f,   1.8f,   1.0f },
+                /* Palm    */     {  0.3f,    1.0f,   1.0f,   1.0f,   1.5f },
             };
 
             // ── Per-Tier Scale Character ──────────────────────────────────────
@@ -6445,6 +6806,7 @@ namespace t7 {
             static constexpr float TIER_SCALE_ARCH[] = { 0.10f, 0.55f, 0.95f };
             static constexpr float TIER_SCALE_COLUMN[] = { 0.15f, 0.30f, 0.50f };
             static constexpr float TIER_SCALE_ANTENNA[] = { 0.60f, 0.45f, 0.85f };
+            static constexpr float TIER_SCALE_PALM[] = { 0.20f, 0.45f, 0.75f };
 
             // Accessor: look up scale character by family + tier index.
             static float tier_scale_character(uint32_t family, uint32_t tier_idx) {
@@ -6453,6 +6815,7 @@ namespace t7 {
                 case PopFamily::ARCH:    return (tier_idx < 3) ? TIER_SCALE_ARCH[tier_idx] : 0.5f;
                 case PopFamily::COLUMN:  return (tier_idx < 3) ? TIER_SCALE_COLUMN[tier_idx] : 0.5f;
                 case PopFamily::ANTENNA: return (tier_idx < 3) ? TIER_SCALE_ANTENNA[tier_idx] : 0.5f;
+                case PopFamily::PALM:    return (tier_idx < 3) ? TIER_SCALE_PALM[tier_idx] : 0.5f;
                 default: return 0.5f;
                 }
             }
@@ -6621,7 +6984,7 @@ namespace t7 {
 
             static constexpr uint32_t SPAWN_MEMORY_SIZE = 6;  // per family
             SpawnRecord recentSpawns_[PopFamily::COUNT][SPAWN_MEMORY_SIZE]{};
-            uint32_t spawnWriteIdx_[PopFamily::COUNT] = { 0, 0, 0, 0 };
+            uint32_t spawnWriteIdx_[PopFamily::COUNT] = { 0, 0, 0, 0, 0 };
 
             void record_spawn(float x, float z, float rotation, uint32_t family) {
                 auto& idx = spawnWriteIdx_[family];
@@ -6662,11 +7025,12 @@ namespace t7 {
             // governs aesthetic spacing.
 
             static constexpr float MIN_SEPARATION[PopFamily::COUNT][PopFamily::COUNT] = {
-                //               near:  Pyramid  Arch    Column  Antenna
-                /* placing Pyramid */ {  60.0f,  50.0f,  30.0f,  30.0f },
-                /* placing Arch    */ {  50.0f, 100.0f,  60.0f,  60.0f },
-                /* placing Column  */ {  30.0f, 100.0f,  60.0f,  40.0f },
-                /* placing Antenna */ {  30.0f, 100.0f,  40.0f,  60.0f },
+                //               near:  Pyramid  Arch    Column  Antenna  Palm
+                /* placing Pyramid */ {  60.0f,  50.0f,  30.0f,  30.0f,  30.0f },
+                /* placing Arch    */ {  50.0f, 100.0f,  60.0f,  60.0f,  40.0f },
+                /* placing Column  */ {  30.0f, 100.0f,  60.0f,  40.0f,  30.0f },
+                /* placing Antenna */ {  30.0f, 100.0f,  40.0f,  60.0f,  30.0f },
+                /* placing Palm    */ {  30.0f,  40.0f,  30.0f,  30.0f,  40.0f },
             };
 
             // Check if a proposed position satisfies the separation matrix
@@ -6698,7 +7062,7 @@ namespace t7 {
                 float amp_momentum = 0.0f;   // signed amplitude excess, carried by terrain tokens
                 float entity_density = 1.0f; // spatial density multiplier for entity spawning
                 // Theme: evaluated from theme lattice at tile generation time
-                float theme_spawn[PopFamily::COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f }; // blended per-family spawn multiplier
+                float theme_spawn[PopFamily::COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f }; // blended per-family spawn multiplier
                 uint32_t theme_idx = 0;      // dominant theme index (for tier bias + formation lookup)
             };
 
@@ -6892,7 +7256,7 @@ namespace t7 {
 
                     // Blend spawn weights across 4 lattice nodes.
                     // Track dominant node for discrete tier bias lookup.
-                    float blended_spawn[PopFamily::COUNT] = { 0.0f, 0.0f, 0.0f, 0.0f };
+                    float blended_spawn[PopFamily::COUNT] = { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
                     float blended_density = 0.0f;
                     float best_w = -1.0f;
                     uint32_t dominant_theme = 0;
@@ -7060,6 +7424,20 @@ namespace t7 {
                         gpuState_.upload_column_mesh_params_slot(queue, i, emptyParams);
                     }
                     columnMeshGenPending_ = true;
+                }
+
+                // Palms
+                for (uint32_t i = 0; i < Dim::MAX_PALM_INSTANCES; i++) {
+                    activePalms_[i] = ActivePalm{};
+                }
+                activePalmCount_ = 0;
+                gpuState_.set_palm_index_count(0);
+                {
+                    GPUPalmMeshParams emptyParams{};
+                    for (uint32_t i = 0; i < Dim::MAX_PALM_INSTANCES; i++) {
+                        gpuState_.upload_palm_mesh_params_slot(queue, i, emptyParams);
+                    }
+                    palmMeshGenPending_ = true;
                 }
 
                 // Pyramids
