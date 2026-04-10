@@ -7656,7 +7656,7 @@ fn cactus_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
     // ── ARMS: ribbed columns along upward-curving paths ──
 
     let golden_angle = PI * (3.0 - sqrt(5.0));
-    let n_arms = min(u32(max(0.0, forced_arm_count)), 4u);  // DIAGNOSTIC: was p.arm_count
+    let n_arms = 0u;  // DIAGNOSTIC: trunk only
     let arm_segs_u = min(u32(p.arm_segs), 12u);
     let arm_ribs = max(4u, ribs - 2u);
     let arm_around = min(max(arm_ribs * 2u, 8u), 12u);
