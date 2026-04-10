@@ -3730,7 +3730,7 @@ struct PortalArray {
 @group(0) @binding(300) var<storage, read> render_sphere: SphereState;
 
 // --- Ribbon (Group 0: render, binding 360)
-@group(0) @binding(360) var<storage, read> render_ribbon: RibbonState;
+@group(0) @binding(360) var<uniform> render_ribbon: RibbonState;
 @group(0) @binding(361) var<storage, read> render_ring_xforms: array<RibbonRingTransform, 400>;
 @group(0) @binding(380) var<storage, read> render_arch_ground: array<ArchGroundEntry, 16>;
 @group(0) @binding(381) var<storage, read> render_column_ground: array<ColumnGroundEntry, 32>;

@@ -2636,7 +2636,7 @@ namespace t7 {
 
                     entries[11].binding = 360;
                     entries[11].visibility = wgpu::ShaderStage::Vertex;
-                    entries[11].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+                    entries[11].buffer.type = wgpu::BufferBindingType::Uniform;
 
                     entries[12].binding = 361;
                     entries[12].visibility = wgpu::ShaderStage::Vertex;
