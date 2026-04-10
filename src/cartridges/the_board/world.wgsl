@@ -5506,9 +5506,6 @@ struct PalmGroundEntry {
     is_active: u32,
     _pad0: f32, _pad1: f32, _pad2: f32, _pad3: f32,
 }
-@group(0) @binding(150) var<storage, read_write> palm_ground: array<PalmGroundEntry, 24>;
-@group(0) @binding(151) var<storage, read_write> cactus_ground: array<CactusGroundEntry, 20>;
-@group(0) @binding(152) var<storage, read_write> blade_ground: array<BladeClusterGroundEntry, 32>;
 
 // --- Terrain Height Sampling
 fn sample_terrain_y_at(world_xz: vec2<f32>, patch_count: u32) -> f32 {
