@@ -176,14 +176,14 @@ namespace t7 {
             // Generative cacti — GPU mesh gen (slot-based addressing)
             constexpr uint32_t MAX_CACTUS_INSTANCES = 20;
             constexpr uint32_t CACTUSG_MAX_VERTS_PER_SLOT  = 1500;
-            constexpr uint32_t CACTUSG_MAX_INDICES_PER_SLOT = 8000;
+            constexpr uint32_t CACTUSG_MAX_INDICES_PER_SLOT = 7998;  // must be divisible by 3!
             constexpr uint32_t CACTUSG_TOTAL_VERTICES = MAX_CACTUS_INSTANCES * CACTUSG_MAX_VERTS_PER_SLOT;
             constexpr uint32_t CACTUSG_TOTAL_INDICES  = MAX_CACTUS_INSTANCES * CACTUSG_MAX_INDICES_PER_SLOT;
 
             // Generative blade clusters — GPU mesh gen (slot-based addressing)
             constexpr uint32_t MAX_BLADE_INSTANCES = 32;
             constexpr uint32_t BLADEG_MAX_VERTS_PER_SLOT  = 500;
-            constexpr uint32_t BLADEG_MAX_INDICES_PER_SLOT = 2000;
+            constexpr uint32_t BLADEG_MAX_INDICES_PER_SLOT = 1998;  // must be divisible by 3!
             constexpr uint32_t BLADEG_TOTAL_VERTICES = MAX_BLADE_INSTANCES * BLADEG_MAX_VERTS_PER_SLOT;
             constexpr uint32_t BLADEG_TOTAL_INDICES  = MAX_BLADE_INSTANCES * BLADEG_MAX_INDICES_PER_SLOT;
 
