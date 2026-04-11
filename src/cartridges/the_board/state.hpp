@@ -189,6 +189,9 @@ namespace t7 {
 
             // GoL zone system — per-zone automaton grids
             constexpr uint32_t MAX_GOL_ZONES = 8;
+
+            // Floating entity system — spheres, monoliths, future forms
+            constexpr uint32_t MAX_FLOATING_INSTANCES = 12;
             constexpr uint32_t GOL_ZONE_GRID = 32;      // cells per zone side
             constexpr uint32_t GOL_ZONE_CELLS = GOL_ZONE_GRID * GOL_ZONE_GRID;  // 1024
             constexpr uint32_t GOL_ZONE_LIFE_STRIDE = GOL_ZONE_CELLS * 7;  // 7 slots: visual, velocity, target, next, height_factor, color_visual, color_velocity
@@ -451,17 +454,29 @@ namespace t7 {
             float pan_y;
         };
 
-        struct alignas(16) GPUSphereState {
-            float pos[3];
-            float radius;
-            float orientation[4];      // quaternion (x, y, z, w)
-            float influence_radius;
-            float t;                   // curve parameter (advances when not frozen)
-            float _pad1;
-            float _pad2;
-            float color[3];            // current appearance (driven by polyphony)
-            float _pad3;
-        };
+        struct alignas(16) GPUFloatingEntityState {
+            float pos[3];              //   0: world position (computed by GPU)
+            float body_radius;         //  12: bounding/visual radius
+            float orientation[4];      //  16: quaternion
+            float influence_radius;    //  32: zone/terrain influence range
+            float t;                   //  36: curve parameter
+            float orbit_radius;        //  40: distance from anchor (orbit mode)
+            float orbit_speed;         //  44: angular velocity (orbit mode)
+            float color[3];            //  48: current appearance (coupling-driven)
+            float orbit_height;        //  60: base altitude above terrain
+            float anchor[3];           //  64: world anchor point
+            float face_variance;       //  76: per-face color spread (monolith)
+            float base_color[3];       //  80: seed-derived rest color
+            uint32_t geometry_type;    //  92: 0=sphere, 1=monolith
+            uint32_t motion_type;      //  96: 0=orbit, 1=hover-bob
+            float spin_speed;          // 100: Y-axis rotation rate (hover-bob)
+            float bob_amplitude;       // 104: vertical oscillation amplitude
+            float bob_period;          // 108: vertical oscillation period
+            float spin_tilt_x;         // 112: axis tilt X
+            float spin_tilt_z;         // 116: axis tilt Z
+            uint32_t entity_seed;      // 120: seed for VS face color hashing
+            uint32_t is_active;        // 124: 0=inactive, 1=active
+        };                             // 128 total
 
         struct alignas(16) GPURibbonState {
             float anchor[3];                                                    // 0
@@ -973,7 +988,7 @@ namespace t7 {
         static_assert(sizeof(GPUTerrainState) == 32, "GPUTerrainState must be 32 bytes");
         static_assert(sizeof(GPUPawnState) == 48, "GPUPawnState must be 48 bytes");
         static_assert(sizeof(GPUCameraState) == 32, "GPUCameraState must be 32 bytes");
-        static_assert(sizeof(GPUSphereState) == 64, "GPUSphereState must be 64 bytes");
+        static_assert(sizeof(GPUFloatingEntityState) == 128, "GPUFloatingEntityState must be 128 bytes");
         static_assert(sizeof(GPURibbonState) == 96, "GPURibbonState must be 96 bytes");
         static_assert(sizeof(GPUVPMatrix) == 128, "GPUVPMatrix must be 128 bytes");
         static_assert(sizeof(GPUDirectionalLight) == 48, "GPUDirectionalLight must be 48 bytes");
@@ -1057,7 +1072,7 @@ namespace t7 {
             wgpu::TextureFormat colorFormat_ = wgpu::TextureFormat::BGRA8Unorm;  // set in initOffscreenResources
 
             wgpu::Buffer signalBuffer_, configBuffer_, terrainBuffer_, pawnBuffer_;
-            wgpu::Buffer cameraBuffer_, sphereBuffer_, trajectoriesBuffer_;
+            wgpu::Buffer cameraBuffer_, floatingEntityBuffer_, trajectoriesBuffer_;
             wgpu::Buffer ribbonBuffer_;
             wgpu::Buffer ringTransformsBuffer_;
             // (bindings 21, 40 reserved — formerly proximity_field, cell_states)
@@ -1333,6 +1348,12 @@ namespace t7 {
 
             void upload_ribbon(wgpu::Queue& queue, const GPURibbonState& ribbon) {
                 queue.WriteBuffer(ribbonBuffer_, 0, &ribbon, sizeof(GPURibbonState));
+            }
+
+            void upload_floating_entity_slot(wgpu::Queue& queue, uint32_t slot, const GPUFloatingEntityState& entity) {
+                queue.WriteBuffer(floatingEntityBuffer_,
+                    slot * sizeof(GPUFloatingEntityState),
+                    &entity, sizeof(GPUFloatingEntityState));
             }
 
             void upload_pier_slot(wgpu::Queue& queue, uint32_t slot, const GPUPierInstance& pier) {
@@ -2070,7 +2091,9 @@ namespace t7 {
                 pawnBuffer_ = makeBuffer("Pawn State", sizeof(GPUPawnState),
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::CopySrc);
                 cameraBuffer_ = makeBuffer("Camera State", sizeof(GPUCameraState), SU);
-                sphereBuffer_ = makeBuffer("Sphere State", sizeof(GPUSphereState), SU | wgpu::BufferUsage::Uniform);
+                floatingEntityBuffer_ = makeBuffer("Floating Entity Array",
+                    Dim::MAX_FLOATING_INSTANCES * sizeof(GPUFloatingEntityState),
+                    SU | wgpu::BufferUsage::Uniform);
                 ribbonBuffer_ = makeBuffer("Ribbon State", sizeof(GPURibbonState), SU | wgpu::BufferUsage::Uniform);
                 ringTransformsBuffer_ = makeBuffer("Ring Transforms",
                     sizeof(GPURibbonRingTransform) * Dim::RIBBON_MAX_RINGS,
@@ -2123,7 +2146,7 @@ namespace t7 {
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
 
                 return signalBuffer_ && configBuffer_ && terrainBuffer_ && pawnBuffer_ &&
-                    cameraBuffer_ && sphereBuffer_ && trajectoriesBuffer_ && ringTransformsBuffer_ &&
+                    cameraBuffer_ && floatingEntityBuffer_ && trajectoriesBuffer_ && ringTransformsBuffer_ &&
                     vpBuffer_ && spotLightArrayBuffer_ && spotVPStagingBuffer_ && directionalLightBuffer_ && pointLightsBuffer_ && patchParamsBuffer_ &&
                     patchStagingBuffer_ && tileGridBuffer_ && pierBuffer_ && patchInstancesBuffer_ &&
                     patchHeightScratchBuffer_ &&
@@ -3581,8 +3604,8 @@ namespace t7 {
                     entries[5].size = sizeof(GPUCameraState);
 
                     entries[6].binding = 100;
-                    entries[6].buffer = sphereBuffer_;
-                    entries[6].size = sizeof(GPUSphereState);
+                    entries[6].buffer = floatingEntityBuffer_;
+                    entries[6].size = Dim::MAX_FLOATING_INSTANCES * sizeof(GPUFloatingEntityState);
 
                     entries[7].binding = 101;
                     entries[7].buffer = trajectoriesBuffer_;
@@ -3657,8 +3680,8 @@ namespace t7 {
                     entries[5].size = sizeof(GPUCameraState);
 
                     entries[6].binding = 300;
-                    entries[6].buffer = sphereBuffer_;
-                    entries[6].size = sizeof(GPUSphereState);
+                    entries[6].buffer = floatingEntityBuffer_;
+                    entries[6].size = Dim::MAX_FLOATING_INSTANCES * sizeof(GPUFloatingEntityState);
 
                     entries[7].binding = 320;
                     entries[7].buffer = directionalLightBuffer_;
@@ -3949,8 +3972,8 @@ namespace t7 {
                     entries[5].buffer = photographerCameraBuffer_;  // ← photographer pos for fog
                     entries[5].size = sizeof(GPUCameraState);
                     entries[6].binding = 300;
-                    entries[6].buffer = sphereBuffer_;
-                    entries[6].size = sizeof(GPUSphereState);
+                    entries[6].buffer = floatingEntityBuffer_;
+                    entries[6].size = Dim::MAX_FLOATING_INSTANCES * sizeof(GPUFloatingEntityState);
                     entries[7].binding = 320;
                     entries[7].buffer = directionalLightBuffer_;
                     entries[7].size = sizeof(GPUDirectionalLight);
@@ -4444,24 +4467,48 @@ namespace t7 {
                 camera.pan_y = 0.0f;
                 queue.WriteBuffer(cameraBuffer_, 0, &camera, sizeof(camera));
 
-                GPUSphereState sphere{};
-                sphere.pos[0] = Idle::SPHERE_ORBIT_RADIUS;
-                sphere.pos[1] = Idle::SPHERE_HOVER_HEIGHT;
-                sphere.pos[2] = 0.0f;
-                sphere.radius = Idle::SPHERE_RADIUS;
-                sphere.orientation[0] = 0.0f;
-                sphere.orientation[1] = 0.0f;
-                sphere.orientation[2] = 0.0f;
-                sphere.orientation[3] = 1.0f;
-                sphere.influence_radius = Idle::SPHERE_INFLUENCE_RADIUS;
-                sphere.t = 0.0f;
-                sphere._pad1 = 0.0f;
-                sphere._pad2 = 0.0f;
-                sphere.color[0] = 0.95f;
-                sphere.color[1] = 0.75f;
-                sphere.color[2] = 0.4f;
-                sphere._pad3 = 0.0f;
-                queue.WriteBuffer(sphereBuffer_, 0, &sphere, sizeof(sphere));
+                // Zero-init all floating entity slots (inactive)
+                {
+                    std::vector<uint8_t> zeros(Dim::MAX_FLOATING_INSTANCES * sizeof(GPUFloatingEntityState), 0);
+                    queue.WriteBuffer(floatingEntityBuffer_, 0, zeros.data(), zeros.size());
+                }
+                // Populate slot 0 with default sphere (idle orbit around origin)
+                {
+                    GPUFloatingEntityState fe{};
+                    fe.pos[0] = Idle::SPHERE_ORBIT_RADIUS;
+                    fe.pos[1] = Idle::SPHERE_HOVER_HEIGHT;
+                    fe.pos[2] = 0.0f;
+                    fe.body_radius = Idle::SPHERE_RADIUS;
+                    fe.orientation[0] = 0.0f;
+                    fe.orientation[1] = 0.0f;
+                    fe.orientation[2] = 0.0f;
+                    fe.orientation[3] = 1.0f;
+                    fe.influence_radius = Idle::SPHERE_INFLUENCE_RADIUS;
+                    fe.t = 0.0f;
+                    fe.orbit_radius = Idle::SPHERE_ORBIT_RADIUS;
+                    fe.orbit_speed = Idle::SPHERE_ORBIT_SPEED;
+                    fe.color[0] = 0.95f;
+                    fe.color[1] = 0.75f;
+                    fe.color[2] = 0.4f;
+                    fe.orbit_height = Idle::SPHERE_HOVER_HEIGHT;
+                    fe.anchor[0] = 0.0f;
+                    fe.anchor[1] = 0.0f;
+                    fe.anchor[2] = 0.0f;
+                    fe.face_variance = 0.0f;
+                    fe.base_color[0] = 0.95f;
+                    fe.base_color[1] = 0.75f;
+                    fe.base_color[2] = 0.4f;
+                    fe.geometry_type = 0;    // sphere
+                    fe.motion_type = 0;      // orbit
+                    fe.spin_speed = 0.0f;
+                    fe.bob_amplitude = 0.0f;
+                    fe.bob_period = 0.0f;
+                    fe.spin_tilt_x = 0.0f;
+                    fe.spin_tilt_z = 0.0f;
+                    fe.entity_seed = 0;
+                    fe.is_active = 1;
+                    queue.WriteBuffer(floatingEntityBuffer_, 0, &fe, sizeof(fe));
+                }
 
                 // Default state — overwritten by spawner
                 GPURibbonState ribbon{};

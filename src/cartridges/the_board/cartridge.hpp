@@ -9766,4 +9766,4 @@ namespace t7 {
         };
 
     } // namespace the_board
-} // namespace t7/
+} // namespace t7

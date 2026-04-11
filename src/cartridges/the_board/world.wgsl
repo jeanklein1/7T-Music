@@ -612,18 +612,36 @@ struct CameraState {
     pan_y: f32,
 }
 
-// --- [STATE:sphere] SphereState
+// --- [STATE:floating_entity] FloatingEntityState
+// Replaces SphereState. Supports spheres, monoliths, future geometry.
+// Motion type (orbit vs hover-bob) and geometry type are per-instance.
 
-struct SphereState {
-    pos: vec3<f32>,
-    radius: f32,
-    orientation: vec4<f32>,
-    influence_radius: f32,
-    t: f32,                    // curve parameter (advances when not frozen)
-    _pad1: f32,
-    _pad2: f32,
-    color: vec3<f32>,          // current appearance (driven by polyphony via PGA motor)
-    _pad3: f32,
+struct FloatingEntityState {
+    pos: vec3<f32>,            //   0: world position (computed by GPU)
+    body_radius: f32,          //  12: bounding/visual radius
+    orientation: vec4<f32>,    //  16: quaternion
+    influence_radius: f32,     //  32: zone/terrain influence range
+    t: f32,                    //  36: curve parameter
+    orbit_radius: f32,         //  40: distance from anchor (orbit mode)
+    orbit_speed: f32,          //  44: angular velocity (orbit mode)
+    color: vec3<f32>,          //  48: current appearance (coupling-driven)
+    orbit_height: f32,         //  60: base altitude above terrain
+    anchor: vec3<f32>,         //  64: world anchor point
+    face_variance: f32,        //  76: per-face color spread (monolith)
+    base_color: vec3<f32>,     //  80: seed-derived rest color
+    geometry_type: u32,        //  92: 0=sphere, 1=monolith
+    motion_type: u32,          //  96: 0=orbit, 1=hover-bob
+    spin_speed: f32,           // 100: Y-axis rotation rate (hover-bob)
+    bob_amplitude: f32,        // 104: vertical oscillation amplitude
+    bob_period: f32,           // 108: vertical oscillation period
+    spin_tilt_x: f32,          // 112: axis tilt X
+    spin_tilt_z: f32,          // 116: axis tilt Z
+    entity_seed: u32,          // 120: seed for VS face color hashing
+    is_active: u32,            // 124: 0=inactive, 1=active
+}                              // 128 total
+
+struct FloatingEntityArray {
+    entities: array<FloatingEntityState, 12>,
 }
 
 // --- [STATE:ribbon] RibbonState
@@ -1355,15 +1373,11 @@ const FPV_EYE_HEIGHT: f32 = PAWN_HEIGHT + 0.2;  // Camera at eye level
 const FPV_MIN_ELEVATION: f32 = -1.4;             // Look down ~80°
 const FPV_MAX_ELEVATION: f32 = 1.5;              // Look up ~86°
 
-// --- Sphere constants
+// --- Floating entity constants
+// Per-entity parameters (radius, orbit_radius, orbit_height, orbit_speed,
+// influence_radius, base_color) now live in FloatingEntityState fields.
 
-const SPHERE_RADIUS: f32 = 2.5;
-const SPHERE_BASE_COLOR: vec3<f32> = vec3(0.95, 0.75, 0.4);
 const SPHERE_COLOR_RELEASE_RATE: f32 = 2.0;
-const SPHERE_INFLUENCE_RADIUS: f32 = 12.0;
-const CURVE_ORBIT_RADIUS: f32 = 25.0;
-const CURVE_ORBIT_HEIGHT: f32 = 8.0;
-const CURVE_ORBIT_SPEED: f32 = 0.8;
 const SPHERE_MIN_TERRAIN_CLEARANCE: f32 = 5.0;
 
 // (legacy proximity field constants removed — binding 21 reserved)
@@ -1585,13 +1599,13 @@ fn coupling_signal_polyphony_to_terrain_amplitude(polyphony: f32, traj: Trajecto
 // §3.2 signal → entities
 
 // --- [COUPLING:signal.polyphony→sphere:color]
-fn coupling_signal_polyphony_to_sphere_color(polyphony: f32, current: vec3<f32>, dt: f32) -> vec3<f32> {
+fn coupling_signal_polyphony_to_sphere_color(polyphony: f32, current: vec3<f32>, base_color: vec3<f32>, dt: f32) -> vec3<f32> {
     let intensity = saturate(polyphony / 8.0);
     
     // --- HYBRID APPROACH
     if (intensity < 0.01) {
         // Silent: smooth return to base color using existing release rate
-        return current + (SPHERE_BASE_COLOR - current) * (1.0 - exp(-SPHERE_COLOR_RELEASE_RATE * dt));
+        return current + (base_color - current) * (1.0 - exp(-SPHERE_COLOR_RELEASE_RATE * dt));
     }
     
     // Active: PGA spiral (rotation scales with intensity, no idle drift)
@@ -2247,10 +2261,11 @@ fn coupling_velocity_to_pawn_heading(velocity: vec2<f32>, current_heading: f32, 
 // §3.6 entities → terrain
 
 // --- [COUPLING:sphere→terrain:tint]
-fn coupling_sphere_to_terrain_tint(sphere_pos: vec3<f32>) -> vec3<f32> {
+fn coupling_sphere_to_terrain_tint(sphere_pos: vec3<f32>, orbit_radius: f32) -> vec3<f32> {
     // Normalize position to [-1, 1] based on orbit radius
-    let nx = sphere_pos.x / CURVE_ORBIT_RADIUS;
-    let nz = sphere_pos.z / CURVE_ORBIT_RADIUS;
+    let r = max(orbit_radius, 1.0);  // guard against zero
+    let nx = sphere_pos.x / r;
+    let nz = sphere_pos.z / r;
     
     // Map sphere position to RGB offsets within variance bounds
     let offset = vec3(
@@ -2335,39 +2350,40 @@ fn pga_color_motor(current_rgb: vec3<f32>, hue_speed: f32, sat_push: f32, val_cl
 }
 
 // --- [DYNAMICS:PGA] Sphere Orbit
-fn dynamics_sphere_motor_orbit(t: f32) -> SphereState {
-    var s: SphereState;
+fn dynamics_sphere_motor_orbit(t: f32, fe: FloatingEntityState) -> FloatingEntityState {
+    var s: FloatingEntityState;
 
     // 1. DEFINITION
     //    Axis: The vertical line through the origin (Line Y)
-    //    Speed: The orbital speed constant
+    //    Speed: From per-entity state
     let orbit_axis = LINE_Y.d; 
-    let angle = t * CURVE_ORBIT_SPEED;
+    let angle = t * fe.orbit_speed;
     
     // 2. THE MOTOR (The Spell)
     //    Create a rotor that spins around the Y axis.
     let m_orbit = rotor(orbit_axis, angle); 
     
     // 3. LIFT (The Input)
-    //    Define the starting position as a standard point.
-    //    (Start at Radius on X, Height on Y)
-    let start_pos_vec = vec3(CURVE_ORBIT_RADIUS, CURVE_ORBIT_HEIGHT, 0.0);
-    let p_start = point_from_vec3(start_pos_vec);
+    //    Offset from anchor — orbit_radius on X, flat plane.
+    //    Height is added after; terrain coupling adjusts it.
+    let offset = vec3(fe.orbit_radius, 0.0, 0.0);
+    let p_start = point_from_vec3(offset);
     
     // 4. MOTIVATE (The Transformation)
-    //    Apply the motor to the point via sandwich product.
+    //    Apply the rotor to the offset point.
     let p_moved = sw_motor_point(m_orbit, p_start);
+    let local_pos = point_to_vec3(p_moved);
     
     // 5. DROP (The Output)
-    //    Convert back to vec3 for the humble renderer.
-    s.pos = point_to_vec3(p_moved);
+    //    Anchor translation + base orbit height.
+    s.pos = fe.anchor + vec3(local_pos.x, fe.orbit_height, local_pos.z);
     
     // Bonus: PGA gives us the orientation for free!
     // The sphere rotates to face its path.
     s.orientation = m_orbit.p0; 
     
-    s.radius = SPHERE_RADIUS;
-    s.influence_radius = SPHERE_INFLUENCE_RADIUS;
+    s.body_radius = fe.body_radius;
+    s.influence_radius = fe.influence_radius;
     s.t = t;
     
     return s;
@@ -2378,13 +2394,13 @@ fn dynamics_sphere_motor_orbit(t: f32) -> SphereState {
 // §5 COMPOSITION
 
 // Execution orchestration - where couplings and dynamics are applied.
-fn compose_sphere_from_orbit_pga(t: f32) -> SphereState {
+fn compose_sphere_from_orbit_pga(t: f32, fe: FloatingEntityState) -> FloatingEntityState {
     // 1. Get the pure PGA orbit (circular motion via Motor)
-    var s = dynamics_sphere_motor_orbit(t);
+    var s = dynamics_sphere_motor_orbit(t, fe);
     
     // 2. Apply terrain coupling (Height adjustment)
     //    This is an "effect" applied after the ideal motion
-    let base_height = s.pos.y;  // Should be CURVE_ORBIT_HEIGHT from motor
+    let base_height = s.pos.y;  // orbit_height from motor + anchor
     let adjusted_height = coupling_terrain_to_sphere_orbit_height(
         vec2(s.pos.x, s.pos.z),
         base_height
@@ -2893,7 +2909,7 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
                             }
 
                             // Sphere force field: tint zone cells near sphere (render context)
-                            let sphere_ff = 1.0 - zone_sphere_ff(in.world_pos.xz, render_sphere.pos);
+                            let sphere_ff = 1.0 - zone_sphere_ff(in.world_pos.xz, render_floating.entities[0].pos);
                             if (sphere_ff > 0.01) {
                                 base_color = mix(base_color, ZONE_SPHERE_TINT, sphere_ff * ZONE_SPHERE_TINT_STRENGTH * color_val);
                             }
@@ -3133,14 +3149,15 @@ fn pawn_vs(@builtin(vertex_index) vid: u32) -> EntityVarying {
 
 @vertex
 fn sphere_vs(in: MeshVertexInput) -> EntityVarying {
+    let fe = render_floating.entities[0];
     // Scale by radius and translate
-    let world_pos = in.pos * render_sphere.radius + render_sphere.pos;
+    let world_pos = in.pos * fe.body_radius + fe.pos;
 
     var out: EntityVarying;
     out.clip_pos = render_vp.m * vec4(world_pos, 1.0);
     out.world_pos = world_pos;
     out.normal = in.normal;  // Unit sphere normals stay correct after uniform scale
-    out.entity_color = render_sphere.color;
+    out.entity_color = fe.color;
     return out;
 }
 
@@ -3228,7 +3245,8 @@ fn shadow_pawn_vs(@builtin(vertex_index) vid: u32) -> ShadowVarying {
 // Shadow: Sphere (same as sphere_vs, light VP)
 @vertex
 fn shadow_sphere_vs(in: MeshVertexInput) -> ShadowVarying {
-    let world_pos = in.pos * render_sphere.radius + render_sphere.pos;
+    let fe = render_floating.entities[0];
+    let world_pos = in.pos * fe.body_radius + fe.pos;
 
     var out: ShadowVarying;
     out.clip_pos = render_vp.light_vp * vec4(world_pos, 1.0);
@@ -3719,7 +3737,7 @@ struct PortalArray {
 @group(0) @binding(62)  var<uniform> portal_array: PortalArray;
 
 @group(0) @binding(80)  var<storage, read_write> camera_state: CameraState;
-@group(0) @binding(100) var<storage, read_write> sphere_state: SphereState;
+@group(0) @binding(100) var<storage, read_write> floating_entities: FloatingEntityArray;
 @group(0) @binding(101) var<storage, read_write> trajectories: array<Trajectory, 16>;
 @group(0) @binding(120) var<uniform>             ribbon_state: RibbonState;
 
@@ -3729,7 +3747,7 @@ struct PortalArray {
 @group(0) @binding(220) var<storage, read> render_terrain: TerrainState;
 @group(0) @binding(260) var<storage, read> render_pawn: PawnState;
 @group(0) @binding(280) var<storage, read> render_camera: CameraState;
-@group(0) @binding(300) var<uniform> render_sphere: SphereState;
+@group(0) @binding(300) var<uniform> render_floating: FloatingEntityArray;
 
 // --- Ribbon (Group 0: render, binding 360)
 @group(0) @binding(360) var<uniform> render_ribbon: RibbonState;
@@ -4499,26 +4517,42 @@ fn update_sphere() {
 
     let dt = signal.dt;
 
-    if (!sphere_frozen()) {
-        var sphere = sphere_state;
-        sphere.t = sphere.t + signal.dt;
+    // Step A: operate on slot 0 (multi-slot dispatch comes with spawn system)
+    let slot = 0u;
+    var fe = floating_entities.entities[slot];
+    if (fe.is_active == 0u) {
+        terrain_state.tint = vec3(1.0);
+        return;
+    }
 
-        let sphere_updated = compose_sphere_from_orbit_pga(sphere.t);
-        sphere.pos = sphere_updated.pos;
-        sphere.orientation = sphere_updated.orientation;
-        sphere_state = sphere;
+    if (!sphere_frozen()) {
+        fe.t = fe.t + signal.dt;
+
+        // Branch on motion type (Step A: only orbit implemented)
+        if (fe.motion_type == 0u) {
+            let updated = compose_sphere_from_orbit_pga(fe.t, fe);
+            fe.pos = updated.pos;
+            fe.orientation = updated.orientation;
+        }
+        // motion_type == 1 (hover-bob) — future step
+
+        floating_entities.entities[slot] = fe;
     }
 
     if (signal_active() && coupling_active(COUPLING_POLYPHONY_TO_SPHERE_COLOR)) {
-        sphere_state.color = coupling_signal_polyphony_to_sphere_color(
+        floating_entities.entities[slot].color = coupling_signal_polyphony_to_sphere_color(
             signal.stats[0],
-            sphere_state.color,
+            floating_entities.entities[slot].color,
+            floating_entities.entities[slot].base_color,
             dt
         );
     }
 
-    if (coupling_active(COUPLING_SPHERE_TO_TERRAIN_TINT)) {
-        terrain_state.tint = coupling_sphere_to_terrain_tint(sphere_state.pos);
+    if (coupling_active(COUPLING_SPHERE_TO_TERRAIN_TINT) && fe.orbit_radius > 0.0) {
+        terrain_state.tint = coupling_sphere_to_terrain_tint(
+            floating_entities.entities[slot].pos,
+            fe.orbit_radius
+        );
     } else {
         terrain_state.tint = vec3(1.0);
     }
@@ -5246,7 +5280,7 @@ fn zone_extrusion_fs(in: ZoneExtrusionVarying) -> @location(0) vec4<f32> {
     }
 
     // Sphere force field tint on extrusion blocks (render context)
-    let sphere_ff = 1.0 - zone_sphere_ff(in.world_pos.xz, render_sphere.pos);
+    let sphere_ff = 1.0 - zone_sphere_ff(in.world_pos.xz, render_floating.entities[0].pos);
     if (sphere_ff > 0.01) {
         block_color = mix(block_color, ZONE_SPHERE_TINT, sphere_ff * ZONE_SPHERE_TINT_STRENGTH);
     }
