@@ -922,7 +922,7 @@ fn terrain_coupling_at(world_xz: vec2<f32>) -> vec2<f32> {
 }
 
 // --- Chess board field: strict two-color alternation
-const CHESS_LATTICE_SPACING: f32 = 55.0;  // very small zones
+// (CHESS_LATTICE_SPACING defined in Color Field Spatial Config block below)
 
 fn chess_tendency_at_node(node: vec2<i32>) -> f32 {
     let seed = color_lattice_seed(node, 12u);
@@ -1008,8 +1008,7 @@ fn palette_color(weights: vec4<f32>, complexity: f32, cell_seed: u32) -> vec3<f3
 }
 
 // --- Discrete cell color system
-const DISCRETE_COLOR_LATTICE_SPACING: f32 = 80.0;   // medium blobs
-const DISCRETE_MONO_LATTICE_SPACING: f32 = 250.0;    // large B&W zones
+// (DISCRETE_*_LATTICE_SPACING defined in Color Field Spatial Config block)
 
 // Per-node: roll RGB mean and variance for a discrete color region.
 // Returns vec4(r_mean, g_mean, b_mean, variance).
@@ -1285,6 +1284,9 @@ const TRANSITION_LATTICE_SPACING: f32 = 200.0;   // large blend/scatter zones
 const SPARSE_BASE_SPACING: f32 = 160.0;          // broad sparse tendency regions
 const SPARSE_CLUSTER_SPACING: f32 = 40.0;         // small dense patches within sparse
 const SPARSE_BASE_EXPONENT: f32 = 3.0;           // cubic — moderately rare singles
+const CHESS_LATTICE_SPACING: f32 = 55.0;          // very small B&W alternation zones
+const DISCRETE_COLOR_LATTICE_SPACING: f32 = 80.0; // medium colored cell blobs
+const DISCRETE_MONO_LATTICE_SPACING: f32 = 250.0; // large B&W tendency zones
 
 // ── Terrain-Mode Coupling ─────────────────────────────────────────
 //

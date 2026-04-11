@@ -127,27 +127,37 @@ namespace t7 {
             };
 
             struct MoodProfile {
-                bool   finite;
-                uint32_t finite_radius_min;
-                uint32_t finite_radius_max;
-                float  sun_direction[3];
-                float  sun_color[3];
-                float  sun_intensity;
-                float  sun_ambient;
-                float  fog_density;
-                float  fog_color[3];
-                // Indoor shell
-                bool   indoor;
-                CeilingType ceiling_type;
-                float  ceiling_height;
-                float  clear_color[3];      // background color (sky or dark ceiling)
-                float  wall_color[3];
-                float  ceiling_color[3];
+                // ─── World bounds ───────────────────────────────────────
+                bool   finite;                 // true = walled world with finite radius
+                uint32_t finite_radius_min;    // min patch radius (when finite)
+                uint32_t finite_radius_max;    // max patch radius (when finite)
+
+                // ─── Lighting ───────────────────────────────────────────
+                float  sun_direction[3];       // directional light vector (normalized)
+                float  sun_color[3];           // sun RGB
+                float  sun_intensity;          // diffuse strength
+                float  sun_ambient;            // ambient fill strength
+
+                // ─── Atmosphere ─────────────────────────────────────────
+                float  fog_density;            // exponential fog coefficient
+                float  fog_color[3];           // fog/horizon RGB
+
+                // ─── Indoor shell ───────────────────────────────────────
+                bool   indoor;                 // true = enclosed space with ceiling
+                CeilingType ceiling_type;      // NONE / FLAT / VAULT
+                float  ceiling_height;         // ceiling Y (world units)
+
+                // ─── Background ─────────────────────────────────────────
+                float  clear_color[3];         // sky or dark ceiling RGB
+                float  wall_color[3];          // indoor wall surface RGB
+                float  ceiling_color[3];       // indoor ceiling surface RGB
             };
 
             static constexpr uint32_t MOOD_COUNT = 6;
 
-            //                                                                                                                                           indoor  ceil       ceil_h  clear_color            wall_color             ceil_color
+            // ─── Mood Definitions ───────────────────────────────────────────
+            //
+            //                                  fin  r_min r_max  sun_dir                sun_color              int   amb   fog_d   fog_color               indoor  ceil       ceil_h  clear_color            wall_color             ceil_color
             static constexpr MoodProfile MOOD_TABLE[MOOD_COUNT] = {
                 /* 0  open_default        */  { false, 2, 2, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f} },
                 /* 1  open_sunset         */  { false, 2, 2, { 0.96f,-0.26f,-0.13f}, {1.0f, 0.75f, 0.45f}, 0.90f, 0.20f, 0.0050f, {0.95f, 0.70f, 0.45f},  false, CeilingType::NONE,  0.0f,  {0.95f, 0.70f, 0.45f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f} },
@@ -217,6 +227,58 @@ namespace t7 {
             static constexpr uint32_t SCHEME_COUNT = 3;
             static constexpr const char* SCHEME_NAMES[] = { "Cathedral", "Gallery", "Sanctum" };
             static constexpr const char* ANCHOR_NAMES[] = { "ceiling", "wall_N", "wall_S", "wall_E", "wall_W" };
+
+            // ─── Lighting Scheme Table ───────────────────────────────────────
+            //
+            // Constexpr tier matrix for indoor lighting.
+            // AnchorRole is resolved to a concrete LightAnchor at runtime
+            // (WALL_A/B → N/S or E/W depending on seed-driven wall pair).
+            //
+            // To tune a scheme: adjust its rows. To add a scheme: add a block
+            // + SCHEME_COUNT + SCHEME_WEIGHTS entry.
+
+            enum class AnchorRole : uint32_t {
+                CEILING,    // always ceiling
+                WALL_A,     // seed-selected wall pair, side A
+                WALL_B,     // seed-selected wall pair, side B
+                SEED_PICK   // anchor chosen from seed (ceiling or wall)
+            };
+
+            struct LightSchemeSlot {
+                AnchorRole role;
+                float intensity_mean, intensity_sigma;
+                float inner_mean, inner_sigma;
+                float outer_mean, outer_sigma;
+                float warmth_mean, warmth_sigma;
+                float aim_pitch_mean, aim_pitch_sigma;
+                float aim_yaw_mean, aim_yaw_sigma;
+            };
+
+            struct LightScheme {
+                uint32_t slot_count;
+                LightSchemeSlot slots[4];  // MAX_SPOT_LIGHTS
+            };
+
+            // ─── Scheme Definitions ─────────────────────────────────────────
+            //
+            //                                role            int_μ  int_σ  inn_μ inn_σ out_μ out_σ wrm_μ wrm_σ  pit_μ  pit_σ yaw_μ  yaw_σ
+            static constexpr LightScheme LIGHT_SCHEMES[SCHEME_COUNT] = {
+                /* 0: Cathedral — ceiling primary + 2 wall sconces */
+                { 3, {
+                    { AnchorRole::CEILING,   8.0f, 2.5f, 0.6f, 0.2f,  1.2f, 0.15f, 0.35f, 0.20f,  0.0f,  0.12f, 0.0f, 0.12f },
+                    { AnchorRole::WALL_A,    5.0f, 1.5f, 0.4f, 0.15f, 1.0f, 0.15f, 0.20f, 0.15f,  0.60f, 0.40f, 0.0f, 0.30f },
+                    { AnchorRole::WALL_B,    5.0f, 1.5f, 0.4f, 0.15f, 1.0f, 0.15f, 0.75f, 0.15f,  0.60f, 0.40f, 0.0f, 0.30f },
+                }},
+                /* 1: Gallery — 2 opposing wall lights, no ceiling */
+                { 2, {
+                    { AnchorRole::WALL_A,    7.0f, 2.0f, 0.4f, 0.15f, 1.1f, 0.15f, 0.25f, 0.20f,  0.55f, 0.45f, 0.0f, 0.35f },
+                    { AnchorRole::WALL_B,    7.0f, 2.0f, 0.4f, 0.15f, 1.1f, 0.15f, 0.65f, 0.20f,  0.55f, 0.45f, 0.0f, 0.35f },
+                }},
+                /* 2: Sanctum — single dramatic source */
+                { 1, {
+                    { AnchorRole::SEED_PICK, 10.0f, 2.5f, 0.5f, 0.2f, 1.2f, 0.15f, 0.45f, 0.25f,  0.50f, 0.40f, 0.0f, 0.30f },
+                }},
+            };
 
             GPUPortalArray cpuPortalArray_{};
             bool portalsDirty_ = true;   // true at boot → first upload guaranteed
@@ -833,7 +895,7 @@ namespace t7 {
             };
 
             // ─── Color Palette ───────────────────────────────────────────────
-            //
+            // Paradigm: palette + sandstone fallback.
             // When color_override fires, the arch draws from this palette
             // instead of terrain sandstone. Extend by adding rows.
 
@@ -1032,7 +1094,10 @@ namespace t7 {
                 /* COLOSSAL */ { 125.0f, 25.0f,  3.00f, 0.50f,  0.85f, 0.05f, 0.00f, 0.0f,   2.0f, 0.5f,  7.5f, 1.5f,  17.5f, 3.5f,    0.0f, 0.0f,  7.5f, 1.5f,   0.0f, 0.0f,    1.95f, 0.39f, 12.0f, 2.4f,  1.0f, 0.20f,   0.40f, 0.20f,  20, 8,   0.13f },
             };
 
-            // Column palette (extends independently from arch palette)
+            // ─── Color Palette ───────────────────────────────────────────────
+            // Paradigm: palette + sandstone fallback (same as arch).
+            // When color_override fires, column draws from this palette.
+            // Default: terrain-derived sandstone with per-instance variance.
             static constexpr float COLUMN_PALETTE[][3] = {
                 { 0.82f, 0.80f, 0.78f },   // 0: light grey stone
                 { 0.88f, 0.83f, 0.72f },   // 1: warm limestone (cream/ivory)
@@ -1158,26 +1223,39 @@ namespace t7 {
             static constexpr uint32_t PALM_TIER_COUNT = static_cast<uint32_t>(PalmTier::COUNT);
 
             struct PalmTierParams {
-                float height_mean, height_sigma;
-                float base_r_mean, base_r_sigma;
-                float top_r_mean, top_r_sigma;
-                float lean_mean, lean_sigma;
-                float bark_rings_mean, bark_rings_sigma;
-                float bark_depth_mean, bark_depth_sigma;
-                float frond_count_mean, frond_count_sigma;
-                float frond_len_mean, frond_len_sigma;
-                float frond_width_mean, frond_width_sigma;
-                float frond_droop_mean, frond_droop_sigma;
-                float frond_arch_mean, frond_arch_sigma;
-                float crown_spread_mean, crown_spread_sigma;
-                float crown_skirt_mean, crown_skirt_sigma;
-                float solid_padding_mean, solid_padding_sigma;
-                float edge_blend_mean, edge_blend_sigma;
-                float color_over;
-                float burial;
-                float trunk_var, frond_var;
-                uint32_t trunk_segs, frond_segs;
-                float weight;
+                // ─── Trunk geometry ─────────────────────────────────────
+                float height_mean, height_sigma;         // total trunk height
+                float base_r_mean, base_r_sigma;         // radius at ground
+                float top_r_mean, top_r_sigma;           // radius at crown
+                float lean_mean, lean_sigma;             // trunk lean angle (fraction)
+
+                // ─── Bark texture ───────────────────────────────────────
+                float bark_rings_mean, bark_rings_sigma;   // horizontal ring count
+                float bark_depth_mean, bark_depth_sigma;   // ring indentation depth
+
+                // ─── Crown (frond array) ────────────────────────────────
+                float frond_count_mean, frond_count_sigma; // number of fronds
+                float frond_len_mean, frond_len_sigma;     // frond length from crown center
+                float frond_width_mean, frond_width_sigma; // frond blade width
+                float frond_droop_mean, frond_droop_sigma; // downward droop angle
+                float frond_arch_mean, frond_arch_sigma;   // inward arch curvature
+                float crown_spread_mean, crown_spread_sigma; // angular spread of frond ring
+                float crown_skirt_mean, crown_skirt_sigma;   // dead frond skirt depth
+
+                // ─── Collision solid ────────────────────────────────────
+                float solid_padding_mean, solid_padding_sigma; // extra radius beyond trunk
+                float edge_blend_mean, edge_blend_sigma;       // smoothstep width at solid edges
+
+                // ─── Appearance ─────────────────────────────────────────
+                float color_over;                        // probability of palette color
+                float burial;                            // mesh sinks into solid
+                float trunk_var, frond_var;              // color variance (trunk, fronds)
+
+                // ─── Quality ────────────────────────────────────────────
+                uint32_t trunk_segs, frond_segs;         // mesh subdivision counts
+
+                // ─── Selection ──────────────────────────────────────────
+                float weight;                            // tier selection probability
             };
 
             //                                h_μ    σ    br_μ   σ    tr_μ   σ    lean_μ σ    bark_μ σ    bd_μ   σ     fc_μ  σ    fl_μ  σ    fw_μ  σ    fd_μ  σ    fa_μ  σ    cs_μ  σ    ck_μ  σ    sp_μ  σ    eb_μ  σ    co%  bur  tv   fv   ts  fs   wt
@@ -1187,6 +1265,10 @@ namespace t7 {
                 /* ROYAL    */ { 28.0f,5.0f,  0.55f,0.10f, 0.18f,0.04f, 0.10f,0.05f, 18.0f,4.0f, 0.05f,0.01f, 15.0f,2.0f, 7.0f,1.0f,  1.5f,0.3f,  0.6f,0.15f,0.6f,0.15f,0.8f,0.1f, 0.5f,0.1f, 1.0f,0.2f, 1.0f,0.2f, 0.20f, 0.2f, 0.04f,0.03f, 20, 6,  0.15f },
             };
 
+            // ─── Color Palette ───────────────────────────────────────────────
+            // Paradigm: body-part bases with per-instance variance.
+            // Each part (trunk, frond, aged frond) has an independent RGB base.
+            // Variance from tier's trunk_var / frond_var applied per-spawn.
             static constexpr float PALM_TRUNK_BASE[3] = { 0.45f, 0.35f, 0.25f };
             static constexpr float PALM_FROND_BASE[3] = { 0.25f, 0.45f, 0.20f };
             static constexpr float PALM_AGED_BASE[3]  = { 0.35f, 0.38f, 0.18f };
@@ -1439,22 +1521,31 @@ namespace t7 {
             static constexpr uint32_t CACTUS_TIER_COUNT = static_cast<uint32_t>(CactusTier::COUNT);
 
             struct CactusTierParams {
-                float height_mean, height_sigma;
-                float radius_mean, radius_sigma;
-                float taper_mean, taper_sigma;
-                float ribs_mean, ribs_sigma;
-                float rib_depth_mean, rib_depth_sigma;
-                float lean_mean, lean_sigma;
-                float cap_round_mean, cap_round_sigma;
-                float arm_count_mean, arm_count_sigma;
-                float arm_height_mean, arm_height_sigma;
-                float arm_length_mean, arm_length_sigma;
-                float arm_radius_mean, arm_radius_sigma;
-                float arm_curve_mean, arm_curve_sigma;
-                float color_over;
-                float color_var;
-                uint32_t trunk_segs, arm_segs;
-                float weight;
+                // ─── Trunk geometry ─────────────────────────────────────
+                float height_mean, height_sigma;           // total trunk height
+                float radius_mean, radius_sigma;           // trunk radius at base
+                float taper_mean, taper_sigma;             // top/bottom radius ratio
+                float ribs_mean, ribs_sigma;               // number of vertical ribs
+                float rib_depth_mean, rib_depth_sigma;     // rib groove depth
+                float lean_mean, lean_sigma;               // trunk lean angle
+                float cap_round_mean, cap_round_sigma;     // dome roundness at top
+
+                // ─── Arms (forking branches) ────────────────────────────
+                float arm_count_mean, arm_count_sigma;     // number of arms (0 = fingerlike)
+                float arm_height_mean, arm_height_sigma;   // fork height (fraction of trunk)
+                float arm_length_mean, arm_length_sigma;   // arm length
+                float arm_radius_mean, arm_radius_sigma;   // arm thickness
+                float arm_curve_mean, arm_curve_sigma;     // upward curve strength
+
+                // ─── Appearance ─────────────────────────────────────────
+                float color_over;                          // probability of palette color
+                float color_var;                           // per-instance color variance
+
+                // ─── Quality ────────────────────────────────────────────
+                uint32_t trunk_segs, arm_segs;             // mesh subdivision counts
+
+                // ─── Selection ──────────────────────────────────────────
+                float weight;                              // tier selection probability
             };
 
             //                                   h_μ  σ     r_μ    σ      tp_μ   σ     ribs_μ σ   rd_μ   σ     ln_μ  σ     cr_μ  σ     ac_μ  σ     ah_μ  σ     al_μ  σ     ar_μ   σ     acv_μ  σ     co   cv    ts  as   wt
@@ -1464,6 +1555,10 @@ namespace t7 {
                 /* CANDELABRA */ { 14.0f,3.0f,  0.45f,0.08f, 0.92f,0.03f, 16.0f,2.0f, 0.06f,0.01f, 0.05f,0.03f,0.4f,0.1f, 3.0f,0.8f, 0.4f, 0.1f,5.0f,1.0f, 0.25f,0.05f, 0.5f,0.15f, 0.2f, 0.03f, 20, 10, 0.15f },
             };
 
+            // ─── Color Palette ───────────────────────────────────────────────
+            // Paradigm: body-part bases with per-instance variance.
+            // Trunk body and rib highlights have independent RGB bases.
+            // Variance from tier's color_var applied per-spawn.
             static constexpr float CACTUS_BODY_BASE[3] = { 0.30f, 0.45f, 0.25f };
             static constexpr float CACTUS_RIB_BASE[3]  = { 0.35f, 0.55f, 0.30f };
 
@@ -1524,34 +1619,46 @@ namespace t7 {
             static constexpr uint32_t BLADE_TIER_COUNT = static_cast<uint32_t>(BladeClusterTier::COUNT);
 
             struct BladeClusterTierParams {
-                float blade_count_mean, blade_count_sigma;
-                float blade_h_mean, blade_h_sigma;
-                float blade_h_var_mean, blade_h_var_sigma;
-                float blade_w_mean, blade_w_sigma;
-                float splay_mean, splay_sigma;
-                float curve_mean, curve_sigma;
-                float twist_mean, twist_sigma;
-                float taper_mean, taper_sigma;
-                float color_over, color_var;
-                uint32_t blade_segs;
-                float weight;
+                // ─── Cluster geometry ───────────────────────────────────
+                float blade_count_mean, blade_count_sigma; // number of blades per cluster
+                float blade_h_mean, blade_h_sigma;         // blade height
+                float blade_h_var_mean, blade_h_var_sigma; // per-blade height variance
+                float blade_w_mean, blade_w_sigma;         // blade width at base
+
+                // ─── Blade shape ────────────────────────────────────────
+                float splay_mean, splay_sigma;             // outward spread angle
+                float curve_mean, curve_sigma;             // midrib curvature
+                float twist_mean, twist_sigma;             // axial twist along blade
+                float taper_mean, taper_sigma;             // width taper toward tip
+
+                // ─── Appearance ─────────────────────────────────────────
+                float color_over, color_var;               // palette override chance, variance
+
+                // ─── Quality ────────────────────────────────────────────
+                uint32_t blade_segs;                       // segments per blade
+
+                // ─── Selection ──────────────────────────────────────────
+                float weight;                              // tier selection probability
             };
 
+            //                      cnt   σ      h_μ   σ      hv_μ  σ      w_μ   σ
+            //                      splay σ      curve σ      twist σ      taper σ      co%  cv    seg  wt
             static constexpr BladeClusterTierParams BLADE_TIERS[] = {
-                // Sprout — tiny, 3-4 blades, ground punctuation
-                { 3.0f, 0.5f,   1.8f, 0.4f,   0.35f, 0.08f,   0.30f, 0.06f,
-                  0.18f, 0.06f,  0.12f, 0.04f,  0.05f, 0.02f,  0.85f, 0.05f,
-                  0.15f, 0.06f,  5,  0.50f },
-                // Clump — classic painting bush, 4-6 blades
-                { 5.0f, 1.0f,   3.2f, 0.6f,   0.40f, 0.10f,   0.45f, 0.08f,
-                  0.25f, 0.08f,  0.18f, 0.06f,  0.08f, 0.03f,  0.82f, 0.05f,
-                  0.20f, 0.06f,  6,  0.35f },
-                // Thicket — taller, denser, 5-7 blades
-                { 6.0f, 1.0f,   5.5f, 1.2f,   0.45f, 0.10f,   0.55f, 0.10f,
-                  0.30f, 0.10f,  0.22f, 0.08f,  0.10f, 0.04f,  0.80f, 0.06f,
-                  0.25f, 0.08f,  7,  0.15f },
+                /* SPROUT  */  { 3.0f, 0.5f,   1.8f, 0.4f,   0.35f, 0.08f,   0.30f, 0.06f,
+                                 0.18f, 0.06f,  0.12f, 0.04f,  0.05f, 0.02f,  0.85f, 0.05f,
+                                 0.15f, 0.06f,  5,  0.50f },
+                /* CLUMP   */  { 5.0f, 1.0f,   3.2f, 0.6f,   0.40f, 0.10f,   0.45f, 0.08f,
+                                 0.25f, 0.08f,  0.18f, 0.06f,  0.08f, 0.03f,  0.82f, 0.05f,
+                                 0.20f, 0.06f,  6,  0.35f },
+                /* THICKET */  { 6.0f, 1.0f,   5.5f, 1.2f,   0.45f, 0.10f,   0.55f, 0.10f,
+                                 0.30f, 0.10f,  0.22f, 0.08f,  0.10f, 0.04f,  0.80f, 0.06f,
+                                 0.25f, 0.08f,  7,  0.15f },
             };
 
+            // ─── Color Palette ───────────────────────────────────────────────
+            // Paradigm: body-part bases with per-instance variance.
+            // Fresh blade body and aged (dried) blade have independent RGB bases.
+            // Variance from tier's color_var applied per-spawn.
             static constexpr float BLADE_BODY_BASE[3]  = { 0.28f, 0.52f, 0.22f };
             static constexpr float BLADE_AGED_BASE[3]  = { 0.48f, 0.45f, 0.28f };
 
@@ -1978,6 +2085,9 @@ namespace t7 {
                 /* COLOSSUS */  {  78.0f, 14.4f, 60.0f, 9.6f,  1.0f, 0.10f,  0.05f, 0.04f,  3.6f, 1.0f,  0.20f, 0.04f,  0.25f },
             };
 
+            // ─── Color Palette ───────────────────────────────────────────────
+            // Paradigm: sandstone base with per-instance variance (no palette).
+            // All pyramids derive color from a single sandstone RGB base.
             static constexpr float PYRAMID_SANDSTONE_BASE[3] = { 0.80f, 0.72f, 0.58f };
             static constexpr float PYRAMID_SANDSTONE_VARIANCE = 0.05f;
 
@@ -2093,6 +2203,7 @@ namespace t7 {
                 float adj_mod = adjacency_modifier(family, nflags);
                 adj_mod *= mood_mult[activeMood_];
                 adj_mod *= population_type_affinity(family);
+                adj_mod *= GLOBAL_ENTITY_DENSITY;
                 r.theme_idx = active_theme_idx_;
                 {
                     auto dit = tileCache_.find({ gx, gz });
@@ -3125,6 +3236,74 @@ namespace t7 {
                 static constexpr uint32_t BLADE = 6;
                 static constexpr uint32_t COUNT = 7;
             };
+
+            // ─── Spawn Configuration Summary ────────────────────────────────
+            //
+            // Single-glance view of all entity spawn parameters.
+            // Authoritative values live in each entity's Config struct.
+            //
+            //  ┌──────────┬─────────────────────────────────┬───────────────────────────────────────┬────────┐
+            //  │ Family   │ SPAWN_CHANCE_BY_ARCHETYPE        │ MOOD_MULTIPLIER                       │ JITTER │
+            //  │          │ mount  varied basin  pool        │ open  sunset flat  vault  fin   finR  │        │
+            //  ├──────────┼─────────────────────────────────┼───────────────────────────────────────┼────────┤
+            //  │ Pyramid  │ 0.030  0.030  0.030  0.0        │ 1.0   1.0    1.0   1.0    1.0   0.0  │  0.25  │
+            //  │ Arch     │ 0.030  0.030  0.030  0.0        │ 1.0   1.0    1.0   1.0    1.0   1.0  │  0.35  │
+            //  │ Column   │ 0.030  0.030  0.030  0.0        │ 1.0   1.0    1.0   1.0    1.0   0.0  │  0.35  │
+            //  │ Antenna  │ 0.025  0.025  0.025  0.0        │ 1.0   1.0    1.0   1.0    1.0   0.0  │  0.35  │
+            //  │ Palm     │ 0.200  0.200  0.200  0.5        │ 1.0   1.0    1.0   1.0    1.0   0.0  │  0.45  │
+            //  │ Cactus   │ 0.000  0.100  0.100  0.0        │ 1.0   1.0    1.0   1.0    1.0   0.0  │  0.35  │
+            //  │ Blade    │ 0.000  0.025  0.025  0.0        │ 1.0   1.0    1.0   1.0    1.0   0.0  │  0.30  │
+            //  └──────────┴─────────────────────────────────┴───────────────────────────────────────┴────────┘
+            //
+            // Themes further multiply spawn_chance via PopulationTheme::spawn_weight[family].
+            // Moods gate entire families (0.0 = suppressed in that mood).
+            // Jitter is fraction of PATCH_EXTENT for position randomization.
+
+            // ─── Global Entity Density ──────────────────────────────────────
+            // Master multiplier applied to ALL entity spawn chances.
+            // 1.0 = normal, <1.0 = sparser world, >1.0 = denser world.
+            // Stacks with per-theme density_mult and per-tile entity_density.
+            static constexpr float GLOBAL_ENTITY_DENSITY = 1.0f;
+
+            // ─── Property Index Registry ────────────────────────────────────
+            //
+            // Master allocation map for cpu_hash_f(seed, prop) indices.
+            // Each family claims a non-overlapping range within its seed source.
+            // Collisions between families that share a seed source produce
+            // correlated rolls — a subtle bug. Check this table before
+            // allocating indices for new entities.
+            //
+            // SEED SOURCE: tile_seed(activeSeed_, gx, gz)
+            //  ┌───────────┬───────────┬────────────────────────────────────┐
+            //  │ Range     │ Family    │ Struct                             │
+            //  ├───────────┼───────────┼────────────────────────────────────┤
+            //  │   1       │ Heightfld │ (inline)                           │
+            //  │ 200 – 208 │ Terrain   │ CPU_WAVE_* constants               │
+            //  │ 220 – 221 │ Activity  │ CPU_ACT_PROP_* constants           │
+            //  │ 370       │ Theme     │ select_theme_at_node (inline)      │
+            //  │ 400 – 443 │ Ribbon    │ RibbonProp                         │
+            //  │ 500 – 540 │ Gallery   │ (inline indices in spawn_gallery)  │
+            //  │ 600 – 623 │ Arch      │ ArchProp                           │
+            //  │ 700 – 743 │ Column    │ ColumnProp                         │
+            //  │ 800 – 823 │ Pyramid   │ PyramidProp                        │
+            //  │ 900 – 943 │ Antenna   │ AntennaProp                        │
+            //  │ 950 – 993 │ Palm      │ PalmProp                           │
+            //  │1000 –1033 │ Cactus    │ CactusProp                         │
+            //  │1100 –1122 │ Blade     │ BladeProp                          │
+            //  │1200+      │ (free)    │ next entity family starts here     │
+            //  └───────────┴───────────┴────────────────────────────────────┘
+            //
+            // SEED SOURCE: lattice_node_seed (band 250) — GoL zones
+            //  ┌───────────┬───────────┬────────────────────────────────────┐
+            //  │ Range     │ Family    │ Struct                             │
+            //  ├───────────┼───────────┼────────────────────────────────────┤
+            //  │ 920 – 938 │ GoL Zone  │ GoLZoneProp                        │
+            //  │ 950 – 954 │ Pulse     │ PulseZoneProp                      │
+            //  └───────────┴───────────┴────────────────────────────────────┘
+            //  NOTE: GoL/Pulse indices overlap Antenna and Palm numerically,
+            //  but are safe — they use a different seed source (lattice band
+            //  250 vs tile_seed). Do NOT move GoL props into the tile_seed
+            //  range without resolving the collision.
 
             // Entity presence flags — bitfield tracking what was spawned on
             // a tile. Enables neighbor-aware spawn probability.
@@ -9587,4 +9766,4 @@ namespace t7 {
         };
 
     } // namespace the_board
-} // namespace t7
+} // namespace t7/

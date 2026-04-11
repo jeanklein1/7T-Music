@@ -129,7 +129,7 @@ namespace t7 {
 
             // Indoor shell (ceiling + walls for finite indoor scenes)
             constexpr uint32_t SHELL_MAX_VERTICES = 2048;
-            constexpr uint32_t SHELL_MAX_INDICES  = 8192;
+            constexpr uint32_t SHELL_MAX_INDICES = 8192;
 
             // Painting system: staging + exhibition
             constexpr uint32_t PAINTING_MAX_SLOTS = 32;       // max exhibited paintings
@@ -143,10 +143,10 @@ namespace t7 {
 
             // Generative catenary arches — GPU mesh gen (slot-based addressing)
             constexpr uint32_t MAX_ARCH_INSTANCES = 16;
-            constexpr uint32_t AMG_MAX_VERTS_PER_SLOT  = 2000;  // monumental worst case: 1470
+            constexpr uint32_t AMG_MAX_VERTS_PER_SLOT = 2000;  // monumental worst case: 1470
             constexpr uint32_t AMG_MAX_INDICES_PER_SLOT = 7500;  // monumental worst case: 7488 (must be divisible by 3!)
             constexpr uint32_t AMG_TOTAL_VERTICES = MAX_ARCH_INSTANCES * AMG_MAX_VERTS_PER_SLOT;   // 32000
-            constexpr uint32_t AMG_TOTAL_INDICES  = MAX_ARCH_INSTANCES * AMG_MAX_INDICES_PER_SLOT; // 120000
+            constexpr uint32_t AMG_TOTAL_INDICES = MAX_ARCH_INSTANCES * AMG_MAX_INDICES_PER_SLOT; // 120000
 
             // Generative columns — GPU mesh gen (slot-based addressing)
             constexpr uint32_t MAX_COLUMN_INSTANCES = 32;
@@ -154,38 +154,38 @@ namespace t7 {
             constexpr uint32_t MAX_ANTENNA_ONLY = 16;            // antennas: slots 16-31
             constexpr uint32_t ANTENNA_SLOT_OFFSET = 16;         // GPU slot offset for antenna family
             static_assert(MAX_COLUMN_ONLY + MAX_ANTENNA_ONLY == MAX_COLUMN_INSTANCES);
-            constexpr uint32_t CMG_MAX_VERTS_PER_SLOT  = 1500;  // ornate worst case: 1249
+            constexpr uint32_t CMG_MAX_VERTS_PER_SLOT = 1500;  // ornate worst case: 1249
             constexpr uint32_t CMG_MAX_INDICES_PER_SLOT = 6000;  // ornate worst case: 5880 (divisible by 3)
             constexpr uint32_t CMG_TOTAL_VERTICES = MAX_COLUMN_INSTANCES * CMG_MAX_VERTS_PER_SLOT;   // 48000
-            constexpr uint32_t CMG_TOTAL_INDICES  = MAX_COLUMN_INSTANCES * CMG_MAX_INDICES_PER_SLOT; // 192000
+            constexpr uint32_t CMG_TOTAL_INDICES = MAX_COLUMN_INSTANCES * CMG_MAX_INDICES_PER_SLOT; // 192000
 
             // Generative pyramids — GPU mesh gen (slot-based addressing)
             constexpr uint32_t MAX_PYRAMID_INSTANCES = 8;
-            constexpr uint32_t PMG_MAX_VERTS_PER_SLOT  = 36;   // truncated: 12 tris × 3 (sides + top + bottom)
+            constexpr uint32_t PMG_MAX_VERTS_PER_SLOT = 36;   // truncated: 12 tris × 3 (sides + top + bottom)
             constexpr uint32_t PMG_MAX_INDICES_PER_SLOT = 36;  // unindexed triangles (1:1 vert:idx)
             constexpr uint32_t PMG_TOTAL_VERTICES = MAX_PYRAMID_INSTANCES * PMG_MAX_VERTS_PER_SLOT;   // 288
-            constexpr uint32_t PMG_TOTAL_INDICES  = MAX_PYRAMID_INSTANCES * PMG_MAX_INDICES_PER_SLOT; // 288
+            constexpr uint32_t PMG_TOTAL_INDICES = MAX_PYRAMID_INSTANCES * PMG_MAX_INDICES_PER_SLOT; // 288
 
             // Generative palms — GPU mesh gen (slot-based addressing)
             constexpr uint32_t MAX_PALM_INSTANCES = 24;
-            constexpr uint32_t PALMG_MAX_VERTS_PER_SLOT  = 1200;
+            constexpr uint32_t PALMG_MAX_VERTS_PER_SLOT = 1200;
             constexpr uint32_t PALMG_MAX_INDICES_PER_SLOT = 6000;
             constexpr uint32_t PALMG_TOTAL_VERTICES = MAX_PALM_INSTANCES * PALMG_MAX_VERTS_PER_SLOT;   // 28800
-            constexpr uint32_t PALMG_TOTAL_INDICES  = MAX_PALM_INSTANCES * PALMG_MAX_INDICES_PER_SLOT; // 144000
+            constexpr uint32_t PALMG_TOTAL_INDICES = MAX_PALM_INSTANCES * PALMG_MAX_INDICES_PER_SLOT; // 144000
 
             // Generative cacti — GPU mesh gen (slot-based addressing)
             constexpr uint32_t MAX_CACTUS_INSTANCES = 20;
-            constexpr uint32_t CACTUSG_MAX_VERTS_PER_SLOT  = 1500;
+            constexpr uint32_t CACTUSG_MAX_VERTS_PER_SLOT = 1500;
             constexpr uint32_t CACTUSG_MAX_INDICES_PER_SLOT = 7998;  // must be divisible by 3!
             constexpr uint32_t CACTUSG_TOTAL_VERTICES = MAX_CACTUS_INSTANCES * CACTUSG_MAX_VERTS_PER_SLOT;
-            constexpr uint32_t CACTUSG_TOTAL_INDICES  = MAX_CACTUS_INSTANCES * CACTUSG_MAX_INDICES_PER_SLOT;
+            constexpr uint32_t CACTUSG_TOTAL_INDICES = MAX_CACTUS_INSTANCES * CACTUSG_MAX_INDICES_PER_SLOT;
 
             // Generative blade clusters — GPU mesh gen (slot-based addressing)
             constexpr uint32_t MAX_BLADE_INSTANCES = 32;
-            constexpr uint32_t BLADEG_MAX_VERTS_PER_SLOT  = 500;
+            constexpr uint32_t BLADEG_MAX_VERTS_PER_SLOT = 500;
             constexpr uint32_t BLADEG_MAX_INDICES_PER_SLOT = 1998;  // must be divisible by 3!
             constexpr uint32_t BLADEG_TOTAL_VERTICES = MAX_BLADE_INSTANCES * BLADEG_MAX_VERTS_PER_SLOT;
-            constexpr uint32_t BLADEG_TOTAL_INDICES  = MAX_BLADE_INSTANCES * BLADEG_MAX_INDICES_PER_SLOT;
+            constexpr uint32_t BLADEG_TOTAL_INDICES = MAX_BLADE_INSTANCES * BLADEG_MAX_INDICES_PER_SLOT;
 
             // GoL zone system — per-zone automaton grids
             constexpr uint32_t MAX_GOL_ZONES = 8;
@@ -309,20 +309,27 @@ namespace t7 {
         };
 
         struct alignas(16) GPUDesignConfig {
+            // ─── Debug mutes ────────────────────────────────────────
             uint32_t mute_dynamics_0d;
             uint32_t mute_dynamics_2d;
             uint32_t mute_signal;
             uint32_t mute_couplings;
+
+            // ─── Interaction ────────────────────────────────────────
             float wave_time_scale;
             float pawn_speed;
             float camera_sensitivity;
             uint32_t freeze_sphere;
             float active_cell_size;
             uint32_t fpv_mode;
-            uint32_t wave_enable_mask;
-            uint32_t wave_freeze_mask;
-            float wave_frozen_t[3];
+
+            // ─── Terrain wave control ───────────────────────────────
+            uint32_t wave_enable_mask;        // per-band enable bits
+            uint32_t wave_freeze_mask;        // per-band freeze bits
+            float wave_frozen_t[3];           // frozen time per band triplet
             uint32_t world_seed;              // master seed for GPU-side terrain/zone generation
+
+            // ─── Lighting & atmosphere ──────────────────────────────
             float sun_direction[3];
             float aura_enabled;               // 0.0 = off, 1.0 = on (guards all aura sampling)
             float pawn_amp_scale;
@@ -330,8 +337,12 @@ namespace t7 {
             float pawn_aura_height;           // 0.0 = no aura extrusion, >0 = world units of rise
             float fog_density;                // exponential fog coefficient (default 0.003)
             float fog_color[3];               // fog/sky color RGB
+
+            // ─── Transition overlay ─────────────────────────────────
             float fade_alpha;                 // 0.0 = no overlay, 1.0 = fully opaque
             float fade_color[3];              // transition overlay RGB
+
+            // ─── World structure ────────────────────────────────────
             uint32_t pier_count;              // active pier count for bounded iteration
             float world_bound_min[2];         // XZ min clamp (0,0 = infinite)
             float world_bound_max[2];         // XZ max clamp (0,0 = infinite)
@@ -344,21 +355,24 @@ namespace t7 {
             // Per-band blend factor: -1.0 = use activity field (default),
             // [0,1] = direct blend between frozen and moving terrain.
             // CPU smoothly ramps these based on polyphony count.
-            float band_blend_0;               // continental
-            float band_blend_1;               // regional
-            float band_blend_2;               // local
-            float band_blend_3;               // detail
-            float band_blend_4;               // fine
-            float band_blend_5;               // tectonic
+            // Indexed as band_blend[i]: 0=continental, 1=regional, 2=local,
+            //                           3=detail, 4=fine, 5=tectonic
+            float band_blend_0;               // [0] continental
+            float band_blend_1;               // [1] regional
+            float band_blend_2;               // [2] local
+            float band_blend_3;               // [3] detail
+            float band_blend_4;               // [4] fine
+            float band_blend_5;               // [5] tectonic
             // Per-band phase origin (t_beats when band activated).
             // Moving phase = phase_base + (t_beats - origin) * freq,
             // so at activation moment the moving phase equals frozen phase.
-            float band_phase_origin_0;
-            float band_phase_origin_1;
-            float band_phase_origin_2;
-            float band_phase_origin_3;
-            float band_phase_origin_4;
-            float band_phase_origin_5;
+            // Indexed as band_phase_origin[i], same band order as above.
+            float band_phase_origin_0;        // [0] continental
+            float band_phase_origin_1;        // [1] regional
+            float band_phase_origin_2;        // [2] local
+            float band_phase_origin_3;        // [3] detail
+            float band_phase_origin_4;        // [4] fine
+            float band_phase_origin_5;        // [5] tectonic
 
             // ─── Musical animation modes ─────────────────────────────────
             // Each mode is an independently toggleable coupling circuit.
@@ -373,11 +387,12 @@ namespace t7 {
             float _pad_mode_3;
 
             // ─── Radial pulse ring buffer ────────────────────────────────
-            // 8 recent note onsets, each: (origin_x, origin_z, onset_beats, amplitude)
+            // 8 recent note onsets, indexed as pulse_data[i*4 + field]:
+            //   field 0 = origin_x, 1 = origin_z, 2 = onset_beats, 3 = amplitude
             // Evaluated in terrain VS + update_pawn as expanding ring wavefronts.
             uint32_t pulse_count;             // active entries (0–8)
             float _pulse_pad[3];
-            float pulse_data[32];             // 8 × (x, z, onset_beats, amplitude)
+            float pulse_data[32];             // 8 × {origin_x, origin_z, onset_beats, amplitude}
         };
 
         // Tile grid: modifier field for smooth archetype interpolation.
@@ -500,14 +515,14 @@ namespace t7 {
 
         // Pier tier enum (carried in tier field, not read by evaluation today)
         namespace PierTier {
-            constexpr uint32_t TEST_RIG         = 0;
-            constexpr uint32_t ARCH_DOORWAY     = 1;
-            constexpr uint32_t ARCH_STANDARD    = 2;
-            constexpr uint32_t ARCH_MONUMENTAL  = 3;
-            constexpr uint32_t COL_PILLAR       = 4;
-            constexpr uint32_t COL_DORIC        = 5;
-            constexpr uint32_t COL_ORNATE       = 6;
-            constexpr uint32_t COL_ANTENNA      = 7;
+            constexpr uint32_t TEST_RIG = 0;
+            constexpr uint32_t ARCH_DOORWAY = 1;
+            constexpr uint32_t ARCH_STANDARD = 2;
+            constexpr uint32_t ARCH_MONUMENTAL = 3;
+            constexpr uint32_t COL_PILLAR = 4;
+            constexpr uint32_t COL_DORIC = 5;
+            constexpr uint32_t COL_ORNATE = 6;
+            constexpr uint32_t COL_ANTENNA = 7;
             constexpr uint32_t COL_ANTENNA_SQUAT = 8;
             constexpr uint32_t COL_ANTENNA_COLOSSAL = 9;
         }
@@ -722,7 +737,7 @@ namespace t7 {
             uint32_t _pad0;                                  // 1 uint32  = 4 uint32 = 16 bytes
         };                                                   // total = 80 bytes
         static_assert(sizeof(GPUBladeClusterMeshParams) == 80,
-                      "GPUBladeClusterMeshParams must be 80 bytes");
+            "GPUBladeClusterMeshParams must be 80 bytes");
 
         struct alignas(16) GPUBladeClusterGroundEntry {
             float center_x;
@@ -732,7 +747,7 @@ namespace t7 {
             float _pad0, _pad1, _pad2, _pad3;
         };
         static_assert(sizeof(GPUBladeClusterGroundEntry) == 32,
-                      "GPUBladeClusterGroundEntry must be 32 bytes");
+            "GPUBladeClusterGroundEntry must be 32 bytes");
 
         // GoL zone config — per-zone parameters for compute + fragment shader
         struct alignas(16) GPUGoLZoneConfig {
@@ -971,7 +986,7 @@ namespace t7 {
         // Unified painting slot — CPU mirror of WGSL UnifiedPaintingSlot (must match).
         // Both terrain-quad (photographer) and wall-frame (indoor) forms use this.
         // Each pipeline reads the fields it needs; form_type selects which pipeline draws it.
-        namespace FormType  { constexpr uint32_t TERRAIN_QUAD = 0; constexpr uint32_t WALL_FRAME = 1; }
+        namespace FormType { constexpr uint32_t TERRAIN_QUAD = 0; constexpr uint32_t WALL_FRAME = 1; }
         namespace ContentSource { constexpr uint32_t AUTHORED = 0; constexpr uint32_t SNAPSHOT = 1; }
 
         struct alignas(16) GPUPaintingSlot {
@@ -1380,10 +1395,10 @@ namespace t7 {
                     uint32_t n = width * height * 4;
                     swapped.resize(n);
                     for (uint32_t i = 0; i < width * height; ++i) {
-                        swapped[i*4 + 0] = rgba_data[i*4 + 2]; // B
-                        swapped[i*4 + 1] = rgba_data[i*4 + 1]; // G
-                        swapped[i*4 + 2] = rgba_data[i*4 + 0]; // R
-                        swapped[i*4 + 3] = rgba_data[i*4 + 3]; // A
+                        swapped[i * 4 + 0] = rgba_data[i * 4 + 2]; // B
+                        swapped[i * 4 + 1] = rgba_data[i * 4 + 1]; // G
+                        swapped[i * 4 + 2] = rgba_data[i * 4 + 0]; // R
+                        swapped[i * 4 + 3] = rgba_data[i * 4 + 3]; // A
                     }
                     src = swapped.data();
                 }
@@ -1410,10 +1425,10 @@ namespace t7 {
                 uint32_t N = Dim::PAINTING_RESOLUTION;
                 std::vector<uint8_t> pixels(N * N * 4);
                 for (uint32_t i = 0; i < N * N; ++i) {
-                    pixels[i*4 + 0] = need_swap ? b : r;
-                    pixels[i*4 + 1] = g;
-                    pixels[i*4 + 2] = need_swap ? r : b;
-                    pixels[i*4 + 3] = 255;
+                    pixels[i * 4 + 0] = need_swap ? b : r;
+                    pixels[i * 4 + 1] = g;
+                    pixels[i * 4 + 2] = need_swap ? r : b;
+                    pixels[i * 4 + 3] = 255;
                 }
                 upload_authored_painting(queue, layer, pixels.data(), N, N);
             }
@@ -1425,15 +1440,15 @@ namespace t7 {
 
                 auto makeTextureArray = [&](const char* label, uint32_t layers,
                     wgpu::TextureUsage usage) -> wgpu::Texture
-                {
-                    wgpu::TextureDescriptor desc{};
-                    desc.label = label;
-                    desc.size = { Dim::PAINTING_RESOLUTION, Dim::PAINTING_RESOLUTION, layers };
-                    desc.dimension = wgpu::TextureDimension::e2D;
-                    desc.format = colorFormat;
-                    desc.usage = usage;
-                    return device_.CreateTexture(&desc);
-                };
+                    {
+                        wgpu::TextureDescriptor desc{};
+                        desc.label = label;
+                        desc.size = { Dim::PAINTING_RESOLUTION, Dim::PAINTING_RESOLUTION, layers };
+                        desc.dimension = wgpu::TextureDimension::e2D;
+                        desc.format = colorFormat;
+                        desc.usage = usage;
+                        return device_.CreateTexture(&desc);
+                    };
 
                 auto makeArrayView = [&](wgpu::Texture tex, const char* label, uint32_t layers) -> wgpu::TextureView {
                     wgpu::TextureViewDescriptor vd{};
@@ -1441,7 +1456,7 @@ namespace t7 {
                     vd.arrayLayerCount = layers;
                     vd.label = label;
                     return tex.CreateView(&vd);
-                };
+                    };
 
                 // Snapshot staging — photographer writes here, promotion copies from here
                 snapshotStagingTexture_ = makeTextureArray("Snapshot Staging",
@@ -1833,7 +1848,7 @@ namespace t7 {
             uint32_t blade_index_count() const { return bladeIndexCount_; }
             void set_blade_index_count(uint32_t count) { bladeIndexCount_ = count; }
             void upload_blade_mesh_params_slot(wgpu::Queue& queue, uint32_t slot,
-                                               const GPUBladeClusterMeshParams& params) {
+                const GPUBladeClusterMeshParams& params) {
                 queue.WriteBuffer(bladeMeshParamsBuffer_,
                     slot * sizeof(GPUBladeClusterMeshParams),
                     &params, sizeof(GPUBladeClusterMeshParams));
@@ -1841,7 +1856,7 @@ namespace t7 {
             wgpu::BindGroupLayout blade_mesh_gen_layout() const { return bladeMeshGenLayout_; }
             wgpu::BindGroup blade_mesh_gen_group() const { return bladeMeshGenBindGroup_; }
             void upload_blade_origins(wgpu::Queue& queue,
-                                      const GPUBladeClusterGroundEntry* entries, uint32_t count) {
+                const GPUBladeClusterGroundEntry* entries, uint32_t count) {
                 queue.WriteBuffer(bladeGroundBuffer_, 0, entries,
                     sizeof(GPUBladeClusterGroundEntry) * std::min(count, Dim::MAX_BLADE_INSTANCES));
             }
@@ -2027,7 +2042,7 @@ namespace t7 {
             wgpu::Buffer patch_params_buffer() const { return patchParamsBuffer_; }
             wgpu::Buffer patch_staging_buffer() const { return patchStagingBuffer_; }
             void upload_patch_staging(wgpu::Queue& queue, const GPUPatchParams* params,
-                                     uint32_t count, uint32_t offset = 0) {
+                uint32_t count, uint32_t offset = 0) {
                 queue.WriteBuffer(patchStagingBuffer_,
                     offset * sizeof(GPUPatchParams),
                     params, sizeof(GPUPatchParams) * count);
