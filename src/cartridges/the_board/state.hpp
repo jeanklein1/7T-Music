@@ -191,7 +191,7 @@ namespace t7 {
             constexpr uint32_t MAX_GOL_ZONES = 8;
 
             // Floating entity system — spheres, monoliths, future forms
-            constexpr uint32_t MAX_FLOATING_INSTANCES = 12;
+            constexpr uint32_t MAX_FLOATING_INSTANCES = 32;
             constexpr uint32_t GOL_ZONE_GRID = 32;      // cells per zone side
             constexpr uint32_t GOL_ZONE_CELLS = GOL_ZONE_GRID * GOL_ZONE_GRID;  // 1024
             constexpr uint32_t GOL_ZONE_LIFE_STRIDE = GOL_ZONE_CELLS * 7;  // 7 slots: visual, velocity, target, next, height_factor, color_visual, color_velocity
@@ -476,7 +476,11 @@ namespace t7 {
             float spin_tilt_z;         // 116: axis tilt Z
             uint32_t entity_seed;      // 120: seed for VS face color hashing
             uint32_t is_active;        // 124: 0=inactive, 1=active
-        };                             // 128 total
+            float aspect_y;            // 128: Y-axis scale multiplier (1.0=cube, >1=tall, <1=flat)
+            float aspect_z;            // 132: Z-axis scale multiplier (1.0=cube, <1=thin slab)
+            float _future_2;           // 136: reserved
+            float _future_3;           // 140: reserved
+        };                             // 144 total
 
         struct alignas(16) GPURibbonState {
             float anchor[3];                                                    // 0
@@ -988,7 +992,7 @@ namespace t7 {
         static_assert(sizeof(GPUTerrainState) == 32, "GPUTerrainState must be 32 bytes");
         static_assert(sizeof(GPUPawnState) == 48, "GPUPawnState must be 48 bytes");
         static_assert(sizeof(GPUCameraState) == 32, "GPUCameraState must be 32 bytes");
-        static_assert(sizeof(GPUFloatingEntityState) == 128, "GPUFloatingEntityState must be 128 bytes");
+        static_assert(sizeof(GPUFloatingEntityState) == 144, "GPUFloatingEntityState must be 144 bytes");
         static_assert(sizeof(GPURibbonState) == 96, "GPURibbonState must be 96 bytes");
         static_assert(sizeof(GPUVPMatrix) == 128, "GPUVPMatrix must be 128 bytes");
         static_assert(sizeof(GPUDirectionalLight) == 48, "GPUDirectionalLight must be 48 bytes");
@@ -1110,6 +1114,8 @@ namespace t7 {
             // (legacy cell mesh buffers removed — bindings 43-45 reserved)
             wgpu::Buffer sphereVertexBuffer_, sphereIndexBuffer_;
             uint32_t sphereIndexCount_ = 0;
+            wgpu::Buffer monolithVertexBuffer_, monolithIndexBuffer_;
+            uint32_t monolithIndexCount_ = 0;
 
             wgpu::Buffer archVertexBuffer_, archIndexBuffer_;
             wgpu::Buffer archGroundBuffer_;  // per-arch ground Y correction (GPU-corrected)
@@ -1791,6 +1797,9 @@ namespace t7 {
             wgpu::Buffer sphere_vertex_buffer() const { return sphereVertexBuffer_; }
             wgpu::Buffer sphere_index_buffer() const { return sphereIndexBuffer_; }
             uint32_t sphere_index_count() const { return sphereIndexCount_; }
+            wgpu::Buffer monolith_vertex_buffer() const { return monolithVertexBuffer_; }
+            wgpu::Buffer monolith_index_buffer() const { return monolithIndexBuffer_; }
+            uint32_t monolith_index_count() const { return monolithIndexCount_; }
             wgpu::Buffer arch_vertex_buffer() const { return archVertexBuffer_; }
             wgpu::Buffer arch_index_buffer() const { return archIndexBuffer_; }
             wgpu::Buffer arch_ground_buffer() const { return archGroundBuffer_; }
@@ -2215,7 +2224,7 @@ namespace t7 {
                     q.WriteBuffer(patchIndexBufferLOD1_, 0, idx.data(), idx.size() * 4);
                 }
 
-                return createSphereMesh() && createArchMesh() && createColumnMesh() && createPalmMesh() && createCactusMesh() && createBladeMesh() && createPyramidMesh() && createShellMesh() && createGoLZoneBuffers();
+                return createSphereMesh() && createMonolithMesh() && createArchMesh() && createColumnMesh() && createPalmMesh() && createCactusMesh() && createBladeMesh() && createPyramidMesh() && createShellMesh() && createGoLZoneBuffers();
             }
 
             // (createCellMeshBuffers removed — legacy cell mesh gen)
@@ -2248,6 +2257,82 @@ namespace t7 {
                 return true;
             }
 
+
+            bool createMonolithMesh() {
+                // Imperfect unit cube: 6 faces, slightly jittered corners.
+                // Same MeshVertex format as sphere (pos + normal).
+                // Face index derived from normal direction in VS.
+                static constexpr float J = 0.06f;  // jitter magnitude
+                auto jit = [](int corner, int axis) -> float {
+                    uint32_t h = (uint32_t)(corner * 3 + axis);
+                    h = (h * 2654435769u) ^ (h >> 16);
+                    return ((float)(h & 0xFFFFu) / 65535.0f - 0.5f) * J * 2.0f;
+                };
+
+                // 8 corners: y in [-1,+1], z in [-1,+1], x in [-1,+1]
+                float corners[8][3];
+                int ci = 0;
+                for (int y = -1; y <= 1; y += 2)
+                    for (int z = -1; z <= 1; z += 2)
+                        for (int x = -1; x <= 1; x += 2) {
+                            corners[ci][0] = (float)x + jit(ci, 0);
+                            corners[ci][1] = (float)y + jit(ci, 1);
+                            corners[ci][2] = (float)z + jit(ci, 2);
+                            ci++;
+                        }
+
+                // 6 faces (CCW winding from outside)
+                static constexpr int FACES[6][4] = {
+                    {1, 5, 7, 3},  // +X
+                    {0, 2, 6, 4},  // -X
+                    {4, 6, 7, 5},  // +Y
+                    {0, 1, 3, 2},  // -Y
+                    {2, 3, 7, 6},  // +Z
+                    {0, 4, 5, 1},  // -Z
+                };
+
+                std::vector<MeshVertex> v;
+                std::vector<uint32_t> idx;
+
+                for (int f = 0; f < 6; f++) {
+                    float* c0 = corners[FACES[f][0]];
+                    float* c1 = corners[FACES[f][1]];
+                    float* c2 = corners[FACES[f][2]];
+                    float* c3 = corners[FACES[f][3]];
+
+                    // Face normal from cross product of edges
+                    float e1[3] = { c1[0]-c0[0], c1[1]-c0[1], c1[2]-c0[2] };
+                    float e2[3] = { c2[0]-c0[0], c2[1]-c0[1], c2[2]-c0[2] };
+                    float nx = e1[1]*e2[2] - e1[2]*e2[1];
+                    float ny = e1[2]*e2[0] - e1[0]*e2[2];
+                    float nz = e1[0]*e2[1] - e1[1]*e2[0];
+                    float len = std::sqrt(nx*nx + ny*ny + nz*nz);
+                    nx /= len; ny /= len; nz /= len;
+
+                    uint32_t base = (uint32_t)v.size();
+                    v.push_back({{c0[0],c0[1],c0[2]}, {nx,ny,nz}});
+                    v.push_back({{c1[0],c1[1],c1[2]}, {nx,ny,nz}});
+                    v.push_back({{c2[0],c2[1],c2[2]}, {nx,ny,nz}});
+                    v.push_back({{c3[0],c3[1],c3[2]}, {nx,ny,nz}});
+
+                    idx.push_back(base); idx.push_back(base+1); idx.push_back(base+2);
+                    idx.push_back(base); idx.push_back(base+2); idx.push_back(base+3);
+                }
+
+                monolithIndexCount_ = (uint32_t)idx.size();
+                monolithVertexBuffer_ = makeBuffer("Monolith VB", v.size() * sizeof(MeshVertex),
+                    wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst);
+                monolithIndexBuffer_ = makeBuffer("Monolith IB", idx.size() * 4,
+                    wgpu::BufferUsage::Index | wgpu::BufferUsage::CopyDst);
+                if (!monolithVertexBuffer_ || !monolithIndexBuffer_) return false;
+                auto q = device_.GetQueue();
+                q.WriteBuffer(monolithVertexBuffer_, 0, v.data(), v.size() * sizeof(MeshVertex));
+                q.WriteBuffer(monolithIndexBuffer_, 0, idx.data(), idx.size() * 4);
+
+                std::cout << "[GPUState] Monolith mesh: "
+                    << v.size() << " verts, " << idx.size() << " indices\n";
+                return true;
+            }
 
             bool createArchMesh() {
                 // VB: Vertex + CopyDst (transition fallback) + Storage (GPU compute writes)
@@ -4507,6 +4592,10 @@ namespace t7 {
                     fe.spin_tilt_z = 0.0f;
                     fe.entity_seed = 0;
                     fe.is_active = 1;
+                    fe.aspect_y = 1.0f;
+                    fe.aspect_z = 1.0f;
+                    fe._future_2 = 0.0f;
+                    fe._future_3 = 0.0f;
                     queue.WriteBuffer(floatingEntityBuffer_, 0, &fe, sizeof(fe));
                 }
 

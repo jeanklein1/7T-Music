@@ -638,10 +638,14 @@ struct FloatingEntityState {
     spin_tilt_z: f32,          // 116: axis tilt Z
     entity_seed: u32,          // 120: seed for VS face color hashing
     is_active: u32,            // 124: 0=inactive, 1=active
-}                              // 128 total
+    aspect_y: f32,             // 128: Y-axis scale (1.0=cube, >1=tall, <1=flat)
+    aspect_z: f32,             // 132: Z-axis scale (1.0=cube, <1=thin slab)
+    _future_2: f32,            // 136: reserved
+    _future_3: f32,            // 140: reserved
+}                              // 144 total
 
 struct FloatingEntityArray {
-    entities: array<FloatingEntityState, 12>,
+    entities: array<FloatingEntityState, 32>,
 }
 
 // --- [STATE:ribbon] RibbonState
@@ -3148,15 +3152,16 @@ fn pawn_vs(@builtin(vertex_index) vid: u32) -> EntityVarying {
 }
 
 @vertex
-fn sphere_vs(in: MeshVertexInput) -> EntityVarying {
-    let fe = render_floating.entities[0];
-    // Scale by radius and translate
-    let world_pos = in.pos * fe.body_radius + fe.pos;
+fn sphere_vs(@builtin(instance_index) inst: u32, in: MeshVertexInput) -> EntityVarying {
+    let fe = render_floating.entities[inst];
+    // Skip non-sphere geometry (degenerate triangle for rasterizer discard)
+    let r = select(0.0, fe.body_radius, fe.geometry_type == 0u && fe.is_active != 0u);
+    let world_pos = in.pos * r + fe.pos;
 
     var out: EntityVarying;
     out.clip_pos = render_vp.m * vec4(world_pos, 1.0);
     out.world_pos = world_pos;
-    out.normal = in.normal;  // Unit sphere normals stay correct after uniform scale
+    out.normal = in.normal;
     out.entity_color = fe.color;
     return out;
 }
@@ -3164,6 +3169,41 @@ fn sphere_vs(in: MeshVertexInput) -> EntityVarying {
 @fragment
 fn entity_fs(in: EntityVarying) -> @location(0) vec4<f32> {
     return vec4(shade_lit(in.world_pos, normalize(in.normal), in.entity_color), 1.0);
+}
+
+// --- Monolith vertex shader (imperfect cube, per-face color from seed)
+@vertex
+fn monolith_vs(@builtin(instance_index) inst: u32, in: MeshVertexInput) -> EntityVarying {
+    let fe = render_floating.entities[inst];
+    // Skip non-monolith geometry
+    let r = select(0.0, fe.body_radius, fe.geometry_type == 1u && fe.is_active != 0u);
+
+    // Apply orientation quaternion (monoliths spin)
+    let scaled = in.pos * vec3(r, r * fe.aspect_y, r * fe.aspect_z);
+    let rotated = quat_rotate(fe.orientation, scaled);
+    let world_pos = rotated + fe.pos;
+    let world_normal = quat_rotate(fe.orientation, in.normal);
+
+    // Per-face color: derive face index from dominant normal axis
+    let abs_n = abs(in.normal);
+    var face_idx = 0u;
+    if (abs_n.y > abs_n.x && abs_n.y > abs_n.z) {
+        face_idx = select(2u, 3u, in.normal.y > 0.0);
+    } else if (abs_n.z > abs_n.x) {
+        face_idx = select(4u, 5u, in.normal.z > 0.0);
+    } else {
+        face_idx = select(0u, 1u, in.normal.x > 0.0);
+    }
+    let face_hash = hash_property(fe.entity_seed, 500u + face_idx);
+    let face_delta = (face_hash - 0.5) * 2.0 * fe.face_variance;
+    let face_color = clamp(fe.color + vec3(face_delta, face_delta * 0.7, face_delta * 0.5), vec3(0.0), vec3(1.0));
+
+    var out: EntityVarying;
+    out.clip_pos = render_vp.m * vec4(world_pos, 1.0);
+    out.world_pos = world_pos;
+    out.normal = world_normal;
+    out.entity_color = face_color;
+    return out;
 }
 
 
@@ -3244,9 +3284,24 @@ fn shadow_pawn_vs(@builtin(vertex_index) vid: u32) -> ShadowVarying {
 
 // Shadow: Sphere (same as sphere_vs, light VP)
 @vertex
-fn shadow_sphere_vs(in: MeshVertexInput) -> ShadowVarying {
-    let fe = render_floating.entities[0];
-    let world_pos = in.pos * fe.body_radius + fe.pos;
+fn shadow_sphere_vs(@builtin(instance_index) inst: u32, in: MeshVertexInput) -> ShadowVarying {
+    let fe = render_floating.entities[inst];
+    let r = select(0.0, fe.body_radius, fe.geometry_type == 0u && fe.is_active != 0u);
+    let world_pos = in.pos * r + fe.pos;
+
+    var out: ShadowVarying;
+    out.clip_pos = render_vp.light_vp * vec4(world_pos, 1.0);
+    return out;
+}
+
+// Shadow: Monolith (quaternion rotation, light VP)
+@vertex
+fn shadow_monolith_vs(@builtin(instance_index) inst: u32, in: MeshVertexInput) -> ShadowVarying {
+    let fe = render_floating.entities[inst];
+    let r = select(0.0, fe.body_radius, fe.geometry_type == 1u && fe.is_active != 0u);
+    let scaled = in.pos * vec3(r, r * fe.aspect_y, r * fe.aspect_z);
+    let rotated = quat_rotate(fe.orientation, scaled);
+    let world_pos = rotated + fe.pos;
 
     var out: ShadowVarying;
     out.clip_pos = render_vp.light_vp * vec4(world_pos, 1.0);
@@ -4517,42 +4572,68 @@ fn update_sphere() {
 
     let dt = signal.dt;
 
-    // Step A: operate on slot 0 (multi-slot dispatch comes with spawn system)
-    let slot = 0u;
-    var fe = floating_entities.entities[slot];
-    if (fe.is_active == 0u) {
-        terrain_state.tint = vec3(1.0);
-        return;
-    }
+    // Update all active floating entity slots
+    for (var slot = 0u; slot < 32u; slot++) {
+        var fe = floating_entities.entities[slot];
+        if (fe.is_active == 0u) { continue; }
 
-    if (!sphere_frozen()) {
-        fe.t = fe.t + signal.dt;
+        if (!sphere_frozen()) {
+            fe.t = fe.t + dt;
 
-        // Branch on motion type (Step A: only orbit implemented)
-        if (fe.motion_type == 0u) {
-            let updated = compose_sphere_from_orbit_pga(fe.t, fe);
-            fe.pos = updated.pos;
-            fe.orientation = updated.orientation;
+            if (fe.motion_type == 0u) {
+                // Orbit: PGA motor around anchor
+                let updated = compose_sphere_from_orbit_pga(fe.t, fe);
+                fe.pos = updated.pos;
+                fe.orientation = updated.orientation;
+            } else {
+                // Hover-bob: orbit_height = clearance above local terrain
+                let bob_y = sin(fe.t * 6.283185 / max(fe.bob_period, 0.1)) * fe.bob_amplitude;
+                let base_xz = vec2(fe.anchor.x, fe.anchor.z);
+                let ground = ground_formed(base_xz) + terrain_wave_overlay(base_xz);
+                fe.pos = vec3(fe.anchor.x, ground + fe.orbit_height + bob_y, fe.anchor.z);
+                // Spin around tilted Y axis
+                let spin_angle = fe.t * fe.spin_speed;
+                let axis = normalize(vec3(fe.spin_tilt_x, 1.0, fe.spin_tilt_z));
+                let half_a = spin_angle * 0.5;
+                fe.orientation = vec4(axis * sin(half_a), cos(half_a));
+            }
+
+            floating_entities.entities[slot] = fe;
         }
-        // motion_type == 1 (hover-bob) — future step
 
-        floating_entities.entities[slot] = fe;
+        if (signal_active() && coupling_active(COUPLING_POLYPHONY_TO_SPHERE_COLOR)) {
+            floating_entities.entities[slot].color = coupling_signal_polyphony_to_sphere_color(
+                signal.stats[0],
+                floating_entities.entities[slot].color,
+                floating_entities.entities[slot].base_color,
+                dt
+            );
+        }
     }
 
-    if (signal_active() && coupling_active(COUPLING_POLYPHONY_TO_SPHERE_COLOR)) {
-        floating_entities.entities[slot].color = coupling_signal_polyphony_to_sphere_color(
-            signal.stats[0],
-            floating_entities.entities[slot].color,
-            floating_entities.entities[slot].base_color,
-            dt
-        );
-    }
-
-    if (coupling_active(COUPLING_SPHERE_TO_TERRAIN_TINT) && fe.orbit_radius > 0.0) {
-        terrain_state.tint = coupling_sphere_to_terrain_tint(
-            floating_entities.entities[slot].pos,
-            fe.orbit_radius
-        );
+    // Terrain tint from nearest active entity to pawn
+    if (coupling_active(COUPLING_SPHERE_TO_TERRAIN_TINT)) {
+        var best_dist_sq = 999999.0;
+        var best_slot = 0u;
+        var found = false;
+        for (var slot = 0u; slot < 32u; slot++) {
+            let fe = floating_entities.entities[slot];
+            if (fe.is_active == 0u || fe.orbit_radius <= 0.0) { continue; }
+            let dx = fe.pos.x - pawn_state.pos.x;
+            let dz = fe.pos.z - pawn_state.pos.z;
+            let d2 = dx * dx + dz * dz;
+            if (d2 < best_dist_sq) {
+                best_dist_sq = d2;
+                best_slot = slot;
+                found = true;
+            }
+        }
+        if (found) {
+            let fe = floating_entities.entities[best_slot];
+            terrain_state.tint = coupling_sphere_to_terrain_tint(fe.pos, fe.orbit_radius);
+        } else {
+            terrain_state.tint = vec3(1.0);
+        }
     } else {
         terrain_state.tint = vec3(1.0);
     }

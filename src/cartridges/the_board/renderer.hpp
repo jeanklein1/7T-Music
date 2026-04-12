@@ -72,9 +72,11 @@ namespace t7 {
             constexpr const char* SHADOW_PATCH_TERRAIN_VS = "shadow_patch_terrain_vs";
             constexpr const char* PAWN_VS = "pawn_vs";
             constexpr const char* SPHERE_VS = "sphere_vs";
+            constexpr const char* MONOLITH_VS = "monolith_vs";
             constexpr const char* ENTITY_FS = "entity_fs";
             constexpr const char* SHADOW_PAWN_VS = "shadow_pawn_vs";
             constexpr const char* SHADOW_SPHERE_VS = "shadow_sphere_vs";
+            constexpr const char* SHADOW_MONOLITH_VS = "shadow_monolith_vs";
             constexpr const char* RIBBON_VS = "ribbon_vs";
             constexpr const char* SHADOW_RIBBON_VS = "shadow_ribbon_vs";
             constexpr const char* ARCH_VS = "arch_vs";
@@ -195,6 +197,7 @@ namespace t7 {
             // Render pipelines
             wgpu::RenderPipeline pawnPipeline_;          // Chess pawn entity
             wgpu::RenderPipeline spherePipeline_;        // Sphere entity
+            wgpu::RenderPipeline monolithPipeline_;      // Monolith entity
             wgpu::RenderPipeline ribbonPipeline_;        // Sky ribbon entity
             wgpu::RenderPipeline archPipeline_;          // Catenary arch entity
             wgpu::RenderPipeline columnPipeline_;        // Generative column entity
@@ -207,6 +210,7 @@ namespace t7 {
             // Shadow pass pipelines (depth-only, no fragment shader)
             wgpu::RenderPipeline shadowPawnPipeline_;
             wgpu::RenderPipeline shadowSpherePipeline_;
+            wgpu::RenderPipeline shadowMonolithPipeline_;
             wgpu::RenderPipeline shadowRibbonPipeline_;
             wgpu::RenderPipeline shadowArchPipeline_;
             wgpu::RenderPipeline shadowColumnPipeline_;
@@ -666,7 +670,23 @@ namespace t7 {
                 pass.SetBindGroup(1, textureBindGroup);
                 pass.SetVertexBuffer(0, vertexBuffer);
                 pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint32);
-                pass.DrawIndexed(indexCount);
+                pass.DrawIndexed(indexCount, Dim::MAX_FLOATING_INSTANCES);
+            }
+
+            void draw_monolith(
+                wgpu::RenderPassEncoder& pass,
+                wgpu::BindGroup entityBindGroup,
+                wgpu::BindGroup textureBindGroup,
+                wgpu::Buffer vertexBuffer,
+                wgpu::Buffer indexBuffer,
+                uint32_t indexCount
+            ) {
+                pass.SetPipeline(monolithPipeline_);
+                pass.SetBindGroup(0, entityBindGroup);
+                pass.SetBindGroup(1, textureBindGroup);
+                pass.SetVertexBuffer(0, vertexBuffer);
+                pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint32);
+                pass.DrawIndexed(indexCount, Dim::MAX_FLOATING_INSTANCES);
             }
 
             void draw_ribbon(
@@ -886,7 +906,23 @@ namespace t7 {
                 pass.SetBindGroup(1, textureBindGroup);
                 pass.SetVertexBuffer(0, vertexBuffer);
                 pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint32);
-                pass.DrawIndexed(indexCount);
+                pass.DrawIndexed(indexCount, Dim::MAX_FLOATING_INSTANCES);
+            }
+
+            void draw_shadow_monolith(
+                wgpu::RenderPassEncoder& pass,
+                wgpu::BindGroup entityBindGroup,
+                wgpu::BindGroup textureBindGroup,
+                wgpu::Buffer vertexBuffer,
+                wgpu::Buffer indexBuffer,
+                uint32_t indexCount
+            ) {
+                pass.SetPipeline(shadowMonolithPipeline_);
+                pass.SetBindGroup(0, entityBindGroup);
+                pass.SetBindGroup(1, textureBindGroup);
+                pass.SetVertexBuffer(0, vertexBuffer);
+                pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint32);
+                pass.DrawIndexed(indexCount, Dim::MAX_FLOATING_INSTANCES);
             }
 
             void draw_shadow_ribbon(
@@ -1710,6 +1746,12 @@ namespace t7 {
 
                     spherePipeline_ = device_.CreateRenderPipeline(&desc);
                     if (!spherePipeline_) return false;
+
+                    // Monolith pipeline — same vertex format, different VS
+                    desc.label = "Monolith Entity (Rasterized)";
+                    desc.vertex.entryPoint = Entry::MONOLITH_VS;
+                    monolithPipeline_ = device_.CreateRenderPipeline(&desc);
+                    if (!monolithPipeline_) return false;
                 }
 
                 // Arch pipeline -- catenary arch, ArchVertex (pos+normal+color+arch_index), static world-space
@@ -2103,6 +2145,25 @@ namespace t7 {
 
                         shadowSpherePipeline_ = device_.CreateRenderPipeline(&desc);
                         if (!shadowSpherePipeline_) return false;
+                    }
+
+                    // Shadow Monolith (same MeshVertex buffer, different VS)
+                    {
+                        wgpu::RenderPipelineDescriptor desc{};
+                        desc.label = "Shadow Monolith";
+                        desc.layout = shadowRenderLayout;
+                        desc.vertex.module = shaderModule_;
+                        desc.vertex.entryPoint = Entry::SHADOW_MONOLITH_VS;
+                        desc.vertex.bufferCount = 1;
+                        desc.vertex.buffers = &shadowMeshVBL;
+                        desc.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
+                        desc.primitive.cullMode = wgpu::CullMode::Back;
+                        desc.primitive.frontFace = wgpu::FrontFace::CCW;
+                        desc.depthStencil = &shadowDepth;
+                        desc.fragment = nullptr;
+
+                        shadowMonolithPipeline_ = device_.CreateRenderPipeline(&desc);
+                        if (!shadowMonolithPipeline_) return false;
                     }
 
                     // Shadow Arch (ArchVertex buffer: pos+normal+color+arch_index, stride 40)

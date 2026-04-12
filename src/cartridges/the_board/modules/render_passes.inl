@@ -282,6 +282,15 @@
                     gpuState_.sphere_index_count()
                 );
 
+                renderer_.draw_shadow_monolith(
+                    pass,
+                    gpuState_.render_entity_group(),
+                    gpuState_.shadow_texture_group(),
+                    gpuState_.monolith_vertex_buffer(),
+                    gpuState_.monolith_index_buffer(),
+                    gpuState_.monolith_index_count()
+                );
+
                 if (ribbonActive_) {
                     renderer_.draw_shadow_ribbon(
                         pass,
@@ -413,6 +422,15 @@
                     gpuState_.sphere_vertex_buffer(),
                     gpuState_.sphere_index_buffer(),
                     gpuState_.sphere_index_count()
+                );
+
+                renderer_.draw_monolith(
+                    pass,
+                    gpuState_.render_entity_group(),
+                    gpuState_.render_texture_group(),
+                    gpuState_.monolith_vertex_buffer(),
+                    gpuState_.monolith_index_buffer(),
+                    gpuState_.monolith_index_count()
                 );
 
                 renderer_.draw_arch(
