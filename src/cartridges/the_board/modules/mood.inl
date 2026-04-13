@@ -367,17 +367,6 @@ void apply_mood(uint32_t mood, wgpu::Queue& queue) {
         gpuState_.upload_ribbon(queue, ribbon);
         activeRibbons_[0].anchor_x = ax;
         activeRibbons_[0].anchor_z = az;
-        {
-            float half_len = (float)ribbon.cube_count * ribbon.cube_size * 0.5f;
-            float margin = ribbon.lateral_amp + 0.4f * ribbon.twist_amp;
-            float extent = half_len + margin;
-            float dx = std::cos(ribbon.orientation);
-            float dz = std::sin(ribbon.orientation);
-            activeRibbons_[0].spine_ax = ax - dx * extent;
-            activeRibbons_[0].spine_az = az - dz * extent;
-            activeRibbons_[0].spine_bx = ax + dx * extent;
-            activeRibbons_[0].spine_bz = az + dz * extent;
-        }
         activeRibbons_[0].active = true;
         activeRibbonCount_ = 1;
         print_ribbon_diagnostic("Mood 9", ribbon, rtier);
