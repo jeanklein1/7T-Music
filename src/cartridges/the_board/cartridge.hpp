@@ -9828,14 +9828,16 @@ namespace t7 {
 #endif
 
                 // Ribbon anchor-distance eviction (open mode only).
-                // Evict when the pawn walks 250u from the anchor. The old
-                // ribbon gets replaced by a new one on leading-edge patches,
-                // so the visual experience is continuous ribbon presence.
+                // Ribbons spawn at the streaming frontier (~350u from pawn)
+                // and come into view naturally as the pawn approaches.
+                // HOLD_DIST > allocation radius ensures frontier-spawned
+                // ribbons survive the approach. Evict only after the pawn
+                // has passed and moved well beyond the anchor.
                 if (!finiteMode_ && activeRibbons_[0].active) {
                     float dx = activeRibbons_[0].anchor_x - pawnReadback_x_;
                     float dz = activeRibbons_[0].anchor_z - pawnReadback_z_;
                     float dist_sq = dx * dx + dz * dz;
-                    constexpr float RIBBON_HOLD_DIST = 250.0f;
+                    constexpr float RIBBON_HOLD_DIST = 500.0f;
                     if (dist_sq > RIBBON_HOLD_DIST * RIBBON_HOLD_DIST) {
                         dispatch_evict_ribbon(this, 0, queue);
                     }
