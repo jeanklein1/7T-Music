@@ -347,7 +347,7 @@ void apply_mood(uint32_t mood, wgpu::Queue& queue) {
 
     // ─── Mood 9 ribbon: seed-derived flying ribbon ───────────────
     if (mood == 5) {
-        uint32_t rseed = ribbon_cell_seed(activeSeed_, 0, 0);
+        uint32_t rseed = tile_seed(activeSeed_, 0, 0);
 
         // Anchor: seed-derived position spread across the finite world + margin.
         // The ribbon can land outside terrain bounds — visible from afar.
@@ -363,7 +363,7 @@ void apply_mood(uint32_t mood, wgpu::Queue& queue) {
         ribbon.anchor[2] = az;
         ribbon.time = currentSeconds_;
         float terrain_est = cpu_terrain_base_at(ax, az);
-        uint32_t rtier = generate_flying_ribbon(ribbon, rseed, terrain_est);
+        uint32_t rtier = sample_ribbon_geometry(ribbon, rseed, terrain_est);
         gpuState_.upload_ribbon(queue, ribbon);
         activeRibbons_[0].anchor_x = ax;
         activeRibbons_[0].anchor_z = az;

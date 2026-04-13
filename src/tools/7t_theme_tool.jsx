@@ -149,27 +149,27 @@ function initState() {
     },
     th: [
       // 0: TRANSITION
-      { sp: [.4, .3, .7, .3, .3, .3, .5, .3, .2],
+      { sp: [.4, .3, .7, .3, .3, .3, .5, .3, 1],
         tp: [1, 1, 1], ta: [1, .3, 1], tc: [.1, .2, .3], tn: [.1, 2, .7],
         tpalm: [1, 1, 1], tcact: [1, 1, 1], tblad: [1, 1, 1], tfloat: [1, 1, 1, 1, 1, 1], tribn: [1, 1, 1],
         spike: 150, sustain: 20, decay: 3, cooldown: 0, weight: .21 },
       // 1: MONUMENTAL
-      { sp: [1.5, 1, 1, .5, .2, .2, .5, .3, .2],
+      { sp: [1.5, 1, 1, .5, .2, .2, .5, .3, 1],
         tp: [.2, .5, 3], ta: [2, .1, 3], tc: [.01, .01, 1], tn: [.5, 1.5, .5],
         tpalm: [1, 1, 1], tcact: [1, 1, 1], tblad: [1, 1, 1], tfloat: [1, 1, 1, 1, 1, 1], tribn: [1, 1, 1],
         spike: 150, sustain: 10, decay: 10, cooldown: 8, weight: .30 },
       // 2: COLONNADE
-      { sp: [.3, 1, 4, .5, .3, .3, .5, .3, .2],
+      { sp: [.3, 1, 4, .5, .3, .3, .5, .3, 1],
         tp: [1, 1, 1], ta: [3, .5, 1], tc: [.3, 3, 5], tn: [.2, .1, .1],
         tpalm: [1, 1, 1], tcact: [1, 1, 1], tblad: [1, 1, 1], tfloat: [1, 1, 1, 1, 1, 1], tribn: [1, 1, 1],
         spike: 150, sustain: 15, decay: 6, cooldown: 6, weight: .31 },
       // 3: ANTENNA
-      { sp: [.5, .5, 1, 4, .5, .5, .5, .3, .2],
+      { sp: [.5, .5, 1, 4, .5, .5, .5, .3, 1],
         tp: [1, .05, 2], ta: [1, .2, .8], tc: [.1, .3, .3], tn: [.5, 3.5, 1],
         tpalm: [1, 1, 1], tcact: [1, 1, 1], tblad: [1, 1, 1], tfloat: [1, 1, 1, 1, 1, 1], tribn: [1, 1, 1],
         spike: 180, sustain: 10, decay: 5, cooldown: 5, weight: .18 },
       // 4: BARREN
-      { sp: [.4, .3, .5, .3, .2, .2, .1, .3, .2],
+      { sp: [.4, .3, .5, .3, .2, .2, .1, .3, 1],
         tp: [2, .5, .2], ta: [1, 1, 1], tc: [.2, .5, .5], tn: [1, 1, 1],
         tpalm: [1, 1, 1], tcact: [1, 1, 1], tblad: [1, 1, 1], tfloat: [1, 1, 1, 1, 1, 1], tribn: [1, 1, 1],
         spike: 100, sustain: 12, decay: 3, cooldown: 4, weight: .04 },
