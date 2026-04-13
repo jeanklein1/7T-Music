@@ -620,7 +620,7 @@ namespace t7 {
 
             // ─── Ribbon dispatch-pipeline config ────────────────────────────
             struct RibbonConfig {
-                static constexpr float SPAWN_CHANCE = 0.150f;
+                static constexpr float SPAWN_CHANCE = 0.400f;
                 static constexpr float MOOD_MULTIPLIER[MOOD_COUNT] = { 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f };
                 static constexpr float POSITION_JITTER = 0.3f;
             };
@@ -3348,7 +3348,7 @@ namespace t7 {
             //  │ Cactus   │  0.100   │ 1.0   1.0    1.0   1.0    1.0   0.0  │  0.35  │
             //  │ Blade    │  0.025   │ 1.0   1.0    1.0   1.0    1.0   0.0  │  0.30  │
             //  │ Floating │  0.050   │ 1.0   1.0    0.0   0.0    1.0   0.0  │  0.40  │
-            //  │ Ribbon   │  0.150   │ 1.0   1.0    0.0   0.0    1.0   0.0  │  0.30  │
+            //  │ Ribbon   │  0.400   │ 1.0   1.0    0.0   0.0    1.0   0.0  │  0.30  │
             //  └──────────┴──────────┴───────────────────────────────────────┴────────┘
             //
             // Spawn chance is flat — archetype/terrain no longer gates spawning.
@@ -4280,7 +4280,11 @@ namespace t7 {
             struct ActiveRibbon {
                 int32_t patch_gx = 0, patch_gz = 0;
                 int32_t host_gx = 0, host_gz = 0;
-                float anchor_x = 0.0f, anchor_z = 0.0f;  // for distance checks (finite mode)
+                float anchor_x = 0.0f, anchor_z = 0.0f;
+                // Spine endpoints (world space) for extent-based eviction.
+                // Ribbon evicts only when BOTH endpoints leave the render radius.
+                float spine_ax = 0.0f, spine_az = 0.0f;  // start of spine
+                float spine_bx = 0.0f, spine_bz = 0.0f;  // end of spine
                 bool active = false;
             };
             ActiveRibbon activeRibbons_[1]{};    // single slot
@@ -4961,6 +4965,18 @@ namespace t7 {
                 activeRibbons_[0].host_gz = plan.host_gz;
                 activeRibbons_[0].anchor_x = plan.cx;
                 activeRibbons_[0].anchor_z = plan.cz;
+
+                // Compute spine endpoints for extent-based eviction
+                float half_len = (float)plan.cube_count * plan.cube_size * 0.5f;
+                float margin = plan.lateral_amp + 0.4f * plan.twist_amp;  // wave envelope
+                float extent = half_len + margin;
+                float dir_x = std::cos(plan.orientation);
+                float dir_z = std::sin(plan.orientation);
+                activeRibbons_[0].spine_ax = plan.cx - dir_x * extent;
+                activeRibbons_[0].spine_az = plan.cz - dir_z * extent;
+                activeRibbons_[0].spine_bx = plan.cx + dir_x * extent;
+                activeRibbons_[0].spine_bz = plan.cz + dir_z * extent;
+
                 activeRibbons_[0].active = true;
                 activeRibbonCount_ = 1;
             }
@@ -7862,18 +7878,11 @@ namespace t7 {
 
             static void dispatch_commit_ribbon(Cartridge* self,
                 PlacementEntry& pe, wgpu::Queue& queue) {
-                auto* host = self->find_patch(pe.ribbon.host_gx, pe.ribbon.host_gz);
-                if (host) {
-                    self->commit_ribbon(pe.ribbon, pe.gx, pe.gz, queue);
-                    host->record_entity(PopFamily::RIBBON, pe.ribbon.slot);
-                } else {
-                    self->activeRibbons_[0].active = false;
-#ifdef DIAG_ENTITY_LIFECYCLE
-                    std::cout << "[DIAG:REJECT] ribn slot=0"
-                        << " host=(" << pe.ribbon.host_gx << "," << pe.ribbon.host_gz
-                        << ") -- no host patch\n";
-#endif
-                }
+                // Ribbon lifecycle is distance-based, not patch-based.
+                // The spine spans ~28 patches; anchoring to one is fragile.
+                // We commit without record_entity — eviction is handled by
+                // the per-frame RIBBON_HOLD_DIST check, not patch eviction.
+                self->commit_ribbon(pe.ribbon, pe.gx, pe.gz, queue);
             }
 
             static void dispatch_evict_ribbon(Cartridge* self,
@@ -9831,16 +9840,20 @@ namespace t7 {
                 }
 #endif
 
-                // Ribbon distance-based eviction (open mode only — finite mode
-                // ribbons are mood-controlled and don't use patch lifecycle)
+                // Ribbon extent-based eviction (open mode only — finite mode
+                // ribbons are mood-controlled). Evict only when the ENTIRE
+                // spine has left the render radius — both endpoints must be
+                // beyond the threshold. This prevents abrupt mid-body vanishing.
                 if (!finiteMode_ && activeRibbons_[0].active) {
-                    float dx = activeRibbons_[0].anchor_x - pawnReadback_x_;
-                    float dz = activeRibbons_[0].anchor_z - pawnReadback_z_;
-                    float dist_sq = dx * dx + dz * dz;
-                    constexpr float RIBBON_HOLD_DIST = 200.0f;
-                    if (dist_sq > RIBBON_HOLD_DIST * RIBBON_HOLD_DIST) {
-                        auto* host = find_patch(activeRibbons_[0].host_gx, activeRibbons_[0].host_gz);
-                        if (host) host->unregister_entity(PopFamily::RIBBON, 0);
+                    float render_r = (float)PREGEN_RADIUS * PATCH_EXTENT;
+                    float r_sq = render_r * render_r;
+                    float dax = activeRibbons_[0].spine_ax - pawnReadback_x_;
+                    float daz = activeRibbons_[0].spine_az - pawnReadback_z_;
+                    float dbx = activeRibbons_[0].spine_bx - pawnReadback_x_;
+                    float dbz = activeRibbons_[0].spine_bz - pawnReadback_z_;
+                    float da_sq = dax * dax + daz * daz;
+                    float db_sq = dbx * dbx + dbz * dbz;
+                    if (da_sq > r_sq && db_sq > r_sq) {
                         dispatch_evict_ribbon(this, 0, queue);
                     }
                 }
