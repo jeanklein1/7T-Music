@@ -123,6 +123,20 @@ function initState() {
         [0, 0, 0,  0, .3, .3, .5],
       ],
     },
+    globalDensity: 1.0,
+    batch: {
+      size: 16, typeStr: 0.0, scaleStr: 0.0,
+      affCh: 0.0, repCh: 0.0, minObs: 1,
+      crossAff: [
+        [0.5, 2.0, 1.5, 1.5, 1.0, 1.0, 1.0],
+        [0.8, 1.5, 2.0, 2.0, 1.0, 1.0, 1.0],
+        [0.3, 1.2, 1.8, 1.0, 1.0, 1.0, 1.0],
+        [0.3, 1.2, 1.0, 1.8, 1.0, 1.0, 1.0],
+        [0.3, 1.0, 1.0, 1.0, 1.5, 1.0, 1.0],
+        [1.0, 1.0, 1.0, 1.0, 1.0, 1.5, 1.0],
+        [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+      ],
+    },
     th: [
       // 0: TRANSITION
       { sp: [.4, .3, .7, .3, .3, .3, .5],
@@ -162,6 +176,8 @@ function createWorld(P) {
     env: { active: -1, elapsed: 0, cooldowns: P.th.map(() => 0) },
     footprints: [],
     slotCounts: new Array(NF).fill(0),
+    batch: { tc: new Array(NF).fill(0), ss: 0, sn: 0, pe: 0, mode: 2 },
+    batchCtr: 0,
     patchSeq: 0, entSeq: 0, initSeq: -1,
   };
 }
@@ -289,6 +305,57 @@ function envWeight(th, el) {
   return BASE_WEIGHT;
 }
 
+/* ─── Population batch system ─── */
+
+function popTypeAffinity(world, P, family) {
+  const b = world.batch;
+  if (b.mode === 2) return 1.0; // NEUTRAL
+  let total = 0; for (let f = 0; f < NF; f++) total += b.tc[f];
+  if (total < P.batch.minObs) return 1.0;
+  let influence = 0;
+  for (let obs = 0; obs < NF; obs++) {
+    const fraction = b.tc[obs] / total;
+    let aff = (P.batch.crossAff[obs] || [])[family] ?? 1;
+    if (b.mode === 1) aff = aff > 0.01 ? 1 / aff : 10; // REPULSION inverts
+    influence += fraction * aff;
+  }
+  return 1.0 + (influence - 1.0) * P.batch.typeStr;
+}
+
+function popScaleTendency(world, P) {
+  const b = world.batch;
+  if (b.mode === 2 || b.sn < P.batch.minObs) return 0.5;
+  let raw = b.ss / b.sn;
+  if (b.mode === 1) raw = 1.0 - raw; // REPULSION inverts
+  return raw;
+}
+
+function selectTierBiased(world, P, seed, prop, baseWts, count, family) {
+  const b = world.batch;
+  if (b.mode === 2 || b.sn < P.batch.minObs) return selW(seed, prop, baseWts);
+  const tendency = popScaleTendency(world, P);
+  const wts = [];
+  for (let t = 0; t < count; t++) {
+    const scale = (TS[family] || [])[t] || 0.5;
+    const proximity = 1.0 - Math.abs(scale - tendency);
+    wts.push(baseWts[t] * (1.0 + proximity * P.batch.scaleStr));
+  }
+  return selW(seed, prop, wts);
+}
+
+function advanceBatch(world, P) {
+  world.batch.pe++;
+  if (world.batch.pe >= P.batch.size) {
+    world.batch = { tc: new Array(NF).fill(0), ss: 0, sn: 0, pe: 0, mode: 2 };
+    world.batchCtr++;
+    const ms = cpuH(P.seed ^ world.batchCtr, 330);
+    const mr = hf(ms, 331);
+    if (mr < P.batch.affCh) world.batch.mode = 0;       // AFFINITY
+    else if (mr < P.batch.affCh + P.batch.repCh) world.batch.mode = 1; // REPULSION
+    else world.batch.mode = 2;                            // NEUTRAL
+  }
+}
+
 /* ─── Spawn pipeline (per patch) ─── */
 
 function spawnPatch(world, P, gx, gz) {
@@ -345,6 +412,8 @@ function spawnPatch(world, P, gx, gz) {
 
     // Spawn chance cascade
     let adjMod = (MOOD_MULT[P.mood]?.[fam] ?? 1) * tile.ed * tile.ts[fam];
+    adjMod *= popTypeAffinity(world, P, fam);
+    adjMod *= P.globalDensity;
     // Proximity affinity boost (nearby entities attract)
     {
       const pcx = (gx + 0.5) * PE, pcz = (gz + 0.5) * PE;
@@ -354,11 +423,11 @@ function spawnPatch(world, P, gx, gz) {
     const chance = Math.min(baseChance * adjMod, 1);
     if (hf(sd, SPAWN_PROP[fam]) >= chance) continue;
 
-    // Tier selection (theme tier bias)
+    // Tier selection (theme tier bias + batch scale tendency)
     const bw = [...(P.tw[FK[fam]] || [1, 1, 1])];
     const tb = theme[TK[fam]] || [1, 1, 1];
     for (let i = 0; i < bw.length; i++) bw[i] *= (tb[i] || 1);
-    const tier = selW(sd, TIER_PROP[fam], bw);
+    const tier = selectTierBiased(world, P, sd, TIER_PROP[fam], bw, bw.length, fam);
 
     // Position negotiation (jitter → separation → footprint)
     const cx = (gx + .5) * PE + (hf(sd, POS_X_PROP[fam]) - .5) * PE * JITTER[fam];
@@ -377,8 +446,12 @@ function spawnPatch(world, P, gx, gz) {
       thm: thIdx, seq: world.entSeq++
     });
     world.slotCounts[fam]++;
+    world.batch.tc[fam]++;
+    world.batch.ss += sc;
+    world.batch.sn++;
     tile.ef |= (1 << fam);
   }
+  advanceBatch(world, P);
 }
 
 /* ─── World update ─── */
@@ -537,7 +610,7 @@ const store = {
     try { localStorage.setItem(k, v); } catch {}
   },
 };
-const STORAGE_KEY = "7t:theme:v5";
+const STORAGE_KEY = "7t:theme:v6";
 const DEFAULTS_JSON = JSON.stringify(initState());
 // Simple hash of defaults — when code changes defaults, saved state is discarded
 const DEFAULTS_HASH = (() => { let h = 0; for (let i = 0; i < DEFAULTS_JSON.length; i++) h = (Math.imul(31, h) + DEFAULTS_JSON.charCodeAt(i)) | 0; return h; })();
@@ -558,7 +631,7 @@ export default function App() {
   const cvRef = useRef(null);
   const worldRef = useRef(null);
   const upd = fn => setP(prev => { const n = JSON.parse(JSON.stringify(prev)); fn(n); return n; });
-  const defaultOrder = ["theme", "arch", "spawn", "tier", "sep", "prox", "density"];
+  const defaultOrder = ["theme", "arch", "spawn", "tier", "sep", "prox", "density", "batch"];
   const [panelOrder, setPanelOrder] = useState(defaultOrder);
 
   // Load / save — discard saved state if code defaults have changed
@@ -790,7 +863,14 @@ export default function App() {
         P.prox.aff.forEach((row, ri) => {
           s += "  " + FN[ri].padEnd(8) + row.map(v => r(v, 1).toString().padStart(5)).join("") + "\n";
         });
-        s += "\ndensity: spacing:" + r(P.density.spacing, 0) + " min:" + r(P.density.min) + " max:" + r(P.density.max) + " exp:" + r(P.density.exponent) + "\n\n";
+        s += "\ndensity: global:" + r(P.globalDensity) + " spacing:" + r(P.density.spacing, 0) + " min:" + r(P.density.min) + " max:" + r(P.density.max) + " exp:" + r(P.density.exponent) + "\n";
+        s += "\nbatch: size:" + P.batch.size + " typeStr:" + r(P.batch.typeStr) + " scaleStr:" + r(P.batch.scaleStr) + " minObs:" + P.batch.minObs + " affCh:" + r(P.batch.affCh) + " repCh:" + r(P.batch.repCh) + "\n";
+        s += "  cross-affinity:\n";
+        s += "          " + FN.map(n => n.slice(0, 4).padStart(5)).join("") + "\n";
+        (P.batch.crossAff || []).forEach((row, ri) => {
+          s += "  " + FN[ri].padEnd(8) + (row || []).map(v => r(v, 1).toString().padStart(5)).join("") + "\n";
+        });
+        s += "\n";
         P.th.forEach((t, i) => {
           s += "--- Theme " + i + ": " + THN[i] + " ---\n";
           s += "  envelope: spike:" + r(t.spike, 0) + " sustain:" + t.sustain + " decay:" + t.decay
@@ -1042,8 +1122,11 @@ export default function App() {
           </DragPanel>);
 
         case "density": return (
-          <DragPanel {...dp} title="Density field">
+          <DragPanel {...dp} title="Density">
             <div style={rw}>
+              <span style={lb}>Global</span>
+              <Num value={P.globalDensity} min={0} max={5} step={.1} w={38}
+                onChange={v => upd(n => { n.globalDensity = v; })} />
               <span style={lb}>Min</span>
               <Num value={P.density.min} min={0} max={5} step={.1} w={38}
                 onChange={v => upd(n => { n.density.min = v; })} />
@@ -1058,8 +1141,57 @@ export default function App() {
                 onChange={v => upd(n => { n.density.spacing = v; })} />
             </div>
             <div style={{ fontSize: 9, color: "var(--color-text-tertiary)", marginTop: 2 }}>
-              Lattice-interpolated density multiplier across the world.
+              Global = master multiplier. Field = lattice-interpolated spatial variation.
               Min=Max=1 is flat. Try Min=0.3 Max=2.5 for sparse/dense regions.
+            </div>
+          </DragPanel>);
+
+        case "batch": return (
+          <DragPanel {...dp} title="Population batch">
+            <div style={rw}>
+              <span style={lb}>Size</span>
+              <Num value={P.batch.size} min={1} max={64} step={1} w={34}
+                onChange={v => upd(n => { n.batch.size = Math.round(v); })} />
+              <span style={lb}>TypeStr</span>
+              <Num value={P.batch.typeStr} min={0} max={5} step={.1} w={38}
+                onChange={v => upd(n => { n.batch.typeStr = v; })} />
+              <span style={lb}>ScaleStr</span>
+              <Num value={P.batch.scaleStr} min={0} max={5} step={.1} w={38}
+                onChange={v => upd(n => { n.batch.scaleStr = v; })} />
+              <span style={lb}>MinObs</span>
+              <Num value={P.batch.minObs} min={1} max={10} step={1} w={30}
+                onChange={v => upd(n => { n.batch.minObs = Math.round(v); })} />
+            </div>
+            <div style={rw}>
+              <span style={lb}>Aff %</span>
+              <Num value={P.batch.affCh} min={0} max={1} step={.05} w={38}
+                onChange={v => upd(n => { n.batch.affCh = v; })} />
+              <span style={lb}>Rep %</span>
+              <Num value={P.batch.repCh} min={0} max={1} step={.05} w={38}
+                onChange={v => upd(n => { n.batch.repCh = v; })} />
+              <span style={{ fontSize: 9, color: "var(--color-text-tertiary)" }}>
+                Neutral: {Math.max(0, 1 - (P.batch.affCh + P.batch.repCh)).toFixed(2)}
+              </span>
+            </div>
+            <div style={{ fontSize: 10, fontWeight: 500, color: "var(--color-text-secondary)", margin: "4px 0 2px" }}>Cross-family affinity</div>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ fontSize: 10, borderCollapse: "collapse" }}>
+                <thead><tr>
+                  <th style={{ ...thd, textAlign: "left" }}>obs↓ / tgt→</th>
+                  {FN.map((n, i) => <th key={i} style={thd}>{n.slice(0, 4)}</th>)}
+                </tr></thead>
+                <tbody>{(P.batch.crossAff || []).map((row, ri) => <tr key={ri}>
+                  <td style={tdl}>{FN[ri]}</td>
+                  {(row || []).map((v, ci) => <td key={ci} style={tdd}>
+                    <Num value={v} min={0} max={5} step={.1} w={34}
+                      onChange={nv => upd(n => { n.batch.crossAff[ri][ci] = nv; })} />
+                  </td>)}
+                </tr>)}</tbody>
+              </table>
+            </div>
+            <div style={{ fontSize: 9, color: "var(--color-text-tertiary)", marginTop: 2 }}>
+              TypeStr/ScaleStr = 0 disables batch influence. Aff% + Rep% + Neutral = 1.0.
+              Cross-affinity: 1.0 = neutral, &gt;1 = attracts, &lt;1 = suppresses.
             </div>
           </DragPanel>);
 

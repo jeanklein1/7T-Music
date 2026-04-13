@@ -1477,7 +1477,6 @@ namespace t7 {
                 ap.tier_idx = plan.tier_idx;
                 ap.cached_ground_y = plan.cached_ground_y;
                 activePalmCount_++;
-                record_entity_presence(plan.host_gx, plan.host_gz, EntityPresence::PALM);
 
                 GPUPalmMeshParams mp{};
                 mp.center_x = plan.cx; mp.center_z = plan.cz;
@@ -1831,7 +1830,6 @@ namespace t7 {
                 ab.tier_idx = plan.tier_idx;
                 ab.cached_ground_y = plan.cached_ground_y;
                 activeBladeCount_++;
-                record_entity_presence(plan.host_gx, plan.host_gz, EntityPresence::BLADE);
 
                 GPUBladeClusterMeshParams mp{};
                 mp.center_x = plan.cx; mp.center_z = plan.cz;
@@ -2007,7 +2005,6 @@ namespace t7 {
                 ac.tier_idx = plan.tier_idx;
                 ac.cached_ground_y = plan.cached_ground_y;
                 activeCactusCount_++;
-                record_entity_presence(plan.host_gx, plan.host_gz, EntityPresence::CACTUS);
 
                 GPUCactusMeshParams mp{};
                 mp.center_x = plan.cx; mp.center_z = plan.cz;
@@ -2197,9 +2194,7 @@ namespace t7 {
                 }
 
                 // 2-6. Spawn modifier chain
-                uint32_t nflags = neighbor_entity_flags(gx, gz);
-                float adj_mod = adjacency_modifier(family, nflags);
-                adj_mod *= mood_mult[activeMood_];
+                float adj_mod = mood_mult[activeMood_];
                 adj_mod *= population_type_affinity(family);
                 adj_mod *= GLOBAL_ENTITY_DENSITY;
                 r.theme_idx = active_theme_idx_;
@@ -3325,21 +3320,6 @@ namespace t7 {
                 out_z = (gz + 0.5f) * PATCH_EXTENT + (cpu_hash_f(seed, prop_z) - 0.5f) * PATCH_EXTENT * jitter;
             }
 
-            // Scan 8-connected neighbors for entity presence flags.
-            uint32_t neighbor_entity_flags(int32_t gx, int32_t gz) const {
-                uint32_t flags = 0;
-                for (int32_t dz = -1; dz <= 1; dz++) {
-                    for (int32_t dx = -1; dx <= 1; dx++) {
-                        if (dx == 0 && dz == 0) continue;
-                        auto it = tileCache_.find({ gx + dx, gz + dz });
-                        if (it != tileCache_.end()) {
-                            flags |= it->second.entity_flags;
-                        }
-                    }
-                }
-                return flags;
-            }
-
             // Entity families for observation indexing
             struct PopFamily {
                 static constexpr uint32_t PYRAMID = 0;
@@ -3429,69 +3409,6 @@ namespace t7 {
             //  250 vs tile_seed). Do NOT move GoL props into the tile_seed
             //  range without resolving the collision.
 
-            // Entity presence flags — bitfield tracking what was spawned on
-            // a tile. Enables neighbor-aware spawn probability.
-            struct EntityPresence {
-                static constexpr uint32_t NONE = 0u;
-                static constexpr uint32_t PYRAMID = 1u << 0;
-                static constexpr uint32_t ARCH_DOORWAY = 1u << 1;
-                static constexpr uint32_t ARCH_STANDARD = 1u << 2;
-                static constexpr uint32_t ARCH_MONUMENTAL = 1u << 3;
-                static constexpr uint32_t ARCH_ANY = ARCH_DOORWAY | ARCH_STANDARD | ARCH_MONUMENTAL;
-                static constexpr uint32_t COLUMN = 1u << 4;
-                static constexpr uint32_t ANTENNA = 1u << 5;
-                static constexpr uint32_t PALM = 1u << 6;
-                static constexpr uint32_t CACTUS = 1u << 7;
-                static constexpr uint32_t GALLERY = 1u << 8;
-                static constexpr uint32_t GOL_ZONE = 1u << 9;
-                static constexpr uint32_t BLADE = 1u << 10;
-            };
-
-            // ─── Adjacency Affinity Matrix ───────────────────────────────────
-            //
-            // ADJACENCY_BOOST[spawning_family][presence_bit] — multiplier
-            // on spawn chance when neighbors have that presence.
-            // Columns: PYRAMID(0), ARCH_DOORWAY(1), ARCH_STANDARD(2),
-            //          ARCH_MONUMENTAL(3), COLUMN(4)
-            // All 1.0f = neutral. Tune to create compositional vocabulary.
-
-            static constexpr uint32_t ADJACENCY_BITS = 9;
-
-            static constexpr float ADJACENCY_BOOST[PopFamily::COUNT][ADJACENCY_BITS] = {
-                //         PYR   A_DW  A_ST  A_MN  COL   ANT   PALM  CACT  BLAD
-                /* PYR  */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
-                /* ARCH */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
-                /* COL  */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
-                /* ANT  */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
-                /* PALM */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
-                /* CACT */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
-                /* BLAD */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
-            };
-
-            static float adjacency_modifier(uint32_t family, uint32_t neighbor_flags) {
-                float mod = 1.0f;
-                for (uint32_t bit = 0; bit < ADJACENCY_BITS; bit++) {
-                    if (neighbor_flags & (1u << bit))
-                        mod *= ADJACENCY_BOOST[family][bit];
-                }
-                return mod;
-            }
-
-            // Record an entity in the tile cache manifest.
-            void record_entity_presence(int32_t gx, int32_t gz, uint32_t flag) {
-                auto it = tileCache_.find({ gx, gz });
-                if (it != tileCache_.end()) {
-                    it->second.entity_flags |= flag;
-                }
-            }
-
-            // Clear an entity flag from the tile cache (on eviction).
-            void clear_entity_presence(int32_t gx, int32_t gz, uint32_t flag) {
-                auto it = tileCache_.find({ gx, gz });
-                if (it != tileCache_.end()) {
-                    it->second.entity_flags &= ~flag;
-                }
-            }
 
             // ─── Proximity Affinity ───────────────────────────────────────────
             //
@@ -3627,7 +3544,6 @@ namespace t7 {
                 bool is_back_portal;
                 uint32_t position_hash;
                 PortalDestination destination;
-                uint32_t presence_flag;
             };
 
             // ─── Arch Placement (plan output) ────────────────────────────────
@@ -3690,8 +3606,6 @@ namespace t7 {
                 float regen_min_x, regen_min_z;
                 float regen_max_x, regen_max_z;
 
-                // Entity presence flag (tier-specific)
-                uint32_t presence_flag;
             };
 
             // ─── Entity Selection Queue ─────────────────────────────────────
@@ -3828,7 +3742,6 @@ namespace t7 {
                 std::memcpy(ac.drum_colors, plan.drum_colors, sizeof(plan.drum_colors));
 
                 activeColumnCount_++;
-                record_entity_presence(plan.host_gx, plan.host_gz, EntityPresence::COLUMN);
 
                 GPUColumnMeshParams meshParams{};
                 meshParams.center_x = plan.cx;
@@ -3899,7 +3812,6 @@ namespace t7 {
                 std::memcpy(ac.drum_colors, plan.drum_colors, sizeof(plan.drum_colors));
 
                 activeAntennaCount_++;
-                record_entity_presence(plan.host_gx, plan.host_gz, EntityPresence::ANTENNA);
 
                 GPUColumnMeshParams meshParams{};
                 meshParams.center_x = plan.cx;
@@ -3957,7 +3869,6 @@ namespace t7 {
 
                 activePyramidCount_++;
                 groundEntriesDirty_ = true;
-                record_entity_presence(plan.host_gx, plan.host_gz, EntityPresence::PYRAMID);
 
                 GPUPyramidMeshParams meshParams{};
                 meshParams.center_x = plan.cx;
@@ -4013,7 +3924,6 @@ namespace t7 {
 
                 activeArchCount_++;
                 portalsDirty_ = true;
-                record_entity_presence(plan.host_gx, plan.host_gz, plan.presence_flag);
 
                 GPUArchMeshParams meshParams{};
                 meshParams.center_x = plan.cx;
@@ -4045,7 +3955,7 @@ namespace t7 {
             //
             // Phase 1: identity + geometry.  Idempotency check, spawn gate,
             // slot search, tier selection, Gaussian sampling, pier geometry,
-            // footprint_r, color, portal promotion, mesh color, presence_flag.
+            // footprint_r, color, portal promotion, mesh color.
             // Position-independent.
 
             bool select_arch_for_patch(int32_t gx, int32_t gz, ArchSelection& sel) {
@@ -4145,10 +4055,6 @@ namespace t7 {
                     sel.mesh_col_b = pc[2];
                 }
 
-                // Entity presence flag (tier-specific for adjacency system)
-                sel.presence_flag = (tier == ArchTier::DOORWAY) ? EntityPresence::ARCH_DOORWAY
-                    : (tier == ArchTier::STANDARD) ? EntityPresence::ARCH_STANDARD
-                    : EntityPresence::ARCH_MONUMENTAL;
 
                 return true;
             }
@@ -4211,7 +4117,6 @@ namespace t7 {
                 plan.is_back_portal = sel.is_back_portal;
                 plan.position_hash = sel.position_hash;
                 plan.destination = sel.destination;
-                plan.presence_flag = sel.presence_flag;
 
                 // ── Family-specific: pier feet ──
                 float cos_r = std::cos(plan.rotation);
@@ -6956,9 +6861,8 @@ namespace t7 {
 
                 int32_t gx = patch.grid_x, gz = patch.grid_z;
                 for (uint32_t f = 0; f < PopFamily::COUNT; f++)
-                    clear_entity_presence(gx, gz, FAMILY_DISPATCH[f].presence_clear_flag);
 
-                patch.entity_ref_count = 0;
+                    patch.entity_ref_count = 0;
             }
 
             void audit_entity_integrity() {
@@ -7220,7 +7124,6 @@ namespace t7 {
                 void (*evict_slot)(Cartridge* self, uint32_t slot, wgpu::Queue& queue);
                 bool (*prepare_mesh)(Cartridge* self, wgpu::Queue& queue);
                 void (*dispatch_mesh)(Cartridge* self, wgpu::ComputePassEncoder& pass);
-                uint32_t presence_clear_flag;
                 const char* name;
             };
 
@@ -7698,25 +7601,25 @@ namespace t7 {
             static constexpr FamilyDispatch FAMILY_DISPATCH[PopFamily::COUNT] = {
                 { dispatch_select_pyramid, dispatch_place_pyramid, dispatch_commit_pyramid,
                   dispatch_evict_pyramid, dispatch_prepare_mesh_pyramid, dispatch_mesh_gen_pyramid,
-                  EntityPresence::PYRAMID, "pyr" },
+                  "pyr" },
                 { dispatch_select_arch,    dispatch_place_arch,    dispatch_commit_arch,
                   dispatch_evict_arch,    dispatch_prepare_mesh_arch,    dispatch_mesh_gen_arch,
-                  EntityPresence::ARCH_ANY, "arch" },
+                  "arch" },
                 { dispatch_select_column,  dispatch_place_column,  dispatch_commit_column,
                   dispatch_evict_column,  dispatch_prepare_mesh_column,  dispatch_mesh_gen_column,
-                  EntityPresence::COLUMN, "col" },
+                  "col" },
                 { dispatch_select_antenna, dispatch_place_antenna, dispatch_commit_antenna,
                   dispatch_evict_antenna, dispatch_prepare_mesh_column,  dispatch_mesh_gen_column,
-                  EntityPresence::ANTENNA, "ant" },
+                  "ant" },
                 { dispatch_select_palm,   dispatch_place_palm,   dispatch_commit_palm,
                   dispatch_evict_palm,   dispatch_prepare_mesh_palm,   dispatch_mesh_gen_palm,
-                  EntityPresence::PALM, "palm" },
+                  "palm" },
                 { dispatch_select_cactus, dispatch_place_cactus, dispatch_commit_cactus,
                   dispatch_evict_cactus, dispatch_prepare_mesh_cactus, dispatch_mesh_gen_cactus,
-                  EntityPresence::CACTUS, "cact" },
+                  "cact" },
                 { dispatch_select_blade, dispatch_place_blade, dispatch_commit_blade,
                   dispatch_evict_blade, dispatch_prepare_mesh_blade, dispatch_mesh_gen_blade,
-                  EntityPresence::BLADE, "blad" },
+                  "blad" },
             };
 
             // ─── Population Themes ───────────────────────────────────────────
@@ -8347,7 +8250,6 @@ namespace t7 {
                 float height_bias = 0.0f;
                 float amp_scale = 1.0f;
                 float activation_scale = 1.0f;
-                uint32_t entity_flags = 0;   // EntityPresence bitfield
                 float amp_momentum = 0.0f;   // signed amplitude excess, carried by terrain tokens
                 float entity_density = 1.0f; // spatial density multiplier for entity spawning
                 // Theme: evaluated from theme lattice at tile generation time
