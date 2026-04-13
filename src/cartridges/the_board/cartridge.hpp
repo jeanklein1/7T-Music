@@ -620,7 +620,7 @@ namespace t7 {
 
             // ─── Ribbon dispatch-pipeline config ────────────────────────────
             struct RibbonConfig {
-                static constexpr float SPAWN_CHANCE = 0.150f;
+                static constexpr float SPAWN_CHANCE = 0.400f;
                 static constexpr float MOOD_MULTIPLIER[MOOD_COUNT] = { 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f };
                 static constexpr float POSITION_JITTER = 0.3f;
             };
@@ -3348,7 +3348,7 @@ namespace t7 {
             //  │ Cactus   │  0.100   │ 1.0   1.0    1.0   1.0    1.0   0.0  │  0.35  │
             //  │ Blade    │  0.025   │ 1.0   1.0    1.0   1.0    1.0   0.0  │  0.30  │
             //  │ Floating │  0.050   │ 1.0   1.0    0.0   0.0    1.0   0.0  │  0.40  │
-            //  │ Ribbon   │  0.150   │ 1.0   1.0    0.0   0.0    1.0   0.0  │  0.30  │
+            //  │ Ribbon   │  0.400   │ 1.0   1.0    0.0   0.0    1.0   0.0  │  0.30  │
             //  └──────────┴──────────┴───────────────────────────────────────┴────────┘
             //
             // Spawn chance is flat — archetype/terrain no longer gates spawning.
@@ -7862,18 +7862,11 @@ namespace t7 {
 
             static void dispatch_commit_ribbon(Cartridge* self,
                 PlacementEntry& pe, wgpu::Queue& queue) {
-                auto* host = self->find_patch(pe.ribbon.host_gx, pe.ribbon.host_gz);
-                if (host) {
-                    self->commit_ribbon(pe.ribbon, pe.gx, pe.gz, queue);
-                    host->record_entity(PopFamily::RIBBON, pe.ribbon.slot);
-                } else {
-                    self->activeRibbons_[0].active = false;
-#ifdef DIAG_ENTITY_LIFECYCLE
-                    std::cout << "[DIAG:REJECT] ribn slot=0"
-                        << " host=(" << pe.ribbon.host_gx << "," << pe.ribbon.host_gz
-                        << ") -- no host patch\n";
-#endif
-                }
+                // Ribbon lifecycle is distance-based, not patch-based.
+                // The spine spans ~28 patches; anchoring to one is fragile.
+                // We commit without record_entity — eviction is handled by
+                // the per-frame RIBBON_HOLD_DIST check, not patch eviction.
+                self->commit_ribbon(pe.ribbon, pe.gx, pe.gz, queue);
             }
 
             static void dispatch_evict_ribbon(Cartridge* self,
@@ -9832,15 +9825,15 @@ namespace t7 {
 #endif
 
                 // Ribbon distance-based eviction (open mode only — finite mode
-                // ribbons are mood-controlled and don't use patch lifecycle)
+                // ribbons are mood-controlled and don't use patch lifecycle).
+                // Ribbon is NOT registered on any patch — its lifecycle is purely
+                // distance-based because the spine spans ~28 patches.
                 if (!finiteMode_ && activeRibbons_[0].active) {
                     float dx = activeRibbons_[0].anchor_x - pawnReadback_x_;
                     float dz = activeRibbons_[0].anchor_z - pawnReadback_z_;
                     float dist_sq = dx * dx + dz * dz;
-                    constexpr float RIBBON_HOLD_DIST = 200.0f;
+                    constexpr float RIBBON_HOLD_DIST = 150.0f;
                     if (dist_sq > RIBBON_HOLD_DIST * RIBBON_HOLD_DIST) {
-                        auto* host = find_patch(activeRibbons_[0].host_gx, activeRibbons_[0].host_gz);
-                        if (host) host->unregister_entity(PopFamily::RIBBON, 0);
                         dispatch_evict_ribbon(this, 0, queue);
                     }
                 }
