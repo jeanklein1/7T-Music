@@ -629,7 +629,7 @@ namespace t7 {
 
             // ─── Ribbon dispatch-pipeline config ────────────────────────────
             struct RibbonConfig {
-                static constexpr float SPAWN_CHANCE = 0.020f;
+                static constexpr float SPAWN_CHANCE = 0.150f;
                 static constexpr float MOOD_MULTIPLIER[MOOD_COUNT] = { 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f };
                 static constexpr float POSITION_JITTER = 0.3f;
             };
@@ -3357,7 +3357,7 @@ namespace t7 {
             //  │ Cactus   │  0.100   │ 1.0   1.0    1.0   1.0    1.0   0.0  │  0.35  │
             //  │ Blade    │  0.025   │ 1.0   1.0    1.0   1.0    1.0   0.0  │  0.30  │
             //  │ Floating │  0.050   │ 1.0   1.0    0.0   0.0    1.0   0.0  │  0.40  │
-            //  │ Ribbon   │  0.020   │ 1.0   1.0    0.0   0.0    1.0   0.0  │  0.30  │
+            //  │ Ribbon   │  0.150   │ 1.0   1.0    0.0   0.0    1.0   0.0  │  0.30  │
             //  └──────────┴──────────┴───────────────────────────────────────┴────────┘
             //
             // Spawn chance is flat — archetype/terrain no longer gates spawning.
@@ -9839,6 +9839,31 @@ namespace t7 {
                     lastCensusDump_ = currentSeconds_;
                 }
 #endif
+
+                // Ribbon distance-based eviction (open mode only — finite mode
+                // ribbons are mood-controlled and don't use patch lifecycle)
+                if (!finiteMode_ && activeRibbons_[0].active) {
+                    float dx = activeRibbons_[0].anchor_x - pawnReadback_x_;
+                    float dz = activeRibbons_[0].anchor_z - pawnReadback_z_;
+                    float dist_sq = dx * dx + dz * dz;
+                    constexpr float RIBBON_HOLD_DIST = 200.0f;
+                    if (dist_sq > RIBBON_HOLD_DIST * RIBBON_HOLD_DIST) {
+                        // Unregister from host patch before eviction
+                        int32_t hgx = activeRibbons_[0].host_gx;
+                        int32_t hgz = activeRibbons_[0].host_gz;
+                        auto* host = find_patch(hgx, hgz);
+                        if (host) {
+                            for (uint32_t i = 0; i < host->entity_ref_count; i++) {
+                                if (host->entity_refs[i].family == PopFamily::RIBBON &&
+                                    host->entity_refs[i].slot == 0) {
+                                    host->entity_refs[i] = host->entity_refs[--host->entity_ref_count];
+                                    break;
+                                }
+                            }
+                        }
+                        dispatch_evict_ribbon(this, 0, queue);
+                    }
+                }
 
                 // Ribbon time update (per-frame, like update_sphere for floating)
                 if (activeRibbons_[0].active) {
