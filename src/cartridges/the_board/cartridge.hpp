@@ -4963,6 +4963,8 @@ namespace t7 {
                 activeRibbons_[0].anchor_z = plan.cz;
                 activeRibbons_[0].active = true;
                 activeRibbonCount_ = 1;
+                std::cout << "[Ribbon] SPAWN at (" << plan.cx << ", " << plan.cz
+                    << ") tier=" << plan.tier_idx << "\n";
             }
 
             // ═══ Ribbon Dispatch Pipeline End ═══════════════════════════════
@@ -7876,6 +7878,7 @@ namespace t7 {
                 self->gpuState_.upload_ribbon(queue, empty);
                 self->activeRibbons_[0].active = false;
                 self->activeRibbonCount_ = 0;
+                std::cout << "[Ribbon] EVICT — slot freed\n";
             }
 
             static bool dispatch_prepare_mesh_ribbon(Cartridge* self, wgpu::Queue& queue) {
