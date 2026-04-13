@@ -10,6 +10,7 @@
 #include <cmath>
 #include <cstring>
 #include <iostream>
+#include <iomanip>
 #include <chrono>
 #include <unordered_map>
 #include <unordered_set>
@@ -916,7 +917,7 @@ namespace t7 {
 
             struct ArchConfig {
                 // Flat spawn probability — terrain-independent (themes control variation)
-                static constexpr float SPAWN_CHANCE_BY_ARCHETYPE[4] = { 0.030f, 0.030f, 0.030f, 0.0f };
+                static constexpr float SPAWN_CHANCE = 0.030f;
 
                 // Per-mood spawn multiplier (Bayesian: prior × mood_factor × adjacency_factor)
                 static constexpr float MOOD_MULTIPLIER[MOOD_COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f };
@@ -1112,7 +1113,7 @@ namespace t7 {
             static constexpr float COLUMN_SANDSTONE_VARIANCE = 0.04f;
 
             struct ColumnConfig {
-                static constexpr float SPAWN_CHANCE_BY_ARCHETYPE[4] = { 0.030f, 0.030f, 0.030f, 0.0f };
+                static constexpr float SPAWN_CHANCE = 0.030f;
                 static constexpr float MOOD_MULTIPLIER[MOOD_COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f };
                 static constexpr float POSITION_JITTER = 0.35f;
             };
@@ -1142,7 +1143,7 @@ namespace t7 {
             };
 
             struct AntennaConfig {
-                static constexpr float SPAWN_CHANCE_BY_ARCHETYPE[4] = { 0.025f, 0.025f, 0.025f, 0.0f };
+                static constexpr float SPAWN_CHANCE = 0.025f;
                 static constexpr float MOOD_MULTIPLIER[MOOD_COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f };
                 static constexpr float POSITION_JITTER = 0.35f;
             };
@@ -1271,10 +1272,10 @@ namespace t7 {
             // Variance from tier's trunk_var / frond_var applied per-spawn.
             static constexpr float PALM_TRUNK_BASE[3] = { 0.45f, 0.35f, 0.25f };
             static constexpr float PALM_FROND_BASE[3] = { 0.25f, 0.45f, 0.20f };
-            static constexpr float PALM_AGED_BASE[3]  = { 0.35f, 0.38f, 0.18f };
+            static constexpr float PALM_AGED_BASE[3] = { 0.35f, 0.38f, 0.18f };
 
             struct PalmConfig {
-                static constexpr float SPAWN_CHANCE_BY_ARCHETYPE[4] = { 0.2f, 0.2f, 0.2f, 0.5f };
+                static constexpr float SPAWN_CHANCE = 0.200f;
                 static constexpr float MOOD_MULTIPLIER[MOOD_COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f };
                 static constexpr float POSITION_JITTER = 0.45f;
             };
@@ -1373,7 +1374,7 @@ namespace t7 {
             bool select_palm_for_patch(int32_t gx, int32_t gz, PalmSelection& sel) {
                 auto gate = run_spawn_preamble(gx, gz,
                     activePalms_, Dim::MAX_PALM_INSTANCES,
-                    PalmProp::SPAWN_ROLL, PalmConfig::SPAWN_CHANCE_BY_ARCHETYPE,
+                    PalmProp::SPAWN_ROLL, PalmConfig::SPAWN_CHANCE,
                     PalmConfig::MOOD_MULTIPLIER,
                     PopFamily::PALM, "palm");
                 if (!gate.ok) return false;
@@ -1439,7 +1440,7 @@ namespace t7 {
                     PalmProp::POSITION_X, PalmProp::POSITION_Z,
                     PalmConfig::POSITION_JITTER,
                     PalmProp::ROTATION,
-                    sel.solid_half, PopFamily::PALM);
+                    sel.solid_half, PopFamily::PALM, sel.tier_idx);
                 if (!pos.ok) return false;
 
                 plan = PalmPlacement{};
@@ -1461,8 +1462,7 @@ namespace t7 {
                 plan.trunk_segs = sel.trunk_segs; plan.frond_segs = sel.frond_segs;
                 plan.cached_ground_y = cpu_terrain_base_at(plan.cx, plan.cz);
 
-                record_placement_bookkeeping(PopFamily::PALM, plan.tier_idx,
-                    plan.cx, plan.cz, plan.rotation);
+                record_placement_bookkeeping(PopFamily::PALM, plan.tier_idx);
 
                 return true;
             }
@@ -1560,10 +1560,10 @@ namespace t7 {
             // Trunk body and rib highlights have independent RGB bases.
             // Variance from tier's color_var applied per-spawn.
             static constexpr float CACTUS_BODY_BASE[3] = { 0.30f, 0.45f, 0.25f };
-            static constexpr float CACTUS_RIB_BASE[3]  = { 0.35f, 0.55f, 0.30f };
+            static constexpr float CACTUS_RIB_BASE[3] = { 0.35f, 0.55f, 0.30f };
 
             struct CactusConfig {
-                static constexpr float SPAWN_CHANCE_BY_ARCHETYPE[4] = { 0.0f, 0.100f, 0.100f, 0.0f };  // DEBUG: 5× spawn rate
+                static constexpr float SPAWN_CHANCE = 0.100f;
                 static constexpr float MOOD_MULTIPLIER[MOOD_COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f };
                 static constexpr float POSITION_JITTER = 0.35f;
             };
@@ -1647,41 +1647,41 @@ namespace t7 {
                 /* SPROUT  */  { 3.0f, 0.5f,   1.8f, 0.4f,   0.35f, 0.08f,   0.30f, 0.06f,
                                  0.18f, 0.06f,  0.12f, 0.04f,  0.05f, 0.02f,  0.85f, 0.05f,
                                  0.15f, 0.06f,  5,  0.50f },
-                /* CLUMP   */  { 5.0f, 1.0f,   3.2f, 0.6f,   0.40f, 0.10f,   0.45f, 0.08f,
-                                 0.25f, 0.08f,  0.18f, 0.06f,  0.08f, 0.03f,  0.82f, 0.05f,
-                                 0.20f, 0.06f,  6,  0.35f },
-                /* THICKET */  { 6.0f, 1.0f,   5.5f, 1.2f,   0.45f, 0.10f,   0.55f, 0.10f,
-                                 0.30f, 0.10f,  0.22f, 0.08f,  0.10f, 0.04f,  0.80f, 0.06f,
-                                 0.25f, 0.08f,  7,  0.15f },
+                                 /* CLUMP   */  { 5.0f, 1.0f,   3.2f, 0.6f,   0.40f, 0.10f,   0.45f, 0.08f,
+                                                  0.25f, 0.08f,  0.18f, 0.06f,  0.08f, 0.03f,  0.82f, 0.05f,
+                                                  0.20f, 0.06f,  6,  0.35f },
+                                                  /* THICKET */  { 6.0f, 1.0f,   5.5f, 1.2f,   0.45f, 0.10f,   0.55f, 0.10f,
+                                                                   0.30f, 0.10f,  0.22f, 0.08f,  0.10f, 0.04f,  0.80f, 0.06f,
+                                                                   0.25f, 0.08f,  7,  0.15f },
             };
 
             // ─── Color Palette ───────────────────────────────────────────────
             // Paradigm: body-part bases with per-instance variance.
             // Fresh blade body and aged (dried) blade have independent RGB bases.
             // Variance from tier's color_var applied per-spawn.
-            static constexpr float BLADE_BODY_BASE[3]  = { 0.28f, 0.52f, 0.22f };
-            static constexpr float BLADE_AGED_BASE[3]  = { 0.48f, 0.45f, 0.28f };
+            static constexpr float BLADE_BODY_BASE[3] = { 0.28f, 0.52f, 0.22f };
+            static constexpr float BLADE_AGED_BASE[3] = { 0.48f, 0.45f, 0.28f };
 
             struct BladeClusterConfig {
-                static constexpr float SPAWN_CHANCE_BY_ARCHETYPE[4] = { 0.0f, 0.025f, 0.025f, 0.0f };
+                static constexpr float SPAWN_CHANCE = 0.025f;
                 static constexpr float MOOD_MULTIPLIER[MOOD_COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f };
                 static constexpr float POSITION_JITTER = 0.30f;
             };
 
             struct BladeProp {
-                static constexpr uint32_t SPAWN_ROLL  = 1100u;
-                static constexpr uint32_t POSITION_X  = 1101u;
-                static constexpr uint32_t POSITION_Z  = 1102u;
-                static constexpr uint32_t ROTATION    = 1103u;
-                static constexpr uint32_t TIER        = 1104u;
+                static constexpr uint32_t SPAWN_ROLL = 1100u;
+                static constexpr uint32_t POSITION_X = 1101u;
+                static constexpr uint32_t POSITION_Z = 1102u;
+                static constexpr uint32_t ROTATION = 1103u;
+                static constexpr uint32_t TIER = 1104u;
                 static constexpr uint32_t BLADE_COUNT = 1110u;
-                static constexpr uint32_t HEIGHT      = 1111u;
-                static constexpr uint32_t HEIGHT_VAR  = 1112u;
-                static constexpr uint32_t WIDTH       = 1113u;
-                static constexpr uint32_t SPLAY       = 1114u;
-                static constexpr uint32_t CURVE       = 1115u;
-                static constexpr uint32_t TWIST       = 1116u;
-                static constexpr uint32_t TAPER       = 1117u;
+                static constexpr uint32_t HEIGHT = 1111u;
+                static constexpr uint32_t HEIGHT_VAR = 1112u;
+                static constexpr uint32_t WIDTH = 1113u;
+                static constexpr uint32_t SPLAY = 1114u;
+                static constexpr uint32_t CURVE = 1115u;
+                static constexpr uint32_t TWIST = 1116u;
+                static constexpr uint32_t TAPER = 1117u;
                 static constexpr uint32_t COLOR_VAR_R = 1120u;
                 static constexpr uint32_t COLOR_VAR_G = 1121u;
                 static constexpr uint32_t COLOR_VAR_B = 1122u;
@@ -1746,7 +1746,7 @@ namespace t7 {
             bool select_blade_for_patch(int32_t gx, int32_t gz, BladeClusterSelection& sel) {
                 auto gate = run_spawn_preamble(gx, gz,
                     activeBlades_, Dim::MAX_BLADE_INSTANCES,
-                    BladeProp::SPAWN_ROLL, BladeClusterConfig::SPAWN_CHANCE_BY_ARCHETYPE,
+                    BladeProp::SPAWN_ROLL, BladeClusterConfig::SPAWN_CHANCE,
                     BladeClusterConfig::MOOD_MULTIPLIER,
                     PopFamily::BLADE, "blad");
                 if (!gate.ok) return false;
@@ -1797,7 +1797,7 @@ namespace t7 {
                     BladeProp::POSITION_X, BladeProp::POSITION_Z,
                     BladeClusterConfig::POSITION_JITTER,
                     BladeProp::ROTATION,
-                    sel.solid_half, PopFamily::BLADE);
+                    sel.solid_half, PopFamily::BLADE, sel.tier_idx);
                 if (!pos.ok) return false;
 
                 plan = BladeClusterPlacement{};
@@ -1816,8 +1816,7 @@ namespace t7 {
                 plan.seed_val = sel.seed_val;
                 plan.cached_ground_y = cpu_terrain_base_at(plan.cx, plan.cz);
 
-                record_placement_bookkeeping(PopFamily::BLADE, plan.tier_idx,
-                    plan.cx, plan.cz, plan.rotation);
+                record_placement_bookkeeping(PopFamily::BLADE, plan.tier_idx);
 
                 return true;
             }
@@ -1909,7 +1908,7 @@ namespace t7 {
             bool select_cactus_for_patch(int32_t gx, int32_t gz, CactusSelection& sel) {
                 auto gate = run_spawn_preamble(gx, gz,
                     activeCacti_, Dim::MAX_CACTUS_INSTANCES,
-                    CactusProp::SPAWN_ROLL, CactusConfig::SPAWN_CHANCE_BY_ARCHETYPE,
+                    CactusProp::SPAWN_ROLL, CactusConfig::SPAWN_CHANCE,
                     CactusConfig::MOOD_MULTIPLIER,
                     PopFamily::CACTUS, "cact");
                 if (!gate.ok) return false;
@@ -1970,7 +1969,7 @@ namespace t7 {
                     CactusProp::POSITION_X, CactusProp::POSITION_Z,
                     CactusConfig::POSITION_JITTER,
                     CactusProp::ROTATION,
-                    sel.solid_half, PopFamily::CACTUS);
+                    sel.solid_half, PopFamily::CACTUS, sel.tier_idx);
                 if (!pos.ok) return false;
 
                 plan = CactusPlacement{};
@@ -1993,8 +1992,7 @@ namespace t7 {
                 plan.seed_val = sel.seed_val;
                 plan.cached_ground_y = cpu_terrain_base_at(plan.cx, plan.cz);
 
-                record_placement_bookkeeping(PopFamily::CACTUS, plan.tier_idx,
-                    plan.cx, plan.cz, plan.rotation);
+                record_placement_bookkeeping(PopFamily::CACTUS, plan.tier_idx);
 
                 return true;
             }
@@ -2093,7 +2091,7 @@ namespace t7 {
 
             struct PyramidConfig {
                 // Flat spawn probability — terrain-independent (themes control variation)
-                static constexpr float SPAWN_CHANCE_BY_ARCHETYPE[4] = { 0.030f, 0.030f, 0.030f, 0.0f };
+                static constexpr float SPAWN_CHANCE = 0.030f;
                 static constexpr float MOOD_MULTIPLIER[MOOD_COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f };
                 static constexpr float POSITION_JITTER = 0.25f;
             };
@@ -2182,7 +2180,7 @@ namespace t7 {
             SpawnGatePreambleResult run_spawn_preamble(
                 int32_t gx, int32_t gz,
                 ActiveT* active_arr, uint32_t max_instances,
-                uint32_t spawn_roll_prop, const float* spawn_chance_table,
+                uint32_t spawn_roll_prop, float spawn_chance,
                 const float* mood_mult,
                 uint32_t family, const char* diag_name)
             {
@@ -2213,9 +2211,16 @@ namespace t7 {
                     }
                 }
 
+                // 6b. Proximity affinity boost (nearby entities attract)
+                {
+                    float pcx = (gx + 0.5f) * PATCH_EXTENT;
+                    float pcz = (gz + 0.5f) * PATCH_EXTENT;
+                    adj_mod *= proximity_affinity_boost(pcx, pcz, family);
+                }
+
                 // 7. Spawn gate
                 auto ctx = evaluate_spawn_gate(gx, gz, spawn_roll_prop,
-                    spawn_chance_table, adj_mod);
+                    spawn_chance, adj_mod);
                 if (!ctx.passed) return r;
 
                 // 8-9. Find and reserve slot
@@ -2228,7 +2233,7 @@ namespace t7 {
 
 #ifdef DIAG_ENTITY_LIFECYCLE
                 std::cout << "[DIAG:SEL] " << diag_name << " slot=" << slot
-                          << " patch=(" << gx << "," << gz << ")\n";
+                    << " patch=(" << gx << "," << gz << ")\n";
 #endif
 
                 r.seed = ctx.seed;
@@ -2253,7 +2258,7 @@ namespace t7 {
                 uint32_t seed, int32_t trigger_gx, int32_t trigger_gz,
                 uint32_t pos_x_prop, uint32_t pos_z_prop, float jitter,
                 uint32_t rotation_seed_prop,
-                float footprint_r, uint32_t family)
+                float footprint_r, uint32_t family, uint32_t tier = 0)
             {
                 PositionResult r{};
                 r.ok = false;
@@ -2263,16 +2268,15 @@ namespace t7 {
                     pos_x_prop, pos_z_prop, jitter, r.cx, r.cz);
                 r.rotation = cpu_hash_f(seed, rotation_seed_prop) * 6.283185f;
 
-                // 2. Separation + footprint check
-                if (!check_separation(r.cx, r.cz, family) ||
-                    !footprint_clear(r.cx, r.cz, footprint_r))
+                // 2. Separation + footprint check (single pass)
+                if (!check_position(r.cx, r.cz, footprint_r, family))
                     return r;
 
                 // 3. Host patch + footprint registration
                 r.host_gx = (int32_t)std::floor(r.cx / PATCH_EXTENT);
                 r.host_gz = (int32_t)std::floor(r.cz / PATCH_EXTENT);
                 if (register_footprint(r.cx, r.cz, footprint_r,
-                    r.host_gx, r.host_gz) == UINT32_MAX) return r;
+                    r.host_gx, r.host_gz, family, tier) == UINT32_MAX) return r;
 
                 r.ok = true;
                 return r;
@@ -2282,19 +2286,17 @@ namespace t7 {
             //
             // Tail bookkeeping shared by all three families.
 
-            void record_placement_bookkeeping(uint32_t family, uint32_t tier_idx,
-                float cx, float cz, float rotation)
+            void record_placement_bookkeeping(uint32_t family, uint32_t tier_idx)
             {
                 record_population_observation(family, tier_idx);
-                record_spawn(cx, cz, rotation, family);
             }
 
-// ─── Column Selection (identity + geometry, position-independent) ─
-//
-// Captures everything from the spawn gate, tier selection, and
-// Gaussian parameter sampling — the entity's identity and geometry —
-// without knowing WHERE it goes.  Populated by select_column_for_patch,
-// consumed by place_column_from_selection.
+            // ─── Column Selection (identity + geometry, position-independent) ─
+            //
+            // Captures everything from the spawn gate, tier selection, and
+            // Gaussian parameter sampling — the entity's identity and geometry —
+            // without knowing WHERE it goes.  Populated by select_column_for_patch,
+            // consumed by place_column_from_selection.
 
             struct ColumnSelection {
                 uint32_t seed;
@@ -2320,14 +2322,20 @@ namespace t7 {
                 uint32_t shaft_rings;
                 float col_r, col_g, col_b;
                 float drum_colors[9];
+                // Placement identity (set by select, read by place)
+                uint32_t family;        // PopFamily::COLUMN or PopFamily::ANTENNA
+                uint32_t pos_x_prop;
+                uint32_t pos_z_prop;
+                float    jitter;
+                uint32_t rot_prop;
             };
 
-// ─── Column Placement (plan output) ──────────────────────────────
-//
-// Complete description of a column to be committed. Populated by
-// the planning phase (spawn gate, sampling, position negotiation).
-// Consumed by the commit phase (pier write, GPU upload, bookkeeping).
-// No GPU state is touched during planning.
+            // ─── Column Placement (plan output) ──────────────────────────────
+            //
+            // Complete description of a column to be committed. Populated by
+            // the planning phase (spawn gate, sampling, position negotiation).
+            // Consumed by the commit phase (pier write, GPU upload, bookkeeping).
+            // No GPU state is touched during planning.
 
             struct ColumnPlacement {
                 // Planning identity
@@ -2375,7 +2383,7 @@ namespace t7 {
                 // ── Shared preamble (template call) ──
                 auto gate = run_spawn_preamble(gx, gz,
                     activeColumns_, Dim::MAX_COLUMN_ONLY,
-                    ColumnProp::SPAWN_ROLL, ColumnConfig::SPAWN_CHANCE_BY_ARCHETYPE,
+                    ColumnProp::SPAWN_ROLL, ColumnConfig::SPAWN_CHANCE,
                     ColumnConfig::MOOD_MULTIPLIER,
                     PopFamily::COLUMN, "col");
                 if (!gate.ok) return false;
@@ -2448,6 +2456,13 @@ namespace t7 {
                 // Classical columns have no drum colors
                 std::memset(sel.drum_colors, 0, sizeof(sel.drum_colors));
 
+                // Placement identity
+                sel.family = PopFamily::COLUMN;
+                sel.pos_x_prop = ColumnProp::POSITION_X;
+                sel.pos_z_prop = ColumnProp::POSITION_Z;
+                sel.jitter = ColumnConfig::POSITION_JITTER;
+                sel.rot_prop = 355u;
+
                 return true;
             }
 
@@ -2461,7 +2476,7 @@ namespace t7 {
             bool select_antenna_for_patch(int32_t gx, int32_t gz, ColumnSelection& sel) {
                 auto gate = run_spawn_preamble(gx, gz,
                     activeAntennas_, Dim::MAX_ANTENNA_ONLY,
-                    AntennaProp::SPAWN_ROLL, AntennaConfig::SPAWN_CHANCE_BY_ARCHETYPE,
+                    AntennaProp::SPAWN_ROLL, AntennaConfig::SPAWN_CHANCE,
                     AntennaConfig::MOOD_MULTIPLIER,
                     PopFamily::ANTENNA, "ant");
                 if (!gate.ok) return false;
@@ -2523,7 +2538,8 @@ namespace t7 {
                     sel.col_r = COLUMN_PALETTE[pal_idx][0] + (cpu_hash_f(gate.seed, AntennaProp::COLOR_VAR_R) - 0.5f) * 0.06f;
                     sel.col_g = COLUMN_PALETTE[pal_idx][1] + (cpu_hash_f(gate.seed, AntennaProp::COLOR_VAR_G) - 0.5f) * 0.06f;
                     sel.col_b = COLUMN_PALETTE[pal_idx][2] + (cpu_hash_f(gate.seed, AntennaProp::COLOR_VAR_B) - 0.5f) * 0.06f;
-                } else {
+                }
+                else {
                     sel.col_r = COLUMN_SANDSTONE_BASE[0] + (cpu_hash_f(gate.seed, AntennaProp::COLOR_VAR_R) - 0.5f) * COLUMN_SANDSTONE_VARIANCE * 2.0f;
                     sel.col_g = COLUMN_SANDSTONE_BASE[1] + (cpu_hash_f(gate.seed, AntennaProp::COLOR_VAR_G) - 0.5f) * COLUMN_SANDSTONE_VARIANCE * 2.0f;
                     sel.col_b = COLUMN_SANDSTONE_BASE[2] + (cpu_hash_f(gate.seed, AntennaProp::COLOR_VAR_B) - 0.5f) * COLUMN_SANDSTONE_VARIANCE * 2.0f;
@@ -2550,12 +2566,19 @@ namespace t7 {
                 sel.drum_colors[7] = DRUM_PALETTE[d3][1] + (cpu_hash_f(gate.seed, 867u) - 0.5f) * v;
                 sel.drum_colors[8] = DRUM_PALETTE[d3][2] + (cpu_hash_f(gate.seed, 868u) - 0.5f) * v;
 
+                // Placement identity
+                sel.family = PopFamily::ANTENNA;
+                sel.pos_x_prop = AntennaProp::POSITION_X;
+                sel.pos_z_prop = AntennaProp::POSITION_Z;
+                sel.jitter = AntennaConfig::POSITION_JITTER;
+                sel.rot_prop = 355u;
+
                 return true;
             }
 
             // ─── place_column_from_selection ─────────────────────────────────
             //
-            // Phase 2: position negotiation.  Jittered position, formation
+            // Phase 2: position negotiation.  Jittered position, separation
             // override, separation + footprint, host patch, pier geometry,
             // bookkeeping.  Reads a const ColumnSelection, writes a
             // ColumnPlacement.  Returns false if position rejected.
@@ -2564,10 +2587,10 @@ namespace t7 {
                 // ── Shared position negotiation ──
                 auto pos = negotiate_position(sel.seed,
                     sel.trigger_gx, sel.trigger_gz,
-                    ColumnProp::POSITION_X, ColumnProp::POSITION_Z,
-                    ColumnConfig::POSITION_JITTER,
-                    355u,
-                    sel.solid_half, PopFamily::COLUMN);
+                    sel.pos_x_prop, sel.pos_z_prop,
+                    sel.jitter,
+                    sel.rot_prop,
+                    sel.solid_half, sel.family, sel.tier_idx);
                 if (!pos.ok) return false;
 
                 // ── Family-specific: populate placement ──
@@ -2623,8 +2646,7 @@ namespace t7 {
                 plan.pier.is_active = 1;
 
                 // ── Shared tail bookkeeping ──
-                record_placement_bookkeeping(PopFamily::COLUMN, plan.tier_idx,
-                    plan.cx, plan.cz, plan.rotation);
+                record_placement_bookkeeping(sel.family, plan.tier_idx);
 
                 return true;
             }
@@ -2723,7 +2745,7 @@ namespace t7 {
                 // ── Shared preamble (template call) ──
                 auto gate = run_spawn_preamble(gx, gz,
                     activePyramids_, Dim::MAX_PYRAMID_INSTANCES,
-                    PyramidProp::SPAWN_ROLL, PyramidConfig::SPAWN_CHANCE_BY_ARCHETYPE,
+                    PyramidProp::SPAWN_ROLL, PyramidConfig::SPAWN_CHANCE,
                     PyramidConfig::MOOD_MULTIPLIER,
                     PopFamily::PYRAMID, "pyr");
                 if (!gate.ok) return false;
@@ -2781,7 +2803,7 @@ namespace t7 {
 
             // ─── place_pyramid_from_selection ────────────────────────────────
             //
-            // Phase 2: position negotiation.  Jittered position, formation
+            // Phase 2: position negotiation.  Jittered position, separation
             // override, separation + footprint, ground_y, GPU instance,
             // regen AABB, bookkeeping.  Reads a const PyramidSelection,
             // writes a PyramidPlacement.  Returns false if position rejected.
@@ -2793,7 +2815,7 @@ namespace t7 {
                     PyramidProp::POSITION_X, PyramidProp::POSITION_Z,
                     PyramidConfig::POSITION_JITTER,
                     PyramidProp::ROTATION,
-                    sel.footprint_r, PopFamily::PYRAMID);
+                    sel.footprint_r, PopFamily::PYRAMID, sel.tier_idx);
                 if (!pos.ok) return false;
 
                 // ── Family-specific: populate placement ──
@@ -2854,8 +2876,7 @@ namespace t7 {
                 }
 
                 // ── Shared tail bookkeeping ──
-                record_placement_bookkeeping(PopFamily::PYRAMID, plan.tier_idx,
-                    plan.cx, plan.cz, plan.rotation);
+                record_placement_bookkeeping(PopFamily::PYRAMID, plan.tier_idx);
 
                 return true;
             }
@@ -3129,12 +3150,40 @@ namespace t7 {
                 float x = 0.0f, z = 0.0f;
                 float radius = 0.0f;
                 int32_t patch_gx = 0, patch_gz = 0;
+                uint32_t family = UINT32_MAX;  // PopFamily index, UINT32_MAX = non-entity (gallery etc.)
+                uint32_t tier = 0;             // tier index within family
+                float spawn_time = 0.0f;       // currentSeconds_ at registration
                 bool active = false;
             };
 
             static constexpr uint32_t MAX_FOOTPRINTS = 128;
             GroundFootprint footprints_[MAX_FOOTPRINTS]{};
 
+            // Single-pass spatial check: physical overlap + aesthetic separation.
+            // For entity footprints (family < COUNT): effective_min = gap + both radii.
+            // Gap is reduced when proximity affinity exists between the pair.
+            // For non-entity footprints (gallery etc.): effective_min = both radii (overlap only).
+            bool check_position(float px, float pz, float placing_radius,
+                uint32_t placing_family) const {
+                for (uint32_t i = 0; i < MAX_FOOTPRINTS; i++) {
+                    if (!footprints_[i].active) continue;
+                    float dx = px - footprints_[i].x;
+                    float dz = pz - footprints_[i].z;
+                    float effective_min = placing_radius + footprints_[i].radius;
+                    if (footprints_[i].family < PopFamily::COUNT) {
+                        float min_gap = MIN_SEPARATION[placing_family][footprints_[i].family];
+                        if (min_gap > 0.0f) {
+                            float aff = PROXIMITY_AFFINITY[placing_family][footprints_[i].family];
+                            if (aff > 0.0f) min_gap *= (1.0f - aff * PROXIMITY_GAP_REDUCTION[placing_family]);
+                            effective_min += min_gap;
+                        }
+                    }
+                    if (dx * dx + dz * dz < effective_min * effective_min) return false;
+                }
+                return true;
+            }
+
+            // Physical overlap only (for gallery and other non-entity callers).
             bool footprint_clear(float x, float z, float radius) const {
                 for (uint32_t i = 0; i < MAX_FOOTPRINTS; i++) {
                     if (!footprints_[i].active) continue;
@@ -3147,10 +3196,11 @@ namespace t7 {
             }
 
             uint32_t register_footprint(float x, float z, float radius,
-                int32_t gx, int32_t gz) {
+                int32_t gx, int32_t gz, uint32_t family = UINT32_MAX,
+                uint32_t tier = 0) {
                 for (uint32_t i = 0; i < MAX_FOOTPRINTS; i++) {
                     if (!footprints_[i].active) {
-                        footprints_[i] = { x, z, radius, gx, gz, true };
+                        footprints_[i] = { x, z, radius, gx, gz, family, tier, currentSeconds_, true };
                         return i;
                     }
                 }
@@ -3166,13 +3216,80 @@ namespace t7 {
                 }
             }
 
+            // ─── Entity Census ───────────────────────────────────────────────
+            //
+            // Complete snapshot of all active entities via the footprint registry.
+            // Printed to console periodically and on theme transitions.
+            // Enables determinism verification: same seed + pawn path → same census.
+
+            float lastCensusDump_ = -999.0f;
+            static constexpr float CENSUS_DUMP_INTERVAL = 30.0f;
+
+            static const char* family_short_name(uint32_t family) {
+                static const char* NAMES[] = { "pyr", "arch", "col", "ant", "palm", "cact", "blad" };
+                return (family < PopFamily::COUNT) ? NAMES[family] : "???";
+            }
+
+            static const char* theme_short_name(uint32_t theme) {
+                static const char* NAMES[] = { "transition", "monumental", "colonnade", "antenna", "barren" };
+                return (theme < THEME_COUNT) ? NAMES[theme] : "???";
+            }
+
+            void dump_entity_census(const char* trigger) const {
+                uint32_t count = 0;
+                uint32_t by_family[PopFamily::COUNT] = {};
+                for (uint32_t i = 0; i < MAX_FOOTPRINTS; i++) {
+                    if (!footprints_[i].active) continue;
+                    if (footprints_[i].family >= PopFamily::COUNT) continue;
+                    count++;
+                    by_family[footprints_[i].family]++;
+                }
+
+                std::cout << "[CENSUS t=" << std::fixed << std::setprecision(1) << currentSeconds_
+                    << " trigger=" << trigger << "] " << count << " entities (";
+                for (uint32_t f = 0; f < PopFamily::COUNT; f++) {
+                    if (f > 0) std::cout << " ";
+                    std::cout << family_short_name(f) << ":" << by_family[f];
+                }
+                std::cout << ")\n";
+
+                // Per-entity detail, sorted by family then spawn_time
+                struct CensusEntry { uint32_t fp_idx; uint32_t family; uint32_t tier; float spawn_time; };
+                CensusEntry entries[MAX_FOOTPRINTS];
+                uint32_t n = 0;
+                for (uint32_t i = 0; i < MAX_FOOTPRINTS; i++) {
+                    if (!footprints_[i].active || footprints_[i].family >= PopFamily::COUNT) continue;
+                    entries[n++] = { i, footprints_[i].family, footprints_[i].tier, footprints_[i].spawn_time };
+                }
+                // Insertion sort by (family, spawn_time)
+                for (uint32_t i = 1; i < n; i++) {
+                    CensusEntry key = entries[i]; uint32_t j = i;
+                    while (j > 0 && (entries[j - 1].family > key.family ||
+                        (entries[j - 1].family == key.family && entries[j - 1].spawn_time > key.spawn_time))) {
+                        entries[j] = entries[j - 1]; j--;
+                    }
+                    entries[j] = key;
+                }
+                for (uint32_t i = 0; i < n; i++) {
+                    const auto& fp = footprints_[entries[i].fp_idx];
+                    std::cout << "  " << family_short_name(fp.family)
+                        << " t" << fp.tier
+                        << " (" << std::setw(8) << std::setprecision(1) << fp.x
+                        << "," << std::setw(8) << fp.z << ")"
+                        << " p(" << std::setw(3) << fp.patch_gx << "," << std::setw(3) << fp.patch_gz << ")"
+                        << " age=" << std::setprecision(1) << (currentSeconds_ - fp.spawn_time)
+                        << "\n";
+                }
+                std::cout << std::flush;
+            }
+
             // ─── Spawn Utilities ─────────────────────────────────────────────
             //
             // Shared preamble for entity spawn functions. Extracted from the
             // common skeleton of spawn_{arches,columns,pyramids}_for_patch.
             //
             // Usage:
-            //   auto ctx = evaluate_spawn_gate(gx, gz, Prop::SPAWN_ROLL, Config::SPAWN_CHANCE_BY_ARCHETYPE);
+            //   auto ctx = evaluate_spawn_gate(gx, gz, Prop::SPAWN_ROLL, Config::SPAWN_CHANCE);
             //   if (!ctx.passed) return;
             //   uint32_t tier = select_tier(ctx.seed, Prop::TIER, weights, count);
             //   jittered_position(ctx.seed, gx, gz, Prop::POSITION_X, Prop::POSITION_Z, jitter, cx, cz);
@@ -3183,11 +3300,11 @@ namespace t7 {
                 bool passed;            // false if spawn gate failed
             };
 
-            // Evaluate the spawn gate: archetype lookup + seed + probability check.
-            // adjacency_mod is a multiplier from the adjacency affinity system (1.0 = no change).
+            // Evaluate the spawn gate: seed + flat probability check.
+            // adjacency_mod is a multiplier from the full spawn cascade.
             SpawnPreamble evaluate_spawn_gate(int32_t gx, int32_t gz,
                 uint32_t spawn_roll_prop,
-                const float* spawn_chance_by_archetype,
+                float spawn_chance,
                 float adjacency_mod = 1.0f) const {
                 SpawnPreamble result{};
                 result.archetype = 1;
@@ -3195,9 +3312,7 @@ namespace t7 {
                 if (tile_it != tileCache_.end()) result.archetype = tile_it->second.archetype;
 
                 result.seed = tile_seed(activeSeed_, gx, gz);
-                float chance = spawn_chance_by_archetype[result.archetype] * adjacency_mod;
-                // Clamp to [0, 1] so high adjacency mods don't exceed unity
-                chance = std::min(chance, 1.0f);
+                float chance = std::min(spawn_chance * adjacency_mod, 1.0f);
                 result.passed = cpu_hash_f(result.seed, spawn_roll_prop) < chance;
                 return result;
             }
@@ -3242,19 +3357,21 @@ namespace t7 {
             // Single-glance view of all entity spawn parameters.
             // Authoritative values live in each entity's Config struct.
             //
-            //  ┌──────────┬─────────────────────────────────┬───────────────────────────────────────┬────────┐
-            //  │ Family   │ SPAWN_CHANCE_BY_ARCHETYPE        │ MOOD_MULTIPLIER                       │ JITTER │
-            //  │          │ mount  varied basin  pool        │ open  sunset flat  vault  fin   finR  │        │
-            //  ├──────────┼─────────────────────────────────┼───────────────────────────────────────┼────────┤
-            //  │ Pyramid  │ 0.030  0.030  0.030  0.0        │ 1.0   1.0    1.0   1.0    1.0   0.0  │  0.25  │
-            //  │ Arch     │ 0.030  0.030  0.030  0.0        │ 1.0   1.0    1.0   1.0    1.0   1.0  │  0.35  │
-            //  │ Column   │ 0.030  0.030  0.030  0.0        │ 1.0   1.0    1.0   1.0    1.0   0.0  │  0.35  │
-            //  │ Antenna  │ 0.025  0.025  0.025  0.0        │ 1.0   1.0    1.0   1.0    1.0   0.0  │  0.35  │
-            //  │ Palm     │ 0.200  0.200  0.200  0.5        │ 1.0   1.0    1.0   1.0    1.0   0.0  │  0.45  │
-            //  │ Cactus   │ 0.000  0.100  0.100  0.0        │ 1.0   1.0    1.0   1.0    1.0   0.0  │  0.35  │
-            //  │ Blade    │ 0.000  0.025  0.025  0.0        │ 1.0   1.0    1.0   1.0    1.0   0.0  │  0.30  │
-            //  └──────────┴─────────────────────────────────┴───────────────────────────────────────┴────────┘
+            //  ┌──────────┬──────────┬───────────────────────────────────────┬────────┐
+            //  │ Family   │ CHANCE   │ MOOD_MULTIPLIER                       │ JITTER │
+            //  │          │          │ open  sunset flat  vault  fin   finR  │        │
+            //  ├──────────┼──────────┼───────────────────────────────────────┼────────┤
+            //  │ Pyramid  │  0.030   │ 1.0   1.0    1.0   1.0    1.0   0.0  │  0.25  │
+            //  │ Arch     │  0.030   │ 1.0   1.0    1.0   1.0    1.0   1.0  │  0.35  │
+            //  │ Column   │  0.030   │ 1.0   1.0    1.0   1.0    1.0   0.0  │  0.35  │
+            //  │ Antenna  │  0.025   │ 1.0   1.0    1.0   1.0    1.0   0.0  │  0.35  │
+            //  │ Palm     │  0.200   │ 1.0   1.0    1.0   1.0    1.0   0.0  │  0.45  │
+            //  │ Cactus   │  0.100   │ 1.0   1.0    1.0   1.0    1.0   0.0  │  0.35  │
+            //  │ Blade    │  0.025   │ 1.0   1.0    1.0   1.0    1.0   0.0  │  0.30  │
+            //  └──────────┴──────────┴───────────────────────────────────────┴────────┘
             //
+            // Spawn chance is flat — archetype/terrain no longer gates spawning.
+            // Spatial variation comes from theme lattice and density field.
             // Themes further multiply spawn_chance via PopulationTheme::spawn_weight[family].
             // Moods gate entire families (0.0 = suppressed in that mood).
             // Jitter is fraction of PATCH_EXTENT for position randomization.
@@ -3374,6 +3491,71 @@ namespace t7 {
                 if (it != tileCache_.end()) {
                     it->second.entity_flags &= ~flag;
                 }
+            }
+
+            // ─── Proximity Affinity ───────────────────────────────────────────
+            //
+            // Distance-based spawn boost: "how much does a nearby entity of
+            // family B increase the spawn chance of family A?"
+            //
+            // PROXIMITY_AFFINITY[spawning][nearby] — boost per entity within radius.
+            // 0.0 = no effect. Positive = attraction. The scan accumulates a
+            // weighted count and returns a multiplier capped at max boost.
+            //
+            // Per-family parameters control the search geometry:
+            //   PROXIMITY_RADIUS     — search distance (0 = disabled)
+            //   PROXIMITY_MAX_BOOST  — cap on multiplier (1.0 = no boost possible)
+            //   PROXIMITY_THRESHOLD  — min nearby count before boost activates
+            //   PROXIMITY_GAP_REDUCTION — how much affinity softens separation
+            //
+            // Precomputed participation masks enable zero-cost early-out for
+            // families with no affinities defined.
+
+            //                              Pyr    Arch   Col    Ant    Palm   Cact   Blad
+            static constexpr float    PROXIMITY_RADIUS[PopFamily::COUNT] = { 0.0f,  0.0f, 60.0f,  0.0f,150.0f,120.0f,120.0f };
+            static constexpr float    PROXIMITY_MAX_BOOST[PopFamily::COUNT] = { 1.0f,  1.0f,  2.0f,  1.0f,  3.0f,  3.0f,  3.0f };
+            static constexpr uint32_t PROXIMITY_THRESHOLD[PopFamily::COUNT] = { 0,     0,     2,     0,     1,     1,     1 };
+            static constexpr float    PROXIMITY_GAP_REDUCTION[PopFamily::COUNT] = { 0.0f, 0.0f, 0.3f, 0.0f, 0.6f, 0.6f, 0.6f };
+
+            static constexpr float PROXIMITY_AFFINITY[PopFamily::COUNT][PopFamily::COUNT] = {
+                //          near: Pyr   Arch  Col   Ant   Palm  Cact  Blad
+                /* Pyr  */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+                /* Arch */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+                /* Col  */ { 0.0f, 0.0f, 0.4f, 0.0f, 0.0f, 0.0f, 0.0f },
+                /* Ant  */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+                /* Palm */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.5f, 0.3f, 0.3f },
+                /* Cact */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.3f, 0.5f, 0.3f },
+                /* Blad */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.3f, 0.3f, 0.5f },
+            };
+
+            // Precomputed: does this family have any non-zero affinity?
+            static constexpr bool proximity_row_active(uint32_t family) {
+                for (uint32_t f = 0; f < PopFamily::COUNT; f++)
+                    if (PROXIMITY_AFFINITY[family][f] > 0.0f) return true;
+                return false;
+            }
+
+            float proximity_affinity_boost(float cx, float cz, uint32_t family) const {
+                if (!proximity_row_active(family)) return 1.0f;
+                float radius = PROXIMITY_RADIUS[family];
+                if (radius <= 0.0f) return 1.0f;
+                float r2 = radius * radius;
+                float weighted = 0.0f;
+                uint32_t count = 0;
+                for (uint32_t i = 0; i < MAX_FOOTPRINTS; i++) {
+                    if (!footprints_[i].active) continue;
+                    if (footprints_[i].family >= PopFamily::COUNT) continue;
+                    float aff = PROXIMITY_AFFINITY[family][footprints_[i].family];
+                    if (aff <= 0.0f) continue;
+                    float dx = cx - footprints_[i].x;
+                    float dz = cz - footprints_[i].z;
+                    if (dx * dx + dz * dz < r2) {
+                        weighted += aff;
+                        count++;
+                    }
+                }
+                if (count < PROXIMITY_THRESHOLD[family]) return 1.0f;
+                return std::min(1.0f + weighted, PROXIMITY_MAX_BOOST[family]);
             }
 
             // Mark already-generated patches that overlap a world-space AABB
@@ -3870,7 +4052,7 @@ namespace t7 {
                 // ── Shared preamble (template call) ──
                 auto gate = run_spawn_preamble(gx, gz,
                     activeArches_, Dim::MAX_ARCH_INSTANCES,
-                    ArchProp::SPAWN_ROLL, ArchConfig::SPAWN_CHANCE_BY_ARCHETYPE,
+                    ArchProp::SPAWN_ROLL, ArchConfig::SPAWN_CHANCE,
                     ArchConfig::MOOD_MULTIPLIER,
                     PopFamily::ARCH, "arch");
                 if (!gate.ok) return false;
@@ -3973,7 +4155,7 @@ namespace t7 {
 
             // ─── place_arch_from_selection ────────────────────────────────
             //
-            // Phase 2: position negotiation.  Jittered position, formation
+            // Phase 2: position negotiation.  Jittered position, separation
             // override, separation + footprint, pier feet, pier instances,
             // ground_y, regen AABB, bookkeeping.  Reads a const ArchSelection,
             // writes an ArchPlacement.  Returns false if position rejected.
@@ -3985,7 +4167,7 @@ namespace t7 {
                     ArchProp::POSITION_X, ArchProp::POSITION_Z,
                     ArchConfig::POSITION_JITTER,
                     ArchProp::ROTATION,
-                    sel.footprint_r, PopFamily::ARCH);
+                    sel.footprint_r, PopFamily::ARCH, sel.tier_idx);
                 if (!pos.ok) return false;
 
                 // ── Family-specific: populate placement ──
@@ -4084,8 +4266,7 @@ namespace t7 {
                 }
 
                 // ── Shared tail bookkeeping ──
-                record_placement_bookkeeping(PopFamily::ARCH, plan.tier_idx,
-                    plan.cx, plan.cz, plan.rotation);
+                record_placement_bookkeeping(PopFamily::ARCH, plan.tier_idx);
 
                 return true;
             }
@@ -4589,7 +4770,8 @@ namespace t7 {
                     fe.pos[0] = ax + fe.orbit_radius;
                     fe.pos[1] = fe.orbit_height;
                     fe.pos[2] = az;
-                } else {
+                }
+                else {
                     fe.pos[0] = ax;
                     fe.pos[1] = fe.orbit_height;
                     fe.pos[2] = az;
@@ -6763,8 +6945,8 @@ namespace t7 {
                     float wz = (patch.grid_z + 0.5f) * PATCH_EXTENT;
                     float dx = wx - pawnReadback_x_, dz = wz - pawnReadback_z_;
                     std::cout << "[DIAG:EVICT] patch(" << patch.grid_x << "," << patch.grid_z
-                              << ") dist=" << std::sqrt(dx*dx+dz*dz)
-                              << " refs=" << patch.entity_ref_count << "\n";
+                        << ") dist=" << std::sqrt(dx * dx + dz * dz)
+                        << " refs=" << patch.entity_ref_count << "\n";
                 }
 #endif
                 for (uint32_t i = 0; i < patch.entity_ref_count; i++) {
@@ -7077,7 +7259,8 @@ namespace t7 {
                 if (host) {
                     self->commit_pyramid(pe.pyramid, pe.gx, pe.gz, queue);
                     host->record_entity(PopFamily::PYRAMID, pe.pyramid.slot);
-                } else {
+                }
+                else {
                     self->activePyramids_[pe.pyramid.slot].active = false;
 #ifdef DIAG_ENTITY_LIFECYCLE
                     std::cout << "[DIAG:REJECT] pyr slot=" << pe.pyramid.slot
@@ -7122,7 +7305,8 @@ namespace t7 {
                 if (host) {
                     self->commit_arch(pe.arch, pe.gx, pe.gz, queue);
                     host->record_entity(PopFamily::ARCH, pe.arch.slot);
-                } else {
+                }
+                else {
                     self->activeArches_[pe.arch.slot].active = false;
 #ifdef DIAG_ENTITY_LIFECYCLE
                     std::cout << "[DIAG:REJECT] arch slot=" << pe.arch.slot
@@ -7167,7 +7351,8 @@ namespace t7 {
                 if (host) {
                     self->commit_column(pe.column, pe.gx, pe.gz, queue);
                     host->record_entity(PopFamily::COLUMN, pe.column.slot);
-                } else {
+                }
+                else {
                     self->activeColumns_[pe.column.slot].active = false;
 #ifdef DIAG_ENTITY_LIFECYCLE
                     std::cout << "[DIAG:REJECT] col slot=" << pe.column.slot
@@ -7235,7 +7420,8 @@ namespace t7 {
                 if (host) {
                     self->commit_antenna(pe.antenna, pe.gx, pe.gz, queue);
                     host->record_entity(PopFamily::ANTENNA, pe.antenna.slot);
-                } else {
+                }
+                else {
                     self->activeAntennas_[pe.antenna.slot].active = false;
 #ifdef DIAG_ENTITY_LIFECYCLE
                     std::cout << "[DIAG:REJECT] ant slot=" << pe.antenna.slot
@@ -7280,7 +7466,8 @@ namespace t7 {
                 if (host) {
                     self->commit_palm(pe.palm, pe.gx, pe.gz, queue);
                     host->record_entity(PopFamily::PALM, pe.palm.slot);
-                } else {
+                }
+                else {
                     self->activePalms_[pe.palm.slot].active = false;
 #ifdef DIAG_ENTITY_LIFECYCLE
                     std::cout << "[DIAG:REJECT] palm slot=" << pe.palm.slot
@@ -7412,7 +7599,8 @@ namespace t7 {
                 if (host) {
                     self->commit_cactus(pe.cactus, pe.gx, pe.gz, queue);
                     host->record_entity(PopFamily::CACTUS, pe.cactus.slot);
-                } else {
+                }
+                else {
                     self->activeCacti_[pe.cactus.slot].active = false;
 #ifdef DIAG_ENTITY_LIFECYCLE
                     std::cout << "[DIAG:REJECT] cact slot=" << pe.cactus.slot
@@ -7475,7 +7663,8 @@ namespace t7 {
                 if (host) {
                     self->commit_blade(pe.blade, pe.gx, pe.gz, queue);
                     host->record_entity(PopFamily::BLADE, pe.blade.slot);
-                } else {
+                }
+                else {
                     self->activeBlades_[pe.blade.slot].active = false;
 #ifdef DIAG_ENTITY_LIFECYCLE
                     std::cout << "[DIAG:REJECT] blad slot=" << pe.blade.slot
@@ -7741,6 +7930,10 @@ namespace t7 {
                     env.active = (int32_t)selected;
                     env.elapsed = 0;
 
+                    // Census dump on theme transition
+#ifdef DIAG_ENTITY_CENSUS
+                    dump_entity_census(theme_short_name(selected));
+#endif
                 }
                 else {
                     env.elapsed++;
@@ -8105,47 +8298,6 @@ namespace t7 {
                 return count - 1;
             }
 
-            // ─── Formation Memory ────────────────────────────────────────────
-            //
-            // Ring buffer of recent spawn records. Each spawn function reads
-            // the most recent sibling of its family and can override its own
-            // position/rotation to form spatial relationships.
-            //
-            // If the formation position fails footprint check, silent fallback
-            // to the original jittered position. When no sibling exists or the
-            // formation roll fails, placement is fully independent (as before).
-            //
-            //  ┌──────────────────────────────────────────────────────────────────────────────────────────┐
-            //  │ FORMATION CONTROL SURFACE                                                               │
-            //  ├──────────────────────────┬───────────────┬──────────────────────────────────────────────┤
-            //  │ Per-family rule           │ Value         │ Effect                                       │
-            //  ├──────────────────────────┼───────────────┼──────────────────────────────────────────────┤
-            //  │ formation_chance          │ [0,1]         │ Probability of attempting formation          │
-            //  │ distance_mean / sigma     │ world units   │ Spacing from sibling                         │
-            //  │ lateral_angle             │ radians       │ 0=inline, π/2=perpendicular to sibling face  │
-            //  │ lateral_angle_sigma       │ radians       │ Angular spread around lateral_angle           │
-            //  │ rotation_mode             │ 0/1/2         │ 0=inherit, 1=follow line, 2=independent      │
-            //  │ rotation_drift_sigma      │ radians       │ Per-step rotation jitter (curves)             │
-            //  │ max_sibling_distance      │ world units   │ Ignore siblings farther than this             │
-            //  └──────────────────────────┴───────────────┴──────────────────────────────────────────────┘
-
-            struct SpawnRecord {
-                float x = 0.0f, z = 0.0f;
-                float rotation = 0.0f;
-                uint32_t family = 0;
-                bool valid = false;
-            };
-
-            static constexpr uint32_t SPAWN_MEMORY_SIZE = 6;  // per family
-            SpawnRecord recentSpawns_[PopFamily::COUNT][SPAWN_MEMORY_SIZE]{};
-            uint32_t spawnWriteIdx_[PopFamily::COUNT] = { 0, 0, 0, 0, 0, 0 };
-
-            void record_spawn(float x, float z, float rotation, uint32_t family) {
-                auto& idx = spawnWriteIdx_[family];
-                recentSpawns_[family][idx] = { x, z, rotation, family, true };
-                idx = (idx + 1) % SPAWN_MEMORY_SIZE;
-            }
-
             // ── Theme Envelope State (replaces lattice-based selection) ─────
             ThemeEnvelope themeEnvelope_{};
             uint32_t active_theme_idx_ = 0;   // set per-patch by evaluate_theme_envelope
@@ -8153,24 +8305,24 @@ namespace t7 {
             // ── Minimum Separation Matrix ─────────────────────────────────────
             //
             // Compositional spacing: how far apart entities of each family pair
-            // must be. Checked against formation memory before accepting any
-            // position (formation OR jittered). Adds an aesthetic breathing room
-            // layer on top of the physical footprint system.
+            // must be. Checked against the footprint registry before accepting
+            // any position. Footprints persist until patch eviction, so this
+            // gives full spatial coverage across the entire active world.
             //
             // 0.0 = no minimum (exception — allow intimate proximity).
-            // Positive = minimum world-space distance.
+            // Positive = minimum world-space center-to-center distance.
             //
-            // Read as: row = entity being placed, column = existing entity in memory.
+            // Read as: row = entity being placed, column = existing entity.
             // The check is asymmetric: placing an arch near a pyramid may have a
             // different minimum than placing a pyramid near an arch.
             //
             //  ┌──────────────────────────────────────────────────────────────────────────────┐
-            //  │ MINIMUM SEPARATION (wu)         existing in memory →                         │
+            //  │ MINIMUM SEPARATION — edge-to-edge gap (wu)                                    │
             //  │ placing ↓           │  Pyramid      │  Arch         │  Column                │
             //  ├──────────────────────┼───────────────┼───────────────┼────────────────────────┤
-            //  │ Pyramid              │  60 (sparse)  │  50 (wide)    │  30 (spacing)          │
-            //  │ Arch                 │  50 (wide)    │ 100 (corridor)│  60 (spacing)          │
-            //  │ Column               │  30 (spacing) │ 100 (spacing) │  60 (colonnade)        │
+            //  │ Pyramid              │  15 (sparse)  │  10 (wide)    │   5 (spacing)          │
+            //  │ Arch                 │  10 (wide)    │  20 (corridor)│  10 (spacing)          │
+            //  │ Column               │   5 (spacing) │  10 (spacing) │   8 (colonnade)        │
             //  └──────────────────────┴───────────────┴───────────────┴────────────────────────┘
             //
             // Key exception: Arch→Pyramid = 0. Doorway arches (which become portals)
@@ -8180,31 +8332,13 @@ namespace t7 {
 
             static constexpr float MIN_SEPARATION[PopFamily::COUNT][PopFamily::COUNT] = {
                 //               near:  Pyramid  Arch    Column  Antenna  Palm    Cactus
-                /* placing Pyramid */ {  60.0f,  50.0f,  30.0f,  30.0f,  30.0f,  30.0f },
-                /* placing Arch    */ {  50.0f, 100.0f,  60.0f,  60.0f,  40.0f,  30.0f },
-                /* placing Column  */ {  30.0f, 100.0f,  60.0f,  40.0f,  30.0f,  30.0f },
-                /* placing Antenna */ {  30.0f, 100.0f,  40.0f,  60.0f,  30.0f,  30.0f },
-                /* placing Palm    */ {  30.0f,  40.0f,  30.0f,  30.0f,  40.0f,  30.0f },
-                /* placing Cactus  */ {  30.0f,  30.0f,  30.0f,  30.0f,  30.0f,  40.0f },
+                /* placing Pyramid */ {  15.0f,  10.0f,   5.0f,   5.0f,   5.0f,   5.0f },
+                /* placing Arch    */ {  10.0f,  20.0f,  10.0f,  10.0f,   8.0f,   5.0f },
+                /* placing Column  */ {   5.0f,  10.0f,   8.0f,   6.0f,   5.0f,   5.0f },
+                /* placing Antenna */ {   5.0f,  10.0f,   6.0f,  12.0f,   5.0f,   5.0f },
+                /* placing Palm    */ {   5.0f,   8.0f,   5.0f,   5.0f,   8.0f,   5.0f },
+                /* placing Cactus  */ {   5.0f,   5.0f,   5.0f,   5.0f,   5.0f,   8.0f },
             };
-
-            // Check if a proposed position satisfies the separation matrix
-            // against all records in formation memory.
-            // Returns true if all separations are met.
-            bool check_separation(float px, float pz, uint32_t placing_family) const {
-                for (uint32_t fam = 0; fam < PopFamily::COUNT; fam++) {
-                    float min_dist = MIN_SEPARATION[placing_family][fam];
-                    if (min_dist <= 0.0f) continue;
-                    float min_dist_sq = min_dist * min_dist;
-                    for (uint32_t i = 0; i < SPAWN_MEMORY_SIZE; i++) {
-                        if (!recentSpawns_[fam][i].valid) continue;
-                        float dx = px - recentSpawns_[fam][i].x;
-                        float dz = pz - recentSpawns_[fam][i].z;
-                        if (dx * dx + dz * dz < min_dist_sq) return false;
-                    }
-                }
-                return true;
-            }
 
             // --- Tile State (what we remember about each generated tile) ----------
 
@@ -8218,7 +8352,7 @@ namespace t7 {
                 float entity_density = 1.0f; // spatial density multiplier for entity spawning
                 // Theme: evaluated from theme lattice at tile generation time
                 float theme_spawn[PopFamily::COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f }; // blended per-family spawn multiplier
-                uint32_t theme_idx = 0;      // dominant theme index (for tier bias + formation lookup)
+                uint32_t theme_idx = 0;      // dominant theme index (for tier bias)
             };
 
             // Spatial cache: keyed by (grid_x, grid_z)
@@ -8530,12 +8664,6 @@ namespace t7 {
                 popBatchCounter_ = 0;
                 entityQueue_.clear();
                 placementResults_.clear();
-
-                // Formation memory (per-family)
-                for (uint32_t f = 0; f < PopFamily::COUNT; f++) {
-                    for (uint32_t i = 0; i < SPAWN_MEMORY_SIZE; i++) recentSpawns_[f][i] = SpawnRecord{};
-                    spawnWriteIdx_[f] = 0;
-                }
 
                 // Theme envelope
                 themeEnvelope_ = ThemeEnvelope{};
@@ -8927,7 +9055,8 @@ namespace t7 {
                         while (j > 0 && out[j - 1].dist2 > key.dist2) {
                             out[j] = out[j - 1]; j--;
                         }
-                    } else {
+                    }
+                    else {
                         while (j > 0 && out[j - 1].dist2 < key.dist2) {
                             out[j] = out[j - 1]; j--;
                         }
@@ -9460,6 +9589,15 @@ namespace t7 {
                 }
 
                 stream_patches(encoder, queue);
+
+                // Periodic entity census dump
+#ifdef DIAG_ENTITY_CENSUS
+                if (currentSeconds_ - lastCensusDump_ >= CENSUS_DUMP_INTERVAL) {
+                    dump_entity_census("periodic");
+                    lastCensusDump_ = currentSeconds_;
+                }
+#endif
+
                 if (!finiteMode_) {
                     update_ribbon_spawning(pawnReadback_x_, pawnReadback_z_, currentSeconds_, queue);
                     update_floating_entity_proximity(queue);
@@ -9763,7 +9901,7 @@ namespace t7 {
                             pawnReadback_x_, pawnReadback_z_,
                             [&](const ActivePatch& p) {
                                 return p.phase == PatchPhase::ALLOCATED &&
-                                       in_priority_window(p.grid_x, p.grid_z, centerX, centerZ);
+                                    in_priority_window(p.grid_x, p.grid_z, centerX, centerZ);
                             }, true);
                         spawn_selected_patches(spawnCands, spawnCount, queue);
 
@@ -9773,7 +9911,7 @@ namespace t7 {
                             pawnReadback_x_, pawnReadback_z_,
                             [&](const ActivePatch& p) {
                                 return p.phase == PatchPhase::SPAWNED &&
-                                       in_priority_window(p.grid_x, p.grid_z, centerX, centerZ);
+                                    in_priority_window(p.grid_x, p.grid_z, centerX, centerZ);
                             }, true);
                         generate_selected_patches(genCands, genCount,
                             encoder, queue, patchStagingOffset, tileGridDirty);
@@ -9937,7 +10075,7 @@ namespace t7 {
                         pawnReadback_x_, pawnReadback_z_,
                         [](const ActivePatch& p) {
                             return p.phase == PatchPhase::SPAWNED ||
-                                   p.phase == PatchPhase::NEEDS_REGEN;
+                                p.phase == PatchPhase::NEEDS_REGEN;
                         }, true);
                     generate_selected_patches(candidates,
                         std::min(count, patches_budget_this_frame()),
