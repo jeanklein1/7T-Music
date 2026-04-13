@@ -4280,7 +4280,11 @@ namespace t7 {
             struct ActiveRibbon {
                 int32_t patch_gx = 0, patch_gz = 0;
                 int32_t host_gx = 0, host_gz = 0;
-                float anchor_x = 0.0f, anchor_z = 0.0f;  // for distance checks (finite mode)
+                float anchor_x = 0.0f, anchor_z = 0.0f;
+                // Spine endpoints (world space) for extent-based eviction.
+                // Ribbon evicts only when BOTH endpoints leave the render radius.
+                float spine_ax = 0.0f, spine_az = 0.0f;  // start of spine
+                float spine_bx = 0.0f, spine_bz = 0.0f;  // end of spine
                 bool active = false;
             };
             ActiveRibbon activeRibbons_[1]{};    // single slot
@@ -4961,6 +4965,18 @@ namespace t7 {
                 activeRibbons_[0].host_gz = plan.host_gz;
                 activeRibbons_[0].anchor_x = plan.cx;
                 activeRibbons_[0].anchor_z = plan.cz;
+
+                // Compute spine endpoints for extent-based eviction
+                float half_len = (float)plan.cube_count * plan.cube_size * 0.5f;
+                float margin = plan.lateral_amp + 0.4f * plan.twist_amp;  // wave envelope
+                float extent = half_len + margin;
+                float dir_x = std::cos(plan.orientation);
+                float dir_z = std::sin(plan.orientation);
+                activeRibbons_[0].spine_ax = plan.cx - dir_x * extent;
+                activeRibbons_[0].spine_az = plan.cz - dir_z * extent;
+                activeRibbons_[0].spine_bx = plan.cx + dir_x * extent;
+                activeRibbons_[0].spine_bz = plan.cz + dir_z * extent;
+
                 activeRibbons_[0].active = true;
                 activeRibbonCount_ = 1;
             }
@@ -9824,16 +9840,20 @@ namespace t7 {
                 }
 #endif
 
-                // Ribbon distance-based eviction (open mode only — finite mode
-                // ribbons are mood-controlled and don't use patch lifecycle).
-                // Ribbon is NOT registered on any patch — its lifecycle is purely
-                // distance-based because the spine spans ~28 patches.
+                // Ribbon extent-based eviction (open mode only — finite mode
+                // ribbons are mood-controlled). Evict only when the ENTIRE
+                // spine has left the render radius — both endpoints must be
+                // beyond the threshold. This prevents abrupt mid-body vanishing.
                 if (!finiteMode_ && activeRibbons_[0].active) {
-                    float dx = activeRibbons_[0].anchor_x - pawnReadback_x_;
-                    float dz = activeRibbons_[0].anchor_z - pawnReadback_z_;
-                    float dist_sq = dx * dx + dz * dz;
-                    constexpr float RIBBON_HOLD_DIST = 150.0f;
-                    if (dist_sq > RIBBON_HOLD_DIST * RIBBON_HOLD_DIST) {
+                    float render_r = (float)PREGEN_RADIUS * PATCH_EXTENT;
+                    float r_sq = render_r * render_r;
+                    float dax = activeRibbons_[0].spine_ax - pawnReadback_x_;
+                    float daz = activeRibbons_[0].spine_az - pawnReadback_z_;
+                    float dbx = activeRibbons_[0].spine_bx - pawnReadback_x_;
+                    float dbz = activeRibbons_[0].spine_bz - pawnReadback_z_;
+                    float da_sq = dax * dax + daz * daz;
+                    float db_sq = dbx * dbx + dbz * dbz;
+                    if (da_sq > r_sq && db_sq > r_sq) {
                         dispatch_evict_ribbon(this, 0, queue);
                     }
                 }
