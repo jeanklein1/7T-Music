@@ -76,7 +76,7 @@ const POS_X_PROP = [801, 601, 701, 901, 951, 1001, 1101, 101, 401];
 const POS_Z_PROP = [802, 602, 702, 902, 952, 1002, 1102, 102, 402];
 const ROT_PROP   = [803, 603, 355, 355, 953, 1003, 1103, 126, 405];
 const JITTER     = [.25, .35, .35, .35, .45, .35, .30, .40, .3];
-const MAX_SLOTS  = [8, 16, 16, 16, 24, 20, 32, 32, 1];
+const MAX_SLOTS  = [8, 16, 16, 16, 24, 20, 32, 32, 4];
 
 const MOOD_COUNT = 6;
 const MOOD_NAMES = ["open_default", "open_sunset", "indoor_flat", "indoor_vault", "finite_outdoor", "finite_outdoor_ref"];
