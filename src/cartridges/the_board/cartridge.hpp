@@ -615,17 +615,8 @@ namespace t7 {
 //
 // Architecture follows the entity pattern:
 //   RibbonProp        — property index registry
-//   RibbonSpawnConfig — spawn chances, spatial constants
 //   RibbonColorMode   — color tier weights
 //   RibbonTierProfile — mean+sigma for all wave/geometry parameters
-
-// ── Spawn Configuration ──────────────────────────────────────────
-            struct RibbonSpawnConfig {
-                static constexpr float CELL_SIZE = 87.5f;     // halved from 175 — 4× encounter density
-                static constexpr float SPAWN_CHANCE = 0.50f;
-                static constexpr float RENDER_DIST = 145.0f;  // scaled with cell size
-                static constexpr float HOLD_DIST = 218.0f;    // scaled with cell size
-            };
 
             // ─── Ribbon dispatch-pipeline config ────────────────────────────
             struct RibbonConfig {
@@ -3400,7 +3391,7 @@ namespace t7 {
             //  │1200+      │ (free)    │ next entity family starts here     │
             //  └───────────┴───────────┴────────────────────────────────────┘
             //
-            // SEED SOURCE: floater_cell_seed (independent salt 0xBEEF42)
+            // SEED SOURCE: tile_seed (shared with all families)
             //  ┌───────────┬───────────┬────────────────────────────────────┐
             //  │ Range     │ Family    │ Struct                             │
             //  ├───────────┼───────────┼────────────────────────────────────┤
@@ -3657,7 +3648,7 @@ namespace t7 {
                 int32_t  trigger_gx, trigger_gz;
                 uint32_t slot;
                 uint32_t tier_idx;
-                // Geometry (from generate_flying_ribbon)
+                // Geometry (from sample_ribbon_geometry)
                 uint32_t cube_count;
                 float cube_size;
                 float height;
@@ -4300,15 +4291,6 @@ namespace t7 {
             // Adjust moodRibbonOffset_ to manually shift the anchor XZ.
             float moodRibbonOffset_[2] = { 0.0f, 0.0f };
 
-            static uint32_t ribbon_cell_seed(uint32_t master_seed, int32_t cx, int32_t cz) {
-                uint32_t h = master_seed ^ 0xDEAD;
-                h ^= (uint32_t)cx * 73856093u;
-                h ^= (uint32_t)cz * 19349663u;
-                h = (h ^ (h >> 16)) * 2654435769u;
-                h = (h ^ (h >> 16)) * 2654435769u;
-                return h;
-            }
-
             // CPU mirror of WGSL ribbon_spine_at — evaluate one ring's world position.
             static void ribbon_spine_at_cpu(const GPURibbonState& r, float time, uint32_t ring_idx, float out[3]) {
                 constexpr float PI = 3.14159265359f;
@@ -4397,9 +4379,9 @@ namespace t7 {
                 return 0.0f;
             }
 
-            // Generate a flying ribbon from seed using tier-based Gaussian sampling.
+            // Sample ribbon geometry parameters from seed using tier-based Gaussian sampling.
             // Returns the selected tier index for diagnostics.
-            static uint32_t generate_flying_ribbon(GPURibbonState& r, uint32_t seed, float terrain_est) {
+            static uint32_t sample_ribbon_geometry(GPURibbonState& r, uint32_t seed, float terrain_est) {
                 r.is_visible = 1u;
 
                 // Tier selection (weighted cumulative)
@@ -4773,7 +4755,7 @@ namespace t7 {
             //  floating entities now use the patch-based dispatch pipeline.)
 
             // ─── Property Index Registry ─────────────────────────────────
-            // Seed source: floater_cell_seed (independent from tile_seed)
+            // Seed source: tile_seed (shared with all families)
             struct FloatingEntityProp {
                 static constexpr uint32_t SPAWN_ROLL = 100u;
                 static constexpr uint32_t ANCHOR_X = 101u;
@@ -4842,7 +4824,7 @@ namespace t7 {
                 float terrain_est = estimate_terrain_height(
                     (gx + 0.5f) * PATCH_EXTENT, (gz + 0.5f) * PATCH_EXTENT);
 
-                // --- Extract geometry from generate_flying_ribbon logic ---
+                // --- Extract geometry from sample_ribbon_geometry logic ---
                 const auto& tp = RIBBON_TIERS[tier_idx];
 
                 float count_f = std::max(20.0f,
@@ -7012,6 +6994,15 @@ namespace t7 {
                     }
                 }
 
+                void unregister_entity(uint32_t family, uint32_t slot) {
+                    for (uint32_t i = 0; i < entity_ref_count; i++) {
+                        if (entity_refs[i].family == family && entity_refs[i].slot == slot) {
+                            entity_refs[i] = entity_refs[--entity_ref_count];
+                            return;
+                        }
+                    }
+                }
+
 
             };
 
@@ -8015,7 +8006,7 @@ namespace t7 {
 
             static constexpr PopulationTheme THEMES[THEME_COUNT] = {
                 // ── 0: TRANSITION — sparse connective tissue ─────────────────
-                {   { 0.4f, 0.3f, 0.7f, 0.3f, 0.3f, 0.3f, 0.5f, 0.3f, 0.2f },   // spawn_weight [pyr..float, ribn]
+                {   { 0.4f, 0.3f, 0.7f, 0.3f, 0.3f, 0.3f, 0.5f, 0.3f, 1.0f },   // spawn_weight [pyr..float, ribn]
                     { 1.0f, 1.0f, 1.0f },                                       // tier_pyr
                     { 1.0f, 0.3f, 1.0f },                                       // tier_arch
                     { 0.1f, 0.2f, 0.3f },                                       // tier_col
@@ -8030,7 +8021,7 @@ namespace t7 {
                     0.21f                                                         // weight
                 },
                 // ── 1: MONUMENTAL — big pyramids, varied arches, heavy columns
-                {   { 1.5f, 1.0f, 1.0f, 0.5f, 0.2f, 0.2f, 0.5f, 0.3f, 0.2f },
+                {   { 1.5f, 1.0f, 1.0f, 0.5f, 0.2f, 0.2f, 0.5f, 0.3f, 1.0f },
                     { 0.2f, 0.5f, 3.0f },
                     { 2.0f, 0.1f, 3.0f },
                     { 0.01f, 0.01f, 1.0f },
@@ -8045,7 +8036,7 @@ namespace t7 {
                     0.30f
                 },
                 // ── 2: COLONNADE — dense columns, moderate arches ────────────
-                {   { 0.3f, 1.0f, 4.0f, 0.5f, 0.3f, 0.3f, 0.5f, 0.3f, 0.2f },
+                {   { 0.3f, 1.0f, 4.0f, 0.5f, 0.3f, 0.3f, 0.5f, 0.3f, 1.0f },
                     { 1.0f, 1.0f, 1.0f },
                     { 3.0f, 0.5f, 1.0f },
                     { 0.3f, 3.0f, 5.0f },
@@ -8060,7 +8051,7 @@ namespace t7 {
                     0.31f
                 },
                 // ── 3: ANTENNA — antenna-dominant corridor ───────────────────
-                {   { 0.5f, 0.5f, 1.0f, 4.0f, 0.5f, 0.5f, 0.5f, 0.3f, 0.2f },
+                {   { 0.5f, 0.5f, 1.0f, 4.0f, 0.5f, 0.5f, 0.5f, 0.3f, 1.0f },
                     { 1.0f, 0.05f, 2.0f },
                     { 1.0f, 0.2f, 0.8f },
                     { 0.1f, 0.3f, 0.3f },
@@ -8075,7 +8066,7 @@ namespace t7 {
                     0.18f
                 },
                 // ── 4: BARREN — near-empty ───────────────────────────────────
-                {   { 0.4f, 0.3f, 0.5f, 0.3f, 0.2f, 0.2f, 0.1f, 0.3f, 0.2f },
+                {   { 0.4f, 0.3f, 0.5f, 0.3f, 0.2f, 0.2f, 0.1f, 0.3f, 1.0f },
                     { 2.0f, 0.5f, 0.2f },
                     { 1.0f, 1.0f, 1.0f },
                     { 0.2f, 0.5f, 0.5f },
@@ -9848,19 +9839,8 @@ namespace t7 {
                     float dist_sq = dx * dx + dz * dz;
                     constexpr float RIBBON_HOLD_DIST = 200.0f;
                     if (dist_sq > RIBBON_HOLD_DIST * RIBBON_HOLD_DIST) {
-                        // Unregister from host patch before eviction
-                        int32_t hgx = activeRibbons_[0].host_gx;
-                        int32_t hgz = activeRibbons_[0].host_gz;
-                        auto* host = find_patch(hgx, hgz);
-                        if (host) {
-                            for (uint32_t i = 0; i < host->entity_ref_count; i++) {
-                                if (host->entity_refs[i].family == PopFamily::RIBBON &&
-                                    host->entity_refs[i].slot == 0) {
-                                    host->entity_refs[i] = host->entity_refs[--host->entity_ref_count];
-                                    break;
-                                }
-                            }
-                        }
+                        auto* host = find_patch(activeRibbons_[0].host_gx, activeRibbons_[0].host_gz);
+                        if (host) host->unregister_entity(PopFamily::RIBBON, 0);
                         dispatch_evict_ribbon(this, 0, queue);
                     }
                 }
