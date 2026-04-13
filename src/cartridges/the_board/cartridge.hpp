@@ -4277,14 +4277,22 @@ namespace t7 {
 
             // ─── Ribbon Lifecycle (patch-based dispatch pipeline) ────────────
 
+            static constexpr uint32_t MAX_RIBBON_INSTANCES = 4;
+            static constexpr uint32_t RIBBON_SPINE_SAMPLES = 5;
+
             struct ActiveRibbon {
                 int32_t patch_gx = 0, patch_gz = 0;
                 int32_t host_gx = 0, host_gz = 0;
                 float anchor_x = 0.0f, anchor_z = 0.0f;
+                float spine_x[RIBBON_SPINE_SAMPLES]{};
+                float spine_z[RIBBON_SPINE_SAMPLES]{};
+                uint32_t spine_count = 0;
                 bool active = false;
             };
-            ActiveRibbon activeRibbons_[1]{};    // single slot
+            ActiveRibbon activeRibbons_[MAX_RIBBON_INSTANCES]{};
             uint32_t activeRibbonCount_ = 0;
+            GPURibbonState ribbonStates_[MAX_RIBBON_INSTANCES]{};  // CPU mirror per slot
+            uint32_t renderedRibbonSlot_ = UINT32_MAX;             // which slot is on GPU
 
             // ─── Mood 9 Ribbon Anchor ─────────────────────────────────────
             // Seed-derived position centered on the finite world.
@@ -4799,7 +4807,7 @@ namespace t7 {
             // ─── select_ribbon_for_patch ──────────────────────────────────
             bool select_ribbon_for_patch(int32_t gx, int32_t gz, RibbonSelection& sel) {
                 auto gate = run_spawn_preamble(gx, gz,
-                    activeRibbons_, 1u,
+                    activeRibbons_, MAX_RIBBON_INSTANCES,
                     RibbonProp::SPAWN_ROLL, RibbonConfig::SPAWN_CHANCE,
                     RibbonConfig::MOOD_MULTIPLIER,
                     PopFamily::RIBBON, "ribn");
@@ -4953,18 +4961,35 @@ namespace t7 {
                 r.color[2] = plan.color[2];
                 r.is_visible = 1u;
 
-                gpuState_.upload_ribbon(queue, r);
+                // Store in CPU mirror (per-frame nearest-selection uploads to GPU)
+                uint32_t s = plan.slot;
+                ribbonStates_[s] = r;
 
-                activeRibbons_[0].patch_gx = trigger_gx;
-                activeRibbons_[0].patch_gz = trigger_gz;
-                activeRibbons_[0].host_gx = plan.host_gx;
-                activeRibbons_[0].host_gz = plan.host_gz;
-                activeRibbons_[0].anchor_x = plan.cx;
-                activeRibbons_[0].anchor_z = plan.cz;
-                activeRibbons_[0].active = true;
-                activeRibbonCount_ = 1;
-                std::cout << "[Ribbon] SPAWN at (" << plan.cx << ", " << plan.cz
-                    << ") tier=" << plan.tier_idx << "\n";
+                auto& ar = activeRibbons_[s];
+                ar.patch_gx = trigger_gx;
+                ar.patch_gz = trigger_gz;
+                ar.host_gx = plan.host_gx;
+                ar.host_gz = plan.host_gz;
+                ar.anchor_x = plan.cx;
+                ar.anchor_z = plan.cz;
+
+                // Compute spine sample points for extent-based eviction
+                float half_len = (float)plan.cube_count * plan.cube_size * 0.5f;
+                float margin = plan.lateral_amp + 0.4f * plan.twist_amp;
+                float extent = half_len + margin;
+                float dir_x = std::cos(plan.orientation);
+                float dir_z = std::sin(plan.orientation);
+                float fracs[] = { -0.5f, -0.25f, 0.0f, 0.25f, 0.5f };
+                ar.spine_count = RIBBON_SPINE_SAMPLES;
+                for (uint32_t i = 0; i < RIBBON_SPINE_SAMPLES; i++) {
+                    ar.spine_x[i] = plan.cx + dir_x * extent * fracs[i] * 2.0f;
+                    ar.spine_z[i] = plan.cz + dir_z * extent * fracs[i] * 2.0f;
+                }
+
+                ar.active = true;
+                activeRibbonCount_++;
+                std::cout << "[Ribbon] SPAWN slot=" << s << " at (" << plan.cx << ", " << plan.cz
+                    << ") tier=" << plan.tier_idx << " extent=" << extent << "\n";
             }
 
             // ═══ Ribbon Dispatch Pipeline End ═══════════════════════════════
@@ -6342,7 +6367,7 @@ namespace t7 {
                     gpuState_.sphere_index_buffer(),
                     gpuState_.sphere_index_count());
 
-                if (activeRibbons_[0].active) {
+                if (renderedRibbonSlot_ != UINT32_MAX) {
                     renderer_.draw_ribbon(pass,
                         gpuState_.photographer_render_entity_group(),
                         gpuState_.render_texture_group(),
@@ -7857,7 +7882,7 @@ namespace t7 {
                 if (self->place_ribbon_from_selection(e.ribbon, pe.ribbon)) {
                     return true;
                 } else {
-                    self->activeRibbons_[0].active = false;
+                    self->activeRibbons_[e.ribbon.slot].active = false;
                     return false;
                 }
             }
@@ -7873,12 +7898,13 @@ namespace t7 {
 
             static void dispatch_evict_ribbon(Cartridge* self,
                 uint32_t slot, wgpu::Queue& queue) {
-                (void)slot;
-                GPURibbonState empty{};
-                self->gpuState_.upload_ribbon(queue, empty);
-                self->activeRibbons_[0].active = false;
-                self->activeRibbonCount_ = 0;
-                std::cout << "[Ribbon] EVICT — slot freed\n";
+                (void)queue;
+                self->activeRibbons_[slot] = ActiveRibbon{};
+                self->ribbonStates_[slot] = GPURibbonState{};
+                self->activeRibbonCount_--;
+                if (self->renderedRibbonSlot_ == slot)
+                    self->renderedRibbonSlot_ = UINT32_MAX;  // force re-selection
+                std::cout << "[Ribbon] EVICT slot=" << slot << "\n";
             }
 
             static bool dispatch_prepare_mesh_ribbon(Cartridge* self, wgpu::Queue& queue) {
@@ -9002,12 +9028,16 @@ namespace t7 {
                 GPUGoLZoneArray emptyZones{};
                 gpuState_.upload_zone_config(queue, emptyZones);
 
-                // Ribbon
+                // Ribbon — clear all slots
                 {
+                    for (uint32_t i = 0; i < MAX_RIBBON_INSTANCES; i++) {
+                        activeRibbons_[i] = ActiveRibbon{};
+                        ribbonStates_[i] = GPURibbonState{};
+                    }
+                    activeRibbonCount_ = 0;
+                    renderedRibbonSlot_ = UINT32_MAX;
                     GPURibbonState empty{};
                     gpuState_.upload_ribbon(queue, empty);
-                    activeRibbons_[0] = ActiveRibbon{};
-                    activeRibbonCount_ = 0;
                 }
 
                 // Floating entities — clear all slots
@@ -9526,12 +9556,16 @@ namespace t7 {
                         gpuState_.reset_pawn(queue);
                         gpuState_.set_world_seed(activeSeed_);
                         apply_mood(pendingDestination_.mood, queue);
-                        // Deactivate ribbon in finite mode (mood 5 spawns its own in apply_mood)
-                        if (finiteMode_ && activeRibbons_[0].active && activeMood_ != 5) {
+                        // Deactivate ribbons in finite mode (mood 5 spawns its own in apply_mood)
+                        if (finiteMode_ && activeRibbonCount_ > 0 && activeMood_ != 5) {
+                            for (uint32_t i = 0; i < MAX_RIBBON_INSTANCES; i++) {
+                                activeRibbons_[i] = ActiveRibbon{};
+                                ribbonStates_[i] = GPURibbonState{};
+                            }
+                            activeRibbonCount_ = 0;
+                            renderedRibbonSlot_ = UINT32_MAX;
                             GPURibbonState empty{};
                             gpuState_.upload_ribbon(queue, empty);
-                            activeRibbons_[0] = ActiveRibbon{};
-                            activeRibbonCount_ = 0;
                         }
                         // Schedule guaranteed back-portal in finite worlds
                         backPortalPending_ = finiteMode_;
@@ -9827,25 +9861,54 @@ namespace t7 {
                 }
 #endif
 
-                // Ribbon anchor-distance eviction (open mode only).
-                // Ribbons spawn at the streaming frontier (~350u from pawn)
-                // and come into view naturally as the pawn approaches.
-                // HOLD_DIST > allocation radius ensures frontier-spawned
-                // ribbons survive the approach. Evict only after the pawn
-                // has passed and moved well beyond the anchor.
-                if (!finiteMode_ && activeRibbons_[0].active) {
-                    float dx = activeRibbons_[0].anchor_x - pawnReadback_x_;
-                    float dz = activeRibbons_[0].anchor_z - pawnReadback_z_;
-                    float dist_sq = dx * dx + dz * dz;
-                    constexpr float RIBBON_HOLD_DIST = 500.0f;
-                    if (dist_sq > RIBBON_HOLD_DIST * RIBBON_HOLD_DIST) {
-                        dispatch_evict_ribbon(this, 0, queue);
+                // ─── Ribbon per-frame: eviction, time, nearest-rendering ─────
+                {
+                    // Spine-based eviction: same distance as patch eviction
+                    if (!finiteMode_) {
+                        float evict_r = (float)PREGEN_RADIUS * PATCH_EXTENT;
+                        float evict_r_sq = evict_r * evict_r;
+                        for (uint32_t i = 0; i < MAX_RIBBON_INSTANCES; i++) {
+                            if (!activeRibbons_[i].active) continue;
+                            bool any_inside = false;
+                            for (uint32_t s = 0; s < activeRibbons_[i].spine_count; s++) {
+                                float dx = activeRibbons_[i].spine_x[s] - pawnReadback_x_;
+                                float dz = activeRibbons_[i].spine_z[s] - pawnReadback_z_;
+                                if (dx * dx + dz * dz <= evict_r_sq) { any_inside = true; break; }
+                            }
+                            if (!any_inside)
+                                dispatch_evict_ribbon(this, i, queue);
+                        }
                     }
-                }
 
-                // Ribbon time update (per-frame, like update_sphere for floating)
-                if (activeRibbons_[0].active) {
-                    gpuState_.upload_ribbon_time(queue, currentSeconds_);
+                    // Update time on all CPU mirrors
+                    for (uint32_t i = 0; i < MAX_RIBBON_INSTANCES; i++) {
+                        if (activeRibbons_[i].active)
+                            ribbonStates_[i].time = currentSeconds_;
+                    }
+
+                    // Select nearest active ribbon for GPU rendering
+                    uint32_t nearest = UINT32_MAX;
+                    float nearest_d2 = FLT_MAX;
+                    for (uint32_t i = 0; i < MAX_RIBBON_INSTANCES; i++) {
+                        if (!activeRibbons_[i].active) continue;
+                        float dx = activeRibbons_[i].anchor_x - pawnReadback_x_;
+                        float dz = activeRibbons_[i].anchor_z - pawnReadback_z_;
+                        float d2 = dx * dx + dz * dz;
+                        if (d2 < nearest_d2) { nearest = i; nearest_d2 = d2; }
+                    }
+
+                    if (nearest != UINT32_MAX) {
+                        if (nearest != renderedRibbonSlot_) {
+                            gpuState_.upload_ribbon(queue, ribbonStates_[nearest]);
+                            renderedRibbonSlot_ = nearest;
+                        } else {
+                            gpuState_.upload_ribbon_time(queue, currentSeconds_);
+                        }
+                    } else if (renderedRibbonSlot_ != UINT32_MAX) {
+                        GPURibbonState empty{};
+                        gpuState_.upload_ribbon(queue, empty);
+                        renderedRibbonSlot_ = UINT32_MAX;
+                    }
                 }
 
                 // ─── Entity mesh gen: single compute pass for all dirty families ──

@@ -133,7 +133,7 @@
                 desc.label = "Compute Phase";
                 wgpu::ComputePassEncoder compute = encoder.BeginComputePass(&desc);
 
-                if (activeRibbons_[0].active) {
+                if (renderedRibbonSlot_ != UINT32_MAX) {
                     renderer_.dispatch_compute_ribbon_rings(
                         compute,
                         gpuState_.ribbon_compute_group(),
@@ -291,7 +291,7 @@
                     gpuState_.monolith_index_count()
                 );
 
-                if (activeRibbons_[0].active) {
+                if (renderedRibbonSlot_ != UINT32_MAX) {
                     renderer_.draw_shadow_ribbon(
                         pass,
                         gpuState_.render_entity_group(),
@@ -498,7 +498,7 @@
                 // Pyramids: terrain surface IS the pyramid shape (via ground_formed).
                 // No separate mesh draw needed.
 
-                if (activeRibbons_[0].active) {
+                if (renderedRibbonSlot_ != UINT32_MAX) {
                     renderer_.draw_ribbon(
                         pass,
                         gpuState_.render_entity_group(),

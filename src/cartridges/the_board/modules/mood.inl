@@ -364,10 +364,28 @@ void apply_mood(uint32_t mood, wgpu::Queue& queue) {
         ribbon.time = currentSeconds_;
         float terrain_est = cpu_terrain_base_at(ax, az);
         uint32_t rtier = sample_ribbon_geometry(ribbon, rseed, terrain_est);
+        ribbonStates_[0] = ribbon;
         gpuState_.upload_ribbon(queue, ribbon);
-        activeRibbons_[0].anchor_x = ax;
-        activeRibbons_[0].anchor_z = az;
-        activeRibbons_[0].active = true;
+        renderedRibbonSlot_ = 0;
+
+        auto& ar = activeRibbons_[0];
+        ar.anchor_x = ax;
+        ar.anchor_z = az;
+        // Compute spine samples for mood ribbon
+        {
+            float half_len = (float)ribbon.cube_count * ribbon.cube_size * 0.5f;
+            float margin = ribbon.lateral_amp + 0.4f * ribbon.twist_amp;
+            float extent = half_len + margin;
+            float dx = std::cos(ribbon.orientation);
+            float dz = std::sin(ribbon.orientation);
+            float fracs[] = { -0.5f, -0.25f, 0.0f, 0.25f, 0.5f };
+            ar.spine_count = RIBBON_SPINE_SAMPLES;
+            for (uint32_t i = 0; i < RIBBON_SPINE_SAMPLES; i++) {
+                ar.spine_x[i] = ax + dx * extent * fracs[i] * 2.0f;
+                ar.spine_z[i] = az + dz * extent * fracs[i] * 2.0f;
+            }
+        }
+        ar.active = true;
         activeRibbonCount_ = 1;
         print_ribbon_diagnostic("Mood 9", ribbon, rtier);
     }
