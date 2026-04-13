@@ -9828,42 +9828,18 @@ namespace t7 {
 #endif
 
                 // Ribbon anchor-distance eviction (open mode only).
-                // Evict when the pawn walks 250u from the anchor. The old
-                // ribbon gets replaced by a new one from the respawn scan below.
+                // Ribbons spawn at the streaming frontier (~350u from pawn)
+                // and come into view naturally as the pawn approaches.
+                // HOLD_DIST > allocation radius ensures frontier-spawned
+                // ribbons survive the approach. Evict only after the pawn
+                // has passed and moved well beyond the anchor.
                 if (!finiteMode_ && activeRibbons_[0].active) {
                     float dx = activeRibbons_[0].anchor_x - pawnReadback_x_;
                     float dz = activeRibbons_[0].anchor_z - pawnReadback_z_;
                     float dist_sq = dx * dx + dz * dz;
-                    constexpr float RIBBON_HOLD_DIST = 250.0f;
+                    constexpr float RIBBON_HOLD_DIST = 500.0f;
                     if (dist_sq > RIBBON_HOLD_DIST * RIBBON_HOLD_DIST) {
                         dispatch_evict_ribbon(this, 0, queue);
-                    }
-                }
-
-                // Ribbon respawn scan (open mode only).
-                // When the slot is empty, scan the nearest SPAWNED patches for
-                // a ribbon. The deterministic seed means patches that pass the
-                // spawn gate will pass again. This finds ribbons near the pawn,
-                // not at the streaming edge (where ALLOCATED patches live).
-                if (!finiteMode_ && !activeRibbons_[0].active) {
-                    PatchCandidate rCands[MAX_PATCHES];
-                    uint32_t rCount = collect_sorted_patches(rCands,
-                        pawnReadback_x_, pawnReadback_z_,
-                        [](const ActivePatch& p) { return p.phase >= PatchPhase::SPAWNED; },
-                        true);  // nearest first
-                    for (uint32_t ri = 0; ri < std::min(rCount, 8u); ri++) {
-                        RibbonSelection sel;
-                        int32_t rgx = patches_[rCands[ri].idx].grid_x;
-                        int32_t rgz = patches_[rCands[ri].idx].grid_z;
-                        if (select_ribbon_for_patch(rgx, rgz, sel)) {
-                            RibbonPlacement plan;
-                            if (place_ribbon_from_selection(sel, plan)) {
-                                commit_ribbon(plan, rgx, rgz, queue);
-                            } else {
-                                activeRibbons_[0].active = false;
-                            }
-                            break;
-                        }
                     }
                 }
 
