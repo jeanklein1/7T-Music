@@ -645,7 +645,7 @@ struct FloatingEntityState {
 }                              // 144 total
 
 struct FloatingEntityArray {
-    entities: array<FloatingEntityState, 32>,
+    entities: array<FloatingEntityState, 72>,
 }
 
 // --- [STATE:ribbon] RibbonState
@@ -1380,6 +1380,12 @@ const FPV_MAX_ELEVATION: f32 = 1.5;              // Look up ~86°
 // --- Floating entity constants
 // Per-entity parameters (radius, orbit_radius, orbit_height, orbit_speed,
 // influence_radius, base_color) now live in FloatingEntityState fields.
+// Buffer layout: slots 0..7 = spheres (orbital), slots 8..71 = cubes (hover-bob).
+
+const SPHERE_SLOT_COUNT: u32 = 8u;
+const CUBE_SLOT_OFFSET: u32 = 8u;
+const CUBE_SLOT_COUNT: u32 = 64u;
+const TOTAL_FLOATING_SLOTS: u32 = 72u;
 
 const SPHERE_COLOR_RELEASE_RATE: f32 = 2.0;
 const SPHERE_MIN_TERRAIN_CLEARANCE: f32 = 5.0;
@@ -3430,9 +3436,9 @@ fn ribbon_spine_at(t: f32, ribbon: RibbonState) -> vec3<f32> {
     let total_length = f32(ribbon.cube_count) * ribbon.cube_size;
     let time = ribbon.time;
 
-    // Spine origin: 15% extends behind anchor, 85% forward.
-    // Keeps the near end close to the trigger patch when oriented away from pawn.
-    let along = (t - 0.15) * total_length;
+    // Spine origin: anchor IS the near tip (t=0).
+    // Body extends entirely in the orientation direction.
+    let along = t * total_length;
     let lateral = sin(time * ribbon.lateral_speed + t * ribbon.lateral_cycles * 2.0 * PI) * ribbon.lateral_amp;
     let vertical = ribbon.height + sin(time * ribbon.vertical_speed + t * ribbon.vertical_cycles * 2.0 * PI) * ribbon.vertical_amp;
 
@@ -4584,31 +4590,18 @@ fn update_sphere() {
 
     let dt = signal.dt;
 
-    // Update all active floating entity slots
-    for (var slot = 0u; slot < 32u; slot++) {
+    // Update sphere slots only (orbital motion)
+    for (var slot = 0u; slot < SPHERE_SLOT_COUNT; slot++) {
         var fe = floating_entities.entities[slot];
         if (fe.is_active == 0u) { continue; }
 
         if (!sphere_frozen()) {
             fe.t = fe.t + dt;
 
-            if (fe.motion_type == 0u) {
-                // Orbit: PGA motor around anchor
-                let updated = compose_sphere_from_orbit_pga(fe.t, fe);
-                fe.pos = updated.pos;
-                fe.orientation = updated.orientation;
-            } else {
-                // Hover-bob: orbit_height = clearance above local terrain
-                let bob_y = sin(fe.t * 6.283185 / max(fe.bob_period, 0.1)) * fe.bob_amplitude;
-                let base_xz = vec2(fe.anchor.x, fe.anchor.z);
-                let ground = ground_formed(base_xz) + terrain_wave_overlay(base_xz);
-                fe.pos = vec3(fe.anchor.x, ground + fe.orbit_height + bob_y, fe.anchor.z);
-                // Spin around tilted Y axis
-                let spin_angle = fe.t * fe.spin_speed;
-                let axis = normalize(vec3(fe.spin_tilt_x, 1.0, fe.spin_tilt_z));
-                let half_a = spin_angle * 0.5;
-                fe.orientation = vec4(axis * sin(half_a), cos(half_a));
-            }
+            // Orbit: PGA motor around anchor
+            let updated = compose_sphere_from_orbit_pga(fe.t, fe);
+            fe.pos = updated.pos;
+            fe.orientation = updated.orientation;
 
             floating_entities.entities[slot] = fe;
         }
@@ -4623,12 +4616,12 @@ fn update_sphere() {
         }
     }
 
-    // Terrain tint from nearest active entity to pawn
+    // Terrain tint from nearest active sphere to pawn
     if (coupling_active(COUPLING_SPHERE_TO_TERRAIN_TINT)) {
         var best_dist_sq = 999999.0;
         var best_slot = 0u;
         var found = false;
-        for (var slot = 0u; slot < 32u; slot++) {
+        for (var slot = 0u; slot < SPHERE_SLOT_COUNT; slot++) {
             let fe = floating_entities.entities[slot];
             if (fe.is_active == 0u || fe.orbit_radius <= 0.0) { continue; }
             let dx = fe.pos.x - pawn_state.pos.x;
@@ -4648,6 +4641,48 @@ fn update_sphere() {
         }
     } else {
         terrain_state.tint = vec3(1.0);
+    }
+}
+
+@compute @workgroup_size(1)
+fn update_cube() {
+    if (!dynamics_0d_active()) { return; }
+
+    let dt = signal.dt;
+
+    // Update cube slots (hover-bob motion)
+    let cube_end = CUBE_SLOT_OFFSET + CUBE_SLOT_COUNT;
+    for (var slot = CUBE_SLOT_OFFSET; slot < cube_end; slot++) {
+        var fe = floating_entities.entities[slot];
+        if (fe.is_active == 0u) { continue; }
+
+        if (!sphere_frozen()) {
+            fe.t = fe.t + dt;
+
+            // Hover-bob: orbit_height = clearance above local terrain
+            let bob_y = sin(fe.t * 6.283185 / max(fe.bob_period, 0.1)) * fe.bob_amplitude;
+            let base_xz = vec2(fe.anchor.x, fe.anchor.z);
+            let ground = ground_formed(base_xz) + terrain_wave_overlay(base_xz);
+            fe.pos = vec3(fe.anchor.x, ground + fe.orbit_height + bob_y, fe.anchor.z);
+
+            // Spin around tilted Y axis
+            let spin_angle = fe.t * fe.spin_speed;
+            let axis = normalize(vec3(fe.spin_tilt_x, 1.0, fe.spin_tilt_z));
+            let half_a = spin_angle * 0.5;
+            fe.orientation = vec4(axis * sin(half_a), cos(half_a));
+
+            floating_entities.entities[slot] = fe;
+        }
+
+        // Musical coupling — same as spheres for now
+        if (signal_active() && coupling_active(COUPLING_POLYPHONY_TO_SPHERE_COLOR)) {
+            floating_entities.entities[slot].color = coupling_signal_polyphony_to_sphere_color(
+                signal.stats[0],
+                floating_entities.entities[slot].color,
+                floating_entities.entities[slot].base_color,
+                dt
+            );
+        }
     }
 }
 

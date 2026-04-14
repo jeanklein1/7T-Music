@@ -54,6 +54,7 @@ namespace t7 {
             constexpr const char* UPDATE_PAWN = "update_pawn";                      // 0D
             constexpr const char* UPDATE_CAMERA = "update_camera";                  // 0D
             constexpr const char* UPDATE_SPHERE = "update_sphere";                  // 0D
+            constexpr const char* UPDATE_CUBE = "update_cube";                      // 0D
             constexpr const char* COMPUTE_VP = "compute_vp";                    // 0D
 
             // Init-only
@@ -181,6 +182,7 @@ namespace t7 {
             wgpu::ComputePipeline updatePawnPipeline_;           // 0D
             wgpu::ComputePipeline updateCameraPipeline_;         // 0D
             wgpu::ComputePipeline updateSpherePipeline_;         // 0D
+            wgpu::ComputePipeline updateCubePipeline_;           // 0D
             wgpu::ComputePipeline computeVPPipeline_;         // 0D
 
             // Legacy cell system — compiled but not dispatched in streaming mode.
@@ -373,6 +375,15 @@ namespace t7 {
                 wgpu::BindGroup entityBindGroup
             ) {
                 pass.SetPipeline(updateSpherePipeline_);
+                pass.SetBindGroup(0, entityBindGroup);
+                pass.DispatchWorkgroups(1, 1, 1);
+            }
+
+            void dispatch_update_cube(
+                wgpu::ComputePassEncoder& pass,
+                wgpu::BindGroup entityBindGroup
+            ) {
+                pass.SetPipeline(updateCubePipeline_);
                 pass.SetBindGroup(0, entityBindGroup);
                 pass.DispatchWorkgroups(1, 1, 1);
             }
@@ -670,7 +681,7 @@ namespace t7 {
                 pass.SetBindGroup(1, textureBindGroup);
                 pass.SetVertexBuffer(0, vertexBuffer);
                 pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint32);
-                pass.DrawIndexed(indexCount, Dim::MAX_FLOATING_INSTANCES);
+                pass.DrawIndexed(indexCount, Dim::MAX_SPHERE_INSTANCES);
             }
 
             void draw_monolith(
@@ -686,7 +697,7 @@ namespace t7 {
                 pass.SetBindGroup(1, textureBindGroup);
                 pass.SetVertexBuffer(0, vertexBuffer);
                 pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint32);
-                pass.DrawIndexed(indexCount, Dim::MAX_FLOATING_INSTANCES);
+                pass.DrawIndexed(indexCount, Dim::MAX_CUBE_INSTANCES, 0, 0, Dim::CUBE_SLOT_OFFSET);
             }
 
             void draw_ribbon(
@@ -906,7 +917,7 @@ namespace t7 {
                 pass.SetBindGroup(1, textureBindGroup);
                 pass.SetVertexBuffer(0, vertexBuffer);
                 pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint32);
-                pass.DrawIndexed(indexCount, Dim::MAX_FLOATING_INSTANCES);
+                pass.DrawIndexed(indexCount, Dim::MAX_SPHERE_INSTANCES);
             }
 
             void draw_shadow_monolith(
@@ -922,7 +933,7 @@ namespace t7 {
                 pass.SetBindGroup(1, textureBindGroup);
                 pass.SetVertexBuffer(0, vertexBuffer);
                 pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint32);
-                pass.DrawIndexed(indexCount, Dim::MAX_FLOATING_INSTANCES);
+                pass.DrawIndexed(indexCount, Dim::MAX_CUBE_INSTANCES, 0, 0, Dim::CUBE_SLOT_OFFSET);
             }
 
             void draw_shadow_ribbon(
@@ -1232,6 +1243,17 @@ namespace t7 {
                     desc.compute.entryPoint = Entry::UPDATE_SPHERE;
                     updateSpherePipeline_ = device_.CreateComputePipeline(&desc);
                     return updateSpherePipeline_ != nullptr;
+                    })) return false;
+
+                // Pipeline 1e: update_cube (0D)
+                if (!tPipe("update_cube", [&]() {
+                    wgpu::ComputePipelineDescriptor desc{};
+                    desc.label = "Update Cube (0D)";
+                    desc.layout = computeLayout;
+                    desc.compute.module = shaderModule_;
+                    desc.compute.entryPoint = Entry::UPDATE_CUBE;
+                    updateCubePipeline_ = device_.CreateComputePipeline(&desc);
+                    return updateCubePipeline_ != nullptr;
                     })) return false;
 
                 // Pipeline 2: compute_vp (0D)

@@ -3141,7 +3141,7 @@ namespace t7 {
                 float x = 0.0f, z = 0.0f;
                 float radius = 0.0f;
                 int32_t patch_gx = 0, patch_gz = 0;
-                uint32_t family = UINT32_MAX;  // PopFamily index, UINT32_MAX = non-entity (gallery etc.)
+                uint32_t family = UINT32_MAX;  // PopFamily index
                 uint32_t tier = 0;             // tier index within family
                 float spawn_time = 0.0f;       // currentSeconds_ at registration
                 bool active = false;
@@ -3153,7 +3153,6 @@ namespace t7 {
             // Single-pass spatial check: physical overlap + aesthetic separation.
             // For entity footprints (family < COUNT): effective_min = gap + both radii.
             // Gap is reduced when proximity affinity exists between the pair.
-            // For non-entity footprints (gallery etc.): effective_min = both radii (overlap only).
             bool check_position(float px, float pz, float placing_radius,
                 uint32_t placing_family) const {
                 for (uint32_t i = 0; i < MAX_FOOTPRINTS; i++) {
@@ -3170,18 +3169,6 @@ namespace t7 {
                         }
                     }
                     if (dx * dx + dz * dz < effective_min * effective_min) return false;
-                }
-                return true;
-            }
-
-            // Physical overlap only (for gallery and other non-entity callers).
-            bool footprint_clear(float x, float z, float radius) const {
-                for (uint32_t i = 0; i < MAX_FOOTPRINTS; i++) {
-                    if (!footprints_[i].active) continue;
-                    float dx = x - footprints_[i].x;
-                    float dz = z - footprints_[i].z;
-                    float min_dist = radius + footprints_[i].radius;
-                    if (dx * dx + dz * dz < min_dist * min_dist) return false;
                 }
                 return true;
             }
@@ -3217,7 +3204,7 @@ namespace t7 {
             static constexpr float CENSUS_DUMP_INTERVAL = 30.0f;
 
             static const char* family_short_name(uint32_t family) {
-                static const char* NAMES[] = { "pyr", "arch", "col", "ant", "palm", "cact", "blad", "float", "ribn" };
+                static const char* NAMES[] = { "pyr", "arch", "col", "ant", "palm", "cact", "blad", "sph", "ribn", "cube", "gol", "gall" };
                 return (family < PopFamily::COUNT) ? NAMES[family] : "???";
             }
 
@@ -3325,9 +3312,13 @@ namespace t7 {
                 static constexpr uint32_t PALM = 4;
                 static constexpr uint32_t CACTUS = 5;
                 static constexpr uint32_t BLADE = 6;
-                static constexpr uint32_t FLOATING = 7;
+                static constexpr uint32_t SPHERE = 7;    // was FLOATING — orbital spheres
                 static constexpr uint32_t RIBBON = 8;
-                static constexpr uint32_t COUNT = 9;
+                static constexpr uint32_t CUBE = 9;      // hover-bob monoliths (split from FLOATING)
+                static constexpr uint32_t GOL = 10;       // Game of Life / Pulse automaton zones
+                static constexpr uint32_t GALLERY = 11;   // outdoor art exhibitions (composite: 1 center → N paintings)
+                static constexpr uint32_t COUNT = 12;
+                static constexpr uint32_t FLOATING = SPHERE;  // legacy alias
             };
 
             // ─── Spawn Configuration Summary ────────────────────────────────
@@ -3346,8 +3337,11 @@ namespace t7 {
             //  │ Palm     │  0.200   │ 1.0   1.0    1.0   1.0    1.0   0.0  │  0.45  │
             //  │ Cactus   │  0.100   │ 1.0   1.0    1.0   1.0    1.0   0.0  │  0.35  │
             //  │ Blade    │  0.025   │ 1.0   1.0    1.0   1.0    1.0   0.0  │  0.30  │
-            //  │ Floating │  0.050   │ 1.0   1.0    0.0   0.0    1.0   0.0  │  0.40  │
+            //  │ Sphere   │  0.015   │ 1.0   1.0    0.0   0.0    1.0   0.0  │  0.40  │
             //  │ Ribbon   │  0.400   │ 1.0   1.0    0.0   0.0    1.0   0.0  │  0.30  │
+            //  │ Cube     │  0.060   │ 1.0   1.0    0.0   0.0    1.0   0.0  │  0.40  │
+            //  │ GoL      │  0.150   │ 1.0   1.0    0.0   0.0    1.0   0.0  │  (lattice) │
+            //  │ Gallery  │  varies  │ 1.0   1.0    1.0   1.0    1.0   0.0  │  0.30  │
             //  └──────────┴──────────┴───────────────────────────────────────┴────────┘
             //
             // Spawn chance is flat — archetype/terrain no longer gates spawning.
@@ -3428,23 +3422,26 @@ namespace t7 {
             // Precomputed participation masks enable zero-cost early-out for
             // families with no affinities defined.
 
-            //                              Pyr    Arch   Col    Ant    Palm   Cact   Blad   Float  Ribn
-            static constexpr float    PROXIMITY_RADIUS[PopFamily::COUNT] = { 0.0f,  0.0f, 60.0f,  0.0f,150.0f,120.0f,120.0f,  0.0f,  0.0f };
-            static constexpr float    PROXIMITY_MAX_BOOST[PopFamily::COUNT] = { 1.0f,  1.0f,  2.0f,  1.0f,  3.0f,  3.0f,  3.0f,  1.0f,  1.0f };
-            static constexpr uint32_t PROXIMITY_THRESHOLD[PopFamily::COUNT] = { 0,     0,     2,     0,     1,     1,     1,     0,     0 };
-            static constexpr float    PROXIMITY_GAP_REDUCTION[PopFamily::COUNT] = { 0.0f, 0.0f, 0.3f, 0.0f, 0.6f, 0.6f, 0.6f, 0.0f, 0.0f };
+            //                              Pyr    Arch   Col    Ant    Palm   Cact   Blad   Sph    Ribn   Cube   GoL    Gall
+            static constexpr float    PROXIMITY_RADIUS[PopFamily::COUNT] = { 0.0f,  0.0f, 60.0f,  0.0f,150.0f,120.0f,120.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f };
+            static constexpr float    PROXIMITY_MAX_BOOST[PopFamily::COUNT] = { 1.0f,  1.0f,  2.0f,  1.0f,  3.0f,  3.0f,  3.0f,  1.0f,  1.0f,  1.0f,  1.0f,  1.0f };
+            static constexpr uint32_t PROXIMITY_THRESHOLD[PopFamily::COUNT] = { 0,     0,     2,     0,     1,     1,     1,     0,     0,     0,     0,     0 };
+            static constexpr float    PROXIMITY_GAP_REDUCTION[PopFamily::COUNT] = { 0.0f, 0.0f, 0.3f, 0.0f, 0.6f, 0.6f, 0.6f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
 
             static constexpr float PROXIMITY_AFFINITY[PopFamily::COUNT][PopFamily::COUNT] = {
-                //           near: Pyr   Arch  Col   Ant   Palm  Cact  Blad  Float Ribn
-                /* Pyr   */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-                /* Arch  */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-                /* Col   */ { 0.0f, 0.0f, 0.4f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-                /* Ant   */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-                /* Palm  */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.5f, 0.3f, 0.3f, 0.0f, 0.0f },
-                /* Cact  */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.3f, 0.5f, 0.3f, 0.0f, 0.0f },
-                /* Blad  */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.3f, 0.3f, 0.5f, 0.0f, 0.0f },
-                /* Float */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-                /* Ribn  */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+                //           near: Pyr   Arch  Col   Ant   Palm  Cact  Blad  Sph   Ribn  Cube  GoL   Gall
+                /* Pyr   */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+                /* Arch  */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+                /* Col   */ { 0.0f, 0.0f, 0.4f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+                /* Ant   */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+                /* Palm  */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.5f, 0.3f, 0.3f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+                /* Cact  */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.3f, 0.5f, 0.3f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+                /* Blad  */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.3f, 0.3f, 0.5f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+                /* Sph   */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+                /* Ribn  */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+                /* Cube  */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+                /* GoL   */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+                /* Gall  */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
             };
 
             // Precomputed: does this family have any non-zero affinity?
@@ -3611,6 +3608,7 @@ namespace t7 {
             };
 
             // ─── Floating Entity Selection / Placement ──────────────────────
+            // (Sphere — orbital entities, formerly "floating")
 
             struct FloatingSelection {
                 uint32_t seed;
@@ -3638,6 +3636,99 @@ namespace t7 {
                 float base_color[3];
                 float aspect_y, aspect_z, face_variance;
                 uint32_t geometry_type, motion_type;
+            };
+
+            // ─── Cube Entity Selection / Placement ───────────────────────────
+            // (Hover-bob monoliths, split from floating)
+
+            struct CubeSelection {
+                uint32_t seed;
+                int32_t  trigger_gx, trigger_gz;
+                uint32_t slot;
+                uint32_t tier_idx;
+                float body_radius;
+                float orbit_height;       // hover clearance above terrain
+                float influence_radius;
+                float spin_speed, bob_amplitude, bob_period;
+                float spin_tilt_x, spin_tilt_z;
+                float base_color[3];
+                float aspect_y, aspect_z, face_variance;
+                float footprint_r;
+            };
+
+            struct CubePlacement {
+                uint32_t slot;
+                int32_t  trigger_gx, trigger_gz;
+                int32_t  host_gx, host_gz;
+                uint32_t tier_idx;
+                float cx, cz, rotation;
+                float body_radius;
+                float orbit_height;
+                float influence_radius;
+                float spin_speed, bob_amplitude, bob_period;
+                float spin_tilt_x, spin_tilt_z;
+                float base_color[3];
+                float aspect_y, aspect_z, face_variance;
+            };
+
+            // ─── GoL Zone Selection / Placement ──────────────────────────────
+
+            struct GoLSelection {
+                uint32_t seed;
+                int32_t  trigger_gx, trigger_gz;
+                uint32_t slot;
+                int32_t  zone_nx, zone_nz;     // lattice node
+                float    corner_x, corner_z;   // zone corner (cell-grid-snapped)
+                uint32_t algorithm;            // AlgorithmType::CONWAY or PULSE
+                uint32_t tier_idx;             // compound: Conway 0–6, Pulse 7–9
+                float    tick_period;
+                float    initial_density;
+                bool     height_enabled;
+                float    footprint_r;
+            };
+
+            struct GoLPlacement {
+                uint32_t slot;
+                int32_t  trigger_gx, trigger_gz;
+                int32_t  host_gx, host_gz;
+                uint32_t tier_idx;
+                float    cx, cz;               // zone center
+                int32_t  zone_nx, zone_nz;
+                float    corner_x, corner_z;
+                uint32_t algorithm;
+                float    tick_period;
+                float    initial_density;
+                bool     height_enabled;
+            };
+
+            // ─── Gallery Selection / Placement ───────────────────────────────
+            // (Outdoor art exhibitions — composite: 1 center → N paintings)
+
+            struct GallerySelection {
+                uint32_t seed;
+                int32_t  trigger_gx, trigger_gz;
+                uint32_t slot;              // gallery center slot
+                float    cx, cz;            // gallery center (jittered)
+                float    footprint_r;       // gallery spatial envelope
+                uint32_t archetype;         // 0–3 (terrain type, used as tier_idx)
+                uint32_t painting_count;
+                float    facing_angle;
+                float    gallery_size_mean;
+                uint32_t site_type;         // 0=snapshot, 1=mixed, 2=authored
+            };
+
+            struct GalleryPlacement {
+                uint32_t slot;
+                int32_t  trigger_gx, trigger_gz;
+                int32_t  host_gx, host_gz;
+                uint32_t tier_idx;          // = archetype
+                float    cx, cz;
+                float    footprint_r;
+                uint32_t archetype;
+                uint32_t painting_count;
+                float    facing_angle;
+                float    gallery_size_mean;
+                uint32_t site_type;
             };
 
             // ─── Ribbon Selection / Placement ────────────────────────────
@@ -3698,6 +3789,9 @@ namespace t7 {
                     BladeClusterSelection blade;
                     FloatingSelection floating;
                     RibbonSelection ribbon;
+                    CubeSelection   cube;
+                    GoLSelection    gol;
+                    GallerySelection gallery;
                 };
                 EntityQueueEntry() : family(0), gx(0), gz(0) { std::memset(&column, 0, sizeof(column)); }
             };
@@ -3723,6 +3817,9 @@ namespace t7 {
                     BladeClusterPlacement blade;
                     FloatingPlacement floating;
                     RibbonPlacement ribbon;
+                    CubePlacement   cube;
+                    GoLPlacement    gol;
+                    GalleryPlacement gallery;
                 };
                 PlacementEntry() : family(0), gx(0), gz(0) { std::memset(&arch, 0, sizeof(arch)); }
             };
@@ -4276,17 +4373,20 @@ namespace t7 {
 
             // ─── Ribbon Lifecycle (patch-based dispatch pipeline) ────────────
 
-            static constexpr uint32_t MAX_RIBBON_INSTANCES = 4;
-            static constexpr uint32_t RIBBON_ANCHOR_PATCHES = 5;
-            static constexpr float    RIBBON_MAX_LENGTH = 1500.0f;
+            static constexpr uint32_t MAX_RIBBON_INSTANCES = 1;  // single-render; raise when GPU supports multi-ribbon
+            static constexpr float    RIBBON_MAX_LENGTH = 700.0f;
 
             struct ActiveRibbon {
-                int32_t patch_gx = 0, patch_gz = 0;
-                int32_t host_gx = 0, host_gz = 0;
+                int32_t patch_gx = 0, patch_gz = 0;   // trigger patch
+                int32_t host_gx = 0, host_gz = 0;     // host patch (anchor position)
                 float anchor_x = 0.0f, anchor_z = 0.0f;
-                int32_t anchor_gx[RIBBON_ANCHOR_PATCHES]{};
-                int32_t anchor_gz[RIBBON_ANCHOR_PATCHES]{};
-                uint32_t anchor_count = 0;
+                // Two-tip anchoring: ribbon survives until BOTH tips' patches are gone
+                float near_tip_x = 0.0f, near_tip_z = 0.0f;
+                float far_tip_x = 0.0f, far_tip_z = 0.0f;
+                int32_t near_tip_gx = 0, near_tip_gz = 0;
+                int32_t far_tip_gx = 0, far_tip_gz = 0;
+                bool near_tip_registered = false;
+                bool far_tip_registered = false;
                 uint32_t ref_count = 0;     // patches referencing this ribbon via record_entity
                 bool active = false;
             };
@@ -4306,7 +4406,7 @@ namespace t7 {
                 float t = (float)ring_idx / (float)std::max(r.cube_count - 1u, 1u);
                 float total_length = (float)r.cube_count * r.cube_size;
 
-                float along = (t - 0.15f) * total_length;
+                float along = t * total_length;
                 float lateral = std::sin(time * r.lateral_speed + t * r.lateral_cycles * 2.0f * PI) * r.lateral_amp;
                 float vertical = r.height + std::sin(time * r.vertical_speed + t * r.vertical_cycles * 2.0f * PI) * r.vertical_amp;
 
@@ -4332,7 +4432,7 @@ namespace t7 {
                 auto eval = [&](float tp, float p[3]) {
                     constexpr float PI = 3.14159265359f;
                     float total_length = (float)r.cube_count * r.cube_size;
-                    float along = (tp - 0.15f) * total_length;
+                    float along = tp * total_length;
                     float lateral = std::sin(time * r.lateral_speed + tp * r.lateral_cycles * 2.0f * PI) * r.lateral_amp;
                     float vertical = r.height + std::sin(time * r.vertical_speed + tp * r.vertical_cycles * 2.0f * PI) * r.vertical_amp;
                     float c = std::cos(r.orientation);
@@ -4409,279 +4509,54 @@ namespace t7 {
 
             // ═══ END INLINED: modules/spawn_engine.inl ═════════════════════════
 
-// ─── Floating Entity System ──────────────────────────────────────
+// ─── Sphere Entity System ────────────────────────────────────────
 //
-// Multi-instance orbiting/hovering entities (spheres, future monoliths).
-// Coarse grid cells, proximity-activated, seed-driven variety.
-// Up to MAX_FLOATING_INSTANCES active simultaneously.
-//
-// Lifecycle mirrors ribbon: grid scan → spawn → hold → evict.
-// GPU compute updates all active slots per frame (world.wgsl update_sphere).
+// Orbital spheres. Rare, PGA motor-driven orbits around anchors.
+// Slots 0 .. MAX_SPHERE_INSTANCES-1 in the shared floating entity buffer.
+// GPU compute: update_sphere. Vertex shader: sphere_vs.
 // ─────────────────────────────────────────────────────────────────
 
-            // ─── Tier Profile ────────────────────────────────────────────
+            // ─── Sphere Tier Profile ─────────────────────────────────────
+            // (Reuses FloatingEntityTierProfile — orbit fields are meaningful,
+            //  hover-bob fields are zero.)
             struct FloatingEntityTierProfile {
                 float body_radius_mean, body_radius_sigma;
                 float orbit_radius_mean, orbit_radius_sigma;
                 float orbit_height_mean, orbit_height_sigma;
                 float orbit_speed_mean, orbit_speed_sigma;
                 float influence_radius_mean, influence_radius_sigma;
-                // Hover-bob params (ignored by orbit tiers)
                 float spin_speed_mean, spin_speed_sigma;
                 float bob_amplitude_mean, bob_amplitude_sigma;
                 float bob_period_mean, bob_period_sigma;
-                float spin_tilt_sigma;     // max axis tilt (radians)
-                // Shape
-                float aspect_y_mean, aspect_y_sigma;  // Y-axis scale (1.0=cube, >1=tall, <1=flat)
-                float aspect_z_mean, aspect_z_sigma;  // Z-axis scale (1.0=cube, <1=thin slab)
-                float face_variance_mean, face_variance_sigma;  // per-face color spread (monolith)
-                // Identity
-                uint32_t geometry_type;    // 0=sphere, 1=monolith
-                uint32_t motion_type;      // 0=orbit, 1=hover-bob
+                float spin_tilt_sigma;
+                float aspect_y_mean, aspect_y_sigma;
+                float aspect_z_mean, aspect_z_sigma;
+                float face_variance_mean, face_variance_sigma;
+                uint32_t geometry_type;
+                uint32_t motion_type;
                 float weight;
             };
 
-            static constexpr uint32_t FLOATER_TIER_COUNT = 6;
-            static constexpr FloatingEntityTierProfile FLOATER_TIERS[FLOATER_TIER_COUNT] = {
-                //  Cubes: roughly equal-sided, fun colors, varied heights from ground to sky
-                //  Monolith: 2001 proportions, rare, near ground
-                //  Sphere: very rare orbiting encounter
-                //
+            static constexpr uint32_t SPHERE_TIER_COUNT = 2;
+            static constexpr FloatingEntityTierProfile SPHERE_TIERS[SPHERE_TIER_COUNT] = {
                 //                    rad_μ  σ     orb_μ  σ     ht_μ   σ      spd_μ  σ     inf_μ  σ     spin_μ σ     bob_μ  σ    per_μ  σ    tilt   asp_y  σ    asp_z  σ    fvar_μ σ     geo  mot  wt
-                /* 0: SmallCube */ {  1.8f, 0.5f,   0.0f, 0.0f,  15.0f, 12.0f, 0.0f, 0.0f,  6.0f, 1.5f,  0.04f,0.015f,1.0f, 0.3f,  5.0f, 1.5f,  0.12f, 1.0f,0.15f, 1.0f,0.15f, 0.40f,0.12f,  1, 1, 0.35f },
-                /* 1: MedCube   */ {  4.0f, 1.2f,   0.0f, 0.0f,  25.0f, 18.0f, 0.0f, 0.0f, 10.0f, 2.0f,  0.03f,0.01f, 1.5f, 0.4f,  6.0f, 2.0f,  0.10f, 1.0f,0.20f, 1.0f,0.20f, 0.45f,0.15f,  1, 1, 0.28f },
-                /* 2: LargeCube */ {  8.0f, 2.5f,   0.0f, 0.0f,  35.0f, 20.0f, 0.0f, 0.0f, 14.0f, 3.0f,  0.02f,0.008f,2.0f, 0.5f,  8.0f, 2.5f,  0.08f, 1.0f,0.25f, 1.0f,0.25f, 0.35f,0.10f,  1, 1, 0.18f },
-                /* 3: Monolith  */ {  3.0f, 0.8f,   0.0f, 0.0f,   5.0f,  2.0f, 0.0f, 0.0f, 12.0f, 3.0f,  0.015f,0.005f,1.2f,0.3f,  6.0f, 2.0f,  0.10f, 5.0f,1.2f,  0.15f,0.03f, 0.45f,0.12f,  1, 1, 0.04f },
-                /* 4: Sentinel  */ {  1.5f, 0.3f,  12.0f, 3.0f,   6.0f,  2.0f, 1.4f, 0.3f,  8.0f, 2.0f,  0.0f, 0.0f,  0.0f, 0.0f,  0.0f, 0.0f,  0.0f,  1.0f,0.0f,  1.0f,0.0f,  0.0f,0.0f,   0, 0, 0.02f },
-                /* 5: Anomaly   */ {  1.2f, 0.2f,   8.0f, 2.0f,   4.0f,  1.5f, 2.0f, 0.5f,  6.0f, 1.5f,  0.0f, 0.0f,  0.0f, 0.0f,  0.0f, 0.0f,  0.0f,  1.0f,0.0f,  1.0f,0.0f,  0.0f,0.0f,   0, 0, 0.01f },
+                /* 0: Sentinel  */ {  1.5f, 0.3f,  12.0f, 3.0f,   6.0f,  2.0f, 1.4f, 0.3f,  8.0f, 2.0f,  0.0f, 0.0f,  0.0f, 0.0f,  0.0f, 0.0f,  0.0f,  1.0f,0.0f,  1.0f,0.0f,  0.0f,0.0f,   0, 0, 0.65f },
+                /* 1: Anomaly   */ {  1.2f, 0.2f,   8.0f, 2.0f,   4.0f,  1.5f, 2.0f, 0.5f,  6.0f, 1.5f,  0.0f, 0.0f,  0.0f, 0.0f,  0.0f, 0.0f,  0.0f,  1.0f,0.0f,  1.0f,0.0f,  0.0f,0.0f,   0, 0, 0.35f },
             };
 
-            static constexpr float FLOATING_BASE_TIER_WEIGHTS[FLOATER_TIER_COUNT] = {
-                0.35f, 0.28f, 0.18f, 0.04f, 0.02f, 0.01f
-            };
+            static constexpr float SPHERE_BASE_TIER_WEIGHTS[SPHERE_TIER_COUNT] = { 0.65f, 0.35f };
+            static constexpr const char* SPHERE_TIER_NAMES[] = { "Sentinel", "Anomaly" };
 
-            static constexpr const char* FLOATER_TIER_NAMES[] = {
-                "SmallCube", "MedCube", "LargeCube", "Monolith", "Sentinel", "Anomaly"
-            };
-
-            // ─── Spawn Configuration (patch-based pipeline) ─────────────
-            struct FloatingConfig {
-                static constexpr float SPAWN_CHANCE = 0.050f;
+            // ─── Sphere Spawn Configuration ──────────────────────────────
+            struct SphereConfig {
+                static constexpr float SPAWN_CHANCE = 0.015f;
                 static constexpr float MOOD_MULTIPLIER[MOOD_COUNT] = { 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f };
                 static constexpr float POSITION_JITTER = 0.4f;
             };
 
-            // ─── select_floating_for_patch ─────────────────��──────────────
-            //
-            // Phase 1: identity + geometry. Spawn preamble, tier selection,
-            // all Gaussian parameter sampling. Position-independent.
-
-            bool select_floating_for_patch(int32_t gx, int32_t gz, FloatingSelection& sel) {
-                auto gate = run_spawn_preamble(gx, gz,
-                    activeFloaters_, Dim::MAX_FLOATING_INSTANCES,
-                    FloatingEntityProp::SPAWN_ROLL, FloatingConfig::SPAWN_CHANCE,
-                    FloatingConfig::MOOD_MULTIPLIER,
-                    PopFamily::FLOATING, "float");
-                if (!gate.ok) return false;
-
-                // Tier selection with theme bias
-                float tier_weights[FLOATER_TIER_COUNT];
-                for (uint32_t t = 0; t < FLOATER_TIER_COUNT; t++)
-                    tier_weights[t] = FLOATING_BASE_TIER_WEIGHTS[t];
-                for (uint32_t t = 0; t < FLOATER_TIER_COUNT; t++)
-                    tier_weights[t] *= THEMES[gate.theme_idx].tier_wt_floating[t];
-                uint32_t tier_idx = select_tier_biased(gate.seed, FloatingEntityProp::TIER,
-                    tier_weights, FLOATER_TIER_COUNT, PopFamily::FLOATING);
-
-                const auto& tp = FLOATER_TIERS[tier_idx];
-
-                sel.seed = gate.seed;
-                sel.trigger_gx = gx;
-                sel.trigger_gz = gz;
-                sel.slot = gate.slot;
-                sel.tier_idx = tier_idx;
-
-                // Geometry — exact copies from spawn_floating_entity
-                sel.body_radius = std::max(0.5f, cpu_sample_gaussian(gate.seed,
-                    FloatingEntityProp::BODY_RADIUS, tp.body_radius_mean, tp.body_radius_sigma));
-                sel.orbit_radius = std::max(0.0f, cpu_sample_gaussian(gate.seed,
-                    FloatingEntityProp::ORBIT_RADIUS, tp.orbit_radius_mean, tp.orbit_radius_sigma));
-                sel.orbit_height = std::max(3.0f, cpu_sample_gaussian(gate.seed,
-                    FloatingEntityProp::ORBIT_HEIGHT, tp.orbit_height_mean, tp.orbit_height_sigma));
-                sel.orbit_speed = std::max(0.05f, cpu_sample_gaussian(gate.seed,
-                    FloatingEntityProp::ORBIT_SPEED, tp.orbit_speed_mean, tp.orbit_speed_sigma));
-                sel.influence_radius = std::max(3.0f, cpu_sample_gaussian(gate.seed,
-                    FloatingEntityProp::INFLUENCE_RADIUS, tp.influence_radius_mean, tp.influence_radius_sigma));
-
-                // Hover-bob params
-                sel.spin_speed = std::max(0.0f, cpu_sample_gaussian(gate.seed,
-                    FloatingEntityProp::SPIN_SPEED, tp.spin_speed_mean, tp.spin_speed_sigma));
-                sel.bob_amplitude = std::max(0.0f, cpu_sample_gaussian(gate.seed,
-                    FloatingEntityProp::BOB_AMPLITUDE, tp.bob_amplitude_mean, tp.bob_amplitude_sigma));
-                sel.bob_period = std::max(0.5f, cpu_sample_gaussian(gate.seed,
-                    FloatingEntityProp::BOB_PERIOD, tp.bob_period_mean, tp.bob_period_sigma));
-                sel.spin_tilt_x = (cpu_hash_f(gate.seed, FloatingEntityProp::SPIN_TILT_X) - 0.5f) * 2.0f * tp.spin_tilt_sigma;
-                sel.spin_tilt_z = (cpu_hash_f(gate.seed, FloatingEntityProp::SPIN_TILT_Z) - 0.5f) * 2.0f * tp.spin_tilt_sigma;
-
-                // Color: continuous median from independent seed hashes per channel
-                sel.base_color[0] = cpu_hash_f(gate.seed, FloatingEntityProp::COLOR_R) * 0.55f + 0.35f;   // [0.35, 0.90]
-                sel.base_color[1] = cpu_hash_f(gate.seed, FloatingEntityProp::COLOR_G) * 0.50f + 0.30f;   // [0.30, 0.80]
-                sel.base_color[2] = cpu_hash_f(gate.seed, FloatingEntityProp::COLOR_B) * 0.60f + 0.20f;   // [0.20, 0.80]
-
-                // Shape
-                sel.aspect_y = std::max(0.2f, cpu_sample_gaussian(gate.seed,
-                    FloatingEntityProp::ASPECT_Y, tp.aspect_y_mean, tp.aspect_y_sigma));
-                sel.aspect_z = std::max(0.1f, cpu_sample_gaussian(gate.seed,
-                    FloatingEntityProp::ASPECT_Z, tp.aspect_z_mean, tp.aspect_z_sigma));
-                sel.face_variance = std::max(0.0f, cpu_sample_gaussian(gate.seed,
-                    FloatingEntityProp::FACE_VARIANCE, tp.face_variance_mean, tp.face_variance_sigma));
-
-                // Identity
-                sel.geometry_type = tp.geometry_type;
-                sel.motion_type = tp.motion_type;
-
-                // Footprint = orbit envelope bounding circle
-                sel.footprint_r = sel.body_radius + sel.orbit_radius;
-
-                return true;
-            }
-
-            // ─── place_floating_from_selection ────────────────────────────
-            //
-            // Phase 2: spatial negotiation. Jittered position within patch,
-            // separation + footprint check, host patch determination.
-
-            bool place_floating_from_selection(const FloatingSelection& sel, FloatingPlacement& plan) {
-                auto pos = negotiate_position(sel.seed,
-                    sel.trigger_gx, sel.trigger_gz,
-                    FloatingEntityProp::ANCHOR_X, FloatingEntityProp::ANCHOR_Z,
-                    FloatingConfig::POSITION_JITTER,
-                    FloatingEntityProp::ROTATION,
-                    sel.footprint_r, PopFamily::FLOATING, sel.tier_idx);
-                if (!pos.ok) return false;
-
-                plan = FloatingPlacement{};
-                plan.slot = sel.slot;
-                plan.trigger_gx = sel.trigger_gx;
-                plan.trigger_gz = sel.trigger_gz;
-                plan.host_gx = pos.host_gx;
-                plan.host_gz = pos.host_gz;
-                plan.tier_idx = sel.tier_idx;
-                plan.cx = pos.cx;
-                plan.cz = pos.cz;
-                plan.rotation = pos.rotation;
-
-                // Copy all geometry from selection
-                plan.body_radius = sel.body_radius;
-                plan.orbit_radius = sel.orbit_radius;
-                plan.orbit_height = sel.orbit_height;
-                plan.orbit_speed = sel.orbit_speed;
-                plan.influence_radius = sel.influence_radius;
-                plan.spin_speed = sel.spin_speed;
-                plan.bob_amplitude = sel.bob_amplitude;
-                plan.bob_period = sel.bob_period;
-                plan.spin_tilt_x = sel.spin_tilt_x;
-                plan.spin_tilt_z = sel.spin_tilt_z;
-                std::memcpy(plan.base_color, sel.base_color, sizeof(plan.base_color));
-                plan.aspect_y = sel.aspect_y;
-                plan.aspect_z = sel.aspect_z;
-                plan.face_variance = sel.face_variance;
-                plan.geometry_type = sel.geometry_type;
-                plan.motion_type = sel.motion_type;
-
-                record_placement_bookkeeping(PopFamily::FLOATING, plan.tier_idx);
-                return true;
-            }
-
-            // ─── commit_floating ──────────��──────────────────────────────
-            //
-            // Phase 3: GPU write. Builds GPUFloatingEntityState from placement
-            // and uploads to GPU buffer slot.
-
-            void commit_floating(const FloatingPlacement& plan,
-                int32_t trigger_gx, int32_t trigger_gz, wgpu::Queue& queue)
-            {
-                GPUFloatingEntityState fe{};
-
-                // Anchor = negotiated world position (orbit center / hover position)
-                fe.anchor[0] = plan.cx;
-                fe.anchor[1] = 0.0f;
-                fe.anchor[2] = plan.cz;
-
-                // Geometry
-                fe.body_radius = plan.body_radius;
-                fe.orbit_radius = plan.orbit_radius;
-                fe.orbit_height = plan.orbit_height;
-                fe.orbit_speed = plan.orbit_speed;
-                fe.influence_radius = plan.influence_radius;
-                fe.spin_speed = plan.spin_speed;
-                fe.bob_amplitude = plan.bob_amplitude;
-                fe.bob_period = plan.bob_period;
-                fe.spin_tilt_x = plan.spin_tilt_x;
-                fe.spin_tilt_z = plan.spin_tilt_z;
-
-                // Color
-                fe.base_color[0] = plan.base_color[0];
-                fe.base_color[1] = plan.base_color[1];
-                fe.base_color[2] = plan.base_color[2];
-                fe.color[0] = plan.base_color[0];
-                fe.color[1] = plan.base_color[1];
-                fe.color[2] = plan.base_color[2];
-
-                // Shape
-                fe.aspect_y = plan.aspect_y;
-                fe.aspect_z = plan.aspect_z;
-                fe.face_variance = plan.face_variance;
-
-                // Identity
-                fe.geometry_type = plan.geometry_type;
-                fe.motion_type = plan.motion_type;
-                fe.entity_seed = plan.slot;  // use slot as seed for VS face color hashing
-
-                // Initial state
-                fe.t = 0.0f;
-                fe.orientation[3] = 1.0f;  // identity quaternion
-                if (plan.motion_type == 0) {
-                    // Orbit: start at anchor + radius on X
-                    fe.pos[0] = plan.cx + fe.orbit_radius;
-                    fe.pos[1] = fe.orbit_height;
-                    fe.pos[2] = plan.cz;
-                } else {
-                    // Hover-bob: start at anchor
-                    fe.pos[0] = plan.cx;
-                    fe.pos[1] = fe.orbit_height;
-                    fe.pos[2] = plan.cz;
-                }
-
-                fe.is_active = 1;
-
-                gpuState_.upload_floating_entity_slot(queue, plan.slot, fe);
-
-                auto& af = activeFloaters_[plan.slot];
-                af.patch_gx = trigger_gx;
-                af.patch_gz = trigger_gz;
-                af.host_gx = plan.host_gx;
-                af.host_gz = plan.host_gz;
-                af.active = true;
-                activeFloaterCount_++;
-
-                std::cout << "[Floater] " << FLOATER_TIER_NAMES[plan.tier_idx]
-                    << " slot=" << plan.slot
-                    << " at (" << plan.cx << "," << plan.cz << ")"
-                    << " r=" << fe.body_radius
-                    << " y=" << fe.aspect_y << " z=" << fe.aspect_z
-                    << " h=" << fe.orbit_height
-                    << " fv=" << fe.face_variance
-                    << (plan.motion_type == 1 ? " HOVER-BOB" : " ORBIT")
-                    << " col=(" << fe.base_color[0] << "," << fe.base_color[1] << "," << fe.base_color[2] << ")"
-                    << "\n";
-            }
-
-            // (Old FloatingEntitySpawnConfig, density lattice, and proximity spawn removed —
-            //  floating entities now use the patch-based dispatch pipeline.)
-
-            // ─── Property Index Registry ─────────────────────────────────
+            // ─── Property Index Registry (Sphere) ────────────────────────
             // Seed source: tile_seed (shared with all families)
+            // Range: 100–126 (original floating range, preserved for seed stability)
             struct FloatingEntityProp {
                 static constexpr uint32_t SPAWN_ROLL = 100u;
                 static constexpr uint32_t ANCHOR_X = 101u;
@@ -4706,16 +4581,417 @@ namespace t7 {
                 static constexpr uint32_t ROTATION = 126u;
             };
 
-            // ─── CPU Tracking ────────────────────────────────────────────
+            // ─── select_sphere_for_patch ─────────────────────────────────
+            bool select_sphere_for_patch(int32_t gx, int32_t gz, FloatingSelection& sel) {
+                auto gate = run_spawn_preamble(gx, gz,
+                    activeFloaters_, Dim::MAX_SPHERE_INSTANCES,
+                    FloatingEntityProp::SPAWN_ROLL, SphereConfig::SPAWN_CHANCE,
+                    SphereConfig::MOOD_MULTIPLIER,
+                    PopFamily::SPHERE, "sph");
+                if (!gate.ok) return false;
+
+                float tier_weights[SPHERE_TIER_COUNT];
+                for (uint32_t t = 0; t < SPHERE_TIER_COUNT; t++)
+                    tier_weights[t] = SPHERE_BASE_TIER_WEIGHTS[t];
+                for (uint32_t t = 0; t < SPHERE_TIER_COUNT; t++)
+                    tier_weights[t] *= THEMES[gate.theme_idx].tier_wt_sphere[t];
+                uint32_t tier_idx = select_tier_biased(gate.seed, FloatingEntityProp::TIER,
+                    tier_weights, SPHERE_TIER_COUNT, PopFamily::SPHERE);
+
+                const auto& tp = SPHERE_TIERS[tier_idx];
+
+                sel.seed = gate.seed;
+                sel.trigger_gx = gx;
+                sel.trigger_gz = gz;
+                sel.slot = gate.slot;
+                sel.tier_idx = tier_idx;
+
+                sel.body_radius = std::max(0.5f, cpu_sample_gaussian(gate.seed,
+                    FloatingEntityProp::BODY_RADIUS, tp.body_radius_mean, tp.body_radius_sigma));
+                sel.orbit_radius = std::max(0.0f, cpu_sample_gaussian(gate.seed,
+                    FloatingEntityProp::ORBIT_RADIUS, tp.orbit_radius_mean, tp.orbit_radius_sigma));
+                sel.orbit_height = std::max(3.0f, cpu_sample_gaussian(gate.seed,
+                    FloatingEntityProp::ORBIT_HEIGHT, tp.orbit_height_mean, tp.orbit_height_sigma));
+                sel.orbit_speed = std::max(0.05f, cpu_sample_gaussian(gate.seed,
+                    FloatingEntityProp::ORBIT_SPEED, tp.orbit_speed_mean, tp.orbit_speed_sigma));
+                sel.influence_radius = std::max(3.0f, cpu_sample_gaussian(gate.seed,
+                    FloatingEntityProp::INFLUENCE_RADIUS, tp.influence_radius_mean, tp.influence_radius_sigma));
+
+                // Zero hover-bob params (spheres orbit, they don't bob)
+                sel.spin_speed = 0.0f;
+                sel.bob_amplitude = 0.0f;
+                sel.bob_period = 1.0f;
+                sel.spin_tilt_x = 0.0f;
+                sel.spin_tilt_z = 0.0f;
+
+                sel.base_color[0] = cpu_hash_f(gate.seed, FloatingEntityProp::COLOR_R) * 0.55f + 0.35f;
+                sel.base_color[1] = cpu_hash_f(gate.seed, FloatingEntityProp::COLOR_G) * 0.50f + 0.30f;
+                sel.base_color[2] = cpu_hash_f(gate.seed, FloatingEntityProp::COLOR_B) * 0.60f + 0.20f;
+
+                sel.aspect_y = 1.0f;
+                sel.aspect_z = 1.0f;
+                sel.face_variance = 0.0f;
+
+                sel.geometry_type = 0;  // sphere
+                sel.motion_type = 0;    // orbit
+
+                sel.footprint_r = sel.body_radius + sel.orbit_radius;
+                return true;
+            }
+
+            // ─── place_sphere_from_selection ─────────────────────────────
+            bool place_sphere_from_selection(const FloatingSelection& sel, FloatingPlacement& plan) {
+                auto pos = negotiate_position(sel.seed,
+                    sel.trigger_gx, sel.trigger_gz,
+                    FloatingEntityProp::ANCHOR_X, FloatingEntityProp::ANCHOR_Z,
+                    SphereConfig::POSITION_JITTER,
+                    FloatingEntityProp::ROTATION,
+                    sel.footprint_r, PopFamily::SPHERE, sel.tier_idx);
+                if (!pos.ok) return false;
+
+                plan = FloatingPlacement{};
+                plan.slot = sel.slot;
+                plan.trigger_gx = sel.trigger_gx;
+                plan.trigger_gz = sel.trigger_gz;
+                plan.host_gx = pos.host_gx;
+                plan.host_gz = pos.host_gz;
+                plan.tier_idx = sel.tier_idx;
+                plan.cx = pos.cx;
+                plan.cz = pos.cz;
+                plan.rotation = pos.rotation;
+
+                plan.body_radius = sel.body_radius;
+                plan.orbit_radius = sel.orbit_radius;
+                plan.orbit_height = sel.orbit_height;
+                plan.orbit_speed = sel.orbit_speed;
+                plan.influence_radius = sel.influence_radius;
+                plan.spin_speed = sel.spin_speed;
+                plan.bob_amplitude = sel.bob_amplitude;
+                plan.bob_period = sel.bob_period;
+                plan.spin_tilt_x = sel.spin_tilt_x;
+                plan.spin_tilt_z = sel.spin_tilt_z;
+                std::memcpy(plan.base_color, sel.base_color, sizeof(plan.base_color));
+                plan.aspect_y = sel.aspect_y;
+                plan.aspect_z = sel.aspect_z;
+                plan.face_variance = sel.face_variance;
+                plan.geometry_type = sel.geometry_type;
+                plan.motion_type = sel.motion_type;
+
+                record_placement_bookkeeping(PopFamily::SPHERE, plan.tier_idx);
+                return true;
+            }
+
+            // ─── commit_sphere ───────────────────────────────────────────
+            void commit_sphere(const FloatingPlacement& plan,
+                int32_t trigger_gx, int32_t trigger_gz, wgpu::Queue& queue)
+            {
+                GPUFloatingEntityState fe{};
+
+                fe.anchor[0] = plan.cx;
+                fe.anchor[1] = 0.0f;
+                fe.anchor[2] = plan.cz;
+
+                fe.body_radius = plan.body_radius;
+                fe.orbit_radius = plan.orbit_radius;
+                fe.orbit_height = plan.orbit_height;
+                fe.orbit_speed = plan.orbit_speed;
+                fe.influence_radius = plan.influence_radius;
+                fe.spin_speed = 0.0f;
+                fe.bob_amplitude = 0.0f;
+                fe.bob_period = 1.0f;
+                fe.spin_tilt_x = 0.0f;
+                fe.spin_tilt_z = 0.0f;
+
+                fe.base_color[0] = plan.base_color[0];
+                fe.base_color[1] = plan.base_color[1];
+                fe.base_color[2] = plan.base_color[2];
+                fe.color[0] = plan.base_color[0];
+                fe.color[1] = plan.base_color[1];
+                fe.color[2] = plan.base_color[2];
+
+                fe.aspect_y = 1.0f;
+                fe.aspect_z = 1.0f;
+                fe.face_variance = 0.0f;
+
+                fe.geometry_type = 0;  // sphere
+                fe.motion_type = 0;    // orbit
+                fe.entity_seed = plan.slot;
+
+                fe.t = 0.0f;
+                fe.orientation[3] = 1.0f;
+                fe.pos[0] = plan.cx + fe.orbit_radius;
+                fe.pos[1] = fe.orbit_height;
+                fe.pos[2] = plan.cz;
+
+                fe.is_active = 1;
+
+                gpuState_.upload_sphere_entity_slot(queue, plan.slot, fe);
+
+                auto& af = activeFloaters_[plan.slot];
+                af.patch_gx = trigger_gx;
+                af.patch_gz = trigger_gz;
+                af.host_gx = plan.host_gx;
+                af.host_gz = plan.host_gz;
+                af.active = true;
+                activeFloaterCount_++;
+
+                std::cout << "[Sphere] " << SPHERE_TIER_NAMES[plan.tier_idx]
+                    << " slot=" << plan.slot
+                    << " at (" << plan.cx << "," << plan.cz << ")"
+                    << " r=" << fe.body_radius
+                    << " orbit_r=" << fe.orbit_radius
+                    << " h=" << fe.orbit_height
+                    << " spd=" << fe.orbit_speed
+                    << " col=(" << fe.base_color[0] << "," << fe.base_color[1] << "," << fe.base_color[2] << ")"
+                    << "\n";
+            }
+
+            // ─── Sphere CPU Tracking ─────────────────────────────────────
             struct ActiveFloater {
-                int32_t patch_gx = 0, patch_gz = 0;   // trigger patch (idempotency)
-                int32_t host_gx = 0, host_gz = 0;     // actual patch covering entity position (eviction)
+                int32_t patch_gx = 0, patch_gz = 0;
+                int32_t host_gx = 0, host_gz = 0;
                 bool active = false;
             };
-            ActiveFloater activeFloaters_[Dim::MAX_FLOATING_INSTANCES]{};
+            ActiveFloater activeFloaters_[Dim::MAX_SPHERE_INSTANCES]{};
             uint32_t activeFloaterCount_ = 0;
 
-            // ═══ Floating Entity System End ═══════════════════════════════
+            // ═══ Sphere Entity System End ═════════════════════════════════
+
+
+// ─── Cube Entity System ─────────────────────────────────────────
+//
+// Hover-bob monoliths. Colorful cubes/slabs floating above terrain.
+// Slots 0 .. MAX_CUBE_INSTANCES-1 (buffer offset by CUBE_SLOT_OFFSET).
+// GPU compute: update_cube. Vertex shader: monolith_vs.
+// ─────────────────────────────────────────────────────────────────
+
+            // ─── Cube Tier Profile ───────────────────────────────────────
+            struct CubeTierProfile {
+                float body_radius_mean, body_radius_sigma;
+                float orbit_height_mean, orbit_height_sigma;
+                float influence_radius_mean, influence_radius_sigma;
+                float spin_speed_mean, spin_speed_sigma;
+                float bob_amplitude_mean, bob_amplitude_sigma;
+                float bob_period_mean, bob_period_sigma;
+                float spin_tilt_sigma;
+                float aspect_y_mean, aspect_y_sigma;
+                float aspect_z_mean, aspect_z_sigma;
+                float face_variance_mean, face_variance_sigma;
+                float weight;
+            };
+
+            static constexpr uint32_t CUBE_TIER_COUNT = 4;
+            static constexpr CubeTierProfile CUBE_TIERS[CUBE_TIER_COUNT] = {
+                //                    rad_μ  σ     ht_μ   σ      inf_μ  σ     spin_μ σ     bob_μ  σ    per_μ  σ    tilt   asp_y  σ    asp_z  σ    fvar_μ σ     wt
+                /* 0: SmallCube */ {  1.8f, 0.5f,  15.0f, 12.0f,  6.0f, 1.5f,  0.04f,0.015f,1.0f, 0.3f,  5.0f, 1.5f,  0.12f, 1.0f,0.15f, 1.0f,0.15f, 0.40f,0.12f,  0.40f },
+                /* 1: MedCube   */ {  4.0f, 1.2f,  25.0f, 18.0f, 10.0f, 2.0f,  0.03f,0.01f, 1.5f, 0.4f,  6.0f, 2.0f,  0.10f, 1.0f,0.20f, 1.0f,0.20f, 0.45f,0.15f,  0.32f },
+                /* 2: LargeCube */ {  8.0f, 2.5f,  35.0f, 20.0f, 14.0f, 3.0f,  0.02f,0.008f,2.0f, 0.5f,  8.0f, 2.5f,  0.08f, 1.0f,0.25f, 1.0f,0.25f, 0.35f,0.10f,  0.20f },
+                /* 3: Monolith  */ {  3.0f, 0.8f,   5.0f,  2.0f, 12.0f, 3.0f,  0.015f,0.005f,1.2f,0.3f,  6.0f, 2.0f,  0.10f, 5.0f,1.2f,  0.15f,0.03f, 0.45f,0.12f,  0.08f },
+            };
+
+            static constexpr float CUBE_BASE_TIER_WEIGHTS[CUBE_TIER_COUNT] = { 0.40f, 0.32f, 0.20f, 0.08f };
+            static constexpr const char* CUBE_TIER_NAMES[] = { "SmallCube", "MedCube", "LargeCube", "Monolith" };
+
+            // ─── Cube Spawn Configuration ────────────────────────────────
+            struct CubeConfig {
+                static constexpr float SPAWN_CHANCE = 0.060f;
+                static constexpr float MOOD_MULTIPLIER[MOOD_COUNT] = { 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f };
+                static constexpr float POSITION_JITTER = 0.4f;
+            };
+
+            // ─── Property Index Registry (Cube) ──────────────────────────
+            // Range: 130–156 (avoids sphere's 100–126)
+            struct CubeEntityProp {
+                static constexpr uint32_t SPAWN_ROLL       = 130u;
+                static constexpr uint32_t ANCHOR_X         = 131u;
+                static constexpr uint32_t ANCHOR_Z         = 132u;
+                static constexpr uint32_t TIER             = 133u;
+                static constexpr uint32_t BODY_RADIUS      = 140u;
+                static constexpr uint32_t ORBIT_HEIGHT     = 142u;
+                static constexpr uint32_t INFLUENCE_RADIUS = 144u;
+                static constexpr uint32_t SPIN_SPEED       = 145u;
+                static constexpr uint32_t BOB_AMPLITUDE    = 146u;
+                static constexpr uint32_t BOB_PERIOD       = 147u;
+                static constexpr uint32_t SPIN_TILT_X      = 148u;
+                static constexpr uint32_t SPIN_TILT_Z      = 149u;
+                static constexpr uint32_t COLOR_R          = 150u;
+                static constexpr uint32_t COLOR_G          = 151u;
+                static constexpr uint32_t COLOR_B          = 152u;
+                static constexpr uint32_t ASPECT_Y         = 153u;
+                static constexpr uint32_t ASPECT_Z         = 154u;
+                static constexpr uint32_t FACE_VARIANCE    = 155u;
+                static constexpr uint32_t ROTATION         = 156u;
+            };
+
+            // ─── select_cube_for_patch ───────────────────────────────────
+            bool select_cube_for_patch(int32_t gx, int32_t gz, CubeSelection& sel) {
+                auto gate = run_spawn_preamble(gx, gz,
+                    activeCubes_, Dim::MAX_CUBE_INSTANCES,
+                    CubeEntityProp::SPAWN_ROLL, CubeConfig::SPAWN_CHANCE,
+                    CubeConfig::MOOD_MULTIPLIER,
+                    PopFamily::CUBE, "cube");
+                if (!gate.ok) return false;
+
+                float tier_weights[CUBE_TIER_COUNT];
+                for (uint32_t t = 0; t < CUBE_TIER_COUNT; t++)
+                    tier_weights[t] = CUBE_BASE_TIER_WEIGHTS[t];
+                for (uint32_t t = 0; t < CUBE_TIER_COUNT; t++)
+                    tier_weights[t] *= THEMES[gate.theme_idx].tier_wt_cube[t];
+                uint32_t tier_idx = select_tier_biased(gate.seed, CubeEntityProp::TIER,
+                    tier_weights, CUBE_TIER_COUNT, PopFamily::CUBE);
+
+                const auto& tp = CUBE_TIERS[tier_idx];
+
+                sel.seed = gate.seed;
+                sel.trigger_gx = gx;
+                sel.trigger_gz = gz;
+                sel.slot = gate.slot;
+                sel.tier_idx = tier_idx;
+
+                sel.body_radius = std::max(0.5f, cpu_sample_gaussian(gate.seed,
+                    CubeEntityProp::BODY_RADIUS, tp.body_radius_mean, tp.body_radius_sigma));
+                sel.orbit_height = std::max(3.0f, cpu_sample_gaussian(gate.seed,
+                    CubeEntityProp::ORBIT_HEIGHT, tp.orbit_height_mean, tp.orbit_height_sigma));
+                sel.influence_radius = std::max(3.0f, cpu_sample_gaussian(gate.seed,
+                    CubeEntityProp::INFLUENCE_RADIUS, tp.influence_radius_mean, tp.influence_radius_sigma));
+
+                sel.spin_speed = std::max(0.0f, cpu_sample_gaussian(gate.seed,
+                    CubeEntityProp::SPIN_SPEED, tp.spin_speed_mean, tp.spin_speed_sigma));
+                sel.bob_amplitude = std::max(0.0f, cpu_sample_gaussian(gate.seed,
+                    CubeEntityProp::BOB_AMPLITUDE, tp.bob_amplitude_mean, tp.bob_amplitude_sigma));
+                sel.bob_period = std::max(0.5f, cpu_sample_gaussian(gate.seed,
+                    CubeEntityProp::BOB_PERIOD, tp.bob_period_mean, tp.bob_period_sigma));
+                sel.spin_tilt_x = (cpu_hash_f(gate.seed, CubeEntityProp::SPIN_TILT_X) - 0.5f) * 2.0f * tp.spin_tilt_sigma;
+                sel.spin_tilt_z = (cpu_hash_f(gate.seed, CubeEntityProp::SPIN_TILT_Z) - 0.5f) * 2.0f * tp.spin_tilt_sigma;
+
+                sel.base_color[0] = cpu_hash_f(gate.seed, CubeEntityProp::COLOR_R) * 0.55f + 0.35f;
+                sel.base_color[1] = cpu_hash_f(gate.seed, CubeEntityProp::COLOR_G) * 0.50f + 0.30f;
+                sel.base_color[2] = cpu_hash_f(gate.seed, CubeEntityProp::COLOR_B) * 0.60f + 0.20f;
+
+                sel.aspect_y = std::max(0.2f, cpu_sample_gaussian(gate.seed,
+                    CubeEntityProp::ASPECT_Y, tp.aspect_y_mean, tp.aspect_y_sigma));
+                sel.aspect_z = std::max(0.1f, cpu_sample_gaussian(gate.seed,
+                    CubeEntityProp::ASPECT_Z, tp.aspect_z_mean, tp.aspect_z_sigma));
+                sel.face_variance = std::max(0.0f, cpu_sample_gaussian(gate.seed,
+                    CubeEntityProp::FACE_VARIANCE, tp.face_variance_mean, tp.face_variance_sigma));
+
+                sel.footprint_r = sel.body_radius;
+                return true;
+            }
+
+            // ─── place_cube_from_selection ───────────────────────────────
+            bool place_cube_from_selection(const CubeSelection& sel, CubePlacement& plan) {
+                auto pos = negotiate_position(sel.seed,
+                    sel.trigger_gx, sel.trigger_gz,
+                    CubeEntityProp::ANCHOR_X, CubeEntityProp::ANCHOR_Z,
+                    CubeConfig::POSITION_JITTER,
+                    CubeEntityProp::ROTATION,
+                    sel.footprint_r, PopFamily::CUBE, sel.tier_idx);
+                if (!pos.ok) return false;
+
+                plan = CubePlacement{};
+                plan.slot = sel.slot;
+                plan.trigger_gx = sel.trigger_gx;
+                plan.trigger_gz = sel.trigger_gz;
+                plan.host_gx = pos.host_gx;
+                plan.host_gz = pos.host_gz;
+                plan.tier_idx = sel.tier_idx;
+                plan.cx = pos.cx;
+                plan.cz = pos.cz;
+                plan.rotation = pos.rotation;
+
+                plan.body_radius = sel.body_radius;
+                plan.orbit_height = sel.orbit_height;
+                plan.influence_radius = sel.influence_radius;
+                plan.spin_speed = sel.spin_speed;
+                plan.bob_amplitude = sel.bob_amplitude;
+                plan.bob_period = sel.bob_period;
+                plan.spin_tilt_x = sel.spin_tilt_x;
+                plan.spin_tilt_z = sel.spin_tilt_z;
+                std::memcpy(plan.base_color, sel.base_color, sizeof(plan.base_color));
+                plan.aspect_y = sel.aspect_y;
+                plan.aspect_z = sel.aspect_z;
+                plan.face_variance = sel.face_variance;
+
+                record_placement_bookkeeping(PopFamily::CUBE, plan.tier_idx);
+                return true;
+            }
+
+            // ─── commit_cube ─────────────────────────────────────────────
+            void commit_cube(const CubePlacement& plan,
+                int32_t trigger_gx, int32_t trigger_gz, wgpu::Queue& queue)
+            {
+                GPUFloatingEntityState fe{};
+
+                fe.anchor[0] = plan.cx;
+                fe.anchor[1] = 0.0f;
+                fe.anchor[2] = plan.cz;
+
+                fe.body_radius = plan.body_radius;
+                fe.orbit_radius = 0.0f;
+                fe.orbit_height = plan.orbit_height;
+                fe.orbit_speed = 0.0f;
+                fe.influence_radius = plan.influence_radius;
+                fe.spin_speed = plan.spin_speed;
+                fe.bob_amplitude = plan.bob_amplitude;
+                fe.bob_period = plan.bob_period;
+                fe.spin_tilt_x = plan.spin_tilt_x;
+                fe.spin_tilt_z = plan.spin_tilt_z;
+
+                fe.base_color[0] = plan.base_color[0];
+                fe.base_color[1] = plan.base_color[1];
+                fe.base_color[2] = plan.base_color[2];
+                fe.color[0] = plan.base_color[0];
+                fe.color[1] = plan.base_color[1];
+                fe.color[2] = plan.base_color[2];
+
+                fe.aspect_y = plan.aspect_y;
+                fe.aspect_z = plan.aspect_z;
+                fe.face_variance = plan.face_variance;
+
+                fe.geometry_type = 1;  // monolith
+                fe.motion_type = 1;    // hover-bob
+                fe.entity_seed = Dim::CUBE_SLOT_OFFSET + plan.slot;  // unique seed for face hashing
+
+                fe.t = 0.0f;
+                fe.orientation[3] = 1.0f;
+                fe.pos[0] = plan.cx;
+                fe.pos[1] = fe.orbit_height;
+                fe.pos[2] = plan.cz;
+
+                fe.is_active = 1;
+
+                gpuState_.upload_cube_entity_slot(queue, plan.slot, fe);
+
+                auto& ac = activeCubes_[plan.slot];
+                ac.patch_gx = trigger_gx;
+                ac.patch_gz = trigger_gz;
+                ac.host_gx = plan.host_gx;
+                ac.host_gz = plan.host_gz;
+                ac.active = true;
+                activeCubeCount_++;
+
+                std::cout << "[Cube] " << CUBE_TIER_NAMES[plan.tier_idx]
+                    << " slot=" << plan.slot
+                    << " at (" << plan.cx << "," << plan.cz << ")"
+                    << " r=" << fe.body_radius
+                    << " y=" << fe.aspect_y << " z=" << fe.aspect_z
+                    << " h=" << fe.orbit_height
+                    << " fv=" << fe.face_variance
+                    << " col=(" << fe.base_color[0] << "," << fe.base_color[1] << "," << fe.base_color[2] << ")"
+                    << "\n";
+            }
+
+            // ─── Cube CPU Tracking ───────────────────────────────────────
+            struct ActiveCube {
+                int32_t patch_gx = 0, patch_gz = 0;
+                int32_t host_gx = 0, host_gz = 0;
+                bool active = false;
+            };
+            ActiveCube activeCubes_[Dim::MAX_CUBE_INSTANCES]{};
+            uint32_t activeCubeCount_ = 0;
+
+            // ═══ Cube Entity System End ═══════════════════════════════════
 
             // ═══ Ribbon Dispatch Pipeline ═══════════════════════════════════
             //
@@ -4792,15 +5068,13 @@ namespace t7 {
 
             // ─── select_ribbon_for_patch ──────────────────────────────────
             bool select_ribbon_for_patch(int32_t gx, int32_t gz, RibbonSelection& sel) {
-                // Anchor-overlap idempotency: reject if ANY active ribbon
-                // already covers this trigger patch in its anchor set.
+                // Tip-overlap idempotency: reject if ANY active ribbon's
+                // near or far tip falls within this trigger patch.
                 for (uint32_t i = 0; i < MAX_RIBBON_INSTANCES; i++) {
                     if (!activeRibbons_[i].active) continue;
-                    for (uint32_t p = 0; p < activeRibbons_[i].anchor_count; p++) {
-                        if (activeRibbons_[i].anchor_gx[p] == gx &&
-                            activeRibbons_[i].anchor_gz[p] == gz)
-                            return false;
-                    }
+                    if ((activeRibbons_[i].near_tip_gx == gx && activeRibbons_[i].near_tip_gz == gz) ||
+                        (activeRibbons_[i].far_tip_gx == gx && activeRibbons_[i].far_tip_gz == gz))
+                        return false;
                 }
                 auto gate = run_spawn_preamble(gx, gz,
                     activeRibbons_, MAX_RIBBON_INSTANCES,
@@ -4926,37 +5200,33 @@ namespace t7 {
                 ar.anchor_x = plan.cx;
                 ar.anchor_z = plan.cz;
 
-                // Compute anchor patches — sample points along the spine
-                // converted to grid cells. Spine extends -0.15 to +0.85 of total_length.
+                // Two-tip anchoring: anchor IS the near tip (t=0).
+                // Body extends entirely in the orientation direction (away from pawn).
                 float total_length = (float)plan.cube_count * plan.cube_size;
-                float margin = plan.lateral_amp + 0.4f * plan.twist_amp;
-                float extent = 0.85f * total_length + margin;
                 float dir_x = std::cos(plan.orientation);
                 float dir_z = std::sin(plan.orientation);
-                // Sample 5 points from near end (-0.15) to far end (+0.85)
-                float along_fracs[] = { -0.15f, 0.1f, 0.35f, 0.6f, 0.85f };
-                ar.anchor_count = 0;
-                for (uint32_t i = 0; i < RIBBON_ANCHOR_PATCHES; i++) {
-                    float sx = plan.cx + dir_x * total_length * along_fracs[i];
-                    float sz = plan.cz + dir_z * total_length * along_fracs[i];
-                    int32_t pgx = (int32_t)std::floor(sx / PATCH_EXTENT);
-                    int32_t pgz = (int32_t)std::floor(sz / PATCH_EXTENT);
-                    // Deduplicate (small ribbons may land multiple samples on one patch)
-                    bool dup = false;
-                    for (uint32_t j = 0; j < ar.anchor_count; j++) {
-                        if (ar.anchor_gx[j] == pgx && ar.anchor_gz[j] == pgz) { dup = true; break; }
-                    }
-                    if (!dup && ar.anchor_count < RIBBON_ANCHOR_PATCHES) {
-                        ar.anchor_gx[ar.anchor_count] = pgx;
-                        ar.anchor_gz[ar.anchor_count] = pgz;
-                        ar.anchor_count++;
-                    }
-                }
+
+                ar.near_tip_x = plan.cx;
+                ar.near_tip_z = plan.cz;
+                ar.far_tip_x = plan.cx + dir_x * total_length;
+                ar.far_tip_z = plan.cz + dir_z * total_length;
+
+                ar.near_tip_gx = (int32_t)std::floor(ar.near_tip_x / PATCH_EXTENT);
+                ar.near_tip_gz = (int32_t)std::floor(ar.near_tip_z / PATCH_EXTENT);
+                ar.far_tip_gx = (int32_t)std::floor(ar.far_tip_x / PATCH_EXTENT);
+                ar.far_tip_gz = (int32_t)std::floor(ar.far_tip_z / PATCH_EXTENT);
+
+                ar.near_tip_registered = false;
+                ar.far_tip_registered = false;
+                ar.ref_count = 0;
 
                 ar.active = true;
                 activeRibbonCount_++;
                 std::cout << "[Ribbon] SPAWN slot=" << s << " at (" << plan.cx << ", " << plan.cz
-                    << ") tier=" << plan.tier_idx << " extent=" << extent << "\n";
+                    << ") tier=" << plan.tier_idx
+                    << " len=" << total_length
+                    << " near=(" << ar.near_tip_gx << "," << ar.near_tip_gz
+                    << ") far=(" << ar.far_tip_gx << "," << ar.far_tip_gz << ")\n";
             }
 
             // ═══ Ribbon Dispatch Pipeline End ═══════════════════════════════
@@ -5030,6 +5300,10 @@ namespace t7 {
                 // Lens target color range: color = hash * RANGE + LO
                 static constexpr float LENS_TARGET_LO = 0.2f;
                 static constexpr float LENS_TARGET_RANGE = 0.6f;
+                // Footprint: inscribed circle of 100×100 zone
+                static constexpr float FOOTPRINT_RADIUS = 50.0f;
+                // Mood gate (suppressed in flat/vault/finR — same as spheres/cubes)
+                static constexpr float MOOD_MULTIPLIER[MOOD_COUNT] = { 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f };
             };
 
             // ── Color Modes ──────────────────────────────────────────────────
@@ -5167,6 +5441,7 @@ namespace t7 {
             // and zone slot lifecycle. All visual/spring/color parameters are GPU-derived.
             struct GoLZoneState {
                 int32_t zone_nx = 0, zone_nz = 0;
+                int32_t host_gx = 0, host_gz = 0;   // host patch (for entity_refs eviction)
                 bool active = false;
                 uint32_t algorithm = AlgorithmType::CONWAY;
                 float tick_period = 1.0f;        // CPU derives this for tick mask (matches GPU)
@@ -5181,41 +5456,29 @@ namespace t7 {
             GPUZoneDeriveRequestArray pendingDeriveRequests_{};
             uint32_t activeZoneSlotCount_ = 0;  // highest active slot + 1 (for dispatch sizing)
 
-            // Check if a mode lattice node should host a GoL zone.
-            // Replicates the GPU tag_cell_behavior roll exactly.
-            bool should_spawn_gol_zone(int32_t nx, int32_t nz) const {
-                uint32_t seed = cpu_lattice_node_seed(activeSeed_, nx, nz, GoLZoneProp::SEED_BAND);
-                float roll = cpu_hash_f(seed, GoLZoneProp::SPAWN_ROLL);
-                return roll < GoLZoneSpawnConfig::SPAWN_CHANCE;
-            }
+            // ─── select_gol_for_patch ─────────────────────────────────────
+            //
+            // Phase 1: lattice-node-gated selection. Scans which MODE_LATTICE
+            // nodes overlap this patch, runs spawn roll, algorithm + tier
+            // selection, parameter sampling. At most one zone per patch.
 
-            // Check if a zone's footprint overlaps any registered entity footprint.
-            // Zone corner at (cx, cz), size GoLZoneSpawnConfig::ZONE_EXTENT × GoLZoneSpawnConfig::ZONE_EXTENT.
-            bool zone_overlaps_footprint(float cx, float cz) const {
-                float zone_half = GoLZoneSpawnConfig::ZONE_EXTENT * 0.5f;
-                float zone_x = cx + zone_half;
-                float zone_z = cz + zone_half;
-                for (uint32_t i = 0; i < MAX_FOOTPRINTS; i++) {
-                    if (!footprints_[i].active) continue;
-                    float fp_x = footprints_[i].x;
-                    float fp_z = footprints_[i].z;
-                    float fp_r = footprints_[i].radius;
-                    // Check if circular footprint overlaps rectangular zone
-                    // Clamp footprint center to zone rect, check distance
-                    float nearest_x = std::max(cx, std::min(fp_x, cx + GoLZoneSpawnConfig::ZONE_EXTENT));
-                    float nearest_z = std::max(cz, std::min(fp_z, cz + GoLZoneSpawnConfig::ZONE_EXTENT));
-                    float dx = fp_x - nearest_x;
-                    float dz = fp_z - nearest_z;
-                    if (dx * dx + dz * dz < fp_r * fp_r) {
-                        return true;
+            bool select_gol_for_patch(int32_t gx, int32_t gz, GoLSelection& sel) {
+                // Mood gate
+                float adj_mod = GoLZoneSpawnConfig::MOOD_MULTIPLIER[activeMood_];
+                if (adj_mod <= 0.0f) return false;
+
+                // Density + theme modifiers
+                adj_mod *= GLOBAL_ENTITY_DENSITY;
+                adj_mod *= population_type_affinity(PopFamily::GOL);
+                {
+                    auto dit = tileCache_.find({ gx, gz });
+                    if (dit != tileCache_.end()) {
+                        adj_mod *= dit->second.entity_density;
+                        adj_mod *= dit->second.theme_spawn[PopFamily::GOL];
                     }
                 }
-                return false;
-            }
 
-            void detect_gol_zones_for_patch(int32_t gx, int32_t gz, wgpu::Queue& queue) {
-                // A patch covers [gx*50, (gx+1)*50) in world space.
-                // Mode lattice nodes are on a 120-unit grid.
+                // Scan lattice nodes overlapping this patch
                 float wx0 = gx * PATCH_EXTENT;
                 float wx1 = (gx + 1) * PATCH_EXTENT;
                 float wz0 = gz * PATCH_EXTENT;
@@ -5228,39 +5491,32 @@ namespace t7 {
 
                 for (int32_t nz = nz0; nz <= nz1; nz++) {
                     for (int32_t nx = nx0; nx <= nx1; nx++) {
-                        // Already have a zone for this node?
+                        // Zone center from lattice node
+                        float raw_cx = (nx + 0.5f) * MODE_LATTICE_SPACING;
+                        float raw_cz = (nz + 0.5f) * MODE_LATTICE_SPACING;
+
+                        // Authoritative patch: only the patch containing the center owns this node
+                        int32_t auth_gx = (int32_t)std::floor(raw_cx / PATCH_EXTENT);
+                        int32_t auth_gz = (int32_t)std::floor(raw_cz / PATCH_EXTENT);
+                        if (auth_gx != gx || auth_gz != gz) continue;
+
+                        // Idempotency: already active at this node?
                         bool exists = false;
                         for (uint32_t i = 0; i < Dim::MAX_GOL_ZONES; i++) {
-                            if (golZones_[i].active && golZones_[i].zone_nx == nx && golZones_[i].zone_nz == nz) {
-                                exists = true;
-                                break;
+                            if (golZones_[i].active &&
+                                golZones_[i].zone_nx == nx && golZones_[i].zone_nz == nz) {
+                                exists = true; break;
                             }
                         }
                         if (exists) continue;
 
-                        // Should this node host a GoL zone?
-                        if (!should_spawn_gol_zone(nx, nz)) continue;
-
-                        // Population token bias: adjust effective spawn chance
-                        {
-                            float auto_bias = population_automata_bias();
-                            if (std::abs(auto_bias) > 0.001f) {
-                                uint32_t zseed = cpu_lattice_node_seed(activeSeed_, nx, nz, GoLZoneProp::SEED_BAND);
-                                float roll = cpu_hash_f(zseed, GoLZoneProp::SPAWN_ROLL);
-                                float adjusted = GoLZoneSpawnConfig::SPAWN_CHANCE + auto_bias;
-                                adjusted = std::max(0.0f, std::min(1.0f, adjusted));
-                                if (roll >= adjusted) continue;
-                            }
-                        }
-
-                        // Compute zone corner (snapped to cell grid)
-                        float raw_cx = (nx + 0.5f) * MODE_LATTICE_SPACING;
-                        float raw_cz = (nz + 0.5f) * MODE_LATTICE_SPACING;
-                        float corner_x = std::floor((raw_cx - GoLZoneSpawnConfig::ZONE_EXTENT * 0.5f) / PATCH_CELL_SIZE) * PATCH_CELL_SIZE;
-                        float corner_z = std::floor((raw_cz - GoLZoneSpawnConfig::ZONE_EXTENT * 0.5f) / PATCH_CELL_SIZE) * PATCH_CELL_SIZE;
-
-                        // Footprint check: skip if any entity footprint overlaps this zone
-                        if (zone_overlaps_footprint(corner_x, corner_z)) continue;
+                        // Spawn roll with modifiers
+                        uint32_t seed = cpu_lattice_node_seed(activeSeed_, nx, nz, GoLZoneProp::SEED_BAND);
+                        float roll = cpu_hash_f(seed, GoLZoneProp::SPAWN_ROLL);
+                        float chance = GoLZoneSpawnConfig::SPAWN_CHANCE * adj_mod;
+                        chance += population_automata_bias();
+                        chance = std::max(0.0f, std::min(1.0f, chance));
+                        if (roll >= chance) continue;
 
                         // Find free slot
                         uint32_t slot = UINT32_MAX;
@@ -5269,23 +5525,30 @@ namespace t7 {
                         }
                         if (slot == UINT32_MAX) continue;
 
-                        // Algorithm selection: Conway or Pulse
-                        uint32_t seed = cpu_lattice_node_seed(activeSeed_, nx, nz, GoLZoneProp::SEED_BAND);
+                        // Reserve slot
+                        golZones_[slot].active = true;
+
+                        // Zone corner (cell-grid-snapped)
+                        float corner_x = std::floor(
+                            (raw_cx - GoLZoneSpawnConfig::ZONE_EXTENT * 0.5f) / PATCH_CELL_SIZE) * PATCH_CELL_SIZE;
+                        float corner_z = std::floor(
+                            (raw_cz - GoLZoneSpawnConfig::ZONE_EXTENT * 0.5f) / PATCH_CELL_SIZE) * PATCH_CELL_SIZE;
+
+                        // Algorithm selection
                         float algo_roll = cpu_hash_f(seed, PulseZoneProp::ALGORITHM_ROLL);
                         uint32_t algorithm = (algo_roll < PULSE_ALGORITHM_CHANCE)
                             ? AlgorithmType::PULSE : AlgorithmType::CONWAY;
 
-                        // Height enabled roll (CPU needs this for the derive request)
+                        // Height enabled
                         float height_roll = cpu_hash_f(seed, GoLZoneProp::HEIGHT_ROLL);
                         bool height_enabled = (height_roll < GoLZoneSpawnConfig::HEIGHT_CHANCE);
 
-                        // CPU derives ONLY tick_period and initial_density (tier-dependent).
-                        // All other parameters are GPU-derived via zone_derive_params.
+                        // Tier + CPU-side params
                         float tick_period = 1.0f;
                         float initial_density = 0.0f;
+                        uint32_t tier_idx = 0;
 
                         if (algorithm == AlgorithmType::CONWAY) {
-                            // Tier selection (minimal — just for tick_period + density)
                             float tier_roll = cpu_hash_f(seed, GoLZoneProp::TIER);
                             uint32_t tier = GOL_TIER_COUNT - 1;
                             float cumul = 0.0f;
@@ -5294,17 +5557,15 @@ namespace t7 {
                                 if (tier_roll < cumul) { tier = t; break; }
                             }
                             const auto& tp = GOL_TIERS[tier];
-
-                            // Force_no_height check on CPU side too
                             if (tp.force_no_height) height_enabled = false;
-
                             tick_period = std::max(0.1f,
-                                cpu_sample_gaussian(seed, GoLZoneProp::TICK_PERIOD, tp.tick_period_mean, tp.tick_period_sigma));
+                                cpu_sample_gaussian(seed, GoLZoneProp::TICK_PERIOD,
+                                    tp.tick_period_mean, tp.tick_period_sigma));
                             initial_density = std::max(0.05f, std::min(0.9f,
-                                cpu_sample_gaussian(seed, GoLZoneProp::DENSITY, tp.density_mean, tp.density_sigma)));
-
-                        }
-                        else {
+                                cpu_sample_gaussian(seed, GoLZoneProp::DENSITY,
+                                    tp.density_mean, tp.density_sigma)));
+                            tier_idx = tier;  // Conway: 0–6
+                        } else {
                             float tier_roll = cpu_hash_f(seed, PulseZoneProp::PULSE_TIER);
                             uint32_t tier = PULSE_TIER_COUNT - 1;
                             float cumul = 0.0f;
@@ -5313,41 +5574,118 @@ namespace t7 {
                                 if (tier_roll < cumul) { tier = t; break; }
                             }
                             const auto& pp = PULSE_TIERS[tier];
-
                             if (pp.force_no_height) height_enabled = false;
-
                             tick_period = std::max(0.1f,
-                                cpu_sample_gaussian(seed, GoLZoneProp::TICK_PERIOD, pp.tick_period_mean, pp.tick_period_sigma));
-                            initial_density = 0.0f;  // Pulse starts silent
-
+                                cpu_sample_gaussian(seed, GoLZoneProp::TICK_PERIOD,
+                                    pp.tick_period_mean, pp.tick_period_sigma));
+                            initial_density = 0.0f;
+                            tier_idx = GOL_TIER_COUNT + tier;  // Pulse: 7–9 (compound index)
                         }
 
-                        // Record CPU-side state
-                        auto& zone = golZones_[slot];
-                        zone.zone_nx = nx;
-                        zone.zone_nz = nz;
-                        zone.active = true;
-                        zone.algorithm = algorithm;
-                        zone.tick_period = tick_period;
-                        zone.initial_density = initial_density;
-                        zone.last_tick_index = -1;
-                        golZoneCount_++;
+                        // Fill selection
+                        sel.seed = seed;
+                        sel.trigger_gx = gx;
+                        sel.trigger_gz = gz;
+                        sel.slot = slot;
+                        sel.zone_nx = nx;
+                        sel.zone_nz = nz;
+                        sel.corner_x = corner_x;
+                        sel.corner_z = corner_z;
+                        sel.algorithm = algorithm;
+                        sel.tier_idx = tier_idx;
+                        sel.tick_period = tick_period;
+                        sel.initial_density = initial_density;
+                        sel.height_enabled = height_enabled;
+                        sel.footprint_r = GoLZoneSpawnConfig::FOOTPRINT_RADIUS;
 
-                        // Seed the life buffer (CPU — needs initial_density)
-                        seed_gol_zone(slot, queue);
-
-                        // Queue GPU derive request
-                        if (pendingDeriveRequests_.count < Dim::MAX_GOL_ZONES) {
-                            auto& req = pendingDeriveRequests_.requests[pendingDeriveRequests_.count++];
-                            req.slot = slot;
-                            req.nx = nx;
-                            req.nz = nz;
-                            req.algorithm = algorithm;
-                            req.height_enabled = height_enabled ? 1u : 0u;
-                            req.world_seed = activeSeed_;
-                        }
+                        return true;  // at most one zone per patch
                     }
                 }
+                return false;
+            }
+
+            // ─── place_gol_from_selection ─────────────────────────────────
+            //
+            // Phase 2: footprint check + registration. Position is lattice-
+            // determined (no jitter), so we bypass negotiate_position and
+            // call check_position + register_footprint directly.
+
+            bool place_gol_from_selection(const GoLSelection& sel, GoLPlacement& plan) {
+                float cx = sel.corner_x + GoLZoneSpawnConfig::ZONE_EXTENT * 0.5f;
+                float cz = sel.corner_z + GoLZoneSpawnConfig::ZONE_EXTENT * 0.5f;
+
+                if (!check_position(cx, cz, sel.footprint_r, PopFamily::GOL))
+                    return false;
+
+                int32_t host_gx = (int32_t)std::floor(cx / PATCH_EXTENT);
+                int32_t host_gz = (int32_t)std::floor(cz / PATCH_EXTENT);
+
+                if (register_footprint(cx, cz, sel.footprint_r,
+                    host_gx, host_gz, PopFamily::GOL, sel.tier_idx) == UINT32_MAX)
+                    return false;
+
+                plan = GoLPlacement{};
+                plan.slot = sel.slot;
+                plan.trigger_gx = sel.trigger_gx;
+                plan.trigger_gz = sel.trigger_gz;
+                plan.host_gx = host_gx;
+                plan.host_gz = host_gz;
+                plan.tier_idx = sel.tier_idx;
+                plan.cx = cx;
+                plan.cz = cz;
+                plan.zone_nx = sel.zone_nx;
+                plan.zone_nz = sel.zone_nz;
+                plan.corner_x = sel.corner_x;
+                plan.corner_z = sel.corner_z;
+                plan.algorithm = sel.algorithm;
+                plan.tick_period = sel.tick_period;
+                plan.initial_density = sel.initial_density;
+                plan.height_enabled = sel.height_enabled;
+
+                record_placement_bookkeeping(PopFamily::GOL, plan.tier_idx);
+                return true;
+            }
+
+            // ─── commit_gol ──────────────────────────────────────────────
+            //
+            // Phase 3: CPU state + life buffer seeding + GPU derive request.
+
+            void commit_gol(const GoLPlacement& plan,
+                int32_t trigger_gx, int32_t trigger_gz, wgpu::Queue& queue)
+            {
+                auto& zone = golZones_[plan.slot];
+                zone.zone_nx = plan.zone_nx;
+                zone.zone_nz = plan.zone_nz;
+                zone.host_gx = plan.host_gx;
+                zone.host_gz = plan.host_gz;
+                zone.active = true;
+                zone.algorithm = plan.algorithm;
+                zone.tick_period = plan.tick_period;
+                zone.initial_density = plan.initial_density;
+                zone.last_tick_index = -1;
+                golZoneCount_++;
+
+                seed_gol_zone(plan.slot, queue);
+
+                if (pendingDeriveRequests_.count < Dim::MAX_GOL_ZONES) {
+                    auto& req = pendingDeriveRequests_.requests[pendingDeriveRequests_.count++];
+                    req.slot = plan.slot;
+                    req.nx = plan.zone_nx;
+                    req.nz = plan.zone_nz;
+                    req.algorithm = plan.algorithm;
+                    req.height_enabled = plan.height_enabled ? 1u : 0u;
+                    req.world_seed = activeSeed_;
+                }
+
+                std::cout << "[GoL] "
+                    << (plan.algorithm == AlgorithmType::PULSE ? "Pulse" : "Conway")
+                    << " slot=" << plan.slot
+                    << " node=(" << plan.zone_nx << "," << plan.zone_nz << ")"
+                    << " corner=(" << plan.corner_x << "," << plan.corner_z << ")"
+                    << " host=(" << plan.host_gx << "," << plan.host_gz << ")"
+                    << (plan.height_enabled ? " HEIGHT" : "")
+                    << " period=" << plan.tick_period
+                    << "\n";
             }
 
             void seed_gol_zone(uint32_t slot, wgpu::Queue& queue) {
@@ -5378,29 +5716,10 @@ namespace t7 {
                 gpuState_.upload_zone_life(queue, slot, life.data(), height_factors.data(), Dim::GOL_ZONE_CELLS);
             }
 
-            void evict_gol_zones_out_of_range(int32_t centerX, int32_t centerZ, wgpu::Queue& queue) {
-                float center_wx = (centerX + 0.5f) * PATCH_EXTENT;
-                float center_wz = (centerZ + 0.5f) * PATCH_EXTENT;
-                float max_dist = (float)(RENDER_RADIUS + 2) * PATCH_EXTENT;
-
-                for (uint32_t i = 0; i < Dim::MAX_GOL_ZONES; i++) {
-                    if (!golZones_[i].active) continue;
-                    float zone_wx = (golZones_[i].zone_nx + 0.5f) * MODE_LATTICE_SPACING;
-                    float zone_wz = (golZones_[i].zone_nz + 0.5f) * MODE_LATTICE_SPACING;
-                    float dx = std::abs(zone_wx - center_wx);
-                    float dz = std::abs(zone_wz - center_wz);
-                    if (dx > max_dist || dz > max_dist) {
-                        gpuState_.deactivate_zone_slot(queue, i);
-                        golZones_[i].active = false;
-                        golZoneCount_--;
-                    }
-                }
-            }
-
             // upload_gol_zone_config: per-frame header-only upload.
             // Per-zone config is GPU-derived via zone_derive_params — we only
             // write count, t_beats, dt, tick_mask. Slot deactivation happens
-            // at eviction time (evict_gol_zones_out_of_range).
+            // at eviction time (via dispatch_evict_gol through entity_refs).
             void upload_gol_zone_config(wgpu::Queue& queue) {
                 uint32_t count = 0;
                 uint32_t tick_mask = 0;
@@ -5610,7 +5929,7 @@ namespace t7 {
                 // Each site rolls a three-way type: pure-snapshot, pure-authored, or mixed.
                 // In mixed mode, each painting independently rolls its content source.
                 //
-                // Outdoor (spawn_gallery_for_patch):
+                // Outdoor (select_gallery_for_patch → commit_gallery):
                 //   70% snapshot-only terrain quads
                 //   20% mixed (each painting rolls independently)
                 //   10% authored-only wall frames (monuments in the desert)
@@ -5634,6 +5953,16 @@ namespace t7 {
 
                 // Photographer pacing by archetype
                 static constexpr float PHOTO_PACE_BY_ARCHETYPE[4] = { 0.7f, 0.8f, 1.5f, 1.5f };
+
+                // Gallery center jitter (fraction of PATCH_EXTENT)
+                static constexpr float POSITION_JITTER = 0.30f;
+            };
+
+            // Site content type (outdoor gallery)
+            struct GallerySiteType {
+                static constexpr uint32_t SNAPSHOT_ONLY = 0;
+                static constexpr uint32_t MIXED = 1;
+                static constexpr uint32_t AUTHORED_ONLY = 2;
             };
 
             struct PhotographerState {
@@ -5744,6 +6073,7 @@ namespace t7 {
             struct GalleryCenter {
                 float x = 0.0f, z = 0.0f;
                 int32_t patch_gx = INT32_MAX, patch_gz = INT32_MAX;
+                int32_t host_gx = 0, host_gz = 0;   // host patch (for entity_refs eviction)
                 bool active = false;
             };
             static constexpr uint32_t MAX_GALLERIES = 48;
@@ -5893,146 +6223,216 @@ namespace t7 {
             // paintings, and where. Paintings draw from the snapshot pool.
             // The user discovers photos from other places in distant galleries.
 
-            void spawn_gallery_for_patch(int32_t gx, int32_t gz, wgpu::Queue& queue) {
-                if (snapshotCount_ < GalleryConfig::MIN_POOL_SIZE) return;
+            // ─── select_gallery_for_patch ────────────────────────────────
+            //
+            // Phase 1: content gate, spawn roll, center jitter, parameter
+            // sampling. No GPU writes. No content availability validation
+            // (deferred to commit where queue is available).
 
-                // Distance-based gallery center eviction: remove centers far from
-                // the current streaming window. Keep centers within streaming radius
-                // + MIN_GALLERY_DISTANCE so nearby galleries always know about each other.
+            bool select_gallery_for_patch(int32_t gx, int32_t gz, GallerySelection& sel) {
+                // Content gate: minimum snapshot pool
+                if (snapshotCount_ < GalleryConfig::MIN_POOL_SIZE) return false;
+
+                // Mood gate
+                float adj_mod = GalleryConfig::MOOD_MULTIPLIER[activeMood_];
+                if (adj_mod <= 0.0f) return false;
+
+                // Density + theme modifiers
+                adj_mod *= GLOBAL_ENTITY_DENSITY;
+                adj_mod *= population_type_affinity(PopFamily::GALLERY);
+                uint32_t archetype = 1;
                 {
-                    float evict_dist = (float)activeRadius_ * PATCH_EXTENT
-                        + GalleryConfig::MIN_GALLERY_DISTANCE + 100.0f;
-                    float evict_dist_sq = evict_dist * evict_dist;
-                    float pawn_x = pawnReadback_x_;
-                    float pawn_z = pawnReadback_z_;
-                    for (uint32_t g = 0; g < MAX_GALLERIES; g++) {
-                        if (!galleryCenters_[g].active) continue;
-                        float dx = galleryCenters_[g].x - pawn_x;
-                        float dz = galleryCenters_[g].z - pawn_z;
-                        if (dx * dx + dz * dz > evict_dist_sq) {
-                            galleryCenters_[g].active = false;
-                        }
+                    auto dit = tileCache_.find({ gx, gz });
+                    if (dit != tileCache_.end()) {
+                        adj_mod *= dit->second.entity_density;
+                        adj_mod *= dit->second.theme_spawn[PopFamily::GALLERY];
+                        archetype = dit->second.archetype;
                     }
                 }
 
                 // Idempotency: skip if paintings already exist at this patch
-                // (Gallery centers persist beyond patch eviction, so we check
-                // paintings instead — they're evicted with the patch)
                 for (uint32_t i = 0; i < Dim::PAINTING_MAX_SLOTS; i++) {
                     if (paintingSlots_[i].is_active != 0 &&
                         paintingSlots_[i].patch_gx == gx && paintingSlots_[i].patch_gz == gz) {
-                        return;  // paintings still placed — nothing to do
+                        return false;
                     }
                 }
 
-                // Look up archetype for this tile
-                uint32_t archetype = 1;
-                auto tile_it = tileCache_.find({ gx, gz });
-                if (tile_it != tileCache_.end()) {
-                    archetype = tile_it->second.archetype;
+                // Also check if a gallery center is already active for this patch
+                for (uint32_t g = 0; g < MAX_GALLERIES; g++) {
+                    if (galleryCenters_[g].active &&
+                        galleryCenters_[g].patch_gx == gx && galleryCenters_[g].patch_gz == gz)
+                        return false;
                 }
 
-                // Per-archetype gallery probability (scaled by mood factor)
+                // Spawn roll
                 uint32_t seed = tile_seed(activeSeed_, gx, gz);
                 float gallery_roll = cpu_hash_f(seed, 500u);
-                float gallery_chance = GalleryConfig::GALLERY_CHANCE_BY_ARCHETYPE[archetype]
-                    * GalleryConfig::MOOD_MULTIPLIER[activeMood_];
-                if (gallery_roll >= gallery_chance) return;
+                float gallery_chance = GalleryConfig::GALLERY_CHANCE_BY_ARCHETYPE[archetype] * adj_mod;
+                if (gallery_roll >= gallery_chance) return false;
 
-                // Gallery center (computed early for distance check)
+                // Gallery center (jittered within patch)
                 float patch_cx = (gx + 0.5f) * PATCH_EXTENT;
                 float patch_cz = (gz + 0.5f) * PATCH_EXTENT;
-                float center_offset = cpu_hash_f(seed, 505u) * PATCH_EXTENT * 0.3f;
+                float center_offset = cpu_hash_f(seed, 505u) * PATCH_EXTENT * GalleryConfig::POSITION_JITTER;
                 float center_angle = cpu_hash_f(seed, 506u) * 6.283185f;
                 float gallery_cx = patch_cx + std::cos(center_angle) * center_offset;
                 float gallery_cz = patch_cz + std::sin(center_angle) * center_offset;
 
-                // Minimum distance from existing galleries (skip own persisted center)
-                float min_dist_sq = GalleryConfig::MIN_GALLERY_DISTANCE
-                    * GalleryConfig::MIN_GALLERY_DISTANCE;
+                // Gallery-to-gallery distance check (belt + suspenders; MIN_SEPARATION handles most)
+                float min_dist_sq = GalleryConfig::MIN_GALLERY_DISTANCE * GalleryConfig::MIN_GALLERY_DISTANCE;
                 for (uint32_t g = 0; g < MAX_GALLERIES; g++) {
                     if (!galleryCenters_[g].active) continue;
-                    if (galleryCenters_[g].patch_gx == gx && galleryCenters_[g].patch_gz == gz) continue;  // own persisted center
                     float dx = gallery_cx - galleryCenters_[g].x;
                     float dz = gallery_cz - galleryCenters_[g].z;
-                    if (dx * dx + dz * dz < min_dist_sq) return;  // too close, skip
+                    if (dx * dx + dz * dz < min_dist_sq) return false;
                 }
 
-                // Footprint check: gallery spread ~ half of max painting row + painting width margin
-                float gallery_footprint_r = (float)GalleryConfig::PAINTINGS_MAX_BY_ARCHETYPE[archetype]
-                    * 0.5f * GalleryConfig::ROW_SPACING + 15.0f;  // +15 for painting half-widths
-                if (!footprint_clear(gallery_cx, gallery_cz, gallery_footprint_r)) return;
-
-                // Pre-register gallery center — reuse existing slot if one persists
-                // from a previous streaming cycle, otherwise grab a new slot.
+                // Find free center slot
                 uint32_t gallery_slot = UINT32_MAX;
                 for (uint32_t g = 0; g < MAX_GALLERIES; g++) {
-                    if (galleryCenters_[g].active &&
-                        galleryCenters_[g].patch_gx == gx && galleryCenters_[g].patch_gz == gz) {
-                        gallery_slot = g;  // reuse — center persisted
-                        break;
-                    }
+                    if (!galleryCenters_[g].active) { gallery_slot = g; break; }
                 }
-                if (gallery_slot == UINT32_MAX) {
-                    for (uint32_t g = 0; g < MAX_GALLERIES; g++) {
-                        if (!galleryCenters_[g].active) {
-                            gallery_slot = g;
-                            galleryCenters_[g] = { gallery_cx, gallery_cz, gx, gz, true };
-                            break;
-                        }
-                    }
+                if (gallery_slot == UINT32_MAX) return false;
+
+                // Reserve slot
+                galleryCenters_[gallery_slot].active = true;
+                galleryCenters_[gallery_slot].patch_gx = gx;
+                galleryCenters_[gallery_slot].patch_gz = gz;
+
+                // Footprint radius: gallery spread
+                float footprint_r = (float)GalleryConfig::PAINTINGS_MAX_BY_ARCHETYPE[archetype]
+                    * 0.5f * GalleryConfig::ROW_SPACING + 15.0f;
+
+                // Painting count (seed-derived; capped to content availability in commit)
+                float count_raw = GalleryConfig::PAINTINGS_MEAN
+                    + (cpu_hash_f(seed, 501u) + cpu_hash_f(seed, 502u)
+                        + cpu_hash_f(seed, 503u) - 1.5f) * GalleryConfig::PAINTINGS_SIGMA;
+                uint32_t painting_count = (uint32_t)std::max(
+                    (float)GalleryConfig::PAINTINGS_MIN,
+                    std::min((float)GalleryConfig::PAINTINGS_MAX_BY_ARCHETYPE[archetype],
+                        std::round(count_raw)));
+
+                // Facing + size
+                float facing_angle = cpu_hash_f(seed, 504u) * 6.283185f;
+                float gallery_size_mean = GalleryConfig::GALLERY_SIZE_LO
+                    + cpu_hash_f(seed, 530u) * (GalleryConfig::GALLERY_SIZE_HI - GalleryConfig::GALLERY_SIZE_LO);
+
+                // Site type (seed-derived; content availability validated in commit)
+                float site_roll = cpu_hash_f(seed, 540u);
+                uint32_t site_type;
+                if (site_roll < GalleryConfig::OUTDOOR_SNAPSHOT_ONLY) {
+                    site_type = GallerySiteType::SNAPSHOT_ONLY;
+                } else if (site_roll < GalleryConfig::OUTDOOR_SNAPSHOT_ONLY + GalleryConfig::OUTDOOR_MIXED) {
+                    site_type = GallerySiteType::MIXED;
+                } else {
+                    site_type = GallerySiteType::AUTHORED_ONLY;
                 }
-                if (gallery_slot == UINT32_MAX) return;  // no center slot — don't place paintings
 
-                // ─── Curated Selection ────────────────────────────────────────
-                //
-                // Score each available snapshot. Higher score = better fit.
-                //   - Geographic distance: snapshots from far away score higher
-                //   - Age: older snapshots (more walk distance since capture) score higher
-                //   - Tier diversity: penalty if this shot_type is already in the gallery
-                //   - Small random jitter prevents deterministic ordering
+                sel.seed = seed;
+                sel.trigger_gx = gx;
+                sel.trigger_gz = gz;
+                sel.slot = gallery_slot;
+                sel.cx = gallery_cx;
+                sel.cz = gallery_cz;
+                sel.footprint_r = footprint_r;
+                sel.archetype = archetype;
+                sel.painting_count = painting_count;
+                sel.facing_angle = facing_angle;
+                sel.gallery_size_mean = gallery_size_mean;
+                sel.site_type = site_type;
 
-                struct Candidate {
-                    uint32_t layer;  // index into snapshotStaging_[]
-                };
+                return true;
+            }
+
+            // ─── place_gallery_from_selection ────────────────────────────
+            //
+            // Phase 2: footprint check + registration. Gallery center is
+            // seed-determined (no negotiation), but standard check_position
+            // enforces MIN_SEPARATION against all families.
+
+            bool place_gallery_from_selection(const GallerySelection& sel, GalleryPlacement& plan) {
+                if (!check_position(sel.cx, sel.cz, sel.footprint_r, PopFamily::GALLERY))
+                    return false;
+
+                int32_t host_gx = (int32_t)std::floor(sel.cx / PATCH_EXTENT);
+                int32_t host_gz = (int32_t)std::floor(sel.cz / PATCH_EXTENT);
+
+                if (register_footprint(sel.cx, sel.cz, sel.footprint_r,
+                    host_gx, host_gz, PopFamily::GALLERY, sel.archetype) == UINT32_MAX)
+                    return false;
+
+                plan = GalleryPlacement{};
+                plan.slot = sel.slot;
+                plan.trigger_gx = sel.trigger_gx;
+                plan.trigger_gz = sel.trigger_gz;
+                plan.host_gx = host_gx;
+                plan.host_gz = host_gz;
+                plan.tier_idx = sel.archetype;
+                plan.cx = sel.cx;
+                plan.cz = sel.cz;
+                plan.footprint_r = sel.footprint_r;
+                plan.archetype = sel.archetype;
+                plan.painting_count = sel.painting_count;
+                plan.facing_angle = sel.facing_angle;
+                plan.gallery_size_mean = sel.gallery_size_mean;
+                plan.site_type = sel.site_type;
+
+                record_placement_bookkeeping(PopFamily::GALLERY, plan.tier_idx);
+                return true;
+            }
+
+            // ─── commit_gallery ──────────────────────────────────────────
+            //
+            // Phase 3: content curation, painting layout, slot allocation,
+            // GPU upload. All content-dependent decisions happen here where
+            // queue is available for authored texture loading.
+
+            void commit_gallery(const GalleryPlacement& plan,
+                int32_t trigger_gx, int32_t trigger_gz, wgpu::Queue& queue)
+            {
+                uint32_t seed = plan.trigger_gx != INT32_MAX
+                    ? tile_seed(activeSeed_, plan.trigger_gx, plan.trigger_gz) : 0u;
+                int32_t gx = plan.trigger_gx, gz = plan.trigger_gz;
+                float gallery_cx = plan.cx, gallery_cz = plan.cz;
+                uint32_t archetype = plan.archetype;
+                float gallery_size_mean = plan.gallery_size_mean;
+                float facing_angle = plan.facing_angle;
+
+                // Resolve site type with content availability
+                uint32_t site_type = plan.site_type;
+                if (site_type != GallerySiteType::SNAPSHOT_ONLY && !authoredTexturesLoaded_) {
+                    load_authored_textures(queue);
+                }
+                if (site_type != GallerySiteType::SNAPSHOT_ONLY && !authoredTexturesLoaded_) {
+                    site_type = GallerySiteType::SNAPSHOT_ONLY;
+                }
+
+                // Snapshot candidates
+                struct Candidate { uint32_t layer; };
                 Candidate candidates[Dim::STAGING_LAYERS];
                 uint32_t candidate_count = 0;
-
                 for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) {
                     if (snapshotStaging_[i].valid && !snapshotStaging_[i].consumed)
                         candidates[candidate_count++] = { i };
                 }
 
-                // ─── Site Type Roll (before early-return decisions) ───────
-                float site_roll = cpu_hash_f(seed, 540u);
-                enum class SiteType { SNAPSHOT_ONLY, MIXED, AUTHORED_ONLY };
-                SiteType site_type;
-                if (site_roll < GalleryConfig::OUTDOOR_SNAPSHOT_ONLY) {
-                    site_type = SiteType::SNAPSHOT_ONLY;
-                }
-                else if (site_roll < GalleryConfig::OUTDOOR_SNAPSHOT_ONLY + GalleryConfig::OUTDOOR_MIXED) {
-                    site_type = SiteType::MIXED;
-                }
-                else {
-                    site_type = SiteType::AUTHORED_ONLY;
-                }
-
-                // Ensure authored textures are loaded when needed
-                if (site_type != SiteType::SNAPSHOT_ONLY && !authoredTexturesLoaded_) {
-                    load_authored_textures(queue);
-                }
-                if (site_type != SiteType::SNAPSHOT_ONLY && !authoredTexturesLoaded_) {
-                    site_type = SiteType::SNAPSHOT_ONLY;
-                }
-
-                // Early return: need at least one source of content
                 bool have_snapshots = candidate_count > 0;
                 bool have_authored = authoredStagedCount_ > 0;
-                if (site_type == SiteType::SNAPSHOT_ONLY && !have_snapshots) return;
-                if (site_type == SiteType::AUTHORED_ONLY && !have_authored) return;
-                if (site_type == SiteType::MIXED && !have_snapshots && !have_authored) return;
+                if (site_type == GallerySiteType::SNAPSHOT_ONLY && !have_snapshots) {
+                    galleryCenters_[plan.slot].active = false;
+                    return;
+                }
+                if (site_type == GallerySiteType::AUTHORED_ONLY && !have_authored) {
+                    galleryCenters_[plan.slot].active = false;
+                    return;
+                }
+                if (site_type == GallerySiteType::MIXED && !have_snapshots && !have_authored) {
+                    galleryCenters_[plan.slot].active = false;
+                    return;
+                }
 
-                // ─── Gallery Mode (snapshot curation, only if we have snapshots) ─
+                // Snapshot curation (mono tier + chronological sort)
                 if (have_snapshots) {
                     bool mono_tier = cpu_hash_f(seed, 520u) < GalleryConfig::MONO_TIER_CHANCE;
                     if (mono_tier) {
@@ -6042,7 +6442,6 @@ namespace t7 {
                             (uint32_t)ShotType::CINEMATIC
                         };
                         uint32_t chosen = FAVORITE_TIERS[cpu_hash(seed, 521u) % 3];
-
                         uint32_t write = 0;
                         for (uint32_t c = 0; c < candidate_count; c++) {
                             if (snapshotStaging_[candidates[c].layer].shot_type == chosen)
@@ -6051,8 +6450,6 @@ namespace t7 {
                         candidate_count = write;
                         have_snapshots = candidate_count > 0;
                     }
-
-                    // Chronological sort (oldest first)
                     for (uint32_t i = 0; i < candidate_count; i++) {
                         for (uint32_t j = i + 1; j < candidate_count; j++) {
                             if (snapshotStaging_[candidates[j].layer].capture_frame
@@ -6064,43 +6461,26 @@ namespace t7 {
                         }
                     }
                 }
-                uint32_t snap_cursor = 0;  // index into sorted candidates[]
+                uint32_t snap_cursor = 0;
 
-                // ─── Gallery Size Mean ───────────────────────────────────────
-                float gallery_size_mean = GalleryConfig::GALLERY_SIZE_LO
-                    + cpu_hash_f(seed, 530u) * (GalleryConfig::GALLERY_SIZE_HI - GalleryConfig::GALLERY_SIZE_LO);
-
-                // Painting count — cap to available content
-                float count_raw = GalleryConfig::PAINTINGS_MEAN
-                    + (cpu_hash_f(seed, 501u) + cpu_hash_f(seed, 502u)
-                        + cpu_hash_f(seed, 503u) - 1.5f) * GalleryConfig::PAINTINGS_SIGMA;
-                uint32_t painting_count = (uint32_t)std::max(
-                    (float)GalleryConfig::PAINTINGS_MIN,
-                    std::min((float)GalleryConfig::PAINTINGS_MAX_BY_ARCHETYPE[archetype],
-                        std::round(count_raw)));
-                // Cap to what's actually available
+                // Cap painting count to available content
+                uint32_t painting_count = plan.painting_count;
                 uint32_t max_available = candidate_count + authoredStagedCount_;
-                if (site_type == SiteType::SNAPSHOT_ONLY) max_available = candidate_count;
-                if (site_type == SiteType::AUTHORED_ONLY) max_available = authoredStagedCount_;
+                if (site_type == GallerySiteType::SNAPSHOT_ONLY) max_available = candidate_count;
+                if (site_type == GallerySiteType::AUTHORED_ONLY) max_available = authoredStagedCount_;
                 if (painting_count > max_available) painting_count = max_available;
 
-                // Layout: paintings share a facing direction, arranged on a zigzag
-                // wall — alternating depth (closer/further) while all face the same way.
-                float facing_angle = cpu_hash_f(seed, 504u) * 6.283185f;
+                // Layout
                 float face_x = std::cos(facing_angle);
                 float face_z = std::sin(facing_angle);
                 float row_x = -face_z;
                 float row_z = face_x;
-
                 float row_start = -(float)(painting_count - 1) * 0.5f * GalleryConfig::ROW_SPACING;
 
                 uint32_t placed = 0;
-
-                // Track unique authored images used (no duplicate paintings in one gallery)
                 bool usedAuthored[Dim::STAGING_LAYERS]{};
 
                 for (uint32_t p = 0; p < painting_count; p++) {
-
                     uint32_t slot = find_free_painting_slot();
                     if (slot == UINT32_MAX) break;
 
@@ -6109,8 +6489,6 @@ namespace t7 {
                     float t = row_start + (float)p * GalleryConfig::ROW_SPACING;
                     float lateral_jitter = (cpu_hash_f(p_seed, 0u) - 0.5f) * 2.0f
                         * GalleryConfig::ROW_LATERAL_JITTER;
-
-                    // Zigzag depth: odd paintings step forward, even step back
                     float depth_offset = GalleryConfig::ROW_DEPTH_MIN
                         + cpu_hash_f(p_seed, 1u) * GalleryConfig::ROW_DEPTH_RANGE;
                     if (p % 2 == 1) depth_offset = -depth_offset;
@@ -6118,21 +6496,18 @@ namespace t7 {
                     float paint_x = gallery_cx + row_x * (t + lateral_jitter) + face_x * depth_offset;
                     float paint_z = gallery_cz + row_z * (t + lateral_jitter) + face_z * depth_offset;
 
-                    // ─── Content×Form decision ───────────────────────────
-                    bool use_authored = (site_type == SiteType::AUTHORED_ONLY)
-                        || (site_type == SiteType::MIXED
+                    bool use_authored = (site_type == GallerySiteType::AUTHORED_ONLY)
+                        || (site_type == GallerySiteType::MIXED
                             && cpu_hash_f(p_seed, 8u) < GalleryConfig::OUTDOOR_MIX_AUTHORED_CHANCE);
 
                     if (use_authored && count_unused_authored(usedAuthored) == 0) {
-                        use_authored = false;  // exhausted authored, fall through to snapshot
+                        use_authored = false;
                     }
                     if (!use_authored && snap_cursor >= candidate_count) {
-                        // No snapshots left either — try authored as last resort
                         if (count_unused_authored(usedAuthored) > 0) {
                             use_authored = true;
-                        }
-                        else {
-                            break;  // nothing left to place
+                        } else {
+                            break;
                         }
                     }
 
@@ -6142,7 +6517,6 @@ namespace t7 {
                     if (use_authored) {
                         uint32_t auth_stg = pick_authored_staging(p_seed, 9u);
                         if (auth_stg == UINT32_MAX || usedAuthored[auth_stg]) {
-                            // Find next lowest disk_index not used in this site
                             uint32_t best = UINT32_MAX, best_disk = UINT32_MAX;
                             for (uint32_t a = 0; a < Dim::STAGING_LAYERS; a++) {
                                 if (!usedAuthored[a] && authoredStaging_[a].valid && !authoredStaging_[a].consumed
@@ -6160,7 +6534,6 @@ namespace t7 {
                             if (exh == UINT32_MAX) break;
 
                             usedAuthored[auth_stg] = true;
-
                             const auto& img = authoredStaging_[auth_stg];
                             float jitter = (cpu_hash_f(p_seed, 3u) + cpu_hash_f(p_seed, 5u)
                                 + cpu_hash_f(p_seed, 6u) - 1.5f) * GalleryConfig::PAINTING_SIZE_SIGMA;
@@ -6185,7 +6558,6 @@ namespace t7 {
                     }
 
                     if (!placed_this && snap_cursor < candidate_count) {
-                        // Consume next snapshot candidate
                         uint32_t staging_layer = candidates[snap_cursor].layer;
                         const auto& snap = snapshotStaging_[staging_layer];
                         snap_cursor++;
@@ -6232,16 +6604,26 @@ namespace t7 {
                     placed++;
                 }
 
-                // Register footprint (center was pre-registered above)
-                if (placed > 0) {
-                    register_footprint(gallery_cx, gallery_cz, gallery_footprint_r, gx, gz);
-                }
-                else {
-                    // No paintings placed — release the pre-registered center slot
-                    galleryCenters_[gallery_slot].active = false;
+                // Record gallery center
+                auto& gc = galleryCenters_[plan.slot];
+                gc.x = gallery_cx;
+                gc.z = gallery_cz;
+                gc.host_gx = plan.host_gx;
+                gc.host_gz = plan.host_gz;
+
+                if (placed == 0) {
+                    gc.active = false;  // no paintings placed — release center
+                } else {
+                    std::cout << "[Gallery] slot=" << plan.slot
+                        << " at (" << gallery_cx << "," << gallery_cz << ")"
+                        << " host=(" << plan.host_gx << "," << plan.host_gz << ")"
+                        << " arch=" << archetype
+                        << " paintings=" << placed << "/" << painting_count
+                        << " type=" << (site_type == GallerySiteType::SNAPSHOT_ONLY ? "snap" :
+                            site_type == GallerySiteType::MIXED ? "mix" : "auth")
+                        << "\n";
                 }
             }
-
             void evict_paintings_for_patch(int32_t gx, int32_t gz, wgpu::Queue& queue) {
                 for (uint32_t i = 0; i < Dim::PAINTING_MAX_SLOTS; i++) {
                     if (paintingSlots_[i].is_active != 0 &&
@@ -7023,7 +7405,7 @@ namespace t7 {
             // Hook: full eviction of a single patch.
             void evict_patch(uint32_t pi, wgpu::Queue& queue) {
                 free_layer(patches_[pi].layer);
-                evict_paintings_for_patch(patches_[pi].grid_x, patches_[pi].grid_z, queue);
+                // Painting eviction now handled by dispatch_evict_gallery via entity_refs
                 evict_patch_entities(patches_[pi], queue);
                 unregister_footprints_for_patch(patches_[pi].grid_x, patches_[pi].grid_z);
                 patches_[pi].valid = false;
@@ -7782,17 +8164,17 @@ namespace t7 {
                 self->renderer_.dispatch_blade_mesh_gen(pass, self->gpuState_.blade_mesh_gen_group());
             }
 
-            // ── Floating dispatch wrappers ──
+            // ── Sphere dispatch wrappers ──
 
-            static bool dispatch_select_floating(Cartridge* self,
+            static bool dispatch_select_sphere(Cartridge* self,
                 int32_t gx, int32_t gz, EntityQueueEntry& e) {
-                return self->select_floating_for_patch(gx, gz, e.floating);
+                return self->select_sphere_for_patch(gx, gz, e.floating);
             }
 
-            static bool dispatch_place_floating(Cartridge* self,
+            static bool dispatch_place_sphere(Cartridge* self,
                 EntityQueueEntry& e, PlacementEntry& pe) {
                 pe.family = e.family; pe.gx = e.gx; pe.gz = e.gz;
-                if (self->place_floating_from_selection(e.floating, pe.floating)) {
+                if (self->place_sphere_from_selection(e.floating, pe.floating)) {
                     return true;
                 } else {
                     self->activeFloaters_[e.floating.slot].active = false;
@@ -7800,40 +8182,201 @@ namespace t7 {
                 }
             }
 
-            static void dispatch_commit_floating(Cartridge* self,
+            static void dispatch_commit_sphere(Cartridge* self,
                 PlacementEntry& pe, wgpu::Queue& queue) {
                 auto* host = self->find_patch(pe.floating.host_gx, pe.floating.host_gz);
                 if (host) {
-                    self->commit_floating(pe.floating, pe.gx, pe.gz, queue);
-                    host->record_entity(PopFamily::FLOATING, pe.floating.slot);
+                    self->commit_sphere(pe.floating, pe.gx, pe.gz, queue);
+                    host->record_entity(PopFamily::SPHERE, pe.floating.slot);
                 } else {
                     self->activeFloaters_[pe.floating.slot].active = false;
 #ifdef DIAG_ENTITY_LIFECYCLE
-                    std::cout << "[DIAG:REJECT] float slot=" << pe.floating.slot
+                    std::cout << "[DIAG:REJECT] sph slot=" << pe.floating.slot
                         << " host=(" << pe.floating.host_gx << "," << pe.floating.host_gz
                         << ") -- no host patch\n";
 #endif
                 }
             }
 
-            static void dispatch_evict_floating(Cartridge* self,
+            static void dispatch_evict_sphere(Cartridge* self,
                 uint32_t slot, wgpu::Queue& queue) {
                 self->activeFloaters_[slot].active = false;
                 self->activeFloaterCount_--;
                 GPUFloatingEntityState empty{};
-                self->gpuState_.upload_floating_entity_slot(queue, slot, empty);
+                self->gpuState_.upload_sphere_entity_slot(queue, slot, empty);
 #ifdef DIAG_ENTITY_LIFECYCLE
-                std::cout << "[DIAG:EVICT]   float slot=" << slot << "\n";
+                std::cout << "[DIAG:EVICT]   sph slot=" << slot << "\n";
 #endif
             }
 
-            static bool dispatch_prepare_mesh_floating(Cartridge* self, wgpu::Queue& queue) {
+            static bool dispatch_prepare_mesh_sphere(Cartridge* self, wgpu::Queue& queue) {
                 (void)self; (void)queue;
                 return false;  // no CPU mesh gen — GPU compute handles update_sphere
             }
-            static void dispatch_mesh_gen_floating(Cartridge* self, wgpu::ComputePassEncoder& pass) {
+            static void dispatch_mesh_gen_sphere(Cartridge* self, wgpu::ComputePassEncoder& pass) {
                 (void)self; (void)pass;
-                // no-op
+            }
+
+            // ── Cube dispatch wrappers ──
+
+            static bool dispatch_select_cube(Cartridge* self,
+                int32_t gx, int32_t gz, EntityQueueEntry& e) {
+                return self->select_cube_for_patch(gx, gz, e.cube);
+            }
+
+            static bool dispatch_place_cube(Cartridge* self,
+                EntityQueueEntry& e, PlacementEntry& pe) {
+                pe.family = e.family; pe.gx = e.gx; pe.gz = e.gz;
+                if (self->place_cube_from_selection(e.cube, pe.cube)) {
+                    return true;
+                } else {
+                    self->activeCubes_[e.cube.slot].active = false;
+                    return false;
+                }
+            }
+
+            static void dispatch_commit_cube(Cartridge* self,
+                PlacementEntry& pe, wgpu::Queue& queue) {
+                auto* host = self->find_patch(pe.cube.host_gx, pe.cube.host_gz);
+                if (host) {
+                    self->commit_cube(pe.cube, pe.gx, pe.gz, queue);
+                    host->record_entity(PopFamily::CUBE, pe.cube.slot);
+                } else {
+                    self->activeCubes_[pe.cube.slot].active = false;
+#ifdef DIAG_ENTITY_LIFECYCLE
+                    std::cout << "[DIAG:REJECT] cube slot=" << pe.cube.slot
+                        << " host=(" << pe.cube.host_gx << "," << pe.cube.host_gz
+                        << ") -- no host patch\n";
+#endif
+                }
+            }
+
+            static void dispatch_evict_cube(Cartridge* self,
+                uint32_t slot, wgpu::Queue& queue) {
+                self->activeCubes_[slot].active = false;
+                self->activeCubeCount_--;
+                GPUFloatingEntityState empty{};
+                self->gpuState_.upload_cube_entity_slot(queue, slot, empty);
+#ifdef DIAG_ENTITY_LIFECYCLE
+                std::cout << "[DIAG:EVICT]   cube slot=" << slot << "\n";
+#endif
+            }
+
+            static bool dispatch_prepare_mesh_cube(Cartridge* self, wgpu::Queue& queue) {
+                (void)self; (void)queue;
+                return false;  // no CPU mesh gen — GPU compute handles update_cube
+            }
+            static void dispatch_mesh_gen_cube(Cartridge* self, wgpu::ComputePassEncoder& pass) {
+                (void)self; (void)pass;
+            }
+
+            // ── GoL dispatch wrappers ──
+
+            static bool dispatch_select_gol(Cartridge* self,
+                int32_t gx, int32_t gz, EntityQueueEntry& e) {
+                return self->select_gol_for_patch(gx, gz, e.gol);
+            }
+
+            static bool dispatch_place_gol(Cartridge* self,
+                EntityQueueEntry& e, PlacementEntry& pe) {
+                pe.family = e.family; pe.gx = e.gx; pe.gz = e.gz;
+                if (self->place_gol_from_selection(e.gol, pe.gol)) {
+                    return true;
+                } else {
+                    self->golZones_[e.gol.slot].active = false;
+                    return false;
+                }
+            }
+
+            static void dispatch_commit_gol(Cartridge* self,
+                PlacementEntry& pe, wgpu::Queue& queue) {
+                auto* host = self->find_patch(pe.gol.host_gx, pe.gol.host_gz);
+                if (host) {
+                    self->commit_gol(pe.gol, pe.gx, pe.gz, queue);
+                    host->record_entity(PopFamily::GOL, pe.gol.slot);
+                } else {
+                    self->golZones_[pe.gol.slot].active = false;
+#ifdef DIAG_ENTITY_LIFECYCLE
+                    std::cout << "[DIAG:REJECT] gol slot=" << pe.gol.slot
+                        << " host=(" << pe.gol.host_gx << "," << pe.gol.host_gz
+                        << ") -- no host patch\n";
+#endif
+                }
+            }
+
+            static void dispatch_evict_gol(Cartridge* self,
+                uint32_t slot, wgpu::Queue& queue) {
+                self->gpuState_.deactivate_zone_slot(queue, slot);
+                self->golZones_[slot].active = false;
+                self->golZoneCount_--;
+#ifdef DIAG_ENTITY_LIFECYCLE
+                std::cout << "[DIAG:EVICT]   gol slot=" << slot << "\n";
+#endif
+            }
+
+            static bool dispatch_prepare_mesh_gol(Cartridge* self, wgpu::Queue& queue) {
+                (void)self; (void)queue;
+                return false;  // zone mesh gen is a separate compute pass
+            }
+            static void dispatch_mesh_gen_gol(Cartridge* self, wgpu::ComputePassEncoder& pass) {
+                (void)self; (void)pass;
+            }
+
+            // ── Gallery dispatch wrappers ──
+
+            static bool dispatch_select_gallery(Cartridge* self,
+                int32_t gx, int32_t gz, EntityQueueEntry& e) {
+                return self->select_gallery_for_patch(gx, gz, e.gallery);
+            }
+
+            static bool dispatch_place_gallery(Cartridge* self,
+                EntityQueueEntry& e, PlacementEntry& pe) {
+                pe.family = e.family; pe.gx = e.gx; pe.gz = e.gz;
+                if (self->place_gallery_from_selection(e.gallery, pe.gallery)) {
+                    return true;
+                } else {
+                    self->galleryCenters_[e.gallery.slot].active = false;
+                    return false;
+                }
+            }
+
+            static void dispatch_commit_gallery(Cartridge* self,
+                PlacementEntry& pe, wgpu::Queue& queue) {
+                auto* host = self->find_patch(pe.gallery.host_gx, pe.gallery.host_gz);
+                if (host) {
+                    self->commit_gallery(pe.gallery, pe.gx, pe.gz, queue);
+                    // Only record entity_ref if gallery is still active (commit may deactivate on 0 paintings)
+                    if (self->galleryCenters_[pe.gallery.slot].active) {
+                        host->record_entity(PopFamily::GALLERY, pe.gallery.slot);
+                    }
+                } else {
+                    self->galleryCenters_[pe.gallery.slot].active = false;
+#ifdef DIAG_ENTITY_LIFECYCLE
+                    std::cout << "[DIAG:REJECT] gall slot=" << pe.gallery.slot
+                        << " host=(" << pe.gallery.host_gx << "," << pe.gallery.host_gz
+                        << ") -- no host patch\n";
+#endif
+                }
+            }
+
+            static void dispatch_evict_gallery(Cartridge* self,
+                uint32_t slot, wgpu::Queue& queue) {
+                auto& gc = self->galleryCenters_[slot];
+                if (gc.active) {
+                    self->evict_paintings_for_patch(gc.patch_gx, gc.patch_gz, queue);
+                    gc.active = false;
+                }
+#ifdef DIAG_ENTITY_LIFECYCLE
+                std::cout << "[DIAG:EVICT]   gall slot=" << slot << "\n";
+#endif
+            }
+
+            static bool dispatch_prepare_mesh_gallery(Cartridge* self, wgpu::Queue& queue) {
+                (void)self; (void)queue;
+                return false;
+            }
+            static void dispatch_mesh_gen_gallery(Cartridge* self, wgpu::ComputePassEncoder& pass) {
+                (void)self; (void)pass;
             }
 
             // ── Ribbon dispatch wrappers ──
@@ -7856,28 +8399,31 @@ namespace t7 {
 
             static void dispatch_commit_ribbon(Cartridge* self,
                 PlacementEntry& pe, wgpu::Queue& queue) {
-                // Commit the ribbon state (GPU mirror, active record, anchor patches)
+                // Commit the ribbon state (GPU mirror, active record, tip positions)
                 self->commit_ribbon(pe.ribbon, pe.gx, pe.gz, queue);
 
                 uint32_t slot = pe.ribbon.slot;
                 auto& ar = self->activeRibbons_[slot];
 
-                // Register with every anchor patch that currently exists.
-                // Each registration means one ref_count increment; each patch
-                // eviction decrements. Ribbon dies when ref_count hits zero.
+                // Register with tip patches that currently exist.
+                // Late registration handles the other tip when its patch is allocated.
                 uint32_t refs = 0;
-                for (uint32_t p = 0; p < ar.anchor_count; p++) {
-                    auto* host = self->find_patch(ar.anchor_gx[p], ar.anchor_gz[p]);
-                    if (host) {
-                        host->record_entity(PopFamily::RIBBON, slot);
-                        refs++;
-                    }
+                auto* near_host = self->find_patch(ar.near_tip_gx, ar.near_tip_gz);
+                if (near_host) {
+                    near_host->record_entity(PopFamily::RIBBON, slot);
+                    ar.near_tip_registered = true;
+                    refs++;
+                }
+                auto* far_host = self->find_patch(ar.far_tip_gx, ar.far_tip_gz);
+                if (far_host && (ar.far_tip_gx != ar.near_tip_gx || ar.far_tip_gz != ar.near_tip_gz)) {
+                    far_host->record_entity(PopFamily::RIBBON, slot);
+                    ar.far_tip_registered = true;
+                    refs++;
                 }
 
                 if (refs == 0) {
-                    // No anchor patch alive at commit time — reject
                     std::cout << "[Ribbon] REJECT slot=" << slot
-                        << " — no anchor patches alive\n";
+                        << " — no tip patches alive\n";
                     ar = ActiveRibbon{};
                     self->ribbonStates_[slot] = GPURibbonState{};
                     self->activeRibbonCount_--;
@@ -7943,12 +8489,21 @@ namespace t7 {
                 { dispatch_select_blade, dispatch_place_blade, dispatch_commit_blade,
                   dispatch_evict_blade, dispatch_prepare_mesh_blade, dispatch_mesh_gen_blade,
                   "blad" },
-                { dispatch_select_floating, dispatch_place_floating, dispatch_commit_floating,
-                  dispatch_evict_floating, dispatch_prepare_mesh_floating, dispatch_mesh_gen_floating,
-                  "float" },
+                { dispatch_select_sphere, dispatch_place_sphere, dispatch_commit_sphere,
+                  dispatch_evict_sphere, dispatch_prepare_mesh_sphere, dispatch_mesh_gen_sphere,
+                  "sph" },
                 { dispatch_select_ribbon, dispatch_place_ribbon, dispatch_commit_ribbon,
                   dispatch_evict_ribbon, dispatch_prepare_mesh_ribbon, dispatch_mesh_gen_ribbon,
                   "ribn" },
+                { dispatch_select_cube, dispatch_place_cube, dispatch_commit_cube,
+                  dispatch_evict_cube, dispatch_prepare_mesh_cube, dispatch_mesh_gen_cube,
+                  "cube" },
+                { dispatch_select_gol, dispatch_place_gol, dispatch_commit_gol,
+                  dispatch_evict_gol, dispatch_prepare_mesh_gol, dispatch_mesh_gen_gol,
+                  "gol" },
+                { dispatch_select_gallery, dispatch_place_gallery, dispatch_commit_gallery,
+                  dispatch_evict_gallery, dispatch_prepare_mesh_gallery, dispatch_mesh_gen_gallery,
+                  "gall" },
             };
 
             // ─── Population Themes ───────────────────────────────────────────
@@ -8003,8 +8558,9 @@ namespace t7 {
                 float tier_wt_palm[3];                         // multiplier on palm tier base weights (Sapling, Coastal, Royal)
                 float tier_wt_cactus[3];                       // multiplier on cactus tier base weights (Finger, Saguaro, Candelabra)
                 float tier_wt_blade[3];                        // multiplier on blade tier base weights (Sprout, Clump, Thicket)
-                float tier_wt_floating[6];                     // multiplier on floating tier base weights (SmCube..Anomaly)
+                float tier_wt_sphere[2];                       // multiplier on sphere tier base weights (Sentinel, Anomaly)
                 float tier_wt_ribbon[3];                       // multiplier on ribbon tier base weights (Serpentine, Helix, Streamer)
+                float tier_wt_cube[4];                         // multiplier on cube tier base weights (SmCube..Monolith)
                 float density_mult;                            // multiplier on entity_density
 
                 // Envelope parameters (replace lattice weight for theme selection)
@@ -8031,7 +8587,7 @@ namespace t7 {
 
             static constexpr PopulationTheme THEMES[THEME_COUNT] = {
                 // ── 0: TRANSITION — sparse connective tissue ─────────────────
-                {   { 0.4f, 0.3f, 0.7f, 0.3f, 0.3f, 0.3f, 0.5f, 0.3f, 1.0f },   // spawn_weight [pyr..float, ribn]
+                {   { 0.4f, 0.3f, 0.7f, 0.3f, 0.3f, 0.3f, 0.5f, 0.3f, 1.0f, 0.5f, 0.5f, 0.5f },   // spawn_weight [pyr..sph, ribn, cube, gol, gall]
                     { 1.0f, 1.0f, 1.0f },                                       // tier_pyr
                     { 1.0f, 0.3f, 1.0f },                                       // tier_arch
                     { 0.1f, 0.2f, 0.3f },                                       // tier_col
@@ -8039,14 +8595,15 @@ namespace t7 {
                     { 1.0f, 1.0f, 1.0f },                                       // tier_palm
                     { 1.0f, 1.0f, 1.0f },                                       // tier_cactus
                     { 1.0f, 1.0f, 1.0f },                                       // tier_blade
-                    { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },                    // tier_floating (neutral)
+                    { 1.0f, 1.0f },                                              // tier_sphere (neutral)
                     { 1.0f, 1.0f, 1.0f },                                       // tier_ribbon (neutral)
+                    { 1.0f, 1.0f, 1.0f, 1.0f },                                 // tier_cube (neutral)
                     1.0f,                                                         // density
                     150.0f, 20u, 3u, 0u,                                          // spike, sustain, decay, cooldown
                     0.21f                                                         // weight
                 },
                 // ── 1: MONUMENTAL — big pyramids, varied arches, heavy columns
-                {   { 1.5f, 1.0f, 1.0f, 0.5f, 0.2f, 0.2f, 0.5f, 0.3f, 1.0f },
+                {   { 1.5f, 1.0f, 1.0f, 0.5f, 0.2f, 0.2f, 0.5f, 0.3f, 1.0f, 0.3f, 0.3f, 0.3f },
                     { 0.2f, 0.5f, 3.0f },
                     { 2.0f, 0.1f, 3.0f },
                     { 0.01f, 0.01f, 1.0f },
@@ -8054,14 +8611,15 @@ namespace t7 {
                     { 1.0f, 1.0f, 1.0f },
                     { 1.0f, 1.0f, 1.0f },
                     { 1.0f, 1.0f, 1.0f },
-                    { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
+                    { 1.0f, 1.0f },
                     { 1.0f, 1.0f, 1.0f },
+                    { 1.0f, 1.0f, 1.0f, 1.0f },
                     1.0f,
                     150.0f, 10u, 10u, 8u,
                     0.30f
                 },
                 // ── 2: COLONNADE — dense columns, moderate arches ────────────
-                {   { 0.3f, 1.0f, 4.0f, 0.5f, 0.3f, 0.3f, 0.5f, 0.3f, 1.0f },
+                {   { 0.3f, 1.0f, 4.0f, 0.5f, 0.3f, 0.3f, 0.5f, 0.3f, 1.0f, 0.3f, 0.5f, 0.4f },
                     { 1.0f, 1.0f, 1.0f },
                     { 3.0f, 0.5f, 1.0f },
                     { 0.3f, 3.0f, 5.0f },
@@ -8069,14 +8627,15 @@ namespace t7 {
                     { 1.0f, 1.0f, 1.0f },
                     { 1.0f, 1.0f, 1.0f },
                     { 1.0f, 1.0f, 1.0f },
-                    { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
+                    { 1.0f, 1.0f },
                     { 1.0f, 1.0f, 1.0f },
+                    { 1.0f, 1.0f, 1.0f, 1.0f },
                     1.0f,
                     150.0f, 15u, 6u, 6u,
                     0.31f
                 },
                 // ── 3: ANTENNA — antenna-dominant corridor ───────────────────
-                {   { 0.5f, 0.5f, 1.0f, 4.0f, 0.5f, 0.5f, 0.5f, 0.3f, 1.0f },
+                {   { 0.5f, 0.5f, 1.0f, 4.0f, 0.5f, 0.5f, 0.5f, 0.3f, 1.0f, 0.3f, 0.3f, 0.3f },
                     { 1.0f, 0.05f, 2.0f },
                     { 1.0f, 0.2f, 0.8f },
                     { 0.1f, 0.3f, 0.3f },
@@ -8084,14 +8643,15 @@ namespace t7 {
                     { 1.0f, 1.0f, 1.0f },
                     { 1.0f, 1.0f, 1.0f },
                     { 1.0f, 1.0f, 1.0f },
-                    { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
+                    { 1.0f, 1.0f },
                     { 1.0f, 1.0f, 1.0f },
+                    { 1.0f, 1.0f, 1.0f, 1.0f },
                     1.0f,
                     180.0f, 10u, 5u, 5u,
                     0.18f
                 },
                 // ── 4: BARREN — near-empty ───────────────────────────────────
-                {   { 0.4f, 0.3f, 0.5f, 0.3f, 0.2f, 0.2f, 0.1f, 0.3f, 1.0f },
+                {   { 0.4f, 0.3f, 0.5f, 0.3f, 0.2f, 0.2f, 0.1f, 0.3f, 1.0f, 0.1f, 0.2f, 0.6f },
                     { 2.0f, 0.5f, 0.2f },
                     { 1.0f, 1.0f, 1.0f },
                     { 0.2f, 0.5f, 0.5f },
@@ -8099,8 +8659,9 @@ namespace t7 {
                     { 1.0f, 1.0f, 1.0f },
                     { 1.0f, 1.0f, 1.0f },
                     { 1.0f, 1.0f, 1.0f },
-                    { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
+                    { 1.0f, 1.0f },
                     { 1.0f, 1.0f, 1.0f },
+                    { 1.0f, 1.0f, 1.0f, 1.0f },
                     1.0f,
                     100.0f, 12u, 3u, 4u,
                     0.04f
@@ -8352,16 +8913,19 @@ namespace t7 {
             //  └──────────────────────┴──────────────┴──────────────┴──────────────────────┘
 
             static constexpr float POP_CROSS_AFFINITY[PopFamily::COUNT][PopFamily::COUNT] = {
-                //          target:  Pyramid  Arch    Column  Antenna  Palm    Cactus  Blade   Float   Ribn
-                /* Pyramid */     {  0.5f,    2.0f,   1.5f,   1.5f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f },
-                /* Arch    */     {  0.8f,    1.5f,   2.0f,   2.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f },
-                /* Column  */     {  0.3f,    1.2f,   1.8f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f },
-                /* Antenna */     {  0.3f,    1.2f,   1.0f,   1.8f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f },
-                /* Palm    */     {  0.3f,    1.0f,   1.0f,   1.0f,   1.5f,   1.0f,   1.0f,   1.0f,   1.0f },
-                /* Cactus  */     {  1.0f,    1.0f,   1.0f,   1.0f,   1.0f,   1.5f,   1.0f,   1.0f,   1.0f },
-                /* Blade   */     {  1.0f,    1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f },
-                /* Float   */     {  1.0f,    1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f },
-                /* Ribn    */     {  1.0f,    1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f },
+                //          target:  Pyramid  Arch    Column  Antenna  Palm    Cactus  Blade   Sphere  Ribn    Cube    GoL     Gall
+                /* Pyramid */     {  0.5f,    2.0f,   1.5f,   1.5f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f },
+                /* Arch    */     {  0.8f,    1.5f,   2.0f,   2.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f },
+                /* Column  */     {  0.3f,    1.2f,   1.8f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f },
+                /* Antenna */     {  0.3f,    1.2f,   1.0f,   1.8f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f },
+                /* Palm    */     {  0.3f,    1.0f,   1.0f,   1.0f,   1.5f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f },
+                /* Cactus  */     {  1.0f,    1.0f,   1.0f,   1.0f,   1.0f,   1.5f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f },
+                /* Blade   */     {  1.0f,    1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f },
+                /* Sphere  */     {  1.0f,    1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f },
+                /* Ribn    */     {  1.0f,    1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f },
+                /* Cube    */     {  1.0f,    1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f },
+                /* GoL     */     {  1.0f,    1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f },
+                /* Gall    */     {  1.0f,    1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f },
             };
 
             // ── Per-Tier Scale Character ──────────────────────────────────────
@@ -8400,8 +8964,16 @@ namespace t7 {
             static constexpr float TIER_SCALE_ANTENNA[] = { 0.60f, 0.45f, 0.85f };
             static constexpr float TIER_SCALE_PALM[] = { 0.20f, 0.45f, 0.75f };
             static constexpr float TIER_SCALE_CACTUS[] = { 0.15f, 0.40f, 0.70f };
-            static constexpr float TIER_SCALE_FLOATING[] = { 0.15f, 0.35f, 0.60f, 0.40f, 0.25f, 0.20f };
+            static constexpr float TIER_SCALE_SPHERE[] = { 0.25f, 0.20f };
+            static constexpr float TIER_SCALE_CUBE[] = { 0.15f, 0.35f, 0.60f, 0.40f };
             static constexpr float TIER_SCALE_RIBBON[] = { 0.80f, 0.50f, 0.65f };
+            // GoL compound tiers: Conway 0–6, then Pulse 7–9
+            static constexpr float TIER_SCALE_GOL[] = {
+                0.70f, 0.30f, 0.45f, 0.55f, 0.35f, 0.80f, 0.65f,   // Conway: Pillars..Glacier
+                0.40f, 0.25f, 0.50f                                   // Pulse: Breathe, Sparkle, Drift
+            };
+            // Gallery tiers = archetypes: 0=mountainous, 1=varied, 2=basin, 3=pool
+            static constexpr float TIER_SCALE_GALLERY[] = { 0.20f, 0.40f, 0.65f, 0.75f };
 
             // Accessor: look up scale character by family + tier index.
             static float tier_scale_character(uint32_t family, uint32_t tier_idx) {
@@ -8412,8 +8984,11 @@ namespace t7 {
                 case PopFamily::ANTENNA: return (tier_idx < 3) ? TIER_SCALE_ANTENNA[tier_idx] : 0.5f;
                 case PopFamily::PALM:    return (tier_idx < 3) ? TIER_SCALE_PALM[tier_idx] : 0.5f;
                 case PopFamily::CACTUS:   return (tier_idx < 3) ? TIER_SCALE_CACTUS[tier_idx] : 0.5f;
-                case PopFamily::FLOATING: return (tier_idx < 6) ? TIER_SCALE_FLOATING[tier_idx] : 0.5f;
+                case PopFamily::SPHERE:   return (tier_idx < 2) ? TIER_SCALE_SPHERE[tier_idx] : 0.5f;
                 case PopFamily::RIBBON:   return (tier_idx < 3) ? TIER_SCALE_RIBBON[tier_idx] : 0.5f;
+                case PopFamily::CUBE:     return (tier_idx < 4) ? TIER_SCALE_CUBE[tier_idx] : 0.5f;
+                case PopFamily::GOL:      return (tier_idx < 10) ? TIER_SCALE_GOL[tier_idx] : 0.5f;
+                case PopFamily::GALLERY:  return (tier_idx < 4) ? TIER_SCALE_GALLERY[tier_idx] : 0.5f;
                 default: return 0.5f;
                 }
             }
@@ -8582,16 +9157,19 @@ namespace t7 {
             // governs aesthetic spacing.
 
             static constexpr float MIN_SEPARATION[PopFamily::COUNT][PopFamily::COUNT] = {
-                //                near:  Pyr    Arch   Col    Ant    Palm   Cact   Blad   Float  Ribn
-                /* placing Pyramid  */ { 15.0f, 10.0f,  5.0f,  5.0f,  5.0f,  5.0f,  0.0f,  0.0f,  0.0f },
-                /* placing Arch     */ { 10.0f, 20.0f, 10.0f, 10.0f,  8.0f,  5.0f,  0.0f,  0.0f,  0.0f },
-                /* placing Column   */ {  5.0f, 10.0f,  8.0f,  6.0f,  5.0f,  5.0f,  0.0f,  0.0f,  0.0f },
-                /* placing Antenna  */ {  5.0f, 10.0f,  6.0f, 12.0f,  5.0f,  5.0f,  0.0f,  0.0f,  0.0f },
-                /* placing Palm     */ {  5.0f,  8.0f,  5.0f,  5.0f,  8.0f,  5.0f,  0.0f,  0.0f,  0.0f },
-                /* placing Cactus   */ {  5.0f,  5.0f,  5.0f,  5.0f,  5.0f,  8.0f,  0.0f,  0.0f,  0.0f },
-                /* placing Blade    */ {  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f },
-                /* placing Floating */ {  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f, 20.0f,  0.0f },
-                /* placing Ribbon   */ {  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f, 40.0f },
+                //                near:  Pyr    Arch   Col    Ant    Palm   Cact   Blad   Sph    Ribn   Cube   GoL    Gall
+                /* placing Pyramid  */ { 15.0f, 10.0f,  5.0f,  5.0f,  5.0f,  5.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f },
+                /* placing Arch     */ { 10.0f, 20.0f, 10.0f, 10.0f,  8.0f,  5.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f },
+                /* placing Column   */ {  5.0f, 10.0f,  8.0f,  6.0f,  5.0f,  5.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f },
+                /* placing Antenna  */ {  5.0f, 10.0f,  6.0f, 12.0f,  5.0f,  5.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f },
+                /* placing Palm     */ {  5.0f,  8.0f,  5.0f,  5.0f,  8.0f,  5.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f },
+                /* placing Cactus   */ {  5.0f,  5.0f,  5.0f,  5.0f,  5.0f,  8.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f },
+                /* placing Blade    */ {  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f },
+                /* placing Sphere   */ {  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f, 20.0f,  0.0f,  0.0f,  0.0f,  0.0f },
+                /* placing Ribbon   */ {  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f, 40.0f,  0.0f,  0.0f,  0.0f },
+                /* placing Cube     */ {  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f, 15.0f,  0.0f,  0.0f },
+                /* placing GoL      */ { 10.0f, 10.0f,  5.0f,  5.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f, 60.0f,  0.0f },
+                /* placing Gallery  */ { 10.0f, 10.0f,  5.0f,  5.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f, 10.0f, 30.0f },
             };
 
             // --- Tile State (what we remember about each generated tile) ----------
@@ -8604,7 +9182,7 @@ namespace t7 {
                 float amp_momentum = 0.0f;   // signed amplitude excess, carried by terrain tokens
                 float entity_density = 1.0f; // spatial density multiplier for entity spawning
                 // Theme: evaluated from theme lattice at tile generation time
-                float theme_spawn[PopFamily::COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f }; // blended per-family spawn multiplier
+                float theme_spawn[PopFamily::COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f }; // blended per-family spawn multiplier
                 uint32_t theme_idx = 0;      // dominant theme index (for tier bias)
             };
 
@@ -9043,13 +9621,21 @@ namespace t7 {
                     gpuState_.upload_ribbon(queue, empty);
                 }
 
-                // Floating entities — clear all slots
-                for (uint32_t i = 0; i < Dim::MAX_FLOATING_INSTANCES; i++) {
+                // Sphere entities — clear all slots (0..MAX_SPHERE_INSTANCES-1)
+                for (uint32_t i = 0; i < Dim::MAX_SPHERE_INSTANCES; i++) {
                     activeFloaters_[i] = ActiveFloater{};
                     GPUFloatingEntityState empty{};
-                    gpuState_.upload_floating_entity_slot(queue, i, empty);
+                    gpuState_.upload_sphere_entity_slot(queue, i, empty);
                 }
                 activeFloaterCount_ = 0;
+
+                // Cube entities — clear all slots (0..MAX_CUBE_INSTANCES-1)
+                for (uint32_t i = 0; i < Dim::MAX_CUBE_INSTANCES; i++) {
+                    activeCubes_[i] = ActiveCube{};
+                    GPUFloatingEntityState empty{};
+                    gpuState_.upload_cube_entity_slot(queue, i, empty);
+                }
+                activeCubeCount_ = 0;
 
                 // Gallery / paintings — clear all exhibition + slots, keep staging intact
                 for (uint32_t i = 0; i < MAX_GALLERIES; i++) {
@@ -9350,12 +9936,41 @@ namespace t7 {
                 }
                 place_entity_queue();
                 commit_entity_queue(queue);
+
+                // Late registration: check if newly-spawned patches contain
+                // an active ribbon's unregistered tip. This closes the gap
+                // when a ribbon's far tip is beyond the streaming window at
+                // spawn time but comes into range as the pawn approaches.
+                for (uint32_t s = 0; s < count; s++) {
+                    uint32_t pi = candidates[s].idx;
+                    int32_t gx = patches_[pi].grid_x;
+                    int32_t gz = patches_[pi].grid_z;
+                    for (uint32_t r = 0; r < MAX_RIBBON_INSTANCES; r++) {
+                        auto& ar = activeRibbons_[r];
+                        if (!ar.active) continue;
+                        // Check near tip
+                        if (!ar.near_tip_registered &&
+                            ar.near_tip_gx == gx && ar.near_tip_gz == gz) {
+                            patches_[pi].record_entity(PopFamily::RIBBON, r);
+                            ar.near_tip_registered = true;
+                            ar.ref_count++;
+                        }
+                        // Check far tip
+                        if (!ar.far_tip_registered &&
+                            ar.far_tip_gx == gx && ar.far_tip_gz == gz) {
+                            patches_[pi].record_entity(PopFamily::RIBBON, r);
+                            ar.far_tip_registered = true;
+                            ar.ref_count++;
+                        }
+                    }
+                }
             }
 
             // Hook: fires once when a patch transitions SPAWNED → GENERATED.
             void on_patch_first_generated(uint32_t pi, wgpu::Queue& queue) {
-                spawn_gallery_for_patch(patches_[pi].grid_x, patches_[pi].grid_z, queue);
-                detect_gol_zones_for_patch(patches_[pi].grid_x, patches_[pi].grid_z, queue);
+                // Galleries → entity pipeline (select_gallery_for_patch)
+                // GoL zones → entity pipeline (select_gol_for_patch)
+                (void)pi; (void)queue;
             }
 
             // Process heightfield generation for pre-collected patch candidates.
@@ -10100,10 +10715,8 @@ namespace t7 {
                 //   - render passes (shadow, main, snapshot)
                 //
                 // GOL ZONE LIFECYCLE:
-                //   - detect_gol_zones_for_patch: after gallery spawn, checks mode lattice
-                //     nodes touched by the patch. Rolls spawn chance, checks footprint
-                //     registry for entity overlap. Seeds life buffer on success.
-                //   - evict_gol_zones_out_of_range: on grid shift, after tile eviction.
+                //   - select_gol_for_patch: entity pipeline (select → place → commit),
+                //     lattice-gated, footprint-registered. Evicts via host-patch entity_refs.
                 //   - upload_gol_zone_config: per frame, before GoL compute dispatch.
 
                 int32_t centerX, centerZ;
@@ -10136,7 +10749,7 @@ namespace t7 {
 
                     // Lightweight cache maintenance (no GPU buffer writes)
                     evict_distant_tiles(centerX, centerZ);
-                    evict_gol_zones_out_of_range(centerX, centerZ, queue);
+                    // GoL zones now evict through host-patch entity_refs
 
                     // Tile grid origin depends on grid center — re-upload
                     // unconditionally so GPU heightfield gen reads correct

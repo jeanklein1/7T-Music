@@ -190,8 +190,11 @@ namespace t7 {
             // GoL zone system — per-zone automaton grids
             constexpr uint32_t MAX_GOL_ZONES = 8;
 
-            // Floating entity system — spheres, monoliths, future forms
-            constexpr uint32_t MAX_FLOATING_INSTANCES = 32;
+            // Floating entity system — split into sphere (orbital) + cube (hover-bob)
+            constexpr uint32_t MAX_SPHERE_INSTANCES = 8;
+            constexpr uint32_t MAX_CUBE_INSTANCES   = 64;
+            constexpr uint32_t CUBE_SLOT_OFFSET     = MAX_SPHERE_INSTANCES;
+            constexpr uint32_t TOTAL_FLOATING_SLOTS  = MAX_SPHERE_INSTANCES + MAX_CUBE_INSTANCES;  // 72
             constexpr uint32_t GOL_ZONE_GRID = 32;      // cells per zone side
             constexpr uint32_t GOL_ZONE_CELLS = GOL_ZONE_GRID * GOL_ZONE_GRID;  // 1024
             constexpr uint32_t GOL_ZONE_LIFE_STRIDE = GOL_ZONE_CELLS * 7;  // 7 slots: visual, velocity, target, next, height_factor, color_visual, color_velocity
@@ -1367,6 +1370,16 @@ namespace t7 {
                     &entity, sizeof(GPUFloatingEntityState));
             }
 
+            // Sphere slots: 0 .. MAX_SPHERE_INSTANCES-1  (direct offset)
+            void upload_sphere_entity_slot(wgpu::Queue& queue, uint32_t slot, const GPUFloatingEntityState& entity) {
+                upload_floating_entity_slot(queue, slot, entity);
+            }
+
+            // Cube slots: 0 .. MAX_CUBE_INSTANCES-1  (offset by CUBE_SLOT_OFFSET in buffer)
+            void upload_cube_entity_slot(wgpu::Queue& queue, uint32_t slot, const GPUFloatingEntityState& entity) {
+                upload_floating_entity_slot(queue, Dim::CUBE_SLOT_OFFSET + slot, entity);
+            }
+
             void upload_pier_slot(wgpu::Queue& queue, uint32_t slot, const GPUPierInstance& pier) {
                 queue.WriteBuffer(pierBuffer_,
                     slot * sizeof(GPUPierInstance),
@@ -2109,7 +2122,7 @@ namespace t7 {
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::CopySrc);
                 cameraBuffer_ = makeBuffer("Camera State", sizeof(GPUCameraState), SU);
                 floatingEntityBuffer_ = makeBuffer("Floating Entity Array",
-                    Dim::MAX_FLOATING_INSTANCES * sizeof(GPUFloatingEntityState),
+                    Dim::TOTAL_FLOATING_SLOTS * sizeof(GPUFloatingEntityState),
                     SU | wgpu::BufferUsage::Uniform);
                 ribbonBuffer_ = makeBuffer("Ribbon State", sizeof(GPURibbonState), SU | wgpu::BufferUsage::Uniform);
                 ringTransformsBuffer_ = makeBuffer("Ring Transforms",
@@ -3705,7 +3718,7 @@ namespace t7 {
 
                     entries[6].binding = 100;
                     entries[6].buffer = floatingEntityBuffer_;
-                    entries[6].size = Dim::MAX_FLOATING_INSTANCES * sizeof(GPUFloatingEntityState);
+                    entries[6].size = Dim::TOTAL_FLOATING_SLOTS * sizeof(GPUFloatingEntityState);
 
                     entries[7].binding = 101;
                     entries[7].buffer = trajectoriesBuffer_;
@@ -3781,7 +3794,7 @@ namespace t7 {
 
                     entries[6].binding = 300;
                     entries[6].buffer = floatingEntityBuffer_;
-                    entries[6].size = Dim::MAX_FLOATING_INSTANCES * sizeof(GPUFloatingEntityState);
+                    entries[6].size = Dim::TOTAL_FLOATING_SLOTS * sizeof(GPUFloatingEntityState);
 
                     entries[7].binding = 320;
                     entries[7].buffer = directionalLightBuffer_;
@@ -4073,7 +4086,7 @@ namespace t7 {
                     entries[5].size = sizeof(GPUCameraState);
                     entries[6].binding = 300;
                     entries[6].buffer = floatingEntityBuffer_;
-                    entries[6].size = Dim::MAX_FLOATING_INSTANCES * sizeof(GPUFloatingEntityState);
+                    entries[6].size = Dim::TOTAL_FLOATING_SLOTS * sizeof(GPUFloatingEntityState);
                     entries[7].binding = 320;
                     entries[7].buffer = directionalLightBuffer_;
                     entries[7].size = sizeof(GPUDirectionalLight);
@@ -4569,7 +4582,7 @@ namespace t7 {
 
                 // Zero-init all floating entity slots (inactive)
                 {
-                    std::vector<uint8_t> zeros(Dim::MAX_FLOATING_INSTANCES * sizeof(GPUFloatingEntityState), 0);
+                    std::vector<uint8_t> zeros(Dim::TOTAL_FLOATING_SLOTS * sizeof(GPUFloatingEntityState), 0);
                     queue.WriteBuffer(floatingEntityBuffer_, 0, zeros.data(), zeros.size());
                 }
                 // Populate slot 0 with default sphere (idle orbit around origin)

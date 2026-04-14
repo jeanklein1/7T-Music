@@ -161,6 +161,11 @@
                     gpuState_.compute_entity_group()
                 );
 
+                renderer_.dispatch_update_cube(
+                    compute,
+                    gpuState_.compute_entity_group()
+                );
+
                 renderer_.dispatch_compute_vp(
                     compute,
                     gpuState_.compute_entity_group()
