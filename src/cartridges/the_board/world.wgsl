@@ -3430,7 +3430,9 @@ fn ribbon_spine_at(t: f32, ribbon: RibbonState) -> vec3<f32> {
     let total_length = f32(ribbon.cube_count) * ribbon.cube_size;
     let time = ribbon.time;
 
-    let along = (t - 0.5) * total_length;
+    // Spine origin: 15% extends behind anchor, 85% forward.
+    // Keeps the near end close to the trigger patch when oriented away from pawn.
+    let along = (t - 0.15) * total_length;
     let lateral = sin(time * ribbon.lateral_speed + t * ribbon.lateral_cycles * 2.0 * PI) * ribbon.lateral_amp;
     let vertical = ribbon.height + sin(time * ribbon.vertical_speed + t * ribbon.vertical_cycles * 2.0 * PI) * ribbon.vertical_amp;
 
@@ -3457,7 +3459,7 @@ fn ribbon_tangent_at(t: f32, ribbon: RibbonState) -> vec3<f32> {
 }
 
 // Build a PGA motor that places and orients one cross-section ring.
-// Composes: translate(center) * correction * heading_rotor.
+// Composes: orient * translate — rotate the local frame, then place it.
 //
 // The orientation is decomposed into two rotors to avoid the
 // antiparallel singularity that occurs when orientation ≈ 180°:
@@ -3485,10 +3487,12 @@ fn ribbon_ring_motor(ring_idx: u32, ribbon: RibbonState) -> Motor {
         correction = rotor(corr_axis, acos(clamp(corr_cos, -1.0, 1.0)));
     }
 
-    // Compose: translate * correction * heading
-    let orient = gp_mm(correction, heading);
+    // Compose: correction * heading * translate
+    // In this PGA implementation, gp_mm(A, B) applies A first, then B.
+    // We want: orient the cross-section, then place it at center.
+    let orient = gp_mm(heading, correction);
     let trans = Motor(vec4(1.0, 0.0, 0.0, 0.0), vec4(-0.5 * center, 0.0));
-    return gp_mm(trans, orient);
+    return gp_mm(orient, trans);
 }
 
 // --- Square Tube Geometry
@@ -3779,8 +3783,12 @@ fn fade_overlay_fs(in: FadeVarying) -> @location(0) vec4<f32> {
 struct PortalEntry {
     x: f32,
     z: f32,
-    trigger_radius: f32,
+    facing_cos: f32,
+    facing_sin: f32,
+    inv_span_sq: f32,
+    inv_depth_sq: f32,
     arch_index: u32,
+    _pad: u32,
 }
 struct PortalArray {
     count: u32,
@@ -4495,14 +4503,18 @@ fn update_pawn() {
         pawn.orientation = quat_multiply(tilt_quat, heading_quat);
     }
 
-    // --- Portal proximity detection (GPU-authoritative)
+    // --- Portal ellipse detection (GPU-authoritative)
+    // Ellipse spans the arch opening: lateral = half_span, forward = depth/2.
     pawn.portal_trigger = -1;
     for (var pi = 0u; pi < portal_array.count; pi++) {
         let p = portal_array.portals[pi];
         let dx = pawn.pos.x - p.x;
         let dz = pawn.pos.z - p.z;
-        let dist_sq = dx * dx + dz * dz;
-        if (dist_sq < p.trigger_radius * p.trigger_radius) {
+        // Project offset into arch-local axes
+        let lat = dx * p.facing_cos + dz * p.facing_sin;   // lateral (foot-to-foot)
+        let fwd = -dx * p.facing_sin + dz * p.facing_cos;  // forward (walk-through)
+        let e = lat * lat * p.inv_span_sq + fwd * fwd * p.inv_depth_sq;
+        if (e < 1.0) {
             pawn.portal_trigger = i32(p.arch_index);
             break;
         }

@@ -100,7 +100,6 @@ namespace t7 {
 
             // --- Portal detection ---
             static constexpr float PORTAL_DENSITY = 1.00f;  // fraction of Doorway arches that become portals (was 0.25)
-            static constexpr float PORTAL_TRIGGER_RADIUS = 10.5f;  // world units from arch center (3× scale)
 
             // Portal color by mood (indexed by destination.mood)
             static constexpr float PORTAL_COLORS[6][3] = {
@@ -751,15 +750,15 @@ namespace t7 {
             //                          │   μ       σ    │   μ       σ    │   μ       σ    │
             // ─── Geometry ────────────┤                │                │                │
             //   cube_count             │ 350      60    │ 150      40    │ 250      50    │
-            //   cube_size              │   4.0     1.0  │   2.5     0.6  │   3.0     0.8  │
+            //   cube_size              │   8.0     2.0  │   5.0     1.2  │   6.0     1.6  │
             // ─── Altitude ────────────┤                │                │                │
             //   height                 │  60      15    │  55      12    │  70      20    │
             // ─── Lateral wave ────────┤                │                │                │
-            //   lateral_amp             │   8.4     0.4  │   1.5     0.4  │   4.0     0.6  │
+            //   lateral_amp             │  10.0     0.6  │   3.5     0.6  │   5.5     0.8  │
             //   lateral_cycles          │   1.5     0.4  │   3.0     0.8  │   2.0     0.5  │
             //   lateral_speed           │   0.25   0.075 │   0.60   0.175 │   0.40    0.10 │
             // ─── Vertical wave ───────┤  cycles + speed = lateral                        │
-            //   vertical_amp            │   3.0     0.5  │   1.0     0.3  │   6.0     1.0  │
+            //   vertical_amp            │   5.0     0.8  │   2.5     0.5  │   8.0     1.2  │
             // ─── Twist (corkscrew) ───┤  cycles + speed = lateral                        │
             //   twist_amp              │   0.6     0.2  │   6.0     0.8  │   1.6     0.6  │
             // ─── Selection ───────────┤                │                │                │
@@ -768,12 +767,12 @@ namespace t7 {
             static constexpr RibbonTierProfile RIBBON_TIERS[RIBBON_TIER_COUNT] = {
                 // Tier 0: Serpentine — long, massive, slow motion
                 {   350.0f, 60.0f,      // cube_count
-                      4.0f,  1.0f,      // cube_size
+                      8.0f,  2.0f,      // cube_size
                      60.0f, 15.0f,      // height
-                      8.4f,  0.4f,      // lateral_amp
+                     10.0f,  0.6f,      // lateral_amp
                       1.5f,  0.4f,      // lateral_cycles
                       0.25f, 0.075f,    // lateral_speed
-                      3.0f,  0.5f,      // vertical_amp
+                      5.0f,  0.8f,      // vertical_amp
                       0.8f,  0.2f,      // vertical_cycles (overridden = lateral)
                       0.20f, 0.06f,     // vertical_speed (overridden = lateral)
                       0.6f,  0.2f,      // twist_amp
@@ -782,12 +781,12 @@ namespace t7 {
                       0.45f },          // weight
                       // Tier 1: Helix — tighter cycles, visible corkscrew
                       {   150.0f, 40.0f,      // cube_count
-                            2.5f,  0.6f,      // cube_size
+                            5.0f,  1.2f,      // cube_size
                            55.0f, 12.0f,      // height
-                            1.5f,  0.4f,      // lateral_amp
+                            3.5f,  0.6f,      // lateral_amp
                             3.0f,  0.8f,      // lateral_cycles
                             0.60f, 0.175f,    // lateral_speed
-                            1.0f,  0.3f,      // vertical_amp
+                            2.5f,  0.5f,      // vertical_amp
                             2.5f,  0.6f,      // vertical_cycles (overridden = lateral)
                             0.50f, 0.15f,     // vertical_speed (overridden = lateral)
                             6.0f,  0.8f,      // twist_amp
@@ -796,12 +795,12 @@ namespace t7 {
                             0.30f },          // weight
                             // Tier 2: Streamer — tall vertical form, deep breathing
                             {   250.0f, 50.0f,      // cube_count
-                                  3.0f,  0.8f,      // cube_size
+                                  6.0f,  1.6f,      // cube_size
                                  70.0f, 20.0f,      // height
-                                  4.0f,  0.6f,      // lateral_amp
+                                  5.5f,  0.8f,      // lateral_amp
                                   2.0f,  0.5f,      // lateral_cycles
                                   0.40f, 0.10f,     // lateral_speed
-                                  6.0f,  1.0f,      // vertical_amp
+                                  8.0f,  1.2f,      // vertical_amp
                                   1.2f,  0.3f,      // vertical_cycles (overridden = lateral)
                                   0.325f, 0.075f,   // vertical_speed (overridden = lateral)
                                   1.6f,  0.6f,      // twist_amp
@@ -3648,7 +3647,7 @@ namespace t7 {
                 int32_t  trigger_gx, trigger_gz;
                 uint32_t slot;
                 uint32_t tier_idx;
-                // Geometry (from sample_ribbon_geometry)
+                // Geometry (from select_ribbon_for_patch)
                 uint32_t cube_count;
                 float cube_size;
                 float height;
@@ -4278,15 +4277,17 @@ namespace t7 {
             // ─── Ribbon Lifecycle (patch-based dispatch pipeline) ────────────
 
             static constexpr uint32_t MAX_RIBBON_INSTANCES = 4;
-            static constexpr uint32_t RIBBON_SPINE_SAMPLES = 5;
+            static constexpr uint32_t RIBBON_ANCHOR_PATCHES = 5;
+            static constexpr float    RIBBON_MAX_LENGTH = 1500.0f;
 
             struct ActiveRibbon {
                 int32_t patch_gx = 0, patch_gz = 0;
                 int32_t host_gx = 0, host_gz = 0;
                 float anchor_x = 0.0f, anchor_z = 0.0f;
-                float spine_x[RIBBON_SPINE_SAMPLES]{};
-                float spine_z[RIBBON_SPINE_SAMPLES]{};
-                uint32_t spine_count = 0;
+                int32_t anchor_gx[RIBBON_ANCHOR_PATCHES]{};
+                int32_t anchor_gz[RIBBON_ANCHOR_PATCHES]{};
+                uint32_t anchor_count = 0;
+                uint32_t ref_count = 0;     // patches referencing this ribbon via record_entity
                 bool active = false;
             };
             ActiveRibbon activeRibbons_[MAX_RIBBON_INSTANCES]{};
@@ -4294,7 +4295,7 @@ namespace t7 {
             GPURibbonState ribbonStates_[MAX_RIBBON_INSTANCES]{};  // CPU mirror per slot
             uint32_t renderedRibbonSlot_ = UINT32_MAX;             // which slot is on GPU
 
-            // ─── Mood 9 Ribbon Anchor ─────────────────────────────────────
+            // ─── Mood 5 Ribbon Anchor ─────────────────────────────────────
             // Seed-derived position centered on the finite world.
             // Adjust moodRibbonOffset_ to manually shift the anchor XZ.
             float moodRibbonOffset_[2] = { 0.0f, 0.0f };
@@ -4305,7 +4306,7 @@ namespace t7 {
                 float t = (float)ring_idx / (float)std::max(r.cube_count - 1u, 1u);
                 float total_length = (float)r.cube_count * r.cube_size;
 
-                float along = (t - 0.5f) * total_length;
+                float along = (t - 0.15f) * total_length;
                 float lateral = std::sin(time * r.lateral_speed + t * r.lateral_cycles * 2.0f * PI) * r.lateral_amp;
                 float vertical = r.height + std::sin(time * r.vertical_speed + t * r.vertical_cycles * 2.0f * PI) * r.vertical_amp;
 
@@ -4331,7 +4332,7 @@ namespace t7 {
                 auto eval = [&](float tp, float p[3]) {
                     constexpr float PI = 3.14159265359f;
                     float total_length = (float)r.cube_count * r.cube_size;
-                    float along = (tp - 0.5f) * total_length;
+                    float along = (tp - 0.15f) * total_length;
                     float lateral = std::sin(time * r.lateral_speed + tp * r.lateral_cycles * 2.0f * PI) * r.lateral_amp;
                     float vertical = r.height + std::sin(time * r.vertical_speed + tp * r.vertical_cycles * 2.0f * PI) * r.vertical_amp;
                     float c = std::cos(r.orientation);
@@ -4387,89 +4388,6 @@ namespace t7 {
                 return 0.0f;
             }
 
-            // Sample ribbon geometry parameters from seed using tier-based Gaussian sampling.
-            // Returns the selected tier index for diagnostics.
-            static uint32_t sample_ribbon_geometry(GPURibbonState& r, uint32_t seed, float terrain_est) {
-                r.is_visible = 1u;
-
-                // Tier selection (weighted cumulative)
-                float tier_roll = cpu_hash_f(seed, RibbonProp::TIER);
-                uint32_t tier = RIBBON_TIER_COUNT - 1;
-                float cumul = 0.0f;
-                for (uint32_t t = 0; t < RIBBON_TIER_COUNT; t++) {
-                    cumul += RIBBON_TIERS[t].weight;
-                    if (tier_roll < cumul) { tier = t; break; }
-                }
-                const auto& tp = RIBBON_TIERS[tier];
-
-                // Geometry — Gaussian draws
-                float count_f = std::max(20.0f,
-                    cpu_sample_gaussian(seed, RibbonProp::CUBE_COUNT, tp.cube_count_mean, tp.cube_count_sigma));
-                r.cube_count = std::min((uint32_t)count_f, Dim::RIBBON_MAX_RINGS);
-                r.cube_size = std::max(0.5f,
-                    cpu_sample_gaussian(seed, RibbonProp::CUBE_SIZE, tp.cube_size_mean, tp.cube_size_sigma));
-
-                // Altitude — Gaussian draw above terrain estimate
-                r.height = terrain_est + std::max(20.0f,
-                    cpu_sample_gaussian(seed, RibbonProp::HEIGHT, tp.height_mean, tp.height_sigma));
-
-                // Orientation — uniform [0, 2π)
-                r.orientation = cpu_hash_f(seed, RibbonProp::ORIENTATION) * 6.2831853f;
-
-                // Lateral wave (the fundamental)
-                r.lateral_amp = std::max(0.1f, cpu_sample_gaussian(seed, RibbonProp::LATERAL_AMP, tp.lateral_amp_mean, tp.lateral_amp_sigma));
-                r.lateral_cycles = std::max(0.1f, cpu_sample_gaussian(seed, RibbonProp::LATERAL_CYCLES, tp.lateral_cycles_mean, tp.lateral_cycles_sigma));
-                r.lateral_speed = std::max(0.005f, cpu_sample_gaussian(seed, RibbonProp::LATERAL_SPEED, tp.lateral_speed_mean, tp.lateral_speed_sigma));
-
-                // Vertical wave — amplitude independent, cycles and speed = lateral
-                r.vertical_amp = std::max(0.1f, cpu_sample_gaussian(seed, RibbonProp::VERTICAL_AMP, tp.vertical_amp_mean, tp.vertical_amp_sigma));
-                r.vertical_cycles = r.lateral_cycles;
-                r.vertical_speed = r.lateral_speed;
-
-                // Twist — amplitude independent, cycles and speed = lateral
-                r.twist_amp = std::max(0.0f, cpu_sample_gaussian(seed, RibbonProp::TWIST_AMP, tp.twist_amp_mean, tp.twist_amp_sigma));
-                r.twist_cycles = r.lateral_cycles;
-                r.twist_speed = r.lateral_speed;
-
-                // Color mode — weighted selection
-                float color_roll = cpu_hash_f(seed, RibbonProp::COLOR_ROLL);
-                r.color_mode = RibbonColorMode::COUNT - 1;
-                float ccum = 0.0f;
-                for (uint32_t c = 0; c < RibbonColorMode::COUNT; c++) {
-                    ccum += RibbonColorMode::WEIGHTS[c];
-                    if (color_roll < ccum) { r.color_mode = c; break; }
-                }
-
-                // Color — depends on mode
-                if (r.color_mode == RibbonColorMode::SMOOTH) {
-                    uint32_t pal_idx = (uint32_t)(cpu_hash_f(seed, RibbonProp::PALETTE_IDX) * RIBBON_SMOOTH_PALETTE_COUNT);
-                    if (pal_idx >= RIBBON_SMOOTH_PALETTE_COUNT) pal_idx = RIBBON_SMOOTH_PALETTE_COUNT - 1;
-                    float var = cpu_hash_f(seed, RibbonProp::COLOR_R) * 0.10f - 0.05f;
-                    r.color[0] = RIBBON_SMOOTH_PALETTE[pal_idx][0] + var;
-                    r.color[1] = RIBBON_SMOOTH_PALETTE[pal_idx][1] + var * 0.8f;
-                    r.color[2] = RIBBON_SMOOTH_PALETTE[pal_idx][2] + var * 0.6f;
-                }
-                else if (r.color_mode == RibbonColorMode::TINTED) {
-                    // Distinct warm/cool tints with visible saturation
-                    r.color[0] = cpu_hash_f(seed, RibbonProp::COLOR_R) * 0.45f + 0.40f;
-                    r.color[1] = cpu_hash_f(seed, RibbonProp::COLOR_G) * 0.40f + 0.35f;
-                    r.color[2] = cpu_hash_f(seed, RibbonProp::COLOR_B) * 0.45f + 0.35f;
-                }
-                else {
-                    // Contrast: darker base, future alternating segments in FS
-                    float hue = cpu_hash_f(seed, RibbonProp::COLOR_R);
-                    r.color[0] = 0.20f + hue * 0.35f;
-                    r.color[1] = 0.18f + (1.0f - hue) * 0.30f;
-                    r.color[2] = 0.22f + cpu_hash_f(seed, RibbonProp::COLOR_B) * 0.25f;
-                }
-
-                float total_len = (float)r.cube_count * r.cube_size;
-                float max_lateral = r.lateral_amp + 0.4f * r.twist_amp;
-                float max_vertical = r.vertical_amp + 0.3f * r.twist_amp;
-                float envelope_dia = 2.0f * std::max(max_lateral, max_vertical);
-
-                return tier;
-            }
 
             static void print_ribbon_diagnostic(const char* context, const GPURibbonState& r, uint32_t tier) {
                 float total_len = (float)r.cube_count * r.cube_size;
@@ -4804,8 +4722,86 @@ namespace t7 {
             // Single-instance ribbon through the 3-phase dispatch pipeline.
             // GPU buffer is singleton (upload_ribbon, not slot-indexed).
 
+            // ─── fill_ribbon_selection_geometry ───────────────────────────
+            // Shared geometry + color sampler used by both the dispatch
+            // pipeline and the mood forced-spawn path.
+            void fill_ribbon_selection_geometry(
+                uint32_t seed, uint32_t tier_idx, float terrain_est,
+                RibbonSelection& sel) const
+            {
+                const auto& tp = RIBBON_TIERS[tier_idx];
+
+                float count_f = std::max(20.0f,
+                    cpu_sample_gaussian(seed, RibbonProp::CUBE_COUNT, tp.cube_count_mean, tp.cube_count_sigma));
+                sel.cube_count = std::min((uint32_t)count_f, Dim::RIBBON_MAX_RINGS);
+                sel.cube_size = std::max(1.0f,
+                    cpu_sample_gaussian(seed, RibbonProp::CUBE_SIZE, tp.cube_size_mean, tp.cube_size_sigma));
+
+                // Length cap — keeps anchor coverage viable (~30 patches max)
+                if ((float)sel.cube_count * sel.cube_size > RIBBON_MAX_LENGTH)
+                    sel.cube_count = (uint32_t)(RIBBON_MAX_LENGTH / sel.cube_size);
+
+                sel.height = terrain_est + std::max(20.0f,
+                    cpu_sample_gaussian(seed, RibbonProp::HEIGHT, tp.height_mean, tp.height_sigma));
+
+                sel.orientation = cpu_hash_f(seed, RibbonProp::ORIENTATION) * 6.2831853f;
+
+                sel.lateral_amp = std::max(0.1f, cpu_sample_gaussian(seed, RibbonProp::LATERAL_AMP, tp.lateral_amp_mean, tp.lateral_amp_sigma));
+                sel.lateral_cycles = std::max(0.1f, cpu_sample_gaussian(seed, RibbonProp::LATERAL_CYCLES, tp.lateral_cycles_mean, tp.lateral_cycles_sigma));
+                sel.lateral_speed = std::max(0.005f, cpu_sample_gaussian(seed, RibbonProp::LATERAL_SPEED, tp.lateral_speed_mean, tp.lateral_speed_sigma));
+
+                sel.vertical_amp = std::max(0.1f, cpu_sample_gaussian(seed, RibbonProp::VERTICAL_AMP, tp.vertical_amp_mean, tp.vertical_amp_sigma));
+                sel.vertical_cycles = sel.lateral_cycles;
+                sel.vertical_speed = sel.lateral_speed;
+
+                sel.twist_amp = std::max(0.0f, cpu_sample_gaussian(seed, RibbonProp::TWIST_AMP, tp.twist_amp_mean, tp.twist_amp_sigma));
+                sel.twist_cycles = sel.lateral_cycles;
+                sel.twist_speed = sel.lateral_speed;
+
+                // Color
+                float color_roll = cpu_hash_f(seed, RibbonProp::COLOR_ROLL);
+                sel.color_mode = RibbonColorMode::COUNT - 1;
+                float ccum = 0.0f;
+                for (uint32_t c = 0; c < RibbonColorMode::COUNT; c++) {
+                    ccum += RibbonColorMode::WEIGHTS[c];
+                    if (color_roll < ccum) { sel.color_mode = c; break; }
+                }
+
+                if (sel.color_mode == RibbonColorMode::SMOOTH) {
+                    uint32_t pal_idx = (uint32_t)(cpu_hash_f(seed, RibbonProp::PALETTE_IDX) * RIBBON_SMOOTH_PALETTE_COUNT);
+                    if (pal_idx >= RIBBON_SMOOTH_PALETTE_COUNT) pal_idx = RIBBON_SMOOTH_PALETTE_COUNT - 1;
+                    float var = cpu_hash_f(seed, RibbonProp::COLOR_R) * 0.10f - 0.05f;
+                    sel.color[0] = RIBBON_SMOOTH_PALETTE[pal_idx][0] + var;
+                    sel.color[1] = RIBBON_SMOOTH_PALETTE[pal_idx][1] + var * 0.8f;
+                    sel.color[2] = RIBBON_SMOOTH_PALETTE[pal_idx][2] + var * 0.6f;
+                }
+                else if (sel.color_mode == RibbonColorMode::TINTED) {
+                    sel.color[0] = cpu_hash_f(seed, RibbonProp::COLOR_R) * 0.45f + 0.40f;
+                    sel.color[1] = cpu_hash_f(seed, RibbonProp::COLOR_G) * 0.40f + 0.35f;
+                    sel.color[2] = cpu_hash_f(seed, RibbonProp::COLOR_B) * 0.45f + 0.35f;
+                }
+                else {
+                    float hue = cpu_hash_f(seed, RibbonProp::COLOR_R);
+                    sel.color[0] = 0.20f + hue * 0.35f;
+                    sel.color[1] = 0.18f + (1.0f - hue) * 0.30f;
+                    sel.color[2] = 0.22f + cpu_hash_f(seed, RibbonProp::COLOR_B) * 0.25f;
+                }
+
+                sel.footprint_r = 5.0f;
+            }
+
             // ─── select_ribbon_for_patch ──────────────────────────────────
             bool select_ribbon_for_patch(int32_t gx, int32_t gz, RibbonSelection& sel) {
+                // Anchor-overlap idempotency: reject if ANY active ribbon
+                // already covers this trigger patch in its anchor set.
+                for (uint32_t i = 0; i < MAX_RIBBON_INSTANCES; i++) {
+                    if (!activeRibbons_[i].active) continue;
+                    for (uint32_t p = 0; p < activeRibbons_[i].anchor_count; p++) {
+                        if (activeRibbons_[i].anchor_gx[p] == gx &&
+                            activeRibbons_[i].anchor_gz[p] == gz)
+                            return false;
+                    }
+                }
                 auto gate = run_spawn_preamble(gx, gz,
                     activeRibbons_, MAX_RIBBON_INSTANCES,
                     RibbonProp::SPAWN_ROLL, RibbonConfig::SPAWN_CHANCE,
@@ -4828,67 +4824,24 @@ namespace t7 {
                 sel.slot = gate.slot;
                 sel.tier_idx = tier_idx;
 
-                // Terrain estimate from patch center
                 float terrain_est = estimate_terrain_height(
                     (gx + 0.5f) * PATCH_EXTENT, (gz + 0.5f) * PATCH_EXTENT);
 
-                // --- Extract geometry from sample_ribbon_geometry logic ---
-                const auto& tp = RIBBON_TIERS[tier_idx];
+                fill_ribbon_selection_geometry(gate.seed, tier_idx, terrain_est, sel);
 
-                float count_f = std::max(20.0f,
-                    cpu_sample_gaussian(gate.seed, RibbonProp::CUBE_COUNT, tp.cube_count_mean, tp.cube_count_sigma));
-                sel.cube_count = std::min((uint32_t)count_f, Dim::RIBBON_MAX_RINGS);
-                sel.cube_size = std::max(0.5f,
-                    cpu_sample_gaussian(gate.seed, RibbonProp::CUBE_SIZE, tp.cube_size_mean, tp.cube_size_sigma));
-
-                sel.height = terrain_est + std::max(20.0f,
-                    cpu_sample_gaussian(gate.seed, RibbonProp::HEIGHT, tp.height_mean, tp.height_sigma));
-
-                sel.orientation = cpu_hash_f(gate.seed, RibbonProp::ORIENTATION) * 6.2831853f;
-
-                sel.lateral_amp = std::max(0.1f, cpu_sample_gaussian(gate.seed, RibbonProp::LATERAL_AMP, tp.lateral_amp_mean, tp.lateral_amp_sigma));
-                sel.lateral_cycles = std::max(0.1f, cpu_sample_gaussian(gate.seed, RibbonProp::LATERAL_CYCLES, tp.lateral_cycles_mean, tp.lateral_cycles_sigma));
-                sel.lateral_speed = std::max(0.005f, cpu_sample_gaussian(gate.seed, RibbonProp::LATERAL_SPEED, tp.lateral_speed_mean, tp.lateral_speed_sigma));
-
-                sel.vertical_amp = std::max(0.1f, cpu_sample_gaussian(gate.seed, RibbonProp::VERTICAL_AMP, tp.vertical_amp_mean, tp.vertical_amp_sigma));
-                sel.vertical_cycles = sel.lateral_cycles;
-                sel.vertical_speed = sel.lateral_speed;
-
-                sel.twist_amp = std::max(0.0f, cpu_sample_gaussian(gate.seed, RibbonProp::TWIST_AMP, tp.twist_amp_mean, tp.twist_amp_sigma));
-                sel.twist_cycles = sel.lateral_cycles;
-                sel.twist_speed = sel.lateral_speed;
-
-                // Color mode — weighted selection
-                float color_roll = cpu_hash_f(gate.seed, RibbonProp::COLOR_ROLL);
-                sel.color_mode = RibbonColorMode::COUNT - 1;
-                float ccum = 0.0f;
-                for (uint32_t c = 0; c < RibbonColorMode::COUNT; c++) {
-                    ccum += RibbonColorMode::WEIGHTS[c];
-                    if (color_roll < ccum) { sel.color_mode = c; break; }
+                // Constrain orientation: ribbon body extends primarily away
+                // from the pawn. The hash provides ±60° of spread around the
+                // away direction so ribbons aren't all perfectly radial.
+                {
+                    float patch_cx = (gx + 0.5f) * PATCH_EXTENT;
+                    float patch_cz = (gz + 0.5f) * PATCH_EXTENT;
+                    float away_angle = std::atan2(patch_cz - pawnReadback_z_,
+                                                  patch_cx - pawnReadback_x_);
+                    constexpr float SPREAD = 1.0472f; // ±60° = π/3
+                    float hash_spread = cpu_hash_f(gate.seed, RibbonProp::ORIENTATION);
+                    sel.orientation = away_angle + (hash_spread * 2.0f - 1.0f) * SPREAD;
                 }
 
-                // Color — depends on mode
-                if (sel.color_mode == RibbonColorMode::SMOOTH) {
-                    uint32_t pal_idx = (uint32_t)(cpu_hash_f(gate.seed, RibbonProp::PALETTE_IDX) * RIBBON_SMOOTH_PALETTE_COUNT);
-                    if (pal_idx >= RIBBON_SMOOTH_PALETTE_COUNT) pal_idx = RIBBON_SMOOTH_PALETTE_COUNT - 1;
-                    float var = cpu_hash_f(gate.seed, RibbonProp::COLOR_R) * 0.10f - 0.05f;
-                    sel.color[0] = RIBBON_SMOOTH_PALETTE[pal_idx][0] + var;
-                    sel.color[1] = RIBBON_SMOOTH_PALETTE[pal_idx][1] + var * 0.8f;
-                    sel.color[2] = RIBBON_SMOOTH_PALETTE[pal_idx][2] + var * 0.6f;
-                }
-                else if (sel.color_mode == RibbonColorMode::TINTED) {
-                    sel.color[0] = cpu_hash_f(gate.seed, RibbonProp::COLOR_R) * 0.45f + 0.40f;
-                    sel.color[1] = cpu_hash_f(gate.seed, RibbonProp::COLOR_G) * 0.40f + 0.35f;
-                    sel.color[2] = cpu_hash_f(gate.seed, RibbonProp::COLOR_B) * 0.45f + 0.35f;
-                }
-                else {
-                    float hue = cpu_hash_f(gate.seed, RibbonProp::COLOR_R);
-                    sel.color[0] = 0.20f + hue * 0.35f;
-                    sel.color[1] = 0.18f + (1.0f - hue) * 0.30f;
-                    sel.color[2] = 0.22f + cpu_hash_f(gate.seed, RibbonProp::COLOR_B) * 0.25f;
-                }
-
-                sel.footprint_r = 5.0f;
                 return true;
             }
 
@@ -4973,17 +4926,31 @@ namespace t7 {
                 ar.anchor_x = plan.cx;
                 ar.anchor_z = plan.cz;
 
-                // Compute spine sample points for extent-based eviction
-                float half_len = (float)plan.cube_count * plan.cube_size * 0.5f;
+                // Compute anchor patches — sample points along the spine
+                // converted to grid cells. Spine extends -0.15 to +0.85 of total_length.
+                float total_length = (float)plan.cube_count * plan.cube_size;
                 float margin = plan.lateral_amp + 0.4f * plan.twist_amp;
-                float extent = half_len + margin;
+                float extent = 0.85f * total_length + margin;
                 float dir_x = std::cos(plan.orientation);
                 float dir_z = std::sin(plan.orientation);
-                float fracs[] = { -0.5f, -0.25f, 0.0f, 0.25f, 0.5f };
-                ar.spine_count = RIBBON_SPINE_SAMPLES;
-                for (uint32_t i = 0; i < RIBBON_SPINE_SAMPLES; i++) {
-                    ar.spine_x[i] = plan.cx + dir_x * extent * fracs[i] * 2.0f;
-                    ar.spine_z[i] = plan.cz + dir_z * extent * fracs[i] * 2.0f;
+                // Sample 5 points from near end (-0.15) to far end (+0.85)
+                float along_fracs[] = { -0.15f, 0.1f, 0.35f, 0.6f, 0.85f };
+                ar.anchor_count = 0;
+                for (uint32_t i = 0; i < RIBBON_ANCHOR_PATCHES; i++) {
+                    float sx = plan.cx + dir_x * total_length * along_fracs[i];
+                    float sz = plan.cz + dir_z * total_length * along_fracs[i];
+                    int32_t pgx = (int32_t)std::floor(sx / PATCH_EXTENT);
+                    int32_t pgz = (int32_t)std::floor(sz / PATCH_EXTENT);
+                    // Deduplicate (small ribbons may land multiple samples on one patch)
+                    bool dup = false;
+                    for (uint32_t j = 0; j < ar.anchor_count; j++) {
+                        if (ar.anchor_gx[j] == pgx && ar.anchor_gz[j] == pgz) { dup = true; break; }
+                    }
+                    if (!dup && ar.anchor_count < RIBBON_ANCHOR_PATCHES) {
+                        ar.anchor_gx[ar.anchor_count] = pgx;
+                        ar.anchor_gz[ar.anchor_count] = pgz;
+                        ar.anchor_count++;
+                    }
                 }
 
                 ar.active = true;
@@ -7889,21 +7856,57 @@ namespace t7 {
 
             static void dispatch_commit_ribbon(Cartridge* self,
                 PlacementEntry& pe, wgpu::Queue& queue) {
-                // Ribbon lifecycle is distance-based, not patch-based.
-                // The spine spans ~28 patches; anchoring to one is fragile.
-                // We commit without record_entity — eviction is handled by
-                // the per-frame RIBBON_HOLD_DIST check, not patch eviction.
+                // Commit the ribbon state (GPU mirror, active record, anchor patches)
                 self->commit_ribbon(pe.ribbon, pe.gx, pe.gz, queue);
+
+                uint32_t slot = pe.ribbon.slot;
+                auto& ar = self->activeRibbons_[slot];
+
+                // Register with every anchor patch that currently exists.
+                // Each registration means one ref_count increment; each patch
+                // eviction decrements. Ribbon dies when ref_count hits zero.
+                uint32_t refs = 0;
+                for (uint32_t p = 0; p < ar.anchor_count; p++) {
+                    auto* host = self->find_patch(ar.anchor_gx[p], ar.anchor_gz[p]);
+                    if (host) {
+                        host->record_entity(PopFamily::RIBBON, slot);
+                        refs++;
+                    }
+                }
+
+                if (refs == 0) {
+                    // No anchor patch alive at commit time — reject
+                    std::cout << "[Ribbon] REJECT slot=" << slot
+                        << " — no anchor patches alive\n";
+                    ar = ActiveRibbon{};
+                    self->ribbonStates_[slot] = GPURibbonState{};
+                    self->activeRibbonCount_--;
+                    return;
+                }
+                ar.ref_count = refs;
             }
 
             static void dispatch_evict_ribbon(Cartridge* self,
                 uint32_t slot, wgpu::Queue& queue) {
-                (void)queue;
-                self->activeRibbons_[slot] = ActiveRibbon{};
+                auto& ar = self->activeRibbons_[slot];
+                if (!ar.active) return;
+
+                // Decrement ref count — one anchor patch has been evicted.
+                // Only fully evict when all referencing patches are gone.
+                if (ar.ref_count > 1) {
+                    ar.ref_count--;
+                    return;
+                }
+
+                // Final reference gone — full eviction
+                ar = ActiveRibbon{};
                 self->ribbonStates_[slot] = GPURibbonState{};
                 self->activeRibbonCount_--;
-                if (self->renderedRibbonSlot_ == slot)
-                    self->renderedRibbonSlot_ = UINT32_MAX;  // force re-selection
+                if (self->renderedRibbonSlot_ == slot) {
+                    GPURibbonState empty{};
+                    self->gpuState_.upload_ribbon(queue, empty);
+                    self->renderedRibbonSlot_ = UINT32_MAX;
+                }
                 std::cout << "[Ribbon] EVICT slot=" << slot << "\n";
             }
 
@@ -9863,22 +9866,8 @@ namespace t7 {
 
                 // ─── Ribbon per-frame: eviction, time, nearest-rendering ─────
                 {
-                    // Spine-based eviction: same distance as patch eviction
-                    if (!finiteMode_) {
-                        float evict_r = (float)PREGEN_RADIUS * PATCH_EXTENT;
-                        float evict_r_sq = evict_r * evict_r;
-                        for (uint32_t i = 0; i < MAX_RIBBON_INSTANCES; i++) {
-                            if (!activeRibbons_[i].active) continue;
-                            bool any_inside = false;
-                            for (uint32_t s = 0; s < activeRibbons_[i].spine_count; s++) {
-                                float dx = activeRibbons_[i].spine_x[s] - pawnReadback_x_;
-                                float dz = activeRibbons_[i].spine_z[s] - pawnReadback_z_;
-                                if (dx * dx + dz * dz <= evict_r_sq) { any_inside = true; break; }
-                            }
-                            if (!any_inside)
-                                dispatch_evict_ribbon(this, i, queue);
-                        }
-                    }
+                    // Ribbon eviction is now fully event-driven via ref_count
+                    // in evict_patch_entities — no per-frame scan needed.
 
                     // Update time on all CPU mirrors
                     for (uint32_t i = 0; i < MAX_RIBBON_INSTANCES; i++) {
@@ -9886,28 +9875,34 @@ namespace t7 {
                             ribbonStates_[i].time = currentSeconds_;
                     }
 
-                    // Select nearest active ribbon for GPU rendering
-                    uint32_t nearest = UINT32_MAX;
-                    float nearest_d2 = FLT_MAX;
-                    for (uint32_t i = 0; i < MAX_RIBBON_INSTANCES; i++) {
-                        if (!activeRibbons_[i].active) continue;
-                        float dx = activeRibbons_[i].anchor_x - pawnReadback_x_;
-                        float dz = activeRibbons_[i].anchor_z - pawnReadback_z_;
-                        float d2 = dx * dx + dz * dz;
-                        if (d2 < nearest_d2) { nearest = i; nearest_d2 = d2; }
-                    }
+                    // Render one ribbon: hold the current slot until it's evicted,
+                    // then pick the nearest active ribbon as the new rendered slot.
+                    bool current_alive = renderedRibbonSlot_ != UINT32_MAX
+                                      && activeRibbons_[renderedRibbonSlot_].active;
 
-                    if (nearest != UINT32_MAX) {
-                        if (nearest != renderedRibbonSlot_) {
+                    if (current_alive) {
+                        // Hold — just update time
+                        gpuState_.upload_ribbon_time(queue, currentSeconds_);
+                    } else {
+                        // Current slot is gone — find nearest active ribbon
+                        uint32_t nearest = UINT32_MAX;
+                        float nearest_d2 = FLT_MAX;
+                        for (uint32_t i = 0; i < MAX_RIBBON_INSTANCES; i++) {
+                            if (!activeRibbons_[i].active) continue;
+                            float dx = activeRibbons_[i].anchor_x - pawnReadback_x_;
+                            float dz = activeRibbons_[i].anchor_z - pawnReadback_z_;
+                            float d2 = dx * dx + dz * dz;
+                            if (d2 < nearest_d2) { nearest = i; nearest_d2 = d2; }
+                        }
+
+                        if (nearest != UINT32_MAX) {
                             gpuState_.upload_ribbon(queue, ribbonStates_[nearest]);
                             renderedRibbonSlot_ = nearest;
-                        } else {
-                            gpuState_.upload_ribbon_time(queue, currentSeconds_);
+                        } else if (renderedRibbonSlot_ != UINT32_MAX) {
+                            GPURibbonState empty{};
+                            gpuState_.upload_ribbon(queue, empty);
+                            renderedRibbonSlot_ = UINT32_MAX;
                         }
-                    } else if (renderedRibbonSlot_ != UINT32_MAX) {
-                        GPURibbonState empty{};
-                        gpuState_.upload_ribbon(queue, empty);
-                        renderedRibbonSlot_ = UINT32_MAX;
                     }
                 }
 

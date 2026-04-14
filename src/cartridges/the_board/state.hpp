@@ -972,21 +972,25 @@ namespace t7 {
         static_assert(sizeof(GPUFrameSignal) == 304, "GPUFrameSignal must be 304 bytes");
         static_assert(sizeof(GPUDesignConfig) == 384, "GPUDesignConfig must be 384 bytes");
 
-        // Portal proximity array — uploaded when portal set changes.
-        // GPU update_pawn checks pawn proximity and writes portal_trigger.
+        // Portal ellipse array — uploaded when portal set changes.
+        // GPU update_pawn tests pawn against arch-shaped ellipses and writes portal_trigger.
         static constexpr uint32_t MAX_GPU_PORTALS = 32;
         struct alignas(16) GPUPortalEntry {
-            float x;
-            float z;
-            float trigger_radius;
-            uint32_t arch_index;       // maps to CPU activeArches_[index]
+            float x;                  //  0  world XZ center
+            float z;                  //  4
+            float facing_cos;         //  8  cos(rotation)
+            float facing_sin;         // 12  sin(rotation)
+            float inv_span_sq;        // 16  1 / half_span²  (lateral — foot-to-foot)
+            float inv_depth_sq;       // 20  1 / (depth*0.5)² (forward — walk-through)
+            uint32_t arch_index;      // 24  maps to CPU activeArches_[index]
+            uint32_t _pad;            // 28
         };
         struct alignas(16) GPUPortalArray {
             uint32_t count;
             uint32_t _pad[3];
             GPUPortalEntry portals[MAX_GPU_PORTALS];
         };
-        static_assert(sizeof(GPUPortalArray) == 16 + MAX_GPU_PORTALS * 16,
+        static_assert(sizeof(GPUPortalArray) == 16 + MAX_GPU_PORTALS * 32,
             "GPUPortalArray layout check");
         static_assert(sizeof(GPUTrajectory) == 16, "GPUTrajectory must be 16 bytes");
         static_assert(sizeof(GPUTerrainState) == 32, "GPUTerrainState must be 32 bytes");
@@ -1088,6 +1092,7 @@ namespace t7 {
             wgpu::Buffer spotVPStagingBuffer_;   // 4 × 64 bytes: pre-staged per-light VPs for atlas copy
             wgpu::Buffer portalArrayBuffer_;
             wgpu::Buffer pawnReadbackStaging_;   // full GPUPawnState readback (position + portal trigger)
+            wgpu::Buffer ribbonReadbackStaging_; // ring transform readback (diagnostic)
 
             wgpu::Buffer patchParamsBuffer_;
             wgpu::Buffer patchStagingBuffer_;    // N×GPUPatchParams for batched generation
@@ -1939,6 +1944,9 @@ namespace t7 {
             wgpu::Buffer pawn_buffer() const { return pawnBuffer_; }
             wgpu::Buffer pawn_readback_staging() const { return pawnReadbackStaging_; }
             static constexpr size_t pawn_state_size() { return sizeof(GPUPawnState); }
+            wgpu::Buffer ribbon_readback_staging() const { return ribbonReadbackStaging_; }
+            wgpu::Buffer ring_transforms_buffer() const { return ringTransformsBuffer_; }
+            static constexpr size_t ribbon_ring_readback_size() { return sizeof(GPURibbonRingTransform) * Dim::RIBBON_MAX_RINGS; }
 
             // --- Gallery system ---
             wgpu::BindGroup gallery_entity_group() const { return galleryEntityBindGroup_; }
@@ -2106,7 +2114,7 @@ namespace t7 {
                 ribbonBuffer_ = makeBuffer("Ribbon State", sizeof(GPURibbonState), SU | wgpu::BufferUsage::Uniform);
                 ringTransformsBuffer_ = makeBuffer("Ring Transforms",
                     sizeof(GPURibbonRingTransform) * Dim::RIBBON_MAX_RINGS,
-                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
+                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::CopySrc);
                 trajectoriesBuffer_ = makeBuffer("Trajectories", sizeof(GPUTrajectory) * Dim::MAX_TRAJECTORIES, SU);
                 // (proximity_field and terrain_cells stubs removed — bindings 21, 40 reserved)
                 vpBuffer_ = makeBuffer("VP Matrix", sizeof(GPUVPMatrix),
@@ -2124,6 +2132,13 @@ namespace t7 {
                     sd.size = sizeof(GPUPawnState);  // full pawn state: position + portal trigger
                     sd.usage = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::MapRead;
                     pawnReadbackStaging_ = device_.CreateBuffer(&sd);
+                }
+                {
+                    wgpu::BufferDescriptor sd{};
+                    sd.label = "Ribbon Ring Readback Staging";
+                    sd.size = sizeof(GPURibbonRingTransform) * Dim::RIBBON_MAX_RINGS;
+                    sd.usage = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::MapRead;
+                    ribbonReadbackStaging_ = device_.CreateBuffer(&sd);
                 }
                 patchParamsBuffer_ = makeBuffer("Patch Params", sizeof(GPUPatchParams), UU);
                 patchStagingBuffer_ = makeBuffer("Patch Params Staging",
@@ -2161,7 +2176,7 @@ namespace t7 {
                     patchHeightScratchBuffer_ &&
                     photographerVPBuffer_ && photographerCameraBuffer_ &&
                     photographerConfigBuffer_ && paintingSlotsBuffer_ &&
-                    portalArrayBuffer_ && pawnReadbackStaging_;
+                    portalArrayBuffer_ && pawnReadbackStaging_ && ribbonReadbackStaging_;
             }
 
 

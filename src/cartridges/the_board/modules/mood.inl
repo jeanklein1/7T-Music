@@ -345,49 +345,66 @@ void apply_mood(uint32_t mood, wgpu::Queue& queue) {
     float zero_pulses[32] = {};
     gpuState_.set_pulse_data(0, zero_pulses);
 
-    // ─── Mood 9 ribbon: seed-derived flying ribbon ───────────────
+    // ─── Mood 5 ribbon: seed-derived flying ribbon ─────────────────
     if (mood == 5) {
         uint32_t rseed = tile_seed(activeSeed_, 0, 0);
 
-        // Anchor: seed-derived position spread across the finite world + margin.
-        // The ribbon can land outside terrain bounds — visible from afar.
+        // Anchor: seed-derived position spread across the finite world + margin
         float spread = ((float)finiteRadius_ + 1.5f) * PATCH_EXTENT;
-        float world_cx = 0.5f * PATCH_EXTENT;   // center of grid origin patch
+        float world_cx = 0.5f * PATCH_EXTENT;
         float world_cz = 0.5f * PATCH_EXTENT;
         float ax = world_cx + (cpu_hash_f(rseed, RibbonProp::ANCHOR_X) - 0.5f) * spread + moodRibbonOffset_[0];
         float az = world_cz + (cpu_hash_f(rseed, RibbonProp::ANCHOR_Z) - 0.5f) * spread + moodRibbonOffset_[1];
 
-        GPURibbonState ribbon{};
-        ribbon.anchor[0] = ax;
-        ribbon.anchor[1] = 0.0f;
-        ribbon.anchor[2] = az;
-        ribbon.time = currentSeconds_;
+        // Tier selection (neutral weights — no theme bias in mood)
+        uint32_t tier_idx = select_tier_biased(rseed, RibbonProp::TIER,
+            RIBBON_BASE_TIER_WEIGHTS, RIBBON_TIER_COUNT, PopFamily::RIBBON);
+
+        // Sample geometry through the shared helper
         float terrain_est = cpu_terrain_base_at(ax, az);
-        uint32_t rtier = sample_ribbon_geometry(ribbon, rseed, terrain_est);
-        ribbonStates_[0] = ribbon;
-        gpuState_.upload_ribbon(queue, ribbon);
+        RibbonSelection sel{};
+        sel.seed = rseed;
+        sel.trigger_gx = 0;
+        sel.trigger_gz = 0;
+        sel.slot = 0;
+        sel.tier_idx = tier_idx;
+        fill_ribbon_selection_geometry(rseed, tier_idx, terrain_est, sel);
+
+        // Build placement (forced position — no negotiation)
+        RibbonPlacement plan{};
+        plan.slot = 0;
+        plan.trigger_gx = 0;
+        plan.trigger_gz = 0;
+        plan.host_gx = (int32_t)std::floor(ax / PATCH_EXTENT);
+        plan.host_gz = (int32_t)std::floor(az / PATCH_EXTENT);
+        plan.tier_idx = tier_idx;
+        plan.cx = ax;
+        plan.cz = az;
+        plan.rotation = sel.orientation;
+        plan.cube_count = sel.cube_count;
+        plan.cube_size = sel.cube_size;
+        plan.height = sel.height;
+        plan.orientation = sel.orientation;
+        plan.lateral_amp = sel.lateral_amp;
+        plan.lateral_cycles = sel.lateral_cycles;
+        plan.lateral_speed = sel.lateral_speed;
+        plan.vertical_amp = sel.vertical_amp;
+        plan.vertical_cycles = sel.vertical_cycles;
+        plan.vertical_speed = sel.vertical_speed;
+        plan.twist_amp = sel.twist_amp;
+        plan.twist_cycles = sel.twist_cycles;
+        plan.twist_speed = sel.twist_speed;
+        plan.color_mode = sel.color_mode;
+        std::memcpy(plan.color, sel.color, sizeof(plan.color));
+
+        // Commit through the standard path
+        commit_ribbon(plan, 0, 0, queue);
+
+        // Immediate GPU upload (per-frame loop may not run before first render)
+        gpuState_.upload_ribbon(queue, ribbonStates_[0]);
         renderedRibbonSlot_ = 0;
 
-        auto& ar = activeRibbons_[0];
-        ar.anchor_x = ax;
-        ar.anchor_z = az;
-        // Compute spine samples for mood ribbon
-        {
-            float half_len = (float)ribbon.cube_count * ribbon.cube_size * 0.5f;
-            float margin = ribbon.lateral_amp + 0.4f * ribbon.twist_amp;
-            float extent = half_len + margin;
-            float dx = std::cos(ribbon.orientation);
-            float dz = std::sin(ribbon.orientation);
-            float fracs[] = { -0.5f, -0.25f, 0.0f, 0.25f, 0.5f };
-            ar.spine_count = RIBBON_SPINE_SAMPLES;
-            for (uint32_t i = 0; i < RIBBON_SPINE_SAMPLES; i++) {
-                ar.spine_x[i] = ax + dx * extent * fracs[i] * 2.0f;
-                ar.spine_z[i] = az + dz * extent * fracs[i] * 2.0f;
-            }
-        }
-        ar.active = true;
-        activeRibbonCount_ = 1;
-        print_ribbon_diagnostic("Mood 9", ribbon, rtier);
+        print_ribbon_diagnostic("Mood 5", ribbonStates_[0], tier_idx);
     }
 
     std::cout << "[Mood] Applied: " << mood_name(mood)
@@ -832,11 +849,17 @@ void upload_portal_array(wgpu::Queue& queue) {
     uint32_t count = 0;
     for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES && count < MAX_GPU_PORTALS; i++) {
         if (!activeArches_[i].active || !activeArches_[i].is_portal) continue;
+        const auto& aa = activeArches_[i];
         auto& entry = cpuPortalArray_.portals[count];
-        entry.x = activeArches_[i].world_x;
-        entry.z = activeArches_[i].world_z;
-        entry.trigger_radius = PORTAL_TRIGGER_RADIUS;
+        entry.x = aa.world_x;
+        entry.z = aa.world_z;
+        entry.facing_cos = std::cos(aa.rotation);
+        entry.facing_sin = std::sin(aa.rotation);
+        float half_depth = aa.depth * 0.5f;
+        entry.inv_span_sq = 1.0f / (aa.half_span * aa.half_span);
+        entry.inv_depth_sq = 1.0f / (half_depth * half_depth);
         entry.arch_index = i;
+        entry._pad = 0;
         count++;
     }
     cpuPortalArray_.count = count;
