@@ -3436,9 +3436,9 @@ fn ribbon_spine_at(t: f32, ribbon: RibbonState) -> vec3<f32> {
     let total_length = f32(ribbon.cube_count) * ribbon.cube_size;
     let time = ribbon.time;
 
-    // Spine origin: 15% extends behind anchor, 85% forward.
-    // Keeps the near end close to the trigger patch when oriented away from pawn.
-    let along = (t - 0.15) * total_length;
+    // Spine origin: anchor IS the near tip (t=0).
+    // Body extends entirely in the orientation direction.
+    let along = t * total_length;
     let lateral = sin(time * ribbon.lateral_speed + t * ribbon.lateral_cycles * 2.0 * PI) * ribbon.lateral_amp;
     let vertical = ribbon.height + sin(time * ribbon.vertical_speed + t * ribbon.vertical_cycles * 2.0 * PI) * ribbon.vertical_amp;
 
