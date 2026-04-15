@@ -361,7 +361,7 @@ void apply_mood(uint32_t mood, wgpu::Queue& queue) {
             RIBBON_BASE_TIER_WEIGHTS, RIBBON_TIER_COUNT, PopFamily::RIBBON);
 
         // Sample geometry through the shared helper
-        float terrain_est = cpu_terrain_base_at(ax, az);
+        float terrain_est = estimate_terrain_height(ax, az);
         RibbonSelection sel{};
         sel.seed = rseed;
         sel.trigger_gx = 0;
@@ -680,9 +680,8 @@ uint32_t force_spawn_portal_at(wgpu::Queue& queue,
     aa.col_r = 0.75f;  aa.col_g = 0.68f;  aa.col_b = 0.60f;
 
     {
-        float tl = cpu_terrain_base_at(pl_x, pl_z);
-        float tr = cpu_terrain_base_at(pr_x, pr_z);
-        aa.cached_ground_y = std::min(tl + pier_height, tr + pier_height);
+        // GPU compute_entity_placement handles ground_y from heightfield
+        aa.cached_ground_y = 0.0f;
     }
 
     aa.is_portal = true;

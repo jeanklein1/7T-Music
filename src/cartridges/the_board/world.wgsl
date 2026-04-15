@@ -3436,9 +3436,9 @@ fn ribbon_spine_at(t: f32, ribbon: RibbonState) -> vec3<f32> {
     let total_length = f32(ribbon.cube_count) * ribbon.cube_size;
     let time = ribbon.time;
 
-    // Spine origin: anchor IS the near tip (t=0).
-    // Body extends entirely in the orientation direction.
-    let along = t * total_length;
+    // Spine origin: 15% extends behind anchor, 85% forward.
+    // Keeps the near end close to the trigger patch when oriented away from pawn.
+    let along = (t - 0.15) * total_length;
     let lateral = sin(time * ribbon.lateral_speed + t * ribbon.lateral_cycles * 2.0 * PI) * ribbon.lateral_amp;
     let vertical = ribbon.height + sin(time * ribbon.vertical_speed + t * ribbon.vertical_cycles * 2.0 * PI) * ribbon.vertical_amp;
 
@@ -5670,8 +5670,8 @@ struct PalmGroundEntry {
     is_active: u32,
     _pad0: f32, _pad1: f32, _pad2: f32, _pad3: f32,
 }
-@group(0) @binding(150) var<storage, read_write> palm_ground: array<PalmGroundEntry, 24>;
-@group(0) @binding(151) var<storage, read_write> cactus_ground: array<CactusGroundEntry, 20>;
+// Combined plant ground for compute Y-correction: palm[0..23] + cactus[24..43] + blade[44..75]
+@group(0) @binding(150) var<storage, read_write> plant_ground: array<PalmGroundEntry, 76>;
 
 // --- Terrain Height Sampling
 fn sample_terrain_y_at(world_xz: vec2<f32>, patch_count: u32) -> f32 {
@@ -5777,12 +5777,15 @@ fn compute_photographer_vp() {
 
 // --- Entity Placement Y-Correction
 //
-// Arches, columns, pyramids: ground_y is written directly by the CPU
-// in upload_ground_entries() using cpu_terrain_base_at + own_pier_height.
-// No GPU sampling needed — deterministic, no foreign pier contamination.
+// GPU-as-single-source-of-truth for entity ground_y.
+// CPU uploads ground_y = pier_offset_only (no terrain).
+// This shader samples the heightfield and adds the terrain height.
 //
-// Paintings: still need per-frame GPU evaluation because they ride on
-// dynamic GoL zone extrusions that only exist on the GPU.
+// Paintings: terrain + GoL zone extrusion.
+// Arch: 2-point min at pier feet + pier_height offset.
+// Pyramid: 5-point min at center + 4 rotated corners.
+// Column/antenna, palm, cactus: single-point center.
+// Blade: excluded (no compute binding — uses CPU terrain mirror).
 @compute @workgroup_size(1)
 fn compute_entity_placement() {
     let pc = config.placement_patch_count;
@@ -5807,8 +5810,74 @@ fn compute_entity_placement() {
         }
     }
 
-    // Arches, columns, pyramids: ground_y already set by CPU.
-    // No action needed here.
+    // --- Column + antenna: single-point center sampling
+    // Heightfield already includes pier contribution at entity position.
+    for (var i = 0u; i < 32u; i++) {
+        if (column_ground[i].is_active != 0u) {
+            let xz = vec2(column_ground[i].center_x, column_ground[i].center_z);
+            column_ground[i].ground_y = sample_terrain_y_at(xz, pc);
+        }
+    }
+
+    // --- Palm: plant_ground[0..23]
+    for (var i = 0u; i < 24u; i++) {
+        if (plant_ground[i].is_active != 0u) {
+            let xz = vec2(plant_ground[i].center_x, plant_ground[i].center_z);
+            plant_ground[i].ground_y = sample_terrain_y_at(xz, pc);
+        }
+    }
+
+    // --- Cactus: plant_ground[24..43]
+    for (var i = 0u; i < 20u; i++) {
+        let slot = 24u + i;
+        if (plant_ground[slot].is_active != 0u) {
+            let xz = vec2(plant_ground[slot].center_x, plant_ground[slot].center_z);
+            plant_ground[slot].ground_y = sample_terrain_y_at(xz, pc);
+        }
+    }
+
+    // --- Blade: plant_ground[44..75]
+    for (var i = 0u; i < 32u; i++) {
+        let slot = 44u + i;
+        if (plant_ground[slot].is_active != 0u) {
+            let xz = vec2(plant_ground[slot].center_x, plant_ground[slot].center_z);
+            plant_ground[slot].ground_y = sample_terrain_y_at(xz, pc);
+        }
+    }
+
+    // --- Arch: 2-point min at pier feet
+    // Heightfield at pier feet already includes pier contribution.
+    for (var i = 0u; i < 16u; i++) {
+        if (arch_ground[i].is_active != 0u) {
+            let left_xz = vec2(arch_ground[i].pier_left_x, arch_ground[i].pier_left_z);
+            let right_xz = vec2(arch_ground[i].pier_right_x, arch_ground[i].pier_right_z);
+            let tl = sample_terrain_y_at(left_xz, pc);
+            let tr = sample_terrain_y_at(right_xz, pc);
+            arch_ground[i].ground_y = min(tl, tr);
+        }
+    }
+
+    // --- Pyramid: 5-point min at center + 4 rotated corners
+    // ground_y from CPU = 0 (no pier). Set to min of 5 terrain samples.
+    for (var i = 0u; i < 8u; i++) {
+        if (pyramid_ground[i].is_active != 0u) {
+            let cx = pyramid_ground[i].center_x;
+            let cz = pyramid_ground[i].center_z;
+            let hx = pyramid_ground[i].half_x;
+            let hz = pyramid_ground[i].half_z;
+            let rot = pyramid_ground[i].rotation;
+            let cr = cos(rot);
+            let sr = sin(rot);
+
+            let y_c  = sample_terrain_y_at(vec2(cx, cz), pc);
+            let y_px = sample_terrain_y_at(vec2(cx + hx * cr, cz + hx * sr), pc);
+            let y_mx = sample_terrain_y_at(vec2(cx - hx * cr, cz - hx * sr), pc);
+            let y_pz = sample_terrain_y_at(vec2(cx - hz * sr, cz + hz * cr), pc);
+            let y_mz = sample_terrain_y_at(vec2(cx + hz * sr, cz - hz * cr), pc);
+
+            pyramid_ground[i].ground_y = min(min(y_c, min(y_px, y_mx)), min(y_pz, y_mz));
+        }
+    }
 }
 
 

@@ -192,9 +192,9 @@ namespace t7 {
 
             // Floating entity system — split into sphere (orbital) + cube (hover-bob)
             constexpr uint32_t MAX_SPHERE_INSTANCES = 8;
-            constexpr uint32_t MAX_CUBE_INSTANCES   = 64;
-            constexpr uint32_t CUBE_SLOT_OFFSET     = MAX_SPHERE_INSTANCES;
-            constexpr uint32_t TOTAL_FLOATING_SLOTS  = MAX_SPHERE_INSTANCES + MAX_CUBE_INSTANCES;  // 72
+            constexpr uint32_t MAX_CUBE_INSTANCES = 64;
+            constexpr uint32_t CUBE_SLOT_OFFSET = MAX_SPHERE_INSTANCES;
+            constexpr uint32_t TOTAL_FLOATING_SLOTS = MAX_SPHERE_INSTANCES + MAX_CUBE_INSTANCES;  // 72
             constexpr uint32_t GOL_ZONE_GRID = 32;      // cells per zone side
             constexpr uint32_t GOL_ZONE_CELLS = GOL_ZONE_GRID * GOL_ZONE_GRID;  // 1024
             constexpr uint32_t GOL_ZONE_LIFE_STRIDE = GOL_ZONE_CELLS * 7;  // 7 slots: visual, velocity, target, next, height_factor, color_visual, color_velocity
@@ -1150,6 +1150,10 @@ namespace t7 {
             wgpu::Buffer bladeMeshParamsBuffer_;
             uint32_t bladeIndexCount_ = 0;
 
+            // Combined palm+cactus+blade ground buffer for compute Y-correction.
+            // [0..23] palm, [24..43] cactus, [44..75] blade.  One storage binding.
+            wgpu::Buffer plantComputeGroundBuffer_;
+
             wgpu::Buffer pyramidVertexBuffer_, pyramidIndexBuffer_;
             wgpu::Buffer pyramidGroundBuffer_;  // per-pyramid ground Y correction
             wgpu::Buffer pyramidInstancesBuffer_;  // GPU-side pyramid array for heightfield baking
@@ -1893,6 +1897,7 @@ namespace t7 {
             wgpu::Buffer blade_vertex_buffer() const { return bladeVertexBuffer_; }
             wgpu::Buffer blade_index_buffer() const { return bladeIndexBuffer_; }
             wgpu::Buffer blade_ground_buffer() const { return bladeGroundBuffer_; }
+            wgpu::Buffer plant_compute_ground_buffer() const { return plantComputeGroundBuffer_; }
             uint32_t blade_index_count() const { return bladeIndexCount_; }
             void set_blade_index_count(uint32_t count) { bladeIndexCount_ = count; }
             void upload_blade_mesh_params_slot(wgpu::Queue& queue, uint32_t slot,
@@ -2295,7 +2300,7 @@ namespace t7 {
                     uint32_t h = (uint32_t)(corner * 3 + axis);
                     h = (h * 2654435769u) ^ (h >> 16);
                     return ((float)(h & 0xFFFFu) / 65535.0f - 0.5f) * J * 2.0f;
-                };
+                    };
 
                 // 8 corners: y in [-1,+1], z in [-1,+1], x in [-1,+1]
                 float corners[8][3];
@@ -2329,22 +2334,22 @@ namespace t7 {
                     float* c3 = corners[FACES[f][3]];
 
                     // Face normal from cross product of edges
-                    float e1[3] = { c1[0]-c0[0], c1[1]-c0[1], c1[2]-c0[2] };
-                    float e2[3] = { c2[0]-c0[0], c2[1]-c0[1], c2[2]-c0[2] };
-                    float nx = e1[1]*e2[2] - e1[2]*e2[1];
-                    float ny = e1[2]*e2[0] - e1[0]*e2[2];
-                    float nz = e1[0]*e2[1] - e1[1]*e2[0];
-                    float len = std::sqrt(nx*nx + ny*ny + nz*nz);
+                    float e1[3] = { c1[0] - c0[0], c1[1] - c0[1], c1[2] - c0[2] };
+                    float e2[3] = { c2[0] - c0[0], c2[1] - c0[1], c2[2] - c0[2] };
+                    float nx = e1[1] * e2[2] - e1[2] * e2[1];
+                    float ny = e1[2] * e2[0] - e1[0] * e2[2];
+                    float nz = e1[0] * e2[1] - e1[1] * e2[0];
+                    float len = std::sqrt(nx * nx + ny * ny + nz * nz);
                     nx /= len; ny /= len; nz /= len;
 
                     uint32_t base = (uint32_t)v.size();
-                    v.push_back({{c0[0],c0[1],c0[2]}, {nx,ny,nz}});
-                    v.push_back({{c1[0],c1[1],c1[2]}, {nx,ny,nz}});
-                    v.push_back({{c2[0],c2[1],c2[2]}, {nx,ny,nz}});
-                    v.push_back({{c3[0],c3[1],c3[2]}, {nx,ny,nz}});
+                    v.push_back({ {c0[0],c0[1],c0[2]}, {nx,ny,nz} });
+                    v.push_back({ {c1[0],c1[1],c1[2]}, {nx,ny,nz} });
+                    v.push_back({ {c2[0],c2[1],c2[2]}, {nx,ny,nz} });
+                    v.push_back({ {c3[0],c3[1],c3[2]}, {nx,ny,nz} });
 
-                    idx.push_back(base); idx.push_back(base+1); idx.push_back(base+2);
-                    idx.push_back(base); idx.push_back(base+2); idx.push_back(base+3);
+                    idx.push_back(base); idx.push_back(base + 1); idx.push_back(base + 2);
+                    idx.push_back(base); idx.push_back(base + 2); idx.push_back(base + 3);
                 }
 
                 monolithIndexCount_ = (uint32_t)idx.size();
@@ -2527,6 +2532,15 @@ namespace t7 {
                     std::vector<uint8_t> zeros(Dim::BLADEG_TOTAL_VERTICES * sizeof(ArchVertex), 0);
                     device_.GetQueue().WriteBuffer(bladeVertexBuffer_, 0, zeros.data(), zeros.size());
                 }
+
+                // Combined plant ground buffer for compute (palm + cactus + blade)
+                static constexpr uint32_t PLANT_GROUND_COUNT =
+                    Dim::MAX_PALM_INSTANCES + Dim::MAX_CACTUS_INSTANCES + Dim::MAX_BLADE_INSTANCES;
+                plantComputeGroundBuffer_ = makeBuffer("Plant Compute Ground Y",
+                    PLANT_GROUND_COUNT * sizeof(GPUPalmGroundEntry),
+                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
+                if (!plantComputeGroundBuffer_) return false;
+
                 return true;
             }
 
@@ -2832,7 +2846,7 @@ namespace t7 {
                 // Sphere:  100-119   (sphere_state, trajectories)
                 //
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 15> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 14> entries{};
 
                     entries[0].binding = 0;
                     entries[0].visibility = wgpu::ShaderStage::Compute;
@@ -2851,6 +2865,7 @@ namespace t7 {
                     entries[3].buffer.type = wgpu::BufferBindingType::Storage;
 
                     // (bindings 21, 40 removed — formerly proximity_field, cell_states)
+                    // (binding 120 removed — ribbon_state only used by compute_ribbon_rings, separate group)
 
                     entries[4].binding = 60;
                     entries[4].visibility = wgpu::ShaderStage::Compute;
@@ -2868,34 +2883,30 @@ namespace t7 {
                     entries[7].visibility = wgpu::ShaderStage::Compute;
                     entries[7].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    entries[8].binding = 120;  // uniform — avoids 8 storage buffer limit
+                    entries[8].binding = 25;
                     entries[8].visibility = wgpu::ShaderStage::Compute;
                     entries[8].buffer.type = wgpu::BufferBindingType::Uniform;
 
-                    entries[9].binding = 25;
+                    entries[9].binding = 26;   // pier_instances (storage, read)
                     entries[9].visibility = wgpu::ShaderStage::Compute;
-                    entries[9].buffer.type = wgpu::BufferBindingType::Uniform;
+                    entries[9].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
-                    entries[10].binding = 26;   // pier_instances (storage, read)
+                    entries[10].binding = 30;   // pyramid_instances (uniform — used by effective_ground_y)
                     entries[10].visibility = wgpu::ShaderStage::Compute;
-                    entries[10].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
-
-                    entries[11].binding = 30;   // pyramid_instances (uniform — used by effective_ground_y)
-                    entries[11].visibility = wgpu::ShaderStage::Compute;
-                    entries[11].buffer.type = wgpu::BufferBindingType::Uniform;
+                    entries[10].buffer.type = wgpu::BufferBindingType::Uniform;
 
                     // GoL zone state — used by effective_ground_y for cell height contribution
-                    entries[12].binding = 160;  // zone_config (storage — matches var<storage, read_write>)
+                    entries[11].binding = 160;  // zone_config (storage — matches var<storage, read_write>)
+                    entries[11].visibility = wgpu::ShaderStage::Compute;
+                    entries[11].buffer.type = wgpu::BufferBindingType::Storage;
+
+                    entries[12].binding = 161;  // zone_life (storage, rw — matches WGSL var declaration)
                     entries[12].visibility = wgpu::ShaderStage::Compute;
                     entries[12].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    entries[13].binding = 161;  // zone_life (storage, rw — matches WGSL var declaration)
+                    entries[13].binding = 62;   // portal_array (uniform — proximity check in update_pawn)
                     entries[13].visibility = wgpu::ShaderStage::Compute;
-                    entries[13].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    entries[14].binding = 62;   // portal_array (uniform — proximity check in update_pawn)
-                    entries[14].visibility = wgpu::ShaderStage::Compute;
-                    entries[14].buffer.type = wgpu::BufferBindingType::Uniform;
+                    entries[13].buffer.type = wgpu::BufferBindingType::Uniform;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Compute Entity Layout";
@@ -3283,78 +3294,41 @@ namespace t7 {
                     if (!galleryTextureBindGroupLayout_) return false;
                 }
 
-                // -- Photographer compute layout (Group 0) -- VP + terrain coupling --
-                // Reads GPU pawn position + config → builds VP, clamps camera above terrain,
-                // corrects entity + painting Y positions from baked heightfield + GoL zones.
-                // 9 storage buffers + 2 uniform + 1 texture + 1 sampler = 13 entries.
+                // -- Photographer compute layout (Group 0) -- VP + terrain clamp --
+                // Reads GPU pawn position + config → builds VP, clamps camera above terrain.
+                // Entity Y-correction is handled separately by compute_entity_placement.
+                // 3 storage + 1 read-only + 1 uniform + 1 texture + 1 sampler = 7 entries.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 13> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 7> entries{};
 
-                    // pawn_state: read actual GPU pawn position
-                    entries[0].binding = 60;
+                    entries[0].binding = 60;   // pawn_state (read pos)
                     entries[0].visibility = wgpu::ShaderStage::Compute;
                     entries[0].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    // photographer_config: camera parameters (CPU-uploaded)
-                    entries[1].binding = 140;
+                    entries[1].binding = 140;  // photographer_config (camera params)
                     entries[1].visibility = wgpu::ShaderStage::Compute;
                     entries[1].buffer.type = wgpu::BufferBindingType::Uniform;
 
-                    // photographer_vp: output VP matrix
-                    entries[2].binding = 141;
+                    entries[2].binding = 141;  // photographer_vp (output VP matrix)
                     entries[2].visibility = wgpu::ShaderStage::Compute;
                     entries[2].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    // photographer_camera_out: output camera position (for fog)
-                    entries[3].binding = 142;
+                    entries[3].binding = 142;  // photographer_camera_out (output camera pos)
                     entries[3].visibility = wgpu::ShaderStage::Compute;
                     entries[3].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    // painting_slots: read/write for Y correction
-                    entries[4].binding = 143;
+                    entries[4].binding = 144;  // patch_instances (terrain lookup)
                     entries[4].visibility = wgpu::ShaderStage::Compute;
-                    entries[4].buffer.type = wgpu::BufferBindingType::Storage;
+                    entries[4].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
-                    // patch_instances: which patches are active (for terrain lookup)
-                    entries[5].binding = 144;
+                    entries[5].binding = 145;  // patch_heightfield (terrain texture)
                     entries[5].visibility = wgpu::ShaderStage::Compute;
-                    entries[5].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+                    entries[5].texture.sampleType = wgpu::TextureSampleType::Float;
+                    entries[5].texture.viewDimension = wgpu::TextureViewDimension::e2DArray;
 
-                    // patch_heightfield: terrain height texture array
-                    entries[6].binding = 145;
+                    entries[6].binding = 146;  // bilinear_sampler
                     entries[6].visibility = wgpu::ShaderStage::Compute;
-                    entries[6].texture.sampleType = wgpu::TextureSampleType::Float;
-                    entries[6].texture.viewDimension = wgpu::TextureViewDimension::e2DArray;
-
-                    // bilinear_sampler: for terrain interpolation
-                    entries[7].binding = 146;
-                    entries[7].visibility = wgpu::ShaderStage::Compute;
-                    entries[7].sampler.type = wgpu::SamplerBindingType::Filtering;
-
-                    // arch_ground: per-arch Y correction (read/write)
-                    entries[8].binding = 147;
-                    entries[8].visibility = wgpu::ShaderStage::Compute;
-                    entries[8].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    // column_ground: per-column Y correction (read/write)
-                    entries[9].binding = 148;
-                    entries[9].visibility = wgpu::ShaderStage::Compute;
-                    entries[9].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    // pyramid_ground: per-pyramid Y correction (read/write)
-                    entries[10].binding = 149;
-                    entries[10].visibility = wgpu::ShaderStage::Compute;
-                    entries[10].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    // GoL zone config (storage — must match var<storage, read_write> in WGSL)
-                    entries[11].binding = 160;
-                    entries[11].visibility = wgpu::ShaderStage::Compute;
-                    entries[11].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    // GoL zone life (storage — painting Y reads per-cell height)
-                    entries[12].binding = 161;
-                    entries[12].visibility = wgpu::ShaderStage::Compute;
-                    entries[12].buffer.type = wgpu::BufferBindingType::Storage;
+                    entries[6].sampler.type = wgpu::SamplerBindingType::Filtering;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Photographer Compute Layout";
@@ -3368,9 +3342,10 @@ namespace t7 {
                 // Runs every frame, unconditionally. Samples the baked heightfield
                 // and subtracts CPU-computed pier_correction to isolate each entity's
                 // own pier contribution (removing foreign pier contamination).
-                // 13 entries: config + pawn + painting slots + heightfield + entity grounds + GoL.
+                // 12 entries: config + pawn + painting slots + heightfield + entity grounds + GoL.
+                // Palm+cactus+blade share one buffer at binding 150: [0..23] palm, [24..43] cactus, [44..75] blade.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 13> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 12> entries{};
 
                     entries[0].binding = 1;
                     entries[0].visibility = wgpu::ShaderStage::Compute;
@@ -3417,13 +3392,9 @@ namespace t7 {
                     entries[10].visibility = wgpu::ShaderStage::Compute;
                     entries[10].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    entries[11].binding = 150;
+                    entries[11].binding = 150;  // plant_ground: palm[0..23] + cactus[24..43] + blade[44..75]
                     entries[11].visibility = wgpu::ShaderStage::Compute;
                     entries[11].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    entries[12].binding = 151;
-                    entries[12].visibility = wgpu::ShaderStage::Compute;
-                    entries[12].buffer.type = wgpu::BufferBindingType::Storage;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Entity Placement Compute Layout";
@@ -3686,9 +3657,9 @@ namespace t7 {
 
                 // -- Bind group instances ------------------------------------
 
-                // Compute entity bind group (15 entries: systems + terrain + GoL zones + portals)
+                // Compute entity bind group (14 entries: systems + terrain + GoL zones + portals)
                 {
-                    std::array<wgpu::BindGroupEntry, 15> entries{};
+                    std::array<wgpu::BindGroupEntry, 14> entries{};
 
                     entries[0].binding = 0;
                     entries[0].buffer = signalBuffer_;
@@ -3707,6 +3678,7 @@ namespace t7 {
                     entries[3].size = sizeof(GPUTerrainState);
 
                     // (bindings 21, 40 removed — formerly proximity_field, cell_states)
+                    // (binding 120 removed — ribbon_state only used by compute_ribbon_rings, separate group)
 
                     entries[4].binding = 60;
                     entries[4].buffer = pawnBuffer_;
@@ -3724,36 +3696,32 @@ namespace t7 {
                     entries[7].buffer = trajectoriesBuffer_;
                     entries[7].size = sizeof(GPUTrajectory) * Dim::MAX_TRAJECTORIES;
 
-                    entries[8].binding = 120;
-                    entries[8].buffer = ribbonBuffer_;
-                    entries[8].size = sizeof(GPURibbonState);
-
-                    entries[9].binding = 25;
-                    entries[9].buffer = tileGridBuffer_;
-                    entries[9].size = sizeof(GPUTileGrid);
+                    entries[8].binding = 25;
+                    entries[8].buffer = tileGridBuffer_;
+                    entries[8].size = sizeof(GPUTileGrid);
 
                     // Pier Instances — unified terrain-raising volumes
-                    entries[10].binding = 26;
-                    entries[10].buffer = pierBuffer_;
-                    entries[10].size = Dim::PIER_TOTAL * sizeof(GPUPierInstance);
+                    entries[9].binding = 26;
+                    entries[9].buffer = pierBuffer_;
+                    entries[9].size = Dim::PIER_TOTAL * sizeof(GPUPierInstance);
 
                     // Pyramid Instances — tapered height in effective_ground_y
-                    entries[11].binding = 30;
-                    entries[11].buffer = pyramidInstancesBuffer_;
-                    entries[11].size = sizeof(GPUPyramidArray);
+                    entries[10].binding = 30;
+                    entries[10].buffer = pyramidInstancesBuffer_;
+                    entries[10].size = sizeof(GPUPyramidArray);
 
                     // GoL zone state — cell height in effective_ground_y
-                    entries[12].binding = 160;
-                    entries[12].buffer = zoneConfigBuffer_;
-                    entries[12].size = sizeof(GPUGoLZoneArray);
+                    entries[11].binding = 160;
+                    entries[11].buffer = zoneConfigBuffer_;
+                    entries[11].size = sizeof(GPUGoLZoneArray);
 
-                    entries[13].binding = 161;
-                    entries[13].buffer = zoneLifeBuffer_;
-                    entries[13].size = Dim::MAX_GOL_ZONES * Dim::GOL_ZONE_LIFE_STRIDE * sizeof(float);
+                    entries[12].binding = 161;
+                    entries[12].buffer = zoneLifeBuffer_;
+                    entries[12].size = Dim::MAX_GOL_ZONES * Dim::GOL_ZONE_LIFE_STRIDE * sizeof(float);
 
-                    entries[14].binding = 62;
-                    entries[14].buffer = portalArrayBuffer_;
-                    entries[14].size = sizeof(GPUPortalArray);
+                    entries[13].binding = 62;
+                    entries[13].buffer = portalArrayBuffer_;
+                    entries[13].size = sizeof(GPUPortalArray);
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Compute Entity BindGroup";
@@ -4137,9 +4105,9 @@ namespace t7 {
                     if (!photographerRenderEntityBindGroup_) return false;
                 }
 
-                // Photographer compute bind group (13 entries: systems + terrain + GoL zones)
+                // Photographer compute bind group (7 entries: pawn + config + outputs + terrain)
                 {
-                    std::array<wgpu::BindGroupEntry, 13> entries{};
+                    std::array<wgpu::BindGroupEntry, 7> entries{};
                     entries[0].binding = 60;
                     entries[0].buffer = pawnBuffer_;
                     entries[0].size = sizeof(GPUPawnState);
@@ -4152,31 +4120,13 @@ namespace t7 {
                     entries[3].binding = 142;
                     entries[3].buffer = photographerCameraBuffer_;
                     entries[3].size = sizeof(GPUCameraState);
-                    entries[4].binding = 143;
-                    entries[4].buffer = paintingSlotsBuffer_;
-                    entries[4].size = sizeof(GPUPaintingSlot) * Dim::PAINTING_MAX_SLOTS;
-                    entries[5].binding = 144;
-                    entries[5].buffer = patchInstancesBuffer_;
-                    entries[5].size = sizeof(GPUPatchInstance) * Dim::MAX_ACTIVE_PATCHES;
-                    entries[6].binding = 145;
-                    entries[6].textureView = patchHeightfieldArrayReadView_;
-                    entries[7].binding = 146;
-                    entries[7].sampler = bilinearSampler_;
-                    entries[8].binding = 147;
-                    entries[8].buffer = archGroundBuffer_;
-                    entries[8].size = sizeof(GPUArchGroundEntry) * Dim::MAX_ARCH_INSTANCES;
-                    entries[9].binding = 148;
-                    entries[9].buffer = columnGroundBuffer_;
-                    entries[9].size = sizeof(GPUColumnGroundEntry) * Dim::MAX_COLUMN_INSTANCES;
-                    entries[10].binding = 149;
-                    entries[10].buffer = pyramidGroundBuffer_;
-                    entries[10].size = sizeof(GPUPyramidGroundEntry) * Dim::MAX_PYRAMID_INSTANCES;
-                    entries[11].binding = 160;
-                    entries[11].buffer = zoneConfigBuffer_;
-                    entries[11].size = sizeof(GPUGoLZoneArray);
-                    entries[12].binding = 161;
-                    entries[12].buffer = zoneLifeBuffer_;
-                    entries[12].size = Dim::MAX_GOL_ZONES * Dim::GOL_ZONE_LIFE_STRIDE * sizeof(float);
+                    entries[4].binding = 144;
+                    entries[4].buffer = patchInstancesBuffer_;
+                    entries[4].size = sizeof(GPUPatchInstance) * Dim::MAX_ACTIVE_PATCHES;
+                    entries[5].binding = 145;
+                    entries[5].textureView = patchHeightfieldArrayReadView_;
+                    entries[6].binding = 146;
+                    entries[6].sampler = bilinearSampler_;
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Photographer Compute BindGroup";
@@ -4187,9 +4137,9 @@ namespace t7 {
                     if (!photographerComputeBindGroup_) return false;
                 }
 
-                // Entity placement compute bind group (heightfield sampling + pier correction)
+                // Entity placement compute bind group (heightfield sampling + ground Y correction)
                 {
-                    std::array<wgpu::BindGroupEntry, 13> entries{};
+                    std::array<wgpu::BindGroupEntry, 12> entries{};
                     entries[0].binding = 1;
                     entries[0].buffer = configBuffer_;
                     entries[0].size = sizeof(GPUDesignConfig);
@@ -4222,13 +4172,12 @@ namespace t7 {
                     entries[10].buffer = zoneLifeBuffer_;
                     entries[10].size = Dim::MAX_GOL_ZONES * Dim::GOL_ZONE_LIFE_STRIDE * sizeof(float);
 
+                    // Combined plant ground: palm[0..23] + cactus[24..43] + blade[44..75]
+                    static constexpr uint32_t PLANT_GROUND_COUNT =
+                        Dim::MAX_PALM_INSTANCES + Dim::MAX_CACTUS_INSTANCES + Dim::MAX_BLADE_INSTANCES;
                     entries[11].binding = 150;
-                    entries[11].buffer = palmGroundBuffer_;
-                    entries[11].size = sizeof(GPUPalmGroundEntry) * Dim::MAX_PALM_INSTANCES;
-
-                    entries[12].binding = 151;
-                    entries[12].buffer = cactusGroundBuffer_;
-                    entries[12].size = sizeof(GPUCactusGroundEntry) * Dim::MAX_CACTUS_INSTANCES;
+                    entries[11].buffer = plantComputeGroundBuffer_;
+                    entries[11].size = sizeof(GPUPalmGroundEntry) * PLANT_GROUND_COUNT;
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Entity Placement Compute BindGroup";

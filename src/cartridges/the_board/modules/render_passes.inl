@@ -20,9 +20,10 @@
 
 // ─── Pre-Render Data Preparation ─────────────────────────────────
 
-            // --- Per-frame ground entry upload: cached pier-top Y ---
-            // ground_y is computed once at spawn time and cached in Active* structs.
-            // This function is now a pure data-upload — no terrain evaluation.
+            // --- Per-frame ground entry upload: entity positions ---
+            // ground_y = 0 for all families. The GPU compute shader
+            // (compute_entity_placement) REPLACES it with the heightfield
+            // sample, which already includes pier contributions.
             void upload_ground_entries(wgpu::Queue& queue) {
                 // --- Arch ground entries ---
                 GPUArchGroundEntry archOrigins[Dim::MAX_ARCH_INSTANCES]{};
@@ -78,43 +79,58 @@
                 }
                 gpuState_.upload_pyramid_origins(queue, pyramidOrigins, Dim::MAX_PYRAMID_INSTANCES);
 
-                // --- Palm ground entries ---
-                GPUPalmGroundEntry palmOrigins[Dim::MAX_PALM_INSTANCES]{};
+                // --- Plant ground entries (palm + cactus + blade) ---
+                // Combined compute buffer: [0..23] palm, [24..43] cactus, [44..75] blade.
+                // Individual render uniform buffers kept for VS bindings (383, 384, 385).
+                static constexpr uint32_t PALM_OFF = 0;
+                static constexpr uint32_t CACT_OFF = Dim::MAX_PALM_INSTANCES;
+                static constexpr uint32_t BLAD_OFF = Dim::MAX_PALM_INSTANCES + Dim::MAX_CACTUS_INSTANCES;
+                static constexpr uint32_t PLANT_COUNT = BLAD_OFF + Dim::MAX_BLADE_INSTANCES;
+
+                GPUPalmGroundEntry plantOrigins[PLANT_COUNT]{};
+
                 for (uint32_t i = 0; i < Dim::MAX_PALM_INSTANCES; i++) {
                     if (!activePalms_[i].active) continue;
-                    palmOrigins[i].center_x = activePalms_[i].world_x;
-                    palmOrigins[i].center_z = activePalms_[i].world_z;
-                    palmOrigins[i].is_active = 1;
-                    palmOrigins[i].ground_y = activePalms_[i].cached_ground_y;
+                    plantOrigins[PALM_OFF + i].center_x = activePalms_[i].world_x;
+                    plantOrigins[PALM_OFF + i].center_z = activePalms_[i].world_z;
+                    plantOrigins[PALM_OFF + i].is_active = 1;
+                    plantOrigins[PALM_OFF + i].ground_y = activePalms_[i].cached_ground_y;
                 }
-                gpuState_.upload_palm_origins(queue, palmOrigins, Dim::MAX_PALM_INSTANCES);
-
-                // --- Cactus ground entries ---
-                GPUCactusGroundEntry cactusOrigins[Dim::MAX_CACTUS_INSTANCES]{};
                 for (uint32_t i = 0; i < Dim::MAX_CACTUS_INSTANCES; i++) {
                     if (!activeCacti_[i].active) continue;
-                    cactusOrigins[i].center_x = activeCacti_[i].world_x;
-                    cactusOrigins[i].center_z = activeCacti_[i].world_z;
-                    cactusOrigins[i].is_active = 1;
-                    cactusOrigins[i].ground_y = activeCacti_[i].cached_ground_y;
+                    plantOrigins[CACT_OFF + i].center_x = activeCacti_[i].world_x;
+                    plantOrigins[CACT_OFF + i].center_z = activeCacti_[i].world_z;
+                    plantOrigins[CACT_OFF + i].is_active = 1;
+                    plantOrigins[CACT_OFF + i].ground_y = activeCacti_[i].cached_ground_y;
                 }
-                gpuState_.upload_cactus_origins(queue, cactusOrigins, Dim::MAX_CACTUS_INSTANCES);
-
-                // --- Blade cluster ground entries ---
-                GPUBladeClusterGroundEntry bladeOrigins[Dim::MAX_BLADE_INSTANCES]{};
                 for (uint32_t i = 0; i < Dim::MAX_BLADE_INSTANCES; i++) {
                     if (!activeBlades_[i].active) continue;
-                    bladeOrigins[i].center_x = activeBlades_[i].world_x;
-                    bladeOrigins[i].center_z = activeBlades_[i].world_z;
-                    bladeOrigins[i].is_active = 1;
-                    bladeOrigins[i].ground_y = activeBlades_[i].cached_ground_y;
+                    plantOrigins[BLAD_OFF + i].center_x = activeBlades_[i].world_x;
+                    plantOrigins[BLAD_OFF + i].center_z = activeBlades_[i].world_z;
+                    plantOrigins[BLAD_OFF + i].is_active = 1;
+                    plantOrigins[BLAD_OFF + i].ground_y = activeBlades_[i].cached_ground_y;
                 }
-                gpuState_.upload_blade_origins(queue, bladeOrigins, Dim::MAX_BLADE_INSTANCES);
+
+                // One write to the combined compute storage buffer
+                queue.WriteBuffer(gpuState_.plant_compute_ground_buffer(), 0,
+                    plantOrigins, sizeof(plantOrigins));
+
+                // Subsection writes to individual render uniform buffers
+                gpuState_.upload_palm_origins(queue,
+                    &plantOrigins[PALM_OFF], Dim::MAX_PALM_INSTANCES);
+                gpuState_.upload_cactus_origins(queue,
+                    reinterpret_cast<const GPUCactusGroundEntry*>(&plantOrigins[CACT_OFF]),
+                    Dim::MAX_CACTUS_INSTANCES);
+                gpuState_.upload_blade_origins(queue,
+                    reinterpret_cast<const GPUBladeClusterGroundEntry*>(&plantOrigins[BLAD_OFF]),
+                    Dim::MAX_BLADE_INSTANCES);
             }
 
-            // --- Entity placement Y-correction: heightfield sample - pier correction ---
-            // Runs unconditionally every frame, AFTER upload_ground_entries and BEFORE
-            // render passes (shadow + main read the corrected ground_y).
+            // --- Entity placement Y-correction: GPU heightfield sampling ---
+            // GPU-as-single-source-of-truth: samples the heightfield at entity
+            // positions and adds terrain height to the CPU-uploaded pier offsets.
+            // Handles paintings (terrain + GoL), columns, palms, cacti (single-point),
+            // arches (2-point pier feet min), pyramids (5-point corner min).
             void dispatch_placement_correction(wgpu::CommandEncoder& encoder) {
                 wgpu::ComputePassDescriptor cpd{};
                 cpd.label = "Entity Placement Y Correction";
