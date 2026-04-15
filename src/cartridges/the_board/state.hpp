@@ -187,6 +187,16 @@ namespace t7 {
             constexpr uint32_t BLADEG_TOTAL_VERTICES = MAX_BLADE_INSTANCES * BLADEG_MAX_VERTS_PER_SLOT;
             constexpr uint32_t BLADEG_TOTAL_INDICES = MAX_BLADE_INSTANCES * BLADEG_MAX_INDICES_PER_SLOT;
 
+            // Entity ground atlas (r32float, 256×1 — VS reads ground_y via textureLoad)
+            constexpr uint32_t GROUND_ATLAS_WIDTH      = 256;
+            constexpr uint32_t GROUND_ATLAS_ARCH       = 0;    // 16 slots
+            constexpr uint32_t GROUND_ATLAS_COLUMN     = 16;   // 32 slots
+            constexpr uint32_t GROUND_ATLAS_PYRAMID    = 48;   //  8 slots
+            constexpr uint32_t GROUND_ATLAS_PALM       = 56;   // 24 slots
+            constexpr uint32_t GROUND_ATLAS_CACTUS     = 80;   // 20 slots
+            constexpr uint32_t GROUND_ATLAS_BLADE      = 100;  // 32 slots
+            constexpr uint32_t GROUND_ATLAS_USED       = 132;
+
             // GoL zone system — per-zone automaton grids
             constexpr uint32_t MAX_GOL_ZONES = 8;
 
@@ -1118,6 +1128,12 @@ namespace t7 {
             wgpu::TextureView patchCellColorArrayWriteView_;
             wgpu::TextureView patchCellColorArrayReadView_;
 
+            // Cell spatial field LUT (49 layers × 16×16, RGBA16Float)
+            // Baked in generate_patch_cells. R=mode(post-coupling), G=style, B=sparse, A=reserved
+            wgpu::Texture cellFieldsArrayTexture_;
+            wgpu::TextureView cellFieldsArrayWriteView_;
+            wgpu::TextureView cellFieldsArrayReadView_;
+
             wgpu::Buffer terrainIndexBuffer_;
             // (legacy cell mesh buffers removed — bindings 43-45 reserved)
             wgpu::Buffer sphereVertexBuffer_, sphereIndexBuffer_;
@@ -1136,17 +1152,14 @@ namespace t7 {
             uint32_t columnIndexCount_ = 0;
 
             wgpu::Buffer palmVertexBuffer_, palmIndexBuffer_;
-            wgpu::Buffer palmGroundBuffer_;
             wgpu::Buffer palmMeshParamsBuffer_;
             uint32_t palmIndexCount_ = 0;
 
             wgpu::Buffer cactusVertexBuffer_, cactusIndexBuffer_;
-            wgpu::Buffer cactusGroundBuffer_;
             wgpu::Buffer cactusMeshParamsBuffer_;
             uint32_t cactusIndexCount_ = 0;
 
             wgpu::Buffer bladeVertexBuffer_, bladeIndexBuffer_;
-            wgpu::Buffer bladeGroundBuffer_;
             wgpu::Buffer bladeMeshParamsBuffer_;
             uint32_t bladeIndexCount_ = 0;
 
@@ -1198,6 +1211,11 @@ namespace t7 {
             wgpu::TextureView pawnAuraReadView_;    // sampled texture read (fragment)
             wgpu::BindGroupLayout pawnAuraComputeLayout_;
             wgpu::BindGroup pawnAuraComputeGroup_;
+
+            // Entity ground atlas (r32float, 256×1) — compute writes, VS reads
+            wgpu::Texture entityGroundAtlasTexture_;
+            wgpu::TextureView entityGroundAtlasWriteView_;   // storage texture (compute)
+            wgpu::TextureView entityGroundAtlasReadView_;    // sampled texture (VS)
 
             // (legacy 1×1 stub textures removed — render bindings 20-21, 24 reserved)
 
@@ -1857,7 +1875,6 @@ namespace t7 {
             // --- Palm accessors and upload ---
             wgpu::Buffer palm_vertex_buffer() const { return palmVertexBuffer_; }
             wgpu::Buffer palm_index_buffer() const { return palmIndexBuffer_; }
-            wgpu::Buffer palm_ground_buffer() const { return palmGroundBuffer_; }
             uint32_t palm_index_count() const { return palmIndexCount_; }
             void set_palm_index_count(uint32_t count) { palmIndexCount_ = count; }
 
@@ -1870,15 +1887,9 @@ namespace t7 {
             wgpu::BindGroupLayout palm_mesh_gen_layout() const { return palmMeshGenLayout_; }
             wgpu::BindGroup palm_mesh_gen_group() const { return palmMeshGenBindGroup_; }
 
-            void upload_palm_origins(wgpu::Queue& queue, const GPUPalmGroundEntry* entries, uint32_t count) {
-                queue.WriteBuffer(palmGroundBuffer_, 0, entries,
-                    sizeof(GPUPalmGroundEntry) * std::min(count, Dim::MAX_PALM_INSTANCES));
-            }
-
             // --- Cactus accessors and upload ---
             wgpu::Buffer cactus_vertex_buffer() const { return cactusVertexBuffer_; }
             wgpu::Buffer cactus_index_buffer() const { return cactusIndexBuffer_; }
-            wgpu::Buffer cactus_ground_buffer() const { return cactusGroundBuffer_; }
             uint32_t cactus_index_count() const { return cactusIndexCount_; }
             void set_cactus_index_count(uint32_t count) { cactusIndexCount_ = count; }
             void upload_cactus_mesh_params_slot(wgpu::Queue& queue, uint32_t slot, const GPUCactusMeshParams& params) {
@@ -1888,15 +1899,10 @@ namespace t7 {
             }
             wgpu::BindGroupLayout cactus_mesh_gen_layout() const { return cactusMeshGenLayout_; }
             wgpu::BindGroup cactus_mesh_gen_group() const { return cactusMeshGenBindGroup_; }
-            void upload_cactus_origins(wgpu::Queue& queue, const GPUCactusGroundEntry* entries, uint32_t count) {
-                queue.WriteBuffer(cactusGroundBuffer_, 0, entries,
-                    sizeof(GPUCactusGroundEntry) * std::min(count, Dim::MAX_CACTUS_INSTANCES));
-            }
 
             // --- Blade Cluster accessors and upload ---
             wgpu::Buffer blade_vertex_buffer() const { return bladeVertexBuffer_; }
             wgpu::Buffer blade_index_buffer() const { return bladeIndexBuffer_; }
-            wgpu::Buffer blade_ground_buffer() const { return bladeGroundBuffer_; }
             wgpu::Buffer plant_compute_ground_buffer() const { return plantComputeGroundBuffer_; }
             uint32_t blade_index_count() const { return bladeIndexCount_; }
             void set_blade_index_count(uint32_t count) { bladeIndexCount_ = count; }
@@ -1908,11 +1914,6 @@ namespace t7 {
             }
             wgpu::BindGroupLayout blade_mesh_gen_layout() const { return bladeMeshGenLayout_; }
             wgpu::BindGroup blade_mesh_gen_group() const { return bladeMeshGenBindGroup_; }
-            void upload_blade_origins(wgpu::Queue& queue,
-                const GPUBladeClusterGroundEntry* entries, uint32_t count) {
-                queue.WriteBuffer(bladeGroundBuffer_, 0, entries,
-                    sizeof(GPUBladeClusterGroundEntry) * std::min(count, Dim::MAX_BLADE_INSTANCES));
-            }
 
             // --- Pyramid accessors and upload ---
             wgpu::Buffer pyramid_vertex_buffer() const { return pyramidVertexBuffer_; }
@@ -2456,14 +2457,11 @@ namespace t7 {
                 palmIndexBuffer_ = makeBuffer("Palm IB (GPU mesh gen)",
                     Dim::PALMG_TOTAL_INDICES * sizeof(uint32_t),
                     wgpu::BufferUsage::Index | wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Storage);
-                palmGroundBuffer_ = makeBuffer("Palm Ground Y",
-                    Dim::MAX_PALM_INSTANCES * sizeof(GPUPalmGroundEntry),
-                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);
                 palmMeshParamsBuffer_ = makeBuffer("Palm Mesh Params",
                     Dim::MAX_PALM_INSTANCES * sizeof(GPUPalmMeshParams),
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
 
-                if (!palmVertexBuffer_ || !palmIndexBuffer_ || !palmGroundBuffer_ ||
+                if (!palmVertexBuffer_ || !palmIndexBuffer_ ||
                     !palmMeshParamsBuffer_) return false;
 
                 palmIndexCount_ = 0;
@@ -2486,13 +2484,10 @@ namespace t7 {
                 cactusIndexBuffer_ = makeBuffer("Cactus IB (GPU mesh gen)",
                     Dim::CACTUSG_TOTAL_INDICES * sizeof(uint32_t),
                     wgpu::BufferUsage::Index | wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Storage);
-                cactusGroundBuffer_ = makeBuffer("Cactus Ground Y",
-                    Dim::MAX_CACTUS_INSTANCES * sizeof(GPUCactusGroundEntry),
-                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);
                 cactusMeshParamsBuffer_ = makeBuffer("Cactus Mesh Params",
                     Dim::MAX_CACTUS_INSTANCES * sizeof(GPUCactusMeshParams),
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
-                if (!cactusVertexBuffer_ || !cactusIndexBuffer_ || !cactusGroundBuffer_ ||
+                if (!cactusVertexBuffer_ || !cactusIndexBuffer_ ||
                     !cactusMeshParamsBuffer_) return false;
                 cactusIndexCount_ = 0;
                 {
@@ -2514,13 +2509,10 @@ namespace t7 {
                 bladeIndexBuffer_ = makeBuffer("Blade IB (GPU mesh gen)",
                     Dim::BLADEG_TOTAL_INDICES * sizeof(uint32_t),
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::Index | wgpu::BufferUsage::CopyDst);
-                bladeGroundBuffer_ = makeBuffer("Blade Ground Y",
-                    Dim::MAX_BLADE_INSTANCES * sizeof(GPUBladeClusterGroundEntry),
-                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);
                 bladeMeshParamsBuffer_ = makeBuffer("Blade Mesh Params",
                     Dim::MAX_BLADE_INSTANCES * sizeof(GPUBladeClusterMeshParams),
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
-                if (!bladeVertexBuffer_ || !bladeIndexBuffer_ || !bladeGroundBuffer_ ||
+                if (!bladeVertexBuffer_ || !bladeIndexBuffer_ ||
                     !bladeMeshParamsBuffer_) return false;
                 bladeIndexCount_ = 0;
                 {
@@ -2715,6 +2707,22 @@ namespace t7 {
                     pawnAuraReadView_ = pawnAuraTexture_.CreateView();
                 }
 
+                // Entity ground atlas (r32float 256×1 — compute writes ground_y, VS textureLoad)
+                {
+                    wgpu::TextureDescriptor desc{};
+                    desc.label = "Entity Ground Atlas (r32float 256x1)";
+                    desc.size = { Dim::GROUND_ATLAS_WIDTH, 1, 1 };
+                    desc.format = wgpu::TextureFormat::R32Float;
+                    desc.usage = wgpu::TextureUsage::StorageBinding | wgpu::TextureUsage::TextureBinding;
+                    desc.dimension = wgpu::TextureDimension::e2D;
+                    desc.mipLevelCount = 1;
+                    desc.sampleCount = 1;
+                    entityGroundAtlasTexture_ = device_.CreateTexture(&desc);
+                    if (!entityGroundAtlasTexture_) return false;
+                    entityGroundAtlasWriteView_ = entityGroundAtlasTexture_.CreateView();
+                    entityGroundAtlasReadView_ = entityGroundAtlasTexture_.CreateView();
+                }
+
                 {
                     wgpu::TextureDescriptor desc{};
                     desc.label = "Patch Heightfield Array (225x256x256, RGBA16Float)";
@@ -2751,6 +2759,28 @@ namespace t7 {
                     patchCellColorArrayWriteView_ = patchCellColorArrayTexture_.CreateView(&viewDesc);
                     viewDesc.label = "Patch Cell Color Array Read";
                     patchCellColorArrayReadView_ = patchCellColorArrayTexture_.CreateView(&viewDesc);
+                }
+
+                // Cell spatial field LUT (RGBA16Float, 16×16 × MAX_ACTIVE_PATCHES)
+                // Baked during generate_patch_cells: mode, style, sparse, reserved.
+                // Terrain FS reads via textureLoad to skip 3 lattice noise chains.
+                {
+                    wgpu::TextureDescriptor desc{};
+                    desc.label = "Cell Fields LUT (RGBA16Float 16x16)";
+                    desc.size = { Dim::PATCH_CELL_N, Dim::PATCH_CELL_N, Dim::MAX_ACTIVE_PATCHES };
+                    desc.dimension = wgpu::TextureDimension::e2D;
+                    desc.format = wgpu::TextureFormat::RGBA16Float;
+                    desc.usage = wgpu::TextureUsage::StorageBinding | wgpu::TextureUsage::TextureBinding;
+                    cellFieldsArrayTexture_ = device_.CreateTexture(&desc);
+                    if (!cellFieldsArrayTexture_) return false;
+
+                    wgpu::TextureViewDescriptor viewDesc{};
+                    viewDesc.dimension = wgpu::TextureViewDimension::e2DArray;
+                    viewDesc.arrayLayerCount = Dim::MAX_ACTIVE_PATCHES;
+                    viewDesc.label = "Cell Fields LUT Write";
+                    cellFieldsArrayWriteView_ = cellFieldsArrayTexture_.CreateView(&viewDesc);
+                    viewDesc.label = "Cell Fields LUT Read";
+                    cellFieldsArrayReadView_ = cellFieldsArrayTexture_.CreateView(&viewDesc);
                 }
 
                 // Shadow map (Depth32Float: directional light depth)
@@ -2928,7 +2958,7 @@ namespace t7 {
                 // Vertex shaders need entity state for positioning + VP for transform.
                 // Fragment shaders need camera for fog distance.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 20> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 15> entries{};
 
                     entries[0].binding = 1;    // config (uniform — fog, world_seed, aura_enabled, fade)
                     entries[0].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
@@ -2982,39 +3012,17 @@ namespace t7 {
                     entries[12].visibility = wgpu::ShaderStage::Vertex;
                     entries[12].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
-                    // Arch ground Y corrections (GPU-compute-corrected, VS reads)
-                    entries[13].binding = 380;
-                    entries[13].visibility = wgpu::ShaderStage::Vertex;
-                    entries[13].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
-
-                    // Column ground Y corrections (GPU-compute-corrected, VS reads)
-                    entries[14].binding = 381;
-                    entries[14].visibility = wgpu::ShaderStage::Vertex;
-                    entries[14].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
-
-                    // Pyramid ground Y corrections (GPU-compute-corrected, VS reads)
-                    entries[15].binding = 382;
-                    entries[15].visibility = wgpu::ShaderStage::Vertex;
-                    entries[15].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
-
                     // Tile grid (uniform — terrain wave delta needs amp_scale in VS,
                     // animated_cell_color needs archetype lookup in FS)
-                    entries[16].binding = 25;
-                    entries[16].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
-                    entries[16].buffer.type = wgpu::BufferBindingType::Uniform;
+                    entries[13].binding = 25;
+                    entries[13].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
+                    entries[13].buffer.type = wgpu::BufferBindingType::Uniform;
 
-                    // Palm ground Y (VS reads)
-                    entries[17].binding = 383;
-                    entries[17].visibility = wgpu::ShaderStage::Vertex;
-                    entries[17].buffer.type = wgpu::BufferBindingType::Uniform;
-
-                    entries[18].binding = 384;
-                    entries[18].visibility = wgpu::ShaderStage::Vertex;
-                    entries[18].buffer.type = wgpu::BufferBindingType::Uniform;
-
-                    entries[19].binding = 385;
-                    entries[19].visibility = wgpu::ShaderStage::Vertex;
-                    entries[19].buffer.type = wgpu::BufferBindingType::Uniform;
+                    // Entity ground atlas (r32float 256×1 — VS reads ground_y via textureLoad)
+                    entries[14].binding = 390;
+                    entries[14].visibility = wgpu::ShaderStage::Vertex;
+                    entries[14].texture.sampleType = wgpu::TextureSampleType::UnfilterableFloat;
+                    entries[14].texture.viewDimension = wgpu::TextureViewDimension::e2D;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Render Entity Layout";
@@ -3073,11 +3081,11 @@ namespace t7 {
                     if (!shadowTextureBindGroupLayout_) return false;
                 }
 
-                // -- Render texture layout (Group 1) -- bindings 22-23, 25-27, 28-29, 31-33 -
-                // Used during main render pass: samplers + shadow maps + patches + GoL zones + pawn aura.
+                // -- Render texture layout (Group 1) -- bindings 22-23, 25-27, 28-30, 31-33 -
+                // Used during main render pass: samplers + shadow maps + patches + field LUT + GoL zones + pawn aura.
                 // (bindings 20, 21, 24 removed — formerly legacy stub textures)
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 10> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 11> entries{};
 
                     entries[0].binding = 22;
                     entries[0].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
@@ -3129,6 +3137,12 @@ namespace t7 {
                     entries[9].texture.sampleType = wgpu::TextureSampleType::Float;
                     entries[9].texture.viewDimension = wgpu::TextureViewDimension::e2D;
 
+                    // Cell spatial field LUT (FS reads baked mode/style/sparse via textureLoad)
+                    entries[10].binding = 30;
+                    entries[10].visibility = wgpu::ShaderStage::Fragment;
+                    entries[10].texture.sampleType = wgpu::TextureSampleType::UnfilterableFloat;
+                    entries[10].texture.viewDimension = wgpu::TextureViewDimension::e2DArray;
+
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Render Texture Layout";
                     desc.entryCount = entries.size();
@@ -3162,7 +3176,7 @@ namespace t7 {
                 // Per-patch compute pass: fills one heightfield layer.
                 // Dispatched when a patch enters the active set.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 8> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 9> entries{};
 
                     entries[0].binding = 1;    // config (uniform — world_seed for cell color gen)
                     entries[0].visibility = wgpu::ShaderStage::Compute;
@@ -3199,6 +3213,12 @@ namespace t7 {
                     entries[7].binding = 28;  // patch_height_scratch (two-pass heightfield gen)
                     entries[7].visibility = wgpu::ShaderStage::Compute;
                     entries[7].buffer.type = wgpu::BufferBindingType::Storage;
+
+                    entries[8].binding = 29;  // cell_fields_write (spatial field LUT, RGBA16Float)
+                    entries[8].visibility = wgpu::ShaderStage::Compute;
+                    entries[8].storageTexture.access = wgpu::StorageTextureAccess::WriteOnly;
+                    entries[8].storageTexture.format = wgpu::TextureFormat::RGBA16Float;
+                    entries[8].storageTexture.viewDimension = wgpu::TextureViewDimension::e2DArray;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Patch Gen Layout";
@@ -3342,10 +3362,10 @@ namespace t7 {
                 // Runs every frame, unconditionally. Samples the baked heightfield
                 // and subtracts CPU-computed pier_correction to isolate each entity's
                 // own pier contribution (removing foreign pier contamination).
-                // 12 entries: config + pawn + painting slots + heightfield + entity grounds + GoL.
+                // 13 entries: config + pawn + painting slots + heightfield + entity grounds + GoL + ground atlas write.
                 // Palm+cactus+blade share one buffer at binding 150: [0..23] palm, [24..43] cactus, [44..75] blade.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 12> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 13> entries{};
 
                     entries[0].binding = 1;
                     entries[0].visibility = wgpu::ShaderStage::Compute;
@@ -3395,6 +3415,12 @@ namespace t7 {
                     entries[11].binding = 150;  // plant_ground: palm[0..23] + cactus[24..43] + blade[44..75]
                     entries[11].visibility = wgpu::ShaderStage::Compute;
                     entries[11].buffer.type = wgpu::BufferBindingType::Storage;
+
+                    entries[12].binding = 151;  // entity_ground_atlas_write (r32float storage texture)
+                    entries[12].visibility = wgpu::ShaderStage::Compute;
+                    entries[12].storageTexture.access = wgpu::StorageTextureAccess::WriteOnly;
+                    entries[12].storageTexture.format = wgpu::TextureFormat::R32Float;
+                    entries[12].storageTexture.viewDimension = wgpu::TextureViewDimension::e2D;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Entity Placement Compute Layout";
@@ -3732,9 +3758,9 @@ namespace t7 {
                     if (!computeEntityBindGroup_) return false;
                 }
 
-                // Render entity bind group (20 entries: config + spaced by system +200)
+                // Render entity bind group (15 entries: config + spaced by system +200)
                 {
-                    std::array<wgpu::BindGroupEntry, 20> entries{};
+                    std::array<wgpu::BindGroupEntry, 15> entries{};
 
                     entries[0].binding = 1;
                     entries[0].buffer = configBuffer_;
@@ -3789,33 +3815,13 @@ namespace t7 {
                     entries[12].buffer = ringTransformsBuffer_;
                     entries[12].size = sizeof(GPURibbonRingTransform) * Dim::RIBBON_MAX_RINGS;
 
-                    entries[13].binding = 380;
-                    entries[13].buffer = archGroundBuffer_;
-                    entries[13].size = sizeof(GPUArchGroundEntry) * Dim::MAX_ARCH_INSTANCES;
+                    entries[13].binding = 25;
+                    entries[13].buffer = tileGridBuffer_;
+                    entries[13].size = sizeof(GPUTileGrid);
 
-                    entries[14].binding = 381;
-                    entries[14].buffer = columnGroundBuffer_;
-                    entries[14].size = sizeof(GPUColumnGroundEntry) * Dim::MAX_COLUMN_INSTANCES;
-
-                    entries[15].binding = 382;
-                    entries[15].buffer = pyramidGroundBuffer_;
-                    entries[15].size = sizeof(GPUPyramidGroundEntry) * Dim::MAX_PYRAMID_INSTANCES;
-
-                    entries[16].binding = 25;
-                    entries[16].buffer = tileGridBuffer_;
-                    entries[16].size = sizeof(GPUTileGrid);
-
-                    entries[17].binding = 383;
-                    entries[17].buffer = palmGroundBuffer_;
-                    entries[17].size = sizeof(GPUPalmGroundEntry) * Dim::MAX_PALM_INSTANCES;
-
-                    entries[18].binding = 384;
-                    entries[18].buffer = cactusGroundBuffer_;
-                    entries[18].size = sizeof(GPUCactusGroundEntry) * Dim::MAX_CACTUS_INSTANCES;
-
-                    entries[19].binding = 385;
-                    entries[19].buffer = bladeGroundBuffer_;
-                    entries[19].size = sizeof(GPUBladeClusterGroundEntry) * Dim::MAX_BLADE_INSTANCES;
+                    // Entity ground atlas (r32float 256×1 — VS reads ground_y)
+                    entries[14].binding = 390;
+                    entries[14].textureView = entityGroundAtlasReadView_;
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Render Entity BindGroup";
@@ -3868,9 +3874,9 @@ namespace t7 {
                     if (!shadowTextureBindGroup_) return false;
                 }
 
-                // Render texture bind group (10 entries: 22-23, 25-27, 28-29, 31-33)
+                // Render texture bind group (11 entries: 22-23, 25-27, 28-30, 31-33)
                 {
-                    std::array<wgpu::BindGroupEntry, 10> entries{};
+                    std::array<wgpu::BindGroupEntry, 11> entries{};
 
                     entries[0].binding = 22;
                     entries[0].sampler = bilinearSampler_;
@@ -3903,6 +3909,9 @@ namespace t7 {
                     entries[9].binding = 33;
                     entries[9].textureView = pawnAuraReadView_;
 
+                    entries[10].binding = 30;  // cell_fields_read (spatial field LUT)
+                    entries[10].textureView = cellFieldsArrayReadView_;
+
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Render Texture BindGroup";
                     desc.layout = renderTextureBindGroupLayout_;
@@ -3931,9 +3940,9 @@ namespace t7 {
                     if (!terrainIndexGenBindGroup_) return false;
                 }
 
-                // Patch gen bind group (8 entries: binding 1, 23, 24, 25, 26, 27, 28, 30)
+                // Patch gen bind group (9 entries: binding 1, 23, 24, 25, 26, 27, 28, 29, 30)
                 {
-                    std::array<wgpu::BindGroupEntry, 8> entries{};
+                    std::array<wgpu::BindGroupEntry, 9> entries{};
 
                     entries[0].binding = 1;
                     entries[0].buffer = configBuffer_;
@@ -3964,6 +3973,9 @@ namespace t7 {
                     entries[7].binding = 28;  // patch_height_scratch
                     entries[7].buffer = patchHeightScratchBuffer_;
                     entries[7].size = Dim::PATCH_HEIGHTFIELD_N * Dim::PATCH_HEIGHTFIELD_N * 2 * sizeof(float);
+
+                    entries[8].binding = 29;  // cell_fields_write
+                    entries[8].textureView = cellFieldsArrayWriteView_;
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Patch Gen BindGroup";
@@ -4033,7 +4045,7 @@ namespace t7 {
 
                 // Photographer render entity bind group (same layout as main, different VP)
                 {
-                    std::array<wgpu::BindGroupEntry, 20> entries{};
+                    std::array<wgpu::BindGroupEntry, 15> entries{};
                     entries[0].binding = 1;
                     entries[0].buffer = configBuffer_;
                     entries[0].size = sizeof(GPUDesignConfig);
@@ -4073,28 +4085,12 @@ namespace t7 {
                     entries[12].binding = 361;
                     entries[12].buffer = ringTransformsBuffer_;
                     entries[12].size = sizeof(GPURibbonRingTransform) * Dim::RIBBON_MAX_RINGS;
-                    entries[13].binding = 380;
-                    entries[13].buffer = archGroundBuffer_;
-                    entries[13].size = sizeof(GPUArchGroundEntry) * Dim::MAX_ARCH_INSTANCES;
-                    entries[14].binding = 381;
-                    entries[14].buffer = columnGroundBuffer_;
-                    entries[14].size = sizeof(GPUColumnGroundEntry) * Dim::MAX_COLUMN_INSTANCES;
-                    entries[15].binding = 382;
-                    entries[15].buffer = pyramidGroundBuffer_;
-                    entries[15].size = sizeof(GPUPyramidGroundEntry) * Dim::MAX_PYRAMID_INSTANCES;
-                    entries[16].binding = 25;
-                    entries[16].buffer = tileGridBuffer_;
-                    entries[16].size = sizeof(GPUTileGrid);
-                    entries[17].binding = 383;
-                    entries[17].buffer = palmGroundBuffer_;
-                    entries[17].size = sizeof(GPUPalmGroundEntry) * Dim::MAX_PALM_INSTANCES;
-                    entries[18].binding = 384;
-                    entries[18].buffer = cactusGroundBuffer_;
-                    entries[18].size = sizeof(GPUCactusGroundEntry) * Dim::MAX_CACTUS_INSTANCES;
-
-                    entries[19].binding = 385;
-                    entries[19].buffer = bladeGroundBuffer_;
-                    entries[19].size = sizeof(GPUBladeClusterGroundEntry) * Dim::MAX_BLADE_INSTANCES;
+                    entries[13].binding = 25;
+                    entries[13].buffer = tileGridBuffer_;
+                    entries[13].size = sizeof(GPUTileGrid);
+                    // Entity ground atlas (r32float 256×1 — VS reads ground_y)
+                    entries[14].binding = 390;
+                    entries[14].textureView = entityGroundAtlasReadView_;
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Photographer Render Entity BindGroup";
@@ -4139,7 +4135,7 @@ namespace t7 {
 
                 // Entity placement compute bind group (heightfield sampling + ground Y correction)
                 {
-                    std::array<wgpu::BindGroupEntry, 12> entries{};
+                    std::array<wgpu::BindGroupEntry, 13> entries{};
                     entries[0].binding = 1;
                     entries[0].buffer = configBuffer_;
                     entries[0].size = sizeof(GPUDesignConfig);
@@ -4178,6 +4174,9 @@ namespace t7 {
                     entries[11].binding = 150;
                     entries[11].buffer = plantComputeGroundBuffer_;
                     entries[11].size = sizeof(GPUPalmGroundEntry) * PLANT_GROUND_COUNT;
+
+                    entries[12].binding = 151;
+                    entries[12].textureView = entityGroundAtlasWriteView_;
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Entity Placement Compute BindGroup";

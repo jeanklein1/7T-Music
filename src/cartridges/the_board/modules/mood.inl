@@ -222,6 +222,9 @@ void apply_mood(uint32_t mood, wgpu::Queue& queue) {
     activeMood_ = mood;
     const auto& m = MOOD_TABLE[mood];
 
+    // Select terrain pipeline variant (indoor = all overrides disabled)
+    renderer_.set_indoor_terrain(m.indoor);
+
     sunDirection_[0] = m.sun_direction[0];
     sunDirection_[1] = m.sun_direction[1];
     sunDirection_[2] = m.sun_direction[2];

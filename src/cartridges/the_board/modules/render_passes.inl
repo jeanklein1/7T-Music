@@ -114,16 +114,6 @@
                 // One write to the combined compute storage buffer
                 queue.WriteBuffer(gpuState_.plant_compute_ground_buffer(), 0,
                     plantOrigins, sizeof(plantOrigins));
-
-                // Subsection writes to individual render uniform buffers
-                gpuState_.upload_palm_origins(queue,
-                    &plantOrigins[PALM_OFF], Dim::MAX_PALM_INSTANCES);
-                gpuState_.upload_cactus_origins(queue,
-                    reinterpret_cast<const GPUCactusGroundEntry*>(&plantOrigins[CACT_OFF]),
-                    Dim::MAX_CACTUS_INSTANCES);
-                gpuState_.upload_blade_origins(queue,
-                    reinterpret_cast<const GPUBladeClusterGroundEntry*>(&plantOrigins[BLAD_OFF]),
-                    Dim::MAX_BLADE_INSTANCES);
             }
 
             // --- Entity placement Y-correction: GPU heightfield sampling ---

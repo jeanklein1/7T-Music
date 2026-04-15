@@ -73,6 +73,14 @@
 // Global bindings (signal, config, VP, render mirrors, lights) are in §7.0.
 
 // §1 FOUNDATIONS
+
+// ── Pipeline specialization overrides (set at pipeline creation) ────
+// Default = true (outdoor). Indoor moods set all to false,
+// eliminating dead branches + register pressure.
+override ENABLE_MUSICAL_MODES: bool = true;
+override ENABLE_GOL_ZONES: bool = true;
+override ENABLE_PAWN_AURA: bool = true;
+
 // §1.1 PROJECTIVE GEOMETRIC ALGEBRA
 
 struct Motor {
@@ -2868,63 +2876,72 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
     var base_color = color_sample.rgb;
 
     // --- Musical animation modes: re-evaluate cell color with biases
-    let has_mode_bias = (config.mode_color_shift > 0.001)
-                     || (config.mode_checker_scatter > 0.001)
-                     || (config.mode_palette_intensity > 0.001);
-    if (has_mode_bias) {
-        base_color = animated_cell_color(in.world_pos.xz);
+    if (ENABLE_MUSICAL_MODES) {
+        let has_mode_bias = (config.mode_color_shift > 0.001)
+                         || (config.mode_checker_scatter > 0.001)
+                         || (config.mode_palette_intensity > 0.001);
+        if (has_mode_bias) {
+            // Load baked spatial fields from LUT (skips 3 lattice noise chains)
+            let cell_texel = clamp(
+                vec2<i32>(in.patch_uv * f32(PATCH_CELL_N)),
+                vec2(0), vec2(i32(PATCH_CELL_N) - 1));
+            let baked = textureLoad(cell_fields_read, cell_texel, i32(in.layer), 0);
+            base_color = animated_cell_color_lut(in.world_pos.xz, baked.r, baked.g, baked.b);
+        }
     }
 
     // --- GoL zone visualization
-    let tag_alpha = color_sample.a;
-    if (tag_alpha > 0.001) {
-        let mode = unpack_cell_tag_mode(tag_alpha);
-        if ((mode & CELL_ANIM_GOL) != 0u) {
-            let cam_dist = distance(render_camera.pos, in.world_pos);
-            let fade = 1.0 - smoothstep(GOL_FADE_NEAR, GOL_FADE_FAR, cam_dist);
+    if (ENABLE_GOL_ZONES) {
+        let tag_alpha = color_sample.a;
+        if (tag_alpha > 0.001) {
+            let mode = unpack_cell_tag_mode(tag_alpha);
+            if ((mode & CELL_ANIM_GOL) != 0u) {
+                let cam_dist = distance(render_camera.pos, in.world_pos);
+                let fade = 1.0 - smoothstep(GOL_FADE_NEAR, GOL_FADE_FAR, cam_dist);
 
-            if (fade > 0.01) {
-                let zone_node = vec2<i32>(floor(in.world_pos.xz / MODE_LATTICE_SPACING));
+                if (fade > 0.01) {
+                    let zone_node = vec2<i32>(floor(in.world_pos.xz / MODE_LATTICE_SPACING));
 
-                for (var z: u32 = 0u; z < zone_params.count; z++) {
-                    let zp = zone_params.zones[z];
-                    if (zp.transition_fraction <= 0.0) { continue; }
-                    let zn = vec2<i32>(floor(zp.origin / MODE_LATTICE_SPACING));
-                    if (zn.x == zone_node.x && zn.y == zone_node.y) {
-                        let zone_corner = zp.origin - zp.extent * 0.5;
-                        let cell_size = zp.extent / f32(zp.grid_size);
-                        let rel = in.world_pos.xz - zone_corner;
-                        let local_cell = vec2<i32>(floor(rel / cell_size));
+                    for (var z: u32 = 0u; z < zone_params.count; z++) {
+                        let zp = zone_params.zones[z];
+                        if (zp.transition_fraction <= 0.0) { continue; }
+                        let zn = vec2<i32>(floor(zp.origin / MODE_LATTICE_SPACING));
+                        if (zn.x == zone_node.x && zn.y == zone_node.y) {
+                            let zone_corner = zp.origin - zp.extent * 0.5;
+                            let cell_size = zp.extent / f32(zp.grid_size);
+                            let rel = in.world_pos.xz - zone_corner;
+                            let local_cell = vec2<i32>(floor(rel / cell_size));
 
-                        if (local_cell.x < 0 || local_cell.x >= i32(zp.grid_size) ||
-                            local_cell.y < 0 || local_cell.y >= i32(zp.grid_size)) { break; }
+                            if (local_cell.x < 0 || local_cell.x >= i32(zp.grid_size) ||
+                                local_cell.y < 0 || local_cell.y >= i32(zp.grid_size)) { break; }
 
-                        let uv = (vec2<f32>(local_cell) + 0.5) / f32(zp.grid_size);
-                        let life_sample = textureSampleLevel(
-                            zone_life_read, nearest_sampler, uv, i32(z), 0.0
-                        );
-                        let color_val = life_sample.y;  // G channel = color spring
-
-                        if (color_val > 0.01) {
-                            base_color = apply_gol_color(
-                                base_color, zp,
-                                u32(local_cell.x), u32(local_cell.y),
-                                color_val * fade
+                            let uv = (vec2<f32>(local_cell) + 0.5) / f32(zp.grid_size);
+                            let life_sample = textureSampleLevel(
+                                zone_life_read, nearest_sampler, uv, i32(z), 0.0
                             );
+                            let color_val = life_sample.y;  // G channel = color spring
 
-                            // Pawn force field: tint zone cells near pawn (render context)
-                            let pawn_ff = 1.0 - zone_pawn_ff(in.world_pos.xz, render_pawn.pos, render_pawn.velocity);
-                            if (pawn_ff > 0.01) {
-                                base_color = mix(base_color, ZONE_PAWN_TINT, pawn_ff * ZONE_PAWN_TINT_STRENGTH * color_val);
-                            }
+                            if (color_val > 0.01) {
+                                base_color = apply_gol_color(
+                                    base_color, zp,
+                                    u32(local_cell.x), u32(local_cell.y),
+                                    color_val * fade
+                                );
 
-                            // Sphere force field: tint zone cells near sphere (render context)
-                            let sphere_ff = 1.0 - zone_sphere_ff(in.world_pos.xz, render_floating.entities[0].pos);
-                            if (sphere_ff > 0.01) {
-                                base_color = mix(base_color, ZONE_SPHERE_TINT, sphere_ff * ZONE_SPHERE_TINT_STRENGTH * color_val);
+                                // Pawn force field: tint zone cells near pawn (render context)
+                                let pawn_ff = 1.0 - zone_pawn_ff(in.world_pos.xz, render_pawn.pos, render_pawn.velocity);
+                                if (pawn_ff > 0.01) {
+                                    base_color = mix(base_color, ZONE_PAWN_TINT, pawn_ff * ZONE_PAWN_TINT_STRENGTH * color_val);
+                                }
+
+                                // Sphere force field: tint zone cells near sphere (render context)
+                                let sphere_ff = 1.0 - zone_sphere_ff(in.world_pos.xz, render_floating.entities[0].pos);
+                                if (sphere_ff > 0.01) {
+                                    base_color = mix(base_color, ZONE_SPHERE_TINT, sphere_ff * ZONE_SPHERE_TINT_STRENGTH * color_val);
+                                }
                             }
+                            break;
                         }
-                        break;
                     }
                 }
             }
@@ -2933,7 +2950,7 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
 
     // --- Pawn aura: persistent contextual tinting from toroidal spring grid
     // Texture encoding: R=height_blend, GBA=pre-multiplied color delta (with oscillation)
-    {
+    if (ENABLE_PAWN_AURA) {
         let aura = sample_pawn_aura(in.world_pos.xz, render_pawn.pos.xz);
         let aura_active = max(aura.r, max(abs(aura.g), max(abs(aura.b), abs(aura.a))));
         if (aura_active > 0.01) {
@@ -3325,7 +3342,7 @@ struct ArchVertexInput {
 @vertex
 fn arch_vs(in: ArchVertexInput) -> EntityVarying {
     let idx = u32(in.arch_index);
-    let ground_y = render_arch_ground[idx].ground_y;
+    let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(idx) + GROUND_ATLAS_ARCH, 0), 0).r;
     var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
     world_pos.y += terrain_wave_overlay(world_pos.xz);
 
@@ -3340,7 +3357,7 @@ fn arch_vs(in: ArchVertexInput) -> EntityVarying {
 @vertex
 fn shadow_arch_vs(in: ArchVertexInput) -> ShadowVarying {
     let idx = u32(in.arch_index);
-    let ground_y = render_arch_ground[idx].ground_y;
+    let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(idx) + GROUND_ATLAS_ARCH, 0), 0).r;
     var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
     world_pos.y += terrain_wave_overlay(world_pos.xz);
 
@@ -3353,7 +3370,7 @@ fn shadow_arch_vs(in: ArchVertexInput) -> ShadowVarying {
 @vertex
 fn column_vs(in: ArchVertexInput) -> EntityVarying {
     let idx = u32(in.arch_index);
-    let ground_y = render_column_ground[idx].ground_y;
+    let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(idx) + GROUND_ATLAS_COLUMN, 0), 0).r;
     var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
     world_pos.y += terrain_wave_overlay(world_pos.xz);
 
@@ -3368,7 +3385,7 @@ fn column_vs(in: ArchVertexInput) -> EntityVarying {
 @vertex
 fn shadow_column_vs(in: ArchVertexInput) -> ShadowVarying {
     let idx = u32(in.arch_index);
-    let ground_y = render_column_ground[idx].ground_y;
+    let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(idx) + GROUND_ATLAS_COLUMN, 0), 0).r;
     var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
     world_pos.y += terrain_wave_overlay(world_pos.xz);
 
@@ -3381,7 +3398,7 @@ fn shadow_column_vs(in: ArchVertexInput) -> ShadowVarying {
 @vertex
 fn pyramid_vs(in: ArchVertexInput) -> EntityVarying {
     let idx = u32(in.arch_index);
-    let ground_y = render_pyramid_ground[idx].ground_y;
+    let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(idx) + GROUND_ATLAS_PYRAMID, 0), 0).r;
     var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
     world_pos.y += terrain_wave_overlay(world_pos.xz);
 
@@ -3396,7 +3413,7 @@ fn pyramid_vs(in: ArchVertexInput) -> EntityVarying {
 @vertex
 fn shadow_pyramid_vs(in: ArchVertexInput) -> ShadowVarying {
     let idx = u32(in.arch_index);
-    let ground_y = render_pyramid_ground[idx].ground_y;
+    let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(idx) + GROUND_ATLAS_PYRAMID, 0), 0).r;
     var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
     world_pos.y += terrain_wave_overlay(world_pos.xz);
 
@@ -3821,28 +3838,16 @@ struct PortalArray {
 // --- Ribbon (Group 0: render, binding 360)
 @group(0) @binding(360) var<uniform> render_ribbon: RibbonState;
 @group(0) @binding(361) var<storage, read> render_ring_xforms: array<RibbonRingTransform, 400>;
-@group(0) @binding(380) var<storage, read> render_arch_ground: array<ArchGroundEntry, 16>;
-@group(0) @binding(381) var<storage, read> render_column_ground: array<ColumnGroundEntry, 32>;
-@group(0) @binding(382) var<storage, read> render_pyramid_ground: array<PyramidGroundEntry, 8>;
-@group(0) @binding(383) var<uniform> render_palm_ground: array<PalmGroundEntry, 24>;
+// Entity ground atlas — VS reads ground_y via textureLoad (r32float, 256×1)
+@group(0) @binding(390) var entity_ground_atlas: texture_2d<f32>;
 
-struct CactusGroundEntry {
-    center_x: f32,   // 1
-    center_z: f32,   // 2
-    ground_y: f32,   // 3
-    is_active: u32,  // 4
-    _pad0: f32, _pad1: f32, _pad2: f32, _pad3: f32,  // 5-8 = 32 bytes
-}
-@group(0) @binding(384) var<uniform> render_cactus_ground: array<CactusGroundEntry, 20>;
-
-struct BladeClusterGroundEntry {
-    center_x: f32,
-    center_z: f32,
-    ground_y: f32,
-    is_active: u32,
-    _pad0: f32, _pad1: f32, _pad2: f32, _pad3: f32,
-}
-@group(0) @binding(385) var<uniform> render_blade_ground: array<BladeClusterGroundEntry, 32>;
+// Atlas slot offsets (must match Dim:: constants in state.hpp)
+const GROUND_ATLAS_ARCH: i32     = 0;
+const GROUND_ATLAS_COLUMN: i32   = 16;
+const GROUND_ATLAS_PYRAMID: i32  = 48;
+const GROUND_ATLAS_PALM: i32     = 56;
+const GROUND_ATLAS_CACTUS: i32   = 80;
+const GROUND_ATLAS_BLADE: i32    = 100;
 
 // --- Ribbon compute (Group 0: binding 121, separate pipeline layout)
 // Written by compute_ribbon_rings, read by ribbon VS via render_ring_xforms.
@@ -3884,12 +3889,14 @@ struct CellMeshVertex {
 @group(0) @binding(24) var patch_heightfield_array_write: texture_storage_2d_array<rgba16float, write>;
 @group(0) @binding(25) var<uniform> tile_grid: TileGrid;
 @group(0) @binding(27) var patch_cell_color_array_write: texture_storage_2d_array<rgba8unorm, write>;
+@group(0) @binding(29) var cell_fields_write: texture_storage_2d_array<rgba16float, write>;
 @group(0) @binding(28) var<storage, read_write> patch_height_scratch: array<f32>;
 
 // --- Patch rendering (Group 0: binding 340, Group 1: bindings 28-29)
 @group(0) @binding(340) var<storage, read> patch_instances: array<PatchInstance>;
 @group(1) @binding(28) var patch_heightfield_array_read: texture_2d_array<f32>;
 @group(1) @binding(29) var patch_cell_color_array_read: texture_2d_array<f32>;
+@group(1) @binding(30) var cell_fields_read: texture_2d_array<f32>;
 
 // §7.0b GOL ZONE DEFINITIONS
 
@@ -4758,10 +4765,43 @@ fn generate_patch_heights(@builtin(global_invocation_id) id: vec3<u32>) {
     patch_height_scratch[base + 1u] = hc.y;   // complexity
 }
 
+// Workgroup shared tile: 20×20 heights (16×16 interior + 2-texel halo for 3-point edge stencil)
+var<workgroup> sh_height: array<f32, 400>;
+
 @compute @workgroup_size(16, 16)
-fn generate_patch_gradients(@builtin(global_invocation_id) id: vec3<u32>) {
+fn generate_patch_gradients(
+    @builtin(global_invocation_id) id: vec3<u32>,
+    @builtin(local_invocation_id) lid: vec3<u32>,
+    @builtin(workgroup_id) wid: vec3<u32>
+) {
     let res = patch_params.resolution;
+    let res_i = i32(res);
+
+    // ── Cooperative tile load: 20×20 from global scratch ────────────
+    // 256 threads load 400 cells via stride. Halo cells outside the
+    // 256×256 grid clamp to boundary (safe: edge stencils only read
+    // inward from the boundary, never into clamped halo).
+    let thread_id = lid.y * 16u + lid.x;
+    let tile_origin_x = i32(wid.x * 16u) - 2;
+    let tile_origin_y = i32(wid.y * 16u) - 2;
+
+    for (var t = thread_id; t < 400u; t += 256u) {
+        let tx = i32(t % 20u);
+        let ty = i32(t / 20u);
+        let gx = clamp(tile_origin_x + tx, 0, res_i - 1);
+        let gy = clamp(tile_origin_y + ty, 0, res_i - 1);
+        sh_height[t] = patch_height_scratch[(u32(gy) * res + u32(gx)) * 2u];
+    }
+    workgroupBarrier();
+
+    // ── Bounds check AFTER barrier (all threads must participate in load) ─
     if (id.x >= res || id.y >= res) { return; }
+
+    // ── Read center height from shared, complexity from global (no neighbors) ─
+    let cx = lid.x + 2u;
+    let cy = lid.y + 2u;
+    let height = sh_height[cy * 20u + cx];
+    let complexity = patch_height_scratch[(id.y * res + id.x) * 2u + 1u];
 
     let texel = vec2<i32>(id.xy);
     let layer = i32(patch_params.layer);
@@ -4771,45 +4811,45 @@ fn generate_patch_gradients(@builtin(global_invocation_id) id: vec3<u32>) {
     let ix = id.x;
     let iy = id.y;
     let max_i = res - 1u;
-    let height     = patch_height_scratch[(iy * res + ix) * 2u];
-    let complexity = patch_height_scratch[(iy * res + ix) * 2u + 1u];
 
     // Gradient computation: central difference in interior,
     // 3-point one-sided stencil at edges for matching O(eps²) accuracy.
     //   Forward:  (-3h[0] + 4h[1] - h[2]) / (2*eps)
     //   Backward: ( 3h[N] - 4h[N-1] + h[N-2]) / (2*eps)
 
+    // ── Gradient X: all reads from shared tile ──────────────────────
     var grad_x: f32;
     if (ix == 0u) {
         let h0 = height;
-        let h1 = patch_height_scratch[(iy * res + 1u) * 2u];
-        let h2 = patch_height_scratch[(iy * res + 2u) * 2u];
+        let h1 = sh_height[cy * 20u + cx + 1u];
+        let h2 = sh_height[cy * 20u + cx + 2u];
         grad_x = (-3.0 * h0 + 4.0 * h1 - h2) / (2.0 * eps);
     } else if (ix == max_i) {
         let h0 = height;
-        let h1 = patch_height_scratch[(iy * res + max_i - 1u) * 2u];
-        let h2 = patch_height_scratch[(iy * res + max_i - 2u) * 2u];
+        let h1 = sh_height[cy * 20u + cx - 1u];
+        let h2 = sh_height[cy * 20u + cx - 2u];
         grad_x = (3.0 * h0 - 4.0 * h1 + h2) / (2.0 * eps);
     } else {
-        let h_px = patch_height_scratch[(iy * res + ix + 1u) * 2u];
-        let h_mx = patch_height_scratch[(iy * res + ix - 1u) * 2u];
+        let h_px = sh_height[cy * 20u + cx + 1u];
+        let h_mx = sh_height[cy * 20u + cx - 1u];
         grad_x = (h_px - h_mx) / (2.0 * eps);
     }
 
+    // ── Gradient Z: all reads from shared tile ──────────────────────
     var grad_z: f32;
     if (iy == 0u) {
         let h0 = height;
-        let h1 = patch_height_scratch[(res + ix) * 2u];
-        let h2 = patch_height_scratch[(2u * res + ix) * 2u];
+        let h1 = sh_height[(cy + 1u) * 20u + cx];
+        let h2 = sh_height[(cy + 2u) * 20u + cx];
         grad_z = (-3.0 * h0 + 4.0 * h1 - h2) / (2.0 * eps);
     } else if (iy == max_i) {
         let h0 = height;
-        let h1 = patch_height_scratch[((max_i - 1u) * res + ix) * 2u];
-        let h2 = patch_height_scratch[((max_i - 2u) * res + ix) * 2u];
+        let h1 = sh_height[(cy - 1u) * 20u + cx];
+        let h2 = sh_height[(cy - 2u) * 20u + cx];
         grad_z = (3.0 * h0 - 4.0 * h1 + h2) / (2.0 * eps);
     } else {
-        let h_pz = patch_height_scratch[((iy + 1u) * res + ix) * 2u];
-        let h_mz = patch_height_scratch[((iy - 1u) * res + ix) * 2u];
+        let h_pz = sh_height[(cy + 1u) * 20u + cx];
+        let h_mz = sh_height[(cy - 1u) * 20u + cx];
         grad_z = (h_pz - h_mz) / (2.0 * eps);
     }
 
@@ -4994,6 +5034,47 @@ fn animated_cell_color(world_xz: vec2<f32>) -> vec3<f32> {
     return base;
 }
 
+// LUT-accelerated variant: reads baked mode/style/sparse from cell fields texture,
+// skipping mode_field_at, transition_style_at, sparse_field_at, and terrain_coupling_at.
+// palette_field_at still runs (1 lattice noise chain) for smooth_color derivation.
+fn animated_cell_color_lut(world_xz: vec2<f32>, baked_mode: f32, baked_style: f32, baked_sparse: f32) -> vec3<f32> {
+    let cell_size = PATCH_EXTENT / f32(PATCH_CELL_N);
+    let cell_gx = i32(floor(world_xz.x / cell_size));
+    let cell_gz = i32(floor(world_xz.y / cell_size));
+    let cell_seed = lattice_node_seed(config.world_seed, vec2(cell_gx, cell_gz), 200u);
+
+    var fields: CellFieldState;
+    fields.world_xz = world_xz;
+    fields.mode = baked_mode;
+    fields.style = baked_style;
+    fields.sparse = baked_sparse;
+    fields.smooth_color = palette_color_smooth(palette_field_at(world_xz), 0.5);
+    fields.discrete_color = discrete_cell_color(world_xz, cell_gx, cell_gz, cell_seed);
+    fields.cell_roll = hash_property(cell_seed, 900u);
+    fields.sparse_roll = hash_property(cell_seed, 910u);
+
+    let tile_gx = i32(floor(world_xz.x / tile_grid.cell_extent));
+    let tile_gz = i32(floor(world_xz.y / tile_grid.cell_extent));
+    let tile = tile_grid_lookup(tile_gx, tile_gz);
+    fields.archetype = tile.archetype;
+
+    let mode_bias = config.mode_color_shift;
+    let sparse_bias = config.mode_checker_scatter;
+    let base = composite_cell_color_biased(fields, mode_bias, sparse_bias);
+
+    let drift = config.mode_palette_intensity;
+    if (drift > 0.001) {
+        var drifted = fields;
+        drifted.smooth_color = palette_target_color(config.mode_palette_target, 0.5);
+        let tier = u32(round(config.mode_discrete_tier));
+        drifted.discrete_color = discrete_cell_color_at_tier(world_xz, cell_gx, cell_gz, cell_seed, tier);
+        let drifted_color = composite_cell_color_biased(drifted, mode_bias, sparse_bias);
+        return mix(base, drifted_color, drift * 0.95);
+    }
+
+    return base;
+}
+
 // Stage 3: Tag cell behavior mode from field state.
 fn tag_cell_behavior(s: CellFieldState) -> f32 {
     // Only cells in clearly discrete zones are eligible
@@ -5058,6 +5139,10 @@ fn generate_patch_cells(@builtin(global_invocation_id) id: vec3<u32>) {
 
     // Store: RGB = fully composited color, A = behavior tag
     textureStore(patch_cell_color_array_write, texel, layer, vec4(final_color, behavior_tag));
+
+    // Bake spatial field values into LUT for terrain FS (skips 3 lattice noise chains).
+    // mode is post-coupling (evaluate_cell_fields applies terrain_coupling_at internally).
+    textureStore(cell_fields_write, texel, layer, vec4(fields.mode, fields.style, fields.sparse, 0.0));
 }
 
 
@@ -5673,6 +5758,9 @@ struct PalmGroundEntry {
 // Combined plant ground for compute Y-correction: palm[0..23] + cactus[24..43] + blade[44..75]
 @group(0) @binding(150) var<storage, read_write> plant_ground: array<PalmGroundEntry, 76>;
 
+// Entity ground atlas — compute writes corrected ground_y (r32float, 256×1)
+@group(0) @binding(151) var entity_ground_atlas_write: texture_storage_2d<r32float, write>;
+
 // --- Terrain Height Sampling
 fn sample_terrain_y_at(world_xz: vec2<f32>, patch_count: u32) -> f32 {
     for (var i = 0u; i < patch_count; i++) {
@@ -5816,6 +5904,7 @@ fn compute_entity_placement() {
         if (column_ground[i].is_active != 0u) {
             let xz = vec2(column_ground[i].center_x, column_ground[i].center_z);
             column_ground[i].ground_y = sample_terrain_y_at(xz, pc);
+            textureStore(entity_ground_atlas_write, vec2<i32>(i32(i) + GROUND_ATLAS_COLUMN, 0), vec4<f32>(column_ground[i].ground_y, 0.0, 0.0, 0.0));
         }
     }
 
@@ -5824,6 +5913,7 @@ fn compute_entity_placement() {
         if (plant_ground[i].is_active != 0u) {
             let xz = vec2(plant_ground[i].center_x, plant_ground[i].center_z);
             plant_ground[i].ground_y = sample_terrain_y_at(xz, pc);
+            textureStore(entity_ground_atlas_write, vec2<i32>(i32(i) + GROUND_ATLAS_PALM, 0), vec4<f32>(plant_ground[i].ground_y, 0.0, 0.0, 0.0));
         }
     }
 
@@ -5833,6 +5923,7 @@ fn compute_entity_placement() {
         if (plant_ground[slot].is_active != 0u) {
             let xz = vec2(plant_ground[slot].center_x, plant_ground[slot].center_z);
             plant_ground[slot].ground_y = sample_terrain_y_at(xz, pc);
+            textureStore(entity_ground_atlas_write, vec2<i32>(i32(i) + GROUND_ATLAS_CACTUS, 0), vec4<f32>(plant_ground[slot].ground_y, 0.0, 0.0, 0.0));
         }
     }
 
@@ -5842,6 +5933,7 @@ fn compute_entity_placement() {
         if (plant_ground[slot].is_active != 0u) {
             let xz = vec2(plant_ground[slot].center_x, plant_ground[slot].center_z);
             plant_ground[slot].ground_y = sample_terrain_y_at(xz, pc);
+            textureStore(entity_ground_atlas_write, vec2<i32>(i32(i) + GROUND_ATLAS_BLADE, 0), vec4<f32>(plant_ground[slot].ground_y, 0.0, 0.0, 0.0));
         }
     }
 
@@ -5854,6 +5946,7 @@ fn compute_entity_placement() {
             let tl = sample_terrain_y_at(left_xz, pc);
             let tr = sample_terrain_y_at(right_xz, pc);
             arch_ground[i].ground_y = min(tl, tr);
+            textureStore(entity_ground_atlas_write, vec2<i32>(i32(i) + GROUND_ATLAS_ARCH, 0), vec4<f32>(arch_ground[i].ground_y, 0.0, 0.0, 0.0));
         }
     }
 
@@ -5876,6 +5969,7 @@ fn compute_entity_placement() {
             let y_mz = sample_terrain_y_at(vec2(cx + hz * sr, cz - hz * cr), pc);
 
             pyramid_ground[i].ground_y = min(min(y_c, min(y_px, y_mx)), min(y_pz, y_mz));
+            textureStore(entity_ground_atlas_write, vec2<i32>(i32(i) + GROUND_ATLAS_PYRAMID, 0), vec4<f32>(pyramid_ground[i].ground_y, 0.0, 0.0, 0.0));
         }
     }
 }
@@ -7701,7 +7795,7 @@ fn palm_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
 @vertex
 fn palm_vs(in: ArchVertexInput) -> EntityVarying {
     let idx = u32(in.arch_index);
-    let ground_y = render_palm_ground[idx].ground_y;
+    let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(idx) + GROUND_ATLAS_PALM, 0), 0).r;
     var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
     world_pos.y += terrain_wave_overlay(world_pos.xz);
     var out: EntityVarying;
@@ -7715,7 +7809,7 @@ fn palm_vs(in: ArchVertexInput) -> EntityVarying {
 @vertex
 fn shadow_palm_vs(in: ArchVertexInput) -> ShadowVarying {
     let idx = u32(in.arch_index);
-    let ground_y = render_palm_ground[idx].ground_y;
+    let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(idx) + GROUND_ATLAS_PALM, 0), 0).r;
     var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
     world_pos.y += terrain_wave_overlay(world_pos.xz);
     var out: ShadowVarying;
@@ -8027,7 +8121,7 @@ fn cactus_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
 @vertex
 fn cactus_vs(in: ArchVertexInput) -> EntityVarying {
     let idx = u32(in.arch_index);
-    let ground_y = render_cactus_ground[idx].ground_y;
+    let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(idx) + GROUND_ATLAS_CACTUS, 0), 0).r;
     var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
     world_pos.y += terrain_wave_overlay(world_pos.xz);
     var out: EntityVarying;
@@ -8041,7 +8135,7 @@ fn cactus_vs(in: ArchVertexInput) -> EntityVarying {
 @vertex
 fn shadow_cactus_vs(in: ArchVertexInput) -> ShadowVarying {
     let idx = u32(in.arch_index);
-    let ground_y = render_cactus_ground[idx].ground_y;
+    let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(idx) + GROUND_ATLAS_CACTUS, 0), 0).r;
     var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
     world_pos.y += terrain_wave_overlay(world_pos.xz);
     var out: ShadowVarying;
@@ -8255,7 +8349,7 @@ fn blade_cluster_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
 @vertex
 fn blade_cluster_vs(in: ArchVertexInput) -> EntityVarying {
     let idx = u32(in.arch_index);
-    let ground_y = render_blade_ground[idx].ground_y;
+    let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(idx) + GROUND_ATLAS_BLADE, 0), 0).r;
     var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
     world_pos.y += terrain_wave_overlay(world_pos.xz);
     var out: EntityVarying;
@@ -8269,7 +8363,7 @@ fn blade_cluster_vs(in: ArchVertexInput) -> EntityVarying {
 @vertex
 fn shadow_blade_cluster_vs(in: ArchVertexInput) -> ShadowVarying {
     let idx = u32(in.arch_index);
-    let ground_y = render_blade_ground[idx].ground_y;
+    let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(idx) + GROUND_ATLAS_BLADE, 0), 0).r;
     var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
     world_pos.y += terrain_wave_overlay(world_pos.xz);
     var out: ShadowVarying;

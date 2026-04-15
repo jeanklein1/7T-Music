@@ -223,7 +223,9 @@ namespace t7 {
             wgpu::RenderPipeline shadowShellPipeline_;
 
             // Patch terrain pipelines (instanced rendering)
-            wgpu::RenderPipeline patchTerrainPipeline_;
+            wgpu::RenderPipeline patchTerrainPipeline_;        // outdoor: all overrides true
+            wgpu::RenderPipeline patchTerrainPipelineIndoor_;   // indoor: all overrides false
+            bool useIndoorTerrainPipeline_ = false;
             wgpu::RenderPipeline shadowPatchTerrainPipeline_;
 
             // Gallery frame pipeline (painting quads in the world)
@@ -648,12 +650,15 @@ namespace t7 {
                 uint32_t indexCount,
                 uint32_t instanceCount
             ) {
-                pass.SetPipeline(patchTerrainPipeline_);
+                pass.SetPipeline(useIndoorTerrainPipeline_ ? patchTerrainPipelineIndoor_ : patchTerrainPipeline_);
                 pass.SetBindGroup(0, entityBindGroup);
                 pass.SetBindGroup(1, textureBindGroup);
                 pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint32);
                 pass.DrawIndexed(indexCount, instanceCount);
             }
+
+            // Select terrain pipeline variant (called from apply_mood)
+            void set_indoor_terrain(bool indoor) { useIndoorTerrainPipeline_ = indoor; }
 
 
             void draw_pawn(
@@ -1656,6 +1661,39 @@ namespace t7 {
 
                     patchTerrainPipeline_ = device_.CreateRenderPipeline(&desc);
                     if (!patchTerrainPipeline_) return false;
+                }
+
+                // Indoor terrain variant — all override constants false.
+                // Dead-code eliminates musical modes, GoL zones, pawn aura.
+                {
+                    wgpu::ConstantEntry overrides[3]{};
+                    overrides[0].key = "ENABLE_MUSICAL_MODES"; overrides[0].value = 0.0;
+                    overrides[1].key = "ENABLE_GOL_ZONES";     overrides[1].value = 0.0;
+                    overrides[2].key = "ENABLE_PAWN_AURA";     overrides[2].value = 0.0;
+
+                    wgpu::FragmentState fragment{};
+                    fragment.module = shaderModule_;
+                    fragment.entryPoint = Entry::PATCH_TERRAIN_FS;
+                    fragment.constantCount = 3;
+                    fragment.constants = overrides;
+                    fragment.targetCount = 1;
+                    fragment.targets = &colorTarget;
+
+                    wgpu::RenderPipelineDescriptor desc{};
+                    desc.label = "Patch Terrain Indoor (specialized)";
+                    desc.layout = renderLayout;
+                    desc.vertex.module = shaderModule_;
+                    desc.vertex.entryPoint = Entry::PATCH_TERRAIN_VS;
+                    desc.vertex.bufferCount = 0;
+                    desc.vertex.buffers = nullptr;
+                    desc.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
+                    desc.primitive.cullMode = wgpu::CullMode::Back;
+                    desc.primitive.frontFace = wgpu::FrontFace::CCW;
+                    desc.depthStencil = &depthStencil;
+                    desc.fragment = &fragment;
+
+                    patchTerrainPipelineIndoor_ = device_.CreateRenderPipeline(&desc);
+                    if (!patchTerrainPipelineIndoor_) return false;
                 }
 
 
