@@ -106,6 +106,9 @@ namespace t7 {
             // Entity placement Y-correction (decoupled from photographer)
             constexpr const char* COMPUTE_ENTITY_PLACEMENT = "compute_entity_placement";
 
+            // GPU frustum culling (every frame, after compute_vp)
+            constexpr const char* FRUSTUM_CULL_PATCHES = "frustum_cull_patches";
+
             // GoL zone compute (zone-local automaton)
             constexpr const char* ZONE_GOL_SYNC = "zone_gol_sync";
             constexpr const char* ZONE_GOL_EVOLVE = "zone_gol_evolve";
@@ -223,9 +226,11 @@ namespace t7 {
             wgpu::RenderPipeline shadowShellPipeline_;
 
             // Patch terrain pipelines (instanced rendering)
-            wgpu::RenderPipeline patchTerrainPipeline_;        // outdoor: all overrides true
-            wgpu::RenderPipeline patchTerrainPipelineIndoor_;   // indoor: all overrides false
+            wgpu::RenderPipeline patchTerrainPipeline_;        // outdoor: all overrides true, direct patch access
+            wgpu::RenderPipeline patchTerrainPipelineIndoor_;   // indoor: all overrides false, direct patch access
+            wgpu::RenderPipeline patchTerrainIndirectPipeline_;  // outdoor + USE_PATCH_INDIRECTION=true
             bool useIndoorTerrainPipeline_ = false;
+            bool useIndirectTerrainPipeline_ = false;
             wgpu::RenderPipeline shadowPatchTerrainPipeline_;
 
             // Gallery frame pipeline (painting quads in the world)
@@ -241,6 +246,8 @@ namespace t7 {
             wgpu::ComputePipeline photographerVPPipeline_;
             // Entity placement Y-correction pipeline (0D, decoupled from photographer)
             wgpu::ComputePipeline entityPlacementPipeline_;
+            wgpu::ComputePipeline frustumCullPipeline_;
+            wgpu::BindGroupLayout frustumCullLayout_;
             wgpu::BindGroupLayout entityPlacementComputeLayout_;
             wgpu::ComputePipeline pawnAuraPipeline_;
 
@@ -303,6 +310,7 @@ namespace t7 {
                 meshGenEntityLayout_ = gpuState.mesh_gen_entity_layout();
                 photographerComputeLayout_ = gpuState.photographer_compute_layout();
                 entityPlacementComputeLayout_ = gpuState.entity_placement_compute_layout();
+                frustumCullLayout_ = gpuState.frustum_cull_layout();
                 pawnAuraComputeLayout_ = gpuState.pawn_aura_compute_layout();
                 zoneGolComputeLayout_ = gpuState.zone_gol_compute_layout();
                 zoneMeshGenLayout_ = gpuState.zone_mesh_gen_layout();
@@ -476,6 +484,16 @@ namespace t7 {
                 pass.DispatchWorkgroups(1, 1, 1);
             }
 
+            void dispatch_frustum_cull(
+                wgpu::ComputePassEncoder& pass,
+                wgpu::BindGroup frustumCullBindGroup
+            ) {
+                pass.SetPipeline(frustumCullPipeline_);
+                pass.SetBindGroup(0, frustumCullBindGroup);
+                // ceil(MAX_ACTIVE_PATCHES / 64) = ceil(225/64) = 4
+                pass.DispatchWorkgroups(4, 1, 1);
+            }
+
             void dispatch_compute_pawn_aura(
                 wgpu::ComputePassEncoder& pass,
                 wgpu::BindGroup auraComputeBindGroup,
@@ -642,23 +660,47 @@ namespace t7 {
             // Draw order: terrain -> cell extrusion -> pawn -> sphere
 
 
-            void draw_patch_terrain(
+            // GPU frustum-culled LOD0 terrain draw — single DrawIndexedIndirect.
+            // (Dawn D3D12 limit: only one indirect draw per render pass.)
+            // LOD1 must be drawn separately via draw_patch_terrain_lod1_direct.
+            void draw_patch_terrain_lod0_indirect(
+                wgpu::RenderPassEncoder& pass,
+                wgpu::BindGroup entityBindGroup,
+                wgpu::BindGroup textureBindGroup,
+                wgpu::Buffer indexBufferLOD0,
+                wgpu::Buffer indirectLOD0
+            ) {
+                pass.SetPipeline(patchTerrainIndirectPipeline_);
+                pass.SetBindGroup(0, entityBindGroup);
+                pass.SetBindGroup(1, textureBindGroup);
+                pass.SetIndexBuffer(indexBufferLOD0, wgpu::IndexFormat::Uint32);
+                pass.DrawIndexedIndirect(indirectLOD0, 0);
+            }
+
+            // Direct terrain draw — uses non-indirect pipeline (outdoor or indoor variant).
+            // For LOD1 outdoor, LOD0+LOD1 indoor, snapshot pass, etc.
+            void draw_patch_terrain_direct(
                 wgpu::RenderPassEncoder& pass,
                 wgpu::BindGroup entityBindGroup,
                 wgpu::BindGroup textureBindGroup,
                 wgpu::Buffer indexBuffer,
                 uint32_t indexCount,
-                uint32_t instanceCount
+                uint32_t instanceCount,
+                uint32_t firstInstance = 0
             ) {
                 pass.SetPipeline(useIndoorTerrainPipeline_ ? patchTerrainPipelineIndoor_ : patchTerrainPipeline_);
                 pass.SetBindGroup(0, entityBindGroup);
                 pass.SetBindGroup(1, textureBindGroup);
                 pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint32);
-                pass.DrawIndexed(indexCount, instanceCount);
+                pass.DrawIndexed(indexCount, instanceCount, 0, 0, firstInstance);
             }
 
-            // Select terrain pipeline variant (called from apply_mood)
-            void set_indoor_terrain(bool indoor) { useIndoorTerrainPipeline_ = indoor; }
+            // Frustum cull is active for outdoor moods only (indoor worlds are too small to benefit).
+            void set_indoor_terrain(bool indoor) {
+                useIndoorTerrainPipeline_ = indoor;
+                useIndirectTerrainPipeline_ = !indoor;  // outdoor → frustum cull active
+            }
+            bool use_indirect_terrain() const { return useIndirectTerrainPipeline_; }
 
 
             void draw_pawn(
@@ -1415,6 +1457,24 @@ namespace t7 {
                     return entityPlacementPipeline_ != nullptr;
                     })) return false;
 
+                // GPU frustum cull pipeline (dedicated layout)
+                {
+                    std::array<wgpu::BindGroupLayout, 1> layouts = { frustumCullLayout_ };
+                    wgpu::PipelineLayoutDescriptor pld{};
+                    pld.bindGroupLayoutCount = layouts.size();
+                    pld.bindGroupLayouts = layouts.data();
+                    wgpu::PipelineLayout pl = device_.CreatePipelineLayout(&pld);
+                    if (!pl) return false;
+
+                    wgpu::ComputePipelineDescriptor desc{};
+                    desc.label = "Frustum Cull Patches";
+                    desc.layout = pl;
+                    desc.compute.module = shaderModule_;
+                    desc.compute.entryPoint = Entry::FRUSTUM_CULL_PATCHES;
+                    frustumCullPipeline_ = device_.CreateComputePipeline(&desc);
+                    if (!frustumCullPipeline_) return false;
+                }
+
                 // Pawn aura compute pipeline (dedicated layout)
                 {
                     std::array<wgpu::BindGroupLayout, 1> layouts = { pawnAuraComputeLayout_ };
@@ -1694,6 +1754,37 @@ namespace t7 {
 
                     patchTerrainPipelineIndoor_ = device_.CreateRenderPipeline(&desc);
                     if (!patchTerrainPipelineIndoor_) return false;
+                }
+
+                // Indirect terrain variant — USE_PATCH_INDIRECTION=true.
+                // VS reads patch_instances[visible_patch_indices[instance_index]].
+                {
+                    wgpu::ConstantEntry overrides[1]{};
+                    overrides[0].key = "USE_PATCH_INDIRECTION"; overrides[0].value = 1.0;
+
+                    wgpu::FragmentState fragment{};
+                    fragment.module = shaderModule_;
+                    fragment.entryPoint = Entry::PATCH_TERRAIN_FS;
+                    fragment.targetCount = 1;
+                    fragment.targets = &colorTarget;
+
+                    wgpu::RenderPipelineDescriptor desc{};
+                    desc.label = "Patch Terrain Indirect (VS indirection)";
+                    desc.layout = renderLayout;
+                    desc.vertex.module = shaderModule_;
+                    desc.vertex.entryPoint = Entry::PATCH_TERRAIN_VS;
+                    desc.vertex.constantCount = 1;
+                    desc.vertex.constants = overrides;
+                    desc.vertex.bufferCount = 0;
+                    desc.vertex.buffers = nullptr;
+                    desc.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
+                    desc.primitive.cullMode = wgpu::CullMode::Back;
+                    desc.primitive.frontFace = wgpu::FrontFace::CCW;
+                    desc.depthStencil = &depthStencil;
+                    desc.fragment = &fragment;
+
+                    patchTerrainIndirectPipeline_ = device_.CreateRenderPipeline(&desc);
+                    if (!patchTerrainIndirectPipeline_) return false;
                 }
 
 

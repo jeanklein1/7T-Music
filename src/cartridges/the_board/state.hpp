@@ -1273,6 +1273,14 @@ namespace t7 {
             wgpu::BindGroup photographerComputeBindGroup_;
             wgpu::BindGroup entityPlacementComputeBindGroup_;
 
+            // GPU frustum culling — LOD0 only (Dawn D3D12 limit: one indirect draw per pass).
+            // LOD1 always uses direct DrawIndexed; CPU computes its count.
+            wgpu::Buffer frustumIndirectLOD0_;            // Indirect|CopyDst — DrawIndexedIndirect target
+            wgpu::Buffer frustumComputeBuffer_;           // Storage|CopySrc|CopyDst — compute writes here
+            wgpu::Buffer visiblePatchIndicesBuffer_;      // MAX_ACTIVE_PATCHES × u32 — LOD0 visible list
+            wgpu::BindGroupLayout frustumCullLayout_;
+            wgpu::BindGroup frustumCullBindGroup_;
+
             // GoL zone compute (dedicated layout: bindings 160-162, 167-169)
             wgpu::BindGroupLayout zoneGolComputeLayout_;
             wgpu::BindGroup zoneGolComputeBindGroup_;
@@ -1832,6 +1840,23 @@ namespace t7 {
             uint32_t patch_index_count() const { return patchIndexCount_; }
             wgpu::Buffer patch_index_buffer_lod1() const { return patchIndexBufferLOD1_; }
             uint32_t patch_index_count_lod1() const { return patchIndexCountLOD1_; }
+
+            // --- GPU frustum culling ---
+            wgpu::Buffer frustum_indirect_lod0() const { return frustumIndirectLOD0_; }
+            wgpu::Buffer frustum_compute_buffer() const { return frustumComputeBuffer_; }
+            wgpu::Buffer visible_patch_indices_buffer() const { return visiblePatchIndicesBuffer_; }
+            wgpu::BindGroupLayout frustum_cull_layout() const { return frustumCullLayout_; }
+            wgpu::BindGroup frustum_cull_group() const { return frustumCullBindGroup_; }
+
+            // Reset LOD0 indirect args in the compute buffer.
+            // Writes constant fields (indexCount, firstIndex=0, baseVertex=0, firstInstance=0)
+            // and zeros instanceCount. Compute shader then atomicAdds instanceCount.
+            // After compute, CopyBufferToBuffer transfers to frustumIndirectLOD0_ for the draw.
+            void reset_frustum_indirect(wgpu::Queue& queue) {
+                uint32_t args[5] = { patchIndexCount_, 0, 0, 0, 0 };
+                queue.WriteBuffer(frustumComputeBuffer_, 0, args, sizeof(args));
+            }
+
             // (legacy cell mesh accessors removed — bindings 43-45 reserved)
             static constexpr uint32_t pawn_vertex_count() { return Dim::PAWN_VERTEX_COUNT; }
             wgpu::Buffer sphere_vertex_buffer() const { return sphereVertexBuffer_; }
@@ -2188,6 +2213,18 @@ namespace t7 {
                     sizeof(GPUPaintingSlot) * Dim::PAINTING_MAX_SLOTS,
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
 
+                // GPU frustum culling — LOD0 only (Dawn D3D12 limitation: one indirect draw per pass).
+                // Compute writes args+atomic to frustumComputeBuffer_, then CopyBufferToBuffer to indirect.
+                frustumIndirectLOD0_ = makeBuffer("Frustum Indirect LOD0",
+                    5 * sizeof(uint32_t),
+                    wgpu::BufferUsage::Indirect | wgpu::BufferUsage::CopyDst);
+                frustumComputeBuffer_ = makeBuffer("Frustum Compute Staging",
+                    5 * sizeof(uint32_t),
+                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopySrc | wgpu::BufferUsage::CopyDst);
+                visiblePatchIndicesBuffer_ = makeBuffer("Visible Patch Indices",
+                    Dim::MAX_ACTIVE_PATCHES * sizeof(uint32_t),
+                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
+
                 return signalBuffer_ && configBuffer_ && terrainBuffer_ && pawnBuffer_ &&
                     cameraBuffer_ && floatingEntityBuffer_ && trajectoriesBuffer_ && ringTransformsBuffer_ &&
                     vpBuffer_ && spotLightArrayBuffer_ && spotVPStagingBuffer_ && directionalLightBuffer_ && pointLightsBuffer_ && patchParamsBuffer_ &&
@@ -2195,7 +2232,8 @@ namespace t7 {
                     patchHeightScratchBuffer_ &&
                     photographerVPBuffer_ && photographerCameraBuffer_ &&
                     photographerConfigBuffer_ && paintingSlotsBuffer_ &&
-                    portalArrayBuffer_ && pawnReadbackStaging_ && ribbonReadbackStaging_;
+                    portalArrayBuffer_ && pawnReadbackStaging_ && ribbonReadbackStaging_ &&
+                    frustumIndirectLOD0_ && frustumComputeBuffer_ && visiblePatchIndicesBuffer_;
             }
 
 
@@ -2958,7 +2996,7 @@ namespace t7 {
                 // Vertex shaders need entity state for positioning + VP for transform.
                 // Fragment shaders need camera for fog distance.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 15> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 16> entries{};
 
                     entries[0].binding = 1;    // config (uniform — fog, world_seed, aura_enabled, fade)
                     entries[0].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
@@ -3023,6 +3061,11 @@ namespace t7 {
                     entries[14].visibility = wgpu::ShaderStage::Vertex;
                     entries[14].texture.sampleType = wgpu::TextureSampleType::UnfilterableFloat;
                     entries[14].texture.viewDimension = wgpu::TextureViewDimension::e2D;
+
+                    // Visible patch indices (GPU frustum cull output — VS reads indirection)
+                    entries[15].binding = 391;
+                    entries[15].visibility = wgpu::ShaderStage::Vertex;
+                    entries[15].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Render Entity Layout";
@@ -3430,6 +3473,47 @@ namespace t7 {
                     if (!entityPlacementComputeLayout_) return false;
                 }
 
+                // -- Frustum cull compute layout (Group 0) -- GPU patch visibility --
+                // Reads VP + camera + pawn + config + patch instances, writes visible indices + indirect draw args.
+                {
+                    std::array<wgpu::BindGroupLayoutEntry, 7> entries{};
+
+                    entries[0].binding = 1;     // config (uniform — render_patch_count)
+                    entries[0].visibility = wgpu::ShaderStage::Compute;
+                    entries[0].buffer.type = wgpu::BufferBindingType::Uniform;
+
+                    entries[1].binding = 2;     // vp_data (storage — VP matrix for frustum planes)
+                    entries[1].visibility = wgpu::ShaderStage::Compute;
+                    entries[1].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+
+                    entries[2].binding = 80;    // camera_state (storage — retained for future use)
+                    entries[2].visibility = wgpu::ShaderStage::Compute;
+                    entries[2].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+
+                    entries[3].binding = 340;   // patch_instances (storage — all patches)
+                    entries[3].visibility = wgpu::ShaderStage::Compute;
+                    entries[3].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+
+                    entries[4].binding = 500;   // visible_patch_indices (storage, rw — output)
+                    entries[4].visibility = wgpu::ShaderStage::Compute;
+                    entries[4].buffer.type = wgpu::BufferBindingType::Storage;
+
+                    entries[5].binding = 501;   // frustum_indirect (storage, rw — atomic draw args)
+                    entries[5].visibility = wgpu::ShaderStage::Compute;
+                    entries[5].buffer.type = wgpu::BufferBindingType::Storage;
+
+                    entries[6].binding = 60;    // pawn_state (storage — LOD distance uses pawn, matches CPU sort)
+                    entries[6].visibility = wgpu::ShaderStage::Compute;
+                    entries[6].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+
+                    wgpu::BindGroupLayoutDescriptor desc{};
+                    desc.label = "Frustum Cull Compute Layout";
+                    desc.entryCount = entries.size();
+                    desc.entries = entries.data();
+                    frustumCullLayout_ = device_.CreateBindGroupLayout(&desc);
+                    if (!frustumCullLayout_) return false;
+                }
+
                 // -- GoL zone compute layout (Group 0) -- bindings 25,26,30,160-169 --
                 // Shared by ALL zone entry points: sync, evolve, mesh_reset, mesh_gen, derive_params.
                 // Mesh gen reads tile_grid, solids, pyramids for terrain height evaluation.
@@ -3758,9 +3842,9 @@ namespace t7 {
                     if (!computeEntityBindGroup_) return false;
                 }
 
-                // Render entity bind group (15 entries: config + spaced by system +200)
+                // Render entity bind group (16 entries: config + spaced by system +200)
                 {
-                    std::array<wgpu::BindGroupEntry, 15> entries{};
+                    std::array<wgpu::BindGroupEntry, 16> entries{};
 
                     entries[0].binding = 1;
                     entries[0].buffer = configBuffer_;
@@ -3822,6 +3906,11 @@ namespace t7 {
                     // Entity ground atlas (r32float 256×1 — VS reads ground_y)
                     entries[14].binding = 390;
                     entries[14].textureView = entityGroundAtlasReadView_;
+
+                    // Visible patch indices (GPU frustum cull output)
+                    entries[15].binding = 391;
+                    entries[15].buffer = visiblePatchIndicesBuffer_;
+                    entries[15].size = Dim::MAX_ACTIVE_PATCHES * sizeof(uint32_t);
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Render Entity BindGroup";
@@ -4045,7 +4134,7 @@ namespace t7 {
 
                 // Photographer render entity bind group (same layout as main, different VP)
                 {
-                    std::array<wgpu::BindGroupEntry, 15> entries{};
+                    std::array<wgpu::BindGroupEntry, 16> entries{};
                     entries[0].binding = 1;
                     entries[0].buffer = configBuffer_;
                     entries[0].size = sizeof(GPUDesignConfig);
@@ -4091,6 +4180,11 @@ namespace t7 {
                     // Entity ground atlas (r32float 256×1 — VS reads ground_y)
                     entries[14].binding = 390;
                     entries[14].textureView = entityGroundAtlasReadView_;
+
+                    // Visible patch indices (GPU frustum cull output)
+                    entries[15].binding = 391;
+                    entries[15].buffer = visiblePatchIndicesBuffer_;
+                    entries[15].size = Dim::MAX_ACTIVE_PATCHES * sizeof(uint32_t);
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Photographer Render Entity BindGroup";
@@ -4185,6 +4279,40 @@ namespace t7 {
                     desc.entries = entries.data();
                     entityPlacementComputeBindGroup_ = device_.CreateBindGroup(&desc);
                     if (!entityPlacementComputeBindGroup_) return false;
+                }
+
+                // Frustum cull compute bind group (7 entries: +pawn_state at binding 60)
+                {
+                    std::array<wgpu::BindGroupEntry, 7> entries{};
+                    entries[0].binding = 1;
+                    entries[0].buffer = configBuffer_;
+                    entries[0].size = sizeof(GPUDesignConfig);
+                    entries[1].binding = 2;
+                    entries[1].buffer = vpBuffer_;
+                    entries[1].size = sizeof(GPUVPMatrix);
+                    entries[2].binding = 80;
+                    entries[2].buffer = cameraBuffer_;
+                    entries[2].size = sizeof(GPUCameraState);
+                    entries[3].binding = 340;
+                    entries[3].buffer = patchInstancesBuffer_;
+                    entries[3].size = sizeof(GPUPatchInstance) * Dim::MAX_ACTIVE_PATCHES;
+                    entries[4].binding = 500;
+                    entries[4].buffer = visiblePatchIndicesBuffer_;
+                    entries[4].size = Dim::MAX_ACTIVE_PATCHES * sizeof(uint32_t);
+                    entries[5].binding = 501;
+                    entries[5].buffer = frustumComputeBuffer_;
+                    entries[5].size = 5 * sizeof(uint32_t);
+                    entries[6].binding = 60;
+                    entries[6].buffer = pawnBuffer_;
+                    entries[6].size = sizeof(GPUPawnState);
+
+                    wgpu::BindGroupDescriptor desc{};
+                    desc.label = "Frustum Cull Compute BindGroup";
+                    desc.layout = frustumCullLayout_;
+                    desc.entryCount = entries.size();
+                    desc.entries = entries.data();
+                    frustumCullBindGroup_ = device_.CreateBindGroup(&desc);
+                    if (!frustumCullBindGroup_) return false;
                 }
 
                 // GoL zone compute bind group (14 entries: config + terrain eval + zone state + mesh output + heightfield + derive requests)

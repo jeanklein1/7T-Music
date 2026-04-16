@@ -4477,7 +4477,7 @@ namespace t7 {
 
                 wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&desc);
 
-                renderer_.draw_patch_terrain(pass,
+                renderer_.draw_patch_terrain_direct(pass,
                     gpuState_.photographer_render_entity_group(),
                     gpuState_.render_texture_group(),
                     gpuState_.patch_index_buffer(),
@@ -8048,6 +8048,9 @@ namespace t7 {
                     placementDirty_ = false;
                     dispatch_placement_correction(encoder);
                 }
+
+                // DIAG: frustum cull bypassed — direct draw active
+                // dispatch_frustum_cull(encoder, queue);
 
                 render_shadow_pass(encoder);
                 render_main_pass(encoder, backbuffer, depth);

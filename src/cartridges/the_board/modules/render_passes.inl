@@ -180,6 +180,21 @@
                 compute.End();
             }
 
+            // --- GPU frustum cull: classify visible patches into LOD0/LOD1 ---
+            // Runs after dispatch_compute (VP matrix ready) and before render passes.
+            // CPU pre-writes constant indirect draw args; GPU atomicAdds instanceCount.
+            void dispatch_frustum_cull(wgpu::CommandEncoder& encoder, wgpu::Queue& queue) {
+                gpuState_.reset_frustum_indirect(queue);
+
+                wgpu::ComputePassDescriptor cpd{};
+                cpd.label = "Frustum Cull Patches";
+                wgpu::ComputePassEncoder compute = encoder.BeginComputePass(&cpd);
+                renderer_.dispatch_frustum_cull(
+                    compute, gpuState_.frustum_cull_group()
+                );
+                compute.End();
+            }
+
             // --- Shadow depth pass ---
             //
             // Outdoor: single pass, directional sun VP, full 4096×4096 map.
@@ -390,8 +405,9 @@
 
                 wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&desc);
 
-                // LOD-0: full 64×64 mesh for near patches [0..lod0PatchCount_)
-                renderer_.draw_patch_terrain(
+                // DIAG: direct draw (bypasses Tier 4 indirect pipeline)
+                // Revert to indirect draw once the pipeline is debugged.
+                renderer_.draw_patch_terrain_direct(
                     pass,
                     gpuState_.render_entity_group(),
                     gpuState_.render_texture_group(),
@@ -399,9 +415,6 @@
                     gpuState_.patch_index_count(),
                     lod0PatchCount_
                 );
-
-                // LOD-1: half 32×32 mesh for far patches [lod0PatchCount_..renderPatchCount_)
-                // Pipeline and bind groups already set by LOD-0 draw above.
                 if (renderPatchCount_ > lod0PatchCount_) {
                     pass.SetIndexBuffer(gpuState_.patch_index_buffer_lod1(), wgpu::IndexFormat::Uint32);
                     pass.DrawIndexed(gpuState_.patch_index_count_lod1(),

@@ -80,6 +80,7 @@
 override ENABLE_MUSICAL_MODES: bool = true;
 override ENABLE_GOL_ZONES: bool = true;
 override ENABLE_PAWN_AURA: bool = true;
+override USE_PATCH_INDIRECTION: bool = false;  // true = read through visible_patch_indices
 
 // §1.1 PROJECTIVE GEOMETRIC ALGEBRA
 
@@ -2808,7 +2809,10 @@ fn patch_terrain_vs(
     @builtin(vertex_index) vi: u32,
     @builtin(instance_index) patch_id: u32
 ) -> PatchTerrainVarying {
-    let pi = patch_instances[patch_id];
+    // Direct or indirect patch lookup (override-controlled per pipeline variant)
+    var actual_id = patch_id;
+    if (USE_PATCH_INDIRECTION) { actual_id = visible_patch_indices[patch_id]; }
+    let pi = patch_instances[actual_id];
 
     // Decode grid position from vertex index (PATCH_MESH_N×PATCH_MESH_N grid)
     let vx = vi % PATCH_MESH_STRIDE;
@@ -3892,8 +3896,9 @@ struct CellMeshVertex {
 @group(0) @binding(29) var cell_fields_write: texture_storage_2d_array<rgba16float, write>;
 @group(0) @binding(28) var<storage, read_write> patch_height_scratch: array<f32>;
 
-// --- Patch rendering (Group 0: binding 340, Group 1: bindings 28-29)
+// --- Patch rendering (Group 0: binding 340, 391; Group 1: bindings 28-30)
 @group(0) @binding(340) var<storage, read> patch_instances: array<PatchInstance>;
+@group(0) @binding(391) var<storage, read> visible_patch_indices: array<u32>;
 @group(1) @binding(28) var patch_heightfield_array_read: texture_2d_array<f32>;
 @group(1) @binding(29) var patch_cell_color_array_read: texture_2d_array<f32>;
 @group(1) @binding(30) var cell_fields_read: texture_2d_array<f32>;
@@ -5972,6 +5977,112 @@ fn compute_entity_placement() {
             textureStore(entity_ground_atlas_write, vec2<i32>(i32(i) + GROUND_ATLAS_PYRAMID, 0), vec4<f32>(pyramid_ground[i].ground_y, 0.0, 0.0, 0.0));
         }
     }
+}
+
+
+// §7.5 GPU FRUSTUM CULLING — Camera-visible patch selection
+//
+// Extracts 6 frustum planes from the VP matrix, tests each patch's AABB,
+// classifies survivors into LOD0 (near) or LOD1 (far), and writes compact
+// index arrays + indirect draw args via atomics.
+//
+// CPU pre-writes constant DrawIndexedIndirect fields and zeros instanceCount.
+// This shader atomicAdds instanceCount and appends visible patch indices.
+//
+// Main pass reads through visible_patch_indices indirection.
+// Shadow pass uses direct patch_instances[instance_index] (no frustum cull).
+
+const FRUSTUM_PATCH_Y_MIN: f32 = -50.0;   // widened: terrain amplitude + entity heights
+const FRUSTUM_PATCH_Y_MAX: f32 = 200.0;   // widened: tall entities (towers, antennas, ribbons)
+const FRUSTUM_LOD0_RADIUS_SQ: f32 = 3.5 * 3.5 * PATCH_EXTENT * PATCH_EXTENT;  // 30625
+
+// Frustum cull compute bindings (dedicated bind group)
+@group(0) @binding(1)   var<uniform>             fc_config: DesignConfig;
+@group(0) @binding(2)   var<storage, read>       fc_vp: VPMatrix;
+@group(0) @binding(80)  var<storage, read>       fc_camera: CameraState;
+@group(0) @binding(340) var<storage, read>       fc_patches: array<PatchInstance>;
+@group(0) @binding(500) var<storage, read_write> fc_visible: array<u32>;
+@group(0) @binding(501) var<storage, read_write> fc_indirect: array<atomic<u32>, 5>;
+@group(0) @binding(60)  var<storage, read>       fc_pawn: PawnState;
+
+// Extract frustum plane from VP matrix row combination.
+// Row i of column-major M: (M[0][i], M[1][i], M[2][i], M[3][i])
+// Left=row3+row0, Right=row3-row0, Bottom=row3+row1, Top=row3-row1, Near=row3+row2, Far=row3-row2
+fn frustum_plane(m: mat4x4<f32>, col: u32, sign: f32) -> vec4<f32> {
+    let p = vec4(
+        m[0][3] + sign * m[0][col],
+        m[1][3] + sign * m[1][col],
+        m[2][3] + sign * m[2][col],
+        m[3][3] + sign * m[3][col]
+    );
+    let len = length(p.xyz);
+    if (len < EPSILON) { return vec4(0.0, 1.0, 0.0, 1000.0); }
+    return p / len;
+}
+
+// Test AABB against 6 frustum planes. Returns true if potentially visible.
+fn aabb_in_frustum(planes: array<vec4<f32>, 6>, bmin: vec3<f32>, bmax: vec3<f32>) -> bool {
+    for (var i = 0u; i < 6u; i++) {
+        let p = planes[i];
+        // Positive vertex: AABB corner most aligned with plane normal
+        let pv = vec3(
+            select(bmin.x, bmax.x, p.x >= 0.0),
+            select(bmin.y, bmax.y, p.y >= 0.0),
+            select(bmin.z, bmax.z, p.z >= 0.0)
+        );
+        if (dot(p.xyz, pv) + p.w < 0.0) { return false; }
+    }
+    return true;
+}
+
+@compute @workgroup_size(64)
+fn frustum_cull_patches(@builtin(global_invocation_id) id: vec3<u32>) {
+    let patch_count = fc_config.placement_patch_count;
+    if (id.x >= patch_count) { return; }
+
+    let pi = fc_patches[id.x];
+    if (pi.extent <= 0.0) { return; }
+
+    // Build AABB with generous XZ margin (covers wave overlay, entity heights, pier reach,
+    // and camera parallax between LOD boundary and actual geometry).
+    let half = pi.extent * 0.5;
+    let margin = pi.extent;   // 100% margin — one patch-width of slack
+    let bmin = vec3(pi.origin.x - half - margin, FRUSTUM_PATCH_Y_MIN, pi.origin.y - half - margin);
+    let bmax = vec3(pi.origin.x + half + margin, FRUSTUM_PATCH_Y_MAX, pi.origin.y + half + margin);
+
+    // Extract 6 frustum planes from camera VP
+    // WebGPU uses [0,1] depth range: near plane = row2 (not row3+row2)
+    let vp = fc_vp.m;
+    var planes: array<vec4<f32>, 6>;
+    planes[0] = frustum_plane(vp, 0u, 1.0);   // left:   row3 + row0
+    planes[1] = frustum_plane(vp, 0u, -1.0);  // right:  row3 - row0
+    planes[2] = frustum_plane(vp, 1u, 1.0);   // bottom: row3 + row1
+    planes[3] = frustum_plane(vp, 1u, -1.0);  // top:    row3 - row1
+    planes[5] = frustum_plane(vp, 2u, -1.0);  // far:    row3 - row2
+
+    // Near plane for [0,1] depth: cz >= 0 → just row2
+    {
+        let p = vec4(vp[0][2], vp[1][2], vp[2][2], vp[3][2]);
+        let len = length(p.xyz);
+        planes[4] = select(vec4(0.0, 1.0, 0.0, 1000.0), p / len, len >= EPSILON);
+    }
+
+    // Re-enabled: frustum test rejects out-of-view patches
+    if (!aabb_in_frustum(planes, bmin, bmax)) { return; }
+
+    // LOD0 only: nearest-edge distance² from PAWN XZ to patch edge.
+    // Uses pawn (not camera) to match CPU's LOD classification.
+    // Patches at LOD1 distance are NOT emitted here — CPU draws them directly.
+    let dx = max(0.0, abs(fc_pawn.pos.x - pi.origin.x) - half);
+    let dz = max(0.0, abs(fc_pawn.pos.z - pi.origin.y) - half);
+    let dist2 = dx * dx + dz * dz;
+
+    if (dist2 <= FRUSTUM_LOD0_RADIUS_SQ) {
+        // Append to LOD0 visible list, atomicAdd indirect[1] (instanceCount)
+        let slot = atomicAdd(&fc_indirect[1], 1u);
+        fc_visible[slot] = id.x;
+    }
+    // else: LOD1 distance — not emitted; CPU handles via direct draw.
 }
 
 
