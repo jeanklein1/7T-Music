@@ -151,6 +151,15 @@ namespace t7 {
                 float  clear_color[3];         // sky or dark ceiling RGB
                 float  wall_color[3];          // indoor wall surface RGB
                 float  ceiling_color[3];       // indoor ceiling surface RGB
+
+                // ─── Feature selection (per-mood) ───────────────────────
+                // Each mood independently declares which systems are active.
+                // Not tied to indoor/outdoor — a walled mood can still have
+                // musical modes, an open mood can still skip pawn aura.
+                bool   allow_musical_modes;    // mode_* config values + terrain wave overlay
+                bool   allow_gol_zones;        // GoL zone spawning + visualization
+                bool   allow_pawn_aura;        // toroidal spring grid tinting + height boost
+                bool   allow_frustum_cull;     // GPU frustum cull for LOD0 terrain (Tier 4)
             };
 
             static constexpr uint32_t MOOD_COUNT = 6;
@@ -158,13 +167,15 @@ namespace t7 {
             // ─── Mood Definitions ───────────────────────────────────────────
             //
             //                                  fin  r_min r_max  sun_dir                sun_color              int   amb   fog_d   fog_color               indoor  ceil       ceil_h  clear_color            wall_color             ceil_color
+            //                                                                                                                                                                                                                                                                                                                                              musical  gol    aura   frustum
+            //                                  fin  r_min r_max  sun_dir                sun_color              int   amb   fog_d   fog_color               indoor  ceil       ceil_h  clear_color            wall_color             ceil_color               modes   zones  aura   cull
             static constexpr MoodProfile MOOD_TABLE[MOOD_COUNT] = {
-                /* 0  open_default        */  { false, 2, 2, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f} },
-                /* 1  open_sunset         */  { false, 2, 2, { 0.96f,-0.26f,-0.13f}, {1.0f, 0.75f, 0.45f}, 0.90f, 0.20f, 0.0050f, {0.95f, 0.70f, 0.45f},  false, CeilingType::NONE,  0.0f,  {0.95f, 0.70f, 0.45f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f} },
-                /* 2  indoor_flat         */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f, 0.0003f, {0.15f, 0.12f, 0.10f},  true,  CeilingType::FLAT,  20.0f, {0.15f, 0.12f, 0.10f}, {0.65f,0.58f,0.50f}, {0.60f,0.55f,0.48f} },
-                /* 3  indoor_vault        */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f, 0.0003f, {0.15f, 0.12f, 0.10f},  true,  CeilingType::VAULT, 25.0f, {0.15f, 0.12f, 0.10f}, {0.70f,0.62f,0.52f}, {0.65f,0.58f,0.50f} },
-                /* 4  finite_outdoor      */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f} },
-                /* 5  finite_outdoor_ref  */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f} },
+                /* 0  open_default        */  { false, 2, 2, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true  },
+                /* 1  open_sunset         */  { false, 2, 2, { 0.96f,-0.26f,-0.13f}, {1.0f, 0.75f, 0.45f}, 0.90f, 0.20f, 0.0050f, {0.95f, 0.70f, 0.45f},  false, CeilingType::NONE,  0.0f,  {0.95f, 0.70f, 0.45f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true  },
+                /* 2  indoor_flat         */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f, 0.0003f, {0.15f, 0.12f, 0.10f},  true,  CeilingType::FLAT,  20.0f, {0.15f, 0.12f, 0.10f}, {0.65f,0.58f,0.50f}, {0.60f,0.55f,0.48f},   true,  true,  true,  false },
+                /* 3  indoor_vault        */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f, 0.0003f, {0.15f, 0.12f, 0.10f},  true,  CeilingType::VAULT, 25.0f, {0.15f, 0.12f, 0.10f}, {0.70f,0.62f,0.52f}, {0.65f,0.58f,0.50f},   true,  true,  true,  false },
+                /* 4  finite_outdoor      */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true  },
+                /* 5  finite_outdoor_ref  */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true  },
             };
 
             static const char* mood_name(uint32_t mood) {
@@ -465,11 +476,9 @@ namespace t7 {
                 static constexpr uint32_t LATERAL_CYCLES = 421u;
                 static constexpr uint32_t LATERAL_SPEED = 422u;
                 static constexpr uint32_t VERTICAL_AMP = 430u;
-                static constexpr uint32_t VERTICAL_CYCLES = 431u;   // legacy — cycles now derived via harmonic ratio
                 static constexpr uint32_t VERTICAL_SPEED = 432u;
                 static constexpr uint32_t VERTICAL_RATIO = 433u;    // seed roll for vertical harmonic ratio selection
                 static constexpr uint32_t TWIST_AMP = 440u;
-                static constexpr uint32_t TWIST_CYCLES = 441u;      // legacy — cycles now derived via harmonic ratio
                 static constexpr uint32_t TWIST_SPEED = 442u;
                 static constexpr uint32_t TWIST_RATIO = 443u;       // seed roll for twist harmonic ratio selection
             };
@@ -2064,13 +2073,12 @@ namespace t7 {
                 static constexpr uint32_t PALM = 4;
                 static constexpr uint32_t CACTUS = 5;
                 static constexpr uint32_t BLADE = 6;
-                static constexpr uint32_t SPHERE = 7;    // was FLOATING — orbital spheres
+                static constexpr uint32_t SPHERE = 7;    // orbital spheres
                 static constexpr uint32_t RIBBON = 8;
-                static constexpr uint32_t CUBE = 9;      // hover-bob monoliths (split from FLOATING)
+                static constexpr uint32_t CUBE = 9;      // hover-bob monoliths (split from legacy FLOATING)
                 static constexpr uint32_t GOL = 10;       // Game of Life / Pulse automaton zones
                 static constexpr uint32_t GALLERY = 11;   // outdoor art exhibitions (composite: 1 center → N paintings)
                 static constexpr uint32_t COUNT = 12;
-                static constexpr uint32_t FLOATING = SPHERE;  // legacy alias
             };
 
             // ─── Spawn Configuration Summary ────────────────────────────────
@@ -2125,7 +2133,7 @@ namespace t7 {
             //  │ 220 – 221 │ Activity  │ CPU_ACT_PROP_* constants           │
             //  │ 370       │ Theme     │ select_theme_at_node (inline)      │
             //  │ 400 – 443 │ Ribbon    │ RibbonProp                         │
-            //  │ 500 – 540 │ Gallery   │ (inline indices in spawn_gallery)  │
+            //  │ 500 – 540 │ Gallery   │ select_gallery_for_patch           │
             //  │ 600 – 623 │ Arch      │ ArchProp                           │
             //  │ 700 – 743 │ Column    │ ColumnProp                         │
             //  │ 800 – 823 │ Pyramid   │ PyramidProp                        │
@@ -2592,24 +2600,6 @@ namespace t7 {
                 return 0.0f;
             }
 
-
-            static void print_ribbon_diagnostic(const char* context, const GPURibbonState& r, uint32_t tier) {
-                float total_len = (float)r.cube_count * r.cube_size;
-                float v_ratio = (r.lateral_cycles > 0.01f) ? r.vertical_cycles / r.lateral_cycles : 0.0f;
-                float t_ratio = (r.lateral_cycles > 0.01f) ? r.twist_cycles / r.lateral_cycles : 0.0f;
-                std::cout << "[Ribbon] " << context << ": " << RIBBON_TIER_NAMES[tier]
-                    << " (" << RIBBON_COLOR_NAMES[r.color_mode] << ")\n"
-                    << "  anchor=(" << r.anchor[0] << ", " << r.anchor[2] << ")"
-                    << "  height=" << r.height
-                    << "  orientation=" << (r.orientation * 57.2958f) << " deg\n"
-                    << "  geometry: " << r.cube_count << " rings x " << r.cube_size << "m = " << total_len << "m\n"
-                    << "  lateral:  amp=" << r.lateral_amp << "  cycles=" << r.lateral_cycles << "  speed=" << r.lateral_speed << "  (fundamental)\n"
-                    << "  vertical: amp=" << r.vertical_amp << "  cycles=" << r.vertical_cycles << "  speed=" << r.vertical_speed
-                    << "  (ratio=" << v_ratio << ")\n"
-                    << "  twist:    amp=" << r.twist_amp << "  cycles=" << r.twist_cycles << "  speed=" << r.twist_speed
-                    << "  (ratio=" << t_ratio << ")\n"
-                    << "  color=(" << r.color[0] << ", " << r.color[1] << ", " << r.color[2] << ")\n";
-            }
 
             // ═══ END INLINED: modules/spawn_engine.inl ═════════════════════════
 
@@ -3231,6 +3221,11 @@ namespace t7 {
 
             GoLZoneState golZones_[Dim::MAX_GOL_ZONES]{};
             uint32_t golZoneCount_ = 0;
+
+            // Per-mood feature gates — set by apply_mood from MoodProfile flags.
+            // These gate where features enter the frame loop; default = all on.
+            bool moodAllowsMusicalModes_ = true;
+            bool moodAllowsGoLZones_     = true;
 
             // Derive request queue: accumulated during patch gen, flushed once per frame.
             GPUZoneDeriveRequestArray pendingDeriveRequests_{};
@@ -5669,6 +5664,7 @@ namespace t7 {
 
             static bool dispatch_select_gol(Cartridge* self,
                 int32_t gx, int32_t gz, EntityQueueEntry& e) {
+                if (!self->moodAllowsGoLZones_) { return false; }   // mood gate — no new zones
                 return self->select_gol_for_patch(gx, gz, e.gol);
             }
 
@@ -8050,7 +8046,7 @@ namespace t7 {
                 }
 
                 // DIAG: frustum cull bypassed — direct draw active
-                // dispatch_frustum_cull(encoder, queue);
+                dispatch_frustum_cull(encoder, queue);
 
                 render_shadow_pass(encoder);
                 render_main_pass(encoder, backbuffer, depth);

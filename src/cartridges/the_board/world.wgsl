@@ -75,11 +75,8 @@
 // §1 FOUNDATIONS
 
 // ── Pipeline specialization overrides (set at pipeline creation) ────
-// Default = true (outdoor). Indoor moods set all to false,
-// eliminating dead branches + register pressure.
-override ENABLE_MUSICAL_MODES: bool = true;
-override ENABLE_GOL_ZONES: bool = true;
-override ENABLE_PAWN_AURA: bool = true;
+// Controls which VS path is used (direct patch access vs indirection through
+// visible_patch_indices — the latter is needed for GPU frustum-culled draws).
 override USE_PATCH_INDIRECTION: bool = false;  // true = read through visible_patch_indices
 
 // §1.1 PROJECTIVE GEOMETRIC ALGEBRA
@@ -2880,72 +2877,70 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
     var base_color = color_sample.rgb;
 
     // --- Musical animation modes: re-evaluate cell color with biases
-    if (ENABLE_MUSICAL_MODES) {
-        let has_mode_bias = (config.mode_color_shift > 0.001)
-                         || (config.mode_checker_scatter > 0.001)
-                         || (config.mode_palette_intensity > 0.001);
-        if (has_mode_bias) {
-            // Load baked spatial fields from LUT (skips 3 lattice noise chains)
-            let cell_texel = clamp(
-                vec2<i32>(in.patch_uv * f32(PATCH_CELL_N)),
-                vec2(0), vec2(i32(PATCH_CELL_N) - 1));
-            let baked = textureLoad(cell_fields_read, cell_texel, i32(in.layer), 0);
-            base_color = animated_cell_color_lut(in.world_pos.xz, baked.r, baked.g, baked.b);
-        }
+    // Runtime guard: when the mood doesn't drive these config values, skip the LUT read.
+    let has_mode_bias = (config.mode_color_shift > 0.001)
+                     || (config.mode_checker_scatter > 0.001)
+                     || (config.mode_palette_intensity > 0.001);
+    if (has_mode_bias) {
+        // Load baked spatial fields from LUT (skips 3 lattice noise chains)
+        let cell_texel = clamp(
+            vec2<i32>(in.patch_uv * f32(PATCH_CELL_N)),
+            vec2(0), vec2(i32(PATCH_CELL_N) - 1));
+        let baked = textureLoad(cell_fields_read, cell_texel, i32(in.layer), 0);
+        base_color = animated_cell_color_lut(in.world_pos.xz, baked.r, baked.g, baked.b);
     }
 
     // --- GoL zone visualization
-    if (ENABLE_GOL_ZONES) {
-        let tag_alpha = color_sample.a;
-        if (tag_alpha > 0.001) {
-            let mode = unpack_cell_tag_mode(tag_alpha);
-            if ((mode & CELL_ANIM_GOL) != 0u) {
-                let cam_dist = distance(render_camera.pos, in.world_pos);
-                let fade = 1.0 - smoothstep(GOL_FADE_NEAR, GOL_FADE_FAR, cam_dist);
+    // Runtime guard: cell behavior tag alpha is nonzero only inside active zones.
+    let tag_alpha = color_sample.a;
+    if (tag_alpha > 0.001) {
+        let mode = unpack_cell_tag_mode(tag_alpha);
+        if ((mode & CELL_ANIM_GOL) != 0u) {
+            let cam_dist = distance(render_camera.pos, in.world_pos);
+            let fade = 1.0 - smoothstep(GOL_FADE_NEAR, GOL_FADE_FAR, cam_dist);
 
-                if (fade > 0.01) {
-                    let zone_node = vec2<i32>(floor(in.world_pos.xz / MODE_LATTICE_SPACING));
+            if (fade > 0.01) {
+                let zone_node = vec2<i32>(floor(in.world_pos.xz / MODE_LATTICE_SPACING));
 
-                    for (var z: u32 = 0u; z < zone_params.count; z++) {
-                        let zp = zone_params.zones[z];
-                        if (zp.transition_fraction <= 0.0) { continue; }
-                        let zn = vec2<i32>(floor(zp.origin / MODE_LATTICE_SPACING));
-                        if (zn.x == zone_node.x && zn.y == zone_node.y) {
-                            let zone_corner = zp.origin - zp.extent * 0.5;
-                            let cell_size = zp.extent / f32(zp.grid_size);
-                            let rel = in.world_pos.xz - zone_corner;
-                            let local_cell = vec2<i32>(floor(rel / cell_size));
+                for (var z: u32 = 0u; z < zone_params.count; z++) {
+                    let zp = zone_params.zones[z];
+                    if (zp.transition_fraction <= 0.0) { continue; }
+                    let zn = vec2<i32>(floor(zp.origin / MODE_LATTICE_SPACING));
+                    if (zn.x == zone_node.x && zn.y == zone_node.y) {
+                        let zone_corner = zp.origin - zp.extent * 0.5;
+                        let cell_size = zp.extent / f32(zp.grid_size);
+                        let rel = in.world_pos.xz - zone_corner;
+                        let local_cell = vec2<i32>(floor(rel / cell_size));
 
-                            if (local_cell.x < 0 || local_cell.x >= i32(zp.grid_size) ||
-                                local_cell.y < 0 || local_cell.y >= i32(zp.grid_size)) { break; }
+                        if (local_cell.x < 0 || local_cell.x >= i32(zp.grid_size) ||
+                            local_cell.y < 0 || local_cell.y >= i32(zp.grid_size)) { break; }
 
-                            let uv = (vec2<f32>(local_cell) + 0.5) / f32(zp.grid_size);
-                            let life_sample = textureSampleLevel(
-                                zone_life_read, nearest_sampler, uv, i32(z), 0.0
+                        let uv = (vec2<f32>(local_cell) + 0.5) / f32(zp.grid_size);
+                        let life_sample = textureSampleLevel(
+                            zone_life_read, nearest_sampler, uv, i32(z), 0.0
+                        );
+                        let color_val = life_sample.y;  // G channel = color spring
+
+                        if (color_val > 0.01) {
+                            base_color = apply_gol_color(
+                                base_color, zp,
+                                u32(local_cell.x), u32(local_cell.y),
+                                color_val * fade
                             );
-                            let color_val = life_sample.y;  // G channel = color spring
 
-                            if (color_val > 0.01) {
-                                base_color = apply_gol_color(
-                                    base_color, zp,
-                                    u32(local_cell.x), u32(local_cell.y),
-                                    color_val * fade
-                                );
-
-                                // Pawn force field: tint zone cells near pawn (render context)
-                                let pawn_ff = 1.0 - zone_pawn_ff(in.world_pos.xz, render_pawn.pos, render_pawn.velocity);
-                                if (pawn_ff > 0.01) {
-                                    base_color = mix(base_color, ZONE_PAWN_TINT, pawn_ff * ZONE_PAWN_TINT_STRENGTH * color_val);
-                                }
-
-                                // Sphere force field: tint zone cells near sphere (render context)
-                                let sphere_ff = 1.0 - zone_sphere_ff(in.world_pos.xz, render_floating.entities[0].pos);
-                                if (sphere_ff > 0.01) {
-                                    base_color = mix(base_color, ZONE_SPHERE_TINT, sphere_ff * ZONE_SPHERE_TINT_STRENGTH * color_val);
-                                }
+                            // Pawn force field: tint zone cells near pawn (render context)
+                            let pawn_ff = 1.0 - zone_pawn_ff(in.world_pos.xz, render_pawn.pos, render_pawn.velocity);
+                            if (pawn_ff > 0.01) {
+                                base_color = mix(base_color, ZONE_PAWN_TINT, pawn_ff * ZONE_PAWN_TINT_STRENGTH * color_val);
                             }
-                            break;
+
+                            // Sphere force field: tint zone cells near sphere (render context)
+                            let sphere_ff = 1.0 - zone_sphere_ff(in.world_pos.xz, render_floating.entities[0].pos);
+                            if (sphere_ff > 0.01) {
+                                base_color = mix(base_color, ZONE_SPHERE_TINT, sphere_ff * ZONE_SPHERE_TINT_STRENGTH * color_val);
+                            }
                         }
+                        break;
                     }
                 }
             }
@@ -2954,7 +2949,8 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
 
     // --- Pawn aura: persistent contextual tinting from toroidal spring grid
     // Texture encoding: R=height_blend, GBA=pre-multiplied color delta (with oscillation)
-    if (ENABLE_PAWN_AURA) {
+    // Runtime guard: sample returns near-zero when the aura system is idle.
+    {
         let aura = sample_pawn_aura(in.world_pos.xz, render_pawn.pos.xz);
         let aura_active = max(aura.r, max(abs(aura.g), max(abs(aura.b), abs(aura.a))));
         if (aura_active > 0.01) {

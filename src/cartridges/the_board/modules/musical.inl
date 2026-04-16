@@ -67,7 +67,10 @@ float pulseRing_[32] = {};              // 8 × 4 floats
 uint32_t pulseWriteIdx_ = 0;            // next slot to write (wraps at 8)
 float prevPolyphony_ = 0.0f;            // previous frame's polyphony (for onset detection)
 
-bool is_mmode_on(uint32_t mode) const { return (mmodeMask_ & (1u << mode)) != 0; }
+bool is_mmode_on(uint32_t mode) const {
+    if (!moodAllowsMusicalModes_) { return false; }   // mood gate — silences all modes
+    return (mmodeMask_ & (1u << mode)) != 0;
+}
 void toggle_mmode(uint32_t mode) {
     mmodeMask_ ^= (1u << mode);
     bool on = is_mmode_on(mode);

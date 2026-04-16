@@ -222,8 +222,16 @@ void apply_mood(uint32_t mood, wgpu::Queue& queue) {
     activeMood_ = mood;
     const auto& m = MOOD_TABLE[mood];
 
-    // Select terrain pipeline variant (indoor = all overrides disabled)
-    renderer_.set_indoor_terrain(m.indoor);
+    // Frustum cull is mood-driven now (not tied to indoor/outdoor).
+    renderer_.set_frustum_cull_active(m.allow_frustum_cull);
+
+    // Per-mood feature gates — drive the runtime suppression mechanisms:
+    //  - moodAllowsMusicalModes_ is checked by is_mmode_on (silences all modes)
+    //  - moodAllowsGoLZones_ is checked by dispatch_select_gol (blocks new spawns)
+    //  - auraEnabled_ drives the aura presence ramp (smooth fade out when disabled)
+    moodAllowsMusicalModes_ = m.allow_musical_modes;
+    moodAllowsGoLZones_     = m.allow_gol_zones;
+    auraEnabled_            = m.allow_pawn_aura;
 
     sunDirection_[0] = m.sun_direction[0];
     sunDirection_[1] = m.sun_direction[1];
@@ -406,8 +414,6 @@ void apply_mood(uint32_t mood, wgpu::Queue& queue) {
         // Immediate GPU upload (per-frame loop may not run before first render)
         gpuState_.upload_ribbon(queue, ribbonStates_[0]);
         renderedRibbonSlot_ = 0;
-
-        print_ribbon_diagnostic("Mood 5", ribbonStates_[0], tier_idx);
     }
 
     std::cout << "[Mood] Applied: " << mood_name(mood)

@@ -180,19 +180,36 @@
                 compute.End();
             }
 
-            // --- GPU frustum cull: classify visible patches into LOD0/LOD1 ---
-            // Runs after dispatch_compute (VP matrix ready) and before render passes.
-            // CPU pre-writes constant indirect draw args; GPU atomicAdds instanceCount.
+            // --- GPU frustum cull: classify visible patches into LOD0 ---
+            // Outdoor only (indoor worlds are too small to benefit). Flow:
+            //   1. CPU writes constant args (indexCount, 0, 0, 0, 0) to compute buffer
+            //   2. Compute shader frustum-tests each patch, atomicAdds instanceCount,
+            //      appends to visible_patch_indices
+            //   3. CopyBufferToBuffer transfers compute buffer → indirect buffer
+            //   4. Main pass DrawIndexedIndirect from indirect buffer
             void dispatch_frustum_cull(wgpu::CommandEncoder& encoder, wgpu::Queue& queue) {
+                if (!renderer_.use_indirect_terrain()) { return; }   // indoor: skip
+
+                // 1. Reset compute buffer (constant args + zero instanceCount)
                 gpuState_.reset_frustum_indirect(queue);
 
-                wgpu::ComputePassDescriptor cpd{};
-                cpd.label = "Frustum Cull Patches";
-                wgpu::ComputePassEncoder compute = encoder.BeginComputePass(&cpd);
-                renderer_.dispatch_frustum_cull(
-                    compute, gpuState_.frustum_cull_group()
+                // 2. Compute pass — frustum cull writes atomics + visible indices
+                {
+                    wgpu::ComputePassDescriptor cpd{};
+                    cpd.label = "Frustum Cull Patches";
+                    wgpu::ComputePassEncoder compute = encoder.BeginComputePass(&cpd);
+                    renderer_.dispatch_frustum_cull(
+                        compute, gpuState_.frustum_cull_group()
+                    );
+                    compute.End();
+                }
+
+                // 3. Copy compute buffer → indirect buffer (Dawn D3D12 can't share Storage|Indirect)
+                encoder.CopyBufferToBuffer(
+                    gpuState_.frustum_compute_buffer(), 0,
+                    gpuState_.frustum_indirect_lod0(), 0,
+                    5 * sizeof(uint32_t)
                 );
-                compute.End();
             }
 
             // --- Shadow depth pass ---
@@ -405,20 +422,39 @@
 
                 wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&desc);
 
-                // DIAG: direct draw (bypasses Tier 4 indirect pipeline)
-                // Revert to indirect draw once the pipeline is debugged.
-                renderer_.draw_patch_terrain_direct(
-                    pass,
-                    gpuState_.render_entity_group(),
-                    gpuState_.render_texture_group(),
-                    gpuState_.patch_index_buffer(),
-                    gpuState_.patch_index_count(),
-                    lod0PatchCount_
-                );
+                // Terrain LOD0
+                if (renderer_.use_indirect_terrain()) {
+                    // Outdoor: GPU-frustum-culled LOD0 via DrawIndexedIndirect
+                    renderer_.draw_patch_terrain_lod0_indirect(
+                        pass,
+                        gpuState_.render_entity_group(),
+                        gpuState_.render_texture_group(),
+                        gpuState_.patch_index_buffer(),
+                        gpuState_.frustum_indirect_lod0()
+                    );
+                } else {
+                    // Indoor: direct draw with CPU count
+                    renderer_.draw_patch_terrain_direct(
+                        pass,
+                        gpuState_.render_entity_group(),
+                        gpuState_.render_texture_group(),
+                        gpuState_.patch_index_buffer(),
+                        gpuState_.patch_index_count(),
+                        lod0PatchCount_
+                    );
+                }
+
+                // Terrain LOD1 — always direct (Dawn D3D12 limit: only one indirect per pass)
                 if (renderPatchCount_ > lod0PatchCount_) {
-                    pass.SetIndexBuffer(gpuState_.patch_index_buffer_lod1(), wgpu::IndexFormat::Uint32);
-                    pass.DrawIndexed(gpuState_.patch_index_count_lod1(),
-                        renderPatchCount_ - lod0PatchCount_, 0, 0, lod0PatchCount_);
+                    renderer_.draw_patch_terrain_direct(
+                        pass,
+                        gpuState_.render_entity_group(),
+                        gpuState_.render_texture_group(),
+                        gpuState_.patch_index_buffer_lod1(),
+                        gpuState_.patch_index_count_lod1(),
+                        renderPatchCount_ - lod0PatchCount_,
+                        lod0PatchCount_
+                    );
                 }
 
                 if (golZoneCount_ > 0) {
