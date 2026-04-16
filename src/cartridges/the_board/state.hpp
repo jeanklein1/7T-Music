@@ -188,14 +188,14 @@ namespace t7 {
             constexpr uint32_t BLADEG_TOTAL_INDICES = MAX_BLADE_INSTANCES * BLADEG_MAX_INDICES_PER_SLOT;
 
             // Entity ground atlas (r32float, 256×1 — VS reads ground_y via textureLoad)
-            constexpr uint32_t GROUND_ATLAS_WIDTH      = 256;
-            constexpr uint32_t GROUND_ATLAS_ARCH       = 0;    // 16 slots
-            constexpr uint32_t GROUND_ATLAS_COLUMN     = 16;   // 32 slots
-            constexpr uint32_t GROUND_ATLAS_PYRAMID    = 48;   //  8 slots
-            constexpr uint32_t GROUND_ATLAS_PALM       = 56;   // 24 slots
-            constexpr uint32_t GROUND_ATLAS_CACTUS     = 80;   // 20 slots
-            constexpr uint32_t GROUND_ATLAS_BLADE      = 100;  // 32 slots
-            constexpr uint32_t GROUND_ATLAS_USED       = 132;
+            constexpr uint32_t GROUND_ATLAS_WIDTH = 256;
+            constexpr uint32_t GROUND_ATLAS_ARCH = 0;    // 16 slots
+            constexpr uint32_t GROUND_ATLAS_COLUMN = 16;   // 32 slots
+            constexpr uint32_t GROUND_ATLAS_PYRAMID = 48;   //  8 slots
+            constexpr uint32_t GROUND_ATLAS_PALM = 56;   // 24 slots
+            constexpr uint32_t GROUND_ATLAS_CACTUS = 80;   // 20 slots
+            constexpr uint32_t GROUND_ATLAS_BLADE = 100;  // 32 slots
+            constexpr uint32_t GROUND_ATLAS_USED = 132;
 
             // GoL zone system — per-zone automaton grids
             constexpr uint32_t MAX_GOL_ZONES = 8;
@@ -982,6 +982,25 @@ namespace t7 {
             uint32_t layer;            // heightfield array layer to sample
         };
 
+        // Spatial index for O(1) sample_terrain_y_at lookup in compute shaders.
+        // CPU populates entries[lz*side + lx] with (layer + 1) for GENERATED or
+        // NEEDS_REGEN patches — 0 encodes an empty slot. Anchor (origin_x,
+        // origin_z) and cell_extent (PATCH_EXTENT) make the struct self-describing;
+        // the shader doesn't need any external patch_count parameter.
+        //
+        // Sized to MAX_ACTIVE_PATCHES (PATCH_PREGEN_SIDE² = 15² = 225).
+        //
+        // No alignas(16): this is a <storage> struct, all members are 4-byte,
+        // natural alignment is 4. alignas(16) would pad sizeof up to 928,
+        // adding 12 dead bytes the shader never reads.
+        struct GPUPatchGrid {
+            int32_t  origin_x;         // grid-coord anchor (min patch_gx in active set)
+            int32_t  origin_z;         //                   (min patch_gz in active set)
+            uint32_t side;             // PATCH_PREGEN_SIDE
+            float    cell_extent;      // PATCH_EXTENT
+            uint32_t entries[Dim::MAX_ACTIVE_PATCHES];
+        };
+
         static_assert(sizeof(GPUFrameSignal) == 304, "GPUFrameSignal must be 304 bytes");
         static_assert(sizeof(GPUDesignConfig) == 384, "GPUDesignConfig must be 384 bytes");
 
@@ -1018,6 +1037,8 @@ namespace t7 {
         static_assert(sizeof(MeshVertex) == 24, "MeshVertex must be 24 bytes");
         static_assert(sizeof(GPUPatchParams) == 32, "GPUPatchParams must be 32 bytes");
         static_assert(sizeof(GPUPatchInstance) == 16, "GPUPatchInstance must be 16 bytes");
+        static_assert(sizeof(GPUPatchGrid) == 16 + Dim::MAX_ACTIVE_PATCHES * 4,
+            "GPUPatchGrid must be 16 bytes header + 4 bytes/entry");
 
         // Unified painting slot — CPU mirror of WGSL UnifiedPaintingSlot (must match).
         // Both terrain-quad (photographer) and wall-frame (indoor) forms use this.
@@ -1110,6 +1131,7 @@ namespace t7 {
             wgpu::Buffer patchParamsBuffer_;
             wgpu::Buffer patchStagingBuffer_;    // N×GPUPatchParams for batched generation
             wgpu::Buffer patchInstancesBuffer_;
+            wgpu::Buffer patchGridBuffer_;         // GPUPatchGrid — O(1) spatial index for sample_terrain_y_at
             wgpu::Buffer patchHeightScratchBuffer_;  // 256×256×2 floats (height+complexity) for two-pass heightfield gen
             wgpu::Buffer patchIndexBuffer_;
             wgpu::Buffer patchIndexBufferLOD1_;   // half-res index buffer for distant patches
@@ -1383,6 +1405,10 @@ namespace t7 {
 
             void upload_patch_instances(wgpu::Queue& queue, const GPUPatchInstance* instances, uint32_t count) {
                 queue.WriteBuffer(patchInstancesBuffer_, 0, instances, sizeof(GPUPatchInstance) * count);
+            }
+
+            void upload_patch_grid(wgpu::Queue& queue, const GPUPatchGrid& grid) {
+                queue.WriteBuffer(patchGridBuffer_, 0, &grid, sizeof(GPUPatchGrid));
             }
 
             void upload_ribbon_time(wgpu::Queue& queue, float time) {
@@ -2195,6 +2221,9 @@ namespace t7 {
                 patchInstancesBuffer_ = makeBuffer("Patch Instances",
                     sizeof(GPUPatchInstance) * Dim::MAX_ACTIVE_PATCHES,
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
+                patchGridBuffer_ = makeBuffer("Patch Grid",
+                    sizeof(GPUPatchGrid),
+                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
                 patchHeightScratchBuffer_ = makeBuffer("Patch Height Scratch",
                     Dim::PATCH_HEIGHTFIELD_N * Dim::PATCH_HEIGHTFIELD_N * 2 * sizeof(float),
                     wgpu::BufferUsage::Storage);
@@ -2229,6 +2258,7 @@ namespace t7 {
                     cameraBuffer_ && floatingEntityBuffer_ && trajectoriesBuffer_ && ringTransformsBuffer_ &&
                     vpBuffer_ && spotLightArrayBuffer_ && spotVPStagingBuffer_ && directionalLightBuffer_ && pointLightsBuffer_ && patchParamsBuffer_ &&
                     patchStagingBuffer_ && tileGridBuffer_ && pierBuffer_ && patchInstancesBuffer_ &&
+                    patchGridBuffer_ &&
                     patchHeightScratchBuffer_ &&
                     photographerVPBuffer_ && photographerCameraBuffer_ &&
                     photographerConfigBuffer_ && paintingSlotsBuffer_ &&
@@ -3360,9 +3390,9 @@ namespace t7 {
                 // -- Photographer compute layout (Group 0) -- VP + terrain clamp --
                 // Reads GPU pawn position + config → builds VP, clamps camera above terrain.
                 // Entity Y-correction is handled separately by compute_entity_placement.
-                // 3 storage + 1 read-only + 1 uniform + 1 texture + 1 sampler = 7 entries.
+                // 3 storage + 1 read-only + 1 uniform + 1 texture + 1 sampler + 1 patch_grid = 8 entries.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 7> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 8> entries{};
 
                     entries[0].binding = 60;   // pawn_state (read pos)
                     entries[0].visibility = wgpu::ShaderStage::Compute;
@@ -3393,6 +3423,10 @@ namespace t7 {
                     entries[6].visibility = wgpu::ShaderStage::Compute;
                     entries[6].sampler.type = wgpu::SamplerBindingType::Filtering;
 
+                    entries[7].binding = 152;  // patch_grid (O(1) spatial index for sample_terrain_y_at)
+                    entries[7].visibility = wgpu::ShaderStage::Compute;
+                    entries[7].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Photographer Compute Layout";
                     desc.entryCount = entries.size();
@@ -3405,10 +3439,10 @@ namespace t7 {
                 // Runs every frame, unconditionally. Samples the baked heightfield
                 // and subtracts CPU-computed pier_correction to isolate each entity's
                 // own pier contribution (removing foreign pier contamination).
-                // 13 entries: config + pawn + painting slots + heightfield + entity grounds + GoL + ground atlas write.
+                // 14 entries: config + pawn + painting slots + heightfield + entity grounds + GoL + ground atlas write + patch_grid.
                 // Palm+cactus+blade share one buffer at binding 150: [0..23] palm, [24..43] cactus, [44..75] blade.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 13> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 14> entries{};
 
                     entries[0].binding = 1;
                     entries[0].visibility = wgpu::ShaderStage::Compute;
@@ -3464,6 +3498,10 @@ namespace t7 {
                     entries[12].storageTexture.access = wgpu::StorageTextureAccess::WriteOnly;
                     entries[12].storageTexture.format = wgpu::TextureFormat::R32Float;
                     entries[12].storageTexture.viewDimension = wgpu::TextureViewDimension::e2D;
+
+                    entries[13].binding = 152;  // patch_grid (O(1) spatial index for sample_terrain_y_at)
+                    entries[13].visibility = wgpu::ShaderStage::Compute;
+                    entries[13].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Entity Placement Compute Layout";
@@ -4195,9 +4233,9 @@ namespace t7 {
                     if (!photographerRenderEntityBindGroup_) return false;
                 }
 
-                // Photographer compute bind group (7 entries: pawn + config + outputs + terrain)
+                // Photographer compute bind group (8 entries: pawn + config + outputs + terrain + patch_grid)
                 {
-                    std::array<wgpu::BindGroupEntry, 7> entries{};
+                    std::array<wgpu::BindGroupEntry, 8> entries{};
                     entries[0].binding = 60;
                     entries[0].buffer = pawnBuffer_;
                     entries[0].size = sizeof(GPUPawnState);
@@ -4217,6 +4255,9 @@ namespace t7 {
                     entries[5].textureView = patchHeightfieldArrayReadView_;
                     entries[6].binding = 146;
                     entries[6].sampler = bilinearSampler_;
+                    entries[7].binding = 152;
+                    entries[7].buffer = patchGridBuffer_;
+                    entries[7].size = sizeof(GPUPatchGrid);
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Photographer Compute BindGroup";
@@ -4229,7 +4270,7 @@ namespace t7 {
 
                 // Entity placement compute bind group (heightfield sampling + ground Y correction)
                 {
-                    std::array<wgpu::BindGroupEntry, 13> entries{};
+                    std::array<wgpu::BindGroupEntry, 14> entries{};
                     entries[0].binding = 1;
                     entries[0].buffer = configBuffer_;
                     entries[0].size = sizeof(GPUDesignConfig);
@@ -4271,6 +4312,10 @@ namespace t7 {
 
                     entries[12].binding = 151;
                     entries[12].textureView = entityGroundAtlasWriteView_;
+
+                    entries[13].binding = 152;
+                    entries[13].buffer = patchGridBuffer_;
+                    entries[13].size = sizeof(GPUPatchGrid);
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Entity Placement Compute BindGroup";

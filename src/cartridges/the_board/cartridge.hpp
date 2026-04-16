@@ -8457,6 +8457,46 @@ namespace t7 {
                     // can sample heightfields from the current frame's patch set.
                     gpuState_.config().placement_patch_count = w;
                     gpuState_.upload_placement_patch_count(queue);
+
+                    // ─── Patch grid: O(1) spatial index for sample_terrain_y_at ────────
+                    // Populate (patch_gx, patch_gz) → layer map. The shader derives a
+                    // patch's grid cell from floor(world_xz / cell_extent) and looks up
+                    // the layer directly, replacing the previous linear bbox scan.
+                    // Entries store (layer + 1) so that 0 encodes an empty slot.
+                    // Anchor is the bounding-box minimum of the valid set — always fits
+                    // in a PATCH_PREGEN_SIDE × PATCH_PREGEN_SIDE window (15×15 = 225).
+                    {
+                        GPUPatchGrid grid{};
+                        grid.side = Dim::PATCH_PREGEN_SIDE;
+                        grid.cell_extent = PATCH_EXTENT;
+
+                        int32_t min_gx = INT32_MAX;
+                        int32_t min_gz = INT32_MAX;
+                        for (uint32_t i = 0; i < activePatchCount_; i++) {
+                            if (!patches_[i].valid) continue;
+                            if (patches_[i].phase != PatchPhase::GENERATED &&
+                                patches_[i].phase != PatchPhase::NEEDS_REGEN) continue;
+                            min_gx = std::min(min_gx, patches_[i].grid_x);
+                            min_gz = std::min(min_gz, patches_[i].grid_z);
+                        }
+                        if (min_gx == INT32_MAX) { min_gx = 0; min_gz = 0; }
+                        grid.origin_x = min_gx;
+                        grid.origin_z = min_gz;
+                        // entries[] are zero-initialized by value-init above.
+
+                        for (uint32_t i = 0; i < activePatchCount_; i++) {
+                            if (!patches_[i].valid) continue;
+                            if (patches_[i].phase != PatchPhase::GENERATED &&
+                                patches_[i].phase != PatchPhase::NEEDS_REGEN) continue;
+                            int32_t lx = patches_[i].grid_x - grid.origin_x;
+                            int32_t lz = patches_[i].grid_z - grid.origin_z;
+                            if (lx < 0 || lz < 0 ||
+                                lx >= int32_t(grid.side) || lz >= int32_t(grid.side)) continue;
+                            grid.entries[lz * grid.side + lx] = patches_[i].layer + 1u;
+                        }
+
+                        gpuState_.upload_patch_grid(queue, grid);
+                    }
                 }
                 // GPU Y-correction is additive (ground_y += terrain), so ground
                 // entries must be re-uploaded with offset-only values whenever

@@ -5709,6 +5709,11 @@ struct PhotographerConfig {
 @group(0) @binding(141) var<storage, read_write> photographer_vp: VPMatrix;
 @group(0) @binding(142) var<storage, read_write> photographer_camera_out: CameraState;
 @group(0) @binding(143) var<storage, read_write> photo_painting_slots: array<UnifiedPaintingSlot, 32>;
+// VESTIGIAL: previously scanned linearly by sample_terrain_y_at. That function
+// now uses patch_grid at binding 152; this binding is retained only so both
+// compute bind groups still match their layouts unchanged. Safe to drop in a
+// follow-on pass by removing binding 144 from the photographer + placement
+// layouts and bind groups in state.hpp.
 @group(0) @binding(144) var<storage, read> photo_patch_instances: array<PatchInstance>;
 @group(0) @binding(145) var photo_heightfield: texture_2d_array<f32>;
 @group(0) @binding(146) var photo_sampler: sampler;
@@ -5762,23 +5767,44 @@ struct PalmGroundEntry {
 // Entity ground atlas — compute writes corrected ground_y (r32float, 256×1)
 @group(0) @binding(151) var entity_ground_atlas_write: texture_storage_2d<r32float, write>;
 
+// Spatial index for O(1) patch lookup. CPU populates entries[lz*side + lx]
+// with (layer + 1) for GENERATED/NEEDS_REGEN patches; 0 means empty slot.
+// Replaces the linear scan over photo_patch_instances in sample_terrain_y_at.
+// Sized to MAX_ACTIVE_PATCHES (PATCH_PREGEN_SIDE² = 15² = 225).
+struct PatchGrid {
+    origin_x: i32,
+    origin_z: i32,
+    side: u32,
+    cell_extent: f32,
+    entries: array<u32, 225>,
+}
+@group(0) @binding(152) var<storage, read> patch_grid: PatchGrid;
+
 // --- Terrain Height Sampling
-fn sample_terrain_y_at(world_xz: vec2<f32>, patch_count: u32) -> f32 {
-    for (var i = 0u; i < patch_count; i++) {
-        let pi = photo_patch_instances[i];
-        let half = pi.extent * 0.5;
-        let local = world_xz - pi.origin;
-        if (abs(local.x) < half && abs(local.y) < half) {
-            let uv = local / pi.extent + 0.5;
-            // Remap UV to texel centers (same as patch_terrain_vs)
-            let res = f32(PATCH_HEIGHTFIELD_N);
-            let sample_uv = (uv * (res - 1.0) + 0.5) / res;
-            let h = textureSampleLevel(photo_heightfield, photo_sampler,
-                                       sample_uv, i32(pi.layer), 0.0);
-            return h.x;
-        }
-    }
-    return 0.0;
+// O(1) lookup: hash world_xz to patch grid cell, read layer, sample heightfield.
+// Returns 0.0 outside the active patch window or on empty slots (preserves
+// the old linear-scan behavior for out-of-range queries).
+fn sample_terrain_y_at(world_xz: vec2<f32>) -> f32 {
+    let gx = i32(floor(world_xz.x / patch_grid.cell_extent));
+    let gz = i32(floor(world_xz.y / patch_grid.cell_extent));
+    let lx = gx - patch_grid.origin_x;
+    let lz = gz - patch_grid.origin_z;
+    let s = i32(patch_grid.side);
+    if (lx < 0 || lz < 0 || lx >= s || lz >= s) { return 0.0; }
+
+    let packed = patch_grid.entries[lz * s + lx];
+    if (packed == 0u) { return 0.0; }
+    let layer = i32(packed - 1u);
+
+    // Patch origin is the cell center; UV is local offset normalized to extent.
+    let origin = vec2(f32(gx) + 0.5, f32(gz) + 0.5) * patch_grid.cell_extent;
+    let local = world_xz - origin;
+    let uv = local / patch_grid.cell_extent + 0.5;
+    // Remap UV to texel centers (same as patch_terrain_vs)
+    let res = f32(PATCH_HEIGHTFIELD_N);
+    let sample_uv = (uv * (res - 1.0) + 0.5) / res;
+    return textureSampleLevel(photo_heightfield, photo_sampler,
+                              sample_uv, layer, 0.0).x;
 }
 
 // --- Look-At VP Matrix
@@ -5820,7 +5846,6 @@ fn build_lookat_vp(eye: vec3<f32>, aim_pt: vec3<f32>, fov_rad: f32, aspect: f32)
 fn compute_photographer_vp() {
     let cfg = photographer_config;
     let pawn_pos = pawn_state.pos;
-    let pc = cfg.patch_count;
 
     // --- Camera position: spherical offset from pawn
     let cos_el = cos(cfg.elevation);
@@ -5834,8 +5859,8 @@ fn compute_photographer_vp() {
         cfg.distance * cos_el * cos_az
     );
 
-    // --- Clamp camera above actual terrain
-    let terrain_at_cam = sample_terrain_y_at(eye_raw.xz, pc);
+    // --- Clamp camera above actual terrain (O(1) patch_grid lookup)
+    let terrain_at_cam = sample_terrain_y_at(eye_raw.xz);
     let eye = vec3(eye_raw.x, max(eye_raw.y, terrain_at_cam + 0.1), eye_raw.z);
 
     // --- Build VP looking at pawn, with frame offset
@@ -5877,7 +5902,7 @@ fn compute_photographer_vp() {
 // Blade: excluded (no compute binding — uses CPU terrain mirror).
 @compute @workgroup_size(1)
 fn compute_entity_placement() {
-    let pc = config.placement_patch_count;
+    // Patch lookup is O(1) via patch_grid — no patch_count needed.
 
     // Y-correct all outdoor paintings (terrain quads + wall frame monuments).
     // Indoor wall frames use sentinel patch coords (0x7FFFFFFF) and are skipped.
@@ -5888,7 +5913,7 @@ fn compute_entity_placement() {
                 photo_painting_slots[i].position.x,
                 photo_painting_slots[i].position.z
             );
-            let ground = sample_terrain_y_at(slot_xz, pc) + zone_gol_height_at(slot_xz);
+            let ground = sample_terrain_y_at(slot_xz) + zone_gol_height_at(slot_xz);
             // Terrain quads: center at ground + half-height (bottom at ground)
             // Wall frames: also lift by frame_width so the frame border clears the ground
             var lift = photo_painting_slots[i].scale_y * 0.5;
@@ -5904,7 +5929,7 @@ fn compute_entity_placement() {
     for (var i = 0u; i < 32u; i++) {
         if (column_ground[i].is_active != 0u) {
             let xz = vec2(column_ground[i].center_x, column_ground[i].center_z);
-            column_ground[i].ground_y = sample_terrain_y_at(xz, pc);
+            column_ground[i].ground_y = sample_terrain_y_at(xz);
             textureStore(entity_ground_atlas_write, vec2<i32>(i32(i) + GROUND_ATLAS_COLUMN, 0), vec4<f32>(column_ground[i].ground_y, 0.0, 0.0, 0.0));
         }
     }
@@ -5913,7 +5938,7 @@ fn compute_entity_placement() {
     for (var i = 0u; i < 24u; i++) {
         if (plant_ground[i].is_active != 0u) {
             let xz = vec2(plant_ground[i].center_x, plant_ground[i].center_z);
-            plant_ground[i].ground_y = sample_terrain_y_at(xz, pc);
+            plant_ground[i].ground_y = sample_terrain_y_at(xz);
             textureStore(entity_ground_atlas_write, vec2<i32>(i32(i) + GROUND_ATLAS_PALM, 0), vec4<f32>(plant_ground[i].ground_y, 0.0, 0.0, 0.0));
         }
     }
@@ -5923,7 +5948,7 @@ fn compute_entity_placement() {
         let slot = 24u + i;
         if (plant_ground[slot].is_active != 0u) {
             let xz = vec2(plant_ground[slot].center_x, plant_ground[slot].center_z);
-            plant_ground[slot].ground_y = sample_terrain_y_at(xz, pc);
+            plant_ground[slot].ground_y = sample_terrain_y_at(xz);
             textureStore(entity_ground_atlas_write, vec2<i32>(i32(i) + GROUND_ATLAS_CACTUS, 0), vec4<f32>(plant_ground[slot].ground_y, 0.0, 0.0, 0.0));
         }
     }
@@ -5933,7 +5958,7 @@ fn compute_entity_placement() {
         let slot = 44u + i;
         if (plant_ground[slot].is_active != 0u) {
             let xz = vec2(plant_ground[slot].center_x, plant_ground[slot].center_z);
-            plant_ground[slot].ground_y = sample_terrain_y_at(xz, pc);
+            plant_ground[slot].ground_y = sample_terrain_y_at(xz);
             textureStore(entity_ground_atlas_write, vec2<i32>(i32(i) + GROUND_ATLAS_BLADE, 0), vec4<f32>(plant_ground[slot].ground_y, 0.0, 0.0, 0.0));
         }
     }
@@ -5944,8 +5969,8 @@ fn compute_entity_placement() {
         if (arch_ground[i].is_active != 0u) {
             let left_xz = vec2(arch_ground[i].pier_left_x, arch_ground[i].pier_left_z);
             let right_xz = vec2(arch_ground[i].pier_right_x, arch_ground[i].pier_right_z);
-            let tl = sample_terrain_y_at(left_xz, pc);
-            let tr = sample_terrain_y_at(right_xz, pc);
+            let tl = sample_terrain_y_at(left_xz);
+            let tr = sample_terrain_y_at(right_xz);
             arch_ground[i].ground_y = min(tl, tr);
             textureStore(entity_ground_atlas_write, vec2<i32>(i32(i) + GROUND_ATLAS_ARCH, 0), vec4<f32>(arch_ground[i].ground_y, 0.0, 0.0, 0.0));
         }
@@ -5963,11 +5988,11 @@ fn compute_entity_placement() {
             let cr = cos(rot);
             let sr = sin(rot);
 
-            let y_c  = sample_terrain_y_at(vec2(cx, cz), pc);
-            let y_px = sample_terrain_y_at(vec2(cx + hx * cr, cz + hx * sr), pc);
-            let y_mx = sample_terrain_y_at(vec2(cx - hx * cr, cz - hx * sr), pc);
-            let y_pz = sample_terrain_y_at(vec2(cx - hz * sr, cz + hz * cr), pc);
-            let y_mz = sample_terrain_y_at(vec2(cx + hz * sr, cz - hz * cr), pc);
+            let y_c  = sample_terrain_y_at(vec2(cx, cz));
+            let y_px = sample_terrain_y_at(vec2(cx + hx * cr, cz + hx * sr));
+            let y_mx = sample_terrain_y_at(vec2(cx - hx * cr, cz - hx * sr));
+            let y_pz = sample_terrain_y_at(vec2(cx - hz * sr, cz + hz * cr));
+            let y_mz = sample_terrain_y_at(vec2(cx + hz * sr, cz - hz * cr));
 
             pyramid_ground[i].ground_y = min(min(y_c, min(y_px, y_mx)), min(y_pz, y_mz));
             textureStore(entity_ground_atlas_write, vec2<i32>(i32(i) + GROUND_ATLAS_PYRAMID, 0), vec4<f32>(pyramid_ground[i].ground_y, 0.0, 0.0, 0.0));
