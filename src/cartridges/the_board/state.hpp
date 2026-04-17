@@ -911,7 +911,7 @@ namespace t7 {
             float    base_size;      // 32: sprite half-size
             float    dt;             // 36: frame delta time
             float    t_seconds;      // 40: elapsed seconds
-            float    _pad;           // 44
+            float    force_radial;   // 44: polyphony-driven radial force (world-units/s²)
         };
         static_assert(sizeof(GPUOrbConfig) == 48, "GPUOrbConfig must be 48 bytes");
 
@@ -2139,6 +2139,10 @@ namespace t7 {
             void upload_orb_frame(wgpu::Queue& queue, float dt, float t_seconds) {
                 queue.WriteBuffer(orbConfigBuffer_, offsetof(GPUOrbConfig, dt), &dt, sizeof(float));
                 queue.WriteBuffer(orbConfigBuffer_, offsetof(GPUOrbConfig, t_seconds), &t_seconds, sizeof(float));
+            }
+            void upload_orb_force(wgpu::Queue& queue, float radial) {
+                queue.WriteBuffer(orbConfigBuffer_,
+                    offsetof(GPUOrbConfig, force_radial), &radial, sizeof(float));
             }
             wgpu::Buffer zone_mesh_vertex_buffer() const { return zoneMeshVertexBuffer_; }
             wgpu::Buffer zone_mesh_index_buffer() const { return zoneMeshIndexBuffer_; }

@@ -39,6 +39,15 @@ bool     orbsActive_     = false;
 uint32_t orbCount_       = 0;
 bool     orbInitPending_ = false;
 
+// ─── Orb musical coupling state ──────────────────────────────────
+// Polyphony drives a radial force on the orbs; exponential ramps keep
+// onset/release smooth. Attack is faster than release so the sky
+// expands quickly but holds position after a phrase ends.
+float orbForceIntensity_ = 0.0f;
+static constexpr float ORB_FORCE_ATTACK  = 3.0f;   // 1/s
+static constexpr float ORB_FORCE_RELEASE = 1.5f;   // 1/s
+static constexpr float ORB_FORCE_SCALE   = 40.0f;  // world-units/s² at full intensity
+
 void configure_orbs(const OrbMoodConfig& cfg, wgpu::Queue& queue) {
     orbsActive_ = cfg.enabled;
     orbCount_ = std::min(cfg.count, (uint32_t)Dim::MAX_ORBS);
@@ -56,7 +65,7 @@ void configure_orbs(const OrbMoodConfig& cfg, wgpu::Queue& queue) {
         gpuCfg.base_size    = ORB_BASE_SIZE;
         gpuCfg.dt           = 0.0f;
         gpuCfg.t_seconds    = 0.0f;
-        gpuCfg._pad         = 0.0f;
+        gpuCfg.force_radial = 0.0f;
         gpuState_.upload_orb_config(queue, gpuCfg);
         orbInitPending_ = true;
 
@@ -71,6 +80,29 @@ void teardown_orbs() {
     orbsActive_ = false;
     orbCount_ = 0;
     orbInitPending_ = false;
+    orbForceIntensity_ = 0.0f;
+}
+
+// Polyphony → radial force. Exponential ramp, same discipline as
+// other mmode couplings. Uploads only when the intensity actually
+// changes, matching pawn aura's dirty-flag approach.
+void update_orb_coupling(float polyphony, float dt, wgpu::Queue& queue) {
+    if (!orbsActive_ || orbCount_ == 0) return;
+
+    float target = std::min(polyphony / 6.0f, 1.0f);
+
+    float prev = orbForceIntensity_;
+    float rate = (target > prev) ? ORB_FORCE_ATTACK : ORB_FORCE_RELEASE;
+    float next = prev + (target - prev) * (1.0f - std::exp(-rate * dt));
+
+    if (next < 0.001f && target == 0.0f) next = 0.0f;
+    if (next > 0.999f && target >= 1.0f) next = 1.0f;
+
+    if (next != prev) {
+        orbForceIntensity_ = next;
+        float radial = orbForceIntensity_ * ORB_FORCE_SCALE;
+        gpuState_.upload_orb_force(queue, radial);
+    }
 }
 
 void dispatch_orb_init(wgpu::CommandEncoder& encoder) {

@@ -8547,7 +8547,7 @@ struct OrbConfig {
     base_size:      f32,
     dt:             f32,
     t_seconds:      f32,
-    _pad:           f32,
+    force_radial:   f32,
 }
 
 @group(0) @binding(410) var<storage, read_write> orb_state: array<OrbState>;
@@ -8640,6 +8640,14 @@ fn orb_dynamics(@builtin(global_invocation_id) id: vec3<u32>) {
         let ny = (hash_property(noise_seed, 2u) - 0.5) * 2.0;
         let nz = (hash_property(noise_seed, 3u) - 0.5) * 2.0;
         orb.vel += vec3<f32>(nx, ny, nz) * orb_config.noise_amp * sqrt(dt);
+    }
+
+    // Radial force: polyphony-driven expansion/contraction, along the
+    // dome normal (outward from origin). Continuous force — dt scaling
+    // is correct; mass channel present for future per-tier response.
+    if (abs(orb_config.force_radial) > 0.001) {
+        let radial_dir = normalize(orb.pos);
+        orb.vel += radial_dir * orb_config.force_radial * dt / orb.mass;
     }
 
     // Integrate position.

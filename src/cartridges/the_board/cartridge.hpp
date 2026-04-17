@@ -7829,6 +7829,11 @@ namespace t7 {
 
                 gpuState_.upload_config(queue);
 
+                // Orb musical coupling: polyphony → radial expansion.
+                // Always-on when orbs are active; future coupling grammar
+                // will put this behind a gate.
+                update_orb_coupling(signal.stats[0], signal.dt, queue);
+
                 // Pawn position comes from GPU readback (one-frame latency).
                 // See render() for the readback state machine.
 
