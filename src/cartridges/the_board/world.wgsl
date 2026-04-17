@@ -8639,7 +8639,7 @@ fn orb_dynamics(@builtin(global_invocation_id) id: vec3<u32>) {
         let nx = (hash_property(noise_seed, 1u) - 0.5) * 2.0;
         let ny = (hash_property(noise_seed, 2u) - 0.5) * 2.0;
         let nz = (hash_property(noise_seed, 3u) - 0.5) * 2.0;
-        orb.vel += vec3<f32>(nx, ny, nz) * orb_config.noise_amp * dt;
+        orb.vel += vec3<f32>(nx, ny, nz) * orb_config.noise_amp * sqrt(dt);
     }
 
     // Integrate position.
