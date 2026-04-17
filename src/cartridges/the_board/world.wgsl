@@ -8631,6 +8631,17 @@ fn orb_dynamics(@builtin(global_invocation_id) id: vec3<u32>) {
     // Drag: exponential velocity decay.
     orb.vel = orb.vel * exp(-orb.drag * dt);
 
+    // Brownian noise: per-orb per-frame random velocity impulse.
+    // Applied after drag so each nudge has a full frame to act
+    // before being damped. Dome projection keeps orbs on-shell.
+    if (orb_config.noise_amp > 0.0) {
+        let noise_seed = bitcast<u32>(orb_config.t_seconds * 1000.0) ^ (i * 2654435761u);
+        let nx = (hash_property(noise_seed, 1u) - 0.5) * 2.0;
+        let ny = (hash_property(noise_seed, 2u) - 0.5) * 2.0;
+        let nz = (hash_property(noise_seed, 3u) - 0.5) * 2.0;
+        orb.vel += vec3<f32>(nx, ny, nz) * orb_config.noise_amp * dt;
+    }
+
     // Integrate position.
     orb.pos = orb.pos + orb.vel * dt;
 
