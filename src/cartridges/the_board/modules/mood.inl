@@ -416,6 +416,19 @@ void apply_mood(uint32_t mood, wgpu::Queue& queue) {
         renderedRibbonSlot_ = 0;
     }
 
+    // Sky orb layer — per-mood enable + seed-driven init.
+    {
+        OrbMoodConfig ocfg{};
+        ocfg.enabled      = m.orbs.enabled;
+        ocfg.count        = m.orbs.count;
+        ocfg.base_hue     = m.orbs.base_hue;
+        ocfg.hue_variance = m.orbs.hue_variance;
+        ocfg.brightness   = m.orbs.brightness;
+        ocfg.drag         = m.orbs.drag;
+        ocfg.noise_amp    = m.orbs.noise_amp;
+        configure_orbs(ocfg, queue);
+    }
+
     std::cout << "[Mood] Applied: " << mood_name(mood)
         << " (mood=" << mood
         << (m.indoor ? " INDOOR" : " outdoor")

@@ -160,6 +160,19 @@ namespace t7 {
                 bool   allow_gol_zones;        // GoL zone spawning + visualization
                 bool   allow_pawn_aura;        // toroidal spring grid tinting + height boost
                 bool   allow_frustum_cull;     // GPU frustum cull for LOD0 terrain (Tier 4)
+
+                // ─── Sky orbs (per-mood) ────────────────────────────────
+                // Declarative config for the orb layer. disabled in indoor moods.
+                struct OrbMoodConfigInit {
+                    bool     enabled;
+                    uint32_t count;
+                    float    base_hue;
+                    float    hue_variance;
+                    float    brightness;
+                    float    drag;
+                    float    noise_amp;
+                };
+                OrbMoodConfigInit orbs;
             };
 
             static constexpr uint32_t MOOD_COUNT = 6;
@@ -167,15 +180,15 @@ namespace t7 {
             // ─── Mood Definitions ───────────────────────────────────────────
             //
             //                                  fin  r_min r_max  sun_dir                sun_color              int   amb   fog_d   fog_color               indoor  ceil       ceil_h  clear_color            wall_color             ceil_color
-            //                                                                                                                                                                                                                                                                                                                                              musical  gol    aura   frustum
-            //                                  fin  r_min r_max  sun_dir                sun_color              int   amb   fog_d   fog_color               indoor  ceil       ceil_h  clear_color            wall_color             ceil_color               modes   zones  aura   cull
+            //                                                                                                                                                                                                                                                                                                                                              musical  gol    aura   frustum    orbs{enabled, count, base_hue, hue_var, bright, drag, noise_amp}
+            //                                  fin  r_min r_max  sun_dir                sun_color              int   amb   fog_d   fog_color               indoor  ceil       ceil_h  clear_color            wall_color             ceil_color               modes   zones  aura   cull        orbs
             static constexpr MoodProfile MOOD_TABLE[MOOD_COUNT] = {
-                /* 0  open_default        */  { false, 2, 2, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true  },
-                /* 1  open_sunset         */  { false, 2, 2, { 0.96f,-0.26f,-0.13f}, {1.0f, 0.75f, 0.45f}, 0.90f, 0.20f, 0.0050f, {0.95f, 0.70f, 0.45f},  false, CeilingType::NONE,  0.0f,  {0.95f, 0.70f, 0.45f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true  },
-                /* 2  indoor_flat         */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f, 0.0003f, {0.15f, 0.12f, 0.10f},  true,  CeilingType::FLAT,  20.0f, {0.15f, 0.12f, 0.10f}, {0.65f,0.58f,0.50f}, {0.60f,0.55f,0.48f},   true,  true,  true,  false },
-                /* 3  indoor_vault        */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f, 0.0003f, {0.15f, 0.12f, 0.10f},  true,  CeilingType::VAULT, 25.0f, {0.15f, 0.12f, 0.10f}, {0.70f,0.62f,0.52f}, {0.65f,0.58f,0.50f},   true,  true,  true,  false },
-                /* 4  finite_outdoor      */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true  },
-                /* 5  finite_outdoor_ref  */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true  },
+                /* 0  open_default        */  { false, 2, 2, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true,   { true,  96,  0.60f, 0.08f, 0.70f, 0.5f, 0.0f } },
+                /* 1  open_sunset         */  { false, 2, 2, { 0.96f,-0.26f,-0.13f}, {1.0f, 0.75f, 0.45f}, 0.90f, 0.20f, 0.0050f, {0.95f, 0.70f, 0.45f},  false, CeilingType::NONE,  0.0f,  {0.95f, 0.70f, 0.45f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true,   { true,  128, 0.08f, 0.06f, 0.85f, 0.5f, 0.0f } },
+                /* 2  indoor_flat         */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f, 0.0003f, {0.15f, 0.12f, 0.10f},  true,  CeilingType::FLAT,  20.0f, {0.15f, 0.12f, 0.10f}, {0.65f,0.58f,0.50f}, {0.60f,0.55f,0.48f},   true,  true,  true,  false,  { false, 0,   0.08f, 0.05f, 0.80f, 0.5f, 0.0f } },
+                /* 3  indoor_vault        */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f, 0.0003f, {0.15f, 0.12f, 0.10f},  true,  CeilingType::VAULT, 25.0f, {0.15f, 0.12f, 0.10f}, {0.70f,0.62f,0.52f}, {0.65f,0.58f,0.50f},   true,  true,  true,  false,  { false, 0,   0.08f, 0.05f, 0.80f, 0.5f, 0.0f } },
+                /* 4  finite_outdoor      */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true,   { false, 0,   0.08f, 0.05f, 0.80f, 0.5f, 0.0f } },
+                /* 5  finite_outdoor_ref  */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true,   { false, 0,   0.08f, 0.05f, 0.80f, 0.5f, 0.0f } },
             };
 
             static const char* mood_name(uint32_t mood) {
@@ -1461,6 +1474,9 @@ namespace t7 {
 
                         // ── Pawn Aura (modules/pawn_aura.inl) ──
 #include "modules/pawn_aura.inl"
+
+                        // ── Sky Orbs (modules/orbs.inl) ──
+#include "modules/orbs.inl"
 
 // ── Spawn Engine & Entity Lifecycle (modules/spawn_engine.inl) ──
 // ═══ INLINED: modules/spawn_engine.inl ═══════════════════════════════
@@ -7065,6 +7081,9 @@ namespace t7 {
                 auraNeedsClear_ = true;
                 auraCfgDirty_ = true;
 
+                // Sky orbs: apply_mood re-enables + re-seeds as needed
+                teardown_orbs();
+
                 // Indoor shell
                 gpuState_.set_shell_index_count(0);
 
@@ -7457,6 +7476,21 @@ namespace t7 {
 
                 init_patch_system();
                 setup_test_rig_piers(device_.GetQueue());
+
+                // Sky orbs for the initial mood (apply_mood runs only on transitions).
+                {
+                    wgpu::Queue q = device_.GetQueue();
+                    const auto& m0 = MOOD_TABLE[activeMood_];
+                    OrbMoodConfig ocfg{};
+                    ocfg.enabled      = m0.orbs.enabled;
+                    ocfg.count        = m0.orbs.count;
+                    ocfg.base_hue     = m0.orbs.base_hue;
+                    ocfg.hue_variance = m0.orbs.hue_variance;
+                    ocfg.brightness   = m0.orbs.brightness;
+                    ocfg.drag         = m0.orbs.drag;
+                    ocfg.noise_amp    = m0.orbs.noise_amp;
+                    configure_orbs(ocfg, q);
+                }
 
                 // Eager-load authored paintings at boot (avoids mid-frame stall on first gallery)
                 {
@@ -8034,6 +8068,10 @@ namespace t7 {
                     // After one cleanup frame with release_rate=999, all cells are zero
                     if (auraNeedsClear_) { auraNeedsClear_ = false; }
                 }
+
+                // Orb sky layer: one-shot seed-to-dome init, then per-frame dynamics.
+                dispatch_orb_init(encoder);
+                dispatch_orb_dynamics(encoder, queue);
 
                 if (groundEntriesDirty_) {
                     groundEntriesDirty_ = false;

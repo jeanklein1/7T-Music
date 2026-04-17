@@ -575,6 +575,11 @@
                     activePaintingCount_
                 );
 
+                // Sky orbs (additive, depth-tested, depth-write off).
+                // After opaque entities so they depth-test correctly; before
+                // fade overlay so the overlay fades the orbs too.
+                render_orbs(pass);
+
                 // Fade overlay (drawn last, alpha blended over everything)
                 renderer_.draw_fade_overlay(
                     pass,

@@ -214,6 +214,9 @@ namespace t7 {
             constexpr uint32_t ZONE_MESH_MAX_INDICES = 75000;
             constexpr uint32_t MAX_ZONE_MESH_VERTICES = 200000;  // 8 zones × up to 1024 cells × 5 quads × 4 verts
             constexpr uint32_t MAX_ZONE_MESH_INDICES = 300000;
+
+            // Orb sky layer — luminous points on a dome above the world
+            constexpr uint32_t MAX_ORBS = 256;
         }
 
 
@@ -877,6 +880,41 @@ namespace t7 {
         };
         static_assert(sizeof(GPUPawnAuraCell) == 48, "GPUPawnAuraCell must be 48 bytes");
 
+        // ── Orb sky layer: per-orb state + per-frame config ──
+        // Orbs live on a fixed dome (sphere shell) centered at world origin.
+        // Bones pass: static positions, color drift disabled, no force fields.
+        struct alignas(16) GPUOrbState {
+            float pos[3];            //  0: world-space position on dome
+            float _pad0;             // 12
+            float vel[3];            // 16: world-space velocity (zero in bones)
+            float _pad1;             // 28
+            float base_color[3];     // 32: rgb at spawn (seed-derived)
+            float brightness;        // 44: 0..1
+            float current_color[3];  // 48: rgb, drifts near base_color
+            float twinkle_phase;     // 60: radians, seed-derived
+            float size;              // 64: world-space sprite half-size
+            float mass;              // 68: 1.0 in bones pass
+            float drag;              // 72: velocity decay rate (1/s)
+            float _pad2;             // 76
+        };
+        static_assert(sizeof(GPUOrbState) == 80, "GPUOrbState must be 80 bytes");
+
+        struct alignas(16) GPUOrbConfig {
+            uint32_t count;          //  0: active orb count
+            uint32_t seed;           //  4: world seed for init
+            float    base_hue;       //  8: HSV hue center (0..1)
+            float    hue_variance;   // 12: max deviation from base_hue
+            float    brightness;     // 16: global brightness
+            float    drag;           // 20: per-mood drag override
+            float    noise_amp;      // 24: Brownian noise amplitude (bones: 0)
+            float    dome_radius;    // 28: dome shell radius
+            float    base_size;      // 32: sprite half-size
+            float    dt;             // 36: frame delta time
+            float    t_seconds;      // 40: elapsed seconds
+            float    _pad;           // 44
+        };
+        static_assert(sizeof(GPUOrbConfig) == 48, "GPUOrbConfig must be 48 bytes");
+
         // (GPUCellState removed — legacy cell system no longer active)
 
         struct alignas(16) GPUVPMatrix {
@@ -1233,6 +1271,14 @@ namespace t7 {
             wgpu::TextureView pawnAuraReadView_;    // sampled texture read (fragment)
             wgpu::BindGroupLayout pawnAuraComputeLayout_;
             wgpu::BindGroup pawnAuraComputeGroup_;
+
+            // ── Orb sky layer ────────────────────────────────────────
+            wgpu::Buffer orbStateBuffer_;          // MAX_ORBS × GPUOrbState (storage, read_write)
+            wgpu::Buffer orbConfigBuffer_;         // GPUOrbConfig (uniform, per-frame)
+            wgpu::Buffer orbQuadVB_;               // 4 vertices: billboard quad
+            wgpu::Buffer orbQuadIB_;               // 6 indices: two triangles
+            wgpu::BindGroupLayout orbComputeLayout_;
+            wgpu::BindGroup orbComputeGroup_;
 
             // Entity ground atlas (r32float, 256×1) — compute writes, VS reads
             wgpu::Texture entityGroundAtlasTexture_;
@@ -2079,6 +2125,21 @@ namespace t7 {
                 queue.WriteBuffer(pawnAuraConfigBuffer_, offsetof(GPUPawnAuraConfig, t_beats), &t_beats, sizeof(float));
             }
             static constexpr uint32_t pawn_aura_workgroups() { return PAWN_AURA_N / 8; }
+
+            // Orb sky layer accessors
+            wgpu::Buffer orb_state_buffer() const { return orbStateBuffer_; }
+            wgpu::Buffer orb_config_buffer() const { return orbConfigBuffer_; }
+            wgpu::Buffer orb_quad_vb() const { return orbQuadVB_; }
+            wgpu::Buffer orb_quad_ib() const { return orbQuadIB_; }
+            wgpu::BindGroupLayout orb_compute_layout() const { return orbComputeLayout_; }
+            wgpu::BindGroup orb_compute_group() const { return orbComputeGroup_; }
+            void upload_orb_config(wgpu::Queue& queue, const GPUOrbConfig& cfg) {
+                queue.WriteBuffer(orbConfigBuffer_, 0, &cfg, sizeof(GPUOrbConfig));
+            }
+            void upload_orb_frame(wgpu::Queue& queue, float dt, float t_seconds) {
+                queue.WriteBuffer(orbConfigBuffer_, offsetof(GPUOrbConfig, dt), &dt, sizeof(float));
+                queue.WriteBuffer(orbConfigBuffer_, offsetof(GPUOrbConfig, t_seconds), &t_seconds, sizeof(float));
+            }
             wgpu::Buffer zone_mesh_vertex_buffer() const { return zoneMeshVertexBuffer_; }
             wgpu::Buffer zone_mesh_index_buffer() const { return zoneMeshIndexBuffer_; }
             wgpu::Buffer zone_mesh_indirect_buffer() const { return zoneMeshIndirectBuffer_; }
@@ -2755,6 +2816,38 @@ namespace t7 {
                         init_cells.size() * sizeof(GPUPawnAuraCell));
                 }
 
+                // Orb sky layer buffers
+                orbStateBuffer_ = makeBuffer("Orb State",
+                    Dim::MAX_ORBS * sizeof(GPUOrbState),
+                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
+                orbConfigBuffer_ = makeBuffer("Orb Config",
+                    sizeof(GPUOrbConfig),
+                    wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);
+                if (!orbStateBuffer_ || !orbConfigBuffer_) return false;
+
+                // Billboard quad: 4 corner positions (2-component), 6 indices
+                {
+                    const float quadVerts[] = {
+                        -1.0f, -1.0f,
+                         1.0f, -1.0f,
+                         1.0f,  1.0f,
+                        -1.0f,  1.0f,
+                    };
+                    orbQuadVB_ = makeBuffer("Orb Quad VB",
+                        sizeof(quadVerts),
+                        wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst);
+                    if (!orbQuadVB_) return false;
+                    wgpu::Queue q = device_.GetQueue();
+                    q.WriteBuffer(orbQuadVB_, 0, quadVerts, sizeof(quadVerts));
+
+                    const uint16_t quadIndices[] = { 0, 1, 2, 0, 2, 3 };
+                    orbQuadIB_ = makeBuffer("Orb Quad IB",
+                        sizeof(quadIndices),
+                        wgpu::BufferUsage::Index | wgpu::BufferUsage::CopyDst);
+                    if (!orbQuadIB_) return false;
+                    q.WriteBuffer(orbQuadIB_, 0, quadIndices, sizeof(quadIndices));
+                }
+
                 return true;
             }
 
@@ -3026,7 +3119,7 @@ namespace t7 {
                 // Vertex shaders need entity state for positioning + VP for transform.
                 // Fragment shaders need camera for fog distance.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 16> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 17> entries{};
 
                     entries[0].binding = 1;    // config (uniform — fog, world_seed, aura_enabled, fade)
                     entries[0].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
@@ -3096,6 +3189,11 @@ namespace t7 {
                     entries[15].binding = 391;
                     entries[15].visibility = wgpu::ShaderStage::Vertex;
                     entries[15].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+
+                    // Orb state (VS reads per-instance position/color/size for billboards)
+                    entries[16].binding = 400;
+                    entries[16].visibility = wgpu::ShaderStage::Vertex;
+                    entries[16].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Render Entity Layout";
@@ -3665,6 +3763,29 @@ namespace t7 {
                     if (!pawnAuraComputeLayout_) return false;
                 }
 
+                // -- Orb compute layout (Group 0) -- bindings 410 (storage rw) + 411 (uniform) --
+                // Dedicated layout: orb_init + orb_dynamics share it. Binding numbers
+                // must be unique within the WGSL module; 410/411 sit in the 400-range
+                // alongside render binding 400 (orb_state read-only).
+                {
+                    std::array<wgpu::BindGroupLayoutEntry, 2> entries{};
+
+                    entries[0].binding = 410;  // orb_state (storage, read_write)
+                    entries[0].visibility = wgpu::ShaderStage::Compute;
+                    entries[0].buffer.type = wgpu::BufferBindingType::Storage;
+
+                    entries[1].binding = 411;  // orb_config (uniform)
+                    entries[1].visibility = wgpu::ShaderStage::Compute;
+                    entries[1].buffer.type = wgpu::BufferBindingType::Uniform;
+
+                    wgpu::BindGroupLayoutDescriptor desc{};
+                    desc.label = "Orb Compute Layout";
+                    desc.entryCount = entries.size();
+                    desc.entries = entries.data();
+                    orbComputeLayout_ = device_.CreateBindGroupLayout(&desc);
+                    if (!orbComputeLayout_) return false;
+                }
+
                 // -- Pyramid mesh gen layout (Group 0) -- bindings 190-192 --
                 // Isolated from terrain evaluation: pure geometry generation.
                 {
@@ -3880,9 +4001,9 @@ namespace t7 {
                     if (!computeEntityBindGroup_) return false;
                 }
 
-                // Render entity bind group (16 entries: config + spaced by system +200)
+                // Render entity bind group (17 entries: config + spaced by system +200)
                 {
-                    std::array<wgpu::BindGroupEntry, 16> entries{};
+                    std::array<wgpu::BindGroupEntry, 17> entries{};
 
                     entries[0].binding = 1;
                     entries[0].buffer = configBuffer_;
@@ -3949,6 +4070,11 @@ namespace t7 {
                     entries[15].binding = 391;
                     entries[15].buffer = visiblePatchIndicesBuffer_;
                     entries[15].size = Dim::MAX_ACTIVE_PATCHES * sizeof(uint32_t);
+
+                    // Orb state (VS reads per-instance)
+                    entries[16].binding = 400;
+                    entries[16].buffer = orbStateBuffer_;
+                    entries[16].size = Dim::MAX_ORBS * sizeof(GPUOrbState);
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Render Entity BindGroup";
@@ -4172,7 +4298,7 @@ namespace t7 {
 
                 // Photographer render entity bind group (same layout as main, different VP)
                 {
-                    std::array<wgpu::BindGroupEntry, 16> entries{};
+                    std::array<wgpu::BindGroupEntry, 17> entries{};
                     entries[0].binding = 1;
                     entries[0].buffer = configBuffer_;
                     entries[0].size = sizeof(GPUDesignConfig);
@@ -4223,6 +4349,11 @@ namespace t7 {
                     entries[15].binding = 391;
                     entries[15].buffer = visiblePatchIndicesBuffer_;
                     entries[15].size = Dim::MAX_ACTIVE_PATCHES * sizeof(uint32_t);
+
+                    // Orb state (VS reads per-instance) — same buffer as main path
+                    entries[16].binding = 400;
+                    entries[16].buffer = orbStateBuffer_;
+                    entries[16].size = Dim::MAX_ORBS * sizeof(GPUOrbState);
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Photographer Render Entity BindGroup";
@@ -4453,6 +4584,27 @@ namespace t7 {
                     desc.entries = entries.data();
                     pawnAuraComputeGroup_ = device_.CreateBindGroup(&desc);
                     if (!pawnAuraComputeGroup_) return false;
+                }
+
+                // Orb compute bind group (2 entries: state storage rw + config uniform)
+                {
+                    std::array<wgpu::BindGroupEntry, 2> entries{};
+
+                    entries[0].binding = 410;
+                    entries[0].buffer = orbStateBuffer_;
+                    entries[0].size = Dim::MAX_ORBS * sizeof(GPUOrbState);
+
+                    entries[1].binding = 411;
+                    entries[1].buffer = orbConfigBuffer_;
+                    entries[1].size = sizeof(GPUOrbConfig);
+
+                    wgpu::BindGroupDescriptor desc{};
+                    desc.label = "Orb Compute BindGroup";
+                    desc.layout = orbComputeLayout_;
+                    desc.entryCount = entries.size();
+                    desc.entries = entries.data();
+                    orbComputeGroup_ = device_.CreateBindGroup(&desc);
+                    if (!orbComputeGroup_) return false;
                 }
 
                 // Pyramid mesh gen bind group

@@ -8503,4 +8503,208 @@ fn shadow_blade_cluster_vs(in: ArchVertexInput) -> ShadowVarying {
     return out;
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// §ORB — Sky orb layer: init, dynamics, render
+// ═══════════════════════════════════════════════════════════════════
+//
+// Luminous points on a dome (sphere shell) above the world.
+// Bones pass: seeded positions, static in world space, subtle twinkle.
+// No force fields, no color drift, no density/tier profiles.
+//
+// Bind group topology:
+//   Compute (orb_init, orb_dynamics) — dedicated orb compute layout:
+//     @binding(410) orb_state   storage, read_write
+//     @binding(411) orb_config  uniform
+//   Render (orb_vs, orb_fs) — existing render_entity layout:
+//     @binding(201) render_vp       (already declared)
+//     @binding(280) render_camera   (already declared)
+//     @binding(400) render_orb_state  storage, read (new)
+
+struct OrbState {
+    pos:            vec3<f32>,
+    _pad0:          f32,
+    vel:            vec3<f32>,
+    _pad1:          f32,
+    base_color:     vec3<f32>,
+    brightness:     f32,
+    current_color:  vec3<f32>,
+    twinkle_phase:  f32,
+    size:           f32,
+    mass:           f32,
+    drag:           f32,
+    _pad2:          f32,
+}
+
+struct OrbConfig {
+    count:          u32,
+    seed:           u32,
+    base_hue:       f32,
+    hue_variance:   f32,
+    brightness:     f32,
+    drag:           f32,
+    noise_amp:      f32,
+    dome_radius:    f32,
+    base_size:      f32,
+    dt:             f32,
+    t_seconds:      f32,
+    _pad:           f32,
+}
+
+@group(0) @binding(410) var<storage, read_write> orb_state: array<OrbState>;
+@group(0) @binding(411) var<uniform> orb_config: OrbConfig;
+
+// Render-side read-only view of the same orb_state buffer.
+@group(0) @binding(400) var<storage, read> render_orb_state: array<OrbState>;
+
+fn orb_hsv_to_rgb(hsv: vec3<f32>) -> vec3<f32> {
+    let h = hsv.x * 6.0;
+    let s = hsv.y;
+    let v = hsv.z;
+    let c = v * s;
+    let x = c * (1.0 - abs(h - 2.0 * floor(h * 0.5) - 1.0));
+    let m = v - c;
+    var rgb: vec3<f32>;
+    if (h < 1.0) { rgb = vec3<f32>(c, x, 0.0); }
+    else if (h < 2.0) { rgb = vec3<f32>(x, c, 0.0); }
+    else if (h < 3.0) { rgb = vec3<f32>(0.0, c, x); }
+    else if (h < 4.0) { rgb = vec3<f32>(0.0, x, c); }
+    else if (h < 5.0) { rgb = vec3<f32>(x, 0.0, c); }
+    else             { rgb = vec3<f32>(c, 0.0, x); }
+    return rgb + vec3<f32>(m, m, m);
+}
+
+@compute @workgroup_size(64)
+fn orb_init(@builtin(global_invocation_id) id: vec3<u32>) {
+    let i = id.x;
+    if (i >= orb_config.count) { return; }
+
+    let seed = orb_config.seed ^ (i * 2654435761u);
+
+    // Uniform point on upper hemisphere of dome.
+    let u = hash_property(seed, 1u);
+    let v = hash_property(seed, 2u);
+    let theta = u * 6.28318530718;
+    let phi = acos(1.0 - v);  // phi in [0, π/2]
+
+    let sin_phi = sin(phi);
+    let cos_phi = cos(phi);
+
+    let dir = vec3<f32>(
+        sin_phi * cos(theta),
+        cos_phi,
+        sin_phi * sin(theta)
+    );
+    let pos = dir * orb_config.dome_radius;
+
+    // Color: base hue ± variance, moderate saturation, high value.
+    let hue_offset = (hash_property(seed, 3u) - 0.5) * 2.0 * orb_config.hue_variance;
+    let hue = fract(orb_config.base_hue + hue_offset);
+    let sat = 0.5 + hash_property(seed, 5u) * 0.3;   // 0.5..0.8
+    let val = 0.8 + hash_property(seed, 6u) * 0.2;   // 0.8..1.0
+    let color = orb_hsv_to_rgb(vec3<f32>(hue, sat, val));
+
+    // Size variation: ±30% around base.
+    let size = orb_config.base_size * (0.7 + hash_property(seed, 7u) * 0.6);
+
+    orb_state[i].pos = pos;
+    orb_state[i]._pad0 = 0.0;
+    orb_state[i].vel = vec3<f32>(0.0, 0.0, 0.0);
+    orb_state[i]._pad1 = 0.0;
+    orb_state[i].base_color = color;
+    orb_state[i].brightness = orb_config.brightness;
+    orb_state[i].current_color = color;
+    orb_state[i].twinkle_phase = hash_property(seed, 4u) * 6.28318530718;
+    orb_state[i].size = size;
+    orb_state[i].mass = 1.0;
+    orb_state[i].drag = orb_config.drag;
+    orb_state[i]._pad2 = 0.0;
+}
+
+@compute @workgroup_size(64)
+fn orb_dynamics(@builtin(global_invocation_id) id: vec3<u32>) {
+    let i = id.x;
+    if (i >= orb_config.count) { return; }
+
+    var orb = orb_state[i];
+    let dt = orb_config.dt;
+
+    // Drag: exponential velocity decay.
+    orb.vel = orb.vel * exp(-orb.drag * dt);
+
+    // Integrate position.
+    orb.pos = orb.pos + orb.vel * dt;
+
+    // Project back onto dome shell so float drift doesn't accumulate.
+    let r = length(orb.pos);
+    if (r > 0.001) {
+        orb.pos = orb.pos * (orb_config.dome_radius / r);
+    }
+
+    // Snap negligible velocity to zero.
+    if (dot(orb.vel, orb.vel) < 1e-6) {
+        orb.vel = vec3<f32>(0.0, 0.0, 0.0);
+    }
+
+    // Color: no drift in bones pass — current tracks base.
+    orb.current_color = orb.base_color;
+
+    // Twinkle: subtle per-orb brightness oscillation, de-synced by phase.
+    let twinkle = 0.85 + 0.15 * sin(orb.twinkle_phase + orb_config.t_seconds * 1.5);
+    orb.brightness = orb_config.brightness * twinkle;
+
+    orb_state[i] = orb;
+}
+
+struct OrbVSOut {
+    @builtin(position) clip_pos: vec4<f32>,
+    @location(0) uv: vec2<f32>,
+    @location(1) color: vec3<f32>,
+    @location(2) brightness: f32,
+}
+
+@vertex
+fn orb_vs(
+    @location(0) quad_pos: vec2<f32>,
+    @builtin(instance_index) instance: u32
+) -> OrbVSOut {
+    let orb = render_orb_state[instance];
+
+    // Build world-space camera basis from azimuth/elevation — matches
+    // build_view_projection_matrix conventions exactly.
+    let az = render_camera.azimuth;
+    let el = render_camera.elevation;
+    let cos_el = cos(el);
+    let sin_el = sin(el);
+    let cos_az = cos(az);
+    let sin_az = sin(az);
+
+    let orbital = vec3<f32>(cos_el * sin_az, sin_el, cos_el * cos_az);
+    let cam_right = vec3<f32>(cos_az, 0.0, -sin_az);
+    let cam_up = cross(orbital, cam_right);
+
+    let world_pos = orb.pos
+        + cam_right * (quad_pos.x * orb.size)
+        + cam_up    * (quad_pos.y * orb.size);
+
+    var out: OrbVSOut;
+    out.clip_pos = render_vp.m * vec4<f32>(world_pos, 1.0);
+    out.uv = quad_pos;
+    out.color = orb.current_color;
+    out.brightness = orb.brightness;
+    return out;
+}
+
+@fragment
+fn orb_fs(in: OrbVSOut) -> @location(0) vec4<f32> {
+    // Soft radial falloff — circle with smooth edge.
+    let r = length(in.uv);
+    if (r > 1.0) { discard; }
+
+    let alpha = smoothstep(1.0, 0.3, r);
+    let intensity = alpha * in.brightness;
+
+    // Premultiplied alpha — pipeline uses additive blending.
+    return vec4<f32>(in.color * intensity, intensity);
+}
+
 // END OF SCROLL

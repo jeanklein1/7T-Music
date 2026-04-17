@@ -138,6 +138,12 @@ namespace t7 {
             // Fade overlay (fullscreen transition)
             constexpr const char* FADE_OVERLAY_VS = "fade_overlay_vs";
             constexpr const char* FADE_OVERLAY_FS = "fade_overlay_fs";
+
+            // Orb sky layer (luminous points on a dome)
+            constexpr const char* ORB_INIT     = "orb_init";      // 1D compute
+            constexpr const char* ORB_DYNAMICS = "orb_dynamics";  // 1D compute
+            constexpr const char* ORB_VS       = "orb_vs";
+            constexpr const char* ORB_FS       = "orb_fs";
         }
 
 
@@ -249,6 +255,12 @@ namespace t7 {
             wgpu::BindGroupLayout entityPlacementComputeLayout_;
             wgpu::ComputePipeline pawnAuraPipeline_;
 
+            // Orb sky layer pipelines
+            wgpu::BindGroupLayout orbComputeLayout_;
+            wgpu::ComputePipeline orbInitPipeline_;
+            wgpu::ComputePipeline orbDynamicsPipeline_;
+            wgpu::RenderPipeline  orbRenderPipeline_;
+
             // GoL zone compute pipelines (dedicated layout, z-dispatched per zone)
             wgpu::ComputePipeline zoneGolSyncPipeline_;
             wgpu::ComputePipeline zoneGolEvolvePipeline_;
@@ -310,6 +322,7 @@ namespace t7 {
                 entityPlacementComputeLayout_ = gpuState.entity_placement_compute_layout();
                 frustumCullLayout_ = gpuState.frustum_cull_layout();
                 pawnAuraComputeLayout_ = gpuState.pawn_aura_compute_layout();
+                orbComputeLayout_ = gpuState.orb_compute_layout();
                 zoneGolComputeLayout_ = gpuState.zone_gol_compute_layout();
                 zoneMeshGenLayout_ = gpuState.zone_mesh_gen_layout();
                 pyramidMeshGenLayout_ = gpuState.pyramid_mesh_gen_layout();
@@ -500,6 +513,43 @@ namespace t7 {
                 pass.SetPipeline(pawnAuraPipeline_);
                 pass.SetBindGroup(0, auraComputeBindGroup);
                 pass.DispatchWorkgroups(workgroups, workgroups, 1);
+            }
+
+            void dispatch_orb_init(
+                wgpu::ComputePassEncoder& pass,
+                wgpu::BindGroup orbComputeGroup,
+                uint32_t workgroups
+            ) {
+                pass.SetPipeline(orbInitPipeline_);
+                pass.SetBindGroup(0, orbComputeGroup);
+                pass.DispatchWorkgroups(workgroups, 1, 1);
+            }
+
+            void dispatch_orb_dynamics(
+                wgpu::ComputePassEncoder& pass,
+                wgpu::BindGroup orbComputeGroup,
+                uint32_t workgroups
+            ) {
+                pass.SetPipeline(orbDynamicsPipeline_);
+                pass.SetBindGroup(0, orbComputeGroup);
+                pass.DispatchWorkgroups(workgroups, 1, 1);
+            }
+
+            void draw_orbs(
+                wgpu::RenderPassEncoder& pass,
+                wgpu::BindGroup entityBindGroup,
+                wgpu::BindGroup textureBindGroup,
+                wgpu::Buffer quadVB,
+                wgpu::Buffer quadIB,
+                uint32_t orbCount
+            ) {
+                if (orbCount == 0) return;
+                pass.SetPipeline(orbRenderPipeline_);
+                pass.SetBindGroup(0, entityBindGroup);
+                pass.SetBindGroup(1, textureBindGroup);
+                pass.SetVertexBuffer(0, quadVB);
+                pass.SetIndexBuffer(quadIB, wgpu::IndexFormat::Uint16);
+                pass.DrawIndexed(6, orbCount, 0, 0, 0);
             }
 
             void dispatch_zone_gol_sync(
@@ -1489,6 +1539,30 @@ namespace t7 {
                     if (!pawnAuraPipeline_) return false;
                 }
 
+                // Orb compute pipelines (init + dynamics share the dedicated orb layout)
+                {
+                    std::array<wgpu::BindGroupLayout, 1> layouts = { orbComputeLayout_ };
+                    wgpu::PipelineLayoutDescriptor pld{};
+                    pld.bindGroupLayoutCount = layouts.size();
+                    pld.bindGroupLayouts = layouts.data();
+                    wgpu::PipelineLayout pl = device_.CreatePipelineLayout(&pld);
+                    if (!pl) return false;
+
+                    wgpu::ComputePipelineDescriptor desc{};
+                    desc.layout = pl;
+                    desc.compute.module = shaderModule_;
+
+                    desc.label = "Orb Init";
+                    desc.compute.entryPoint = Entry::ORB_INIT;
+                    orbInitPipeline_ = device_.CreateComputePipeline(&desc);
+                    if (!orbInitPipeline_) return false;
+
+                    desc.label = "Orb Dynamics";
+                    desc.compute.entryPoint = Entry::ORB_DYNAMICS;
+                    orbDynamicsPipeline_ = device_.CreateComputePipeline(&desc);
+                    if (!orbDynamicsPipeline_) return false;
+                }
+
                 // GoL zone compute pipelines (dedicated layout, z-dispatched)
                 {
                     std::array<wgpu::BindGroupLayout, 1> layouts = { zoneGolComputeLayout_ };
@@ -2014,6 +2088,64 @@ namespace t7 {
 
                     ribbonPipeline_ = device_.CreateRenderPipeline(&desc);
                     if (!ribbonPipeline_) return false;
+                }
+
+                // Orb pipeline -- billboarded glowing sprites, additive blended,
+                // depth-tested but not depth-writing (transparent, stack safely).
+                {
+                    wgpu::VertexAttribute orbAttr{};
+                    orbAttr.format = wgpu::VertexFormat::Float32x2;
+                    orbAttr.offset = 0;
+                    orbAttr.shaderLocation = 0;
+
+                    wgpu::VertexBufferLayout orbVBL{};
+                    orbVBL.arrayStride = 8;  // 2 × f32
+                    orbVBL.stepMode = wgpu::VertexStepMode::Vertex;
+                    orbVBL.attributeCount = 1;
+                    orbVBL.attributes = &orbAttr;
+
+                    // Additive blend (premultiplied alpha in FS: out.rgb = color*intensity).
+                    wgpu::BlendState orbBlend{};
+                    orbBlend.color.srcFactor = wgpu::BlendFactor::One;
+                    orbBlend.color.dstFactor = wgpu::BlendFactor::One;
+                    orbBlend.color.operation = wgpu::BlendOperation::Add;
+                    orbBlend.alpha.srcFactor = wgpu::BlendFactor::One;
+                    orbBlend.alpha.dstFactor = wgpu::BlendFactor::One;
+                    orbBlend.alpha.operation = wgpu::BlendOperation::Add;
+
+                    wgpu::ColorTargetState orbColorTarget{};
+                    orbColorTarget.format = colorFormat_;
+                    orbColorTarget.blend = &orbBlend;
+                    orbColorTarget.writeMask = wgpu::ColorWriteMask::All;
+
+                    wgpu::FragmentState fragment{};
+                    fragment.module = shaderModule_;
+                    fragment.entryPoint = Entry::ORB_FS;
+                    fragment.targetCount = 1;
+                    fragment.targets = &orbColorTarget;
+
+                    // Depth: test yes, write no — orbs don't occlude each other
+                    // or geometry behind them.
+                    wgpu::DepthStencilState orbDepth{};
+                    orbDepth.format = depthFormat_;
+                    orbDepth.depthCompare = wgpu::CompareFunction::Less;
+                    orbDepth.depthWriteEnabled = false;
+
+                    wgpu::RenderPipelineDescriptor desc{};
+                    desc.label = "Orb Sky Layer";
+                    desc.layout = renderLayout;
+                    desc.vertex.module = shaderModule_;
+                    desc.vertex.entryPoint = Entry::ORB_VS;
+                    desc.vertex.bufferCount = 1;
+                    desc.vertex.buffers = &orbVBL;
+                    desc.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
+                    desc.primitive.cullMode = wgpu::CullMode::None;  // billboards face camera
+                    desc.primitive.frontFace = wgpu::FrontFace::CCW;
+                    desc.depthStencil = &orbDepth;
+                    desc.fragment = &fragment;
+
+                    orbRenderPipeline_ = device_.CreateRenderPipeline(&desc);
+                    if (!orbRenderPipeline_) return false;
                 }
 
                 // ─── Gallery Frame Pipeline ──────────────────────────────────────
