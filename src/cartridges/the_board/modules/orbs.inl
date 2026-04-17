@@ -20,7 +20,7 @@
 
 // Dome geometry + bones-pass defaults. Tune here if the sky reads
 // too small or too dim on first build.
-static constexpr float ORB_DOME_RADIUS   = 800.0f;
+static constexpr float ORB_DOME_RADIUS   = 450.0f;
 static constexpr float ORB_DEFAULT_DRAG  = 0.5f;
 static constexpr float ORB_DEFAULT_NOISE = 0.0f;
 static constexpr float ORB_BASE_SIZE     = 3.0f;
