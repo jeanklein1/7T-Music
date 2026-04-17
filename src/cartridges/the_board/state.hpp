@@ -3142,7 +3142,7 @@ namespace t7 {
                     entries[4].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
                     entries[5].binding = 280;
-                    entries[5].visibility = wgpu::ShaderStage::Fragment;
+                    entries[5].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
                     entries[5].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
                     entries[6].binding = 300;
