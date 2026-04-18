@@ -142,6 +142,7 @@ namespace t7 {
             // Orb sky layer (luminous points on a dome)
             constexpr const char* ORB_INIT     = "orb_init";      // 1D compute
             constexpr const char* ORB_DYNAMICS = "orb_dynamics";  // 1D compute
+            constexpr const char* ORB_RECOLOR  = "orb_recolor";   // 1D compute
             constexpr const char* ORB_VS       = "orb_vs";
             constexpr const char* ORB_FS       = "orb_fs";
         }
@@ -259,6 +260,7 @@ namespace t7 {
             wgpu::BindGroupLayout orbComputeLayout_;
             wgpu::ComputePipeline orbInitPipeline_;
             wgpu::ComputePipeline orbDynamicsPipeline_;
+            wgpu::ComputePipeline orbRecolorPipeline_;
             wgpu::RenderPipeline  orbRenderPipeline_;
 
             // GoL zone compute pipelines (dedicated layout, z-dispatched per zone)
@@ -531,6 +533,16 @@ namespace t7 {
                 uint32_t workgroups
             ) {
                 pass.SetPipeline(orbDynamicsPipeline_);
+                pass.SetBindGroup(0, orbComputeGroup);
+                pass.DispatchWorkgroups(workgroups, 1, 1);
+            }
+
+            void dispatch_orb_recolor(
+                wgpu::ComputePassEncoder& pass,
+                wgpu::BindGroup orbComputeGroup,
+                uint32_t workgroups
+            ) {
+                pass.SetPipeline(orbRecolorPipeline_);
                 pass.SetBindGroup(0, orbComputeGroup);
                 pass.DispatchWorkgroups(workgroups, 1, 1);
             }
@@ -1561,6 +1573,11 @@ namespace t7 {
                     desc.compute.entryPoint = Entry::ORB_DYNAMICS;
                     orbDynamicsPipeline_ = device_.CreateComputePipeline(&desc);
                     if (!orbDynamicsPipeline_) return false;
+
+                    desc.label = "Orb Recolor";
+                    desc.compute.entryPoint = Entry::ORB_RECOLOR;
+                    orbRecolorPipeline_ = device_.CreateComputePipeline(&desc);
+                    if (!orbRecolorPipeline_) return false;
                 }
 
                 // GoL zone compute pipelines (dedicated layout, z-dispatched)

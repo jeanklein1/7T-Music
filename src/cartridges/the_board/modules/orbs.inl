@@ -132,7 +132,8 @@ struct OrbMoodConfig {
 bool     orbsActive_           = false;
 uint32_t orbCount_             = 0;
 bool     orbInitPending_       = false;
-uint32_t orbCurrentPaletteId_  = ORB_PAL_JWST_DEEP;  // cycled by O key
+bool     orbRecolorPending_    = false;              // set by cycle_orb_palette
+uint32_t orbCurrentPaletteId_  = ORB_PAL_JWST_DEEP;  // cycled by the palette key
 
 // ─── Orb musical coupling state ──────────────────────────────────
 // Polyphony drives a radial force on the orbs AND lerps noise from a
@@ -223,6 +224,7 @@ void teardown_orbs() {
     orbsActive_ = false;
     orbCount_ = 0;
     orbInitPending_ = false;
+    orbRecolorPending_ = false;
     orbForceIntensity_ = 0.0f;
     orbActiveNoiseAmp_ = 0.0f;
 }
@@ -249,7 +251,9 @@ void cycle_orb_palette(wgpu::Queue& queue) {
     }
     gpuState_.upload_orb_palette(queue, pal.count, pal.value_variance, pal_data);
 
-    orbInitPending_ = true;
+    // Color-only refresh: positions, velocities, twinkle phase all
+    // persist so the sky "holds" and only the hues transition.
+    orbRecolorPending_ = true;
 
     std::cout << "[Orbs] Palette: " << ORB_PAL_NAMES[orbCurrentPaletteId_] << "\n";
 }
@@ -297,6 +301,19 @@ void dispatch_orb_init(wgpu::CommandEncoder& encoder) {
 
     std::cout << "[Orbs] Init dispatched: " << orbCount_
         << " orbs, " << wgs << " workgroups\n";
+}
+
+void dispatch_orb_recolor(wgpu::CommandEncoder& encoder) {
+    if (!orbRecolorPending_) return;
+    orbRecolorPending_ = false;
+
+    wgpu::ComputePassDescriptor cpd{};
+    cpd.label = "Orb Recolor";
+    wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
+    uint32_t wgs = (orbCount_ + 63u) / 64u;
+    renderer_.dispatch_orb_recolor(pass,
+        gpuState_.orb_compute_group(), wgs);
+    pass.End();
 }
 
 void dispatch_orb_dynamics(wgpu::CommandEncoder& encoder,

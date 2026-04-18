@@ -8710,6 +8710,38 @@ fn orb_init(@builtin(global_invocation_id) id: vec3<u32>) {
     orb_state[i]._pad2 = 0.0;
 }
 
+// Recolor kernel: writes new base_color, current_color, and size to
+// every orb using the current palette. Position, velocity, twinkle
+// phase, mass, and drag are preserved. A time-bucket salt is mixed
+// into the seed so repeated presses within the same palette reshuffle
+// pocket assignments instead of producing identical reruns.
+@compute @workgroup_size(64)
+fn orb_recolor(@builtin(global_invocation_id) id: vec3<u32>) {
+    let i = id.x;
+    if (i >= orb_config.count) { return; }
+
+    let salt = bitcast<u32>(orb_config.t_seconds * 1000.0);
+    let seed = orb_config.seed ^ (i * 2654435761u) ^ (salt * 374761393u);
+
+    var hsv: vec3<f32>;
+    if (orb_config.palette_count > 0u) {
+        hsv = orb_sample_palette(seed);
+    } else {
+        let hue_offset = (hash_property(seed, 3u) - 0.5) * 2.0 * orb_config.hue_variance;
+        let h = fract(orb_config.base_hue + hue_offset);
+        let s = 0.5 + hash_property(seed, 5u) * 0.3;
+        let v = 0.8 + hash_property(seed, 6u) * 0.2;
+        hsv = vec3<f32>(h, s, v);
+    }
+    let color = orb_hsv_to_rgb(hsv);
+
+    orb_state[i].base_color = color;
+    orb_state[i].current_color = color;
+    // Keep size correlated with brightness so recolored orbs read at
+    // the same visual weight as freshly init'd ones.
+    orb_state[i].size = orb_config.base_size * (0.4 + hsv.z * 0.9);
+}
+
 @compute @workgroup_size(64)
 fn orb_dynamics(@builtin(global_invocation_id) id: vec3<u32>) {
     let i = id.x;

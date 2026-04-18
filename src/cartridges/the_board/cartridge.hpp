@@ -8088,8 +8088,10 @@ namespace t7 {
                     if (auraNeedsClear_) { auraNeedsClear_ = false; }
                 }
 
-                // Orb sky layer: one-shot seed-to-dome init, then per-frame dynamics.
+                // Orb sky layer: one-shot seed-to-dome init, optional
+                // color-only refresh (palette cycle), per-frame dynamics.
                 dispatch_orb_init(encoder);
+                dispatch_orb_recolor(encoder);
                 dispatch_orb_dynamics(encoder, queue);
 
                 if (groundEntriesDirty_) {
