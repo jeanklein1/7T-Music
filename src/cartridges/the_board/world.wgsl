@@ -8644,14 +8644,13 @@ fn orb_sample_palette(seed: u32) -> vec3<f32> {
     let h = fract(hue + (hash_property(seed, 9u) - 0.5) * 2.0 * hue_var);
     let s = clamp(sat + (hash_property(seed, 10u) - 0.5) * 0.15, 0.1, 1.0);
 
-    // Value skewed toward dim — squared hash biases mass toward 0.
-    // Rare bright orbs catch the eye without outnumbering the quiet field.
+    // Value: linear distribution centered on global brightness. Floor of
+    // 0.5 guarantees every orb is bright enough for its color to read.
     let val_hash = hash_property(seed, 11u);
-    let val_skew = val_hash * val_hash;
     let v = clamp(
         orb_config.brightness - orb_config.value_variance * 0.5
-        + val_skew * orb_config.value_variance,
-        0.15, 1.0
+        + val_hash * orb_config.value_variance,
+        0.5, 1.0
     );
 
     return vec3<f32>(h, s, v);

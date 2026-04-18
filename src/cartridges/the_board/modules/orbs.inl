@@ -45,17 +45,21 @@ struct OrbPalette {
     OrbPaletteEntry entries[MAX_ORB_PALETTE_ENTRIES];
 };
 
-// JWST Deep Field: warm-dominant jewel tones against dark sky.
-// Most orbs amber/orange, rare blue and violet accents.
-// TEMP DIAGNOSTIC: pocket 0 swapped to bold blue to verify the palette
-// data path reaches the GPU. Half the sky should turn blue on restart.
+// Stellar classification palette — diagnostic baseline with bold
+// equally-weighted pockets so each color asserts itself. Once we know
+// the floor / weight / saturation knobs behave, we'll dial back to a
+// proper warm-dominant Deep Field design.
+//   O/B  — hot blue
+//   F/G  — yellow-white (sun-like)
+//   K    — orange
+//   M    — deep red
 static constexpr OrbPalette ORB_PALETTE_JWST_DEEP = {
-    4, 0.35f,
+    4, 0.15f,
     {
-        { 0.60f, 0.04f, 0.85f, 0.50f },  // ← DIAG: bold blue (was warm amber)
-        { 0.03f, 0.02f, 0.65f, 0.25f },  // orange-red
-        { 0.58f, 0.03f, 0.45f, 0.15f },  // cool blue (accent)
-        { 0.82f, 0.04f, 0.30f, 0.10f },  // faint violet-pink
+        { 0.60f, 0.03f, 0.90f, 0.25f },  // hot blue
+        { 0.12f, 0.04f, 0.60f, 0.25f },  // yellow-white
+        { 0.07f, 0.04f, 0.85f, 0.25f },  // orange
+        { 0.01f, 0.03f, 0.95f, 0.25f },  // deep red
     }
 };
 
