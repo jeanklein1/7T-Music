@@ -129,9 +129,10 @@ struct OrbMoodConfig {
     uint32_t palette_id    = ORB_PAL_JWST_DEEP;    // index into ORB_PALETTES
 };
 
-bool     orbsActive_     = false;
-uint32_t orbCount_       = 0;
-bool     orbInitPending_ = false;
+bool     orbsActive_           = false;
+uint32_t orbCount_             = 0;
+bool     orbInitPending_       = false;
+uint32_t orbCurrentPaletteId_  = ORB_PAL_JWST_DEEP;  // cycled by O key
 
 // ─── Orb musical coupling state ──────────────────────────────────
 // Polyphony drives a radial force on the orbs AND lerps noise from a
@@ -183,6 +184,7 @@ void configure_orbs(const OrbMoodConfig& cfg, wgpu::Queue& queue) {
 
         // Palette lookup and field-by-field upload.
         uint32_t pal_id = std::min(cfg.palette_id, ORB_PAL_COUNT - 1u);
+        orbCurrentPaletteId_ = pal_id;  // mood wins on entry; O cycles within the mood
         const auto& pal = ORB_PALETTES[pal_id];
         gpuCfg.palette_count  = pal.count;
         gpuCfg.value_variance = pal.value_variance;
@@ -223,6 +225,33 @@ void teardown_orbs() {
     orbInitPending_ = false;
     orbForceIntensity_ = 0.0f;
     orbActiveNoiseAmp_ = 0.0f;
+}
+
+// Cycle forward through the palette registry. Session-local within a
+// mood — the next mood transition resets to that mood's configured
+// palette. Re-arms the init kernel so positions and colors both
+// refresh visibly on the next frame.
+void cycle_orb_palette(wgpu::Queue& queue) {
+    if (!orbsActive_ || orbCount_ == 0) {
+        std::cout << "[Orbs] Palette cycle ignored (no active dome)\n";
+        return;
+    }
+
+    orbCurrentPaletteId_ = (orbCurrentPaletteId_ + 1u) % ORB_PAL_COUNT;
+    const auto& pal = ORB_PALETTES[orbCurrentPaletteId_];
+
+    float pal_data[16];
+    for (uint32_t i = 0; i < 4; i++) {
+        pal_data[i * 4 + 0] = pal.entries[i].hue;
+        pal_data[i * 4 + 1] = pal.entries[i].hue_var;
+        pal_data[i * 4 + 2] = pal.entries[i].saturation;
+        pal_data[i * 4 + 3] = pal.entries[i].weight;
+    }
+    gpuState_.upload_orb_palette(queue, pal.count, pal.value_variance, pal_data);
+
+    orbInitPending_ = true;
+
+    std::cout << "[Orbs] Palette: " << ORB_PAL_NAMES[orbCurrentPaletteId_] << "\n";
 }
 
 // Polyphony → radial force. Exponential ramp, same discipline as

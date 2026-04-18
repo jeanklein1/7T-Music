@@ -2175,6 +2175,22 @@ namespace t7 {
                 queue.WriteBuffer(orbConfigBuffer_,
                     offsetof(GPUOrbConfig, noise_amp), &noise, sizeof(float));
             }
+            // Partial upload of the palette slice (palette_count..pal3_weight).
+            // 72 bytes contiguous from offset 72. Preserves per-frame fields
+            // (dt, t_seconds, noise_amp, force_radial) elsewhere in the struct.
+            void upload_orb_palette(wgpu::Queue& queue,
+                                    uint32_t palette_count,
+                                    float value_variance,
+                                    const float palette_data[16]) {
+                struct { uint32_t count; float var; float pal[16]; } packed;
+                packed.count = palette_count;
+                packed.var = value_variance;
+                for (int i = 0; i < 16; i++) packed.pal[i] = palette_data[i];
+                static_assert(sizeof(packed) == 72, "orb palette slice must be 72 bytes");
+                queue.WriteBuffer(orbConfigBuffer_,
+                    offsetof(GPUOrbConfig, palette_count),
+                    &packed, sizeof(packed));
+            }
             wgpu::Buffer zone_mesh_vertex_buffer() const { return zoneMeshVertexBuffer_; }
             wgpu::Buffer zone_mesh_index_buffer() const { return zoneMeshIndexBuffer_; }
             wgpu::Buffer zone_mesh_indirect_buffer() const { return zoneMeshIndirectBuffer_; }

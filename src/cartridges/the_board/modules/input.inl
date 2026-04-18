@@ -150,6 +150,11 @@ void on_key_down(int key) {
     case GLFW_KEY_RIGHT_BRACKET:
         set_render_radius(activeRadius_ + 1);
         break;
+    case GLFW_KEY_O: {
+        wgpu::Queue q = device_.GetQueue();
+        cycle_orb_palette(q);
+        break;
+    }
     }
     update_movement_intent();
 }
