@@ -8,6 +8,9 @@
 // ─────────────────────────────────────────────────────────────────
 
 // Platform workaround: GLFW key codes not available in all header configurations.
+#ifndef GLFW_KEY_KP_0
+#define GLFW_KEY_KP_0  320
+#endif
 #ifndef GLFW_KEY_LEFT_CONTROL
 #define GLFW_KEY_LEFT_CONTROL   341
 #endif
@@ -150,7 +153,7 @@ void on_key_down(int key) {
     case GLFW_KEY_RIGHT_BRACKET:
         set_render_radius(activeRadius_ + 1);
         break;
-    case GLFW_KEY_O: {
+    case GLFW_KEY_0: {
         wgpu::Queue q = device_.GetQueue();
         cycle_orb_palette(q);
         break;
