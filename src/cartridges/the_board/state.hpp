@@ -900,20 +900,30 @@ namespace t7 {
         static_assert(sizeof(GPUOrbState) == 80, "GPUOrbState must be 80 bytes");
 
         struct alignas(16) GPUOrbConfig {
-            uint32_t count;          //  0: active orb count
-            uint32_t seed;           //  4: world seed for init
-            float    base_hue;       //  8: HSV hue center (0..1)
-            float    hue_variance;   // 12: max deviation from base_hue
-            float    brightness;     // 16: global brightness
-            float    drag;           // 20: per-mood drag override
-            float    noise_amp;      // 24: Brownian noise amplitude (bones: 0)
-            float    dome_radius;    // 28: dome shell radius
-            float    base_size;      // 32: sprite half-size
-            float    dt;             // 36: frame delta time
-            float    t_seconds;      // 40: elapsed seconds
-            float    force_radial;   // 44: polyphony-driven radial force (world-units/s²)
+            // ── Core (offsets preserved since Pass 3) ────────────
+            uint32_t count;              //  0: active orb count
+            uint32_t seed;               //  4: world seed for init
+            float    base_hue;           //  8: HSV hue center (0..1)
+            float    hue_variance;       // 12: max deviation from base_hue
+            float    brightness;         // 16: global brightness
+            float    drag;               // 20: per-mood drag override
+            float    noise_amp;          // 24: current noise amplitude (coupling-driven)
+            float    dome_radius;        // 28: dome shell radius
+            float    base_size;          // 32: sprite half-size
+            float    dt;                 // 36: frame delta time
+            float    t_seconds;          // 40: elapsed seconds
+            float    force_radial;       // 44: polyphony-driven radial force
+            // ── Pass 4: motion rules + dome rotation ─────────────
+            uint32_t motion_rule;        // 48: 0=Brownian, 1=Orbital, 2=Frozen
+            float    rotation_speed;     // 52: dome angular velocity (rad/s)
+            float    rotation_axis_x;    // 56: rotation axis X
+            float    rotation_axis_y;    // 60: rotation axis Y
+            float    rotation_axis_z;    // 64: rotation axis Z
+            float    orbital_base_speed; // 68: orbital angular velocity (rad/s)
+            float    _pad0;              // 72
+            float    _pad1;              // 76
         };
-        static_assert(sizeof(GPUOrbConfig) == 48, "GPUOrbConfig must be 48 bytes");
+        static_assert(sizeof(GPUOrbConfig) == 80, "GPUOrbConfig must be 80 bytes");
 
         // (GPUCellState removed — legacy cell system no longer active)
 

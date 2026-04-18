@@ -8536,18 +8536,34 @@ struct OrbState {
 }
 
 struct OrbConfig {
-    count:          u32,
-    seed:           u32,
-    base_hue:       f32,
-    hue_variance:   f32,
-    brightness:     f32,
-    drag:           f32,
-    noise_amp:      f32,
-    dome_radius:    f32,
-    base_size:      f32,
-    dt:             f32,
-    t_seconds:      f32,
-    force_radial:   f32,
+    count:              u32,
+    seed:               u32,
+    base_hue:           f32,
+    hue_variance:       f32,
+    brightness:         f32,
+    drag:               f32,
+    noise_amp:          f32,
+    dome_radius:        f32,
+    base_size:          f32,
+    dt:                 f32,
+    t_seconds:          f32,
+    force_radial:       f32,
+    motion_rule:        u32,
+    rotation_speed:     f32,
+    rotation_axis_x:    f32,
+    rotation_axis_y:    f32,
+    rotation_axis_z:    f32,
+    orbital_base_speed: f32,
+    _pad0:              f32,
+    _pad1:              f32,
+}
+
+// Rodrigues' rotation: rotate vector v by angle θ around unit axis k.
+// v' = v·cos(θ) + (k × v)·sin(θ) + k·(k·v)·(1 - cos(θ))
+fn rodrigues(v: vec3<f32>, k: vec3<f32>, theta: f32) -> vec3<f32> {
+    let ct = cos(theta);
+    let st = sin(theta);
+    return v * ct + cross(k, v) * st + k * dot(k, v) * (1.0 - ct);
 }
 
 @group(0) @binding(410) var<storage, read_write> orb_state: array<OrbState>;
@@ -8628,29 +8644,78 @@ fn orb_dynamics(@builtin(global_invocation_id) id: vec3<u32>) {
     var orb = orb_state[i];
     let dt = orb_config.dt;
 
-    // Drag: exponential velocity decay.
-    orb.vel = orb.vel * exp(-orb.drag * dt);
-
-    // Brownian noise: per-orb per-frame random velocity impulse.
-    // Applied after drag so each nudge has a full frame to act
-    // before being damped. Dome projection keeps orbs on-shell.
-    if (orb_config.noise_amp > 0.0) {
-        let noise_seed = bitcast<u32>(orb_config.t_seconds * 1000.0) ^ (i * 2654435761u);
-        let nx = (hash_property(noise_seed, 1u) - 0.5) * 2.0;
-        let ny = (hash_property(noise_seed, 2u) - 0.5) * 2.0;
-        let nz = (hash_property(noise_seed, 3u) - 0.5) * 2.0;
-        orb.vel += vec3<f32>(nx, ny, nz) * orb_config.noise_amp * sqrt(dt);
+    // ═══ 1. DOME ROTATION (all rules) ═════════════════════════
+    // Rigid rotation of the entire dome. Applied to both position
+    // and velocity so local dynamics stay coherent in the rotating
+    // frame.
+    if (abs(orb_config.rotation_speed) > 0.0001) {
+        let rot_axis = normalize(vec3<f32>(
+            orb_config.rotation_axis_x,
+            orb_config.rotation_axis_y,
+            orb_config.rotation_axis_z
+        ));
+        let rot_angle = orb_config.rotation_speed * dt;
+        orb.pos = rodrigues(orb.pos, rot_axis, rot_angle);
+        orb.vel = rodrigues(orb.vel, rot_axis, rot_angle);
     }
 
-    // Radial force: polyphony-driven expansion/contraction, along the
-    // dome normal (outward from origin). Continuous force — dt scaling
-    // is correct; mass channel present for future per-tier response.
-    if (abs(orb_config.force_radial) > 0.001) {
-        let radial_dir = normalize(orb.pos);
-        orb.vel += radial_dir * orb_config.force_radial * dt / orb.mass;
+    // ═══ 2. RULE DISPATCH ═════════════════════════════════════
+    // Uniform branch — every invocation in the workgroup takes
+    // the same path, no FXC divergence penalty.
+    if (orb_config.motion_rule == 0u) {
+        // ── BROWNIAN ─────────────────────────────────────────
+        // Drag → noise impulse → radial force.
+
+        orb.vel = orb.vel * exp(-orb.drag * dt);
+
+        if (orb_config.noise_amp > 0.0) {
+            let noise_seed = bitcast<u32>(orb_config.t_seconds * 1000.0)
+                             ^ (i * 2654435761u);
+            let nx = (hash_property(noise_seed, 1u) - 0.5) * 2.0;
+            let ny = (hash_property(noise_seed, 2u) - 0.5) * 2.0;
+            let nz = (hash_property(noise_seed, 3u) - 0.5) * 2.0;
+            orb.vel += vec3<f32>(nx, ny, nz) * orb_config.noise_amp * sqrt(dt);
+        }
+
+        if (abs(orb_config.force_radial) > 0.001) {
+            let radial_dir = normalize(orb.pos);
+            orb.vel += radial_dir * orb_config.force_radial * dt / orb.mass;
+        }
+
+    } else if (orb_config.motion_rule == 1u) {
+        // ── ORBITAL ──────────────────────────────────────────
+        // Each orb follows a seed-derived great-circle path. vel
+        // is perturbation only — drag damps deviations, not the
+        // orbital motion itself.
+
+        let orb_seed = orb_config.seed ^ (i * 2654435761u);
+        let ax = hash_property(orb_seed, 20u) - 0.5;
+        let ay = hash_property(orb_seed, 21u) - 0.5;
+        let az = hash_property(orb_seed, 22u) - 0.5;
+        let orbital_axis = normalize(vec3<f32>(ax, ay, az));
+
+        let speed_var = 0.5 + hash_property(orb_seed, 23u);
+        let orbital_speed = orb_config.orbital_base_speed * speed_var;
+
+        orb.pos = rodrigues(orb.pos, orbital_axis, orbital_speed * dt);
+
+        orb.vel = orb.vel * exp(-orb.drag * dt);
+
+        if (abs(orb_config.force_radial) > 0.001) {
+            let radial_dir = normalize(orb.pos);
+            orb.vel += radial_dir * orb_config.force_radial * dt / orb.mass;
+        }
+
+    } else {
+        // ── FROZEN (rule 2+) ─────────────────────────────────
+        // Only dome rotation moves orbs. Drag bleeds velocity
+        // to zero.
+        orb.vel = orb.vel * exp(-orb.drag * dt);
     }
 
-    // Integrate position.
+    // ═══ 3. COMMON TAIL ═══════════════════════════════════════
+
+    // Integrate perturbation velocity into position.
     orb.pos = orb.pos + orb.vel * dt;
 
     // Project back onto dome shell so float drift doesn't accumulate.
@@ -8659,12 +8724,13 @@ fn orb_dynamics(@builtin(global_invocation_id) id: vec3<u32>) {
         orb.pos = orb.pos * (orb_config.dome_radius / r);
     }
 
-    // Snap negligible velocity to zero.
-    if (dot(orb.vel, orb.vel) < 1e-6) {
+    // Snap negligible velocity to zero (lower threshold so slow
+    // floor-noise drift isn't killed between impulses).
+    if (dot(orb.vel, orb.vel) < 1e-8) {
         orb.vel = vec3<f32>(0.0, 0.0, 0.0);
     }
 
-    // Color: no drift in bones pass — current tracks base.
+    // Color: no drift yet — current tracks base.
     orb.current_color = orb.base_color;
 
     // Twinkle: subtle per-orb brightness oscillation, de-synced by phase.

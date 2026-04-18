@@ -32,7 +32,11 @@ struct OrbMoodConfig {
     float    hue_variance  = 0.05f;
     float    brightness    = 0.8f;
     float    drag          = ORB_DEFAULT_DRAG;
-    float    noise_amp     = ORB_DEFAULT_NOISE;
+    float    noise_amp     = ORB_DEFAULT_NOISE;   // ceiling (floor is ORB_NOISE_FLOOR)
+    uint32_t motion_rule   = 0;                    // 0=Brownian, 1=Orbital, 2=Frozen
+    float    rotation_speed = 0.0f;                // rad/s
+    float    rotation_axis[3] = {0.0f, 1.0f, 0.0f};// normalized in configure_orbs
+    float    orbital_base_speed = 0.0f;            // rad/s (rule 1 only)
 };
 
 bool     orbsActive_     = false;
@@ -58,27 +62,48 @@ void configure_orbs(const OrbMoodConfig& cfg, wgpu::Queue& queue) {
     if (orbsActive_ && orbCount_ > 0) {
         orbActiveNoiseAmp_ = cfg.noise_amp;  // capture ceiling for the coupling
 
+        // Normalize rotation axis on CPU — GPU still renormalizes but
+        // keeping the uploaded value unit-length avoids surprises.
+        float rx = cfg.rotation_axis[0];
+        float ry = cfg.rotation_axis[1];
+        float rz = cfg.rotation_axis[2];
+        float rlen = std::sqrt(rx * rx + ry * ry + rz * rz);
+        if (rlen > 0.001f) { rx /= rlen; ry /= rlen; rz /= rlen; }
+        else               { rx = 0.0f; ry = 1.0f; rz = 0.0f; }
+
         GPUOrbConfig gpuCfg{};
-        gpuCfg.count        = orbCount_;
-        gpuCfg.seed         = activeSeed_;
-        gpuCfg.base_hue     = cfg.base_hue;
-        gpuCfg.hue_variance = cfg.hue_variance;
-        gpuCfg.brightness   = cfg.brightness;
-        gpuCfg.drag         = cfg.drag;
-        gpuCfg.noise_amp    = ORB_NOISE_FLOOR;  // start at floor, coupling lerps upward
-        gpuCfg.dome_radius  = ORB_DOME_RADIUS;
-        gpuCfg.base_size    = ORB_BASE_SIZE;
-        gpuCfg.dt           = 0.0f;
-        gpuCfg.t_seconds    = 0.0f;
-        gpuCfg.force_radial = 0.0f;
+        gpuCfg.count              = orbCount_;
+        gpuCfg.seed               = activeSeed_;
+        gpuCfg.base_hue           = cfg.base_hue;
+        gpuCfg.hue_variance       = cfg.hue_variance;
+        gpuCfg.brightness         = cfg.brightness;
+        gpuCfg.drag               = cfg.drag;
+        gpuCfg.noise_amp          = ORB_NOISE_FLOOR;   // start at floor, coupling lerps up
+        gpuCfg.dome_radius        = ORB_DOME_RADIUS;
+        gpuCfg.base_size          = ORB_BASE_SIZE;
+        gpuCfg.dt                 = 0.0f;
+        gpuCfg.t_seconds          = 0.0f;
+        gpuCfg.force_radial       = 0.0f;
+        gpuCfg.motion_rule        = cfg.motion_rule;
+        gpuCfg.rotation_speed     = cfg.rotation_speed;
+        gpuCfg.rotation_axis_x    = rx;
+        gpuCfg.rotation_axis_y    = ry;
+        gpuCfg.rotation_axis_z    = rz;
+        gpuCfg.orbital_base_speed = cfg.orbital_base_speed;
+        gpuCfg._pad0              = 0.0f;
+        gpuCfg._pad1              = 0.0f;
         gpuState_.upload_orb_config(queue, gpuCfg);
         orbInitPending_ = true;
 
+        static const char* RULE_NAMES[] = { "brownian", "orbital", "frozen" };
         std::cout << "[Orbs] Configured: count=" << orbCount_
             << " hue=" << cfg.base_hue
             << " var=" << cfg.hue_variance
             << " drag=" << cfg.drag
-            << " noise=" << ORB_NOISE_FLOOR << ".." << orbActiveNoiseAmp_ << "\n";
+            << " noise=" << ORB_NOISE_FLOOR << ".." << orbActiveNoiseAmp_
+            << " rule=" << RULE_NAMES[std::min(cfg.motion_rule, 2u)]
+            << " rot=" << cfg.rotation_speed
+            << " orbital=" << cfg.orbital_base_speed << "\n";
     }
 }
 

@@ -419,13 +419,19 @@ void apply_mood(uint32_t mood, wgpu::Queue& queue) {
     // Sky orb layer — per-mood enable + seed-driven init.
     {
         OrbMoodConfig ocfg{};
-        ocfg.enabled      = m.orbs.enabled;
-        ocfg.count        = m.orbs.count;
-        ocfg.base_hue     = m.orbs.base_hue;
-        ocfg.hue_variance = m.orbs.hue_variance;
-        ocfg.brightness   = m.orbs.brightness;
-        ocfg.drag         = m.orbs.drag;
-        ocfg.noise_amp    = m.orbs.noise_amp;
+        ocfg.enabled            = m.orbs.enabled;
+        ocfg.count              = m.orbs.count;
+        ocfg.base_hue           = m.orbs.base_hue;
+        ocfg.hue_variance       = m.orbs.hue_variance;
+        ocfg.brightness         = m.orbs.brightness;
+        ocfg.drag               = m.orbs.drag;
+        ocfg.noise_amp          = m.orbs.noise_amp;
+        ocfg.motion_rule        = m.orbs.motion_rule;
+        ocfg.rotation_speed     = m.orbs.rotation_speed;
+        ocfg.rotation_axis[0]   = m.orbs.rotation_axis[0];
+        ocfg.rotation_axis[1]   = m.orbs.rotation_axis[1];
+        ocfg.rotation_axis[2]   = m.orbs.rotation_axis[2];
+        ocfg.orbital_base_speed = m.orbs.orbital_base_speed;
         configure_orbs(ocfg, queue);
     }
 
