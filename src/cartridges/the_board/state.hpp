@@ -903,9 +903,9 @@ namespace t7 {
             // ── Core (offsets preserved since Pass 3) ────────────
             uint32_t count;              //  0: active orb count
             uint32_t seed;               //  4: world seed for init
-            float    base_hue;           //  8: HSV hue center (0..1)
-            float    hue_variance;       // 12: max deviation from base_hue
-            float    brightness;         // 16: global brightness
+            float    base_hue;           //  8: legacy (unused when palette_count > 0)
+            float    hue_variance;       // 12: legacy (unused when palette_count > 0)
+            float    brightness;         // 16: global brightness (palette value center)
             float    drag;               // 20: per-mood drag override
             float    noise_amp;          // 24: current noise amplitude (coupling-driven)
             float    dome_radius;        // 28: dome shell radius
@@ -920,10 +920,27 @@ namespace t7 {
             float    rotation_axis_y;    // 60: rotation axis Y
             float    rotation_axis_z;    // 64: rotation axis Z
             float    orbital_base_speed; // 68: orbital angular velocity (rad/s)
-            float    _pad0;              // 72
-            float    _pad1;              // 76
+            // ── Pass 4b+5: multi-pocket palette ──────────────────
+            uint32_t palette_count;      // 72: 0=legacy single hue, 1..4 use palette
+            float    value_variance;     // 76: per-orb HSV value spread
+            float    pal0_hue;           // 80
+            float    pal0_hue_var;       // 84
+            float    pal0_sat;           // 88
+            float    pal0_weight;        // 92
+            float    pal1_hue;           // 96
+            float    pal1_hue_var;       //100
+            float    pal1_sat;           //104
+            float    pal1_weight;        //108
+            float    pal2_hue;           //112
+            float    pal2_hue_var;       //116
+            float    pal2_sat;           //120
+            float    pal2_weight;        //124
+            float    pal3_hue;           //128
+            float    pal3_hue_var;       //132
+            float    pal3_sat;           //136
+            float    pal3_weight;        //140
         };
-        static_assert(sizeof(GPUOrbConfig) == 80, "GPUOrbConfig must be 80 bytes");
+        static_assert(sizeof(GPUOrbConfig) == 144, "GPUOrbConfig must be 144 bytes");
 
         // (GPUCellState removed — legacy cell system no longer active)
 

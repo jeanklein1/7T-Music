@@ -168,8 +168,8 @@ namespace t7 {
                 struct OrbMoodConfigInit {
                     bool     enabled;
                     uint32_t count;
-                    float    base_hue;
-                    float    hue_variance;
+                    float    base_hue;           // legacy
+                    float    hue_variance;       // legacy
                     float    brightness;
                     float    drag;
                     float    noise_amp;
@@ -177,6 +177,7 @@ namespace t7 {
                     float    rotation_speed;     // dome angular velocity (rad/s)
                     float    rotation_axis[3];   // rotation axis (normalized in configure)
                     float    orbital_base_speed; // per-orb orbital rate (rad/s), rule 1 only
+                    uint32_t palette_id;         // ORB_PAL_* index
                 };
                 OrbMoodConfigInit orbs;
             };
@@ -186,15 +187,15 @@ namespace t7 {
             // ─── Mood Definitions ───────────────────────────────────────────
             //
             //                                  fin  r_min r_max  sun_dir                sun_color              int   amb   fog_d   fog_color               indoor  ceil       ceil_h  clear_color            wall_color             ceil_color
-            //                                                                                                                                                                                                                                                                                                                                              musical  gol    aura   frustum    orbs{enabled, count, base_hue, hue_var, bright, drag, noise_amp, rule, rot_speed, {ax,ay,az}, orb_speed}
+            //                                                                                                                                                                                                                                                                                                                                              musical  gol    aura   frustum    orbs{enabled, count, hue(legacy), hue_var(legacy), bright, drag, noise, rule, rot, {axis}, orbital, palette}
             //                                  fin  r_min r_max  sun_dir                sun_color              int   amb   fog_d   fog_color               indoor  ceil       ceil_h  clear_color            wall_color             ceil_color               modes   zones  aura   cull        orbs
             static constexpr MoodProfile MOOD_TABLE[MOOD_COUNT] = {
-                /* 0  open_default        */  { false, 2, 2, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true,   { true,  96,  0.60f, 0.08f, 0.70f, 0.8f, 8.0f,  0u, 0.015f, {0.00f, 1.00f, 0.00f}, 0.0f  } },
-                /* 1  open_sunset         */  { false, 2, 2, { 0.96f,-0.26f,-0.13f}, {1.0f, 0.75f, 0.45f}, 0.90f, 0.20f, 0.0050f, {0.95f, 0.70f, 0.45f},  false, CeilingType::NONE,  0.0f,  {0.95f, 0.70f, 0.45f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true,   { true,  128, 0.08f, 0.06f, 0.85f, 0.4f, 20.0f, 1u, 0.010f, {0.10f, 0.98f, 0.15f}, 0.08f } },
-                /* 2  indoor_flat         */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f, 0.0003f, {0.15f, 0.12f, 0.10f},  true,  CeilingType::FLAT,  20.0f, {0.15f, 0.12f, 0.10f}, {0.65f,0.58f,0.50f}, {0.60f,0.55f,0.48f},   true,  true,  true,  false,  { false, 0,   0.08f, 0.05f, 0.80f, 0.5f, 0.0f,  0u, 0.000f, {0.00f, 1.00f, 0.00f}, 0.0f  } },
-                /* 3  indoor_vault        */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f, 0.0003f, {0.15f, 0.12f, 0.10f},  true,  CeilingType::VAULT, 25.0f, {0.15f, 0.12f, 0.10f}, {0.70f,0.62f,0.52f}, {0.65f,0.58f,0.50f},   true,  true,  true,  false,  { false, 0,   0.08f, 0.05f, 0.80f, 0.5f, 0.0f,  0u, 0.000f, {0.00f, 1.00f, 0.00f}, 0.0f  } },
-                /* 4  finite_outdoor      */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true,   { false, 0,   0.08f, 0.05f, 0.80f, 0.5f, 0.0f,  0u, 0.000f, {0.00f, 1.00f, 0.00f}, 0.0f  } },
-                /* 5  finite_outdoor_ref  */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true,   { false, 0,   0.08f, 0.05f, 0.80f, 0.5f, 0.0f,  0u, 0.000f, {0.00f, 1.00f, 0.00f}, 0.0f  } },
+                /* 0  open_default        */  { false, 2, 2, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true,   { true,  128, 0.08f, 0.06f, 0.85f, 0.4f, 20.0f, 0u, 0.012f, {0.15f, 0.97f, 0.10f}, 0.0f,  0u } },
+                /* 1  open_sunset         */  { false, 2, 2, { 0.96f,-0.26f,-0.13f}, {1.0f, 0.75f, 0.45f}, 0.90f, 0.20f, 0.0050f, {0.95f, 0.70f, 0.45f},  false, CeilingType::NONE,  0.0f,  {0.95f, 0.70f, 0.45f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true,   { true,  128, 0.08f, 0.06f, 0.85f, 0.4f, 20.0f, 0u, 0.012f, {0.15f, 0.97f, 0.10f}, 0.0f,  0u } },
+                /* 2  indoor_flat         */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f, 0.0003f, {0.15f, 0.12f, 0.10f},  true,  CeilingType::FLAT,  20.0f, {0.15f, 0.12f, 0.10f}, {0.65f,0.58f,0.50f}, {0.60f,0.55f,0.48f},   true,  true,  true,  false,  { false, 0,   0.08f, 0.05f, 0.80f, 0.5f, 0.0f,  0u, 0.000f, {0.00f, 1.00f, 0.00f}, 0.0f,  0u } },
+                /* 3  indoor_vault        */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f, 0.0003f, {0.15f, 0.12f, 0.10f},  true,  CeilingType::VAULT, 25.0f, {0.15f, 0.12f, 0.10f}, {0.70f,0.62f,0.52f}, {0.65f,0.58f,0.50f},   true,  true,  true,  false,  { false, 0,   0.08f, 0.05f, 0.80f, 0.5f, 0.0f,  0u, 0.000f, {0.00f, 1.00f, 0.00f}, 0.0f,  0u } },
+                /* 4  finite_outdoor      */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true,   { true,  128, 0.08f, 0.06f, 0.85f, 0.4f, 20.0f, 0u, 0.012f, {0.15f, 0.97f, 0.10f}, 0.0f,  0u } },
+                /* 5  finite_outdoor_ref  */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true,   { true,  128, 0.08f, 0.06f, 0.85f, 0.4f, 20.0f, 0u, 0.012f, {0.15f, 0.97f, 0.10f}, 0.0f,  0u } },
             };
 
             static const char* mood_name(uint32_t mood) {
@@ -7501,6 +7502,7 @@ namespace t7 {
                     ocfg.rotation_axis[1]   = m0.orbs.rotation_axis[1];
                     ocfg.rotation_axis[2]   = m0.orbs.rotation_axis[2];
                     ocfg.orbital_base_speed = m0.orbs.orbital_base_speed;
+                    ocfg.palette_id         = m0.orbs.palette_id;
                     configure_orbs(ocfg, q);
                 }
 

@@ -25,18 +25,102 @@ static constexpr float ORB_DEFAULT_DRAG  = 0.5f;
 static constexpr float ORB_DEFAULT_NOISE = 0.0f;
 static constexpr float ORB_BASE_SIZE     = 3.0f;
 
+// ─── Color palettes ──────────────────────────────────────────────
+// Orbs sample from up to 4 HSV "pockets" at init. Each pocket has its
+// own hue center + spread + saturation + selection weight, so a mood's
+// sky can be mostly one color with rare accents (JWST depth feel).
+static constexpr uint32_t MAX_ORB_PALETTE_ENTRIES = 4;
+
+struct OrbPaletteEntry {
+    float hue;         // HSV hue center (0..1)
+    float hue_var;     // spread around center
+    float saturation;  // base saturation
+    float weight;      // selection probability (weights across entries
+                       //  should sum ≈ 1.0 — the last entry catches the tail)
+};
+
+struct OrbPalette {
+    uint32_t count;
+    float    value_variance;   // per-orb HSV value (brightness) spread
+    OrbPaletteEntry entries[MAX_ORB_PALETTE_ENTRIES];
+};
+
+// JWST Deep Field: warm-dominant jewel tones against dark sky.
+// Most orbs amber/orange, rare blue and violet accents.
+static constexpr OrbPalette ORB_PALETTE_JWST_DEEP = {
+    4, 0.35f,
+    {
+        { 0.08f, 0.04f, 0.55f, 0.50f },  // warm amber (dominant)
+        { 0.03f, 0.02f, 0.65f, 0.25f },  // orange-red
+        { 0.58f, 0.03f, 0.45f, 0.15f },  // cool blue (accent)
+        { 0.82f, 0.04f, 0.30f, 0.10f },  // faint violet-pink
+    }
+};
+
+// Hubble SHO (Pillars of Creation): teal and gold with copper.
+static constexpr OrbPalette ORB_PALETTE_PILLARS = {
+    4, 0.30f,
+    {
+        { 0.10f, 0.03f, 0.65f, 0.40f },  // gold
+        { 0.48f, 0.04f, 0.55f, 0.35f },  // teal
+        { 0.02f, 0.02f, 0.70f, 0.15f },  // copper accent
+        { 0.55f, 0.02f, 0.35f, 0.10f },  // pale blue
+    }
+};
+
+// Carina Nebula: rich blues and amber-orange, no greens.
+static constexpr OrbPalette ORB_PALETTE_CARINA = {
+    3, 0.30f,
+    {
+        { 0.60f, 0.05f, 0.55f, 0.45f },  // rich blue
+        { 0.08f, 0.04f, 0.60f, 0.40f },  // amber-orange
+        { 0.55f, 0.03f, 0.30f, 0.15f },  // desaturated blue-white
+        { 0.0f,  0.0f,  0.0f,  0.0f  },  // unused
+    }
+};
+
+// Single warm (legacy-equivalent, for testing).
+static constexpr OrbPalette ORB_PALETTE_WARM_MONO = {
+    1, 0.20f,
+    {
+        { 0.08f, 0.06f, 0.60f, 1.0f },
+        { 0.0f,  0.0f,  0.0f,  0.0f },
+        { 0.0f,  0.0f,  0.0f,  0.0f },
+        { 0.0f,  0.0f,  0.0f,  0.0f },
+    }
+};
+
+// Palette registry — indexed by palette_id in mood config.
+static constexpr uint32_t ORB_PAL_JWST_DEEP = 0;
+static constexpr uint32_t ORB_PAL_PILLARS   = 1;
+static constexpr uint32_t ORB_PAL_CARINA    = 2;
+static constexpr uint32_t ORB_PAL_WARM_MONO = 3;
+static constexpr uint32_t ORB_PAL_COUNT     = 4;
+
+static constexpr OrbPalette ORB_PALETTES[ORB_PAL_COUNT] = {
+    ORB_PALETTE_JWST_DEEP,
+    ORB_PALETTE_PILLARS,
+    ORB_PALETTE_CARINA,
+    ORB_PALETTE_WARM_MONO,
+};
+
+static constexpr const char* ORB_PAL_NAMES[ORB_PAL_COUNT] = {
+    "jwst_deep", "pillars", "carina", "warm_mono"
+};
+
 struct OrbMoodConfig {
     bool     enabled       = false;
     uint32_t count         = 0;        // clamped to Dim::MAX_ORBS
-    float    base_hue      = 0.08f;    // warm amber default
-    float    hue_variance  = 0.05f;
-    float    brightness    = 0.8f;
+    float    base_hue      = 0.08f;    // legacy — used only if palette selection fails
+    float    hue_variance  = 0.05f;    // legacy
+    float    brightness    = 0.8f;     // global value center (palette spreads around it)
     float    drag          = ORB_DEFAULT_DRAG;
     float    noise_amp     = ORB_DEFAULT_NOISE;   // ceiling (floor is ORB_NOISE_FLOOR)
     uint32_t motion_rule   = 0;                    // 0=Brownian, 1=Orbital, 2=Frozen
     float    rotation_speed = 0.0f;                // rad/s
     float    rotation_axis[3] = {0.0f, 1.0f, 0.0f};// normalized in configure_orbs
     float    orbital_base_speed = 0.0f;            // rad/s (rule 1 only)
+    uint32_t palette_id    = ORB_PAL_JWST_DEEP;    // index into ORB_PALETTES
 };
 
 bool     orbsActive_     = false;
@@ -90,15 +174,35 @@ void configure_orbs(const OrbMoodConfig& cfg, wgpu::Queue& queue) {
         gpuCfg.rotation_axis_y    = ry;
         gpuCfg.rotation_axis_z    = rz;
         gpuCfg.orbital_base_speed = cfg.orbital_base_speed;
-        gpuCfg._pad0              = 0.0f;
-        gpuCfg._pad1              = 0.0f;
+
+        // Palette lookup and field-by-field upload.
+        uint32_t pal_id = std::min(cfg.palette_id, ORB_PAL_COUNT - 1u);
+        const auto& pal = ORB_PALETTES[pal_id];
+        gpuCfg.palette_count  = pal.count;
+        gpuCfg.value_variance = pal.value_variance;
+        gpuCfg.pal0_hue       = pal.entries[0].hue;
+        gpuCfg.pal0_hue_var   = pal.entries[0].hue_var;
+        gpuCfg.pal0_sat       = pal.entries[0].saturation;
+        gpuCfg.pal0_weight    = pal.entries[0].weight;
+        gpuCfg.pal1_hue       = pal.entries[1].hue;
+        gpuCfg.pal1_hue_var   = pal.entries[1].hue_var;
+        gpuCfg.pal1_sat       = pal.entries[1].saturation;
+        gpuCfg.pal1_weight    = pal.entries[1].weight;
+        gpuCfg.pal2_hue       = pal.entries[2].hue;
+        gpuCfg.pal2_hue_var   = pal.entries[2].hue_var;
+        gpuCfg.pal2_sat       = pal.entries[2].saturation;
+        gpuCfg.pal2_weight    = pal.entries[2].weight;
+        gpuCfg.pal3_hue       = pal.entries[3].hue;
+        gpuCfg.pal3_hue_var   = pal.entries[3].hue_var;
+        gpuCfg.pal3_sat       = pal.entries[3].saturation;
+        gpuCfg.pal3_weight    = pal.entries[3].weight;
+
         gpuState_.upload_orb_config(queue, gpuCfg);
         orbInitPending_ = true;
 
         static const char* RULE_NAMES[] = { "brownian", "orbital", "frozen" };
         std::cout << "[Orbs] Configured: count=" << orbCount_
-            << " hue=" << cfg.base_hue
-            << " var=" << cfg.hue_variance
+            << " palette=" << ORB_PAL_NAMES[pal_id]
             << " drag=" << cfg.drag
             << " noise=" << ORB_NOISE_FLOOR << ".." << orbActiveNoiseAmp_
             << " rule=" << RULE_NAMES[std::min(cfg.motion_rule, 2u)]

@@ -432,6 +432,7 @@ void apply_mood(uint32_t mood, wgpu::Queue& queue) {
         ocfg.rotation_axis[1]   = m.orbs.rotation_axis[1];
         ocfg.rotation_axis[2]   = m.orbs.rotation_axis[2];
         ocfg.orbital_base_speed = m.orbs.orbital_base_speed;
+        ocfg.palette_id         = m.orbs.palette_id;
         configure_orbs(ocfg, queue);
     }
 

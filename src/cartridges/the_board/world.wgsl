@@ -8554,8 +8554,24 @@ struct OrbConfig {
     rotation_axis_y:    f32,
     rotation_axis_z:    f32,
     orbital_base_speed: f32,
-    _pad0:              f32,
-    _pad1:              f32,
+    palette_count:      u32,
+    value_variance:     f32,
+    pal0_hue:           f32,
+    pal0_hue_var:       f32,
+    pal0_sat:           f32,
+    pal0_weight:        f32,
+    pal1_hue:           f32,
+    pal1_hue_var:       f32,
+    pal1_sat:           f32,
+    pal1_weight:        f32,
+    pal2_hue:           f32,
+    pal2_hue_var:       f32,
+    pal2_sat:           f32,
+    pal2_weight:        f32,
+    pal3_hue:           f32,
+    pal3_hue_var:       f32,
+    pal3_sat:           f32,
+    pal3_weight:        f32,
 }
 
 // Rodrigues' rotation: rotate vector v by angle θ around unit axis k.
@@ -8589,6 +8605,58 @@ fn orb_hsv_to_rgb(hsv: vec3<f32>) -> vec3<f32> {
     return rgb + vec3<f32>(m, m, m);
 }
 
+// Sample a color from the orb palette via weighted pocket selection.
+// Returns HSV as vec3<f32>(hue, saturation, value).
+// Layout is unrolled because WGSL uniform blocks can't hold arrays of
+// structs cheaply and explicit ifs let FXC see a uniform-bounded chain.
+fn orb_sample_palette(seed: u32) -> vec3<f32> {
+    let roll = hash_property(seed, 8u);
+
+    var hue: f32;
+    var hue_var: f32;
+    var sat: f32;
+
+    var accum = orb_config.pal0_weight;
+    if (roll < accum || orb_config.palette_count == 1u) {
+        hue     = orb_config.pal0_hue;
+        hue_var = orb_config.pal0_hue_var;
+        sat     = orb_config.pal0_sat;
+    } else {
+        accum += orb_config.pal1_weight;
+        if (roll < accum || orb_config.palette_count == 2u) {
+            hue     = orb_config.pal1_hue;
+            hue_var = orb_config.pal1_hue_var;
+            sat     = orb_config.pal1_sat;
+        } else {
+            accum += orb_config.pal2_weight;
+            if (roll < accum || orb_config.palette_count == 3u) {
+                hue     = orb_config.pal2_hue;
+                hue_var = orb_config.pal2_hue_var;
+                sat     = orb_config.pal2_sat;
+            } else {
+                hue     = orb_config.pal3_hue;
+                hue_var = orb_config.pal3_hue_var;
+                sat     = orb_config.pal3_sat;
+            }
+        }
+    }
+
+    let h = fract(hue + (hash_property(seed, 9u) - 0.5) * 2.0 * hue_var);
+    let s = clamp(sat + (hash_property(seed, 10u) - 0.5) * 0.15, 0.1, 1.0);
+
+    // Value skewed toward dim — squared hash biases mass toward 0.
+    // Rare bright orbs catch the eye without outnumbering the quiet field.
+    let val_hash = hash_property(seed, 11u);
+    let val_skew = val_hash * val_hash;
+    let v = clamp(
+        orb_config.brightness - orb_config.value_variance * 0.5
+        + val_skew * orb_config.value_variance,
+        0.15, 1.0
+    );
+
+    return vec3<f32>(h, s, v);
+}
+
 @compute @workgroup_size(64)
 fn orb_init(@builtin(global_invocation_id) id: vec3<u32>) {
     let i = id.x;
@@ -8612,15 +8680,22 @@ fn orb_init(@builtin(global_invocation_id) id: vec3<u32>) {
     );
     let pos = dir * orb_config.dome_radius;
 
-    // Color: base hue ± variance, moderate saturation, high value.
-    let hue_offset = (hash_property(seed, 3u) - 0.5) * 2.0 * orb_config.hue_variance;
-    let hue = fract(orb_config.base_hue + hue_offset);
-    let sat = 0.5 + hash_property(seed, 5u) * 0.3;   // 0.5..0.8
-    let val = 0.8 + hash_property(seed, 6u) * 0.2;   // 0.8..1.0
-    let color = orb_hsv_to_rgb(vec3<f32>(hue, sat, val));
+    // Color: multi-pocket palette when palette_count > 0, else legacy hue.
+    var hsv: vec3<f32>;
+    if (orb_config.palette_count > 0u) {
+        hsv = orb_sample_palette(seed);
+    } else {
+        let hue_offset = (hash_property(seed, 3u) - 0.5) * 2.0 * orb_config.hue_variance;
+        let h = fract(orb_config.base_hue + hue_offset);
+        let s = 0.5 + hash_property(seed, 5u) * 0.3;
+        let v = 0.8 + hash_property(seed, 6u) * 0.2;
+        hsv = vec3<f32>(h, s, v);
+    }
+    let color = orb_hsv_to_rgb(hsv);
 
-    // Size variation: ±30% around base.
-    let size = orb_config.base_size * (0.7 + hash_property(seed, 7u) * 0.6);
+    // Size: correlated with brightness — the bright rare orbs also read larger.
+    // base_size × (0.4 + value × 0.9): dim ~0.5×, bright ~1.3×.
+    let size = orb_config.base_size * (0.4 + hsv.z * 0.9);
 
     orb_state[i].pos = pos;
     orb_state[i]._pad0 = 0.0;
