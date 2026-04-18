@@ -2144,6 +2144,10 @@ namespace t7 {
                 queue.WriteBuffer(orbConfigBuffer_,
                     offsetof(GPUOrbConfig, force_radial), &radial, sizeof(float));
             }
+            void upload_orb_noise(wgpu::Queue& queue, float noise) {
+                queue.WriteBuffer(orbConfigBuffer_,
+                    offsetof(GPUOrbConfig, noise_amp), &noise, sizeof(float));
+            }
             wgpu::Buffer zone_mesh_vertex_buffer() const { return zoneMeshVertexBuffer_; }
             wgpu::Buffer zone_mesh_index_buffer() const { return zoneMeshIndexBuffer_; }
             wgpu::Buffer zone_mesh_indirect_buffer() const { return zoneMeshIndirectBuffer_; }

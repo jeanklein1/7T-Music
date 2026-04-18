@@ -40,19 +40,24 @@ uint32_t orbCount_       = 0;
 bool     orbInitPending_ = false;
 
 // ─── Orb musical coupling state ──────────────────────────────────
-// Polyphony drives a radial force on the orbs; exponential ramps keep
-// onset/release smooth. Attack is faster than release so the sky
+// Polyphony drives a radial force on the orbs AND lerps noise from a
+// resting floor up to the mood's configured ceiling. Exponential ramps
+// keep onset/release smooth. Attack is faster than release so the sky
 // expands quickly but holds position after a phrase ends.
-float orbForceIntensity_ = 0.0f;
+float orbForceIntensity_   = 0.0f;
+float orbActiveNoiseAmp_   = 0.0f;  // mood's configured ceiling, captured at configure
 static constexpr float ORB_FORCE_ATTACK  = 3.0f;   // 1/s
 static constexpr float ORB_FORCE_RELEASE = 1.5f;   // 1/s
 static constexpr float ORB_FORCE_SCALE   = 40.0f;  // world-units/s² at full intensity
+static constexpr float ORB_NOISE_FLOOR   = 0.3f;   // barely perceptible drift in silence
 
 void configure_orbs(const OrbMoodConfig& cfg, wgpu::Queue& queue) {
     orbsActive_ = cfg.enabled;
     orbCount_ = std::min(cfg.count, (uint32_t)Dim::MAX_ORBS);
 
     if (orbsActive_ && orbCount_ > 0) {
+        orbActiveNoiseAmp_ = cfg.noise_amp;  // capture ceiling for the coupling
+
         GPUOrbConfig gpuCfg{};
         gpuCfg.count        = orbCount_;
         gpuCfg.seed         = activeSeed_;
@@ -60,7 +65,7 @@ void configure_orbs(const OrbMoodConfig& cfg, wgpu::Queue& queue) {
         gpuCfg.hue_variance = cfg.hue_variance;
         gpuCfg.brightness   = cfg.brightness;
         gpuCfg.drag         = cfg.drag;
-        gpuCfg.noise_amp    = cfg.noise_amp;
+        gpuCfg.noise_amp    = ORB_NOISE_FLOOR;  // start at floor, coupling lerps upward
         gpuCfg.dome_radius  = ORB_DOME_RADIUS;
         gpuCfg.base_size    = ORB_BASE_SIZE;
         gpuCfg.dt           = 0.0f;
@@ -72,7 +77,8 @@ void configure_orbs(const OrbMoodConfig& cfg, wgpu::Queue& queue) {
         std::cout << "[Orbs] Configured: count=" << orbCount_
             << " hue=" << cfg.base_hue
             << " var=" << cfg.hue_variance
-            << " drag=" << cfg.drag << "\n";
+            << " drag=" << cfg.drag
+            << " noise=" << ORB_NOISE_FLOOR << ".." << orbActiveNoiseAmp_ << "\n";
     }
 }
 
@@ -81,6 +87,7 @@ void teardown_orbs() {
     orbCount_ = 0;
     orbInitPending_ = false;
     orbForceIntensity_ = 0.0f;
+    orbActiveNoiseAmp_ = 0.0f;
 }
 
 // Polyphony → radial force. Exponential ramp, same discipline as
@@ -100,8 +107,15 @@ void update_orb_coupling(float polyphony, float dt, wgpu::Queue& queue) {
 
     if (next != prev) {
         orbForceIntensity_ = next;
+
+        // Radial force: polyphony → outward push.
         float radial = orbForceIntensity_ * ORB_FORCE_SCALE;
         gpuState_.upload_orb_force(queue, radial);
+
+        // Noise: lerp floor → mood ceiling with the same intensity.
+        float noise = ORB_NOISE_FLOOR
+            + orbForceIntensity_ * (orbActiveNoiseAmp_ - ORB_NOISE_FLOOR);
+        gpuState_.upload_orb_noise(queue, noise);
     }
 }
 
