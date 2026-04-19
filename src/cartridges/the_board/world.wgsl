@@ -8934,16 +8934,11 @@ fn orb_vs(
 
     // orb.pos is dome-local; the dome's world-space anchor is carried
     // by orb_config (origin when unanchored, pawn position when anchored).
-    // DIAG: hardcoded (300, 0, 0) shift to isolate shader vs upload path.
-    // If orbs visibly jump by ~300 units in +X after rebuild, the shader
-    // runs and the orb_config read is the problem. If orbs don't move,
-    // the shader path itself isn't reaching here.
-    let dome_center = vec3<f32>(300.0, 0.0, 0.0);
-    // let dome_center = vec3<f32>(
-    //     orb_config.dome_center_x,
-    //     orb_config.dome_center_y,
-    //     orb_config.dome_center_z
-    // );
+    let dome_center = vec3<f32>(
+        orb_config.dome_center_x,
+        orb_config.dome_center_y,
+        orb_config.dome_center_z
+    );
     let world_pos = dome_center + orb.pos
         + cam_right * (quad_pos.x * orb.size)
         + cam_up    * (quad_pos.y * orb.size);
