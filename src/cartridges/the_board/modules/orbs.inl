@@ -320,6 +320,8 @@ void toggle_orb_anchor() {
     std::cout << "[Orbs] Anchor: "
         << (orbPawnAnchored_ ? "ON — dome follows pawn"
                              : "OFF — dome fixed at world origin")
+        << "  (pawn readback: "
+        << pawnReadback_x_ << ", " << pawnReadback_z_ << ")"
         << "\n";
 }
 
@@ -342,6 +344,13 @@ void update_orb_anchor(float pawn_x, float pawn_z, wgpu::Queue& queue) {
         orbLastDomeCenterX_ = target_x;
         orbLastDomeCenterZ_ = target_z;
         orbDomeCenterInitialized_ = true;
+
+        // Diagnostic: print on every change so we can verify the upload
+        // fires and see the magnitude. Once visual confirms behavior, we
+        // can drop this to a single "first upload after toggle" log.
+        std::cout << "[Orbs] Dome center -> ("
+            << target_x << ", 0, " << target_z
+            << ") anchored=" << (orbPawnAnchored_ ? "yes" : "no") << "\n";
     }
 }
 
