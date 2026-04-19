@@ -8576,6 +8576,10 @@ struct OrbConfig {
     color_converge:      f32,
     color_surge:         f32,
     hue_converge_target: f32,
+    dome_center_x:       f32,
+    dome_center_y:       f32,
+    dome_center_z:       f32,
+    _pad_anchor:         f32,
 }
 
 // Rodrigues' rotation: rotate vector v by angle θ around unit axis k.
@@ -8928,7 +8932,14 @@ fn orb_vs(
     let cam_right = vec3<f32>(cos_az, 0.0, -sin_az);
     let cam_up = cross(orbital, cam_right);
 
-    let world_pos = orb.pos
+    // orb.pos is dome-local; the dome's world-space anchor is carried
+    // by orb_config (origin when unanchored, pawn position when anchored).
+    let dome_center = vec3<f32>(
+        orb_config.dome_center_x,
+        orb_config.dome_center_y,
+        orb_config.dome_center_z
+    );
+    let world_pos = dome_center + orb.pos
         + cam_right * (quad_pos.x * orb.size)
         + cam_up    * (quad_pos.y * orb.size);
 

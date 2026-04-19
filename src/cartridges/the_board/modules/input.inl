@@ -38,6 +38,9 @@
 #ifndef GLFW_KEY_KP_7
 #define GLFW_KEY_KP_7  327
 #endif
+#ifndef GLFW_KEY_KP_9
+#define GLFW_KEY_KP_9  329
+#endif
 
 void on_key_down(int key) {
     switch (key) {
@@ -143,6 +146,7 @@ void on_key_down(int key) {
     case GLFW_KEY_KP_5: toggle_mmode(MMODE_GOL_TEMPO);       break;
     case GLFW_KEY_KP_6: toggle_mmode(MMODE_AURA_EXPAND);     break;
     case GLFW_KEY_KP_7: toggle_mmode(MMODE_RADIAL_PULSE);    break;
+    case GLFW_KEY_KP_9: toggle_orb_anchor();                 break;
     case GLFW_KEY_LEFT_CONTROL:
     case GLFW_KEY_RIGHT_CONTROL:
         toggle_fpv_mode();

@@ -132,6 +132,8 @@ struct OrbMoodConfig {
     bool  color_converge_enabled = false;
     bool  color_surge_enabled    = false;
     float hue_converge_target    = 0.12f;          // soft warm white-yellow
+    // ── Pass 7: pawn-anchored dome (default on first run only) ─
+    bool  anchor_to_pawn_default = false;
 };
 
 bool     orbsActive_           = false;
@@ -139,6 +141,17 @@ uint32_t orbCount_             = 0;
 bool     orbInitPending_       = false;
 bool     orbRecolorPending_    = false;              // set by cycle_orb_palette
 uint32_t orbCurrentPaletteId_  = ORB_PAL_JWST_DEEP;  // cycled by the palette key
+
+// ─── Pass 7: anchor state ────────────────────────────────────────
+// Player-controlled toggle; persists across mood transitions. The
+// mood's anchor_to_pawn_default seeds this only on first configure;
+// thereafter the player's choice wins. Per-frame uploads use the
+// dirty-flag pattern so an idle dome produces no queue traffic.
+bool  orbPawnAnchored_          = false;
+bool  orbAnchorInitialized_     = false;  // set on first configure_orbs
+float orbLastDomeCenterX_       = 0.0f;
+float orbLastDomeCenterZ_       = 0.0f;
+bool  orbDomeCenterInitialized_ = false;
 
 // ─── Orb musical coupling state ──────────────────────────────────
 // Polyphony drives a radial force on the orbs AND lerps noise from a
@@ -172,6 +185,13 @@ void configure_orbs(const OrbMoodConfig& cfg, wgpu::Queue& queue) {
 
     if (orbsActive_ && orbCount_ > 0) {
         orbActiveNoiseAmp_ = cfg.noise_amp;  // capture ceiling for the coupling
+
+        // Anchor: mood default applies ONLY on first run. After that,
+        // the player's toggle persists across mood transitions.
+        if (!orbAnchorInitialized_) {
+            orbPawnAnchored_ = cfg.anchor_to_pawn_default;
+            orbAnchorInitialized_ = true;
+        }
 
         // Normalize rotation axis on CPU — GPU still renormalizes but
         // keeping the uploaded value unit-length avoids surprises.
@@ -232,6 +252,17 @@ void configure_orbs(const OrbMoodConfig& cfg, wgpu::Queue& queue) {
         gpuCfg.color_surge         = 0.0f;
         gpuCfg.hue_converge_target = cfg.hue_converge_target;
 
+        // Dome center: start at origin even when anchored. The per-frame
+        // update_orb_anchor catches up on the next frame with fresh
+        // pawnReadback values, which may not be ready at mood-entry time.
+        gpuCfg.dome_center_x = 0.0f;
+        gpuCfg.dome_center_y = 0.0f;
+        gpuCfg.dome_center_z = 0.0f;
+        gpuCfg._pad_anchor   = 0.0f;
+        // Force dirty-flag re-eval so the next frame uploads even if
+        // the cached last-center matches this zero state.
+        orbDomeCenterInitialized_ = false;
+
         orbColorPulseActive_    = cfg.color_pulse_enabled;
         orbColorConvergeActive_ = cfg.color_converge_enabled;
         orbColorSurgeActive_    = cfg.color_surge_enabled;
@@ -253,6 +284,7 @@ void configure_orbs(const OrbMoodConfig& cfg, wgpu::Queue& queue) {
             << (cfg.color_surge_enabled    ? " surge" : "")
             << (cfg.color_pulse_enabled || cfg.color_converge_enabled || cfg.color_surge_enabled
                 ? "" : " off")
+            << " anchor=" << (orbPawnAnchored_ ? "pawn" : "origin")
             << "\n";
     }
 }
@@ -271,6 +303,46 @@ void teardown_orbs() {
     orbColorPulseActive_       = false;
     orbColorConvergeActive_    = false;
     orbColorSurgeActive_       = false;
+
+    // Per-frame dome-center cache clears (forces a fresh upload on the
+    // next configure). NOTE: do NOT touch orbPawnAnchored_ or
+    // orbAnchorInitialized_ — anchor is player state and persists
+    // across moods.
+    orbLastDomeCenterX_ = 0.0f;
+    orbLastDomeCenterZ_ = 0.0f;
+    orbDomeCenterInitialized_ = false;
+}
+
+// Flip the dome anchor between world origin and the pawn. Player
+// state: persists across mood transitions.
+void toggle_orb_anchor() {
+    orbPawnAnchored_ = !orbPawnAnchored_;
+    std::cout << "[Orbs] Anchor: "
+        << (orbPawnAnchored_ ? "ON — dome follows pawn"
+                             : "OFF — dome fixed at world origin")
+        << "\n";
+}
+
+// Push the current dome center to the GPU. Dirty-flagged so a stationary
+// anchored pawn or an unanchored session produces no per-frame traffic.
+// Horizontal-only: Y is always 0 regardless of pawn altitude so the sky
+// doesn't bob with terrain.
+void update_orb_anchor(float pawn_x, float pawn_z, wgpu::Queue& queue) {
+    if (!orbsActive_ || orbCount_ == 0) return;
+
+    float target_x = orbPawnAnchored_ ? pawn_x : 0.0f;
+    float target_z = orbPawnAnchored_ ? pawn_z : 0.0f;
+
+    bool changed = !orbDomeCenterInitialized_
+                || target_x != orbLastDomeCenterX_
+                || target_z != orbLastDomeCenterZ_;
+
+    if (changed) {
+        gpuState_.upload_orb_dome_center(queue, target_x, 0.0f, target_z);
+        orbLastDomeCenterX_ = target_x;
+        orbLastDomeCenterZ_ = target_z;
+        orbDomeCenterInitialized_ = true;
+    }
 }
 
 // Cycle forward through the palette registry. Session-local within a

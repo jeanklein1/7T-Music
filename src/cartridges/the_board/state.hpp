@@ -944,8 +944,13 @@ namespace t7 {
             float    color_converge;     //148: hue-convergence intensity (0..1)
             float    color_surge;        //152: saturation-surge intensity (0..1)
             float    hue_converge_target;//156: target hue for convergence (0..1)
+            // ── Pass 7: pawn-anchored dome ────────────────────────
+            float    dome_center_x;      //160: dome center world X
+            float    dome_center_y;      //164: dome center world Y (typically 0)
+            float    dome_center_z;      //168: dome center world Z
+            float    _pad_anchor;        //172: reserved (future anchor mode/rate)
         };
-        static_assert(sizeof(GPUOrbConfig) == 160, "GPUOrbConfig must be 160 bytes");
+        static_assert(sizeof(GPUOrbConfig) == 176, "GPUOrbConfig must be 176 bytes");
 
         // (GPUCellState removed — legacy cell system no longer active)
 
@@ -2190,6 +2195,15 @@ namespace t7 {
                     offsetof(GPUOrbConfig, color_pulse),
                     &packed, sizeof(packed));
             }
+            // Dome center: world-space anchor point added at render time by orb_vs.
+            // 12-byte write; _pad_anchor is left untouched for future use.
+            void upload_orb_dome_center(wgpu::Queue& queue,
+                                        float x, float y, float z) {
+                struct { float x, y, z; } packed = { x, y, z };
+                queue.WriteBuffer(orbConfigBuffer_,
+                    offsetof(GPUOrbConfig, dome_center_x),
+                    &packed, sizeof(packed));
+            }
             // Partial upload of the palette slice (palette_count..pal3_weight).
             // 72 bytes contiguous from offset 72. Preserves per-frame fields
             // (dt, t_seconds, noise_amp, force_radial) elsewhere in the struct.
@@ -3185,7 +3199,7 @@ namespace t7 {
                 // Vertex shaders need entity state for positioning + VP for transform.
                 // Fragment shaders need camera for fog distance.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 17> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 18> entries{};
 
                     entries[0].binding = 1;    // config (uniform — fog, world_seed, aura_enabled, fade)
                     entries[0].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
@@ -3260,6 +3274,11 @@ namespace t7 {
                     entries[16].binding = 400;
                     entries[16].visibility = wgpu::ShaderStage::Vertex;
                     entries[16].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+
+                    // Orb config (VS reads dome_center for anchored mode in Pass 7)
+                    entries[17].binding = 411;
+                    entries[17].visibility = wgpu::ShaderStage::Vertex;
+                    entries[17].buffer.type = wgpu::BufferBindingType::Uniform;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Render Entity Layout";
@@ -4067,9 +4086,9 @@ namespace t7 {
                     if (!computeEntityBindGroup_) return false;
                 }
 
-                // Render entity bind group (17 entries: config + spaced by system +200)
+                // Render entity bind group (18 entries: config + spaced by system +200)
                 {
-                    std::array<wgpu::BindGroupEntry, 17> entries{};
+                    std::array<wgpu::BindGroupEntry, 18> entries{};
 
                     entries[0].binding = 1;
                     entries[0].buffer = configBuffer_;
@@ -4141,6 +4160,11 @@ namespace t7 {
                     entries[16].binding = 400;
                     entries[16].buffer = orbStateBuffer_;
                     entries[16].size = Dim::MAX_ORBS * sizeof(GPUOrbState);
+
+                    // Orb config (VS reads dome_center for anchored mode)
+                    entries[17].binding = 411;
+                    entries[17].buffer = orbConfigBuffer_;
+                    entries[17].size = sizeof(GPUOrbConfig);
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Render Entity BindGroup";
@@ -4364,7 +4388,7 @@ namespace t7 {
 
                 // Photographer render entity bind group (same layout as main, different VP)
                 {
-                    std::array<wgpu::BindGroupEntry, 17> entries{};
+                    std::array<wgpu::BindGroupEntry, 18> entries{};
                     entries[0].binding = 1;
                     entries[0].buffer = configBuffer_;
                     entries[0].size = sizeof(GPUDesignConfig);
@@ -4420,6 +4444,11 @@ namespace t7 {
                     entries[16].binding = 400;
                     entries[16].buffer = orbStateBuffer_;
                     entries[16].size = Dim::MAX_ORBS * sizeof(GPUOrbState);
+
+                    // Orb config (VS reads dome_center) — same buffer as main path
+                    entries[17].binding = 411;
+                    entries[17].buffer = orbConfigBuffer_;
+                    entries[17].size = sizeof(GPUOrbConfig);
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Photographer Render Entity BindGroup";
