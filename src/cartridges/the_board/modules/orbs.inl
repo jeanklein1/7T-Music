@@ -127,6 +127,11 @@ struct OrbMoodConfig {
     float    rotation_axis[3] = {0.0f, 1.0f, 0.0f};// normalized in configure_orbs
     float    orbital_base_speed = 0.0f;            // rad/s (rule 1 only)
     uint32_t palette_id    = ORB_PAL_JWST_DEEP;    // index into ORB_PALETTES
+    // ── Pass 5: color dynamics ────────────────────────────────
+    bool  color_pulse_enabled    = false;
+    bool  color_converge_enabled = false;
+    bool  color_surge_enabled    = false;
+    float hue_converge_target    = 0.12f;          // soft warm white-yellow
 };
 
 bool     orbsActive_           = false;
@@ -146,6 +151,20 @@ static constexpr float ORB_FORCE_ATTACK  = 3.0f;   // 1/s
 static constexpr float ORB_FORCE_RELEASE = 1.5f;   // 1/s
 static constexpr float ORB_FORCE_SCALE   = 40.0f;  // world-units/s² at full intensity
 static constexpr float ORB_NOISE_FLOOR   = 0.3f;   // barely perceptible drift in silence
+
+// ─── Color dynamics coupling state ───────────────────────────────
+// Three independent trajectories, each smoothed from polyphony and
+// gated by its mood flag. Color couples faster than motion so onsets
+// feel punchy; release is a touch quicker too so the sky settles
+// back within a beat or two of silence.
+float orbColorPulseIntensity_    = 0.0f;
+float orbColorConvergeIntensity_ = 0.0f;
+float orbColorSurgeIntensity_    = 0.0f;
+bool  orbColorPulseActive_       = false;
+bool  orbColorConvergeActive_    = false;
+bool  orbColorSurgeActive_       = false;
+static constexpr float ORB_COLOR_ATTACK  = 5.0f;   // 1/s
+static constexpr float ORB_COLOR_RELEASE = 2.5f;   // 1/s
 
 void configure_orbs(const OrbMoodConfig& cfg, wgpu::Queue& queue) {
     orbsActive_ = cfg.enabled;
@@ -206,6 +225,17 @@ void configure_orbs(const OrbMoodConfig& cfg, wgpu::Queue& queue) {
         gpuCfg.pal3_sat       = pal.entries[3].saturation;
         gpuCfg.pal3_weight    = pal.entries[3].weight;
 
+        // Color dynamics: start at rest (coupling lifts them on music).
+        // hue_converge_target changes only at mood entry, so it goes here.
+        gpuCfg.color_pulse         = 0.0f;
+        gpuCfg.color_converge      = 0.0f;
+        gpuCfg.color_surge         = 0.0f;
+        gpuCfg.hue_converge_target = cfg.hue_converge_target;
+
+        orbColorPulseActive_    = cfg.color_pulse_enabled;
+        orbColorConvergeActive_ = cfg.color_converge_enabled;
+        orbColorSurgeActive_    = cfg.color_surge_enabled;
+
         gpuState_.upload_orb_config(queue, gpuCfg);
         orbInitPending_ = true;
 
@@ -216,7 +246,14 @@ void configure_orbs(const OrbMoodConfig& cfg, wgpu::Queue& queue) {
             << " noise=" << ORB_NOISE_FLOOR << ".." << orbActiveNoiseAmp_
             << " rule=" << RULE_NAMES[std::min(cfg.motion_rule, 2u)]
             << " rot=" << cfg.rotation_speed
-            << " orbital=" << cfg.orbital_base_speed << "\n";
+            << " orbital=" << cfg.orbital_base_speed
+            << " color:"
+            << (cfg.color_pulse_enabled    ? " pulse" : "")
+            << (cfg.color_converge_enabled ? " converge" : "")
+            << (cfg.color_surge_enabled    ? " surge" : "")
+            << (cfg.color_pulse_enabled || cfg.color_converge_enabled || cfg.color_surge_enabled
+                ? "" : " off")
+            << "\n";
     }
 }
 
@@ -227,6 +264,13 @@ void teardown_orbs() {
     orbRecolorPending_ = false;
     orbForceIntensity_ = 0.0f;
     orbActiveNoiseAmp_ = 0.0f;
+
+    orbColorPulseIntensity_    = 0.0f;
+    orbColorConvergeIntensity_ = 0.0f;
+    orbColorSurgeIntensity_    = 0.0f;
+    orbColorPulseActive_       = false;
+    orbColorConvergeActive_    = false;
+    orbColorSurgeActive_       = false;
 }
 
 // Cycle forward through the palette registry. Session-local within a
@@ -258,32 +302,52 @@ void cycle_orb_palette(wgpu::Queue& queue) {
     std::cout << "[Orbs] Palette: " << ORB_PAL_NAMES[orbCurrentPaletteId_] << "\n";
 }
 
-// Polyphony → radial force. Exponential ramp, same discipline as
-// other mmode couplings. Uploads only when the intensity actually
-// changes, matching pawn aura's dirty-flag approach.
+// Polyphony → motion (force + noise) and color (pulse / converge /
+// surge). Each coupling is structurally independent — same source
+// for now so they're synced; swapping sources later desyncs.
+// Uploads only when a value actually changes.
 void update_orb_coupling(float polyphony, float dt, wgpu::Queue& queue) {
     if (!orbsActive_ || orbCount_ == 0) return;
 
     float target = std::min(polyphony / 6.0f, 1.0f);
 
-    float prev = orbForceIntensity_;
-    float rate = (target > prev) ? ORB_FORCE_ATTACK : ORB_FORCE_RELEASE;
-    float next = prev + (target - prev) * (1.0f - std::exp(-rate * dt));
+    // Local smoother — returns true iff value actually moved.
+    auto smooth = [&](bool enabled, float& intensity,
+                      float attack, float release) -> bool {
+        float t = enabled ? target : 0.0f;
+        float prev = intensity;
+        float rate = (t > prev) ? attack : release;
+        float next = prev + (t - prev) * (1.0f - std::exp(-rate * dt));
+        if (next < 0.001f && t == 0.0f) next = 0.0f;
+        if (next > 0.999f && t >= 1.0f) next = 1.0f;
+        if (next != prev) { intensity = next; return true; }
+        return false;
+    };
 
-    if (next < 0.001f && target == 0.0f) next = 0.0f;
-    if (next > 0.999f && target >= 1.0f) next = 1.0f;
-
-    if (next != prev) {
-        orbForceIntensity_ = next;
-
-        // Radial force: polyphony → outward push.
+    // ─── Motion couplings ────────────────────────────────────
+    if (smooth(true, orbForceIntensity_, ORB_FORCE_ATTACK, ORB_FORCE_RELEASE)) {
         float radial = orbForceIntensity_ * ORB_FORCE_SCALE;
         gpuState_.upload_orb_force(queue, radial);
 
-        // Noise: lerp floor → mood ceiling with the same intensity.
         float noise = ORB_NOISE_FLOOR
             + orbForceIntensity_ * (orbActiveNoiseAmp_ - ORB_NOISE_FLOOR);
         gpuState_.upload_orb_noise(queue, noise);
+    }
+
+    // ─── Color couplings ─────────────────────────────────────
+    bool color_changed = false;
+    if (smooth(orbColorPulseActive_,    orbColorPulseIntensity_,
+               ORB_COLOR_ATTACK, ORB_COLOR_RELEASE))    color_changed = true;
+    if (smooth(orbColorConvergeActive_, orbColorConvergeIntensity_,
+               ORB_COLOR_ATTACK, ORB_COLOR_RELEASE))    color_changed = true;
+    if (smooth(orbColorSurgeActive_,    orbColorSurgeIntensity_,
+               ORB_COLOR_ATTACK, ORB_COLOR_RELEASE))    color_changed = true;
+
+    if (color_changed) {
+        gpuState_.upload_orb_color_dynamics(queue,
+            orbColorPulseIntensity_,
+            orbColorConvergeIntensity_,
+            orbColorSurgeIntensity_);
     }
 }
 

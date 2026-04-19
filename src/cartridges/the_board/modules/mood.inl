@@ -433,6 +433,10 @@ void apply_mood(uint32_t mood, wgpu::Queue& queue) {
         ocfg.rotation_axis[2]   = m.orbs.rotation_axis[2];
         ocfg.orbital_base_speed = m.orbs.orbital_base_speed;
         ocfg.palette_id         = m.orbs.palette_id;
+        ocfg.color_pulse_enabled    = m.orbs.color_pulse_enabled;
+        ocfg.color_converge_enabled = m.orbs.color_converge_enabled;
+        ocfg.color_surge_enabled    = m.orbs.color_surge_enabled;
+        ocfg.hue_converge_target    = m.orbs.hue_converge_target;
         configure_orbs(ocfg, queue);
     }
 

@@ -8572,6 +8572,10 @@ struct OrbConfig {
     pal3_hue_var:       f32,
     pal3_sat:           f32,
     pal3_weight:        f32,
+    color_pulse:         f32,
+    color_converge:      f32,
+    color_surge:         f32,
+    hue_converge_target: f32,
 }
 
 // Rodrigues' rotation: rotate vector v by angle θ around unit axis k.
@@ -8587,6 +8591,30 @@ fn rodrigues(v: vec3<f32>, k: vec3<f32>, theta: f32) -> vec3<f32> {
 
 // Render-side read-only view of the same orb_state buffer.
 @group(0) @binding(400) var<storage, read> render_orb_state: array<OrbState>;
+
+fn orb_rgb_to_hsv(rgb: vec3<f32>) -> vec3<f32> {
+    let max_c = max(rgb.r, max(rgb.g, rgb.b));
+    let min_c = min(rgb.r, min(rgb.g, rgb.b));
+    let delta = max_c - min_c;
+
+    var h: f32 = 0.0;
+    if (delta > 0.0001) {
+        if (max_c == rgb.r) {
+            h = (rgb.g - rgb.b) / delta;
+            if (h < 0.0) { h = h + 6.0; }
+        } else if (max_c == rgb.g) {
+            h = (rgb.b - rgb.r) / delta + 2.0;
+        } else {
+            h = (rgb.r - rgb.g) / delta + 4.0;
+        }
+        h = h / 6.0;
+    }
+
+    let s: f32 = select(0.0, delta / max_c, max_c > 0.0001);
+    let v: f32 = max_c;
+
+    return vec3<f32>(h, s, v);
+}
 
 fn orb_hsv_to_rgb(hsv: vec3<f32>) -> vec3<f32> {
     let h = hsv.x * 6.0;
@@ -8836,8 +8864,35 @@ fn orb_dynamics(@builtin(global_invocation_id) id: vec3<u32>) {
         orb.vel = vec3<f32>(0.0, 0.0, 0.0);
     }
 
-    // Color: no drift yet — current tracks base.
-    orb.current_color = orb.base_color;
+    // ═══ 4. COLOR DYNAMICS (common tail) ══════════════════════
+    // Three independent trajectories composed on top of base_color:
+    // converge rotates hue toward a shared target so music pulls
+    // the sky into unity; surge pushes saturation up; pulse lifts
+    // brightness. Order matters — convergence first so the hue is
+    // settled before saturation/brightness amplify it.
+    var color = orb.base_color;
+
+    if (orb_config.color_converge > 0.001) {
+        let hsv = orb_rgb_to_hsv(color);
+        let target_h = orb_config.hue_converge_target;
+        var dh = target_h - hsv.x;
+        if (dh > 0.5)  { dh = dh - 1.0; }
+        if (dh < -0.5) { dh = dh + 1.0; }
+        let new_h = fract(hsv.x + dh * orb_config.color_converge);
+        color = orb_hsv_to_rgb(vec3<f32>(new_h, hsv.y, hsv.z));
+    }
+
+    if (orb_config.color_surge > 0.001) {
+        let hsv = orb_rgb_to_hsv(color);
+        let boosted_s = clamp(hsv.y + (1.0 - hsv.y) * orb_config.color_surge * 0.5,
+                              0.0, 1.0);
+        color = orb_hsv_to_rgb(vec3<f32>(hsv.x, boosted_s, hsv.z));
+    }
+
+    let pulse_mult = 1.0 + orb_config.color_pulse * 0.6;
+    color = color * pulse_mult;
+
+    orb.current_color = color;
 
     // Twinkle: subtle per-orb brightness oscillation, de-synced by phase.
     let twinkle = 0.85 + 0.15 * sin(orb.twinkle_phase + orb_config.t_seconds * 1.5);

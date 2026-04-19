@@ -939,8 +939,13 @@ namespace t7 {
             float    pal3_hue_var;       //132
             float    pal3_sat;           //136
             float    pal3_weight;        //140
+            // ── Pass 5: color dynamics (coupling-driven + target) ─
+            float    color_pulse;        //144: brightness-pulse intensity (0..1)
+            float    color_converge;     //148: hue-convergence intensity (0..1)
+            float    color_surge;        //152: saturation-surge intensity (0..1)
+            float    hue_converge_target;//156: target hue for convergence (0..1)
         };
-        static_assert(sizeof(GPUOrbConfig) == 144, "GPUOrbConfig must be 144 bytes");
+        static_assert(sizeof(GPUOrbConfig) == 160, "GPUOrbConfig must be 160 bytes");
 
         // (GPUCellState removed — legacy cell system no longer active)
 
@@ -2174,6 +2179,16 @@ namespace t7 {
             void upload_orb_noise(wgpu::Queue& queue, float noise) {
                 queue.WriteBuffer(orbConfigBuffer_,
                     offsetof(GPUOrbConfig, noise_amp), &noise, sizeof(float));
+            }
+            // Per-frame color dynamics: pulse / converge / surge intensities.
+            // hue_converge_target lives at offset 156 and changes only on mood
+            // entry, so it's written via the full upload_orb_config path.
+            void upload_orb_color_dynamics(wgpu::Queue& queue,
+                                           float pulse, float converge, float surge) {
+                struct { float pulse, converge, surge; } packed = { pulse, converge, surge };
+                queue.WriteBuffer(orbConfigBuffer_,
+                    offsetof(GPUOrbConfig, color_pulse),
+                    &packed, sizeof(packed));
             }
             // Partial upload of the palette slice (palette_count..pal3_weight).
             // 72 bytes contiguous from offset 72. Preserves per-frame fields
