@@ -20,10 +20,30 @@
 
 // Dome geometry + bones-pass defaults. Tune here if the sky reads
 // too small or too dim on first build.
+// Dome geometry
 static constexpr float ORB_DOME_RADIUS   = 450.0f;
-static constexpr float ORB_DEFAULT_DRAG  = 0.5f;
-static constexpr float ORB_DEFAULT_NOISE = 0.0f;
 static constexpr float ORB_BASE_SIZE     = 3.0f;
+
+// ─── System defaults for rule-critical parameters ────────────────
+// Applied in configure_orbs when the mood authors 0.0f for a given
+// field. Moods that author a non-zero value override these; moods
+// that author zero are interpreted as "no opinion yet" and the
+// system default is substituted so every rule has working
+// parameters regardless of mood authorship.
+//
+// A mood that DELIBERATELY wants "almost zero" for any of these
+// should author a tiny non-zero (e.g. 0.001f) which reads as
+// intentional rather than unset.
+static constexpr float ORB_DEFAULT_DRAG            = 0.5f;
+static constexpr float ORB_DEFAULT_NOISE_AMP       = 8.0f;
+static constexpr float ORB_DEFAULT_ORBITAL_SPEED   = 0.15f;
+static constexpr float ORB_DEFAULT_FLOCK_SEP_R     = 50.0f;
+static constexpr float ORB_DEFAULT_FLOCK_ALIGN_R   = 120.0f;
+static constexpr float ORB_DEFAULT_FLOCK_COH_R     = 200.0f;
+static constexpr float ORB_DEFAULT_FLOCK_SEP_W     = 30.0f;
+static constexpr float ORB_DEFAULT_FLOCK_ALIGN_W   = 8.0f;
+static constexpr float ORB_DEFAULT_FLOCK_COH_W     = 15.0f;
+static constexpr float ORB_DEFAULT_FLOCK_MAX_SPEED = 60.0f;
 
 // ─── Color palettes ──────────────────────────────────────────────
 // Orbs sample from up to 4 HSV "pockets" at init. Each pocket has its
@@ -202,7 +222,7 @@ struct OrbMoodConfig {
     float    hue_variance  = 0.05f;    // legacy
     float    brightness    = 0.8f;     // global value center (palette spreads around it)
     float    drag          = ORB_DEFAULT_DRAG;
-    float    noise_amp     = ORB_DEFAULT_NOISE;   // ceiling (floor is ORB_NOISE_FLOOR)
+    float    noise_amp     = ORB_DEFAULT_NOISE_AMP;  // ceiling (floor is ORB_NOISE_FLOOR)
     uint32_t motion_rule   = 0;                    // 0=Brownian, 1=Orbital, 2=Frozen
     float    rotation_speed = 0.0f;                // rad/s
     float    rotation_axis[3] = {0.0f, 1.0f, 0.0f};// normalized in configure_orbs
@@ -302,7 +322,28 @@ void configure_orbs(const OrbMoodConfig& cfg, wgpu::Queue& queue) {
     orbCount_ = std::min(cfg.count, (uint32_t)Dim::MAX_ORBS);
 
     if (orbsActive_ && orbCount_ > 0) {
-        orbActiveNoiseAmp_ = cfg.noise_amp;  // capture ceiling for the coupling
+        // ─── Effective config ─────────────────────────────────────
+        // Any rule-critical field the mood authored as 0.0 gets
+        // replaced with the system default, so every rule has
+        // working parameters regardless of mood authorship. See
+        // ORB_DEFAULT_* block at the top of the file. A mood that
+        // deliberately wants "almost zero" should author a small
+        // non-zero value instead — that reads as intentional.
+        auto eff = [](float authored, float fallback) {
+            return (authored > 0.0f) ? authored : fallback;
+        };
+        const float eff_drag            = eff(cfg.drag,               ORB_DEFAULT_DRAG);
+        const float eff_noise_amp       = eff(cfg.noise_amp,          ORB_DEFAULT_NOISE_AMP);
+        const float eff_orbital_speed   = eff(cfg.orbital_base_speed, ORB_DEFAULT_ORBITAL_SPEED);
+        const float eff_flock_sep_r     = eff(cfg.flock_sep_radius,   ORB_DEFAULT_FLOCK_SEP_R);
+        const float eff_flock_align_r   = eff(cfg.flock_align_radius, ORB_DEFAULT_FLOCK_ALIGN_R);
+        const float eff_flock_coh_r     = eff(cfg.flock_coh_radius,   ORB_DEFAULT_FLOCK_COH_R);
+        const float eff_flock_sep_w     = eff(cfg.flock_sep_weight,   ORB_DEFAULT_FLOCK_SEP_W);
+        const float eff_flock_align_w   = eff(cfg.flock_align_weight, ORB_DEFAULT_FLOCK_ALIGN_W);
+        const float eff_flock_coh_w     = eff(cfg.flock_coh_weight,   ORB_DEFAULT_FLOCK_COH_W);
+        const float eff_flock_max_speed = eff(cfg.flock_max_speed,    ORB_DEFAULT_FLOCK_MAX_SPEED);
+
+        orbActiveNoiseAmp_ = eff_noise_amp;  // capture ceiling for the coupling
 
         // Anchor: mood default applies ONLY on first run. After that,
         // the player's toggle persists across mood transitions.
@@ -336,7 +377,7 @@ void configure_orbs(const OrbMoodConfig& cfg, wgpu::Queue& queue) {
         gpuCfg.base_hue           = cfg.base_hue;
         gpuCfg.hue_variance       = cfg.hue_variance;
         gpuCfg.brightness         = cfg.brightness;
-        gpuCfg.drag               = cfg.drag;
+        gpuCfg.drag               = eff_drag;
         gpuCfg.noise_amp          = ORB_NOISE_FLOOR;   // start at floor, coupling lerps up
         gpuCfg.dome_radius        = ORB_DOME_RADIUS;
         gpuCfg.base_size          = ORB_BASE_SIZE;
@@ -348,7 +389,7 @@ void configure_orbs(const OrbMoodConfig& cfg, wgpu::Queue& queue) {
         gpuCfg.rotation_axis_x    = rx;
         gpuCfg.rotation_axis_y    = ry;
         gpuCfg.rotation_axis_z    = rz;
-        gpuCfg.orbital_base_speed = cfg.orbital_base_speed;
+        gpuCfg.orbital_base_speed = eff_orbital_speed;
 
         // Palette lookup and field-by-field upload.
         uint32_t pal_id = std::min(cfg.palette_id, ORB_PAL_COUNT - 1u);
@@ -443,13 +484,13 @@ void configure_orbs(const OrbMoodConfig& cfg, wgpu::Queue& queue) {
         }
 
         // ─── Pass 9: flocking params + per-tier flocking gains ───
-        gpuCfg.flock_sep_radius         = cfg.flock_sep_radius;
-        gpuCfg.flock_align_radius       = cfg.flock_align_radius;
-        gpuCfg.flock_coh_radius         = cfg.flock_coh_radius;
-        gpuCfg.flock_sep_weight         = cfg.flock_sep_weight;
-        gpuCfg.flock_align_weight       = cfg.flock_align_weight;
-        gpuCfg.flock_coh_weight         = cfg.flock_coh_weight;
-        gpuCfg.flock_max_speed          = cfg.flock_max_speed;
+        gpuCfg.flock_sep_radius         = eff_flock_sep_r;
+        gpuCfg.flock_align_radius       = eff_flock_align_r;
+        gpuCfg.flock_coh_radius         = eff_flock_coh_r;
+        gpuCfg.flock_sep_weight         = eff_flock_sep_w;
+        gpuCfg.flock_align_weight       = eff_flock_align_w;
+        gpuCfg.flock_coh_weight         = eff_flock_coh_w;
+        gpuCfg.flock_max_speed          = eff_flock_max_speed;
         gpuCfg.flock_coupling_intensity = 0.0f;
         gpuCfg.flock_weight_sign = orbFlockInverted_ ? -1.0f : 1.0f;
         gpuCfg._pad_flock1 = 0.0f;
@@ -489,11 +530,11 @@ void configure_orbs(const OrbMoodConfig& cfg, wgpu::Queue& queue) {
         static const char* RULE_NAMES[] = { "brownian", "orbital", "frozen", "flocking" };
         std::cout << "[Orbs] Configured: count=" << orbCount_
             << " palette=" << ORB_PAL_NAMES[pal_id]
-            << " drag=" << cfg.drag
+            << " drag=" << eff_drag
             << " noise=" << ORB_NOISE_FLOOR << ".." << orbActiveNoiseAmp_
             << " rule=" << RULE_NAMES[std::min(cfg.motion_rule, 3u)]
             << " rot=" << cfg.rotation_speed
-            << " orbital=" << cfg.orbital_base_speed
+            << " orbital=" << eff_orbital_speed
             << " color:"
             << (cfg.color_pulse_enabled    ? " pulse" : "")
             << (cfg.color_converge_enabled ? " converge" : "")
