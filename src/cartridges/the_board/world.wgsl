@@ -8668,11 +8668,15 @@ fn rodrigues(v: vec3<f32>, k: vec3<f32>, theta: f32) -> vec3<f32> {
 
 @group(0) @binding(410) var<storage, read_write> orb_state: array<OrbState>;
 @group(0) @binding(411) var<uniform> orb_config: OrbConfig;
-// Pass 9: previous-frame snapshot. Declared read_write at module level;
-// the dynamics/init/recolor layout narrows it to read-only, while the
-// copy layout keeps it writable. Per WebGPU, shader-declared access may
-// be wider than the layout's enforced access.
-@group(0) @binding(412) var<storage, read_write> orb_state_prev: array<OrbState>;
+// Pass 9: previous-frame snapshot (read-only view, main layout).
+@group(0) @binding(412) var<storage, read> orb_state_prev: array<OrbState>;
+// Pass 9: inverse-access views used only by orb_state_prev_copy. They
+// reference the same physical buffers through a dedicated copy layout.
+// WebGPU requires each shader declaration to match exactly one layout
+// access mode, so we can't share 410/412 across pipelines with
+// different RW/RO assignments.
+@group(0) @binding(413) var<storage, read>       orb_state_ro:      array<OrbState>;
+@group(0) @binding(414) var<storage, read_write> orb_state_prev_rw: array<OrbState>;
 
 // Render-side read-only view of the same orb_state buffer.
 @group(0) @binding(400) var<storage, read> render_orb_state: array<OrbState>;
@@ -8860,11 +8864,13 @@ fn orb_tier_flock_coh_gain(t: u32) -> f32 {
 
 // Pass 9: snapshot orb_state → orb_state_prev so the dynamics kernel
 // reads last frame's positions/velocities while writing the new ones.
+// Uses the dedicated copy layout's bindings (413 read, 414 read_write)
+// rather than 410/412, which are bound read_write/read in the main layout.
 @compute @workgroup_size(64)
 fn orb_state_prev_copy(@builtin(global_invocation_id) id: vec3<u32>) {
     let i = id.x;
     if (i >= orb_config.count) { return; }
-    orb_state_prev[i] = orb_state[i];
+    orb_state_prev_rw[i] = orb_state_ro[i];
 }
 
 @compute @workgroup_size(64)

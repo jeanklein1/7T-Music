@@ -3976,22 +3976,25 @@ namespace t7 {
                     if (!orbComputeLayout_) return false;
                 }
 
-                // -- Orb copy layout (Group 0) -- bindings 410 RO, 411 U, 412 RW --
-                // Inverse access modes: orb_state_prev_copy reads orb_state and
-                // writes orb_state_prev. Keeps the main layout from needing write
-                // access to the prev buffer it otherwise only reads.
+                // -- Orb copy layout (Group 0) -- bindings 413 RO, 411 U, 414 RW --
+                // Dedicated bindings for orb_state_prev_copy because WebGPU
+                // requires each shader declaration's access mode to match its
+                // layout entry exactly. We can't reuse 410/412 (which the main
+                // layout binds RW/RO) with flipped access. 413 aliases orb_state
+                // through a read-only view; 414 aliases orb_state_prev through
+                // a read_write view.
                 {
                     std::array<wgpu::BindGroupLayoutEntry, 3> entries{};
 
-                    entries[0].binding = 410;  // orb_state (storage, read-only)
+                    entries[0].binding = 413;  // orb_state_ro (storage, read-only)
                     entries[0].visibility = wgpu::ShaderStage::Compute;
                     entries[0].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
-                    entries[1].binding = 411;  // orb_config (uniform — unused but layout matches module)
+                    entries[1].binding = 411;  // orb_config (uniform — declared at module scope)
                     entries[1].visibility = wgpu::ShaderStage::Compute;
                     entries[1].buffer.type = wgpu::BufferBindingType::Uniform;
 
-                    entries[2].binding = 412;  // orb_state_prev (storage, read_write)
+                    entries[2].binding = 414;  // orb_state_prev_rw (storage, read_write)
                     entries[2].visibility = wgpu::ShaderStage::Compute;
                     entries[2].buffer.type = wgpu::BufferBindingType::Storage;
 
@@ -4838,11 +4841,14 @@ namespace t7 {
                     if (!orbComputeGroup_) return false;
                 }
 
-                // Orb copy bind group — same three buffers, inverse access.
+                // Orb copy bind group — bindings 413/411/414 alias the same
+                // physical buffers as the main layout's 410/411/412, just
+                // through read-only / read-write views that match the
+                // dedicated WGSL declarations used by orb_state_prev_copy.
                 {
                     std::array<wgpu::BindGroupEntry, 3> entries{};
 
-                    entries[0].binding = 410;
+                    entries[0].binding = 413;
                     entries[0].buffer = orbStateBuffer_;
                     entries[0].size = Dim::MAX_ORBS * sizeof(GPUOrbState);
 
@@ -4850,7 +4856,7 @@ namespace t7 {
                     entries[1].buffer = orbConfigBuffer_;
                     entries[1].size = sizeof(GPUOrbConfig);
 
-                    entries[2].binding = 412;
+                    entries[2].binding = 414;
                     entries[2].buffer = orbStatePrevBuffer_;
                     entries[2].size = Dim::MAX_ORBS * sizeof(GPUOrbState);
 
