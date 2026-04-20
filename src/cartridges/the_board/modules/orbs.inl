@@ -114,6 +114,78 @@ static constexpr const char* ORB_PAL_NAMES[ORB_PAL_COUNT] = {
     "jwst_deep", "pillars", "carina", "warm_mono"
 };
 
+// ─── Tier profiles (Pass 8) ──────────────────────────────────────
+// A tier is a "what kind of orb is this" classification. At init,
+// each orb rolls into a tier by weight, then samples its physics
+// (mass/drag/size/brightness) from that tier's ranges and carries
+// the tier's gains into the dynamics kernel (noise/force/color).
+//
+// Legacy behavior: tierset_id = 0xFFFFFFFFu → uniform population,
+// ignores every field below (see configure_orbs + orb_init).
+static constexpr uint32_t MAX_ORB_TIERS = 4;
+
+struct OrbTier {
+    float mass_mult       = 1.0f;
+    float drag_mult       = 1.0f;
+    float size_min        = 0.7f;   // multiplier on base_size
+    float size_max        = 1.3f;
+    float brightness_min  = 0.7f;   // multiplier on palette value
+    float brightness_max  = 1.0f;
+    float noise_gain      = 1.0f;   // 0..1+, coupling responsiveness
+    float force_gain      = 1.0f;
+    float color_gain      = 1.0f;
+    float weight          = 0.25f;  // relative selection probability
+};
+
+struct OrbTierSet {
+    uint32_t count;
+    OrbTier tiers[MAX_ORB_TIERS];
+};
+
+// "JWST Stars" — classic deep-field distribution.
+//   giants: rare, eye-catchers, slow to settle, full color.
+//   main sequence: the population baseline.
+//   faint field: numerous, small, reduced color participation.
+//   flickers: hyperactive tiny ones, strong noise, weak force response.
+static constexpr OrbTierSet ORB_TIERSET_JWST_STARS = {
+    4,
+    {
+        //  mass   drag  s_min s_max b_min b_max n_g   f_g   c_g   w
+        {   1.8f,  0.6f, 1.2f, 1.6f, 0.9f, 1.0f, 0.6f, 0.8f, 1.0f, 0.10f },  // giants
+        {   1.0f,  1.0f, 0.8f, 1.1f, 0.6f, 0.9f, 1.0f, 1.0f, 1.0f, 0.60f },  // main
+        {   0.6f,  1.2f, 0.5f, 0.8f, 0.4f, 0.7f, 1.0f, 0.9f, 0.3f, 0.25f },  // faint
+        {   0.3f,  0.8f, 0.4f, 0.6f, 0.5f, 0.8f, 1.8f, 0.5f, 0.8f, 0.05f },  // flickers
+    }
+};
+
+// "Resonant" — three tiers for a voiced, chamber-like sky.
+//   drones: heavy, slow, convergence-responsive.
+//   voices: balanced.
+//   sparks: pure motion, no color participation.
+static constexpr OrbTierSet ORB_TIERSET_RESONANT = {
+    3,
+    {
+        {   2.5f,  0.5f, 1.3f, 1.7f, 0.7f, 1.0f, 0.3f, 0.6f, 1.0f, 0.20f },  // drones
+        {   1.0f,  1.0f, 0.8f, 1.2f, 0.6f, 0.9f, 1.0f, 1.0f, 0.7f, 0.50f },  // voices
+        {   0.4f,  0.9f, 0.4f, 0.7f, 0.5f, 0.8f, 1.8f, 1.2f, 0.0f, 0.30f },  // sparks
+        {   0.0f,  0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f  },  // unused
+    }
+};
+
+static constexpr uint32_t ORB_TIERSET_JWST  = 0;
+static constexpr uint32_t ORB_TIERSET_RES   = 1;
+static constexpr uint32_t ORB_TIERSET_COUNT = 2;
+static constexpr uint32_t ORB_TIERSET_NONE  = 0xFFFFFFFFu;  // legacy path
+
+static constexpr OrbTierSet ORB_TIERSETS[ORB_TIERSET_COUNT] = {
+    ORB_TIERSET_JWST_STARS,
+    ORB_TIERSET_RESONANT,
+};
+
+static constexpr const char* ORB_TIERSET_NAMES[ORB_TIERSET_COUNT] = {
+    "jwst_stars", "resonant"
+};
+
 struct OrbMoodConfig {
     bool     enabled       = false;
     uint32_t count         = 0;        // clamped to Dim::MAX_ORBS
@@ -134,6 +206,9 @@ struct OrbMoodConfig {
     float hue_converge_target    = 0.12f;          // soft warm white-yellow
     // ── Pass 7: pawn-anchored dome (default on first run only) ─
     bool  anchor_to_pawn_default = false;
+    // ── Pass 8: tier set selection ────────────────────────────
+    // ORB_TIERSET_NONE sentinel → legacy uniform population.
+    uint32_t tierset_id = ORB_TIERSET_NONE;
 };
 
 bool     orbsActive_           = false;
@@ -152,6 +227,14 @@ bool  orbAnchorInitialized_     = false;  // set on first configure_orbs
 float orbLastDomeCenterX_       = 0.0f;
 float orbLastDomeCenterZ_       = 0.0f;
 bool  orbDomeCenterInitialized_ = false;
+
+// Map a tier index (0..3) to the first float of its 40-byte block
+// inside a GPUOrbConfig instance. Matches the per-offset layout in
+// state.hpp: tier0 starts at 192, stride 40.
+static inline float* orb_tier_block_ptr(GPUOrbConfig& cfg, uint32_t i) {
+    auto* base = reinterpret_cast<char*>(&cfg);
+    return reinterpret_cast<float*>(base + 192u + i * 40u);
+}
 
 // ─── Orb musical coupling state ──────────────────────────────────
 // Polyphony drives a radial force on the orbs AND lerps noise from a
@@ -267,6 +350,53 @@ void configure_orbs(const OrbMoodConfig& cfg, wgpu::Queue& queue) {
         orbColorConvergeActive_ = cfg.color_converge_enabled;
         orbColorSurgeActive_    = cfg.color_surge_enabled;
 
+        // Tier set: pack the chosen tier set into the config block and
+        // compute cumulative weights so the shader rolls into the right
+        // bucket. Sentinel tierset_id → legacy uniform population.
+        gpuCfg._pad_tier0 = 0.0f;
+        gpuCfg._pad_tier1 = 0.0f;
+        gpuCfg._pad_tier2 = 0.0f;
+        if (cfg.tierset_id < ORB_TIERSET_COUNT) {
+            const auto& ts = ORB_TIERSETS[cfg.tierset_id];
+            uint32_t n = std::min(ts.count, MAX_ORB_TIERS);
+            gpuCfg.tier_count = n;
+
+            float wsum = 0.0f;
+            for (uint32_t i = 0; i < n; i++) wsum += ts.tiers[i].weight;
+            if (wsum < 1e-6f) wsum = 1.0f;  // pathological — avoid div-by-zero
+
+            float cum = 0.0f;
+            for (uint32_t i = 0; i < MAX_ORB_TIERS; i++) {
+                float* p = orb_tier_block_ptr(gpuCfg, i);
+                if (i < n) {
+                    const auto& t = ts.tiers[i];
+                    cum += t.weight / wsum;
+                    if (i == n - 1) cum = 1.0f;  // clamp the last bucket
+                    p[0] = t.mass_mult;
+                    p[1] = t.drag_mult;
+                    p[2] = t.size_min;
+                    p[3] = t.size_max;
+                    p[4] = t.brightness_min;
+                    p[5] = t.brightness_max;
+                    p[6] = t.noise_gain;
+                    p[7] = t.force_gain;
+                    p[8] = t.color_gain;
+                    p[9] = cum;
+                } else {
+                    // Unused slot: zero fields, cumulative = 1.0 so rolls
+                    // never fall into it.
+                    for (int k = 0; k < 10; k++) p[k] = 0.0f;
+                    p[9] = 1.0f;
+                }
+            }
+        } else {
+            gpuCfg.tier_count = 0;
+            for (uint32_t i = 0; i < MAX_ORB_TIERS; i++) {
+                float* p = orb_tier_block_ptr(gpuCfg, i);
+                for (int k = 0; k < 10; k++) p[k] = 0.0f;
+            }
+        }
+
         gpuState_.upload_orb_config(queue, gpuCfg);
         orbInitPending_ = true;
 
@@ -285,6 +415,10 @@ void configure_orbs(const OrbMoodConfig& cfg, wgpu::Queue& queue) {
             << (cfg.color_pulse_enabled || cfg.color_converge_enabled || cfg.color_surge_enabled
                 ? "" : " off")
             << " anchor=" << (orbPawnAnchored_ ? "pawn" : "origin")
+            << " tiers="
+            << (cfg.tierset_id < ORB_TIERSET_COUNT
+                ? ORB_TIERSET_NAMES[cfg.tierset_id]
+                : "legacy")
             << "\n";
     }
 }

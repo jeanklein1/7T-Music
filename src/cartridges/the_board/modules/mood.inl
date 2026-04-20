@@ -438,6 +438,7 @@ void apply_mood(uint32_t mood, wgpu::Queue& queue) {
         ocfg.color_surge_enabled    = m.orbs.color_surge_enabled;
         ocfg.hue_converge_target    = m.orbs.hue_converge_target;
         ocfg.anchor_to_pawn_default = m.orbs.anchor_to_pawn_default;
+        ocfg.tierset_id             = m.orbs.tierset_id;
         configure_orbs(ocfg, queue);
     }
 

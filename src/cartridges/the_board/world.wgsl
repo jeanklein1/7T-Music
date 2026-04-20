@@ -8532,7 +8532,7 @@ struct OrbState {
     size:           f32,
     mass:           f32,
     drag:           f32,
-    _pad2:          f32,
+    tier_idx:       u32,
 }
 
 struct OrbConfig {
@@ -8580,6 +8580,50 @@ struct OrbConfig {
     dome_center_y:       f32,
     dome_center_z:       f32,
     _pad_anchor:         f32,
+    tier_count:          u32,
+    _pad_tier0:          f32,
+    _pad_tier1:          f32,
+    _pad_tier2:          f32,
+    tier0_mass_mult:         f32,
+    tier0_drag_mult:         f32,
+    tier0_size_min:          f32,
+    tier0_size_max:          f32,
+    tier0_brightness_min:    f32,
+    tier0_brightness_max:    f32,
+    tier0_noise_gain:        f32,
+    tier0_force_gain:        f32,
+    tier0_color_gain:        f32,
+    tier0_cumulative_weight: f32,
+    tier1_mass_mult:         f32,
+    tier1_drag_mult:         f32,
+    tier1_size_min:          f32,
+    tier1_size_max:          f32,
+    tier1_brightness_min:    f32,
+    tier1_brightness_max:    f32,
+    tier1_noise_gain:        f32,
+    tier1_force_gain:        f32,
+    tier1_color_gain:        f32,
+    tier1_cumulative_weight: f32,
+    tier2_mass_mult:         f32,
+    tier2_drag_mult:         f32,
+    tier2_size_min:          f32,
+    tier2_size_max:          f32,
+    tier2_brightness_min:    f32,
+    tier2_brightness_max:    f32,
+    tier2_noise_gain:        f32,
+    tier2_force_gain:        f32,
+    tier2_color_gain:        f32,
+    tier2_cumulative_weight: f32,
+    tier3_mass_mult:         f32,
+    tier3_drag_mult:         f32,
+    tier3_size_min:          f32,
+    tier3_size_max:          f32,
+    tier3_brightness_min:    f32,
+    tier3_brightness_max:    f32,
+    tier3_noise_gain:        f32,
+    tier3_force_gain:        f32,
+    tier3_color_gain:        f32,
+    tier3_cumulative_weight: f32,
 }
 
 // Rodrigues' rotation: rotate vector v by angle θ around unit axis k.
@@ -8688,6 +8732,75 @@ fn orb_sample_palette(seed: u32) -> vec3<f32> {
     return vec3<f32>(h, s, v);
 }
 
+// ─── Pass 8: tier helpers ─────────────────────────────────────────
+// All accessor functions branch on uniform values (tier_idx is uniform
+// per-invocation relative to this call, and tier_count is uniform
+// across the workgroup), so FXC handles them without divergence.
+
+fn orb_roll_tier(seed: u32) -> u32 {
+    if (orb_config.tier_count == 0u) { return 0u; }
+    let roll = hash_property(seed, 12u);
+    if (roll < orb_config.tier0_cumulative_weight) { return 0u; }
+    if (roll < orb_config.tier1_cumulative_weight) { return 1u; }
+    if (roll < orb_config.tier2_cumulative_weight) { return 2u; }
+    return 3u;
+}
+
+fn orb_tier_mass_mult(t: u32) -> f32 {
+    if (t == 0u) { return orb_config.tier0_mass_mult; }
+    if (t == 1u) { return orb_config.tier1_mass_mult; }
+    if (t == 2u) { return orb_config.tier2_mass_mult; }
+    return orb_config.tier3_mass_mult;
+}
+fn orb_tier_drag_mult(t: u32) -> f32 {
+    if (t == 0u) { return orb_config.tier0_drag_mult; }
+    if (t == 1u) { return orb_config.tier1_drag_mult; }
+    if (t == 2u) { return orb_config.tier2_drag_mult; }
+    return orb_config.tier3_drag_mult;
+}
+fn orb_tier_size_min(t: u32) -> f32 {
+    if (t == 0u) { return orb_config.tier0_size_min; }
+    if (t == 1u) { return orb_config.tier1_size_min; }
+    if (t == 2u) { return orb_config.tier2_size_min; }
+    return orb_config.tier3_size_min;
+}
+fn orb_tier_size_max(t: u32) -> f32 {
+    if (t == 0u) { return orb_config.tier0_size_max; }
+    if (t == 1u) { return orb_config.tier1_size_max; }
+    if (t == 2u) { return orb_config.tier2_size_max; }
+    return orb_config.tier3_size_max;
+}
+fn orb_tier_brightness_min(t: u32) -> f32 {
+    if (t == 0u) { return orb_config.tier0_brightness_min; }
+    if (t == 1u) { return orb_config.tier1_brightness_min; }
+    if (t == 2u) { return orb_config.tier2_brightness_min; }
+    return orb_config.tier3_brightness_min;
+}
+fn orb_tier_brightness_max(t: u32) -> f32 {
+    if (t == 0u) { return orb_config.tier0_brightness_max; }
+    if (t == 1u) { return orb_config.tier1_brightness_max; }
+    if (t == 2u) { return orb_config.tier2_brightness_max; }
+    return orb_config.tier3_brightness_max;
+}
+fn orb_tier_noise_gain(t: u32) -> f32 {
+    if (t == 0u) { return orb_config.tier0_noise_gain; }
+    if (t == 1u) { return orb_config.tier1_noise_gain; }
+    if (t == 2u) { return orb_config.tier2_noise_gain; }
+    return orb_config.tier3_noise_gain;
+}
+fn orb_tier_force_gain(t: u32) -> f32 {
+    if (t == 0u) { return orb_config.tier0_force_gain; }
+    if (t == 1u) { return orb_config.tier1_force_gain; }
+    if (t == 2u) { return orb_config.tier2_force_gain; }
+    return orb_config.tier3_force_gain;
+}
+fn orb_tier_color_gain(t: u32) -> f32 {
+    if (t == 0u) { return orb_config.tier0_color_gain; }
+    if (t == 1u) { return orb_config.tier1_color_gain; }
+    if (t == 2u) { return orb_config.tier2_color_gain; }
+    return orb_config.tier3_color_gain;
+}
+
 @compute @workgroup_size(64)
 fn orb_init(@builtin(global_invocation_id) id: vec3<u32>) {
     let i = id.x;
@@ -8711,6 +8824,33 @@ fn orb_init(@builtin(global_invocation_id) id: vec3<u32>) {
     );
     let pos = dir * orb_config.dome_radius;
 
+    // Tier: roll once from weighted table. tier_count == 0 → legacy
+    // path (uniform mass/drag, ±30% size, full-range brightness).
+    var tier_idx: u32 = 0u;
+    var mass_final: f32 = 1.0;
+    var drag_final: f32 = orb_config.drag;
+    var size_mult: f32 = 0.7 + hash_property(seed, 7u) * 0.6;
+    var bright_mult: f32 = 1.0;
+
+    if (orb_config.tier_count > 0u) {
+        tier_idx = orb_roll_tier(seed);
+
+        let mm   = orb_tier_mass_mult(tier_idx);
+        let dm   = orb_tier_drag_mult(tier_idx);
+        let smin = orb_tier_size_min(tier_idx);
+        let smax = orb_tier_size_max(tier_idx);
+        let bmin = orb_tier_brightness_min(tier_idx);
+        let bmax = orb_tier_brightness_max(tier_idx);
+
+        let s_t = hash_property(seed, 13u);
+        let b_t = hash_property(seed, 14u);
+
+        mass_final  = mm;
+        drag_final  = orb_config.drag * dm;
+        size_mult   = smin + (smax - smin) * s_t;
+        bright_mult = bmin + (bmax - bmin) * b_t;
+    }
+
     // Color: multi-pocket palette when palette_count > 0, else legacy hue.
     var hsv: vec3<f32>;
     if (orb_config.palette_count > 0u) {
@@ -8722,11 +8862,12 @@ fn orb_init(@builtin(global_invocation_id) id: vec3<u32>) {
         let v = 0.8 + hash_property(seed, 6u) * 0.2;
         hsv = vec3<f32>(h, s, v);
     }
+    hsv.z = clamp(hsv.z * bright_mult, 0.0, 1.0);
     let color = orb_hsv_to_rgb(hsv);
 
-    // Size: correlated with brightness — the bright rare orbs also read larger.
-    // base_size × (0.4 + value × 0.9): dim ~0.5×, bright ~1.3×.
-    let size = orb_config.base_size * (0.4 + hsv.z * 0.9);
+    // Size: correlated with brightness, then scaled by tier size_mult
+    // (legacy path reuses the same formula with size_mult ≈ 0.7..1.3).
+    let size = orb_config.base_size * (0.4 + hsv.z * 0.9) * size_mult;
 
     orb_state[i].pos = pos;
     orb_state[i]._pad0 = 0.0;
@@ -8737,9 +8878,9 @@ fn orb_init(@builtin(global_invocation_id) id: vec3<u32>) {
     orb_state[i].current_color = color;
     orb_state[i].twinkle_phase = hash_property(seed, 4u) * 6.28318530718;
     orb_state[i].size = size;
-    orb_state[i].mass = 1.0;
-    orb_state[i].drag = orb_config.drag;
-    orb_state[i]._pad2 = 0.0;
+    orb_state[i].mass = mass_final;
+    orb_state[i].drag = drag_final;
+    orb_state[i].tier_idx = tier_idx;
 }
 
 // Recolor kernel: writes new base_color, current_color, and size to
@@ -8765,13 +8906,30 @@ fn orb_recolor(@builtin(global_invocation_id) id: vec3<u32>) {
         let v = 0.8 + hash_property(seed, 6u) * 0.2;
         hsv = vec3<f32>(h, s, v);
     }
-    let color = orb_hsv_to_rgb(hsv);
 
+    // Honour the orb's tier on recolor so the population keeps its
+    // shape — preserve tier_idx, re-sample brightness/size from the
+    // tier's ranges.
+    var size_mult: f32 = 0.7 + hash_property(seed, 7u) * 0.6;
+    if (orb_config.tier_count > 0u) {
+        let t = orb_state[i].tier_idx;
+        let bmin = orb_tier_brightness_min(t);
+        let bmax = orb_tier_brightness_max(t);
+        let b_t = hash_property(seed, 14u);
+        hsv.z = clamp(hsv.z * (bmin + (bmax - bmin) * b_t), 0.0, 1.0);
+
+        let smin = orb_tier_size_min(t);
+        let smax = orb_tier_size_max(t);
+        let s_t = hash_property(seed, 13u);
+        size_mult = smin + (smax - smin) * s_t;
+    }
+
+    let color = orb_hsv_to_rgb(hsv);
     orb_state[i].base_color = color;
     orb_state[i].current_color = color;
-    // Keep size correlated with brightness so recolored orbs read at
-    // the same visual weight as freshly init'd ones.
-    orb_state[i].size = orb_config.base_size * (0.4 + hsv.z * 0.9);
+    orb_state[i].size = orb_config.base_size * (0.4 + hsv.z * 0.9) * size_mult;
+    // tier_idx is intentionally untouched — an orb's tier identity is
+    // fixed once assigned at init.
 }
 
 @compute @workgroup_size(64)
@@ -8797,6 +8955,18 @@ fn orb_dynamics(@builtin(global_invocation_id) id: vec3<u32>) {
         orb.vel = rodrigues(orb.vel, rot_axis, rot_angle);
     }
 
+    // Per-orb tier gains — one lookup, shared by the rule branches
+    // and the color tail. Legacy path (tier_count==0) leaves them at 1.
+    var noise_gain_t: f32 = 1.0;
+    var force_gain_t: f32 = 1.0;
+    var color_gain_t: f32 = 1.0;
+    if (orb_config.tier_count > 0u) {
+        let ti = orb.tier_idx;
+        noise_gain_t = orb_tier_noise_gain(ti);
+        force_gain_t = orb_tier_force_gain(ti);
+        color_gain_t = orb_tier_color_gain(ti);
+    }
+
     // ═══ 2. RULE DISPATCH ═════════════════════════════════════
     // Uniform branch — every invocation in the workgroup takes
     // the same path, no FXC divergence penalty.
@@ -8812,12 +8982,14 @@ fn orb_dynamics(@builtin(global_invocation_id) id: vec3<u32>) {
             let nx = (hash_property(noise_seed, 1u) - 0.5) * 2.0;
             let ny = (hash_property(noise_seed, 2u) - 0.5) * 2.0;
             let nz = (hash_property(noise_seed, 3u) - 0.5) * 2.0;
-            orb.vel += vec3<f32>(nx, ny, nz) * orb_config.noise_amp * sqrt(dt);
+            orb.vel += vec3<f32>(nx, ny, nz)
+                * orb_config.noise_amp * sqrt(dt) * noise_gain_t;
         }
 
         if (abs(orb_config.force_radial) > 0.001) {
             let radial_dir = normalize(orb.pos);
-            orb.vel += radial_dir * orb_config.force_radial * dt / orb.mass;
+            orb.vel += radial_dir * orb_config.force_radial
+                * dt * force_gain_t / orb.mass;
         }
 
     } else if (orb_config.motion_rule == 1u) {
@@ -8841,7 +9013,8 @@ fn orb_dynamics(@builtin(global_invocation_id) id: vec3<u32>) {
 
         if (abs(orb_config.force_radial) > 0.001) {
             let radial_dir = normalize(orb.pos);
-            orb.vel += radial_dir * orb_config.force_radial * dt / orb.mass;
+            orb.vel += radial_dir * orb_config.force_radial
+                * dt * force_gain_t / orb.mass;
         }
 
     } else {
@@ -8876,24 +9049,26 @@ fn orb_dynamics(@builtin(global_invocation_id) id: vec3<u32>) {
     // settled before saturation/brightness amplify it.
     var color = orb.base_color;
 
-    if (orb_config.color_converge > 0.001) {
+    let converge_amount = orb_config.color_converge * color_gain_t;
+    if (converge_amount > 0.001) {
         let hsv = orb_rgb_to_hsv(color);
         let target_h = orb_config.hue_converge_target;
         var dh = target_h - hsv.x;
         if (dh > 0.5)  { dh = dh - 1.0; }
         if (dh < -0.5) { dh = dh + 1.0; }
-        let new_h = fract(hsv.x + dh * orb_config.color_converge);
+        let new_h = fract(hsv.x + dh * converge_amount);
         color = orb_hsv_to_rgb(vec3<f32>(new_h, hsv.y, hsv.z));
     }
 
-    if (orb_config.color_surge > 0.001) {
+    let surge_amount = orb_config.color_surge * color_gain_t;
+    if (surge_amount > 0.001) {
         let hsv = orb_rgb_to_hsv(color);
-        let boosted_s = clamp(hsv.y + (1.0 - hsv.y) * orb_config.color_surge * 0.5,
+        let boosted_s = clamp(hsv.y + (1.0 - hsv.y) * surge_amount * 0.5,
                               0.0, 1.0);
         color = orb_hsv_to_rgb(vec3<f32>(hsv.x, boosted_s, hsv.z));
     }
 
-    let pulse_mult = 1.0 + orb_config.color_pulse * 0.6;
+    let pulse_mult = 1.0 + orb_config.color_pulse * color_gain_t * 0.6;
     color = color * pulse_mult;
 
     orb.current_color = color;

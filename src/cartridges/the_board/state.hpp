@@ -884,18 +884,18 @@ namespace t7 {
         // Orbs live on a fixed dome (sphere shell) centered at world origin.
         // Bones pass: static positions, color drift disabled, no force fields.
         struct alignas(16) GPUOrbState {
-            float pos[3];            //  0: world-space position on dome
-            float _pad0;             // 12
-            float vel[3];            // 16: world-space velocity (zero in bones)
-            float _pad1;             // 28
-            float base_color[3];     // 32: rgb at spawn (seed-derived)
-            float brightness;        // 44: 0..1
-            float current_color[3];  // 48: rgb, drifts near base_color
-            float twinkle_phase;     // 60: radians, seed-derived
-            float size;              // 64: world-space sprite half-size
-            float mass;              // 68: 1.0 in bones pass
-            float drag;              // 72: velocity decay rate (1/s)
-            float _pad2;             // 76
+            float    pos[3];            //  0: dome-local position (world_pos = dome_center + pos)
+            float    _pad0;             // 12
+            float    vel[3];            // 16: world-space velocity (zero in bones)
+            float    _pad1;             // 28
+            float    base_color[3];     // 32: rgb at spawn (seed-derived)
+            float    brightness;        // 44: 0..1
+            float    current_color[3];  // 48: rgb, drifts near base_color
+            float    twinkle_phase;     // 60: radians, seed-derived
+            float    size;              // 64: world-space sprite half-size
+            float    mass;              // 68: per-tier mass (1.0 if legacy)
+            float    drag;              // 72: velocity decay rate (1/s)
+            uint32_t tier_idx;          // 76: Pass 8 tier index (0 if legacy)
         };
         static_assert(sizeof(GPUOrbState) == 80, "GPUOrbState must be 80 bytes");
 
@@ -949,8 +949,61 @@ namespace t7 {
             float    dome_center_y;      //164: dome center world Y (typically 0)
             float    dome_center_z;      //168: dome center world Z
             float    _pad_anchor;        //172: reserved (future anchor mode/rate)
+            // ── Pass 8: tier profiles (header + 4 tier blocks) ────
+            // tier_count = 0 → legacy uniform population.
+            // Each tier block is 40 bytes (10 floats) at offsets
+            // 192, 232, 272, 312. Fields per tier:
+            //   mass_mult, drag_mult,
+            //   size_min, size_max,
+            //   brightness_min, brightness_max,
+            //   noise_gain, force_gain, color_gain,
+            //   cumulative_weight (CPU-computed from weights)
+            uint32_t tier_count;         //176
+            float    _pad_tier0;         //180
+            float    _pad_tier1;         //184
+            float    _pad_tier2;         //188
+            float    tier0_mass_mult;         //192
+            float    tier0_drag_mult;         //196
+            float    tier0_size_min;          //200
+            float    tier0_size_max;          //204
+            float    tier0_brightness_min;    //208
+            float    tier0_brightness_max;    //212
+            float    tier0_noise_gain;        //216
+            float    tier0_force_gain;        //220
+            float    tier0_color_gain;        //224
+            float    tier0_cumulative_weight; //228
+            float    tier1_mass_mult;         //232
+            float    tier1_drag_mult;         //236
+            float    tier1_size_min;          //240
+            float    tier1_size_max;          //244
+            float    tier1_brightness_min;    //248
+            float    tier1_brightness_max;    //252
+            float    tier1_noise_gain;        //256
+            float    tier1_force_gain;        //260
+            float    tier1_color_gain;        //264
+            float    tier1_cumulative_weight; //268
+            float    tier2_mass_mult;         //272
+            float    tier2_drag_mult;         //276
+            float    tier2_size_min;          //280
+            float    tier2_size_max;          //284
+            float    tier2_brightness_min;    //288
+            float    tier2_brightness_max;    //292
+            float    tier2_noise_gain;        //296
+            float    tier2_force_gain;        //300
+            float    tier2_color_gain;        //304
+            float    tier2_cumulative_weight; //308
+            float    tier3_mass_mult;         //312
+            float    tier3_drag_mult;         //316
+            float    tier3_size_min;          //320
+            float    tier3_size_max;          //324
+            float    tier3_brightness_min;    //328
+            float    tier3_brightness_max;    //332
+            float    tier3_noise_gain;        //336
+            float    tier3_force_gain;        //340
+            float    tier3_color_gain;        //344
+            float    tier3_cumulative_weight; //348
         };
-        static_assert(sizeof(GPUOrbConfig) == 176, "GPUOrbConfig must be 176 bytes");
+        static_assert(sizeof(GPUOrbConfig) == 352, "GPUOrbConfig must be 352 bytes");
 
         // (GPUCellState removed — legacy cell system no longer active)
 
