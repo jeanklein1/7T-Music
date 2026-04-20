@@ -135,6 +135,10 @@ struct OrbTier {
     float force_gain      = 1.0f;
     float color_gain      = 1.0f;
     float weight          = 0.25f;  // relative selection probability
+    // ── Pass 9: per-tier flocking gains (used when motion_rule == 3) ──
+    float flock_sep_gain   = 1.0f;
+    float flock_align_gain = 1.0f;
+    float flock_coh_gain   = 1.0f;
 };
 
 struct OrbTierSet {
@@ -144,31 +148,36 @@ struct OrbTierSet {
 
 // "JWST Stars" — classic deep-field distribution.
 //   giants: rare, eye-catchers, slow to settle, full color.
-//   main sequence: the population baseline.
+//     Low separation (others ignore them), medium align, low cohesion
+//     (they lead, they don't follow).
+//   main sequence: the population baseline (all flocking gains 1.0).
 //   faint field: numerous, small, reduced color participation.
+//     Low cohesion (field, doesn't cluster), high align (follows flow).
 //   flickers: hyperactive tiny ones, strong noise, weak force response.
+//     High separation (avoid clumps), no cohesion (edge-scouts), low align.
 static constexpr OrbTierSet ORB_TIERSET_JWST_STARS = {
     4,
     {
-        //  mass   drag  s_min s_max b_min b_max n_g   f_g   c_g   w
-        {   1.8f,  0.6f, 1.2f, 1.6f, 0.9f, 1.0f, 0.6f, 0.8f, 1.0f, 0.10f },  // giants
-        {   1.0f,  1.0f, 0.8f, 1.1f, 0.6f, 0.9f, 1.0f, 1.0f, 1.0f, 0.60f },  // main
-        {   0.6f,  1.2f, 0.5f, 0.8f, 0.4f, 0.7f, 1.0f, 0.9f, 0.3f, 0.25f },  // faint
-        {   0.3f,  0.8f, 0.4f, 0.6f, 0.5f, 0.8f, 1.8f, 0.5f, 0.8f, 0.05f },  // flickers
+        //  mass   drag  s_min s_max b_min b_max n_g   f_g   c_g   w       fs   fa   fc
+        {   1.8f,  0.6f, 1.2f, 1.6f, 0.9f, 1.0f, 0.6f, 0.8f, 1.0f, 0.10f,  0.6f,0.8f,0.3f },  // giants
+        {   1.0f,  1.0f, 0.8f, 1.1f, 0.6f, 0.9f, 1.0f, 1.0f, 1.0f, 0.60f,  1.0f,1.0f,1.0f },  // main
+        {   0.6f,  1.2f, 0.5f, 0.8f, 0.4f, 0.7f, 1.0f, 0.9f, 0.3f, 0.25f,  0.8f,1.2f,0.5f },  // faint
+        {   0.3f,  0.8f, 0.4f, 0.6f, 0.5f, 0.8f, 1.8f, 0.5f, 0.8f, 0.05f,  1.8f,0.5f,0.0f },  // flickers
     }
 };
 
 // "Resonant" — three tiers for a voiced, chamber-like sky.
-//   drones: heavy, slow, convergence-responsive.
-//   voices: balanced.
-//   sparks: pure motion, no color participation.
+//   drones: heavy, slow, convergence-responsive, strong cohesion (anchor).
+//   voices: balanced baseline.
+//   sparks: pure motion, no color, high separation (edge agitators).
 static constexpr OrbTierSet ORB_TIERSET_RESONANT = {
     3,
     {
-        {   2.5f,  0.5f, 1.3f, 1.7f, 0.7f, 1.0f, 0.3f, 0.6f, 1.0f, 0.20f },  // drones
-        {   1.0f,  1.0f, 0.8f, 1.2f, 0.6f, 0.9f, 1.0f, 1.0f, 0.7f, 0.50f },  // voices
-        {   0.4f,  0.9f, 0.4f, 0.7f, 0.5f, 0.8f, 1.8f, 1.2f, 0.0f, 0.30f },  // sparks
-        {   0.0f,  0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f  },  // unused
+        //  mass   drag  s_min s_max b_min b_max n_g   f_g   c_g   w       fs   fa   fc
+        {   2.5f,  0.5f, 1.3f, 1.7f, 0.7f, 1.0f, 0.3f, 0.6f, 1.0f, 0.20f,  0.5f,0.7f,1.5f },  // drones
+        {   1.0f,  1.0f, 0.8f, 1.2f, 0.6f, 0.9f, 1.0f, 1.0f, 0.7f, 0.50f,  1.0f,1.0f,1.0f },  // voices
+        {   0.4f,  0.9f, 0.4f, 0.7f, 0.5f, 0.8f, 1.8f, 1.2f, 0.0f, 0.30f,  1.8f,0.6f,0.2f },  // sparks
+        {   0.0f,  0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,   0.0f,0.0f,0.0f },  // unused
     }
 };
 
@@ -209,6 +218,14 @@ struct OrbMoodConfig {
     // ── Pass 8: tier set selection ────────────────────────────
     // ORB_TIERSET_NONE sentinel → legacy uniform population.
     uint32_t tierset_id = ORB_TIERSET_NONE;
+    // ── Pass 9: flocking parameters (used when motion_rule == 3) ──
+    float flock_sep_radius   =  50.0f;
+    float flock_align_radius = 120.0f;
+    float flock_coh_radius   = 200.0f;
+    float flock_sep_weight   =  30.0f;
+    float flock_align_weight =   8.0f;
+    float flock_coh_weight   =  15.0f;
+    float flock_max_speed    =  60.0f;
 };
 
 bool     orbsActive_           = false;
@@ -261,6 +278,14 @@ bool  orbColorConvergeActive_    = false;
 bool  orbColorSurgeActive_       = false;
 static constexpr float ORB_COLOR_ATTACK  = 5.0f;   // 1/s
 static constexpr float ORB_COLOR_RELEASE = 2.5f;   // 1/s
+
+// ─── Flocking coupling state (Pass 9) ───────────────────────────
+// Polyphony tightens the flock: separation down, alignment and
+// cohesion up. Attack slower than color so the gesture breathes.
+float orbFlockIntensity_ = 0.0f;
+bool  orbFlockActive_    = false;  // true when active mood uses motion_rule == 3
+static constexpr float ORB_FLOCK_ATTACK  = 2.5f;   // 1/s
+static constexpr float ORB_FLOCK_RELEASE = 1.0f;   // 1/s
 
 void configure_orbs(const OrbMoodConfig& cfg, wgpu::Queue& queue) {
     orbsActive_ = cfg.enabled;
@@ -397,15 +422,55 @@ void configure_orbs(const OrbMoodConfig& cfg, wgpu::Queue& queue) {
             }
         }
 
+        // ─── Pass 9: flocking params + per-tier flocking gains ───
+        gpuCfg.flock_sep_radius         = cfg.flock_sep_radius;
+        gpuCfg.flock_align_radius       = cfg.flock_align_radius;
+        gpuCfg.flock_coh_radius         = cfg.flock_coh_radius;
+        gpuCfg.flock_sep_weight         = cfg.flock_sep_weight;
+        gpuCfg.flock_align_weight       = cfg.flock_align_weight;
+        gpuCfg.flock_coh_weight         = cfg.flock_coh_weight;
+        gpuCfg.flock_max_speed          = cfg.flock_max_speed;
+        gpuCfg.flock_coupling_intensity = 0.0f;
+        gpuCfg._pad_flock0 = 0.0f; gpuCfg._pad_flock1 = 0.0f;
+        gpuCfg._pad_flock2 = 0.0f; gpuCfg._pad_flock3 = 0.0f;
+        gpuCfg._pad_flock4 = 0.0f; gpuCfg._pad_flock5 = 0.0f;
+        gpuCfg._pad_flock6 = 0.0f; gpuCfg._pad_flock7 = 0.0f;
+
+        // Tier block for flocking gains: 16 bytes per tier, starting at
+        // offset 416. Fields: sep, align, coh, pad.
+        auto pack_tier_flock = [&](uint32_t i, float sep, float ali, float coh) {
+            auto* base = reinterpret_cast<char*>(&gpuCfg);
+            float* p = reinterpret_cast<float*>(base + 416 + i * 16);
+            p[0] = sep; p[1] = ali; p[2] = coh; p[3] = 0.0f;
+        };
+        if (cfg.tierset_id < ORB_TIERSET_COUNT) {
+            const auto& ts = ORB_TIERSETS[cfg.tierset_id];
+            for (uint32_t i = 0; i < MAX_ORB_TIERS; i++) {
+                if (i < ts.count) {
+                    pack_tier_flock(i, ts.tiers[i].flock_sep_gain,
+                                       ts.tiers[i].flock_align_gain,
+                                       ts.tiers[i].flock_coh_gain);
+                } else {
+                    pack_tier_flock(i, 1.0f, 1.0f, 1.0f);
+                }
+            }
+        } else {
+            for (uint32_t i = 0; i < MAX_ORB_TIERS; i++) {
+                pack_tier_flock(i, 1.0f, 1.0f, 1.0f);
+            }
+        }
+
+        orbFlockActive_ = (cfg.motion_rule == 3u);
+
         gpuState_.upload_orb_config(queue, gpuCfg);
         orbInitPending_ = true;
 
-        static const char* RULE_NAMES[] = { "brownian", "orbital", "frozen" };
+        static const char* RULE_NAMES[] = { "brownian", "orbital", "frozen", "flocking" };
         std::cout << "[Orbs] Configured: count=" << orbCount_
             << " palette=" << ORB_PAL_NAMES[pal_id]
             << " drag=" << cfg.drag
             << " noise=" << ORB_NOISE_FLOOR << ".." << orbActiveNoiseAmp_
-            << " rule=" << RULE_NAMES[std::min(cfg.motion_rule, 2u)]
+            << " rule=" << RULE_NAMES[std::min(cfg.motion_rule, 3u)]
             << " rot=" << cfg.rotation_speed
             << " orbital=" << cfg.orbital_base_speed
             << " color:"
@@ -437,6 +502,9 @@ void teardown_orbs() {
     orbColorPulseActive_       = false;
     orbColorConvergeActive_    = false;
     orbColorSurgeActive_       = false;
+
+    orbFlockIntensity_ = 0.0f;
+    orbFlockActive_    = false;
 
     // Per-frame dome-center cache clears (forces a fresh upload on the
     // next configure). NOTE: do NOT touch orbPawnAnchored_ or
@@ -557,6 +625,21 @@ void update_orb_coupling(float polyphony, float dt, wgpu::Queue& queue) {
             orbColorConvergeIntensity_,
             orbColorSurgeIntensity_);
     }
+
+    // ─── Flocking coupling ───────────────────────────────────
+    // Separate rates from color; slower attack so the flock
+    // tightens as a gesture rather than a snap.
+    if (orbFlockActive_) {
+        float prev = orbFlockIntensity_;
+        float rate = (target > prev) ? ORB_FLOCK_ATTACK : ORB_FLOCK_RELEASE;
+        float next = prev + (target - prev) * (1.0f - std::exp(-rate * dt));
+        if (next < 0.001f && target == 0.0f) next = 0.0f;
+        if (next > 0.999f && target >= 1.0f) next = 1.0f;
+        if (next != prev) {
+            orbFlockIntensity_ = next;
+            gpuState_.upload_orb_flock_intensity(queue, orbFlockIntensity_);
+        }
+    }
 }
 
 void dispatch_orb_init(wgpu::CommandEncoder& encoder) {
@@ -585,6 +668,22 @@ void dispatch_orb_recolor(wgpu::CommandEncoder& encoder) {
     uint32_t wgs = (orbCount_ + 63u) / 64u;
     renderer_.dispatch_orb_recolor(pass,
         gpuState_.orb_compute_group(), wgs);
+    pass.End();
+}
+
+// Pass 9: snapshot orb_state → orb_state_prev so dynamics reads a stable
+// previous-frame view for neighbor queries. Cheap (N parallel copies) —
+// fires every frame regardless of motion_rule so future rules can rely
+// on prev always being fresh.
+void dispatch_orb_copy_prev(wgpu::CommandEncoder& encoder) {
+    if (!orbsActive_ || orbCount_ == 0) return;
+
+    wgpu::ComputePassDescriptor cpd{};
+    cpd.label = "Orb Copy Prev";
+    wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
+    uint32_t wgs = (orbCount_ + 63u) / 64u;
+    renderer_.dispatch_orb_copy_prev(pass,
+        gpuState_.orb_copy_group(), wgs);
     pass.End();
 }
 

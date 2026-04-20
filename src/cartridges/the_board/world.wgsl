@@ -8624,6 +8624,38 @@ struct OrbConfig {
     tier3_force_gain:        f32,
     tier3_color_gain:        f32,
     tier3_cumulative_weight: f32,
+    flock_sep_radius:         f32,
+    flock_align_radius:       f32,
+    flock_coh_radius:         f32,
+    flock_sep_weight:         f32,
+    flock_align_weight:       f32,
+    flock_coh_weight:         f32,
+    flock_max_speed:          f32,
+    flock_coupling_intensity: f32,
+    _pad_flock0: f32,
+    _pad_flock1: f32,
+    _pad_flock2: f32,
+    _pad_flock3: f32,
+    _pad_flock4: f32,
+    _pad_flock5: f32,
+    _pad_flock6: f32,
+    _pad_flock7: f32,
+    tier0_flock_sep_gain:   f32,
+    tier0_flock_align_gain: f32,
+    tier0_flock_coh_gain:   f32,
+    _tier0_flock_pad:       f32,
+    tier1_flock_sep_gain:   f32,
+    tier1_flock_align_gain: f32,
+    tier1_flock_coh_gain:   f32,
+    _tier1_flock_pad:       f32,
+    tier2_flock_sep_gain:   f32,
+    tier2_flock_align_gain: f32,
+    tier2_flock_coh_gain:   f32,
+    _tier2_flock_pad:       f32,
+    tier3_flock_sep_gain:   f32,
+    tier3_flock_align_gain: f32,
+    tier3_flock_coh_gain:   f32,
+    _tier3_flock_pad:       f32,
 }
 
 // Rodrigues' rotation: rotate vector v by angle θ around unit axis k.
@@ -8636,6 +8668,11 @@ fn rodrigues(v: vec3<f32>, k: vec3<f32>, theta: f32) -> vec3<f32> {
 
 @group(0) @binding(410) var<storage, read_write> orb_state: array<OrbState>;
 @group(0) @binding(411) var<uniform> orb_config: OrbConfig;
+// Pass 9: previous-frame snapshot. Declared read_write at module level;
+// the dynamics/init/recolor layout narrows it to read-only, while the
+// copy layout keeps it writable. Per WebGPU, shader-declared access may
+// be wider than the layout's enforced access.
+@group(0) @binding(412) var<storage, read_write> orb_state_prev: array<OrbState>;
 
 // Render-side read-only view of the same orb_state buffer.
 @group(0) @binding(400) var<storage, read> render_orb_state: array<OrbState>;
@@ -8799,6 +8836,35 @@ fn orb_tier_color_gain(t: u32) -> f32 {
     if (t == 1u) { return orb_config.tier1_color_gain; }
     if (t == 2u) { return orb_config.tier2_color_gain; }
     return orb_config.tier3_color_gain;
+}
+
+// Per-tier flocking gains (Pass 9).
+fn orb_tier_flock_sep_gain(t: u32) -> f32 {
+    if (t == 0u) { return orb_config.tier0_flock_sep_gain; }
+    if (t == 1u) { return orb_config.tier1_flock_sep_gain; }
+    if (t == 2u) { return orb_config.tier2_flock_sep_gain; }
+    return orb_config.tier3_flock_sep_gain;
+}
+fn orb_tier_flock_align_gain(t: u32) -> f32 {
+    if (t == 0u) { return orb_config.tier0_flock_align_gain; }
+    if (t == 1u) { return orb_config.tier1_flock_align_gain; }
+    if (t == 2u) { return orb_config.tier2_flock_align_gain; }
+    return orb_config.tier3_flock_align_gain;
+}
+fn orb_tier_flock_coh_gain(t: u32) -> f32 {
+    if (t == 0u) { return orb_config.tier0_flock_coh_gain; }
+    if (t == 1u) { return orb_config.tier1_flock_coh_gain; }
+    if (t == 2u) { return orb_config.tier2_flock_coh_gain; }
+    return orb_config.tier3_flock_coh_gain;
+}
+
+// Pass 9: snapshot orb_state → orb_state_prev so the dynamics kernel
+// reads last frame's positions/velocities while writing the new ones.
+@compute @workgroup_size(64)
+fn orb_state_prev_copy(@builtin(global_invocation_id) id: vec3<u32>) {
+    let i = id.x;
+    if (i >= orb_config.count) { return; }
+    orb_state_prev[i] = orb_state[i];
 }
 
 @compute @workgroup_size(64)
@@ -9017,8 +9083,106 @@ fn orb_dynamics(@builtin(global_invocation_id) id: vec3<u32>) {
                 * dt * force_gain_t / orb.mass;
         }
 
+    } else if (orb_config.motion_rule == 3u) {
+        // ── FLOCKING (Boids) ─────────────────────────────────
+        // Neighbor-based dynamics. Reads orb_state_prev (the
+        // previous-frame snapshot) to avoid in-pass feedback.
+        // O(N²) inner loop — MAX_ORBS = 256 keeps this tractable
+        // without a spatial hash.
+
+        orb.vel = orb.vel * exp(-orb.drag * dt);
+
+        let sep_r2 = orb_config.flock_sep_radius   * orb_config.flock_sep_radius;
+        let ali_r2 = orb_config.flock_align_radius * orb_config.flock_align_radius;
+        let coh_r2 = orb_config.flock_coh_radius   * orb_config.flock_coh_radius;
+
+        var sep_sum   = vec3<f32>(0.0, 0.0, 0.0);
+        var ali_sum   = vec3<f32>(0.0, 0.0, 0.0);
+        var coh_sum   = vec3<f32>(0.0, 0.0, 0.0);
+        var sep_count = 0.0;
+        var ali_count = 0.0;
+        var coh_count = 0.0;
+
+        let n = orb_config.count;
+        for (var j: u32 = 0u; j < n; j = j + 1u) {
+            if (j == i) { continue; }
+            let other = orb_state_prev[j];
+            let diff  = orb.pos - other.pos;
+            let d2    = dot(diff, diff);
+
+            if (d2 < sep_r2 && d2 > 0.001) {
+                sep_sum = sep_sum + diff / d2;
+                sep_count = sep_count + 1.0;
+            }
+            if (d2 < ali_r2) {
+                ali_sum = ali_sum + other.vel;
+                ali_count = ali_count + 1.0;
+            }
+            if (d2 < coh_r2) {
+                coh_sum = coh_sum + other.pos;
+                coh_count = coh_count + 1.0;
+            }
+        }
+
+        // Separation: direction away from the distance-weighted sum.
+        var sep_force = vec3<f32>(0.0, 0.0, 0.0);
+        if (sep_count > 0.0) {
+            let sl = length(sep_sum);
+            if (sl > 0.001) { sep_force = sep_sum / sl; }
+        }
+
+        // Alignment: steer toward the average velocity.
+        var ali_force = vec3<f32>(0.0, 0.0, 0.0);
+        if (ali_count > 0.0) {
+            let avg_vel = ali_sum / ali_count;
+            ali_force = avg_vel - orb.vel;
+        }
+
+        // Cohesion: unit vector pointing to center of mass.
+        var coh_force = vec3<f32>(0.0, 0.0, 0.0);
+        if (coh_count > 0.0) {
+            let center = coh_sum / coh_count;
+            let d = center - orb.pos;
+            let dl = length(d);
+            if (dl > 0.001) { coh_force = d / dl; }
+        }
+
+        // Per-tier flocking gains (1.0 when no tier set).
+        var sep_g: f32 = 1.0;
+        var ali_g: f32 = 1.0;
+        var coh_g: f32 = 1.0;
+        if (orb_config.tier_count > 0u) {
+            sep_g = orb_tier_flock_sep_gain(orb.tier_idx);
+            ali_g = orb_tier_flock_align_gain(orb.tier_idx);
+            coh_g = orb_tier_flock_coh_gain(orb.tier_idx);
+        }
+
+        // Polyphony modulation: louder music tightens the flock.
+        let k = orb_config.flock_coupling_intensity;
+        let sep_mod = 1.0 - k * 0.5;
+        let ali_mod = 1.0 + k * 0.5;
+        let coh_mod = 1.0 + k;
+
+        orb.vel = orb.vel
+            + sep_force * orb_config.flock_sep_weight   * sep_g * sep_mod * dt
+            + ali_force * orb_config.flock_align_weight * ali_g * ali_mod * dt
+            + coh_force * orb_config.flock_coh_weight   * coh_g * coh_mod * dt;
+
+        // Speed clamp — prevent runaway velocity from force accumulation.
+        let speed2 = dot(orb.vel, orb.vel);
+        let max_s2 = orb_config.flock_max_speed * orb_config.flock_max_speed;
+        if (speed2 > max_s2 && speed2 > 0.0) {
+            orb.vel = orb.vel * (orb_config.flock_max_speed / sqrt(speed2));
+        }
+
+        if (abs(orb_config.force_radial) > 0.001) {
+            let radial_dir = normalize(orb.pos);
+            orb.vel += radial_dir * orb_config.force_radial
+                * dt * force_gain_t / orb.mass;
+        }
+
     } else {
-        // ── FROZEN (rule 2+) ─────────────────────────────────
+        // ── FROZEN (rule 2 / unknown) ────────────────────────
         // Only dome rotation moves orbs. Drag bleeds velocity
         // to zero.
         orb.vel = orb.vel * exp(-orb.drag * dt);

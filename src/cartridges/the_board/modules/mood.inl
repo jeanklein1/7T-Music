@@ -439,6 +439,13 @@ void apply_mood(uint32_t mood, wgpu::Queue& queue) {
         ocfg.hue_converge_target    = m.orbs.hue_converge_target;
         ocfg.anchor_to_pawn_default = m.orbs.anchor_to_pawn_default;
         ocfg.tierset_id             = m.orbs.tierset_id;
+        ocfg.flock_sep_radius       = m.orbs.flock_sep_radius;
+        ocfg.flock_align_radius     = m.orbs.flock_align_radius;
+        ocfg.flock_coh_radius       = m.orbs.flock_coh_radius;
+        ocfg.flock_sep_weight       = m.orbs.flock_sep_weight;
+        ocfg.flock_align_weight     = m.orbs.flock_align_weight;
+        ocfg.flock_coh_weight       = m.orbs.flock_coh_weight;
+        ocfg.flock_max_speed        = m.orbs.flock_max_speed;
         configure_orbs(ocfg, queue);
     }
 

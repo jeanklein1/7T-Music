@@ -140,11 +140,12 @@ namespace t7 {
             constexpr const char* FADE_OVERLAY_FS = "fade_overlay_fs";
 
             // Orb sky layer (luminous points on a dome)
-            constexpr const char* ORB_INIT     = "orb_init";      // 1D compute
-            constexpr const char* ORB_DYNAMICS = "orb_dynamics";  // 1D compute
-            constexpr const char* ORB_RECOLOR  = "orb_recolor";   // 1D compute
-            constexpr const char* ORB_VS       = "orb_vs";
-            constexpr const char* ORB_FS       = "orb_fs";
+            constexpr const char* ORB_INIT           = "orb_init";             // 1D compute
+            constexpr const char* ORB_DYNAMICS       = "orb_dynamics";         // 1D compute
+            constexpr const char* ORB_RECOLOR        = "orb_recolor";          // 1D compute
+            constexpr const char* ORB_STATE_PREV_COPY = "orb_state_prev_copy"; // 1D compute (Pass 9)
+            constexpr const char* ORB_VS             = "orb_vs";
+            constexpr const char* ORB_FS             = "orb_fs";
         }
 
 
@@ -258,9 +259,11 @@ namespace t7 {
 
             // Orb sky layer pipelines
             wgpu::BindGroupLayout orbComputeLayout_;
+            wgpu::BindGroupLayout orbCopyLayout_;
             wgpu::ComputePipeline orbInitPipeline_;
             wgpu::ComputePipeline orbDynamicsPipeline_;
             wgpu::ComputePipeline orbRecolorPipeline_;
+            wgpu::ComputePipeline orbCopyPrevPipeline_;
             wgpu::RenderPipeline  orbRenderPipeline_;
 
             // GoL zone compute pipelines (dedicated layout, z-dispatched per zone)
@@ -325,6 +328,7 @@ namespace t7 {
                 frustumCullLayout_ = gpuState.frustum_cull_layout();
                 pawnAuraComputeLayout_ = gpuState.pawn_aura_compute_layout();
                 orbComputeLayout_ = gpuState.orb_compute_layout();
+                orbCopyLayout_    = gpuState.orb_copy_layout();
                 zoneGolComputeLayout_ = gpuState.zone_gol_compute_layout();
                 zoneMeshGenLayout_ = gpuState.zone_mesh_gen_layout();
                 pyramidMeshGenLayout_ = gpuState.pyramid_mesh_gen_layout();
@@ -544,6 +548,16 @@ namespace t7 {
             ) {
                 pass.SetPipeline(orbRecolorPipeline_);
                 pass.SetBindGroup(0, orbComputeGroup);
+                pass.DispatchWorkgroups(workgroups, 1, 1);
+            }
+
+            void dispatch_orb_copy_prev(
+                wgpu::ComputePassEncoder& pass,
+                wgpu::BindGroup orbCopyGroup,
+                uint32_t workgroups
+            ) {
+                pass.SetPipeline(orbCopyPrevPipeline_);
+                pass.SetBindGroup(0, orbCopyGroup);
                 pass.DispatchWorkgroups(workgroups, 1, 1);
             }
 
@@ -1578,6 +1592,25 @@ namespace t7 {
                     desc.compute.entryPoint = Entry::ORB_RECOLOR;
                     orbRecolorPipeline_ = device_.CreateComputePipeline(&desc);
                     if (!orbRecolorPipeline_) return false;
+                }
+
+                // Orb copy-prev pipeline (Pass 9) — dedicated layout because
+                // it flips the access modes on orb_state / orb_state_prev.
+                {
+                    std::array<wgpu::BindGroupLayout, 1> layouts = { orbCopyLayout_ };
+                    wgpu::PipelineLayoutDescriptor pld{};
+                    pld.bindGroupLayoutCount = layouts.size();
+                    pld.bindGroupLayouts = layouts.data();
+                    wgpu::PipelineLayout pl = device_.CreatePipelineLayout(&pld);
+                    if (!pl) return false;
+
+                    wgpu::ComputePipelineDescriptor desc{};
+                    desc.layout = pl;
+                    desc.compute.module = shaderModule_;
+                    desc.label = "Orb State Prev Copy";
+                    desc.compute.entryPoint = Entry::ORB_STATE_PREV_COPY;
+                    orbCopyPrevPipeline_ = device_.CreateComputePipeline(&desc);
+                    if (!orbCopyPrevPipeline_) return false;
                 }
 
                 // GoL zone compute pipelines (dedicated layout, z-dispatched)

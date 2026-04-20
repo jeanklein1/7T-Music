@@ -1002,8 +1002,42 @@ namespace t7 {
             float    tier3_force_gain;        //340
             float    tier3_color_gain;        //344
             float    tier3_cumulative_weight; //348
+            // ── Pass 9: flocking mood-level parameters ──────────
+            float    flock_sep_radius;            //352
+            float    flock_align_radius;          //356
+            float    flock_coh_radius;            //360
+            float    flock_sep_weight;            //364
+            float    flock_align_weight;          //368
+            float    flock_coh_weight;            //372
+            float    flock_max_speed;             //376
+            float    flock_coupling_intensity;    //380  (0..1, polyphony-smoothed)
+            float    _pad_flock0;                 //384
+            float    _pad_flock1;                 //388
+            float    _pad_flock2;                 //392
+            float    _pad_flock3;                 //396
+            float    _pad_flock4;                 //400
+            float    _pad_flock5;                 //404
+            float    _pad_flock6;                 //408
+            float    _pad_flock7;                 //412
+            // ── Pass 9: per-tier flocking gains ─────────────────
+            float    tier0_flock_sep_gain;        //416
+            float    tier0_flock_align_gain;      //420
+            float    tier0_flock_coh_gain;        //424
+            float    _tier0_flock_pad;            //428
+            float    tier1_flock_sep_gain;        //432
+            float    tier1_flock_align_gain;      //436
+            float    tier1_flock_coh_gain;        //440
+            float    _tier1_flock_pad;            //444
+            float    tier2_flock_sep_gain;        //448
+            float    tier2_flock_align_gain;      //452
+            float    tier2_flock_coh_gain;        //456
+            float    _tier2_flock_pad;            //460
+            float    tier3_flock_sep_gain;        //464
+            float    tier3_flock_align_gain;      //468
+            float    tier3_flock_coh_gain;        //472
+            float    _tier3_flock_pad;            //476
         };
-        static_assert(sizeof(GPUOrbConfig) == 352, "GPUOrbConfig must be 352 bytes");
+        static_assert(sizeof(GPUOrbConfig) == 480, "GPUOrbConfig must be 480 bytes");
 
         // (GPUCellState removed — legacy cell system no longer active)
 
@@ -1364,11 +1398,14 @@ namespace t7 {
 
             // ── Orb sky layer ────────────────────────────────────────
             wgpu::Buffer orbStateBuffer_;          // MAX_ORBS × GPUOrbState (storage, read_write)
+            wgpu::Buffer orbStatePrevBuffer_;      // MAX_ORBS × GPUOrbState (snapshot for flocking)
             wgpu::Buffer orbConfigBuffer_;         // GPUOrbConfig (uniform, per-frame)
             wgpu::Buffer orbQuadVB_;               // 4 vertices: billboard quad
             wgpu::Buffer orbQuadIB_;               // 6 indices: two triangles
-            wgpu::BindGroupLayout orbComputeLayout_;
+            wgpu::BindGroupLayout orbComputeLayout_;  // dynamics/init/recolor: orb_state RW, prev RO
             wgpu::BindGroup orbComputeGroup_;
+            wgpu::BindGroupLayout orbCopyLayout_;     // copy-prev: orb_state RO, prev RW
+            wgpu::BindGroup orbCopyGroup_;
 
             // Entity ground atlas (r32float, 256×1) — compute writes, VS reads
             wgpu::Texture entityGroundAtlasTexture_;
@@ -2223,6 +2260,8 @@ namespace t7 {
             wgpu::Buffer orb_quad_ib() const { return orbQuadIB_; }
             wgpu::BindGroupLayout orb_compute_layout() const { return orbComputeLayout_; }
             wgpu::BindGroup orb_compute_group() const { return orbComputeGroup_; }
+            wgpu::BindGroupLayout orb_copy_layout() const { return orbCopyLayout_; }
+            wgpu::BindGroup orb_copy_group() const { return orbCopyGroup_; }
             void upload_orb_config(wgpu::Queue& queue, const GPUOrbConfig& cfg) {
                 queue.WriteBuffer(orbConfigBuffer_, 0, &cfg, sizeof(GPUOrbConfig));
             }
@@ -2237,6 +2276,11 @@ namespace t7 {
             void upload_orb_noise(wgpu::Queue& queue, float noise) {
                 queue.WriteBuffer(orbConfigBuffer_,
                     offsetof(GPUOrbConfig, noise_amp), &noise, sizeof(float));
+            }
+            void upload_orb_flock_intensity(wgpu::Queue& queue, float intensity) {
+                queue.WriteBuffer(orbConfigBuffer_,
+                    offsetof(GPUOrbConfig, flock_coupling_intensity),
+                    &intensity, sizeof(float));
             }
             // Per-frame color dynamics: pulse / converge / surge intensities.
             // hue_converge_target lives at offset 156 and changes only on mood
@@ -2953,10 +2997,14 @@ namespace t7 {
                 orbStateBuffer_ = makeBuffer("Orb State",
                     Dim::MAX_ORBS * sizeof(GPUOrbState),
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
+                // Pass 9: previous-frame snapshot for flocking neighbor reads.
+                orbStatePrevBuffer_ = makeBuffer("Orb State Prev",
+                    Dim::MAX_ORBS * sizeof(GPUOrbState),
+                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
                 orbConfigBuffer_ = makeBuffer("Orb Config",
                     sizeof(GPUOrbConfig),
                     wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);
-                if (!orbStateBuffer_ || !orbConfigBuffer_) return false;
+                if (!orbStateBuffer_ || !orbStatePrevBuffer_ || !orbConfigBuffer_) return false;
 
                 // Billboard quad: 4 corner positions (2-component), 6 indices
                 {
@@ -3901,12 +3949,12 @@ namespace t7 {
                     if (!pawnAuraComputeLayout_) return false;
                 }
 
-                // -- Orb compute layout (Group 0) -- bindings 410 (storage rw) + 411 (uniform) --
-                // Dedicated layout: orb_init + orb_dynamics share it. Binding numbers
-                // must be unique within the WGSL module; 410/411 sit in the 400-range
-                // alongside render binding 400 (orb_state read-only).
+                // -- Orb compute layout (Group 0) -- bindings 410 RW, 411 U, 412 RO --
+                // Used by init / dynamics / recolor. orb_state is read_write so these
+                // kernels can update it; orb_state_prev is read-only because only the
+                // copy kernel writes it (through orbCopyLayout_).
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 2> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 3> entries{};
 
                     entries[0].binding = 410;  // orb_state (storage, read_write)
                     entries[0].visibility = wgpu::ShaderStage::Compute;
@@ -3916,12 +3964,43 @@ namespace t7 {
                     entries[1].visibility = wgpu::ShaderStage::Compute;
                     entries[1].buffer.type = wgpu::BufferBindingType::Uniform;
 
+                    entries[2].binding = 412;  // orb_state_prev (storage, read-only)
+                    entries[2].visibility = wgpu::ShaderStage::Compute;
+                    entries[2].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Orb Compute Layout";
                     desc.entryCount = entries.size();
                     desc.entries = entries.data();
                     orbComputeLayout_ = device_.CreateBindGroupLayout(&desc);
                     if (!orbComputeLayout_) return false;
+                }
+
+                // -- Orb copy layout (Group 0) -- bindings 410 RO, 411 U, 412 RW --
+                // Inverse access modes: orb_state_prev_copy reads orb_state and
+                // writes orb_state_prev. Keeps the main layout from needing write
+                // access to the prev buffer it otherwise only reads.
+                {
+                    std::array<wgpu::BindGroupLayoutEntry, 3> entries{};
+
+                    entries[0].binding = 410;  // orb_state (storage, read-only)
+                    entries[0].visibility = wgpu::ShaderStage::Compute;
+                    entries[0].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+
+                    entries[1].binding = 411;  // orb_config (uniform — unused but layout matches module)
+                    entries[1].visibility = wgpu::ShaderStage::Compute;
+                    entries[1].buffer.type = wgpu::BufferBindingType::Uniform;
+
+                    entries[2].binding = 412;  // orb_state_prev (storage, read_write)
+                    entries[2].visibility = wgpu::ShaderStage::Compute;
+                    entries[2].buffer.type = wgpu::BufferBindingType::Storage;
+
+                    wgpu::BindGroupLayoutDescriptor desc{};
+                    desc.label = "Orb Copy Layout";
+                    desc.entryCount = entries.size();
+                    desc.entries = entries.data();
+                    orbCopyLayout_ = device_.CreateBindGroupLayout(&desc);
+                    if (!orbCopyLayout_) return false;
                 }
 
                 // -- Pyramid mesh gen layout (Group 0) -- bindings 190-192 --
@@ -4736,7 +4815,7 @@ namespace t7 {
 
                 // Orb compute bind group (2 entries: state storage rw + config uniform)
                 {
-                    std::array<wgpu::BindGroupEntry, 2> entries{};
+                    std::array<wgpu::BindGroupEntry, 3> entries{};
 
                     entries[0].binding = 410;
                     entries[0].buffer = orbStateBuffer_;
@@ -4746,6 +4825,10 @@ namespace t7 {
                     entries[1].buffer = orbConfigBuffer_;
                     entries[1].size = sizeof(GPUOrbConfig);
 
+                    entries[2].binding = 412;
+                    entries[2].buffer = orbStatePrevBuffer_;
+                    entries[2].size = Dim::MAX_ORBS * sizeof(GPUOrbState);
+
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Orb Compute BindGroup";
                     desc.layout = orbComputeLayout_;
@@ -4753,6 +4836,31 @@ namespace t7 {
                     desc.entries = entries.data();
                     orbComputeGroup_ = device_.CreateBindGroup(&desc);
                     if (!orbComputeGroup_) return false;
+                }
+
+                // Orb copy bind group — same three buffers, inverse access.
+                {
+                    std::array<wgpu::BindGroupEntry, 3> entries{};
+
+                    entries[0].binding = 410;
+                    entries[0].buffer = orbStateBuffer_;
+                    entries[0].size = Dim::MAX_ORBS * sizeof(GPUOrbState);
+
+                    entries[1].binding = 411;
+                    entries[1].buffer = orbConfigBuffer_;
+                    entries[1].size = sizeof(GPUOrbConfig);
+
+                    entries[2].binding = 412;
+                    entries[2].buffer = orbStatePrevBuffer_;
+                    entries[2].size = Dim::MAX_ORBS * sizeof(GPUOrbState);
+
+                    wgpu::BindGroupDescriptor desc{};
+                    desc.label = "Orb Copy BindGroup";
+                    desc.layout = orbCopyLayout_;
+                    desc.entryCount = entries.size();
+                    desc.entries = entries.data();
+                    orbCopyGroup_ = device_.CreateBindGroup(&desc);
+                    if (!orbCopyGroup_) return false;
                 }
 
                 // Pyramid mesh gen bind group
