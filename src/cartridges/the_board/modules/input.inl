@@ -38,8 +38,14 @@
 #ifndef GLFW_KEY_KP_7
 #define GLFW_KEY_KP_7  327
 #endif
+#ifndef GLFW_KEY_KP_8
+#define GLFW_KEY_KP_8  328
+#endif
 #ifndef GLFW_KEY_KP_9
 #define GLFW_KEY_KP_9  329
+#endif
+#ifndef GLFW_KEY_KP_DECIMAL
+#define GLFW_KEY_KP_DECIMAL  330
 #endif
 
 void on_key_down(int key) {
@@ -146,7 +152,17 @@ void on_key_down(int key) {
     case GLFW_KEY_KP_5: toggle_mmode(MMODE_GOL_TEMPO);       break;
     case GLFW_KEY_KP_6: toggle_mmode(MMODE_AURA_EXPAND);     break;
     case GLFW_KEY_KP_7: toggle_mmode(MMODE_RADIAL_PULSE);    break;
+    case GLFW_KEY_KP_8: {
+        wgpu::Queue q = device_.GetQueue();
+        cycle_orb_motion_rule(q);
+        break;
+    }
     case GLFW_KEY_KP_9: toggle_orb_anchor();                 break;
+    case GLFW_KEY_KP_DECIMAL: {
+        wgpu::Queue q = device_.GetQueue();
+        toggle_orb_flock_invert(q);
+        break;
+    }
     case GLFW_KEY_LEFT_CONTROL:
     case GLFW_KEY_RIGHT_CONTROL:
         toggle_fpv_mode();

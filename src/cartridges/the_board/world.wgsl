@@ -8632,7 +8632,7 @@ struct OrbConfig {
     flock_coh_weight:         f32,
     flock_max_speed:          f32,
     flock_coupling_intensity: f32,
-    _pad_flock0: f32,
+    flock_weight_sign: f32,
     _pad_flock1: f32,
     _pad_flock2: f32,
     _pad_flock3: f32,
@@ -9169,10 +9169,12 @@ fn orb_dynamics(@builtin(global_invocation_id) id: vec3<u32>) {
         let ali_mod = 1.0 + k * 0.5;
         let coh_mod = 1.0 + k;
 
+        // Pass 10: player-toggled sign (+1 normal, -1 anti-flock).
+        let s = orb_config.flock_weight_sign;
         orb.vel = orb.vel
-            + sep_force * orb_config.flock_sep_weight   * sep_g * sep_mod * dt
-            + ali_force * orb_config.flock_align_weight * ali_g * ali_mod * dt
-            + coh_force * orb_config.flock_coh_weight   * coh_g * coh_mod * dt;
+            + sep_force * orb_config.flock_sep_weight   * sep_g * sep_mod * s * dt
+            + ali_force * orb_config.flock_align_weight * ali_g * ali_mod * s * dt
+            + coh_force * orb_config.flock_coh_weight   * coh_g * coh_mod * s * dt;
 
         // Speed clamp — prevent runaway velocity from force accumulation.
         let speed2 = dot(orb.vel, orb.vel);

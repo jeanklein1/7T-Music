@@ -226,6 +226,8 @@ struct OrbMoodConfig {
     float flock_align_weight =   8.0f;
     float flock_coh_weight   =  15.0f;
     float flock_max_speed    =  60.0f;
+    // ── Pass 10: flocking inversion default (first-run seed) ──
+    bool  flock_invert_default = false;
 };
 
 bool     orbsActive_           = false;
@@ -244,6 +246,14 @@ bool  orbAnchorInitialized_     = false;  // set on first configure_orbs
 float orbLastDomeCenterX_       = 0.0f;
 float orbLastDomeCenterZ_       = 0.0f;
 bool  orbDomeCenterInitialized_ = false;
+
+// ─── Pass 10: live motion-rule cycling + flock inversion ────────
+// Motion rule follows the mood on transition but can be cycled by
+// the player without resetting orb state. Flock invert is player
+// state (same persistence pattern as anchor).
+uint32_t orbCurrentMotionRule_    = 0u;
+bool     orbFlockInverted_        = false;
+bool     orbFlockInvertInitialized_ = false;
 
 // Map a tier index (0..3) to the first float of its 40-byte block
 // inside a GPUOrbConfig instance. Matches the per-offset layout in
@@ -285,7 +295,7 @@ static constexpr float ORB_COLOR_RELEASE = 2.5f;   // 1/s
 float orbFlockIntensity_ = 0.0f;
 bool  orbFlockActive_    = false;  // true when active mood uses motion_rule == 3
 static constexpr float ORB_FLOCK_ATTACK  = 2.5f;   // 1/s
-static constexpr float ORB_FLOCK_RELEASE = 1.0f;   // 1/s
+static constexpr float ORB_FLOCK_RELEASE = 2.5f;   // 1/s (Pass 10: match attack)
 
 void configure_orbs(const OrbMoodConfig& cfg, wgpu::Queue& queue) {
     orbsActive_ = cfg.enabled;
@@ -300,6 +310,16 @@ void configure_orbs(const OrbMoodConfig& cfg, wgpu::Queue& queue) {
             orbPawnAnchored_ = cfg.anchor_to_pawn_default;
             orbAnchorInitialized_ = true;
         }
+
+        // Pass 10: flock invert follows the same "player wins after first
+        // run" pattern as anchor. Motion rule, in contrast, IS part of
+        // mood character — it's always refreshed from the mood, and the
+        // player's runtime cycling holds only until the next transition.
+        if (!orbFlockInvertInitialized_) {
+            orbFlockInverted_ = cfg.flock_invert_default;
+            orbFlockInvertInitialized_ = true;
+        }
+        orbCurrentMotionRule_ = cfg.motion_rule;
 
         // Normalize rotation axis on CPU — GPU still renormalizes but
         // keeping the uploaded value unit-length avoids surprises.
@@ -431,7 +451,8 @@ void configure_orbs(const OrbMoodConfig& cfg, wgpu::Queue& queue) {
         gpuCfg.flock_coh_weight         = cfg.flock_coh_weight;
         gpuCfg.flock_max_speed          = cfg.flock_max_speed;
         gpuCfg.flock_coupling_intensity = 0.0f;
-        gpuCfg._pad_flock0 = 0.0f; gpuCfg._pad_flock1 = 0.0f;
+        gpuCfg.flock_weight_sign = orbFlockInverted_ ? -1.0f : 1.0f;
+        gpuCfg._pad_flock1 = 0.0f;
         gpuCfg._pad_flock2 = 0.0f; gpuCfg._pad_flock3 = 0.0f;
         gpuCfg._pad_flock4 = 0.0f; gpuCfg._pad_flock5 = 0.0f;
         gpuCfg._pad_flock6 = 0.0f; gpuCfg._pad_flock7 = 0.0f;
@@ -513,6 +534,40 @@ void teardown_orbs() {
     orbLastDomeCenterX_ = 0.0f;
     orbLastDomeCenterZ_ = 0.0f;
     orbDomeCenterInitialized_ = false;
+}
+
+// Cycle motion rule (Brownian → Orbital → Frozen → Flocking → …).
+// Does NOT reset orb state — positions and velocities carry over
+// so the character shifts seamlessly into the new rule.
+void cycle_orb_motion_rule(wgpu::Queue& queue) {
+    if (!orbsActive_ || orbCount_ == 0) {
+        std::cout << "[Orbs] Motion rule cycle ignored (no active dome)\n";
+        return;
+    }
+
+    orbCurrentMotionRule_ = (orbCurrentMotionRule_ + 1u) % 4u;
+    gpuState_.upload_orb_motion_rule(queue, orbCurrentMotionRule_);
+    // Flocking coupling runs only when the active rule is Flocking.
+    orbFlockActive_ = (orbCurrentMotionRule_ == 3u);
+
+    static const char* RULE_NAMES[] = { "brownian", "orbital", "frozen", "flocking" };
+    std::cout << "[Orbs] Motion rule: " << RULE_NAMES[orbCurrentMotionRule_]
+        << (orbFlockInverted_ && orbCurrentMotionRule_ == 3u ? " (inverted)" : "")
+        << "\n";
+}
+
+// Flip flocking weight sign. Player state: persists across mood
+// transitions. Takes effect instantly when the active rule is
+// Flocking; silent flag flip otherwise (activates on next cycle).
+void toggle_orb_flock_invert(wgpu::Queue& queue) {
+    orbFlockInverted_ = !orbFlockInverted_;
+    float sign = orbFlockInverted_ ? -1.0f : 1.0f;
+    gpuState_.upload_orb_flock_sign(queue, sign);
+
+    std::cout << "[Orbs] Flock invert: "
+        << (orbFlockInverted_ ? "ON (anti-flock: repel / anti-align / disperse)"
+                              : "OFF (normal flock: attract / align / cluster)")
+        << "\n";
 }
 
 // Flip the dome anchor between world origin and the pawn. Player

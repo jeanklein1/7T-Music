@@ -1011,7 +1011,7 @@ namespace t7 {
             float    flock_coh_weight;            //372
             float    flock_max_speed;             //376
             float    flock_coupling_intensity;    //380  (0..1, polyphony-smoothed)
-            float    _pad_flock0;                 //384
+            float    flock_weight_sign;           //384  (+1 normal, -1 inverted)
             float    _pad_flock1;                 //388
             float    _pad_flock2;                 //392
             float    _pad_flock3;                 //396
@@ -2281,6 +2281,18 @@ namespace t7 {
                 queue.WriteBuffer(orbConfigBuffer_,
                     offsetof(GPUOrbConfig, flock_coupling_intensity),
                     &intensity, sizeof(float));
+            }
+            // Pass 10: runtime motion rule switch (no orb-state reset).
+            void upload_orb_motion_rule(wgpu::Queue& queue, uint32_t rule) {
+                queue.WriteBuffer(orbConfigBuffer_,
+                    offsetof(GPUOrbConfig, motion_rule),
+                    &rule, sizeof(uint32_t));
+            }
+            // Pass 10: flocking weight sign (+1 normal, -1 anti-flock).
+            void upload_orb_flock_sign(wgpu::Queue& queue, float sign) {
+                queue.WriteBuffer(orbConfigBuffer_,
+                    offsetof(GPUOrbConfig, flock_weight_sign),
+                    &sign, sizeof(float));
             }
             // Per-frame color dynamics: pulse / converge / surge intensities.
             // hue_converge_target lives at offset 156 and changes only on mood
