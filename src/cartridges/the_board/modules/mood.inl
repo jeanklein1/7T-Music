@@ -446,7 +446,11 @@ void apply_mood(uint32_t mood, wgpu::Queue& queue) {
         ocfg.flock_align_weight     = m.orbs.flock_align_weight;
         ocfg.flock_coh_weight       = m.orbs.flock_coh_weight;
         ocfg.flock_max_speed        = m.orbs.flock_max_speed;
-        ocfg.flock_invert_default   = m.orbs.flock_invert_default;
+        ocfg.flock_gesture_default  = m.orbs.flock_gesture_default;
+        ocfg.rule_drag_brownian     = m.orbs.rule_drag_brownian;
+        ocfg.rule_drag_orbital      = m.orbs.rule_drag_orbital;
+        ocfg.rule_drag_frozen       = m.orbs.rule_drag_frozen;
+        ocfg.rule_drag_flocking     = m.orbs.rule_drag_flocking;
         configure_orbs(ocfg, queue);
     }
 

@@ -8632,14 +8632,14 @@ struct OrbConfig {
     flock_coh_weight:         f32,
     flock_max_speed:          f32,
     flock_coupling_intensity: f32,
-    flock_weight_sign: f32,
-    _pad_flock1: f32,
-    _pad_flock2: f32,
-    _pad_flock3: f32,
-    _pad_flock4: f32,
-    _pad_flock5: f32,
-    _pad_flock6: f32,
-    _pad_flock7: f32,
+    flock_sep_sign:           f32,
+    flock_align_sign:         f32,
+    flock_coh_sign:           f32,
+    rule_drag_brownian:       f32,
+    rule_drag_orbital:        f32,
+    rule_drag_frozen:         f32,
+    rule_drag_flocking:       f32,
+    _pad_flock7:              f32,
     tier0_flock_sep_gain:   f32,
     tier0_flock_align_gain: f32,
     tier0_flock_coh_gain:   f32,
@@ -9046,7 +9046,7 @@ fn orb_dynamics(@builtin(global_invocation_id) id: vec3<u32>) {
         // ── BROWNIAN ─────────────────────────────────────────
         // Drag → noise impulse → radial force.
 
-        orb.vel = orb.vel * exp(-orb.drag * dt);
+        orb.vel = orb.vel * exp(-orb.drag * orb_config.rule_drag_brownian * dt);
 
         if (orb_config.noise_amp > 0.0) {
             let noise_seed = bitcast<u32>(orb_config.t_seconds * 1000.0)
@@ -9081,7 +9081,7 @@ fn orb_dynamics(@builtin(global_invocation_id) id: vec3<u32>) {
 
         orb.pos = rodrigues(orb.pos, orbital_axis, orbital_speed * dt);
 
-        orb.vel = orb.vel * exp(-orb.drag * dt);
+        orb.vel = orb.vel * exp(-orb.drag * orb_config.rule_drag_orbital * dt);
 
         if (abs(orb_config.force_radial) > 0.001) {
             let radial_dir = normalize(orb.pos);
@@ -9096,7 +9096,7 @@ fn orb_dynamics(@builtin(global_invocation_id) id: vec3<u32>) {
         // O(N²) inner loop — MAX_ORBS = 256 keeps this tractable
         // without a spatial hash.
 
-        orb.vel = orb.vel * exp(-orb.drag * dt);
+        orb.vel = orb.vel * exp(-orb.drag * orb_config.rule_drag_flocking * dt);
 
         let sep_r2 = orb_config.flock_sep_radius   * orb_config.flock_sep_radius;
         let ali_r2 = orb_config.flock_align_radius * orb_config.flock_align_radius;
@@ -9169,12 +9169,15 @@ fn orb_dynamics(@builtin(global_invocation_id) id: vec3<u32>) {
         let ali_mod = 1.0 + k * 0.5;
         let coh_mod = 1.0 + k;
 
-        // Pass 10: player-toggled sign (+1 normal, -1 anti-flock).
-        let s = orb_config.flock_weight_sign;
+        // Pass 12: independent signs per force. Compound gestures
+        // (swirl, orbit, huddle, etc.) live in the sign combinations.
+        let sep_s = orb_config.flock_sep_sign;
+        let ali_s = orb_config.flock_align_sign;
+        let coh_s = orb_config.flock_coh_sign;
         orb.vel = orb.vel
-            + sep_force * orb_config.flock_sep_weight   * sep_g * sep_mod * s * dt
-            + ali_force * orb_config.flock_align_weight * ali_g * ali_mod * s * dt
-            + coh_force * orb_config.flock_coh_weight   * coh_g * coh_mod * s * dt;
+            + sep_force * orb_config.flock_sep_weight   * sep_g * sep_mod * sep_s * dt
+            + ali_force * orb_config.flock_align_weight * ali_g * ali_mod * ali_s * dt
+            + coh_force * orb_config.flock_coh_weight   * coh_g * coh_mod * coh_s * dt;
 
         // Speed clamp — prevent runaway velocity from force accumulation.
         let speed2 = dot(orb.vel, orb.vel);
@@ -9193,7 +9196,7 @@ fn orb_dynamics(@builtin(global_invocation_id) id: vec3<u32>) {
         // ── FROZEN (rule 2 / unknown) ────────────────────────
         // Only dome rotation moves orbs. Drag bleeds velocity
         // to zero.
-        orb.vel = orb.vel * exp(-orb.drag * dt);
+        orb.vel = orb.vel * exp(-orb.drag * orb_config.rule_drag_frozen * dt);
     }
 
     // ═══ 3. COMMON TAIL ═══════════════════════════════════════

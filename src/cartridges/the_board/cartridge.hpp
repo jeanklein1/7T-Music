@@ -195,8 +195,13 @@ namespace t7 {
                     float    flock_align_weight;
                     float    flock_coh_weight;
                     float    flock_max_speed;
-                    // ── Pass 10: flocking invert default (first-run seed) ──
-                    bool     flock_invert_default;
+                    // ── Pass 12: flocking gesture default (first-run seed) ──
+                    uint32_t flock_gesture_default;
+                    // ── Pass 12: per-rule drag multipliers (0 = 1.0× pass-through) ──
+                    float    rule_drag_brownian;
+                    float    rule_drag_orbital;
+                    float    rule_drag_frozen;
+                    float    rule_drag_flocking;
                 };
                 OrbMoodConfigInit orbs;
             };
@@ -206,15 +211,15 @@ namespace t7 {
             // ─── Mood Definitions ───────────────────────────────────────────
             //
             //                                  fin  r_min r_max  sun_dir                sun_color              int   amb   fog_d   fog_color               indoor  ceil       ceil_h  clear_color            wall_color             ceil_color
-            //                                                                                                                                                                                                                                                                                                                                              musical  gol    aura   frustum    orbs{enabled, count, hue(legacy), hue_var(legacy), bright, drag, noise, rule, rot, {axis}, orbital, palette, pulse, converge, surge, converge_target, anchor_default, tierset, flock{sep_r, align_r, coh_r, sep_w, align_w, coh_w, max_speed}, flock_invert_default}
+            //                                                                                                                                                                                                                                                                                                                                              musical  gol    aura   frustum    orbs{enabled, count, hue(legacy), hue_var(legacy), bright, drag, noise, rule, rot, {axis}, orbital, palette, pulse, converge, surge, converge_target, anchor_default, tierset, flock{sep_r, align_r, coh_r, sep_w, align_w, coh_w, max_speed}, flock_gesture_default, rule_drag{brownian, orbital, frozen, flocking}}
             //                                  fin  r_min r_max  sun_dir                sun_color              int   amb   fog_d   fog_color               indoor  ceil       ceil_h  clear_color            wall_color             ceil_color               modes   zones  aura   cull        orbs
             static constexpr MoodProfile MOOD_TABLE[MOOD_COUNT] = {
-                /* 0  open_default        */  { false, 2, 2, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true,   { true,  128, 0.08f, 0.06f, 0.85f, 0.4f, 20.0f, 0u, 0.012f, {0.15f, 0.97f, 0.10f}, 0.0f,  0u, true,  true,  true,  0.12f, false, 0u,         50.0f, 120.0f, 200.0f, 30.0f, 8.0f, 15.0f, 60.0f, false } },
-                /* 1  open_sunset         */  { false, 2, 2, { 0.96f,-0.26f,-0.13f}, {1.0f, 0.75f, 0.45f}, 0.90f, 0.20f, 0.0050f, {0.95f, 0.70f, 0.45f},  false, CeilingType::NONE,  0.0f,  {0.95f, 0.70f, 0.45f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true,   { true,  128, 0.08f, 0.06f, 0.85f, 0.4f, 20.0f, 3u, 0.012f, {0.15f, 0.97f, 0.10f}, 0.0f,  0u, true,  false, false, 0.08f, false, 0u,         50.0f, 120.0f, 200.0f, 30.0f, 8.0f, 15.0f, 60.0f, false } },
-                /* 2  indoor_flat         */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f, 0.0003f, {0.15f, 0.12f, 0.10f},  true,  CeilingType::FLAT,  20.0f, {0.15f, 0.12f, 0.10f}, {0.65f,0.58f,0.50f}, {0.60f,0.55f,0.48f},   true,  true,  true,  false,  { false, 0,   0.08f, 0.05f, 0.80f, 0.5f, 0.0f,  0u, 0.000f, {0.00f, 1.00f, 0.00f}, 0.0f,  0u, false, false, false, 0.12f, false, 0xFFFFFFFFu, 50.0f, 120.0f, 200.0f, 30.0f, 8.0f, 15.0f, 60.0f, false } },
-                /* 3  indoor_vault        */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f, 0.0003f, {0.15f, 0.12f, 0.10f},  true,  CeilingType::VAULT, 25.0f, {0.15f, 0.12f, 0.10f}, {0.70f,0.62f,0.52f}, {0.65f,0.58f,0.50f},   true,  true,  true,  false,  { false, 0,   0.08f, 0.05f, 0.80f, 0.5f, 0.0f,  0u, 0.000f, {0.00f, 1.00f, 0.00f}, 0.0f,  0u, false, false, false, 0.12f, false, 0xFFFFFFFFu, 50.0f, 120.0f, 200.0f, 30.0f, 8.0f, 15.0f, 60.0f, false } },
-                /* 4  finite_outdoor      */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true,   { true,  128, 0.08f, 0.06f, 0.85f, 0.4f, 20.0f, 0u, 0.012f, {0.15f, 0.97f, 0.10f}, 0.0f,  0u, true,  true,  true,  0.12f, false, 0u,         50.0f, 120.0f, 200.0f, 30.0f, 8.0f, 15.0f, 60.0f, false } },
-                /* 5  finite_outdoor_ref  */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true,   { true,  128, 0.08f, 0.06f, 0.85f, 0.4f, 20.0f, 0u, 0.012f, {0.15f, 0.97f, 0.10f}, 0.0f,  0u, true,  true,  true,  0.12f, false, 0u,         50.0f, 120.0f, 200.0f, 30.0f, 8.0f, 15.0f, 60.0f, false } },
+                /* 0  open_default        */  { false, 2, 2, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true,   { true,  128, 0.08f, 0.06f, 0.85f, 0.4f, 20.0f, 0u, 0.012f, {0.15f, 0.97f, 0.10f}, 0.0f,  0u, true,  true,  true,  0.12f, false, 0u,         50.0f, 120.0f, 200.0f, 30.0f, 8.0f, 15.0f, 60.0f, 0u, 0.0f, 0.0f, 0.0f, 0.0f } },
+                /* 1  open_sunset         */  { false, 2, 2, { 0.96f,-0.26f,-0.13f}, {1.0f, 0.75f, 0.45f}, 0.90f, 0.20f, 0.0050f, {0.95f, 0.70f, 0.45f},  false, CeilingType::NONE,  0.0f,  {0.95f, 0.70f, 0.45f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true,   { true,  128, 0.08f, 0.06f, 0.85f, 0.4f, 20.0f, 3u, 0.012f, {0.15f, 0.97f, 0.10f}, 0.0f,  0u, true,  false, false, 0.08f, false, 0u,         50.0f, 120.0f, 200.0f, 30.0f, 8.0f, 15.0f, 60.0f, 0u, 0.0f, 0.0f, 0.0f, 0.0f } },
+                /* 2  indoor_flat         */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f, 0.0003f, {0.15f, 0.12f, 0.10f},  true,  CeilingType::FLAT,  20.0f, {0.15f, 0.12f, 0.10f}, {0.65f,0.58f,0.50f}, {0.60f,0.55f,0.48f},   true,  true,  true,  false,  { false, 0,   0.08f, 0.05f, 0.80f, 0.5f, 0.0f,  0u, 0.000f, {0.00f, 1.00f, 0.00f}, 0.0f,  0u, false, false, false, 0.12f, false, 0xFFFFFFFFu, 50.0f, 120.0f, 200.0f, 30.0f, 8.0f, 15.0f, 60.0f, 0u, 0.0f, 0.0f, 0.0f, 0.0f } },
+                /* 3  indoor_vault        */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f, 0.0003f, {0.15f, 0.12f, 0.10f},  true,  CeilingType::VAULT, 25.0f, {0.15f, 0.12f, 0.10f}, {0.70f,0.62f,0.52f}, {0.65f,0.58f,0.50f},   true,  true,  true,  false,  { false, 0,   0.08f, 0.05f, 0.80f, 0.5f, 0.0f,  0u, 0.000f, {0.00f, 1.00f, 0.00f}, 0.0f,  0u, false, false, false, 0.12f, false, 0xFFFFFFFFu, 50.0f, 120.0f, 200.0f, 30.0f, 8.0f, 15.0f, 60.0f, 0u, 0.0f, 0.0f, 0.0f, 0.0f } },
+                /* 4  finite_outdoor      */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true,   { true,  128, 0.08f, 0.06f, 0.85f, 0.4f, 20.0f, 0u, 0.012f, {0.15f, 0.97f, 0.10f}, 0.0f,  0u, true,  true,  true,  0.12f, false, 0u,         50.0f, 120.0f, 200.0f, 30.0f, 8.0f, 15.0f, 60.0f, 0u, 0.0f, 0.0f, 0.0f, 0.0f } },
+                /* 5  finite_outdoor_ref  */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true,   { true,  128, 0.08f, 0.06f, 0.85f, 0.4f, 20.0f, 0u, 0.012f, {0.15f, 0.97f, 0.10f}, 0.0f,  0u, true,  true,  true,  0.12f, false, 0u,         50.0f, 120.0f, 200.0f, 30.0f, 8.0f, 15.0f, 60.0f, 0u, 0.0f, 0.0f, 0.0f, 0.0f } },
             };
 
             static const char* mood_name(uint32_t mood) {
@@ -7535,7 +7540,11 @@ namespace t7 {
                     ocfg.flock_align_weight     = m0.orbs.flock_align_weight;
                     ocfg.flock_coh_weight       = m0.orbs.flock_coh_weight;
                     ocfg.flock_max_speed        = m0.orbs.flock_max_speed;
-                    ocfg.flock_invert_default   = m0.orbs.flock_invert_default;
+                    ocfg.flock_gesture_default  = m0.orbs.flock_gesture_default;
+                    ocfg.rule_drag_brownian     = m0.orbs.rule_drag_brownian;
+                    ocfg.rule_drag_orbital      = m0.orbs.rule_drag_orbital;
+                    ocfg.rule_drag_frozen       = m0.orbs.rule_drag_frozen;
+                    ocfg.rule_drag_flocking     = m0.orbs.rule_drag_flocking;
                     configure_orbs(ocfg, q);
                 }
 

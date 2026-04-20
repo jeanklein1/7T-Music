@@ -1011,14 +1011,15 @@ namespace t7 {
             float    flock_coh_weight;            //372
             float    flock_max_speed;             //376
             float    flock_coupling_intensity;    //380  (0..1, polyphony-smoothed)
-            float    flock_weight_sign;           //384  (+1 normal, -1 inverted)
-            float    _pad_flock1;                 //388
-            float    _pad_flock2;                 //392
-            float    _pad_flock3;                 //396
-            float    _pad_flock4;                 //400
-            float    _pad_flock5;                 //404
-            float    _pad_flock6;                 //408
-            float    _pad_flock7;                 //412
+            // ── Pass 12: per-force signs + per-rule drag multipliers ──
+            float    flock_sep_sign;              //384  (±1 — was flock_weight_sign)
+            float    flock_align_sign;            //388  (±1 — was _pad_flock1)
+            float    flock_coh_sign;              //392  (±1 — was _pad_flock2)
+            float    rule_drag_brownian;          //396  (multiplier — was _pad_flock3)
+            float    rule_drag_orbital;           //400  (multiplier — was _pad_flock4)
+            float    rule_drag_frozen;            //404  (multiplier — was _pad_flock5)
+            float    rule_drag_flocking;          //408  (multiplier — was _pad_flock6)
+            float    _pad_flock7;                 //412  (headroom)
             // ── Pass 9: per-tier flocking gains ─────────────────
             float    tier0_flock_sep_gain;        //416
             float    tier0_flock_align_gain;      //420
@@ -2288,11 +2289,15 @@ namespace t7 {
                     offsetof(GPUOrbConfig, motion_rule),
                     &rule, sizeof(uint32_t));
             }
-            // Pass 10: flocking weight sign (+1 normal, -1 anti-flock).
-            void upload_orb_flock_sign(wgpu::Queue& queue, float sign) {
+            // Pass 12: three flocking force signs written as a packed triple
+            // at flock_sep_sign. Each force picks up its direction multiplier
+            // from the dynamics kernel on the next dispatch.
+            void upload_orb_flock_signs(wgpu::Queue& queue,
+                                        float sep, float align, float coh) {
+                struct { float s, a, c; } packed = { sep, align, coh };
                 queue.WriteBuffer(orbConfigBuffer_,
-                    offsetof(GPUOrbConfig, flock_weight_sign),
-                    &sign, sizeof(float));
+                    offsetof(GPUOrbConfig, flock_sep_sign),
+                    &packed, sizeof(packed));
             }
             // Per-frame color dynamics: pulse / converge / surge intensities.
             // hue_converge_target lives at offset 156 and changes only on mood

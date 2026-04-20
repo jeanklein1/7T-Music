@@ -246,8 +246,16 @@ struct OrbMoodConfig {
     float flock_align_weight =   8.0f;
     float flock_coh_weight   =  15.0f;
     float flock_max_speed    =  60.0f;
-    // ── Pass 10: flocking inversion default (first-run seed) ──
-    bool  flock_invert_default = false;
+    // ── Pass 12: flocking gesture default (first-run seed) ──
+    // Index into ORB_FLOCK_GESTURES. 0 = standard flock. Player
+    // cycling persists across mood transitions after first run.
+    uint32_t flock_gesture_default = 0u;
+    // ── Pass 12: per-rule drag multipliers ─────────────────────
+    // 0.0 = no opinion (→ 1.0× pass-through via configure_orbs).
+    float rule_drag_brownian = 0.0f;
+    float rule_drag_orbital  = 0.0f;
+    float rule_drag_frozen   = 0.0f;
+    float rule_drag_flocking = 0.0f;
 };
 
 bool     orbsActive_           = false;
@@ -271,9 +279,9 @@ bool  orbDomeCenterInitialized_ = false;
 // Motion rule follows the mood on transition but can be cycled by
 // the player without resetting orb state. Flock invert is player
 // state (same persistence pattern as anchor).
-uint32_t orbCurrentMotionRule_    = 0u;
-bool     orbFlockInverted_        = false;
-bool     orbFlockInvertInitialized_ = false;
+uint32_t orbCurrentMotionRule_       = 0u;
+uint32_t orbFlockGestureIdx_         = 0u;    // index into ORB_FLOCK_GESTURES
+bool     orbFlockGestureInitialized_ = false;
 
 // Map a tier index (0..3) to the first float of its 40-byte block
 // inside a GPUOrbConfig instance. Matches the per-offset layout in
@@ -317,6 +325,30 @@ bool  orbFlockActive_    = false;  // true when active mood uses motion_rule == 
 static constexpr float ORB_FLOCK_ATTACK  = 2.5f;   // 1/s
 static constexpr float ORB_FLOCK_RELEASE = 2.5f;   // 1/s (Pass 10: match attack)
 
+// ─── Pass 12: flocking gesture registry ─────────────────────────
+// Eight named sign combinations curated over the 2³ space. Index 0
+// is the default standard flock. Player cycles with the dedicated
+// key; mood default seeds only on first configure (player wins
+// afterwards — same persistence pattern as anchor).
+struct OrbFlockGesture {
+    float       sep_sign;
+    float       align_sign;
+    float       coh_sign;
+    const char* name;
+};
+
+static constexpr uint32_t ORB_FLOCK_GESTURE_COUNT = 8;
+static constexpr OrbFlockGesture ORB_FLOCK_GESTURES[ORB_FLOCK_GESTURE_COUNT] = {
+    { +1.0f, +1.0f, +1.0f, "flock"     },  // 0: standard cohere-align-space
+    { -1.0f, -1.0f, -1.0f, "antiflock" },  // 1: full dispersal
+    { +1.0f, -1.0f, +1.0f, "swirl"     },  // 2: cohere but counter-flow
+    { -1.0f, +1.0f, -1.0f, "orbit"     },  // 3: ring around empty core
+    { -1.0f, +1.0f, +1.0f, "huddle"    },  // 4: dense aligned clump
+    { +1.0f, +1.0f, -1.0f, "flee"      },  // 5: space out, align, avoid center
+    { +1.0f, -1.0f, -1.0f, "chaos"     },  // 6: space, counter-flow, flee
+    { -1.0f, -1.0f, +1.0f, "trap"      },  // 7: pull in, counter, cohere
+};
+
 void configure_orbs(const OrbMoodConfig& cfg, wgpu::Queue& queue) {
     orbsActive_ = cfg.enabled;
     orbCount_ = std::min(cfg.count, (uint32_t)Dim::MAX_ORBS);
@@ -352,13 +384,14 @@ void configure_orbs(const OrbMoodConfig& cfg, wgpu::Queue& queue) {
             orbAnchorInitialized_ = true;
         }
 
-        // Pass 10: flock invert follows the same "player wins after first
+        // Pass 12: flock gesture follows the same "player wins after first
         // run" pattern as anchor. Motion rule, in contrast, IS part of
         // mood character — it's always refreshed from the mood, and the
         // player's runtime cycling holds only until the next transition.
-        if (!orbFlockInvertInitialized_) {
-            orbFlockInverted_ = cfg.flock_invert_default;
-            orbFlockInvertInitialized_ = true;
+        if (!orbFlockGestureInitialized_) {
+            orbFlockGestureIdx_ = std::min(cfg.flock_gesture_default,
+                                           ORB_FLOCK_GESTURE_COUNT - 1u);
+            orbFlockGestureInitialized_ = true;
         }
         orbCurrentMotionRule_ = cfg.motion_rule;
 
@@ -492,11 +525,27 @@ void configure_orbs(const OrbMoodConfig& cfg, wgpu::Queue& queue) {
         gpuCfg.flock_coh_weight         = eff_flock_coh_w;
         gpuCfg.flock_max_speed          = eff_flock_max_speed;
         gpuCfg.flock_coupling_intensity = 0.0f;
-        gpuCfg.flock_weight_sign = orbFlockInverted_ ? -1.0f : 1.0f;
-        gpuCfg._pad_flock1 = 0.0f;
-        gpuCfg._pad_flock2 = 0.0f; gpuCfg._pad_flock3 = 0.0f;
-        gpuCfg._pad_flock4 = 0.0f; gpuCfg._pad_flock5 = 0.0f;
-        gpuCfg._pad_flock6 = 0.0f; gpuCfg._pad_flock7 = 0.0f;
+
+        // Pass 12: pack the three per-force signs from the active gesture.
+        {
+            const auto& g = ORB_FLOCK_GESTURES[orbFlockGestureIdx_];
+            gpuCfg.flock_sep_sign   = g.sep_sign;
+            gpuCfg.flock_align_sign = g.align_sign;
+            gpuCfg.flock_coh_sign   = g.coh_sign;
+        }
+
+        // Pass 12: per-rule drag multipliers. Pass 11-style sanitization:
+        // zero means "no opinion" → 1.0× pass-through.
+        gpuCfg.rule_drag_brownian = (cfg.rule_drag_brownian > 0.0f)
+            ? cfg.rule_drag_brownian : 1.0f;
+        gpuCfg.rule_drag_orbital  = (cfg.rule_drag_orbital  > 0.0f)
+            ? cfg.rule_drag_orbital  : 1.0f;
+        gpuCfg.rule_drag_frozen   = (cfg.rule_drag_frozen   > 0.0f)
+            ? cfg.rule_drag_frozen   : 1.0f;
+        gpuCfg.rule_drag_flocking = (cfg.rule_drag_flocking > 0.0f)
+            ? cfg.rule_drag_flocking : 1.0f;
+
+        gpuCfg._pad_flock7 = 0.0f;
 
         // Tier block for flocking gains: 16 bytes per tier, starting at
         // offset 416. Fields: sep, align, coh, pad.
@@ -592,23 +641,28 @@ void cycle_orb_motion_rule(wgpu::Queue& queue) {
     orbFlockActive_ = (orbCurrentMotionRule_ == 3u);
 
     static const char* RULE_NAMES[] = { "brownian", "orbital", "frozen", "flocking" };
-    std::cout << "[Orbs] Motion rule: " << RULE_NAMES[orbCurrentMotionRule_]
-        << (orbFlockInverted_ && orbCurrentMotionRule_ == 3u ? " (inverted)" : "")
-        << "\n";
+    std::cout << "[Orbs] Motion rule: " << RULE_NAMES[orbCurrentMotionRule_];
+    if (orbCurrentMotionRule_ == 3u && orbFlockGestureIdx_ != 0u) {
+        std::cout << " (gesture: "
+            << ORB_FLOCK_GESTURES[orbFlockGestureIdx_].name << ")";
+    }
+    std::cout << "\n";
 }
 
-// Flip flocking weight sign. Player state: persists across mood
-// transitions. Takes effect instantly when the active rule is
-// Flocking; silent flag flip otherwise (activates on next cycle).
-void toggle_orb_flock_invert(wgpu::Queue& queue) {
-    orbFlockInverted_ = !orbFlockInverted_;
-    float sign = orbFlockInverted_ ? -1.0f : 1.0f;
-    gpuState_.upload_orb_flock_sign(queue, sign);
+// Cycle through the curated flocking gesture registry. Player
+// state: persists across mood transitions. Takes effect instantly
+// when the active rule is Flocking; silent advance otherwise.
+void cycle_orb_flock_gesture(wgpu::Queue& queue) {
+    orbFlockGestureIdx_ = (orbFlockGestureIdx_ + 1u) % ORB_FLOCK_GESTURE_COUNT;
+    const auto& g = ORB_FLOCK_GESTURES[orbFlockGestureIdx_];
+    gpuState_.upload_orb_flock_signs(queue,
+        g.sep_sign, g.align_sign, g.coh_sign);
 
-    std::cout << "[Orbs] Flock invert: "
-        << (orbFlockInverted_ ? "ON (anti-flock: repel / anti-align / disperse)"
-                              : "OFF (normal flock: attract / align / cluster)")
-        << "\n";
+    std::cout << "[Orbs] Flock gesture: " << g.name
+        << " (sep=" << (g.sep_sign > 0 ? "+" : "-")
+        << " align=" << (g.align_sign > 0 ? "+" : "-")
+        << " coh=" << (g.coh_sign > 0 ? "+" : "-")
+        << ")\n";
 }
 
 // Flip the dome anchor between world origin and the pawn. Player
