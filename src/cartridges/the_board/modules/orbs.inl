@@ -20,7 +20,7 @@
 // │  Player commands:                                               │
 // │    cycle_orb_palette(queue)       — KP_0  next palette          │
 // │    cycle_orb_motion_rule(queue)   — KP_8  next rule             │
-// │    cycle_orb_flock_gesture(queue) — KP_DECIMAL  next gesture    │
+// │    cycle_orb_gesture(queue)       — KP_DECIMAL  next gesture    │
 // │    toggle_orb_anchor()            — KP_9  world ↔ pawn anchor   │
 // │                                                                 │
 // │  Per-frame updates:                                             │
@@ -295,6 +295,54 @@ static constexpr OrbFlockGesture ORB_FLOCK_GESTURES[ORB_FLOCK_GESTURE_COUNT] = {
 };
 
 
+// ═══ REGISTRY: BROWNIAN GESTURES ═════════════════════════════════
+//
+// Six variations over three binary dimensions — radial sign
+// (expansion vs contraction on music), vertical bias (isotropic
+// vs upward), and coherence (per-orb independent vs per-block
+// shared). Cycled by the gesture key when the active rule is
+// Brownian; player state persists across mood transitions.
+
+struct OrbBrownianGesture {
+    float       radial_sign;   // ±1 — polyphony expands or contracts
+    float       vert_bias;     // 0 = isotropic, 1 = upward-biased noise
+    float       coherence;     // 0 = per-orb, 1 = per-block ("wind gusts")
+    const char* name;
+};
+
+static constexpr uint32_t ORB_BROWNIAN_GESTURE_COUNT = 6;
+static constexpr OrbBrownianGesture ORB_BROWNIAN_GESTURES[ORB_BROWNIAN_GESTURE_COUNT] = {
+    //  radial  vert   coh    name
+    { +1.0f,   0.0f,  0.0f,  "drift"  },  // 0  default wandering diffusion
+    { -1.0f,   0.0f,  0.0f,  "gather" },  // 1  music pulls orbs inward
+    { +1.0f,   1.0f,  0.0f,  "rise"   },  // 2  upward drift (embers)
+    { +1.0f,   0.0f,  1.0f,  "gust"   },  // 3  wind-gust group motion
+    { -1.0f,   0.0f,  1.0f,  "tide"   },  // 4  coherent inward pull
+    { +1.0f,   1.0f,  1.0f,  "swell"  },  // 5  upward column with coherence
+};
+
+
+// ═══ REGISTRY: ORBITAL GESTURES ══════════════════════════════════
+//
+// Four variations over axis alignment + speed variance. Cycled
+// by the gesture key when the active rule is Orbital.
+
+struct OrbOrbitalGesture {
+    float       alignment_mode;   // 0 scatter, 1 parallel, 2 mirror
+    float       speed_var_mult;   // multiplier on per-orb speed spread
+    const char* name;
+};
+
+static constexpr uint32_t ORB_ORBITAL_GESTURE_COUNT = 4;
+static constexpr OrbOrbitalGesture ORB_ORBITAL_GESTURES[ORB_ORBITAL_GESTURE_COUNT] = {
+    //  align  var    name
+    { 0.0f,   1.0f,  "scatter"  },  // 0  random axes, chaotic rotation
+    { 1.0f,   0.0f,  "parallel" },  // 1  unified shell around Y
+    { 2.0f,   0.0f,  "mirror"   },  // 2  two counter-rotating streams
+    { 1.0f,   3.0f,  "shear"    },  // 3  parallel axis, layered sheets
+};
+
+
 // ═══ MOOD CONFIG (authoring surface) ═════════════════════════════
 //
 // Declared here; instantiated per-mood in ORB_MOOD_TABLE (cartridge.hpp).
@@ -370,9 +418,19 @@ bool     orbDomeCenterInitialized_ = false;
 // ── Motion rule + flocking gesture ───────────────────────────────
 // Motion rule refreshes from mood on transition (mood character).
 // Flock gesture persists across mood transitions (player gesture).
-uint32_t orbCurrentMotionRule_       = 0u;
-uint32_t orbFlockGestureIdx_         = 0u;
-bool     orbFlockGestureInitialized_ = false;
+// Motion rule identifiers, named for legibility at gesture-
+// dispatch sites. Index into orbGestureIdx_ / orbGestureInitialized_.
+static constexpr uint32_t ORB_RULE_BROWNIAN = 0u;
+static constexpr uint32_t ORB_RULE_ORBITAL  = 1u;
+static constexpr uint32_t ORB_RULE_FROZEN   = 2u;
+static constexpr uint32_t ORB_RULE_FLOCKING = 3u;
+
+uint32_t orbCurrentMotionRule_ = 0u;
+// Pass 13: per-rule gesture indices. Index 2 (Frozen) is vestigial
+// — Frozen has no gestures; cycle_orb_gesture short-circuits. All
+// four indices persist across mood transitions (player state).
+uint32_t orbGestureIdx_[4]         = { 0u, 0u, 0u, 0u };
+bool     orbGestureInitialized_[4] = { false, false, false, false };
 
 // ── Musical couplings (smoothed intensities) ─────────────────────
 // Force + noise share a single intensity (polyphony-driven). Color
@@ -421,11 +479,26 @@ void apply_mood_first_run_defaults_(const OrbMoodConfig& cfg) {
         orbPawnAnchored_ = cfg.anchor_to_pawn_default;
         orbAnchorInitialized_ = true;
     }
-    if (!orbFlockGestureInitialized_) {
-        orbFlockGestureIdx_ = std::min(cfg.flock_gesture_default,
-                                       ORB_FLOCK_GESTURE_COUNT - 1u);
-        orbFlockGestureInitialized_ = true;
+    // Pass 13: seed each rule's gesture index on first configure.
+    // The mood carries one default (flock_gesture_default); we reuse
+    // it for all three rules with per-rule count clamping. A future
+    // pass can split this into per-rule mood defaults if wanted.
+    if (!orbGestureInitialized_[ORB_RULE_BROWNIAN]) {
+        orbGestureIdx_[ORB_RULE_BROWNIAN] = std::min(
+            cfg.flock_gesture_default, ORB_BROWNIAN_GESTURE_COUNT - 1u);
+        orbGestureInitialized_[ORB_RULE_BROWNIAN] = true;
     }
+    if (!orbGestureInitialized_[ORB_RULE_ORBITAL]) {
+        orbGestureIdx_[ORB_RULE_ORBITAL] = std::min(
+            cfg.flock_gesture_default, ORB_ORBITAL_GESTURE_COUNT - 1u);
+        orbGestureInitialized_[ORB_RULE_ORBITAL] = true;
+    }
+    if (!orbGestureInitialized_[ORB_RULE_FLOCKING]) {
+        orbGestureIdx_[ORB_RULE_FLOCKING] = std::min(
+            cfg.flock_gesture_default, ORB_FLOCK_GESTURE_COUNT - 1u);
+        orbGestureInitialized_[ORB_RULE_FLOCKING] = true;
+    }
+    // ORB_RULE_FROZEN has no gestures — index stays at 0, unread.
 }
 
 // Pack the active palette's per-entry HSV pockets into GPU config.
@@ -535,10 +608,24 @@ void pack_flocking_(GPUOrbConfig& gpuCfg,
     gpuCfg.flock_max_speed          = max_speed;
     gpuCfg.flock_coupling_intensity = 0.0f;
 
-    const auto& g = ORB_FLOCK_GESTURES[orbFlockGestureIdx_];
-    gpuCfg.flock_sep_sign   = g.sep_sign;
-    gpuCfg.flock_align_sign = g.align_sign;
-    gpuCfg.flock_coh_sign   = g.coh_sign;
+    // Pass 13: pack all three rule gesture bundles. Each rule reads
+    // its own slice in the dynamics kernel; writing all three at
+    // configure time keeps them in sync whatever rule becomes active.
+    {
+        const auto& gb = ORB_BROWNIAN_GESTURES[orbGestureIdx_[ORB_RULE_BROWNIAN]];
+        gpuCfg.brownian_radial_sign = gb.radial_sign;
+        gpuCfg.brownian_vert_bias   = gb.vert_bias;
+        gpuCfg.brownian_coherence   = gb.coherence;
+
+        const auto& go = ORB_ORBITAL_GESTURES[orbGestureIdx_[ORB_RULE_ORBITAL]];
+        gpuCfg.orbital_alignment_mode = go.alignment_mode;
+        gpuCfg.orbital_speed_var_mult = go.speed_var_mult;
+
+        const auto& gf = ORB_FLOCK_GESTURES[orbGestureIdx_[ORB_RULE_FLOCKING]];
+        gpuCfg.flock_sep_sign   = gf.sep_sign;
+        gpuCfg.flock_align_sign = gf.align_sign;
+        gpuCfg.flock_coh_sign   = gf.coh_sign;
+    }
 
     // Per-rule drag: zero → 1.0× pass-through (mood has no opinion).
     auto passthrough = [](float authored) {
@@ -757,25 +844,56 @@ void cycle_orb_motion_rule(wgpu::Queue& queue) {
 
     static const char* RULE_NAMES[] = { "brownian", "orbital", "frozen", "flocking" };
     std::cout << "[Orbs] Motion rule: " << RULE_NAMES[orbCurrentMotionRule_];
-    if (orbCurrentMotionRule_ == 3u && orbFlockGestureIdx_ != 0u) {
-        std::cout << " (gesture: " << ORB_FLOCK_GESTURES[orbFlockGestureIdx_].name << ")";
+    const uint32_t r = orbCurrentMotionRule_;
+    const uint32_t gidx = orbGestureIdx_[r];
+    if (r == ORB_RULE_BROWNIAN && gidx != 0u) {
+        std::cout << " (gesture: " << ORB_BROWNIAN_GESTURES[gidx].name << ")";
+    } else if (r == ORB_RULE_ORBITAL && gidx != 0u) {
+        std::cout << " (gesture: " << ORB_ORBITAL_GESTURES[gidx].name << ")";
+    } else if (r == ORB_RULE_FLOCKING && gidx != 0u) {
+        std::cout << " (gesture: " << ORB_FLOCK_GESTURES[gidx].name << ")";
     }
     std::cout << "\n";
 }
 
-// KP_DECIMAL: cycle through the flocking gesture registry. Player
-// state: persists across mood transitions. Takes effect instantly
-// when the active rule is Flocking; silent advance otherwise.
-void cycle_orb_flock_gesture(wgpu::Queue& queue) {
-    orbFlockGestureIdx_ = (orbFlockGestureIdx_ + 1u) % ORB_FLOCK_GESTURE_COUNT;
-    const auto& g = ORB_FLOCK_GESTURES[orbFlockGestureIdx_];
-    gpuState_.upload_orb_flock_signs(queue, g.sep_sign, g.align_sign, g.coh_sign);
+// KP_DECIMAL: cycle the gesture registry for the CURRENTLY ACTIVE
+// motion rule. Brownian / Orbital / Flocking each have their own
+// table; Frozen has none and short-circuits. Player state: each
+// rule's index persists across mood transitions.
+void cycle_orb_gesture(wgpu::Queue& queue) {
+    const uint32_t r = orbCurrentMotionRule_;
 
-    std::cout << "[Orbs] Flock gesture: " << g.name
-        << " (sep=" << (g.sep_sign > 0 ? "+" : "-")
-        << " align=" << (g.align_sign > 0 ? "+" : "-")
-        << " coh="  << (g.coh_sign  > 0 ? "+" : "-")
-        << ")\n";
+    if (r == ORB_RULE_BROWNIAN) {
+        orbGestureIdx_[r] = (orbGestureIdx_[r] + 1u) % ORB_BROWNIAN_GESTURE_COUNT;
+        const auto& g = ORB_BROWNIAN_GESTURES[orbGestureIdx_[r]];
+        gpuState_.upload_orb_brownian_gesture(queue,
+            g.radial_sign, g.vert_bias, g.coherence);
+        std::cout << "[Orbs] Brownian gesture: " << g.name << "\n";
+        return;
+    }
+    if (r == ORB_RULE_ORBITAL) {
+        orbGestureIdx_[r] = (orbGestureIdx_[r] + 1u) % ORB_ORBITAL_GESTURE_COUNT;
+        const auto& g = ORB_ORBITAL_GESTURES[orbGestureIdx_[r]];
+        gpuState_.upload_orb_orbital_gesture(queue,
+            g.alignment_mode, g.speed_var_mult);
+        std::cout << "[Orbs] Orbital gesture: " << g.name << "\n";
+        return;
+    }
+    if (r == ORB_RULE_FLOCKING) {
+        orbGestureIdx_[r] = (orbGestureIdx_[r] + 1u) % ORB_FLOCK_GESTURE_COUNT;
+        const auto& g = ORB_FLOCK_GESTURES[orbGestureIdx_[r]];
+        gpuState_.upload_orb_flock_signs(queue,
+            g.sep_sign, g.align_sign, g.coh_sign);
+        std::cout << "[Orbs] Flocking gesture: " << g.name
+            << " (sep=" << (g.sep_sign > 0 ? "+" : "-")
+            << " align=" << (g.align_sign > 0 ? "+" : "-")
+            << " coh="  << (g.coh_sign  > 0 ? "+" : "-")
+            << ")\n";
+        return;
+    }
+
+    // ORB_RULE_FROZEN: stillness is the rule's defining property.
+    std::cout << "[Orbs] Frozen has no gestures (stillness is the rule).\n";
 }
 
 // KP_9: flip dome anchor between world origin and pawn-following.

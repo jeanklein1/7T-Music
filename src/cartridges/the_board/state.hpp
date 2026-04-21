@@ -959,9 +959,9 @@ namespace t7 {
             //   noise_gain, force_gain, color_gain,
             //   cumulative_weight (CPU-computed from weights)
             uint32_t tier_count;         //176
-            float    _pad_tier0;         //180
-            float    _pad_tier1;         //184
-            float    _pad_tier2;         //188
+            float    brownian_radial_sign;     //180  (±1; was _pad_tier0)
+            float    brownian_vert_bias;       //184  (0 or 1; was _pad_tier1)
+            float    brownian_coherence;       //188  (0 or 1; was _pad_tier2)
             float    tier0_mass_mult;         //192
             float    tier0_drag_mult;         //196
             float    tier0_size_min;          //200
@@ -1019,12 +1019,12 @@ namespace t7 {
             float    rule_drag_orbital;           //400  (multiplier — was _pad_flock4)
             float    rule_drag_frozen;            //404  (multiplier — was _pad_flock5)
             float    rule_drag_flocking;          //408  (multiplier — was _pad_flock6)
-            float    _pad_flock7;                 //412  (headroom)
+            float    orbital_alignment_mode;      //412  (0=scatter 1=parallel 2=mirror; was _pad_flock7)
             // ── Pass 9: per-tier flocking gains ─────────────────
             float    tier0_flock_sep_gain;        //416
             float    tier0_flock_align_gain;      //420
             float    tier0_flock_coh_gain;        //424
-            float    _tier0_flock_pad;            //428
+            float    orbital_speed_var_mult;      //428  (variance multiplier; was _tier0_flock_pad)
             float    tier1_flock_sep_gain;        //432
             float    tier1_flock_align_gain;      //436
             float    tier1_flock_coh_gain;        //440
@@ -2298,6 +2298,30 @@ namespace t7 {
                 queue.WriteBuffer(orbConfigBuffer_,
                     offsetof(GPUOrbConfig, flock_sep_sign),
                     &packed, sizeof(packed));
+            }
+            // Pass 13: Brownian gesture bundle — three contiguous floats
+            // at offset 180 (radial_sign, vert_bias, coherence).
+            void upload_orb_brownian_gesture(wgpu::Queue& queue,
+                                             float radial_sign,
+                                             float vert_bias,
+                                             float coherence) {
+                struct { float r, v, c; } packed = { radial_sign, vert_bias, coherence };
+                queue.WriteBuffer(orbConfigBuffer_,
+                    offsetof(GPUOrbConfig, brownian_radial_sign),
+                    &packed, sizeof(packed));
+            }
+            // Pass 13: Orbital gesture bundle — two non-contiguous floats
+            // (412 and 428, interleaved by tier-flock-gain blocks).
+            // Two tiny writes — only fires on gesture cycle, not per frame.
+            void upload_orb_orbital_gesture(wgpu::Queue& queue,
+                                            float alignment_mode,
+                                            float speed_var_mult) {
+                queue.WriteBuffer(orbConfigBuffer_,
+                    offsetof(GPUOrbConfig, orbital_alignment_mode),
+                    &alignment_mode, sizeof(float));
+                queue.WriteBuffer(orbConfigBuffer_,
+                    offsetof(GPUOrbConfig, orbital_speed_var_mult),
+                    &speed_var_mult, sizeof(float));
             }
             // Per-frame color dynamics: pulse / converge / surge intensities.
             // hue_converge_target lives at offset 156 and changes only on mood

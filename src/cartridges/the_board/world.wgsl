@@ -8616,10 +8616,10 @@ struct OrbConfig {
     _pad_anchor:         f32,
 
     // ── Tier common ──────────────────────────────────────────
-    tier_count:          u32,   // 0 = legacy uniform population
-    _pad_tier0:          f32,
-    _pad_tier1:          f32,
-    _pad_tier2:          f32,
+    tier_count:              u32,
+    brownian_radial_sign:    f32,
+    brownian_vert_bias:      f32,
+    brownian_coherence:      f32,
 
     // ── Tier data (4 tiers × 10 fields, read as a 4×10 matrix) ──
     //                     mass   drag   s_min  s_max  b_min  b_max  n_gain f_gain c_gain cum_w
@@ -8685,14 +8685,14 @@ struct OrbConfig {
     rule_drag_orbital:        f32,
     rule_drag_frozen:         f32,
     rule_drag_flocking:       f32,
-    _pad_flock7:              f32,
+    orbital_alignment_mode:   f32,
 
     // ── Per-tier flocking gains (4 tiers × 4 fields) ─────────
     //                     sep_g  align_g coh_g  _pad
     tier0_flock_sep_gain:   f32,
     tier0_flock_align_gain: f32,
     tier0_flock_coh_gain:   f32,
-    _tier0_flock_pad:       f32,
+    orbital_speed_var_mult: f32,
 
     tier1_flock_sep_gain:   f32,
     tier1_flock_align_gain: f32,
@@ -8834,6 +8834,19 @@ fn orb_sample_palette(seed: u32) -> vec3<f32> {
 // (tier_count, per-invocation tier_idx) so FXC handles them without
 // divergence penalty. The pattern is mechanical; it's kept in this
 // compact form so the obvious repetition doesn't dominate the file.
+
+// Pass 13: coherent-noise seed. When Brownian's coherence gesture
+// bit is active, neighbouring orbs share a hash by quantizing
+// position to 80-unit blocks — "wind-gust" grouping roughly 1/5
+// the dome radius. Hard block edges; a smoother variant (interp
+// across neighbours) is a future refinement.
+fn orb_coherent_noise_seed(pos: vec3<f32>, t_seed: u32) -> u32 {
+    let block = vec3<i32>(floor(pos / 80.0));
+    let bx = bitcast<u32>(block.x);
+    let by = bitcast<u32>(block.y);
+    let bz = bitcast<u32>(block.z);
+    return t_seed ^ (bx * 73856093u) ^ (by * 19349663u) ^ (bz * 83492791u);
+}
 
 fn orb_roll_tier(seed: u32) -> u32 {
     if (orb_config.tier_count == 0u) { return 0u; }
@@ -9041,41 +9054,73 @@ fn orb_dynamics(@builtin(global_invocation_id) id: vec3<u32>) {
     // Uniform branch — every invocation in the workgroup takes
     // the same path, no FXC divergence penalty.
     if (orb_config.motion_rule == 0u) {
-        // ── BROWNIAN ─────────────────────────────────────────
-        // Drag → noise impulse → radial force.
-
+        // ── BROWNIAN (gesture-modulated) ─────────────────────
+        // drift / gather / rise / gust / tide / swell
         orb.vel = orb.vel * exp(-orb.drag * orb_config.rule_drag_brownian * dt);
 
         if (orb_config.noise_amp > 0.0) {
-            let noise_seed = bitcast<u32>(orb_config.t_seconds * 1000.0)
-                             ^ (i * 2654435761u);
-            let nx = (hash_property(noise_seed, 1u) - 0.5) * 2.0;
-            let ny = (hash_property(noise_seed, 2u) - 0.5) * 2.0;
-            let nz = (hash_property(noise_seed, 3u) - 0.5) * 2.0;
+            let t_seed = bitcast<u32>(orb_config.t_seconds * 1000.0);
+            var noise_seed: u32;
+            if (orb_config.brownian_coherence > 0.5) {
+                noise_seed = orb_coherent_noise_seed(orb.pos, t_seed);
+            } else {
+                noise_seed = t_seed ^ (i * 2654435761u);
+            }
+
+            let nx     = (hash_property(noise_seed, 1u) - 0.5) * 2.0;
+            let ny_raw = (hash_property(noise_seed, 2u) - 0.5) * 2.0;
+            let nz     = (hash_property(noise_seed, 3u) - 0.5) * 2.0;
+
+            // Vertical bias: 0 = isotropic; 1 = upward-only (abs folds
+            // negatives to positives, embers rising instead of
+            // drifting symmetrically).
+            let ny = mix(ny_raw, abs(ny_raw), orb_config.brownian_vert_bias);
+
             orb.vel += vec3<f32>(nx, ny, nz)
                 * orb_config.noise_amp * sqrt(dt) * noise_gain_t;
         }
 
         if (abs(orb_config.force_radial) > 0.001) {
             let radial_dir = normalize(orb.pos);
+            // Radial sign: +1 expands, -1 contracts (gather/tide).
             orb.vel += radial_dir * orb_config.force_radial
+                * orb_config.brownian_radial_sign
                 * dt * force_gain_t / orb.mass;
         }
 
     } else if (orb_config.motion_rule == 1u) {
-        // ── ORBITAL ──────────────────────────────────────────
-        // Each orb follows a seed-derived great-circle path. vel
-        // is perturbation only — drag damps deviations, not the
-        // orbital motion itself.
+        // ── ORBITAL (gesture-modulated) ──────────────────────
+        // scatter / parallel / mirror / shear
+        // vel stays perturbation-only; drag damps deviations, not
+        // the orbital motion.
 
         let orb_seed = orb_config.seed ^ (i * 2654435761u);
-        let ax = hash_property(orb_seed, 20u) - 0.5;
-        let ay = hash_property(orb_seed, 21u) - 0.5;
-        let az = hash_property(orb_seed, 22u) - 0.5;
-        let orbital_axis = normalize(vec3<f32>(ax, ay, az));
 
-        let speed_var = 0.5 + hash_property(orb_seed, 23u);
-        let orbital_speed = orb_config.orbital_base_speed * speed_var;
+        // Axis depends on alignment_mode:
+        //  0 scatter  — random per orb (legacy behaviour)
+        //  1 parallel — shared Y-up for the whole shell
+        //  2 mirror   — Y-up with a seed-parity sign flip
+        var orbital_axis: vec3<f32>;
+        let mode = orb_config.orbital_alignment_mode;
+        if (mode < 0.5) {
+            let ax = hash_property(orb_seed, 20u) - 0.5;
+            let ay = hash_property(orb_seed, 21u) - 0.5;
+            let az = hash_property(orb_seed, 22u) - 0.5;
+            orbital_axis = normalize(vec3<f32>(ax, ay, az));
+        } else if (mode < 1.5) {
+            orbital_axis = vec3<f32>(0.0, 1.0, 0.0);
+        } else {
+            let parity = hash_property(orb_seed, 24u);
+            let sgn = select(-1.0, 1.0, parity > 0.5);
+            orbital_axis = vec3<f32>(0.0, sgn, 0.0);
+        }
+
+        // Speed variance: 1.0 + (hash-0.5) * speed_var_mult so
+        // speed_var_mult=1 reproduces legacy 0.5..1.5 spread,
+        // 0 collapses to unified speed, >1 spreads into sheets.
+        let raw_var = hash_property(orb_seed, 23u) - 0.5;
+        let speed_factor  = 1.0 + raw_var * orb_config.orbital_speed_var_mult;
+        let orbital_speed = orb_config.orbital_base_speed * speed_factor;
 
         orb.pos = rodrigues(orb.pos, orbital_axis, orbital_speed * dt);
 

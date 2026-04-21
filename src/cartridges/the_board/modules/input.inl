@@ -160,7 +160,7 @@ void on_key_down(int key) {
     case GLFW_KEY_KP_9: toggle_orb_anchor();                 break;
     case GLFW_KEY_KP_DECIMAL: {
         wgpu::Queue q = device_.GetQueue();
-        cycle_orb_flock_gesture(q);
+        cycle_orb_gesture(q);
         break;
     }
     case GLFW_KEY_LEFT_CONTROL:
