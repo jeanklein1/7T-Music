@@ -8697,7 +8697,8 @@ struct OrbConfig {
     tier1_flock_sep_gain:   f32,
     tier1_flock_align_gain: f32,
     tier1_flock_coh_gain:   f32,
-    _tier1_flock_pad:       f32,
+    speed_mult:             f32,   // offset 444; 1.0 = identity. Applied
+                                   // to each rule's dominant speed param.
 
     tier2_flock_sep_gain:   f32,
     tier2_flock_align_gain: f32,
@@ -9077,7 +9078,8 @@ fn orb_dynamics(@builtin(global_invocation_id) id: vec3<u32>) {
             let ny = mix(ny_raw, abs(ny_raw), orb_config.brownian_vert_bias);
 
             orb.vel += vec3<f32>(nx, ny, nz)
-                * orb_config.noise_amp * sqrt(dt) * noise_gain_t;
+                * orb_config.noise_amp * orb_config.speed_mult
+                * sqrt(dt) * noise_gain_t;
         }
 
         if (abs(orb_config.force_radial) > 0.001) {
@@ -9120,7 +9122,9 @@ fn orb_dynamics(@builtin(global_invocation_id) id: vec3<u32>) {
         // 0 collapses to unified speed, >1 spreads into sheets.
         let raw_var = hash_property(orb_seed, 23u) - 0.5;
         let speed_factor  = 1.0 + raw_var * orb_config.orbital_speed_var_mult;
-        let orbital_speed = orb_config.orbital_base_speed * speed_factor;
+        let orbital_speed = orb_config.orbital_base_speed
+                          * speed_factor
+                          * orb_config.speed_mult;
 
         orb.pos = rodrigues(orb.pos, orbital_axis, orbital_speed * dt);
 
@@ -9224,10 +9228,13 @@ fn orb_dynamics(@builtin(global_invocation_id) id: vec3<u32>) {
             + coh_force * orb_config.flock_coh_weight   * coh_g * coh_mod * coh_s * dt;
 
         // Speed clamp — prevent runaway velocity from force accumulation.
+        // Scaled by speed_mult so the steady-state flock speed follows
+        // the population-wide attractor.
+        let eff_max = orb_config.flock_max_speed * orb_config.speed_mult;
         let speed2 = dot(orb.vel, orb.vel);
-        let max_s2 = orb_config.flock_max_speed * orb_config.flock_max_speed;
+        let max_s2 = eff_max * eff_max;
         if (speed2 > max_s2 && speed2 > 0.0) {
-            orb.vel = orb.vel * (orb_config.flock_max_speed / sqrt(speed2));
+            orb.vel = orb.vel * (eff_max / sqrt(speed2));
         }
 
         if (abs(orb_config.force_radial) > 0.001) {

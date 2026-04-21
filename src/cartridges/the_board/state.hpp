@@ -1028,7 +1028,7 @@ namespace t7 {
             float    tier1_flock_sep_gain;        //432
             float    tier1_flock_align_gain;      //436
             float    tier1_flock_coh_gain;        //440
-            float    _tier1_flock_pad;            //444
+            float    speed_mult;                  //444  (was _tier1_flock_pad; 1.0 = identity. Pass 14 population speed)
             float    tier2_flock_sep_gain;        //448
             float    tier2_flock_align_gain;      //452
             float    tier2_flock_coh_gain;        //456
@@ -2322,6 +2322,13 @@ namespace t7 {
                 queue.WriteBuffer(orbConfigBuffer_,
                     offsetof(GPUOrbConfig, orbital_speed_var_mult),
                     &speed_var_mult, sizeof(float));
+            }
+            // Pass 14: population speed multiplier (1.0 = identity). Fires
+            // only when the attractor smoother moves — quiet at rest.
+            void upload_orb_speed_mult(wgpu::Queue& queue, float mult) {
+                queue.WriteBuffer(orbConfigBuffer_,
+                    offsetof(GPUOrbConfig, speed_mult),
+                    &mult, sizeof(float));
             }
             // Per-frame color dynamics: pulse / converge / surge intensities.
             // hue_converge_target lives at offset 156 and changes only on mood

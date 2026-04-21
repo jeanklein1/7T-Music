@@ -68,6 +68,13 @@ static constexpr float ORB_COLOR_RELEASE = 2.5f;
 static constexpr float ORB_FLOCK_ATTACK = 2.5f;
 static constexpr float ORB_FLOCK_RELEASE = 2.5f;
 
+// Pass 14: population speed attractor. Smoother + attack/release
+// pulling orbSpeedMultCurrent_ toward a target that's currently
+// hardcoded to 1.0 (inert). Replace the target expression in
+// update_orb_coupling when the musical driver arrives.
+static constexpr float ORB_SPEED_ATTACK = 2.0f;
+static constexpr float ORB_SPEED_RELEASE = 1.0f;   // slower return
+
 // ── Rule-critical parameter floors ───────────────────────────────
 // Applied in configure_orbs when the mood authors 0.0 for a given
 // field: zero reads as "no opinion, use system default" so every
@@ -449,6 +456,10 @@ bool     orbColorSurgeActive_ = false;
 float    orbFlockIntensity_ = 0.0f;
 bool     orbFlockActive_ = false;  // true when active rule is Flocking
 
+// Pass 14: population speed attractor. Smoothed on the CPU,
+// uploaded via upload_orb_speed_mult only when it moves.
+float    orbSpeedMultCurrent_ = 1.0f;
+
 
 // ═══ GPU LAYOUT HELPERS ══════════════════════════════════════════
 
@@ -641,6 +652,11 @@ void pack_flocking_(GPUOrbConfig& gpuCfg,
     gpuCfg.rule_drag_orbital = passthrough(rule_drag_orb);
     gpuCfg.rule_drag_frozen = passthrough(rule_drag_frz);
     gpuCfg.rule_drag_flocking = passthrough(rule_drag_flk);
+
+    // Pass 14: preserve the current smoothed speed multiplier across
+    // mood transitions — use the in-flight value rather than a literal
+    // 1.0 so a mood portal doesn't snap the sky back to baseline.
+    gpuCfg.speed_mult = orbSpeedMultCurrent_;
 }
 
 // Log the effective config after sanitization. Shows what the GPU
@@ -794,6 +810,9 @@ void teardown_orbs() {
 
     orbFlockIntensity_ = 0.0f;
     orbFlockActive_ = false;
+
+    // Pass 14: speed multiplier resets with the mood (not player state).
+    orbSpeedMultCurrent_ = 1.0f;
 
     // Force fresh anchor upload on next configure (cache cleared, flag state preserved).
     orbLastDomeCenterX_ = 0.0f;
@@ -1001,6 +1020,25 @@ void update_orb_coupling(float polyphony, float dt, wgpu::Queue& queue) {
         if (next != prev) {
             orbFlockIntensity_ = next;
             gpuState_.upload_orb_flock_intensity(queue, orbFlockIntensity_);
+        }
+    }
+
+    // Pass 14: population speed attractor. Pulls orbSpeedMultCurrent_
+    // toward a target that's currently inert (1.0 = identity). When
+    // the musical driver arrives, change the target expression to a
+    // polyphony-derived value and the rest of this block is ready.
+    {
+        const float speed_target = 1.0f;   // ← future: polyphony-driven
+
+        float prev = orbSpeedMultCurrent_;
+        float rate = (speed_target > prev) ? ORB_SPEED_ATTACK : ORB_SPEED_RELEASE;
+        float next = prev + (speed_target - prev) * (1.0f - std::exp(-rate * dt));
+        // Snap back to unity when we arrive, so the idle state stops
+        // generating queue traffic.
+        if (next < 1.001f && next > 0.999f && speed_target == 1.0f) next = 1.0f;
+        if (next != prev) {
+            orbSpeedMultCurrent_ = next;
+            gpuState_.upload_orb_speed_mult(queue, orbSpeedMultCurrent_);
         }
     }
 }
