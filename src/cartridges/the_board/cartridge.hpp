@@ -161,66 +161,31 @@ namespace t7 {
                 bool   allow_pawn_aura;        // toroidal spring grid tinting + height boost
                 bool   allow_frustum_cull;     // GPU frustum cull for LOD0 terrain (Tier 4)
 
-                // ─── Sky orbs (per-mood) ────────────────────────────────
-                // Declarative config for the orb layer. disabled in indoor moods.
-                // noise_amp is the CEILING (floor is a constant in orbs.inl);
-                // polyphony lerps from floor up to this value.
-                struct OrbMoodConfigInit {
-                    bool     enabled;
-                    uint32_t count;
-                    float    base_hue;           // legacy
-                    float    hue_variance;       // legacy
-                    float    brightness;
-                    float    drag;
-                    float    noise_amp;
-                    uint32_t motion_rule;        // 0=Brownian, 1=Orbital, 2=Frozen
-                    float    rotation_speed;     // dome angular velocity (rad/s)
-                    float    rotation_axis[3];   // rotation axis (normalized in configure)
-                    float    orbital_base_speed; // per-orb orbital rate (rad/s), rule 1 only
-                    uint32_t palette_id;         // ORB_PAL_* index
-                    // ── Pass 5: color dynamics gates + convergence target ──
-                    bool     color_pulse_enabled;
-                    bool     color_converge_enabled;
-                    bool     color_surge_enabled;
-                    float    hue_converge_target;
-                    // ── Pass 7: pawn-anchored dome default (first-run seed) ──
-                    bool     anchor_to_pawn_default;
-                    // ── Pass 8: tier set (0xFFFFFFFFu = legacy uniform pop) ──
-                    uint32_t tierset_id;
-                    // ── Pass 9: flocking mood-level params (used when motion_rule==3) ──
-                    float    flock_sep_radius;
-                    float    flock_align_radius;
-                    float    flock_coh_radius;
-                    float    flock_sep_weight;
-                    float    flock_align_weight;
-                    float    flock_coh_weight;
-                    float    flock_max_speed;
-                    // ── Pass 12: flocking gesture default (first-run seed) ──
-                    uint32_t flock_gesture_default;
-                    // ── Pass 12: per-rule drag multipliers (0 = 1.0× pass-through) ──
-                    float    rule_drag_brownian;
-                    float    rule_drag_orbital;
-                    float    rule_drag_frozen;
-                    float    rule_drag_flocking;
-                };
-                OrbMoodConfigInit orbs;
+                // Sky orb config is a parallel table (ORB_MOOD_TABLE, below),
+                // indexed by the same mood index as MOOD_TABLE. See orbs.inl
+                // for the OrbMoodConfig field definitions.
             };
 
             static constexpr uint32_t MOOD_COUNT = 6;
 
             // ─── Mood Definitions ───────────────────────────────────────────
             //
-            //                                  fin  r_min r_max  sun_dir                sun_color              int   amb   fog_d   fog_color               indoor  ceil       ceil_h  clear_color            wall_color             ceil_color
-            //                                                                                                                                                                                                                                                                                                                                              musical  gol    aura   frustum    orbs{enabled, count, hue(legacy), hue_var(legacy), bright, drag, noise, rule, rot, {axis}, orbital, palette, pulse, converge, surge, converge_target, anchor_default, tierset, flock{sep_r, align_r, coh_r, sep_w, align_w, coh_w, max_speed}, flock_gesture_default, rule_drag{brownian, orbital, frozen, flocking}}
-            //                                  fin  r_min r_max  sun_dir                sun_color              int   amb   fog_d   fog_color               indoor  ceil       ceil_h  clear_color            wall_color             ceil_color               modes   zones  aura   cull        orbs
+            // Sky orb config lives in ORB_MOOD_TABLE below, indexed by the
+            // same mood index.
+            //
+            //                                  fin  r_min r_max  sun_dir                sun_color              int   amb   fog_d   fog_color               indoor  ceil       ceil_h  clear_color            wall_color             ceil_color               modes   zones  aura   cull
             static constexpr MoodProfile MOOD_TABLE[MOOD_COUNT] = {
-                /* 0  open_default        */  { false, 2, 2, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true,   { true,  128, 0.08f, 0.06f, 0.85f, 0.4f, 20.0f, 0u, 0.012f, {0.15f, 0.97f, 0.10f}, 0.0f,  0u, true,  true,  true,  0.12f, false, 0u,         50.0f, 120.0f, 200.0f, 30.0f, 8.0f, 15.0f, 60.0f, 0u, 0.0f, 0.0f, 0.0f, 0.0f } },
-                /* 1  open_sunset         */  { false, 2, 2, { 0.96f,-0.26f,-0.13f}, {1.0f, 0.75f, 0.45f}, 0.90f, 0.20f, 0.0050f, {0.95f, 0.70f, 0.45f},  false, CeilingType::NONE,  0.0f,  {0.95f, 0.70f, 0.45f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true,   { true,  128, 0.08f, 0.06f, 0.85f, 0.4f, 20.0f, 3u, 0.012f, {0.15f, 0.97f, 0.10f}, 0.0f,  0u, true,  false, false, 0.08f, false, 0u,         50.0f, 120.0f, 200.0f, 30.0f, 8.0f, 15.0f, 60.0f, 0u, 0.0f, 0.0f, 0.0f, 0.0f } },
-                /* 2  indoor_flat         */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f, 0.0003f, {0.15f, 0.12f, 0.10f},  true,  CeilingType::FLAT,  20.0f, {0.15f, 0.12f, 0.10f}, {0.65f,0.58f,0.50f}, {0.60f,0.55f,0.48f},   true,  true,  true,  false,  { false, 0,   0.08f, 0.05f, 0.80f, 0.5f, 0.0f,  0u, 0.000f, {0.00f, 1.00f, 0.00f}, 0.0f,  0u, false, false, false, 0.12f, false, 0xFFFFFFFFu, 50.0f, 120.0f, 200.0f, 30.0f, 8.0f, 15.0f, 60.0f, 0u, 0.0f, 0.0f, 0.0f, 0.0f } },
-                /* 3  indoor_vault        */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f, 0.0003f, {0.15f, 0.12f, 0.10f},  true,  CeilingType::VAULT, 25.0f, {0.15f, 0.12f, 0.10f}, {0.70f,0.62f,0.52f}, {0.65f,0.58f,0.50f},   true,  true,  true,  false,  { false, 0,   0.08f, 0.05f, 0.80f, 0.5f, 0.0f,  0u, 0.000f, {0.00f, 1.00f, 0.00f}, 0.0f,  0u, false, false, false, 0.12f, false, 0xFFFFFFFFu, 50.0f, 120.0f, 200.0f, 30.0f, 8.0f, 15.0f, 60.0f, 0u, 0.0f, 0.0f, 0.0f, 0.0f } },
-                /* 4  finite_outdoor      */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true,   { true,  128, 0.08f, 0.06f, 0.85f, 0.4f, 20.0f, 0u, 0.012f, {0.15f, 0.97f, 0.10f}, 0.0f,  0u, true,  true,  true,  0.12f, false, 0u,         50.0f, 120.0f, 200.0f, 30.0f, 8.0f, 15.0f, 60.0f, 0u, 0.0f, 0.0f, 0.0f, 0.0f } },
-                /* 5  finite_outdoor_ref  */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true,   { true,  128, 0.08f, 0.06f, 0.85f, 0.4f, 20.0f, 0u, 0.012f, {0.15f, 0.97f, 0.10f}, 0.0f,  0u, true,  true,  true,  0.12f, false, 0u,         50.0f, 120.0f, 200.0f, 30.0f, 8.0f, 15.0f, 60.0f, 0u, 0.0f, 0.0f, 0.0f, 0.0f } },
+                /* 0  open_default        */  { false, 2, 2, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true  },
+                /* 1  open_sunset         */  { false, 2, 2, { 0.96f,-0.26f,-0.13f}, {1.0f, 0.75f, 0.45f}, 0.90f, 0.20f, 0.0050f, {0.95f, 0.70f, 0.45f},  false, CeilingType::NONE,  0.0f,  {0.95f, 0.70f, 0.45f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true  },
+                /* 2  indoor_flat         */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f, 0.0003f, {0.15f, 0.12f, 0.10f},  true,  CeilingType::FLAT,  20.0f, {0.15f, 0.12f, 0.10f}, {0.65f,0.58f,0.50f}, {0.60f,0.55f,0.48f},   true,  true,  true,  false },
+                /* 3  indoor_vault        */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f, 0.0003f, {0.15f, 0.12f, 0.10f},  true,  CeilingType::VAULT, 25.0f, {0.15f, 0.12f, 0.10f}, {0.70f,0.62f,0.52f}, {0.65f,0.58f,0.50f},   true,  true,  true,  false },
+                /* 4  finite_outdoor      */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true  },
+                /* 5  finite_outdoor_ref  */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true  },
             };
+
+            // Orb mood config lives in ORB_MOOD_TABLE, declared right after
+            // the #include "modules/orbs.inl" below (where OrbMoodConfig is
+            // defined). Same MOOD_COUNT size, indexed by the same mood index.
 
             static const char* mood_name(uint32_t mood) {
                 static const char* NAMES[] = { "open_default", "open_sunset", "indoor_flat", "indoor_vault", "finite_outdoor", "finite_outdoor_ref" };
@@ -1508,6 +1473,39 @@ namespace t7 {
 
                         // ── Sky Orbs (modules/orbs.inl) ──
 #include "modules/orbs.inl"
+
+            // ─── Orb Mood Table ─────────────────────────────────────────────
+            //
+            // Per-mood orb config. Indexed by the same mood index as MOOD_TABLE.
+            // See OrbMoodConfig in orbs.inl (above) for field semantics. Zero-
+            // valued rule-critical fields (drg, nz, orbS, flock radii/weights)
+            // are sanitized to system defaults in configure_orbs — "0 = no
+            // opinion, system picks a working value." Explicit small non-zero
+            // reads as deliberate authorship.
+            //
+            //  Column legend (short → field name):
+            //    en      enabled              rotAxis rotation_axis[3]
+            //    n       count                orbS    orbital_base_speed (rule 1)
+            //    hueB    base_hue (legacy)    pal     palette_id (ORB_PAL_*)
+            //    hueV    hue_variance         pul     color_pulse_enabled
+            //    bri     brightness           cnv     color_converge_enabled
+            //    drg     drag (1/s)           srg     color_surge_enabled
+            //    nz      noise_amp ceiling    hct     hue_converge_target
+            //    rul     motion_rule          anc     anchor_to_pawn_default
+            //    rotS    rotation_speed       trs     tierset_id (0xFFFFFFFFu = legacy)
+            //    sepR/alnR/cohR/sepW/alnW/cohW/maxS   flocking parameters
+            //    gst     flock_gesture_default (0..7, ORB_FLOCK_GESTURES index)
+            //    drgB/drgO/drgF/drgK          per-rule drag multipliers (0 = 1.0× pass-through)
+            //
+            //                                              en     n    hueB   hueV   bri    drg   nz      rul  rotS    rotAxis                  orbS  pal  pul    cnv    srg    hct    anc    trs           sepR   alnR    cohR    sepW   alnW   cohW   maxS   gst  drgB  drgO  drgF  drgK
+            static constexpr OrbMoodConfig ORB_MOOD_TABLE[MOOD_COUNT] = {
+                /* 0 open_default        */ {  true,  128, 0.08f, 0.06f, 0.85f, 0.4f, 20.0f,  0u,  0.012f, {0.15f, 0.97f, 0.10f},  0.0f, 0u,  true,  true,  true,  0.12f, false, 0u,           50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
+                /* 1 open_sunset         */ {  true,  128, 0.08f, 0.06f, 0.85f, 0.4f, 20.0f,  3u,  0.012f, {0.15f, 0.97f, 0.10f},  0.0f, 0u,  true,  false, false, 0.08f, false, 0u,           50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
+                /* 2 indoor_flat         */ {  false, 0,   0.08f, 0.05f, 0.80f, 0.5f, 0.0f,   0u,  0.000f, {0.00f, 1.00f, 0.00f},  0.0f, 0u,  false, false, false, 0.12f, false, 0xFFFFFFFFu,  50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
+                /* 3 indoor_vault        */ {  false, 0,   0.08f, 0.05f, 0.80f, 0.5f, 0.0f,   0u,  0.000f, {0.00f, 1.00f, 0.00f},  0.0f, 0u,  false, false, false, 0.12f, false, 0xFFFFFFFFu,  50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
+                /* 4 finite_outdoor      */ {  true,  128, 0.08f, 0.06f, 0.85f, 0.4f, 20.0f,  0u,  0.012f, {0.15f, 0.97f, 0.10f},  0.0f, 0u,  true,  true,  true,  0.12f, false, 0u,           50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
+                /* 5 finite_outdoor_ref  */ {  true,  128, 0.08f, 0.06f, 0.85f, 0.4f, 20.0f,  0u,  0.012f, {0.15f, 0.97f, 0.10f},  0.0f, 0u,  true,  true,  true,  0.12f, false, 0u,           50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
+            };
 
 // ── Spawn Engine & Entity Lifecycle (modules/spawn_engine.inl) ──
 // ═══ INLINED: modules/spawn_engine.inl ═══════════════════════════════
@@ -7511,41 +7509,7 @@ namespace t7 {
                 // Sky orbs for the initial mood (apply_mood runs only on transitions).
                 {
                     wgpu::Queue q = device_.GetQueue();
-                    const auto& m0 = MOOD_TABLE[activeMood_];
-                    OrbMoodConfig ocfg{};
-                    ocfg.enabled            = m0.orbs.enabled;
-                    ocfg.count              = m0.orbs.count;
-                    ocfg.base_hue           = m0.orbs.base_hue;
-                    ocfg.hue_variance       = m0.orbs.hue_variance;
-                    ocfg.brightness         = m0.orbs.brightness;
-                    ocfg.drag               = m0.orbs.drag;
-                    ocfg.noise_amp          = m0.orbs.noise_amp;
-                    ocfg.motion_rule        = m0.orbs.motion_rule;
-                    ocfg.rotation_speed     = m0.orbs.rotation_speed;
-                    ocfg.rotation_axis[0]   = m0.orbs.rotation_axis[0];
-                    ocfg.rotation_axis[1]   = m0.orbs.rotation_axis[1];
-                    ocfg.rotation_axis[2]   = m0.orbs.rotation_axis[2];
-                    ocfg.orbital_base_speed = m0.orbs.orbital_base_speed;
-                    ocfg.palette_id         = m0.orbs.palette_id;
-                    ocfg.color_pulse_enabled    = m0.orbs.color_pulse_enabled;
-                    ocfg.color_converge_enabled = m0.orbs.color_converge_enabled;
-                    ocfg.color_surge_enabled    = m0.orbs.color_surge_enabled;
-                    ocfg.hue_converge_target    = m0.orbs.hue_converge_target;
-                    ocfg.anchor_to_pawn_default = m0.orbs.anchor_to_pawn_default;
-                    ocfg.tierset_id             = m0.orbs.tierset_id;
-                    ocfg.flock_sep_radius       = m0.orbs.flock_sep_radius;
-                    ocfg.flock_align_radius     = m0.orbs.flock_align_radius;
-                    ocfg.flock_coh_radius       = m0.orbs.flock_coh_radius;
-                    ocfg.flock_sep_weight       = m0.orbs.flock_sep_weight;
-                    ocfg.flock_align_weight     = m0.orbs.flock_align_weight;
-                    ocfg.flock_coh_weight       = m0.orbs.flock_coh_weight;
-                    ocfg.flock_max_speed        = m0.orbs.flock_max_speed;
-                    ocfg.flock_gesture_default  = m0.orbs.flock_gesture_default;
-                    ocfg.rule_drag_brownian     = m0.orbs.rule_drag_brownian;
-                    ocfg.rule_drag_orbital      = m0.orbs.rule_drag_orbital;
-                    ocfg.rule_drag_frozen       = m0.orbs.rule_drag_frozen;
-                    ocfg.rule_drag_flocking     = m0.orbs.rule_drag_flocking;
-                    configure_orbs(ocfg, q);
+                    configure_orbs(ORB_MOOD_TABLE[activeMood_], q);
                 }
 
                 // Eager-load authored paintings at boot (avoids mid-frame stall on first gallery)

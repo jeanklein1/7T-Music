@@ -8507,18 +8507,44 @@ fn shadow_blade_cluster_vs(in: ArchVertexInput) -> ShadowVarying {
 // §ORB — Sky orb layer: init, dynamics, render
 // ═══════════════════════════════════════════════════════════════════
 //
-// Luminous points on a dome (sphere shell) above the world.
-// Bones pass: seeded positions, static in world space, subtle twinkle.
-// No force fields, no color drift, no density/tier profiles.
+// Luminous points on a dome (sphere shell) above the world. A fixed
+// population of billboarded quads driven by compute kernels and
+// rendered additively into the main pass.
+//
+// Lifecycle:
+//   orb_init            — one-shot: seed → dome position, palette-
+//                         sampled color, tier-sampled physics
+//   orb_recolor         — palette cycle: re-sample colors, keep
+//                         positions/velocities/twinkle
+//   orb_state_prev_copy — per-frame: snapshot state for neighbor
+//                         queries (needed by flocking)
+//   orb_dynamics        — per-frame: rule dispatch + couplings
+//   orb_vs / orb_fs     — billboard draw into main render pass
+//
+// Motion rules (dispatched by orb_config.motion_rule):
+//   0 Brownian  — drag, noise impulse, radial force
+//   1 Orbital   — seed-derived great-circle paths, drag on perturbation
+//   2 Frozen    — drag-to-zero, dome rotation only
+//   3 Flocking  — neighbor-based boids with per-force signs
+//
+// Musical couplings uploaded per-frame:
+//   force_radial          polyphony → expansion force
+//   noise_amp             polyphony → noise ceiling lerp
+//   color_pulse/converge/surge   polyphony → three color trajectories
+//   flock_coupling_intensity     polyphony → flock tightening
 //
 // Bind group topology:
-//   Compute (orb_init, orb_dynamics) — dedicated orb compute layout:
-//     @binding(410) orb_state   storage, read_write
-//     @binding(411) orb_config  uniform
-//   Render (orb_vs, orb_fs) — existing render_entity layout:
-//     @binding(201) render_vp       (already declared)
-//     @binding(280) render_camera   (already declared)
-//     @binding(400) render_orb_state  storage, read (new)
+//   Compute (orb_init, orb_dynamics, orb_recolor) — main layout:
+//     @binding(410) orb_state         storage, read_write
+//     @binding(411) orb_config        uniform
+//     @binding(412) orb_state_prev    storage, read
+//   Compute (orb_state_prev_copy) — copy layout, inverse access:
+//     @binding(413) orb_state_ro      storage, read       (→ orb_state)
+//     @binding(414) orb_state_prev_rw storage, read_write (→ orb_state_prev)
+//   Render (orb_vs, orb_fs) — render_entity layout:
+//     @binding(201) render_vp         (already declared)
+//     @binding(280) render_camera     (already declared)
+//     @binding(400) render_orb_state  storage, read
 
 struct OrbState {
     pos:            vec3<f32>,
@@ -8536,10 +8562,11 @@ struct OrbState {
 }
 
 struct OrbConfig {
+    // ── Base ─────────────────────────────────────────────────
     count:              u32,
     seed:               u32,
-    base_hue:           f32,
-    hue_variance:       f32,
+    base_hue:           f32,    // legacy; superseded by palette when palette_count > 0
+    hue_variance:       f32,    // legacy
     brightness:         f32,
     drag:               f32,
     noise_amp:          f32,
@@ -8547,15 +8574,18 @@ struct OrbConfig {
     base_size:          f32,
     dt:                 f32,
     t_seconds:          f32,
-    force_radial:       f32,
-    motion_rule:        u32,
+    force_radial:       f32,    // polyphony-coupled expansion force
+    motion_rule:        u32,    // 0=Brownian 1=Orbital 2=Frozen 3=Flocking
     rotation_speed:     f32,
     rotation_axis_x:    f32,
     rotation_axis_y:    f32,
     rotation_axis_z:    f32,
-    orbital_base_speed: f32,
+    orbital_base_speed: f32,    // rule 1 only
+
+    // ── Palette (up to 4 HSV pockets, weight-selected) ───────
     palette_count:      u32,
     value_variance:     f32,
+    //                hue         hue_var       saturation   weight
     pal0_hue:           f32,
     pal0_hue_var:       f32,
     pal0_sat:           f32,
@@ -8572,18 +8602,27 @@ struct OrbConfig {
     pal3_hue_var:       f32,
     pal3_sat:           f32,
     pal3_weight:        f32,
-    color_pulse:         f32,
-    color_converge:      f32,
-    color_surge:         f32,
-    hue_converge_target: f32,
+
+    // ── Color dynamics (polyphony-coupled, smoothed on CPU) ──
+    color_pulse:         f32,   // 0..1
+    color_converge:      f32,   // 0..1
+    color_surge:         f32,   // 0..1
+    hue_converge_target: f32,   // mood-scoped, changes at mood entry
+
+    // ── Dome anchor (world origin or pawn-follow) ────────────
     dome_center_x:       f32,
     dome_center_y:       f32,
     dome_center_z:       f32,
     _pad_anchor:         f32,
-    tier_count:          u32,
+
+    // ── Tier common ──────────────────────────────────────────
+    tier_count:          u32,   // 0 = legacy uniform population
     _pad_tier0:          f32,
     _pad_tier1:          f32,
     _pad_tier2:          f32,
+
+    // ── Tier data (4 tiers × 10 fields, read as a 4×10 matrix) ──
+    //                     mass   drag   s_min  s_max  b_min  b_max  n_gain f_gain c_gain cum_w
     tier0_mass_mult:         f32,
     tier0_drag_mult:         f32,
     tier0_size_min:          f32,
@@ -8594,6 +8633,7 @@ struct OrbConfig {
     tier0_force_gain:        f32,
     tier0_color_gain:        f32,
     tier0_cumulative_weight: f32,
+
     tier1_mass_mult:         f32,
     tier1_drag_mult:         f32,
     tier1_size_min:          f32,
@@ -8604,6 +8644,7 @@ struct OrbConfig {
     tier1_force_gain:        f32,
     tier1_color_gain:        f32,
     tier1_cumulative_weight: f32,
+
     tier2_mass_mult:         f32,
     tier2_drag_mult:         f32,
     tier2_size_min:          f32,
@@ -8614,6 +8655,7 @@ struct OrbConfig {
     tier2_force_gain:        f32,
     tier2_color_gain:        f32,
     tier2_cumulative_weight: f32,
+
     tier3_mass_mult:         f32,
     tier3_drag_mult:         f32,
     tier3_size_min:          f32,
@@ -8624,6 +8666,8 @@ struct OrbConfig {
     tier3_force_gain:        f32,
     tier3_color_gain:        f32,
     tier3_cumulative_weight: f32,
+
+    // ── Flocking base (used when motion_rule == 3) ───────────
     flock_sep_radius:         f32,
     flock_align_radius:       f32,
     flock_coh_radius:         f32,
@@ -8631,27 +8675,35 @@ struct OrbConfig {
     flock_align_weight:       f32,
     flock_coh_weight:         f32,
     flock_max_speed:          f32,
-    flock_coupling_intensity: f32,
+    flock_coupling_intensity: f32,   // polyphony-coupled tightening
+    // Per-force signs from the active gesture (±1 each)
     flock_sep_sign:           f32,
     flock_align_sign:         f32,
     flock_coh_sign:           f32,
+    // Per-rule drag multipliers (1.0 = pass-through, sanitized on CPU)
     rule_drag_brownian:       f32,
     rule_drag_orbital:        f32,
     rule_drag_frozen:         f32,
     rule_drag_flocking:       f32,
     _pad_flock7:              f32,
+
+    // ── Per-tier flocking gains (4 tiers × 4 fields) ─────────
+    //                     sep_g  align_g coh_g  _pad
     tier0_flock_sep_gain:   f32,
     tier0_flock_align_gain: f32,
     tier0_flock_coh_gain:   f32,
     _tier0_flock_pad:       f32,
+
     tier1_flock_sep_gain:   f32,
     tier1_flock_align_gain: f32,
     tier1_flock_coh_gain:   f32,
     _tier1_flock_pad:       f32,
+
     tier2_flock_sep_gain:   f32,
     tier2_flock_align_gain: f32,
     tier2_flock_coh_gain:   f32,
     _tier2_flock_pad:       f32,
+
     tier3_flock_sep_gain:   f32,
     tier3_flock_align_gain: f32,
     tier3_flock_coh_gain:   f32,
@@ -8668,13 +8720,15 @@ fn rodrigues(v: vec3<f32>, k: vec3<f32>, theta: f32) -> vec3<f32> {
 
 @group(0) @binding(410) var<storage, read_write> orb_state: array<OrbState>;
 @group(0) @binding(411) var<uniform> orb_config: OrbConfig;
-// Pass 9: previous-frame snapshot (read-only view, main layout).
+// Previous-frame snapshot (read-only view in main layout). Written
+// by orb_state_prev_copy before each frame's dynamics dispatch so
+// flocking can query neighbors against a stable previous frame.
 @group(0) @binding(412) var<storage, read> orb_state_prev: array<OrbState>;
-// Pass 9: inverse-access views used only by orb_state_prev_copy. They
-// reference the same physical buffers through a dedicated copy layout.
-// WebGPU requires each shader declaration to match exactly one layout
-// access mode, so we can't share 410/412 across pipelines with
-// different RW/RO assignments.
+// Inverse-access views used only by orb_state_prev_copy. They
+// reference the same physical buffers through a dedicated copy
+// layout. WebGPU requires each shader declaration to match exactly
+// one layout access mode, so 410/412 (bound read_write/read in the
+// main layout) can't be re-used here with swapped access modes.
 @group(0) @binding(413) var<storage, read>       orb_state_ro:      array<OrbState>;
 @group(0) @binding(414) var<storage, read_write> orb_state_prev_rw: array<OrbState>;
 
@@ -8773,10 +8827,13 @@ fn orb_sample_palette(seed: u32) -> vec3<f32> {
     return vec3<f32>(h, s, v);
 }
 
-// ─── Pass 8: tier helpers ─────────────────────────────────────────
-// All accessor functions branch on uniform values (tier_idx is uniform
-// per-invocation relative to this call, and tier_count is uniform
-// across the workgroup), so FXC handles them without divergence.
+// ─── Tier accessors ──────────────────────────────────────────────
+//
+// WGSL can't dynamically index struct fields, so each tier attribute
+// gets its own 4-way dispatch. All branches are on uniform values
+// (tier_count, per-invocation tier_idx) so FXC handles them without
+// divergence penalty. The pattern is mechanical; it's kept in this
+// compact form so the obvious repetition doesn't dominate the file.
 
 fn orb_roll_tier(seed: u32) -> u32 {
     if (orb_config.tier_count == 0u) { return 0u; }
@@ -8787,85 +8844,26 @@ fn orb_roll_tier(seed: u32) -> u32 {
     return 3u;
 }
 
-fn orb_tier_mass_mult(t: u32) -> f32 {
-    if (t == 0u) { return orb_config.tier0_mass_mult; }
-    if (t == 1u) { return orb_config.tier1_mass_mult; }
-    if (t == 2u) { return orb_config.tier2_mass_mult; }
-    return orb_config.tier3_mass_mult;
-}
-fn orb_tier_drag_mult(t: u32) -> f32 {
-    if (t == 0u) { return orb_config.tier0_drag_mult; }
-    if (t == 1u) { return orb_config.tier1_drag_mult; }
-    if (t == 2u) { return orb_config.tier2_drag_mult; }
-    return orb_config.tier3_drag_mult;
-}
-fn orb_tier_size_min(t: u32) -> f32 {
-    if (t == 0u) { return orb_config.tier0_size_min; }
-    if (t == 1u) { return orb_config.tier1_size_min; }
-    if (t == 2u) { return orb_config.tier2_size_min; }
-    return orb_config.tier3_size_min;
-}
-fn orb_tier_size_max(t: u32) -> f32 {
-    if (t == 0u) { return orb_config.tier0_size_max; }
-    if (t == 1u) { return orb_config.tier1_size_max; }
-    if (t == 2u) { return orb_config.tier2_size_max; }
-    return orb_config.tier3_size_max;
-}
-fn orb_tier_brightness_min(t: u32) -> f32 {
-    if (t == 0u) { return orb_config.tier0_brightness_min; }
-    if (t == 1u) { return orb_config.tier1_brightness_min; }
-    if (t == 2u) { return orb_config.tier2_brightness_min; }
-    return orb_config.tier3_brightness_min;
-}
-fn orb_tier_brightness_max(t: u32) -> f32 {
-    if (t == 0u) { return orb_config.tier0_brightness_max; }
-    if (t == 1u) { return orb_config.tier1_brightness_max; }
-    if (t == 2u) { return orb_config.tier2_brightness_max; }
-    return orb_config.tier3_brightness_max;
-}
-fn orb_tier_noise_gain(t: u32) -> f32 {
-    if (t == 0u) { return orb_config.tier0_noise_gain; }
-    if (t == 1u) { return orb_config.tier1_noise_gain; }
-    if (t == 2u) { return orb_config.tier2_noise_gain; }
-    return orb_config.tier3_noise_gain;
-}
-fn orb_tier_force_gain(t: u32) -> f32 {
-    if (t == 0u) { return orb_config.tier0_force_gain; }
-    if (t == 1u) { return orb_config.tier1_force_gain; }
-    if (t == 2u) { return orb_config.tier2_force_gain; }
-    return orb_config.tier3_force_gain;
-}
-fn orb_tier_color_gain(t: u32) -> f32 {
-    if (t == 0u) { return orb_config.tier0_color_gain; }
-    if (t == 1u) { return orb_config.tier1_color_gain; }
-    if (t == 2u) { return orb_config.tier2_color_gain; }
-    return orb_config.tier3_color_gain;
-}
+fn orb_tier_mass_mult(t: u32)      -> f32 { if (t == 0u) { return orb_config.tier0_mass_mult;      } if (t == 1u) { return orb_config.tier1_mass_mult;      } if (t == 2u) { return orb_config.tier2_mass_mult;      } return orb_config.tier3_mass_mult;      }
+fn orb_tier_drag_mult(t: u32)      -> f32 { if (t == 0u) { return orb_config.tier0_drag_mult;      } if (t == 1u) { return orb_config.tier1_drag_mult;      } if (t == 2u) { return orb_config.tier2_drag_mult;      } return orb_config.tier3_drag_mult;      }
+fn orb_tier_size_min(t: u32)       -> f32 { if (t == 0u) { return orb_config.tier0_size_min;       } if (t == 1u) { return orb_config.tier1_size_min;       } if (t == 2u) { return orb_config.tier2_size_min;       } return orb_config.tier3_size_min;       }
+fn orb_tier_size_max(t: u32)       -> f32 { if (t == 0u) { return orb_config.tier0_size_max;       } if (t == 1u) { return orb_config.tier1_size_max;       } if (t == 2u) { return orb_config.tier2_size_max;       } return orb_config.tier3_size_max;       }
+fn orb_tier_brightness_min(t: u32) -> f32 { if (t == 0u) { return orb_config.tier0_brightness_min; } if (t == 1u) { return orb_config.tier1_brightness_min; } if (t == 2u) { return orb_config.tier2_brightness_min; } return orb_config.tier3_brightness_min; }
+fn orb_tier_brightness_max(t: u32) -> f32 { if (t == 0u) { return orb_config.tier0_brightness_max; } if (t == 1u) { return orb_config.tier1_brightness_max; } if (t == 2u) { return orb_config.tier2_brightness_max; } return orb_config.tier3_brightness_max; }
+fn orb_tier_noise_gain(t: u32)     -> f32 { if (t == 0u) { return orb_config.tier0_noise_gain;     } if (t == 1u) { return orb_config.tier1_noise_gain;     } if (t == 2u) { return orb_config.tier2_noise_gain;     } return orb_config.tier3_noise_gain;     }
+fn orb_tier_force_gain(t: u32)     -> f32 { if (t == 0u) { return orb_config.tier0_force_gain;     } if (t == 1u) { return orb_config.tier1_force_gain;     } if (t == 2u) { return orb_config.tier2_force_gain;     } return orb_config.tier3_force_gain;     }
+fn orb_tier_color_gain(t: u32)     -> f32 { if (t == 0u) { return orb_config.tier0_color_gain;     } if (t == 1u) { return orb_config.tier1_color_gain;     } if (t == 2u) { return orb_config.tier2_color_gain;     } return orb_config.tier3_color_gain;     }
 
-// Per-tier flocking gains (Pass 9).
-fn orb_tier_flock_sep_gain(t: u32) -> f32 {
-    if (t == 0u) { return orb_config.tier0_flock_sep_gain; }
-    if (t == 1u) { return orb_config.tier1_flock_sep_gain; }
-    if (t == 2u) { return orb_config.tier2_flock_sep_gain; }
-    return orb_config.tier3_flock_sep_gain;
-}
-fn orb_tier_flock_align_gain(t: u32) -> f32 {
-    if (t == 0u) { return orb_config.tier0_flock_align_gain; }
-    if (t == 1u) { return orb_config.tier1_flock_align_gain; }
-    if (t == 2u) { return orb_config.tier2_flock_align_gain; }
-    return orb_config.tier3_flock_align_gain;
-}
-fn orb_tier_flock_coh_gain(t: u32) -> f32 {
-    if (t == 0u) { return orb_config.tier0_flock_coh_gain; }
-    if (t == 1u) { return orb_config.tier1_flock_coh_gain; }
-    if (t == 2u) { return orb_config.tier2_flock_coh_gain; }
-    return orb_config.tier3_flock_coh_gain;
-}
+// Per-tier flocking gains (used when motion_rule == 3).
+fn orb_tier_flock_sep_gain(t: u32)   -> f32 { if (t == 0u) { return orb_config.tier0_flock_sep_gain;   } if (t == 1u) { return orb_config.tier1_flock_sep_gain;   } if (t == 2u) { return orb_config.tier2_flock_sep_gain;   } return orb_config.tier3_flock_sep_gain;   }
+fn orb_tier_flock_align_gain(t: u32) -> f32 { if (t == 0u) { return orb_config.tier0_flock_align_gain; } if (t == 1u) { return orb_config.tier1_flock_align_gain; } if (t == 2u) { return orb_config.tier2_flock_align_gain; } return orb_config.tier3_flock_align_gain; }
+fn orb_tier_flock_coh_gain(t: u32)   -> f32 { if (t == 0u) { return orb_config.tier0_flock_coh_gain;   } if (t == 1u) { return orb_config.tier1_flock_coh_gain;   } if (t == 2u) { return orb_config.tier2_flock_coh_gain;   } return orb_config.tier3_flock_coh_gain;   }
 
-// Pass 9: snapshot orb_state → orb_state_prev so the dynamics kernel
-// reads last frame's positions/velocities while writing the new ones.
+// Snapshot orb_state → orb_state_prev so the dynamics kernel can
+// read last frame's positions/velocities while writing the new ones.
 // Uses the dedicated copy layout's bindings (413 read, 414 read_write)
-// rather than 410/412, which are bound read_write/read in the main layout.
+// rather than 410/412, which are bound read_write/read in the main
+// layout — see the binding-layout comment above.
 @compute @workgroup_size(64)
 fn orb_state_prev_copy(@builtin(global_invocation_id) id: vec3<u32>) {
     let i = id.x;
@@ -9169,8 +9167,9 @@ fn orb_dynamics(@builtin(global_invocation_id) id: vec3<u32>) {
         let ali_mod = 1.0 + k * 0.5;
         let coh_mod = 1.0 + k;
 
-        // Pass 12: independent signs per force. Compound gestures
-        // (swirl, orbit, huddle, etc.) live in the sign combinations.
+        // Independent sign per force — compound gestures (swirl,
+        // orbit, huddle, etc.) live in the combinations of these
+        // three bits, cycled at runtime by the player.
         let sep_s = orb_config.flock_sep_sign;
         let ali_s = orb_config.flock_align_sign;
         let coh_s = orb_config.flock_coh_sign;

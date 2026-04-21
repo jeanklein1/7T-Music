@@ -417,42 +417,7 @@ void apply_mood(uint32_t mood, wgpu::Queue& queue) {
     }
 
     // Sky orb layer — per-mood enable + seed-driven init.
-    {
-        OrbMoodConfig ocfg{};
-        ocfg.enabled            = m.orbs.enabled;
-        ocfg.count              = m.orbs.count;
-        ocfg.base_hue           = m.orbs.base_hue;
-        ocfg.hue_variance       = m.orbs.hue_variance;
-        ocfg.brightness         = m.orbs.brightness;
-        ocfg.drag               = m.orbs.drag;
-        ocfg.noise_amp          = m.orbs.noise_amp;
-        ocfg.motion_rule        = m.orbs.motion_rule;
-        ocfg.rotation_speed     = m.orbs.rotation_speed;
-        ocfg.rotation_axis[0]   = m.orbs.rotation_axis[0];
-        ocfg.rotation_axis[1]   = m.orbs.rotation_axis[1];
-        ocfg.rotation_axis[2]   = m.orbs.rotation_axis[2];
-        ocfg.orbital_base_speed = m.orbs.orbital_base_speed;
-        ocfg.palette_id         = m.orbs.palette_id;
-        ocfg.color_pulse_enabled    = m.orbs.color_pulse_enabled;
-        ocfg.color_converge_enabled = m.orbs.color_converge_enabled;
-        ocfg.color_surge_enabled    = m.orbs.color_surge_enabled;
-        ocfg.hue_converge_target    = m.orbs.hue_converge_target;
-        ocfg.anchor_to_pawn_default = m.orbs.anchor_to_pawn_default;
-        ocfg.tierset_id             = m.orbs.tierset_id;
-        ocfg.flock_sep_radius       = m.orbs.flock_sep_radius;
-        ocfg.flock_align_radius     = m.orbs.flock_align_radius;
-        ocfg.flock_coh_radius       = m.orbs.flock_coh_radius;
-        ocfg.flock_sep_weight       = m.orbs.flock_sep_weight;
-        ocfg.flock_align_weight     = m.orbs.flock_align_weight;
-        ocfg.flock_coh_weight       = m.orbs.flock_coh_weight;
-        ocfg.flock_max_speed        = m.orbs.flock_max_speed;
-        ocfg.flock_gesture_default  = m.orbs.flock_gesture_default;
-        ocfg.rule_drag_brownian     = m.orbs.rule_drag_brownian;
-        ocfg.rule_drag_orbital      = m.orbs.rule_drag_orbital;
-        ocfg.rule_drag_frozen       = m.orbs.rule_drag_frozen;
-        ocfg.rule_drag_flocking     = m.orbs.rule_drag_flocking;
-        configure_orbs(ocfg, queue);
-    }
+    configure_orbs(ORB_MOOD_TABLE[mood], queue);
 
     std::cout << "[Mood] Applied: " << mood_name(mood)
         << " (mood=" << mood
