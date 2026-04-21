@@ -50,23 +50,23 @@
 // that apply across every mood.
 
 // ── Dome geometry ────────────────────────────────────────────────
-static constexpr float ORB_DOME_RADIUS   = 450.0f;
-static constexpr float ORB_BASE_SIZE     = 3.0f;
+static constexpr float ORB_DOME_RADIUS = 450.0f;
+static constexpr float ORB_BASE_SIZE = 3.0f;
 
 // ── Coupling rates (1/s) and scales ──────────────────────────────
 // Exponential ramps. Attack faster than release = onsets feel punchy,
 // the sky "holds" after phrases end. Flock matches attack = silence
 // returns the flock smoothly (~0.4s time constant).
-static constexpr float ORB_FORCE_ATTACK   = 3.0f;
-static constexpr float ORB_FORCE_RELEASE  = 1.5f;
-static constexpr float ORB_FORCE_SCALE    = 40.0f;   // world-units/s² at full intensity
-static constexpr float ORB_NOISE_FLOOR    = 0.3f;    // barely perceptible drift in silence
+static constexpr float ORB_FORCE_ATTACK = 3.0f;
+static constexpr float ORB_FORCE_RELEASE = 1.5f;
+static constexpr float ORB_FORCE_SCALE = 40.0f;   // world-units/s² at full intensity
+static constexpr float ORB_NOISE_FLOOR = 0.3f;    // barely perceptible drift in silence
 
-static constexpr float ORB_COLOR_ATTACK   = 5.0f;
-static constexpr float ORB_COLOR_RELEASE  = 2.5f;
+static constexpr float ORB_COLOR_ATTACK = 5.0f;
+static constexpr float ORB_COLOR_RELEASE = 2.5f;
 
-static constexpr float ORB_FLOCK_ATTACK   = 2.5f;
-static constexpr float ORB_FLOCK_RELEASE  = 2.5f;
+static constexpr float ORB_FLOCK_ATTACK = 2.5f;
+static constexpr float ORB_FLOCK_RELEASE = 2.5f;
 
 // ── Rule-critical parameter floors ───────────────────────────────
 // Applied in configure_orbs when the mood authors 0.0 for a given
@@ -74,15 +74,15 @@ static constexpr float ORB_FLOCK_RELEASE  = 2.5f;
 // rule has working parameters regardless of mood authorship. A mood
 // wanting "almost zero" should author a tiny non-zero (e.g. 0.001f),
 // which reads as intentional.
-static constexpr float ORB_DEFAULT_DRAG            = 0.5f;
-static constexpr float ORB_DEFAULT_NOISE_AMP       = 8.0f;
-static constexpr float ORB_DEFAULT_ORBITAL_SPEED   = 0.15f;
-static constexpr float ORB_DEFAULT_FLOCK_SEP_R     = 50.0f;
-static constexpr float ORB_DEFAULT_FLOCK_ALIGN_R   = 120.0f;
-static constexpr float ORB_DEFAULT_FLOCK_COH_R     = 200.0f;
-static constexpr float ORB_DEFAULT_FLOCK_SEP_W     = 30.0f;
-static constexpr float ORB_DEFAULT_FLOCK_ALIGN_W   = 8.0f;
-static constexpr float ORB_DEFAULT_FLOCK_COH_W     = 15.0f;
+static constexpr float ORB_DEFAULT_DRAG = 0.5f;
+static constexpr float ORB_DEFAULT_NOISE_AMP = 8.0f;
+static constexpr float ORB_DEFAULT_ORBITAL_SPEED = 0.15f;
+static constexpr float ORB_DEFAULT_FLOCK_SEP_R = 50.0f;
+static constexpr float ORB_DEFAULT_FLOCK_ALIGN_R = 120.0f;
+static constexpr float ORB_DEFAULT_FLOCK_COH_R = 200.0f;
+static constexpr float ORB_DEFAULT_FLOCK_SEP_W = 30.0f;
+static constexpr float ORB_DEFAULT_FLOCK_ALIGN_W = 8.0f;
+static constexpr float ORB_DEFAULT_FLOCK_COH_W = 15.0f;
 static constexpr float ORB_DEFAULT_FLOCK_MAX_SPEED = 60.0f;
 
 
@@ -158,10 +158,10 @@ static constexpr OrbPalette ORB_PALETTE_WARM_MONO = {
 };
 
 static constexpr uint32_t ORB_PAL_JWST_DEEP = 0;
-static constexpr uint32_t ORB_PAL_PILLARS   = 1;
-static constexpr uint32_t ORB_PAL_CARINA    = 2;
+static constexpr uint32_t ORB_PAL_PILLARS = 1;
+static constexpr uint32_t ORB_PAL_CARINA = 2;
 static constexpr uint32_t ORB_PAL_WARM_MONO = 3;
-static constexpr uint32_t ORB_PAL_COUNT     = 4;
+static constexpr uint32_t ORB_PAL_COUNT = 4;
 
 static constexpr OrbPalette ORB_PALETTES[ORB_PAL_COUNT] = {
     ORB_PALETTE_JWST_DEEP,
@@ -189,22 +189,22 @@ static constexpr uint32_t MAX_ORB_TIERS = 4;
 
 struct OrbTier {
     // Physics (ranges sampled per-orb at init)
-    float mass_mult       = 1.0f;
-    float drag_mult       = 1.0f;
-    float size_min        = 0.7f;   // multiplier on base_size
-    float size_max        = 1.3f;
-    float brightness_min  = 0.7f;   // multiplier on palette value
-    float brightness_max  = 1.0f;
+    float mass_mult = 1.0f;
+    float drag_mult = 1.0f;
+    float size_min = 0.7f;   // multiplier on base_size
+    float size_max = 1.3f;
+    float brightness_min = 0.7f;   // multiplier on palette value
+    float brightness_max = 1.0f;
     // Coupling gains (apply each frame in dynamics kernel)
-    float noise_gain      = 1.0f;   // 0..1+
-    float force_gain      = 1.0f;
-    float color_gain      = 1.0f;
+    float noise_gain = 1.0f;   // 0..1+
+    float force_gain = 1.0f;
+    float color_gain = 1.0f;
     // Selection
-    float weight          = 0.25f;  // relative selection probability
+    float weight = 0.25f;  // relative selection probability
     // Flocking gains (used when motion_rule == 3)
-    float flock_sep_gain   = 1.0f;
+    float flock_sep_gain = 1.0f;
     float flock_align_gain = 1.0f;
-    float flock_coh_gain   = 1.0f;
+    float flock_coh_gain = 1.0f;
 };
 
 struct OrbTierSet {
@@ -243,10 +243,10 @@ static constexpr OrbTierSet ORB_TIERSET_RESONANT = {
     }
 };
 
-static constexpr uint32_t ORB_TIERSET_JWST  = 0;
-static constexpr uint32_t ORB_TIERSET_RES   = 1;
+static constexpr uint32_t ORB_TIERSET_JWST = 0;
+static constexpr uint32_t ORB_TIERSET_RES = 1;
 static constexpr uint32_t ORB_TIERSET_COUNT = 2;
-static constexpr uint32_t ORB_TIERSET_NONE  = 0xFFFFFFFFu;  // → uniform population
+static constexpr uint32_t ORB_TIERSET_NONE = 0xFFFFFFFFu;  // → uniform population
 
 static constexpr OrbTierSet ORB_TIERSETS[ORB_TIERSET_COUNT] = {
     ORB_TIERSET_JWST_STARS,
@@ -351,43 +351,43 @@ static constexpr OrbOrbitalGesture ORB_ORBITAL_GESTURES[ORB_ORBITAL_GESTURE_COUN
 
 struct OrbMoodConfig {
     // Population
-    bool     enabled       = false;
-    uint32_t count         = 0;        // clamped to Dim::MAX_ORBS
+    bool     enabled = false;
+    uint32_t count = 0;        // clamped to Dim::MAX_ORBS
     // Color (legacy — superseded by palette_id when a palette is set)
-    float    base_hue      = 0.08f;
-    float    hue_variance  = 0.05f;
-    float    brightness    = 0.8f;     // value center; palette spreads around it
+    float    base_hue = 0.08f;
+    float    hue_variance = 0.05f;
+    float    brightness = 0.8f;     // value center; palette spreads around it
     // Motion
-    float    drag          = ORB_DEFAULT_DRAG;
-    float    noise_amp     = ORB_DEFAULT_NOISE_AMP;  // ceiling (floor is ORB_NOISE_FLOOR)
-    uint32_t motion_rule   = 0;                       // 0=Brownian 1=Orbital 2=Frozen 3=Flocking
+    float    drag = ORB_DEFAULT_DRAG;
+    float    noise_amp = ORB_DEFAULT_NOISE_AMP;  // ceiling (floor is ORB_NOISE_FLOOR)
+    uint32_t motion_rule = 0;                       // 0=Brownian 1=Orbital 2=Frozen 3=Flocking
     float    rotation_speed = 0.0f;                   // rad/s
-    float    rotation_axis[3] = {0.0f, 1.0f, 0.0f};   // normalized in configure_orbs
+    float    rotation_axis[3] = { 0.0f, 1.0f, 0.0f };   // normalized in configure_orbs
     float    orbital_base_speed = 0.0f;               // rad/s, rule 1 only
     // Color palette
-    uint32_t palette_id    = ORB_PAL_JWST_DEEP;
-    bool     color_pulse_enabled    = false;
+    uint32_t palette_id = ORB_PAL_JWST_DEEP;
+    bool     color_pulse_enabled = false;
     bool     color_converge_enabled = false;
-    bool     color_surge_enabled    = false;
-    float    hue_converge_target    = 0.12f;
+    bool     color_surge_enabled = false;
+    float    hue_converge_target = 0.12f;
     // Anchor (mood default applies only on first configure; player wins after)
     bool     anchor_to_pawn_default = false;
     // Population variety (ORB_TIERSET_NONE = uniform population)
     uint32_t tierset_id = ORB_TIERSET_NONE;
     // Flocking (used when motion_rule == 3)
-    float    flock_sep_radius   =  50.0f;
+    float    flock_sep_radius = 50.0f;
     float    flock_align_radius = 120.0f;
-    float    flock_coh_radius   = 200.0f;
-    float    flock_sep_weight   =  30.0f;
-    float    flock_align_weight =   8.0f;
-    float    flock_coh_weight   =  15.0f;
-    float    flock_max_speed    =  60.0f;
+    float    flock_coh_radius = 200.0f;
+    float    flock_sep_weight = 30.0f;
+    float    flock_align_weight = 8.0f;
+    float    flock_coh_weight = 15.0f;
+    float    flock_max_speed = 60.0f;
     // Flock gesture seed (player cycle persists across transitions)
     uint32_t flock_gesture_default = 0u;
     // Per-rule drag multipliers (0 = pass-through, 1.0×)
     float    rule_drag_brownian = 0.0f;
-    float    rule_drag_orbital  = 0.0f;
-    float    rule_drag_frozen   = 0.0f;
+    float    rule_drag_orbital = 0.0f;
+    float    rule_drag_frozen = 0.0f;
     float    rule_drag_flocking = 0.0f;
 };
 
@@ -400,19 +400,19 @@ struct OrbMoodConfig {
 // (motion rule, active couplings, intensities) refreshes on configure.
 
 // ── Lifecycle / kernel arming ────────────────────────────────────
-bool     orbsActive_           = false;
-uint32_t orbCount_             = 0;
-bool     orbInitPending_       = false;
-bool     orbRecolorPending_    = false;
-uint32_t orbCurrentPaletteId_  = ORB_PAL_JWST_DEEP;
+bool     orbsActive_ = false;
+uint32_t orbCount_ = 0;
+bool     orbInitPending_ = false;
+bool     orbRecolorPending_ = false;
+uint32_t orbCurrentPaletteId_ = ORB_PAL_JWST_DEEP;
 
 // ── Anchor (dome-center follow) ──────────────────────────────────
 // Player state: persists across mood transitions. Dirty-flag cache
 // means an idle or unanchored dome produces no per-frame queue traffic.
-bool     orbPawnAnchored_          = false;
-bool     orbAnchorInitialized_     = false;   // seeded by mood default on first configure
-float    orbLastDomeCenterX_       = 0.0f;
-float    orbLastDomeCenterZ_       = 0.0f;
+bool     orbPawnAnchored_ = false;
+bool     orbAnchorInitialized_ = false;   // seeded by mood default on first configure
+float    orbLastDomeCenterX_ = 0.0f;
+float    orbLastDomeCenterZ_ = 0.0f;
 bool     orbDomeCenterInitialized_ = false;
 
 // ── Motion rule + flocking gesture ───────────────────────────────
@@ -421,33 +421,33 @@ bool     orbDomeCenterInitialized_ = false;
 // Motion rule identifiers, named for legibility at gesture-
 // dispatch sites. Index into orbGestureIdx_ / orbGestureInitialized_.
 static constexpr uint32_t ORB_RULE_BROWNIAN = 0u;
-static constexpr uint32_t ORB_RULE_ORBITAL  = 1u;
-static constexpr uint32_t ORB_RULE_FROZEN   = 2u;
+static constexpr uint32_t ORB_RULE_ORBITAL = 1u;
+static constexpr uint32_t ORB_RULE_FROZEN = 2u;
 static constexpr uint32_t ORB_RULE_FLOCKING = 3u;
 
 uint32_t orbCurrentMotionRule_ = 0u;
 // Pass 13: per-rule gesture indices. Index 2 (Frozen) is vestigial
 // — Frozen has no gestures; cycle_orb_gesture short-circuits. All
 // four indices persist across mood transitions (player state).
-uint32_t orbGestureIdx_[4]         = { 0u, 0u, 0u, 0u };
+uint32_t orbGestureIdx_[4] = { 0u, 0u, 0u, 0u };
 bool     orbGestureInitialized_[4] = { false, false, false, false };
 
 // ── Musical couplings (smoothed intensities) ─────────────────────
 // Force + noise share a single intensity (polyphony-driven). Color
 // and flocking have their own smoothers. Active flags gate the
 // couplings per mood.
-float    orbForceIntensity_          = 0.0f;
-float    orbActiveNoiseAmp_          = 0.0f;   // mood's configured ceiling
+float    orbForceIntensity_ = 0.0f;
+float    orbActiveNoiseAmp_ = 0.0f;   // mood's configured ceiling
 
-float    orbColorPulseIntensity_     = 0.0f;
-float    orbColorConvergeIntensity_  = 0.0f;
-float    orbColorSurgeIntensity_     = 0.0f;
-bool     orbColorPulseActive_        = false;
-bool     orbColorConvergeActive_     = false;
-bool     orbColorSurgeActive_        = false;
+float    orbColorPulseIntensity_ = 0.0f;
+float    orbColorConvergeIntensity_ = 0.0f;
+float    orbColorSurgeIntensity_ = 0.0f;
+bool     orbColorPulseActive_ = false;
+bool     orbColorConvergeActive_ = false;
+bool     orbColorSurgeActive_ = false;
 
-float    orbFlockIntensity_          = 0.0f;
-bool     orbFlockActive_             = false;  // true when active rule is Flocking
+float    orbFlockIntensity_ = 0.0f;
+bool     orbFlockActive_ = false;  // true when active rule is Flocking
 
 
 // ═══ GPU LAYOUT HELPERS ══════════════════════════════════════════
@@ -507,23 +507,23 @@ void pack_palette_(GPUOrbConfig& gpuCfg, uint32_t palette_id) {
     orbCurrentPaletteId_ = pal_id;
     const auto& pal = ORB_PALETTES[pal_id];
 
-    gpuCfg.palette_count  = pal.count;
+    gpuCfg.palette_count = pal.count;
     gpuCfg.value_variance = pal.value_variance;
-    gpuCfg.pal0_hue    = pal.entries[0].hue;
-    gpuCfg.pal0_hue_var= pal.entries[0].hue_var;
-    gpuCfg.pal0_sat    = pal.entries[0].saturation;
+    gpuCfg.pal0_hue = pal.entries[0].hue;
+    gpuCfg.pal0_hue_var = pal.entries[0].hue_var;
+    gpuCfg.pal0_sat = pal.entries[0].saturation;
     gpuCfg.pal0_weight = pal.entries[0].weight;
-    gpuCfg.pal1_hue    = pal.entries[1].hue;
-    gpuCfg.pal1_hue_var= pal.entries[1].hue_var;
-    gpuCfg.pal1_sat    = pal.entries[1].saturation;
+    gpuCfg.pal1_hue = pal.entries[1].hue;
+    gpuCfg.pal1_hue_var = pal.entries[1].hue_var;
+    gpuCfg.pal1_sat = pal.entries[1].saturation;
     gpuCfg.pal1_weight = pal.entries[1].weight;
-    gpuCfg.pal2_hue    = pal.entries[2].hue;
-    gpuCfg.pal2_hue_var= pal.entries[2].hue_var;
-    gpuCfg.pal2_sat    = pal.entries[2].saturation;
+    gpuCfg.pal2_hue = pal.entries[2].hue;
+    gpuCfg.pal2_hue_var = pal.entries[2].hue_var;
+    gpuCfg.pal2_sat = pal.entries[2].saturation;
     gpuCfg.pal2_weight = pal.entries[2].weight;
-    gpuCfg.pal3_hue    = pal.entries[3].hue;
-    gpuCfg.pal3_hue_var= pal.entries[3].hue_var;
-    gpuCfg.pal3_sat    = pal.entries[3].saturation;
+    gpuCfg.pal3_hue = pal.entries[3].hue;
+    gpuCfg.pal3_hue_var = pal.entries[3].hue_var;
+    gpuCfg.pal3_sat = pal.entries[3].saturation;
     gpuCfg.pal3_weight = pal.entries[3].weight;
 }
 
@@ -532,18 +532,21 @@ void pack_palette_(GPUOrbConfig& gpuCfg, uint32_t palette_id) {
 // Sentinel tierset_id → zero everything; orb_init falls back to
 // legacy uniform population.
 void pack_tiers_(GPUOrbConfig& gpuCfg, uint32_t tierset_id) {
-    gpuCfg._pad_tier0 = 0.0f;
-    gpuCfg._pad_tier1 = 0.0f;
-    gpuCfg._pad_tier2 = 0.0f;
+    // Note: offsets 180-188 used to be _pad_tier0/1/2 here. They now
+    // hold Brownian gesture fields (brownian_radial_sign/vert_bias/
+    // coherence), written by pack_flocking_. Do NOT zero them here.
 
     if (tierset_id >= ORB_TIERSET_COUNT) {
         // Legacy path: zero main tier block + flocking gains.
+        // Skip pf[3] for tier 0 — offset 428 is orbital_speed_var_mult
+        // (repurposed), written later by pack_flocking_.
         gpuCfg.tier_count = 0;
         for (uint32_t i = 0; i < MAX_ORB_TIERS; i++) {
             float* p = orb_tier_block_ptr(gpuCfg, i);
             for (int k = 0; k < 10; k++) p[k] = 0.0f;
             float* pf = orb_tier_flock_ptr(gpuCfg, i);
-            pf[0] = 1.0f; pf[1] = 1.0f; pf[2] = 1.0f; pf[3] = 0.0f;
+            pf[0] = 1.0f; pf[1] = 1.0f; pf[2] = 1.0f;
+            if (i != 0u) pf[3] = 0.0f;
         }
         return;
     }
@@ -560,7 +563,7 @@ void pack_tiers_(GPUOrbConfig& gpuCfg, uint32_t tierset_id) {
 
     float cum = 0.0f;
     for (uint32_t i = 0; i < MAX_ORB_TIERS; i++) {
-        float* p  = orb_tier_block_ptr(gpuCfg, i);
+        float* p = orb_tier_block_ptr(gpuCfg, i);
         float* pf = orb_tier_flock_ptr(gpuCfg, i);
 
         if (i < n) {
@@ -580,12 +583,15 @@ void pack_tiers_(GPUOrbConfig& gpuCfg, uint32_t tierset_id) {
             pf[0] = t.flock_sep_gain;
             pf[1] = t.flock_align_gain;
             pf[2] = t.flock_coh_gain;
-            pf[3] = 0.0f;
-        } else {
+            // pf[3] for tier 0 is orbital_speed_var_mult — don't touch.
+            if (i != 0u) pf[3] = 0.0f;
+        }
+        else {
             // Unused tier slot: zero fields, cumulative = 1.0 so no roll lands here.
             for (int k = 0; k < 10; k++) p[k] = 0.0f;
             p[9] = 1.0f;
-            pf[0] = 1.0f; pf[1] = 1.0f; pf[2] = 1.0f; pf[3] = 0.0f;
+            pf[0] = 1.0f; pf[1] = 1.0f; pf[2] = 1.0f;
+            if (i != 0u) pf[3] = 0.0f;
         }
     }
 }
@@ -594,18 +600,18 @@ void pack_tiers_(GPUOrbConfig& gpuCfg, uint32_t tierset_id) {
 // (from current player-owned gesture index), and per-rule drag
 // multipliers (sanitized with zero → pass-through).
 void pack_flocking_(GPUOrbConfig& gpuCfg,
-                    float sep_r, float align_r, float coh_r,
-                    float sep_w, float align_w, float coh_w,
-                    float max_speed,
-                    float rule_drag_bwn, float rule_drag_orb,
-                    float rule_drag_frz, float rule_drag_flk) {
-    gpuCfg.flock_sep_radius         = sep_r;
-    gpuCfg.flock_align_radius       = align_r;
-    gpuCfg.flock_coh_radius         = coh_r;
-    gpuCfg.flock_sep_weight         = sep_w;
-    gpuCfg.flock_align_weight       = align_w;
-    gpuCfg.flock_coh_weight         = coh_w;
-    gpuCfg.flock_max_speed          = max_speed;
+    float sep_r, float align_r, float coh_r,
+    float sep_w, float align_w, float coh_w,
+    float max_speed,
+    float rule_drag_bwn, float rule_drag_orb,
+    float rule_drag_frz, float rule_drag_flk) {
+    gpuCfg.flock_sep_radius = sep_r;
+    gpuCfg.flock_align_radius = align_r;
+    gpuCfg.flock_coh_radius = coh_r;
+    gpuCfg.flock_sep_weight = sep_w;
+    gpuCfg.flock_align_weight = align_w;
+    gpuCfg.flock_coh_weight = coh_w;
+    gpuCfg.flock_max_speed = max_speed;
     gpuCfg.flock_coupling_intensity = 0.0f;
 
     // Pass 13: pack all three rule gesture bundles. Each rule reads
@@ -614,37 +620,35 @@ void pack_flocking_(GPUOrbConfig& gpuCfg,
     {
         const auto& gb = ORB_BROWNIAN_GESTURES[orbGestureIdx_[ORB_RULE_BROWNIAN]];
         gpuCfg.brownian_radial_sign = gb.radial_sign;
-        gpuCfg.brownian_vert_bias   = gb.vert_bias;
-        gpuCfg.brownian_coherence   = gb.coherence;
+        gpuCfg.brownian_vert_bias = gb.vert_bias;
+        gpuCfg.brownian_coherence = gb.coherence;
 
         const auto& go = ORB_ORBITAL_GESTURES[orbGestureIdx_[ORB_RULE_ORBITAL]];
         gpuCfg.orbital_alignment_mode = go.alignment_mode;
         gpuCfg.orbital_speed_var_mult = go.speed_var_mult;
 
         const auto& gf = ORB_FLOCK_GESTURES[orbGestureIdx_[ORB_RULE_FLOCKING]];
-        gpuCfg.flock_sep_sign   = gf.sep_sign;
+        gpuCfg.flock_sep_sign = gf.sep_sign;
         gpuCfg.flock_align_sign = gf.align_sign;
-        gpuCfg.flock_coh_sign   = gf.coh_sign;
+        gpuCfg.flock_coh_sign = gf.coh_sign;
     }
 
     // Per-rule drag: zero → 1.0× pass-through (mood has no opinion).
     auto passthrough = [](float authored) {
         return (authored > 0.0f) ? authored : 1.0f;
-    };
+        };
     gpuCfg.rule_drag_brownian = passthrough(rule_drag_bwn);
-    gpuCfg.rule_drag_orbital  = passthrough(rule_drag_orb);
-    gpuCfg.rule_drag_frozen   = passthrough(rule_drag_frz);
+    gpuCfg.rule_drag_orbital = passthrough(rule_drag_orb);
+    gpuCfg.rule_drag_frozen = passthrough(rule_drag_frz);
     gpuCfg.rule_drag_flocking = passthrough(rule_drag_flk);
-
-    gpuCfg._pad_flock7 = 0.0f;
 }
 
 // Log the effective config after sanitization. Shows what the GPU
 // actually runs with (not what the mood authored), which is what
 // the operator cares about when cycling rules or tuning.
 void log_configure_(const OrbMoodConfig& cfg,
-                    float eff_drag, float eff_orbital_speed,
-                    uint32_t palette_id) {
+    float eff_drag, float eff_orbital_speed,
+    uint32_t palette_id) {
     static const char* RULE_NAMES[] = { "brownian", "orbital", "frozen", "flocking" };
 
     std::cout << "[Orbs] Configured: count=" << orbCount_
@@ -655,9 +659,9 @@ void log_configure_(const OrbMoodConfig& cfg,
         << " rot=" << cfg.rotation_speed
         << " orbital=" << eff_orbital_speed
         << " color:"
-        << (cfg.color_pulse_enabled    ? " pulse" : "")
+        << (cfg.color_pulse_enabled ? " pulse" : "")
         << (cfg.color_converge_enabled ? " converge" : "")
-        << (cfg.color_surge_enabled    ? " surge" : "")
+        << (cfg.color_surge_enabled ? " surge" : "")
         << (cfg.color_pulse_enabled || cfg.color_converge_enabled || cfg.color_surge_enabled
             ? "" : " off")
         << " anchor=" << (orbPawnAnchored_ ? "pawn" : "origin")
@@ -683,17 +687,17 @@ void configure_orbs(const OrbMoodConfig& cfg, wgpu::Queue& queue) {
     // Effective values: "zero = no opinion, use system default."
     auto eff = [](float authored, float fallback) {
         return (authored > 0.0f) ? authored : fallback;
-    };
-    const float eff_drag            = eff(cfg.drag,               ORB_DEFAULT_DRAG);
-    const float eff_noise_amp       = eff(cfg.noise_amp,          ORB_DEFAULT_NOISE_AMP);
-    const float eff_orbital_speed   = eff(cfg.orbital_base_speed, ORB_DEFAULT_ORBITAL_SPEED);
-    const float eff_flock_sep_r     = eff(cfg.flock_sep_radius,   ORB_DEFAULT_FLOCK_SEP_R);
-    const float eff_flock_align_r   = eff(cfg.flock_align_radius, ORB_DEFAULT_FLOCK_ALIGN_R);
-    const float eff_flock_coh_r     = eff(cfg.flock_coh_radius,   ORB_DEFAULT_FLOCK_COH_R);
-    const float eff_flock_sep_w     = eff(cfg.flock_sep_weight,   ORB_DEFAULT_FLOCK_SEP_W);
-    const float eff_flock_align_w   = eff(cfg.flock_align_weight, ORB_DEFAULT_FLOCK_ALIGN_W);
-    const float eff_flock_coh_w     = eff(cfg.flock_coh_weight,   ORB_DEFAULT_FLOCK_COH_W);
-    const float eff_flock_max_speed = eff(cfg.flock_max_speed,    ORB_DEFAULT_FLOCK_MAX_SPEED);
+        };
+    const float eff_drag = eff(cfg.drag, ORB_DEFAULT_DRAG);
+    const float eff_noise_amp = eff(cfg.noise_amp, ORB_DEFAULT_NOISE_AMP);
+    const float eff_orbital_speed = eff(cfg.orbital_base_speed, ORB_DEFAULT_ORBITAL_SPEED);
+    const float eff_flock_sep_r = eff(cfg.flock_sep_radius, ORB_DEFAULT_FLOCK_SEP_R);
+    const float eff_flock_align_r = eff(cfg.flock_align_radius, ORB_DEFAULT_FLOCK_ALIGN_R);
+    const float eff_flock_coh_r = eff(cfg.flock_coh_radius, ORB_DEFAULT_FLOCK_COH_R);
+    const float eff_flock_sep_w = eff(cfg.flock_sep_weight, ORB_DEFAULT_FLOCK_SEP_W);
+    const float eff_flock_align_w = eff(cfg.flock_align_weight, ORB_DEFAULT_FLOCK_ALIGN_W);
+    const float eff_flock_coh_w = eff(cfg.flock_coh_weight, ORB_DEFAULT_FLOCK_COH_W);
+    const float eff_flock_max_speed = eff(cfg.flock_max_speed, ORB_DEFAULT_FLOCK_MAX_SPEED);
 
     orbActiveNoiseAmp_ = eff_noise_amp;
 
@@ -709,36 +713,36 @@ void configure_orbs(const OrbMoodConfig& cfg, wgpu::Queue& queue) {
     float rz = cfg.rotation_axis[2];
     float rlen = std::sqrt(rx * rx + ry * ry + rz * rz);
     if (rlen > 0.001f) { rx /= rlen; ry /= rlen; rz /= rlen; }
-    else               { rx = 0.0f; ry = 1.0f; rz = 0.0f; }
+    else { rx = 0.0f; ry = 1.0f; rz = 0.0f; }
 
     // Build the GPU config in one place.
     GPUOrbConfig gpuCfg{};
-    gpuCfg.count              = orbCount_;
-    gpuCfg.seed               = activeSeed_;
-    gpuCfg.base_hue           = cfg.base_hue;
-    gpuCfg.hue_variance       = cfg.hue_variance;
-    gpuCfg.brightness         = cfg.brightness;
-    gpuCfg.drag               = eff_drag;
-    gpuCfg.noise_amp          = ORB_NOISE_FLOOR;   // start at floor; coupling lerps up to ceiling
-    gpuCfg.dome_radius        = ORB_DOME_RADIUS;
-    gpuCfg.base_size          = ORB_BASE_SIZE;
-    gpuCfg.dt                 = 0.0f;
-    gpuCfg.t_seconds          = 0.0f;
-    gpuCfg.force_radial       = 0.0f;
-    gpuCfg.motion_rule        = cfg.motion_rule;
-    gpuCfg.rotation_speed     = cfg.rotation_speed;
-    gpuCfg.rotation_axis_x    = rx;
-    gpuCfg.rotation_axis_y    = ry;
-    gpuCfg.rotation_axis_z    = rz;
+    gpuCfg.count = orbCount_;
+    gpuCfg.seed = activeSeed_;
+    gpuCfg.base_hue = cfg.base_hue;
+    gpuCfg.hue_variance = cfg.hue_variance;
+    gpuCfg.brightness = cfg.brightness;
+    gpuCfg.drag = eff_drag;
+    gpuCfg.noise_amp = ORB_NOISE_FLOOR;   // start at floor; coupling lerps up to ceiling
+    gpuCfg.dome_radius = ORB_DOME_RADIUS;
+    gpuCfg.base_size = ORB_BASE_SIZE;
+    gpuCfg.dt = 0.0f;
+    gpuCfg.t_seconds = 0.0f;
+    gpuCfg.force_radial = 0.0f;
+    gpuCfg.motion_rule = cfg.motion_rule;
+    gpuCfg.rotation_speed = cfg.rotation_speed;
+    gpuCfg.rotation_axis_x = rx;
+    gpuCfg.rotation_axis_y = ry;
+    gpuCfg.rotation_axis_z = rz;
     gpuCfg.orbital_base_speed = eff_orbital_speed;
 
     pack_palette_(gpuCfg, cfg.palette_id);
 
     // Color dynamics start at rest; couplings lift them under music.
     // hue_converge_target is mood-scoped (changes only at mood entry).
-    gpuCfg.color_pulse         = 0.0f;
-    gpuCfg.color_converge      = 0.0f;
-    gpuCfg.color_surge         = 0.0f;
+    gpuCfg.color_pulse = 0.0f;
+    gpuCfg.color_converge = 0.0f;
+    gpuCfg.color_surge = 0.0f;
     gpuCfg.hue_converge_target = cfg.hue_converge_target;
 
     // Dome center: start at origin; per-frame update_orb_anchor catches
@@ -746,12 +750,12 @@ void configure_orbs(const OrbMoodConfig& cfg, wgpu::Queue& queue) {
     gpuCfg.dome_center_x = 0.0f;
     gpuCfg.dome_center_y = 0.0f;
     gpuCfg.dome_center_z = 0.0f;
-    gpuCfg._pad_anchor   = 0.0f;
+    gpuCfg._pad_anchor = 0.0f;
     orbDomeCenterInitialized_ = false;   // force dirty-flag re-eval
 
-    orbColorPulseActive_    = cfg.color_pulse_enabled;
+    orbColorPulseActive_ = cfg.color_pulse_enabled;
     orbColorConvergeActive_ = cfg.color_converge_enabled;
-    orbColorSurgeActive_    = cfg.color_surge_enabled;
+    orbColorSurgeActive_ = cfg.color_surge_enabled;
 
     pack_tiers_(gpuCfg, cfg.tierset_id);
     pack_flocking_(gpuCfg,
@@ -759,7 +763,7 @@ void configure_orbs(const OrbMoodConfig& cfg, wgpu::Queue& queue) {
         eff_flock_sep_w, eff_flock_align_w, eff_flock_coh_w,
         eff_flock_max_speed,
         cfg.rule_drag_brownian, cfg.rule_drag_orbital,
-        cfg.rule_drag_frozen,   cfg.rule_drag_flocking);
+        cfg.rule_drag_frozen, cfg.rule_drag_flocking);
 
     orbFlockActive_ = (cfg.motion_rule == 3u);
 
@@ -781,15 +785,15 @@ void teardown_orbs() {
     orbForceIntensity_ = 0.0f;
     orbActiveNoiseAmp_ = 0.0f;
 
-    orbColorPulseIntensity_    = 0.0f;
+    orbColorPulseIntensity_ = 0.0f;
     orbColorConvergeIntensity_ = 0.0f;
-    orbColorSurgeIntensity_    = 0.0f;
-    orbColorPulseActive_       = false;
-    orbColorConvergeActive_    = false;
-    orbColorSurgeActive_       = false;
+    orbColorSurgeIntensity_ = 0.0f;
+    orbColorPulseActive_ = false;
+    orbColorConvergeActive_ = false;
+    orbColorSurgeActive_ = false;
 
     orbFlockIntensity_ = 0.0f;
-    orbFlockActive_    = false;
+    orbFlockActive_ = false;
 
     // Force fresh anchor upload on next configure (cache cleared, flag state preserved).
     orbLastDomeCenterX_ = 0.0f;
@@ -848,9 +852,11 @@ void cycle_orb_motion_rule(wgpu::Queue& queue) {
     const uint32_t gidx = orbGestureIdx_[r];
     if (r == ORB_RULE_BROWNIAN && gidx != 0u) {
         std::cout << " (gesture: " << ORB_BROWNIAN_GESTURES[gidx].name << ")";
-    } else if (r == ORB_RULE_ORBITAL && gidx != 0u) {
+    }
+    else if (r == ORB_RULE_ORBITAL && gidx != 0u) {
         std::cout << " (gesture: " << ORB_ORBITAL_GESTURES[gidx].name << ")";
-    } else if (r == ORB_RULE_FLOCKING && gidx != 0u) {
+    }
+    else if (r == ORB_RULE_FLOCKING && gidx != 0u) {
         std::cout << " (gesture: " << ORB_FLOCK_GESTURES[gidx].name << ")";
     }
     std::cout << "\n";
@@ -887,7 +893,7 @@ void cycle_orb_gesture(wgpu::Queue& queue) {
         std::cout << "[Orbs] Flocking gesture: " << g.name
             << " (sep=" << (g.sep_sign > 0 ? "+" : "-")
             << " align=" << (g.align_sign > 0 ? "+" : "-")
-            << " coh="  << (g.coh_sign  > 0 ? "+" : "-")
+            << " coh=" << (g.coh_sign > 0 ? "+" : "-")
             << ")\n";
         return;
     }
@@ -902,7 +908,7 @@ void toggle_orb_anchor() {
     orbPawnAnchored_ = !orbPawnAnchored_;
     std::cout << "[Orbs] Anchor: "
         << (orbPawnAnchored_ ? "ON — dome follows pawn"
-                             : "OFF — dome fixed at world origin")
+            : "OFF — dome fixed at world origin")
         << "  (pawn readback: "
         << pawnReadback_x_ << ", " << pawnReadback_z_ << ")"
         << "\n";
@@ -922,8 +928,8 @@ void update_orb_anchor(float pawn_x, float pawn_z, wgpu::Queue& queue) {
     float target_z = orbPawnAnchored_ ? pawn_z : 0.0f;
 
     bool changed = !orbDomeCenterInitialized_
-                || target_x != orbLastDomeCenterX_
-                || target_z != orbLastDomeCenterZ_;
+        || target_x != orbLastDomeCenterX_
+        || target_z != orbLastDomeCenterZ_;
 
     if (changed) {
         gpuState_.upload_orb_dome_center(queue, target_x, 0.0f, target_z);
@@ -947,16 +953,16 @@ void update_orb_coupling(float polyphony, float dt, wgpu::Queue& queue) {
 
     // Local smoother — returns true iff the intensity actually moved.
     auto smooth = [&](bool enabled, float& intensity,
-                      float attack, float release) -> bool {
-        float t = enabled ? target : 0.0f;
-        float prev = intensity;
-        float rate = (t > prev) ? attack : release;
-        float next = prev + (t - prev) * (1.0f - std::exp(-rate * dt));
-        if (next < 0.001f && t == 0.0f) next = 0.0f;
-        if (next > 0.999f && t >= 1.0f) next = 1.0f;
-        if (next != prev) { intensity = next; return true; }
-        return false;
-    };
+        float attack, float release) -> bool {
+            float t = enabled ? target : 0.0f;
+            float prev = intensity;
+            float rate = (t > prev) ? attack : release;
+            float next = prev + (t - prev) * (1.0f - std::exp(-rate * dt));
+            if (next < 0.001f && t == 0.0f) next = 0.0f;
+            if (next > 0.999f && t >= 1.0f) next = 1.0f;
+            if (next != prev) { intensity = next; return true; }
+            return false;
+        };
 
     // Motion: force + noise share one intensity.
     if (smooth(true, orbForceIntensity_, ORB_FORCE_ATTACK, ORB_FORCE_RELEASE)) {
@@ -970,12 +976,12 @@ void update_orb_coupling(float polyphony, float dt, wgpu::Queue& queue) {
 
     // Color: three independent trajectories, each gated per-mood.
     bool color_changed = false;
-    if (smooth(orbColorPulseActive_,    orbColorPulseIntensity_,
-               ORB_COLOR_ATTACK, ORB_COLOR_RELEASE))    color_changed = true;
+    if (smooth(orbColorPulseActive_, orbColorPulseIntensity_,
+        ORB_COLOR_ATTACK, ORB_COLOR_RELEASE))    color_changed = true;
     if (smooth(orbColorConvergeActive_, orbColorConvergeIntensity_,
-               ORB_COLOR_ATTACK, ORB_COLOR_RELEASE))    color_changed = true;
-    if (smooth(orbColorSurgeActive_,    orbColorSurgeIntensity_,
-               ORB_COLOR_ATTACK, ORB_COLOR_RELEASE))    color_changed = true;
+        ORB_COLOR_ATTACK, ORB_COLOR_RELEASE))    color_changed = true;
+    if (smooth(orbColorSurgeActive_, orbColorSurgeIntensity_,
+        ORB_COLOR_ATTACK, ORB_COLOR_RELEASE))    color_changed = true;
 
     if (color_changed) {
         gpuState_.upload_orb_color_dynamics(queue,
@@ -1050,7 +1056,7 @@ void dispatch_orb_copy_prev(wgpu::CommandEncoder& encoder) {
 
 // Per-frame rule + couplings. Uploads dt/t_seconds, then dispatches.
 void dispatch_orb_dynamics(wgpu::CommandEncoder& encoder,
-                           wgpu::Queue& queue) {
+    wgpu::Queue& queue) {
     if (!orbsActive_ || orbCount_ == 0) return;
 
     gpuState_.upload_orb_frame(queue, currentDt_, currentSeconds_);
