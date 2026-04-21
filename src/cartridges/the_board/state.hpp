@@ -1028,7 +1028,7 @@ namespace t7 {
             float    tier1_flock_sep_gain;        //432
             float    tier1_flock_align_gain;      //436
             float    tier1_flock_coh_gain;        //440
-            float    speed_mult;                  //444  (was _tier1_flock_pad; 1.0 = identity. Pass 14 population speed)
+            float    speed_mult;                  //444  (was _tier1_flock_pad; 1.0 = identity, population speed multiplier)
             float    tier2_flock_sep_gain;        //448
             float    tier2_flock_align_gain;      //452
             float    tier2_flock_coh_gain;        //456
@@ -2299,7 +2299,7 @@ namespace t7 {
                     offsetof(GPUOrbConfig, flock_sep_sign),
                     &packed, sizeof(packed));
             }
-            // Pass 13: Brownian gesture bundle — three contiguous floats
+            // Brownian gesture bundle — three contiguous floats
             // at offset 180 (radial_sign, vert_bias, coherence).
             void upload_orb_brownian_gesture(wgpu::Queue& queue,
                                              float radial_sign,
@@ -2310,7 +2310,7 @@ namespace t7 {
                     offsetof(GPUOrbConfig, brownian_radial_sign),
                     &packed, sizeof(packed));
             }
-            // Pass 13: Orbital gesture bundle — two non-contiguous floats
+            // Orbital gesture bundle — two non-contiguous floats
             // (412 and 428, interleaved by tier-flock-gain blocks).
             // Two tiny writes — only fires on gesture cycle, not per frame.
             void upload_orb_orbital_gesture(wgpu::Queue& queue,
@@ -2323,7 +2323,7 @@ namespace t7 {
                     offsetof(GPUOrbConfig, orbital_speed_var_mult),
                     &speed_var_mult, sizeof(float));
             }
-            // Pass 14: population speed multiplier (1.0 = identity). Fires
+            // Population speed multiplier (1.0 = identity). Fires
             // only when the attractor smoother moves — quiet at rest.
             void upload_orb_speed_mult(wgpu::Queue& queue, float mult) {
                 queue.WriteBuffer(orbConfigBuffer_,

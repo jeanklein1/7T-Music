@@ -8836,11 +8836,11 @@ fn orb_sample_palette(seed: u32) -> vec3<f32> {
 // divergence penalty. The pattern is mechanical; it's kept in this
 // compact form so the obvious repetition doesn't dominate the file.
 
-// Pass 13: coherent-noise seed. When Brownian's coherence gesture
-// bit is active, neighbouring orbs share a hash by quantizing
-// position to 80-unit blocks — "wind-gust" grouping roughly 1/5
-// the dome radius. Hard block edges; a smoother variant (interp
-// across neighbours) is a future refinement.
+// Coherent-noise seed. When Brownian's coherence gesture bit is
+// active, neighbouring orbs share a hash by quantizing position to
+// 80-unit blocks — "wind-gust" grouping roughly 1/5 the dome radius.
+// Hard block edges; a smoother variant (interp across neighbours)
+// is a future refinement.
 fn orb_coherent_noise_seed(pos: vec3<f32>, t_seed: u32) -> u32 {
     let block = vec3<i32>(floor(pos / 80.0));
     let bx = bitcast<u32>(block.x);

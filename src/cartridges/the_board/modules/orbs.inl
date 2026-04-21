@@ -53,27 +53,33 @@
 static constexpr float ORB_DOME_RADIUS = 450.0f;
 static constexpr float ORB_BASE_SIZE = 3.0f;
 
-// ── Coupling rates (1/s) and scales ──────────────────────────────
-// Exponential ramps. Attack faster than release = onsets feel punchy,
-// the sky "holds" after phrases end. Flock matches attack = silence
-// returns the flock smoothly (~0.4s time constant).
-static constexpr float ORB_FORCE_ATTACK = 3.0f;
-static constexpr float ORB_FORCE_RELEASE = 1.5f;
-static constexpr float ORB_FORCE_SCALE = 40.0f;   // world-units/s² at full intensity
-static constexpr float ORB_NOISE_FLOOR = 0.3f;    // barely perceptible drift in silence
+// ── Musical couplings ────────────────────────────────────────────
+// Attack/release rates are in 1/s; exponential ramps. Attack faster
+// than release = onsets feel punchy, the sky "holds" after phrases
+// end. Each coupling's extras (scales, floors, ceilings) sit with
+// its rates rather than in a separate orphan block.
 
-static constexpr float ORB_COLOR_ATTACK = 5.0f;
-static constexpr float ORB_COLOR_RELEASE = 2.5f;
+// Force — radial expansion; also drives the noise ceiling lerp.
+static constexpr float ORB_FORCE_ATTACK   = 3.0f;
+static constexpr float ORB_FORCE_RELEASE  = 1.5f;
+static constexpr float ORB_FORCE_SCALE    = 40.0f;   // world-units/s² at full intensity
+static constexpr float ORB_NOISE_FLOOR    = 0.3f;    // barely perceptible drift in silence
 
-static constexpr float ORB_FLOCK_ATTACK = 2.5f;
-static constexpr float ORB_FLOCK_RELEASE = 2.5f;
+// Color — pulse / converge / surge trajectories, gated per-mood.
+static constexpr float ORB_COLOR_ATTACK   = 5.0f;
+static constexpr float ORB_COLOR_RELEASE  = 2.5f;
 
-// Pass 14: population speed attractor. Smoother + attack/release
-// pulling orbSpeedMultCurrent_ toward a target that's currently
-// hardcoded to 1.0 (inert). Replace the target expression in
-// update_orb_coupling when the musical driver arrives.
-static constexpr float ORB_SPEED_ATTACK = 2.0f;
-static constexpr float ORB_SPEED_RELEASE = 1.0f;   // slower return
+// Flock — neighbor-force tightening under pressure. Release matches
+// attack so silence returns the flock smoothly (~0.4s time constant).
+static constexpr float ORB_FLOCK_ATTACK   = 2.5f;
+static constexpr float ORB_FLOCK_RELEASE  = 2.5f;
+
+// Speed — population-wide velocity multiplier. At rest (silence)
+// the target is 1.0 (identity); at full polyphony it's ORB_SPEED_CEILING.
+// Every rule's dominant speed parameter scales with the multiplier.
+static constexpr float ORB_SPEED_ATTACK   = 2.0f;
+static constexpr float ORB_SPEED_RELEASE  = 1.0f;    // slower return feels like settling
+static constexpr float ORB_SPEED_CEILING  = 3.0f;    // 3× baseline at full music
 
 // ── Rule-critical parameter floors ───────────────────────────────
 // Applied in configure_orbs when the mood authors 0.0 for a given
@@ -433,7 +439,7 @@ static constexpr uint32_t ORB_RULE_FROZEN = 2u;
 static constexpr uint32_t ORB_RULE_FLOCKING = 3u;
 
 uint32_t orbCurrentMotionRule_ = 0u;
-// Pass 13: per-rule gesture indices. Index 2 (Frozen) is vestigial
+// Per-rule gesture indices. Index 2 (Frozen) is vestigial
 // — Frozen has no gestures; cycle_orb_gesture short-circuits. All
 // four indices persist across mood transitions (player state).
 uint32_t orbGestureIdx_[4] = { 0u, 0u, 0u, 0u };
@@ -456,8 +462,8 @@ bool     orbColorSurgeActive_ = false;
 float    orbFlockIntensity_ = 0.0f;
 bool     orbFlockActive_ = false;  // true when active rule is Flocking
 
-// Pass 14: population speed attractor. Smoothed on the CPU,
-// uploaded via upload_orb_speed_mult only when it moves.
+// Population speed multiplier. Smoothed on the CPU, uploaded via
+// upload_orb_speed_mult only when it moves.
 float    orbSpeedMultCurrent_ = 1.0f;
 
 
@@ -490,7 +496,7 @@ void apply_mood_first_run_defaults_(const OrbMoodConfig& cfg) {
         orbPawnAnchored_ = cfg.anchor_to_pawn_default;
         orbAnchorInitialized_ = true;
     }
-    // Pass 13: seed each rule's gesture index on first configure.
+    // Seed each rule's gesture index on first configure.
     // The mood carries one default (flock_gesture_default); we reuse
     // it for all three rules with per-rule count clamping. A future
     // pass can split this into per-rule mood defaults if wanted.
@@ -625,7 +631,7 @@ void pack_flocking_(GPUOrbConfig& gpuCfg,
     gpuCfg.flock_max_speed = max_speed;
     gpuCfg.flock_coupling_intensity = 0.0f;
 
-    // Pass 13: pack all three rule gesture bundles. Each rule reads
+    // Pack all three rule gesture bundles. Each rule reads
     // its own slice in the dynamics kernel; writing all three at
     // configure time keeps them in sync whatever rule becomes active.
     {
@@ -653,7 +659,7 @@ void pack_flocking_(GPUOrbConfig& gpuCfg,
     gpuCfg.rule_drag_frozen = passthrough(rule_drag_frz);
     gpuCfg.rule_drag_flocking = passthrough(rule_drag_flk);
 
-    // Pass 14: preserve the current smoothed speed multiplier across
+    // Preserve the current smoothed speed multiplier across
     // mood transitions — use the in-flight value rather than a literal
     // 1.0 so a mood portal doesn't snap the sky back to baseline.
     gpuCfg.speed_mult = orbSpeedMultCurrent_;
@@ -811,7 +817,7 @@ void teardown_orbs() {
     orbFlockIntensity_ = 0.0f;
     orbFlockActive_ = false;
 
-    // Pass 14: speed multiplier resets with the mood (not player state).
+    // Speed multiplier resets with the mood (not player state).
     orbSpeedMultCurrent_ = 1.0f;
 
     // Force fresh anchor upload on next configure (cache cleared, flag state preserved).
@@ -1023,18 +1029,18 @@ void update_orb_coupling(float polyphony, float dt, wgpu::Queue& queue) {
         }
     }
 
-    // Pass 14: population speed attractor. Pulls orbSpeedMultCurrent_
-    // toward a target that's currently inert (1.0 = identity). When
-    // the musical driver arrives, change the target expression to a
-    // polyphony-derived value and the rest of this block is ready.
+    // Population speed attractor. `target` (computed above,
+    // clamped polyphony 0..1) drives speed_target from 1.0 at silence
+    // up to ORB_SPEED_CEILING at full music. The sky breathes in
+    // literal speed-of-motion with whatever the music is doing.
     {
-        const float speed_target = 1.0f;   // ← future: polyphony-driven
+        const float speed_target = 1.0f + target * (ORB_SPEED_CEILING - 1.0f);
 
         float prev = orbSpeedMultCurrent_;
         float rate = (speed_target > prev) ? ORB_SPEED_ATTACK : ORB_SPEED_RELEASE;
         float next = prev + (speed_target - prev) * (1.0f - std::exp(-rate * dt));
-        // Snap back to unity when we arrive, so the idle state stops
-        // generating queue traffic.
+        // Snap back to unity when silence returns, so the idle state
+        // stops generating queue traffic.
         if (next < 1.001f && next > 0.999f && speed_target == 1.0f) next = 1.0f;
         if (next != prev) {
             orbSpeedMultCurrent_ = next;
@@ -1106,7 +1112,6 @@ void dispatch_orb_dynamics(wgpu::CommandEncoder& encoder,
     renderer_.dispatch_orb_dynamics(pass, gpuState_.orb_compute_group(), wgs);
     pass.End();
 }
-
 
 // ═══ RENDER ══════════════════════════════════════════════════════
 
