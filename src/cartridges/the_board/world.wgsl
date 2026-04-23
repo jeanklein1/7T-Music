@@ -1884,7 +1884,68 @@ fn zone_gol_height_at(world_xz: vec2<f32>) -> f32 {
     return 0.0;
 }
 
-// --- Composable Ground Hierarchy ---
+// --- Ground Architecture: contributor and policy ids (Step 1 scaffolding) ---
+//
+// Mirror of modules/ground_architecture.inl. Shader code references
+// contributors and policies by these symbols. See the .inl for the
+// policy-to-contributor bitmask table and DAG.
+//
+// Step 1: these are declared but not consumed. Step 2 adds contrib_*_at
+// eval functions; Step 3 adds query_ground_* specializations; Step 4
+// migrates consumers. See ground_refactor_claude_code_brief.md.
+
+const CONTRIB_TERRAIN_LATTICE   : u32 = 0u;
+const CONTRIB_TILE_MODIFIERS    : u32 = 1u;
+const CONTRIB_SOLIDS            : u32 = 2u;
+const CONTRIB_PYRAMIDS          : u32 = 3u;
+const CONTRIB_PAINTINGS_BASES   : u32 = 4u;
+const CONTRIB_VEGETATION_BASES  : u32 = 5u;
+const CONTRIB_GOL_ZONES         : u32 = 6u;
+const CONTRIB_TERRAIN_WAVES     : u32 = 7u;
+const CONTRIB_RADIAL_PULSES     : u32 = 8u;
+const CONTRIB_PAWN_AURA         : u32 = 9u;
+const CONTRIB_GOL_SUPPRESSION   : u32 = 10u;
+const CONTRIB_COUNT             : u32 = 11u;
+
+// Fused-static-base bitmask: lattice + tile_modifiers + solids travel
+// together in every policy that wants a landform base.
+const GROUND_STATIC_BASE_MASK: u32 =
+    (1u << CONTRIB_TERRAIN_LATTICE)
+  | (1u << CONTRIB_TILE_MODIFIERS)
+  | (1u << CONTRIB_SOLIDS);
+
+// Per-policy contributor masks — kept in sync with POLICIES[] in
+// modules/ground_architecture.inl. The query specializations in
+// Step 3 select their contributors at compile time from these.
+const POLICY_PLACEMENT_PYRAMID_MASK    : u32 = GROUND_STATIC_BASE_MASK;
+const POLICY_PLACEMENT_PAINTING_MASK   : u32 = GROUND_STATIC_BASE_MASK
+                                              | (1u << CONTRIB_PYRAMIDS)
+                                              | (1u << CONTRIB_GOL_ZONES);
+const POLICY_PLACEMENT_VEGETATION_MASK : u32 = GROUND_STATIC_BASE_MASK;
+const POLICY_BAKED_HEIGHTFIELD_MASK    : u32 = GROUND_STATIC_BASE_MASK
+                                              | (1u << CONTRIB_PYRAMIDS);
+const POLICY_FLYER_MASK                : u32 = GROUND_STATIC_BASE_MASK
+                                              | (1u << CONTRIB_PYRAMIDS)
+                                              | (1u << CONTRIB_GOL_ZONES)
+                                              | (1u << CONTRIB_TERRAIN_WAVES)
+                                              | (1u << CONTRIB_RADIAL_PULSES)
+                                              | (1u << CONTRIB_PAWN_AURA);
+const POLICY_WALKER_MASK               : u32 = GROUND_STATIC_BASE_MASK
+                                              | (1u << CONTRIB_PYRAMIDS)
+                                              | (1u << CONTRIB_GOL_ZONES)
+                                              | (1u << CONTRIB_TERRAIN_WAVES)
+                                              | (1u << CONTRIB_RADIAL_PULSES)
+                                              | (1u << CONTRIB_PAWN_AURA)
+                                              | (1u << CONTRIB_GOL_SUPPRESSION);
+const POLICY_WALKER_AGENT_MASK         : u32 = GROUND_STATIC_BASE_MASK
+                                              | (1u << CONTRIB_PYRAMIDS)
+                                              | (1u << CONTRIB_GOL_ZONES)
+                                              | (1u << CONTRIB_TERRAIN_WAVES)
+                                              | (1u << CONTRIB_RADIAL_PULSES)
+                                              | (1u << CONTRIB_PAWN_AURA);
+const POLICY_CELESTIAL_MASK            : u32 = 0u;
+
+// --- Composable Ground Hierarchy (legacy description — rewritten in Step 6) ---
 //
 // Stratified ground height: each level includes all contributions below it.
 // Consumers pick the level they need. Spawning order follows the hierarchy

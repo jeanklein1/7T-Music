@@ -1471,6 +1471,9 @@ namespace t7 {
                         // ── Pawn Aura (modules/pawn_aura.inl) ──
 #include "modules/pawn_aura.inl"
 
+                        // ── Ground Architecture (modules/ground_architecture.inl) ──
+#include "modules/ground_architecture.inl"
+
                         // ── Sky Orbs (modules/orbs.inl) ──
 #include "modules/orbs.inl"
 
