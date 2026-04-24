@@ -3275,7 +3275,7 @@ namespace t7 {
                 // Sphere:  100-119   (sphere_state, trajectories)
                 //
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 14> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 17> entries{};
 
                     entries[0].binding = 0;
                     entries[0].visibility = wgpu::ShaderStage::Compute;
@@ -3336,6 +3336,23 @@ namespace t7 {
                     entries[13].binding = 62;   // portal_array (uniform — proximity check in update_pawn)
                     entries[13].visibility = wgpu::ShaderStage::Compute;
                     entries[13].buffer.type = wgpu::BufferBindingType::Uniform;
+
+                    // Cached patch heightfield + sampler + spatial index — sample_terrain_y_at
+                    // (POLICY_BAKED_HEIGHTFIELD via texture). Required by compute pipelines that
+                    // do per-frame baked-path Y lookups: update_camera, update_pawn (in Step 4c),
+                    // and any future cached-heightfield consumer that lives on this shared layout.
+                    entries[14].binding = 145;  // photo_heightfield (texture_2d_array)
+                    entries[14].visibility = wgpu::ShaderStage::Compute;
+                    entries[14].texture.sampleType = wgpu::TextureSampleType::Float;
+                    entries[14].texture.viewDimension = wgpu::TextureViewDimension::e2DArray;
+
+                    entries[15].binding = 146;  // photo_sampler (filtering)
+                    entries[15].visibility = wgpu::ShaderStage::Compute;
+                    entries[15].sampler.type = wgpu::SamplerBindingType::Filtering;
+
+                    entries[16].binding = 152;  // patch_grid (O(1) spatial index for sample_terrain_y_at)
+                    entries[16].visibility = wgpu::ShaderStage::Compute;
+                    entries[16].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Compute Entity Layout";
@@ -4235,9 +4252,9 @@ namespace t7 {
 
                 // -- Bind group instances ------------------------------------
 
-                // Compute entity bind group (14 entries: systems + terrain + GoL zones + portals)
+                // Compute entity bind group (17 entries: systems + terrain + GoL zones + portals + cached heightfield)
                 {
-                    std::array<wgpu::BindGroupEntry, 14> entries{};
+                    std::array<wgpu::BindGroupEntry, 17> entries{};
 
                     entries[0].binding = 0;
                     entries[0].buffer = signalBuffer_;
@@ -4300,6 +4317,21 @@ namespace t7 {
                     entries[13].binding = 62;
                     entries[13].buffer = portalArrayBuffer_;
                     entries[13].size = sizeof(GPUPortalArray);
+
+                    // Cached patch heightfield — sample_terrain_y_at consumed by
+                    // update_camera, update_pawn (Step 4c), and any future
+                    // POLICY_BAKED_HEIGHTFIELD compute consumer. Photographer
+                    // and entity placement keep their dedicated layouts that
+                    // also bind these — same handles, different layout slots.
+                    entries[14].binding = 145;
+                    entries[14].textureView = patchHeightfieldArrayReadView_;
+
+                    entries[15].binding = 146;
+                    entries[15].sampler = bilinearSampler_;
+
+                    entries[16].binding = 152;
+                    entries[16].buffer = patchGridBuffer_;
+                    entries[16].size = sizeof(GPUPatchGrid);
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Compute Entity BindGroup";
