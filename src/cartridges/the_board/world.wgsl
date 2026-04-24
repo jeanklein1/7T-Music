@@ -2254,6 +2254,157 @@ fn contrib_pawn_aura_at(world_xz: vec2<f32>) -> f32 {
     return sample_pawn_aura(world_xz, pawn_state.pos.xz).r * config.pawn_aura_height;
 }
 
+// ════════════════════════════════════════════════════════════════
+// Ground Query API — per-policy specializations (Step 3)
+//
+// One entry point per policy. Each consumer declares its policy at
+// its own call site (a compile-time constant choice of function) so
+// FXC sees uniform branching and can dead-code-eliminate anything
+// outside that policy's contributor set. Runtime policy dispatch is
+// deliberately avoided — see ground_refactor_claude_code_brief.md §1.3.
+//
+// Contributor sets mirror POLICIES[] in modules/ground_architecture.inl.
+//
+// Nothing migrates to these functions in Step 3. Consumer migration
+// happens in Step 4 (placement/flyer/walker/baked), each as its own
+// verify-and-commit unit.
+// ════════════════════════════════════════════════════════════════
+
+struct QueryInputs {
+    consumer_pos: vec3<f32>,
+    t_seconds:    f32,
+}
+
+// --- Placement policies: no deformation fields (spawn-time Y correction) ---
+
+// POLICY_PLACEMENT_PYRAMID — static_base only ("pyramids don't see themselves").
+fn query_ground_placement_pyramid(xz: vec2<f32>) -> f32 {
+    return contrib_static_base_at(xz);
+}
+
+// POLICY_PLACEMENT_PAINTING — paintings sit on current GoL (preserves
+// pre-refactor zone-mesh behavior). No deformation fields.
+fn query_ground_placement_painting(xz: vec2<f32>) -> f32 {
+    var h = contrib_static_base_at(xz);
+    h += contrib_pyramids_at(xz);
+    h += contrib_gol_zones_at(xz);
+    return h;
+}
+
+// POLICY_PLACEMENT_VEGETATION — trees/columns don't stand on pyramids.
+fn query_ground_placement_vegetation(xz: vec2<f32>) -> f32 {
+    return contrib_static_base_at(xz);
+}
+
+// --- Baked heightfield: all static, no dynamic, no deformation ---
+
+// POLICY_BAKED_HEIGHTFIELD — what the cached heightfield texture
+// captures. Must stay consistent with the per-texel evaluation in
+// the two-pass patch heightfield gen.
+fn query_ground_baked_heightfield(xz: vec2<f32>) -> f32 {
+    var h = contrib_static_base_at(xz);
+    h += contrib_pyramids_at(xz);
+    return h;
+}
+
+// --- Fly-over: all global deformation fields included ---
+
+// POLICY_FLYER — spheres, cubes, cameras. Rides waves, pulses, aura.
+fn query_ground_flyer(xz: vec2<f32>, qi: QueryInputs) -> f32 {
+    var h = contrib_static_base_at(xz);
+    h += contrib_pyramids_at(xz);
+    h += contrib_gol_zones_at(xz);
+    h += contrib_terrain_waves_at(xz);
+    h += contrib_radial_pulses_at(xz, qi.t_seconds);
+    h += contrib_pawn_aura_at(xz);
+    return h;
+}
+
+// --- Walkers: everything the flyer sees, plus walker-specific fields ---
+
+// POLICY_WALKER — the pawn. Adds consumer-local GoL suppression so
+// the zone flattens under the walker's own feet.
+fn query_ground_walker(xz: vec2<f32>, qi: QueryInputs) -> f32 {
+    var h = contrib_static_base_at(xz);
+    h += contrib_pyramids_at(xz);
+    h += contrib_gol_zones_at(xz);
+    h += contrib_terrain_waves_at(xz);
+    h += contrib_radial_pulses_at(xz, qi.t_seconds);
+    h += contrib_pawn_aura_at(xz);
+    h -= contrib_gol_suppression_at(xz, qi.consumer_pos);
+    return h;
+}
+
+// POLICY_WALKER_AGENT — agents feel the full GoL lift (no self-suppression).
+fn query_ground_walker_agent(xz: vec2<f32>, qi: QueryInputs) -> f32 {
+    var h = contrib_static_base_at(xz);
+    h += contrib_pyramids_at(xz);
+    h += contrib_gol_zones_at(xz);
+    h += contrib_terrain_waves_at(xz);
+    h += contrib_radial_pulses_at(xz, qi.t_seconds);
+    h += contrib_pawn_aura_at(xz);
+    return h;
+}
+
+// --- Celestial: empty contributor set ---
+
+// POLICY_CELESTIAL — sun, stars, sky entities. Ground is 0.0. Kept
+// for symmetry and future celestial entity use.
+fn query_ground_celestial(xz: vec2<f32>) -> f32 {
+    return 0.0;
+}
+
+// --- Gradient variants ---
+// Central finite differences on the policy's query function. Caller
+// supplies eps; walker_walkable additionally clamps cliff-like steps.
+
+fn query_ground_flyer_gradient(xz: vec2<f32>, qi: QueryInputs, eps: f32) -> vec3<f32> {
+    let h   = query_ground_flyer(xz,                     qi);
+    let hpx = query_ground_flyer(xz + vec2(eps,  0.0),   qi);
+    let hmx = query_ground_flyer(xz - vec2(eps,  0.0),   qi);
+    let hpz = query_ground_flyer(xz + vec2(0.0,  eps),   qi);
+    let hmz = query_ground_flyer(xz - vec2(0.0,  eps),   qi);
+    let inv_2eps = 0.5 / eps;
+    return vec3(h, (hpx - hmx) * inv_2eps, (hpz - hmz) * inv_2eps);
+}
+
+fn query_ground_walker_gradient(xz: vec2<f32>, qi: QueryInputs, eps: f32) -> vec3<f32> {
+    let h   = query_ground_walker(xz,                     qi);
+    let hpx = query_ground_walker(xz + vec2(eps,  0.0),   qi);
+    let hmx = query_ground_walker(xz - vec2(eps,  0.0),   qi);
+    let hpz = query_ground_walker(xz + vec2(0.0,  eps),   qi);
+    let hmz = query_ground_walker(xz - vec2(0.0,  eps),   qi);
+    let inv_2eps = 0.5 / eps;
+    return vec3(h, (hpx - hmx) * inv_2eps, (hpz - hmz) * inv_2eps);
+}
+
+// Walkable gradient — clamps neighbor heights to h0 when the step
+// would exceed step_h (treats cliffs as flat for gradient purposes).
+// Mirrors the body of effective_ground_with_gradients_walkable but
+// with the walker policy's query function.
+fn query_ground_walker_walkable(xz: vec2<f32>, qi: QueryInputs, eps: f32, step_h: f32) -> vec3<f32> {
+    let h0 = query_ground_walker(xz, qi);
+
+    var hpx = query_ground_walker(xz + vec2(eps,  0.0), qi);
+    var hmx = query_ground_walker(xz - vec2(eps,  0.0), qi);
+    var hpz = query_ground_walker(xz + vec2(0.0,  eps), qi);
+    var hmz = query_ground_walker(xz - vec2(0.0,  eps), qi);
+
+    if (abs(hpx - h0) > step_h) { hpx = h0; }
+    if (abs(hmx - h0) > step_h) { hmx = h0; }
+    if (abs(hpz - h0) > step_h) { hpz = h0; }
+    if (abs(hmz - h0) > step_h) { hmz = h0; }
+
+    let inv_2eps = 0.5 / eps;
+    return vec3(h0, (hpx - hmx) * inv_2eps, (hpz - hmz) * inv_2eps);
+}
+
+// ════════════════════════════════════════════════════════════════
+// End Ground Query API.
+// Legacy effective_ground_* functions below remain unchanged in
+// Step 3; consumer migration and cleanup happen in Steps 4–5.
+// ════════════════════════════════════════════════════════════════
+
 fn effective_ground_with_gradients(world_xz: vec2<f32>, eps: f32) -> vec3<f32> {
     let h    = effective_ground_y(world_xz);
     let h_px = effective_ground_y(world_xz + vec2(eps, 0.0));
