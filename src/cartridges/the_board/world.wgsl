@@ -4526,6 +4526,20 @@ const AURA_DELTA_RANDOM: u32 = 1u;
 
 // Helper: sample pawn aura with toroidal lookup and ghost rejection.
 // Returns vec4(height_blend, delta_r, delta_g, delta_b) or vec4(0) if ghost/inactive.
+//
+// Sampler choice — bilinear_sampler, not nearest_sampler. The aura is
+// a continuous influence field, not a discrete grid. Point-sample
+// consumers (notably the pawn's own ground resolve via
+// contrib_pawn_aura_at) would otherwise see cell-boundary
+// discontinuities: aura_cs = 3.125 world units, so a walking consumer
+// crosses a cell every ~3 m and its sampled height jumps to the next
+// cell's value — felt as vertical bobbing during locomotion. The
+// patch-terrain VS didn't expose this because per-vertex nearest
+// samples are fragment-interpolated across the mesh, hiding the step.
+// The pawn's Y resolve is a point sample with no such interpolation.
+// pawn_aura_read is rgba16float which supports bilinear filtering on
+// all target hardware; color deltas (.gba) and zone extrusion's
+// suppression target also benefit from the smoother interpolation.
 fn sample_pawn_aura(world_xz: vec2<f32>, pawn_xz: vec2<f32>) -> vec4<f32> {
     if (config.aura_enabled < 0.5) { return vec4(0.0); }
     let aura_cs = 3.125;
@@ -4540,7 +4554,7 @@ fn sample_pawn_aura(world_xz: vec2<f32>, pawn_xz: vec2<f32>) -> vec4<f32> {
     let asx = ((acx % aura_n) + aura_n) % aura_n;
     let asz = ((acz % aura_n) + aura_n) % aura_n;
     let aura_uv = (vec2<f32>(f32(asx), f32(asz)) + 0.5) / f32(aura_n);
-    return textureSampleLevel(pawn_aura_read, nearest_sampler, aura_uv, 0.0);
+    return textureSampleLevel(pawn_aura_read, bilinear_sampler, aura_uv, 0.0);
 }
 
 struct PawnAuraCell {

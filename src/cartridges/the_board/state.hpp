@@ -3589,22 +3589,26 @@ namespace t7 {
                 // storage buffers directly through Group 0 (bindings 30, 160,
                 // 161), so this layout only needs the aura texture + sampler.
                 //
-                // Attached to update_sphere and update_cube pipelines (and
-                // later update_pawn) so contrib_pawn_aura_at → sample_pawn_aura
-                // can run in the compute stage. Pipelines that stay on the
-                // baked heightfield path (update_camera, compute_photographer_vp)
-                // do not bind this group.
+                // Attached to update_sphere, update_cube, update_pawn, and
+                // update_camera pipelines so contrib_pawn_aura_at →
+                // sample_pawn_aura can run in the compute stage. Pipelines
+                // that stay on the baked heightfield path
+                // (compute_photographer_vp) do not bind this group.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 2> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 3> entries{};
 
-                    entries[0].binding = 23;   // nearest_sampler (matches render texture layout)
+                    entries[0].binding = 22;   // bilinear_sampler (used by sample_pawn_aura)
                     entries[0].visibility = wgpu::ShaderStage::Compute;
-                    entries[0].sampler.type = wgpu::SamplerBindingType::NonFiltering;
+                    entries[0].sampler.type = wgpu::SamplerBindingType::Filtering;
 
-                    entries[1].binding = 33;   // pawn_aura_read
+                    entries[1].binding = 23;   // nearest_sampler (matches render texture layout; retained for future compute consumers)
                     entries[1].visibility = wgpu::ShaderStage::Compute;
-                    entries[1].texture.sampleType = wgpu::TextureSampleType::Float;
-                    entries[1].texture.viewDimension = wgpu::TextureViewDimension::e2D;
+                    entries[1].sampler.type = wgpu::SamplerBindingType::NonFiltering;
+
+                    entries[2].binding = 33;   // pawn_aura_read (rgba16float, filterable)
+                    entries[2].visibility = wgpu::ShaderStage::Compute;
+                    entries[2].texture.sampleType = wgpu::TextureSampleType::Float;
+                    entries[2].texture.viewDimension = wgpu::TextureViewDimension::e2D;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Compute Texture Layout";
@@ -4520,15 +4524,18 @@ namespace t7 {
                     if (!renderTextureBindGroup_) return false;
                 }
 
-                // Compute texture bind group (2 entries: 23 = nearest_sampler, 33 = pawn_aura_read)
+                // Compute texture bind group (3 entries: 22 = bilinear_sampler, 23 = nearest_sampler, 33 = pawn_aura_read)
                 {
-                    std::array<wgpu::BindGroupEntry, 2> entries{};
+                    std::array<wgpu::BindGroupEntry, 3> entries{};
 
-                    entries[0].binding = 23;
-                    entries[0].sampler = nearestSampler_;
+                    entries[0].binding = 22;
+                    entries[0].sampler = bilinearSampler_;
 
-                    entries[1].binding = 33;
-                    entries[1].textureView = pawnAuraReadView_;
+                    entries[1].binding = 23;
+                    entries[1].sampler = nearestSampler_;
+
+                    entries[2].binding = 33;
+                    entries[2].textureView = pawnAuraReadView_;
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Compute Texture BindGroup";
