@@ -1425,7 +1425,13 @@ namespace t7 {
 
             wgpu::BindGroupLayout computeEntityBindGroupLayout_, renderEntityBindGroupLayout_;
             wgpu::BindGroupLayout renderTextureBindGroupLayout_, shadowTextureBindGroupLayout_;
-            // (computeTextureBindGroupLayout_ removed — 0D compute shaders use Group 0 only)
+            // computeTextureBindGroupLayout_ — Group 1 for compute shaders that
+            // call query_ground_flyer / query_ground_walker. Provides
+            // nearest_sampler + pawn_aura_read (live-contributor path for
+            // sample_pawn_aura). Re-added for sphere/cube compute migration
+            // to POLICY_FLYER; 0D compute shaders that stay on the baked
+            // heightfield (camera clamps) do not bind this group.
+            wgpu::BindGroupLayout computeTextureBindGroupLayout_;
             wgpu::BindGroupLayout meshGenEntityBindGroupLayout_;  // binding 1 only — still used by fade overlay
             // (meshGenBindGroupLayout_ removed — legacy cell mesh gen)
             wgpu::BindGroupLayout terrainIndexGenLayout_;
@@ -1434,7 +1440,7 @@ namespace t7 {
 
             wgpu::BindGroup computeEntityBindGroup_, renderEntityBindGroup_;
             wgpu::BindGroup renderTextureBindGroup_, shadowTextureBindGroup_;
-            // (computeTextureBindGroup_ removed)
+            wgpu::BindGroup computeTextureBindGroup_;  // live-contributor textures for flyer/walker compute
             wgpu::BindGroup meshGenEntityBindGroup_;  // still used by fade overlay
             // (meshGenBindGroup_ removed — legacy cell mesh gen)
             wgpu::BindGroup terrainIndexGenBindGroup_;
@@ -2010,7 +2016,10 @@ namespace t7 {
             // --- Compute pass ---
             wgpu::BindGroup compute_entity_group() const { return computeEntityBindGroup_; }
             wgpu::BindGroupLayout compute_entity_layout() const { return computeEntityBindGroupLayout_; }
-            // (compute_texture_group/layout removed — 0D compute uses Group 0 only)
+            // Live-contributor textures (Group 1) for compute pipelines that
+            // evaluate query_ground_flyer / query_ground_walker.
+            wgpu::BindGroup compute_texture_group() const { return computeTextureBindGroup_; }
+            wgpu::BindGroupLayout compute_texture_layout() const { return computeTextureBindGroupLayout_; }
             wgpu::BindGroup terrain_index_gen_group() const { return terrainIndexGenBindGroup_; }
             wgpu::BindGroupLayout terrain_index_gen_layout() const { return terrainIndexGenLayout_; }
             wgpu::BindGroup patch_gen_group() const { return patchGenBindGroup_; }
@@ -3556,6 +3565,38 @@ namespace t7 {
                     if (!renderTextureBindGroupLayout_) return false;
                 }
 
+                // -- Compute texture layout (Group 1) -- bindings 23, 33 -------
+                // Live-contributor textures for compute pipelines that evaluate
+                // ground policies which require sample_pawn_aura (POLICY_FLYER,
+                // POLICY_WALKER). GoL and pyramid contributors read their
+                // storage buffers directly through Group 0 (bindings 30, 160,
+                // 161), so this layout only needs the aura texture + sampler.
+                //
+                // Attached to update_sphere and update_cube pipelines (and
+                // later update_pawn) so contrib_pawn_aura_at → sample_pawn_aura
+                // can run in the compute stage. Pipelines that stay on the
+                // baked heightfield path (update_camera, compute_photographer_vp)
+                // do not bind this group.
+                {
+                    std::array<wgpu::BindGroupLayoutEntry, 2> entries{};
+
+                    entries[0].binding = 23;   // nearest_sampler (matches render texture layout)
+                    entries[0].visibility = wgpu::ShaderStage::Compute;
+                    entries[0].sampler.type = wgpu::SamplerBindingType::NonFiltering;
+
+                    entries[1].binding = 33;   // pawn_aura_read
+                    entries[1].visibility = wgpu::ShaderStage::Compute;
+                    entries[1].texture.sampleType = wgpu::TextureSampleType::Float;
+                    entries[1].texture.viewDimension = wgpu::TextureViewDimension::e2D;
+
+                    wgpu::BindGroupLayoutDescriptor desc{};
+                    desc.label = "Compute Texture Layout";
+                    desc.entryCount = entries.size();
+                    desc.entries = entries.data();
+                    computeTextureBindGroupLayout_ = device_.CreateBindGroupLayout(&desc);
+                    if (!computeTextureBindGroupLayout_) return false;
+                }
+
                 // (mesh generation layout removed — legacy cell mesh gen.
                 //  Bindings 40-45 reserved for future Group 1 systems.)
 
@@ -4445,6 +4486,25 @@ namespace t7 {
                     desc.entries = entries.data();
                     renderTextureBindGroup_ = device_.CreateBindGroup(&desc);
                     if (!renderTextureBindGroup_) return false;
+                }
+
+                // Compute texture bind group (2 entries: 23 = nearest_sampler, 33 = pawn_aura_read)
+                {
+                    std::array<wgpu::BindGroupEntry, 2> entries{};
+
+                    entries[0].binding = 23;
+                    entries[0].sampler = nearestSampler_;
+
+                    entries[1].binding = 33;
+                    entries[1].textureView = pawnAuraReadView_;
+
+                    wgpu::BindGroupDescriptor desc{};
+                    desc.label = "Compute Texture BindGroup";
+                    desc.layout = computeTextureBindGroupLayout_;
+                    desc.entryCount = entries.size();
+                    desc.entries = entries.data();
+                    computeTextureBindGroup_ = device_.CreateBindGroup(&desc);
+                    if (!computeTextureBindGroup_) return false;
                 }
 
                 // (mesh generation bind group removed — legacy cell mesh gen)

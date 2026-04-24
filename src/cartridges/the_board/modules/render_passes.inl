@@ -164,12 +164,14 @@
 
                 renderer_.dispatch_update_sphere(
                     compute,
-                    gpuState_.compute_entity_group()
+                    gpuState_.compute_entity_group(),
+                    gpuState_.compute_texture_group()   // aura + sampler for POLICY_FLYER
                 );
 
                 renderer_.dispatch_update_cube(
                     compute,
-                    gpuState_.compute_entity_group()
+                    gpuState_.compute_entity_group(),
+                    gpuState_.compute_texture_group()   // aura + sampler for POLICY_FLYER
                 );
 
                 renderer_.dispatch_compute_vp(

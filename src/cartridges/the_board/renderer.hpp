@@ -161,7 +161,7 @@ namespace t7 {
 
             wgpu::Device device_;
             wgpu::BindGroupLayout computeEntityLayout_;
-            // (computeTextureLayout_ removed — 0D compute uses Group 0 only)
+            wgpu::BindGroupLayout computeTextureLayout_;   // Group 1 for live-contributor compute (sphere/cube)
             wgpu::BindGroupLayout terrainIndexGenLayout_;
             wgpu::BindGroupLayout patchGenLayout_;
             wgpu::BindGroupLayout renderEntityLayout_;
@@ -314,6 +314,7 @@ namespace t7 {
             ) {
                 device_ = device;
                 computeEntityLayout_ = gpuState.compute_entity_layout();
+                computeTextureLayout_ = gpuState.compute_texture_layout();
                 terrainIndexGenLayout_ = gpuState.terrain_index_gen_layout();
                 patchGenLayout_ = gpuState.patch_gen_layout();
                 renderEntityLayout_ = gpuState.render_entity_layout();
@@ -399,19 +400,23 @@ namespace t7 {
 
             void dispatch_update_sphere(
                 wgpu::ComputePassEncoder& pass,
-                wgpu::BindGroup entityBindGroup
+                wgpu::BindGroup entityBindGroup,
+                wgpu::BindGroup textureBindGroup
             ) {
                 pass.SetPipeline(updateSpherePipeline_);
                 pass.SetBindGroup(0, entityBindGroup);
+                pass.SetBindGroup(1, textureBindGroup);   // live-contributor textures (aura)
                 pass.DispatchWorkgroups(1, 1, 1);
             }
 
             void dispatch_update_cube(
                 wgpu::ComputePassEncoder& pass,
-                wgpu::BindGroup entityBindGroup
+                wgpu::BindGroup entityBindGroup,
+                wgpu::BindGroup textureBindGroup
             ) {
                 pass.SetPipeline(updateCubePipeline_);
                 pass.SetBindGroup(0, entityBindGroup);
+                pass.SetBindGroup(1, textureBindGroup);   // live-contributor textures (aura)
                 pass.DispatchWorkgroups(1, 1, 1);
             }
 
@@ -1353,11 +1358,28 @@ namespace t7 {
                     return updateCameraPipeline_ != nullptr;
                     })) return false;
 
+                // Shared pipeline layout for compute pipelines that evaluate
+                // query_ground_flyer / query_ground_walker. Group 0 is the
+                // same compute-entity layout; Group 1 adds the aura texture +
+                // sampler needed by sample_pawn_aura on the compute path.
+                std::array<wgpu::BindGroupLayout, 2> liveContribLayouts = {
+                    computeEntityLayout_,
+                    computeTextureLayout_
+                };
+                wgpu::PipelineLayoutDescriptor liveContribLayoutDesc{};
+                liveContribLayoutDesc.bindGroupLayoutCount = liveContribLayouts.size();
+                liveContribLayoutDesc.bindGroupLayouts = liveContribLayouts.data();
+                wgpu::PipelineLayout liveContribComputeLayout =
+                    device_.CreatePipelineLayout(&liveContribLayoutDesc);
+                if (!liveContribComputeLayout) return false;
+
                 // Pipeline 1d: update_sphere (0D)
+                // Uses the live-contributor layout so coupling_terrain_to_sphere_orbit_height
+                // can call query_ground_flyer (→ contrib_pawn_aura_at → sample_pawn_aura).
                 if (!tPipe("update_sphere", [&]() {
                     wgpu::ComputePipelineDescriptor desc{};
                     desc.label = "Update Sphere (0D)";
-                    desc.layout = computeLayout;
+                    desc.layout = liveContribComputeLayout;
                     desc.compute.module = shaderModule_;
                     desc.compute.entryPoint = Entry::UPDATE_SPHERE;
                     updateSpherePipeline_ = device_.CreateComputePipeline(&desc);
@@ -1365,10 +1387,12 @@ namespace t7 {
                     })) return false;
 
                 // Pipeline 1e: update_cube (0D)
+                // Same live-contributor layout — update_cube calls
+                // query_ground_flyer directly for hover-base clearance.
                 if (!tPipe("update_cube", [&]() {
                     wgpu::ComputePipelineDescriptor desc{};
                     desc.label = "Update Cube (0D)";
-                    desc.layout = computeLayout;
+                    desc.layout = liveContribComputeLayout;
                     desc.compute.module = shaderModule_;
                     desc.compute.entryPoint = Entry::UPDATE_CUBE;
                     updateCubePipeline_ = device_.CreateComputePipeline(&desc);

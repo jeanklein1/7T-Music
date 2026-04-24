@@ -4856,14 +4856,19 @@ fn update_camera() {
     }
 
     // ─── Camera terrain clamp: never go underground ──────────────
-    // POLICY_FLYER — camera clears every visible ground contribution
-    // (static base + pyramids + gol zones + terrain waves + radial pulses
-    // + pawn aura). Pre-refactor used effective_ground_y + wave overlay,
-    // which missed pulses and auras.
+    //
+    // POLICY_BAKED_HEIGHTFIELD consumer (texture variant).
+    // sample_terrain_y_at reads the cached patch heightfield, which
+    // captures static_base + pyramids only (no gol zones, no terrain
+    // waves, no radial pulses, no pawn aura). That's a pragmatic
+    // trade-off: the update_camera compute pipeline's bind group does
+    // not include zone/aura resources, and extending its binding
+    // surface to query live contributors would be a larger change.
+    // The baked path is O(1) texture sample; the primary camera
+    // accepts that it will not clear pulse- or aura-lifted ridges.
     {
         let min_clearance = 1.5;  // minimum height above terrain
-        let qi = QueryInputs(camera.pos, signal.t_seconds);
-        let ground_at_cam = query_ground_flyer(camera.pos.xz, qi);
+        let ground_at_cam = sample_terrain_y_at(camera.pos.xz);
         camera.pos.y = max(camera.pos.y, ground_at_cam + min_clearance);
     }
 
@@ -6158,13 +6163,14 @@ fn compute_photographer_vp() {
         cfg.distance * cos_el * cos_az
     );
 
-    // --- Clamp camera above actual terrain.
-    // POLICY_FLYER — photographer camera rides every visible ground
-    // contribution, matching the primary camera's clamp behavior.
-    // Pre-refactor used the baked heightfield texture (static base +
-    // pyramids only), so it missed GoL zones, pulses, waves, and aura.
-    let qi = QueryInputs(eye_raw, signal.t_seconds);
-    let terrain_at_cam = query_ground_flyer(eye_raw.xz, qi);
+    // --- Clamp camera above actual terrain (O(1) patch_grid lookup).
+    //
+    // POLICY_BAKED_HEIGHTFIELD consumer (texture variant).
+    // Same trade-off as the primary camera: the compute_photographer_vp
+    // pipeline's bind group does not include live-contributor
+    // resources, so this uses the cached heightfield (static_base +
+    // pyramids only). See update_camera for the rationale.
+    let terrain_at_cam = sample_terrain_y_at(eye_raw.xz);
     let eye = vec3(eye_raw.x, max(eye_raw.y, terrain_at_cam + 0.1), eye_raw.z);
 
     // --- Build VP looking at pawn, with frame offset
