@@ -1997,6 +1997,21 @@ const POLICY_CELESTIAL_MASK            : u32 = 0u;
 //                       (terrain_waves, radial_pulses, pawn_aura,
 //                        gol_suppression — subtractive, consumer-local)
 //
+// CONTRIB_PAWN_AURA has two consumer-facing forms:
+//   contrib_pawn_aura_at_self()      — scalar peak (constant). Used by
+//                                      POLICY_WALKER because the pawn
+//                                      sits at its own aura peak and
+//                                      sampling the grid at the pawn's
+//                                      XZ reads directional bias that
+//                                      oscillates under locomotion.
+//   contrib_pawn_aura_at_external(xz) — grid sample. Used by POLICY_FLYER,
+//                                      POLICY_WALKER_AGENT, and inline
+//                                      render-side samples (patch VS,
+//                                      zone extrusion VS). These
+//                                      consumers are not at the pawn's
+//                                      position, so the grid is what
+//                                      they need.
+//
 // The three fused static-base contributors (lattice × tile_modifiers
 // + solids) evaluate together as contrib_static_base_at — the current
 // composition is inseparable; they're declared separately in the DAG
@@ -2329,14 +2344,43 @@ fn contrib_radial_pulses_at(world_xz: vec2<f32>, t_seconds: f32) -> f32 {
 // contrib_radial_pulses_at directly.)
 
 // CONTRIB_PAWN_AURA — deformation_field, global (pawn-anchored).
-// Contributes: height extrusion under the pawn's aura footprint.
+// Has two consumer-facing forms; policies pick per consumer.
+//
+// ─ external form ──────────────────────────────────────────────
+// Grid sample at an arbitrary world xz, using pawn_state.pos as the
+// field's anchor for the bounding-box check. Used by consumers
+// querying away from the pawn: POLICY_FLYER (spheres, cubes, camera),
+// POLICY_WALKER_AGENT (non-pawn walkers), and inline render-side
+// samples in patch_terrain_vs / zone_extrusion_vs.
+// Contributes: height extrusion at xz based on the directional-biased
+//   aura cell that xz falls into.
 // Dependencies (via DAG): none — orthogonal to the static stack.
-// Notes: reads pawn_state.pos internally because the aura is anchored
-//   in world space at the pawn's position regardless of who queries.
-//   Wraps sample_pawn_aura (defined later — WGSL resolves function
-//   references module-wide).
-fn contrib_pawn_aura_at(world_xz: vec2<f32>) -> f32 {
+// Notes: wraps sample_pawn_aura (defined later — WGSL resolves
+//   function references module-wide).
+fn contrib_pawn_aura_at_external(world_xz: vec2<f32>) -> f32 {
     return sample_pawn_aura(world_xz, pawn_state.pos.xz).r * config.pawn_aura_height;
+}
+
+// ─ self form ─────────────────────────────────────────────────
+// Scalar peak value for the pawn's own Y. The pawn sits at the center
+// of its own aura dome; the dome's peak is config.pawn_aura_height
+// (presence ramping already folded in CPU-side via auraPresence_).
+// Used by POLICY_WALKER.
+//
+// Why not sample the grid at pawn_state.pos.xz?  compute_pawn_aura
+// computes a directional-biased cell value (see world.wgsl near line
+// 6081+: leading ramp toward heading, steeper drop behind). Sampling
+// at the pawn's own XZ reads that bias — and as the pawn walks across
+// cells, the bias produces vertical oscillation (visible as bobbing).
+// The pre-refactor pawn Y code was a flat scalar add; this restores
+// that semantics inside the policy system.
+//
+// Returns a constant (no xz dependence), so the contributor's gradient
+// is zero — including it or excluding it from POLICY_WALKER_TILT is
+// mathematically equivalent; the tilt policy continues to exclude it
+// for conceptual clarity.
+fn contrib_pawn_aura_at_self() -> f32 {
+    return config.pawn_aura_height;
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -2410,39 +2454,46 @@ fn query_ground_baked_heightfield(xz: vec2<f32>) -> f32 {
 
 // POLICY_FLYER — non-walking entities that ride animated terrain.
 // Contributors: static_base + CONTRIB_PYRAMIDS + CONTRIB_GOL_ZONES +
-//   CONTRIB_TERRAIN_WAVES + CONTRIB_RADIAL_PULSES + CONTRIB_PAWN_AURA.
-// Typical consumers: sphere orbit clearance, cube hover base; eventually
-//   the camera clamps once their pipelines are extended (see follow-up
-//   brief Part D).
+//   CONTRIB_TERRAIN_WAVES + CONTRIB_RADIAL_PULSES + CONTRIB_PAWN_AURA
+//   (external form — grid sample at xz).
+// Typical consumers: sphere orbit clearance, cube hover base, primary
+//   camera clamp.
 // Notes: no CONTRIB_GOL_SUPPRESSION — flyers don't flatten GoL at their
-//   own position. Gradient variant: query_ground_flyer_gradient.
+//   own position. Aura uses contrib_pawn_aura_at_external because flyers
+//   sample away from the pawn's position. Gradient variant:
+//   query_ground_flyer_gradient.
 fn query_ground_flyer(xz: vec2<f32>, qi: QueryInputs) -> f32 {
     var h = contrib_static_base_at(xz);
     h += contrib_pyramids_at(xz);
     h += contrib_gol_zones_at(xz);
     h += contrib_terrain_waves_at(xz);
     h += contrib_radial_pulses_at(xz, qi.t_seconds);
-    h += contrib_pawn_aura_at(xz);
+    h += contrib_pawn_aura_at_external(xz);
     return h;
 }
 
 // --- Walkers: everything the flyer sees, plus walker-specific fields ---
 
 // POLICY_WALKER — the pawn's resolved standing height.
-// Contributors: flyer set + CONTRIB_GOL_SUPPRESSION (subtractive,
+// Contributors: static_base + CONTRIB_PYRAMIDS + CONTRIB_GOL_ZONES +
+//   CONTRIB_TERRAIN_WAVES + CONTRIB_RADIAL_PULSES + CONTRIB_PAWN_AURA
+//   (self form — scalar peak) - CONTRIB_GOL_SUPPRESSION (subtractive,
 //   centered on qi.consumer_pos).
 // Typical consumers: pawn_ground_resolve (final resolved Y).
-// Notes: the walker stands on aura-lifted ground. Gradient: use
-//   query_ground_walker_tilt for tilt/step-climb to avoid manufactured
-//   slopes from self-centered fields (aura, suppression). Walkable
-//   variant: query_ground_walker_walkable (cliff-clamped).
+// Notes: the walker stands on aura-lifted ground. Aura uses
+//   contrib_pawn_aura_at_self — the pawn knows it sits at its own aura
+//   peak without reading the grid (which has directional bias that
+//   produces bobbing under locomotion; see the aura contributor header).
+//   Gradient: use query_ground_walker_tilt for tilt/step-climb to avoid
+//   manufactured slopes from gol_suppression (which IS position-dependent).
+//   Walkable variant: query_ground_walker_walkable (cliff-clamped).
 fn query_ground_walker(xz: vec2<f32>, qi: QueryInputs) -> f32 {
     var h = contrib_static_base_at(xz);
     h += contrib_pyramids_at(xz);
     h += contrib_gol_zones_at(xz);
     h += contrib_terrain_waves_at(xz);
     h += contrib_radial_pulses_at(xz, qi.t_seconds);
-    h += contrib_pawn_aura_at(xz);
+    h += contrib_pawn_aura_at_self();
     h -= contrib_gol_suppression_at(xz, qi.consumer_pos);
     return h;
 }
@@ -2452,11 +2503,17 @@ fn query_ground_walker(xz: vec2<f32>, qi: QueryInputs) -> f32 {
 //   CONTRIB_TERRAIN_WAVES + CONTRIB_RADIAL_PULSES.
 // Typical consumers: terrain_normal_at (pawn tilt), pawn_ground_resolve
 //   step-climb decisions.
-// Notes: excludes CONTRIB_PAWN_AURA and CONTRIB_GOL_SUPPRESSION because
-//   their radial profiles, sampled at xz±eps for a forward-difference
-//   gradient, manufacture slopes that aren't ground geometry — the pawn
-//   would tilt against its own aura. The pawn STANDS on full POLICY_WALKER
-//   ground; only the tilt and step-climb decisions read this policy.
+// Notes: excludes CONTRIB_PAWN_AURA and CONTRIB_GOL_SUPPRESSION.
+//   - CONTRIB_PAWN_AURA: after the self/external split, the walker reads
+//     the self form (constant scalar, zero gradient), so including or
+//     excluding it from tilt is mathematically equivalent. Exclusion is
+//     kept for conceptual clarity — self-centered fields never drive tilt.
+//   - CONTRIB_GOL_SUPPRESSION: genuinely position-dependent (consumer-
+//     local smoothstep around consumer_pos). Including it in the tilt
+//     sample would manufacture a radial slope when the pawn stands on a
+//     GoL zone. THIS is the real mathematical reason the tilt policy
+//     exists. The pawn STANDS on full POLICY_WALKER ground; only the
+//     tilt and step-climb decisions read this policy.
 fn query_ground_walker_tilt(xz: vec2<f32>, qi: QueryInputs) -> f32 {
     var h = contrib_static_base_at(xz);
     h += contrib_pyramids_at(xz);
@@ -2467,18 +2524,23 @@ fn query_ground_walker_tilt(xz: vec2<f32>, qi: QueryInputs) -> f32 {
 }
 
 // POLICY_WALKER_AGENT — non-pawn walkers (NPCs).
-// Contributors: same as POLICY_WALKER minus CONTRIB_GOL_SUPPRESSION.
+// Contributors: static_base + CONTRIB_PYRAMIDS + CONTRIB_GOL_ZONES +
+//   CONTRIB_TERRAIN_WAVES + CONTRIB_RADIAL_PULSES + CONTRIB_PAWN_AURA
+//   (external form — grid sample at xz, since the agent is not the pawn).
 // Typical consumers: agent ground resolve (none today; reserved for
 //   the agent system).
 // Notes: agents feel the full GoL lift — no self-suppression. Design
 //   doc §3.3: revisit if agents stuck on top of GoL zones look wrong.
+//   When agents grow their own self-centered auras, add analogous
+//   contrib_<agent>_aura_at_self() forms (defer until a second consumer
+//   asks for one).
 fn query_ground_walker_agent(xz: vec2<f32>, qi: QueryInputs) -> f32 {
     var h = contrib_static_base_at(xz);
     h += contrib_pyramids_at(xz);
     h += contrib_gol_zones_at(xz);
     h += contrib_terrain_waves_at(xz);
     h += contrib_radial_pulses_at(xz, qi.t_seconds);
-    h += contrib_pawn_aura_at(xz);
+    h += contrib_pawn_aura_at_external(xz);
     return h;
 }
 
@@ -4527,16 +4589,19 @@ const AURA_DELTA_RANDOM: u32 = 1u;
 // Helper: sample pawn aura with toroidal lookup and ghost rejection.
 // Returns vec4(height_blend, delta_r, delta_g, delta_b) or vec4(0) if ghost/inactive.
 //
-// Sampler choice — bilinear_sampler, not nearest_sampler. The aura is
-// a continuous influence field, not a discrete grid. Point-sample
-// consumers (notably the pawn's own ground resolve via
-// contrib_pawn_aura_at) would otherwise see cell-boundary
-// discontinuities: aura_cs = 3.125 world units, so a walking consumer
-// crosses a cell every ~3 m and its sampled height jumps to the next
-// cell's value — felt as vertical bobbing during locomotion. The
-// patch-terrain VS didn't expose this because per-vertex nearest
-// samples are fragment-interpolated across the mesh, hiding the step.
-// The pawn's Y resolve is a point sample with no such interpolation.
+// Called by contrib_pawn_aura_at_external(xz) and by the inline
+// render-side consumers (patch_terrain_vs, zone_extrusion_vs,
+// photo_painting FS tinting). NOT called by the pawn's own Y resolve:
+// POLICY_WALKER uses contrib_pawn_aura_at_self() which returns the
+// scalar peak directly — the pawn knows it sits at its own aura peak
+// without reading the directionally-biased grid. See those functions
+// for rationale.
+//
+// Sampler choice — bilinear_sampler, not nearest_sampler. The aura
+// is a continuous influence field, not a discrete grid. Consumers
+// reading across cell boundaries (terrain rendering, flyers passing
+// through the aura's edge) need smooth interpolation; nearest-neighbor
+// would produce visible banding at cell boundaries (aura_cs = 3.125 m).
 // pawn_aura_read is rgba16float which supports bilinear filtering on
 // all target hardware; color deltas (.gba) and zone extrusion's
 // suppression target also benefit from the smoother interpolation.
