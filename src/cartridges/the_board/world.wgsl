@@ -1852,10 +1852,8 @@ fn contrib_pyramids_at(world_xz: vec2<f32>) -> f32 {
     return best;
 }
 
-// Deprecated: forwards to contrib_pyramids_at. Removed in Step 5.
-fn pyramid_height_at(world_xz: vec2<f32>) -> f32 {
-    return contrib_pyramids_at(world_xz);
-}
+// (pyramid_height_at forwarder removed in Step 5. Callers invoke
+// contrib_pyramids_at directly.)
 
 // CONTRIB_GOL_ZONES — slow_dynamic, global.
 // Raw GoL cell extrusion (visual × alive_height × per-cell factor),
@@ -1900,12 +1898,9 @@ fn contrib_gol_suppression_at(world_xz: vec2<f32>, consumer_pos: vec3<f32>) -> f
     return h * factor;
 }
 
-// Deprecated: pawn-centered composition. Forwards to the contributor split.
-// Removed in Step 5. Must match extrusion VS suppression geometry exactly
-// so pawn ground resolve and mesh geometry agree.
-fn zone_gol_height_at(world_xz: vec2<f32>) -> f32 {
-    return contrib_gol_zones_at(world_xz) - contrib_gol_suppression_at(world_xz, pawn_state.pos);
-}
+// (zone_gol_height_at removed in Step 5. The painting Y-correction
+// consumer inlines the contrib split explicitly; nothing else composed
+// GoL height with pawn-centered suppression.)
 
 // --- Ground Architecture: contributor and policy ids (Step 1 scaffolding) ---
 //
@@ -2016,14 +2011,10 @@ fn contrib_vegetation_base_at(world_xz: vec2<f32>) -> f32 {
     return 0.0;
 }
 
-// Deprecated: forwards to contrib_static_base_at. Removed in Step 5.
-fn ground_terrain(world_xz: vec2<f32>) -> f32 {
-    return contrib_static_base_at(world_xz);
-}
-
-fn ground_formed(world_xz: vec2<f32>) -> f32 {
-    return ground_terrain(world_xz) + pyramid_height_at(world_xz);
-}
+// (ground_terrain and ground_formed forwarders removed in Step 5.
+// Callers now invoke contrib_static_base_at and the policy query
+// functions directly; ground_formed_with_complexity below inlines
+// the equivalent composition for patch heightfield generation.)
 
 // Combined height + complexity — avoids evaluating terrain lattice waves twice.
 // terrain_height_and_complexity does the same lattice work as terrain_height_at
@@ -2043,13 +2034,10 @@ fn ground_formed_with_complexity(world_xz: vec2<f32>) -> vec2<f32> {
     return vec2(height, hc.y);
 }
 
-fn effective_ground_y(world_xz: vec2<f32>) -> f32 {
-    var h = ground_formed(world_xz);
-    if (PAWN_GOL_GROUND_ENABLED) {
-        h += zone_gol_height_at(world_xz);
-    }
-    return h;
-}
+// (effective_ground_y removed in Step 5. Walker consumers use
+// query_ground_walker; placement consumers use query_ground_placement_*;
+// baked-heightfield consumers use query_ground_baked_heightfield or
+// sample_terrain_y_at.)
 
 // ─── Polyphony-driven wave overlay ──────────────────────────────────────
 //
@@ -2130,23 +2118,9 @@ fn contrib_terrain_waves_at(world_xz: vec2<f32>) -> f32 {
     return h;
 }
 
-// Deprecated: forwards to contrib_terrain_waves_at. Removed in Step 5.
-fn terrain_wave_overlay(world_xz: vec2<f32>) -> f32 {
-    return contrib_terrain_waves_at(world_xz);
-}
-
-// Gradient of the wave overlay via central finite differences.
-// RETAINED for any future consumer that needs gradient without height.
-// The terrain VS now uses terrain_wave_overlay_with_gradient instead.
-fn terrain_wave_overlay_gradient(world_xz: vec2<f32>) -> vec2<f32> {
-    if (config.terrain_time <= 0.0) { return vec2(0.0); }
-    let eps = 0.5;
-    let h_px = terrain_wave_overlay(world_xz + vec2(eps, 0.0));
-    let h_mx = terrain_wave_overlay(world_xz - vec2(eps, 0.0));
-    let h_pz = terrain_wave_overlay(world_xz + vec2(0.0, eps));
-    let h_mz = terrain_wave_overlay(world_xz - vec2(0.0, eps));
-    return vec2((h_px - h_mx) / (2.0 * eps), (h_pz - h_mz) / (2.0 * eps));
-}
+// (terrain_wave_overlay forwarder and terrain_wave_overlay_gradient
+// removed in Step 5. Callers now invoke contrib_terrain_waves_at
+// directly; nothing referenced the gradient-only helper.)
 
 // Fused height + analytical gradient for the wave overlay.
 // Returns vec3(height, dh/dx, dh/dz).
@@ -2248,10 +2222,8 @@ fn contrib_radial_pulses_at(world_xz: vec2<f32>, t_seconds: f32) -> f32 {
     return h;
 }
 
-// Deprecated: forwards to contrib_radial_pulses_at. Removed in Step 5.
-fn evaluate_radial_pulses(world_xz: vec2<f32>, t_seconds: f32) -> f32 {
-    return contrib_radial_pulses_at(world_xz, t_seconds);
-}
+// (evaluate_radial_pulses forwarder removed in Step 5. Callers invoke
+// contrib_radial_pulses_at directly.)
 
 // CONTRIB_PAWN_AURA — deformation_field, global pawn-centered.
 // Height extrusion under the pawn's aura footprint. Reads pawn_state.pos
@@ -2413,50 +2385,12 @@ fn query_ground_walker_walkable(xz: vec2<f32>, qi: QueryInputs, eps: f32, step_h
 // Step 3; consumer migration and cleanup happen in Steps 4–5.
 // ════════════════════════════════════════════════════════════════
 
-fn effective_ground_with_gradients(world_xz: vec2<f32>, eps: f32) -> vec3<f32> {
-    let h    = effective_ground_y(world_xz);
-    let h_px = effective_ground_y(world_xz + vec2(eps, 0.0));
-    let h_mx = effective_ground_y(world_xz - vec2(eps, 0.0));
-    let h_pz = effective_ground_y(world_xz + vec2(0.0, eps));
-    let h_mz = effective_ground_y(world_xz - vec2(0.0, eps));
-    return vec3(h, (h_px - h_mx) / (2.0 * eps), (h_pz - h_mz) / (2.0 * eps));
-}
-
-// Like effective_ground_with_gradients, but clamps discontinuities (walls)
-fn effective_ground_with_gradients_walkable(world_xz: vec2<f32>, eps: f32) -> vec3<f32> {
-    let h0 = effective_ground_y(world_xz);
-
-    var h_px = effective_ground_y(world_xz + vec2(eps, 0.0));
-    var h_mx = effective_ground_y(world_xz - vec2(eps, 0.0));
-    var h_pz = effective_ground_y(world_xz + vec2(0.0, eps));
-    var h_mz = effective_ground_y(world_xz - vec2(0.0, eps));
-
-    if (abs(h_px - h0) > PAWN_STEP_HEIGHT) { h_px = h0; }
-    if (abs(h_mx - h0) > PAWN_STEP_HEIGHT) { h_mx = h0; }
-    if (abs(h_pz - h0) > PAWN_STEP_HEIGHT) { h_pz = h0; }
-    if (abs(h_mz - h0) > PAWN_STEP_HEIGHT) { h_mz = h0; }
-
-    return vec3(h0, (h_px - h_mx) / (2.0 * eps), (h_pz - h_mz) / (2.0 * eps));
-}
-
-fn coupling_effective_ground_to_pawn_orientation(pawn_xz: vec2<f32>, heading: f32) -> vec4<f32> {
-    let eg = effective_ground_with_gradients_walkable(pawn_xz, 0.5);
-    let normal = normalize(vec3(-eg.y, 1.0, -eg.z));
-    let world_up = vec3(0.0, 1.0, 0.0);
-    let dot_val = dot(world_up, normal);
-    
-    var tilt_quat: vec4<f32>;
-    if (dot_val < 0.9999) {
-        let axis = normalize(cross(world_up, normal));
-        let angle = acos(clamp(dot_val, -1.0, 1.0));
-        tilt_quat = quat_from_axis_angle(axis, angle);
-    } else {
-        tilt_quat = vec4(0.0, 0.0, 0.0, 1.0);
-    }
-    
-    let heading_quat = quat_from_axis_angle(vec3(0.0, 1.0, 0.0), heading);
-    return quat_multiply(tilt_quat, heading_quat);
-}
+// (effective_ground_with_gradients, effective_ground_with_gradients_walkable,
+// and coupling_effective_ground_to_pawn_orientation removed in Step 5.
+// The coupling had zero callers; the gradient helpers were reached only
+// through that coupling. query_ground_walker_gradient and
+// query_ground_walker_walkable replace them if any consumer needs the
+// walker-policy gradient or cliff-clamped walk resolve.)
 
 // --- [COUPLING:terrain→sphere:orbit_height]
 
@@ -3159,7 +3093,7 @@ fn patch_terrain_vs(
     world_pos.y += wave.x;
 
     // Radial pulses: expanding ring wavefronts from note onsets
-    let pulse_h = evaluate_radial_pulses(world_pos.xz, render_signal.t_seconds);
+    let pulse_h = contrib_radial_pulses_at(world_pos.xz, render_signal.t_seconds);
     world_pos.y += pulse_h;
 
     var out: PatchTerrainVarying;
@@ -3302,7 +3236,7 @@ fn shadow_patch_terrain_vs(
 
     let wx = pi.origin.x + (uv.x - 0.5) * pi.extent;
     let wz = pi.origin.y + (uv.y - 0.5) * pi.extent;
-    let world_pos = vec3(wx, height_data.x + terrain_wave_overlay(vec2(wx, wz)), wz);
+    let world_pos = vec3(wx, height_data.x + contrib_terrain_waves_at(vec2(wx, wz)), wz);
 
     var out: ShadowVarying;
     out.clip_pos = render_vp.light_vp * vec4(world_pos, 1.0);
@@ -3653,7 +3587,7 @@ fn arch_vs(in: ArchVertexInput) -> EntityVarying {
     let idx = u32(in.arch_index);
     let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(idx) + GROUND_ATLAS_ARCH, 0), 0).r;
     var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
-    world_pos.y += terrain_wave_overlay(world_pos.xz);
+    world_pos.y += contrib_terrain_waves_at(world_pos.xz);
 
     var out: EntityVarying;
     out.clip_pos = render_vp.m * vec4(world_pos, 1.0);
@@ -3668,7 +3602,7 @@ fn shadow_arch_vs(in: ArchVertexInput) -> ShadowVarying {
     let idx = u32(in.arch_index);
     let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(idx) + GROUND_ATLAS_ARCH, 0), 0).r;
     var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
-    world_pos.y += terrain_wave_overlay(world_pos.xz);
+    world_pos.y += contrib_terrain_waves_at(world_pos.xz);
 
     var out: ShadowVarying;
     out.clip_pos = render_vp.light_vp * vec4(world_pos, 1.0);
@@ -3681,7 +3615,7 @@ fn column_vs(in: ArchVertexInput) -> EntityVarying {
     let idx = u32(in.arch_index);
     let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(idx) + GROUND_ATLAS_COLUMN, 0), 0).r;
     var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
-    world_pos.y += terrain_wave_overlay(world_pos.xz);
+    world_pos.y += contrib_terrain_waves_at(world_pos.xz);
 
     var out: EntityVarying;
     out.clip_pos = render_vp.m * vec4(world_pos, 1.0);
@@ -3696,7 +3630,7 @@ fn shadow_column_vs(in: ArchVertexInput) -> ShadowVarying {
     let idx = u32(in.arch_index);
     let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(idx) + GROUND_ATLAS_COLUMN, 0), 0).r;
     var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
-    world_pos.y += terrain_wave_overlay(world_pos.xz);
+    world_pos.y += contrib_terrain_waves_at(world_pos.xz);
 
     var out: ShadowVarying;
     out.clip_pos = render_vp.light_vp * vec4(world_pos, 1.0);
@@ -3709,7 +3643,7 @@ fn pyramid_vs(in: ArchVertexInput) -> EntityVarying {
     let idx = u32(in.arch_index);
     let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(idx) + GROUND_ATLAS_PYRAMID, 0), 0).r;
     var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
-    world_pos.y += terrain_wave_overlay(world_pos.xz);
+    world_pos.y += contrib_terrain_waves_at(world_pos.xz);
 
     var out: EntityVarying;
     out.clip_pos = render_vp.m * vec4(world_pos, 1.0);
@@ -3724,7 +3658,7 @@ fn shadow_pyramid_vs(in: ArchVertexInput) -> ShadowVarying {
     let idx = u32(in.arch_index);
     let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(idx) + GROUND_ATLAS_PYRAMID, 0), 0).r;
     var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
-    world_pos.y += terrain_wave_overlay(world_pos.xz);
+    world_pos.y += contrib_terrain_waves_at(world_pos.xz);
 
     var out: ShadowVarying;
     out.clip_pos = render_vp.light_vp * vec4(world_pos, 1.0);
@@ -4667,8 +4601,9 @@ fn zone_sample_baked_terrain_y(world_xz: vec2<f32>) -> f32 {
             return h.x;
         }
     }
-    // Fallback: analytical evaluation
-    return zone_terrain_height(world_xz);
+    // Fallback: analytical evaluation — POLICY_BAKED_HEIGHTFIELD matches
+    // what the zone heightfield texture caches when it IS present.
+    return query_ground_baked_heightfield(world_xz);
 }
 
 const ZONE_MESH_MAX_VERTICES: u32 = 50000u;
@@ -5636,11 +5571,9 @@ fn zone_emit_quad(
     zone_mesh_indices[ii + 5u] = vi + 3u;
 }
 
-// Zone mesh terrain height → ground_formed level (terrain + solids + pyramids).
-// GoL extrusions sit on formed ground, not on each other.
-fn zone_terrain_height(world_xz: vec2<f32>) -> f32 {
-    return ground_formed(world_xz);
-}
+// (zone_terrain_height removed in Step 5. The one caller — zone mesh
+// sampling's analytical fallback — now invokes query_ground_baked_heightfield
+// directly, which matches the zone heightfield cache's contributor set.)
 
 fn zone_mesh_gen_cell(zone_id: u32, cx: u32, cy: u32) {
     let z = zone_config.zones[zone_id];
@@ -5783,7 +5716,7 @@ fn zone_extrusion_vs(
 
     // uv.x carries terrain_y (base height without extrusion)
     let terrain_y = uv.x;
-    let wave_y = terrain_wave_overlay(pos.xz);
+    let wave_y = contrib_terrain_waves_at(pos.xz);
 
     // Suppression target = terrain + aura height + wave overlay
     let aura = sample_pawn_aura(pos.xz, render_pawn.pos.xz);
@@ -5852,7 +5785,7 @@ fn shadow_zone_extrusion_vs(
 ) -> ShadowVarying {
     var world_pos = pos;
     let terrain_y = uv.x;
-    let wave_y = terrain_wave_overlay(pos.xz);
+    let wave_y = contrib_terrain_waves_at(pos.xz);
     world_pos.y += wave_y;
     let pawn_dist = distance(pos.xz, render_pawn.pos.xz);
     let suppression = 1.0 - smoothstep(ZONE_SUPPRESS_INNER, ZONE_SUPPRESS_OUTER, pawn_dist);
@@ -6256,7 +6189,14 @@ fn compute_entity_placement() {
                 photo_painting_slots[i].position.x,
                 photo_painting_slots[i].position.z
             );
-            let ground = sample_terrain_y_at(slot_xz) + zone_gol_height_at(slot_xz);
+            // Cached baked heightfield (static_base + pyramids) + live GoL
+            // extrusion composed with pawn-centered suppression. Mixed path:
+            // the terrain part comes from the texture cache (cheap, per-frame),
+            // the GoL part composes the two contributors explicitly since
+            // the zone_gol_height_at forwarder was retired in Step 5.
+            let ground = sample_terrain_y_at(slot_xz)
+                       + contrib_gol_zones_at(slot_xz)
+                       - contrib_gol_suppression_at(slot_xz, pawn_state.pos);
             // Terrain quads: center at ground + half-height (bottom at ground)
             // Wall frames: also lift by frame_width so the frame border clears the ground
             var lift = photo_painting_slots[i].scale_y * 0.5;
@@ -6855,7 +6795,7 @@ fn wall_painting_vs(@builtin(vertex_index) vid: u32) -> WallPaintingVarying {
     }
 
     var out = compute_wall_painting_geometry(slot, pidx, local_vid);
-    out.world_pos.y += terrain_wave_overlay(out.world_pos.xz);
+    out.world_pos.y += contrib_terrain_waves_at(out.world_pos.xz);
     out.clip_pos = render_vp.m * vec4(out.world_pos, 1.0);
     return out;
 }
@@ -6907,7 +6847,7 @@ fn shadow_wall_painting_vs(@builtin(vertex_index) vid: u32) -> ShadowVarying {
     }
 
     var geom = compute_wall_painting_geometry(slot, pidx, local_vid);
-    geom.world_pos.y += terrain_wave_overlay(geom.world_pos.xz);
+    geom.world_pos.y += contrib_terrain_waves_at(geom.world_pos.xz);
     var out: ShadowVarying;
     out.clip_pos = render_vp.light_vp * vec4(geom.world_pos, 1.0);
     return out;
@@ -8272,7 +8212,7 @@ fn palm_vs(in: ArchVertexInput) -> EntityVarying {
     let idx = u32(in.arch_index);
     let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(idx) + GROUND_ATLAS_PALM, 0), 0).r;
     var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
-    world_pos.y += terrain_wave_overlay(world_pos.xz);
+    world_pos.y += contrib_terrain_waves_at(world_pos.xz);
     var out: EntityVarying;
     out.clip_pos = render_vp.m * vec4(world_pos, 1.0);
     out.world_pos = world_pos;
@@ -8286,7 +8226,7 @@ fn shadow_palm_vs(in: ArchVertexInput) -> ShadowVarying {
     let idx = u32(in.arch_index);
     let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(idx) + GROUND_ATLAS_PALM, 0), 0).r;
     var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
-    world_pos.y += terrain_wave_overlay(world_pos.xz);
+    world_pos.y += contrib_terrain_waves_at(world_pos.xz);
     var out: ShadowVarying;
     out.clip_pos = render_vp.light_vp * vec4(world_pos, 1.0);
     return out;
@@ -8598,7 +8538,7 @@ fn cactus_vs(in: ArchVertexInput) -> EntityVarying {
     let idx = u32(in.arch_index);
     let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(idx) + GROUND_ATLAS_CACTUS, 0), 0).r;
     var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
-    world_pos.y += terrain_wave_overlay(world_pos.xz);
+    world_pos.y += contrib_terrain_waves_at(world_pos.xz);
     var out: EntityVarying;
     out.clip_pos = render_vp.m * vec4(world_pos, 1.0);
     out.world_pos = world_pos;
@@ -8612,7 +8552,7 @@ fn shadow_cactus_vs(in: ArchVertexInput) -> ShadowVarying {
     let idx = u32(in.arch_index);
     let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(idx) + GROUND_ATLAS_CACTUS, 0), 0).r;
     var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
-    world_pos.y += terrain_wave_overlay(world_pos.xz);
+    world_pos.y += contrib_terrain_waves_at(world_pos.xz);
     var out: ShadowVarying;
     out.clip_pos = render_vp.light_vp * vec4(world_pos, 1.0);
     return out;
@@ -8826,7 +8766,7 @@ fn blade_cluster_vs(in: ArchVertexInput) -> EntityVarying {
     let idx = u32(in.arch_index);
     let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(idx) + GROUND_ATLAS_BLADE, 0), 0).r;
     var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
-    world_pos.y += terrain_wave_overlay(world_pos.xz);
+    world_pos.y += contrib_terrain_waves_at(world_pos.xz);
     var out: EntityVarying;
     out.clip_pos = render_vp.m * vec4(world_pos, 1.0);
     out.world_pos = world_pos;
@@ -8840,7 +8780,7 @@ fn shadow_blade_cluster_vs(in: ArchVertexInput) -> ShadowVarying {
     let idx = u32(in.arch_index);
     let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(idx) + GROUND_ATLAS_BLADE, 0), 0).r;
     var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
-    world_pos.y += terrain_wave_overlay(world_pos.xz);
+    world_pos.y += contrib_terrain_waves_at(world_pos.xz);
     var out: ShadowVarying;
     out.clip_pos = render_vp.light_vp * vec4(world_pos, 1.0);
     return out;

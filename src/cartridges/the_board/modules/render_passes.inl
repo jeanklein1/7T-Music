@@ -558,8 +558,9 @@
                     wallFrameCount_
                 );
 
-                // Pyramids: terrain surface IS the pyramid shape (via ground_formed).
-                // No separate mesh draw needed.
+                // Pyramids: terrain surface IS the pyramid shape (via the baked
+                // heightfield, which caches POLICY_BAKED_HEIGHTFIELD = static
+                // base + pyramids). No separate mesh draw needed.
 
                 if (renderedRibbonSlot_ != UINT32_MAX) {
                     renderer_.draw_ribbon(

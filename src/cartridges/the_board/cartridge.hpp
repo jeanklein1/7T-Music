@@ -4575,8 +4575,9 @@ namespace t7 {
                     gpuState_.shell_index_buffer(),
                     gpuState_.shell_index_count());
 
-                // Pyramids: terrain surface IS the pyramid shape (via ground_formed).
-                // No separate mesh draw needed.
+                // Pyramids: terrain surface IS the pyramid shape (via the baked
+                // heightfield, which caches POLICY_BAKED_HEIGHTFIELD = static
+                // base + pyramids). No separate mesh draw needed.
 
                 pass.End();
 
@@ -7213,8 +7214,10 @@ namespace t7 {
             }
 
             // Batch-generate patches into the caller's command encoder.
-            // Two-pass heightfield: pass 1 evaluates ground_formed() per texel,
-            // pass 2 reads neighbors for gradients + evaluates complexity.
+            // Two-pass heightfield: pass 1 evaluates ground_formed_with_complexity
+            // (POLICY_BAKED_HEIGHTFIELD contributor set, fused with the complexity
+            // byproduct) per texel, pass 2 reads neighbors for gradients +
+            // evaluates complexity.
             // Compute pass boundary between them provides the storage texture barrier.
             // stagingOffset: slot index into the staging buffer, so multiple
             // batches per frame don't overwrite each other's params.
@@ -7233,7 +7236,7 @@ namespace t7 {
                         gpuState_.patch_params_buffer(), 0,
                         sizeof(GPUPatchParams));
 
-                    // Pass 1: heights only (one ground_formed per texel)
+                    // Pass 1: heights only (one ground_formed_with_complexity per texel)
                     {
                         wgpu::ComputePassDescriptor cpd{};
                         cpd.label = "Patch Heights (pass 1)";
