@@ -89,9 +89,10 @@ enum PolicyId : uint32_t {
     POLICY_BAKED_HEIGHTFIELD    = 3,
     POLICY_FLYER                = 4,
     POLICY_WALKER               = 5,
-    POLICY_WALKER_AGENT         = 6,
-    POLICY_CELESTIAL            = 7,
-    POLICY_COUNT                = 8,
+    POLICY_WALKER_TILT          = 6,   // walker minus self-centered fields (aura, suppression)
+    POLICY_WALKER_AGENT         = 7,
+    POLICY_CELESTIAL            = 8,
+    POLICY_COUNT                = 9,
 };
 
 // --- Dependency DAG ---
@@ -186,6 +187,20 @@ static constexpr PolicyDef POLICIES[] = {
         | (1u << CONTRIB_GOL_SUPPRESSION),
       /*gradient=*/true },
 
+    // Walker-tilt — walker minus self-centered fields (PAWN_AURA and
+    // GOL_SUPPRESSION), used for tilt/normal computation and step-climb
+    // decisions. Including self-centered contributors in the gradient
+    // produces manufactured slopes (the pawn would tilt against its own
+    // aura's radial profile). The pawn still STANDS on full POLICY_WALKER
+    // ground; only the tilt and step decisions read this policy.
+    { POLICY_WALKER_TILT, "walker_tilt",
+      GROUND_STATIC_BASE_MASK
+        | (1u << CONTRIB_PYRAMIDS)
+        | (1u << CONTRIB_GOL_ZONES)
+        | (1u << CONTRIB_TERRAIN_WAVES)
+        | (1u << CONTRIB_RADIAL_PULSES),
+      /*gradient=*/true },
+
     // Walker-agent — agents feel the full GoL lift (no suppression).
     { POLICY_WALKER_AGENT, "walker_agent",
       GROUND_STATIC_BASE_MASK
@@ -248,6 +263,7 @@ ASSERT_POLICY_DAG_CLOSED(POLICY_PLACEMENT_VEGETATION, "POLICY_PLACEMENT_VEGETATI
 ASSERT_POLICY_DAG_CLOSED(POLICY_BAKED_HEIGHTFIELD,    "POLICY_BAKED_HEIGHTFIELD");
 ASSERT_POLICY_DAG_CLOSED(POLICY_FLYER,                "POLICY_FLYER");
 ASSERT_POLICY_DAG_CLOSED(POLICY_WALKER,               "POLICY_WALKER");
+ASSERT_POLICY_DAG_CLOSED(POLICY_WALKER_TILT,          "POLICY_WALKER_TILT");
 ASSERT_POLICY_DAG_CLOSED(POLICY_WALKER_AGENT,         "POLICY_WALKER_AGENT");
 ASSERT_POLICY_DAG_CLOSED(POLICY_CELESTIAL,            "POLICY_CELESTIAL");
 

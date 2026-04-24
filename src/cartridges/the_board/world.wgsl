@@ -1954,6 +1954,11 @@ const POLICY_WALKER_MASK               : u32 = GROUND_STATIC_BASE_MASK
                                               | (1u << CONTRIB_RADIAL_PULSES)
                                               | (1u << CONTRIB_PAWN_AURA)
                                               | (1u << CONTRIB_GOL_SUPPRESSION);
+const POLICY_WALKER_TILT_MASK          : u32 = GROUND_STATIC_BASE_MASK
+                                              | (1u << CONTRIB_PYRAMIDS)
+                                              | (1u << CONTRIB_GOL_ZONES)
+                                              | (1u << CONTRIB_TERRAIN_WAVES)
+                                              | (1u << CONTRIB_RADIAL_PULSES);
 const POLICY_WALKER_AGENT_MASK         : u32 = GROUND_STATIC_BASE_MASK
                                               | (1u << CONTRIB_PYRAMIDS)
                                               | (1u << CONTRIB_GOL_ZONES)
@@ -2009,6 +2014,12 @@ const POLICY_CELESTIAL_MASK            : u32 = 0u;
 //   POLICY_BAKED_HEIGHTFIELD   what the patch heightfield texture caches
 //   POLICY_FLYER               live all-global-deformations (spheres, cubes)
 //   POLICY_WALKER              flyer + consumer-local gol_suppression
+//                              (used for the pawn's resolved standing y)
+//   POLICY_WALKER_TILT         walker minus self-centered fields
+//                              (no aura, no suppression). Used for tilt
+//                              and step-climb so radial profiles of
+//                              self-centered fields don't manufacture
+//                              slopes between adjacent ε-samples.
 //   POLICY_WALKER_AGENT        walker minus suppression
 //   POLICY_CELESTIAL           empty — ground is 0.0
 //
@@ -2433,6 +2444,25 @@ fn query_ground_walker(xz: vec2<f32>, qi: QueryInputs) -> f32 {
     h += contrib_radial_pulses_at(xz, qi.t_seconds);
     h += contrib_pawn_aura_at(xz);
     h -= contrib_gol_suppression_at(xz, qi.consumer_pos);
+    return h;
+}
+
+// POLICY_WALKER_TILT — walker minus self-centered fields.
+// Contributors: static_base + CONTRIB_PYRAMIDS + CONTRIB_GOL_ZONES +
+//   CONTRIB_TERRAIN_WAVES + CONTRIB_RADIAL_PULSES.
+// Typical consumers: terrain_normal_at (pawn tilt), pawn_ground_resolve
+//   step-climb decisions.
+// Notes: excludes CONTRIB_PAWN_AURA and CONTRIB_GOL_SUPPRESSION because
+//   their radial profiles, sampled at xz±eps for a forward-difference
+//   gradient, manufacture slopes that aren't ground geometry — the pawn
+//   would tilt against its own aura. The pawn STANDS on full POLICY_WALKER
+//   ground; only the tilt and step-climb decisions read this policy.
+fn query_ground_walker_tilt(xz: vec2<f32>, qi: QueryInputs) -> f32 {
+    var h = contrib_static_base_at(xz);
+    h += contrib_pyramids_at(xz);
+    h += contrib_gol_zones_at(xz);
+    h += contrib_terrain_waves_at(xz);
+    h += contrib_radial_pulses_at(xz, qi.t_seconds);
     return h;
 }
 
@@ -4775,44 +4805,65 @@ fn update_terrain_config() {
 }
 
 // --- Walker terrain normal (forward-difference)
-// POLICY_WALKER samples — includes static base + pyramids + GoL zones +
-// terrain waves + radial pulses + pawn aura − consumer-local GoL
-// suppression (centered on qi.consumer_pos).
+// POLICY_WALKER_TILT samples — static_base + pyramids + GoL zones +
+// terrain waves + radial pulses. Excludes CONTRIB_PAWN_AURA and
+// CONTRIB_GOL_SUPPRESSION because their self-centered radial profiles
+// would manufacture tilt slopes (the pawn would tilt against its own
+// aura's gradient). The pawn still stands on full POLICY_WALKER
+// ground; only the tilt direction reads the tilt-safe policy.
 fn terrain_normal_at(xz: vec2<f32>, qi: QueryInputs) -> vec3<f32> {
     let eps = 0.5;
-    let h0  = query_ground_walker(xz, qi);
-    let h_x = query_ground_walker(xz + vec2(eps, 0.0), qi);
-    let h_z = query_ground_walker(xz + vec2(0.0, eps), qi);
+    let h0  = query_ground_walker_tilt(xz, qi);
+    let h_x = query_ground_walker_tilt(xz + vec2(eps, 0.0), qi);
+    let h_z = query_ground_walker_tilt(xz + vec2(0.0, eps), qi);
     let dx = (h_x - h0) / eps;
     let dz = (h_z - h0) / eps;
     return normalize(vec3(-dx, 1.0, -dz));
 }
 
-// --- Pawn ground resolve (POLICY_WALKER)
-// Step-climb logic unchanged — only the sampler swapped, per brief Step 4c.
-// "Trust the policy" decision (user direction): step-climb compares full
-// walker-policy heights at new_xz vs prev_y. Animated dynamics moving
-// between frames can briefly create step-like deltas; accepted trade-off
-// for the cleaner data flow vs the previous strip-and-re-add approach.
+// --- Pawn ground resolve
+//
+// Two policies, not one:
+//   POLICY_WALKER       gives the resolved standing height (returned y).
+//                       The pawn rides aura-lifted ground, so its y must
+//                       include CONTRIB_PAWN_AURA + CONTRIB_GOL_SUPPRESSION.
+//   POLICY_WALKER_TILT  gives step-climb-safe heights for the
+//                       PAWN_STEP_HEIGHT comparison. Excludes the two
+//                       self-centered contributors so the pawn can't
+//                       "trip on its own aura" or self-suppression
+//                       gradient between frames.
+//
+// prev_y is the aura-lifted standing height from last frame's resolve.
+// prev_y_tilt is sampled fresh at prev_xz here (one extra query per
+// frame; no pawn_state field added — see follow-up brief Part C.3d).
 fn pawn_ground_resolve(
     new_xz: vec2<f32>, prev_xz: vec2<f32>, prev_y: f32, qi: QueryInputs
 ) -> vec4<f32> {
+    // Resolved standing height (full walker — pawn rides aura).
     let y = query_ground_walker(new_xz, qi);
+
+    // Step-climb references (tilt policy — no self-centered fields).
+    let prev_y_tilt = query_ground_walker_tilt(prev_xz, qi);
+    let y_tilt      = query_ground_walker_tilt(new_xz,  qi);
 
     // No XZ movement (idle/bootstrap) or passable slope → just snap
     let moved = any(new_xz != prev_xz);
-    if (!moved || y - prev_y <= PAWN_STEP_HEIGHT) {
+    if (!moved || y_tilt - prev_y_tilt <= PAWN_STEP_HEIGHT) {
         return vec4(new_xz.x, y, new_xz.y, 1.0);              // happy path
     }
 
-    // Full move blocked — try axis-aligned slides
-    let slide_x = vec2(new_xz.x, prev_xz.y);
-    let x_y = query_ground_walker(slide_x, qi);
-    let x_ok = (x_y - prev_y) <= PAWN_STEP_HEIGHT;
+    // Full move blocked — try axis-aligned slides. Each axis needs both
+    // a walker height (the y the pawn would actually stand at) and a
+    // walker-tilt height (the step-climb comparison).
+    let slide_x      = vec2(new_xz.x, prev_xz.y);
+    let x_y          = query_ground_walker     (slide_x, qi);
+    let x_y_tilt     = query_ground_walker_tilt(slide_x, qi);
+    let x_ok = (x_y_tilt - prev_y_tilt) <= PAWN_STEP_HEIGHT;
 
-    let slide_z = vec2(prev_xz.x, new_xz.y);
-    let z_y = query_ground_walker(slide_z, qi);
-    let z_ok = (z_y - prev_y) <= PAWN_STEP_HEIGHT;
+    let slide_z      = vec2(prev_xz.x, new_xz.y);
+    let z_y          = query_ground_walker     (slide_z, qi);
+    let z_y_tilt     = query_ground_walker_tilt(slide_z, qi);
+    let z_ok = (z_y_tilt - prev_y_tilt) <= PAWN_STEP_HEIGHT;
 
     if (x_ok && z_ok) {
         if (abs(new_xz.x - prev_xz.x) >= abs(new_xz.y - prev_xz.y)) {
