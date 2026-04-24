@@ -2639,6 +2639,14 @@ namespace t7 {
 
             // Check a 3×3 neighborhood of ribbon cells around the pawn.
             // Estimate terrain height from tile cache (rough CPU-side approximation).
+            //
+            // NOT a ground policy query. Deliberately kept as the CPU fast
+            // path per ground_hierarchy_design.md §6.2: the CPU stays on an
+            // approximate tile-cache lookup rather than growing a parallel
+            // query_ground_* system. Callers that need accurate height must
+            // either (a) pick up the GPU-baked heightfield via readback
+            // (POLICY_BAKED_HEIGHTFIELD texture) or (b) defer the decision
+            // to a GPU compute pass.
             float estimate_terrain_height(float wx, float wz) const {
                 int32_t tx = (int32_t)std::floor(wx / PATCH_EXTENT);
                 int32_t tz = (int32_t)std::floor(wz / PATCH_EXTENT);
