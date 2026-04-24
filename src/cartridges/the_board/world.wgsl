@@ -1889,9 +1889,14 @@ fn contrib_gol_zones_at(world_xz: vec2<f32>) -> f32 {
 // Notes: returns h * (1 - smoothstep(SUPPRESS_INNER, SUPPRESS_OUTER, dist)),
 //   so contrib_gol_zones_at(xz) - contrib_gol_suppression_at(xz, pos)
 //   == h * smoothstep(...), matching the pre-refactor h *= (1 - supp).
-//   Evaluates raw GoL internally — double-evaluates when paired with
-//   contrib_gol_zones_at in the same query. Intentional (brief §3.3): each
-//   contributor stays a separate function; cheap, fuse later if needed.
+//   Evaluates raw GoL internally (calls contrib_gol_zones_at).
+//
+// USED ONLY BY: standalone consumers that want the subtractive form as
+// a separate value. The walker-family queries (query_ground_walker,
+// query_ground_walker_pair) inline the GoL + suppression math together
+// to avoid double-evaluating the zone loop, which compounds
+// significantly under FXC loop unrolling. New walker-side consumers
+// should do the same.
 fn contrib_gol_suppression_at(world_xz: vec2<f32>, consumer_pos: vec3<f32>) -> f32 {
     let h = contrib_gol_zones_at(world_xz);
     let d = distance(world_xz, consumer_pos.xz);
@@ -2487,14 +2492,31 @@ fn query_ground_flyer(xz: vec2<f32>, qi: QueryInputs) -> f32 {
 //   Gradient: use query_ground_walker_tilt for tilt/step-climb to avoid
 //   manufactured slopes from gol_suppression (which IS position-dependent).
 //   Walkable variant: query_ground_walker_walkable (cliff-clamped).
+//
+// Implementation: evaluates contrib_gol_zones_at ONCE and applies the
+// pawn-centered suppression factor inline — algebraically identical to
+//   h += contrib_gol_zones_at(xz);
+//   h -= contrib_gol_suppression_at(xz, consumer_pos);
+// but avoids a second full pass over the GoL zone loop (which
+// compounds significantly under FXC loop unrolling). See
+// contrib_gol_suppression_at for the standalone subtractive form.
 fn query_ground_walker(xz: vec2<f32>, qi: QueryInputs) -> f32 {
     var h = contrib_static_base_at(xz);
     h += contrib_pyramids_at(xz);
-    h += contrib_gol_zones_at(xz);
+
+    // GoL with inline pawn-centered suppression. Equivalent to
+    //   contrib_gol_zones_at(xz) - contrib_gol_suppression_at(xz, consumer_pos)
+    // but evaluates the zone loop once instead of twice. The suppression
+    // factor pulls the GoL lift toward zero near the consumer — walker
+    // intent: "GoL doesn't push me up into the air while I'm standing on it."
+    let gol = contrib_gol_zones_at(xz);
+    let d = distance(xz, qi.consumer_pos.xz);
+    let supp_factor = 1.0 - smoothstep(ZONE_SUPPRESS_INNER, ZONE_SUPPRESS_OUTER, d);
+    h += gol * (1.0 - supp_factor);
+
     h += contrib_terrain_waves_at(xz);
     h += contrib_radial_pulses_at(xz, qi.t_seconds);
     h += contrib_pawn_aura_at_self();
-    h -= contrib_gol_suppression_at(xz, qi.consumer_pos);
     return h;
 }
 
