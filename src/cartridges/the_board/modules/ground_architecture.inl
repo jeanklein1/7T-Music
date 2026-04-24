@@ -1,30 +1,70 @@
 // ─── ground_architecture.inl ─────────────────────────────────────
 //
-// Ground query registry: contributors, dependency DAG, and policies.
+// Canonical registry for the ground query architecture:
+// contributors, explicit dependency DAG, and policies. Single source
+// of truth on the C++ side; world.wgsl mirrors the same ids and
+// per-policy bitmasks as `const` values so shader code can refer to
+// them by symbol. Keep the two in sync.
 //
-// See ground_hierarchy_design.md for design rationale and
-// ground_refactor_claude_code_brief.md for migration steps.
+// See ground_hierarchy_design.md for the design rationale and
+// ground_refactor_claude_code_brief.md for how the migration landed.
+// The architecture overview comment at the top of the ground section
+// in world.wgsl describes contributor classes, extension patterns,
+// and the fused-inline hot paths that bypass the query API.
+//
+// ── Vocabulary ──────────────────────────────────────────────────
 //
 // A *contributor* is a named source of height (or subtractive
-// displacement) at a world XZ. A *policy* is a named filter over
-// the contributor set: a consumer declares its policy, and a single
-// query function in world.wgsl evaluates the policy-selected
-// contributor sum for that consumer.
+// displacement) at a world XZ. A *policy* is a named filter over the
+// contributor set: each consumer declares its policy, and a single
+// `query_ground_<policy>` function in world.wgsl evaluates the
+// policy-selected contributor sum.
 //
-// This file declares:
-//   - ContributorId        — the stable id for each contributor
-//   - PolicyId             — the stable id for each policy
-//   - CONTRIBUTOR_DAG      — explicit dependency edges among static
-//                            landforms (used for policy closure checks
-//                            and placement order validation)
-//   - POLICIES             — per-policy contributor bitmask + flags
-//   - static_assert checks that every policy is closed under the DAG
+// ── What this file declares ─────────────────────────────────────
 //
-// Step 1 of the ground refactor: registry scaffolding only. No
-// queries are dispatched yet; nothing in the hot path is called.
+//   ContributorId         Stable id per contributor (0..CONTRIB_COUNT).
+//                         Drives bit positions in policy masks and
+//                         endpoints in CONTRIBUTOR_DAG edges.
 //
-// Included inside the Cartridge class body.
-// Depends on: nothing (pure enum + table definitions).
+//   PolicyId              Stable id per policy (0..POLICY_COUNT).
+//
+//   CONTRIBUTOR_DAG       Explicit dependency edges among
+//                         static_landform contributors. "A → B" means
+//                         A is placed beneath B (B's eval composes on
+//                         top of A). Deformation fields are not in
+//                         the DAG — they act orthogonally.
+//
+//   POLICIES              Per-policy row: id + name + contributor
+//                         bitmask + gradient_supported flag. Indexed
+//                         by PolicyId (verified by a count
+//                         static_assert).
+//
+//   policy mask helpers   GROUND_STATIC_BASE_MASK groups the three
+//                         fused static-base contributors (lattice,
+//                         tile_modifiers, solids) for readability.
+//
+// ── Compile-time validation ─────────────────────────────────────
+//
+// A policy's contributor set must be *closed under CONTRIBUTOR_DAG*:
+// for every edge {from, to}, if the mask contains `to` it must also
+// contain `from`. This prevents policies like "pyramids without
+// terrain_lattice" from compiling.
+//
+// Expressed as a macro expansion (ASSERT_POLICY_DAG_CLOSED) rather
+// than a constexpr validator call because C++ class-body
+// static_asserts cannot invoke member constexpr functions defined in
+// the same class (the enclosing type isn't complete at the point of
+// the static_assert). DAG_EDGE_CLOSED is a pure bit-arithmetic
+// predicate — given the mask and an edge, it checks
+// `(mask has to) ⇒ (mask has from)` as a constant expression.
+//
+// Every policy runs the check for every DAG edge at compile time;
+// adding a new policy means adding one ASSERT_POLICY_DAG_CLOSED
+// invocation at the bottom of this file.
+//
+// ── Included inside the Cartridge class body ────────────────────
+//
+// Depends on: nothing (pure enum + table definitions + macro checks).
 // ─────────────────────────────────────────────────────────────────
 
 enum ContributorId : uint32_t {

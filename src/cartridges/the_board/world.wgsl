@@ -1902,15 +1902,13 @@ fn contrib_gol_suppression_at(world_xz: vec2<f32>, consumer_pos: vec3<f32>) -> f
 // consumer inlines the contrib split explicitly; nothing else composed
 // GoL height with pawn-centered suppression.)
 
-// --- Ground Architecture: contributor and policy ids (Step 1 scaffolding) ---
+// --- Ground Architecture: contributor and policy ids ---
 //
 // Mirror of modules/ground_architecture.inl. Shader code references
-// contributors and policies by these symbols. See the .inl for the
-// policy-to-contributor bitmask table and DAG.
-//
-// Step 1: these are declared but not consumed. Step 2 adds contrib_*_at
-// eval functions; Step 3 adds query_ground_* specializations; Step 4
-// migrates consumers. See ground_refactor_claude_code_brief.md.
+// contributors and policies by these symbols. The canonical ids and
+// policy bitmasks live on the C++ side; these consts exist so WGSL
+// can refer to the same numeric values. Keep in sync with POLICIES[]
+// in the .inl.
 
 const CONTRIB_TERRAIN_LATTICE   : u32 = 0u;
 const CONTRIB_TILE_MODIFIERS    : u32 = 1u;
@@ -1963,28 +1961,99 @@ const POLICY_WALKER_AGENT_MASK         : u32 = GROUND_STATIC_BASE_MASK
                                               | (1u << CONTRIB_PAWN_AURA);
 const POLICY_CELESTIAL_MASK            : u32 = 0u;
 
-// --- Composable Ground Hierarchy (legacy description — rewritten in Step 6) ---
+// ═══ Ground Architecture ═══════════════════════════════════════════
 //
-// Stratified ground height: each level includes all contributions below it.
-// Consumers pick the level they need. Spawning order follows the hierarchy
-// (lower layers first, so higher layers see them).
+// The ground at a world XZ is a graph of named contributors filtered
+// through a set of named policies. Each consumer declares its policy;
+// a single per-policy query_ground_* function evaluates the
+// policy-selected contributor sum.
 //
-//   Level 0  ground_terrain   terrain waves × tile mods + solids (piers, ramps)
-//   Level 1  ground_formed    + pyramids (large static landforms)
-//   Level 2  effective_ground_y  + GoL zones (dynamic per-frame)
+// See:
+//   ground_hierarchy_design.md          — full design rationale
+//   ground_refactor_claude_code_brief.md — migration plan
+//   modules/ground_architecture.inl      — ContributorId / PolicyId /
+//                                          CONTRIBUTOR_DAG / POLICIES[]
+//                                          plus compile-time DAG closure
+//                                          validation
 //
-// Baked heightfield caches ground_formed (levels 0-1).
-// Pawn walks on effective_ground_y (levels 0-2).
+// ── Contributors (contrib_*_at in world.wgsl below) ────────────────
 //
-// Y-correction consumers:
-//   Pyramid placement  → ground_terrain  (doesn't see itself or other pyramids)
-//   Arch/column placement → ground_formed  (sees pyramids, not GoL)
-//   Painting placement → effective_ground_y  (sees everything)
+// A contributor is a function `contrib_<id>_at(xz[, args])` returning
+// an f32 delta at a world XZ. Contributors are additive. Three classes:
 //
-// To add a new static landform between pyramids and GoL:
-//   insert a new fn between ground_formed and effective_ground_y.
-// To add a new dynamic contributor:
-//   add it to effective_ground_y.
+//   static_landform   — placed once, baked. DAG edges among themselves.
+//                       (terrain_lattice, tile_modifiers, solids,
+//                        pyramids, paintings_bases, vegetation_bases)
+//   slow_dynamic      — changes per frame but not per instantiation.
+//                       (gol_zones)
+//   deformation_field — acts across the static+dynamic stack.
+//                       Not part of the DAG.
+//                       (terrain_waves, radial_pulses, pawn_aura,
+//                        gol_suppression — subtractive, consumer-local)
+//
+// The three fused static-base contributors (lattice × tile_modifiers
+// + solids) evaluate together as contrib_static_base_at — the current
+// composition is inseparable; they're declared separately in the DAG
+// so policy closure validation operates on logical ids.
+//
+// ── Policies (query_ground_* in world.wgsl below) ──────────────────
+//
+// A policy is a compile-time contributor bitmask. A consumer declares
+// its policy by calling query_ground_<policy>. FXC sees a uniform
+// function choice and dead-code-eliminates contributors outside the
+// mask. The policy is part of the consumer's *identity* — changing
+// what a consumer sees requires changing its declared policy.
+//
+//   POLICY_PLACEMENT_*         spawn-time Y correction (no deformation)
+//   POLICY_BAKED_HEIGHTFIELD   what the patch heightfield texture caches
+//   POLICY_FLYER               live all-global-deformations (spheres, cubes)
+//   POLICY_WALKER              flyer + consumer-local gol_suppression
+//   POLICY_WALKER_AGENT        walker minus suppression
+//   POLICY_CELESTIAL           empty — ground is 0.0
+//
+// Cached-texture variant: POLICY_BAKED_HEIGHTFIELD can be consumed
+// analytically via query_ground_baked_heightfield, OR by sampling the
+// pre-baked patch heightfield texture via sample_terrain_y_at. The
+// texture is cheaper per-frame but static-only; its contributor set
+// matches POLICY_BAKED_HEIGHTFIELD exactly. Per-frame Y-correction
+// passes, camera clamps, and shadow VPs use the cached path.
+//
+// ── Extension patterns ────────────────────────────────────────────
+//
+// Add a new contributor:
+//   1. Add a ContributorId in ground_architecture.inl; bump CONTRIB_COUNT.
+//   2. Declare its DAG edges (if static_landform) in CONTRIBUTOR_DAG;
+//      update ASSERT_POLICY_DAG_CLOSED's edge list.
+//   3. Implement contrib_<name>_at in world.wgsl with a header comment
+//      naming the contributor id, class, and deps.
+//   4. Add it to the relevant POLICIES[].contributors masks (C++ side)
+//      and the matching WGSL const POLICY_*_MASK.
+//   5. Add its dispatch line to every query_ground_* function whose
+//      policy includes it.
+//   6. If used by the fused patch terrain VS or ground_formed_with_complexity,
+//      update those too.
+//
+// Add a new policy:
+//   1. Add a PolicyId in ground_architecture.inl; bump POLICY_COUNT.
+//   2. Add a row to POLICIES[] with the contributor mask.
+//   3. Add the matching WGSL const POLICY_*_MASK.
+//   4. Implement query_ground_<policy> in world.wgsl.
+//   5. If gradient-supported, also query_ground_<policy>_gradient
+//      (and _walkable for walker-family).
+//
+// ── Fused inline evaluations ──────────────────────────────────────
+//
+// Two hot paths keep hand-fused copies of policy-equivalent
+// evaluations for per-vertex/per-texel performance (design doc §8):
+//
+//   ground_formed_with_complexity (two-pass patch heightfield gen)
+//     ≡ POLICY_BAKED_HEIGHTFIELD, plus a complexity byproduct.
+//   patch_terrain_vs (main terrain VS, ~256×256 invocations/patch)
+//     ≡ POLICY_WALKER minus gol_suppression (rendering is not
+//       consumer-local).
+//
+// Both must stay consistent with their policy's contributor set. If
+// a policy gains or loses a contributor, update the fused function.
 
 // CONTRIB_STATIC_BASE — fused eval of LATTICE + TILE_MODIFIERS + SOLIDS.
 // The three are composed multiplicatively in current code
@@ -2235,7 +2304,7 @@ fn contrib_pawn_aura_at(world_xz: vec2<f32>) -> f32 {
 }
 
 // ════════════════════════════════════════════════════════════════
-// Ground Query API — per-policy specializations (Step 3)
+// Ground Query API — per-policy specializations
 //
 // One entry point per policy. Each consumer declares its policy at
 // its own call site (a compile-time constant choice of function) so
@@ -2244,10 +2313,9 @@ fn contrib_pawn_aura_at(world_xz: vec2<f32>) -> f32 {
 // deliberately avoided — see ground_refactor_claude_code_brief.md §1.3.
 //
 // Contributor sets mirror POLICIES[] in modules/ground_architecture.inl.
-//
-// Nothing migrates to these functions in Step 3. Consumer migration
-// happens in Step 4 (placement/flyer/walker/baked), each as its own
-// verify-and-commit unit.
+// The architecture overview above this section explains classes, DAG,
+// extension patterns, and the fused-inline hot paths that bypass this
+// API for performance.
 // ════════════════════════════════════════════════════════════════
 
 struct QueryInputs {
@@ -2381,16 +2449,7 @@ fn query_ground_walker_walkable(xz: vec2<f32>, qi: QueryInputs, eps: f32, step_h
 
 // ════════════════════════════════════════════════════════════════
 // End Ground Query API.
-// Legacy effective_ground_* functions below remain unchanged in
-// Step 3; consumer migration and cleanup happen in Steps 4–5.
 // ════════════════════════════════════════════════════════════════
-
-// (effective_ground_with_gradients, effective_ground_with_gradients_walkable,
-// and coupling_effective_ground_to_pawn_orientation removed in Step 5.
-// The coupling had zero callers; the gradient helpers were reached only
-// through that coupling. query_ground_walker_gradient and
-// query_ground_walker_walkable replace them if any consumer needs the
-// walker-policy gradient or cliff-clamped walk resolve.)
 
 // --- [COUPLING:terrain→sphere:orbit_height]
 
