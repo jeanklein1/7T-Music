@@ -382,10 +382,12 @@ namespace t7 {
 
             void dispatch_update_pawn(
                 wgpu::ComputePassEncoder& pass,
-                wgpu::BindGroup entityBindGroup
+                wgpu::BindGroup entityBindGroup,
+                wgpu::BindGroup textureBindGroup
             ) {
                 pass.SetPipeline(updatePawnPipeline_);
                 pass.SetBindGroup(0, entityBindGroup);
+                pass.SetBindGroup(1, textureBindGroup);   // live-contributor textures (POLICY_WALKER)
                 pass.DispatchWorkgroups(1, 1, 1);
             }
 
@@ -1325,6 +1327,24 @@ namespace t7 {
                 wgpu::PipelineLayout computeLayout = device_.CreatePipelineLayout(&layoutDesc);
                 if (!computeLayout) return false;
 
+                // Shared pipeline layout for compute pipelines that evaluate
+                // query_ground_flyer / query_ground_walker. Group 0 is the
+                // same compute-entity layout; Group 1 adds the aura texture +
+                // sampler needed by sample_pawn_aura on the compute path.
+                // Used by update_sphere, update_cube (POLICY_FLYER) and
+                // update_pawn (POLICY_WALKER). Created here (before any
+                // pipeline that needs it) so update_pawn can reach it.
+                std::array<wgpu::BindGroupLayout, 2> liveContribLayouts = {
+                    computeEntityLayout_,
+                    computeTextureLayout_
+                };
+                wgpu::PipelineLayoutDescriptor liveContribLayoutDesc{};
+                liveContribLayoutDesc.bindGroupLayoutCount = liveContribLayouts.size();
+                liveContribLayoutDesc.bindGroupLayouts = liveContribLayouts.data();
+                wgpu::PipelineLayout liveContribComputeLayout =
+                    device_.CreatePipelineLayout(&liveContribLayoutDesc);
+                if (!liveContribComputeLayout) return false;
+
                 // Pipeline 1a: update_terrain_config (0D)
                 if (!tPipe("update_terrain_config", [&]() {
                     wgpu::ComputePipelineDescriptor desc{};
@@ -1337,10 +1357,12 @@ namespace t7 {
                     })) return false;
 
                 // Pipeline 1b: update_pawn (0D)
+                // Live-contributor layout — pawn_ground_resolve, terrain_normal_at
+                // call query_ground_walker → contrib_pawn_aura_at → sample_pawn_aura.
                 if (!tPipe("update_pawn", [&]() {
                     wgpu::ComputePipelineDescriptor desc{};
                     desc.label = "Update Pawn (0D)";
-                    desc.layout = computeLayout;
+                    desc.layout = liveContribComputeLayout;
                     desc.compute.module = shaderModule_;
                     desc.compute.entryPoint = Entry::UPDATE_PAWN;
                     updatePawnPipeline_ = device_.CreateComputePipeline(&desc);
@@ -1357,21 +1379,6 @@ namespace t7 {
                     updateCameraPipeline_ = device_.CreateComputePipeline(&desc);
                     return updateCameraPipeline_ != nullptr;
                     })) return false;
-
-                // Shared pipeline layout for compute pipelines that evaluate
-                // query_ground_flyer / query_ground_walker. Group 0 is the
-                // same compute-entity layout; Group 1 adds the aura texture +
-                // sampler needed by sample_pawn_aura on the compute path.
-                std::array<wgpu::BindGroupLayout, 2> liveContribLayouts = {
-                    computeEntityLayout_,
-                    computeTextureLayout_
-                };
-                wgpu::PipelineLayoutDescriptor liveContribLayoutDesc{};
-                liveContribLayoutDesc.bindGroupLayoutCount = liveContribLayouts.size();
-                liveContribLayoutDesc.bindGroupLayouts = liveContribLayouts.data();
-                wgpu::PipelineLayout liveContribComputeLayout =
-                    device_.CreatePipelineLayout(&liveContribLayoutDesc);
-                if (!liveContribComputeLayout) return false;
 
                 // Pipeline 1d: update_sphere (0D)
                 // Uses the live-contributor layout so coupling_terrain_to_sphere_orbit_height

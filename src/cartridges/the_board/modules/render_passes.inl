@@ -154,7 +154,8 @@
 
                 renderer_.dispatch_update_pawn(
                     compute,
-                    gpuState_.compute_entity_group()
+                    gpuState_.compute_entity_group(),
+                    gpuState_.compute_texture_group()   // aura + sampler for POLICY_WALKER
                 );
 
                 renderer_.dispatch_update_camera(

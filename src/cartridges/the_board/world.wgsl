@@ -4680,22 +4680,30 @@ fn update_terrain_config() {
     terrain_state.lipschitz_factor = sqrt(1.0 + max_grad * max_grad);
 }
 
-// --- Terrain normal (static, forward-difference)
-fn terrain_normal_at(xz: vec2<f32>) -> vec3<f32> {
+// --- Walker terrain normal (forward-difference)
+// POLICY_WALKER samples — includes static base + pyramids + GoL zones +
+// terrain waves + radial pulses + pawn aura − consumer-local GoL
+// suppression (centered on qi.consumer_pos).
+fn terrain_normal_at(xz: vec2<f32>, qi: QueryInputs) -> vec3<f32> {
     let eps = 0.5;
-    let h0  = effective_ground_y(xz);
-    let h_x = effective_ground_y(xz + vec2(eps, 0.0));
-    let h_z = effective_ground_y(xz + vec2(0.0, eps));
+    let h0  = query_ground_walker(xz, qi);
+    let h_x = query_ground_walker(xz + vec2(eps, 0.0), qi);
+    let h_z = query_ground_walker(xz + vec2(0.0, eps), qi);
     let dx = (h_x - h0) / eps;
     let dz = (h_z - h0) / eps;
     return normalize(vec3(-dx, 1.0, -dz));
 }
 
-// --- Pawn ground resolve
+// --- Pawn ground resolve (POLICY_WALKER)
+// Step-climb logic unchanged — only the sampler swapped, per brief Step 4c.
+// "Trust the policy" decision (user direction): step-climb compares full
+// walker-policy heights at new_xz vs prev_y. Animated dynamics moving
+// between frames can briefly create step-like deltas; accepted trade-off
+// for the cleaner data flow vs the previous strip-and-re-add approach.
 fn pawn_ground_resolve(
-    new_xz: vec2<f32>, prev_xz: vec2<f32>, prev_y: f32
+    new_xz: vec2<f32>, prev_xz: vec2<f32>, prev_y: f32, qi: QueryInputs
 ) -> vec4<f32> {
-    let y = effective_ground_y(new_xz);
+    let y = query_ground_walker(new_xz, qi);
 
     // No XZ movement (idle/bootstrap) or passable slope → just snap
     let moved = any(new_xz != prev_xz);
@@ -4705,11 +4713,11 @@ fn pawn_ground_resolve(
 
     // Full move blocked — try axis-aligned slides
     let slide_x = vec2(new_xz.x, prev_xz.y);
-    let x_y = effective_ground_y(slide_x);
+    let x_y = query_ground_walker(slide_x, qi);
     let x_ok = (x_y - prev_y) <= PAWN_STEP_HEIGHT;
 
     let slide_z = vec2(prev_xz.x, new_xz.y);
-    let z_y = effective_ground_y(slide_z);
+    let z_y = query_ground_walker(slide_z, qi);
     let z_ok = (z_y - prev_y) <= PAWN_STEP_HEIGHT;
 
     if (x_ok && z_ok) {
@@ -4764,33 +4772,28 @@ fn update_pawn() {
         pawn.pos.z = clamp(pawn.pos.z, config.world_bound_min.y, config.world_bound_max.y);
     }
 
-    // --- Ground resolve: single call, terrain chain behind function boundary
-    if (coupling_active(COUPLING_TERRAIN_TO_PAWN_Y)) {
-        // Strip dynamic offsets from prev_y: ground_resolve compares frozen base
-        // terrain only. Without this, animated overlays create false "steps"
-        // that block movement. Cost: 6 sin() + 8 pulse iterations.
-        let prev_wave = terrain_wave_overlay(prev_xz);
-        let prev_pulse = evaluate_radial_pulses(prev_xz, signal.t_seconds);
-        let prev_base_y = prev_y - config.pawn_aura_height - prev_wave - prev_pulse;
+    // --- Ground resolve: single query_ground_walker call.
+    // POLICY_WALKER includes static base + pyramids + GoL zones + terrain
+    // waves + radial pulses + pawn aura − consumer-local GoL suppression
+    // (centered on the pawn's start-of-frame position via qi.consumer_pos).
+    // No manual strip-and-re-add of dynamics: prev_y already includes
+    // them from the last frame's resolved height, and the new sample
+    // includes them too, so step-climb compares like-for-like.
+    let qi = QueryInputs(pawn_state.pos, signal.t_seconds);
 
-        let resolved = pawn_ground_resolve(pawn.pos.xz, prev_xz, prev_base_y);
+    if (coupling_active(COUPLING_TERRAIN_TO_PAWN_Y)) {
+        let resolved = pawn_ground_resolve(pawn.pos.xz, prev_xz, prev_y, qi);
         pawn.pos.x = resolved.x;
         pawn.pos.y = resolved.y;
         pawn.pos.z = resolved.z;
         if (resolved.w < 0.5) {
             pawn.velocity = vec2(0.0);
         }
-        // Pawn rides on top of its own aura extrusion (when enabled)
-        pawn.pos.y += config.pawn_aura_height;
-        // Polyphony-driven wave overlay (pawn rides animated terrain)
-        pawn.pos.y += terrain_wave_overlay(pawn.pos.xz);
-        // Radial pulses (pawn rides expanding ring wavefronts)
-        pawn.pos.y += evaluate_radial_pulses(pawn.pos.xz, signal.t_seconds);
     }
 
-    // --- Orientation: heading + static terrain tilt
+    // --- Orientation: heading + walker-policy terrain tilt
     if (coupling_active(COUPLING_TERRAIN_TO_PAWN_TILT)) {
-        let normal = terrain_normal_at(pawn.pos.xz);
+        let normal = terrain_normal_at(pawn.pos.xz, qi);
 
         let world_up = vec3(0.0, 1.0, 0.0);
         let d = dot(world_up, normal);
