@@ -393,10 +393,12 @@ namespace t7 {
 
             void dispatch_update_camera(
                 wgpu::ComputePassEncoder& pass,
-                wgpu::BindGroup entityBindGroup
+                wgpu::BindGroup entityBindGroup,
+                wgpu::BindGroup textureBindGroup
             ) {
                 pass.SetPipeline(updateCameraPipeline_);
                 pass.SetBindGroup(0, entityBindGroup);
+                pass.SetBindGroup(1, textureBindGroup);   // live-contributor textures (POLICY_FLYER)
                 pass.DispatchWorkgroups(1, 1, 1);
             }
 
@@ -1370,10 +1372,13 @@ namespace t7 {
                     })) return false;
 
                 // Pipeline 1c: update_camera (0D)
+                // Live-contributor layout — the camera clamp now uses
+                // POLICY_FLYER (sphere/cube parity) so it clears
+                // aura-lifted and pulse-lifted ground.
                 if (!tPipe("update_camera", [&]() {
                     wgpu::ComputePipelineDescriptor desc{};
                     desc.label = "Update Camera (0D)";
-                    desc.layout = computeLayout;
+                    desc.layout = liveContribComputeLayout;
                     desc.compute.module = shaderModule_;
                     desc.compute.entryPoint = Entry::UPDATE_CAMERA;
                     updateCameraPipeline_ = device_.CreateComputePipeline(&desc);

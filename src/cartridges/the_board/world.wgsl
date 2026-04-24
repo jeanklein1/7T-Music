@@ -5005,18 +5005,16 @@ fn update_camera() {
 
     // ─── Camera terrain clamp: never go underground ──────────────
     //
-    // POLICY_BAKED_HEIGHTFIELD consumer (texture variant).
-    // sample_terrain_y_at reads the cached patch heightfield, which
-    // captures static_base + pyramids only (no gol zones, no terrain
-    // waves, no radial pulses, no pawn aura). That's a pragmatic
-    // trade-off: the update_camera compute pipeline's bind group does
-    // not include zone/aura resources, and extending its binding
-    // surface to query live contributors would be a larger change.
-    // The baked path is O(1) texture sample; the primary camera
-    // accepts that it will not clear pulse- or aura-lifted ridges.
+    // POLICY_FLYER — clears every visible ground contribution
+    // (static base + pyramids + GoL zones + terrain waves + radial
+    // pulses + pawn aura). Reads live contributors so ridges lifted
+    // by animated deformations don't clip the camera. update_camera's
+    // pipeline carries the live-contributor Group 1 (computeTextureLayout)
+    // for sample_pawn_aura — see follow-up brief Part D.
     {
         let min_clearance = 1.5;  // minimum height above terrain
-        let ground_at_cam = sample_terrain_y_at(camera.pos.xz);
+        let qi = QueryInputs(camera.pos, signal.t_seconds);
+        let ground_at_cam = query_ground_flyer(camera.pos.xz, qi);
         camera.pos.y = max(camera.pos.y, ground_at_cam + min_clearance);
     }
 

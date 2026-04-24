@@ -160,7 +160,8 @@
 
                 renderer_.dispatch_update_camera(
                     compute,
-                    gpuState_.compute_entity_group()
+                    gpuState_.compute_entity_group(),
+                    gpuState_.compute_texture_group()   // aura + sampler for POLICY_FLYER
                 );
 
                 renderer_.dispatch_update_sphere(
