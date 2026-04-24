@@ -3162,22 +3162,33 @@ struct PatchTerrainVarying {
     @location(4) @interpolate(flat) layer: u32,  // heightfield/cell array layer
 }
 
+// patch_terrain_vs — hand-fused POLICY_FLYER-ish evaluation.
+//
+// Inlines the contributor sum for per-vertex performance:
+//   patch heightfield texture (cached CONTRIB_STATIC_BASE + CONTRIB_PYRAMIDS)
+//   + CONTRIB_PAWN_AURA
+//   + CONTRIB_TERRAIN_WAVES
+//   + CONTRIB_RADIAL_PULSES
+//
+// Does NOT include CONTRIB_GOL_ZONES — the patch heightfield does not
+// cache GoL; zones are rendered as a separate extrusion pass.
+//
+// Uses terrain_wave_overlay_with_gradient (not contrib_terrain_waves_at)
+// because the gradient is needed for the fragment normal and is computed
+// analytically in the same loop pass.
+//
+// Keep consistent with POLICY_FLYER: if a new deformation field is added
+// to POLICY_FLYER, add it here too — or explicitly document why the
+// render side diverges. The patch VS runs ~256×256 invocations per
+// patch, so a function-call-per-contributor dispatch would dominate
+// frame time; that's why this stays hand-fused.
+//
+// See ground_hierarchy_design.md §8 (fused inline evaluations).
 @vertex
 fn patch_terrain_vs(
     @builtin(vertex_index) vi: u32,
     @builtin(instance_index) patch_id: u32
 ) -> PatchTerrainVarying {
-    // Hand-fused POLICY_WALKER-style evaluation (height only; no
-    // gol_suppression since rendering is not consumer-local).
-    // Inlines contrib_static_base + pyramids + gol_zones (via baked
-    // heightfield texture lookup) + pawn_aura + terrain_waves +
-    // radial_pulses for per-vertex performance — the patch VS runs
-    // 256×256 invocations per patch, so a function-call-per-contributor
-    // dispatch would dominate frame time. Must stay consistent with
-    // POLICY_WALKER's contributor set (minus gol_suppression): if the
-    // walker policy gains or loses a contributor, update this VS too.
-    // See ground_hierarchy_design.md §8 (fused inline evaluations).
-    //
     // Direct or indirect patch lookup (override-controlled per pipeline variant)
     var actual_id = patch_id;
     if (USE_PATCH_INDIRECTION) { actual_id = visible_patch_indices[patch_id]; }
@@ -5854,8 +5865,17 @@ fn zone_extrusion_vs(
     // Wave overlay: lift entire extrusion mesh with animated terrain
     world_pos.y += wave_y;
 
-    // Pawn proximity suppression: flatten extrusion blocks toward effective ground.
-    // Uses same radii as zone_gol_height_at so VS geometry matches pawn Y resolve.
+    // ── Pawn proximity suppression — render-side mirror of
+    // contrib_gol_suppression_at ────────────────────────────────────
+    // Must stay in sync with the contributor's smoothstep (same
+    // ZONE_SUPPRESS_INNER / ZONE_SUPPRESS_OUTER radii, same
+    // 1 - smoothstep(inner, outer, dist) shape). The two cannot easily
+    // share a function because this VS reads render-stage bindings
+    // (render_pawn @group(1)) while contrib_gol_suppression_at reads
+    // compute-stage bindings (pawn_state @group(0) / zone_config @160).
+    // If either changes radii or shape, update the other.
+    // The shadow zone extrusion VS below also mirrors this; keep all
+    // three in sync.
     let pawn_dist = distance(pos.xz, render_pawn.pos.xz);
     let suppression = 1.0 - smoothstep(ZONE_SUPPRESS_INNER, ZONE_SUPPRESS_OUTER, pawn_dist);
     if (suppression > 0.001) {
@@ -5916,6 +5936,10 @@ fn shadow_zone_extrusion_vs(
     let terrain_y = uv.x;
     let wave_y = contrib_terrain_waves_at(pos.xz);
     world_pos.y += wave_y;
+    // Render-side mirror of contrib_gol_suppression_at — kept in sync
+    // with the contributor and with zone_extrusion_vs's suppression
+    // block (above). See that block's annotation for rationale on why
+    // the function isn't shared across stages.
     let pawn_dist = distance(pos.xz, render_pawn.pos.xz);
     let suppression = 1.0 - smoothstep(ZONE_SUPPRESS_INNER, ZONE_SUPPRESS_OUTER, pawn_dist);
     if (suppression > 0.001) {
