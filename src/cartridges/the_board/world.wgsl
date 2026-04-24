@@ -2545,6 +2545,41 @@ fn query_ground_walker_tilt(xz: vec2<f32>, qi: QueryInputs) -> f32 {
     return h;
 }
 
+// Paired walker + walker_tilt query.
+// Returns vec2(walker_height, walker_tilt_height) — both values
+// computed from a single evaluation of the shared 5-contributor
+// tilt base. Consumers that need both heights at the same XZ
+// (pawn_ground_resolve; future agent ground resolves) should use
+// this in preference to two separate query calls — it halves the
+// shared-contributor work per XZ.
+//
+// Semantics: bit-identical to separate calls to
+// query_ground_walker and query_ground_walker_tilt at the same xz
+// (given the fused GoL inside query_ground_walker — see the
+// preceding commit). Same supp_factor applied to GoL here.
+//
+// Shape of the return vec2:
+//   .x = walker      = tilt + pawn_aura_self − gol * supp_factor
+//   .y = walker_tilt = base + pyramids + gol + waves + pulses
+fn query_ground_walker_pair(xz: vec2<f32>, qi: QueryInputs) -> vec2<f32> {
+    // Shared 5-contributor tilt base.
+    let base     = contrib_static_base_at(xz);
+    let pyramids = contrib_pyramids_at(xz);
+    let gol      = contrib_gol_zones_at(xz);
+    let waves    = contrib_terrain_waves_at(xz);
+    let pulses   = contrib_radial_pulses_at(xz, qi.t_seconds);
+
+    let tilt = base + pyramids + gol + waves + pulses;
+
+    // Walker adds pawn-self aura peak and subtracts pawn-centered
+    // GoL suppression (inlined, reusing the same `gol` value).
+    let d = distance(xz, qi.consumer_pos.xz);
+    let supp_factor = 1.0 - smoothstep(ZONE_SUPPRESS_INNER, ZONE_SUPPRESS_OUTER, d);
+    let walker = tilt + contrib_pawn_aura_at_self() - gol * supp_factor;
+
+    return vec2(walker, tilt);
+}
+
 // POLICY_WALKER_AGENT — non-pawn walkers (NPCs).
 // Contributors: static_base + CONTRIB_PYRAMIDS + CONTRIB_GOL_ZONES +
 //   CONTRIB_TERRAIN_WAVES + CONTRIB_RADIAL_PULSES + CONTRIB_PAWN_AURA
@@ -4934,18 +4969,26 @@ fn terrain_normal_at(xz: vec2<f32>, qi: QueryInputs) -> vec3<f32> {
 //                       "trip on its own aura" or self-suppression
 //                       gradient between frames.
 //
+// Both values are computed together via query_ground_walker_pair, which
+// evaluates the shared 5-contributor base once and returns both walker
+// and tilt heights. This halves the compile-time expansion of the
+// contributor chain compared to paired calls to the individual query
+// functions.
+//
 // prev_y is the aura-lifted standing height from last frame's resolve.
-// prev_y_tilt is sampled fresh at prev_xz here (one extra query per
-// frame; no pawn_state field added — see follow-up brief Part C.3d).
+// prev_y_tilt is computed fresh from the paired query at prev_xz (one
+// extra evaluation per frame; no pawn_state field added — see follow-up
+// brief Part C.3d for the rationale).
 fn pawn_ground_resolve(
     new_xz: vec2<f32>, prev_xz: vec2<f32>, prev_y: f32, qi: QueryInputs
 ) -> vec4<f32> {
-    // Resolved standing height (full walker — pawn rides aura).
-    let y = query_ground_walker(new_xz, qi);
-
-    // Step-climb references (tilt policy — no self-centered fields).
-    let prev_y_tilt = query_ground_walker_tilt(prev_xz, qi);
-    let y_tilt      = query_ground_walker_tilt(new_xz,  qi);
+    // Paired queries at every candidate position — compute walker and
+    // tilt together, share the 5-contributor base.
+    let new_pair   = query_ground_walker_pair(new_xz,  qi);
+    let prev_pair  = query_ground_walker_pair(prev_xz, qi);
+    let y           = new_pair.x;
+    let y_tilt      = new_pair.y;
+    let prev_y_tilt = prev_pair.y;
 
     // No XZ movement (idle/bootstrap) or passable slope → just snap
     let moved = any(new_xz != prev_xz);
@@ -4953,27 +4996,25 @@ fn pawn_ground_resolve(
         return vec4(new_xz.x, y, new_xz.y, 1.0);              // happy path
     }
 
-    // Full move blocked — try axis-aligned slides. Each axis needs both
-    // a walker height (the y the pawn would actually stand at) and a
-    // walker-tilt height (the step-climb comparison).
-    let slide_x      = vec2(new_xz.x, prev_xz.y);
-    let x_y          = query_ground_walker     (slide_x, qi);
-    let x_y_tilt     = query_ground_walker_tilt(slide_x, qi);
-    let x_ok = (x_y_tilt - prev_y_tilt) <= PAWN_STEP_HEIGHT;
+    // Full move blocked — try axis-aligned slides. Each axis reads
+    // both walker (the y the pawn would stand at) and walker_tilt
+    // (the step-climb comparison) from a single paired query.
+    let slide_x = vec2(new_xz.x, prev_xz.y);
+    let x_pair  = query_ground_walker_pair(slide_x, qi);
+    let x_ok = (x_pair.y - prev_y_tilt) <= PAWN_STEP_HEIGHT;
 
-    let slide_z      = vec2(prev_xz.x, new_xz.y);
-    let z_y          = query_ground_walker     (slide_z, qi);
-    let z_y_tilt     = query_ground_walker_tilt(slide_z, qi);
-    let z_ok = (z_y_tilt - prev_y_tilt) <= PAWN_STEP_HEIGHT;
+    let slide_z = vec2(prev_xz.x, new_xz.y);
+    let z_pair  = query_ground_walker_pair(slide_z, qi);
+    let z_ok = (z_pair.y - prev_y_tilt) <= PAWN_STEP_HEIGHT;
 
     if (x_ok && z_ok) {
         if (abs(new_xz.x - prev_xz.x) >= abs(new_xz.y - prev_xz.y)) {
-            return vec4(slide_x.x, x_y, slide_x.y, 1.0);
+            return vec4(slide_x.x, x_pair.x, slide_x.y, 1.0);
         }
-        return vec4(slide_z.x, z_y, slide_z.y, 1.0);
+        return vec4(slide_z.x, z_pair.x, slide_z.y, 1.0);
     }
-    if (x_ok) { return vec4(slide_x.x, x_y, slide_x.y, 1.0); }
-    if (z_ok) { return vec4(slide_z.x, z_y, slide_z.y, 1.0); }
+    if (x_ok) { return vec4(slide_x.x, x_pair.x, slide_x.y, 1.0); }
+    if (z_ok) { return vec4(slide_z.x, z_pair.x, slide_z.y, 1.0); }
 
     // Fully blocked — revert, reuse prev_y (was snapped last frame)
     return vec4(prev_xz.x, prev_y, prev_xz.y, 0.0);
