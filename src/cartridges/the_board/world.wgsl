@@ -2028,10 +2028,18 @@ fn ground_formed(world_xz: vec2<f32>) -> f32 {
 // Combined height + complexity — avoids evaluating terrain lattice waves twice.
 // terrain_height_and_complexity does the same lattice work as terrain_height_at
 // but also accumulates the complexity metric. Used by two-pass heightfield gen.
+//
+// Height output is the POLICY_BAKED_HEIGHTFIELD contributor set exactly:
+//   contrib_static_base_at(xz) + contrib_pyramids_at(xz)
+// Kept hand-fused (not dispatched through query_ground_baked_heightfield)
+// because the complexity metric is a free byproduct of the same lattice
+// pass and per-texel cost dominates patch generation. If the baked policy's
+// contributor set ever changes, update this function to match.
+// See ground_hierarchy_design.md §8 (fused inline evaluations).
 fn ground_formed_with_complexity(world_xz: vec2<f32>) -> vec2<f32> {
     let hc = terrain_height_and_complexity(world_xz, config.world_seed, 0.0);
     let mods = tile_modifiers_at(world_xz);
-    let height = hc.x * mods.x + mods.y + structure_height_at(world_xz) + pyramid_height_at(world_xz);
+    let height = hc.x * mods.x + mods.y + structure_height_at(world_xz) + contrib_pyramids_at(world_xz);
     return vec2(height, hc.y);
 }
 
@@ -3096,6 +3104,17 @@ fn patch_terrain_vs(
     @builtin(vertex_index) vi: u32,
     @builtin(instance_index) patch_id: u32
 ) -> PatchTerrainVarying {
+    // Hand-fused POLICY_WALKER-style evaluation (height only; no
+    // gol_suppression since rendering is not consumer-local).
+    // Inlines contrib_static_base + pyramids + gol_zones (via baked
+    // heightfield texture lookup) + pawn_aura + terrain_waves +
+    // radial_pulses for per-vertex performance — the patch VS runs
+    // 256×256 invocations per patch, so a function-call-per-contributor
+    // dispatch would dominate frame time. Must stay consistent with
+    // POLICY_WALKER's contributor set (minus gol_suppression): if the
+    // walker policy gains or loses a contributor, update this VS too.
+    // See ground_hierarchy_design.md §8 (fused inline evaluations).
+    //
     // Direct or indirect patch lookup (override-controlled per pipeline variant)
     var actual_id = patch_id;
     if (USE_PATCH_INDIRECTION) { actual_id = visible_patch_indices[patch_id]; }
