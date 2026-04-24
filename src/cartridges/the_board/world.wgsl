@@ -6199,7 +6199,11 @@ fn compute_entity_placement() {
                 photo_painting_slots[i].position.x,
                 photo_painting_slots[i].position.z
             );
-            let ground = sample_terrain_y_at(slot_xz) + zone_gol_height_at(slot_xz);
+            // POLICY_PLACEMENT_PAINTING: static_base + pyramids + gol_zones.
+            // Pre-refactor used sample_terrain_y_at + zone_gol_height_at, which
+            // also subtracted a pawn-centered suppression; paintings spawn far
+            // from the pawn so the suppression was ~0 in practice.
+            let ground = query_ground_placement_painting(slot_xz);
             // Terrain quads: center at ground + half-height (bottom at ground)
             // Wall frames: also lift by frame_width so the frame border clears the ground
             var lift = photo_painting_slots[i].scale_y * 0.5;
@@ -6211,59 +6215,60 @@ fn compute_entity_placement() {
     }
 
     // --- Column + antenna: single-point center sampling
-    // Heightfield already includes pier contribution at entity position.
+    // POLICY_PLACEMENT_VEGETATION: static_base only. "Columns don't stand on
+    // pyramids" per the design; the static base already includes pier solids.
     for (var i = 0u; i < 32u; i++) {
         if (column_ground[i].is_active != 0u) {
             let xz = vec2(column_ground[i].center_x, column_ground[i].center_z);
-            column_ground[i].ground_y = sample_terrain_y_at(xz);
+            column_ground[i].ground_y = query_ground_placement_vegetation(xz);
             textureStore(entity_ground_atlas_write, vec2<i32>(i32(i) + GROUND_ATLAS_COLUMN, 0), vec4<f32>(column_ground[i].ground_y, 0.0, 0.0, 0.0));
         }
     }
 
-    // --- Palm: plant_ground[0..23]
+    // --- Palm: plant_ground[0..23] (POLICY_PLACEMENT_VEGETATION)
     for (var i = 0u; i < 24u; i++) {
         if (plant_ground[i].is_active != 0u) {
             let xz = vec2(plant_ground[i].center_x, plant_ground[i].center_z);
-            plant_ground[i].ground_y = sample_terrain_y_at(xz);
+            plant_ground[i].ground_y = query_ground_placement_vegetation(xz);
             textureStore(entity_ground_atlas_write, vec2<i32>(i32(i) + GROUND_ATLAS_PALM, 0), vec4<f32>(plant_ground[i].ground_y, 0.0, 0.0, 0.0));
         }
     }
 
-    // --- Cactus: plant_ground[24..43]
+    // --- Cactus: plant_ground[24..43] (POLICY_PLACEMENT_VEGETATION)
     for (var i = 0u; i < 20u; i++) {
         let slot = 24u + i;
         if (plant_ground[slot].is_active != 0u) {
             let xz = vec2(plant_ground[slot].center_x, plant_ground[slot].center_z);
-            plant_ground[slot].ground_y = sample_terrain_y_at(xz);
+            plant_ground[slot].ground_y = query_ground_placement_vegetation(xz);
             textureStore(entity_ground_atlas_write, vec2<i32>(i32(i) + GROUND_ATLAS_CACTUS, 0), vec4<f32>(plant_ground[slot].ground_y, 0.0, 0.0, 0.0));
         }
     }
 
-    // --- Blade: plant_ground[44..75]
+    // --- Blade: plant_ground[44..75] (POLICY_PLACEMENT_VEGETATION)
     for (var i = 0u; i < 32u; i++) {
         let slot = 44u + i;
         if (plant_ground[slot].is_active != 0u) {
             let xz = vec2(plant_ground[slot].center_x, plant_ground[slot].center_z);
-            plant_ground[slot].ground_y = sample_terrain_y_at(xz);
+            plant_ground[slot].ground_y = query_ground_placement_vegetation(xz);
             textureStore(entity_ground_atlas_write, vec2<i32>(i32(i) + GROUND_ATLAS_BLADE, 0), vec4<f32>(plant_ground[slot].ground_y, 0.0, 0.0, 0.0));
         }
     }
 
-    // --- Arch: 2-point min at pier feet
-    // Heightfield at pier feet already includes pier contribution.
+    // --- Arch: 2-point min at pier feet (POLICY_PLACEMENT_VEGETATION)
+    // Pier contribution comes in via contrib_static_base_at → structure_height_at.
     for (var i = 0u; i < 16u; i++) {
         if (arch_ground[i].is_active != 0u) {
             let left_xz = vec2(arch_ground[i].pier_left_x, arch_ground[i].pier_left_z);
             let right_xz = vec2(arch_ground[i].pier_right_x, arch_ground[i].pier_right_z);
-            let tl = sample_terrain_y_at(left_xz);
-            let tr = sample_terrain_y_at(right_xz);
+            let tl = query_ground_placement_vegetation(left_xz);
+            let tr = query_ground_placement_vegetation(right_xz);
             arch_ground[i].ground_y = min(tl, tr);
             textureStore(entity_ground_atlas_write, vec2<i32>(i32(i) + GROUND_ATLAS_ARCH, 0), vec4<f32>(arch_ground[i].ground_y, 0.0, 0.0, 0.0));
         }
     }
 
     // --- Pyramid: 5-point min at center + 4 rotated corners
-    // ground_y from CPU = 0 (no pier). Set to min of 5 terrain samples.
+    // POLICY_PLACEMENT_PYRAMID = static_base only ("pyramids don't see themselves").
     for (var i = 0u; i < 8u; i++) {
         if (pyramid_ground[i].is_active != 0u) {
             let cx = pyramid_ground[i].center_x;
@@ -6274,11 +6279,11 @@ fn compute_entity_placement() {
             let cr = cos(rot);
             let sr = sin(rot);
 
-            let y_c  = sample_terrain_y_at(vec2(cx, cz));
-            let y_px = sample_terrain_y_at(vec2(cx + hx * cr, cz + hx * sr));
-            let y_mx = sample_terrain_y_at(vec2(cx - hx * cr, cz - hx * sr));
-            let y_pz = sample_terrain_y_at(vec2(cx - hz * sr, cz + hz * cr));
-            let y_mz = sample_terrain_y_at(vec2(cx + hz * sr, cz - hz * cr));
+            let y_c  = query_ground_placement_pyramid(vec2(cx, cz));
+            let y_px = query_ground_placement_pyramid(vec2(cx + hx * cr, cz + hx * sr));
+            let y_mx = query_ground_placement_pyramid(vec2(cx - hx * cr, cz - hx * sr));
+            let y_pz = query_ground_placement_pyramid(vec2(cx - hz * sr, cz + hz * cr));
+            let y_mz = query_ground_placement_pyramid(vec2(cx + hz * sr, cz - hz * cr));
 
             pyramid_ground[i].ground_y = min(min(y_c, min(y_px, y_mx)), min(y_pz, y_mz));
             textureStore(entity_ground_atlas_write, vec2<i32>(i32(i) + GROUND_ATLAS_PYRAMID, 0), vec4<f32>(pyramid_ground[i].ground_y, 0.0, 0.0, 0.0));
