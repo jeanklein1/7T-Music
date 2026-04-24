@@ -6533,14 +6533,22 @@ fn compute_entity_placement() {
                 photo_painting_slots[i].position.x,
                 photo_painting_slots[i].position.z
             );
-            // Cached baked heightfield (static_base + pyramids) + live GoL
-            // extrusion composed with pawn-centered suppression. Mixed path:
-            // the terrain part comes from the texture cache (cheap, per-frame),
-            // the GoL part composes the two contributors explicitly since
-            // the zone_gol_height_at forwarder was retired in Step 5.
+            // Painting Y-correction — hybrid POLICY_PLACEMENT_PAINTING
+            // evaluation. The cached heightfield (sample_terrain_y_at)
+            // covers static_base + pyramids; contrib_gol_zones_at is
+            // evaluated analytically because GoL is not cached in the
+            // heightfield. Equivalent in value to
+            // query_ground_placement_painting(slot_xz) but cheaper per
+            // call (baked texture lookup for the static portion).
+            //
+            // NO suppression term: POLICY_PLACEMENT_PAINTING does not
+            // include CONTRIB_GOL_SUPPRESSION. Painting Y must be stable
+            // against pawn position — placement does not depend on where
+            // the pawn happens to stand. (Pre-refactor the subtraction
+            // was present, but the policy declaration is the contract;
+            // the code was wrong. See ground_architecture.inl.)
             let ground = sample_terrain_y_at(slot_xz)
-                       + contrib_gol_zones_at(slot_xz)
-                       - contrib_gol_suppression_at(slot_xz, pawn_state.pos);
+                       + contrib_gol_zones_at(slot_xz);
             // Terrain quads: center at ground + half-height (bottom at ground)
             // Wall frames: also lift by frame_width so the frame border clears the ground
             var lift = photo_painting_slots[i].scale_y * 0.5;
