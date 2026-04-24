@@ -1840,7 +1840,9 @@ fn evaluate_pyramid(world_xz: vec2<f32>, inst: PyramidInstance) -> f32 {
     return inst.height * taper * mask;
 }
 
-fn pyramid_height_at(world_xz: vec2<f32>) -> f32 {
+// CONTRIB_PYRAMIDS — static_landform.
+// Deps: CONTRIB_TERRAIN_LATTICE, CONTRIB_TILE_MODIFIERS, CONTRIB_SOLIDS (via DAG).
+fn contrib_pyramids_at(world_xz: vec2<f32>) -> f32 {
     var best: f32 = 0.0;
     let count = min(pyramid_instances.count, MAX_PYRAMID_INSTANCES);
     for (var i = 0u; i < count; i++) {
@@ -1850,9 +1852,15 @@ fn pyramid_height_at(world_xz: vec2<f32>) -> f32 {
     return best;
 }
 
-// GoL zone cell height at a world position.
-// Searches active zones for a match, returns visual × alive_height.
-fn zone_gol_height_at(world_xz: vec2<f32>) -> f32 {
+// Deprecated: forwards to contrib_pyramids_at. Removed in Step 5.
+fn pyramid_height_at(world_xz: vec2<f32>) -> f32 {
+    return contrib_pyramids_at(world_xz);
+}
+
+// CONTRIB_GOL_ZONES — slow_dynamic, global.
+// Raw GoL cell extrusion (visual × alive_height × per-cell factor),
+// without any consumer-local suppression.
+fn contrib_gol_zones_at(world_xz: vec2<f32>) -> f32 {
     for (var z: u32 = 0u; z < zone_config.count; z++) {
         let zp = zone_config.zones[z];
         if (zp.transition_fraction <= 0.0) { continue; }
@@ -1870,18 +1878,33 @@ fn zone_gol_height_at(world_xz: vec2<f32>) -> f32 {
         let idx = u32(cy) * zp.grid_size + u32(cx);
         let visual = zone_life[base + GOL_CELL_VISUAL + idx];
         let height_factor = zone_life[base + GOL_CELL_HEIGHT_FACTOR + idx];
-        var h = visual * zp.alive_height * height_factor * config.mode_gol_height_scale;
-
-        // Pawn proximity: suppress GoL extrusion near the pawn.
-        // Must match extrusion VS suppression geometry exactly so pawn
-        // ground resolve and mesh geometry agree.
-        let pawn_dist = distance(world_xz, pawn_state.pos.xz);
-        let suppression = 1.0 - smoothstep(ZONE_SUPPRESS_INNER, ZONE_SUPPRESS_OUTER, pawn_dist);
-        h *= (1.0 - suppression);
-
-        return h;
+        return visual * zp.alive_height * height_factor * config.mode_gol_height_scale;
     }
     return 0.0;
+}
+
+// CONTRIB_GOL_SUPPRESSION — deformation_field, consumer-local (subtractive).
+// Returns h * (1 - smoothstep(SUPPRESS_INNER, SUPPRESS_OUTER, dist)) so that
+//   contrib_gol_zones_at(xz) - contrib_gol_suppression_at(xz, pos)
+// equals h * smoothstep(...), matching the pre-refactor
+// h *= (1 - suppression_in_old_code) behavior exactly.
+//
+// Note: evaluates raw GoL internally, which double-evaluates GoL when
+// paired with contrib_gol_zones_at in the same query. Intentional for
+// now (§3.3 of the brief): each contributor stays a separate function;
+// the double eval is cheap and can be fused later if profile data says so.
+fn contrib_gol_suppression_at(world_xz: vec2<f32>, consumer_pos: vec3<f32>) -> f32 {
+    let h = contrib_gol_zones_at(world_xz);
+    let d = distance(world_xz, consumer_pos.xz);
+    let factor = 1.0 - smoothstep(ZONE_SUPPRESS_INNER, ZONE_SUPPRESS_OUTER, d);
+    return h * factor;
+}
+
+// Deprecated: pawn-centered composition. Forwards to the contributor split.
+// Removed in Step 5. Must match extrusion VS suppression geometry exactly
+// so pawn ground resolve and mesh geometry agree.
+fn zone_gol_height_at(world_xz: vec2<f32>) -> f32 {
+    return contrib_gol_zones_at(world_xz) - contrib_gol_suppression_at(world_xz, pawn_state.pos);
 }
 
 // --- Ground Architecture: contributor and policy ids (Step 1 scaffolding) ---
@@ -1968,10 +1991,34 @@ const POLICY_CELESTIAL_MASK            : u32 = 0u;
 // To add a new dynamic contributor:
 //   add it to effective_ground_y.
 
-fn ground_terrain(world_xz: vec2<f32>) -> f32 {
+// CONTRIB_STATIC_BASE — fused eval of LATTICE + TILE_MODIFIERS + SOLIDS.
+// The three are composed multiplicatively in current code
+// (lattice × mods.x + mods.y + solids) and travel together in every
+// policy that wants a landform base. They're declared as separate
+// contributors in the DAG for policy closure validation.
+fn contrib_static_base_at(world_xz: vec2<f32>) -> f32 {
     let raw_h = terrain_height_at(world_xz, config.world_seed, 0.0);
     let mods = tile_modifiers_at(world_xz);
     return raw_h * mods.x + mods.y + structure_height_at(world_xz);
+}
+
+// CONTRIB_PAINTINGS_BASES — static_landform. Placeholder stub (returns 0.0).
+// Reserved for a future flat-bases-under-paintings contributor.
+// Deps: CONTRIB_TERRAIN_LATTICE, CONTRIB_TILE_MODIFIERS, CONTRIB_SOLIDS, CONTRIB_PYRAMIDS (via DAG).
+fn contrib_paintings_base_at(world_xz: vec2<f32>) -> f32 {
+    return 0.0;
+}
+
+// CONTRIB_VEGETATION_BASES — static_landform. Placeholder stub (returns 0.0).
+// Reserved for a future planters/tile-slots contributor.
+// Deps: CONTRIB_TERRAIN_LATTICE, CONTRIB_TILE_MODIFIERS, CONTRIB_SOLIDS (via DAG).
+fn contrib_vegetation_base_at(world_xz: vec2<f32>) -> f32 {
+    return 0.0;
+}
+
+// Deprecated: forwards to contrib_static_base_at. Removed in Step 5.
+fn ground_terrain(world_xz: vec2<f32>) -> f32 {
+    return contrib_static_base_at(world_xz);
 }
 
 fn ground_formed(world_xz: vec2<f32>) -> f32 {
@@ -2035,7 +2082,11 @@ const OVERLAY_WAVES = array<OverlayWave, 6>(
     OverlayWave(                  3.50,  0.03,  18.0,   -1.0,   0.4,     0.4  ),  // 5: tectonic
 );
 
-fn terrain_wave_overlay(world_xz: vec2<f32>) -> f32 {
+// CONTRIB_TERRAIN_WAVES — deformation_field, global.
+// 6 polyphony-driven overlay waves. Blend ramps activate bands
+// progressively with polyphony count. Seed-derived direction/freq/amp
+// jitter per-band. See OVERLAY_WAVES table above for tuning.
+fn contrib_terrain_waves_at(world_xz: vec2<f32>) -> f32 {
     if (config.terrain_time <= 0.0) { return 0.0; }
 
     let seed = config.world_seed;
@@ -2069,6 +2120,11 @@ fn terrain_wave_overlay(world_xz: vec2<f32>) -> f32 {
     }
 
     return h;
+}
+
+// Deprecated: forwards to contrib_terrain_waves_at. Removed in Step 5.
+fn terrain_wave_overlay(world_xz: vec2<f32>) -> f32 {
+    return contrib_terrain_waves_at(world_xz);
 }
 
 // Gradient of the wave overlay via central finite differences.
@@ -2150,7 +2206,11 @@ const PULSE_RING_SHARPNESS: f32 = 0.3; // gaussian falloff around wavefront (low
 const PULSE_DAMPING: f32 = 0.012;      // distance damping (attenuation per world unit)
 const PULSE_AGE_DECAY: f32 = 0.4;      // age damping (1/seconds — half amplitude at ~1.7s)
 
-fn evaluate_radial_pulses(world_xz: vec2<f32>, t_seconds: f32) -> f32 {
+// CONTRIB_RADIAL_PULSES — deformation_field, global.
+// Expanding ring wavefronts from note onsets. t_seconds is an explicit
+// parameter so this contributor can be called from both render stages
+// (render_signal.t_seconds) and compute stages (signal.t_seconds).
+fn contrib_radial_pulses_at(world_xz: vec2<f32>, t_seconds: f32) -> f32 {
     if (config.pulse_count == 0u) { return 0.0; }
 
     var h: f32 = 0.0;
@@ -2178,6 +2238,20 @@ fn evaluate_radial_pulses(world_xz: vec2<f32>, t_seconds: f32) -> f32 {
     }
 
     return h;
+}
+
+// Deprecated: forwards to contrib_radial_pulses_at. Removed in Step 5.
+fn evaluate_radial_pulses(world_xz: vec2<f32>, t_seconds: f32) -> f32 {
+    return contrib_radial_pulses_at(world_xz, t_seconds);
+}
+
+// CONTRIB_PAWN_AURA — deformation_field, global pawn-centered.
+// Height extrusion under the pawn's aura footprint. Reads pawn_state.pos
+// internally because the aura is anchored in world space at the pawn's
+// position regardless of who queries. Wraps sample_pawn_aura (defined
+// later in the file — WGSL resolves function references module-wide).
+fn contrib_pawn_aura_at(world_xz: vec2<f32>) -> f32 {
+    return sample_pawn_aura(world_xz, pawn_state.pos.xz).r * config.pawn_aura_height;
 }
 
 fn effective_ground_with_gradients(world_xz: vec2<f32>, eps: f32) -> vec3<f32> {
