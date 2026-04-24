@@ -2456,14 +2456,18 @@ fn coupling_terrain_to_sphere_orbit_height(sphere_xz: vec2<f32>, base_height: f3
     if (!coupling_active(COUPLING_TERRAIN_TO_SPHERE_HEIGHT)) {
         return base_height;
     }
-    
-    // Sphere clearance → ground_formed level + wave overlay.
-    // Sphere flies above pyramids and animated terrain but ignores dynamic GoL blocks.
-    let ground = ground_formed(sphere_xz) + terrain_wave_overlay(sphere_xz);
-    
+
+    // POLICY_FLYER — sphere rides static base + pyramids + gol zones +
+    // terrain waves + radial pulses + pawn aura. No gol_suppression
+    // (flyers don't flatten GoL at their own position).
+    // consumer_pos is unused by flyer (no consumer-local fields); pass
+    // a placeholder Y — only xz matters.
+    let qi = QueryInputs(vec3(sphere_xz.x, 0.0, sphere_xz.y), signal.t_seconds);
+    let ground = query_ground_flyer(sphere_xz, qi);
+
     // Ensure minimum clearance above ground
     let min_height = ground + SPHERE_MIN_TERRAIN_CLEARANCE;
-    
+
     return max(base_height, min_height);
 }
 
@@ -4852,9 +4856,14 @@ fn update_camera() {
     }
 
     // ─── Camera terrain clamp: never go underground ──────────────
+    // POLICY_FLYER — camera clears every visible ground contribution
+    // (static base + pyramids + gol zones + terrain waves + radial pulses
+    // + pawn aura). Pre-refactor used effective_ground_y + wave overlay,
+    // which missed pulses and auras.
     {
         let min_clearance = 1.5;  // minimum height above terrain
-        let ground_at_cam = effective_ground_y(camera.pos.xz) + terrain_wave_overlay(camera.pos.xz);
+        let qi = QueryInputs(camera.pos, signal.t_seconds);
+        let ground_at_cam = query_ground_flyer(camera.pos.xz, qi);
         camera.pos.y = max(camera.pos.y, ground_at_cam + min_clearance);
     }
 
@@ -4953,10 +4962,14 @@ fn update_cube() {
         if (!sphere_frozen()) {
             fe.t = fe.t + dt;
 
-            // Hover-bob: orbit_height = clearance above local terrain
+            // Hover-bob: orbit_height = clearance above local terrain.
+            // POLICY_FLYER — cube now rises with radial pulses and pawn
+            // aura (pre-refactor: only base terrain + overlay waves, so a
+            // pulse wavefront could briefly lift the ground through the cube).
             let bob_y = sin(fe.t * 6.283185 / max(fe.bob_period, 0.1)) * fe.bob_amplitude;
             let base_xz = vec2(fe.anchor.x, fe.anchor.z);
-            let ground = ground_formed(base_xz) + terrain_wave_overlay(base_xz);
+            let qi = QueryInputs(fe.anchor, signal.t_seconds);
+            let ground = query_ground_flyer(base_xz, qi);
             fe.pos = vec3(fe.anchor.x, ground + fe.orbit_height + bob_y, fe.anchor.z);
 
             // Spin around tilted Y axis
@@ -6145,8 +6158,13 @@ fn compute_photographer_vp() {
         cfg.distance * cos_el * cos_az
     );
 
-    // --- Clamp camera above actual terrain (O(1) patch_grid lookup)
-    let terrain_at_cam = sample_terrain_y_at(eye_raw.xz);
+    // --- Clamp camera above actual terrain.
+    // POLICY_FLYER — photographer camera rides every visible ground
+    // contribution, matching the primary camera's clamp behavior.
+    // Pre-refactor used the baked heightfield texture (static base +
+    // pyramids only), so it missed GoL zones, pulses, waves, and aura.
+    let qi = QueryInputs(eye_raw, signal.t_seconds);
+    let terrain_at_cam = query_ground_flyer(eye_raw.xz, qi);
     let eye = vec3(eye_raw.x, max(eye_raw.y, terrain_at_cam + 0.1), eye_raw.z);
 
     // --- Build VP looking at pawn, with frame offset
