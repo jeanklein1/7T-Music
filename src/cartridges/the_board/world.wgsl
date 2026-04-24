@@ -1840,8 +1840,9 @@ fn evaluate_pyramid(world_xz: vec2<f32>, inst: PyramidInstance) -> f32 {
     return inst.height * taper * mask;
 }
 
-// CONTRIB_PYRAMIDS — static_landform.
-// Deps: CONTRIB_TERRAIN_LATTICE, CONTRIB_TILE_MODIFIERS, CONTRIB_SOLIDS (via DAG).
+// CONTRIB_PYRAMIDS — static_landform, global.
+// Contributes: tapered height of the tallest active pyramid covering xz.
+// Dependencies (via DAG): CONTRIB_TERRAIN_LATTICE, CONTRIB_TILE_MODIFIERS, CONTRIB_SOLIDS.
 fn contrib_pyramids_at(world_xz: vec2<f32>) -> f32 {
     var best: f32 = 0.0;
     let count = min(pyramid_instances.count, MAX_PYRAMID_INSTANCES);
@@ -1856,8 +1857,9 @@ fn contrib_pyramids_at(world_xz: vec2<f32>) -> f32 {
 // contrib_pyramids_at directly.)
 
 // CONTRIB_GOL_ZONES — slow_dynamic, global.
-// Raw GoL cell extrusion (visual × alive_height × per-cell factor),
-// without any consumer-local suppression.
+// Contributes: raw GoL cell extrusion (visual × alive_height × per-cell factor).
+// Dependencies (via DAG): none — composes onto the static stack additively.
+// Notes: no consumer-local suppression here; that is contrib_gol_suppression_at.
 fn contrib_gol_zones_at(world_xz: vec2<f32>) -> f32 {
     for (var z: u32 = 0u; z < zone_config.count; z++) {
         let zp = zone_config.zones[z];
@@ -1882,15 +1884,14 @@ fn contrib_gol_zones_at(world_xz: vec2<f32>) -> f32 {
 }
 
 // CONTRIB_GOL_SUPPRESSION — deformation_field, consumer-local (subtractive).
-// Returns h * (1 - smoothstep(SUPPRESS_INNER, SUPPRESS_OUTER, dist)) so that
-//   contrib_gol_zones_at(xz) - contrib_gol_suppression_at(xz, pos)
-// equals h * smoothstep(...), matching the pre-refactor
-// h *= (1 - suppression_in_old_code) behavior exactly.
-//
-// Note: evaluates raw GoL internally, which double-evaluates GoL when
-// paired with contrib_gol_zones_at in the same query. Intentional for
-// now (§3.3 of the brief): each contributor stays a separate function;
-// the double eval is cheap and can be fused later if profile data says so.
+// Contributes: subtractive GoL height that flattens the zone near consumer_pos.
+// Dependencies (via DAG): none — orthogonal to the static stack.
+// Notes: returns h * (1 - smoothstep(SUPPRESS_INNER, SUPPRESS_OUTER, dist)),
+//   so contrib_gol_zones_at(xz) - contrib_gol_suppression_at(xz, pos)
+//   == h * smoothstep(...), matching the pre-refactor h *= (1 - supp).
+//   Evaluates raw GoL internally — double-evaluates when paired with
+//   contrib_gol_zones_at in the same query. Intentional (brief §3.3): each
+//   contributor stays a separate function; cheap, fuse later if needed.
 fn contrib_gol_suppression_at(world_xz: vec2<f32>, consumer_pos: vec3<f32>) -> f32 {
     let h = contrib_gol_zones_at(world_xz);
     let d = distance(world_xz, consumer_pos.xz);
@@ -2018,6 +2019,14 @@ const POLICY_CELESTIAL_MASK            : u32 = 0u;
 // matches POLICY_BAKED_HEIGHTFIELD exactly. Per-frame Y-correction
 // passes, camera clamps, and shadow VPs use the cached path.
 //
+// Query entry points — one per policy:
+//   query_ground_<policy>(xz [, QueryInputs])           -> f32
+//   query_ground_<policy>_gradient(xz, qi, eps)         -> vec3 (h, dh/dx, dh/dz)
+//   query_ground_walker_walkable(xz, qi, eps, step_h)   -> vec3 (cliff-clamped)
+// QueryInputs bundles consumer_pos + t_seconds so future additions
+// don't break call signatures. Placement queries skip QueryInputs
+// (no deformation fields consumed at spawn time).
+//
 // ── Extension patterns ────────────────────────────────────────────
 //
 // Add a new contributor:
@@ -2055,27 +2064,37 @@ const POLICY_CELESTIAL_MASK            : u32 = 0u;
 // Both must stay consistent with their policy's contributor set. If
 // a policy gains or loses a contributor, update the fused function.
 
-// CONTRIB_STATIC_BASE — fused eval of LATTICE + TILE_MODIFIERS + SOLIDS.
-// The three are composed multiplicatively in current code
-// (lattice × mods.x + mods.y + solids) and travel together in every
-// policy that wants a landform base. They're declared as separate
-// contributors in the DAG for policy closure validation.
+// CONTRIB_STATIC_BASE — static_landform (fused triple), global.
+// Contributes: lattice × tile_modifiers + solids — the inseparable
+//   multiplicative composition that forms the base terrain surface.
+// Dependencies (via DAG): none (these three are roots of the DAG).
+// Notes: the three logical contributors (CONTRIB_TERRAIN_LATTICE,
+//   CONTRIB_TILE_MODIFIERS, CONTRIB_SOLIDS) are declared separately in
+//   the registry so policy-closure validation operates on logical ids,
+//   but their evaluation is fused here because the multiplicative form
+//   doesn't decompose additively.
 fn contrib_static_base_at(world_xz: vec2<f32>) -> f32 {
     let raw_h = terrain_height_at(world_xz, config.world_seed, 0.0);
     let mods = tile_modifiers_at(world_xz);
     return raw_h * mods.x + mods.y + structure_height_at(world_xz);
 }
 
-// CONTRIB_PAINTINGS_BASES — static_landform. Placeholder stub (returns 0.0).
-// Reserved for a future flat-bases-under-paintings contributor.
-// Deps: CONTRIB_TERRAIN_LATTICE, CONTRIB_TILE_MODIFIERS, CONTRIB_SOLIDS, CONTRIB_PYRAMIDS (via DAG).
+// CONTRIB_PAINTINGS_BASES — static_landform, global.
+// Contributes: 0.0 — placeholder stub.
+// Dependencies (via DAG): CONTRIB_TERRAIN_LATTICE, CONTRIB_TILE_MODIFIERS,
+//   CONTRIB_SOLIDS, CONTRIB_PYRAMIDS.
+// Notes: reserved for a future flat-bases-under-paintings contributor;
+//   the registry slot exists so policies can declare intent now.
 fn contrib_paintings_base_at(world_xz: vec2<f32>) -> f32 {
     return 0.0;
 }
 
-// CONTRIB_VEGETATION_BASES — static_landform. Placeholder stub (returns 0.0).
-// Reserved for a future planters/tile-slots contributor.
-// Deps: CONTRIB_TERRAIN_LATTICE, CONTRIB_TILE_MODIFIERS, CONTRIB_SOLIDS (via DAG).
+// CONTRIB_VEGETATION_BASES — static_landform, global.
+// Contributes: 0.0 — placeholder stub.
+// Dependencies (via DAG): CONTRIB_TERRAIN_LATTICE, CONTRIB_TILE_MODIFIERS,
+//   CONTRIB_SOLIDS.
+// Notes: reserved for a future planters/tile-slots contributor; the
+//   registry slot exists so policies can declare intent now.
 fn contrib_vegetation_base_at(world_xz: vec2<f32>) -> f32 {
     return 0.0;
 }
@@ -2148,9 +2167,11 @@ const OVERLAY_WAVES = array<OverlayWave, 6>(
 );
 
 // CONTRIB_TERRAIN_WAVES — deformation_field, global.
-// 6 polyphony-driven overlay waves. Blend ramps activate bands
-// progressively with polyphony count. Seed-derived direction/freq/amp
-// jitter per-band. See OVERLAY_WAVES table above for tuning.
+// Contributes: sum of 6 polyphony-driven directional sine waves.
+// Dependencies (via DAG): none — orthogonal to the static stack.
+// Notes: blend ramps activate bands progressively with polyphony count.
+//   Seed-derived direction/freq/amp jitter per band. See OVERLAY_WAVES
+//   table above for tuning.
 fn contrib_terrain_waves_at(world_xz: vec2<f32>) -> f32 {
     if (config.terrain_time <= 0.0) { return 0.0; }
 
@@ -2258,9 +2279,11 @@ const PULSE_DAMPING: f32 = 0.012;      // distance damping (attenuation per worl
 const PULSE_AGE_DECAY: f32 = 0.4;      // age damping (1/seconds — half amplitude at ~1.7s)
 
 // CONTRIB_RADIAL_PULSES — deformation_field, global.
-// Expanding ring wavefronts from note onsets. t_seconds is an explicit
-// parameter so this contributor can be called from both render stages
-// (render_signal.t_seconds) and compute stages (signal.t_seconds).
+// Contributes: sum of expanding gaussian ring wavefronts from note onsets.
+// Dependencies (via DAG): none — orthogonal to the static stack.
+// Notes: t_seconds is an explicit parameter so the contributor works in
+//   both render stages (render_signal.t_seconds) and compute stages
+//   (signal.t_seconds). 8-slot ring buffer; dead entries early-exit.
 fn contrib_radial_pulses_at(world_xz: vec2<f32>, t_seconds: f32) -> f32 {
     if (config.pulse_count == 0u) { return 0.0; }
 
@@ -2294,11 +2317,13 @@ fn contrib_radial_pulses_at(world_xz: vec2<f32>, t_seconds: f32) -> f32 {
 // (evaluate_radial_pulses forwarder removed in Step 5. Callers invoke
 // contrib_radial_pulses_at directly.)
 
-// CONTRIB_PAWN_AURA — deformation_field, global pawn-centered.
-// Height extrusion under the pawn's aura footprint. Reads pawn_state.pos
-// internally because the aura is anchored in world space at the pawn's
-// position regardless of who queries. Wraps sample_pawn_aura (defined
-// later in the file — WGSL resolves function references module-wide).
+// CONTRIB_PAWN_AURA — deformation_field, global (pawn-anchored).
+// Contributes: height extrusion under the pawn's aura footprint.
+// Dependencies (via DAG): none — orthogonal to the static stack.
+// Notes: reads pawn_state.pos internally because the aura is anchored
+//   in world space at the pawn's position regardless of who queries.
+//   Wraps sample_pawn_aura (defined later — WGSL resolves function
+//   references module-wide).
 fn contrib_pawn_aura_at(world_xz: vec2<f32>) -> f32 {
     return sample_pawn_aura(world_xz, pawn_state.pos.xz).r * config.pawn_aura_height;
 }
@@ -2325,13 +2350,20 @@ struct QueryInputs {
 
 // --- Placement policies: no deformation fields (spawn-time Y correction) ---
 
-// POLICY_PLACEMENT_PYRAMID — static_base only ("pyramids don't see themselves").
+// POLICY_PLACEMENT_PYRAMID — pyramid spawn-time Y correction.
+// Contributors: CONTRIB_TERRAIN_LATTICE, CONTRIB_TILE_MODIFIERS, CONTRIB_SOLIDS
+//   (i.e. contrib_static_base_at).
+// Typical consumers: pyramid spawn engines deciding candidate Y at a tile.
+// Notes: "pyramids don't see themselves" — no CONTRIB_PYRAMIDS in the set.
 fn query_ground_placement_pyramid(xz: vec2<f32>) -> f32 {
     return contrib_static_base_at(xz);
 }
 
-// POLICY_PLACEMENT_PAINTING — paintings sit on current GoL (preserves
-// pre-refactor zone-mesh behavior). No deformation fields.
+// POLICY_PLACEMENT_PAINTING — painting spawn-time Y correction.
+// Contributors: static_base + CONTRIB_PYRAMIDS + CONTRIB_GOL_ZONES.
+// Typical consumers: painting spawn engines (terrain quads + wall frames).
+// Notes: paintings sit on current GoL extrusion. No deformation fields,
+//   so spawn position is stable against animated terrain.
 fn query_ground_placement_painting(xz: vec2<f32>) -> f32 {
     var h = contrib_static_base_at(xz);
     h += contrib_pyramids_at(xz);
@@ -2339,16 +2371,24 @@ fn query_ground_placement_painting(xz: vec2<f32>) -> f32 {
     return h;
 }
 
-// POLICY_PLACEMENT_VEGETATION — trees/columns don't stand on pyramids.
+// POLICY_PLACEMENT_VEGETATION — tree / column / arch spawn-time Y correction.
+// Contributors: CONTRIB_TERRAIN_LATTICE, CONTRIB_TILE_MODIFIERS, CONTRIB_SOLIDS
+//   (i.e. contrib_static_base_at).
+// Typical consumers: vegetation spawn engines (palm, cactus, blade, columns,
+//   antennas, arches).
+// Notes: "trees don't stand on pyramids" — no CONTRIB_PYRAMIDS in the set.
 fn query_ground_placement_vegetation(xz: vec2<f32>) -> f32 {
     return contrib_static_base_at(xz);
 }
 
 // --- Baked heightfield: all static, no dynamic, no deformation ---
 
-// POLICY_BAKED_HEIGHTFIELD — what the cached heightfield texture
-// captures. Must stay consistent with the per-texel evaluation in
-// the two-pass patch heightfield gen.
+// POLICY_BAKED_HEIGHTFIELD — what the cached patch heightfield texture caches.
+// Contributors: contrib_static_base_at + CONTRIB_PYRAMIDS.
+// Typical consumers: zone-mesh analytical fallback, any compute that wants
+//   the ground-without-dynamics. The texture variant is sample_terrain_y_at.
+// Notes: must stay consistent with ground_formed_with_complexity (the
+//   two-pass patch heightfield generator) — same contributor set.
 fn query_ground_baked_heightfield(xz: vec2<f32>) -> f32 {
     var h = contrib_static_base_at(xz);
     h += contrib_pyramids_at(xz);
@@ -2357,7 +2397,14 @@ fn query_ground_baked_heightfield(xz: vec2<f32>) -> f32 {
 
 // --- Fly-over: all global deformation fields included ---
 
-// POLICY_FLYER — spheres, cubes, cameras. Rides waves, pulses, aura.
+// POLICY_FLYER — non-walking entities that ride animated terrain.
+// Contributors: static_base + CONTRIB_PYRAMIDS + CONTRIB_GOL_ZONES +
+//   CONTRIB_TERRAIN_WAVES + CONTRIB_RADIAL_PULSES + CONTRIB_PAWN_AURA.
+// Typical consumers: sphere orbit clearance, cube hover base; eventually
+//   the camera clamps once their pipelines are extended (see follow-up
+//   brief Part D).
+// Notes: no CONTRIB_GOL_SUPPRESSION — flyers don't flatten GoL at their
+//   own position. Gradient variant: query_ground_flyer_gradient.
 fn query_ground_flyer(xz: vec2<f32>, qi: QueryInputs) -> f32 {
     var h = contrib_static_base_at(xz);
     h += contrib_pyramids_at(xz);
@@ -2370,8 +2417,14 @@ fn query_ground_flyer(xz: vec2<f32>, qi: QueryInputs) -> f32 {
 
 // --- Walkers: everything the flyer sees, plus walker-specific fields ---
 
-// POLICY_WALKER — the pawn. Adds consumer-local GoL suppression so
-// the zone flattens under the walker's own feet.
+// POLICY_WALKER — the pawn's resolved standing height.
+// Contributors: flyer set + CONTRIB_GOL_SUPPRESSION (subtractive,
+//   centered on qi.consumer_pos).
+// Typical consumers: pawn_ground_resolve (final resolved Y).
+// Notes: the walker stands on aura-lifted ground. Gradient: use
+//   query_ground_walker_tilt for tilt/step-climb to avoid manufactured
+//   slopes from self-centered fields (aura, suppression). Walkable
+//   variant: query_ground_walker_walkable (cliff-clamped).
 fn query_ground_walker(xz: vec2<f32>, qi: QueryInputs) -> f32 {
     var h = contrib_static_base_at(xz);
     h += contrib_pyramids_at(xz);
@@ -2383,7 +2436,12 @@ fn query_ground_walker(xz: vec2<f32>, qi: QueryInputs) -> f32 {
     return h;
 }
 
-// POLICY_WALKER_AGENT — agents feel the full GoL lift (no self-suppression).
+// POLICY_WALKER_AGENT — non-pawn walkers (NPCs).
+// Contributors: same as POLICY_WALKER minus CONTRIB_GOL_SUPPRESSION.
+// Typical consumers: agent ground resolve (none today; reserved for
+//   the agent system).
+// Notes: agents feel the full GoL lift — no self-suppression. Design
+//   doc §3.3: revisit if agents stuck on top of GoL zones look wrong.
 fn query_ground_walker_agent(xz: vec2<f32>, qi: QueryInputs) -> f32 {
     var h = contrib_static_base_at(xz);
     h += contrib_pyramids_at(xz);
@@ -2396,8 +2454,10 @@ fn query_ground_walker_agent(xz: vec2<f32>, qi: QueryInputs) -> f32 {
 
 // --- Celestial: empty contributor set ---
 
-// POLICY_CELESTIAL — sun, stars, sky entities. Ground is 0.0. Kept
-// for symmetry and future celestial entity use.
+// POLICY_CELESTIAL — sun, stars, sky entities.
+// Contributors: none.
+// Typical consumers: future celestial entity placement (none today).
+// Notes: returns 0.0 unconditionally; kept for symmetry.
 fn query_ground_celestial(xz: vec2<f32>) -> f32 {
     return 0.0;
 }
@@ -2406,6 +2466,9 @@ fn query_ground_celestial(xz: vec2<f32>) -> f32 {
 // Central finite differences on the policy's query function. Caller
 // supplies eps; walker_walkable additionally clamps cliff-like steps.
 
+// POLICY_FLYER gradient.
+// Returns vec3(h, dh/dx, dh/dz). Five samples (center + four neighbors)
+// of query_ground_flyer.
 fn query_ground_flyer_gradient(xz: vec2<f32>, qi: QueryInputs, eps: f32) -> vec3<f32> {
     let h   = query_ground_flyer(xz,                     qi);
     let hpx = query_ground_flyer(xz + vec2(eps,  0.0),   qi);
@@ -2416,6 +2479,10 @@ fn query_ground_flyer_gradient(xz: vec2<f32>, qi: QueryInputs, eps: f32) -> vec3
     return vec3(h, (hpx - hmx) * inv_2eps, (hpz - hmz) * inv_2eps);
 }
 
+// POLICY_WALKER gradient (full walker, including self-centered fields).
+// Returns vec3(h, dh/dx, dh/dz). Five samples of query_ground_walker.
+// Notes: for tilt and step-climb, prefer query_ground_walker_tilt to
+//   avoid manufactured slopes from the pawn's own aura/suppression.
 fn query_ground_walker_gradient(xz: vec2<f32>, qi: QueryInputs, eps: f32) -> vec3<f32> {
     let h   = query_ground_walker(xz,                     qi);
     let hpx = query_ground_walker(xz + vec2(eps,  0.0),   qi);
@@ -2426,10 +2493,13 @@ fn query_ground_walker_gradient(xz: vec2<f32>, qi: QueryInputs, eps: f32) -> vec
     return vec3(h, (hpx - hmx) * inv_2eps, (hpz - hmz) * inv_2eps);
 }
 
-// Walkable gradient — clamps neighbor heights to h0 when the step
-// would exceed step_h (treats cliffs as flat for gradient purposes).
-// Mirrors the body of effective_ground_with_gradients_walkable but
-// with the walker policy's query function.
+// POLICY_WALKER walkable gradient — cliff-clamped variant.
+// Returns vec3(h0, dh/dx, dh/dz) with neighbor heights clamped to h0
+// when |neighbor - h0| > step_h, treating cliffs as flat for gradient
+// purposes.
+// Notes: as with query_ground_walker_gradient, the self-centered
+//   fields can produce noisy gradients near the pawn — prefer the
+//   tilt-policy variant for tilt and step-climb decisions.
 fn query_ground_walker_walkable(xz: vec2<f32>, qi: QueryInputs, eps: f32, step_h: f32) -> vec3<f32> {
     let h0 = query_ground_walker(xz, qi);
 
