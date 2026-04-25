@@ -648,13 +648,13 @@ const AGENT_BEHAVIORS_WGSL = array<AgentBehaviorParams, 10>(
     /* 0: PLAYER_CONTROLLED */ AgentBehaviorParams(0.0, 0.0, 0.0, 0.0,  0.0,  0.0,  0.0),
     /* 1: RANDOM_WALK       */ AgentBehaviorParams(0.8, 1.5, 0.0, 3.0,  0.0,  0.0,  3.0),
     /* 2: BIASED_WALK       */ AgentBehaviorParams(0.5, 2.5, 0.85, 0.6, 0.0, 25.0,  5.0),
-    /* 3: WANDERER          */ AgentBehaviorParams(0.8, 1.5, 0.6, 3.0,  0.25, 0.0,  3.0),
-    /* 4: HOME_SEEKER       */ AgentBehaviorParams(1.2, 0.8, 0.3, 2.5,  1.5,  0.0,  3.0),
+    /* 3: WANDERER          */ AgentBehaviorParams(0.7, 1.8, 0.0, 1.0,  0.4,  0.0,  4.0),
+    /* 4: HOME_SEEKER       */ AgentBehaviorParams(0.4, 1.0, 0.0, 1.5,  3.0,  0.0,  3.0),
     /* 5: SLOW_PATROL       */ AgentBehaviorParams(0.25, 8.0, 0.0, 2.0, 4.0,  0.0,  2.0),
-    /* 6: PURSUIT           */ AgentBehaviorParams(0.0, 0.0, 0.0, 3.0,  0.0, 30.0,  4.0),
-    /* 7: FLEE              */ AgentBehaviorParams(0.0, 0.0, 0.0, 3.0,  0.0, 30.0,  4.0),
-    /* 8: FLOCK2D           */ AgentBehaviorParams(0.0, 0.0, 0.0, 2.0,  0.0, 12.0,  3.5),
-    /* 9: LEVY_FLIGHT       */ AgentBehaviorParams(0.5, 1.5, 0.0, 3.0,  0.0,  0.0,  5.0),
+    /* 6: PURSUIT           */ AgentBehaviorParams(0.5, 1.5, 0.0, 1.0,  5.0, 40.0,  5.0),
+    /* 7: FLEE              */ AgentBehaviorParams(0.4, 1.0, 0.0, 1.5,  8.0, 30.0,  8.0),
+    /* 8: FLOCK2D           */ AgentBehaviorParams(0.6, 1.5, 0.7, 0.6,  0.0, 30.0,  4.5),
+    /* 9: LEVY_FLIGHT       */ AgentBehaviorParams(0.4, 0.8, 0.0, 1.5,  0.0,  0.0,  8.0),
 );
 
 struct AgentTierParams {
@@ -5155,6 +5155,56 @@ fn pawn_ground_resolve(
     return vec4(prev_xz.x, prev_y, prev_xz.y, 0.0);
 }
 
+// ─── Shared post-step ────────────────────────────────────────────
+// Behaviors only modify a.vel_x / a.vel_z. This helper applies the
+// rest: exponential drag, speed cap, position integration, ground
+// snap, and heading-from-velocity. Pulled out of each behavior body
+// so FXC compiles it once per kernel rather than ten times.
+//
+// Each behavior reads its own (drag, speed_cap) from
+// AGENT_BEHAVIORS_WGSL[id], with tier scaling applied via
+// AGENT_TIER_GAINS_WGSL[tier_idx].speed_gain — that's why both the
+// raw cap and the tier multiplier come in as parameters.
+fn agent_post_step(agent_in: AgentState, drag: f32, speed_cap: f32, speed_gain: f32) -> AgentState {
+    var a = agent_in;
+    let dt = signal.dt;
+    let t  = signal.t_seconds;
+
+    // Drag (physical, in seconds).
+    let decay = exp(-drag * dt);
+    a.vel_x *= decay;
+    a.vel_z *= decay;
+
+    // Speed cap.
+    let sp2 = a.vel_x * a.vel_x + a.vel_z * a.vel_z;
+    let cap = speed_cap * speed_gain;
+    if (sp2 > cap * cap) {
+        let inv = cap / sqrt(sp2);
+        a.vel_x *= inv;
+        a.vel_z *= inv;
+    }
+
+    // Position integration.
+    a.pos_x += a.vel_x * dt;
+    a.pos_z += a.vel_z * dt;
+
+    // Ground snap (walker policy — base + pyramids + GoL + waves + pulses + aura).
+    let qi = QueryInputs(vec3(a.pos_x, a.pos_y, a.pos_z), t);
+    a.pos_y = query_ground_walker_agent(vec2(a.pos_x, a.pos_z), qi);
+
+    // Heading from velocity (when moving).
+    if (sp2 > 0.01) {
+        a.heading = atan2(a.vel_x, a.vel_z);
+        let hq = quat_from_axis_angle(vec3(0.0, 1.0, 0.0), a.heading);
+        a.orient_x = hq.x;
+        a.orient_y = hq.y;
+        a.orient_z = hq.z;
+        a.orient_w = hq.w;
+    }
+
+    return a;
+}
+
 // ─── Behavior: PlayerControlled ──────────────────────────────────
 // The body the player is currently inhabiting. Reads input/couplings,
 // resolves ground, computes tilt orientation, detects portal triggers.
@@ -5273,9 +5323,7 @@ fn behavior_player_controlled(agent_in: AgentState) -> AgentState {
 // deterministic given the agent's spawn seed.
 fn behavior_random_walk(agent_in: AgentState) -> AgentState {
     var a = agent_in;
-    let dt        = signal.dt;
     let dt_beats  = signal.dt_beats;
-    let t         = signal.t_seconds;
     let t_beats   = signal.t_beats;
 
     let b = AGENT_BEHAVIORS_WGSL[1u];
@@ -5295,38 +5343,7 @@ fn behavior_random_walk(agent_in: AgentState) -> AgentState {
         a.vel_z += sin(theta) * impulse;
     }
 
-    // Drag (exponential decay) — physical, in seconds.
-    let decay = exp(-b.drag * dt);
-    a.vel_x *= decay;
-    a.vel_z *= decay;
-
-    // Speed cap.
-    let sp2 = a.vel_x * a.vel_x + a.vel_z * a.vel_z;
-    let cap = b.speed_cap * g.speed_gain;
-    if (sp2 > cap * cap) {
-        let inv = cap / sqrt(sp2);
-        a.vel_x *= inv;
-        a.vel_z *= inv;
-    }
-
-    // Integrate XZ, snap Y to POLICY_WALKER_AGENT ground.
-    a.pos_x += a.vel_x * dt;
-    a.pos_z += a.vel_z * dt;
-
-    let qi = QueryInputs(vec3(a.pos_x, a.pos_y, a.pos_z), t);
-    a.pos_y = query_ground_walker_agent(vec2(a.pos_x, a.pos_z), qi);
-
-    // Heading from velocity (when moving).
-    if (sp2 > 0.01) {
-        a.heading = atan2(a.vel_x, a.vel_z);
-        let hq = quat_from_axis_angle(vec3(0.0, 1.0, 0.0), a.heading);
-        a.orient_x = hq.x;
-        a.orient_y = hq.y;
-        a.orient_z = hq.z;
-        a.orient_w = hq.w;
-    }
-
-    return a;
+    return agent_post_step(a, b.drag, b.speed_cap, g.speed_gain);
 }
 
 // ─── Behavior: BiasedWalk ────────────────────────────────────────
@@ -5344,7 +5361,6 @@ fn behavior_biased_walk(agent_in: AgentState) -> AgentState {
     var a = agent_in;
     let dt        = signal.dt;
     let dt_beats  = signal.dt_beats;
-    let t         = signal.t_seconds;
     let t_beats   = signal.t_beats;
 
     let b = AGENT_BEHAVIORS_WGSL[2u];
@@ -5404,35 +5420,7 @@ fn behavior_biased_walk(agent_in: AgentState) -> AgentState {
         }
     }
 
-    // Drag (physical, in seconds).
-    let decay = exp(-b.drag * dt);
-    a.vel_x *= decay;
-    a.vel_z *= decay;
-
-    let sp2 = a.vel_x * a.vel_x + a.vel_z * a.vel_z;
-    let cap = b.speed_cap * g.speed_gain;
-    if (sp2 > cap * cap) {
-        let inv = cap / sqrt(sp2);
-        a.vel_x *= inv;
-        a.vel_z *= inv;
-    }
-
-    a.pos_x += a.vel_x * dt;
-    a.pos_z += a.vel_z * dt;
-
-    let qi = QueryInputs(vec3(a.pos_x, a.pos_y, a.pos_z), t);
-    a.pos_y = query_ground_walker_agent(vec2(a.pos_x, a.pos_z), qi);
-
-    if (sp2 > 0.01) {
-        a.heading = atan2(a.vel_x, a.vel_z);
-        let hq = quat_from_axis_angle(vec3(0.0, 1.0, 0.0), a.heading);
-        a.orient_x = hq.x;
-        a.orient_y = hq.y;
-        a.orient_z = hq.z;
-        a.orient_w = hq.w;
-    }
-
-    return a;
+    return agent_post_step(a, b.drag, b.speed_cap, g.speed_gain);
 }
 
 // ─── Behavior: SlowPatrol ────────────────────────────────────────
@@ -5448,7 +5436,6 @@ fn behavior_slow_patrol(agent_in: AgentState) -> AgentState {
     var a = agent_in;
     let dt        = signal.dt;
     let dt_beats  = signal.dt_beats;
-    let t         = signal.t_seconds;
     let t_beats   = signal.t_beats;
 
     let b = AGENT_BEHAVIORS_WGSL[5u];
@@ -5479,35 +5466,297 @@ fn behavior_slow_patrol(agent_in: AgentState) -> AgentState {
     }
     // (Within 0.5 units of target: drag-only motion = pause.)
 
-    // Drag (physical, in seconds).
-    let decay = exp(-b.drag * dt);
-    a.vel_x *= decay;
-    a.vel_z *= decay;
+    return agent_post_step(a, b.drag, b.speed_cap, g.speed_gain);
+}
 
-    let sp2 = a.vel_x * a.vel_x + a.vel_z * a.vel_z;
-    let cap = b.speed_cap * g.speed_gain;
-    if (sp2 > cap * cap) {
-        let inv2 = cap / sqrt(sp2);
-        a.vel_x *= inv2;
-        a.vel_z *= inv2;
+// ─── Behavior: Wanderer ──────────────────────────────────────────
+// Random walk with a soft tether to home. Like RandomWalk but the
+// agent has a place it belongs and slowly drifts back to it. No
+// persistent direction (unlike BiasedWalk). Each step is fresh.
+//
+// Aesthetic: a creature grazing in its patch — free movement within
+// a territory.
+fn behavior_wanderer(agent_in: AgentState) -> AgentState {
+    var a = agent_in;
+    let dt        = signal.dt;
+    let dt_beats  = signal.dt_beats;
+    let t_beats   = signal.t_beats;
+
+    let b = AGENT_BEHAVIORS_WGSL[3u];
+    let tier = min(a.tier_idx, AGENT_TIER_COUNT_WGSL - 1u);
+    let g = AGENT_TIER_GAINS_WGSL[tier];
+
+    // Step trigger.
+    let step_idx      = u32(floor(t_beats * b.step_rate));
+    let prev_step_idx = u32(floor(max(0.0, t_beats - dt_beats) * b.step_rate));
+    if (step_idx > prev_step_idx) {
+        let theta = hash_property(a.seed, 7100u + step_idx) * 6.28318530718;
+        let impulse = b.step_size * g.step_gain;
+        a.vel_x += cos(theta) * impulse;
+        a.vel_z += sin(theta) * impulse;
     }
 
-    a.pos_x += a.vel_x * dt;
-    a.pos_z += a.vel_z * dt;
-
-    let qi = QueryInputs(vec3(a.pos_x, a.pos_y, a.pos_z), t);
-    a.pos_y = query_ground_walker_agent(vec2(a.pos_x, a.pos_z), qi);
-
-    if (sp2 > 0.01) {
-        a.heading = atan2(a.vel_x, a.vel_z);
-        let hq = quat_from_axis_angle(vec3(0.0, 1.0, 0.0), a.heading);
-        a.orient_x = hq.x;
-        a.orient_y = hq.y;
-        a.orient_z = hq.z;
-        a.orient_w = hq.w;
+    // Continuous home tether — gentle pull toward home each frame.
+    let dx = a.home_x - a.pos_x;
+    let dz = a.home_z - a.pos_z;
+    let dist = sqrt(dx * dx + dz * dz);
+    if (dist > 0.5) {
+        let pull = b.home_pull * g.persist_gain;
+        let inv  = 1.0 / dist;
+        a.vel_x = a.vel_x + dx * inv * pull * dt;
+        a.vel_z = a.vel_z + dz * inv * pull * dt;
     }
 
-    return a;
+    return agent_post_step(a, b.drag, b.speed_cap, g.speed_gain);
+}
+
+// ─── Behavior: HomeSeeker ────────────────────────────────────────
+// Strong spring to home with a small noise impulse on each step.
+// Unlike Wanderer (soft tether) the home_pull dominates — agent
+// always returns. Unlike SlowPatrol (waypoints), there is no fixed
+// destination, just a centerpoint with restless local motion.
+//
+// Aesthetic: a sentinel at its post — paces, returns, paces again.
+fn behavior_home_seeker(agent_in: AgentState) -> AgentState {
+    var a = agent_in;
+    let dt        = signal.dt;
+    let dt_beats  = signal.dt_beats;
+    let t_beats   = signal.t_beats;
+
+    let b = AGENT_BEHAVIORS_WGSL[4u];
+    let tier = min(a.tier_idx, AGENT_TIER_COUNT_WGSL - 1u);
+    let g = AGENT_TIER_GAINS_WGSL[tier];
+
+    // Step trigger — small random noise impulse.
+    let step_idx      = u32(floor(t_beats * b.step_rate));
+    let prev_step_idx = u32(floor(max(0.0, t_beats - dt_beats) * b.step_rate));
+    if (step_idx > prev_step_idx) {
+        let theta = hash_property(a.seed, 7200u + step_idx) * 6.28318530718;
+        let impulse = b.step_size * g.step_gain;
+        a.vel_x += cos(theta) * impulse;
+        a.vel_z += sin(theta) * impulse;
+    }
+
+    // Strong spring to home — dominant force.
+    let dx = a.home_x - a.pos_x;
+    let dz = a.home_z - a.pos_z;
+    let dist_sq = dx * dx + dz * dz;
+    if (dist_sq > 0.25) {
+        let pull = b.home_pull * g.persist_gain;
+        a.vel_x = a.vel_x + dx * pull * dt;
+        a.vel_z = a.vel_z + dz * pull * dt;
+    }
+
+    return agent_post_step(a, b.drag, b.speed_cap, g.speed_gain);
+}
+
+// ─── Behavior: Pursuit ───────────────────────────────────────────
+// Steers toward the player. Engages only when the player is within
+// neighbor_radius — outside that range, agent reverts to RandomWalk-
+// style wandering (subtle drift). Direction is sampled fresh each
+// frame from the live player position.
+//
+// Aesthetic: a curious follower — a child trailing behind a parent,
+// a dog interested in the new visitor.
+fn behavior_pursuit(agent_in: AgentState) -> AgentState {
+    var a = agent_in;
+    let dt        = signal.dt;
+    let dt_beats  = signal.dt_beats;
+    let t_beats   = signal.t_beats;
+
+    let b = AGENT_BEHAVIORS_WGSL[6u];
+    let tier = min(a.tier_idx, AGENT_TIER_COUNT_WGSL - 1u);
+    let g = AGENT_TIER_GAINS_WGSL[tier];
+
+    // Read the player position (live, not staged).
+    let player = agent_state[config.possessed_slot];
+    let dx = player.pos_x - a.pos_x;
+    let dz = player.pos_z - a.pos_z;
+    let dist_sq = dx * dx + dz * dz;
+    let detect_sq = b.neighbor_radius * b.neighbor_radius;
+
+    if (dist_sq < detect_sq && dist_sq > 0.5) {
+        // In range — steer toward player. Continuous force, frame-rate
+        // independent (scaled by dt).
+        let pull = b.home_pull * g.persist_gain;
+        let inv = 1.0 / sqrt(dist_sq);
+        a.vel_x = a.vel_x + dx * inv * pull * dt;
+        a.vel_z = a.vel_z + dz * inv * pull * dt;
+    } else {
+        // Out of range — wander gently on beat-time.
+        let step_idx      = u32(floor(t_beats * b.step_rate));
+        let prev_step_idx = u32(floor(max(0.0, t_beats - dt_beats) * b.step_rate));
+        if (step_idx > prev_step_idx) {
+            let theta = hash_property(a.seed, 7300u + step_idx) * 6.28318530718;
+            let impulse = b.step_size * g.step_gain;
+            a.vel_x += cos(theta) * impulse;
+            a.vel_z += sin(theta) * impulse;
+        }
+    }
+
+    return agent_post_step(a, b.drag, b.speed_cap, g.speed_gain);
+}
+
+// ─── Behavior: Flee ──────────────────────────────────────────────
+// Inverse of Pursuit. Steers AWAY from the player when within
+// neighbor_radius. Outside that range, gentle idle wander on
+// beat-time so the agent doesn't appear frozen.
+//
+// Aesthetic: a shy creature, an avoider. Still alive when the
+// player is far — drifting gently — but flees actively when the
+// player approaches.
+fn behavior_flee(agent_in: AgentState) -> AgentState {
+    var a = agent_in;
+    let dt        = signal.dt;
+    let dt_beats  = signal.dt_beats;
+    let t_beats   = signal.t_beats;
+
+    let b = AGENT_BEHAVIORS_WGSL[7u];
+    let tier = min(a.tier_idx, AGENT_TIER_COUNT_WGSL - 1u);
+    let g = AGENT_TIER_GAINS_WGSL[tier];
+
+    let player = agent_state[config.possessed_slot];
+    let dx = a.pos_x - player.pos_x;  // away vector
+    let dz = a.pos_z - player.pos_z;
+    let dist_sq = dx * dx + dz * dz;
+    let alarm_sq = b.neighbor_radius * b.neighbor_radius;
+
+    if (dist_sq < alarm_sq && dist_sq > 0.5) {
+        // Player too close — flee. Force scales with proximity:
+        // closer = stronger push.
+        let proximity = 1.0 - sqrt(dist_sq) / b.neighbor_radius;
+        let pull = b.home_pull * g.persist_gain * proximity;
+        let inv = 1.0 / sqrt(dist_sq);
+        a.vel_x = a.vel_x + dx * inv * pull * dt;
+        a.vel_z = a.vel_z + dz * inv * pull * dt;
+    } else {
+        // Out of alarm range — gentle idle wander on beat-time.
+        let step_idx      = u32(floor(t_beats * b.step_rate));
+        let prev_step_idx = u32(floor(max(0.0, t_beats - dt_beats) * b.step_rate));
+        if (step_idx > prev_step_idx) {
+            let theta = hash_property(a.seed, 7700u + step_idx) * 6.28318530718;
+            let impulse = b.step_size * g.step_gain;
+            a.vel_x += cos(theta) * impulse;
+            a.vel_z += sin(theta) * impulse;
+        }
+    }
+
+    return agent_post_step(a, b.drag, b.speed_cap, g.speed_gain);
+}
+
+// ─── Behavior: Flock2D ───────────────────────────────────────────
+// Vicsek-style alignment. On each step, sample 3 random other slots;
+// for those within neighbor_radius, accumulate (a) their position
+// (centroid → cohesion) and (b) their velocity vector (heading →
+// alignment). Blend agent's own velocity toward the average.
+//
+// Aesthetic: birds, fish, schools. The most visually striking
+// behavior when populations are dense enough for emergent flow.
+fn behavior_flock2d(agent_in: AgentState) -> AgentState {
+    var a = agent_in;
+    let dt        = signal.dt;
+    let dt_beats  = signal.dt_beats;
+    let t_beats   = signal.t_beats;
+
+    let b = AGENT_BEHAVIORS_WGSL[8u];
+    let tier = min(a.tier_idx, AGENT_TIER_COUNT_WGSL - 1u);
+    let g = AGENT_TIER_GAINS_WGSL[tier];
+
+    // Step trigger — flock decisions are beat-gated.
+    let step_idx      = u32(floor(t_beats * b.step_rate));
+    let prev_step_idx = u32(floor(max(0.0, t_beats - dt_beats) * b.step_rate));
+    if (step_idx > prev_step_idx) {
+        // Random direction noise (small — alignment dominates).
+        let theta = hash_property(a.seed, 7400u + step_idx) * 6.28318530718;
+        let noise_arc = (1.0 - clamp(b.persistence * g.persist_gain, 0.0, 1.0)) * 0.78;
+        let noisy_theta = theta * noise_arc;
+        let impulse_n = b.step_size * g.step_gain * 0.15;
+        a.vel_x += cos(noisy_theta) * impulse_n;
+        a.vel_z += sin(noisy_theta) * impulse_n;
+
+        // Sample 4 neighbors for cohesion + alignment.
+        // Wider sample improves chance of finding flock mates with
+        // small populations.
+        var cx = 0.0;
+        var cz = 0.0;
+        var ax = 0.0;
+        var az = 0.0;
+        var n  = 0u;
+        for (var k = 0u; k < 4u; k = k + 1u) {
+            let other_slot = (a.seed + step_idx * 31u + k * 7919u) % 32u;
+            if (other_slot == config.possessed_slot) { continue; }
+            let other = agent_state[other_slot];
+            if (other.is_active == 0u) { continue; }
+            let odx = other.pos_x - a.pos_x;
+            let odz = other.pos_z - a.pos_z;
+            let od2 = odx * odx + odz * odz;
+            if (od2 < b.neighbor_radius * b.neighbor_radius && od2 > 0.001) {
+                cx = cx + other.pos_x;
+                cz = cz + other.pos_z;
+                ax = ax + other.vel_x;
+                az = az + other.vel_z;
+                n = n + 1u;
+            }
+        }
+        if (n > 0u) {
+            let inv_n = 1.0 / f32(n);
+            // Cohesion pull toward centroid.
+            let centroid_x = cx * inv_n;
+            let centroid_z = cz * inv_n;
+            let pdx = centroid_x - a.pos_x;
+            let pdz = centroid_z - a.pos_z;
+            let plen = sqrt(pdx * pdx + pdz * pdz);
+            if (plen > 0.001) {
+                let cohesion = b.step_size * g.step_gain * 0.5;
+                a.vel_x = a.vel_x + (pdx / plen) * cohesion;
+                a.vel_z = a.vel_z + (pdz / plen) * cohesion;
+            }
+            // Alignment — strongly blend toward average velocity.
+            let avg_vx = ax * inv_n;
+            let avg_vz = az * inv_n;
+            let align_strength = 0.75;
+            a.vel_x = mix(a.vel_x, avg_vx, align_strength);
+            a.vel_z = mix(a.vel_z, avg_vz, align_strength);
+        }
+    }
+
+    return agent_post_step(a, b.drag, b.speed_cap, g.speed_gain);
+}
+
+// ─── Behavior: LevyFlight ────────────────────────────────────────
+// Random walk with heavy-tailed step magnitudes. Most steps are
+// small; occasionally a step is dramatic. Step magnitude sampled
+// from inverse power-law on uniform.
+//
+// Aesthetic: searching, foraging. Bursts of motion punctuating
+// quiet drift. Useful for "explorer" populations or insects.
+fn behavior_levy_flight(agent_in: AgentState) -> AgentState {
+    var a = agent_in;
+    let dt        = signal.dt;
+    let dt_beats  = signal.dt_beats;
+    let t_beats   = signal.t_beats;
+
+    let b = AGENT_BEHAVIORS_WGSL[9u];
+    let tier = min(a.tier_idx, AGENT_TIER_COUNT_WGSL - 1u);
+    let g = AGENT_TIER_GAINS_WGSL[tier];
+
+    let step_idx      = u32(floor(t_beats * b.step_rate));
+    let prev_step_idx = u32(floor(max(0.0, t_beats - dt_beats) * b.step_rate));
+    if (step_idx > prev_step_idx) {
+        let theta = hash_property(a.seed, 7500u + step_idx) * 6.28318530718;
+        // Power-law magnitude. uniform in (0,1] (clamp to avoid /0).
+        let u = max(0.05, hash_property(a.seed, 7600u + step_idx));
+        // alpha = 1.5 → moderate tail (1=Cauchy-flat, 2=Gaussian-like).
+        let alpha = 1.5;
+        let magnitude_factor = pow(1.0 / u, 1.0 / alpha);
+        // Cap to keep extreme jumps bounded.
+        let capped = min(magnitude_factor, 8.0);
+        let impulse = b.step_size * g.step_gain * capped;
+        a.vel_x += cos(theta) * impulse;
+        a.vel_z += sin(theta) * impulse;
+    }
+
+    return agent_post_step(a, b.drag, b.speed_cap, g.speed_gain);
 }
 
 // ─── Compute kernels ─────────────────────────────────────────────
@@ -5593,8 +5842,14 @@ fn update_other_agents(@builtin(global_invocation_id) gid: vec3<u32>) {
         case 0u: { /* no-op */ }
         case 1u: { agent = behavior_random_walk(agent); }
         case 2u: { agent = behavior_biased_walk(agent); }
+        case 3u: { agent = behavior_wanderer(agent); }
+        case 4u: { agent = behavior_home_seeker(agent); }
         case 5u: { agent = behavior_slow_patrol(agent); }
-        default: { /* Pass 2 — other behaviors fill in here */ }
+        case 6u: { agent = behavior_pursuit(agent); }
+        case 7u: { agent = behavior_flee(agent); }
+        case 8u: { agent = behavior_flock2d(agent); }
+        case 9u: { agent = behavior_levy_flight(agent); }
+        default: { /* unknown behavior — no-op */ }
     }
 
     // Player-centered eviction. Non-player agents that wander too far

@@ -47,14 +47,14 @@
 enum AgentBehaviorId : uint32_t {
     AGENT_BEHAVIOR_PLAYER_CONTROLLED = 0,
     AGENT_BEHAVIOR_RANDOM_WALK       = 1,
-    AGENT_BEHAVIOR_BIASED_WALK       = 2,   // Pass 2 — persistent direction + soft cohesion
-    AGENT_BEHAVIOR_WANDERER          = 3,   // Pass 2 — correlated + home tether (deferred)
-    AGENT_BEHAVIOR_HOME_SEEKER       = 4,   // Pass 2 — strong spring to home (deferred)
-    AGENT_BEHAVIOR_SLOW_PATROL       = 5,   // Pass 2 — waypoints around home, slow
-    AGENT_BEHAVIOR_PURSUIT           = 6,   // Pass 2 — chase target (deferred)
-    AGENT_BEHAVIOR_FLEE              = 7,   // Pass 2 — inverse pursuit (deferred)
-    AGENT_BEHAVIOR_FLOCK2D           = 8,   // Pass 2 — Vicsek alignment (deferred)
-    AGENT_BEHAVIOR_LEVY_FLIGHT       = 9,   // Pass 2 — heavy-tailed steps (deferred)
+    AGENT_BEHAVIOR_BIASED_WALK       = 2,   // persistent direction + soft cohesion
+    AGENT_BEHAVIOR_WANDERER          = 3,   // random walk + soft home tether
+    AGENT_BEHAVIOR_HOME_SEEKER       = 4,   // strong spring to home
+    AGENT_BEHAVIOR_SLOW_PATROL       = 5,   // waypoints around home, slow
+    AGENT_BEHAVIOR_PURSUIT           = 6,   // steers toward player when in range
+    AGENT_BEHAVIOR_FLEE              = 7,   // flees player when in range, idles otherwise
+    AGENT_BEHAVIOR_FLOCK2D           = 8,   // Vicsek alignment + cohesion
+    AGENT_BEHAVIOR_LEVY_FLIGHT       = 9,   // power-law step magnitudes
     AGENT_BEHAVIOR_COUNT             = 10,
 };
 
@@ -108,13 +108,13 @@ static constexpr AgentBehaviorDef AGENT_BEHAVIORS[AGENT_BEHAVIOR_COUNT] = {
     { AGENT_BEHAVIOR_PLAYER_CONTROLLED, "player_controlled",   0.0f,      0.0f,      0.0f,        0.0f, 0.0f,      0.0f,            0.0f    },
     { AGENT_BEHAVIOR_RANDOM_WALK,       "random_walk",         0.8f,      1.5f,      0.0f,        3.0f, 0.0f,      0.0f,            3.0f    },
     { AGENT_BEHAVIOR_BIASED_WALK,       "biased_walk",         0.5f,      2.5f,      0.85f,       0.6f, 0.0f,      25.0f,           5.0f    },
-    { AGENT_BEHAVIOR_WANDERER,          "wanderer",            0.8f,      1.5f,      0.6f,        3.0f, 0.25f,     0.0f,            3.0f    },
-    { AGENT_BEHAVIOR_HOME_SEEKER,       "home_seeker",         1.2f,      0.8f,      0.3f,        2.5f, 1.50f,     0.0f,            3.0f    },
+    { AGENT_BEHAVIOR_WANDERER,          "wanderer",            0.7f,      1.8f,      0.0f,        1.0f, 0.4f,      0.0f,            4.0f    },
+    { AGENT_BEHAVIOR_HOME_SEEKER,       "home_seeker",         0.4f,      1.0f,      0.0f,        1.5f, 3.0f,      0.0f,            3.0f    },
     { AGENT_BEHAVIOR_SLOW_PATROL,       "slow_patrol",         0.25f,     8.0f,      0.0f,        2.0f, 4.0f,      0.0f,            2.0f    },
-    { AGENT_BEHAVIOR_PURSUIT,           "pursuit",             0.0f,      0.0f,      0.0f,        3.0f, 0.0f,      30.0f,           4.0f    },
-    { AGENT_BEHAVIOR_FLEE,              "flee",                0.0f,      0.0f,      0.0f,        3.0f, 0.0f,      30.0f,           4.0f    },
-    { AGENT_BEHAVIOR_FLOCK2D,           "flock2d",             0.0f,      0.0f,      0.0f,        2.0f, 0.0f,      12.0f,           3.5f    },
-    { AGENT_BEHAVIOR_LEVY_FLIGHT,       "levy_flight",         0.5f,      1.5f,      0.0f,        3.0f, 0.0f,      0.0f,            5.0f    },
+    { AGENT_BEHAVIOR_PURSUIT,           "pursuit",             0.5f,      1.5f,      0.0f,        1.0f, 5.0f,      40.0f,           5.0f    },
+    { AGENT_BEHAVIOR_FLEE,              "flee",                0.4f,      1.0f,      0.0f,        1.5f, 8.0f,      30.0f,           8.0f    },
+    { AGENT_BEHAVIOR_FLOCK2D,           "flock2d",             0.6f,      1.5f,      0.7f,        0.6f, 0.0f,      30.0f,           4.5f    },
+    { AGENT_BEHAVIOR_LEVY_FLIGHT,       "levy_flight",         0.4f,      0.8f,      0.0f,        1.5f, 0.0f,      0.0f,            8.0f    },
 };
 
 static_assert(sizeof(AGENT_BEHAVIORS) / sizeof(AGENT_BEHAVIORS[0]) == AGENT_BEHAVIOR_COUNT,
