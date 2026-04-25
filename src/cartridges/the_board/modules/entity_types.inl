@@ -1,4 +1,4 @@
-// ─── entity_types.inl ────────────────────────────────────────────
+﻿// ─── entity_types.inl ────────────────────────────────────────────
 //
 // Core type definitions for the generic entity pipeline.
 // Included BEFORE EntityQueueEntry/PlacementEntry so EntityInstance

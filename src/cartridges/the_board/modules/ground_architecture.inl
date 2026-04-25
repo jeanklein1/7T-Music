@@ -1,4 +1,4 @@
-// ─── ground_architecture.inl ─────────────────────────────────────
+﻿// ─── ground_architecture.inl ─────────────────────────────────────
 //
 // Canonical registry for the ground query architecture:
 // contributors, explicit dependency DAG, and policies. Single source

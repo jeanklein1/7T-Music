@@ -13,7 +13,6 @@
 //   PALETTE_LIGHT[4]              Light variant per palette
 //   PALETTE_VARIANCE[4]           Per-cell noise amplitude
 //   PALETTE_WEIGHT[4]             Selection probability
-//   COLOR_PAWN                    Pawn entity color
 //
 // ── Spatial Field Lattices (§2.2) ─────────────────────────────────
 //   PALETTE_LATTICE_SPACING       300 wu — palette blob size
@@ -582,7 +581,7 @@ struct FrameSignal {
     zoom_delta: f32,
     pan_x_delta: f32,
     pan_y_delta: f32,
-    _pad1: f32,
+    dt_beats: f32,        // beat-time delta (currentBeats_ - prevBeats_)
 }
 
 // --- [STATE:terrain] TerrainState
@@ -596,16 +595,88 @@ struct TerrainState {
     _pad: f32,
 }
 
-// --- [STATE:pawn] PawnState
-
-struct PawnState {
-    pos: vec3<f32>,
+// --- [STATE:agent] AgentState
+//
+// Unified entity state — mirrors GPUAgentState in state.hpp (80 bytes).
+// Slot 0 is the player's body (possessed at session start); slots 1..31
+// are mood-authored agents driven by AGENT_BEHAVIORS. Scalar fields
+// throughout so WGSL uniform/storage layout matches C++ without vec3
+// alignment surprises. Orientation stored (not derived) to preserve
+// terrain-tilt transparency for the possessed slot.
+//
+// See agent_system_design.md and modules/agents.inl for rationale.
+struct AgentState {
+    pos_x: f32,
+    pos_y: f32,
+    pos_z: f32,
+    t: f32,         // reserved (per-agent local clock; padding to vec4)
+    vel_x: f32,
+    vel_y: f32,
+    vel_z: f32,
     heading: f32,
-    orientation: vec4<f32>,
-    velocity: vec2<f32>,      // Current XZ velocity (for force field radius)
-    portal_trigger: i32,      // -1 = none, >=0 = arch index triggering transition
-    _pad1: f32,
+    home_x: f32,
+    home_y: f32,
+    home_z: f32,
+    seed: u32,
+    behavior_id: u32,
+    tier_idx: u32,
+    is_active: u32,
+    portal_trigger: i32,   // only meaningful on possessed slot; -1 = none
+    orient_x: f32,
+    orient_y: f32,
+    orient_z: f32,
+    orient_w: f32,
 }
+
+// ─── Agent behavior + tier registries ──────────────────────────────
+// Mirror the C++ tables in modules/agents.inl. Both must move in
+// lockstep — if you change one, change the other.
+
+struct AgentBehaviorParams {
+    step_rate:       f32,  // steps/beat (musical time)
+    step_size:       f32,  // world units/step
+    persistence:     f32,  // [0,1] correlated-walk angle persistence
+    drag:            f32,  // 1/s velocity decay
+    home_pull:       f32,  // 1/s² spring toward home
+    neighbor_radius: f32,  // flock neighbor search
+    speed_cap:       f32,  // max speed
+}
+
+const AGENT_BEHAVIOR_COUNT_WGSL: u32 = 10u;
+
+const AGENT_BEHAVIORS_WGSL = array<AgentBehaviorParams, 10>(
+    /* 0: PLAYER_CONTROLLED */ AgentBehaviorParams(0.0, 0.0, 0.0, 0.0,  0.0,  0.0,  0.0),
+    /* 1: RANDOM_WALK       */ AgentBehaviorParams(0.8, 1.5, 0.0, 3.0,  0.0,  0.0,  3.0),
+    /* 2: BIASED_WALK       */ AgentBehaviorParams(0.5, 2.5, 0.85, 0.6, 0.0, 25.0,  5.0),
+    /* 3: WANDERER          */ AgentBehaviorParams(0.8, 1.5, 0.6, 3.0,  0.25, 0.0,  3.0),
+    /* 4: HOME_SEEKER       */ AgentBehaviorParams(1.2, 0.8, 0.3, 2.5,  1.5,  0.0,  3.0),
+    /* 5: SLOW_PATROL       */ AgentBehaviorParams(0.25, 8.0, 0.0, 2.0, 4.0,  0.0,  2.0),
+    /* 6: PURSUIT           */ AgentBehaviorParams(0.0, 0.0, 0.0, 3.0,  0.0, 30.0,  4.0),
+    /* 7: FLEE              */ AgentBehaviorParams(0.0, 0.0, 0.0, 3.0,  0.0, 30.0,  4.0),
+    /* 8: FLOCK2D           */ AgentBehaviorParams(0.0, 0.0, 0.0, 2.0,  0.0, 12.0,  3.5),
+    /* 9: LEVY_FLIGHT       */ AgentBehaviorParams(0.5, 1.5, 0.0, 3.0,  0.0,  0.0,  5.0),
+);
+
+struct AgentTierParams {
+    step_gain:     f32,
+    persist_gain:  f32,
+    speed_gain:    f32,
+    coupling_gain: f32,
+    home_gain:     f32,
+    weight:        f32,
+    color_r:       f32,
+    color_g:       f32,
+    color_b:       f32,
+}
+
+const AGENT_TIER_COUNT_WGSL: u32 = 4u;
+
+const AGENT_TIER_GAINS_WGSL = array<AgentTierParams, 4>(
+    /* 0: WORKER   */ AgentTierParams(1.0, 1.0, 1.0, 1.0, 1.0, 4.0, 0.60, 0.62, 0.65),
+    /* 1: SCOUT    */ AgentTierParams(1.8, 0.4, 1.4, 1.0, 0.5, 2.0, 0.85, 0.65, 0.40),
+    /* 2: SENTINEL */ AgentTierParams(0.6, 1.2, 0.5, 1.0, 2.0, 1.0, 0.30, 0.40, 0.70),
+    /* 3: LEADER   */ AgentTierParams(1.2, 0.9, 1.1, 2.5, 0.8, 0.3, 0.95, 0.85, 0.55),
+);
 
 // --- [STATE:camera] CameraState
 
@@ -616,6 +687,12 @@ struct CameraState {
     distance: f32,
     pan_x: f32,
     pan_y: f32,
+    // Damped aim point — the camera orbits this rather than the
+    // possessed agent's raw position. Lerps toward the agent's pos
+    // each frame in update_camera with a soft time constant. This
+    // makes possession transfers (Caps Lock) glide rather than
+    // teleport, while normal walking lag stays imperceptible.
+    aim_point: vec3<f32>,
 }
 
 // --- [STATE:floating_entity] FloatingEntityState
@@ -1247,9 +1324,12 @@ struct DesignConfig {
     _pad_mode_3: f32,
     // ─── Radial pulse ring buffer ────────────────────────────────
     pulse_count: u32,
+    // Agent system: slot index of the player's current body in
+    // agent_state[]. Piggybacks on the radial-pulse pad triple (no
+    // struct size delta). Order matches GPUDesignConfig in state.hpp.
+    possessed_slot: u32,
     _pulse_pad_0: f32,
     _pulse_pad_1: f32,
-    _pulse_pad_2: f32,
     pulse_data: array<vec4<f32>, 8>,  // each: (origin_x, origin_z, onset_seconds, amplitude)
 }
 
@@ -1527,7 +1607,7 @@ const PULSE_ALGORITHM_CHANCE: f32 = 0.35;
 const PAWN_FORCEFIELD_ENABLED: bool = true;
 
 // --- Compile-time feature gates
-// These prune heavy dependency chains from update_pawn's pipeline compilation.
+// These prune heavy dependency chains from update_player_agent's pipeline compilation.
 // Set to false to cut compile time when iterating on unrelated features.
 const PAWN_GOL_GROUND_ENABLED: bool = false;    // Pawn walks on GoL extrusions
 // (PAWN_PYRAMID_GROUND_ENABLED removed — pyramids unconditionally in ground_formed)
@@ -1535,8 +1615,6 @@ const PAWN_FORCEFIELD_RADIUS_STATIONARY: f32 = 6.0;  // Radius when not moving
 const PAWN_FORCEFIELD_RADIUS_MOVING: f32 = 2.0;      // Radius at max speed
 const PAWN_FORCEFIELD_FALLOFF: f32 = 2.0;            // Edge softness (smoothstep width)
 const PAWN_FORCEFIELD_SPEED_SCALE: f32 = 1.0;        // How quickly radius shrinks with speed
-
-const COLOR_PAWN: vec3<f32> = vec3(0.8, 0.5, 0.8);
 
 // (legacy raymarcher constants removed: TERRAIN_BASE_COLOR, MAT_TERRAIN/PAWN/SPHERE/SKY,
 //  MAX_STEPS, MAX_DIST, SURF_DIST, RAYMARCH_STEP_FACTOR, GOL_TICKS_PER_BEAT)
@@ -1549,7 +1627,7 @@ const COUPLING_POLYPHONY_TO_AMPLITUDE:       u32 = 1u << 0u;
 const COUPLING_TERRAIN_TO_PAWN_Y:            u32 = 1u << 1u;
 const COUPLING_TERRAIN_TO_PAWN_TILT:         u32 = 1u << 2u;
 const COUPLING_PAWN_TO_CAMERA_TARGET:        u32 = 1u << 3u;
-const COUPLING_INPUT_MOVES_PAWN:             u32 = 1u << 4u;
+const COUPLING_INPUT_MOVES_PLAYER:           u32 = 1u << 4u;
 const COUPLING_INPUT_ORBITS_CAMERA:          u32 = 1u << 5u;
 const COUPLING_INPUT_ZOOMS_CAMERA:           u32 = 1u << 6u;
 const COUPLING_PAWN_TO_PROXIMITY_FIELD:      u32 = 1u << 7u;   // (reserved — legacy proximity field)
@@ -2352,18 +2430,18 @@ fn contrib_radial_pulses_at(world_xz: vec2<f32>, t_seconds: f32) -> f32 {
 // Has two consumer-facing forms; policies pick per consumer.
 //
 // ─ external form ──────────────────────────────────────────────
-// Grid sample at an arbitrary world xz, using pawn_state.pos as the
-// field's anchor for the bounding-box check. Used by consumers
-// querying away from the pawn: POLICY_FLYER (spheres, cubes, camera),
-// POLICY_WALKER_AGENT (non-pawn walkers), and inline render-side
-// samples in patch_terrain_vs / zone_extrusion_vs.
+// Grid sample at an arbitrary world xz, using the possessed agent's
+// position as the field's anchor for the bounding-box check. Used by
+// consumers querying away from the pawn: POLICY_FLYER (spheres, cubes,
+// camera), POLICY_WALKER_AGENT (non-pawn walkers), and inline render-
+// side samples in patch_terrain_vs / zone_extrusion_vs.
 // Contributes: height extrusion at xz based on the directional-biased
 //   aura cell that xz falls into.
 // Dependencies (via DAG): none — orthogonal to the static stack.
 // Notes: wraps sample_pawn_aura (defined later — WGSL resolves
 //   function references module-wide).
 fn contrib_pawn_aura_at_external(world_xz: vec2<f32>) -> f32 {
-    return sample_pawn_aura(world_xz, pawn_state.pos.xz).r * config.pawn_aura_height;
+    return sample_pawn_aura(world_xz, compute_pawn_pos().xz).r * config.pawn_aura_height;
 }
 
 // ─ self form ─────────────────────────────────────────────────
@@ -2959,8 +3037,9 @@ fn compose_camera_position_from_orbit(aim_point: vec3<f32>, cam: CameraState) ->
     return look_at + offset;
 }
 
-// §5.1 0D COMPOSITION — Now split into 4 entry points (§7.1):
-//   update_terrain_config, update_pawn, update_camera, update_sphere
+// §5.1 0D COMPOSITION — Now split into 5 entry points (§7.1):
+//   update_terrain_config, update_player_agent, update_other_agents,
+//   update_camera, update_sphere
 struct VPMatrix {
     m: mat4x4<f32>,
     light_vp: mat4x4<f32>,
@@ -3374,7 +3453,7 @@ fn patch_terrain_vs(
 
     // Pawn aura: raise terrain under the pawn's influence footprint
     // Uses config.pawn_aura_height so terrain and pawn always agree (includes expansion + presence ramp)
-    let aura = sample_pawn_aura(world_pos.xz, render_pawn.pos.xz);
+    let aura = sample_pawn_aura(world_pos.xz, render_pawn_pos().xz);
     world_pos.y += aura.r * config.pawn_aura_height;
 
     // Polyphony-driven wave overlay — fused height + analytical gradient (1 loop, not 5)
@@ -3461,7 +3540,7 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
                             );
 
                             // Pawn force field: tint zone cells near pawn (render context)
-                            let pawn_ff = 1.0 - zone_pawn_ff(in.world_pos.xz, render_pawn.pos, render_pawn.velocity);
+                            let pawn_ff = 1.0 - zone_pawn_ff(in.world_pos.xz, render_pawn_pos(), render_pawn_vel_xz());
                             if (pawn_ff > 0.01) {
                                 base_color = mix(base_color, ZONE_PAWN_TINT, pawn_ff * ZONE_PAWN_TINT_STRENGTH * color_val);
                             }
@@ -3483,7 +3562,7 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
     // Texture encoding: R=height_blend, GBA=pre-multiplied color delta (with oscillation)
     // Runtime guard: sample returns near-zero when the aura system is idle.
     {
-        let aura = sample_pawn_aura(in.world_pos.xz, render_pawn.pos.xz);
+        let aura = sample_pawn_aura(in.world_pos.xz, render_pawn_pos().xz);
         let aura_active = max(aura.r, max(abs(aura.g), max(abs(aura.b), abs(aura.a))));
         if (aura_active > 0.01) {
             // Color oscillation: GBA already modulated by compute
@@ -3621,7 +3700,13 @@ fn pawn_profile_normal_2d(t: f32) -> vec2<f32> {
 // --- Pawn Vertex Shader (chess pawn, GPU-generated)
 
 @vertex
-fn pawn_vs(@builtin(vertex_index) vid: u32) -> EntityVarying {
+fn pawn_vs(@builtin(vertex_index) vid: u32,
+           @builtin(instance_index) inst: u32) -> EntityVarying {
+    let agent = render_agents[inst];
+    // Collapse inactive slots to a degenerate point at the agent's pos.
+    // (Same trick as sphere_vs: zero-scale local geometry → no fragments.)
+    let active_f = f32(agent.is_active);
+
     var local_pos: vec3<f32>;
     var local_normal: vec3<f32>;
 
@@ -3694,15 +3779,23 @@ fn pawn_vs(@builtin(vertex_index) vid: u32) -> EntityVarying {
         }
     }
 
-    // Transform by pawn orientation and position
-    let rotated_pos = quat_rotate(render_pawn.orientation, local_pos);
-    let rotated_normal = quat_rotate(render_pawn.orientation, local_normal);
+    // Per-instance transform from this agent slot. orient_* carries
+    // heading + (player only) terrain tilt; pos_* is the world XZ + Y.
+    let pawn_q = vec4(agent.orient_x, agent.orient_y, agent.orient_z, agent.orient_w);
+    let pawn_p = vec3(agent.pos_x, agent.pos_y, agent.pos_z);
+    let rotated_pos = quat_rotate(pawn_q, local_pos * active_f);
+    let rotated_normal = quat_rotate(pawn_q, local_normal);
+
+    // Tier color — body identity (the player's tier is whatever slot
+    // they currently inhabit; tier_idx is set at spawn / possession).
+    let tier = min(agent.tier_idx, AGENT_TIER_COUNT_WGSL - 1u);
+    let tg = AGENT_TIER_GAINS_WGSL[tier];
 
     var out: EntityVarying;
-    out.clip_pos = render_vp.m * vec4(rotated_pos + render_pawn.pos, 1.0);
-    out.world_pos = rotated_pos + render_pawn.pos;
+    out.clip_pos = render_vp.m * vec4(rotated_pos + pawn_p, 1.0);
+    out.world_pos = rotated_pos + pawn_p;
     out.normal = rotated_normal;
-    out.entity_color = COLOR_PAWN;
+    out.entity_color = vec3(tg.color_r, tg.color_g, tg.color_b);
     return out;
 }
 
@@ -3769,7 +3862,11 @@ struct ShadowVarying {
 }
 
 @vertex
-fn shadow_pawn_vs(@builtin(vertex_index) vid: u32) -> ShadowVarying {
+fn shadow_pawn_vs(@builtin(vertex_index) vid: u32,
+                  @builtin(instance_index) inst: u32) -> ShadowVarying {
+    let agent = render_agents[inst];
+    let active_f = f32(agent.is_active);
+
     var local_pos: vec3<f32>;
 
     if (vid < PAWN_BODY_VERTICES) {
@@ -3823,7 +3920,9 @@ fn shadow_pawn_vs(@builtin(vertex_index) vid: u32) -> ShadowVarying {
         }
     }
 
-    let world_pos = quat_rotate(render_pawn.orientation, local_pos) + render_pawn.pos;
+    let pawn_q = vec4(agent.orient_x, agent.orient_y, agent.orient_z, agent.orient_w);
+    let pawn_p = vec3(agent.pos_x, agent.pos_y, agent.pos_z);
+    let world_pos = quat_rotate(pawn_q, local_pos * active_f) + pawn_p;
 
     // Lift pawn above terrain in shadow map. With perspective projection
     // from a ceiling light, 0.01 is invisible in the depth buffer at 19+
@@ -4332,9 +4431,14 @@ fn fade_overlay_fs(in: FadeVarying) -> @location(0) vec4<f32> {
 @group(0) @binding(1)   var<uniform>             config: DesignConfig;
 @group(0) @binding(2)   var<storage, read_write> vp_data: VPMatrix;
 @group(0) @binding(20)  var<storage, read_write> terrain_state: TerrainState;
-@group(0) @binding(60)  var<storage, read_write> pawn_state: PawnState;
 
-// Portal proximity array (uploaded by CPU, checked by update_pawn)
+// Agent system — unified entity buffer. Slot 0 is the player's body;
+// slots 1..31 are mood-authored agents. The player's relationship
+// to this array is config.possessed_slot. Array size matches
+// Dim::MAX_AGENTS (32) in state.hpp — keep in sync.
+@group(0) @binding(60)  var<storage, read_write> agent_state: array<AgentState, 32>;
+
+// Portal proximity array (uploaded by CPU, checked in behavior_player_controlled)
 struct PortalEntry {
     x: f32,
     z: f32,
@@ -4359,13 +4463,44 @@ struct PortalArray {
 @group(0) @binding(101) var<storage, read_write> trajectories: array<Trajectory, 16>;
 @group(0) @binding(120) var<uniform>             ribbon_state: RibbonState;
 
+// Possessed-agent helpers (compute stage). Every kernel that used to
+// read pawn_state.pos now goes through these. Extracting here keeps
+// the indexing + scalar→vec conversion at one site and the call sites
+// read as "the pawn's pos" without repeating the slot lookup.
+fn compute_pawn_pos() -> vec3<f32> {
+    let a = agent_state[config.possessed_slot];
+    return vec3(a.pos_x, a.pos_y, a.pos_z);
+}
+fn compute_pawn_vel_xz() -> vec2<f32> {
+    let a = agent_state[config.possessed_slot];
+    return vec2(a.vel_x, a.vel_z);
+}
+fn compute_pawn_heading() -> f32 {
+    return agent_state[config.possessed_slot].heading;
+}
+
 // --- [BINDINGS:compute] Group 0 — Render entity mirrors (read-only, +200 offset)
 @group(0) @binding(200) var<storage, read> render_signal: FrameSignal;
 @group(0) @binding(201) var<storage, read> render_vp: VPMatrix;
 @group(0) @binding(220) var<storage, read> render_terrain: TerrainState;
-@group(0) @binding(260) var<storage, read> render_pawn: PawnState;
+@group(0) @binding(260) var<storage, read> render_agents: array<AgentState, 32>;
 @group(0) @binding(280) var<storage, read> render_camera: CameraState;
 @group(0) @binding(300) var<uniform> render_floating: FloatingEntityArray;
+
+// Possessed-agent helpers (render stage). VS/FS consumers that used
+// to read render_pawn.pos etc. go through these.
+fn render_pawn_pos() -> vec3<f32> {
+    let a = render_agents[config.possessed_slot];
+    return vec3(a.pos_x, a.pos_y, a.pos_z);
+}
+fn render_pawn_vel_xz() -> vec2<f32> {
+    let a = render_agents[config.possessed_slot];
+    return vec2(a.vel_x, a.vel_z);
+}
+fn render_pawn_orientation() -> vec4<f32> {
+    let a = render_agents[config.possessed_slot];
+    return vec4(a.orient_x, a.orient_y, a.orient_z, a.orient_w);
+}
 
 // --- Ribbon (Group 0: render, binding 360)
 @group(0) @binding(360) var<uniform> render_ribbon: RibbonState;
@@ -5020,67 +5155,68 @@ fn pawn_ground_resolve(
     return vec4(prev_xz.x, prev_y, prev_xz.y, 0.0);
 }
 
-@compute @workgroup_size(1)
-fn update_pawn() {
-    if (!dynamics_0d_active()) { return; }
-
+// ─── Behavior: PlayerControlled ──────────────────────────────────
+// The body the player is currently inhabiting. Reads input/couplings,
+// resolves ground, computes tilt orientation, detects portal triggers.
+// Only meaningful for the slot whose behavior_id is PLAYER_CONTROLLED
+// — by convention that is the same slot as config.possessed_slot.
+fn behavior_player_controlled(agent_in: AgentState) -> AgentState {
+    var agent = agent_in;
     let dt = signal.dt;
+    let prev_xz = vec2(agent.pos_x, agent.pos_z);
+    let prev_y  = agent.pos_y;
 
-    var pawn = pawn_state;
-    let prev_xz = pawn.pos.xz;
-    let prev_y = pawn.pos.y;
-
-    if (coupling_active(COUPLING_INPUT_MOVES_PAWN)) {
+    if (coupling_active(COUPLING_INPUT_MOVES_PLAYER)) {
         let input_dir = vec2(signal.move_x, signal.move_z);
         let world_vel = coupling_input_to_pawn_velocity(input_dir, camera_state.azimuth);
 
         let speed = select(PAWN_SPEED, config.pawn_speed, config.pawn_speed > 0.0);
-        pawn.pos.x += world_vel.x * speed * dt;
-        pawn.pos.z += world_vel.y * speed * dt;
+        agent.pos_x += world_vel.x * speed * dt;
+        agent.pos_z += world_vel.y * speed * dt;
 
         if (fpv_mode_active()) {
-            pawn.heading = camera_state.azimuth;
+            agent.heading = camera_state.azimuth;
         } else {
-            pawn.heading = coupling_velocity_to_pawn_heading(world_vel, pawn.heading, dt);
+            agent.heading = coupling_velocity_to_pawn_heading(world_vel, agent.heading, dt);
         }
 
-        pawn.velocity = world_vel * speed;
+        agent.vel_x = world_vel.x * speed;
+        agent.vel_z = world_vel.y * speed;
     } else {
-        pawn.velocity = vec2(0.0);
+        agent.vel_x = 0.0;
+        agent.vel_z = 0.0;
 
         if (fpv_mode_active()) {
-            pawn.heading = camera_state.azimuth;
+            agent.heading = camera_state.azimuth;
         }
     }
 
     // --- Finite world boundary clamp
     if (config.world_bound_max.x > 0.0) {
-        pawn.pos.x = clamp(pawn.pos.x, config.world_bound_min.x, config.world_bound_max.x);
-        pawn.pos.z = clamp(pawn.pos.z, config.world_bound_min.y, config.world_bound_max.y);
+        agent.pos_x = clamp(agent.pos_x, config.world_bound_min.x, config.world_bound_max.x);
+        agent.pos_z = clamp(agent.pos_z, config.world_bound_min.y, config.world_bound_max.y);
     }
 
     // --- Ground resolve: single query_ground_walker call.
     // POLICY_WALKER includes static base + pyramids + GoL zones + terrain
     // waves + radial pulses + pawn aura − consumer-local GoL suppression
-    // (centered on the pawn's start-of-frame position via qi.consumer_pos).
-    // No manual strip-and-re-add of dynamics: prev_y already includes
-    // them from the last frame's resolved height, and the new sample
-    // includes them too, so step-climb compares like-for-like.
-    let qi = QueryInputs(pawn_state.pos, signal.t_seconds);
+    // (centered on the agent's start-of-frame position via qi.consumer_pos).
+    let qi = QueryInputs(vec3(prev_xz.x, prev_y, prev_xz.y), signal.t_seconds);
 
     if (coupling_active(COUPLING_TERRAIN_TO_PAWN_Y)) {
-        let resolved = pawn_ground_resolve(pawn.pos.xz, prev_xz, prev_y, qi);
-        pawn.pos.x = resolved.x;
-        pawn.pos.y = resolved.y;
-        pawn.pos.z = resolved.z;
+        let resolved = pawn_ground_resolve(vec2(agent.pos_x, agent.pos_z), prev_xz, prev_y, qi);
+        agent.pos_x = resolved.x;
+        agent.pos_y = resolved.y;
+        agent.pos_z = resolved.z;
         if (resolved.w < 0.5) {
-            pawn.velocity = vec2(0.0);
+            agent.vel_x = 0.0;
+            agent.vel_z = 0.0;
         }
     }
 
     // --- Orientation: heading + walker-policy terrain tilt
     if (coupling_active(COUPLING_TERRAIN_TO_PAWN_TILT)) {
-        let normal = terrain_normal_at(pawn.pos.xz, qi);
+        let normal = terrain_normal_at(vec2(agent.pos_x, agent.pos_z), qi);
 
         let world_up = vec3(0.0, 1.0, 0.0);
         let d = dot(world_up, normal);
@@ -5093,28 +5229,386 @@ fn update_pawn() {
             tilt_quat = vec4(0.0, 0.0, 0.0, 1.0);
         }
 
-        let heading_quat = quat_from_axis_angle(vec3(0.0, 1.0, 0.0), pawn.heading);
-        pawn.orientation = quat_multiply(tilt_quat, heading_quat);
+        let heading_quat = quat_from_axis_angle(vec3(0.0, 1.0, 0.0), agent.heading);
+        let orient = quat_multiply(tilt_quat, heading_quat);
+        agent.orient_x = orient.x;
+        agent.orient_y = orient.y;
+        agent.orient_z = orient.z;
+        agent.orient_w = orient.w;
     }
 
     // --- Portal ellipse detection (GPU-authoritative)
     // Ellipse spans the arch opening: lateral = half_span, forward = depth/2.
-    pawn.portal_trigger = -1;
+    agent.portal_trigger = -1;
     for (var pi = 0u; pi < portal_array.count; pi++) {
         let p = portal_array.portals[pi];
-        let dx = pawn.pos.x - p.x;
-        let dz = pawn.pos.z - p.z;
-        // Project offset into arch-local axes
-        let lat = dx * p.facing_cos + dz * p.facing_sin;   // lateral (foot-to-foot)
-        let fwd = -dx * p.facing_sin + dz * p.facing_cos;  // forward (walk-through)
+        let dx = agent.pos_x - p.x;
+        let dz = agent.pos_z - p.z;
+        let lat = dx * p.facing_cos + dz * p.facing_sin;
+        let fwd = -dx * p.facing_sin + dz * p.facing_cos;
         let e = lat * lat * p.inv_span_sq + fwd * fwd * p.inv_depth_sq;
         if (e < 1.0) {
-            pawn.portal_trigger = i32(p.arch_index);
+            agent.portal_trigger = i32(p.arch_index);
             break;
         }
     }
 
-    pawn_state = pawn;
+    return agent;
+}
+
+// ─── Behavior: RandomWalk ────────────────────────────────────────
+// Per-step velocity impulse in a random direction, decayed by drag
+// and capped at speed_cap. Ground snaps via POLICY_WALKER_AGENT
+// (static base + pyramids + GoL zones + waves + pulses + external
+// pawn aura — no self-suppression). Heading follows velocity.
+//
+// Step timing is *musical*: step_rate is in steps per beat, and the
+// floor() comparison runs against t_beats. At slow tempo, steps are
+// rare and drag fully decays each impulse — discrete jumps. At fast
+// tempo, steps fire more often, drag doesn't fully decay — continuous
+// motion. Tempo shapes the rhythm of decisions; physical integration
+// (drag, position update, speed cap) stays in seconds.
+//
+// Per-step direction is hash(seed, step_idx), making motion fully
+// deterministic given the agent's spawn seed.
+fn behavior_random_walk(agent_in: AgentState) -> AgentState {
+    var a = agent_in;
+    let dt        = signal.dt;
+    let dt_beats  = signal.dt_beats;
+    let t         = signal.t_seconds;
+    let t_beats   = signal.t_beats;
+
+    let b = AGENT_BEHAVIORS_WGSL[1u];
+    let tier = min(a.tier_idx, AGENT_TIER_COUNT_WGSL - 1u);
+    let g = AGENT_TIER_GAINS_WGSL[tier];
+
+    // Step trigger — beat-gated. step_rate is steps per beat.
+    let step_idx      = u32(floor(t_beats * b.step_rate));
+    let prev_step_idx = u32(floor(max(0.0, t_beats - dt_beats) * b.step_rate));
+    if (step_idx > prev_step_idx) {
+        let theta   = hash_property(a.seed, 7000u + step_idx) * 6.28318530718;
+        // Per-step velocity impulse — magnitude is fixed regardless of
+        // tempo. Drag (in seconds) decays it; how much of it survives
+        // until the next step depends on the tempo.
+        let impulse = b.step_size * g.step_gain;
+        a.vel_x += cos(theta) * impulse;
+        a.vel_z += sin(theta) * impulse;
+    }
+
+    // Drag (exponential decay) — physical, in seconds.
+    let decay = exp(-b.drag * dt);
+    a.vel_x *= decay;
+    a.vel_z *= decay;
+
+    // Speed cap.
+    let sp2 = a.vel_x * a.vel_x + a.vel_z * a.vel_z;
+    let cap = b.speed_cap * g.speed_gain;
+    if (sp2 > cap * cap) {
+        let inv = cap / sqrt(sp2);
+        a.vel_x *= inv;
+        a.vel_z *= inv;
+    }
+
+    // Integrate XZ, snap Y to POLICY_WALKER_AGENT ground.
+    a.pos_x += a.vel_x * dt;
+    a.pos_z += a.vel_z * dt;
+
+    let qi = QueryInputs(vec3(a.pos_x, a.pos_y, a.pos_z), t);
+    a.pos_y = query_ground_walker_agent(vec2(a.pos_x, a.pos_z), qi);
+
+    // Heading from velocity (when moving).
+    if (sp2 > 0.01) {
+        a.heading = atan2(a.vel_x, a.vel_z);
+        let hq = quat_from_axis_angle(vec3(0.0, 1.0, 0.0), a.heading);
+        a.orient_x = hq.x;
+        a.orient_y = hq.y;
+        a.orient_z = hq.z;
+        a.orient_w = hq.w;
+    }
+
+    return a;
+}
+
+// ─── Behavior: BiasedWalk ────────────────────────────────────────
+// RandomWalk with a persistent travel direction baked at spawn time
+// from the seed. Each step's angle is the travel direction plus a
+// noise term — the agent drifts mostly along its travel azimuth, with
+// wobble. Soft cohesion with neighbors: each step samples a couple of
+// random other slots; if any are within neighbor_radius, the agent
+// gains a small impulse toward their centroid.
+//
+// Aesthetic: desert travelers. Loose groups drift across the terrain,
+// individuals visibly heading somewhere rather than milling in place.
+// Step rhythm in beats; physics in seconds.
+fn behavior_biased_walk(agent_in: AgentState) -> AgentState {
+    var a = agent_in;
+    let dt        = signal.dt;
+    let dt_beats  = signal.dt_beats;
+    let t         = signal.t_seconds;
+    let t_beats   = signal.t_beats;
+
+    let b = AGENT_BEHAVIORS_WGSL[2u];
+    let tier = min(a.tier_idx, AGENT_TIER_COUNT_WGSL - 1u);
+    let g = AGENT_TIER_GAINS_WGSL[tier];
+
+    // Travel direction — derived from seed, stable across the agent's life.
+    let travel_dir = hash_property(a.seed, 9100u) * 6.28318530718;
+    // persistence in [0,1]: 1 = always exactly travel_dir, 0 = full random.
+    // Noise arc (radians) is (1 - persistence) × π.
+    let noise_arc = (1.0 - clamp(b.persistence * g.persist_gain, 0.0, 1.0)) * 3.14159265;
+
+    // Step trigger.
+    let step_idx      = u32(floor(t_beats * b.step_rate));
+    let prev_step_idx = u32(floor(max(0.0, t_beats - dt_beats) * b.step_rate));
+    if (step_idx > prev_step_idx) {
+        let noise = (hash_property(a.seed, 9200u + step_idx) - 0.5) * 2.0 * noise_arc;
+        let theta = travel_dir + noise;
+        let impulse = b.step_size * g.step_gain;
+        a.vel_x += cos(theta) * impulse;
+        a.vel_z += sin(theta) * impulse;
+
+        // Soft cohesion — sample 2 other slots for centroid pull.
+        // Cheap O(1) — we don't iterate the full array.
+        if (b.neighbor_radius > 0.0) {
+            var cx = 0.0;
+            var cz = 0.0;
+            var n  = 0u;
+            for (var k = 0u; k < 2u; k = k + 1u) {
+                let other_slot = (a.seed + step_idx * 31u + k * 7919u) % 32u;
+                if (other_slot == config.possessed_slot) { continue; }
+                let other = agent_state[other_slot];
+                if (other.is_active == 0u) { continue; }
+                let odx = other.pos_x - a.pos_x;
+                let odz = other.pos_z - a.pos_z;
+                let od2 = odx * odx + odz * odz;
+                if (od2 < b.neighbor_radius * b.neighbor_radius && od2 > 0.001) {
+                    cx = cx + other.pos_x;
+                    cz = cz + other.pos_z;
+                    n = n + 1u;
+                }
+            }
+            if (n > 0u) {
+                let inv = 1.0 / f32(n);
+                let centroid_x = cx * inv;
+                let centroid_z = cz * inv;
+                let pdx = centroid_x - a.pos_x;
+                let pdz = centroid_z - a.pos_z;
+                let plen = sqrt(pdx * pdx + pdz * pdz);
+                if (plen > 0.001) {
+                    // Small pull — at 20% of step impulse.
+                    let pull = impulse * 0.2;
+                    a.vel_x = a.vel_x + (pdx / plen) * pull;
+                    a.vel_z = a.vel_z + (pdz / plen) * pull;
+                }
+            }
+        }
+    }
+
+    // Drag (physical, in seconds).
+    let decay = exp(-b.drag * dt);
+    a.vel_x *= decay;
+    a.vel_z *= decay;
+
+    let sp2 = a.vel_x * a.vel_x + a.vel_z * a.vel_z;
+    let cap = b.speed_cap * g.speed_gain;
+    if (sp2 > cap * cap) {
+        let inv = cap / sqrt(sp2);
+        a.vel_x *= inv;
+        a.vel_z *= inv;
+    }
+
+    a.pos_x += a.vel_x * dt;
+    a.pos_z += a.vel_z * dt;
+
+    let qi = QueryInputs(vec3(a.pos_x, a.pos_y, a.pos_z), t);
+    a.pos_y = query_ground_walker_agent(vec2(a.pos_x, a.pos_z), qi);
+
+    if (sp2 > 0.01) {
+        a.heading = atan2(a.vel_x, a.vel_z);
+        let hq = quat_from_axis_angle(vec3(0.0, 1.0, 0.0), a.heading);
+        a.orient_x = hq.x;
+        a.orient_y = hq.y;
+        a.orient_z = hq.z;
+        a.orient_w = hq.w;
+    }
+
+    return a;
+}
+
+// ─── Behavior: SlowPatrol ────────────────────────────────────────
+// Walks slowly between successive waypoints near home. Each waypoint
+// is a deterministic offset from home, derived from waypoint_idx via
+// hash. Waypoint advances every N beats. Pauses (drag-only motion)
+// for a half-beat after arriving before heading to the next.
+//
+// Aesthetic: gallery walkers. Patient, contemplative motion.
+// Multiple agents authored with overlapping homes naturally form
+// loose gathering groups when their waypoint cycles intersect.
+fn behavior_slow_patrol(agent_in: AgentState) -> AgentState {
+    var a = agent_in;
+    let dt        = signal.dt;
+    let dt_beats  = signal.dt_beats;
+    let t         = signal.t_seconds;
+    let t_beats   = signal.t_beats;
+
+    let b = AGENT_BEHAVIORS_WGSL[5u];
+    let tier = min(a.tier_idx, AGENT_TIER_COUNT_WGSL - 1u);
+    let g = AGENT_TIER_GAINS_WGSL[tier];
+
+    // Waypoint advances at b.step_rate (per beat). Each waypoint
+    // is a hash-derived offset from home, scaled by step_size × tier.
+    let waypoint_idx = u32(floor(t_beats * b.step_rate));
+    let theta = hash_property(a.seed, 9300u + waypoint_idx) * 6.28318530718;
+    let radius = hash_property(a.seed, 9400u + waypoint_idx) * b.step_size * g.step_gain;
+    let target_x = a.home_x + cos(theta) * radius;
+    let target_z = a.home_z + sin(theta) * radius;
+
+    // Steer toward target with constant force (proportional, soft).
+    let dx = target_x - a.pos_x;
+    let dz = target_z - a.pos_z;
+    let dist = sqrt(dx * dx + dz * dz);
+
+    if (dist > 0.5) {
+        // Pull strength: home_pull (the spring constant) gives steady-state
+        // velocity = pull × dt for each integration step. Tier persist_gain
+        // scales the force — Sentinels pull harder, Scouts pull weaker.
+        let pull = b.home_pull * g.persist_gain;
+        let inv  = 1.0 / dist;
+        a.vel_x = a.vel_x + dx * inv * pull * dt;
+        a.vel_z = a.vel_z + dz * inv * pull * dt;
+    }
+    // (Within 0.5 units of target: drag-only motion = pause.)
+
+    // Drag (physical, in seconds).
+    let decay = exp(-b.drag * dt);
+    a.vel_x *= decay;
+    a.vel_z *= decay;
+
+    let sp2 = a.vel_x * a.vel_x + a.vel_z * a.vel_z;
+    let cap = b.speed_cap * g.speed_gain;
+    if (sp2 > cap * cap) {
+        let inv2 = cap / sqrt(sp2);
+        a.vel_x *= inv2;
+        a.vel_z *= inv2;
+    }
+
+    a.pos_x += a.vel_x * dt;
+    a.pos_z += a.vel_z * dt;
+
+    let qi = QueryInputs(vec3(a.pos_x, a.pos_y, a.pos_z), t);
+    a.pos_y = query_ground_walker_agent(vec2(a.pos_x, a.pos_z), qi);
+
+    if (sp2 > 0.01) {
+        a.heading = atan2(a.vel_x, a.vel_z);
+        let hq = quat_from_axis_angle(vec3(0.0, 1.0, 0.0), a.heading);
+        a.orient_x = hq.x;
+        a.orient_y = hq.y;
+        a.orient_z = hq.z;
+        a.orient_w = hq.w;
+    }
+
+    return a;
+}
+
+// ─── Compute kernels ─────────────────────────────────────────────
+//
+// The agent kernel is split in two for FXC compile-time reasons.
+// The original unified kernel placed behavior_player_controlled
+// (heavy: walker policy, step-climb, tilt, full contributor chain)
+// and behavior_random_walk (light: single agent-policy ground snap)
+// in a single switch statement. FXC inlines both branch bodies for
+// every one of 32 dispatched threads, producing a pipeline compile
+// that landed at 48s. Pass 2 is expected to add more algorithmic
+// behaviors, which would compound the cost.
+//
+// Split shape:
+//   update_player_agent   — 1 thread. Only the possessed slot, only
+//                           behavior_player_controlled. The walker
+//                           policy is compiled once, for one slot.
+//   update_other_agents   — 32 threads. All non-possessed slots,
+//                           behavior switch for algorithmic behaviors.
+//                           The walker policy is NOT inlined here.
+//
+// Dispatch order: player first, then others. The player's updated
+// position becomes the eviction reference for this frame's other
+// agents. Matches the semantic "the player moves, the world adjusts
+// around them."
+//
+// MAX_AGENTS = 32 — must stay in sync with Dim::MAX_AGENTS.
+//
+// Eviction radius matches the entity cull base (350 = PREGEN_RADIUS *
+// PATCH_EXTENT) plus a small hysteresis margin. Agents share the
+// floaters' lifecycle: they exist anywhere in the loaded world out to
+// the patch pre-gen edge, and evict just beyond it. This is what makes
+// agents spawn at distance and disappear at the world's horizon
+// rather than popping into existence near the player.
+const AGENT_EVICTION_RADIUS:    f32 = 360.0;
+const AGENT_EVICTION_RADIUS_SQ: f32 = AGENT_EVICTION_RADIUS * AGENT_EVICTION_RADIUS;
+
+// ─── Player kernel ───────────────────────────────────────────────
+// Single thread, runs once per frame on config.possessed_slot.
+// Contains the full walker policy (pawn_ground_resolve,
+// terrain_normal_at, portal trigger).
+@compute @workgroup_size(1)
+fn update_player_agent() {
+    if (!dynamics_0d_active()) { return; }
+
+    let slot = config.possessed_slot;
+    if (slot >= 32u) { return; }
+
+    var agent = agent_state[slot];
+    if (agent.is_active == 0u) { return; }
+
+    // The player is always behavior 0 (PlayerControlled). Other
+    // behavior ids in the possessed slot are a bug — treat as no-op.
+    if (agent.behavior_id == 0u) {
+        agent = behavior_player_controlled(agent);
+    }
+
+    // The player is never evicted — their slot is the reference
+    // frame for eviction, not subject to it.
+    agent_state[slot] = agent;
+}
+
+// ─── Other-agents kernel ─────────────────────────────────────────
+// 32 threads, one per slot. Skips the possessed slot (handled by
+// update_player_agent). Runs algorithmic behaviors only — the heavy
+// walker-policy path never inlines here.
+@compute @workgroup_size(32)
+fn update_other_agents(@builtin(global_invocation_id) gid: vec3<u32>) {
+    if (!dynamics_0d_active()) { return; }
+
+    let slot = gid.x;
+    if (slot >= 32u) { return; }
+    if (slot == config.possessed_slot) { return; }   // handled separately
+
+    var agent = agent_state[slot];
+    if (agent.is_active == 0u) { return; }
+
+    switch agent.behavior_id {
+        // Behavior 0 (PlayerControlled) should never appear in a
+        // non-possessed slot. If it does (stale state, bug), treat
+        // as no-op rather than run the heavy walker path from the
+        // wrong kernel.
+        case 0u: { /* no-op */ }
+        case 1u: { agent = behavior_random_walk(agent); }
+        case 2u: { agent = behavior_biased_walk(agent); }
+        case 5u: { agent = behavior_slow_patrol(agent); }
+        default: { /* Pass 2 — other behaviors fill in here */ }
+    }
+
+    // Player-centered eviction. Non-player agents that wander too far
+    // from the possessed slot are deactivated; the CPU readback path
+    // detects them on the next frame and respawns fresh agents in a
+    // disk around the player.
+    let pp = agent_state[config.possessed_slot];
+    let dx = agent.pos_x - pp.pos_x;
+    let dz = agent.pos_z - pp.pos_z;
+    if (dx * dx + dz * dz > AGENT_EVICTION_RADIUS_SQ) {
+        agent.is_active = 0u;
+    }
+
+    agent_state[slot] = agent;
 }
 
 @compute @workgroup_size(1)
@@ -5139,10 +5633,23 @@ fn update_camera() {
         camera = coupling_input_to_camera_distance(signal.zoom_delta, camera);
     }
 
+    // Damped aim point — third-person orbit tracks aim_point rather
+    // than the possessed agent's raw position. The lerp time constant
+    // is tuned so walking lag is imperceptible (~3cm at 15 u/s walking
+    // speed) but a Caps Lock transfer over ~10 units takes about a
+    // second to settle. FPV bypasses this — first-person view requires
+    // the camera to be exactly on the pawn each frame.
+    let pawn_pos = compute_pawn_pos();
+    {
+        let tau = 0.30;
+        let alpha = 1.0 - exp(-signal.dt / tau);
+        camera.aim_point = mix(camera.aim_point, pawn_pos, alpha);
+    }
+
     if (fpv_mode_active()) {
-        camera.pos = pawn_state.pos + vec3(0.0, FPV_EYE_HEIGHT, 0.0);
+        camera.pos = pawn_pos + vec3(0.0, FPV_EYE_HEIGHT, 0.0);
     } else if (coupling_active(COUPLING_PAWN_TO_CAMERA_TARGET)) {
-        camera.pos = coupling_pawn_to_camera_target(pawn_state.pos, camera);
+        camera.pos = coupling_pawn_to_camera_target(camera.aim_point, camera);
     }
 
     // ─── Camera terrain clamp: never go underground ──────────────
@@ -5217,11 +5724,12 @@ fn update_sphere() {
         var best_dist_sq = 999999.0;
         var best_slot = 0u;
         var found = false;
+        let pawn_p = compute_pawn_pos();
         for (var slot = 0u; slot < SPHERE_SLOT_COUNT; slot++) {
             let fe = floating_entities.entities[slot];
             if (fe.is_active == 0u || fe.orbit_radius <= 0.0) { continue; }
-            let dx = fe.pos.x - pawn_state.pos.x;
-            let dz = fe.pos.z - pawn_state.pos.z;
+            let dx = fe.pos.x - pawn_p.x;
+            let dz = fe.pos.z - pawn_p.z;
             let d2 = dx * dx + dz * dz;
             if (d2 < best_dist_sq) {
                 best_dist_sq = d2;
@@ -5299,7 +5807,7 @@ fn compute_vp() {
     // Sun VP: kite coupling — sun orbits pawn at fixed offset
     if (coupling_active(COUPLING_PAWN_TO_SUN_VP)) {
         vp_data.light_vp = coupling_pawn_to_sun_vp(
-            pawn_state.pos,
+            compute_pawn_pos(),
             config.sun_direction
         );
     }
@@ -6050,7 +6558,8 @@ fn zone_extrusion_vs(
     let wave_y = contrib_terrain_waves_at(pos.xz);
 
     // Suppression target = terrain + aura height + wave overlay
-    let aura = sample_pawn_aura(pos.xz, render_pawn.pos.xz);
+    let pawn_xz = render_pawn_pos().xz;
+    let aura = sample_pawn_aura(pos.xz, pawn_xz);
     let ground_target = terrain_y + aura.r * config.pawn_aura_height + wave_y;
 
     // Wave overlay: lift entire extrusion mesh with animated terrain
@@ -6061,13 +6570,12 @@ fn zone_extrusion_vs(
     // Must stay in sync with the contributor's smoothstep (same
     // ZONE_SUPPRESS_INNER / ZONE_SUPPRESS_OUTER radii, same
     // 1 - smoothstep(inner, outer, dist) shape). The two cannot easily
-    // share a function because this VS reads render-stage bindings
-    // (render_pawn @group(1)) while contrib_gol_suppression_at reads
-    // compute-stage bindings (pawn_state @group(0) / zone_config @160).
-    // If either changes radii or shape, update the other.
-    // The shadow zone extrusion VS below also mirrors this; keep all
-    // three in sync.
-    let pawn_dist = distance(pos.xz, render_pawn.pos.xz);
+    // share a function because this VS reads the render-stage
+    // render_agents binding while contrib_gol_suppression_at reads
+    // the compute-stage agent_state binding. If either changes radii
+    // or shape, update the other. The shadow zone extrusion VS below
+    // also mirrors this; keep all three in sync.
+    let pawn_dist = distance(pos.xz, pawn_xz);
     let suppression = 1.0 - smoothstep(ZONE_SUPPRESS_INNER, ZONE_SUPPRESS_OUTER, pawn_dist);
     if (suppression > 0.001) {
         world_pos.y = mix(pos.y, ground_target, suppression);
@@ -6087,7 +6595,7 @@ fn zone_extrusion_fs(in: ZoneExtrusionVarying) -> @location(0) vec4<f32> {
     var block_color = clamp(in.cell_color, vec3(0.0), vec3(1.0));
 
     // Pawn force field tint on extrusion blocks (render context)
-    let pawn_ff = 1.0 - zone_pawn_ff(in.world_pos.xz, render_pawn.pos, render_pawn.velocity);
+    let pawn_ff = 1.0 - zone_pawn_ff(in.world_pos.xz, render_pawn_pos(), render_pawn_vel_xz());
     if (pawn_ff > 0.01) {
         block_color = mix(block_color, ZONE_PAWN_TINT, pawn_ff * ZONE_PAWN_TINT_STRENGTH);
     }
@@ -6100,7 +6608,7 @@ fn zone_extrusion_fs(in: ZoneExtrusionVarying) -> @location(0) vec4<f32> {
 
     // Pawn aura: persistent tinting from toroidal spring grid
     {
-        let aura = sample_pawn_aura(in.world_pos.xz, render_pawn.pos.xz);
+        let aura = sample_pawn_aura(in.world_pos.xz, render_pawn_pos().xz);
         let aura_active = max(aura.r, max(abs(aura.g), max(abs(aura.b), abs(aura.a))));
         if (aura_active > 0.01) {
             block_color = clamp(block_color + aura.gba, vec3(0.0), vec3(1.0));
@@ -6131,7 +6639,7 @@ fn shadow_zone_extrusion_vs(
     // with the contributor and with zone_extrusion_vs's suppression
     // block (above). See that block's annotation for rationale on why
     // the function isn't shared across stages.
-    let pawn_dist = distance(pos.xz, render_pawn.pos.xz);
+    let pawn_dist = distance(pos.xz, render_pawn_pos().xz);
     let suppression = 1.0 - smoothstep(ZONE_SUPPRESS_INNER, ZONE_SUPPRESS_OUTER, pawn_dist);
     if (suppression > 0.001) {
         // Shadow doesn't have aura texture — use terrain_y + wave only
@@ -6157,7 +6665,7 @@ fn compute_pawn_aura(@builtin(global_invocation_id) gid: vec3<u32>) {
     let slot_idx = u32(sz * N + sx);
     var cell = pawn_aura_cells[slot_idx];
 
-    let pawn_xz = pawn_state.pos.xz;
+    let pawn_xz = compute_pawn_pos().xz;
     let cs = pawn_aura_cfg.cell_size;
     let radius = pawn_aura_cfg.influence_radius;
     let dt = pawn_aura_cfg.dt;
@@ -6222,7 +6730,7 @@ fn compute_pawn_aura(@builtin(global_invocation_id) gid: vec3<u32>) {
             // This makes the pawn the highest point with a leading ramp.
             if (dist > 0.5) {
                 let to_cell = (cell_center - pawn_xz) / dist;
-                let heading = pawn_state.heading;
+                let heading = compute_pawn_heading();
                 let forward = vec2(sin(heading), cos(heading));
                 let facing = dot(to_cell, forward);  // -1=behind, +1=in front
                 // Forward cells: gentle ramp (0.6–0.85). Behind: steeper (0.2–0.5).
@@ -6448,7 +6956,7 @@ fn build_lookat_vp(eye: vec3<f32>, aim_pt: vec3<f32>, fov_rad: f32, aspect: f32)
 @compute @workgroup_size(1)
 fn compute_photographer_vp() {
     let cfg = photographer_config;
-    let pawn_pos = pawn_state.pos;
+    let pawn_pos = compute_pawn_pos();
 
     // --- Camera position: spherical offset from pawn
     let cos_el = cos(cfg.elevation);
@@ -6659,7 +7167,7 @@ const FRUSTUM_LOD0_RADIUS_SQ: f32 = 3.5 * 3.5 * PATCH_EXTENT * PATCH_EXTENT;  //
 @group(0) @binding(340) var<storage, read>       fc_patches: array<PatchInstance>;
 @group(0) @binding(500) var<storage, read_write> fc_visible: array<u32>;
 @group(0) @binding(501) var<storage, read_write> fc_indirect: array<atomic<u32>, 5>;
-@group(0) @binding(60)  var<storage, read>       fc_pawn: PawnState;
+@group(0) @binding(60)  var<storage, read>       fc_agents: array<AgentState, 32>;
 
 // Extract frustum plane from VP matrix row combination.
 // Row i of column-major M: (M[0][i], M[1][i], M[2][i], M[3][i])
@@ -6729,8 +7237,9 @@ fn frustum_cull_patches(@builtin(global_invocation_id) id: vec3<u32>) {
     // LOD0 only: nearest-edge distance² from PAWN XZ to patch edge.
     // Uses pawn (not camera) to match CPU's LOD classification.
     // Patches at LOD1 distance are NOT emitted here — CPU draws them directly.
-    let dx = max(0.0, abs(fc_pawn.pos.x - pi.origin.x) - half);
-    let dz = max(0.0, abs(fc_pawn.pos.z - pi.origin.y) - half);
+    let fc_pawn = fc_agents[fc_config.possessed_slot];
+    let dx = max(0.0, abs(fc_pawn.pos_x - pi.origin.x) - half);
+    let dz = max(0.0, abs(fc_pawn.pos_z - pi.origin.y) - half);
     let dist2 = dx * dx + dz * dz;
 
     if (dist2 <= FRUSTUM_LOD0_RADIUS_SQ) {

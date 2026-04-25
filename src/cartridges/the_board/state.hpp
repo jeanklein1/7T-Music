@@ -1,9 +1,9 @@
-#pragma once
+﻿#pragma once
 
 // THE_BOARD CARTRIDGE — GPU State Management (Rasterized)
 // =============================================================
 //
-// CPU/GPU data contract: structs, buffers, textures, bind groups.
+// CPU/GPU data contract: structs, buffers, textAures, bind groups.
 // Terrain grid is GPU-derived from vertex_index — zero geometry uploaded.
 //
 // See world.wgsl for the GPU scroll (single source of truth).
@@ -20,7 +20,7 @@
 //   25        tile_grid            Uniform          —
 //   26        solid_instances      Uniform          —
 //   40        (reserved)           —                —
-//   60        pawn_state           Storage          —
+//   60        agent_state          Storage          —    (unified entity buffer, slot 0 = player)
 //   80        camera_state         Storage          —
 //   100       sphere_state         Storage          —
 //   101       trajectories         Storage          —
@@ -29,7 +29,7 @@
 //   200       frame_signal         —                ReadOnlyStorage
 //   201       vp_matrix            —                ReadOnlyStorage
 //   220       terrain_state        —                ReadOnlyStorage
-//   260       pawn_state           —                ReadOnlyStorage
+//   260       agent_state          —                ReadOnlyStorage  (unified; VS reads via possessed_slot)
 //   280       camera_state         —                ReadOnlyStorage
 //   300       sphere_state         —                ReadOnlyStorage
 //   320       directional_light    —                ReadOnlyStorage
@@ -217,6 +217,11 @@ namespace t7 {
 
             // Orb sky layer — luminous points on a dome above the world
             constexpr uint32_t MAX_ORBS = 256;
+
+            // Agent system — unified entity layer. Slot 0 is the player's
+            // body; slots 1..MAX_AGENTS-1 are mood-authored agents. See
+            // modules/agents.inl and agent_system_design.md.
+            constexpr uint32_t MAX_AGENTS = 32;
         }
 
 
@@ -324,7 +329,7 @@ namespace t7 {
             float zoom_delta;
             float pan_x_delta;
             float pan_y_delta;
-            float _pad1;
+            float dt_beats;       // beat-time delta (currentBeats_ - prevBeats_)
         };
 
         struct alignas(16) GPUDesignConfig {
@@ -408,9 +413,13 @@ namespace t7 {
             // ─── Radial pulse ring buffer ────────────────────────────────
             // 8 recent note onsets, indexed as pulse_data[i*4 + field]:
             //   field 0 = origin_x, 1 = origin_z, 2 = onset_beats, 3 = amplitude
-            // Evaluated in terrain VS + update_pawn as expanding ring wavefronts.
+            // Evaluated in terrain VS + behavior_player_controlled as expanding ring wavefronts.
             uint32_t pulse_count;             // active entries (0–8)
-            float _pulse_pad[3];
+            // ─── Agent system ────────────────────────────────────────────
+            // Slot index of the player's current body in agent_state[].
+            // Piggybacks on the existing _pulse_pad triple (kept size 384).
+            uint32_t possessed_slot;          // slot 0 at session start
+            float _pulse_pad[2];
             float pulse_data[32];             // 8 × {origin_x, origin_z, onset_beats, amplitude}
         };
 
@@ -452,14 +461,39 @@ namespace t7 {
             float _pad;
         };
 
-        struct alignas(16) GPUPawnState {
-            float pos[3];
-            float heading;
-            float orientation[4];      // quaternion (x, y, z, w)
-            float velocity[2];         // XZ velocity (for force field radius)
-            int32_t portal_trigger;    // -1 = none, >=0 = arch index that triggered
-            float _pad1;
-        };
+        // Unified entity state — the player's body and all mood-authored
+        // agents share this layout. Slot 0 is the player (possessed on
+        // session start); slots 1..MAX_AGENTS-1 are mood-spawned.
+        //
+        // Scalar fields throughout (no vec3) so WGSL uniform/storage
+        // layout matches C++ without vec3 alignment surprises.
+        //
+        // Orientation is stored (not derived) because the player's body
+        // renders with a terrain-tilt quaternion written by
+        // behavior_player_controlled; keeping it per-slot keeps the tilt
+        // out of the vertex shader.
+        struct alignas(16) GPUAgentState {
+            float pos_x;           //  0
+            float pos_y;           //  4
+            float pos_z;           //  8
+            float t;               // 12 — personal clock
+            float vel_x;           // 16
+            float vel_y;           // 20
+            float vel_z;           // 24
+            float heading;         // 28
+            float home_x;          // 32
+            float home_y;          // 36
+            float home_z;          // 40
+            uint32_t seed;         // 44 — stable noise source
+            uint32_t behavior_id;  // 48 — AgentBehaviorId (see modules/agents.inl)
+            uint32_t tier_idx;     // 52 — AgentTierId     (see modules/agents.inl)
+            uint32_t is_active;    // 56 — 0 = inactive (collapsed in VS + skipped in update)
+            int32_t  portal_trigger; // 60 — only meaningful on the possessed slot (-1 = none)
+            float orient_x;        // 64 — heading ⊗ tilt quaternion
+            float orient_y;        // 68
+            float orient_z;        // 72
+            float orient_w;        // 76
+        };                         // 80 total
 
         struct alignas(16) GPUCameraState {
             float pos[3];
@@ -468,6 +502,8 @@ namespace t7 {
             float distance;
             float pan_x;
             float pan_y;
+            float aim_point[3];   // damped target (lerps toward possessed agent's pos)
+            float _pad;           // pad to 16-byte boundary
         };
 
         struct alignas(16) GPUFloatingEntityState {
@@ -1168,7 +1204,7 @@ namespace t7 {
         static_assert(sizeof(GPUDesignConfig) == 384, "GPUDesignConfig must be 384 bytes");
 
         // Portal ellipse array — uploaded when portal set changes.
-        // GPU update_pawn tests pawn against arch-shaped ellipses and writes portal_trigger.
+        // GPU behavior_player_controlled tests pawn against arch-shaped ellipses and writes portal_trigger.
         static constexpr uint32_t MAX_GPU_PORTALS = 32;
         struct alignas(16) GPUPortalEntry {
             float x;                  //  0  world XZ center
@@ -1189,8 +1225,9 @@ namespace t7 {
             "GPUPortalArray layout check");
         static_assert(sizeof(GPUTrajectory) == 16, "GPUTrajectory must be 16 bytes");
         static_assert(sizeof(GPUTerrainState) == 32, "GPUTerrainState must be 32 bytes");
-        static_assert(sizeof(GPUPawnState) == 48, "GPUPawnState must be 48 bytes");
-        static_assert(sizeof(GPUCameraState) == 32, "GPUCameraState must be 32 bytes");
+        static_assert(sizeof(GPUAgentState) == 80, "GPUAgentState must be 80 bytes");
+        static_assert(sizeof(GPUAgentState) % 16 == 0, "GPUAgentState must be 16-byte aligned");
+        static_assert(sizeof(GPUCameraState) == 48, "GPUCameraState must be 48 bytes");
         static_assert(sizeof(GPUFloatingEntityState) == 144, "GPUFloatingEntityState must be 144 bytes");
         static_assert(sizeof(GPURibbonState) == 96, "GPURibbonState must be 96 bytes");
         static_assert(sizeof(GPUVPMatrix) == 128, "GPUVPMatrix must be 128 bytes");
@@ -1276,7 +1313,11 @@ namespace t7 {
             bool configDynamic_ = false;   // mood override: true = upload every frame
             wgpu::TextureFormat colorFormat_ = wgpu::TextureFormat::BGRA8Unorm;  // set in initOffscreenResources
 
-            wgpu::Buffer signalBuffer_, configBuffer_, terrainBuffer_, pawnBuffer_;
+            wgpu::Buffer signalBuffer_, configBuffer_, terrainBuffer_;
+            // Agent system — unified entity buffer. Slot 0 is the player's
+            // body; slots 1..MAX_AGENTS-1 are mood-authored agents.
+            wgpu::Buffer agentStateBuffer_;
+            wgpu::Buffer agentStateReadbackStaging_;
             wgpu::Buffer cameraBuffer_, floatingEntityBuffer_, trajectoriesBuffer_;
             wgpu::Buffer ribbonBuffer_;
             wgpu::Buffer ringTransformsBuffer_;
@@ -1288,7 +1329,6 @@ namespace t7 {
             wgpu::Buffer spotLightArrayBuffer_;
             wgpu::Buffer spotVPStagingBuffer_;   // 4 × 64 bytes: pre-staged per-light VPs for atlas copy
             wgpu::Buffer portalArrayBuffer_;
-            wgpu::Buffer pawnReadbackStaging_;   // full GPUPawnState readback (position + portal trigger)
             wgpu::Buffer ribbonReadbackStaging_; // ring transform readback (diagnostic)
 
             wgpu::Buffer patchParamsBuffer_;
@@ -1866,18 +1906,51 @@ namespace t7 {
             void set_world_seed(uint32_t seed) {
                 if (config_.world_seed != seed) { config_.world_seed = seed; configDirty_ = true; }
             }
-            void reset_pawn(wgpu::Queue& queue) {
-                GPUPawnState pawn{};
-                pawn.pos[0] = Idle::PAWN_POS_X;
-                pawn.pos[1] = Idle::PAWN_POS_Y;
-                pawn.pos[2] = Idle::PAWN_POS_Z;
-                pawn.heading = Idle::PAWN_HEADING;
-                pawn.orientation[0] = 0.0f;
-                pawn.orientation[1] = 0.0f;
-                pawn.orientation[2] = 0.0f;
-                pawn.orientation[3] = 1.0f;
-                pawn.portal_trigger = -1;
-                queue.WriteBuffer(pawnBuffer_, 0, &pawn, sizeof(pawn));
+            // Reset the player's agent slot to the idle pose. Pass 1
+            // replaces the old reset_pawn: the player's body lives in
+            // agent_state[0], so we write slot 0 with PlayerControlled
+            // defaults and clear the remaining slots. Callers should
+            // set config.possessed_slot = 0 separately (or rely on the
+            // set_possessed_slot setter for subsequent transfers).
+            //
+            // tier_idx is preserved across mood transitions: the tier the
+            // player inhabits is part of their identity, not a property
+            // of the old mood. Caller passes the desired tier (typically
+            // the tier of whatever slot the player was in at teardown).
+            // Defaults to Worker for initial session spawn.
+            void reset_player_agent(wgpu::Queue& queue, uint32_t tier_idx = 0u) {
+                GPUAgentState buf[Dim::MAX_AGENTS] = {};
+                auto& p = buf[0];
+                p.pos_x = Idle::PAWN_POS_X;
+                p.pos_y = Idle::PAWN_POS_Y;
+                p.pos_z = Idle::PAWN_POS_Z;
+                p.heading = Idle::PAWN_HEADING;
+                p.orient_x = 0.0f;
+                p.orient_y = 0.0f;
+                p.orient_z = 0.0f;
+                p.orient_w = 1.0f;
+                p.is_active = 1u;
+                p.behavior_id = 0u;  // AGENT_BEHAVIOR_PLAYER_CONTROLLED
+                p.tier_idx = tier_idx;
+                p.portal_trigger = -1;
+                queue.WriteBuffer(agentStateBuffer_, 0, buf, sizeof(buf));
+            }
+            // Upload the full 32-slot agent array. Slot 0 (player) is rewritten
+            // to whatever the caller has in cpuAgents_[0] — caller is responsible
+            // for keeping that mirror consistent with the player's idle pose.
+            void upload_agent_state_all(wgpu::Queue& queue, const GPUAgentState* src) {
+                queue.WriteBuffer(agentStateBuffer_, 0, src,
+                    Dim::MAX_AGENTS * sizeof(GPUAgentState));
+            }
+            // Upload one slot only. Used by per-frame respawns so writes
+            // don't race with the GPU's own update of slot 0 (the player).
+            void upload_agent_slot(wgpu::Queue& queue,
+                uint32_t slot,
+                const GPUAgentState* src) {
+                if (slot >= Dim::MAX_AGENTS) return;
+                queue.WriteBuffer(agentStateBuffer_,
+                    slot * sizeof(GPUAgentState),
+                    src, sizeof(GPUAgentState));
             }
             void set_fog(float density, float r, float g, float b) {
                 if (config_.fog_density != density ||
@@ -2194,9 +2267,16 @@ namespace t7 {
 
             static constexpr uint32_t ribbon_vertex_count() { return Dim::RIBBON_VERTEX_COUNT; }
             wgpu::Buffer ribbon_buffer() const { return ribbonBuffer_; }
-            wgpu::Buffer pawn_buffer() const { return pawnBuffer_; }
-            wgpu::Buffer pawn_readback_staging() const { return pawnReadbackStaging_; }
-            static constexpr size_t pawn_state_size() { return sizeof(GPUPawnState); }
+            wgpu::Buffer agent_state_buffer() const { return agentStateBuffer_; }
+            wgpu::Buffer agent_state_readback_staging() const { return agentStateReadbackStaging_; }
+            static constexpr size_t agent_state_buffer_size() { return Dim::MAX_AGENTS * sizeof(GPUAgentState); }
+            static constexpr size_t agent_slot_size() { return sizeof(GPUAgentState); }
+            void set_possessed_slot(uint32_t slot) {
+                if (config_.possessed_slot != slot) {
+                    config_.possessed_slot = slot;
+                    configDirty_ = true;
+                }
+            }
             wgpu::Buffer ribbon_readback_staging() const { return ribbonReadbackStaging_; }
             wgpu::Buffer ring_transforms_buffer() const { return ringTransformsBuffer_; }
             static constexpr size_t ribbon_ring_readback_size() { return sizeof(GPURibbonRingTransform) * Dim::RIBBON_MAX_RINGS; }
@@ -2302,7 +2382,7 @@ namespace t7 {
             // at flock_sep_sign. Each force picks up its direction multiplier
             // from the dynamics kernel on the next dispatch.
             void upload_orb_flock_signs(wgpu::Queue& queue,
-                                        float sep, float align, float coh) {
+                float sep, float align, float coh) {
                 struct { float s, a, c; } packed = { sep, align, coh };
                 queue.WriteBuffer(orbConfigBuffer_,
                     offsetof(GPUOrbConfig, flock_sep_sign),
@@ -2311,9 +2391,9 @@ namespace t7 {
             // Brownian gesture bundle — three contiguous floats
             // at offset 180 (radial_sign, vert_bias, coherence).
             void upload_orb_brownian_gesture(wgpu::Queue& queue,
-                                             float radial_sign,
-                                             float vert_bias,
-                                             float coherence) {
+                float radial_sign,
+                float vert_bias,
+                float coherence) {
                 struct { float r, v, c; } packed = { radial_sign, vert_bias, coherence };
                 queue.WriteBuffer(orbConfigBuffer_,
                     offsetof(GPUOrbConfig, brownian_radial_sign),
@@ -2323,8 +2403,8 @@ namespace t7 {
             // (412 and 428, interleaved by tier-flock-gain blocks).
             // Two tiny writes — only fires on gesture cycle, not per frame.
             void upload_orb_orbital_gesture(wgpu::Queue& queue,
-                                            float alignment_mode,
-                                            float speed_var_mult) {
+                float alignment_mode,
+                float speed_var_mult) {
                 queue.WriteBuffer(orbConfigBuffer_,
                     offsetof(GPUOrbConfig, orbital_alignment_mode),
                     &alignment_mode, sizeof(float));
@@ -2343,7 +2423,7 @@ namespace t7 {
             // hue_converge_target lives at offset 156 and changes only on mood
             // entry, so it's written via the full upload_orb_config path.
             void upload_orb_color_dynamics(wgpu::Queue& queue,
-                                           float pulse, float converge, float surge) {
+                float pulse, float converge, float surge) {
                 struct { float pulse, converge, surge; } packed = { pulse, converge, surge };
                 queue.WriteBuffer(orbConfigBuffer_,
                     offsetof(GPUOrbConfig, color_pulse),
@@ -2352,7 +2432,7 @@ namespace t7 {
             // Dome center: world-space anchor point added at render time by orb_vs.
             // 12-byte write; _pad_anchor is left untouched for future use.
             void upload_orb_dome_center(wgpu::Queue& queue,
-                                        float x, float y, float z) {
+                float x, float y, float z) {
                 struct { float x, y, z; } packed = { x, y, z };
                 queue.WriteBuffer(orbConfigBuffer_,
                     offsetof(GPUOrbConfig, dome_center_x),
@@ -2362,9 +2442,9 @@ namespace t7 {
             // 72 bytes contiguous from offset 72. Preserves per-frame fields
             // (dt, t_seconds, noise_amp, force_radial) elsewhere in the struct.
             void upload_orb_palette(wgpu::Queue& queue,
-                                    uint32_t palette_count,
-                                    float value_variance,
-                                    const float palette_data[16]) {
+                uint32_t palette_count,
+                float value_variance,
+                const float palette_data[16]) {
                 struct { uint32_t count; float var; float pal[16]; } packed;
                 packed.count = palette_count;
                 packed.var = value_variance;
@@ -2470,7 +2550,8 @@ namespace t7 {
                 signalBuffer_ = makeBuffer("Frame Signal", sizeof(GPUFrameSignal), wgpu::BufferUsage::Uniform | wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
                 configBuffer_ = makeBuffer("Design Config", sizeof(GPUDesignConfig), UU);
                 terrainBuffer_ = makeBuffer("Terrain State", sizeof(GPUTerrainState), SU);
-                pawnBuffer_ = makeBuffer("Pawn State", sizeof(GPUPawnState),
+                agentStateBuffer_ = makeBuffer("Agent State",
+                    Dim::MAX_AGENTS * sizeof(GPUAgentState),
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::CopySrc);
                 cameraBuffer_ = makeBuffer("Camera State", sizeof(GPUCameraState), SU);
                 floatingEntityBuffer_ = makeBuffer("Floating Entity Array",
@@ -2493,10 +2574,10 @@ namespace t7 {
                 portalArrayBuffer_ = makeBuffer("Portal Array", sizeof(GPUPortalArray), UU);
                 {
                     wgpu::BufferDescriptor sd{};
-                    sd.label = "Pawn Readback Staging";
-                    sd.size = sizeof(GPUPawnState);  // full pawn state: position + portal trigger
+                    sd.label = "Agent State Readback Staging";
+                    sd.size = Dim::MAX_AGENTS * sizeof(GPUAgentState);
                     sd.usage = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::MapRead;
-                    pawnReadbackStaging_ = device_.CreateBuffer(&sd);
+                    agentStateReadbackStaging_ = device_.CreateBuffer(&sd);
                 }
                 {
                     wgpu::BufferDescriptor sd{};
@@ -2549,7 +2630,8 @@ namespace t7 {
                     Dim::MAX_ACTIVE_PATCHES * sizeof(uint32_t),
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
 
-                return signalBuffer_ && configBuffer_ && terrainBuffer_ && pawnBuffer_ &&
+                return signalBuffer_ && configBuffer_ && terrainBuffer_ &&
+                    agentStateBuffer_ && agentStateReadbackStaging_ &&
                     cameraBuffer_ && floatingEntityBuffer_ && trajectoriesBuffer_ && ringTransformsBuffer_ &&
                     vpBuffer_ && spotLightArrayBuffer_ && spotVPStagingBuffer_ && directionalLightBuffer_ && pointLightsBuffer_ && patchParamsBuffer_ &&
                     patchStagingBuffer_ && tileGridBuffer_ && pierBuffer_ && patchInstancesBuffer_ &&
@@ -2557,7 +2639,7 @@ namespace t7 {
                     patchHeightScratchBuffer_ &&
                     photographerVPBuffer_ && photographerCameraBuffer_ &&
                     photographerConfigBuffer_ && paintingSlotsBuffer_ &&
-                    portalArrayBuffer_ && pawnReadbackStaging_ && ribbonReadbackStaging_ &&
+                    portalArrayBuffer_ && ribbonReadbackStaging_ &&
                     frustumIndirectLOD0_ && frustumComputeBuffer_ && visiblePatchIndicesBuffer_;
             }
 
@@ -3270,7 +3352,7 @@ namespace t7 {
                 // Shared:    0-19    (signal, config, vp)
                 // Terrain:  20-39    (terrain_state, proximity_field)
                 // Cells:    40-59    (terrain_cells)
-                // Pawn:     60-79    (pawn_state)
+                // Agents:   60-79    (agent_state — unified entity buffer)
                 // Camera:   80-99    (camera_state)
                 // Sphere:  100-119   (sphere_state, trajectories)
                 //
@@ -3333,13 +3415,13 @@ namespace t7 {
                     entries[12].visibility = wgpu::ShaderStage::Compute;
                     entries[12].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    entries[13].binding = 62;   // portal_array (uniform — proximity check in update_pawn)
+                    entries[13].binding = 62;   // portal_array (uniform — proximity check in behavior_player_controlled)
                     entries[13].visibility = wgpu::ShaderStage::Compute;
                     entries[13].buffer.type = wgpu::BufferBindingType::Uniform;
 
                     // Cached patch heightfield + sampler + spatial index — sample_terrain_y_at
                     // (POLICY_BAKED_HEIGHTFIELD via texture). Required by compute pipelines that
-                    // do per-frame baked-path Y lookups: update_camera, update_pawn (in Step 4c),
+                    // do per-frame baked-path Y lookups: update_camera, update_agents,
                     // and any future cached-heightfield consumer that lives on this shared layout.
                     entries[14].binding = 145;  // photo_heightfield (texture_2d_array)
                     entries[14].visibility = wgpu::ShaderStage::Compute;
@@ -3366,7 +3448,7 @@ namespace t7 {
                 //
                 // Shared:   200-219  (render_signal, render_vp)
                 // Terrain:  220-239  (render_terrain)
-                // Pawn:     260-279  (render_pawn)
+                // Agents:   260-279  (render_agents — VS-side mirror)
                 // Camera:   280-299  (render_camera)
                 // Sphere:   300-319  (render_sphere)
                 // Light:    320-339  (render_light, render_point_lights)
@@ -3589,7 +3671,7 @@ namespace t7 {
                 // storage buffers directly through Group 0 (bindings 30, 160,
                 // 161), so this layout only needs the aura texture + sampler.
                 //
-                // Attached to update_sphere, update_cube, update_pawn, and
+                // Attached to update_sphere, update_cube, update_agents, and
                 // update_camera pipelines so contrib_pawn_aura_at →
                 // sample_pawn_aura can run in the compute stage. Pipelines
                 // that stay on the baked heightfield path
@@ -3784,42 +3866,46 @@ namespace t7 {
                 // -- Photographer compute layout (Group 0) -- VP + terrain clamp --
                 // Reads GPU pawn position + config → builds VP, clamps camera above terrain.
                 // Entity Y-correction is handled separately by compute_entity_placement.
-                // 3 storage + 1 read-only + 1 uniform + 1 texture + 1 sampler + 1 patch_grid = 8 entries.
+                // 1 config uniform + 3 storage + 1 read-only + 1 uniform + 1 texture + 1 sampler + 1 patch_grid = 9 entries.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 8> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 9> entries{};
 
-                    entries[0].binding = 60;   // pawn_state (read pos)
+                    entries[0].binding = 1;    // config (DesignConfig — possessed_slot lookup via compute_pawn_pos)
                     entries[0].visibility = wgpu::ShaderStage::Compute;
-                    entries[0].buffer.type = wgpu::BufferBindingType::Storage;
+                    entries[0].buffer.type = wgpu::BufferBindingType::Uniform;
 
-                    entries[1].binding = 140;  // photographer_config (camera params)
+                    entries[1].binding = 60;   // agent_state (read pos via possessed_slot)
                     entries[1].visibility = wgpu::ShaderStage::Compute;
-                    entries[1].buffer.type = wgpu::BufferBindingType::Uniform;
+                    entries[1].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    entries[2].binding = 141;  // photographer_vp (output VP matrix)
+                    entries[2].binding = 140;  // photographer_config (camera params)
                     entries[2].visibility = wgpu::ShaderStage::Compute;
-                    entries[2].buffer.type = wgpu::BufferBindingType::Storage;
+                    entries[2].buffer.type = wgpu::BufferBindingType::Uniform;
 
-                    entries[3].binding = 142;  // photographer_camera_out (output camera pos)
+                    entries[3].binding = 141;  // photographer_vp (output VP matrix)
                     entries[3].visibility = wgpu::ShaderStage::Compute;
                     entries[3].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    entries[4].binding = 144;  // patch_instances (terrain lookup)
+                    entries[4].binding = 142;  // photographer_camera_out (output camera pos)
                     entries[4].visibility = wgpu::ShaderStage::Compute;
-                    entries[4].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+                    entries[4].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    entries[5].binding = 145;  // patch_heightfield (terrain texture)
+                    entries[5].binding = 144;  // patch_instances (terrain lookup)
                     entries[5].visibility = wgpu::ShaderStage::Compute;
-                    entries[5].texture.sampleType = wgpu::TextureSampleType::Float;
-                    entries[5].texture.viewDimension = wgpu::TextureViewDimension::e2DArray;
+                    entries[5].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
-                    entries[6].binding = 146;  // bilinear_sampler
+                    entries[6].binding = 145;  // patch_heightfield (terrain texture)
                     entries[6].visibility = wgpu::ShaderStage::Compute;
-                    entries[6].sampler.type = wgpu::SamplerBindingType::Filtering;
+                    entries[6].texture.sampleType = wgpu::TextureSampleType::Float;
+                    entries[6].texture.viewDimension = wgpu::TextureViewDimension::e2DArray;
 
-                    entries[7].binding = 152;  // patch_grid (O(1) spatial index for sample_terrain_y_at)
+                    entries[7].binding = 146;  // bilinear_sampler
                     entries[7].visibility = wgpu::ShaderStage::Compute;
-                    entries[7].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+                    entries[7].sampler.type = wgpu::SamplerBindingType::Filtering;
+
+                    entries[8].binding = 152;  // patch_grid (O(1) spatial index for sample_terrain_y_at)
+                    entries[8].visibility = wgpu::ShaderStage::Compute;
+                    entries[8].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Photographer Compute Layout";
@@ -3934,7 +4020,7 @@ namespace t7 {
                     entries[5].visibility = wgpu::ShaderStage::Compute;
                     entries[5].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    entries[6].binding = 60;    // pawn_state (storage — LOD distance uses pawn, matches CPU sort)
+                    entries[6].binding = 60;    // agent_state (LOD distance reads possessed_slot)
                     entries[6].visibility = wgpu::ShaderStage::Compute;
                     entries[6].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
@@ -4033,7 +4119,7 @@ namespace t7 {
                     entries[0].visibility = wgpu::ShaderStage::Compute;
                     entries[0].buffer.type = wgpu::BufferBindingType::Uniform;
 
-                    entries[1].binding = 60;   // pawn_state (read position)
+                    entries[1].binding = 60;   // agent_state (read possessed_slot position)
                     entries[1].visibility = wgpu::ShaderStage::Compute;
                     entries[1].buffer.type = wgpu::BufferBindingType::Storage;
 
@@ -4280,8 +4366,8 @@ namespace t7 {
                     // (binding 120 removed — ribbon_state only used by compute_ribbon_rings, separate group)
 
                     entries[4].binding = 60;
-                    entries[4].buffer = pawnBuffer_;
-                    entries[4].size = sizeof(GPUPawnState);
+                    entries[4].buffer = agentStateBuffer_;
+                    entries[4].size = Dim::MAX_AGENTS * sizeof(GPUAgentState);
 
                     entries[5].binding = 80;
                     entries[5].buffer = cameraBuffer_;
@@ -4323,7 +4409,7 @@ namespace t7 {
                     entries[13].size = sizeof(GPUPortalArray);
 
                     // Cached patch heightfield — sample_terrain_y_at consumed by
-                    // update_camera, update_pawn (Step 4c), and any future
+                    // update_camera, update_agents, and any future
                     // POLICY_BAKED_HEIGHTFIELD compute consumer. Photographer
                     // and entity placement keep their dedicated layouts that
                     // also bind these — same handles, different layout slots.
@@ -4367,8 +4453,8 @@ namespace t7 {
                     entries[3].size = sizeof(GPUTerrainState);
 
                     entries[4].binding = 260;
-                    entries[4].buffer = pawnBuffer_;
-                    entries[4].size = sizeof(GPUPawnState);
+                    entries[4].buffer = agentStateBuffer_;
+                    entries[4].size = Dim::MAX_AGENTS * sizeof(GPUAgentState);
 
                     entries[5].binding = 280;
                     entries[5].buffer = cameraBuffer_;
@@ -4684,8 +4770,8 @@ namespace t7 {
                     entries[3].buffer = terrainBuffer_;
                     entries[3].size = sizeof(GPUTerrainState);
                     entries[4].binding = 260;
-                    entries[4].buffer = pawnBuffer_;
-                    entries[4].size = sizeof(GPUPawnState);
+                    entries[4].buffer = agentStateBuffer_;
+                    entries[4].size = Dim::MAX_AGENTS * sizeof(GPUAgentState);
                     entries[5].binding = 280;
                     entries[5].buffer = photographerCameraBuffer_;  // ← photographer pos for fog
                     entries[5].size = sizeof(GPUCameraState);
@@ -4741,31 +4827,34 @@ namespace t7 {
                     if (!photographerRenderEntityBindGroup_) return false;
                 }
 
-                // Photographer compute bind group (8 entries: pawn + config + outputs + terrain + patch_grid)
+                // Photographer compute bind group (9 entries: config + agents + outputs + terrain + patch_grid)
                 {
-                    std::array<wgpu::BindGroupEntry, 8> entries{};
-                    entries[0].binding = 60;
-                    entries[0].buffer = pawnBuffer_;
-                    entries[0].size = sizeof(GPUPawnState);
-                    entries[1].binding = 140;
-                    entries[1].buffer = photographerConfigBuffer_;
-                    entries[1].size = sizeof(GPUPhotographerConfig);
-                    entries[2].binding = 141;
-                    entries[2].buffer = photographerVPBuffer_;
-                    entries[2].size = sizeof(GPUVPMatrix);
-                    entries[3].binding = 142;
-                    entries[3].buffer = photographerCameraBuffer_;
-                    entries[3].size = sizeof(GPUCameraState);
-                    entries[4].binding = 144;
-                    entries[4].buffer = patchInstancesBuffer_;
-                    entries[4].size = sizeof(GPUPatchInstance) * Dim::MAX_ACTIVE_PATCHES;
-                    entries[5].binding = 145;
-                    entries[5].textureView = patchHeightfieldArrayReadView_;
-                    entries[6].binding = 146;
-                    entries[6].sampler = bilinearSampler_;
-                    entries[7].binding = 152;
-                    entries[7].buffer = patchGridBuffer_;
-                    entries[7].size = sizeof(GPUPatchGrid);
+                    std::array<wgpu::BindGroupEntry, 9> entries{};
+                    entries[0].binding = 1;
+                    entries[0].buffer = configBuffer_;
+                    entries[0].size = sizeof(GPUDesignConfig);
+                    entries[1].binding = 60;
+                    entries[1].buffer = agentStateBuffer_;
+                    entries[1].size = Dim::MAX_AGENTS * sizeof(GPUAgentState);
+                    entries[2].binding = 140;
+                    entries[2].buffer = photographerConfigBuffer_;
+                    entries[2].size = sizeof(GPUPhotographerConfig);
+                    entries[3].binding = 141;
+                    entries[3].buffer = photographerVPBuffer_;
+                    entries[3].size = sizeof(GPUVPMatrix);
+                    entries[4].binding = 142;
+                    entries[4].buffer = photographerCameraBuffer_;
+                    entries[4].size = sizeof(GPUCameraState);
+                    entries[5].binding = 144;
+                    entries[5].buffer = patchInstancesBuffer_;
+                    entries[5].size = sizeof(GPUPatchInstance) * Dim::MAX_ACTIVE_PATCHES;
+                    entries[6].binding = 145;
+                    entries[6].textureView = patchHeightfieldArrayReadView_;
+                    entries[7].binding = 146;
+                    entries[7].sampler = bilinearSampler_;
+                    entries[8].binding = 152;
+                    entries[8].buffer = patchGridBuffer_;
+                    entries[8].size = sizeof(GPUPatchGrid);
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Photographer Compute BindGroup";
@@ -4783,8 +4872,8 @@ namespace t7 {
                     entries[0].buffer = configBuffer_;
                     entries[0].size = sizeof(GPUDesignConfig);
                     entries[1].binding = 60;
-                    entries[1].buffer = pawnBuffer_;
-                    entries[1].size = sizeof(GPUPawnState);
+                    entries[1].buffer = agentStateBuffer_;
+                    entries[1].size = Dim::MAX_AGENTS * sizeof(GPUAgentState);
                     entries[2].binding = 143;
                     entries[2].buffer = paintingSlotsBuffer_;
                     entries[2].size = sizeof(GPUPaintingSlot) * Dim::PAINTING_MAX_SLOTS;
@@ -4834,7 +4923,7 @@ namespace t7 {
                     if (!entityPlacementComputeBindGroup_) return false;
                 }
 
-                // Frustum cull compute bind group (7 entries: +pawn_state at binding 60)
+                // Frustum cull compute bind group (7 entries: +agent_state at binding 60)
                 {
                     std::array<wgpu::BindGroupEntry, 7> entries{};
                     entries[0].binding = 1;
@@ -4856,8 +4945,8 @@ namespace t7 {
                     entries[5].buffer = frustumComputeBuffer_;
                     entries[5].size = 5 * sizeof(uint32_t);
                     entries[6].binding = 60;
-                    entries[6].buffer = pawnBuffer_;
-                    entries[6].size = sizeof(GPUPawnState);
+                    entries[6].buffer = agentStateBuffer_;
+                    entries[6].size = Dim::MAX_AGENTS * sizeof(GPUAgentState);
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Frustum Cull Compute BindGroup";
@@ -4940,8 +5029,8 @@ namespace t7 {
                     entries[0].size = sizeof(GPUDesignConfig);
 
                     entries[1].binding = 60;
-                    entries[1].buffer = pawnBuffer_;
-                    entries[1].size = sizeof(GPUPawnState);
+                    entries[1].buffer = agentStateBuffer_;
+                    entries[1].size = Dim::MAX_AGENTS * sizeof(GPUAgentState);
 
                     entries[2].binding = 170;
                     entries[2].buffer = pawnAuraConfigBuffer_;
@@ -5206,6 +5295,7 @@ namespace t7 {
                 config_.mode_gol_height_scale = 1.0f;
                 config_.pulse_count = 0;
                 for (int i = 0; i < 32; i++) config_.pulse_data[i] = 0.0f;
+                config_.possessed_slot = 0;  // player starts in slot 0
                 config_.world_bound_min[0] = 0.0f;
                 config_.world_bound_min[1] = 0.0f;
                 config_.world_bound_max[0] = 0.0f;
@@ -5239,17 +5329,26 @@ namespace t7 {
                 terrain._pad = 0.0f;
                 queue.WriteBuffer(terrainBuffer_, 0, &terrain, sizeof(terrain));
 
-                GPUPawnState pawn{};
-                pawn.pos[0] = Idle::PAWN_POS_X;
-                pawn.pos[1] = Idle::PAWN_POS_Y;
-                pawn.pos[2] = Idle::PAWN_POS_Z;
-                pawn.heading = Idle::PAWN_HEADING;
-                pawn.orientation[0] = 0.0f;
-                pawn.orientation[1] = 0.0f;
-                pawn.orientation[2] = 0.0f;
-                pawn.orientation[3] = 1.0f;
-                pawn.portal_trigger = -1;
-                queue.WriteBuffer(pawnBuffer_, 0, &pawn, sizeof(pawn));
+                // Agent buffer: zero-init all 32 slots, then populate slot 0
+                // with the player at the idle pose. Slots 1..31 are mood-
+                // populated by the Cartridge after mood application.
+                {
+                    GPUAgentState agents[Dim::MAX_AGENTS] = {};
+                    auto& p = agents[0];
+                    p.pos_x = Idle::PAWN_POS_X;
+                    p.pos_y = Idle::PAWN_POS_Y;
+                    p.pos_z = Idle::PAWN_POS_Z;
+                    p.heading = Idle::PAWN_HEADING;
+                    p.orient_x = 0.0f;
+                    p.orient_y = 0.0f;
+                    p.orient_z = 0.0f;
+                    p.orient_w = 1.0f;
+                    p.is_active = 1u;
+                    p.behavior_id = 0u;   // AGENT_BEHAVIOR_PLAYER_CONTROLLED
+                    p.tier_idx = 0u;   // AGENT_TIER_WORKER
+                    p.portal_trigger = -1;
+                    queue.WriteBuffer(agentStateBuffer_, 0, agents, sizeof(agents));
+                }
 
                 GPUCameraState camera{};
                 camera.pos[0] = Idle::CAMERA_POS_X;
@@ -5260,6 +5359,11 @@ namespace t7 {
                 camera.distance = Idle::CAMERA_DISTANCE;
                 camera.pan_x = 0.0f;
                 camera.pan_y = 0.0f;
+                // aim_point starts at the player's idle position so the
+                // camera doesn't lerp from origin on first frames.
+                camera.aim_point[0] = Idle::PAWN_POS_X;
+                camera.aim_point[1] = Idle::PAWN_POS_Y;
+                camera.aim_point[2] = Idle::PAWN_POS_Z;
                 queue.WriteBuffer(cameraBuffer_, 0, &camera, sizeof(camera));
 
                 // Zero-init all floating entity slots (inactive)

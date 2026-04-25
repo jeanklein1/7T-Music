@@ -1,4 +1,4 @@
-// ─── mood.inl ──────────────────────────────────────────────────
+﻿// ─── mood.inl ──────────────────────────────────────────────────
 //
 // Atmosphere, indoor lighting, shell geometry, portals.
 // derive_indoor_lights → apply_mood → shell → portals → lights.
@@ -229,9 +229,16 @@ void apply_mood(uint32_t mood, wgpu::Queue& queue) {
     //  - moodAllowsMusicalModes_ is checked by is_mmode_on (silences all modes)
     //  - moodAllowsGoLZones_ is checked by dispatch_select_gol (blocks new spawns)
     //  - auraEnabled_ drives the aura presence ramp (smooth fade out when disabled)
+    //
+    // Aura policy: if the destination mood permits aura, respect the
+    // player's current preference (don't auto-enable). Only force aura
+    // off when the mood forbids it. The player can re-toggle via input
+    // if they want it on after entering a permitting mood.
     moodAllowsMusicalModes_ = m.allow_musical_modes;
     moodAllowsGoLZones_     = m.allow_gol_zones;
-    auraEnabled_            = m.allow_pawn_aura;
+    if (!m.allow_pawn_aura) {
+        auraEnabled_ = false;
+    }
 
     sunDirection_[0] = m.sun_direction[0];
     sunDirection_[1] = m.sun_direction[1];

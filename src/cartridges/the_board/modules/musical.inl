@@ -1,4 +1,4 @@
-// ─── musical.inl ─────────────────────────────────────────────────
+﻿// ─── musical.inl ─────────────────────────────────────────────────
 //
 // The coupling layer: connects analysis signal to visual parameters.
 // Mode definitions, intensity trajectories, band motion, palette

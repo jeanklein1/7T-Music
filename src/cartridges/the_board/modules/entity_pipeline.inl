@@ -1,4 +1,4 @@
-// ─── entity_pipeline.inl ─────────────────────────────────────────
+﻿// ─── entity_pipeline.inl ─────────────────────────────────────────
 //
 // Generic entity lifecycle: select → place → commit.
 // Type definitions (EntityInstance, TierParamDef, etc.) live in

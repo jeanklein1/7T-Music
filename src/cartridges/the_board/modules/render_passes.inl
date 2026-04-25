@@ -1,4 +1,4 @@
-// ─── render_passes.inl ──────────────────────────────────────────
+﻿// ─── render_passes.inl ──────────────────────────────────────────
 //
 // GPU dispatch and draw calls. The speaker at the end of the
 // signal chain: reads final state, issues compute and render passes.
@@ -152,10 +152,20 @@
                     gpuState_.compute_entity_group()
                 );
 
-                renderer_.dispatch_update_pawn(
+                // Player kernel runs first: the walker policy updates
+                // the possessed slot's position. The other-agents kernel
+                // then sees the player's current-frame position when it
+                // computes eviction distances.
+                renderer_.dispatch_update_player_agent(
                     compute,
                     gpuState_.compute_entity_group(),
                     gpuState_.compute_texture_group()   // aura + sampler for POLICY_WALKER
+                );
+
+                renderer_.dispatch_update_other_agents(
+                    compute,
+                    gpuState_.compute_entity_group(),
+                    gpuState_.compute_texture_group()   // aura + sampler for POLICY_WALKER_AGENT
                 );
 
                 renderer_.dispatch_update_camera(

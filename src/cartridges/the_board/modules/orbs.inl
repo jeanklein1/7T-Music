@@ -1,4 +1,4 @@
-// ─── orbs.inl ────────────────────────────────────────────────────
+﻿// ─── orbs.inl ────────────────────────────────────────────────────
 //
 // Sky orb layer — luminous points on a dome above the world. A fixed
 // population of billboarded quads sampled from a dome of radius

@@ -1,4 +1,4 @@
-// ─── pawn_aura.inl ──────────────────────────────────────────────
+﻿// ─── pawn_aura.inl ──────────────────────────────────────────────
 //
 // Persistent terrain influence field centered on the pawn.
 // Toroidal 64×64 grid of spring-driven cells that activate near

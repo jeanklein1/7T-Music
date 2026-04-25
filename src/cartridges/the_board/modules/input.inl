@@ -1,4 +1,4 @@
-// ─── input.inl ──────────────────────────────────────────────────
+﻿// ─── input.inl ──────────────────────────────────────────────────
 //
 // Keyboard, mouse, scroll. Key bindings, movement intent,
 // camera mode toggle, render radius control.
@@ -46,6 +46,9 @@
 #endif
 #ifndef GLFW_KEY_KP_DECIMAL
 #define GLFW_KEY_KP_DECIMAL  330
+#endif
+#ifndef GLFW_KEY_CAPS_LOCK
+#define GLFW_KEY_CAPS_LOCK   280
 #endif
 
 void on_key_down(int key) {
@@ -167,6 +170,11 @@ void on_key_down(int key) {
     case GLFW_KEY_RIGHT_CONTROL:
         toggle_fpv_mode();
         break;
+    case GLFW_KEY_CAPS_LOCK: {
+        wgpu::Queue q = device_.GetQueue();
+        try_possess_nearest(q);
+        break;
+    }
     case GLFW_KEY_LEFT_BRACKET:
         set_render_radius(activeRadius_ - 1);
         break;
