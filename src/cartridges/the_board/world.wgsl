@@ -628,9 +628,35 @@ struct AgentState {
     orient_w: f32,
 }
 
-// ─── Agent behavior + tier registries ──────────────────────────────
-// Mirror the C++ tables in modules/agents.inl. Both must move in
-// lockstep — if you change one, change the other.
+// ═══ AGENT REGISTRIES (read-only storage buffers) ═══════════════════════
+//
+// The behavior + tier parameter tables are uploaded once at world-init
+// from the C++ AGENT_BEHAVIORS / AGENT_TIER_GAINS tables in
+// modules/agents.inl. The C++ tables are the SINGLE SOURCE OF TRUTH;
+// this WGSL side is a pure consumer.
+//
+// Schema reminder — fields below match GPUAgentBehaviorDef and
+// GPUAgentTierDef in state.hpp, and AgentBehaviorDef / AgentTierDef
+// in modules/agents.inl. Field-by-field translation lives in
+// upload_agent_registries_to_gpu in agents.inl.
+//
+//   AgentBehaviorParams columns:
+//     step_rate       — steps/beat (musical time)
+//     step_size       — world units/step
+//     persistence     — [0,1] directional commitment
+//     drag            — 1/s velocity decay
+//     home_pull       — 1/s² tether spring coefficient
+//     neighbor_radius — world units, flock/cohesion sample radius
+//     speed_cap       — world units/s
+//
+//   AgentTierParams columns:
+//     step_gain       — multiplies behavior.step_size impulse
+//     persist_gain    — multiplies behavior.persistence (and home_pull)
+//     speed_gain      — multiplies behavior.speed_cap
+//     coupling_gain   — reserved (per-tier music coupling scale)
+//     home_gain       — reserved
+//     weight          — reserved (default selection weight)
+//     color_r/g/b     — vertex shader entity color
 
 struct AgentBehaviorParams {
     step_rate:       f32,  // steps/beat (musical time)
@@ -640,22 +666,12 @@ struct AgentBehaviorParams {
     home_pull:       f32,  // 1/s² spring toward home
     neighbor_radius: f32,  // flock neighbor search
     speed_cap:       f32,  // max speed
+    _pad:            f32,  // pad to 32 bytes (matches GPUAgentBehaviorDef)
 }
 
 const AGENT_BEHAVIOR_COUNT_WGSL: u32 = 10u;
 
-const AGENT_BEHAVIORS_WGSL = array<AgentBehaviorParams, 10>(
-    /* 0: PLAYER_CONTROLLED */ AgentBehaviorParams(0.0, 0.0, 0.0, 0.0,  0.0,  0.0,  0.0),
-    /* 1: RANDOM_WALK       */ AgentBehaviorParams(0.8, 1.5, 0.0, 3.0,  0.0,  0.0,  3.0),
-    /* 2: BIASED_WALK       */ AgentBehaviorParams(0.5, 2.5, 0.85, 0.6, 0.0, 25.0,  5.0),
-    /* 3: WANDERER          */ AgentBehaviorParams(0.7, 1.8, 0.0, 1.0,  0.4,  0.0,  4.0),
-    /* 4: HOME_SEEKER       */ AgentBehaviorParams(0.4, 1.0, 0.0, 1.5,  3.0,  0.0,  3.0),
-    /* 5: SLOW_PATROL       */ AgentBehaviorParams(0.25, 8.0, 0.0, 2.0, 4.0,  0.0,  2.0),
-    /* 6: PURSUIT           */ AgentBehaviorParams(0.5, 1.5, 0.0, 1.0,  5.0, 40.0,  5.0),
-    /* 7: FLEE              */ AgentBehaviorParams(0.4, 1.0, 0.0, 1.5,  8.0, 30.0,  8.0),
-    /* 8: FLOCK2D           */ AgentBehaviorParams(0.6, 1.5, 0.7, 0.6,  0.0, 30.0,  4.5),
-    /* 9: LEVY_FLIGHT       */ AgentBehaviorParams(0.4, 0.8, 0.0, 1.5,  0.0,  0.0,  8.0),
-);
+@group(0) @binding(110) var<uniform> agent_behaviors: array<AgentBehaviorParams, 10>;
 
 struct AgentTierParams {
     step_gain:     f32,
@@ -667,16 +683,14 @@ struct AgentTierParams {
     color_r:       f32,
     color_g:       f32,
     color_b:       f32,
+    _pad0:         f32,  // pad to 48 bytes (matches GPUAgentTierDef)
+    _pad1:         f32,
+    _pad2:         f32,
 }
 
 const AGENT_TIER_COUNT_WGSL: u32 = 4u;
 
-const AGENT_TIER_GAINS_WGSL = array<AgentTierParams, 4>(
-    /* 0: WORKER   */ AgentTierParams(1.0, 1.0, 1.0, 1.0, 1.0, 4.0, 0.60, 0.62, 0.65),
-    /* 1: SCOUT    */ AgentTierParams(1.8, 0.4, 1.4, 1.0, 0.5, 2.0, 0.85, 0.65, 0.40),
-    /* 2: SENTINEL */ AgentTierParams(0.6, 1.2, 0.5, 1.0, 2.0, 1.0, 0.30, 0.40, 0.70),
-    /* 3: LEADER   */ AgentTierParams(1.2, 0.9, 1.1, 2.5, 0.8, 0.3, 0.95, 0.85, 0.55),
-);
+@group(0) @binding(111) var<uniform> agent_tier_gains: array<AgentTierParams, 4>;
 
 // --- [STATE:camera] CameraState
 
@@ -3789,7 +3803,7 @@ fn pawn_vs(@builtin(vertex_index) vid: u32,
     // Tier color — body identity (the player's tier is whatever slot
     // they currently inhabit; tier_idx is set at spawn / possession).
     let tier = min(agent.tier_idx, AGENT_TIER_COUNT_WGSL - 1u);
-    let tg = AGENT_TIER_GAINS_WGSL[tier];
+    let tg = agent_tier_gains[tier];
 
     var out: EntityVarying;
     out.clip_pos = render_vp.m * vec4(rotated_pos + pawn_p, 1.0);
@@ -5155,6 +5169,13 @@ fn pawn_ground_resolve(
     return vec4(prev_xz.x, prev_y, prev_xz.y, 0.0);
 }
 
+// ═══ AGENT POST-STEP HELPER ══════════════════════════════════════
+//
+// Behaviors only modify a.vel_x / a.vel_z. The post-step applies the
+// rest: drag, speed cap, position integration, ground snap, heading
+// from velocity. Pulled out of each behavior body so FXC compiles
+// the common epilogue once per kernel rather than ten times.
+
 // ─── Shared post-step ────────────────────────────────────────────
 // Behaviors only modify a.vel_x / a.vel_z. This helper applies the
 // rest: exponential drag, speed cap, position integration, ground
@@ -5162,8 +5183,8 @@ fn pawn_ground_resolve(
 // so FXC compiles it once per kernel rather than ten times.
 //
 // Each behavior reads its own (drag, speed_cap) from
-// AGENT_BEHAVIORS_WGSL[id], with tier scaling applied via
-// AGENT_TIER_GAINS_WGSL[tier_idx].speed_gain — that's why both the
+// agent_behaviors[id], with tier scaling applied via
+// agent_tier_gains[tier_idx].speed_gain — that's why both the
 // raw cap and the tier multiplier come in as parameters.
 fn agent_post_step(agent_in: AgentState, drag: f32, speed_cap: f32, speed_gain: f32) -> AgentState {
     var a = agent_in;
@@ -5204,6 +5225,16 @@ fn agent_post_step(agent_in: AgentState, drag: f32, speed_cap: f32, speed_gain: 
 
     return a;
 }
+
+// ═══ BEHAVIOR IMPLEMENTATIONS ════════════════════════════════════
+//
+// Each behavior is a pure function (AgentState) -> AgentState that
+// modifies velocity only — drag, integration, ground snap, heading
+// are factored into agent_post_step above. The kernel switch
+// dispatches on agent.behavior_id; slot numbers must match the
+// AgentBehaviorId enum in modules/agents.inl. Behavior parameters
+// come from agent_behaviors[behavior_id] (uploaded once at world
+// init from the C++ AGENT_BEHAVIORS table).
 
 // ─── Behavior: PlayerControlled ──────────────────────────────────
 // The body the player is currently inhabiting. Reads input/couplings,
@@ -5326,9 +5357,9 @@ fn behavior_random_walk(agent_in: AgentState) -> AgentState {
     let dt_beats  = signal.dt_beats;
     let t_beats   = signal.t_beats;
 
-    let b = AGENT_BEHAVIORS_WGSL[1u];
+    let b = agent_behaviors[1u];
     let tier = min(a.tier_idx, AGENT_TIER_COUNT_WGSL - 1u);
-    let g = AGENT_TIER_GAINS_WGSL[tier];
+    let g = agent_tier_gains[tier];
 
     // Step trigger — beat-gated. step_rate is steps per beat.
     let step_idx      = u32(floor(t_beats * b.step_rate));
@@ -5363,9 +5394,9 @@ fn behavior_biased_walk(agent_in: AgentState) -> AgentState {
     let dt_beats  = signal.dt_beats;
     let t_beats   = signal.t_beats;
 
-    let b = AGENT_BEHAVIORS_WGSL[2u];
+    let b = agent_behaviors[2u];
     let tier = min(a.tier_idx, AGENT_TIER_COUNT_WGSL - 1u);
-    let g = AGENT_TIER_GAINS_WGSL[tier];
+    let g = agent_tier_gains[tier];
 
     // Travel direction — derived from seed, stable across the agent's life.
     let travel_dir = hash_property(a.seed, 9100u) * 6.28318530718;
@@ -5438,9 +5469,9 @@ fn behavior_slow_patrol(agent_in: AgentState) -> AgentState {
     let dt_beats  = signal.dt_beats;
     let t_beats   = signal.t_beats;
 
-    let b = AGENT_BEHAVIORS_WGSL[5u];
+    let b = agent_behaviors[5u];
     let tier = min(a.tier_idx, AGENT_TIER_COUNT_WGSL - 1u);
-    let g = AGENT_TIER_GAINS_WGSL[tier];
+    let g = agent_tier_gains[tier];
 
     // Waypoint advances at b.step_rate (per beat). Each waypoint
     // is a hash-derived offset from home, scaled by step_size × tier.
@@ -5482,9 +5513,9 @@ fn behavior_wanderer(agent_in: AgentState) -> AgentState {
     let dt_beats  = signal.dt_beats;
     let t_beats   = signal.t_beats;
 
-    let b = AGENT_BEHAVIORS_WGSL[3u];
+    let b = agent_behaviors[3u];
     let tier = min(a.tier_idx, AGENT_TIER_COUNT_WGSL - 1u);
-    let g = AGENT_TIER_GAINS_WGSL[tier];
+    let g = agent_tier_gains[tier];
 
     // Step trigger.
     let step_idx      = u32(floor(t_beats * b.step_rate));
@@ -5523,9 +5554,9 @@ fn behavior_home_seeker(agent_in: AgentState) -> AgentState {
     let dt_beats  = signal.dt_beats;
     let t_beats   = signal.t_beats;
 
-    let b = AGENT_BEHAVIORS_WGSL[4u];
+    let b = agent_behaviors[4u];
     let tier = min(a.tier_idx, AGENT_TIER_COUNT_WGSL - 1u);
-    let g = AGENT_TIER_GAINS_WGSL[tier];
+    let g = agent_tier_gains[tier];
 
     // Step trigger — small random noise impulse.
     let step_idx      = u32(floor(t_beats * b.step_rate));
@@ -5564,9 +5595,9 @@ fn behavior_pursuit(agent_in: AgentState) -> AgentState {
     let dt_beats  = signal.dt_beats;
     let t_beats   = signal.t_beats;
 
-    let b = AGENT_BEHAVIORS_WGSL[6u];
+    let b = agent_behaviors[6u];
     let tier = min(a.tier_idx, AGENT_TIER_COUNT_WGSL - 1u);
-    let g = AGENT_TIER_GAINS_WGSL[tier];
+    let g = agent_tier_gains[tier];
 
     // Read the player position (live, not staged).
     let player = agent_state[config.possessed_slot];
@@ -5611,9 +5642,9 @@ fn behavior_flee(agent_in: AgentState) -> AgentState {
     let dt_beats  = signal.dt_beats;
     let t_beats   = signal.t_beats;
 
-    let b = AGENT_BEHAVIORS_WGSL[7u];
+    let b = agent_behaviors[7u];
     let tier = min(a.tier_idx, AGENT_TIER_COUNT_WGSL - 1u);
-    let g = AGENT_TIER_GAINS_WGSL[tier];
+    let g = agent_tier_gains[tier];
 
     let player = agent_state[config.possessed_slot];
     let dx = a.pos_x - player.pos_x;  // away vector
@@ -5658,9 +5689,9 @@ fn behavior_flock2d(agent_in: AgentState) -> AgentState {
     let dt_beats  = signal.dt_beats;
     let t_beats   = signal.t_beats;
 
-    let b = AGENT_BEHAVIORS_WGSL[8u];
+    let b = agent_behaviors[8u];
     let tier = min(a.tier_idx, AGENT_TIER_COUNT_WGSL - 1u);
-    let g = AGENT_TIER_GAINS_WGSL[tier];
+    let g = agent_tier_gains[tier];
 
     // Step trigger — flock decisions are beat-gated.
     let step_idx      = u32(floor(t_beats * b.step_rate));
@@ -5736,9 +5767,9 @@ fn behavior_levy_flight(agent_in: AgentState) -> AgentState {
     let dt_beats  = signal.dt_beats;
     let t_beats   = signal.t_beats;
 
-    let b = AGENT_BEHAVIORS_WGSL[9u];
+    let b = agent_behaviors[9u];
     let tier = min(a.tier_idx, AGENT_TIER_COUNT_WGSL - 1u);
-    let g = AGENT_TIER_GAINS_WGSL[tier];
+    let g = agent_tier_gains[tier];
 
     let step_idx      = u32(floor(t_beats * b.step_rate));
     let prev_step_idx = u32(floor(max(0.0, t_beats - dt_beats) * b.step_rate));
@@ -5758,6 +5789,19 @@ fn behavior_levy_flight(agent_in: AgentState) -> AgentState {
 
     return agent_post_step(a, b.drag, b.speed_cap, g.speed_gain);
 }
+
+// ═══ KERNELS ═════════════════════════════════════════════════════
+//
+// Two compute kernels share the agent state buffer:
+//   update_player_agent  — 0D (1 thread, the possessed slot only).
+//                          Walker policy + portal trigger + tilt.
+//                          Compile cost contained by isolation.
+//   update_other_agents  — 1D (32 threads, one per slot).
+//                          Algorithmic behaviors + eviction.
+//                          Skips the possessed slot internally.
+// Order matters: dispatch player BEFORE other_agents so the player's
+// updated position is visible to neighbor-sampling behaviors in the
+// same frame.
 
 // ─── Compute kernels ─────────────────────────────────────────────
 //

@@ -7553,6 +7553,16 @@ namespace t7 {
                     configure_orbs(ORB_MOOD_TABLE[activeMood_], q);
                 }
 
+                // Agent registries — single source of truth in modules/agents.inl
+                // (AGENT_BEHAVIORS / AGENT_TIER_GAINS), uploaded once to GPU
+                // storage buffers at bindings 110 + 111. Values are
+                // constexpr-equivalent and never change during a session,
+                // so this is a one-shot write at boot.
+                {
+                    wgpu::Queue q = device_.GetQueue();
+                    upload_agent_registries_to_gpu(q);
+                }
+
                 // Initial agent population for boot mood. Slot 0 (player) is
                 // already live on the GPU via GPUState's init; this populates
                 // slots 1..MAX_AGENTS-1 from AGENT_POPULATIONS[activeMood_].
@@ -7617,13 +7627,7 @@ namespace t7 {
                 gpuSignal.zoom_delta = inputState_.zoom_delta;
                 gpuSignal.pan_x_delta = inputState_.pan_x_delta;
                 gpuSignal.pan_y_delta = inputState_.pan_y_delta;
-
-                // Beat-time delta — currentBeats_ still holds the previous
-                // frame's beat value here (it gets overwritten below). Used
-                // by agent kernels for beat-gated decisions (e.g. RandomWalk's
-                // step trigger). Clamped to non-negative to be defensive
-                // against tempo discontinuities at session boot.
-                gpuSignal.dt_beats = std::max(0.0f, signal.t_beats - currentBeats_);
+                gpuSignal._pad1 = 0.0f;
 
                 currentBeats_ = signal.t_beats;
                 currentSeconds_ = signal.t_seconds;

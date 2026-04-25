@@ -73,6 +73,15 @@ enum AgentTierId : uint32_t {
     AGENT_TIER_COUNT    = 4,
 };
 
+// Cross-check: GPU-side count constants in state.hpp must match the
+// authoritative enums above. If you add a behavior or a tier, bump
+// the GPU constant in state.hpp at the same time. The compiler will
+// catch any drift here.
+static_assert(AGENT_BEHAVIOR_COUNT == GPU_AGENT_BEHAVIOR_COUNT,
+    "AGENT_BEHAVIOR_COUNT must match GPU_AGENT_BEHAVIOR_COUNT in state.hpp");
+static_assert(AGENT_TIER_COUNT == GPU_AGENT_TIER_COUNT,
+    "AGENT_TIER_COUNT must match GPU_AGENT_TIER_COUNT in state.hpp");
+
 
 // ═══ REGISTRY: BEHAVIORS ═════════════════════════════════════════
 //
@@ -236,6 +245,58 @@ static constexpr AgentPopulationDef AGENT_POPULATIONS[MOOD_COUNT] = {
 
 static_assert(sizeof(AGENT_POPULATIONS) / sizeof(AGENT_POPULATIONS[0]) == MOOD_COUNT,
               "AGENT_POPULATIONS must declare one row per mood");
+
+
+// ═══ REGISTRY UPLOAD (CPU table → GPU buffer, once at world-init) ═
+//
+// AGENT_BEHAVIORS and AGENT_TIER_GAINS are the single source of
+// truth for behavior/tier parameters. The compute kernels read them
+// from GPU storage buffers (bindings 110 / 111), uploaded once at
+// world-init by this helper. Values are constexpr-equivalent —
+// they never change during a session, so a one-shot upload at boot
+// is sufficient.
+//
+// The translation is a straight memcpy: AgentBehaviorDef and
+// GPUAgentBehaviorDef are intentionally laid out so the float
+// fields share order. The CPU struct has extra leading fields
+// (`id`, `name`) that aren't uploaded; we copy from `step_rate`
+// onward by offset.
+
+void upload_agent_registries_to_gpu(wgpu::Queue& queue) {
+    GPUAgentBehaviorDef gpu_behaviors[AGENT_BEHAVIOR_COUNT] = {};
+    for (uint32_t i = 0; i < AGENT_BEHAVIOR_COUNT; i++) {
+        const auto& src = AGENT_BEHAVIORS[i];
+        gpu_behaviors[i].step_rate       = src.step_rate;
+        gpu_behaviors[i].step_size       = src.step_size;
+        gpu_behaviors[i].persistence     = src.persistence;
+        gpu_behaviors[i].drag            = src.drag;
+        gpu_behaviors[i].home_pull       = src.home_pull;
+        gpu_behaviors[i].neighbor_radius = src.neighbor_radius;
+        gpu_behaviors[i].speed_cap       = src.speed_cap;
+        gpu_behaviors[i]._pad            = 0.0f;
+    }
+
+    GPUAgentTierDef gpu_tiers[AGENT_TIER_COUNT] = {};
+    for (uint32_t i = 0; i < AGENT_TIER_COUNT; i++) {
+        const auto& src = AGENT_TIER_GAINS[i];
+        gpu_tiers[i].step_gain     = src.step_gain;
+        gpu_tiers[i].persist_gain  = src.persist_gain;
+        gpu_tiers[i].speed_gain    = src.speed_gain;
+        gpu_tiers[i].coupling_gain = src.coupling_gain;
+        gpu_tiers[i].home_gain     = src.home_gain;
+        gpu_tiers[i].weight        = src.weight;
+        gpu_tiers[i].color_r       = src.color_r;
+        gpu_tiers[i].color_g       = src.color_g;
+        gpu_tiers[i].color_b       = src.color_b;
+        gpu_tiers[i]._pad[0] = 0.0f;
+        gpu_tiers[i]._pad[1] = 0.0f;
+        gpu_tiers[i]._pad[2] = 0.0f;
+    }
+
+    gpuState_.upload_agent_registries(queue,
+        gpu_behaviors, AGENT_BEHAVIOR_COUNT,
+        gpu_tiers,     AGENT_TIER_COUNT);
+}
 
 
 // ═══ CPU MIRROR ══════════════════════════════════════════════════

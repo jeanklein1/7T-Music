@@ -329,7 +329,7 @@ namespace t7 {
             float zoom_delta;
             float pan_x_delta;
             float pan_y_delta;
-            float dt_beats;       // beat-time delta (currentBeats_ - prevBeats_)
+            float _pad1;
         };
 
         struct alignas(16) GPUDesignConfig {
@@ -494,6 +494,54 @@ namespace t7 {
             float orient_z;        // 72
             float orient_w;        // 76
         };                         // 80 total
+
+        // GPU-side mirror of AgentBehaviorDef (modules/agents.inl) without
+        // the `id` and `name` fields. Uploaded once at world-init from
+        // the C++ AGENT_BEHAVIORS table (single source of truth) and read
+        // by the agent compute kernels via storage binding 110.
+        struct alignas(16) GPUAgentBehaviorDef {
+            float step_rate;       //  0 — steps per beat
+            float step_size;       //  4 — world units per step (or waypoint radius)
+            float persistence;     //  8 — [0,1] directional commitment
+            float drag;            // 12 — 1/s velocity decay coefficient
+            float home_pull;       // 16 — 1/s² tether spring coefficient
+            float neighbor_radius; // 20 — world units, flock/cohesion sample radius
+            float speed_cap;       // 24 — world units/s
+            float _pad;            // 28 — pad to 32 bytes
+        };                         // 32 total (16-byte aligned)
+
+        // Counts mirror the AGENT_BEHAVIOR_COUNT / AGENT_TIER_COUNT
+        // enums in modules/agents.inl. Kept here so state.hpp can size
+        // its registry buffers and bind-group entries without depending
+        // on agents.inl (which is included after state.hpp into the
+        // cartridge class scope). Asserts in agents.inl verify
+        // these stay in sync.
+        static constexpr uint32_t GPU_AGENT_BEHAVIOR_COUNT = 10;
+        static constexpr uint32_t GPU_AGENT_TIER_COUNT     = 4;
+
+        // GPU-side mirror of AgentTierDef (modules/agents.inl) without
+        // the `id` and `name` fields. Uploaded once at world-init from
+        // the C++ AGENT_TIER_GAINS table and read by the agent compute
+        // kernels via storage binding 111.
+        //
+        // Field layout matches WGSL `struct AgentTierParams` exactly so
+        // the WGSL side can read this buffer with the same struct shape
+        // it had when AGENT_TIER_GAINS_WGSL was a const array literal.
+        // Some fields are currently unused by the kernels (coupling_gain,
+        // home_gain, weight) but kept here so adding usages later
+        // doesn't require a struct/buffer reshape.
+        struct alignas(16) GPUAgentTierDef {
+            float step_gain;       //  0 — multiplies behavior.step_size impulse
+            float persist_gain;    //  4 — multiplies behavior.persistence (and home_pull)
+            float speed_gain;      //  8 — multiplies behavior.speed_cap
+            float coupling_gain;   // 12 — reserved (per-tier music coupling scale)
+            float home_gain;       // 16 — reserved (multiplies behavior.home_pull)
+            float weight;          // 20 — reserved (default selection weight)
+            float color_r;         // 24 — vertex shader entity color (line 3798 in world.wgsl)
+            float color_g;         // 28
+            float color_b;         // 32
+            float _pad[3];         // 36-47 — pad to 48 bytes (16-byte alignment)
+        };                         // 48 total (16-byte aligned)
 
         struct alignas(16) GPUCameraState {
             float pos[3];
@@ -1227,6 +1275,10 @@ namespace t7 {
         static_assert(sizeof(GPUTerrainState) == 32, "GPUTerrainState must be 32 bytes");
         static_assert(sizeof(GPUAgentState) == 80, "GPUAgentState must be 80 bytes");
         static_assert(sizeof(GPUAgentState) % 16 == 0, "GPUAgentState must be 16-byte aligned");
+        static_assert(sizeof(GPUAgentBehaviorDef) == 32, "GPUAgentBehaviorDef must be 32 bytes");
+        static_assert(sizeof(GPUAgentBehaviorDef) % 16 == 0, "GPUAgentBehaviorDef must be 16-byte aligned");
+        static_assert(sizeof(GPUAgentTierDef) == 48, "GPUAgentTierDef must be 48 bytes");
+        static_assert(sizeof(GPUAgentTierDef) % 16 == 0, "GPUAgentTierDef must be 16-byte aligned");
         static_assert(sizeof(GPUCameraState) == 48, "GPUCameraState must be 48 bytes");
         static_assert(sizeof(GPUFloatingEntityState) == 144, "GPUFloatingEntityState must be 144 bytes");
         static_assert(sizeof(GPURibbonState) == 96, "GPURibbonState must be 96 bytes");
@@ -1318,6 +1370,12 @@ namespace t7 {
             // body; slots 1..MAX_AGENTS-1 are mood-authored agents.
             wgpu::Buffer agentStateBuffer_;
             wgpu::Buffer agentStateReadbackStaging_;
+            // Agent registries — uploaded once at world-init from the C++
+            // AGENT_BEHAVIORS / AGENT_TIER_GAINS tables. The single source
+            // of truth lives in modules/agents.inl; the GPU side reads
+            // these buffers via storage bindings 110 / 111.
+            wgpu::Buffer agentBehaviorsBuffer_;
+            wgpu::Buffer agentTierGainsBuffer_;
             wgpu::Buffer cameraBuffer_, floatingEntityBuffer_, trajectoriesBuffer_;
             wgpu::Buffer ribbonBuffer_;
             wgpu::Buffer ringTransformsBuffer_;
@@ -1564,6 +1622,26 @@ namespace t7 {
 
             void upload_signal(wgpu::Queue& queue, const GPUFrameSignal& signal) {
                 queue.WriteBuffer(signalBuffer_, 0, &signal, sizeof(GPUFrameSignal));
+            }
+
+            // Upload the agent behavior + tier registries to the GPU.
+            // Called once at world-init from the cartridge — values are
+            // constexpr-equivalent (sourced from AGENT_BEHAVIORS /
+            // AGENT_TIER_GAINS in modules/agents.inl) and never change
+            // during a session. Source data is passed as raw pointers
+            // because the C++ tables are defined inside the cartridge
+            // class scope and aren't visible from state.hpp; the cartridge
+            // has both a translation step (CPU table → GPU struct) and
+            // the queue access, so it owns the call site.
+            void upload_agent_registries(wgpu::Queue& queue,
+                                         const GPUAgentBehaviorDef* behaviors,
+                                         uint32_t behavior_count,
+                                         const GPUAgentTierDef* tiers,
+                                         uint32_t tier_count) {
+                queue.WriteBuffer(agentBehaviorsBuffer_, 0, behaviors,
+                                  behavior_count * sizeof(GPUAgentBehaviorDef));
+                queue.WriteBuffer(agentTierGainsBuffer_, 0, tiers,
+                                  tier_count * sizeof(GPUAgentTierDef));
             }
 
             void upload_config(wgpu::Queue& queue) {
@@ -2553,6 +2631,16 @@ namespace t7 {
                 agentStateBuffer_ = makeBuffer("Agent State",
                     Dim::MAX_AGENTS * sizeof(GPUAgentState),
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::CopySrc);
+                // Agent registries — uniform on the GPU, written once at
+                // world-init from C++ tables (see upload_agent_registries).
+                // Uniform (not storage) to stay within the 10-per-stage
+                // storage buffer cap on the compute kernels.
+                agentBehaviorsBuffer_ = makeBuffer("Agent Behaviors Table",
+                    GPU_AGENT_BEHAVIOR_COUNT * sizeof(GPUAgentBehaviorDef),
+                    wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);
+                agentTierGainsBuffer_ = makeBuffer("Agent Tier Gains Table",
+                    GPU_AGENT_TIER_COUNT * sizeof(GPUAgentTierDef),
+                    wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);
                 cameraBuffer_ = makeBuffer("Camera State", sizeof(GPUCameraState), SU);
                 floatingEntityBuffer_ = makeBuffer("Floating Entity Array",
                     Dim::TOTAL_FLOATING_SLOTS * sizeof(GPUFloatingEntityState),
@@ -3357,7 +3445,7 @@ namespace t7 {
                 // Sphere:  100-119   (sphere_state, trajectories)
                 //
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 17> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 19> entries{};
 
                     entries[0].binding = 0;
                     entries[0].visibility = wgpu::ShaderStage::Compute;
@@ -3436,6 +3524,20 @@ namespace t7 {
                     entries[16].visibility = wgpu::ShaderStage::Compute;
                     entries[16].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
+                    // Agent registries (uniform — read-only, fixed size,
+                    // never changes during a session). Originally tried as
+                    // ReadOnlyStorage but pushed compute storage buffer
+                    // count past the 10-per-stage limit; uniform has its
+                    // own 12-per-stage budget and these tables (≤ 512 B
+                    // total) fit comfortably.
+                    entries[17].binding = 110;  // agent_behaviors
+                    entries[17].visibility = wgpu::ShaderStage::Compute;
+                    entries[17].buffer.type = wgpu::BufferBindingType::Uniform;
+
+                    entries[18].binding = 111;  // agent_tier_gains
+                    entries[18].visibility = wgpu::ShaderStage::Compute;
+                    entries[18].buffer.type = wgpu::BufferBindingType::Uniform;
+
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Compute Entity Layout";
                     desc.entryCount = entries.size();
@@ -3456,7 +3558,7 @@ namespace t7 {
                 // Vertex shaders need entity state for positioning + VP for transform.
                 // Fragment shaders need camera for fog distance.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 18> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 19> entries{};
 
                     entries[0].binding = 1;    // config (uniform — fog, world_seed, aura_enabled, fade)
                     entries[0].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
@@ -3536,6 +3638,15 @@ namespace t7 {
                     entries[17].binding = 411;
                     entries[17].visibility = wgpu::ShaderStage::Vertex;
                     entries[17].buffer.type = wgpu::BufferBindingType::Uniform;
+
+                    // Agent tier registry — same buffer as compute binding 111.
+                    // Read by pawn_vs for entity color (tg.color_r/g/b).
+                    // Uniform (not storage) to stay under the per-stage
+                    // storage buffer cap; same buffer is bound as uniform
+                    // on the compute side too.
+                    entries[18].binding = 111;
+                    entries[18].visibility = wgpu::ShaderStage::Vertex;
+                    entries[18].buffer.type = wgpu::BufferBindingType::Uniform;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Render Entity Layout";
@@ -4344,7 +4455,7 @@ namespace t7 {
 
                 // Compute entity bind group (17 entries: systems + terrain + GoL zones + portals + cached heightfield)
                 {
-                    std::array<wgpu::BindGroupEntry, 17> entries{};
+                    std::array<wgpu::BindGroupEntry, 19> entries{};
 
                     entries[0].binding = 0;
                     entries[0].buffer = signalBuffer_;
@@ -4423,6 +4534,17 @@ namespace t7 {
                     entries[16].buffer = patchGridBuffer_;
                     entries[16].size = sizeof(GPUPatchGrid);
 
+                    // Agent registries — see modules/agents.inl for the
+                    // authoring tables and GPUAgentBehaviorDef /
+                    // GPUAgentTierDef in this file for GPU layout.
+                    entries[17].binding = 110;
+                    entries[17].buffer = agentBehaviorsBuffer_;
+                    entries[17].size = GPU_AGENT_BEHAVIOR_COUNT * sizeof(GPUAgentBehaviorDef);
+
+                    entries[18].binding = 111;
+                    entries[18].buffer = agentTierGainsBuffer_;
+                    entries[18].size = GPU_AGENT_TIER_COUNT * sizeof(GPUAgentTierDef);
+
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Compute Entity BindGroup";
                     desc.layout = computeEntityBindGroupLayout_;
@@ -4432,9 +4554,9 @@ namespace t7 {
                     if (!computeEntityBindGroup_) return false;
                 }
 
-                // Render entity bind group (18 entries: config + spaced by system +200)
+                // Render entity bind group (19 entries: config + spaced by system +200, plus shared agent_tier_gains at 111)
                 {
-                    std::array<wgpu::BindGroupEntry, 18> entries{};
+                    std::array<wgpu::BindGroupEntry, 19> entries{};
 
                     entries[0].binding = 1;
                     entries[0].buffer = configBuffer_;
@@ -4511,6 +4633,14 @@ namespace t7 {
                     entries[17].binding = 411;
                     entries[17].buffer = orbConfigBuffer_;
                     entries[17].size = sizeof(GPUOrbConfig);
+
+                    // Agent tier gains — same buffer as compute binding 111.
+                    // Read by pawn_vs in the vertex stage for entity color
+                    // (tier_idx → tg.color_r/g/b). Single source of truth
+                    // is the C++ AGENT_TIER_GAINS table in modules/agents.inl.
+                    entries[18].binding = 111;
+                    entries[18].buffer = agentTierGainsBuffer_;
+                    entries[18].size = GPU_AGENT_TIER_COUNT * sizeof(GPUAgentTierDef);
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Render Entity BindGroup";
@@ -4756,7 +4886,7 @@ namespace t7 {
 
                 // Photographer render entity bind group (same layout as main, different VP)
                 {
-                    std::array<wgpu::BindGroupEntry, 18> entries{};
+                    std::array<wgpu::BindGroupEntry, 19> entries{};
                     entries[0].binding = 1;
                     entries[0].buffer = configBuffer_;
                     entries[0].size = sizeof(GPUDesignConfig);
@@ -4817,6 +4947,12 @@ namespace t7 {
                     entries[17].binding = 411;
                     entries[17].buffer = orbConfigBuffer_;
                     entries[17].size = sizeof(GPUOrbConfig);
+
+                    // Agent tier gains — same buffer as main render path.
+                    // Required because layout has it at index 18.
+                    entries[18].binding = 111;
+                    entries[18].buffer = agentTierGainsBuffer_;
+                    entries[18].size = GPU_AGENT_TIER_COUNT * sizeof(GPUAgentTierDef);
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Photographer Render Entity BindGroup";
