@@ -187,6 +187,21 @@ namespace t7 {
 
             static constexpr uint32_t MOOD_COUNT = 6;
 
+            // ─── Mood IDs ───────────────────────────────────────────────────
+            //
+            // Named indices into MOOD_TABLE / ORB_MOOD_TABLE / AGENT_POPULATIONS
+            // and any per-mood multiplier array elsewhere in the codebase.
+            // The order is canonical — every per-mood table is written in
+            // this order, and AGENT_POPULATIONS has per-row static_asserts
+            // that catch reordering.
+
+            static constexpr uint32_t MOOD_OPEN_DEFAULT       = 0;
+            static constexpr uint32_t MOOD_OPEN_SUNSET        = 1;
+            static constexpr uint32_t MOOD_INDOOR_FLAT        = 2;
+            static constexpr uint32_t MOOD_INDOOR_VAULT       = 3;
+            static constexpr uint32_t MOOD_FINITE_OUTDOOR     = 4;
+            static constexpr uint32_t MOOD_FINITE_OUTDOOR_REF = 5;
+
             // ─── Mood Definitions ───────────────────────────────────────────
             //
             // Sky orb config lives in ORB_MOOD_TABLE below, indexed by the
@@ -194,12 +209,12 @@ namespace t7 {
             //
             //                                  fin  r_min r_max  sun_dir                sun_color              int   amb   fog_d   fog_color               indoor  ceil       ceil_h  clear_color            wall_color             ceil_color               modes   zones  aura   cull
             static constexpr MoodProfile MOOD_TABLE[MOOD_COUNT] = {
-                /* 0  open_default        */  { false, 2, 2, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true  },
-                /* 1  open_sunset         */  { false, 2, 2, { 0.96f,-0.26f,-0.13f}, {1.0f, 0.75f, 0.45f}, 0.90f, 0.20f, 0.0050f, {0.95f, 0.70f, 0.45f},  false, CeilingType::NONE,  0.0f,  {0.95f, 0.70f, 0.45f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true  },
-                /* 2  indoor_flat         */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f, 0.0003f, {0.15f, 0.12f, 0.10f},  true,  CeilingType::FLAT,  20.0f, {0.15f, 0.12f, 0.10f}, {0.65f,0.58f,0.50f}, {0.60f,0.55f,0.48f},   true,  true,  true,  false },
-                /* 3  indoor_vault        */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f, 0.0003f, {0.15f, 0.12f, 0.10f},  true,  CeilingType::VAULT, 25.0f, {0.15f, 0.12f, 0.10f}, {0.70f,0.62f,0.52f}, {0.65f,0.58f,0.50f},   true,  true,  true,  false },
-                /* 4  finite_outdoor      */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true  },
-                /* 5  finite_outdoor_ref  */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true  },
+                /* MOOD_OPEN_DEFAULT       */  { false, 2, 2, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true  },
+                /* MOOD_OPEN_SUNSET        */  { false, 2, 2, { 0.96f,-0.26f,-0.13f}, {1.0f, 0.75f, 0.45f}, 0.90f, 0.20f, 0.0050f, {0.95f, 0.70f, 0.45f},  false, CeilingType::NONE,  0.0f,  {0.95f, 0.70f, 0.45f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true  },
+                /* MOOD_INDOOR_FLAT        */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f, 0.0003f, {0.15f, 0.12f, 0.10f},  true,  CeilingType::FLAT,  20.0f, {0.15f, 0.12f, 0.10f}, {0.65f,0.58f,0.50f}, {0.60f,0.55f,0.48f},   true,  true,  true,  false },
+                /* MOOD_INDOOR_VAULT       */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f, 0.0003f, {0.15f, 0.12f, 0.10f},  true,  CeilingType::VAULT, 25.0f, {0.15f, 0.12f, 0.10f}, {0.70f,0.62f,0.52f}, {0.65f,0.58f,0.50f},   true,  true,  true,  false },
+                /* MOOD_FINITE_OUTDOOR     */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true  },
+                /* MOOD_FINITE_OUTDOOR_REF */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true  },
             };
 
             // Orb mood config lives in ORB_MOOD_TABLE, declared right after
@@ -207,7 +222,12 @@ namespace t7 {
             // defined). Same MOOD_COUNT size, indexed by the same mood index.
 
             static const char* mood_name(uint32_t mood) {
-                static const char* NAMES[] = { "open_default", "open_sunset", "indoor_flat", "indoor_vault", "finite_outdoor", "finite_outdoor_ref" };
+                // Sized array so the compiler catches a missing entry if
+                // MOOD_COUNT changes without updating this list.
+                static const char* NAMES[MOOD_COUNT] = {
+                    "open_default", "open_sunset", "indoor_flat",
+                    "indoor_vault", "finite_outdoor", "finite_outdoor_ref"
+                };
                 return (mood < MOOD_COUNT) ? NAMES[mood] : "unknown";
             }
 
@@ -8034,9 +8054,20 @@ namespace t7 {
 
                 stream_patches(encoder, queue);
 
-                // Periodic agent census dump
+                // Periodic agent census dump — followed by the player's
+                // last-known position from the GPU readback. The pos line
+                // tells us at-a-glance whether the readback is current
+                // (a stuck readback would freeze the position; an idle
+                // player would do the same — pair the two by visiting
+                // the world manually if you need to disambiguate).
                 if (currentSeconds_ - lastAgentCensusDump_ >= AGENT_CENSUS_INTERVAL) {
                     dump_agent_census("periodic");
+                    const auto& player = cpuAgents_[0];
+                    std::cout << "[Player] pos=(" << std::fixed << std::setprecision(1)
+                              << player.pos_x << "," << player.pos_z
+                              << ") slot=" << player_.possessed_slot
+                              << " behavior=" << player.behavior_id
+                              << "\n";
                     lastAgentCensusDump_ = currentSeconds_;
                 }
 

@@ -73,7 +73,7 @@ void on_key_down(int key) {
     case GLFW_KEY_5:
     {
         if (transitionPhase_ != TransitionPhase::IDLE) break;
-        uint32_t mood = 1;  // open_sunset
+        uint32_t mood = MOOD_OPEN_SUNSET;
         const auto& mp = MOOD_TABLE[mood];
         uint32_t dest_seed = cpu_hash(activeSeed_, 999u);
         pendingDestination_ = { dest_seed, mp.finite, derive_finite_radius(dest_seed, mp), mood };
@@ -86,7 +86,7 @@ void on_key_down(int key) {
     case GLFW_KEY_6:
     {
         if (transitionPhase_ != TransitionPhase::IDLE) break;
-        uint32_t mood = 2;  // indoor_flat
+        uint32_t mood = MOOD_INDOOR_FLAT;
         const auto& mp = MOOD_TABLE[mood];
         uint32_t dest_seed = cpu_hash(activeSeed_, 999u);
         uint32_t radius = derive_finite_radius(dest_seed, mp);
@@ -102,7 +102,7 @@ void on_key_down(int key) {
     case GLFW_KEY_7:
     {
         if (transitionPhase_ != TransitionPhase::IDLE) break;
-        uint32_t mood = 3;  // indoor_vault
+        uint32_t mood = MOOD_INDOOR_VAULT;
         const auto& mp = MOOD_TABLE[mood];
         uint32_t dest_seed = cpu_hash(activeSeed_, 999u);
         uint32_t radius = derive_finite_radius(dest_seed, mp);
@@ -118,7 +118,7 @@ void on_key_down(int key) {
     case GLFW_KEY_8:
     {
         if (transitionPhase_ != TransitionPhase::IDLE) break;
-        uint32_t mood = 4;  // finite_outdoor
+        uint32_t mood = MOOD_FINITE_OUTDOOR;
         const auto& mp = MOOD_TABLE[mood];
         uint32_t dest_seed = cpu_hash(activeSeed_, 999u);
         uint32_t radius = derive_finite_radius(dest_seed, mp);
@@ -134,7 +134,7 @@ void on_key_down(int key) {
     case GLFW_KEY_9:
     {
         if (transitionPhase_ != TransitionPhase::IDLE) break;
-        uint32_t mood = 5;  // finite_outdoor_ref
+        uint32_t mood = MOOD_FINITE_OUTDOOR_REF;
         const auto& mp = MOOD_TABLE[mood];
         uint32_t dest_seed = cpu_hash(activeSeed_, 999u);
         uint32_t radius = derive_finite_radius(dest_seed, mp);
@@ -173,6 +173,30 @@ void on_key_down(int key) {
     case GLFW_KEY_CAPS_LOCK: {
         wgpu::Queue q = device_.GetQueue();
         try_possess_nearest(q);
+        break;
+    }
+    // ─── Agent diagnostics (B/T/R) ─────────────────────────────────
+    // Inspection knobs for the agent system. See agents.inl
+    // "DIAGNOSTIC CYCLING" section for behavior. All three apply to
+    // every active non-player slot; PlayerControlled is excluded from
+    // the behavior cycle so cycling never strands the player's input.
+    //
+    //   B — cycle behavior override (none → random_walk → ... → none)
+    //   T — cycle tier override     (none → worker → ... → none)
+    //   R — force-respawn the population around the player
+    case GLFW_KEY_B: {
+        wgpu::Queue q = device_.GetQueue();
+        cycle_agent_behavior_override(q);
+        break;
+    }
+    case GLFW_KEY_T: {
+        wgpu::Queue q = device_.GetQueue();
+        cycle_agent_tier_override(q);
+        break;
+    }
+    case GLFW_KEY_R: {
+        wgpu::Queue q = device_.GetQueue();
+        force_respawn_population(q);
         break;
     }
     case GLFW_KEY_LEFT_BRACKET:

@@ -19,6 +19,13 @@ function fallbackCopy(text) {
    7T PYRAMID DESIGNER
    Truncated quad solid — 3 tiers (Obelisk / Temple / Colossus).
    Parameters from cartridge.hpp PYRAMID_TIERS[].
+
+   Preview matches engine pyramid_mesh_gen (world.wgsl §9.0):
+   • truncation < 0.01 → pointed: 4 triangular sides + 2-tri bottom cap (6 tris)
+   • truncation ≥ 0.01 → truncated: 4 quad sides + top cap + bottom cap (12 tris)
+
+   2D cross-section overlays the terrain heightfield from evaluate_pyramid()
+   (world.wgsl ~L1880) so edge_blend's effect on the base is visible.
    ═══════════════════════════════════════════════════════════════════════ */
 
 const TIER_NAMES = ["Obelisk", "Temple", "Colossus"];
@@ -35,53 +42,148 @@ function defaultTier(idx) {
   return JSON.parse(JSON.stringify(D[idx]));
 }
 
-/* ═══ 3D RENDERER ═══ */
+/* ═══ MATH HELPERS ═══ */
 function cross3(a, b) { return [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]]; }
 function sub3(a, b) { return [a[0]-b[0], a[1]-b[1], a[2]-b[2]]; }
 function normalize3(v) { const l = Math.sqrt(v[0]*v[0]+v[1]*v[1]+v[2]*v[2]); return l < 1e-8 ? [0,0,1] : [v[0]/l, v[1]/l, v[2]/l]; }
 function rgb01(r, g, b) { return `rgb(${Math.round(Math.max(0,Math.min(1,r))*255)},${Math.round(Math.max(0,Math.min(1,g))*255)},${Math.round(Math.max(0,Math.min(1,b))*255)})`; }
+function smoothstep(a, b, x) { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); }
 
+/* ═══ TERRAIN HEIGHTFIELD (mirrors world.wgsl evaluate_pyramid) ═══
+   At each (lx, lz) in pyramid-local space, returns the terrain Y
+   contribution. The visible mesh is hard-edged at hx/hz; the heightfield
+   adds a subtle softening at the base in the [hx-blend, hx+blend] band
+   via the smoothstep mask. */
+function evaluatePyramid(lx, lz, T) {
+  const hx = T.base_half;
+  const hz = T.base_half * T.aspect;
+  const blend = Math.max(T.edge_blend, 0);
+  const aLx = Math.abs(lx), aLz = Math.abs(lz);
+  if (aLx > hx + blend || aLz > hz + blend) return 0;
+  let mask = 1;
+  if (blend > 0.001) {
+    const fx_lo = smoothstep(-hx - blend, -hx + blend, lx);
+    const fx_hi = 1 - smoothstep(hx - blend, hx + blend, lx);
+    const fz_lo = smoothstep(-hz - blend, -hz + blend, lz);
+    const fz_hi = 1 - smoothstep(hz - blend, hz + blend, lz);
+    mask = fx_lo * fx_hi * fz_lo * fz_hi;
+  } else {
+    if (aLx > hx || aLz > hz) return 0;
+  }
+  if (mask < 0.001) return 0;
+  const cheb = Math.max(aLx / Math.max(hx, 0.001), aLz / Math.max(hz, 0.001));
+  const taper = Math.max(0, Math.min(1, (1 - cheb) / Math.max(1 - T.trunc, 0.001)));
+  return T.height * taper * mask;
+}
+
+/* ═══ 3D RENDERER ═══
+   Rebuilds the engine's exact mesh topology:
+   • pointed (trunc < 0.01) → 4 tri sides + 2 bottom-cap tris (6 tris, 18 idx)
+   • truncated (trunc ≥ 0.01) → 4 quad sides + top + bottom (12 tris, 36 idx)
+   Winding matches pyramid_mesh_gen (world.wgsl §9.0). */
 function render3D(ctx, W, H, T, rotY, tilt) {
   ctx.clearRect(0, 0, W, H);
   const bx = T.base_half, bz = T.base_half * T.aspect;
-  const tx = bx * T.trunc, tz = bz * T.trunc;
   const h = T.height;
   const col = T.color;
+  const blend = Math.max(T.edge_blend, 0);
+  const isPointed = T.trunc < 0.01;
 
-  // 8 corners: base (y=0) and top (y=h)
-  const verts = [
-    [-bx, 0, -bz], [bx, 0, -bz], [bx, 0, bz], [-bx, 0, bz],  // base
-    [-tx, h, -tz], [tx, h, -tz], [tx, h, tz], [-tx, h, tz],      // top
-  ];
+  // Base corners (y = 0, ground-relative — engine VS adds ground_y)
+  const b00 = [-bx, 0, -bz];
+  const b10 = [ bx, 0, -bz];
+  const b11 = [ bx, 0,  bz];
+  const b01 = [-bx, 0,  bz];
+
+  // Build face list (each face: { verts, shadeMul })
+  const faces = [];
+  if (isPointed) {
+    // 4 triangular sides — winding from engine: bases[(f+1)%4], bases[f], apex
+    const apex = [0, h, 0];
+    faces.push({ verts: [b10, b00, apex], shadeMul: 0.92 }); // -z
+    faces.push({ verts: [b11, b10, apex], shadeMul: 0.85 }); // +x
+    faces.push({ verts: [b01, b11, apex], shadeMul: 0.92 }); // +z
+    faces.push({ verts: [b00, b01, apex], shadeMul: 0.85 }); // -x
+    // Bottom cap (CW from above → -Y normal)
+    faces.push({ verts: [b00, b11, b01], shadeMul: 0.45 });
+    faces.push({ verts: [b00, b10, b11], shadeMul: 0.45 });
+  } else {
+    const tx = bx * T.trunc, tz = bz * T.trunc;
+    const t00 = [-tx, h, -tz];
+    const t10 = [ tx, h, -tz];
+    const t11 = [ tx, h,  tz];
+    const t01 = [-tx, h,  tz];
+    // Side quads as triangle pairs (matches engine emit_tri ordering)
+    faces.push({ verts: [b10, b00, t00], shadeMul: 0.90 }); faces.push({ verts: [b10, t00, t10], shadeMul: 0.90 });
+    faces.push({ verts: [b11, b10, t10], shadeMul: 0.85 }); faces.push({ verts: [b11, t10, t11], shadeMul: 0.85 });
+    faces.push({ verts: [b01, b11, t11], shadeMul: 0.90 }); faces.push({ verts: [b01, t11, t01], shadeMul: 0.90 });
+    faces.push({ verts: [b00, b01, t01], shadeMul: 0.85 }); faces.push({ verts: [b00, t01, t00], shadeMul: 0.85 });
+    // Top cap (CCW from above → +Y normal)
+    faces.push({ verts: [t00, t01, t11], shadeMul: 1.00 }); faces.push({ verts: [t00, t11, t10], shadeMul: 1.00 });
+    // Bottom cap (CW from above → -Y normal)
+    faces.push({ verts: [b00, b11, b01], shadeMul: 0.45 }); faces.push({ verts: [b00, b10, b11], shadeMul: 0.45 });
+  }
 
   const lightDir = normalize3([-0.6, -0.7, -0.3]);
   const cosR = Math.cos(rotY), sinR = Math.sin(rotY);
   const cosT = Math.cos(tilt), sinT = Math.sin(tilt);
 
-  const extent = Math.max(bx * 2, bz * 2, h);
+  // Include blend in framing extent so the edge_blend zone outline stays visible
+  const extent = Math.max((bx + blend) * 2, (bz + blend) * 2, h);
   const scale = Math.min(W, H) * 0.40 / (extent * 0.5);
   const midY = h / 2;
-  // Subtract midY BEFORE rotation so the pyramid spins around its center
-  const rotVert = (v) => { const vy=v[1]-midY; const x1=v[0]*cosR+v[2]*sinR; const z1=-v[0]*sinR+v[2]*cosR; return [x1, vy*cosT-z1*sinT, vy*sinT+z1*cosT]; };
+  const rotVert = (v) => { const vy = v[1] - midY; const x1 = v[0]*cosR + v[2]*sinR; const z1 = -v[0]*sinR + v[2]*cosR; return [x1, vy*cosT - z1*sinT, vy*sinT + z1*cosT]; };
   const project = (v) => [W/2 + v[0]*scale, H/2 - v[1]*scale];
 
-  const faceIdx = [[0,3,2,1],[4,5,6,7],[0,1,5,4],[2,3,7,6],[1,2,6,5],[0,4,7,3]];
-  const faceShade = [0.5, 1.0, 0.85, 0.85, 0.9, 0.9]; // base darker
-
-  const faces = [];
-  for (let fi = 0; fi < 6; fi++) {
-    const fv = faceIdx[fi].map(ci => rotVert(verts[ci]));
-    const e1 = sub3(fv[1], fv[0]), e2 = sub3(fv[3], fv[0]);
+  // Process faces: cull, shade, sort
+  const renderFaces = [];
+  for (const f of faces) {
+    const fv = f.verts.map(rotVert);
+    const e1 = sub3(fv[1], fv[0]), e2 = sub3(fv[2], fv[0]);
     const n = normalize3(cross3(e1, e2));
-    if (n[2] > 0.02) continue;
-    const diff = Math.max(0, n[0]*lightDir[0]+n[1]*lightDir[1]+n[2]*lightDir[2]);
-    const light = 0.22 + 0.78 * diff * faceShade[fi];
+    if (n[2] > 0.02) continue; // backface cull
+    const diff = Math.max(0, n[0]*lightDir[0] + n[1]*lightDir[1] + n[2]*lightDir[2]);
+    const light = 0.22 + 0.78 * diff * f.shadeMul;
     const avgZ = fv.reduce((s, v) => s + v[2], 0) / fv.length;
-    faces.push({ verts: fv, light, avgZ });
+    renderFaces.push({ verts: fv, light, avgZ });
+  }
+  renderFaces.sort((a, b) => a.avgZ - b.avgZ);
+
+  // Optional: edge_blend zone outline at y=0 (extended footprint, hx+blend)
+  // This is purely informational — the engine's mask attenuates terrain
+  // height in the [hx-blend, hx+blend] band (taper=0 outside hx, so visible
+  // softening is on the inside of the mesh base).
+  if (blend > 0.001) {
+    const ringMesh = [
+      [-bx, 0, -bz], [ bx, 0, -bz], [ bx, 0,  bz], [-bx, 0,  bz]
+    ].map(v => project(rotVert(v)));
+    const ringExt = [
+      [-bx-blend, 0, -bz-blend], [ bx+blend, 0, -bz-blend],
+      [ bx+blend, 0,  bz+blend], [-bx-blend, 0,  bz+blend]
+    ].map(v => project(rotVert(v)));
+    ctx.strokeStyle = "rgba(255,200,100,0.20)"; ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
+    ctx.beginPath();
+    ctx.moveTo(ringExt[0][0], ringExt[0][1]);
+    for (let i = 1; i < ringExt.length; i++) ctx.lineTo(ringExt[i][0], ringExt[i][1]);
+    ctx.closePath(); ctx.stroke();
+    ctx.setLineDash([]);
+    // Inner edge of softening band (hx - blend) — only if blend < hx
+    if (blend < bx && blend < bz) {
+      const ringInner = [
+        [-bx+blend, 0, -bz+blend], [ bx-blend, 0, -bz+blend],
+        [ bx-blend, 0,  bz-blend], [-bx+blend, 0,  bz-blend]
+      ].map(v => project(rotVert(v)));
+      ctx.strokeStyle = "rgba(255,200,100,0.10)"; ctx.lineWidth = 0.5; ctx.setLineDash([2, 4]);
+      ctx.beginPath();
+      ctx.moveTo(ringInner[0][0], ringInner[0][1]);
+      for (let i = 1; i < ringInner.length; i++) ctx.lineTo(ringInner[i][0], ringInner[i][1]);
+      ctx.closePath(); ctx.stroke();
+      ctx.setLineDash([]);
+    }
   }
 
-  faces.sort((a, b) => a.avgZ - b.avgZ);
-  for (const f of faces) {
+  // Draw mesh faces (back to front)
+  for (const f of renderFaces) {
     const pts = f.verts.map(project);
     ctx.fillStyle = rgb01(col[0]*f.light, col[1]*f.light, col[2]*f.light);
     ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
@@ -90,37 +192,98 @@ function render3D(ctx, W, H, T, rotY, tilt) {
     ctx.strokeStyle = rgb01(col[0]*f.light*0.7, col[1]*f.light*0.7, col[2]*f.light*0.7);
     ctx.lineWidth = 0.5; ctx.stroke();
   }
+
+  // Topology label
+  ctx.fillStyle = "rgba(255,255,255,0.45)"; ctx.font = "9px monospace"; ctx.textAlign = "left";
+  ctx.fillText(isPointed ? "mesh: pointed · 6 tris (4 sides + bottom)" : "mesh: truncated · 12 tris (4 sides + top + bottom)", 8, 14);
 }
 
-/* ═══ 2D CROSS-SECTION ═══ */
+/* ═══ 2D CROSS-SECTION ═══
+   Shows mesh outline (solid) overlaid on the terrain heightfield curve
+   (orange) sampled along z=0. Where they diverge near the base reveals
+   the edge_blend effect — the terrain dips below the mesh in the
+   [hx-blend, hx] band where mask < 1.0. */
 function render2D(ctx, W, H, T) {
   ctx.clearRect(0, 0, W, H); ctx.fillStyle = "#111114"; ctx.fillRect(0, 0, W, H);
-  const bx = T.base_half, tx = bx * T.trunc, h = T.height;
-  const extent = Math.max(bx * 2, h); const mg = 20;
-  const sc = Math.min((W - mg*2) / (bx * 2.2), (H - mg*2) / (h * 1.1));
+  const bx = T.base_half;
+  const tx = bx * T.trunc;
+  const h = T.height;
+  const blend = Math.max(T.edge_blend, 0);
+  const isPointed = T.trunc < 0.01;
+  const xExtent = bx + blend + 1;
+  const mg = 20;
+  const sc = Math.min((W - mg*2) / (xExtent * 2.2), (H - mg*2) / (h * 1.15));
   const cx = W / 2, baseY = H - mg;
   const toS = (x, y) => [cx + x * sc, baseY - y * sc];
 
-  // Fill
-  ctx.fillStyle = "rgba(130,120,100,0.15)";
+  // ── Terrain heightfield curve (orange) ─────────────────────────────
+  const samples = 240;
+  const xMin = -xExtent, xMax = xExtent;
+  // Filled region under the curve
+  ctx.fillStyle = "rgba(255,180,80,0.10)";
   ctx.beginPath();
-  const [x0, y0] = toS(-bx, 0); ctx.moveTo(x0, y0);
-  const [x1, y1] = toS(bx, 0); ctx.lineTo(x1, y1);
-  const [x2, y2] = toS(tx, h); ctx.lineTo(x2, y2);
-  const [x3, y3] = toS(-tx, h); ctx.lineTo(x3, y3);
+  ctx.moveTo(...toS(xMin, 0));
+  for (let i = 0; i <= samples; i++) {
+    const x = xMin + (xMax - xMin) * i / samples;
+    const y = evaluatePyramid(x, 0, T);
+    ctx.lineTo(...toS(x, y));
+  }
+  ctx.lineTo(...toS(xMax, 0));
   ctx.closePath(); ctx.fill();
+  // Curve outline
+  ctx.strokeStyle = "rgba(255,180,80,0.55)"; ctx.lineWidth = 1;
+  ctx.beginPath();
+  let first = true;
+  for (let i = 0; i <= samples; i++) {
+    const x = xMin + (xMax - xMin) * i / samples;
+    const y = evaluatePyramid(x, 0, T);
+    const [sx, sy] = toS(x, y);
+    if (first) { ctx.moveTo(sx, sy); first = false; } else { ctx.lineTo(sx, sy); }
+  }
+  ctx.stroke();
 
-  // Outline
-  ctx.strokeStyle = rgb01(T.color[0], T.color[1], T.color[2]); ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.lineTo(x2, y2); ctx.lineTo(x3, y3); ctx.closePath(); ctx.stroke();
+  // ── Mesh outline (sandstone) ───────────────────────────────────────
+  // Pointed: triangle. Truncated: trapezoid.
+  const drawMeshPath = () => {
+    ctx.beginPath();
+    if (isPointed) {
+      const [x0, y0] = toS(-bx, 0);   ctx.moveTo(x0, y0);
+      const [x1, y1] = toS( bx, 0);   ctx.lineTo(x1, y1);
+      const [x2, y2] = toS(  0, h);   ctx.lineTo(x2, y2);
+    } else {
+      const [x0, y0] = toS(-bx, 0);   ctx.moveTo(x0, y0);
+      const [x1, y1] = toS( bx, 0);   ctx.lineTo(x1, y1);
+      const [x2, y2] = toS( tx, h);   ctx.lineTo(x2, y2);
+      const [x3, y3] = toS(-tx, h);   ctx.lineTo(x3, y3);
+    }
+    ctx.closePath();
+  };
+  ctx.fillStyle = "rgba(130,120,100,0.18)"; drawMeshPath(); ctx.fill();
+  ctx.strokeStyle = rgb01(T.color[0], T.color[1], T.color[2]); ctx.lineWidth = 1.5; drawMeshPath(); ctx.stroke();
 
-  // Ground line
+  // ── Ground line ────────────────────────────────────────────────────
   ctx.strokeStyle = "rgba(100,200,100,0.25)"; ctx.lineWidth = 1; ctx.setLineDash([4, 3]);
-  ctx.beginPath(); ctx.moveTo(toS(-bx*1.1, 0)[0], toS(0, 0)[1]); ctx.lineTo(toS(bx*1.1, 0)[0], toS(0, 0)[1]); ctx.stroke(); ctx.setLineDash([]);
+  ctx.beginPath(); ctx.moveTo(...toS(-xExtent*1.05, 0)); ctx.lineTo(...toS(xExtent*1.05, 0)); ctx.stroke();
+  ctx.setLineDash([]);
 
-  // Dims
-  ctx.fillStyle = "rgba(255,255,255,0.3)"; ctx.font = "9px monospace"; ctx.textAlign = "center";
-  ctx.fillText(`h=${h.toFixed(1)}  base=${bx.toFixed(1)}  trunc=${(T.trunc*100).toFixed(0)}%`, cx, toS(0, h)[1] - 6);
+  // ── Edge_blend zone tick marks at -bx-e, -bx, -bx+e, bx-e, bx, bx+e ─
+  if (blend > 0.001) {
+    ctx.strokeStyle = "rgba(255,180,80,0.30)"; ctx.lineWidth = 1; ctx.setLineDash([2, 2]);
+    [-bx - blend, -bx + blend, bx - blend, bx + blend].forEach(x => {
+      const [sx, sy] = toS(x, 0);
+      ctx.beginPath(); ctx.moveTo(sx, sy - 6); ctx.lineTo(sx, sy + 4); ctx.stroke();
+    });
+    ctx.setLineDash([]);
+  }
+
+  // ── Dimensions label ───────────────────────────────────────────────
+  ctx.fillStyle = "rgba(255,255,255,0.4)"; ctx.font = "9px monospace"; ctx.textAlign = "center";
+  ctx.fillText(`h=${h.toFixed(1)}  base=${bx.toFixed(1)}  trunc=${(T.trunc*100).toFixed(0)}%  blend=${blend.toFixed(1)}`, cx, toS(0, h)[1] - 6);
+  ctx.textAlign = "left";
+  ctx.fillStyle = "rgba(255,180,80,0.55)"; ctx.font = "8px monospace";
+  ctx.fillText("─ terrain heightfield (evaluate_pyramid)", 6, 10);
+  ctx.fillStyle = rgb01(T.color[0]*0.9, T.color[1]*0.9, T.color[2]*0.9);
+  ctx.fillText(isPointed ? "─ mesh: pointed (trunc < 0.01)" : "─ mesh: truncated", 6, 20);
 }
 
 /* ═══ UI ═══ */
@@ -247,7 +410,8 @@ export default function PyramidDesigner() {
           <div style={ms}><span style={lb}>Aspect μ</span><Num value={T.aspect} min={0.3} max={3} w={50} onChange={v => upd(n => { n.aspect = v; })} /><span style={sLb}>σ</span><Num value={T.aspect_s} min={0} max={0.5} w={38} onChange={v => upd(n => { n.aspect_s = v; })} /></div>
           <div style={ms}><span style={lb}>Truncation μ</span><Num value={T.trunc} min={0} max={0.8} w={50} onChange={v => upd(n => { n.trunc = v; })} /><span style={sLb}>σ</span><Num value={T.trunc_s} min={0} max={0.2} w={38} onChange={v => upd(n => { n.trunc_s = v; })} /></div>
           <div style={ms}><span style={lb}>Edge blend μ</span><Num value={T.edge_blend} min={0} max={10} w={50} onChange={v => upd(n => { n.edge_blend = v; })} /><span style={sLb}>σ</span><Num value={T.edge_blend_s} min={0} max={3} w={38} onChange={v => upd(n => { n.edge_blend_s = v; })} /></div>
-          <div style={{ fontSize: 9, color: "var(--color-text-tertiary)", marginTop: 2 }}>Truncation 0 = pointed apex. 0.25 = flat platform at 25% of base.</div>
+          <div style={{ fontSize: 9, color: "var(--color-text-tertiary)", marginTop: 2 }}>Truncation &lt; 0.01 → engine builds 4-sided pointed mesh. ≥ 0.01 → truncated mesh with flat top at trunc·base.</div>
+          <div style={{ fontSize: 9, color: "var(--color-text-tertiary)", marginTop: 2 }}>Edge blend softens the terrain heightfield in the [base−blend, base+blend] band (mesh edges stay hard).</div>
         </DragPanel>);
         case "appearance": return (<DragPanel {...dp} title="Appearance">
           <div style={{ marginBottom: 4 }}>

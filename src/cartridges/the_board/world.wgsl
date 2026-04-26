@@ -628,12 +628,22 @@ struct AgentState {
     orient_w: f32,
 }
 
-// ═══ AGENT REGISTRIES (read-only storage buffers) ═══════════════════════
+// ═══ AGENT REGISTRIES (read-only uniform buffers) ═══════════════════════
 //
-// The behavior + tier parameter tables are uploaded once at world-init
-// from the C++ AGENT_BEHAVIORS / AGENT_TIER_GAINS tables in
-// modules/agents.inl. The C++ tables are the SINGLE SOURCE OF TRUTH;
-// this WGSL side is a pure consumer.
+// PAIRED DECLARATIONS — KEEP IN SYNC:
+//   AgentBehaviorParams (WGSL, here)   ↔ GPUAgentBehaviorDef (C++, state.hpp)
+//   AgentTierParams     (WGSL, here)   ↔ GPUAgentTierDef     (C++, state.hpp)
+//
+// Both struct shapes must match field-for-field. The C++ side is
+// authoritative — the values come from AGENT_BEHAVIORS / AGENT_TIER_GAINS
+// in modules/agents.inl, uploaded once at world-init via the translator
+// upload_agent_registries_to_gpu (which bridges CPU AgentBehaviorDef /
+// AgentTierDef → GPU structs → these uniform buffers).
+//
+// If you change anything below, also update the matching C++ struct
+// (and the translator copy field-list, and the WGSL schema comment
+// reminder a few lines down). Field-order mismatches produce silent
+// runtime corruption — no compile error.
 //
 // Schema reminder — fields below match GPUAgentBehaviorDef and
 // GPUAgentTierDef in state.hpp, and AgentBehaviorDef / AgentTierDef
@@ -653,15 +663,12 @@ struct AgentState {
 //     step_gain       — multiplies behavior.step_size impulse
 //     persist_gain    — multiplies behavior.persistence (and home_pull)
 //     speed_gain      — multiplies behavior.speed_cap
-//     coupling_gain   — reserved (per-tier music coupling scale)
-//     home_gain       — reserved
-//     weight          — reserved (default selection weight)
 //     color_r/g/b     — vertex shader entity color
 
 struct AgentBehaviorParams {
     step_rate:       f32,  // steps/beat (musical time)
     step_size:       f32,  // world units/step
-    persistence:     f32,  // [0,1] correlated-walk angle persistence
+    persistence:     f32,  // [0,1] biased-walk angle persistence
     drag:            f32,  // 1/s velocity decay
     home_pull:       f32,  // 1/s² spring toward home
     neighbor_radius: f32,  // flock neighbor search
@@ -677,15 +684,11 @@ struct AgentTierParams {
     step_gain:     f32,
     persist_gain:  f32,
     speed_gain:    f32,
-    coupling_gain: f32,
-    home_gain:     f32,
-    weight:        f32,
     color_r:       f32,
     color_g:       f32,
     color_b:       f32,
-    _pad0:         f32,  // pad to 48 bytes (matches GPUAgentTierDef)
+    _pad0:         f32,  // pad to 32 bytes (matches GPUAgentTierDef)
     _pad1:         f32,
-    _pad2:         f32,
 }
 
 const AGENT_TIER_COUNT_WGSL: u32 = 4u;
@@ -5176,6 +5179,29 @@ fn pawn_ground_resolve(
 // from velocity. Pulled out of each behavior body so FXC compiles
 // the common epilogue once per kernel rather than ten times.
 
+// ─── Shared step trigger ─────────────────────────────────────────
+// Most behaviors are beat-gated: they apply an impulse once per
+// step_rate-derived musical beat and otherwise let drag + post-step
+// shape the motion. The helper checks whether a step boundary was
+// crossed since last frame and returns the step index (used as a
+// hash seed for the per-step direction draw).
+//
+// Pulled out so the eight step-driven behaviors don't each carry
+// their own three-line floor-and-compare prelude.
+
+struct StepTrigger {
+    fired:    bool,
+    step_idx: u32,
+}
+
+fn step_trigger(step_rate: f32) -> StepTrigger {
+    let t_beats   = signal.t_beats;
+    let dt_beats  = signal.dt_beats;
+    let step_idx      = u32(floor(t_beats * step_rate));
+    let prev_step_idx = u32(floor(max(0.0, t_beats - dt_beats) * step_rate));
+    return StepTrigger(step_idx > prev_step_idx, step_idx);
+}
+
 // ─── Shared post-step ────────────────────────────────────────────
 // Behaviors only modify a.vel_x / a.vel_z. This helper applies the
 // rest: exponential drag, speed cap, position integration, ground
@@ -5354,18 +5380,15 @@ fn behavior_player_controlled(agent_in: AgentState) -> AgentState {
 // deterministic given the agent's spawn seed.
 fn behavior_random_walk(agent_in: AgentState) -> AgentState {
     var a = agent_in;
-    let dt_beats  = signal.dt_beats;
-    let t_beats   = signal.t_beats;
 
     let b = agent_behaviors[1u];
     let tier = min(a.tier_idx, AGENT_TIER_COUNT_WGSL - 1u);
     let g = agent_tier_gains[tier];
 
     // Step trigger — beat-gated. step_rate is steps per beat.
-    let step_idx      = u32(floor(t_beats * b.step_rate));
-    let prev_step_idx = u32(floor(max(0.0, t_beats - dt_beats) * b.step_rate));
-    if (step_idx > prev_step_idx) {
-        let theta   = hash_property(a.seed, 7000u + step_idx) * 6.28318530718;
+    let s = step_trigger(b.step_rate);
+    if (s.fired) {
+        let theta   = hash_property(a.seed, 7000u + s.step_idx) * 6.28318530718;
         // Per-step velocity impulse — magnitude is fixed regardless of
         // tempo. Drag (in seconds) decays it; how much of it survives
         // until the next step depends on the tempo.
@@ -5391,8 +5414,6 @@ fn behavior_random_walk(agent_in: AgentState) -> AgentState {
 fn behavior_biased_walk(agent_in: AgentState) -> AgentState {
     var a = agent_in;
     let dt        = signal.dt;
-    let dt_beats  = signal.dt_beats;
-    let t_beats   = signal.t_beats;
 
     let b = agent_behaviors[2u];
     let tier = min(a.tier_idx, AGENT_TIER_COUNT_WGSL - 1u);
@@ -5405,10 +5426,9 @@ fn behavior_biased_walk(agent_in: AgentState) -> AgentState {
     let noise_arc = (1.0 - clamp(b.persistence * g.persist_gain, 0.0, 1.0)) * 3.14159265;
 
     // Step trigger.
-    let step_idx      = u32(floor(t_beats * b.step_rate));
-    let prev_step_idx = u32(floor(max(0.0, t_beats - dt_beats) * b.step_rate));
-    if (step_idx > prev_step_idx) {
-        let noise = (hash_property(a.seed, 9200u + step_idx) - 0.5) * 2.0 * noise_arc;
+    let s = step_trigger(b.step_rate);
+    if (s.fired) {
+        let noise = (hash_property(a.seed, 9200u + s.step_idx) - 0.5) * 2.0 * noise_arc;
         let theta = travel_dir + noise;
         let impulse = b.step_size * g.step_gain;
         a.vel_x += cos(theta) * impulse;
@@ -5421,7 +5441,7 @@ fn behavior_biased_walk(agent_in: AgentState) -> AgentState {
             var cz = 0.0;
             var n  = 0u;
             for (var k = 0u; k < 2u; k = k + 1u) {
-                let other_slot = (a.seed + step_idx * 31u + k * 7919u) % 32u;
+                let other_slot = (a.seed + s.step_idx * 31u + k * 7919u) % 32u;
                 if (other_slot == config.possessed_slot) { continue; }
                 let other = agent_state[other_slot];
                 if (other.is_active == 0u) { continue; }
@@ -5466,7 +5486,6 @@ fn behavior_biased_walk(agent_in: AgentState) -> AgentState {
 fn behavior_slow_patrol(agent_in: AgentState) -> AgentState {
     var a = agent_in;
     let dt        = signal.dt;
-    let dt_beats  = signal.dt_beats;
     let t_beats   = signal.t_beats;
 
     let b = agent_behaviors[5u];
@@ -5510,18 +5529,15 @@ fn behavior_slow_patrol(agent_in: AgentState) -> AgentState {
 fn behavior_wanderer(agent_in: AgentState) -> AgentState {
     var a = agent_in;
     let dt        = signal.dt;
-    let dt_beats  = signal.dt_beats;
-    let t_beats   = signal.t_beats;
 
     let b = agent_behaviors[3u];
     let tier = min(a.tier_idx, AGENT_TIER_COUNT_WGSL - 1u);
     let g = agent_tier_gains[tier];
 
     // Step trigger.
-    let step_idx      = u32(floor(t_beats * b.step_rate));
-    let prev_step_idx = u32(floor(max(0.0, t_beats - dt_beats) * b.step_rate));
-    if (step_idx > prev_step_idx) {
-        let theta = hash_property(a.seed, 7100u + step_idx) * 6.28318530718;
+    let s = step_trigger(b.step_rate);
+    if (s.fired) {
+        let theta = hash_property(a.seed, 7100u + s.step_idx) * 6.28318530718;
         let impulse = b.step_size * g.step_gain;
         a.vel_x += cos(theta) * impulse;
         a.vel_z += sin(theta) * impulse;
@@ -5551,18 +5567,15 @@ fn behavior_wanderer(agent_in: AgentState) -> AgentState {
 fn behavior_home_seeker(agent_in: AgentState) -> AgentState {
     var a = agent_in;
     let dt        = signal.dt;
-    let dt_beats  = signal.dt_beats;
-    let t_beats   = signal.t_beats;
 
     let b = agent_behaviors[4u];
     let tier = min(a.tier_idx, AGENT_TIER_COUNT_WGSL - 1u);
     let g = agent_tier_gains[tier];
 
     // Step trigger — small random noise impulse.
-    let step_idx      = u32(floor(t_beats * b.step_rate));
-    let prev_step_idx = u32(floor(max(0.0, t_beats - dt_beats) * b.step_rate));
-    if (step_idx > prev_step_idx) {
-        let theta = hash_property(a.seed, 7200u + step_idx) * 6.28318530718;
+    let s = step_trigger(b.step_rate);
+    if (s.fired) {
+        let theta = hash_property(a.seed, 7200u + s.step_idx) * 6.28318530718;
         let impulse = b.step_size * g.step_gain;
         a.vel_x += cos(theta) * impulse;
         a.vel_z += sin(theta) * impulse;
@@ -5592,8 +5605,6 @@ fn behavior_home_seeker(agent_in: AgentState) -> AgentState {
 fn behavior_pursuit(agent_in: AgentState) -> AgentState {
     var a = agent_in;
     let dt        = signal.dt;
-    let dt_beats  = signal.dt_beats;
-    let t_beats   = signal.t_beats;
 
     let b = agent_behaviors[6u];
     let tier = min(a.tier_idx, AGENT_TIER_COUNT_WGSL - 1u);
@@ -5615,10 +5626,9 @@ fn behavior_pursuit(agent_in: AgentState) -> AgentState {
         a.vel_z = a.vel_z + dz * inv * pull * dt;
     } else {
         // Out of range — wander gently on beat-time.
-        let step_idx      = u32(floor(t_beats * b.step_rate));
-        let prev_step_idx = u32(floor(max(0.0, t_beats - dt_beats) * b.step_rate));
-        if (step_idx > prev_step_idx) {
-            let theta = hash_property(a.seed, 7300u + step_idx) * 6.28318530718;
+        let s = step_trigger(b.step_rate);
+        if (s.fired) {
+            let theta = hash_property(a.seed, 7300u + s.step_idx) * 6.28318530718;
             let impulse = b.step_size * g.step_gain;
             a.vel_x += cos(theta) * impulse;
             a.vel_z += sin(theta) * impulse;
@@ -5639,8 +5649,6 @@ fn behavior_pursuit(agent_in: AgentState) -> AgentState {
 fn behavior_flee(agent_in: AgentState) -> AgentState {
     var a = agent_in;
     let dt        = signal.dt;
-    let dt_beats  = signal.dt_beats;
-    let t_beats   = signal.t_beats;
 
     let b = agent_behaviors[7u];
     let tier = min(a.tier_idx, AGENT_TIER_COUNT_WGSL - 1u);
@@ -5662,10 +5670,9 @@ fn behavior_flee(agent_in: AgentState) -> AgentState {
         a.vel_z = a.vel_z + dz * inv * pull * dt;
     } else {
         // Out of alarm range — gentle idle wander on beat-time.
-        let step_idx      = u32(floor(t_beats * b.step_rate));
-        let prev_step_idx = u32(floor(max(0.0, t_beats - dt_beats) * b.step_rate));
-        if (step_idx > prev_step_idx) {
-            let theta = hash_property(a.seed, 7700u + step_idx) * 6.28318530718;
+        let s = step_trigger(b.step_rate);
+        if (s.fired) {
+            let theta = hash_property(a.seed, 7700u + s.step_idx) * 6.28318530718;
             let impulse = b.step_size * g.step_gain;
             a.vel_x += cos(theta) * impulse;
             a.vel_z += sin(theta) * impulse;
@@ -5686,19 +5693,16 @@ fn behavior_flee(agent_in: AgentState) -> AgentState {
 fn behavior_flock2d(agent_in: AgentState) -> AgentState {
     var a = agent_in;
     let dt        = signal.dt;
-    let dt_beats  = signal.dt_beats;
-    let t_beats   = signal.t_beats;
 
     let b = agent_behaviors[8u];
     let tier = min(a.tier_idx, AGENT_TIER_COUNT_WGSL - 1u);
     let g = agent_tier_gains[tier];
 
     // Step trigger — flock decisions are beat-gated.
-    let step_idx      = u32(floor(t_beats * b.step_rate));
-    let prev_step_idx = u32(floor(max(0.0, t_beats - dt_beats) * b.step_rate));
-    if (step_idx > prev_step_idx) {
+    let s = step_trigger(b.step_rate);
+    if (s.fired) {
         // Random direction noise (small — alignment dominates).
-        let theta = hash_property(a.seed, 7400u + step_idx) * 6.28318530718;
+        let theta = hash_property(a.seed, 7400u + s.step_idx) * 6.28318530718;
         let noise_arc = (1.0 - clamp(b.persistence * g.persist_gain, 0.0, 1.0)) * 0.78;
         let noisy_theta = theta * noise_arc;
         let impulse_n = b.step_size * g.step_gain * 0.15;
@@ -5714,7 +5718,7 @@ fn behavior_flock2d(agent_in: AgentState) -> AgentState {
         var az = 0.0;
         var n  = 0u;
         for (var k = 0u; k < 4u; k = k + 1u) {
-            let other_slot = (a.seed + step_idx * 31u + k * 7919u) % 32u;
+            let other_slot = (a.seed + s.step_idx * 31u + k * 7919u) % 32u;
             if (other_slot == config.possessed_slot) { continue; }
             let other = agent_state[other_slot];
             if (other.is_active == 0u) { continue; }
@@ -5764,19 +5768,16 @@ fn behavior_flock2d(agent_in: AgentState) -> AgentState {
 fn behavior_levy_flight(agent_in: AgentState) -> AgentState {
     var a = agent_in;
     let dt        = signal.dt;
-    let dt_beats  = signal.dt_beats;
-    let t_beats   = signal.t_beats;
 
     let b = agent_behaviors[9u];
     let tier = min(a.tier_idx, AGENT_TIER_COUNT_WGSL - 1u);
     let g = agent_tier_gains[tier];
 
-    let step_idx      = u32(floor(t_beats * b.step_rate));
-    let prev_step_idx = u32(floor(max(0.0, t_beats - dt_beats) * b.step_rate));
-    if (step_idx > prev_step_idx) {
-        let theta = hash_property(a.seed, 7500u + step_idx) * 6.28318530718;
+    let s = step_trigger(b.step_rate);
+    if (s.fired) {
+        let theta = hash_property(a.seed, 7500u + s.step_idx) * 6.28318530718;
         // Power-law magnitude. uniform in (0,1] (clamp to avoid /0).
-        let u = max(0.05, hash_property(a.seed, 7600u + step_idx));
+        let u = max(0.05, hash_property(a.seed, 7600u + s.step_idx));
         // alpha = 1.5 → moderate tail (1=Cauchy-flat, 2=Gaussian-like).
         let alpha = 1.5;
         let magnitude_factor = pow(1.0 / u, 1.0 / alpha);
@@ -5835,6 +5836,11 @@ fn behavior_levy_flight(agent_in: AgentState) -> AgentState {
 // the patch pre-gen edge, and evict just beyond it. This is what makes
 // agents spawn at distance and disappear at the world's horizon
 // rather than popping into existence near the player.
+// MUST match AGENT_EVICTION_RADIUS in modules/agents.inl (TUNING
+// CONSOLE section). No runtime upload — this is a compile-time
+// constant. If you change this value, change the C++ side too;
+// they live apart only because the WGSL needs it as a const for
+// FXC inlining.
 const AGENT_EVICTION_RADIUS:    f32 = 360.0;
 const AGENT_EVICTION_RADIUS_SQ: f32 = AGENT_EVICTION_RADIUS * AGENT_EVICTION_RADIUS;
 

@@ -495,6 +495,24 @@ namespace t7 {
             float orient_w;        // 76
         };                         // 80 total
 
+        // ─── Agent registry GPU structs ──────────────────────────────
+        //
+        // PAIRED DECLARATIONS — KEEP IN SYNC:
+        //   GPUAgentBehaviorDef (C++, here)        ↔ AgentBehaviorParams (WGSL, world.wgsl)
+        //   GPUAgentTierDef     (C++, here)        ↔ AgentTierParams     (WGSL, world.wgsl)
+        //
+        // The C++ side is uploaded as a uniform buffer (bindings 110/111);
+        // the WGSL side reads from those bindings. Field count, field
+        // order, and total size MUST match exactly. A field-order
+        // mismatch produces silent data corruption (no compile error,
+        // agents read parameters from the wrong column). The static_asserts
+        // below catch size drift; field order is on the human.
+        //
+        // The translator (upload_agent_registries_to_gpu in agents.inl)
+        // bridges from the CPU-authoring structs (AgentBehaviorDef /
+        // AgentTierDef) — those structs may have additional fields like
+        // `id` and `name` that don't get uploaded.
+
         // GPU-side mirror of AgentBehaviorDef (modules/agents.inl) without
         // the `id` and `name` fields. Uploaded once at world-init from
         // the C++ AGENT_BEHAVIORS table (single source of truth) and read
@@ -527,21 +545,15 @@ namespace t7 {
         // Field layout matches WGSL `struct AgentTierParams` exactly so
         // the WGSL side can read this buffer with the same struct shape
         // it had when AGENT_TIER_GAINS_WGSL was a const array literal.
-        // Some fields are currently unused by the kernels (coupling_gain,
-        // home_gain, weight) but kept here so adding usages later
-        // doesn't require a struct/buffer reshape.
         struct alignas(16) GPUAgentTierDef {
             float step_gain;       //  0 — multiplies behavior.step_size impulse
             float persist_gain;    //  4 — multiplies behavior.persistence (and home_pull)
             float speed_gain;      //  8 — multiplies behavior.speed_cap
-            float coupling_gain;   // 12 — reserved (per-tier music coupling scale)
-            float home_gain;       // 16 — reserved (multiplies behavior.home_pull)
-            float weight;          // 20 — reserved (default selection weight)
-            float color_r;         // 24 — vertex shader entity color (line 3798 in world.wgsl)
-            float color_g;         // 28
-            float color_b;         // 32
-            float _pad[3];         // 36-47 — pad to 48 bytes (16-byte alignment)
-        };                         // 48 total (16-byte aligned)
+            float color_r;         // 12 — vertex shader entity color (line 3798 in world.wgsl)
+            float color_g;         // 16
+            float color_b;         // 20
+            float _pad[2];         // 24-31 — pad to 32 bytes (16-byte alignment)
+        };                         // 32 total (16-byte aligned)
 
         struct alignas(16) GPUCameraState {
             float pos[3];
@@ -1277,7 +1289,7 @@ namespace t7 {
         static_assert(sizeof(GPUAgentState) % 16 == 0, "GPUAgentState must be 16-byte aligned");
         static_assert(sizeof(GPUAgentBehaviorDef) == 32, "GPUAgentBehaviorDef must be 32 bytes");
         static_assert(sizeof(GPUAgentBehaviorDef) % 16 == 0, "GPUAgentBehaviorDef must be 16-byte aligned");
-        static_assert(sizeof(GPUAgentTierDef) == 48, "GPUAgentTierDef must be 48 bytes");
+        static_assert(sizeof(GPUAgentTierDef) == 32, "GPUAgentTierDef must be 32 bytes");
         static_assert(sizeof(GPUAgentTierDef) % 16 == 0, "GPUAgentTierDef must be 16-byte aligned");
         static_assert(sizeof(GPUCameraState) == 48, "GPUCameraState must be 48 bytes");
         static_assert(sizeof(GPUFloatingEntityState) == 144, "GPUFloatingEntityState must be 144 bytes");
