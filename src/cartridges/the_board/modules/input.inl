@@ -50,6 +50,24 @@
 #ifndef GLFW_KEY_CAPS_LOCK
 #define GLFW_KEY_CAPS_LOCK   280
 #endif
+#ifndef GLFW_KEY_F1
+#define GLFW_KEY_F1  290
+#endif
+#ifndef GLFW_KEY_F2
+#define GLFW_KEY_F2  291
+#endif
+#ifndef GLFW_KEY_F3
+#define GLFW_KEY_F3  292
+#endif
+#ifndef GLFW_KEY_F4
+#define GLFW_KEY_F4  293
+#endif
+#ifndef GLFW_KEY_F5
+#define GLFW_KEY_F5  294
+#endif
+#ifndef GLFW_KEY_F6
+#define GLFW_KEY_F6  295
+#endif
 
 void on_key_down(int key) {
     switch (key) {
@@ -175,28 +193,46 @@ void on_key_down(int key) {
         try_possess_nearest(q);
         break;
     }
-    // ─── Agent diagnostics (B/T/R) ─────────────────────────────────
-    // Inspection knobs for the agent system. See agents.inl
-    // "DIAGNOSTIC CYCLING" section for behavior. All three apply to
-    // every active non-player slot; PlayerControlled is excluded from
-    // the behavior cycle so cycling never strands the player's input.
+    // ─── Diagnostic keys (F1-F6) ───────────────────────────────────
+    // Why function keys: the analysis layer above the cartridge
+    // consumes A-Z as MIDI piano notes ("A-Z=piano keys" in the boot
+    // banner). Letter keys can't double as cartridge diagnostics
+    // without playing notes every time you cycle a behavior. Function
+    // keys are unclaimed and naturally read as "tools, not input."
     //
-    //   B — cycle behavior override (none → random_walk → ... → none)
-    //   T — cycle tier override     (none → worker → ... → none)
-    //   R — force-respawn the population around the player
-    case GLFW_KEY_B: {
+    //   F1 — cycle agent behavior override   (none → random_walk → ... → none)
+    //   F2 — cycle agent tier override       (none → worker → ... → none)
+    //   F3 — force-respawn agent population
+    //   F4 — cycle cube behavior              (stationary → curlfield → phasewave)
+    //   F5 — cycle floater coordination       (0.0 → 0.5 → 1.0)
+    //   F6 — corral cubes around pawn         (diagnostic teleport)
+    case GLFW_KEY_F1: {
         wgpu::Queue q = device_.GetQueue();
         cycle_agent_behavior_override(q);
         break;
     }
-    case GLFW_KEY_T: {
+    case GLFW_KEY_F2: {
         wgpu::Queue q = device_.GetQueue();
         cycle_agent_tier_override(q);
         break;
     }
-    case GLFW_KEY_R: {
+    case GLFW_KEY_F3: {
         wgpu::Queue q = device_.GetQueue();
         force_respawn_population(q);
+        break;
+    }
+    case GLFW_KEY_F4: {
+        wgpu::Queue q = device_.GetQueue();
+        cycle_cube_behavior_override(q);
+        break;
+    }
+    case GLFW_KEY_F5: {
+        cycle_floater_coordination();
+        break;
+    }
+    case GLFW_KEY_F6: {
+        wgpu::Queue q = device_.GetQueue();
+        corral_cubes(q);
         break;
     }
     case GLFW_KEY_LEFT_BRACKET:

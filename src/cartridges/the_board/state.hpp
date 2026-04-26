@@ -202,9 +202,14 @@ namespace t7 {
 
             // Floating entity system — split into sphere (orbital) + cube (hover-bob)
             constexpr uint32_t MAX_SPHERE_INSTANCES = 8;
-            constexpr uint32_t MAX_CUBE_INSTANCES = 64;
+            // Phase 3 bumped MAX_CUBE_INSTANCES from 64 to 256 to support the
+            // drone-show aesthetic: large coordinated populations rather than
+            // sparse individual flyers. update_cube is a single-thread kernel
+            // (@workgroup_size(1)) so cost scales linearly — at 256 slots
+            // with ~30 ops/slot, ~7.5K ops/frame, well within budget.
+            constexpr uint32_t MAX_CUBE_INSTANCES = 256;
             constexpr uint32_t CUBE_SLOT_OFFSET = MAX_SPHERE_INSTANCES;
-            constexpr uint32_t TOTAL_FLOATING_SLOTS = MAX_SPHERE_INSTANCES + MAX_CUBE_INSTANCES;  // 72
+            constexpr uint32_t TOTAL_FLOATING_SLOTS = MAX_SPHERE_INSTANCES + MAX_CUBE_INSTANCES;  // 264
             constexpr uint32_t GOL_ZONE_GRID = 32;      // cells per zone side
             constexpr uint32_t GOL_ZONE_CELLS = GOL_ZONE_GRID * GOL_ZONE_GRID;  // 1024
             constexpr uint32_t GOL_ZONE_LIFE_STRIDE = GOL_ZONE_CELLS * 7;  // 7 slots: visual, velocity, target, next, height_factor, color_visual, color_velocity
@@ -408,7 +413,16 @@ namespace t7 {
             float mode_discrete_tier;         // [0,4] target discrete tier (0=color 1=tinted 2=BW 3=chessBW 4=chessColor)
             float mode_gol_tick_scale;        // tick period multiplier (1.0=normal, <1=faster, >1=slower)
             float mode_gol_height_scale;      // alive_height multiplier (1.0=normal, >1=taller)
-            float _pad_mode_3;
+            // ─── Floater system dials ────────────────────────────────────
+            // System-level coordination knob for cube behaviors. At 0.0
+            // each cube runs its behavior with maximum individual variation
+            // (independent phases / high-spatial-frequency noise samples).
+            // At 1.0 cubes lock to shared parameters (synchronized phases
+            // / low-frequency shared noise samples). The transition is
+            // a continuous lerp inside each behavior's force function.
+            // See modules/floaters.inl for behavior-by-behavior wiring.
+            // Repurposes the previous _pad_mode_3 slot — no struct growth.
+            float floater_coordination;
 
             // ─── Radial pulse ring buffer ────────────────────────────────
             // 8 recent note onsets, indexed as pulse_data[i*4 + field]:
@@ -590,9 +604,23 @@ namespace t7 {
             uint32_t is_active;        // 124: 0=inactive, 1=active
             float aspect_y;            // 128: Y-axis scale multiplier (1.0=cube, >1=tall, <1=flat)
             float aspect_z;            // 132: Z-axis scale multiplier (1.0=cube, <1=thin slab)
-            float _future_2;           // 136: reserved
-            float _future_3;           // 140: reserved
-        };                             // 144 total
+            // ─── Drift-integrator substrate (cube use; spheres ignore) ────
+            // The cube motion model decomposes into:
+            //   home  = analytical rest position (anchor.xz + ground + bob)
+            //   pos   = home + drift
+            // drift_vel integrates spring-to-zero plus behavior forces.
+            // Spheres leave drift / drift_vel zero and ignore stiffness/drag.
+            float spring_stiffness;    // 136: pulls drift toward zero (1/s²)
+            float drag;                // 140: exponential damping on drift_vel (1/s)
+            float drift[3];            // 144: position offset from home (cube)
+            uint32_t tier_idx;         // 156: runtime tier lookup for gain tables
+            float drift_vel[3];        // 160: drift integrator velocity
+            uint32_t behavior_id;      // 172: cube behavior registry index (Phase 3)
+            uint32_t behavior_phase;   // 176: per-slot phase hash for behavior diversity
+            uint32_t _pad0;            // 180: align to 192 (12×16)
+            uint32_t _pad1;            // 184
+            uint32_t _pad2;            // 188
+        };                             // 192 total
 
         struct alignas(16) GPURibbonState {
             float anchor[3];                                                    // 0
@@ -1292,7 +1320,7 @@ namespace t7 {
         static_assert(sizeof(GPUAgentTierDef) == 32, "GPUAgentTierDef must be 32 bytes");
         static_assert(sizeof(GPUAgentTierDef) % 16 == 0, "GPUAgentTierDef must be 16-byte aligned");
         static_assert(sizeof(GPUCameraState) == 48, "GPUCameraState must be 48 bytes");
-        static_assert(sizeof(GPUFloatingEntityState) == 144, "GPUFloatingEntityState must be 144 bytes");
+        static_assert(sizeof(GPUFloatingEntityState) == 192, "GPUFloatingEntityState must be 192 bytes");
         static_assert(sizeof(GPURibbonState) == 96, "GPURibbonState must be 96 bytes");
         static_assert(sizeof(GPUVPMatrix) == 128, "GPUVPMatrix must be 128 bytes");
         static_assert(sizeof(GPUDirectionalLight) == 48, "GPUDirectionalLight must be 48 bytes");
@@ -1744,6 +1772,29 @@ namespace t7 {
             // Cube slots: 0 .. MAX_CUBE_INSTANCES-1  (offset by CUBE_SLOT_OFFSET in buffer)
             void upload_cube_entity_slot(wgpu::Queue& queue, uint32_t slot, const GPUFloatingEntityState& entity) {
                 upload_floating_entity_slot(queue, Dim::CUBE_SLOT_OFFSET + slot, entity);
+            }
+
+            // Partial write: just the behavior_id u32 inside a cube slot.
+            // Used by the Phase-3 override-cycling path to flip behavior on
+            // every active cube without re-uploading the whole 192-byte
+            // struct. Field offset is calculated at compile time.
+            void upload_cube_behavior_id(wgpu::Queue& queue, uint32_t slot, uint32_t behavior_id) {
+                size_t base = (Dim::CUBE_SLOT_OFFSET + slot) * sizeof(GPUFloatingEntityState);
+                size_t off  = offsetof(GPUFloatingEntityState, behavior_id);
+                queue.WriteBuffer(floatingEntityBuffer_, base + off, &behavior_id, sizeof(uint32_t));
+            }
+
+            // Partial write: anchor[3] inside a cube slot. Used by the
+            // corral diagnostic to relocate every active cube to a small
+            // ring around the pawn. The kernel re-derives home from the
+            // new anchor on the next frame, drift integrator pulls toward
+            // it, and the cube reappears near the pawn within ~half a
+            // second of spring settle.
+            void upload_cube_anchor(wgpu::Queue& queue, uint32_t slot, float ax, float ay, float az) {
+                size_t base = (Dim::CUBE_SLOT_OFFSET + slot) * sizeof(GPUFloatingEntityState);
+                size_t off  = offsetof(GPUFloatingEntityState, anchor);
+                float a[3] = { ax, ay, az };
+                queue.WriteBuffer(floatingEntityBuffer_, base + off, a, sizeof(a));
             }
 
             void upload_pier_slot(wgpu::Queue& queue, uint32_t slot, const GPUPierInstance& pier) {
@@ -5556,8 +5607,18 @@ namespace t7 {
                     fe.is_active = 1;
                     fe.aspect_y = 1.0f;
                     fe.aspect_z = 1.0f;
-                    fe._future_2 = 0.0f;
-                    fe._future_3 = 0.0f;
+                    // Drift-integrator substrate — unused on spheres; zero
+                    // so update_cube would skip cleanly if motion_type were
+                    // ever flipped to hover-bob on this slot.
+                    fe.spring_stiffness = 0.0f;
+                    fe.drag = 0.0f;
+                    fe.tier_idx = 0;
+                    fe.drift[0] = 0.0f; fe.drift[1] = 0.0f; fe.drift[2] = 0.0f;
+                    fe.drift_vel[0] = 0.0f; fe.drift_vel[1] = 0.0f; fe.drift_vel[2] = 0.0f;
+                    // Behavior registry fields — unused on spheres; zero
+                    // means CUBE_BEHAVIOR_STATIONARY (no behavior force).
+                    fe.behavior_id = 0;
+                    fe.behavior_phase = 0;
                     queue.WriteBuffer(floatingEntityBuffer_, 0, &fe, sizeof(fe));
                 }
 

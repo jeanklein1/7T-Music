@@ -1,4 +1,4 @@
-// ─── agents.inl ─────────────────────────────────────────────────
+﻿// ─── agents.inl ─────────────────────────────────────────────────
 //
 // Unified entity registry: the control panel for the agent system.
 // Every pawn-like body on the board — the one the player inhabits and
@@ -40,9 +40,9 @@
 // │    try_possess_nearest(queue)             — Caps Lock            │
 // │                                                                  │
 // │  Diagnostic cycling (wired in input.inl):                       │
-// │    cycle_agent_behavior_override(queue)   B                      │
-// │    cycle_agent_tier_override(queue)       T                      │
-// │    force_respawn_population(queue)        R                      │
+// │    cycle_agent_behavior_override(queue)   F1                     │
+// │    cycle_agent_tier_override(queue)       F2                     │
+// │    force_respawn_population(queue)        F3                     │
 // │                                                                  │
 // │  Logging:                                                        │
 // │    dump_agent_census(trigger)             — periodic + on event  │
@@ -82,16 +82,16 @@
 
 enum AgentBehaviorId : uint32_t {
     AGENT_BEHAVIOR_PLAYER_CONTROLLED = 0,
-    AGENT_BEHAVIOR_RANDOM_WALK = 1,
-    AGENT_BEHAVIOR_BIASED_WALK = 2,   // persistent direction + soft cohesion
-    AGENT_BEHAVIOR_WANDERER = 3,   // random walk + soft home tether
-    AGENT_BEHAVIOR_HOME_SEEKER = 4,   // strong spring to home
-    AGENT_BEHAVIOR_SLOW_PATROL = 5,   // waypoints around home, slow
-    AGENT_BEHAVIOR_PURSUIT = 6,   // steers toward player when in range
-    AGENT_BEHAVIOR_FLEE = 7,   // flees player when in range, idles otherwise
-    AGENT_BEHAVIOR_FLOCK2D = 8,   // Vicsek alignment + cohesion
-    AGENT_BEHAVIOR_LEVY_FLIGHT = 9,   // power-law step magnitudes
-    AGENT_BEHAVIOR_COUNT = 10,
+    AGENT_BEHAVIOR_RANDOM_WALK       = 1,
+    AGENT_BEHAVIOR_BIASED_WALK       = 2,   // persistent direction + soft cohesion
+    AGENT_BEHAVIOR_WANDERER          = 3,   // random walk + soft home tether
+    AGENT_BEHAVIOR_HOME_SEEKER       = 4,   // strong spring to home
+    AGENT_BEHAVIOR_SLOW_PATROL       = 5,   // waypoints around home, slow
+    AGENT_BEHAVIOR_PURSUIT           = 6,   // steers toward player when in range
+    AGENT_BEHAVIOR_FLEE              = 7,   // flees player when in range, idles otherwise
+    AGENT_BEHAVIOR_FLOCK2D           = 8,   // Vicsek alignment + cohesion
+    AGENT_BEHAVIOR_LEVY_FLIGHT       = 9,   // power-law step magnitudes
+    AGENT_BEHAVIOR_COUNT             = 10,
 };
 
 
@@ -102,11 +102,11 @@ enum AgentBehaviorId : uint32_t {
 // RandomWalk scout moves with Scout-tier speed/persistence.
 
 enum AgentTierId : uint32_t {
-    AGENT_TIER_WORKER = 0,
-    AGENT_TIER_SCOUT = 1,
+    AGENT_TIER_WORKER   = 0,
+    AGENT_TIER_SCOUT    = 1,
     AGENT_TIER_SENTINEL = 2,
-    AGENT_TIER_LEADER = 3,
-    AGENT_TIER_COUNT = 4,
+    AGENT_TIER_LEADER   = 3,
+    AGENT_TIER_COUNT    = 4,
 };
 
 // Cross-check: GPU-side count constants in state.hpp must match the
@@ -160,7 +160,7 @@ static constexpr uint32_t PLAYER_SLOT = 0;
 // active agent within this radius. Set so the player can comfortably
 // pick a target by walking near it; any larger and possession becomes
 // "leap to wherever Caps Lock feels like it." See try_possess_nearest.
-static constexpr float POSSESSION_RADIUS = 20.0f;
+static constexpr float POSSESSION_RADIUS    = 20.0f;
 static constexpr float POSSESSION_RADIUS_SQ = POSSESSION_RADIUS * POSSESSION_RADIUS;
 
 // AGENT_EVICTION_RADIUS — outdoor agents that drift further than this
@@ -177,7 +177,7 @@ static constexpr float POSSESSION_RADIUS_SQ = POSSESSION_RADIUS * POSSESSION_RAD
 // re-eviction and look like it's flickering. Keep at least ~20 units
 // of headroom (spawn_radius=340 + this=360 gives a 20-unit "alive"
 // band where agents persist before being recycled).
-static constexpr float AGENT_EVICTION_RADIUS = 360.0f;
+static constexpr float AGENT_EVICTION_RADIUS    = 360.0f;
 static constexpr float AGENT_EVICTION_RADIUS_SQ = AGENT_EVICTION_RADIUS * AGENT_EVICTION_RADIUS;
 
 // AGENT_CENSUS_INTERVAL — period (seconds) between automatic
@@ -212,7 +212,7 @@ static constexpr float AGENT_CENSUS_INTERVAL = 30.0f;
 
 struct AgentBehaviorDef {
     AgentBehaviorId id;
-    const char* name;
+    const char*     name;
     float           step_rate;
     float           step_size;
     float           persistence;
@@ -237,7 +237,7 @@ static constexpr AgentBehaviorDef AGENT_BEHAVIORS[AGENT_BEHAVIOR_COUNT] = {
 };
 
 static_assert(sizeof(AGENT_BEHAVIORS) / sizeof(AGENT_BEHAVIORS[0]) == AGENT_BEHAVIOR_COUNT,
-    "AGENT_BEHAVIORS must declare one row per AgentBehaviorId");
+              "AGENT_BEHAVIORS must declare one row per AgentBehaviorId");
 
 
 // ═══ REGISTRY: TIER GAINS ════════════════════════════════════════
@@ -269,7 +269,7 @@ static constexpr AgentTierDef AGENT_TIER_GAINS[AGENT_TIER_COUNT] = {
 };
 
 static_assert(sizeof(AGENT_TIER_GAINS) / sizeof(AGENT_TIER_GAINS[0]) == AGENT_TIER_COUNT,
-    "AGENT_TIER_GAINS must declare one row per AgentTierId");
+              "AGENT_TIER_GAINS must declare one row per AgentTierId");
 
 
 // ═══ REGISTRY: POPULATIONS ═══════════════════════════════════════
@@ -338,69 +338,69 @@ struct AgentPopulationDef {
 static constexpr AgentPopulationDef AGENT_POPULATIONS[MOOD_COUNT] = {
     /* MOOD_OPEN_DEFAULT — desert travelers (BiasedWalk) */
     { /*mood_id=*/ MOOD_OPEN_DEFAULT, /*count=*/ 10,
-    //                       player rwalk  bwalk wandr hseek slowp pursu  flee flock  levy
-    /*behavior_weights=*/ {    0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-    //                     worker scout sentl leadr
-    /*tier_weights=*/     {  2.0f, 2.0f, 1.0f, 0.0f },
-    /*spawn_inner_radius=*/ 200.0f,
-    /*spawn_radius=*/       340.0f,
-    /*home_seeding_radius=*/ 5.0f },
+      //                       player rwalk  bwalk wandr hseek slowp pursu  flee flock  levy
+      /*behavior_weights=*/ {    0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+      //                     worker scout sentl leadr
+      /*tier_weights=*/     {  2.0f, 2.0f, 1.0f, 0.0f },
+      /*spawn_inner_radius=*/ 200.0f,
+      /*spawn_radius=*/       340.0f,
+      /*home_seeding_radius=*/ 5.0f },
     /* MOOD_OPEN_SUNSET — Scout-heavy travelers (BiasedWalk) */
     { /*mood_id=*/ MOOD_OPEN_SUNSET, /*count=*/ 10,
-    //                       player rwalk  bwalk wandr hseek slowp pursu  flee flock  levy
-    /*behavior_weights=*/ {    0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-    //                     worker scout sentl leadr
-    /*tier_weights=*/     {  1.0f, 3.0f, 0.0f, 0.0f },
-    /*spawn_inner_radius=*/ 200.0f,
-    /*spawn_radius=*/       340.0f,
-    /*home_seeding_radius=*/ 8.0f },
+      //                       player rwalk  bwalk wandr hseek slowp pursu  flee flock  levy
+      /*behavior_weights=*/ {    0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+      //                     worker scout sentl leadr
+      /*tier_weights=*/     {  1.0f, 3.0f, 0.0f, 0.0f },
+      /*spawn_inner_radius=*/ 200.0f,
+      /*spawn_radius=*/       340.0f,
+      /*home_seeding_radius=*/ 8.0f },
     /* MOOD_INDOOR_FLAT — gallery walkers (SlowPatrol) */
     { /*mood_id=*/ MOOD_INDOOR_FLAT, /*count=*/ 4,
-    //                       player rwalk  bwalk wandr hseek slowp pursu  flee flock  levy
-    /*behavior_weights=*/ {    0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-    //                     worker scout sentl leadr
-    /*tier_weights=*/     {  2.0f, 0.0f, 2.0f, 1.0f },
-    /*spawn_inner_radius=*/ 0.0f,
-    /*spawn_radius=*/       60.0f,
-    /*home_seeding_radius=*/ 30.0f },
+      //                       player rwalk  bwalk wandr hseek slowp pursu  flee flock  levy
+      /*behavior_weights=*/ {    0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+      //                     worker scout sentl leadr
+      /*tier_weights=*/     {  2.0f, 0.0f, 2.0f, 1.0f },
+      /*spawn_inner_radius=*/ 0.0f,
+      /*spawn_radius=*/       60.0f,
+      /*home_seeding_radius=*/ 30.0f },
     /* MOOD_INDOOR_VAULT — gallery walkers (SlowPatrol) */
     { /*mood_id=*/ MOOD_INDOOR_VAULT, /*count=*/ 4,
-    //                       player rwalk  bwalk wandr hseek slowp pursu  flee flock  levy
-    /*behavior_weights=*/ {    0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-    //                     worker scout sentl leadr
-    /*tier_weights=*/     {  2.0f, 0.0f, 2.0f, 1.0f },
-    /*spawn_inner_radius=*/ 0.0f,
-    /*spawn_radius=*/       60.0f,
-    /*home_seeding_radius=*/ 30.0f },
+      //                       player rwalk  bwalk wandr hseek slowp pursu  flee flock  levy
+      /*behavior_weights=*/ {    0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+      //                     worker scout sentl leadr
+      /*tier_weights=*/     {  2.0f, 0.0f, 2.0f, 1.0f },
+      /*spawn_inner_radius=*/ 0.0f,
+      /*spawn_radius=*/       60.0f,
+      /*home_seeding_radius=*/ 30.0f },
     /* MOOD_FINITE_OUTDOOR — unpopulated */
     { /*mood_id=*/ MOOD_FINITE_OUTDOOR, /*count=*/ 0,
-    /*behavior_weights=*/ {},
-    /*tier_weights=*/     {},
-    /*spawn_inner_radius=*/ 0.0f,
-    /*spawn_radius=*/       0.0f,
-    /*home_seeding_radius=*/ 0.0f },
+      /*behavior_weights=*/ {},
+      /*tier_weights=*/     {},
+      /*spawn_inner_radius=*/ 0.0f,
+      /*spawn_radius=*/       0.0f,
+      /*home_seeding_radius=*/ 0.0f },
     /* MOOD_FINITE_OUTDOOR_REF — unpopulated */
     { /*mood_id=*/ MOOD_FINITE_OUTDOOR_REF, /*count=*/ 0,
-    /*behavior_weights=*/ {},
-    /*tier_weights=*/     {},
-    /*spawn_inner_radius=*/ 0.0f,
-    /*spawn_radius=*/       0.0f,
-    /*home_seeding_radius=*/ 0.0f },
+      /*behavior_weights=*/ {},
+      /*tier_weights=*/     {},
+      /*spawn_inner_radius=*/ 0.0f,
+      /*spawn_radius=*/       0.0f,
+      /*home_seeding_radius=*/ 0.0f },
 };
 
 static_assert(sizeof(AGENT_POPULATIONS) / sizeof(AGENT_POPULATIONS[0]) == MOOD_COUNT,
-    "AGENT_POPULATIONS must declare one row per mood");
+              "AGENT_POPULATIONS must declare one row per mood");
 
 // Row order must match the mood ids in MOOD_TABLE (cartridge.hpp).
 // Unfolded rather than written as a constexpr loop because class-body
 // static_asserts cannot call member constexpr functions (the enclosing
 // type isn't complete during parsing). Same workaround as in
 // ground_architecture.inl.
-static_assert(AGENT_POPULATIONS[MOOD_OPEN_DEFAULT].mood_id == MOOD_OPEN_DEFAULT, "AGENT_POPULATIONS row 0 must be MOOD_OPEN_DEFAULT");
-static_assert(AGENT_POPULATIONS[MOOD_OPEN_SUNSET].mood_id == MOOD_OPEN_SUNSET, "AGENT_POPULATIONS row 1 must be MOOD_OPEN_SUNSET");
-static_assert(AGENT_POPULATIONS[MOOD_INDOOR_FLAT].mood_id == MOOD_INDOOR_FLAT, "AGENT_POPULATIONS row 2 must be MOOD_INDOOR_FLAT");
-static_assert(AGENT_POPULATIONS[MOOD_INDOOR_VAULT].mood_id == MOOD_INDOOR_VAULT, "AGENT_POPULATIONS row 3 must be MOOD_INDOOR_VAULT");
-static_assert(AGENT_POPULATIONS[MOOD_FINITE_OUTDOOR].mood_id == MOOD_FINITE_OUTDOOR, "AGENT_POPULATIONS row 4 must be MOOD_FINITE_OUTDOOR");
+static_assert(AGENT_POPULATIONS[MOOD_OPEN_DEFAULT      ].mood_id == MOOD_OPEN_DEFAULT,       "AGENT_POPULATIONS row 0 must be MOOD_OPEN_DEFAULT");
+static_assert(AGENT_POPULATIONS[MOOD_OPEN_SUNSET       ].mood_id == MOOD_OPEN_SUNSET,        "AGENT_POPULATIONS row 1 must be MOOD_OPEN_SUNSET");
+static_assert(AGENT_POPULATIONS[MOOD_INDOOR_FLAT       ].mood_id == MOOD_INDOOR_FLAT,        "AGENT_POPULATIONS row 2 must be MOOD_INDOOR_FLAT");
+static_assert(AGENT_POPULATIONS[MOOD_INDOOR_VAULT      ].mood_id == MOOD_INDOOR_VAULT,       "AGENT_POPULATIONS row 3 must be MOOD_INDOOR_VAULT");
+static_assert(AGENT_POPULATIONS[MOOD_FINITE_OUTDOOR    ].mood_id == MOOD_FINITE_OUTDOOR,     "AGENT_POPULATIONS row 4 must be MOOD_FINITE_OUTDOOR");
 static_assert(AGENT_POPULATIONS[MOOD_FINITE_OUTDOOR_REF].mood_id == MOOD_FINITE_OUTDOOR_REF, "AGENT_POPULATIONS row 5 must be MOOD_FINITE_OUTDOOR_REF");
 
 
@@ -423,32 +423,32 @@ void upload_agent_registries_to_gpu(wgpu::Queue& queue) {
     GPUAgentBehaviorDef gpu_behaviors[AGENT_BEHAVIOR_COUNT] = {};
     for (uint32_t i = 0; i < AGENT_BEHAVIOR_COUNT; i++) {
         const auto& src = AGENT_BEHAVIORS[i];
-        gpu_behaviors[i].step_rate = src.step_rate;
-        gpu_behaviors[i].step_size = src.step_size;
-        gpu_behaviors[i].persistence = src.persistence;
-        gpu_behaviors[i].drag = src.drag;
-        gpu_behaviors[i].home_pull = src.home_pull;
+        gpu_behaviors[i].step_rate       = src.step_rate;
+        gpu_behaviors[i].step_size       = src.step_size;
+        gpu_behaviors[i].persistence     = src.persistence;
+        gpu_behaviors[i].drag            = src.drag;
+        gpu_behaviors[i].home_pull       = src.home_pull;
         gpu_behaviors[i].neighbor_radius = src.neighbor_radius;
-        gpu_behaviors[i].speed_cap = src.speed_cap;
-        gpu_behaviors[i]._pad = 0.0f;
+        gpu_behaviors[i].speed_cap       = src.speed_cap;
+        gpu_behaviors[i]._pad            = 0.0f;
     }
 
     GPUAgentTierDef gpu_tiers[AGENT_TIER_COUNT] = {};
     for (uint32_t i = 0; i < AGENT_TIER_COUNT; i++) {
         const auto& src = AGENT_TIER_GAINS[i];
-        gpu_tiers[i].step_gain = src.step_gain;
-        gpu_tiers[i].persist_gain = src.persist_gain;
-        gpu_tiers[i].speed_gain = src.speed_gain;
-        gpu_tiers[i].color_r = src.color_r;
-        gpu_tiers[i].color_g = src.color_g;
-        gpu_tiers[i].color_b = src.color_b;
+        gpu_tiers[i].step_gain     = src.step_gain;
+        gpu_tiers[i].persist_gain  = src.persist_gain;
+        gpu_tiers[i].speed_gain    = src.speed_gain;
+        gpu_tiers[i].color_r       = src.color_r;
+        gpu_tiers[i].color_g       = src.color_g;
+        gpu_tiers[i].color_b       = src.color_b;
         gpu_tiers[i]._pad[0] = 0.0f;
         gpu_tiers[i]._pad[1] = 0.0f;
     }
 
     gpuState_.upload_agent_registries(queue,
         gpu_behaviors, AGENT_BEHAVIOR_COUNT,
-        gpu_tiers, AGENT_TIER_COUNT);
+        gpu_tiers,     AGENT_TIER_COUNT);
 }
 
 
@@ -467,7 +467,7 @@ void upload_agent_registries_to_gpu(wgpu::Queue& queue) {
 //                              successive respawns of the same slot
 //                              roll different attributes / pose.
 
-GPUAgentState cpuAgents_[Dim::MAX_AGENTS] = {};
+GPUAgentState cpuAgents_[Dim::MAX_AGENTS]      = {};
 uint32_t      agentRespawnCounters_[Dim::MAX_AGENTS] = {};
 
 
@@ -489,7 +489,7 @@ uint32_t      agentRespawnCounters_[Dim::MAX_AGENTS] = {};
 
 static constexpr uint32_t AGENT_OVERRIDE_NONE = 0xFFFFFFFFu;
 uint32_t agentBehaviorOverride_ = AGENT_OVERRIDE_NONE;
-uint32_t agentTierOverride_ = AGENT_OVERRIDE_NONE;
+uint32_t agentTierOverride_     = AGENT_OVERRIDE_NONE;
 
 
 // ═══ SHARED POPULATION HELPER ════════════════════════════════════
@@ -510,16 +510,15 @@ uint32_t agentTierOverride_ = AGENT_OVERRIDE_NONE;
 // processing many slots don't redo the sum on each call.
 
 void populate_agent_slot_(GPUAgentState& out,
-    const AgentPopulationDef& pop,
-    uint32_t agent_seed,
-    float beh_sum, float tier_sum,
-    float center_x, float center_z) const {
+                          const AgentPopulationDef& pop,
+                          uint32_t agent_seed,
+                          float beh_sum, float tier_sum,
+                          float center_x, float center_z) const {
     // ── Roll behavior (or honor override) ─────────────────────────
     uint32_t behavior_id = AGENT_BEHAVIOR_RANDOM_WALK;
     if (agentBehaviorOverride_ != AGENT_OVERRIDE_NONE) {
         behavior_id = agentBehaviorOverride_;
-    }
-    else {
+    } else {
         float roll = cpu_hash_f(agent_seed, 1u);
         float cum = 0.0f;
         for (uint32_t b = 0; b < AGENT_BEHAVIOR_COUNT; b++) {
@@ -532,8 +531,7 @@ void populate_agent_slot_(GPUAgentState& out,
     uint32_t tier_idx = AGENT_TIER_WORKER;
     if (agentTierOverride_ != AGENT_OVERRIDE_NONE) {
         tier_idx = agentTierOverride_;
-    }
-    else {
+    } else {
         float roll = cpu_hash_f(agent_seed, 2u);
         float cum = 0.0f;
         for (uint32_t t = 0; t < AGENT_TIER_COUNT; t++) {
@@ -549,7 +547,7 @@ void populate_agent_slot_(GPUAgentState& out,
     const float two_pi = 6.28318530718f;
     float theta = cpu_hash_f(agent_seed, 3u) * two_pi;
     const float inner_sq = pop.spawn_inner_radius * pop.spawn_inner_radius;
-    const float outer_sq = pop.spawn_radius * pop.spawn_radius;
+    const float outer_sq = pop.spawn_radius       * pop.spawn_radius;
     float u = cpu_hash_f(agent_seed, 4u);
     float r = std::sqrt(inner_sq + u * (outer_sq - inner_sq));
     float sx = center_x + std::cos(theta) * r;
@@ -557,20 +555,20 @@ void populate_agent_slot_(GPUAgentState& out,
 
     // ── Sample home offset (uniform on disk around spawn point) ───
     float h_theta = cpu_hash_f(agent_seed, 5u) * two_pi;
-    float h_r = std::sqrt(cpu_hash_f(agent_seed, 6u)) * pop.home_seeding_radius;
+    float h_r     = std::sqrt(cpu_hash_f(agent_seed, 6u)) * pop.home_seeding_radius;
     float hx = sx + std::cos(h_theta) * h_r;
     float hz = sz + std::sin(h_theta) * h_r;
 
     // ── Write the slot ────────────────────────────────────────────
-    out.pos_x = sx;   out.pos_y = 0.0f; out.pos_z = sz;
-    out.home_x = hx;   out.home_y = 0.0f; out.home_z = hz;
+    out.pos_x   = sx;   out.pos_y   = 0.0f; out.pos_z   = sz;
+    out.home_x  = hx;   out.home_y  = 0.0f; out.home_z  = hz;
     out.heading = 0.0f;
-    out.vel_x = 0.0f; out.vel_y = 0.0f; out.vel_z = 0.0f;
+    out.vel_x   = 0.0f; out.vel_y   = 0.0f; out.vel_z   = 0.0f;
     out.orient_x = 0.0f; out.orient_y = 0.0f; out.orient_z = 0.0f; out.orient_w = 1.0f;
-    out.seed = agent_seed;
-    out.behavior_id = behavior_id;
-    out.tier_idx = tier_idx;
-    out.is_active = 1u;
+    out.seed           = agent_seed;
+    out.behavior_id    = behavior_id;
+    out.tier_idx       = tier_idx;
+    out.is_active      = 1u;
     out.portal_trigger = -1;
 }
 
@@ -597,9 +595,9 @@ void populate_agent_slot_(GPUAgentState& out,
 // cpuAgents_[0] mirrors the player's idle pose.
 
 void spawn_population_for_mood(uint32_t mood_id,
-    uint32_t seed,
-    float center_x, float center_z,
-    wgpu::Queue& queue) {
+                               uint32_t seed,
+                               float center_x, float center_z,
+                               wgpu::Queue& queue) {
     if (mood_id >= MOOD_COUNT) return;
     const auto& pop = AGENT_POPULATIONS[mood_id];
 
@@ -624,15 +622,15 @@ void spawn_population_for_mood(uint32_t mood_id,
             uint32_t agent_seed = cpu_hash(cpu_hash(seed, 0xA6E00000u + mood_id), i + 1u);
 
             populate_agent_slot_(cpuAgents_[slot], pop, agent_seed,
-                beh_sum, tier_sum,
-                center_x, center_z);
+                                 beh_sum, tier_sum,
+                                 center_x, center_z);
             spawned++;
         }
     }
 
     gpuState_.upload_agent_state_all(queue, cpuAgents_);
     std::cout << "[Agents] Spawned " << spawned << " for mood " << mood_id
-        << " around (" << center_x << "," << center_z << ")\n";
+              << " around (" << center_x << "," << center_z << ")\n";
 }
 
 
@@ -656,8 +654,8 @@ void spawn_population_for_mood(uint32_t mood_id,
 // (agentRespawnCounters_ lives in the CPU MIRROR section above.)
 
 void respawn_evicted_agents(uint32_t mood_id,
-    uint32_t world_seed,
-    wgpu::Queue& queue) {
+                            uint32_t world_seed,
+                            wgpu::Queue& queue) {
     if (mood_id >= MOOD_COUNT) return;
     const auto& pop = AGENT_POPULATIONS[mood_id];
     if (pop.count == 0) return;
@@ -690,8 +688,8 @@ void respawn_evicted_agents(uint32_t mood_id,
         // they wander, rather than refilling at the original mood-spawn
         // anchor (which would empty out as soon as they walked away).
         populate_agent_slot_(cpuAgents_[slot], pop, agent_seed,
-            beh_sum, tier_sum,
-            px, pz);
+                             beh_sum, tier_sum,
+                             px, pz);
 
         gpuState_.upload_agent_slot(queue, slot, &cpuAgents_[slot]);
         respawned++;
@@ -699,7 +697,7 @@ void respawn_evicted_agents(uint32_t mood_id,
 
     if (respawned > 0) {
         std::cout << "[Agents] Respawn " << respawned
-            << " around (" << px << "," << pz << ")\n";
+                  << " around (" << px << "," << pz << ")\n";
     }
 }
 
@@ -747,7 +745,7 @@ void try_possess_nearest(wgpu::Queue& queue) {
 
     if (best_slot < 0) {
         std::cout << "[Possess] No agent within " << POSSESSION_RADIUS
-            << " units of player at (" << px << "," << pz << ")\n";
+                  << " units of player at (" << px << "," << pz << ")\n";
         return;
     }
 
@@ -763,9 +761,9 @@ void try_possess_nearest(wgpu::Queue& queue) {
 
     // New slot → player control. Reset velocity + portal trigger so the
     // player's first frame on the new body is clean.
-    cpuAgents_[new_slot].behavior_id = AGENT_BEHAVIOR_PLAYER_CONTROLLED;
-    cpuAgents_[new_slot].vel_x = 0.0f;
-    cpuAgents_[new_slot].vel_z = 0.0f;
+    cpuAgents_[new_slot].behavior_id    = AGENT_BEHAVIOR_PLAYER_CONTROLLED;
+    cpuAgents_[new_slot].vel_x          = 0.0f;
+    cpuAgents_[new_slot].vel_z          = 0.0f;
     cpuAgents_[new_slot].portal_trigger = -1;
 
     gpuState_.upload_agent_slot(queue, cur, &cpuAgents_[cur]);
@@ -775,8 +773,8 @@ void try_possess_nearest(wgpu::Queue& queue) {
     gpuState_.set_possessed_slot(new_slot);
 
     std::cout << "[Possess] " << cur << " -> " << new_slot
-        << " (tier " << cpuAgents_[new_slot].tier_idx
-        << ", dist " << std::sqrt(best_d2) << ")\n";
+              << " (tier " << cpuAgents_[new_slot].tier_idx
+              << ", dist " << std::sqrt(best_d2) << ")\n";
 }
 
 
@@ -786,13 +784,17 @@ void try_possess_nearest(wgpu::Queue& queue) {
 // AGENT_POPULATIONS and recompiling. Mirrors the orbs.inl pattern of
 // player-cycleable system-wide dials (cycle_orb_motion_rule, etc.).
 //
-// Wired in input.inl alongside the existing CapsLock → possess:
-//   B → cycle_agent_behavior_override   step through nine algorithmic
-//                                       behaviors, then back to none
-//   T → cycle_agent_tier_override       step through four tiers, then
-//                                       back to none
-//   R → force_respawn_population        re-roll the current mood's
-//                                       population around the player
+// Wired in input.inl alongside the existing CapsLock → possess.
+// Originally bound to B/T/R; reassigned to function keys when we
+// realized A-Z plays MIDI piano in the analysis layer above the
+// cartridge — letter keys can't double as cartridge diagnostics
+// without playing notes every press.
+//   F1 → cycle_agent_behavior_override   step through nine algorithmic
+//                                        behaviors, then back to none
+//   F2 → cycle_agent_tier_override       step through four tiers, then
+//                                        back to none
+//   F3 → force_respawn_population        re-roll the current mood's
+//                                        population around the player
 //
 // These rewrite cpuAgents_ in place and re-upload the changed slots,
 // so the effect is immediate. PlayerControlled is excluded from the
@@ -828,8 +830,7 @@ void apply_agent_overrides_(wgpu::Queue& queue) {
 void cycle_agent_behavior_override(wgpu::Queue& queue) {
     if (agentBehaviorOverride_ == AGENT_OVERRIDE_NONE) {
         agentBehaviorOverride_ = AGENT_BEHAVIOR_RANDOM_WALK;
-    }
-    else {
+    } else {
         uint32_t next = agentBehaviorOverride_ + 1u;
         agentBehaviorOverride_ = (next >= AGENT_BEHAVIOR_COUNT)
             ? AGENT_OVERRIDE_NONE : next;
@@ -839,10 +840,9 @@ void cycle_agent_behavior_override(wgpu::Queue& queue) {
 
     if (agentBehaviorOverride_ == AGENT_OVERRIDE_NONE) {
         std::cout << "[Agents] behavior override: none\n";
-    }
-    else {
+    } else {
         std::cout << "[Agents] behavior override: "
-            << AGENT_BEHAVIOR_NAMES[agentBehaviorOverride_] << "\n";
+                  << AGENT_BEHAVIOR_NAMES[agentBehaviorOverride_] << "\n";
     }
 }
 
@@ -850,8 +850,7 @@ void cycle_agent_behavior_override(wgpu::Queue& queue) {
 void cycle_agent_tier_override(wgpu::Queue& queue) {
     if (agentTierOverride_ == AGENT_OVERRIDE_NONE) {
         agentTierOverride_ = AGENT_TIER_WORKER;
-    }
-    else {
+    } else {
         uint32_t next = agentTierOverride_ + 1u;
         agentTierOverride_ = (next >= AGENT_TIER_COUNT)
             ? AGENT_OVERRIDE_NONE : next;
@@ -861,10 +860,9 @@ void cycle_agent_tier_override(wgpu::Queue& queue) {
 
     if (agentTierOverride_ == AGENT_OVERRIDE_NONE) {
         std::cout << "[Agents] tier override: none\n";
-    }
-    else {
+    } else {
         std::cout << "[Agents] tier override: "
-            << AGENT_TIER_NAMES[agentTierOverride_] << "\n";
+                  << AGENT_TIER_NAMES[agentTierOverride_] << "\n";
     }
 }
 
@@ -882,7 +880,7 @@ void force_respawn_population(wgpu::Queue& queue) {
         cleared++;
     }
     std::cout << "[Agents] force-respawn cleared " << cleared
-        << " slot(s); refill on next frame\n";
+              << " slot(s); refill on next frame\n";
 }
 
 
@@ -909,12 +907,12 @@ void dump_agent_census(const char* trigger) const {
         if (a.is_active == 0u) continue;
         active++;
         if (a.behavior_id < AGENT_BEHAVIOR_COUNT) by_behavior[a.behavior_id]++;
-        if (a.tier_idx < AGENT_TIER_COUNT)     by_tier[a.tier_idx]++;
+        if (a.tier_idx     < AGENT_TIER_COUNT)     by_tier[a.tier_idx]++;
     }
 
     std::cout << "[AGENTS t=" << std::fixed << std::setprecision(1) << currentSeconds_
-        << " trigger=" << trigger << "] " << active << "/" << Dim::MAX_AGENTS
-        << " active, possessed=" << player_.possessed_slot;
+              << " trigger=" << trigger << "] " << active << "/" << Dim::MAX_AGENTS
+              << " active, possessed=" << player_.possessed_slot;
 
     std::cout << " tier:{";
     bool first = true;

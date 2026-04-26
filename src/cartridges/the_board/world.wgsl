@@ -740,12 +740,23 @@ struct FloatingEntityState {
     is_active: u32,            // 124: 0=inactive, 1=active
     aspect_y: f32,             // 128: Y-axis scale (1.0=cube, >1=tall, <1=flat)
     aspect_z: f32,             // 132: Z-axis scale (1.0=cube, <1=thin slab)
-    _future_2: f32,            // 136: reserved
-    _future_3: f32,            // 140: reserved
-}                              // 144 total
+    // Drift-integrator substrate (cube use; spheres leave at zero).
+    //   home = analytical rest (anchor.xz + ground + bob)
+    //   pos  = home + drift
+    spring_stiffness: f32,     // 136: pulls drift toward zero (1/s²)
+    drag: f32,                 // 140: exponential damping on drift_vel (1/s)
+    drift: vec3<f32>,          // 144: position offset from home (cube)
+    tier_idx: u32,             // 156: runtime tier lookup for gain tables
+    drift_vel: vec3<f32>,      // 160: drift integrator velocity
+    behavior_id: u32,          // 172: cube behavior registry index (Phase 3)
+    behavior_phase: u32,       // 176: per-slot phase hash for behavior diversity
+    _pad0: u32,                // 180: align to 192 (12×16)
+    _pad1: u32,                // 184
+    _pad2: u32,                // 188
+}                              // 192 total
 
 struct FloatingEntityArray {
-    entities: array<FloatingEntityState, 72>,
+    entities: array<FloatingEntityState, 264>,
 }
 
 // --- [STATE:ribbon] RibbonState
@@ -1338,7 +1349,7 @@ struct DesignConfig {
     mode_discrete_tier: f32,      // [0,4] target discrete tier (0=color 1=tinted 2=BW 3=chessBW 4=chessColor)
     mode_gol_tick_scale: f32,     // tick period multiplier (1.0=normal, <1=faster)
     mode_gol_height_scale: f32,   // alive_height multiplier (1.0=normal, >1=taller)
-    _pad_mode_3: f32,
+    floater_coordination: f32,    // [0,1] cube behavior synchrony knob (Phase 3)
     // ─── Radial pulse ring buffer ────────────────────────────────
     pulse_count: u32,
     // Agent system: slot index of the player's current body in
@@ -1483,15 +1494,23 @@ const FPV_MAX_ELEVATION: f32 = 1.5;              // Look up ~86°
 // --- Floating entity constants
 // Per-entity parameters (radius, orbit_radius, orbit_height, orbit_speed,
 // influence_radius, base_color) now live in FloatingEntityState fields.
-// Buffer layout: slots 0..7 = spheres (orbital), slots 8..71 = cubes (hover-bob).
+// Buffer layout: slots 0..7 = spheres (orbital), slots 8..263 = cubes (hover-bob).
+// MUST match Dim::MAX_SPHERE_INSTANCES, Dim::MAX_CUBE_INSTANCES,
+// Dim::CUBE_SLOT_OFFSET, Dim::TOTAL_FLOATING_SLOTS in state.hpp.
 
 const SPHERE_SLOT_COUNT: u32 = 8u;
 const CUBE_SLOT_OFFSET: u32 = 8u;
-const CUBE_SLOT_COUNT: u32 = 64u;
-const TOTAL_FLOATING_SLOTS: u32 = 72u;
+const CUBE_SLOT_COUNT: u32 = 256u;
+const TOTAL_FLOATING_SLOTS: u32 = 264u;
 
 const SPHERE_COLOR_RELEASE_RATE: f32 = 2.0;
 const SPHERE_MIN_TERRAIN_CLEARANCE: f32 = 5.0;
+
+// Cubes bob and now drift via Phase-3 behaviors; the drift integrator
+// can pull pos below ground if a behavior pushes drift.y negative
+// faster than the spring restores it. update_cube clamps drift.y from
+// below to keep pos.y at least this far above local ground.
+const CUBE_TERRAIN_CLEARANCE: f32 = 1.0;
 
 // (legacy proximity field constants removed — binding 21 reserved)
 // (legacy cell spring/color/random/height constants removed — binding 40 reserved)
@@ -5844,6 +5863,35 @@ fn behavior_levy_flight(agent_in: AgentState) -> AgentState {
 const AGENT_EVICTION_RADIUS:    f32 = 360.0;
 const AGENT_EVICTION_RADIUS_SQ: f32 = AGENT_EVICTION_RADIUS * AGENT_EVICTION_RADIUS;
 
+// FLOATER_EVICTION_RADIUS — spheres and cubes that drift further than
+// this from the pawn are evicted (set is_active=0 by their kernels).
+// Floaters and agents share the same "alive out to the patch pre-gen
+// edge" lifecycle. Floaters are no longer patch-coupled (commit no
+// longer registers entity_refs for them); distance from the pawn is
+// the sole eviction criterion.
+//
+// Headroom over spawn radius. Floaters can spawn anywhere out to the
+// pre-gen edge at 350 units. Two ways a fresh floater can be over the
+// eviction line on its first kernel frame if the radii are too close:
+//
+//   1. Commit runs N frames after the trigger fires, while the player
+//      keeps moving. At ~14 units/sec, even a 1-frame commit lag costs
+//      ~0.25 units of headroom; busy-queue lags eat several units.
+//   2. Sphere spawn places pos at `anchor + (orbit_radius, 0, 0)`,
+//      which can put pos up to ~12 units further from the pawn than
+//      anchor. A sphere spawned at 350-unit anchor distance can land
+//      at 362-unit pos distance immediately.
+//
+// 400 = 350 spawn radius + 50 headroom covers both cases with margin.
+// Earlier value of 360 (only +10 over spawn radius) caused near-100%
+// eviction-at-spawn while the player was moving.
+//
+// MIRRORED MANUALLY in modules/floaters.inl (Phase 3) — currently
+// referenced by the C++ readback path on allocator pressure. If you
+// change this, change the C++ side too.
+const FLOATER_EVICTION_RADIUS:    f32 = 400.0;
+const FLOATER_EVICTION_RADIUS_SQ: f32 = FLOATER_EVICTION_RADIUS * FLOATER_EVICTION_RADIUS;
+
 // ─── Player kernel ───────────────────────────────────────────────
 // Single thread, runs once per frame on config.possessed_slot.
 // Contains the full walker policy (pawn_ground_resolve,
@@ -5997,11 +6045,22 @@ fn update_sphere() {
     if (!dynamics_0d_active()) { return; }
 
     let dt = signal.dt;
+    let pawn_xz = compute_pawn_pos().xz;
 
     // Update sphere slots only (orbital motion)
     for (var slot = 0u; slot < SPHERE_SLOT_COUNT; slot++) {
         var fe = floating_entities.entities[slot];
         if (fe.is_active == 0u) { continue; }
+
+        // Lifecycle: pawn-distance eviction. A sphere stays alive as
+        // long as it's within FLOATER_EVICTION_RADIUS of the pawn.
+        // Patch eviction no longer touches floaters (commit path skips
+        // entity_refs for sphere/cube), so this is the sole death path.
+        let to_pawn = fe.pos.xz - pawn_xz;
+        if (dot(to_pawn, to_pawn) > FLOATER_EVICTION_RADIUS_SQ) {
+            floating_entities.entities[slot].is_active = 0u;
+            continue;
+        }
 
         if (!sphere_frozen()) {
             fe.t = fe.t + dt;
@@ -6053,32 +6112,186 @@ fn update_sphere() {
     }
 }
 
+// ─── Cube behavior registry (Phase 3) ─────────────────────────────
+//
+// Each behavior is a small force function that returns a vec3 added
+// into the drift integrator each frame. Behaviors compose with the
+// existing analytical home (anchor.xz + ground + bob); they never
+// touch home directly. The spring in update_cube pulls drift toward
+// zero, so forces have to be sustained for the cube to displace —
+// the steady-state offset for constant force F is F / spring_stiffness.
+//
+// behavior_id is per-slot (FloatingEntityState field, set at spawn);
+// behavior_phase is a per-slot u32 hash used by behaviors that need
+// decorrelated sampling. config.floater_coordination is the system-
+// wide synchrony knob in [0,1].
+//
+// Authoring note: keep force magnitudes small enough that the
+// integrator stays stable (∼10× spring_stiffness is the noticeable
+// limit; beyond that drift overshoots before damping catches it).
+
+const CUBE_BEHAVIOR_STATIONARY: u32 = 0u;
+const CUBE_BEHAVIOR_CURLFIELD:  u32 = 1u;
+const CUBE_BEHAVIOR_PHASEWAVE:  u32 = 2u;
+
+// ─ Force: Stationary ─────────────────────────────────────────────
+// No-op. Drift sits at zero, pos == home, identical to pre-Phase-3
+// hover-bob visual. Default for every spawn.
+fn cube_force_stationary() -> vec3<f32> {
+    return vec3<f32>(0.0, 0.0, 0.0);
+}
+
+// ─ Force: CurlField ──────────────────────────────────────────────
+// Velocity sampled from a 2D curl-noise field: organic XZ drift, no
+// neighbor lookups. Coordination knob lerps between high spatial
+// frequency (every cube samples a different point — individual drift)
+// and low spatial frequency (neighbors share samples — flock-coherent
+// drift). The curl of a scalar sin·cos field is analytical, so we
+// avoid finite-difference noise sampling and stay cheap.
+fn cube_force_curlfield(rest_xz: vec2<f32>, t: f32, coordination: f32) -> vec3<f32> {
+    let freq_high  = 0.040;   // ~150-unit period — neighbors decorrelate
+    let freq_low   = 0.005;   // ~1250-unit period — neighbors coherent
+    let amplitude  = 12.0;    // force magnitude (10× spring) for visible drift
+    let time_scale = 0.25;    // 1/s — slow evolution so motion feels organic
+
+    // Lerp frequency by coordination. At 0 the population looks like
+    // independent drifters; at 1 it looks like a coherent eddy field.
+    let k = mix(freq_high, freq_low, coordination);
+    let phase_t = t * time_scale;
+
+    // Two octaves of analytical curl, summed for richer structure.
+    // Curl of sin(kx)·cos(kz) is (-k·sin(kx)·sin(kz), -k·cos(kx)·cos(kz)).
+    let p1 = rest_xz * k + vec2<f32>(phase_t, phase_t * 0.7);
+    let p2 = rest_xz * (k * 2.3) + vec2<f32>(phase_t * 1.3, phase_t * 0.4);
+
+    let v1 = vec2<f32>(-sin(p1.x) * sin(p1.y), -cos(p1.x) * cos(p1.y));
+    let v2 = vec2<f32>(-sin(p2.x) * sin(p2.y), -cos(p2.x) * cos(p2.y)) * 0.5;
+
+    let v = (v1 + v2) * amplitude;
+    return vec3<f32>(v.x, 0.0, v.y);
+}
+
+// ─ Force: PhaseWave ──────────────────────────────────────────────
+// Vertical sinusoid whose phase is a function of position. At
+// coordination=1, every cube uses k_x·rest.x + k_z·rest.z, producing
+// a traveling wavefront across the population. At coordination=0,
+// every cube uses its own behavior_phase, producing uncorrelated
+// vertical bobbing. Drone-show primitive.
+fn cube_force_phasewave(rest_xz: vec2<f32>, t: f32, behavior_phase: u32, coordination: f32) -> vec3<f32> {
+    let k_x        = 0.020;   // wavefront spatial frequency in X
+    let k_z        = 0.012;   // and Z (asymmetric so the wave isn't axis-aligned)
+    let omega      = 1.5;     // 1/s — wave temporal frequency
+    let amplitude  = 30.0;    // force magnitude — pushes cubes vertically
+
+    // Convert per-slot u32 hash to [0, 2π) for individual phase.
+    let phase_individual = f32(behavior_phase & 0xFFFFu) * (6.283185 / 65536.0);
+    let phase_shared     = k_x * rest_xz.x + k_z * rest_xz.y;
+
+    // Lerp the phase by coordination. At 1 the field reads as a
+    // coherent traveling wave; at 0 each cube oscillates on its own.
+    let phase = mix(phase_individual, phase_shared, coordination) + omega * t;
+
+    return vec3<f32>(0.0, sin(phase) * amplitude, 0.0);
+}
+
+// ─ Dispatch ──────────────────────────────────────────────────────
+// Switch by behavior_id. New behaviors land here as additional cases
+// alongside their authoring registry rows in modules/floaters.inl.
+fn cube_behavior_force(fe: FloatingEntityState, t: f32, pawn_xz: vec2<f32>, coordination: f32) -> vec3<f32> {
+    let rest_xz = vec2<f32>(fe.anchor.x, fe.anchor.z);
+    switch (fe.behavior_id) {
+        case 1u: { return cube_force_curlfield(rest_xz, t, coordination); }
+        case 2u: { return cube_force_phasewave(rest_xz, t, fe.behavior_phase, coordination); }
+        default: { return cube_force_stationary(); }
+    }
+}
+
 @compute @workgroup_size(1)
 fn update_cube() {
     if (!dynamics_0d_active()) { return; }
 
     let dt = signal.dt;
+    let pawn_xz = compute_pawn_pos().xz;
 
-    // Update cube slots (hover-bob motion)
+    // Update cube slots — drift integrator on top of analytical home.
+    //
+    // Decomposition:
+    //   home  = analytical rest position (anchor.xz, ground + orbit_height + bob)
+    //   pos   = home + drift
+    //
+    // drift integrates spring-to-zero plus per-slot behavior forces.
+    // Phase 1: behavior force is zero (Stationary baseline). With drift
+    // and drift_vel starting at zero, the spring sees no error, the
+    // integrator adds nothing, and pos == home every frame — exact
+    // visual parity with the pre-substrate hover-bob. Future behaviors
+    // (CurlField, PhaseWave, …) push drift around without touching
+    // the analytical home.
     let cube_end = CUBE_SLOT_OFFSET + CUBE_SLOT_COUNT;
     for (var slot = CUBE_SLOT_OFFSET; slot < cube_end; slot++) {
         var fe = floating_entities.entities[slot];
         if (fe.is_active == 0u) { continue; }
 
+        // Lifecycle: pawn-distance eviction. Cube stays alive as long
+        // as its current position (home + drift) is within range of
+        // the pawn. Patch eviction no longer touches cubes — see the
+        // matching test in update_sphere for the lifecycle rationale.
+        let to_pawn = fe.pos.xz - pawn_xz;
+        if (dot(to_pawn, to_pawn) > FLOATER_EVICTION_RADIUS_SQ) {
+            floating_entities.entities[slot].is_active = 0u;
+            continue;
+        }
+
         if (!sphere_frozen()) {
             fe.t = fe.t + dt;
 
-            // Hover-bob: orbit_height = clearance above local terrain.
-            // POLICY_FLYER — cube now rises with radial pulses and pawn
-            // aura (pre-refactor: only base terrain + overlay waves, so a
-            // pulse wavefront could briefly lift the ground through the cube).
+            // ── Analytical home ───────────────────────────────────
+            // POLICY_FLYER — home rises with radial pulses and pawn aura.
             let bob_y = sin(fe.t * 6.283185 / max(fe.bob_period, 0.1)) * fe.bob_amplitude;
-            let base_xz = vec2(fe.anchor.x, fe.anchor.z);
+            let home_xz = vec2(fe.anchor.x, fe.anchor.z);
             let qi = QueryInputs(fe.anchor, signal.t_seconds);
-            let ground = query_ground_flyer(base_xz, qi);
-            fe.pos = vec3(fe.anchor.x, ground + fe.orbit_height + bob_y, fe.anchor.z);
+            let ground = query_ground_flyer(home_xz, qi);
+            let home = vec3(fe.anchor.x, ground + fe.orbit_height + bob_y, fe.anchor.z);
 
-            // Spin around tilted Y axis
+            // ── Drift integrator ──────────────────────────────────
+            // Spring pulls drift toward zero (not pos toward home), so
+            // a stationary cube with zero drift stays exactly at home
+            // regardless of stiffness/drag tuning.
+            //
+            // Behavior force comes from the cube_behavior_force dispatch,
+            // which switches on fe.behavior_id and reads the system-wide
+            // coordination knob from config. Stationary returns zero,
+            // making this a no-op for the default population.
+            let behavior_force = cube_behavior_force(
+                fe, signal.t_seconds, pawn_xz, config.floater_coordination);
+            let spring_a = -fe.drift * fe.spring_stiffness;
+            fe.drift_vel = fe.drift_vel + (spring_a + behavior_force) * dt;
+            fe.drift_vel = fe.drift_vel * exp(-fe.drag * dt);
+            fe.drift = fe.drift + fe.drift_vel * dt;
+
+            // ── Terrain-clearance clamp on drift.y ────────────────
+            // Behaviors can pull drift downward (PhaseWave's vertical
+            // sinusoid has amplitude/stiffness = 7.5 units of negative
+            // travel). Without this clamp a large negative drift.y
+            // sends pos below the ground plane.
+            //
+            // Clamp drift.y from below such that home.y + drift.y stays
+            // at least CUBE_TERRAIN_CLEARANCE above the local ground.
+            // When the clamp engages we also kill negative drift_vel.y
+            // so the integrator doesn't accumulate downward energy
+            // against the floor — when behavior force flips upward the
+            // cube responds immediately, no "release the held breath"
+            // pause while the integrator works through stored velocity.
+            let cube_floor_y = ground + CUBE_TERRAIN_CLEARANCE;
+            let min_drift_y = cube_floor_y - home.y;
+            if (fe.drift.y < min_drift_y) {
+                fe.drift.y = min_drift_y;
+                if (fe.drift_vel.y < 0.0) { fe.drift_vel.y = 0.0; }
+            }
+
+            // ── Compose final position ────────────────────────────
+            fe.pos = home + fe.drift;
+
+            // Spin around tilted Y axis (unchanged)
             let spin_angle = fe.t * fe.spin_speed;
             let axis = normalize(vec3(fe.spin_tilt_x, 1.0, fe.spin_tilt_z));
             let half_a = spin_angle * 0.5;

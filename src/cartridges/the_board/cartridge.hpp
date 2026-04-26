@@ -2859,6 +2859,11 @@ namespace t7 {
             struct ActiveCube {
                 int32_t patch_gx = 0, patch_gz = 0;
                 int32_t host_gx = 0, host_gz = 0;
+                // World XZ of the cube's anchor — mirror of fe.anchor[0,2]
+                // on GPU. Captured at spawn so corral_cubes can read the
+                // current anchor without a GPU readback. Updated when
+                // corral writes a new anchor.
+                float   cx = 0.0f, cz = 0.0f;
                 bool active = false;
             };
             ActiveCube activeCubes_[Dim::MAX_CUBE_INSTANCES]{};
@@ -5965,6 +5970,11 @@ namespace t7 {
             // ── Generic Entity Pipeline (modules/entity_pipeline.inl) ──
 #include "modules/entity_pipeline.inl"
 
+            // ── Cube Behavior Registry (modules/floaters.inl) ──
+            // Phase 3: cube behavior IDs, coordination knob, cycling helpers.
+            // Depends on entity_pipeline.inl (cube_write_gpu seeds behavior_phase).
+#include "modules/floaters.inl"
+
             static constexpr FamilyDispatch FAMILY_DISPATCH[PopFamily::COUNT] = {
                 { dispatch_select_pyramid_generic, dispatch_place_pyramid_generic, dispatch_commit_pyramid_generic,
                   dispatch_evict_pyramid, dispatch_prepare_mesh_pyramid, dispatch_mesh_gen_pyramid,
@@ -8051,6 +8061,11 @@ namespace t7 {
                 // Refill any agent slots the GPU evicted last frame.
                 // No-op when no slots were evicted — just a 32-slot scan.
                 respawn_evicted_agents(activeMood_, activeSeed_, queue);
+
+                // Advance any in-flight cube corral animations. No-op
+                // when none are armed (the common case — animations
+                // only run for ~3s after F6 is pressed).
+                tick_cube_corral_animations(queue);
 
                 stream_patches(encoder, queue);
 

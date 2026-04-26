@@ -1353,7 +1353,22 @@ static bool dispatch_place_sphere_generic(Cartridge* self, EntityQueueEntry& e, 
 }
 static void dispatch_commit_sphere_generic(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue) {
     auto* host = self->find_patch(pe.generic.host_gx, pe.generic.host_gz);
-    if (host) { self->generic_commit(SPHERE_TRAITS, SPHERE_ADAPTER, pe.generic, queue); host->record_entity(PopFamily::SPHERE, pe.generic.slot); }
+    if (host) {
+        self->generic_commit(SPHERE_TRAITS, SPHERE_ADAPTER, pe.generic, queue);
+        // Lifecycle Phase 2: sphere lifetime is no longer tied to its
+        // host patch. We don't call host->record_entity() here, so
+        // evict_patch_entities will never dispatch_evict_sphere on this
+        // slot — the GPU-side pawn-distance test in update_sphere is
+        // the sole eviction path. The find_patch() lookup is retained
+        // because a missing host still means "spawn was invalid"; we
+        // just don't link the sphere into the patch's eviction list.
+        //
+        // CPU's activeFloaters_[slot].active stays true until the next
+        // mood transition zeroes the buffer. With 8 slots and a 1.5%
+        // spawn chance, allocator pressure from stale CPU bools is
+        // unlikely in practice; if it surfaces, add a continuous readback
+        // mirroring agent_state_readback_staging (cartridge.hpp ~7990).
+    }
     else { self->activeFloaters_[pe.generic.slot].active = false; }
 }
 
@@ -1376,6 +1391,25 @@ struct CubeIdx {
     static constexpr uint32_t FACE_VARIANCE    = 8;
     static constexpr uint32_t COUNT            = 9;
 };
+
+// ─── Cube drift-integrator substrate defaults ────────────────────
+//
+// Phase 1: system-level defaults applied at placement. The drift
+// integrator (in update_cube) decomposes cube position as:
+//
+//     home = anchor.xz + ground(home.xz) + orbit_height + bob_y
+//     pos  = home + drift     (drift integrated from forces)
+//
+// With behavior_force = 0 and drift = 0 at spawn, the spring sees
+// zero error, drift_vel stays zero, and pos == home every frame.
+// That makes Phase-1 visuals byte-identical to today's hover-bob.
+//
+// Phase 3 promotes these to per-tier columns in a CUBE_TIER_GAINS
+// registry (see floater_backbone_design.md §4). For now they live
+// here as module-level constants — one source of truth, tunable
+// without touching the kernel.
+static constexpr float CUBE_DEFAULT_SPRING_STIFFNESS = 4.0f;   // 1/s²; ~0.5s settle
+static constexpr float CUBE_DEFAULT_DRAG             = 1.5f;   // 1/s; gentle damping
 
 static constexpr TierParamDef CUBE_PARAM_DEFS[] = {
     { CubeEntityProp::BODY_RADIUS,      0.5f, 1e30f, false, ParamDist::GAUSSIAN },
@@ -1433,6 +1467,7 @@ static void cube_write_active(Cartridge* c, const EntityInstance& inst) {
     auto& ac = c->activeCubes_[inst.slot];
     ac.patch_gx = inst.trigger_gx; ac.patch_gz = inst.trigger_gz;
     ac.host_gx = inst.host_gx; ac.host_gz = inst.host_gz;
+    ac.cx = inst.cx; ac.cz = inst.cz;
     ac.active = true;
     c->activeCubeCount_++;
 }
@@ -1464,6 +1499,22 @@ static void cube_write_gpu(Cartridge* c, const EntityInstance& inst, wgpu::Queue
     fe.t = 0.0f; fe.orientation[3] = 1.0f;
     fe.pos[0] = inst.cx; fe.pos[1] = fe.orbit_height; fe.pos[2] = inst.cz;
     fe.is_active = 1;
+    // Drift-integrator substrate. drift / drift_vel start at zero so the
+    // first frame's position equals home (the analytical rest position),
+    // matching the pre-substrate visual exactly. Tier-driven gains will
+    // populate spring_stiffness / drag per-row in Phase 3.
+    fe.spring_stiffness = CUBE_DEFAULT_SPRING_STIFFNESS;
+    fe.drag = CUBE_DEFAULT_DRAG;
+    fe.tier_idx = inst.tier_idx;
+    fe.drift[0] = 0.0f; fe.drift[1] = 0.0f; fe.drift[2] = 0.0f;
+    fe.drift_vel[0] = 0.0f; fe.drift_vel[1] = 0.0f; fe.drift_vel[2] = 0.0f;
+    // Behavior registry. Default to Stationary (id 0); population matrices
+    // and per-mood overrides arrive in modules/floaters.inl. behavior_phase
+    // is a per-slot u32 used by behaviors that need decorrelated sampling
+    // (CurlField's noise origin, PhaseWave's individual offset). Hashing
+    // off seed gives a stable but slot-distinct value.
+    fe.behavior_id = 0;
+    fe.behavior_phase = cpu_hash(inst.seed, 0xF10A7E70u);
     c->gpuState_.upload_cube_entity_slot(queue, inst.slot, fe);
 }
 
@@ -1485,7 +1536,11 @@ static bool dispatch_place_cube_generic(Cartridge* self, EntityQueueEntry& e, Pl
 }
 static void dispatch_commit_cube_generic(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue) {
     auto* host = self->find_patch(pe.generic.host_gx, pe.generic.host_gz);
-    if (host) { self->generic_commit(CUBE_TRAITS, CUBE_ADAPTER, pe.generic, queue); host->record_entity(PopFamily::CUBE, pe.generic.slot); }
+    if (host) {
+        self->generic_commit(CUBE_TRAITS, CUBE_ADAPTER, pe.generic, queue);
+        // Lifecycle Phase 2: cube lifetime decoupled from host patch.
+        // See dispatch_commit_sphere_generic for the rationale.
+    }
     else { self->activeCubes_[pe.generic.slot].active = false; }
 }
 
