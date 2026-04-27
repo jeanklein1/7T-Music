@@ -1310,6 +1310,7 @@ static void sphere_write_active(Cartridge* c, const EntityInstance& inst) {
     auto& af = c->activeFloaters_[inst.slot];
     af.patch_gx = inst.trigger_gx; af.patch_gz = inst.trigger_gz;
     af.host_gx = inst.host_gx; af.host_gz = inst.host_gz;
+    af.last_alloc_time = c->currentSeconds_;
     af.active = true;
     c->activeFloaterCount_++;
 }
@@ -1392,24 +1393,9 @@ struct CubeIdx {
     static constexpr uint32_t COUNT            = 9;
 };
 
-// ─── Cube drift-integrator substrate defaults ────────────────────
-//
-// Phase 1: system-level defaults applied at placement. The drift
-// integrator (in update_cube) decomposes cube position as:
-//
-//     home = anchor.xz + ground(home.xz) + orbit_height + bob_y
-//     pos  = home + drift     (drift integrated from forces)
-//
-// With behavior_force = 0 and drift = 0 at spawn, the spring sees
-// zero error, drift_vel stays zero, and pos == home every frame.
-// That makes Phase-1 visuals byte-identical to today's hover-bob.
-//
-// Phase 3 promotes these to per-tier columns in a CUBE_TIER_GAINS
-// registry (see floater_backbone_design.md §4). For now they live
-// here as module-level constants — one source of truth, tunable
-// without touching the kernel.
-static constexpr float CUBE_DEFAULT_SPRING_STIFFNESS = 4.0f;   // 1/s²; ~0.5s settle
-static constexpr float CUBE_DEFAULT_DRAG             = 1.5f;   // 1/s; gentle damping
+// Cube substrate constants (CUBE_DEFAULT_SPRING_STIFFNESS, CUBE_DEFAULT_DRAG)
+// and registry helpers (apply_cube_tier_gains, pick_cube_behavior_for_spawn)
+// live in modules/floaters.inl. cube_write_gpu calls into them at spawn time.
 
 static constexpr TierParamDef CUBE_PARAM_DEFS[] = {
     { CubeEntityProp::BODY_RADIUS,      0.5f, 1e30f, false, ParamDist::GAUSSIAN },
@@ -1468,6 +1454,7 @@ static void cube_write_active(Cartridge* c, const EntityInstance& inst) {
     ac.patch_gx = inst.trigger_gx; ac.patch_gz = inst.trigger_gz;
     ac.host_gx = inst.host_gx; ac.host_gz = inst.host_gz;
     ac.cx = inst.cx; ac.cz = inst.cz;
+    ac.last_alloc_time = c->currentSeconds_;
     ac.active = true;
     c->activeCubeCount_++;
 }
@@ -1500,21 +1487,31 @@ static void cube_write_gpu(Cartridge* c, const EntityInstance& inst, wgpu::Queue
     fe.pos[0] = inst.cx; fe.pos[1] = fe.orbit_height; fe.pos[2] = inst.cz;
     fe.is_active = 1;
     // Drift-integrator substrate. drift / drift_vel start at zero so the
-    // first frame's position equals home (the analytical rest position),
-    // matching the pre-substrate visual exactly. Tier-driven gains will
-    // populate spring_stiffness / drag per-row in Phase 3.
+    // first frame's position equals home; with behavior_force = 0 (default
+    // Stationary population), the spring is at rest, drift_vel stays zero,
+    // and pos == home — same visual as pre-Phase-3 hover-bob.
+    //
+    // Spring/drag start at the system defaults defined in floaters.inl,
+    // then pass through apply_cube_tier_gains so each tier gets its own
+    // dynamics signature baked in at spawn.
     fe.spring_stiffness = CUBE_DEFAULT_SPRING_STIFFNESS;
-    fe.drag = CUBE_DEFAULT_DRAG;
+    fe.drag             = CUBE_DEFAULT_DRAG;
     fe.tier_idx = inst.tier_idx;
+    apply_cube_tier_gains(fe.spring_stiffness, fe.drag, inst.tier_idx);
     fe.drift[0] = 0.0f; fe.drift[1] = 0.0f; fe.drift[2] = 0.0f;
     fe.drift_vel[0] = 0.0f; fe.drift_vel[1] = 0.0f; fe.drift_vel[2] = 0.0f;
-    // Behavior registry. Default to Stationary (id 0); population matrices
-    // and per-mood overrides arrive in modules/floaters.inl. behavior_phase
+    // Behavior assignment. Population picks one of CUBE_BEHAVIOR_* per
+    // the active mood's weights (see CUBE_POPULATIONS). behavior_phase
     // is a per-slot u32 used by behaviors that need decorrelated sampling
-    // (CurlField's noise origin, PhaseWave's individual offset). Hashing
-    // off seed gives a stable but slot-distinct value.
-    fe.behavior_id = 0;
+    // (CurlField's noise origin, PhaseWave's individual offset). Mix
+    // constant differs from pick_cube_behavior_for_spawn's so the two
+    // derived values are statistically independent.
+    fe.behavior_id    = pick_cube_behavior_for_spawn(c->activeMood_, inst.seed);
     fe.behavior_phase = cpu_hash(inst.seed, 0xF10A7E70u);
+    // Kite mode starts disabled — cube is anchored to its spawn patch
+    // until the user explicitly toggles kite mode via floaters.inl.
+    fe.follow_pawn = 0;
+    fe.pawn_offset[0] = 0.0f; fe.pawn_offset[1] = 0.0f; fe.pawn_offset[2] = 0.0f;
     c->gpuState_.upload_cube_entity_slot(queue, inst.slot, fe);
 }
 

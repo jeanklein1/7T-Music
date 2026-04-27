@@ -357,6 +357,16 @@ namespace t7 {
             // Caps Lock nearest-agent query (all slots, Step 7).
             enum class PawnReadbackState { IDLE, COPIED, MAPPING };
             PawnReadbackState pawnReadbackState_ = PawnReadbackState::IDLE;
+            // Floater readback — separate state machine, same pattern.
+            // Synchronizes CPU activeFloaters_/activeCubes_ "active" mirrors
+            // with the GPU is_active field (which the kernel writes when
+            // a floater drifts beyond FLOATER_EVICTION_RADIUS). Without
+            // this sync, kernel-side evictions are invisible to the CPU
+            // allocator and slots leak — see run_spawn_preamble's slot
+            // search at line ~1641. Stale leakage caps effective floater
+            // count well below MAX_*_INSTANCES.
+            enum class FloaterReadbackState { IDLE, COPIED, MAPPING };
+            FloaterReadbackState floaterReadbackState_ = FloaterReadbackState::IDLE;
             int32_t readbackPortalTrigger_ = -1;
             float pawnReadback_x_ = 0.0f;
             float pawnReadback_z_ = 0.0f;
@@ -2782,6 +2792,12 @@ namespace t7 {
             struct ActiveFloater {
                 int32_t patch_gx = 0, patch_gz = 0;
                 int32_t host_gx = 0, host_gz = 0;
+                // See ActiveCube::last_alloc_time — same race protection
+                // for sphere slots. Spheres rarely evict in practice
+                // (orbital, anchored at origin), but the readback path
+                // covers them uniformly so the protection covers them
+                // uniformly too.
+                float   last_alloc_time = -1000.0f;
                 bool active = false;
             };
             ActiveFloater activeFloaters_[Dim::MAX_SPHERE_INSTANCES]{};
@@ -2864,6 +2880,15 @@ namespace t7 {
                 // current anchor without a GPU readback. Updated when
                 // corral writes a new anchor.
                 float   cx = 0.0f, cz = 0.0f;
+                // Time (currentSeconds_) when this slot was last marked
+                // active. Used to suppress race between freshly allocated
+                // slots and the floater readback path: readback callbacks
+                // process previous-frame data, so a slot allocated this
+                // frame would be incorrectly marked inactive by the readback
+                // (which sees the *prior tenant* as evicted). Suppression
+                // window covers two readback cycles. See render() floater
+                // sync block for the consumer.
+                float   last_alloc_time = -1000.0f;
                 bool active = false;
             };
             ActiveCube activeCubes_[Dim::MAX_CUBE_INSTANCES]{};
@@ -8042,6 +8067,67 @@ namespace t7 {
                         });
                 }
 
+                // --- Floater is_active sync (one-frame latency) ---
+                // The kernel evicts floaters by writing is_active = 0u when
+                // they drift beyond FLOATER_EVICTION_RADIUS from the pawn.
+                // CPU mirror needs this signal to free slots for new spawns;
+                // without it, slots leak and active counts cap far below
+                // MAX_*_INSTANCES. This walks the full floater buffer and
+                // detects true→false transitions on is_active, decrementing
+                // the corresponding active count and clearing the CPU
+                // mirror so run_spawn_preamble can reuse the slot.
+                //
+                // We do NOT trust GPU→CPU for true→true (the cube's still
+                // alive, we already know) or false→false (slot's empty,
+                // nothing to do). And we do NOT propagate CPU→GPU here —
+                // CPU spawn writes a full slot already, so consistency in
+                // that direction is already maintained.
+                if (floaterReadbackState_ == FloaterReadbackState::COPIED) {
+                    floaterReadbackState_ = FloaterReadbackState::MAPPING;
+                    gpuState_.floating_entity_readback_staging().MapAsync(
+                        wgpu::MapMode::Read, 0, GPUState::floating_entity_buffer_size(),
+                        wgpu::CallbackMode::AllowSpontaneous,
+                        [this](wgpu::MapAsyncStatus status, wgpu::StringView) {
+                            if (status == wgpu::MapAsyncStatus::Success) {
+                                const auto* data = static_cast<const GPUFloatingEntityState*>(
+                                    gpuState_.floating_entity_readback_staging().GetConstMappedRange(
+                                        0, GPUState::floating_entity_buffer_size()));
+                                if (data) {
+                                    // Race protection: if a slot was allocated
+                                    // very recently (within the readback
+                                    // pipeline depth), the readback is from
+                                    // before allocation and would falsely
+                                    // mark the slot inactive. Suppress the
+                                    // decrement for slots whose last_alloc_time
+                                    // is more recent than the readback's
+                                    // "snapshot age."
+                                    static constexpr float SPAWN_PROTECTION_S = 0.10f;
+                                    float now = currentSeconds_;
+                                    // Spheres: slots [0, MAX_SPHERE_INSTANCES)
+                                    for (uint32_t i = 0; i < Dim::MAX_SPHERE_INSTANCES; i++) {
+                                        bool gpu_active = (data[i].is_active != 0u);
+                                        if (activeFloaters_[i].active && !gpu_active &&
+                                            (now - activeFloaters_[i].last_alloc_time) > SPAWN_PROTECTION_S) {
+                                            activeFloaters_[i].active = false;
+                                            if (activeFloaterCount_ > 0) activeFloaterCount_--;
+                                        }
+                                    }
+                                    // Cubes: slots [CUBE_SLOT_OFFSET, TOTAL_FLOATING_SLOTS)
+                                    for (uint32_t i = 0; i < Dim::MAX_CUBE_INSTANCES; i++) {
+                                        bool gpu_active = (data[Dim::CUBE_SLOT_OFFSET + i].is_active != 0u);
+                                        if (activeCubes_[i].active && !gpu_active &&
+                                            (now - activeCubes_[i].last_alloc_time) > SPAWN_PROTECTION_S) {
+                                            activeCubes_[i].active = false;
+                                            if (activeCubeCount_ > 0) activeCubeCount_--;
+                                        }
+                                    }
+                                }
+                                gpuState_.floating_entity_readback_staging().Unmap();
+                            }
+                            floaterReadbackState_ = FloaterReadbackState::IDLE;
+                        });
+                }
+
                 // Check if GPU reported a portal trigger
                 if (readbackPortalTrigger_ >= 0 && transitionPhase_ == TransitionPhase::IDLE) {
                     uint32_t arch_idx = static_cast<uint32_t>(readbackPortalTrigger_);
@@ -8165,6 +8251,17 @@ namespace t7 {
                         gpuState_.agent_state_readback_staging(), 0,
                         GPUState::agent_state_buffer_size());
                     pawnReadbackState_ = PawnReadbackState::COPIED;
+                }
+
+                // Copy full floater buffer from GPU to staging (for readback next frame).
+                // ~55 KB/frame; pays for itself by keeping CPU active mirrors
+                // accurate so the spawn allocator can reuse evicted slots.
+                if (floaterReadbackState_ == FloaterReadbackState::IDLE) {
+                    encoder.CopyBufferToBuffer(
+                        gpuState_.floating_entity_buffer(), 0,
+                        gpuState_.floating_entity_readback_staging(), 0,
+                        GPUState::floating_entity_buffer_size());
+                    floaterReadbackState_ = FloaterReadbackState::COPIED;
                 }
 
                 // GoL zone compute — derive params + sync + evolve (separate passes for barrier)

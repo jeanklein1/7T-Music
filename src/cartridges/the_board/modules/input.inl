@@ -68,6 +68,9 @@
 #ifndef GLFW_KEY_F6
 #define GLFW_KEY_F6  295
 #endif
+#ifndef GLFW_KEY_F7
+#define GLFW_KEY_F7  296
+#endif
 
 void on_key_down(int key) {
     switch (key) {
@@ -206,6 +209,7 @@ void on_key_down(int key) {
     //   F4 — cycle cube behavior              (stationary → curlfield → phasewave)
     //   F5 — cycle floater coordination       (0.0 → 0.5 → 1.0)
     //   F6 — corral cubes around pawn         (diagnostic teleport)
+    //   F7 — toggle cube kite mode            (cubes follow pawn on/off)
     case GLFW_KEY_F1: {
         wgpu::Queue q = device_.GetQueue();
         cycle_agent_behavior_override(q);
@@ -233,6 +237,11 @@ void on_key_down(int key) {
     case GLFW_KEY_F6: {
         wgpu::Queue q = device_.GetQueue();
         corral_cubes(q);
+        break;
+    }
+    case GLFW_KEY_F7: {
+        wgpu::Queue q = device_.GetQueue();
+        toggle_cube_kite_mode(q);
         break;
     }
     case GLFW_KEY_LEFT_BRACKET:

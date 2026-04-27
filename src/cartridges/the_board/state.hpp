@@ -616,11 +616,37 @@ namespace t7 {
             uint32_t tier_idx;         // 156: runtime tier lookup for gain tables
             float drift_vel[3];        // 160: drift integrator velocity
             uint32_t behavior_id;      // 172: cube behavior registry index (Phase 3)
-            uint32_t behavior_phase;   // 176: per-slot phase hash for behavior diversity
-            uint32_t _pad0;            // 180: align to 192 (12×16)
-            uint32_t _pad1;            // 184
-            uint32_t _pad2;            // 188
-        };                             // 192 total
+            // ─── Kite mode (Phase 3.3) ───────────────────────────────
+            // When follow_pawn is non-zero, the cube kernel replaces
+            //   home_xz = anchor.xz + pawn_offset.xz + pawn.xz
+            //   home.y  =  ground(...) + orbit_height + bob_y + pawn_offset.y
+            // becomes
+            //   home_xz = pawn.xz + pawn_offset.xz
+            //   home.y  = pawn.y  + pawn_offset.y + orbit_height + bob_y
+            // i.e. anchor is dynamically tied to the pawn's pose. The
+            // cube follows the pawn around the world, like a kite on
+            // an invisible string, while CurlField/PhaseWave still
+            // operate on top via the drift integrator.
+            //
+            // pawn_offset is captured at toggle-on time so each cube
+            // keeps its world-space position at the moment of toggle —
+            // no visual snap. Toggling off freezes anchor at the cube's
+            // current world position (also no snap).
+            //
+            // Field order: pawn_offset must sit at a 16-aligned offset
+            // (176) for WGSL's vec3 alignment rules. behavior_phase
+            // and follow_pawn (both u32, 4-aligned) follow it. Putting
+            // pawn_offset later would force WGSL to insert 8 bytes of
+            // padding, growing the GPU struct to 224 while C++ stayed
+            // at 208 — buffer-binding size mismatch on any pipeline
+            // that reads the array.
+            float    pawn_offset[3];   // 176/180/184: cube position relative to pawn
+            uint32_t behavior_phase;   // 188: per-slot phase hash for behavior diversity
+            uint32_t follow_pawn;      // 192: 0=anchor-relative, 1=pawn-relative
+            uint32_t _pad0;            // 196
+            uint32_t _pad1;            // 200
+            uint32_t _pad2;            // 204
+        };                             // 208 total (13×16)
 
         struct alignas(16) GPURibbonState {
             float anchor[3];                                                    // 0
@@ -1320,7 +1346,7 @@ namespace t7 {
         static_assert(sizeof(GPUAgentTierDef) == 32, "GPUAgentTierDef must be 32 bytes");
         static_assert(sizeof(GPUAgentTierDef) % 16 == 0, "GPUAgentTierDef must be 16-byte aligned");
         static_assert(sizeof(GPUCameraState) == 48, "GPUCameraState must be 48 bytes");
-        static_assert(sizeof(GPUFloatingEntityState) == 192, "GPUFloatingEntityState must be 192 bytes");
+        static_assert(sizeof(GPUFloatingEntityState) == 208, "GPUFloatingEntityState must be 208 bytes");
         static_assert(sizeof(GPURibbonState) == 96, "GPURibbonState must be 96 bytes");
         static_assert(sizeof(GPUVPMatrix) == 128, "GPUVPMatrix must be 128 bytes");
         static_assert(sizeof(GPUDirectionalLight) == 48, "GPUDirectionalLight must be 48 bytes");
@@ -1410,6 +1436,7 @@ namespace t7 {
             // body; slots 1..MAX_AGENTS-1 are mood-authored agents.
             wgpu::Buffer agentStateBuffer_;
             wgpu::Buffer agentStateReadbackStaging_;
+            wgpu::Buffer floatingEntityReadbackStaging_;
             // Agent registries — uploaded once at world-init from the C++
             // AGENT_BEHAVIORS / AGENT_TIER_GAINS tables. The single source
             // of truth lives in modules/agents.inl; the GPU side reads
@@ -1795,6 +1822,22 @@ namespace t7 {
                 size_t off  = offsetof(GPUFloatingEntityState, anchor);
                 float a[3] = { ax, ay, az };
                 queue.WriteBuffer(floatingEntityBuffer_, base + off, a, sizeof(a));
+            }
+
+            // Partial writes for kite-mode state (Phase 3.3). Updated
+            // independently because a typical kite-mode toggle changes
+            // both the flag and the offset, while corral-while-kited
+            // changes only the offset.
+            void upload_cube_follow_pawn(wgpu::Queue& queue, uint32_t slot, uint32_t follow) {
+                size_t base = (Dim::CUBE_SLOT_OFFSET + slot) * sizeof(GPUFloatingEntityState);
+                size_t off  = offsetof(GPUFloatingEntityState, follow_pawn);
+                queue.WriteBuffer(floatingEntityBuffer_, base + off, &follow, sizeof(uint32_t));
+            }
+            void upload_cube_pawn_offset(wgpu::Queue& queue, uint32_t slot, float ox, float oy, float oz) {
+                size_t base = (Dim::CUBE_SLOT_OFFSET + slot) * sizeof(GPUFloatingEntityState);
+                size_t off  = offsetof(GPUFloatingEntityState, pawn_offset);
+                float o[3] = { ox, oy, oz };
+                queue.WriteBuffer(floatingEntityBuffer_, base + off, o, sizeof(o));
             }
 
             void upload_pier_slot(wgpu::Queue& queue, uint32_t slot, const GPUPierInstance& pier) {
@@ -2410,6 +2453,11 @@ namespace t7 {
             wgpu::Buffer ribbon_buffer() const { return ribbonBuffer_; }
             wgpu::Buffer agent_state_buffer() const { return agentStateBuffer_; }
             wgpu::Buffer agent_state_readback_staging() const { return agentStateReadbackStaging_; }
+            wgpu::Buffer floating_entity_readback_staging() const { return floatingEntityReadbackStaging_; }
+            wgpu::Buffer floating_entity_buffer() const { return floatingEntityBuffer_; }
+            static constexpr size_t floating_entity_buffer_size() {
+                return Dim::TOTAL_FLOATING_SLOTS * sizeof(GPUFloatingEntityState);
+            }
             static constexpr size_t agent_state_buffer_size() { return Dim::MAX_AGENTS * sizeof(GPUAgentState); }
             static constexpr size_t agent_slot_size() { return sizeof(GPUAgentState); }
             void set_possessed_slot(uint32_t slot) {
@@ -2707,7 +2755,7 @@ namespace t7 {
                 cameraBuffer_ = makeBuffer("Camera State", sizeof(GPUCameraState), SU);
                 floatingEntityBuffer_ = makeBuffer("Floating Entity Array",
                     Dim::TOTAL_FLOATING_SLOTS * sizeof(GPUFloatingEntityState),
-                    SU | wgpu::BufferUsage::Uniform);
+                    SU | wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopySrc);
                 ribbonBuffer_ = makeBuffer("Ribbon State", sizeof(GPURibbonState), SU | wgpu::BufferUsage::Uniform);
                 ringTransformsBuffer_ = makeBuffer("Ring Transforms",
                     sizeof(GPURibbonRingTransform) * Dim::RIBBON_MAX_RINGS,
@@ -2729,6 +2777,13 @@ namespace t7 {
                     sd.size = Dim::MAX_AGENTS * sizeof(GPUAgentState);
                     sd.usage = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::MapRead;
                     agentStateReadbackStaging_ = device_.CreateBuffer(&sd);
+                }
+                {
+                    wgpu::BufferDescriptor sd{};
+                    sd.label = "Floating Entity Readback Staging";
+                    sd.size = Dim::TOTAL_FLOATING_SLOTS * sizeof(GPUFloatingEntityState);
+                    sd.usage = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::MapRead;
+                    floatingEntityReadbackStaging_ = device_.CreateBuffer(&sd);
                 }
                 {
                     wgpu::BufferDescriptor sd{};
@@ -5619,6 +5674,9 @@ namespace t7 {
                     // means CUBE_BEHAVIOR_STATIONARY (no behavior force).
                     fe.behavior_id = 0;
                     fe.behavior_phase = 0;
+                    // Kite-mode fields — unused on spheres.
+                    fe.follow_pawn = 0;
+                    fe.pawn_offset[0] = 0.0f; fe.pawn_offset[1] = 0.0f; fe.pawn_offset[2] = 0.0f;
                     queue.WriteBuffer(floatingEntityBuffer_, 0, &fe, sizeof(fe));
                 }
 

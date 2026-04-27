@@ -749,11 +749,17 @@ struct FloatingEntityState {
     tier_idx: u32,             // 156: runtime tier lookup for gain tables
     drift_vel: vec3<f32>,      // 160: drift integrator velocity
     behavior_id: u32,          // 172: cube behavior registry index (Phase 3)
-    behavior_phase: u32,       // 176: per-slot phase hash for behavior diversity
-    _pad0: u32,                // 180: align to 192 (12×16)
-    _pad1: u32,                // 184
-    _pad2: u32,                // 188
-}                              // 192 total
+    // Kite mode (Phase 3.3): when follow_pawn != 0, home is computed
+    // from pawn position + pawn_offset rather than from anchor + ground.
+    // pawn_offset must sit at a 16-aligned offset (176) for vec3 layout —
+    // see state.hpp for the C++ ordering and rationale.
+    pawn_offset: vec3<f32>,    // 176/180/184: cube position relative to pawn
+    behavior_phase: u32,       // 188: per-slot phase hash for behavior diversity
+    follow_pawn: u32,          // 192: 0=anchor-relative, 1=pawn-relative
+    _pad0: u32,                // 196: align to 208 (13×16)
+    _pad1: u32,                // 200
+    _pad2: u32,                // 204
+}                              // 208 total
 
 struct FloatingEntityArray {
     entities: array<FloatingEntityState, 264>,
@@ -6244,13 +6250,71 @@ fn update_cube() {
         if (!sphere_frozen()) {
             fe.t = fe.t + dt;
 
+            // ── Kite-release transition ───────────────────────────
+            // If follow_pawn == 2u, the CPU requested kite-mode release:
+            // freeze the cube's CURRENT world xz as the new anchor,
+            // zero drift, and switch to anchor mode (follow_pawn = 0).
+            // This guarantees the cube's visible position is preserved
+            // exactly across the toggle — anchor-mode home re-derives
+            // ground at the new anchor.xz, drift = 0, so pos = home,
+            // and the cube stays where the player saw it.
+            //
+            // Done in the kernel because pos.xz = home.xz + drift.xz
+            // and drift lives only on GPU. Doing it on CPU would need
+            // either a readback (one-frame latency, race-prone) or a
+            // drift estimate (imperfect; CurlField can drift cubes by
+            // ~3 units which would visibly jump on toggle).
+            //
+            // After this fires, the rest of update_cube runs as anchor
+            // mode this frame, on the new anchor. No special-casing
+            // needed — the if/else above already picked the kite path
+            // for home, but with drift zeroed and pos overridden the
+            // result is consistent: home is computed at kite.xz this
+            // frame, pos = home + 0 = home, identical to what an
+            // anchor-mode evaluation at the same xz would give next
+            // frame.
+            if (fe.follow_pawn == 2u) {
+                fe.anchor = vec3(fe.pos.x, 0.0, fe.pos.z);
+                fe.drift = vec3(0.0);
+                fe.drift_vel = vec3(0.0);
+                fe.follow_pawn = 0u;
+            }
+
             // ── Analytical home ───────────────────────────────────
-            // POLICY_FLYER — home rises with radial pulses and pawn aura.
+            // Two modes:
+            //   follow_pawn = 0 (default): home.xz = anchor.xz; home.y
+            //     terrain-relative at home.xz.
+            //   follow_pawn = 1 (kite mode): home.xz = pawn.xz + offset;
+            //     home.y still terrain-relative at home.xz.
+            //
+            // Y is *always* terrain-relative in both modes. This makes
+            // F7 toggle preserve world position cleanly: at the moment
+            // of toggle, the home.xz interpretation switches but the
+            // ground query underneath gives the same answer (anchor.xz
+            // == pawn.xz + offset.xz at the toggle moment by construction,
+            // since offset is captured as cube.cx - pawn.xz). Cubes feel
+            // like balloons leashed to the pawn — float at orbit_height
+            // above whatever terrain they're over, regardless of pawn's
+            // current altitude.
+            //
+            // POLICY_FLYER — the ground query picks up radial pulses
+            // and pawn aura, same as anchor mode.
             let bob_y = sin(fe.t * 6.283185 / max(fe.bob_period, 0.1)) * fe.bob_amplitude;
-            let home_xz = vec2(fe.anchor.x, fe.anchor.z);
-            let qi = QueryInputs(fe.anchor, signal.t_seconds);
-            let ground = query_ground_flyer(home_xz, qi);
-            let home = vec3(fe.anchor.x, ground + fe.orbit_height + bob_y, fe.anchor.z);
+            var home: vec3<f32>;
+            if (fe.follow_pawn != 0u) {
+                let pawn_p = compute_pawn_pos();
+                let kite_xz = vec2(pawn_p.x + fe.pawn_offset.x,
+                                   pawn_p.z + fe.pawn_offset.z);
+                let kite_qi = QueryInputs(vec3(kite_xz.x, 0.0, kite_xz.y),
+                                          signal.t_seconds);
+                let ground_k = query_ground_flyer(kite_xz, kite_qi);
+                home = vec3(kite_xz.x, ground_k + fe.orbit_height + bob_y, kite_xz.y);
+            } else {
+                let home_xz = vec2(fe.anchor.x, fe.anchor.z);
+                let qi = QueryInputs(fe.anchor, signal.t_seconds);
+                let ground_a = query_ground_flyer(home_xz, qi);
+                home = vec3(fe.anchor.x, ground_a + fe.orbit_height + bob_y, fe.anchor.z);
+            }
 
             // ── Drift integrator ──────────────────────────────────
             // Spring pulls drift toward zero (not pos toward home), so
@@ -6269,18 +6333,27 @@ fn update_cube() {
             fe.drift = fe.drift + fe.drift_vel * dt;
 
             // ── Terrain-clearance clamp on drift.y ────────────────
-            // Behaviors can pull drift downward (PhaseWave's vertical
-            // sinusoid has amplitude/stiffness = 7.5 units of negative
-            // travel). Without this clamp a large negative drift.y
-            // sends pos below the ground plane.
+            // Query ground at the cube's *actual* xz, not at the home
+            // anchor. This matters whenever a behavior moves the cube
+            // in xz: CurlField can drift the cube onto terrain that's
+            // higher than the home (a pyramid, a hill), and the clamp
+            // needs to know about *that* ground, not the flat ground
+            // at the anchor. PhaseWave doesn't move xz, so for it the
+            // two queries return the same value.
+            //
+            // The kite-mode case is covered too — home.xz tracks the
+            // pawn, drift.xz overlays on top, pos.xz is where the cube
+            // actually is, ground is queried there.
             //
             // Clamp drift.y from below such that home.y + drift.y stays
-            // at least CUBE_TERRAIN_CLEARANCE above the local ground.
-            // When the clamp engages we also kill negative drift_vel.y
+            // at least CUBE_TERRAIN_CLEARANCE above local ground at
+            // pos.xz. When the clamp engages we kill negative drift_vel.y
             // so the integrator doesn't accumulate downward energy
             // against the floor — when behavior force flips upward the
-            // cube responds immediately, no "release the held breath"
-            // pause while the integrator works through stored velocity.
+            // cube responds immediately.
+            let pos_xz = vec2(home.x + fe.drift.x, home.z + fe.drift.z);
+            let pos_qi = QueryInputs(vec3(pos_xz.x, 0.0, pos_xz.y), signal.t_seconds);
+            let ground = query_ground_flyer(pos_xz, pos_qi);
             let cube_floor_y = ground + CUBE_TERRAIN_CLEARANCE;
             let min_drift_y = cube_floor_y - home.y;
             if (fe.drift.y < min_drift_y) {
