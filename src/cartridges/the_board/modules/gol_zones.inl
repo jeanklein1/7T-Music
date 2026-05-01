@@ -38,12 +38,11 @@
 //   GoLColorMode      — color tier weights (declarative)
 //   GoLZoneState      — per-instance runtime state
 
-            // SEAM[gol_zones:L1] hardware mirror: WGSL declares the same
-            //   constant in its TUNING SURFACE DIRECTORY ("MODE_LATTICE_SPACING
-            //   120 wu — smooth/discrete clusters"). Same family as agents:L2
-            //   (must produce identical results). The C++ side currently
-            //   lacks a "MUST match" comment that names the WGSL counterpart;
-            //   add it during the Phase 3 contract-cleanup batch.
+            // DONE[gol_zones:L1] MUST match world.wgsl's MODE_LATTICE_SPACING
+            //   (in TUNING SURFACE DIRECTORY: "MODE_LATTICE_SPACING 120 wu —
+            //   smooth/discrete clusters"). Hardware mirror — same family
+            //   as agents:L2 / sample_gaussian / lattice_node_seed.
+            //   When tuning, change both sides.
             static constexpr float MODE_LATTICE_SPACING = 120.0f;
             static constexpr float PATCH_CELL_SIZE = (float)Dim::PATCH_EXTENT / 16.0f;  // 3.125
 

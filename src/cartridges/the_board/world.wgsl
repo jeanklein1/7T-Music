@@ -6147,6 +6147,10 @@ const CUBE_BEHAVIOR_STATIONARY: u32 = 0u;
 const CUBE_BEHAVIOR_CURLFIELD:  u32 = 1u;
 const CUBE_BEHAVIOR_PHASEWAVE:  u32 = 2u;
 
+// MUST match modules/cube_behaviors.inl::CUBE_BEHAVIOR_COUNT
+// (mirrors the agents pattern at AGENT_BEHAVIOR_COUNT_WGSL above).
+const CUBE_BEHAVIOR_COUNT_WGSL: u32 = 3u;
+
 // ─ Force: Stationary ─────────────────────────────────────────────
 // No-op. Drift sits at zero, pos == home, identical to pre-Phase-3
 // hover-bob visual. Default for every spawn.

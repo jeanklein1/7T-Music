@@ -75,6 +75,10 @@
 static constexpr uint32_t CUBE_BEHAVIOR_STATIONARY = 0;
 static constexpr uint32_t CUBE_BEHAVIOR_CURLFIELD  = 1;
 static constexpr uint32_t CUBE_BEHAVIOR_PHASEWAVE  = 2;
+// DONE[floaters:L4] CUBE_BEHAVIOR_COUNT_WGSL added on the WGSL side
+//   (world.wgsl §7 cube behavior registry). MUST match this value —
+//   when adding a behavior, bump both. Mirrors the agents pattern
+//   (AGENT_BEHAVIOR_COUNT_WGSL).
 static constexpr uint32_t CUBE_BEHAVIOR_COUNT      = 3;
 
 static constexpr const char* CUBE_BEHAVIOR_NAMES[CUBE_BEHAVIOR_COUNT] = {
