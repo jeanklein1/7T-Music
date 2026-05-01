@@ -110,3 +110,205 @@ void toggle_mmode(uint32_t mode) {
     std::cout << "[MMode] " << MMODE_NAMES[mode] << ": " << (on ? "ON" : "OFF") << "\n";
 }
 
+
+
+// ─── Per-frame musical coupling tick ─────────────────────────────
+//
+// DONE[musical:K2] All polyphony→intensity ramps moved out of
+//   cartridge.hpp::update() into this single named tick. The three
+//   blocks that used to live there:
+//     1) band motion (BAND_BLEND_ATTACK/RELEASE per band)
+//     2) musical mode intensities (MMODE_ATTACK/RELEASE per mode)
+//     3) palette drift target + intensity ramp
+//   ...plus radial pulse onset detection (musical:K3 site) all
+//   happen here in one call, in the same order they used to run.
+//   Every exponential ramp uses the same Trajectory primitive shape
+//   as WGSL §1.2 (trajectory_release).
+//
+// Caller: cartridge.hpp::update() — single site, runs every frame
+// after the signal has been uploaded and before orb couplings.
+void tick_musical_couplings(const AnalysisSignal& signal, wgpu::Queue& queue) {
+    const float polyphony = signal.stats[0];
+    const float dt        = signal.dt;
+
+    // ─── 1. Polyphony-driven band motion ──────────────────────────
+    if (bandMotionActive_) {
+        const uint32_t active_count = (uint32_t)std::max(0.0f, std::min(polyphony, 6.0f));
+
+        // Set per-band targets: bands activate fine → tectonic
+        for (uint32_t i = 0; i < 6; i++) bandBlendTarget_[i] = 0.0f;
+        for (uint32_t i = 0; i < active_count; i++) {
+            bandBlendTarget_[BAND_ACTIVATION_ORDER[i]] = 1.0f;
+        }
+
+        bool changed = false;
+        for (uint32_t i = 0; i < 6; i++) {
+            const float prev = bandBlend_[i];
+            const float target = bandBlendTarget_[i];
+
+            // Capture phase origin at the moment a band activates
+            if (target > 0.5f && prev < 0.01f) {
+                bandPhaseOrigin_[i] = currentBeats_;
+            }
+
+            const float rate = (target > prev) ? BAND_BLEND_ATTACK : BAND_BLEND_RELEASE;
+            Trajectory bb{ prev, 0.0f, 0.0f, 0.0f };
+            bb = trajectory_release(bb, target, dt, rate);
+            bandBlend_[i] = bb.value;
+
+            // Snap to endpoints to avoid perpetual drift
+            if (bandBlend_[i] < 0.001f && target == 0.0f) bandBlend_[i] = 0.0f;
+            if (bandBlend_[i] > 0.999f && target == 1.0f) bandBlend_[i] = 1.0f;
+
+            if (bandBlend_[i] != prev) changed = true;
+        }
+
+        if (changed) {
+            gpuState_.set_band_motion(bandBlend_, bandPhaseOrigin_);
+        }
+        gpuState_.set_terrain_time(currentBeats_);
+    }
+
+    // ─── 2. Musical mode intensities (per-mode polyphony coupling) ─
+    bool any_changed = false;
+    for (uint32_t m = 0; m < MMODE_COUNT; m++) {
+        // Skip mode 0 (terrain waves) — handled by band motion above
+        // Skip mode 3 (palette drift) — has its own steeper curve below
+        if (m == MMODE_TERRAIN_WAVES || m == MMODE_PALETTE_DRIFT) continue;
+
+        const bool on = is_mmode_on(m);
+        const float target = on ? std::min(polyphony / 6.0f, 1.0f) : 0.0f;
+        const float prev = mmodeIntensity_[m];
+        const float rate = (target > prev) ? MMODE_ATTACK : MMODE_RELEASE;
+        Trajectory mi{ prev, 0.0f, 0.0f, 0.0f };
+        mi = trajectory_release(mi, target, dt, rate);
+        float next = mi.value;
+
+        // Snap to endpoints
+        if (next < 0.001f && target == 0.0f) next = 0.0f;
+        if (next > 0.999f && target >= 1.0f) next = 1.0f;
+
+        if (next != prev) {
+            mmodeIntensity_[m] = next;
+            any_changed = true;
+        }
+    }
+    if (any_changed) {
+        gpuState_.set_mode_color_shift(mmodeIntensity_[MMODE_COLOR_SHIFT] * 0.6f);
+        gpuState_.set_mode_checker_scatter(mmodeIntensity_[MMODE_CHECKER_SCATTER] * 0.5f);
+
+        // Aura expand: intensity scales aura parameters
+        if (mmodeIntensity_[MMODE_AURA_EXPAND] > 0.0f || is_mmode_on(MMODE_AURA_EXPAND)) {
+            auraCfgDirty_ = true;
+        }
+
+        // GoL tempo: more polyphony = slower zones + taller cells.
+        // tick_scale > 1 = slower, height_scale > 1 = taller.
+        {
+            const float gi = mmodeIntensity_[MMODE_GOL_TEMPO];
+            const float tick_scale   = 1.0f + gi * 3.0f;   // up to 4× slower
+            const float height_scale = 1.0f + gi * 2.0f;   // up to 3× taller
+            gpuState_.set_mode_gol_scales(tick_scale, height_scale);
+        }
+    }
+
+    // ─── 3. Palette drift (target + intensity, both ramped) ───────
+    {
+        const bool drift_on = is_mmode_on(MMODE_PALETTE_DRIFT);
+
+        // Smooth palette mapping: ordered by contrast from sand baseline.
+        //   1 note → green(2), 2 notes → grey(3), 3+ notes → salmon(1).
+        static constexpr float SMOOTH_PALETTE_MAP[] = { 0.0f, 2.0f, 3.0f, 1.0f };
+        // Discrete tier mapping for drift mode.
+        static constexpr float DISCRETE_TIER_MAP[]  = { 0.0f, 1.0f, 4.0f, 2.0f, 3.0f };
+
+        if (drift_on && polyphony >= 1.0f) {
+            const uint32_t idx = std::min((uint32_t)polyphony, 3u);
+            paletteDriftDesired_ = SMOOTH_PALETTE_MAP[idx];
+        }
+        if (!drift_on || polyphony < 0.5f) {
+            paletteDriftDesired_ = 0.0f;
+        }
+
+        // Ramp target smoothly (avoids color snaps)
+        const float prev_t = paletteDriftTarget_;
+        Trajectory pdt{ prev_t, 0.0f, 0.0f, 0.0f };
+        pdt = trajectory_release(pdt, paletteDriftDesired_, dt, PALETTE_DRIFT_TARGET_RATE);
+        paletteDriftTarget_ = pdt.value;
+
+        // Intensity: poly/3 partial→full
+        const float drift_intensity = drift_on ? std::min(polyphony / 3.0f, 1.0f) : 0.0f;
+        const float prev_i = mmodeIntensity_[MMODE_PALETTE_DRIFT];
+        const float rate_i = (drift_intensity > prev_i) ? MMODE_ATTACK : MMODE_RELEASE;
+        Trajectory pdi{ prev_i, 0.0f, 0.0f, 0.0f };
+        pdi = trajectory_release(pdi, drift_intensity, dt, rate_i);
+        mmodeIntensity_[MMODE_PALETTE_DRIFT] = pdi.value;
+        const float intensity = mmodeIntensity_[MMODE_PALETTE_DRIFT];
+
+        float discrete_tier = 0.0f;
+        if (drift_on && polyphony >= 1.0f) {
+            const uint32_t tidx = std::min((uint32_t)polyphony, 4u);
+            discrete_tier = DISCRETE_TIER_MAP[tidx];
+        }
+
+        if (intensity > 0.001f || paletteDriftTarget_ != prev_t) {
+            gpuState_.set_mode_palette_drift(paletteDriftTarget_, intensity, discrete_tier);
+        }
+    }
+
+    // ─── 4. Radial pulse onset detection (musical:K3 site) ────────
+    {
+        const bool pulse_on = is_mmode_on(MMODE_RADIAL_PULSE);
+
+        if (pulse_on && polyphony > prevPolyphony_ + 0.5f) {
+            const float increase = polyphony - std::max(prevPolyphony_, 0.0f);
+            const uint32_t slot = pulseWriteIdx_ % PULSE_RING_SIZE;
+            const uint32_t base = slot * 4;
+            pulseRing_[base + 0] = pawnReadback_x_;
+            pulseRing_[base + 1] = pawnReadback_z_;
+            pulseRing_[base + 2] = currentSeconds_;
+            pulseRing_[base + 3] = PULSE_AMPLITUDE * std::min(increase, 3.0f);
+            pulseWriteIdx_++;
+            std::cout << "[Pulse] ONSET slot=" << slot
+                << " pos=(" << pawnReadback_x_ << "," << pawnReadback_z_ << ")"
+                << " t=" << currentSeconds_
+                << " amp=" << pulseRing_[base + 3]
+                << " poly=" << polyphony << " prev=" << prevPolyphony_
+                << "\n";
+        }
+        prevPolyphony_ = polyphony;
+
+        // Count active (non-expired) pulses and upload
+        uint32_t active = 0;
+        for (uint32_t i = 0; i < PULSE_RING_SIZE; i++) {
+            const float onset = pulseRing_[i * 4 + 2];
+            const float amp   = pulseRing_[i * 4 + 3];
+            if (amp > 0.001f && (currentSeconds_ - onset) < PULSE_MAX_AGE) {
+                active = std::max(active, i + 1);
+            }
+        }
+        gpuState_.set_pulse_data(active, pulseRing_);
+    }
+}
+
+// ─── Per-mood-transition reset ────────────────────────────────────
+//
+// DONE[mood:K3] Per-mood-transition musical reset extracted from the
+//   two duplicate sites (cartridge.hpp::teardown_world and
+//   mood.inl::apply_mood) into this single named function. Both
+//   callers now invoke reset_musical_couplings(queue). Mask stays
+//   wired (toggles persist across world transitions), values reset.
+void reset_musical_couplings(wgpu::Queue& queue) {
+    for (uint32_t m = 0; m < MMODE_COUNT; m++) mmodeIntensity_[m] = 0.0f;
+    paletteDriftTarget_  = 0.0f;
+    paletteDriftDesired_ = 0.0f;
+    gpuState_.set_mode_color_shift(0.0f);
+    gpuState_.set_mode_checker_scatter(0.0f);
+    gpuState_.set_mode_palette_drift(0.0f, 0.0f, 0.0f);
+    gpuState_.set_mode_gol_scales(1.0f, 1.0f);
+    for (int i = 0; i < 32; i++) pulseRing_[i] = 0.0f;
+    pulseWriteIdx_ = 0;
+    prevPolyphony_ = 0.0f;
+    float zero_pulses[32] = {};
+    gpuState_.set_pulse_data(0, zero_pulses);
+}

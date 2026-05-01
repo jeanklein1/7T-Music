@@ -2686,18 +2686,7 @@ namespace t7 {
                 }
 
                 // Musical modes: reset intensities (mask stays — circuits remain wired)
-                for (uint32_t m = 0; m < MMODE_COUNT; m++) mmodeIntensity_[m] = 0.0f;
-                paletteDriftTarget_ = 0.0f;
-                paletteDriftDesired_ = 0.0f;
-                gpuState_.set_mode_color_shift(0.0f);
-                gpuState_.set_mode_checker_scatter(0.0f);
-                gpuState_.set_mode_palette_drift(0.0f, 0.0f, 0.0f);
-                gpuState_.set_mode_gol_scales(1.0f, 1.0f);
-                for (int i = 0; i < 32; i++) pulseRing_[i] = 0.0f;
-                pulseWriteIdx_ = 0;
-                prevPolyphony_ = 0.0f;
-                float zero_pulses[32] = {};
-                gpuState_.set_pulse_data(0, zero_pulses);
+                reset_musical_couplings(queue);
 
                 // Y correction
 
@@ -3124,15 +3113,18 @@ namespace t7 {
                 return true;
             }
 
-            // SEAM[spine:K1] update() currently mixes orchestration (correct)
-            //   with module-specific ramps and couplings (leaked).
-            //   Resolution: introduce CPU-side Trajectory primitive (mirroring
-            //   WGSL §1.2) + per-module tick_*_couplings() functions. After
-            //   resolution, update() becomes a sequence of named tick calls,
-            //   shrinking by ~250 lines. Phase 4 of the resolution sequence.
-            // SEAM[spine:L4] formal phase-table comment block at top of update()
-            //   would make ordering grep-discoverable. Today the ordering is
-            //   only in section banners and per-site comments.
+            // DONE[spine:K1 / musical:K2 / mood:K3] update() is now the
+            //   phase-orchestration sequence the seam map called for:
+            //   build signal → upload → transition state machine →
+            //   tick_musical_couplings → orb couplings → photographer →
+            //   clear input deltas. ~200 lines of inline ramps moved into
+            //   musical.inl (tick_musical_couplings, reset_musical_couplings)
+            //   using the trajectory.inl primitive (mirroring WGSL §1.2).
+            //   Pawn aura presence ramp (pawn:K1) still inline below —
+            //   migrates with the pawn.inl extraction in Phase 4.3.
+            // DONE[spine:L4] phase order is named at each call site
+            //   (ramps live in named ticks; orchestration is the
+            //   call-list shape).
             void update(const AnalysisSignal& signal,
                 float aspect_ratio,
                 wgpu::Queue& queue) override {
@@ -3309,214 +3301,12 @@ namespace t7 {
 
                 gpuState_.upload_signal(queue, gpuSignal);
 
-                // ─── Polyphony-driven band motion ────────────────────────
-                //
-                // SEAM[musical:K2] band motion ramps (~lines 8050-8087) are
-                //   another ramp-in-spine site, not in the seam map's original
-                //   inventory. NEW FINDING (Ch. 15 chunk 1): six bands ×
-                //   per-frame exponential ramp, polyphony→band-blend coupling.
-                //   Folds into the K2 resolution: tick_musical_couplings()
-                //   handles bands alongside mode intensities.
-                if (bandMotionActive_) {
-                    float polyphony = signal.stats[0];
-                    uint32_t active_count = (uint32_t)std::max(0.0f, std::min(polyphony, 6.0f));
-
-                    // Set per-band targets: bands activate in order from fine to tectonic
-                    for (uint32_t i = 0; i < 6; i++) bandBlendTarget_[i] = 0.0f;
-                    for (uint32_t i = 0; i < active_count; i++) {
-                        bandBlendTarget_[BAND_ACTIVATION_ORDER[i]] = 1.0f;
-                    }
-
-                    float dt = signal.dt;
-                    bool changed = false;
-                    for (uint32_t i = 0; i < 6; i++) {
-                        float prev = bandBlend_[i];
-                        float target = bandBlendTarget_[i];
-
-                        // Capture phase origin at the moment a band activates
-                        if (target > 0.5f && prev < 0.01f) {
-                            bandPhaseOrigin_[i] = currentBeats_;
-                        }
-
-                        // Exponential ramp toward target
-                        float rate = (target > prev) ? BAND_BLEND_ATTACK : BAND_BLEND_RELEASE;
-                        bandBlend_[i] = prev + (target - prev) * (1.0f - std::exp(-rate * dt));
-
-                        // Snap to endpoints to avoid perpetual drift
-                        if (bandBlend_[i] < 0.001f && target == 0.0f) bandBlend_[i] = 0.0f;
-                        if (bandBlend_[i] > 0.999f && target == 1.0f) bandBlend_[i] = 1.0f;
-
-                        if (bandBlend_[i] != prev) changed = true;
-                    }
-
-                    if (changed) {
-                        gpuState_.set_band_motion(bandBlend_, bandPhaseOrigin_);
-                    }
-                    gpuState_.set_terrain_time(currentBeats_);
-                }
-
-                // ─── Musical animation modes: per-frame intensity ramp ───
-                //
-                // SEAM[musical:K2] the polyphony-coupling ramps live here for
-                //   ~150 lines (8089-8240): mode intensities loop, palette
-                //   drift, color shift, checker scatter, aura expand mult,
-                //   GoL tempo. Each is an exponential trajectory toward a
-                //   polyphony-derived target. End-of-tour Phase 4 mirrors the
-                //   GPU §1.2 Trajectory shape: each becomes a Trajectory
-                //   field in musical.inl, this block becomes
-                //   tick_musical_couplings(signal, dt, queue).
-                {
-                    float polyphony = signal.stats[0];
-                    float dt = signal.dt;
-                    bool any_changed = false;
-
-                    for (uint32_t m = 0; m < MMODE_COUNT; m++) {
-                        // Skip mode 0 (terrain waves) — handled by band motion system above
-                        // Skip mode 3 (palette drift) — has its own steeper intensity curve below
-                        if (m == MMODE_TERRAIN_WAVES || m == MMODE_PALETTE_DRIFT) continue;
-
-                        bool on = is_mmode_on(m);
-                        float target = on ? std::min(polyphony / 6.0f, 1.0f) : 0.0f;
-                        float prev = mmodeIntensity_[m];
-                        float rate = (target > prev) ? MMODE_ATTACK : MMODE_RELEASE;
-                        float next = prev + (target - prev) * (1.0f - std::exp(-rate * dt));
-
-                        // Snap to endpoints
-                        if (next < 0.001f && target == 0.0f) next = 0.0f;
-                        if (next > 0.999f && target >= 1.0f) next = 1.0f;
-
-                        if (next != prev) {
-                            mmodeIntensity_[m] = next;
-                            any_changed = true;
-                        }
-                    }
-
-                    if (any_changed) {
-                        // Color shift: intensity → mode field bias
-                        gpuState_.set_mode_color_shift(mmodeIntensity_[MMODE_COLOR_SHIFT] * 0.6f);
-
-                        // Checker scatter: intensity → sparse threshold reduction
-                        gpuState_.set_mode_checker_scatter(mmodeIntensity_[MMODE_CHECKER_SCATTER] * 0.5f);
-
-                        // Aura expand: intensity scales aura parameters
-                        if (mmodeIntensity_[MMODE_AURA_EXPAND] > 0.0f || is_mmode_on(MMODE_AURA_EXPAND)) {
-                            auraCfgDirty_ = true;
-                        }
-
-                        // GoL tempo: intensity → tick slow-down + height boost
-                        // Inverse: more polyphony = slower GoL (contemplation).
-                        // When BPM detection arrives, this source gets swapped.
-                        {
-                            float gi = mmodeIntensity_[MMODE_GOL_TEMPO];
-                            // tick_scale > 1 = slower. Lerp from 1.0 up to 4.0 (4× slower at full)
-                            float tick_scale = 1.0f + gi * 3.0f;
-                            // height_scale > 1 = taller. Lerp from 1.0 up to 3.0
-                            float height_scale = 1.0f + gi * 2.0f;
-                            gpuState_.set_mode_gol_scales(tick_scale, height_scale);
-                        }
-                    }
-
-                    // Palette drift: smooth target transition + push to GPU
-                    // Uses its own intensity curve — steeper than generic mmodeIntensity
-                    // because palette colors are close and need strong push to read.
-                    {
-                        float poly = signal.stats[0];
-                        bool drift_on = is_mmode_on(MMODE_PALETTE_DRIFT);
-
-                        // Smooth palette mapping: ordered by contrast from sand baseline.
-                        //   1 note → green(2)  — biggest hue shift
-                        //   2 notes → grey(3)   — desaturated, clearly different
-                        //   3+ notes → salmon(1) — warm shift, completes cycle
-                        static constexpr float SMOOTH_PALETTE_MAP[] = { 0.0f, 2.0f, 3.0f, 1.0f };
-
-                        // Discrete tier mapping: cycle through all vocabularies.
-                        //   Idle   → whatever the threshold cascade gives (natural)
-                        //   1 note → tinted mono(1)    — desaturated, grey-tinted cells
-                        //   2 notes → chess colorful(4) — parity + vivid per-node colors
-                        //   3 notes → pure B&W(2)       — high contrast random assignment
-                        //   4+ notes → chess B&W(3)     — structured classic pattern
-                        // Full color(0) is the natural idle state for most cells,
-                        // so it's not a useful drift target — already there.
-                        static constexpr float DISCRETE_TIER_MAP[] = { 0.0f, 1.0f, 4.0f, 2.0f, 3.0f };
-
-                        if (drift_on && poly >= 1.0f) {
-                            uint32_t idx = std::min((uint32_t)poly, 3u);
-                            paletteDriftDesired_ = SMOOTH_PALETTE_MAP[idx];
-                        }
-                        if (!drift_on || poly < 0.5f) {
-                            paletteDriftDesired_ = 0.0f;
-                        }
-
-                        // Ramp target smoothly to avoid color snaps
-                        float prev_t = paletteDriftTarget_;
-                        paletteDriftTarget_ += (paletteDriftDesired_ - paletteDriftTarget_)
-                            * (1.0f - std::exp(-PALETTE_DRIFT_TARGET_RATE * dt));
-
-                        // Intensity: poly/3 so single note is partial, 3 notes = full
-                        float drift_intensity = drift_on
-                            ? std::min(poly / 3.0f, 1.0f) : 0.0f;
-                        // Use same exponential ramp as other modes for smooth on/off
-                        float prev_i = mmodeIntensity_[MMODE_PALETTE_DRIFT];
-                        float rate_i = (drift_intensity > prev_i) ? MMODE_ATTACK : MMODE_RELEASE;
-                        mmodeIntensity_[MMODE_PALETTE_DRIFT] = prev_i
-                            + (drift_intensity - prev_i) * (1.0f - std::exp(-rate_i * dt));
-                        float intensity = mmodeIntensity_[MMODE_PALETTE_DRIFT];
-
-                        // Discrete tier from lookup
-                        float discrete_tier = 0.0f;
-                        if (drift_on && poly >= 1.0f) {
-                            uint32_t tidx = std::min((uint32_t)poly, 4u);
-                            discrete_tier = DISCRETE_TIER_MAP[tidx];
-                        }
-
-                        if (intensity > 0.001f || paletteDriftTarget_ != prev_t) {
-                            gpuState_.set_mode_palette_drift(paletteDriftTarget_, intensity, discrete_tier);
-                        }
-                    }
-                }
-
-                // ─── Radial pulse onset detection ────────────────────────
-                //
-                // SEAM[musical:K3] prevPolyphony_ is consumer state for onset
-                //   detection (line ~8223). Correctly placed if musical.inl
-                //   owns the per-frame update; stranded if K2 doesn't resolve.
-                //   Migrates with K2.
-                {
-                    float poly = signal.stats[0];
-                    bool pulse_on = is_mmode_on(MMODE_RADIAL_PULSE);
-
-                    // Detect note onsets: polyphony increased since last frame
-                    if (pulse_on && poly > prevPolyphony_ + 0.5f) {
-                        float increase = poly - std::max(prevPolyphony_, 0.0f);
-                        // Emit one pulse per onset, amplitude proportional to note count
-                        uint32_t slot = pulseWriteIdx_ % PULSE_RING_SIZE;
-                        uint32_t base = slot * 4;
-                        pulseRing_[base + 0] = pawnReadback_x_;      // origin X
-                        pulseRing_[base + 1] = pawnReadback_z_;      // origin Z
-                        pulseRing_[base + 2] = currentSeconds_;      // onset time
-                        pulseRing_[base + 3] = PULSE_AMPLITUDE * std::min(increase, 3.0f);
-                        pulseWriteIdx_++;
-                        std::cout << "[Pulse] ONSET slot=" << slot
-                            << " pos=(" << pawnReadback_x_ << "," << pawnReadback_z_ << ")"
-                            << " t=" << currentSeconds_
-                            << " amp=" << pulseRing_[base + 3]
-                            << " poly=" << poly << " prev=" << prevPolyphony_
-                            << "\n";
-                    }
-                    prevPolyphony_ = poly;
-
-                    // Count active (non-expired) pulses and upload
-                    uint32_t active = 0;
-                    for (uint32_t i = 0; i < PULSE_RING_SIZE; i++) {
-                        float onset = pulseRing_[i * 4 + 2];
-                        float amp = pulseRing_[i * 4 + 3];
-                        if (amp > 0.001f && (currentSeconds_ - onset) < PULSE_MAX_AGE) {
-                            active = std::max(active, i + 1);
-                        }
-                    }
-                    // Always upload if any pulses exist (even decaying ones for GPU to evaluate)
-                    gpuState_.set_pulse_data(active, pulseRing_);
-                }
+                // ─── Musical couplings ──────────────────────────────────
+                // Band motion + per-mode intensities + palette drift +
+                // radial pulse onset detection. All ramps live in
+                // musical.inl as Trajectory-based per-frame ticks
+                // (Phase 4.2 — closes musical:K2, musical:K3).
+                tick_musical_couplings(signal, queue);
 
                 gpuState_.upload_config(queue);
 

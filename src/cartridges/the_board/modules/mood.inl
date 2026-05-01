@@ -373,18 +373,7 @@ void apply_mood(uint32_t mood, wgpu::Queue& queue) {
     }
 
     // Reset all mode intensities on mood change (circuits stay wired, values reset)
-    for (uint32_t m = 0; m < MMODE_COUNT; m++) mmodeIntensity_[m] = 0.0f;
-    paletteDriftTarget_ = 0.0f;
-    paletteDriftDesired_ = 0.0f;
-    gpuState_.set_mode_color_shift(0.0f);
-    gpuState_.set_mode_checker_scatter(0.0f);
-    gpuState_.set_mode_palette_drift(0.0f, 0.0f, 0.0f);
-    gpuState_.set_mode_gol_scales(1.0f, 1.0f);
-    for (int i = 0; i < 32; i++) pulseRing_[i] = 0.0f;
-    pulseWriteIdx_ = 0;
-    prevPolyphony_ = 0.0f;
-    float zero_pulses[32] = {};
-    gpuState_.set_pulse_data(0, zero_pulses);
+    reset_musical_couplings(queue);
 
     // ─── Anchor ribbon: seed-derived flying ribbon at world center ─
     // DONE[mood:L1] gated by has_anchor_ribbon profile flag (set true
