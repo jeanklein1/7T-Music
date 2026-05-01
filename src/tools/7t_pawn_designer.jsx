@@ -98,14 +98,14 @@ function initStops() {
 /* Tier 1 — Squat: stout, mushroom-like sentinel. Short, wide, flatter head. */
 function squatProfile() {
   return {
-    start_r: 0.85, flare_r: 0.95, flare_t: 0.05,
-    peak_r: 1.00, peak_t: 0.12,
+    start_r: 0.85, flare_r: 0.90, flare_t: 0.05,
+    peak_r: 1.05, peak_t: 0.12,
     base_t: 0.18, body_start_r: 0.85,
-    body_t: 0.55, waist_r: 0.42,
-    neck_t: 0.65, neck_r: 0.32,
-    collar_t: 0.72, collar_bulge: 0.04,
-    head_t: 0.92, head_base_r: 0.30, head_sphere_r: 0.20,
-    height: 0.9, radius: 0.65,
+    body_t: 0.58, waist_r: 0.25,
+    neck_t: 0.60, neck_r: 0.40,
+    collar_t: 0.67, collar_bulge: 0.24,
+    head_t: 0.93, head_base_r: 0.30, head_sphere_r: 0.20,
+    height: 1.9, radius: 0.55,
   };
 }
 function squatStops() {
@@ -146,14 +146,14 @@ function colossalStops() {
 /* Tier 3 — Acorn: small oval marker. Compact body, modest cap, earthy brown. */
 function acornProfile() {
   return {
-    start_r: 0.75, flare_r: 0.85, flare_t: 0.05,
-    peak_r: 0.92, peak_t: 0.18,
-    base_t: 0.28, body_start_r: 0.85,
-    body_t: 0.55, waist_r: 0.55,
-    neck_t: 0.65, neck_r: 0.40,
-    collar_t: 0.72, collar_bulge: 0.05,
-    head_t: 0.88, head_base_r: 0.35, head_sphere_r: 0.20,
-    height: 0.7, radius: 0.45,
+    start_r: 0.50, flare_r: 0.90, flare_t: 0.05,
+    peak_r: 0.80, peak_t: 0.18,
+    base_t: 0.28, body_start_r: 0.50,
+    body_t: 0.50, waist_r: 0.35,
+    neck_t: 0.65, neck_r: 0.30,
+    collar_t: 0.70, collar_bulge: 0.25,
+    head_t: 0.93, head_base_r: 0.25, head_sphere_r: 0.20,
+    height: 1.7, radius: 0.50,
   };
 }
 function acornStops() {
@@ -199,8 +199,8 @@ function idolProfile() {
     base_t: 0.16, body_start_r: 0.55,
     body_t: 0.45, waist_r: 0.20,
     neck_t: 0.55, neck_r: 0.20,
-    collar_t: 0.66, collar_bulge: 0.20,
-    head_t: 0.92, head_base_r: 0.30, head_sphere_r: 0.55,
+    collar_t: 0.66, collar_bulge: 0.30,
+    head_t: 0.92, head_base_r: 0.10, head_sphere_r: 0.20,
     height: 1.8, radius: 0.55,
   };
 }
@@ -334,15 +334,20 @@ function makeTransform(rotY, tilt, xOff = 0, yOff = 0) {
    stacked family represents hard segment transitions (e.g. a `step` profile
    shouldering up to a wider segment). Without this the surface revolution would
    draw an oblique band where the geometry is supposed to step. */
-function buildPawnFaces(radiusAt, height, radius, stops, transformVert, discs = null, extra = null) {
+function buildPawnFaces(radiusAt, height, radius, stops, transformVert, discs = null, extra = null, topT = 1) {
   const faces = [];
   const lightDir = normalize3(PAWN_LIGHT_DIR);
 
   // Surface revolution. radiusAt may depend on theta — we sample
   // per-vertex (4 queries per quad) rather than once per ring.
+  // The revolution covers t ∈ [0, topT]. For most families topT=1; the
+  // Heraldic family passes topT < 1 because its head region is rendered
+  // separately via extraFaces, and we don't want degenerate quads for
+  // t > topT producing phantom discs.
   for (let r = 0; r < RENDER_RINGS - 1; r++) {
     for (let s = 0; s < RENDER_SEGS; s++) {
-      const t0 = r / (RENDER_RINGS - 1), t1 = (r + 1) / (RENDER_RINGS - 1);
+      const t0 = (r / (RENDER_RINGS - 1)) * topT;
+      const t1 = ((r + 1) / (RENDER_RINGS - 1)) * topT;
       const a0 = (s / RENDER_SEGS) * Math.PI * 2, a1 = ((s + 1) % RENDER_SEGS) / RENDER_SEGS * Math.PI * 2;
       const r00 = radiusAt(t0, a0) * radius;
       const r01 = radiusAt(t0, a1) * radius;
@@ -393,21 +398,21 @@ function buildPawnFaces(radiusAt, height, radius, stops, transformVert, discs = 
     faces.push({ verts, light, col: capCol, avgZ, tri: true });
   }
 
-  // Top cap — only emitted when the silhouette at t=1 has non-trivial radius.
+  // Top cap — only emitted when the silhouette at t=topT has non-trivial radius.
   // Without this, any pawn whose top segment doesn't taper to a point reads as
   // an open bottle. For pieces that already taper to ~0 (Bishop's mitre, Queen's
   // orb-to-point, etc.) the work is skipped — there's no hole to plug.
   // Use the angle-0 sample as the closure test (a noisy lobe could give slightly
   // higher r_top in some directions but this is sufficient as a heuristic).
-  const topR0 = radiusAt(1, 0) * radius;
+  const topR0 = radiusAt(topT, 0) * radius;
   if (topR0 > 1e-4) {
-    const topY = height * 0.55; // mirror of capY: t=1 maps to height*0.55
-    const topCol = evalGradient(1, stops);
+    const topY = topT * height - height * 0.45; // matches the surface revolution's last ring
+    const topCol = evalGradient(topT, stops);
     for (let s = 0; s < RENDER_SEGS; s++) {
       const a0 = (s / RENDER_SEGS) * Math.PI * 2;
       const a1 = ((s + 1) % RENDER_SEGS) / RENDER_SEGS * Math.PI * 2;
-      const ra = radiusAt(1, a0) * radius;
-      const rb = radiusAt(1, a1) * radius;
+      const ra = radiusAt(topT, a0) * radius;
+      const rb = radiusAt(topT, a1) * radius;
       // Wound CCW viewed from above — opposite winding from the bottom cap so
       // its outward normal points up rather than down.
       const verts = [
@@ -526,7 +531,8 @@ function render3D(ctx, W, H, family, geom, stops, rotY, tilt, zoom = 1, panX = 0
   const transformVert = makeTransform(rotY, tilt, 0, 0);
   const discs = family.discontinuities ? family.discontinuities(geom) : null;
   const extra = family.extraFaces ? family.extraFaces(geom, height, radius, transformVert) : null;
-  const faces = buildPawnFaces((t, theta) => family.radiusAt(geom, t, theta), height, radius, stops, transformVert, discs, extra);
+  const topT  = family.bodyTopT ? family.bodyTopT(geom) : 1;
+  const faces = buildPawnFaces((t, theta) => family.radiusAt(geom, t, theta), height, radius, stops, transformVert, discs, extra, topT);
   const project = (v) => [W / 2 + panX + v[0] * scale, cy + panY - v[1] * scale];
   drawFaces(ctx, faces, project);
 }
@@ -567,7 +573,8 @@ function render3DCompare(ctx, W, H, family, tiers, rotY, tilt, zoom = 1, panX = 
     const transformVert = makeTransform(rotY, tilt, xOffsets[i], yOffsets[i]);
     const discs = family.discontinuities ? family.discontinuities(tier.geom) : null;
     const extra = family.extraFaces ? family.extraFaces(tier.geom, b.height, b.radius, transformVert) : null;
-    const faces = buildPawnFaces((t, theta) => family.radiusAt(tier.geom, t, theta), b.height, b.radius, tier.stops, transformVert, discs, extra);
+    const topT  = family.bodyTopT ? family.bodyTopT(tier.geom) : 1;
+    const faces = buildPawnFaces((t, theta) => family.radiusAt(tier.geom, t, theta), b.height, b.radius, tier.stops, transformVert, discs, extra, topT);
     for (const f of faces) allFaces.push(f);
   });
 
@@ -909,14 +916,58 @@ function DragPanel({ title, children, ini = false, id, resetKey, onDock }) {
   const style = pos ? { position: "absolute", left: pos.x, top: pos.y, zIndex: 100, maxWidth: 480, minWidth: 280 } : {};
 
   return (
-    <div ref={dragRef} style={{ marginBottom: pos ? 0 : 5, border: pos ? "1px solid #666" : "1px solid var(--color-border-tertiary)", borderRadius: 8, overflow: "hidden", background: pos ? "#2a2a30" : "var(--color-background-primary)", boxShadow: pos ? "0 8px 32px rgba(0,0,0,.6)" : "none", ...style }}>
-      <div onMouseDown={startDrag} style={{ padding: "5px 10px", fontSize: 12, fontWeight: 500, userSelect: "none", display: "flex", alignItems: "center", gap: 5, color: pos ? "#e0ddd8" : "var(--color-text-primary)", background: pos ? "#353540" : "var(--color-background-secondary)", cursor: "grab" }}>
+    <div ref={dragRef} style={{ marginBottom: pos ? 0 : 7, border: pos ? "1px solid #666" : "1px solid var(--color-border-tertiary)", borderRadius: 8, overflow: "hidden", background: pos ? "#2a2a30" : "var(--color-background-primary)", boxShadow: pos ? "0 8px 32px rgba(0,0,0,.6)" : "none", ...style }}>
+      <div onMouseDown={startDrag} style={{
+        padding: "8px 12px",
+        fontSize: 12,
+        fontWeight: 600,
+        letterSpacing: 0.2,
+        userSelect: "none",
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+        color: pos ? "#e0ddd8" : "var(--color-text-primary)",
+        // Header background: stronger contrast against the body. Translucent so
+        // it composes correctly whether the parent is light (docked) or dark
+        // (dragged out).
+        background: pos ? "#353540" : "rgba(127,127,127,0.16)",
+        borderBottom: pos ? "1px solid #555" : "1px solid var(--color-border-tertiary)",
+        cursor: "grab",
+      }}>
         <span data-notdrag="1" onClick={() => setOpen(!open)} style={{ cursor: "pointer", fontSize: 9, transition: "transform .15s", display: "inline-block", transform: open ? "rotate(90deg)" : "none", padding: "4px 2px" }}>▶</span>
         <span style={{ flex: 1 }}>{title}</span>
         {pos && <span data-notdrag="1" onClick={doDock} style={{ fontSize: 9, cursor: "pointer", opacity: .5, padding: "2px 4px" }}>dock</span>}
       </div>
-      {open && <div style={{ padding: "5px 10px", maxHeight: pos ? 400 : "none", overflowY: pos ? "auto" : "visible", color: pos ? "#d0cdc8" : undefined }}>{children}</div>}
+      {open && <div style={{ padding: "8px 12px 10px", maxHeight: pos ? 400 : "none", overflowY: pos ? "auto" : "visible", color: pos ? "#d0cdc8" : undefined }}>{children}</div>}
     </div>
+  );
+}
+
+/* ═══ SECTION LABEL ═══
+   Reusable subtitle pill used inside panels to mark logical groupings —
+   "Section boundaries", "Scale", "Color stops", etc. A tinted background
+   band with a colored left-bar accent makes section transitions visible at
+   a glance without heavy borders. Accepts children for sections that need
+   to put a button next to the label (e.g. the segment editor's "+ add"). */
+function SectionLabel({ children, style }) {
+  return (
+    <div style={{
+      fontSize: 10,
+      fontWeight: 600,
+      letterSpacing: 0.3,
+      textTransform: "uppercase",
+      color: "var(--color-text-secondary)",
+      // Translucent overlay reads as a subtle tint on light backgrounds (docked
+      // panels) and a soft highlight on dark backgrounds (dragged-out panels).
+      background: "rgba(127,127,127,0.10)",
+      borderLeft: "2px solid var(--color-text-tertiary, #888)",
+      padding: "5px 12px",
+      margin: "8px -12px 6px",
+      display: "flex",
+      alignItems: "center",
+      gap: 6,
+      ...(style || {}),
+    }}>{children}</div>
   );
 }
 
@@ -942,7 +993,7 @@ function ColorStopRow({ stop, index, onChange }) {
   );
 }
 
-const rw = { display: "flex", flexWrap: "wrap", gap: "3px 8px", alignItems: "center", marginBottom: 3 };
+const rw = { display: "flex", flexWrap: "wrap", gap: "4px 9px", alignItems: "center", marginBottom: 5 };
 const lb = { fontSize: 10, color: "var(--color-text-secondary)", minWidth: 56 };
 
 /* ═══ MAIN APP ═══ */
@@ -1017,9 +1068,20 @@ const STACKED_SEG_NAMES = ["Base", "Shaft", "Waist", "Collar", "Finial"];
 /* Per-segment profile shapes — control how r(u∈[0,1]) interpolates between r_bot and r_top.
    All return the *normalized radius* at local u inside the segment.
      linear  : straight frustum
-     concave : pinched midpoint (curves inward)
-     convex  : barrelled midpoint (curves outward)
+     concave : pinched midpoint (curves inward, like a goblet stem)
+     convex  : barrelled midpoint (curves outward, like a barrel)
      step    : near-cylindrical body (r_bot until u≈0.85, then quick taper to r_top)
+     bell    : narrow at both ends, fat in the middle — overrides r_bot/r_top
+               for a true bead/torus-ring look (always returns to r_bot at u=0
+               and r_top at u=1, but bulges far above either between)
+     flare   : accelerating curve — slow at the bottom, fast at the top, like
+               a trumpet bell mouth opening up
+     ogee    : S-curve — concave then convex, classic architectural moulding
+     sphere  : true semicircle silhouette. r(u) = R · sqrt(1 - (2u-1)²) where
+               R = max(r_bot, r_top). Endpoints are exactly 0 — gives a clean
+               closure at both top and bottom of the segment regardless of
+               r_bot/r_top input. For a true circular sphere (not an ellipsoid),
+               the segment's world-height should equal 2·R·world-radius.
 */
 const STACKED_SHAPES = {
   linear:  (u, rb, rt) => rb + (rt - rb) * u,
@@ -1038,6 +1100,34 @@ const STACKED_SHAPES = {
   step:    (u, rb, rt) => {
     if (u < 0.85) return rb;
     return rb + (rt - rb) * ((u - 0.85) / 0.15);
+  },
+  bell:    (u, rb, rt) => {
+    // bead/torus shape: anchored at endpoints, big bulge in the middle.
+    // The bulge magnitude scales with the larger of the two endpoint radii so
+    // it reads as "fatter than the segment ends" regardless of rb,rt values.
+    const line = rb + (rt - rb) * u;
+    const ref  = Math.max(rb, rt, 0.05);
+    return line + 0.55 * ref * Math.sin(u * Math.PI);
+  },
+  flare:   (u, rb, rt) => {
+    // accelerating curve: slow growth near u=0, fast near u=1.
+    // Quadratic ease-in: u² goes from 0→1 with the action at the top.
+    return rb + (rt - rb) * (u * u);
+  },
+  ogee:    (u, rb, rt) => {
+    // S-curve from rb to rt: dips below the line in the lower half, lifts
+    // above it in the upper half. Smoothstep gives the S shape; we offset by
+    // a sine so the dip and lift are visible as inflections.
+    const line = rb + (rt - rb) * u;
+    const mid  = (rb + rt) * 0.5;
+    return line + 0.18 * mid * Math.sin(u * Math.PI * 2);
+  },
+  sphere:  (u, rb, rt) => {
+    // true semicircle, peak radius = max(rb, rt). Closes to 0 at both ends.
+    const R = Math.max(rb, rt);
+    const x = 2 * u - 1; // -1 at base, +1 at top
+    const arg = Math.max(0, 1 - x * x);
+    return R * Math.sqrt(arg);
   },
 };
 
@@ -1084,8 +1174,13 @@ function stackedDiscontinuities(geom) {
   let acc = 0;
   for (let k = 0; k < segs.length - 1; k++) {
     acc += segs[k].height / totalH;
-    const rBelow = segs[k].r_top;
-    const rAbove = segs[k + 1].r_bot;
+    // Use the profile function's actual endpoint radii rather than the raw
+    // stored r_top/r_bot — profiles like 'sphere' close to 0 at both endpoints
+    // regardless of stored values, so the boundary isn't a real discontinuity.
+    const fnBelow = STACKED_SHAPES[segs[k].profile]     || STACKED_SHAPES.linear;
+    const fnAbove = STACKED_SHAPES[segs[k + 1].profile] || STACKED_SHAPES.linear;
+    const rBelow  = Math.max(0, fnBelow(1, segs[k].r_bot,     segs[k].r_top));
+    const rAbove  = Math.max(0, fnAbove(0, segs[k + 1].r_bot, segs[k + 1].r_top));
     if (Math.abs(rBelow - rAbove) > 1e-4) {
       out.push({ t: acc, rBelow, rAbove });
     }
@@ -1293,47 +1388,199 @@ const STACKED_FAMILY = {
 };
 
 /* ════════════════════════════════════════════════════════════════════════
-   HERALDIC FAMILY — stacked-style body with a chosen ornamental head.
+   STACKED II — pawn-proportioned variants of the seven Stacked presets.
 
-   Body is 4 stacked segments (Base / Shaft / Waist / Collar), reusing the
-   same per-segment vocabulary as the Stacked family — height, r_bot, r_top,
-   profile shape. No Finial segment because the head occupies that slot.
+   Same five-segment vocabulary (Base / Shaft / Waist / Collar / Finial),
+   same per-tier heights, same Collar and Finial as the originals — but the
+   Base, Shaft, and Waist have been re-radialized to read as pawn-like
+   silhouettes: a wide flared base (convex curve), a slim shank, a real
+   waist pinch, and a flare back out to whatever the original tier's
+   collar dictates.
 
-   Head is one of a small catalog of named decorative shapes:
-     - crescent  : fat crescent moon with sharp tips, optionally tilted
-     - cleft     : dome with a deep wedge cut into the front (exaggerated bishop slit)
-     - notched   : flattened ring with a gap opening forward (stylized crown)
-     - forked    : two prongs rising and splaying outward (twin horns / tongue)
-
-   Each head is a self-contained primitive that emits its own triangles via
-   extraFaces. The body's `radiusAt` covers t ∈ [0, body_t_top] where
-   body_t_top is body_height / total_height; above that the surface revolution
-   produces zero radius and the head takes over.
-
-   Geom shape:
-     segments      : 4 segments {height, r_bot, r_top, profile} — identical
-                     vocabulary to STACKED_SHAPES
-     head_kind     : 'crescent' | 'cleft' | 'notched' | 'forked'
-     head_size     : float — head's footprint radius as fraction of the
-                     collar's r_top (1 = matches collar exactly; >1 overhangs)
-     head_height   : float — head's vertical extent in world units
-     head_tilt     : float radians — pitch the head forward (+) or back (-)
-     head_offset   : float — translate the head forward (along +x) as
-                     fraction of collar r_top
-     head_params   : { ... } — shape-specific extra parameters; see each
-                     head shape function for the fields it consumes
-     height        : world-space body height
-     radius        : world-space body radius (segments * radius)
+   The geometry shares Stacked's radiusAt / boundaries / discontinuities /
+   panel — only the tier defaults differ.
    ════════════════════════════════════════════════════════════════════════ */
 
-/* Body has 4 segments — same segment vocabulary as Stacked, but no Finial. */
-const HERALDIC_SEG_NAMES = ["Base", "Shaft", "Waist", "Collar"];
+/* Tier 0 II — Column: wide flared base, slim concave shank, narrow neck
+   that flares up into the original Collar at 0.75. Total height bumped
+   from 1.8 to 2.1 to give the wide-collared head more vertical room. */
+function stacked2ColumnGeom() {
+  return {
+    height: 2.1, radius: 0.55,
+    segments: [
+      { height: 0.20, r_bot: 1.30, r_top: 0.72, profile: "convex"  }, // Base (1.3× scaled foundation)
+      { height: 0.45, r_bot: 0.55, r_top: 0.30, profile: "concave" }, // Shaft (narrows toward neck)
+      { height: 0.20, r_bot: 0.30, r_top: 0.75, profile: "convex"  }, // Waist (narrow neck flares up)
+      { height: 0.10, r_bot: 0.75, r_top: 0.65, profile: "convex"  }, // Collar (unchanged)
+      { height: 0.20, r_bot: 0.50, r_top: 0.05, profile: "linear"  }, // Finial (unchanged)
+    ],
+  };
+}
 
-/* Body radius lookup. t is normalized over the BODY only (0 at base, 1 at the
-   top of the Collar). Above t=1 we return 0 — head takes over via extraFaces. */
-function heraldicBodyRadiusAt(geom, t, _theta) {
+/* Tier 1 II — Totem: dramatically scaled — base widened by 1.95× and height
+   stretched 1.5× from 2.6 to 3.9. The piece reads as monumental: a massive
+   flared foundation, slim body, and the original wide collar getting plenty
+   of room to breathe at the top. */
+function stacked2TotemGeom() {
+  return {
+    height: 3.9, radius: 0.60,
+    segments: [
+      { height: 0.18, r_bot: 1.95, r_top: 1.21, profile: "convex"  }, // Base (1.95× scaled)
+      { height: 0.30, r_bot: 0.62, r_top: 0.32, profile: "concave" },
+      { height: 0.20, r_bot: 0.32, r_top: 0.85, profile: "convex"  },
+      { height: 0.18, r_bot: 0.85, r_top: 0.85, profile: "convex"  }, // Collar (unchanged)
+      { height: 0.14, r_bot: 0.55, r_top: 0.30, profile: "convex"  }, // Finial (unchanged)
+    ],
+  };
+}
+
+/* Tier 2 II — Pylon: wide base, slim concave shank, narrow neck rising
+   to the Collar at 0.78. Height bumped from 3.0 to 3.3. */
+function stacked2PylonGeom() {
+  return {
+    height: 3.3, radius: 0.50,
+    segments: [
+      { height: 0.10, r_bot: 1.30, r_top: 0.75, profile: "convex"  }, // Base (1.3× scaled)
+      { height: 0.50, r_bot: 0.58, r_top: 0.32, profile: "concave" },
+      { height: 0.12, r_bot: 0.32, r_top: 0.78, profile: "convex"  },
+      { height: 0.18, r_bot: 0.78, r_top: 0.72, profile: "step"    }, // Collar (unchanged)
+      { height: 0.10, r_bot: 0.50, r_top: 0.30, profile: "linear"  }, // Finial (unchanged)
+    ],
+  };
+}
+
+/* Tier 3 II — Bishop: wide base, slim concave shank, narrow neck rising
+   modestly to the Collar at 0.62. Cleanest pawn reading in the set;
+   height unchanged since the Collar is moderate. */
+function stacked2BishopGeom() {
+  return {
+    height: 2.4, radius: 0.45,
+    segments: [
+      { height: 0.14, r_bot: 1.30, r_top: 0.72, profile: "convex"  }, // Base (1.3× scaled)
+      { height: 0.42, r_bot: 0.55, r_top: 0.30, profile: "concave" },
+      { height: 0.06, r_bot: 0.30, r_top: 0.62, profile: "convex"  },
+      { height: 0.12, r_bot: 0.62, r_top: 0.50, profile: "convex"  }, // Collar (unchanged)
+      { height: 0.30, r_bot: 0.45, r_top: 0.00, profile: "linear"  }, // Finial (unchanged)
+    ],
+  };
+}
+
+/* Tier 4 II — Queen: narrowest original Collar.r_bot (0.55) lets the
+   neck stay genuinely slim — reads as a tall pawn with a queen's crown.
+   Height unchanged. */
+function stacked2QueenGeom() {
+  return {
+    height: 2.8, radius: 0.55,
+    segments: [
+      { height: 0.14, r_bot: 1.30, r_top: 0.72, profile: "convex"  }, // Base (1.3× scaled)
+      { height: 0.36, r_bot: 0.55, r_top: 0.30, profile: "concave" },
+      { height: 0.10, r_bot: 0.30, r_top: 0.55, profile: "convex"  },
+      { height: 0.18, r_bot: 0.55, r_top: 0.85, profile: "convex"  }, // Collar (unchanged)
+      { height: 0.22, r_bot: 0.75, r_top: 0.00, profile: "convex"  }, // Finial (unchanged)
+    ],
+  };
+}
+
+/* Tier 5 II — King: wide base, slim concave shank, narrow neck flaring
+   into the broad crown at 0.85. Height bumped from 3.2 to 3.6 to give
+   the wide-collared crown breathing room above an imposing pawn body. */
+function stacked2KingGeom() {
+  return {
+    height: 3.6, radius: 0.62,
+    segments: [
+      { height: 0.16, r_bot: 1.30, r_top: 0.81, profile: "convex"  }, // Base (1.3× scaled)
+      { height: 0.38, r_bot: 0.62, r_top: 0.32, profile: "concave" },
+      { height: 0.08, r_bot: 0.32, r_top: 0.85, profile: "convex"  },
+      { height: 0.20, r_bot: 0.85, r_top: 0.95, profile: "step"    }, // Collar (unchanged)
+      { height: 0.18, r_bot: 0.45, r_top: 0.00, profile: "linear"  }, // Finial (unchanged)
+    ],
+  };
+}
+
+/* Tier 6 II — Bauhaus: wide base, slim concave shank, narrow neck rising
+   to the Collar at 0.65. Height unchanged. */
+function stacked2BauhausGeom() {
+  return {
+    height: 1.6, radius: 0.42,
+    segments: [
+      { height: 0.18, r_bot: 1.30, r_top: 0.72, profile: "convex"  }, // Base (1.3× scaled)
+      { height: 0.40, r_bot: 0.55, r_top: 0.32, profile: "concave" },
+      { height: 0.04, r_bot: 0.32, r_top: 0.65, profile: "convex"  },
+      { height: 0.06, r_bot: 0.65, r_top: 0.65, profile: "step"    }, // Collar (unchanged)
+      { height: 0.32, r_bot: 0.65, r_top: 0.00, profile: "convex"  }, // Finial (unchanged)
+    ],
+  };
+}
+
+/* Stops — re-use the original Stacked stops for each tier so palette
+   continuity is preserved. The user wants the visual identity carried
+   over, just with new radial proportions. */
+const STACKED2_TIER_NAMES = ["Column II", "Totem II", "Pylon II", "Bishop II", "Queen II", "King II", "Bauhaus II"];
+const STACKED2_GEOM_FNS  = [stacked2ColumnGeom, stacked2TotemGeom, stacked2PylonGeom, stacked2BishopGeom, stacked2QueenGeom, stacked2KingGeom, stacked2BauhausGeom];
+const STACKED2_STOPS_FNS = [stackedColumnStops, stackedTotemStops, stackedPylonStops, stackedBishopStops, stackedQueenStops, stackedKingStops, stackedBauhausStops];
+
+const STACKED2_FAMILY = {
+  name: "Stacked II",
+  tierNames: STACKED2_TIER_NAMES,
+  defaultTiers: () => STACKED2_TIER_NAMES.map((_, i) => ({
+    geom:  STACKED2_GEOM_FNS[i](),
+    stops: STACKED2_STOPS_FNS[i](),
+  })),
+  // Geometry/render hooks — Stacked II shares the underlying segment math
+  // entirely; only the per-tier defaults differ.
+  radiusAt: stackedRadiusAt,
+  bounds:   (geom) => ({ height: geom.height, radius: geom.radius }),
+  envelopeMax: (geom) => {
+    let m = 0;
+    for (const s of geom.segments) {
+      if (s.r_bot > m) m = s.r_bot;
+      if (s.r_top > m) m = s.r_top;
+    }
+    return Math.max(m, 0.0001);
+  },
+  boundaries: stackedBoundaries,
+  discontinuities: stackedDiscontinuities,
+};
+
+/* ════════════════════════════════════════════════════════════════════════
+   HERALDIC FAMILY — variable-length stacked segments, no head primitive.
+
+   Every piece is a stack of 1–7 segments. Each segment has the same
+   per-segment vocabulary as Stacked — height, r_bot, r_top, profile shape.
+   The segment list is the entire piece end-to-end: there is no separate
+   head, no extraFaces, no add-on ornaments. All design expression flows
+   through (a) the number and proportions of segments and (b) the seven
+   profile shapes available (linear, concave, convex, step, bell, flare,
+   ogee).
+
+   The seven default tiers are each named after a celestial body and
+   sculpted so its silhouette is recognizable on its own — different segment
+   counts (2 to 7), different proportions, different profile vocabularies.
+
+   Geom shape:
+     segments  : array of 1–7 {height, r_bot, r_top, profile} entries,
+                 ordered bottom → top
+     height    : world-space total piece height (segment heights normalize to fill it)
+     radius    : world-space radius scale (segment radii multiply this)
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* Variable segment count: 1..7. Position-relative labels — bottommost is
+   "Base", topmost is "Crown", solo is "Body", anything in between is "Seg N". */
+const HERALDIC_MAX_SEGS = 7;
+const HERALDIC_MIN_SEGS = 1;
+function heraldicSegLabel(i, n) {
+  if (n === 1) return "Body";
+  if (i === 0) return "Base";
+  if (i === n - 1) return "Crown";
+  return `Seg ${i + 1}`;
+}
+
+/* Body radius lookup. t is normalized over the WHOLE piece (0 at base, 1 at the
+   top of the topmost segment). The whole piece is segments — no separate head. */
+function heraldicRadiusAt(geom, t, _theta) {
   if (t > 1) return 0;
   const segs = geom.segments;
+  if (!segs || segs.length === 0) return 0;
   const totalH = segs.reduce((a, s) => a + s.height, 0) || 1;
   let acc = 0;
   for (let k = 0; k < segs.length; k++) {
@@ -1349,28 +1596,8 @@ function heraldicBodyRadiusAt(geom, t, _theta) {
   return 0;
 }
 
-/* Where in t-space the body region ends. The body fills the body_height
-   fraction of the total height; the head sits in the rest. */
-function heraldicBodyTop(geom) {
-  const totalH = geom.height + geom.head_height;
-  return totalH < 1e-8 ? 1 : geom.height / totalH;
-}
-
-/* Heraldic radiusAt sees the WHOLE piece — body + head region. We map t to
-   body-local-t and call heraldicBodyRadiusAt; for t past the body top, return
-   zero (head is rendered by extraFaces, not by surface revolution). */
-function heraldicRadiusAt(geom, t, theta) {
-  const top = heraldicBodyTop(geom);
-  if (t > top) return 0;
-  const tBody = top < 1e-8 ? 0 : t / top;
-  return heraldicBodyRadiusAt(geom, tBody, theta);
-}
-
-/* Body bounds. Total height includes the head; total width is body radius
-   times the maximum segment normalized radius. */
 function heraldicBounds(geom) {
-  const totalH = geom.height + geom.head_height;
-  return { height: totalH, radius: geom.radius };
+  return { height: geom.height, radius: geom.radius };
 }
 
 function heraldicEnvelopeMax(geom) {
@@ -1378,701 +1605,277 @@ function heraldicEnvelopeMax(geom) {
   for (const s of geom.segments) {
     if (s.r_bot > m) m = s.r_bot;
     if (s.r_top > m) m = s.r_top;
+    // bell profile bulges to ~1.55x the larger endpoint, so account for that
+    // when the user has chosen the bell shape.
+    if (s.profile === "bell") {
+      const ref = Math.max(s.r_bot, s.r_top);
+      if (ref * 1.55 > m) m = ref * 1.55;
+    }
   }
-  // Head can extend the silhouette outward via head_size and head_offset.
-  const headExtent = geom.head_size * (geom.segments[3]?.r_top ?? 1) + Math.abs(geom.head_offset);
-  return Math.max(m, headExtent, 0.0001);
+  return Math.max(m, 0.0001);
 }
 
-/* Body segment boundaries, in t-space relative to the WHOLE piece (body+head). */
+/* Segment boundaries in t-space [0,1]. Position-relative labels via heraldicSegLabel. */
 function heraldicBoundaries(geom) {
-  const top = heraldicBodyTop(geom);
   const segs = geom.segments;
   const totalH = segs.reduce((a, s) => a + s.height, 0) || 1;
   const out = [];
   let acc = 0;
   for (let k = 0; k < segs.length; k++) {
     acc += segs[k].height / totalH;
-    out.push({ t: acc * top, label: HERALDIC_SEG_NAMES[k] });
+    out.push({ t: acc, label: heraldicSegLabel(k, segs.length) });
   }
-  // Body-top boundary (where the head begins).
-  out.push({ t: top, label: "Head base" });
   return out;
 }
 
 function heraldicDiscontinuities(geom) {
-  const top = heraldicBodyTop(geom);
   const segs = geom.segments;
   const totalH = segs.reduce((a, s) => a + s.height, 0) || 1;
   const out = [];
   let acc = 0;
   for (let k = 0; k < segs.length - 1; k++) {
     acc += segs[k].height / totalH;
-    const rBelow = segs[k].r_top, rAbove = segs[k + 1].r_bot;
+    // Use the profile function's actual endpoint radii — some profiles (sphere)
+    // close to 0 at endpoints regardless of stored r_bot/r_top, so the boundary
+    // between two segments isn't a real discontinuity even when their stored
+    // values disagree.
+    const fnBelow = STACKED_SHAPES[segs[k].profile]     || STACKED_SHAPES.linear;
+    const fnAbove = STACKED_SHAPES[segs[k + 1].profile] || STACKED_SHAPES.linear;
+    const rBelow  = Math.max(0, fnBelow(1, segs[k].r_bot,     segs[k].r_top));
+    const rAbove  = Math.max(0, fnAbove(0, segs[k + 1].r_bot, segs[k + 1].r_top));
     if (Math.abs(rBelow - rAbove) > 1e-4) {
-      out.push({ t: acc * top, rBelow, rAbove });
+      out.push({ t: acc, rBelow, rAbove });
     }
   }
   return out;
 }
 
-/* ── Head shape catalog ─────────────────────────────────────────────────
-   Each shape is a function (geom, height, radius, transformVert) → faces[].
-   Returns an array of { verts: [v0, v1, v2], col?, t? } where verts are
-   already transformed via transformVert. The face builder lights and sorts
-   them automatically.
+/* Tier defaults — 7 progressive refinements of one pawn essence.
 
-   All four shapes share a coordinate frame: the head sits on top of the
-   collar at local-y = bodyTop * height - height * 0.45, with the body axis
-   running through (0, 0). Forward is +x. We tilt forward by head_tilt
-   radians (rotation about the z-axis) so the whole head leans.
-   ──────────────────────────────────────────────────────────────────────── */
+   Every tier is the same fundamental piece — a Staunton-tradition pawn:
+   floating foot moulding, weighted base, concave shank, thin collar disc,
+   spherical head. What changes from tier to tier is the degree of
+   refinement and ornamentation.
 
-/* Helper: smoothstep — clamps to [0,1] and applies the classic 3t² − 2t³ ease.
-   Used by the horns path parameterization for slow-start/slow-end interpolation. */
-function _smoothstep(x) {
-  const t = Math.max(0, Math.min(1, x));
-  return t * t * (3 - 2 * t);
-}
+   The progression follows a Saint-Seiya-armor logic: Bronze (raw, basic)
+   → Silver (refined profile) → Gold (first ornament) → Steel (more imposing
+   proportions) → Crystal (finial detail added) → Star (delicate refinement)
+   → Divine (most ornate, pearlescent). Each step strictly adds something
+   to the previous, never substituting away from the pawn essence.
 
-/* Helper: rotate (x, y, z) about z by angle alpha (so +x leans toward +y when alpha>0). */
-function _rotZ(p, sina, cosa) {
-  return [p[0] * cosa - p[1] * sina, p[0] * sina + p[1] * cosa, p[2]];
-}
+   Math note: the sphere segment uses the new "sphere" profile. For a true
+   circular silhouette (not stretched ellipse), the sphere segment's relative
+   height (as a fraction of the sum of all segment heights, times the piece's
+   world height) must equal 2 × sphere_radius × world_radius. With the
+   per-tier conventions used here (world H ≈ 1.0, world R = 0.50, sphere
+   peak normalized radius ≈ 0.40), the sphere segment relative height is
+   ≈ 0.40 of total — adjusted per tier.
+*/
 
-/* Shared boilerplate: returns the world-space transform that places head-local
-   coordinates onto the body's collar. Handles tilt and forward offset. */
-function _headPlacement(geom, height, radius, transformVert) {
-  const top = heraldicBodyTop(geom);
-  const yBase = top * height - height * 0.45;
-  const sina = Math.sin(geom.head_tilt);
-  const cosa = Math.cos(geom.head_tilt);
-  const xOff = geom.head_offset * (geom.segments[3]?.r_top ?? 1) * radius;
-  // Returns a function: head-local (x, y, z) → world point passed through transformVert.
-  return (p) => {
-    const rotated = _rotZ(p, sina, cosa);
-    return transformVert([rotated[0] + xOff, rotated[1] + yBase, rotated[2]]);
-  };
-}
-
-/* Crescent / horns head — two mirrored swept tubes growing from the head's
-   base, sweeping outward and upward, with the tips curling inward. Reads as
-   bull horns or stylized crescent moon depending on parameters.
-
-   Each horn is a tube along a 2D path parameterized by u in [0, 1]:
-     u=0 : root, planted on the head's collar, x = ±base_separation/2
-     u=1 : tip, after sweep + curl
-
-   The path starts at the root, sweeps outward by `spread`, rises by `rise`,
-   then curls inward by `tip_curl` over the last 30% of u. Tube cross-section
-   radius is `thickness` at the base and tapers to 0 at the tip — sharp points.
-
-   head_params for crescent (horns):
-     base_separation : how far apart the two horn roots are (fraction of
-                       head_size). 0 = roots meet at one point. (default 0.20)
-     spread          : outward sweep distance (fraction of head_size).
-                       Higher = wider horns. (default 0.55)
-     rise            : vertical rise (fraction of head_height). 1.0 = tips
-                       reach the head's full vertical extent. (default 1.0)
-     tip_curl        : how much the tips curl back inward in the last 30% of
-                       the path. 0 = straight tips; 0.5 = curl halfway back to
-                       the centerline; >0.5 = tips converge or cross.
-                       (default 0.45)
-     thickness       : tube cross-section radius at the root, as fraction of
-                       head_size. (default 0.18) */
-function _crescentHead(geom, height, radius, transformVert) {
-  const place = _headPlacement(geom, height, radius, transformVert);
-  const params = geom.head_params || {};
-  const baseSep   = params.base_separation != null ? params.base_separation : 0.20;
-  const spread    = params.spread          != null ? params.spread          : 0.55;
-  const rise      = params.rise            != null ? params.rise            : 1.0;
-  const tipCurl   = params.tip_curl        != null ? params.tip_curl        : 0.45;
-  const thickness = params.thickness       != null ? params.thickness       : 0.18;
-
-  const collarR = (geom.segments[3]?.r_top ?? 1) * radius;
-  const headR   = geom.head_size * collarR;
-  const headH   = geom.head_height;
-  const out = [];
-
-  const NLEN = 24;  // samples along each horn
-  const NCIR = 10;  // samples around tube cross-section
-
-  // For each horn (left = -1, right = +1), build a parametric path in xy.
-  // Path components:
-  //   - x_base(u) : sweep outward, dominated by spread; tip_curl pulls back inward at the end
-  //   - y_base(u) : rises with u, mostly linear with a slight ease-out
-  // We use smoothstep for interpolation so the path has continuous tangents.
-  for (const dir of [-1, +1]) {
-    // Sample arc points + frame.
-    const arcPts = [];
-    for (let i = 0; i <= NLEN; i++) {
-      const u = i / NLEN;
-      // Outward sweep follows a smoothstep curve from 0 to 1 (full spread).
-      // Curl-back: in the last `curlStart` fraction of u, we pull x back toward
-      // the centerline by `tipCurl × spread`. Lerp between (no curl) and
-      // (curled) using a smoothstep over that final region.
-      const curlStart = 0.65; // u where curl begins
-      const curlT = u <= curlStart ? 0 : _smoothstep((u - curlStart) / (1 - curlStart));
-      // Outward distance from centerline.
-      const outwardSweep = _smoothstep(Math.min(1, u / curlStart));
-      const x_offset = (baseSep / 2) + outwardSweep * spread - curlT * tipCurl * spread;
-      // Vertical rise: start a bit slow (horns plant outward first), then accelerate.
-      // _smoothstep(u) gives the slow-start-slow-end profile that feels right
-      // for horn growth.
-      const y = _smoothstep(u) * rise * headH;
-      // Place the horn point. Tips angle slightly forward-then-up via the
-      // tangent direction.
-      const x = dir * x_offset * headR;
-      // Compute tangent from finite differences of the path. We'll use the
-      // analytic version below to avoid losing the endpoints.
-      arcPts.push({ u, pos: [x, y, 0] });
-    }
-    // Tangents from finite differences (central difference where possible).
-    const tans = arcPts.map((_, i) => {
-      const a = arcPts[Math.max(0, i - 1)].pos;
-      const b = arcPts[Math.min(NLEN, i + 1)].pos;
-      const dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2];
-      const l = Math.sqrt(dx*dx + dy*dy + dz*dz) || 1;
-      return [dx/l, dy/l, dz/l];
-    });
-
-    // Tube radius along the horn: max at u=0 (root), tapers to 0 at u=1.
-    // Use a slight ease (1-u)^1.5 so the tip is sharp without the base looking blunt.
-    const tubeR = (u) => Math.pow(1 - u, 1.4) * thickness * headR;
-
-    // Build cross-section rings.
-    const rings = arcPts.map(({ u, pos }, i) => {
-      const r = tubeR(u);
-      const tan = tans[i];
-      // Build a coordinate frame: tan + perp1 (in xy) + perp2 (z axis).
-      const perp1 = [-tan[1], tan[0], 0];
-      const ring = [];
-      for (let j = 0; j < NCIR; j++) {
-        const phi = (j / NCIR) * Math.PI * 2;
-        const a = Math.cos(phi) * r;
-        const b = Math.sin(phi) * r;
-        ring.push([
-          pos[0] + perp1[0] * a,
-          pos[1] + perp1[1] * a,
-          pos[2] + b,
-        ]);
-      }
-      return ring;
-    });
-
-    // Stitch consecutive rings into quad strips.
-    for (let i = 0; i < NLEN; i++) {
-      const a = rings[i], b = rings[i + 1];
-      for (let j = 0; j < NCIR; j++) {
-        const jn = (j + 1) % NCIR;
-        const v0 = place(a[j]);
-        const v1 = place(a[jn]);
-        const v2 = place(b[jn]);
-        const v3 = place(b[j]);
-        out.push({ verts: [v0, v1, v2], t: 1 });
-        out.push({ verts: [v0, v2, v3], t: 1 });
-      }
-    }
-
-    // Cap the root (u=0) so the horn doesn't have an open hole at the base.
-    // Triangle fan from the centerline point.
-    const baseRing = rings[0];
-    const baseCenter = place(arcPts[0].pos);
-    for (let j = 0; j < NCIR; j++) {
-      const jn = (j + 1) % NCIR;
-      out.push({ verts: [baseCenter, place(baseRing[jn]), place(baseRing[j])], t: 1 });
-    }
-  }
-
-  return out;
-}
-
-/* Cleft head — dome with a deep wedge cut into the front. Built as a hemisphere
-   sliced by a vertical plane offset from center.
-
-   head_params for cleft:
-     cleft_depth  : float in [0, 1], how deep the cut goes (1 = all the way through)
-     cleft_width  : float in radians, angular width of the cut */
-function _cleftHead(geom, height, radius, transformVert) {
-  const place = _headPlacement(geom, height, radius, transformVert);
-  const params = geom.head_params || {};
-  const cleftDepth = params.cleft_depth != null ? params.cleft_depth : 0.55;
-  const cleftWidth = params.cleft_width != null ? params.cleft_width : 0.9;
-
-  const collarR = (geom.segments[3]?.r_top ?? 1) * radius;
-  const headR   = geom.head_size * collarR;
-  const headH   = geom.head_height;
-  const out = [];
-
-  // Hemisphere with a wedge removed. Generate vertex grid in spherical coordinates
-  // (θ around y-axis, φ from base to top). Skip quads whose center falls inside
-  // the cleft wedge.
-  const NLON = 32;
-  const NLAT = 14;
-
-  const cleftHalf = cleftWidth / 2;
-  // Cleft is centered on +x (theta = 0) and pointing inward. The cut goes from the
-  // surface inward to depth cleftDepth*headR.
-  const inCleft = (theta) => Math.abs(theta) < cleftHalf;
-
-  // Build vertex grid.
-  const grid = [];
-  for (let j = 0; j <= NLAT; j++) {
-    const phi = (j / NLAT) * (Math.PI / 2); // 0 at base, π/2 at top
-    const ringY = Math.sin(phi) * headH;
-    const ringR = Math.cos(phi) * headR;
-    const row = [];
-    for (let i = 0; i <= NLON; i++) {
-      const theta = (i / NLON) * Math.PI * 2 - Math.PI; // -π to +π
-      // Cleft cut: if inside wedge angles, push the vertex inward by cleftDepth.
-      const insideCleft = inCleft(theta);
-      const r = insideCleft ? ringR * (1 - cleftDepth) : ringR;
-      const x = Math.cos(theta) * r;
-      const z = Math.sin(theta) * r;
-      row.push({ pt: [x, ringY, z], inCleft: insideCleft, theta });
-    }
-    grid.push(row);
-  }
-
-  // Outer surface quads.
-  for (let j = 0; j < NLAT; j++) {
-    for (let i = 0; i < NLON; i++) {
-      const a = grid[j][i].pt;
-      const b = grid[j][i + 1].pt;
-      const c = grid[j + 1][i + 1].pt;
-      const d = grid[j + 1][i].pt;
-      // Skip degenerate quads near the apex.
-      out.push({ verts: [place(a), place(b), place(c)], t: 1 });
-      out.push({ verts: [place(a), place(c), place(d)], t: 1 });
-    }
-  }
-
-  // Cleft inner walls — left and right "cliff face" of the wedge.
-  // Walk from cleft edge to apex, building strips that close the cut.
-  for (let j = 0; j < NLAT; j++) {
-    // Left edge (theta = -cleftHalf).
-    const phiA = (j / NLAT) * (Math.PI / 2);
-    const phiB = ((j + 1) / NLAT) * (Math.PI / 2);
-    const yA = Math.sin(phiA) * headH;
-    const yB = Math.sin(phiB) * headH;
-    const rA = Math.cos(phiA) * headR;
-    const rB = Math.cos(phiB) * headR;
-    for (const sign of [-1, +1]) {
-      const theta = sign * cleftHalf;
-      const cosT = Math.cos(theta), sinT = Math.sin(theta);
-      // Outer point (full radius) and inner point (radius reduced by cleftDepth).
-      const outerA = [cosT * rA, yA, sinT * rA];
-      const innerA = [cosT * rA * (1 - cleftDepth), yA, sinT * rA * (1 - cleftDepth)];
-      const outerB = [cosT * rB, yB, sinT * rB];
-      const innerB = [cosT * rB * (1 - cleftDepth), yB, sinT * rB * (1 - cleftDepth)];
-      // Wind so the wall faces into the cleft (i.e. outward from the wedge interior).
-      if (sign < 0) {
-        out.push({ verts: [place(outerA), place(innerA), place(innerB)], t: 1 });
-        out.push({ verts: [place(outerA), place(innerB), place(outerB)], t: 1 });
-      } else {
-        out.push({ verts: [place(outerA), place(innerB), place(innerA)], t: 1 });
-        out.push({ verts: [place(outerA), place(outerB), place(innerB)], t: 1 });
-      }
-    }
-  }
-
-  // Cleft floor — connect inner edges (at the bottom of the wedge) across the cut.
-  for (let j = 0; j < NLAT; j++) {
-    const phiA = (j / NLAT) * (Math.PI / 2);
-    const phiB = ((j + 1) / NLAT) * (Math.PI / 2);
-    const yA = Math.sin(phiA) * headH;
-    const yB = Math.sin(phiB) * headH;
-    const rA = Math.cos(phiA) * headR * (1 - cleftDepth);
-    const rB = Math.cos(phiB) * headR * (1 - cleftDepth);
-    const cosL = Math.cos(-cleftHalf), sinL = Math.sin(-cleftHalf);
-    const cosR = Math.cos(+cleftHalf), sinR = Math.sin(+cleftHalf);
-    const lA = [cosL * rA, yA, sinL * rA];
-    const rA2 = [cosR * rA, yA, sinR * rA];
-    const lB = [cosL * rB, yB, sinL * rB];
-    const rB2 = [cosR * rB, yB, sinR * rB];
-    out.push({ verts: [place(lA), place(rA2), place(rB2)], t: 1 });
-    out.push({ verts: [place(lA), place(rB2), place(lB)], t: 1 });
-  }
-
-  return out;
-}
-
-/* Notched ring head — flattened torus with a gap on the front side. Reads as
-   a stylized open crown.
-
-   head_params for notched:
-     gap          : float in radians, angular size of the gap (default 1.2)
-     ring_thick   : float, ring thickness as fraction of head_size (default 0.25) */
-function _notchedHead(geom, height, radius, transformVert) {
-  const place = _headPlacement(geom, height, radius, transformVert);
-  const params = geom.head_params || {};
-  const gap        = params.gap        != null ? params.gap        : 1.2;
-  const ringThick  = params.ring_thick != null ? params.ring_thick : 0.25;
-
-  const collarR = (geom.segments[3]?.r_top ?? 1) * radius;
-  const headR   = geom.head_size * collarR;
-  const headH   = geom.head_height;
-  const out = [];
-
-  // Torus: major radius headR (centerline of the ring), minor radius
-  // ringThick * headR. The ring has an arc gap centered on +x.
-  const RMaj = headR;
-  const RMin = ringThick * headR * Math.min(1, headH / Math.max(0.0001, ringThick * headR));
-  // Vertical scale: squash so torus height matches headH (let it be compressed).
-  const yScale = headH / Math.max(0.0001, RMin * 2);
-
-  const NMAJ = 36;
-  const NMIN = 12;
-
-  const gapHalf = gap / 2;
-  // Major angles run from gapHalf to 2π - gapHalf — i.e. skip the gap.
-  for (let i = 0; i < NMAJ; i++) {
-    const u0 = i / NMAJ, u1 = (i + 1) / NMAJ;
-    const t0 = gapHalf + u0 * (Math.PI * 2 - gap);
-    const t1 = gapHalf + u1 * (Math.PI * 2 - gap);
-    for (let j = 0; j < NMIN; j++) {
-      const v0 = (j / NMIN) * Math.PI * 2;
-      const v1 = ((j + 1) / NMIN) * Math.PI * 2;
-      const buildPt = (T, V) => {
-        const cT = Math.cos(T), sT = Math.sin(T);
-        const cV = Math.cos(V), sV = Math.sin(V);
-        const x = (RMaj + RMin * cV) * cT;
-        const z = (RMaj + RMin * cV) * sT;
-        const y = RMin * sV * yScale + RMin * yScale; // shift so torus sits on y=0
-        return [x, y, z];
-      };
-      const p00 = buildPt(t0, v0);
-      const p10 = buildPt(t1, v0);
-      const p11 = buildPt(t1, v1);
-      const p01 = buildPt(t0, v1);
-      out.push({ verts: [place(p00), place(p10), place(p11)], t: 1 });
-      out.push({ verts: [place(p00), place(p11), place(p01)], t: 1 });
-    }
-  }
-
-  // Cap the two ends of the torus where it was cut by the gap.
-  for (const tEnd of [gapHalf, Math.PI * 2 - gapHalf]) {
-    const cT = Math.cos(tEnd), sT = Math.sin(tEnd);
-    for (let j = 0; j < NMIN; j++) {
-      const v0 = (j / NMIN) * Math.PI * 2;
-      const v1 = ((j + 1) / NMIN) * Math.PI * 2;
-      const cV0 = Math.cos(v0), sV0 = Math.sin(v0);
-      const cV1 = Math.cos(v1), sV1 = Math.sin(v1);
-      const ctr = [RMaj * cT, RMin * yScale, RMaj * sT];
-      const p0 = [(RMaj + RMin * cV0) * cT, RMin * sV0 * yScale + RMin * yScale, (RMaj + RMin * cV0) * sT];
-      const p1 = [(RMaj + RMin * cV1) * cT, RMin * sV1 * yScale + RMin * yScale, (RMaj + RMin * cV1) * sT];
-      // Wind so the cap faces outward (away from the ring interior).
-      out.push({ verts: [place(ctr), place(p0), place(p1)], t: 1 });
-    }
-  }
-
-  return out;
-}
-
-/* Forked head — two prongs rising from a base, splaying outward. Reads as
-   serpent's tongue / ram's horns.
-
-   head_params for forked:
-     prong_angle    : float radians, how far apart the prongs splay (default 0.5)
-     prong_thick    : float, prong base thickness as fraction of head_size (default 0.25)
-     prong_taper    : float in [0, 1], fraction of prong base width at the tip (default 0.1) */
-function _forkedHead(geom, height, radius, transformVert) {
-  const place = _headPlacement(geom, height, radius, transformVert);
-  const params = geom.head_params || {};
-  const prongAngle = params.prong_angle != null ? params.prong_angle : 0.5;
-  const prongThick = params.prong_thick != null ? params.prong_thick : 0.25;
-  const prongTaper = params.prong_taper != null ? params.prong_taper : 0.10;
-
-  const collarR = (geom.segments[3]?.r_top ?? 1) * radius;
-  const headR   = geom.head_size * collarR;
-  const headH   = geom.head_height;
-  const out = [];
-
-  // Each prong: a tapered rectangular cross-section, swept along an arc that
-  // splays outward by prong_angle from vertical. Two prongs, mirrored across
-  // the y-axis. We approximate each as a stack of horizontal cross-sections.
-  const NSLICE = 10;
-  const NSIDE = 8; // sides of each prong cross-section
-
-  for (const dir of [-1, +1]) {
-    // Prong sweeps from straight up at the base to (dir * prong_angle) at the tip.
-    const slabs = [];
-    for (let i = 0; i <= NSLICE; i++) {
-      const v = i / NSLICE;
-      // Parametric path of the prong's centerline.
-      const angle = v * prongAngle * dir;
-      const cx = Math.sin(angle) * headH * 0.7;     // x offset increases as we tilt
-      const cy = v * headH;
-      // Cross-section radius: tapers from prongThick at base to prongThick*prongTaper at tip.
-      const xr = headR * prongThick * (1 - v * (1 - prongTaper));
-      const slab = [];
-      for (let s = 0; s < NSIDE; s++) {
-        const phi = (s / NSIDE) * Math.PI * 2;
-        const lx = Math.cos(phi) * xr;
-        const lz = Math.sin(phi) * xr;
-        slab.push([cx + lx, cy, lz]);
-      }
-      slabs.push(slab);
-    }
-    // Connect slab i to i+1 with quads.
-    for (let i = 0; i < NSLICE; i++) {
-      const a = slabs[i], b = slabs[i + 1];
-      for (let s = 0; s < NSIDE; s++) {
-        const sn = (s + 1) % NSIDE;
-        out.push({ verts: [place(a[s]), place(a[sn]), place(b[sn])], t: 1 });
-        out.push({ verts: [place(a[s]), place(b[sn]), place(b[s])], t: 1 });
-      }
-    }
-    // Tip cap (small, points outward).
-    const tipSlab = slabs[NSLICE];
-    let tcx = 0, tcy = 0, tcz = 0;
-    for (const p of tipSlab) { tcx += p[0]; tcy += p[1]; tcz += p[2]; }
-    tcx /= tipSlab.length; tcy /= tipSlab.length; tcz /= tipSlab.length;
-    const tipCenter = place([tcx, tcy, tcz]);
-    for (let s = 0; s < NSIDE; s++) {
-      const sn = (s + 1) % NSIDE;
-      out.push({ verts: [tipCenter, place(tipSlab[sn]), place(tipSlab[s])], t: 1 });
-    }
-  }
-
-  return out;
-}
-
-const HERALDIC_HEAD_KINDS = {
-  crescent: _crescentHead,
-  cleft:    _cleftHead,
-  notched:  _notchedHead,
-  forked:   _forkedHead,
-};
-
-function heraldicExtraFaces(geom, height, radius, transformVert) {
-  const fn = HERALDIC_HEAD_KINDS[geom.head_kind] || _crescentHead;
-  const headFaces = fn(geom, height, radius, transformVert);
-
-  // Always emit a horizontal disc at the body's top to close the collar.
-  // Without this, the body has an open ring at its peak and the head doesn't
-  // necessarily cover it (e.g. head_size < 1 leaves the platform exposed).
-  const top = heraldicBodyTop(geom);
-  const yTop = top * height - height * 0.45;
-  const collarR = (geom.segments[3]?.r_top ?? 1) * radius;
-  const NSEG = 32;
-  const platform = [];
-  if (collarR > 1e-4) {
-    const centre = transformVert([0, yTop, 0]);
-    for (let s = 0; s < NSEG; s++) {
-      const a0 = (s / NSEG) * Math.PI * 2;
-      const a1 = ((s + 1) % NSEG) / NSEG * Math.PI * 2;
-      const v1 = transformVert([Math.cos(a0) * collarR, yTop, Math.sin(a0) * collarR]);
-      const v2 = transformVert([Math.cos(a1) * collarR, yTop, Math.sin(a1) * collarR]);
-      // Wound CCW viewed from above so the normal points up.
-      platform.push({ verts: [centre, v1, v2], t: top });
-    }
-  }
-  return [...platform, ...headFaces];
-}
-
-/* Tier defaults — 7 archetypes spanning body sizes (Pawn-like → Colossal-like)
-   and head shapes. Body proportions deliberately echo the smooth family's Pawn
-   (1.5×0.5, dramatic narrow waist, modest collar bulge) and Colossal (3.5×0.75,
-   extreme waist pinch, prominent collar bulge, big head). The heraldic
-   4-segment layout maps to these:
-     Base   : wide convex flare (analog of smooth's start→flare→peak lip)
-     Shaft  : tapers from body_start_r down to the waist (concave)
-     Waist  : short narrow pinch
-     Collar : widens back outward (the collar bulge)
-   Then the chosen head shape sits on top. */
-
-/* Tier 0 — Crescent Pawn: pawn body + horns crown. */
-function heraldicCrescentPawnGeom() {
+/* Tier 0 — Bronze: the pawn essence in its most basic form. 5 segments.
+   Foot moulding, base, concave shank, thin collar disc, sphere. Plain
+   bronze palette — the unrefined starting point. */
+function heraldicBronzeGeom() {
   return {
     segments: [
-      { height: 0.20, r_bot: 0.95, r_top: 0.70, profile: "convex"  }, // wide flared base → body_start
-      { height: 0.30, r_bot: 0.70, r_top: 0.28, profile: "concave" }, // shaft tapers to narrow waist
-      { height: 0.10, r_bot: 0.24, r_top: 0.22, profile: "concave" }, // waist (very narrow)
-      { height: 0.18, r_bot: 0.40, r_top: 0.45, profile: "convex"  }, // collar bulges outward
+      { height: 0.04, r_bot: 1.00, r_top: 0.92, profile: "convex"  }, // foot moulding
+      { height: 0.10, r_bot: 0.92, r_top: 0.55, profile: "convex"  }, // base
+      { height: 0.34, r_bot: 0.50, r_top: 0.30, profile: "concave" }, // shank (pinched)
+      { height: 0.04, r_bot: 0.30, r_top: 0.42, profile: "convex"  }, // collar disc
+      { height: 0.40, r_bot: 0.00, r_top: 0.40, profile: "sphere"  }, // head sphere
     ],
-    head_kind: "crescent", head_size: 1.4, head_height: 0.45,
-    head_tilt: -0.20, head_offset: 0.0,
-    head_params: { base_separation: 0.20, spread: 0.55, rise: 1.0, tip_curl: 0.45, thickness: 0.18 },
-    height: 1.05, radius: 0.50,
+    height: 1.00, radius: 0.50,
   };
 }
-
-/* Tier 1 — Cleft Bishop: tall slim pawn body, exaggerated cleft crown. */
-function heraldicCleftBishopGeom() {
-  return {
-    segments: [
-      { height: 0.18, r_bot: 0.90, r_top: 0.65, profile: "convex"  },
-      { height: 0.34, r_bot: 0.60, r_top: 0.22, profile: "concave" },
-      { height: 0.10, r_bot: 0.20, r_top: 0.18, profile: "concave" },
-      { height: 0.16, r_bot: 0.36, r_top: 0.40, profile: "convex"  },
-    ],
-    head_kind: "cleft", head_size: 1.05, head_height: 0.55,
-    head_tilt: 0.0, head_offset: 0.0,
-    head_params: { cleft_depth: 0.55, cleft_width: 0.7 },
-    height: 1.35, radius: 0.45,
-  };
-}
-
-/* Tier 2 — Crescent Colossus: Colossal-flavor body (extreme waist, big collar) + horns. */
-function heraldicCrescentColossusGeom() {
-  return {
-    segments: [
-      { height: 0.18, r_bot: 1.00, r_top: 0.78, profile: "convex"  }, // monumental base
-      { height: 0.42, r_bot: 0.72, r_top: 0.18, profile: "concave" }, // long shaft, dramatic taper
-      { height: 0.10, r_bot: 0.16, r_top: 0.14, profile: "concave" }, // extreme pinch
-      { height: 0.20, r_bot: 0.42, r_top: 0.50, profile: "convex"  }, // big collar bulge
-    ],
-    head_kind: "crescent", head_size: 1.6, head_height: 0.65,
-    head_tilt: -0.25, head_offset: 0.0,
-    head_params: { base_separation: 0.25, spread: 0.65, rise: 1.1, tip_curl: 0.50, thickness: 0.22 },
-    height: 1.95, radius: 0.65,
-  };
-}
-
-/* Tier 3 — Notched Sovereign: solid wider pawn body + notched crown. */
-function heraldicNotchedSovereignGeom() {
-  return {
-    segments: [
-      { height: 0.20, r_bot: 0.98, r_top: 0.78, profile: "convex"  },
-      { height: 0.32, r_bot: 0.74, r_top: 0.30, profile: "concave" },
-      { height: 0.10, r_bot: 0.28, r_top: 0.26, profile: "concave" },
-      { height: 0.20, r_bot: 0.48, r_top: 0.55, profile: "convex"  }, // strong collar (royal)
-    ],
-    head_kind: "notched", head_size: 1.10, head_height: 0.40,
-    head_tilt: 0.0, head_offset: 0.0,
-    head_params: { gap: 1.4, ring_thick: 0.28 },
-    height: 1.45, radius: 0.62,
-  };
-}
-
-/* Tier 4 — Forked Druid: pawn body, twin-prong head. */
-function heraldicForkedDruidGeom() {
-  return {
-    segments: [
-      { height: 0.20, r_bot: 0.92, r_top: 0.70, profile: "convex"  },
-      { height: 0.30, r_bot: 0.68, r_top: 0.24, profile: "concave" },
-      { height: 0.10, r_bot: 0.22, r_top: 0.20, profile: "concave" },
-      { height: 0.16, r_bot: 0.38, r_top: 0.42, profile: "convex"  },
-    ],
-    head_kind: "forked", head_size: 1.0, head_height: 0.55,
-    head_tilt: 0.0, head_offset: 0.0,
-    head_params: { prong_angle: 0.55, prong_thick: 0.22, prong_taper: 0.08 },
-    height: 1.30, radius: 0.52,
-  };
-}
-
-/* Tier 5 — Cleft Monolith: Colossal-flavor body, narrower cleft. */
-function heraldicCleftMonolithGeom() {
-  return {
-    segments: [
-      { height: 0.18, r_bot: 1.00, r_top: 0.80, profile: "convex"  },
-      { height: 0.42, r_bot: 0.74, r_top: 0.18, profile: "concave" },
-      { height: 0.10, r_bot: 0.16, r_top: 0.14, profile: "concave" },
-      { height: 0.20, r_bot: 0.42, r_top: 0.48, profile: "convex"  },
-    ],
-    head_kind: "cleft", head_size: 1.05, head_height: 0.55,
-    head_tilt: 0.0, head_offset: 0.0,
-    head_params: { cleft_depth: 0.55, cleft_width: 0.55 },
-    height: 2.05, radius: 0.70,
-  };
-}
-
-/* Tier 6 — Crescent Acolyte: small pawn, small horns crown. */
-function heraldicCrescentAcolyteGeom() {
-  return {
-    segments: [
-      { height: 0.20, r_bot: 0.90, r_top: 0.62, profile: "convex"  },
-      { height: 0.28, r_bot: 0.58, r_top: 0.22, profile: "concave" },
-      { height: 0.08, r_bot: 0.20, r_top: 0.18, profile: "concave" },
-      { height: 0.14, r_bot: 0.34, r_top: 0.38, profile: "convex"  },
-    ],
-    head_kind: "crescent", head_size: 1.25, head_height: 0.32,
-    head_tilt: -0.20, head_offset: 0.0,
-    head_params: { base_separation: 0.18, spread: 0.50, rise: 0.95, tip_curl: 0.55, thickness: 0.16 },
-    height: 0.90, radius: 0.42,
-  };
-}
-
-/* Color stops — one per tier. Each provides a base→head gradient that suits the
-   tier's intended palette. */
-function heraldicCrescentPawnStops() {
+function heraldicBronzeStops() {
   return [
-    { t: 0.00, c: [0.30, 0.32, 0.36], label: "Base"   },
-    { t: 0.20, c: [0.55, 0.55, 0.58], label: "Shaft"  },
-    { t: 0.55, c: [0.72, 0.70, 0.70], label: "Waist"  },
-    { t: 0.78, c: [0.85, 0.82, 0.78], label: "Collar" },
-    { t: 1.00, c: [0.96, 0.94, 0.88], label: "Head"   },
+    { t: 0.00, c: [0.32, 0.20, 0.10], label: "Foot"   },
+    { t: 0.06, c: [0.45, 0.28, 0.14], label: "Base"   },
+    { t: 0.20, c: [0.55, 0.36, 0.18], label: "Shank"  },
+    { t: 0.55, c: [0.65, 0.42, 0.22], label: "Collar" },
+    { t: 1.00, c: [0.78, 0.55, 0.28], label: "Head"   },
   ];
 }
-function heraldicCleftBishopStops() {
+
+/* Tier 1 — Silver: same architecture as Bronze, but the shank is now an
+   ogee (S-curve) instead of plain concave — more elegant. Slightly taller
+   (1.10) and more graceful. Polished silver palette. */
+function heraldicSilverGeom() {
+  return {
+    segments: [
+      { height: 0.04, r_bot: 1.00, r_top: 0.92, profile: "convex" },
+      { height: 0.10, r_bot: 0.92, r_top: 0.55, profile: "convex" },
+      { height: 0.38, r_bot: 0.50, r_top: 0.28, profile: "ogee"   }, // refined shank
+      { height: 0.04, r_bot: 0.28, r_top: 0.42, profile: "convex" },
+      { height: 0.40, r_bot: 0.00, r_top: 0.40, profile: "sphere" },
+    ],
+    height: 1.10, radius: 0.50,
+  };
+}
+function heraldicSilverStops() {
   return [
-    { t: 0.00, c: [0.78, 0.74, 0.66], label: "Base"   },
-    { t: 0.25, c: [0.88, 0.84, 0.76], label: "Shaft"  },
-    { t: 0.55, c: [0.92, 0.88, 0.78], label: "Waist"  },
-    { t: 0.74, c: [0.95, 0.92, 0.82], label: "Collar" },
-    { t: 1.00, c: [1.00, 0.98, 0.90], label: "Head"   },
+    { t: 0.00, c: [0.55, 0.55, 0.58], label: "Foot"   },
+    { t: 0.06, c: [0.68, 0.68, 0.70], label: "Base"   },
+    { t: 0.20, c: [0.78, 0.78, 0.80], label: "Shank"  },
+    { t: 0.55, c: [0.85, 0.85, 0.86], label: "Collar" },
+    { t: 1.00, c: [0.92, 0.92, 0.94], label: "Head"   },
   ];
 }
-function heraldicCrescentColossusStops() {
+
+/* Tier 2 — Gold: adds a single decorative bead between the shank and the
+   collar — the Victorian-balcony detail. 6 segments. Refined ogee shank
+   (carried forward from Silver). Gold tones. */
+function heraldicGoldGeom() {
+  return {
+    segments: [
+      { height: 0.04, r_bot: 1.00, r_top: 0.92, profile: "convex" },
+      { height: 0.10, r_bot: 0.92, r_top: 0.55, profile: "convex" },
+      { height: 0.36, r_bot: 0.50, r_top: 0.26, profile: "ogee"   },
+      { height: 0.04, r_bot: 0.26, r_top: 0.26, profile: "bell"   }, // NEW: bead
+      { height: 0.04, r_bot: 0.26, r_top: 0.42, profile: "convex" },
+      { height: 0.42, r_bot: 0.00, r_top: 0.42, profile: "sphere" },
+    ],
+    height: 1.15, radius: 0.50,
+  };
+}
+function heraldicGoldStops() {
   return [
-    { t: 0.00, c: [0.10, 0.09, 0.09], label: "Base"   },
-    { t: 0.20, c: [0.16, 0.13, 0.11], label: "Shaft"  },
-    { t: 0.55, c: [0.22, 0.18, 0.14], label: "Waist"  },
-    { t: 0.78, c: [0.55, 0.42, 0.16], label: "Collar" },
-    { t: 1.00, c: [0.85, 0.65, 0.25], label: "Head"   },
+    { t: 0.00, c: [0.42, 0.30, 0.10], label: "Foot"   },
+    { t: 0.06, c: [0.62, 0.45, 0.16], label: "Base"   },
+    { t: 0.20, c: [0.78, 0.58, 0.20], label: "Shank"  },
+    { t: 0.50, c: [0.92, 0.72, 0.28], label: "Bead"   },
+    { t: 0.58, c: [0.85, 0.65, 0.24], label: "Collar" },
+    { t: 1.00, c: [0.98, 0.82, 0.38], label: "Head"   },
   ];
 }
-function heraldicNotchedSovereignStops() {
+
+/* Tier 3 — Steel: more imposing version of Gold. Wider base, longer
+   shank, thicker bead. Same 6-segment architecture as Gold. Cool steel-blue
+   palette with brushed-metal feel. */
+function heraldicSteelGeom() {
+  return {
+    segments: [
+      { height: 0.04, r_bot: 1.05, r_top: 0.95, profile: "convex" }, // wider foot
+      { height: 0.10, r_bot: 0.95, r_top: 0.58, profile: "convex" }, // wider base
+      { height: 0.42, r_bot: 0.52, r_top: 0.24, profile: "ogee"   }, // longer shank
+      { height: 0.05, r_bot: 0.24, r_top: 0.24, profile: "bell"   }, // thicker bead
+      { height: 0.04, r_bot: 0.24, r_top: 0.42, profile: "convex" },
+      { height: 0.42, r_bot: 0.00, r_top: 0.42, profile: "sphere" },
+    ],
+    height: 1.30, radius: 0.55,
+  };
+}
+function heraldicSteelStops() {
   return [
-    { t: 0.00, c: [0.08, 0.10, 0.20], label: "Base"   },
-    { t: 0.22, c: [0.15, 0.20, 0.40], label: "Shaft"  },
-    { t: 0.55, c: [0.22, 0.30, 0.55], label: "Waist"  },
-    { t: 0.78, c: [0.30, 0.40, 0.65], label: "Collar" },
-    { t: 1.00, c: [0.92, 0.78, 0.30], label: "Head"   },
+    { t: 0.00, c: [0.22, 0.26, 0.32], label: "Foot"   },
+    { t: 0.06, c: [0.35, 0.42, 0.50], label: "Base"   },
+    { t: 0.20, c: [0.50, 0.58, 0.65], label: "Shank"  },
+    { t: 0.55, c: [0.62, 0.70, 0.75], label: "Bead"   },
+    { t: 0.62, c: [0.58, 0.66, 0.72], label: "Collar" },
+    { t: 1.00, c: [0.78, 0.85, 0.90], label: "Head"   },
   ];
 }
-function heraldicForkedDruidStops() {
+
+/* Tier 4 — Crystal: adds a small finial bud crowning the sphere. 7 segments.
+   The bud is a tiny bell segment at the very top — like a polished cap. The
+   palette shifts to luminous translucent crystal — pale aqua with a hint of
+   white. */
+function heraldicCrystalGeom() {
+  return {
+    segments: [
+      { height: 0.04, r_bot: 1.05, r_top: 0.95, profile: "convex" },
+      { height: 0.10, r_bot: 0.95, r_top: 0.58, profile: "convex" },
+      { height: 0.42, r_bot: 0.52, r_top: 0.24, profile: "ogee"   },
+      { height: 0.05, r_bot: 0.24, r_top: 0.24, profile: "bell"   },
+      { height: 0.04, r_bot: 0.24, r_top: 0.42, profile: "convex" },
+      { height: 0.40, r_bot: 0.00, r_top: 0.40, profile: "sphere" },
+      { height: 0.06, r_bot: 0.00, r_top: 0.10, profile: "sphere" }, // NEW: finial bud (sphere closes to point)
+    ],
+    height: 1.35, radius: 0.55,
+  };
+}
+function heraldicCrystalStops() {
   return [
-    { t: 0.00, c: [0.18, 0.22, 0.10], label: "Base"   },
-    { t: 0.22, c: [0.25, 0.38, 0.18], label: "Shaft"  },
-    { t: 0.55, c: [0.32, 0.50, 0.22], label: "Waist"  },
-    { t: 0.78, c: [0.45, 0.62, 0.30], label: "Collar" },
-    { t: 1.00, c: [0.60, 0.75, 0.40], label: "Head"   },
+    { t: 0.00, c: [0.30, 0.50, 0.55], label: "Foot"   },
+    { t: 0.06, c: [0.45, 0.65, 0.70], label: "Base"   },
+    { t: 0.20, c: [0.60, 0.78, 0.82], label: "Shank"  },
+    { t: 0.55, c: [0.72, 0.86, 0.88], label: "Bead"   },
+    { t: 0.62, c: [0.78, 0.90, 0.92], label: "Collar" },
+    { t: 0.92, c: [0.88, 0.96, 0.98], label: "Head"   },
+    { t: 1.00, c: [0.98, 1.00, 1.00], label: "Bud"    },
   ];
 }
-function heraldicCleftMonolithStops() {
+
+/* Tier 5 — Star: same 7-segment architecture as Crystal, but every detail
+   is more delicate. Longer shank, smaller more-refined bead, smaller head
+   sphere relative to body. Pearlescent palette with star-white highlights. */
+function heraldicStarGeom() {
+  return {
+    segments: [
+      { height: 0.04, r_bot: 1.00, r_top: 0.90, profile: "convex" },
+      { height: 0.09, r_bot: 0.90, r_top: 0.52, profile: "convex" },
+      { height: 0.48, r_bot: 0.48, r_top: 0.20, profile: "ogee"   }, // even longer shank
+      { height: 0.04, r_bot: 0.20, r_top: 0.20, profile: "bell"   }, // small refined bead
+      { height: 0.03, r_bot: 0.20, r_top: 0.36, profile: "convex" },
+      { height: 0.36, r_bot: 0.00, r_top: 0.36, profile: "sphere" }, // smaller head
+      { height: 0.06, r_bot: 0.00, r_top: 0.08, profile: "sphere" },
+    ],
+    height: 1.45, radius: 0.55,
+  };
+}
+function heraldicStarStops() {
   return [
-    { t: 0.00, c: [0.22, 0.22, 0.22], label: "Base"   },
-    { t: 0.22, c: [0.30, 0.30, 0.30], label: "Shaft"  },
-    { t: 0.60, c: [0.40, 0.40, 0.40], label: "Waist"  },
-    { t: 0.80, c: [0.50, 0.50, 0.50], label: "Collar" },
-    { t: 1.00, c: [0.65, 0.64, 0.62], label: "Head"   },
+    { t: 0.00, c: [0.62, 0.60, 0.72], label: "Foot"   },
+    { t: 0.06, c: [0.78, 0.75, 0.85], label: "Base"   },
+    { t: 0.20, c: [0.88, 0.85, 0.92], label: "Shank"  },
+    { t: 0.62, c: [0.92, 0.88, 0.95], label: "Bead"   },
+    { t: 0.68, c: [0.95, 0.92, 0.96], label: "Collar" },
+    { t: 0.92, c: [0.98, 0.96, 1.00], label: "Head"   },
+    { t: 1.00, c: [1.00, 1.00, 1.00], label: "Bud"    },
   ];
 }
-function heraldicCrescentAcolyteStops() {
+
+/* Tier 6 — Divine: the most refined form. Same 7-segment architecture as
+   Star but the bead is articulated as a doubled band (taller bell) and the
+   proportions are at their most graceful. White-gold palette with luminous
+   accents — the celestial crown of the progression. */
+function heraldicDivineGeom() {
+  return {
+    segments: [
+      { height: 0.04, r_bot: 1.00, r_top: 0.88, profile: "convex" },
+      { height: 0.10, r_bot: 0.88, r_top: 0.50, profile: "convex" },
+      { height: 0.50, r_bot: 0.46, r_top: 0.18, profile: "ogee"   },
+      { height: 0.07, r_bot: 0.20, r_top: 0.20, profile: "bell"   }, // doubled-band bead
+      { height: 0.03, r_bot: 0.20, r_top: 0.38, profile: "convex" },
+      { height: 0.38, r_bot: 0.00, r_top: 0.38, profile: "sphere" },
+      { height: 0.07, r_bot: 0.00, r_top: 0.10, profile: "sphere" }, // tapered bud (sphere closes to point)
+    ],
+    height: 1.55, radius: 0.55,
+  };
+}
+function heraldicDivineStops() {
   return [
-    { t: 0.00, c: [0.30, 0.20, 0.08], label: "Base"   },
-    { t: 0.22, c: [0.55, 0.40, 0.18], label: "Shaft"  },
-    { t: 0.55, c: [0.72, 0.55, 0.25], label: "Waist"  },
-    { t: 0.78, c: [0.82, 0.65, 0.30], label: "Collar" },
-    { t: 1.00, c: [0.95, 0.82, 0.42], label: "Head"   },
+    { t: 0.00, c: [0.85, 0.78, 0.55], label: "Foot"   },
+    { t: 0.06, c: [0.92, 0.85, 0.60], label: "Base"   },
+    { t: 0.20, c: [0.96, 0.90, 0.65], label: "Shank"  },
+    { t: 0.62, c: [1.00, 0.95, 0.70], label: "Bead"   },
+    { t: 0.70, c: [1.00, 0.96, 0.75], label: "Collar" },
+    { t: 0.92, c: [1.00, 0.98, 0.85], label: "Head"   },
+    { t: 1.00, c: [1.00, 1.00, 0.95], label: "Bud"    },
   ];
 }
 
 const HERALDIC_TIER_NAMES = [
-  "Crescent Pawn", "Cleft Bishop", "Crescent Colossus",
-  "Notched Sovereign", "Forked Druid", "Cleft Monolith", "Crescent Acolyte",
+  "Bronze", "Silver", "Gold",
+  "Steel", "Crystal", "Star", "Divine",
 ];
 const HERALDIC_GEOM_FNS  = [
-  heraldicCrescentPawnGeom, heraldicCleftBishopGeom, heraldicCrescentColossusGeom,
-  heraldicNotchedSovereignGeom, heraldicForkedDruidGeom, heraldicCleftMonolithGeom,
-  heraldicCrescentAcolyteGeom,
+  heraldicBronzeGeom, heraldicSilverGeom, heraldicGoldGeom,
+  heraldicSteelGeom, heraldicCrystalGeom, heraldicStarGeom, heraldicDivineGeom,
 ];
 const HERALDIC_STOPS_FNS = [
-  heraldicCrescentPawnStops, heraldicCleftBishopStops, heraldicCrescentColossusStops,
-  heraldicNotchedSovereignStops, heraldicForkedDruidStops, heraldicCleftMonolithStops,
-  heraldicCrescentAcolyteStops,
+  heraldicBronzeStops, heraldicSilverStops, heraldicGoldStops,
+  heraldicSteelStops, heraldicCrystalStops, heraldicStarStops, heraldicDivineStops,
 ];
 
 const HERALDIC_FAMILY = {
@@ -2087,22 +1890,23 @@ const HERALDIC_FAMILY = {
   envelopeMax: heraldicEnvelopeMax,
   boundaries: heraldicBoundaries,
   discontinuities: heraldicDiscontinuities,
-  extraFaces: heraldicExtraFaces,
 };
 
 const FAMILIES = {
-  smooth:   SMOOTH_FAMILY,
-  stacked:  STACKED_FAMILY,
-  heraldic: HERALDIC_FAMILY,
+  smooth:    SMOOTH_FAMILY,
+  stacked:   STACKED_FAMILY,
+  stacked2:  STACKED2_FAMILY,
+  heraldic:  HERALDIC_FAMILY,
 };
-const FAMILY_KEYS = ["smooth", "stacked", "heraldic"];
+const FAMILY_KEYS = ["smooth", "stacked", "stacked2", "heraldic"];
 
 /* ── Defaults across all families — full state shape for first launch ── */
 function defaultAllFamilies() {
   return {
-    smooth:   SMOOTH_FAMILY.defaultTiers(),
-    stacked:  STACKED_FAMILY.defaultTiers(),
-    heraldic: HERALDIC_FAMILY.defaultTiers(),
+    smooth:    SMOOTH_FAMILY.defaultTiers(),
+    stacked:   STACKED_FAMILY.defaultTiers(),
+    stacked2:  STACKED2_FAMILY.defaultTiers(),
+    heraldic:  HERALDIC_FAMILY.defaultTiers(),
   };
 }
 const DEFAULTS_JSON = JSON.stringify(defaultAllFamilies());
@@ -2210,6 +2014,27 @@ export default function PawnDesigner() {
           if (data && typeof data === "object" && !Array.isArray(data)
               && (data.smooth || data.stacked)) {
             // Families-shaped payload — current schema.
+            // Heraldic migration: older saves have head_kind / head_size /
+            // head_height / head_tilt / head_offset / head_params fields on
+            // each geom. The Heraldic family no longer uses them — every
+            // piece is segments only. We strip those fields silently. If a
+            // saved geom is missing the segments array entirely (very old
+            // Heraldic shape), we drop it and fall back to the default.
+            const migrateHeraldicGeom = (geom) => {
+              if (!geom || typeof geom !== "object") return null;
+              if (!Array.isArray(geom.segments) || geom.segments.length === 0) return null;
+              // Keep only fields the new schema uses.
+              return {
+                segments: geom.segments.map(s => ({
+                  height: s.height,
+                  r_bot:  s.r_bot,
+                  r_top:  s.r_top,
+                  profile: s.profile || "linear",
+                })),
+                height: geom.height,
+                radius: geom.radius,
+              };
+            };
             const merged = defaultAllFamilies();
             for (const fk of FAMILY_KEYS) {
               const incoming = data[fk];
@@ -2217,6 +2042,11 @@ export default function PawnDesigner() {
                 merged[fk] = merged[fk].map((d, i) => {
                   const e = incoming[i];
                   if (!e || !e.geom || !Array.isArray(e.stops)) return d;
+                  if (fk === "heraldic") {
+                    const migrated = migrateHeraldicGeom(e.geom);
+                    if (!migrated) return d;
+                    return { geom: migrated, stops: e.stops };
+                  }
                   return e;
                 });
               }
@@ -2513,13 +2343,14 @@ export default function PawnDesigner() {
 
         case "profile": return (
       <DragPanel {...dp} title={
-        familyKey === "smooth"  ? "Profile Geometry"
-        : familyKey === "stacked" ? "Stacked Segments"
+        familyKey === "smooth"   ? "Profile Geometry"
+        : familyKey === "stacked"  ? "Stacked Segments"
+        : familyKey === "stacked2" ? "Stacked II Segments"
         : "Heraldic Geometry"
       }>
         {familyKey === "smooth" ? (
           <SmoothProfilePanel geom={geom} upd={upd} />
-        ) : familyKey === "stacked" ? (
+        ) : (familyKey === "stacked" || familyKey === "stacked2") ? (
           <StackedProfilePanel geom={geom} upd={upd} updSegments={updSegments} />
         ) : (
           <HeraldicProfilePanel geom={geom} upd={upd} updSegments={updSegments} />
@@ -2559,7 +2390,7 @@ export default function PawnDesigner() {
 function SmoothProfilePanel({ geom, upd }) {
   return (
     <>
-      <div style={{ fontSize: 10, fontWeight: 500, color: "var(--color-text-secondary)", marginBottom: 3 }}>Section boundaries (t)</div>
+      <SectionLabel>Section boundaries (t)</SectionLabel>
       <div style={rw}>
         <span style={lb} title="Where the flared base finishes and the body begins">Base end</span>
         <Num value={geom.base_t} min={0.05} max={0.3} w={40} onChange={v => upd(n => { n.base_t = v; })}
@@ -2579,7 +2410,7 @@ function SmoothProfilePanel({ geom, upd }) {
         <Num value={geom.head_t} min={0.7} max={0.99} w={40} onChange={v => upd(n => { n.head_t = v; })}
              tip="Height (0–1) where the spherical head ends. Above this the silhouette tapers to the tip." />
       </div>
-      <div style={{ fontSize: 10, fontWeight: 500, color: "var(--color-text-secondary)", margin: "6px 0 3px" }}>Key radii (normalized)</div>
+      <SectionLabel>Key radii (normalized)</SectionLabel>
       <div style={rw}>
         <span style={lb} title="Radius right at the bottom">Start</span>
         <Num value={geom.start_r} min={0.1} max={1} w={38} onChange={v => upd(n => { n.start_r = v; })}
@@ -2613,7 +2444,7 @@ function SmoothProfilePanel({ geom, upd }) {
         <Num value={geom.head_sphere_r} min={0.1} max={0.6} w={38} onChange={v => upd(n => { n.head_sphere_r = v; })}
              tip="Radius of the spherical head at its widest. Higher → bulkier head (Idol-like)." />
       </div>
-      <div style={{ fontSize: 10, fontWeight: 500, color: "var(--color-text-secondary)", margin: "6px 0 3px" }}>Scale (world units)</div>
+      <SectionLabel>Scale (world units)</SectionLabel>
       <div style={rw}>
         <span style={lb} title="Total height of the piece in world units">Height</span>
         <Num value={geom.height} min={0.5} max={10} w={40} onChange={v => upd(n => { n.height = v; })}
@@ -2634,7 +2465,7 @@ function StackedProfilePanel({ geom, upd, updSegments }) {
   const shapeKeys = Object.keys(STACKED_SHAPES);
   return (
     <>
-      <div style={{ fontSize: 10, fontWeight: 500, color: "var(--color-text-secondary)", marginBottom: 3 }}>Segments (bottom → top)</div>
+      <SectionLabel>Segments (bottom → top)</SectionLabel>
       {geom.segments.map((seg, i) => (
         <div key={i} style={{ ...rw, gap: 4, padding: "2px 0", borderTop: i === 0 ? "none" : "1px dashed var(--color-border-tertiary)" }}>
           <span style={{ ...lb, minWidth: 48, fontWeight: 500 }} title={`Segment ${i}: ${STACKED_SEG_NAMES[i] || ""}`}>{STACKED_SEG_NAMES[i] || `Seg ${i}`}</span>
@@ -2660,7 +2491,7 @@ function StackedProfilePanel({ geom, upd, updSegments }) {
           </select>
         </div>
       ))}
-      <div style={{ fontSize: 10, fontWeight: 500, color: "var(--color-text-secondary)", margin: "6px 0 3px" }}>Scale (world units)</div>
+      <SectionLabel>Scale (world units)</SectionLabel>
       <div style={rw}>
         <span style={lb} title="Total piece height in world units">Height</span>
         <Num value={geom.height} min={0.5} max={10} w={40} onChange={v => upd(n => { n.height = v; })}
@@ -2677,28 +2508,38 @@ function StackedProfilePanel({ geom, upd, updSegments }) {
 }
 
 /* ═══ HERALDIC-FAMILY PROFILE PANEL ═══
-   Stacked-style 4-segment body editor (Base/Shaft/Waist/Collar) plus a
-   head selector and the parameters specific to the chosen head shape. */
+   Variable-length segment editor (1–7 segments). The piece is purely segments
+   end-to-end — no separate head primitive. Each segment has height, r_bot,
+   r_top, and a profile shape from STACKED_SHAPES. */
 function HeraldicProfilePanel({ geom, upd, updSegments }) {
   const shapeKeys = Object.keys(STACKED_SHAPES);
-  const headKinds = Object.keys(HERALDIC_HEAD_KINDS);
-  const headTiltDeg = (geom.head_tilt * 180) / Math.PI;
-  const params = geom.head_params || {};
-
-  // Helper: update a single field on geom.head_params (deep-copying to avoid mutation).
-  const updParam = (key, value) => upd(n => {
-    n.head_params = { ...(n.head_params || {}), [key]: value };
-  });
 
   return (
     <>
-      <div style={{ fontSize: 10, fontWeight: 500, color: "var(--color-text-secondary)", marginBottom: 3 }}>
-        Body segments (bottom → top)
-      </div>
+      <SectionLabel>
+        <span style={{ flex: 1 }}>Body segments (bottom → top) — {geom.segments.length}/{HERALDIC_MAX_SEGS}</span>
+        <button
+          onClick={() => updSegments(n => {
+            if (n.segments.length >= HERALDIC_MAX_SEGS) return;
+            // Insert a new segment just below the current top, copying its values
+            // so the new piece slots in cleanly without sudden geometry changes.
+            const top = n.segments[n.segments.length - 1] || { height: 0.10, r_bot: 0.50, r_top: 0.50, profile: "linear" };
+            n.segments.splice(n.segments.length - 1, 0, {
+              height: top.height * 0.5,
+              r_bot:  top.r_bot,
+              r_top:  top.r_bot,
+              profile: "linear",
+            });
+          })}
+          disabled={geom.segments.length >= HERALDIC_MAX_SEGS}
+          style={{ ...btnStyle, fontSize: 9, padding: "1px 6px", opacity: geom.segments.length >= HERALDIC_MAX_SEGS ? 0.4 : 1 }}
+          title="Add a new segment just below the topmost (Crown) segment. Caps at 7."
+        >+ add</button>
+      </SectionLabel>
       {geom.segments.map((seg, i) => (
         <div key={i} style={{ ...rw, gap: 4, padding: "2px 0", borderTop: i === 0 ? "none" : "1px dashed var(--color-border-tertiary)" }}>
-          <span style={{ ...lb, minWidth: 48, fontWeight: 500 }} title={`Segment ${i}: ${HERALDIC_SEG_NAMES[i] || ""}`}>
-            {HERALDIC_SEG_NAMES[i] || `Seg ${i}`}
+          <span style={{ ...lb, minWidth: 48, fontWeight: 500 }} title={`Segment ${i + 1} of ${geom.segments.length}`}>
+            {heraldicSegLabel(i, geom.segments.length)}
           </span>
           <span style={{ fontSize: 9, color: "var(--color-text-tertiary)" }} title="Segment height (relative)">h</span>
           <Num value={seg.height} min={0.005} max={5} step={0.01} w={36}
@@ -2711,7 +2552,7 @@ function HeraldicProfilePanel({ geom, upd, updSegments }) {
           <span style={{ fontSize: 9, color: "var(--color-text-tertiary)" }} title="Top radius">r↑</span>
           <Num value={seg.r_top} min={0} max={3} step={0.005} w={36}
                onChange={v => updSegments(n => { n.segments[i].r_top = v; })}
-               tip="Segment top radius (normalized to world Radius). The Collar's r_top sets the platform that the head sits on." />
+               tip="Segment top radius (normalized to world Radius). The topmost (Crown) segment's r_top sets the platform the head sits on." />
           <select
             value={seg.profile}
             onChange={e => updSegments(n => { n.segments[i].profile = e.target.value; })}
@@ -2720,126 +2561,24 @@ function HeraldicProfilePanel({ geom, upd, updSegments }) {
           >
             {shapeKeys.map(k => <option key={k} value={k}>{k}</option>)}
           </select>
+          <button
+            onClick={() => updSegments(n => {
+              if (n.segments.length <= HERALDIC_MIN_SEGS) return;
+              n.segments.splice(i, 1);
+            })}
+            disabled={geom.segments.length <= HERALDIC_MIN_SEGS}
+            style={{ ...btnStyle, fontSize: 9, padding: "0 5px", opacity: geom.segments.length <= HERALDIC_MIN_SEGS ? 0.4 : 1, marginLeft: 2 }}
+            title={geom.segments.length <= HERALDIC_MIN_SEGS ? "Can't remove — at least 1 segment is required." : `Remove the ${heraldicSegLabel(i, geom.segments.length)} segment.`}
+          >×</button>
         </div>
       ))}
 
-      <div style={{ fontSize: 10, fontWeight: 500, color: "var(--color-text-secondary)", margin: "6px 0 3px" }}>Head</div>
+      <SectionLabel>Scale (world units)</SectionLabel>
       <div style={rw}>
-        <span style={lb} title="Which decorative head shape sits on top of the collar">Kind</span>
-        <select
-          value={geom.head_kind}
-          onChange={e => upd(n => { n.head_kind = e.target.value; })}
-          style={{ ...ist, padding: "2px 4px", fontSize: 10, textAlign: "left", minWidth: 90 }}
-          title="Head shape: crescent (fat moon with tips), cleft (dome with wedge cut), notched (open ring), forked (twin prongs)"
-        >
-          {headKinds.map(k => <option key={k} value={k}>{k}</option>)}
-        </select>
-        <span style={lb} title="Head footprint as fraction of the collar's r_top">Size</span>
-        <Num value={geom.head_size} min={0.4} max={2.5} step={0.01} w={42}
-             onChange={v => upd(n => { n.head_size = v; })}
-             tip="Head footprint radius as a fraction of the collar's r_top. 1.0 = matches collar; >1 overhangs." />
-      </div>
-      <div style={rw}>
-        <span style={lb} title="Vertical extent of the head in world units">Height</span>
-        <Num value={geom.head_height} min={0.05} max={3} step={0.01} w={42}
-             onChange={v => upd(n => { n.head_height = v; })}
-             tip="Vertical extent of the head in world units. Adds to the body height." />
-        <span style={lb} title="Pitch the head forward (+) or back (-) in radians">Tilt (°)</span>
-        <Num value={headTiltDeg} min={-45} max={45} step={1} w={42}
-             onChange={v => upd(n => { n.head_tilt = (v * Math.PI) / 180; })}
-             tip="Pitch the head forward (positive) or back (negative). Slider is degrees; stored as radians." />
-        <span style={lb} title="Translate head forward as fraction of collar r_top">Offset</span>
-        <Num value={geom.head_offset} min={-1} max={1} step={0.01} w={42}
-             onChange={v => upd(n => { n.head_offset = v; })}
-             tip="Translate the head along +X (forward). Fraction of collar r_top." />
-      </div>
-
-      {/* Shape-specific parameters */}
-      {geom.head_kind === "crescent" && (
-        <>
-          <div style={{ fontSize: 10, fontWeight: 500, color: "var(--color-text-secondary)", margin: "6px 0 3px" }}>Horns params</div>
-          <div style={rw}>
-            <span style={lb} title="Distance between the two horn roots">Base sep</span>
-            <Num value={params.base_separation != null ? params.base_separation : 0.20} min={0} max={1.0} step={0.01} w={42}
-                 onChange={v => updParam("base_separation", v)}
-                 tip="Distance between the two horn roots, as fraction of head_size. 0 = roots meet at one point; higher = horns plant farther apart." />
-            <span style={lb} title="Outward sweep distance">Spread</span>
-            <Num value={params.spread != null ? params.spread : 0.55} min={0.0} max={1.5} step={0.01} w={42}
-                 onChange={v => updParam("spread", v)}
-                 tip="How far the horns sweep outward before curling up. Higher = wider horns." />
-            <span style={lb} title="Vertical rise of the horns">Rise</span>
-            <Num value={params.rise != null ? params.rise : 1.0} min={0.2} max={2.0} step={0.01} w={42}
-                 onChange={v => updParam("rise", v)}
-                 tip="Vertical reach of the horns, as fraction of head_height. 1.0 = tips reach the head's full extent." />
-          </div>
-          <div style={rw}>
-            <span style={lb} title="How much the tips curl back inward">Tip curl</span>
-            <Num value={params.tip_curl != null ? params.tip_curl : 0.45} min={0} max={1} step={0.01} w={42}
-                 onChange={v => updParam("tip_curl", v)}
-                 tip="How much the tips curl back inward. 0 = straight; 0.5 = halfway back; >0.5 = tips converge or cross." />
-            <span style={lb} title="Tube cross-section radius at the root">Thickness</span>
-            <Num value={params.thickness != null ? params.thickness : 0.18} min={0.02} max={0.5} step={0.01} w={42}
-                 onChange={v => updParam("thickness", v)}
-                 tip="Cross-section radius at the root, as fraction of head_size. Tapers to 0 at the tip." />
-          </div>
-        </>
-      )}
-      {geom.head_kind === "cleft" && (
-        <>
-          <div style={{ fontSize: 10, fontWeight: 500, color: "var(--color-text-secondary)", margin: "6px 0 3px" }}>Cleft params</div>
-          <div style={rw}>
-            <span style={lb} title="How deep the wedge cut goes into the dome">Depth</span>
-            <Num value={params.cleft_depth != null ? params.cleft_depth : 0.55} min={0.05} max={0.95} step={0.01} w={42}
-                 onChange={v => updParam("cleft_depth", v)}
-                 tip="How deep the wedge cuts into the dome. 0.5 = halfway; 0.9 = nearly bisects the head." />
-            <span style={lb} title="Angular width of the cut, in radians">Width</span>
-            <Num value={params.cleft_width != null ? params.cleft_width : 0.9} min={0.2} max={2.5} step={0.05} w={42}
-                 onChange={v => updParam("cleft_width", v)}
-                 tip="Angular width of the wedge in radians. 0.5 = narrow slit; 1.5 = broad notch." />
-          </div>
-        </>
-      )}
-      {geom.head_kind === "notched" && (
-        <>
-          <div style={{ fontSize: 10, fontWeight: 500, color: "var(--color-text-secondary)", margin: "6px 0 3px" }}>Notched params</div>
-          <div style={rw}>
-            <span style={lb} title="Angular size of the gap in radians">Gap</span>
-            <Num value={params.gap != null ? params.gap : 1.2} min={0.1} max={3.5} step={0.05} w={42}
-                 onChange={v => updParam("gap", v)}
-                 tip="Angular gap in the ring, in radians. 0.5 = small opening; 2.5 = mostly open." />
-            <span style={lb} title="Ring thickness as fraction of head_size">Ring thick</span>
-            <Num value={params.ring_thick != null ? params.ring_thick : 0.25} min={0.05} max={0.6} step={0.01} w={42}
-                 onChange={v => updParam("ring_thick", v)}
-                 tip="Thickness of the ring tube, as fraction of head radius." />
-          </div>
-        </>
-      )}
-      {geom.head_kind === "forked" && (
-        <>
-          <div style={{ fontSize: 10, fontWeight: 500, color: "var(--color-text-secondary)", margin: "6px 0 3px" }}>Forked params</div>
-          <div style={rw}>
-            <span style={lb} title="How far apart the prongs splay">Splay</span>
-            <Num value={params.prong_angle != null ? params.prong_angle : 0.5} min={0} max={1.4} step={0.02} w={42}
-                 onChange={v => updParam("prong_angle", v)}
-                 tip="How far the prongs splay outward at the tip, in radians. 0 = parallel; 1.0 = wide V." />
-            <span style={lb} title="Prong base thickness">Thickness</span>
-            <Num value={params.prong_thick != null ? params.prong_thick : 0.25} min={0.05} max={0.6} step={0.01} w={42}
-                 onChange={v => updParam("prong_thick", v)}
-                 tip="Prong base thickness as fraction of head radius." />
-            <span style={lb} title="Tip thickness as fraction of base thickness">Taper</span>
-            <Num value={params.prong_taper != null ? params.prong_taper : 0.10} min={0} max={1} step={0.01} w={42}
-                 onChange={v => updParam("prong_taper", v)}
-                 tip="Tip thickness as a fraction of the base thickness. 0 = sharp point; 1 = no taper." />
-          </div>
-        </>
-      )}
-
-      <div style={{ fontSize: 10, fontWeight: 500, color: "var(--color-text-secondary)", margin: "6px 0 3px" }}>Scale (world units)</div>
-      <div style={rw}>
-        <span style={lb} title="Body height in world units (head_height adds on top)">Body H</span>
+        <span style={lb} title="Total piece height in world units">Height</span>
         <Num value={geom.height} min={0.5} max={10} w={42}
              onChange={v => upd(n => { n.height = v; })}
-             tip="Body height in world units. The total piece height is body_height + head_height." />
+             tip="Total piece height in world units. Segment heights are normalized to fill this." />
         <span style={lb} title="Outer radius in world units">Radius</span>
         <Num value={geom.radius} min={0.1} max={4} w={42}
              onChange={v => upd(n => { n.radius = v; })}

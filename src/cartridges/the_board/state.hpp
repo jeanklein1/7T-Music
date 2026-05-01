@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 // THE_BOARD CARTRIDGE — GPU State Management (Rasterized)
 // =============================================================
@@ -435,6 +435,20 @@ namespace t7 {
             uint32_t possessed_slot;          // slot 0 at session start
             float _pulse_pad[2];
             float pulse_data[32];             // 8 × {origin_x, origin_z, onset_beats, amplitude}
+            // ─── LOD-band pawn position ─────────────────────────────────
+            // The CPU bands patches into LOD0/LOD1 in stream_patches based
+            // on pawnReadback_x_/z_, which lags the GPU pawn by 1-2 frames.
+            // The GPU's frustum-cull shader applies the LOD0 distance
+            // gate, but if it reads the live GPU pawn position the CPU's
+            // banding and the GPU's gate disagree at the boundary annulus
+            // (~3.5 patches × 50 = ~175 world units from the pawn). The
+            // disagreement makes patches flicker in/out and z-fight as the
+            // camera moves. Solution: push the CPU's banding pawn here
+            // and have the cull shader read it instead, so both sides
+            // partition with the same yardstick by construction.
+            float lod_pawn_x;
+            float lod_pawn_z;
+            float _lod_pawn_pad[2];           // pad to vec4 alignment
         };
 
         // Tile grid: modifier field for smooth archetype interpolation.
@@ -549,7 +563,7 @@ namespace t7 {
         // cartridge class scope). Asserts in agents.inl verify
         // these stay in sync.
         static constexpr uint32_t GPU_AGENT_BEHAVIOR_COUNT = 10;
-        static constexpr uint32_t GPU_AGENT_TIER_COUNT     = 4;
+        static constexpr uint32_t GPU_AGENT_TIER_COUNT = 4;
 
         // GPU-side mirror of AgentTierDef (modules/agents.inl) without
         // the `id` and `name` fields. Uploaded once at world-init from
@@ -1315,7 +1329,7 @@ namespace t7 {
         };
 
         static_assert(sizeof(GPUFrameSignal) == 304, "GPUFrameSignal must be 304 bytes");
-        static_assert(sizeof(GPUDesignConfig) == 384, "GPUDesignConfig must be 384 bytes");
+        static_assert(sizeof(GPUDesignConfig) == 400, "GPUDesignConfig must be 400 bytes");
 
         // Portal ellipse array — uploaded when portal set changes.
         // GPU behavior_player_controlled tests pawn against arch-shaped ellipses and writes portal_trigger.
@@ -1701,14 +1715,14 @@ namespace t7 {
             // has both a translation step (CPU table → GPU struct) and
             // the queue access, so it owns the call site.
             void upload_agent_registries(wgpu::Queue& queue,
-                                         const GPUAgentBehaviorDef* behaviors,
-                                         uint32_t behavior_count,
-                                         const GPUAgentTierDef* tiers,
-                                         uint32_t tier_count) {
+                const GPUAgentBehaviorDef* behaviors,
+                uint32_t behavior_count,
+                const GPUAgentTierDef* tiers,
+                uint32_t tier_count) {
                 queue.WriteBuffer(agentBehaviorsBuffer_, 0, behaviors,
-                                  behavior_count * sizeof(GPUAgentBehaviorDef));
+                    behavior_count * sizeof(GPUAgentBehaviorDef));
                 queue.WriteBuffer(agentTierGainsBuffer_, 0, tiers,
-                                  tier_count * sizeof(GPUAgentTierDef));
+                    tier_count * sizeof(GPUAgentTierDef));
             }
 
             void upload_config(wgpu::Queue& queue) {
@@ -1732,6 +1746,17 @@ namespace t7 {
                 static_assert(offsetof(GPUDesignConfig, placement_patch_count) == 144,
                     "placement_patch_count offset must be 144 for targeted upload");
                 queue.WriteBuffer(configBuffer_, 144, &config_.placement_patch_count, sizeof(uint32_t));
+            }
+
+            // Targeted 8-byte upload of lod_pawn_x/z — called from stream_patches each
+            // frame so the GPU frustum-cull shader uses the same pawn position as the
+            // CPU's LOD banding (eliminates LOD0/LOD1 boundary flicker).
+            void upload_lod_pawn(wgpu::Queue& queue) {
+                static_assert(offsetof(GPUDesignConfig, lod_pawn_x) == 384,
+                    "lod_pawn_x offset must be 384 for targeted upload");
+                queue.WriteBuffer(configBuffer_,
+                    offsetof(GPUDesignConfig, lod_pawn_x),
+                    &config_.lod_pawn_x, sizeof(float) * 2);
             }
 
             void upload_directional_light(wgpu::Queue& queue, const GPUDirectionalLight& light) {
@@ -1807,7 +1832,7 @@ namespace t7 {
             // struct. Field offset is calculated at compile time.
             void upload_cube_behavior_id(wgpu::Queue& queue, uint32_t slot, uint32_t behavior_id) {
                 size_t base = (Dim::CUBE_SLOT_OFFSET + slot) * sizeof(GPUFloatingEntityState);
-                size_t off  = offsetof(GPUFloatingEntityState, behavior_id);
+                size_t off = offsetof(GPUFloatingEntityState, behavior_id);
                 queue.WriteBuffer(floatingEntityBuffer_, base + off, &behavior_id, sizeof(uint32_t));
             }
 
@@ -1819,7 +1844,7 @@ namespace t7 {
             // second of spring settle.
             void upload_cube_anchor(wgpu::Queue& queue, uint32_t slot, float ax, float ay, float az) {
                 size_t base = (Dim::CUBE_SLOT_OFFSET + slot) * sizeof(GPUFloatingEntityState);
-                size_t off  = offsetof(GPUFloatingEntityState, anchor);
+                size_t off = offsetof(GPUFloatingEntityState, anchor);
                 float a[3] = { ax, ay, az };
                 queue.WriteBuffer(floatingEntityBuffer_, base + off, a, sizeof(a));
             }
@@ -1830,12 +1855,12 @@ namespace t7 {
             // changes only the offset.
             void upload_cube_follow_pawn(wgpu::Queue& queue, uint32_t slot, uint32_t follow) {
                 size_t base = (Dim::CUBE_SLOT_OFFSET + slot) * sizeof(GPUFloatingEntityState);
-                size_t off  = offsetof(GPUFloatingEntityState, follow_pawn);
+                size_t off = offsetof(GPUFloatingEntityState, follow_pawn);
                 queue.WriteBuffer(floatingEntityBuffer_, base + off, &follow, sizeof(uint32_t));
             }
             void upload_cube_pawn_offset(wgpu::Queue& queue, uint32_t slot, float ox, float oy, float oz) {
                 size_t base = (Dim::CUBE_SLOT_OFFSET + slot) * sizeof(GPUFloatingEntityState);
-                size_t off  = offsetof(GPUFloatingEntityState, pawn_offset);
+                size_t off = offsetof(GPUFloatingEntityState, pawn_offset);
                 float o[3] = { ox, oy, oz };
                 queue.WriteBuffer(floatingEntityBuffer_, base + off, o, sizeof(o));
             }

@@ -1365,6 +1365,13 @@ struct DesignConfig {
     _pulse_pad_0: f32,
     _pulse_pad_1: f32,
     pulse_data: array<vec4<f32>, 8>,  // each: (origin_x, origin_z, onset_seconds, amplitude)
+    // CPU-banded pawn position for LOD0/LOD1 partition. Read by the
+    // frustum-cull shader so its dist² test agrees with the CPU's
+    // banding pawn (no 1-2 frame disagreement at the boundary).
+    lod_pawn_x: f32,
+    lod_pawn_z: f32,
+    _lod_pawn_pad_0: f32,
+    _lod_pawn_pad_1: f32,
 }
 
 // §2.2 CONSTANTS
@@ -7826,11 +7833,15 @@ fn frustum_cull_patches(@builtin(global_invocation_id) id: vec3<u32>) {
     if (!aabb_in_frustum(planes, bmin, bmax)) { return; }
 
     // LOD0 only: nearest-edge distance² from PAWN XZ to patch edge.
-    // Uses pawn (not camera) to match CPU's LOD classification.
-    // Patches at LOD1 distance are NOT emitted here — CPU draws them directly.
-    let fc_pawn = fc_agents[fc_config.possessed_slot];
-    let dx = max(0.0, abs(fc_pawn.pos_x - pi.origin.x) - half);
-    let dz = max(0.0, abs(fc_pawn.pos_z - pi.origin.y) - half);
+    // Reads the CPU-banded pawn (lod_pawn_*) — NOT the live agent
+    // pos_x/z — so the GPU's LOD0 distance gate uses the same pawn
+    // position the CPU used to band patches into LOD0/LOD1. Without
+    // this, the GPU pawn (current frame) and CPU pawn (1-2 frames
+    // back via pawnReadback) disagree at the boundary annulus
+    // (~3.5 patches × 50 = ~175 world units), causing patches to
+    // flicker in and out at that radius.
+    let dx = max(0.0, abs(fc_config.lod_pawn_x - pi.origin.x) - half);
+    let dz = max(0.0, abs(fc_config.lod_pawn_z - pi.origin.y) - half);
     let dist2 = dx * dx + dz * dz;
 
     if (dist2 <= FRUSTUM_LOD0_RADIUS_SQ) {

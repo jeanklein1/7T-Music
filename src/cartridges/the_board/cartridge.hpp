@@ -1,7 +1,17 @@
-﻿#pragma once
+#pragma once
 
 // THE_BOARD — Generative world engine. CPU orchestration.
 // See world.wgsl for GPU-side (single source of truth).
+//
+// SEAM[spine] This is the cartridge spine. The seam map (Ch. 15)
+//   describes its structural surface. Tags in this file follow the
+//   Ch. 1 conventions:
+//     SEAM[module:Kn|Ln|Pn]  — observation tag, points back to seam map
+//     TODO[phase-N:tag]      — action tag for Claude Code (phases per Ch. 15)
+//     NOTE[seam-map]         — explanatory tag for things deliberately kept
+//   Three banner-only modules and three specialized-family blocks live
+//   inline inside this file (Ch. 12.A-E and Ch. 13). Their tags are
+//   added in chunks 2 and 3.
 
 #include "render/render_cartridge.hpp"
 #include "core/input_event.hpp"
@@ -72,6 +82,13 @@ namespace t7 {
             float terrainAmpCeiling_ = 0.0f;    // mirrors GPU config.terrain_amp_ceiling
 
             // ── Musical Coupling State (modules/musical.inl) ──
+            // SEAM[musical:K2] musical.inl currently exposes state declarations
+            //   here; the per-frame couplings live in update() below (~lines
+            //   8050-8240). End-of-tour resolution: extract tick_musical_couplings()
+            //   into the module and have update() call it.
+            // SEAM[musical:K3] prevPolyphony_ (declared inside the include) is
+            //   consumer state for pulse onset detection at update() ~8200-8236;
+            //   stays here today, moves with K2.
 #include "modules/musical.inl"
 
             // ── Player State (unified entity layer) ──
@@ -84,6 +101,11 @@ namespace t7 {
             // are folded in by later passes.
             //
             // See agent_system_design.md §2.1 for the full design.
+            //
+            // SEAM[spine:P8] PlayerState commented "Future (deferred)" fields
+            //   are explicit latent infrastructure: aura_presence and
+            //   mmode_intensities are scheduled to migrate here once pawn.inl
+            //   exists. Pattern P8 visible in source.
             struct PlayerState {
                 uint32_t possessed_slot = 0;   // slot in agent_state[] that the player inhabits
                 // Future (deferred):
@@ -195,11 +217,11 @@ namespace t7 {
             // this order, and AGENT_POPULATIONS has per-row static_asserts
             // that catch reordering.
 
-            static constexpr uint32_t MOOD_OPEN_DEFAULT       = 0;
-            static constexpr uint32_t MOOD_OPEN_SUNSET        = 1;
-            static constexpr uint32_t MOOD_INDOOR_FLAT        = 2;
-            static constexpr uint32_t MOOD_INDOOR_VAULT       = 3;
-            static constexpr uint32_t MOOD_FINITE_OUTDOOR     = 4;
+            static constexpr uint32_t MOOD_OPEN_DEFAULT = 0;
+            static constexpr uint32_t MOOD_OPEN_SUNSET = 1;
+            static constexpr uint32_t MOOD_INDOOR_FLAT = 2;
+            static constexpr uint32_t MOOD_INDOOR_VAULT = 3;
+            static constexpr uint32_t MOOD_FINITE_OUTDOOR = 4;
             static constexpr uint32_t MOOD_FINITE_OUTDOOR_REF = 5;
 
             // ─── Mood Definitions ───────────────────────────────────────────
@@ -207,6 +229,15 @@ namespace t7 {
             // Sky orb config lives in ORB_MOOD_TABLE below, indexed by the
             // same mood index.
             //
+            // SEAM[mood:K1] indoor/outdoor binary lives here as bool `finite` +
+            //   bool `indoor` flags. With finite_outdoor and finite_outdoor_ref,
+            //   the binary doesn't survive contact — the encoding is correct
+            //   for today but worth re-examining when finite_outdoor design lands.
+            // SEAM[mood:K4] mood-5 (FINITE_OUTDOOR_REF) is a near-bit-identical
+            //   clone of mood-0 (OPEN_DEFAULT) with finite=true. The "reference"
+            //   role is encoded by ID, not by a profile flag. End-of-tour: add
+            //   `has_anchor_ribbon` flag, drop the magic-mood-number checks
+            //   in apply_mood / spawn paths.
             //                                  fin  r_min r_max  sun_dir                sun_color              int   amb   fog_d   fog_color               indoor  ceil       ceil_h  clear_color            wall_color             ceil_color               modes   zones  aura   cull
             static constexpr MoodProfile MOOD_TABLE[MOOD_COUNT] = {
                 /* MOOD_OPEN_DEFAULT       */  { false, 2, 2, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true  },
@@ -230,6 +261,154 @@ namespace t7 {
                 };
                 return (mood < MOOD_COUNT) ? NAMES[mood] : "unknown";
             }
+
+            // ─── Indoor Wall Palette ─────────────────────────────────────
+            //
+            // SEAM[spine:per-mood-data] new finding (Ch. 15 chunk 1): the spine
+            //   declares per-mood authoring data alongside MOOD_TABLE —
+            //   INDOOR_PALETTES, WALL_ART, LIGHT_SCHEMES, IndoorLightProp.
+            //   Same family as ORB_MOOD_TABLE that the seam map flagged for
+            //   migration to orbs.inl (orbs:D2). These tables read by mood.inl
+            //   apply_mood and spine code; consider migration to mood.inl
+            //   when mood.inl gains the structural-decomposition pass (mood:K2).
+            //   Distinct from MOOD_TABLE which is global atmosphere data.
+            //
+            // Per-seed wall+ceiling color override for indoor moods. The
+            // MOOD_TABLE wall_color/ceiling_color act as fallback for the
+            // open-world finite cases; in flat/vault moods, apply_mood
+            // selects one of these palettes from activeSeed_ and substitutes
+            // it before generate_indoor_shell uploads the shell mesh.
+            //
+            // Each palette is a designed (wall, ceiling) pair where the
+            // ceiling is a slightly darker shade of the wall — gives the
+            // room visual depth instead of flat single-color surfaces.
+            // Authored to feel like museum / gallery wall finishes rather
+            // than random RGB rolls.
+            struct IndoorPalette {
+                const char* name;
+                float wall_color[3];
+                float ceiling_color[3];
+            };
+            static constexpr IndoorPalette INDOOR_PALETTES[] = {
+                { "warm taupe",     { 0.72f, 0.65f, 0.55f }, { 0.65f, 0.58f, 0.50f } },
+                { "slate blue",     { 0.58f, 0.62f, 0.68f }, { 0.50f, 0.55f, 0.62f } },
+                { "terracotta",     { 0.65f, 0.50f, 0.42f }, { 0.55f, 0.42f, 0.36f } },
+                { "sage",           { 0.62f, 0.68f, 0.58f }, { 0.55f, 0.60f, 0.52f } },
+                { "pale linen",     { 0.85f, 0.80f, 0.72f }, { 0.78f, 0.73f, 0.65f } },
+                { "deep mocha",     { 0.45f, 0.40f, 0.35f }, { 0.38f, 0.34f, 0.30f } },
+                { "dusty rose",     { 0.70f, 0.58f, 0.58f }, { 0.62f, 0.50f, 0.50f } },
+                { "warm charcoal",  { 0.40f, 0.38f, 0.36f }, { 0.32f, 0.30f, 0.28f } },
+            };
+            static constexpr uint32_t INDOOR_PALETTE_COUNT =
+                sizeof(INDOOR_PALETTES) / sizeof(INDOOR_PALETTES[0]);
+
+            // ─── Wall Art Configuration ──────────────────────────────────
+            //
+            // Centralized control for all artwork hung on indoor walls —
+            // both authored frames and snapshot frames. Replaces previously
+            // scattered constants (PAINT_Y_FRAC, INDOOR_SCALES, CORNER_MARGIN,
+            // PAINTING_GAP, the wall-count cumulative thresholds, the per-
+            // wall painting count, and the per-bucket y-offset ranges).
+            //
+            // Tuning workflow: edit the WALL_ART struct below, rebuild,
+            // regenerate any indoor world to see the changes. No .inl edits
+            // needed — place_wall_paintings reads everything from here.
+            //
+            // The y-position pipeline:
+            //   1) base_py = ceiling_h × paint_y_frac
+            //   2) py = base_py + y_offset (sampled per-painting by bucket)
+            //   3) clamp: ensure py - height/2 ≤ max_bottom_height
+            //      (paintings hung too high force the camera to crane up;
+            //      this guarantees the bottom edge stays viewable from
+            //      pawn standing height)
+
+            struct WallArtScaleBucket {
+                float height_lo;     // uniform [lo, hi] sample for painting height
+                float height_hi;
+                float weight;        // selection weight (the three weights must sum to 1)
+                float y_offset_lo;   // uniform [lo, hi] additive offset from base_py
+                float y_offset_hi;
+            };
+
+            struct WallArtConfig {
+                // ─── Wall participation (cumulative thresholds, 0..1) ───
+                // roll < t1 → 1 wall, < t2 → 2, < t3 → 3, residual → 4 walls
+                float wall_count_t1;
+                float wall_count_t2;
+                float wall_count_t3;
+
+                // ─── Per-wall painting count: uniform [lo, hi] inclusive ─
+                uint32_t per_wall_count_lo;
+                uint32_t per_wall_count_hi;
+
+                // ─── Wall surface geometry ──────────────────────────────
+                float corner_margin;        // distance from wall corners
+                float painting_gap;         // gap between adjacent painting edges
+                float paint_y_frac;         // base center as fraction of ceiling
+                float max_bottom_height;    // hard upper clamp on bottom edge (m)
+
+                // ─── Size buckets (intimate / standard / statement) ─────
+                WallArtScaleBucket intimate;
+                WallArtScaleBucket standard;
+                WallArtScaleBucket statement;
+
+                // ─── Indoor content mix (snapshot vs authored) ──────────
+                // Per-site roll thresholds (cumulative, 0..1):
+                //   roll < snapshot_only_share         → all snapshot
+                //   roll < snapshot_only + mixed_share → mixed
+                //   residual                           → all authored
+                float snapshot_only_share;
+                float mixed_share;
+                // In mixed mode: per-painting chance of being a snapshot.
+                float mix_snapshot_chance;
+            };
+
+            static constexpr WallArtConfig WALL_ART = {
+                // wall_count cumulative thresholds:
+                //   0.5% → 1 wall, 0.25% → 2, 27% → 3, residual ~72% → 4
+                /* wall_count_t1 */ 0.005f,
+                /* wall_count_t2 */ 0.0075f,
+                /* wall_count_t3 */ 0.2775f,
+
+                // per-wall painting count
+                /* per_wall_count_lo */ 1,
+                /* per_wall_count_hi */ 5,
+
+                // wall surface geometry
+                /* corner_margin     */ 12.0f,
+                /* painting_gap      */ 6.0f,
+                /* paint_y_frac      */ 0.45f,
+                /* max_bottom_height */ 4.0f,   // bottom no higher than 4 m above floor
+
+                //                 height_lo, height_hi, weight, y_offset_lo, y_offset_hi
+                /* intimate  */  {  6.0f,    11.0f,    0.25f,   0.0f,        2.0f },
+                /* standard  */  {  8.0f,    12.0f,    0.50f,  -1.5f,        1.5f },
+                /* statement */  { 10.0f,    14.0f,    0.25f,  -3.5f,       -1.5f },
+
+                // content mix (was 15% snapshot-only / 5% mixed / 80% authored)
+                /* snapshot_only_share */ 0.15f,
+                /* mixed_share         */ 0.05f,
+                /* mix_snapshot_chance */ 0.40f,
+            };
+
+            // ─── Indoor Entity Placement ─────────────────────────────────
+            //
+            // Minimum distance from any spawning entity's FOOTPRINT EDGE to
+            // the room walls (not the entity's center — large entities still
+            // keep this gap). Enforced in negotiate_position by clamping
+            // the seed-determined candidate position into the legal box
+            //   [bmin + margin + r, bmax - margin - r]  in both axes
+            // when finiteMode_ is active and the current mood is indoor.
+            // Outdoor moods and open worlds are unaffected (no walls to
+            // keep clear of).
+            //
+            // Clamp (not reject) is intentional: rejection-based logic
+            // would silently drop entities anchored to corner patches,
+            // because their seed-determined position keeps landing in the
+            // wall margin and never recovers. Clamping shifts the candidate
+            // to the legal-box edge and lets the existing footprint-overlap
+            // check handle any pile-ups that result.
+            static constexpr float INDOOR_ENTITY_WALL_MARGIN = 10.0f;
 
             // ─── Indoor Lighting Schemes ─────────────────────────────────
             //
@@ -280,11 +459,14 @@ namespace t7 {
                 float warmth_mean, warmth_sigma;  // 0 = warm amber, 1 = cool blue
                 float aim_pitch_mean, aim_pitch_sigma;  // radians
                 float aim_yaw_mean, aim_yaw_sigma;      // radians
+                // Anchor-surface position (carried through from LightSchemeSlot).
+                float lat_mean, lat_sigma;        // along anchor surface
+                float hfrac_mean, hfrac_sigma;    // ceiling: Z; walls: height
             };
 
-            static constexpr float SCHEME_WEIGHTS[] = { 0.55f, 0.25f, 0.20f };
-            static constexpr uint32_t SCHEME_COUNT = 3;
-            static constexpr const char* SCHEME_NAMES[] = { "Cathedral", "Gallery", "Sanctum" };
+            static constexpr float SCHEME_WEIGHTS[] = { 0.35f, 0.35f, 0.15f, 0.15f };
+            static constexpr uint32_t SCHEME_COUNT = 4;
+            static constexpr const char* SCHEME_NAMES[] = { "Cathedral", "Quartet", "Gallery", "Sanctum" };
             static constexpr const char* ANCHOR_NAMES[] = { "ceiling", "wall_N", "wall_S", "wall_E", "wall_W" };
 
             // ─── Lighting Scheme Table ───────────────────────────────────────
@@ -311,6 +493,16 @@ namespace t7 {
                 float warmth_mean, warmth_sigma;
                 float aim_pitch_mean, aim_pitch_sigma;
                 float aim_yaw_mean, aim_yaw_sigma;
+                // Position on the anchor surface (0..1 along the surface span).
+                // For ceiling: lat=X-axis, hfrac=Z-axis (both in [0..1]).
+                // For walls:   lat=along-wall, hfrac=height (both in [0..1]).
+                // Existing schemes (Cathedral/Gallery/Sanctum) used hardcoded
+                // 0.5/0.65 means with 0.15/0.10 sigmas; they keep that here.
+                // New schemes (e.g. Quartet) override per slot to place lights
+                // deliberately rather than relying on each one rolling near
+                // center independently.
+                float lat_mean, lat_sigma;
+                float hfrac_mean, hfrac_sigma;
             };
 
             struct LightScheme {
@@ -320,22 +512,34 @@ namespace t7 {
 
             // ─── Scheme Definitions ─────────────────────────────────────────
             //
-            //                                role            int_μ  int_σ  inn_μ inn_σ out_μ out_σ wrm_μ wrm_σ  pit_μ  pit_σ yaw_μ  yaw_σ
+            //                                role            int_μ  int_σ  inn_μ inn_σ out_μ out_σ wrm_μ wrm_σ  pit_μ  pit_σ  yaw_μ  yaw_σ   lat_μ lat_σ  hfrac_μ hfrac_σ
             static constexpr LightScheme LIGHT_SCHEMES[SCHEME_COUNT] = {
                 /* 0: Cathedral — ceiling primary + 2 wall sconces */
                 { 3, {
-                    { AnchorRole::CEILING,   8.0f, 2.5f, 0.6f, 0.2f,  1.2f, 0.15f, 0.35f, 0.20f,  0.0f,  0.12f, 0.0f, 0.12f },
-                    { AnchorRole::WALL_A,    5.0f, 1.5f, 0.4f, 0.15f, 1.0f, 0.15f, 0.20f, 0.15f,  0.60f, 0.40f, 0.0f, 0.30f },
-                    { AnchorRole::WALL_B,    5.0f, 1.5f, 0.4f, 0.15f, 1.0f, 0.15f, 0.75f, 0.15f,  0.60f, 0.40f, 0.0f, 0.30f },
+                    { AnchorRole::CEILING,   8.0f, 2.5f, 0.6f, 0.2f,  1.2f, 0.15f, 0.35f, 0.20f,  0.0f,  0.12f, 0.0f, 0.12f,   0.50f, 0.15f, 0.65f, 0.10f },
+                    { AnchorRole::WALL_A,    5.0f, 1.5f, 0.4f, 0.15f, 1.0f, 0.15f, 0.20f, 0.15f,  0.60f, 0.40f, 0.0f, 0.30f,   0.50f, 0.15f, 0.65f, 0.10f },
+                    { AnchorRole::WALL_B,    5.0f, 1.5f, 0.4f, 0.15f, 1.0f, 0.15f, 0.75f, 0.15f,  0.60f, 0.40f, 0.0f, 0.30f,   0.50f, 0.15f, 0.65f, 0.10f },
                 }},
-                /* 1: Gallery — 2 opposing wall lights, no ceiling */
+                /* 1: Quartet — 4 ceiling lights at quadrant corners.
+                 *    Tight sigma (0.07) keeps each light pinned in its quadrant;
+                 *    means at 0.30/0.70 produce a 2x2 layout that fills the
+                 *    room evenly. Per-light intensity dropped to 4.0±1.0 to
+                 *    keep total scene brightness comparable to Cathedral
+                 *    (which has ~8.0 from a single ceiling light + sconces). */
+                { 4, {
+                    { AnchorRole::CEILING,   4.0f, 1.0f, 0.6f, 0.2f,  1.2f, 0.15f, 0.35f, 0.20f,  0.0f,  0.10f, 0.0f, 0.10f,   0.30f, 0.07f, 0.30f, 0.07f },
+                    { AnchorRole::CEILING,   4.0f, 1.0f, 0.6f, 0.2f,  1.2f, 0.15f, 0.35f, 0.20f,  0.0f,  0.10f, 0.0f, 0.10f,   0.70f, 0.07f, 0.30f, 0.07f },
+                    { AnchorRole::CEILING,   4.0f, 1.0f, 0.6f, 0.2f,  1.2f, 0.15f, 0.35f, 0.20f,  0.0f,  0.10f, 0.0f, 0.10f,   0.30f, 0.07f, 0.70f, 0.07f },
+                    { AnchorRole::CEILING,   4.0f, 1.0f, 0.6f, 0.2f,  1.2f, 0.15f, 0.35f, 0.20f,  0.0f,  0.10f, 0.0f, 0.10f,   0.70f, 0.07f, 0.70f, 0.07f },
+                }},
+                /* 2: Gallery — 2 opposing wall lights, no ceiling */
                 { 2, {
-                    { AnchorRole::WALL_A,    7.0f, 2.0f, 0.4f, 0.15f, 1.1f, 0.15f, 0.25f, 0.20f,  0.55f, 0.45f, 0.0f, 0.35f },
-                    { AnchorRole::WALL_B,    7.0f, 2.0f, 0.4f, 0.15f, 1.1f, 0.15f, 0.65f, 0.20f,  0.55f, 0.45f, 0.0f, 0.35f },
+                    { AnchorRole::WALL_A,    7.0f, 2.0f, 0.4f, 0.15f, 1.1f, 0.15f, 0.25f, 0.20f,  0.55f, 0.45f, 0.0f, 0.35f,   0.50f, 0.15f, 0.65f, 0.10f },
+                    { AnchorRole::WALL_B,    7.0f, 2.0f, 0.4f, 0.15f, 1.1f, 0.15f, 0.65f, 0.20f,  0.55f, 0.45f, 0.0f, 0.35f,   0.50f, 0.15f, 0.65f, 0.10f },
                 }},
-                /* 2: Sanctum — single dramatic source */
+                /* 3: Sanctum — single dramatic source */
                 { 1, {
-                    { AnchorRole::SEED_PICK, 10.0f, 2.5f, 0.5f, 0.2f, 1.2f, 0.15f, 0.45f, 0.25f,  0.50f, 0.40f, 0.0f, 0.30f },
+                    { AnchorRole::SEED_PICK, 10.0f, 2.5f, 0.5f, 0.2f, 1.2f, 0.15f, 0.45f, 0.25f,  0.50f, 0.40f, 0.0f, 0.30f,   0.50f, 0.15f, 0.65f, 0.10f },
                 }},
             };
 
@@ -355,6 +559,12 @@ namespace t7 {
             // Consumers: patch streaming / ribbon / photographer (possessed
             // slot's XZ), portal triggers (possessed slot's portal_trigger),
             // Caps Lock nearest-agent query (all slots, Step 7).
+            //
+            // SEAM[spine:P5] readback state machines + worldGen_ counter are
+            //   pattern P5 (release-pending sentinel) at the spine level.
+            //   Pawn + floater readbacks each protect against stale callbacks
+            //   from previous worlds via worldGen_ capture in the closure.
+            //   NOTE[seam-map] genuinely spine-owned, not a leak.
             enum class PawnReadbackState { IDLE, COPIED, MAPPING };
             PawnReadbackState pawnReadbackState_ = PawnReadbackState::IDLE;
             // Floater readback — separate state machine, same pattern.
@@ -370,6 +580,15 @@ namespace t7 {
             int32_t readbackPortalTrigger_ = -1;
             float pawnReadback_x_ = 0.0f;
             float pawnReadback_z_ = 0.0f;
+
+            // World generation counter — bumped on every teardown.
+            // Captured by readback callbacks so that callbacks issued
+            // for the previous world drop their data on the floor instead
+            // of overwriting pawnReadback_x_/z_ with a stale position
+            // (which would corrupt tile-cache archetype rolls in the
+            // first frames of the new world). See update() TEARDOWN
+            // case and the agent_state readback lambda in render().
+            uint32_t worldGen_ = 0;
 
             // --- Unified Pier System ─────────────────────────────────────────
             //
@@ -1691,6 +1910,44 @@ namespace t7 {
                     pos_x_prop, pos_z_prop, jitter, r.cx, r.cz);
                 r.rotation = cpu_hash_f(seed, rotation_seed_prop) * 6.283185f;
 
+                // 1b. Indoor wall-margin clamp ─────────────────────────
+                //
+                // In finite indoor worlds, push the candidate inward so the
+                // entity's footprint stays at least INDOOR_ENTITY_WALL_MARGIN
+                // from every wall. We clamp instead of rejecting because
+                // rejection would silently drop entities anchored to corner
+                // patches (their seed-determined position keeps landing in
+                // the wall margin and never recovers). Clamping shifts the
+                // candidate to the boundary of the legal box, then the
+                // existing footprint-overlap check handles any pile-ups.
+                //
+                // If the room is too small for the entity plus margins on
+                // both sides (lo > hi), we clamp to the room center —
+                // shouldn't happen for typical indoor entities (max
+                // footprint at radius=1 is 65; rescaled entities are well
+                // under that).
+                if (finiteMode_ && MOOD_TABLE[activeMood_].indoor) {
+                    float bmin = -(float)finiteRadius_ * PATCH_EXTENT;
+                    float bmax = ((float)finiteRadius_ + 1.0f) * PATCH_EXTENT;
+                    float clearance = INDOOR_ENTITY_WALL_MARGIN + footprint_r;
+                    float lo = bmin + clearance;
+                    float hi = bmax - clearance;
+                    if (lo > hi) {
+                        // Entity too big for room — collapse to center;
+                        // the footprint check below will still reject it
+                        // if it overlaps something.
+                        float center = (bmin + bmax) * 0.5f;
+                        r.cx = center;
+                        r.cz = center;
+                    }
+                    else {
+                        if (r.cx < lo) r.cx = lo;
+                        else if (r.cx > hi) r.cx = hi;
+                        if (r.cz < lo) r.cz = lo;
+                        else if (r.cz > hi) r.cz = hi;
+                    }
+                }
+
                 // 2. Separation + footprint check (single pass)
                 if (!check_position(r.cx, r.cz, footprint_r, family))
                     return r;
@@ -2850,25 +3107,25 @@ namespace t7 {
             // ─── Property Index Registry (Cube) ──────────────────────────
             // Range: 130–156 (avoids sphere's 100–126)
             struct CubeEntityProp {
-                static constexpr uint32_t SPAWN_ROLL       = 130u;
-                static constexpr uint32_t ANCHOR_X         = 131u;
-                static constexpr uint32_t ANCHOR_Z         = 132u;
-                static constexpr uint32_t TIER             = 133u;
-                static constexpr uint32_t BODY_RADIUS      = 140u;
-                static constexpr uint32_t ORBIT_HEIGHT     = 142u;
+                static constexpr uint32_t SPAWN_ROLL = 130u;
+                static constexpr uint32_t ANCHOR_X = 131u;
+                static constexpr uint32_t ANCHOR_Z = 132u;
+                static constexpr uint32_t TIER = 133u;
+                static constexpr uint32_t BODY_RADIUS = 140u;
+                static constexpr uint32_t ORBIT_HEIGHT = 142u;
                 static constexpr uint32_t INFLUENCE_RADIUS = 144u;
-                static constexpr uint32_t SPIN_SPEED       = 145u;
-                static constexpr uint32_t BOB_AMPLITUDE    = 146u;
-                static constexpr uint32_t BOB_PERIOD       = 147u;
-                static constexpr uint32_t SPIN_TILT_X      = 148u;
-                static constexpr uint32_t SPIN_TILT_Z      = 149u;
-                static constexpr uint32_t COLOR_R          = 150u;
-                static constexpr uint32_t COLOR_G          = 151u;
-                static constexpr uint32_t COLOR_B          = 152u;
-                static constexpr uint32_t ASPECT_Y         = 153u;
-                static constexpr uint32_t ASPECT_Z         = 154u;
-                static constexpr uint32_t FACE_VARIANCE    = 155u;
-                static constexpr uint32_t ROTATION         = 156u;
+                static constexpr uint32_t SPIN_SPEED = 145u;
+                static constexpr uint32_t BOB_AMPLITUDE = 146u;
+                static constexpr uint32_t BOB_PERIOD = 147u;
+                static constexpr uint32_t SPIN_TILT_X = 148u;
+                static constexpr uint32_t SPIN_TILT_Z = 149u;
+                static constexpr uint32_t COLOR_R = 150u;
+                static constexpr uint32_t COLOR_G = 151u;
+                static constexpr uint32_t COLOR_B = 152u;
+                static constexpr uint32_t ASPECT_Y = 153u;
+                static constexpr uint32_t ASPECT_Z = 154u;
+                static constexpr uint32_t FACE_VARIANCE = 155u;
+                static constexpr uint32_t ROTATION = 156u;
             };
 
             // ─── Cube CPU Tracking ───────────────────────────────────────
@@ -3013,7 +3270,7 @@ namespace t7 {
                     float patch_cx = (gx + 0.5f) * PATCH_EXTENT;
                     float patch_cz = (gz + 0.5f) * PATCH_EXTENT;
                     float away_angle = std::atan2(patch_cz - pawnReadback_z_,
-                                                  patch_cx - pawnReadback_x_);
+                        patch_cx - pawnReadback_x_);
                     constexpr float SPREAD = 1.0472f; // ±60° = π/3
                     float hash_spread = cpu_hash_f(gate.seed, RibbonProp::ORIENTATION);
                     sel.orientation = away_angle + (hash_spread * 2.0f - 1.0f) * SPREAD;
@@ -3358,7 +3615,7 @@ namespace t7 {
             // Per-mood feature gates — set by apply_mood from MoodProfile flags.
             // These gate where features enter the frame loop; default = all on.
             bool moodAllowsMusicalModes_ = true;
-            bool moodAllowsGoLZones_     = true;
+            bool moodAllowsGoLZones_ = true;
 
             // Derive request queue: accumulated during patch gen, flushed once per frame.
             GPUZoneDeriveRequestArray pendingDeriveRequests_{};
@@ -3473,7 +3730,8 @@ namespace t7 {
                                 cpu_sample_gaussian(seed, GoLZoneProp::DENSITY,
                                     tp.density_mean, tp.density_sigma)));
                             tier_idx = tier;  // Conway: 0–6
-                        } else {
+                        }
+                        else {
                             float tier_roll = cpu_hash_f(seed, PulseZoneProp::PULSE_TIER);
                             uint32_t tier = PULSE_TIER_COUNT - 1;
                             float cumul = 0.0f;
@@ -3851,13 +4109,12 @@ namespace t7 {
                 static constexpr float OUTDOOR_MIXED = 0.05f;  // [0.80, 0.85)
                 // remainder 0.15 = authored-only                       // [0.85, 1.00)
 
-                static constexpr float INDOOR_SNAPSHOT_ONLY = 0.15f;  // [0.00, 0.15)
-                static constexpr float INDOOR_MIXED = 0.05f;  // [0.15, 0.20)
-                // remainder 0.80 = authored-only                       // [0.20, 1.00)
+                // (Indoor mix thresholds and snapshot chance moved to WALL_ART
+                //  in the indoor section near the top of the cartridge — they
+                //  control wall-art placement, not outdoor gallery placement.)
 
                 // In mixed mode: per-painting chance of being the minority content
                 static constexpr float OUTDOOR_MIX_AUTHORED_CHANCE = 0.35f;  // chance each outdoor painting is authored
-                static constexpr float INDOOR_MIX_SNAPSHOT_CHANCE = 0.40f;  // chance each indoor painting is snapshot
 
                 // Photographer pacing by archetype
                 static constexpr float PHOTO_PACE_BY_ARCHETYPE[4] = { 0.7f, 0.8f, 1.5f, 1.5f };
@@ -4231,9 +4488,11 @@ namespace t7 {
                 uint32_t site_type;
                 if (site_roll < GalleryConfig::OUTDOOR_SNAPSHOT_ONLY) {
                     site_type = GallerySiteType::SNAPSHOT_ONLY;
-                } else if (site_roll < GalleryConfig::OUTDOOR_SNAPSHOT_ONLY + GalleryConfig::OUTDOOR_MIXED) {
+                }
+                else if (site_roll < GalleryConfig::OUTDOOR_SNAPSHOT_ONLY + GalleryConfig::OUTDOOR_MIXED) {
                     site_type = GallerySiteType::MIXED;
-                } else {
+                }
+                else {
                     site_type = GallerySiteType::AUTHORED_ONLY;
                 }
 
@@ -4414,7 +4673,8 @@ namespace t7 {
                     if (!use_authored && snap_cursor >= candidate_count) {
                         if (count_unused_authored(usedAuthored) > 0) {
                             use_authored = true;
-                        } else {
+                        }
+                        else {
                             break;
                         }
                     }
@@ -4521,7 +4781,8 @@ namespace t7 {
 
                 if (placed == 0) {
                     gc.active = false;  // no paintings placed — release center
-                } else {
+                }
+                else {
                     std::cout << "[Gallery] slot=" << plan.slot
                         << " at (" << gallery_cx << "," << gallery_cz << ")"
                         << " host=(" << plan.host_gx << "," << plan.host_gz << ")"
@@ -4951,10 +5212,10 @@ namespace t7 {
 
                 load_authored_textures(queue);
 
-                constexpr float PAINT_Y_FRAC = 0.45f;  // center height as fraction of ceiling
+                // Painting center base height (fraction of ceiling) — WALL_ART knob.
                 constexpr float WALL_OFFSET = 0.05f;    // distance from wall surface
 
-                float paint_y_base = ceiling_h * PAINT_Y_FRAC;
+                float paint_y_base = ceiling_h * WALL_ART.paint_y_frac;
                 float wall_span = bmax - bmin;
                 float wall_center = (bmin + bmax) * 0.5f;
 
@@ -4963,10 +5224,10 @@ namespace t7 {
                 float site_roll = cpu_hash_f(site_seed, 0u);
                 enum class IndoorSiteType { SNAPSHOT_ONLY, MIXED, AUTHORED_ONLY };
                 IndoorSiteType site_type;
-                if (site_roll < GalleryConfig::INDOOR_SNAPSHOT_ONLY && snapshotCount_ > 0) {
+                if (site_roll < WALL_ART.snapshot_only_share && snapshotCount_ > 0) {
                     site_type = IndoorSiteType::SNAPSHOT_ONLY;
                 }
-                else if (site_roll < GalleryConfig::INDOOR_SNAPSHOT_ONLY + GalleryConfig::INDOOR_MIXED
+                else if (site_roll < WALL_ART.snapshot_only_share + WALL_ART.mixed_share
                     && snapshotCount_ > 0) {
                     site_type = IndoorSiteType::MIXED;
                 }
@@ -4989,9 +5250,14 @@ namespace t7 {
                 };
                 constexpr uint32_t WALL_COUNT = 4;
 
-                // Roll how many walls get paintings (1–4), then shuffle to pick which
-                uint32_t wall_roll = cpu_hash(site_seed, 1u) % 4;  // 0–3
-                uint32_t active_wall_count = 1 + wall_roll;         // 1–4
+                // Roll how many walls get paintings (1–4). Cumulative thresholds
+                // come from WALL_ART — t1/t2/t3, residual → 4 walls.
+                float wall_count_roll = cpu_hash_f(site_seed, 1u);
+                uint32_t active_wall_count;
+                if (wall_count_roll < WALL_ART.wall_count_t1)      active_wall_count = 1;
+                else if (wall_count_roll < WALL_ART.wall_count_t2) active_wall_count = 2;
+                else if (wall_count_roll < WALL_ART.wall_count_t3) active_wall_count = 3;
+                else                                               active_wall_count = 4;
                 uint32_t active_walls[4] = { 0, 1, 2, 3 };
                 // Fisher-Yates shuffle
                 for (uint32_t i = 3; i > 0; i--) {
@@ -5004,17 +5270,13 @@ namespace t7 {
                 // Track which authored layers have been used across all walls (no duplicates)
                 bool usedAuthored[Dim::STAGING_LAYERS]{};
 
-                // ─── Size variation: three painting scales ────────────────────
-                // Intimate (small accent), Standard (default), Statement (focal point)
-                // Rolled per painting via seed — gives visual hierarchy on each wall.
-                struct PaintingScale {
-                    float height_lo, height_hi;
-                    float weight;
-                };
-                static constexpr PaintingScale INDOOR_SCALES[] = {
-                    { 3.0f,  5.5f,  0.25f },   // intimate — small, hung higher
-                    { 6.0f,  9.0f,  0.50f },   // standard — medium, eye level
-                    { 10.0f, 14.0f, 0.25f },   // statement — large focal piece
+                // ─── Painting scale buckets ────────────────────────────────────
+                // Tabulated form lets the bucket-selection loop iterate the WALL_ART
+                // sub-structs uniformly without repeating field names.
+                const WallArtScaleBucket* INDOOR_SCALES[] = {
+                    &WALL_ART.intimate,
+                    &WALL_ART.standard,
+                    &WALL_ART.statement,
                 };
                 static constexpr uint32_t INDOOR_SCALE_COUNT = 3;
 
@@ -5023,12 +5285,13 @@ namespace t7 {
                     const auto& wall = walls[w];
                     uint32_t w_seed = cpu_hash(site_seed, 10u + w * 20u);
 
-                    uint32_t count = 1 + cpu_hash(w_seed, 0u) % 5;  // 1-5 per wall
+                    // Per-wall count: uniform [lo, hi] inclusive, from WALL_ART.
+                    uint32_t count_range = WALL_ART.per_wall_count_hi - WALL_ART.per_wall_count_lo + 1;
+                    uint32_t count = WALL_ART.per_wall_count_lo + cpu_hash(w_seed, 0u) % count_range;
 
-                    // Keep paintings away from corners
-                    constexpr float CORNER_MARGIN = 12.0f;
-                    float usable_span = std::max(wall.span - 2.0f * CORNER_MARGIN, wall.span * 0.3f);
-                    constexpr float PAINTING_GAP = 6.0f;  // gap between painting edges (was 3)
+                    // Keep paintings away from corners — WALL_ART knob.
+                    float usable_span = std::max(wall.span - 2.0f * WALL_ART.corner_margin,
+                        wall.span * 0.3f);
 
                     // ─── Pre-compute widths to center the group on the wall ──
                     float total_width = 0.0f;
@@ -5044,24 +5307,24 @@ namespace t7 {
                         float cumul = 0.0f;
                         uint32_t scale_idx = INDOOR_SCALE_COUNT - 1;
                         for (uint32_t si = 0; si < INDOOR_SCALE_COUNT; si++) {
-                            cumul += INDOOR_SCALES[si].weight;
+                            cumul += INDOOR_SCALES[si]->weight;
                             if (scale_roll < cumul) { scale_idx = si; break; }
                         }
-                        float h = INDOOR_SCALES[scale_idx].height_lo
-                            + cpu_hash_f(p_seed, 3u) * (INDOOR_SCALES[scale_idx].height_hi - INDOOR_SCALES[scale_idx].height_lo);
+                        float h = INDOOR_SCALES[scale_idx]->height_lo
+                            + cpu_hash_f(p_seed, 3u) * (INDOOR_SCALES[scale_idx]->height_hi - INDOOR_SCALES[scale_idx]->height_lo);
                         painting_heights[p] = h;
 
                         // Estimate width from typical aspect ratio (~1.3)
                         float est_aspect = 0.8f + cpu_hash_f(p_seed, 5u) * 0.8f;  // [0.8, 1.6]
                         painting_widths[p] = h * est_aspect;
                         total_width += painting_widths[p];
-                        if (p > 0) total_width += PAINTING_GAP;
+                        if (p > 0) total_width += WALL_ART.painting_gap;
                     }
 
                     // Trim paintings that don't fit
                     while (effective_count > 1 && total_width > usable_span) {
                         total_width -= painting_widths[effective_count - 1];
-                        total_width -= PAINTING_GAP;
+                        total_width -= WALL_ART.painting_gap;
                         effective_count--;
                     }
 
@@ -5082,21 +5345,30 @@ namespace t7 {
                         float cumul = 0.0f;
                         uint32_t scale_idx = INDOOR_SCALE_COUNT - 1;
                         for (uint32_t si = 0; si < INDOOR_SCALE_COUNT; si++) {
-                            cumul += INDOOR_SCALES[si].weight;
+                            cumul += INDOOR_SCALES[si]->weight;
                             if (scale_roll < cumul) { scale_idx = si; break; }
                         }
 
-                        float y_offset = 0.0f;
-                        if (scale_idx == 0) y_offset = 2.0f + cpu_hash_f(p_seed, 1u) * 2.0f;        // intimate: +2 to +4
-                        else if (scale_idx == 1) y_offset = (cpu_hash_f(p_seed, 1u) - 0.5f) * 3.0f;  // standard: -1.5 to +1.5
-                        else y_offset = -1.5f - cpu_hash_f(p_seed, 1u) * 2.0f;                        // statement: -1.5 to -3.5
+                        // Y-offset: uniform [lo, hi] per bucket from WALL_ART.
+                        const auto& bucket = *INDOOR_SCALES[scale_idx];
+                        float y_offset = bucket.y_offset_lo
+                            + cpu_hash_f(p_seed, 1u) * (bucket.y_offset_hi - bucket.y_offset_lo);
 
                         float py = wall.py + y_offset;
+
+                        // Upper clamp on painting bottom edge — keeps the bottom
+                        // viewable from pawn standing height. The painting height
+                        // we sampled into painting_heights[p] earlier defines half.
+                        float h_for_clamp = painting_heights[p];
+                        float bottom = py - h_for_clamp * 0.5f;
+                        if (bottom > WALL_ART.max_bottom_height) {
+                            py = WALL_ART.max_bottom_height + h_for_clamp * 0.5f;
+                        }
 
                         // ─── Content decision (three-way) ────────────────
                         bool use_snapshot = (site_type == IndoorSiteType::SNAPSHOT_ONLY)
                             || (site_type == IndoorSiteType::MIXED
-                                && cpu_hash_f(p_seed, 2u) < GalleryConfig::INDOOR_MIX_SNAPSHOT_CHANCE);
+                                && cpu_hash_f(p_seed, 2u) < WALL_ART.mix_snapshot_chance);
 
                         if (!use_snapshot && count_unused_authored(usedAuthored) == 0) {
                             use_snapshot = true;
@@ -5147,7 +5419,7 @@ namespace t7 {
                                 snapshotStaging_[snap_stg].consumed = true;
                                 queue_promotion(true, snap_stg, exh);
 
-                                cursor += paint_width + PAINTING_GAP;
+                                cursor += paint_width + WALL_ART.painting_gap;
                                 gpuState_.upload_painting_slot(queue, slot, s);
                                 wallFrameCount_++;
                                 continue;
@@ -5201,7 +5473,7 @@ namespace t7 {
                             authoredStaging_[auth_stg].consumed = true;
                             queue_promotion(false, auth_stg, exh);
 
-                            cursor += paint_width + PAINTING_GAP;
+                            cursor += paint_width + WALL_ART.painting_gap;
                             gpuState_.upload_painting_slot(queue, slot, s);
                             wallFrameCount_++;
                         }
@@ -5336,6 +5608,16 @@ namespace t7 {
                     FAMILY_DISPATCH[ref.family].evict_slot(this, ref.slot, queue);
                 }
 
+                // SEAM[spine:L1] BUG (or vestigial): the for-loop below has no
+                //   body — the `patch.entity_ref_count = 0` line is the loop
+                //   body via implicit-single-statement-as-body parsing,
+                //   running PopFamily::COUNT times to set the same value to 0.
+                //   gx and gz are unused. Likely a per-family cleanup was
+                //   removed but the loop wrapper wasn't.
+                // TODO[phase-1:spine:L1] Investigate intent. Either delete the
+                //   for-loop and gx/gz lines (assignment-to-zero stays), OR
+                //   restore the removed body if it was meaningful. Read git
+                //   blame on these lines if available before deciding.
                 int32_t gx = patch.grid_x, gz = patch.grid_z;
                 for (uint32_t f = 0; f < PopFamily::COUNT; f++)
 
@@ -5344,6 +5626,15 @@ namespace t7 {
 
             void audit_entity_integrity() {
 #ifdef DIAG_ENTITY_LIFECYCLE
+                // SEAM[spine:L2] this audit covers 4 families: Arch, Column,
+                //   Antenna, Pyramid. The other 8 (Palm, Cactus, Blade, Sphere,
+                //   Cube, Ribbon, GoL, Gallery) are not audited. Probably
+                //   intentional partial coverage rather than oversight (some
+                //   bespoke families have their own state machines), but worth
+                //   confirming. If gaps are intentional, document why.
+                // TODO[phase-1:spine:L2] Document the coverage rationale
+                //   alongside this banner. If gaps are accidental, file a
+                //   follow-up to extend coverage.
                 // Count actual active slots
                 uint32_t act_a = 0, act_c = 0, act_n = 0, act_p = 0;
                 for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++) if (activeArches_[i].active) act_a++;
@@ -5593,6 +5884,17 @@ namespace t7 {
             // select, place, commit, evict, and mesh generation.
             // Adding a new entity family: write select/place/commit/
             // prepare_mesh functions, add wrappers, add 1 row here.
+            //
+            // SEAM[spine:owns] FAMILY_DISPATCH is genuinely spine work — the
+            //   integration hub that ties the 12 families together. Per Ch. 15.
+            //   Each row's body lives in the family's owning module.
+            // SEAM[spine:K2-related] the ~400 lines of dispatch_evict_*,
+            //   dispatch_prepare_mesh_*, dispatch_mesh_gen_* wrappers below
+            //   are integration glue, not module work — they live here
+            //   correctly. New finding (Ch. 15 chunk 1): they were
+            //   under-credited in the seam map but represent real spine work.
+            //   NOTE[seam-map] keep wrappers here; they're the integration
+            //   layer between FAMILY_DISPATCH and per-family modules.
 
             struct FamilyDispatch {
                 bool (*try_select)(Cartridge* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
@@ -5807,7 +6109,8 @@ namespace t7 {
                 pe.family = e.family; pe.gx = e.gx; pe.gz = e.gz;
                 if (self->place_gol_from_selection(e.gol, pe.gol)) {
                     return true;
-                } else {
+                }
+                else {
                     self->golZones_[e.gol.slot].active = false;
                     return false;
                 }
@@ -5819,7 +6122,8 @@ namespace t7 {
                 if (host) {
                     self->commit_gol(pe.gol, pe.gx, pe.gz, queue);
                     host->record_entity(PopFamily::GOL, pe.gol.slot);
-                } else {
+                }
+                else {
                     self->golZones_[pe.gol.slot].active = false;
 #ifdef DIAG_ENTITY_LIFECYCLE
                     std::cout << "[DIAG:REJECT] gol slot=" << pe.gol.slot
@@ -5859,7 +6163,8 @@ namespace t7 {
                 pe.family = e.family; pe.gx = e.gx; pe.gz = e.gz;
                 if (self->place_gallery_from_selection(e.gallery, pe.gallery)) {
                     return true;
-                } else {
+                }
+                else {
                     self->galleryCenters_[e.gallery.slot].active = false;
                     return false;
                 }
@@ -5874,7 +6179,8 @@ namespace t7 {
                     if (self->galleryCenters_[pe.gallery.slot].active) {
                         host->record_entity(PopFamily::GALLERY, pe.gallery.slot);
                     }
-                } else {
+                }
+                else {
                     self->galleryCenters_[pe.gallery.slot].active = false;
 #ifdef DIAG_ENTITY_LIFECYCLE
                     std::cout << "[DIAG:REJECT] gall slot=" << pe.gallery.slot
@@ -5916,7 +6222,8 @@ namespace t7 {
                 pe.family = e.family; pe.gx = e.gx; pe.gz = e.gz;
                 if (self->place_ribbon_from_selection(e.ribbon, pe.ribbon)) {
                     return true;
-                } else {
+                }
+                else {
                     self->activeRibbons_[e.ribbon.slot].active = false;
                     return false;
                 }
@@ -7624,19 +7931,19 @@ namespace t7 {
                 // Mirror the player's idle pose into cpuAgents_[0] first so
                 // the full-buffer upload is idempotent.
                 {
-                    cpuAgents_[0].pos_x       = Idle::PAWN_POS_X;
-                    cpuAgents_[0].pos_y       = Idle::PAWN_POS_Y;
-                    cpuAgents_[0].pos_z       = Idle::PAWN_POS_Z;
-                    cpuAgents_[0].heading     = Idle::PAWN_HEADING;
-                    cpuAgents_[0].orient_w    = 1.0f;
-                    cpuAgents_[0].is_active   = 1u;
+                    cpuAgents_[0].pos_x = Idle::PAWN_POS_X;
+                    cpuAgents_[0].pos_y = Idle::PAWN_POS_Y;
+                    cpuAgents_[0].pos_z = Idle::PAWN_POS_Z;
+                    cpuAgents_[0].heading = Idle::PAWN_HEADING;
+                    cpuAgents_[0].orient_w = 1.0f;
+                    cpuAgents_[0].is_active = 1u;
                     cpuAgents_[0].behavior_id = AGENT_BEHAVIOR_PLAYER_CONTROLLED;
-                    cpuAgents_[0].tier_idx    = AGENT_TIER_WORKER;
+                    cpuAgents_[0].tier_idx = AGENT_TIER_WORKER;
                     cpuAgents_[0].portal_trigger = -1;
 
                     wgpu::Queue q = device_.GetQueue();
                     spawn_population_for_mood(activeMood_, activeSeed_,
-                                              Idle::PAWN_POS_X, Idle::PAWN_POS_Z, q);
+                        Idle::PAWN_POS_X, Idle::PAWN_POS_Z, q);
                     dump_agent_census("boot");
                 }
 
@@ -7660,6 +7967,15 @@ namespace t7 {
                 return true;
             }
 
+            // SEAM[spine:K1] update() currently mixes orchestration (correct)
+            //   with module-specific ramps and couplings (leaked).
+            //   Resolution: introduce CPU-side Trajectory primitive (mirroring
+            //   WGSL §1.2) + per-module tick_*_couplings() functions. After
+            //   resolution, update() becomes a sequence of named tick calls,
+            //   shrinking by ~250 lines. Phase 4 of the resolution sequence.
+            // SEAM[spine:L4] formal phase-table comment block at top of update()
+            //   would make ordering grep-discoverable. Today the ordering is
+            //   only in section banners and per-site comments.
             void update(const AnalysisSignal& signal,
                 float aspect_ratio,
                 wgpu::Queue& queue) override {
@@ -7691,6 +8007,12 @@ namespace t7 {
                 // --- Upload to GPU --------------------------------------------------
 
                 // Aura presence trajectory: smooth ramp on enable/disable
+                //
+                // SEAM[pawn:K1] presence ramp lives in spine; should live in
+                //   pawn.inl when extracted. Mirrors the WGSL §1.2 Trajectory
+                //   abstraction (world.wgsl line 178). End-of-tour Phase 4:
+                //   auraPresence_ becomes a Trajectory field in pawn.inl;
+                //   this block becomes a tick_pawn_couplings(signal, dt) call.
                 {
                     float target = auraEnabled_ ? 1.0f : 0.0f;
                     float rate = (target > auraPresence_) ? AURA_PRESENCE_ATTACK : AURA_PRESENCE_RELEASE;
@@ -7730,6 +8052,25 @@ namespace t7 {
                         break;
                     case TransitionPhase::TEARDOWN:
                     {
+                        // SEAM[mood:K3] this 70-line TEARDOWN block does
+                        //   per-mood-transition work that overlaps with
+                        //   mood.inl::apply_mood. The K3 leak (per-transition
+                        //   musical reset) lives in apply_mood; this block is
+                        //   apply_mood's caller-side parallel. End-of-tour:
+                        //   reset_musical_couplings() lives in musical.inl;
+                        //   apply_mood calls it; this block stays focused on
+                        //   the integration concerns (worldGen bump, agent
+                        //   reset, ribbon cleanup) it correctly owns.
+                        // SEAM[spine:P5] worldGen_++ at top of TEARDOWN is the
+                        //   stale-callback guard (P5 family). Genuinely
+                        //   spine-owned.
+
+                        // Bump the world generation counter so any in-flight
+                        // pawn readback callback from the previous world
+                        // drops its data instead of overwriting pawnReadback
+                        // with a stale position. See worldGen_ declaration.
+                        worldGen_++;
+
                         // Capture return seed + mood + radius before overwrite
                         backPortalReturnSeed_ = activeSeed_;
                         backPortalReturnMood_ = activeMood_;
@@ -7759,19 +8100,19 @@ namespace t7 {
                         // Keep cpuAgents_ in sync with the GPU reset so
                         // patch streaming + ribbon + Caps Lock see current state.
                         std::memset(cpuAgents_, 0, sizeof(cpuAgents_));
-                        cpuAgents_[0].pos_x       = 0.0f;  // Idle::PAWN_POS_X
-                        cpuAgents_[0].pos_y       = 0.0f;
-                        cpuAgents_[0].pos_z       = 0.0f;
-                        cpuAgents_[0].orient_w    = 1.0f;
-                        cpuAgents_[0].is_active   = 1u;
+                        cpuAgents_[0].pos_x = 0.0f;  // Idle::PAWN_POS_X
+                        cpuAgents_[0].pos_y = 0.0f;
+                        cpuAgents_[0].pos_z = 0.0f;
+                        cpuAgents_[0].orient_w = 1.0f;
+                        cpuAgents_[0].is_active = 1u;
                         cpuAgents_[0].behavior_id = AGENT_BEHAVIOR_PLAYER_CONTROLLED;
-                        cpuAgents_[0].tier_idx    = preserved_tier;
+                        cpuAgents_[0].tier_idx = preserved_tier;
                         cpuAgents_[0].portal_trigger = -1;
                         player_.possessed_slot = 0;
                         gpuState_.set_world_seed(activeSeed_);
                         apply_mood(pendingDestination_.mood, queue);
                         spawn_population_for_mood(pendingDestination_.mood, activeSeed_,
-                                                  Idle::PAWN_POS_X, Idle::PAWN_POS_Z, queue);
+                            Idle::PAWN_POS_X, Idle::PAWN_POS_Z, queue);
                         dump_agent_census("mood-transition");
                         // Deactivate ribbons in finite mode (mood 5 spawns its own in apply_mood)
                         if (finiteMode_ && activeRibbonCount_ > 0 && activeMood_ != 5) {
@@ -7811,6 +8152,13 @@ namespace t7 {
                 gpuState_.upload_signal(queue, gpuSignal);
 
                 // ─── Polyphony-driven band motion ────────────────────────
+                //
+                // SEAM[musical:K2] band motion ramps (~lines 8050-8087) are
+                //   another ramp-in-spine site, not in the seam map's original
+                //   inventory. NEW FINDING (Ch. 15 chunk 1): six bands ×
+                //   per-frame exponential ramp, polyphony→band-blend coupling.
+                //   Folds into the K2 resolution: tick_musical_couplings()
+                //   handles bands alongside mode intensities.
                 if (bandMotionActive_) {
                     float polyphony = signal.stats[0];
                     uint32_t active_count = (uint32_t)std::max(0.0f, std::min(polyphony, 6.0f));
@@ -7850,6 +8198,15 @@ namespace t7 {
                 }
 
                 // ─── Musical animation modes: per-frame intensity ramp ───
+                //
+                // SEAM[musical:K2] the polyphony-coupling ramps live here for
+                //   ~150 lines (8089-8240): mode intensities loop, palette
+                //   drift, color shift, checker scatter, aura expand mult,
+                //   GoL tempo. Each is an exponential trajectory toward a
+                //   polyphony-derived target. End-of-tour Phase 4 mirrors the
+                //   GPU §1.2 Trajectory shape: each becomes a Trajectory
+                //   field in musical.inl, this block becomes
+                //   tick_musical_couplings(signal, dt, queue).
                 {
                     float polyphony = signal.stats[0];
                     float dt = signal.dt;
@@ -7961,6 +8318,11 @@ namespace t7 {
                 }
 
                 // ─── Radial pulse onset detection ────────────────────────
+                //
+                // SEAM[musical:K3] prevPolyphony_ is consumer state for onset
+                //   detection (line ~8223). Correctly placed if musical.inl
+                //   owns the per-frame update; stranded if K2 doesn't resolve.
+                //   Migrates with K2.
                 {
                     float poly = signal.stats[0];
                     bool pulse_on = is_mmode_on(MMODE_RADIAL_PULSE);
@@ -8003,6 +8365,11 @@ namespace t7 {
                 // Orb musical coupling: polyphony → radial expansion.
                 // Always-on when orbs are active; future coupling grammar
                 // will put this behind a gate.
+                //
+                // SEAM[orbs:P1] counter-example to ramp-in-spine: the orb
+                //   per-frame coupling is decomposed into orbs.inl
+                //   (update_orb_coupling). This is the target shape for
+                //   musical:K2, mood:K3, pawn:K1.
                 update_orb_coupling(signal.stats[0], signal.dt, queue);
 
                 // Orb dome anchor: follow pawn when toggled on. Uses
@@ -8026,6 +8393,12 @@ namespace t7 {
             //   6. Render:  sphere entity                     -- sphere
             //   7. Render:  ribbon rings                      -- instanced ring geometry
 
+            // SEAM[spine:owns] render() is genuinely spine work: readback state
+            //   machines, stale-callback guards, portal trigger handling,
+            //   patch streaming, photographer cadence. The K1 observation
+            //   doesn't apply to render() the same way it applies to update();
+            //   render() mixes orchestration (correct) with smaller per-module
+            //   GPU upload calls (each lives in its module already).
             void render(wgpu::CommandEncoder& encoder,
                 wgpu::TextureView backbuffer,
                 wgpu::TextureView depth) override {
@@ -8048,18 +8421,26 @@ namespace t7 {
                     gpuState_.agent_state_readback_staging().MapAsync(
                         wgpu::MapMode::Read, 0, GPUState::agent_state_buffer_size(),
                         wgpu::CallbackMode::AllowSpontaneous,
-                        [this](wgpu::MapAsyncStatus status, wgpu::StringView) {
+                        [this, gen = worldGen_](wgpu::MapAsyncStatus status, wgpu::StringView) {
                             if (status == wgpu::MapAsyncStatus::Success) {
-                                const auto* data = static_cast<const GPUAgentState*>(
-                                    gpuState_.agent_state_readback_staging().GetConstMappedRange(
-                                        0, GPUState::agent_state_buffer_size()));
-                                if (data) {
-                                    std::memcpy(cpuAgents_, data,
-                                        GPUState::agent_state_buffer_size());
-                                    const auto& p = cpuAgents_[player_.possessed_slot];
-                                    pawnReadback_x_ = p.pos_x;
-                                    pawnReadback_z_ = p.pos_z;
-                                    readbackPortalTrigger_ = p.portal_trigger;
+                                // Drop stale callbacks from a previous world: gen
+                                // captured at issue time differs from current
+                                // worldGen_ if a teardown happened in between.
+                                // Buffer is still successfully mapped though, so
+                                // we Unmap unconditionally (mapping contract is
+                                // independent of whether we read the data).
+                                if (gen == worldGen_) {
+                                    const auto* data = static_cast<const GPUAgentState*>(
+                                        gpuState_.agent_state_readback_staging().GetConstMappedRange(
+                                            0, GPUState::agent_state_buffer_size()));
+                                    if (data) {
+                                        std::memcpy(cpuAgents_, data,
+                                            GPUState::agent_state_buffer_size());
+                                        const auto& p = cpuAgents_[player_.possessed_slot];
+                                        pawnReadback_x_ = p.pos_x;
+                                        pawnReadback_z_ = p.pos_z;
+                                        readbackPortalTrigger_ = p.portal_trigger;
+                                    }
                                 }
                                 gpuState_.agent_state_readback_staging().Unmap();
                             }
@@ -8087,38 +8468,42 @@ namespace t7 {
                     gpuState_.floating_entity_readback_staging().MapAsync(
                         wgpu::MapMode::Read, 0, GPUState::floating_entity_buffer_size(),
                         wgpu::CallbackMode::AllowSpontaneous,
-                        [this](wgpu::MapAsyncStatus status, wgpu::StringView) {
+                        [this, gen = worldGen_](wgpu::MapAsyncStatus status, wgpu::StringView) {
                             if (status == wgpu::MapAsyncStatus::Success) {
-                                const auto* data = static_cast<const GPUFloatingEntityState*>(
-                                    gpuState_.floating_entity_readback_staging().GetConstMappedRange(
-                                        0, GPUState::floating_entity_buffer_size()));
-                                if (data) {
-                                    // Race protection: if a slot was allocated
-                                    // very recently (within the readback
-                                    // pipeline depth), the readback is from
-                                    // before allocation and would falsely
-                                    // mark the slot inactive. Suppress the
-                                    // decrement for slots whose last_alloc_time
-                                    // is more recent than the readback's
-                                    // "snapshot age."
-                                    static constexpr float SPAWN_PROTECTION_S = 0.10f;
-                                    float now = currentSeconds_;
-                                    // Spheres: slots [0, MAX_SPHERE_INSTANCES)
-                                    for (uint32_t i = 0; i < Dim::MAX_SPHERE_INSTANCES; i++) {
-                                        bool gpu_active = (data[i].is_active != 0u);
-                                        if (activeFloaters_[i].active && !gpu_active &&
-                                            (now - activeFloaters_[i].last_alloc_time) > SPAWN_PROTECTION_S) {
-                                            activeFloaters_[i].active = false;
-                                            if (activeFloaterCount_ > 0) activeFloaterCount_--;
+                                // Drop stale callbacks from a previous world.
+                                // Buffer is still mapped, so Unmap unconditionally.
+                                if (gen == worldGen_) {
+                                    const auto* data = static_cast<const GPUFloatingEntityState*>(
+                                        gpuState_.floating_entity_readback_staging().GetConstMappedRange(
+                                            0, GPUState::floating_entity_buffer_size()));
+                                    if (data) {
+                                        // Race protection: if a slot was allocated
+                                        // very recently (within the readback
+                                        // pipeline depth), the readback is from
+                                        // before allocation and would falsely
+                                        // mark the slot inactive. Suppress the
+                                        // decrement for slots whose last_alloc_time
+                                        // is more recent than the readback's
+                                        // "snapshot age."
+                                        static constexpr float SPAWN_PROTECTION_S = 0.10f;
+                                        float now = currentSeconds_;
+                                        // Spheres: slots [0, MAX_SPHERE_INSTANCES)
+                                        for (uint32_t i = 0; i < Dim::MAX_SPHERE_INSTANCES; i++) {
+                                            bool gpu_active = (data[i].is_active != 0u);
+                                            if (activeFloaters_[i].active && !gpu_active &&
+                                                (now - activeFloaters_[i].last_alloc_time) > SPAWN_PROTECTION_S) {
+                                                activeFloaters_[i].active = false;
+                                                if (activeFloaterCount_ > 0) activeFloaterCount_--;
+                                            }
                                         }
-                                    }
-                                    // Cubes: slots [CUBE_SLOT_OFFSET, TOTAL_FLOATING_SLOTS)
-                                    for (uint32_t i = 0; i < Dim::MAX_CUBE_INSTANCES; i++) {
-                                        bool gpu_active = (data[Dim::CUBE_SLOT_OFFSET + i].is_active != 0u);
-                                        if (activeCubes_[i].active && !gpu_active &&
-                                            (now - activeCubes_[i].last_alloc_time) > SPAWN_PROTECTION_S) {
-                                            activeCubes_[i].active = false;
-                                            if (activeCubeCount_ > 0) activeCubeCount_--;
+                                        // Cubes: slots [CUBE_SLOT_OFFSET, TOTAL_FLOATING_SLOTS)
+                                        for (uint32_t i = 0; i < Dim::MAX_CUBE_INSTANCES; i++) {
+                                            bool gpu_active = (data[Dim::CUBE_SLOT_OFFSET + i].is_active != 0u);
+                                            if (activeCubes_[i].active && !gpu_active &&
+                                                (now - activeCubes_[i].last_alloc_time) > SPAWN_PROTECTION_S) {
+                                                activeCubes_[i].active = false;
+                                                if (activeCubeCount_ > 0) activeCubeCount_--;
+                                            }
                                         }
                                     }
                                 }
@@ -8165,10 +8550,10 @@ namespace t7 {
                     dump_agent_census("periodic");
                     const auto& player = cpuAgents_[0];
                     std::cout << "[Player] pos=(" << std::fixed << std::setprecision(1)
-                              << player.pos_x << "," << player.pos_z
-                              << ") slot=" << player_.possessed_slot
-                              << " behavior=" << player.behavior_id
-                              << "\n";
+                        << player.pos_x << "," << player.pos_z
+                        << ") slot=" << player_.possessed_slot
+                        << " behavior=" << player.behavior_id
+                        << "\n";
                     lastAgentCensusDump_ = currentSeconds_;
                 }
 
@@ -8194,12 +8579,13 @@ namespace t7 {
                     // Render one ribbon: hold the current slot until it's evicted,
                     // then pick the nearest active ribbon as the new rendered slot.
                     bool current_alive = renderedRibbonSlot_ != UINT32_MAX
-                                      && activeRibbons_[renderedRibbonSlot_].active;
+                        && activeRibbons_[renderedRibbonSlot_].active;
 
                     if (current_alive) {
                         // Hold — just update time
                         gpuState_.upload_ribbon_time(queue, currentSeconds_);
-                    } else {
+                    }
+                    else {
                         // Current slot is gone — find nearest active ribbon
                         uint32_t nearest = UINT32_MAX;
                         float nearest_d2 = FLT_MAX;
@@ -8214,7 +8600,8 @@ namespace t7 {
                         if (nearest != UINT32_MAX) {
                             gpuState_.upload_ribbon(queue, ribbonStates_[nearest]);
                             renderedRibbonSlot_ = nearest;
-                        } else if (renderedRibbonSlot_ != UINT32_MAX) {
+                        }
+                        else if (renderedRibbonSlot_ != UINT32_MAX) {
                             GPURibbonState empty{};
                             gpuState_.upload_ribbon(queue, empty);
                             renderedRibbonSlot_ = UINT32_MAX;
@@ -8393,6 +8780,10 @@ namespace t7 {
 
 
             // --- Patch streaming: determine active 7×7 grid, generate new patches ---
+            // SEAM[spine:owns] stream_patches is the patch-streaming integration
+            //   backbone — ~460 lines covering allocation budgets, generation
+            //   phases, eviction. Genuinely spine work; modules consume but
+            //   don't own pieces. Per Ch. 15.
             void stream_patches(wgpu::CommandEncoder& encoder, wgpu::Queue& queue) {
                 // ─── Patch Generation Pipeline ─────────────────────────────────
                 //
@@ -8783,6 +9174,16 @@ namespace t7 {
                     // can sample heightfields from the current frame's patch set.
                     gpuState_.config().placement_patch_count = w;
                     gpuState_.upload_placement_patch_count(queue);
+
+                    // Push the CPU's banding pawn so the GPU frustum-cull
+                    // shader uses the same pawn position to apply the LOD0
+                    // distance gate. Without this, GPU reads the live pawn
+                    // (1-2 frames ahead of pawnReadback) and disagrees with
+                    // CPU at the LOD0/LOD1 boundary annulus, causing patch
+                    // flicker around ~175 world units from the pawn.
+                    gpuState_.config().lod_pawn_x = pawn_wx;
+                    gpuState_.config().lod_pawn_z = pawn_wz;
+                    gpuState_.upload_lod_pawn(queue);
 
                     // ─── Patch grid: O(1) spatial index for sample_terrain_y_at ────────
                     // Populate (patch_gx, patch_gz) → layer map. The shader derives a

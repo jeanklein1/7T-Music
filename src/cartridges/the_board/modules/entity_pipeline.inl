@@ -28,6 +28,161 @@ static void generic_compute_colors(EntityInstance& inst,
     }
 }
 
+// ─── Indoor Entity Rescale ───────────────────────────────────────
+//
+// Indoor moods are walled spaces 20–25 m tall; their largest entity
+// budget is the room. Without an override, families like Pyramid
+// (~28–78 m natural HEIGHT), Antenna (~17–125 m), Palm (~8–35 m)
+// would spawn at outdoor scale and punch through the ceiling.
+//
+// Three distinct policies live in this helper:
+//
+//   • Columns: HEIGHT is set to ceiling_height exactly, and every
+//     other length param scales by the same ratio so proportions
+//     hold. The capital meets the ceiling — the column reads as
+//     part of the room's architecture, not a freestanding object.
+//
+//   • Palms: target rolled in [0.80, 0.95] × ceiling_height. Tighter
+//     than the default range — palms read as canopy-defining
+//     architectural anchors and look wrong when too small.
+//
+//   • Other eligible families (Pyramid, Arch, Antenna): target rolled
+//     in [0.50, 0.95] × ceiling_height. All length-like params scale
+//     by target / current_height. This is the "miniature feeling" —
+//     a Royal palm shrunk to 18 m keeps every internal proportion
+//     (frond length, taper, bark ring spacing); only the absolute
+//     scale changes.
+//
+// Cactus and Blade are deliberately NOT eligible: their natural
+// outdoor heights are below the ceiling, so the rescale would scale
+// them UP rather than down — defeating the miniature intent. They
+// keep their outdoor sizes when spawned indoors.
+//
+// Param indices below are hand-curated per family — only LENGTH
+// dimensions get scaled, never ratios (TAPER, ENTASIS, ASPECT...),
+// counts (BASE_LAYERS, RIBS, ARM_COUNT...), or angles (LEAN_DIR,
+// FROND_DROOP...). Adding a new entity family means extending the
+// switch with its index list. Property index 7777u is reserved for
+// the rescale-target hash (no other family uses it).
+void apply_indoor_rescale(EntityInstance& inst, float ceiling_h) {
+    // ─── Columns: snap to ceiling exactly, fit floor-to-ceiling ──
+    if (inst.family_id == PopFamily::COLUMN) {
+        const float current_h = inst.params[ColIdx::HEIGHT];
+        if (current_h <= 1e-3f) return;
+        const float scale = ceiling_h / current_h;
+        inst.params[ColIdx::HEIGHT]        *= scale;
+        inst.params[ColIdx::SHAFT_RADIUS]  *= scale;
+        inst.params[ColIdx::BASE_HEIGHT]   *= scale;
+        inst.params[ColIdx::BASE_OVERHANG] *= scale;
+        inst.params[ColIdx::CAP_HEIGHT]    *= scale;
+        inst.params[ColIdx::CAP_OVERHANG]  *= scale;
+        inst.params[ColIdx::SOLID_PADDING] *= scale;
+        inst.params[ColIdx::SOLID_HEIGHT]  *= scale;
+        inst.params[ColIdx::EDGE_BLEND]    *= scale;
+        // TAPER (ratio), ENTASIS (ratio), BASE_LAYERS / CAP_LAYERS
+        // (counts) intentionally not scaled.
+        return;
+    }
+
+    // ─── Per-family target range (× ceiling_h) ───────────────────
+    //
+    // Most miniaturized families roll uniformly in [0.50, 0.95] —
+    // this gives visual variety while ensuring everything fits the
+    // room. Palms are tighter at [0.80, 0.95] because they read as
+    // tree-like architectural anchors and look wrong when too small;
+    // a "miniature palm" should still feel canopy-defining.
+    //
+    // Cactus and Blade are deliberately NOT eligible — their natural
+    // outdoor heights are well below the ceiling, so the rescale
+    // would scale them UP rather than down, defeating the miniature
+    // intent. Without an entry here they keep their outdoor sizes
+    // when spawned indoors, which is the desired behavior.
+    constexpr uint32_t RESCALE_TARGET_PROP = 7777u;
+    float target_lo, target_hi;
+    switch (inst.family_id) {
+        case PopFamily::PALM:
+            target_lo = 0.80f; target_hi = 0.95f;
+            break;
+        case PopFamily::PYRAMID:
+        case PopFamily::ARCH:
+        case PopFamily::ANTENNA:
+            target_lo = 0.50f; target_hi = 0.95f;
+            break;
+        default:
+            return;  // family not eligible for indoor rescale
+    }
+    const float t = cpu_hash_f(inst.seed, RESCALE_TARGET_PROP);
+    const float target_h = ceiling_h * (target_lo + (target_hi - target_lo) * t);
+
+    float current_h = 0.0f;
+    switch (inst.family_id) {
+        case PopFamily::PYRAMID:
+            current_h = inst.params[PyrIdx::HEIGHT];
+            break;
+        case PopFamily::ARCH:
+            // Arch total = pier_height + rise (catenary apex).
+            current_h = inst.params[ArchIdx::PIER_HEIGHT]
+                      + inst.params[ArchIdx::RISE];
+            break;
+        case PopFamily::ANTENNA:
+            current_h = inst.params[ColIdx::HEIGHT];
+            break;
+        case PopFamily::PALM:
+            current_h = inst.params[PalmIdx::HEIGHT];
+            break;
+        default:
+            return;  // unreachable given the gate above, but keeps the compiler happy
+    }
+    if (current_h <= 1e-3f) return;
+    const float scale = target_h / current_h;
+
+    switch (inst.family_id) {
+        case PopFamily::PYRAMID:
+            inst.params[PyrIdx::HEIGHT]     *= scale;
+            inst.params[PyrIdx::BASE_HALF]  *= scale;
+            inst.params[PyrIdx::EDGE_BLEND] *= scale;
+            // ASPECT, TRUNCATION are ratios — not scaled.
+            break;
+        case PopFamily::ARCH:
+            inst.params[ArchIdx::SPAN]         *= scale;
+            inst.params[ArchIdx::RISE]         *= scale;
+            inst.params[ArchIdx::DEPTH]        *= scale;
+            inst.params[ArchIdx::THICKNESS]    *= scale;
+            inst.params[ArchIdx::PIER_HEIGHT]  *= scale;
+            inst.params[ArchIdx::PIER_PADDING] *= scale;
+            inst.params[ArchIdx::EDGE_BLEND]   *= scale;
+            break;
+        case PopFamily::ANTENNA:
+            inst.params[ColIdx::HEIGHT]        *= scale;
+            inst.params[ColIdx::SHAFT_RADIUS]  *= scale;
+            inst.params[ColIdx::BASE_HEIGHT]   *= scale;
+            inst.params[ColIdx::BASE_OVERHANG] *= scale;
+            inst.params[ColIdx::CAP_HEIGHT]    *= scale;
+            inst.params[ColIdx::CAP_OVERHANG]  *= scale;
+            inst.params[ColIdx::SOLID_PADDING] *= scale;
+            inst.params[ColIdx::SOLID_HEIGHT]  *= scale;
+            inst.params[ColIdx::EDGE_BLEND]    *= scale;
+            // TAPER/ENTASIS/BASE_LAYERS/CAP_LAYERS not scaled.
+            break;
+        case PopFamily::PALM:
+            inst.params[PalmIdx::HEIGHT]       *= scale;
+            inst.params[PalmIdx::BASE_R]       *= scale;
+            inst.params[PalmIdx::TOP_R]        *= scale;
+            inst.params[PalmIdx::BARK_DEPTH]   *= scale;
+            inst.params[PalmIdx::FROND_LEN]    *= scale;
+            inst.params[PalmIdx::FROND_WIDTH]  *= scale;
+            inst.params[PalmIdx::CROWN_SPREAD] *= scale;
+            inst.params[PalmIdx::CROWN_SKIRT]  *= scale;
+            inst.params[PalmIdx::SOLID_PAD]    *= scale;
+            inst.params[PalmIdx::EDGE_BLEND]   *= scale;
+            // LEAN/LEAN_DIR (angles), BARK_RINGS/FROND_COUNT (counts),
+            // FROND_DROOP/FROND_ARCH (angles) not scaled.
+            break;
+        default:
+            break;
+    }
+}
+
 // ─── Generic Select ──────────────────────────────────────────────
 //
 // Tier selection + parameter sampling.  Spawn gate is handled by
@@ -93,6 +248,12 @@ bool generic_select(
     inst.slot       = gate.slot;
     inst.tier_idx   = tier;
     inst.theme_idx  = gate.theme_idx;
+
+    // ── Indoor rescale (must run before compute_solid_half so the
+    //    solid extents are derived from the scaled params) ──
+    if (MOOD_TABLE[activeMood_].indoor) {
+        apply_indoor_rescale(inst, MOOD_TABLE[activeMood_].ceiling_height);
+    }
 
     // ── Per-family derived values ──
     adapter.compute_solid_half(inst, profile);

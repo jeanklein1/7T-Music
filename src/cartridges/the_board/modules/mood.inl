@@ -1,4 +1,4 @@
-﻿// ─── mood.inl ──────────────────────────────────────────────────
+// ─── mood.inl ──────────────────────────────────────────────────
 //
 // Atmosphere, indoor lighting, shell geometry, portals.
 // derive_indoor_lights → apply_mood → shell → portals → lights.
@@ -56,7 +56,9 @@ void derive_indoor_lights(uint32_t seed, float bmin, float bmax,
             src.outer_mean, src.outer_sigma,
             src.warmth_mean, src.warmth_sigma,
             src.aim_pitch_mean, src.aim_pitch_sigma,
-            src.aim_yaw_mean, src.aim_yaw_sigma };
+            src.aim_yaw_mean, src.aim_yaw_sigma,
+            src.lat_mean, src.lat_sigma,
+            src.hfrac_mean, src.hfrac_sigma };
     }
 
     // Derive each light from its slot spec + seed
@@ -65,13 +67,22 @@ void derive_indoor_lights(uint32_t seed, float bmin, float bmax,
         uint32_t base = IndoorLightProp::SLOT_BASE + i * 10;
         auto& L = cpuSpotLights_.lights[i];
 
-        // Position: slide along anchor surface
+        // Position: slide along anchor surface. Mean/sigma come from the
+        // scheme slot — Cathedral/Gallery/Sanctum keep their previous
+        // (0.5, 0.15) / (0.65, 0.10) behavior, while Quartet pins each
+        // slot to a specific quadrant via tighter sigma.
+        // Clamp ranges differ by anchor: ceilings use 10–90% of either axis
+        // (lights stay inside the room edge by 10%); walls use 40–85% along
+        // the wall and 40–85% in height (sconce range, not floor or trim).
         float lat = std::clamp(
-            cpu_sample_gaussian(seed, base + IndoorLightProp::LATERAL, 0.5f, 0.15f),
+            cpu_sample_gaussian(seed, base + IndoorLightProp::LATERAL,
+                s.lat_mean, s.lat_sigma),
             0.1f, 0.9f);
-        float hfrac = std::clamp(
-            cpu_sample_gaussian(seed, base + IndoorLightProp::HEIGHT, 0.65f, 0.10f),
-            0.4f, 0.85f);
+        float hfrac_raw = cpu_sample_gaussian(seed,
+            base + IndoorLightProp::HEIGHT, s.hfrac_mean, s.hfrac_sigma);
+        float hfrac = (s.anchor == LightAnchor::CEILING)
+            ? std::clamp(hfrac_raw, 0.1f, 0.9f)    // ceiling: Z-axis position
+            : std::clamp(hfrac_raw, 0.4f, 0.85f);  // walls: sconce height
 
         float wall_off = 1.0f;
         float px, py, pz;
@@ -235,7 +246,7 @@ void apply_mood(uint32_t mood, wgpu::Queue& queue) {
     // off when the mood forbids it. The player can re-toggle via input
     // if they want it on after entering a permitting mood.
     moodAllowsMusicalModes_ = m.allow_musical_modes;
-    moodAllowsGoLZones_     = m.allow_gol_zones;
+    moodAllowsGoLZones_ = m.allow_gol_zones;
     if (!m.allow_pawn_aura) {
         auraEnabled_ = false;
     }
@@ -297,9 +308,21 @@ void apply_mood(uint32_t mood, wgpu::Queue& queue) {
         spotLightActive_ = false;
     }
 
-    // Indoor shell: generate or clear
+    // Indoor shell: generate or clear. For indoor moods, override the
+    // MoodProfile's wall and ceiling colors with one of INDOOR_PALETTES
+    // chosen by activeSeed_ — gives each gallery a different elegant
+    // wall finish instead of the same default for every seed.
     if (m.indoor && m.ceiling_type != CeilingType::NONE) {
-        generate_indoor_shell(queue, m);
+        uint32_t pal_idx = cpu_hash(activeSeed_, 5800u) % INDOOR_PALETTE_COUNT;
+        const auto& pal = INDOOR_PALETTES[pal_idx];
+        MoodProfile localMood = m;
+        for (int c = 0; c < 3; c++) {
+            localMood.wall_color[c] = pal.wall_color[c];
+            localMood.ceiling_color[c] = pal.ceiling_color[c];
+        }
+        std::cout << "[Mood] Indoor palette: " << pal.name
+            << " (idx=" << pal_idx << ")\n";
+        generate_indoor_shell(queue, localMood);
     }
     else {
         clear_indoor_shell(queue);
@@ -738,9 +761,124 @@ uint32_t force_spawn_portal_at(wgpu::Queue& queue,
 }
 
 // --- Force-spawn the guaranteed back-portal ---
+// --- Force-spawn the guaranteed back-portal ---
 void force_spawn_back_portal(wgpu::Queue& queue) {
     backPortalPending_ = false;
 
+    // ─── Seed-driven placement ───────────────────────────────────────
+    //
+    // Pick a perimeter spot on one of the 4 walls, jittered along the
+    // wall, with two constraints:
+    //   1) at least WALL_MARGIN from any wall (avoids pier/wall clipping)
+    //   2) at least MIN_FROM_ORIGIN from the spawn point (so the pawn
+    //      doesn't land right next to the back-portal)
+    //
+    // The 4 sides are tried in seed-shuffled order, and the first that
+    // satisfies the origin-distance check wins. If none does (only happens
+    // in radius-1 worlds where every perimeter point is too close to
+    // origin), we fall back to whichever side came up first — better to
+    // have a portal nearby than to fail to spawn.
+    if (finiteMode_) {
+        float bmin = -(float)finiteRadius_ * PATCH_EXTENT;
+        float bmax = ((float)finiteRadius_ + 1.0f) * PATCH_EXTENT;
+        float room_center = (bmin + bmax) * 0.5f;
+        float room_half = (bmax - bmin) * 0.5f;
+
+        // Wall margin: footprint-aware in indoor moods (the arch's wall-
+        // side pier sits at offset (-half_span) from arch center plus
+        // pier_half_x; we add INDOOR_ENTITY_WALL_MARGIN on top so the
+        // pier edge stays ≥ that distance from the wall). Outdoor finite
+        // worlds have no rendered walls, so the legacy 8 m offset is fine.
+        float WALL_MARGIN;
+        if (MOOD_TABLE[activeMood_].indoor) {
+            const auto& doorway = ARCH_TIERS[static_cast<uint32_t>(ArchTier::DOORWAY)];
+            const float doorway_half_span = doorway.span_mean * 0.5f;
+            const float doorway_pier_half = doorway.thickness_mean * 0.5f
+                + doorway.pier_padding_mean
+                + doorway.edge_blend_mean;
+            WALL_MARGIN = INDOOR_ENTITY_WALL_MARGIN
+                + doorway_half_span + doorway_pier_half;
+        }
+        else {
+            WALL_MARGIN = 8.0f;
+        }
+
+        constexpr float MIN_FROM_ORIGIN = 30.0f;
+        constexpr float MIN_FROM_ORIGIN_SQ = MIN_FROM_ORIGIN * MIN_FROM_ORIGIN;
+
+        struct Spot { float x, z, rotation; };
+        Spot candidates[4] = {
+            { room_center,        bmin + WALL_MARGIN,  1.5708f  },  // south, faces +Z
+            { bmax - WALL_MARGIN, room_center,         3.14159f },  // east,  faces -X
+            { room_center,        bmax - WALL_MARGIN, -1.5708f  },  // north, faces -Z
+            { bmin + WALL_MARGIN, room_center,         0.0f     },  // west,  faces +X
+        };
+
+        // Fisher–Yates on the side order, seeded from the world seed.
+        uint32_t order[4] = { 0, 1, 2, 3 };
+        for (uint32_t i = 3; i > 0; i--) {
+            uint32_t j = cpu_hash(activeSeed_, 6600u + i) % (i + 1);
+            uint32_t tmp = order[i]; order[i] = order[j]; order[j] = tmp;
+        }
+
+        bool placed = false;
+        float chosen_rotation = 0.0f;
+        for (uint32_t k = 0; k < 4 && !placed; k++) {
+            uint32_t side = order[k];
+            const auto& cand = candidates[side];
+            // Jitter along the wall (perpendicular to its inward normal).
+            float jitter = (cpu_hash_f(activeSeed_, 6610u + side) - 0.5f) * room_half * 0.4f;
+            float x = cand.x, z = cand.z;
+            if (side == 0 || side == 2) x += jitter;  // S/N walls run along X
+            else                          z += jitter; // E/W walls run along Z
+
+            if (x * x + z * z >= MIN_FROM_ORIGIN_SQ) {
+                backPortalPosition_[0] = x;
+                backPortalPosition_[1] = z;
+                chosen_rotation = cand.rotation;
+                placed = true;
+            }
+        }
+        if (!placed) {
+            // Fallback for rooms where every perimeter midpoint sits inside
+            // the origin-distance ring (radius-1 worlds = 150-unit side, half
+            // span 75 — perimeter midpoints are 75–MARGIN ≈ 67 from origin,
+            // still > 30, so this branch is rarely reached in practice).
+            uint32_t side = order[0];
+            backPortalPosition_[0] = candidates[side].x;
+            backPortalPosition_[1] = candidates[side].z;
+            chosen_rotation = candidates[side].rotation;
+        }
+
+        const auto& retMood = MOOD_TABLE[backPortalReturnMood_ % MOOD_COUNT];
+        PortalDestination dest{};
+        dest.seed = backPortalReturnSeed_;
+        dest.finite = retMood.finite;
+        dest.finite_radius = backPortalReturnRadius_;
+        dest.mood = backPortalReturnMood_;
+
+        float cx = backPortalPosition_[0];
+        float cz = backPortalPosition_[1];
+        uint32_t slot = force_spawn_portal_at(queue, cx, cz, chosen_rotation, dest, true);
+
+        if (slot != UINT32_MAX) {
+            std::cout << "[Portal] Back-portal spawned at (" << cx << "," << cz
+                << ") rot=" << chosen_rotation << " slot=" << slot
+                << " -> return seed=" << backPortalReturnSeed_
+                << " mood=" << mood_name(backPortalReturnMood_) << "\n";
+        }
+        else {
+            std::cout << "[Portal] WARNING: no free arch slot for back-portal\n";
+        }
+
+        // Spawn additional forward portals around the room perimeter
+        force_spawn_finite_portals(queue);
+        return;
+    }
+
+    // ─── Non-finite fallback (open-world back-portal) ───────────────
+    // Open worlds don't normally request back-portals, but if they do
+    // we keep the legacy fixed-position behavior at backPortalPosition_.
     const auto& retMood = MOOD_TABLE[backPortalReturnMood_ % MOOD_COUNT];
     PortalDestination dest{};
     dest.seed = backPortalReturnSeed_;
@@ -782,7 +920,24 @@ void force_spawn_finite_portals(wgpu::Queue& queue) {
     float bmax = ((float)finiteRadius_ + 1.0f) * PATCH_EXTENT;
     float room_center = (bmin + bmax) * 0.5f;
     float room_half = (bmax - bmin) * 0.5f;
-    float margin = 8.0f;  // distance from wall
+
+    // Wall margin: in indoor moods, use a footprint-aware computation
+    // that keeps the wall-side pier's EDGE at least INDOOR_ENTITY_WALL_MARGIN
+    // from the actual wall. Outdoor finite moods (no rendered walls) keep
+    // the legacy 8 m offset since there's no visual wall to clip into.
+    float margin;
+    if (MOOD_TABLE[activeMood_].indoor) {
+        const auto& doorway = ARCH_TIERS[static_cast<uint32_t>(ArchTier::DOORWAY)];
+        const float doorway_half_span = doorway.span_mean * 0.5f;
+        const float doorway_pier_half = doorway.thickness_mean * 0.5f
+            + doorway.pier_padding_mean
+            + doorway.edge_blend_mean;
+        margin = INDOOR_ENTITY_WALL_MARGIN
+            + doorway_half_span + doorway_pier_half;
+    }
+    else {
+        margin = 8.0f;
+    }
 
     uint32_t count = 1;
     if (finiteRadius_ >= 2) count = 2;
