@@ -1264,6 +1264,14 @@ namespace t7 {
             // -----------------------------------------------------------------
             // Shader loading
             // -----------------------------------------------------------------
+            //
+            // DONE[renderer:L2] Reads world.wgsl from disk by searching a
+            //   small list of known relative paths (see the search loop
+            //   below). Expected to live next to the executable or one
+            //   directory up — search order tries both. If the path moves,
+            //   update the search list rather than relying on cwd.
+            //   Documented here rather than as a constant because the
+            //   lookup logic is what defines the contract.
 
             bool loadShader() {
                 // On reload, use the already-known path instead of searching

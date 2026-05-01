@@ -75,14 +75,16 @@
 
             // ── Property Index Registry ──────────────────────────────────────
             //
-            // SEAM[entities:L1] RibbonProp uses stride conventions that are
-            //   intentional but undocumented at the site: ANCHOR_X..PALETTE_IDX
-            //   sequential 401-409, then jumps to CUBE_COUNT=410..HEIGHT=412,
-            //   then wave parameters at 420/430/440 (per-axis stride of 10
-            //   leaves room for future per-axis params without renumbering).
-            //   Phase 3 cleanup batch: add a header comment naming the stride
-            //   convention so a future reader doesn't try to "compact" the
-            //   indices. Same family as the WGSL self-documentation discipline.
+            // DONE[entities:L1] Stride convention (intentional, do not compact):
+            //   400      SPAWN_ROLL
+            //   401-409  per-instance scalar rolls (ANCHOR_X..PALETTE_IDX)
+            //   410-419  cube-count / size / height       (10-row reserve)
+            //   420-429  lateral wave  (amp, cycles, speed; rest reserved)
+            //   430-439  vertical wave (amp, ratio; rest reserved)
+            //   440-449  twist wave    (amp, ratio; rest reserved)
+            //   The per-axis stride of 10 leaves room for future per-axis
+            //   params without renumbering downstream. Same self-documentation
+            //   discipline used by the WGSL side.
             struct RibbonProp {
                 static constexpr uint32_t SPAWN_ROLL = 400u;
                 static constexpr uint32_t ANCHOR_X = 401u;
