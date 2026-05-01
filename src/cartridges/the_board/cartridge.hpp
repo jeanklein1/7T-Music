@@ -607,6 +607,16 @@ namespace t7 {
 // Every layer below depends on these; they depend on nothing.
 //
 // Included inside the Cartridge class body.
+//
+// SEAM[seed_utils:P9] textbook "library without state" module — pure
+//   functions, no class members referenced, no domain assumptions.
+//   Easiest module in the project to extract: zero compilation-order
+//   constraints, no semantic change. Phase 2 candidate (warm-up).
+// SEAM[seed_utils:contract] cpu_lattice_node_seed and cpu_sample_gaussian
+//   are FXC mirrors — must produce identical bit-for-bit results to the
+//   WGSL counterparts (lattice_node_seed, sample_gaussian). Comment on
+//   each function names this. Same family as agents:L2 / state.hpp's
+//   GPU struct contract.
 // ─────────────────────────────────────────────────────────────────
 
 // Hashing utilities (mirror GPU hash functions for determinism)
@@ -686,6 +696,25 @@ namespace t7 {
 //
 // Included inside the Cartridge class body.
 // Depends on: seed_utils.inl
+//
+// SEAM[entities:P10] this block is the canonical home of pattern P10
+//   (per-family vocabulary block). Eight family applications follow:
+//   Ribbon (bespoke), Arch, Column, Antenna, Palm, Cactus, Blade,
+//   Pyramid (generic-pipeline grounded). Each block has the same
+//   structural template: TierEnum / TierParams / TIERS table / Color
+//   palette / Config / Prop registry / Active tracking. Don't fight
+//   the cookie-cutter — it's intentional specificity per family.
+// SEAM[entities:K1] tier representation is split across two files for
+//   the seven generic-pipeline grounded families: this block holds
+//   the legacy compact extras (burial, segs, color_override),
+//   entity_pipeline.inl holds the Gaussian sampling profiles
+//   (XXX_TIER_TABLE[]). Adapter functions read from both. End-of-tour
+//   resolution: 12.F Option A/B/C — Option A (document the split) is
+//   pre-Ch. 15 mechanical extract; B vs C decided after.
+// SEAM[entities:taxonomy] this block holds vocabulary for the 7 grounded
+//   families plus Ribbon (bespoke). Sphere/Cube vocabulary is NOT here
+//   — those live in cartridge.hpp itself in the specialized-families
+//   block (Ch. 13.A, 13.B). Verified by Ch. 13 chunk-3 read.
 // ─────────────────────────────────────────────────────────────────
 
 
@@ -736,6 +765,15 @@ namespace t7 {
             static constexpr uint32_t RIBBON_SMOOTH_PALETTE_COUNT = 4;
 
             // ── Property Index Registry ──────────────────────────────────────
+            //
+            // SEAM[entities:L1] RibbonProp uses stride conventions that are
+            //   intentional but undocumented at the site: ANCHOR_X..PALETTE_IDX
+            //   sequential 401-409, then jumps to CUBE_COUNT=410..HEIGHT=412,
+            //   then wave parameters at 420/430/440 (per-axis stride of 10
+            //   leaves room for future per-axis params without renumbering).
+            //   Phase 3 cleanup batch: add a header comment naming the stride
+            //   convention so a future reader doesn't try to "compact" the
+            //   indices. Same family as the WGSL self-documentation discipline.
             struct RibbonProp {
                 static constexpr uint32_t SPAWN_ROLL = 400u;
                 static constexpr uint32_t ANCHOR_X = 401u;
@@ -1749,6 +1787,18 @@ namespace t7 {
 
             // ─── Orb Mood Table ─────────────────────────────────────────────
             //
+            // SEAM[orbs:D2] this table currently lives in cartridge.hpp because
+            //   OrbMoodConfig is defined in orbs.inl (above), but the table
+            //   itself is per-mood orb authoring data. Phase 2 resolution per
+            //   12.F: move ORB_MOOD_TABLE into orbs.inl alongside
+            //   OrbMoodConfig at the time of orbs.inl's other migrations.
+            //   Same family as the per-mood data tables flagged in
+            //   spine:per-mood-data (INDOOR_PALETTES, WALL_ART, LIGHT_SCHEMES).
+            // SEAM[mood:K4] mood-5 row is bit-identical to mood-0 (open_default)
+            //   except for the implicit context that mood-5 is
+            //   finite_outdoor_ref. Mirrors the same MOOD_TABLE pattern.
+            //   Resolves with the has_anchor_ribbon flag (mood:L1).
+            //
             // Per-mood orb config. Indexed by the same mood index as MOOD_TABLE.
             // See OrbMoodConfig in orbs.inl (above) for field semantics. Zero-
             // valued rule-critical fields (drg, nz, orbS, flock radii/weights)
@@ -1796,8 +1846,24 @@ namespace t7 {
 //
 // Included inside the Cartridge class body.
 // Depends on: entities.inl, terrain_cpu.inl, seed_utils.inl
+//
+// SEAM[spawn_engine:P11] home of pattern P11 (templated active-array
+//   helper) — run_spawn_preamble<ActiveT> is the canonical instance.
+//   One implementation, ten callers. Same family as P10's per-family
+//   vocabulary block at the algorithm level.
+// SEAM[spawn_engine:structural] mid-block #include "modules/entity_types.inl"
+//   below (~line 1840-something in the live file). Not a leak — a C++
+//   language constraint expressed as code: EntityQueueEntry's union
+//   member EntityInstance must be defined before the union.
+//   NOTE[seam-map] preserve mid-include during Phase 2 extraction;
+//   either keep one file with the include, or split into pre/post
+//   files (decision deferred to extraction time).
 // ─────────────────────────────────────────────────────────────────
 
+// SEAM[spawn_engine:L1] latent diagnostic — DIAG_ENTITY_LIFECYCLE is
+//   compile-time guarded. Same family as the [DIAG:*] stdout pattern
+//   noted across the codebase. Document alongside any other diagnostic
+//   switches when the exhibition guard discussion happens.
 // #define DIAG_ENTITY_LIFECYCLE   // uncomment to enable spawn/evict diagnostics
 
 
@@ -2732,6 +2798,14 @@ namespace t7 {
             };
 
             // ── Generic Entity Types (modules/entity_types.inl) ──
+            //
+            // SEAM[spawn_engine:structural] this is the load-bearing mid-block
+            //   include. EntityQueueEntry below has a union member of type
+            //   EntityInstance, defined in entity_types.inl. C++ requires the
+            //   union member's type to be defined before the union itself.
+            //   Hence this include lands here and not at the top of
+            //   spawn_engine.inl.
+            //   NOTE[seam-map] structural fact, not a leak; preserve.
 #include "modules/entity_types.inl"
 
             // ─── Entity Selection Queue ─────────────────────────────────────
@@ -2978,11 +3052,24 @@ namespace t7 {
 // Orbital spheres. Rare, PGA motor-driven orbits around anchors.
 // Slots 0 .. MAX_SPHERE_INSTANCES-1 in the shared floating entity buffer.
 // GPU compute: update_sphere. Vertex shader: sphere_vs.
+//
+// SEAM[sphere:taxonomy] sphere VOCABULARY lives here, not in entities.inl
+//   (Ch. 12.C). Generic-pipeline floater family — vocabulary class
+//   distinct from grounded families. Phase 2 extraction target:
+//   floater_vocabulary.inl (D-floater inclining β with naming care).
+// SEAM[sphere:L1] FloatingEntityTierProfile naming claims more than code
+//   delivers — used only for spheres; cubes have their own CubeTierProfile.
+//   The "(Reuses FloatingEntityTierProfile...)" comment below is also
+//   misleading: cubes do NOT reuse this struct in practice.
+//   Phase 3 cleanup: rename to SphereTierProfile, update the comment.
 // ─────────────────────────────────────────────────────────────────
 
             // ─── Sphere Tier Profile ─────────────────────────────────────
             // (Reuses FloatingEntityTierProfile — orbit fields are meaningful,
             //  hover-bob fields are zero.)
+            // SEAM[sphere:L1] above comment is incorrect: cubes use a
+            //   distinct CubeTierProfile struct (line ~3155). The "reuse"
+            //   was likely planned but didn't land.
             struct FloatingEntityTierProfile {
                 float body_radius_mean, body_radius_sigma;
                 float orbit_radius_mean, orbit_radius_sigma;
@@ -3046,6 +3133,14 @@ namespace t7 {
             };
 
             // ─── Sphere CPU Tracking ─────────────────────────────────────
+            //
+            // SEAM[sphere:P5] last_alloc_time is pattern P5 (release-pending
+            //   sentinel / race protection) — CPU-timestamp variant. When
+            //   GPU readback arrives stale ("kernel evicted this slot"), the
+            //   timestamp protects freshly-allocated slots from being
+            //   incorrectly marked inactive. Same intent as
+            //   floaters.inl::toggle_cube_kite_mode's GPU sentinel; different
+            //   mechanism. Genuinely correct placement.
             struct ActiveFloater {
                 int32_t patch_gx = 0, patch_gz = 0;
                 int32_t host_gx = 0, host_gz = 0;
@@ -3068,6 +3163,17 @@ namespace t7 {
 // Hover-bob monoliths. Colorful cubes/slabs floating above terrain.
 // Slots 0 .. MAX_CUBE_INSTANCES-1 (buffer offset by CUBE_SLOT_OFFSET).
 // GPU compute: update_cube. Vertex shader: monolith_vs.
+//
+// SEAM[cube:taxonomy] cube VOCABULARY lives here, not in entities.inl
+//   (Ch. 12.C). Verified by Ch. 13 chunk-3 read — the seam map's
+//   Ch. 9 cube-three-tier-home claim was reframed: vocabulary in
+//   13.B (here), sampling profile in entity_pipeline.inl, behavior
+//   gains in floaters.inl. Three concerns, three files, each correct.
+// SEAM[cube:cx-cz-mirror] ActiveCube has cx, cz fields — CPU mirror of
+//   GPU anchor for floaters.inl::corral_cubes / toggle_cube_kite_mode
+//   to read without GPU readback. Same family as agents:D2 (slot-0
+//   reads); when pawn.inl extracts and provides accessors,
+//   corral/kite could analogously have cube_anchor(slot) accessors.
 // ─────────────────────────────────────────────────────────────────
 
             // ─── Cube Tier Profile ───────────────────────────────────────
@@ -3157,6 +3263,18 @@ namespace t7 {
             //
             // Single-instance ribbon through the 3-phase dispatch pipeline.
             // GPU buffer is singleton (upload_ribbon, not slot-indexed).
+            //
+            // SEAM[ribbon:taxonomy] ribbon MACHINERY lives here while ribbon
+            //   VOCABULARY lives in entities.inl (Ch. 12.C). UNIQUE among
+            //   bespoke families — gol_zones (Ch. 12.B) and gallery (Ch. 12.E)
+            //   keep both vocabulary and machinery together. Phase 2 candidate
+            //   for ribbon.inl extraction (D-ribbon inclining yes) which would
+            //   normalize ribbon to the gol/gallery shape.
+            // SEAM[ribbon:dual-entry] commit_ribbon below has TWO callers:
+            //   FAMILY_DISPATCH[RIBBON].try_commit during patch streaming,
+            //   AND mood.inl::apply_mood for mood-5 forced spawn. The dual
+            //   entry point is owned by mood:K4 (mood-5 reference clone),
+            //   not by ribbon machinery. Tag-only awareness.
 
             // ─── fill_ribbon_selection_geometry ───────────────────────────
             // Shared geometry + color sampler used by both the dispatch
@@ -3382,6 +3500,10 @@ namespace t7 {
 
                 ar.active = true;
                 activeRibbonCount_++;
+                // SEAM[ribbon:L1] unconditional stdout — exhibition guard
+                //   candidate. Same family as the [DIAG:*] stdout pattern
+                //   noted across the codebase. Phase 1+ batch: wrap in
+                //   #ifdef DIAG_RIBBON or similar before exhibition.
                 std::cout << "[Ribbon] SPAWN slot=" << s << " at (" << plan.cx << ", " << plan.cz
                     << ") tier=" << plan.tier_idx
                     << " len=" << total_length
@@ -3405,6 +3527,19 @@ namespace t7 {
 //
 // Included inside the Cartridge class body.
 // Depends on: seed_utils.inl, spawn_engine.inl (footprint registry)
+//
+// SEAM[gol_zones:complete-subsystem] complete bespoke pipeline in one
+//   block — vocabulary + state + lifecycle + dispatch all together.
+//   Distinguishable from the cockpit pattern (multiple decoupled
+//   commands); this is single-lifecycle bespoke. Same family as
+//   gallery (Ch. 12.E) and ribbon (Ch. 13.C). Phase 2 extraction
+//   target: cartridges/the_board/modules/gol_zones.inl.
+// SEAM[gol_zones:dual-algorithm] NEW FINDING (Ch. 15 chunk 2): block
+//   houses TWO algorithms — Conway (GoLTierProfile, GOL_TIERS[]) and
+//   Pulse (PulseTierProfile, PULSE_TIERS[]) — gated by
+//   PULSE_ALGORITHM_CHANCE = 0.35. Seam map Ch. 12.B treated this as
+//   monolithic; the dual-algorithm structure deserves naming when the
+//   module extracts. Not a leak; just inventory.
 // ─────────────────────────────────────────────────────────────────
 
 // ─── GoL Zone System ─────────────────────────────────────────────
@@ -3421,6 +3556,12 @@ namespace t7 {
 //   GoLColorMode      — color tier weights (declarative)
 //   GoLZoneState      — per-instance runtime state
 
+            // SEAM[gol_zones:L1] hardware mirror: WGSL declares the same
+            //   constant in its TUNING SURFACE DIRECTORY ("MODE_LATTICE_SPACING
+            //   120 wu — smooth/discrete clusters"). Same family as agents:L2
+            //   (must produce identical results). The C++ side currently
+            //   lacks a "MUST match" comment that names the WGSL counterpart;
+            //   add it during the Phase 3 contract-cleanup batch.
             static constexpr float MODE_LATTICE_SPACING = 120.0f;
             static constexpr float PATCH_CELL_SIZE = (float)Dim::PATCH_EXTENT / 16.0f;  // 3.125
 
@@ -3462,6 +3603,12 @@ namespace t7 {
                 static constexpr float LENS_TARGET_RANGE = 0.6f;
                 // Footprint: inscribed circle of 100×100 zone
                 static constexpr float FOOTPRINT_RADIUS = 50.0f;
+                // SEAM[gol_zones:P4] hygiene rows pattern (P4): MOOD_MULTIPLIER
+                //   is { open, sunset, [indoor_flat=0], [indoor_vault=0],
+                //   [finite_outdoor=1], [finite_outdoor_ref=0] }. The 0
+                //   entries are reachable via mood IDs but the gate
+                //   intentionally suppresses them. Same family as
+                //   floaters:P4 (cube populations). Defensive declaration.
                 // Mood gate (suppressed in flat/vault/finR — same as spheres/cubes)
                 static constexpr float MOOD_MULTIPLIER[MOOD_COUNT] = { 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f };
             };
@@ -3948,6 +4095,15 @@ namespace t7 {
 //
 // Included inside the Cartridge class body.
 // Depends on: entities.inl, terrain_cpu.inl, seed_utils.inl
+//
+// SEAM[gallery:complete-subsystem] complete bespoke pipeline in one
+//   block — vocabulary + state + lifecycle + dispatch all together.
+//   Same pattern as gol_zones (Ch. 12.B). Phase 2 extraction target.
+// SEAM[gallery:dual-role] two named sub-systems sharing infrastructure:
+//   painting-on-terrain (outdoor) and painting-on-wall (indoor) with
+//   shared image loading + frame rendering, divergent spawn paths.
+//   Comment-as-policy at the file header explicitly names the division.
+//   Not a leak; intentional dual role.
 // ─────────────────────────────────────────────────────────────────
 
 
@@ -3995,6 +4151,11 @@ namespace t7 {
             // To tune a tier: adjust its row. To add a tier: add a row + enum.
 
             //                          dist  σ     elev   σ     fov    σ     asp_lo asp_hi  track  off_x  off_y   weight
+            // SEAM[gallery:L1] ENVIRONMENTAL row has weight 0.01 — effectively
+            //   disabled at the authoring level. Either intentionally rare for
+            //   a reason that should be named, OR latent infrastructure (P8)
+            //   for a future authoring change. Phase 3 cleanup batch: add a
+            //   header comment naming the choice.
             static constexpr ShotTypeParams SHOT_PARAMS[] = {
                 /* PANORAMIC     */ {  6.0f, 4.0f,  0.16f, 0.15f,  45.0f, 15.0f,  1.78f, 2.35f,  true,  0.6f, 0.4f,   0.30f },
                 /* ENVIRONMENTAL */ { 10.0f, 4.0f,  0.30f, 0.15f,  45.0f, 10.0f,  1.50f, 2.00f,  true,  0.7f, 0.5f,   0.01f },
@@ -4020,6 +4181,12 @@ namespace t7 {
             };
 
             // ─── Painting Spawn Configuration ───────────────────────────────
+            //
+            // SEAM[gallery:L2] this is a clean instance of pattern P3 (player
+            //   state vs mood state, explicit) — concerns separated into
+            //   named sub-structures rather than mixed in one big config.
+            //   Same shape as orbs.inl's player-state vs mood-state split.
+            //   Tag-only recognition.
             //
             // Split into two concerns:
             //   PhotographerConfig — controls snapshot capture cadence
