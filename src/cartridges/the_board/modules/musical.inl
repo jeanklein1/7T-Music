@@ -5,7 +5,7 @@
 // drift, radial pulse, per-frame update, teardown reset.
 //
 // Included inside the Cartridge class body.
-// Depends on: pawn_aura.inl (auraCfgDirty_)
+// Depends on: pawn.inl (auraCfgDirty_)
 // ─────────────────────────────────────────────────────────────────
 
 

@@ -19,7 +19,7 @@
 // SEAM[trajectory:foundations] new module created Phase 4.1
 //   (resolves D-trajectory:a). Lives between seed_utils.inl and
 //   the consumer modules so Trajectory is visible to musical.inl,
-//   pawn_aura.inl, mood.inl when they declare Trajectory fields.
+//   pawn.inl, mood.inl when they declare Trajectory fields.
 // ─────────────────────────────────────────────────────────────────
 
 struct Trajectory {

@@ -4,7 +4,7 @@
 // camera mode toggle, render radius control.
 //
 // Included inside the Cartridge class body (private section).
-// Depends on: musical.inl (toggle_mmode), pawn_aura.inl (aura flags)
+// Depends on: musical.inl (toggle_mmode), pawn.inl (aura flags)
 // ─────────────────────────────────────────────────────────────────
 
 // Platform workaround: GLFW key codes not available in all header configurations.

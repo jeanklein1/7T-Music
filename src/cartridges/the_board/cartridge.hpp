@@ -616,8 +616,12 @@ namespace t7 {
             // ── Entity Type Definitions (modules/entities.inl) ──
 #include "modules/entities.inl"
 
-                        // ── Pawn Aura (modules/pawn_aura.inl) ──
-#include "modules/pawn_aura.inl"
+                        // ── Pawn (modules/pawn.inl) ──
+                        // Aura field state + presence trajectory + per-frame
+                        // tick_pawn_couplings (Phase 4.3 — closes pawn:K1).
+                        // (Renamed from pawn_aura.inl when the presence ramp
+                        // and height computation moved here.)
+#include "modules/pawn.inl"
 
                         // ── Ground Architecture (modules/ground_architecture.inl) ──
 #include "modules/ground_architecture.inl"
@@ -3155,30 +3159,10 @@ namespace t7 {
 
                 // --- Upload to GPU --------------------------------------------------
 
-                // Aura presence trajectory: smooth ramp on enable/disable
-                //
-                // SEAM[pawn:K1] presence ramp lives in spine; should live in
-                //   pawn.inl when extracted. Mirrors the WGSL §1.2 Trajectory
-                //   abstraction (world.wgsl line 178). End-of-tour Phase 4:
-                //   auraPresence_ becomes a Trajectory field in pawn.inl;
-                //   this block becomes a tick_pawn_couplings(signal, dt) call.
-                {
-                    float target = auraEnabled_ ? 1.0f : 0.0f;
-                    float rate = (target > auraPresence_) ? AURA_PRESENCE_ATTACK : AURA_PRESENCE_RELEASE;
-                    float prev = auraPresence_;
-                    auraPresence_ = prev + (target - prev) * (1.0f - std::exp(-rate * currentDt_));
-                    if (auraPresence_ < 0.001f && target == 0.0f) auraPresence_ = 0.0f;
-                    if (auraPresence_ > 0.999f && target == 1.0f) auraPresence_ = 1.0f;
-                    if (auraPresence_ != prev) auraCfgDirty_ = true;
-                }
-
-                // Pawn aura height: presence × base height × expansion
-                // This same value is used by terrain VS for extrusion, so pawn and terrain always agree.
-                float aura_expand_mult = 1.0f + mmodeIntensity_[MMODE_AURA_EXPAND] * 3.0f;
-                float effective_aura_height = auraHeightEnabled_
-                    ? activeAuraProfile_.height_scale * auraPresence_ * aura_expand_mult : 0.0f;
-                gpuState_.set_pawn_aura_height(effective_aura_height);
-                gpuState_.set_aura_enabled(auraPresence_ > 0.001f);  // keep compute running while ramping down
+                // Pawn presence ramp + aura height computation.
+                // Lives in pawn.inl as a Trajectory-driven tick (Phase 4.3 —
+                // closes pawn:K1).
+                tick_pawn_couplings(queue);
                 gpuState_.set_world_seed(activeSeed_);
                 if (finiteMode_) {
                     float bmin = -(float)finiteRadius_ * PATCH_EXTENT;

@@ -14,7 +14,7 @@
 //   compute_sun_matrices         — orthographic projection for sun shadows
 //
 // Included inside the Cartridge class body.
-// Depends on: entities.inl, gallery.inl, gol_zones.inl, pawn_aura.inl
+// Depends on: entities.inl, gallery.inl, gol_zones.inl, pawn.inl
 // ─────────────────────────────────────────────────────────────────
 
 
