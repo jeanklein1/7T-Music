@@ -386,8 +386,11 @@ void apply_mood(uint32_t mood, wgpu::Queue& queue) {
     float zero_pulses[32] = {};
     gpuState_.set_pulse_data(0, zero_pulses);
 
-    // ─── Mood 5 ribbon: seed-derived flying ribbon ─────────────────
-    if (mood == 5) {
+    // ─── Anchor ribbon: seed-derived flying ribbon at world center ─
+    // DONE[mood:L1] gated by has_anchor_ribbon profile flag (set true
+    //   only for MOOD_FINITE_OUTDOOR_REF today). The ID is no longer
+    //   load-bearing here — adding a future "ref" mood just sets the flag.
+    if (MOOD_TABLE[mood].has_anchor_ribbon) {
         uint32_t rseed = tile_seed(activeSeed_, 0, 0);
 
         // Anchor: seed-derived position spread across the finite world + margin

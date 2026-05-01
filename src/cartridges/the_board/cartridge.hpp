@@ -201,6 +201,7 @@ namespace t7 {
                 bool   allow_gol_zones;        // GoL zone spawning + visualization
                 bool   allow_pawn_aura;        // toroidal spring grid tinting + height boost
                 bool   allow_frustum_cull;     // GPU frustum cull for LOD0 terrain (Tier 4)
+                bool   has_anchor_ribbon;      // mood spawns a fixed reference ribbon at the world center
 
                 // Sky orb config is a parallel table (ORB_MOOD_TABLE in
                 // modules/orbs.inl), indexed by the same mood index as
@@ -234,19 +235,20 @@ namespace t7 {
             //   bool `indoor` flags. With finite_outdoor and finite_outdoor_ref,
             //   the binary doesn't survive contact — the encoding is correct
             //   for today but worth re-examining when finite_outdoor design lands.
-            // SEAM[mood:K4] mood-5 (FINITE_OUTDOOR_REF) is a near-bit-identical
-            //   clone of mood-0 (OPEN_DEFAULT) with finite=true. The "reference"
-            //   role is encoded by ID, not by a profile flag. End-of-tour: add
-            //   `has_anchor_ribbon` flag, drop the magic-mood-number checks
-            //   in apply_mood / spawn paths.
-            //                                  fin  r_min r_max  sun_dir                sun_color              int   amb   fog_d   fog_color               indoor  ceil       ceil_h  clear_color            wall_color             ceil_color               modes   zones  aura   cull
+            // DONE[mood:L1 / mood:K4-partial] has_anchor_ribbon flag added
+            //   (last column). Mood-5 (FINITE_OUTDOOR_REF) is the only row
+            //   that sets it true, replacing the magic-number check
+            //   `activeMood_ != 5` / `mood == 5`. The ID is now an
+            //   identifier, not a discriminator — atmospheric data is
+            //   profile-driven.
+            //                                  fin  r_min r_max  sun_dir                sun_color              int   amb   fog_d   fog_color               indoor  ceil       ceil_h  clear_color            wall_color             ceil_color               modes   zones  aura   cull   ribbon
             static constexpr MoodProfile MOOD_TABLE[MOOD_COUNT] = {
-                /* MOOD_OPEN_DEFAULT       */  { false, 2, 2, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true  },
-                /* MOOD_OPEN_SUNSET        */  { false, 2, 2, { 0.96f,-0.26f,-0.13f}, {1.0f, 0.75f, 0.45f}, 0.90f, 0.20f, 0.0050f, {0.95f, 0.70f, 0.45f},  false, CeilingType::NONE,  0.0f,  {0.95f, 0.70f, 0.45f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true  },
-                /* MOOD_INDOOR_FLAT        */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f, 0.0003f, {0.15f, 0.12f, 0.10f},  true,  CeilingType::FLAT,  20.0f, {0.15f, 0.12f, 0.10f}, {0.65f,0.58f,0.50f}, {0.60f,0.55f,0.48f},   true,  true,  true,  false },
-                /* MOOD_INDOOR_VAULT       */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f, 0.0003f, {0.15f, 0.12f, 0.10f},  true,  CeilingType::VAULT, 25.0f, {0.15f, 0.12f, 0.10f}, {0.70f,0.62f,0.52f}, {0.65f,0.58f,0.50f},   true,  true,  true,  false },
-                /* MOOD_FINITE_OUTDOOR     */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true  },
-                /* MOOD_FINITE_OUTDOOR_REF */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true  },
+                /* MOOD_OPEN_DEFAULT       */  { false, 2, 2, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true,  false },
+                /* MOOD_OPEN_SUNSET        */  { false, 2, 2, { 0.96f,-0.26f,-0.13f}, {1.0f, 0.75f, 0.45f}, 0.90f, 0.20f, 0.0050f, {0.95f, 0.70f, 0.45f},  false, CeilingType::NONE,  0.0f,  {0.95f, 0.70f, 0.45f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true,  false },
+                /* MOOD_INDOOR_FLAT        */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f, 0.0003f, {0.15f, 0.12f, 0.10f},  true,  CeilingType::FLAT,  20.0f, {0.15f, 0.12f, 0.10f}, {0.65f,0.58f,0.50f}, {0.60f,0.55f,0.48f},   true,  true,  true,  false, false },
+                /* MOOD_INDOOR_VAULT       */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f, 0.0003f, {0.15f, 0.12f, 0.10f},  true,  CeilingType::VAULT, 25.0f, {0.15f, 0.12f, 0.10f}, {0.70f,0.62f,0.52f}, {0.65f,0.58f,0.50f},   true,  true,  true,  false, false },
+                /* MOOD_FINITE_OUTDOOR     */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true,  false },
+                /* MOOD_FINITE_OUTDOOR_REF */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true,  true  },
             };
 
             // Orb mood config (ORB_MOOD_TABLE) lives in modules/orbs.inl
@@ -3264,8 +3266,9 @@ namespace t7 {
                         spawn_population_for_mood(pendingDestination_.mood, activeSeed_,
                             Idle::PAWN_POS_X, Idle::PAWN_POS_Z, queue);
                         dump_agent_census("mood-transition");
-                        // Deactivate ribbons in finite mode (mood 5 spawns its own in apply_mood)
-                        if (finiteMode_ && activeRibbonCount_ > 0 && activeMood_ != 5) {
+                        // Deactivate ribbons in finite mode unless the mood
+                        // spawns its own anchor ribbon in apply_mood.
+                        if (finiteMode_ && activeRibbonCount_ > 0 && !MOOD_TABLE[activeMood_].has_anchor_ribbon) {
                             for (uint32_t i = 0; i < MAX_RIBBON_INSTANCES; i++) {
                                 activeRibbons_[i] = ActiveRibbon{};
                                 ribbonStates_[i] = GPURibbonState{};
