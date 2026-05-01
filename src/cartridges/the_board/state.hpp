@@ -420,7 +420,7 @@ namespace t7 {
             // At 1.0 cubes lock to shared parameters (synchronized phases
             // / low-frequency shared noise samples). The transition is
             // a continuous lerp inside each behavior's force function.
-            // See modules/floaters.inl for behavior-by-behavior wiring.
+            // See modules/cube_behaviors.inl for behavior-by-behavior wiring.
             // Repurposes the previous _pad_mode_3 slot — no struct growth.
             float floater_coordination;
 

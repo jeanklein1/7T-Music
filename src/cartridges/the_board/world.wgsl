@@ -5899,7 +5899,7 @@ const AGENT_EVICTION_RADIUS_SQ: f32 = AGENT_EVICTION_RADIUS * AGENT_EVICTION_RAD
 // Earlier value of 360 (only +10 over spawn radius) caused near-100%
 // eviction-at-spawn while the player was moving.
 //
-// MIRRORED MANUALLY in modules/floaters.inl (Phase 3) — currently
+// MIRRORED MANUALLY in modules/cube_behaviors.inl (Phase 3) — currently
 // referenced by the C++ readback path on allocator pressure. If you
 // change this, change the C++ side too.
 const FLOATER_EVICTION_RADIUS:    f32 = 400.0;
@@ -6209,7 +6209,7 @@ fn cube_force_phasewave(rest_xz: vec2<f32>, t: f32, behavior_phase: u32, coordin
 
 // ─ Dispatch ──────────────────────────────────────────────────────
 // Switch by behavior_id. New behaviors land here as additional cases
-// alongside their authoring registry rows in modules/floaters.inl.
+// alongside their authoring registry rows in modules/cube_behaviors.inl.
 fn cube_behavior_force(fe: FloatingEntityState, t: f32, pawn_xz: vec2<f32>, coordination: f32) -> vec3<f32> {
     let rest_xz = vec2<f32>(fe.anchor.x, fe.anchor.z);
     switch (fe.behavior_id) {
