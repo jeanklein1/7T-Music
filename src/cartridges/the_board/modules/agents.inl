@@ -149,11 +149,13 @@ static constexpr const char* AGENT_TIER_NAMES[AGENT_TIER_COUNT] = {
 // orbs.inl. If you change one of these, scan the comments below to
 // see what else may need to move.
 
-// PLAYER_SLOT — slot 0 of agentStateBuffer_ is by convention the
-// player's body. Every spawn/respawn skips this slot; possession
-// transfer rewrites the behavior_id of slot 0 vs the destination but
-// never moves the player out of slot 0. Used as a named index across
-// the module.
+// PLAYER_SLOT — slot 0 of agentStateBuffer_ is the player's INITIAL
+// body and the canonical "skip this in respawn loops" sentinel. Every
+// spawn/respawn skips slot 0. Caps Lock possession transfer can move
+// the player into a non-zero slot (player_.possessed_slot tracks
+// which one); reads of "where is the player right now" should go
+// through cpuAgents_[player_.possessed_slot], not [PLAYER_SLOT].
+// DONE[agents:L1] comment updated to reflect possession transfer.
 static constexpr uint32_t PLAYER_SLOT = 0;
 
 // POSSESSION_RADIUS — Caps Lock teleports the player into the nearest

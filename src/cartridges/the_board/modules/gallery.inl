@@ -64,11 +64,13 @@
             // To tune a tier: adjust its row. To add a tier: add a row + enum.
 
             //                          dist  σ     elev   σ     fov    σ     asp_lo asp_hi  track  off_x  off_y   weight
-            // SEAM[gallery:L1] ENVIRONMENTAL row has weight 0.01 — effectively
-            //   disabled at the authoring level. Either intentionally rare for
-            //   a reason that should be named, OR latent infrastructure (P8)
-            //   for a future authoring change. Phase 3 cleanup batch: add a
-            //   header comment naming the choice.
+            // DONE[gallery:L1] ENVIRONMENTAL keeps weight 0.01 deliberately —
+            //   in practice it produced near-duplicates of MEDIUM / PANORAMIC
+            //   without contributing distinct character, so the row is held
+            //   at near-zero rather than removed (deleting the enum value
+            //   would rotate every downstream tier index). Latent (P8):
+            //   keep available in case a future "wide environmental" framing
+            //   pass differentiates it. Bump the weight to revive.
             static constexpr ShotTypeParams SHOT_PARAMS[] = {
                 /* PANORAMIC     */ {  6.0f, 4.0f,  0.16f, 0.15f,  45.0f, 15.0f,  1.78f, 2.35f,  true,  0.6f, 0.4f,   0.30f },
                 /* ENVIRONMENTAL */ { 10.0f, 4.0f,  0.30f, 0.15f,  45.0f, 10.0f,  1.50f, 2.00f,  true,  0.7f, 0.5f,   0.01f },

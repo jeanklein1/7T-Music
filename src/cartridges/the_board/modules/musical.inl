@@ -47,6 +47,16 @@ static constexpr uint32_t MMODE_COUNT = 6;   // numpad 1–6 (intensity-driven m
 // Toggle gates onset detection; existing pulses decay naturally.
 static constexpr uint32_t MMODE_RADIAL_PULSE = 7;   // numpad 7 (separate from intensity array)
 
+// DONE[musical:L2] mode-name registry promoted to module-level constant.
+//   Was previously a hidden static array inside toggle_mmode. Indexed
+//   by mode id [0..7]; index 6 is "UNUSED" because MMODE_RADIAL_PULSE
+//   skips to 7 (musical:L4 — semantic-kind off-by-one, folds into K1).
+static constexpr const char* MMODE_NAMES[] = {
+    "terrain_waves", "color_shift", "checker_scatter",
+    "palette_drift", "gol_tempo",   "aura_expand",
+    "UNUSED",        "radial_pulse"
+};
+
 static constexpr float MMODE_ATTACK = 4.0f;    // 1/s — intensity ramp up
 static constexpr float MMODE_RELEASE = 2.5f;   // 1/s — intensity ramp down
 
@@ -97,7 +107,6 @@ void toggle_mmode(uint32_t mode) {
     if (mode == MMODE_AURA_EXPAND) {
         auraCfgDirty_ = true;
     }
-    static const char* MODE_NAMES[] = { "terrain_waves", "color_shift", "checker_scatter", "palette_drift", "gol_tempo", "aura_expand", "UNUSED", "radial_pulse" };
-    std::cout << "[MMode] " << MODE_NAMES[mode] << ": " << (on ? "ON" : "OFF") << "\n";
+    std::cout << "[MMode] " << MMODE_NAMES[mode] << ": " << (on ? "ON" : "OFF") << "\n";
 }
 
