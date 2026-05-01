@@ -228,217 +228,228 @@ void derive_indoor_lights(uint32_t seed, float bmin, float bmax,
 // Sets sun direction, sun color/intensity, fog, clear color,
 // and indoor shell from the MOOD_TABLE. Called during TEARDOWN.
 
-void apply_mood(uint32_t mood, wgpu::Queue& queue) {
-    mood = std::min(mood, MOOD_COUNT - 1);
-    activeMood_ = mood;
-    const auto& m = MOOD_TABLE[mood];
+// ─── apply_mood — split sub-functions ──────────────────────────────
+//
+// DONE[mood:K2] apply_mood was 217 lines mixing 12 concerns in one
+//   straight sequence (atmospheric, indoor lighting, indoor shell,
+//   band motion, musical reset, anchor ribbon, orbs). Phase 5 split
+//   it into named helpers; apply_mood itself orchestrates.
+//   The five helpers below match the natural seams in the flow.
+//   Per-mood-transition order is preserved exactly — no semantic
+//   change, just nameable sub-blocks.
 
-    // Frustum cull is mood-driven now (not tied to indoor/outdoor).
-    renderer_.set_frustum_cull_active(m.allow_frustum_cull);
-
-    // Per-mood feature gates — drive the runtime suppression mechanisms:
-    //  - moodAllowsMusicalModes_ is checked by is_mmode_on (silences all modes)
-    //  - moodAllowsGoLZones_ is checked by dispatch_select_gol (blocks new spawns)
-    //  - auraEnabled_ drives the aura presence ramp (smooth fade out when disabled)
-    //
-    // Aura policy: if the destination mood permits aura, respect the
-    // player's current preference (don't auto-enable). Only force aura
-    // off when the mood forbids it. The player can re-toggle via input
-    // if they want it on after entering a permitting mood.
-    moodAllowsMusicalModes_ = m.allow_musical_modes;
-    moodAllowsGoLZones_ = m.allow_gol_zones;
-    if (!m.allow_pawn_aura) {
-        auraEnabled_ = false;
-    }
-
+// 1) Atmospheric: sun direction/color/intensity, fog, ambient,
+//    terrain amp ceiling. Touches GPU directly + a few member fields.
+void apply_mood_lighting(const MoodProfile& m, wgpu::Queue& /*queue*/) {
     sunDirection_[0] = m.sun_direction[0];
     sunDirection_[1] = m.sun_direction[1];
     sunDirection_[2] = m.sun_direction[2];
 
-    // Push to GPU config so compute_vp builds the shadow VP from the correct direction
+    // Push to GPU config so compute_vp builds the shadow VP from the correct direction.
     {
-        float len = std::sqrt(m.sun_direction[0] * m.sun_direction[0] +
-            m.sun_direction[1] * m.sun_direction[1] +
-            m.sun_direction[2] * m.sun_direction[2]);
+        const float len = std::sqrt(m.sun_direction[0] * m.sun_direction[0] +
+                                    m.sun_direction[1] * m.sun_direction[1] +
+                                    m.sun_direction[2] * m.sun_direction[2]);
         gpuState_.set_sun_direction(m.sun_direction[0] / len,
-            m.sun_direction[1] / len,
-            m.sun_direction[2] / len);
+                                    m.sun_direction[1] / len,
+                                    m.sun_direction[2] / len);
     }
 
     sunColor_[0] = m.sun_color[0];
     sunColor_[1] = m.sun_color[1];
     sunColor_[2] = m.sun_color[2];
     sunIntensity_ = m.sun_intensity;
-    sunAmbient_ = m.sun_ambient;
+    sunAmbient_   = m.sun_ambient;
 
     clearColor_[0] = m.clear_color[0];
     clearColor_[1] = m.clear_color[1];
     clearColor_[2] = m.clear_color[2];
 
     gpuState_.set_fog(m.fog_density,
-        m.fog_color[0], m.fog_color[1], m.fog_color[2]);
+                      m.fog_color[0], m.fog_color[1], m.fog_color[2]);
     gpuState_.set_terrain_amp_ceiling(m.indoor ? 0.5f : 0.0f);
     terrainAmpCeiling_ = m.indoor ? 0.5f : 0.0f;
     lightsDirty_ = true;
+}
 
-    // Spot lights: active only in indoor moods (count=0 disables)
+// 2) Indoor spot lights — only fires when m.indoor. Mutes the sun-VP
+//    coupling because the atlas shadow loop owns light_vp in indoor
+//    moods (see comment-as-policy at the call site).
+void apply_mood_spot_lights(const MoodProfile& m, wgpu::Queue& queue) {
     cpuSpotLights_ = GPUSpotLightArray{};
     if (m.indoor) {
-        // Mute the sun VP coupling so compute_vp() stops writing
-        // light_vp — it's now owned by CopyBufferToBuffer in the
-        // atlas shadow loop.  Without this, the compute write and
-        // per-tile copies contend over the same 64-byte slot.
         gpuState_.set_mute_coupling(Coupling::PAWN_TO_SUN_VP, true);
 
-        float bmin = -(float)finiteRadius_ * PATCH_EXTENT;
-        float bmax = ((float)finiteRadius_ + 1.0f) * PATCH_EXTENT;
-
+        const float bmin = -(float)finiteRadius_ * PATCH_EXTENT;
+        const float bmax = ((float)finiteRadius_ + 1.0f) * PATCH_EXTENT;
         derive_indoor_lights(activeSeed_, bmin, bmax, m.ceiling_height, m.ceiling_type);
 
         for (uint32_t i = 0; i < cpuSpotLights_.count; i++) {
             compute_spot_light_vp(cpuSpotLights_.lights[i],
-                cpuSpotLights_.lights[i].view_proj);
+                                  cpuSpotLights_.lights[i].view_proj);
         }
         gpuState_.stage_spot_vps(queue, cpuSpotLights_);
         spotLightActive_ = true;
-    }
-    else {
-        // Restore the sun VP coupling for outdoor directional shadows.
+    } else {
         gpuState_.set_mute_coupling(Coupling::PAWN_TO_SUN_VP, false);
         spotLightActive_ = false;
     }
+}
 
-    // Indoor shell: generate or clear. For indoor moods, override the
-    // MoodProfile's wall and ceiling colors with one of INDOOR_PALETTES
-    // chosen by activeSeed_ — gives each gallery a different elegant
-    // wall finish instead of the same default for every seed.
+// 3) Indoor shell + camera ceiling — only fires when m.indoor.
+//    Substitutes a seed-picked INDOOR_PALETTE for the wall+ceiling
+//    colors, then matches the crown computation from
+//    generate_indoor_shell to set the camera ceiling clamp.
+void apply_mood_indoor_shell(const MoodProfile& m, wgpu::Queue& queue) {
     if (m.indoor && m.ceiling_type != CeilingType::NONE) {
-        uint32_t pal_idx = cpu_hash(activeSeed_, 5800u) % INDOOR_PALETTE_COUNT;
+        const uint32_t pal_idx = cpu_hash(activeSeed_, 5800u) % INDOOR_PALETTE_COUNT;
         const auto& pal = INDOOR_PALETTES[pal_idx];
         MoodProfile localMood = m;
         for (int c = 0; c < 3; c++) {
-            localMood.wall_color[c] = pal.wall_color[c];
+            localMood.wall_color[c]    = pal.wall_color[c];
             localMood.ceiling_color[c] = pal.ceiling_color[c];
         }
         std::cout << "[Mood] Indoor palette: " << pal.name
-            << " (idx=" << pal_idx << ")\n";
+                  << " (idx=" << pal_idx << ")\n";
         generate_indoor_shell(queue, localMood);
-    }
-    else {
+    } else {
         clear_indoor_shell(queue);
     }
 
-    // Camera ceiling clamp: tell the GPU how high the camera can go
+    // Camera ceiling clamp (matches crown computation in generate_indoor_shell).
     if (m.indoor) {
         float effective_ceiling = m.ceiling_height;
         if (m.ceiling_type == CeilingType::VAULT) {
-            // Match the crown computation from generate_indoor_shell
-            float bmin = -(float)finiteRadius_ * PATCH_EXTENT;
-            float bmax = ((float)finiteRadius_ + 1.0f) * PATCH_EXTENT;
-            float half_span = (bmax - bmin) * 0.5f;
-            float paint_top = m.ceiling_height * 0.45f + 5.5f;
-            float spring_h = paint_top + 8.0f;
-            float min_rise = m.ceiling_height - spring_h;
-            float rise = std::max(half_span * 0.30f, std::max(min_rise, 5.0f));
+            const float bmin = -(float)finiteRadius_ * PATCH_EXTENT;
+            const float bmax = ((float)finiteRadius_ + 1.0f) * PATCH_EXTENT;
+            const float half_span = (bmax - bmin) * 0.5f;
+            const float paint_top = m.ceiling_height * 0.45f + 5.5f;
+            const float spring_h  = paint_top + 8.0f;
+            const float min_rise  = m.ceiling_height - spring_h;
+            const float rise = std::max(half_span * 0.30f, std::max(min_rise, 5.0f));
             effective_ceiling = spring_h + rise;
         }
         gpuState_.set_ceiling_height(effective_ceiling);
-    }
-    else {
+    } else {
         gpuState_.set_ceiling_height(0.0f);
     }
+}
 
-    // Polyphony-driven band motion: active when mode toggled on
-    // Band motion is retroactively mode 0 — respect mmodeMask_
+// 4) Polyphony band motion setup. Snapshots state at mood-entry
+//    so per-frame tick_musical_couplings starts from a known origin.
+void apply_mood_band_motion() {
     bandMotionActive_ = is_mmode_on(MMODE_TERRAIN_WAVES);
     if (bandMotionActive_) {
         for (int i = 0; i < 6; i++) {
-            bandBlend_[i] = 0.0f;         // start fully frozen
+            bandBlend_[i]       = 0.0f;
             bandBlendTarget_[i] = 0.0f;
             bandPhaseOrigin_[i] = 0.0f;
         }
         gpuState_.set_band_motion(bandBlend_, bandPhaseOrigin_);
-        gpuState_.set_terrain_time(0.0f);  // will advance per-frame in tick
-    }
-    else {
+        gpuState_.set_terrain_time(0.0f);
+    } else {
         float inactive[6] = { -1.f, -1.f, -1.f, -1.f, -1.f, -1.f };
-        float zeros[6] = {};
+        float zeros[6]    = {};
         gpuState_.set_band_motion(inactive, zeros);
-        gpuState_.set_terrain_time(0.0f);  // frozen for non-animated moods
+        gpuState_.set_terrain_time(0.0f);
         for (int i = 0; i < 6; i++) {
-            bandBlend_[i] = -1.0f;
+            bandBlend_[i]       = -1.0f;
             bandBlendTarget_[i] = 0.0f;
             bandPhaseOrigin_[i] = 0.0f;
         }
     }
+}
 
-    // Reset all mode intensities on mood change (circuits stay wired, values reset)
-    reset_musical_couplings(queue);
+// 5) Anchor ribbon spawn — only fires when MoodProfile.has_anchor_ribbon.
+//    Seed-derived position centered on the finite world; goes through
+//    fill_ribbon_selection_geometry + commit_ribbon (the dual-entry
+//    site flagged at ribbon:dual-entry / mood:K4).
+void apply_mood_anchor_ribbon(uint32_t mood, wgpu::Queue& queue) {
+    if (!MOOD_TABLE[mood].has_anchor_ribbon) return;
 
-    // ─── Anchor ribbon: seed-derived flying ribbon at world center ─
-    // DONE[mood:L1] gated by has_anchor_ribbon profile flag (set true
-    //   only for MOOD_FINITE_OUTDOOR_REF today). The ID is no longer
-    //   load-bearing here — adding a future "ref" mood just sets the flag.
-    if (MOOD_TABLE[mood].has_anchor_ribbon) {
-        uint32_t rseed = tile_seed(activeSeed_, 0, 0);
+    const uint32_t rseed = tile_seed(activeSeed_, 0, 0);
 
-        // Anchor: seed-derived position spread across the finite world + margin
-        float spread = ((float)finiteRadius_ + 1.5f) * PATCH_EXTENT;
-        float world_cx = 0.5f * PATCH_EXTENT;
-        float world_cz = 0.5f * PATCH_EXTENT;
-        float ax = world_cx + (cpu_hash_f(rseed, RibbonProp::ANCHOR_X) - 0.5f) * spread + moodRibbonOffset_[0];
-        float az = world_cz + (cpu_hash_f(rseed, RibbonProp::ANCHOR_Z) - 0.5f) * spread + moodRibbonOffset_[1];
+    // Anchor: seed-derived position spread across the finite world + margin
+    const float spread   = ((float)finiteRadius_ + 1.5f) * PATCH_EXTENT;
+    const float world_cx = 0.5f * PATCH_EXTENT;
+    const float world_cz = 0.5f * PATCH_EXTENT;
+    const float ax = world_cx + (cpu_hash_f(rseed, RibbonProp::ANCHOR_X) - 0.5f) * spread + moodRibbonOffset_[0];
+    const float az = world_cz + (cpu_hash_f(rseed, RibbonProp::ANCHOR_Z) - 0.5f) * spread + moodRibbonOffset_[1];
 
-        // Tier selection (neutral weights — no theme bias in mood)
-        uint32_t tier_idx = select_tier_biased(rseed, RibbonProp::TIER,
-            RIBBON_BASE_TIER_WEIGHTS, RIBBON_TIER_COUNT, PopFamily::RIBBON);
+    // Tier selection (neutral weights — no theme bias in mood)
+    const uint32_t tier_idx = select_tier_biased(rseed, RibbonProp::TIER,
+        RIBBON_BASE_TIER_WEIGHTS, RIBBON_TIER_COUNT, PopFamily::RIBBON);
 
-        // Sample geometry through the shared helper
-        float terrain_est = estimate_terrain_height(ax, az);
-        RibbonSelection sel{};
-        sel.seed = rseed;
-        sel.trigger_gx = 0;
-        sel.trigger_gz = 0;
-        sel.slot = 0;
-        sel.tier_idx = tier_idx;
-        fill_ribbon_selection_geometry(rseed, tier_idx, terrain_est, sel);
+    // Sample geometry through the shared helper
+    const float terrain_est = estimate_terrain_height(ax, az);
+    RibbonSelection sel{};
+    sel.seed       = rseed;
+    sel.trigger_gx = 0;
+    sel.trigger_gz = 0;
+    sel.slot       = 0;
+    sel.tier_idx   = tier_idx;
+    fill_ribbon_selection_geometry(rseed, tier_idx, terrain_est, sel);
 
-        // Build placement (forced position — no negotiation)
-        RibbonPlacement plan{};
-        plan.slot = 0;
-        plan.trigger_gx = 0;
-        plan.trigger_gz = 0;
-        plan.host_gx = (int32_t)std::floor(ax / PATCH_EXTENT);
-        plan.host_gz = (int32_t)std::floor(az / PATCH_EXTENT);
-        plan.tier_idx = tier_idx;
-        plan.cx = ax;
-        plan.cz = az;
-        plan.rotation = sel.orientation;
-        plan.cube_count = sel.cube_count;
-        plan.cube_size = sel.cube_size;
-        plan.height = sel.height;
-        plan.orientation = sel.orientation;
-        plan.lateral_amp = sel.lateral_amp;
-        plan.lateral_cycles = sel.lateral_cycles;
-        plan.lateral_speed = sel.lateral_speed;
-        plan.vertical_amp = sel.vertical_amp;
-        plan.vertical_cycles = sel.vertical_cycles;
-        plan.vertical_speed = sel.vertical_speed;
-        plan.twist_amp = sel.twist_amp;
-        plan.twist_cycles = sel.twist_cycles;
-        plan.twist_speed = sel.twist_speed;
-        plan.color_mode = sel.color_mode;
-        std::memcpy(plan.color, sel.color, sizeof(plan.color));
+    // Build placement (forced position — no negotiation)
+    RibbonPlacement plan{};
+    plan.slot           = 0;
+    plan.trigger_gx     = 0;
+    plan.trigger_gz     = 0;
+    plan.host_gx        = (int32_t)std::floor(ax / PATCH_EXTENT);
+    plan.host_gz        = (int32_t)std::floor(az / PATCH_EXTENT);
+    plan.tier_idx       = tier_idx;
+    plan.cx             = ax;
+    plan.cz             = az;
+    plan.rotation       = sel.orientation;
+    plan.cube_count     = sel.cube_count;
+    plan.cube_size      = sel.cube_size;
+    plan.height         = sel.height;
+    plan.orientation    = sel.orientation;
+    plan.lateral_amp    = sel.lateral_amp;
+    plan.lateral_cycles = sel.lateral_cycles;
+    plan.lateral_speed  = sel.lateral_speed;
+    plan.vertical_amp   = sel.vertical_amp;
+    plan.vertical_cycles= sel.vertical_cycles;
+    plan.vertical_speed = sel.vertical_speed;
+    plan.twist_amp      = sel.twist_amp;
+    plan.twist_cycles   = sel.twist_cycles;
+    plan.twist_speed    = sel.twist_speed;
+    plan.color_mode     = sel.color_mode;
+    std::memcpy(plan.color, sel.color, sizeof(plan.color));
 
-        // Commit through the standard path
-        commit_ribbon(plan, 0, 0, queue);
+    // Commit through the standard path
+    commit_ribbon(plan, 0, 0, queue);
 
-        // Immediate GPU upload (per-frame loop may not run before first render)
-        gpuState_.upload_ribbon(queue, ribbonStates_[0]);
-        renderedRibbonSlot_ = 0;
-    }
+    // Immediate GPU upload (per-frame loop may not run before first render)
+    gpuState_.upload_ribbon(queue, ribbonStates_[0]);
+    renderedRibbonSlot_ = 0;
+}
 
-    // Sky orb layer — per-mood enable + seed-driven init.
+// ─── apply_mood — orchestrator ─────────────────────────────────────
+//
+// DONE[mood:K2] reduced from a 217-line linear sequence to a named
+//   call list. Each step is a sub-function above; this function owns
+//   only the activate-mood bookkeeping and the order of operations.
+void apply_mood(uint32_t mood, wgpu::Queue& queue) {
+    mood = std::min(mood, MOOD_COUNT - 1);
+    activeMood_ = mood;
+    const auto& m = MOOD_TABLE[mood];
+
+    // Frustum cull is mood-driven (not tied to indoor/outdoor).
+    renderer_.set_frustum_cull_active(m.allow_frustum_cull);
+
+    // Per-mood feature gates: musical modes, GoL zones, aura.
+    // Aura policy: respect player preference when permitted, force off when forbidden.
+    moodAllowsMusicalModes_ = m.allow_musical_modes;
+    moodAllowsGoLZones_     = m.allow_gol_zones;
+    if (!m.allow_pawn_aura) auraEnabled_ = false;
+
+    apply_mood_lighting(m, queue);          // sun + fog + amp ceiling
+    apply_mood_spot_lights(m, queue);       // indoor only
+    apply_mood_indoor_shell(m, queue);      // shell + camera ceiling clamp
+    apply_mood_band_motion();               // polyphony→bands setup
+    reset_musical_couplings(queue);         // mode intensities, pulse, palette drift
+    apply_mood_anchor_ribbon(mood, queue);  // mood:has_anchor_ribbon only
     configure_orbs(ORB_MOOD_TABLE[mood], queue);
 
     std::cout << "[Mood] Applied: " << mood_name(mood)
