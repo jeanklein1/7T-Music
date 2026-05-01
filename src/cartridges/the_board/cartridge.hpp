@@ -5775,33 +5775,49 @@ namespace t7 {
                     FAMILY_DISPATCH[ref.family].evict_slot(this, ref.slot, queue);
                 }
 
-                // SEAM[spine:L1] BUG (or vestigial): the for-loop below has no
-                //   body — the `patch.entity_ref_count = 0` line is the loop
-                //   body via implicit-single-statement-as-body parsing,
-                //   running PopFamily::COUNT times to set the same value to 0.
-                //   gx and gz are unused. Likely a per-family cleanup was
-                //   removed but the loop wrapper wasn't.
-                // TODO[phase-1:spine:L1] Investigate intent. Either delete the
-                //   for-loop and gx/gz lines (assignment-to-zero stays), OR
-                //   restore the removed body if it was meaningful. Read git
-                //   blame on these lines if available before deciding.
-                int32_t gx = patch.grid_x, gz = patch.grid_z;
-                for (uint32_t f = 0; f < PopFamily::COUNT; f++)
-
-                    patch.entity_ref_count = 0;
+                // DONE[phase-1:spine:L1] Vestigial for-loop removed. Git history
+                //   (commit 6f0007f) shows the loop body was originally
+                //   `clear_entity_presence(gx, gz, FAMILY_DISPATCH[f].presence_clear_flag)`,
+                //   removed when the entity-presence flag system was retired in
+                //   favor of the entity_refs[] registry (the loop above this).
+                //   The wrapper + gx/gz decls were left behind, accidentally
+                //   absorbing `patch.entity_ref_count = 0` as a phantom body
+                //   that ran PopFamily::COUNT times to set the same field to 0.
+                //   Fix: keep the single assignment, drop the wrapper.
+                patch.entity_ref_count = 0;
             }
 
             void audit_entity_integrity() {
 #ifdef DIAG_ENTITY_LIFECYCLE
-                // SEAM[spine:L2] this audit covers 4 families: Arch, Column,
-                //   Antenna, Pyramid. The other 8 (Palm, Cactus, Blade, Sphere,
-                //   Cube, Ribbon, GoL, Gallery) are not audited. Probably
-                //   intentional partial coverage rather than oversight (some
-                //   bespoke families have their own state machines), but worth
-                //   confirming. If gaps are intentional, document why.
-                // TODO[phase-1:spine:L2] Document the coverage rationale
-                //   alongside this banner. If gaps are accidental, file a
-                //   follow-up to extend coverage.
+                // DONE[phase-1:spine:L2] Coverage rationale documented.
+                //   Audit covers 4 of 12 families: Arch, Column, Antenna,
+                //   Pyramid — the generic-pipeline grounded families whose
+                //   lifecycle is the simple { Active*[slot].active ↔ patch
+                //   entity_refs } pair this audit checks. Coverage gaps
+                //   split into two categories:
+                //
+                //   - Palm, Cactus, Blade — same generic-pipeline grounded
+                //     pattern. Audit shape applies cleanly; not yet extended.
+                //     Extension is mechanical (mirror the Arch/Column/etc.
+                //     blocks) but DEFERRED: the audit's design needs review
+                //     before adding families (see follow-up note below).
+                //
+                //   - Sphere, Cube, Ribbon, GoL, Gallery — different lifecycle
+                //     shapes where the simple "active vs ref" model doesn't
+                //     cleanly apply: spheres/cubes are managed via the GPU
+                //     floater readback path (last_alloc_time race protection,
+                //     not entity_refs); ribbon uses two-tip anchoring with
+                //     ref_count for partial eviction; GoL/gallery have their
+                //     own bespoke state machines. Auditing these would
+                //     require per-family audit shapes, not a uniform
+                //     extension of the existing pattern.
+                //
+                //   FOLLOW-UP[seam-map] Before extending coverage to
+                //   Palm/Cactus/Blade, the audit's structure should be
+                //   reviewed — currently each family is a hand-written block,
+                //   so 3 more families means 3× duplication. A registry-of-
+                //   audit-shapes (one entry per family lifecycle pattern)
+                //   would scale better. Not in scope for Phase 1.
                 // Count actual active slots
                 uint32_t act_a = 0, act_c = 0, act_n = 0, act_p = 0;
                 for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++) if (activeArches_[i].active) act_a++;
