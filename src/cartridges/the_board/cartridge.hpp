@@ -81,14 +81,19 @@ namespace t7 {
             uint32_t activeMood_ = 0;
             float terrainAmpCeiling_ = 0.0f;    // mirrors GPU config.terrain_amp_ceiling
 
+            // ── Trajectory primitive (modules/trajectory.inl) ──
+            // CPU mirror of WGSL §1.2 — must be visible before any
+            // module that declares Trajectory fields (musical, pawn_aura,
+            // mood). Pure foundations; depends on nothing.
+#include "modules/trajectory.inl"
+
             // ── Musical Coupling State (modules/musical.inl) ──
-            // SEAM[musical:K2] musical.inl currently exposes state declarations
-            //   here; the per-frame couplings live in update() below (~lines
-            //   8050-8240). End-of-tour resolution: extract tick_musical_couplings()
-            //   into the module and have update() call it.
-            // SEAM[musical:K3] prevPolyphony_ (declared inside the include) is
-            //   consumer state for pulse onset detection at update() ~8200-8236;
-            //   stays here today, moves with K2.
+            // DONE[musical:K2 / mood:K3] Phase 4 — per-frame ramps moved
+            //   from cartridge.hpp::update() into musical.inl as
+            //   tick_musical_couplings(); per-mood-transition reset moved
+            //   into reset_musical_couplings() called by mood.inl::apply_mood.
+            //   update() shrinks to a phase-orchestration sequence of
+            //   named tick calls.
 #include "modules/musical.inl"
 
             // ── Player State (unified entity layer) ──
