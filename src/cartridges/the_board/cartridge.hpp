@@ -202,9 +202,10 @@ namespace t7 {
                 bool   allow_pawn_aura;        // toroidal spring grid tinting + height boost
                 bool   allow_frustum_cull;     // GPU frustum cull for LOD0 terrain (Tier 4)
 
-                // Sky orb config is a parallel table (ORB_MOOD_TABLE, below),
-                // indexed by the same mood index as MOOD_TABLE. See orbs.inl
-                // for the OrbMoodConfig field definitions.
+                // Sky orb config is a parallel table (ORB_MOOD_TABLE in
+                // modules/orbs.inl), indexed by the same mood index as
+                // MOOD_TABLE. See orbs.inl for the OrbMoodConfig field
+                // definitions and the table itself.
             };
 
             static constexpr uint32_t MOOD_COUNT = 6;
@@ -226,8 +227,8 @@ namespace t7 {
 
             // ─── Mood Definitions ───────────────────────────────────────────
             //
-            // Sky orb config lives in ORB_MOOD_TABLE below, indexed by the
-            // same mood index.
+            // Sky orb config lives in ORB_MOOD_TABLE inside modules/orbs.inl,
+            // indexed by the same mood index.
             //
             // SEAM[mood:K1] indoor/outdoor binary lives here as bool `finite` +
             //   bool `indoor` flags. With finite_outdoor and finite_outdoor_ref,
@@ -248,9 +249,9 @@ namespace t7 {
                 /* MOOD_FINITE_OUTDOOR_REF */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true  },
             };
 
-            // Orb mood config lives in ORB_MOOD_TABLE, declared right after
-            // the #include "modules/orbs.inl" below (where OrbMoodConfig is
-            // defined). Same MOOD_COUNT size, indexed by the same mood index.
+            // Orb mood config (ORB_MOOD_TABLE) lives in modules/orbs.inl
+            // alongside its OrbMoodConfig struct. Same MOOD_COUNT size,
+            // indexed by the same mood index.
 
             static const char* mood_name(uint32_t mood) {
                 // Sized array so the compiler catches a missing entry if
@@ -616,51 +617,6 @@ namespace t7 {
 
                         // ── Sky Orbs (modules/orbs.inl) ──
 #include "modules/orbs.inl"
-
-            // ─── Orb Mood Table ─────────────────────────────────────────────
-            //
-            // SEAM[orbs:D2] this table currently lives in cartridge.hpp because
-            //   OrbMoodConfig is defined in orbs.inl (above), but the table
-            //   itself is per-mood orb authoring data. Phase 2 resolution per
-            //   12.F: move ORB_MOOD_TABLE into orbs.inl alongside
-            //   OrbMoodConfig at the time of orbs.inl's other migrations.
-            //   Same family as the per-mood data tables flagged in
-            //   spine:per-mood-data (INDOOR_PALETTES, WALL_ART, LIGHT_SCHEMES).
-            // SEAM[mood:K4] mood-5 row is bit-identical to mood-0 (open_default)
-            //   except for the implicit context that mood-5 is
-            //   finite_outdoor_ref. Mirrors the same MOOD_TABLE pattern.
-            //   Resolves with the has_anchor_ribbon flag (mood:L1).
-            //
-            // Per-mood orb config. Indexed by the same mood index as MOOD_TABLE.
-            // See OrbMoodConfig in orbs.inl (above) for field semantics. Zero-
-            // valued rule-critical fields (drg, nz, orbS, flock radii/weights)
-            // are sanitized to system defaults in configure_orbs — "0 = no
-            // opinion, system picks a working value." Explicit small non-zero
-            // reads as deliberate authorship.
-            //
-            //  Column legend (short → field name):
-            //    en      enabled              rotAxis rotation_axis[3]
-            //    n       count                orbS    orbital_base_speed (rule 1)
-            //    hueB    base_hue (legacy)    pal     palette_id (ORB_PAL_*)
-            //    hueV    hue_variance         pul     color_pulse_enabled
-            //    bri     brightness           cnv     color_converge_enabled
-            //    drg     drag (1/s)           srg     color_surge_enabled
-            //    nz      noise_amp ceiling    hct     hue_converge_target
-            //    rul     motion_rule          anc     anchor_to_pawn_default
-            //    rotS    rotation_speed       trs     tierset_id (0xFFFFFFFFu = legacy)
-            //    sepR/alnR/cohR/sepW/alnW/cohW/maxS   flocking parameters
-            //    gst     flock_gesture_default (0..7, ORB_FLOCK_GESTURES index)
-            //    drgB/drgO/drgF/drgK          per-rule drag multipliers (0 = 1.0× pass-through)
-            //
-            //                                              en     n    hueB   hueV   bri    drg   nz      rul  rotS    rotAxis                  orbS  pal  pul    cnv    srg    hct    anc    trs           sepR   alnR    cohR    sepW   alnW   cohW   maxS   gst  drgB  drgO  drgF  drgK
-            static constexpr OrbMoodConfig ORB_MOOD_TABLE[MOOD_COUNT] = {
-                /* 0 open_default        */ {  true,  128, 0.08f, 0.06f, 0.85f, 0.4f, 20.0f,  0u,  0.012f, {0.15f, 0.97f, 0.10f},  0.0f, 0u,  true,  true,  true,  0.12f, false, 0u,           50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
-                /* 1 open_sunset         */ {  true,  128, 0.08f, 0.06f, 0.85f, 0.4f, 20.0f,  3u,  0.012f, {0.15f, 0.97f, 0.10f},  0.0f, 0u,  true,  false, false, 0.08f, false, 0u,           50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
-                /* 2 indoor_flat         */ {  false, 0,   0.08f, 0.05f, 0.80f, 0.5f, 0.0f,   0u,  0.000f, {0.00f, 1.00f, 0.00f},  0.0f, 0u,  false, false, false, 0.12f, false, 0xFFFFFFFFu,  50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
-                /* 3 indoor_vault        */ {  false, 0,   0.08f, 0.05f, 0.80f, 0.5f, 0.0f,   0u,  0.000f, {0.00f, 1.00f, 0.00f},  0.0f, 0u,  false, false, false, 0.12f, false, 0xFFFFFFFFu,  50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
-                /* 4 finite_outdoor      */ {  true,  128, 0.08f, 0.06f, 0.85f, 0.4f, 20.0f,  0u,  0.012f, {0.15f, 0.97f, 0.10f},  0.0f, 0u,  true,  true,  true,  0.12f, false, 0u,           50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
-                /* 5 finite_outdoor_ref  */ {  true,  128, 0.08f, 0.06f, 0.85f, 0.4f, 20.0f,  0u,  0.012f, {0.15f, 0.97f, 0.10f},  0.0f, 0u,  true,  true,  true,  0.12f, false, 0u,           50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
-            };
 
             // ── Agents (modules/agents.inl) ──
             // Unified entity registry: behaviors, tier gains, populations.
