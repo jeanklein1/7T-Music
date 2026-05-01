@@ -332,8 +332,12 @@ static float corral_ease_(float t) {
 }
 
 void corral_cubes(wgpu::Queue& queue) {
-    const float px = cpuAgents_[0].pos_x;
-    const float pz = cpuAgents_[0].pos_z;
+    // DONE[floaters:L1] read the player's pos from the possessed slot
+    //   (which is 0 by default but tracks the player on possession
+    //   transfer), not from slot 0 directly. Old hardcode was visible
+    //   under F6/F7 after Caps Lock possession.
+    const float px = cpuAgents_[player_.possessed_slot].pos_x;
+    const float pz = cpuAgents_[player_.possessed_slot].pos_z;
 
     uint32_t active_count = 0;
     for (uint32_t i = 0; i < Dim::MAX_CUBE_INSTANCES; i++) {
@@ -453,8 +457,9 @@ float cubePawnOffset_[Dim::MAX_CUBE_INSTANCES][2] = {};  // xz only
 
 void toggle_cube_kite_mode(wgpu::Queue& queue) {
     cubeKiteMode_ = !cubeKiteMode_;
-    const float px = cpuAgents_[0].pos_x;
-    const float pz = cpuAgents_[0].pos_z;
+    // DONE[floaters:L1] possessed_slot for kite mode too — see corral_cubes.
+    const float px = cpuAgents_[player_.possessed_slot].pos_x;
+    const float pz = cpuAgents_[player_.possessed_slot].pos_z;
 
     uint32_t affected = 0;
     if (cubeKiteMode_) {

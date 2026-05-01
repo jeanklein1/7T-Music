@@ -3,7 +3,7 @@
 // THE_BOARD CARTRIDGE — GPU State Management (Rasterized)
 // =============================================================
 //
-// CPU/GPU data contract: structs, buffers, textAures, bind groups.
+// CPU/GPU data contract: structs, buffers, textures, bind groups.
 // Terrain grid is GPU-derived from vertex_index — zero geometry uploaded.
 //
 // See world.wgsl for the GPU scroll (single source of truth).

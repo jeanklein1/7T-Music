@@ -34,20 +34,17 @@
 //   (Ch. 12.C). Generic-pipeline floater family — vocabulary class
 //   distinct from grounded families. Phase 2 extraction target:
 //   floater_vocabulary.inl (D-floater inclining β with naming care).
-// SEAM[sphere:L1] FloatingEntityTierProfile naming claims more than code
-//   delivers — used only for spheres; cubes have their own CubeTierProfile.
-//   The "(Reuses FloatingEntityTierProfile...)" comment below is also
-//   misleading: cubes do NOT reuse this struct in practice.
-//   Phase 3 cleanup: rename to SphereTierProfile, update the comment.
+// DONE[sphere:L1] FloatingEntityTierProfile renamed to SphereTierProfile
+//   in Phase 3. Used only by spheres; cubes have their own
+//   CubeTierProfile struct with different fields. The misleading
+//   "(Reuses FloatingEntityTierProfile...)" comment is also gone.
 // ─────────────────────────────────────────────────────────────────
 
             // ─── Sphere Tier Profile ─────────────────────────────────────
-            // (Reuses FloatingEntityTierProfile — orbit fields are meaningful,
-            //  hover-bob fields are zero.)
-            // SEAM[sphere:L1] above comment is incorrect: cubes use a
-            //   distinct CubeTierProfile struct (line ~3155). The "reuse"
-            //   was likely planned but didn't land.
-            struct FloatingEntityTierProfile {
+            // Cubes have their own CubeTierProfile (different fields —
+            // floater physics differs by motion shape: spheres orbit,
+            // cubes hover-bob).
+            struct SphereTierProfile {
                 float body_radius_mean, body_radius_sigma;
                 float orbit_radius_mean, orbit_radius_sigma;
                 float orbit_height_mean, orbit_height_sigma;
@@ -66,7 +63,7 @@
             };
 
             static constexpr uint32_t SPHERE_TIER_COUNT = 2;
-            static constexpr FloatingEntityTierProfile SPHERE_TIERS[SPHERE_TIER_COUNT] = {
+            static constexpr SphereTierProfile SPHERE_TIERS[SPHERE_TIER_COUNT] = {
                 //                    rad_μ  σ     orb_μ  σ     ht_μ   σ      spd_μ  σ     inf_μ  σ     spin_μ σ     bob_μ  σ    per_μ  σ    tilt   asp_y  σ    asp_z  σ    fvar_μ σ     geo  mot  wt
                 /* 0: Sentinel  */ {  1.5f, 0.3f,  12.0f, 3.0f,   6.0f,  2.0f, 1.4f, 0.3f,  8.0f, 2.0f,  0.0f, 0.0f,  0.0f, 0.0f,  0.0f, 0.0f,  0.0f,  1.0f,0.0f,  1.0f,0.0f,  0.0f,0.0f,   0, 0, 0.65f },
                 /* 1: Anomaly   */ {  1.2f, 0.2f,   8.0f, 2.0f,   4.0f,  1.5f, 2.0f, 0.5f,  6.0f, 1.5f,  0.0f, 0.0f,  0.0f, 0.0f,  0.0f, 0.0f,  0.0f,  1.0f,0.0f,  1.0f,0.0f,  0.0f,0.0f,   0, 0, 0.35f },
