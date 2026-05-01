@@ -91,83 +91,13 @@ void on_key_down(int key) {
         auraCfgDirty_ = true;
         std::cout << "[Aura] Field: " << (auraEnabled_ ? "ON" : "OFF") << "\n";
         break;
-    case GLFW_KEY_5:
-    {
-        if (transitionPhase_ != TransitionPhase::IDLE) break;
-        uint32_t mood = MOOD_OPEN_SUNSET;
-        const auto& mp = MOOD_TABLE[mood];
-        uint32_t dest_seed = cpu_hash(activeSeed_, 999u);
-        pendingDestination_ = { dest_seed, mp.finite, derive_finite_radius(dest_seed, mp), mood };
-        transitionPhase_ = TransitionPhase::FADE_OUT;
-        transitionTimer_ = 0.0f;
-        std::cout << "[World] Transition (" << mood_name(mood) << "): seed " << activeSeed_
-            << " -> " << pendingDestination_.seed << "\n";
-    }
-    break;
-    case GLFW_KEY_6:
-    {
-        if (transitionPhase_ != TransitionPhase::IDLE) break;
-        uint32_t mood = MOOD_INDOOR_FLAT;
-        const auto& mp = MOOD_TABLE[mood];
-        uint32_t dest_seed = cpu_hash(activeSeed_, 999u);
-        uint32_t radius = derive_finite_radius(dest_seed, mp);
-        pendingDestination_ = { dest_seed, mp.finite, radius, mood };
-        transitionPhase_ = TransitionPhase::FADE_OUT;
-        transitionTimer_ = 0.0f;
-        uint32_t side = 2 * radius + 1;
-        std::cout << "[World] Transition (" << mood_name(mood) << " " << side << "x" << side
-            << "): seed " << activeSeed_
-            << " -> " << pendingDestination_.seed << "\n";
-    }
-    break;
-    case GLFW_KEY_7:
-    {
-        if (transitionPhase_ != TransitionPhase::IDLE) break;
-        uint32_t mood = MOOD_INDOOR_VAULT;
-        const auto& mp = MOOD_TABLE[mood];
-        uint32_t dest_seed = cpu_hash(activeSeed_, 999u);
-        uint32_t radius = derive_finite_radius(dest_seed, mp);
-        pendingDestination_ = { dest_seed, mp.finite, radius, mood };
-        transitionPhase_ = TransitionPhase::FADE_OUT;
-        transitionTimer_ = 0.0f;
-        uint32_t side = 2 * radius + 1;
-        std::cout << "[World] Transition (" << mood_name(mood) << " " << side << "x" << side
-            << "): seed " << activeSeed_
-            << " -> " << pendingDestination_.seed << "\n";
-    }
-    break;
-    case GLFW_KEY_8:
-    {
-        if (transitionPhase_ != TransitionPhase::IDLE) break;
-        uint32_t mood = MOOD_FINITE_OUTDOOR;
-        const auto& mp = MOOD_TABLE[mood];
-        uint32_t dest_seed = cpu_hash(activeSeed_, 999u);
-        uint32_t radius = derive_finite_radius(dest_seed, mp);
-        pendingDestination_ = { dest_seed, mp.finite, radius, mood };
-        transitionPhase_ = TransitionPhase::FADE_OUT;
-        transitionTimer_ = 0.0f;
-        uint32_t side = 2 * radius + 1;
-        std::cout << "[World] Transition (" << mood_name(mood) << " " << side << "x" << side
-            << "): seed " << activeSeed_
-            << " -> " << pendingDestination_.seed << "\n";
-    }
-    break;
-    case GLFW_KEY_9:
-    {
-        if (transitionPhase_ != TransitionPhase::IDLE) break;
-        uint32_t mood = MOOD_FINITE_OUTDOOR_REF;
-        const auto& mp = MOOD_TABLE[mood];
-        uint32_t dest_seed = cpu_hash(activeSeed_, 999u);
-        uint32_t radius = derive_finite_radius(dest_seed, mp);
-        pendingDestination_ = { dest_seed, mp.finite, radius, mood };
-        transitionPhase_ = TransitionPhase::FADE_OUT;
-        transitionTimer_ = 0.0f;
-        uint32_t side = 2 * radius + 1;
-        std::cout << "[World] Transition (" << mood_name(mood) << " " << side << "x" << side
-            << "): seed " << activeSeed_
-            << " -> " << pendingDestination_.seed << "\n";
-    }
-    break;
+    // DONE[input:L1] five copy-paste cases collapsed into one helper
+    //   call. request_mood_transition() lives in mood.inl.
+    case GLFW_KEY_5: request_mood_transition(MOOD_OPEN_SUNSET);        break;
+    case GLFW_KEY_6: request_mood_transition(MOOD_INDOOR_FLAT);        break;
+    case GLFW_KEY_7: request_mood_transition(MOOD_INDOOR_VAULT);       break;
+    case GLFW_KEY_8: request_mood_transition(MOOD_FINITE_OUTDOOR);     break;
+    case GLFW_KEY_9: request_mood_transition(MOOD_FINITE_OUTDOOR_REF); break;
     // ─── Musical animation mode toggles (numpad) ─────────────
     case GLFW_KEY_KP_1: toggle_mmode(MMODE_TERRAIN_WAVES);   break;
     case GLFW_KEY_KP_2: toggle_mmode(MMODE_COLOR_SHIFT);     break;

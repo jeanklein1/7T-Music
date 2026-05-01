@@ -1065,3 +1065,34 @@ void upload_lights(wgpu::Queue& queue) {
     gpuState_.upload_spot_lights(queue, cpuSpotLights_);
 }
 
+// DONE[input:L1] Mood-transition request — single canonical entry
+//   point. Replaces the five copy-paste cases in input.inl
+//   (KEY_5..KEY_9). Bails if a transition is already in flight.
+//   Logs in the same shape both branches used: "(mood_name)" for
+//   open worlds, "(mood_name SxS)" for finite worlds.
+//
+//   Lives in mood.inl rather than input.inl because portal crossings
+//   and other code paths can also drive mood transitions (see
+//   force_spawn_back_portal). One door, many keys.
+void request_mood_transition(uint32_t mood) {
+    if (transitionPhase_ != TransitionPhase::IDLE) return;
+    if (mood >= MOOD_COUNT) return;
+
+    const auto& mp = MOOD_TABLE[mood];
+    uint32_t dest_seed = cpu_hash(activeSeed_, 999u);
+    uint32_t radius = derive_finite_radius(dest_seed, mp);
+    pendingDestination_ = { dest_seed, mp.finite, radius, mood };
+    transitionPhase_ = TransitionPhase::FADE_OUT;
+    transitionTimer_ = 0.0f;
+
+    if (mp.finite) {
+        uint32_t side = 2 * radius + 1;
+        std::cout << "[World] Transition (" << mood_name(mood) << " "
+            << side << "x" << side << "): seed " << activeSeed_
+            << " -> " << pendingDestination_.seed << "\n";
+    } else {
+        std::cout << "[World] Transition (" << mood_name(mood) << "): seed "
+            << activeSeed_ << " -> " << pendingDestination_.seed << "\n";
+    }
+}
+
