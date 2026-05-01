@@ -274,31 +274,37 @@ namespace t7 {
         // S3 COUPLING BITS — Bitmask flags for entity-to-entity wires
         // =====================================================================
 
+        // DONE[state:L1] reserved-slot annotations mirrored from
+        //   world.wgsl §2 (lines 1675–1696). MUST match those bit
+        //   values 1:1 — semantic drift here would corrupt every
+        //   GPU-side coupling read silently. Reserved slots stay
+        //   declared because their bits flow through legacy code
+        //   paths; reusing them needs cross-side coordination.
         namespace Coupling {
-            constexpr uint32_t POLYPHONY_TO_AMPLITUDE = 1u << 0;
-            constexpr uint32_t PAWN_TO_FIELD_COLOR = 1u << 7;
-            constexpr uint32_t SPHERE_TO_FIELD_COLOR = 1u << 8;
-            // Naming alignment with WGSL (same bit values)
-            constexpr uint32_t PAWN_TO_PROXIMITY_FIELD = PAWN_TO_FIELD_COLOR;
-            constexpr uint32_t SPHERE_TO_PROXIMITY_FIELD = SPHERE_TO_FIELD_COLOR;
-            constexpr uint32_t POLYPHONY_TO_CELL_COLOR = 1u << 9;
-            constexpr uint32_t PAWN_TO_CELL_COLOR = 1u << 10;
-            constexpr uint32_t SPHERE_TO_CELL_COLOR = 1u << 11;
+            constexpr uint32_t POLYPHONY_TO_AMPLITUDE    = 1u << 0;
+            constexpr uint32_t TERRAIN_TO_PAWN_Y         = 1u << 1;
+            constexpr uint32_t TERRAIN_TO_PAWN_TILT      = 1u << 2;
+            constexpr uint32_t PAWN_TO_CAMERA_TARGET     = 1u << 3;
+            constexpr uint32_t INPUT_MOVES_PAWN          = 1u << 4;
+            constexpr uint32_t INPUT_ORBITS_CAMERA       = 1u << 5;
+            constexpr uint32_t INPUT_ZOOMS_CAMERA        = 1u << 6;
+            constexpr uint32_t PAWN_TO_FIELD_COLOR       = 1u << 7;   // (reserved — legacy proximity field)
+            constexpr uint32_t SPHERE_TO_FIELD_COLOR     = 1u << 8;   // (reserved — legacy proximity field)
+            constexpr uint32_t POLYPHONY_TO_CELL_COLOR   = 1u << 9;   // (reserved — legacy cell system)
+            constexpr uint32_t PAWN_TO_CELL_COLOR        = 1u << 10;  // (reserved — legacy cell system)
+            constexpr uint32_t SPHERE_TO_CELL_COLOR      = 1u << 11;  // (reserved — legacy cell system)
             constexpr uint32_t POLYPHONY_TO_SPHERE_COLOR = 1u << 12;
-            constexpr uint32_t SPHERE_TO_TERRAIN_TINT = 1u << 13;
-            constexpr uint32_t TERRAIN_TO_PAWN_Y = 1u << 1;
-            constexpr uint32_t TERRAIN_TO_PAWN_TILT = 1u << 2;
-            constexpr uint32_t PAWN_TO_CAMERA_TARGET = 1u << 3;
-            constexpr uint32_t TERRAIN_TO_SPHERE_HEIGHT = 1u << 14;
-            constexpr uint32_t RANDOM_TO_CELL_GOALS = 1u << 15;
-            constexpr uint32_t INPUT_MOVES_PAWN = 1u << 4;
-            constexpr uint32_t INPUT_ORBITS_CAMERA = 1u << 5;
-            constexpr uint32_t INPUT_ZOOMS_CAMERA = 1u << 6;
-            constexpr uint32_t PAWN_TO_SUN_VP = 1u << 16;
-            constexpr uint32_t PAWN_TO_ZONE_HEIGHT = 1u << 17;
-            constexpr uint32_t PAWN_TO_ZONE_COLOR = 1u << 18;
-            constexpr uint32_t SPHERE_TO_ZONE_HEIGHT = 1u << 19;
-            constexpr uint32_t SPHERE_TO_ZONE_COLOR = 1u << 20;
+            constexpr uint32_t SPHERE_TO_TERRAIN_TINT    = 1u << 13;
+            constexpr uint32_t TERRAIN_TO_SPHERE_HEIGHT  = 1u << 14;
+            constexpr uint32_t RANDOM_TO_CELL_GOALS      = 1u << 15;  // (reserved — legacy cell system)
+            constexpr uint32_t PAWN_TO_SUN_VP            = 1u << 16;
+            constexpr uint32_t PAWN_TO_ZONE_HEIGHT       = 1u << 17;
+            constexpr uint32_t PAWN_TO_ZONE_COLOR        = 1u << 18;
+            constexpr uint32_t SPHERE_TO_ZONE_HEIGHT     = 1u << 19;
+            constexpr uint32_t SPHERE_TO_ZONE_COLOR      = 1u << 20;
+            // Naming alignment with WGSL (same bit values).
+            constexpr uint32_t PAWN_TO_PROXIMITY_FIELD   = PAWN_TO_FIELD_COLOR;
+            constexpr uint32_t SPHERE_TO_PROXIMITY_FIELD = SPHERE_TO_FIELD_COLOR;
             constexpr uint32_t ALL = 0x1FFFFFu;
             constexpr uint32_t NONE = 0u;
             constexpr uint32_t STIMULUS = POLYPHONY_TO_AMPLITUDE | PAWN_TO_FIELD_COLOR | SPHERE_TO_FIELD_COLOR | POLYPHONY_TO_CELL_COLOR | PAWN_TO_CELL_COLOR | SPHERE_TO_CELL_COLOR | POLYPHONY_TO_SPHERE_COLOR | SPHERE_TO_TERRAIN_TINT;
