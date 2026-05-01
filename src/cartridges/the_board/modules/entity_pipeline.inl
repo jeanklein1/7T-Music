@@ -1556,7 +1556,7 @@ struct CubeIdx {
 
 // Cube substrate constants (CUBE_DEFAULT_SPRING_STIFFNESS, CUBE_DEFAULT_DRAG)
 // and registry helpers (apply_cube_tier_gains, pick_cube_behavior_for_spawn)
-// live in modules/floaters.inl. cube_write_gpu calls into them at spawn time.
+// live in modules/cube_behaviors.inl. cube_write_gpu calls into them at spawn time.
 
 static constexpr TierParamDef CUBE_PARAM_DEFS[] = {
     { CubeEntityProp::BODY_RADIUS,      0.5f, 1e30f, false, ParamDist::GAUSSIAN },
@@ -1652,7 +1652,7 @@ static void cube_write_gpu(Cartridge* c, const EntityInstance& inst, wgpu::Queue
     // Stationary population), the spring is at rest, drift_vel stays zero,
     // and pos == home — same visual as pre-Phase-3 hover-bob.
     //
-    // Spring/drag start at the system defaults defined in floaters.inl,
+    // Spring/drag start at the system defaults defined in cube_behaviors.inl,
     // then pass through apply_cube_tier_gains so each tier gets its own
     // dynamics signature baked in at spawn.
     fe.spring_stiffness = CUBE_DEFAULT_SPRING_STIFFNESS;
@@ -1670,7 +1670,7 @@ static void cube_write_gpu(Cartridge* c, const EntityInstance& inst, wgpu::Queue
     fe.behavior_id    = pick_cube_behavior_for_spawn(c->activeMood_, inst.seed);
     fe.behavior_phase = cpu_hash(inst.seed, 0xF10A7E70u);
     // Kite mode starts disabled — cube is anchored to its spawn patch
-    // until the user explicitly toggles kite mode via floaters.inl.
+    // until the user explicitly toggles kite mode via cube_behaviors.inl.
     fe.follow_pawn = 0;
     fe.pawn_offset[0] = 0.0f; fe.pawn_offset[1] = 0.0f; fe.pawn_offset[2] = 0.0f;
     c->gpuState_.upload_cube_entity_slot(queue, inst.slot, fe);

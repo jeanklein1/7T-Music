@@ -1,10 +1,11 @@
-// ─── floaters.inl ────────────────────────────────────────────────
+// ─── cube_behaviors.inl ─────────────────────────────────────────
 //
 // Cube behavior system. Spheres do their own thing (analytical PGA
-// orbit, no behavior layer); this module is cube-only despite the
-// "floaters" name — the file is named for the system the cubes live
-// in (the floating-entity buffer they share with spheres) rather
-// than for who consumes the registry.
+// orbit, no behavior layer); this module is cube-only by design.
+// (Renamed from floaters.inl in Phase 2.6 to resolve the naming
+// discrepancy that floaters:D3 had documented but accepted —
+// floater VOCABULARY now lives in floater_vocabulary.inl, behavior
+// here.)
 //
 // ┌─── Three registries ────────────────────────────────────────────┐
 // │                                                                  │
