@@ -661,14 +661,14 @@ uint32_t force_spawn_portal_at(wgpu::Queue& queue,
     }
     if (slot == UINT32_MAX) return UINT32_MAX;
 
-    const auto& tp = ARCH_TIERS[static_cast<uint32_t>(ArchTier::DOORWAY)].profile;
-    float half_span = tp.params[ArchIdx::SPAN].mean * 0.5f;
-    float rise = tp.params[ArchIdx::RISE].mean;
-    float depth = tp.params[ArchIdx::DEPTH].mean;
-    float thickness = tp.params[ArchIdx::THICKNESS].mean;
-    float pier_height = tp.params[ArchIdx::PIER_HEIGHT].mean;
-    float pier_padding = tp.params[ArchIdx::PIER_PADDING].mean;
-    float edge_blend = tp.params[ArchIdx::EDGE_BLEND].mean;
+    const auto& tp = ARCH_TIERS[static_cast<uint32_t>(ArchTier::DOORWAY)];
+    float half_span = tp.profile.params[ArchIdx::SPAN].mean * 0.5f;
+    float rise = tp.profile.params[ArchIdx::RISE].mean;
+    float depth = tp.profile.params[ArchIdx::DEPTH].mean;
+    float thickness = tp.profile.params[ArchIdx::THICKNESS].mean;
+    float pier_height = tp.profile.params[ArchIdx::PIER_HEIGHT].mean;
+    float pier_padding = tp.profile.params[ArchIdx::PIER_PADDING].mean;
+    float edge_blend = tp.profile.params[ArchIdx::EDGE_BLEND].mean;
 
     float pier_half_x = thickness * 0.5f + pier_padding + edge_blend;
     float pier_half_z = depth * 0.5f + pier_padding + edge_blend;
