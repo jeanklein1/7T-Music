@@ -5243,6 +5243,109 @@ time; Phases 2–5 unlock progressively as each completes.
 
 ---
 
+# Post-tour resolution log
+
+This section records what landed after the tour and how the open
+items resolved. Added as work happened.
+
+## Phases 1–5 — landed via Claude Code sessions
+
+All five phases of the resolution sequence completed cleanly:
+
+- **Phase 1 (immediate fixes):** `spine:L1` (vestigial for-loop fixed),
+  `spine:L2` (audit coverage documented).
+- **Phase 2 (banner-only extractions):** all 5 banner-only blocks
+  extracted into their own modules. cartridge.hpp halved
+  (9163 → ~4235 lines). New modules: `seed_utils.inl`, `entities.inl`,
+  `spawn_engine.inl`, `gol_zones.inl`, `gallery.inl`. Plus
+  `floater_vocabulary.inl` (Sphere + Cube vocabulary), `ribbon.inl`
+  (bespoke ribbon machinery extracted from cartridge.hpp). Module
+  rename: `floaters.inl` → `cube_behaviors.inl` to reflect actual
+  scope (cube behavior layer only).
+- **Phase 3 (small-strand cleanup batch):** floaters:L1 (cpuAgents
+  possession bug fixed), floaters:L4 / wgsl:L1 (CUBE_BEHAVIOR_COUNT
+  mirrored both sides + static_assert), sphere:L1 (struct renamed,
+  misleading comment removed), gol_zones:L1 (MUST match comment
+  added), input:L1 (request_mood_transition helper extracted),
+  mood:L1 (has_anchor_ribbon flag replaces magic-number check),
+  state:L1 (Coupling reserved annotations), state:L3 (typo),
+  agents:L1, gallery:L1, musical:L2, entities:L1, renderer:L2.
+- **Phase 4 (Trajectory primitive + tick functions):** new
+  `trajectory.inl` mirroring WGSL §1.2. `update()` reduced from a
+  catch-all of inline ramps to phase-orchestration only. New
+  functions: `tick_musical_couplings`, `reset_musical_couplings`
+  in musical.inl; `tick_pawn_couplings` in new `pawn.inl`. The
+  pawn.inl extraction landed (pawn_aura.inl renamed, presence ramp
+  + state moved in).
+- **Phase 5 (apply_mood split):** `mood:K2` resolved.
+  `apply_mood` reduced from 217-line linear soup to 28-line
+  orchestrator + 5 named sub-functions
+  (`apply_mood_lighting`, `apply_mood_spot_lights`,
+  `apply_mood_indoor_shell`, `apply_mood_band_motion`,
+  `apply_mood_anchor_ribbon`).
+
+Every knot the seam map's resolution sequence named is closed.
+
+## Post-Phase-5 decisions and follow-ups
+
+### entities:K1 — resolved with Option C + converters
+
+Decided after Phase 5 settled. The two-table duplication for the 9
+generic-pipeline families (7 grounded in entities.inl + 2 floater in
+floater_vocabulary.inl) collapses to a single source of truth: the
+named struct in the vocabulary file. The generic
+`*_TIER_TABLE` arrays in `entity_pipeline.inl` become *derived*
+arrays populated by per-family `*_to_profile()` constexpr
+converters.
+
+**Why C over B:** the named structs are the artist-facing surface.
+Tuning happens in the vocabulary files; the generic shape exists for
+the pipeline machinery. Putting the source of truth on the side
+artists touch eliminates hand-drift discipline. **And:** Option C
+matches the eventual control-surface direction (see below); Option
+B would have moved away from it.
+
+**The converter approach:** ~10 lines per family, total ~80 lines of
+mechanical derivation. The generic table's shape and consumer
+machinery are unchanged. Drift is impossible at compile time.
+
+### Control surface direction
+
+A future direction (post-K1, multiple Claude Code sessions over
+time): introduce `control_surface.inl` as a project-wide module that
+exposes every *tunable* parameter (not every constant — only the
+ones an artist would meaningfully turn during creative iteration),
+organized by visual concern, with explicit metadata about:
+
+- **Scope:** spawn-time / per-frame / per-mood-transition.
+- **Signal flow:** which downstream consumers read this value, what
+  visible effect it has, where in the pipeline the change cascades.
+
+The control surface would *not* invalidate per-module vocabulary
+files — those become typed views over the control surface. The
+control surface adds a single navigation point for "what can I tune
+and what does it affect."
+
+The K1 resolution is structured to be compatible with this direction:
+named structs in vocabulary files become a natural staging post for
+control-surface entries. Migrating to a control surface from named
+structs is a smaller step than migrating from generic-shape arrays.
+
+### Items still open (CC's report named these correctly)
+
+- **musical:K1 / musical:D2** — `MMODE_REGISTRY` + `SourceId`
+  abstraction. Paired with the Ableton rewiring conversation since
+  the registry's design depends on what kinds of musical inputs we
+  want to express. That conversation is the natural next step.
+- **contract:cleanup** — bulk WGSL ↔ state.hpp `[STATE:*]`
+  cross-ref tagging across all 49 GPU struct pairs. High cost / low
+  signal per the seam map. Bundle when convenient; not urgent.
+- **mood:L2/L3/L4** — small helpers (perimeter wall margin,
+  candidate-spot helper, normalization site). Bundle when mood.inl
+  gets touched again for substantive reasons.
+
+---
+
 # Tour complete
 
 All 15 chapters drawn. The map is the document; the source-code tags
