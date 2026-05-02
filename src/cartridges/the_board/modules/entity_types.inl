@@ -60,7 +60,9 @@ struct EntityFamilyTraits {
     uint32_t    tier_prop;
     const TierParamDef* param_defs;
     uint32_t    param_count;
-    const TierProfile*  tier_profiles;
+    // tier_profiles removed (entities:K1 → Option B): the sampling
+    // profile now lives inside each family's per-family tier struct
+    // in entity_pipeline.inl, reached via adapter.get_tier_profile.
     uint32_t    pos_x_prop;
     uint32_t    pos_z_prop;
     uint32_t    rotation_prop;
@@ -102,6 +104,10 @@ struct EntityFamilyAdapter {
     void (*write_active)(Cartridge* c, const EntityInstance& inst);
     void (*write_gpu)(Cartridge* c, const EntityInstance& inst, wgpu::Queue& queue);
     void (*post_commit)(Cartridge* c, const EntityInstance& inst, wgpu::Queue& queue);
+    // entities:K1 (Option B): per-family accessor returning the embedded
+    // TierProfile from the family-specific tier struct. generic_select
+    // calls this in place of indexing the (now-removed) traits.tier_profiles.
+    const TierProfile& (*get_tier_profile)(uint32_t tier_idx);
 };
 
 // ═══ END entity_types.inl ════════════════════════════════════════

@@ -661,14 +661,14 @@ uint32_t force_spawn_portal_at(wgpu::Queue& queue,
     }
     if (slot == UINT32_MAX) return UINT32_MAX;
 
-    const auto& tp = ARCH_TIERS[static_cast<uint32_t>(ArchTier::DOORWAY)];
-    float half_span = tp.span_mean * 0.5f;
-    float rise = tp.rise_mean;
-    float depth = tp.depth_mean;
-    float thickness = tp.thickness_mean;
-    float pier_height = tp.pier_height_mean;
-    float pier_padding = tp.pier_padding_mean;
-    float edge_blend = tp.edge_blend_mean;
+    const auto& tp = ARCH_TIERS[static_cast<uint32_t>(ArchTier::DOORWAY)].profile;
+    float half_span = tp.params[ArchIdx::SPAN].mean * 0.5f;
+    float rise = tp.params[ArchIdx::RISE].mean;
+    float depth = tp.params[ArchIdx::DEPTH].mean;
+    float thickness = tp.params[ArchIdx::THICKNESS].mean;
+    float pier_height = tp.params[ArchIdx::PIER_HEIGHT].mean;
+    float pier_padding = tp.params[ArchIdx::PIER_PADDING].mean;
+    float edge_blend = tp.params[ArchIdx::EDGE_BLEND].mean;
 
     float pier_half_x = thickness * 0.5f + pier_padding + edge_blend;
     float pier_half_z = depth * 0.5f + pier_padding + edge_blend;
@@ -794,11 +794,11 @@ void force_spawn_back_portal(wgpu::Queue& queue) {
         // worlds have no rendered walls, so the legacy 8 m offset is fine.
         float WALL_MARGIN;
         if (MOOD_TABLE[activeMood_].indoor) {
-            const auto& doorway = ARCH_TIERS[static_cast<uint32_t>(ArchTier::DOORWAY)];
-            const float doorway_half_span = doorway.span_mean * 0.5f;
-            const float doorway_pier_half = doorway.thickness_mean * 0.5f
-                + doorway.pier_padding_mean
-                + doorway.edge_blend_mean;
+            const auto& doorway = ARCH_TIERS[static_cast<uint32_t>(ArchTier::DOORWAY)].profile;
+            const float doorway_half_span = doorway.params[ArchIdx::SPAN].mean * 0.5f;
+            const float doorway_pier_half = doorway.params[ArchIdx::THICKNESS].mean * 0.5f
+                + doorway.params[ArchIdx::PIER_PADDING].mean
+                + doorway.params[ArchIdx::EDGE_BLEND].mean;
             WALL_MARGIN = INDOOR_ENTITY_WALL_MARGIN
                 + doorway_half_span + doorway_pier_half;
         }
@@ -930,11 +930,11 @@ void force_spawn_finite_portals(wgpu::Queue& queue) {
     // the legacy 8 m offset since there's no visual wall to clip into.
     float margin;
     if (MOOD_TABLE[activeMood_].indoor) {
-        const auto& doorway = ARCH_TIERS[static_cast<uint32_t>(ArchTier::DOORWAY)];
-        const float doorway_half_span = doorway.span_mean * 0.5f;
-        const float doorway_pier_half = doorway.thickness_mean * 0.5f
-            + doorway.pier_padding_mean
-            + doorway.edge_blend_mean;
+        const auto& doorway = ARCH_TIERS[static_cast<uint32_t>(ArchTier::DOORWAY)].profile;
+        const float doorway_half_span = doorway.params[ArchIdx::SPAN].mean * 0.5f;
+        const float doorway_pier_half = doorway.params[ArchIdx::THICKNESS].mean * 0.5f
+            + doorway.params[ArchIdx::PIER_PADDING].mean
+            + doorway.params[ArchIdx::EDGE_BLEND].mean;
         margin = INDOOR_ENTITY_WALL_MARGIN
             + doorway_half_span + doorway_pier_half;
     }

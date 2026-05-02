@@ -40,34 +40,9 @@
 //   "(Reuses FloatingEntityTierProfile...)" comment is also gone.
 // ─────────────────────────────────────────────────────────────────
 
-            // ─── Sphere Tier Profile ─────────────────────────────────────
-            // Cubes have their own CubeTierProfile (different fields —
-            // floater physics differs by motion shape: spheres orbit,
-            // cubes hover-bob).
-            struct SphereTierProfile {
-                float body_radius_mean, body_radius_sigma;
-                float orbit_radius_mean, orbit_radius_sigma;
-                float orbit_height_mean, orbit_height_sigma;
-                float orbit_speed_mean, orbit_speed_sigma;
-                float influence_radius_mean, influence_radius_sigma;
-                float spin_speed_mean, spin_speed_sigma;
-                float bob_amplitude_mean, bob_amplitude_sigma;
-                float bob_period_mean, bob_period_sigma;
-                float spin_tilt_sigma;
-                float aspect_y_mean, aspect_y_sigma;
-                float aspect_z_mean, aspect_z_sigma;
-                float face_variance_mean, face_variance_sigma;
-                uint32_t geometry_type;
-                uint32_t motion_type;
-                float weight;
-            };
-
+            // entities:K1 (Option B): SphereTierProfile and SPHERE_TIERS
+            // migrated to entity_pipeline.inl as SphereTierRow.
             static constexpr uint32_t SPHERE_TIER_COUNT = 2;
-            static constexpr SphereTierProfile SPHERE_TIERS[SPHERE_TIER_COUNT] = {
-                //                    rad_μ  σ     orb_μ  σ     ht_μ   σ      spd_μ  σ     inf_μ  σ     spin_μ σ     bob_μ  σ    per_μ  σ    tilt   asp_y  σ    asp_z  σ    fvar_μ σ     geo  mot  wt
-                /* 0: Sentinel  */ {  1.5f, 0.3f,  12.0f, 3.0f,   6.0f,  2.0f, 1.4f, 0.3f,  8.0f, 2.0f,  0.0f, 0.0f,  0.0f, 0.0f,  0.0f, 0.0f,  0.0f,  1.0f,0.0f,  1.0f,0.0f,  0.0f,0.0f,   0, 0, 0.65f },
-                /* 1: Anomaly   */ {  1.2f, 0.2f,   8.0f, 2.0f,   4.0f,  1.5f, 2.0f, 0.5f,  6.0f, 1.5f,  0.0f, 0.0f,  0.0f, 0.0f,  0.0f, 0.0f,  0.0f,  1.0f,0.0f,  1.0f,0.0f,  0.0f,0.0f,   0, 0, 0.35f },
-            };
 
             static constexpr float SPHERE_BASE_TIER_WEIGHTS[SPHERE_TIER_COUNT] = { 0.65f, 0.35f };
             static constexpr const char* SPHERE_TIER_NAMES[] = { "Sentinel", "Anomaly" };
@@ -150,29 +125,9 @@
 //   corral/kite could analogously have cube_anchor(slot) accessors.
 // ─────────────────────────────────────────────────────────────────
 
-            // ─── Cube Tier Profile ───────────────────────────────────────
-            struct CubeTierProfile {
-                float body_radius_mean, body_radius_sigma;
-                float orbit_height_mean, orbit_height_sigma;
-                float influence_radius_mean, influence_radius_sigma;
-                float spin_speed_mean, spin_speed_sigma;
-                float bob_amplitude_mean, bob_amplitude_sigma;
-                float bob_period_mean, bob_period_sigma;
-                float spin_tilt_sigma;
-                float aspect_y_mean, aspect_y_sigma;
-                float aspect_z_mean, aspect_z_sigma;
-                float face_variance_mean, face_variance_sigma;
-                float weight;
-            };
-
+            // entities:K1 (Option B): CubeTierProfile and CUBE_TIERS
+            // migrated to entity_pipeline.inl as CubeTierRow.
             static constexpr uint32_t CUBE_TIER_COUNT = 4;
-            static constexpr CubeTierProfile CUBE_TIERS[CUBE_TIER_COUNT] = {
-                //                    rad_μ  σ     ht_μ   σ      inf_μ  σ     spin_μ σ     bob_μ  σ    per_μ  σ    tilt   asp_y  σ    asp_z  σ    fvar_μ σ     wt
-                /* 0: SmallCube */ {  1.8f, 0.5f,  15.0f, 12.0f,  6.0f, 1.5f,  0.04f,0.015f,1.0f, 0.3f,  5.0f, 1.5f,  0.12f, 1.0f,0.15f, 1.0f,0.15f, 0.40f,0.12f,  0.40f },
-                /* 1: MedCube   */ {  4.0f, 1.2f,  25.0f, 18.0f, 10.0f, 2.0f,  0.03f,0.01f, 1.5f, 0.4f,  6.0f, 2.0f,  0.10f, 1.0f,0.20f, 1.0f,0.20f, 0.45f,0.15f,  0.32f },
-                /* 2: LargeCube */ {  8.0f, 2.5f,  35.0f, 20.0f, 14.0f, 3.0f,  0.02f,0.008f,2.0f, 0.5f,  8.0f, 2.5f,  0.08f, 1.0f,0.25f, 1.0f,0.25f, 0.35f,0.10f,  0.20f },
-                /* 3: Monolith  */ {  3.0f, 0.8f,   5.0f,  2.0f, 12.0f, 3.0f,  0.015f,0.005f,1.2f,0.3f,  6.0f, 2.0f,  0.10f, 5.0f,1.2f,  0.15f,0.03f, 0.45f,0.12f,  0.08f },
-            };
 
             static constexpr float CUBE_BASE_TIER_WEIGHTS[CUBE_TIER_COUNT] = { 0.40f, 0.32f, 0.20f, 0.08f };
             static constexpr const char* CUBE_TIER_NAMES[] = { "SmallCube", "MedCube", "LargeCube", "Monolith" };

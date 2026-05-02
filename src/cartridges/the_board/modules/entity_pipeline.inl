@@ -203,9 +203,11 @@ bool generic_select(
     if (!gate.ok) return false;
 
     // ── Tier selection with theme bias ──
+    // entities:K1 (Option B): tier weights and profiles come from the
+    // adapter's per-family accessor, not from a generic table on traits.
     float weights[8]{};
     for (uint32_t t = 0; t < traits.tier_count && t < 8; t++)
-        weights[t] = traits.tier_profiles[t].weight;
+        weights[t] = adapter.get_tier_profile(t).weight;
 
     // Apply theme tier weights (per-family array from PopulationTheme)
     const float* theme_tw = adapter.get_theme_tier_weights(gate.theme_idx);
@@ -214,7 +216,7 @@ bool generic_select(
 
     uint32_t tier = select_tier_biased(gate.seed, traits.tier_prop,
         weights, traits.tier_count, traits.family_id);
-    const auto& profile = traits.tier_profiles[tier];
+    const auto& profile = adapter.get_tier_profile(tier);
 
     // ── Sample all parameters from tier profile ──
     for (uint32_t i = 0; i < traits.param_count; i++) {
@@ -360,37 +362,41 @@ static constexpr TierParamDef BLADE_PARAM_DEFS[] = {
 };
 static constexpr uint32_t BLADE_PARAM_COUNT = sizeof(BLADE_PARAM_DEFS) / sizeof(TierParamDef);
 
-// ─── Tier Profiles ───────────────────────────────────────────────
-// Transcribed from BLADE_TIERS. Each params[] entry corresponds
-// to BLADE_PARAM_DEFS[i] in the same order:
-//   [0] BLADE_COUNT, [1] BLADE_H, [2] BLADE_H_VAR, [3] BLADE_W,
-//   [4] SPLAY, [5] CURVE, [6] TWIST, [7] TAPER
+// entities:K1 (Option B): per-family tier struct. Single source of
+// truth for blade-cluster tier values; supersedes
+// BladeClusterTierParams + BLADE_TIERS in entities.inl.
 //
-//                      wt       cnt        h          h_var      w          splay      curve      twist      taper
-//
-// Converter: BladeClusterTierParams (entities.inl) → generic TierProfile.
-// Order MUST match BLADE_PARAM_DEFS (BLADE_COUNT, BLADE_H, BLADE_H_VAR,
-// BLADE_W, SPLAY, CURVE, TWIST, TAPER).
-static constexpr TierProfile blade_to_profile(const BladeClusterTierParams& p) {
-    TierProfile out{};
-    out.weight = p.weight;
-    out.params[BladeIdx::BLADE_COUNT] = { p.blade_count_mean, p.blade_count_sigma };
-    out.params[BladeIdx::BLADE_H]     = { p.blade_h_mean,     p.blade_h_sigma };
-    out.params[BladeIdx::BLADE_H_VAR] = { p.blade_h_var_mean, p.blade_h_var_sigma };
-    out.params[BladeIdx::BLADE_W]     = { p.blade_w_mean,     p.blade_w_sigma };
-    out.params[BladeIdx::SPLAY]       = { p.splay_mean,       p.splay_sigma };
-    out.params[BladeIdx::CURVE]       = { p.curve_mean,       p.curve_sigma };
-    out.params[BladeIdx::TWIST]       = { p.twist_mean,       p.twist_sigma };
-    out.params[BladeIdx::TAPER]       = { p.taper_mean,       p.taper_sigma };
-    return out;
-}
-
-// DONE[entities:K1] derives from BLADE_TIERS in entities.inl.
-static constexpr TierProfile BLADE_TIER_TABLE[] = {
-    blade_to_profile(BLADE_TIERS[0]),
-    blade_to_profile(BLADE_TIERS[1]),
-    blade_to_profile(BLADE_TIERS[2]),
+// params[] order MUST match BLADE_PARAM_DEFS:
+//   [0]BLADE_COUNT [1]BLADE_H [2]BLADE_H_VAR [3]BLADE_W
+//   [4]SPLAY [5]CURVE [6]TWIST [7]TAPER
+struct BladeTierRow {
+    TierProfile profile;
+    float       color_over;
+    float       color_var;
+    uint32_t    blade_segs;
 };
+
+static constexpr BladeTierRow BLADE_TIERS[] = {
+    /* SPROUT  */ {
+        { 0.50f, { {3.0f, 0.5f}, {1.8f, 0.4f}, {0.35f, 0.08f}, {0.30f, 0.06f},
+                   {0.18f, 0.06f}, {0.12f, 0.04f}, {0.05f, 0.02f}, {0.85f, 0.05f} }},
+        0.15f, 0.06f, 5
+    },
+    /* CLUMP   */ {
+        { 0.35f, { {5.0f, 1.0f}, {3.2f, 0.6f}, {0.40f, 0.10f}, {0.45f, 0.08f},
+                   {0.25f, 0.08f}, {0.18f, 0.06f}, {0.08f, 0.03f}, {0.82f, 0.05f} }},
+        0.20f, 0.06f, 6
+    },
+    /* THICKET */ {
+        { 0.15f, { {6.0f, 1.0f}, {5.5f, 1.2f}, {0.45f, 0.10f}, {0.55f, 0.10f},
+                   {0.30f, 0.10f}, {0.22f, 0.08f}, {0.10f, 0.04f}, {0.80f, 0.06f} }},
+        0.25f, 0.08f, 7
+    },
+};
+
+static const TierProfile& blade_get_tier_profile(uint32_t tier_idx) {
+    return BLADE_TIERS[tier_idx].profile;
+}
 
 // ─── Color Parts ─────────────────────────────────────────────────
 // Body: BLADE_BODY_BASE, prop=COLOR_VAR_R, offset=0
@@ -417,7 +423,7 @@ static constexpr EntityFamilyTraits BLADE_TRAITS = {
     BladeClusterConfig::MOOD_MULTIPLIER,
     BladeClusterConfig::POSITION_JITTER,
     BLADE_TIER_COUNT, BladeProp::TIER,
-    BLADE_PARAM_DEFS, BLADE_PARAM_COUNT, BLADE_TIER_TABLE,
+    BLADE_PARAM_DEFS, BLADE_PARAM_COUNT,
     BladeProp::POSITION_X, BladeProp::POSITION_Z, BladeProp::ROTATION, true,
     2, BLADE_COLOR_PARTS,
 };
@@ -512,6 +518,7 @@ static constexpr EntityFamilyAdapter BLADE_ADAPTER = {
     blade_write_active,
     blade_write_gpu,
     nullptr,                  // no post_commit (no piers, no portals)
+    blade_get_tier_profile,
 };
 
 // ── Blade dispatch wrappers ──
@@ -578,45 +585,55 @@ static constexpr TierParamDef PALM_PARAM_DEFS[] = {
 };
 static constexpr uint32_t PALM_PARAM_COUNT = sizeof(PALM_PARAM_DEFS) / sizeof(TierParamDef);
 
-// Converter: PalmTierParams (entities.inl) → generic TierProfile.
-// LEAN_DIR is a UNIFORM_TAU distribution at the param-def level —
-// the named struct has no mean/sigma field for it (a uniform [0, 2π]
-// has no meaningful mean/sigma). The slot is filled with literal
-// {0, 0} on both sides today; the converter preserves that.
+// entities:K1 (Option B): per-family tier struct. Single source of
+// truth for palm tier values; supersedes PalmTierParams + PALM_TIERS
+// in entities.inl.
 //
-// Order MUST match PALM_PARAM_DEFS:
+// params[] order MUST match PALM_PARAM_DEFS:
 //   [0]HEIGHT [1]BASE_R [2]TOP_R [3]LEAN [4]LEAN_DIR(uniform — {0,0})
 //   [5]BARK_RINGS [6]BARK_DEPTH [7]FROND_COUNT [8]FROND_LEN
 //   [9]FROND_WIDTH [10]FROND_DROOP [11]FROND_ARCH [12]CROWN_SPREAD
 //   [13]CROWN_SKIRT [14]SOLID_PAD [15]EDGE_BLEND
-static constexpr TierProfile palm_to_profile(const PalmTierParams& p) {
-    TierProfile out{};
-    out.weight = p.weight;
-    out.params[PalmIdx::HEIGHT]       = { p.height_mean,         p.height_sigma };
-    out.params[PalmIdx::BASE_R]       = { p.base_r_mean,         p.base_r_sigma };
-    out.params[PalmIdx::TOP_R]        = { p.top_r_mean,          p.top_r_sigma };
-    out.params[PalmIdx::LEAN]         = { p.lean_mean,           p.lean_sigma };
-    out.params[PalmIdx::LEAN_DIR]     = { 0.0f,                  0.0f };  // UNIFORM_TAU
-    out.params[PalmIdx::BARK_RINGS]   = { p.bark_rings_mean,     p.bark_rings_sigma };
-    out.params[PalmIdx::BARK_DEPTH]   = { p.bark_depth_mean,     p.bark_depth_sigma };
-    out.params[PalmIdx::FROND_COUNT]  = { p.frond_count_mean,    p.frond_count_sigma };
-    out.params[PalmIdx::FROND_LEN]    = { p.frond_len_mean,      p.frond_len_sigma };
-    out.params[PalmIdx::FROND_WIDTH]  = { p.frond_width_mean,    p.frond_width_sigma };
-    out.params[PalmIdx::FROND_DROOP]  = { p.frond_droop_mean,    p.frond_droop_sigma };
-    out.params[PalmIdx::FROND_ARCH]   = { p.frond_arch_mean,     p.frond_arch_sigma };
-    out.params[PalmIdx::CROWN_SPREAD] = { p.crown_spread_mean,   p.crown_spread_sigma };
-    out.params[PalmIdx::CROWN_SKIRT]  = { p.crown_skirt_mean,    p.crown_skirt_sigma };
-    out.params[PalmIdx::SOLID_PAD]    = { p.solid_padding_mean,  p.solid_padding_sigma };
-    out.params[PalmIdx::EDGE_BLEND]   = { p.edge_blend_mean,     p.edge_blend_sigma };
-    return out;
-}
-
-// DONE[entities:K1] derives from PALM_TIERS in entities.inl.
-static constexpr TierProfile PALM_TIER_TABLE[] = {
-    palm_to_profile(PALM_TIERS[0]),
-    palm_to_profile(PALM_TIERS[1]),
-    palm_to_profile(PALM_TIERS[2]),
+//
+// LEAN_DIR is UNIFORM_TAU — uniform [0, 2π] has no meaningful mean/sigma,
+// the slot is a literal {0, 0} placeholder.
+struct PalmTierRow {
+    TierProfile profile;
+    float       color_over;
+    float       burial;
+    float       trunk_var;
+    float       frond_var;
+    uint32_t    trunk_segs;
+    uint32_t    frond_segs;
 };
+
+static constexpr PalmTierRow PALM_TIERS[] = {
+    /* SAPLING */ {
+        { 0.50f, { {8.0f, 2.0f},  {0.25f, 0.05f}, {0.12f, 0.02f}, {0.15f, 0.05f}, {0.0f, 0.0f},
+                   {8.0f, 2.0f},  {0.03f, 0.01f}, {7.0f, 1.0f},   {3.0f, 0.5f},   {0.8f, 0.15f},
+                   {0.3f, 0.1f},  {0.4f, 0.1f},   {0.6f, 0.1f},   {0.3f, 0.1f},   {0.5f, 0.1f},
+                   {0.5f, 0.1f} }},
+        0.1f, 0.1f, 0.06f, 0.04f, 12, 4
+    },
+    /* COASTAL */ {
+        { 0.35f, { {16.0f, 3.0f}, {0.40f, 0.08f}, {0.15f, 0.03f}, {0.20f, 0.08f}, {0.0f, 0.0f},
+                   {12.0f, 3.0f}, {0.04f, 0.01f}, {11.0f, 2.0f},  {5.0f, 0.8f},   {1.2f, 0.2f},
+                   {0.5f, 0.15f}, {0.5f, 0.12f},  {0.7f, 0.1f},   {0.4f, 0.1f},   {0.8f, 0.15f},
+                   {0.8f, 0.15f} }},
+        0.15f, 0.15f, 0.05f, 0.03f, 16, 5
+    },
+    /* ROYAL   */ {
+        { 0.15f, { {28.0f, 5.0f}, {0.55f, 0.10f}, {0.18f, 0.04f}, {0.10f, 0.05f}, {0.0f, 0.0f},
+                   {18.0f, 4.0f}, {0.05f, 0.01f}, {15.0f, 2.0f},  {7.0f, 1.0f},   {1.5f, 0.3f},
+                   {0.6f, 0.15f}, {0.6f, 0.15f},  {0.8f, 0.1f},   {0.5f, 0.1f},   {1.0f, 0.2f},
+                   {1.0f, 0.2f} }},
+        0.20f, 0.2f, 0.04f, 0.03f, 20, 6
+    },
+};
+
+static const TierProfile& palm_get_tier_profile(uint32_t tier_idx) {
+    return PALM_TIERS[tier_idx].profile;
+}
 
 static constexpr ColorPartDef PALM_COLOR_PARTS[] = {
     { {0.45f,0.35f,0.25f}, 0.0f, PalmProp::COLOR_VAR_R, 0 },   // trunk
@@ -631,7 +648,7 @@ static constexpr EntityFamilyTraits PALM_TRAITS = {
     PalmProp::SPAWN_ROLL, PalmConfig::SPAWN_CHANCE,
     PalmConfig::MOOD_MULTIPLIER, PalmConfig::POSITION_JITTER,
     PALM_TIER_COUNT, PalmProp::TIER,
-    PALM_PARAM_DEFS, PALM_PARAM_COUNT, PALM_TIER_TABLE,
+    PALM_PARAM_DEFS, PALM_PARAM_COUNT,
     PalmProp::POSITION_X, PalmProp::POSITION_Z, PalmProp::ROTATION, true,
     3, PALM_COLOR_PARTS,
 };
@@ -721,6 +738,7 @@ static constexpr EntityFamilyAdapter PALM_ADAPTER = {
     palm_run_gate, palm_get_theme_tier_weights,
     palm_compute_solid_half, palm_compute_colors,
     palm_write_active, palm_write_gpu, nullptr,
+    palm_get_tier_profile,
 };
 
 // ── Palm dispatch wrappers ──
@@ -782,38 +800,47 @@ static constexpr TierParamDef CACTUS_PARAM_DEFS[] = {
 };
 static constexpr uint32_t CACTUS_PARAM_COUNT = sizeof(CACTUS_PARAM_DEFS) / sizeof(TierParamDef);
 
-// Converter: CactusTierParams (entities.inl) → generic TierProfile.
-// LEAN_DIR is UNIFORM_TAU — same pattern as Palm, literal {0, 0}.
+// entities:K1 (Option B): per-family tier struct. Single source of
+// truth for cactus tier values; supersedes CactusTierParams +
+// CACTUS_TIERS in entities.inl. LEAN_DIR is UNIFORM_TAU — literal
+// {0, 0} placeholder (same pattern as Palm).
 //
-// Order MUST match CACTUS_PARAM_DEFS:
+// params[] order MUST match CACTUS_PARAM_DEFS:
 //   [0]HEIGHT [1]RADIUS [2]TAPER [3]RIBS [4]RIB_DEPTH [5]LEAN
 //   [6]LEAN_DIR(uniform — {0,0}) [7]CAP_ROUND [8]ARM_COUNT
 //   [9]ARM_HEIGHT [10]ARM_LENGTH [11]ARM_RADIUS [12]ARM_CURVE
-static constexpr TierProfile cactus_to_profile(const CactusTierParams& p) {
-    TierProfile out{};
-    out.weight = p.weight;
-    out.params[CactusIdx::HEIGHT]     = { p.height_mean,     p.height_sigma };
-    out.params[CactusIdx::RADIUS]     = { p.radius_mean,     p.radius_sigma };
-    out.params[CactusIdx::TAPER]      = { p.taper_mean,      p.taper_sigma };
-    out.params[CactusIdx::RIBS]       = { p.ribs_mean,       p.ribs_sigma };
-    out.params[CactusIdx::RIB_DEPTH]  = { p.rib_depth_mean,  p.rib_depth_sigma };
-    out.params[CactusIdx::LEAN]       = { p.lean_mean,       p.lean_sigma };
-    out.params[CactusIdx::LEAN_DIR]   = { 0.0f,              0.0f };  // UNIFORM_TAU
-    out.params[CactusIdx::CAP_ROUND]  = { p.cap_round_mean,  p.cap_round_sigma };
-    out.params[CactusIdx::ARM_COUNT]  = { p.arm_count_mean,  p.arm_count_sigma };
-    out.params[CactusIdx::ARM_HEIGHT] = { p.arm_height_mean, p.arm_height_sigma };
-    out.params[CactusIdx::ARM_LENGTH] = { p.arm_length_mean, p.arm_length_sigma };
-    out.params[CactusIdx::ARM_RADIUS] = { p.arm_radius_mean, p.arm_radius_sigma };
-    out.params[CactusIdx::ARM_CURVE]  = { p.arm_curve_mean,  p.arm_curve_sigma };
-    return out;
-}
-
-// DONE[entities:K1] derives from CACTUS_TIERS in entities.inl.
-static constexpr TierProfile CACTUS_TIER_TABLE[] = {
-    cactus_to_profile(CACTUS_TIERS[0]),
-    cactus_to_profile(CACTUS_TIERS[1]),
-    cactus_to_profile(CACTUS_TIERS[2]),
+struct CactusTierRow {
+    TierProfile profile;
+    float       color_over;
+    float       color_var;
+    uint32_t    trunk_segs;
+    uint32_t    arm_segs;
 };
+
+static constexpr CactusTierRow CACTUS_TIERS[] = {
+    /* FINGER     */ {
+        { 0.50f, { {3.0f, 1.0f},   {0.15f, 0.03f}, {0.85f, 0.05f}, {8.0f, 1.0f},   {0.04f, 0.01f},
+                   {0.1f, 0.05f},  {0.0f, 0.0f},   {0.6f, 0.1f},   {0.0f, 0.0f},
+                   {0.5f, 0.1f},   {1.0f, 0.3f},   {0.08f, 0.02f}, {0.7f, 0.1f} }},
+        0.1f, 0.04f, 12, 6
+    },
+    /* SAGUARO    */ {
+        { 0.35f, { {8.0f, 2.0f},   {0.35f, 0.06f}, {0.9f, 0.04f},  {12.0f, 2.0f},  {0.05f, 0.01f},
+                   {0.08f, 0.04f}, {0.0f, 0.0f},   {0.5f, 0.1f},   {1.5f, 0.7f},
+                   {0.45f, 0.1f},  {3.0f, 0.8f},   {0.2f, 0.04f},  {0.6f, 0.15f} }},
+        0.15f, 0.03f, 16, 8
+    },
+    /* CANDELABRA */ {
+        { 0.15f, { {14.0f, 3.0f},  {0.45f, 0.08f}, {0.92f, 0.03f}, {16.0f, 2.0f},  {0.06f, 0.01f},
+                   {0.05f, 0.03f}, {0.0f, 0.0f},   {0.4f, 0.1f},   {3.0f, 0.8f},
+                   {0.4f, 0.1f},   {5.0f, 1.0f},   {0.25f, 0.05f}, {0.5f, 0.15f} }},
+        0.2f, 0.03f, 20, 10
+    },
+};
+
+static const TierProfile& cactus_get_tier_profile(uint32_t tier_idx) {
+    return CACTUS_TIERS[tier_idx].profile;
+}
 
 static constexpr ColorPartDef CACTUS_COLOR_PARTS[] = {
     { {0.30f,0.45f,0.25f}, 0.0f, CactusProp::COLOR_VAR_R, 0 },   // body
@@ -827,7 +854,7 @@ static constexpr EntityFamilyTraits CACTUS_TRAITS = {
     CactusProp::SPAWN_ROLL, CactusConfig::SPAWN_CHANCE,
     CactusConfig::MOOD_MULTIPLIER, CactusConfig::POSITION_JITTER,
     CACTUS_TIER_COUNT, CactusProp::TIER,
-    CACTUS_PARAM_DEFS, CACTUS_PARAM_COUNT, CACTUS_TIER_TABLE,
+    CACTUS_PARAM_DEFS, CACTUS_PARAM_COUNT,
     CactusProp::POSITION_X, CactusProp::POSITION_Z, CactusProp::ROTATION, true,
     2, CACTUS_COLOR_PARTS,
 };
@@ -907,6 +934,7 @@ static constexpr EntityFamilyAdapter CACTUS_ADAPTER = {
     cactus_run_gate, cactus_get_theme_tier_weights,
     cactus_compute_solid_half, cactus_compute_colors,
     cactus_write_active, cactus_write_gpu, nullptr,
+    cactus_get_tier_profile,
 };
 
 // ── Cactus dispatch wrappers ──
@@ -988,51 +1016,80 @@ static constexpr TierParamDef ANTENNA_PARAM_DEFS[] = {
     { AntennaProp::EDGE_BLEND,      0.1f, 1e30f, false, ParamDist::GAUSSIAN },
 };
 
-// Converter: ColumnTierParams (entities.inl) → generic TierProfile.
-// Used by both COLUMN_TIERS and ANTENNA_TIERS — they share the same
-// ColumnTierParams shape, with field reuse for antennas (base_layers
-// = drum_count, base_height = drum_height, etc., per the comment at
-// the ANTENNA_TIERS declaration site).
+// entities:K1 (Option B): per-family tier struct shared by Column and
+// Antenna — both families sample the same 13-param shape, with field
+// reuse for antennas (base_layers = drum_count, base_height =
+// drum_height, etc., per the comment at the ANTENNA_TIERS site).
 //
-// Order MUST match COLUMN_PARAM_DEFS / ANTENNA_PARAM_DEFS (HEIGHT,
-// SHAFT_RADIUS, TAPER, ENTASIS, BASE_LAYERS, BASE_HEIGHT,
-// BASE_OVERHANG, CAP_LAYERS, CAP_HEIGHT, CAP_OVERHANG,
-// SOLID_PADDING, SOLID_HEIGHT, EDGE_BLEND).
-static constexpr TierProfile column_to_profile(const ColumnTierParams& p) {
-    TierProfile out{};
-    out.weight = p.weight;
-    out.params[ColIdx::HEIGHT]        = { p.height_mean,           p.height_sigma };
-    out.params[ColIdx::SHAFT_RADIUS]  = { p.shaft_radius_mean,     p.shaft_radius_sigma };
-    out.params[ColIdx::TAPER]         = { p.taper_mean,            p.taper_sigma };
-    out.params[ColIdx::ENTASIS]       = { p.entasis_mean,          p.entasis_sigma };
-    out.params[ColIdx::BASE_LAYERS]   = { p.base_layers_mean,      p.base_layers_sigma };
-    out.params[ColIdx::BASE_HEIGHT]   = { p.base_height_mean,      p.base_height_sigma };
-    out.params[ColIdx::BASE_OVERHANG] = { p.base_overhang_mean,    p.base_overhang_sigma };
-    out.params[ColIdx::CAP_LAYERS]    = { p.capital_layers_mean,   p.capital_layers_sigma };
-    out.params[ColIdx::CAP_HEIGHT]    = { p.capital_height_mean,   p.capital_height_sigma };
-    out.params[ColIdx::CAP_OVERHANG]  = { p.capital_overhang_mean, p.capital_overhang_sigma };
-    out.params[ColIdx::SOLID_PADDING] = { p.solid_padding_mean,    p.solid_padding_sigma };
-    out.params[ColIdx::SOLID_HEIGHT]  = { p.solid_height_mean,     p.solid_height_sigma };
-    out.params[ColIdx::EDGE_BLEND]    = { p.edge_blend_mean,       p.edge_blend_sigma };
-    return out;
-}
-
-// DONE[entities:K1] derives from COLUMN_TIERS in entities.inl.
+// params[] order MUST match COLUMN_PARAM_DEFS / ANTENNA_PARAM_DEFS:
 //   [0]HEIGHT [1]SHAFT_R [2]TAPER [3]ENTASIS [4]BASE_LAYERS [5]BASE_H
-//   [6]BASE_OH [7]CAP_LAYERS [8]CAP_H [9]CAP_OH [10]SOLID_PAD [11]SOLID_H [12]EDGE_BLEND
-static constexpr TierProfile COLUMN_TIER_TABLE[] = {
-    column_to_profile(COLUMN_TIERS[0]),
-    column_to_profile(COLUMN_TIERS[1]),
-    column_to_profile(COLUMN_TIERS[2]),
+//   [6]BASE_OH [7]CAP_LAYERS [8]CAP_H [9]CAP_OH [10]SOLID_PAD
+//   [11]SOLID_H [12]EDGE_BLEND
+//
+// Note: name is ColumnTierRow, not ColumnTier — entities.inl declares
+// `enum class ColumnTier`, occupying that name.
+struct ColumnTierRow {
+    TierProfile profile;
+    float       color_override;
+    float       burial;
+    uint32_t    segs_around;
+    uint32_t    shaft_rings;
 };
 
-// DONE[entities:K1] derives from ANTENNA_TIERS in entities.inl.
-//   Reuses column_to_profile — Antennas share ColumnTierParams.
-static constexpr TierProfile ANTENNA_TIER_TABLE[] = {
-    column_to_profile(ANTENNA_TIERS[0]),
-    column_to_profile(ANTENNA_TIERS[1]),
-    column_to_profile(ANTENNA_TIERS[2]),
+static constexpr ColumnTierRow COLUMN_TIERS[] = {
+    /* PILLAR */ {
+        { 0.05f, { {6.5f, 1.2f}, {1.80f, 0.30f}, {1.00f, 0.0f},  {0.00f, 0.0f},
+                   {1.0f, 0.3f}, {0.50f, 0.10f}, {0.20f, 0.05f},
+                   {1.0f, 0.3f}, {0.40f, 0.08f}, {0.15f, 0.04f},
+                   {0.3f, 0.08f}, {1.5f, 0.3f},  {0.4f, 0.08f} }},
+        0.15f, 0.25f, 16, 4
+    },
+    /* DORIC  */ {
+        { 0.20f, { {6.4f, 1.2f}, {0.38f, 0.06f}, {0.85f, 0.03f}, {0.02f, 0.01f},
+                   {0.0f, 0.0f}, {0.00f, 0.00f}, {0.00f, 0.00f},
+                   {2.0f, 0.5f}, {0.50f, 0.10f}, {0.15f, 0.04f},
+                   {0.2f, 0.05f}, {1.0f, 0.2f},  {0.3f, 0.05f} }},
+        0.25f, 0.20f, 20, 8
+    },
+    /* ORNATE */ {
+        { 0.18f, { {16.8f, 2.8f}, {1.35f, 0.19f}, {0.82f, 0.03f}, {0.04f, 0.01f},
+                   {2.0f, 0.5f},  {1.20f, 0.25f}, {0.30f, 0.08f},
+                   {3.0f, 0.5f},  {1.50f, 0.30f}, {0.40f, 0.10f},
+                   {0.4f, 0.10f}, {1.5f, 0.3f},   {0.5f, 0.10f} }},
+        0.35f, 0.20f, 28, 12
+    },
 };
+
+static constexpr ColumnTierRow ANTENNA_TIERS[] = {
+    /* ANTENNA  */ {
+        { 0.10f, { {17.5f, 3.5f}, {0.30f, 0.05f}, {0.85f, 0.05f}, {0.00f, 0.0f},
+                   {2.0f, 0.5f},  {2.1f, 0.42f},  {1.5f, 0.3f},
+                   {0.0f, 0.0f},  {1.5f, 0.3f},   {0.0f, 0.0f},
+                   {0.2f, 0.05f}, {1.0f, 0.2f},   {0.3f, 0.05f} }},
+        0.40f, 0.20f, 16, 6
+    },
+    /* SQUAT    */ {
+        { 0.22f, { {32.5f, 6.5f}, {0.90f, 0.15f}, {0.85f, 0.05f}, {0.00f, 0.0f},
+                   {2.0f, 0.5f},  {2.0f, 0.4f},   {6.0f, 1.2f},
+                   {0.0f, 0.0f},  {1.5f, 0.3f},   {0.0f, 0.0f},
+                   {0.4f, 0.10f}, {1.5f, 0.3f},   {0.4f, 0.08f} }},
+        0.40f, 0.20f, 16, 6
+    },
+    /* COLOSSAL */ {
+        { 0.13f, { {125.0f, 25.0f}, {3.00f, 0.50f}, {0.85f, 0.05f}, {0.00f, 0.0f},
+                   {2.0f, 0.5f},    {7.5f, 1.5f},   {17.5f, 3.5f},
+                   {0.0f, 0.0f},    {7.5f, 1.5f},   {0.0f, 0.0f},
+                   {1.95f, 0.39f},  {12.0f, 2.4f},  {1.0f, 0.20f} }},
+        0.40f, 0.20f, 20, 8
+    },
+};
+
+static const TierProfile& column_get_tier_profile(uint32_t tier_idx) {
+    return COLUMN_TIERS[tier_idx].profile;
+}
+static const TierProfile& antenna_get_tier_profile(uint32_t tier_idx) {
+    return ANTENNA_TIERS[tier_idx].profile;
+}
 
 // ── Column traits ──
 
@@ -1043,7 +1100,7 @@ static constexpr EntityFamilyTraits COLUMN_TRAITS = {
     ColumnProp::SPAWN_ROLL, ColumnConfig::SPAWN_CHANCE,
     ColumnConfig::MOOD_MULTIPLIER, ColumnConfig::POSITION_JITTER,
     COLUMN_TIER_COUNT, ColumnProp::TIER,
-    COLUMN_PARAM_DEFS, COLUMN_PARAM_COUNT, COLUMN_TIER_TABLE,
+    COLUMN_PARAM_DEFS, COLUMN_PARAM_COUNT,
     ColumnProp::POSITION_X, ColumnProp::POSITION_Z, 355u, true,
     0, nullptr,  // color handled entirely by adapter
 };
@@ -1055,7 +1112,7 @@ static constexpr EntityFamilyTraits ANTENNA_TRAITS = {
     AntennaProp::SPAWN_ROLL, AntennaConfig::SPAWN_CHANCE,
     AntennaConfig::MOOD_MULTIPLIER, AntennaConfig::POSITION_JITTER,
     ANTENNA_TIER_COUNT, AntennaProp::TIER,
-    ANTENNA_PARAM_DEFS, COLUMN_PARAM_COUNT, ANTENNA_TIER_TABLE,
+    ANTENNA_PARAM_DEFS, COLUMN_PARAM_COUNT,
     AntennaProp::POSITION_X, AntennaProp::POSITION_Z, 355u, true,
     0, nullptr,
 };
@@ -1173,6 +1230,7 @@ static constexpr EntityFamilyAdapter COLUMN_ADAPTER = {
     column_run_gate, column_get_theme_tier_weights,
     column_compute_solid_half, column_compute_colors,
     column_write_active, column_write_gpu, column_post_commit,
+    column_get_tier_profile,
 };
 
 // ── Column dispatch wrappers ──
@@ -1326,6 +1384,7 @@ static constexpr EntityFamilyAdapter ANTENNA_ADAPTER = {
     antenna_run_gate, antenna_get_theme_tier_weights,
     antenna_compute_solid_half, antenna_compute_colors,
     antenna_write_active, antenna_write_gpu, antenna_post_commit,
+    antenna_get_tier_profile,
 };
 
 // ── Antenna dispatch wrappers ──
@@ -1371,27 +1430,42 @@ static constexpr TierParamDef PYRAMID_PARAM_DEFS[] = {
 };
 static constexpr uint32_t PYRAMID_PARAM_COUNT = sizeof(PYRAMID_PARAM_DEFS) / sizeof(TierParamDef);
 
-// Converter: PyramidTierParams (entities.inl) → generic TierProfile.
-// The order of TierMuSigma pairs MUST match PYRAMID_PARAM_DEFS order
-// (HEIGHT, BASE_HALF, ASPECT, TRUNCATION, EDGE_BLEND).
-static constexpr TierProfile pyramid_to_profile(const PyramidTierParams& p) {
-    TierProfile out{};
-    out.weight = p.weight;
-    out.params[PyrIdx::HEIGHT]     = { p.height_mean,        p.height_sigma };
-    out.params[PyrIdx::BASE_HALF]  = { p.base_half_mean,     p.base_half_sigma };
-    out.params[PyrIdx::ASPECT]     = { p.aspect_ratio_mean,  p.aspect_ratio_sigma };
-    out.params[PyrIdx::TRUNCATION] = { p.truncation_mean,    p.truncation_sigma };
-    out.params[PyrIdx::EDGE_BLEND] = { p.edge_blend_mean,    p.edge_blend_sigma };
-    return out;
-}
-
-// DONE[entities:K1] table now derives from PYRAMID_TIERS in entities.inl.
-//   Edits to tier values happen there, not here.
-static constexpr TierProfile PYRAMID_TIER_TABLE[] = {
-    pyramid_to_profile(PYRAMID_TIERS[0]),
-    pyramid_to_profile(PYRAMID_TIERS[1]),
-    pyramid_to_profile(PYRAMID_TIERS[2]),
+// entities:K1 (Option B): per-family tier struct — sampling profile
+// (TierProfile, consumed by generic_select) plus extras (consumed by
+// pyramid adapter functions). Single source of truth for pyramid tier
+// values; supersedes the PyramidTierParams + PYRAMID_TIERS pair that
+// used to live in entities.inl.
+//
+// params[] order MUST match PYRAMID_PARAM_DEFS:
+//   [0]HEIGHT [1]BASE_HALF [2]ASPECT [3]TRUNCATION [4]EDGE_BLEND
+// Note: cannot reuse `PyramidTier` as the struct name — entities.inl
+// declares `enum class PyramidTier`, which occupies the same name slot.
+// `PyramidTierRow` keeps the new struct distinct without renaming the
+// enum (used widely as PyramidTier::OBELISK etc.).
+struct PyramidTierRow {
+    TierProfile profile;
+    float color_override;
+    float color_variance;
 };
+
+static constexpr PyramidTierRow PYRAMID_TIERS[] = {
+    /* OBELISK  */ {
+        { 0.50f, { {28.0f, 6.0f},  {16.0f, 3.0f},  {1.0f, 0.15f}, {0.00f, 0.00f}, {1.5f, 0.3f}  }},
+        0.10f, 0.04f
+    },
+    /* TEMPLE   */ {
+        { 0.25f, { {45.0f, 8.0f},  {40.0f, 6.0f},  {1.0f, 0.20f}, {0.25f, 0.08f}, {3.0f, 0.75f} }},
+        0.15f, 0.04f
+    },
+    /* COLOSSUS */ {
+        { 0.25f, { {78.0f, 14.4f}, {60.0f, 9.6f},  {1.0f, 0.10f}, {0.05f, 0.04f}, {3.6f, 1.0f}  }},
+        0.20f, 0.04f
+    },
+};
+
+static const TierProfile& pyramid_get_tier_profile(uint32_t tier_idx) {
+    return PYRAMID_TIERS[tier_idx].profile;
+}
 
 static constexpr EntityFamilyTraits PYRAMID_TRAITS = {
     PopFamily::PYRAMID, "pyr", Dim::MAX_PYRAMID_INSTANCES,
@@ -1400,7 +1474,7 @@ static constexpr EntityFamilyTraits PYRAMID_TRAITS = {
     PyramidProp::SPAWN_ROLL, PyramidConfig::SPAWN_CHANCE,
     PyramidConfig::MOOD_MULTIPLIER, PyramidConfig::POSITION_JITTER,
     3, PyramidProp::TIER,
-    PYRAMID_PARAM_DEFS, PYRAMID_PARAM_COUNT, PYRAMID_TIER_TABLE,
+    PYRAMID_PARAM_DEFS, PYRAMID_PARAM_COUNT,
     PyramidProp::POSITION_X, PyramidProp::POSITION_Z, PyramidProp::ROTATION, true,
     0, nullptr,  // color handled by adapter
 };
@@ -1505,6 +1579,7 @@ static constexpr EntityFamilyAdapter PYRAMID_ADAPTER = {
     pyramid_run_gate, pyramid_get_theme_tier_weights,
     pyramid_compute_solid_half, pyramid_compute_colors,
     pyramid_write_active, pyramid_write_gpu, pyramid_post_commit,
+    pyramid_get_tier_profile,
 };
 
 // ── Pyramid dispatch wrappers ──
@@ -1550,25 +1625,50 @@ static constexpr TierParamDef SPHERE_PARAM_DEFS[] = {
 };
 static constexpr uint32_t SPHERE_PARAM_COUNT = sizeof(SPHERE_PARAM_DEFS) / sizeof(TierParamDef);
 
-// Converter: SphereTierProfile (floater_vocabulary.inl) → generic TierProfile.
-// Order MUST match SPHERE_PARAM_DEFS (BODY_RADIUS, ORBIT_RADIUS,
-// ORBIT_HEIGHT, ORBIT_SPEED, INFLUENCE_RADIUS).
-static constexpr TierProfile sphere_to_profile(const SphereTierProfile& p) {
-    TierProfile out{};
-    out.weight = p.weight;
-    out.params[SphIdx::BODY_RADIUS]      = { p.body_radius_mean,      p.body_radius_sigma };
-    out.params[SphIdx::ORBIT_RADIUS]     = { p.orbit_radius_mean,     p.orbit_radius_sigma };
-    out.params[SphIdx::ORBIT_HEIGHT]     = { p.orbit_height_mean,     p.orbit_height_sigma };
-    out.params[SphIdx::ORBIT_SPEED]      = { p.orbit_speed_mean,      p.orbit_speed_sigma };
-    out.params[SphIdx::INFLUENCE_RADIUS] = { p.influence_radius_mean, p.influence_radius_sigma };
-    return out;
-}
-
-// DONE[entities:K1] derives from SPHERE_TIERS in floater_vocabulary.inl.
-static constexpr TierProfile SPHERE_TIER_TABLE[] = {
-    sphere_to_profile(SPHERE_TIERS[0]),
-    sphere_to_profile(SPHERE_TIERS[1]),
+// entities:K1 (Option B): per-family tier struct. Single source of
+// truth for sphere tier values; supersedes SphereTierProfile +
+// SPHERE_TIERS in floater_vocabulary.inl.
+//
+// params[] order MUST match SPHERE_PARAM_DEFS:
+//   [0]BODY_RADIUS [1]ORBIT_RADIUS [2]ORBIT_HEIGHT [3]ORBIT_SPEED
+//   [4]INFLUENCE_RADIUS
+//
+// Note: the original SphereTierProfile carried a number of fields
+// (spin_speed, bob_amplitude/period, spin_tilt, aspect_y/z, face_variance,
+// geometry_type, motion_type) that the sphere adapter never reads —
+// sphere_write_gpu hardcodes those slots in the GPU upload. We preserve
+// them here verbatim per the migration spec ("preserve all numeric
+// values"); dropping the dead fields would be a separate cleanup.
+struct SphereTierRow {
+    TierProfile profile;
+    // Dead-but-preserved extras (not consumed by sphere adapter).
+    float       spin_speed_mean,    spin_speed_sigma;
+    float       bob_amplitude_mean, bob_amplitude_sigma;
+    float       bob_period_mean,    bob_period_sigma;
+    float       spin_tilt_sigma;
+    float       aspect_y_mean,      aspect_y_sigma;
+    float       aspect_z_mean,      aspect_z_sigma;
+    float       face_variance_mean, face_variance_sigma;
+    uint32_t    geometry_type;
+    uint32_t    motion_type;
 };
+
+static constexpr SphereTierRow SPHERE_TIERS[SPHERE_TIER_COUNT] = {
+    /* 0: Sentinel */ {
+        { 0.65f, { {1.5f, 0.3f}, {12.0f, 3.0f}, {6.0f, 2.0f}, {1.4f, 0.3f}, {8.0f, 2.0f} }},
+        0.0f, 0.0f,  0.0f, 0.0f,  0.0f, 0.0f,  0.0f,
+        1.0f, 0.0f,  1.0f, 0.0f,  0.0f, 0.0f,  0, 0
+    },
+    /* 1: Anomaly  */ {
+        { 0.35f, { {1.2f, 0.2f}, {8.0f, 2.0f},  {4.0f, 1.5f}, {2.0f, 0.5f}, {6.0f, 1.5f} }},
+        0.0f, 0.0f,  0.0f, 0.0f,  0.0f, 0.0f,  0.0f,
+        1.0f, 0.0f,  1.0f, 0.0f,  0.0f, 0.0f,  0, 0
+    },
+};
+
+static const TierProfile& sphere_get_tier_profile(uint32_t tier_idx) {
+    return SPHERE_TIERS[tier_idx].profile;
+}
 
 static constexpr EntityFamilyTraits SPHERE_TRAITS = {
     PopFamily::SPHERE, "sph", Dim::MAX_SPHERE_INSTANCES,
@@ -1577,7 +1677,7 @@ static constexpr EntityFamilyTraits SPHERE_TRAITS = {
     FloatingEntityProp::SPAWN_ROLL, SphereConfig::SPAWN_CHANCE,
     SphereConfig::MOOD_MULTIPLIER, SphereConfig::POSITION_JITTER,
     SPHERE_TIER_COUNT, FloatingEntityProp::TIER,
-    SPHERE_PARAM_DEFS, SPHERE_PARAM_COUNT, SPHERE_TIER_TABLE,
+    SPHERE_PARAM_DEFS, SPHERE_PARAM_COUNT,
     FloatingEntityProp::ANCHOR_X, FloatingEntityProp::ANCHOR_Z, FloatingEntityProp::ROTATION, false,
     0, nullptr,
 };
@@ -1636,6 +1736,7 @@ static constexpr EntityFamilyAdapter SPHERE_ADAPTER = {
     sphere_run_gate, sphere_get_theme_tier_weights,
     sphere_compute_solid_half, sphere_compute_colors,
     sphere_write_active, sphere_write_gpu, nullptr,
+    sphere_get_tier_profile,
 };
 
 static bool dispatch_select_sphere_generic(Cartridge* self, int32_t gx, int32_t gz, EntityQueueEntry& e) {
@@ -1706,36 +1807,49 @@ static constexpr TierParamDef CUBE_PARAM_DEFS[] = {
 };
 static constexpr uint32_t CUBE_PARAM_COUNT = sizeof(CUBE_PARAM_DEFS) / sizeof(TierParamDef);
 
-// Converter: CubeTierProfile (floater_vocabulary.inl) → generic TierProfile.
-// Order MUST match CUBE_PARAM_DEFS (BODY_RADIUS, ORBIT_HEIGHT,
-// INFLUENCE_RADIUS, SPIN_SPEED, BOB_AMPLITUDE, BOB_PERIOD,
-// ASPECT_Y, ASPECT_Z, FACE_VARIANCE).
+// entities:K1 (Option B): per-family tier struct. Single source of
+// truth for cube tier values; supersedes CubeTierProfile + CUBE_TIERS
+// in floater_vocabulary.inl. spin_tilt_sigma is an extras field
+// (single float, no mean/sigma pair) read directly by cube_write_gpu.
 //
-// Note: spin_tilt_sigma is an extras field on CubeTierProfile (single
-// float, no mean/sigma pair) consumed directly by adapters, not via
-// the generic table. It does not appear here.
-static constexpr TierProfile cube_to_profile(const CubeTierProfile& p) {
-    TierProfile out{};
-    out.weight = p.weight;
-    out.params[CubeIdx::BODY_RADIUS]      = { p.body_radius_mean,      p.body_radius_sigma };
-    out.params[CubeIdx::ORBIT_HEIGHT]     = { p.orbit_height_mean,     p.orbit_height_sigma };
-    out.params[CubeIdx::INFLUENCE_RADIUS] = { p.influence_radius_mean, p.influence_radius_sigma };
-    out.params[CubeIdx::SPIN_SPEED]       = { p.spin_speed_mean,       p.spin_speed_sigma };
-    out.params[CubeIdx::BOB_AMPLITUDE]    = { p.bob_amplitude_mean,    p.bob_amplitude_sigma };
-    out.params[CubeIdx::BOB_PERIOD]       = { p.bob_period_mean,       p.bob_period_sigma };
-    out.params[CubeIdx::ASPECT_Y]         = { p.aspect_y_mean,         p.aspect_y_sigma };
-    out.params[CubeIdx::ASPECT_Z]         = { p.aspect_z_mean,         p.aspect_z_sigma };
-    out.params[CubeIdx::FACE_VARIANCE]    = { p.face_variance_mean,    p.face_variance_sigma };
-    return out;
-}
-
-// DONE[entities:K1] derives from CUBE_TIERS in floater_vocabulary.inl.
-static constexpr TierProfile CUBE_TIER_TABLE[] = {
-    cube_to_profile(CUBE_TIERS[0]),
-    cube_to_profile(CUBE_TIERS[1]),
-    cube_to_profile(CUBE_TIERS[2]),
-    cube_to_profile(CUBE_TIERS[3]),
+// params[] order MUST match CUBE_PARAM_DEFS:
+//   [0]BODY_RADIUS [1]ORBIT_HEIGHT [2]INFLUENCE_RADIUS [3]SPIN_SPEED
+//   [4]BOB_AMPLITUDE [5]BOB_PERIOD [6]ASPECT_Y [7]ASPECT_Z [8]FACE_VARIANCE
+struct CubeTierRow {
+    TierProfile profile;
+    float       spin_tilt_sigma;
 };
+
+static constexpr CubeTierRow CUBE_TIERS[CUBE_TIER_COUNT] = {
+    /* 0: SmallCube */ {
+        { 0.40f, { {1.8f, 0.5f}, {15.0f, 12.0f}, {6.0f, 1.5f},  {0.04f, 0.015f},
+                   {1.0f, 0.3f}, {5.0f, 1.5f},
+                   {1.0f, 0.15f}, {1.0f, 0.15f}, {0.40f, 0.12f} }},
+        0.12f
+    },
+    /* 1: MedCube   */ {
+        { 0.32f, { {4.0f, 1.2f}, {25.0f, 18.0f}, {10.0f, 2.0f}, {0.03f, 0.01f},
+                   {1.5f, 0.4f}, {6.0f, 2.0f},
+                   {1.0f, 0.20f}, {1.0f, 0.20f}, {0.45f, 0.15f} }},
+        0.10f
+    },
+    /* 2: LargeCube */ {
+        { 0.20f, { {8.0f, 2.5f}, {35.0f, 20.0f}, {14.0f, 3.0f}, {0.02f, 0.008f},
+                   {2.0f, 0.5f}, {8.0f, 2.5f},
+                   {1.0f, 0.25f}, {1.0f, 0.25f}, {0.35f, 0.10f} }},
+        0.08f
+    },
+    /* 3: Monolith  */ {
+        { 0.08f, { {3.0f, 0.8f}, {5.0f, 2.0f},   {12.0f, 3.0f}, {0.015f, 0.005f},
+                   {1.2f, 0.3f}, {6.0f, 2.0f},
+                   {5.0f, 1.2f}, {0.15f, 0.03f}, {0.45f, 0.12f} }},
+        0.10f
+    },
+};
+
+static const TierProfile& cube_get_tier_profile(uint32_t tier_idx) {
+    return CUBE_TIERS[tier_idx].profile;
+}
 
 static constexpr EntityFamilyTraits CUBE_TRAITS = {
     PopFamily::CUBE, "cube", Dim::MAX_CUBE_INSTANCES,
@@ -1744,7 +1858,7 @@ static constexpr EntityFamilyTraits CUBE_TRAITS = {
     CubeEntityProp::SPAWN_ROLL, CubeConfig::SPAWN_CHANCE,
     CubeConfig::MOOD_MULTIPLIER, CubeConfig::POSITION_JITTER,
     CUBE_TIER_COUNT, CubeEntityProp::TIER,
-    CUBE_PARAM_DEFS, CUBE_PARAM_COUNT, CUBE_TIER_TABLE,
+    CUBE_PARAM_DEFS, CUBE_PARAM_COUNT,
     CubeEntityProp::ANCHOR_X, CubeEntityProp::ANCHOR_Z, CubeEntityProp::ROTATION, false,
     0, nullptr,
 };
@@ -1839,6 +1953,7 @@ static constexpr EntityFamilyAdapter CUBE_ADAPTER = {
     cube_run_gate, cube_get_theme_tier_weights,
     cube_compute_solid_half, cube_compute_colors,
     cube_write_active, cube_write_gpu, nullptr,
+    cube_get_tier_profile,
 };
 
 static bool dispatch_select_cube_generic(Cartridge* self, int32_t gx, int32_t gz, EntityQueueEntry& e) {
@@ -1891,30 +2006,42 @@ static constexpr TierParamDef ARCH_PARAM_DEFS[] = {
 };
 static constexpr uint32_t ARCH_PARAM_COUNT = sizeof(ARCH_PARAM_DEFS) / sizeof(TierParamDef);
 
+// entities:K1 (Option B): per-family tier struct. Single source of
+// truth for arch tier values; supersedes ArchTierParams + ARCH_TIERS
+// in entities.inl. Note: profile.params[SPAN].mean is the FULL span;
+// arch_compute_solid_half halves it in place.
+//
+// params[] order MUST match ARCH_PARAM_DEFS:
 //   [0]SPAN [1]RISE [2]DEPTH [3]THICKNESS [4]PIER_HEIGHT [5]PIER_PADDING [6]EDGE_BLEND
 //
-// Converter: ArchTierParams (entities.inl) → generic TierProfile.
-// Note: ArchTierParams.span_mean is the FULL span; the param def
-// floor (1.0) and compute_solid_half halve it to half_span ≥ 0.5.
-static constexpr TierProfile arch_to_profile(const ArchTierParams& p) {
-    TierProfile out{};
-    out.weight = p.weight;
-    out.params[ArchIdx::SPAN]         = { p.span_mean,         p.span_sigma };
-    out.params[ArchIdx::RISE]         = { p.rise_mean,         p.rise_sigma };
-    out.params[ArchIdx::DEPTH]        = { p.depth_mean,        p.depth_sigma };
-    out.params[ArchIdx::THICKNESS]    = { p.thickness_mean,    p.thickness_sigma };
-    out.params[ArchIdx::PIER_HEIGHT]  = { p.pier_height_mean,  p.pier_height_sigma };
-    out.params[ArchIdx::PIER_PADDING] = { p.pier_padding_mean, p.pier_padding_sigma };
-    out.params[ArchIdx::EDGE_BLEND]   = { p.edge_blend_mean,   p.edge_blend_sigma };
-    return out;
-}
-
-// DONE[entities:K1] derives from ARCH_TIERS in entities.inl.
-static constexpr TierProfile ARCH_TIER_TABLE[] = {
-    arch_to_profile(ARCH_TIERS[0]),
-    arch_to_profile(ARCH_TIERS[1]),
-    arch_to_profile(ARCH_TIERS[2]),
+// Note: name is ArchTierRow, not ArchTier — the enum class ArchTier
+// (DOORWAY/STANDARD/MONUMENTAL) already occupies that name in entities.inl.
+struct ArchTierRow {
+    TierProfile profile;
+    float       color_override;
+    float       burial;
+    uint32_t    segs_u;
+    uint32_t    segs_v;
 };
+
+static constexpr ArchTierRow ARCH_TIERS[] = {
+    /* DOORWAY    */ {
+        { 0.50f, { {12.0f, 2.4f}, {12.0f, 2.4f}, {4.5f, 0.9f}, {1.2f, 0.18f}, {1.5f, 0.9f}, {0.9f, 0.3f}, {0.9f, 0.15f} }},
+        0.15f, 0.20f, 16, 4
+    },
+    /* STANDARD   */ {
+        { 0.15f, { {50.0f, 15.0f}, {42.0f, 7.0f}, {5.6f, 1.1f}, {1.4f, 0.21f}, {5.6f, 2.1f}, {0.7f, 0.3f}, {0.7f, 0.14f} }},
+        0.25f, 0.20f, 32, 8
+    },
+    /* MONUMENTAL */ {
+        { 0.15f, { {60.0f, 10.0f}, {80.0f, 12.0f}, {10.0f, 2.0f}, {2.5f, 0.30f}, {8.0f, 2.5f}, {1.0f, 0.3f}, {0.8f, 0.15f} }},
+        0.35f, 0.20f, 48, 12
+    },
+};
+
+static const TierProfile& arch_get_tier_profile(uint32_t tier_idx) {
+    return ARCH_TIERS[tier_idx].profile;
+}
 
 static constexpr EntityFamilyTraits ARCH_TRAITS = {
     PopFamily::ARCH, "arch", Dim::MAX_ARCH_INSTANCES,
@@ -1923,7 +2050,7 @@ static constexpr EntityFamilyTraits ARCH_TRAITS = {
     ArchProp::SPAWN_ROLL, ArchConfig::SPAWN_CHANCE,
     ArchConfig::MOOD_MULTIPLIER, ArchConfig::POSITION_JITTER,
     static_cast<uint32_t>(ArchTier::COUNT), ArchProp::TIER,
-    ARCH_PARAM_DEFS, ARCH_PARAM_COUNT, ARCH_TIER_TABLE,
+    ARCH_PARAM_DEFS, ARCH_PARAM_COUNT,
     ArchProp::POSITION_X, ArchProp::POSITION_Z, ArchProp::ROTATION, true,
     0, nullptr,
 };
@@ -2097,6 +2224,7 @@ static constexpr EntityFamilyAdapter ARCH_ADAPTER = {
     arch_run_gate, arch_get_theme_tier_weights,
     arch_compute_solid_half, arch_compute_colors,
     arch_write_active, arch_write_gpu, arch_post_commit,
+    arch_get_tier_profile,
 };
 
 static bool dispatch_select_arch_generic(Cartridge* self, int32_t gx, int32_t gz, EntityQueueEntry& e) {

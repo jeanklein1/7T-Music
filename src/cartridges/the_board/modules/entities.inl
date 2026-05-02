@@ -10,16 +10,15 @@
 //   (per-family vocabulary block). Eight family applications follow:
 //   Ribbon (bespoke), Arch, Column, Antenna, Palm, Cactus, Blade,
 //   Pyramid (generic-pipeline grounded). Each block has the same
-//   structural template: TierEnum / TierParams / TIERS table / Color
-//   palette / Config / Prop registry / Active tracking. Don't fight
-//   the cookie-cutter — it's intentional specificity per family.
-// SEAM[entities:K1] tier representation is split across two files for
-//   the seven generic-pipeline grounded families: this block holds
-//   the legacy compact extras (burial, segs, color_override),
-//   entity_pipeline.inl holds the Gaussian sampling profiles
-//   (XXX_TIER_TABLE[]). Adapter functions read from both. End-of-tour
-//   resolution: 12.F Option A/B/C — Option A (document the split) is
-//   pre-Ch. 15 mechanical extract; B vs C decided after.
+//   structural template: TierEnum / Color palette / Config / Prop
+//   registry / Active tracking. Don't fight the cookie-cutter — it's
+//   intentional specificity per family.
+// DONE[entities:K1] resolved via Option B: tier sampling profile +
+//   extras live as a single per-family TierRow struct in
+//   entity_pipeline.inl. The TierParams structs and TIERS arrays that
+//   used to sit here are gone (single source of truth, no converters,
+//   no derived tables). The legacy enum classes (ArchTier, ColumnTier,
+//   etc.) stay here — they're indexing semantics, not data.
 // SEAM[entities:taxonomy] this block holds vocabulary for the 7 grounded
 //   families plus Ribbon (bespoke). Sphere/Cube vocabulary is NOT here
 //   — those live in cartridge.hpp itself in the specialized-families
@@ -296,40 +295,10 @@
             //   Quality:    segs_u, segs_v
             //   Selection:  weight (probability of this tier being chosen)
 
-            struct ArchTierParams {
-                // ─── Shell geometry (catenary + barrel vault) ─────────────
-                float span_mean, span_sigma;       // full opening width (world units)
-                float rise_mean, rise_sigma;       // catenary height above piers
-                float depth_mean, depth_sigma;      // barrel vault depth (walk-through distance)
-                float thickness_mean, thickness_sigma;   // shell wall thickness
-
-                // ─── Pier solids (collision foundations) ──────────────────
-                float pier_height_mean, pier_height_sigma;  // height of solid above terrain
-                float pier_padding_mean, pier_padding_sigma; // extra XZ margin beyond shell footprint
-                float edge_blend_mean, edge_blend_sigma;    // smoothstep width at solid edges
-
-                // ─── Appearance ──────────────────────────────────────────
-                float color_override;   // probability of palette color vs terrain sandstone
-                float burial;           // mesh sinks into piers (fraction of pier_height, min 0.2)
-
-                // ─── Quality ─────────────────────────────────────────────
-                uint32_t segs_u;        // segments along catenary profile
-                uint32_t segs_v;        // segments along barrel depth
-
-                // ─── Selection ───────────────────────────────────────────
-                float weight;           // tier selection probability (all must sum to 1.0)
-            };
-
-            // ─── Tier Definitions ────────────────────────────────────────────
-            //
-            // To tune a tier: adjust its row. To add a tier: add a row + enum.
-            //
-            //                         span   σ    rise   σ    depth  σ    thick  σ     pier_h  σ     pad    σ    blend  σ     col%  burial  su  sv  weight
-            static constexpr ArchTierParams ARCH_TIERS[] = {
-                /* DOORWAY     */  {  12.0f, 2.4f, 12.0f, 2.4f,  4.5f, 0.9f,  1.2f, 0.18f,   1.5f, 0.9f,  0.9f, 0.3f,  0.9f, 0.15f,  0.15f, 0.20f,  16, 4,  0.50f },
-                /* STANDARD    */  {  50.0f, 15.f, 42.0f, 7.0f,  5.6f, 1.1f,  1.4f, 0.21f,   5.6f, 2.1f,  0.7f, 0.3f,  0.7f, 0.14f,  0.25f, 0.20f,  32, 8,  0.15f },
-                /* MONUMENTAL  */  {  60.0f, 10.f, 80.0f, 12.f, 10.0f, 2.0f,  2.5f, 0.30f,   8.0f, 2.5f,  1.0f, 0.3f,  0.8f, 0.15f,  0.35f, 0.20f,  48, 12, 0.15f },
-            };
+            // entities:K1 (Option B): ArchTierParams and the named-struct
+            // ARCH_TIERS array migrated to entity_pipeline.inl as ArchTierRow
+            // (struct, not the same as the ArchTier enum). To tune a tier
+            // (or add one) edit ARCH_TIERS in entity_pipeline.inl.
 
             // ─── Color Palette ───────────────────────────────────────────────
             // Paradigm: palette + sandstone fallback.
@@ -476,60 +445,12 @@
             //   Quality:    segs_around, shaft_rings
             //   Selection:  weight
 
-            struct ColumnTierParams {
-                // ─── Profile geometry (surface of revolution) ─────────────
-                float height_mean, height_sigma;       // total column height
-                float shaft_radius_mean, shaft_radius_sigma; // shaft radius at base
-                float taper_mean, taper_sigma;        // top_radius / bottom_radius (0.8–1.0)
-                float entasis_mean, entasis_sigma;      // belly bulge at 1/3 height (fraction of radius)
-
-                // ─── Base (stepped rings below shaft) ────────────────────
-                float base_layers_mean, base_layers_sigma;  // number of concentric rings (0–3)
-                float base_height_mean, base_height_sigma;  // total height of base section
-                float base_overhang_mean, base_overhang_sigma; // extra radius beyond shaft
-
-                // ─── Capital (stepped rings above shaft) ─────────────────
-                float capital_layers_mean, capital_layers_sigma;
-                float capital_height_mean, capital_height_sigma;
-                float capital_overhang_mean, capital_overhang_sigma;
-
-                // ─── Collision solid ─────────────────────────────────────
-                float solid_padding_mean, solid_padding_sigma;  // extra radius beyond base
-                float solid_height_mean, solid_height_sigma;   // solid height (must exceed step_height)
-                float edge_blend_mean, edge_blend_sigma;
-
-                // ─── Appearance ──────────────────────────────────────────
-                float color_override;   // probability of palette color
-                float burial;           // mesh sinks into solid (fraction of solid_height)
-
-                // ─── Quality ─────────────────────────────────────────────
-                uint32_t segs_around;   // revolution segments
-                uint32_t shaft_rings;   // vertical subdivisions along shaft
-
-                // ─── Selection ───────────────────────────────────────────
-                float weight;
-            };
-
-            // ─── Column Tier Definitions ────────────────────────────────────
-            //
-            //                         h_μ    σ    rad_μ  σ    taper  σ    ent    σ     bL_μ  σ    bH_μ  σ    bO_μ  σ     cL_μ  σ    cH_μ  σ    cO_μ  σ     sp_μ  σ    sH_μ  σ    eb_μ  σ     col%  bur   seg  shR  wt
-            static constexpr ColumnTierParams COLUMN_TIERS[] = {
-                /* PILLAR  */  {  6.5f, 1.2f,  1.80f, 0.30f,  1.00f, 0.0f,  0.00f, 0.0f,   1.0f, 0.3f,  0.50f, 0.10f,  0.20f, 0.05f,   1.0f, 0.3f,  0.40f, 0.08f,  0.15f, 0.04f,   0.3f, 0.08f,  1.5f, 0.3f,  0.4f, 0.08f,   0.15f, 0.25f,  16, 4,   0.05f },
-                /* DORIC   */  {  6.4f, 1.2f,  0.38f, 0.06f,  0.85f, 0.03f, 0.02f, 0.01f,  0.0f, 0.0f,  0.00f, 0.00f,  0.00f, 0.00f,   2.0f, 0.5f,  0.50f, 0.10f,  0.15f, 0.04f,   0.2f, 0.05f,  1.0f, 0.2f,  0.3f, 0.05f,   0.25f, 0.20f,  20, 8,   0.20f },
-                /* ORNATE  */  { 16.8f, 2.8f,  1.35f, 0.19f,  0.82f, 0.03f, 0.04f, 0.01f,  2.0f, 0.5f,  1.20f, 0.25f,  0.30f, 0.08f,   3.0f, 0.5f,  1.50f, 0.30f,  0.40f, 0.10f,   0.4f, 0.10f,  1.5f, 0.3f,  0.5f, 0.10f,   0.35f, 0.20f,  28, 12,  0.18f },
-            };
-
-            // ─── Antenna Tier Definitions ───────────────────────────────────
-            //
-            // Field reuse: base_layers=drum_count, base_height=drum_height,
-            // base_overhang=drum_radius_overhang, capital_height=spacer_height.
-            //
-            //                         h_μ    σ    rad_μ  σ    taper  σ    ent    σ     dC_μ  σ    dH_μ  σ    dO_μ  σ     __    __   sH_μ  σ    __    __     sp_μ  σ    sH_μ  σ    eb_μ  σ     col%  bur   seg  shR  wt
-            static constexpr ColumnTierParams ANTENNA_TIERS[] = {
-                /* ANTENNA */  { 17.5f, 3.5f,  0.30f, 0.05f,  0.85f, 0.05f, 0.00f, 0.0f,   2.0f, 0.5f,  2.1f, 0.42f,   1.5f, 0.3f,    0.0f, 0.0f,  1.5f, 0.3f,   0.0f, 0.0f,    0.2f, 0.05f,  1.0f, 0.2f,  0.3f, 0.05f,   0.40f, 0.20f,  16, 6,   0.10f },
-                /* SQUAT   */  { 32.5f, 6.5f,  0.90f, 0.15f,  0.85f, 0.05f, 0.00f, 0.0f,   2.0f, 0.5f,  2.0f, 0.4f,   6.0f, 1.2f,    0.0f, 0.0f,  1.5f, 0.3f,   0.0f, 0.0f,    0.4f, 0.10f,  1.5f, 0.3f,  0.4f, 0.08f,   0.40f, 0.20f,  16, 6,   0.22f },
-                /* COLOSSAL */ { 125.0f, 25.0f,  3.00f, 0.50f,  0.85f, 0.05f, 0.00f, 0.0f,   2.0f, 0.5f,  7.5f, 1.5f,  17.5f, 3.5f,    0.0f, 0.0f,  7.5f, 1.5f,   0.0f, 0.0f,    1.95f, 0.39f, 12.0f, 2.4f,  1.0f, 0.20f,   0.40f, 0.20f,  20, 8,   0.13f },
-            };
+            // entities:K1 (Option B): ColumnTierParams plus the COLUMN_TIERS
+            // and ANTENNA_TIERS arrays migrated to entity_pipeline.inl as
+            // ColumnTierRow (struct, distinct from the ColumnTier enum). Both
+            // tables use the same row struct since Antenna shares Column's
+            // 13-param shape (with field reuse — base_layers = drum_count,
+            // base_height = drum_height, etc.).
 
             // ─── Color Palette ───────────────────────────────────────────────
             // Paradigm: palette + sandstone fallback (same as arch).
@@ -659,48 +580,8 @@
             enum class PalmTier : uint32_t { SAPLING = 0, COASTAL = 1, ROYAL = 2, COUNT = 3 };
             static constexpr uint32_t PALM_TIER_COUNT = static_cast<uint32_t>(PalmTier::COUNT);
 
-            struct PalmTierParams {
-                // ─── Trunk geometry ─────────────────────────────────────
-                float height_mean, height_sigma;         // total trunk height
-                float base_r_mean, base_r_sigma;         // radius at ground
-                float top_r_mean, top_r_sigma;           // radius at crown
-                float lean_mean, lean_sigma;             // trunk lean angle (fraction)
-
-                // ─── Bark texture ───────────────────────────────────────
-                float bark_rings_mean, bark_rings_sigma;   // horizontal ring count
-                float bark_depth_mean, bark_depth_sigma;   // ring indentation depth
-
-                // ─── Crown (frond array) ────────────────────────────────
-                float frond_count_mean, frond_count_sigma; // number of fronds
-                float frond_len_mean, frond_len_sigma;     // frond length from crown center
-                float frond_width_mean, frond_width_sigma; // frond blade width
-                float frond_droop_mean, frond_droop_sigma; // downward droop angle
-                float frond_arch_mean, frond_arch_sigma;   // inward arch curvature
-                float crown_spread_mean, crown_spread_sigma; // angular spread of frond ring
-                float crown_skirt_mean, crown_skirt_sigma;   // dead frond skirt depth
-
-                // ─── Collision solid ────────────────────────────────────
-                float solid_padding_mean, solid_padding_sigma; // extra radius beyond trunk
-                float edge_blend_mean, edge_blend_sigma;       // smoothstep width at solid edges
-
-                // ─── Appearance ─────────────────────────────────────────
-                float color_over;                        // probability of palette color
-                float burial;                            // mesh sinks into solid
-                float trunk_var, frond_var;              // color variance (trunk, fronds)
-
-                // ─── Quality ────────────────────────────────────────────
-                uint32_t trunk_segs, frond_segs;         // mesh subdivision counts
-
-                // ─── Selection ──────────────────────────────────────────
-                float weight;                            // tier selection probability
-            };
-
-            //                                h_μ    σ    br_μ   σ    tr_μ   σ    lean_μ σ    bark_μ σ    bd_μ   σ     fc_μ  σ    fl_μ  σ    fw_μ  σ    fd_μ  σ    fa_μ  σ    cs_μ  σ    ck_μ  σ    sp_μ  σ    eb_μ  σ    co%  bur  tv   fv   ts  fs   wt
-            static constexpr PalmTierParams PALM_TIERS[] = {
-                /* SAPLING  */ { 8.0f, 2.0f,  0.25f,0.05f, 0.12f,0.02f, 0.15f,0.05f, 8.0f,2.0f,  0.03f,0.01f, 7.0f,1.0f,  3.0f,0.5f,  0.8f,0.15f, 0.3f,0.1f, 0.4f,0.1f, 0.6f,0.1f, 0.3f,0.1f, 0.5f,0.1f, 0.5f,0.1f, 0.1f, 0.1f, 0.06f,0.04f, 12, 4,  0.50f },
-                /* COASTAL  */ { 16.0f,3.0f,  0.40f,0.08f, 0.15f,0.03f, 0.20f,0.08f, 12.0f,3.0f, 0.04f,0.01f, 11.0f,2.0f, 5.0f,0.8f,  1.2f,0.2f,  0.5f,0.15f,0.5f,0.12f,0.7f,0.1f, 0.4f,0.1f, 0.8f,0.15f,0.8f,0.15f,0.15f, 0.15f,0.05f,0.03f, 16, 5,  0.35f },
-                /* ROYAL    */ { 28.0f,5.0f,  0.55f,0.10f, 0.18f,0.04f, 0.10f,0.05f, 18.0f,4.0f, 0.05f,0.01f, 15.0f,2.0f, 7.0f,1.0f,  1.5f,0.3f,  0.6f,0.15f,0.6f,0.15f,0.8f,0.1f, 0.5f,0.1f, 1.0f,0.2f, 1.0f,0.2f, 0.20f, 0.2f, 0.04f,0.03f, 20, 6,  0.15f },
-            };
+            // entities:K1 (Option B): PalmTierParams and PALM_TIERS migrated
+            // to entity_pipeline.inl as PalmTierRow.
 
             // ─── Color Palette ───────────────────────────────────────────────
             // Paradigm: body-part bases with per-instance variance.
@@ -782,40 +663,8 @@
             enum class CactusTier : uint32_t { FINGER = 0, SAGUARO = 1, CANDELABRA = 2, COUNT = 3 };
             static constexpr uint32_t CACTUS_TIER_COUNT = static_cast<uint32_t>(CactusTier::COUNT);
 
-            struct CactusTierParams {
-                // ─── Trunk geometry ─────────────────────────────────────
-                float height_mean, height_sigma;           // total trunk height
-                float radius_mean, radius_sigma;           // trunk radius at base
-                float taper_mean, taper_sigma;             // top/bottom radius ratio
-                float ribs_mean, ribs_sigma;               // number of vertical ribs
-                float rib_depth_mean, rib_depth_sigma;     // rib groove depth
-                float lean_mean, lean_sigma;               // trunk lean angle
-                float cap_round_mean, cap_round_sigma;     // dome roundness at top
-
-                // ─── Arms (forking branches) ────────────────────────────
-                float arm_count_mean, arm_count_sigma;     // number of arms (0 = fingerlike)
-                float arm_height_mean, arm_height_sigma;   // fork height (fraction of trunk)
-                float arm_length_mean, arm_length_sigma;   // arm length
-                float arm_radius_mean, arm_radius_sigma;   // arm thickness
-                float arm_curve_mean, arm_curve_sigma;     // upward curve strength
-
-                // ─── Appearance ─────────────────────────────────────────
-                float color_over;                          // probability of palette color
-                float color_var;                           // per-instance color variance
-
-                // ─── Quality ────────────────────────────────────────────
-                uint32_t trunk_segs, arm_segs;             // mesh subdivision counts
-
-                // ─── Selection ──────────────────────────────────────────
-                float weight;                              // tier selection probability
-            };
-
-            //                                   h_μ  σ     r_μ    σ      tp_μ   σ     ribs_μ σ   rd_μ   σ     ln_μ  σ     cr_μ  σ     ac_μ  σ     ah_μ  σ     al_μ  σ     ar_μ   σ     acv_μ  σ     co   cv    ts  as   wt
-            static constexpr CactusTierParams CACTUS_TIERS[] = {
-                /* FINGER     */ { 3.0f, 1.0f,  0.15f,0.03f, 0.85f,0.05f, 8.0f,1.0f,  0.04f,0.01f, 0.1f,0.05f, 0.6f,0.1f, 0.0f,0.0f, 0.5f,0.1f, 1.0f,0.3f, 0.08f,0.02f, 0.7f,0.1f,  0.1f, 0.04f, 12, 6,  0.50f },
-                /* SAGUARO    */ { 8.0f, 2.0f,  0.35f,0.06f, 0.9f, 0.04f, 12.0f,2.0f, 0.05f,0.01f, 0.08f,0.04f,0.5f,0.1f, 1.5f,0.7f, 0.45f,0.1f,3.0f,0.8f, 0.2f, 0.04f, 0.6f,0.15f, 0.15f,0.03f, 16, 8,  0.35f },
-                /* CANDELABRA */ { 14.0f,3.0f,  0.45f,0.08f, 0.92f,0.03f, 16.0f,2.0f, 0.06f,0.01f, 0.05f,0.03f,0.4f,0.1f, 3.0f,0.8f, 0.4f, 0.1f,5.0f,1.0f, 0.25f,0.05f, 0.5f,0.15f, 0.2f, 0.03f, 20, 10, 0.15f },
-            };
+            // entities:K1 (Option B): CactusTierParams and CACTUS_TIERS
+            // migrated to entity_pipeline.inl as CactusTierRow.
 
             // ─── Color Palette ───────────────────────────────────────────────
             // Paradigm: body-part bases with per-instance variance.
@@ -880,42 +729,8 @@
             enum class BladeClusterTier : uint32_t { SPROUT = 0, CLUMP = 1, THICKET = 2, COUNT = 3 };
             static constexpr uint32_t BLADE_TIER_COUNT = static_cast<uint32_t>(BladeClusterTier::COUNT);
 
-            struct BladeClusterTierParams {
-                // ─── Cluster geometry ───────────────────────────────────
-                float blade_count_mean, blade_count_sigma; // number of blades per cluster
-                float blade_h_mean, blade_h_sigma;         // blade height
-                float blade_h_var_mean, blade_h_var_sigma; // per-blade height variance
-                float blade_w_mean, blade_w_sigma;         // blade width at base
-
-                // ─── Blade shape ────────────────────────────────────────
-                float splay_mean, splay_sigma;             // outward spread angle
-                float curve_mean, curve_sigma;             // midrib curvature
-                float twist_mean, twist_sigma;             // axial twist along blade
-                float taper_mean, taper_sigma;             // width taper toward tip
-
-                // ─── Appearance ─────────────────────────────────────────
-                float color_over, color_var;               // palette override chance, variance
-
-                // ─── Quality ────────────────────────────────────────────
-                uint32_t blade_segs;                       // segments per blade
-
-                // ─── Selection ──────────────────────────────────────────
-                float weight;                              // tier selection probability
-            };
-
-            //                      cnt   σ      h_μ   σ      hv_μ  σ      w_μ   σ
-            //                      splay σ      curve σ      twist σ      taper σ      co%  cv    seg  wt
-            static constexpr BladeClusterTierParams BLADE_TIERS[] = {
-                /* SPROUT  */  { 3.0f, 0.5f,   1.8f, 0.4f,   0.35f, 0.08f,   0.30f, 0.06f,
-                                 0.18f, 0.06f,  0.12f, 0.04f,  0.05f, 0.02f,  0.85f, 0.05f,
-                                 0.15f, 0.06f,  5,  0.50f },
-                                 /* CLUMP   */  { 5.0f, 1.0f,   3.2f, 0.6f,   0.40f, 0.10f,   0.45f, 0.08f,
-                                                  0.25f, 0.08f,  0.18f, 0.06f,  0.08f, 0.03f,  0.82f, 0.05f,
-                                                  0.20f, 0.06f,  6,  0.35f },
-                                                  /* THICKET */  { 6.0f, 1.0f,   5.5f, 1.2f,   0.45f, 0.10f,   0.55f, 0.10f,
-                                                                   0.30f, 0.10f,  0.22f, 0.08f,  0.10f, 0.04f,  0.80f, 0.06f,
-                                                                   0.25f, 0.08f,  7,  0.15f },
-            };
+            // entities:K1 (Option B): BladeClusterTierParams and BLADE_TIERS
+            // migrated to entity_pipeline.inl as BladeTierRow.
 
             // ─── Color Palette ───────────────────────────────────────────────
             // Paradigm: body-part bases with per-instance variance.
@@ -1008,30 +823,11 @@
                 COUNT = 3
             };
 
-            struct PyramidTierParams {
-                // ─── Base geometry ───────────────────────────────────────
-                float height_mean, height_sigma;
-                float base_half_mean, base_half_sigma;
-                float aspect_ratio_mean, aspect_ratio_sigma;
-                float truncation_mean, truncation_sigma;
-
-                // ─── Blending ────────────────────────────────────────────
-                float edge_blend_mean, edge_blend_sigma;
-
-                // ─── Appearance ──────────────────────────────────────────
-                float color_override;
-                float color_variance;
-
-                // ─── Selection ───────────────────────────────────────────
-                float weight;
-            };
-
-            //                              h_μ     σ    base_μ  σ    asp_μ  σ     trunc_μ σ     blend_μ σ     col%  var    weight
-            static constexpr PyramidTierParams PYRAMID_TIERS[] = {
-                /* OBELISK  */  {  28.0f, 6.0f,  16.0f, 3.0f,  1.0f, 0.15f,  0.00f, 0.00f,  1.5f, 0.3f,  0.10f, 0.04f,  0.50f },
-                /* TEMPLE   */  {  45.0f, 8.0f,  40.0f, 6.0f,  1.0f, 0.20f,  0.25f, 0.08f,  3.0f, 0.75f, 0.15f, 0.04f,  0.25f },
-                /* COLOSSUS */  {  78.0f, 14.4f, 60.0f, 9.6f,  1.0f, 0.10f,  0.05f, 0.04f,  3.6f, 1.0f,  0.20f, 0.04f,  0.25f },
-            };
+            // entities:K1 (Option B): PyramidTierParams and the named-struct
+            // PYRAMID_TIERS array migrated to entity_pipeline.inl as a single
+            // PyramidTier struct (TierProfile + extras). The PyramidTier enum
+            // and all other pyramid vocabulary (color palette, spawn config,
+            // prop registry, active-instance tracking) stay here.
 
             // ─── Color Palette ───────────────────────────────────────────────
             // Paradigm: sandstone base with per-instance variance (no palette).
