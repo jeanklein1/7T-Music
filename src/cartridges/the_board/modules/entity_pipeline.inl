@@ -367,10 +367,29 @@ static constexpr uint32_t BLADE_PARAM_COUNT = sizeof(BLADE_PARAM_DEFS) / sizeof(
 //   [4] SPLAY, [5] CURVE, [6] TWIST, [7] TAPER
 //
 //                      wt       cnt        h          h_var      w          splay      curve      twist      taper
+//
+// Converter: BladeClusterTierParams (entities.inl) → generic TierProfile.
+// Order MUST match BLADE_PARAM_DEFS (BLADE_COUNT, BLADE_H, BLADE_H_VAR,
+// BLADE_W, SPLAY, CURVE, TWIST, TAPER).
+static constexpr TierProfile blade_to_profile(const BladeClusterTierParams& p) {
+    TierProfile out{};
+    out.weight = p.weight;
+    out.params[BladeIdx::BLADE_COUNT] = { p.blade_count_mean, p.blade_count_sigma };
+    out.params[BladeIdx::BLADE_H]     = { p.blade_h_mean,     p.blade_h_sigma };
+    out.params[BladeIdx::BLADE_H_VAR] = { p.blade_h_var_mean, p.blade_h_var_sigma };
+    out.params[BladeIdx::BLADE_W]     = { p.blade_w_mean,     p.blade_w_sigma };
+    out.params[BladeIdx::SPLAY]       = { p.splay_mean,       p.splay_sigma };
+    out.params[BladeIdx::CURVE]       = { p.curve_mean,       p.curve_sigma };
+    out.params[BladeIdx::TWIST]       = { p.twist_mean,       p.twist_sigma };
+    out.params[BladeIdx::TAPER]       = { p.taper_mean,       p.taper_sigma };
+    return out;
+}
+
+// DONE[entities:K1] derives from BLADE_TIERS in entities.inl.
 static constexpr TierProfile BLADE_TIER_TABLE[] = {
-    /* SPROUT  */ { 0.50f, { { 3.0f,0.5f}, { 1.8f,0.4f}, {0.35f,0.08f}, {0.30f,0.06f}, {0.18f,0.06f}, {0.12f,0.04f}, {0.05f,0.02f}, {0.85f,0.05f} }},
-    /* CLUMP   */ { 0.35f, { { 5.0f,1.0f}, { 3.2f,0.6f}, {0.40f,0.10f}, {0.45f,0.08f}, {0.25f,0.08f}, {0.18f,0.06f}, {0.08f,0.03f}, {0.82f,0.05f} }},
-    /* THICKET */ { 0.15f, { { 6.0f,1.0f}, { 5.5f,1.2f}, {0.45f,0.10f}, {0.55f,0.10f}, {0.30f,0.10f}, {0.22f,0.08f}, {0.10f,0.04f}, {0.80f,0.06f} }},
+    blade_to_profile(BLADE_TIERS[0]),
+    blade_to_profile(BLADE_TIERS[1]),
+    blade_to_profile(BLADE_TIERS[2]),
 };
 
 // ─── Color Parts ─────────────────────────────────────────────────
@@ -559,14 +578,44 @@ static constexpr TierParamDef PALM_PARAM_DEFS[] = {
 };
 static constexpr uint32_t PALM_PARAM_COUNT = sizeof(PALM_PARAM_DEFS) / sizeof(TierParamDef);
 
-//   Tier order: [0]HEIGHT [1]BASE_R [2]TOP_R [3]LEAN [4]LEAN_DIR(ignored)
-//               [5]BARK_RINGS [6]BARK_DEPTH [7]FROND_COUNT [8]FROND_LEN
-//               [9]FROND_WIDTH [10]FROND_DROOP [11]FROND_ARCH [12]CROWN_SPREAD
-//               [13]CROWN_SKIRT [14]SOLID_PAD [15]EDGE_BLEND
+// Converter: PalmTierParams (entities.inl) → generic TierProfile.
+// LEAN_DIR is a UNIFORM_TAU distribution at the param-def level —
+// the named struct has no mean/sigma field for it (a uniform [0, 2π]
+// has no meaningful mean/sigma). The slot is filled with literal
+// {0, 0} on both sides today; the converter preserves that.
+//
+// Order MUST match PALM_PARAM_DEFS:
+//   [0]HEIGHT [1]BASE_R [2]TOP_R [3]LEAN [4]LEAN_DIR(uniform — {0,0})
+//   [5]BARK_RINGS [6]BARK_DEPTH [7]FROND_COUNT [8]FROND_LEN
+//   [9]FROND_WIDTH [10]FROND_DROOP [11]FROND_ARCH [12]CROWN_SPREAD
+//   [13]CROWN_SKIRT [14]SOLID_PAD [15]EDGE_BLEND
+static constexpr TierProfile palm_to_profile(const PalmTierParams& p) {
+    TierProfile out{};
+    out.weight = p.weight;
+    out.params[PalmIdx::HEIGHT]       = { p.height_mean,         p.height_sigma };
+    out.params[PalmIdx::BASE_R]       = { p.base_r_mean,         p.base_r_sigma };
+    out.params[PalmIdx::TOP_R]        = { p.top_r_mean,          p.top_r_sigma };
+    out.params[PalmIdx::LEAN]         = { p.lean_mean,           p.lean_sigma };
+    out.params[PalmIdx::LEAN_DIR]     = { 0.0f,                  0.0f };  // UNIFORM_TAU
+    out.params[PalmIdx::BARK_RINGS]   = { p.bark_rings_mean,     p.bark_rings_sigma };
+    out.params[PalmIdx::BARK_DEPTH]   = { p.bark_depth_mean,     p.bark_depth_sigma };
+    out.params[PalmIdx::FROND_COUNT]  = { p.frond_count_mean,    p.frond_count_sigma };
+    out.params[PalmIdx::FROND_LEN]    = { p.frond_len_mean,      p.frond_len_sigma };
+    out.params[PalmIdx::FROND_WIDTH]  = { p.frond_width_mean,    p.frond_width_sigma };
+    out.params[PalmIdx::FROND_DROOP]  = { p.frond_droop_mean,    p.frond_droop_sigma };
+    out.params[PalmIdx::FROND_ARCH]   = { p.frond_arch_mean,     p.frond_arch_sigma };
+    out.params[PalmIdx::CROWN_SPREAD] = { p.crown_spread_mean,   p.crown_spread_sigma };
+    out.params[PalmIdx::CROWN_SKIRT]  = { p.crown_skirt_mean,    p.crown_skirt_sigma };
+    out.params[PalmIdx::SOLID_PAD]    = { p.solid_padding_mean,  p.solid_padding_sigma };
+    out.params[PalmIdx::EDGE_BLEND]   = { p.edge_blend_mean,     p.edge_blend_sigma };
+    return out;
+}
+
+// DONE[entities:K1] derives from PALM_TIERS in entities.inl.
 static constexpr TierProfile PALM_TIER_TABLE[] = {
-    /* SAPLING */ { 0.50f, { {8.0f,2.0f},{0.25f,0.05f},{0.12f,0.02f},{0.15f,0.05f},{0,0},{8.0f,2.0f},{0.03f,0.01f},{7.0f,1.0f},{3.0f,0.5f},{0.8f,0.15f},{0.3f,0.1f},{0.4f,0.1f},{0.6f,0.1f},{0.3f,0.1f},{0.5f,0.1f},{0.5f,0.1f} }},
-    /* COASTAL */ { 0.35f, { {16.0f,3.0f},{0.40f,0.08f},{0.15f,0.03f},{0.20f,0.08f},{0,0},{12.0f,3.0f},{0.04f,0.01f},{11.0f,2.0f},{5.0f,0.8f},{1.2f,0.2f},{0.5f,0.15f},{0.5f,0.12f},{0.7f,0.1f},{0.4f,0.1f},{0.8f,0.15f},{0.8f,0.15f} }},
-    /* ROYAL   */ { 0.15f, { {28.0f,5.0f},{0.55f,0.10f},{0.18f,0.04f},{0.10f,0.05f},{0,0},{18.0f,4.0f},{0.05f,0.01f},{15.0f,2.0f},{7.0f,1.0f},{1.5f,0.3f},{0.6f,0.15f},{0.6f,0.15f},{0.8f,0.1f},{0.5f,0.1f},{1.0f,0.2f},{1.0f,0.2f} }},
+    palm_to_profile(PALM_TIERS[0]),
+    palm_to_profile(PALM_TIERS[1]),
+    palm_to_profile(PALM_TIERS[2]),
 };
 
 static constexpr ColorPartDef PALM_COLOR_PARTS[] = {
@@ -733,12 +782,37 @@ static constexpr TierParamDef CACTUS_PARAM_DEFS[] = {
 };
 static constexpr uint32_t CACTUS_PARAM_COUNT = sizeof(CACTUS_PARAM_DEFS) / sizeof(TierParamDef);
 
-//   [0]HEIGHT [1]RADIUS [2]TAPER [3]RIBS [4]RIB_DEPTH [5]LEAN [6]LEAN_DIR(ign)
-//   [7]CAP_ROUND [8]ARM_COUNT [9]ARM_HEIGHT [10]ARM_LENGTH [11]ARM_RADIUS [12]ARM_CURVE
+// Converter: CactusTierParams (entities.inl) → generic TierProfile.
+// LEAN_DIR is UNIFORM_TAU — same pattern as Palm, literal {0, 0}.
+//
+// Order MUST match CACTUS_PARAM_DEFS:
+//   [0]HEIGHT [1]RADIUS [2]TAPER [3]RIBS [4]RIB_DEPTH [5]LEAN
+//   [6]LEAN_DIR(uniform — {0,0}) [7]CAP_ROUND [8]ARM_COUNT
+//   [9]ARM_HEIGHT [10]ARM_LENGTH [11]ARM_RADIUS [12]ARM_CURVE
+static constexpr TierProfile cactus_to_profile(const CactusTierParams& p) {
+    TierProfile out{};
+    out.weight = p.weight;
+    out.params[CactusIdx::HEIGHT]     = { p.height_mean,     p.height_sigma };
+    out.params[CactusIdx::RADIUS]     = { p.radius_mean,     p.radius_sigma };
+    out.params[CactusIdx::TAPER]      = { p.taper_mean,      p.taper_sigma };
+    out.params[CactusIdx::RIBS]       = { p.ribs_mean,       p.ribs_sigma };
+    out.params[CactusIdx::RIB_DEPTH]  = { p.rib_depth_mean,  p.rib_depth_sigma };
+    out.params[CactusIdx::LEAN]       = { p.lean_mean,       p.lean_sigma };
+    out.params[CactusIdx::LEAN_DIR]   = { 0.0f,              0.0f };  // UNIFORM_TAU
+    out.params[CactusIdx::CAP_ROUND]  = { p.cap_round_mean,  p.cap_round_sigma };
+    out.params[CactusIdx::ARM_COUNT]  = { p.arm_count_mean,  p.arm_count_sigma };
+    out.params[CactusIdx::ARM_HEIGHT] = { p.arm_height_mean, p.arm_height_sigma };
+    out.params[CactusIdx::ARM_LENGTH] = { p.arm_length_mean, p.arm_length_sigma };
+    out.params[CactusIdx::ARM_RADIUS] = { p.arm_radius_mean, p.arm_radius_sigma };
+    out.params[CactusIdx::ARM_CURVE]  = { p.arm_curve_mean,  p.arm_curve_sigma };
+    return out;
+}
+
+// DONE[entities:K1] derives from CACTUS_TIERS in entities.inl.
 static constexpr TierProfile CACTUS_TIER_TABLE[] = {
-    /* FINGER     */ { 0.50f, { {3.0f,1.0f},{0.15f,0.03f},{0.85f,0.05f},{8.0f,1.0f},{0.04f,0.01f},{0.1f,0.05f},{0,0},{0.6f,0.1f},{0.0f,0.0f},{0.5f,0.1f},{1.0f,0.3f},{0.08f,0.02f},{0.7f,0.1f} }},
-    /* SAGUARO    */ { 0.35f, { {8.0f,2.0f},{0.35f,0.06f},{0.9f,0.04f},{12.0f,2.0f},{0.05f,0.01f},{0.08f,0.04f},{0,0},{0.5f,0.1f},{1.5f,0.7f},{0.45f,0.1f},{3.0f,0.8f},{0.2f,0.04f},{0.6f,0.15f} }},
-    /* CANDELABRA */ { 0.15f, { {14.0f,3.0f},{0.45f,0.08f},{0.92f,0.03f},{16.0f,2.0f},{0.06f,0.01f},{0.05f,0.03f},{0,0},{0.4f,0.1f},{3.0f,0.8f},{0.4f,0.1f},{5.0f,1.0f},{0.25f,0.05f},{0.5f,0.15f} }},
+    cactus_to_profile(CACTUS_TIERS[0]),
+    cactus_to_profile(CACTUS_TIERS[1]),
+    cactus_to_profile(CACTUS_TIERS[2]),
 };
 
 static constexpr ColorPartDef CACTUS_COLOR_PARTS[] = {
@@ -914,20 +988,50 @@ static constexpr TierParamDef ANTENNA_PARAM_DEFS[] = {
     { AntennaProp::EDGE_BLEND,      0.1f, 1e30f, false, ParamDist::GAUSSIAN },
 };
 
-// Column tier table (from COLUMN_TIERS)
+// Converter: ColumnTierParams (entities.inl) → generic TierProfile.
+// Used by both COLUMN_TIERS and ANTENNA_TIERS — they share the same
+// ColumnTierParams shape, with field reuse for antennas (base_layers
+// = drum_count, base_height = drum_height, etc., per the comment at
+// the ANTENNA_TIERS declaration site).
+//
+// Order MUST match COLUMN_PARAM_DEFS / ANTENNA_PARAM_DEFS (HEIGHT,
+// SHAFT_RADIUS, TAPER, ENTASIS, BASE_LAYERS, BASE_HEIGHT,
+// BASE_OVERHANG, CAP_LAYERS, CAP_HEIGHT, CAP_OVERHANG,
+// SOLID_PADDING, SOLID_HEIGHT, EDGE_BLEND).
+static constexpr TierProfile column_to_profile(const ColumnTierParams& p) {
+    TierProfile out{};
+    out.weight = p.weight;
+    out.params[ColIdx::HEIGHT]        = { p.height_mean,           p.height_sigma };
+    out.params[ColIdx::SHAFT_RADIUS]  = { p.shaft_radius_mean,     p.shaft_radius_sigma };
+    out.params[ColIdx::TAPER]         = { p.taper_mean,            p.taper_sigma };
+    out.params[ColIdx::ENTASIS]       = { p.entasis_mean,          p.entasis_sigma };
+    out.params[ColIdx::BASE_LAYERS]   = { p.base_layers_mean,      p.base_layers_sigma };
+    out.params[ColIdx::BASE_HEIGHT]   = { p.base_height_mean,      p.base_height_sigma };
+    out.params[ColIdx::BASE_OVERHANG] = { p.base_overhang_mean,    p.base_overhang_sigma };
+    out.params[ColIdx::CAP_LAYERS]    = { p.capital_layers_mean,   p.capital_layers_sigma };
+    out.params[ColIdx::CAP_HEIGHT]    = { p.capital_height_mean,   p.capital_height_sigma };
+    out.params[ColIdx::CAP_OVERHANG]  = { p.capital_overhang_mean, p.capital_overhang_sigma };
+    out.params[ColIdx::SOLID_PADDING] = { p.solid_padding_mean,    p.solid_padding_sigma };
+    out.params[ColIdx::SOLID_HEIGHT]  = { p.solid_height_mean,     p.solid_height_sigma };
+    out.params[ColIdx::EDGE_BLEND]    = { p.edge_blend_mean,       p.edge_blend_sigma };
+    return out;
+}
+
+// DONE[entities:K1] derives from COLUMN_TIERS in entities.inl.
 //   [0]HEIGHT [1]SHAFT_R [2]TAPER [3]ENTASIS [4]BASE_LAYERS [5]BASE_H
 //   [6]BASE_OH [7]CAP_LAYERS [8]CAP_H [9]CAP_OH [10]SOLID_PAD [11]SOLID_H [12]EDGE_BLEND
 static constexpr TierProfile COLUMN_TIER_TABLE[] = {
-    /* PILLAR */ { 0.05f, { {6.5f,1.2f},{1.80f,0.30f},{1.00f,0.0f},{0.00f,0.0f},{1.0f,0.3f},{0.50f,0.10f},{0.20f,0.05f},{1.0f,0.3f},{0.40f,0.08f},{0.15f,0.04f},{0.3f,0.08f},{1.5f,0.3f},{0.4f,0.08f} }},
-    /* DORIC  */ { 0.20f, { {6.4f,1.2f},{0.38f,0.06f},{0.85f,0.03f},{0.02f,0.01f},{0.0f,0.0f},{0.00f,0.00f},{0.00f,0.00f},{2.0f,0.5f},{0.50f,0.10f},{0.15f,0.04f},{0.2f,0.05f},{1.0f,0.2f},{0.3f,0.05f} }},
-    /* ORNATE */ { 0.18f, { {16.8f,2.8f},{1.35f,0.19f},{0.82f,0.03f},{0.04f,0.01f},{2.0f,0.5f},{1.20f,0.25f},{0.30f,0.08f},{3.0f,0.5f},{1.50f,0.30f},{0.40f,0.10f},{0.4f,0.10f},{1.5f,0.3f},{0.5f,0.10f} }},
+    column_to_profile(COLUMN_TIERS[0]),
+    column_to_profile(COLUMN_TIERS[1]),
+    column_to_profile(COLUMN_TIERS[2]),
 };
 
-// Antenna tier table (from ANTENNA_TIERS)
+// DONE[entities:K1] derives from ANTENNA_TIERS in entities.inl.
+//   Reuses column_to_profile — Antennas share ColumnTierParams.
 static constexpr TierProfile ANTENNA_TIER_TABLE[] = {
-    /* ANTENNA  */ { 0.10f, { {17.5f,3.5f},{0.30f,0.05f},{0.85f,0.05f},{0.00f,0.0f},{2.0f,0.5f},{2.1f,0.42f},{1.5f,0.3f},{0.0f,0.0f},{1.5f,0.3f},{0.0f,0.0f},{0.2f,0.05f},{1.0f,0.2f},{0.3f,0.05f} }},
-    /* SQUAT   */ { 0.22f, { {32.5f,6.5f},{0.90f,0.15f},{0.85f,0.05f},{0.00f,0.0f},{2.0f,0.5f},{2.0f,0.4f},{6.0f,1.2f},{0.0f,0.0f},{1.5f,0.3f},{0.0f,0.0f},{0.4f,0.10f},{1.5f,0.3f},{0.4f,0.08f} }},
-    /* COLOSSAL*/ { 0.13f, { {125.0f,25.0f},{3.00f,0.50f},{0.85f,0.05f},{0.00f,0.0f},{2.0f,0.5f},{7.5f,1.5f},{17.5f,3.5f},{0.0f,0.0f},{7.5f,1.5f},{0.0f,0.0f},{1.95f,0.39f},{12.0f,2.4f},{1.0f,0.20f} }},
+    column_to_profile(ANTENNA_TIERS[0]),
+    column_to_profile(ANTENNA_TIERS[1]),
+    column_to_profile(ANTENNA_TIERS[2]),
 };
 
 // ── Column traits ──
@@ -1267,10 +1371,26 @@ static constexpr TierParamDef PYRAMID_PARAM_DEFS[] = {
 };
 static constexpr uint32_t PYRAMID_PARAM_COUNT = sizeof(PYRAMID_PARAM_DEFS) / sizeof(TierParamDef);
 
+// Converter: PyramidTierParams (entities.inl) → generic TierProfile.
+// The order of TierMuSigma pairs MUST match PYRAMID_PARAM_DEFS order
+// (HEIGHT, BASE_HALF, ASPECT, TRUNCATION, EDGE_BLEND).
+static constexpr TierProfile pyramid_to_profile(const PyramidTierParams& p) {
+    TierProfile out{};
+    out.weight = p.weight;
+    out.params[PyrIdx::HEIGHT]     = { p.height_mean,        p.height_sigma };
+    out.params[PyrIdx::BASE_HALF]  = { p.base_half_mean,     p.base_half_sigma };
+    out.params[PyrIdx::ASPECT]     = { p.aspect_ratio_mean,  p.aspect_ratio_sigma };
+    out.params[PyrIdx::TRUNCATION] = { p.truncation_mean,    p.truncation_sigma };
+    out.params[PyrIdx::EDGE_BLEND] = { p.edge_blend_mean,    p.edge_blend_sigma };
+    return out;
+}
+
+// DONE[entities:K1] table now derives from PYRAMID_TIERS in entities.inl.
+//   Edits to tier values happen there, not here.
 static constexpr TierProfile PYRAMID_TIER_TABLE[] = {
-    /* OBELISK  */ { 0.50f, { {28.0f,6.0f},{16.0f,3.0f},{1.0f,0.15f},{0.00f,0.00f},{1.5f,0.3f} }},
-    /* TEMPLE   */ { 0.25f, { {45.0f,8.0f},{40.0f,6.0f},{1.0f,0.20f},{0.25f,0.08f},{3.0f,0.75f} }},
-    /* COLOSSUS */ { 0.25f, { {78.0f,14.4f},{60.0f,9.6f},{1.0f,0.10f},{0.05f,0.04f},{3.6f,1.0f} }},
+    pyramid_to_profile(PYRAMID_TIERS[0]),
+    pyramid_to_profile(PYRAMID_TIERS[1]),
+    pyramid_to_profile(PYRAMID_TIERS[2]),
 };
 
 static constexpr EntityFamilyTraits PYRAMID_TRAITS = {
@@ -1430,9 +1550,24 @@ static constexpr TierParamDef SPHERE_PARAM_DEFS[] = {
 };
 static constexpr uint32_t SPHERE_PARAM_COUNT = sizeof(SPHERE_PARAM_DEFS) / sizeof(TierParamDef);
 
+// Converter: SphereTierProfile (floater_vocabulary.inl) → generic TierProfile.
+// Order MUST match SPHERE_PARAM_DEFS (BODY_RADIUS, ORBIT_RADIUS,
+// ORBIT_HEIGHT, ORBIT_SPEED, INFLUENCE_RADIUS).
+static constexpr TierProfile sphere_to_profile(const SphereTierProfile& p) {
+    TierProfile out{};
+    out.weight = p.weight;
+    out.params[SphIdx::BODY_RADIUS]      = { p.body_radius_mean,      p.body_radius_sigma };
+    out.params[SphIdx::ORBIT_RADIUS]     = { p.orbit_radius_mean,     p.orbit_radius_sigma };
+    out.params[SphIdx::ORBIT_HEIGHT]     = { p.orbit_height_mean,     p.orbit_height_sigma };
+    out.params[SphIdx::ORBIT_SPEED]      = { p.orbit_speed_mean,      p.orbit_speed_sigma };
+    out.params[SphIdx::INFLUENCE_RADIUS] = { p.influence_radius_mean, p.influence_radius_sigma };
+    return out;
+}
+
+// DONE[entities:K1] derives from SPHERE_TIERS in floater_vocabulary.inl.
 static constexpr TierProfile SPHERE_TIER_TABLE[] = {
-    /* Sentinel */ { 0.65f, { {1.5f,0.3f},{12.0f,3.0f},{6.0f,2.0f},{1.4f,0.3f},{8.0f,2.0f} }},
-    /* Anomaly  */ { 0.35f, { {1.2f,0.2f},{8.0f,2.0f},{4.0f,1.5f},{2.0f,0.5f},{6.0f,1.5f} }},
+    sphere_to_profile(SPHERE_TIERS[0]),
+    sphere_to_profile(SPHERE_TIERS[1]),
 };
 
 static constexpr EntityFamilyTraits SPHERE_TRAITS = {
@@ -1571,11 +1706,35 @@ static constexpr TierParamDef CUBE_PARAM_DEFS[] = {
 };
 static constexpr uint32_t CUBE_PARAM_COUNT = sizeof(CUBE_PARAM_DEFS) / sizeof(TierParamDef);
 
+// Converter: CubeTierProfile (floater_vocabulary.inl) → generic TierProfile.
+// Order MUST match CUBE_PARAM_DEFS (BODY_RADIUS, ORBIT_HEIGHT,
+// INFLUENCE_RADIUS, SPIN_SPEED, BOB_AMPLITUDE, BOB_PERIOD,
+// ASPECT_Y, ASPECT_Z, FACE_VARIANCE).
+//
+// Note: spin_tilt_sigma is an extras field on CubeTierProfile (single
+// float, no mean/sigma pair) consumed directly by adapters, not via
+// the generic table. It does not appear here.
+static constexpr TierProfile cube_to_profile(const CubeTierProfile& p) {
+    TierProfile out{};
+    out.weight = p.weight;
+    out.params[CubeIdx::BODY_RADIUS]      = { p.body_radius_mean,      p.body_radius_sigma };
+    out.params[CubeIdx::ORBIT_HEIGHT]     = { p.orbit_height_mean,     p.orbit_height_sigma };
+    out.params[CubeIdx::INFLUENCE_RADIUS] = { p.influence_radius_mean, p.influence_radius_sigma };
+    out.params[CubeIdx::SPIN_SPEED]       = { p.spin_speed_mean,       p.spin_speed_sigma };
+    out.params[CubeIdx::BOB_AMPLITUDE]    = { p.bob_amplitude_mean,    p.bob_amplitude_sigma };
+    out.params[CubeIdx::BOB_PERIOD]       = { p.bob_period_mean,       p.bob_period_sigma };
+    out.params[CubeIdx::ASPECT_Y]         = { p.aspect_y_mean,         p.aspect_y_sigma };
+    out.params[CubeIdx::ASPECT_Z]         = { p.aspect_z_mean,         p.aspect_z_sigma };
+    out.params[CubeIdx::FACE_VARIANCE]    = { p.face_variance_mean,    p.face_variance_sigma };
+    return out;
+}
+
+// DONE[entities:K1] derives from CUBE_TIERS in floater_vocabulary.inl.
 static constexpr TierProfile CUBE_TIER_TABLE[] = {
-    /* SmallCube */ { 0.40f, { {1.8f,0.5f},{15.0f,12.0f},{6.0f,1.5f},{0.04f,0.015f},{1.0f,0.3f},{5.0f,1.5f},{1.0f,0.15f},{1.0f,0.15f},{0.40f,0.12f} }},
-    /* MedCube   */ { 0.32f, { {4.0f,1.2f},{25.0f,18.0f},{10.0f,2.0f},{0.03f,0.01f},{1.5f,0.4f},{6.0f,2.0f},{1.0f,0.20f},{1.0f,0.20f},{0.45f,0.15f} }},
-    /* LargeCube */ { 0.20f, { {8.0f,2.5f},{35.0f,20.0f},{14.0f,3.0f},{0.02f,0.008f},{2.0f,0.5f},{8.0f,2.5f},{1.0f,0.25f},{1.0f,0.25f},{0.35f,0.10f} }},
-    /* Monolith  */ { 0.08f, { {3.0f,0.8f},{5.0f,2.0f},{12.0f,3.0f},{0.015f,0.005f},{1.2f,0.3f},{6.0f,2.0f},{5.0f,1.2f},{0.15f,0.03f},{0.45f,0.12f} }},
+    cube_to_profile(CUBE_TIERS[0]),
+    cube_to_profile(CUBE_TIERS[1]),
+    cube_to_profile(CUBE_TIERS[2]),
+    cube_to_profile(CUBE_TIERS[3]),
 };
 
 static constexpr EntityFamilyTraits CUBE_TRAITS = {
@@ -1733,10 +1892,28 @@ static constexpr TierParamDef ARCH_PARAM_DEFS[] = {
 static constexpr uint32_t ARCH_PARAM_COUNT = sizeof(ARCH_PARAM_DEFS) / sizeof(TierParamDef);
 
 //   [0]SPAN [1]RISE [2]DEPTH [3]THICKNESS [4]PIER_HEIGHT [5]PIER_PADDING [6]EDGE_BLEND
+//
+// Converter: ArchTierParams (entities.inl) → generic TierProfile.
+// Note: ArchTierParams.span_mean is the FULL span; the param def
+// floor (1.0) and compute_solid_half halve it to half_span ≥ 0.5.
+static constexpr TierProfile arch_to_profile(const ArchTierParams& p) {
+    TierProfile out{};
+    out.weight = p.weight;
+    out.params[ArchIdx::SPAN]         = { p.span_mean,         p.span_sigma };
+    out.params[ArchIdx::RISE]         = { p.rise_mean,         p.rise_sigma };
+    out.params[ArchIdx::DEPTH]        = { p.depth_mean,        p.depth_sigma };
+    out.params[ArchIdx::THICKNESS]    = { p.thickness_mean,    p.thickness_sigma };
+    out.params[ArchIdx::PIER_HEIGHT]  = { p.pier_height_mean,  p.pier_height_sigma };
+    out.params[ArchIdx::PIER_PADDING] = { p.pier_padding_mean, p.pier_padding_sigma };
+    out.params[ArchIdx::EDGE_BLEND]   = { p.edge_blend_mean,   p.edge_blend_sigma };
+    return out;
+}
+
+// DONE[entities:K1] derives from ARCH_TIERS in entities.inl.
 static constexpr TierProfile ARCH_TIER_TABLE[] = {
-    /* DOORWAY    */ { 0.50f, { {12.0f,2.4f},{12.0f,2.4f},{4.5f,0.9f},{1.2f,0.18f},{1.5f,0.9f},{0.9f,0.3f},{0.9f,0.15f} }},
-    /* STANDARD   */ { 0.15f, { {50.0f,15.f},{42.0f,7.0f},{5.6f,1.1f},{1.4f,0.21f},{5.6f,2.1f},{0.7f,0.3f},{0.7f,0.14f} }},
-    /* MONUMENTAL */ { 0.15f, { {60.0f,10.f},{80.0f,12.f},{10.0f,2.0f},{2.5f,0.30f},{8.0f,2.5f},{1.0f,0.3f},{0.8f,0.15f} }},
+    arch_to_profile(ARCH_TIERS[0]),
+    arch_to_profile(ARCH_TIERS[1]),
+    arch_to_profile(ARCH_TIERS[2]),
 };
 
 static constexpr EntityFamilyTraits ARCH_TRAITS = {
