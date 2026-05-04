@@ -1,0 +1,188 @@
+═══════════════════════════════════════════════════════════════════════════════
+  MILESTONE: Integrate MidiPort source (loopMIDI / Ableton input)
+═══════════════════════════════════════════════════════════════════════════════
+
+GOAL
+  Add a third MIDI source — MidiPort — that reads from a system MIDI port
+  (loopMIDI from Ableton). Sits alongside MidiFile and KeyboardMidi. None of
+  them are removed; all three poll into the same MidiStream.
+
+  Comments must describe present behavior only — no Pass-N annotations.
+
+
+STEP 1 — Vendor RtMidi
+─────────────────────────────────────────────────────────────────────────────
+
+  Download RtMidi from https://github.com/thestk/rtmidi (Code → Download ZIP).
+
+  Copy these two files into the project:
+    src/external/RtMidi.h
+    src/external/RtMidi.cpp
+
+  No other files from the rtmidi repo are needed.
+
+
+STEP 2 — Create the new source header
+─────────────────────────────────────────────────────────────────────────────
+
+  Add file:  src/sources/midi_port.hpp
+
+  Contents are provided in the accompanying file `midi_port.hpp`.
+
+  Notes for review:
+    - Same external contract as KeyboardMidi: poll() drains pending events.
+    - poll() takes current_beat as first argument (events are stamped at
+      poll time because the RtMidi callback thread has no clock access).
+    - Lock-free SPSC ring buffer between RtMidi callback thread and main.
+    - Inert construction: MidiPort() never throws. is_open() returns false
+      until open() succeeds.
+    - Note On with velocity 0 is decoded as Note Off (standard MIDI).
+    - Sysex, MIDI clock, active sense are filtered out (ignoreTypes).
+    - CCs / pitch bend / channel pressure are silently dropped.
+
+
+STEP 3 — Modify CMakeLists.txt
+─────────────────────────────────────────────────────────────────────────────
+
+  3a. Add `__WINDOWS_MM__` to the global MSVC compile defs.
+
+      Find where MSVC_COMPILE_DEFS is defined (it's referenced near
+      line 553 and 655). Add `__WINDOWS_MM__` to that list. RtMidi needs
+      this define to enable the Windows MultiMedia backend.
+
+  3b. Add `winmm.lib` to DAWN_LIBS (or to each target's link list).
+
+      The simplest place is to append it to DAWN_LIBS where the list is
+      assembled, since all three targets link against DAWN_LIBS.
+
+  3c. Add RtMidi.cpp to all three executables' source lists.
+
+      For `incubator`:
+          Add  src/external/RtMidi.cpp
+          alongside  src/external/stb_image.cpp
+
+      For `incubator_dual` (around line 535-540):
+          Add  src/external/RtMidi.cpp
+          alongside  src/external/stb_image.cpp
+
+      For the main `${PROJECT_NAME}` target (around line 640-644):
+          Add  src/external/RtMidi.cpp
+          alongside  src/external/stb_image.cpp
+
+  3d. Add midi_port.hpp to the HEADERS list (line 624-626 area):
+
+      In the "Sources" group:
+          src/sources/midi_event.hpp
+          src/sources/midi_file.hpp
+          src/sources/keyboard_midi.hpp
+          src/sources/midi_port.hpp        <-- new
+
+      And in source_group("Sources" FILES ...) on line 679, add the same.
+
+
+STEP 4 — Wire MidiPort into the analysis cartridge
+─────────────────────────────────────────────────────────────────────────────
+
+  File:  src/analysis/polyphony_basic/canvas.hpp
+
+  4a. Add include alongside the other source includes:
+
+          #include "sources/midi_port.hpp"
+
+  4b. Add the member alongside midi_file_ and keyboard_:
+
+          MidiPort midi_port_;
+
+  4c. In initialize(), attempt auto-open after BPM setup:
+
+          // Try to auto-connect to a loopMIDI port (Ableton -> us)
+          if (midi_port_.open_by_name("loopmidi")) {
+              std::cout << "Connected to MIDI port: "
+                        << midi_port_.port_name() << "\n";
+          }
+
+      (Add `#include <iostream>` if not already present.)
+
+  4d. Add a routing function alongside route_midi_file_events and
+      route_keyboard_events:
+
+          void route_midi_port_events(float beat) {
+              if (!midi_port_.is_open()) return;
+
+              MidiEvent events[64];
+              int count = midi_port_.poll(beat, events, 64);
+
+              for (int i = 0; i < count; ++i) {
+                  stream_.receive(events[i]);
+              }
+          }
+
+  4e. Call it from update() right after the existing routes:
+
+          route_midi_file_events(beat);
+          route_keyboard_events();
+          route_midi_port_events(beat);   // <-- new
+
+
+STEP 5 — Build and verify
+─────────────────────────────────────────────────────────────────────────────
+
+  5a. Reconfigure CMake (since CMakeLists.txt changed):
+
+          cmake --build build --target incubator_dual
+
+      (Or your usual full reconfigure if needed.)
+
+  5b. Build any of the three targets. Easiest: incubator_dual.
+
+  5c. Run the executable.
+
+      With Ableton sending to loopMIDI, you should see in console:
+
+          Connected to MIDI port: loopMIDI Port 0
+
+      And the visualizer should respond to Ableton notes the same way it
+      responds to keyboard input today (polyphony stat changes, etc.).
+
+  5d. Verify the file path still works as a fallback:
+
+          incubator_dual.exe assets/some_clip.mid
+
+      Should still play the clip and visualize it. Three sources can
+      coexist without conflict.
+
+
+GOTCHAS TO WATCH FOR
+─────────────────────────────────────────────────────────────────────────────
+
+  - If the build fails on `RtMidi.cpp` with a backend error: confirm
+    `__WINDOWS_MM__` is in MSVC compile defs (Step 3a). RtMidi defaults
+    to a "no backend" build without one of the platform defines.
+
+  - If linking fails with unresolved `midiInOpen` etc.: confirm
+    `winmm.lib` is on the link line (Step 3b).
+
+  - If MidiPort connects but no events arrive: most likely Ableton is
+    sending to a different loopMIDI port than the one auto-detect found.
+    Use `midi_port_.enumerate()` from a debug print to see the list and
+    open by exact index if needed.
+
+  - If there are stuttering/dropped notes: ring overflow is logged via
+    silent drops. The 256-slot ring should never fill at musical rates;
+    if it does, something else is wrong (event flood, or stalled main
+    thread).
+
+
+WHAT NOT TO DO
+─────────────────────────────────────────────────────────────────────────────
+
+  - Don't remove MidiFile or KeyboardMidi. Both stay as development
+    fallbacks (clip looping for reproducible iteration, keyboard for
+    no-DAW demos).
+
+  - Don't add Pass-N annotations to comments. Comments describe present
+    behavior only.
+
+  - Don't add MidiPort to multiple cartridges yet. Wire it only into
+    polyphony_basic for now. When other analysis cartridges arrive,
+    they'll add their own instances.
