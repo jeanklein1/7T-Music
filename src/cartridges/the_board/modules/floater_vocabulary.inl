@@ -14,11 +14,11 @@
 // Included inside the Cartridge class body.
 // Depends on: state.hpp (Dim::*), entities.inl (MOOD_COUNT)
 //
-// SEAM[floater_vocabulary:taxonomy] generic-pipeline floater families
+// DONE[floater_vocabulary:taxonomy] generic-pipeline floater families
 //   parallel grounded families (entities.inl) but live in their own
 //   file because their tier shapes differ (sphere has orbit_radius/
 //   orbit_speed, cube doesn't). Phase 2 outcome of D-floater (β):
-//   extract floater_vocabulary.inl, rename old floaters.inl to
+//   floater_vocabulary.inl extracted; old floaters.inl renamed to
 //   cube_behaviors.inl. Three concerns, three files: vocabulary
 //   here, sampling profile in entity_pipeline.inl, cube behavior
 //   gains in cube_behaviors.inl.
@@ -30,10 +30,10 @@
 // Slots 0 .. MAX_SPHERE_INSTANCES-1 in the shared floating entity buffer.
 // GPU compute: update_sphere. Vertex shader: sphere_vs.
 //
-// SEAM[sphere:taxonomy] sphere VOCABULARY lives here, not in entities.inl
+// DONE[sphere:taxonomy] sphere VOCABULARY lives here, not in entities.inl
 //   (Ch. 12.C). Generic-pipeline floater family — vocabulary class
-//   distinct from grounded families. Phase 2 extraction target:
-//   floater_vocabulary.inl (D-floater inclining β with naming care).
+//   distinct from grounded families. Phase 2 extraction landed
+//   (D-floater β): floater_vocabulary.inl is now the canonical home.
 // DONE[sphere:L1] FloatingEntityTierProfile renamed to SphereTierProfile
 //   in Phase 3. Used only by spheres; cubes have their own
 //   CubeTierProfile struct with different fields. The misleading
@@ -113,7 +113,7 @@
 // Slots 0 .. MAX_CUBE_INSTANCES-1 (buffer offset by CUBE_SLOT_OFFSET).
 // GPU compute: update_cube. Vertex shader: monolith_vs.
 //
-// SEAM[cube:taxonomy] cube VOCABULARY lives here, not in entities.inl
+// DONE[cube:taxonomy] cube VOCABULARY lives here, not in entities.inl
 //   (Ch. 12.C). Verified by Ch. 13 chunk-3 read — the seam map's
 //   Ch. 9 cube-three-tier-home claim was reframed: vocabulary in
 //   13.B (here), sampling profile in entity_pipeline.inl, behavior

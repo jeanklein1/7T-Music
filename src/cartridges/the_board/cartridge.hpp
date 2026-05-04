@@ -3117,15 +3117,15 @@ namespace t7 {
                 return true;
             }
 
-            // DONE[spine:K1 / musical:K2 / mood:K3] update() is now the
-            //   phase-orchestration sequence the seam map called for:
+            // DONE[spine:K1 / musical:K2 / mood:K3 / pawn:K1] update() is now
+            //   the phase-orchestration sequence the seam map called for:
             //   build signal → upload → transition state machine →
             //   tick_musical_couplings → orb couplings → photographer →
             //   clear input deltas. ~200 lines of inline ramps moved into
             //   musical.inl (tick_musical_couplings, reset_musical_couplings)
             //   using the trajectory.inl primitive (mirroring WGSL §1.2).
-            //   Pawn aura presence ramp (pawn:K1) still inline below —
-            //   migrates with the pawn.inl extraction in Phase 4.3.
+            //   Pawn aura presence ramp (pawn:K1) closed in Phase 4.3 —
+            //   tick_pawn_couplings(queue) call below lives in pawn.inl.
             // DONE[spine:L4] phase order is named at each call site
             //   (ramps live in named ticks; orchestration is the
             //   call-list shape).
@@ -3185,15 +3185,13 @@ namespace t7 {
                         break;
                     case TransitionPhase::TEARDOWN:
                     {
-                        // SEAM[mood:K3] this 70-line TEARDOWN block does
-                        //   per-mood-transition work that overlaps with
-                        //   mood.inl::apply_mood. The K3 leak (per-transition
-                        //   musical reset) lives in apply_mood; this block is
-                        //   apply_mood's caller-side parallel. End-of-tour:
-                        //   reset_musical_couplings() lives in musical.inl;
-                        //   apply_mood calls it; this block stays focused on
-                        //   the integration concerns (worldGen bump, agent
-                        //   reset, ribbon cleanup) it correctly owns.
+                        // DONE[mood:K3] per-transition musical reset
+                        //   (reset_musical_couplings) lives in musical.inl;
+                        //   apply_mood calls it. This TEARDOWN block stays
+                        //   focused on the integration concerns it correctly
+                        //   owns: worldGen bump (P5 stale-callback guard),
+                        //   return-state capture, agent reset, ribbon cleanup,
+                        //   patch teardown.
                         // SEAM[spine:P5] worldGen_++ at top of TEARDOWN is the
                         //   stale-callback guard (P5 family). Genuinely
                         //   spine-owned.
@@ -3300,8 +3298,11 @@ namespace t7 {
                 //
                 // SEAM[orbs:P1] counter-example to ramp-in-spine: the orb
                 //   per-frame coupling is decomposed into orbs.inl
-                //   (update_orb_coupling). This is the target shape for
-                //   musical:K2, mood:K3, pawn:K1.
+                //   (update_orb_coupling). This was the target shape for
+                //   musical:K2, mood:K3, pawn:K1 — all three now closed
+                //   (tick_musical_couplings, reset_musical_couplings,
+                //   tick_pawn_couplings). Pattern P1 retained as the
+                //   architectural exemplar for future per-frame couplings.
                 update_orb_coupling(signal.stats[0], signal.dt, queue);
 
                 // Orb dome anchor: follow pawn when toggled on. Uses

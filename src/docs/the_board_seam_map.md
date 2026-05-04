@@ -5288,26 +5288,70 @@ Every knot the seam map's resolution sequence named is closed.
 
 ## Post-Phase-5 decisions and follow-ups
 
-### entities:K1 — resolved with Option C + converters
+### entities:K1 — resolved with Option B (per-family TierRow structs)
 
 Decided after Phase 5 settled. The two-table duplication for the 9
-generic-pipeline families (7 grounded in entities.inl + 2 floater in
-floater_vocabulary.inl) collapses to a single source of truth: the
-named struct in the vocabulary file. The generic
-`*_TIER_TABLE` arrays in `entity_pipeline.inl` become *derived*
-arrays populated by per-family `*_to_profile()` constexpr
-converters.
+generic-pipeline families (7 grounded + 2 floater) collapses to a
+single source of truth.
 
-**Why C over B:** the named structs are the artist-facing surface.
-Tuning happens in the vocabulary files; the generic shape exists for
-the pipeline machinery. Putting the source of truth on the side
-artists touch eliminates hand-drift discipline. **And:** Option C
-matches the eventual control-surface direction (see below); Option
-B would have moved away from it.
+**The decision history is worth preserving:**
 
-**The converter approach:** ~10 lines per family, total ~80 lines of
-mechanical derivation. The generic table's shape and consumer
-machinery are unchanged. Drift is impossible at compile time.
+1. *Initial decision: Option C with converters.* Named struct in
+   vocabulary files (entities.inl / floater_vocabulary.inl) as
+   source; generic `*_TIER_TABLE` derived via `*_to_profile()`
+   `constexpr` converter functions. The reasoning was that named
+   structs are the artist-facing surface and should hold the source
+   of truth.
+
+2. *MSVC build failure — C2131.* The C+converter approach hit
+   MSVC's restriction on calling class-static-member `constexpr`
+   functions to initialize class-static `constexpr` arrays.
+   Approach 2 (lift named structs out of the class to namespace
+   scope) was considered as a fix.
+
+3. *Re-evaluation prompted by the build error.* The previous "C is
+   clearly better than B" framing was reactive to a flawed version
+   of B (wide `EntityFamilyTraits` with all extras). A cleaner B
+   shape — per-family struct holding both `TierProfile profile` and
+   the family-specific extras, authored once in
+   `entity_pipeline.inl` — yields fewer artifacts than C with
+   converter, sharper conceptual split, and resolves the build
+   issue not by working around it but by removing the duplication
+   that required the converter in the first place.
+
+4. *Final decision: Option B.* The named structs in entities.inl
+   are deleted. Per-family `*TierRow` structs (`PyramidTierRow`,
+   `ArchTierRow`, etc.) live in entity_pipeline.inl alongside the
+   sampling machinery. A new `get_tier_profile` accessor on
+   `EntityFamilyAdapter` provides per-family tier-profile access;
+   `traits.tier_profiles` is removed.
+
+**The naming-convention discovery:** `enum class PyramidTier` already
+existed in entities.inl (with `OBELISK`, `TEMPLE`, `COLOSSUS`),
+making `PyramidTier` unavailable as a struct name. Resolved by
+naming the new struct `*TierRow` ("one row of the tier table") —
+slightly clearer than `*Tier` would have been. Pattern applied
+consistently across all 9 families.
+
+**Cleaner conceptual split achieved:**
+
+| File | Role |
+|------|------|
+| `entity_types.inl` | Generic types: `TierProfile`, `TierMuSigma`, `EntityFamilyTraits`, `EntityFamilyAdapter`, `EntityInstance` |
+| `entity_pipeline.inl` | All per-family tier data (`*TierRow` structs + `*_TIERS` arrays) + sampling machinery + adapters |
+| `entities.inl` | Per-family **non-sampling** vocabulary: color palettes, spawn configs, prop registries, runtime tracking, enum classes |
+| `floater_vocabulary.inl` | Floater non-sampling vocabulary mirror (sphere + cube): spawn config, prop registries, runtime tracking, tier metadata (counts, weights, names) |
+
+**Migration breadcrumbs are in source.** Every grounded-family
+section in entities.inl has an explanatory comment naming where its
+tier values went and why. Floater sections in floater_vocabulary.inl
+do the same. The historical-breadcrumb pattern (Ch. 14 conventions)
+applied proactively.
+
+**No converter code, no second table.** The ~80 lines of mechanical
+derivation that C-with-converter would have introduced don't exist.
+Single declaration per family, same file as the machinery that
+consumes it.
 
 ### Control surface direction
 
@@ -5327,9 +5371,13 @@ control surface adds a single navigation point for "what can I tune
 and what does it affect."
 
 The K1 resolution is structured to be compatible with this direction:
-named structs in vocabulary files become a natural staging post for
-control-surface entries. Migrating to a control surface from named
-structs is a smaller step than migrating from generic-shape arrays.
+the per-family `*TierRow` structs in entity_pipeline.inl are
+themselves a proto-control-surface for sampling parameters. Each row
+is a named, addressable container of tunable values; migration to a
+project-wide control surface would extract from these rows into named
+control-surface entries. The destination is the same as Option C
+would have led to; the starting point is per-family structs in
+entity_pipeline.inl rather than named structs in vocabulary files.
 
 ### Items still open (CC's report named these correctly)
 

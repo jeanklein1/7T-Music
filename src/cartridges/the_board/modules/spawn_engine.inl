@@ -10,13 +10,11 @@
 //   helper) — run_spawn_preamble<ActiveT> is the canonical instance.
 //   One implementation, ten callers. Same family as P10's per-family
 //   vocabulary block at the algorithm level.
-// SEAM[spawn_engine:structural] mid-block #include "modules/entity_types.inl"
-//   below (~line 1840-something in the live file). Not a leak — a C++
-//   language constraint expressed as code: EntityQueueEntry's union
-//   member EntityInstance must be defined before the union.
-//   NOTE[seam-map] preserve mid-include during Phase 2 extraction;
-//   either keep one file with the include, or split into pre/post
-//   files (decision deferred to extraction time).
+// DONE[spawn_engine:structural] mid-block #include "modules/entity_types.inl"
+//   landed in Phase 2 extraction. Decision: keep one file with the
+//   include rather than split into pre/post files. The full
+//   explanation of why the include lands mid-block (C++ union member
+//   ordering constraint) lives at the include site below.
 // ─────────────────────────────────────────────────────────────────
 
 // SEAM[spawn_engine:L1] latent diagnostic — DIAG_ENTITY_LIFECYCLE is
