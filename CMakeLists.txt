@@ -439,11 +439,12 @@ set(DAWN_LIBS
     onecore.lib
     gdi32.lib
     shell32.lib
+    winmm.lib
 )
 
 # Shared MSVC options (applied per-target below)
 set(MSVC_COMPILE_OPTS /W3 /wd4251 /wd4275 /wd4244 /wd4267 /EHsc)
-set(MSVC_COMPILE_DEFS NOMINMAX WIN32_LEAN_AND_MEAN _CRT_SECURE_NO_WARNINGS)
+set(MSVC_COMPILE_DEFS NOMINMAX WIN32_LEAN_AND_MEAN _CRT_SECURE_NO_WARNINGS __WINDOWS_MM__)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # BUILD INFO
@@ -476,6 +477,7 @@ file(GLOB_RECURSE INCUBATOR_CARTRIDGE_HEADERS
 add_executable(incubator
     src/incubator.cpp
     src/external/stb_image.cpp
+    src/external/RtMidi.cpp
     ${INCUBATOR_CARTRIDGE_HEADERS}
 )
 
@@ -536,6 +538,7 @@ file(GLOB_RECURSE DUAL_ANALYSIS_HEADERS
 add_executable(incubator_dual
     src/incubator_dual.cpp
     src/external/stb_image.cpp
+    src/external/RtMidi.cpp
     ${DUAL_RENDER_HEADERS}
     ${DUAL_ANALYSIS_HEADERS}
 )
@@ -625,6 +628,7 @@ set(HEADERS
     src/sources/midi_event.hpp
     src/sources/midi_file.hpp
     src/sources/keyboard_midi.hpp
+    src/sources/midi_port.hpp
 
     # Musical
     src/musical/stream_data.hpp
@@ -642,6 +646,7 @@ add_executable(${PROJECT_NAME}
     src/main.cpp
     ${HEADERS}
     src/external/stb_image.cpp
+    src/external/RtMidi.cpp
 )
 
 target_include_directories(${PROJECT_NAME} PRIVATE
@@ -677,7 +682,7 @@ source_group("Console" FILES src/console/console.hpp)
 source_group("Core" FILES src/core/types.hpp src/core/clock.hpp src/core/input_event.hpp)
 source_group("Analysis" FILES src/analysis/analysis_signal.hpp src/analysis/analysis_cartridge.hpp)
 source_group("Render" FILES src/render/render_cartridge.hpp)
-source_group("Sources" FILES src/sources/midi_event.hpp src/sources/midi_file.hpp src/sources/keyboard_midi.hpp)
+source_group("Sources" FILES src/sources/midi_event.hpp src/sources/midi_file.hpp src/sources/keyboard_midi.hpp src/sources/midi_port.hpp)
 source_group("Musical" FILES
     src/musical/stream_data.hpp src/musical/midi_stream.hpp src/musical/musical_ops.hpp
     src/musical/playhead.hpp src/musical/wagon.hpp src/musical/train.hpp

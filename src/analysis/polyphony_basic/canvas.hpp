@@ -10,6 +10,7 @@
  * -------
  * - MidiFile: Plays a MIDI file in a loop
  * - KeyboardMidi: Computer keyboard as piano
+ * - MidiPort: External MIDI input via system port (loopMIDI / DAW)
  * 
  * ANALYSIS
  * --------
@@ -32,10 +33,12 @@
 #include "sources/midi_event.hpp"
 #include "sources/midi_file.hpp"
 #include "sources/keyboard_midi.hpp"
+#include "sources/midi_port.hpp"
 #include "musical/midi_stream.hpp"
 #include "musical/playhead.hpp"
 #include "musical/train.hpp"
 
+#include <iostream>
 #include <string>
 
 namespace t7 {
@@ -65,16 +68,22 @@ public:
     
     void initialize(const char* asset_path) override {
         clock_.set_bpm(120.0f);
-        
+
         // Define stats
         polyphony_stat_ = train_.define([](const TrainContext& ctx) {
             return static_cast<float>(ctx.playhead(0).current_count);
         });
-        
+
         // Try to load default MIDI
         if (asset_path) {
             std::string midi_path = std::string(asset_path) + "/SWEET_CLIP_3.mid";
             load_midi(midi_path.c_str());
+        }
+
+        // Try to auto-connect to a loopMIDI port (Ableton -> us)
+        if (midi_port_.open_by_name("loopmidi")) {
+            std::cout << "Connected to MIDI port: "
+                      << midi_port_.port_name() << "\n";
         }
     }
     
@@ -85,6 +94,7 @@ public:
         // Route events from sources to stream
         route_midi_file_events(beat);
         route_keyboard_events();
+        route_midi_port_events(beat);
         
         // Update stream (prunes old history)
         stream_.update(beat);
@@ -159,6 +169,7 @@ private:
     MidiFile midi_file_;
     bool midi_loaded_ = false;
     KeyboardMidi keyboard_{ 0, 100 };  // channel 0, max 100 events
+    MidiPort midi_port_;
     
     // ─── STREAM + ANALYZERS ─────────────────────────────────────────────────
     MidiStream stream_;
@@ -185,7 +196,18 @@ private:
     void route_keyboard_events() {
         MidiEvent events[64];
         int count = keyboard_.poll(events, 64);
-        
+
+        for (int i = 0; i < count; ++i) {
+            stream_.receive(events[i]);
+        }
+    }
+
+    void route_midi_port_events(float beat) {
+        if (!midi_port_.is_open()) return;
+
+        MidiEvent events[64];
+        int count = midi_port_.poll(beat, events, 64);
+
         for (int i = 0; i < count; ++i) {
             stream_.receive(events[i]);
         }
