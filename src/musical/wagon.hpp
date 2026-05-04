@@ -153,8 +153,22 @@ struct WagonReadout {
 class Wagon {
 public:
     /**
+     * Default constructor: span 0, no straddling, no active inclusion.
+     * Used when Wagons are owned in a fixed-size container and configured
+     * later via set_span() / set_offset().
+     */
+    Wagon()
+        : span_beats_(0.0f)
+        , offset_beats_(0.0f)
+        , include_straddling_(false)
+        , include_active_(false)
+    {
+        readout_.clear();
+    }
+
+    /**
      * Construct a Wagon.
-     * 
+     *
      * @param span_beats         Window size in beats
      * @param offset_beats       How far behind real time (0 = live)
      * @param include_straddling Include notes that cross window boundaries

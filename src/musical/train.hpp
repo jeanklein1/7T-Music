@@ -34,33 +34,31 @@
  * are stored inline (up to COMPUTE_FN_BUFFER_SIZE bytes). Lambdas with
  * larger captures will fail to compile.
  * 
+ * OWNED ANALYZERS
+ * ---------------
+ *
+ * The Train owns its Playheads and Wagons. Attach them via add_playhead()
+ * / add_wagon() at setup time; the Train runs them against the snapshot
+ * each frame inside update(). Stat lambdas read their readouts via
+ * ctx.playhead(slot) / ctx.wagon(slot).
+ *
  * USAGE
  * -----
- * 
- *     // Setup
- *     MidiStream stream(router, 0);
- *     Playhead playhead;
- *     Wagon wagon(4.0f);
+ *
+ *     MidiStream stream(...);
  *     Train train;
- *     
- *     // Define computations
- *     auto HUE = train.define([](const TrainContext& ctx) {
- *         float pitch = playhead_centroid(ctx.playhead(0)) / 127.0f;
- *         float density = wagon_coverage(ctx.wagon(0));
- *         return pitch * (0.5f + density * 0.5f);
+ *
+ *     int ph_slot = train.add_playhead();
+ *     int wg_slot = train.add_wagon(4.0f);
+ *
+ *     auto STAT = train.define([=](const TrainContext& ctx) {
+ *         return float(ctx.playhead(ph_slot).current_count);
  *     });
- *     
- *     // Runtime
+ *
+ *     // Per frame
  *     stream.update(beat);
- *     auto snap = stream.snapshot();
- *     playhead.update(snap, stream.history());
- *     wagon.update(snap, stream.history());
- *     
- *     train.set_playhead(0, playhead.readout());
- *     train.set_wagon(0, wagon.readout());
- *     train.update(beat);
- *     
- *     float hue = train.get(HUE);
+ *     train.update(stream.snapshot(), stream.history(), beat);
+ *     float v = train.get(STAT);
  */
 
 #include "musical/playhead.hpp"
@@ -76,8 +74,8 @@ namespace t7 {
 // CONSTANTS
 // =============================================================================
 
-constexpr int TRAIN_MAX_PLAYHEADS = 8;
-constexpr int TRAIN_MAX_WAGONS = 8;
+constexpr int TRAIN_MAX_PLAYHEADS = 2;
+constexpr int TRAIN_MAX_WAGONS = 2;
 constexpr int TRAIN_MAX_STATS = 32;
 
 // Buffer size for inline lambda storage (no heap allocation if capture fits)
@@ -293,38 +291,36 @@ public:
         stat_values_.fill(0.0f);
     }
     
-    // --- SET READOUTS (values, copied) ---
-    
-    Train& set_playhead(int slot, const PlayheadReadout& readout) {
-        if (slot >= 0 && slot < TRAIN_MAX_PLAYHEADS) {
-            context_.playheads_[slot] = readout;
-            context_.playhead_valid_[slot] = true;
-        }
-        return *this;
+    // --- ATTACH ANALYZERS ---
+
+    /**
+     * Attach a Playhead to this Train.
+     * Returns the slot index for use in lambdas via ctx.playhead(slot).
+     * Returns -1 if at capacity.
+     */
+    int add_playhead() {
+        if (playhead_count_ >= TRAIN_MAX_PLAYHEADS) return -1;
+        return playhead_count_++;
     }
-    
-    Train& clear_playhead(int slot) {
-        if (slot >= 0 && slot < TRAIN_MAX_PLAYHEADS) {
-            context_.playhead_valid_[slot] = false;
-        }
-        return *this;
+
+    /**
+     * Attach a Wagon to this Train with the given span (in beats).
+     * Returns the slot index for use in lambdas via ctx.wagon(slot).
+     * Returns -1 if at capacity.
+     */
+    int add_wagon(float span_beats,
+                  float offset_beats = 0.0f,
+                  bool include_straddling = false,
+                  bool include_active = false) {
+        if (wagon_count_ >= TRAIN_MAX_WAGONS) return -1;
+        int slot = wagon_count_++;
+        wagons_[slot].set_span(span_beats);
+        wagons_[slot].set_offset(offset_beats);
+        wagons_[slot].set_include_straddling(include_straddling);
+        wagons_[slot].set_include_active(include_active);
+        return slot;
     }
-    
-    Train& set_wagon(int slot, const WagonReadout& readout) {
-        if (slot >= 0 && slot < TRAIN_MAX_WAGONS) {
-            context_.wagons_[slot] = readout;
-            context_.wagon_valid_[slot] = true;
-        }
-        return *this;
-    }
-    
-    Train& clear_wagon(int slot) {
-        if (slot >= 0 && slot < TRAIN_MAX_WAGONS) {
-            context_.wagon_valid_[slot] = false;
-        }
-        return *this;
-    }
-    
+
     // --- DEFINE COMPUTATIONS ---
     
     /**
@@ -350,13 +346,31 @@ public:
     // --- UPDATE ---
     
     /**
-     * Recompute all stats.
-     * Call after setting all readouts for this frame.
+     * Update the Train: run owned analyzers against the snapshot,
+     * publish their readouts into the context, then evaluate all
+     * defined stat lambdas.
      */
-    void update(float current_beat) {
+    void update(const StreamSnapshot& snap,
+                const CompletedRing& history,
+                float current_beat) {
         current_beat_ = current_beat;
         context_.beat_ = current_beat;
-        
+
+        // Run owned Playheads and publish readouts
+        for (int i = 0; i < playhead_count_; ++i) {
+            playheads_[i].update(snap, history);
+            context_.playheads_[i] = playheads_[i].readout();
+            context_.playhead_valid_[i] = true;
+        }
+
+        // Run owned Wagons and publish readouts
+        for (int i = 0; i < wagon_count_; ++i) {
+            wagons_[i].update(snap, history);
+            context_.wagons_[i] = wagons_[i].readout();
+            context_.wagon_valid_[i] = true;
+        }
+
+        // Evaluate stat lambdas
         for (int i = 0; i < stat_count_; ++i) {
             if (compute_fns_[i]) {
                 stat_values_[i] = compute_fns_[i](context_);
@@ -387,12 +401,18 @@ public:
     
 private:
     TrainContext context_;
-    
+
     std::array<ComputeFn, TRAIN_MAX_STATS> compute_fns_;
     std::array<float, TRAIN_MAX_STATS> stat_values_;
     int stat_count_ = 0;
-    
+
     float current_beat_ = 0.0f;
+
+    // Owned analyzers (Train owns its own observers)
+    std::array<Playhead, TRAIN_MAX_PLAYHEADS> playheads_;
+    std::array<Wagon,    TRAIN_MAX_WAGONS>    wagons_;
+    int playhead_count_ = 0;
+    int wagon_count_    = 0;
 };
 
 // =============================================================================
@@ -402,17 +422,19 @@ private:
 // ComputeFn: 32 (buffer) + 24 (pointers) = 56 bytes
 
 // TrainContext memory:
-//   playheads_[8]      = 8 * 536 = 4288 bytes
-//   wagons_[8]         = 8 * 3100 = 24800 bytes
-//   valid flags        = 16 bytes
+//   playheads_[2]      = 2 * 536  = 1072 bytes
+//   wagons_[2]         = 2 * 3100 = 6200 bytes
+//   valid flags        = 4 bytes
 //   beat_              = 4 bytes
-//   Total              ~ 29 KB
+//   Total              ~ 7.3 KB
 
 // Train memory:
-//   context_           ~ 29 KB
-//   compute_fns_[32]   = 32 * 56 = 1792 bytes
+//   context_           ~ 7.3 KB
+//   compute_fns_[32]   = 32 * 56  = 1792 bytes
 //   stat_values_[32]   = 128 bytes
-//   scalars            ~ 8 bytes
-//   Total              ~ 31 KB
+//   playheads_[2]      = 2 * 536  = 1072 bytes  (owned analyzers)
+//   wagons_[2]         = 2 * 3100 = 6200 bytes  (owned analyzers)
+//   scalars            ~ 16 bytes
+//   Total              ~ 16.5 KB
 
 } // namespace t7
