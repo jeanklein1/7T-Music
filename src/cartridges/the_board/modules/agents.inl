@@ -1,4 +1,4 @@
-﻿// ─── agents.inl ─────────────────────────────────────────────────
+// ─── agents.inl ─────────────────────────────────────────────────
 //
 // Unified entity registry: the control panel for the agent system.
 // Every pawn-like body on the board — the one the player inhabits and
