@@ -4,10 +4,6 @@
 // activates near the pawn and releases when it moves away),
 // presence trajectory, per-frame coupling tick.
 //
-// Phase 4.3 extraction (closes pawn:K1): folds the previous
-// pawn_aura.inl contents and adds tick_pawn_couplings(queue) for
-// the per-frame ramps that used to live in cartridge.hpp::update().
-//
 // Architecture:
 //   PawnAuraProfile    — declarative parameter table
 //   PawnAuraDeltaMode  — color differential strategy
@@ -15,11 +11,40 @@
 //   GPUPawnAuraCell    — per-cell state (in state.hpp)
 //   auraPresence_      — Trajectory-style 0→1 ramp on toggle
 //
+// ┌─── Public surface (called from outside this file) ──────────────┐
+// │                                                                  │
+// │  Per-frame updates:                                              │
+// │    tick_pawn_couplings(queue)  — presence ramp + height compute  │
+// │                                                                  │
+// └──────────────────────────────────────────────────────────────────┘
+//
 // Included inside the Cartridge class body.
 // Depends on: trajectory.inl (release primitive), musical.inl
 //             (mmodeIntensity_[MMODE_AURA_EXPAND] for the expand
 //             coupling).
 // ─────────────────────────────────────────────────────────────────
+
+
+// ═══ TUNING CONSOLE ══════════════════════════════════════════════
+//
+// System-level dials for the pawn aura. Profile-authored values
+// (radius, stiffness, tints, mode) live in PawnAuraProfile below;
+// these are dials that apply regardless of which profile is active.
+
+// ── Aura presence ramp ───────────────────────────────────────────
+// auraPresence_ ramps 0→1 on enable and 1→0 on disable. Smooths
+// the transition so terrain extrusion and pawn height change
+// gradually rather than snapping. Asymmetric: enable feels
+// deliberate (~3s), disable feels release-y (~2s).
+static constexpr float AURA_PRESENCE_ATTACK  = 1.0f;   // 1/s — ~3s to full (spring converges in ~0.5s)
+static constexpr float AURA_PRESENCE_RELEASE = 1.5f;   // 1/s — ~2s to zero
+
+// ── Musical coupling ─────────────────────────────────────────────
+// Aura height is gained by mmodeIntensity_[MMODE_AURA_EXPAND].
+// At zero musical intensity, height = base × presence.
+// At full intensity,         height = base × presence × (1 + GAIN).
+static constexpr float AURA_EXPAND_GAIN = 3.0f;        // 4× baseline at full music
+
 
 struct PawnAuraDeltaMode {
     static constexpr uint32_t CONVERGENT = 0;  // all cells shift toward signature tint
@@ -52,18 +77,35 @@ static constexpr PawnAuraProfile PAWN_AURA_DEFAULT = {
     3.0f,              // height_scale
 };
 
-// Active profile — starts as default, can be swapped by landmarks/commands
+// ═══ RUNTIME CPU STATE ═══════════════════════════════════════════
+//
+// Everything the CPU tracks about the pawn aura while running.
+// Sub-grouped by role.
+
+// ── Profile (active + height gate) ───────────────────────────────
+// Active profile starts as PAWN_AURA_DEFAULT and can be swapped by
+// landmarks or commands. auraHeightEnabled_ gates the height effect
+// independently — leaving the color tint visible while the terrain
+// stays flat.
 PawnAuraProfile activeAuraProfile_ = PAWN_AURA_DEFAULT;
 bool auraHeightEnabled_ = true;
-bool auraEnabled_ = false;         // default off — numpad 3 toggles
-bool auraNeedsClear_ = false;
-bool auraCfgDirty_ = true;     // true at boot → first frame uploads full config
 
-// Smooth raise/lower: auraPresence_ ramps 0→1 on enable, 1→0 on disable.
-// Scales all aura parameters so terrain and pawn height change gradually.
+// ── Player state ─────────────────────────────────────────────────
+// On/off intent. Currently toggled by numpad 3 (input.inl); the
+// presence ramp below smooths the transition so the toggle never
+// snaps. The toggle key is temporary — see seam-map notes on
+// fluid input vocabulary; the function this controls (aura
+// on/off) will remain even when the binding changes.
+bool auraEnabled_ = false;
+
+// ── Internal flags ───────────────────────────────────────────────
+bool auraNeedsClear_ = false;
+bool auraCfgDirty_   = true;       // true at boot → first frame uploads full config
+
+// ── Computed (per-frame) ─────────────────────────────────────────
+// Trajectory-style 0→1 ramp value. Scales all aura parameters so
+// terrain and pawn height change gradually rather than snapping.
 float auraPresence_ = 0.0f;        // current [0,1] — trajectory value
-static constexpr float AURA_PRESENCE_ATTACK = 1.0f;   // 1/s — ~3s to full (spring converges in ~0.5s)
-static constexpr float AURA_PRESENCE_RELEASE = 1.5f;  // 1/s — ~2s to zero
 
 
 // ─── Per-frame pawn coupling tick ────────────────────────────────
@@ -96,7 +138,7 @@ void tick_pawn_couplings(wgpu::Queue& queue) {
     // Pawn aura height: presence × base height × musical-expand multiplier.
     // Same value is consumed by terrain VS for extrusion, so pawn and
     // terrain always agree.
-    const float aura_expand_mult = 1.0f + mmodeIntensity_[MMODE_AURA_EXPAND] * 3.0f;
+    const float aura_expand_mult = 1.0f + mmodeIntensity_[MMODE_AURA_EXPAND] * AURA_EXPAND_GAIN;
     const float effective_aura_height = auraHeightEnabled_
         ? activeAuraProfile_.height_scale * auraPresence_ * aura_expand_mult
         : 0.0f;

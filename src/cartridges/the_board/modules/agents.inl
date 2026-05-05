@@ -169,6 +169,10 @@ static constexpr float POSSESSION_RADIUS_SQ = POSSESSION_RADIUS * POSSESSION_RAD
 // from the player are evicted (set is_active=0 by the GPU kernel) and
 // later refilled by respawn_evicted_agents.
 //
+// SEAM[agents:L2] hardware mirror — AGENT_EVICTION_RADIUS must agree
+//   with world.wgsl's identically-named const. The compiler cannot
+//   catch drift; the prose below is the contract.
+//
 // MIRRORED MANUALLY in world.wgsl as `const AGENT_EVICTION_RADIUS:
 // f32 = 360.0` (the WGSL needs a compile-time const for FXC inlining;
 // no runtime upload exists). If you change this value, change the

@@ -1128,45 +1128,44 @@ void render_orbs(wgpu::RenderPassEncoder& pass) {
 
 // ─── Orb Mood Table ─────────────────────────────────────────────
 //
-// Migrated from cartridge.hpp in Phase 2.8 (resolves orbs:D2). The
-// table sits at end-of-file because OrbMoodConfig is defined above
-// and MOOD_COUNT is visible here (declared in cartridge.hpp before
-// this module is #included).
-            // DONE[orbs:D2] table migrated to this file in Phase 2.8.
-            //   Per-mood orb authoring data now lives with the
-            //   OrbMoodConfig struct that defines its shape.
-            // SEAM[mood:K4] mood-5 row is bit-identical to mood-0 (open_default)
-            //   except for the implicit context that mood-5 is
-            //   finite_outdoor_ref. Mirrors the same MOOD_TABLE pattern.
-            //   Resolves with the has_anchor_ribbon flag (mood:L1).
-            //
-            // Per-mood orb config. Indexed by the same mood index as MOOD_TABLE.
-            // See OrbMoodConfig in orbs.inl (above) for field semantics. Zero-
-            // valued rule-critical fields (drg, nz, orbS, flock radii/weights)
-            // are sanitized to system defaults in configure_orbs — "0 = no
-            // opinion, system picks a working value." Explicit small non-zero
-            // reads as deliberate authorship.
-            //
-            //  Column legend (short → field name):
-            //    en      enabled              rotAxis rotation_axis[3]
-            //    n       count                orbS    orbital_base_speed (rule 1)
-            //    hueB    base_hue (legacy)    pal     palette_id (ORB_PAL_*)
-            //    hueV    hue_variance         pul     color_pulse_enabled
-            //    bri     brightness           cnv     color_converge_enabled
-            //    drg     drag (1/s)           srg     color_surge_enabled
-            //    nz      noise_amp ceiling    hct     hue_converge_target
-            //    rul     motion_rule          anc     anchor_to_pawn_default
-            //    rotS    rotation_speed       trs     tierset_id (0xFFFFFFFFu = legacy)
-            //    sepR/alnR/cohR/sepW/alnW/cohW/maxS   flocking parameters
-            //    gst     flock_gesture_default (0..7, ORB_FLOCK_GESTURES index)
-            //    drgB/drgO/drgF/drgK          per-rule drag multipliers (0 = 1.0× pass-through)
-            //
-            //                                              en     n    hueB   hueV   bri    drg   nz      rul  rotS    rotAxis                  orbS  pal  pul    cnv    srg    hct    anc    trs           sepR   alnR    cohR    sepW   alnW   cohW   maxS   gst  drgB  drgO  drgF  drgK
-            static constexpr OrbMoodConfig ORB_MOOD_TABLE[MOOD_COUNT] = {
-                /* 0 open_default        */ {  true,  128, 0.08f, 0.06f, 0.85f, 0.4f, 20.0f,  0u,  0.012f, {0.15f, 0.97f, 0.10f},  0.0f, 0u,  true,  true,  true,  0.12f, false, 0u,           50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
-                /* 1 open_sunset         */ {  true,  128, 0.08f, 0.06f, 0.85f, 0.4f, 20.0f,  3u,  0.012f, {0.15f, 0.97f, 0.10f},  0.0f, 0u,  true,  false, false, 0.08f, false, 0u,           50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
-                /* 2 indoor_flat         */ {  false, 0,   0.08f, 0.05f, 0.80f, 0.5f, 0.0f,   0u,  0.000f, {0.00f, 1.00f, 0.00f},  0.0f, 0u,  false, false, false, 0.12f, false, 0xFFFFFFFFu,  50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
-                /* 3 indoor_vault        */ {  false, 0,   0.08f, 0.05f, 0.80f, 0.5f, 0.0f,   0u,  0.000f, {0.00f, 1.00f, 0.00f},  0.0f, 0u,  false, false, false, 0.12f, false, 0xFFFFFFFFu,  50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
-                /* 4 finite_outdoor      */ {  true,  128, 0.08f, 0.06f, 0.85f, 0.4f, 20.0f,  0u,  0.012f, {0.15f, 0.97f, 0.10f},  0.0f, 0u,  true,  true,  true,  0.12f, false, 0u,           50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
-                /* 5 finite_outdoor_ref  */ {  true,  128, 0.08f, 0.06f, 0.85f, 0.4f, 20.0f,  0u,  0.012f, {0.15f, 0.97f, 0.10f},  0.0f, 0u,  true,  true,  true,  0.12f, false, 0u,           50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
-            };
+// Lives at end-of-file because OrbMoodConfig is defined above and
+// MOOD_COUNT is visible here (declared in cartridge.hpp before this
+// module is #included). Resolves orbs:D2.
+//
+// DONE[orbs:D2] per-mood orb authoring data lives with the
+//   OrbMoodConfig struct that defines its shape.
+// SEAM[mood:K4] mood-5 row is bit-identical to mood-0 (open_default)
+//   except for the implicit context that mood-5 is finite_outdoor_ref.
+//   Mirrors the same MOOD_TABLE pattern. Resolves with the
+//   has_anchor_ribbon flag (mood:L1).
+//
+// Per-mood orb config. Indexed by the same mood index as MOOD_TABLE.
+// See OrbMoodConfig in orbs.inl (above) for field semantics. Zero-
+// valued rule-critical fields (drg, nz, orbS, flock radii/weights)
+// are sanitized to system defaults in configure_orbs — "0 = no
+// opinion, system picks a working value." Explicit small non-zero
+// reads as deliberate authorship.
+//
+//  Column legend (short → field name):
+//    en      enabled              rotAxis rotation_axis[3]
+//    n       count                orbS    orbital_base_speed (rule 1)
+//    hueB    base_hue (legacy)    pal     palette_id (ORB_PAL_*)
+//    hueV    hue_variance         pul     color_pulse_enabled
+//    bri     brightness           cnv     color_converge_enabled
+//    drg     drag (1/s)           srg     color_surge_enabled
+//    nz      noise_amp ceiling    hct     hue_converge_target
+//    rul     motion_rule          anc     anchor_to_pawn_default
+//    rotS    rotation_speed       trs     tierset_id (0xFFFFFFFFu = legacy)
+//    sepR/alnR/cohR/sepW/alnW/cohW/maxS   flocking parameters
+//    gst     flock_gesture_default (0..7, ORB_FLOCK_GESTURES index)
+//    drgB/drgO/drgF/drgK          per-rule drag multipliers (0 = 1.0× pass-through)
+//
+//                                              en     n    hueB   hueV   bri    drg   nz      rul  rotS    rotAxis                  orbS  pal  pul    cnv    srg    hct    anc    trs           sepR   alnR    cohR    sepW   alnW   cohW   maxS   gst  drgB  drgO  drgF  drgK
+static constexpr OrbMoodConfig ORB_MOOD_TABLE[MOOD_COUNT] = {
+    /* 0 open_default        */ {  true,  128, 0.08f, 0.06f, 0.85f, 0.4f, 20.0f,  0u,  0.012f, {0.15f, 0.97f, 0.10f},  0.0f, 0u,  true,  true,  true,  0.12f, false, 0u,           50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
+    /* 1 open_sunset         */ {  true,  128, 0.08f, 0.06f, 0.85f, 0.4f, 20.0f,  3u,  0.012f, {0.15f, 0.97f, 0.10f},  0.0f, 0u,  true,  false, false, 0.08f, false, 0u,           50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
+    /* 2 indoor_flat         */ {  false, 0,   0.08f, 0.05f, 0.80f, 0.5f, 0.0f,   0u,  0.000f, {0.00f, 1.00f, 0.00f},  0.0f, 0u,  false, false, false, 0.12f, false, 0xFFFFFFFFu,  50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
+    /* 3 indoor_vault        */ {  false, 0,   0.08f, 0.05f, 0.80f, 0.5f, 0.0f,   0u,  0.000f, {0.00f, 1.00f, 0.00f},  0.0f, 0u,  false, false, false, 0.12f, false, 0xFFFFFFFFu,  50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
+    /* 4 finite_outdoor      */ {  true,  128, 0.08f, 0.06f, 0.85f, 0.4f, 20.0f,  0u,  0.012f, {0.15f, 0.97f, 0.10f},  0.0f, 0u,  true,  true,  true,  0.12f, false, 0u,           50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
+    /* 5 finite_outdoor_ref  */ {  true,  128, 0.08f, 0.06f, 0.85f, 0.4f, 20.0f,  0u,  0.012f, {0.15f, 0.97f, 0.10f},  0.0f, 0u,  true,  true,  true,  0.12f, false, 0u,           50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
+};
