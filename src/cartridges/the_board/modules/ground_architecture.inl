@@ -1,4 +1,4 @@
-﻿// ─── ground_architecture.inl ─────────────────────────────────────
+// ─── ground_architecture.inl ─────────────────────────────────────
 //
 // Canonical registry for the ground query architecture:
 // contributors, explicit dependency DAG, and policies. Single source
@@ -11,6 +11,25 @@
 // The architecture overview comment at the top of the ground section
 // in world.wgsl describes contributor classes, extension patterns,
 // and the fused-inline hot paths that bypass the query API.
+//
+// ┌─── Public surface (consumed by other files) ────────────────────┐
+// │                                                                  │
+// │  Identifiers:                                                    │
+// │    ContributorId            — stable id per contributor          │
+// │    PolicyId                 — stable id per policy               │
+// │    CONTRIB_COUNT, POLICY_COUNT                                   │
+// │                                                                  │
+// │  Tables:                                                         │
+// │    CONTRIBUTOR_DAG[]        — placement-order edges              │
+// │    POLICIES[]               — per-policy contributor masks       │
+// │                                                                  │
+// │  Mask helpers:                                                   │
+// │    GROUND_STATIC_BASE_MASK  — fused static-base trio             │
+// │                                                                  │
+// │  Validation (compile-time only — no runtime symbols exported):   │
+// │    DAG closure asserts run at the bottom of this file.           │
+// │                                                                  │
+// └──────────────────────────────────────────────────────────────────┘
 //
 // ── Vocabulary ──────────────────────────────────────────────────
 //
@@ -62,9 +81,22 @@
 // adding a new policy means adding one ASSERT_POLICY_DAG_CLOSED
 // invocation at the bottom of this file.
 //
-// ── Included inside the Cartridge class body ────────────────────
-//
+// Included inside the Cartridge class body.
 // Depends on: nothing (pure enum + table definitions + macro checks).
+//
+// SEAM[ground_architecture:P9] header-style file: pure declarations
+//   (enums + tables) + compile-time validation macros, zero runtime
+//   logic, no class-member coupling. Same family as entity_types.inl,
+//   trajectory.inl, seed_utils.inl as P9 instances. The
+//   ASSERT_POLICY_DAG_CLOSED macro pattern is the unique
+//   contribution of this file — compile-time relational integrity
+//   over a registry table.
+// SEAM[ground_architecture:contract] CONTRIBUTOR_COUNT, POLICY_COUNT,
+//   the contributor enum values, and POLICIES bitmasks must mirror
+//   identical const values in world.wgsl. Drift would mean
+//   query_ground_<policy> evaluates a different contributor set on
+//   GPU than what CPU placement believed. Same family as agents:L2
+//   and seed_utils:contract.
 // ─────────────────────────────────────────────────────────────────
 
 enum ContributorId : uint32_t {
@@ -95,7 +127,8 @@ enum PolicyId : uint32_t {
     POLICY_COUNT                = 9,
 };
 
-// --- Dependency DAG ---
+// ═══ DEPENDENCY DAG ══════════════════════════════════════════════
+//
 // A → B means "A is placed beneath B" — B's evaluation composes on
 // top of A. Edges exist only among static_landform contributors.
 // Deformation fields are orthogonal to the DAG (applied additively
@@ -121,7 +154,8 @@ static constexpr ContributorEdge CONTRIBUTOR_DAG[] = {
 static constexpr uint32_t CONTRIBUTOR_DAG_EDGE_COUNT =
     sizeof(CONTRIBUTOR_DAG) / sizeof(CONTRIBUTOR_DAG[0]);
 
-// --- Policy definitions ---
+// ═══ POLICY DEFINITIONS ══════════════════════════════════════════
+//
 // Each policy declares its contributor set as a bitmask indexed by
 // ContributorId, plus a flag for gradient evaluation support.
 
@@ -222,7 +256,8 @@ static constexpr uint32_t POLICY_COUNT_IN_TABLE =
 static_assert(POLICY_COUNT_IN_TABLE == POLICY_COUNT,
               "POLICIES table must declare one row per PolicyId");
 
-// --- Compile-time DAG-closure validation ---
+// ═══ COMPILE-TIME DAG-CLOSURE VALIDATION ═════════════════════════
+//
 // For every contributor in a policy's set, all of its ancestors via
 // CONTRIBUTOR_DAG must also be in the set. Expressed as one
 // static_assert per (policy, edge) pair via the DAG_EDGE_CLOSED macro:

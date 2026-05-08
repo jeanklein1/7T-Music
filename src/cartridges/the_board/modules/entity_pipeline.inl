@@ -1,30 +1,103 @@
 ﻿// ─── entity_pipeline.inl ─────────────────────────────────────────
 //
-// Generic entity lifecycle: select → place → commit.
-// Type definitions (EntityInstance, TierParamDef, etc.) live in
-// entity_types.inl, which is included before the queue unions.
-// This file is included AFTER the unions.
+// Generic entity lifecycle for the seven cookie-cutter families
+// (Blade, Palm, Cactus, Column+Antenna, Pyramid, Sphere, Cube,
+// Arch). Three generics drive every spawn:
 //
-// Included inside the Cartridge class body.
-// Depends on: entity_types.inl, seed_utils.inl, entities.inl
+//   generic_select  → tier roll, parameter sample, color compute
+//   generic_place   → footprint negotiation, position commit
+//   generic_commit  → active-array write, GPU upload, post-commit
+//
+// Each family contributes a block with the same 10-element template
+// (see "Family block template" below). Type definitions live in
+// entity_types.inl, which is included before the union in
+// spawn_engine.inl. This file is included AFTER the unions.
+//
+// ┌─── Public surface ──────────────────────────────────────────────┐
+// │                                                                  │
+// │  Generics (called by FAMILY_DISPATCH wrappers below):            │
+// │    generic_select(traits, adapter, gx, gz, inst)                 │
+// │    generic_place(traits, inst)                                   │
+// │    generic_commit(traits, adapter, inst, queue)                  │
+// │                                                                  │
+// │  Helpers used by generic_select:                                 │
+// │    generic_compute_colors(inst, traits, tier)                    │
+// │      — default color path; reads TierProfile.color_var if set,   │
+// │        else falls back to ColorPartDef.variance (closes Q24)     │
+// │    apply_indoor_rescale(inst, ceiling_h) — fit-to-ceiling logic  │
+// │                                                                  │
+// │  Per-family dispatch wrappers (consumed by FAMILY_DISPATCH in    │
+// │  cartridge.hpp — three per family, eight families):              │
+// │    dispatch_{select,place,commit}_<family>_generic(...)          │
+// │                                                                  │
+// └──────────────────────────────────────────────────────────────────┘
+//
+// ┌─── Family block template ───────────────────────────────────────┐
+// │                                                                  │
+// │  Each family's section follows this 10-element shape:            │
+// │                                                                  │
+// │    1. <Family>Idx              param indices into params[]       │
+// │    2. <FAMILY>_PARAM_DEFS      param contracts (prop, floor,     │
+// │                                ceiling, dist)                    │
+// │    3. <Family>TierRow          TierProfile + per-family extras   │
+// │    4. <FAMILY>_TIERS           tier matrix                       │
+// │    5. <family>_get_tier_profile  accessor                        │
+// │    6. <FAMILY>_COLOR_PARTS     color part definitions            │
+// │    7. <FAMILY>_TRAITS          binds everything for the generic  │
+// │                                pipeline                          │
+// │    8. Adapter functions        run_gate, get_theme_tier_weights, │
+// │                                compute_solid_half,               │
+// │                                compute_colors (or nullptr → use  │
+// │                                generic_compute_colors),          │
+// │                                write_active, write_gpu,          │
+// │                                post_commit (optional)            │
+// │    9. <FAMILY>_ADAPTER         function-pointer table            │
+// │   10. Dispatch wrappers        three per family                  │
+// │                                                                  │
+// │  Don't fight the cookie-cutter — it's intentional specificity    │
+// │  per family, and the parallel structure makes the eight blocks   │
+// │  scannable side-by-side.                                         │
+// │                                                                  │
+// └──────────────────────────────────────────────────────────────────┘
+//
+// Included inside the Cartridge class body, AFTER the EntityQueueEntry
+// and PlacementEntry unions are declared in spawn_engine.inl.
+// Depends on: entity_types.inl (declarations), seed_utils.inl
+//             (cpu_hash_f, cpu_sample_gaussian, select_tier_biased),
+//             entities.inl (vocabulary: tier enums, prop registries,
+//             color palettes, configs).
+//
+// SEAM[entity_pipeline:K1] tier sampling profile + extras live as a
+//   single per-family TierRow struct embedded in this file. Single
+//   source of truth — no converters, no derived tables. The legacy
+//   *TierParams structs and *_TIERS arrays that used to live in
+//   entities.inl are gone (closed: see DONE[entities:K1]).
 // ─────────────────────────────────────────────────────────────────
+
+
+// ═══ GENERIC HELPERS ═════════════════════════════════════════════
 
 // ─── Generic Color Derivation ────────────────────────────────────
 //
 // Default color computation: for each part, base + hash variance.
-// Families with exotic color logic provide their own adapter fn.
+// Per-tier color_var (when nonzero) overrides per-part variance —
+// closes Q24, retires the Blade/Cactus override pattern.
+// Families with exotic color logic (Column, Antenna, Pyramid,
+// Sphere, Cube, Arch, Palm) provide their own adapter fn.
 
 static void generic_compute_colors(EntityInstance& inst,
-    const EntityFamilyTraits& traits) {
+    const EntityFamilyTraits& traits,
+    const TierProfile& tier) {
     for (uint32_t p = 0; p < traits.color_part_count; p++) {
         const auto& part = traits.color_parts[p];
+        float v = (tier.color_var > 0.0f) ? tier.color_var : part.variance;
         uint32_t ci = p * 3;
         inst.colors[ci + 0] = part.base[0]
-            + (cpu_hash_f(inst.seed, part.prop_base + part.prop_offset + 0) - 0.5f) * part.variance;
+            + (cpu_hash_f(inst.seed, part.prop_base + part.prop_offset + 0) - 0.5f) * v;
         inst.colors[ci + 1] = part.base[1]
-            + (cpu_hash_f(inst.seed, part.prop_base + part.prop_offset + 1) - 0.5f) * part.variance;
+            + (cpu_hash_f(inst.seed, part.prop_base + part.prop_offset + 1) - 0.5f) * v;
         inst.colors[ci + 2] = part.base[2]
-            + (cpu_hash_f(inst.seed, part.prop_base + part.prop_offset + 2) - 0.5f) * part.variance;
+            + (cpu_hash_f(inst.seed, part.prop_base + part.prop_offset + 2) - 0.5f) * v;
     }
 }
 
@@ -183,6 +256,12 @@ void apply_indoor_rescale(EntityInstance& inst, float ceiling_h) {
     }
 }
 
+// ═══ GENERIC THREE-PHASE PIPELINE ════════════════════════════════
+//
+// generic_select → generic_place → generic_commit. These are the
+// implementations that all eight family blocks below funnel into
+// via their dispatch wrappers.
+
 // ─── Generic Select ──────────────────────────────────────────────
 //
 // Tier selection + parameter sampling.  Spawn gate is handled by
@@ -203,8 +282,8 @@ bool generic_select(
     if (!gate.ok) return false;
 
     // ── Tier selection with theme bias ──
-    // entities:K1 (Option B): tier weights and profiles come from the
-    // adapter's per-family accessor, not from a generic table on traits.
+    // Tier weights and profiles come from the adapter's per-family
+    // accessor; there's no generic table on traits to index.
     float weights[8]{};
     for (uint32_t t = 0; t < traits.tier_count && t < 8; t++)
         weights[t] = adapter.get_tier_profile(t).weight;
@@ -260,9 +339,9 @@ bool generic_select(
     // ── Per-family derived values ──
     adapter.compute_solid_half(inst, profile);
     if (adapter.compute_colors)
-        adapter.compute_colors(inst, traits);
+        adapter.compute_colors(inst, traits, profile);
     else
-        generic_compute_colors(inst, traits);
+        generic_compute_colors(inst, traits, profile);
 
     return true;
 }
@@ -323,11 +402,11 @@ void generic_commit(
 }
 
 
-// ═════════════════════════════════════════════════════════════════
+// ═══ FAMILY: BLADE ════════════════════════════════════════════════
 //
-//  BLADE CLUSTER — First family migrated to the generic pipeline
+// Ground-level leaf clusters.
 //
-// ═════════════════════════════════════════════════════════════════
+
 
 // ─── Blade Parameter Index Registry ──────────────────────────────
 // These index into EntityInstance::params[], matching the order
@@ -362,35 +441,30 @@ static constexpr TierParamDef BLADE_PARAM_DEFS[] = {
 };
 static constexpr uint32_t BLADE_PARAM_COUNT = sizeof(BLADE_PARAM_DEFS) / sizeof(TierParamDef);
 
-// entities:K1 (Option B): per-family tier struct. Single source of
-// truth for blade-cluster tier values; supersedes
-// BladeClusterTierParams + BLADE_TIERS in entities.inl.
-//
 // params[] order MUST match BLADE_PARAM_DEFS:
 //   [0]BLADE_COUNT [1]BLADE_H [2]BLADE_H_VAR [3]BLADE_W
 //   [4]SPLAY [5]CURVE [6]TWIST [7]TAPER
 struct BladeTierRow {
     TierProfile profile;
     float       color_over;
-    float       color_var;
     uint32_t    blade_segs;
 };
 
 static constexpr BladeTierRow BLADE_TIERS[] = {
     /* SPROUT  */ {
-        { 0.50f, { {3.0f, 0.5f}, {1.8f, 0.4f}, {0.35f, 0.08f}, {0.30f, 0.06f},
+        { 0.50f, 0.06f, { {3.0f, 0.5f}, {1.8f, 0.4f}, {0.35f, 0.08f}, {0.30f, 0.06f},
                    {0.18f, 0.06f}, {0.12f, 0.04f}, {0.05f, 0.02f}, {0.85f, 0.05f} }},
-        0.15f, 0.06f, 5
+        0.15f, 5
     },
     /* CLUMP   */ {
-        { 0.35f, { {5.0f, 1.0f}, {3.2f, 0.6f}, {0.40f, 0.10f}, {0.45f, 0.08f},
+        { 0.35f, 0.06f, { {5.0f, 1.0f}, {3.2f, 0.6f}, {0.40f, 0.10f}, {0.45f, 0.08f},
                    {0.25f, 0.08f}, {0.18f, 0.06f}, {0.08f, 0.03f}, {0.82f, 0.05f} }},
-        0.20f, 0.06f, 6
+        0.20f, 6
     },
     /* THICKET */ {
-        { 0.15f, { {6.0f, 1.0f}, {5.5f, 1.2f}, {0.45f, 0.10f}, {0.55f, 0.10f},
+        { 0.15f, 0.08f, { {6.0f, 1.0f}, {5.5f, 1.2f}, {0.45f, 0.10f}, {0.55f, 0.10f},
                    {0.30f, 0.10f}, {0.22f, 0.08f}, {0.10f, 0.04f}, {0.80f, 0.06f} }},
-        0.25f, 0.08f, 7
+        0.25f, 7
     },
 };
 
@@ -450,22 +524,8 @@ static void blade_compute_solid_half(EntityInstance& inst,
     inst.burial = 0.0f;
 }
 
-static void blade_compute_colors(EntityInstance& inst,
-    const EntityFamilyTraits& traits) {
-    // color_var is a per-tier constant on the legacy struct.
-    // Read it directly until BLADE_TIERS is retired.
-    float cv = BLADE_TIERS[inst.tier_idx].color_var;
-    for (uint32_t p = 0; p < traits.color_part_count; p++) {
-        const auto& part = traits.color_parts[p];
-        uint32_t ci = p * 3;
-        inst.colors[ci + 0] = part.base[0]
-            + (cpu_hash_f(inst.seed, part.prop_base + part.prop_offset + 0) - 0.5f) * cv;
-        inst.colors[ci + 1] = part.base[1]
-            + (cpu_hash_f(inst.seed, part.prop_base + part.prop_offset + 1) - 0.5f) * cv;
-        inst.colors[ci + 2] = part.base[2]
-            + (cpu_hash_f(inst.seed, part.prop_base + part.prop_offset + 2) - 0.5f) * cv;
-    }
-}
+// blade_compute_colors removed — Blade uses generic_compute_colors with
+// TierProfile.color_var from BLADE_TIERS (closes Q24 / Q-closed-12).
 
 static void blade_write_active(Cartridge* c, const EntityInstance& inst) {
     auto& ab = c->activeBlades_[inst.slot];
@@ -514,7 +574,7 @@ static constexpr EntityFamilyAdapter BLADE_ADAPTER = {
     blade_run_gate,
     blade_get_theme_tier_weights,
     blade_compute_solid_half,
-    blade_compute_colors,
+    nullptr,                  // compute_colors → use generic (Q24)
     blade_write_active,
     blade_write_gpu,
     nullptr,                  // no post_commit (no piers, no portals)
@@ -539,11 +599,11 @@ static void dispatch_commit_blade_generic(Cartridge* self, PlacementEntry& pe, w
     else { self->activeBlades_[pe.generic.slot].active = false; }
 }
 
-// ═════════════════════════════════════════════════════════════════
+// ═══ FAMILY: PALM ═════════════════════════════════════════════════
 //
-//  PALM — Second family migrated to the generic pipeline
+// Tall trunk + radial fronds. Vegetation-cluster sibling of Cactus and Blade.
 //
-// ═════════════════════════════════════════════════════════════════
+
 
 struct PalmIdx {
     static constexpr uint32_t HEIGHT       = 0;
@@ -585,10 +645,6 @@ static constexpr TierParamDef PALM_PARAM_DEFS[] = {
 };
 static constexpr uint32_t PALM_PARAM_COUNT = sizeof(PALM_PARAM_DEFS) / sizeof(TierParamDef);
 
-// entities:K1 (Option B): per-family tier struct. Single source of
-// truth for palm tier values; supersedes PalmTierParams + PALM_TIERS
-// in entities.inl.
-//
 // params[] order MUST match PALM_PARAM_DEFS:
 //   [0]HEIGHT [1]BASE_R [2]TOP_R [3]LEAN [4]LEAN_DIR(uniform — {0,0})
 //   [5]BARK_RINGS [6]BARK_DEPTH [7]FROND_COUNT [8]FROND_LEN
@@ -609,21 +665,21 @@ struct PalmTierRow {
 
 static constexpr PalmTierRow PALM_TIERS[] = {
     /* SAPLING */ {
-        { 0.50f, { {8.0f, 2.0f},  {0.25f, 0.05f}, {0.12f, 0.02f}, {0.15f, 0.05f}, {0.0f, 0.0f},
+        { 0.50f, 0.0f, { {8.0f, 2.0f},  {0.25f, 0.05f}, {0.12f, 0.02f}, {0.15f, 0.05f}, {0.0f, 0.0f},
                    {8.0f, 2.0f},  {0.03f, 0.01f}, {7.0f, 1.0f},   {3.0f, 0.5f},   {0.8f, 0.15f},
                    {0.3f, 0.1f},  {0.4f, 0.1f},   {0.6f, 0.1f},   {0.3f, 0.1f},   {0.5f, 0.1f},
                    {0.5f, 0.1f} }},
         0.1f, 0.1f, 0.06f, 0.04f, 12, 4
     },
     /* COASTAL */ {
-        { 0.35f, { {16.0f, 3.0f}, {0.40f, 0.08f}, {0.15f, 0.03f}, {0.20f, 0.08f}, {0.0f, 0.0f},
+        { 0.35f, 0.0f, { {16.0f, 3.0f}, {0.40f, 0.08f}, {0.15f, 0.03f}, {0.20f, 0.08f}, {0.0f, 0.0f},
                    {12.0f, 3.0f}, {0.04f, 0.01f}, {11.0f, 2.0f},  {5.0f, 0.8f},   {1.2f, 0.2f},
                    {0.5f, 0.15f}, {0.5f, 0.12f},  {0.7f, 0.1f},   {0.4f, 0.1f},   {0.8f, 0.15f},
                    {0.8f, 0.15f} }},
         0.15f, 0.15f, 0.05f, 0.03f, 16, 5
     },
     /* ROYAL   */ {
-        { 0.15f, { {28.0f, 5.0f}, {0.55f, 0.10f}, {0.18f, 0.04f}, {0.10f, 0.05f}, {0.0f, 0.0f},
+        { 0.15f, 0.0f, { {28.0f, 5.0f}, {0.55f, 0.10f}, {0.18f, 0.04f}, {0.10f, 0.05f}, {0.0f, 0.0f},
                    {18.0f, 4.0f}, {0.05f, 0.01f}, {15.0f, 2.0f},  {7.0f, 1.0f},   {1.5f, 0.3f},
                    {0.6f, 0.15f}, {0.6f, 0.15f},  {0.8f, 0.1f},   {0.5f, 0.1f},   {1.0f, 0.2f},
                    {1.0f, 0.2f} }},
@@ -675,7 +731,7 @@ static void palm_compute_solid_half(EntityInstance& inst, const TierProfile&) {
     inst.burial = PALM_TIERS[inst.tier_idx].burial;
 }
 
-static void palm_compute_colors(EntityInstance& inst, const EntityFamilyTraits& traits) {
+static void palm_compute_colors(EntityInstance& inst, const EntityFamilyTraits& traits, const TierProfile& /*tier*/) {
     const auto& tp = PALM_TIERS[inst.tier_idx];
     // trunk: trunk_var
     inst.colors[0] = traits.color_parts[0].base[0] + (cpu_hash_f(inst.seed, PalmProp::COLOR_VAR_R) - 0.5f) * tp.trunk_var;
@@ -760,11 +816,11 @@ static void dispatch_commit_palm_generic(Cartridge* self, PlacementEntry& pe, wg
 }
 
 
-// ═════════════════════════════════════════════════════════════════
+// ═══ FAMILY: CACTUS ═══════════════════════════════════════════════
 //
-//  CACTUS — Third family migrated to the generic pipeline
+// Ribbed columnar trunk + optional arms. Vegetation-cluster sibling of Palm and Blade.
 //
-// ═════════════════════════════════════════════════════════════════
+
 
 struct CactusIdx {
     static constexpr uint32_t HEIGHT     = 0;
@@ -800,11 +856,6 @@ static constexpr TierParamDef CACTUS_PARAM_DEFS[] = {
 };
 static constexpr uint32_t CACTUS_PARAM_COUNT = sizeof(CACTUS_PARAM_DEFS) / sizeof(TierParamDef);
 
-// entities:K1 (Option B): per-family tier struct. Single source of
-// truth for cactus tier values; supersedes CactusTierParams +
-// CACTUS_TIERS in entities.inl. LEAN_DIR is UNIFORM_TAU — literal
-// {0, 0} placeholder (same pattern as Palm).
-//
 // params[] order MUST match CACTUS_PARAM_DEFS:
 //   [0]HEIGHT [1]RADIUS [2]TAPER [3]RIBS [4]RIB_DEPTH [5]LEAN
 //   [6]LEAN_DIR(uniform — {0,0}) [7]CAP_ROUND [8]ARM_COUNT
@@ -812,29 +863,28 @@ static constexpr uint32_t CACTUS_PARAM_COUNT = sizeof(CACTUS_PARAM_DEFS) / sizeo
 struct CactusTierRow {
     TierProfile profile;
     float       color_over;
-    float       color_var;
     uint32_t    trunk_segs;
     uint32_t    arm_segs;
 };
 
 static constexpr CactusTierRow CACTUS_TIERS[] = {
     /* FINGER     */ {
-        { 0.50f, { {3.0f, 1.0f},   {0.15f, 0.03f}, {0.85f, 0.05f}, {8.0f, 1.0f},   {0.04f, 0.01f},
+        { 0.50f, 0.04f, { {3.0f, 1.0f},   {0.15f, 0.03f}, {0.85f, 0.05f}, {8.0f, 1.0f},   {0.04f, 0.01f},
                    {0.1f, 0.05f},  {0.0f, 0.0f},   {0.6f, 0.1f},   {0.0f, 0.0f},
                    {0.5f, 0.1f},   {1.0f, 0.3f},   {0.08f, 0.02f}, {0.7f, 0.1f} }},
-        0.1f, 0.04f, 12, 6
+        0.1f, 12, 6
     },
     /* SAGUARO    */ {
-        { 0.35f, { {8.0f, 2.0f},   {0.35f, 0.06f}, {0.9f, 0.04f},  {12.0f, 2.0f},  {0.05f, 0.01f},
+        { 0.35f, 0.03f, { {8.0f, 2.0f},   {0.35f, 0.06f}, {0.9f, 0.04f},  {12.0f, 2.0f},  {0.05f, 0.01f},
                    {0.08f, 0.04f}, {0.0f, 0.0f},   {0.5f, 0.1f},   {1.5f, 0.7f},
                    {0.45f, 0.1f},  {3.0f, 0.8f},   {0.2f, 0.04f},  {0.6f, 0.15f} }},
-        0.15f, 0.03f, 16, 8
+        0.15f, 16, 8
     },
     /* CANDELABRA */ {
-        { 0.15f, { {14.0f, 3.0f},  {0.45f, 0.08f}, {0.92f, 0.03f}, {16.0f, 2.0f},  {0.06f, 0.01f},
+        { 0.15f, 0.03f, { {14.0f, 3.0f},  {0.45f, 0.08f}, {0.92f, 0.03f}, {16.0f, 2.0f},  {0.06f, 0.01f},
                    {0.05f, 0.03f}, {0.0f, 0.0f},   {0.4f, 0.1f},   {3.0f, 0.8f},
                    {0.4f, 0.1f},   {5.0f, 1.0f},   {0.25f, 0.05f}, {0.5f, 0.15f} }},
-        0.2f, 0.03f, 20, 10
+        0.2f, 20, 10
     },
 };
 
@@ -878,16 +928,8 @@ static void cactus_compute_solid_half(EntityInstance& inst, const TierProfile&) 
     inst.burial = 0.0f;
 }
 
-static void cactus_compute_colors(EntityInstance& inst, const EntityFamilyTraits& traits) {
-    float cv = CACTUS_TIERS[inst.tier_idx].color_var;
-    for (uint32_t p = 0; p < traits.color_part_count; p++) {
-        const auto& part = traits.color_parts[p];
-        uint32_t ci = p * 3;
-        inst.colors[ci+0] = part.base[0] + (cpu_hash_f(inst.seed, part.prop_base + part.prop_offset + 0) - 0.5f) * cv;
-        inst.colors[ci+1] = part.base[1] + (cpu_hash_f(inst.seed, part.prop_base + part.prop_offset + 1) - 0.5f) * cv;
-        inst.colors[ci+2] = part.base[2] + (cpu_hash_f(inst.seed, part.prop_base + part.prop_offset + 2) - 0.5f) * cv;
-    }
-}
+// cactus_compute_colors removed — Cactus uses generic_compute_colors with
+// TierProfile.color_var from CACTUS_TIERS (closes Q24 / Q-closed-12).
 
 static void cactus_write_active(Cartridge* c, const EntityInstance& inst) {
     auto& ac = c->activeCacti_[inst.slot];
@@ -932,7 +974,7 @@ static void cactus_write_gpu(Cartridge* c, const EntityInstance& inst, wgpu::Que
 
 static constexpr EntityFamilyAdapter CACTUS_ADAPTER = {
     cactus_run_gate, cactus_get_theme_tier_weights,
-    cactus_compute_solid_half, cactus_compute_colors,
+    cactus_compute_solid_half, nullptr,   // compute_colors → use generic (Q24)
     cactus_write_active, cactus_write_gpu, nullptr,
     cactus_get_tier_profile,
 };
@@ -956,11 +998,11 @@ static void dispatch_commit_cactus_generic(Cartridge* self, PlacementEntry& pe, 
 }
 
 
-// ═════════════════════════════════════════════════════════════════
+// ═══ FAMILY: COLUMN + ANTENNA ═════════════════════════════════════
 //
-//  COLUMN + ANTENNA — Pier-creating entities (shared param layout)
+// Pier-creating entities sharing the ColumnTierRow shape. Antenna is a design cell division from Column.
 //
-// ═════════════════════════════════════════════════════════════════
+
 
 // Shared param index layout (both families sample the same 13 params)
 struct ColIdx {
@@ -1016,11 +1058,6 @@ static constexpr TierParamDef ANTENNA_PARAM_DEFS[] = {
     { AntennaProp::EDGE_BLEND,      0.1f, 1e30f, false, ParamDist::GAUSSIAN },
 };
 
-// entities:K1 (Option B): per-family tier struct shared by Column and
-// Antenna — both families sample the same 13-param shape, with field
-// reuse for antennas (base_layers = drum_count, base_height =
-// drum_height, etc., per the comment at the ANTENNA_TIERS site).
-//
 // params[] order MUST match COLUMN_PARAM_DEFS / ANTENNA_PARAM_DEFS:
 //   [0]HEIGHT [1]SHAFT_R [2]TAPER [3]ENTASIS [4]BASE_LAYERS [5]BASE_H
 //   [6]BASE_OH [7]CAP_LAYERS [8]CAP_H [9]CAP_OH [10]SOLID_PAD
@@ -1038,21 +1075,21 @@ struct ColumnTierRow {
 
 static constexpr ColumnTierRow COLUMN_TIERS[] = {
     /* PILLAR */ {
-        { 0.05f, { {6.5f, 1.2f}, {1.80f, 0.30f}, {1.00f, 0.0f},  {0.00f, 0.0f},
+        { 0.05f, 0.0f, { {6.5f, 1.2f}, {1.80f, 0.30f}, {1.00f, 0.0f},  {0.00f, 0.0f},
                    {1.0f, 0.3f}, {0.50f, 0.10f}, {0.20f, 0.05f},
                    {1.0f, 0.3f}, {0.40f, 0.08f}, {0.15f, 0.04f},
                    {0.3f, 0.08f}, {1.5f, 0.3f},  {0.4f, 0.08f} }},
         0.15f, 0.25f, 16, 4
     },
     /* DORIC  */ {
-        { 0.20f, { {6.4f, 1.2f}, {0.38f, 0.06f}, {0.85f, 0.03f}, {0.02f, 0.01f},
+        { 0.20f, 0.0f, { {6.4f, 1.2f}, {0.38f, 0.06f}, {0.85f, 0.03f}, {0.02f, 0.01f},
                    {0.0f, 0.0f}, {0.00f, 0.00f}, {0.00f, 0.00f},
                    {2.0f, 0.5f}, {0.50f, 0.10f}, {0.15f, 0.04f},
                    {0.2f, 0.05f}, {1.0f, 0.2f},  {0.3f, 0.05f} }},
         0.25f, 0.20f, 20, 8
     },
     /* ORNATE */ {
-        { 0.18f, { {16.8f, 2.8f}, {1.35f, 0.19f}, {0.82f, 0.03f}, {0.04f, 0.01f},
+        { 0.18f, 0.0f, { {16.8f, 2.8f}, {1.35f, 0.19f}, {0.82f, 0.03f}, {0.04f, 0.01f},
                    {2.0f, 0.5f},  {1.20f, 0.25f}, {0.30f, 0.08f},
                    {3.0f, 0.5f},  {1.50f, 0.30f}, {0.40f, 0.10f},
                    {0.4f, 0.10f}, {1.5f, 0.3f},   {0.5f, 0.10f} }},
@@ -1062,21 +1099,21 @@ static constexpr ColumnTierRow COLUMN_TIERS[] = {
 
 static constexpr ColumnTierRow ANTENNA_TIERS[] = {
     /* ANTENNA  */ {
-        { 0.10f, { {17.5f, 3.5f}, {0.30f, 0.05f}, {0.85f, 0.05f}, {0.00f, 0.0f},
+        { 0.10f, 0.0f, { {17.5f, 3.5f}, {0.30f, 0.05f}, {0.85f, 0.05f}, {0.00f, 0.0f},
                    {2.0f, 0.5f},  {2.1f, 0.42f},  {1.5f, 0.3f},
                    {0.0f, 0.0f},  {1.5f, 0.3f},   {0.0f, 0.0f},
                    {0.2f, 0.05f}, {1.0f, 0.2f},   {0.3f, 0.05f} }},
         0.40f, 0.20f, 16, 6
     },
     /* SQUAT    */ {
-        { 0.22f, { {32.5f, 6.5f}, {0.90f, 0.15f}, {0.85f, 0.05f}, {0.00f, 0.0f},
+        { 0.22f, 0.0f, { {32.5f, 6.5f}, {0.90f, 0.15f}, {0.85f, 0.05f}, {0.00f, 0.0f},
                    {2.0f, 0.5f},  {2.0f, 0.4f},   {6.0f, 1.2f},
                    {0.0f, 0.0f},  {1.5f, 0.3f},   {0.0f, 0.0f},
                    {0.4f, 0.10f}, {1.5f, 0.3f},   {0.4f, 0.08f} }},
         0.40f, 0.20f, 16, 6
     },
     /* COLOSSAL */ {
-        { 0.13f, { {125.0f, 25.0f}, {3.00f, 0.50f}, {0.85f, 0.05f}, {0.00f, 0.0f},
+        { 0.13f, 0.0f, { {125.0f, 25.0f}, {3.00f, 0.50f}, {0.85f, 0.05f}, {0.00f, 0.0f},
                    {2.0f, 0.5f},    {7.5f, 1.5f},   {17.5f, 3.5f},
                    {0.0f, 0.0f},    {7.5f, 1.5f},   {0.0f, 0.0f},
                    {1.95f, 0.39f},  {12.0f, 2.4f},  {1.0f, 0.20f} }},
@@ -1140,7 +1177,7 @@ static void column_compute_solid_half(EntityInstance& inst, const TierProfile&) 
     inst.burial = std::max(0.2f, solid_h * COLUMN_TIERS[inst.tier_idx].burial);
 }
 
-static void column_compute_colors(EntityInstance& inst, const EntityFamilyTraits&) {
+static void column_compute_colors(EntityInstance& inst, const EntityFamilyTraits&, const TierProfile& /*tier*/) {
     // Sandstone / palette override
     if (cpu_hash_f(inst.seed, ColumnProp::COLOR_OVER) < COLUMN_TIERS[inst.tier_idx].color_override) {
         uint32_t pal_idx = cpu_hash(inst.seed, ColumnProp::COLOR_OVER + 1u) % COLUMN_PALETTE_COUNT;
@@ -1275,7 +1312,7 @@ static void antenna_compute_solid_half(EntityInstance& inst, const TierProfile&)
     inst.tier_idx = inst.tier_idx + COLUMN_TIER_COUNT;
 }
 
-static void antenna_compute_colors(EntityInstance& inst, const EntityFamilyTraits&) {
+static void antenna_compute_colors(EntityInstance& inst, const EntityFamilyTraits&, const TierProfile& /*tier*/) {
     // Sandstone / palette override (same as column)
     if (cpu_hash_f(inst.seed, AntennaProp::COLOR_OVER) < ANTENNA_TIERS[inst.tier_idx - COLUMN_TIER_COUNT].color_override) {
         uint32_t pal_idx = cpu_hash(inst.seed, AntennaProp::COLOR_OVER + 1u) % COLUMN_PALETTE_COUNT;
@@ -1406,11 +1443,11 @@ static void dispatch_commit_antenna_generic(Cartridge* self, PlacementEntry& pe,
 }
 
 
-// ═════════════════════════════════════════════════════════════════
+// ═══ FAMILY: PYRAMID ══════════════════════════════════════════════
 //
-//  PYRAMID — Heightfield-baking entity (GPUPyramidArray + mesh gen)
+// Heightfield-baking entity (GPUPyramidArray + mesh gen).
 //
-// ═════════════════════════════════════════════════════════════════
+
 
 struct PyrIdx {
     static constexpr uint32_t HEIGHT     = 0;
@@ -1430,12 +1467,6 @@ static constexpr TierParamDef PYRAMID_PARAM_DEFS[] = {
 };
 static constexpr uint32_t PYRAMID_PARAM_COUNT = sizeof(PYRAMID_PARAM_DEFS) / sizeof(TierParamDef);
 
-// entities:K1 (Option B): per-family tier struct — sampling profile
-// (TierProfile, consumed by generic_select) plus extras (consumed by
-// pyramid adapter functions). Single source of truth for pyramid tier
-// values; supersedes the PyramidTierParams + PYRAMID_TIERS pair that
-// used to live in entities.inl.
-//
 // params[] order MUST match PYRAMID_PARAM_DEFS:
 //   [0]HEIGHT [1]BASE_HALF [2]ASPECT [3]TRUNCATION [4]EDGE_BLEND
 // Note: cannot reuse `PyramidTier` as the struct name — entities.inl
@@ -1450,15 +1481,15 @@ struct PyramidTierRow {
 
 static constexpr PyramidTierRow PYRAMID_TIERS[] = {
     /* OBELISK  */ {
-        { 0.50f, { {28.0f, 6.0f},  {16.0f, 3.0f},  {1.0f, 0.15f}, {0.00f, 0.00f}, {1.5f, 0.3f}  }},
+        { 0.50f, 0.0f, { {28.0f, 6.0f},  {16.0f, 3.0f},  {1.0f, 0.15f}, {0.00f, 0.00f}, {1.5f, 0.3f}  }},
         0.10f, 0.04f
     },
     /* TEMPLE   */ {
-        { 0.25f, { {45.0f, 8.0f},  {40.0f, 6.0f},  {1.0f, 0.20f}, {0.25f, 0.08f}, {3.0f, 0.75f} }},
+        { 0.25f, 0.0f, { {45.0f, 8.0f},  {40.0f, 6.0f},  {1.0f, 0.20f}, {0.25f, 0.08f}, {3.0f, 0.75f} }},
         0.15f, 0.04f
     },
     /* COLOSSUS */ {
-        { 0.25f, { {78.0f, 14.4f}, {60.0f, 9.6f},  {1.0f, 0.10f}, {0.05f, 0.04f}, {3.6f, 1.0f}  }},
+        { 0.25f, 0.0f, { {78.0f, 14.4f}, {60.0f, 9.6f},  {1.0f, 0.10f}, {0.05f, 0.04f}, {3.6f, 1.0f}  }},
         0.20f, 0.04f
     },
 };
@@ -1503,7 +1534,7 @@ static void pyramid_compute_solid_half(EntityInstance& inst, const TierProfile&)
     inst.ground_y_offset = 0.0f;
 }
 
-static void pyramid_compute_colors(EntityInstance& inst, const EntityFamilyTraits&) {
+static void pyramid_compute_colors(EntityInstance& inst, const EntityFamilyTraits&, const TierProfile& /*tier*/) {
     // Sandstone only (color_override check is dead code in legacy — both branches identical)
     inst.colors[0] = PYRAMID_SANDSTONE_BASE[0] + (cpu_hash_f(inst.seed, PyramidProp::COLOR_VAR_R) - 0.5f) * PYRAMID_SANDSTONE_VARIANCE * 2.0f;
     inst.colors[1] = PYRAMID_SANDSTONE_BASE[1] + (cpu_hash_f(inst.seed, PyramidProp::COLOR_VAR_G) - 0.5f) * PYRAMID_SANDSTONE_VARIANCE * 2.0f;
@@ -1601,11 +1632,11 @@ static void dispatch_commit_pyramid_generic(Cartridge* self, PlacementEntry& pe,
 }
 
 
-// ═════════════════════════════════════════════════════════════════
+// ═══ FAMILY: SPHERE ═══════════════════════════════════════════════
 //
-//  SPHERE — Orbital floating entity (no ground contact)
+// Orbital floating entity. No ground contact.
 //
-// ═════════════════════════════════════════════════════════════════
+
 
 struct SphIdx {
     static constexpr uint32_t BODY_RADIUS      = 0;
@@ -1625,10 +1656,6 @@ static constexpr TierParamDef SPHERE_PARAM_DEFS[] = {
 };
 static constexpr uint32_t SPHERE_PARAM_COUNT = sizeof(SPHERE_PARAM_DEFS) / sizeof(TierParamDef);
 
-// entities:K1 (Option B): per-family tier struct. Single source of
-// truth for sphere tier values; supersedes SphereTierProfile +
-// SPHERE_TIERS in floater_vocabulary.inl.
-//
 // params[] order MUST match SPHERE_PARAM_DEFS:
 //   [0]BODY_RADIUS [1]ORBIT_RADIUS [2]ORBIT_HEIGHT [3]ORBIT_SPEED
 //   [4]INFLUENCE_RADIUS
@@ -1655,12 +1682,12 @@ struct SphereTierRow {
 
 static constexpr SphereTierRow SPHERE_TIERS[SPHERE_TIER_COUNT] = {
     /* 0: Sentinel */ {
-        { 0.65f, { {1.5f, 0.3f}, {12.0f, 3.0f}, {6.0f, 2.0f}, {1.4f, 0.3f}, {8.0f, 2.0f} }},
+        { 0.65f, 0.0f, { {1.5f, 0.3f}, {12.0f, 3.0f}, {6.0f, 2.0f}, {1.4f, 0.3f}, {8.0f, 2.0f} }},
         0.0f, 0.0f,  0.0f, 0.0f,  0.0f, 0.0f,  0.0f,
         1.0f, 0.0f,  1.0f, 0.0f,  0.0f, 0.0f,  0, 0
     },
     /* 1: Anomaly  */ {
-        { 0.35f, { {1.2f, 0.2f}, {8.0f, 2.0f},  {4.0f, 1.5f}, {2.0f, 0.5f}, {6.0f, 1.5f} }},
+        { 0.35f, 0.0f, { {1.2f, 0.2f}, {8.0f, 2.0f},  {4.0f, 1.5f}, {2.0f, 0.5f}, {6.0f, 1.5f} }},
         0.0f, 0.0f,  0.0f, 0.0f,  0.0f, 0.0f,  0.0f,
         1.0f, 0.0f,  1.0f, 0.0f,  0.0f, 0.0f,  0, 0
     },
@@ -1696,7 +1723,7 @@ static void sphere_compute_solid_half(EntityInstance& inst, const TierProfile&) 
     inst.burial = 0.0f;
 }
 
-static void sphere_compute_colors(EntityInstance& inst, const EntityFamilyTraits&) {
+static void sphere_compute_colors(EntityInstance& inst, const EntityFamilyTraits&, const TierProfile& /*tier*/) {
     inst.colors[0] = cpu_hash_f(inst.seed, FloatingEntityProp::COLOR_R) * 0.55f + 0.35f;
     inst.colors[1] = cpu_hash_f(inst.seed, FloatingEntityProp::COLOR_G) * 0.50f + 0.30f;
     inst.colors[2] = cpu_hash_f(inst.seed, FloatingEntityProp::COLOR_B) * 0.60f + 0.20f;
@@ -1771,11 +1798,11 @@ static void dispatch_commit_sphere_generic(Cartridge* self, PlacementEntry& pe, 
 }
 
 
-// ═════════════════════════════════════════════════════════════════
+// ═══ FAMILY: CUBE ═════════════════════════════════════════════════
 //
-//  CUBE — Hover-bob monolith (no ground contact)
+// Hover-bob monolith. No ground contact.
 //
-// ═════════════════════════════════════════════════════════════════
+
 
 struct CubeIdx {
     static constexpr uint32_t BODY_RADIUS      = 0;
@@ -1807,11 +1834,6 @@ static constexpr TierParamDef CUBE_PARAM_DEFS[] = {
 };
 static constexpr uint32_t CUBE_PARAM_COUNT = sizeof(CUBE_PARAM_DEFS) / sizeof(TierParamDef);
 
-// entities:K1 (Option B): per-family tier struct. Single source of
-// truth for cube tier values; supersedes CubeTierProfile + CUBE_TIERS
-// in floater_vocabulary.inl. spin_tilt_sigma is an extras field
-// (single float, no mean/sigma pair) read directly by cube_write_gpu.
-//
 // params[] order MUST match CUBE_PARAM_DEFS:
 //   [0]BODY_RADIUS [1]ORBIT_HEIGHT [2]INFLUENCE_RADIUS [3]SPIN_SPEED
 //   [4]BOB_AMPLITUDE [5]BOB_PERIOD [6]ASPECT_Y [7]ASPECT_Z [8]FACE_VARIANCE
@@ -1822,25 +1844,25 @@ struct CubeTierRow {
 
 static constexpr CubeTierRow CUBE_TIERS[CUBE_TIER_COUNT] = {
     /* 0: SmallCube */ {
-        { 0.40f, { {1.8f, 0.5f}, {15.0f, 12.0f}, {6.0f, 1.5f},  {0.04f, 0.015f},
+        { 0.40f, 0.0f, { {1.8f, 0.5f}, {15.0f, 12.0f}, {6.0f, 1.5f},  {0.04f, 0.015f},
                    {1.0f, 0.3f}, {5.0f, 1.5f},
                    {1.0f, 0.15f}, {1.0f, 0.15f}, {0.40f, 0.12f} }},
         0.12f
     },
     /* 1: MedCube   */ {
-        { 0.32f, { {4.0f, 1.2f}, {25.0f, 18.0f}, {10.0f, 2.0f}, {0.03f, 0.01f},
+        { 0.32f, 0.0f, { {4.0f, 1.2f}, {25.0f, 18.0f}, {10.0f, 2.0f}, {0.03f, 0.01f},
                    {1.5f, 0.4f}, {6.0f, 2.0f},
                    {1.0f, 0.20f}, {1.0f, 0.20f}, {0.45f, 0.15f} }},
         0.10f
     },
     /* 2: LargeCube */ {
-        { 0.20f, { {8.0f, 2.5f}, {35.0f, 20.0f}, {14.0f, 3.0f}, {0.02f, 0.008f},
+        { 0.20f, 0.0f, { {8.0f, 2.5f}, {35.0f, 20.0f}, {14.0f, 3.0f}, {0.02f, 0.008f},
                    {2.0f, 0.5f}, {8.0f, 2.5f},
                    {1.0f, 0.25f}, {1.0f, 0.25f}, {0.35f, 0.10f} }},
         0.08f
     },
     /* 3: Monolith  */ {
-        { 0.08f, { {3.0f, 0.8f}, {5.0f, 2.0f},   {12.0f, 3.0f}, {0.015f, 0.005f},
+        { 0.08f, 0.0f, { {3.0f, 0.8f}, {5.0f, 2.0f},   {12.0f, 3.0f}, {0.015f, 0.005f},
                    {1.2f, 0.3f}, {6.0f, 2.0f},
                    {5.0f, 1.2f}, {0.15f, 0.03f}, {0.45f, 0.12f} }},
         0.10f
@@ -1877,7 +1899,7 @@ static void cube_compute_solid_half(EntityInstance& inst, const TierProfile&) {
     inst.burial = 0.0f;
 }
 
-static void cube_compute_colors(EntityInstance& inst, const EntityFamilyTraits&) {
+static void cube_compute_colors(EntityInstance& inst, const EntityFamilyTraits&, const TierProfile& /*tier*/) {
     inst.colors[0] = cpu_hash_f(inst.seed, CubeEntityProp::COLOR_R) * 0.55f + 0.35f;
     inst.colors[1] = cpu_hash_f(inst.seed, CubeEntityProp::COLOR_G) * 0.50f + 0.30f;
     inst.colors[2] = cpu_hash_f(inst.seed, CubeEntityProp::COLOR_B) * 0.60f + 0.20f;
@@ -1977,11 +1999,11 @@ static void dispatch_commit_cube_generic(Cartridge* self, PlacementEntry& pe, wg
 }
 
 
-// ═════════════════════════════════════════════════════════════════
+// ═══ FAMILY: ARCH ═════════════════════════════════════════════════
 //
-//  ARCH — 2-pier catenary entity with portal detection
+// 2-pier catenary entity with portal detection.
 //
-// ═════════════════════════════════════════════════════════════════
+
 
 struct ArchIdx {
     static constexpr uint32_t SPAN         = 0;  // full span (halved in compute_solid_half)
@@ -2006,11 +2028,6 @@ static constexpr TierParamDef ARCH_PARAM_DEFS[] = {
 };
 static constexpr uint32_t ARCH_PARAM_COUNT = sizeof(ARCH_PARAM_DEFS) / sizeof(TierParamDef);
 
-// entities:K1 (Option B): per-family tier struct. Single source of
-// truth for arch tier values; supersedes ArchTierParams + ARCH_TIERS
-// in entities.inl. Note: profile.params[SPAN].mean is the FULL span;
-// arch_compute_solid_half halves it in place.
-//
 // params[] order MUST match ARCH_PARAM_DEFS:
 //   [0]SPAN [1]RISE [2]DEPTH [3]THICKNESS [4]PIER_HEIGHT [5]PIER_PADDING [6]EDGE_BLEND
 //
@@ -2026,15 +2043,15 @@ struct ArchTierRow {
 
 static constexpr ArchTierRow ARCH_TIERS[] = {
     /* DOORWAY    */ {
-        { 0.50f, { {12.0f, 2.4f}, {12.0f, 2.4f}, {4.5f, 0.9f}, {1.2f, 0.18f}, {1.5f, 0.9f}, {0.9f, 0.3f}, {0.9f, 0.15f} }},
+        { 0.50f, 0.0f, { {12.0f, 2.4f}, {12.0f, 2.4f}, {4.5f, 0.9f}, {1.2f, 0.18f}, {1.5f, 0.9f}, {0.9f, 0.3f}, {0.9f, 0.15f} }},
         0.15f, 0.20f, 16, 4
     },
     /* STANDARD   */ {
-        { 0.15f, { {50.0f, 15.0f}, {42.0f, 7.0f}, {5.6f, 1.1f}, {1.4f, 0.21f}, {5.6f, 2.1f}, {0.7f, 0.3f}, {0.7f, 0.14f} }},
+        { 0.15f, 0.0f, { {50.0f, 15.0f}, {42.0f, 7.0f}, {5.6f, 1.1f}, {1.4f, 0.21f}, {5.6f, 2.1f}, {0.7f, 0.3f}, {0.7f, 0.14f} }},
         0.25f, 0.20f, 32, 8
     },
     /* MONUMENTAL */ {
-        { 0.15f, { {60.0f, 10.0f}, {80.0f, 12.0f}, {10.0f, 2.0f}, {2.5f, 0.30f}, {8.0f, 2.5f}, {1.0f, 0.3f}, {0.8f, 0.15f} }},
+        { 0.15f, 0.0f, { {60.0f, 10.0f}, {80.0f, 12.0f}, {10.0f, 2.0f}, {2.5f, 0.30f}, {8.0f, 2.5f}, {1.0f, 0.3f}, {0.8f, 0.15f} }},
         0.35f, 0.20f, 48, 12
     },
 };
@@ -2079,7 +2096,7 @@ static void arch_compute_solid_half(EntityInstance& inst, const TierProfile&) {
     inst.burial = std::max(0.2f, pier_height * ARCH_TIERS[inst.tier_idx].burial);
 }
 
-static void arch_compute_colors(EntityInstance& inst, const EntityFamilyTraits&) {
+static void arch_compute_colors(EntityInstance& inst, const EntityFamilyTraits&, const TierProfile& /*tier*/) {
     const auto& tp = ARCH_TIERS[inst.tier_idx];
     // Base color: sandstone/palette
     if (cpu_hash_f(inst.seed, ArchProp::COLOR_OVER) < tp.color_override) {
@@ -2246,29 +2263,10 @@ static void dispatch_commit_arch_generic(Cartridge* self, PlacementEntry& pe, wg
 
 // ─── FAMILY_DISPATCH Integration ─────────────────────────────────
 //
-// The dispatch wrappers (dispatch_select_blade_generic, etc.) live
-// in cartridge.hpp alongside the existing dispatch functions.
-// See blade_integration_guide.md for the concrete edits.
-//
-// ─── What to delete after blade migration is validated ───────────
-//
-// From cartridge.hpp / entities.inl:
-//   - struct BladeClusterSelection       (~25 lines)
-//   - struct BladeClusterPlacement       (~25 lines)
-//   - select_blade_for_patch()           (~50 lines)
-//   - place_blade_from_selection()       (~30 lines)
-//   - commit_blade()                     (~40 lines)
-//   - dispatch_select_blade()            (~5 lines)
-//   - dispatch_place_blade()             (~15 lines)
-//   - dispatch_commit_blade()            (~18 lines)
-//   Total: ~208 lines removed
-//
-// KEPT (used by eviction, culling, mesh gen):
-//   - struct ActiveBlade
-//   - activeBlades_[], activeBladeCount_, bladeMeshGenPending_
-//   - prepare_blade_mesh_gen()
-//   - dispatch_evict_blade(), dispatch_prepare_mesh_blade(),
-//     dispatch_mesh_gen_blade()
-//   - BLADE_TIERS[] (color_var, blade_segs read by adapter)
+// The dispatch wrappers above are entries in FAMILY_DISPATCH (in
+// cartridge.hpp). Three per family, eight families: 24 entries
+// total. Adding a new family means adding a block matching the
+// template in this file's header, plus three entries in
+// FAMILY_DISPATCH.
 
 // ═══ END entity_pipeline.inl ═════════════════════════════════════

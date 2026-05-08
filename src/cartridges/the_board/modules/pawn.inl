@@ -82,21 +82,22 @@ static constexpr PawnAuraProfile PAWN_AURA_DEFAULT = {
 // Everything the CPU tracks about the pawn aura while running.
 // Sub-grouped by role.
 
-// ── Profile (active + height gate) ───────────────────────────────
+// ── Profile (active) ─────────────────────────────────────────────
 // Active profile starts as PAWN_AURA_DEFAULT and can be swapped by
-// landmarks or commands. auraHeightEnabled_ gates the height effect
-// independently — leaving the color tint visible while the terrain
-// stays flat.
+// landmarks or commands.
 PawnAuraProfile activeAuraProfile_ = PAWN_AURA_DEFAULT;
-bool auraHeightEnabled_ = true;
 
 // ── Player state ─────────────────────────────────────────────────
 // On/off intent. Currently toggled by numpad 3 (input.inl); the
 // presence ramp below smooths the transition so the toggle never
-// snaps. The toggle key is temporary — see seam-map notes on
-// fluid input vocabulary; the function this controls (aura
-// on/off) will remain even when the binding changes.
+// snaps. The toggle key is temporary — see input.inl's binding
+// fluidity note; the function this controls (aura on/off) will
+// remain even when the binding changes.
 bool auraEnabled_ = false;
+// Height-effect gate. Currently toggled by key 2 (input.inl); leaves
+// the color tint visible while flattening the terrain extrusion.
+// Same temporary-binding caveat as auraEnabled_.
+bool auraHeightEnabled_ = true;
 
 // ── Internal flags ───────────────────────────────────────────────
 bool auraNeedsClear_ = false;

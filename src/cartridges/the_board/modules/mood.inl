@@ -1,14 +1,280 @@
 // ─── mood.inl ──────────────────────────────────────────────────
 //
 // Atmosphere, indoor lighting, shell geometry, portals.
-// derive_indoor_lights → apply_mood → shell → portals → lights.
+// One canonical mood entry point: apply_mood. Mood transitions are
+// requested via request_mood_transition (also exposed for portal
+// crossings).
+//
+// ┌─── Public surface (called from outside this file) ──────────────┐
+// │                                                                  │
+// │  Mood lifecycle:                                                 │
+// │    apply_mood(mood, queue)              — atmosphere + setup     │
+// │    request_mood_transition(mood)        — transition entry       │
+// │                                                                  │
+// │  Indoor support:                                                 │
+// │    derive_indoor_lights(seed, ...)      — scheme → spot lights   │
+// │    generate_indoor_shell(queue, m)      — walls + ceiling mesh   │
+// │    clear_indoor_shell(queue)            — index count to 0       │
+// │                                                                  │
+// │  Portals (driven by transition / portal crossings):              │
+// │    force_spawn_portal_at(queue, cx, cz, rot, dest, is_back)      │
+// │    force_spawn_back_portal(queue)                                │
+// │    force_spawn_finite_portals(queue)                             │
+// │                                                                  │
+// │  Per-frame uploads:                                              │
+// │    upload_lights(queue)                 — sun + spot + (point)   │
+// │    upload_portal_array(queue)           — when portalsDirty_     │
+// │                                                                  │
+// │  Cross-module reads (consumed by other modules):                 │
+// │    activeMood_                          — read everywhere        │
+// │    moodAllowsMusicalModes_, moodAllowsGoLZones_                  │
+// │    backPortalPending_, backPortalPosition_                       │
+// │    spotLightActive_, lightsDirty_, portalsDirty_                 │
+// │                                                                  │
+// └──────────────────────────────────────────────────────────────────┘
 //
 // Included inside the Cartridge class body.
-// Depends on: entities.inl, terrain_cpu.inl, seed_utils.inl
+// Depends on: entities.inl (ARCH_TIERS, ArchIdx, ArchTier),
+//             musical.inl (reset_musical_couplings, is_mmode_on,
+//             MMODE_TERRAIN_WAVES, band motion state, mmodeIntensity_),
+//             ribbon.inl (RibbonProp, RIBBON_BASE_TIER_WEIGHTS,
+//             RIBBON_TIER_COUNT, fill_ribbon_selection_geometry,
+//             commit_ribbon, ribbonStates_, renderedRibbonSlot_,
+//             moodRibbonOffset_),
+//             gallery.inl (clear_wall_paintings, place_wall_paintings),
+//             orbs.inl (configure_orbs, ORB_MOOD_TABLE),
+//             spawn_engine.inl (estimate_terrain_height, write_pier,
+//             solve_catenary_a, activeArches_, archMeshGenPending_),
+//             render_passes.inl (compute_spot_light_vp).
+//
+// SEAM[mood:K1] apply_mood is the single canonical mood entry point.
+//   All mood transitions — keyboard, portal crossings, world
+//   teardown — funnel through here. Other code paths set
+//   pendingDestination_ / transitionPhase_; the actual mood activation
+//   happens here. The orchestrator owns only ordering and the
+//   activate-mood bookkeeping; the substantive work splits across
+//   five named sub-functions (apply_mood_lighting, _spot_lights,
+//   _indoor_shell, _band_motion, _anchor_ribbon).
+// SEAM[mood:K3] reset_musical_couplings is called from apply_mood as
+//   part of the per-mood-transition lifecycle. The musical reset
+//   used to be duplicated across cartridge.hpp::teardown_world and
+//   apply_mood; consolidated to a single function in musical.inl
+//   with one call site here. See DONE[mood:K3] in musical.inl.
+// SEAM[mood:K4] apply_mood_anchor_ribbon below is the second entry
+//   point to commit_ribbon (the dual-entry pattern noted at
+//   ribbon.inl::SEAM[ribbon:dual-entry]). Mood-5 forces a ribbon
+//   spawn through fill_ribbon_selection_geometry + commit_ribbon
+//   without going through the patch-streaming dispatch.
+// SEAM[mood:L1] MoodProfile.has_anchor_ribbon is the per-mood flag
+//   that gates apply_mood_anchor_ribbon's execution. Default false
+//   for moods 0-4; true for mood 5 (FINITE_OUTDOOR_REF). Read here
+//   and referenced from orbs.inl as mood:L1 in the anchor-ribbon
+//   gating logic.
+// DONE[mood:K2] apply_mood was a 217-line linear sequence mixing 12
+//   concerns (atmospheric, indoor lighting, indoor shell, band
+//   motion, musical reset, anchor ribbon, orbs). Split into named
+//   helpers; apply_mood itself orchestrates. The five helpers below
+//   match the natural seams in the flow. Per-mood-transition order
+//   is preserved exactly — no semantic change, just nameable
+//   sub-blocks.
+// DONE[input:L1] request_mood_transition is the single canonical
+//   transition entry point. Replaces the five copy-paste cases in
+//   input.inl (KEY_5..KEY_9). Bails if a transition is already in
+//   flight. Lives in mood.inl rather than input.inl because portal
+//   crossings and other code paths can also drive mood transitions.
+//   One door, many keys.
 // ─────────────────────────────────────────────────────────────────
 
 
-// ─── Indoor Light Derivation ─────────────────────────────────
+// ═══ TUNING DATA ═════════════════════════════════════════════════
+//
+// Per-mood authoring data: indoor wall palettes and indoor lighting
+// schemes. Both are seed-driven (a per-mood roll picks one of the
+// palettes / schemes from the corresponding table), then per-light
+// or per-color parameters are sampled from the chosen entry.
+//
+// SEAM[mood:tuning-data] consumed only by apply_mood (palettes) and
+//   derive_indoor_lights (schemes). Migrated from cartridge.hpp's
+//   class body; same migration class as ORB_MOOD_TABLE → orbs.inl
+//   and WALL_ART → gallery.inl.
+//
+// This module is included inside the public: section of the
+// Cartridge class body (alongside its functions, which need to be
+// callable from update()). The data declarations below should
+// remain private — they're internal authoring tables, not part of
+// the cartridge's public surface — so we use a private/public
+// access toggle around them. When mood.inl's include placement is
+// reconsidered, the toggle can be removed.
+
+        private:
+
+            // ── Indoor Wall Palette ────────────────────────────────────
+            //
+            // Per-seed wall+ceiling color override for indoor moods. The
+            // MOOD_TABLE wall_color/ceiling_color act as fallback for the
+            // open-world finite cases; in flat/vault moods, apply_mood
+            // selects one of these palettes from activeSeed_ and substitutes
+            // it before generate_indoor_shell uploads the shell mesh.
+            //
+            // Each palette is a designed (wall, ceiling) pair where the
+            // ceiling is a slightly darker shade of the wall — gives the
+            // room visual depth instead of flat single-color surfaces.
+            // Authored to feel like museum / gallery wall finishes rather
+            // than random RGB rolls.
+            struct IndoorPalette {
+                const char* name;
+                float wall_color[3];
+                float ceiling_color[3];
+            };
+            static constexpr IndoorPalette INDOOR_PALETTES[] = {
+                { "warm taupe",     { 0.72f, 0.65f, 0.55f }, { 0.65f, 0.58f, 0.50f } },
+                { "slate blue",     { 0.58f, 0.62f, 0.68f }, { 0.50f, 0.55f, 0.62f } },
+                { "terracotta",     { 0.65f, 0.50f, 0.42f }, { 0.55f, 0.42f, 0.36f } },
+                { "sage",           { 0.62f, 0.68f, 0.58f }, { 0.55f, 0.60f, 0.52f } },
+                { "pale linen",     { 0.85f, 0.80f, 0.72f }, { 0.78f, 0.73f, 0.65f } },
+                { "deep mocha",     { 0.45f, 0.40f, 0.35f }, { 0.38f, 0.34f, 0.30f } },
+                { "dusty rose",     { 0.70f, 0.58f, 0.58f }, { 0.62f, 0.50f, 0.50f } },
+                { "warm charcoal",  { 0.40f, 0.38f, 0.36f }, { 0.32f, 0.30f, 0.28f } },
+            };
+            static constexpr uint32_t INDOOR_PALETTE_COUNT =
+                sizeof(INDOOR_PALETTES) / sizeof(INDOOR_PALETTES[0]);
+
+            // ── Indoor Lighting Schemes ───────────────────────────────
+            //
+            // Seed-driven procedural lighting for indoor moods. Each scheme
+            // defines a lighting character (which surfaces carry lights,
+            // how many, primary vs accent roles). Per-light parameters
+            // (position along surface, intensity, cone width, color warmth)
+            // are derived from activeSeed_ at mood transition time.
+            //
+            // Three schemes:
+            //   Cathedral — ceiling primary + two opposing wall sconces
+            //   Gallery   — two opposing wall lights, no ceiling (dramatic)
+            //   Sanctum   — single source, maximum contrast
+            //
+            // The seed also picks which wall pair (N/S or E/W) carries the
+            // sconces, so rooms with the same scheme still feel different.
+
+            enum class LightAnchor : uint32_t {
+                CEILING, WALL_NORTH, WALL_SOUTH, WALL_EAST, WALL_WEST
+            };
+
+            struct IndoorLightProp {
+                static constexpr uint32_t SCHEME = 1100u;
+                static constexpr uint32_t WALL_PAIR = 1101u;
+                static constexpr uint32_t ANCHOR_PICK = 1102u;
+                static constexpr uint32_t SLOT_BASE = 1110u;  // + slot*10 + field
+                // Per-slot field offsets
+                static constexpr uint32_t LATERAL = 0u;
+                static constexpr uint32_t HEIGHT = 1u;
+                static constexpr uint32_t INTENSITY = 2u;
+                static constexpr uint32_t INNER_CONE = 3u;
+                static constexpr uint32_t OUTER_CONE = 4u;
+                static constexpr uint32_t WARMTH = 5u;
+                static constexpr uint32_t AIM_PITCH = 6u;
+                static constexpr uint32_t AIM_YAW = 7u;
+            };
+
+            // Slot definition: anchor surface + gaussian ranges for the
+            // light's character. Position slide uses fixed sigmas.
+            // Direction is fully parameterised per slot:
+            //   aim_pitch — angle below horizontal (wall) or off-vertical (ceiling), radians
+            //   aim_yaw   — lateral rotation along the anchor surface, radians
+            struct LightSlotDef {
+                LightAnchor anchor;
+                float intensity_mean, intensity_sigma;
+                float inner_mean, inner_sigma;    // inner half-angle (radians)
+                float outer_mean, outer_sigma;    // outer half-angle (radians)
+                float warmth_mean, warmth_sigma;  // 0 = warm amber, 1 = cool blue
+                float aim_pitch_mean, aim_pitch_sigma;  // radians
+                float aim_yaw_mean, aim_yaw_sigma;      // radians
+                // Anchor-surface position (carried through from LightSchemeSlot).
+                float lat_mean, lat_sigma;        // along anchor surface
+                float hfrac_mean, hfrac_sigma;    // ceiling: Z; walls: height
+            };
+
+            static constexpr float SCHEME_WEIGHTS[] = { 0.35f, 0.35f, 0.15f, 0.15f };
+            static constexpr uint32_t SCHEME_COUNT = 4;
+            static constexpr const char* SCHEME_NAMES[] = { "Cathedral", "Quartet", "Gallery", "Sanctum" };
+            static constexpr const char* ANCHOR_NAMES[] = { "ceiling", "wall_N", "wall_S", "wall_E", "wall_W" };
+
+            // ── Lighting Scheme Table ──
+            //
+            // Constexpr tier matrix for indoor lighting.
+            // AnchorRole is resolved to a concrete LightAnchor at runtime
+            // (WALL_A/B → N/S or E/W depending on seed-driven wall pair).
+            //
+            // To tune a scheme: adjust its rows. To add a scheme: add a block
+            // + SCHEME_COUNT + SCHEME_WEIGHTS entry.
+
+            enum class AnchorRole : uint32_t {
+                CEILING,    // always ceiling
+                WALL_A,     // seed-selected wall pair, side A
+                WALL_B,     // seed-selected wall pair, side B
+                SEED_PICK   // anchor chosen from seed (ceiling or wall)
+            };
+
+            struct LightSchemeSlot {
+                AnchorRole role;
+                float intensity_mean, intensity_sigma;
+                float inner_mean, inner_sigma;
+                float outer_mean, outer_sigma;
+                float warmth_mean, warmth_sigma;
+                float aim_pitch_mean, aim_pitch_sigma;
+                float aim_yaw_mean, aim_yaw_sigma;
+                // Position on the anchor surface (0..1 along the surface span).
+                // For ceiling: lat=X-axis, hfrac=Z-axis (both in [0..1]).
+                // For walls:   lat=along-wall, hfrac=height (both in [0..1]).
+                // Existing schemes (Cathedral/Gallery/Sanctum) used hardcoded
+                // 0.5/0.65 means with 0.15/0.10 sigmas; they keep that here.
+                // New schemes (e.g. Quartet) override per slot to place lights
+                // deliberately rather than relying on each one rolling near
+                // center independently.
+                float lat_mean, lat_sigma;
+                float hfrac_mean, hfrac_sigma;
+            };
+
+            struct LightScheme {
+                uint32_t slot_count;
+                LightSchemeSlot slots[4];  // MAX_SPOT_LIGHTS
+            };
+
+            // ── Scheme Definitions ──
+            //                                role            int_μ  int_σ  inn_μ inn_σ out_μ out_σ wrm_μ wrm_σ  pit_μ  pit_σ  yaw_μ  yaw_σ   lat_μ lat_σ  hfrac_μ hfrac_σ
+            static constexpr LightScheme LIGHT_SCHEMES[SCHEME_COUNT] = {
+                /* 0: Cathedral — ceiling primary + 2 wall sconces */
+                { 3, {
+                    { AnchorRole::CEILING,   8.0f, 2.5f, 0.6f, 0.2f,  1.2f, 0.15f, 0.35f, 0.20f,  0.0f,  0.12f, 0.0f, 0.12f,   0.50f, 0.15f, 0.65f, 0.10f },
+                    { AnchorRole::WALL_A,    5.0f, 1.5f, 0.4f, 0.15f, 1.0f, 0.15f, 0.20f, 0.15f,  0.60f, 0.40f, 0.0f, 0.30f,   0.50f, 0.15f, 0.65f, 0.10f },
+                    { AnchorRole::WALL_B,    5.0f, 1.5f, 0.4f, 0.15f, 1.0f, 0.15f, 0.75f, 0.15f,  0.60f, 0.40f, 0.0f, 0.30f,   0.50f, 0.15f, 0.65f, 0.10f },
+                }},
+                /* 1: Quartet — 4 ceiling lights at quadrant corners.
+                 *    Tight sigma (0.07) keeps each light pinned in its quadrant;
+                 *    means at 0.30/0.70 produce a 2x2 layout that fills the
+                 *    room evenly. Per-light intensity dropped to 4.0±1.0 to
+                 *    keep total scene brightness comparable to Cathedral
+                 *    (which has ~8.0 from a single ceiling light + sconces). */
+                { 4, {
+                    { AnchorRole::CEILING,   4.0f, 1.0f, 0.6f, 0.2f,  1.2f, 0.15f, 0.35f, 0.20f,  0.0f,  0.10f, 0.0f, 0.10f,   0.30f, 0.07f, 0.30f, 0.07f },
+                    { AnchorRole::CEILING,   4.0f, 1.0f, 0.6f, 0.2f,  1.2f, 0.15f, 0.35f, 0.20f,  0.0f,  0.10f, 0.0f, 0.10f,   0.70f, 0.07f, 0.30f, 0.07f },
+                    { AnchorRole::CEILING,   4.0f, 1.0f, 0.6f, 0.2f,  1.2f, 0.15f, 0.35f, 0.20f,  0.0f,  0.10f, 0.0f, 0.10f,   0.30f, 0.07f, 0.70f, 0.07f },
+                    { AnchorRole::CEILING,   4.0f, 1.0f, 0.6f, 0.2f,  1.2f, 0.15f, 0.35f, 0.20f,  0.0f,  0.10f, 0.0f, 0.10f,   0.70f, 0.07f, 0.70f, 0.07f },
+                }},
+                /* 2: Gallery — 2 opposing wall lights, no ceiling */
+                { 2, {
+                    { AnchorRole::WALL_A,    7.0f, 2.0f, 0.4f, 0.15f, 1.1f, 0.15f, 0.25f, 0.20f,  0.55f, 0.45f, 0.0f, 0.35f,   0.50f, 0.15f, 0.65f, 0.10f },
+                    { AnchorRole::WALL_B,    7.0f, 2.0f, 0.4f, 0.15f, 1.1f, 0.15f, 0.65f, 0.20f,  0.55f, 0.45f, 0.0f, 0.35f,   0.50f, 0.15f, 0.65f, 0.10f },
+                }},
+                /* 3: Sanctum — single dramatic source */
+                { 1, {
+                    { AnchorRole::SEED_PICK, 10.0f, 2.5f, 0.5f, 0.2f, 1.2f, 0.15f, 0.45f, 0.25f,  0.50f, 0.40f, 0.0f, 0.30f,   0.50f, 0.15f, 0.65f, 0.10f },
+                }},
+            };
+
+        public:
+
+
+// ═══ INDOOR LIGHT DERIVATION ═════════════════════════════════════
 //
 // Selects a lighting scheme from activeSeed_, then derives
 // per-light parameters (position, direction, intensity, cone,
@@ -223,20 +489,13 @@ void derive_indoor_lights(uint32_t seed, float bmin, float bmax,
         << (use_ew ? "E/W" : "N/S") << " walls)\n";
 }
 
-// --- Apply mood atmosphere ---
+// ═══ APPLY MOOD ══════════════════════════════════════════════════
 //
-// Sets sun direction, sun color/intensity, fog, clear color,
-// and indoor shell from the MOOD_TABLE. Called during TEARDOWN.
-
-// ─── apply_mood — split sub-functions ──────────────────────────────
-//
-// DONE[mood:K2] apply_mood was 217 lines mixing 12 concerns in one
-//   straight sequence (atmospheric, indoor lighting, indoor shell,
-//   band motion, musical reset, anchor ribbon, orbs). Phase 5 split
-//   it into named helpers; apply_mood itself orchestrates.
-//   The five helpers below match the natural seams in the flow.
-//   Per-mood-transition order is preserved exactly — no semantic
-//   change, just nameable sub-blocks.
+// One canonical mood entry point: apply_mood. Five named sub-
+// functions handle atmospheric, spot lighting, indoor shell, band
+// motion, and anchor ribbon. The orchestrator owns only ordering
+// and the activate-mood bookkeeping. See DONE[mood:K2] in the file
+// header for the split rationale.
 
 // 1) Atmospheric: sun direction/color/intensity, fog, ambient,
 //    terrain amp ceiling. Touches GPU directly + a few member fields.
@@ -425,11 +684,11 @@ void apply_mood_anchor_ribbon(uint32_t mood, wgpu::Queue& queue) {
     renderedRibbonSlot_ = 0;
 }
 
-// ─── apply_mood — orchestrator ─────────────────────────────────────
+// ── apply_mood (orchestrator) ──
 //
-// DONE[mood:K2] reduced from a 217-line linear sequence to a named
-//   call list. Each step is a sub-function above; this function owns
-//   only the activate-mood bookkeeping and the order of operations.
+// Owns the mood activation bookkeeping (mood id, feature gates) and
+// the order-of-operations of the five sub-functions. The sub-
+// functions own the substantive work.
 void apply_mood(uint32_t mood, wgpu::Queue& queue) {
     mood = std::min(mood, MOOD_COUNT - 1);
     activeMood_ = mood;
@@ -448,8 +707,8 @@ void apply_mood(uint32_t mood, wgpu::Queue& queue) {
     apply_mood_spot_lights(m, queue);       // indoor only
     apply_mood_indoor_shell(m, queue);      // shell + camera ceiling clamp
     apply_mood_band_motion();               // polyphony→bands setup
-    reset_musical_couplings(queue);         // mode intensities, pulse, palette drift
-    apply_mood_anchor_ribbon(mood, queue);  // mood:has_anchor_ribbon only
+    reset_musical_couplings(queue);         // SEAM[mood:K3] anchor — mode intensities, pulse, palette drift
+    apply_mood_anchor_ribbon(mood, queue);  // SEAM[mood:K4]/[mood:L1] anchor — has_anchor_ribbon only
     configure_orbs(ORB_MOOD_TABLE[mood], queue);
 
     std::cout << "[Mood] Applied: " << mood_name(mood)
@@ -459,12 +718,12 @@ void apply_mood(uint32_t mood, wgpu::Queue& queue) {
         << ")\n";
 }
 
-// ─── Indoor Shell Generation ─────────────────────────────────
+// ═══ INDOOR SHELL GENERATION ═════════════════════════════════════
 //
-// Generates ceiling + wall geometry for indoor moods.
-// Uploaded to shell VB/IB and drawn in main + shadow passes.
+// Generates ceiling + wall geometry for indoor moods. Uploaded to
+// shell VB/IB and drawn in main + shadow passes.
 //
-// Flat ceiling: 1 quad.  Vault ceiling: tessellated catenary.
+// Flat ceiling: 1 quad. Vault ceiling: tessellated catenary.
 // Walls: 4 quads from floor (y=0) to wall_height.
 
 void clear_indoor_shell(wgpu::Queue& queue) {
@@ -646,7 +905,18 @@ void generate_indoor_shell(wgpu::Queue& queue, const MoodProfile& m) {
         << " rise=" << rise << "\n";
 }
 
-// --- Force-spawn a portal arch at a specific position ---
+// ═══ PORTAL SPAWNING ═════════════════════════════════════════════
+//
+// Three forced-spawn paths plus the array uploader. All portals are
+// arches with portal-color override + portal-destination payload;
+// the difference is *where* and *why* they spawn:
+//   force_spawn_portal_at      — general helper (called by the others)
+//   force_spawn_back_portal    — guaranteed return-path portal in
+//                                finite worlds (one per world, perimeter)
+//   force_spawn_finite_portals — additional forward portals in finite
+//                                worlds, count scales with room size
+
+// ── force_spawn_portal_at ──
 //
 // General helper: places a Doorway arch with fixed tier-mean geometry,
 // portal color, and the given destination. Returns the slot used, or
@@ -763,8 +1033,13 @@ uint32_t force_spawn_portal_at(wgpu::Queue& queue,
     return slot;
 }
 
-// --- Force-spawn the guaranteed back-portal ---
-// --- Force-spawn the guaranteed back-portal ---
+// ── force_spawn_back_portal ──
+//
+// Guaranteed return-path portal in finite worlds. Picks a perimeter
+// spot on one of the 4 walls (seed-driven side order, jittered
+// along the wall), enforces a minimum distance from origin so the
+// pawn doesn't land next to it, falls back to first candidate if
+// no spot satisfies the origin-distance check.
 void force_spawn_back_portal(wgpu::Queue& queue) {
     backPortalPending_ = false;
 
@@ -907,17 +1182,12 @@ void force_spawn_back_portal(wgpu::Queue& queue) {
     force_spawn_finite_portals(queue);
 }
 
-// --- Forward portals in finite worlds ---
+// ── force_spawn_finite_portals ──
 //
-// Places seed-derived portals near the walls so the player can
-// easily reach new worlds. Count scales with room size:
-//   radius 1 (3×3):  1 extra portal
-//   radius 2 (5×5):  2 extra portals
-//   radius 3-4:      3 extra portals
-//
-// Positions are distributed along the room perimeter with seed-driven
-// jitter so they feel organic, not mechanical.
-
+// Additional forward portals in finite worlds. Count scales with
+// room size: radius 1 (3×3) = 1 extra; radius 2 (5×5) = 2 extra;
+// radius 3-4 = 3 extra. Positions distributed along perimeter with
+// seed-driven jitter so they feel organic, not mechanical.
 void force_spawn_finite_portals(wgpu::Queue& queue) {
     float bmin = -(float)finiteRadius_ * PATCH_EXTENT;
     float bmax = ((float)finiteRadius_ + 1.0f) * PATCH_EXTENT;
@@ -1016,7 +1286,13 @@ void force_spawn_finite_portals(wgpu::Queue& queue) {
     std::cout << "[Portal] Finite world: " << spawned << " forward portals + 1 back-portal\n";
 }
 
-// --- Upload portal array to GPU ---
+// ═══ PER-FRAME UPLOAD ════════════════════════════════════════════
+//
+// Dirty-flagged uploads called by the spine each frame. Portal
+// array re-uploads only when an arch's portal state changes;
+// lights re-upload only when sun/spot lights change.
+
+// ── upload_portal_array ──
 void upload_portal_array(wgpu::Queue& queue) {
     if (!portalsDirty_) return;
     portalsDirty_ = false;
@@ -1042,7 +1318,8 @@ void upload_portal_array(wgpu::Queue& queue) {
     gpuState_.upload_portal_array(queue, cpuPortalArray_);
 }
 
-// --- Upload light uniforms (must precede compute for shadow VP) ---
+// ── upload_lights ──
+// (Must precede compute for shadow VP.)
 void upload_lights(wgpu::Queue& queue) {
     if (!lightsDirty_) return;
     lightsDirty_ = false;
@@ -1068,15 +1345,12 @@ void upload_lights(wgpu::Queue& queue) {
     gpuState_.upload_spot_lights(queue, cpuSpotLights_);
 }
 
-// DONE[input:L1] Mood-transition request — single canonical entry
-//   point. Replaces the five copy-paste cases in input.inl
-//   (KEY_5..KEY_9). Bails if a transition is already in flight.
-//   Logs in the same shape both branches used: "(mood_name)" for
-//   open worlds, "(mood_name SxS)" for finite worlds.
+// ═══ MOOD TRANSITION REQUEST ═════════════════════════════════════
 //
-//   Lives in mood.inl rather than input.inl because portal crossings
-//   and other code paths can also drive mood transitions (see
-//   force_spawn_back_portal). One door, many keys.
+// Single canonical entry point for mood transitions. Bails if a
+// transition is already in flight. See DONE[input:L1] in the file
+// header for why this lives in mood.inl rather than input.inl
+// (one door, many keys).
 void request_mood_transition(uint32_t mood) {
     if (transitionPhase_ != TransitionPhase::IDLE) return;
     if (mood >= MOOD_COUNT) return;

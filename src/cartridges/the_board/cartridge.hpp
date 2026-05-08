@@ -1,17 +1,87 @@
 #pragma once
 
-// THE_BOARD — Generative world engine. CPU orchestration.
+// ─── cartridge.hpp ───────────────────────────────────────────────
+//
+// THE_BOARD — Generative world engine. CPU orchestration spine.
 // See world.wgsl for GPU-side (single source of truth).
 //
-// SEAM[spine] This is the cartridge spine. The seam map (Ch. 15)
-//   describes its structural surface. Tags in this file follow the
-//   Ch. 1 conventions:
-//     SEAM[module:Kn|Ln|Pn]  — observation tag, points back to seam map
-//     TODO[phase-N:tag]      — action tag for Claude Code (phases per Ch. 15)
-//     NOTE[seam-map]         — explanatory tag for things deliberately kept
-//   Three banner-only modules and three specialized-family blocks live
-//   inline inside this file (Ch. 12.A-E and Ch. 13). Their tags are
-//   added in chunks 2 and 3.
+// The cartridge is the integration hub: it owns the public lifecycle
+// (initialize, update, render, stream_patches), the FAMILY_DISPATCH
+// table that ties the 12 entity families together, the active patch
+// system, and the per-mood authoring tables. Module includes splice
+// in domain-specific work at well-defined points.
+//
+// ┌─── Public surface (RenderCartridge override) ───────────────────┐
+// │                                                                  │
+// │  Lifecycle:                                                      │
+// │    initialize(device)              — GPU state + renderer init   │
+// │    init_renderer(...)              — pipeline + bind groups      │
+// │    update(signal, dt)              — per-frame state advance     │
+// │    render(encoder, color, depth)   — per-frame draw + readback   │
+// │    stream_patches(encoder, queue)  — patch streaming budget pass │
+// │                                                                  │
+// │  Player + system overrides:                                      │
+// │    on_input(event)                                               │
+// │    get_clear_color(r, g, b)                                      │
+// │    supports_backspace()                                          │
+// │    reload_shaders()                                              │
+// │                                                                  │
+// │  Spine-owned tables (read by every entity-aware module):         │
+// │    FAMILY_DISPATCH[PopFamily::COUNT]   — dispatch hub            │
+// │    THEMES[THEME_COUNT]                  — population themes      │
+// │    ARCHETYPES[ARCHETYPE_COUNT]          — terrain archetypes     │
+// │    MIN_SEPARATION[][]                   — entity-pair spacing    │
+// │    MOOD_TABLE[MOOD_COUNT]               — atmospheric profiles   │
+// │                                                                  │
+// │  Cross-module reads (consumed by modules):                       │
+// │    activeMood_, activeSeed_, currentBeats_, currentSeconds_      │
+// │    pawnReadback_x_/z_, possessed_slot                            │
+// │    PATCH_EXTENT, GRID_RADIUS, PREGEN_RADIUS, MAX_PATCHES          │
+// │    finiteMode_, finiteRadius_, transitionPhase_                  │
+// │    ActivePatch + entity_refs registry                            │
+// │                                                                  │
+// └──────────────────────────────────────────────────────────────────┘
+//
+// SEAM[spine:owns] FAMILY_DISPATCH is genuinely spine work — the
+//   integration hub that ties the 12 families together. Each row's
+//   body lives in the family's owning module. Per Ch. 15 of the seam
+//   map. Adding a new family means: write select/place/commit/
+//   evict/prepare_mesh in the owning module, add wrappers below,
+//   add 1 row to FAMILY_DISPATCH.
+// SEAM[spine:K2-related] the dispatch_evict_*, dispatch_prepare_mesh_*,
+//   dispatch_mesh_gen_* wrappers (~400 lines below FamilyDispatch)
+//   are integration glue, not module work. They live here correctly.
+//   NOTE[seam-map] keep wrappers here; they're the integration layer
+//   between FAMILY_DISPATCH and per-family modules.
+// SEAM[spine:P5] readback state machines + worldGen_ counter are
+//   pattern P5 (release-pending sentinel) at the spine level. Pawn +
+//   floater readbacks each protect against stale callbacks from
+//   previous worlds via worldGen_ capture in the closure. Genuinely
+//   spine-owned, not a leak.
+// SEAM[spine:P8] PlayerState's commented "Future (deferred)" fields
+//   are explicit latent infrastructure: aura_presence and
+//   mmode_intensities are scheduled to migrate here once the unified
+//   entity layer is finalized. Pattern P8 visible in source.
+// SEAM[spine:active-patch-system] the ActivePatch struct,
+//   patches_[MAX_PATCHES] array, find_patch / evict_patch /
+//   evict_patch_entities / audit_entity_integrity, plus the entity_refs
+//   registry on each ActivePatch. The lifecycle hub for streamed-in
+//   patches and their entity ownership records. Cross-module readers:
+//   spawn_engine.inl (commit functions call host->record_entity),
+//   ribbon.inl (two-tip late registration), gallery.inl
+//   (evict_paintings_for_patch).
+// SEAM[spine:portal-system] portal/transition state machine. Owns
+//   TransitionPhase, transitionTimer_, pendingDestination_, the
+//   PORTAL_COLORS table, the back-portal pending state, and the
+//   trigger-detection hooks called by readback. Mood.inl drives portal
+//   spawning (force_spawn_portal_at, force_spawn_back_portal,
+//   force_spawn_finite_portals); spine owns the request → activation
+//   flow.
+// SEAM[spine:family-dispatch] all dispatch_evict_<family>,
+//   dispatch_prepare_mesh_<family>, dispatch_mesh_gen_<family>
+//   wrapper functions land here — referenced by FAMILY_DISPATCH and
+//   by spawn_engine.inl's commit/evict pipelines.
+// ─────────────────────────────────────────────────────────────────
 
 #include "render/render_cartridge.hpp"
 #include "core/input_event.hpp"
@@ -88,29 +158,28 @@ namespace t7 {
 #include "modules/trajectory.inl"
 
             // ── Musical Coupling State (modules/musical.inl) ──
-            // DONE[musical:K2 / mood:K3] Phase 4 — per-frame ramps moved
-            //   from cartridge.hpp::update() into musical.inl as
-            //   tick_musical_couplings(); per-mood-transition reset moved
-            //   into reset_musical_couplings() called by mood.inl::apply_mood.
-            //   update() shrinks to a phase-orchestration sequence of
-            //   named tick calls.
+            // See DONE[musical:K2] in musical.inl + DONE[mood:K3] in
+            //   mood.inl: per-frame ramps moved from cartridge.hpp::update()
+            //   into musical.inl as tick_musical_couplings();
+            //   per-mood-transition reset moved into reset_musical_couplings()
+            //   called by mood.inl::apply_mood. update() shrinks to a
+            //   phase-orchestration sequence of named tick calls.
 #include "modules/musical.inl"
 
-            // ── Player State (unified entity layer) ──
+            // ═══ PLAYER STATE ════════════════════════════════════════════
             //
             // The player's relationship to the world, not a physical body.
             // The body lives in agentStateBuffer_[possessed_slot]; this
             // struct is what travels with the player on possession
-            // transfer (Caps Lock). Pass 1 only fills possessed_slot;
-            // aura/mmodes still live in their respective modules and
-            // are folded in by later passes.
+            // transfer (Caps Lock).
             //
             // See agent_system_design.md §2.1 for the full design.
             //
             // SEAM[spine:P8] PlayerState commented "Future (deferred)" fields
             //   are explicit latent infrastructure: aura_presence and
-            //   mmode_intensities are scheduled to migrate here once pawn.inl
-            //   exists. Pattern P8 visible in source.
+            //   mmode_intensities are scheduled to migrate here once the
+            //   unified entity layer is finalized. Pattern P8 visible
+            //   in source.
             struct PlayerState {
                 uint32_t possessed_slot = 0;   // slot in agent_state[] that the player inhabits
                 // Future (deferred):
@@ -123,7 +192,17 @@ namespace t7 {
             GPUSpotLightArray cpuSpotLights_{};  // count=0 disables (outdoor)
             bool spotLightActive_ = false;
 
-            // --- World Transition State Machine ---
+            // ═══ PORTAL & TRANSITION STATE MACHINE ═══════════════════════
+            //
+            // World-to-world transitions: pawn enters a portal, screen fades,
+            // the world tears down, a new world generates, screen fades back.
+            // Runs as a four-phase machine driven by transitionTimer_.
+            //
+            // SEAM[spine:portal-system] consumed by mood.inl (force_spawn_*
+            //   functions read pendingDestination_), input.inl (keypress mood
+            //   transitions request via mood.inl::request_mood_transition),
+            //   render() (readback callback drives portal trigger detection).
+
             enum class TransitionPhase { IDLE, FADE_OUT, TEARDOWN, FADE_IN };
             TransitionPhase transitionPhase_ = TransitionPhase::IDLE;
             float transitionTimer_ = 0.0f;
@@ -140,12 +219,12 @@ namespace t7 {
             };
             PortalDestination pendingDestination_{};
 
-            // --- Finite patch mode ---
+            // ── Finite patch mode ──
             bool finiteMode_ = false;
             uint32_t finiteRadius_ = 2;              // 2 → 5×5 = 25 patches
 
-            // --- Portal detection ---
-            static constexpr float PORTAL_DENSITY = 1.00f;  // fraction of Doorway arches that become portals (was 0.25)
+            // ── Portal detection ──
+            static constexpr float PORTAL_DENSITY = 1.00f;  // fraction of Doorway arches that become portals
 
             // Portal color by mood (indexed by destination.mood)
             static constexpr float PORTAL_COLORS[6][3] = {
@@ -158,13 +237,14 @@ namespace t7 {
             };
             static constexpr float PORTAL_COLOR_BACK[3] = { 0.35f, 0.55f, 0.90f };  // back-portal — blue
 
-            // ─── Mood System ─────────────────────────────────────────────
+            // ═══ MOOD SYSTEM ═════════════════════════════════════════════
             //
             // Each mood defines an atmosphere: sun direction/color, fog,
             // finite vs. open, patch radius. Portals pick a mood for
             // their destination; the mood is applied during teardown.
             //
-            // Moods 0-1: infinite outdoor.  Moods 2-3: finite indoor.  Mood 4: finite outdoor.  Mood 5: finite outdoor (reference clone).
+            // Moods 0-1: infinite outdoor.  Moods 2-3: finite indoor.
+            // Mood 4: finite outdoor.  Mood 5: finite outdoor (reference clone).
 
             enum class CeilingType : uint32_t {
                 NONE = 0,   // outdoor — no shell geometry
@@ -231,7 +311,7 @@ namespace t7 {
             static constexpr uint32_t MOOD_FINITE_OUTDOOR = 4;
             static constexpr uint32_t MOOD_FINITE_OUTDOOR_REF = 5;
 
-            // ─── Mood Definitions ───────────────────────────────────────────
+            // ═══ MOOD DEFINITIONS ════════════════════════════════════════
             //
             // Sky orb config lives in ORB_MOOD_TABLE inside modules/orbs.inl,
             // indexed by the same mood index.
@@ -240,12 +320,13 @@ namespace t7 {
             //   bool `indoor` flags. With finite_outdoor and finite_outdoor_ref,
             //   the binary doesn't survive contact — the encoding is correct
             //   for today but worth re-examining when finite_outdoor design lands.
-            // DONE[mood:L1 / mood:K4-partial] has_anchor_ribbon flag added
-            //   (last column). Mood-5 (FINITE_OUTDOOR_REF) is the only row
-            //   that sets it true, replacing the magic-number check
-            //   `activeMood_ != 5` / `mood == 5`. The ID is now an
+            // DONE[mood:L1] has_anchor_ribbon flag (last column). Mood-5
+            //   (FINITE_OUTDOOR_REF) is the only row that sets it true,
+            //   replacing the magic-number check `mood == 5` previously
+            //   scattered across mood.inl and orbs.inl. The ID is now an
             //   identifier, not a discriminator — atmospheric data is
-            //   profile-driven.
+            //   profile-driven. See mood.inl::SEAM[mood:L1] for the
+            //   gating call site.
             //                                  fin  r_min r_max  sun_dir                sun_color              int   amb   fog_d   fog_color               indoor  ceil       ceil_h  clear_color            wall_color             ceil_color               modes   zones  aura   cull   ribbon
             static constexpr MoodProfile MOOD_TABLE[MOOD_COUNT] = {
                 /* MOOD_OPEN_DEFAULT       */  { false, 2, 2, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true,  false },
@@ -270,136 +351,7 @@ namespace t7 {
                 return (mood < MOOD_COUNT) ? NAMES[mood] : "unknown";
             }
 
-            // ─── Indoor Wall Palette ─────────────────────────────────────
-            //
-            // SEAM[spine:per-mood-data] new finding (Ch. 15 chunk 1): the spine
-            //   declares per-mood authoring data alongside MOOD_TABLE —
-            //   INDOOR_PALETTES, WALL_ART, LIGHT_SCHEMES, IndoorLightProp.
-            //   Same family as ORB_MOOD_TABLE that the seam map flagged for
-            //   migration to orbs.inl (orbs:D2). These tables read by mood.inl
-            //   apply_mood and spine code; consider migration to mood.inl
-            //   when mood.inl gains the structural-decomposition pass (mood:K2).
-            //   Distinct from MOOD_TABLE which is global atmosphere data.
-            //
-            // Per-seed wall+ceiling color override for indoor moods. The
-            // MOOD_TABLE wall_color/ceiling_color act as fallback for the
-            // open-world finite cases; in flat/vault moods, apply_mood
-            // selects one of these palettes from activeSeed_ and substitutes
-            // it before generate_indoor_shell uploads the shell mesh.
-            //
-            // Each palette is a designed (wall, ceiling) pair where the
-            // ceiling is a slightly darker shade of the wall — gives the
-            // room visual depth instead of flat single-color surfaces.
-            // Authored to feel like museum / gallery wall finishes rather
-            // than random RGB rolls.
-            struct IndoorPalette {
-                const char* name;
-                float wall_color[3];
-                float ceiling_color[3];
-            };
-            static constexpr IndoorPalette INDOOR_PALETTES[] = {
-                { "warm taupe",     { 0.72f, 0.65f, 0.55f }, { 0.65f, 0.58f, 0.50f } },
-                { "slate blue",     { 0.58f, 0.62f, 0.68f }, { 0.50f, 0.55f, 0.62f } },
-                { "terracotta",     { 0.65f, 0.50f, 0.42f }, { 0.55f, 0.42f, 0.36f } },
-                { "sage",           { 0.62f, 0.68f, 0.58f }, { 0.55f, 0.60f, 0.52f } },
-                { "pale linen",     { 0.85f, 0.80f, 0.72f }, { 0.78f, 0.73f, 0.65f } },
-                { "deep mocha",     { 0.45f, 0.40f, 0.35f }, { 0.38f, 0.34f, 0.30f } },
-                { "dusty rose",     { 0.70f, 0.58f, 0.58f }, { 0.62f, 0.50f, 0.50f } },
-                { "warm charcoal",  { 0.40f, 0.38f, 0.36f }, { 0.32f, 0.30f, 0.28f } },
-            };
-            static constexpr uint32_t INDOOR_PALETTE_COUNT =
-                sizeof(INDOOR_PALETTES) / sizeof(INDOOR_PALETTES[0]);
-
-            // ─── Wall Art Configuration ──────────────────────────────────
-            //
-            // Centralized control for all artwork hung on indoor walls —
-            // both authored frames and snapshot frames. Replaces previously
-            // scattered constants (PAINT_Y_FRAC, INDOOR_SCALES, CORNER_MARGIN,
-            // PAINTING_GAP, the wall-count cumulative thresholds, the per-
-            // wall painting count, and the per-bucket y-offset ranges).
-            //
-            // Tuning workflow: edit the WALL_ART struct below, rebuild,
-            // regenerate any indoor world to see the changes. No .inl edits
-            // needed — place_wall_paintings reads everything from here.
-            //
-            // The y-position pipeline:
-            //   1) base_py = ceiling_h × paint_y_frac
-            //   2) py = base_py + y_offset (sampled per-painting by bucket)
-            //   3) clamp: ensure py - height/2 ≤ max_bottom_height
-            //      (paintings hung too high force the camera to crane up;
-            //      this guarantees the bottom edge stays viewable from
-            //      pawn standing height)
-
-            struct WallArtScaleBucket {
-                float height_lo;     // uniform [lo, hi] sample for painting height
-                float height_hi;
-                float weight;        // selection weight (the three weights must sum to 1)
-                float y_offset_lo;   // uniform [lo, hi] additive offset from base_py
-                float y_offset_hi;
-            };
-
-            struct WallArtConfig {
-                // ─── Wall participation (cumulative thresholds, 0..1) ───
-                // roll < t1 → 1 wall, < t2 → 2, < t3 → 3, residual → 4 walls
-                float wall_count_t1;
-                float wall_count_t2;
-                float wall_count_t3;
-
-                // ─── Per-wall painting count: uniform [lo, hi] inclusive ─
-                uint32_t per_wall_count_lo;
-                uint32_t per_wall_count_hi;
-
-                // ─── Wall surface geometry ──────────────────────────────
-                float corner_margin;        // distance from wall corners
-                float painting_gap;         // gap between adjacent painting edges
-                float paint_y_frac;         // base center as fraction of ceiling
-                float max_bottom_height;    // hard upper clamp on bottom edge (m)
-
-                // ─── Size buckets (intimate / standard / statement) ─────
-                WallArtScaleBucket intimate;
-                WallArtScaleBucket standard;
-                WallArtScaleBucket statement;
-
-                // ─── Indoor content mix (snapshot vs authored) ──────────
-                // Per-site roll thresholds (cumulative, 0..1):
-                //   roll < snapshot_only_share         → all snapshot
-                //   roll < snapshot_only + mixed_share → mixed
-                //   residual                           → all authored
-                float snapshot_only_share;
-                float mixed_share;
-                // In mixed mode: per-painting chance of being a snapshot.
-                float mix_snapshot_chance;
-            };
-
-            static constexpr WallArtConfig WALL_ART = {
-                // wall_count cumulative thresholds:
-                //   0.5% → 1 wall, 0.25% → 2, 27% → 3, residual ~72% → 4
-                /* wall_count_t1 */ 0.005f,
-                /* wall_count_t2 */ 0.0075f,
-                /* wall_count_t3 */ 0.2775f,
-
-                // per-wall painting count
-                /* per_wall_count_lo */ 1,
-                /* per_wall_count_hi */ 5,
-
-                // wall surface geometry
-                /* corner_margin     */ 12.0f,
-                /* painting_gap      */ 6.0f,
-                /* paint_y_frac      */ 0.45f,
-                /* max_bottom_height */ 4.0f,   // bottom no higher than 4 m above floor
-
-                //                 height_lo, height_hi, weight, y_offset_lo, y_offset_hi
-                /* intimate  */  {  6.0f,    11.0f,    0.25f,   0.0f,        2.0f },
-                /* standard  */  {  8.0f,    12.0f,    0.50f,  -1.5f,        1.5f },
-                /* statement */  { 10.0f,    14.0f,    0.25f,  -3.5f,       -1.5f },
-
-                // content mix (was 15% snapshot-only / 5% mixed / 80% authored)
-                /* snapshot_only_share */ 0.15f,
-                /* mixed_share         */ 0.05f,
-                /* mix_snapshot_chance */ 0.40f,
-            };
-
-            // ─── Indoor Entity Placement ─────────────────────────────────
+            // ═══ INDOOR ENTITY PLACEMENT ═════════════════════════════════
             //
             // Minimum distance from any spawning entity's FOOTPRINT EDGE to
             // the room walls (not the entity's center — large entities still
@@ -418,143 +370,10 @@ namespace t7 {
             // check handle any pile-ups that result.
             static constexpr float INDOOR_ENTITY_WALL_MARGIN = 10.0f;
 
-            // ─── Indoor Lighting Schemes ─────────────────────────────────
-            //
-            // Seed-driven procedural lighting for indoor moods. Each scheme
-            // defines a lighting character (which surfaces carry lights,
-            // how many, primary vs accent roles). Per-light parameters
-            // (position along surface, intensity, cone width, color warmth)
-            // are derived from activeSeed_ at mood transition time.
-            //
-            // Three schemes:
-            //   Cathedral — ceiling primary + two opposing wall sconces
-            //   Gallery   — two opposing wall lights, no ceiling (dramatic)
-            //   Sanctum   — single source, maximum contrast
-            //
-            // The seed also picks which wall pair (N/S or E/W) carries the
-            // sconces, so rooms with the same scheme still feel different.
-
-            enum class LightAnchor : uint32_t {
-                CEILING, WALL_NORTH, WALL_SOUTH, WALL_EAST, WALL_WEST
-            };
-
-            struct IndoorLightProp {
-                static constexpr uint32_t SCHEME = 1100u;
-                static constexpr uint32_t WALL_PAIR = 1101u;
-                static constexpr uint32_t ANCHOR_PICK = 1102u;
-                static constexpr uint32_t SLOT_BASE = 1110u;  // + slot*10 + field
-                // Per-slot field offsets
-                static constexpr uint32_t LATERAL = 0u;
-                static constexpr uint32_t HEIGHT = 1u;
-                static constexpr uint32_t INTENSITY = 2u;
-                static constexpr uint32_t INNER_CONE = 3u;
-                static constexpr uint32_t OUTER_CONE = 4u;
-                static constexpr uint32_t WARMTH = 5u;
-                static constexpr uint32_t AIM_PITCH = 6u;
-                static constexpr uint32_t AIM_YAW = 7u;
-            };
-
-            // Slot definition: anchor surface + gaussian ranges for the
-            // light's character. Position slide uses fixed sigmas.
-            // Direction is fully parameterised per slot:
-            //   aim_pitch — angle below horizontal (wall) or off-vertical (ceiling), radians
-            //   aim_yaw   — lateral rotation along the anchor surface, radians
-            struct LightSlotDef {
-                LightAnchor anchor;
-                float intensity_mean, intensity_sigma;
-                float inner_mean, inner_sigma;    // inner half-angle (radians)
-                float outer_mean, outer_sigma;    // outer half-angle (radians)
-                float warmth_mean, warmth_sigma;  // 0 = warm amber, 1 = cool blue
-                float aim_pitch_mean, aim_pitch_sigma;  // radians
-                float aim_yaw_mean, aim_yaw_sigma;      // radians
-                // Anchor-surface position (carried through from LightSchemeSlot).
-                float lat_mean, lat_sigma;        // along anchor surface
-                float hfrac_mean, hfrac_sigma;    // ceiling: Z; walls: height
-            };
-
-            static constexpr float SCHEME_WEIGHTS[] = { 0.35f, 0.35f, 0.15f, 0.15f };
-            static constexpr uint32_t SCHEME_COUNT = 4;
-            static constexpr const char* SCHEME_NAMES[] = { "Cathedral", "Quartet", "Gallery", "Sanctum" };
-            static constexpr const char* ANCHOR_NAMES[] = { "ceiling", "wall_N", "wall_S", "wall_E", "wall_W" };
-
-            // ─── Lighting Scheme Table ───────────────────────────────────────
-            //
-            // Constexpr tier matrix for indoor lighting.
-            // AnchorRole is resolved to a concrete LightAnchor at runtime
-            // (WALL_A/B → N/S or E/W depending on seed-driven wall pair).
-            //
-            // To tune a scheme: adjust its rows. To add a scheme: add a block
-            // + SCHEME_COUNT + SCHEME_WEIGHTS entry.
-
-            enum class AnchorRole : uint32_t {
-                CEILING,    // always ceiling
-                WALL_A,     // seed-selected wall pair, side A
-                WALL_B,     // seed-selected wall pair, side B
-                SEED_PICK   // anchor chosen from seed (ceiling or wall)
-            };
-
-            struct LightSchemeSlot {
-                AnchorRole role;
-                float intensity_mean, intensity_sigma;
-                float inner_mean, inner_sigma;
-                float outer_mean, outer_sigma;
-                float warmth_mean, warmth_sigma;
-                float aim_pitch_mean, aim_pitch_sigma;
-                float aim_yaw_mean, aim_yaw_sigma;
-                // Position on the anchor surface (0..1 along the surface span).
-                // For ceiling: lat=X-axis, hfrac=Z-axis (both in [0..1]).
-                // For walls:   lat=along-wall, hfrac=height (both in [0..1]).
-                // Existing schemes (Cathedral/Gallery/Sanctum) used hardcoded
-                // 0.5/0.65 means with 0.15/0.10 sigmas; they keep that here.
-                // New schemes (e.g. Quartet) override per slot to place lights
-                // deliberately rather than relying on each one rolling near
-                // center independently.
-                float lat_mean, lat_sigma;
-                float hfrac_mean, hfrac_sigma;
-            };
-
-            struct LightScheme {
-                uint32_t slot_count;
-                LightSchemeSlot slots[4];  // MAX_SPOT_LIGHTS
-            };
-
-            // ─── Scheme Definitions ─────────────────────────────────────────
-            //
-            //                                role            int_μ  int_σ  inn_μ inn_σ out_μ out_σ wrm_μ wrm_σ  pit_μ  pit_σ  yaw_μ  yaw_σ   lat_μ lat_σ  hfrac_μ hfrac_σ
-            static constexpr LightScheme LIGHT_SCHEMES[SCHEME_COUNT] = {
-                /* 0: Cathedral — ceiling primary + 2 wall sconces */
-                { 3, {
-                    { AnchorRole::CEILING,   8.0f, 2.5f, 0.6f, 0.2f,  1.2f, 0.15f, 0.35f, 0.20f,  0.0f,  0.12f, 0.0f, 0.12f,   0.50f, 0.15f, 0.65f, 0.10f },
-                    { AnchorRole::WALL_A,    5.0f, 1.5f, 0.4f, 0.15f, 1.0f, 0.15f, 0.20f, 0.15f,  0.60f, 0.40f, 0.0f, 0.30f,   0.50f, 0.15f, 0.65f, 0.10f },
-                    { AnchorRole::WALL_B,    5.0f, 1.5f, 0.4f, 0.15f, 1.0f, 0.15f, 0.75f, 0.15f,  0.60f, 0.40f, 0.0f, 0.30f,   0.50f, 0.15f, 0.65f, 0.10f },
-                }},
-                /* 1: Quartet — 4 ceiling lights at quadrant corners.
-                 *    Tight sigma (0.07) keeps each light pinned in its quadrant;
-                 *    means at 0.30/0.70 produce a 2x2 layout that fills the
-                 *    room evenly. Per-light intensity dropped to 4.0±1.0 to
-                 *    keep total scene brightness comparable to Cathedral
-                 *    (which has ~8.0 from a single ceiling light + sconces). */
-                { 4, {
-                    { AnchorRole::CEILING,   4.0f, 1.0f, 0.6f, 0.2f,  1.2f, 0.15f, 0.35f, 0.20f,  0.0f,  0.10f, 0.0f, 0.10f,   0.30f, 0.07f, 0.30f, 0.07f },
-                    { AnchorRole::CEILING,   4.0f, 1.0f, 0.6f, 0.2f,  1.2f, 0.15f, 0.35f, 0.20f,  0.0f,  0.10f, 0.0f, 0.10f,   0.70f, 0.07f, 0.30f, 0.07f },
-                    { AnchorRole::CEILING,   4.0f, 1.0f, 0.6f, 0.2f,  1.2f, 0.15f, 0.35f, 0.20f,  0.0f,  0.10f, 0.0f, 0.10f,   0.30f, 0.07f, 0.70f, 0.07f },
-                    { AnchorRole::CEILING,   4.0f, 1.0f, 0.6f, 0.2f,  1.2f, 0.15f, 0.35f, 0.20f,  0.0f,  0.10f, 0.0f, 0.10f,   0.70f, 0.07f, 0.70f, 0.07f },
-                }},
-                /* 2: Gallery — 2 opposing wall lights, no ceiling */
-                { 2, {
-                    { AnchorRole::WALL_A,    7.0f, 2.0f, 0.4f, 0.15f, 1.1f, 0.15f, 0.25f, 0.20f,  0.55f, 0.45f, 0.0f, 0.35f,   0.50f, 0.15f, 0.65f, 0.10f },
-                    { AnchorRole::WALL_B,    7.0f, 2.0f, 0.4f, 0.15f, 1.1f, 0.15f, 0.65f, 0.20f,  0.55f, 0.45f, 0.0f, 0.35f,   0.50f, 0.15f, 0.65f, 0.10f },
-                }},
-                /* 3: Sanctum — single dramatic source */
-                { 1, {
-                    { AnchorRole::SEED_PICK, 10.0f, 2.5f, 0.5f, 0.2f, 1.2f, 0.15f, 0.45f, 0.25f,  0.50f, 0.40f, 0.0f, 0.30f,   0.50f, 0.15f, 0.65f, 0.10f },
-                }},
-            };
-
             GPUPortalArray cpuPortalArray_{};
             bool portalsDirty_ = true;   // true at boot → first upload guaranteed
 
-            // --- Back-portal (guaranteed exit from finite worlds) ---
+            // ── Back-portal (guaranteed exit from finite worlds) ──
             // Position is configurable so special-case layouts can relocate it.
             float backPortalPosition_[2] = { 10.0f, 0.0f };   // world XZ
             bool  backPortalPending_ = false;
@@ -562,17 +381,24 @@ namespace t7 {
             uint32_t backPortalReturnMood_ = 0;
             uint32_t backPortalReturnRadius_ = 2;
 
-            // GPU agent-state readback machine: IDLE → COPIED → MAPPING → IDLE
-            // Reads the full agent_state buffer (MAX_AGENTS × GPUAgentState).
-            // Consumers: patch streaming / ribbon / photographer (possessed
-            // slot's XZ), portal triggers (possessed slot's portal_trigger),
-            // Caps Lock nearest-agent query (all slots, Step 7).
+            // ═══ GPU READBACK + WORLDGEN ═════════════════════════════════
+            //
+            // Two parallel readback state machines (pawn + floater) plus
+            // the worldGen_ counter that protects against stale callbacks
+            // from previous worlds. Both consumed by render() per-frame
+            // and by the patch streaming pipeline.
             //
             // SEAM[spine:P5] readback state machines + worldGen_ counter are
             //   pattern P5 (release-pending sentinel) at the spine level.
             //   Pawn + floater readbacks each protect against stale callbacks
             //   from previous worlds via worldGen_ capture in the closure.
-            //   NOTE[seam-map] genuinely spine-owned, not a leak.
+            //   Genuinely spine-owned, not a leak.
+
+            // GPU agent-state readback machine: IDLE → COPIED → MAPPING → IDLE.
+            // Reads the full agent_state buffer (MAX_AGENTS × GPUAgentState).
+            // Consumers: patch streaming / ribbon / photographer (possessed
+            // slot's XZ), portal triggers (possessed slot's portal_trigger),
+            // Caps Lock nearest-agent query (all slots).
             enum class PawnReadbackState { IDLE, COPIED, MAPPING };
             PawnReadbackState pawnReadbackState_ = PawnReadbackState::IDLE;
             // Floater readback — separate state machine, same pattern.
@@ -581,8 +407,8 @@ namespace t7 {
             // a floater drifts beyond FLOATER_EVICTION_RADIUS). Without
             // this sync, kernel-side evictions are invisible to the CPU
             // allocator and slots leak — see run_spawn_preamble's slot
-            // search at line ~1641. Stale leakage caps effective floater
-            // count well below MAX_*_INSTANCES.
+            // search. Stale leakage caps effective floater count well below
+            // MAX_*_INSTANCES.
             enum class FloaterReadbackState { IDLE, COPIED, MAPPING };
             FloaterReadbackState floaterReadbackState_ = FloaterReadbackState::IDLE;
             int32_t readbackPortalTrigger_ = -1;
@@ -598,7 +424,7 @@ namespace t7 {
             // case and the agent_state readback lambda in render().
             uint32_t worldGen_ = 0;
 
-            // --- Unified Pier System ─────────────────────────────────────────
+            // ═══ UNIFIED PIER SYSTEM ═════════════════════════════════════
             //
             // Deterministic slot addressing: test rig at 0-2, arch piers at 4-35,
             // column piers at 36-67. CPU mirrors the GPU buffer for dead-reckoning
@@ -618,9 +444,7 @@ namespace t7 {
 
                         // ── Pawn (modules/pawn.inl) ──
                         // Aura field state + presence trajectory + per-frame
-                        // tick_pawn_couplings (Phase 4.3 — closes pawn:K1).
-                        // (Renamed from pawn_aura.inl when the presence ramp
-                        // and height computation moved here.)
+                        // tick_pawn_couplings. Closes pawn:K1.
 #include "modules/pawn.inl"
 
                         // ── Ground Architecture (modules/ground_architecture.inl) ──
@@ -631,8 +455,6 @@ namespace t7 {
 
             // ── Agents (modules/agents.inl) ──
             // Unified entity registry: behaviors, tier gains, populations.
-            // Pass 1 scaffold — registries declared; kernel/render wiring
-            // lands in later steps.
 #include "modules/agents.inl"
 
 // ── Spawn Engine & Entity Lifecycle (modules/spawn_engine.inl) ──
@@ -649,6 +471,18 @@ namespace t7 {
 
             // ── Gallery System (modules/gallery.inl) ──
 #include "modules/gallery.inl"
+
+            // ═══ ACTIVE PATCH SYSTEM ═════════════════════════════════════
+            //
+            // The lifecycle hub for streamed-in patches. Each patch owns a
+            // texture layer + entity records; lifecycle phases progress
+            // ALLOCATED → SPAWNED → GENERATED → (possibly NEEDS_REGEN).
+            //
+            // SEAM[spine:active-patch-system] cross-module readers:
+            //   spawn_engine.inl (commit functions call host->record_entity),
+            //   ribbon.inl (two-tip late registration), gallery.inl
+            //   (evict_paintings_for_patch via dispatch_evict_gallery), and
+            //   the family dispatch eviction wrappers below.
 
             uint32_t activeSeed_ = 42;     // world master seed (mutable for world transitions)
             // Patch dimensions aliased from Dim:: for local readability
@@ -753,7 +587,7 @@ namespace t7 {
                     FAMILY_DISPATCH[ref.family].evict_slot(this, ref.slot, queue);
                 }
 
-                // DONE[phase-1:spine:L1] Vestigial for-loop removed. Git history
+                // DONE[spine:L1] Vestigial for-loop removed. Git history
                 //   (commit 6f0007f) shows the loop body was originally
                 //   `clear_entity_presence(gx, gz, FAMILY_DISPATCH[f].presence_clear_flag)`,
                 //   removed when the entity-presence flag system was retired in
@@ -767,7 +601,7 @@ namespace t7 {
 
             void audit_entity_integrity() {
 #ifdef DIAG_ENTITY_LIFECYCLE
-                // DONE[phase-1:spine:L2] Coverage rationale documented.
+                // DONE[spine:L2] Coverage rationale documented.
                 //   Audit covers 4 of 12 families: Arch, Column, Antenna,
                 //   Pyramid — the generic-pipeline grounded families whose
                 //   lifecycle is the simple { Active*[slot].active ↔ patch
@@ -795,7 +629,7 @@ namespace t7 {
                 //   reviewed — currently each family is a hand-written block,
                 //   so 3 more families means 3× duplication. A registry-of-
                 //   audit-shapes (one entry per family lifecycle pattern)
-                //   would scale better. Not in scope for Phase 1.
+                //   would scale better.
                 // Count actual active slots
                 uint32_t act_a = 0, act_c = 0, act_n = 0, act_p = 0;
                 for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++) if (activeArches_[i].active) act_a++;
@@ -883,7 +717,7 @@ namespace t7 {
 #endif
             }
 
-            // ─── Deferred Upload Flags ───────────────────────────────────
+            // ═══ DEFERRED UPLOAD FLAGS ═══════════════════════════════════
             bool pierCountDirty_ = false;        // defer recompute_and_upload_pier_count
             bool groundEntriesDirty_ = true;     // defer upload_ground_entries (true at boot)
             bool patchInstancesDirty_ = true;    // defer LOD sort + upload_patch_instances
@@ -893,7 +727,7 @@ namespace t7 {
             uint32_t freeLayerStack_[MAX_PATCHES]{};
             uint32_t freeLayerCount_ = MAX_PATCHES;
 
-            // ─── Dynamic Budgets ─────────────────────────────────────────
+            // ═══ DYNAMIC BUDGETS ═════════════════════════════════════════
             //
             // Entity spawning and heightfield generation are both distance-
             // driven and budgeted per frame. Spawning must complete before
@@ -936,7 +770,7 @@ namespace t7 {
                 return std::min(budget, PATCH_BUDGET_MAX);
             }
 
-            // --- Tile World System ---------------------------------------------------
+            // ═══ TILE WORLD SYSTEM ═══════════════════════════════════════
             //
             // Each patch is a tile with an archetype that configures its terrain
             // character. Archetypes are rolled based on the spatial cache of
@@ -971,7 +805,7 @@ namespace t7 {
                 return cpu_hash(seed, prop) % MOOD_COUNT;
             }
 
-            // --- Three Archetypes ---------------------------------------------------
+            // ── Three Archetypes ──
             //
             //  0: Mountainous — high amplitude, elevated, sparse fine detail
             //  1: Varied      — moderate amplitude, wide range, balanced
@@ -1039,23 +873,23 @@ namespace t7 {
             static constexpr float DENSITY_MIN = 1.0f;
             static constexpr float DENSITY_MAX = 1.0f;
 
-            // ─── Family Dispatch Table ──────────────────────────────────────
+            // ═══ FAMILY DISPATCH TABLE ═══════════════════════════════════
             //
             // Table-driven dispatch for the full entity lifecycle:
             // select, place, commit, evict, and mesh generation.
             // Adding a new entity family: write select/place/commit/
             // prepare_mesh functions, add wrappers, add 1 row here.
             //
-            // SEAM[spine:owns] FAMILY_DISPATCH is genuinely spine work — the
-            //   integration hub that ties the 12 families together. Per Ch. 15.
-            //   Each row's body lives in the family's owning module.
-            // SEAM[spine:K2-related] the ~400 lines of dispatch_evict_*,
-            //   dispatch_prepare_mesh_*, dispatch_mesh_gen_* wrappers below
-            //   are integration glue, not module work — they live here
-            //   correctly. New finding (Ch. 15 chunk 1): they were
-            //   under-credited in the seam map but represent real spine work.
-            //   NOTE[seam-map] keep wrappers here; they're the integration
+            // SEAM[spine:owns] FAMILY_DISPATCH is the integration hub that
+            //   ties the 12 families together. Each row's body lives in
+            //   the family's owning module.
+            // SEAM[spine:K2-related] the dispatch_evict_*, dispatch_prepare_mesh_*,
+            //   dispatch_mesh_gen_* wrappers below (~400 lines) are
+            //   integration glue, not module work — they live here
+            //   correctly. Keep wrappers here; they're the integration
             //   layer between FAMILY_DISPATCH and per-family modules.
+            // SEAM[spine:family-dispatch] anchor for cross-file references
+            //   to dispatch_evict_<family> from the spawn/eviction pipelines.
 
             struct FamilyDispatch {
                 bool (*try_select)(Cartridge* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
@@ -1067,7 +901,18 @@ namespace t7 {
                 const char* name;
             };
 
-            // ── Mesh gen dispatch wrappers ──
+            // ═══ DISPATCH WRAPPERS ═══════════════════════════════════════
+            //
+            // Per-family wrappers that bind module functions to the
+            // FAMILY_DISPATCH function-pointer table below. Each family
+            // contributes up to six wrappers (select, place, commit,
+            // evict, prepare_mesh, mesh_gen). Generic-pipeline families
+            // (Pyramid, Arch, Column, Antenna, Palm, Cactus, Blade,
+            // Sphere, Cube) reuse the dispatch_*_<family>_generic shape
+            // from entity_pipeline.inl. Bespoke families (GoL, Gallery,
+            // Ribbon) declare their own.
+
+            // ── Mesh gen wrappers ──
 
             static bool dispatch_prepare_mesh_pyramid(Cartridge* self, wgpu::Queue& queue) {
                 return self->prepare_pyramid_mesh_gen(queue);
@@ -1507,7 +1352,7 @@ namespace t7 {
                   "gall" },
             };
 
-            // ─── Population Themes ───────────────────────────────────────────
+            // ═══ POPULATION THEMES ═══════════════════════════════════════
             //
             // A theme is the compositional intent for a region. Like a palette
             // slot sets color character, a theme sets entity character: what
@@ -1763,7 +1608,7 @@ namespace t7 {
                 return selected;
             }
 
-            // ─── Terrain Tokens ──────────────────────────────────────────────
+            // ═══ TERRAIN TOKENS ══════════════════════════════════════════
             //
             // Carried compositional priors that bias sequential tile generation.
             // Each token holds per-archetype weight multipliers and a generation
@@ -1846,7 +1691,7 @@ namespace t7 {
             static constexpr float AMP_MOMENTUM_THRESHOLD = 0.15f;  // |jitter - 1.0| above this → emit amp momentum
             static constexpr float AMP_MOMENTUM_CARRY = 0.6f;       // fraction of excess carried forward
 
-            // ─── Population Batch System ─────────────────────────────────────
+            // ═══ POPULATION BATCH SYSTEM ═════════════════════════════════
             //
             // Entities spawn in observed batches. The first few entities of a
             // batch define the neighborhood's character; the rest follow it.
@@ -2403,7 +2248,7 @@ namespace t7 {
                 return ts;
             }
 
-            // ─── Terrain Token Tick + Emission ───────────────────────────────
+            // ═══ TERRAIN TOKEN TICK + EMISSION ═══════════════════════════
             //
             // Called ONCE per primary tile generation, NEVER for neighbor padding.
             // Decrements all active token budgets, clears expired tokens,
@@ -2478,7 +2323,12 @@ namespace t7 {
                 terrainTokens_[slot] = token;
             }
 
-            // --- World teardown: reset all runtime state for world transition ---
+            // ═══ WORLD LIFECYCLE ═════════════════════════════════════════
+            //
+            // Per-world teardown invoked during the FADE_OUT → TEARDOWN
+            // transition. Resets all runtime state — patches, tokens,
+            // active arrays, footprints, photographer state — so the
+            // next world starts clean.
 
             void teardown_world(wgpu::Queue& queue) {
                 // Patches + tile cache
@@ -2698,6 +2548,11 @@ namespace t7 {
                 gpuState_.set_config_dynamic(false);
             }
 
+            // ═══ PATCH SUBSYSTEM SETUP ═══════════════════════════════════
+            //
+            // Initialize the patch system free-list + active counts.
+            // Called by teardown_world and at first init.
+
             void init_patch_system() {
                 for (uint32_t i = 0; i < MAX_PATCHES; i++) {
                     freeLayerStack_[i] = MAX_PATCHES - 1 - i;
@@ -2752,6 +2607,8 @@ namespace t7 {
                 write_pier(queue, 2, block);
             }
 
+            // ═══ PATCH GENERATION ════════════════════════════════════════
+            //
             // Batch-generate patches into the caller's command encoder.
             // Two-pass heightfield: pass 1 evaluates ground_formed_with_complexity
             // (POLICY_BAKED_HEIGHTFIELD contributor set, fused with the complexity
@@ -2811,6 +2668,12 @@ namespace t7 {
                 return p;
             }
 
+            // ═══ LAYER ALLOCATOR ═════════════════════════════════════════
+            //
+            // Free-list of texture array layers used for patch heightfield
+            // storage. alloc_layer is called when a patch enters the active
+            // window; free_layer when a patch is evicted.
+
             uint32_t alloc_layer() {
                 if (freeLayerCount_ == 0) {
                     // Safety: no free layers — recycle layer 0 rather than crash.
@@ -2844,7 +2707,7 @@ namespace t7 {
             static constexpr float LOD_FULL_RADIUS = 3.5f;
             static constexpr float LOD_FULL_RADIUS_SQ = LOD_FULL_RADIUS * LOD_FULL_RADIUS;
 
-            // ─── Visibility Cylinder ─────────────────────────────────────
+            // ═══ VISIBILITY CYLINDER ═════════════════════════════════════
             //
             // World-space cylinder centered on the pawn's actual position.
             // Patches enter the draw list when their nearest edge crosses
@@ -2867,7 +2730,12 @@ namespace t7 {
                 return dx * dx + dz * dz;
             }
 
-            // ── Distance-sorted patch scan helper ──────────────────────────
+            // ═══ PATCH STREAMING HELPERS ═════════════════════════════════
+            //
+            // Distance-sorted patch scan + spawn/generate phase loops.
+            // Used by stream_patches to budget per-frame work.
+
+            // ── Distance-sorted patch scan helper ──
 
             struct PatchCandidate {
                 uint32_t idx;
@@ -3001,6 +2869,19 @@ namespace t7 {
             }
 
         public:
+
+            // ═══ PUBLIC: CARTRIDGE LIFECYCLE ═════════════════════════════
+            //
+            // The four functions the engine calls each frame:
+            //   initialize     — once at startup; GPU state + first world
+            //   init_renderer  — pipelines + bind groups
+            //   update         — analysis signal + dt → state advance
+            //   render         — draw calls + readback issue
+            //   stream_patches — budgeted per-frame patch streaming
+            //
+            // Plus on_input (input.inl below), get_clear_color, and the
+            // shader hot-reload hook.
+
             Cartridge() = default;
 
             Cartridge(const Cartridge&) = delete;
@@ -3124,7 +3005,7 @@ namespace t7 {
             //   clear input deltas. ~200 lines of inline ramps moved into
             //   musical.inl (tick_musical_couplings, reset_musical_couplings)
             //   using the trajectory.inl primitive (mirroring WGSL §1.2).
-            //   Pawn aura presence ramp (pawn:K1) closed in Phase 4.3 —
+            //   Pawn aura presence ramp (pawn:K1) closed similarly —
             //   tick_pawn_couplings(queue) call below lives in pawn.inl.
             // DONE[spine:L4] phase order is named at each call site
             //   (ramps live in named ticks; orchestration is the
@@ -3160,8 +3041,7 @@ namespace t7 {
                 // --- Upload to GPU --------------------------------------------------
 
                 // Pawn presence ramp + aura height computation.
-                // Lives in pawn.inl as a Trajectory-driven tick (Phase 4.3 —
-                // closes pawn:K1).
+                // Lives in pawn.inl as a Trajectory-driven tick (closes pawn:K1).
                 tick_pawn_couplings(queue);
                 gpuState_.set_world_seed(activeSeed_);
                 if (finiteMode_) {
@@ -3287,7 +3167,7 @@ namespace t7 {
                 // Band motion + per-mode intensities + palette drift +
                 // radial pulse onset detection. All ramps live in
                 // musical.inl as Trajectory-based per-frame ticks
-                // (Phase 4.2 — closes musical:K2, musical:K3).
+                // (closes musical:K2, musical:K3).
                 tick_musical_couplings(signal, queue);
 
                 gpuState_.upload_config(queue);

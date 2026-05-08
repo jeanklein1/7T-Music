@@ -160,6 +160,11 @@ float bandBlendTarget_[6]     = {};           // 0 or 1, driven by polyphony cou
 uint32_t mmodeMask_           = 0;            // bitfield: which modes are active
 float    mmodeIntensity_[MMODE_COUNT] = {};   // current [0,1] per mode (trajectory value)
 
+// ── Mood gate ────────────────────────────────────────────────────
+// Set by apply_mood from MoodProfile flags. Default = on. Read by
+// is_mmode_on to silence all modes in moods that don't allow them.
+bool moodAllowsMusicalModes_ = true;
+
 // ── Palette drift ────────────────────────────────────────────────
 // Target palette index ramps smoothly to avoid color snaps.
 float paletteDriftTarget_     = 0.0f;         // current [0,3] — ramps toward desired

@@ -971,6 +971,15 @@ void update_orb_anchor(float pawn_x, float pawn_z, wgpu::Queue& queue) {
 // Each is structurally independent; they share polyphony for now
 // so they move together. Swapping sources later desyncs the channels.
 // Uploads fire only when a value actually moves.
+//
+// SEAM[orbs:P1] this function is the architectural exemplar for the
+//   "per-frame coupling lives in the owning module, not the spine"
+//   pattern. Originally the only instance; now the convention,
+//   joined by tick_musical_couplings (musical:K2),
+//   reset_musical_couplings (mood:K3), and tick_pawn_couplings
+//   (pawn:K1). Spine update() is a phase-orchestration call list;
+//   each named tick lives where its data lives. Referenced from
+//   cartridge.hpp::update() at the orb coupling call site.
 void update_orb_coupling(float polyphony, float dt, wgpu::Queue& queue) {
     if (!orbsActive_ || orbCount_ == 0) return;
 

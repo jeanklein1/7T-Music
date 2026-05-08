@@ -7,8 +7,12 @@
 // frame ramps in the spine collapse from copy-pasted exp(-rate*dt)
 // expressions into a single named primitive.
 //
+// Public surface:
+//   Trajectory                        — { value, velocity, _pad0, _pad1 }
+//   trajectory_release(t, goal, dt, rate) → Trajectory
+//
 // Included inside the Cartridge class body.
-// Depends on: nothing (foundations module — pure math)
+// Depends on: nothing (foundations module — pure math).
 //
 // SEAM[trajectory:contract] MUST match world.wgsl §1.2 Trajectory.
 //   Field shape doesn't need to be byte-identical (this struct is
@@ -16,10 +20,10 @@
 //     new_val = old + (goal - old) * (1 - exp(-rate * dt))
 //   Drift between the two formulas would mean CPU-side ramps and
 //   GPU-side ramps move at different speeds for the same rate.
-// SEAM[trajectory:foundations] new module created Phase 4.1
-//   (resolves D-trajectory:a). Lives between seed_utils.inl and
-//   the consumer modules so Trajectory is visible to musical.inl,
-//   pawn.inl, mood.inl when they declare Trajectory fields.
+// SEAM[trajectory:foundations] foundations layer between
+//   seed_utils.inl and consumer modules. Trajectory is visible to
+//   musical.inl, pawn.inl, mood.inl when they declare Trajectory
+//   fields. Same family as seed_utils.inl as a P9 instance.
 // ─────────────────────────────────────────────────────────────────
 
 struct Trajectory {

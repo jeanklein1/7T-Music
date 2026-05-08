@@ -2,10 +2,9 @@
 //
 // Cube behavior system. Spheres do their own thing (analytical PGA
 // orbit, no behavior layer); this module is cube-only by design.
-// (Renamed from floaters.inl in Phase 2.6 to resolve the naming
-// discrepancy that floaters:D3 had documented but accepted —
-// floater VOCABULARY now lives in floater_vocabulary.inl, behavior
-// here.)
+// Floater vocabulary (Sphere + Cube tier counts, configs, prop
+// registries, active tracking) lives in floater_vocabulary.inl;
+// behavior gains (forces, coordination, kite, corral) live here.
 //
 // ┌─── Three registries ────────────────────────────────────────────┐
 // │                                                                  │
@@ -96,10 +95,10 @@ static constexpr const char* CUBE_BEHAVIOR_NAMES[CUBE_BEHAVIOR_COUNT] = {
 // them to GPUDesignConfig fields and read them from the kernel.
 
 // ─ Substrate (drift integrator) ─────────────────────────────────
-// These were system constants in entity_pipeline.inl during Phase 1;
-// moved here to keep cube tuning in one place. Each spawn multiplies
-// these by the row's tier gain (see CUBE_TIER_GAINS) so different
-// tiers get distinct dynamics signatures from the same defaults.
+// Cube tuning constants live here so the file is the one place to
+// look when adjusting cube dynamics. Each spawn multiplies these by
+// the row's tier gain (see CUBE_TIER_GAINS) so different tiers get
+// distinct dynamics signatures from the same defaults.
 
 static constexpr float CUBE_DEFAULT_SPRING_STIFFNESS = 4.0f;   // 1/s², ~0.5s settle
 static constexpr float CUBE_DEFAULT_DRAG             = 1.5f;   // 1/s,  gentle damping
@@ -147,8 +146,8 @@ static constexpr float FLOATER_COORDINATION_STEPS[3] = { 0.0f, 0.5f, 1.0f };
 // tier_idx and multiply force outputs. Defer until a behavior demands
 // per-tier amplitude differentiation.
 //
-// Default (all 1.0) preserves Phase-3-pre-organization behavior;
-// character pass populates with real differentiation.
+// Defaults are all 1.0 (no per-tier differentiation). Character pass
+// will populate with real values.
 
 struct CubeTierGain {
     uint32_t tier_idx;
@@ -186,14 +185,14 @@ static void apply_cube_tier_gains(float& spring_stiffness, float& drag, uint32_t
 // sum to 1; the picker normalizes.
 //
 // Mood ordering matches MOOD_TABLE in cartridge.hpp. Cubes are gated
-// by CubeConfig::MOOD_MULTIPLIER (in entity_pipeline.inl) which is
+// by CubeConfig::MOOD_MULTIPLIER (in floater_vocabulary.inl) which is
 // {1, 1, 0, 0, 1, 0} — cubes don't spawn in indoor moods or in
 // MOOD_FINITE_OUTDOOR_REF, so those rows here are never consulted in
 // practice. We declare them anyway for hygiene; if the spawn gate
 // ever changes, the populations will already exist.
 //
-// Default (all-Stationary) preserves Phase-3-pre-organization
-// behavior; character pass populates with real per-mood character.
+// Defaults are all-Stationary. Character pass will populate with
+// real per-mood character.
 
 struct CubePopulationDef {
     uint32_t mood_id;
@@ -263,9 +262,7 @@ static uint32_t pick_cube_behavior_for_spawn(uint32_t mood_id, uint32_t seed) {
 }
 
 
-// ═══════════════════════════════════════════════════════════════════
-// ═══ DIAGNOSTICS ═══════════════════════════════════════════════════
-// ═══════════════════════════════════════════════════════════════════
+// ═══ DIAGNOSTICS ═════════════════════════════════════════════════
 //
 // Inspection tools, not part of the system's primary expression.
 // Keypress-driven; the system runs without them. Anything below

@@ -1,3 +1,59 @@
+// ─── world.wgsl ──────────────────────────────────────────────────────
+//
+// THE_BOARD CARTRIDGE — GPU spine.
+//
+// Counterpart to cartridge.hpp. The CPU spine authors intent (mood
+// transitions, entity lifecycle, dispatch tables, signal preparation);
+// this file is what the GPU runs every frame. All struct shapes in
+// §2.1 must mirror their C++ counterparts in state.hpp byte-for-byte;
+// all per-policy contributor masks in §3.4 must mirror POLICIES[]
+// in modules/ground_architecture.inl; the deterministic-randomness
+// helpers in §1.5 must produce bit-identical results to the CPU
+// mirrors in modules/seed_utils.inl.
+//
+// Navigation: §1-§9 chapter-numbered structure. Section numbers
+// reflect file order — search by section number to jump.
+// TUNING SURFACE DIRECTORY (below) lists the constants that shape
+// terrain, color, and entity behavior. SECTION MAP gives the
+// chapter outline.
+//
+// SEAM[world.wgsl:owns] this file is the canonical source of truth
+//   for everything the GPU does — terrain evaluation, entity
+//   compute, render pipelines, mesh generation. CPU code (cartridge
+//   spine + modules) authors intent; this file realizes geometry
+//   and pixels. The motto: GPU is sovereign. CPU dead-reckoning
+//   exists only for placement, picking, and step decisions; the
+//   visual reality is here.
+// SEAM[world.wgsl:contract] CPU/GPU struct contracts. §2.1 structs
+//   (FrameSignal, TerrainState, AgentState, AgentBehaviorParams,
+//   AgentTierParams) mirror state.hpp byte-for-byte. The
+//   PAIRED DECLARATIONS comment at AGENT REGISTRIES (line ~631)
+//   names the C++ counterparts. Drift would mean the GPU reads
+//   different fields than CPU writes. Same family as
+//   seed_utils:contract and ground_architecture:contract.
+// SEAM[world.wgsl:ground-architecture-mirror] the §3.4 Ground
+//   Architecture block (line ~2102) is the GPU companion to
+//   modules/ground_architecture.inl. The CPU file declares
+//   ContributorId / PolicyId / CONTRIBUTOR_DAG / POLICIES[] +
+//   compile-time DAG closure validation; this file declares the
+//   contrib_*_at functions, the per-policy POLICY_*_MASK constants
+//   (which must match POLICIES[].contributors bitmasks exactly),
+//   and the query_ground_<policy> dispatch functions. Adding a
+//   contributor or policy: see "Extension patterns" subsection
+//   below for the exact step list across both files.
+// SEAM[world.wgsl:fxc-constraints] the Windows D3D12/FXC backend
+//   imposes hard limits documented in cartridge.hpp:
+//     - SolidInstance must remain ≤ 32 bytes
+//     - evaluate_solid must not gain new branches
+//     - texture-array stamps in the collision chain hang FXC
+//     - one DrawIndexedIndirect per render pass maximum
+//     - storage buffers / stage = 10; uniform buffers / stage = 12
+//   These are observed in cartridge.hpp's notes; honored by
+//   structure here (e.g. SolidInstance compactness, query_ground_*
+//   dispatch via uniform function choice rather than runtime
+//   branching).
+// ─────────────────────────────────────────────────────────────────────
+
 // THE_BOARD CARTRIDGE — GPU Scroll
 //
 // ═══════════════════════════════════════════════════════════════════════
@@ -141,8 +197,6 @@ fn translator(dir: vec3<f32>, dist: f32) -> Motor {
 
 // --- PGA OPERATIONS
 
-// (reverse_m removed — re-add from PGA reference when needed)
-
 fn gp_mm(a: Motor, b: Motor) -> Motor {
     // Geometric Product (Motor * Motor)
     // This is how transformations compose in PGA.
@@ -170,8 +224,6 @@ fn sw_motor_point(m: Motor, p: Point) -> Point {
     return point_from_vec3(transformed);
 }
 
-// (verify_motor_norm removed — diagnostic function, never called)
-
 
 // §1.2 TRAJECTORY PRIMITIVES
 
@@ -190,8 +242,6 @@ fn trajectory_release(t: Trajectory, goal: f32, dt: f32, rate: f32) -> Trajector
 
 // §1.3 COORDINATE SYSTEMS
 
-// (legacy chart constants removed — CHART_EXTENT, CHART_HEIGHT_RESOLUTION, CHART_SURFACE_COLOR_RESOLUTION)
-
 // Terrain mesh — grid subdivisions along each axis.
 // Vertex shader receives deduplicated vertex ID via index buffer (GPU-generated once).
 const TERRAIN_MESH_N: u32 = 256u;
@@ -204,13 +254,8 @@ const PATCH_EXTENT: f32 = 50.0;         // world units per patch side
 const PATCH_MESH_N: u32 = 64u;          // mesh subdivisions per patch (VS bilinear-samples 256-texel heightfield)
 const PATCH_MESH_STRIDE: u32 = PATCH_MESH_N + 1u;
 
-// (legacy chart_uv_to_world, chart_height_texel_to_world, chart_surface_color_texel_to_world removed)
-// (legacy CELL_GRID_SIZE, MAX_CELL_GRID_SIZE, proximity_field_index removed)
-
 
 // §1.4 UTILITIES
-
-// (hsv_to_rgb and rgb_to_hsv removed — unused color space conversions)
 
 fn quat_from_axis_angle(axis: vec3<f32>, angle: f32) -> vec4<f32> {
     let half_angle = angle * 0.5;
@@ -231,9 +276,6 @@ fn quat_rotate(q: vec4<f32>, v: vec3<f32>) -> vec3<f32> {
 }
 
 // §1.5 DETERMINISTIC RANDOMNESS
-
-// (legacy cell-based random functions removed: hash_cell_id, random_float,
-//  random_float_range, random_vec3, random_vec3_range — replaced by hash_property system)
 
 // --- Variation System — Seed-Driven Property Hashing
 fn hash_property(seed: u32, property: u32) -> f32 {
@@ -556,11 +598,6 @@ fn terrain_height_and_complexity(world_xz: vec2<f32>, master_seed: u32, t_beats:
     return vec2(height, complexity / f32(TERRAIN_BAND_COUNT));
 }
 
-// (terrain_height_with_gradients removed — replaced by effective_ground_with_gradients)
-
-// (terrain_height_gradients_and_complexity removed — patch gen now uses
-//  ground_formed with finite differences directly)
-
 
 // §2 STATE
 
@@ -748,8 +785,8 @@ struct FloatingEntityState {
     drift: vec3<f32>,          // 144: position offset from home (cube)
     tier_idx: u32,             // 156: runtime tier lookup for gain tables
     drift_vel: vec3<f32>,      // 160: drift integrator velocity
-    behavior_id: u32,          // 172: cube behavior registry index (Phase 3)
-    // Kite mode (Phase 3.3): when follow_pawn != 0, home is computed
+    behavior_id: u32,          // 172: cube behavior registry index
+    // Kite mode: when follow_pawn != 0, home is computed
     // from pawn position + pawn_offset rather than from anchor + ground.
     // pawn_offset must sit at a 16-aligned offset (176) for vec3 layout —
     // see state.hpp for the C++ ordering and rationale.
@@ -1297,8 +1334,6 @@ fn discrete_cell_color_at_tier(
     }
 }
 
-// (legacy SceneHit and RayHit structs removed — ray marching system)
-
 // --- [STATE:config] DesignConfig
 
 struct DesignConfig {
@@ -1355,7 +1390,7 @@ struct DesignConfig {
     mode_discrete_tier: f32,      // [0,4] target discrete tier (0=color 1=tinted 2=BW 3=chessBW 4=chessColor)
     mode_gol_tick_scale: f32,     // tick period multiplier (1.0=normal, <1=faster)
     mode_gol_height_scale: f32,   // alive_height multiplier (1.0=normal, >1=taller)
-    floater_coordination: f32,    // [0,1] cube behavior synchrony knob (Phase 3)
+    floater_coordination: f32,    // [0,1] cube behavior synchrony knob
     // ─── Radial pulse ring buffer ────────────────────────────────
     pulse_count: u32,
     // Agent system: slot index of the player's current body in
@@ -1525,8 +1560,8 @@ const SPHERE_MIN_TERRAIN_CLEARANCE: f32 = 5.0;
 // below to keep pos.y at least this far above local ground.
 const CUBE_TERRAIN_CLEARANCE: f32 = 1.0;
 
-// (legacy proximity field constants removed — binding 21 reserved)
-// (legacy cell spring/color/random/height constants removed — binding 40 reserved)
+// Bindings 21 and 40 reserved (currently unused — kept open for
+// future cell-system features).
 
 // --- Cell Behavior Tag Encoding
 const CELL_ANIM_GOL:  u32 = 1u;     // bit 0: Game of Life
@@ -1659,14 +1694,11 @@ const PAWN_FORCEFIELD_ENABLED: bool = true;
 // These prune heavy dependency chains from update_player_agent's pipeline compilation.
 // Set to false to cut compile time when iterating on unrelated features.
 const PAWN_GOL_GROUND_ENABLED: bool = false;    // Pawn walks on GoL extrusions
-// (PAWN_PYRAMID_GROUND_ENABLED removed — pyramids unconditionally in ground_formed)
 const PAWN_FORCEFIELD_RADIUS_STATIONARY: f32 = 6.0;  // Radius when not moving
 const PAWN_FORCEFIELD_RADIUS_MOVING: f32 = 2.0;      // Radius at max speed
 const PAWN_FORCEFIELD_FALLOFF: f32 = 2.0;            // Edge softness (smoothstep width)
 const PAWN_FORCEFIELD_SPEED_SCALE: f32 = 1.0;        // How quickly radius shrinks with speed
 
-// (legacy raymarcher constants removed: TERRAIN_BASE_COLOR, MAT_TERRAIN/PAWN/SPHERE/SKY,
-//  MAX_STEPS, MAX_DIST, SURF_DIST, RAYMARCH_STEP_FACTOR, GOL_TICKS_PER_BEAT)
 
 // §2.3 MUTING CONTROL
 
@@ -1694,7 +1726,6 @@ const COUPLING_PAWN_TO_ZONE_COLOR:           u32 = 1u << 18u;  // pawn tints zon
 const COUPLING_SPHERE_TO_ZONE_HEIGHT:        u32 = 1u << 19u;  // sphere suppresses zone extrusion
 const COUPLING_SPHERE_TO_ZONE_COLOR:         u32 = 1u << 20u;  // sphere tints zone cell color
 
-// (legacy aliases COUPLING_PAWN_TO_FIELD_COLOR, COUPLING_SPHERE_TO_FIELD_COLOR removed)
 // --- Muting query functions
 
 fn coupling_active(bit: u32) -> bool {
@@ -1771,10 +1802,6 @@ fn coupling_input_to_pawn_velocity(input_dir: vec2<f32>, camera_azimuth: f32) ->
         -input_dir.x * sin_az + input_dir.y * cos_az
     );
 }
-
-// --- [COUPLING:input→camera:orbit]
-
-// (coupling_input_to_camera_orbit removed — logic inlined in update_camera)
 
 // --- [COUPLING:input→camera:distance]
 
@@ -1980,9 +2007,6 @@ fn contrib_pyramids_at(world_xz: vec2<f32>) -> f32 {
     return best;
 }
 
-// (pyramid_height_at forwarder removed in Step 5. Callers invoke
-// contrib_pyramids_at directly.)
-
 // CONTRIB_GOL_ZONES — slow_dynamic, global.
 // Contributes: raw GoL cell extrusion (visual × alive_height × per-cell factor).
 // Dependencies (via DAG): none — composes onto the static stack additively.
@@ -2030,10 +2054,6 @@ fn contrib_gol_suppression_at(world_xz: vec2<f32>, consumer_pos: vec3<f32>) -> f
     let factor = 1.0 - smoothstep(ZONE_SUPPRESS_INNER, ZONE_SUPPRESS_OUTER, d);
     return h * factor;
 }
-
-// (zone_gol_height_at removed in Step 5. The painting Y-correction
-// consumer inlines the contrib split explicitly; nothing else composed
-// GoL height with pawn-centered suppression.)
 
 // --- Ground Architecture: contributor and policy ids ---
 //
@@ -2100,6 +2120,16 @@ const POLICY_WALKER_AGENT_MASK         : u32 = GROUND_STATIC_BASE_MASK
 const POLICY_CELESTIAL_MASK            : u32 = 0u;
 
 // ═══ Ground Architecture ═══════════════════════════════════════════
+//
+// SEAM[world.wgsl:ground-architecture-mirror] anchor — this is the
+//   GPU companion to modules/ground_architecture.inl. The .inl
+//   declares ContributorId / PolicyId / CONTRIBUTOR_DAG / POLICIES[]
+//   plus compile-time DAG closure validation; this block declares
+//   the contrib_*_at functions, per-policy POLICY_*_MASK constants
+//   (which must mirror POLICIES[].contributors bitmasks exactly),
+//   and the query_ground_<policy> dispatch functions.
+//   See ground_architecture:contract for the cross-file integrity
+//   requirement.
 //
 // The ground at a world XZ is a graph of named contributors filtered
 // through a set of named policies. Each consumer declares its policy;
@@ -2257,11 +2287,6 @@ fn contrib_vegetation_base_at(world_xz: vec2<f32>) -> f32 {
     return 0.0;
 }
 
-// (ground_terrain and ground_formed forwarders removed in Step 5.
-// Callers now invoke contrib_static_base_at and the policy query
-// functions directly; ground_formed_with_complexity below inlines
-// the equivalent composition for patch heightfield generation.)
-
 // Combined height + complexity — avoids evaluating terrain lattice waves twice.
 // terrain_height_and_complexity does the same lattice work as terrain_height_at
 // but also accumulates the complexity metric. Used by two-pass heightfield gen.
@@ -2279,11 +2304,6 @@ fn ground_formed_with_complexity(world_xz: vec2<f32>) -> vec2<f32> {
     let height = hc.x * mods.x + mods.y + structure_height_at(world_xz) + contrib_pyramids_at(world_xz);
     return vec2(height, hc.y);
 }
-
-// (effective_ground_y removed in Step 5. Walker consumers use
-// query_ground_walker; placement consumers use query_ground_placement_*;
-// baked-heightfield consumers use query_ground_baked_heightfield or
-// sample_terrain_y_at.)
 
 // ─── Polyphony-driven wave overlay ──────────────────────────────────────
 //
@@ -2471,9 +2491,6 @@ fn contrib_radial_pulses_at(world_xz: vec2<f32>, t_seconds: f32) -> f32 {
 
     return h;
 }
-
-// (evaluate_radial_pulses forwarder removed in Step 5. Callers invoke
-// contrib_radial_pulses_at directly.)
 
 // CONTRIB_PAWN_AURA — deformation_field, global (pawn-anchored).
 // Has two consumer-facing forms; policies pick per consumer.
@@ -3041,8 +3058,6 @@ fn dynamics_sphere_motor_orbit(t: f32, fe: FloatingEntityState) -> FloatingEntit
     
     return s;
 }
-
-// (dynamics_sphere_orbit_tangent removed — PGA motor provides orientation directly)
 
 // §5 COMPOSITION
 
@@ -4585,7 +4600,7 @@ const GROUND_ATLAS_BLADE: i32    = 100;
 // §7.0a PATCH GENERATION BINDINGS
 
 // --- Shared mesh vertex struct (used by zone extrusion mesh gen)
-// (legacy cell mesh gen bindings 40-45 removed — reserved for future use)
+// Bindings 40-45 reserved (currently unused).
 struct CellMeshVertex {
     px: f32, py: f32, pz: f32,
     nx: f32, ny: f32, nz: f32,
@@ -5844,8 +5859,8 @@ fn behavior_levy_flight(agent_in: AgentState) -> AgentState {
 // and behavior_random_walk (light: single agent-policy ground snap)
 // in a single switch statement. FXC inlines both branch bodies for
 // every one of 32 dispatched threads, producing a pipeline compile
-// that landed at 48s. Pass 2 is expected to add more algorithmic
-// behaviors, which would compound the cost.
+// that landed at 48s. Adding more algorithmic behaviors would
+// compound the cost.
 //
 // Split shape:
 //   update_player_agent   — 1 thread. Only the possessed slot, only
@@ -5899,7 +5914,7 @@ const AGENT_EVICTION_RADIUS_SQ: f32 = AGENT_EVICTION_RADIUS * AGENT_EVICTION_RAD
 // Earlier value of 360 (only +10 over spawn radius) caused near-100%
 // eviction-at-spawn while the player was moving.
 //
-// MIRRORED MANUALLY in modules/cube_behaviors.inl (Phase 3) — currently
+// MIRRORED MANUALLY in modules/cube_behaviors.inl — currently
 // referenced by the C++ readback path on allocator pressure. If you
 // change this, change the C++ side too.
 const FLOATER_EVICTION_RADIUS:    f32 = 400.0;
@@ -6125,7 +6140,7 @@ fn update_sphere() {
     }
 }
 
-// ─── Cube behavior registry (Phase 3) ─────────────────────────────
+// ─── Cube behavior registry ─────────────────────────────────────
 //
 // Each behavior is a small force function that returns a vec3 added
 // into the drift integrator each frame. Behaviors compose with the
@@ -6237,8 +6252,8 @@ fn update_cube() {
     //   pos   = home + drift
     //
     // drift integrates spring-to-zero plus per-slot behavior forces.
-    // Phase 1: behavior force is zero (Stationary baseline). With drift
-    // and drift_vel starting at zero, the spring sees no error, the
+    // Stationary baseline: behavior force is zero. With drift and
+    // drift_vel starting at zero, the spring sees no error, the
     // integrator adds nothing, and pos == home every frame — exact
     // visual parity with the pre-substrate hover-bob. Future behaviors
     // (CurlField, PhaseWave, …) push drift around without touching
@@ -7012,10 +7027,6 @@ fn zone_emit_quad(
     zone_mesh_indices[ii + 5u] = vi + 3u;
 }
 
-// (zone_terrain_height removed in Step 5. The one caller — zone mesh
-// sampling's analytical fallback — now invokes query_ground_baked_heightfield
-// directly, which matches the zone heightfield cache's contributor set.)
-
 fn zone_mesh_gen_cell(zone_id: u32, cx: u32, cy: u32) {
     let z = zone_config.zones[zone_id];
     let base = zone_id * GOL_ZONE_STRIDE;
@@ -7422,11 +7433,12 @@ struct PhotographerConfig {
 @group(0) @binding(141) var<storage, read_write> photographer_vp: VPMatrix;
 @group(0) @binding(142) var<storage, read_write> photographer_camera_out: CameraState;
 @group(0) @binding(143) var<storage, read_write> photo_painting_slots: array<UnifiedPaintingSlot, 32>;
-// VESTIGIAL: previously scanned linearly by sample_terrain_y_at. That function
-// now uses patch_grid at binding 152; this binding is retained only so both
-// compute bind groups still match their layouts unchanged. Safe to drop in a
-// follow-on pass by removing binding 144 from the photographer + placement
-// layouts and bind groups in state.hpp.
+// TODO[seam-map:cleanup] binding 144 (photo_patch_instances) is currently
+//   unused — sample_terrain_y_at now reads patch_grid at binding 152.
+//   Retained only so the photographer + placement compute bind groups
+//   keep their layouts unchanged. Safe to drop in a coordinated edit:
+//   remove this binding here AND remove binding 144 from the
+//   photographer + placement layouts and bind groups in state.hpp.
 @group(0) @binding(144) var<storage, read> photo_patch_instances: array<PatchInstance>;
 @group(0) @binding(145) var photo_heightfield: texture_2d_array<f32>;
 @group(0) @binding(146) var photo_sampler: sampler;
@@ -7746,7 +7758,14 @@ fn compute_entity_placement() {
 }
 
 
-// §7.5 GPU FRUSTUM CULLING — Camera-visible patch selection
+// §8.0.5 GPU FRUSTUM CULLING — Camera-visible patch selection
+//
+// Topical sibling of §7's compute passes (writes draw-indirect args
+// for the main render), but located in §8 territory (between §8.0
+// photographer compute and §8.1 gallery frame rendering) for
+// bind-group locality with neighboring compute passes. Section
+// number reflects file position; the topic is "GPU frustum culling
+// of patch instances", which would belong in §7 by topic alone.
 //
 // Extracts 6 frustum planes from the VP matrix, tests each patch's AABB,
 // classifies survivors into LOD0 (near) or LOD1 (far), and writes compact
