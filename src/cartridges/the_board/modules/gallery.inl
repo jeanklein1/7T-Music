@@ -1223,7 +1223,7 @@ void render_snapshot_pass(wgpu::CommandEncoder& encoder) {
         gpuState_.sphere_index_buffer(),
         gpuState_.sphere_index_count());
 
-    if (renderedRibbonSlot_ != UINT32_MAX) {
+    if (ribbon_state_.rendered_slot != UINT32_MAX) {
         renderer_.draw_ribbon(pass,
             gpuState_.photographer_render_entity_group(),
             gpuState_.render_texture_group(),

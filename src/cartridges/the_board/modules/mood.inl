@@ -39,8 +39,8 @@
 //             MMODE_TERRAIN_WAVES, band motion state, mmodeIntensity_),
 //             ribbon.inl (RibbonProp, RIBBON_BASE_TIER_WEIGHTS,
 //             RIBBON_TIER_COUNT, fill_ribbon_selection_geometry,
-//             commit_ribbon, ribbonStates_, renderedRibbonSlot_,
-//             moodRibbonOffset_),
+//             commit_ribbon, ribbon_state_.gpu, ribbon_state_.rendered_slot,
+//             ribbon_state_.mood_offset),
 //             gallery.inl (clear_wall_paintings, place_wall_paintings),
 //             orbs.inl (configure_orbs, ORB_MOOD_TABLE),
 //             spawn_engine.inl (estimate_terrain_height, write_pier,
@@ -632,8 +632,8 @@ void apply_mood_anchor_ribbon(uint32_t mood, wgpu::Queue& queue) {
     const float spread   = ((float)finiteRadius_ + 1.5f) * PATCH_EXTENT;
     const float world_cx = 0.5f * PATCH_EXTENT;
     const float world_cz = 0.5f * PATCH_EXTENT;
-    const float ax = world_cx + (cpu_hash_f(rseed, RibbonProp::ANCHOR_X) - 0.5f) * spread + moodRibbonOffset_[0];
-    const float az = world_cz + (cpu_hash_f(rseed, RibbonProp::ANCHOR_Z) - 0.5f) * spread + moodRibbonOffset_[1];
+    const float ax = world_cx + (cpu_hash_f(rseed, RibbonProp::ANCHOR_X) - 0.5f) * spread + ribbon_state_.mood_offset[0];
+    const float az = world_cz + (cpu_hash_f(rseed, RibbonProp::ANCHOR_Z) - 0.5f) * spread + ribbon_state_.mood_offset[1];
 
     // Tier selection (neutral weights — no theme bias in mood)
     const uint32_t tier_idx = select_tier_biased(rseed, RibbonProp::TIER,
@@ -677,11 +677,11 @@ void apply_mood_anchor_ribbon(uint32_t mood, wgpu::Queue& queue) {
     std::memcpy(plan.color, sel.color, sizeof(plan.color));
 
     // Commit through the standard path
-    commit_ribbon(plan, 0, 0, queue);
+    commit_ribbon(ribbon_state_, this, plan, 0, 0, queue);
 
     // Immediate GPU upload (per-frame loop may not run before first render)
-    gpuState_.upload_ribbon(queue, ribbonStates_[0]);
-    renderedRibbonSlot_ = 0;
+    gpuState_.upload_ribbon(queue, ribbon_state_.gpu[0]);
+    ribbon_state_.rendered_slot = 0;
 }
 
 // ── apply_mood (orchestrator) ──

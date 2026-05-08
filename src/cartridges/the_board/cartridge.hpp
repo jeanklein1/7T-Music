@@ -1220,17 +1220,17 @@ namespace t7 {
 
             static bool dispatch_select_ribbon(Cartridge* self,
                 int32_t gx, int32_t gz, EntityQueueEntry& e) {
-                return self->select_ribbon_for_patch(gx, gz, e.ribbon);
+                return select_ribbon_for_patch(self->ribbon_state_, self, gx, gz, e.ribbon);
             }
 
             static bool dispatch_place_ribbon(Cartridge* self,
                 EntityQueueEntry& e, PlacementEntry& pe) {
                 pe.family = e.family; pe.gx = e.gx; pe.gz = e.gz;
-                if (self->place_ribbon_from_selection(e.ribbon, pe.ribbon)) {
+                if (place_ribbon_from_selection(self, e.ribbon, pe.ribbon)) {
                     return true;
                 }
                 else {
-                    self->activeRibbons_[e.ribbon.slot].active = false;
+                    self->ribbon_state_.active[e.ribbon.slot].active = false;
                     return false;
                 }
             }
@@ -1238,10 +1238,10 @@ namespace t7 {
             static void dispatch_commit_ribbon(Cartridge* self,
                 PlacementEntry& pe, wgpu::Queue& queue) {
                 // Commit the ribbon state (GPU mirror, active record, tip positions)
-                self->commit_ribbon(pe.ribbon, pe.gx, pe.gz, queue);
+                commit_ribbon(self->ribbon_state_, self, pe.ribbon, pe.gx, pe.gz, queue);
 
                 uint32_t slot = pe.ribbon.slot;
-                auto& ar = self->activeRibbons_[slot];
+                auto& ar = self->ribbon_state_.active[slot];
 
                 // Register with tip patches that currently exist.
                 // Late registration handles the other tip when its patch is allocated.
@@ -1263,8 +1263,8 @@ namespace t7 {
                     std::cout << "[Ribbon] REJECT slot=" << slot
                         << " — no tip patches alive\n";
                     ar = ActiveRibbon{};
-                    self->ribbonStates_[slot] = GPURibbonState{};
-                    self->activeRibbonCount_--;
+                    self->ribbon_state_.gpu[slot] = GPURibbonState{};
+                    self->ribbon_state_.active_count--;
                     return;
                 }
                 ar.ref_count = refs;
@@ -1272,7 +1272,7 @@ namespace t7 {
 
             static void dispatch_evict_ribbon(Cartridge* self,
                 uint32_t slot, wgpu::Queue& queue) {
-                auto& ar = self->activeRibbons_[slot];
+                auto& ar = self->ribbon_state_.active[slot];
                 if (!ar.active) return;
 
                 // Decrement ref count — one anchor patch has been evicted.
@@ -1284,12 +1284,12 @@ namespace t7 {
 
                 // Final reference gone — full eviction
                 ar = ActiveRibbon{};
-                self->ribbonStates_[slot] = GPURibbonState{};
-                self->activeRibbonCount_--;
-                if (self->renderedRibbonSlot_ == slot) {
+                self->ribbon_state_.gpu[slot] = GPURibbonState{};
+                self->ribbon_state_.active_count--;
+                if (self->ribbon_state_.rendered_slot == slot) {
                     GPURibbonState empty{};
                     self->gpuState_.upload_ribbon(queue, empty);
-                    self->renderedRibbonSlot_ = UINT32_MAX;
+                    self->ribbon_state_.rendered_slot = UINT32_MAX;
                 }
                 std::cout << "[Ribbon] EVICT slot=" << slot << "\n";
             }
@@ -2463,11 +2463,11 @@ namespace t7 {
                 // Ribbon — clear all slots
                 {
                     for (uint32_t i = 0; i < MAX_RIBBON_INSTANCES; i++) {
-                        activeRibbons_[i] = ActiveRibbon{};
-                        ribbonStates_[i] = GPURibbonState{};
+                        ribbon_state_.active[i] = ActiveRibbon{};
+                        ribbon_state_.gpu[i] = GPURibbonState{};
                     }
-                    activeRibbonCount_ = 0;
-                    renderedRibbonSlot_ = UINT32_MAX;
+                    ribbon_state_.active_count = 0;
+                    ribbon_state_.rendered_slot = UINT32_MAX;
                     GPURibbonState empty{};
                     gpuState_.upload_ribbon(queue, empty);
                 }
@@ -2809,7 +2809,7 @@ namespace t7 {
                     int32_t gx = patches_[pi].grid_x;
                     int32_t gz = patches_[pi].grid_z;
                     for (uint32_t r = 0; r < MAX_RIBBON_INSTANCES; r++) {
-                        auto& ar = activeRibbons_[r];
+                        auto& ar = ribbon_state_.active[r];
                         if (!ar.active) continue;
                         // Check near tip
                         if (!ar.near_tip_registered &&
@@ -3127,13 +3127,13 @@ namespace t7 {
                         dump_agent_census("mood-transition");
                         // Deactivate ribbons in finite mode unless the mood
                         // spawns its own anchor ribbon in apply_mood.
-                        if (finiteMode_ && activeRibbonCount_ > 0 && !MOOD_TABLE[activeMood_].has_anchor_ribbon) {
+                        if (finiteMode_ && ribbon_state_.active_count > 0 && !MOOD_TABLE[activeMood_].has_anchor_ribbon) {
                             for (uint32_t i = 0; i < MAX_RIBBON_INSTANCES; i++) {
-                                activeRibbons_[i] = ActiveRibbon{};
-                                ribbonStates_[i] = GPURibbonState{};
+                                ribbon_state_.active[i] = ActiveRibbon{};
+                                ribbon_state_.gpu[i] = GPURibbonState{};
                             }
-                            activeRibbonCount_ = 0;
-                            renderedRibbonSlot_ = UINT32_MAX;
+                            ribbon_state_.active_count = 0;
+                            ribbon_state_.rendered_slot = UINT32_MAX;
                             GPURibbonState empty{};
                             gpuState_.upload_ribbon(queue, empty);
                         }
@@ -3385,14 +3385,14 @@ namespace t7 {
 
                     // Update time on all CPU mirrors
                     for (uint32_t i = 0; i < MAX_RIBBON_INSTANCES; i++) {
-                        if (activeRibbons_[i].active)
-                            ribbonStates_[i].time = currentSeconds_;
+                        if (ribbon_state_.active[i].active)
+                            ribbon_state_.gpu[i].time = currentSeconds_;
                     }
 
                     // Render one ribbon: hold the current slot until it's evicted,
                     // then pick the nearest active ribbon as the new rendered slot.
-                    bool current_alive = renderedRibbonSlot_ != UINT32_MAX
-                        && activeRibbons_[renderedRibbonSlot_].active;
+                    bool current_alive = ribbon_state_.rendered_slot != UINT32_MAX
+                        && ribbon_state_.active[ribbon_state_.rendered_slot].active;
 
                     if (current_alive) {
                         // Hold — just update time
@@ -3403,21 +3403,21 @@ namespace t7 {
                         uint32_t nearest = UINT32_MAX;
                         float nearest_d2 = FLT_MAX;
                         for (uint32_t i = 0; i < MAX_RIBBON_INSTANCES; i++) {
-                            if (!activeRibbons_[i].active) continue;
-                            float dx = activeRibbons_[i].anchor_x - pawnReadback_x_;
-                            float dz = activeRibbons_[i].anchor_z - pawnReadback_z_;
+                            if (!ribbon_state_.active[i].active) continue;
+                            float dx = ribbon_state_.active[i].anchor_x - pawnReadback_x_;
+                            float dz = ribbon_state_.active[i].anchor_z - pawnReadback_z_;
                             float d2 = dx * dx + dz * dz;
                             if (d2 < nearest_d2) { nearest = i; nearest_d2 = d2; }
                         }
 
                         if (nearest != UINT32_MAX) {
-                            gpuState_.upload_ribbon(queue, ribbonStates_[nearest]);
-                            renderedRibbonSlot_ = nearest;
+                            gpuState_.upload_ribbon(queue, ribbon_state_.gpu[nearest]);
+                            ribbon_state_.rendered_slot = nearest;
                         }
-                        else if (renderedRibbonSlot_ != UINT32_MAX) {
+                        else if (ribbon_state_.rendered_slot != UINT32_MAX) {
                             GPURibbonState empty{};
                             gpuState_.upload_ribbon(queue, empty);
-                            renderedRibbonSlot_ = UINT32_MAX;
+                            ribbon_state_.rendered_slot = UINT32_MAX;
                         }
                     }
                 }

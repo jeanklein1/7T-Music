@@ -11,20 +11,27 @@
 //
 // ┌─── Public surface (called from outside this file) ──────────────┐
 // │                                                                  │
+// │  Module functions are static, take RibbonState& explicitly.      │
+// │  This makes ribbon's state ownership language-visible and        │
+// │  cross-cutting dependencies explicit in function signatures.     │
+// │                                                                  │
 // │  Lifecycle (three-phase):                                        │
-// │    select_ribbon_for_patch(gx, gz, sel)     — Phase 1: roll      │
-// │    place_ribbon_from_selection(sel, plan)   — Phase 2: footprint │
-// │    commit_ribbon(plan, gx, gz, queue)       — Phase 3: state     │
+// │    select_ribbon_for_patch(rs, c, gx, gz, sel)  — Phase 1: roll  │
+// │    place_ribbon_from_selection(c, sel, plan)    — Phase 2: place │
+// │      (note: takes no RibbonState — only mediates between sel     │
+// │       and spawn-engine helpers; not part of ribbon's data)       │
+// │    commit_ribbon(rs, c, plan, gx, gz, queue)    — Phase 3: state │
 // │                                                                  │
 // │  Shared geometry helper (also called by mood.inl::apply_mood     │
 // │  for the mood-5 forced spawn path):                              │
-// │    fill_ribbon_selection_geometry(seed, tier_idx, terrain, sel)  │
+// │    fill_ribbon_selection_geometry(seed, tier, terrain, sel)      │
+// │      — pure; no ribbon state needed                              │
 // │                                                                  │
 // │  Cross-module reads (consumed by spine, mood.inl, render):       │
-// │    activeRibbons_[], ribbonStates_[]      — read by spine        │
-// │    activeRibbonCount_                     — read by spine        │
-// │    renderedRibbonSlot_                    — read by spine, mood  │
-// │    moodRibbonOffset_                      — read by mood         │
+// │    ribbon_state_.active[], ribbon_state_.gpu[]   — read by spine │
+// │    ribbon_state_.active_count                    — read by spine │
+// │    ribbon_state_.rendered_slot                   — read by spine │
+// │    ribbon_state_.mood_offset                     — read by mood  │
 // │    MAX_RIBBON_INSTANCES, RIBBON_MAX_LENGTH                       │
 // │                                                                  │
 // └──────────────────────────────────────────────────────────────────┘
@@ -329,20 +336,29 @@ struct ActiveRibbon {
     uint32_t ref_count = 0;     // patches referencing this ribbon via record_entity
     bool active = false;
 };
-ActiveRibbon activeRibbons_[MAX_RIBBON_INSTANCES]{};
-uint32_t activeRibbonCount_ = 0;
 
-// ── GPU-state CPU mirror ─────────────────────────────────────────
-// Per-frame, the spine picks the nearest ribbon to the pawn and
-// uploads its slot to the GPU. renderedRibbonSlot_ is the currently
-// rendered slot (UINT32_MAX = none).
-GPURibbonState ribbonStates_[MAX_RIBBON_INSTANCES]{};
-uint32_t renderedRibbonSlot_ = UINT32_MAX;
+// ── Ribbon module state (Scope B migration #1) ────────────────────
+// All ribbon-owned state lives in this struct, accessed via
+// ribbon_state_ on the Cartridge. Module functions take
+// `RibbonState& rs` explicitly rather than reaching via Cartridge*,
+// making ownership language-visible and dependencies explicit in
+// signatures.
+struct RibbonState {
+    ActiveRibbon   active[MAX_RIBBON_INSTANCES]{};
+    uint32_t       active_count = 0;
 
-// ── Mood-5 ribbon anchor offset ──────────────────────────────────
-// Seed-derived position centered on the finite world. Adjust to
-// manually shift the mood-5 anchor XZ (read by mood.inl::apply_mood).
-float moodRibbonOffset_[2] = { 0.0f, 0.0f };
+    // GPU-state CPU mirror. Per-frame, the spine picks the nearest
+    // ribbon to the pawn and uploads its slot to the GPU.
+    // rendered_slot is the currently rendered slot (UINT32_MAX = none).
+    GPURibbonState gpu[MAX_RIBBON_INSTANCES]{};
+    uint32_t       rendered_slot = UINT32_MAX;
+
+    // Mood-5 ribbon anchor offset. Seed-derived position centered on
+    // the finite world. Adjust to manually shift the mood-5 anchor XZ
+    // (read by mood.inl::apply_mood).
+    float          mood_offset[2] = { 0.0f, 0.0f };
+};
+RibbonState ribbon_state_;
 
 
 // ═══ LIFECYCLE — three-phase + shared helper ═════════════════════
@@ -350,9 +366,10 @@ float moodRibbonOffset_[2] = { 0.0f, 0.0f };
 // ─── fill_ribbon_selection_geometry ───────────────────────────
 // Shared geometry + color sampler used by both the dispatch
 // pipeline and the mood forced-spawn path (see SEAM[ribbon:dual-entry]).
-void fill_ribbon_selection_geometry(
+// Pure: no ribbon state access; all sampling is from `seed`.
+static void fill_ribbon_selection_geometry(
     uint32_t seed, uint32_t tier_idx, float terrain_est,
-    RibbonSelection& sel) const
+    RibbonSelection& sel)
 {
     const auto& tp = RIBBON_TIERS[tier_idx];
 
@@ -421,17 +438,18 @@ void fill_ribbon_selection_geometry(
 // preamble (gate + slot reserve), then tier selection with theme
 // bias, then geometry sampling, then orientation-toward-pawn-away
 // constraint with ±60° spread.
-bool select_ribbon_for_patch(int32_t gx, int32_t gz, RibbonSelection& sel) {
+static bool select_ribbon_for_patch(RibbonState& rs, Cartridge* c,
+    int32_t gx, int32_t gz, RibbonSelection& sel) {
     // Tip-overlap idempotency: reject if ANY active ribbon's
     // near or far tip falls within this trigger patch.
     for (uint32_t i = 0; i < MAX_RIBBON_INSTANCES; i++) {
-        if (!activeRibbons_[i].active) continue;
-        if ((activeRibbons_[i].near_tip_gx == gx && activeRibbons_[i].near_tip_gz == gz) ||
-            (activeRibbons_[i].far_tip_gx == gx && activeRibbons_[i].far_tip_gz == gz))
+        if (!rs.active[i].active) continue;
+        if ((rs.active[i].near_tip_gx == gx && rs.active[i].near_tip_gz == gz) ||
+            (rs.active[i].far_tip_gx == gx && rs.active[i].far_tip_gz == gz))
             return false;
     }
-    auto gate = run_spawn_preamble(gx, gz,
-        activeRibbons_, MAX_RIBBON_INSTANCES,
+    auto gate = c->run_spawn_preamble(gx, gz,
+        rs.active, MAX_RIBBON_INSTANCES,
         RibbonProp::SPAWN_ROLL, RibbonConfig::SPAWN_CHANCE,
         RibbonConfig::MOOD_MULTIPLIER,
         PopFamily::RIBBON, "ribn");
@@ -443,7 +461,7 @@ bool select_ribbon_for_patch(int32_t gx, int32_t gz, RibbonSelection& sel) {
         tier_weights[t] = RIBBON_BASE_TIER_WEIGHTS[t];
     for (uint32_t t = 0; t < RIBBON_TIER_COUNT; t++)
         tier_weights[t] *= THEMES[gate.theme_idx].tier_wt_ribbon[t];
-    uint32_t tier_idx = select_tier_biased(gate.seed, RibbonProp::TIER,
+    uint32_t tier_idx = c->select_tier_biased(gate.seed, RibbonProp::TIER,
         tier_weights, RIBBON_TIER_COUNT, PopFamily::RIBBON);
 
     sel.seed = gate.seed;
@@ -452,7 +470,7 @@ bool select_ribbon_for_patch(int32_t gx, int32_t gz, RibbonSelection& sel) {
     sel.slot = gate.slot;
     sel.tier_idx = tier_idx;
 
-    float terrain_est = estimate_terrain_height(
+    float terrain_est = c->estimate_terrain_height(
         (gx + 0.5f) * PATCH_EXTENT, (gz + 0.5f) * PATCH_EXTENT);
 
     fill_ribbon_selection_geometry(gate.seed, tier_idx, terrain_est, sel);
@@ -463,8 +481,8 @@ bool select_ribbon_for_patch(int32_t gx, int32_t gz, RibbonSelection& sel) {
     {
         float patch_cx = (gx + 0.5f) * PATCH_EXTENT;
         float patch_cz = (gz + 0.5f) * PATCH_EXTENT;
-        float away_angle = std::atan2(patch_cz - pawnReadback_z_,
-            patch_cx - pawnReadback_x_);
+        float away_angle = std::atan2(patch_cz - c->pawnReadback_z_,
+            patch_cx - c->pawnReadback_x_);
         constexpr float SPREAD = 1.0472f; // ±60° = π/3
         float hash_spread = cpu_hash_f(gate.seed, RibbonProp::ORIENTATION);
         sel.orientation = away_angle + (hash_spread * 2.0f - 1.0f) * SPREAD;
@@ -477,8 +495,13 @@ bool select_ribbon_for_patch(int32_t gx, int32_t gz, RibbonSelection& sel) {
 //
 // Phase 2: footprint negotiation with jitter + rotation, copy
 // selection fields into the placement record.
-bool place_ribbon_from_selection(const RibbonSelection& sel, RibbonPlacement& plan) {
-    auto pos = negotiate_position(sel.seed,
+//
+// Note: this function takes no RibbonState — it only mediates
+// between the selection and spawn-engine helpers (negotiate_position,
+// record_placement_bookkeeping). It doesn't touch ribbon's data.
+static bool place_ribbon_from_selection(Cartridge* c,
+    const RibbonSelection& sel, RibbonPlacement& plan) {
+    auto pos = c->negotiate_position(sel.seed,
         sel.trigger_gx, sel.trigger_gz,
         RibbonProp::ANCHOR_X, RibbonProp::ANCHOR_Z,
         RibbonConfig::POSITION_JITTER,
@@ -513,7 +536,7 @@ bool place_ribbon_from_selection(const RibbonSelection& sel, RibbonPlacement& pl
     plan.color_mode = sel.color_mode;
     std::memcpy(plan.color, sel.color, sizeof(plan.color));
 
-    record_placement_bookkeeping(PopFamily::RIBBON, plan.tier_idx);
+    c->record_placement_bookkeeping(PopFamily::RIBBON, plan.tier_idx);
     return true;
 }
 
@@ -524,14 +547,15 @@ bool place_ribbon_from_selection(const RibbonSelection& sel, RibbonPlacement& pl
 //
 // Dual entry: also called from mood.inl::apply_mood for mood-5
 // forced spawn (SEAM[ribbon:dual-entry]).
-void commit_ribbon(const RibbonPlacement& plan,
+static void commit_ribbon(RibbonState& rs, Cartridge* c,
+    const RibbonPlacement& plan,
     int32_t trigger_gx, int32_t trigger_gz, wgpu::Queue& queue)
 {
     GPURibbonState r{};
     r.anchor[0] = plan.cx;
     r.anchor[1] = 0.0f;
     r.anchor[2] = plan.cz;
-    r.time = currentSeconds_;
+    r.time = c->currentSeconds_;
     r.cube_count = plan.cube_count;
     r.cube_size = plan.cube_size;
     r.height = plan.height;
@@ -553,9 +577,9 @@ void commit_ribbon(const RibbonPlacement& plan,
 
     // Store in CPU mirror (per-frame nearest-selection uploads to GPU)
     uint32_t s = plan.slot;
-    ribbonStates_[s] = r;
+    rs.gpu[s] = r;
 
-    auto& ar = activeRibbons_[s];
+    auto& ar = rs.active[s];
     ar.patch_gx = trigger_gx;
     ar.patch_gz = trigger_gz;
     ar.host_gx = plan.host_gx;
@@ -584,7 +608,7 @@ void commit_ribbon(const RibbonPlacement& plan,
     ar.ref_count = 0;
 
     ar.active = true;
-    activeRibbonCount_++;
+    rs.active_count++;
     // SEAM[ribbon:L1] unconditional stdout — exhibition guard
     //   candidate. Same family as the [DIAG:*] stdout pattern
     //   noted across the codebase. Phase 1+ batch: wrap in

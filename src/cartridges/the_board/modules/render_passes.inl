@@ -161,7 +161,7 @@ void dispatch_compute(wgpu::CommandEncoder& encoder) {
     desc.label = "Compute Phase";
     wgpu::ComputePassEncoder compute = encoder.BeginComputePass(&desc);
 
-    if (renderedRibbonSlot_ != UINT32_MAX) {
+    if (ribbon_state_.rendered_slot != UINT32_MAX) {
         renderer_.dispatch_compute_ribbon_rings(
             compute,
             gpuState_.ribbon_compute_group(),
@@ -369,7 +369,7 @@ void draw_shadow_all(wgpu::RenderPassEncoder& pass) {
         gpuState_.monolith_index_count()
     );
 
-    if (renderedRibbonSlot_ != UINT32_MAX) {
+    if (ribbon_state_.rendered_slot != UINT32_MAX) {
         renderer_.draw_shadow_ribbon(
             pass,
             gpuState_.render_entity_group(),
@@ -599,7 +599,7 @@ void render_main_pass(wgpu::CommandEncoder& encoder,
     // heightfield, which caches POLICY_BAKED_HEIGHTFIELD = static
     // base + pyramids). No separate mesh draw needed.
 
-    if (renderedRibbonSlot_ != UINT32_MAX) {
+    if (ribbon_state_.rendered_slot != UINT32_MAX) {
         renderer_.draw_ribbon(
             pass,
             gpuState_.render_entity_group(),
