@@ -119,7 +119,7 @@ SpawnGatePreambleResult run_spawn_preamble(
     }
 
     // 2-6. Spawn modifier chain
-    float adj_mod = mood_mult[activeMood_];
+    float adj_mod = mood_mult[mood_state_.active];
     adj_mod *= population_type_affinity(family);
     adj_mod *= GLOBAL_ENTITY_DENSITY;
     r.theme_idx = active_theme_idx_;
@@ -204,9 +204,9 @@ PositionResult negotiate_position(
     // shouldn't happen for typical indoor entities (max
     // footprint at radius=1 is 65; rescaled entities are well
     // under that).
-    if (finiteMode_ && MOOD_TABLE[activeMood_].indoor) {
-        float bmin = -(float)finiteRadius_ * PATCH_EXTENT;
-        float bmax = ((float)finiteRadius_ + 1.0f) * PATCH_EXTENT;
+    if (world_state_.finite_mode && MOOD_TABLE[mood_state_.active].indoor) {
+        float bmin = -(float)world_state_.finite_radius * PATCH_EXTENT;
+        float bmax = ((float)world_state_.finite_radius + 1.0f) * PATCH_EXTENT;
         float clearance = INDOOR_ENTITY_WALL_MARGIN + footprint_r;
         float lo = bmin + clearance;
         float hi = bmax - clearance;
@@ -257,74 +257,12 @@ void record_placement_bookkeeping(uint32_t family, uint32_t tier_idx)
 // (piers are derived state of arches and columns, written through
 // here so cpu/gpu mirrors stay in sync).
 
-// ─── Column mesh gen preparation ──────────────────────────────
-// CPU-side prep: draw range + ground origin upload.
-// Returns true if a dispatch is needed.
-bool prepare_column_mesh_gen(wgpu::Queue& queue) {
-    if (!columnMeshGenPending_) return false;
-    columnMeshGenPending_ = false;
-
-    uint32_t maxSlot = 0;
-    bool anyActive = false;
-    for (uint32_t i = 0; i < Dim::MAX_COLUMN_ONLY; i++) {
-        if (activeColumns_[i].active) { maxSlot = i; anyActive = true; }
-    }
-    for (uint32_t i = 0; i < Dim::MAX_ANTENNA_ONLY; i++) {
-        if (activeAntennas_[i].active) {
-            maxSlot = i + Dim::ANTENNA_SLOT_OFFSET;
-            anyActive = true;
-        }
-    }
-    gpuState_.set_column_index_count(anyActive
-        ? (maxSlot + 1) * Dim::CMG_MAX_INDICES_PER_SLOT : 0);
-
-    return true;
-}
-
-// ─── Arch mesh gen preparation ────────────────────────────────
-// CPU-side prep: draw range + ground origin upload.
-// Ground entries (pier positions, corrections) are uploaded
-// every frame by upload_ground_entries(), not here.
-// Returns true if a dispatch is needed.
-bool prepare_arch_mesh_gen(wgpu::Queue& queue) {
-    if (!archMeshGenPending_) return false;
-    archMeshGenPending_ = false;
-
-    uint32_t maxSlot = 0;
-    bool anyActive = false;
-    for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++) {
-        if (activeArches_[i].active) { maxSlot = i; anyActive = true; }
-    }
-    gpuState_.set_arch_index_count(anyActive
-        ? (maxSlot + 1) * Dim::AMG_MAX_INDICES_PER_SLOT : 0);
-    return true;
-}
-
-// ─── GPU Pyramid Mesh Generation ─────────────────────────────
-//
-// Dispatches the compute shader that generates all 8 pyramid mesh
-// slots. Called when any pyramid spawns or is evicted. Also uploads
-// the pyramid ground origins for Y-correction.
-
-// ─── Pyramid mesh gen preparation ────────────────────────────
-// CPU-side prep: draw range + ground origin upload.
-// Returns true if a dispatch is needed.
-bool prepare_pyramid_mesh_gen(wgpu::Queue& queue) {
-    if (!pyramidMeshGenPending_) return false;
-    pyramidMeshGenPending_ = false;
-
-    uint32_t maxSlot = 0;
-    bool anyActive = false;
-    for (uint32_t i = 0; i < Dim::MAX_PYRAMID_INSTANCES; i++) {
-        if (activePyramids_[i].active) { maxSlot = i; anyActive = true; }
-    }
-    gpuState_.set_pyramid_index_count(anyActive
-        ? (maxSlot + 1) * Dim::PMG_MAX_INDICES_PER_SLOT : 0);
-
-    // Ground entries (terrain base Y) are uploaded every frame
-    // by upload_ground_entries(), not here.
-    return true;
-}
+// ─── Column / Arch / Pyramid mesh-gen preparers ───────────────
+// (Moved to entities.inl during migration #10 — they now live
+//  alongside the palm/cactus/blade preparers as static functions
+//  taking EntitiesState& explicitly. The remainder of this file
+//  retains pier writers, culling, and footprint registry, which
+//  are spawn-machinery rather than per-family state.)
 
 // ─── Pier Write Helper ───────────────────────────────────────────
 //
@@ -335,16 +273,16 @@ bool prepare_pyramid_mesh_gen(wgpu::Queue& queue) {
 void write_pier(wgpu::Queue& queue, uint32_t slot, const GPUPierInstance& pier) {
     cpuPiers_[slot] = pier;
     gpuState_.upload_pier_slot(queue, slot, pier);
-    pierCountDirty_ = true;
-    groundEntriesDirty_ = true;
+    world_state_.pier_count_dirty = true;
+    world_state_.ground_entries_dirty = true;
 }
 
 void clear_pier(wgpu::Queue& queue, uint32_t slot) {
     GPUPierInstance empty{};
     cpuPiers_[slot] = empty;
     gpuState_.upload_pier_slot(queue, slot, empty);
-    pierCountDirty_ = true;
-    groundEntriesDirty_ = true;
+    world_state_.pier_count_dirty = true;
+    world_state_.ground_entries_dirty = true;
 }
 
 void recompute_and_upload_pier_count(wgpu::Queue& queue) {
@@ -357,8 +295,8 @@ void recompute_and_upload_pier_count(wgpu::Queue& queue) {
 }
 
 void flush_pier_count(wgpu::Queue& queue) {
-    if (!pierCountDirty_) return;
-    pierCountDirty_ = false;
+    if (!world_state_.pier_count_dirty) return;
+    world_state_.pier_count_dirty = false;
     recompute_and_upload_pier_count(queue);
 }
 
@@ -384,7 +322,7 @@ static constexpr float ENTITY_CULL_HYSTERESIS = 50.0f;  // band width: show at f
 
 // Rebuild GPUArchMeshParams from cached ActiveArch data.
 GPUArchMeshParams build_arch_mesh_params(uint32_t slot) const {
-    const auto& a = activeArches_[slot];
+    const auto& a = entities_state_.arches[slot];
     GPUArchMeshParams p{};
     p.center_x = a.world_x;
     p.center_z = a.world_z;
@@ -448,7 +386,7 @@ static GPUColumnMeshParams build_column_mesh_params_from(const ActiveColumn& c) 
 }
 
 GPUColumnMeshParams build_column_mesh_params(uint32_t slot) const {
-    return build_column_mesh_params_from(activeColumns_[slot]);
+    return build_column_mesh_params_from(entities_state_.columns[slot]);
 }
 
 // Scan all active entities, toggle draw_visible with hysteresis,
@@ -458,10 +396,10 @@ uint32_t update_entity_draw_visibility(wgpu::Queue& queue) {
 
     // Arches
     for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++) {
-        if (!activeArches_[i].active) continue;
-        const auto& a = activeArches_[i];
-        float dx = a.world_x - pawnReadback_x_;
-        float dz = a.world_z - pawnReadback_z_;
+        if (!entities_state_.arches[i].active) continue;
+        const auto& a = entities_state_.arches[i];
+        float dx = a.world_x - player_.readback_x;
+        float dz = a.world_z - player_.readback_z;
         float dist = std::sqrt(dx * dx + dz * dz);
 
         float entity_size = std::max(a.half_span * 2.0f, a.total_height);
@@ -473,7 +411,7 @@ uint32_t update_entity_draw_visibility(wgpu::Queue& queue) {
             : (dist <= cull_near);        // currently hidden:  show when inside near
 
         if (should_show != a.draw_visible) {
-            activeArches_[i].draw_visible = should_show;
+            entities_state_.arches[i].draw_visible = should_show;
             if (should_show) {
                 gpuState_.upload_arch_mesh_params_slot(queue, i, build_arch_mesh_params(i));
             }
@@ -481,18 +419,18 @@ uint32_t update_entity_draw_visibility(wgpu::Queue& queue) {
                 GPUArchMeshParams empty{};
                 gpuState_.upload_arch_mesh_params_slot(queue, i, empty);
             }
-            archMeshGenPending_ = true;
+            entities_state_.arch_mesh_gen_pending = true;
         }
 
-        if (!activeArches_[i].draw_visible) culled++;
+        if (!entities_state_.arches[i].draw_visible) culled++;
     }
 
     // Columns
     for (uint32_t i = 0; i < Dim::MAX_COLUMN_ONLY; i++) {
-        if (!activeColumns_[i].active) continue;
-        const auto& c = activeColumns_[i];
-        float dx = c.world_x - pawnReadback_x_;
-        float dz = c.world_z - pawnReadback_z_;
+        if (!entities_state_.columns[i].active) continue;
+        const auto& c = entities_state_.columns[i];
+        float dx = c.world_x - player_.readback_x;
+        float dz = c.world_z - player_.readback_z;
         float dist = std::sqrt(dx * dx + dz * dz);
 
         float cull_far = ENTITY_CULL_BASE + c.height * ENTITY_CULL_COL_SCALE;
@@ -503,7 +441,7 @@ uint32_t update_entity_draw_visibility(wgpu::Queue& queue) {
             : (dist <= cull_near);
 
         if (should_show != c.draw_visible) {
-            activeColumns_[i].draw_visible = should_show;
+            entities_state_.columns[i].draw_visible = should_show;
             if (should_show) {
                 gpuState_.upload_column_mesh_params_slot(queue, i, build_column_mesh_params(i));
             }
@@ -511,18 +449,18 @@ uint32_t update_entity_draw_visibility(wgpu::Queue& queue) {
                 GPUColumnMeshParams empty{};
                 gpuState_.upload_column_mesh_params_slot(queue, i, empty);
             }
-            columnMeshGenPending_ = true;
+            entities_state_.column_mesh_gen_pending = true;
         }
 
-        if (!activeColumns_[i].draw_visible) culled++;
+        if (!entities_state_.columns[i].draw_visible) culled++;
     }
 
     // Antennas
     for (uint32_t i = 0; i < Dim::MAX_ANTENNA_ONLY; i++) {
-        if (!activeAntennas_[i].active) continue;
-        const auto& c = activeAntennas_[i];
-        float dx = c.world_x - pawnReadback_x_;
-        float dz = c.world_z - pawnReadback_z_;
+        if (!entities_state_.antennas[i].active) continue;
+        const auto& c = entities_state_.antennas[i];
+        float dx = c.world_x - player_.readback_x;
+        float dz = c.world_z - player_.readback_z;
         float dist = std::sqrt(dx * dx + dz * dz);
         uint32_t gpu_slot = i + Dim::ANTENNA_SLOT_OFFSET;
 
@@ -534,7 +472,7 @@ uint32_t update_entity_draw_visibility(wgpu::Queue& queue) {
             : (dist <= cull_near);
 
         if (should_show != c.draw_visible) {
-            activeAntennas_[i].draw_visible = should_show;
+            entities_state_.antennas[i].draw_visible = should_show;
             if (should_show) {
                 gpuState_.upload_column_mesh_params_slot(queue, gpu_slot, build_column_mesh_params_from(c));
             }
@@ -542,10 +480,10 @@ uint32_t update_entity_draw_visibility(wgpu::Queue& queue) {
                 GPUColumnMeshParams empty{};
                 gpuState_.upload_column_mesh_params_slot(queue, gpu_slot, empty);
             }
-            columnMeshGenPending_ = true;
+            entities_state_.column_mesh_gen_pending = true;
         }
 
-        if (!activeAntennas_[i].draw_visible) culled++;
+        if (!entities_state_.antennas[i].draw_visible) culled++;
     }
 
     return culled;
@@ -571,7 +509,7 @@ struct GroundFootprint {
     int32_t patch_gx = 0, patch_gz = 0;
     uint32_t family = UINT32_MAX;  // PopFamily index
     uint32_t tier = 0;             // tier index within family
-    float spawn_time = 0.0f;       // currentSeconds_ at registration
+    float spawn_time = 0.0f;       // time_state_.seconds at registration
     bool active = false;
 };
 
@@ -606,7 +544,7 @@ uint32_t register_footprint(float x, float z, float radius,
     uint32_t tier = 0) {
     for (uint32_t i = 0; i < MAX_FOOTPRINTS; i++) {
         if (!footprints_[i].active) {
-            footprints_[i] = { x, z, radius, gx, gz, family, tier, currentSeconds_, true };
+            footprints_[i] = { x, z, radius, gx, gz, family, tier, time_state_.seconds, true };
             return i;
         }
     }
@@ -651,7 +589,7 @@ void dump_entity_census(const char* trigger) const {
         by_family[footprints_[i].family]++;
     }
 
-    std::cout << "[CENSUS t=" << std::fixed << std::setprecision(1) << currentSeconds_
+    std::cout << "[CENSUS t=" << std::fixed << std::setprecision(1) << time_state_.seconds
         << " trigger=" << trigger << "] " << count << " entities (";
     for (uint32_t f = 0; f < PopFamily::COUNT; f++) {
         if (f > 0) std::cout << " ";
@@ -683,7 +621,7 @@ void dump_entity_census(const char* trigger) const {
             << " (" << std::setw(8) << std::setprecision(1) << fp.x
             << "," << std::setw(8) << fp.z << ")"
             << " p(" << std::setw(3) << fp.patch_gx << "," << std::setw(3) << fp.patch_gz << ")"
-            << " age=" << std::setprecision(1) << (currentSeconds_ - fp.spawn_time)
+            << " age=" << std::setprecision(1) << (time_state_.seconds - fp.spawn_time)
             << "\n";
     }
     std::cout << std::flush;
@@ -709,7 +647,7 @@ void dump_entity_census(const char* trigger) const {
 //   jittered_position(ctx.seed, gx, gz, Prop::POSITION_X, Prop::POSITION_Z, jitter, cx, cz);
 
 struct SpawnPreamble {
-    uint32_t seed;          // tile_seed(activeSeed_, gx, gz)
+    uint32_t seed;          // tile_seed(world_state_.active_seed, gx, gz)
     uint32_t archetype;     // 0=mountainous, 1=varied, 2=basin, 3=pool
     bool passed;            // false if spawn gate failed
 };
@@ -725,7 +663,7 @@ SpawnPreamble evaluate_spawn_gate(int32_t gx, int32_t gz,
     auto tile_it = tileCache_.find({ gx, gz });
     if (tile_it != tileCache_.end()) result.archetype = tile_it->second.archetype;
 
-    result.seed = tile_seed(activeSeed_, gx, gz);
+    result.seed = tile_seed(world_state_.active_seed, gx, gz);
     float chance = std::min(spawn_chance * adjacency_mod, 1.0f);
     result.passed = cpu_hash_f(result.seed, spawn_roll_prop) < chance;
     return result;
@@ -799,7 +737,7 @@ static constexpr float GLOBAL_ENTITY_DENSITY = 1.0f;
 // correlated rolls — a subtle bug. Check this table before
 // allocating indices for new entities.
 //
-// SEED SOURCE: tile_seed(activeSeed_, gx, gz)
+// SEED SOURCE: tile_seed(world_state_.active_seed, gx, gz)
 //  ┌───────────┬───────────┬────────────────────────────────────┐
 //  │ Range     │ Family    │ Struct                             │
 //  ├───────────┼───────────┼────────────────────────────────────┤
@@ -920,7 +858,7 @@ void mark_patches_for_regen(float min_wx, float min_wz,
     int32_t pg_z0 = (int32_t)std::floor(min_wz / PATCH_EXTENT);
     int32_t pg_z1 = (int32_t)std::floor(max_wz / PATCH_EXTENT);
 
-    for (uint32_t p = 0; p < activePatchCount_; p++) {
+    for (uint32_t p = 0; p < world_state_.active_patch_count; p++) {
         if (patches_[p].phase != PatchPhase::GENERATED) continue;
         if (patches_[p].grid_x == home_gx && patches_[p].grid_z == home_gz) continue;
         if (patches_[p].grid_x >= pg_x0 && patches_[p].grid_x <= pg_x1 &&

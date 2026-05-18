@@ -40,7 +40,7 @@
 // Depends on: spawn_engine.inl (run_spawn_preamble, negotiate_position,
 //             record_placement_bookkeeping, footprint registry,
 //             evaluate_spawn_gate, jittered_position),
-//             seed_utils.inl, cartridge.hpp core (currentSeconds_,
+//             seed_utils.inl, cartridge.hpp core (time_state_.seconds,
 //             pawnReadback_*, THEMES, PATCH_EXTENT, Dim::*).
 //
 // SEAM[ribbon:complete-subsystem] complete bespoke pipeline in one
@@ -259,7 +259,10 @@ struct RibbonTierProfile {
 //                          └────────────────┴────────────────┴────────────────┘
 static constexpr RibbonTierProfile RIBBON_TIERS[RIBBON_TIER_COUNT] = {
     // Tier 0: Serpentine — long, massive, slow motion
-    {   350.0f, 60.0f,      // cube_count
+    // (Length matched to Streamer (Tier 2): 188 × 8.0 ≈ 1500 units, vs.
+    //  Streamer's 250 × 6.0 = 1500. Keeps Serpentine's chunky 8.0 cube_size
+    //  that distinguishes its character from the other tiers.)
+    {   188.0f, 35.0f,     // cube_count
           8.0f,  2.0f,      // cube_size
          60.0f, 15.0f,      // height
          10.0f,  0.6f,      // lateral_amp
@@ -320,6 +323,34 @@ static constexpr const char* RIBBON_COLOR_NAMES[] = {
 static constexpr uint32_t MAX_RIBBON_INSTANCES = 1;  // single-render; raise when GPU supports multi-ribbon
 static constexpr float    RIBBON_MAX_LENGTH = 700.0f;
 
+// ── Musical coupling (hybrid propagation model) ──────────────────
+//
+// The ribbon's BASELINE shape (standing-wave swimming) is preserved
+// from authored tier parameters — Serpentine's 1.5 visible cycles,
+// gentle 0.25 rad/s drift, etc. — so the idle ribbon looks like its
+// authored character.
+//
+// Music enters as a PER-RING AMPLITUDE FACTOR sampled from the music
+// history at age = ring's t × travel_time. Head rings sample age=0
+// (current music); tail rings sample age=travel_time (music from
+// 2s ago for the small Serpentine). When music ramps up smoothly,
+// the head's amplitude factor rises immediately, mid rings respond
+// after 1s, tail responds after 2s — visible amplitude wave
+// propagates head→tail.
+//
+// Smoothness: ring buffer with head_idx and SLOT_DT = 1/60s. Each
+// frame writes current music to slots[head_idx] and (when the time
+// accumulator reaches SLOT_DT) advances head_idx by 1. Only one
+// slot changes per frame, so sampling at any age is continuous —
+// no shift-step discontinuities. Buffer covers ~2.13s at 60 fps.
+//
+// Asymmetric attack/release on the head's music signal: rise fast
+// to track music kicks, fall slower to avoid flicker.
+static constexpr uint32_t RIBBON_HISTORY_N        = 128;       // ring buffer slots
+static constexpr float    RIBBON_HISTORY_SLOT_DT  = 1.0f / 60.0f;  // seconds per slot (≈ 1 frame at 60fps)
+static constexpr float    RIBBON_MUSIC_INTENSITY_ATTACK  = 4.0f;   // 1/s — rise rate
+static constexpr float    RIBBON_MUSIC_INTENSITY_RELEASE = 2.0f;   // 1/s — fall rate
+
 // ── Per-instance tracking ────────────────────────────────────────
 // Two-tip anchoring: ribbon survives until BOTH its tip patches are
 // out of view (cross-patch eviction tracking).
@@ -357,6 +388,15 @@ struct RibbonState {
     // the finite world. Adjust to manually shift the mood-5 anchor XZ
     // (read by mood.inl::apply_mood).
     float          mood_offset[2] = { 0.0f, 0.0f };
+
+    // ── Musical coupling state — ring buffer ──
+    // music_history[history_head_idx] is the newest sample (current
+    // music). Going backward modulo N gives older samples; oldest is
+    // (history_head_idx + 1) % N. history_accum tracks elapsed time
+    // toward the next head_idx advance.
+    float    music_history[RIBBON_HISTORY_N] = {};
+    uint32_t history_head_idx = 0;
+    float    history_accum = 0.0f;
 };
 RibbonState ribbon_state_;
 
@@ -481,8 +521,8 @@ static bool select_ribbon_for_patch(RibbonState& rs, Cartridge* c,
     {
         float patch_cx = (gx + 0.5f) * PATCH_EXTENT;
         float patch_cz = (gz + 0.5f) * PATCH_EXTENT;
-        float away_angle = std::atan2(patch_cz - c->pawnReadback_z_,
-            patch_cx - c->pawnReadback_x_);
+        float away_angle = std::atan2(patch_cz - c->player_.readback_z,
+            patch_cx - c->player_.readback_x);
         constexpr float SPREAD = 1.0472f; // ±60° = π/3
         float hash_spread = cpu_hash_f(gate.seed, RibbonProp::ORIENTATION);
         sel.orientation = away_angle + (hash_spread * 2.0f - 1.0f) * SPREAD;
@@ -555,7 +595,7 @@ static void commit_ribbon(RibbonState& rs, Cartridge* c,
     r.anchor[0] = plan.cx;
     r.anchor[1] = 0.0f;
     r.anchor[2] = plan.cz;
-    r.time = c->currentSeconds_;
+    r.time = c->time_state_.seconds;
     r.cube_count = plan.cube_count;
     r.cube_size = plan.cube_size;
     r.height = plan.height;
@@ -705,3 +745,46 @@ static RotorDiag ribbon_rotor_diag(const float tangent[3]) {
     d.antiparallel = (d.cross_len < 0.001f && dot < 0.0f);
     return d;
 }
+
+
+// ═══ MUSICAL COUPLING — ring-buffer write, head_idx advance ══════
+//
+// Per-frame: smooth polyphony, write current value to slots[head_idx],
+// advance head_idx whenever the time accumulator passes one SLOT_DT.
+// Only one slot changes per frame (the head) — that's what makes the
+// sampled music_at(age) continuous in time. No shift loop.
+//
+// The compute pass samples this buffer by age = ring's t × travel_time
+// using `(head_idx + N - slot) % N` for ring-buffer indexing.
+static void tick_ribbon_couplings(RibbonState& rs, Cartridge* c, float polyphony, float dt, wgpu::Queue& queue) {
+    // Target: polyphony normalized to [0,1] (matches MMODE convention).
+    const float target = std::min(polyphony / MMODE_POLYPHONY_FULL, 1.0f);
+
+    // Asymmetric attack/release on the head's signal — fast on the way
+    // up to track music kicks, slower on the way down to avoid flicker.
+    const float prev = rs.music_history[rs.history_head_idx];
+    const float rate = (target > prev) ? RIBBON_MUSIC_INTENSITY_ATTACK
+                                       : RIBBON_MUSIC_INTENSITY_RELEASE;
+    const float k = std::min(dt * rate, 1.0f);
+    const float smoothed = prev + (target - prev) * k;
+
+    // Write current smoothed music to the current head slot.
+    rs.music_history[rs.history_head_idx] = smoothed;
+
+    // Advance head_idx whenever the accumulator passes one slot's worth
+    // of time. The previous slot freezes at whatever smoothed value it
+    // last received — for slow-moving music, neighboring slots stay
+    // close, so ring-buffer interpolation yields a smooth time series.
+    rs.history_accum += dt;
+    while (rs.history_accum >= RIBBON_HISTORY_SLOT_DT) {
+        rs.history_accum -= RIBBON_HISTORY_SLOT_DT;
+        rs.history_head_idx = (rs.history_head_idx + 1u) % RIBBON_HISTORY_N;
+        // New head starts at current smoothed value — guarantees the
+        // newly-active slot reflects current music.
+        rs.music_history[rs.history_head_idx] = smoothed;
+    }
+
+    // Push the entire buffer + head_idx to GPU each frame.
+    c->gpuState_.set_ribbon_music_history(rs.music_history, rs.history_head_idx, queue);
+}
+

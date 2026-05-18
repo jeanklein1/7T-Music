@@ -13,26 +13,32 @@
 //
 // ┌─── Public surface (called from outside this file) ─────────────┐
 // │                                                                 │
+// │  Module functions are static, take OrbsState& explicitly        │
+// │  (or const OrbsState& when read-only).                          │
+// │                                                                 │
 // │  Lifecycle:                                                     │
-// │    configure_orbs(cfg, queue)  — mood entry: upload + arm init  │
-// │    teardown_orbs()             — mood exit: disable dispatch    │
+// │    configure_orbs(os, c, cfg, queue) — mood entry: upload + arm │
+// │    teardown_orbs(os, c)              — mood exit: disable       │
 // │                                                                 │
 // │  Player commands:                                               │
-// │    cycle_orb_palette(queue)       — KP_0  next palette          │
-// │    cycle_orb_motion_rule(queue)   — KP_8  next rule             │
-// │    cycle_orb_gesture(queue)       — KP_DECIMAL  next gesture    │
-// │    toggle_orb_anchor()            — KP_9  world ↔ pawn anchor   │
+// │    cycle_orb_palette(os, c, queue)     — KP_0  next palette     │
+// │    cycle_orb_motion_rule(os, c, queue) — KP_8  next rule        │
+// │    cycle_orb_gesture(os, c, queue)     — KP_DECIMAL next gest.  │
+// │    toggle_orb_anchor(os, c)            — KP_9  world↔pawn       │
 // │                                                                 │
 // │  Per-frame updates:                                             │
-// │    update_orb_anchor(x, z, queue)   — dirty-flagged center push │
-// │    update_orb_coupling(poly, dt, q) — polyphony → force/color/flock │
+// │    update_orb_anchor(os, c, x, z, q)   — dirty-flagged push     │
+// │    update_orb_coupling(os, c, poly, dt, q) — polyphony → couples│
 // │                                                                 │
 // │  GPU dispatches (called from render tick):                      │
-// │    dispatch_orb_init(encoder)       — one-shot seed-to-dome     │
-// │    dispatch_orb_recolor(encoder)    — palette re-sample         │
-// │    dispatch_orb_copy_prev(encoder)  — snapshot for neighbor q   │
-// │    dispatch_orb_dynamics(enc, q)    — rule + couplings          │
-// │    render_orbs(pass)                — additive billboard draw   │
+// │    dispatch_orb_init(os, c, encoder)        — one-shot seed     │
+// │    dispatch_orb_recolor(os, c, encoder)     — palette resample  │
+// │    dispatch_orb_copy_prev(os, c, encoder)   — snapshot prev     │
+// │    dispatch_orb_dynamics(os, c, enc, q)     — rule + couplings  │
+// │    render_orbs(os, c, pass)                 — additive draw     │
+// │                                                                 │
+// │  Cross-module reads: orbs_state_ is fully encapsulated; no      │
+// │  external module reaches into its fields.                       │
 // │                                                                 │
 // └─────────────────────────────────────────────────────────────────┘
 //
@@ -405,66 +411,78 @@ struct OrbMoodConfig {
 };
 
 
-// ═══ RUNTIME CPU STATE ═══════════════════════════════════════════
+// ═══ ORBS MODULE STATE (Scope B migration #7) ════════════════════
 //
-// Everything the CPU tracks about the orb system while running.
-// Sub-grouped by role. Player-owned state (anchor flag, gesture
-// index) persists across mood transitions; mood-owned state
-// (motion rule, active couplings, intensities) refreshes on configure.
+// All orb-owned state lives in this struct, accessed via orbs_state_
+// on the Cartridge. Module functions take `OrbsState& os` explicitly
+// rather than reaching via Cartridge*, making ownership language-
+// visible and dependencies explicit in signatures.
+//
+// Sub-grouped by role:
+//   • lifecycle      — kernel arming flags, palette
+//   • anchor         — player-owned dome-center follow
+//   • motion         — current rule + per-rule gesture indices
+//   • couplings      — smoothed musical intensities + active flags
+//   • speed          — population speed multiplier
+//
+// Motion rule identifiers, named for legibility at gesture-dispatch
+// sites. Index into gesture_idx / gesture_initialized.
 
-// ── Lifecycle / kernel arming ────────────────────────────────────
-bool     orbsActive_ = false;
-uint32_t orbCount_ = 0;
-bool     orbInitPending_ = false;
-bool     orbRecolorPending_ = false;
-uint32_t orbCurrentPaletteId_ = ORB_PAL_JWST_DEEP;
-
-// ── Anchor (dome-center follow) ──────────────────────────────────
-// Player state: persists across mood transitions. Dirty-flag cache
-// means an idle or unanchored dome produces no per-frame queue traffic.
-bool     orbPawnAnchored_ = false;
-bool     orbAnchorInitialized_ = false;   // seeded by mood default on first configure
-float    orbLastDomeCenterX_ = 0.0f;
-float    orbLastDomeCenterZ_ = 0.0f;
-bool     orbDomeCenterInitialized_ = false;
-
-// ── Motion rule + flocking gesture ───────────────────────────────
-// Motion rule refreshes from mood on transition (mood character).
-// Flock gesture persists across mood transitions (player gesture).
-// Motion rule identifiers, named for legibility at gesture-
-// dispatch sites. Index into orbGestureIdx_ / orbGestureInitialized_.
 static constexpr uint32_t ORB_RULE_BROWNIAN = 0u;
 static constexpr uint32_t ORB_RULE_ORBITAL = 1u;
 static constexpr uint32_t ORB_RULE_FROZEN = 2u;
 static constexpr uint32_t ORB_RULE_FLOCKING = 3u;
 
-uint32_t orbCurrentMotionRule_ = 0u;
-// Per-rule gesture indices. Index 2 (Frozen) is vestigial
-// — Frozen has no gestures; cycle_orb_gesture short-circuits. All
-// four indices persist across mood transitions (player state).
-uint32_t orbGestureIdx_[4] = { 0u, 0u, 0u, 0u };
-bool     orbGestureInitialized_[4] = { false, false, false, false };
+struct OrbsState {
+    // ── Lifecycle / kernel arming ────────────────────────────────
+    bool     active = false;
+    uint32_t count = 0;
+    bool     init_pending = false;
+    bool     recolor_pending = false;
+    uint32_t current_palette_id = ORB_PAL_JWST_DEEP;
 
-// ── Musical couplings (smoothed intensities) ─────────────────────
-// Force + noise share a single intensity (polyphony-driven). Color
-// and flocking have their own smoothers. Active flags gate the
-// couplings per mood.
-float    orbForceIntensity_ = 0.0f;
-float    orbActiveNoiseAmp_ = 0.0f;   // mood's configured ceiling
+    // ── Anchor (dome-center follow) ──────────────────────────────
+    // Player state: persists across mood transitions. Dirty-flag cache
+    // means an idle or unanchored dome produces no per-frame queue traffic.
+    bool     pawn_anchored = false;
+    bool     anchor_initialized = false;   // seeded by mood default on first configure
+    float    last_dome_center_x = 0.0f;
+    float    last_dome_center_z = 0.0f;
+    bool     dome_center_initialized = false;
 
-float    orbColorPulseIntensity_ = 0.0f;
-float    orbColorConvergeIntensity_ = 0.0f;
-float    orbColorSurgeIntensity_ = 0.0f;
-bool     orbColorPulseActive_ = false;
-bool     orbColorConvergeActive_ = false;
-bool     orbColorSurgeActive_ = false;
+    // ── Motion rule + flocking gesture ───────────────────────────
+    // Motion rule refreshes from mood on transition (mood character).
+    // Flock gesture persists across mood transitions (player gesture).
+    uint32_t current_motion_rule = 0u;
+    // Per-rule gesture indices. Index 2 (Frozen) is vestigial
+    // — Frozen has no gestures; cycle_orb_gesture short-circuits. All
+    // four indices persist across mood transitions (player state).
+    uint32_t gesture_idx[4]         = { 0u, 0u, 0u, 0u };
+    bool     gesture_initialized[4] = { false, false, false, false };
 
-float    orbFlockIntensity_ = 0.0f;
-bool     orbFlockActive_ = false;  // true when active rule is Flocking
+    // ── Musical couplings (smoothed intensities) ─────────────────
+    // Force + noise share a single intensity (polyphony-driven). Color
+    // and flocking have their own smoothers. Active flags gate the
+    // couplings per mood.
+    float    force_intensity = 0.0f;
+    float    active_noise_amp = 0.0f;   // mood's configured ceiling
 
-// Population speed multiplier. Smoothed on the CPU, uploaded via
-// upload_orb_speed_mult only when it moves.
-float    orbSpeedMultCurrent_ = 1.0f;
+    float    color_pulse_intensity = 0.0f;
+    float    color_converge_intensity = 0.0f;
+    float    color_surge_intensity = 0.0f;
+    bool     color_pulse_active = false;
+    bool     color_converge_active = false;
+    bool     color_surge_active = false;
+
+    float    flock_intensity = 0.0f;
+    bool     flock_active = false;  // true when active rule is Flocking
+
+    // ── Speed ────────────────────────────────────────────────────
+    // Population speed multiplier. Smoothed on the CPU, uploaded via
+    // upload_orb_speed_mult only when it moves.
+    float    speed_mult_current = 1.0f;
+};
+OrbsState orbs_state_;
 
 
 // ═══ GPU LAYOUT HELPERS ══════════════════════════════════════════
@@ -491,37 +509,37 @@ static inline float* orb_tier_flock_ptr(GPUOrbConfig& cfg, uint32_t i) {
 
 // Apply mood's first-run defaults to player-owned state. Anchor and
 // flock gesture are both "mood seeds once, player wins after."
-void apply_mood_first_run_defaults_(const OrbMoodConfig& cfg) {
-    if (!orbAnchorInitialized_) {
-        orbPawnAnchored_ = cfg.anchor_to_pawn_default;
-        orbAnchorInitialized_ = true;
+static void apply_mood_first_run_defaults_(OrbsState& os, const OrbMoodConfig& cfg) {
+    if (!os.anchor_initialized) {
+        os.pawn_anchored = cfg.anchor_to_pawn_default;
+        os.anchor_initialized = true;
     }
     // Seed each rule's gesture index on first configure.
     // The mood carries one default (flock_gesture_default); we reuse
     // it for all three rules with per-rule count clamping. A future
     // pass can split this into per-rule mood defaults if wanted.
-    if (!orbGestureInitialized_[ORB_RULE_BROWNIAN]) {
-        orbGestureIdx_[ORB_RULE_BROWNIAN] = std::min(
+    if (!os.gesture_initialized[ORB_RULE_BROWNIAN]) {
+        os.gesture_idx[ORB_RULE_BROWNIAN] = std::min(
             cfg.flock_gesture_default, ORB_BROWNIAN_GESTURE_COUNT - 1u);
-        orbGestureInitialized_[ORB_RULE_BROWNIAN] = true;
+        os.gesture_initialized[ORB_RULE_BROWNIAN] = true;
     }
-    if (!orbGestureInitialized_[ORB_RULE_ORBITAL]) {
-        orbGestureIdx_[ORB_RULE_ORBITAL] = std::min(
+    if (!os.gesture_initialized[ORB_RULE_ORBITAL]) {
+        os.gesture_idx[ORB_RULE_ORBITAL] = std::min(
             cfg.flock_gesture_default, ORB_ORBITAL_GESTURE_COUNT - 1u);
-        orbGestureInitialized_[ORB_RULE_ORBITAL] = true;
+        os.gesture_initialized[ORB_RULE_ORBITAL] = true;
     }
-    if (!orbGestureInitialized_[ORB_RULE_FLOCKING]) {
-        orbGestureIdx_[ORB_RULE_FLOCKING] = std::min(
+    if (!os.gesture_initialized[ORB_RULE_FLOCKING]) {
+        os.gesture_idx[ORB_RULE_FLOCKING] = std::min(
             cfg.flock_gesture_default, ORB_FLOCK_GESTURE_COUNT - 1u);
-        orbGestureInitialized_[ORB_RULE_FLOCKING] = true;
+        os.gesture_initialized[ORB_RULE_FLOCKING] = true;
     }
     // ORB_RULE_FROZEN has no gestures — index stays at 0, unread.
 }
 
 // Pack the active palette's per-entry HSV pockets into GPU config.
-void pack_palette_(GPUOrbConfig& gpuCfg, uint32_t palette_id) {
+static void pack_palette_(OrbsState& os, GPUOrbConfig& gpuCfg, uint32_t palette_id) {
     uint32_t pal_id = std::min(palette_id, ORB_PAL_COUNT - 1u);
-    orbCurrentPaletteId_ = pal_id;
+    os.current_palette_id = pal_id;
     const auto& pal = ORB_PALETTES[pal_id];
 
     gpuCfg.palette_count = pal.count;
@@ -548,7 +566,7 @@ void pack_palette_(GPUOrbConfig& gpuCfg, uint32_t palette_id) {
 // cumulative weights) AND the parallel flocking-gains block.
 // Sentinel tierset_id → zero everything; orb_init falls back to
 // legacy uniform population.
-void pack_tiers_(GPUOrbConfig& gpuCfg, uint32_t tierset_id) {
+static void pack_tiers_(GPUOrbConfig& gpuCfg, uint32_t tierset_id) {
     // Note: offsets 180-188 used to be _pad_tier0/1/2 here. They now
     // hold Brownian gesture fields (brownian_radial_sign/vert_bias/
     // coherence), written by pack_flocking_. Do NOT zero them here.
@@ -616,7 +634,7 @@ void pack_tiers_(GPUOrbConfig& gpuCfg, uint32_t tierset_id) {
 // Pack flocking params (mood-authored, sanitized), gesture signs
 // (from current player-owned gesture index), and per-rule drag
 // multipliers (sanitized with zero → pass-through).
-void pack_flocking_(GPUOrbConfig& gpuCfg,
+static void pack_flocking_(const OrbsState& os, GPUOrbConfig& gpuCfg,
     float sep_r, float align_r, float coh_r,
     float sep_w, float align_w, float coh_w,
     float max_speed,
@@ -635,16 +653,16 @@ void pack_flocking_(GPUOrbConfig& gpuCfg,
     // its own slice in the dynamics kernel; writing all three at
     // configure time keeps them in sync whatever rule becomes active.
     {
-        const auto& gb = ORB_BROWNIAN_GESTURES[orbGestureIdx_[ORB_RULE_BROWNIAN]];
+        const auto& gb = ORB_BROWNIAN_GESTURES[os.gesture_idx[ORB_RULE_BROWNIAN]];
         gpuCfg.brownian_radial_sign = gb.radial_sign;
         gpuCfg.brownian_vert_bias = gb.vert_bias;
         gpuCfg.brownian_coherence = gb.coherence;
 
-        const auto& go = ORB_ORBITAL_GESTURES[orbGestureIdx_[ORB_RULE_ORBITAL]];
+        const auto& go = ORB_ORBITAL_GESTURES[os.gesture_idx[ORB_RULE_ORBITAL]];
         gpuCfg.orbital_alignment_mode = go.alignment_mode;
         gpuCfg.orbital_speed_var_mult = go.speed_var_mult;
 
-        const auto& gf = ORB_FLOCK_GESTURES[orbGestureIdx_[ORB_RULE_FLOCKING]];
+        const auto& gf = ORB_FLOCK_GESTURES[os.gesture_idx[ORB_RULE_FLOCKING]];
         gpuCfg.flock_sep_sign = gf.sep_sign;
         gpuCfg.flock_align_sign = gf.align_sign;
         gpuCfg.flock_coh_sign = gf.coh_sign;
@@ -662,21 +680,21 @@ void pack_flocking_(GPUOrbConfig& gpuCfg,
     // Preserve the current smoothed speed multiplier across
     // mood transitions — use the in-flight value rather than a literal
     // 1.0 so a mood portal doesn't snap the sky back to baseline.
-    gpuCfg.speed_mult = orbSpeedMultCurrent_;
+    gpuCfg.speed_mult = os.speed_mult_current;
 }
 
 // Log the effective config after sanitization. Shows what the GPU
 // actually runs with (not what the mood authored), which is what
 // the operator cares about when cycling rules or tuning.
-void log_configure_(const OrbMoodConfig& cfg,
+static void log_configure_(const OrbsState& os, const OrbMoodConfig& cfg,
     float eff_drag, float eff_orbital_speed,
     uint32_t palette_id) {
     static const char* RULE_NAMES[] = { "brownian", "orbital", "frozen", "flocking" };
 
-    std::cout << "[Orbs] Configured: count=" << orbCount_
+    std::cout << "[Orbs] Configured: count=" << os.count
         << " palette=" << ORB_PAL_NAMES[palette_id]
         << " drag=" << eff_drag
-        << " noise=" << ORB_NOISE_FLOOR << ".." << orbActiveNoiseAmp_
+        << " noise=" << ORB_NOISE_FLOOR << ".." << os.active_noise_amp
         << " rule=" << RULE_NAMES[std::min(cfg.motion_rule, 3u)]
         << " rot=" << cfg.rotation_speed
         << " orbital=" << eff_orbital_speed
@@ -686,7 +704,7 @@ void log_configure_(const OrbMoodConfig& cfg,
         << (cfg.color_surge_enabled ? " surge" : "")
         << (cfg.color_pulse_enabled || cfg.color_converge_enabled || cfg.color_surge_enabled
             ? "" : " off")
-        << " anchor=" << (orbPawnAnchored_ ? "pawn" : "origin")
+        << " anchor=" << (os.pawn_anchored ? "pawn" : "origin")
         << " tiers="
         << (cfg.tierset_id < ORB_TIERSET_COUNT
             ? ORB_TIERSET_NAMES[cfg.tierset_id]
@@ -701,10 +719,10 @@ void log_configure_(const OrbMoodConfig& cfg,
 // apply first-run player defaults, pack the full GPU config, arm
 // the init kernel. Called from apply_mood (mood.inl) and from the
 // initial-mood setup in the init path (cartridge.hpp).
-void configure_orbs(const OrbMoodConfig& cfg, wgpu::Queue& queue) {
-    orbsActive_ = cfg.enabled;
-    orbCount_ = std::min(cfg.count, (uint32_t)Dim::MAX_ORBS);
-    if (!orbsActive_ || orbCount_ == 0) return;
+static void configure_orbs(OrbsState& os, Cartridge* c, const OrbMoodConfig& cfg, wgpu::Queue& queue) {
+    os.active = cfg.enabled;
+    os.count = std::min(cfg.count, (uint32_t)Dim::MAX_ORBS);
+    if (!os.active || os.count == 0) return;
 
     // Effective values: "zero = no opinion, use system default."
     auto eff = [](float authored, float fallback) {
@@ -721,12 +739,12 @@ void configure_orbs(const OrbMoodConfig& cfg, wgpu::Queue& queue) {
     const float eff_flock_coh_w = eff(cfg.flock_coh_weight, ORB_DEFAULT_FLOCK_COH_W);
     const float eff_flock_max_speed = eff(cfg.flock_max_speed, ORB_DEFAULT_FLOCK_MAX_SPEED);
 
-    orbActiveNoiseAmp_ = eff_noise_amp;
+    os.active_noise_amp = eff_noise_amp;
 
     // First-run mood defaults for player-owned state.
-    apply_mood_first_run_defaults_(cfg);
+    apply_mood_first_run_defaults_(os, cfg);
     // Motion rule is refreshed from the mood every transition (it IS mood character).
-    orbCurrentMotionRule_ = cfg.motion_rule;
+    os.current_motion_rule = cfg.motion_rule;
 
     // Normalize rotation axis on CPU (GPU renormalizes too but this
     // keeps uploaded values unit-length to avoid surprises).
@@ -739,8 +757,8 @@ void configure_orbs(const OrbMoodConfig& cfg, wgpu::Queue& queue) {
 
     // Build the GPU config in one place.
     GPUOrbConfig gpuCfg{};
-    gpuCfg.count = orbCount_;
-    gpuCfg.seed = activeSeed_;
+    gpuCfg.count = os.count;
+    gpuCfg.seed = c->world_state_.active_seed;
     gpuCfg.base_hue = cfg.base_hue;
     gpuCfg.hue_variance = cfg.hue_variance;
     gpuCfg.brightness = cfg.brightness;
@@ -758,7 +776,7 @@ void configure_orbs(const OrbMoodConfig& cfg, wgpu::Queue& queue) {
     gpuCfg.rotation_axis_z = rz;
     gpuCfg.orbital_base_speed = eff_orbital_speed;
 
-    pack_palette_(gpuCfg, cfg.palette_id);
+    pack_palette_(os, gpuCfg, cfg.palette_id);
 
     // Color dynamics start at rest; couplings lift them under music.
     // hue_converge_target is mood-scoped (changes only at mood entry).
@@ -773,57 +791,57 @@ void configure_orbs(const OrbMoodConfig& cfg, wgpu::Queue& queue) {
     gpuCfg.dome_center_y = 0.0f;
     gpuCfg.dome_center_z = 0.0f;
     gpuCfg._pad_anchor = 0.0f;
-    orbDomeCenterInitialized_ = false;   // force dirty-flag re-eval
+    os.dome_center_initialized = false;   // force dirty-flag re-eval
 
-    orbColorPulseActive_ = cfg.color_pulse_enabled;
-    orbColorConvergeActive_ = cfg.color_converge_enabled;
-    orbColorSurgeActive_ = cfg.color_surge_enabled;
+    os.color_pulse_active = cfg.color_pulse_enabled;
+    os.color_converge_active = cfg.color_converge_enabled;
+    os.color_surge_active = cfg.color_surge_enabled;
 
     pack_tiers_(gpuCfg, cfg.tierset_id);
-    pack_flocking_(gpuCfg,
+    pack_flocking_(os, gpuCfg,
         eff_flock_sep_r, eff_flock_align_r, eff_flock_coh_r,
         eff_flock_sep_w, eff_flock_align_w, eff_flock_coh_w,
         eff_flock_max_speed,
         cfg.rule_drag_brownian, cfg.rule_drag_orbital,
         cfg.rule_drag_frozen, cfg.rule_drag_flocking);
 
-    orbFlockActive_ = (cfg.motion_rule == 3u);
+    os.flock_active = (cfg.motion_rule == 3u);
 
-    gpuState_.upload_orb_config(queue, gpuCfg);
-    orbInitPending_ = true;
+    c->gpuState_.upload_orb_config(queue, gpuCfg);
+    os.init_pending = true;
 
-    log_configure_(cfg, eff_drag, eff_orbital_speed, orbCurrentPaletteId_);
+    log_configure_(os, cfg, eff_drag, eff_orbital_speed, os.current_palette_id);
 }
 
 // Mood exit: stop dispatching. Resets mood-owned runtime state
 // (intensities, active flags, dome-center cache). Preserves
 // player-owned state (anchor, flock gesture) across transitions.
-void teardown_orbs() {
-    orbsActive_ = false;
-    orbCount_ = 0;
-    orbInitPending_ = false;
-    orbRecolorPending_ = false;
+static void teardown_orbs(OrbsState& os, Cartridge* c) {
+    os.active = false;
+    os.count = 0;
+    os.init_pending = false;
+    os.recolor_pending = false;
 
-    orbForceIntensity_ = 0.0f;
-    orbActiveNoiseAmp_ = 0.0f;
+    os.force_intensity = 0.0f;
+    os.active_noise_amp = 0.0f;
 
-    orbColorPulseIntensity_ = 0.0f;
-    orbColorConvergeIntensity_ = 0.0f;
-    orbColorSurgeIntensity_ = 0.0f;
-    orbColorPulseActive_ = false;
-    orbColorConvergeActive_ = false;
-    orbColorSurgeActive_ = false;
+    os.color_pulse_intensity = 0.0f;
+    os.color_converge_intensity = 0.0f;
+    os.color_surge_intensity = 0.0f;
+    os.color_pulse_active = false;
+    os.color_converge_active = false;
+    os.color_surge_active = false;
 
-    orbFlockIntensity_ = 0.0f;
-    orbFlockActive_ = false;
+    os.flock_intensity = 0.0f;
+    os.flock_active = false;
 
     // Speed multiplier resets with the mood (not player state).
-    orbSpeedMultCurrent_ = 1.0f;
+    os.speed_mult_current = 1.0f;
 
     // Force fresh anchor upload on next configure (cache cleared, flag state preserved).
-    orbLastDomeCenterX_ = 0.0f;
-    orbLastDomeCenterZ_ = 0.0f;
-    orbDomeCenterInitialized_ = false;
+    os.last_dome_center_x = 0.0f;
+    os.last_dome_center_z = 0.0f;
+    os.dome_center_initialized = false;
 }
 
 
@@ -833,14 +851,14 @@ void teardown_orbs() {
 // positions and colors both refresh on the next frame. Session-
 // local within a mood — the next mood transition resets to that
 // mood's configured palette.
-void cycle_orb_palette(wgpu::Queue& queue) {
-    if (!orbsActive_ || orbCount_ == 0) {
+static void cycle_orb_palette(OrbsState& os, Cartridge* c, wgpu::Queue& queue) {
+    if (!os.active || os.count == 0) {
         std::cout << "[Orbs] Palette cycle ignored (no active dome)\n";
         return;
     }
 
-    orbCurrentPaletteId_ = (orbCurrentPaletteId_ + 1u) % ORB_PAL_COUNT;
-    const auto& pal = ORB_PALETTES[orbCurrentPaletteId_];
+    os.current_palette_id = (os.current_palette_id + 1u) % ORB_PAL_COUNT;
+    const auto& pal = ORB_PALETTES[os.current_palette_id];
 
     float pal_data[16];
     for (uint32_t i = 0; i < 4; i++) {
@@ -849,32 +867,32 @@ void cycle_orb_palette(wgpu::Queue& queue) {
         pal_data[i * 4 + 2] = pal.entries[i].saturation;
         pal_data[i * 4 + 3] = pal.entries[i].weight;
     }
-    gpuState_.upload_orb_palette(queue, pal.count, pal.value_variance, pal_data);
+    c->gpuState_.upload_orb_palette(queue, pal.count, pal.value_variance, pal_data);
 
     // Color-only refresh: positions, velocities, twinkle phase all
     // persist so the sky "holds" and only the hues transition.
-    orbRecolorPending_ = true;
+    os.recolor_pending = true;
 
-    std::cout << "[Orbs] Palette: " << ORB_PAL_NAMES[orbCurrentPaletteId_] << "\n";
+    std::cout << "[Orbs] Palette: " << ORB_PAL_NAMES[os.current_palette_id] << "\n";
 }
 
 // KP_8: cycle motion rule (Brownian → Orbital → Frozen → Flocking → …).
 // Does NOT reset orb state — positions and velocities carry over so
 // the character shifts seamlessly into the new rule.
-void cycle_orb_motion_rule(wgpu::Queue& queue) {
-    if (!orbsActive_ || orbCount_ == 0) {
+static void cycle_orb_motion_rule(OrbsState& os, Cartridge* c, wgpu::Queue& queue) {
+    if (!os.active || os.count == 0) {
         std::cout << "[Orbs] Motion rule cycle ignored (no active dome)\n";
         return;
     }
 
-    orbCurrentMotionRule_ = (orbCurrentMotionRule_ + 1u) % 4u;
-    gpuState_.upload_orb_motion_rule(queue, orbCurrentMotionRule_);
-    orbFlockActive_ = (orbCurrentMotionRule_ == 3u);   // coupling gate
+    os.current_motion_rule = (os.current_motion_rule + 1u) % 4u;
+    c->gpuState_.upload_orb_motion_rule(queue, os.current_motion_rule);
+    os.flock_active = (os.current_motion_rule == 3u);   // coupling gate
 
     static const char* RULE_NAMES[] = { "brownian", "orbital", "frozen", "flocking" };
-    std::cout << "[Orbs] Motion rule: " << RULE_NAMES[orbCurrentMotionRule_];
-    const uint32_t r = orbCurrentMotionRule_;
-    const uint32_t gidx = orbGestureIdx_[r];
+    std::cout << "[Orbs] Motion rule: " << RULE_NAMES[os.current_motion_rule];
+    const uint32_t r = os.current_motion_rule;
+    const uint32_t gidx = os.gesture_idx[r];
     if (r == ORB_RULE_BROWNIAN && gidx != 0u) {
         std::cout << " (gesture: " << ORB_BROWNIAN_GESTURES[gidx].name << ")";
     }
@@ -891,29 +909,29 @@ void cycle_orb_motion_rule(wgpu::Queue& queue) {
 // motion rule. Brownian / Orbital / Flocking each have their own
 // table; Frozen has none and short-circuits. Player state: each
 // rule's index persists across mood transitions.
-void cycle_orb_gesture(wgpu::Queue& queue) {
-    const uint32_t r = orbCurrentMotionRule_;
+static void cycle_orb_gesture(OrbsState& os, Cartridge* c, wgpu::Queue& queue) {
+    const uint32_t r = os.current_motion_rule;
 
     if (r == ORB_RULE_BROWNIAN) {
-        orbGestureIdx_[r] = (orbGestureIdx_[r] + 1u) % ORB_BROWNIAN_GESTURE_COUNT;
-        const auto& g = ORB_BROWNIAN_GESTURES[orbGestureIdx_[r]];
-        gpuState_.upload_orb_brownian_gesture(queue,
+        os.gesture_idx[r] = (os.gesture_idx[r] + 1u) % ORB_BROWNIAN_GESTURE_COUNT;
+        const auto& g = ORB_BROWNIAN_GESTURES[os.gesture_idx[r]];
+        c->gpuState_.upload_orb_brownian_gesture(queue,
             g.radial_sign, g.vert_bias, g.coherence);
         std::cout << "[Orbs] Brownian gesture: " << g.name << "\n";
         return;
     }
     if (r == ORB_RULE_ORBITAL) {
-        orbGestureIdx_[r] = (orbGestureIdx_[r] + 1u) % ORB_ORBITAL_GESTURE_COUNT;
-        const auto& g = ORB_ORBITAL_GESTURES[orbGestureIdx_[r]];
-        gpuState_.upload_orb_orbital_gesture(queue,
+        os.gesture_idx[r] = (os.gesture_idx[r] + 1u) % ORB_ORBITAL_GESTURE_COUNT;
+        const auto& g = ORB_ORBITAL_GESTURES[os.gesture_idx[r]];
+        c->gpuState_.upload_orb_orbital_gesture(queue,
             g.alignment_mode, g.speed_var_mult);
         std::cout << "[Orbs] Orbital gesture: " << g.name << "\n";
         return;
     }
     if (r == ORB_RULE_FLOCKING) {
-        orbGestureIdx_[r] = (orbGestureIdx_[r] + 1u) % ORB_FLOCK_GESTURE_COUNT;
-        const auto& g = ORB_FLOCK_GESTURES[orbGestureIdx_[r]];
-        gpuState_.upload_orb_flock_signs(queue,
+        os.gesture_idx[r] = (os.gesture_idx[r] + 1u) % ORB_FLOCK_GESTURE_COUNT;
+        const auto& g = ORB_FLOCK_GESTURES[os.gesture_idx[r]];
+        c->gpuState_.upload_orb_flock_signs(queue,
             g.sep_sign, g.align_sign, g.coh_sign);
         std::cout << "[Orbs] Flocking gesture: " << g.name
             << " (sep=" << (g.sep_sign > 0 ? "+" : "-")
@@ -929,13 +947,13 @@ void cycle_orb_gesture(wgpu::Queue& queue) {
 
 // KP_9: flip dome anchor between world origin and pawn-following.
 // Player state: persists across mood transitions.
-void toggle_orb_anchor() {
-    orbPawnAnchored_ = !orbPawnAnchored_;
+static void toggle_orb_anchor(OrbsState& os, const Cartridge* c) {
+    os.pawn_anchored = !os.pawn_anchored;
     std::cout << "[Orbs] Anchor: "
-        << (orbPawnAnchored_ ? "ON — dome follows pawn"
+        << (os.pawn_anchored ? "ON — dome follows pawn"
             : "OFF — dome fixed at world origin")
         << "  (pawn readback: "
-        << pawnReadback_x_ << ", " << pawnReadback_z_ << ")"
+        << c->player_.readback_x << ", " << c->player_.readback_z << ")"
         << "\n";
 }
 
@@ -946,21 +964,21 @@ void toggle_orb_anchor() {
 // anchored pawn or an unanchored session produces no per-frame traffic.
 // Horizontal-only: Y is always 0 regardless of pawn altitude so the
 // sky doesn't bob with terrain.
-void update_orb_anchor(float pawn_x, float pawn_z, wgpu::Queue& queue) {
-    if (!orbsActive_ || orbCount_ == 0) return;
+static void update_orb_anchor(OrbsState& os, Cartridge* c, float pawn_x, float pawn_z, wgpu::Queue& queue) {
+    if (!os.active || os.count == 0) return;
 
-    float target_x = orbPawnAnchored_ ? pawn_x : 0.0f;
-    float target_z = orbPawnAnchored_ ? pawn_z : 0.0f;
+    float target_x = os.pawn_anchored ? pawn_x : 0.0f;
+    float target_z = os.pawn_anchored ? pawn_z : 0.0f;
 
-    bool changed = !orbDomeCenterInitialized_
-        || target_x != orbLastDomeCenterX_
-        || target_z != orbLastDomeCenterZ_;
+    bool changed = !os.dome_center_initialized
+        || target_x != os.last_dome_center_x
+        || target_z != os.last_dome_center_z;
 
     if (changed) {
-        gpuState_.upload_orb_dome_center(queue, target_x, 0.0f, target_z);
-        orbLastDomeCenterX_ = target_x;
-        orbLastDomeCenterZ_ = target_z;
-        orbDomeCenterInitialized_ = true;
+        c->gpuState_.upload_orb_dome_center(queue, target_x, 0.0f, target_z);
+        os.last_dome_center_x = target_x;
+        os.last_dome_center_z = target_z;
+        os.dome_center_initialized = true;
     }
 }
 
@@ -980,8 +998,8 @@ void update_orb_anchor(float pawn_x, float pawn_z, wgpu::Queue& queue) {
 //   (pawn:K1). Spine update() is a phase-orchestration call list;
 //   each named tick lives where its data lives. Referenced from
 //   cartridge.hpp::update() at the orb coupling call site.
-void update_orb_coupling(float polyphony, float dt, wgpu::Queue& queue) {
-    if (!orbsActive_ || orbCount_ == 0) return;
+static void update_orb_coupling(OrbsState& os, Cartridge* c, float polyphony, float dt, wgpu::Queue& queue) {
+    if (!os.active || os.count == 0) return;
 
     float target = std::min(polyphony / 6.0f, 1.0f);
 
@@ -999,42 +1017,42 @@ void update_orb_coupling(float polyphony, float dt, wgpu::Queue& queue) {
         };
 
     // Motion: force + noise share one intensity.
-    if (smooth(true, orbForceIntensity_, ORB_FORCE_ATTACK, ORB_FORCE_RELEASE)) {
-        float radial = orbForceIntensity_ * ORB_FORCE_SCALE;
-        gpuState_.upload_orb_force(queue, radial);
+    if (smooth(true, os.force_intensity, ORB_FORCE_ATTACK, ORB_FORCE_RELEASE)) {
+        float radial = os.force_intensity * ORB_FORCE_SCALE;
+        c->gpuState_.upload_orb_force(queue, radial);
 
         float noise = ORB_NOISE_FLOOR
-            + orbForceIntensity_ * (orbActiveNoiseAmp_ - ORB_NOISE_FLOOR);
-        gpuState_.upload_orb_noise(queue, noise);
+            + os.force_intensity * (os.active_noise_amp - ORB_NOISE_FLOOR);
+        c->gpuState_.upload_orb_noise(queue, noise);
     }
 
     // Color: three independent trajectories, each gated per-mood.
     bool color_changed = false;
-    if (smooth(orbColorPulseActive_, orbColorPulseIntensity_,
+    if (smooth(os.color_pulse_active, os.color_pulse_intensity,
         ORB_COLOR_ATTACK, ORB_COLOR_RELEASE))    color_changed = true;
-    if (smooth(orbColorConvergeActive_, orbColorConvergeIntensity_,
+    if (smooth(os.color_converge_active, os.color_converge_intensity,
         ORB_COLOR_ATTACK, ORB_COLOR_RELEASE))    color_changed = true;
-    if (smooth(orbColorSurgeActive_, orbColorSurgeIntensity_,
+    if (smooth(os.color_surge_active, os.color_surge_intensity,
         ORB_COLOR_ATTACK, ORB_COLOR_RELEASE))    color_changed = true;
 
     if (color_changed) {
-        gpuState_.upload_orb_color_dynamics(queue,
-            orbColorPulseIntensity_,
-            orbColorConvergeIntensity_,
-            orbColorSurgeIntensity_);
+        c->gpuState_.upload_orb_color_dynamics(queue,
+            os.color_pulse_intensity,
+            os.color_converge_intensity,
+            os.color_surge_intensity);
     }
 
     // Flocking: separate attack/release from color so the flock
     // tightens as a gesture rather than snapping.
-    if (orbFlockActive_) {
-        float prev = orbFlockIntensity_;
+    if (os.flock_active) {
+        float prev = os.flock_intensity;
         float rate = (target > prev) ? ORB_FLOCK_ATTACK : ORB_FLOCK_RELEASE;
         float next = prev + (target - prev) * (1.0f - std::exp(-rate * dt));
         if (next < 0.001f && target == 0.0f) next = 0.0f;
         if (next > 0.999f && target >= 1.0f) next = 1.0f;
         if (next != prev) {
-            orbFlockIntensity_ = next;
-            gpuState_.upload_orb_flock_intensity(queue, orbFlockIntensity_);
+            os.flock_intensity = next;
+            c->gpuState_.upload_orb_flock_intensity(queue, os.flock_intensity);
         }
     }
 
@@ -1045,15 +1063,15 @@ void update_orb_coupling(float polyphony, float dt, wgpu::Queue& queue) {
     {
         const float speed_target = 1.0f + target * (ORB_SPEED_CEILING - 1.0f);
 
-        float prev = orbSpeedMultCurrent_;
+        float prev = os.speed_mult_current;
         float rate = (speed_target > prev) ? ORB_SPEED_ATTACK : ORB_SPEED_RELEASE;
         float next = prev + (speed_target - prev) * (1.0f - std::exp(-rate * dt));
         // Snap back to unity when silence returns, so the idle state
         // stops generating queue traffic.
         if (next < 1.001f && next > 0.999f && speed_target == 1.0f) next = 1.0f;
         if (next != prev) {
-            orbSpeedMultCurrent_ = next;
-            gpuState_.upload_orb_speed_mult(queue, orbSpeedMultCurrent_);
+            os.speed_mult_current = next;
+            c->gpuState_.upload_orb_speed_mult(queue, os.speed_mult_current);
         }
     }
 }
@@ -1062,33 +1080,33 @@ void update_orb_coupling(float polyphony, float dt, wgpu::Queue& queue) {
 // ═══ GPU DISPATCHES ══════════════════════════════════════════════
 
 // One-shot seed-to-dome kernel. Fires once per configure_orbs when
-// orbInitPending_ is armed.
-void dispatch_orb_init(wgpu::CommandEncoder& encoder) {
-    if (!orbInitPending_) return;
-    orbInitPending_ = false;
+// os.init_pending is armed.
+static void dispatch_orb_init(OrbsState& os, Cartridge* c, wgpu::CommandEncoder& encoder) {
+    if (!os.init_pending) return;
+    os.init_pending = false;
 
     wgpu::ComputePassDescriptor cpd{};
     cpd.label = "Orb Init";
     wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
-    uint32_t wgs = (orbCount_ + 63u) / 64u;
-    renderer_.dispatch_orb_init(pass, gpuState_.orb_compute_group(), wgs);
+    uint32_t wgs = (os.count + 63u) / 64u;
+    c->renderer_.dispatch_orb_init(pass, c->gpuState_.orb_compute_group(), wgs);
     pass.End();
 
-    std::cout << "[Orbs] Init dispatched: " << orbCount_
+    std::cout << "[Orbs] Init dispatched: " << os.count
         << " orbs, " << wgs << " workgroups\n";
 }
 
 // Palette re-sample kernel. Fires on cycle_orb_palette — keeps
 // positions/velocities/twinkle, only hues shift.
-void dispatch_orb_recolor(wgpu::CommandEncoder& encoder) {
-    if (!orbRecolorPending_) return;
-    orbRecolorPending_ = false;
+static void dispatch_orb_recolor(OrbsState& os, Cartridge* c, wgpu::CommandEncoder& encoder) {
+    if (!os.recolor_pending) return;
+    os.recolor_pending = false;
 
     wgpu::ComputePassDescriptor cpd{};
     cpd.label = "Orb Recolor";
     wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
-    uint32_t wgs = (orbCount_ + 63u) / 64u;
-    renderer_.dispatch_orb_recolor(pass, gpuState_.orb_compute_group(), wgs);
+    uint32_t wgs = (os.count + 63u) / 64u;
+    c->renderer_.dispatch_orb_recolor(pass, c->gpuState_.orb_compute_group(), wgs);
     pass.End();
 }
 
@@ -1096,43 +1114,43 @@ void dispatch_orb_recolor(wgpu::CommandEncoder& encoder) {
 // for neighbor queries so flocking invocations all see a stable
 // previous-frame view. Cheap (N parallel copies) — runs every frame
 // regardless of motion_rule so future rules can rely on prev.
-void dispatch_orb_copy_prev(wgpu::CommandEncoder& encoder) {
-    if (!orbsActive_ || orbCount_ == 0) return;
+static void dispatch_orb_copy_prev(OrbsState& os, Cartridge* c, wgpu::CommandEncoder& encoder) {
+    if (!os.active || os.count == 0) return;
 
     wgpu::ComputePassDescriptor cpd{};
     cpd.label = "Orb Copy Prev";
     wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
-    uint32_t wgs = (orbCount_ + 63u) / 64u;
-    renderer_.dispatch_orb_copy_prev(pass, gpuState_.orb_copy_group(), wgs);
+    uint32_t wgs = (os.count + 63u) / 64u;
+    c->renderer_.dispatch_orb_copy_prev(pass, c->gpuState_.orb_copy_group(), wgs);
     pass.End();
 }
 
 // Per-frame rule + couplings. Uploads dt/t_seconds, then dispatches.
-void dispatch_orb_dynamics(wgpu::CommandEncoder& encoder,
+static void dispatch_orb_dynamics(OrbsState& os, Cartridge* c, wgpu::CommandEncoder& encoder,
     wgpu::Queue& queue) {
-    if (!orbsActive_ || orbCount_ == 0) return;
+    if (!os.active || os.count == 0) return;
 
-    gpuState_.upload_orb_frame(queue, currentDt_, currentSeconds_);
+    c->gpuState_.upload_orb_frame(queue, c->time_state_.dt, c->time_state_.seconds);
 
     wgpu::ComputePassDescriptor cpd{};
     cpd.label = "Orb Dynamics";
     wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
-    uint32_t wgs = (orbCount_ + 63u) / 64u;
-    renderer_.dispatch_orb_dynamics(pass, gpuState_.orb_compute_group(), wgs);
+    uint32_t wgs = (os.count + 63u) / 64u;
+    c->renderer_.dispatch_orb_dynamics(pass, c->gpuState_.orb_compute_group(), wgs);
     pass.End();
 }
 
 // ═══ RENDER ══════════════════════════════════════════════════════
 
 // Additive billboard draw into the main render pass.
-void render_orbs(wgpu::RenderPassEncoder& pass) {
-    if (!orbsActive_ || orbCount_ == 0) return;
-    renderer_.draw_orbs(pass,
-        gpuState_.render_entity_group(),
-        gpuState_.render_texture_group(),
-        gpuState_.orb_quad_vb(),
-        gpuState_.orb_quad_ib(),
-        orbCount_);
+static void render_orbs(OrbsState& os, Cartridge* c, wgpu::RenderPassEncoder& pass) {
+    if (!os.active || os.count == 0) return;
+    c->renderer_.draw_orbs(pass,
+        c->gpuState_.render_entity_group(),
+        c->gpuState_.render_texture_group(),
+        c->gpuState_.orb_quad_vb(),
+        c->gpuState_.orb_quad_ib(),
+        os.count);
 }
 
 // ─── Orb Mood Table ─────────────────────────────────────────────

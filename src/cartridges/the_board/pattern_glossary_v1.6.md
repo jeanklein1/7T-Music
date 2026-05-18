@@ -568,6 +568,67 @@ family but the *shape* of the wrapping is identical, use P12.
 
 ---
 
+### P13 — Leaf module vs orchestration module
+
+A taxonomic distinction governing **where module state lives**. Modules
+fall into two shapes that the contributor experience must respect.
+
+**Leaf modules** are called *by* the spine but do not call back into
+other module surfaces. Their `.inl` file can be `#include`'d early in
+the Cartridge class body, making their state struct visible to every
+later include. Examples: `ribbon`, `gol_zones`, `agents`, `cube_behaviors`,
+`pawn`, `gallery`, `orbs`, `musical`, `entities`. State for these
+modules lives **inside the module's `.inl`** as `XState x_state_;`.
+
+**Orchestration modules** call into many other module surfaces and
+must therefore be `#include`'d *after* every module they depend on.
+Their includes naturally land at the end of the class body. Their state
+cannot live in the module's `.inl` because static functions in earlier-
+included leaf modules cannot see types declared later. Their state
+must be **spine-resident** (declared near the top of `cartridge.hpp`).
+
+**The defining property.** The dependency direction. A module is
+orchestration iff it calls into other module surfaces; a module is leaf
+iff it is only called from spine code (or from `cartridge.hpp` body
+helpers). This is observable in source: the orchestration module's
+`.inl` contains calls like `configure_orbs(...)`, `reset_musical_couplings(...)`,
+`force_spawn_back_portal(...)`, etc.
+
+**Canonical instance — leaf.** `musical.inl` (P1 + P3 + P10 + P11
+combined). Defines `MusicalState ms_state_;` at the top of the file.
+Static functions take `MusicalState&` explicitly. Included near the
+top of the Cartridge class.
+
+**Canonical instance — orchestration.** `mood.inl`. Calls into orbs,
+musical, agents, gallery, ribbon, indoor-shell, portal, and ~20 other
+helpers from cartridge.hpp body. Its include sits at the end of the
+class body. `MoodState mood_state_;` is therefore declared in
+`cartridge.hpp`'s spine block (alongside `WorldState`, `TimeState`,
+`PlayerState`), not inside `mood.inl`.
+
+**When to use.** When deciding where a new module's state struct
+should live: trace the module's outbound function calls. If it calls
+into other module surfaces, it's orchestration — its state goes spine-
+resident. If it only emits writes to GPU buffers and is itself called,
+it's a leaf — its state goes in the module's `.inl`.
+
+**When *not* to use.** As a description of code that doesn't have a
+state struct yet (config tables, header-only utilities). P13 is
+specifically about **state location** for stateful modules.
+
+**Identifying it in the wild.** A search for `c->X(...)` calls inside
+the module's `.inl` where `X` is another module's exported function.
+Many such calls → orchestration. None → leaf.
+
+**Adjacent to.** P13 is the structural prerequisite for P1 (per-frame
+coupling decomposed into module): P1 describes the function-shape
+pattern, P13 describes which subset of those functions can take
+`State&` directly versus which must reach state through a `Cartridge*`
+parameter. Leaf modules satisfy both. Orchestration modules satisfy
+P1 but not the leaf-state-locality half of the convention.
+
+---
+
 ### P2, P6, P7 — unassigned
 
 Numbering gaps. The sparse numbering reflects seam-map authoring history
@@ -1137,6 +1198,60 @@ in C++. The macro is the principled workaround — it generates a
 free function that performs the check, asserted at the file's top
 level. The constraint is documented inline at the macro definition.
 
+### `cpu_gpu_pair_manifest.md` — CPU/GPU struct pair traceability
+
+A manifest documenting every `GPU*` struct in `state.hpp` paired
+with its WGSL counterpart in `world.wgsl`. 49 entries across frame-
+level state, terrain, lighting, agents, pawn, ribbon, GoL, floaters,
+per-family entities, portals, and photographer. Each row carries
+file/line locations and current sizes. Two CPU-only structs are
+flagged as vestigial.
+
+The discipline:
+
+1. **Every GPU struct has a `static_assert(sizeof(...) == N)`**
+   on the CPU side. Catches accidental size changes during edits.
+   48 of 49 are direct asserts; `GPUPortalEntry` is verified
+   indirectly via `GPUPortalArray`'s assertion on
+   `16 + MAX_GPU_PORTALS * 32`.
+
+2. **High-traffic pairs carry reciprocal "MUST match"
+   comments** on both sides. The 6 per-family `*MeshParams`
+   structs (touched whenever an entity family evolves) are the
+   demonstrated exemplars; the rest of the surface uses the
+   manifest as cross-reference.
+
+3. **Static_assert messages mention the WGSL counterpart
+   explicitly**: `"GPUBladeClusterMeshParams must be 80 bytes
+   — keep in sync with world.wgsl::BladeClusterMeshParams"`.
+   The error message is the moment of friction; making it point
+   at WGSL means the developer thinks about pairing right when
+   they're about to break it.
+
+4. **A drift sweep recipe** in the manifest (Python script) verifies
+   structural alignment programmatically: every CPU struct has an
+   assertion, every CPU struct has a WGSL pair (or is on the
+   vestigial list), naming asymmetries are documented.
+
+What this discipline catches:
+- Size drift (CPU side at compile time, runtime via Dawn).
+- Missing CPU/WGSL pair (drift sweep).
+- Missing static_assert (drift sweep).
+
+What this discipline does *not* catch:
+- Layout drift (same total size, different field offsets).
+- Semantic drift (same layout, field meaning changed on one side).
+
+For these, the reciprocal comment blocks plus the textual
+parallelism of field declarations are the mitigation. Code review
+remains the last line.
+
+This is the productive use of "compile-time CPU/GPU assertions" —
+not because the assertions enforce everything, but because they
+*surface the link* at the edit site. Combined with the manifest as
+the canonical cross-reference, the pairing becomes traceable
+without being onerous.
+
 ### Diagnostic prefix discipline (cross-module)
 
 The `[Module]` or `[fn=name]` prefix on `std::cout` calls is
@@ -1166,7 +1281,158 @@ are the outlier; the convention is to prefix.
 
 ---
 
+## 12. Migration methodology lessons
+
+This section captures procedural lessons from the Scope B per-module
+state-struct rollout (cumulative migrations #1-#11, May 2026). These
+are not in-source patterns — they're pitfalls and disciplines for
+*how to perform* a multi-file rename/restructure safely. They live
+here because future migrations of similar shape are likely, and the
+failure modes are not obvious until they bite.
+
+### M1 — sed scope creep
+
+When mass-renaming a field with a regex like `\bX\b → struct.X`, the
+substitution can match identifiers beyond the intended target if the
+chosen pattern overlaps with **method names** that share a prefix.
+
+**Concrete failure.** A migration of `gallery.inl` ran
+`sed s/\bphotographer_/gs.photographer/g` to rename the
+`photographer_` field. The pattern also matched method names
+`photographer_compute_group()` and `photographer_render_entity_group()`
+(both methods of `GPUState`), corrupting them to
+`gs.photographercompute_group()` and `gs.photographerrender_entity_group()`
+— eight call sites that compiled fine after a first verification grep
+(because the *method* names matched the substitution pattern at a word
+boundary on both ends).
+
+**Mitigation.** When a renamed field shares a prefix with method names
+that contain the field's identifier as a substring, either:
+- Use a tighter regex (e.g. `\bphotographer_\s*=` for the declaration
+  + `\bphotographer_\s*[\.;\)]` for usages), or
+- Split the rename into two passes: (a) declaration, (b) usages by
+  exact suffix shape, leaving method names untouched.
+
+**Detection grep.** After a sed pass, scan for malformed substitutions
+of shape `struct\.field[a-z]+`. This catches field-prefix-eaten-method-
+name patterns.
+
+### M2 — stateless helper misclassification
+
+A function whose **core behavior** transforms its parameters but which
+has **peripheral side-effects** on module state will compile cleanly
+when classified as stateless and converted to a pure helper — and then
+fail at runtime, or fail when a later refactor exposes the side effect.
+
+**Concrete failure.** During the orbs migration, `pack_palette_` was
+classified as stateless (its core job is to populate a `GPUOrbConfig`
+from a palette ID). Missed: it also writes `os.current_palette_id =
+pal_id` as a peripheral side-effect. The `pack_flocking_` function
+similarly *reads* `os.gesture_idx[]` and `os.speed_mult_current`
+without these being part of its core signature. Both functions
+compiled when re-declared without `OrbsState&`, and the side-effect
+references became "undeclared identifier" errors.
+
+**Mitigation.** Default classification: **stateful**. Let the compiler
+flag unused parameters via warning if the function doesn't actually
+use the state. Do not classify stateless until a clean compile with
+state passed in shows the parameter is genuinely unreferenced.
+
+### M3 — Forward-declaration ordering for state structs
+
+When a state struct contains arrays of types that are themselves
+defined throughout the file (per-family `Active*` types interleaved
+with vocabulary blocks), the state struct must be defined at the
+**file's end** (after all its dependencies), and any module functions
+taking it as a parameter must follow it.
+
+**Concrete failure.** Migration #9 introduced `EntitiesState` containing
+arrays of `ActiveArch`, `ActiveColumn`, `ActivePalm`, `ActiveCactus`,
+`ActiveBlade`, `ActivePyramid`. Three `prepare_*_mesh_gen` functions
+were left interleaved with their family vocab blocks (lines 410, 488,
+562); each of these functions signatures named `EntitiesState&` as a
+parameter type. `EntitiesState` was defined at line ~620, **after**
+the functions referencing it — yielding `error C2061: syntax error:
+identifier 'EntitiesState'` and a 30-error cascade.
+
+**Mitigation.** Establish a file-end discipline:
+- All `Active*` family types where they are
+- `XState` struct at end of file
+- `XState x_state_;` immediately after
+- All static functions consuming `XState&` at the very end, after the
+  state struct
+
+**Detection.** Before declaring a migration done, view the file's
+linear structure: every reference to the state struct should appear
+*after* the struct's definition.
+
+### M4 — Audit-closure sync gaps
+
+When a previous architectural audit modifies **both** a struct
+definition and its consumers, a partial sync (consumer file syncs
+but struct file does not) stays silent until init lists or member
+accesses force resolution. The build can compile fine for many
+unrelated changes before the gap surfaces.
+
+**Concrete failure.** During migration #9 verification, the build
+reported `apply_indoor_rescale: is not a member of EntityFamilyAdapter`
+plus init-list shape mismatches across 9 adapter declarations. The
+local `entity_types.inl` was missing the `apply_indoor_rescale` slot
+that an earlier audit had added. The corresponding consumer code
+(`entity_pipeline.inl` calling `adapter.apply_indoor_rescale(...)`)
+had been synced, but the struct definition file had not. The shape
+of the error perfectly matched "struct missing one slot, init lists
+shifting by one" — which would have been the diagnostic shortcut had
+the gap been considered as a hypothesis from the start.
+
+**Mitigation.** When an audit closure modifies multiple files, treat
+the file-set atomically: produce a closure manifest naming every
+file in the change, and verify each appears in the next sync. The
+glossary's section on rollout output rosters is appropriate here.
+
+**Detection shortcut.** Init-list shape errors that "shift by one
+slot" almost always indicate a struct definition out of sync with its
+init-list users. The error pattern: slot N gets a value with the
+signature of slot N+1.
+
+---
+
 ## Version
+
+**v1.6.** Captures lessons from the Scope B per-module state-struct
+rollout (cumulative migrations #1-#11). One pattern addition; one new
+section.
+
+- **P13 added — Leaf module vs orchestration module.** A taxonomic
+  distinction governing where module state lives. Leaf modules (called
+  by spine, never call back into other module surfaces) own their state
+  inside their `.inl`. Orchestration modules (call into many other
+  module surfaces) must remain spine-resident because their `#include`
+  comes last in the class body. Discovery: `mood.inl` cannot move
+  `MoodState` into itself because static functions in earlier-included
+  modules (`gol_zones`, `gallery`, `spawn_engine`, `entity_pipeline`)
+  reference `c->mood_state_` and would lose visibility. This is a
+  **structural** distinction, not a stylistic one — it follows from
+  the dependency direction.
+- **Section 12 added — Migration methodology lessons.** Four procedural
+  pitfalls captured (M1-M4): sed scope creep, stateless helper
+  misclassification, forward-declaration ordering for state structs
+  whose fields depend on family types, and audit-closure sync gaps.
+  These are not in-source patterns but pre-conditions on safely
+  performing migrations of the shape this rollout used.
+- **No retirements.** P1-P12 unchanged.
+
+The cumulative state of the codebase after the rollout: **12 named
+state containers** organize what used to be ~120 raw fields scattered
+across the Cartridge class. Nine module-state structs (one per leaf
+module) plus four spine-state structs (`TimeState`, `PlayerState`,
+`MoodState`, `WorldState`). Every module function takes its state
+explicitly via parameter. SEAM[spine:P8] retired (`aura_presence` +
+`mmode_intensities` migrated from `pawn_state_` / `musical_state_`
+into `PlayerState` — they now travel with the player, not the body
+or the world).
+
+---
 
 **v1.2.** Folds in the cross-check pass against the seam map's
 authoritative chapter discussions. Three substantive edits and one
@@ -1327,3 +1593,34 @@ P12 added to the Quick reference (§10) table.
 
 The pattern definitions, locator meanings, and existing conventions
 from v1.3 are unchanged. v1.4 *adds* — it doesn't revise.
+
+---
+
+**v1.5.** Adds the CPU/GPU pair manifest exemplar to §11.
+
+The post-modularity-audit work surfaced an important discovery:
+48 of 49 GPU structs in state.hpp already had `static_assert(sizeof(...))`
+guards on the CPU side, and the 49th (`GPUPortalEntry`) was protected
+indirectly through its enclosing array's assertion. The byte-level
+enforcement was already in place.
+
+What was missing was the **link between the CPU and WGSL definitions**.
+v1.5 adds an exemplar entry for `cpu_gpu_pair_manifest.md`, which
+catalogs all 49 pairs and documents the cross-reference discipline:
+
+- Every GPU struct has its `static_assert` mention the WGSL pair
+  explicitly in the failure message.
+- High-traffic pairs (the 6 per-family `*MeshParams`) carry
+  reciprocal "MUST match" comments on both sides.
+- A drift sweep recipe in the manifest verifies alignment
+  programmatically.
+
+The pattern is *not* a new pattern (P12 is still the latest), and
+the conventions are unchanged. The exemplar names a specific
+discipline that complements `ground_architecture.inl + world.wgsl §3.4`
+— that exemplar is the in-source paired-documentation case;
+the CPU/GPU pair manifest is the catalog-level case for the broader
+struct surface.
+
+No glossary structure changes; no pattern additions. v1.5 is a §11
+exemplar update.

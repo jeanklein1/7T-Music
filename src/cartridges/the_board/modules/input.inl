@@ -48,7 +48,7 @@
 //
 // Included inside the Cartridge class body (private section).
 // Depends on: musical.inl (toggle_mmode, MMODE_*), pawn.inl
-//             (auraEnabled_, auraHeightEnabled_, auraCfgDirty_),
+//             (pawn_state_.aura_enabled, pawn_state_.aura_height_enabled, pawn_state_.aura_cfg_dirty),
 //             mood.inl (request_mood_transition, MOOD_*),
 //             agents.inl (try_possess_nearest, cycle_agent_*,
 //             force_respawn_population), cube_behaviors.inl
@@ -73,8 +73,8 @@
 //
 // ── World / aura toggles ─────────────────────────────────────────
 //   1              gpuState_.toggle_freeze_sphere() — freeze chase sphere
-//   2              auraHeightEnabled_ flip      — terrain extrusion on/off
-//   3              auraEnabled_ flip            — aura field on/off
+//   2              pawn_state_.aura_height_enabled flip      — terrain extrusion on/off
+//   3              pawn_state_.aura_enabled flip            — aura field on/off
 //   5              request_mood_transition(MOOD_OPEN_SUNSET)
 //   6              request_mood_transition(MOOD_INDOOR_FLAT)
 //   7              request_mood_transition(MOOD_INDOOR_VAULT)
@@ -211,14 +211,14 @@ void on_key_down(int key) {
         gpuState_.toggle_freeze_sphere();
         break;
     case GLFW_KEY_2:
-        auraHeightEnabled_ = !auraHeightEnabled_;
-        auraCfgDirty_ = true;
-        std::cout << "[Aura] Height extrusion: " << (auraHeightEnabled_ ? "ON" : "OFF") << "\n";
+        pawn_state_.aura_height_enabled = !pawn_state_.aura_height_enabled;
+        pawn_state_.aura_cfg_dirty = true;
+        std::cout << "[Aura] Height extrusion: " << (pawn_state_.aura_height_enabled ? "ON" : "OFF") << "\n";
         break;
     case GLFW_KEY_3:
-        auraEnabled_ = !auraEnabled_;
-        auraCfgDirty_ = true;
-        std::cout << "[Aura] Field: " << (auraEnabled_ ? "ON" : "OFF") << "\n";
+        pawn_state_.aura_enabled = !pawn_state_.aura_enabled;
+        pawn_state_.aura_cfg_dirty = true;
+        std::cout << "[Aura] Field: " << (pawn_state_.aura_enabled ? "ON" : "OFF") << "\n";
         break;
     // DONE[input:L1] five copy-paste cases collapsed into one helper
     //   call. request_mood_transition() lives in mood.inl.
@@ -227,37 +227,37 @@ void on_key_down(int key) {
     case GLFW_KEY_7: request_mood_transition(MOOD_INDOOR_VAULT);       break;
     case GLFW_KEY_8: request_mood_transition(MOOD_FINITE_OUTDOOR);     break;
     case GLFW_KEY_9: request_mood_transition(MOOD_FINITE_OUTDOOR_REF); break;
-    case GLFW_KEY_0:              cycle_orb_palette(q);          break;
-    case GLFW_KEY_LEFT_BRACKET:   set_render_radius(activeRadius_ - 1); break;
-    case GLFW_KEY_RIGHT_BRACKET:  set_render_radius(activeRadius_ + 1); break;
+    case GLFW_KEY_0:              cycle_orb_palette(orbs_state_, this, q);          break;
+    case GLFW_KEY_LEFT_BRACKET:   set_render_radius(world_state_.active_radius - 1); break;
+    case GLFW_KEY_RIGHT_BRACKET:  set_render_radius(world_state_.active_radius + 1); break;
 
     // ── Musical modes (numpad) ───────────────────────────────────
-    case GLFW_KEY_KP_1:       toggle_mmode(MMODE_TERRAIN_WAVES);   break;
-    case GLFW_KEY_KP_2:       toggle_mmode(MMODE_COLOR_SHIFT);     break;
-    case GLFW_KEY_KP_3:       toggle_mmode(MMODE_CHECKER_SCATTER); break;
-    case GLFW_KEY_KP_4:       toggle_mmode(MMODE_PALETTE_DRIFT);   break;
-    case GLFW_KEY_KP_5:       toggle_mmode(MMODE_GOL_TEMPO);       break;
-    case GLFW_KEY_KP_6:       toggle_mmode(MMODE_AURA_EXPAND);     break;
-    case GLFW_KEY_KP_7:       toggle_mmode(MMODE_RADIAL_PULSE);    break;
-    case GLFW_KEY_KP_8:       cycle_orb_motion_rule(q);            break;
-    case GLFW_KEY_KP_9:       toggle_orb_anchor();                 break;
-    case GLFW_KEY_KP_DECIMAL: cycle_orb_gesture(q);                break;
+    case GLFW_KEY_KP_1:       toggle_mmode(musical_state_, this, MMODE_TERRAIN_WAVES);   break;
+    case GLFW_KEY_KP_2:       toggle_mmode(musical_state_, this, MMODE_COLOR_SHIFT);     break;
+    case GLFW_KEY_KP_3:       toggle_mmode(musical_state_, this, MMODE_CHECKER_SCATTER); break;
+    case GLFW_KEY_KP_4:       toggle_mmode(musical_state_, this, MMODE_PALETTE_DRIFT);   break;
+    case GLFW_KEY_KP_5:       toggle_mmode(musical_state_, this, MMODE_GOL_TEMPO);       break;
+    case GLFW_KEY_KP_6:       toggle_mmode(musical_state_, this, MMODE_AURA_EXPAND);     break;
+    case GLFW_KEY_KP_7:       toggle_mmode(musical_state_, this, MMODE_RADIAL_PULSE);    break;
+    case GLFW_KEY_KP_8:       cycle_orb_motion_rule(orbs_state_, this, q);            break;
+    case GLFW_KEY_KP_9:       toggle_orb_anchor(orbs_state_, this);                 break;
+    case GLFW_KEY_KP_DECIMAL: cycle_orb_gesture(orbs_state_, this, q);                break;
 
     // ── Camera / possession ──────────────────────────────────────
     case GLFW_KEY_LEFT_CONTROL:
     case GLFW_KEY_RIGHT_CONTROL:
         toggle_fpv_mode();
         break;
-    case GLFW_KEY_CAPS_LOCK:  try_possess_nearest(q);  break;
+    case GLFW_KEY_CAPS_LOCK:  try_possess_nearest(agent_state_, this, q);  break;
 
     // ── Diagnostics (function keys) ──────────────────────────────
-    case GLFW_KEY_F1: cycle_agent_behavior_override(q);  break;
-    case GLFW_KEY_F2: cycle_agent_tier_override(q);      break;
-    case GLFW_KEY_F3: force_respawn_population(q);       break;
-    case GLFW_KEY_F4: cycle_cube_behavior_override(q);   break;
-    case GLFW_KEY_F5: cycle_floater_coordination();      break;
-    case GLFW_KEY_F6: corral_cubes(q);                   break;
-    case GLFW_KEY_F7: toggle_cube_kite_mode(q);          break;
+    case GLFW_KEY_F1: cycle_agent_behavior_override(agent_state_, this, q);  break;
+    case GLFW_KEY_F2: cycle_agent_tier_override(agent_state_, this, q);      break;
+    case GLFW_KEY_F3: force_respawn_population(agent_state_, this, q);       break;
+    case GLFW_KEY_F4: cycle_cube_behavior_override(cube_behaviors_state_, this, q);   break;
+    case GLFW_KEY_F5: cycle_floater_coordination(cube_behaviors_state_, this);        break;
+    case GLFW_KEY_F6: corral_cubes(cube_behaviors_state_, this, q);                   break;
+    case GLFW_KEY_F7: toggle_cube_kite_mode(cube_behaviors_state_, this, q);          break;
     }
     update_movement_intent();
 }
@@ -328,21 +328,21 @@ void clear_input_deltas() {
 // ═══ CAMERA / VIEW COMMANDS ══════════════════════════════════════
 
 void toggle_fpv_mode() {
-    fpvMode_ = !fpvMode_;
-    gpuState_.set_fpv_mode(fpvMode_ ? 1 : 0);
+    player_.fpv_mode = !player_.fpv_mode;
+    gpuState_.set_fpv_mode(player_.fpv_mode ? 1 : 0);
     std::cout << "[the_board] Camera mode: "
-        << (fpvMode_ ? "First-Person View" : "Orbit") << std::endl;
+        << (player_.fpv_mode ? "First-Person View" : "Orbit") << std::endl;
 }
 
 void set_render_radius(uint32_t r) {
     r = std::max(r, GRID_RADIUS);
     r = std::min(r, PREGEN_RADIUS);
-    if (r == activeRadius_) return;
-    activeRadius_ = r;
+    if (r == world_state_.active_radius) return;
+    world_state_.active_radius = r;
     uint32_t side = 2 * r + 1;
     std::cout << "[the_board] Render radius: " << r
         << " (" << side << "x" << side << " = " << side * side << " patches)" << std::endl;
     // Force full re-evaluation on next frame
-    lastCenterX_ = INT32_MAX;
-    lastCenterZ_ = INT32_MAX;
+    world_state_.last_center_x = INT32_MAX;
+    world_state_.last_center_z = INT32_MAX;
 }

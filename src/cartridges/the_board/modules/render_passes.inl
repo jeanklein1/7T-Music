@@ -46,7 +46,7 @@ void upload_ground_entries(wgpu::Queue& queue) {
     // ── Arch ground entries ──
     GPUArchGroundEntry archOrigins[Dim::MAX_ARCH_INSTANCES]{};
     for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++) {
-        if (!activeArches_[i].active) continue;
+        if (!entities_state_.arches[i].active) continue;
         const auto& pl = cpuPiers_[Dim::PIER_ARCH_BASE + i * 2];
         const auto& pr = cpuPiers_[Dim::PIER_ARCH_BASE + i * 2 + 1];
         archOrigins[i].pier_left_x = pl.origin[0];
@@ -54,7 +54,7 @@ void upload_ground_entries(wgpu::Queue& queue) {
         archOrigins[i].pier_right_x = pr.origin[0];
         archOrigins[i].pier_right_z = pr.origin[1];
         archOrigins[i].is_active = 1;
-        archOrigins[i].ground_y = activeArches_[i].cached_ground_y;
+        archOrigins[i].ground_y = entities_state_.arches[i].cached_ground_y;
         archOrigins[i].pier_correction_left = 0.0f;
         archOrigins[i].pier_correction_right = 0.0f;
     }
@@ -63,20 +63,20 @@ void upload_ground_entries(wgpu::Queue& queue) {
     // ── Column + Antenna ground entries (shared GPU buffer, split arrays) ──
     GPUColumnGroundEntry columnOrigins[Dim::MAX_COLUMN_INSTANCES]{};
     for (uint32_t i = 0; i < Dim::MAX_COLUMN_ONLY; i++) {
-        if (!activeColumns_[i].active) continue;
-        columnOrigins[i].center_x = activeColumns_[i].world_x;
-        columnOrigins[i].center_z = activeColumns_[i].world_z;
+        if (!entities_state_.columns[i].active) continue;
+        columnOrigins[i].center_x = entities_state_.columns[i].world_x;
+        columnOrigins[i].center_z = entities_state_.columns[i].world_z;
         columnOrigins[i].is_active = 1;
-        columnOrigins[i].ground_y = activeColumns_[i].cached_ground_y;
+        columnOrigins[i].ground_y = entities_state_.columns[i].cached_ground_y;
         columnOrigins[i].pier_correction = 0.0f;
     }
     for (uint32_t i = 0; i < Dim::MAX_ANTENNA_ONLY; i++) {
-        if (!activeAntennas_[i].active) continue;
+        if (!entities_state_.antennas[i].active) continue;
         uint32_t gpu_slot = i + Dim::ANTENNA_SLOT_OFFSET;
-        columnOrigins[gpu_slot].center_x = activeAntennas_[i].world_x;
-        columnOrigins[gpu_slot].center_z = activeAntennas_[i].world_z;
+        columnOrigins[gpu_slot].center_x = entities_state_.antennas[i].world_x;
+        columnOrigins[gpu_slot].center_z = entities_state_.antennas[i].world_z;
         columnOrigins[gpu_slot].is_active = 1;
-        columnOrigins[gpu_slot].ground_y = activeAntennas_[i].cached_ground_y;
+        columnOrigins[gpu_slot].ground_y = entities_state_.antennas[i].cached_ground_y;
         columnOrigins[gpu_slot].pier_correction = 0.0f;
     }
     gpuState_.upload_column_origins(queue, columnOrigins, Dim::MAX_COLUMN_INSTANCES);
@@ -84,8 +84,8 @@ void upload_ground_entries(wgpu::Queue& queue) {
     // ── Pyramid ground entries ──
     GPUPyramidGroundEntry pyramidOrigins[Dim::MAX_PYRAMID_INSTANCES]{};
     for (uint32_t i = 0; i < Dim::MAX_PYRAMID_INSTANCES; i++) {
-        if (!activePyramids_[i].active) continue;
-        const auto& inst = cpuPyramids_.instances[i];
+        if (!entities_state_.pyramids[i].active) continue;
+        const auto& inst = entities_state_.cpu_pyramids.instances[i];
         pyramidOrigins[i].center_x = inst.origin[0];
         pyramidOrigins[i].center_z = inst.origin[1];
         pyramidOrigins[i].is_active = 1;
@@ -93,7 +93,7 @@ void upload_ground_entries(wgpu::Queue& queue) {
         pyramidOrigins[i].half_x = inst.half_size[0];
         pyramidOrigins[i].half_z = inst.half_size[1];
         pyramidOrigins[i].rotation = inst.rotation;
-        pyramidOrigins[i].ground_y = activePyramids_[i].cached_ground_y;
+        pyramidOrigins[i].ground_y = entities_state_.pyramids[i].cached_ground_y;
     }
     gpuState_.upload_pyramid_origins(queue, pyramidOrigins, Dim::MAX_PYRAMID_INSTANCES);
 
@@ -108,25 +108,25 @@ void upload_ground_entries(wgpu::Queue& queue) {
     GPUPalmGroundEntry plantOrigins[PLANT_COUNT]{};
 
     for (uint32_t i = 0; i < Dim::MAX_PALM_INSTANCES; i++) {
-        if (!activePalms_[i].active) continue;
-        plantOrigins[PALM_OFF + i].center_x = activePalms_[i].world_x;
-        plantOrigins[PALM_OFF + i].center_z = activePalms_[i].world_z;
+        if (!entities_state_.palms[i].active) continue;
+        plantOrigins[PALM_OFF + i].center_x = entities_state_.palms[i].world_x;
+        plantOrigins[PALM_OFF + i].center_z = entities_state_.palms[i].world_z;
         plantOrigins[PALM_OFF + i].is_active = 1;
-        plantOrigins[PALM_OFF + i].ground_y = activePalms_[i].cached_ground_y;
+        plantOrigins[PALM_OFF + i].ground_y = entities_state_.palms[i].cached_ground_y;
     }
     for (uint32_t i = 0; i < Dim::MAX_CACTUS_INSTANCES; i++) {
-        if (!activeCacti_[i].active) continue;
-        plantOrigins[CACT_OFF + i].center_x = activeCacti_[i].world_x;
-        plantOrigins[CACT_OFF + i].center_z = activeCacti_[i].world_z;
+        if (!entities_state_.cacti[i].active) continue;
+        plantOrigins[CACT_OFF + i].center_x = entities_state_.cacti[i].world_x;
+        plantOrigins[CACT_OFF + i].center_z = entities_state_.cacti[i].world_z;
         plantOrigins[CACT_OFF + i].is_active = 1;
-        plantOrigins[CACT_OFF + i].ground_y = activeCacti_[i].cached_ground_y;
+        plantOrigins[CACT_OFF + i].ground_y = entities_state_.cacti[i].cached_ground_y;
     }
     for (uint32_t i = 0; i < Dim::MAX_BLADE_INSTANCES; i++) {
-        if (!activeBlades_[i].active) continue;
-        plantOrigins[BLAD_OFF + i].center_x = activeBlades_[i].world_x;
-        plantOrigins[BLAD_OFF + i].center_z = activeBlades_[i].world_z;
+        if (!entities_state_.blades[i].active) continue;
+        plantOrigins[BLAD_OFF + i].center_x = entities_state_.blades[i].world_x;
+        plantOrigins[BLAD_OFF + i].center_z = entities_state_.blades[i].world_z;
         plantOrigins[BLAD_OFF + i].is_active = 1;
-        plantOrigins[BLAD_OFF + i].ground_y = activeBlades_[i].cached_ground_y;
+        plantOrigins[BLAD_OFF + i].ground_y = entities_state_.blades[i].cached_ground_y;
     }
 
     // One write to the combined compute storage buffer
@@ -256,7 +256,7 @@ void dispatch_frustum_cull(wgpu::CommandEncoder& encoder, wgpu::Queue& queue) {
 //          into 2048×4096 tiles for per-light shadows.
 
 void render_shadow_pass(wgpu::CommandEncoder& encoder) {
-    if (spotLightActive_ && cpuSpotLights_.count > 0) {
+    if (mood_state_.spot_light_active && cpuSpotLights_.count > 0) {
         // ─── Two-texture atlas shadow pass (indoor) ──────────
         static constexpr uint32_t TILE_W = Dim::SHADOW_MAP_SIZE / 2;  // 2048
         static constexpr uint32_t TILE_H = Dim::SHADOW_MAP_SIZE;      // 4096
@@ -324,16 +324,16 @@ void draw_shadow_all(wgpu::RenderPassEncoder& pass) {
         gpuState_.shadow_texture_group(),
         gpuState_.patch_index_buffer(),
         gpuState_.patch_index_count(),
-        lod0PatchCount_
+        world_state_.lod0_patch_count
     );
-    if (renderPatchCount_ > lod0PatchCount_) {
+    if (world_state_.render_patch_count > world_state_.lod0_patch_count) {
         pass.SetIndexBuffer(gpuState_.patch_index_buffer_lod1(), wgpu::IndexFormat::Uint32);
         pass.DrawIndexed(gpuState_.patch_index_count_lod1(),
-            renderPatchCount_ - lod0PatchCount_, 0, 0, lod0PatchCount_);
+            world_state_.render_patch_count - world_state_.lod0_patch_count, 0, 0, world_state_.lod0_patch_count);
     }
 
     // Entities
-    if (golZoneCount_ > 0) {
+    if (gol_state_.zone_count > 0) {
         renderer_.draw_shadow_zone_extrusion(
             pass,
             gpuState_.render_entity_group(),
@@ -480,24 +480,24 @@ void render_main_pass(wgpu::CommandEncoder& encoder,
             gpuState_.render_texture_group(),
             gpuState_.patch_index_buffer(),
             gpuState_.patch_index_count(),
-            lod0PatchCount_
+            world_state_.lod0_patch_count
         );
     }
 
     // Terrain LOD1 — always direct (Dawn D3D12 limit: only one indirect per pass)
-    if (renderPatchCount_ > lod0PatchCount_) {
+    if (world_state_.render_patch_count > world_state_.lod0_patch_count) {
         renderer_.draw_patch_terrain_direct(
             pass,
             gpuState_.render_entity_group(),
             gpuState_.render_texture_group(),
             gpuState_.patch_index_buffer_lod1(),
             gpuState_.patch_index_count_lod1(),
-            renderPatchCount_ - lod0PatchCount_,
-            lod0PatchCount_
+            world_state_.render_patch_count - world_state_.lod0_patch_count,
+            world_state_.lod0_patch_count
         );
     }
 
-    if (golZoneCount_ > 0) {
+    if (gol_state_.zone_count > 0) {
         renderer_.draw_zone_extrusion(
             pass,
             gpuState_.render_entity_group(),
@@ -592,7 +592,7 @@ void render_main_pass(wgpu::CommandEncoder& encoder,
         pass,
         gpuState_.gallery_entity_group(),
         gpuState_.gallery_texture_group(),
-        wallFrameCount_
+        gallery_state_.wall_frame_count
     );
 
     // Pyramids: terrain surface IS the pyramid shape (via the baked
@@ -613,19 +613,19 @@ void render_main_pass(wgpu::CommandEncoder& encoder,
         pass,
         gpuState_.gallery_entity_group(),
         gpuState_.gallery_texture_group(),
-        activePaintingCount_
+        gallery_state_.active_painting_count
     );
 
     // Sky orbs (additive, depth-tested, depth-write off).
     // After opaque entities so they depth-test correctly; before
     // fade overlay so the overlay fades the orbs too.
-    render_orbs(pass);
+    render_orbs(orbs_state_, this, pass);
 
     // Fade overlay (drawn last, alpha blended over everything)
     renderer_.draw_fade_overlay(
         pass,
         gpuState_.mesh_gen_entity_group(),
-        transitionFadeAlpha_
+        mood_state_.transition_fade_alpha
     );
 
     pass.End();

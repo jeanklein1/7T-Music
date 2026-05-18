@@ -805,20 +805,20 @@ struct FloatingEntityArray {
 // --- [STATE:ribbon] RibbonState
 struct RibbonState {
     anchor: vec3<f32>,      // world-space center of the ribbon
-    time: f32,              // animation time (seconds)
+    time: f32,              // animation time (seconds) — drives the head's oscillation
     cube_count: u32,        // number of cross-section rings along the tube
     cube_size: f32,         // cross-section side length (ring spacing = cube_size)
     height: f32,            // base height above terrain
     twist_amp: f32,         // amplitude of corkscrew twist
     color: vec3<f32>,       // ribbon color
     lateral_amp: f32,       // lateral wave amplitude (XZ plane sway)
-    lateral_cycles: f32,    // lateral oscillation cycles along ribbon
-    lateral_speed: f32,     // lateral time multiplier
+    lateral_cycles: f32,    // (unused in propagation-first model — cycles emerge from speed × travel_time)
+    lateral_speed: f32,     // lateral oscillation rate at the head (rad/s)
     vertical_amp: f32,      // vertical wave amplitude (world Y)
-    vertical_cycles: f32,   // vertical oscillation cycles along ribbon
-    vertical_speed: f32,    // vertical time multiplier
-    twist_cycles: f32,      // corkscrew cycles along ribbon
-    twist_speed: f32,       // twist time multiplier
+    vertical_cycles: f32,   // (unused — see lateral_cycles)
+    vertical_speed: f32,    // vertical oscillation rate at the head (rad/s)
+    twist_cycles: f32,      // (unused)
+    twist_speed: f32,       // twist oscillation rate at the head (rad/s)
     is_visible: u32,        // 0 = hidden, 1 = flying
     orientation: f32,       // heading angle (radians, 0 = +X axis)
     color_mode: u32,        // 0=smooth, 1=tinted, 2=contrast
@@ -832,6 +832,21 @@ struct RibbonRingTransform {
     motor_p1: vec4<f32>,    // PGA motor translator part
     center: vec3<f32>,      // ring world-space center (extracted from motor)
     terrain_y: f32,         // tile-modified terrain height at center XZ
+}
+
+// Ribbon music history (ring buffer for smooth propagation).
+// 128 samples × ~16.67ms/slot = ~2.13 s of coverage at 60 fps. The
+// CPU writes the current smoothed music value into samples[head_idx]
+// every frame and advances head_idx whenever the time accumulator
+// passes one slot_dt — so only ONE slot changes per frame and the
+// sampled values are continuous across slot boundaries (no shift-step).
+// MUST match GPURibbonMusicHistory in state.hpp.
+struct RibbonMusicHistory {
+    samples: array<vec4<f32>, 32>,  // 128 floats packed as 32 vec4s
+    head_idx: u32,                  // index of the newest sample
+    _pad0: u32,
+    _pad1: u32,
+    _pad2: u32,
 }
 
 // --- [STATE:patch] PatchParams
@@ -4142,17 +4157,98 @@ fn shadow_shell_vs(in: ShellVertexInput) -> ShadowVarying {
     return out;
 }
 
-// §6.5 SKY RIBBON ENTITY
-// A continuous square-section tube animated by wave superposition.
-fn ribbon_spine_at(t: f32, ribbon: RibbonState) -> vec3<f32> {
+// §6.5 SKY RIBBON ENTITY — hybrid propagation model
+// A continuous square-section tube with two coexisting wave systems,
+// both propagating HEAD → TAIL:
+//
+// 1. BASELINE shape: standing-wave math, the authored ribbon character.
+//    `sin(time × speed − t × cycles × 2π)` — preserves the per-tier
+//    visible cycles (Serpentine 1.5, Helix 3, Streamer 5, etc.) and
+//    the gentle temporal drift that gives the ribbon its swimming
+//    feel. Crests walk head → tail at speed ∝ lateral_speed / cycles.
+//
+// 2. MUSIC propagation: per-ring amplitude scaling sampled from the
+//    music history at `age = t × travel_time`. A music change at the
+//    head shows up at the head's amp_mult immediately; at t=0.5 it
+//    appears 0.5 × travel_time seconds later; at t=1 (tail), after
+//    the full travel_time. The amplitude envelope across the ribbon
+//    walks head → tail at RIBBON_WAVE_SPEED.
+//
+// Both wave systems propagate in the same direction. They move at
+// very different speeds (idle drift slow, music envelope fast) so
+// you see them as distinct overlaid phenomena, not as one combined
+// wave.
+//
+// Wave speed: 750 units/s (so the ~1500-unit Serpentine takes ~2s
+// end-to-end). Per-tier travel_time = ribbon_length / wave_speed.
+//
+// History smoothness: ring buffer with head_idx and SLOT_DT = 1/60s.
+// Each frame writes ONE slot (slots[head_idx] = current music) and
+// (when accumulator >= SLOT_DT) advances head_idx. Only one slot
+// changes per frame — sampling is continuous in time, no shift-step.
+//
+// Binding architecture: music_at() reads @binding(122) (compute layout
+// only). To keep ribbon_spine_at / ribbon_tangent_at / ribbon_ring_motor
+// usable from render-side VS fallback paths (which don't bind 122),
+// these functions take `music_factor: f32` as a PURE PARAMETER. Compute
+// pass samples music_at() and passes the result in. Render fallbacks
+// pass 0.0 (silent-music equivalent).
+
+// Wave speed: propagation rate of music modulation along the ribbon.
+const RIBBON_WAVE_SPEED: f32 = 750.0;
+
+// Music history: 128 slots × 1/60s/slot ≈ 2.13s of coverage at 60 fps.
+// Slot at head_idx is the newest sample; advancing modulo 128 walks
+// the buffer. MUST match CPU constants in ribbon.inl.
+const RIBBON_HISTORY_N: u32 = 128u;
+const RIBBON_HISTORY_SLOT_DT: f32 = 0.01666667;  // 1/60 s
+
+// Peak music modulation: 1 + music * GAIN at the maximum. 1.0 doubles
+// authored amplitudes; 1.5 = 2.5×. Mirror of ribbon.inl constant.
+const RIBBON_MUSIC_AMP_GAIN: f32 = 1.5;
+
+// Sample one slot of the ring buffer by index — small helper used
+// by music_at() for the two endpoints of its lerp.
+fn sample_history_slot(slot: u32) -> f32 {
+    let idx = (ribbon_music_history.head_idx + RIBBON_HISTORY_N - slot) % RIBBON_HISTORY_N;
+    return ribbon_music_history.samples[idx >> 2u][idx & 3u];
+}
+
+// Sample music history at an age (seconds back from now).
+// Linear interpolation between adjacent slots; out-of-range ages
+// clamp to the buffer's edge (silent music far in the past).
+// IMPORTANT: this is the only function that reads @binding(122).
+// Call ONLY from the compute pass.
+fn music_at(age_seconds: f32) -> f32 {
+    let slot_f = clamp(age_seconds / RIBBON_HISTORY_SLOT_DT, 0.0, f32(RIBBON_HISTORY_N - 1u));
+    let lo = u32(floor(slot_f));
+    let hi = min(lo + 1u, RIBBON_HISTORY_N - 1u);
+    let frac = slot_f - f32(lo);
+    return mix(sample_history_slot(lo), sample_history_slot(hi), frac);
+}
+
+// Spine position at parameter t in [0, 1] — hybrid propagation model.
+// Baseline shape uses the standing-wave formula (authored character
+// preserved); music_factor modulates amplitudes per ring. The caller
+// (compute pass) sampled music_factor at age = t × travel_time, so
+// the amplitude envelope across the ribbon mirrors the music's recent
+// history — head's response shows at the head first, propagates down.
+fn ribbon_spine_at(t: f32, ribbon: RibbonState, music_factor: f32) -> vec3<f32> {
     let total_length = f32(ribbon.cube_count) * ribbon.cube_size;
     let time = ribbon.time;
 
-    // Spine origin: anchor IS the near tip (t=0).
-    // Body extends entirely in the orientation direction.
+    // Per-ring amplitude factor — propagation lives here. music_factor
+    // was sampled at age = t × travel_time by the compute pass.
+    let amp_mult = 1.0 + music_factor * RIBBON_MUSIC_AMP_GAIN;
+
+    // Standing-wave shape (authored character):
+    //   sin(time × speed − t × cycles × 2π) gives the per-tier visible
+    //   cycle count with crests drifting HEAD → TAIL (same direction
+    //   as music propagation). Music never enters the shape's phase,
+    //   only its amplitude scaling.
     let along = t * total_length;
-    let lateral = sin(time * ribbon.lateral_speed + t * ribbon.lateral_cycles * 2.0 * PI) * ribbon.lateral_amp;
-    let vertical = ribbon.height + sin(time * ribbon.vertical_speed + t * ribbon.vertical_cycles * 2.0 * PI) * ribbon.vertical_amp;
+    let lateral  = sin(time * ribbon.lateral_speed  - t * ribbon.lateral_cycles  * 2.0 * PI) * ribbon.lateral_amp  * amp_mult;
+    let vertical = sin(time * ribbon.vertical_speed - t * ribbon.vertical_cycles * 2.0 * PI) * ribbon.vertical_amp * amp_mult;
 
     // Heading rotation (lateral sway only — no twist here)
     let c = cos(ribbon.orientation);
@@ -4161,19 +4257,18 @@ fn ribbon_spine_at(t: f32, ribbon: RibbonState) -> vec3<f32> {
     let rotated_lateral = along * s + lateral * c;
 
     // Twist: helical displacement PERPENDICULAR to the sway plane.
-    // Depth axis (rotated_lateral) + vertical = corkscrew around the swaying spine.
-    // Orthogonal to lateral → no wave interference, no beating.
-    let twist_phase = time * ribbon.twist_speed + t * ribbon.twist_cycles * 2.0 * PI;
-    let twist_depth = sin(twist_phase) * 0.4 * ribbon.twist_amp;
-    let twist_vert  = cos(twist_phase) * 0.3 * ribbon.twist_amp;
+    let twist_phase = time * ribbon.twist_speed - t * ribbon.twist_cycles * 2.0 * PI;
+    let twist_depth = sin(twist_phase) * 0.4 * ribbon.twist_amp * amp_mult;
+    let twist_vert  = cos(twist_phase) * 0.3 * ribbon.twist_amp * amp_mult;
 
-    return ribbon.anchor + vec3(rotated_along, vertical + twist_vert, rotated_lateral + twist_depth);
+    return ribbon.anchor + vec3(rotated_along, ribbon.height + vertical + twist_vert, rotated_lateral + twist_depth);
 }
 
 // Tangent direction at parameter t (central finite difference).
-fn ribbon_tangent_at(t: f32, ribbon: RibbonState) -> vec3<f32> {
+// Same music_factor at both samples — locally constant within one eps.
+fn ribbon_tangent_at(t: f32, ribbon: RibbonState, music_factor: f32) -> vec3<f32> {
     let eps = 0.0005;
-    return normalize(ribbon_spine_at(t + eps, ribbon) - ribbon_spine_at(t - eps, ribbon));
+    return normalize(ribbon_spine_at(t + eps, ribbon, music_factor) - ribbon_spine_at(t - eps, ribbon, music_factor));
 }
 
 // Build a PGA motor that places and orients one cross-section ring.
@@ -4183,12 +4278,11 @@ fn ribbon_tangent_at(t: f32, ribbon: RibbonState) -> vec3<f32> {
 // antiparallel singularity that occurs when orientation ≈ 180°:
 //   1. heading_rotor: Y-axis rotation by orientation angle
 //      — maps (1,0,0) → (cos(θ),0,sin(θ)), always well-defined
-//   2. correction: small-angle rotor from heading direction to tangent
 //      — angle is always small because the tangent tracks the heading
-fn ribbon_ring_motor(ring_idx: u32, ribbon: RibbonState) -> Motor {
+fn ribbon_ring_motor(ring_idx: u32, ribbon: RibbonState, music_factor: f32) -> Motor {
     let t = f32(ring_idx) / f32(max(ribbon.cube_count - 1u, 1u));
-    let center = ribbon_spine_at(t, ribbon);
-    let tangent = ribbon_tangent_at(t, ribbon);
+    let center = ribbon_spine_at(t, ribbon, music_factor);
+    let tangent = ribbon_tangent_at(t, ribbon, music_factor);
 
     // Step 1: Pre-rotate local frame to the ribbon heading.
     let heading = rotor(vec3(0.0, 1.0, 0.0), ribbon.orientation);
@@ -4262,8 +4356,25 @@ fn compute_ribbon_rings(@builtin(global_invocation_id) gid: vec3<u32>) {
         return;
     }
 
-    // Compute PGA motor (translate + orient along spine)
-    let motor = ribbon_ring_motor(ring_idx, ribbon);
+    // Compute PGA motor (translate + orient along spine).
+    //
+    // Musical coupling, hybrid model: each ring samples music_at(age)
+    // where age = t * travel_time — the music value the head was
+    // experiencing t * travel_time seconds ago. The spine math uses
+    // that value to scale local amplitudes (amp_mult = 1 + music * GAIN).
+    // Result: when music ramps, the head's amp swells first; further
+    // rings follow at their own delay, producing a visible amplitude
+    // wave that propagates head→tail at RIBBON_WAVE_SPEED.
+    //
+    // This is the only call site that reads the music history (binding
+    // 122) — render-side fallbacks pass 0.0 because their pipeline
+    // layout doesn't bind the history.
+    let t = f32(ring_idx) / f32(max(ribbon.cube_count - 1u, 1u));
+    let total_length = f32(ribbon.cube_count) * ribbon.cube_size;
+    let travel_time  = total_length / RIBBON_WAVE_SPEED;
+    let age = t * travel_time;
+    let music_factor = music_at(age);
+    let motor = ribbon_ring_motor(ring_idx, ribbon, music_factor);
     let center = sw_mp(motor, vec3(0.0));
 
     let terrain_y: f32 = 0.0;  // Only flying ribbons now; no terrain-following needed.
@@ -4364,7 +4475,10 @@ fn ribbon_vs(@builtin(vertex_index) vid: u32) -> EntityVarying {
     if (xform_valid) {
         motor = Motor(xform.motor_p0, xform.motor_p1);
     } else {
-        motor = ribbon_ring_motor(ring_idx, ribbon);
+        // Fallback rare: only fires before compute_ribbon_rings has
+        // run for the current frame. Pass music_factor = 0.0 (silent
+        // equivalent) — render layout doesn't bind the music history.
+        motor = ribbon_ring_motor(ring_idx, ribbon, 0.0);
     }
     let orient = Motor(motor.p0, vec4(0.0));
 
@@ -4456,7 +4570,7 @@ fn shadow_ribbon_vs(@builtin(vertex_index) vid: u32) -> ShadowVarying {
     if (xform_valid) {
         motor = Motor(xform.motor_p0, xform.motor_p1);
     } else {
-        motor = ribbon_ring_motor(ring_idx, ribbon);
+        motor = ribbon_ring_motor(ring_idx, ribbon, 0.0);  // see ribbon_vs note
     }
     var world_pos = sw_mp(motor, local_pos);
 
@@ -4583,6 +4697,14 @@ const GROUND_ATLAS_BLADE: i32    = 100;
 // --- Ribbon compute (Group 0: binding 121, separate pipeline layout)
 // Written by compute_ribbon_rings, read by ribbon VS via render_ring_xforms.
 @group(0) @binding(121) var<storage, read_write> ring_xforms: array<RibbonRingTransform, 400>;
+
+// --- Ribbon music history (Group 0: binding 122, ribbon compute layout only)
+// Smooth continuous music intensity, indexed by age (seconds back from
+// now). Used by compute_ribbon_rings to look up music at the "head
+// time" of each ring. NOT bound to render layouts: the render-side VSs
+// read pre-computed motors from ring_xforms and never need to sample
+// music directly. Spine math functions take music as a pure parameter.
+@group(0) @binding(122) var<uniform> ribbon_music_history: RibbonMusicHistory;
 
 // --- Light system (Group 0: render, bindings 320-339)
 @group(0) @binding(320) var<storage, read> render_light: DirectionalLight;
@@ -8365,6 +8487,10 @@ const PMG_MAX_SLOTS: u32           = 8u;
 const PMG_TOTAL_INDICES: u32 = 288u;        // 8 × 36
 
 // ── Parameter buffer (CPU writes per-slot on spawn/evict) ─────────────
+//
+// MUST match state.hpp::GPUPyramidMeshParams (size: 48 bytes).
+// If this struct gains/loses a field, the CPU side and
+// cpu_gpu_pair_manifest.md must be updated together.
 
 struct PyramidMeshParams {
     center_x: f32,
@@ -8565,6 +8691,10 @@ const AMG_FRONT_CAP: u32   = 2u;
 const AMG_BACK_CAP: u32    = 3u;
 
 // ── Parameter buffer ──────────────────────────────────────────────────
+//
+// MUST match state.hpp::GPUArchMeshParams (size: 64 bytes).
+// If this struct gains/loses a field, the CPU side and
+// cpu_gpu_pair_manifest.md must be updated together.
 
 struct ArchMeshParams {
     center_x: f32,
@@ -8910,6 +9040,10 @@ const CMG_MAX_DISCS: u32             = 12u;    // max horizontal disc records
 const CMG_PI: f32                    = 3.14159265359;
 
 // ── Parameter buffer ──────────────────────────────────────────────────
+//
+// MUST match state.hpp::GPUColumnMeshParams (size: 128 bytes).
+// If this struct gains/loses a field, the CPU side and
+// cpu_gpu_pair_manifest.md must be updated together.
 
 struct ColumnMeshParams {
     center_x: f32,
@@ -9402,6 +9536,10 @@ fn column_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
 
 
 // ─── §9.3 PALM MESH GENERATION (trunk + radial frond crown) ──────────────
+//
+// PalmMeshParams MUST match state.hpp::GPUPalmMeshParams (size: 128 bytes).
+// If this struct gains/loses a field, the CPU side and
+// cpu_gpu_pair_manifest.md must be updated together.
 
 struct PalmMeshParams {
     center_x: f32, center_z: f32,
@@ -9719,6 +9857,10 @@ fn shadow_palm_vs(in: ArchVertexInput) -> ShadowVarying {
 }
 
 // ─── §9.4 CACTUS MESH GENERATION (ribbed columnar trunk + forking arms) ──
+//
+// CactusMeshParams MUST match state.hpp::GPUCactusMeshParams (size: 128 bytes).
+// If this struct gains/loses a field, the CPU side and
+// cpu_gpu_pair_manifest.md must be updated together.
 
 // 21 floats + 4 uint32_t + 7 pad floats = 32 fields × 4 = 128 bytes
 struct CactusMeshParams {
@@ -10045,6 +10187,10 @@ fn shadow_cactus_vs(in: ArchVertexInput) -> ShadowVarying {
 }
 
 // ─── §9.5 BLADE CLUSTER MESH GENERATION ─────────────────────────
+//
+// BladeClusterMeshParams MUST match state.hpp::GPUBladeClusterMeshParams
+// (size: 80 bytes). If this struct gains/loses a field, the CPU side
+// and cpu_gpu_pair_manifest.md must be updated together.
 
 // 16 floats + 4 u32 = 20 fields × 4 = 80 bytes
 struct BladeClusterMeshParams {

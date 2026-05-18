@@ -14,19 +14,25 @@
 //
 // ┌─── Public surface (called from outside this file) ──────────────┐
 // │                                                                  │
+// │  Module functions are static, take GoLState& explicitly.         │
+// │  This makes ownership language-visible and cross-cutting         │
+// │  dependencies explicit in function signatures.                   │
+// │                                                                  │
 // │  Lifecycle (three-phase + helper):                               │
-// │    select_gol_for_patch(gx, gz, sel)        — Phase 1: roll      │
-// │    place_gol_from_selection(sel, plan)      — Phase 2: footprint │
-// │    commit_gol(plan, gx, gz, queue)          — Phase 3: state     │
-// │    seed_gol_zone(slot, queue)               — life buffer init   │
+// │    select_gol_for_patch(gs, c, gx, gz, sel)   — Phase 1: roll    │
+// │    place_gol_from_selection(c, sel, plan)     — Phase 2: place   │
+// │      (note: takes no GoLState — only mediates between sel and    │
+// │       spawn-engine helpers; not part of GoL's data)              │
+// │    commit_gol(gs, c, plan, gx, gz, queue)     — Phase 3: state   │
+// │    seed_gol_zone(gs, c, slot, queue)          — life buffer init │
 // │                                                                  │
 // │  Per-frame:                                                      │
-// │    upload_gol_zone_config(queue)            — config + tick mask │
-// │    flush_zone_derive_requests(queue)        — GPU dispatch       │
+// │    upload_gol_zone_config(gs, c, queue)       — config+tick mask │
+// │    flush_zone_derive_requests(gs, c, queue)   — GPU dispatch     │
 // │                                                                  │
 // │  Cross-module reads (consumed by other modules):                 │
-// │    golZones_[], golZoneCount_               — read by spine      │
-// │    moodAllowsGoLZones_                      — read by spine      │
+// │    gol_state_.zones[], gol_state_.zone_count   — read by spine   │
+// │    gol_state_.mood_allowed                     — read by spine   │
 // │                                                                  │
 // └──────────────────────────────────────────────────────────────────┘
 //
@@ -277,20 +283,26 @@ struct GoLZoneState {
     int32_t last_tick_index = -1;
 };
 
-GoLZoneState golZones_[Dim::MAX_GOL_ZONES]{};
-uint32_t golZoneCount_ = 0;
-uint32_t activeZoneSlotCount_ = 0;  // highest active slot + 1 (for dispatch sizing)
+// ── GoL module state (Scope B migration #2) ──────────────────────
+// All GoL-zone-owned state lives in this struct, accessed via
+// gol_state_ on the Cartridge. Module functions take `GoLState& gs`
+// explicitly rather than reaching via Cartridge*, making ownership
+// language-visible and dependencies explicit in signatures.
+struct GoLState {
+    GoLZoneState zones[Dim::MAX_GOL_ZONES]{};
+    uint32_t     zone_count = 0;
+    uint32_t     active_slot_count = 0;     // highest active slot + 1 (for dispatch sizing)
 
-// ── Mood gate ────────────────────────────────────────────────────
-// Set by apply_mood from MoodProfile flags. Default = on. Read by
-// the spine's spawn-detection callback to skip GoL spawning entirely
-// in moods that don't allow zones.
-bool moodAllowsGoLZones_ = true;
+    // Mood gate: set by apply_mood from MoodProfile flags. Default = on.
+    // Read by the spine's spawn-detection callback to skip GoL spawning
+    // entirely in moods that don't allow zones.
+    bool         mood_allowed = true;
 
-// ── Derive request queue ─────────────────────────────────────────
-// Accumulated during patch gen, flushed once per frame as a single
-// GPU compute dispatch (zone_derive_params).
-GPUZoneDeriveRequestArray pendingDeriveRequests_{};
+    // Derive request queue: accumulated during patch gen, flushed once
+    // per frame as a single GPU compute dispatch (zone_derive_params).
+    GPUZoneDeriveRequestArray pending_derive_requests{};
+};
+GoLState gol_state_;
 
 
 // ═══ LIFECYCLE — three-phase + helper ════════════════════════════
@@ -301,17 +313,18 @@ GPUZoneDeriveRequestArray pendingDeriveRequests_{};
 // nodes overlap this patch, runs spawn roll, algorithm + tier
 // selection, parameter sampling. At most one zone per patch.
 
-bool select_gol_for_patch(int32_t gx, int32_t gz, GoLSelection& sel) {
+static bool select_gol_for_patch(GoLState& gs, Cartridge* c,
+    int32_t gx, int32_t gz, GoLSelection& sel) {
     // Mood gate
-    float adj_mod = GoLZoneSpawnConfig::MOOD_MULTIPLIER[activeMood_];
+    float adj_mod = GoLZoneSpawnConfig::MOOD_MULTIPLIER[c->mood_state_.active];
     if (adj_mod <= 0.0f) return false;
 
     // Density + theme modifiers
     adj_mod *= GLOBAL_ENTITY_DENSITY;
-    adj_mod *= population_type_affinity(PopFamily::GOL);
+    adj_mod *= c->population_type_affinity(PopFamily::GOL);
     {
-        auto dit = tileCache_.find({ gx, gz });
-        if (dit != tileCache_.end()) {
+        auto dit = c->tileCache_.find({ gx, gz });
+        if (dit != c->tileCache_.end()) {
             adj_mod *= dit->second.entity_density;
             adj_mod *= dit->second.theme_spawn[PopFamily::GOL];
         }
@@ -342,30 +355,30 @@ bool select_gol_for_patch(int32_t gx, int32_t gz, GoLSelection& sel) {
             // Idempotency: already active at this node?
             bool exists = false;
             for (uint32_t i = 0; i < Dim::MAX_GOL_ZONES; i++) {
-                if (golZones_[i].active &&
-                    golZones_[i].zone_nx == nx && golZones_[i].zone_nz == nz) {
+                if (gs.zones[i].active &&
+                    gs.zones[i].zone_nx == nx && gs.zones[i].zone_nz == nz) {
                     exists = true; break;
                 }
             }
             if (exists) continue;
 
             // Spawn roll with modifiers
-            uint32_t seed = cpu_lattice_node_seed(activeSeed_, nx, nz, GoLZoneProp::SEED_BAND);
+            uint32_t seed = cpu_lattice_node_seed(c->world_state_.active_seed, nx, nz, GoLZoneProp::SEED_BAND);
             float roll = cpu_hash_f(seed, GoLZoneProp::SPAWN_ROLL);
             float chance = GoLZoneSpawnConfig::SPAWN_CHANCE * adj_mod;
-            chance += population_automata_bias();
+            chance += c->population_automata_bias();
             chance = std::max(0.0f, std::min(1.0f, chance));
             if (roll >= chance) continue;
 
             // Find free slot
             uint32_t slot = UINT32_MAX;
             for (uint32_t i = 0; i < Dim::MAX_GOL_ZONES; i++) {
-                if (!golZones_[i].active) { slot = i; break; }
+                if (!gs.zones[i].active) { slot = i; break; }
             }
             if (slot == UINT32_MAX) continue;
 
             // Reserve slot
-            golZones_[slot].active = true;
+            gs.zones[slot].active = true;
 
             // Zone corner (cell-grid-snapped)
             float corner_x = std::floor(
@@ -449,18 +462,23 @@ bool select_gol_for_patch(int32_t gx, int32_t gz, GoLSelection& sel) {
 // Phase 2: footprint check + registration. Position is lattice-
 // determined (no jitter), so we bypass negotiate_position and
 // call check_position + register_footprint directly.
+//
+// Note: this function takes no GoLState — like ribbon's place
+// function, it only mediates between selection and spawn-engine
+// helpers. Doesn't touch GoL's data.
 
-bool place_gol_from_selection(const GoLSelection& sel, GoLPlacement& plan) {
+static bool place_gol_from_selection(Cartridge* c,
+    const GoLSelection& sel, GoLPlacement& plan) {
     float cx = sel.corner_x + GoLZoneSpawnConfig::ZONE_EXTENT * 0.5f;
     float cz = sel.corner_z + GoLZoneSpawnConfig::ZONE_EXTENT * 0.5f;
 
-    if (!check_position(cx, cz, sel.footprint_r, PopFamily::GOL))
+    if (!c->check_position(cx, cz, sel.footprint_r, PopFamily::GOL))
         return false;
 
     int32_t host_gx = (int32_t)std::floor(cx / PATCH_EXTENT);
     int32_t host_gz = (int32_t)std::floor(cz / PATCH_EXTENT);
 
-    if (register_footprint(cx, cz, sel.footprint_r,
+    if (c->register_footprint(cx, cz, sel.footprint_r,
         host_gx, host_gz, PopFamily::GOL, sel.tier_idx) == UINT32_MAX)
         return false;
 
@@ -482,7 +500,7 @@ bool place_gol_from_selection(const GoLSelection& sel, GoLPlacement& plan) {
     plan.initial_density = sel.initial_density;
     plan.height_enabled = sel.height_enabled;
 
-    record_placement_bookkeeping(PopFamily::GOL, plan.tier_idx);
+    c->record_placement_bookkeeping(PopFamily::GOL, plan.tier_idx);
     return true;
 }
 
@@ -490,10 +508,11 @@ bool place_gol_from_selection(const GoLSelection& sel, GoLPlacement& plan) {
 //
 // Phase 3: CPU state + life buffer seeding + GPU derive request.
 
-void commit_gol(const GoLPlacement& plan,
+static void commit_gol(GoLState& gs, Cartridge* c,
+    const GoLPlacement& plan,
     int32_t trigger_gx, int32_t trigger_gz, wgpu::Queue& queue)
 {
-    auto& zone = golZones_[plan.slot];
+    auto& zone = gs.zones[plan.slot];
     zone.zone_nx = plan.zone_nx;
     zone.zone_nz = plan.zone_nz;
     zone.host_gx = plan.host_gx;
@@ -503,18 +522,18 @@ void commit_gol(const GoLPlacement& plan,
     zone.tick_period = plan.tick_period;
     zone.initial_density = plan.initial_density;
     zone.last_tick_index = -1;
-    golZoneCount_++;
+    gs.zone_count++;
 
-    seed_gol_zone(plan.slot, queue);
+    seed_gol_zone(gs, c, plan.slot, queue);
 
-    if (pendingDeriveRequests_.count < Dim::MAX_GOL_ZONES) {
-        auto& req = pendingDeriveRequests_.requests[pendingDeriveRequests_.count++];
+    if (gs.pending_derive_requests.count < Dim::MAX_GOL_ZONES) {
+        auto& req = gs.pending_derive_requests.requests[gs.pending_derive_requests.count++];
         req.slot = plan.slot;
         req.nx = plan.zone_nx;
         req.nz = plan.zone_nz;
         req.algorithm = plan.algorithm;
         req.height_enabled = plan.height_enabled ? 1u : 0u;
-        req.world_seed = activeSeed_;
+        req.world_seed = c->world_state_.active_seed;
     }
 
     std::cout << "[GoL] "
@@ -534,9 +553,10 @@ void commit_gol(const GoLPlacement& plan,
 // (random alive/dead for Conway, all zeros for Pulse) and the per-cell
 // height factors (Gaussian draws). Uploads both to the GPU zone slot.
 
-void seed_gol_zone(uint32_t slot, wgpu::Queue& queue) {
-    auto& zone = golZones_[slot];
-    uint32_t seed = cpu_lattice_node_seed(activeSeed_, zone.zone_nx, zone.zone_nz, GoLZoneProp::SEED_BAND);
+static void seed_gol_zone(GoLState& gs, Cartridge* c,
+    uint32_t slot, wgpu::Queue& queue) {
+    auto& zone = gs.zones[slot];
+    uint32_t seed = cpu_lattice_node_seed(c->world_state_.active_seed, zone.zone_nx, zone.zone_nz, GoLZoneProp::SEED_BAND);
 
     // Generate initial pattern
     std::vector<float> life(Dim::GOL_ZONE_CELLS, 0.0f);
@@ -559,7 +579,7 @@ void seed_gol_zone(uint32_t slot, wgpu::Queue& queue) {
     }
 
     // Upload all 7 slots
-    gpuState_.upload_zone_life(queue, slot, life.data(), height_factors.data(), Dim::GOL_ZONE_CELLS);
+    c->gpuState_.upload_zone_life(queue, slot, life.data(), height_factors.data(), Dim::GOL_ZONE_CELLS);
 }
 
 
@@ -569,50 +589,50 @@ void seed_gol_zone(uint32_t slot, wgpu::Queue& queue) {
 // Per-zone config is GPU-derived via zone_derive_params — we only
 // write count, t_beats, dt, tick_mask. Slot deactivation happens
 // at eviction time (via dispatch_evict_gol through entity_refs).
-void upload_gol_zone_config(wgpu::Queue& queue) {
+static void upload_gol_zone_config(GoLState& gs, Cartridge* c, wgpu::Queue& queue) {
     uint32_t count = 0;
     uint32_t tick_mask = 0;
 
     // GoL tempo mode: scale tick period (> 1 = slower, inverse of polyphony).
     // GAIN constant lives in musical.inl alongside the coupling that drives it.
-    float gol_tick_scale = 1.0f + mmodeIntensity_[MMODE_GOL_TEMPO] * GOL_TICK_GAIN;
+    float gol_tick_scale = 1.0f + c->player_.mmode_intensities[MMODE_GOL_TEMPO] * GOL_TICK_GAIN;
 
     for (uint32_t i = 0; i < Dim::MAX_GOL_ZONES; i++) {
-        if (!golZones_[i].active) continue;
+        if (!gs.zones[i].active) continue;
 
         // Conway tick gating: exactly one tick per period
         // Scale period by musical mode (affects both Conway and Pulse in sync)
-        float effective_period = std::max(golZones_[i].tick_period * gol_tick_scale, 0.01f);
-        int32_t current_tick = (int32_t)std::floor(currentBeats_ / effective_period);
-        if (current_tick != golZones_[i].last_tick_index) {
+        float effective_period = std::max(gs.zones[i].tick_period * gol_tick_scale, 0.01f);
+        int32_t current_tick = (int32_t)std::floor(c->time_state_.beats / effective_period);
+        if (current_tick != gs.zones[i].last_tick_index) {
             tick_mask |= (1u << i);
-            golZones_[i].last_tick_index = current_tick;
+            gs.zones[i].last_tick_index = current_tick;
         }
 
         count = i + 1;
     }
-    gpuState_.upload_zone_config_header(queue, count, currentBeats_, currentDt_, tick_mask);
-    activeZoneSlotCount_ = count;
+    c->gpuState_.upload_zone_config_header(queue, count, c->time_state_.beats, c->time_state_.dt, tick_mask);
+    gs.active_slot_count = count;
 }
 
 // Flush pending zone derive requests as a GPU compute dispatch.
 // Called once per frame after all patch generation is complete.
-void flush_zone_derive_requests(wgpu::Queue& queue) {
-    if (pendingDeriveRequests_.count == 0) return;
+static void flush_zone_derive_requests(GoLState& gs, Cartridge* c, wgpu::Queue& queue) {
+    if (gs.pending_derive_requests.count == 0) return;
 
-    gpuState_.upload_zone_derive_requests(queue, pendingDeriveRequests_);
+    c->gpuState_.upload_zone_derive_requests(queue, gs.pending_derive_requests);
 
-    wgpu::CommandEncoder encoder = device_.CreateCommandEncoder();
+    wgpu::CommandEncoder encoder = c->device_.CreateCommandEncoder();
     wgpu::ComputePassDescriptor desc{};
     desc.label = "Zone Derive Params";
     wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&desc);
-    renderer_.dispatch_zone_derive_params(
+    c->renderer_.dispatch_zone_derive_params(
         pass,
-        gpuState_.zone_gol_compute_group(),
-        pendingDeriveRequests_.count);
+        c->gpuState_.zone_gol_compute_group(),
+        gs.pending_derive_requests.count);
     pass.End();
     wgpu::CommandBuffer cmd = encoder.Finish();
     queue.Submit(1, &cmd);
 
-    pendingDeriveRequests_.count = 0;
+    gs.pending_derive_requests.count = 0;
 }

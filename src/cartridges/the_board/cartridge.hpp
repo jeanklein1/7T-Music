@@ -34,10 +34,10 @@
 // │    MOOD_TABLE[MOOD_COUNT]               — atmospheric profiles   │
 // │                                                                  │
 // │  Cross-module reads (consumed by modules):                       │
-// │    activeMood_, activeSeed_, currentBeats_, currentSeconds_      │
-// │    pawnReadback_x_/z_, possessed_slot                            │
+// │    mood_state_.active, world_state_.active_seed, time_state_.beats, time_state_.seconds      │
+// │    player_.readback_x/z_, possessed_slot                            │
 // │    PATCH_EXTENT, GRID_RADIUS, PREGEN_RADIUS, MAX_PATCHES          │
-// │    finiteMode_, finiteRadius_, transitionPhase_                  │
+// │    world_state_.finite_mode, world_state_.finite_radius, transitionPhase_                  │
 // │    ActivePatch + entity_refs registry                            │
 // │                                                                  │
 // └──────────────────────────────────────────────────────────────────┘
@@ -53,10 +53,10 @@
 //   are integration glue, not module work. They live here correctly.
 //   NOTE[seam-map] keep wrappers here; they're the integration layer
 //   between FAMILY_DISPATCH and per-family modules.
-// SEAM[spine:P5] readback state machines + worldGen_ counter are
+// SEAM[spine:P5] readback state machines + world_state_.world_gen counter are
 //   pattern P5 (release-pending sentinel) at the spine level. Pawn +
 //   floater readbacks each protect against stale callbacks from
-//   previous worlds via worldGen_ capture in the closure. Genuinely
+//   previous worlds via world_state_.world_gen capture in the closure. Genuinely
 //   spine-owned, not a leak.
 // SEAM[spine:P8] PlayerState's commented "Future (deferred)" fields
 //   are explicit latent infrastructure: aura_presence and
@@ -71,7 +71,7 @@
 //   ribbon.inl (two-tip late registration), gallery.inl
 //   (evict_paintings_for_patch).
 // SEAM[spine:portal-system] portal/transition state machine. Owns
-//   TransitionPhase, transitionTimer_, pendingDestination_, the
+//   TransitionPhase, mood_state_.transition_timer, pendingDestination_, the
 //   PORTAL_COLORS table, the back-portal pending state, and the
 //   trigger-detection hooks called by readback. Mood.inl drives portal
 //   spawning (force_spawn_portal_at, force_spawn_back_portal,
@@ -137,19 +137,68 @@ namespace t7 {
                 bool right_dragging = false;
             } mouse_;
 
-            bool fpvMode_ = false;
-            float currentBeats_ = 0.0f;
-            float currentSeconds_ = 0.0f;
-            float currentDt_ = 0.016f;
+            // ═══ TIME STATE (Scope B migration #11) ═════════════════════
+            // Per-frame clock state used everywhere. beats/seconds advance
+            // monotonically; dt is the most recent frame delta.
+            struct TimeState {
+                float beats   = 0.0f;
+                float seconds = 0.0f;
+                float dt      = 0.016f;
+            };
+            TimeState time_state_;
 
             // Sun + atmosphere (driven by active mood — see apply_mood)
             float sunDirection_[3] = { 0.69f, -0.71f, -0.14f };
             float sunColor_[3] = { 1.0f, 0.95f, 0.9f };
-            float sunIntensity_ = 0.8f;
-            float sunAmbient_ = 0.25f;
             float clearColor_[3] = { 0.85f, 0.78f, 0.72f };
-            uint32_t activeMood_ = 0;
-            float terrainAmpCeiling_ = 0.0f;    // mirrors GPU config.terrain_amp_ceiling
+
+            // ═══ MOOD STATE (Scope B migration #11) ═════════════════════
+            // Mood-runtime state: which mood is active, its applied
+            // values (lighting, terrain, spot lights), the transition
+            // machinery, and back-portal return bookkeeping.
+            //
+            // Owned by mood.inl semantically, but lives spine-resident
+            // because mood-applied values feed every other subsystem.
+            struct MoodState {
+                // ── Currently active mood ──
+                uint32_t active = 0;
+
+                // ── Mood-applied values (re-set on each apply_mood) ──
+                float sun_intensity = 0.8f;
+                float sun_ambient   = 0.25f;
+                float terrain_amp_ceiling = 0.0f;       // mirrors GPU config.terrain_amp_ceiling
+                bool  spot_light_active = false;
+
+                // ── Transition machinery ──
+                // Four-phase machine (IDLE/FADE_OUT/TEARDOWN/FADE_IN) drives
+                // world-to-world portals. Phase enum + PortalDestination
+                // sub-struct stay near the portal logic below.
+                float transition_timer         = 0.0f;
+                float transition_fade_duration = 0.5f;  // seconds per fade direction
+                float transition_fade_alpha    = 0.0f;
+
+                // ── Portal upload flag ──
+                bool portals_dirty = true;              // true at boot → first upload guaranteed
+
+                // ── Back-portal return state ──
+                // When a finite world is entered through a portal, these
+                // capture the originating world parameters so the back
+                // portal can return to it.
+                bool     back_portal_pending       = false;
+                uint32_t back_portal_return_seed   = 0;
+                uint32_t back_portal_return_mood   = 0;
+                uint32_t back_portal_return_radius = 2;
+
+                // ── Deterministic mood-reroll counter ──
+                uint32_t pop_batch_counter = 0;
+
+                // ── Sun orbit (musical coupling) ──
+                // Phase accumulator for sun-orbit coupling. Music drives the
+                // orbital rate; effective azimuth = mood baseline + sin(phase) × max_swing.
+                // Elevation stays locked to the mood's authored value.
+                float sun_orbit_phase = 0.0f;
+            };
+            MoodState mood_state_;
 
             // ── Trajectory primitive (modules/trajectory.inl) ──
             // CPU mirror of WGSL §1.2 — must be visible before any
@@ -182,21 +231,34 @@ namespace t7 {
             //   in source.
             struct PlayerState {
                 uint32_t possessed_slot = 0;   // slot in agent_state[] that the player inhabits
+
+                // ── Camera + readback (Scope B migration #11) ──
+                bool    fpv_mode = false;                // first-person view toggle
+                float   readback_x = 0.0f;               // GPU readback of pawn world X
+                float   readback_z = 0.0f;               // GPU readback of pawn world Z
+                int32_t readback_portal_trigger = -1;    // set by readback callback when pawn hits portal
+
+                // ── Aura + musical-mode intensities (closes SEAM[spine:P8]) ──
+                // Migrated here from pawn_state_ / musical_state_ because they
+                // travel with the player, not the body or the world. When the
+                // player possesses a different agent (Caps Lock), these stay
+                // with the player. Trajectory-style 0→1 ramps in [0,1].
+                float aura_presence = 0.0f;                  // pawn aura ramp (was player_.aura_presence)
+                float mmode_intensities[MMODE_COUNT] = {};   // per-mode intensity (was player_.mmode_intensities)
+
                 // Future (deferred):
                 //   uint32_t active_couplings;         // COUPLING_* bitmask owned by player
-                //   float    aura_presence;            // migrated from auraPresence_
-                //   float    mmode_intensities[MMODE_COUNT];  // migrated from mmodeIntensity_
             };
             PlayerState player_{};
 
             GPUSpotLightArray cpuSpotLights_{};  // count=0 disables (outdoor)
-            bool spotLightActive_ = false;
+            // (spot_light_active migrated into MoodState — see top of class)
 
             // ═══ PORTAL & TRANSITION STATE MACHINE ═══════════════════════
             //
             // World-to-world transitions: pawn enters a portal, screen fades,
             // the world tears down, a new world generates, screen fades back.
-            // Runs as a four-phase machine driven by transitionTimer_.
+            // Runs as a four-phase machine driven by mood_state_.transition_timer.
             //
             // SEAM[spine:portal-system] consumed by mood.inl (force_spawn_*
             //   functions read pendingDestination_), input.inl (keypress mood
@@ -205,9 +267,8 @@ namespace t7 {
 
             enum class TransitionPhase { IDLE, FADE_OUT, TEARDOWN, FADE_IN };
             TransitionPhase transitionPhase_ = TransitionPhase::IDLE;
-            float transitionTimer_ = 0.0f;
-            float transitionFadeDuration_ = 0.5f;   // seconds per fade direction
-            float transitionFadeAlpha_ = 0.0f;
+            // (transition_timer / transition_fade_duration / transition_fade_alpha
+            //  migrated into MoodState — see top of class)
 
             // Portal destination — describes the world a door leads to.
             // Also used as the pending transition target (keys + portal crossings).
@@ -219,9 +280,7 @@ namespace t7 {
             };
             PortalDestination pendingDestination_{};
 
-            // ── Finite patch mode ──
-            bool finiteMode_ = false;
-            uint32_t finiteRadius_ = 2;              // 2 → 5×5 = 25 patches
+            // (finite_mode / finite_radius migrated into WorldState — see top of class)
 
             // ── Portal detection ──
             static constexpr float PORTAL_DENSITY = 1.00f;  // fraction of Doorway arches that become portals
@@ -358,7 +417,7 @@ namespace t7 {
             // keep this gap). Enforced in negotiate_position by clamping
             // the seed-determined candidate position into the legal box
             //   [bmin + margin + r, bmax - margin - r]  in both axes
-            // when finiteMode_ is active and the current mood is indoor.
+            // when world_state_.finite_mode is active and the current mood is indoor.
             // Outdoor moods and open worlds are unaffected (no walls to
             // keep clear of).
             //
@@ -368,30 +427,32 @@ namespace t7 {
             // wall margin and never recovers. Clamping shifts the candidate
             // to the legal-box edge and lets the existing footprint-overlap
             // check handle any pile-ups that result.
-            static constexpr float INDOOR_ENTITY_WALL_MARGIN = 10.0f;
+            // Margin doubled (was 10) so that paintings and snapshots
+            // mounted on indoor walls are visibly separated from spawning
+            // entities — the entity's footprint now reads as distinct from
+            // the wall surface and any artwork on it.
+            static constexpr float INDOOR_ENTITY_WALL_MARGIN = 20.0f;
 
             GPUPortalArray cpuPortalArray_{};
-            bool portalsDirty_ = true;   // true at boot → first upload guaranteed
+            // (portals_dirty migrated into MoodState — see top of class)
 
             // ── Back-portal (guaranteed exit from finite worlds) ──
             // Position is configurable so special-case layouts can relocate it.
+            // (back_portal_pending / back_portal_return_seed/mood/radius
+            //  migrated into MoodState — see top of class)
             float backPortalPosition_[2] = { 10.0f, 0.0f };   // world XZ
-            bool  backPortalPending_ = false;
-            uint32_t backPortalReturnSeed_ = 0;
-            uint32_t backPortalReturnMood_ = 0;
-            uint32_t backPortalReturnRadius_ = 2;
 
             // ═══ GPU READBACK + WORLDGEN ═════════════════════════════════
             //
             // Two parallel readback state machines (pawn + floater) plus
-            // the worldGen_ counter that protects against stale callbacks
+            // the world_state_.world_gen counter that protects against stale callbacks
             // from previous worlds. Both consumed by render() per-frame
             // and by the patch streaming pipeline.
             //
-            // SEAM[spine:P5] readback state machines + worldGen_ counter are
+            // SEAM[spine:P5] readback state machines + world_state_.world_gen counter are
             //   pattern P5 (release-pending sentinel) at the spine level.
             //   Pawn + floater readbacks each protect against stale callbacks
-            //   from previous worlds via worldGen_ capture in the closure.
+            //   from previous worlds via world_state_.world_gen capture in the closure.
             //   Genuinely spine-owned, not a leak.
 
             // GPU agent-state readback machine: IDLE → COPIED → MAPPING → IDLE.
@@ -411,18 +472,19 @@ namespace t7 {
             // MAX_*_INSTANCES.
             enum class FloaterReadbackState { IDLE, COPIED, MAPPING };
             FloaterReadbackState floaterReadbackState_ = FloaterReadbackState::IDLE;
-            int32_t readbackPortalTrigger_ = -1;
-            float pawnReadback_x_ = 0.0f;
-            float pawnReadback_z_ = 0.0f;
+            // (readback_portal_trigger / readback_x / readback_z migrated
+            //  into PlayerState — see top of class)
 
             // World generation counter — bumped on every teardown.
             // Captured by readback callbacks so that callbacks issued
             // for the previous world drop their data on the floor instead
-            // of overwriting pawnReadback_x_/z_ with a stale position
+            // of overwriting player_.readback_x/z_ with a stale position
             // (which would corrupt tile-cache archetype rolls in the
             // first frames of the new world). See update() TEARDOWN
             // case and the agent_state readback lambda in render().
-            uint32_t worldGen_ = 0;
+            // (world_gen migrated into WorldState — see top of class)
+            // [former world_state_.world_gen: incremented on world transitions; readback callbacks
+            //  use it as a generation token to guard against stale GPU writes]
 
             // ═══ UNIFIED PIER SYSTEM ═════════════════════════════════════
             //
@@ -484,7 +546,45 @@ namespace t7 {
             //   (evict_paintings_for_patch via dispatch_evict_gallery), and
             //   the family dispatch eviction wrappers below.
 
-            uint32_t activeSeed_ = 42;     // world master seed (mutable for world transitions)
+            // ═══ WORLD STATE (Scope B migration #11) ═════════════════════
+            // World-generation state: seed, finite-mode parameters, the
+            // recenter cursor (lastCenter), patch counts the spine tracks,
+            // dirty flags for deferred GPU uploads, and the free-layer
+            // counter (slot allocation for active patches).
+            struct WorldState {
+                // ── Seed + dimensions ──
+                uint32_t active_seed   = 42;     // world master seed (mutable for world transitions)
+                // Runtime render radius — toggleable within [GRID_RADIUS, RENDER_RADIUS].
+                // Buffers/textures always allocated for PREGEN_RADIUS.
+                // Visibility uses circular VISIBLE_RADIUS; RENDER_RADIUS retained for
+                // allocation bounds and GoL zone eviction.
+                uint32_t active_radius = Dim::PATCH_PREGEN_RADIUS;
+                bool     finite_mode   = false;
+                uint32_t finite_radius = 2;      // 2 → 5×5 = 25 patches
+                uint32_t world_gen     = 0;
+
+                // ── Recenter cursor ──
+                int32_t last_center_x = INT32_MAX;  // force full regeneration on first frame
+                int32_t last_center_z = INT32_MAX;
+
+                // ── Patch counts (this frame) ──
+                uint32_t active_patch_count = 0;
+                uint32_t render_patch_count = 0;    // visible patches (within circular VISIBLE_RADIUS)
+                uint32_t lod0_patch_count   = 0;    // subset of rendered: within LOD_FULL_RADIUS (full mesh)
+                uint32_t all_patch_count    = 0;    // all generated patches (including pre-gen ring)
+                uint32_t entities_culled    = 0;    // entities hidden by distance culling this frame
+
+                // ── Dirty flags (deferred GPU uploads) ──
+                bool pier_count_dirty       = false;  // defer recompute_and_upload_pier_count
+                bool ground_entries_dirty   = true;   // defer upload_ground_entries (true at boot)
+                bool patch_instances_dirty  = true;   // defer LOD sort + upload_patch_instances
+                bool placement_dirty        = true;   // defer dispatch_placement_correction
+
+                // ── Free-layer pool ──
+                uint32_t free_layer_count = Dim::MAX_ACTIVE_PATCHES;
+            };
+            WorldState world_state_;
+
             // Patch dimensions aliased from Dim:: for local readability
             static constexpr float    PATCH_EXTENT = Dim::PATCH_EXTENT;
             static constexpr uint32_t GRID_RADIUS = Dim::PATCH_GRID_RADIUS;   // inner priority (3 → 7×7)
@@ -494,11 +594,7 @@ namespace t7 {
             static constexpr uint32_t PREGEN_RADIUS = Dim::PATCH_PREGEN_RADIUS; // deep pre-gen buffer (7)
             static constexpr uint32_t MAX_PATCHES = Dim::MAX_ACTIVE_PATCHES;    // 225
 
-            // Runtime render radius — toggleable within [GRID_RADIUS, RENDER_RADIUS].
-            // Buffers/textures always allocated for PREGEN_RADIUS.
-            // Visibility uses circular VISIBLE_RADIUS; RENDER_RADIUS retained for
-            // allocation bounds and GoL zone eviction.
-            uint32_t activeRadius_ = PREGEN_RADIUS;
+            // (active_radius migrated into WorldState — initialized in ctor to PREGEN_RADIUS)
 
             enum class PatchPhase : uint8_t {
                 ALLOCATED,      // layer assigned, tile cached, no entities yet
@@ -543,19 +639,14 @@ namespace t7 {
             };
 
             ActivePatch patches_[MAX_PATCHES]{};
-            int32_t lastCenterX_ = INT32_MAX;  // force full regeneration on first frame
-            int32_t lastCenterZ_ = INT32_MAX;
-            uint32_t activePatchCount_ = 0;
-            uint32_t renderPatchCount_ = 0;  // visible patches (within circular VISIBLE_RADIUS)
-            uint32_t lod0PatchCount_ = 0;    // subset of rendered: within LOD_FULL_RADIUS (full mesh)
-            uint32_t allPatchCount_ = 0;     // all generated patches (including pre-gen ring)
-            uint32_t entitiesCulled_ = 0;    // entities hidden by distance culling this frame
+            // (last_center_x/z, active/render/lod0/all_patch_count, entities_culled
+            //  migrated into WorldState — see top of class)
 
             // Find the ActivePatch entry for a given grid coordinate.
             // Returns nullptr if not found (should not happen for host patches
             // within the allocation window).
             ActivePatch* find_patch(int32_t gx, int32_t gz) {
-                for (uint32_t i = 0; i < activePatchCount_; i++) {
+                for (uint32_t i = 0; i < world_state_.active_patch_count; i++) {
                     if (patches_[i].valid && patches_[i].grid_x == gx && patches_[i].grid_z == gz)
                         return &patches_[i];
                 }
@@ -576,7 +667,7 @@ namespace t7 {
                 if (patch.entity_ref_count > 0) {
                     float wx = (patch.grid_x + 0.5f) * PATCH_EXTENT;
                     float wz = (patch.grid_z + 0.5f) * PATCH_EXTENT;
-                    float dx = wx - pawnReadback_x_, dz = wz - pawnReadback_z_;
+                    float dx = wx - player_.readback_x, dz = wz - player_.readback_z;
                     std::cout << "[DIAG:EVICT] patch(" << patch.grid_x << "," << patch.grid_z
                         << ") dist=" << std::sqrt(dx * dx + dz * dz)
                         << " refs=" << patch.entity_ref_count << "\n";
@@ -632,27 +723,27 @@ namespace t7 {
                 //   would scale better.
                 // Count actual active slots
                 uint32_t act_a = 0, act_c = 0, act_n = 0, act_p = 0;
-                for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++) if (activeArches_[i].active) act_a++;
-                for (uint32_t i = 0; i < Dim::MAX_COLUMN_ONLY; i++) if (activeColumns_[i].active) act_c++;
-                for (uint32_t i = 0; i < Dim::MAX_ANTENNA_ONLY; i++) if (activeAntennas_[i].active) act_n++;
-                for (uint32_t i = 0; i < Dim::MAX_PYRAMID_INSTANCES; i++) if (activePyramids_[i].active) act_p++;
+                for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++) if (entities_state_.arches[i].active) act_a++;
+                for (uint32_t i = 0; i < Dim::MAX_COLUMN_ONLY; i++) if (entities_state_.columns[i].active) act_c++;
+                for (uint32_t i = 0; i < Dim::MAX_ANTENNA_ONLY; i++) if (entities_state_.antennas[i].active) act_n++;
+                for (uint32_t i = 0; i < Dim::MAX_PYRAMID_INSTANCES; i++) if (entities_state_.pyramids[i].active) act_p++;
 
                 // Count consistency
-                if (act_a != activeArchCount_)
-                    std::cout << "[DIAG:AUDIT] ARCH COUNT active=" << act_a << " tracked=" << activeArchCount_ << "\n";
-                if (act_c != activeColumnCount_)
-                    std::cout << "[DIAG:AUDIT] COL COUNT active=" << act_c << " tracked=" << activeColumnCount_ << "\n";
-                if (act_n != activeAntennaCount_)
-                    std::cout << "[DIAG:AUDIT] ANT COUNT active=" << act_n << " tracked=" << activeAntennaCount_ << "\n";
-                if (act_p != activePyramidCount_)
-                    std::cout << "[DIAG:AUDIT] PYR COUNT active=" << act_p << " tracked=" << activePyramidCount_ << "\n";
+                if (act_a != entities_state_.arch_count)
+                    std::cout << "[DIAG:AUDIT] ARCH COUNT active=" << act_a << " tracked=" << entities_state_.arch_count << "\n";
+                if (act_c != entities_state_.column_count)
+                    std::cout << "[DIAG:AUDIT] COL COUNT active=" << act_c << " tracked=" << entities_state_.column_count << "\n";
+                if (act_n != entities_state_.antenna_count)
+                    std::cout << "[DIAG:AUDIT] ANT COUNT active=" << act_n << " tracked=" << entities_state_.antenna_count << "\n";
+                if (act_p != entities_state_.pyramid_count)
+                    std::cout << "[DIAG:AUDIT] PYR COUNT active=" << act_p << " tracked=" << entities_state_.pyramid_count << "\n";
 
                 // Collect refs from all patches
                 bool ra[Dim::MAX_ARCH_INSTANCES]{};
                 bool rc[Dim::MAX_COLUMN_ONLY]{};
                 bool rn[Dim::MAX_ANTENNA_ONLY]{};
                 bool rp[Dim::MAX_PYRAMID_INSTANCES]{};
-                for (uint32_t p = 0; p < activePatchCount_; p++) {
+                for (uint32_t p = 0; p < world_state_.active_patch_count; p++) {
                     if (!patches_[p].valid) continue;
                     for (uint32_t r = 0; r < patches_[p].entity_ref_count; r++) {
                         auto& ref = patches_[p].entity_refs[r];
@@ -683,49 +774,47 @@ namespace t7 {
 
                 // Ghost: active but no ref (will never be evicted)
                 for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++)
-                    if (activeArches_[i].active && !ra[i])
-                        std::cout << "[DIAG:AUDIT] GHOST arch slot=" << i << " host=(" << activeArches_[i].host_gx << "," << activeArches_[i].host_gz << ")\n";
+                    if (entities_state_.arches[i].active && !ra[i])
+                        std::cout << "[DIAG:AUDIT] GHOST arch slot=" << i << " host=(" << entities_state_.arches[i].host_gx << "," << entities_state_.arches[i].host_gz << ")\n";
                 for (uint32_t i = 0; i < Dim::MAX_COLUMN_ONLY; i++)
-                    if (activeColumns_[i].active && !rc[i])
-                        std::cout << "[DIAG:AUDIT] GHOST col slot=" << i << " host=(" << activeColumns_[i].host_gx << "," << activeColumns_[i].host_gz << ")\n";
+                    if (entities_state_.columns[i].active && !rc[i])
+                        std::cout << "[DIAG:AUDIT] GHOST col slot=" << i << " host=(" << entities_state_.columns[i].host_gx << "," << entities_state_.columns[i].host_gz << ")\n";
                 for (uint32_t i = 0; i < Dim::MAX_ANTENNA_ONLY; i++)
-                    if (activeAntennas_[i].active && !rn[i])
-                        std::cout << "[DIAG:AUDIT] GHOST ant slot=" << i << " host=(" << activeAntennas_[i].host_gx << "," << activeAntennas_[i].host_gz << ")\n";
+                    if (entities_state_.antennas[i].active && !rn[i])
+                        std::cout << "[DIAG:AUDIT] GHOST ant slot=" << i << " host=(" << entities_state_.antennas[i].host_gx << "," << entities_state_.antennas[i].host_gz << ")\n";
                 for (uint32_t i = 0; i < Dim::MAX_PYRAMID_INSTANCES; i++)
-                    if (activePyramids_[i].active && !rp[i])
-                        std::cout << "[DIAG:AUDIT] GHOST pyr slot=" << i << " host=(" << activePyramids_[i].host_gx << "," << activePyramids_[i].host_gz << ")\n";
+                    if (entities_state_.pyramids[i].active && !rp[i])
+                        std::cout << "[DIAG:AUDIT] GHOST pyr slot=" << i << " host=(" << entities_state_.pyramids[i].host_gx << "," << entities_state_.pyramids[i].host_gz << ")\n";
 
                 // Orphan: ref but not active (ref points to freed slot)
                 for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++)
-                    if (!activeArches_[i].active && ra[i])
+                    if (!entities_state_.arches[i].active && ra[i])
                         std::cout << "[DIAG:AUDIT] ORPHAN arch slot=" << i << "\n";
                 for (uint32_t i = 0; i < Dim::MAX_COLUMN_ONLY; i++)
-                    if (!activeColumns_[i].active && rc[i])
+                    if (!entities_state_.columns[i].active && rc[i])
                         std::cout << "[DIAG:AUDIT] ORPHAN col slot=" << i << "\n";
                 for (uint32_t i = 0; i < Dim::MAX_ANTENNA_ONLY; i++)
-                    if (!activeAntennas_[i].active && rn[i])
+                    if (!entities_state_.antennas[i].active && rn[i])
                         std::cout << "[DIAG:AUDIT] ORPHAN ant slot=" << i << "\n";
                 for (uint32_t i = 0; i < Dim::MAX_PYRAMID_INSTANCES; i++)
-                    if (!activePyramids_[i].active && rp[i])
+                    if (!entities_state_.pyramids[i].active && rp[i])
                         std::cout << "[DIAG:AUDIT] ORPHAN pyr slot=" << i << "\n";
 
                 // Ref overflow: any patch at capacity
-                for (uint32_t p = 0; p < activePatchCount_; p++) {
+                for (uint32_t p = 0; p < world_state_.active_patch_count; p++) {
                     if (patches_[p].valid && patches_[p].entity_ref_count >= ActivePatch::MAX_ENTITY_REFS)
                         std::cout << "[DIAG:AUDIT] REF FULL patch=(" << patches_[p].grid_x << "," << patches_[p].grid_z << ") count=" << patches_[p].entity_ref_count << "\n";
                 }
 #endif
             }
 
-            // ═══ DEFERRED UPLOAD FLAGS ═══════════════════════════════════
-            bool pierCountDirty_ = false;        // defer recompute_and_upload_pier_count
-            bool groundEntriesDirty_ = true;     // defer upload_ground_entries (true at boot)
-            bool patchInstancesDirty_ = true;    // defer LOD sort + upload_patch_instances
-            bool placementDirty_ = true;         // defer dispatch_placement_correction
+            // ═══ DEFERRED UPLOAD FLAGS (migrated into WorldState) ════════
+            // (pier_count_dirty, ground_entries_dirty, patch_instances_dirty,
+            //  placement_dirty migrated into WorldState — see top of class)
 
             // Free-list of available texture layers
             uint32_t freeLayerStack_[MAX_PATCHES]{};
-            uint32_t freeLayerCount_ = MAX_PATCHES;
+            // (free_layer_count migrated into WorldState — see top of class)
 
             // ═══ DYNAMIC BUDGETS ═════════════════════════════════════════
             //
@@ -746,7 +835,7 @@ namespace t7 {
 
             uint32_t count_pending_patches() const {
                 uint32_t n = 0;
-                for (uint32_t i = 0; i < activePatchCount_; i++) {
+                for (uint32_t i = 0; i < world_state_.active_patch_count; i++) {
                     if (!patches_[i].valid) continue;
                     if (patches_[i].phase == PatchPhase::SPAWNED ||
                         patches_[i].phase == PatchPhase::NEEDS_REGEN) n++;
@@ -788,7 +877,7 @@ namespace t7 {
             // In open mode: uniform across all moods.
             uint32_t pick_portal_mood(uint32_t seed, uint32_t prop) const {
                 float roll = cpu_hash_f(seed, prop);
-                if (finiteMode_) {
+                if (world_state_.finite_mode) {
                     // 0.00–0.125: mood 0 (open_default)
                     // 0.125–0.25: mood 1 (open_sunset)
                     // 0.25–0.525: mood 2 (indoor_flat)
@@ -915,21 +1004,21 @@ namespace t7 {
             // ── Mesh gen wrappers ──
 
             static bool dispatch_prepare_mesh_pyramid(Cartridge* self, wgpu::Queue& queue) {
-                return self->prepare_pyramid_mesh_gen(queue);
+                return prepare_pyramid_mesh_gen(self->entities_state_, self, queue);
             }
             static void dispatch_mesh_gen_pyramid(Cartridge* self, wgpu::ComputePassEncoder& pass) {
                 self->renderer_.dispatch_pyramid_mesh_gen(pass, self->gpuState_.pyramid_mesh_gen_group());
             }
 
             static bool dispatch_prepare_mesh_arch(Cartridge* self, wgpu::Queue& queue) {
-                return self->prepare_arch_mesh_gen(queue);
+                return prepare_arch_mesh_gen(self->entities_state_, self, queue);
             }
             static void dispatch_mesh_gen_arch(Cartridge* self, wgpu::ComputePassEncoder& pass) {
                 self->renderer_.dispatch_arch_mesh_gen(pass, self->gpuState_.arch_mesh_gen_group());
             }
 
             static bool dispatch_prepare_mesh_column(Cartridge* self, wgpu::Queue& queue) {
-                return self->prepare_column_mesh_gen(queue);
+                return prepare_column_mesh_gen(self->entities_state_, self, queue);
             }
             static void dispatch_mesh_gen_column(Cartridge* self, wgpu::ComputePassEncoder& pass) {
                 self->renderer_.dispatch_column_mesh_gen(pass, self->gpuState_.column_mesh_gen_group());
@@ -940,19 +1029,19 @@ namespace t7 {
             static void dispatch_evict_pyramid(Cartridge* self,
                 uint32_t slot, wgpu::Queue& queue)
             {
-                self->cpuPyramids_.instances[slot] = GPUPyramidInstance{};
-                self->activePyramids_[slot].active = false;
-                self->activePyramidCount_--;
-                self->groundEntriesDirty_ = true;
+                self->entities_state_.cpu_pyramids.instances[slot] = GPUPyramidInstance{};
+                self->entities_state_.pyramids[slot].active = false;
+                self->entities_state_.pyramid_count--;
+                self->world_state_.ground_entries_dirty = true;
                 { GPUPyramidMeshParams ep{}; self->gpuState_.upload_pyramid_mesh_params_slot(queue, slot, ep); }
-                self->pyramidMeshGenPending_ = true;
+                self->entities_state_.pyramid_mesh_gen_pending = true;
 
                 uint32_t max_idx = 0;
                 for (uint32_t i = 0; i < Dim::MAX_PYRAMID_INSTANCES; i++) {
-                    if (self->activePyramids_[i].active) max_idx = i + 1;
+                    if (self->entities_state_.pyramids[i].active) max_idx = i + 1;
                 }
-                self->cpuPyramids_.count = max_idx;
-                self->gpuState_.upload_pyramids(queue, self->cpuPyramids_);
+                self->entities_state_.cpu_pyramids.count = max_idx;
+                self->gpuState_.upload_pyramids(queue, self->entities_state_.cpu_pyramids);
 #ifdef DIAG_ENTITY_LIFECYCLE
                 std::cout << "[DIAG:EVICT]   pyr slot=" << slot << "\n";
 #endif
@@ -963,11 +1052,11 @@ namespace t7 {
             {
                 self->clear_pier(queue, Dim::PIER_ARCH_BASE + slot * 2);
                 self->clear_pier(queue, Dim::PIER_ARCH_BASE + slot * 2 + 1);
-                self->activeArches_[slot].active = false;
-                self->activeArchCount_--;
-                self->portalsDirty_ = true;
+                self->entities_state_.arches[slot].active = false;
+                self->entities_state_.arch_count--;
+                self->mood_state_.portals_dirty = true;
                 { GPUArchMeshParams ep{}; self->gpuState_.upload_arch_mesh_params_slot(queue, slot, ep); }
-                self->archMeshGenPending_ = true;
+                self->entities_state_.arch_mesh_gen_pending = true;
 #ifdef DIAG_ENTITY_LIFECYCLE
                 std::cout << "[DIAG:EVICT]   arch slot=" << slot << "\n";
 #endif
@@ -977,10 +1066,10 @@ namespace t7 {
                 uint32_t slot, wgpu::Queue& queue)
             {
                 self->clear_pier(queue, Dim::PIER_COLUMN_BASE + slot);
-                self->activeColumns_[slot].active = false;
-                self->activeColumnCount_--;
+                self->entities_state_.columns[slot].active = false;
+                self->entities_state_.column_count--;
                 { GPUColumnMeshParams ep{}; self->gpuState_.upload_column_mesh_params_slot(queue, slot, ep); }
-                self->columnMeshGenPending_ = true;
+                self->entities_state_.column_mesh_gen_pending = true;
 #ifdef DIAG_ENTITY_LIFECYCLE
                 std::cout << "[DIAG:EVICT]   col slot=" << slot << "\n";
 #endif
@@ -991,10 +1080,10 @@ namespace t7 {
             {
                 uint32_t gpu_slot = slot + Dim::ANTENNA_SLOT_OFFSET;
                 self->clear_pier(queue, Dim::PIER_COLUMN_BASE + gpu_slot);
-                self->activeAntennas_[slot].active = false;
-                self->activeAntennaCount_--;
+                self->entities_state_.antennas[slot].active = false;
+                self->entities_state_.antenna_count--;
                 { GPUColumnMeshParams ep{}; self->gpuState_.upload_column_mesh_params_slot(queue, gpu_slot, ep); }
-                self->columnMeshGenPending_ = true;
+                self->entities_state_.column_mesh_gen_pending = true;
 #ifdef DIAG_ENTITY_LIFECYCLE
                 std::cout << "[DIAG:EVICT]   ant slot=" << slot << "\n";
 #endif
@@ -1003,11 +1092,11 @@ namespace t7 {
             static void dispatch_evict_palm(Cartridge* self,
                 uint32_t slot, wgpu::Queue& queue)
             {
-                self->activePalms_[slot].active = false;
-                self->activePalmCount_--;
+                self->entities_state_.palms[slot].active = false;
+                self->entities_state_.palm_count--;
                 { GPUPalmMeshParams ep{}; self->gpuState_.upload_palm_mesh_params_slot(queue, slot, ep); }
-                self->palmMeshGenPending_ = true;
-                self->groundEntriesDirty_ = true;
+                self->entities_state_.palm_mesh_gen_pending = true;
+                self->world_state_.ground_entries_dirty = true;
 #ifdef DIAG_ENTITY_LIFECYCLE
                 std::cout << "[DIAG:EVICT]   palm slot=" << slot << "\n";
 #endif
@@ -1016,7 +1105,7 @@ namespace t7 {
             // ── Mesh gen dispatch wrappers (palm) ──
 
             static bool dispatch_prepare_mesh_palm(Cartridge* self, wgpu::Queue& queue) {
-                return self->prepare_palm_mesh_gen(queue);
+                return prepare_palm_mesh_gen(self->entities_state_, self, queue);
             }
             static void dispatch_mesh_gen_palm(Cartridge* self, wgpu::ComputePassEncoder& pass) {
                 self->renderer_.dispatch_palm_mesh_gen(pass, self->gpuState_.palm_mesh_gen_group());
@@ -1025,11 +1114,11 @@ namespace t7 {
             static void dispatch_evict_cactus(Cartridge* self,
                 uint32_t slot, wgpu::Queue& queue)
             {
-                self->activeCacti_[slot].active = false;
-                self->activeCactusCount_--;
+                self->entities_state_.cacti[slot].active = false;
+                self->entities_state_.cactus_count--;
                 { GPUCactusMeshParams ep{}; self->gpuState_.upload_cactus_mesh_params_slot(queue, slot, ep); }
-                self->cactusMeshGenPending_ = true;
-                self->groundEntriesDirty_ = true;
+                self->entities_state_.cactus_mesh_gen_pending = true;
+                self->world_state_.ground_entries_dirty = true;
 #ifdef DIAG_ENTITY_LIFECYCLE
                 std::cout << "[DIAG:EVICT]   cact slot=" << slot << "\n";
 #endif
@@ -1038,7 +1127,7 @@ namespace t7 {
             // ── Mesh gen dispatch wrappers (cactus) ──
 
             static bool dispatch_prepare_mesh_cactus(Cartridge* self, wgpu::Queue& queue) {
-                return self->prepare_cactus_mesh_gen(queue);
+                return prepare_cactus_mesh_gen(self->entities_state_, self, queue);
             }
             static void dispatch_mesh_gen_cactus(Cartridge* self, wgpu::ComputePassEncoder& pass) {
                 self->renderer_.dispatch_cactus_mesh_gen(pass, self->gpuState_.cactus_mesh_gen_group());
@@ -1047,18 +1136,18 @@ namespace t7 {
             static void dispatch_evict_blade(Cartridge* self,
                 uint32_t slot, wgpu::Queue& queue)
             {
-                self->activeBlades_[slot].active = false;
-                self->activeBladeCount_--;
+                self->entities_state_.blades[slot].active = false;
+                self->entities_state_.blade_count--;
                 { GPUBladeClusterMeshParams ep{}; self->gpuState_.upload_blade_mesh_params_slot(queue, slot, ep); }
-                self->bladeMeshGenPending_ = true;
-                self->groundEntriesDirty_ = true;
+                self->entities_state_.blade_mesh_gen_pending = true;
+                self->world_state_.ground_entries_dirty = true;
 #ifdef DIAG_ENTITY_LIFECYCLE
                 std::cout << "[DIAG:EVICT]   blad slot=" << slot << "\n";
 #endif
             }
 
             static bool dispatch_prepare_mesh_blade(Cartridge* self, wgpu::Queue& queue) {
-                return self->prepare_blade_mesh_gen(queue);
+                return prepare_blade_mesh_gen(self->entities_state_, self, queue);
             }
             static void dispatch_mesh_gen_blade(Cartridge* self, wgpu::ComputePassEncoder& pass) {
                 self->renderer_.dispatch_blade_mesh_gen(pass, self->gpuState_.blade_mesh_gen_group());
@@ -1106,18 +1195,18 @@ namespace t7 {
 
             static bool dispatch_select_gol(Cartridge* self,
                 int32_t gx, int32_t gz, EntityQueueEntry& e) {
-                if (!self->moodAllowsGoLZones_) { return false; }   // mood gate — no new zones
-                return self->select_gol_for_patch(gx, gz, e.gol);
+                if (!self->gol_state_.mood_allowed) { return false; }   // mood gate — no new zones
+                return select_gol_for_patch(self->gol_state_, self, gx, gz, e.gol);
             }
 
             static bool dispatch_place_gol(Cartridge* self,
                 EntityQueueEntry& e, PlacementEntry& pe) {
                 pe.family = e.family; pe.gx = e.gx; pe.gz = e.gz;
-                if (self->place_gol_from_selection(e.gol, pe.gol)) {
+                if (place_gol_from_selection(self, e.gol, pe.gol)) {
                     return true;
                 }
                 else {
-                    self->golZones_[e.gol.slot].active = false;
+                    self->gol_state_.zones[e.gol.slot].active = false;
                     return false;
                 }
             }
@@ -1126,11 +1215,11 @@ namespace t7 {
                 PlacementEntry& pe, wgpu::Queue& queue) {
                 auto* host = self->find_patch(pe.gol.host_gx, pe.gol.host_gz);
                 if (host) {
-                    self->commit_gol(pe.gol, pe.gx, pe.gz, queue);
+                    commit_gol(self->gol_state_, self, pe.gol, pe.gx, pe.gz, queue);
                     host->record_entity(PopFamily::GOL, pe.gol.slot);
                 }
                 else {
-                    self->golZones_[pe.gol.slot].active = false;
+                    self->gol_state_.zones[pe.gol.slot].active = false;
 #ifdef DIAG_ENTITY_LIFECYCLE
                     std::cout << "[DIAG:REJECT] gol slot=" << pe.gol.slot
                         << " host=(" << pe.gol.host_gx << "," << pe.gol.host_gz
@@ -1142,8 +1231,8 @@ namespace t7 {
             static void dispatch_evict_gol(Cartridge* self,
                 uint32_t slot, wgpu::Queue& queue) {
                 self->gpuState_.deactivate_zone_slot(queue, slot);
-                self->golZones_[slot].active = false;
-                self->golZoneCount_--;
+                self->gol_state_.zones[slot].active = false;
+                self->gol_state_.zone_count--;
 #ifdef DIAG_ENTITY_LIFECYCLE
                 std::cout << "[DIAG:EVICT]   gol slot=" << slot << "\n";
 #endif
@@ -1161,17 +1250,17 @@ namespace t7 {
 
             static bool dispatch_select_gallery(Cartridge* self,
                 int32_t gx, int32_t gz, EntityQueueEntry& e) {
-                return self->select_gallery_for_patch(gx, gz, e.gallery);
+                return select_gallery_for_patch(self->gallery_state_, self, gx, gz, e.gallery);
             }
 
             static bool dispatch_place_gallery(Cartridge* self,
                 EntityQueueEntry& e, PlacementEntry& pe) {
                 pe.family = e.family; pe.gx = e.gx; pe.gz = e.gz;
-                if (self->place_gallery_from_selection(e.gallery, pe.gallery)) {
+                if (place_gallery_from_selection(self, e.gallery, pe.gallery)) {
                     return true;
                 }
                 else {
-                    self->galleryCenters_[e.gallery.slot].active = false;
+                    self->gallery_state_.gallery_centers[e.gallery.slot].active = false;
                     return false;
                 }
             }
@@ -1180,14 +1269,14 @@ namespace t7 {
                 PlacementEntry& pe, wgpu::Queue& queue) {
                 auto* host = self->find_patch(pe.gallery.host_gx, pe.gallery.host_gz);
                 if (host) {
-                    self->commit_gallery(pe.gallery, pe.gx, pe.gz, queue);
+                    commit_gallery(self->gallery_state_, self, pe.gallery, pe.gx, pe.gz, queue);
                     // Only record entity_ref if gallery is still active (commit may deactivate on 0 paintings)
-                    if (self->galleryCenters_[pe.gallery.slot].active) {
+                    if (self->gallery_state_.gallery_centers[pe.gallery.slot].active) {
                         host->record_entity(PopFamily::GALLERY, pe.gallery.slot);
                     }
                 }
                 else {
-                    self->galleryCenters_[pe.gallery.slot].active = false;
+                    self->gallery_state_.gallery_centers[pe.gallery.slot].active = false;
 #ifdef DIAG_ENTITY_LIFECYCLE
                     std::cout << "[DIAG:REJECT] gall slot=" << pe.gallery.slot
                         << " host=(" << pe.gallery.host_gx << "," << pe.gallery.host_gz
@@ -1198,9 +1287,9 @@ namespace t7 {
 
             static void dispatch_evict_gallery(Cartridge* self,
                 uint32_t slot, wgpu::Queue& queue) {
-                auto& gc = self->galleryCenters_[slot];
+                auto& gc = self->gallery_state_.gallery_centers[slot];
                 if (gc.active) {
-                    self->evict_paintings_for_patch(gc.patch_gx, gc.patch_gz, queue);
+                    evict_paintings_for_patch(self->gallery_state_, self, gc.patch_gx, gc.patch_gz, queue);
                     gc.active = false;
                 }
 #ifdef DIAG_ENTITY_LIFECYCLE
@@ -1848,7 +1937,7 @@ namespace t7 {
             };
 
             PopulationBatch popBatch_{};
-            uint32_t popBatchCounter_ = 0;  // global counter for deterministic mode rolls
+            // (pop_batch_counter migrated into MoodState — see top of class)
 
             // ── Recording ─────────────────────────────────────────────────────
             //
@@ -1874,8 +1963,8 @@ namespace t7 {
                 if (popBatch_.patches_elapsed >= POP_BATCH_SIZE) {
                     popBatch_ = PopulationBatch{};
                     // Roll batch mode deterministically
-                    popBatchCounter_++;
-                    uint32_t mode_seed = cpu_hash(activeSeed_ ^ popBatchCounter_, 330u);
+                    mood_state_.pop_batch_counter++;
+                    uint32_t mode_seed = cpu_hash(world_state_.active_seed ^ mood_state_.pop_batch_counter, 330u);
                     float mode_roll = cpu_hash_f(mode_seed, 331u);
                     if (mode_roll < POP_MODE_AFFINITY_CHANCE) {
                         popBatch_.mode = PopBatchMode::AFFINITY;
@@ -2066,8 +2155,8 @@ namespace t7 {
             // Build and upload GPUTileGrid from tile cache, centered on (cx, cz).
             void upload_tile_grid_now(wgpu::Queue& queue, int32_t cx, int32_t cz) {
                 static constexpr int32_t TILE_PAD = 1;
-                int32_t rp = (int32_t)activeRadius_ + TILE_PAD;
-                uint32_t tileGridSide = 2 * (activeRadius_ + TILE_PAD) + 1;
+                int32_t rp = (int32_t)world_state_.active_radius + TILE_PAD;
+                uint32_t tileGridSide = 2 * (world_state_.active_radius + TILE_PAD) + 1;
                 GPUTileGrid grid{};
                 grid.origin_x = cx - rp;
                 grid.origin_z = cz - rp;
@@ -2129,7 +2218,7 @@ namespace t7 {
                 // Indoor: common (flat floors are natural).
                 // Outdoor: very rare (special feature).
                 static constexpr uint32_t POOL_IDX = 3;
-                if (MOOD_TABLE[activeMood_].indoor) {
+                if (MOOD_TABLE[mood_state_.active].indoor) {
                     weights[POOL_IDX] = 1.5f;   // ~30% of indoor tiles become pools
                 }
                 else {
@@ -2164,7 +2253,7 @@ namespace t7 {
                 for (uint32_t a = 0; a < ARCHETYPE_COUNT; a++) total_weight += weights[a];
                 for (uint32_t a = 0; a < ARCHETYPE_COUNT; a++) weights[a] /= total_weight;
 
-                uint32_t seed = tile_seed(activeSeed_, gx, gz);
+                uint32_t seed = tile_seed(world_state_.active_seed, gx, gz);
                 float roll = cpu_hash_f(seed, 300u);
 
                 uint32_t archetype = ARCHETYPE_COUNT - 1;
@@ -2199,7 +2288,7 @@ namespace t7 {
                     float dwz = dfz * dfz * (3.0f - 2.0f * dfz);
                     float density = 0.0f;
                     for (int dz = 0; dz <= 1; dz++) for (int dx = 0; dx <= 1; dx++) {
-                        uint32_t ns = cpu_lattice_node_seed(activeSeed_, dbx + dx, dbz + dz, DENSITY_SEED_BAND);
+                        uint32_t ns = cpu_lattice_node_seed(world_state_.active_seed, dbx + dx, dbz + dz, DENSITY_SEED_BAND);
                         float raw = cpu_hash_f(ns, 350u);
                         float shaped = std::pow(raw, DENSITY_EXPONENT);
                         float w = ((dx == 1) ? dwx : (1.0f - dwx)) * ((dz == 1) ? dwz : (1.0f - dwz));
@@ -2228,7 +2317,7 @@ namespace t7 {
                     uint32_t dominant_theme = 0;
 
                     for (int dz = 0; dz <= 1; dz++) for (int dx = 0; dx <= 1; dx++) {
-                        uint32_t ns = cpu_lattice_node_seed(activeSeed_, tbx + dx, tbz + dz, THEME_SEED_BAND);
+                        uint32_t ns = cpu_lattice_node_seed(world_state_.active_seed, tbx + dx, tbz + dz, THEME_SEED_BAND);
                         uint32_t tidx = select_theme_at_node(ns);
                         const auto& theme = THEMES[tidx];
                         float w = ((dx == 1) ? twx : (1.0f - twx)) * ((dz == 1) ? twz : (1.0f - twz));
@@ -2333,8 +2422,8 @@ namespace t7 {
             void teardown_world(wgpu::Queue& queue) {
                 // Patches + tile cache
                 init_patch_system();
-                lastCenterX_ = INT32_MAX;  // force full regen on next frame
-                lastCenterZ_ = INT32_MAX;
+                world_state_.last_center_x = INT32_MAX;  // force full regen on next frame
+                world_state_.last_center_z = INT32_MAX;
 
                 // Terrain tokens
                 for (uint32_t t = 0; t < MAX_TERRAIN_TOKENS; t++) {
@@ -2343,7 +2432,7 @@ namespace t7 {
 
                 // Population batch
                 popBatch_ = PopulationBatch{};
-                popBatchCounter_ = 0;
+                mood_state_.pop_batch_counter = 0;
                 entityQueue_.clear();
                 placementResults_.clear();
 
@@ -2358,10 +2447,10 @@ namespace t7 {
 
                 // Arches
                 for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++) {
-                    activeArches_[i] = ActiveArch{};
+                    entities_state_.arches[i] = ActiveArch{};
                 }
-                activeArchCount_ = 0;
-                portalsDirty_ = true;
+                entities_state_.arch_count = 0;
+                mood_state_.portals_dirty = true;
                 gpuState_.set_arch_index_count(0);
                 // Clear all arch mesh gen param slots
                 {
@@ -2369,18 +2458,18 @@ namespace t7 {
                     for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++) {
                         gpuState_.upload_arch_mesh_params_slot(queue, i, emptyParams);
                     }
-                    archMeshGenPending_ = true;
+                    entities_state_.arch_mesh_gen_pending = true;
                 }
 
                 // Columns + Antennas
                 for (uint32_t i = 0; i < Dim::MAX_COLUMN_ONLY; i++) {
-                    activeColumns_[i] = ActiveColumn{};
+                    entities_state_.columns[i] = ActiveColumn{};
                 }
                 for (uint32_t i = 0; i < Dim::MAX_ANTENNA_ONLY; i++) {
-                    activeAntennas_[i] = ActiveColumn{};
+                    entities_state_.antennas[i] = ActiveColumn{};
                 }
-                activeColumnCount_ = 0;
-                activeAntennaCount_ = 0;
+                entities_state_.column_count = 0;
+                entities_state_.antenna_count = 0;
                 gpuState_.set_column_index_count(0);
                 // Clear all column mesh gen param slots
                 {
@@ -2388,58 +2477,58 @@ namespace t7 {
                     for (uint32_t i = 0; i < Dim::MAX_COLUMN_INSTANCES; i++) {
                         gpuState_.upload_column_mesh_params_slot(queue, i, emptyParams);
                     }
-                    columnMeshGenPending_ = true;
+                    entities_state_.column_mesh_gen_pending = true;
                 }
 
                 // Palms
                 for (uint32_t i = 0; i < Dim::MAX_PALM_INSTANCES; i++) {
-                    activePalms_[i] = ActivePalm{};
+                    entities_state_.palms[i] = ActivePalm{};
                 }
-                activePalmCount_ = 0;
+                entities_state_.palm_count = 0;
                 gpuState_.set_palm_index_count(0);
                 {
                     GPUPalmMeshParams emptyParams{};
                     for (uint32_t i = 0; i < Dim::MAX_PALM_INSTANCES; i++) {
                         gpuState_.upload_palm_mesh_params_slot(queue, i, emptyParams);
                     }
-                    palmMeshGenPending_ = true;
+                    entities_state_.palm_mesh_gen_pending = true;
                 }
 
                 // Cacti
                 for (uint32_t i = 0; i < Dim::MAX_CACTUS_INSTANCES; i++) {
-                    activeCacti_[i] = ActiveCactus{};
+                    entities_state_.cacti[i] = ActiveCactus{};
                 }
-                activeCactusCount_ = 0;
+                entities_state_.cactus_count = 0;
                 gpuState_.set_cactus_index_count(0);
                 {
                     GPUCactusMeshParams emptyParams{};
                     for (uint32_t i = 0; i < Dim::MAX_CACTUS_INSTANCES; i++) {
                         gpuState_.upload_cactus_mesh_params_slot(queue, i, emptyParams);
                     }
-                    cactusMeshGenPending_ = true;
+                    entities_state_.cactus_mesh_gen_pending = true;
                 }
 
                 // Blade clusters
                 for (uint32_t i = 0; i < Dim::MAX_BLADE_INSTANCES; i++) {
-                    activeBlades_[i] = ActiveBlade{};
+                    entities_state_.blades[i] = ActiveBlade{};
                 }
-                activeBladeCount_ = 0;
+                entities_state_.blade_count = 0;
                 gpuState_.set_blade_index_count(0);
                 {
                     GPUBladeClusterMeshParams emptyParams{};
                     for (uint32_t i = 0; i < Dim::MAX_BLADE_INSTANCES; i++) {
                         gpuState_.upload_blade_mesh_params_slot(queue, i, emptyParams);
                     }
-                    bladeMeshGenPending_ = true;
+                    entities_state_.blade_mesh_gen_pending = true;
                 }
 
                 // Pyramids
                 for (uint32_t i = 0; i < Dim::MAX_PYRAMID_INSTANCES; i++) {
-                    activePyramids_[i] = ActivePyramid{};
+                    entities_state_.pyramids[i] = ActivePyramid{};
                 }
-                activePyramidCount_ = 0;
-                cpuPyramids_ = GPUPyramidArray{};
-                gpuState_.upload_pyramids(queue, cpuPyramids_);
+                entities_state_.pyramid_count = 0;
+                entities_state_.cpu_pyramids = GPUPyramidArray{};
+                gpuState_.upload_pyramids(queue, entities_state_.cpu_pyramids);
                 gpuState_.set_pyramid_index_count(0);
                 // Clear all mesh gen param slots (inactive → degenerates on next dispatch)
                 {
@@ -2447,16 +2536,16 @@ namespace t7 {
                     for (uint32_t i = 0; i < Dim::MAX_PYRAMID_INSTANCES; i++) {
                         gpuState_.upload_pyramid_mesh_params_slot(queue, i, emptyParams);
                     }
-                    pyramidMeshGenPending_ = true;
+                    entities_state_.pyramid_mesh_gen_pending = true;
                 }
 
                 // GoL zones
                 for (uint32_t i = 0; i < Dim::MAX_GOL_ZONES; i++) {
-                    golZones_[i] = GoLZoneState{};
+                    gol_state_.zones[i] = GoLZoneState{};
                 }
-                golZoneCount_ = 0;
-                activeZoneSlotCount_ = 0;
-                pendingDeriveRequests_.count = 0;
+                gol_state_.zone_count = 0;
+                gol_state_.active_slot_count = 0;
+                gol_state_.pending_derive_requests.count = 0;
                 GPUGoLZoneArray emptyZones{};
                 gpuState_.upload_zone_config(queue, emptyZones);
 
@@ -2490,28 +2579,28 @@ namespace t7 {
 
                 // Gallery / paintings — clear all exhibition + slots, keep staging intact
                 for (uint32_t i = 0; i < MAX_GALLERIES; i++) {
-                    galleryCenters_[i] = GalleryCenter{};
+                    gallery_state_.gallery_centers[i] = GalleryCenter{};
                 }
-                pendingSnapshot_.active = false;
-                pendingPromotionCount_ = 0;
-                wallFrameCount_ = 0;
-                activePaintingCount_ = 0;
+                gallery_state_.pending_snapshot.active = false;
+                gallery_state_.pending_promotion_count = 0;
+                gallery_state_.wall_frame_count = 0;
+                gallery_state_.active_painting_count = 0;
                 // Clear all painting slots (CPU + GPU)
                 for (uint32_t i = 0; i < Dim::PAINTING_MAX_SLOTS; i++) {
-                    paintingSlots_[i] = GPUPaintingSlot{};
+                    gallery_state_.painting_slots[i] = GPUPaintingSlot{};
                 }
                 {
                     GPUPaintingSlot empty[Dim::PAINTING_MAX_SLOTS]{};
                     gpuState_.upload_painting_slots(queue, empty, Dim::PAINTING_MAX_SLOTS);
                 }
                 // Free all exhibition layers (staging persists across worlds)
-                for (uint32_t i = 0; i < Dim::EXHIBITION_LAYERS; i++) exhibitionOccupied_[i] = false;
-                exhibitionCount_ = 0;
+                for (uint32_t i = 0; i < Dim::EXHIBITION_LAYERS; i++) gallery_state_.exhibition_occupied[i] = false;
+                gallery_state_.exhibition_count = 0;
                 // Snapshot staging: consumed flags persist — exhibited snapshots stay consumed.
                 // Only new captures (photographer overwrites) make a slot fresh again.
                 // Authored staging: rotate consumed slots with fresh images from disk.
-                rotate_authored_staging(queue);
-                for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) authoredStaging_[i].consumed = false;
+                rotate_authored_staging(gallery_state_, this, queue);
+                for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) gallery_state_.authored_staging[i].consumed = false;
 
                 // Footprints
                 for (uint32_t i = 0; i < MAX_FOOTPRINTS; i++) {
@@ -2519,28 +2608,28 @@ namespace t7 {
                 }
 
                 // Aura
-                auraNeedsClear_ = true;
-                auraCfgDirty_ = true;
+                pawn_state_.aura_needs_clear = true;
+                pawn_state_.aura_cfg_dirty = true;
 
                 // Sky orbs: apply_mood re-enables + re-seeds as needed
-                teardown_orbs();
+                teardown_orbs(orbs_state_, this);
 
                 // Indoor shell
                 gpuState_.set_shell_index_count(0);
 
                 // Lights need re-upload with potentially new config
-                lightsDirty_ = true;
+                entities_state_.lights_dirty = true;
 
                 // Band motion: reset (apply_mood will re-initialize if needed)
-                bandMotionActive_ = false;
+                musical_state_.band_motion_active = false;
                 for (int i = 0; i < 6; i++) {
-                    bandBlend_[i] = -1.0f;
-                    bandBlendTarget_[i] = 0.0f;
-                    bandPhaseOrigin_[i] = 0.0f;
+                    musical_state_.band_blend[i] = -1.0f;
+                    musical_state_.band_blend_target[i] = 0.0f;
+                    musical_state_.band_phase_origin[i] = 0.0f;
                 }
 
                 // Musical modes: reset intensities (mask stays — circuits remain wired)
-                reset_musical_couplings(queue);
+                reset_musical_couplings(musical_state_, this, queue);
 
                 // Y correction
 
@@ -2557,17 +2646,17 @@ namespace t7 {
                 for (uint32_t i = 0; i < MAX_PATCHES; i++) {
                     freeLayerStack_[i] = MAX_PATCHES - 1 - i;
                 }
-                freeLayerCount_ = MAX_PATCHES;
-                activePatchCount_ = 0;
-                renderPatchCount_ = 0;
-                lod0PatchCount_ = 0;
-                allPatchCount_ = 0;
+                world_state_.free_layer_count = MAX_PATCHES;
+                world_state_.active_patch_count = 0;
+                world_state_.render_patch_count = 0;
+                world_state_.lod0_patch_count = 0;
+                world_state_.all_patch_count = 0;
                 gpuState_.config().placement_patch_count = 0;
                 tileCache_.clear();
-                pierCountDirty_ = true;
-                groundEntriesDirty_ = true;
-                patchInstancesDirty_ = true;
-                placementDirty_ = true;
+                world_state_.pier_count_dirty = true;
+                world_state_.ground_entries_dirty = true;
+                world_state_.patch_instances_dirty = true;
+                world_state_.placement_dirty = true;
             }
 
             // Test rig piers: ramp + plateau + block at pier slots 0-2.
@@ -2661,7 +2750,7 @@ namespace t7 {
                 p.origin[1] = (gz + 0.5f) * PATCH_EXTENT;
                 p.extent = PATCH_EXTENT;
                 p.resolution = 256;
-                p.master_seed = activeSeed_;
+                p.master_seed = world_state_.active_seed;
                 p.time = 0.0f;
                 p.layer = layer;
                 p._pad1 = 0.0f;
@@ -2675,21 +2764,21 @@ namespace t7 {
             // window; free_layer when a patch is evicted.
 
             uint32_t alloc_layer() {
-                if (freeLayerCount_ == 0) {
+                if (world_state_.free_layer_count == 0) {
                     // Safety: no free layers — recycle layer 0 rather than crash.
                     // This shouldn't happen if eviction works correctly.
                     return 0;
                 }
-                return freeLayerStack_[--freeLayerCount_];
+                return freeLayerStack_[--world_state_.free_layer_count];
             }
 
             void free_layer(uint32_t layer) {
-                freeLayerStack_[freeLayerCount_++] = layer;
+                freeLayerStack_[world_state_.free_layer_count++] = layer;
             }
 
-            // Check if grid coordinate is within the allocation window (activeRadius_ = PREGEN_RADIUS)
+            // Check if grid coordinate is within the allocation window (world_state_.active_radius = PREGEN_RADIUS)
             bool in_render_window(int32_t gx, int32_t gz, int32_t cx, int32_t cz) {
-                int32_t r = (int32_t)activeRadius_;
+                int32_t r = (int32_t)world_state_.active_radius;
                 return gx >= cx - r && gx <= cx + r &&
                     gz >= cz - r && gz <= cz + r;
             }
@@ -2751,7 +2840,7 @@ namespace t7 {
             {
                 float half = PATCH_EXTENT * 0.5f;
                 uint32_t count = 0;
-                for (uint32_t i = 0; i < activePatchCount_; i++) {
+                for (uint32_t i = 0; i < world_state_.active_patch_count; i++) {
                     if (!patches_[i].valid) continue;
                     if (!pred(patches_[i])) continue;
                     float ox = (patches_[i].grid_x + 0.5f) * PATCH_EXTENT;
@@ -2792,7 +2881,7 @@ namespace t7 {
                 for (uint32_t s = 0; s < count; s++) {
                     uint32_t pi = candidates[s].idx;
                     active_theme_idx_ = evaluate_theme_envelope(
-                        tile_seed(activeSeed_, patches_[pi].grid_x, patches_[pi].grid_z));
+                        tile_seed(world_state_.active_seed, patches_[pi].grid_x, patches_[pi].grid_z));
                     select_entities_for_patch(patches_[pi].grid_x, patches_[pi].grid_z);
                     advance_population_batch();
                     patches_[pi].phase = PatchPhase::SPAWNED;
@@ -2844,7 +2933,7 @@ namespace t7 {
             {
                 if (count == 0) return;
                 if (tileGridDirty) {
-                    upload_tile_grid_now(queue, lastCenterX_, lastCenterZ_);
+                    upload_tile_grid_now(queue, world_state_.last_center_x, world_state_.last_center_z);
                     tileGridDirty = false;
                 }
                 GPUPatchParams batchParams[MAX_PATCHES];
@@ -2865,7 +2954,7 @@ namespace t7 {
                         on_patch_first_generated(pi, queue);
                     }
                 }
-                patchInstancesDirty_ = true;
+                world_state_.patch_instances_dirty = true;
             }
 
         public:
@@ -2943,7 +3032,7 @@ namespace t7 {
                 // Sky orbs for the initial mood (apply_mood runs only on transitions).
                 {
                     wgpu::Queue q = device_.GetQueue();
-                    configure_orbs(ORB_MOOD_TABLE[activeMood_], q);
+                    configure_orbs(orbs_state_, this, ORB_MOOD_TABLE[mood_state_.active], q);
                 }
 
                 // Agent registries — single source of truth in modules/agents.inl
@@ -2953,35 +3042,35 @@ namespace t7 {
                 // so this is a one-shot write at boot.
                 {
                     wgpu::Queue q = device_.GetQueue();
-                    upload_agent_registries_to_gpu(q);
+                    upload_agent_registries_to_gpu(this, q);
                 }
 
                 // Initial agent population for boot mood. Slot 0 (player) is
                 // already live on the GPU via GPUState's init; this populates
-                // slots 1..MAX_AGENTS-1 from AGENT_POPULATIONS[activeMood_].
-                // Mirror the player's idle pose into cpuAgents_[0] first so
+                // slots 1..MAX_AGENTS-1 from AGENT_POPULATIONS[mood_state_.active].
+                // Mirror the player's idle pose into agent_state_.slots[0] first so
                 // the full-buffer upload is idempotent.
                 {
-                    cpuAgents_[0].pos_x = Idle::PAWN_POS_X;
-                    cpuAgents_[0].pos_y = Idle::PAWN_POS_Y;
-                    cpuAgents_[0].pos_z = Idle::PAWN_POS_Z;
-                    cpuAgents_[0].heading = Idle::PAWN_HEADING;
-                    cpuAgents_[0].orient_w = 1.0f;
-                    cpuAgents_[0].is_active = 1u;
-                    cpuAgents_[0].behavior_id = AGENT_BEHAVIOR_PLAYER_CONTROLLED;
-                    cpuAgents_[0].tier_idx = AGENT_TIER_WORKER;
-                    cpuAgents_[0].portal_trigger = -1;
+                    agent_state_.slots[0].pos_x = Idle::PAWN_POS_X;
+                    agent_state_.slots[0].pos_y = Idle::PAWN_POS_Y;
+                    agent_state_.slots[0].pos_z = Idle::PAWN_POS_Z;
+                    agent_state_.slots[0].heading = Idle::PAWN_HEADING;
+                    agent_state_.slots[0].orient_w = 1.0f;
+                    agent_state_.slots[0].is_active = 1u;
+                    agent_state_.slots[0].behavior_id = AGENT_BEHAVIOR_PLAYER_CONTROLLED;
+                    agent_state_.slots[0].tier_idx = AGENT_TIER_WORKER;
+                    agent_state_.slots[0].portal_trigger = -1;
 
                     wgpu::Queue q = device_.GetQueue();
-                    spawn_population_for_mood(activeMood_, activeSeed_,
+                    spawn_population_for_mood(agent_state_, this, mood_state_.active, world_state_.active_seed,
                         Idle::PAWN_POS_X, Idle::PAWN_POS_Z, q);
-                    dump_agent_census("boot");
+                    dump_agent_census(agent_state_, this, "boot");
                 }
 
                 // Eager-load authored paintings at boot (avoids mid-frame stall on first gallery)
                 {
                     wgpu::Queue q = device_.GetQueue();
-                    load_authored_textures(q);
+                    load_authored_textures(gallery_state_, this, q);
                 }
 
                 auto t3 = std::chrono::high_resolution_clock::now();
@@ -3034,19 +3123,19 @@ namespace t7 {
                 gpuSignal.pan_y_delta = inputState_.pan_y_delta;
                 gpuSignal._pad1 = 0.0f;
 
-                currentBeats_ = signal.t_beats;
-                currentSeconds_ = signal.t_seconds;
-                currentDt_ = signal.dt;
+                time_state_.beats = signal.t_beats;
+                time_state_.seconds = signal.t_seconds;
+                time_state_.dt = signal.dt;
 
                 // --- Upload to GPU --------------------------------------------------
 
                 // Pawn presence ramp + aura height computation.
                 // Lives in pawn.inl as a Trajectory-driven tick (closes pawn:K1).
-                tick_pawn_couplings(queue);
-                gpuState_.set_world_seed(activeSeed_);
-                if (finiteMode_) {
-                    float bmin = -(float)finiteRadius_ * PATCH_EXTENT;
-                    float bmax = ((float)finiteRadius_ + 1.0f) * PATCH_EXTENT;
+                tick_pawn_couplings(pawn_state_, this, queue);
+                gpuState_.set_world_seed(world_state_.active_seed);
+                if (world_state_.finite_mode) {
+                    float bmin = -(float)world_state_.finite_radius * PATCH_EXTENT;
+                    float bmax = ((float)world_state_.finite_radius + 1.0f) * PATCH_EXTENT;
                     gpuState_.set_world_bounds(bmin, bmin, bmax, bmax);
                 }
                 else {
@@ -3055,11 +3144,11 @@ namespace t7 {
 
                 // --- Transition state machine ---
                 if (transitionPhase_ != TransitionPhase::IDLE) {
-                    transitionTimer_ += signal.dt;
+                    mood_state_.transition_timer += signal.dt;
                     switch (transitionPhase_) {
                     case TransitionPhase::FADE_OUT:
-                        transitionFadeAlpha_ = std::min(1.0f, transitionTimer_ / transitionFadeDuration_);
-                        if (transitionFadeAlpha_ >= 1.0f) {
+                        mood_state_.transition_fade_alpha = std::min(1.0f, mood_state_.transition_timer / mood_state_.transition_fade_duration);
+                        if (mood_state_.transition_fade_alpha >= 1.0f) {
                             transitionPhase_ = TransitionPhase::TEARDOWN;
                         }
                         break;
@@ -3072,62 +3161,62 @@ namespace t7 {
                         //   owns: worldGen bump (P5 stale-callback guard),
                         //   return-state capture, agent reset, ribbon cleanup,
                         //   patch teardown.
-                        // SEAM[spine:P5] worldGen_++ at top of TEARDOWN is the
+                        // SEAM[spine:P5] world_state_.world_gen++ at top of TEARDOWN is the
                         //   stale-callback guard (P5 family). Genuinely
                         //   spine-owned.
 
                         // Bump the world generation counter so any in-flight
                         // pawn readback callback from the previous world
                         // drops its data instead of overwriting pawnReadback
-                        // with a stale position. See worldGen_ declaration.
-                        worldGen_++;
+                        // with a stale position. See world_state_.world_gen declaration.
+                        world_state_.world_gen++;
 
                         // Capture return seed + mood + radius before overwrite
-                        backPortalReturnSeed_ = activeSeed_;
-                        backPortalReturnMood_ = activeMood_;
-                        backPortalReturnRadius_ = finiteRadius_;
+                        mood_state_.back_portal_return_seed = world_state_.active_seed;
+                        mood_state_.back_portal_return_mood = mood_state_.active;
+                        mood_state_.back_portal_return_radius = world_state_.finite_radius;
 
-                        activeSeed_ = pendingDestination_.seed;
-                        finiteMode_ = pendingDestination_.finite;
-                        finiteRadius_ = pendingDestination_.finite_radius;
+                        world_state_.active_seed = pendingDestination_.seed;
+                        world_state_.finite_mode = pendingDestination_.finite;
+                        world_state_.finite_radius = pendingDestination_.finite_radius;
                         teardown_world(queue);
                         // NOTE: do NOT force pawnReadbackState_ to IDLE here.
                         // If a MapAsync is in-flight (MAPPING), forcing IDLE would
                         // cause CopyBufferToBuffer to a still-mapped buffer.
                         // The existing state machine guards will skip readback
                         // until the pending callback resolves naturally.
-                        readbackPortalTrigger_ = -1;
-                        pawnReadback_x_ = 0.0f;
-                        pawnReadback_z_ = 0.0f;
+                        player_.readback_portal_trigger = -1;
+                        player_.readback_x = 0.0f;
+                        player_.readback_z = 0.0f;
                         // Preserve the player's tier across mood transitions.
                         // Body identity (tier) is a property of the player, not
                         // the old mood — possessing a Scout and stepping through
                         // a portal should leave you as a Scout on the other side.
                         // Everything else about the body resets to idle defaults.
-                        uint32_t preserved_tier = cpuAgents_[player_.possessed_slot].tier_idx;
+                        uint32_t preserved_tier = agent_state_.slots[player_.possessed_slot].tier_idx;
 
                         gpuState_.reset_player_agent(queue, preserved_tier);
                         gpuState_.set_possessed_slot(0);
-                        // Keep cpuAgents_ in sync with the GPU reset so
+                        // Keep agent_state_.slots in sync with the GPU reset so
                         // patch streaming + ribbon + Caps Lock see current state.
-                        std::memset(cpuAgents_, 0, sizeof(cpuAgents_));
-                        cpuAgents_[0].pos_x = 0.0f;  // Idle::PAWN_POS_X
-                        cpuAgents_[0].pos_y = 0.0f;
-                        cpuAgents_[0].pos_z = 0.0f;
-                        cpuAgents_[0].orient_w = 1.0f;
-                        cpuAgents_[0].is_active = 1u;
-                        cpuAgents_[0].behavior_id = AGENT_BEHAVIOR_PLAYER_CONTROLLED;
-                        cpuAgents_[0].tier_idx = preserved_tier;
-                        cpuAgents_[0].portal_trigger = -1;
+                        std::memset(agent_state_.slots, 0, sizeof(agent_state_.slots));
+                        agent_state_.slots[0].pos_x = 0.0f;  // Idle::PAWN_POS_X
+                        agent_state_.slots[0].pos_y = 0.0f;
+                        agent_state_.slots[0].pos_z = 0.0f;
+                        agent_state_.slots[0].orient_w = 1.0f;
+                        agent_state_.slots[0].is_active = 1u;
+                        agent_state_.slots[0].behavior_id = AGENT_BEHAVIOR_PLAYER_CONTROLLED;
+                        agent_state_.slots[0].tier_idx = preserved_tier;
+                        agent_state_.slots[0].portal_trigger = -1;
                         player_.possessed_slot = 0;
-                        gpuState_.set_world_seed(activeSeed_);
+                        gpuState_.set_world_seed(world_state_.active_seed);
                         apply_mood(pendingDestination_.mood, queue);
-                        spawn_population_for_mood(pendingDestination_.mood, activeSeed_,
+                        spawn_population_for_mood(agent_state_, this, pendingDestination_.mood, world_state_.active_seed,
                             Idle::PAWN_POS_X, Idle::PAWN_POS_Z, queue);
-                        dump_agent_census("mood-transition");
+                        dump_agent_census(agent_state_, this, "mood-transition");
                         // Deactivate ribbons in finite mode unless the mood
                         // spawns its own anchor ribbon in apply_mood.
-                        if (finiteMode_ && ribbon_state_.active_count > 0 && !MOOD_TABLE[activeMood_].has_anchor_ribbon) {
+                        if (world_state_.finite_mode && ribbon_state_.active_count > 0 && !MOOD_TABLE[mood_state_.active].has_anchor_ribbon) {
                             for (uint32_t i = 0; i < MAX_RIBBON_INSTANCES; i++) {
                                 ribbon_state_.active[i] = ActiveRibbon{};
                                 ribbon_state_.gpu[i] = GPURibbonState{};
@@ -3138,28 +3227,28 @@ namespace t7 {
                             gpuState_.upload_ribbon(queue, empty);
                         }
                         // Schedule guaranteed back-portal in finite worlds
-                        backPortalPending_ = finiteMode_;
+                        mood_state_.back_portal_pending = world_state_.finite_mode;
 
                         transitionPhase_ = TransitionPhase::FADE_IN;
-                        transitionTimer_ = 0.0f;
-                        uint32_t side = finiteMode_ ? 2 * finiteRadius_ + 1 : 0;
-                        std::cout << "[World] Teardown complete, seed=" << activeSeed_
-                            << " mode=" << (finiteMode_ ? "finite" : "open")
-                            << (finiteMode_ ? " " + std::to_string(side) + "x" + std::to_string(side) : "")
+                        mood_state_.transition_timer = 0.0f;
+                        uint32_t side = world_state_.finite_mode ? 2 * world_state_.finite_radius + 1 : 0;
+                        std::cout << "[World] Teardown complete, seed=" << world_state_.active_seed
+                            << " mode=" << (world_state_.finite_mode ? "finite" : "open")
+                            << (world_state_.finite_mode ? " " + std::to_string(side) + "x" + std::to_string(side) : "")
                             << "\n";
                     }
                     break;
                     case TransitionPhase::FADE_IN:
-                        transitionFadeAlpha_ = std::max(0.0f, 1.0f - transitionTimer_ / transitionFadeDuration_);
-                        if (transitionFadeAlpha_ <= 0.0f) {
+                        mood_state_.transition_fade_alpha = std::max(0.0f, 1.0f - mood_state_.transition_timer / mood_state_.transition_fade_duration);
+                        if (mood_state_.transition_fade_alpha <= 0.0f) {
                             transitionPhase_ = TransitionPhase::IDLE;
-                            transitionFadeAlpha_ = 0.0f;
+                            mood_state_.transition_fade_alpha = 0.0f;
                         }
                         break;
                     default: break;
                     }
                 }
-                gpuState_.set_fade(transitionFadeAlpha_, 0.0f, 0.0f, 0.0f);
+                gpuState_.set_fade(mood_state_.transition_fade_alpha, 0.0f, 0.0f, 0.0f);
 
                 gpuState_.upload_signal(queue, gpuSignal);
 
@@ -3168,7 +3257,12 @@ namespace t7 {
                 // radial pulse onset detection. All ramps live in
                 // musical.inl as Trajectory-based per-frame ticks
                 // (closes musical:K2, musical:K3).
-                tick_musical_couplings(signal, queue);
+                tick_musical_couplings(musical_state_, this, signal, queue);
+
+                // Sun orbit coupling (azimuth swings around mood baseline,
+                // polyphony drives the rate). No GPU plumbing needed — the
+                // tick directly calls gpuState_.set_sun_direction().
+                tick_sun_coupling(mood_state_, this, signal.stats[0], signal.dt);
 
                 gpuState_.upload_config(queue);
 
@@ -3183,17 +3277,23 @@ namespace t7 {
                 //   (tick_musical_couplings, reset_musical_couplings,
                 //   tick_pawn_couplings). Pattern P1 retained as the
                 //   architectural exemplar for future per-frame couplings.
-                update_orb_coupling(signal.stats[0], signal.dt, queue);
+                update_orb_coupling(orbs_state_, this, signal.stats[0], signal.dt, queue);
+
+                // Ribbon musical coupling: head→tail intensity propagation.
+                // Polyphony enters at the head; tick eases each station
+                // toward its upstream neighbor each frame; WGSL ribbon_spine_at
+                // samples the chain per cube and multiplies amplitudes.
+                tick_ribbon_couplings(ribbon_state_, this, signal.stats[0], signal.dt, queue);
 
                 // Orb dome anchor: follow pawn when toggled on. Uses
                 // last-frame pawn readback — one-frame lag is imperceptible.
-                update_orb_anchor(pawnReadback_x_, pawnReadback_z_, queue);
+                update_orb_anchor(orbs_state_, this, player_.readback_x, player_.readback_z, queue);
 
                 // Pawn position comes from GPU readback (one-frame latency).
                 // See render() for the readback state machine.
 
                 // --- Clear deltas for next frame ------------------------------------
-                update_photographer(queue);
+                update_photographer(gallery_state_, this, queue);
                 clear_input_deltas();
             }
 
@@ -3234,25 +3334,25 @@ namespace t7 {
                     gpuState_.agent_state_readback_staging().MapAsync(
                         wgpu::MapMode::Read, 0, GPUState::agent_state_buffer_size(),
                         wgpu::CallbackMode::AllowSpontaneous,
-                        [this, gen = worldGen_](wgpu::MapAsyncStatus status, wgpu::StringView) {
+                        [this, gen = world_state_.world_gen](wgpu::MapAsyncStatus status, wgpu::StringView) {
                             if (status == wgpu::MapAsyncStatus::Success) {
                                 // Drop stale callbacks from a previous world: gen
                                 // captured at issue time differs from current
-                                // worldGen_ if a teardown happened in between.
+                                // world_state_.world_gen if a teardown happened in between.
                                 // Buffer is still successfully mapped though, so
                                 // we Unmap unconditionally (mapping contract is
                                 // independent of whether we read the data).
-                                if (gen == worldGen_) {
+                                if (gen == world_state_.world_gen) {
                                     const auto* data = static_cast<const GPUAgentState*>(
                                         gpuState_.agent_state_readback_staging().GetConstMappedRange(
                                             0, GPUState::agent_state_buffer_size()));
                                     if (data) {
-                                        std::memcpy(cpuAgents_, data,
+                                        std::memcpy(agent_state_.slots, data,
                                             GPUState::agent_state_buffer_size());
-                                        const auto& p = cpuAgents_[player_.possessed_slot];
-                                        pawnReadback_x_ = p.pos_x;
-                                        pawnReadback_z_ = p.pos_z;
-                                        readbackPortalTrigger_ = p.portal_trigger;
+                                        const auto& p = agent_state_.slots[player_.possessed_slot];
+                                        player_.readback_x = p.pos_x;
+                                        player_.readback_z = p.pos_z;
+                                        player_.readback_portal_trigger = p.portal_trigger;
                                     }
                                 }
                                 gpuState_.agent_state_readback_staging().Unmap();
@@ -3281,11 +3381,11 @@ namespace t7 {
                     gpuState_.floating_entity_readback_staging().MapAsync(
                         wgpu::MapMode::Read, 0, GPUState::floating_entity_buffer_size(),
                         wgpu::CallbackMode::AllowSpontaneous,
-                        [this, gen = worldGen_](wgpu::MapAsyncStatus status, wgpu::StringView) {
+                        [this, gen = world_state_.world_gen](wgpu::MapAsyncStatus status, wgpu::StringView) {
                             if (status == wgpu::MapAsyncStatus::Success) {
                                 // Drop stale callbacks from a previous world.
                                 // Buffer is still mapped, so Unmap unconditionally.
-                                if (gen == worldGen_) {
+                                if (gen == world_state_.world_gen) {
                                     const auto* data = static_cast<const GPUFloatingEntityState*>(
                                         gpuState_.floating_entity_readback_staging().GetConstMappedRange(
                                             0, GPUState::floating_entity_buffer_size()));
@@ -3299,7 +3399,7 @@ namespace t7 {
                                         // is more recent than the readback's
                                         // "snapshot age."
                                         static constexpr float SPAWN_PROTECTION_S = 0.10f;
-                                        float now = currentSeconds_;
+                                        float now = time_state_.seconds;
                                         // Spheres: slots [0, MAX_SPHERE_INSTANCES)
                                         for (uint32_t i = 0; i < Dim::MAX_SPHERE_INSTANCES; i++) {
                                             bool gpu_active = (data[i].is_active != 0u);
@@ -3327,15 +3427,15 @@ namespace t7 {
                 }
 
                 // Check if GPU reported a portal trigger
-                if (readbackPortalTrigger_ >= 0 && transitionPhase_ == TransitionPhase::IDLE) {
-                    uint32_t arch_idx = static_cast<uint32_t>(readbackPortalTrigger_);
-                    readbackPortalTrigger_ = -1;
+                if (player_.readback_portal_trigger >= 0 && transitionPhase_ == TransitionPhase::IDLE) {
+                    uint32_t arch_idx = static_cast<uint32_t>(player_.readback_portal_trigger);
+                    player_.readback_portal_trigger = -1;
                     if (arch_idx < Dim::MAX_ARCH_INSTANCES &&
-                        activeArches_[arch_idx].active &&
-                        activeArches_[arch_idx].is_portal) {
-                        pendingDestination_ = activeArches_[arch_idx].destination;
+                        entities_state_.arches[arch_idx].active &&
+                        entities_state_.arches[arch_idx].is_portal) {
+                        pendingDestination_ = entities_state_.arches[arch_idx].destination;
                         transitionPhase_ = TransitionPhase::FADE_OUT;
-                        transitionTimer_ = 0.0f;
+                        mood_state_.transition_timer = 0.0f;
                         std::cout << "[Portal] GPU trigger: arch " << arch_idx
                             << " -> seed=" << pendingDestination_.seed
                             << " finite=" << pendingDestination_.finite << "\n";
@@ -3344,12 +3444,12 @@ namespace t7 {
 
                 // Refill any agent slots the GPU evicted last frame.
                 // No-op when no slots were evicted — just a 32-slot scan.
-                respawn_evicted_agents(activeMood_, activeSeed_, queue);
+                respawn_evicted_agents(agent_state_, this, mood_state_.active, world_state_.active_seed, queue);
 
                 // Advance any in-flight cube corral animations. No-op
                 // when none are armed (the common case — animations
                 // only run for ~3s after F6 is pressed).
-                tick_cube_corral_animations(queue);
+                tick_cube_corral_animations(cube_behaviors_state_, this, queue);
 
                 stream_patches(encoder, queue);
 
@@ -3359,22 +3459,22 @@ namespace t7 {
                 // (a stuck readback would freeze the position; an idle
                 // player would do the same — pair the two by visiting
                 // the world manually if you need to disambiguate).
-                if (currentSeconds_ - lastAgentCensusDump_ >= AGENT_CENSUS_INTERVAL) {
-                    dump_agent_census("periodic");
-                    const auto& player = cpuAgents_[0];
+                if (time_state_.seconds - agent_state_.last_census_dump >= AGENT_CENSUS_INTERVAL) {
+                    dump_agent_census(agent_state_, this, "periodic");
+                    const auto& player = agent_state_.slots[0];
                     std::cout << "[Player] pos=(" << std::fixed << std::setprecision(1)
                         << player.pos_x << "," << player.pos_z
                         << ") slot=" << player_.possessed_slot
                         << " behavior=" << player.behavior_id
                         << "\n";
-                    lastAgentCensusDump_ = currentSeconds_;
+                    agent_state_.last_census_dump = time_state_.seconds;
                 }
 
                 // Periodic entity census dump
 #ifdef DIAG_ENTITY_CENSUS
-                if (currentSeconds_ - lastCensusDump_ >= CENSUS_DUMP_INTERVAL) {
+                if (time_state_.seconds - lastCensusDump_ >= CENSUS_DUMP_INTERVAL) {
                     dump_entity_census("periodic");
-                    lastCensusDump_ = currentSeconds_;
+                    lastCensusDump_ = time_state_.seconds;
                 }
 #endif
 
@@ -3386,7 +3486,7 @@ namespace t7 {
                     // Update time on all CPU mirrors
                     for (uint32_t i = 0; i < MAX_RIBBON_INSTANCES; i++) {
                         if (ribbon_state_.active[i].active)
-                            ribbon_state_.gpu[i].time = currentSeconds_;
+                            ribbon_state_.gpu[i].time = time_state_.seconds;
                     }
 
                     // Render one ribbon: hold the current slot until it's evicted,
@@ -3396,7 +3496,7 @@ namespace t7 {
 
                     if (current_alive) {
                         // Hold — just update time
-                        gpuState_.upload_ribbon_time(queue, currentSeconds_);
+                        gpuState_.upload_ribbon_time(queue, time_state_.seconds);
                     }
                     else {
                         // Current slot is gone — find nearest active ribbon
@@ -3404,8 +3504,8 @@ namespace t7 {
                         float nearest_d2 = FLT_MAX;
                         for (uint32_t i = 0; i < MAX_RIBBON_INSTANCES; i++) {
                             if (!ribbon_state_.active[i].active) continue;
-                            float dx = ribbon_state_.active[i].anchor_x - pawnReadback_x_;
-                            float dz = ribbon_state_.active[i].anchor_z - pawnReadback_z_;
+                            float dx = ribbon_state_.active[i].anchor_x - player_.readback_x;
+                            float dz = ribbon_state_.active[i].anchor_z - player_.readback_z;
                             float d2 = dx * dx + dz * dz;
                             if (d2 < nearest_d2) { nearest = i; nearest_d2 = d2; }
                         }
@@ -3465,16 +3565,16 @@ namespace t7 {
                 }
 
                 // GoL zone compute — derive params + sync + evolve (separate passes for barrier)
-                if (golZoneCount_ > 0) {
-                    flush_zone_derive_requests(queue);
-                    upload_gol_zone_config(queue);
+                if (gol_state_.zone_count > 0) {
+                    flush_zone_derive_requests(gol_state_, this, queue);
+                    upload_gol_zone_config(gol_state_, this, queue);
 
                     {
                         wgpu::ComputePassDescriptor cpd{};
                         cpd.label = "GoL Zone Sync";
                         wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
                         renderer_.dispatch_zone_gol_sync(pass,
-                            gpuState_.zone_gol_compute_group(), activeZoneSlotCount_);
+                            gpuState_.zone_gol_compute_group(), gol_state_.active_slot_count);
                         pass.End();
                     }
                     {
@@ -3482,7 +3582,7 @@ namespace t7 {
                         cpd.label = "GoL Zone Evolve";
                         wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
                         renderer_.dispatch_zone_gol_evolve(pass,
-                            gpuState_.zone_gol_compute_group(), activeZoneSlotCount_);
+                            gpuState_.zone_gol_compute_group(), gol_state_.active_slot_count);
                         pass.End();
                     }
 
@@ -3495,25 +3595,25 @@ namespace t7 {
                             gpuState_.zone_mesh_gen_group());
                         renderer_.dispatch_zone_mesh_gen(pass,
                             gpuState_.zone_mesh_gen_group(),
-                            activeZoneSlotCount_);
+                            gol_state_.active_slot_count);
                         pass.End();
                     }
                 }
 
                 // Pawn aura compute — persistent terrain influence
                 // Run while presence > 0 (ramping down after toggle-off) or clearing
-                if (auraPresence_ > 0.0f || auraNeedsClear_) {
-                    if (auraCfgDirty_) {
+                if (player_.aura_presence > 0.0f || pawn_state_.aura_needs_clear) {
+                    if (pawn_state_.aura_cfg_dirty) {
                         // Full config upload — profile changed or first frame
-                        auraCfgDirty_ = false;
-                        const auto& ap = activeAuraProfile_;
+                        pawn_state_.aura_cfg_dirty = false;
+                        const auto& ap = pawn_state_.active_aura_profile;
                         // Aura expansion mode: scale radius, height, tint by intensity
-                        float aura_expand = mmodeIntensity_[MMODE_AURA_EXPAND];
+                        float aura_expand = player_.mmode_intensities[MMODE_AURA_EXPAND];
                         float radius_scale = 1.0f + aura_expand * 2.0f;    // up to 3× radius
                         float tint_scale = 1.0f + aura_expand * 1.5f;      // up to 2.5× tint
 
                         // Presence scales all aura params for smooth raise/lower
-                        float p = auraPresence_;
+                        float p = player_.aura_presence;
 
                         GPUPawnAuraConfig auraCfg{};
                         auraCfg.cell_size = PATCH_CELL_SIZE;
@@ -3521,7 +3621,7 @@ namespace t7 {
                         auraCfg.attack_stiffness = ap.attack_stiffness;
                         auraCfg.attack_damping = ap.attack_damping;
                         auraCfg.release_rate = (p > 0.01f) ? ap.release_rate : 999.0f;
-                        auraCfg.dt = currentDt_;
+                        auraCfg.dt = time_state_.dt;
                         auraCfg.effect_mask = ap.effect_mask;
                         auraCfg.aura_n = 64;
                         auraCfg.tint_strength = std::min(ap.tint_strength * tint_scale * p, 1.0f);
@@ -3530,15 +3630,15 @@ namespace t7 {
                         auraCfg.tint_b = ap.tint_b;
                         auraCfg.delta_mode = ap.delta_mode;
                         auraCfg.delta_magnitude = ap.delta_magnitude;
-                        auraCfg.t_beats = currentBeats_;
+                        auraCfg.t_beats = time_state_.beats;
                         // height_scale gates the compute shader's R channel write (> 0.01 = enabled).
                         // Actual terrain extrusion magnitude comes from config.pawn_aura_height in the VS.
-                        auraCfg.height_scale = (auraHeightEnabled_ && p > 0.01f) ? ap.height_scale : 0.0f;
+                        auraCfg.height_scale = (pawn_state_.aura_height_enabled && p > 0.01f) ? ap.height_scale : 0.0f;
                         gpuState_.upload_pawn_aura_config(queue, auraCfg);
                     }
                     else {
                         // Steady state — only dt and t_beats change per frame
-                        gpuState_.upload_pawn_aura_frame(queue, currentDt_, currentBeats_);
+                        gpuState_.upload_pawn_aura_frame(queue, time_state_.dt, time_state_.beats);
                     }
 
                     wgpu::ComputePassDescriptor cpd{};
@@ -3550,24 +3650,24 @@ namespace t7 {
                     pass.End();
 
                     // After one cleanup frame with release_rate=999, all cells are zero
-                    if (auraNeedsClear_) { auraNeedsClear_ = false; }
+                    if (pawn_state_.aura_needs_clear) { pawn_state_.aura_needs_clear = false; }
                 }
 
                 // Orb sky layer: one-shot init, optional color-only refresh,
                 // snapshot previous state for flocking neighbor reads, then
                 // advance dynamics.
-                dispatch_orb_init(encoder);
-                dispatch_orb_recolor(encoder);
-                dispatch_orb_copy_prev(encoder);
-                dispatch_orb_dynamics(encoder, queue);
+                dispatch_orb_init(orbs_state_, this, encoder);
+                dispatch_orb_recolor(orbs_state_, this, encoder);
+                dispatch_orb_copy_prev(orbs_state_, this, encoder);
+                dispatch_orb_dynamics(orbs_state_, this, encoder, queue);
 
-                if (groundEntriesDirty_) {
-                    groundEntriesDirty_ = false;
-                    placementDirty_ = true;
+                if (world_state_.ground_entries_dirty) {
+                    world_state_.ground_entries_dirty = false;
+                    world_state_.placement_dirty = true;
                     upload_ground_entries(queue);
                 }
-                if (placementDirty_) {
-                    placementDirty_ = false;
+                if (world_state_.placement_dirty) {
+                    world_state_.placement_dirty = false;
                     dispatch_placement_correction(encoder);
                 }
 
@@ -3576,19 +3676,19 @@ namespace t7 {
 
                 render_shadow_pass(encoder);
                 render_main_pass(encoder, backbuffer, depth);
-                render_snapshot_pass(encoder);
+                render_snapshot_pass(gallery_state_, this, encoder);
 
                 // --- Flush pending texture promotions (staging → exhibition) ---
                 // Must run AFTER render_snapshot_pass so fresh captures are in staging
                 // before being copied to exhibition layers.
-                for (uint32_t i = 0; i < pendingPromotionCount_; i++) {
-                    auto& p = pendingPromotions_[i];
+                for (uint32_t i = 0; i < gallery_state_.pending_promotion_count; i++) {
+                    auto& p = gallery_state_.pending_promotions[i];
                     wgpu::Texture src = p.is_snapshot
                         ? gpuState_.snapshot_staging_texture()
                         : gpuState_.authored_staging_texture();
                     gpuState_.promote_to_exhibition(encoder, src, p.staging_layer, p.exhibition_layer);
                 }
-                pendingPromotionCount_ = 0;
+                gallery_state_.pending_promotion_count = 0;
             }
 
 
@@ -3618,7 +3718,7 @@ namespace t7 {
                 //   entities, unregister footprints. Compact array afterward.
                 //
                 // CONTINUOUS ALLOCATION (every frame, after eviction):
-                //   Scans grid cells within activeRadius_ of pawn's world position.
+                //   Scans grid cells within world_state_.active_radius of pawn's world position.
                 //   Allocates missing patches up to ALLOC_BUDGET_PER_FRAME, nearest
                 //   first. Populates tile cache and re-uploads tile grid.
                 //
@@ -3649,28 +3749,28 @@ namespace t7 {
                 int32_t centerX, centerZ;
                 uint32_t patchStagingOffset = 0;  // running offset into staging buffer (multiple batches per frame)
                 bool tileGridDirty = false;        // coalesce tile grid uploads to one per frame
-                if (finiteMode_) {
+                if (world_state_.finite_mode) {
                     centerX = 0;
                     centerZ = 0;
                 }
                 else {
-                    centerX = (int32_t)std::floor(pawnReadback_x_ / PATCH_EXTENT);
-                    centerZ = (int32_t)std::floor(pawnReadback_z_ / PATCH_EXTENT);
+                    centerX = (int32_t)std::floor(player_.readback_x / PATCH_EXTENT);
+                    centerZ = (int32_t)std::floor(player_.readback_z / PATCH_EXTENT);
                 }
 
                 // In finite mode, cap the effective radius
-                uint32_t savedRadius = activeRadius_;
-                if (finiteMode_ && activeRadius_ > finiteRadius_) {
-                    activeRadius_ = finiteRadius_;
+                uint32_t savedRadius = world_state_.active_radius;
+                if (world_state_.finite_mode && world_state_.active_radius > world_state_.finite_radius) {
+                    world_state_.active_radius = world_state_.finite_radius;
                 }
 
-                bool gridChanged = (centerX != lastCenterX_ || centerZ != lastCenterZ_);
+                bool gridChanged = (centerX != world_state_.last_center_x || centerZ != world_state_.last_center_z);
 
                 if (gridChanged) {
-                    int32_t oldCX = lastCenterX_;
-                    int32_t oldCZ = lastCenterZ_;
-                    lastCenterX_ = centerX;
-                    lastCenterZ_ = centerZ;
+                    int32_t oldCX = world_state_.last_center_x;
+                    int32_t oldCZ = world_state_.last_center_z;
+                    world_state_.last_center_x = centerX;
+                    world_state_.last_center_z = centerZ;
 
                     bool fullRegen = (oldCX == INT32_MAX);  // first frame
 
@@ -3695,7 +3795,7 @@ namespace t7 {
                     // has ground immediately. Outer patches use the per-frame
                     // distance-driven scans like everything else.
                     if (fullRegen) {
-                        int32_t rr = (int32_t)activeRadius_;
+                        int32_t rr = (int32_t)world_state_.active_radius;
                         static constexpr int32_t TILE_PAD = 1;
                         int32_t rp = rr + TILE_PAD;
                         for (int32_t gz = centerZ - rp; gz <= centerZ + rp; gz++) {
@@ -3703,32 +3803,32 @@ namespace t7 {
                                 GridKey key{ gx, gz };
                                 if (tileCache_.find(key) == tileCache_.end()) {
                                     TileState ts = generate_tile_state(gx, gz);
-                                    tick_terrain_tokens(ts, tile_seed(activeSeed_, gx, gz));
+                                    tick_terrain_tokens(ts, tile_seed(world_state_.active_seed, gx, gz));
                                     tileCache_[key] = ts;
                                 }
                             }
                         }
 
                         // NOW spawn portals — tile cache is populated, terrain heights are correct
-                        if (backPortalPending_) {
+                        if (mood_state_.back_portal_pending) {
                             force_spawn_back_portal(queue);
                         }
                         for (int32_t gz = centerZ - rr; gz <= centerZ + rr; gz++) {
                             for (int32_t gx = centerX - rr; gx <= centerX + rr; gx++) {
                                 bool found = false;
-                                for (uint32_t i = 0; i < activePatchCount_; i++) {
+                                for (uint32_t i = 0; i < world_state_.active_patch_count; i++) {
                                     if (patches_[i].grid_x == gx && patches_[i].grid_z == gz) {
                                         found = true; break;
                                     }
                                 }
-                                if (!found && freeLayerCount_ > 0) {
+                                if (!found && world_state_.free_layer_count > 0) {
                                     uint32_t layer = alloc_layer();
-                                    patches_[activePatchCount_] = ActivePatch{};
-                                    patches_[activePatchCount_].grid_x = gx;
-                                    patches_[activePatchCount_].grid_z = gz;
-                                    patches_[activePatchCount_].layer = layer;
-                                    patches_[activePatchCount_].valid = true;
-                                    activePatchCount_++;
+                                    patches_[world_state_.active_patch_count] = ActivePatch{};
+                                    patches_[world_state_.active_patch_count].grid_x = gx;
+                                    patches_[world_state_.active_patch_count].grid_z = gz;
+                                    patches_[world_state_.active_patch_count].layer = layer;
+                                    patches_[world_state_.active_patch_count].valid = true;
+                                    world_state_.active_patch_count++;
                                 }
                             }
                         }
@@ -3737,7 +3837,7 @@ namespace t7 {
                         // Spawn inner patches
                         PatchCandidate spawnCands[MAX_PATCHES];
                         uint32_t spawnCount = collect_sorted_patches(spawnCands,
-                            pawnReadback_x_, pawnReadback_z_,
+                            player_.readback_x, player_.readback_z,
                             [&](const ActivePatch& p) {
                                 return p.phase == PatchPhase::ALLOCATED &&
                                     in_priority_window(p.grid_x, p.grid_z, centerX, centerZ);
@@ -3747,7 +3847,7 @@ namespace t7 {
                         // Generate inner patches
                         PatchCandidate genCands[MAX_PATCHES];
                         uint32_t genCount = collect_sorted_patches(genCands,
-                            pawnReadback_x_, pawnReadback_z_,
+                            player_.readback_x, player_.readback_z,
                             [&](const ActivePatch& p) {
                                 return p.phase == PatchPhase::SPAWNED &&
                                     in_priority_window(p.grid_x, p.grid_z, centerX, centerZ);
@@ -3766,10 +3866,10 @@ namespace t7 {
                 {
                     PatchCandidate candidates[MAX_PATCHES];
                     uint32_t count = collect_sorted_patches(candidates,
-                        pawnReadback_x_, pawnReadback_z_,
+                        player_.readback_x, player_.readback_z,
                         [&](const ActivePatch& p) {
                             return !in_render_window(p.grid_x, p.grid_z,
-                                lastCenterX_, lastCenterZ_);
+                                world_state_.last_center_x, world_state_.last_center_z);
                         }, false);  // farthest first
 
                     uint32_t evictThisFrame = std::min(count, EVICT_BUDGET_PER_FRAME);
@@ -3779,17 +3879,17 @@ namespace t7 {
 
                     if (evictThisFrame > 0) {
                         uint32_t write = 0;
-                        for (uint32_t i = 0; i < activePatchCount_; i++) {
+                        for (uint32_t i = 0; i < world_state_.active_patch_count; i++) {
                             if (patches_[i].valid) patches_[write++] = patches_[i];
                         }
-                        activePatchCount_ = write;
-                        patchInstancesDirty_ = true;
+                        world_state_.active_patch_count = write;
+                        world_state_.patch_instances_dirty = true;
                     }
                 }
 
                 // ─── CONTINUOUS PATCH ALLOCATION ──────────────────────────────
                 //
-                // Every frame, scan for grid cells within activeRadius_ of
+                // Every frame, scan for grid cells within world_state_.active_radius of
                 // the pawn's actual world position that don't have patches.
                 // Allocate up to ALLOC_BUDGET_PER_FRAME, nearest first. This
                 // spreads allocation across idle frames so patches are ready
@@ -3799,17 +3899,17 @@ namespace t7 {
                 // of the grid center, so this naturally pre-allocates one
                 // ring in the direction of movement.
                 {
-                    int32_t pawnGX = (int32_t)std::floor(pawnReadback_x_ / PATCH_EXTENT);
-                    int32_t pawnGZ = (int32_t)std::floor(pawnReadback_z_ / PATCH_EXTENT);
-                    int32_t rr = (int32_t)activeRadius_;
-                    float pawn_wx = pawnReadback_x_;
-                    float pawn_wz = pawnReadback_z_;
+                    int32_t pawnGX = (int32_t)std::floor(player_.readback_x / PATCH_EXTENT);
+                    int32_t pawnGZ = (int32_t)std::floor(player_.readback_z / PATCH_EXTENT);
+                    int32_t rr = (int32_t)world_state_.active_radius;
+                    float pawn_wx = player_.readback_x;
+                    float pawn_wz = player_.readback_z;
                     float half = PATCH_EXTENT * 0.5f;
 
                     // O(1) patch existence lookup (replaces O(N) inner scan)
                     std::unordered_set<GridKey, GridKeyHash> activePatchSet;
-                    activePatchSet.reserve(activePatchCount_);
-                    for (uint32_t i = 0; i < activePatchCount_; i++) {
+                    activePatchSet.reserve(world_state_.active_patch_count);
+                    for (uint32_t i = 0; i < world_state_.active_patch_count; i++) {
                         activePatchSet.insert({ patches_[i].grid_x, patches_[i].grid_z });
                     }
 
@@ -3820,9 +3920,9 @@ namespace t7 {
                     for (int32_t gz = pawnGZ - rr; gz <= pawnGZ + rr; gz++) {
                         for (int32_t gx = pawnGX - rr; gx <= pawnGX + rr; gx++) {
                             // Must be within allocation window of grid center
-                            if (!in_render_window(gx, gz, lastCenterX_, lastCenterZ_)) continue;
+                            if (!in_render_window(gx, gz, world_state_.last_center_x, world_state_.last_center_z)) continue;
                             bool found = activePatchSet.count({ gx, gz }) > 0;
-                            if (!found && freeLayerCount_ > 0 && candidateCount < MAX_PATCHES) {
+                            if (!found && world_state_.free_layer_count > 0 && candidateCount < MAX_PATCHES) {
                                 float ox = (gx + 0.5f) * PATCH_EXTENT;
                                 float oz = (gz + 0.5f) * PATCH_EXTENT;
                                 float d2 = patch_distance_sq(pawn_wx, pawn_wz, ox, oz, half);
@@ -3851,7 +3951,7 @@ namespace t7 {
                         GridKey key{ gx, gz };
                         if (tileCache_.find(key) == tileCache_.end()) {
                             TileState ts = generate_tile_state(gx, gz);
-                            tick_terrain_tokens(ts, tile_seed(activeSeed_, gx, gz));
+                            tick_terrain_tokens(ts, tile_seed(world_state_.active_seed, gx, gz));
                             tileCache_[key] = ts;
                         }
                         // Also cache neighbors for tile grid padding
@@ -3862,19 +3962,19 @@ namespace t7 {
                             }
                         }
                         uint32_t layer = alloc_layer();
-                        patches_[activePatchCount_] = ActivePatch{};
-                        patches_[activePatchCount_].grid_x = gx;
-                        patches_[activePatchCount_].grid_z = gz;
-                        patches_[activePatchCount_].layer = layer;
-                        patches_[activePatchCount_].valid = true;
-                        activePatchCount_++;
+                        patches_[world_state_.active_patch_count] = ActivePatch{};
+                        patches_[world_state_.active_patch_count].grid_x = gx;
+                        patches_[world_state_.active_patch_count].grid_z = gz;
+                        patches_[world_state_.active_patch_count].layer = layer;
+                        patches_[world_state_.active_patch_count].valid = true;
+                        world_state_.active_patch_count++;
                         allocated_any = true;
                     }
 
                     // Mark tile grid and patch instances dirty whenever new patches were allocated
                     if (allocated_any) {
                         tileGridDirty = true;
-                        patchInstancesDirty_ = true;
+                        world_state_.patch_instances_dirty = true;
                     }
                 }
 
@@ -3891,7 +3991,7 @@ namespace t7 {
                 {
                     PatchCandidate candidates[MAX_PATCHES];
                     uint32_t count = collect_sorted_patches(candidates,
-                        pawnReadback_x_, pawnReadback_z_,
+                        player_.readback_x, player_.readback_z,
                         [](const ActivePatch& p) {
                             return p.phase == PatchPhase::ALLOCATED;
                         }, true);
@@ -3911,7 +4011,7 @@ namespace t7 {
                 {
                     PatchCandidate candidates[MAX_PATCHES];
                     uint32_t count = collect_sorted_patches(candidates,
-                        pawnReadback_x_, pawnReadback_z_,
+                        player_.readback_x, player_.readback_z,
                         [](const ActivePatch& p) {
                             return p.phase == PatchPhase::SPAWNED ||
                                 p.phase == PatchPhase::NEEDS_REGEN;
@@ -3939,11 +4039,11 @@ namespace t7 {
                     // Visibility cylinder: world-space distance from pawn to
                     // nearest patch edge. Patches cross the threshold one at a
                     // time as the pawn moves — no batch pop on grid shifts.
-                    float pawn_wx = pawnReadback_x_;
-                    float pawn_wz = pawnReadback_z_;
+                    float pawn_wx = player_.readback_x;
+                    float pawn_wz = player_.readback_z;
                     float half = PATCH_EXTENT * 0.5f;
 
-                    for (uint32_t i = 0; i < activePatchCount_; i++) {
+                    for (uint32_t i = 0; i < world_state_.active_patch_count; i++) {
                         if (patches_[i].phase != PatchPhase::GENERATED &&
                             patches_[i].phase != PatchPhase::NEEDS_REGEN) continue;
 
@@ -3959,7 +4059,7 @@ namespace t7 {
                         float d2 = patch_distance_sq(pawn_wx, pawn_wz, ox, oz, half);
 
                         // Finite mode: all patches visible (walls define boundary, not fog)
-                        if (finiteMode_ || d2 <= VISIBILITY_CYLINDER_RADIUS_SQ) {
+                        if (world_state_.finite_mode || d2 <= VISIBILITY_CYLINDER_RADIUS_SQ) {
                             if (d2 <= LOD0_CYLINDER_RADIUS_SQ) {
                                 lod0[lod0Count++] = inst;
                             }
@@ -3979,9 +4079,9 @@ namespace t7 {
                     std::memcpy(instances + w, pregen, pregenCount * sizeof(GPUPatchInstance)); w += pregenCount;
 
                     gpuState_.upload_patch_instances(queue, instances, w);
-                    lod0PatchCount_ = lod0Count;
-                    renderPatchCount_ = lod0Count + lod1Count;
-                    allPatchCount_ = w;
+                    world_state_.lod0_patch_count = lod0Count;
+                    world_state_.render_patch_count = lod0Count + lod1Count;
+                    world_state_.all_patch_count = w;
 
                     // Sync placement_patch_count so compute_entity_placement
                     // can sample heightfields from the current frame's patch set.
@@ -4012,7 +4112,7 @@ namespace t7 {
 
                         int32_t min_gx = INT32_MAX;
                         int32_t min_gz = INT32_MAX;
-                        for (uint32_t i = 0; i < activePatchCount_; i++) {
+                        for (uint32_t i = 0; i < world_state_.active_patch_count; i++) {
                             if (!patches_[i].valid) continue;
                             if (patches_[i].phase != PatchPhase::GENERATED &&
                                 patches_[i].phase != PatchPhase::NEEDS_REGEN) continue;
@@ -4024,7 +4124,7 @@ namespace t7 {
                         grid.origin_z = min_gz;
                         // entries[] are zero-initialized by value-init above.
 
-                        for (uint32_t i = 0; i < activePatchCount_; i++) {
+                        for (uint32_t i = 0; i < world_state_.active_patch_count; i++) {
                             if (!patches_[i].valid) continue;
                             if (patches_[i].phase != PatchPhase::GENERATED &&
                                 patches_[i].phase != PatchPhase::NEEDS_REGEN) continue;
@@ -4041,21 +4141,21 @@ namespace t7 {
                 // GPU Y-correction is additive (ground_y += terrain), so ground
                 // entries must be re-uploaded with offset-only values whenever
                 // the heightfield changes. Tie groundEntriesDirty to patch changes.
-                groundEntriesDirty_ = groundEntriesDirty_ || patchInstancesDirty_;
-                placementDirty_ = placementDirty_ || patchInstancesDirty_;
-                patchInstancesDirty_ = false;
+                world_state_.ground_entries_dirty = world_state_.ground_entries_dirty || world_state_.patch_instances_dirty;
+                world_state_.placement_dirty = world_state_.placement_dirty || world_state_.patch_instances_dirty;
+                world_state_.patch_instances_dirty = false;
 
                 // ─── Entity distance culling ─────────────────────────────
-                entitiesCulled_ = update_entity_draw_visibility(queue);
+                world_state_.entities_culled = update_entity_draw_visibility(queue);
 
                 // ─── Deferred uploads (one per frame max) ────────────────
-                if (tileGridDirty) upload_tile_grid_now(queue, lastCenterX_, lastCenterZ_);
+                if (tileGridDirty) upload_tile_grid_now(queue, world_state_.last_center_x, world_state_.last_center_z);
                 flush_pier_count(queue);
 
                 audit_entity_integrity();
 
                 // Restore radius if we capped it for finite mode
-                if (finiteMode_) { activeRadius_ = savedRadius; }
+                if (world_state_.finite_mode) { world_state_.active_radius = savedRadius; }
             }
 
             // ── Mood System (modules/mood.inl) ──

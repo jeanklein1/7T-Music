@@ -32,25 +32,25 @@
 //
 // ┌─── Public surface (called from outside this file) ──────────────┐
 // │                                                                  │
+// │  Module functions are static, take EntitiesState& explicitly.    │
+// │                                                                  │
 // │  Mesh-gen preparers (per family — set GPU index counts):         │
-// │    prepare_palm_mesh_gen(queue)                                  │
-// │    prepare_cactus_mesh_gen(queue)                                │
-// │    prepare_blade_mesh_gen(queue)                                 │
+// │    prepare_palm_mesh_gen(es, c, queue)                           │
+// │    prepare_cactus_mesh_gen(es, c, queue)                         │
+// │    prepare_blade_mesh_gen(es, c, queue)                          │
 // │                                                                  │
 // │  Cross-module reads (consumed by entity_pipeline.inl, mesh-gen   │
 // │  dispatchers, render passes, the spine):                         │
-// │    activeArches_[],   activeArchCount_                           │
-// │    activeColumns_[],  activeColumnCount_                         │
-// │    activeAntennas_[], activeAntennaCount_                        │
-// │    activePalms_[],    activePalmCount_                           │
-// │    activeCacti_[],    activeCactusCount_                         │
-// │    activeBlades_[],   activeBladeCount_                          │
-// │    activePyramids_[], activePyramidCount_                        │
-// │    cpuPyramids_       (CPU mirror for heightfield baking)        │
-// │    *MeshGenPending_   flags (set by spawn, read by render)       │
-// │    archMeshGenPending_, columnMeshGenPending_, palmMeshGenPending_, │
-// │    cactusMeshGenPending_, bladeMeshGenPending_, pyramidMeshGenPending_ │
-// │    lightsDirty_                                                  │
+// │    entities_state_.arches[],     entities_state_.arch_count      │
+// │    entities_state_.columns[],    entities_state_.column_count    │
+// │    entities_state_.antennas[],   entities_state_.antenna_count   │
+// │    entities_state_.palms[],      entities_state_.palm_count      │
+// │    entities_state_.cacti[],      entities_state_.cactus_count    │
+// │    entities_state_.blades[],     entities_state_.blade_count     │
+// │    entities_state_.pyramids[],   entities_state_.pyramid_count   │
+// │    entities_state_.cpu_pyramids  (CPU mirror — heightfield bake) │
+// │    entities_state_.*_mesh_gen_pending flags                      │
+// │    entities_state_.lights_dirty                                  │
 // │                                                                  │
 // └──────────────────────────────────────────────────────────────────┘
 //
@@ -178,10 +178,7 @@ struct ActiveArch {
     PortalDestination destination{};      // world this portal leads to
 };
 
-ActiveArch activeArches_[Dim::MAX_ARCH_INSTANCES]{};
-uint32_t activeArchCount_ = 0;
-bool archMeshGenPending_ = false;  // true → dispatch GPU mesh gen
-bool lightsDirty_ = true;          // set true at init, cleared after first upload
+// (Arch state lives in EntitiesState — see end of file)
 
 
 // ═══ VOCABULARY: COLUMN ══════════════════════════════════════════
@@ -338,11 +335,7 @@ struct ActiveColumn {
     float cached_ground_y = 0.0f;         // absolute pier-top Y for VS offset
 };
 
-ActiveColumn activeColumns_[Dim::MAX_COLUMN_ONLY]{};
-ActiveColumn activeAntennas_[Dim::MAX_ANTENNA_ONLY]{};
-uint32_t activeColumnCount_ = 0;
-uint32_t activeAntennaCount_ = 0;
-bool columnMeshGenPending_ = false;  // true → dispatch GPU mesh gen (shared by column + antenna)
+// (Column + Antenna state lives in EntitiesState — see end of file)
 
 
 // ═══ VOCABULARY: PALM ════════════════════════════════════════════
@@ -412,22 +405,8 @@ struct ActivePalm {
     float cached_ground_y = 0.0f;
 };
 
-ActivePalm activePalms_[Dim::MAX_PALM_INSTANCES]{};
-uint32_t activePalmCount_ = 0;
-bool palmMeshGenPending_ = false;
-
-bool prepare_palm_mesh_gen(wgpu::Queue& queue) {
-    if (!palmMeshGenPending_) return false;
-    palmMeshGenPending_ = false;
-    uint32_t maxSlot = 0;
-    bool anyActive = false;
-    for (uint32_t i = 0; i < Dim::MAX_PALM_INSTANCES; i++) {
-        if (activePalms_[i].active) { maxSlot = i; anyActive = true; }
-    }
-    gpuState_.set_palm_index_count(anyActive
-        ? (maxSlot + 1) * Dim::PALMG_MAX_INDICES_PER_SLOT : 0);
-    return true;
-}
+// (Palm state lives in EntitiesState — see end of file)
+// (prepare_palm_mesh_gen moved to end of file — must follow EntitiesState definition)
 
 
 // ═══ VOCABULARY: CACTUS ══════════════════════════════════════════
@@ -492,22 +471,8 @@ struct ActiveCactus {
     float cached_ground_y = 0.0f;
 };
 
-ActiveCactus activeCacti_[Dim::MAX_CACTUS_INSTANCES]{};
-uint32_t activeCactusCount_ = 0;
-bool cactusMeshGenPending_ = false;
-
-bool prepare_cactus_mesh_gen(wgpu::Queue& queue) {
-    if (!cactusMeshGenPending_) return false;
-    cactusMeshGenPending_ = false;
-    uint32_t maxSlot = 0;
-    bool anyActive = false;
-    for (uint32_t i = 0; i < Dim::MAX_CACTUS_INSTANCES; i++) {
-        if (activeCacti_[i].active) { maxSlot = i; anyActive = true; }
-    }
-    gpuState_.set_cactus_index_count(anyActive
-        ? (maxSlot + 1) * Dim::CACTUSG_MAX_INDICES_PER_SLOT : 0);
-    return true;
-}
+// (Cactus state lives in EntitiesState — see end of file)
+// (prepare_cactus_mesh_gen moved to end of file — must follow EntitiesState definition)
 
 
 // ═══ VOCABULARY: BLADE ═══════════════════════════════════════════
@@ -568,22 +533,8 @@ struct ActiveBlade {
     float cached_ground_y = 0.0f;
 };
 
-ActiveBlade activeBlades_[Dim::MAX_BLADE_INSTANCES]{};
-uint32_t activeBladeCount_ = 0;
-bool bladeMeshGenPending_ = false;
-
-bool prepare_blade_mesh_gen(wgpu::Queue& queue) {
-    if (!bladeMeshGenPending_) return false;
-    bladeMeshGenPending_ = false;
-    uint32_t maxSlot = 0;
-    bool anyActive = false;
-    for (uint32_t i = 0; i < Dim::MAX_BLADE_INSTANCES; i++) {
-        if (activeBlades_[i].active) { maxSlot = i; anyActive = true; }
-    }
-    gpuState_.set_blade_index_count(anyActive
-        ? (maxSlot + 1) * Dim::BLADEG_MAX_INDICES_PER_SLOT : 0);
-    return true;
-}
+// (Blade state lives in EntitiesState — see end of file)
+// (prepare_blade_mesh_gen moved to end of file — must follow EntitiesState definition)
 
 
 // ═══ VOCABULARY: PYRAMID ═════════════════════════════════════════
@@ -645,9 +596,158 @@ struct ActivePyramid {
     float cached_ground_y = 0.0f;         // absolute base Y for VS offset
 };
 
-ActivePyramid activePyramids_[Dim::MAX_PYRAMID_INSTANCES]{};
-uint32_t activePyramidCount_ = 0;
-bool pyramidMeshGenPending_ = false;  // true → dispatch GPU mesh gen
+// ═══ ENTITIES MODULE STATE (Scope B migration #9) ═════════════════
+//
+// All grounded-entity state lives in this struct, accessed via
+// entities_state_ on the Cartridge. Module functions (the per-family
+// prepare_*_mesh_gen helpers) take `EntitiesState& es` explicitly.
+//
+// Cross-module reads (this state is consumed widely):
+//   • entity_pipeline.inl — adapter functions for each family read
+//     and write the per-family arrays + counts
+//   • render_passes.inl   — consumes counts to drive draw calls
+//   • cartridge.hpp       — teardown loops, dispatch wrappers,
+//                           per-frame mesh-gen orchestration
+//   • mood.inl            — clears arrays on mood transition
 
-// CPU mirror of GPU pyramid instances (for heightfield baking)
-GPUPyramidArray cpuPyramids_{};
+struct EntitiesState {
+    // ── Arch ─────────────────────────────────────────────────────
+    ActiveArch arches[Dim::MAX_ARCH_INSTANCES]{};
+    uint32_t   arch_count = 0;
+    bool       arch_mesh_gen_pending = false;
+    bool       lights_dirty = true;          // set true at init, cleared after first upload
+
+    // ── Column + Antenna (sibling families, shared mesh-gen flag) ─
+    ActiveColumn columns[Dim::MAX_COLUMN_ONLY]{};
+    ActiveColumn antennas[Dim::MAX_ANTENNA_ONLY]{};
+    uint32_t     column_count = 0;
+    uint32_t     antenna_count = 0;
+    bool         column_mesh_gen_pending = false;  // shared by column + antenna
+
+    // ── Palm ─────────────────────────────────────────────────────
+    ActivePalm palms[Dim::MAX_PALM_INSTANCES]{};
+    uint32_t   palm_count = 0;
+    bool       palm_mesh_gen_pending = false;
+
+    // ── Cactus ───────────────────────────────────────────────────
+    ActiveCactus cacti[Dim::MAX_CACTUS_INSTANCES]{};
+    uint32_t     cactus_count = 0;
+    bool         cactus_mesh_gen_pending = false;
+
+    // ── Blade ────────────────────────────────────────────────────
+    ActiveBlade blades[Dim::MAX_BLADE_INSTANCES]{};
+    uint32_t    blade_count = 0;
+    bool        blade_mesh_gen_pending = false;
+
+    // ── Pyramid ──────────────────────────────────────────────────
+    ActivePyramid   pyramids[Dim::MAX_PYRAMID_INSTANCES]{};
+    uint32_t        pyramid_count = 0;
+    bool            pyramid_mesh_gen_pending = false;
+    GPUPyramidArray cpu_pyramids{};                 // CPU mirror for heightfield baking
+};
+EntitiesState entities_state_;
+
+
+// ═══ MESH-GEN PREPARERS ═══════════════════════════════════════════
+//
+// Per-family CPU-side mesh-gen prep. Each preparer:
+//   • Reads the family's *_mesh_gen_pending flag and clears it
+//   • Scans the family's active array to find the highest active slot
+//   • Uploads index count = (max_slot + 1) * indices_per_slot to GPU
+//
+// Functions are placed here (not in their family vocab blocks above)
+// because they reference EntitiesState, which must be defined before
+// use — and EntitiesState in turn must be defined after every Active*
+// type it contains. The result: state struct + functions consuming
+// it both live at the file's end.
+//
+// Counterparts for arch / column / antenna / pyramid currently live
+// in spawn_engine.inl (non-static Cartridge members); they will be
+// hoisted here in migration #10 along with the remaining helpers.
+
+static bool prepare_palm_mesh_gen(EntitiesState& es, Cartridge* c, wgpu::Queue& queue) {
+    if (!es.palm_mesh_gen_pending) return false;
+    es.palm_mesh_gen_pending = false;
+    uint32_t maxSlot = 0;
+    bool anyActive = false;
+    for (uint32_t i = 0; i < Dim::MAX_PALM_INSTANCES; i++) {
+        if (es.palms[i].active) { maxSlot = i; anyActive = true; }
+    }
+    c->gpuState_.set_palm_index_count(anyActive
+        ? (maxSlot + 1) * Dim::PALMG_MAX_INDICES_PER_SLOT : 0);
+    return true;
+}
+
+static bool prepare_cactus_mesh_gen(EntitiesState& es, Cartridge* c, wgpu::Queue& queue) {
+    if (!es.cactus_mesh_gen_pending) return false;
+    es.cactus_mesh_gen_pending = false;
+    uint32_t maxSlot = 0;
+    bool anyActive = false;
+    for (uint32_t i = 0; i < Dim::MAX_CACTUS_INSTANCES; i++) {
+        if (es.cacti[i].active) { maxSlot = i; anyActive = true; }
+    }
+    c->gpuState_.set_cactus_index_count(anyActive
+        ? (maxSlot + 1) * Dim::CACTUSG_MAX_INDICES_PER_SLOT : 0);
+    return true;
+}
+
+static bool prepare_blade_mesh_gen(EntitiesState& es, Cartridge* c, wgpu::Queue& queue) {
+    if (!es.blade_mesh_gen_pending) return false;
+    es.blade_mesh_gen_pending = false;
+    uint32_t maxSlot = 0;
+    bool anyActive = false;
+    for (uint32_t i = 0; i < Dim::MAX_BLADE_INSTANCES; i++) {
+        if (es.blades[i].active) { maxSlot = i; anyActive = true; }
+    }
+    c->gpuState_.set_blade_index_count(anyActive
+        ? (maxSlot + 1) * Dim::BLADEG_MAX_INDICES_PER_SLOT : 0);
+    return true;
+}
+
+static bool prepare_column_mesh_gen(EntitiesState& es, Cartridge* c, wgpu::Queue& queue) {
+    if (!es.column_mesh_gen_pending) return false;
+    es.column_mesh_gen_pending = false;
+
+    uint32_t maxSlot = 0;
+    bool anyActive = false;
+    for (uint32_t i = 0; i < Dim::MAX_COLUMN_ONLY; i++) {
+        if (es.columns[i].active) { maxSlot = i; anyActive = true; }
+    }
+    for (uint32_t i = 0; i < Dim::MAX_ANTENNA_ONLY; i++) {
+        if (es.antennas[i].active) {
+            maxSlot = i + Dim::ANTENNA_SLOT_OFFSET;
+            anyActive = true;
+        }
+    }
+    c->gpuState_.set_column_index_count(anyActive
+        ? (maxSlot + 1) * Dim::CMG_MAX_INDICES_PER_SLOT : 0);
+    return true;
+}
+
+static bool prepare_arch_mesh_gen(EntitiesState& es, Cartridge* c, wgpu::Queue& queue) {
+    if (!es.arch_mesh_gen_pending) return false;
+    es.arch_mesh_gen_pending = false;
+
+    uint32_t maxSlot = 0;
+    bool anyActive = false;
+    for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++) {
+        if (es.arches[i].active) { maxSlot = i; anyActive = true; }
+    }
+    c->gpuState_.set_arch_index_count(anyActive
+        ? (maxSlot + 1) * Dim::AMG_MAX_INDICES_PER_SLOT : 0);
+    return true;
+}
+
+static bool prepare_pyramid_mesh_gen(EntitiesState& es, Cartridge* c, wgpu::Queue& queue) {
+    if (!es.pyramid_mesh_gen_pending) return false;
+    es.pyramid_mesh_gen_pending = false;
+
+    uint32_t maxSlot = 0;
+    bool anyActive = false;
+    for (uint32_t i = 0; i < Dim::MAX_PYRAMID_INSTANCES; i++) {
+        if (es.pyramids[i].active) { maxSlot = i; anyActive = true; }
+    }
+    c->gpuState_.set_pyramid_index_count(anyActive
+        ? (maxSlot + 1) * Dim::PMG_MAX_INDICES_PER_SLOT : 0);
+    return true;
+}

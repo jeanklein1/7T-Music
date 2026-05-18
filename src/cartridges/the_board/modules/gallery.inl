@@ -20,27 +20,33 @@
 //
 // ┌─── Public surface (called from outside this file) ──────────────┐
 // │                                                                  │
+// │  Module functions are static, take GalleryState& explicitly      │
+// │  (or const GalleryState& when read-only).                        │
+// │                                                                  │
 // │  Per-frame:                                                      │
-// │    update_photographer(queue)             — capture cadence      │
-// │    render_snapshot_pass(encoder)          — capture render       │
+// │    update_photographer(gs, c, queue)         — capture cadence   │
+// │    render_snapshot_pass(gs, c, encoder)      — capture render    │
 // │                                                                  │
 // │  Outdoor lifecycle (three-phase):                                │
-// │    select_gallery_for_patch(gx, gz, sel)                         │
-// │    place_gallery_from_selection(sel, plan)                       │
-// │    commit_gallery(plan, gx, gz, queue)                           │
-// │    evict_paintings_for_patch(gx, gz, queue)                      │
+// │    select_gallery_for_patch(gs, c, gx, gz, sel)                  │
+// │    place_gallery_from_selection(c, sel, plan)                    │
+// │      (note: no GalleryState — only mediates between sel and      │
+// │       spawn-engine helpers; not part of gallery's data)          │
+// │    commit_gallery(gs, c, plan, gx, gz, queue)                    │
+// │    evict_paintings_for_patch(gs, c, gx, gz, queue)               │
 // │                                                                  │
 // │  Indoor entry (called by mood.inl::apply_mood):                  │
-// │    place_wall_paintings(queue, bmin, bmax, ceiling_h)            │
-// │    clear_wall_paintings(queue)                                   │
+// │    place_wall_paintings(gs, c, queue, bmin, bmax, ceiling_h)     │
+// │    clear_wall_paintings(gs, c, queue)                            │
 // │                                                                  │
 // │  Authored image loading:                                         │
-// │    load_authored_textures(queue)         — first-call lazy load  │
-// │    rotate_authored_staging(queue)        — at world teardown     │
+// │    load_authored_textures(gs, c, queue) — first-call lazy load   │
+// │    rotate_authored_staging(gs, c, queue) — at world teardown     │
 // │                                                                  │
-// │  Cross-module reads (consumed by spine, render passes):          │
-// │    paintingSlots_[]                                              │
-// │    activePaintingCount_, wallFrameCount_                         │
+// │  Cross-module reads (this module's state read by others):        │
+// │    gallery_state_.wall_frame_count       — read by render_passes │
+// │    gallery_state_.active_painting_count  — read by render_passes │
+// │    gallery_state_.gallery_centers[]      — read by spine         │
 // │                                                                  │
 // └──────────────────────────────────────────────────────────────────┘
 //
@@ -161,7 +167,7 @@ static constexpr float PAINTING_AREA[] = {
 //   half of gallery's :dual-role surface. They live here (not in
 //   cartridge.hpp) because place_wall_paintings — the only
 //   consumer — lives here. Same migration class as
-//   moodAllowsMusicalModes_ (Q-closed-1) and ribbon active state
+//   musical_state_.mood_allows_modes (Q-closed-1) and ribbon active state
 //   (Q-closed-4).
 //
 // Concerns:
@@ -367,7 +373,7 @@ static constexpr WallArtConfig WALL_ART = {
 //
 // Three seeds are in play in this module's hash chain:
 //   1. patch seed  — passed in to select/commit_gallery
-//   2. site_seed   — derived from activeSeed_ for indoor placement
+//   2. site_seed   — derived from c->world_state_.active_seed for indoor placement
 //   3. p_seed      — per-painting, derived from either patch seed
 //                    (outdoor) or w_seed (indoor)
 //
@@ -406,7 +412,7 @@ struct GalleryPaintingProp {
 
 // Indoor — site_seed structure
 struct WallArtProp {
-    // site_seed = hash(activeSeed_, SITE_SEED_OFFSET)
+    // site_seed = hash(c->world_state_.active_seed, SITE_SEED_OFFSET)
     static constexpr uint32_t SITE_SEED_OFFSET    = 5500u;
 
     // off site_seed:
@@ -436,7 +442,7 @@ struct WallPaintingProp {
 // ═══ STATE: PHOTOGRAPHER ═════════════════════════════════════════
 //
 // The photographer's per-session RNG, capture cadence state, and
-// burst/cooldown tracking. PhotographerState is the only struct
+// burst/cooldown tracking. PhotographerState is the only sub-struct
 // in this module with embedded sampling helpers — they wrap a
 // std::mt19937 specifically for the capture pipeline.
 
@@ -476,21 +482,10 @@ struct PhotographerState {
         }
         return static_cast<ShotType>(static_cast<uint32_t>(ShotType::COUNT) - 1);
     }
-} photographer_;
+};
 
-// Cumulative walk + frame count are session-level companions to
-// the photographer's per-trigger state — read by both the
-// photographer (cadence) and gallery sites (sort by capture_frame).
-float totalWalkDistance_ = 0.0f;
-uint32_t frameCounter_ = 0;
 
-// ═══ STATE: STAGING ══════════════════════════════════════════════
-//
-// Two parallel circular buffers (16 layers each):
-//   snapshotStaging_  — fresh photographer captures
-//   authoredStaging_  — disk-loaded paintings (rotation window
-//                       across the full disk manifest)
-// Promotion to exhibition happens in commit_gallery / place_wall_paintings.
+// ═══ STATE SUB-STRUCTS ═══════════════════════════════════════════
 
 // ── Snapshot Staging (circular buffer, 16 layers) ──
 struct SnapshotStagingRecord {
@@ -503,9 +498,6 @@ struct SnapshotStagingRecord {
     float capture_distance = 0.0f;
     uint32_t capture_frame = 0;
 };
-SnapshotStagingRecord snapshotStaging_[Dim::STAGING_LAYERS]{};
-uint32_t snapshotWriteCursor_ = 0;
-uint32_t snapshotCount_ = 0;
 
 // ── Authored Staging (circular buffer, 16 layers) ──
 struct AuthoredStagingRecord {
@@ -516,28 +508,6 @@ struct AuthoredStagingRecord {
     bool valid = false;
     bool consumed = false;
 };
-AuthoredStagingRecord authoredStaging_[Dim::STAGING_LAYERS]{};
-uint32_t authoredWriteCursor_ = 0;
-uint32_t authoredDiskCursor_ = 0;     // walks through authoredDiskManifest_
-uint32_t authoredStagedCount_ = 0;
-bool authoredTexturesLoaded_ = false;
-std::vector<std::string> authoredDiskManifest_;  // scanned at startup, sorted alphabetically
-
-// ═══ STATE: EXHIBITION + PAINTING SLOTS ══════════════════════════
-//
-// Exhibition layers (32) hold textures stable until portal transition;
-// painting slots (per-instance) describe each visible painting on
-// the GPU. Galleries register their centers for spatial separation.
-
-// ── Exhibition (32 layers, stable until portal) ──
-bool exhibitionOccupied_[Dim::EXHIBITION_LAYERS]{};
-uint32_t exhibitionCount_ = 0;
-
-uint32_t find_free_exhibition_layer() const {
-    for (uint32_t i = 0; i < Dim::EXHIBITION_LAYERS; i++)
-        if (!exhibitionOccupied_[i]) return i;
-    return UINT32_MAX;
-}
 
 // Pending texture promotions (staging → exhibition, executed in render)
 struct PendingPromotion {
@@ -546,21 +516,6 @@ struct PendingPromotion {
     uint32_t exhibition_layer;
 };
 static constexpr uint32_t MAX_PROMOTIONS_PER_FRAME = 32;
-PendingPromotion pendingPromotions_[MAX_PROMOTIONS_PER_FRAME]{};
-uint32_t pendingPromotionCount_ = 0;
-
-void queue_promotion(bool is_snapshot, uint32_t staging_layer, uint32_t exhibition_layer) {
-    if (pendingPromotionCount_ < MAX_PROMOTIONS_PER_FRAME) {
-        pendingPromotions_[pendingPromotionCount_++] = {
-            is_snapshot, staging_layer, exhibition_layer
-        };
-    }
-}
-
-// ── Painting Slots + Gallery Centers ──
-GPUPaintingSlot paintingSlots_[Dim::PAINTING_MAX_SLOTS]{};
-uint32_t activePaintingCount_ = 0;
-uint32_t wallFrameCount_ = 0;
 
 // Active gallery centers (for minimum distance enforcement)
 struct GalleryCenter {
@@ -570,19 +525,99 @@ struct GalleryCenter {
     bool active = false;
 };
 static constexpr uint32_t MAX_GALLERIES = 48;
-GalleryCenter galleryCenters_[MAX_GALLERIES]{};
 
 struct PendingSnapshot {
     bool active = false;
     uint32_t target_slot = 0;
     uint32_t target_layer = 0;
-} pendingSnapshot_;
+};
+
+
+// ═══ GALLERY MODULE STATE (Scope B migration #6) ═════════════════
+//
+// All gallery-owned state lives in this struct, accessed via
+// gallery_state_ on the Cartridge. Module functions take
+// `GalleryState& gs` explicitly rather than reaching via Cartridge*,
+// making ownership language-visible and dependencies explicit
+// in signatures.
+//
+// Sub-grouped by role:
+//   • photographer        — per-session RNG + capture cadence
+//   • snapshot_staging    — fresh photographer captures (circular)
+//   • authored_staging    — disk-loaded paintings (rotation window)
+//   • exhibition          — stable layers for display textures
+//   • pending_promotions  — staging→exhibition promotion queue
+//   • painting_slots      — per-instance GPU mirror
+//   • gallery_centers     — active outdoor gallery sites
+//   • pending_snapshot    — single in-flight render target
+
+struct GalleryState {
+    PhotographerState photographer;
+
+    // Cumulative walk + frame count are session-level companions to
+    // the photographer's per-trigger state — read by both the
+    // photographer (cadence) and gallery sites (sort by capture_frame).
+    float    total_walk_distance = 0.0f;
+    uint32_t frame_counter = 0;
+
+    // Two parallel circular buffers (16 layers each):
+    //   snapshot_staging — fresh photographer captures
+    //   authored_staging — disk-loaded paintings (rotation window
+    //                      across the full disk manifest)
+    // Promotion to exhibition happens in commit_gallery / place_wall_paintings.
+    SnapshotStagingRecord snapshot_staging[Dim::STAGING_LAYERS]{};
+    uint32_t              snapshot_write_cursor = 0;
+    uint32_t              snapshot_count = 0;
+
+    AuthoredStagingRecord authored_staging[Dim::STAGING_LAYERS]{};
+    uint32_t              authored_write_cursor = 0;
+    uint32_t              authored_disk_cursor = 0;     // walks through authored_disk_manifest
+    uint32_t              authored_staged_count = 0;
+    bool                  authored_textures_loaded = false;
+    std::vector<std::string> authored_disk_manifest;    // scanned at startup, sorted alphabetically
+
+    // Exhibition layers (32) hold textures stable until portal transition;
+    // painting slots (per-instance) describe each visible painting on
+    // the GPU. Galleries register their centers for spatial separation.
+    bool     exhibition_occupied[Dim::EXHIBITION_LAYERS]{};
+    uint32_t exhibition_count = 0;
+
+    PendingPromotion pending_promotions[MAX_PROMOTIONS_PER_FRAME]{};
+    uint32_t         pending_promotion_count = 0;
+
+    GPUPaintingSlot painting_slots[Dim::PAINTING_MAX_SLOTS]{};
+    uint32_t        active_painting_count = 0;
+    uint32_t        wall_frame_count = 0;
+
+    GalleryCenter gallery_centers[MAX_GALLERIES]{};
+
+    PendingSnapshot pending_snapshot;
+};
+GalleryState gallery_state_;
+
+
+// ═══ STATE-LOCAL HELPERS (static, take GalleryState&) ════════════
+
+static uint32_t find_free_exhibition_layer(const GalleryState& gs) {
+    for (uint32_t i = 0; i < Dim::EXHIBITION_LAYERS; i++)
+        if (!gs.exhibition_occupied[i]) return i;
+    return UINT32_MAX;
+}
+
+static void queue_promotion(GalleryState& gs,
+    bool is_snapshot, uint32_t staging_layer, uint32_t exhibition_layer) {
+    if (gs.pending_promotion_count < MAX_PROMOTIONS_PER_FRAME) {
+        gs.pending_promotions[gs.pending_promotion_count++] = {
+            is_snapshot, staging_layer, exhibition_layer
+        };
+    }
+}
 
 // ── Slot lookup helpers ──
 
-uint32_t find_free_painting_slot() const {
+static uint32_t find_free_painting_slot(const GalleryState& gs) {
     for (uint32_t i = 0; i < Dim::PAINTING_MAX_SLOTS; i++)
-        if (paintingSlots_[i].is_active == 0) return i;
+        if (gs.painting_slots[i].is_active == 0) return i;
     return UINT32_MAX;
 }
 
@@ -592,114 +627,114 @@ uint32_t find_free_painting_slot() const {
 // Never places paintings — gallery sites consume the pool. Triggers
 // based on cumulative walk distance (with archetype-aware pacing).
 
-void update_photographer(wgpu::Queue& queue) {
-    float px = pawnReadback_x_;
-    float pz = pawnReadback_z_;
+static void update_photographer(GalleryState& gs, Cartridge* c, wgpu::Queue& queue) {
+    float px = c->player_.readback_x;
+    float pz = c->player_.readback_z;
 
-    if (!photographer_.initialized) {
-        photographer_.prev_pawn_x = px;
-        photographer_.prev_pawn_z = pz;
-        photographer_.initialized = true;
+    if (!gs.photographer.initialized) {
+        gs.photographer.prev_pawn_x = px;
+        gs.photographer.prev_pawn_z = pz;
+        gs.photographer.initialized = true;
         return;
     }
 
-    float dx = px - photographer_.prev_pawn_x;
-    float dz = pz - photographer_.prev_pawn_z;
+    float dx = px - gs.photographer.prev_pawn_x;
+    float dz = pz - gs.photographer.prev_pawn_z;
     float step = std::sqrt(dx * dx + dz * dz);
-    photographer_.prev_pawn_x = px;
-    photographer_.prev_pawn_z = pz;
+    gs.photographer.prev_pawn_x = px;
+    gs.photographer.prev_pawn_z = pz;
     if (step > 5.0f) return;
 
-    photographer_.cumulative_distance += step;
-    totalWalkDistance_ += step;
-    frameCounter_++;
-    if (photographer_.frame_cooldown > 0) photographer_.frame_cooldown--;
+    gs.photographer.cumulative_distance += step;
+    gs.total_walk_distance += step;
+    gs.frame_counter++;
+    if (gs.photographer.frame_cooldown > 0) gs.photographer.frame_cooldown--;
 
-    if (photographer_.pending_shots > 0 && photographer_.frame_cooldown == 0) {
-        capture_snapshot(px, pz, queue);
-        photographer_.pending_shots--;
-        photographer_.frame_cooldown = PhotographerCaptureConfig::BURST_COOLDOWN_FRAMES;
+    if (gs.photographer.pending_shots > 0 && gs.photographer.frame_cooldown == 0) {
+        capture_snapshot(gs, c, px, pz, queue);
+        gs.photographer.pending_shots--;
+        gs.photographer.frame_cooldown = PhotographerCaptureConfig::BURST_COOLDOWN_FRAMES;
         return;
     }
 
-    if (photographer_.cumulative_distance >= photographer_.next_threshold) {
-        photographer_.cumulative_distance = 0.0f;
+    if (gs.photographer.cumulative_distance >= gs.photographer.next_threshold) {
+        gs.photographer.cumulative_distance = 0.0f;
 
         // Pace modulation: less active in sand/basin, more in colored terrain
         float pace = 1.0f;
         int32_t tx = (int32_t)std::floor(px / PATCH_EXTENT);
         int32_t tz = (int32_t)std::floor(pz / PATCH_EXTENT);
-        auto it = tileCache_.find({ tx, tz });
-        if (it != tileCache_.end()) {
+        auto it = c->tileCache_.find({ tx, tz });
+        if (it != c->tileCache_.end()) {
             pace = GalleryConfig::PHOTO_PACE_BY_ARCHETYPE[it->second.archetype];
         }
 
-        photographer_.next_threshold = std::max(
+        gs.photographer.next_threshold = std::max(
             PhotographerCaptureConfig::TRIGGER_DISTANCE_FLOOR,
-            photographer_.gaussian(
+            gs.photographer.gaussian(
                 PhotographerCaptureConfig::TRIGGER_DISTANCE_MEAN * pace,
                 PhotographerCaptureConfig::TRIGGER_DISTANCE_SIGMA));
-        photographer_.pending_shots = photographer_.sample_shot_count();
-        photographer_.frame_cooldown = 0;
+        gs.photographer.pending_shots = gs.photographer.sample_shot_count();
+        gs.photographer.frame_cooldown = 0;
     }
 }
 
-void capture_snapshot(float pawn_x, float pawn_z, wgpu::Queue& queue) {
-    ShotType shot = photographer_.sample_shot_type();
+static void capture_snapshot(GalleryState& gs, Cartridge* c, float pawn_x, float pawn_z, wgpu::Queue& queue) {
+    ShotType shot = gs.photographer.sample_shot_type();
     const auto& params = SHOT_PARAMS[static_cast<uint32_t>(shot)];
 
-    float aspect_ratio = photographer_.uniform(params.aspect_lo, params.aspect_hi);
-    float azimuth = photographer_.uniform(0.0f, 6.283185f);
+    float aspect_ratio = gs.photographer.uniform(params.aspect_lo, params.aspect_hi);
+    float azimuth = gs.photographer.uniform(0.0f, 6.283185f);
     float dist = std::max(PhotographerCaptureConfig::DISTANCE_FLOOR,
-        photographer_.gaussian(params.distance_mean, params.distance_sigma));
+        gs.photographer.gaussian(params.distance_mean, params.distance_sigma));
     float elev = std::max(PhotographerCaptureConfig::ELEVATION_FLOOR,
-        photographer_.gaussian(params.elevation_mean, params.elevation_sigma));
+        gs.photographer.gaussian(params.elevation_mean, params.elevation_sigma));
     float fov_deg = std::max(PhotographerCaptureConfig::FOV_FLOOR,
-        photographer_.gaussian(params.fov_degrees, params.fov_sigma));
+        gs.photographer.gaussian(params.fov_degrees, params.fov_sigma));
 
-    if (photographer_.uniform(0.0f, 1.0f) < PhotographerCaptureConfig::WIDE_LENS_CHANCE) {
-        fov_deg = photographer_.uniform(PhotographerCaptureConfig::WIDE_LENS_FOV_LO,
+    if (gs.photographer.uniform(0.0f, 1.0f) < PhotographerCaptureConfig::WIDE_LENS_CHANCE) {
+        fov_deg = gs.photographer.uniform(PhotographerCaptureConfig::WIDE_LENS_FOV_LO,
             PhotographerCaptureConfig::WIDE_LENS_FOV_HI);
     }
 
     float fov_rad = fov_deg * 3.14159f / 180.0f;
-    float offset_x = photographer_.uniform(-params.offset_x_range, params.offset_x_range);
-    float offset_y = photographer_.uniform(-params.offset_y_range, params.offset_y_range);
+    float offset_x = gs.photographer.uniform(-params.offset_x_range, params.offset_x_range);
+    float offset_y = gs.photographer.uniform(-params.offset_y_range, params.offset_y_range);
 
     // Record in snapshot staging — cursor wraps freely, unconditional overwrite
-    uint32_t layer = snapshotWriteCursor_;
-    auto& rec = snapshotStaging_[layer];
+    uint32_t layer = gs.snapshot_write_cursor;
+    auto& rec = gs.snapshot_staging[layer];
     rec.aspect_ratio = aspect_ratio;
     rec.shot_type = static_cast<uint32_t>(shot);
     rec.valid = true;
     rec.consumed = false;  // fresh capture, available for exhibition
     rec.capture_x = pawn_x;
     rec.capture_z = pawn_z;
-    rec.capture_distance = totalWalkDistance_;
-    rec.capture_frame = frameCounter_;
-    snapshotWriteCursor_ = (layer + 1) % Dim::STAGING_LAYERS;
-    if (snapshotCount_ < Dim::STAGING_LAYERS) snapshotCount_++;
+    rec.capture_distance = gs.total_walk_distance;
+    rec.capture_frame = gs.frame_counter;
+    gs.snapshot_write_cursor = (layer + 1) % Dim::STAGING_LAYERS;
+    if (gs.snapshot_count < Dim::STAGING_LAYERS) gs.snapshot_count++;
 
     // Upload photographer config for GPU compute
     GPUPhotographerConfig cfg{};
-    float slen = std::sqrt(sunDirection_[0] * sunDirection_[0] + sunDirection_[1] * sunDirection_[1] + sunDirection_[2] * sunDirection_[2]);
-    cfg.sun_direction[0] = sunDirection_[0] / slen;
-    cfg.sun_direction[1] = sunDirection_[1] / slen;
-    cfg.sun_direction[2] = sunDirection_[2] / slen;
+    float slen = std::sqrt(c->sunDirection_[0] * c->sunDirection_[0] + c->sunDirection_[1] * c->sunDirection_[1] + c->sunDirection_[2] * c->sunDirection_[2]);
+    cfg.sun_direction[0] = c->sunDirection_[0] / slen;
+    cfg.sun_direction[1] = c->sunDirection_[1] / slen;
+    cfg.sun_direction[2] = c->sunDirection_[2] / slen;
     cfg.azimuth = azimuth;
     cfg.elevation = elev;
     cfg.distance = dist;
     cfg.fov_rad = fov_rad;
     cfg.aspect_ratio = aspect_ratio;
-    cfg.patch_count = allPatchCount_;
+    cfg.patch_count = c->world_state_.all_patch_count;
     cfg.frame_offset_x = offset_x;
     cfg.frame_offset_y = offset_y;
     cfg._pad0 = 0.0f;
-    gpuState_.upload_photographer_config(queue, cfg);
+    c->gpuState_.upload_photographer_config(queue, cfg);
 
-    pendingSnapshot_.active = true;
-    pendingSnapshot_.target_slot = UINT32_MAX;
-    pendingSnapshot_.target_layer = layer;
+    gs.pending_snapshot.active = true;
+    gs.pending_snapshot.target_slot = UINT32_MAX;
+    gs.pending_snapshot.target_layer = layer;
 
     const char* shot_names[] = {
         "Panoramic", "Environmental", "Medium", "Close-up",
@@ -708,7 +743,7 @@ void capture_snapshot(float pawn_x, float pawn_z, wgpu::Queue& queue) {
     std::cout << "[Photographer] Capture -> layer " << layer
         << " (" << shot_names[static_cast<uint32_t>(shot)] << ")"
         << " aspect=" << aspect_ratio
-        << " pool=" << snapshotCount_ << "/" << Dim::STAGING_LAYERS << "\n";
+        << " pool=" << gs.snapshot_count << "/" << Dim::STAGING_LAYERS << "\n";
 }
 
 // ═══ GALLERY SITES (outdoor — three-phase) ═══════════════════════
@@ -725,21 +760,21 @@ void capture_snapshot(float pawn_x, float pawn_z, wgpu::Queue& queue) {
 // sampling. No GPU writes. No content availability validation
 // (deferred to commit where queue is available).
 
-bool select_gallery_for_patch(int32_t gx, int32_t gz, GallerySelection& sel) {
+static bool select_gallery_for_patch(GalleryState& gs, Cartridge* c, int32_t gx, int32_t gz, GallerySelection& sel) {
     // Content gate: minimum snapshot pool
-    if (snapshotCount_ < GalleryConfig::MIN_POOL_SIZE) return false;
+    if (gs.snapshot_count < GalleryConfig::MIN_POOL_SIZE) return false;
 
     // Mood gate
-    float adj_mod = GalleryConfig::MOOD_MULTIPLIER[activeMood_];
+    float adj_mod = GalleryConfig::MOOD_MULTIPLIER[c->mood_state_.active];
     if (adj_mod <= 0.0f) return false;
 
     // Density + theme modifiers
     adj_mod *= GLOBAL_ENTITY_DENSITY;
-    adj_mod *= population_type_affinity(PopFamily::GALLERY);
+    adj_mod *= c->population_type_affinity(PopFamily::GALLERY);
     uint32_t archetype = 1;
     {
-        auto dit = tileCache_.find({ gx, gz });
-        if (dit != tileCache_.end()) {
+        auto dit = c->tileCache_.find({ gx, gz });
+        if (dit != c->tileCache_.end()) {
             adj_mod *= dit->second.entity_density;
             adj_mod *= dit->second.theme_spawn[PopFamily::GALLERY];
             archetype = dit->second.archetype;
@@ -748,21 +783,21 @@ bool select_gallery_for_patch(int32_t gx, int32_t gz, GallerySelection& sel) {
 
     // Idempotency: skip if paintings already exist at this patch
     for (uint32_t i = 0; i < Dim::PAINTING_MAX_SLOTS; i++) {
-        if (paintingSlots_[i].is_active != 0 &&
-            paintingSlots_[i].patch_gx == gx && paintingSlots_[i].patch_gz == gz) {
+        if (gs.painting_slots[i].is_active != 0 &&
+            gs.painting_slots[i].patch_gx == gx && gs.painting_slots[i].patch_gz == gz) {
             return false;
         }
     }
 
     // Also check if a gallery center is already active for this patch
     for (uint32_t g = 0; g < MAX_GALLERIES; g++) {
-        if (galleryCenters_[g].active &&
-            galleryCenters_[g].patch_gx == gx && galleryCenters_[g].patch_gz == gz)
+        if (gs.gallery_centers[g].active &&
+            gs.gallery_centers[g].patch_gx == gx && gs.gallery_centers[g].patch_gz == gz)
             return false;
     }
 
     // Spawn roll
-    uint32_t seed = tile_seed(activeSeed_, gx, gz);
+    uint32_t seed = tile_seed(c->world_state_.active_seed, gx, gz);
     float gallery_roll = cpu_hash_f(seed, GalleryProp::SPAWN_ROLL);
     float gallery_chance = GalleryConfig::GALLERY_CHANCE_BY_ARCHETYPE[archetype] * adj_mod;
     if (gallery_roll >= gallery_chance) return false;
@@ -778,23 +813,23 @@ bool select_gallery_for_patch(int32_t gx, int32_t gz, GallerySelection& sel) {
     // Gallery-to-gallery distance check (belt + suspenders; MIN_SEPARATION handles most)
     float min_dist_sq = GalleryConfig::MIN_GALLERY_DISTANCE * GalleryConfig::MIN_GALLERY_DISTANCE;
     for (uint32_t g = 0; g < MAX_GALLERIES; g++) {
-        if (!galleryCenters_[g].active) continue;
-        float dx = gallery_cx - galleryCenters_[g].x;
-        float dz = gallery_cz - galleryCenters_[g].z;
+        if (!gs.gallery_centers[g].active) continue;
+        float dx = gallery_cx - gs.gallery_centers[g].x;
+        float dz = gallery_cz - gs.gallery_centers[g].z;
         if (dx * dx + dz * dz < min_dist_sq) return false;
     }
 
     // Find free center slot
     uint32_t gallery_slot = UINT32_MAX;
     for (uint32_t g = 0; g < MAX_GALLERIES; g++) {
-        if (!galleryCenters_[g].active) { gallery_slot = g; break; }
+        if (!gs.gallery_centers[g].active) { gallery_slot = g; break; }
     }
     if (gallery_slot == UINT32_MAX) return false;
 
     // Reserve slot
-    galleryCenters_[gallery_slot].active = true;
-    galleryCenters_[gallery_slot].patch_gx = gx;
-    galleryCenters_[gallery_slot].patch_gz = gz;
+    gs.gallery_centers[gallery_slot].active = true;
+    gs.gallery_centers[gallery_slot].patch_gx = gx;
+    gs.gallery_centers[gallery_slot].patch_gz = gz;
 
     // Footprint radius: gallery spread
     float footprint_r = (float)GalleryConfig::PAINTINGS_MAX_BY_ARCHETYPE[archetype]
@@ -849,14 +884,14 @@ bool select_gallery_for_patch(int32_t gx, int32_t gz, GallerySelection& sel) {
 // seed-determined (no negotiation), but standard check_position
 // enforces MIN_SEPARATION against all families.
 
-bool place_gallery_from_selection(const GallerySelection& sel, GalleryPlacement& plan) {
-    if (!check_position(sel.cx, sel.cz, sel.footprint_r, PopFamily::GALLERY))
+static bool place_gallery_from_selection(Cartridge* c, const GallerySelection& sel, GalleryPlacement& plan) {
+    if (!c->check_position(sel.cx, sel.cz, sel.footprint_r, PopFamily::GALLERY))
         return false;
 
     int32_t host_gx = (int32_t)std::floor(sel.cx / PATCH_EXTENT);
     int32_t host_gz = (int32_t)std::floor(sel.cz / PATCH_EXTENT);
 
-    if (register_footprint(sel.cx, sel.cz, sel.footprint_r,
+    if (c->register_footprint(sel.cx, sel.cz, sel.footprint_r,
         host_gx, host_gz, PopFamily::GALLERY, sel.archetype) == UINT32_MAX)
         return false;
 
@@ -876,7 +911,7 @@ bool place_gallery_from_selection(const GallerySelection& sel, GalleryPlacement&
     plan.gallery_size_mean = sel.gallery_size_mean;
     plan.site_type = sel.site_type;
 
-    record_placement_bookkeeping(PopFamily::GALLERY, plan.tier_idx);
+    c->record_placement_bookkeeping(PopFamily::GALLERY, plan.tier_idx);
     return true;
 }
 
@@ -886,11 +921,12 @@ bool place_gallery_from_selection(const GallerySelection& sel, GalleryPlacement&
 // GPU upload. All content-dependent decisions happen here where
 // queue is available for authored texture loading.
 
-void commit_gallery(const GalleryPlacement& plan,
+static void commit_gallery(GalleryState& gs, Cartridge* c,
+    const GalleryPlacement& plan,
     int32_t trigger_gx, int32_t trigger_gz, wgpu::Queue& queue)
 {
     uint32_t seed = plan.trigger_gx != INT32_MAX
-        ? tile_seed(activeSeed_, plan.trigger_gx, plan.trigger_gz) : 0u;
+        ? tile_seed(c->world_state_.active_seed, plan.trigger_gx, plan.trigger_gz) : 0u;
     int32_t gx = plan.trigger_gx, gz = plan.trigger_gz;
     float gallery_cx = plan.cx, gallery_cz = plan.cz;
     uint32_t archetype = plan.archetype;
@@ -899,10 +935,10 @@ void commit_gallery(const GalleryPlacement& plan,
 
     // Resolve site type with content availability
     uint32_t site_type = plan.site_type;
-    if (site_type != GallerySiteType::SNAPSHOT_ONLY && !authoredTexturesLoaded_) {
-        load_authored_textures(queue);
+    if (site_type != GallerySiteType::SNAPSHOT_ONLY && !gs.authored_textures_loaded) {
+        load_authored_textures(gs, c, queue);
     }
-    if (site_type != GallerySiteType::SNAPSHOT_ONLY && !authoredTexturesLoaded_) {
+    if (site_type != GallerySiteType::SNAPSHOT_ONLY && !gs.authored_textures_loaded) {
         site_type = GallerySiteType::SNAPSHOT_ONLY;
     }
 
@@ -911,22 +947,22 @@ void commit_gallery(const GalleryPlacement& plan,
     Candidate candidates[Dim::STAGING_LAYERS];
     uint32_t candidate_count = 0;
     for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) {
-        if (snapshotStaging_[i].valid && !snapshotStaging_[i].consumed)
+        if (gs.snapshot_staging[i].valid && !gs.snapshot_staging[i].consumed)
             candidates[candidate_count++] = { i };
     }
 
     bool have_snapshots = candidate_count > 0;
-    bool have_authored = authoredStagedCount_ > 0;
+    bool have_authored = gs.authored_staged_count > 0;
     if (site_type == GallerySiteType::SNAPSHOT_ONLY && !have_snapshots) {
-        galleryCenters_[plan.slot].active = false;
+        gs.gallery_centers[plan.slot].active = false;
         return;
     }
     if (site_type == GallerySiteType::AUTHORED_ONLY && !have_authored) {
-        galleryCenters_[plan.slot].active = false;
+        gs.gallery_centers[plan.slot].active = false;
         return;
     }
     if (site_type == GallerySiteType::MIXED && !have_snapshots && !have_authored) {
-        galleryCenters_[plan.slot].active = false;
+        gs.gallery_centers[plan.slot].active = false;
         return;
     }
 
@@ -942,7 +978,7 @@ void commit_gallery(const GalleryPlacement& plan,
             uint32_t chosen = FAVORITE_TIERS[cpu_hash(seed, GalleryProp::FAVORITE_TIER_PICK) % 3];
             uint32_t write = 0;
             for (uint32_t c = 0; c < candidate_count; c++) {
-                if (snapshotStaging_[candidates[c].layer].shot_type == chosen)
+                if (gs.snapshot_staging[candidates[c].layer].shot_type == chosen)
                     candidates[write++] = candidates[c];
             }
             candidate_count = write;
@@ -950,8 +986,8 @@ void commit_gallery(const GalleryPlacement& plan,
         }
         for (uint32_t i = 0; i < candidate_count; i++) {
             for (uint32_t j = i + 1; j < candidate_count; j++) {
-                if (snapshotStaging_[candidates[j].layer].capture_frame
-                    < snapshotStaging_[candidates[i].layer].capture_frame) {
+                if (gs.snapshot_staging[candidates[j].layer].capture_frame
+                    < gs.snapshot_staging[candidates[i].layer].capture_frame) {
                     Candidate tmp = candidates[i];
                     candidates[i] = candidates[j];
                     candidates[j] = tmp;
@@ -963,9 +999,9 @@ void commit_gallery(const GalleryPlacement& plan,
 
     // Cap painting count to available content
     uint32_t painting_count = plan.painting_count;
-    uint32_t max_available = candidate_count + authoredStagedCount_;
+    uint32_t max_available = candidate_count + gs.authored_staged_count;
     if (site_type == GallerySiteType::SNAPSHOT_ONLY) max_available = candidate_count;
-    if (site_type == GallerySiteType::AUTHORED_ONLY) max_available = authoredStagedCount_;
+    if (site_type == GallerySiteType::AUTHORED_ONLY) max_available = gs.authored_staged_count;
     if (painting_count > max_available) painting_count = max_available;
 
     // Layout
@@ -979,7 +1015,7 @@ void commit_gallery(const GalleryPlacement& plan,
     bool usedAuthored[Dim::STAGING_LAYERS]{};
 
     for (uint32_t p = 0; p < painting_count; p++) {
-        uint32_t slot = find_free_painting_slot();
+        uint32_t slot = find_free_painting_slot(gs);
         if (slot == UINT32_MAX) break;
 
         uint32_t p_seed = cpu_hash(seed, GalleryProp::PER_PAINTING_BASE + p * GalleryProp::PER_PAINTING_STRIDE);
@@ -998,11 +1034,11 @@ void commit_gallery(const GalleryPlacement& plan,
             || (site_type == GallerySiteType::MIXED
                 && cpu_hash_f(p_seed, GalleryPaintingProp::MIX_AUTHOR_ROLL) < GalleryConfig::OUTDOOR_MIX_AUTHORED_CHANCE);
 
-        if (use_authored && count_unused_authored(usedAuthored) == 0) {
+        if (use_authored && count_unused_authored(gs, usedAuthored) == 0) {
             use_authored = false;
         }
         if (!use_authored && snap_cursor >= candidate_count) {
-            if (count_unused_authored(usedAuthored) > 0) {
+            if (count_unused_authored(gs, usedAuthored) > 0) {
                 use_authored = true;
             }
             else {
@@ -1010,17 +1046,17 @@ void commit_gallery(const GalleryPlacement& plan,
             }
         }
 
-        auto& s = paintingSlots_[slot];
+        auto& s = gs.painting_slots[slot];
         bool placed_this = false;
 
         if (use_authored) {
-            uint32_t auth_stg = pick_authored_staging(p_seed, GalleryPaintingProp::AUTH_STG_PICK);
+            uint32_t auth_stg = pick_authored_staging(gs, p_seed, GalleryPaintingProp::AUTH_STG_PICK);
             if (auth_stg == UINT32_MAX || usedAuthored[auth_stg]) {
                 uint32_t best = UINT32_MAX, best_disk = UINT32_MAX;
                 for (uint32_t a = 0; a < Dim::STAGING_LAYERS; a++) {
-                    if (!usedAuthored[a] && authoredStaging_[a].valid && !authoredStaging_[a].consumed
-                        && authoredStaging_[a].disk_index < best_disk) {
-                        best_disk = authoredStaging_[a].disk_index;
+                    if (!usedAuthored[a] && gs.authored_staging[a].valid && !gs.authored_staging[a].consumed
+                        && gs.authored_staging[a].disk_index < best_disk) {
+                        best_disk = gs.authored_staging[a].disk_index;
                         best = a;
                     }
                 }
@@ -1029,11 +1065,11 @@ void commit_gallery(const GalleryPlacement& plan,
             }
 
             if (use_authored) {
-                uint32_t exh = find_free_exhibition_layer();
+                uint32_t exh = find_free_exhibition_layer(gs);
                 if (exh == UINT32_MAX) break;
 
                 usedAuthored[auth_stg] = true;
-                const auto& img = authoredStaging_[auth_stg];
+                const auto& img = gs.authored_staging[auth_stg];
                 float jitter = (cpu_hash_f(p_seed, GalleryPaintingProp::SIZE_JITTER_A)
                     + cpu_hash_f(p_seed, GalleryPaintingProp::SIZE_JITTER_B)
                     + cpu_hash_f(p_seed, GalleryPaintingProp::SIZE_JITTER_C) - 1.5f) * GalleryConfig::PAINTING_SIZE_SIGMA;
@@ -1048,21 +1084,21 @@ void commit_gallery(const GalleryPlacement& plan,
                     FRAME_AUTHORED, gx, gz);
                 s.geometry_seed = cpu_hash_f(p_seed, GalleryPaintingProp::GEOMETRY_SEED);
 
-                exhibitionOccupied_[exh] = true;
-                exhibitionCount_++;
-                authoredStaging_[auth_stg].consumed = true;
-                queue_promotion(false, auth_stg, exh);
-                wallFrameCount_++;
+                gs.exhibition_occupied[exh] = true;
+                gs.exhibition_count++;
+                gs.authored_staging[auth_stg].consumed = true;
+                queue_promotion(gs, false, auth_stg, exh);
+                gs.wall_frame_count++;
                 placed_this = true;
             }
         }
 
         if (!placed_this && snap_cursor < candidate_count) {
             uint32_t staging_layer = candidates[snap_cursor].layer;
-            const auto& snap = snapshotStaging_[staging_layer];
+            const auto& snap = gs.snapshot_staging[staging_layer];
             snap_cursor++;
 
-            uint32_t exh = find_free_exhibition_layer();
+            uint32_t exh = find_free_exhibition_layer(gs);
             if (exh == UINT32_MAX) break;
 
             uint32_t shot_idx = snap.shot_type;
@@ -1091,22 +1127,22 @@ void commit_gallery(const GalleryPlacement& plan,
             s.uv_scale_y = 1.0f;
             s.patch_gx = gx; s.patch_gz = gz;
 
-            exhibitionOccupied_[exh] = true;
-            exhibitionCount_++;
-            snapshotStaging_[staging_layer].consumed = true;
-            queue_promotion(true, staging_layer, exh);
+            gs.exhibition_occupied[exh] = true;
+            gs.exhibition_count++;
+            gs.snapshot_staging[staging_layer].consumed = true;
+            queue_promotion(gs, true, staging_layer, exh);
             placed_this = true;
         }
 
         if (!placed_this) break;
 
-        gpuState_.upload_painting_slot(queue, slot, s);
-        activePaintingCount_++;
+        c->gpuState_.upload_painting_slot(queue, slot, s);
+        gs.active_painting_count++;
         placed++;
     }
 
     // Record gallery center
-    auto& gc = galleryCenters_[plan.slot];
+    auto& gc = gs.gallery_centers[plan.slot];
     gc.x = gallery_cx;
     gc.z = gallery_cz;
     gc.host_gx = plan.host_gx;
@@ -1126,25 +1162,25 @@ void commit_gallery(const GalleryPlacement& plan,
             << "\n";
     }
 }
-void evict_paintings_for_patch(int32_t gx, int32_t gz, wgpu::Queue& queue) {
+static void evict_paintings_for_patch(GalleryState& gs, Cartridge* c, int32_t gx, int32_t gz, wgpu::Queue& queue) {
     for (uint32_t i = 0; i < Dim::PAINTING_MAX_SLOTS; i++) {
-        if (paintingSlots_[i].is_active != 0 &&
-            paintingSlots_[i].patch_gx == gx && paintingSlots_[i].patch_gz == gz) {
+        if (gs.painting_slots[i].is_active != 0 &&
+            gs.painting_slots[i].patch_gx == gx && gs.painting_slots[i].patch_gz == gz) {
 
             // Free the exhibition layer
-            uint32_t exh = paintingSlots_[i].texture_layer;
+            uint32_t exh = gs.painting_slots[i].texture_layer;
             if (exh < Dim::EXHIBITION_LAYERS) {
-                exhibitionOccupied_[exh] = false;
-                exhibitionCount_--;
+                gs.exhibition_occupied[exh] = false;
+                gs.exhibition_count--;
             }
 
-            if (paintingSlots_[i].form_type == FormType::WALL_FRAME) {
-                wallFrameCount_--;
+            if (gs.painting_slots[i].form_type == FormType::WALL_FRAME) {
+                gs.wall_frame_count--;
             }
 
-            paintingSlots_[i].is_active = 0;
-            gpuState_.deactivate_painting_slot(queue, i);
-            activePaintingCount_--;
+            gs.painting_slots[i].is_active = 0;
+            c->gpuState_.deactivate_painting_slot(queue, i);
+            gs.active_painting_count--;
         }
     }
     // Evict gallery center for this patch — NO: gallery centers persist
@@ -1161,8 +1197,8 @@ void evict_paintings_for_patch(int32_t gx, int32_t gz, wgpu::Queue& queue) {
 // target, then copies into the snapshot staging texture's chosen
 // layer.
 
-void render_snapshot_pass(wgpu::CommandEncoder& encoder) {
-    if (!pendingSnapshot_.active) return;
+static void render_snapshot_pass(GalleryState& gs, Cartridge* c, wgpu::CommandEncoder& encoder) {
+    if (!gs.pending_snapshot.active) return;
 
     // Snapshot needs its own VP compute (camera position + VP matrix).
     // Entity Y-correction already ran in dispatch_placement_correction
@@ -1172,26 +1208,26 @@ void render_snapshot_pass(wgpu::CommandEncoder& encoder) {
         wgpu::ComputePassDescriptor cpd{};
         cpd.label = "Photographer VP Compute";
         wgpu::ComputePassEncoder compute = encoder.BeginComputePass(&cpd);
-        renderer_.dispatch_compute_photographer_vp(
-            compute, gpuState_.photographer_compute_group()
+        c->renderer_.dispatch_compute_photographer_vp(
+            compute, c->gpuState_.photographer_compute_group()
         );
         compute.End();
     }
 
     // Only render the snapshot if a capture is pending
-    if (!pendingSnapshot_.active) return;
-    pendingSnapshot_.active = false;
-    uint32_t layer = pendingSnapshot_.target_layer;
+    if (!gs.pending_snapshot.active) return;
+    gs.pending_snapshot.active = false;
+    uint32_t layer = gs.pending_snapshot.target_layer;
     std::cout << "[Photographer] Rendering snapshot -> layer " << layer << "\n";
 
     wgpu::RenderPassColorAttachment colorAtt{};
-    colorAtt.view = gpuState_.offscreen_color_view();
+    colorAtt.view = c->gpuState_.offscreen_color_view();
     colorAtt.loadOp = wgpu::LoadOp::Clear;
     colorAtt.storeOp = wgpu::StoreOp::Store;
-    colorAtt.clearValue = { (double)clearColor_[0], (double)clearColor_[1], (double)clearColor_[2], 1.0 };
+    colorAtt.clearValue = { (double)c->clearColor_[0], (double)c->clearColor_[1], (double)c->clearColor_[2], 1.0 };
 
     wgpu::RenderPassDepthStencilAttachment depthAtt{};
-    depthAtt.view = gpuState_.offscreen_depth_view();
+    depthAtt.view = c->gpuState_.offscreen_depth_view();
     depthAtt.depthLoadOp = wgpu::LoadOp::Clear;
     depthAtt.depthStoreOp = wgpu::StoreOp::Store;
     depthAtt.depthClearValue = 1.0f;
@@ -1204,52 +1240,52 @@ void render_snapshot_pass(wgpu::CommandEncoder& encoder) {
 
     wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&desc);
 
-    renderer_.draw_patch_terrain_direct(pass,
-        gpuState_.photographer_render_entity_group(),
-        gpuState_.render_texture_group(),
-        gpuState_.patch_index_buffer(),
-        gpuState_.patch_index_count(),
-        renderPatchCount_);
+    c->renderer_.draw_patch_terrain_direct(pass,
+        c->gpuState_.photographer_render_entity_group(),
+        c->gpuState_.render_texture_group(),
+        c->gpuState_.patch_index_buffer(),
+        c->gpuState_.patch_index_count(),
+        c->world_state_.render_patch_count);
 
-    renderer_.draw_pawn(pass,
-        gpuState_.photographer_render_entity_group(),
-        gpuState_.render_texture_group(),
+    c->renderer_.draw_pawn(pass,
+        c->gpuState_.photographer_render_entity_group(),
+        c->gpuState_.render_texture_group(),
         GPUState::pawn_vertex_count());
 
-    renderer_.draw_sphere(pass,
-        gpuState_.photographer_render_entity_group(),
-        gpuState_.render_texture_group(),
-        gpuState_.sphere_vertex_buffer(),
-        gpuState_.sphere_index_buffer(),
-        gpuState_.sphere_index_count());
+    c->renderer_.draw_sphere(pass,
+        c->gpuState_.photographer_render_entity_group(),
+        c->gpuState_.render_texture_group(),
+        c->gpuState_.sphere_vertex_buffer(),
+        c->gpuState_.sphere_index_buffer(),
+        c->gpuState_.sphere_index_count());
 
-    if (ribbon_state_.rendered_slot != UINT32_MAX) {
-        renderer_.draw_ribbon(pass,
-            gpuState_.photographer_render_entity_group(),
-            gpuState_.render_texture_group(),
+    if (c->ribbon_state_.rendered_slot != UINT32_MAX) {
+        c->renderer_.draw_ribbon(pass,
+            c->gpuState_.photographer_render_entity_group(),
+            c->gpuState_.render_texture_group(),
             GPUState::ribbon_vertex_count());
     }
 
-    renderer_.draw_arch(pass,
-        gpuState_.photographer_render_entity_group(),
-        gpuState_.render_texture_group(),
-        gpuState_.arch_vertex_buffer(),
-        gpuState_.arch_index_buffer(),
-        gpuState_.arch_index_count());
+    c->renderer_.draw_arch(pass,
+        c->gpuState_.photographer_render_entity_group(),
+        c->gpuState_.render_texture_group(),
+        c->gpuState_.arch_vertex_buffer(),
+        c->gpuState_.arch_index_buffer(),
+        c->gpuState_.arch_index_count());
 
-    renderer_.draw_column(pass,
-        gpuState_.photographer_render_entity_group(),
-        gpuState_.render_texture_group(),
-        gpuState_.column_vertex_buffer(),
-        gpuState_.column_index_buffer(),
-        gpuState_.column_index_count());
+    c->renderer_.draw_column(pass,
+        c->gpuState_.photographer_render_entity_group(),
+        c->gpuState_.render_texture_group(),
+        c->gpuState_.column_vertex_buffer(),
+        c->gpuState_.column_index_buffer(),
+        c->gpuState_.column_index_count());
 
-    renderer_.draw_shell(pass,
-        gpuState_.photographer_render_entity_group(),
-        gpuState_.render_texture_group(),
-        gpuState_.shell_vertex_buffer(),
-        gpuState_.shell_index_buffer(),
-        gpuState_.shell_index_count());
+    c->renderer_.draw_shell(pass,
+        c->gpuState_.photographer_render_entity_group(),
+        c->gpuState_.render_texture_group(),
+        c->gpuState_.shell_vertex_buffer(),
+        c->gpuState_.shell_index_buffer(),
+        c->gpuState_.shell_index_count());
 
     // Pyramids: terrain surface IS the pyramid shape (via the baked
     // heightfield, which caches POLICY_BAKED_HEIGHTFIELD = static
@@ -1258,12 +1294,12 @@ void render_snapshot_pass(wgpu::CommandEncoder& encoder) {
     pass.End();
 
     wgpu::TexelCopyTextureInfo src{};
-    src.texture = gpuState_.offscreen_color_texture();
+    src.texture = c->gpuState_.offscreen_color_texture();
     src.mipLevel = 0;
     src.origin = { 0, 0, 0 };
 
     wgpu::TexelCopyTextureInfo dst{};
-    dst.texture = gpuState_.snapshot_staging_texture();
+    dst.texture = c->gpuState_.snapshot_staging_texture();
     dst.mipLevel = 0;
     dst.origin = { 0, 0, layer };
 
@@ -1281,7 +1317,7 @@ void render_snapshot_pass(wgpu::CommandEncoder& encoder) {
 
 // ── Authored Image Loading (staging model) ──
 
-void load_authored_image_to_staging(wgpu::Queue& queue, uint32_t staging_layer, uint32_t disk_index, const char* path) {
+static void load_authored_image_to_staging(GalleryState& gs, Cartridge* c, wgpu::Queue& queue, uint32_t staging_layer, uint32_t disk_index, const char* path) {
     int width = 0, height = 0, channels = 0;
     unsigned char* data = stbi_load(path, &width, &height, &channels, 4);
     if (!data) {
@@ -1327,10 +1363,10 @@ void load_authored_image_to_staging(wgpu::Queue& queue, uint32_t staging_layer, 
         }
     }
 
-    gpuState_.upload_authored_painting(queue, staging_layer, padded.data(), RES, RES);
+    c->gpuState_.upload_authored_painting(queue, staging_layer, padded.data(), RES, RES);
     stbi_image_free(data);
 
-    auto& rec = authoredStaging_[staging_layer];
+    auto& rec = gs.authored_staging[staging_layer];
     rec.disk_index = disk_index;
     rec.aspect_ratio = (height > 0) ? (float)width / (float)height : 1.0f;
     rec.uv_scale_x = (float)dst_w / RES;
@@ -1347,9 +1383,9 @@ void load_authored_image_to_staging(wgpu::Queue& queue, uint32_t staging_layer, 
 // Called once at first load. The full collection lives on disk;
 // a rotating 16-layer staging window loads into GPU memory.
 
-void scan_paintings_folder() {
+static void scan_paintings_folder(GalleryState& gs) {
     namespace fs = std::filesystem;
-    authoredDiskManifest_.clear();
+    gs.authored_disk_manifest.clear();
 
     // Try multiple base paths (build dir vs working dir)
     static constexpr const char* SEARCH_DIRS[] = {
@@ -1377,7 +1413,7 @@ void scan_paintings_folder() {
         std::string ext = entry.path().extension().string();
         std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
         if (ext != ".jpg" && ext != ".jpeg") continue;
-        authoredDiskManifest_.push_back(entry.path().string());
+        gs.authored_disk_manifest.push_back(entry.path().string());
     }
 
     // Sort by numeric value after PAINTING_ (not lexicographic)
@@ -1390,38 +1426,38 @@ void scan_paintings_folder() {
         try { return std::stoi(name.substr(pos + 1)); }
         catch (...) { return 0; }
         };
-    std::sort(authoredDiskManifest_.begin(), authoredDiskManifest_.end(),
+    std::sort(gs.authored_disk_manifest.begin(), gs.authored_disk_manifest.end(),
         [&](const std::string& a, const std::string& b) {
             return extract_number(a) < extract_number(b);
         });
 
     std::cout << "[Authored] Scanned " << found_dir.string()
-        << " — found " << authoredDiskManifest_.size() << " paintings\n";
+        << " — found " << gs.authored_disk_manifest.size() << " paintings\n";
 }
 
-void load_authored_textures(wgpu::Queue& queue) {
-    if (authoredTexturesLoaded_) return;
+static void load_authored_textures(GalleryState& gs, Cartridge* c, wgpu::Queue& queue) {
+    if (gs.authored_textures_loaded) return;
 
     // Scan folder on first load
-    if (authoredDiskManifest_.empty()) {
-        scan_paintings_folder();
+    if (gs.authored_disk_manifest.empty()) {
+        scan_paintings_folder(gs);
     }
-    if (authoredDiskManifest_.empty()) {
-        authoredTexturesLoaded_ = true;
+    if (gs.authored_disk_manifest.empty()) {
+        gs.authored_textures_loaded = true;
         return;
     }
 
     // Fill staging with the first STAGING_LAYERS images from manifest
-    uint32_t manifest_size = (uint32_t)authoredDiskManifest_.size();
+    uint32_t manifest_size = (uint32_t)gs.authored_disk_manifest.size();
     uint32_t to_load = std::min(manifest_size, Dim::STAGING_LAYERS);
     for (uint32_t i = 0; i < to_load; i++) {
-        load_authored_image_to_staging(queue, i, i, authoredDiskManifest_[i].c_str());
-        if (authoredStaging_[i].valid) authoredStagedCount_++;
+        load_authored_image_to_staging(gs, c, queue, i, i, gs.authored_disk_manifest[i].c_str());
+        if (gs.authored_staging[i].valid) gs.authored_staged_count++;
     }
-    authoredWriteCursor_ = to_load % Dim::STAGING_LAYERS;
-    authoredDiskCursor_ = to_load % manifest_size;
-    authoredTexturesLoaded_ = true;
-    std::cout << "[Authored] Staged " << authoredStagedCount_
+    gs.authored_write_cursor = to_load % Dim::STAGING_LAYERS;
+    gs.authored_disk_cursor = to_load % manifest_size;
+    gs.authored_textures_loaded = true;
+    std::cout << "[Authored] Staged " << gs.authored_staged_count
         << "/" << manifest_size << " images\n";
 }
 
@@ -1429,36 +1465,36 @@ void load_authored_textures(wgpu::Queue& queue) {
 // Called at teardown — consumed slots get fresh paintings, unconsumed survive.
 // The disk cursor walks through the entire manifest across world transitions,
 // so the pawn sees different paintings in each world.
-void rotate_authored_staging(wgpu::Queue& queue) {
-    if (authoredDiskManifest_.empty()) return;
-    uint32_t manifest_size = (uint32_t)authoredDiskManifest_.size();
+static void rotate_authored_staging(GalleryState& gs, Cartridge* c, wgpu::Queue& queue) {
+    if (gs.authored_disk_manifest.empty()) return;
+    uint32_t manifest_size = (uint32_t)gs.authored_disk_manifest.size();
 
     // Collect disk indices currently in unconsumed (surviving) slots
     // to avoid loading duplicates
     bool disk_in_use[256]{};  // generous upper bound
     for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) {
-        if (authoredStaging_[i].valid && !authoredStaging_[i].consumed) {
-            if (authoredStaging_[i].disk_index < 256)
-                disk_in_use[authoredStaging_[i].disk_index] = true;
+        if (gs.authored_staging[i].valid && !gs.authored_staging[i].consumed) {
+            if (gs.authored_staging[i].disk_index < 256)
+                disk_in_use[gs.authored_staging[i].disk_index] = true;
         }
     }
 
     uint32_t rotated = 0;
     for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) {
-        if (!authoredStaging_[i].consumed) continue;  // keep unconsumed
+        if (!gs.authored_staging[i].consumed) continue;  // keep unconsumed
 
         // Find next disk image not already in a surviving slot
         uint32_t attempts = 0;
         while (attempts < manifest_size) {
-            uint32_t disk_idx = authoredDiskCursor_;
-            authoredDiskCursor_ = (authoredDiskCursor_ + 1) % manifest_size;
+            uint32_t disk_idx = gs.authored_disk_cursor;
+            gs.authored_disk_cursor = (gs.authored_disk_cursor + 1) % manifest_size;
             if (disk_idx < 256 && disk_in_use[disk_idx]) {
                 attempts++;
                 continue;
             }
             // Load this image into the vacated staging slot
-            load_authored_image_to_staging(queue, i, disk_idx,
-                authoredDiskManifest_[disk_idx].c_str());
+            load_authored_image_to_staging(gs, c, queue, i, disk_idx,
+                gs.authored_disk_manifest[disk_idx].c_str());
             if (disk_idx < 256) disk_in_use[disk_idx] = true;
             rotated++;
             break;
@@ -1469,34 +1505,34 @@ void rotate_authored_staging(wgpu::Queue& queue) {
 
     if (rotated > 0) {
         // Recount valid slots after rotation
-        authoredStagedCount_ = 0;
+        gs.authored_staged_count = 0;
         for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) {
-            if (authoredStaging_[i].valid) authoredStagedCount_++;
+            if (gs.authored_staging[i].valid) gs.authored_staged_count++;
         }
         std::cout << "[Authored] Rotated " << rotated
-            << " slot(s), " << authoredStagedCount_ << " valid"
-            << ", disk cursor at " << authoredDiskCursor_
+            << " slot(s), " << gs.authored_staged_count << " valid"
+            << ", disk cursor at " << gs.authored_disk_cursor
             << "/" << manifest_size << "\n";
     }
 }
 
 // Count how many valid authored staging entries aren't in usedAuthored[]
-uint32_t count_unused_authored(const bool usedAuthored[]) const {
+static uint32_t count_unused_authored(const GalleryState& gs, const bool usedAuthored[]) {
     uint32_t count = 0;
     for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) {
-        if (authoredStaging_[i].valid && !authoredStaging_[i].consumed && !usedAuthored[i]) count++;
+        if (gs.authored_staging[i].valid && !gs.authored_staging[i].consumed && !usedAuthored[i]) count++;
     }
     return count;
 }
 
 // Pick the next authored painting in alphabetical order (lowest disk_index first)
-uint32_t pick_authored_staging(uint32_t /*seed*/, uint32_t /*prop*/) {
+static uint32_t pick_authored_staging(GalleryState& gs, uint32_t /*seed*/, uint32_t /*prop*/) {
     uint32_t best_slot = UINT32_MAX;
     uint32_t best_disk = UINT32_MAX;
     for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) {
-        if (authoredStaging_[i].valid && !authoredStaging_[i].consumed
-            && authoredStaging_[i].disk_index < best_disk) {
-            best_disk = authoredStaging_[i].disk_index;
+        if (gs.authored_staging[i].valid && !gs.authored_staging[i].consumed
+            && gs.authored_staging[i].disk_index < best_disk) {
+            best_disk = gs.authored_staging[i].disk_index;
             best_slot = i;
         }
     }
@@ -1522,7 +1558,7 @@ static constexpr FrameStyle FRAME_SNAPSHOT = { 0.30f, 0.45f, 0.09f, { 0.25f, 0.1
 
 // ── Slot fill helper ──
 
-void fill_slot_wall_frame(
+static void fill_slot_wall_frame(
     GPUPaintingSlot& s,
     float x, float y, float z,
     float nx, float ny, float nz,
@@ -1560,11 +1596,11 @@ void fill_slot_wall_frame(
 // images per the active site type. All tuning dials live in WALL_ART
 // in the TUNING CONSOLE section above.
 
-void place_wall_paintings(wgpu::Queue& queue, float bmin, float bmax, float ceiling_h) {
+static void place_wall_paintings(GalleryState& gs, Cartridge* c, wgpu::Queue& queue, float bmin, float bmax, float ceiling_h) {
     // Clear any existing wall paintings first (indoor→indoor transitions)
-    clear_wall_paintings(queue);
+    clear_wall_paintings(gs, c, queue);
 
-    load_authored_textures(queue);
+    load_authored_textures(gs, c, queue);
 
     // Painting center base height (fraction of ceiling) — WALL_ART knob.
     constexpr float WALL_OFFSET = 0.05f;    // distance from wall surface
@@ -1574,15 +1610,15 @@ void place_wall_paintings(wgpu::Queue& queue, float bmin, float bmax, float ceil
     float wall_center = (bmin + bmax) * 0.5f;
 
     // Three-way site type: snapshot-only / mixed / authored-only
-    uint32_t site_seed = cpu_hash(activeSeed_, WallArtProp::SITE_SEED_OFFSET);
+    uint32_t site_seed = cpu_hash(c->world_state_.active_seed, WallArtProp::SITE_SEED_OFFSET);
     float site_roll = cpu_hash_f(site_seed, WallArtProp::SITE_TYPE_ROLL);
     enum class IndoorSiteType { SNAPSHOT_ONLY, MIXED, AUTHORED_ONLY };
     IndoorSiteType site_type;
-    if (site_roll < WALL_ART.snapshot_only_share && snapshotCount_ > 0) {
+    if (site_roll < WALL_ART.snapshot_only_share && gs.snapshot_count > 0) {
         site_type = IndoorSiteType::SNAPSHOT_ONLY;
     }
     else if (site_roll < WALL_ART.snapshot_only_share + WALL_ART.mixed_share
-        && snapshotCount_ > 0) {
+        && gs.snapshot_count > 0) {
         site_type = IndoorSiteType::MIXED;
     }
     else {
@@ -1688,7 +1724,7 @@ void place_wall_paintings(wgpu::Queue& queue, float bmin, float bmax, float ceil
 
         for (uint32_t p = 0; p < effective_count; p++) {
 
-            uint32_t slot = find_free_painting_slot();
+            uint32_t slot = find_free_painting_slot(gs);
             if (slot == UINT32_MAX) return;
 
             uint32_t p_seed = cpu_hash(w_seed, WallArtProp::PER_PAINTING_BASE + p * WallArtProp::PER_PAINTING_STRIDE);
@@ -1724,30 +1760,30 @@ void place_wall_paintings(wgpu::Queue& queue, float bmin, float bmax, float ceil
                 || (site_type == IndoorSiteType::MIXED
                     && cpu_hash_f(p_seed, WallPaintingProp::MIX_SNAPSHOT_ROLL) < WALL_ART.mix_snapshot_chance);
 
-            if (!use_snapshot && count_unused_authored(usedAuthored) == 0) {
+            if (!use_snapshot && count_unused_authored(gs, usedAuthored) == 0) {
                 use_snapshot = true;
             }
 
-            auto& s = paintingSlots_[slot];
+            auto& s = gs.painting_slots[slot];
             float paint_width = 0.0f;  // will be set by whichever path fills the slot
 
             if (use_snapshot) {
                 uint32_t snap_stg = UINT32_MAX;
                 for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) {
-                    if (snapshotStaging_[i].valid && !snapshotStaging_[i].consumed) {
+                    if (gs.snapshot_staging[i].valid && !gs.snapshot_staging[i].consumed) {
                         snap_stg = i;
                         break;
                     }
                 }
                 if (snap_stg == UINT32_MAX) {
-                    if (count_unused_authored(usedAuthored) == 0) continue;
+                    if (count_unused_authored(gs, usedAuthored) == 0) continue;
                     use_snapshot = false;
                 }
                 else {
-                    uint32_t exh = find_free_exhibition_layer();
+                    uint32_t exh = find_free_exhibition_layer(gs);
                     if (exh == UINT32_MAX) return;
 
-                    const auto& snap = snapshotStaging_[snap_stg];
+                    const auto& snap = gs.snapshot_staging[snap_stg];
                     float height = painting_heights[p];
                     paint_width = height * snap.aspect_ratio;
 
@@ -1768,27 +1804,27 @@ void place_wall_paintings(wgpu::Queue& queue, float bmin, float bmax, float ceil
                         FRAME_SNAPSHOT,
                         INT32_MAX, INT32_MAX);
 
-                    exhibitionOccupied_[exh] = true;
-                    exhibitionCount_++;
-                    snapshotStaging_[snap_stg].consumed = true;
-                    queue_promotion(true, snap_stg, exh);
+                    gs.exhibition_occupied[exh] = true;
+                    gs.exhibition_count++;
+                    gs.snapshot_staging[snap_stg].consumed = true;
+                    queue_promotion(gs, true, snap_stg, exh);
 
                     cursor += paint_width + WALL_ART.painting_gap;
-                    gpuState_.upload_painting_slot(queue, slot, s);
-                    wallFrameCount_++;
+                    c->gpuState_.upload_painting_slot(queue, slot, s);
+                    gs.wall_frame_count++;
                     continue;
                 }
             }
 
             if (!use_snapshot) {
-                uint32_t auth_stg = pick_authored_staging(p_seed, WallPaintingProp::AUTH_STG_PICK);
+                uint32_t auth_stg = pick_authored_staging(gs, p_seed, WallPaintingProp::AUTH_STG_PICK);
                 if (auth_stg == UINT32_MAX) continue;
                 if (usedAuthored[auth_stg]) {
                     uint32_t best = UINT32_MAX, best_disk = UINT32_MAX;
                     for (uint32_t a = 0; a < Dim::STAGING_LAYERS; a++) {
-                        if (!usedAuthored[a] && authoredStaging_[a].valid && !authoredStaging_[a].consumed
-                            && authoredStaging_[a].disk_index < best_disk) {
-                            best_disk = authoredStaging_[a].disk_index;
+                        if (!usedAuthored[a] && gs.authored_staging[a].valid && !gs.authored_staging[a].consumed
+                            && gs.authored_staging[a].disk_index < best_disk) {
+                            best_disk = gs.authored_staging[a].disk_index;
                             best = a;
                         }
                     }
@@ -1796,12 +1832,12 @@ void place_wall_paintings(wgpu::Queue& queue, float bmin, float bmax, float ceil
                     auth_stg = best;
                 }
 
-                uint32_t exh = find_free_exhibition_layer();
+                uint32_t exh = find_free_exhibition_layer(gs);
                 if (exh == UINT32_MAX) return;
 
                 usedAuthored[auth_stg] = true;
 
-                const auto& img = authoredStaging_[auth_stg];
+                const auto& img = gs.authored_staging[auth_stg];
                 float height = painting_heights[p];
                 paint_width = height * img.aspect_ratio;
 
@@ -1822,38 +1858,38 @@ void place_wall_paintings(wgpu::Queue& queue, float bmin, float bmax, float ceil
                     FRAME_AUTHORED,
                     INT32_MAX, INT32_MAX);
 
-                exhibitionOccupied_[exh] = true;
-                exhibitionCount_++;
-                authoredStaging_[auth_stg].consumed = true;
-                queue_promotion(false, auth_stg, exh);
+                gs.exhibition_occupied[exh] = true;
+                gs.exhibition_count++;
+                gs.authored_staging[auth_stg].consumed = true;
+                queue_promotion(gs, false, auth_stg, exh);
 
                 cursor += paint_width + WALL_ART.painting_gap;
-                gpuState_.upload_painting_slot(queue, slot, s);
-                wallFrameCount_++;
+                c->gpuState_.upload_painting_slot(queue, slot, s);
+                gs.wall_frame_count++;
             }
         }
     }
 
     const char* site_type_name = (site_type == IndoorSiteType::SNAPSHOT_ONLY) ? "SNAPSHOT"
         : (site_type == IndoorSiteType::MIXED) ? "MIXED" : "AUTHORED";
-    std::cout << "[WallPainting] Placed " << wallFrameCount_
+    std::cout << "[WallPainting] Placed " << gs.wall_frame_count
         << " frame(s) across " << active_wall_count << " walls"
         << " (" << site_type_name << ")\n";
 }
 
-void clear_wall_paintings(wgpu::Queue& queue) {
+static void clear_wall_paintings(GalleryState& gs, Cartridge* c, wgpu::Queue& queue) {
     for (uint32_t i = 0; i < Dim::PAINTING_MAX_SLOTS; i++) {
-        if (paintingSlots_[i].is_active != 0 &&
-            paintingSlots_[i].form_type == FormType::WALL_FRAME) {
-            uint32_t exh = paintingSlots_[i].texture_layer;
+        if (gs.painting_slots[i].is_active != 0 &&
+            gs.painting_slots[i].form_type == FormType::WALL_FRAME) {
+            uint32_t exh = gs.painting_slots[i].texture_layer;
             if (exh < Dim::EXHIBITION_LAYERS) {
-                exhibitionOccupied_[exh] = false;
-                exhibitionCount_--;
+                gs.exhibition_occupied[exh] = false;
+                gs.exhibition_count--;
             }
-            paintingSlots_[i].is_active = 0;
-            gpuState_.deactivate_painting_slot(queue, i);
+            gs.painting_slots[i].is_active = 0;
+            c->gpuState_.deactivate_painting_slot(queue, i);
         }
     }
-    wallFrameCount_ = 0;
+    gs.wall_frame_count = 0;
 }
 

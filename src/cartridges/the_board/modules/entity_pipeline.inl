@@ -24,7 +24,11 @@
 // │    generic_compute_colors(inst, traits, tier)                    │
 // │      — default color path; reads TierProfile.color_var if set,   │
 // │        else falls back to ColorPartDef.variance (closes Q24)     │
-// │    apply_indoor_rescale(inst, ceiling_h) — fit-to-ceiling logic  │
+// │    rescale_to_rolled_target(inst, ceiling_h, lo, hi, current_h,  │
+// │                              params_to_scale)                    │
+// │      — shared helper for the rolled-target rescale pattern;      │
+// │        used by Palm / Pyramid / Arch / Antenna's per-family      │
+// │        apply_indoor_rescale functions                            │
 // │                                                                  │
 // │  Per-family dispatch wrappers (consumed by FAMILY_DISPATCH in    │
 // │  cartridge.hpp — three per family, eight families):              │
@@ -46,6 +50,8 @@
 // │    7. <FAMILY>_TRAITS          binds everything for the generic  │
 // │                                pipeline                          │
 // │    8. Adapter functions        run_gate, get_theme_tier_weights, │
+// │                                apply_indoor_rescale (or nullptr  │
+// │                                if not eligible for indoor),      │
 // │                                compute_solid_half,               │
 // │                                compute_colors (or nullptr → use  │
 // │                                generic_compute_colors),          │
@@ -101,14 +107,16 @@ static void generic_compute_colors(EntityInstance& inst,
     }
 }
 
-// ─── Indoor Entity Rescale ───────────────────────────────────────
+// ─── Indoor Rescale Helper ───────────────────────────────────────
 //
 // Indoor moods are walled spaces 20–25 m tall; their largest entity
-// budget is the room. Without an override, families like Pyramid
+// budget is the room. Without a rescale, families like Pyramid
 // (~28–78 m natural HEIGHT), Antenna (~17–125 m), Palm (~8–35 m)
 // would spawn at outdoor scale and punch through the ceiling.
 //
-// Three distinct policies live in this helper:
+// Per-family rescale lives in each family's adapter functions block
+// (look for `<family>_apply_indoor_rescale`). Each function defines
+// its own policy:
 //
 //   • Columns: HEIGHT is set to ceiling_height exactly, and every
 //     other length param scales by the same ratio so proportions
@@ -119,141 +127,52 @@ static void generic_compute_colors(EntityInstance& inst,
 //     than the default range — palms read as canopy-defining
 //     architectural anchors and look wrong when too small.
 //
-//   • Other eligible families (Pyramid, Arch, Antenna): target rolled
-//     in [0.50, 0.95] × ceiling_height. All length-like params scale
-//     by target / current_height. This is the "miniature feeling" —
+//   • Pyramid, Arch, Antenna: target rolled in [0.50, 0.95] ×
+//     ceiling_height. All length-like params scale by
+//     target / current_height. This is the "miniature feeling" —
 //     a Royal palm shrunk to 18 m keeps every internal proportion
 //     (frond length, taper, bark ring spacing); only the absolute
 //     scale changes.
 //
-// Cactus and Blade are deliberately NOT eligible: their natural
-// outdoor heights are below the ceiling, so the rescale would scale
-// them UP rather than down — defeating the miniature intent. They
-// keep their outdoor sizes when spawned indoors.
+// Cactus, Blade, Sphere, Cube are deliberately NOT eligible: their
+// natural outdoor heights are below the ceiling, so the rescale
+// would scale them UP rather than down — defeating the miniature
+// intent. Their adapters have nullptr in the apply_indoor_rescale
+// slot and the dispatch site skips the call.
 //
 // Param indices below are hand-curated per family — only LENGTH
 // dimensions get scaled, never ratios (TAPER, ENTASIS, ASPECT...),
 // counts (BASE_LAYERS, RIBS, ARM_COUNT...), or angles (LEAN_DIR,
-// FROND_DROOP...). Adding a new entity family means extending the
-// switch with its index list. Property index 7777u is reserved for
-// the rescale-target hash (no other family uses it).
-void apply_indoor_rescale(EntityInstance& inst, float ceiling_h) {
-    // ─── Columns: snap to ceiling exactly, fit floor-to-ceiling ──
-    if (inst.family_id == PopFamily::COLUMN) {
-        const float current_h = inst.params[ColIdx::HEIGHT];
-        if (current_h <= 1e-3f) return;
-        const float scale = ceiling_h / current_h;
-        inst.params[ColIdx::HEIGHT]        *= scale;
-        inst.params[ColIdx::SHAFT_RADIUS]  *= scale;
-        inst.params[ColIdx::BASE_HEIGHT]   *= scale;
-        inst.params[ColIdx::BASE_OVERHANG] *= scale;
-        inst.params[ColIdx::CAP_HEIGHT]    *= scale;
-        inst.params[ColIdx::CAP_OVERHANG]  *= scale;
-        inst.params[ColIdx::SOLID_PADDING] *= scale;
-        inst.params[ColIdx::SOLID_HEIGHT]  *= scale;
-        inst.params[ColIdx::EDGE_BLEND]    *= scale;
-        // TAPER (ratio), ENTASIS (ratio), BASE_LAYERS / CAP_LAYERS
-        // (counts) intentionally not scaled.
-        return;
-    }
+// FROND_DROOP...). Adding a new eligible family means picking which
+// pattern it follows, declaring its own
+// <family>_apply_indoor_rescale, and registering it in the adapter.
+// Property index 7777u is reserved for the rescale-target hash
+// (no other family uses it).
+//
+// SEAM[entity_pipeline:rescale-per-family] DONE — was a free-function
+//   switch on family_id; lifted to per-family adapter slot during
+//   Pass 7 of the modularity rollout.
 
-    // ─── Per-family target range (× ceiling_h) ───────────────────
-    //
-    // Most miniaturized families roll uniformly in [0.50, 0.95] —
-    // this gives visual variety while ensuring everything fits the
-    // room. Palms are tighter at [0.80, 0.95] because they read as
-    // tree-like architectural anchors and look wrong when too small;
-    // a "miniature palm" should still feel canopy-defining.
-    //
-    // Cactus and Blade are deliberately NOT eligible — their natural
-    // outdoor heights are well below the ceiling, so the rescale
-    // would scale them UP rather than down, defeating the miniature
-    // intent. Without an entry here they keep their outdoor sizes
-    // when spawned indoors, which is the desired behavior.
+// Helper used by Palm / Pyramid / Arch / Antenna for the rolled-
+// target rescale pattern. Rolls a target height in [target_lo,
+// target_hi] × ceiling_h, computes the scale factor from current_h,
+// applies it to every param index in params_to_scale.
+//
+// Column does NOT use this helper — its policy is "snap to ceiling
+// exactly" rather than "roll a target ratio."
+//
+// The templated array reference avoids needing <initializer_list>;
+// each caller passes a constexpr uint32_t array of param indices.
+template<size_t N>
+static void rescale_to_rolled_target(EntityInstance& inst, float ceiling_h,
+    float target_lo, float target_hi, float current_h,
+    const uint32_t (&params_to_scale)[N]) {
+    if (current_h <= 1e-3f) return;
     constexpr uint32_t RESCALE_TARGET_PROP = 7777u;
-    float target_lo, target_hi;
-    switch (inst.family_id) {
-        case PopFamily::PALM:
-            target_lo = 0.80f; target_hi = 0.95f;
-            break;
-        case PopFamily::PYRAMID:
-        case PopFamily::ARCH:
-        case PopFamily::ANTENNA:
-            target_lo = 0.50f; target_hi = 0.95f;
-            break;
-        default:
-            return;  // family not eligible for indoor rescale
-    }
     const float t = cpu_hash_f(inst.seed, RESCALE_TARGET_PROP);
     const float target_h = ceiling_h * (target_lo + (target_hi - target_lo) * t);
-
-    float current_h = 0.0f;
-    switch (inst.family_id) {
-        case PopFamily::PYRAMID:
-            current_h = inst.params[PyrIdx::HEIGHT];
-            break;
-        case PopFamily::ARCH:
-            // Arch total = pier_height + rise (catenary apex).
-            current_h = inst.params[ArchIdx::PIER_HEIGHT]
-                      + inst.params[ArchIdx::RISE];
-            break;
-        case PopFamily::ANTENNA:
-            current_h = inst.params[ColIdx::HEIGHT];
-            break;
-        case PopFamily::PALM:
-            current_h = inst.params[PalmIdx::HEIGHT];
-            break;
-        default:
-            return;  // unreachable given the gate above, but keeps the compiler happy
-    }
-    if (current_h <= 1e-3f) return;
     const float scale = target_h / current_h;
-
-    switch (inst.family_id) {
-        case PopFamily::PYRAMID:
-            inst.params[PyrIdx::HEIGHT]     *= scale;
-            inst.params[PyrIdx::BASE_HALF]  *= scale;
-            inst.params[PyrIdx::EDGE_BLEND] *= scale;
-            // ASPECT, TRUNCATION are ratios — not scaled.
-            break;
-        case PopFamily::ARCH:
-            inst.params[ArchIdx::SPAN]         *= scale;
-            inst.params[ArchIdx::RISE]         *= scale;
-            inst.params[ArchIdx::DEPTH]        *= scale;
-            inst.params[ArchIdx::THICKNESS]    *= scale;
-            inst.params[ArchIdx::PIER_HEIGHT]  *= scale;
-            inst.params[ArchIdx::PIER_PADDING] *= scale;
-            inst.params[ArchIdx::EDGE_BLEND]   *= scale;
-            break;
-        case PopFamily::ANTENNA:
-            inst.params[ColIdx::HEIGHT]        *= scale;
-            inst.params[ColIdx::SHAFT_RADIUS]  *= scale;
-            inst.params[ColIdx::BASE_HEIGHT]   *= scale;
-            inst.params[ColIdx::BASE_OVERHANG] *= scale;
-            inst.params[ColIdx::CAP_HEIGHT]    *= scale;
-            inst.params[ColIdx::CAP_OVERHANG]  *= scale;
-            inst.params[ColIdx::SOLID_PADDING] *= scale;
-            inst.params[ColIdx::SOLID_HEIGHT]  *= scale;
-            inst.params[ColIdx::EDGE_BLEND]    *= scale;
-            // TAPER/ENTASIS/BASE_LAYERS/CAP_LAYERS not scaled.
-            break;
-        case PopFamily::PALM:
-            inst.params[PalmIdx::HEIGHT]       *= scale;
-            inst.params[PalmIdx::BASE_R]       *= scale;
-            inst.params[PalmIdx::TOP_R]        *= scale;
-            inst.params[PalmIdx::BARK_DEPTH]   *= scale;
-            inst.params[PalmIdx::FROND_LEN]    *= scale;
-            inst.params[PalmIdx::FROND_WIDTH]  *= scale;
-            inst.params[PalmIdx::CROWN_SPREAD] *= scale;
-            inst.params[PalmIdx::CROWN_SKIRT]  *= scale;
-            inst.params[PalmIdx::SOLID_PAD]    *= scale;
-            inst.params[PalmIdx::EDGE_BLEND]   *= scale;
-            // LEAN/LEAN_DIR (angles), BARK_RINGS/FROND_COUNT (counts),
-            // FROND_DROOP/FROND_ARCH (angles) not scaled.
-            break;
-        default:
-            break;
-    }
+    for (size_t i = 0; i < N; i++) inst.params[params_to_scale[i]] *= scale;
 }
 
 // ═══ GENERIC THREE-PHASE PIPELINE ════════════════════════════════
@@ -332,8 +251,8 @@ bool generic_select(
 
     // ── Indoor rescale (must run before compute_solid_half so the
     //    solid extents are derived from the scaled params) ──
-    if (MOOD_TABLE[activeMood_].indoor) {
-        apply_indoor_rescale(inst, MOOD_TABLE[activeMood_].ceiling_height);
+    if (MOOD_TABLE[mood_state_.active].indoor && adapter.apply_indoor_rescale) {
+        adapter.apply_indoor_rescale(inst, MOOD_TABLE[mood_state_.active].ceiling_height);
     }
 
     // ── Per-family derived values ──
@@ -398,7 +317,7 @@ void generic_commit(
     if (adapter.post_commit)
         adapter.post_commit(this, inst, queue);
 
-    groundEntriesDirty_ = true;
+    world_state_.ground_entries_dirty = true;
 }
 
 
@@ -507,7 +426,7 @@ static constexpr EntityFamilyTraits BLADE_TRAITS = {
 static SpawnGateOutput blade_run_gate(Cartridge* c,
     int32_t gx, int32_t gz) {
     auto gate = c->run_spawn_preamble(gx, gz,
-        c->activeBlades_, Dim::MAX_BLADE_INSTANCES,
+        c->entities_state_.blades, Dim::MAX_BLADE_INSTANCES,
         BladeProp::SPAWN_ROLL, BladeClusterConfig::SPAWN_CHANCE,
         BladeClusterConfig::MOOD_MULTIPLIER,
         PopFamily::BLADE, "blad");
@@ -528,7 +447,7 @@ static void blade_compute_solid_half(EntityInstance& inst,
 // TierProfile.color_var from BLADE_TIERS (closes Q24 / Q-closed-12).
 
 static void blade_write_active(Cartridge* c, const EntityInstance& inst) {
-    auto& ab = c->activeBlades_[inst.slot];
+    auto& ab = c->entities_state_.blades[inst.slot];
     ab.patch_gx = inst.trigger_gx;
     ab.patch_gz = inst.trigger_gz;
     ab.host_gx  = inst.host_gx;
@@ -541,7 +460,7 @@ static void blade_write_active(Cartridge* c, const EntityInstance& inst) {
     ab.radius   = inst.params[BladeIdx::BLADE_W] + inst.params[BladeIdx::SPLAY];
     ab.tier_idx = inst.tier_idx;
     ab.cached_ground_y = inst.cached_ground_y;
-    c->activeBladeCount_++;
+    c->entities_state_.blade_count++;
 }
 
 static void blade_write_gpu(Cartridge* c,
@@ -567,12 +486,13 @@ static void blade_write_gpu(Cartridge* c,
     mp.is_active   = 1;
     mp.seed        = inst.seed;
     c->gpuState_.upload_blade_mesh_params_slot(queue, inst.slot, mp);
-    c->bladeMeshGenPending_ = true;
+    c->entities_state_.blade_mesh_gen_pending = true;
 }
 
 static constexpr EntityFamilyAdapter BLADE_ADAPTER = {
     blade_run_gate,
     blade_get_theme_tier_weights,
+    nullptr,                  // apply_indoor_rescale → not eligible (outdoor < ceiling)
     blade_compute_solid_half,
     nullptr,                  // compute_colors → use generic (Q24)
     blade_write_active,
@@ -591,12 +511,12 @@ static bool dispatch_select_blade_generic(Cartridge* self, int32_t gx, int32_t g
 static bool dispatch_place_blade_generic(Cartridge* self, EntityQueueEntry& e, PlacementEntry& pe) {
     pe.family = e.family; pe.gx = e.gx; pe.gz = e.gz;
     if (self->generic_place(BLADE_TRAITS, e.generic)) { pe.generic = e.generic; return true; }
-    self->activeBlades_[e.generic.slot].active = false; return false;
+    self->entities_state_.blades[e.generic.slot].active = false; return false;
 }
 static void dispatch_commit_blade_generic(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue) {
     auto* host = self->find_patch(pe.generic.host_gx, pe.generic.host_gz);
     if (host) { self->generic_commit(BLADE_TRAITS, BLADE_ADAPTER, pe.generic, queue); host->record_entity(PopFamily::BLADE, pe.generic.slot); }
-    else { self->activeBlades_[pe.generic.slot].active = false; }
+    else { self->entities_state_.blades[pe.generic.slot].active = false; }
 }
 
 // ═══ FAMILY: PALM ═════════════════════════════════════════════════
@@ -713,7 +633,7 @@ static constexpr EntityFamilyTraits PALM_TRAITS = {
 
 static SpawnGateOutput palm_run_gate(Cartridge* c, int32_t gx, int32_t gz) {
     auto gate = c->run_spawn_preamble(gx, gz,
-        c->activePalms_, Dim::MAX_PALM_INSTANCES,
+        c->entities_state_.palms, Dim::MAX_PALM_INSTANCES,
         PalmProp::SPAWN_ROLL, PalmConfig::SPAWN_CHANCE,
         PalmConfig::MOOD_MULTIPLIER, PopFamily::PALM, "palm");
     return { gate.ok, gate.seed, gate.slot, gate.theme_idx };
@@ -721,6 +641,23 @@ static SpawnGateOutput palm_run_gate(Cartridge* c, int32_t gx, int32_t gz) {
 
 static const float* palm_get_theme_tier_weights(uint32_t theme_idx) {
     return THEMES[theme_idx].tier_wt_palm;
+}
+
+static constexpr uint32_t PALM_INDOOR_RESCALE_PARAMS[] = {
+    PalmIdx::HEIGHT, PalmIdx::BASE_R, PalmIdx::TOP_R, PalmIdx::BARK_DEPTH,
+    PalmIdx::FROND_LEN, PalmIdx::FROND_WIDTH, PalmIdx::CROWN_SPREAD,
+    PalmIdx::CROWN_SKIRT, PalmIdx::SOLID_PAD, PalmIdx::EDGE_BLEND,
+    // LEAN/LEAN_DIR (angles), BARK_RINGS/FROND_COUNT (counts),
+    // FROND_DROOP/FROND_ARCH (angles) intentionally not scaled.
+};
+
+// Palms read as canopy-defining architectural anchors and look wrong
+// when too small — tighter target range than other indoor families.
+static void palm_apply_indoor_rescale(EntityInstance& inst, float ceiling_h) {
+    rescale_to_rolled_target(inst, ceiling_h,
+        /*target_lo*/ 0.80f, /*target_hi*/ 0.95f,
+        /*current_h*/ inst.params[PalmIdx::HEIGHT],
+        PALM_INDOOR_RESCALE_PARAMS);
 }
 
 static void palm_compute_solid_half(EntityInstance& inst, const TierProfile&) {
@@ -748,7 +685,7 @@ static void palm_compute_colors(EntityInstance& inst, const EntityFamilyTraits& 
 }
 
 static void palm_write_active(Cartridge* c, const EntityInstance& inst) {
-    auto& ap = c->activePalms_[inst.slot];
+    auto& ap = c->entities_state_.palms[inst.slot];
     ap.patch_gx = inst.trigger_gx; ap.patch_gz = inst.trigger_gz;
     ap.host_gx = inst.host_gx; ap.host_gz = inst.host_gz;
     ap.active = true; ap.draw_visible = true;
@@ -757,7 +694,7 @@ static void palm_write_active(Cartridge* c, const EntityInstance& inst) {
     ap.base_r = inst.params[PalmIdx::BASE_R];
     ap.tier_idx = inst.tier_idx;
     ap.cached_ground_y = inst.cached_ground_y;
-    c->activePalmCount_++;
+    c->entities_state_.palm_count++;
 }
 
 static void palm_write_gpu(Cartridge* c, const EntityInstance& inst, wgpu::Queue& queue) {
@@ -787,11 +724,12 @@ static void palm_write_gpu(Cartridge* c, const EntityInstance& inst, wgpu::Queue
     mp.frond_segs = tp.frond_segs;
     mp.is_active = 1;
     c->gpuState_.upload_palm_mesh_params_slot(queue, inst.slot, mp);
-    c->palmMeshGenPending_ = true;
+    c->entities_state_.palm_mesh_gen_pending = true;
 }
 
 static constexpr EntityFamilyAdapter PALM_ADAPTER = {
     palm_run_gate, palm_get_theme_tier_weights,
+    palm_apply_indoor_rescale,
     palm_compute_solid_half, palm_compute_colors,
     palm_write_active, palm_write_gpu, nullptr,
     palm_get_tier_profile,
@@ -807,12 +745,12 @@ static bool dispatch_select_palm_generic(Cartridge* self, int32_t gx, int32_t gz
 static bool dispatch_place_palm_generic(Cartridge* self, EntityQueueEntry& e, PlacementEntry& pe) {
     pe.family = e.family; pe.gx = e.gx; pe.gz = e.gz;
     if (self->generic_place(PALM_TRAITS, e.generic)) { pe.generic = e.generic; return true; }
-    self->activePalms_[e.generic.slot].active = false; return false;
+    self->entities_state_.palms[e.generic.slot].active = false; return false;
 }
 static void dispatch_commit_palm_generic(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue) {
     auto* host = self->find_patch(pe.generic.host_gx, pe.generic.host_gz);
     if (host) { self->generic_commit(PALM_TRAITS, PALM_ADAPTER, pe.generic, queue); host->record_entity(PopFamily::PALM, pe.generic.slot); }
-    else { self->activePalms_[pe.generic.slot].active = false; }
+    else { self->entities_state_.palms[pe.generic.slot].active = false; }
 }
 
 
@@ -913,7 +851,7 @@ static constexpr EntityFamilyTraits CACTUS_TRAITS = {
 
 static SpawnGateOutput cactus_run_gate(Cartridge* c, int32_t gx, int32_t gz) {
     auto gate = c->run_spawn_preamble(gx, gz,
-        c->activeCacti_, Dim::MAX_CACTUS_INSTANCES,
+        c->entities_state_.cacti, Dim::MAX_CACTUS_INSTANCES,
         CactusProp::SPAWN_ROLL, CactusConfig::SPAWN_CHANCE,
         CactusConfig::MOOD_MULTIPLIER, PopFamily::CACTUS, "cact");
     return { gate.ok, gate.seed, gate.slot, gate.theme_idx };
@@ -932,7 +870,7 @@ static void cactus_compute_solid_half(EntityInstance& inst, const TierProfile&) 
 // TierProfile.color_var from CACTUS_TIERS (closes Q24 / Q-closed-12).
 
 static void cactus_write_active(Cartridge* c, const EntityInstance& inst) {
-    auto& ac = c->activeCacti_[inst.slot];
+    auto& ac = c->entities_state_.cacti[inst.slot];
     ac.patch_gx = inst.trigger_gx; ac.patch_gz = inst.trigger_gz;
     ac.host_gx = inst.host_gx; ac.host_gz = inst.host_gz;
     ac.active = true; ac.draw_visible = true;
@@ -941,7 +879,7 @@ static void cactus_write_active(Cartridge* c, const EntityInstance& inst) {
     ac.radius = inst.params[CactusIdx::RADIUS];
     ac.tier_idx = inst.tier_idx;
     ac.cached_ground_y = inst.cached_ground_y;
-    c->activeCactusCount_++;
+    c->entities_state_.cactus_count++;
 }
 
 static void cactus_write_gpu(Cartridge* c, const EntityInstance& inst, wgpu::Queue& queue) {
@@ -969,11 +907,12 @@ static void cactus_write_gpu(Cartridge* c, const EntityInstance& inst, wgpu::Que
     mp.is_active  = 1;
     mp.seed       = inst.seed;
     c->gpuState_.upload_cactus_mesh_params_slot(queue, inst.slot, mp);
-    c->cactusMeshGenPending_ = true;
+    c->entities_state_.cactus_mesh_gen_pending = true;
 }
 
 static constexpr EntityFamilyAdapter CACTUS_ADAPTER = {
     cactus_run_gate, cactus_get_theme_tier_weights,
+    nullptr,                              // apply_indoor_rescale → not eligible
     cactus_compute_solid_half, nullptr,   // compute_colors → use generic (Q24)
     cactus_write_active, cactus_write_gpu, nullptr,
     cactus_get_tier_profile,
@@ -989,12 +928,12 @@ static bool dispatch_select_cactus_generic(Cartridge* self, int32_t gx, int32_t 
 static bool dispatch_place_cactus_generic(Cartridge* self, EntityQueueEntry& e, PlacementEntry& pe) {
     pe.family = e.family; pe.gx = e.gx; pe.gz = e.gz;
     if (self->generic_place(CACTUS_TRAITS, e.generic)) { pe.generic = e.generic; return true; }
-    self->activeCacti_[e.generic.slot].active = false; return false;
+    self->entities_state_.cacti[e.generic.slot].active = false; return false;
 }
 static void dispatch_commit_cactus_generic(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue) {
     auto* host = self->find_patch(pe.generic.host_gx, pe.generic.host_gz);
     if (host) { self->generic_commit(CACTUS_TRAITS, CACTUS_ADAPTER, pe.generic, queue); host->record_entity(PopFamily::CACTUS, pe.generic.slot); }
-    else { self->activeCacti_[pe.generic.slot].active = false; }
+    else { self->entities_state_.cacti[pe.generic.slot].active = false; }
 }
 
 
@@ -1158,12 +1097,35 @@ static constexpr EntityFamilyTraits ANTENNA_TRAITS = {
 
 static SpawnGateOutput column_run_gate(Cartridge* c, int32_t gx, int32_t gz) {
     auto gate = c->run_spawn_preamble(gx, gz,
-        c->activeColumns_, Dim::MAX_COLUMN_ONLY,
+        c->entities_state_.columns, Dim::MAX_COLUMN_ONLY,
         ColumnProp::SPAWN_ROLL, ColumnConfig::SPAWN_CHANCE,
         ColumnConfig::MOOD_MULTIPLIER, PopFamily::COLUMN, "col");
     return { gate.ok, gate.seed, gate.slot, gate.theme_idx };
 }
 static const float* column_get_theme_tier_weights(uint32_t ti) { return THEMES[ti].tier_wt_column; }
+
+// Column shares its rescale param list with Antenna (both use the same
+// ColumnTierRow shape and ColIdx layout). Antenna references this same
+// array from its own apply_indoor_rescale.
+static constexpr uint32_t COLUMN_INDOOR_RESCALE_PARAMS[] = {
+    ColIdx::HEIGHT, ColIdx::SHAFT_RADIUS,
+    ColIdx::BASE_HEIGHT, ColIdx::BASE_OVERHANG,
+    ColIdx::CAP_HEIGHT,  ColIdx::CAP_OVERHANG,
+    ColIdx::SOLID_PADDING, ColIdx::SOLID_HEIGHT, ColIdx::EDGE_BLEND,
+    // TAPER (ratio), ENTASIS (ratio), BASE_LAYERS / CAP_LAYERS
+    // (counts) intentionally not scaled.
+};
+
+// Column policy: snap to ceiling exactly. The capital meets the
+// ceiling — column reads as part of the room's architecture, not a
+// freestanding object. Does NOT use rescale_to_rolled_target — its
+// scale factor is ceiling_h/current_h, not a rolled ratio.
+static void column_apply_indoor_rescale(EntityInstance& inst, float ceiling_h) {
+    const float current_h = inst.params[ColIdx::HEIGHT];
+    if (current_h <= 1e-3f) return;
+    const float scale = ceiling_h / current_h;
+    for (uint32_t pi : COLUMN_INDOOR_RESCALE_PARAMS) inst.params[pi] *= scale;
+}
 
 static void column_compute_solid_half(EntityInstance& inst, const TierProfile&) {
     float shaft_r = inst.params[ColIdx::SHAFT_RADIUS];
@@ -1194,7 +1156,7 @@ static void column_compute_colors(EntityInstance& inst, const EntityFamilyTraits
 }
 
 static void column_write_active(Cartridge* c, const EntityInstance& inst) {
-    auto& ac = c->activeColumns_[inst.slot];
+    auto& ac = c->entities_state_.columns[inst.slot];
     ac.patch_gx = inst.trigger_gx; ac.patch_gz = inst.trigger_gz;
     ac.host_gx = inst.host_gx; ac.host_gz = inst.host_gz;
     ac.active = true; ac.draw_visible = true;
@@ -1217,7 +1179,7 @@ static void column_write_active(Cartridge* c, const EntityInstance& inst) {
     ac.cached_ground_y = inst.cached_ground_y;
     ac.col_r = inst.colors[0]; ac.col_g = inst.colors[1]; ac.col_b = inst.colors[2];
     std::memcpy(ac.drum_colors, &inst.colors[3], 9 * sizeof(float));
-    c->activeColumnCount_++;
+    c->entities_state_.column_count++;
 }
 
 static void column_write_gpu(Cartridge* c, const EntityInstance& inst, wgpu::Queue& queue) {
@@ -1244,7 +1206,7 @@ static void column_write_gpu(Cartridge* c, const EntityInstance& inst, wgpu::Que
     mp.drum_color_r2 = inst.colors[6]; mp.drum_color_g2 = inst.colors[7]; mp.drum_color_b2 = inst.colors[8];
     mp.drum_color_r3 = inst.colors[9]; mp.drum_color_g3 = inst.colors[10]; mp.drum_color_b3 = inst.colors[11];
     c->gpuState_.upload_column_mesh_params_slot(queue, inst.slot, mp);
-    c->columnMeshGenPending_ = true;
+    c->entities_state_.column_mesh_gen_pending = true;
 }
 
 static void column_post_commit(Cartridge* c, const EntityInstance& inst, wgpu::Queue& queue) {
@@ -1265,6 +1227,7 @@ static void column_post_commit(Cartridge* c, const EntityInstance& inst, wgpu::Q
 
 static constexpr EntityFamilyAdapter COLUMN_ADAPTER = {
     column_run_gate, column_get_theme_tier_weights,
+    column_apply_indoor_rescale,
     column_compute_solid_half, column_compute_colors,
     column_write_active, column_write_gpu, column_post_commit,
     column_get_tier_profile,
@@ -1280,12 +1243,12 @@ static bool dispatch_select_column_generic(Cartridge* self, int32_t gx, int32_t 
 static bool dispatch_place_column_generic(Cartridge* self, EntityQueueEntry& e, PlacementEntry& pe) {
     pe.family = e.family; pe.gx = e.gx; pe.gz = e.gz;
     if (self->generic_place(COLUMN_TRAITS, e.generic)) { pe.generic = e.generic; return true; }
-    self->activeColumns_[e.generic.slot].active = false; return false;
+    self->entities_state_.columns[e.generic.slot].active = false; return false;
 }
 static void dispatch_commit_column_generic(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue) {
     auto* host = self->find_patch(pe.generic.host_gx, pe.generic.host_gz);
     if (host) { self->generic_commit(COLUMN_TRAITS, COLUMN_ADAPTER, pe.generic, queue); host->record_entity(PopFamily::COLUMN, pe.generic.slot); }
-    else { self->activeColumns_[pe.generic.slot].active = false; }
+    else { self->entities_state_.columns[pe.generic.slot].active = false; }
 }
 
 
@@ -1293,12 +1256,23 @@ static void dispatch_commit_column_generic(Cartridge* self, PlacementEntry& pe, 
 
 static SpawnGateOutput antenna_run_gate(Cartridge* c, int32_t gx, int32_t gz) {
     auto gate = c->run_spawn_preamble(gx, gz,
-        c->activeAntennas_, Dim::MAX_ANTENNA_ONLY,
+        c->entities_state_.antennas, Dim::MAX_ANTENNA_ONLY,
         AntennaProp::SPAWN_ROLL, AntennaConfig::SPAWN_CHANCE,
         AntennaConfig::MOOD_MULTIPLIER, PopFamily::ANTENNA, "ant");
     return { gate.ok, gate.seed, gate.slot, gate.theme_idx };
 }
 static const float* antenna_get_theme_tier_weights(uint32_t ti) { return THEMES[ti].tier_wt_antenna; }
+
+// Antenna shares the ColumnTierRow / ColIdx layout with Column, so it
+// reuses COLUMN_INDOOR_RESCALE_PARAMS. Policy is rolled-target rather
+// than snap-to-ceiling — antennas read better as miniaturized than as
+// floor-to-ceiling.
+static void antenna_apply_indoor_rescale(EntityInstance& inst, float ceiling_h) {
+    rescale_to_rolled_target(inst, ceiling_h,
+        /*target_lo*/ 0.50f, /*target_hi*/ 0.95f,
+        /*current_h*/ inst.params[ColIdx::HEIGHT],
+        COLUMN_INDOOR_RESCALE_PARAMS);
+}
 
 static void antenna_compute_solid_half(EntityInstance& inst, const TierProfile&) {
     float shaft_r = inst.params[ColIdx::SHAFT_RADIUS];
@@ -1346,7 +1320,7 @@ static void antenna_compute_colors(EntityInstance& inst, const EntityFamilyTrait
 }
 
 static void antenna_write_active(Cartridge* c, const EntityInstance& inst) {
-    auto& ac = c->activeAntennas_[inst.slot];
+    auto& ac = c->entities_state_.antennas[inst.slot];
     ac.patch_gx = inst.trigger_gx; ac.patch_gz = inst.trigger_gz;
     ac.host_gx = inst.host_gx; ac.host_gz = inst.host_gz;
     ac.active = true; ac.draw_visible = true;
@@ -1369,7 +1343,7 @@ static void antenna_write_active(Cartridge* c, const EntityInstance& inst) {
     ac.cached_ground_y = inst.cached_ground_y;
     ac.col_r = inst.colors[0]; ac.col_g = inst.colors[1]; ac.col_b = inst.colors[2];
     std::memcpy(ac.drum_colors, &inst.colors[3], 9 * sizeof(float));
-    c->activeAntennaCount_++;
+    c->entities_state_.antenna_count++;
 }
 
 static void antenna_write_gpu(Cartridge* c, const EntityInstance& inst, wgpu::Queue& queue) {
@@ -1397,7 +1371,7 @@ static void antenna_write_gpu(Cartridge* c, const EntityInstance& inst, wgpu::Qu
     mp.drum_color_r2 = inst.colors[6]; mp.drum_color_g2 = inst.colors[7]; mp.drum_color_b2 = inst.colors[8];
     mp.drum_color_r3 = inst.colors[9]; mp.drum_color_g3 = inst.colors[10]; mp.drum_color_b3 = inst.colors[11];
     c->gpuState_.upload_column_mesh_params_slot(queue, gpu_slot, mp);
-    c->columnMeshGenPending_ = true;
+    c->entities_state_.column_mesh_gen_pending = true;
 }
 
 static void antenna_post_commit(Cartridge* c, const EntityInstance& inst, wgpu::Queue& queue) {
@@ -1419,6 +1393,7 @@ static void antenna_post_commit(Cartridge* c, const EntityInstance& inst, wgpu::
 
 static constexpr EntityFamilyAdapter ANTENNA_ADAPTER = {
     antenna_run_gate, antenna_get_theme_tier_weights,
+    antenna_apply_indoor_rescale,
     antenna_compute_solid_half, antenna_compute_colors,
     antenna_write_active, antenna_write_gpu, antenna_post_commit,
     antenna_get_tier_profile,
@@ -1434,12 +1409,12 @@ static bool dispatch_select_antenna_generic(Cartridge* self, int32_t gx, int32_t
 static bool dispatch_place_antenna_generic(Cartridge* self, EntityQueueEntry& e, PlacementEntry& pe) {
     pe.family = e.family; pe.gx = e.gx; pe.gz = e.gz;
     if (self->generic_place(ANTENNA_TRAITS, e.generic)) { pe.generic = e.generic; return true; }
-    self->activeAntennas_[e.generic.slot].active = false; return false;
+    self->entities_state_.antennas[e.generic.slot].active = false; return false;
 }
 static void dispatch_commit_antenna_generic(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue) {
     auto* host = self->find_patch(pe.generic.host_gx, pe.generic.host_gz);
     if (host) { self->generic_commit(ANTENNA_TRAITS, ANTENNA_ADAPTER, pe.generic, queue); host->record_entity(PopFamily::ANTENNA, pe.generic.slot); }
-    else { self->activeAntennas_[pe.generic.slot].active = false; }
+    else { self->entities_state_.antennas[pe.generic.slot].active = false; }
 }
 
 
@@ -1512,12 +1487,24 @@ static constexpr EntityFamilyTraits PYRAMID_TRAITS = {
 
 static SpawnGateOutput pyramid_run_gate(Cartridge* c, int32_t gx, int32_t gz) {
     auto gate = c->run_spawn_preamble(gx, gz,
-        c->activePyramids_, Dim::MAX_PYRAMID_INSTANCES,
+        c->entities_state_.pyramids, Dim::MAX_PYRAMID_INSTANCES,
         PyramidProp::SPAWN_ROLL, PyramidConfig::SPAWN_CHANCE,
         PyramidConfig::MOOD_MULTIPLIER, PopFamily::PYRAMID, "pyr");
     return { gate.ok, gate.seed, gate.slot, gate.theme_idx };
 }
 static const float* pyramid_get_theme_tier_weights(uint32_t ti) { return THEMES[ti].tier_wt_pyramid; }
+
+static constexpr uint32_t PYRAMID_INDOOR_RESCALE_PARAMS[] = {
+    PyrIdx::HEIGHT, PyrIdx::BASE_HALF, PyrIdx::EDGE_BLEND,
+    // ASPECT, TRUNCATION are ratios — not scaled.
+};
+
+static void pyramid_apply_indoor_rescale(EntityInstance& inst, float ceiling_h) {
+    rescale_to_rolled_target(inst, ceiling_h,
+        /*target_lo*/ 0.50f, /*target_hi*/ 0.95f,
+        /*current_h*/ inst.params[PyrIdx::HEIGHT],
+        PYRAMID_INDOOR_RESCALE_PARAMS);
+}
 
 static void pyramid_compute_solid_half(EntityInstance& inst, const TierProfile&) {
     float base_half = inst.params[PyrIdx::BASE_HALF];
@@ -1542,7 +1529,7 @@ static void pyramid_compute_colors(EntityInstance& inst, const EntityFamilyTrait
 }
 
 static void pyramid_write_active(Cartridge* c, const EntityInstance& inst) {
-    auto& ap = c->activePyramids_[inst.slot];
+    auto& ap = c->entities_state_.pyramids[inst.slot];
     ap.patch_gx = inst.trigger_gx; ap.patch_gz = inst.trigger_gz;
     ap.host_gx = inst.host_gx; ap.host_gz = inst.host_gz;
     ap.active = true;
@@ -1552,7 +1539,7 @@ static void pyramid_write_active(Cartridge* c, const EntityInstance& inst) {
     // at center + 4 rotated corners and takes the min. CPU uploads 0.
     ap.cached_ground_y = 0.0f;
 
-    c->activePyramidCount_++;
+    c->entities_state_.pyramid_count++;
 }
 
 static void pyramid_write_gpu(Cartridge* c, const EntityInstance& inst, wgpu::Queue& queue) {
@@ -1569,14 +1556,14 @@ static void pyramid_write_gpu(Cartridge* c, const EntityInstance& inst, wgpu::Qu
     gpu_inst.rotation = inst.rotation;
     gpu_inst.edge_blend = inst.params[PyrIdx::EDGE_BLEND];
     gpu_inst.truncation = inst.params[PyrIdx::TRUNCATION];
-    c->cpuPyramids_.instances[inst.slot] = gpu_inst;
+    c->entities_state_.cpu_pyramids.instances[inst.slot] = gpu_inst;
 
     uint32_t max_idx = 0;
     for (uint32_t i = 0; i < Dim::MAX_PYRAMID_INSTANCES; i++) {
-        if (i == inst.slot || c->activePyramids_[i].active) max_idx = i + 1;
+        if (i == inst.slot || c->entities_state_.pyramids[i].active) max_idx = i + 1;
     }
-    c->cpuPyramids_.count = max_idx;
-    c->gpuState_.upload_pyramids(queue, c->cpuPyramids_);
+    c->entities_state_.cpu_pyramids.count = max_idx;
+    c->gpuState_.upload_pyramids(queue, c->entities_state_.cpu_pyramids);
 
     // Write mesh gen params
     GPUPyramidMeshParams mp{};
@@ -1588,7 +1575,7 @@ static void pyramid_write_gpu(Cartridge* c, const EntityInstance& inst, wgpu::Qu
     mp.color_r = inst.colors[0]; mp.color_g = inst.colors[1]; mp.color_b = inst.colors[2];
     mp.is_active = 1;
     c->gpuState_.upload_pyramid_mesh_params_slot(queue, inst.slot, mp);
-    c->pyramidMeshGenPending_ = true;
+    c->entities_state_.pyramid_mesh_gen_pending = true;
 }
 
 static void pyramid_post_commit(Cartridge* c, const EntityInstance& inst, wgpu::Queue&) {
@@ -1608,6 +1595,7 @@ static void pyramid_post_commit(Cartridge* c, const EntityInstance& inst, wgpu::
 
 static constexpr EntityFamilyAdapter PYRAMID_ADAPTER = {
     pyramid_run_gate, pyramid_get_theme_tier_weights,
+    pyramid_apply_indoor_rescale,
     pyramid_compute_solid_half, pyramid_compute_colors,
     pyramid_write_active, pyramid_write_gpu, pyramid_post_commit,
     pyramid_get_tier_profile,
@@ -1623,12 +1611,12 @@ static bool dispatch_select_pyramid_generic(Cartridge* self, int32_t gx, int32_t
 static bool dispatch_place_pyramid_generic(Cartridge* self, EntityQueueEntry& e, PlacementEntry& pe) {
     pe.family = e.family; pe.gx = e.gx; pe.gz = e.gz;
     if (self->generic_place(PYRAMID_TRAITS, e.generic)) { pe.generic = e.generic; return true; }
-    self->activePyramids_[e.generic.slot].active = false; return false;
+    self->entities_state_.pyramids[e.generic.slot].active = false; return false;
 }
 static void dispatch_commit_pyramid_generic(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue) {
     auto* host = self->find_patch(pe.generic.host_gx, pe.generic.host_gz);
     if (host) { self->generic_commit(PYRAMID_TRAITS, PYRAMID_ADAPTER, pe.generic, queue); host->record_entity(PopFamily::PYRAMID, pe.generic.slot); }
-    else { self->activePyramids_[pe.generic.slot].active = false; }
+    else { self->entities_state_.pyramids[pe.generic.slot].active = false; }
 }
 
 
@@ -1733,7 +1721,7 @@ static void sphere_write_active(Cartridge* c, const EntityInstance& inst) {
     auto& af = c->activeFloaters_[inst.slot];
     af.patch_gx = inst.trigger_gx; af.patch_gz = inst.trigger_gz;
     af.host_gx = inst.host_gx; af.host_gz = inst.host_gz;
-    af.last_alloc_time = c->currentSeconds_;
+    af.last_alloc_time = c->time_state_.seconds;
     af.active = true;
     c->activeFloaterCount_++;
 }
@@ -1761,6 +1749,7 @@ static void sphere_write_gpu(Cartridge* c, const EntityInstance& inst, wgpu::Que
 
 static constexpr EntityFamilyAdapter SPHERE_ADAPTER = {
     sphere_run_gate, sphere_get_theme_tier_weights,
+    nullptr,                              // apply_indoor_rescale → not eligible (floaters, not grounded)
     sphere_compute_solid_half, sphere_compute_colors,
     sphere_write_active, sphere_write_gpu, nullptr,
     sphere_get_tier_profile,
@@ -1910,7 +1899,7 @@ static void cube_write_active(Cartridge* c, const EntityInstance& inst) {
     ac.patch_gx = inst.trigger_gx; ac.patch_gz = inst.trigger_gz;
     ac.host_gx = inst.host_gx; ac.host_gz = inst.host_gz;
     ac.cx = inst.cx; ac.cz = inst.cz;
-    ac.last_alloc_time = c->currentSeconds_;
+    ac.last_alloc_time = c->time_state_.seconds;
     ac.active = true;
     c->activeCubeCount_++;
 }
@@ -1962,7 +1951,7 @@ static void cube_write_gpu(Cartridge* c, const EntityInstance& inst, wgpu::Queue
     // (CurlField's noise origin, PhaseWave's individual offset). Mix
     // constant differs from pick_cube_behavior_for_spawn's so the two
     // derived values are statistically independent.
-    fe.behavior_id    = pick_cube_behavior_for_spawn(c->activeMood_, inst.seed);
+    fe.behavior_id    = pick_cube_behavior_for_spawn(c->mood_state_.active, inst.seed);
     fe.behavior_phase = cpu_hash(inst.seed, 0xF10A7E70u);
     // Kite mode starts disabled — cube is anchored to its spawn patch
     // until the user explicitly toggles kite mode via cube_behaviors.inl.
@@ -1973,6 +1962,7 @@ static void cube_write_gpu(Cartridge* c, const EntityInstance& inst, wgpu::Queue
 
 static constexpr EntityFamilyAdapter CUBE_ADAPTER = {
     cube_run_gate, cube_get_theme_tier_weights,
+    nullptr,                              // apply_indoor_rescale → not eligible (floaters, not grounded)
     cube_compute_solid_half, cube_compute_colors,
     cube_write_active, cube_write_gpu, nullptr,
     cube_get_tier_profile,
@@ -2073,12 +2063,26 @@ static constexpr EntityFamilyTraits ARCH_TRAITS = {
 };
 
 static SpawnGateOutput arch_run_gate(Cartridge* c, int32_t gx, int32_t gz) {
-    auto gate = c->run_spawn_preamble(gx, gz, c->activeArches_, Dim::MAX_ARCH_INSTANCES,
+    auto gate = c->run_spawn_preamble(gx, gz, c->entities_state_.arches, Dim::MAX_ARCH_INSTANCES,
         ArchProp::SPAWN_ROLL, ArchConfig::SPAWN_CHANCE,
         ArchConfig::MOOD_MULTIPLIER, PopFamily::ARCH, "arch");
     return { gate.ok, gate.seed, gate.slot, gate.theme_idx };
 }
 static const float* arch_get_theme_tier_weights(uint32_t ti) { return THEMES[ti].tier_wt_arch; }
+
+static constexpr uint32_t ARCH_INDOOR_RESCALE_PARAMS[] = {
+    ArchIdx::SPAN, ArchIdx::RISE, ArchIdx::DEPTH, ArchIdx::THICKNESS,
+    ArchIdx::PIER_HEIGHT, ArchIdx::PIER_PADDING, ArchIdx::EDGE_BLEND,
+};
+
+// Arch total height = pier_height + rise (catenary apex). Rolled
+// target in [0.50, 0.95] × ceiling_h, scale every length param.
+static void arch_apply_indoor_rescale(EntityInstance& inst, float ceiling_h) {
+    rescale_to_rolled_target(inst, ceiling_h,
+        /*target_lo*/ 0.50f, /*target_hi*/ 0.95f,
+        /*current_h*/ inst.params[ArchIdx::PIER_HEIGHT] + inst.params[ArchIdx::RISE],
+        ARCH_INDOOR_RESCALE_PARAMS);
+}
 
 static void arch_compute_solid_half(EntityInstance& inst, const TierProfile&) {
     float half_span    = inst.params[ArchIdx::SPAN] * 0.5f;
@@ -2121,7 +2125,7 @@ static void arch_write_active(Cartridge* c, const EntityInstance& inst) {
     float rise      = inst.params[ArchIdx::RISE];
     float pier_h    = inst.params[ArchIdx::PIER_HEIGHT];
 
-    auto& aa = c->activeArches_[inst.slot];
+    auto& aa = c->entities_state_.arches[inst.slot];
     aa.patch_gx = inst.trigger_gx; aa.patch_gz = inst.trigger_gz;
     aa.host_gx = inst.host_gx; aa.host_gz = inst.host_gz;
     aa.active = true; aa.draw_visible = true;
@@ -2162,8 +2166,8 @@ static void arch_write_active(Cartridge* c, const EntityInstance& inst) {
         }
     }
 
-    c->activeArchCount_++;
-    c->portalsDirty_ = true;
+    c->entities_state_.arch_count++;
+    c->mood_state_.portals_dirty = true;
 }
 
 static void arch_write_gpu(Cartridge* c, const EntityInstance& inst, wgpu::Queue& queue) {
@@ -2186,7 +2190,7 @@ static void arch_write_gpu(Cartridge* c, const EntityInstance& inst, wgpu::Queue
     mp.color_r    = inst.colors[3]; mp.color_g = inst.colors[4]; mp.color_b = inst.colors[5];
     mp.is_active  = 1;
     c->gpuState_.upload_arch_mesh_params_slot(queue, inst.slot, mp);
-    c->archMeshGenPending_ = true;
+    c->entities_state_.arch_mesh_gen_pending = true;
 }
 
 static void arch_post_commit(Cartridge* c, const EntityInstance& inst, wgpu::Queue& queue) {
@@ -2239,6 +2243,7 @@ static void arch_post_commit(Cartridge* c, const EntityInstance& inst, wgpu::Que
 
 static constexpr EntityFamilyAdapter ARCH_ADAPTER = {
     arch_run_gate, arch_get_theme_tier_weights,
+    arch_apply_indoor_rescale,
     arch_compute_solid_half, arch_compute_colors,
     arch_write_active, arch_write_gpu, arch_post_commit,
     arch_get_tier_profile,
@@ -2252,12 +2257,12 @@ static bool dispatch_select_arch_generic(Cartridge* self, int32_t gx, int32_t gz
 static bool dispatch_place_arch_generic(Cartridge* self, EntityQueueEntry& e, PlacementEntry& pe) {
     pe.family = e.family; pe.gx = e.gx; pe.gz = e.gz;
     if (self->generic_place(ARCH_TRAITS, e.generic)) { pe.generic = e.generic; return true; }
-    self->activeArches_[e.generic.slot].active = false; return false;
+    self->entities_state_.arches[e.generic.slot].active = false; return false;
 }
 static void dispatch_commit_arch_generic(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue) {
     auto* host = self->find_patch(pe.generic.host_gx, pe.generic.host_gz);
     if (host) { self->generic_commit(ARCH_TRAITS, ARCH_ADAPTER, pe.generic, queue); host->record_entity(PopFamily::ARCH, pe.generic.slot); }
-    else { self->activeArches_[pe.generic.slot].active = false; }
+    else { self->entities_state_.arches[pe.generic.slot].active = false; }
 }
 
 

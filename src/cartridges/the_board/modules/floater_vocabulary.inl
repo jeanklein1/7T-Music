@@ -193,7 +193,7 @@ struct ActiveCube {
     // the current anchor without a GPU readback. Updated when corral
     // writes a new anchor.
     float   cx = 0.0f, cz = 0.0f;
-    // Time (currentSeconds_) when this slot was last marked active.
+    // Time (time_state_.seconds) when this slot was last marked active.
     // Used to suppress race between freshly allocated slots and the
     // floater readback path: readback callbacks process previous-frame
     // data, so a slot allocated this frame would be incorrectly marked

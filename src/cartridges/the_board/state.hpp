@@ -443,7 +443,7 @@ namespace t7 {
             float pulse_data[32];             // 8 × {origin_x, origin_z, onset_beats, amplitude}
             // ─── LOD-band pawn position ─────────────────────────────────
             // The CPU bands patches into LOD0/LOD1 in stream_patches based
-            // on pawnReadback_x_/z_, which lags the GPU pawn by 1-2 frames.
+            // on player_.readback_x/z, which lags the GPU pawn by 1-2 frames.
             // The GPU's frustum-cull shader applies the LOD0 distance
             // gate, but if it reads the live GPU pawn position the CPU's
             // banding and the GPU's gate disagree at the boundary annulus
@@ -677,12 +677,12 @@ namespace t7 {
             float twist_amp;                                                    // 28
             float color[3];                                                     // 32
             float lateral_amp;                                                  // 44
-            float lateral_cycles;                                               // 48
+            float lateral_cycles;                                               // 48 (unused: propagation-first model derives cycles from speed × travel_time)
             float lateral_speed;                                                // 52
             float vertical_amp;                                                 // 56
-            float vertical_cycles;                                              // 60
+            float vertical_cycles;                                              // 60 (unused — see lateral_cycles)
             float vertical_speed;                                               // 64
-            float twist_cycles;                                                 // 68
+            float twist_cycles;                                                 // 68 (unused)
             float twist_speed;                                                  // 72
             uint32_t is_visible;                                                // 76
             float orientation;                                                  // 80 (heading radians)
@@ -699,6 +699,21 @@ namespace t7 {
             float terrain_y;           // tile-modified terrain height ( 4) = 48
         };
         static_assert(sizeof(GPURibbonRingTransform) == 48, "GPURibbonRingTransform must be 48 bytes");
+
+        // Ribbon music history — ring buffer for smooth propagation.
+        // 128 samples × ~16.67ms/slot ≈ 2.13 s of coverage at 60 fps.
+        // CPU writes current music to samples[head_idx] every frame and
+        // advances head_idx by the dt accumulator (so only one slot
+        // changes per frame — no shift-step discontinuities).
+        // MUST match WGSL RibbonMusicHistory (struct alignment + fields).
+        struct alignas(16) GPURibbonMusicHistory {
+            float samples[128];      // 512 bytes — ring buffer, indexed by (head_idx + N - slot) % N
+            uint32_t head_idx;       // index of the newest sample
+            uint32_t _pad0;
+            uint32_t _pad1;
+            uint32_t _pad2;
+        };
+        static_assert(sizeof(GPURibbonMusicHistory) == 528, "GPURibbonMusicHistory must be 528 bytes");
 
         // Unified pier instance — terrain-raising volume with tier metadata.
         // Replaces the old GPUSolidInstance/GPUSolidArray. Deterministic slot
@@ -797,7 +812,10 @@ namespace t7 {
         static_assert(sizeof(GPUPyramidGroundEntry) == 32, "GPUPyramidGroundEntry must be 32 bytes");
 
         // GPU pyramid mesh generation parameters (CPU → GPU per-slot).
-        // Must match WGSL PyramidMeshParams exactly.
+        //
+        // MUST match world.wgsl::PyramidMeshParams (around line 8369).
+        // If this struct gains/loses a field, the WGSL side and
+        // cpu_gpu_pair_manifest.md must be updated together.
         struct alignas(16) GPUPyramidMeshParams {
             float center_x;
             float center_z;
@@ -812,11 +830,16 @@ namespace t7 {
             uint32_t is_active;
             uint32_t _pad;
         };
-        static_assert(sizeof(GPUPyramidMeshParams) == 48, "GPUPyramidMeshParams must be 48 bytes");
+        static_assert(sizeof(GPUPyramidMeshParams) == 48,
+            "GPUPyramidMeshParams must be 48 bytes — keep in sync with world.wgsl::PyramidMeshParams");
 
         // GPU arch mesh generation parameters (CPU → GPU per-slot).
-        // Must match WGSL ArchMeshParams exactly. Catenary parameter 'a'
-        // is precomputed on CPU (50-iter bisection) to keep the shader simple.
+        //
+        // MUST match world.wgsl::ArchMeshParams (around line 8569).
+        // If this struct gains/loses a field, the WGSL side and
+        // cpu_gpu_pair_manifest.md must be updated together.
+        // Catenary parameter 'a' is precomputed on CPU (50-iter
+        // bisection) to keep the shader simple.
         struct alignas(16) GPUArchMeshParams {
             float center_x;
             float center_z;
@@ -835,10 +858,14 @@ namespace t7 {
             float color_b;
             uint32_t is_active;
         };
-        static_assert(sizeof(GPUArchMeshParams) == 64, "GPUArchMeshParams must be 64 bytes");
+        static_assert(sizeof(GPUArchMeshParams) == 64,
+            "GPUArchMeshParams must be 64 bytes — keep in sync with world.wgsl::ArchMeshParams");
 
         // GPU column mesh generation parameters (CPU → GPU per-slot).
-        // Must match WGSL ColumnMeshParams exactly.
+        //
+        // MUST match world.wgsl::ColumnMeshParams (around line 8914).
+        // If this struct gains/loses a field, the WGSL side and
+        // cpu_gpu_pair_manifest.md must be updated together.
         struct alignas(16) GPUColumnMeshParams {
             float center_x;
             float center_z;
@@ -866,9 +893,14 @@ namespace t7 {
             float drum_color_r3, drum_color_g3, drum_color_b3;
             float _pad128[3];           // pad to 128 bytes
         };
-        static_assert(sizeof(GPUColumnMeshParams) == 128, "GPUColumnMeshParams must be 128 bytes");
+        static_assert(sizeof(GPUColumnMeshParams) == 128,
+            "GPUColumnMeshParams must be 128 bytes — keep in sync with world.wgsl::ColumnMeshParams");
 
         // ─── Palm GPU structs ─────────────────────────────────────────────
+        //
+        // MUST match world.wgsl::PalmMeshParams (around line 9406).
+        // If this struct gains/loses a field, the WGSL side and
+        // cpu_gpu_pair_manifest.md must be updated together.
         struct alignas(16) GPUPalmMeshParams {
             float center_x, center_z;
             float height;
@@ -887,7 +919,8 @@ namespace t7 {
             uint32_t is_active;
             float _pad0;
         };
-        static_assert(sizeof(GPUPalmMeshParams) == 128, "GPUPalmMeshParams must be 128 bytes");
+        static_assert(sizeof(GPUPalmMeshParams) == 128,
+            "GPUPalmMeshParams must be 128 bytes — keep in sync with world.wgsl::PalmMeshParams");
 
         struct alignas(16) GPUPalmGroundEntry {
             float center_x;
@@ -899,6 +932,10 @@ namespace t7 {
         static_assert(sizeof(GPUPalmGroundEntry) == 32, "GPUPalmGroundEntry must be 32 bytes");
 
         // ─── Cactus GPU structs ──────────────────────────────────────────
+        //
+        // MUST match world.wgsl::CactusMeshParams (around line 9724).
+        // If this struct gains/loses a field, the WGSL side and
+        // cpu_gpu_pair_manifest.md must be updated together.
         // 21 floats + 4 uint32_t = 100 bytes data + 28 bytes pad = 128
         struct alignas(16) GPUCactusMeshParams {
             float center_x, center_z;                    // 2 floats
@@ -916,7 +953,8 @@ namespace t7 {
             uint32_t seed;                               // 1 uint32  = 4 uint32 = 25 fields = 100 bytes
             float _pad0, _pad1, _pad2, _pad3, _pad4, _pad5, _pad6;  // 7 pad = 128 bytes
         };
-        static_assert(sizeof(GPUCactusMeshParams) == 128, "GPUCactusMeshParams must be 128 bytes");
+        static_assert(sizeof(GPUCactusMeshParams) == 128,
+            "GPUCactusMeshParams must be 128 bytes — keep in sync with world.wgsl::CactusMeshParams");
 
         struct alignas(16) GPUCactusGroundEntry {
             float center_x;
@@ -928,7 +966,10 @@ namespace t7 {
         static_assert(sizeof(GPUCactusGroundEntry) == 32, "GPUCactusGroundEntry must be 32 bytes");
 
         // ─── Blade Cluster GPU structs ──────────────────────────────────
-
+        //
+        // MUST match world.wgsl::BladeClusterMeshParams (around line 10050).
+        // If this struct gains/loses a field, the WGSL side and
+        // cpu_gpu_pair_manifest.md must be updated together.
         struct alignas(16) GPUBladeClusterMeshParams {
             float center_x, center_z;                        // 2 floats
             float blade_count;                               // 1 float (cast to u32 in shader)
@@ -942,7 +983,7 @@ namespace t7 {
             uint32_t _pad0;                                  // 1 uint32  = 4 uint32 = 16 bytes
         };                                                   // total = 80 bytes
         static_assert(sizeof(GPUBladeClusterMeshParams) == 80,
-            "GPUBladeClusterMeshParams must be 80 bytes");
+            "GPUBladeClusterMeshParams must be 80 bytes — keep in sync with world.wgsl::BladeClusterMeshParams");
 
         struct alignas(16) GPUBladeClusterGroundEntry {
             float center_x;
@@ -1347,7 +1388,7 @@ namespace t7 {
             float facing_sin;         // 12  sin(rotation)
             float inv_span_sq;        // 16  1 / half_span²  (lateral — foot-to-foot)
             float inv_depth_sq;       // 20  1 / (depth*0.5)² (forward — walk-through)
-            uint32_t arch_index;      // 24  maps to CPU activeArches_[index]
+            uint32_t arch_index;      // 24  maps to CPU entities_state_.arches[index]
             uint32_t _pad;            // 28
         };
         struct alignas(16) GPUPortalArray {
@@ -1466,6 +1507,7 @@ namespace t7 {
             wgpu::Buffer cameraBuffer_, floatingEntityBuffer_, trajectoriesBuffer_;
             wgpu::Buffer ribbonBuffer_;
             wgpu::Buffer ringTransformsBuffer_;
+            wgpu::Buffer ribbonMusicHistoryBuffer_;   // propagation-first coupling: 16-slot music history (binding 122)
             // (bindings 21, 40 reserved — formerly proximity_field, cell_states)
             wgpu::Buffer pierBuffer_;   // unified pier instances (Storage | CopyDst)
             wgpu::Buffer vpBuffer_;
@@ -1746,7 +1788,7 @@ namespace t7 {
             }
 
             // Targeted 4-byte upload of placement_patch_count — called from stream_patches
-            // after allPatchCount_ is finalized, so the placement compute pass reads the
+            // after world_state_.all_patch_count is finalized, so the placement compute pass reads the
             // current frame's patch set (decoupled from the photographer config).
             void upload_placement_patch_count(wgpu::Queue& queue) {
                 static_assert(offsetof(GPUDesignConfig, placement_patch_count) == 144,
@@ -1814,6 +1856,17 @@ namespace t7 {
 
             void upload_ribbon(wgpu::Queue& queue, const GPURibbonState& ribbon) {
                 queue.WriteBuffer(ribbonBuffer_, 0, &ribbon, sizeof(GPURibbonState));
+            }
+
+            // Musical coupling: ring buffer of recent music values for the
+            // ribbon's propagation coupling. CPU calls this every frame
+            // with the full samples array + the current head_idx. WGSL
+            // compute pass samples by age = ring's t × travel_time.
+            void set_ribbon_music_history(const float samples[128], uint32_t head_idx, wgpu::Queue& queue) {
+                GPURibbonMusicHistory payload{};
+                for (int i = 0; i < 128; i++) payload.samples[i] = samples[i];
+                payload.head_idx = head_idx;
+                queue.WriteBuffer(ribbonMusicHistoryBuffer_, 0, &payload, sizeof(payload));
             }
 
             void upload_floating_entity_slot(wgpu::Queue& queue, uint32_t slot, const GPUFloatingEntityState& entity) {
@@ -2151,7 +2204,7 @@ namespace t7 {
                 queue.WriteBuffer(agentStateBuffer_, 0, buf, sizeof(buf));
             }
             // Upload the full 32-slot agent array. Slot 0 (player) is rewritten
-            // to whatever the caller has in cpuAgents_[0] — caller is responsible
+            // to whatever the caller has in agent_state_.slots[0] — caller is responsible
             // for keeping that mirror consistent with the player's idle pose.
             void upload_agent_state_all(wgpu::Queue& queue, const GPUAgentState* src) {
                 queue.WriteBuffer(agentStateBuffer_, 0, src,
@@ -2791,6 +2844,9 @@ namespace t7 {
                 ringTransformsBuffer_ = makeBuffer("Ring Transforms",
                     sizeof(GPURibbonRingTransform) * Dim::RIBBON_MAX_RINGS,
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::CopySrc);
+                ribbonMusicHistoryBuffer_ = makeBuffer("Ribbon Music History",
+                    sizeof(GPURibbonMusicHistory),
+                    SU | wgpu::BufferUsage::Uniform);
                 trajectoriesBuffer_ = makeBuffer("Trajectories", sizeof(GPUTrajectory) * Dim::MAX_TRAJECTORIES, SU);
                 // (proximity_field and terrain_cells stubs removed — bindings 21, 40 reserved)
                 vpBuffer_ = makeBuffer("VP Matrix", sizeof(GPUVPMatrix),
@@ -2876,7 +2932,7 @@ namespace t7 {
                     patchHeightScratchBuffer_ &&
                     photographerVPBuffer_ && photographerCameraBuffer_ &&
                     photographerConfigBuffer_ && paintingSlotsBuffer_ &&
-                    portalArrayBuffer_ && ribbonReadbackStaging_ &&
+                    portalArrayBuffer_ && ribbonReadbackStaging_ && ribbonMusicHistoryBuffer_ &&
                     frustumIndirectLOD0_ && frustumComputeBuffer_ && visiblePatchIndicesBuffer_;
             }
 
@@ -4041,10 +4097,11 @@ namespace t7 {
                 // Pre-computes ring transforms: motor + terrain_y for each ring.
                 // Runs BEFORE update_world so pawn overlay can read results.
                 //
-                // Reuses existing WGSL binding numbers: ribbon_state @120,
-                // tile_grid @25, solid_instances @26. New: ring_xforms @121.
+                // Bindings: tile_grid @25, pier_instances @26, ribbon_state @120,
+                // ring_xforms @121, ribbon_music_history @122 (propagation-first
+                // music coupling — compute-only, not on render layouts).
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 4> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 5> entries{};
 
                     entries[0].binding = 25;
                     entries[0].visibility = wgpu::ShaderStage::Compute;
@@ -4061,6 +4118,10 @@ namespace t7 {
                     entries[3].binding = 121;
                     entries[3].visibility = wgpu::ShaderStage::Compute;
                     entries[3].buffer.type = wgpu::BufferBindingType::Storage;
+
+                    entries[4].binding = 122;  // ribbon_music_history (musical coupling)
+                    entries[4].visibility = wgpu::ShaderStage::Compute;
+                    entries[4].buffer.type = wgpu::BufferBindingType::Uniform;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Ribbon Compute Layout";
@@ -4976,9 +5037,9 @@ namespace t7 {
                     if (!patchGenBindGroup_) return false;
                 }
 
-                // Ribbon compute bind group (4 entries: dedicated ring transform pass)
+                // Ribbon compute bind group (5 entries: dedicated ring transform pass + music history)
                 {
-                    std::array<wgpu::BindGroupEntry, 4> entries{};
+                    std::array<wgpu::BindGroupEntry, 5> entries{};
 
                     entries[0].binding = 25;  // tile_grid (matches @binding(25))
                     entries[0].buffer = tileGridBuffer_;
@@ -4995,6 +5056,10 @@ namespace t7 {
                     entries[3].binding = 121; // ring_transforms (matches @binding(121))
                     entries[3].buffer = ringTransformsBuffer_;
                     entries[3].size = sizeof(GPURibbonRingTransform) * Dim::RIBBON_MAX_RINGS;
+
+                    entries[4].binding = 122; // ribbon_music_history (matches @binding(122))
+                    entries[4].buffer = ribbonMusicHistoryBuffer_;
+                    entries[4].size = sizeof(GPURibbonMusicHistory);
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Ribbon Compute BindGroup";

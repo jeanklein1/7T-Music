@@ -1026,6 +1026,37 @@ namespace t7 {
             // -----------------------------------------------------------------
             // Shadow pass draw methods (depth-only)
             // -----------------------------------------------------------------
+            //
+            // Most per-family shadow methods follow the same shape: bind two
+            // groups, set vertex/index buffer, draw indexed. They differ only
+            // in which pipeline they bind and (for sphere/monolith) how many
+            // instances they draw. The 9 per-family wrappers below are 1-line
+            // shims over `draw_shadow_indexed_mesh()` — pattern P12 (integration
+            // glue). Methods with genuinely different shapes — patch_terrain,
+            // pawn, ribbon, zone_extrusion, wall_paintings, gallery_frames —
+            // remain individual.
+
+            // Shared helper for all "indexed mesh" shadow draws. Per-family
+            // wrappers below differ only in pipeline + (rarely) instance count.
+            void draw_shadow_indexed_mesh(
+                wgpu::RenderPassEncoder& pass,
+                wgpu::RenderPipeline pipeline,
+                wgpu::BindGroup entityBindGroup,
+                wgpu::BindGroup textureBindGroup,
+                wgpu::Buffer vertexBuffer,
+                wgpu::Buffer indexBuffer,
+                uint32_t indexCount,
+                uint32_t instanceCount = 1,
+                uint32_t firstInstance = 0
+            ) {
+                if (indexCount == 0) return;
+                pass.SetPipeline(pipeline);
+                pass.SetBindGroup(0, entityBindGroup);
+                pass.SetBindGroup(1, textureBindGroup);
+                pass.SetVertexBuffer(0, vertexBuffer);
+                pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint32);
+                pass.DrawIndexed(indexCount, instanceCount, 0, 0, firstInstance);
+            }
 
 
             void draw_shadow_patch_terrain(
@@ -1064,12 +1095,10 @@ namespace t7 {
                 wgpu::Buffer indexBuffer,
                 uint32_t indexCount
             ) {
-                pass.SetPipeline(shadowSpherePipeline_);
-                pass.SetBindGroup(0, entityBindGroup);
-                pass.SetBindGroup(1, textureBindGroup);
-                pass.SetVertexBuffer(0, vertexBuffer);
-                pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint32);
-                pass.DrawIndexed(indexCount, Dim::MAX_SPHERE_INSTANCES);
+                draw_shadow_indexed_mesh(pass, shadowSpherePipeline_,
+                    entityBindGroup, textureBindGroup,
+                    vertexBuffer, indexBuffer, indexCount,
+                    Dim::MAX_SPHERE_INSTANCES);
             }
 
             void draw_shadow_monolith(
@@ -1080,12 +1109,10 @@ namespace t7 {
                 wgpu::Buffer indexBuffer,
                 uint32_t indexCount
             ) {
-                pass.SetPipeline(shadowMonolithPipeline_);
-                pass.SetBindGroup(0, entityBindGroup);
-                pass.SetBindGroup(1, textureBindGroup);
-                pass.SetVertexBuffer(0, vertexBuffer);
-                pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint32);
-                pass.DrawIndexed(indexCount, Dim::MAX_CUBE_INSTANCES, 0, 0, Dim::CUBE_SLOT_OFFSET);
+                draw_shadow_indexed_mesh(pass, shadowMonolithPipeline_,
+                    entityBindGroup, textureBindGroup,
+                    vertexBuffer, indexBuffer, indexCount,
+                    Dim::MAX_CUBE_INSTANCES, Dim::CUBE_SLOT_OFFSET);
             }
 
             void draw_shadow_ribbon(
@@ -1108,12 +1135,9 @@ namespace t7 {
                 wgpu::Buffer indexBuffer,
                 uint32_t indexCount
             ) {
-                pass.SetPipeline(shadowArchPipeline_);
-                pass.SetBindGroup(0, entityBindGroup);
-                pass.SetBindGroup(1, textureBindGroup);
-                pass.SetVertexBuffer(0, vertexBuffer);
-                pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint32);
-                pass.DrawIndexed(indexCount);
+                draw_shadow_indexed_mesh(pass, shadowArchPipeline_,
+                    entityBindGroup, textureBindGroup,
+                    vertexBuffer, indexBuffer, indexCount);
             }
 
             void draw_shadow_column(
@@ -1124,12 +1148,9 @@ namespace t7 {
                 wgpu::Buffer indexBuffer,
                 uint32_t indexCount
             ) {
-                pass.SetPipeline(shadowColumnPipeline_);
-                pass.SetBindGroup(0, entityBindGroup);
-                pass.SetBindGroup(1, textureBindGroup);
-                pass.SetVertexBuffer(0, vertexBuffer);
-                pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint32);
-                pass.DrawIndexed(indexCount);
+                draw_shadow_indexed_mesh(pass, shadowColumnPipeline_,
+                    entityBindGroup, textureBindGroup,
+                    vertexBuffer, indexBuffer, indexCount);
             }
 
             void draw_shadow_palm(
@@ -1140,12 +1161,9 @@ namespace t7 {
                 wgpu::Buffer indexBuffer,
                 uint32_t indexCount
             ) {
-                pass.SetPipeline(shadowPalmPipeline_);
-                pass.SetBindGroup(0, entityBindGroup);
-                pass.SetBindGroup(1, textureBindGroup);
-                pass.SetVertexBuffer(0, vertexBuffer);
-                pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint32);
-                pass.DrawIndexed(indexCount);
+                draw_shadow_indexed_mesh(pass, shadowPalmPipeline_,
+                    entityBindGroup, textureBindGroup,
+                    vertexBuffer, indexBuffer, indexCount);
             }
 
             void draw_shadow_cactus(
@@ -1156,12 +1174,9 @@ namespace t7 {
                 wgpu::Buffer indexBuffer,
                 uint32_t indexCount
             ) {
-                pass.SetPipeline(shadowCactusPipeline_);
-                pass.SetBindGroup(0, entityBindGroup);
-                pass.SetBindGroup(1, textureBindGroup);
-                pass.SetVertexBuffer(0, vertexBuffer);
-                pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint32);
-                pass.DrawIndexed(indexCount);
+                draw_shadow_indexed_mesh(pass, shadowCactusPipeline_,
+                    entityBindGroup, textureBindGroup,
+                    vertexBuffer, indexBuffer, indexCount);
             }
 
             void draw_shadow_blade(
@@ -1172,12 +1187,9 @@ namespace t7 {
                 wgpu::Buffer indexBuffer,
                 uint32_t indexCount
             ) {
-                pass.SetPipeline(shadowBladePipeline_);
-                pass.SetBindGroup(0, entityBindGroup);
-                pass.SetBindGroup(1, textureBindGroup);
-                pass.SetVertexBuffer(0, vertexBuffer);
-                pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint32);
-                pass.DrawIndexed(indexCount);
+                draw_shadow_indexed_mesh(pass, shadowBladePipeline_,
+                    entityBindGroup, textureBindGroup,
+                    vertexBuffer, indexBuffer, indexCount);
             }
 
             void draw_shadow_pyramid(
@@ -1188,12 +1200,9 @@ namespace t7 {
                 wgpu::Buffer indexBuffer,
                 uint32_t indexCount
             ) {
-                pass.SetPipeline(shadowPyramidPipeline_);
-                pass.SetBindGroup(0, entityBindGroup);
-                pass.SetBindGroup(1, textureBindGroup);
-                pass.SetVertexBuffer(0, vertexBuffer);
-                pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint32);
-                pass.DrawIndexed(indexCount);
+                draw_shadow_indexed_mesh(pass, shadowPyramidPipeline_,
+                    entityBindGroup, textureBindGroup,
+                    vertexBuffer, indexBuffer, indexCount);
             }
 
             void draw_shadow_shell(
@@ -1204,13 +1213,11 @@ namespace t7 {
                 wgpu::Buffer indexBuffer,
                 uint32_t indexCount
             ) {
-                if (indexCount == 0) return;
-                pass.SetPipeline(shadowShellPipeline_);
-                pass.SetBindGroup(0, entityBindGroup);
-                pass.SetBindGroup(1, textureBindGroup);
-                pass.SetVertexBuffer(0, vertexBuffer);
-                pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint32);
-                pass.DrawIndexed(indexCount);
+                // Helper's `if (indexCount == 0) return;` covers the early-out
+                // that the original draw_shadow_shell had explicitly.
+                draw_shadow_indexed_mesh(pass, shadowShellPipeline_,
+                    entityBindGroup, textureBindGroup,
+                    vertexBuffer, indexBuffer, indexCount);
             }
 
             void draw_shadow_wall_paintings(

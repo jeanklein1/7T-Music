@@ -1,4 +1,4 @@
-﻿// ─── entity_types.inl ────────────────────────────────────────────
+// ─── entity_types.inl ────────────────────────────────────────────
 //
 // Type definitions for the generic entity pipeline. Header-style
 // file: pure declarations, no functions, no class-body coupling
@@ -161,20 +161,20 @@ struct SpawnGateOutput {
 //   generic_place   → cx, cz, rotation, host_*
 //   generic_commit  → consumed by adapter.write_active / write_gpu
 struct EntityInstance {
-    uint32_t family_id   = 0;
-    uint32_t seed        = 0;
-    int32_t  trigger_gx  = 0, trigger_gz = 0;
-    int32_t  host_gx     = 0, host_gz    = 0;
-    uint32_t slot        = 0;
-    uint32_t tier_idx    = 0;
-    uint32_t theme_idx   = 0;
-    float    cx       = 0.0f, cz = 0.0f;
+    uint32_t family_id = 0;
+    uint32_t seed = 0;
+    int32_t  trigger_gx = 0, trigger_gz = 0;
+    int32_t  host_gx = 0, host_gz = 0;
+    uint32_t slot = 0;
+    uint32_t tier_idx = 0;
+    uint32_t theme_idx = 0;
+    float    cx = 0.0f, cz = 0.0f;
     float    rotation = 0.0f;
     float    params[MAX_ENTITY_PARAMS]{};
-    float    solid_half       = 0.0f;
-    float    cached_ground_y  = 0.0f;
-    float    ground_y_offset  = 0.0f;  // added to terrain Y (e.g. solid_height for pier entities)
-    float    burial           = 0.0f;
+    float    solid_half = 0.0f;
+    float    cached_ground_y = 0.0f;
+    float    ground_y_offset = 0.0f;  // added to terrain Y (e.g. solid_height for pier entities)
+    float    burial = 0.0f;
     float    colors[MAX_COLOR_CHANNELS]{};
 };
 
@@ -186,8 +186,9 @@ struct EntityInstance {
 // embedded in each family's per-family TierRow struct (one source
 // of truth — there's no generic table on traits to index).
 struct EntityFamilyAdapter {
-    SpawnGateOutput (*run_gate)(Cartridge* c, int32_t gx, int32_t gz);
+    SpawnGateOutput(*run_gate)(Cartridge* c, int32_t gx, int32_t gz);
     const float* (*get_theme_tier_weights)(uint32_t theme_idx);
+    void (*apply_indoor_rescale)(EntityInstance& inst, float ceiling_h);
     void (*compute_solid_half)(EntityInstance& inst, const TierProfile& tier);
     void (*compute_colors)(EntityInstance& inst, const EntityFamilyTraits& traits, const TierProfile& tier);
     void (*write_active)(Cartridge* c, const EntityInstance& inst);
