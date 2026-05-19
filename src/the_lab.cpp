@@ -190,10 +190,11 @@ static void draw_input_scope(const TestCoupling& tc, float now) {
         ImPlot::SetupAxisLimits(ImAxis_X1, now - 10.0, now, ImPlotCond_Always);
 
         if (!tc.input_history.xs.empty()) {
+            ImPlotSpec spec;
+            spec.Offset = tc.input_history.offset;
             ImPlot::PlotLine("input",
                 tc.input_history.xs.data(), tc.input_history.ys.data(),
-                (int)tc.input_history.xs.size(), 0,
-                tc.input_history.offset, sizeof(float));
+                (int)tc.input_history.xs.size(), spec);
         }
         ImPlot::EndPlot();
     }
@@ -208,16 +209,18 @@ static void draw_trajectory_scope(const TestCoupling& tc, float now) {
         ImPlot::SetupAxisLimits(ImAxis_Y1, -0.1, 1.2);
 
         if (!tc.target_history.xs.empty()) {
+            ImPlotSpec spec;
+            spec.Offset = tc.target_history.offset;
             ImPlot::PlotLine("target (normalized)",
                 tc.target_history.xs.data(), tc.target_history.ys.data(),
-                (int)tc.target_history.xs.size(), 0,
-                tc.target_history.offset, sizeof(float));
+                (int)tc.target_history.xs.size(), spec);
         }
         if (!tc.output_history.xs.empty()) {
+            ImPlotSpec spec;
+            spec.Offset = tc.output_history.offset;
             ImPlot::PlotLine("trajectory.value",
                 tc.output_history.xs.data(), tc.output_history.ys.data(),
-                (int)tc.output_history.xs.size(), 0,
-                tc.output_history.offset, sizeof(float));
+                (int)tc.output_history.xs.size(), spec);
         }
         ImPlot::EndPlot();
     }
