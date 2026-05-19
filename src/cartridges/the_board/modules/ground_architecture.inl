@@ -87,7 +87,7 @@
 // SEAM[ground_architecture:P9] header-style file: pure declarations
 //   (enums + tables) + compile-time validation macros, zero runtime
 //   logic, no class-member coupling. Same family as entity_types.inl,
-//   trajectory.inl, seed_utils.inl as P9 instances. The
+//   musical/trajectory.hpp, seed_utils.inl as P9 instances. The
 //   ASSERT_POLICY_DAG_CLOSED macro pattern is the unique
 //   contribution of this file — compile-time relational integrity
 //   over a registry table.

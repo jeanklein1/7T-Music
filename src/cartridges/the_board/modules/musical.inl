@@ -31,7 +31,7 @@
 // └──────────────────────────────────────────────────────────────────┘
 //
 // Included inside the Cartridge class body.
-// Depends on: trajectory.inl (release primitive), pawn.inl
+// Depends on: musical/trajectory.hpp (release primitive), pawn.inl
 //             (pawn_state_.aura_cfg_dirty flag set when aura-coupling changes).
 // ─────────────────────────────────────────────────────────────────
 

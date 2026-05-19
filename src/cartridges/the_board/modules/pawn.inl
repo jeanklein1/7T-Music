@@ -33,7 +33,7 @@
 // └──────────────────────────────────────────────────────────────────┘
 //
 // Included inside the Cartridge class body.
-// Depends on: trajectory.inl (release primitive), musical.inl
+// Depends on: musical/trajectory.hpp (release primitive), musical.inl
 //             (player_.mmode_intensities[MMODE_AURA_EXPAND] for the expand
 //             coupling).
 // ─────────────────────────────────────────────────────────────────

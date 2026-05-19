@@ -584,6 +584,83 @@ source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/src/analysis/${ACTIVE_ANALYSIS_CA
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# THE_LAB — Coupling laboratory (ImGui + WebGPU, no render cartridge)
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Sub-second iteration sandbox for designing musical couplings.
+# Pairs an analysis cartridge with an ImGui+ImPlot dashboard.
+# No project WGSL pipelines — FXC compile time is trivial.
+#
+# Build:  cmake --build . --target the_lab
+# Run:    ./the_lab.exe [optional_midi_file]
+#
+
+# Analysis cartridge headers (same selector as incubator_dual)
+file(GLOB_RECURSE LAB_ANALYSIS_HEADERS
+    "src/analysis/${ACTIVE_ANALYSIS_CARTRIDGE}/*.hpp"
+)
+
+# ImGui sources (vendored)
+set(IMGUI_DIR ${CMAKE_SOURCE_DIR}/src/external/imgui)
+set(IMGUI_SOURCES
+    ${IMGUI_DIR}/imgui.cpp
+    ${IMGUI_DIR}/imgui_demo.cpp
+    ${IMGUI_DIR}/imgui_draw.cpp
+    ${IMGUI_DIR}/imgui_tables.cpp
+    ${IMGUI_DIR}/imgui_widgets.cpp
+    ${IMGUI_DIR}/backends/imgui_impl_glfw.cpp
+    ${IMGUI_DIR}/backends/imgui_impl_wgpu.cpp
+)
+
+# ImPlot sources (vendored)
+set(IMPLOT_DIR ${CMAKE_SOURCE_DIR}/src/external/implot)
+set(IMPLOT_SOURCES
+    ${IMPLOT_DIR}/implot.cpp
+    ${IMPLOT_DIR}/implot_items.cpp
+)
+
+add_executable(the_lab
+    src/the_lab.cpp
+    src/external/RtMidi.cpp
+    ${IMGUI_SOURCES}
+    ${IMPLOT_SOURCES}
+    ${LAB_ANALYSIS_HEADERS}
+)
+
+target_include_directories(the_lab PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${IMGUI_DIR}
+    ${IMGUI_DIR}/backends
+    ${IMPLOT_DIR}
+    ${DAWN_INCLUDES}
+)
+
+target_link_libraries(the_lab PRIVATE ${DAWN_LIBS})
+
+if(MSVC)
+    target_compile_options(the_lab PRIVATE ${MSVC_COMPILE_OPTS})
+    target_compile_definitions(the_lab PRIVATE
+        ${MSVC_COMPILE_DEFS}
+        LAB_ANALYSIS=${ACTIVE_ANALYSIS_CARTRIDGE}
+        # imgui_impl_wgpu chooses its WebGPU runtime binding via this define
+        IMGUI_IMPL_WEBGPU_BACKEND_DAWN
+    )
+endif()
+
+add_custom_command(TARGET the_lab POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    ${CMAKE_CURRENT_SOURCE_DIR}/assets
+    $<TARGET_FILE_DIR:the_lab>/assets
+    COMMENT "Copying assets for the_lab..."
+)
+
+source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/src/analysis/${ACTIVE_ANALYSIS_CARTRIDGE}"
+    PREFIX "Analysis Cartridge"
+    FILES ${LAB_ANALYSIS_HEADERS}
+)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # MAIN TARGET — Full program with all cartridges
 # ═══════════════════════════════════════════════════════════════════════════════
 #

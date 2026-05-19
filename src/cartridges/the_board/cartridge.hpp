@@ -87,6 +87,7 @@
 #include "core/input_event.hpp"
 #include "cartridges/the_board/state.hpp"
 #include "cartridges/the_board/renderer.hpp"
+#include "musical/trajectory.hpp"
 #include <cmath>
 #include <cstring>
 #include <iostream>
@@ -199,12 +200,6 @@ namespace t7 {
                 float sun_orbit_phase = 0.0f;
             };
             MoodState mood_state_;
-
-            // ── Trajectory primitive (modules/trajectory.inl) ──
-            // CPU mirror of WGSL §1.2 — must be visible before any
-            // module that declares Trajectory fields (musical, pawn_aura,
-            // mood). Pure foundations; depends on nothing.
-#include "modules/trajectory.inl"
 
             // ── Musical Coupling State (modules/musical.inl) ──
             // See DONE[musical:K2] in musical.inl + DONE[mood:K3] in
@@ -3093,7 +3088,7 @@ namespace t7 {
             //   tick_musical_couplings → orb couplings → photographer →
             //   clear input deltas. ~200 lines of inline ramps moved into
             //   musical.inl (tick_musical_couplings, reset_musical_couplings)
-            //   using the trajectory.inl primitive (mirroring WGSL §1.2).
+            //   using the musical/trajectory.hpp primitive (mirroring WGSL §1.2).
             //   Pawn aura presence ramp (pawn:K1) closed similarly —
             //   tick_pawn_couplings(queue) call below lives in pawn.inl.
             // DONE[spine:L4] phase order is named at each call site
