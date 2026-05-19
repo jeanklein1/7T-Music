@@ -286,7 +286,7 @@ int main(int argc, char* argv[]) {
     wgpu_init.Device              = console.device().Get();
     wgpu_init.NumFramesInFlight   = 3;
     wgpu_init.RenderTargetFormat  = static_cast<WGPUTextureFormat>(console.color_format());
-    wgpu_init.DepthStencilFormat  = static_cast<WGPUTextureFormat>(console.depth_format());
+    wgpu_init.DepthStencilFormat  = WGPUTextureFormat_Undefined;
     ImGui_ImplWGPU_Init(&wgpu_init);
 
     std::cout << "[Lab] ImGui + WebGPU backend ready\n\n";
