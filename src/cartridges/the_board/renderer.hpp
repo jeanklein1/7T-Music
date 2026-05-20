@@ -40,6 +40,10 @@
 #include <array>
 #include <chrono>
 #include <iostream>
+#include <vector>
+#include <functional>
+#include <algorithm>
+#include <iomanip>
 
 namespace t7 {
     namespace the_board {
@@ -189,6 +193,23 @@ namespace t7 {
             wgpu::ShaderModule shaderModule_;
             std::string shaderSource_;
             std::string shaderPath_;
+
+            // Per-pipeline compile-time instrumentation. tPipe wraps each
+            // pipeline creation, prints its compile time, and records it for
+            // the sorted leaderboard printed at the end of init_renderer().
+            struct PipelineTiming { std::string label; long long ms; };
+            std::vector<PipelineTiming> pipelineTimings_;
+
+            template <typename F>
+            bool tPipe(const char* label, F&& fn) {
+                auto t0 = std::chrono::high_resolution_clock::now();
+                bool ok = fn();
+                auto t1 = std::chrono::high_resolution_clock::now();
+                auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
+                std::cout << "  [Pipeline] " << label << ": " << ms << " ms\n";
+                pipelineTimings_.push_back({label, ms});
+                return ok;
+            }
 
             // Compute pipelines -- per-frame (split world update)
             wgpu::ComputePipeline updateTerrainConfigPipeline_;  // 0D
@@ -1347,16 +1368,6 @@ namespace t7 {
             // -----------------------------------------------------------------
 
             bool createComputePipelines() {
-                auto tPipe = [](const char* label, auto fn) -> bool {
-                    auto t0 = std::chrono::high_resolution_clock::now();
-                    bool ok = fn();
-                    auto t1 = std::chrono::high_resolution_clock::now();
-                    std::cout << "  [Pipeline] " << label << ": "
-                        << std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count()
-                        << " ms\n";
-                    return ok;
-                    };
-
                 // Shared pipeline layout for all standard compute passes (Group 0 only)
                 std::array<wgpu::BindGroupLayout, 1> computeLayouts = {
                     computeEntityLayout_
@@ -1636,8 +1647,10 @@ namespace t7 {
                     desc.layout = pl;
                     desc.compute.module = shaderModule_;
                     desc.compute.entryPoint = Entry::FRUSTUM_CULL_PATCHES;
-                    frustumCullPipeline_ = device_.CreateComputePipeline(&desc);
-                    if (!frustumCullPipeline_) return false;
+                    if (!tPipe("frustum_cull_patches", [&]() {
+                        frustumCullPipeline_ = device_.CreateComputePipeline(&desc);
+                        return frustumCullPipeline_ != nullptr;
+                    })) return false;
                 }
 
                 // Pawn aura compute pipeline (dedicated layout)
@@ -1654,8 +1667,10 @@ namespace t7 {
                     desc.layout = pl;
                     desc.compute.module = shaderModule_;
                     desc.compute.entryPoint = Entry::COMPUTE_PAWN_AURA;
-                    pawnAuraPipeline_ = device_.CreateComputePipeline(&desc);
-                    if (!pawnAuraPipeline_) return false;
+                    if (!tPipe("compute_pawn_aura", [&]() {
+                        pawnAuraPipeline_ = device_.CreateComputePipeline(&desc);
+                        return pawnAuraPipeline_ != nullptr;
+                    })) return false;
                 }
 
                 // Orb compute pipelines (init + dynamics share the dedicated orb layout)
@@ -1671,20 +1686,26 @@ namespace t7 {
                     desc.layout = pl;
                     desc.compute.module = shaderModule_;
 
-                    desc.label = "Orb Init";
-                    desc.compute.entryPoint = Entry::ORB_INIT;
-                    orbInitPipeline_ = device_.CreateComputePipeline(&desc);
-                    if (!orbInitPipeline_) return false;
+                    if (!tPipe("orb_init", [&]() {
+                        desc.label = "Orb Init";
+                        desc.compute.entryPoint = Entry::ORB_INIT;
+                        orbInitPipeline_ = device_.CreateComputePipeline(&desc);
+                        return orbInitPipeline_ != nullptr;
+                    })) return false;
 
-                    desc.label = "Orb Dynamics";
-                    desc.compute.entryPoint = Entry::ORB_DYNAMICS;
-                    orbDynamicsPipeline_ = device_.CreateComputePipeline(&desc);
-                    if (!orbDynamicsPipeline_) return false;
+                    if (!tPipe("orb_dynamics", [&]() {
+                        desc.label = "Orb Dynamics";
+                        desc.compute.entryPoint = Entry::ORB_DYNAMICS;
+                        orbDynamicsPipeline_ = device_.CreateComputePipeline(&desc);
+                        return orbDynamicsPipeline_ != nullptr;
+                    })) return false;
 
-                    desc.label = "Orb Recolor";
-                    desc.compute.entryPoint = Entry::ORB_RECOLOR;
-                    orbRecolorPipeline_ = device_.CreateComputePipeline(&desc);
-                    if (!orbRecolorPipeline_) return false;
+                    if (!tPipe("orb_recolor", [&]() {
+                        desc.label = "Orb Recolor";
+                        desc.compute.entryPoint = Entry::ORB_RECOLOR;
+                        orbRecolorPipeline_ = device_.CreateComputePipeline(&desc);
+                        return orbRecolorPipeline_ != nullptr;
+                    })) return false;
                 }
 
                 // Orb copy-prev pipeline (Pass 9) — dedicated layout because
@@ -1702,8 +1723,10 @@ namespace t7 {
                     desc.compute.module = shaderModule_;
                     desc.label = "Orb State Prev Copy";
                     desc.compute.entryPoint = Entry::ORB_STATE_PREV_COPY;
-                    orbCopyPrevPipeline_ = device_.CreateComputePipeline(&desc);
-                    if (!orbCopyPrevPipeline_) return false;
+                    if (!tPipe("orb_state_prev_copy", [&]() {
+                        orbCopyPrevPipeline_ = device_.CreateComputePipeline(&desc);
+                        return orbCopyPrevPipeline_ != nullptr;
+                    })) return false;
                 }
 
                 // GoL zone compute pipelines (dedicated layout, z-dispatched)
@@ -1719,15 +1742,19 @@ namespace t7 {
                     desc.layout = pl;
                     desc.compute.module = shaderModule_;
 
-                    desc.label = "GoL Zone Sync";
-                    desc.compute.entryPoint = Entry::ZONE_GOL_SYNC;
-                    zoneGolSyncPipeline_ = device_.CreateComputePipeline(&desc);
-                    if (!zoneGolSyncPipeline_) return false;
+                    if (!tPipe("zone_gol_sync", [&]() {
+                        desc.label = "GoL Zone Sync";
+                        desc.compute.entryPoint = Entry::ZONE_GOL_SYNC;
+                        zoneGolSyncPipeline_ = device_.CreateComputePipeline(&desc);
+                        return zoneGolSyncPipeline_ != nullptr;
+                    })) return false;
 
-                    desc.label = "GoL Zone Evolve";
-                    desc.compute.entryPoint = Entry::ZONE_GOL_EVOLVE;
-                    zoneGolEvolvePipeline_ = device_.CreateComputePipeline(&desc);
-                    if (!zoneGolEvolvePipeline_) return false;
+                    if (!tPipe("zone_gol_evolve", [&]() {
+                        desc.label = "GoL Zone Evolve";
+                        desc.compute.entryPoint = Entry::ZONE_GOL_EVOLVE;
+                        zoneGolEvolvePipeline_ = device_.CreateComputePipeline(&desc);
+                        return zoneGolEvolvePipeline_ != nullptr;
+                    })) return false;
                 }
 
                 // Zone mesh gen pipelines (dedicated single-group layout with
@@ -1744,20 +1771,26 @@ namespace t7 {
                     desc.layout = pl;
                     desc.compute.module = shaderModule_;
 
-                    desc.label = "Zone Mesh Reset";
-                    desc.compute.entryPoint = Entry::ZONE_GOL_MESH_RESET;
-                    zoneGolMeshResetPipeline_ = device_.CreateComputePipeline(&desc);
-                    if (!zoneGolMeshResetPipeline_) return false;
+                    if (!tPipe("zone_gol_mesh_reset", [&]() {
+                        desc.label = "Zone Mesh Reset";
+                        desc.compute.entryPoint = Entry::ZONE_GOL_MESH_RESET;
+                        zoneGolMeshResetPipeline_ = device_.CreateComputePipeline(&desc);
+                        return zoneGolMeshResetPipeline_ != nullptr;
+                    })) return false;
 
-                    desc.label = "Zone Mesh Gen";
-                    desc.compute.entryPoint = Entry::ZONE_GOL_MESH_GEN;
-                    zoneGolMeshGenPipeline_ = device_.CreateComputePipeline(&desc);
-                    if (!zoneGolMeshGenPipeline_) return false;
+                    if (!tPipe("zone_gol_mesh_gen", [&]() {
+                        desc.label = "Zone Mesh Gen";
+                        desc.compute.entryPoint = Entry::ZONE_GOL_MESH_GEN;
+                        zoneGolMeshGenPipeline_ = device_.CreateComputePipeline(&desc);
+                        return zoneGolMeshGenPipeline_ != nullptr;
+                    })) return false;
 
-                    desc.label = "Zone Derive Params";
-                    desc.compute.entryPoint = Entry::ZONE_DERIVE_PARAMS;
-                    zoneDeriveParamsPipeline_ = device_.CreateComputePipeline(&desc);
-                    if (!zoneDeriveParamsPipeline_) return false;
+                    if (!tPipe("zone_derive_params", [&]() {
+                        desc.label = "Zone Derive Params";
+                        desc.compute.entryPoint = Entry::ZONE_DERIVE_PARAMS;
+                        zoneDeriveParamsPipeline_ = device_.CreateComputePipeline(&desc);
+                        return zoneDeriveParamsPipeline_ != nullptr;
+                    })) return false;
                 }
 
                 // Pyramid mesh gen pipeline (dedicated layout, isolated from terrain eval)
@@ -1774,8 +1807,10 @@ namespace t7 {
                     desc.layout = pl;
                     desc.compute.module = shaderModule_;
                     desc.compute.entryPoint = Entry::PYRAMID_MESH_GEN;
-                    pyramidMeshGenPipeline_ = device_.CreateComputePipeline(&desc);
-                    if (!pyramidMeshGenPipeline_) return false;
+                    if (!tPipe("pyramid_mesh_gen", [&]() {
+                        pyramidMeshGenPipeline_ = device_.CreateComputePipeline(&desc);
+                        return pyramidMeshGenPipeline_ != nullptr;
+                    })) return false;
                 }
 
                 // Arch mesh gen pipeline (dedicated layout — bindings 193-195)
@@ -1792,8 +1827,10 @@ namespace t7 {
                     desc.layout = pl;
                     desc.compute.module = shaderModule_;
                     desc.compute.entryPoint = Entry::ARCH_MESH_GEN;
-                    archMeshGenPipeline_ = device_.CreateComputePipeline(&desc);
-                    if (!archMeshGenPipeline_) return false;
+                    if (!tPipe("arch_mesh_gen", [&]() {
+                        archMeshGenPipeline_ = device_.CreateComputePipeline(&desc);
+                        return archMeshGenPipeline_ != nullptr;
+                    })) return false;
                 }
 
                 // Column mesh gen pipeline (dedicated layout — bindings 196-198)
@@ -1810,8 +1847,10 @@ namespace t7 {
                     desc.layout = pl;
                     desc.compute.module = shaderModule_;
                     desc.compute.entryPoint = Entry::COLUMN_MESH_GEN;
-                    columnMeshGenPipeline_ = device_.CreateComputePipeline(&desc);
-                    if (!columnMeshGenPipeline_) return false;
+                    if (!tPipe("column_mesh_gen", [&]() {
+                        columnMeshGenPipeline_ = device_.CreateComputePipeline(&desc);
+                        return columnMeshGenPipeline_ != nullptr;
+                    })) return false;
                 }
 
                 // Palm mesh gen compute pipeline
@@ -1828,8 +1867,10 @@ namespace t7 {
                     desc.layout = pl;
                     desc.compute.module = shaderModule_;
                     desc.compute.entryPoint = Entry::PALM_MESH_GEN;
-                    palmMeshGenPipeline_ = device_.CreateComputePipeline(&desc);
-                    if (!palmMeshGenPipeline_) return false;
+                    if (!tPipe("palm_mesh_gen", [&]() {
+                        palmMeshGenPipeline_ = device_.CreateComputePipeline(&desc);
+                        return palmMeshGenPipeline_ != nullptr;
+                    })) return false;
                 }
 
                 // Cactus mesh gen compute pipeline
@@ -1845,8 +1886,10 @@ namespace t7 {
                     desc.layout = pl;
                     desc.compute.module = shaderModule_;
                     desc.compute.entryPoint = Entry::CACTUS_MESH_GEN;
-                    cactusMeshGenPipeline_ = device_.CreateComputePipeline(&desc);
-                    if (!cactusMeshGenPipeline_) return false;
+                    if (!tPipe("cactus_mesh_gen", [&]() {
+                        cactusMeshGenPipeline_ = device_.CreateComputePipeline(&desc);
+                        return cactusMeshGenPipeline_ != nullptr;
+                    })) return false;
                 }
 
                 // Blade mesh gen compute pipeline
@@ -1862,8 +1905,10 @@ namespace t7 {
                     desc.layout = pl;
                     desc.compute.module = shaderModule_;
                     desc.compute.entryPoint = Entry::BLADE_MESH_GEN;
-                    bladeMeshGenPipeline_ = device_.CreateComputePipeline(&desc);
-                    if (!bladeMeshGenPipeline_) return false;
+                    if (!tPipe("blade_cluster_mesh_gen", [&]() {
+                        bladeMeshGenPipeline_ = device_.CreateComputePipeline(&desc);
+                        return bladeMeshGenPipeline_ != nullptr;
+                    })) return false;
                 }
 
                 return true;
@@ -1932,8 +1977,10 @@ namespace t7 {
                     desc.depthStencil = &depthStencil;
                     desc.fragment = &fragment;
 
-                    patchTerrainPipeline_ = device_.CreateRenderPipeline(&desc);
-                    if (!patchTerrainPipeline_) return false;
+                    if (!tPipe("patch_terrain", [&]() {
+                        patchTerrainPipeline_ = device_.CreateRenderPipeline(&desc);
+                        return patchTerrainPipeline_ != nullptr;
+                    })) return false;
                 }
 
                 // Indirect terrain variant — USE_PATCH_INDIRECTION=true.
@@ -1963,8 +2010,10 @@ namespace t7 {
                     desc.depthStencil = &depthStencil;
                     desc.fragment = &fragment;
 
-                    patchTerrainIndirectPipeline_ = device_.CreateRenderPipeline(&desc);
-                    if (!patchTerrainIndirectPipeline_) return false;
+                    if (!tPipe("patch_terrain_indirect", [&]() {
+                        patchTerrainIndirectPipeline_ = device_.CreateRenderPipeline(&desc);
+                        return patchTerrainIndirectPipeline_ != nullptr;
+                    })) return false;
                 }
 
 
@@ -2010,8 +2059,10 @@ namespace t7 {
                     desc.depthStencil = &depthStencil;
                     desc.fragment = &fragment;
 
-                    zoneExtrusionPipeline_ = device_.CreateRenderPipeline(&desc);
-                    if (!zoneExtrusionPipeline_) return false;
+                    if (!tPipe("zone_extrusion", [&]() {
+                        zoneExtrusionPipeline_ = device_.CreateRenderPipeline(&desc);
+                        return zoneExtrusionPipeline_ != nullptr;
+                    })) return false;
                 }
 
 
@@ -2035,8 +2086,10 @@ namespace t7 {
                     desc.depthStencil = &depthStencil;
                     desc.fragment = &fragment;
 
-                    pawnPipeline_ = device_.CreateRenderPipeline(&desc);
-                    if (!pawnPipeline_) return false;
+                    if (!tPipe("pawn", [&]() {
+                        pawnPipeline_ = device_.CreateRenderPipeline(&desc);
+                        return pawnPipeline_ != nullptr;
+                    })) return false;
                 }
 
 
@@ -2075,14 +2128,18 @@ namespace t7 {
                     desc.depthStencil = &depthStencil;
                     desc.fragment = &fragment;
 
-                    spherePipeline_ = device_.CreateRenderPipeline(&desc);
-                    if (!spherePipeline_) return false;
+                    if (!tPipe("sphere", [&]() {
+                        spherePipeline_ = device_.CreateRenderPipeline(&desc);
+                        return spherePipeline_ != nullptr;
+                    })) return false;
 
-                    // Monolith pipeline — same vertex format, different VS
-                    desc.label = "Monolith Entity (Rasterized)";
-                    desc.vertex.entryPoint = Entry::MONOLITH_VS;
-                    monolithPipeline_ = device_.CreateRenderPipeline(&desc);
-                    if (!monolithPipeline_) return false;
+                    if (!tPipe("monolith", [&]() {
+                        // Monolith pipeline — same vertex format, different VS
+                        desc.label = "Monolith Entity (Rasterized)";
+                        desc.vertex.entryPoint = Entry::MONOLITH_VS;
+                        monolithPipeline_ = device_.CreateRenderPipeline(&desc);
+                        return monolithPipeline_ != nullptr;
+                    })) return false;
                 }
 
                 // Arch pipeline -- catenary arch, ArchVertex (pos+normal+color+arch_index), static world-space
@@ -2126,45 +2183,57 @@ namespace t7 {
                     desc.depthStencil = &depthStencil;
                     desc.fragment = &fragment;
 
-                    archPipeline_ = device_.CreateRenderPipeline(&desc);
-                    if (!archPipeline_) return false;
+                    if (!tPipe("arch", [&]() {
+                        archPipeline_ = device_.CreateRenderPipeline(&desc);
+                        return archPipeline_ != nullptr;
+                    })) return false;
 
-                    // Column pipeline — same vertex format as arch, different VS.
-                    // CullMode::None because the complex profile (walls + discs + shelves)
-                    // has many normal-direction transitions that make consistent winding fragile.
-                    desc.label = "Generative Column (Rasterized)";
-                    desc.vertex.entryPoint = Entry::COLUMN_VS;
-                    desc.primitive.cullMode = wgpu::CullMode::None;
-                    columnPipeline_ = device_.CreateRenderPipeline(&desc);
-                    if (!columnPipeline_) return false;
+                    if (!tPipe("column", [&]() {
+                        // Column pipeline — same vertex format as arch, different VS.
+                        // CullMode::None because the complex profile (walls + discs + shelves)
+                        // has many normal-direction transitions that make consistent winding fragile.
+                        desc.label = "Generative Column (Rasterized)";
+                        desc.vertex.entryPoint = Entry::COLUMN_VS;
+                        desc.primitive.cullMode = wgpu::CullMode::None;
+                        columnPipeline_ = device_.CreateRenderPipeline(&desc);
+                        return columnPipeline_ != nullptr;
+                    })) return false;
 
-                    // Palm pipeline — same vertex format, no backface culling (frond quads are single-sided)
-                    desc.label = "Palm Tree (Rasterized)";
-                    desc.vertex.entryPoint = Entry::PALM_VS;
-                    desc.primitive.cullMode = wgpu::CullMode::None;
-                    palmPipeline_ = device_.CreateRenderPipeline(&desc);
-                    if (!palmPipeline_) return false;
+                    if (!tPipe("palm", [&]() {
+                        // Palm pipeline — same vertex format, no backface culling (frond quads are single-sided)
+                        desc.label = "Palm Tree (Rasterized)";
+                        desc.vertex.entryPoint = Entry::PALM_VS;
+                        desc.primitive.cullMode = wgpu::CullMode::None;
+                        palmPipeline_ = device_.CreateRenderPipeline(&desc);
+                        return palmPipeline_ != nullptr;
+                    })) return false;
 
-                    // Cactus pipeline — same vertex format, no backface culling
-                    desc.label = "Cactus (Rasterized)";
-                    desc.vertex.entryPoint = Entry::CACTUS_VS;
-                    desc.primitive.cullMode = wgpu::CullMode::None;
-                    cactusPipeline_ = device_.CreateRenderPipeline(&desc);
-                    if (!cactusPipeline_) return false;
+                    if (!tPipe("cactus", [&]() {
+                        // Cactus pipeline — same vertex format, no backface culling
+                        desc.label = "Cactus (Rasterized)";
+                        desc.vertex.entryPoint = Entry::CACTUS_VS;
+                        desc.primitive.cullMode = wgpu::CullMode::None;
+                        cactusPipeline_ = device_.CreateRenderPipeline(&desc);
+                        return cactusPipeline_ != nullptr;
+                    })) return false;
 
-                    // Blade cluster pipeline — no backface culling (flat quads visible from both sides)
-                    desc.label = "Blade Cluster (Rasterized)";
-                    desc.vertex.entryPoint = Entry::BLADE_VS;
-                    desc.primitive.cullMode = wgpu::CullMode::None;
-                    bladePipeline_ = device_.CreateRenderPipeline(&desc);
-                    if (!bladePipeline_) return false;
+                    if (!tPipe("blade", [&]() {
+                        // Blade cluster pipeline — no backface culling (flat quads visible from both sides)
+                        desc.label = "Blade Cluster (Rasterized)";
+                        desc.vertex.entryPoint = Entry::BLADE_VS;
+                        desc.primitive.cullMode = wgpu::CullMode::None;
+                        bladePipeline_ = device_.CreateRenderPipeline(&desc);
+                        return bladePipeline_ != nullptr;
+                    })) return false;
 
-                    // Pyramid pipeline — same vertex format as arch/column, Back culling.
-                    desc.label = "Generative Pyramid (Rasterized)";
-                    desc.vertex.entryPoint = Entry::PYRAMID_VS;
-                    desc.primitive.cullMode = wgpu::CullMode::Back;
-                    pyramidPipeline_ = device_.CreateRenderPipeline(&desc);
-                    if (!pyramidPipeline_) return false;
+                    if (!tPipe("pyramid", [&]() {
+                        // Pyramid pipeline — same vertex format as arch/column, Back culling.
+                        desc.label = "Generative Pyramid (Rasterized)";
+                        desc.vertex.entryPoint = Entry::PYRAMID_VS;
+                        desc.primitive.cullMode = wgpu::CullMode::Back;
+                        pyramidPipeline_ = device_.CreateRenderPipeline(&desc);
+                        return pyramidPipeline_ != nullptr;
+                    })) return false;
                 }
 
                 // Shell pipeline -- indoor ceiling + walls, ShellVertex (pos+normal+color), static world-space
@@ -2205,8 +2274,10 @@ namespace t7 {
                     desc.depthStencil = &depthStencil;
                     desc.fragment = &fragment;
 
-                    shellPipeline_ = device_.CreateRenderPipeline(&desc);
-                    if (!shellPipeline_) return false;
+                    if (!tPipe("shell", [&]() {
+                        shellPipeline_ = device_.CreateRenderPipeline(&desc);
+                        return shellPipeline_ != nullptr;
+                    })) return false;
                 }
 
                 // Ribbon pipeline -- sky ribbon, GPU-generated cubes from vertex_index
@@ -2229,8 +2300,10 @@ namespace t7 {
                     desc.depthStencil = &depthStencil;
                     desc.fragment = &fragment;
 
-                    ribbonPipeline_ = device_.CreateRenderPipeline(&desc);
-                    if (!ribbonPipeline_) return false;
+                    if (!tPipe("ribbon", [&]() {
+                        ribbonPipeline_ = device_.CreateRenderPipeline(&desc);
+                        return ribbonPipeline_ != nullptr;
+                    })) return false;
                 }
 
                 // Orb pipeline -- billboarded glowing sprites, additive blended,
@@ -2287,8 +2360,10 @@ namespace t7 {
                     desc.depthStencil = &orbDepth;
                     desc.fragment = &fragment;
 
-                    orbRenderPipeline_ = device_.CreateRenderPipeline(&desc);
-                    if (!orbRenderPipeline_) return false;
+                    if (!tPipe("orb", [&]() {
+                        orbRenderPipeline_ = device_.CreateRenderPipeline(&desc);
+                        return orbRenderPipeline_ != nullptr;
+                    })) return false;
                 }
 
                 // ─── Gallery Frame Pipeline ──────────────────────────────────────
@@ -2337,8 +2412,10 @@ namespace t7 {
                     desc.depthStencil = &galleryDepth;
                     desc.fragment = &frag;
 
-                    galleryFramePipeline_ = device_.CreateRenderPipeline(&desc);
-                    if (!galleryFramePipeline_) return false;
+                    if (!tPipe("gallery_frame", [&]() {
+                        galleryFramePipeline_ = device_.CreateRenderPipeline(&desc);
+                        return galleryFramePipeline_ != nullptr;
+                    })) return false;
 
                     // Shadow Gallery Frame (depth-only, instanced, same layout)
                     {
@@ -2359,8 +2436,10 @@ namespace t7 {
                         sdesc.depthStencil = &shadowDepth;
                         sdesc.fragment = nullptr;
 
-                        shadowGalleryFramePipeline_ = device_.CreateRenderPipeline(&sdesc);
-                        if (!shadowGalleryFramePipeline_) return false;
+                        if (!tPipe("shadow_gallery_frame", [&]() {
+                            shadowGalleryFramePipeline_ = device_.CreateRenderPipeline(&sdesc);
+                            return shadowGalleryFramePipeline_ != nullptr;
+                        })) return false;
                     }
                 }
 
@@ -2404,8 +2483,10 @@ namespace t7 {
                         desc.depthStencil = &wpDepth;
                         desc.fragment = &frag;
 
-                        wallPaintingCanvasPipeline_ = device_.CreateRenderPipeline(&desc);
-                        if (!wallPaintingCanvasPipeline_) return false;
+                        if (!tPipe("wall_painting_canvas", [&]() {
+                            wallPaintingCanvasPipeline_ = device_.CreateRenderPipeline(&desc);
+                            return wallPaintingCanvasPipeline_ != nullptr;
+                        })) return false;
                     }
 
                     // Frame pipeline (solid color)
@@ -2428,8 +2509,10 @@ namespace t7 {
                         desc.depthStencil = &wpDepth;
                         desc.fragment = &frag;
 
-                        wallPaintingFramePipeline_ = device_.CreateRenderPipeline(&desc);
-                        if (!wallPaintingFramePipeline_) return false;
+                        if (!tPipe("wall_painting_frame", [&]() {
+                            wallPaintingFramePipeline_ = device_.CreateRenderPipeline(&desc);
+                            return wallPaintingFramePipeline_ != nullptr;
+                        })) return false;
                     }
 
                     // Shadow wall painting (depth-only, Depth32Float, same gallery layouts)
@@ -2451,8 +2534,10 @@ namespace t7 {
                         desc.depthStencil = &shadowDepth;
                         desc.fragment = nullptr;
 
-                        shadowWallPaintingPipeline_ = device_.CreateRenderPipeline(&desc);
-                        if (!shadowWallPaintingPipeline_) return false;
+                        if (!tPipe("shadow_wall_painting", [&]() {
+                            shadowWallPaintingPipeline_ = device_.CreateRenderPipeline(&desc);
+                            return shadowWallPaintingPipeline_ != nullptr;
+                        })) return false;
                     }
                 }
 
@@ -2495,8 +2580,10 @@ namespace t7 {
                         desc.depthStencil = &shadowDepth;
                         desc.fragment = nullptr;
 
-                        shadowPatchTerrainPipeline_ = device_.CreateRenderPipeline(&desc);
-                        if (!shadowPatchTerrainPipeline_) return false;
+                        if (!tPipe("shadow_patch_terrain", [&]() {
+                            shadowPatchTerrainPipeline_ = device_.CreateRenderPipeline(&desc);
+                            return shadowPatchTerrainPipeline_ != nullptr;
+                        })) return false;
                     }
 
                     // Shadow Pawn (no vertex buffer, vertex_index)
@@ -2513,8 +2600,10 @@ namespace t7 {
                         desc.depthStencil = &shadowDepth;
                         desc.fragment = nullptr;
 
-                        shadowPawnPipeline_ = device_.CreateRenderPipeline(&desc);
-                        if (!shadowPawnPipeline_) return false;
+                        if (!tPipe("shadow_pawn", [&]() {
+                            shadowPawnPipeline_ = device_.CreateRenderPipeline(&desc);
+                            return shadowPawnPipeline_ != nullptr;
+                        })) return false;
                     }
 
                     // Shadow Sphere (MeshVertex buffer)
@@ -2532,8 +2621,10 @@ namespace t7 {
                         desc.depthStencil = &shadowDepth;
                         desc.fragment = nullptr;
 
-                        shadowSpherePipeline_ = device_.CreateRenderPipeline(&desc);
-                        if (!shadowSpherePipeline_) return false;
+                        if (!tPipe("shadow_sphere", [&]() {
+                            shadowSpherePipeline_ = device_.CreateRenderPipeline(&desc);
+                            return shadowSpherePipeline_ != nullptr;
+                        })) return false;
                     }
 
                     // Shadow Monolith (same MeshVertex buffer, different VS)
@@ -2551,8 +2642,10 @@ namespace t7 {
                         desc.depthStencil = &shadowDepth;
                         desc.fragment = nullptr;
 
-                        shadowMonolithPipeline_ = device_.CreateRenderPipeline(&desc);
-                        if (!shadowMonolithPipeline_) return false;
+                        if (!tPipe("shadow_monolith", [&]() {
+                            shadowMonolithPipeline_ = device_.CreateRenderPipeline(&desc);
+                            return shadowMonolithPipeline_ != nullptr;
+                        })) return false;
                     }
 
                     // Shadow Arch (ArchVertex buffer: pos+normal+color+arch_index, stride 40)
@@ -2590,43 +2683,55 @@ namespace t7 {
                         desc.depthStencil = &shadowDepth;
                         desc.fragment = nullptr;
 
-                        shadowArchPipeline_ = device_.CreateRenderPipeline(&desc);
-                        if (!shadowArchPipeline_) return false;
+                        if (!tPipe("shadow_arch", [&]() {
+                            shadowArchPipeline_ = device_.CreateRenderPipeline(&desc);
+                            return shadowArchPipeline_ != nullptr;
+                        })) return false;
 
-                        // Shadow Column — same vertex format, different VS
-                        desc.label = "Shadow Generative Column";
-                        desc.vertex.entryPoint = Entry::SHADOW_COLUMN_VS;
-                        desc.primitive.cullMode = wgpu::CullMode::None;
-                        shadowColumnPipeline_ = device_.CreateRenderPipeline(&desc);
-                        if (!shadowColumnPipeline_) return false;
+                        if (!tPipe("shadow_column", [&]() {
+                            // Shadow Column — same vertex format, different VS
+                            desc.label = "Shadow Generative Column";
+                            desc.vertex.entryPoint = Entry::SHADOW_COLUMN_VS;
+                            desc.primitive.cullMode = wgpu::CullMode::None;
+                            shadowColumnPipeline_ = device_.CreateRenderPipeline(&desc);
+                            return shadowColumnPipeline_ != nullptr;
+                        })) return false;
 
-                        // Shadow Palm — same vertex format, no culling
-                        desc.label = "Shadow Palm Tree";
-                        desc.vertex.entryPoint = Entry::SHADOW_PALM_VS;
-                        desc.primitive.cullMode = wgpu::CullMode::None;
-                        shadowPalmPipeline_ = device_.CreateRenderPipeline(&desc);
-                        if (!shadowPalmPipeline_) return false;
+                        if (!tPipe("shadow_palm", [&]() {
+                            // Shadow Palm — same vertex format, no culling
+                            desc.label = "Shadow Palm Tree";
+                            desc.vertex.entryPoint = Entry::SHADOW_PALM_VS;
+                            desc.primitive.cullMode = wgpu::CullMode::None;
+                            shadowPalmPipeline_ = device_.CreateRenderPipeline(&desc);
+                            return shadowPalmPipeline_ != nullptr;
+                        })) return false;
 
-                        // Shadow Cactus
-                        desc.label = "Shadow Cactus";
-                        desc.vertex.entryPoint = Entry::SHADOW_CACTUS_VS;
-                        desc.primitive.cullMode = wgpu::CullMode::None;
-                        shadowCactusPipeline_ = device_.CreateRenderPipeline(&desc);
-                        if (!shadowCactusPipeline_) return false;
+                        if (!tPipe("shadow_cactus", [&]() {
+                            // Shadow Cactus
+                            desc.label = "Shadow Cactus";
+                            desc.vertex.entryPoint = Entry::SHADOW_CACTUS_VS;
+                            desc.primitive.cullMode = wgpu::CullMode::None;
+                            shadowCactusPipeline_ = device_.CreateRenderPipeline(&desc);
+                            return shadowCactusPipeline_ != nullptr;
+                        })) return false;
 
-                        // Shadow Blade Cluster
-                        desc.label = "Shadow Blade Cluster";
-                        desc.vertex.entryPoint = Entry::SHADOW_BLADE_VS;
-                        desc.primitive.cullMode = wgpu::CullMode::None;
-                        shadowBladePipeline_ = device_.CreateRenderPipeline(&desc);
-                        if (!shadowBladePipeline_) return false;
+                        if (!tPipe("shadow_blade", [&]() {
+                            // Shadow Blade Cluster
+                            desc.label = "Shadow Blade Cluster";
+                            desc.vertex.entryPoint = Entry::SHADOW_BLADE_VS;
+                            desc.primitive.cullMode = wgpu::CullMode::None;
+                            shadowBladePipeline_ = device_.CreateRenderPipeline(&desc);
+                            return shadowBladePipeline_ != nullptr;
+                        })) return false;
 
-                        // Shadow Pyramid — same vertex format, Back culling
-                        desc.label = "Shadow Generative Pyramid";
-                        desc.vertex.entryPoint = Entry::SHADOW_PYRAMID_VS;
-                        desc.primitive.cullMode = wgpu::CullMode::Back;
-                        shadowPyramidPipeline_ = device_.CreateRenderPipeline(&desc);
-                        if (!shadowPyramidPipeline_) return false;
+                        if (!tPipe("shadow_pyramid", [&]() {
+                            // Shadow Pyramid — same vertex format, Back culling
+                            desc.label = "Shadow Generative Pyramid";
+                            desc.vertex.entryPoint = Entry::SHADOW_PYRAMID_VS;
+                            desc.primitive.cullMode = wgpu::CullMode::Back;
+                            shadowPyramidPipeline_ = device_.CreateRenderPipeline(&desc);
+                            return shadowPyramidPipeline_ != nullptr;
+                        })) return false;
                     }
 
                     // Shadow Shell (ShellVertex: pos+normal+color, stride 36)
@@ -2661,8 +2766,10 @@ namespace t7 {
                         desc.depthStencil = &shadowDepth;
                         desc.fragment = nullptr;
 
-                        shadowShellPipeline_ = device_.CreateRenderPipeline(&desc);
-                        if (!shadowShellPipeline_) return false;
+                        if (!tPipe("shadow_shell", [&]() {
+                            shadowShellPipeline_ = device_.CreateRenderPipeline(&desc);
+                            return shadowShellPipeline_ != nullptr;
+                        })) return false;
                     }
 
                     // Shadow Ribbon (no vertex buffer, GPU-generated from vertex_index)
@@ -2679,8 +2786,10 @@ namespace t7 {
                         desc.depthStencil = &shadowDepth;
                         desc.fragment = nullptr;
 
-                        shadowRibbonPipeline_ = device_.CreateRenderPipeline(&desc);
-                        if (!shadowRibbonPipeline_) return false;
+                        if (!tPipe("shadow_ribbon", [&]() {
+                            shadowRibbonPipeline_ = device_.CreateRenderPipeline(&desc);
+                            return shadowRibbonPipeline_ != nullptr;
+                        })) return false;
                     }
 
 
@@ -2719,8 +2828,10 @@ namespace t7 {
                         desc.depthStencil = &shadowDepth;
                         desc.fragment = nullptr;
 
-                        shadowZoneExtrusionPipeline_ = device_.CreateRenderPipeline(&desc);
-                        if (!shadowZoneExtrusionPipeline_) return false;
+                        if (!tPipe("shadow_zone_extrusion", [&]() {
+                            shadowZoneExtrusionPipeline_ = device_.CreateRenderPipeline(&desc);
+                            return shadowZoneExtrusionPipeline_ != nullptr;
+                        })) return false;
                     }
                 }
 
@@ -2766,8 +2877,10 @@ namespace t7 {
                     fadeDepth.depthCompare = wgpu::CompareFunction::Always;
                     desc.depthStencil = &fadeDepth;
 
-                    fadeOverlayPipeline_ = device_.CreateRenderPipeline(&desc);
-                    if (!fadeOverlayPipeline_) return false;
+                    if (!tPipe("fade_overlay", [&]() {
+                        fadeOverlayPipeline_ = device_.CreateRenderPipeline(&desc);
+                        return fadeOverlayPipeline_ != nullptr;
+                    })) return false;
                 }
 
                 return true;
