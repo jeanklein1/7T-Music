@@ -246,14 +246,20 @@ dawn_lib(LIB_SPIRV_TOOLS_OPT    "third_party/spirv-tools/source/opt/Debug/SPIRV-
 # Set INCUBATOR_ONLY=ON during development to hide the main target entirely.
 # The main target pulls ALL cartridges and pollutes IntelliSense.
 
-set(ACTIVE_RENDER_CARTRIDGE "the_board" CACHE STRING "Render cartridge under development")
-set(ACTIVE_ANALYSIS_CARTRIDGE "polyphony_basic" CACHE STRING "Analysis cartridge under development")
+# Per-target cartridge selection. Each incubator target points at its own
+# render cartridge; both share polyphony_basic until a second analysis
+# module exists.
+set(INCUBATOR_RENDER_CARTRIDGE        "the_chord"        CACHE STRING "Render cartridge for the 'incubator' target")
+set(INCUBATOR_ANALYSIS_CARTRIDGE      "polyphony_basic"  CACHE STRING "Analysis cartridge for the 'incubator' target")
+
+set(INCUBATOR_DUAL_RENDER_CARTRIDGE   "the_board"        CACHE STRING "Render cartridge for the 'incubator_dual' target")
+set(INCUBATOR_DUAL_ANALYSIS_CARTRIDGE "polyphony_basic"  CACHE STRING "Analysis cartridge for the 'incubator_dual' target")
 option(INCUBATOR_ONLY "Build only incubator targets (cleaner IntelliSense)" ON)
 
 message(STATUS "")
 message(STATUS "Active cartridges:")
-message(STATUS "  Render:   ${ACTIVE_RENDER_CARTRIDGE}")
-message(STATUS "  Analysis: ${ACTIVE_ANALYSIS_CARTRIDGE}")
+message(STATUS "  incubator      -> render: ${INCUBATOR_RENDER_CARTRIDGE}      analysis: ${INCUBATOR_ANALYSIS_CARTRIDGE}")
+message(STATUS "  incubator_dual -> render: ${INCUBATOR_DUAL_RENDER_CARTRIDGE} analysis: ${INCUBATOR_DUAL_ANALYSIS_CARTRIDGE}")
 message(STATUS "  Incubator only: ${INCUBATOR_ONLY}")
 message(STATUS "")
 
@@ -459,26 +465,32 @@ message(STATUS "")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# INCUBATOR TARGET — Single render cartridge development
+# INCUBATOR TARGET — Analysis + Render cartridge development (the_chord)
 # ═══════════════════════════════════════════════════════════════════════════════
 #
-# Minimal harness for developing individual cartridges.
-# Uses ACTIVE_RENDER_CARTRIDGE — no need to edit source files.
+# Sibling of incubator_dual: same dual-cartridge harness, wired by default
+# to the_chord. Uses INCUBATOR_RENDER_CARTRIDGE / INCUBATOR_ANALYSIS_CARTRIDGE.
 #
 # Build:  cmake --build . --target incubator
-# Run:    ./incubator.exe
+# Run:    ./incubator.exe [optional_midi_file]
 #
 
-# Only the active cartridge's headers → scoped IntelliSense
-file(GLOB_RECURSE INCUBATOR_CARTRIDGE_HEADERS
-    "src/cartridges/${ACTIVE_RENDER_CARTRIDGE}/*.hpp"
+# Only the active cartridges' headers → scoped IntelliSense
+file(GLOB_RECURSE INCUBATOR_RENDER_HEADERS
+    "src/cartridges/${INCUBATOR_RENDER_CARTRIDGE}/*.hpp"
+    "src/cartridges/${INCUBATOR_RENDER_CARTRIDGE}/*.inl"
+    "src/cartridges/${INCUBATOR_RENDER_CARTRIDGE}/*.wgsl"
+)
+file(GLOB_RECURSE INCUBATOR_ANALYSIS_HEADERS
+    "src/analysis/${INCUBATOR_ANALYSIS_CARTRIDGE}/*.hpp"
 )
 
 add_executable(incubator
     src/incubator.cpp
     src/external/stb_image.cpp
     src/external/RtMidi.cpp
-    ${INCUBATOR_CARTRIDGE_HEADERS}
+    ${INCUBATOR_RENDER_HEADERS}
+    ${INCUBATOR_ANALYSIS_HEADERS}
 )
 
 target_include_directories(incubator PRIVATE
@@ -492,7 +504,8 @@ if(MSVC)
     target_compile_options(incubator PRIVATE ${MSVC_COMPILE_OPTS})
     target_compile_definitions(incubator PRIVATE
         ${MSVC_COMPILE_DEFS}
-        INCUBATE=${ACTIVE_RENDER_CARTRIDGE}
+        INCUBATE_RENDER=${INCUBATOR_RENDER_CARTRIDGE}
+        INCUBATE_ANALYSIS=${INCUBATOR_ANALYSIS_CARTRIDGE}
     )
 endif()
 
@@ -510,9 +523,13 @@ add_custom_command(TARGET incubator POST_BUILD
     COMMENT "Copying assets for incubator..."
 )
 
-source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/src/cartridges/${ACTIVE_RENDER_CARTRIDGE}"
-    PREFIX "Active Cartridge"
-    FILES ${INCUBATOR_CARTRIDGE_HEADERS}
+source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/src/cartridges/${INCUBATOR_RENDER_CARTRIDGE}"
+    PREFIX "Render Cartridge"
+    FILES ${INCUBATOR_RENDER_HEADERS}
+)
+source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/src/analysis/${INCUBATOR_ANALYSIS_CARTRIDGE}"
+    PREFIX "Analysis Cartridge"
+    FILES ${INCUBATOR_ANALYSIS_HEADERS}
 )
 
 
@@ -520,8 +537,8 @@ source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/src/cartridges/${ACTIVE_RENDER_CA
 # INCUBATOR DUAL — Analysis + Render cartridge development
 # ═══════════════════════════════════════════════════════════════════════════════
 #
-# Pairs an analysis cartridge with a render cartridge.
-# Uses ACTIVE_ANALYSIS_CARTRIDGE and ACTIVE_RENDER_CARTRIDGE.
+# Pairs an analysis cartridge with a render cartridge (the_board).
+# Uses INCUBATOR_DUAL_ANALYSIS_CARTRIDGE and INCUBATOR_DUAL_RENDER_CARTRIDGE.
 #
 # Build:  cmake --build . --target incubator_dual
 # Run:    ./incubator_dual.exe [optional_midi_file]
@@ -529,10 +546,10 @@ source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/src/cartridges/${ACTIVE_RENDER_CA
 
 # Only the active cartridges' headers → scoped IntelliSense
 file(GLOB_RECURSE DUAL_RENDER_HEADERS
-    "src/cartridges/${ACTIVE_RENDER_CARTRIDGE}/*.hpp"
+    "src/cartridges/${INCUBATOR_DUAL_RENDER_CARTRIDGE}/*.hpp"
 )
 file(GLOB_RECURSE DUAL_ANALYSIS_HEADERS
-    "src/analysis/${ACTIVE_ANALYSIS_CARTRIDGE}/*.hpp"
+    "src/analysis/${INCUBATOR_DUAL_ANALYSIS_CARTRIDGE}/*.hpp"
 )
 
 add_executable(incubator_dual
@@ -554,8 +571,8 @@ if(MSVC)
     target_compile_options(incubator_dual PRIVATE ${MSVC_COMPILE_OPTS})
     target_compile_definitions(incubator_dual PRIVATE
         ${MSVC_COMPILE_DEFS}
-        INCUBATE_RENDER=${ACTIVE_RENDER_CARTRIDGE}
-        INCUBATE_ANALYSIS=${ACTIVE_ANALYSIS_CARTRIDGE}
+        INCUBATE_RENDER=${INCUBATOR_DUAL_RENDER_CARTRIDGE}
+        INCUBATE_ANALYSIS=${INCUBATOR_DUAL_ANALYSIS_CARTRIDGE}
     )
 endif()
 
@@ -573,11 +590,11 @@ add_custom_command(TARGET incubator_dual POST_BUILD
     COMMENT "Copying assets for incubator_dual..."
 )
 
-source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/src/cartridges/${ACTIVE_RENDER_CARTRIDGE}"
+source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/src/cartridges/${INCUBATOR_DUAL_RENDER_CARTRIDGE}"
     PREFIX "Render Cartridge"
     FILES ${DUAL_RENDER_HEADERS}
 )
-source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/src/analysis/${ACTIVE_ANALYSIS_CARTRIDGE}"
+source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/src/analysis/${INCUBATOR_DUAL_ANALYSIS_CARTRIDGE}"
     PREFIX "Analysis Cartridge"
     FILES ${DUAL_ANALYSIS_HEADERS}
 )
@@ -595,9 +612,9 @@ source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/src/analysis/${ACTIVE_ANALYSIS_CA
 # Run:    ./the_lab.exe [optional_midi_file]
 #
 
-# Analysis cartridge headers (same selector as incubator_dual)
+# Analysis cartridge headers (shares the incubator target's analysis cartridge)
 file(GLOB_RECURSE LAB_ANALYSIS_HEADERS
-    "src/analysis/${ACTIVE_ANALYSIS_CARTRIDGE}/*.hpp"
+    "src/analysis/${INCUBATOR_ANALYSIS_CARTRIDGE}/*.hpp"
 )
 
 # ImGui sources (vendored)
@@ -641,7 +658,7 @@ if(MSVC)
     target_compile_options(the_lab PRIVATE ${MSVC_COMPILE_OPTS})
     target_compile_definitions(the_lab PRIVATE
         ${MSVC_COMPILE_DEFS}
-        LAB_ANALYSIS=${ACTIVE_ANALYSIS_CARTRIDGE}
+        LAB_ANALYSIS=${INCUBATOR_ANALYSIS_CARTRIDGE}
         # imgui_impl_wgpu chooses its WebGPU runtime binding via this define
         IMGUI_IMPL_WEBGPU_BACKEND_DAWN
     )
@@ -654,7 +671,7 @@ add_custom_command(TARGET the_lab POST_BUILD
     COMMENT "Copying assets for the_lab..."
 )
 
-source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/src/analysis/${ACTIVE_ANALYSIS_CARTRIDGE}"
+source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/src/analysis/${INCUBATOR_ANALYSIS_CARTRIDGE}"
     PREFIX "Analysis Cartridge"
     FILES ${LAB_ANALYSIS_HEADERS}
 )

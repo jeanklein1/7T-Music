@@ -1,35 +1,49 @@
 /**
- * INCUBATOR — Fast Cartridge Development Harness
- * ================================================
+ * INCUBATOR -- Analysis + Render Cartridge Development Harness
+ * =================================================================
  *
- * Minimal runtime for developing individual cartridges.
- * Change the INCUBATE define → rebuild → see results in seconds.
+ * Standalone sibling of incubator_dual: the same dual-cartridge harness
+ * (analysis + render + hot reload + input routing), wired by default to
+ * the_chord (the couplings lab). Cartridge selection is controlled from
+ * CMakeLists.txt:
  *
- * USAGE:
- *   1. Change INCUBATE below to your target cartridge folder name
- *   2. Build: cmake --build . --target incubator
- *   3. Run, iterate, repeat
+ *   set(INCUBATOR_RENDER_CARTRIDGE   "the_chord")
+ *   set(INCUBATOR_ANALYSIS_CARTRIDGE "polyphony_basic")
+ *
+ * CMake passes these as compile definitions (INCUBATE_RENDER, INCUBATE_ANALYSIS).
+ * No need to edit this file to switch cartridges.
  *
  * CONVENTION:
- *   For this to work, cartridges must follow the naming convention:
+ *   Analysis cartridges:
+ *   | Folder name          | Namespace              | Class  |
+ *   |----------------------|------------------------|--------|
+ *   | polyphony_basic/     | t7::polyphony_basic    | Canvas |
  *
- *   | Folder name          | Namespace             | Class     |
- *   |----------------------|-----------------------|-----------|
- *   | species_studio/      | t7::species_studio    | Cartridge |
- *   | playground_raymarch/ | t7::playground_raymarch| Cartridge |
+ *   Render cartridges:
+ *   | Folder name          | Namespace              | Class     |
+ *   |----------------------|------------------------|-----------|
+ *   | the_chord/     | t7::the_chord    | Cartridge |
  *
- *   Folder name must match namespace name exactly.
+ * INPUT ROUTING:
+ *   - Music keys (A-Z, etc.) -> Analysis cartridge
+ *   - Movement/camera        -> Render cartridge
  */
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// TARGET SELECTION — Change this line to switch cartridges
-// ═══════════════════════════════════════════════════════════════════════════════
+ // =========================================================================
+ // TARGET SELECTION -- Provided by CMake, with fallback for manual override
+ // =========================================================================
 
-#define INCUBATE gallery
+#ifndef INCUBATE_ANALYSIS
+#define INCUBATE_ANALYSIS polyphony_basic
+#endif
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// MACRO MACHINERY — Builds include path and namespace from INCUBATE
-// ═══════════════════════════════════════════════════════════════════════════════
+#ifndef INCUBATE_RENDER
+#define INCUBATE_RENDER the_chord
+#endif
+
+// =========================================================================
+// MACRO MACHINERY -- Builds include paths and namespaces from defines
+// =========================================================================
 
 #define STRINGIFY(x) STRINGIFY2(x)
 #define STRINGIFY2(x) #x
@@ -37,117 +51,206 @@
 #define CONCAT(a, b) CONCAT2(a, b)
 #define CONCAT2(a, b) a ## b
 
-#define CARTRIDGE_HEADER(name) STRINGIFY(cartridges/name/cartridge.hpp)
+#define ANALYSIS_HEADER(name) STRINGIFY(analysis/name/canvas.hpp)
+#define RENDER_HEADER(name)   STRINGIFY(cartridges/name/cartridge.hpp)
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// =========================================================================
 // INCLUDES
-// ═══════════════════════════════════════════════════════════════════════════════
+// =========================================================================
 
 #include "console/console.hpp"
-#include "analysis/analysis_signal.hpp"
 
-// This expands to: #include "cartridges/species_studio/cartridge.hpp"
-#include CARTRIDGE_HEADER(INCUBATE)
+// IntelliSense cannot resolve macro-expanded #include paths.
+// These literal includes give VS navigation (Peek Definition, Go To, etc.).
+// The compiler ignores them -- the macro includes below pull in the same files.
+#if defined(__INTELLISENSE__)
+#include "analysis/polyphony_basic/canvas.hpp"
+#include "cartridges/the_chord/cartridge.hpp"
+#else
+#include ANALYSIS_HEADER(INCUBATE_ANALYSIS)
+#include RENDER_HEADER(INCUBATE_RENDER)
+#endif
 
 #include <iostream>
 #include <GLFW/glfw3.h>
+#include <filesystem>
+#include <chrono>
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// ACTIVE CARTRIDGE TYPE — Derived from INCUBATE
-// ═══════════════════════════════════════════════════════════════════════════════
+// =========================================================================
+// FILE WATCHER -- Detects shader file changes for hot reload
+// =========================================================================
 
-// This expands to: namespace active = t7::species_studio;
-namespace active = t7::INCUBATE;
-
-using ActiveCartridge = active::Cartridge;
-
-// Cartridge name for display
-constexpr const char* CARTRIDGE_NAME = STRINGIFY(INCUBATE);
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// MINIMAL ANALYSIS — Just enough to drive the cartridge
-// ═══════════════════════════════════════════════════════════════════════════════
-
-class MinimalAnalysis {
+class FileWatcher {
 public:
-    MinimalAnalysis() {
-        signal_.clear_stats();
+    void watch(const std::string& path) {
+        path_ = path;
+        if (std::filesystem::exists(path_)) {
+            lastWriteTime_ = std::filesystem::last_write_time(path_);
+        }
     }
-    
-    void update(float dt) {
-        signal_.t_seconds += dt;
-        signal_.dt = dt;
-        signal_.t_beats += dt * 2.0f;  // ~120 BPM
+
+    bool check() {
+        if (path_.empty() || !std::filesystem::exists(path_)) {
+            return false;
+        }
+
+        auto currentTime = std::filesystem::last_write_time(path_);
+        if (currentTime != lastWriteTime_) {
+            lastWriteTime_ = currentTime;
+            return true;
+        }
+        return false;
     }
-    
-    const t7::AnalysisSignal& output() const { return signal_; }
-    
+
 private:
-    t7::AnalysisSignal signal_{};
+    std::string path_;
+    std::filesystem::file_time_type lastWriteTime_;
 };
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// =========================================================================
+// ACTIVE CARTRIDGE TYPES -- Derived from defines
+// =========================================================================
+
+namespace analysis_ns = t7::INCUBATE_ANALYSIS;
+namespace render_ns = t7::INCUBATE_RENDER;
+
+using AnalysisCartridge = analysis_ns::Canvas;
+using RenderCartridge = render_ns::Cartridge;
+
+// Names for display
+constexpr const char* ANALYSIS_NAME = STRINGIFY(INCUBATE_ANALYSIS);
+constexpr const char* RENDER_NAME = STRINGIFY(INCUBATE_RENDER);
+
+// =========================================================================
+// INPUT ROUTING -- Music keys go to analysis, rest to render
+// =========================================================================
+
+static bool is_music_key(int key) {
+    if (key >= GLFW_KEY_A && key <= GLFW_KEY_Z) return true;
+    if (key == GLFW_KEY_SEMICOLON) return true;
+    if (key == GLFW_KEY_LEFT_BRACKET) return true;
+    if (key == GLFW_KEY_RIGHT_BRACKET) return true;
+    return false;
+}
+
+// =========================================================================
 // MAIN
-// ═══════════════════════════════════════════════════════════════════════════════
+// =========================================================================
 
-int main() {
+int main(int argc, char* argv[]) {
     std::cout << "\n";
     std::cout << "========================================\n";
-    std::cout << "  INCUBATOR\n";
-    std::cout << "  Target: " << CARTRIDGE_NAME << "\n";
+    std::cout << "  INCUBATOR (Hot Reload Enabled)\n";
+    std::cout << "  Analysis: " << ANALYSIS_NAME << "\n";
+    std::cout << "  Render:   " << RENDER_NAME << "\n";
     std::cout << "========================================\n";
     std::cout << "\n";
 
-    // ─── Initialize Console ─────────────────────────────────────────────────
+    // --- Initialize Console -------------------------------------------------
     t7::Console console;
     if (!console.init("Incubator", 1280, 720)) {
         std::cerr << "Failed to initialize console\n";
         return 1;
     }
 
-    // ─── Initialize Cartridge ───────────────────────────────────────────────
-    ActiveCartridge cartridge;
-    cartridge.initialize(console.device());
-    
-    if (!cartridge.init_renderer(console.color_format(), console.depth_format())) {
-        std::cerr << "Failed to initialize " << CARTRIDGE_NAME << " renderer\n";
+    // --- Initialize Analysis Cartridge --------------------------------------
+    AnalysisCartridge analysis;
+    analysis.initialize("assets");
+
+    // Optional: load MIDI from command line
+    // Note: Comment out if your analysis cartridge doesn't support load_midi()
+    if (argc > 1) {
+        if (analysis.load_midi(argv[1])) {
+            std::cout << "[Incubator] Loaded MIDI: " << argv[1] << "\n";
+        }
+    }
+
+    std::cout << "[Incubator] " << ANALYSIS_NAME << " analysis ready\n";
+
+    // --- Initialize Render Cartridge ----------------------------------------
+    RenderCartridge render;
+    render.initialize(console.device());
+
+    if (!render.init_renderer(console.color_format(), console.depth_format())) {
+        std::cerr << "Failed to initialize " << RENDER_NAME << " renderer\n";
         return 1;
     }
-    
-    std::cout << "[Incubator] " << CARTRIDGE_NAME << " ready\n\n";
 
-    // ─── Minimal Analysis ───────────────────────────────────────────────────
-    MinimalAnalysis analysis;
+    std::cout << "[Incubator] " << RENDER_NAME << " renderer ready\n";
 
-    // ─── Main Loop ──────────────────────────────────────────────────────────
+    // --- Setup File Watcher -------------------------------------------------
+    FileWatcher watcher;
+    watcher.watch(render.shader_path());
+    std::cout << "[Incubator] Hot reload enabled: " << render.shader_path() << "\n\n";
+    std::cout << "Controls: Arrows=move, Mouse=camera, A-Z=piano keys\n\n";
+
+    int reload_frame_counter = 0;
+    wgpu::Queue queue = console.queue();
+
+    // --- Main Loop ----------------------------------------------------------
     while (console.running()) {
         float dt = console.begin_frame();
-        
-        // ─── Input ──────────────────────────────────────────────────────────
+
+        // --- Hot Reload Check (every ~30 frames) ----------------------------
+        if (++reload_frame_counter >= 30) {
+            reload_frame_counter = 0;
+            std::cout << "." << std::flush;  // Print dot every check
+            if (watcher.check()) {
+                std::cout << "\n[FileWatcher] Change detected!\n";
+                render.reload_shaders();
+            }
+        }
+
+        // --- Input Routing --------------------------------------------------
         for (const auto& event : console.input_events()) {
-            cartridge.on_input(event);
+            if (event.type == t7::InputEvent::Type::KeyDown ||
+                event.type == t7::InputEvent::Type::KeyUp) {
+
+                if (is_music_key(event.key)) {
+                    analysis.on_input(event);
+                }
+                else {
+                    render.on_input(event);
+                }
+            }
+            else {
+                render.on_input(event);
+            }
         }
         console.clear_input_events();
-        
-        // ─── Update ─────────────────────────────────────────────────────────
+
+        // --- Update ---------------------------------------------------------
         analysis.update(dt);
-        wgpu::Queue queue = console.queue();
-        cartridge.update(analysis.output(), console.aspect_ratio(), queue);
-        
-        // ─── Render ─────────────────────────────────────────────────────────
+
+        // Debug: print abbott/costello/louise polyphony every 0.5s
+        static float debug_accum = 0.0f;
+        debug_accum += dt;
+        if (debug_accum >= 0.5f) {
+            debug_accum = 0.0f;
+            float a = analysis.output().stat(0, analysis_ns::STAT_POLYPHONY_ABBOTT);
+            float c = analysis.output().stat(1, analysis_ns::STAT_POLYPHONY_COSTELLO);
+            float l = analysis.output().stat(2, analysis_ns::STAT_POLYPHONY_LOUISE);
+            std::cout << "\n[mc] abbott=" << a
+                      << " costello=" << c
+                      << " louise=" << l << "\n";
+        }
+
+        render.update(analysis.output(), console.aspect_ratio(), queue);
+
+        // --- Render ---------------------------------------------------------
         if (!console.acquire_surface_texture()) {
             continue;
         }
-        
+
         wgpu::CommandEncoderDescriptor encDesc{};
         wgpu::CommandEncoder encoder = console.device().CreateCommandEncoder(&encDesc);
-        
-        cartridge.render(encoder, console.backbuffer(), console.depth_view());
-        
+
+        render.render(encoder, console.backbuffer(), console.depth_view());
+
         wgpu::CommandBufferDescriptor cmdDesc{};
         wgpu::CommandBuffer commands = encoder.Finish(&cmdDesc);
         queue.Submit(1, &commands);
-        
+
         console.present();
     }
 
