@@ -352,7 +352,7 @@ struct AgentPopulationDef {
 // counting zeros.
 static constexpr AgentPopulationDef AGENT_POPULATIONS[MOOD_COUNT] = {
     /* MOOD_OPEN_DEFAULT — desert travelers (BiasedWalk) */
-    { /*mood_id=*/ MOOD_OPEN_DEFAULT, /*count=*/ 10,
+    { /*mood_id=*/ MOOD_OPEN_DEFAULT, /*count=*/ 0,
       //                       player rwalk  bwalk wandr hseek slowp pursu  flee flock  levy
       /*behavior_weights=*/ {    0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
       //                     worker scout sentl leadr
@@ -361,7 +361,7 @@ static constexpr AgentPopulationDef AGENT_POPULATIONS[MOOD_COUNT] = {
       /*spawn_radius=*/       340.0f,
       /*home_seeding_radius=*/ 5.0f },
     /* MOOD_OPEN_SUNSET — Scout-heavy travelers (BiasedWalk) */
-    { /*mood_id=*/ MOOD_OPEN_SUNSET, /*count=*/ 10,
+    { /*mood_id=*/ MOOD_OPEN_SUNSET, /*count=*/ 0,
       //                       player rwalk  bwalk wandr hseek slowp pursu  flee flock  levy
       /*behavior_weights=*/ {    0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
       //                     worker scout sentl leadr
@@ -370,7 +370,7 @@ static constexpr AgentPopulationDef AGENT_POPULATIONS[MOOD_COUNT] = {
       /*spawn_radius=*/       340.0f,
       /*home_seeding_radius=*/ 8.0f },
     /* MOOD_INDOOR_FLAT — gallery walkers (SlowPatrol) */
-    { /*mood_id=*/ MOOD_INDOOR_FLAT, /*count=*/ 4,
+    { /*mood_id=*/ MOOD_INDOOR_FLAT, /*count=*/ 0,
       //                       player rwalk  bwalk wandr hseek slowp pursu  flee flock  levy
       /*behavior_weights=*/ {    0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f },
       //                     worker scout sentl leadr
@@ -379,7 +379,7 @@ static constexpr AgentPopulationDef AGENT_POPULATIONS[MOOD_COUNT] = {
       /*spawn_radius=*/       60.0f,
       /*home_seeding_radius=*/ 30.0f },
     /* MOOD_INDOOR_VAULT — gallery walkers (SlowPatrol) */
-    { /*mood_id=*/ MOOD_INDOOR_VAULT, /*count=*/ 4,
+    { /*mood_id=*/ MOOD_INDOOR_VAULT, /*count=*/ 0,
       //                       player rwalk  bwalk wandr hseek slowp pursu  flee flock  levy
       /*behavior_weights=*/ {    0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f },
       //                     worker scout sentl leadr

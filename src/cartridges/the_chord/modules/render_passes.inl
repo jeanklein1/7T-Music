@@ -174,20 +174,13 @@ void dispatch_compute(wgpu::CommandEncoder& encoder) {
         gpuState_.compute_entity_group()
     );
 
-    // Player kernel runs first: the walker policy updates
-    // the possessed slot's position. The other-agents kernel
-    // then sees the player's current-frame position when it
-    // computes eviction distances.
+    // Player kernel: the walker policy updates the possessed slot's
+    // position. (the_chord drops the algorithmic agent population, so
+    // there is no other-agents kernel.)
     renderer_.dispatch_update_player_agent(
         compute,
         gpuState_.compute_entity_group(),
         gpuState_.compute_texture_group()   // aura + sampler for POLICY_WALKER
-    );
-
-    renderer_.dispatch_update_other_agents(
-        compute,
-        gpuState_.compute_entity_group(),
-        gpuState_.compute_texture_group()   // aura + sampler for POLICY_WALKER_AGENT
     );
 
     renderer_.dispatch_update_camera(

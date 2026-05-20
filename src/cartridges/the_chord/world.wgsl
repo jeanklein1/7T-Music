@@ -3101,8 +3101,8 @@ fn compose_camera_position_from_orbit(aim_point: vec3<f32>, cam: CameraState) ->
     return look_at + offset;
 }
 
-// §5.1 0D COMPOSITION — Now split into 5 entry points (§7.1):
-//   update_terrain_config, update_player_agent, update_other_agents,
+// §5.1 0D COMPOSITION — Now split into entry points (§7.1):
+//   update_terrain_config, update_player_agent,
 //   update_camera, update_sphere
 struct VPMatrix {
     m: mat4x4<f32>,
@@ -5850,40 +5850,26 @@ fn behavior_levy_flight(agent_in: AgentState) -> AgentState {
 
 // ═══ KERNELS ═════════════════════════════════════════════════════
 //
-// Two compute kernels share the agent state buffer:
+// One compute kernel drives the agent state buffer:
 //   update_player_agent  — 0D (1 thread, the possessed slot only).
 //                          Walker policy + portal trigger + tilt.
 //                          Compile cost contained by isolation.
-//   update_other_agents  — 1D (32 threads, one per slot).
-//                          Algorithmic behaviors + eviction.
-//                          Skips the possessed slot internally.
-// Order matters: dispatch player BEFORE other_agents so the player's
-// updated position is visible to neighbor-sampling behaviors in the
-// same frame.
+// the_chord drops the algorithmic agent population, so the_board's
+// 32-thread non-possessed kernel is not built here.
 
 // ─── Compute kernels ─────────────────────────────────────────────
 //
-// The agent kernel is split in two for FXC compile-time reasons.
-// The original unified kernel placed behavior_player_controlled
-// (heavy: walker policy, step-climb, tilt, full contributor chain)
-// and behavior_random_walk (light: single agent-policy ground snap)
-// in a single switch statement. FXC inlines both branch bodies for
-// every one of 32 dispatched threads, producing a pipeline compile
-// that landed at 48s. Adding more algorithmic behaviors would
-// compound the cost.
+// the_board split the agent kernel in two for FXC compile-time
+// reasons: a unified kernel inlined the heavy walker policy
+// (behavior_player_controlled) for all 32 dispatched threads, landing
+// at a 48s pipeline compile. The split isolated the possessed slot:
 //
-// Split shape:
 //   update_player_agent   — 1 thread. Only the possessed slot, only
 //                           behavior_player_controlled. The walker
 //                           policy is compiled once, for one slot.
-//   update_other_agents   — 32 threads. All non-possessed slots,
-//                           behavior switch for algorithmic behaviors.
-//                           The walker policy is NOT inlined here.
 //
-// Dispatch order: player first, then others. The player's updated
-// position becomes the eviction reference for this frame's other
-// agents. Matches the semantic "the player moves, the world adjusts
-// around them."
+// the_chord keeps only this player kernel; the algorithmic agent
+// population (and its 32-thread non-possessed kernel) is stripped.
 //
 // MAX_AGENTS = 32 — must stay in sync with Dim::MAX_AGENTS.
 //
@@ -5952,53 +5938,6 @@ fn update_player_agent() {
 
     // The player is never evicted — their slot is the reference
     // frame for eviction, not subject to it.
-    agent_state[slot] = agent;
-}
-
-// ─── Other-agents kernel ─────────────────────────────────────────
-// 32 threads, one per slot. Skips the possessed slot (handled by
-// update_player_agent). Runs algorithmic behaviors only — the heavy
-// walker-policy path never inlines here.
-@compute @workgroup_size(32)
-fn update_other_agents(@builtin(global_invocation_id) gid: vec3<u32>) {
-    if (!dynamics_0d_active()) { return; }
-
-    let slot = gid.x;
-    if (slot >= 32u) { return; }
-    if (slot == config.possessed_slot) { return; }   // handled separately
-
-    var agent = agent_state[slot];
-    if (agent.is_active == 0u) { return; }
-
-    switch agent.behavior_id {
-        // Behavior 0 (PlayerControlled) should never appear in a
-        // non-possessed slot. If it does (stale state, bug), treat
-        // as no-op rather than run the heavy walker path from the
-        // wrong kernel.
-        case 0u: { /* no-op */ }
-        case 1u: { agent = behavior_random_walk(agent); }
-        case 2u: { agent = behavior_biased_walk(agent); }
-        case 3u: { agent = behavior_wanderer(agent); }
-        case 4u: { agent = behavior_home_seeker(agent); }
-        case 5u: { agent = behavior_slow_patrol(agent); }
-        case 6u: { agent = behavior_pursuit(agent); }
-        case 7u: { agent = behavior_flee(agent); }
-        case 8u: { agent = behavior_flock2d(agent); }
-        case 9u: { agent = behavior_levy_flight(agent); }
-        default: { /* unknown behavior — no-op */ }
-    }
-
-    // Player-centered eviction. Non-player agents that wander too far
-    // from the possessed slot are deactivated; the CPU readback path
-    // detects them on the next frame and respawns fresh agents in a
-    // disk around the player.
-    let pp = agent_state[config.possessed_slot];
-    let dx = agent.pos_x - pp.pos_x;
-    let dz = agent.pos_z - pp.pos_z;
-    if (dx * dx + dz * dz > AGENT_EVICTION_RADIUS_SQ) {
-        agent.is_active = 0u;
-    }
-
     agent_state[slot] = agent;
 }
 

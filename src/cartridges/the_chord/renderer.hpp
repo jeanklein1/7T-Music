@@ -9,7 +9,6 @@
 //   Pipeline                    Dimension    Purpose
 //   update_terrain_config       0D (1,1,1)   terrain amplitude from polyphony
 //   update_player_agent         0D (1,1,1)   walker policy for possessed slot only (compile-cost contained)
-//   update_other_agents         1D (1,1,1)×32 algorithmic behaviors for non-possessed slots + eviction
 //   update_camera               0D (1,1,1)   camera from input + pawn state
 //   update_sphere               0D (1,1,1)   sphere orbit + color
 //   compute_vp                  0D (1,1,1)   VP matrix from camera state
@@ -57,7 +56,6 @@ namespace t7 {
             // Compute — split world update (ordered by dependency)
             constexpr const char* UPDATE_TERRAIN_CONFIG = "update_terrain_config";  // 0D
             constexpr const char* UPDATE_PLAYER_AGENT = "update_player_agent";        // 0D (1 thread, possessed slot)
-            constexpr const char* UPDATE_OTHER_AGENTS = "update_other_agents";        // 1D (32 threads, non-possessed slots)
             constexpr const char* UPDATE_CAMERA = "update_camera";                  // 0D
             constexpr const char* UPDATE_SPHERE = "update_sphere";                  // 0D
             constexpr const char* UPDATE_CUBE = "update_cube";                      // 0D
@@ -214,7 +212,6 @@ namespace t7 {
             // Compute pipelines -- per-frame (split world update)
             wgpu::ComputePipeline updateTerrainConfigPipeline_;  // 0D
             wgpu::ComputePipeline updatePlayerAgentPipeline_;    // 0D (1 thread, possessed slot)
-            wgpu::ComputePipeline updateOtherAgentsPipeline_;    // 1D (32 threads, non-possessed)
             wgpu::ComputePipeline updateCameraPipeline_;         // 0D
             wgpu::ComputePipeline updateSpherePipeline_;         // 0D
             wgpu::ComputePipeline updateCubePipeline_;           // 0D
@@ -403,10 +400,9 @@ namespace t7 {
             // ORDER MATTERS: each pass may read what the previous pass wrote.
             //   1. update_terrain_config -- 0D (signal → terrain amplitude)
             //   2. update_player_agent   -- 0D (input → player slot, walker policy)
-            //   3. update_other_agents   -- 1D (32 slots → algorithmic behaviors + eviction)
-            //   4. update_camera         -- 0D (input/pawn → camera state)
-            //   5. update_sphere         -- 0D (time/signal → sphere + tint)
-            //   6. compute_vp            -- 0D VP matrix (reads camera, writes vp_data)
+            //   3. update_camera         -- 0D (input/pawn → camera state)
+            //   4. update_sphere         -- 0D (time/signal → sphere + tint)
+            //   5. compute_vp            -- 0D VP matrix (reads camera, writes vp_data)
 
             void dispatch_update_terrain_config(
                 wgpu::ComputePassEncoder& pass,
@@ -418,9 +414,7 @@ namespace t7 {
             }
 
             // Player kernel: 1 thread, runs the walker policy for the
-            // possessed slot only. Should be dispatched BEFORE
-            // dispatch_update_other_agents so the player's updated
-            // position is the eviction reference for this frame.
+            // possessed slot only.
             void dispatch_update_player_agent(
                 wgpu::ComputePassEncoder& pass,
                 wgpu::BindGroup entityBindGroup,
@@ -430,20 +424,6 @@ namespace t7 {
                 pass.SetBindGroup(0, entityBindGroup);
                 pass.SetBindGroup(1, textureBindGroup);   // live-contributor textures (POLICY_WALKER)
                 pass.DispatchWorkgroups(1, 1, 1);         // 1 workgroup × 1 thread = the possessed slot
-            }
-
-            // Other-agents kernel: 32 threads, one per slot, runs
-            // algorithmic behaviors for non-possessed slots and handles
-            // eviction. Skips the possessed slot internally.
-            void dispatch_update_other_agents(
-                wgpu::ComputePassEncoder& pass,
-                wgpu::BindGroup entityBindGroup,
-                wgpu::BindGroup textureBindGroup
-            ) {
-                pass.SetPipeline(updateOtherAgentsPipeline_);
-                pass.SetBindGroup(0, entityBindGroup);
-                pass.SetBindGroup(1, textureBindGroup);   // live-contributor textures (POLICY_WALKER_AGENT aura)
-                pass.DispatchWorkgroups(1, 1, 1);         // 1 workgroup × 32 threads = all non-player slots
             }
 
             void dispatch_update_camera(
@@ -1395,9 +1375,9 @@ namespace t7 {
                 // query_ground_flyer / query_ground_walker. Group 0 is the
                 // same compute-entity layout; Group 1 adds the aura texture +
                 // sampler needed by sample_pawn_aura on the compute path.
-                // Used by update_sphere, update_cube (POLICY_FLYER),
-                // update_player_agent (POLICY_WALKER), and update_other_agents
-                // (POLICY_WALKER_AGENT — same texture binding for sample_pawn_aura).
+                // Used by update_sphere, update_cube (POLICY_FLYER), and
+                // update_player_agent (POLICY_WALKER — same texture binding
+                // for sample_pawn_aura).
                 // Created here (before any pipeline that needs it) so the kernel
                 // can reach it during behavior dispatch.
                 std::array<wgpu::BindGroupLayout, 2> liveContribLayouts = {
@@ -1434,21 +1414,6 @@ namespace t7 {
                     desc.compute.entryPoint = Entry::UPDATE_PLAYER_AGENT;
                     updatePlayerAgentPipeline_ = device_.CreateComputePipeline(&desc);
                     return updatePlayerAgentPipeline_ != nullptr;
-                    })) return false;
-
-                // Pipeline 1c: update_other_agents (1D, 32 threads — non-possessed slots)
-                // Live-contributor layout — query_ground_walker_agent reads aura
-                // grid via contrib_pawn_aura_at_external → sample_pawn_aura.
-                // The walker-policy heavy path is NOT inlined here; algorithmic
-                // behaviors only.
-                if (!tPipe("update_other_agents", [&]() {
-                    wgpu::ComputePipelineDescriptor desc{};
-                    desc.label = "Update Other Agents (1D, 32 threads)";
-                    desc.layout = liveContribComputeLayout;
-                    desc.compute.module = shaderModule_;
-                    desc.compute.entryPoint = Entry::UPDATE_OTHER_AGENTS;
-                    updateOtherAgentsPipeline_ = device_.CreateComputePipeline(&desc);
-                    return updateOtherAgentsPipeline_ != nullptr;
                     })) return false;
 
                 // Pipeline 1c: update_camera (0D)
