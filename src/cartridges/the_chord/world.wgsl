@@ -6122,69 +6122,10 @@ fn cube_force_stationary() -> vec3<f32> {
     return vec3<f32>(0.0, 0.0, 0.0);
 }
 
-// ─ Force: CurlField ──────────────────────────────────────────────
-// Velocity sampled from a 2D curl-noise field: organic XZ drift, no
-// neighbor lookups. Coordination knob lerps between high spatial
-// frequency (every cube samples a different point — individual drift)
-// and low spatial frequency (neighbors share samples — flock-coherent
-// drift). The curl of a scalar sin·cos field is analytical, so we
-// avoid finite-difference noise sampling and stay cheap.
-fn cube_force_curlfield(rest_xz: vec2<f32>, t: f32, coordination: f32) -> vec3<f32> {
-    let freq_high  = 0.040;   // ~150-unit period — neighbors decorrelate
-    let freq_low   = 0.005;   // ~1250-unit period — neighbors coherent
-    let amplitude  = 12.0;    // force magnitude (10× spring) for visible drift
-    let time_scale = 0.25;    // 1/s — slow evolution so motion feels organic
-
-    // Lerp frequency by coordination. At 0 the population looks like
-    // independent drifters; at 1 it looks like a coherent eddy field.
-    let k = mix(freq_high, freq_low, coordination);
-    let phase_t = t * time_scale;
-
-    // Two octaves of analytical curl, summed for richer structure.
-    // Curl of sin(kx)·cos(kz) is (-k·sin(kx)·sin(kz), -k·cos(kx)·cos(kz)).
-    let p1 = rest_xz * k + vec2<f32>(phase_t, phase_t * 0.7);
-    let p2 = rest_xz * (k * 2.3) + vec2<f32>(phase_t * 1.3, phase_t * 0.4);
-
-    let v1 = vec2<f32>(-sin(p1.x) * sin(p1.y), -cos(p1.x) * cos(p1.y));
-    let v2 = vec2<f32>(-sin(p2.x) * sin(p2.y), -cos(p2.x) * cos(p2.y)) * 0.5;
-
-    let v = (v1 + v2) * amplitude;
-    return vec3<f32>(v.x, 0.0, v.y);
-}
-
-// ─ Force: PhaseWave ──────────────────────────────────────────────
-// Vertical sinusoid whose phase is a function of position. At
-// coordination=1, every cube uses k_x·rest.x + k_z·rest.z, producing
-// a traveling wavefront across the population. At coordination=0,
-// every cube uses its own behavior_phase, producing uncorrelated
-// vertical bobbing. Drone-show primitive.
-fn cube_force_phasewave(rest_xz: vec2<f32>, t: f32, behavior_phase: u32, coordination: f32) -> vec3<f32> {
-    let k_x        = 0.020;   // wavefront spatial frequency in X
-    let k_z        = 0.012;   // and Z (asymmetric so the wave isn't axis-aligned)
-    let omega      = 1.5;     // 1/s — wave temporal frequency
-    let amplitude  = 30.0;    // force magnitude — pushes cubes vertically
-
-    // Convert per-slot u32 hash to [0, 2π) for individual phase.
-    let phase_individual = f32(behavior_phase & 0xFFFFu) * (6.283185 / 65536.0);
-    let phase_shared     = k_x * rest_xz.x + k_z * rest_xz.y;
-
-    // Lerp the phase by coordination. At 1 the field reads as a
-    // coherent traveling wave; at 0 each cube oscillates on its own.
-    let phase = mix(phase_individual, phase_shared, coordination) + omega * t;
-
-    return vec3<f32>(0.0, sin(phase) * amplitude, 0.0);
-}
-
 // ─ Dispatch ──────────────────────────────────────────────────────
-// Switch by behavior_id. New behaviors land here as additional cases
-// alongside their authoring registry rows in modules/cube_behaviors.inl.
+// the_chord: behavior dispatch collapsed to stationary; curlfield/phasewave removed for pipeline cost.
 fn cube_behavior_force(fe: FloatingEntityState, t: f32, pawn_xz: vec2<f32>, coordination: f32) -> vec3<f32> {
-    let rest_xz = vec2<f32>(fe.anchor.x, fe.anchor.z);
-    switch (fe.behavior_id) {
-        case 1u: { return cube_force_curlfield(rest_xz, t, coordination); }
-        case 2u: { return cube_force_phasewave(rest_xz, t, fe.behavior_phase, coordination); }
-        default: { return cube_force_stationary(); }
-    }
+    return cube_force_stationary();
 }
 
 @compute @workgroup_size(1)
