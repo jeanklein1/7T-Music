@@ -373,6 +373,18 @@ namespace t7 {
                 if (!createRenderPipelines()) return false;
                 auto t2 = std::chrono::high_resolution_clock::now();
 
+                // Sorted bottleneck leaderboard
+                {
+                    auto sorted = pipelineTimings_;
+                    std::sort(sorted.begin(), sorted.end(),
+                        [](const PipelineTiming& a, const PipelineTiming& b) { return a.ms > b.ms; });
+                    std::cout << "\n[Renderer] Pipelines by compile time (descending):\n";
+                    for (const auto& t : sorted) {
+                        std::cout << "  " << std::setw(8) << t.ms << " ms  " << t.label << "\n";
+                    }
+                    std::cout << "\n";
+                }
+
                 std::cout << "[Renderer] Compute pipelines: "
                     << std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count() << " ms\n";
                 std::cout << "[Renderer] Render pipelines:  "
