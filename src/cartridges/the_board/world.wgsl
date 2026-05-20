@@ -834,6 +834,8 @@ struct RibbonRingTransform {
     terrain_y: f32,         // tile-modified terrain height at center XZ
 }
 
+// #TODO[ribbon-decouple] DELETE this comment + the RibbonMusicHistory
+//   struct below. Step 4. (No BOM — keep WGSL BOM-free.)
 // Ribbon music history (ring buffer for smooth propagation).
 // 128 samples × ~16.67ms/slot = ~2.13 s of coverage at 60 fps. The
 // CPU writes the current smoothed music value into samples[head_idx]
@@ -4157,6 +4159,10 @@ fn shadow_shell_vs(in: ShellVertexInput) -> ShadowVarying {
     return out;
 }
 
+// #TODO[ribbon-decouple] EDIT this §6.5 header: drop the music-related
+//   paragraphs (items "2. MUSIC propagation", the wave-speed/history/binding
+//   paragraphs) and rename the section to "§6.5 SKY RIBBON ENTITY". Keep
+//   the baseline standing-wave description. Step 4.
 // §6.5 SKY RIBBON ENTITY — hybrid propagation model
 // A continuous square-section tube with two coexisting wave systems,
 // both propagating HEAD → TAIL:
@@ -4194,6 +4200,9 @@ fn shadow_shell_vs(in: ShellVertexInput) -> ShadowVarying {
 // pass samples music_at() and passes the result in. Render fallbacks
 // pass 0.0 (silent-music equivalent).
 
+// #TODO[ribbon-decouple] DELETE all four ribbon-music constants in this
+//   region: RIBBON_WAVE_SPEED, RIBBON_HISTORY_N, RIBBON_HISTORY_SLOT_DT,
+//   RIBBON_MUSIC_AMP_GAIN (and their comments). Step 4.
 // Wave speed: propagation rate of music modulation along the ribbon.
 const RIBBON_WAVE_SPEED: f32 = 750.0;
 
@@ -4207,6 +4216,8 @@ const RIBBON_HISTORY_SLOT_DT: f32 = 0.01666667;  // 1/60 s
 // authored amplitudes; 1.5 = 2.5×. Mirror of ribbon.inl constant.
 const RIBBON_MUSIC_AMP_GAIN: f32 = 1.5;
 
+// #TODO[ribbon-decouple] DELETE both functions here: sample_history_slot()
+//   and music_at(). They are the only readers of ribbon_music_history. Step 4.
 // Sample one slot of the ring buffer by index — small helper used
 // by music_at() for the two endpoints of its lerp.
 fn sample_history_slot(slot: u32) -> f32 {
@@ -4233,6 +4244,11 @@ fn music_at(age_seconds: f32) -> f32 {
 // (compute pass) sampled music_factor at age = t × travel_time, so
 // the amplitude envelope across the ribbon mirrors the music's recent
 // history — head's response shows at the head first, propagates down.
+// #TODO[ribbon-decouple] Step 4: remove the `music_factor: f32` parameter
+//   from this signature; delete the `amp_mult` line below; and drop the
+//   `* amp_mult` factor from lateral, vertical, twist_depth, twist_vert so
+//   the authored amplitudes are used directly. Also trim the music wording
+//   from this function's doc comment above.
 fn ribbon_spine_at(t: f32, ribbon: RibbonState, music_factor: f32) -> vec3<f32> {
     let total_length = f32(ribbon.cube_count) * ribbon.cube_size;
     let time = ribbon.time;
@@ -4266,6 +4282,8 @@ fn ribbon_spine_at(t: f32, ribbon: RibbonState, music_factor: f32) -> vec3<f32> 
 
 // Tangent direction at parameter t (central finite difference).
 // Same music_factor at both samples — locally constant within one eps.
+// #TODO[ribbon-decouple] Step 4: remove `music_factor` from this signature
+//   and from both ribbon_spine_at(...) calls below.
 fn ribbon_tangent_at(t: f32, ribbon: RibbonState, music_factor: f32) -> vec3<f32> {
     let eps = 0.0005;
     return normalize(ribbon_spine_at(t + eps, ribbon, music_factor) - ribbon_spine_at(t - eps, ribbon, music_factor));
@@ -4279,6 +4297,8 @@ fn ribbon_tangent_at(t: f32, ribbon: RibbonState, music_factor: f32) -> vec3<f32
 //   1. heading_rotor: Y-axis rotation by orientation angle
 //      — maps (1,0,0) → (cos(θ),0,sin(θ)), always well-defined
 //      — angle is always small because the tangent tracks the heading
+// #TODO[ribbon-decouple] Step 4: remove `music_factor` from this signature
+//   and from the ribbon_spine_at / ribbon_tangent_at calls below.
 fn ribbon_ring_motor(ring_idx: u32, ribbon: RibbonState, music_factor: f32) -> Motor {
     let t = f32(ring_idx) / f32(max(ribbon.cube_count - 1u, 1u));
     let center = ribbon_spine_at(t, ribbon, music_factor);
@@ -4356,6 +4376,11 @@ fn compute_ribbon_rings(@builtin(global_invocation_id) gid: vec3<u32>) {
         return;
     }
 
+    // #TODO[ribbon-decouple] Step 4: delete the music coupling comment block
+    //   below AND the locals `t`, `total_length`, `travel_time`, `age`,
+    //   `music_factor` (lines through music_at). They exist only for music;
+    //   `t` and `total_length` become dead once `age`/`travel_time` go.
+    //   Then change the motor call to `ribbon_ring_motor(ring_idx, ribbon)`.
     // Compute PGA motor (translate + orient along spine).
     //
     // Musical coupling, hybrid model: each ring samples music_at(age)
@@ -4475,6 +4500,9 @@ fn ribbon_vs(@builtin(vertex_index) vid: u32) -> EntityVarying {
     if (xform_valid) {
         motor = Motor(xform.motor_p0, xform.motor_p1);
     } else {
+        // #TODO[ribbon-decouple] Step 4: drop the third arg ->
+        //   ribbon_ring_motor(ring_idx, ribbon); trim the music wording
+        //   from this comment.
         // Fallback rare: only fires before compute_ribbon_rings has
         // run for the current frame. Pass music_factor = 0.0 (silent
         // equivalent) — render layout doesn't bind the music history.
@@ -4570,6 +4598,7 @@ fn shadow_ribbon_vs(@builtin(vertex_index) vid: u32) -> ShadowVarying {
     if (xform_valid) {
         motor = Motor(xform.motor_p0, xform.motor_p1);
     } else {
+        // #TODO[ribbon-decouple] Step 4: drop the third arg -> ribbon_ring_motor(ring_idx, ribbon).
         motor = ribbon_ring_motor(ring_idx, ribbon, 0.0);  // see ribbon_vs note
     }
     var world_pos = sw_mp(motor, local_pos);
@@ -4704,6 +4733,8 @@ const GROUND_ATLAS_BLADE: i32    = 100;
 // time" of each ring. NOT bound to render layouts: the render-side VSs
 // read pre-computed motors from ring_xforms and never need to sample
 // music directly. Spine math functions take music as a pure parameter.
+// #TODO[ribbon-decouple] DELETE this @binding(122) declaration. Must stay in
+//   sync with the state.hpp layout/bind-group entries[4] removals. Step 4.
 @group(0) @binding(122) var<uniform> ribbon_music_history: RibbonMusicHistory;
 
 // --- Light system (Group 0: render, bindings 320-339)

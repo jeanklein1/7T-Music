@@ -323,6 +323,10 @@ static constexpr const char* RIBBON_COLOR_NAMES[] = {
 static constexpr uint32_t MAX_RIBBON_INSTANCES = 1;  // single-render; raise when GPU supports multi-ribbon
 static constexpr float    RIBBON_MAX_LENGTH = 700.0f;
 
+// #TODO[ribbon-decouple] DELETE this entire comment block (through line ~348)
+//   AND the four constants below (RIBBON_HISTORY_N, RIBBON_HISTORY_SLOT_DT,
+//   RIBBON_MUSIC_INTENSITY_ATTACK, RIBBON_MUSIC_INTENSITY_RELEASE).
+//   Step 1 of ribbon music-coupling removal.
 // ── Musical coupling (hybrid propagation model) ──────────────────
 //
 // The ribbon's BASELINE shape (standing-wave swimming) is preserved
@@ -389,6 +393,9 @@ struct RibbonState {
     // (read by mood.inl::apply_mood).
     float          mood_offset[2] = { 0.0f, 0.0f };
 
+    // #TODO[ribbon-decouple] DELETE this comment + the three fields below
+    //   (music_history, history_head_idx, history_accum). RibbonState
+    //   keeps only its procedural/geometry fields. Step 1.
     // ── Musical coupling state — ring buffer ──
     // music_history[history_head_idx] is the newest sample (current
     // music). Going backward modulo N gives older samples; oldest is
@@ -747,6 +754,12 @@ static RotorDiag ribbon_rotor_diag(const float tangent[3]) {
 }
 
 
+// #TODO[ribbon-decouple] DELETE this whole function (tick_ribbon_couplings)
+//   and its header comment block. It is the only writer of the music
+//   ring buffer and the only caller of set_ribbon_music_history. Step 1.
+//   NOTE: the file's top-of-file public-surface comment block (lines ~12-37)
+//   does NOT mention this function or music — so that sub-step of Step 1
+//   is a verified no-op; nothing to remove there.
 // ═══ MUSICAL COUPLING — ring-buffer write, head_idx advance ══════
 //
 // Per-frame: smooth polyphony, write current value to slots[head_idx],

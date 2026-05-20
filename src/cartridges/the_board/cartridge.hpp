@@ -3274,6 +3274,11 @@ namespace t7 {
                 //   architectural exemplar for future per-frame couplings.
                 update_orb_coupling(orbs_state_, this, signal.stats[0], signal.dt, queue);
 
+                // #TODO[ribbon-decouple] DELETE this comment + the call below.
+                //   Step 2. No exclusive local setup to remove — signal.stats[0],
+                //   signal.dt, queue are all used by neighboring calls
+                //   (update_orb_coupling above, update_orb_anchor below), so they
+                //   stay in scope.
                 // Ribbon musical coupling: head→tail intensity propagation.
                 // Polyphony enters at the head; tick eases each station
                 // toward its upstream neighbor each frame; WGSL ribbon_spine_at

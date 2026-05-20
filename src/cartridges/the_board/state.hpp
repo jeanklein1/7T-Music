@@ -700,6 +700,8 @@ namespace t7 {
         };
         static_assert(sizeof(GPURibbonRingTransform) == 48, "GPURibbonRingTransform must be 48 bytes");
 
+        // #TODO[ribbon-decouple] DELETE this comment + the GPURibbonMusicHistory
+        //   struct and its static_assert (through line ~716). Step 3.
         // Ribbon music history — ring buffer for smooth propagation.
         // 128 samples × ~16.67ms/slot ≈ 2.13 s of coverage at 60 fps.
         // CPU writes current music to samples[head_idx] every frame and
@@ -1507,6 +1509,7 @@ namespace t7 {
             wgpu::Buffer cameraBuffer_, floatingEntityBuffer_, trajectoriesBuffer_;
             wgpu::Buffer ribbonBuffer_;
             wgpu::Buffer ringTransformsBuffer_;
+            // #TODO[ribbon-decouple] DELETE this buffer member. Step 3.
             wgpu::Buffer ribbonMusicHistoryBuffer_;   // propagation-first coupling: 16-slot music history (binding 122)
             // (bindings 21, 40 reserved — formerly proximity_field, cell_states)
             wgpu::Buffer pierBuffer_;   // unified pier instances (Storage | CopyDst)
@@ -1858,6 +1861,8 @@ namespace t7 {
                 queue.WriteBuffer(ribbonBuffer_, 0, &ribbon, sizeof(GPURibbonState));
             }
 
+            // #TODO[ribbon-decouple] DELETE this entire method
+            //   (set_ribbon_music_history, through its closing brace). Step 3.
             // Musical coupling: ring buffer of recent music values for the
             // ribbon's propagation coupling. CPU calls this every frame
             // with the full samples array + the current head_idx. WGSL
@@ -2844,6 +2849,7 @@ namespace t7 {
                 ringTransformsBuffer_ = makeBuffer("Ring Transforms",
                     sizeof(GPURibbonRingTransform) * Dim::RIBBON_MAX_RINGS,
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::CopySrc);
+                // #TODO[ribbon-decouple] DELETE this buffer creation (3 lines). Step 3.
                 ribbonMusicHistoryBuffer_ = makeBuffer("Ribbon Music History",
                     sizeof(GPURibbonMusicHistory),
                     SU | wgpu::BufferUsage::Uniform);
@@ -2932,6 +2938,9 @@ namespace t7 {
                     patchHeightScratchBuffer_ &&
                     photographerVPBuffer_ && photographerCameraBuffer_ &&
                     photographerConfigBuffer_ && paintingSlotsBuffer_ &&
+                    // #TODO[ribbon-decouple] REMOVE the `ribbonMusicHistoryBuffer_ &&`
+                    //   term from this validity check (it references the deleted
+                    //   member). Straggler not called out in the prompt. Step 3.
                     portalArrayBuffer_ && ribbonReadbackStaging_ && ribbonMusicHistoryBuffer_ &&
                     frustumIndirectLOD0_ && frustumComputeBuffer_ && visiblePatchIndicesBuffer_;
             }
@@ -4097,6 +4106,9 @@ namespace t7 {
                 // Pre-computes ring transforms: motor + terrain_y for each ring.
                 // Runs BEFORE update_world so pawn overlay can read results.
                 //
+                // #TODO[ribbon-decouple] REMOVE @122 here. Concretely: change the
+                //   array size 5 -> 4, delete the entries[4] (binding 122) block
+                //   below, and trim the @122 mention from this comment. Step 3.
                 // Bindings: tile_grid @25, pier_instances @26, ribbon_state @120,
                 // ring_xforms @121, ribbon_music_history @122 (propagation-first
                 // music coupling — compute-only, not on render layouts).
@@ -4119,6 +4131,7 @@ namespace t7 {
                     entries[3].visibility = wgpu::ShaderStage::Compute;
                     entries[3].buffer.type = wgpu::BufferBindingType::Storage;
 
+                    // #TODO[ribbon-decouple] DELETE this entries[4] block (binding 122). Step 3.
                     entries[4].binding = 122;  // ribbon_music_history (musical coupling)
                     entries[4].visibility = wgpu::ShaderStage::Compute;
                     entries[4].buffer.type = wgpu::BufferBindingType::Uniform;
@@ -5037,6 +5050,9 @@ namespace t7 {
                     if (!patchGenBindGroup_) return false;
                 }
 
+                // #TODO[ribbon-decouple] REMOVE @122 here too: change array size
+                //   5 -> 4, delete the entries[4] (binding 122) block below, and
+                //   fix this comment ("4 entries", drop "+ music history"). Step 3.
                 // Ribbon compute bind group (5 entries: dedicated ring transform pass + music history)
                 {
                     std::array<wgpu::BindGroupEntry, 5> entries{};
@@ -5057,6 +5073,7 @@ namespace t7 {
                     entries[3].buffer = ringTransformsBuffer_;
                     entries[3].size = sizeof(GPURibbonRingTransform) * Dim::RIBBON_MAX_RINGS;
 
+                    // #TODO[ribbon-decouple] DELETE this entries[4] block (binding 122). Step 3.
                     entries[4].binding = 122; // ribbon_music_history (matches @binding(122))
                     entries[4].buffer = ribbonMusicHistoryBuffer_;
                     entries[4].size = sizeof(GPURibbonMusicHistory);
