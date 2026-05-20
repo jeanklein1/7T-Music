@@ -1266,20 +1266,6 @@ static void render_snapshot_pass(GalleryState& gs, Cartridge* c, wgpu::CommandEn
             GPUState::ribbon_vertex_count());
     }
 
-    c->renderer_.draw_arch(pass,
-        c->gpuState_.photographer_render_entity_group(),
-        c->gpuState_.render_texture_group(),
-        c->gpuState_.arch_vertex_buffer(),
-        c->gpuState_.arch_index_buffer(),
-        c->gpuState_.arch_index_count());
-
-    c->renderer_.draw_column(pass,
-        c->gpuState_.photographer_render_entity_group(),
-        c->gpuState_.render_texture_group(),
-        c->gpuState_.column_vertex_buffer(),
-        c->gpuState_.column_index_buffer(),
-        c->gpuState_.column_index_count());
-
     c->renderer_.draw_shell(pass,
         c->gpuState_.photographer_render_entity_group(),
         c->gpuState_.render_texture_group(),

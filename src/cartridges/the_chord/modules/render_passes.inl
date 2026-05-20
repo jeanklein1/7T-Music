@@ -371,51 +371,6 @@ void draw_shadow_all(wgpu::RenderPassEncoder& pass) {
         );
     }
 
-    renderer_.draw_shadow_arch(
-        pass,
-        gpuState_.render_entity_group(),
-        gpuState_.shadow_texture_group(),
-        gpuState_.arch_vertex_buffer(),
-        gpuState_.arch_index_buffer(),
-        gpuState_.arch_index_count()
-    );
-
-    renderer_.draw_shadow_column(
-        pass,
-        gpuState_.render_entity_group(),
-        gpuState_.shadow_texture_group(),
-        gpuState_.column_vertex_buffer(),
-        gpuState_.column_index_buffer(),
-        gpuState_.column_index_count()
-    );
-
-    renderer_.draw_shadow_palm(
-        pass,
-        gpuState_.render_entity_group(),
-        gpuState_.shadow_texture_group(),
-        gpuState_.palm_vertex_buffer(),
-        gpuState_.palm_index_buffer(),
-        gpuState_.palm_index_count()
-    );
-
-    renderer_.draw_shadow_cactus(
-        pass,
-        gpuState_.render_entity_group(),
-        gpuState_.shadow_texture_group(),
-        gpuState_.cactus_vertex_buffer(),
-        gpuState_.cactus_index_buffer(),
-        gpuState_.cactus_index_count()
-    );
-
-    renderer_.draw_shadow_blade(
-        pass,
-        gpuState_.render_entity_group(),
-        gpuState_.shadow_texture_group(),
-        gpuState_.blade_vertex_buffer(),
-        gpuState_.blade_index_buffer(),
-        gpuState_.blade_index_count()
-    );
-
     renderer_.draw_shadow_shell(
         pass,
         gpuState_.render_entity_group(),
@@ -524,51 +479,6 @@ void render_main_pass(wgpu::CommandEncoder& encoder,
         gpuState_.monolith_vertex_buffer(),
         gpuState_.monolith_index_buffer(),
         gpuState_.monolith_index_count()
-    );
-
-    renderer_.draw_arch(
-        pass,
-        gpuState_.render_entity_group(),
-        gpuState_.render_texture_group(),
-        gpuState_.arch_vertex_buffer(),
-        gpuState_.arch_index_buffer(),
-        gpuState_.arch_index_count()
-    );
-
-    renderer_.draw_column(
-        pass,
-        gpuState_.render_entity_group(),
-        gpuState_.render_texture_group(),
-        gpuState_.column_vertex_buffer(),
-        gpuState_.column_index_buffer(),
-        gpuState_.column_index_count()
-    );
-
-    renderer_.draw_palm(
-        pass,
-        gpuState_.render_entity_group(),
-        gpuState_.render_texture_group(),
-        gpuState_.palm_vertex_buffer(),
-        gpuState_.palm_index_buffer(),
-        gpuState_.palm_index_count()
-    );
-
-    renderer_.draw_cactus(
-        pass,
-        gpuState_.render_entity_group(),
-        gpuState_.render_texture_group(),
-        gpuState_.cactus_vertex_buffer(),
-        gpuState_.cactus_index_buffer(),
-        gpuState_.cactus_index_count()
-    );
-
-    renderer_.draw_blade(
-        pass,
-        gpuState_.render_entity_group(),
-        gpuState_.render_texture_group(),
-        gpuState_.blade_vertex_buffer(),
-        gpuState_.blade_index_buffer(),
-        gpuState_.blade_index_count()
     );
 
     renderer_.draw_shell(

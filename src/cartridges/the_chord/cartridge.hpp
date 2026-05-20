@@ -1001,22 +1001,13 @@ namespace t7 {
             static bool dispatch_prepare_mesh_pyramid(Cartridge* self, wgpu::Queue& queue) {
                 return prepare_pyramid_mesh_gen(self->entities_state_, self, queue);
             }
-            static void dispatch_mesh_gen_pyramid(Cartridge* self, wgpu::ComputePassEncoder& pass) {
-                self->renderer_.dispatch_pyramid_mesh_gen(pass, self->gpuState_.pyramid_mesh_gen_group());
-            }
 
             static bool dispatch_prepare_mesh_arch(Cartridge* self, wgpu::Queue& queue) {
                 return prepare_arch_mesh_gen(self->entities_state_, self, queue);
             }
-            static void dispatch_mesh_gen_arch(Cartridge* self, wgpu::ComputePassEncoder& pass) {
-                self->renderer_.dispatch_arch_mesh_gen(pass, self->gpuState_.arch_mesh_gen_group());
-            }
 
             static bool dispatch_prepare_mesh_column(Cartridge* self, wgpu::Queue& queue) {
                 return prepare_column_mesh_gen(self->entities_state_, self, queue);
-            }
-            static void dispatch_mesh_gen_column(Cartridge* self, wgpu::ComputePassEncoder& pass) {
-                self->renderer_.dispatch_column_mesh_gen(pass, self->gpuState_.column_mesh_gen_group());
             }
 
             // ── Eviction dispatch wrappers ──
@@ -1102,9 +1093,6 @@ namespace t7 {
             static bool dispatch_prepare_mesh_palm(Cartridge* self, wgpu::Queue& queue) {
                 return prepare_palm_mesh_gen(self->entities_state_, self, queue);
             }
-            static void dispatch_mesh_gen_palm(Cartridge* self, wgpu::ComputePassEncoder& pass) {
-                self->renderer_.dispatch_palm_mesh_gen(pass, self->gpuState_.palm_mesh_gen_group());
-            }
 
             static void dispatch_evict_cactus(Cartridge* self,
                 uint32_t slot, wgpu::Queue& queue)
@@ -1124,9 +1112,6 @@ namespace t7 {
             static bool dispatch_prepare_mesh_cactus(Cartridge* self, wgpu::Queue& queue) {
                 return prepare_cactus_mesh_gen(self->entities_state_, self, queue);
             }
-            static void dispatch_mesh_gen_cactus(Cartridge* self, wgpu::ComputePassEncoder& pass) {
-                self->renderer_.dispatch_cactus_mesh_gen(pass, self->gpuState_.cactus_mesh_gen_group());
-            }
 
             static void dispatch_evict_blade(Cartridge* self,
                 uint32_t slot, wgpu::Queue& queue)
@@ -1143,9 +1128,6 @@ namespace t7 {
 
             static bool dispatch_prepare_mesh_blade(Cartridge* self, wgpu::Queue& queue) {
                 return prepare_blade_mesh_gen(self->entities_state_, self, queue);
-            }
-            static void dispatch_mesh_gen_blade(Cartridge* self, wgpu::ComputePassEncoder& pass) {
-                self->renderer_.dispatch_blade_mesh_gen(pass, self->gpuState_.blade_mesh_gen_group());
             }
 
             static void dispatch_evict_sphere(Cartridge* self,
@@ -1397,27 +1379,42 @@ namespace t7 {
             // Depends on entity_pipeline.inl (cube_write_gpu seeds behavior_phase).
 #include "modules/cube_behaviors.inl"
 
+            // ── No-op dispatch stubs (the_chord) ──
+            // Cut entity families (PYRAMID, ARCH, COLUMN, ANTENNA, PALM,
+            // CACTUS, BLADE) keep their PopFamily slots (enum unchanged,
+            // COUNT=12) but route every dispatch step to these no-ops so
+            // they never spawn, place, commit, evict, or mesh-gen. Their
+            // GPU pipelines were removed in the Pass-3 strip; their CPU
+            // state and GPU buffers remain as dead-but-valid allocations
+            // (see deferral note on state.hpp).
+            static bool dispatch_select_noop(Cartridge*, int32_t, int32_t, EntityQueueEntry&) { return false; }
+            static bool dispatch_place_noop(Cartridge*, EntityQueueEntry&, PlacementEntry&) { return false; }
+            static void dispatch_commit_noop(Cartridge*, PlacementEntry&, wgpu::Queue&) {}
+            static void dispatch_evict_noop(Cartridge*, uint32_t, wgpu::Queue&) {}
+            static bool dispatch_prepare_mesh_noop(Cartridge*, wgpu::Queue&) { return false; }
+            static void dispatch_mesh_gen_noop(Cartridge*, wgpu::ComputePassEncoder&) {}
+
             static constexpr FamilyDispatch FAMILY_DISPATCH[PopFamily::COUNT] = {
-                { dispatch_select_pyramid_generic, dispatch_place_pyramid_generic, dispatch_commit_pyramid_generic,
-                  dispatch_evict_pyramid, dispatch_prepare_mesh_pyramid, dispatch_mesh_gen_pyramid,
+                { dispatch_select_noop, dispatch_place_noop, dispatch_commit_noop,
+                  dispatch_evict_noop, dispatch_prepare_mesh_noop, dispatch_mesh_gen_noop,
                   "pyr" },
-                { dispatch_select_arch_generic, dispatch_place_arch_generic, dispatch_commit_arch_generic,
-                  dispatch_evict_arch,    dispatch_prepare_mesh_arch,    dispatch_mesh_gen_arch,
+                { dispatch_select_noop, dispatch_place_noop, dispatch_commit_noop,
+                  dispatch_evict_noop, dispatch_prepare_mesh_noop, dispatch_mesh_gen_noop,
                   "arch" },
-                { dispatch_select_column_generic, dispatch_place_column_generic, dispatch_commit_column_generic,
-                  dispatch_evict_column,  dispatch_prepare_mesh_column,  dispatch_mesh_gen_column,
+                { dispatch_select_noop, dispatch_place_noop, dispatch_commit_noop,
+                  dispatch_evict_noop, dispatch_prepare_mesh_noop, dispatch_mesh_gen_noop,
                   "col" },
-                { dispatch_select_antenna_generic, dispatch_place_antenna_generic, dispatch_commit_antenna_generic,
-                  dispatch_evict_antenna, dispatch_prepare_mesh_column,  dispatch_mesh_gen_column,
+                { dispatch_select_noop, dispatch_place_noop, dispatch_commit_noop,
+                  dispatch_evict_noop, dispatch_prepare_mesh_noop, dispatch_mesh_gen_noop,
                   "ant" },
-                { dispatch_select_palm_generic, dispatch_place_palm_generic, dispatch_commit_palm_generic,
-                  dispatch_evict_palm,   dispatch_prepare_mesh_palm,   dispatch_mesh_gen_palm,
+                { dispatch_select_noop, dispatch_place_noop, dispatch_commit_noop,
+                  dispatch_evict_noop, dispatch_prepare_mesh_noop, dispatch_mesh_gen_noop,
                   "palm" },
-                { dispatch_select_cactus_generic, dispatch_place_cactus_generic, dispatch_commit_cactus_generic,
-                  dispatch_evict_cactus, dispatch_prepare_mesh_cactus, dispatch_mesh_gen_cactus,
+                { dispatch_select_noop, dispatch_place_noop, dispatch_commit_noop,
+                  dispatch_evict_noop, dispatch_prepare_mesh_noop, dispatch_mesh_gen_noop,
                   "cact" },
-                { dispatch_select_blade_generic, dispatch_place_blade_generic, dispatch_commit_blade_generic,
-                  dispatch_evict_blade, dispatch_prepare_mesh_blade, dispatch_mesh_gen_blade,
+                { dispatch_select_noop, dispatch_place_noop, dispatch_commit_noop,
+                  dispatch_evict_noop, dispatch_prepare_mesh_noop, dispatch_mesh_gen_noop,
                   "blad" },
                 { dispatch_select_sphere_generic, dispatch_place_sphere_generic, dispatch_commit_sphere_generic,
                   dispatch_evict_sphere, dispatch_prepare_mesh_sphere, dispatch_mesh_gen_sphere,
