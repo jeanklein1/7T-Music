@@ -490,18 +490,6 @@ void render_main_pass(wgpu::CommandEncoder& encoder,
         gpuState_.shell_index_count()
     );
 
-    // Wall-mounted framed paintings (indoor)
-    renderer_.draw_wall_paintings(
-        pass,
-        gpuState_.gallery_entity_group(),
-        gpuState_.gallery_texture_group(),
-        gallery_state_.wall_frame_count
-    );
-
-    // Pyramids: terrain surface IS the pyramid shape (via the baked
-    // heightfield, which caches POLICY_BAKED_HEIGHTFIELD = static
-    // base + pyramids). No separate mesh draw needed.
-
     if (ribbon_state_.rendered_slot != UINT32_MAX) {
         renderer_.draw_ribbon(
             pass,
@@ -510,14 +498,6 @@ void render_main_pass(wgpu::CommandEncoder& encoder,
             GPUState::ribbon_vertex_count()
         );
     }
-
-    // Gallery frames (self-portrait paintings on terrain)
-    renderer_.draw_gallery_frames(
-        pass,
-        gpuState_.gallery_entity_group(),
-        gpuState_.gallery_texture_group(),
-        gallery_state_.active_painting_count
-    );
 
     // Sky orbs (additive, depth-tested, depth-write off).
     // After opaque entities so they depth-test correctly; before

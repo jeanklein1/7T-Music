@@ -7375,58 +7375,6 @@ fn build_lookat_vp(eye: vec3<f32>, aim_pt: vec3<f32>, fov_rad: f32, aspect: f32)
 // --- Photographer VP Compute (camera only — entity placement is separate)
 // Dispatched only on snapshot frames. Builds the photographer camera VP
 // and light VP for the snapshot render pass.
-@compute @workgroup_size(1)
-fn compute_photographer_vp() {
-    let cfg = photographer_config;
-    let pawn_pos = compute_pawn_pos();
-
-    // --- Camera position: spherical offset from pawn
-    let cos_el = cos(cfg.elevation);
-    let sin_el = sin(cfg.elevation);
-    let cos_az = cos(cfg.azimuth);
-    let sin_az = sin(cfg.azimuth);
-
-    let eye_raw = pawn_pos + vec3(
-        cfg.distance * cos_el * sin_az,
-        cfg.distance * sin_el + 1.5,
-        cfg.distance * cos_el * cos_az
-    );
-
-    // --- Clamp camera above actual terrain (O(1) patch_grid lookup).
-    //
-    // POLICY_BAKED_HEIGHTFIELD consumer (texture variant).
-    // Same trade-off as the primary camera: the compute_photographer_vp
-    // pipeline's bind group does not include live-contributor
-    // resources, so this uses the cached heightfield (static_base +
-    // pyramids only). See update_camera for the rationale.
-    let terrain_at_cam = sample_terrain_y_at(eye_raw.xz);
-    let eye = vec3(eye_raw.x, max(eye_raw.y, terrain_at_cam + 0.1), eye_raw.z);
-
-    // --- Build VP looking at pawn, with frame offset
-    let aim_base = pawn_pos + vec3(0.0, 1.0, 0.0);
-
-    // Derive camera frame from initial eye→pawn direction
-    let fwd_init = normalize(aim_base - eye);
-    var world_up_init = vec3(0.0, 1.0, 0.0);
-    if (abs(fwd_init.y) > 0.99) { world_up_init = vec3(0.0, 0.0, 1.0); }
-    let right_init = normalize(cross(fwd_init, world_up_init));
-    let up_init = cross(right_init, fwd_init);
-
-    // Scale offset by FOV angular extent at the pawn's distance
-    let half_fov = cfg.fov_rad * 0.5;
-    let cam_to_pawn = length(aim_base - eye);
-    let h_extent = tan(half_fov) * cam_to_pawn * cfg.aspect_ratio;
-    let v_extent = tan(half_fov) * cam_to_pawn;
-
-    // Shift aim point — camera looks away from pawn, placing pawn off-center
-    let aim_pt = aim_base
-        - right_init * cfg.frame_offset_x * h_extent
-        - up_init * cfg.frame_offset_y * v_extent;
-
-    photographer_vp.m = build_lookat_vp(eye, aim_pt, cfg.fov_rad, cfg.aspect_ratio);
-    photographer_vp.light_vp = coupling_pawn_to_sun_vp(pawn_pos, cfg.sun_direction);
-    photographer_camera_out.pos = eye;
-}
 
 // --- Entity Placement Y-Correction
 //
@@ -7763,158 +7711,11 @@ fn deform_gallery_frame(local: vec3<f32>, uv: vec2<f32>, seed: f32) -> vec3<f32>
     return p;
 }
 
-// --- Vertex Shader
-@vertex
-fn gallery_frame_vs(
-    @builtin(vertex_index) vid: u32,
-    @builtin(instance_index) iid: u32,
-) -> GalleryVarying {
-    var out: GalleryVarying;
-    let slot = painting_slots[iid];
-
-    // Skip inactive or wall-frame slots (only terrain quads drawn here)
-    if (slot.is_active == 0u || slot.form_type != FORM_TERRAIN_QUAD) {
-        out.clip_pos = vec4(0.0, 0.0, 0.0, 1.0);
-        out.uv = vec2(0.0);
-        out.world_pos = vec3(0.0);
-        out.world_normal = vec3(0.0, 1.0, 0.0);
-        out.texture_layer = 0u;
-        return out;
-    }
-
-    // Decode vid into grid vertex on the subdivided quad
-    let N = GALLERY_QUAD_N;
-    let tri_in_quad = vid / 3u;
-    let vert_in_tri = vid % 3u;
-    let quad_idx = tri_in_quad / 2u;
-    let second_tri = tri_in_quad % 2u;
-    let qx = quad_idx % N;
-    let qy = quad_idx / N;
-
-    // Grid vertex offsets within the quad cell
-    //   Triangle 0: (0,0) (1,0) (0,1)
-    //   Triangle 1: (1,0) (1,1) (0,1)
-    var dx: u32; var dy: u32;
-    if (second_tri == 0u) {
-        switch (vert_in_tri) {
-            case 0u: { dx = 0u; dy = 0u; }
-            case 1u: { dx = 1u; dy = 0u; }
-            default: { dx = 0u; dy = 1u; }
-        }
-    } else {
-        switch (vert_in_tri) {
-            case 0u: { dx = 1u; dy = 0u; }
-            case 1u: { dx = 1u; dy = 1u; }
-            default: { dx = 0u; dy = 1u; }
-        }
-    }
-
-    let gx = qx + dx;
-    let gy = qy + dy;
-    let uv = vec2(f32(gx) / f32(N), f32(gy) / f32(N));
-
-    // Local-space position: centered, scaled
-    var local = vec3(
-        (uv.x - 0.5) * slot.scale_x,
-        (uv.y - 0.5) * slot.scale_y,
-        0.0
-    );
-
-    // Apply seed-driven deformation
-    local = deform_gallery_frame(local, uv, slot.geometry_seed);
-
-    // Build local-to-world rotation from slot orientation vectors
-    let fwd = normalize(slot.forward);
-    let up_raw = normalize(slot.up);
-    let right = normalize(cross(up_raw, fwd));
-    let up = cross(fwd, right);
-
-    // Transform to world space
-    let world = slot.position + right * local.x + up * local.y + fwd * local.z;
-
-    out.clip_pos = render_vp.m * vec4(world, 1.0);
-    out.uv = vec2(uv.x, 1.0 - uv.y);
-    out.world_pos = world;
-    out.world_normal = fwd;
-    out.texture_layer = slot.texture_layer;
-    return out;
-}
 
 // §8.1.1 GALLERY FRAME SHADOW — depth-only pass for terrain-quad paintings
 // Same instanced subdivided quad geometry, projected through light_vp.
 
-@vertex
-fn shadow_gallery_frame_vs(
-    @builtin(vertex_index) vid: u32,
-    @builtin(instance_index) iid: u32,
-) -> ShadowVarying {
-    var out: ShadowVarying;
-    let slot = painting_slots[iid];
 
-    if (slot.is_active == 0u || slot.form_type != FORM_TERRAIN_QUAD) {
-        out.clip_pos = vec4(0.0, 0.0, 0.0, 1.0);
-        return out;
-    }
-
-    let N = GALLERY_QUAD_N;
-    let tri_in_quad = vid / 3u;
-    let vert_in_tri = vid % 3u;
-    let quad_idx = tri_in_quad / 2u;
-    let second_tri = tri_in_quad % 2u;
-    let qx = quad_idx % N;
-    let qy = quad_idx / N;
-
-    var dx: u32; var dy: u32;
-    if (second_tri == 0u) {
-        switch (vert_in_tri) {
-            case 0u: { dx = 0u; dy = 0u; }
-            case 1u: { dx = 1u; dy = 0u; }
-            default: { dx = 0u; dy = 1u; }
-        }
-    } else {
-        switch (vert_in_tri) {
-            case 0u: { dx = 1u; dy = 0u; }
-            case 1u: { dx = 1u; dy = 1u; }
-            default: { dx = 0u; dy = 1u; }
-        }
-    }
-
-    let gx = qx + dx;
-    let gy = qy + dy;
-    let uv = vec2(f32(gx) / f32(N), f32(gy) / f32(N));
-
-    var local = vec3(
-        (uv.x - 0.5) * slot.scale_x,
-        (uv.y - 0.5) * slot.scale_y,
-        0.0
-    );
-    local = deform_gallery_frame(local, uv, slot.geometry_seed);
-
-    let fwd = normalize(slot.forward);
-    let up_raw = normalize(slot.up);
-    let right = normalize(cross(up_raw, fwd));
-    let up = cross(fwd, right);
-    let world = slot.position + right * local.x + up * local.y + fwd * local.z;
-
-    out.clip_pos = render_vp.light_vp * vec4(world, 1.0);
-    return out;
-}
-
-// --- Fragment Shader
-@fragment
-fn gallery_frame_fs(in: GalleryVarying) -> @location(0) vec4<f32> {
-    let painting_color = textureSample(painting_array, painting_sampler_filt, in.uv, in.texture_layer);
-    if (painting_color.a < 0.01) { discard; }
-
-    var color = painting_color.rgb;
-
-    // Distance fog only (scene consistency — paintings far away dissolve into fog)
-    let dist = distance(in.world_pos, render_camera.pos);
-    let fog = 1.0 - exp(-dist * config.fog_density);
-    color = mix(color, config.fog_color, fog);
-
-    return vec4(color, 1.0);
-}
 
 
 // §8.2 WALL-MOUNTED FRAMED PAINTINGS — reads from unified painting_slots
@@ -8064,88 +7865,12 @@ fn compute_wall_painting_geometry(
     return out;
 }
 
-@vertex
-fn wall_painting_vs(@builtin(vertex_index) vid: u32) -> WallPaintingVarying {
-    let pidx = vid / PAINTING_FRAME_VERTS_PER;
-    let local_vid = vid % PAINTING_FRAME_VERTS_PER;
 
-    if (pidx >= PAINTING_MAX_SLOTS) {
-        var out: WallPaintingVarying;
-        out.clip_pos = vec4(0.0); out.world_pos = vec3(0.0);
-        out.normal = vec3(0.0, 0.0, 1.0); out.uv = vec2(0.0);
-        out.painting_index = 0u; out.is_canvas = 0u; out.frame_color = vec3(0.0);
-        return out;
-    }
 
-    let slot = painting_slots[pidx];
-
-    // Skip inactive or terrain-quad slots
-    if (slot.is_active == 0u || slot.form_type != FORM_WALL_FRAME) {
-        var out: WallPaintingVarying;
-        out.clip_pos = vec4(0.0); out.world_pos = vec3(0.0);
-        out.normal = vec3(0.0, 0.0, 1.0); out.uv = vec2(0.0);
-        out.painting_index = 0u; out.is_canvas = 0u; out.frame_color = vec3(0.0);
-        return out;
-    }
-
-    var out = compute_wall_painting_geometry(slot, pidx, local_vid);
-    out.world_pos.y += contrib_terrain_waves_at(out.world_pos.xz);
-    out.clip_pos = render_vp.m * vec4(out.world_pos, 1.0);
-    return out;
-}
-
-@fragment
-fn wall_painting_canvas_fs(in: WallPaintingVarying) -> @location(0) vec4<f32> {
-    if (in.is_canvas == 0u) { discard; }
-
-    let slot = painting_slots[in.painting_index];
-    let tex_color = textureSample(painting_array, painting_sampler_filt, in.uv, slot.texture_layer);
-    if (tex_color.a < 0.01) { discard; }
-
-    let lit = tex_color.rgb * 0.9;
-    let dist = distance(in.world_pos, render_camera.pos);
-    let fog = 1.0 - exp(-dist * config.fog_density);
-    return vec4(mix(lit, config.fog_color, fog), 1.0);
-}
-
-@fragment
-fn wall_painting_frame_fs(in: WallPaintingVarying) -> @location(0) vec4<f32> {
-    if (in.is_canvas == 1u) { discard; }
-
-    let lit = in.frame_color * 0.8;
-    let dist = distance(in.world_pos, render_camera.pos);
-    let fog = 1.0 - exp(-dist * config.fog_density);
-    return vec4(mix(lit, config.fog_color, fog), 1.0);
-}
 
 // §8.3 WALL PAINTING SHADOW — depth-only pass for framed paintings
 // Reuses compute_wall_painting_geometry for identical mesh, projects through light_vp.
 
-@vertex
-fn shadow_wall_painting_vs(@builtin(vertex_index) vid: u32) -> ShadowVarying {
-    let pidx = vid / PAINTING_FRAME_VERTS_PER;
-    let local_vid = vid % PAINTING_FRAME_VERTS_PER;
-
-    if (pidx >= PAINTING_MAX_SLOTS) {
-        var out: ShadowVarying;
-        out.clip_pos = vec4(0.0);
-        return out;
-    }
-
-    let slot = painting_slots[pidx];
-
-    if (slot.is_active == 0u || slot.form_type != FORM_WALL_FRAME) {
-        var out: ShadowVarying;
-        out.clip_pos = vec4(0.0);
-        return out;
-    }
-
-    var geom = compute_wall_painting_geometry(slot, pidx, local_vid);
-    geom.world_pos.y += contrib_terrain_waves_at(geom.world_pos.xz);
-    var out: ShadowVarying;
-    out.clip_pos = render_vp.light_vp * vec4(geom.world_pos, 1.0);
-    return out;
-}
 
 
 // ═══════════════════════════════════════════════════════════════════════

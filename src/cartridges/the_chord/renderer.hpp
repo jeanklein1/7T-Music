@@ -87,20 +87,6 @@ namespace t7 {
             constexpr const char* SHELL_VS = "shell_vs";
             constexpr const char* SHADOW_SHELL_VS = "shadow_shell_vs";
 
-            // Gallery (self-portrait painting frames)
-            constexpr const char* GALLERY_FRAME_VS = "gallery_frame_vs";
-            constexpr const char* GALLERY_FRAME_FS = "gallery_frame_fs";
-            constexpr const char* SHADOW_GALLERY_FRAME_VS = "shadow_gallery_frame_vs";
-
-            // Wall-mounted framed paintings (indoor)
-            constexpr const char* WALL_PAINTING_VS        = "wall_painting_vs";
-            constexpr const char* WALL_PAINTING_CANVAS_FS = "wall_painting_canvas_fs";
-            constexpr const char* WALL_PAINTING_FRAME_FS  = "wall_painting_frame_fs";
-            constexpr const char* SHADOW_WALL_PAINTING_VS = "shadow_wall_painting_vs";
-
-            // Photographer compute (GPU-coupled snapshot camera)
-            constexpr const char* COMPUTE_PHOTOGRAPHER_VP = "compute_photographer_vp";
-
             // Entity placement Y-correction (decoupled from photographer)
             constexpr const char* COMPUTE_ENTITY_PLACEMENT = "compute_entity_placement";
 
@@ -222,17 +208,6 @@ namespace t7 {
             bool useIndirectTerrainPipeline_ = false;
             wgpu::RenderPipeline shadowPatchTerrainPipeline_;
 
-            // Gallery frame pipeline (painting quads in the world)
-            wgpu::RenderPipeline galleryFramePipeline_;
-            wgpu::RenderPipeline shadowGalleryFramePipeline_;
-
-            // Wall-mounted framed paintings (indoor) — uses galleryEntity + galleryTexture layouts
-            wgpu::RenderPipeline wallPaintingCanvasPipeline_;
-            wgpu::RenderPipeline wallPaintingFramePipeline_;
-            wgpu::RenderPipeline shadowWallPaintingPipeline_;
-
-            // Photographer VP compute pipeline (0D, GPU-coupled camera)
-            wgpu::ComputePipeline photographerVPPipeline_;
             // Entity placement Y-correction pipeline (0D, decoupled from photographer)
             wgpu::ComputePipeline entityPlacementPipeline_;
             wgpu::ComputePipeline frustumCullPipeline_;
@@ -473,15 +448,6 @@ namespace t7 {
                 pass.SetPipeline(ribbonRingPipeline_);
                 pass.SetBindGroup(0, ribbonComputeBindGroup);
                 pass.DispatchWorkgroups(workgroups, 1, 1);
-            }
-
-            void dispatch_compute_photographer_vp(
-                wgpu::ComputePassEncoder& pass,
-                wgpu::BindGroup photographerComputeBindGroup
-            ) {
-                pass.SetPipeline(photographerVPPipeline_);
-                pass.SetBindGroup(0, photographerComputeBindGroup);
-                pass.DispatchWorkgroups(1, 1, 1);
             }
 
             void dispatch_entity_placement(
@@ -783,40 +749,6 @@ namespace t7 {
                 pass.DrawIndexed(indexCount);
             }
 
-            void draw_gallery_frames(
-                wgpu::RenderPassEncoder& pass,
-                wgpu::BindGroup galleryEntityBindGroup,
-                wgpu::BindGroup galleryTextureBindGroup,
-                uint32_t activePaintingCount
-            ) {
-                if (activePaintingCount == 0) return;
-                pass.SetPipeline(galleryFramePipeline_);
-                pass.SetBindGroup(0, galleryEntityBindGroup);
-                pass.SetBindGroup(1, galleryTextureBindGroup);
-                pass.Draw(Dim::PAINTING_QUAD_VERTS, Dim::PAINTING_MAX_SLOTS);
-            }
-
-            void draw_wall_paintings(
-                wgpu::RenderPassEncoder& pass,
-                wgpu::BindGroup galleryEntityBindGroup,
-                wgpu::BindGroup galleryTextureBindGroup,
-                uint32_t wallFrameCount
-            ) {
-                if (wallFrameCount == 0) return;
-
-                // Canvas pass (textured surface)
-                pass.SetPipeline(wallPaintingCanvasPipeline_);
-                pass.SetBindGroup(0, galleryEntityBindGroup);
-                pass.SetBindGroup(1, galleryTextureBindGroup);
-                pass.Draw(Dim::PAINTING_FRAME_VERTEX_COUNT);
-
-                // Frame pass (solid color)
-                pass.SetPipeline(wallPaintingFramePipeline_);
-                pass.SetBindGroup(0, galleryEntityBindGroup);
-                pass.SetBindGroup(1, galleryTextureBindGroup);
-                pass.Draw(Dim::PAINTING_FRAME_VERTEX_COUNT);
-            }
-
             void draw_fade_overlay(
                 wgpu::RenderPassEncoder& pass,
                 wgpu::BindGroup configBindGroup,
@@ -948,31 +880,6 @@ namespace t7 {
                     vertexBuffer, indexBuffer, indexCount);
             }
 
-            void draw_shadow_wall_paintings(
-                wgpu::RenderPassEncoder& pass,
-                wgpu::BindGroup galleryEntityBindGroup,
-                wgpu::BindGroup galleryTextureBindGroup,
-                uint32_t wallFrameCount
-            ) {
-                if (wallFrameCount == 0) return;
-                pass.SetPipeline(shadowWallPaintingPipeline_);
-                pass.SetBindGroup(0, galleryEntityBindGroup);
-                pass.SetBindGroup(1, galleryTextureBindGroup);
-                pass.Draw(Dim::PAINTING_FRAME_VERTEX_COUNT);
-            }
-
-            void draw_shadow_gallery_frames(
-                wgpu::RenderPassEncoder& pass,
-                wgpu::BindGroup galleryEntityBindGroup,
-                wgpu::BindGroup galleryTextureBindGroup,
-                uint32_t activePaintingCount
-            ) {
-                if (activePaintingCount == 0) return;
-                pass.SetPipeline(shadowGalleryFramePipeline_);
-                pass.SetBindGroup(0, galleryEntityBindGroup);
-                pass.SetBindGroup(1, galleryTextureBindGroup);
-                pass.Draw(Dim::PAINTING_QUAD_VERTS, Dim::PAINTING_MAX_SLOTS);
-            }
 
 
             // =================================================================
@@ -1287,24 +1194,6 @@ namespace t7 {
                     desc.compute.entryPoint = Entry::COMPUTE_RIBBON_RINGS;
                     ribbonRingPipeline_ = device_.CreateComputePipeline(&desc);
                     return ribbonRingPipeline_ != nullptr;
-                    })) return false;
-
-                // Photographer VP compute pipeline (0D, reads pawn → writes VP)
-                if (!tPipe("compute_photographer_vp", [&]() {
-                    std::array<wgpu::BindGroupLayout, 1> layouts = { photographerComputeLayout_ };
-                    wgpu::PipelineLayoutDescriptor pld{};
-                    pld.bindGroupLayoutCount = layouts.size();
-                    pld.bindGroupLayouts = layouts.data();
-                    wgpu::PipelineLayout pl = device_.CreatePipelineLayout(&pld);
-                    if (!pl) return false;
-
-                    wgpu::ComputePipelineDescriptor desc{};
-                    desc.label = "Compute Photographer VP (0D)";
-                    desc.layout = pl;
-                    desc.compute.module = shaderModule_;
-                    desc.compute.entryPoint = Entry::COMPUTE_PHOTOGRAPHER_VP;
-                    photographerVPPipeline_ = device_.CreateComputePipeline(&desc);
-                    return photographerVPPipeline_ != nullptr;
                     })) return false;
 
                 // Entity placement Y-correction pipeline (0D, decoupled from photographer)
@@ -1844,181 +1733,6 @@ namespace t7 {
                         orbRenderPipeline_ = device_.CreateRenderPipeline(&desc);
                         return orbRenderPipeline_ != nullptr;
                     })) return false;
-                }
-
-                // ─── Gallery Frame Pipeline ──────────────────────────────────────
-                // Instanced subdivided quads textured with painting snapshots.
-                // Dedicated pipeline layout (galleryEntity + galleryTexture).
-                {
-                    wgpu::PipelineLayoutDescriptor pld{};
-                    std::array<wgpu::BindGroupLayout, 2> galleryGroups = {
-                        galleryEntityLayout_, galleryTextureLayout_
-                    };
-                    pld.bindGroupLayoutCount = galleryGroups.size();
-                    pld.bindGroupLayouts = galleryGroups.data();
-                    wgpu::PipelineLayout galleryLayout = device_.CreatePipelineLayout(&pld);
-
-                    wgpu::ColorTargetState colorTarget{};
-                    colorTarget.format = colorFormat_;
-                    colorTarget.writeMask = wgpu::ColorWriteMask::All;
-
-                    wgpu::BlendState blend{};
-                    blend.color.srcFactor = wgpu::BlendFactor::SrcAlpha;
-                    blend.color.dstFactor = wgpu::BlendFactor::OneMinusSrcAlpha;
-                    blend.alpha.srcFactor = wgpu::BlendFactor::One;
-                    blend.alpha.dstFactor = wgpu::BlendFactor::OneMinusSrcAlpha;
-                    colorTarget.blend = &blend;
-
-                    wgpu::FragmentState frag{};
-                    frag.module = shaderModule_;
-                    frag.entryPoint = Entry::GALLERY_FRAME_FS;
-                    frag.targetCount = 1;
-                    frag.targets = &colorTarget;
-
-                    wgpu::DepthStencilState galleryDepth{};
-                    galleryDepth.format = depthFormat_;
-                    galleryDepth.depthWriteEnabled = true;
-                    galleryDepth.depthCompare = wgpu::CompareFunction::Less;
-
-                    wgpu::RenderPipelineDescriptor desc{};
-                    desc.label = "Gallery Frame";
-                    desc.layout = galleryLayout;
-                    desc.vertex.module = shaderModule_;
-                    desc.vertex.entryPoint = Entry::GALLERY_FRAME_VS;
-                    desc.vertex.bufferCount = 0;
-                    desc.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
-                    desc.primitive.cullMode = wgpu::CullMode::None;
-                    desc.primitive.frontFace = wgpu::FrontFace::CCW;
-                    desc.depthStencil = &galleryDepth;
-                    desc.fragment = &frag;
-
-                    if (!tPipe("gallery_frame", [&]() {
-                        galleryFramePipeline_ = device_.CreateRenderPipeline(&desc);
-                        return galleryFramePipeline_ != nullptr;
-                    })) return false;
-
-                    // Shadow Gallery Frame (depth-only, instanced, same layout)
-                    {
-                        wgpu::DepthStencilState shadowDepth{};
-                        shadowDepth.format = wgpu::TextureFormat::Depth32Float;
-                        shadowDepth.depthWriteEnabled = true;
-                        shadowDepth.depthCompare = wgpu::CompareFunction::Less;
-
-                        wgpu::RenderPipelineDescriptor sdesc{};
-                        sdesc.label = "Shadow Gallery Frame";
-                        sdesc.layout = galleryLayout;
-                        sdesc.vertex.module = shaderModule_;
-                        sdesc.vertex.entryPoint = Entry::SHADOW_GALLERY_FRAME_VS;
-                        sdesc.vertex.bufferCount = 0;
-                        sdesc.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
-                        sdesc.primitive.cullMode = wgpu::CullMode::None;
-                        sdesc.primitive.frontFace = wgpu::FrontFace::CCW;
-                        sdesc.depthStencil = &shadowDepth;
-                        sdesc.fragment = nullptr;
-
-                        if (!tPipe("shadow_gallery_frame", [&]() {
-                            shadowGalleryFramePipeline_ = device_.CreateRenderPipeline(&sdesc);
-                            return shadowGalleryFramePipeline_ != nullptr;
-                        })) return false;
-                    }
-                }
-
-                // ─── Wall Painting Pipelines (framed paintings on indoor walls) ──
-                // Uses same bind group layouts as gallery frames (galleryEntity + galleryTexture)
-                {
-                    wgpu::PipelineLayoutDescriptor pld{};
-                    std::array<wgpu::BindGroupLayout, 2> wpGroups = {
-                        galleryEntityLayout_, galleryTextureLayout_
-                    };
-                    pld.bindGroupLayoutCount = wpGroups.size();
-                    pld.bindGroupLayouts = wpGroups.data();
-                    wgpu::PipelineLayout wpLayout = device_.CreatePipelineLayout(&pld);
-
-                    wgpu::ColorTargetState colorTarget{};
-                    colorTarget.format = colorFormat_;
-                    colorTarget.writeMask = wgpu::ColorWriteMask::All;
-
-                    wgpu::DepthStencilState wpDepth{};
-                    wpDepth.format = depthFormat_;
-                    wpDepth.depthWriteEnabled = true;
-                    wpDepth.depthCompare = wgpu::CompareFunction::Less;
-
-                    // Canvas pipeline (textured)
-                    {
-                        wgpu::FragmentState frag{};
-                        frag.module = shaderModule_;
-                        frag.entryPoint = Entry::WALL_PAINTING_CANVAS_FS;
-                        frag.targetCount = 1;
-                        frag.targets = &colorTarget;
-
-                        wgpu::RenderPipelineDescriptor desc{};
-                        desc.label = "Wall Painting Canvas";
-                        desc.layout = wpLayout;
-                        desc.vertex.module = shaderModule_;
-                        desc.vertex.entryPoint = Entry::WALL_PAINTING_VS;
-                        desc.vertex.bufferCount = 0;
-                        desc.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
-                        desc.primitive.cullMode = wgpu::CullMode::None;  // visible from both sides (outdoor monuments)
-                        desc.primitive.frontFace = wgpu::FrontFace::CCW;
-                        desc.depthStencil = &wpDepth;
-                        desc.fragment = &frag;
-
-                        if (!tPipe("wall_painting_canvas", [&]() {
-                            wallPaintingCanvasPipeline_ = device_.CreateRenderPipeline(&desc);
-                            return wallPaintingCanvasPipeline_ != nullptr;
-                        })) return false;
-                    }
-
-                    // Frame pipeline (solid color)
-                    {
-                        wgpu::FragmentState frag{};
-                        frag.module = shaderModule_;
-                        frag.entryPoint = Entry::WALL_PAINTING_FRAME_FS;
-                        frag.targetCount = 1;
-                        frag.targets = &colorTarget;
-
-                        wgpu::RenderPipelineDescriptor desc{};
-                        desc.label = "Wall Painting Frame";
-                        desc.layout = wpLayout;
-                        desc.vertex.module = shaderModule_;
-                        desc.vertex.entryPoint = Entry::WALL_PAINTING_VS;
-                        desc.vertex.bufferCount = 0;
-                        desc.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
-                        desc.primitive.cullMode = wgpu::CullMode::None;  // visible from both sides (outdoor monuments)
-                        desc.primitive.frontFace = wgpu::FrontFace::CCW;
-                        desc.depthStencil = &wpDepth;
-                        desc.fragment = &frag;
-
-                        if (!tPipe("wall_painting_frame", [&]() {
-                            wallPaintingFramePipeline_ = device_.CreateRenderPipeline(&desc);
-                            return wallPaintingFramePipeline_ != nullptr;
-                        })) return false;
-                    }
-
-                    // Shadow wall painting (depth-only, Depth32Float, same gallery layouts)
-                    {
-                        wgpu::DepthStencilState shadowDepth{};
-                        shadowDepth.format = wgpu::TextureFormat::Depth32Float;
-                        shadowDepth.depthWriteEnabled = true;
-                        shadowDepth.depthCompare = wgpu::CompareFunction::Less;
-
-                        wgpu::RenderPipelineDescriptor desc{};
-                        desc.label = "Shadow Wall Painting";
-                        desc.layout = wpLayout;
-                        desc.vertex.module = shaderModule_;
-                        desc.vertex.entryPoint = Entry::SHADOW_WALL_PAINTING_VS;
-                        desc.vertex.bufferCount = 0;
-                        desc.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
-                        desc.primitive.cullMode = wgpu::CullMode::None;
-                        desc.primitive.frontFace = wgpu::FrontFace::CCW;
-                        desc.depthStencil = &shadowDepth;
-                        desc.fragment = nullptr;
-
-                        if (!tPipe("shadow_wall_painting", [&]() {
-                            shadowWallPaintingPipeline_ = device_.CreateRenderPipeline(&desc);
-                            return shadowWallPaintingPipeline_ != nullptr;
-                        })) return false;
-                    }
                 }
 
                 // ─── Shadow Pipelines (depth-only, Depth32Float) ─────────────────

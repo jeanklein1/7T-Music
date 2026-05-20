@@ -1428,8 +1428,8 @@ namespace t7 {
                 { dispatch_select_gol, dispatch_place_gol, dispatch_commit_gol,
                   dispatch_evict_gol, dispatch_prepare_mesh_gol, dispatch_mesh_gen_gol,
                   "gol" },
-                { dispatch_select_gallery, dispatch_place_gallery, dispatch_commit_gallery,
-                  dispatch_evict_gallery, dispatch_prepare_mesh_gallery, dispatch_mesh_gen_gallery,
+                { dispatch_select_noop, dispatch_place_noop, dispatch_commit_noop,
+                  dispatch_evict_noop, dispatch_prepare_mesh_noop, dispatch_mesh_gen_noop,
                   "gall" },
             };
 

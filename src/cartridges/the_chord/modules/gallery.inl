@@ -1198,99 +1198,10 @@ static void evict_paintings_for_patch(GalleryState& gs, Cartridge* c, int32_t gx
 // layer.
 
 static void render_snapshot_pass(GalleryState& gs, Cartridge* c, wgpu::CommandEncoder& encoder) {
-    if (!gs.pending_snapshot.active) return;
-
-    // Snapshot needs its own VP compute (camera position + VP matrix).
-    // Entity Y-correction already ran in dispatch_placement_correction
-    // (separate pipeline, unconditional every frame).
-    // This dispatch only builds the photographer camera VP + light VP.
-    {
-        wgpu::ComputePassDescriptor cpd{};
-        cpd.label = "Photographer VP Compute";
-        wgpu::ComputePassEncoder compute = encoder.BeginComputePass(&cpd);
-        c->renderer_.dispatch_compute_photographer_vp(
-            compute, c->gpuState_.photographer_compute_group()
-        );
-        compute.End();
-    }
-
-    // Only render the snapshot if a capture is pending
-    if (!gs.pending_snapshot.active) return;
-    gs.pending_snapshot.active = false;
-    uint32_t layer = gs.pending_snapshot.target_layer;
-    std::cout << "[Photographer] Rendering snapshot -> layer " << layer << "\n";
-
-    wgpu::RenderPassColorAttachment colorAtt{};
-    colorAtt.view = c->gpuState_.offscreen_color_view();
-    colorAtt.loadOp = wgpu::LoadOp::Clear;
-    colorAtt.storeOp = wgpu::StoreOp::Store;
-    colorAtt.clearValue = { (double)c->clearColor_[0], (double)c->clearColor_[1], (double)c->clearColor_[2], 1.0 };
-
-    wgpu::RenderPassDepthStencilAttachment depthAtt{};
-    depthAtt.view = c->gpuState_.offscreen_depth_view();
-    depthAtt.depthLoadOp = wgpu::LoadOp::Clear;
-    depthAtt.depthStoreOp = wgpu::StoreOp::Store;
-    depthAtt.depthClearValue = 1.0f;
-
-    wgpu::RenderPassDescriptor desc{};
-    desc.label = "Photographer Snapshot";
-    desc.colorAttachmentCount = 1;
-    desc.colorAttachments = &colorAtt;
-    desc.depthStencilAttachment = &depthAtt;
-
-    wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&desc);
-
-    c->renderer_.draw_patch_terrain_direct(pass,
-        c->gpuState_.photographer_render_entity_group(),
-        c->gpuState_.render_texture_group(),
-        c->gpuState_.patch_index_buffer(),
-        c->gpuState_.patch_index_count(),
-        c->world_state_.render_patch_count);
-
-    c->renderer_.draw_pawn(pass,
-        c->gpuState_.photographer_render_entity_group(),
-        c->gpuState_.render_texture_group(),
-        GPUState::pawn_vertex_count());
-
-    c->renderer_.draw_sphere(pass,
-        c->gpuState_.photographer_render_entity_group(),
-        c->gpuState_.render_texture_group(),
-        c->gpuState_.sphere_vertex_buffer(),
-        c->gpuState_.sphere_index_buffer(),
-        c->gpuState_.sphere_index_count());
-
-    if (c->ribbon_state_.rendered_slot != UINT32_MAX) {
-        c->renderer_.draw_ribbon(pass,
-            c->gpuState_.photographer_render_entity_group(),
-            c->gpuState_.render_texture_group(),
-            GPUState::ribbon_vertex_count());
-    }
-
-    c->renderer_.draw_shell(pass,
-        c->gpuState_.photographer_render_entity_group(),
-        c->gpuState_.render_texture_group(),
-        c->gpuState_.shell_vertex_buffer(),
-        c->gpuState_.shell_index_buffer(),
-        c->gpuState_.shell_index_count());
-
-    // Pyramids: terrain surface IS the pyramid shape (via the baked
-    // heightfield, which caches POLICY_BAKED_HEIGHTFIELD = static
-    // base + pyramids). No separate mesh draw needed.
-
-    pass.End();
-
-    wgpu::TexelCopyTextureInfo src{};
-    src.texture = c->gpuState_.offscreen_color_texture();
-    src.mipLevel = 0;
-    src.origin = { 0, 0, 0 };
-
-    wgpu::TexelCopyTextureInfo dst{};
-    dst.texture = c->gpuState_.snapshot_staging_texture();
-    dst.mipLevel = 0;
-    dst.origin = { 0, 0, layer };
-
-    wgpu::Extent3D extent = { Dim::PAINTING_RESOLUTION, Dim::PAINTING_RESOLUTION, 1 };
-    encoder.CopyTextureToTexture(&src, &dst, &extent);
+    // the_chord: photographer / self-portrait snapshot stripped (Pass 4).
+    // The compute_photographer_vp pipeline and gallery/wall render
+    // pipelines were removed; this pass is a no-op. gs/c/encoder unused.
+    (void)gs; (void)c; (void)encoder;
 }
 
 
@@ -1422,29 +1333,11 @@ static void scan_paintings_folder(GalleryState& gs) {
 }
 
 static void load_authored_textures(GalleryState& gs, Cartridge* c, wgpu::Queue& queue) {
-    if (gs.authored_textures_loaded) return;
-
-    // Scan folder on first load
-    if (gs.authored_disk_manifest.empty()) {
-        scan_paintings_folder(gs);
-    }
-    if (gs.authored_disk_manifest.empty()) {
-        gs.authored_textures_loaded = true;
-        return;
-    }
-
-    // Fill staging with the first STAGING_LAYERS images from manifest
-    uint32_t manifest_size = (uint32_t)gs.authored_disk_manifest.size();
-    uint32_t to_load = std::min(manifest_size, Dim::STAGING_LAYERS);
-    for (uint32_t i = 0; i < to_load; i++) {
-        load_authored_image_to_staging(gs, c, queue, i, i, gs.authored_disk_manifest[i].c_str());
-        if (gs.authored_staging[i].valid) gs.authored_staged_count++;
-    }
-    gs.authored_write_cursor = to_load % Dim::STAGING_LAYERS;
-    gs.authored_disk_cursor = to_load % manifest_size;
+    // the_chord: gallery/paintings stripped (Pass 4). Skip the startup
+    // assets/paintings scan + texture staging entirely (no file I/O, no
+    // "Loaded:" log spam). Mark loaded so callers no-op.
+    (void)c; (void)queue;
     gs.authored_textures_loaded = true;
-    std::cout << "[Authored] Staged " << gs.authored_staged_count
-        << "/" << manifest_size << " images\n";
 }
 
 // Replace consumed authored staging slots with the next images from disk.
