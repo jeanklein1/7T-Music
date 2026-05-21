@@ -668,6 +668,13 @@ namespace t7 {
             uint32_t _pad2;            // 204
         };                             // 208 total (13×16)
 
+        // #TODO[ribbon-trail-frame] REPARAMETERIZE this struct:
+        //   - drop lateral_cycles / vertical_cycles / twist_cycles (3 floats)
+        //   - rename lateral_speed/vertical_speed/twist_speed -> *_freq (rad/s)
+        //   - add propagation_speed (1 float, universal world u/s)
+        //   Net -2 data floats. Struct is 96 B / alignas(16); keep 96 B by
+        //   growing the trailing pad from 2 -> 4 floats (or re-pack), and the
+        //   WGSL RibbonState uniform MUST be re-laid-out identically.
         struct alignas(16) GPURibbonState {
             float anchor[3];                                                    // 0
             float time;                                                         // 12
@@ -5750,6 +5757,10 @@ namespace t7 {
                 ribbon.color[0] = 0.85f;
                 ribbon.color[1] = 0.12f;
                 ribbon.color[2] = 0.08f;
+                // #TODO[ribbon-trail-frame] Default (hidden) ribbon: set new
+                //   fields directly — *_freq + propagation_speed; drop *_cycles.
+                //   This bypasses commit, so compute freq here or use placeholder
+                //   freqs (it's is_visible=0, never drawn).
                 ribbon.lateral_amp = 2.7f;
                 ribbon.lateral_cycles = 2.0f;
                 ribbon.lateral_speed = 1.1f;

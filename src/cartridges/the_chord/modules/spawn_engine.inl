@@ -959,6 +959,10 @@ struct GalleryPlacement {
 };
 
 // ─── Ribbon Selection / Placement ────────────────────────────
+// #TODO[ribbon-trail-frame] CARRIER STRUCTS: these transport authored values
+//   from tier -> commit. Keep *_cycles (still authored + read by commit to
+//   derive freq). The *_speed fields become vestigial (commit no longer reads
+//   them). Minimal change: leave as-is, or drop *_speed in a Pass-2 cleanup.
 
 struct RibbonSelection {
     uint32_t seed;

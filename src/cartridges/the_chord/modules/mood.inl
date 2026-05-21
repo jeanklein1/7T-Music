@@ -664,6 +664,9 @@ void apply_mood_anchor_ribbon(uint32_t mood, wgpu::Queue& queue) {
     plan.cube_size      = sel.cube_size;
     plan.height         = sel.height;
     plan.orientation    = sel.orientation;
+    // #TODO[ribbon-trail-frame] mood-5 forced-ribbon path (dual entry) copies
+    //   the same carrier fields. Keep *_cycles; *_speed copies become vestigial
+    //   in lockstep with the RibbonSelection/RibbonPlacement decision.
     plan.lateral_amp    = sel.lateral_amp;
     plan.lateral_cycles = sel.lateral_cycles;
     plan.lateral_speed  = sel.lateral_speed;

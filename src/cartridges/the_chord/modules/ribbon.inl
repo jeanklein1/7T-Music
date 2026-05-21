@@ -164,6 +164,10 @@ struct RibbonProp {
 // Ratios ≤ 1 keep secondary motion slower than lateral sway
 // (contemplative, not snaky). Weights favor the middle intervals.
 
+// #TODO[ribbon-trail-frame] VERIFY-ONLY (no change expected): HarmonicRatio
+//   + VERTICAL_RATIOS/TWIST_RATIOS + select_harmonic_ratio express per-axis
+//   CYCLE relationships, which the new model keeps authoring. Ratios feed
+//   cycles; commit translates cycles -> freq. Untouched in this plan.
 struct HarmonicRatio {
     float ratio;
     float weight;
@@ -220,6 +224,12 @@ struct RibbonTierProfile {
 
     // Flying height: 50–80 units. All wave params independently seeded.
 
+    // #TODO[ribbon-trail-frame] TIER PROFILE STAYS (task: tier data untouched).
+    //   *_cycles_* remain the aesthetic authoring input (drive visible cycles
+    //   and, via commit, the derived freq). *_speed_* become VESTIGIAL: the
+    //   temporal rate is now freq = cycles*2pi*propagation_speed/total_length,
+    //   no longer the authored speed. Leave the fields (UNDER-SPEC: keep vs
+    //   prune authored *_speed is a Pass-2 decision).
     // ─── Lateral wave ─────────────────────────────────────
     float lateral_amp_mean, lateral_amp_sigma;
     float lateral_cycles_mean, lateral_cycles_sigma;
@@ -353,6 +363,9 @@ struct RibbonState {
     // GPU-state CPU mirror. Per-frame, the spine picks the nearest
     // ribbon to the pawn and uploads its slot to the GPU.
     // rendered_slot is the currently rendered slot (UINT32_MAX = none).
+    // #TODO[ribbon-trail-frame] No direct wave fields here — the gpu[]
+    //   mirror IS GPURibbonState, so the field reparameterization is
+    //   inherited from the state.hpp struct change. No edit needed here.
     GPURibbonState gpu[MAX_RIBBON_INSTANCES]{};
     uint32_t       rendered_slot = UINT32_MAX;
 
@@ -563,6 +576,14 @@ static void commit_ribbon(RibbonState& rs, Cartridge* c,
     r.cube_size = plan.cube_size;
     r.height = plan.height;
     r.orientation = plan.orientation;
+    // #TODO[ribbon-trail-frame] COMMIT = the cycles -> freq translation site.
+    //   total_length = plan.cube_count * plan.cube_size; let P = propagation_speed.
+    //   r.propagation_speed = P;  (universal, e.g. 40 u/s — see recon report)
+    //   r.lateral_freq  = plan.lateral_cycles  * 2pi * P / total_length;
+    //   r.vertical_freq = plan.vertical_cycles * 2pi * P / total_length;
+    //   r.twist_freq    = plan.twist_cycles    * 2pi * P / total_length;
+    //   Drop the *_cycles assignments and the *_speed assignments below
+    //   (plan.*_speed no longer used). Amps unchanged.
     r.lateral_amp = plan.lateral_amp;
     r.lateral_cycles = plan.lateral_cycles;
     r.lateral_speed = plan.lateral_speed;
@@ -633,6 +654,15 @@ static void commit_ribbon(RibbonState& rs, Cartridge* c,
 //   with the WGSL implementations whenever those change.
 
 // CPU mirror of WGSL ribbon_spine_at — evaluate one ring's world position.
+// #TODO[ribbon-trail-frame] REWRITE both CPU mirrors (spine_at_cpu +
+//   tangent_cpu's eval lambda) into trail-frame form AND fix the sign bug:
+//   the CPU currently uses `time*speed + t*cycles*2pi` (PLUS) while WGSL uses
+//   MINUS — they disagree today. New unified form (matches WGSL trail-frame):
+//     phase_age = time - t * total_length / r.propagation_speed;
+//     lateral  = sin(r.lateral_freq  * phase_age) * r.lateral_amp;
+//     vertical = sin(r.vertical_freq * phase_age) * r.vertical_amp;  (+ r.height)
+//     twist_phase = r.twist_freq * phase_age;
+//   Drop all *_speed/*_cycles references here.
 static void ribbon_spine_at_cpu(const GPURibbonState& r, float time, uint32_t ring_idx, float out[3]) {
     constexpr float PI = 3.14159265359f;
     float t = (float)ring_idx / (float)std::max(r.cube_count - 1u, 1u);

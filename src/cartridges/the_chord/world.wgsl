@@ -803,6 +803,10 @@ struct FloatingEntityArray {
 }
 
 // --- [STATE:ribbon] RibbonState
+// #TODO[ribbon-trail-frame] Re-lay-out to match the new GPURibbonState
+//   (state.hpp) BYTE-FOR-BYTE: drop *_cycles (3), rename *_speed -> *_freq (3),
+//   add propagation_speed (1), keep 96 B / 16-aligned (grow pad 2 -> 4).
+//   No BOM (WGSL).
 struct RibbonState {
     anchor: vec3<f32>,      // world-space center of the ribbon
     time: f32,              // animation time (seconds) — drives the head's oscillation
@@ -4071,7 +4075,14 @@ fn shadow_shell_vs(in: ShellVertexInput) -> ShadowVarying {
 //    feel. Crests walk head → tail at speed ∝ lateral_speed / cycles.
 
 // Spine position at parameter t in [0, 1].
-// Baseline shape uses the standing-wave formula (authored character).
+// #TODO[ribbon-trail-frame] REWRITE wave args to trail-frame form. Each
+//   axis: `*_speed*time - t*(*_cycles)*2pi`  becomes
+//   `(*_freq) * (time - t * total_length / ribbon.propagation_speed)`.
+//   Compute `let phase_age = time - t * total_length / ribbon.propagation_speed;`
+//   once, then lateral/vertical/twist use *_freq * phase_age. Drop the
+//   *_cycles / *_speed references. Frozen-frame cycles preserved; crest
+//   propagation now unified across axes (see report). ribbon_tangent_at
+//   below + ribbon_ring_motor/compute_ribbon_rings call this unchanged.
 fn ribbon_spine_at(t: f32, ribbon: RibbonState) -> vec3<f32> {
     let total_length = f32(ribbon.cube_count) * ribbon.cube_size;
     let time = ribbon.time;
