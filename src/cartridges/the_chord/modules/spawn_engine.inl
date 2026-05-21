@@ -959,10 +959,8 @@ struct GalleryPlacement {
 };
 
 // ─── Ribbon Selection / Placement ────────────────────────────
-// #TODO[ribbon-trail-frame] CARRIER STRUCTS: these transport authored values
-//   from tier -> commit. Keep *_cycles (still authored + read by commit to
-//   derive freq). The *_speed fields become vestigial (commit no longer reads
-//   them). Minimal change: leave as-is, or drop *_speed in a Pass-2 cleanup.
+// Carriers transport authored values tier -> commit. Trail-frame: they carry
+// *_cycles (authored; commit derives freq from them). *_speed retired.
 
 struct RibbonSelection {
     uint32_t seed;
@@ -974,9 +972,9 @@ struct RibbonSelection {
     float cube_size;
     float height;
     float orientation;
-    float lateral_amp, lateral_cycles, lateral_speed;
-    float vertical_amp, vertical_cycles, vertical_speed;
-    float twist_amp, twist_cycles, twist_speed;
+    float lateral_amp, lateral_cycles;
+    float vertical_amp, vertical_cycles;
+    float twist_amp, twist_cycles;
     // Color
     uint32_t color_mode;
     float color[3];
@@ -993,9 +991,9 @@ struct RibbonPlacement {
     // Geometry (copied from selection)
     uint32_t cube_count;
     float cube_size, height, orientation;
-    float lateral_amp, lateral_cycles, lateral_speed;
-    float vertical_amp, vertical_cycles, vertical_speed;
-    float twist_amp, twist_cycles, twist_speed;
+    float lateral_amp, lateral_cycles;
+    float vertical_amp, vertical_cycles;
+    float twist_amp, twist_cycles;
     uint32_t color_mode;
     float color[3];
 };

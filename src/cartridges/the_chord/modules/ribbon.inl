@@ -134,12 +134,9 @@ struct RibbonProp {
     static constexpr uint32_t HEIGHT = 412u;
     static constexpr uint32_t LATERAL_AMP = 420u;
     static constexpr uint32_t LATERAL_CYCLES = 421u;
-    static constexpr uint32_t LATERAL_SPEED = 422u;
     static constexpr uint32_t VERTICAL_AMP = 430u;
-    static constexpr uint32_t VERTICAL_SPEED = 432u;
     static constexpr uint32_t VERTICAL_RATIO = 433u;    // seed roll for vertical harmonic ratio selection
     static constexpr uint32_t TWIST_AMP = 440u;
-    static constexpr uint32_t TWIST_SPEED = 442u;
     static constexpr uint32_t TWIST_RATIO = 443u;       // seed roll for twist harmonic ratio selection
 };
 
@@ -164,10 +161,6 @@ struct RibbonProp {
 // Ratios ≤ 1 keep secondary motion slower than lateral sway
 // (contemplative, not snaky). Weights favor the middle intervals.
 
-// #TODO[ribbon-trail-frame] VERIFY-ONLY (no change expected): HarmonicRatio
-//   + VERTICAL_RATIOS/TWIST_RATIOS + select_harmonic_ratio express per-axis
-//   CYCLE relationships, which the new model keeps authoring. Ratios feed
-//   cycles; commit translates cycles -> freq. Untouched in this plan.
 struct HarmonicRatio {
     float ratio;
     float weight;
@@ -224,26 +217,24 @@ struct RibbonTierProfile {
 
     // Flying height: 50–80 units. All wave params independently seeded.
 
-    // #TODO[ribbon-trail-frame] TIER PROFILE STAYS (task: tier data untouched).
-    //   *_cycles_* remain the aesthetic authoring input (drive visible cycles
-    //   and, via commit, the derived freq). *_speed_* become VESTIGIAL: the
-    //   temporal rate is now freq = cycles*2pi*propagation_speed/total_length,
-    //   no longer the authored speed. Leave the fields (UNDER-SPEC: keep vs
-    //   prune authored *_speed is a Pass-2 decision).
+    // Trail-frame: tiers author *_cycles (aesthetic visible cycles) + amps.
+    // Temporal rate is derived at commit: freq = cycles*2pi*propagation_speed
+    // / total_length. propagation_speed is the per-tier head→tail trail rate.
+
     // ─── Lateral wave ─────────────────────────────────────
     float lateral_amp_mean, lateral_amp_sigma;
     float lateral_cycles_mean, lateral_cycles_sigma;
-    float lateral_speed_mean, lateral_speed_sigma;
 
     // ─── Vertical wave ────────────────────────────────────
     float vertical_amp_mean, vertical_amp_sigma;
     float vertical_cycles_mean, vertical_cycles_sigma;
-    float vertical_speed_mean, vertical_speed_sigma;
 
     // ─── Twist (corkscrew) ───────────────────────────────────
     float twist_amp_mean, twist_amp_sigma;
     float twist_cycles_mean, twist_cycles_sigma;
-    float twist_speed_mean, twist_speed_sigma;
+
+    // ─── Propagation (trail-frame head→tail rate, world units/s) ──
+    float propagation_speed;
 
     // ─── Selection ───────────────────────────────────────────
     float weight;
@@ -259,11 +250,12 @@ struct RibbonTierProfile {
 // ─── Lateral wave ────────┤                │                │                │
 //   lateral_amp             │  10.0     0.6  │   3.5     0.6  │   5.5     0.8  │
 //   lateral_cycles          │   1.5     0.4  │   3.0     0.8  │   2.0     0.5  │
-//   lateral_speed           │   0.25   0.075 │   0.60   0.175 │   0.40    0.10 │
-// ─── Vertical wave ───────┤  cycles + speed = lateral (P8: ratios pending)   │
+// ─── Vertical wave ───────┤  cycles = lateral (P8: ratios pending)           │
 //   vertical_amp            │   5.0     0.8  │   2.5     0.5  │   8.0     1.2  │
-// ─── Twist (corkscrew) ───┤  cycles + speed = lateral (P8: ratios pending)   │
+// ─── Twist (corkscrew) ───┤  cycles = lateral (P8: ratios pending)           │
 //   twist_amp              │   0.6     0.2  │   6.0     0.8  │   1.6     0.6  │
+// ─── Trail-frame ─────────┤                │                │                │
+//   propagation_speed      │  40.0          │  24.0          │  48.0          │
 // ─── Selection ───────────┤                │                │                │
 //   weight                 │   0.45         │   0.30         │   0.25         │
 //                          └────────────────┴────────────────┴────────────────┘
@@ -277,13 +269,11 @@ static constexpr RibbonTierProfile RIBBON_TIERS[RIBBON_TIER_COUNT] = {
          60.0f, 15.0f,      // height
          10.0f,  0.6f,      // lateral_amp
           1.5f,  0.4f,      // lateral_cycles
-          0.25f, 0.075f,    // lateral_speed
           5.0f,  0.8f,      // vertical_amp
           0.8f,  0.2f,      // vertical_cycles (overridden = lateral)
-          0.20f, 0.06f,     // vertical_speed (overridden = lateral)
           0.6f,  0.2f,      // twist_amp
           0.5f,  0.2f,      // twist_cycles (overridden = lateral)
-          0.15f, 0.05f,     // twist_speed (overridden = lateral)
+         40.0f,             // propagation_speed (u/s)
           0.45f },          // weight
     // Tier 1: Helix — tighter cycles, visible corkscrew
     {   150.0f, 40.0f,      // cube_count
@@ -291,13 +281,11 @@ static constexpr RibbonTierProfile RIBBON_TIERS[RIBBON_TIER_COUNT] = {
          55.0f, 12.0f,      // height
           3.5f,  0.6f,      // lateral_amp
           3.0f,  0.8f,      // lateral_cycles
-          0.60f, 0.175f,    // lateral_speed
           2.5f,  0.5f,      // vertical_amp
           2.5f,  0.6f,      // vertical_cycles (overridden = lateral)
-          0.50f, 0.15f,     // vertical_speed (overridden = lateral)
           6.0f,  0.8f,      // twist_amp
           2.0f,  0.5f,      // twist_cycles (overridden = lateral)
-          0.20f, 0.05f,     // twist_speed (overridden = lateral)
+         24.0f,             // propagation_speed (u/s)
           0.30f },          // weight
     // Tier 2: Streamer — tall vertical form, deep breathing
     {   250.0f, 50.0f,      // cube_count
@@ -305,13 +293,11 @@ static constexpr RibbonTierProfile RIBBON_TIERS[RIBBON_TIER_COUNT] = {
          70.0f, 20.0f,      // height
           5.5f,  0.8f,      // lateral_amp
           2.0f,  0.5f,      // lateral_cycles
-          0.40f, 0.10f,     // lateral_speed
           8.0f,  1.2f,      // vertical_amp
           1.2f,  0.3f,      // vertical_cycles (overridden = lateral)
-          0.325f, 0.075f,   // vertical_speed (overridden = lateral)
           1.6f,  0.6f,      // twist_amp
           1.5f,  0.4f,      // twist_cycles (overridden = lateral)
-          0.25f, 0.08f,     // twist_speed (overridden = lateral)
+         48.0f,             // propagation_speed (u/s)
           0.25f },          // weight
 };
 
@@ -363,9 +349,6 @@ struct RibbonState {
     // GPU-state CPU mirror. Per-frame, the spine picks the nearest
     // ribbon to the pawn and uploads its slot to the GPU.
     // rendered_slot is the currently rendered slot (UINT32_MAX = none).
-    // #TODO[ribbon-trail-frame] No direct wave fields here — the gpu[]
-    //   mirror IS GPURibbonState, so the field reparameterization is
-    //   inherited from the state.hpp struct change. No edit needed here.
     GPURibbonState gpu[MAX_RIBBON_INSTANCES]{};
     uint32_t       rendered_slot = UINT32_MAX;
 
@@ -406,15 +389,12 @@ static void fill_ribbon_selection_geometry(
 
     sel.lateral_amp = std::max(0.1f, cpu_sample_gaussian(seed, RibbonProp::LATERAL_AMP, tp.lateral_amp_mean, tp.lateral_amp_sigma));
     sel.lateral_cycles = std::max(0.1f, cpu_sample_gaussian(seed, RibbonProp::LATERAL_CYCLES, tp.lateral_cycles_mean, tp.lateral_cycles_sigma));
-    sel.lateral_speed = std::max(0.005f, cpu_sample_gaussian(seed, RibbonProp::LATERAL_SPEED, tp.lateral_speed_mean, tp.lateral_speed_sigma));
 
     sel.vertical_amp = std::max(0.1f, cpu_sample_gaussian(seed, RibbonProp::VERTICAL_AMP, tp.vertical_amp_mean, tp.vertical_amp_sigma));
     sel.vertical_cycles = sel.lateral_cycles;
-    sel.vertical_speed = sel.lateral_speed;
 
     sel.twist_amp = std::max(0.0f, cpu_sample_gaussian(seed, RibbonProp::TWIST_AMP, tp.twist_amp_mean, tp.twist_amp_sigma));
     sel.twist_cycles = sel.lateral_cycles;
-    sel.twist_speed = sel.lateral_speed;
 
     // Color
     float color_roll = cpu_hash_f(seed, RibbonProp::COLOR_ROLL);
@@ -542,13 +522,10 @@ static bool place_ribbon_from_selection(Cartridge* c,
     plan.orientation = sel.orientation;
     plan.lateral_amp = sel.lateral_amp;
     plan.lateral_cycles = sel.lateral_cycles;
-    plan.lateral_speed = sel.lateral_speed;
     plan.vertical_amp = sel.vertical_amp;
     plan.vertical_cycles = sel.vertical_cycles;
-    plan.vertical_speed = sel.vertical_speed;
     plan.twist_amp = sel.twist_amp;
     plan.twist_cycles = sel.twist_cycles;
-    plan.twist_speed = sel.twist_speed;
     plan.color_mode = sel.color_mode;
     std::memcpy(plan.color, sel.color, sizeof(plan.color));
 
@@ -576,23 +553,22 @@ static void commit_ribbon(RibbonState& rs, Cartridge* c,
     r.cube_size = plan.cube_size;
     r.height = plan.height;
     r.orientation = plan.orientation;
-    // #TODO[ribbon-trail-frame] COMMIT = the cycles -> freq translation site.
-    //   total_length = plan.cube_count * plan.cube_size; let P = propagation_speed.
-    //   r.propagation_speed = P;  (universal, e.g. 40 u/s — see recon report)
-    //   r.lateral_freq  = plan.lateral_cycles  * 2pi * P / total_length;
-    //   r.vertical_freq = plan.vertical_cycles * 2pi * P / total_length;
-    //   r.twist_freq    = plan.twist_cycles    * 2pi * P / total_length;
-    //   Drop the *_cycles assignments and the *_speed assignments below
-    //   (plan.*_speed no longer used). Amps unchanged.
+    // Trail-frame: derive per-axis temporal freq from authored cycles, the
+    // per-tier propagation_speed, and the ribbon length. Frozen-frame visible
+    // cycles are preserved; crests now propagate head→tail at propagation_speed
+    // (uniform across axes). freq = cycles * 2pi * P / total_length.
+    {
+        const float P = RIBBON_TIERS[plan.tier_idx].propagation_speed;
+        const float total_length = (float)plan.cube_count * plan.cube_size;
+        const float k = 6.2831853f * P / std::max(total_length, 1e-6f);
+        r.propagation_speed = P;
+        r.lateral_freq  = plan.lateral_cycles  * k;
+        r.vertical_freq = plan.vertical_cycles * k;
+        r.twist_freq    = plan.twist_cycles    * k;
+    }
     r.lateral_amp = plan.lateral_amp;
-    r.lateral_cycles = plan.lateral_cycles;
-    r.lateral_speed = plan.lateral_speed;
     r.vertical_amp = plan.vertical_amp;
-    r.vertical_cycles = plan.vertical_cycles;
-    r.vertical_speed = plan.vertical_speed;
     r.twist_amp = plan.twist_amp;
-    r.twist_cycles = plan.twist_cycles;
-    r.twist_speed = plan.twist_speed;
     r.color_mode = plan.color_mode;
     r.color[0] = plan.color[0];
     r.color[1] = plan.color[1];
@@ -654,30 +630,24 @@ static void commit_ribbon(RibbonState& rs, Cartridge* c,
 //   with the WGSL implementations whenever those change.
 
 // CPU mirror of WGSL ribbon_spine_at — evaluate one ring's world position.
-// #TODO[ribbon-trail-frame] REWRITE both CPU mirrors (spine_at_cpu +
-//   tangent_cpu's eval lambda) into trail-frame form AND fix the sign bug:
-//   the CPU currently uses `time*speed + t*cycles*2pi` (PLUS) while WGSL uses
-//   MINUS — they disagree today. New unified form (matches WGSL trail-frame):
-//     phase_age = time - t * total_length / r.propagation_speed;
-//     lateral  = sin(r.lateral_freq  * phase_age) * r.lateral_amp;
-//     vertical = sin(r.vertical_freq * phase_age) * r.vertical_amp;  (+ r.height)
-//     twist_phase = r.twist_freq * phase_age;
-//   Drop all *_speed/*_cycles references here.
+// Trail-frame: the body is the trail of a harmonic-oscillator head sampled
+// at age = t * total_length / propagation_speed seconds in the past. Matches
+// the WGSL minus-sign convention (this fixes the prior CPU +/- sign bug).
 static void ribbon_spine_at_cpu(const GPURibbonState& r, float time, uint32_t ring_idx, float out[3]) {
-    constexpr float PI = 3.14159265359f;
     float t = (float)ring_idx / (float)std::max(r.cube_count - 1u, 1u);
     float total_length = (float)r.cube_count * r.cube_size;
+    float phase_age = time - t * total_length / std::max(r.propagation_speed, 1e-6f);
 
     float along = t * total_length;
-    float lateral = std::sin(time * r.lateral_speed + t * r.lateral_cycles * 2.0f * PI) * r.lateral_amp;
-    float vertical = r.height + std::sin(time * r.vertical_speed + t * r.vertical_cycles * 2.0f * PI) * r.vertical_amp;
+    float lateral = std::sin(r.lateral_freq * phase_age) * r.lateral_amp;
+    float vertical = r.height + std::sin(r.vertical_freq * phase_age) * r.vertical_amp;
 
     float c = std::cos(r.orientation);
     float s = std::sin(r.orientation);
     float rotated_along = along * c - lateral * s;
     float rotated_lateral = along * s + lateral * c;
 
-    float twist_phase = time * r.twist_speed + t * r.twist_cycles * 2.0f * PI;
+    float twist_phase = r.twist_freq * phase_age;
     float twist_depth = std::sin(twist_phase) * 0.4f * r.twist_amp;
     float twist_vert = std::cos(twist_phase) * 0.3f * r.twist_amp;
 
@@ -690,18 +660,18 @@ static void ribbon_spine_at_cpu(const GPURibbonState& r, float time, uint32_t ri
 static void ribbon_tangent_cpu(const GPURibbonState& r, float time, uint32_t ring_idx, float out[3]) {
     constexpr float eps = 0.0005f;
     float t = (float)ring_idx / (float)std::max(r.cube_count - 1u, 1u);
-    // Evaluate spine at t±eps using the raw parametric form
+    // Evaluate spine at t±eps using the trail-frame parametric form
     auto eval = [&](float tp, float p[3]) {
-        constexpr float PI = 3.14159265359f;
         float total_length = (float)r.cube_count * r.cube_size;
+        float phase_age = time - tp * total_length / std::max(r.propagation_speed, 1e-6f);
         float along = tp * total_length;
-        float lateral = std::sin(time * r.lateral_speed + tp * r.lateral_cycles * 2.0f * PI) * r.lateral_amp;
-        float vertical = r.height + std::sin(time * r.vertical_speed + tp * r.vertical_cycles * 2.0f * PI) * r.vertical_amp;
+        float lateral = std::sin(r.lateral_freq * phase_age) * r.lateral_amp;
+        float vertical = r.height + std::sin(r.vertical_freq * phase_age) * r.vertical_amp;
         float c = std::cos(r.orientation);
         float s = std::sin(r.orientation);
         float rotated_along = along * c - lateral * s;
         float rotated_lateral = along * s + lateral * c;
-        float twist_phase = time * r.twist_speed + tp * r.twist_cycles * 2.0f * PI;
+        float twist_phase = r.twist_freq * phase_age;
         float twist_depth = std::sin(twist_phase) * 0.4f * r.twist_amp;
         float twist_vert = std::cos(twist_phase) * 0.3f * r.twist_amp;
         p[0] = r.anchor[0] + rotated_along;

@@ -803,10 +803,9 @@ struct FloatingEntityArray {
 }
 
 // --- [STATE:ribbon] RibbonState
-// #TODO[ribbon-trail-frame] Re-lay-out to match the new GPURibbonState
-//   (state.hpp) BYTE-FOR-BYTE: drop *_cycles (3), rename *_speed -> *_freq (3),
-//   add propagation_speed (1), keep 96 B / 16-aligned (grow pad 2 -> 4).
-//   No BOM (WGSL).
+// Trail-frame ribbon state. Mirrors GPURibbonState in state.hpp BYTE-FOR-BYTE
+// (96 B / 16-aligned). cycles retired; *_freq is the head oscillation rate;
+// propagation_speed is the head→tail trail rate.
 struct RibbonState {
     anchor: vec3<f32>,      // world-space center of the ribbon
     time: f32,              // animation time (seconds) — drives the head's oscillation
@@ -816,18 +815,18 @@ struct RibbonState {
     twist_amp: f32,         // amplitude of corkscrew twist
     color: vec3<f32>,       // ribbon color
     lateral_amp: f32,       // lateral wave amplitude (XZ plane sway)
-    lateral_cycles: f32,    // (unused in propagation-first model — cycles emerge from speed × travel_time)
-    lateral_speed: f32,     // lateral oscillation rate at the head (rad/s)
+    lateral_freq: f32,      // lateral head oscillation rate (rad/s)
     vertical_amp: f32,      // vertical wave amplitude (world Y)
-    vertical_cycles: f32,   // (unused — see lateral_cycles)
-    vertical_speed: f32,    // vertical oscillation rate at the head (rad/s)
-    twist_cycles: f32,      // (unused)
-    twist_speed: f32,       // twist oscillation rate at the head (rad/s)
+    vertical_freq: f32,     // vertical head oscillation rate (rad/s)
+    twist_freq: f32,        // twist head oscillation rate (rad/s)
+    propagation_speed: f32, // head→tail trail rate (world units/s)
     is_visible: u32,        // 0 = hidden, 1 = flying
     orientation: f32,       // heading angle (radians, 0 = +X axis)
     color_mode: u32,        // 0=smooth, 1=tinted, 2=contrast
     _pad0: f32,
     _pad1: f32,
+    _pad2: f32,
+    _pad3: f32,
 }
 
 // Pre-computed per-ring transform (compute pass → VS + pawn overlay)
@@ -4065,34 +4064,27 @@ fn shadow_shell_vs(in: ShellVertexInput) -> ShadowVarying {
 }
 
 // §6.5 SKY RIBBON ENTITY
-// A continuous square-section tube with a standing-wave shape that
-// propagates HEAD → TAIL:
+// A continuous square-section tube whose body is the TRAIL of a harmonic-
+// oscillator head, sampled at progressively older head positions along its
+// length:
 //
-// BASELINE shape: standing-wave math, the authored ribbon character.
-//    `sin(time × speed − t × cycles × 2π)` — preserves the per-tier
-//    visible cycles (Serpentine 1.5, Helix 3, Streamer 5, etc.) and
-//    the gentle temporal drift that gives the ribbon its swimming
-//    feel. Crests walk head → tail at speed ∝ lateral_speed / cycles.
-
-// Spine position at parameter t in [0, 1].
-// #TODO[ribbon-trail-frame] REWRITE wave args to trail-frame form. Each
-//   axis: `*_speed*time - t*(*_cycles)*2pi`  becomes
-//   `(*_freq) * (time - t * total_length / ribbon.propagation_speed)`.
-//   Compute `let phase_age = time - t * total_length / ribbon.propagation_speed;`
-//   once, then lateral/vertical/twist use *_freq * phase_age. Drop the
-//   *_cycles / *_speed references. Frozen-frame cycles preserved; crest
-//   propagation now unified across axes (see report). ribbon_tangent_at
-//   below + ribbon_ring_motor/compute_ribbon_rings call this unchanged.
+// TRAIL-FRAME shape: each ring at parameter t shows the head's state at
+//    age = t × total_length / propagation_speed seconds ago:
+//      sin(freq × (time − t × total_length / propagation_speed))
+//    Visible cycles emerge from freq × travel_time (preserving the authored
+//    per-tier cycle counts); crests propagate head → tail at the single
+//    propagation_speed (uniform across all three axes).
 fn ribbon_spine_at(t: f32, ribbon: RibbonState) -> vec3<f32> {
     let total_length = f32(ribbon.cube_count) * ribbon.cube_size;
     let time = ribbon.time;
 
-    // Standing-wave shape (authored character):
-    //   sin(time × speed − t × cycles × 2π) gives the per-tier visible
-    //   cycle count with crests drifting HEAD → TAIL.
+    // Trail-frame phase: how long ago (seconds) this ring's head-state was
+    // emitted. Shared across all axes so crests stay synchronized.
+    let phase_age = time - t * total_length / max(ribbon.propagation_speed, 1e-6);
+
     let along = t * total_length;
-    let lateral  = sin(time * ribbon.lateral_speed  - t * ribbon.lateral_cycles  * 2.0 * PI) * ribbon.lateral_amp;
-    let vertical = sin(time * ribbon.vertical_speed - t * ribbon.vertical_cycles * 2.0 * PI) * ribbon.vertical_amp;
+    let lateral  = sin(ribbon.lateral_freq  * phase_age) * ribbon.lateral_amp;
+    let vertical = sin(ribbon.vertical_freq * phase_age) * ribbon.vertical_amp;
 
     // Heading rotation (lateral sway only — no twist here)
     let c = cos(ribbon.orientation);
@@ -4101,7 +4093,7 @@ fn ribbon_spine_at(t: f32, ribbon: RibbonState) -> vec3<f32> {
     let rotated_lateral = along * s + lateral * c;
 
     // Twist: helical displacement PERPENDICULAR to the sway plane.
-    let twist_phase = time * ribbon.twist_speed - t * ribbon.twist_cycles * 2.0 * PI;
+    let twist_phase = ribbon.twist_freq * phase_age;
     let twist_depth = sin(twist_phase) * 0.4 * ribbon.twist_amp;
     let twist_vert  = cos(twist_phase) * 0.3 * ribbon.twist_amp;
 
