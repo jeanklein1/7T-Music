@@ -3105,7 +3105,7 @@ namespace t7 {
                 gpuSignal.dt = signal.dt;
                 gpuSignal.aspect_ratio = aspect_ratio;
 
-                for (size_t i = 0; i < signal.stats.size(); ++i) {
+                for (size_t i = 0; i < gpuSignal.stats.size(); ++i) {
                     gpuSignal.stats[i] = signal.stats[i];
                 }
 
