@@ -58,6 +58,12 @@ static constexpr float BAND_BLEND_RELEASE = 2.0f;   // 1/s — blend ramp down
 static constexpr float MMODE_ATTACK  = 4.0f;        // 1/s — intensity ramp up
 static constexpr float MMODE_RELEASE = 2.5f;        // 1/s — intensity ramp down
 
+// ── Ribbon color release ─────────────────────────────────────────
+// Rate at which the ribbon's CPU-mirror color drifts toward
+// MusicalState::ribbon_color_target each frame. The target is authored
+// by Section 5 (lowest-PC coupling); the release is the animation.
+static constexpr float RIBBON_COLOR_RELEASE_RATE = 4.0f;   // 1/s
+
 // ── Polyphony normalization ──────────────────────────────────────
 // "Full" polyphony point — input above this saturates the mode at
 // intensity 1.0. Different modes saturate at different polyphony
@@ -202,6 +208,13 @@ struct MusicalState {
     float    pulse_ring[32]   = {};                // 8 × 4 floats
     uint32_t pulse_write_idx  = 0;                 // next slot to write (wraps at 8)
     float    prev_polyphony   = 0.0f;              // previous frame's polyphony (for onset detection)
+
+    // ── Ribbon color target (lowest-PC coupling) ─────────────────
+    // Section 5 authors this; the per-frame release in section 5b lerps the
+    // ribbon's CPU-mirror color toward it via trajectory_release. Sentinel
+    // (-1) means "not yet armed" — spawn-time color holds. Once armed, the
+    // target persists across silence (hold-last, no snap-back).
+    float ribbon_color_target[3] = { -1.0f, -1.0f, -1.0f };
 };
 MusicalState musical_state_;
 
@@ -415,12 +428,13 @@ static void tick_musical_couplings(MusicalState& ms, Cartridge* c, const Analysi
         c->gpuState_.set_pulse_data(active, ms.pulse_ring);
     }
 
-    // ─── 5. Lowest-PC ribbon color (validation stub) ──────────────
-    // Reads the one-hot PC vector for the lowest abbott note (signal channel 0,
-    // slots 3–14). Maps the active PC to a vivid chromatic color and writes it
-    // into the CPU mirror for all active ribbon slots. commit_ribbon writes color
-    // at spawn time; this replaces it per-frame (replacement is cleaner than
-    // last-writer layering for a stub). Silence: no PC is hot, color unchanged.
+    // ─── 5. Lowest-PC ribbon color: target + release ──────────────
+    // Two-part: (5a) the lowest-PC one-hot from the abbott channel authors
+    // a color *target* in MusicalState — coupling sets the goal, not the
+    // final value. (5b) the per-frame release lerps the ribbon's CPU-mirror
+    // color toward that target via trajectory_release — animation owns the
+    // final write. commit_ribbon still authors the spawn-time color; the
+    // release starts from there. Silence: target holds, color settles.
     {
         static constexpr float PC_COLORS[12][3] = {
             { 1.0f,  0.0f,  0.0f  },   // C  — red
@@ -437,20 +451,26 @@ static void tick_musical_couplings(MusicalState& ms, Cartridge* c, const Analysi
             { 1.0f,  0.0f,  1.0f  },   // B  — magenta
         };
 
-        int active_pc = -1;
+        // 5a — target authoring. Only writes the target when a PC is hot;
+        // silence leaves the previous target armed (hold-last).
         for (int pc = 0; pc < 12; ++pc) {
             if (signal.stat(0, 3 + pc) > 0.5f) {
-                active_pc = pc;
+                ms.ribbon_color_target[0] = PC_COLORS[pc][0];
+                ms.ribbon_color_target[1] = PC_COLORS[pc][1];
+                ms.ribbon_color_target[2] = PC_COLORS[pc][2];
                 break;
             }
         }
 
-        if (active_pc >= 0) {
+        // 5b — release toward target. Sentinel (-1) means the target was
+        // never armed; until then, spawn-time color holds untouched.
+        if (ms.ribbon_color_target[0] >= 0.0f) {
             for (uint32_t s = 0; s < MAX_RIBBON_INSTANCES; ++s) {
-                if (c->ribbon_state_.active[s].active) {
-                    c->ribbon_state_.gpu[s].color[0] = PC_COLORS[active_pc][0];
-                    c->ribbon_state_.gpu[s].color[1] = PC_COLORS[active_pc][1];
-                    c->ribbon_state_.gpu[s].color[2] = PC_COLORS[active_pc][2];
+                if (!c->ribbon_state_.active[s].active) continue;
+                for (int ch = 0; ch < 3; ++ch) {
+                    Trajectory rc{ c->ribbon_state_.gpu[s].color[ch], 0.0f, 0.0f, 0.0f };
+                    rc = trajectory_release(rc, ms.ribbon_color_target[ch], dt, RIBBON_COLOR_RELEASE_RATE);
+                    c->ribbon_state_.gpu[s].color[ch] = rc.value;
                 }
             }
         }
