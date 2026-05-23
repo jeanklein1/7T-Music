@@ -3481,8 +3481,12 @@ namespace t7 {
                         && ribbon_state_.active[ribbon_state_.rendered_slot].active;
 
                     if (current_alive) {
-                        // Hold — just update time
+                        // Hold — update time + color (color is animated each frame by
+                        // tick_musical_couplings section 5b's release lerp; the full
+                        // upload_ribbon path only runs on slot eviction below).
                         gpuState_.upload_ribbon_time(queue, time_state_.seconds);
+                        gpuState_.upload_ribbon_color(queue,
+                            ribbon_state_.gpu[ribbon_state_.rendered_slot].color);
                     }
                     else {
                         // Current slot is gone — find nearest active ribbon
