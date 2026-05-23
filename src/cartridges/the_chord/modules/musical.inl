@@ -414,6 +414,47 @@ static void tick_musical_couplings(MusicalState& ms, Cartridge* c, const Analysi
         }
         c->gpuState_.set_pulse_data(active, ms.pulse_ring);
     }
+
+    // ─── 5. Lowest-PC ribbon color (validation stub) ──────────────
+    // Reads the one-hot PC vector for the lowest abbott note (signal channel 0,
+    // slots 3–14). Maps the active PC to a vivid chromatic color and writes it
+    // into the CPU mirror for all active ribbon slots. commit_ribbon writes color
+    // at spawn time; this replaces it per-frame (replacement is cleaner than
+    // last-writer layering for a stub). Silence: no PC is hot, color unchanged.
+    {
+        static constexpr float PC_COLORS[12][3] = {
+            { 1.0f,  0.0f,  0.0f  },   // C  — red
+            { 1.0f,  0.25f, 0.0f  },   // C# — red-orange
+            { 1.0f,  0.5f,  0.0f  },   // D  — orange
+            { 1.0f,  0.75f, 0.0f  },   // D# — orange-yellow
+            { 1.0f,  1.0f,  0.0f  },   // E  — yellow
+            { 0.75f, 1.0f,  0.0f  },   // F  — green-yellow
+            { 0.0f,  1.0f,  0.0f  },   // F# — green
+            { 0.0f,  1.0f,  0.5f  },   // G  — green-cyan
+            { 0.0f,  1.0f,  1.0f  },   // G# — cyan
+            { 0.0f,  0.0f,  1.0f  },   // A  — blue
+            { 0.5f,  0.0f,  1.0f  },   // A# — purple
+            { 1.0f,  0.0f,  1.0f  },   // B  — magenta
+        };
+
+        int active_pc = -1;
+        for (int pc = 0; pc < 12; ++pc) {
+            if (signal.stat(0, 3 + pc) > 0.5f) {
+                active_pc = pc;
+                break;
+            }
+        }
+
+        if (active_pc >= 0) {
+            for (uint32_t s = 0; s < MAX_RIBBON_INSTANCES; ++s) {
+                if (c->ribbon_state_.active[s].active) {
+                    c->ribbon_state_.gpu[s].color[0] = PC_COLORS[active_pc][0];
+                    c->ribbon_state_.gpu[s].color[1] = PC_COLORS[active_pc][1];
+                    c->ribbon_state_.gpu[s].color[2] = PC_COLORS[active_pc][2];
+                }
+            }
+        }
+    }
 }
 
 

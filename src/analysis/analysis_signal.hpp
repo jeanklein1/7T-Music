@@ -16,30 +16,30 @@
  * This signal crosses that boundary. The visualization receives these numbers
  * without knowing what "polyphony" means — just that slot N has value X.
  * 
- * LAYOUT (288 bytes)
- * ------------------
- * 
+ * LAYOUT (2080 bytes)
+ * -------------------
+ *
  *   Offset  Field                Size
  *   0       t_seconds            4
  *   4       t_beats              4
  *   8       dt                   4
  *   12      _pad0                4
- *   16      stats[64]            256
- *   272     _pad1[4]             16
- *   288     END
- * 
+ *   16      stats[512]           2048
+ *   2064    _pad1[4]             16
+ *   2080    END
+ *
  * STAT ARRAY DESIGN
  * -----------------
- * 
- * The stats array holds 64 floats for multi-channel musical analysis.
- * 
+ *
+ * The stats array holds 512 floats for multi-channel musical analysis.
+ *
  * Indexing: stats[channel * STATS_PER_CHANNEL + stat]
- * 
- * With 4 channels and 16 stats per channel:
- *   Channel 0: stats[0..15]
- *   Channel 1: stats[16..31]
- *   Channel 2: stats[32..47]
- *   Channel 3: stats[48..63]
+ *
+ * With 4 channels and 128 stats per channel:
+ *   Channel 0: stats[0..127]
+ *   Channel 1: stats[128..255]
+ *   Channel 2: stats[256..383]
+ *   Channel 3: stats[384..511]
  * 
  * Which slots carry which meaning is defined by the analysis cartridge.
  * The visualization cartridge must know the mapping to interpret the data.
@@ -55,8 +55,8 @@ namespace t7 {
 // =============================================================================
 
 constexpr int MAX_CHANNELS = 4;
-constexpr int STATS_PER_CHANNEL = 16;
-constexpr int TOTAL_STATS = MAX_CHANNELS * STATS_PER_CHANNEL;  // 64
+constexpr int STATS_PER_CHANNEL = 128;
+constexpr int TOTAL_STATS = MAX_CHANNELS * STATS_PER_CHANNEL;  // 512
 
 /**
  * Compute array index for a (channel, stat) pair.
@@ -77,8 +77,8 @@ struct alignas(16) AnalysisSignal {
     float dt;               // Frame delta (seconds)
     float _pad0;            // Alignment padding
     
-    // ═══ MUSICAL STATS (256 bytes) ═════════════════════════════════════════
-    
+    // ═══ MUSICAL STATS (2048 bytes) ════════════════════════════════════════
+
     std::array<float, TOTAL_STATS> stats;
     
     // ═══ PADDING (16 bytes) ════════════════════════════════════════════════
@@ -104,7 +104,7 @@ struct alignas(16) AnalysisSignal {
     }
 };
 
-static_assert(sizeof(AnalysisSignal) == 288, "AnalysisSignal must be 288 bytes");
+static_assert(sizeof(AnalysisSignal) == 2080, "AnalysisSignal must be 2080 bytes");
 static_assert(alignof(AnalysisSignal) == 16, "AnalysisSignal must be 16-byte aligned");
 
 } // namespace t7

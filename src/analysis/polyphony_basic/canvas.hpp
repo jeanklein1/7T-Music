@@ -70,6 +70,9 @@ constexpr int STAT_POLYPHONY_ABBOTT   = 0;
 constexpr int STAT_POLYPHONY_COSTELLO = 1;
 constexpr int STAT_POLYPHONY_LOUISE   = 2;
 
+constexpr int STAT_LOWEST_PC_ABBOTT_BASE = 3;   // slots 3..14: one-hot PC vector for lowest abbott note
+constexpr int STAT_LOWEST_PC_COUNT       = 12;
+
 // =============================================================================
 // CANVAS - The Analysis Cartridge Implementation
 // =============================================================================
@@ -269,6 +272,7 @@ private:
     TrainStatId abbott_polyphony_stat_;
     TrainStatId costello_polyphony_stat_;
     TrainStatId louise_polyphony_stat_;
+    std::array<TrainStatId, 12> abbott_lowest_pc_stats_;
 
     // ─── OUTPUT ─────────────────────────────────────────────────────────────
     AnalysisSignal output_;
@@ -281,6 +285,19 @@ private:
             [ph](const TrainContext& ctx) {
                 return float(ctx.playhead(ph).current_count);
             });
+
+        for (int pc = 0; pc < STAT_LOWEST_PC_COUNT; ++pc) {
+            abbott_lowest_pc_stats_[pc] = abbott_train_.define(
+                [ph, pc](const TrainContext& ctx) -> float {
+                    const auto& r = ctx.playhead(ph);
+                    if (r.current_count == 0) return 0.0f;
+                    int lowest = 127;
+                    for (int i = 0; i < r.current_count; ++i)
+                        if (r.current[i].pitch < lowest)
+                            lowest = r.current[i].pitch;
+                    return ((lowest % 12) == pc) ? 1.0f : 0.0f;
+                });
+        }
     }
 
     void setup_costello_train() {
@@ -378,6 +395,11 @@ private:
                          costello_train_.get(costello_polyphony_stat_));
         output_.set_stat(2, STAT_POLYPHONY_LOUISE,
                          louise_train_.get(louise_polyphony_stat_));
+
+        for (int pc = 0; pc < STAT_LOWEST_PC_COUNT; ++pc) {
+            output_.set_stat(0, STAT_LOWEST_PC_ABBOTT_BASE + pc,
+                             abbott_train_.get(abbott_lowest_pc_stats_[pc]));
+        }
     }
 };
 
