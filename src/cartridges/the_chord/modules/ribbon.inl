@@ -334,6 +334,7 @@ struct ActiveRibbon {
     bool far_tip_registered = false;
     uint32_t ref_count = 0;     // patches referencing this ribbon via record_entity
     bool active = false;
+    float spawn_color[3] = { 0.0f, 0.0f, 0.0f };   // idle target for musical color couplings
 };
 
 // ── Ribbon module state (Scope B migration #1) ────────────────────
@@ -580,6 +581,11 @@ static void commit_ribbon(RibbonState& rs, Cartridge* c,
     rs.gpu[s] = r;
 
     auto& ar = rs.active[s];
+    // Snapshot the spawn color as the idle target for musical color couplings
+    // (musical.inl section 5 releases here when no PC is stimulating the ribbon).
+    ar.spawn_color[0] = r.color[0];
+    ar.spawn_color[1] = r.color[1];
+    ar.spawn_color[2] = r.color[2];
     ar.patch_gx = trigger_gx;
     ar.patch_gz = trigger_gz;
     ar.host_gx = plan.host_gx;
