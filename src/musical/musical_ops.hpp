@@ -10,7 +10,7 @@
  *    - PitchClassBits: 12-bit mask
  *    - PitchClassVector: 12-float weighted distribution
  *    - PitchPrime: prime product encoding
- *    - Scale: pitch class set with root
+ *    - PitchClassSet: pitch class set (unordered, no root)
  *    - RhythmBin: quantized duration category
  * 
  * 2. EXTRACTORS - Transform readouts into representations
@@ -32,7 +32,7 @@
  * 
  *     const auto& pr = playhead.readout();
  *     PitchClassBits pcb = extract_pitch_class_bits_current(pr);
- *     float adherence = scale_adherence(pcb, c_major);
+ *     float overlap = pc_set_overlap_fraction(pcb, c_major_bits);
  *     
  *     const auto& wr = wagon.readout();
  *     float c = centroid(wr);
@@ -178,65 +178,44 @@ struct PitchPrime {
 // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Scale Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 /**
- * A musical scale: pitch class set with a root.
- * 
- * Use for: scale adherence, modal analysis, key detection
+ * An unordered set of pitch classes (no root, no degree structure).
+ *
+ * Use for: set overlap, membership tests, chord/key membership
  */
-struct Scale {
+struct PitchClassSet {
     PitchClassBits pitch_classes;
-    int root = 0;  // 0-11
-    
+
     bool contains(int pc) const { return pitch_classes.test(pc); }
     int note_count() const { return pitch_classes.count(); }
-    
-    /**
-     * Get scale degree of pitch class (0 = root, -1 if not in scale).
-     */
-    int degree_of(int pc) const {
-        int normalized = ((pc % 12) + 12) % 12;
-        if (!contains(normalized)) return -1;
-        
-        int degree = 0;
-        for (int i = 0; i < 12; ++i) {
-            int check = (root + i) % 12;
-            if (check == normalized) return degree;
-            if (contains(check)) ++degree;
-        }
-        return -1;
-    }
 };
 
 // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Scale Constructors Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
-inline Scale major_scale(int root = 0) {
-    Scale s;
-    s.root = root % 12;
+inline PitchClassSet major_scale(int root = 0) {
+    PitchClassSet s;
     // Major: W W H W W W H (0, 2, 4, 5, 7, 9, 11)
     constexpr int intervals[] = {0, 2, 4, 5, 7, 9, 11};
     for (int i : intervals) s.pitch_classes.set((root + i) % 12);
     return s;
 }
 
-inline Scale minor_scale(int root = 0) {
-    Scale s;
-    s.root = root % 12;
+inline PitchClassSet minor_scale(int root = 0) {
+    PitchClassSet s;
     // Natural minor: W H W W H W W (0, 2, 3, 5, 7, 8, 10)
     constexpr int intervals[] = {0, 2, 3, 5, 7, 8, 10};
     for (int i : intervals) s.pitch_classes.set((root + i) % 12);
     return s;
 }
 
-inline Scale pentatonic_major(int root = 0) {
-    Scale s;
-    s.root = root % 12;
+inline PitchClassSet pentatonic_major(int root = 0) {
+    PitchClassSet s;
     constexpr int intervals[] = {0, 2, 4, 7, 9};
     for (int i : intervals) s.pitch_classes.set((root + i) % 12);
     return s;
 }
 
-inline Scale chromatic_scale(int root = 0) {
-    Scale s;
-    s.root = root % 12;
+inline PitchClassSet chromatic_scale(int root = 0) {
+    PitchClassSet s;
     s.pitch_classes.bits = 0x0FFF;  // All 12 bits
     return s;
 }
@@ -430,16 +409,13 @@ inline PitchPrime extract_pitch_prime(const WagonReadout& r) {
 // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ PitchClassBits Operations Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 /**
- * Fraction of pitch classes that are in the scale.
- * Input: PitchClassBits
- * Output: 0.0 to 1.0
+ * Fraction of pitch classes in set a that are also in set b.
+ * Input: two PitchClassBits
+ * Output: 0.0 to 1.0 (1.0 when a is empty — vacuously true)
  */
-inline float scale_adherence(PitchClassBits pcb, const Scale& scale) {
-    if (pcb.empty()) return 1.0f;  // No notes = perfect adherence
-    
-    int total = pcb.count();
-    int in_scale = (pcb & scale.pitch_classes).count();
-    return static_cast<float>(in_scale) / total;
+inline float pc_set_overlap_fraction(PitchClassBits a, PitchClassBits b) {
+    if (a.empty()) return 1.0f;
+    return static_cast<float>((a & b).count()) / a.count();
 }
 
 /**
@@ -623,7 +599,7 @@ inline Direction playhead_direction(const PlayheadReadout& r, float threshold = 
  * Input: PlayheadReadout
  * Output: MIDI pitch (0-127) or -1 if empty
  */
-inline int playhead_bass_current(const PlayheadReadout& r) {
+inline int playhead_lowest_pitch_current(const PlayheadReadout& r) {
     return r.current_mask.lowest();
 }
 
@@ -632,7 +608,7 @@ inline int playhead_bass_current(const PlayheadReadout& r) {
  * Input: PlayheadReadout
  * Output: MIDI pitch (0-127) or -1 if empty
  */
-inline int playhead_bass_previous(const PlayheadReadout& r) {
+inline int playhead_lowest_pitch_previous(const PlayheadReadout& r) {
     if (r.previous_count == 0) return -1;
     int lowest = 127;
     for (int i = 0; i < r.previous_count; ++i) {
@@ -642,13 +618,13 @@ inline int playhead_bass_previous(const PlayheadReadout& r) {
 }
 
 /**
- * Interval between bass notes.
+ * Interval between lowest pitches (current minus previous).
  * Input: PlayheadReadout
  * Output: semitones (can be negative)
  */
-inline int playhead_bass_interval(const PlayheadReadout& r) {
-    int curr = playhead_bass_current(r);
-    int prev = playhead_bass_previous(r);
+inline int playhead_lowest_pitch_interval(const PlayheadReadout& r) {
+    int curr = playhead_lowest_pitch_current(r);
+    int prev = playhead_lowest_pitch_previous(r);
     if (curr < 0 || prev < 0) return 0;
     return curr - prev;
 }
@@ -658,7 +634,7 @@ inline int playhead_bass_interval(const PlayheadReadout& r) {
  * Input: PlayheadReadout
  * Output: MIDI pitch (0-127) or -1 if empty
  */
-inline int playhead_soprano_current(const PlayheadReadout& r) {
+inline int playhead_highest_pitch_current(const PlayheadReadout& r) {
     return r.current_mask.highest();
 }
 
@@ -667,7 +643,7 @@ inline int playhead_soprano_current(const PlayheadReadout& r) {
  * Input: PlayheadReadout
  * Output: MIDI pitch (0-127) or -1 if empty
  */
-inline int playhead_soprano_previous(const PlayheadReadout& r) {
+inline int playhead_highest_pitch_previous(const PlayheadReadout& r) {
     if (r.previous_count == 0) return -1;
     int highest = 0;
     for (int i = 0; i < r.previous_count; ++i) {
@@ -677,13 +653,13 @@ inline int playhead_soprano_previous(const PlayheadReadout& r) {
 }
 
 /**
- * Interval between soprano notes.
+ * Interval between highest pitches (current minus previous).
  * Input: PlayheadReadout
  * Output: semitones (can be negative)
  */
-inline int playhead_soprano_interval(const PlayheadReadout& r) {
-    int curr = playhead_soprano_current(r);
-    int prev = playhead_soprano_previous(r);
+inline int playhead_highest_pitch_interval(const PlayheadReadout& r) {
+    int curr = playhead_highest_pitch_current(r);
+    int prev = playhead_highest_pitch_previous(r);
     if (curr < 0 || prev < 0) return 0;
     return curr - prev;
 }
@@ -732,7 +708,7 @@ inline float playhead_velocity_delta(const PlayheadReadout& r) {
  */
 inline int playhead_span_current(const PlayheadReadout& r) {
     if (r.current_count < 2) return 0;
-    return playhead_soprano_current(r) - playhead_bass_current(r);
+    return playhead_highest_pitch_current(r) - playhead_lowest_pitch_current(r);
 }
 
 
