@@ -685,6 +685,110 @@ inline int playhead_span_current(const PlayheadReadout& r) {
     return playhead_highest_pitch_current(r) - playhead_lowest_pitch_current(r);
 }
 
+/**
+ * Voice-leading minimum: pitch in PREVIOUS closest to target_pitch.
+ * On equal distance, the higher pitch wins (soprano-voice tiebreak).
+ * Input: PlayheadReadout, target MIDI pitch
+ * Output: MIDI pitch (0-127) or -1 if empty
+ */
+inline int playhead_closest_to_previous(const PlayheadReadout& r, int target_pitch) {
+    if (r.previous_count == 0) return -1;
+    int best = r.previous[0].pitch;
+    int best_dist = std::abs(int(r.previous[0].pitch) - target_pitch);
+    for (int i = 1; i < r.previous_count; ++i) {
+        int p = r.previous[i].pitch;
+        int d = std::abs(p - target_pitch);
+        if (d < best_dist || (d == best_dist && p > best)) {
+            best = p;
+            best_dist = d;
+        }
+    }
+    return best;
+}
+
+/**
+ * Last-to-release: pitch with the maximum offset_beat in PREVIOUS.
+ * On equal offset_beat, the higher pitch wins.
+ * Input: PlayheadReadout
+ * Output: MIDI pitch (0-127) or -1 if empty
+ */
+inline int playhead_latest_previous(const PlayheadReadout& r) {
+    if (r.previous_count == 0) return -1;
+    int best = r.previous[0].pitch;
+    float best_off = r.previous[0].offset_beat;
+    for (int i = 1; i < r.previous_count; ++i) {
+        int p = r.previous[i].pitch;
+        float off = r.previous[i].offset_beat;
+        if (off > best_off || (off == best_off && p > best)) {
+            best = p;
+            best_off = off;
+        }
+    }
+    return best;
+}
+
+/**
+ * First-to-start: pitch with the minimum onset_beat in PREVIOUS.
+ * On equal onset_beat, the higher pitch wins.
+ * Input: PlayheadReadout
+ * Output: MIDI pitch (0-127) or -1 if empty
+ */
+inline int playhead_earliest_previous(const PlayheadReadout& r) {
+    if (r.previous_count == 0) return -1;
+    int best = r.previous[0].pitch;
+    float best_on = r.previous[0].onset_beat;
+    for (int i = 1; i < r.previous_count; ++i) {
+        int p = r.previous[i].pitch;
+        float on = r.previous[i].onset_beat;
+        if (on < best_on || (on == best_on && p > best)) {
+            best = p;
+            best_on = on;
+        }
+    }
+    return best;
+}
+
+/**
+ * Loudest: pitch with the maximum velocity in PREVIOUS.
+ * On equal velocity, the higher pitch wins.
+ * Input: PlayheadReadout
+ * Output: MIDI pitch (0-127) or -1 if empty
+ */
+inline int playhead_loudest_previous(const PlayheadReadout& r) {
+    if (r.previous_count == 0) return -1;
+    int best = r.previous[0].pitch;
+    float best_vel = r.previous[0].velocity;
+    for (int i = 1; i < r.previous_count; ++i) {
+        int p = r.previous[i].pitch;
+        float vel = r.previous[i].velocity;
+        if (vel > best_vel || (vel == best_vel && p > best)) {
+            best = p;
+            best_vel = vel;
+        }
+    }
+    return best;
+}
+
+/**
+ * Longest: pitch with the maximum duration (offset_beat - onset_beat) in PREVIOUS.
+ * On equal duration, the higher pitch wins.
+ * Input: PlayheadReadout
+ * Output: MIDI pitch (0-127) or -1 if empty
+ */
+inline int playhead_longest_previous(const PlayheadReadout& r) {
+    if (r.previous_count == 0) return -1;
+    int best = r.previous[0].pitch;
+    float best_dur = r.previous[0].duration();
+    for (int i = 1; i < r.previous_count; ++i) {
+        int p = r.previous[i].pitch;
+        float dur = r.previous[i].duration();
+        if (dur > best_dur || (dur == best_dur && p > best)) {
+            best = p;
+            best_dur = dur;
+        }
+    }
+    return best;
+}
 
 // Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 // PART 5: OPERATIONS ON WAGON READOUT (Aggregate)
