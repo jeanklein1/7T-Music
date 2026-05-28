@@ -76,7 +76,7 @@ namespace t7 {
 
 constexpr int TRAIN_MAX_PLAYHEADS = 2;
 constexpr int TRAIN_MAX_WAGONS = 2;
-constexpr int TRAIN_MAX_STATS = 32;
+constexpr int TRAIN_MAX_STATS = 64;
 
 // Buffer size for inline lambda storage (no heap allocation if capture fits)
 // 32 bytes accommodates most typical lambdas (4 pointers or 8 floats)
@@ -432,11 +432,11 @@ private:
 
 // Train memory:
 //   context_           ~ 7.3 KB
-//   compute_fns_[32]   = 32 * 56  = 1792 bytes
-//   stat_values_[32]   = 128 bytes
+//   compute_fns_[64]   = 64 * 56  = 3584 bytes
+//   stat_values_[64]   = 256 bytes
 //   playheads_[2]      = 2 * 536  = 1072 bytes  (owned analyzers)
 //   wagons_[2]         = 2 * 3100 = 6200 bytes  (owned analyzers)
 //   scalars            ~ 16 bytes
-//   Total              ~ 16.5 KB
+//   Total              ~ 18.4 KB
 
 } // namespace t7
