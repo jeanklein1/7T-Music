@@ -195,6 +195,14 @@ public:
      * @param history Completed notes (read-only reference to append-only data)
      */
     void update(const StreamSnapshot& snap, const CompletedRing& history) {
+        if (update_period_ > 0.0f) {
+            float elapsed = snap.beat - last_update_beat_;
+            if (elapsed >= 0.0f && elapsed < update_period_) {
+                return;
+            }
+        }
+        last_update_beat_ = snap.beat;
+
         float anchor = snap.beat - offset_beats_;
         float window_start = anchor - span_beats_;
         float window_end = anchor;
@@ -217,12 +225,17 @@ public:
     
     bool include_active() const { return include_active_; }
     void set_include_active(bool v) { include_active_ = v; }
+
+    void  set_update_period(float beats) { update_period_ = beats; }
+    float update_period() const { return update_period_; }
     
 private:
     float span_beats_;
     float offset_beats_;
     bool include_straddling_;
     bool include_active_;
+    float update_period_    = 0.0f;
+    float last_update_beat_ = -1.0e30f;
     
     WagonReadout readout_;
     

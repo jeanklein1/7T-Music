@@ -74,6 +74,14 @@ namespace t7 {
 // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Pitch Class Bits Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 /**
+ * Pitch class of a MIDI note under the D-origin convention (PC 0 = D).
+ * Input: MIDI pitch (0-127). Output: pitch class 0-11.
+ */
+inline int pc_of(int midi_pitch) {
+    return ((midi_pitch - 2) % 12 + 12) % 12;
+}
+
+/**
  * 12-bit mask representing pitch classes present.
  * Bit N = pitch class N is present (C=0, C#=1, ... B=11)
  * 
@@ -806,7 +814,7 @@ inline int playhead_polyphony(const PlayheadReadout& r) {
  */
 inline int playhead_lowest_pc_current(const PlayheadReadout& r) {
     int pitch = playhead_lowest_pitch_current(r);
-    return (pitch >= 0) ? (pitch % 12) : -1;
+    return (pitch >= 0) ? pc_of(pitch) : -1;
 }
 
 /**
@@ -984,6 +992,41 @@ inline float wagon_duration_mean(const WagonReadout& r) {
     return sum / r.note_count;
 }
 
+
+/**
+ * Count of notes in the window whose pitch class equals `pc` (D-origin).
+ * Input: WagonReadout, pc 0-11. Output: integer count.
+ */
+inline int wagon_pc_count(const WagonReadout& r, int pc) {
+    int count = 0;
+    for (int i = 0; i < r.note_count; ++i)
+        if (pc_of(r.notes[i].pitch) == pc) ++count;
+    return count;
+}
+
+/**
+ * Length-weighted presence of pitch class `pc` (D-origin): sum of the
+ * in-window durations of notes with that pitch class.
+ * Input: WagonReadout, pc 0-11. Output: total beats.
+ */
+inline float wagon_pc_length(const WagonReadout& r, int pc) {
+    float total = 0.0f;
+    for (int i = 0; i < r.note_count; ++i)
+        if (pc_of(r.notes[i].pitch) == pc)
+            total += r.notes[i].window_duration();
+    return total;
+}
+
+/**
+ * Total in-window sounding time across all notes.
+ * Input: WagonReadout. Output: total beats.
+ */
+inline float wagon_total_length(const WagonReadout& r) {
+    float total = 0.0f;
+    for (int i = 0; i < r.note_count; ++i)
+        total += r.notes[i].window_duration();
+    return total;
+}
 
 // Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 // PART 6: CROSS-READOUT OPERATIONS

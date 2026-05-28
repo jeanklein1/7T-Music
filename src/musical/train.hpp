@@ -310,14 +310,16 @@ public:
      */
     int add_wagon(float span_beats,
                   float offset_beats = 0.0f,
-                  bool include_straddling = false,
-                  bool include_active = false) {
+                  bool  include_straddling = false,
+                  bool  include_active = false,
+                  float update_period_beats = 0.0f) {
         if (wagon_count_ >= TRAIN_MAX_WAGONS) return -1;
         int slot = wagon_count_++;
         wagons_[slot].set_span(span_beats);
         wagons_[slot].set_offset(offset_beats);
         wagons_[slot].set_include_straddling(include_straddling);
         wagons_[slot].set_include_active(include_active);
+        wagons_[slot].set_update_period(update_period_beats);
         return slot;
     }
 

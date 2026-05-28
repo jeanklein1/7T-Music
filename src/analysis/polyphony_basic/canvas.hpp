@@ -60,6 +60,9 @@ namespace polyphony_basic {
 constexpr int MAX_NAMED_CHANNELS     = 4;
 constexpr int MAX_TRAINS_PER_CHANNEL = 4;
 
+constexpr float ABBOTT_WAGON_SPAN_BEATS   = 4.0f;  // 1 bar in 4/4
+constexpr float ABBOTT_WAGON_PERIOD_BEATS = 1.0f;  // update per beat
+
 // =============================================================================
 // STAT SLOT DEFINITIONS
 // =============================================================================
@@ -69,9 +72,12 @@ constexpr int MAX_TRAINS_PER_CHANNEL = 4;
 
 // Per-channel slot layout (every named channel uses the same layout
 // within its own AnalysisSignal channel)
-constexpr int STAT_POLYPHONY       = 0;   // scalar
-constexpr int STAT_LOWEST_PC_BASE  = 1;   // 12 slots, one-hot of lowest PC
-constexpr int STAT_LOWEST_PC_COUNT = 12;
+constexpr int STAT_POLYPHONY          = 0;   // scalar
+constexpr int STAT_LOWEST_PC_BASE     = 1;   // 12 slots, one-hot of lowest PC
+constexpr int STAT_LOWEST_PC_COUNT    = 12;
+constexpr int STAT_PC_HISTOGRAM_BASE  = 13;  // 12 slots, length-weighted PC histogram
+constexpr int STAT_PC_HISTOGRAM_COUNT = 12;
+constexpr int STAT_TOTAL_LENGTH       = 25;  // scalar: total sounding time in window
 
 // =============================================================================
 // CANVAS - The Analysis Cartridge Implementation
@@ -273,6 +279,8 @@ private:
     TrainStatId costello_polyphony_stat_;
     TrainStatId louise_polyphony_stat_;
     std::array<TrainStatId, 12> abbott_lowest_pc_stats_;
+    std::array<TrainStatId, STAT_PC_HISTOGRAM_COUNT> abbott_pc_histogram_stats_;
+    TrainStatId abbott_total_length_stat_;
 
     // ─── OUTPUT ─────────────────────────────────────────────────────────────
     AnalysisSignal output_;
@@ -292,6 +300,25 @@ private:
                     return playhead_lowest_pc_one_hot_current(ctx.playhead(ph), pc);
                 });
         }
+
+        int wg = abbott_train_.add_wagon(
+            ABBOTT_WAGON_SPAN_BEATS,
+            0.0f,
+            false,
+            false,
+            ABBOTT_WAGON_PERIOD_BEATS);
+
+        for (int pc = 0; pc < STAT_PC_HISTOGRAM_COUNT; ++pc) {
+            abbott_pc_histogram_stats_[pc] = abbott_train_.define(
+                [wg, pc](const TrainContext& ctx) -> float {
+                    return wagon_pc_length(ctx.wagon(wg), pc);
+                });
+        }
+
+        abbott_total_length_stat_ = abbott_train_.define(
+            [wg](const TrainContext& ctx) -> float {
+                return wagon_total_length(ctx.wagon(wg));
+            });
     }
 
     void setup_costello_train() {
@@ -394,6 +421,13 @@ private:
             output_.set_stat(0, STAT_LOWEST_PC_BASE + pc,
                              abbott_train_.get(abbott_lowest_pc_stats_[pc]));
         }
+
+        for (int pc = 0; pc < STAT_PC_HISTOGRAM_COUNT; ++pc) {
+            output_.set_stat(0, STAT_PC_HISTOGRAM_BASE + pc,
+                             abbott_train_.get(abbott_pc_histogram_stats_[pc]));
+        }
+        output_.set_stat(0, STAT_TOTAL_LENGTH,
+                         abbott_train_.get(abbott_total_length_stat_));
     }
 };
 
