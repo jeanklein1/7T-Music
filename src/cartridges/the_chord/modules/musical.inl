@@ -469,7 +469,7 @@ static void tick_musical_couplings(MusicalState& ms, Cartridge* c, const Analysi
         // 5a — find the active PC, if any.
         int active_pc = -1;
         for (int pc = 0; pc < 12; ++pc) {
-            if (signal.stat(0, 3 + pc) > 0.5f) {
+            if (signal.stat(0, 1 + pc) > 0.5f) {
                 active_pc = pc;
                 break;
             }

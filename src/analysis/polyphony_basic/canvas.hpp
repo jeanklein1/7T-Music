@@ -29,9 +29,9 @@
  *
  * OUTPUT FORMAT
  * -------------
- * - stat(channel=0, slot=STAT_POLYPHONY_ABBOTT)   = abbott polyphony
- * - stat(channel=1, slot=STAT_POLYPHONY_COSTELLO) = costello polyphony
- * - stat(channel=2, slot=STAT_POLYPHONY_LOUISE)   = louise polyphony
+ * Per-channel slot layout (all three channels share the same schema):
+ * - slot STAT_POLYPHONY      (0): note count
+ * - slot STAT_LOWEST_PC_BASE (1..12): one-hot PC of lowest current note
  */
 
 #include "analysis/analysis_cartridge.hpp"
@@ -44,6 +44,7 @@
 #include "musical/midi_stream.hpp"
 #include "musical/playhead.hpp"
 #include "musical/train.hpp"
+#include "musical/musical_ops.hpp"
 
 #include <array>
 #include <iostream>
@@ -66,12 +67,11 @@ constexpr int MAX_TRAINS_PER_CHANNEL = 4;
 // This cartridge's output format. Visualization cartridges must know
 // this mapping to interpret the signal.
 
-constexpr int STAT_POLYPHONY_ABBOTT   = 0;
-constexpr int STAT_POLYPHONY_COSTELLO = 1;
-constexpr int STAT_POLYPHONY_LOUISE   = 2;
-
-constexpr int STAT_LOWEST_PC_ABBOTT_BASE = 3;   // slots 3..14: one-hot PC vector for lowest abbott note
-constexpr int STAT_LOWEST_PC_COUNT       = 12;
+// Per-channel slot layout (every named channel uses the same layout
+// within its own AnalysisSignal channel)
+constexpr int STAT_POLYPHONY       = 0;   // scalar
+constexpr int STAT_LOWEST_PC_BASE  = 1;   // 12 slots, one-hot of lowest PC
+constexpr int STAT_LOWEST_PC_COUNT = 12;
 
 // =============================================================================
 // CANVAS - The Analysis Cartridge Implementation
@@ -283,19 +283,13 @@ private:
         int ph = abbott_train_.add_playhead();
         abbott_polyphony_stat_ = abbott_train_.define(
             [ph](const TrainContext& ctx) {
-                return float(ctx.playhead(ph).current_count);
+                return float(playhead_polyphony(ctx.playhead(ph)));
             });
 
         for (int pc = 0; pc < STAT_LOWEST_PC_COUNT; ++pc) {
             abbott_lowest_pc_stats_[pc] = abbott_train_.define(
                 [ph, pc](const TrainContext& ctx) -> float {
-                    const auto& r = ctx.playhead(ph);
-                    if (r.current_count == 0) return 0.0f;
-                    int lowest = 127;
-                    for (int i = 0; i < r.current_count; ++i)
-                        if (r.current[i].pitch < lowest)
-                            lowest = r.current[i].pitch;
-                    return ((lowest % 12) == pc) ? 1.0f : 0.0f;
+                    return playhead_lowest_pc_one_hot_current(ctx.playhead(ph), pc);
                 });
         }
     }
@@ -304,7 +298,7 @@ private:
         int ph = costello_train_.add_playhead();
         costello_polyphony_stat_ = costello_train_.define(
             [ph](const TrainContext& ctx) {
-                return float(ctx.playhead(ph).current_count);
+                return float(playhead_polyphony(ctx.playhead(ph)));
             });
     }
 
@@ -312,7 +306,7 @@ private:
         int ph = louise_train_.add_playhead();
         louise_polyphony_stat_ = louise_train_.define(
             [ph](const TrainContext& ctx) {
-                return float(ctx.playhead(ph).current_count);
+                return float(playhead_polyphony(ctx.playhead(ph)));
             });
     }
 
@@ -389,15 +383,15 @@ private:
         output_.t_beats   = clock_.t_beats();
         output_.dt        = clock_.dt();
 
-        output_.set_stat(0, STAT_POLYPHONY_ABBOTT,
+        output_.set_stat(0, STAT_POLYPHONY,
                          abbott_train_.get(abbott_polyphony_stat_));
-        output_.set_stat(1, STAT_POLYPHONY_COSTELLO,
+        output_.set_stat(1, STAT_POLYPHONY,
                          costello_train_.get(costello_polyphony_stat_));
-        output_.set_stat(2, STAT_POLYPHONY_LOUISE,
+        output_.set_stat(2, STAT_POLYPHONY,
                          louise_train_.get(louise_polyphony_stat_));
 
         for (int pc = 0; pc < STAT_LOWEST_PC_COUNT; ++pc) {
-            output_.set_stat(0, STAT_LOWEST_PC_ABBOTT_BASE + pc,
+            output_.set_stat(0, STAT_LOWEST_PC_BASE + pc,
                              abbott_train_.get(abbott_lowest_pc_stats_[pc]));
         }
     }
