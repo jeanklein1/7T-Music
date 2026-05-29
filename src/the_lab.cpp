@@ -51,9 +51,11 @@
 #endif
 
 #include "imgui.h"
+#include "imgui_internal.h"   // DockBuilder API (docking branch)
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_wgpu.h"
 #include "implot.h"
+#include <GLFW/glfw3.h>       // glfwMaximizeWindow (Console owns the GLFW window)
 
 #include <algorithm>
 #include <array>
@@ -444,11 +446,7 @@ struct StatScopes {
 static void draw_analysis_window(const t7::AnalysisSignal& signal,
                                  StatScopes& scopes,
                                  AnalysisCartridge& analysis) {
-    const ImGuiViewport* vp = ImGui::GetMainViewport();
-    ImGui::SetNextWindowPos(vp->WorkPos, ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(vp->WorkSize.x * 0.60f, vp->WorkSize.y),
-                             ImGuiCond_FirstUseEver);
-
+    // Layout is owned by the dockspace; no manual pos/size here.
     ImGui::Begin("Analysis", nullptr, ImGuiWindowFlags_NoCollapse);
     ImGui::Text("t = %.2f s   beat = %.2f   dt = %.4f s   |   analysis: %s",
                 signal.t_seconds, signal.t_beats, signal.dt, ANALYSIS_NAME);
@@ -467,13 +465,7 @@ static void draw_analysis_window(const t7::AnalysisSignal& signal,
 
 static void draw_coupling_window(const t7::AnalysisSignal& signal,
                                  TestCoupling& tc) {
-    const ImGuiViewport* vp = ImGui::GetMainViewport();
-    ImGui::SetNextWindowPos(
-        ImVec2(vp->WorkPos.x + vp->WorkSize.x * 0.60f, vp->WorkPos.y),
-        ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(vp->WorkSize.x * 0.40f, vp->WorkSize.y),
-                             ImGuiCond_FirstUseEver);
-
+    // Layout is owned by the dockspace; no manual pos/size here.
     ImGui::Begin("Coupling Lab", nullptr, ImGuiWindowFlags_NoCollapse);
     draw_coupling_controls(tc);
     draw_input_scope(tc, signal.t_seconds);
@@ -499,6 +491,11 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+    // Fit the screen on launch: the hardcoded 1400x900 can overflow a smaller
+    // monitor (the bottom becoming unreachable). Maximize to the work area;
+    // the dockspace below then lays the panels out to fill it.
+    glfwMaximizeWindow(console.window());
+
     // --- Analysis cartridge -------------------------------------------------
     AnalysisCartridge analysis;
     analysis.initialize("assets");
@@ -518,6 +515,7 @@ int main(int argc, char* argv[]) {
 
     ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;  // dock within main window
     ImGui::StyleColorsDark();
 
     // Bind ImGui to Console's GLFW window
@@ -566,6 +564,32 @@ int main(int argc, char* argv[]) {
         ImGui_ImplWGPU_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
+
+        // Dock space over the main viewport (native drag-out / dock / tab /
+        // split-resize). On first ever launch — before imgui.ini exists — build
+        // a default split; afterwards imgui.ini wins.
+        ImGuiID dock_id = ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport());
+        static bool dock_inited = false;
+        if (!dock_inited) {
+            dock_inited = true;
+            // DockSpaceOverViewport() creates the node immediately, so a fresh
+            // launch yields an EMPTY node (not null). Only skip the default when
+            // imgui.ini already restored a populated layout.
+            ImGuiDockNode* node = ImGui::DockBuilderGetNode(dock_id);
+            if (node == nullptr || node->IsEmpty()) {
+                ImGui::DockBuilderRemoveNode(dock_id);
+                ImGui::DockBuilderAddNode(dock_id, ImGuiDockNodeFlags_DockSpace);
+                ImGui::DockBuilderSetNodeSize(dock_id,
+                                              ImGui::GetMainViewport()->WorkSize);
+                ImGuiID right;
+                ImGuiID left = ImGui::DockBuilderSplitNode(
+                    dock_id, ImGuiDir_Left, 0.60f, nullptr, &right);
+                ImGui::DockBuilderDockWindow("Analysis", left);
+                ImGui::DockBuilderDockWindow("Coupling Lab", right);
+                ImGui::DockBuilderFinish(dock_id);
+            }
+        }
+
         draw_analysis_window(analysis.output(), stat_scopes, analysis);
         draw_coupling_window(analysis.output(), test_coupling);
         ImGui::Render();
