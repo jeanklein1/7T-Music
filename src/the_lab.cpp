@@ -439,8 +439,11 @@ struct StatScopes {
                     if (grp.shape == t7::StatShape::Scalar) {
                         draw_scalar(grp, scalar_history[hist_index[g]], signal);
                     } else {
+                        ImGui::PushID(g);  // scope the inner "history" header id per stat
                         draw_vector(grp, signal);
-                        draw_vector_history(grp, vector_history[hist_index[g]]);
+                        if (ImGui::CollapsingHeader("history"))  // strip toggles on its own
+                            draw_vector_history(grp, vector_history[hist_index[g]]);
+                        ImGui::PopID();
                     }
                 }
             }
