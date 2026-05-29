@@ -411,8 +411,11 @@ struct StatScopes {
             if (ImGui::DockBuilderGetNode(analysis_dock) == nullptr) {
                 ImGui::DockBuilderRemoveNode(analysis_dock);
                 ImGui::DockBuilderAddNode(analysis_dock, ImGuiDockNodeFlags_DockSpace);
-                ImGui::DockBuilderSetNodeSize(analysis_dock,
-                                              ImGui::GetContentRegionAvail());
+                // No DockBuilderSetNodeSize here: this node is never split (all
+                // channels tab into it), so it needs no pre-size — and on the
+                // first frame GetContentRegionAvail() is still 0, which would
+                // trip DockBuilderSetNodeSize's size>0 assert. DockSpace() below
+                // sizes the node (clamping to a sane minimum).
                 for (auto& cg : channel_groups)
                     ImGui::DockBuilderDockWindow(cg.label, analysis_dock);  // tab here by default
                 ImGui::DockBuilderFinish(analysis_dock);
@@ -564,16 +567,18 @@ int main(int argc, char* argv[]) {
         ImGuiID main_dock = ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport());
         static bool main_inited = false;
         if (!main_inited) {
-            main_inited = true;
             // DockSpaceOverViewport() submits DockSpace(), which creates the node
             // immediately, so a fresh launch yields an EMPTY (not null) node. Guard
             // on null-OR-empty, else the default never builds and the windows float.
             ImGuiDockNode* node = ImGui::DockBuilderGetNode(main_dock);
-            if (node == nullptr || node->IsEmpty()) {
+            const ImVec2 ws = ImGui::GetMainViewport()->WorkSize;
+            if (node != nullptr && !node->IsEmpty()) {
+                main_inited = true;                  // imgui.ini already restored a layout
+            } else if (ws.x > 0.0f && ws.y > 0.0f) { // fresh: build once the size is real
+                main_inited = true;
                 ImGui::DockBuilderRemoveNode(main_dock);
                 ImGui::DockBuilderAddNode(main_dock, ImGuiDockNodeFlags_DockSpace);
-                ImGui::DockBuilderSetNodeSize(main_dock,
-                                              ImGui::GetMainViewport()->WorkSize);
+                ImGui::DockBuilderSetNodeSize(main_dock, ws);
                 ImGuiID right;
                 ImGuiID left = ImGui::DockBuilderSplitNode(
                     main_dock, ImGuiDir_Left, 0.60f, nullptr, &right);
@@ -581,6 +586,7 @@ int main(int argc, char* argv[]) {
                 ImGui::DockBuilderDockWindow("Coupling Lab", right);
                 ImGui::DockBuilderFinish(main_dock);
             }
+            // else: viewport size not ready this frame; retry next frame.
         }
 
         stat_scopes.draw(analysis.output());                               // Analysis host + channel windows
