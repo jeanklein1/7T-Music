@@ -74,11 +74,20 @@ namespace t7 {
 // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Pitch Class Bits Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 /**
- * Pitch class of a MIDI note under the D-origin convention (PC 0 = D).
+ * Pitch class of a MIDI note in the default C-origin convention (C = 0).
  * Input: MIDI pitch (0-127). Output: pitch class 0-11.
  */
 inline int pc_of(int midi_pitch) {
-    return ((midi_pitch - 2) % 12 + 12) % 12;
+    return ((midi_pitch % 12) + 12) % 12;
+}
+
+/**
+ * Re-express a pitch class with `origin` as zero (origin transpose).
+ * `origin` is the C-origin index of the desired zero (e.g. 2 = D).
+ * Input: pc 0-11, origin 0-11. Output: transposed pc 0-11.
+ */
+inline int pc_relative_to(int pc, int origin) {
+    return ((pc - origin) % 12 + 12) % 12;
 }
 
 /**
@@ -812,9 +821,9 @@ inline int playhead_polyphony(const PlayheadReadout& r) {
  * Input: PlayheadReadout
  * Output: pitch class 0-11, or -1 if silent
  */
-inline int playhead_lowest_pc_current(const PlayheadReadout& r) {
+inline int playhead_lowest_pc_current(const PlayheadReadout& r, int origin = 0) {
     int pitch = playhead_lowest_pitch_current(r);
-    return (pitch >= 0) ? pc_of(pitch) : -1;
+    return (pitch >= 0) ? pc_relative_to(pc_of(pitch), origin) : -1;
 }
 
 /**
@@ -822,8 +831,8 @@ inline int playhead_lowest_pc_current(const PlayheadReadout& r) {
  * Input: PlayheadReadout, target pitch class (0-11)
  * Output: 1.0f if match, 0.0f otherwise (also 0.0f if silent)
  */
-inline float playhead_lowest_pc_one_hot_current(const PlayheadReadout& r, int pc) {
-    return (playhead_lowest_pc_current(r) == pc) ? 1.0f : 0.0f;
+inline float playhead_lowest_pc_one_hot_current(const PlayheadReadout& r, int pc, int origin = 0) {
+    return (playhead_lowest_pc_current(r, origin) == pc) ? 1.0f : 0.0f;
 }
 
 // Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
@@ -994,25 +1003,27 @@ inline float wagon_duration_mean(const WagonReadout& r) {
 
 
 /**
- * Count of notes in the window whose pitch class equals `pc` (D-origin).
- * Input: WagonReadout, pc 0-11. Output: integer count.
+ * Count of notes in the window whose pitch class equals `pc`.
+ * Pitch classes are taken relative to `origin` (default 0 = C-origin).
+ * Input: WagonReadout, pc 0-11, origin 0-11. Output: integer count.
  */
-inline int wagon_pc_count(const WagonReadout& r, int pc) {
+inline int wagon_pc_count(const WagonReadout& r, int pc, int origin = 0) {
     int count = 0;
     for (int i = 0; i < r.note_count; ++i)
-        if (pc_of(r.notes[i].pitch) == pc) ++count;
+        if (pc_relative_to(pc_of(r.notes[i].pitch), origin) == pc) ++count;
     return count;
 }
 
 /**
- * Length-weighted presence of pitch class `pc` (D-origin): sum of the
- * in-window durations of notes with that pitch class.
- * Input: WagonReadout, pc 0-11. Output: total beats.
+ * Length-weighted presence of pitch class `pc`: sum of the in-window
+ * durations of notes with that pitch class. Pitch classes are taken
+ * relative to `origin` (default 0 = C-origin).
+ * Input: WagonReadout, pc 0-11, origin 0-11. Output: total beats.
  */
-inline float wagon_pc_length(const WagonReadout& r, int pc) {
+inline float wagon_pc_length(const WagonReadout& r, int pc, int origin = 0) {
     float total = 0.0f;
     for (int i = 0; i < r.note_count; ++i)
-        if (pc_of(r.notes[i].pitch) == pc)
+        if (pc_relative_to(pc_of(r.notes[i].pitch), origin) == pc)
             total += r.notes[i].window_duration();
     return total;
 }

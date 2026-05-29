@@ -63,6 +63,8 @@ constexpr int MAX_TRAINS_PER_CHANNEL = 4;
 constexpr float ABBOTT_WAGON_SPAN_BEATS   = 4.0f;  // 1 bar in 4/4
 constexpr float ABBOTT_WAGON_PERIOD_BEATS = 1.0f;  // update per beat
 
+constexpr int PROJECT_PC_ORIGIN = 2;  // D (C-origin index of D)
+
 // =============================================================================
 // STAT SLOT DEFINITIONS
 // =============================================================================
@@ -297,7 +299,7 @@ private:
         for (int pc = 0; pc < STAT_LOWEST_PC_COUNT; ++pc) {
             abbott_lowest_pc_stats_[pc] = abbott_train_.define(
                 [ph, pc](const TrainContext& ctx) -> float {
-                    return playhead_lowest_pc_one_hot_current(ctx.playhead(ph), pc);
+                    return playhead_lowest_pc_one_hot_current(ctx.playhead(ph), pc, PROJECT_PC_ORIGIN);
                 });
         }
 
@@ -311,7 +313,7 @@ private:
         for (int pc = 0; pc < STAT_PC_HISTOGRAM_COUNT; ++pc) {
             abbott_pc_histogram_stats_[pc] = abbott_train_.define(
                 [wg, pc](const TrainContext& ctx) -> float {
-                    return wagon_pc_length(ctx.wagon(wg), pc);
+                    return wagon_pc_length(ctx.wagon(wg), pc, PROJECT_PC_ORIGIN);
                 });
         }
 
