@@ -98,6 +98,41 @@ struct ScrollingBuffer {
 };
 
 // =========================================================================
+// VECTOR HISTORY -- 2D rolling buffer for vector-stat heatmap strips
+// =========================================================================
+//
+// A rolling window of the last `max_cols` frames, each a column of `bins`
+// values. Stored column-major in a ring; unrolled oldest->newest into a
+// contiguous row-major block at draw time for ImPlot::PlotHeatmap.
+
+struct VectorHistory {
+    int bins;
+    int max_cols;
+    int head = 0;
+    int filled = 0;
+    std::vector<float> ring;  // max_cols columns, each `bins` long (column-major)
+
+    VectorHistory(int n_bins, int cols = 240)
+        : bins(n_bins), max_cols(cols), ring(n_bins * cols, 0.0f) {}
+
+    void push(const float* col) {
+        for (int b = 0; b < bins; ++b) ring[head * bins + b] = col[b];
+        head = (head + 1) % max_cols;
+        if (filled < max_cols) ++filled;
+    }
+
+    // Unroll oldest->newest into row-major [bins][max_cols] for PlotHeatmap.
+    void unroll(std::vector<float>& out) const {
+        out.resize(bins * max_cols);
+        for (int t = 0; t < max_cols; ++t) {
+            int src = (head + t) % max_cols;  // oldest first
+            for (int b = 0; b < bins; ++b)
+                out[b * max_cols + t] = ring[src * bins + b];
+        }
+    }
+};
+
+// =========================================================================
 // TEST COUPLING -- One coupling under design; intensity idiom
 // =========================================================================
 //
@@ -267,43 +302,84 @@ static void draw_vector(const t7::StatGroup& g, const t7::AnalysisSignal& signal
     }
 }
 
+// Heatmap-strip: a vector stat's history as bin(Y) x time(X), value as color.
+// Turns the instantaneous bar chart into a moving picture (the progression).
+static void draw_vector_history(const t7::StatGroup& g, const VectorHistory& hist) {
+    static std::vector<float> temp;  // reused scratch; dev tool, single-threaded UI
+    hist.unroll(temp);
+
+    float vmax = 0.0f;
+    for (float v : temp) vmax = std::max(vmax, v);
+    if (vmax < 1e-6f) vmax = 1.0f;  // empty strip: avoid a zero-width color range
+
+    char id[64];
+    std::snprintf(id, sizeof(id), "##%s_hist", g.name);
+
+    ImPlot::PushColormap(ImPlotColormap_Viridis);
+    if (ImPlot::BeginPlot(id, ImVec2(-1, 120))) {
+        ImPlot::SetupAxes("t (older -> newer)", "bin",
+                          ImPlotAxisFlags_NoDecorations,
+                          ImPlotAxisFlags_NoDecorations);
+        ImPlot::SetupAxisLimits(ImAxis_X1, 0, hist.max_cols, ImPlotCond_Always);
+        ImPlot::SetupAxisLimits(ImAxis_Y1, 0, g.count,        ImPlotCond_Always);
+        ImPlot::PlotHeatmap(g.name, temp.data(), g.count, hist.max_cols,
+                            0.0, (double)vmax, nullptr,
+                            ImPlotPoint(0, 0),
+                            ImPlotPoint((double)hist.max_cols, (double)g.count));
+        ImPlot::EndPlot();
+    }
+    ImPlot::PopColormap();
+}
+
 struct StatScopes {
     std::vector<ScrollingBuffer> scalar_history;
+    std::vector<VectorHistory>   vector_history;
 
     StatScopes() {
-        for (int g = 0; g < AnalysisCartridge::STAT_LAYOUT_COUNT; ++g)
-            if (AnalysisCartridge::STAT_LAYOUT[g].shape == t7::StatShape::Scalar)
-                scalar_history.emplace_back();
-    }
-
-    void tick(const t7::AnalysisSignal& signal) {
-        int si = 0;
         for (int g = 0; g < AnalysisCartridge::STAT_LAYOUT_COUNT; ++g) {
             const auto& grp = AnalysisCartridge::STAT_LAYOUT[g];
             if (grp.shape == t7::StatShape::Scalar)
+                scalar_history.emplace_back();
+            else
+                vector_history.emplace_back(grp.count);
+        }
+    }
+
+    void tick(const t7::AnalysisSignal& signal) {
+        int si = 0, vi = 0;
+        for (int g = 0; g < AnalysisCartridge::STAT_LAYOUT_COUNT; ++g) {
+            const auto& grp = AnalysisCartridge::STAT_LAYOUT[g];
+            if (grp.shape == t7::StatShape::Scalar) {
                 scalar_history[si++].push(signal.t_seconds,
                                           signal.stat(grp.channel, grp.slot_base));
+            } else {
+                float col[128];
+                for (int i = 0; i < grp.count; ++i)
+                    col[i] = signal.stat(grp.channel, grp.slot_base + i);
+                vector_history[vi++].push(col);
+            }
         }
     }
 
     void draw(const t7::AnalysisSignal& signal) {
-        int si = 0;
+        int si = 0, vi = 0;
         for (int g = 0; g < AnalysisCartridge::STAT_LAYOUT_COUNT; ++g) {
             const auto& grp = AnalysisCartridge::STAT_LAYOUT[g];
             ImGui::SeparatorText(grp.name);
-            if (grp.shape == t7::StatShape::Scalar)
+            if (grp.shape == t7::StatShape::Scalar) {
                 draw_scalar(grp, scalar_history[si++], signal);
-            else
+            } else {
                 draw_vector(grp, signal);
+                draw_vector_history(grp, vector_history[vi++]);
+            }
         }
     }
 };
 
-static void draw_dashboard(const t7::AnalysisSignal& signal, TestCoupling& tc,
-                           StatScopes& scopes, AnalysisCartridge& analysis) {
-    ImGui::Begin("The Lab -- Coupling Laboratory", nullptr,
-                 ImGuiWindowFlags_NoCollapse);
-
+static void draw_analysis_window(const t7::AnalysisSignal& signal,
+                                 StatScopes& scopes,
+                                 AnalysisCartridge& analysis) {
+    ImGui::Begin("Analysis", nullptr, ImGuiWindowFlags_NoCollapse);
     ImGui::Text("t = %.2f s   beat = %.2f   dt = %.4f s   |   analysis: %s",
                 signal.t_seconds, signal.t_beats, signal.dt, ANALYSIS_NAME);
     ImGui::Separator();
@@ -313,13 +389,18 @@ static void draw_dashboard(const t7::AnalysisSignal& signal, TestCoupling& tc,
         analysis.set_keyboard_enabled(kbd);
 
     scopes.draw(signal);
-    draw_coupling_controls(tc);
-    draw_input_scope(tc, signal.t_seconds);
-    draw_trajectory_scope(tc, signal.t_seconds);
 
     if (ImGui::CollapsingHeader("raw slot grid (channels x slots 0-15)"))
         draw_stats_grid(signal);
+    ImGui::End();
+}
 
+static void draw_coupling_window(const t7::AnalysisSignal& signal,
+                                 TestCoupling& tc) {
+    ImGui::Begin("Coupling Lab", nullptr, ImGuiWindowFlags_NoCollapse);
+    draw_coupling_controls(tc);
+    draw_input_scope(tc, signal.t_seconds);
+    draw_trajectory_scope(tc, signal.t_seconds);
     ImGui::End();
 }
 
@@ -405,7 +486,8 @@ int main(int argc, char* argv[]) {
         ImGui_ImplWGPU_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
-        draw_dashboard(analysis.output(), test_coupling, stat_scopes, analysis);
+        draw_analysis_window(analysis.output(), stat_scopes, analysis);
+        draw_coupling_window(analysis.output(), test_coupling);
         ImGui::Render();
 
         // Render the ImGui draw data via a single render pass
