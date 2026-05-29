@@ -441,7 +441,14 @@ struct StatScopes {
                     } else {
                         ImGui::PushID(g);  // scope the inner "history" header id per stat
                         draw_vector(grp, signal);
-                        if (ImGui::CollapsingHeader("history"))  // strip toggles on its own
+                        // Tint the strip's "history" header a deeper blue so it
+                        // reads as a sub-section, distinct from the stat headers.
+                        ImGui::PushStyleColor(ImGuiCol_Header,        ImVec4(0.10f, 0.22f, 0.45f, 1.0f));
+                        ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(0.15f, 0.32f, 0.62f, 1.0f));
+                        ImGui::PushStyleColor(ImGuiCol_HeaderActive,  ImVec4(0.20f, 0.40f, 0.78f, 1.0f));
+                        const bool show_hist = ImGui::CollapsingHeader("history");
+                        ImGui::PopStyleColor(3);
+                        if (show_hist)  // strip toggles on its own
                             draw_vector_history(grp, vector_history[hist_index[g]]);
                         ImGui::PopID();
                     }
