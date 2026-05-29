@@ -56,6 +56,7 @@
 #include "implot.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdio>
 #include <iostream>
@@ -335,43 +336,107 @@ struct StatScopes {
     std::vector<ScrollingBuffer> scalar_history;
     std::vector<VectorHistory>   vector_history;
 
+    // Display grouping: stats clustered per channel, reorderable. Reordering
+    // affects DISPLAY only — histories stay keyed to declared order via
+    // hist_index, so moving a stat never disturbs its scrolling/heatmap buffer.
+    struct ChannelView {
+        int  channel;
+        char label[32];          // e.g. "abbott", parsed from the name prefix
+        std::vector<int> order;  // STAT_LAYOUT indices, in display order
+    };
+    std::vector<ChannelView> channel_views;
+    std::array<int, AnalysisCartridge::STAT_LAYOUT_COUNT> hist_index;  // group -> buffer slot
+
     StatScopes() {
         for (int g = 0; g < AnalysisCartridge::STAT_LAYOUT_COUNT; ++g) {
             const auto& grp = AnalysisCartridge::STAT_LAYOUT[g];
-            if (grp.shape == t7::StatShape::Scalar)
+
+            // history buffers, in declared order; remember each group's slot
+            if (grp.shape == t7::StatShape::Scalar) {
+                hist_index[g] = (int)scalar_history.size();
                 scalar_history.emplace_back();
-            else
+            } else {
+                hist_index[g] = (int)vector_history.size();
                 vector_history.emplace_back(grp.count);
+            }
+
+            // find/create the channel view, append this group
+            ChannelView* cv = nullptr;
+            for (auto& c : channel_views)
+                if (c.channel == grp.channel) { cv = &c; break; }
+            if (!cv) {
+                channel_views.push_back(ChannelView{});
+                cv = &channel_views.back();
+                cv->channel = grp.channel;
+                // label = name up to '.' (manual parse, no <cstring>)
+                int k = 0;
+                while (grp.name[k] && grp.name[k] != '.' && k < 31) {
+                    cv->label[k] = grp.name[k]; ++k;
+                }
+                cv->label[k] = '\0';
+            }
+            cv->order.push_back(g);
         }
     }
 
     void tick(const t7::AnalysisSignal& signal) {
-        int si = 0, vi = 0;
         for (int g = 0; g < AnalysisCartridge::STAT_LAYOUT_COUNT; ++g) {
             const auto& grp = AnalysisCartridge::STAT_LAYOUT[g];
             if (grp.shape == t7::StatShape::Scalar) {
-                scalar_history[si++].push(signal.t_seconds,
-                                          signal.stat(grp.channel, grp.slot_base));
+                scalar_history[hist_index[g]].push(
+                    signal.t_seconds, signal.stat(grp.channel, grp.slot_base));
             } else {
                 float col[128];
                 for (int i = 0; i < grp.count; ++i)
                     col[i] = signal.stat(grp.channel, grp.slot_base + i);
-                vector_history[vi++].push(col);
+                vector_history[hist_index[g]].push(col);
             }
         }
     }
 
     void draw(const t7::AnalysisSignal& signal) {
-        int si = 0, vi = 0;
-        for (int g = 0; g < AnalysisCartridge::STAT_LAYOUT_COUNT; ++g) {
-            const auto& grp = AnalysisCartridge::STAT_LAYOUT[g];
-            ImGui::SeparatorText(grp.name);
-            if (grp.shape == t7::StatShape::Scalar) {
-                draw_scalar(grp, scalar_history[si++], signal);
-            } else {
-                draw_vector(grp, signal);
-                draw_vector_history(grp, vector_history[vi++]);
+        for (auto& cv : channel_views) {
+            if (!ImGui::CollapsingHeader(cv.label, ImGuiTreeNodeFlags_DefaultOpen))
+                continue;
+            ImGui::Indent();
+
+            int swap_pos = -1, swap_with = -1;  // deferred (mutate after the loop)
+            for (int pos = 0; pos < (int)cv.order.size(); ++pos) {
+                const int g = cv.order[pos];
+                const auto& grp = AnalysisCartridge::STAT_LAYOUT[g];
+
+                // stat name without the channel prefix
+                const char* dot = grp.name;
+                while (*dot && *dot != '.') ++dot;
+                const char* short_name = (*dot == '.') ? dot + 1 : grp.name;
+
+                ImGui::PushID(g);
+                if (ImGui::SmallButton("^") && pos > 0) {
+                    swap_pos = pos; swap_with = pos - 1;
+                }
+                ImGui::SameLine();
+                if (ImGui::SmallButton("v") && pos < (int)cv.order.size() - 1) {
+                    swap_pos = pos; swap_with = pos + 1;
+                }
+                ImGui::SameLine();
+
+                if (ImGui::CollapsingHeader(short_name)) {  // collapsed by default
+                    if (grp.shape == t7::StatShape::Scalar) {
+                        draw_scalar(grp, scalar_history[hist_index[g]], signal);
+                    } else {
+                        draw_vector(grp, signal);
+                        draw_vector_history(grp, vector_history[hist_index[g]]);
+                    }
+                }
+                ImGui::PopID();
             }
+
+            if (swap_pos >= 0) {  // one reorder per frame, applied after iterating
+                int tmp = cv.order[swap_pos];
+                cv.order[swap_pos] = cv.order[swap_with];
+                cv.order[swap_with] = tmp;
+            }
+            ImGui::Unindent();
         }
     }
 };
@@ -379,6 +444,11 @@ struct StatScopes {
 static void draw_analysis_window(const t7::AnalysisSignal& signal,
                                  StatScopes& scopes,
                                  AnalysisCartridge& analysis) {
+    const ImGuiViewport* vp = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(vp->WorkPos, ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(vp->WorkSize.x * 0.60f, vp->WorkSize.y),
+                             ImGuiCond_FirstUseEver);
+
     ImGui::Begin("Analysis", nullptr, ImGuiWindowFlags_NoCollapse);
     ImGui::Text("t = %.2f s   beat = %.2f   dt = %.4f s   |   analysis: %s",
                 signal.t_seconds, signal.t_beats, signal.dt, ANALYSIS_NAME);
@@ -397,6 +467,13 @@ static void draw_analysis_window(const t7::AnalysisSignal& signal,
 
 static void draw_coupling_window(const t7::AnalysisSignal& signal,
                                  TestCoupling& tc) {
+    const ImGuiViewport* vp = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(
+        ImVec2(vp->WorkPos.x + vp->WorkSize.x * 0.60f, vp->WorkPos.y),
+        ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(vp->WorkSize.x * 0.40f, vp->WorkSize.y),
+                             ImGuiCond_FirstUseEver);
+
     ImGui::Begin("Coupling Lab", nullptr, ImGuiWindowFlags_NoCollapse);
     draw_coupling_controls(tc);
     draw_input_scope(tc, signal.t_seconds);
@@ -465,12 +542,15 @@ int main(int argc, char* argv[]) {
     while (console.running()) {
         const float dt = console.begin_frame();
 
-        // Route music keys to the analysis cartridge only when ImGui doesn't
-        // want the keyboard (e.g., user typing into an InputText widget).
+        // Music keys must reach the analyzer even when a plot/window has focus.
+        // WantCaptureKeyboard is true whenever the mouse is over any widget, so
+        // gating on it swallowed keys unless you clicked empty space. Only a
+        // live text field should suppress music keys, so gate on WantTextInput
+        // (the lab has no text fields yet, so keys always flow for now).
         for (const auto& event : console.input_events()) {
             if (event.type == t7::InputEvent::Type::KeyDown ||
                 event.type == t7::InputEvent::Type::KeyUp) {
-                if (!io.WantCaptureKeyboard) {
+                if (!io.WantTextInput) {
                     analysis.on_input(event);
                 }
             }
