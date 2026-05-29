@@ -17,7 +17,8 @@
  * --------
  * - "abbott"   on Ableton channel 1 (internal channel 0)
  * - "costello" on Ableton channel 2 (internal channel 1)
- * - "louise"   on Ableton channel 3 (internal channel 2) — live keyboard
+ * - "louise"   on Ableton channel 3 (internal channel 2) — external MIDI keyboard
+ * (The computer-keyboard debug aid feeds abbott (channel 0); see keyboard_enabled_.)
  *
  * Each channel owns a MidiStream and a list of attached Trains. Every
  * incoming event is dispatched to the channel matching its MIDI channel
@@ -25,13 +26,15 @@
  *
  * ANALYSIS
  * --------
- * - One Train per channel, each with one Playhead, computing polyphony.
+ * - abbott:   Playhead + 1-bar Wagon — polyphony, lowest-PC one-hot,
+ *             length-weighted PC histogram, total sounding length.
+ * - costello, louise: Playhead — polyphony.
  *
  * OUTPUT FORMAT
  * -------------
- * Per-channel slot layout (all three channels share the same schema):
- * - slot STAT_POLYPHONY      (0): note count
- * - slot STAT_LOWEST_PC_BASE (1..12): one-hot PC of lowest current note
+ * Declared by STAT_LAYOUT (the single source of truth for slot assignments
+ * and shapes, consumed by the_lab). abbott (channel 0) carries the full set;
+ * costello/louise (channels 1/2) carry polyphony only.
  */
 
 #include "analysis/analysis_cartridge.hpp"
@@ -191,10 +194,26 @@ public:
         clock_.set_bpm(bpm);
     }
 
+    void set_keyboard_enabled(bool on) { keyboard_enabled_ = on; }
+    bool keyboard_enabled() const { return keyboard_enabled_; }
+
     /**
      * Get the clock (for external inspection).
      */
     const Clock& clock() const { return clock_; }
+
+    // Single source of truth for this cartridge's slot map and shapes.
+    // Consumed by the_lab; supersedes the prose OUTPUT FORMAT comment.
+    static constexpr StatGroup STAT_LAYOUT[] = {
+        { "abbott.polyphony",    0, STAT_POLYPHONY,          1,                       StatShape::Scalar },
+        { "abbott.lowest_pc",    0, STAT_LOWEST_PC_BASE,     STAT_LOWEST_PC_COUNT,    StatShape::Vector },
+        { "abbott.pc_histogram", 0, STAT_PC_HISTOGRAM_BASE,  STAT_PC_HISTOGRAM_COUNT, StatShape::Vector },
+        { "abbott.total_length", 0, STAT_TOTAL_LENGTH,       1,                       StatShape::Scalar },
+        { "costello.polyphony",  1, STAT_POLYPHONY,          1,                       StatShape::Scalar },
+        { "louise.polyphony",    2, STAT_POLYPHONY,          1,                       StatShape::Scalar },
+    };
+    static constexpr int STAT_LAYOUT_COUNT =
+        sizeof(STAT_LAYOUT) / sizeof(STAT_LAYOUT[0]);
 
 private:
     // ─── CHANNEL INSTANCE ───────────────────────────────────────────────────
@@ -270,6 +289,12 @@ private:
     KeyboardMidi keyboard_{ 0, 100 };  // channel 0, max 100 events
     MidiPort midi_port_;
 
+    // DEBUG AID — computer keyboard as MIDI into abbott (channel 0).
+    // Toggle at runtime via set_keyboard_enabled(); delete this flag,
+    // keyboard_, route_keyboard_events(), and on_music_key_* together
+    // when the prototype ships.
+    bool keyboard_enabled_ = true;
+
     // ─── CHANNELS + TRAINS ──────────────────────────────────────────────────
     std::array<ChannelInstance, MAX_NAMED_CHANNELS> channels_;
     int channel_count_ = 0;
@@ -280,7 +305,7 @@ private:
     TrainStatId abbott_polyphony_stat_;
     TrainStatId costello_polyphony_stat_;
     TrainStatId louise_polyphony_stat_;
-    std::array<TrainStatId, 12> abbott_lowest_pc_stats_;
+    std::array<TrainStatId, STAT_LOWEST_PC_COUNT> abbott_lowest_pc_stats_;
     std::array<TrainStatId, STAT_PC_HISTOGRAM_COUNT> abbott_pc_histogram_stats_;
     TrainStatId abbott_total_length_stat_;
 
@@ -364,6 +389,8 @@ private:
     }
 
     void route_keyboard_events() {
+        if (!keyboard_enabled_) return;
+
         MidiEvent events[64];
         int count = keyboard_.poll(events, 64);
 

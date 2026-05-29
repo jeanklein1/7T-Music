@@ -107,4 +107,22 @@ struct alignas(16) AnalysisSignal {
 static_assert(sizeof(AnalysisSignal) == 2080, "AnalysisSignal must be 2080 bytes");
 static_assert(alignof(AnalysisSignal) == 16, "AnalysisSignal must be 16-byte aligned");
 
+// ─── STAT LAYOUT DESCRIPTOR ───────────────────────────────────────────
+// Lets a consumer (e.g. the_lab) render each stat group in its
+// representation shape without hardcoding the cartridge's slot map.
+// A cartridge declares its layout; the consumer iterates and dispatches.
+
+enum class StatShape {
+    Scalar,   // single value  → scrolling line
+    Vector,   // run of `count` values → bar chart
+};
+
+struct StatGroup {
+    const char* name;       // label, e.g. "abbott.pc_histogram"
+    int         channel;    // AnalysisSignal channel
+    int         slot_base;  // first slot
+    int         count;      // number of slots (1 for scalar)
+    StatShape   shape;
+};
+
 } // namespace t7

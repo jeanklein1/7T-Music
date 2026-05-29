@@ -137,7 +137,7 @@ struct TestCoupling {
 // =========================================================================
 
 static void draw_stats_grid(const t7::AnalysisSignal& signal) {
-    ImGui::SeparatorText("AnalysisSignal  (4 channels x 16 slots)");
+    ImGui::SeparatorText("AnalysisSignal  (slots 0-15 of 128 per channel)");
 
     if (ImGui::BeginTable("stats", 17,
             ImGuiTableFlags_Borders | ImGuiTableFlags_SizingFixedFit)) {
@@ -226,7 +226,81 @@ static void draw_trajectory_scope(const TestCoupling& tc, float now) {
     }
 }
 
-static void draw_dashboard(const t7::AnalysisSignal& signal, TestCoupling& tc) {
+// ─── Stat panels (descriptor-driven) ──────────────────────────────────────
+// Renders each StatGroup in its declared shape: scalars as scrolling lines,
+// vectors as bar charts. Iterates AnalysisCartridge::STAT_LAYOUT, so no slot
+// numbers are hardcoded here — new stats appear by adding a STAT_LAYOUT row.
+
+static void draw_scalar(const t7::StatGroup& g, const ScrollingBuffer& buf,
+                        const t7::AnalysisSignal& signal) {
+    const float now = signal.t_seconds;
+    ImGui::Text("%.3f", signal.stat(g.channel, g.slot_base));
+
+    char id[64];
+    std::snprintf(id, sizeof(id), "##%s", g.name);
+    if (ImPlot::BeginPlot(id, ImVec2(-1, 110))) {
+        ImPlot::SetupAxes("t (s)", "value",
+                          ImPlotAxisFlags_None, ImPlotAxisFlags_AutoFit);
+        ImPlot::SetupAxisLimits(ImAxis_X1, now - 10.0, now, ImPlotCond_Always);
+        if (!buf.xs.empty()) {
+            ImPlotSpec spec;
+            spec.Offset = buf.offset;
+            ImPlot::PlotLine(g.name, buf.xs.data(), buf.ys.data(),
+                             (int)buf.xs.size(), spec);
+        }
+        ImPlot::EndPlot();
+    }
+}
+
+static void draw_vector(const t7::StatGroup& g, const t7::AnalysisSignal& signal) {
+    float vals[128];
+    for (int i = 0; i < g.count; ++i)
+        vals[i] = signal.stat(g.channel, g.slot_base + i);
+
+    char id[64];
+    std::snprintf(id, sizeof(id), "##%s", g.name);
+    if (ImPlot::BeginPlot(id, ImVec2(-1, 150))) {
+        ImPlot::SetupAxes("slot", "value",
+                          ImPlotAxisFlags_AutoFit, ImPlotAxisFlags_AutoFit);
+        ImPlot::PlotBars(g.name, vals, g.count);
+        ImPlot::EndPlot();
+    }
+}
+
+struct StatScopes {
+    std::vector<ScrollingBuffer> scalar_history;
+
+    StatScopes() {
+        for (int g = 0; g < AnalysisCartridge::STAT_LAYOUT_COUNT; ++g)
+            if (AnalysisCartridge::STAT_LAYOUT[g].shape == t7::StatShape::Scalar)
+                scalar_history.emplace_back();
+    }
+
+    void tick(const t7::AnalysisSignal& signal) {
+        int si = 0;
+        for (int g = 0; g < AnalysisCartridge::STAT_LAYOUT_COUNT; ++g) {
+            const auto& grp = AnalysisCartridge::STAT_LAYOUT[g];
+            if (grp.shape == t7::StatShape::Scalar)
+                scalar_history[si++].push(signal.t_seconds,
+                                          signal.stat(grp.channel, grp.slot_base));
+        }
+    }
+
+    void draw(const t7::AnalysisSignal& signal) {
+        int si = 0;
+        for (int g = 0; g < AnalysisCartridge::STAT_LAYOUT_COUNT; ++g) {
+            const auto& grp = AnalysisCartridge::STAT_LAYOUT[g];
+            ImGui::SeparatorText(grp.name);
+            if (grp.shape == t7::StatShape::Scalar)
+                draw_scalar(grp, scalar_history[si++], signal);
+            else
+                draw_vector(grp, signal);
+        }
+    }
+};
+
+static void draw_dashboard(const t7::AnalysisSignal& signal, TestCoupling& tc,
+                           StatScopes& scopes, AnalysisCartridge& analysis) {
     ImGui::Begin("The Lab -- Coupling Laboratory", nullptr,
                  ImGuiWindowFlags_NoCollapse);
 
@@ -234,10 +308,17 @@ static void draw_dashboard(const t7::AnalysisSignal& signal, TestCoupling& tc) {
                 signal.t_seconds, signal.t_beats, signal.dt, ANALYSIS_NAME);
     ImGui::Separator();
 
-    draw_stats_grid(signal);
+    bool kbd = analysis.keyboard_enabled();
+    if (ImGui::Checkbox("keyboard debug input (-> abbott)", &kbd))
+        analysis.set_keyboard_enabled(kbd);
+
+    scopes.draw(signal);
     draw_coupling_controls(tc);
     draw_input_scope(tc, signal.t_seconds);
     draw_trajectory_scope(tc, signal.t_seconds);
+
+    if (ImGui::CollapsingHeader("raw slot grid (channels x slots 0-15)"))
+        draw_stats_grid(signal);
 
     ImGui::End();
 }
@@ -296,6 +377,7 @@ int main(int argc, char* argv[]) {
 
     // --- Lab state ----------------------------------------------------------
     TestCoupling test_coupling;
+    StatScopes stat_scopes;
     wgpu::Queue queue = console.queue();
 
     // --- Main loop ----------------------------------------------------------
@@ -317,12 +399,13 @@ int main(int argc, char* argv[]) {
         // Analysis tick + coupling tick
         analysis.update(dt);
         test_coupling.tick(analysis.output());
+        stat_scopes.tick(analysis.output());
 
         // ImGui frame
         ImGui_ImplWGPU_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
-        draw_dashboard(analysis.output(), test_coupling);
+        draw_dashboard(analysis.output(), test_coupling, stat_scopes, analysis);
         ImGui::Render();
 
         // Render the ImGui draw data via a single render pass
