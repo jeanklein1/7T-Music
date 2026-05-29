@@ -338,15 +338,15 @@ struct StatScopes {
     std::vector<ScrollingBuffer> scalar_history;
     std::vector<VectorHistory>   vector_history;
 
-    // Display grouping: stats clustered per channel, reorderable. Reordering
-    // affects DISPLAY only — histories stay keyed to declared order via
-    // hist_index, so moving a stat never disturbs its scrolling/heatmap buffer.
-    struct ChannelView {
+    // Stats clustered per channel. Each channel becomes its own dockable
+    // window inside the Analysis nested dockspace. Histories stay keyed to
+    // declared order via hist_index, independent of how channels are docked.
+    struct ChannelGroup {
         int  channel;
-        char label[32];          // e.g. "abbott", parsed from the name prefix
-        std::vector<int> order;  // STAT_LAYOUT indices, in display order
+        char label[32];          // "abbott" etc., parsed from the name prefix
+        std::vector<int> stats;  // STAT_LAYOUT indices, declared order
     };
-    std::vector<ChannelView> channel_views;
+    std::vector<ChannelGroup> channel_groups;
     std::array<int, AnalysisCartridge::STAT_LAYOUT_COUNT> hist_index;  // group -> buffer slot
 
     StatScopes() {
@@ -362,22 +362,22 @@ struct StatScopes {
                 vector_history.emplace_back(grp.count);
             }
 
-            // find/create the channel view, append this group
-            ChannelView* cv = nullptr;
-            for (auto& c : channel_views)
-                if (c.channel == grp.channel) { cv = &c; break; }
-            if (!cv) {
-                channel_views.push_back(ChannelView{});
-                cv = &channel_views.back();
-                cv->channel = grp.channel;
+            // find/create the channel group, append this stat
+            ChannelGroup* cg = nullptr;
+            for (auto& c : channel_groups)
+                if (c.channel == grp.channel) { cg = &c; break; }
+            if (!cg) {
+                channel_groups.push_back(ChannelGroup{});
+                cg = &channel_groups.back();
+                cg->channel = grp.channel;
                 // label = name up to '.' (manual parse, no <cstring>)
                 int k = 0;
                 while (grp.name[k] && grp.name[k] != '.' && k < 31) {
-                    cv->label[k] = grp.name[k]; ++k;
+                    cg->label[k] = grp.name[k]; ++k;
                 }
-                cv->label[k] = '\0';
+                cg->label[k] = '\0';
             }
-            cv->order.push_back(g);
+            cg->stats.push_back(g);
         }
     }
 
@@ -397,30 +397,40 @@ struct StatScopes {
     }
 
     void draw(const t7::AnalysisSignal& signal) {
-        for (auto& cv : channel_views) {
-            if (!ImGui::CollapsingHeader(cv.label, ImGuiTreeNodeFlags_DefaultOpen))
-                continue;
-            ImGui::Indent();
+        // (1) Analysis host: a nested dockspace the channel windows dock into.
+        ImGui::Begin("Analysis", nullptr, ImGuiWindowFlags_NoCollapse);
+        ImGuiID analysis_dock = ImGui::GetID("AnalysisDock");
 
-            int swap_pos = -1, swap_with = -1;  // deferred (mutate after the loop)
-            for (int pos = 0; pos < (int)cv.order.size(); ++pos) {
-                const int g = cv.order[pos];
+        static bool inner_inited = false;
+        if (!inner_inited) {
+            inner_inited = true;
+            // Built BEFORE DockSpace() below, and GetID() doesn't create a node,
+            // so on a fresh launch this is genuinely null and the default takes;
+            // imgui.ini wins on later runs. (Self-correcting if it ever doesn't:
+            // docking a channel into Analysis once persists thereafter.)
+            if (ImGui::DockBuilderGetNode(analysis_dock) == nullptr) {
+                ImGui::DockBuilderRemoveNode(analysis_dock);
+                ImGui::DockBuilderAddNode(analysis_dock, ImGuiDockNodeFlags_DockSpace);
+                ImGui::DockBuilderSetNodeSize(analysis_dock,
+                                              ImGui::GetContentRegionAvail());
+                for (auto& cg : channel_groups)
+                    ImGui::DockBuilderDockWindow(cg.label, analysis_dock);  // tab here by default
+                ImGui::DockBuilderFinish(analysis_dock);
+            }
+        }
+        ImGui::DockSpace(analysis_dock);
+        ImGui::End();
+
+        // (2) Channel sub-windows — dock into analysis_dock; drag/tab/split freely.
+        for (auto& cg : channel_groups) {
+            ImGui::Begin(cg.label);
+            for (int g : cg.stats) {
                 const auto& grp = AnalysisCartridge::STAT_LAYOUT[g];
 
                 // stat name without the channel prefix
                 const char* dot = grp.name;
                 while (*dot && *dot != '.') ++dot;
                 const char* short_name = (*dot == '.') ? dot + 1 : grp.name;
-
-                ImGui::PushID(g);
-                if (ImGui::SmallButton("^") && pos > 0) {
-                    swap_pos = pos; swap_with = pos - 1;
-                }
-                ImGui::SameLine();
-                if (ImGui::SmallButton("v") && pos < (int)cv.order.size() - 1) {
-                    swap_pos = pos; swap_with = pos + 1;
-                }
-                ImGui::SameLine();
 
                 if (ImGui::CollapsingHeader(short_name)) {  // collapsed by default
                     if (grp.shape == t7::StatShape::Scalar) {
@@ -430,46 +440,30 @@ struct StatScopes {
                         draw_vector_history(grp, vector_history[hist_index[g]]);
                     }
                 }
-                ImGui::PopID();
             }
-
-            if (swap_pos >= 0) {  // one reorder per frame, applied after iterating
-                int tmp = cv.order[swap_pos];
-                cv.order[swap_pos] = cv.order[swap_with];
-                cv.order[swap_with] = tmp;
-            }
-            ImGui::Unindent();
+            ImGui::End();
         }
     }
 };
 
-static void draw_analysis_window(const t7::AnalysisSignal& signal,
-                                 StatScopes& scopes,
-                                 AnalysisCartridge& analysis) {
+static void draw_coupling_window(const t7::AnalysisSignal& signal,
+                                 TestCoupling& tc, AnalysisCartridge& analysis) {
     // Layout is owned by the dockspace; no manual pos/size here.
-    ImGui::Begin("Analysis", nullptr, ImGuiWindowFlags_NoCollapse);
+    ImGui::Begin("Coupling Lab", nullptr, ImGuiWindowFlags_NoCollapse);
+
     ImGui::Text("t = %.2f s   beat = %.2f   dt = %.4f s   |   analysis: %s",
                 signal.t_seconds, signal.t_beats, signal.dt, ANALYSIS_NAME);
-    ImGui::Separator();
-
     bool kbd = analysis.keyboard_enabled();
     if (ImGui::Checkbox("keyboard debug input (-> abbott)", &kbd))
         analysis.set_keyboard_enabled(kbd);
+    ImGui::Separator();
 
-    scopes.draw(signal);
-
-    if (ImGui::CollapsingHeader("raw slot grid (channels x slots 0-15)"))
-        draw_stats_grid(signal);
-    ImGui::End();
-}
-
-static void draw_coupling_window(const t7::AnalysisSignal& signal,
-                                 TestCoupling& tc) {
-    // Layout is owned by the dockspace; no manual pos/size here.
-    ImGui::Begin("Coupling Lab", nullptr, ImGuiWindowFlags_NoCollapse);
     draw_coupling_controls(tc);
     draw_input_scope(tc, signal.t_seconds);
     draw_trajectory_scope(tc, signal.t_seconds);
+
+    if (ImGui::CollapsingHeader("raw slot grid (channels x slots 0-15)"))
+        draw_stats_grid(signal);
     ImGui::End();
 }
 
@@ -565,33 +559,32 @@ int main(int argc, char* argv[]) {
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
-        // Dock space over the main viewport (native drag-out / dock / tab /
-        // split-resize). On first ever launch — before imgui.ini exists — build
-        // a default split; afterwards imgui.ini wins.
-        ImGuiID dock_id = ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport());
-        static bool dock_inited = false;
-        if (!dock_inited) {
-            dock_inited = true;
-            // DockSpaceOverViewport() creates the node immediately, so a fresh
-            // launch yields an EMPTY node (not null). Only skip the default when
-            // imgui.ini already restored a populated layout.
-            ImGuiDockNode* node = ImGui::DockBuilderGetNode(dock_id);
+        // Main dock space over the viewport: Analysis (audio) | Coupling Lab
+        // (visual). First launch builds the default split; imgui.ini wins after.
+        ImGuiID main_dock = ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport());
+        static bool main_inited = false;
+        if (!main_inited) {
+            main_inited = true;
+            // DockSpaceOverViewport() submits DockSpace(), which creates the node
+            // immediately, so a fresh launch yields an EMPTY (not null) node. Guard
+            // on null-OR-empty, else the default never builds and the windows float.
+            ImGuiDockNode* node = ImGui::DockBuilderGetNode(main_dock);
             if (node == nullptr || node->IsEmpty()) {
-                ImGui::DockBuilderRemoveNode(dock_id);
-                ImGui::DockBuilderAddNode(dock_id, ImGuiDockNodeFlags_DockSpace);
-                ImGui::DockBuilderSetNodeSize(dock_id,
+                ImGui::DockBuilderRemoveNode(main_dock);
+                ImGui::DockBuilderAddNode(main_dock, ImGuiDockNodeFlags_DockSpace);
+                ImGui::DockBuilderSetNodeSize(main_dock,
                                               ImGui::GetMainViewport()->WorkSize);
                 ImGuiID right;
                 ImGuiID left = ImGui::DockBuilderSplitNode(
-                    dock_id, ImGuiDir_Left, 0.60f, nullptr, &right);
+                    main_dock, ImGuiDir_Left, 0.60f, nullptr, &right);
                 ImGui::DockBuilderDockWindow("Analysis", left);
                 ImGui::DockBuilderDockWindow("Coupling Lab", right);
-                ImGui::DockBuilderFinish(dock_id);
+                ImGui::DockBuilderFinish(main_dock);
             }
         }
 
-        draw_analysis_window(analysis.output(), stat_scopes, analysis);
-        draw_coupling_window(analysis.output(), test_coupling);
+        stat_scopes.draw(analysis.output());                               // Analysis host + channel windows
+        draw_coupling_window(analysis.output(), test_coupling, analysis);  // Coupling Lab
         ImGui::Render();
 
         // Render the ImGui draw data via a single render pass
