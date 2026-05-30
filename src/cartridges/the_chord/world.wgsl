@@ -4173,7 +4173,7 @@ fn tube_face_corners(face: u32) -> vec2<u32> {
     }
 }
 
-// --- Fallen Ribbon: Terrain Height at World Position
+// --- Compute ribbon ring transforms (flying ribbons; no terrain follow)
 @compute @workgroup_size(64)
 fn compute_ribbon_rings(@builtin(global_invocation_id) gid: vec3<u32>) {
     let ring_idx = gid.x;

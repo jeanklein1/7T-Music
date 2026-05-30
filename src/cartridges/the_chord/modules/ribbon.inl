@@ -80,8 +80,8 @@ struct RibbonConfig {
 // ── Length cap ───────────────────────────────────────────────────
 // Total ribbon length (cube_count × cube_size) is capped here to
 // keep anchor coverage viable (~30 patches max). RIBBON_MAX_LENGTH
-// itself currently lives in spawn_engine.inl; consumed below in
-// fill_ribbon_selection_geometry.
+// itself is defined below in this file (Capacity section); consumed
+// in fill_ribbon_selection_geometry.
 
 
 // ═══ COLOR VOCABULARY ════════════════════════════════════════════

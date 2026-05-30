@@ -175,12 +175,12 @@ struct TestCoupling {
 // =========================================================================
 
 static void draw_stats_grid(const t7::AnalysisSignal& signal) {
-    ImGui::SeparatorText("AnalysisSignal  (slots 0-15 of 128 per channel)");
+    ImGui::SeparatorText("AnalysisSignal  (slots 0-31 of 128 per channel)");
 
-    if (ImGui::BeginTable("stats", 17,
+    if (ImGui::BeginTable("stats", 33,
             ImGuiTableFlags_Borders | ImGuiTableFlags_SizingFixedFit)) {
         ImGui::TableSetupColumn("ch");
-        for (int s = 0; s < 16; ++s) {
+        for (int s = 0; s < 32; ++s) {
             char header[8];
             std::snprintf(header, sizeof(header), "%d", s);
             ImGui::TableSetupColumn(header);
@@ -191,7 +191,7 @@ static void draw_stats_grid(const t7::AnalysisSignal& signal) {
             ImGui::TableNextRow();
             ImGui::TableSetColumnIndex(0);
             ImGui::Text("ch%d", c);
-            for (int s = 0; s < 16; ++s) {
+            for (int s = 0; s < 32; ++s) {
                 ImGui::TableSetColumnIndex(s + 1);
                 const float v = signal.stat(c, s);
                 if (std::abs(v) > 0.001f) {
@@ -213,7 +213,7 @@ static void draw_coupling_controls(TestCoupling& tc) {
     ImGui::Text("  source: stat(ch=%d, slot=%d)", tc.source_channel, tc.source_slot);
 
     ImGui::SliderInt("Source channel", &tc.source_channel, 0, 3);
-    ImGui::SliderInt("Source slot",    &tc.source_slot,    0, 15);
+    ImGui::SliderInt("Source slot",    &tc.source_slot,    0, 31);
 
     ImGui::SliderFloat("Attack rate (1/s)",   &tc.attack,  0.1f, 20.0f, "%.2f");
     ImGui::SliderFloat("Release rate (1/s)",  &tc.release, 0.1f, 20.0f, "%.2f");
