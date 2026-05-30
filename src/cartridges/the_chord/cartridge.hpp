@@ -88,6 +88,7 @@
 #include "cartridges/the_chord/state.hpp"
 #include "cartridges/the_chord/renderer.hpp"
 #include "musical/trajectory.hpp"
+#include "musical/signal_layout.hpp"
 #include <cmath>
 #include <cstring>
 #include <iostream>
@@ -115,6 +116,10 @@ namespace t7 {
 
             GPUState gpuState_;
             Renderer renderer_;
+
+            // Analysis stat layout, received once at startup (see
+            // bind_signal_layout). No coupling reads it yet — that is B2.
+            SignalLayout signal_layout_;
 
             struct InputState {
                 float move_x = 0.0f;
@@ -3077,6 +3082,19 @@ namespace t7 {
                     << std::chrono::duration_cast<std::chrono::milliseconds>(t3 - t0).count() << " ms\n";
 
                 return true;
+            }
+
+            // ─── SIGNAL LAYOUT BINDING (B1) ──────────────────────────────
+            // Receive the analysis cartridge's published stat layout once,
+            // after both cartridges are initialized (see incubator.cpp).
+            // The render side resolves coupling sources by name through
+            // this; it never includes the analysis cartridge's headers.
+            // No coupling reads signal_layout_ yet — that is B2.
+            void bind_signal_layout(StatLayoutView v) {
+                signal_layout_.bind(v);
+                // B1 acceptance log — proves the real layout arrived.
+                std::fprintf(stderr, "[the_chord] bound signal layout: %u groups\n",
+                             signal_layout_.count());
             }
 
             // DONE[spine:K1 / musical:K2 / mood:K3 / pawn:K1] update() is now

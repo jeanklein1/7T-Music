@@ -215,6 +215,14 @@ public:
     static constexpr int STAT_LAYOUT_COUNT =
         sizeof(STAT_LAYOUT) / sizeof(STAT_LAYOUT[0]);
 
+    // Publish the layout as a non-owning view (the "key" the render side
+    // receives once to resolve coupling sources by name). STAT_LAYOUT is
+    // static constexpr, so the view stays valid for the program lifetime.
+    StatLayoutView stat_layout() const override {
+        return StatLayoutView{ STAT_LAYOUT,
+                               static_cast<uint32_t>(STAT_LAYOUT_COUNT) };
+    }
+
 private:
     // ─── CHANNEL INSTANCE ───────────────────────────────────────────────────
     //

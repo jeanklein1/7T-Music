@@ -125,4 +125,14 @@ struct StatGroup {
     StatShape   shape;
 };
 
+// Non-owning view over a cartridge's STAT_LAYOUT array. STAT_LAYOUT is
+// static constexpr storage, so a pointer into it is valid for the whole
+// program — this view is safe to copy and hold. It is the "key" the
+// analysis cartridge publishes so the render side can resolve stat
+// groups by name at runtime (see musical/signal_layout.hpp).
+struct StatLayoutView {
+    const StatGroup* groups;
+    uint32_t         count;
+};
+
 } // namespace t7

@@ -84,10 +84,20 @@ public:
     /**
      * Get the current analysis output.
      * Valid after update() has been called.
-     * 
+     *
      * @return  Reference to the analysis signal (time + stats)
      */
     virtual const AnalysisSignal& output() const = 0;
+
+    /**
+     * Publish this cartridge's stat layout — the slot map that names which
+     * (channel, slot_base, count) each stat group occupies. The render side
+     * receives this once and resolves coupling sources by name, without ever
+     * including the analysis cartridge's own headers.
+     *
+     * @return  Non-owning view over the cartridge's static STAT_LAYOUT.
+     */
+    virtual StatLayoutView stat_layout() const = 0;
 };
 
 } // namespace t7
