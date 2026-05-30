@@ -146,8 +146,8 @@ struct VectorHistory {
 
 struct TestCoupling {
     bool  enabled        = true;
-    int   source_channel = 0;     // which AnalysisSignal channel to read
-    int   source_slot    = 0;     // which stat within that channel
+    int   source_group   = 0;     // index into STAT_LAYOUT (group carries its channel)
+    int   source_index   = 0;     // within-group slot, 0 .. count-1
     float attack         = 4.0f;  // 1/s
     float release        = 2.5f;  // 1/s
     float full           = 6.0f;  // input value that saturates target at 1.0
@@ -159,7 +159,10 @@ struct TestCoupling {
     ScrollingBuffer output_history;  // trajectory.value over time
 
     void tick(const t7::AnalysisSignal& signal) {
-        const float input = signal.stat(source_channel, source_slot);
+        // Source addressing derives from the named group: group picks the
+        // channel + slot_base, source_index selects within a multi-wide group.
+        const t7::StatGroup& g = AnalysisCartridge::STAT_LAYOUT[source_group];
+        const float input = signal.stat(g.channel, g.slot_base + source_index);
         const float target = enabled ? std::min(input / full, 1.0f) : 0.0f;
         const float rate = (target > trajectory.value) ? attack : release;
         trajectory = t7::trajectory_release(trajectory, target, signal.dt, rate);
@@ -208,12 +211,32 @@ static void draw_stats_grid(const t7::AnalysisSignal& signal) {
 static void draw_coupling_controls(TestCoupling& tc) {
     ImGui::SeparatorText("Test Coupling  (intensity idiom)");
 
+    // Resolve the selected group up front (also drives the source readout).
+    const t7::StatGroup& g0 = AnalysisCartridge::STAT_LAYOUT[tc.source_group];
+
     ImGui::Checkbox("Enabled", &tc.enabled);
     ImGui::SameLine();
-    ImGui::Text("  source: stat(ch=%d, slot=%d)", tc.source_channel, tc.source_slot);
+    ImGui::Text("  source: %s  -> stat(ch=%d, slot=%d)",
+                g0.name, g0.channel, g0.slot_base + tc.source_index);
 
-    ImGui::SliderInt("Source channel", &tc.source_channel, 0, 3);
-    ImGui::SliderInt("Source slot",    &tc.source_slot,    0, 31);
+    // Name-scoped source picker: pick a StatGroup by name, then (for
+    // multi-wide groups) an index within it. Same named source a render
+    // coupling targets — e.g. "abbott.lowest_pc" + index k is PC-k's one-hot.
+    if (ImGui::BeginCombo("Source", g0.name)) {
+        for (int i = 0; i < AnalysisCartridge::STAT_LAYOUT_COUNT; ++i) {
+            const bool sel = (i == tc.source_group);
+            if (ImGui::Selectable(AnalysisCartridge::STAT_LAYOUT[i].name, sel)) {
+                tc.source_group = i;
+                tc.source_index = 0;   // reset index when group changes
+            }
+            if (sel) ImGui::SetItemDefaultFocus();
+        }
+        ImGui::EndCombo();
+    }
+    const t7::StatGroup& g = AnalysisCartridge::STAT_LAYOUT[tc.source_group];
+    if (g.count > 1) {
+        ImGui::SliderInt("Index", &tc.source_index, 0, g.count - 1);
+    }
 
     ImGui::SliderFloat("Attack rate (1/s)",   &tc.attack,  0.1f, 20.0f, "%.2f");
     ImGui::SliderFloat("Release rate (1/s)",  &tc.release, 0.1f, 20.0f, "%.2f");
