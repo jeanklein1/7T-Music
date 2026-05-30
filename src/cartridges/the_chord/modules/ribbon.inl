@@ -83,6 +83,16 @@ struct RibbonConfig {
 // itself is defined below in this file (Capacity section); consumed
 // in fill_ribbon_selection_geometry.
 
+// ── Geometry / placement ─────────────────────────────────────────
+// Floors on the Gaussian-sampled shape draws plus the fixed spawn
+// footprint and orientation spread. Consumed in
+// fill_ribbon_selection_geometry / select_ribbon_for_patch.
+static constexpr float MIN_CUBE_COUNT     = 20.0f;    // floor on Gaussian-sampled cube_count
+static constexpr float MIN_CUBE_SIZE      = 1.0f;     // floor on cube_size
+static constexpr float MIN_ADDED_HEIGHT   = 20.0f;    // floor on height added above terrain_est
+static constexpr float FOOTPRINT_RADIUS   = 5.0f;     // ribbon spawn footprint radius
+static constexpr float ORIENTATION_SPREAD = 1.0472f;  // ±60° (π/3) around away-from-pawn
+
 
 // ═══ COLOR VOCABULARY ════════════════════════════════════════════
 
@@ -102,6 +112,27 @@ static constexpr float RIBBON_SMOOTH_PALETTE[][3] = {
     { 0.50f, 0.68f, 0.55f },   // sage green
 };
 static constexpr uint32_t RIBBON_SMOOTH_PALETTE_COUNT = 4;
+
+// ── Color character ──────────────────────────────────────────────
+// Per-mode dials for the color draws in fill_ribbon_selection_geometry.
+// Structure (which hash prop feeds which channel, the (1 - hue) on
+// CONTRAST green) stays in code; only the magnitudes live here.
+
+// SMOOTH: per-channel variance around the palette base.
+//   var = hash * RANGE + BIAS; applied as { +var, +var*G, +var*B }.
+static constexpr float SMOOTH_VAR_RANGE = 0.10f;
+static constexpr float SMOOTH_VAR_BIAS  = -0.05f;
+static constexpr float SMOOTH_VAR_G     = 0.8f;   // green channel gets var * G
+static constexpr float SMOOTH_VAR_B     = 0.6f;   // blue  channel gets var * B
+
+// TINTED: per-channel hash*range + base (R & B range 0.45, G range 0.40).
+static constexpr float TINTED_RANGE[3] = { 0.45f, 0.40f, 0.45f };
+static constexpr float TINTED_BASE[3]  = { 0.40f, 0.35f, 0.35f };
+
+// CONTRAST: per-channel base + range (green driven by (1 - hue),
+//   blue by its own COLOR_B hash).
+static constexpr float CONTRAST_BASE[3]  = { 0.20f, 0.18f, 0.22f };
+static constexpr float CONTRAST_RANGE[3] = { 0.35f, 0.30f, 0.25f };
 
 
 // ═══ PROPERTY INDEX REGISTRY ═════════════════════════════════════
@@ -373,17 +404,17 @@ static void fill_ribbon_selection_geometry(
 {
     const auto& tp = RIBBON_TIERS[tier_idx];
 
-    float count_f = std::max(20.0f,
+    float count_f = std::max(MIN_CUBE_COUNT,
         cpu_sample_gaussian(seed, RibbonProp::CUBE_COUNT, tp.cube_count_mean, tp.cube_count_sigma));
     sel.cube_count = std::min((uint32_t)count_f, Dim::RIBBON_MAX_RINGS);
-    sel.cube_size = std::max(1.0f,
+    sel.cube_size = std::max(MIN_CUBE_SIZE,
         cpu_sample_gaussian(seed, RibbonProp::CUBE_SIZE, tp.cube_size_mean, tp.cube_size_sigma));
 
     // Length cap — keeps anchor coverage viable (~30 patches max)
     if ((float)sel.cube_count * sel.cube_size > RIBBON_MAX_LENGTH)
         sel.cube_count = (uint32_t)(RIBBON_MAX_LENGTH / sel.cube_size);
 
-    sel.height = terrain_est + std::max(20.0f,
+    sel.height = terrain_est + std::max(MIN_ADDED_HEIGHT,
         cpu_sample_gaussian(seed, RibbonProp::HEIGHT, tp.height_mean, tp.height_sigma));
 
     sel.orientation = cpu_hash_f(seed, RibbonProp::ORIENTATION) * 6.2831853f;
@@ -409,24 +440,24 @@ static void fill_ribbon_selection_geometry(
     if (sel.color_mode == RibbonColorMode::SMOOTH) {
         uint32_t pal_idx = (uint32_t)(cpu_hash_f(seed, RibbonProp::PALETTE_IDX) * RIBBON_SMOOTH_PALETTE_COUNT);
         if (pal_idx >= RIBBON_SMOOTH_PALETTE_COUNT) pal_idx = RIBBON_SMOOTH_PALETTE_COUNT - 1;
-        float var = cpu_hash_f(seed, RibbonProp::COLOR_R) * 0.10f - 0.05f;
+        float var = cpu_hash_f(seed, RibbonProp::COLOR_R) * SMOOTH_VAR_RANGE + SMOOTH_VAR_BIAS;
         sel.color[0] = RIBBON_SMOOTH_PALETTE[pal_idx][0] + var;
-        sel.color[1] = RIBBON_SMOOTH_PALETTE[pal_idx][1] + var * 0.8f;
-        sel.color[2] = RIBBON_SMOOTH_PALETTE[pal_idx][2] + var * 0.6f;
+        sel.color[1] = RIBBON_SMOOTH_PALETTE[pal_idx][1] + var * SMOOTH_VAR_G;
+        sel.color[2] = RIBBON_SMOOTH_PALETTE[pal_idx][2] + var * SMOOTH_VAR_B;
     }
     else if (sel.color_mode == RibbonColorMode::TINTED) {
-        sel.color[0] = cpu_hash_f(seed, RibbonProp::COLOR_R) * 0.45f + 0.40f;
-        sel.color[1] = cpu_hash_f(seed, RibbonProp::COLOR_G) * 0.40f + 0.35f;
-        sel.color[2] = cpu_hash_f(seed, RibbonProp::COLOR_B) * 0.45f + 0.35f;
+        sel.color[0] = cpu_hash_f(seed, RibbonProp::COLOR_R) * TINTED_RANGE[0] + TINTED_BASE[0];
+        sel.color[1] = cpu_hash_f(seed, RibbonProp::COLOR_G) * TINTED_RANGE[1] + TINTED_BASE[1];
+        sel.color[2] = cpu_hash_f(seed, RibbonProp::COLOR_B) * TINTED_RANGE[2] + TINTED_BASE[2];
     }
     else {
         float hue = cpu_hash_f(seed, RibbonProp::COLOR_R);
-        sel.color[0] = 0.20f + hue * 0.35f;
-        sel.color[1] = 0.18f + (1.0f - hue) * 0.30f;
-        sel.color[2] = 0.22f + cpu_hash_f(seed, RibbonProp::COLOR_B) * 0.25f;
+        sel.color[0] = CONTRAST_BASE[0] + hue * CONTRAST_RANGE[0];
+        sel.color[1] = CONTRAST_BASE[1] + (1.0f - hue) * CONTRAST_RANGE[1];
+        sel.color[2] = CONTRAST_BASE[2] + cpu_hash_f(seed, RibbonProp::COLOR_B) * CONTRAST_RANGE[2];
     }
 
-    sel.footprint_r = 5.0f;
+    sel.footprint_r = FOOTPRINT_RADIUS;
 }
 
 // ─── select_ribbon_for_patch ──────────────────────────────────
@@ -480,9 +511,8 @@ static bool select_ribbon_for_patch(RibbonState& rs, Cartridge* c,
         float patch_cz = (gz + 0.5f) * PATCH_EXTENT;
         float away_angle = std::atan2(patch_cz - c->player_.readback_z,
             patch_cx - c->player_.readback_x);
-        constexpr float SPREAD = 1.0472f; // ±60° = π/3
         float hash_spread = cpu_hash_f(gate.seed, RibbonProp::ORIENTATION);
-        sel.orientation = away_angle + (hash_spread * 2.0f - 1.0f) * SPREAD;
+        sel.orientation = away_angle + (hash_spread * 2.0f - 1.0f) * ORIENTATION_SPREAD;
     }
 
     return true;
