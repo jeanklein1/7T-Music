@@ -121,8 +121,8 @@ static constexpr uint32_t RIBBON_SMOOTH_PALETTE_COUNT = 4;
 //   var = hash * RANGE + BIAS; applied as { +var, +var*G, +var*B }.
 static constexpr float SMOOTH_VAR_RANGE = 0.10f;
 static constexpr float SMOOTH_VAR_BIAS  = -0.05f;
-static constexpr float SMOOTH_VAR_G     = 0.8f;   // green channel gets var * G
-static constexpr float SMOOTH_VAR_B     = 0.6f;   // blue  channel gets var * B
+static constexpr float SMOOTH_VAR_G_SCALE = 0.8f; // green channel gets var * G_SCALE
+static constexpr float SMOOTH_VAR_B_SCALE = 0.6f; // blue  channel gets var * B_SCALE
 
 // TINTED: per-channel hash*range + base (R & B range 0.45, G range 0.40).
 static constexpr float TINTED_RANGE[3] = { 0.45f, 0.40f, 0.45f };
@@ -403,6 +403,34 @@ struct RibbonState {
 RibbonState ribbon_state_;
 
 
+// ═══ TARGET SURFACE ══════════════════════════════════════════════
+//
+// The ribbon's drivable parameters, exposed for the coupling layer.
+// A coupling reaches a parameter through these enumerators, never
+// through gpu[]/active[] directly: the module owns what is drivable,
+// where it lives, and which instances are active; the coupling owns
+// the idiom that moves it. Pointers are frame-local — valid for the
+// duration of the tick.
+
+struct ColorSlot {
+    float*       value;   // -> gpu[s].color    (3 wide, read/write)
+    const float* idle;    // -> spawn_color     (3 wide, read-only)
+};
+
+// Fills out[] with one ColorSlot per ACTIVE ribbon; returns the count.
+static int ribbon_color_targets(RibbonState& rs,
+                                ColorSlot out[MAX_RIBBON_INSTANCES]) {
+    int n = 0;
+    for (uint32_t s = 0; s < MAX_RIBBON_INSTANCES; ++s) {
+        if (!rs.active[s].active) continue;
+        out[n].value = rs.gpu[s].color;        // float[3] -> float*
+        out[n].idle  = rs.active[s].spawn_color;
+        ++n;
+    }
+    return n;
+}
+
+
 // ═══ LIFECYCLE — three-phase + shared helper ═════════════════════
 
 // ─── fill_ribbon_selection_geometry ───────────────────────────
@@ -453,8 +481,8 @@ static void fill_ribbon_selection_geometry(
         if (pal_idx >= RIBBON_SMOOTH_PALETTE_COUNT) pal_idx = RIBBON_SMOOTH_PALETTE_COUNT - 1;
         float var = cpu_hash_f(seed, RibbonProp::COLOR_R) * SMOOTH_VAR_RANGE + SMOOTH_VAR_BIAS;
         sel.color[0] = RIBBON_SMOOTH_PALETTE[pal_idx][0] + var;
-        sel.color[1] = RIBBON_SMOOTH_PALETTE[pal_idx][1] + var * SMOOTH_VAR_G;
-        sel.color[2] = RIBBON_SMOOTH_PALETTE[pal_idx][2] + var * SMOOTH_VAR_B;
+        sel.color[1] = RIBBON_SMOOTH_PALETTE[pal_idx][1] + var * SMOOTH_VAR_G_SCALE;
+        sel.color[2] = RIBBON_SMOOTH_PALETTE[pal_idx][2] + var * SMOOTH_VAR_B_SCALE;
     }
     else if (sel.color_mode == RibbonColorMode::TINTED) {
         sel.color[0] = cpu_hash_f(seed, RibbonProp::COLOR_R) * TINTED_RANGE[0] + TINTED_BASE[0];

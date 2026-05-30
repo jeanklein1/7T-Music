@@ -482,18 +482,19 @@ static void tick_musical_couplings(MusicalState& ms, Cartridge* c, const Analysi
 
         // 5b — per-ribbon target + release. Target switches to spawn color
         // when no PC is hot; release runs unconditionally so silence is an
-        // active return, not a freeze.
-        for (uint32_t s = 0; s < MAX_RIBBON_INSTANCES; ++s) {
-            if (!c->ribbon_state_.active[s].active) continue;
-
-            const float* target = (active_pc >= 0)
-                ? PC_COLORS[active_pc]
-                : c->ribbon_state_.active[s].spawn_color;
-
+        // active return, not a freeze. Addressing goes through the ribbon's
+        // color target surface (ribbon_color_targets) — the module owns
+        // which instances are active and where their color lives; §5 no
+        // longer names gpu[]/active[]/spawn_color directly.
+        ColorSlot slots[MAX_RIBBON_INSTANCES];
+        const int n = ribbon_color_targets(c->ribbon_state_, slots);
+        for (int i = 0; i < n; ++i) {
+            const float* target = (active_pc >= 0) ? PC_COLORS[active_pc]
+                                                   : slots[i].idle;
             for (int ch = 0; ch < 3; ++ch) {
-                Trajectory rc{ c->ribbon_state_.gpu[s].color[ch], 0.0f, 0.0f, 0.0f };
+                Trajectory rc{ slots[i].value[ch], 0.0f, 0.0f, 0.0f };
                 rc = trajectory_release(rc, target[ch], dt, color_rate);
-                c->ribbon_state_.gpu[s].color[ch] = rc.value;
+                slots[i].value[ch] = rc.value;
             }
         }
     }
