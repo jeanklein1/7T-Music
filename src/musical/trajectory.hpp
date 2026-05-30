@@ -14,10 +14,14 @@
  *   Trajectory                            — { value, velocity, _pad0, _pad1 }
  *   trajectory_release(t, goal, dt, rate) → Trajectory
  *
- * Consumers:
- *   cartridges/the_board/modules/musical.inl
- *   cartridges/the_board/modules/pawn.inl
- *   the_lab.cpp (iterating couplings)
+ * Consumers (verified by grep for the #include and trajectory_release call):
+ *   cartridges/the_chord/modules/musical.inl   — calls trajectory_release
+ *   cartridges/the_chord/modules/pawn.inl      — calls trajectory_release
+ *   cartridges/the_board/modules/musical.inl   — calls trajectory_release
+ *   cartridges/the_board/modules/pawn.inl      — calls trajectory_release
+ *   the_lab.cpp                                — calls trajectory_release (iterating couplings)
+ *   cartridges/the_chord/cartridge.hpp         — #includes this header
+ *   cartridges/the_board/cartridge.hpp         — #includes this header
  *
  * SEAM[trajectory:contract] MUST match world.wgsl §1.2 Trajectory.
  *   Field shape doesn't need to be byte-identical (this struct is

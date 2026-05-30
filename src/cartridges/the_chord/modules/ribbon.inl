@@ -51,12 +51,11 @@
 //   mood.inl::apply_mood for mood-5 forced spawn. The dual entry
 //   point is owned by mood:K4 (mood-5 reference clone), not by
 //   ribbon machinery. Tag-only awareness.
-// SEAM[ribbon:P8] CPU mirrors of WGSL ribbon spine/tangent/rotor
-//   functions (ribbon_spine_at_cpu, ribbon_tangent_cpu,
-//   ribbon_rotor_diag) are authored but not yet called anywhere.
-//   Latent infrastructure for future picking / queries / diagnostics
-//   that will need to evaluate the ribbon's spine on CPU. Same
-//   family as the harmonic-ratio P8 below.
+// SEAM[ribbon:P8] LATENT — two unwired blocks live in this file: the
+//   harmonic-ratio palettes and the CPU spine/tangent/rotor mirrors
+//   (ribbon_spine_at_cpu, ribbon_tangent_cpu, ribbon_rotor_diag).
+//   Authored but not called today; see each section's banner. Tag
+//   retained pending the annotation-convention decision.
 // ─────────────────────────────────────────────────────────────────
 
 
@@ -172,25 +171,24 @@ struct RibbonProp {
 };
 
 
-// ═══ HARMONIC RATIO PALETTES (P8 — latent) ═══════════════════════
+// ═══ HARMONIC RATIO PALETTES — LATENT ════════════════════════════
 //
-// SEAM[ribbon:P8] latent infrastructure — the harmonic ratio
-//   selector and palettes are authored but not yet wired. The
-//   current fill_ribbon_selection_geometry overrides
-//   vertical_cycles and twist_cycles to lateral values directly
-//   ("overridden = lateral" notes in RIBBON_TIERS). Once the
-//   harmonic-ratio system is consumed at runtime, the per-axis
-//   ratio palettes below replace the override; until then this
-//   block is the artist's note-to-self about what's coming.
-//   Same family as gallery:ENVIRONMENTAL and the P8 inventory in
-//   the WGSL audit.
+// LATENT — authored, NOT wired into runtime.
+//   Purpose (once wired): secondary-wave cycles (vertical, twist) as
+//   harmonic ratios of the lateral fundamental — simple ratios that
+//   eliminate irrational beating and give each ribbon a harmonically
+//   coherent form. Ratios ≤ 1 keep secondary motion slower than the
+//   lateral sway (contemplative, not snaky); weights favor the middle
+//   intervals.
 //
-// Secondary wave cycles (vertical, twist) are derived as simple
-// ratios of the lateral fundamental. This eliminates irrational
-// beating and gives each ribbon a harmonically coherent form.
+//   Today the live path (fill_ribbon_selection_geometry) OVERRIDES
+//   vertical_cycles and twist_cycles to the lateral value, so these
+//   ratio tables describe motion the code does NOT currently produce.
+//   Do not read them as live.
 //
-// Ratios ≤ 1 keep secondary motion slower than lateral sway
-// (contemplative, not snaky). Weights favor the middle intervals.
+// SEAM[ribbon:P8] cross-ref tag retained pending the annotation-
+//   convention decision; same latent family as the CPU mirrors below
+//   and the P8 inventory in the WGSL audit.
 
 struct HarmonicRatio {
     float ratio;
@@ -258,10 +256,16 @@ struct RibbonTierProfile {
 
     // ─── Vertical wave ────────────────────────────────────
     float vertical_amp_mean, vertical_amp_sigma;
+    // SHADOWED — vertical_cycles and twist_cycles are overridden to the
+    //   lateral value at runtime (see fill_ribbon_selection_geometry).
+    //   These per-tier values take effect only once the harmonic-ratio
+    //   palettes are wired. Kept: they are the intended values once
+    //   ratios go live.
     float vertical_cycles_mean, vertical_cycles_sigma;
 
     // ─── Twist (corkscrew) ───────────────────────────────────
     float twist_amp_mean, twist_amp_sigma;
+    // SHADOWED — overridden to lateral at runtime (see vertical_cycles note).
     float twist_cycles_mean, twist_cycles_sigma;
 
     // ─── Propagation (trail-frame head→tail rate, world units/s) ──
@@ -290,6 +294,13 @@ struct RibbonTierProfile {
 // ─── Selection ───────────┤                │                │                │
 //   weight                 │   0.45         │   0.30         │   0.25         │
 //                          └────────────────┴────────────────┴────────────────┘
+//
+// SHADOWED ROWS — the vertical_cycles and twist_cycles entries below
+//   (each tagged "overridden = lateral") are DEAD at runtime:
+//   fill_ribbon_selection_geometry sets sel.vertical_cycles and
+//   sel.twist_cycles to sel.lateral_cycles. They take effect only once
+//   the harmonic-ratio palettes are wired. Values kept intentionally —
+//   they are the intended per-tier values once ratios go live.
 static constexpr RibbonTierProfile RIBBON_TIERS[RIBBON_TIER_COUNT] = {
     // Tier 0: Serpentine — long, massive, slow motion
     // (Length matched to Streamer (Tier 2): 188 × 8.0 ≈ 1500 units, vs.
@@ -657,13 +668,16 @@ static void commit_ribbon(RibbonState& rs, Cartridge* c,
 }
 
 
-// ═══ CPU MIRRORS (P8 — latent) ═══════════════════════════════════
+// ═══ CPU MIRRORS — LATENT ════════════════════════════════════════
 //
-// SEAM[ribbon:P8] CPU mirrors of WGSL ribbon spine/tangent/rotor
-//   functions. Authored but not yet called anywhere. Latent
-//   infrastructure for future picking / queries / diagnostics
-//   that need to evaluate the ribbon's spine on CPU. Keep aligned
-//   with the WGSL implementations whenever those change.
+// LATENT — kept byte-aligned with world.wgsl §6.5 (ribbon_spine_at /
+//   ribbon_tangent_at / ring motor) for future CPU-side picking,
+//   queries, and diagnostics. Not called today. If the GPU law
+//   changes, update here too — this is a hand-maintained mirror.
+//
+// SEAM[ribbon:P8] cross-ref tag retained pending the annotation-
+//   convention decision; same latent family as the harmonic-ratio
+//   palettes above.
 
 // CPU mirror of WGSL ribbon_spine_at — evaluate one ring's world position.
 // Trail-frame: the body is the trail of a harmonic-oscillator head sampled
