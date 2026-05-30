@@ -117,9 +117,10 @@ namespace t7 {
             GPUState gpuState_;
             Renderer renderer_;
 
-            // Analysis stat layout, received once at startup (see
-            // bind_signal_layout). No coupling reads it yet — that is B2.
+            // Analysis stat layout + this run's resolved coupling sources,
+            // received/resolved once at startup (see bind_signal_layout).
             SignalLayout signal_layout_;
+            SourceBinding lowest_pc_src_;   // §5 ribbon-color source ("abbott.lowest_pc")
 
             struct InputState {
                 float move_x = 0.0f;
@@ -3084,17 +3085,26 @@ namespace t7 {
                 return true;
             }
 
-            // ─── SIGNAL LAYOUT BINDING (B1) ──────────────────────────────
+            // ─── SIGNAL LAYOUT BINDING (B1/B2) ───────────────────────────
             // Receive the analysis cartridge's published stat layout once,
             // after both cartridges are initialized (see incubator.cpp).
             // The render side resolves coupling sources by name through
             // this; it never includes the analysis cartridge's headers.
-            // No coupling reads signal_layout_ yet — that is B2.
+            // B2 resolves the §5 ribbon-color source here; the read happens
+            // in musical.inl through the stored binding.
             void bind_signal_layout(StatLayoutView v) {
                 signal_layout_.bind(v);
                 // B1 acceptance log — proves the real layout arrived.
                 std::fprintf(stderr, "[the_chord] bound signal layout: %u groups\n",
                              signal_layout_.count());
+                // B2: resolve this run's coupling sources once. When the
+                // coupling registry lands, this generalizes to "resolve every
+                // coupling's source at bind"; for now, the §5 ribbon color.
+                lowest_pc_src_ = signal_layout_.resolve("abbott.lowest_pc");
+                std::fprintf(stderr,
+                    "[the_chord] lowest_pc_src: channel=%d base=%d count=%d valid=%d\n",
+                    lowest_pc_src_.channel, lowest_pc_src_.base,
+                    lowest_pc_src_.count, (int)lowest_pc_src_.valid);
             }
 
             // DONE[spine:K1 / musical:K2 / mood:K3 / pawn:K1] update() is now

@@ -437,7 +437,11 @@ static void tick_musical_couplings(MusicalState& ms, Cartridge* c, const Analysi
     // pulls the ribbon home; stimulus pulls it to the active PC. The
     // release rate is BPM-derived so the curve breathes with tempo —
     // 99% of target reached in RIBBON_COLOR_DECAY_BARS bars.
-    {
+    //
+    // B2: §5's source is resolved by name ("abbott.lowest_pc") once at bind
+    // (see bind_signal_layout). Skip the coupling (idle hold) if it didn't
+    // resolve — normal case is always valid, so this guard never trips.
+    if (c->lowest_pc_src_.valid) {
         static constexpr float PC_COLORS[12][3] = {
             { 1.0f,  0.0f,  0.0f  },   // C  — red
             { 1.0f,  0.25f, 0.0f  },   // C# — red-orange
@@ -466,10 +470,11 @@ static void tick_musical_couplings(MusicalState& ms, Cartridge* c, const Analysi
         const float color_rate = RIBBON_COLOR_DECAY_LN / decay_seconds;
         ms.prev_beats = signal.t_beats;
 
-        // 5a — find the active PC, if any.
+        // 5a — find the active PC, if any. Addressing comes from the
+        // resolved binding (channel/base/count), never re-hardcoded.
         int active_pc = -1;
-        for (int pc = 0; pc < 12; ++pc) {
-            if (signal.stat(0, 1 + pc) > 0.5f) {
+        for (int pc = 0; pc < c->lowest_pc_src_.count; ++pc) {
+            if (signal.stat(c->lowest_pc_src_.channel, c->lowest_pc_src_.base + pc) > 0.5f) {
                 active_pc = pc;
                 break;
             }
