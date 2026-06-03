@@ -1,34 +1,28 @@
 #pragma once
 
-/**
- * CARTRIDGE MANAGER — Transition Orchestration
- * =============================================
- *
- * Owns all cartridges, handles transitions between them.
- * Isolated from main.cpp for clean separation of concerns.
- *
- * TRANSITION FLOW:
- *   1. Cartridge detects door commitment in its update()
- *   2. Cartridge sets pending_transition_ flag
- *   3. main.cpp checks pending transition AFTER update completes
- *   4. main.cpp calls transition_from() to execute transition
- *   5. CartridgeManager switches active cartridge
- *   6. CartridgeManager spawns pawn at appropriate position
- *
- * SPAWN POSITIONING:
- *   When transitioning TO a cartridge with a pawn, we spawn it
- *   at a position that makes sense relative to the door used.
- *   Currently hardcoded per source→destination pair.
- *
- * RE-ENTRANCY PROTECTION:
- *   Transitions are locked during execution to prevent multiple
- *   transitions from triggering simultaneously.
- *
- * PREVIOUS ROOM TRACKING:
- *   Every transition saves the source cartridge ID, allowing
- *   BACKSPACE (or other commands) to return to the previous room.
- *   This is useful for rooms without exit doors.
- */
+// ─── cartridge_manager.hpp ───────────────────────────────────────
+//
+// Transition orchestration: owns all cartridges and handles transitions
+// between them. Isolated from main.cpp for clean separation of concerns.
+//
+// Transition flow:
+//   1. Cartridge detects door commitment in its update()
+//   2. Cartridge sets pending_transition_ flag
+//   3. main.cpp checks pending transition AFTER update completes
+//   4. main.cpp calls transition_from() to execute transition
+//   5. CartridgeManager switches active cartridge
+//   6. CartridgeManager spawns pawn at appropriate position
+//
+// Spawn positioning: when transitioning TO a cartridge with a pawn, it
+// spawns at a position that makes sense relative to the door used
+// (currently hardcoded per source→destination pair).
+//
+// Re-entrancy protection: transitions are locked during execution to
+// prevent multiple transitions from triggering simultaneously.
+//
+// Previous-room tracking: every transition saves the source cartridge
+// ID, so BACKSPACE (or other commands) can return to the previous room —
+// useful for rooms without exit doors.
 
 #include "core/cartridge_ids.hpp"
 #include "render/render_cartridge.hpp"
@@ -55,11 +49,9 @@ public:
         colorFormat_ = colorFormat;
         depthFormat_ = depthFormat;
 
-        // ═══════════════════════════════════════════════════════════════════
-        // CREATE ALL CARTRIDGES
-        // ═══════════════════════════════════════════════════════════════════
+        // ── Create All Cartridges ────────────────────────────────
 
-        // ─── Gallery Raymarch (Entry Point) ───────────────────────────────
+        // ── Gallery Raymarch (Entry Point) ───────────────────────
         galleryRaymarch_ = std::make_unique<gallery_raymarch::Cartridge>();
         galleryRaymarch_->initialize(device);
         if (!galleryRaymarch_->init_renderer(colorFormat, depthFormat)) {
@@ -67,7 +59,7 @@ public:
             return false;
         }
 
-        // ─── Gallery (Annex) ──────────────────────────────────────────────
+        // ── Gallery (Annex) ──────────────────────────────────────
         gallery_ = std::make_unique<gallery::Cartridge>();
         gallery_->initialize(device);
         if (!gallery_->init_renderer(colorFormat, depthFormat)) {
@@ -75,7 +67,7 @@ public:
             return false;
         }
 
-        // ─── N-Dimensional 2 ──────────────────────────────────────────────
+        // ── N-Dimensional 2 ──────────────────────────────────────
         nDimensional2_ = std::make_unique<n_dimensional_2::Cartridge>();
         nDimensional2_->initialize(device);
         if (!nDimensional2_->init_renderer(colorFormat, depthFormat)) {
@@ -83,7 +75,7 @@ public:
             return false;
         }
 
-                // ─── N-Dimensional 4 ──────────────────────────────────────────────
+                // ── N-Dimensional 4 ──────────────────────────────
         theBoard_ = std::make_unique<the_board::Cartridge>();
         theBoard_->initialize(device);
         if (!theBoard_->init_renderer(colorFormat, depthFormat)) {
@@ -91,7 +83,7 @@ public:
             return false;
         }
 
-        // ─── World Compute ────────────────────────────────────────────────
+        // ── World Compute ────────────────────────────────────────
         worldCompute_ = std::make_unique<world_compute::Cartridge>();
         worldCompute_->initialize(device);
         if (!worldCompute_->init_renderer(colorFormat, depthFormat)) {
@@ -99,7 +91,7 @@ public:
             return false;
         }
 
-        // ─── Terrain Pawn ─────────────────────────────────────────────────
+        // ── Terrain Pawn ─────────────────────────────────────────
         terrainPawn_ = std::make_unique<terrain_pawn::Cartridge>();
         terrainPawn_->initialize(device);
         if (!terrainPawn_->init_renderer(colorFormat, depthFormat)) {
@@ -107,7 +99,7 @@ public:
             return false;
         }
 
-        // ─── Pawn Rasterize ───────────────────────────────────────────────
+        // ── Pawn Rasterize ───────────────────────────────────────
         pawnRasterize_ = std::make_unique<pawn_rasterize::Cartridge>();
         pawnRasterize_->initialize(device);
         if (!pawnRasterize_->init_renderer(colorFormat, depthFormat)) {
@@ -115,7 +107,7 @@ public:
             return false;
         }
 
-        // ─── Playground Hybrid ────────────────────────────────────────────
+        // ── Playground Hybrid ────────────────────────────────────
         playgroundHybrid_ = std::make_unique<playground_hybrid::Cartridge>();
         playgroundHybrid_->initialize(device);
         if (!playgroundHybrid_->init_renderer(colorFormat, depthFormat)) {
@@ -123,7 +115,7 @@ public:
             return false;
         }
 
-        // ─── Species Studio ───────────────────────────────────────────────
+        // ── Species Studio ───────────────────────────────────────
         speciesStudio_ = std::make_unique<species_studio::Cartridge>();
         speciesStudio_->initialize(device);
         if (!speciesStudio_->init_renderer(colorFormat, depthFormat)) {
@@ -131,9 +123,7 @@ public:
             return false;
         }
 
-        // ═══════════════════════════════════════════════════════════════════
-        // START IN GALLERY RAYMARCH
-        // ═══════════════════════════════════════════════════════════════════
+        // ── Start In Gallery Raymarch ────────────────────────────
 
         active_ = galleryRaymarch_.get();
         activeId_ = CartridgeId::GALLERY_RAYMARCH;
@@ -147,16 +137,12 @@ public:
         return true;
     }
 
-    // ───────────────────────────────────────────────────────────────────────
-    // ACCESS
-    // ───────────────────────────────────────────────────────────────────────
+    // ── Access ───────────────────────────────────────────────────
 
     RenderCartridge* active() { return active_; }
     uint32_t active_id() const { return activeId_; }
 
-    // ───────────────────────────────────────────────────────────────────────
-    // TRANSITION — Called by cartridge callbacks
-    // ───────────────────────────────────────────────────────────────────────
+    // ── Transition — Called by cartridge callbacks ───────────────
     //
     // source: where we're coming FROM (for spawn position decisions)
     // target: where we're going TO
@@ -164,9 +150,7 @@ public:
 
     void transition_from(uint32_t source, uint32_t target, bool isDoorTransition = false) {
 
-        // ═══════════════════════════════════════════════════════════════════
-        // RE-ENTRANCY PROTECTION
-        // ═══════════════════════════════════════════════════════════════════
+        // ── RE-ENTRANCY Protection ───────────────────────────────
         // Prevents callbacks from triggering additional transitions while
         // a transition is already in progress.
         
@@ -189,9 +173,7 @@ public:
         if (isDoorTransition) std::cout << " (door)";
         std::cout << "\n";
 
-        // ═══════════════════════════════════════════════════════════════════
-        // SAVE PREVIOUS ROOM — For BACKSPACE navigation (door transitions only)
-        // ═══════════════════════════════════════════════════════════════════
+        // ── Save Previous Room — For Backspace navigation (door transitions only) ─
         // Before switching to the target, save where we're coming FROM,
         // BUT ONLY for door transitions. Keyboard shortcuts (F1-F4) don't
         // overwrite the previous room, allowing BACKSPACE to return to the
@@ -276,9 +258,7 @@ public:
         inTransition_ = false;
     }
 
-    // ───────────────────────────────────────────────────────────────────────
-    // DIRECT TRANSITION — For keyboard shortcuts (no source context)
-    // ───────────────────────────────────────────────────────────────────────
+    // ── Direct Transition — For keyboard shortcuts (no source context) ─
 
     void transition_to(uint32_t target) {
         transition_from(activeId_, target);
@@ -290,9 +270,7 @@ public:
         }
     }
 
-    // ───────────────────────────────────────────────────────────────────────
-    // RETURN TO PREVIOUS ROOM — For BACKSPACE key
-    // ───────────────────────────────────────────────────────────────────────
+    // ── Return To Previous Room — For Backspace key ──────────────
     // 
     // Returns to the room you entered from (e.g., pressing BACKSPACE in a
     // room with no exit doors returns you through the door you entered).

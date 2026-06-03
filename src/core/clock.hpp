@@ -1,24 +1,18 @@
 #pragma once
 
-/**
- * CLOCK - Composition's Time Authority
- * =====================================
- * 
- * Composition owns the clock. This ensures determinism:
- * given the same dt sequence, the same outputs are produced.
- * 
- * The clock tracks both wall-clock time (seconds) and musical time (beats).
- * Adapters call tick() with dt from their frame timing.
- * 
- * DETERMINISM NOTE
- * ----------------
- * 
- * The clock does NOT read system time. It accumulates whatever dt
- * the caller provides. This means:
- * - Replaying the same dt sequence produces identical results
- * - Tests can use fixed dt for reproducibility
- * - Variable frame rates still work (adapter provides real dt)
- */
+// ─── clock.hpp ───────────────────────────────────────────────────
+//
+// Composition's time authority. Composition owns the clock, which
+// ensures determinism: given the same dt sequence, the same outputs are
+// produced. The clock tracks both wall-clock time (seconds) and musical
+// time (beats); adapters call tick() with dt from their frame timing.
+//
+// Determinism note: the clock does NOT read system time. It accumulates
+// whatever dt the caller provides, so replaying the same dt sequence
+// produces identical results, tests can use fixed dt for reproducibility,
+// and variable frame rates still work (the adapter provides real dt).
+//
+// Depends on: <algorithm>.
 
 #include <algorithm>
 

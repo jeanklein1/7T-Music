@@ -1,25 +1,21 @@
 #pragma once
 
-/**
- * PAINTING SYSTEM — Image Loading and GPU Management
- * ===================================================
- *
- * Reusable module for loading images into a texture array.
- * Handles aspect ratio preservation by centering images within
- * a standard canvas size.
- *
- * USAGE:
- *   PaintingTextureManager textures;
- *   textures.init(device, MAX_PAINTINGS);
- *   
- *   auto [layer, uv_x, uv_y] = textures.load_image("painting.png");
- *   // Use layer as texture_layer, uv_x/uv_y as uv_scale in GPUPainting
- *   
- *   textures.finalize(queue);  // Upload all to GPU
- *
- * DEPENDENCIES:
- *   - stb_image.h (include in ONE .cpp file with STB_IMAGE_IMPLEMENTATION)
- */
+// ─── painting_system.hpp ─────────────────────────────────────────
+//
+// Image loading and GPU management: a reusable module for loading
+// images into a texture array. Handles aspect-ratio preservation by
+// centering images within a standard canvas size.
+//
+// Usage:
+//   PaintingTextureManager textures;
+//   textures.init(device, MAX_PAINTINGS);
+//   auto [layer, uv_x, uv_y] = textures.load_image("painting.png");
+//   // use layer as texture_layer, uv_x/uv_y as uv_scale in GPUPainting
+//   textures.finalize(queue);  // upload all to GPU
+//
+// Depends on: <webgpu/webgpu_cpp.h>, <vector>, <string>, <array>,
+//             <cstring>, <iostream>, and stb_image.h (included in ONE
+//             .cpp with STB_IMAGE_IMPLEMENTATION).
 
 #include <webgpu/webgpu_cpp.h>
 #include <vector>
@@ -38,9 +34,7 @@ namespace t7 {
 namespace painting {
 
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// §1 IMAGE DATA — Intermediate storage before GPU upload
-// ═══════════════════════════════════════════════════════════════════════════════
+// ═══ §1 IMAGE DATA — Intermediate storage before GPU upload ══════
 
 struct LoadedImage {
     std::vector<uint8_t> pixels;  // RGBA8
@@ -52,9 +46,7 @@ struct LoadedImage {
 };
 
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// §2 TEXTURE MANAGER — Handles loading and GPU texture array
-// ═══════════════════════════════════════════════════════════════════════════════
+// ═══ §2 TEXTURE MANAGER — Handles loading and GPU texture array ══
 
 class PaintingTextureManager {
 public:

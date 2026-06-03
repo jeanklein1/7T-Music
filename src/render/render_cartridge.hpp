@@ -1,41 +1,30 @@
 #pragma once
 
-/**
- * RENDER CARTRIDGE - Interface for Visualization Modules
- * ======================================================
- * 
- * A render cartridge transforms musical statistics into visuals.
- * It owns the visual interpretation: what shapes to draw, how
- * stats map to movement, what the camera does.
- * 
- * THE CATEGORICAL BOUNDARY
- * ------------------------
- * 
- * The render cartridge knows about visualization. It knows what terrain
- * means, how to animate a pawn, how orbital cameras work.
- * 
- * It does NOT know about music. When it reads stats[0], it doesn't know
- * that's "polyphony" â€” it just knows "when this rises, terrain breathes."
- * 
- * LIFECYCLE
- * ---------
- * 
- *   1. Console creates cartridge
- *   2. Console calls initialize(device)
- *   3. Per frame:
- *      a. Console routes input events via on_input()
- *      b. Console calls update(signal, aspect_ratio)
- *      c. Console calls render(encoder, backbuffer, depth)
- * 
- * WHAT THE CARTRIDGE OWNS
- * -----------------------
- * 
- *   - GPU buffers (state, trajectories, etc.)
- *   - Pipelines (compute, render)
- *   - Meshes
- *   - Input state (key states, mouse state)
- *   - The mapping of stats to visual parameters
- */
+// ─── render_cartridge.hpp ────────────────────────────────────────
+//
+// Interface for visualization modules. A render cartridge transforms
+// musical statistics into visuals; it owns the visual interpretation —
+// what shapes to draw, how stats map to movement, what the camera does.
+//
+// The categorical boundary: the render cartridge knows about
+// visualization (terrain, animating a pawn, orbital cameras), but NOT
+// about music. When it reads stats[0] it doesn't know that's
+// "polyphony" — only "when this rises, terrain breathes."
+//
+// Lifecycle:
+//   1. Console creates cartridge
+//   2. Console calls initialize(device)
+//   3. Per frame:
+//      a. Console routes input events via on_input()
+//      b. Console calls update(signal, aspect_ratio)
+//      c. Console calls render(encoder, backbuffer, depth)
+//
+// What the cartridge owns: GPU buffers (state, trajectories, etc.),
+// pipelines (compute, render), meshes, input state (key/mouse), and the
+// mapping of stats to visual parameters.
+//
+// Depends on: analysis/analysis_signal.hpp, core/input_event.hpp,
+//             core/cartridge_ids.hpp, <webgpu/webgpu_cpp.h>.
 
 #include "analysis/analysis_signal.hpp"
 #include "core/input_event.hpp"
@@ -44,9 +33,7 @@
 
 namespace t7 {
 
-// =============================================================================
-// RENDER CARTRIDGE INTERFACE
-// =============================================================================
+// ═══ RENDER CARTRIDGE INTERFACE ══════════════════════════════════
 
 class RenderCartridge {
 public:
@@ -102,7 +89,7 @@ public:
      */
     virtual void on_input(const InputEvent& event) = 0;
     
-    // ─── DEFERRED TRANSITIONS ───────────────────────────────────────────────────
+    // ── Deferred Transitions ─────────────────────────────────────
     // Cartridges request state transitions instead of executing callbacks.
     // This allows the state machine to complete cleanly before transition.
     
@@ -169,7 +156,7 @@ public:
         return wgpu::TextureFormat::Depth24Plus;
     }
     
-    // ─── HOT RELOAD (Incubator support) ─────────────────────────────────────────
+    // ── Hot Reload (Incubator support) ───────────────────────────
     
     /**
      * Reload shaders from disk and recreate pipelines.

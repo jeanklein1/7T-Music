@@ -1,18 +1,16 @@
 #pragma once
 
-/**
- * MIDI EVENT - Plain Value Type for Event Routing
- * ================================================
- * 
- * A MidiEvent is a simple value representing a note on or off.
- * Events are produced by sources (MidiFile, KeyboardMidi) and
- * consumed by streams (MidiStream).
- * 
- * This decouples the concept of a note from the mechanism of delivery.
- * Events can be buffered, sorted, logged, or routed freely.
- * 
- * SIZE: 12 bytes (fits in a register on 64-bit systems)
- */
+// ─── midi_event.hpp ──────────────────────────────────────────────
+//
+// Plain value type for event routing. A MidiEvent is a simple value
+// representing a note on or off. Events are produced by sources
+// (MidiFile, KeyboardMidi) and consumed by streams (MidiStream); this
+// decouples the concept of a note from the mechanism of delivery, so
+// events can be buffered, sorted, logged, or routed freely.
+//
+// Size: 12 bytes (fits in a register on 64-bit systems).
+//
+// Depends on: <cstdint>.
 
 #include <cstdint>
 
@@ -31,9 +29,7 @@ struct MidiEvent {
     float velocity;  // 0-1 for NOTE_ON, ignored for NOTE_OFF
     float beat;      // When this event occurred
     
-    // =========================================================================
-    // FACTORY METHODS
-    // =========================================================================
+    // ── Factory Methods ──────────────────────────────────────────
     
     static MidiEvent note_on(int channel, int pitch, float velocity, float beat) {
         MidiEvent e;

@@ -1,24 +1,17 @@
 #pragma once
 
-/**
- * INPUT EVENT - Console Input Abstraction
- * ========================================
- * 
- * Platform-agnostic input events produced by the console and consumed by cartridges.
- * 
- * The console translates platform-specific input (GLFW, SDL, etc.) into these
- * events. Cartridges receive them and decide what each input means in their
- * domain — a key might be "move forward" to a render cartridge or "play note C"
- * to an analysis cartridge.
- * 
- * DESIGN PRINCIPLE
- * ----------------
- * 
- * The console knows HOW input arrives (which key, which button).
- * The cartridge knows WHAT input means (movement, music, camera control).
- * 
- * This struct carries the "how" across the boundary.
- */
+// ─── input_event.hpp ─────────────────────────────────────────────
+//
+// Console input abstraction: platform-agnostic input events produced by
+// the console and consumed by cartridges. The console translates
+// platform-specific input (GLFW, SDL, etc.) into these events;
+// cartridges receive them and decide what each input means in their
+// domain — a key might be "move forward" to a render cartridge or "play
+// note C" to an analysis cartridge.
+//
+// Design principle: the console knows HOW input arrives (which key,
+// which button); the cartridge knows WHAT input means (movement, music,
+// camera control). This struct carries the "how" across the boundary.
 
 namespace t7 {
 

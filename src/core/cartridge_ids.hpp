@@ -1,12 +1,11 @@
 #pragma once
 
-/**
- * CARTRIDGE IDS — Single Source of Truth
- * =======================================
- *
- * All cartridge identifiers in one place.
- * Used by door targets, transition callbacks, and CartridgeManager.
- */
+// ─── cartridge_ids.hpp ───────────────────────────────────────────
+//
+// Single source of truth for all cartridge identifiers. Used by door
+// targets, transition callbacks, and CartridgeManager.
+//
+// Depends on: <cstdint>.
 
 #include <cstdint>
 

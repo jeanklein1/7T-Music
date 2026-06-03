@@ -1,50 +1,38 @@
 #pragma once
 
-/**
- * MIDI PORT - External MIDI Input via System Port (loopMIDI / DAW)
- * ================================================================
- *
- * Connects to a system MIDI input port (typically a loopMIDI virtual port
- * fed by Ableton or another DAW) and queues incoming note events for the
- * analysis cartridge to drain via poll().
- *
- * INERT CONSTRUCTION
- * ------------------
- *
- * Constructing a MidiPort never fails, even if the MIDI subsystem is
- * unavailable. is_open() reports false until open() succeeds. This lets
- * the analysis cartridge include it unconditionally — the port simply
- * stays silent if no DAW is connected.
- *
- * THREADING
- * ---------
- *
- * RtMidi runs its own input thread and invokes a callback when MIDI
- * arrives. The callback decodes the bytes and pushes a MidiEvent into
- * a single-producer / single-consumer ring buffer. The main thread
- * drains the ring via poll(). Lock-free, no allocations during runtime.
- *
- * BEAT STAMPING
- * -------------
- *
- * The callback runs on RtMidi's thread without access to our Clock,
- * so events are stamped with the caller-provided beat at poll time.
- * Timing error is bounded by frame duration (~16ms at 60fps), well
- * within the Playhead's 50ms chord tolerance.
- *
- * USAGE
- * -----
- *
- *     MidiPort port;
- *     port.open_by_name("loopMIDI");   // case-insensitive substring match
- *
- *     // Each frame:
- *     MidiEvent events[64];
- *     int count = port.poll(current_beat, events, 64);
- *     for (int i = 0; i < count; ++i) {
- *         stream.receive(events[i]);
- *     }
- */
+// ─── midi_port.hpp ───────────────────────────────────────────────
+//
+// External MIDI input via a system port (loopMIDI / DAW). Connects to a
+// system MIDI input port (typically a loopMIDI virtual port fed by
+// Ableton or another DAW) and queues incoming note events for the
+// analysis cartridge to drain via poll().
+//
+// Inert construction: constructing a MidiPort never fails, even if the
+// MIDI subsystem is unavailable. is_open() reports false until open()
+// succeeds, so the analysis cartridge can include it unconditionally —
+// the port simply stays silent if no DAW is connected.
+//
+// Threading: RtMidi runs its own input thread and invokes a callback
+// when MIDI arrives. The callback decodes the bytes and pushes a
+// MidiEvent into a single-producer / single-consumer ring buffer; the
+// main thread drains the ring via poll(). Lock-free, no allocations
+// during runtime.
+//
+// Beat stamping: the callback runs on RtMidi's thread without access to
+// our Clock, so events are stamped with the caller-provided beat at poll
+// time. Timing error is bounded by frame duration (~16ms at 60fps), well
+// within the Playhead's 50ms chord tolerance.
+//
+// Usage:
+//   MidiPort port;
+//   port.open_by_name("loopMIDI");   // case-insensitive substring match
+//   MidiEvent events[64];
+//   int count = port.poll(current_beat, events, 64);   // each frame
+//   for (int i = 0; i < count; ++i)
+//       stream.receive(events[i]);
+//
+// Depends on: sources/midi_event.hpp, external/RtMidi.h, <array>,
+//             <atomic>, and the standard headers below.
 
 #include "sources/midi_event.hpp"
 #include "external/RtMidi.h"
@@ -59,9 +47,7 @@
 
 namespace t7 {
 
-// =============================================================================
-// MIDI PORT
-// =============================================================================
+// ═══ MIDI PORT ═══════════════════════════════════════════════════
 
 class MidiPort {
 public:
@@ -78,9 +64,7 @@ public:
     MidiPort(const MidiPort&) = delete;
     MidiPort& operator=(const MidiPort&) = delete;
 
-    // =========================================================================
-    // CONNECTION
-    // =========================================================================
+    // ── Connection ───────────────────────────────────────────────
 
     /**
      * List available input port names.
@@ -156,9 +140,7 @@ public:
     bool is_open() const { return open_; }
     const std::string& port_name() const { return port_name_; }
 
-    // =========================================================================
-    // POLL - Retrieve pending events
-    // =========================================================================
+    // ── POLL - Retrieve pending events ───────────────────────────
 
     /**
      * Drain pending events. Each event is stamped with current_beat.
@@ -208,9 +190,7 @@ private:
     std::atomic<uint32_t> write_idx_{0};  // producer: RtMidi callback thread
     std::atomic<uint32_t> read_idx_{0};   // consumer: main thread
 
-    // =========================================================================
-    // CALLBACK (runs on RtMidi's thread)
-    // =========================================================================
+    // ── CALLBACK (runs on RtMidi's thread) ───────────────────────
 
     static void on_rtmidi_callback(double /*deltatime*/,
                                    std::vector<unsigned char>* msg,
@@ -256,9 +236,7 @@ private:
         write_idx_.store(write + 1, std::memory_order_release);
     }
 
-    // =========================================================================
-    // HELPERS
-    // =========================================================================
+    // ── Helpers ──────────────────────────────────────────────────
 
     static bool icontains(const std::string& haystack, const std::string& needle) {
         if (needle.empty()) return true;

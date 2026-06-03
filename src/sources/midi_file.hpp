@@ -1,46 +1,31 @@
 #pragma once
 
-/**
- * MIDI FILE - Event Producer
- * ==========================
- * 
- * Reads MIDI files and produces events via poll().
- * No router coupling - composition routes events to streams.
- * 
- * INERT CONSTRUCTION
- * ------------------
- * 
- * The file can be default-constructed. Loading and playback are
- * separate explicit operations. This enables fixed storage and
- * clear lifecycle management.
- * 
- * POLL MODEL
- * ----------
- * 
- * Instead of pushing events to a router, the file produces events
- * via poll(). The caller provides a time window and receives events
- * that fall within that window.
- * 
- * Loop handling is internal - if the file loops, poll() handles the
- * wrap automatically, producing events from both sides of the boundary.
- * 
- * USAGE
- * -----
- * 
- *     MidiFile midi;
- *     midi.load("song.mid");
- *     midi.set_channel(2);  // Output channel for events
- *     midi.set_loop(true);
- *     
- *     // Each frame
- *     MidiEvent events[64];
- *     int count = midi.poll(prev_beat, current_beat, events, 64);
- *     
- *     // Route to streams
- *     for (int i = 0; i < count; ++i) {
- *         streams[events[i].channel].receive(events[i]);
- *     }
- */
+// ─── midi_file.hpp ───────────────────────────────────────────────
+//
+// Event producer: reads MIDI files and produces events via poll(). No
+// router coupling — composition routes events to streams.
+//
+// Inert construction: the file can be default-constructed; loading and
+// playback are separate explicit operations, which enables fixed storage
+// and clear lifecycle management.
+//
+// Poll model: instead of pushing events to a router, the file produces
+// events via poll() — the caller provides a time window and receives the
+// events that fall within it. Loop handling is internal: if the file
+// loops, poll() handles the wrap automatically, producing events from
+// both sides of the boundary.
+//
+// Usage:
+//   MidiFile midi;
+//   midi.load("song.mid");
+//   midi.set_channel(2);  // output channel for events
+//   midi.set_loop(true);
+//   MidiEvent events[64];
+//   int count = midi.poll(prev_beat, current_beat, events, 64);
+//   for (int i = 0; i < count; ++i)
+//       streams[events[i].channel].receive(events[i]);
+//
+// Depends on: sources/midi_event.hpp, <string>, <vector>.
 
 #include "sources/midi_event.hpp"
 #include <string>
@@ -54,16 +39,12 @@
 
 namespace t7 {
 
-// =============================================================================
-// CONSTANTS
-// =============================================================================
+// ═══ CONSTANTS ═══════════════════════════════════════════════════
 
 constexpr int MIDI_FILE_CHANNEL_COUNT = 16;
 constexpr int MIDI_FILE_NOTE_COUNT = 128;
 
-// =============================================================================
-// MIDI FILE READER (Internal)
-// =============================================================================
+// ═══ MIDI FILE READER (Internal) ═════════════════════════════════
 
 namespace midi_internal {
 
@@ -217,9 +198,7 @@ inline bool parse_file(const std::string& filepath,
 
 } // namespace midi_internal
 
-// =============================================================================
-// TRACK INFO
-// =============================================================================
+// ═══ TRACK INFO ══════════════════════════════════════════════════
 
 struct MidiTrackInfo {
     char name[64] = {0};
@@ -230,9 +209,7 @@ struct MidiTrackInfo {
     bool loaded() const { return channel >= 0; }
 };
 
-// =============================================================================
-// MIDI FILE
-// =============================================================================
+// ═══ MIDI FILE ═══════════════════════════════════════════════════
 
 class MidiFile {
 public:
@@ -243,9 +220,7 @@ public:
         clear_open_notes();
     }
 
-    // =========================================================================
-    // LOADING
-    // =========================================================================
+    // ── Loading ──────────────────────────────────────────────────
 
     /**
      * Load a MIDI file.
@@ -313,9 +288,7 @@ public:
         loaded_ = false;
     }
 
-    // =========================================================================
-    // CONFIGURATION
-    // =========================================================================
+    // ── Configuration ────────────────────────────────────────────
 
     void set_channel(int channel) { 
         channel_ = channel; 
@@ -326,9 +299,7 @@ public:
     void set_loop(bool loop) { loop_ = loop; }
     bool loop() const { return loop_; }
 
-    // =========================================================================
-    // POLL - Produce events for a time window
-    // =========================================================================
+    // ── POLL - Produce events for a time window ──────────────────
 
     /**
      * Poll for events in the time window (prev_beat, current_beat].
@@ -382,9 +353,7 @@ public:
         return written;
     }
 
-    // =========================================================================
-    // STATE
-    // =========================================================================
+    // ── State ────────────────────────────────────────────────────
 
     bool is_loaded() const { return loaded_; }
     float duration_beats() const { return duration_beats_; }
@@ -398,9 +367,7 @@ public:
     }
 
 private:
-    // =========================================================================
-    // MESSAGE FORMAT
-    // =========================================================================
+    // ── Message Format ───────────────────────────────────────────
 
     struct Message {
         float beat;
@@ -411,9 +378,7 @@ private:
 
     static_assert(sizeof(Message) == 8, "Message should be 8 bytes");
 
-    // =========================================================================
-    // STATE
-    // =========================================================================
+    // ── State ────────────────────────────────────────────────────
 
     std::vector<Message> messages_;     // Loaded once
     MidiTrackInfo track_info_;
@@ -427,9 +392,7 @@ private:
     bool loop_ = true;
     bool loaded_ = false;
 
-    // =========================================================================
-    // INTERNAL
-    // =========================================================================
+    // ── Internal ─────────────────────────────────────────────────
 
     void clear_open_notes() {
         open_notes_.fill(-1.0f);

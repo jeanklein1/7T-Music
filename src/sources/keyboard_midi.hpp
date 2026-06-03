@@ -1,56 +1,35 @@
 #pragma once
 
-/**
- * KEYBOARD MIDI - Computer Keyboard to MIDI Events
- * =================================================
- * 
- * Converts computer keyboard input to MIDI-style note events.
- * Events are queued internally and retrieved via poll().
- * 
- * INERT CONSTRUCTION
- * ------------------
- * 
- * No router coupling - events are queued and retrieved by the caller.
- * This enables fixed storage and visible control flow.
- * 
- * DATA STRUCTURES
- * ---------------
- * 
- * Fixed-size arrays indexed by ASCII character (256 entries).
- * Zero allocation after initialization.
- * 
- * LAYOUT (US QWERTY)
- * ------------------
- * 
- *     Black: W  E     T  Y  U     O  P
- *           C# D#    F# G# A#    C# D#
- * 
- *     White: A  S  D  F  G  H  J  K  L  ;
- *            C4 D4 E4 F4 G4 A4 B4 C5 D5 E5
- * 
- *     Lower: Z  X  C  V  B  N  M
- *            C3 D3 E3 F3 G3 A3 B3
- * 
- *     Controls: [ ] = Octave shift down/up
- * 
- * USAGE
- * -----
- * 
- *     KeyboardMidi keyboard(2, 100);  // channel 2, velocity 100
- *     
- *     // In key callback
- *     keyboard.on_key_press('A', current_beat);
- *     keyboard.on_key_release('A', current_beat);
- *     
- *     // Each frame, retrieve pending events
- *     MidiEvent events[32];
- *     int count = keyboard.poll(events, 32);
- *     
- *     // Route to streams
- *     for (int i = 0; i < count; ++i) {
- *         streams[events[i].channel].receive(events[i]);
- *     }
- */
+// ─── keyboard_midi.hpp ───────────────────────────────────────────
+//
+// Computer keyboard to MIDI events: converts computer keyboard input to
+// MIDI-style note events. Events are queued internally and retrieved via
+// poll().
+//
+// Inert construction: no router coupling — events are queued and
+// retrieved by the caller, which enables fixed storage and visible
+// control flow. Data structures are fixed-size arrays indexed by ASCII
+// character (256 entries); zero allocation after initialization.
+//
+// Layout (US QWERTY):
+//     Black: W  E     T  Y  U     O  P
+//           C# D#    F# G# A#    C# D#
+//     White: A  S  D  F  G  H  J  K  L  ;
+//            C4 D4 E4 F4 G4 A4 B4 C5 D5 E5
+//     Lower: Z  X  C  V  B  N  M
+//            C3 D3 E3 F3 G3 A3 B3
+//     Controls: [ ] = Octave shift down/up
+//
+// Usage:
+//   KeyboardMidi keyboard(2, 100);  // channel 2, velocity 100
+//   keyboard.on_key_press('A', current_beat);   // in key callback
+//   keyboard.on_key_release('A', current_beat);
+//   MidiEvent events[32];
+//   int count = keyboard.poll(events, 32);       // each frame
+//   for (int i = 0; i < count; ++i)
+//       streams[events[i].channel].receive(events[i]);
+//
+// Depends on: sources/midi_event.hpp.
 
 #include "sources/midi_event.hpp"
 #include <array>
@@ -60,9 +39,7 @@
 
 namespace t7 {
 
-// =============================================================================
-// KEYBOARD MIDI
-// =============================================================================
+// ═══ KEYBOARD MIDI ═══════════════════════════════════════════════
 
 class KeyboardMidi {
 public:
@@ -83,9 +60,7 @@ public:
         init_piano_layout();
     }
     
-    // =========================================================================
-    // CONFIGURATION
-    // =========================================================================
+    // ── Configuration ────────────────────────────────────────────
     
     void set_channel(int channel) { channel_ = channel; }
     int channel() const { return channel_; }
@@ -96,9 +71,7 @@ public:
     void set_octave_shift(int s) { octave_shift_ = std::clamp(s, -3, 3); }
     int octave_shift() const { return octave_shift_; }
     
-    // =========================================================================
-    // KEY EVENTS
-    // =========================================================================
+    // ── Key Events ───────────────────────────────────────────────
     
     /**
      * Handle key press. Returns true if key was handled.
@@ -166,9 +139,7 @@ public:
         }
     }
     
-    // =========================================================================
-    // POLL - Retrieve pending events
-    // =========================================================================
+    // ── POLL - Retrieve pending events ───────────────────────────
     
     /**
      * Retrieve pending events and clear the queue.
@@ -202,9 +173,7 @@ public:
      */
     int pending_count() const { return pending_count_; }
     
-    // =========================================================================
-    // ACCESSORS
-    // =========================================================================
+    // ── Accessors ────────────────────────────────────────────────
     
     int held_count() const {
         int count = 0;
@@ -273,9 +242,7 @@ private:
     }
 };
 
-// =============================================================================
-// UTILITY
-// =============================================================================
+// ═══ UTILITY ═════════════════════════════════════════════════════
 
 inline std::string midi_note_name(int midi_note) {
     static const char* names[] = {

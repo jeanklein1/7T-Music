@@ -1,22 +1,20 @@
 #pragma once
 
-/**
- * PAINTING SYSTEM — Type Definitions
- * ===================================
- *
- * Reusable painting infrastructure for gallery cartridges.
- * Supports framed paintings with configurable depth, aspect ratio preservation,
- * and shadow casting.
- *
- * COORDINATE SYSTEM:
- *   Paintings are specified by wall + offset, automatically computing
- *   world position and normal. The system derives the right vector from
- *   normal × up for proper local-to-world transforms.
- *
- * FRAME GEOMETRY:
- *   Canvas sits recessed within the frame, creating authentic shadow-box effect.
- *   Frame has 8 visible faces: 4 outer (facing room) + 4 inner (facing canvas).
- */
+// ─── painting_types.hpp ──────────────────────────────────────────
+//
+// Painting type definitions: reusable painting infrastructure for
+// gallery cartridges. Supports framed paintings with configurable depth,
+// aspect-ratio preservation, and shadow casting.
+//
+// Coordinate system: paintings are specified by wall + offset,
+// automatically computing world position and normal; the system derives
+// the right vector from normal × up for local-to-world transforms.
+//
+// Frame geometry: the canvas sits recessed within the frame, creating an
+// authentic shadow-box effect. The frame has 8 visible faces — 4 outer
+// (facing room) + 4 inner (facing canvas).
+//
+// Depends on: <cstdint>, <cmath>.
 
 #include <cstdint>
 #include <cmath>
@@ -25,9 +23,7 @@ namespace t7 {
 namespace painting {
 
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// §1 CONSTANTS
-// ═══════════════════════════════════════════════════════════════════════════════
+// ═══ §1 CONSTANTS ════════════════════════════════════════════════
 
 constexpr uint32_t MAX_PAINTINGS = 16;
 constexpr uint32_t PAINTING_CANVAS_SIZE = 2048;  // Texture array slice resolution
@@ -41,9 +37,7 @@ constexpr uint32_t PAINTING_FRAME_VERTICES = PAINTING_FRAME_FACES * 6;  // 48 pe
 constexpr float WALL_OFFSET = 0.005f;
 
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// §2 WALL ENUM — For intuitive painting placement
-// ═══════════════════════════════════════════════════════════════════════════════
+// ═══ §2 WALL ENUM — For intuitive painting placement ═════════════
 
 enum class Wall : uint32_t {
     BACK  = 0,  // -Z wall, normal = (0, 0, 1)
@@ -53,9 +47,7 @@ enum class Wall : uint32_t {
 };
 
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// §3 GPU STRUCTURE — Must match world.wgsl exactly
-// ═══════════════════════════════════════════════════════════════════════════════
+// ═══ §3 GPU STRUCTURE — Must match world.wgsl exactly ════════════
 
 struct alignas(16) GPUPainting {
     float position[3];      // Center point on wall surface (world space)
@@ -90,9 +82,7 @@ static_assert(sizeof(GPUPainting) == 96, "GPUPainting must be 96 bytes");
 static_assert(sizeof(GPUPaintingHeader) == 16, "GPUPaintingHeader must be 16 bytes");
 
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// §4 CPU-SIDE PAINTING — With derived data
-// ═══════════════════════════════════════════════════════════════════════════════
+// ═══ §4 CPU-SIDE PAINTING — With derived data ════════════════════
 
 class Painting {
 public:
@@ -115,9 +105,7 @@ public:
 };
 
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// §5 PAINTING BUILDER — Fluent API for painting configuration
-// ═══════════════════════════════════════════════════════════════════════════════
+// ═══ §5 PAINTING BUILDER — Fluent API for painting configuration ═
 
 class PaintingBuilder {
 public:
@@ -138,7 +126,7 @@ public:
         p_.gpu.frame_color[2] = 0.10f;
     }
 
-    // ─── Position Methods ─────────────────────────────────────────────────────
+    // ── Position Methods ─────────────────────────────────────────
 
     // Place on specific wall with offset along wall and height
     PaintingBuilder& on_wall(Wall wall, float offset_along, float height,
@@ -196,7 +184,7 @@ public:
         return *this;
     }
 
-    // ─── Size Methods ─────────────────────────────────────────────────────────
+    // ── Size Methods ─────────────────────────────────────────────
 
     // Set canvas size directly
     PaintingBuilder& size(float w, float h) {
@@ -212,7 +200,7 @@ public:
         return *this;
     }
 
-    // ─── Frame Methods ────────────────────────────────────────────────────────
+    // ── Frame Methods ────────────────────────────────────────────
 
     PaintingBuilder& frame(float depth, float border_width, float recess) {
         p_.gpu.frame_depth = depth;
@@ -228,7 +216,7 @@ public:
         return *this;
     }
 
-    // ─── Texture Methods ──────────────────────────────────────────────────────
+    // ── Texture Methods ──────────────────────────────────────────
 
     PaintingBuilder& texture(uint32_t layer, float uv_scale_x = 1.0f, float uv_scale_y = 1.0f) {
         p_.gpu.texture_layer = layer;
@@ -237,7 +225,7 @@ public:
         return *this;
     }
 
-    // ─── Build ────────────────────────────────────────────────────────────────
+    // ── Build ────────────────────────────────────────────────────
 
     Painting build() {
         p_.compute_derived();

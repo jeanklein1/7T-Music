@@ -1,35 +1,29 @@
 #pragma once
 
-/**
- * CONSOLE — The 7T Runtime Infrastructure
- * ========================================
- *
- * Platform shell for the visualizer. Owns the window, GPU device, surface,
- * depth buffer, input collection, and frame timing. Does NOT own cartridges,
- * musical interpretation, or visual interpretation.
- *
- * The file is organized in lifecycle order:
- *
- *   §1  IDENTITY       — Constructor, destructor, copy prevention
- *   §2  INITIALIZATION — init() and the helpers it calls, in call order
- *   §3  FRAME          — begin_frame(), acquire, present, running
- *   §4  INPUT          — Injection (producer) then access (consumer)
- *   §5  ACCESSORS      — Handles and properties for external use
- *   §6  SHUTDOWN       — shutdown(), request_close()
- *   §7  STATE          — Member variables, grouped by responsibility
- *
- * USAGE
- * -----
- *
- *     Console console;
- *     if (!console.init("7T Visualizer", 1280, 720)) return 1;
- *
- *     while (console.running()) {
- *         float dt = console.begin_frame();
- *         // ... update cartridges ...
- *         console.present();
- *     }
- */
+// ─── console.hpp ─────────────────────────────────────────────────
+//
+// The 7T runtime infrastructure: the platform shell for the visualizer.
+// Owns the window, GPU device, surface, depth buffer, input collection,
+// and frame timing. Does NOT own cartridges, musical interpretation, or
+// visual interpretation.
+//
+// Organized in lifecycle order:
+//   §1  IDENTITY       — Constructor, destructor, copy prevention
+//   §2  INITIALIZATION — init() and the helpers it calls, in call order
+//   §3  FRAME          — begin_frame(), acquire, present, running
+//   §4  INPUT          — Injection (producer) then access (consumer)
+//   §5  ACCESSORS      — Handles and properties for external use
+//   §6  SHUTDOWN       — shutdown(), request_close()
+//   §7  STATE          — Member variables, grouped by responsibility
+//
+// Usage:
+//   Console console;
+//   if (!console.init("7T Visualizer", 1280, 720)) return 1;
+//   while (console.running()) {
+//       float dt = console.begin_frame();
+//       // ... update cartridges ...
+//       console.present();
+//   }
 
 #include "core/input_event.hpp"
 
@@ -57,9 +51,7 @@ namespace t7 {
 
     class Console {
 
-        // ═════════════════════════════════════════════════════════════════════════
-        // §1 IDENTITY
-        // ═════════════════════════════════════════════════════════════════════════
+        // ═══ §1 IDENTITY ═════════════════════════════════════════
 
     public:
         Console() = default;
@@ -69,9 +61,7 @@ namespace t7 {
         Console& operator=(const Console&) = delete;
 
 
-        // ═════════════════════════════════════════════════════════════════════════
-        // §2 INITIALIZATION
-        // ═════════════════════════════════════════════════════════════════════════
+        // ═══ §2 INITIALIZATION ═══════════════════════════════════
         //
         // Call order: initGLFW → initWebGPU → initSurface → createDepthBuffer.
         // Each step depends on the previous. If any fails, init returns false.
@@ -245,9 +235,7 @@ namespace t7 {
         }
 
 
-        // ═════════════════════════════════════════════════════════════════════════
-        // §3 FRAME LIFECYCLE
-        // ═════════════════════════════════════════════════════════════════════════
+        // ═══ §3 FRAME LIFECYCLE ══════════════════════════════════
         //
         // Call order each frame:
         //   begin_frame() → [update cartridges] → acquire_surface_texture()
@@ -299,9 +287,7 @@ namespace t7 {
         }
 
 
-        // ═════════════════════════════════════════════════════════════════════════
-        // §4 INPUT
-        // ═════════════════════════════════════════════════════════════════════════
+        // ═══ §4 INPUT ════════════════════════════════════════════
         //
         // Producer: inject_* methods, called by GLFW callbacks during
         //           glfwPollEvents(). These push events into the vector.
@@ -310,7 +296,7 @@ namespace t7 {
         //           the main loop after begin_frame().
 
     public:
-        // ─── Producer (GLFW callbacks → event vector) ───────────────────────
+        // ── Producer (GLFW callbacks → event vector) ─────────────
 
         void inject_key_event(int key, int action) {
             InputEvent event{};
@@ -362,7 +348,7 @@ namespace t7 {
             inputEvents_.push_back(event);
         }
 
-        // ─── Consumer (main loop reads then clears) ─────────────────────────
+        // ── Consumer (main loop reads then clears) ───────────────
 
         const std::vector<InputEvent>& input_events() const {
             return inputEvents_;
@@ -373,9 +359,7 @@ namespace t7 {
         }
 
 
-        // ═════════════════════════════════════════════════════════════════════════
-        // §5 ACCESSORS
-        // ═════════════════════════════════════════════════════════════════════════
+        // ═══ §5 ACCESSORS ════════════════════════════════════════
 
     public:
         wgpu::Device device() const { return device_; }
@@ -396,9 +380,7 @@ namespace t7 {
         GLFWwindow* window() const { return window_; }
 
 
-        // ═════════════════════════════════════════════════════════════════════════
-        // §6 SHUTDOWN
-        // ═════════════════════════════════════════════════════════════════════════
+        // ═══ §6 SHUTDOWN ═════════════════════════════════════════
 
     public:
         void shutdown() {
@@ -416,40 +398,38 @@ namespace t7 {
         }
 
 
-        // ═════════════════════════════════════════════════════════════════════════
-        // §7 STATE
-        // ═════════════════════════════════════════════════════════════════════════
+        // ═══ §7 STATE ════════════════════════════════════════════
 
     private:
-        // ─── Window ─────────────────────────────────────────────────────────
+        // ── Window ───────────────────────────────────────────────
         GLFWwindow* window_ = nullptr;
         uint32_t initialWidth_ = 0;
         uint32_t initialHeight_ = 0;
         uint32_t currentWidth_ = 0;
         uint32_t currentHeight_ = 0;
 
-        // ─── GPU Device ─────────────────────────────────────────────────────
+        // ── Gpu Device ───────────────────────────────────────────
         std::optional<dawn::native::Instance> instance_;
         wgpu::Adapter adapter_;
         wgpu::Device device_;
         wgpu::Queue queue_;
 
-        // ─── Surface & Presentation ─────────────────────────────────────────
+        // ── Surface & Presentation ───────────────────────────────
         wgpu::Surface surface_;
         wgpu::SurfaceConfiguration surfaceConfig_{};
         wgpu::TextureFormat colorFormat_;
         wgpu::SurfaceTexture surfaceTexture_;
         wgpu::TextureView backbuffer_;
 
-        // ─── Depth ──────────────────────────────────────────────────────────
+        // ── Depth ────────────────────────────────────────────────
         wgpu::TextureFormat depthFormat_ = wgpu::TextureFormat::Depth24Plus;
         wgpu::Texture depthTexture_;
         wgpu::TextureView depthView_;
 
-        // ─── Timing ─────────────────────────────────────────────────────────
+        // ── Timing ───────────────────────────────────────────────
         std::chrono::high_resolution_clock::time_point lastTime_;
 
-        // ─── Input ──────────────────────────────────────────────────────────
+        // ── Input ────────────────────────────────────────────────
         std::vector<InputEvent> inputEvents_;
     };
 

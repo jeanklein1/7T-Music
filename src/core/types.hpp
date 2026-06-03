@@ -1,28 +1,23 @@
 #pragma once
 
-/**
- * TYPES - Platform-Agnostic Math Types
- * =====================================
- * 
- * Simple POD types for vectors. No dependencies.
- * 
- * These exist so that WorldState and field math can be platform-agnostic.
- * Adapters convert to platform types (glm::vec3, etc.) at the boundary.
- */
+// ─── types.hpp ───────────────────────────────────────────────────
+//
+// Platform-agnostic math types: simple POD vectors, no dependencies.
+// These exist so that WorldState and field math can be platform-
+// agnostic; adapters convert to platform types (glm::vec3, etc.) at the
+// boundary.
+//
+// Depends on: <cmath>.
 
 #include <cmath>
 
 namespace t7 {
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// CONSTANTS
-// ═══════════════════════════════════════════════════════════════════════════════
+// ═══ CONSTANTS ═══════════════════════════════════════════════════
 
 constexpr float PI = 3.14159265358979323846f;
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// FLOAT2
-// ═══════════════════════════════════════════════════════════════════════════════
+// ═══ FLOAT2 ══════════════════════════════════════════════════════
 
 struct float2 {
     float x = 0.0f;
@@ -55,9 +50,7 @@ inline float dot(const float2& a, const float2& b) {
 
 inline float2 operator*(float s, const float2& v) { return v * s; }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// FLOAT3
-// ═══════════════════════════════════════════════════════════════════════════════
+// ═══ FLOAT3 ══════════════════════════════════════════════════════
 
 struct float3 {
     float x = 0.0f;
@@ -100,9 +93,7 @@ inline float3 cross(const float3& a, const float3& b) {
 
 inline float3 operator*(float s, const float3& v) { return v * s; }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// FLOAT4 (for GPU-friendly layouts)
-// ═══════════════════════════════════════════════════════════════════════════════
+// ═══ FLOAT4 (for GPU-friendly layouts) ═══════════════════════════
 
 struct float4 {
     float x = 0.0f;
@@ -117,9 +108,7 @@ struct float4 {
     float3 xyz() const { return {x, y, z}; }
 };
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// UTILITY
-// ═══════════════════════════════════════════════════════════════════════════════
+// ═══ UTILITY ═════════════════════════════════════════════════════
 
 inline float lerp(float a, float b, float t) {
     return a + t * (b - a);
