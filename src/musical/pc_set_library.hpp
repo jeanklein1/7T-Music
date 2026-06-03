@@ -1,8 +1,13 @@
 #pragma once
 
-// These are convenience constructors for commonly-named PC sets. They live
-// OUTSIDE the analyzer module because they encode coupling-side conventions
-// (named scales with roots) rather than analyzer-side measurements.
+// ─── pc_set_library.hpp ──────────────────────────────────────────
+//
+// Convenience constructors for commonly-named pitch-class sets. They
+// live OUTSIDE the analyzer module because they encode coupling-side
+// conventions (named scales with roots) rather than analyzer-side
+// measurements.
+//
+// Depends on: musical/musical_ops.hpp (PitchClassSet).
 
 #include "musical/musical_ops.hpp"
 

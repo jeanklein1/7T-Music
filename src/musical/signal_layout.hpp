@@ -1,25 +1,26 @@
 #pragma once
 
-/**
- * SIGNAL LAYOUT - Render-side resolve-by-name for analysis stat groups
- * ====================================================================
- *
- * The render side receives a StatLayoutView (the analysis cartridge's
- * published slot map) once at startup and resolves coupling sources by
- * name through it. This keeps the categorical boundary intact: the render
- * side imports only the generic StatGroup contract (analysis_signal.hpp),
- * never the analysis cartridge's own headers.
- *
- * Generic over any layout — both render cartridges and the_lab can use it
- * (the_board adopts when it migrates).
- *
- * USAGE (B2): resolve ONCE, store the SourceBinding, never per-frame:
- *   SourceBinding src = signal_layout_.resolve("abbott.lowest_pc");
- *   if (src.valid) { ... read stats[src.channel][src.base + i], i < count ... }
- *
- * resolve() returns whole-StatGroup addressing — {channel, base, count};
- * the coupling indexes within the group.
- */
+// ─── signal_layout.hpp ───────────────────────────────────────────
+//
+// Render-side resolve-by-name for analysis stat groups. The render side
+// receives a StatLayoutView (the analysis cartridge's published slot
+// map) once at startup and resolves coupling sources by name through it.
+// This keeps the categorical boundary intact: the render side imports
+// only the generic StatGroup contract (analysis_signal.hpp), never the
+// analysis cartridge's own headers.
+//
+// Generic over any layout — both render cartridges and the_lab can use
+// it (the_board adopts when it migrates).
+//
+// USAGE (B2): resolve ONCE, store the SourceBinding, never per-frame:
+//   SourceBinding src = signal_layout_.resolve("abbott.lowest_pc");
+//   if (src.valid) { ... read stats[src.channel][src.base + i], i < count ... }
+//
+// resolve() returns whole-StatGroup addressing — {channel, base, count};
+// the coupling indexes within the group.
+//
+// Depends on: analysis/analysis_signal.hpp (StatGroup, StatLayoutView),
+//             <string_view>, <cstdio>.
 
 #include "analysis/analysis_signal.hpp"   // StatGroup, StatLayoutView
 #include <string_view>

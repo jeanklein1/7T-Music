@@ -1,65 +1,50 @@
 #pragma once
 
-/**
- * TRAIN - Musical Analysis Composition Canvas
- * ============================================
- * 
- * The Train is where Playheads and Wagons combine into compound analysis.
- * It's a canvas for writing small programs that read analyzer outputs
- * and produce derived statistics.
- * 
- * ARCHITECTURE
- * ------------
- * 
- *     MidiStream --> snapshot() --+--> Playhead.update() --> PlayheadReadout
- *                                 |
- *                                 +--> Wagon.update() -----> WagonReadout
- *                                                                  |
- *                                                                  v
- *                                                         Train.update(readouts)
- *                                                                  |
- *                                                                  v
- *                                                         Computed Stats
- * 
- * SNAPSHOT-BASED
- * --------------
- * 
- * The Train receives readouts as values rather than holding pointers to
- * analyzers. This enables parallel analysis and clean data flow.
- * 
- * ALLOCATION GUARANTEE
- * --------------------
- * 
- * All operations are allocation-free after initialization. Lambda captures
- * are stored inline (up to COMPUTE_FN_BUFFER_SIZE bytes). Lambdas with
- * larger captures will fail to compile.
- * 
- * OWNED ANALYZERS
- * ---------------
- *
- * The Train owns its Playheads and Wagons. Attach them via add_playhead()
- * / add_wagon() at setup time; the Train runs them against the snapshot
- * each frame inside update(). Stat lambdas read their readouts via
- * ctx.playhead(slot) / ctx.wagon(slot).
- *
- * USAGE
- * -----
- *
- *     MidiStream stream(...);
- *     Train train;
- *
- *     int ph_slot = train.add_playhead();
- *     int wg_slot = train.add_wagon(4.0f);
- *
- *     auto STAT = train.define([=](const TrainContext& ctx) {
- *         return float(ctx.playhead(ph_slot).current_count);
- *     });
- *
- *     // Per frame
- *     stream.update(beat);
- *     train.update(stream.snapshot(), stream.history(), beat);
- *     float v = train.get(STAT);
- */
+// ─── train.hpp ───────────────────────────────────────────────────
+//
+// Musical analysis composition canvas. The Train is where Playheads and
+// Wagons combine into compound analysis — a canvas for small programs
+// that read analyzer outputs and produce derived statistics.
+//
+// Architecture:
+//
+//     MidiStream --> snapshot() --+--> Playhead.update() --> PlayheadReadout
+//                                 |
+//                                 +--> Wagon.update() -----> WagonReadout
+//                                                                  |
+//                                                                  v
+//                                                         Train.update(readouts)
+//                                                                  |
+//                                                                  v
+//                                                         Computed Stats
+//
+// Snapshot-based: the Train receives readouts as values rather than
+// holding pointers to analyzers, which enables parallel analysis and
+// clean data flow.
+//
+// Allocation guarantee: all operations are allocation-free after
+// initialization. Lambda captures are stored inline (up to
+// COMPUTE_FN_BUFFER_SIZE bytes); larger captures fail to compile.
+//
+// Owned analyzers: the Train owns its Playheads and Wagons. Attach them
+// via add_playhead() / add_wagon() at setup time; the Train runs them
+// against the snapshot each frame inside update(). Stat lambdas read
+// their readouts via ctx.playhead(slot) / ctx.wagon(slot).
+//
+// Usage:
+//   MidiStream stream(...);
+//   Train train;
+//   int ph_slot = train.add_playhead();
+//   int wg_slot = train.add_wagon(4.0f);
+//   auto STAT = train.define([=](const TrainContext& ctx) {
+//       return float(ctx.playhead(ph_slot).current_count);
+//   });
+//   stream.update(beat);
+//   train.update(stream.snapshot(), stream.history(), beat);
+//   float v = train.get(STAT);
+//
+// Depends on: musical/playhead.hpp, musical/wagon.hpp, <array>,
+//             <cstdint>, <new>, <type_traits>.
 
 #include "musical/playhead.hpp"
 #include "musical/wagon.hpp"
@@ -70,9 +55,7 @@
 
 namespace t7 {
 
-// =============================================================================
-// CONSTANTS
-// =============================================================================
+// ═══ CONSTANTS ═══════════════════════════════════════════════════
 
 constexpr int TRAIN_MAX_PLAYHEADS = 2;
 constexpr int TRAIN_MAX_WAGONS = 2;
@@ -82,9 +65,7 @@ constexpr int TRAIN_MAX_STATS = 64;
 // 32 bytes accommodates most typical lambdas (4 pointers or 8 floats)
 constexpr size_t COMPUTE_FN_BUFFER_SIZE = 32;
 
-// =============================================================================
-// STAT ID - Handle for train outputs
-// =============================================================================
+// ═══ STAT ID - Handle for train outputs ══════════════════════════
 
 struct TrainStatId {
     uint16_t index = 0xFFFF;
@@ -99,9 +80,7 @@ struct TrainStatId {
 // Forward declaration
 class TrainContext;
 
-// =============================================================================
-// SMALL FUNCTION - Allocation-free callable wrapper
-// =============================================================================
+// ═══ SMALL FUNCTION - Allocation-free callable wrapper ═══════════
 
 /**
  * A small inline function wrapper that stores lambdas without heap allocation.
@@ -219,9 +198,7 @@ private:
     CopyFn copy_ = nullptr;
 };
 
-// =============================================================================
-// TRAIN CONTEXT - Read-only view passed to user programs
-// =============================================================================
+// ═══ TRAIN CONTEXT - Read-only view passed to user programs ══════
 
 class TrainContext {
 public:
@@ -279,9 +256,7 @@ private:
     static inline const WagonReadout empty_wagon_readout_{};
 };
 
-// =============================================================================
-// TRAIN CLASS
-// =============================================================================
+// ═══ TRAIN CLASS ═════════════════════════════════════════════════
 
 class Train {
 public:
@@ -417,9 +392,7 @@ private:
     int wagon_count_    = 0;
 };
 
-// =============================================================================
-// SIZE VERIFICATION
-// =============================================================================
+// ═══ SIZE VERIFICATION ═══════════════════════════════════════════
 
 // ComputeFn: 32 (buffer) + 24 (pointers) = 56 bytes
 

@@ -1,65 +1,46 @@
 #pragma once
 
-/**
- * WAGON - Time Window Musical Context
- * =====================================
- * 
- * Captures the context over a span of time: what notes exist within
- * the window. Operations are defined separately.
- * 
- * DOMAIN
- * ------
- * 
- * The Wagon sees completed notes within a time window:
- * 
- *     window_start              window_end (anchor)
- *          |                        |
- *     -----+---[##]--[###]--[#]-----+---------> time
- *          |________ span __________|
- * 
- * By default, only notes entirely inside the window are included.
- * Straddling notes can be included via configuration.
- * 
- * SNAPSHOT-BASED
- * --------------
- * 
- * The Wagon receives snapshots rather than holding stream references.
- * This enables parallel analysis and clean data flow.
- * 
- * DATA ONLY
- * ---------
- * 
- * WagonReadout contains raw data. Operations are pure functions
- * defined elsewhere that take the readout as input.
- * 
- * USAGE
- * -----
- * 
- *     MidiStream stream(router, channel);
- *     Wagon wagon(4.0f);  // 4-beat window
- *     
- *     stream.update(current_beat);
- *     auto snap = stream.snapshot();
- *     wagon.update(snap, stream.history());
- *     
- *     const auto& r = wagon.readout();
- *     // Pass r to operations defined elsewhere
- */
+// ─── wagon.hpp ───────────────────────────────────────────────────
+//
+// Time-window musical context: captures what notes exist within a span
+// of time. Operations are defined separately (musical_ops.hpp).
+//
+// Domain — the Wagon sees completed notes within a time window:
+//
+//     window_start              window_end (anchor)
+//          |                        |
+//     -----+---[##]--[###]--[#]-----+---------> time
+//          |________ span __________|
+//
+// By default only notes entirely inside the window are included;
+// straddling notes can be included via configuration.
+//
+// Snapshot-based: the Wagon receives snapshots rather than holding
+// stream references, which enables parallel analysis and clean data
+// flow. Data only — WagonReadout holds raw data; operations are pure
+// functions elsewhere that take the readout as input.
+//
+// Usage:
+//   MidiStream stream(router, channel);
+//   Wagon wagon(4.0f);  // 4-beat window
+//   stream.update(current_beat);
+//   auto snap = stream.snapshot();
+//   wagon.update(snap, stream.history());
+//   const auto& r = wagon.readout();
+//
+// Depends on: musical/stream_data.hpp (StreamSnapshot, CompletedRing),
+//             <array>.
 
 #include "musical/stream_data.hpp"
 #include <array>
 
 namespace t7 {
 
-// =============================================================================
-// CONSTANTS
-// =============================================================================
+// ═══ CONSTANTS ═══════════════════════════════════════════════════
 
 constexpr int WAGON_MAX_NOTES = 128;
 
-// =============================================================================
-// WINDOW NOTE - A note within the wagon's window
-// =============================================================================
+// ═══ WINDOW NOTE - A note within the wagon's window ══════════════
 
 /**
  * A note as seen through the wagon's window.
@@ -100,9 +81,7 @@ struct WindowNote {
 
 static_assert(sizeof(WindowNote) == 24, "WindowNote should be 24 bytes");
 
-// =============================================================================
-// WAGON READOUT - Raw data, no derived computations
-// =============================================================================
+// ═══ WAGON READOUT - Raw data, no derived computations ═══════════
 
 struct WagonReadout {
     // --- Window Definition ---
@@ -126,9 +105,8 @@ struct WagonReadout {
     int straddling_count = 0;        // Notes crossing boundaries
     int active_count = 0;            // Notes still sounding
     
-    // =========================================================================
-    // SIMPLE STATE QUERIES - No computation, just reading fields
-    // =========================================================================
+    // ── Simple State Queries ─────────────────────────────────────
+    // No computation, just reading fields.
     
     bool empty() const { return note_count == 0; }
     bool has_notes() const { return note_count > 0; }
@@ -146,9 +124,7 @@ struct WagonReadout {
     }
 };
 
-// =============================================================================
-// WAGON CLASS
-// =============================================================================
+// ═══ WAGON CLASS ═════════════════════════════════════════════════
 
 class Wagon {
 public:
@@ -341,9 +317,7 @@ private:
     }
 };
 
-// =============================================================================
-// SIZE VERIFICATION
-// =============================================================================
+// ═══ SIZE VERIFICATION ═══════════════════════════════════════════
 
 // WindowNote: 24 bytes
 

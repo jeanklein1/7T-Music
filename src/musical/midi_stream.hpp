@@ -1,65 +1,38 @@
 #pragma once
 
-/**
- * MIDI STREAM - The River of Musical Events
- * ==========================================
- * 
- * One Stream per MIDI channel. The single source of truth for that channel.
- * 
- * INERT CONSTRUCTION
- * ------------------
- * 
- * The stream is constructed without any external coupling. It receives
- * events explicitly via receive(), enabling:
- * - Fixed array storage (no heap allocation)
- * - Testability (inject events directly)
- * - Visible control flow (composition routes events)
- * 
- * RESPONSIBILITIES
- * ----------------
- * 
- * - Receive note events via receive()
- * - Maintain ActiveSet (currently sounding)
- * - Maintain CompletedRing (finished sounding)
- * - Prune history beyond retention window
- * - Produce snapshots for analyzers
- * 
- * TIME INVARIANT
- * --------------
- * 
- * The stream assumes time (beat) is monotonically increasing. If time jumps
- * backward (loop, seek), the stream automatically clears all state to maintain
- * consistency.
- * 
- * USAGE
- * -----
- * 
- *     MidiStream streams[4];
- *     
- *     // Configure
- *     for (int i = 0; i < 4; ++i) {
- *         streams[i].set_channel(i);
- *     }
- *     
- *     // Route events (from MidiFile, Keyboard, etc)
- *     MidiEvent event = MidiEvent::note_on(2, 60, 0.8f, beat);
- *     streams[event.channel].receive(event);
- *     
- *     // Update (prunes old history)
- *     for (auto& s : streams) s.update(beat);
- *     
- *     // Snapshot for analyzers
- *     auto snap = streams[2].snapshot();
- */
+// ─── midi_stream.hpp ─────────────────────────────────────────────
+//
+// One Stream per MIDI channel — the single source of truth for that
+// channel. Constructed inert (no external coupling): it receives events
+// explicitly via receive(), which keeps storage fixed-array (no heap),
+// makes it testable (inject events directly), and keeps control flow
+// visible (composition routes events).
+//
+// Responsibilities: receive note events; maintain the ActiveSet
+// (currently sounding) and CompletedRing (finished sounding); prune
+// history beyond the retention window; produce snapshots for analyzers.
+//
+// Time invariant: beat is assumed monotonically increasing. If time
+// jumps backward (loop, seek), the stream clears all state to stay
+// consistent.
+//
+// Usage:
+//   MidiStream streams[4];
+//   for (int i = 0; i < 4; ++i) streams[i].set_channel(i);
+//   MidiEvent event = MidiEvent::note_on(2, 60, 0.8f, beat);
+//   streams[event.channel].receive(event);
+//   for (auto& s : streams) s.update(beat);
+//   auto snap = streams[2].snapshot();
+//
+// Depends on: musical/stream_data.hpp (ActiveSet, CompletedRing,
+//             StreamSnapshot), sources/midi_event.hpp (MidiEvent).
 
 #include "musical/stream_data.hpp"
 #include "sources/midi_event.hpp"
 
 namespace t7 {
 
-// =============================================================================
-// MIDI STREAM
-// =============================================================================
+// ═══ MIDI STREAM ═════════════════════════════════════════════════
 
 class MidiStream {
 public:
@@ -84,20 +57,16 @@ public:
     MidiStream(MidiStream&&) = default;
     MidiStream& operator=(MidiStream&&) = default;
     
-    // =========================================================================
-    // CONFIGURATION
-    // =========================================================================
-    
+    // ── Configuration ────────────────────────────────────────────
+
     void set_channel(int channel) { channel_ = channel; }
     int channel() const { return channel_; }
     
     void set_retention_beats(float beats) { retention_beats_ = beats; }
     float retention_beats() const { return retention_beats_; }
     
-    // =========================================================================
-    // EVENT RECEPTION
-    // =========================================================================
-    
+    // ── Event Reception ──────────────────────────────────────────
+
     /**
      * Receive a MIDI event.
      * Called by composition to route events to this stream.
@@ -114,10 +83,8 @@ public:
         }
     }
     
-    // =========================================================================
-    // FRAME UPDATE
-    // =========================================================================
-    
+    // ── Frame Update ─────────────────────────────────────────────
+
     /**
      * Advance stream time and prune old history.
      * Call once per frame after routing all events.
@@ -142,10 +109,8 @@ public:
         completed_.prune_before(cutoff);
     }
     
-    // =========================================================================
-    // SNAPSHOT
-    // =========================================================================
-    
+    // ── Snapshot ─────────────────────────────────────────────────
+
     /**
      * Produce a snapshot of current ephemeral state.
      * 
@@ -165,10 +130,8 @@ public:
      */
     const CompletedRing& history() const { return completed_; }
     
-    // =========================================================================
-    // QUERIES
-    // =========================================================================
-    
+    // ── Queries ──────────────────────────────────────────────────
+
     float current_beat() const { return current_beat_; }
     bool had_time_discontinuity() const { return had_discontinuity_; }
     
@@ -179,17 +142,13 @@ public:
     int completed_count() const { return completed_.size(); }
     bool has_completed() const { return !completed_.empty(); }
     
-    // =========================================================================
-    // DIRECT ACCESS
-    // =========================================================================
-    
+    // ── Direct Access ────────────────────────────────────────────
+
     const ActiveSet& active_set() const { return active_; }
     const CompletedRing& completed_ring() const { return completed_; }
     
-    // =========================================================================
-    // STATE MANAGEMENT
-    // =========================================================================
-    
+    // ── State Management ─────────────────────────────────────────
+
     /**
      * Clear all state. Use when seeking or resetting playback.
      * Called automatically if update() detects backward time jump.
@@ -209,9 +168,7 @@ private:
     CompletedRing completed_;
 };
 
-// =============================================================================
-// SIZE VERIFICATION
-// =============================================================================
+// ── Size Verification ────────────────────────────────────────────
 
 // MidiStream memory:
 //   ActiveSet     ~  1 KB

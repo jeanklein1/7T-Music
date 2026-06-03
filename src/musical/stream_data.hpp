@@ -1,25 +1,21 @@
 #pragma once
 
-/**
- * STREAM DATA - Foundational Storage for Musical Analysis
- * ========================================================
- * 
- * Two categorically distinct collections:
- * 
- * ActiveSet:     Notes currently sounding (onset known, offset undetermined)
- * CompletedRing: Notes finished sounding (onset and offset both known)
- * 
- * These are the atoms. Analyzers query them. The Stream owns them.
- * 
- * CATEGORICAL DISTINCTION
- * -----------------------
- * 
- * ActiveNote:    A live process. Duration increases each frame.
- * CompletedNote: A historical fact. Duration is immutable.
- * 
- * This distinction must be preserved. Functions that need both
- * must explicitly request both.
- */
+// ─── stream_data.hpp ─────────────────────────────────────────────
+//
+// Foundational storage for musical analysis — two categorically
+// distinct collections:
+//   ActiveSet     — notes currently sounding (onset known, offset
+//                   undetermined)
+//   CompletedRing — notes finished sounding (onset and offset both
+//                   known)
+// These are the atoms; analyzers query them, the Stream owns them.
+//
+// Categorical distinction (must be preserved): an ActiveNote is a live
+// process whose duration increases each frame; a CompletedNote is a
+// historical fact whose duration is immutable. Functions that need both
+// must explicitly request both.
+//
+// Depends on: <array>, <cstdint>, <algorithm>.
 
 #include <array>
 #include <cstdint>
@@ -27,16 +23,12 @@
 
 namespace t7 {
 
-// =============================================================================
-// CONSTANTS
-// =============================================================================
+// ═══ CONSTANTS ═══════════════════════════════════════════════════
 
 constexpr int MIDI_PITCH_COUNT = 128;
 constexpr int COMPLETED_RING_CAPACITY = 2048;
 
-// =============================================================================
-// BIT OPERATIONS (shared utility)
-// =============================================================================
+// ═══ BIT OPERATIONS (shared utility) ═════════════════════════════
 
 namespace bits {
 
@@ -69,9 +61,7 @@ inline int ctz64(uint64_t x) {
 
 } // namespace bits
 
-// =============================================================================
-// PITCH BITMASK - 128-bit mask for MIDI pitches
-// =============================================================================
+// ═══ PITCH BITMASK - 128-bit mask for MIDI pitches ═══════════════
 
 struct PitchBitmask {
     uint64_t lo = 0;  // Pitches 0-63
@@ -124,9 +114,7 @@ struct PitchBitmask {
     }
 };
 
-// =============================================================================
-// ACTIVE NOTE - A note currently sounding
-// =============================================================================
+// ═══ ACTIVE NOTE - A note currently sounding ═════════════════════
 
 /**
  * An active note has known onset but undetermined offset.
@@ -146,9 +134,7 @@ struct ActiveNote {
     }
 };
 
-// =============================================================================
-// COMPLETED NOTE - A note that has finished sounding
-// =============================================================================
+// ═══ COMPLETED NOTE - A note that has finished sounding ══════════
 
 /**
  * A completed note has known onset and offset.
@@ -170,9 +156,7 @@ struct CompletedNote {
 
 static_assert(sizeof(CompletedNote) == 16, "CompletedNote should be 16 bytes");
 
-// =============================================================================
-// ACTIVE SET - Collection of currently sounding notes
-// =============================================================================
+// ═══ ACTIVE SET - Collection of currently sounding notes ═════════
 
 /**
  * Fixed array of 128 slots indexed by MIDI pitch.
@@ -245,9 +229,7 @@ struct ActiveSet {
     }
 };
 
-// =============================================================================
-// COMPLETED RING - Collection of finished notes
-// =============================================================================
+// ═══ COMPLETED RING - Collection of finished notes ═══════════════
 
 /**
  * Ring buffer of completed notes, ordered by offset_beat (completion time).
@@ -458,9 +440,7 @@ struct CompletedRing {
     }
 };
 
-// =============================================================================
-// STREAM SNAPSHOT - Ephemeral state at one instant
-// =============================================================================
+// ═══ STREAM SNAPSHOT - Ephemeral state at one instant ════════════
 
 /**
  * A snapshot captures the ephemeral state (ActiveSet) at a specific beat.
@@ -489,9 +469,7 @@ struct StreamSnapshot {
     }
 };
 
-// =============================================================================
-// SIZE VERIFICATION
-// =============================================================================
+// ═══ SIZE VERIFICATION ═══════════════════════════════════════════
 
 // ActiveSet memory:
 //   notes[128] = 128 * 8 = 1024 bytes

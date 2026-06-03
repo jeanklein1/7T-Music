@@ -1,69 +1,51 @@
 #pragma once
 
-/**
- * PLAYHEAD - Point-in-Time Musical Context
- * =========================================
- * 
- * Captures the context at a point in time: what's active at ANCHOR and what
- * just completed (PREVIOUS). Operations are defined separately.
- * 
- * DOMAIN
- * ------
- * 
- * The Playhead sees at most two sets of polyphonic events:
- * 
- *     PREVIOUS              ANCHOR (observation point)
- *         |                     |
- *     ---[###]---------------[###]-------> time
- *     (completed)            (sounding)
- * 
- * If ANCHOR is silent:
- * 
- *     PREVIOUS              ANCHOR
- *         |                     |
- *     ---[###]------------------o---------> time
- *                            (gap)
- * 
- * SNAPSHOT-BASED
- * --------------
- * 
- * The Playhead receives snapshots rather than holding stream references.
- * This enables parallel analysis and clean data flow.
- * 
- * DATA ONLY
- * ---------
- * 
- * PlayheadReadout contains raw data. Operations are pure functions
- * defined elsewhere that take the readout as input.
- * 
- * USAGE
- * -----
- * 
- *     MidiStream stream(router, channel);
- *     Playhead playhead;
- *     
- *     stream.update(current_beat);
- *     auto snap = stream.snapshot();
- *     playhead.update(snap, stream.history());
- *     
- *     const auto& r = playhead.readout();
- *     // Pass r to operations defined elsewhere
- */
+// ─── playhead.hpp ────────────────────────────────────────────────
+//
+// Point-in-time musical context: captures what's active at ANCHOR and
+// what just completed (PREVIOUS). Operations are defined separately
+// (musical_ops.hpp).
+//
+// Domain — the Playhead sees at most two sets of polyphonic events:
+//
+//     PREVIOUS              ANCHOR (observation point)
+//         |                     |
+//     ---[###]---------------[###]-------> time
+//     (completed)            (sounding)
+//
+// If ANCHOR is silent:
+//
+//     PREVIOUS              ANCHOR
+//         |                     |
+//     ---[###]------------------o---------> time
+//                            (gap)
+//
+// Snapshot-based: the Playhead receives snapshots rather than holding
+// stream references, which enables parallel analysis and clean data
+// flow. Data only — PlayheadReadout holds raw data; operations are pure
+// functions elsewhere that take the readout as input.
+//
+// Usage:
+//   MidiStream stream(router, channel);
+//   Playhead playhead;
+//   stream.update(current_beat);
+//   auto snap = stream.snapshot();
+//   playhead.update(snap, stream.history());
+//   const auto& r = playhead.readout();
+//
+// Depends on: musical/stream_data.hpp (StreamSnapshot, CompletedRing),
+//             <array>.
 
 #include "musical/stream_data.hpp"
 #include <array>
 
 namespace t7 {
 
-// =============================================================================
-// CONSTANTS
-// =============================================================================
+// ═══ CONSTANTS ═══════════════════════════════════════════════════
 
 constexpr int PLAYHEAD_MAX_POLYPHONY = 16;
 
-// =============================================================================
-// CURRENT NOTE - Snapshot of a note sounding at anchor
-// =============================================================================
+// ═══ CURRENT NOTE - Snapshot of a note sounding at anchor ════════
 
 /**
  * Raw data for a note that was sounding at anchor_beat.
@@ -90,9 +72,7 @@ struct CurrentNote {
 
 static_assert(sizeof(CurrentNote) == 12, "CurrentNote should be 12 bytes");
 
-// =============================================================================
-// PLAYHEAD READOUT - Raw data, no derived computations
-// =============================================================================
+// ═══ PLAYHEAD READOUT - Raw data, no derived computations ════════
 
 struct PlayheadReadout {
     // --- Temporal Context ---
@@ -132,9 +112,8 @@ struct PlayheadReadout {
     bool is_onset = false;        // Became non-silent this frame
     bool is_release = false;      // Became silent this frame
     
-    // =========================================================================
-    // SIMPLE STATE QUERIES - No computation, just reading fields
-    // =========================================================================
+    // ── Simple State Queries ─────────────────────────────────────
+    // No computation, just reading fields.
     
     bool gate() const { return current_count > 0; }
     bool silent() const { return current_count == 0; }
@@ -164,9 +143,7 @@ struct PlayheadReadout {
     }
 };
 
-// =============================================================================
-// PLAYHEAD CLASS
-// =============================================================================
+// ═══ PLAYHEAD CLASS ══════════════════════════════════════════════
 
 class Playhead {
 public:
@@ -401,9 +378,7 @@ private:
     }
 };
 
-// =============================================================================
-// SIZE VERIFICATION
-// =============================================================================
+// ═══ SIZE VERIFICATION ═══════════════════════════════════════════
 
 // CurrentNote: 12 bytes
 // CompletedNote: 16 bytes (from stream_data.hpp)

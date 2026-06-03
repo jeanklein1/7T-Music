@@ -1,44 +1,44 @@
 #pragma once
 
-/**
- * TRAJECTORY - Shared scalar release primitive (CPU side)
- * =======================================================
- *
- * A Trajectory is a scalar value plus its velocity, smoothed over time
- * toward a goal via exponential release. The shape exists on the GPU
- * for analytical-amplitude releases (world.wgsl §1.2 TRAJECTORY PRIMITIVES);
- * this header is the CPU mirror so per-frame ramps in the spine collapse
- * from copy-pasted exp(-rate*dt) expressions into a single named primitive.
- *
- * Public surface:
- *   Trajectory                            — { value, velocity, _pad0, _pad1 }
- *   trajectory_release(t, goal, dt, rate) → Trajectory
- *
- * Consumers (verified by grep for the #include and trajectory_release call):
- *   cartridges/the_chord/modules/musical.inl   — calls trajectory_release
- *   cartridges/the_chord/modules/pawn.inl      — calls trajectory_release
- *   cartridges/the_board/modules/musical.inl   — calls trajectory_release
- *   cartridges/the_board/modules/pawn.inl      — calls trajectory_release
- *   the_lab.cpp                                — calls trajectory_release (iterating couplings)
- *   cartridges/the_chord/cartridge.hpp         — #includes this header
- *   cartridges/the_board/cartridge.hpp         — #includes this header
- *
- * SEAM[trajectory:contract] MUST match world.wgsl §1.2 Trajectory.
- *   Field shape doesn't need to be byte-identical (this struct is
- *   never uploaded), but the release semantics MUST agree:
- *     new_val = old + (goal - old) * (1 - exp(-rate * dt))
- *   Drift between the two formulas would mean CPU-side ramps and
- *   GPU-side ramps move at different speeds for the same rate.
- *
- * SEAM[trajectory:foundations] foundations layer — pure math, no deps.
- *   Same family as seed_utils as a P9 instance.
- *
- * HISTORY
- * -------
- * Previously lived as trajectory.inl spliced into Cartridge class body.
- * Factored to a header so both the_board's musical.inl and the_lab's
- * main loop share the same primitive without textual duplication.
- */
+// ─── trajectory.hpp ──────────────────────────────────────────────
+//
+// Shared scalar release primitive (CPU side). A Trajectory is a scalar
+// value plus its velocity, smoothed over time toward a goal via
+// exponential release. The shape exists on the GPU for analytical-
+// amplitude releases (world.wgsl §1.2 TRAJECTORY PRIMITIVES); this
+// header is the CPU mirror so per-frame ramps in the spine collapse
+// from copy-pasted exp(-rate*dt) expressions into a single named
+// primitive.
+//
+// Public surface:
+//   Trajectory                            — { value, velocity, _pad0, _pad1 }
+//   trajectory_release(t, goal, dt, rate) → Trajectory
+//
+// Consumers (verified by grep for the #include and trajectory_release call):
+//   cartridges/the_chord/modules/musical.inl   — calls trajectory_release
+//   cartridges/the_chord/modules/pawn.inl      — calls trajectory_release
+//   cartridges/the_board/modules/musical.inl   — calls trajectory_release
+//   cartridges/the_board/modules/pawn.inl      — calls trajectory_release
+//   the_lab.cpp                                — calls trajectory_release (iterating couplings)
+//   cartridges/the_chord/cartridge.hpp         — #includes this header
+//   cartridges/the_board/cartridge.hpp         — #includes this header
+//
+// Depends on: <cmath>.
+//
+// SEAM[trajectory:contract] MUST match world.wgsl §1.2 Trajectory.
+//   Field shape doesn't need to be byte-identical (this struct is
+//   never uploaded), but the release semantics MUST agree:
+//     new_val = old + (goal - old) * (1 - exp(-rate * dt))
+//   Drift between the two formulas would mean CPU-side ramps and
+//   GPU-side ramps move at different speeds for the same rate.
+//
+// SEAM[trajectory:foundations] foundations layer — pure math, no deps.
+//   Same family as seed_utils as a P9 instance.
+//
+// HISTORY
+//   Previously lived as trajectory.inl spliced into Cartridge class
+//   body. Factored to a header so both the_board's musical.inl and the
+//   the_lab main loop share the same primitive without duplication.
 
 #include <cmath>
 
