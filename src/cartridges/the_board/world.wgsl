@@ -1856,9 +1856,9 @@ const ZONE_PAWN_TINT_STRENGTH: f32 = 0.6;
 const ZONE_SPHERE_TINT_STRENGTH: f32 = 0.5;
 
 // --- Pawn GoL suppression radii (shared between height_at + extrusion VS)
-const ZONE_SUPPRESS_INNER: f32 = 4.0;   // full suppression inside this radius
-const ZONE_SUPPRESS_OUTER: f32 = 15.0;  // zero suppression beyond this radius
-const ZONE_SUPPRESS_OVERSHOOT: f32 = 1.08;  // suppressed cells settle ~8% of height below terrain
+const ZONE_SUPPRESS_INNER: f32 = 10.0;  // suppressed cells fully buried inside this radius
+const ZONE_SUPPRESS_OUTER: f32 = 25.0;  // suppression ramps to zero by this radius
+const GOL_BURY_DEPTH: f32 = 3.0;        // suppressed cells sink this far below local ground
 
 // --- [COUPLING:cells→terrain:height]
 const PIER_TOTAL: u32 = 68u;
@@ -2661,7 +2661,7 @@ fn query_ground_walker(xz: vec2<f32>, qi: QueryInputs) -> f32 {
     let gol = contrib_gol_zones_at(xz);
     let d = distance(xz, qi.consumer_pos.xz);
     let supp_factor = 1.0 - smoothstep(ZONE_SUPPRESS_INNER, ZONE_SUPPRESS_OUTER, d);
-    h += gol * (1.0 - supp_factor * ZONE_SUPPRESS_OVERSHOOT);
+    h += gol * (1.0 - supp_factor);
 
     h += contrib_terrain_waves_at(xz);
     h += contrib_radial_pulses_at(xz, qi.t_seconds);
@@ -2708,7 +2708,7 @@ fn query_ground_walker_tilt(xz: vec2<f32>, qi: QueryInputs) -> f32 {
 // preceding commit). Same supp_factor applied to GoL here.
 //
 // Shape of the return vec2:
-//   .x = walker      = tilt + pawn_aura_self − gol * supp_factor * ZONE_SUPPRESS_OVERSHOOT
+//   .x = walker      = tilt + pawn_aura_self − gol * supp_factor
 //   .y = walker_tilt = base + pyramids + gol + waves + pulses
 fn query_ground_walker_pair(xz: vec2<f32>, qi: QueryInputs) -> vec2<f32> {
     // Shared 5-contributor tilt base.
@@ -2724,7 +2724,7 @@ fn query_ground_walker_pair(xz: vec2<f32>, qi: QueryInputs) -> vec2<f32> {
     // GoL suppression (inlined, reusing the same `gol` value).
     let d = distance(xz, qi.consumer_pos.xz);
     let supp_factor = 1.0 - smoothstep(ZONE_SUPPRESS_INNER, ZONE_SUPPRESS_OUTER, d);
-    let walker = tilt + contrib_pawn_aura_at_self() - gol * supp_factor * ZONE_SUPPRESS_OVERSHOOT;
+    let walker = tilt + contrib_pawn_aura_at_self() - gol * supp_factor;
 
     return vec2(walker, tilt);
 }
@@ -7199,18 +7199,20 @@ fn zone_extrusion_vs(
 
     // ── Pawn proximity suppression — render-side mirror of
     // contrib_gol_suppression_at ────────────────────────────────────
-    // Must stay in sync with the contributor's smoothstep (same
-    // ZONE_SUPPRESS_INNER / ZONE_SUPPRESS_OUTER radii, same
-    // 1 - smoothstep(inner, outer, dist) shape). The two cannot easily
-    // share a function because this VS reads the render-stage
-    // render_agents binding while contrib_gol_suppression_at reads
-    // the compute-stage agent_state binding. If either changes radii
-    // or shape, update the other. The shadow zone extrusion VS below
-    // also mirrors this; keep all three in sync.
+    // Shares the contributor's smoothstep (same ZONE_SUPPRESS_INNER /
+    // ZONE_SUPPRESS_OUTER radii, same 1 - smoothstep(inner, outer, dist)
+    // shape), but here suppressed cells are buried GOL_BURY_DEPTH below
+    // ground — the render sinks them out of sight, while
+    // contrib_gol_suppression_at governs the (un-buried) walked height.
+    // Can't share a function: this VS reads the render-stage render_agents
+    // binding while contrib_gol_suppression_at reads the compute-stage
+    // agent_state binding. If radii/shape change, update both. The shadow
+    // zone extrusion VS below applies the identical bury; keep the two
+    // render sites in sync.
     let pawn_dist = distance(pos.xz, pawn_xz);
     let suppression = 1.0 - smoothstep(ZONE_SUPPRESS_INNER, ZONE_SUPPRESS_OUTER, pawn_dist);
     if (suppression > 0.001) {
-        world_pos.y = mix(pos.y, ground_target, suppression * ZONE_SUPPRESS_OVERSHOOT);
+        world_pos.y = mix(pos.y, ground_target - GOL_BURY_DEPTH, suppression);
     }
 
     var out: ZoneExtrusionVarying;
@@ -7267,15 +7269,14 @@ fn shadow_zone_extrusion_vs(
     let terrain_y = uv.x;
     let wave_y = contrib_terrain_waves_at(pos.xz);
     world_pos.y += wave_y;
-    // Render-side mirror of contrib_gol_suppression_at — kept in sync
-    // with the contributor and with zone_extrusion_vs's suppression
-    // block (above). See that block's annotation for rationale on why
-    // the function isn't shared across stages.
+    // Mirrors zone_extrusion_vs's suppression block (above): same
+    // smoothstep, same GOL_BURY_DEPTH sink, so the shadow sinks with the
+    // geometry. See that block for the cross-stage rationale.
     let pawn_dist = distance(pos.xz, render_pawn_pos().xz);
     let suppression = 1.0 - smoothstep(ZONE_SUPPRESS_INNER, ZONE_SUPPRESS_OUTER, pawn_dist);
     if (suppression > 0.001) {
         // Shadow doesn't have aura texture — use terrain_y + wave only
-        world_pos.y = mix(pos.y + wave_y, terrain_y + wave_y, suppression);
+        world_pos.y = mix(pos.y + wave_y, terrain_y + wave_y - GOL_BURY_DEPTH, suppression);
     }
     var out: ShadowVarying;
     out.clip_pos = render_vp.light_vp * vec4(world_pos, 1.0);
