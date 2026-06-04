@@ -868,22 +868,22 @@ namespace t7 {
             }
 
             // Biased mood selection for portal destinations.
-            // In finite mode: 55% indoor (moods 2-3), 25% infinite outdoor (moods 0-1), 20% finite outdoor (moods 4-5).
+            // In finite mode: 40% infinite outdoor (moods 0-1), 30% indoor (moods 2-3), 30% finite outdoor (moods 4-5).
             // In open mode: uniform across all moods.
             uint32_t pick_portal_mood(uint32_t seed, uint32_t prop) const {
                 float roll = cpu_hash_f(seed, prop);
                 if (world_state_.finite_mode) {
-                    // 0.00–0.125: mood 0 (open_default)
-                    // 0.125–0.25: mood 1 (open_sunset)
-                    // 0.25–0.525: mood 2 (indoor_flat)
-                    // 0.525–0.80: mood 3 (indoor_vault)
-                    // 0.80–0.90:  mood 4 (finite_outdoor)
-                    // 0.90–1.00:  mood 5 (finite_outdoor_ref)
-                    if (roll < 0.125f) return 0;
-                    if (roll < 0.25f)  return 1;
-                    if (roll < 0.525f) return 2;
-                    if (roll < 0.80f)  return 3;
-                    if (roll < 0.90f)  return 4;
+                    // 0.00–0.20: mood 0 (open_default)
+                    // 0.20–0.40: mood 1 (open_sunset)
+                    // 0.40–0.55: mood 2 (indoor_flat)
+                    // 0.55–0.70: mood 3 (indoor_vault)
+                    // 0.70–0.85: mood 4 (finite_outdoor)
+                    // 0.85–1.00: mood 5 (finite_outdoor_ref)
+                    if (roll < 0.20f) return 0;
+                    if (roll < 0.40f) return 1;
+                    if (roll < 0.55f) return 2;
+                    if (roll < 0.70f) return 3;
+                    if (roll < 0.85f) return 4;
                     return 5;
                 }
                 return cpu_hash(seed, prop) % MOOD_COUNT;
