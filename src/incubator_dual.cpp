@@ -220,17 +220,14 @@ int main(int argc, char* argv[]) {
         // --- Update ---------------------------------------------------------
         analysis.update(dt);
 
-        // Debug: print abbott/costello/louise polyphony every 0.5s
+        // Debug: print keyboard polyphony every 0.5s (polyphony is now
+        // keyboard-only; abbott/costello/louise carry the lowest/set reads).
         static float debug_accum = 0.0f;
         debug_accum += dt;
         if (debug_accum >= 0.5f) {
             debug_accum = 0.0f;
-            float a = analysis.output().stat(0, analysis_ns::STAT_POLYPHONY);
-            float c = analysis.output().stat(1, analysis_ns::STAT_POLYPHONY);
-            float l = analysis.output().stat(2, analysis_ns::STAT_POLYPHONY);
-            std::cout << "\n[mc] abbott=" << a
-                      << " costello=" << c
-                      << " louise=" << l << "\n";
+            float kp = analysis.output().stat(3, analysis_ns::STAT_POLYPHONY);
+            std::cout << "\n[mc] keyboard.polyphony=" << kp << "\n";
         }
 
         render.update(analysis.output(), console.aspect_ratio(), queue);

@@ -1,41 +1,44 @@
 #pragma once
 
-/**
- * POLYPHONY BASIC - Analysis Cartridge
- * =====================================
- *
- * A multi-channel analysis cartridge that tracks polyphony (note count)
- * per named channel.
- *
- * SOURCES
- * -------
- * - MidiPort:    External MIDI input via system port (loopMIDI / DAW)
- * - MidiFile:    Plays a MIDI file in a loop
- * - KeyboardMidi: Computer keyboard as piano
- *
- * CHANNELS
- * --------
- * - "abbott"   on Ableton channel 1 (internal channel 0)
- * - "costello" on Ableton channel 2 (internal channel 1)
- * - "louise"   on Ableton channel 3 (internal channel 2) — external MIDI keyboard
- * (The computer-keyboard debug aid feeds abbott (channel 0); see keyboard_enabled_.)
- *
- * Each channel owns a MidiStream and a list of attached Trains. Every
- * incoming event is dispatched to the channel matching its MIDI channel
- * byte; events for unregistered channels are silently dropped.
- *
- * ANALYSIS
- * --------
- * - abbott:   Playhead + 1-bar Wagon — polyphony, lowest-PC one-hot,
- *             length-weighted PC histogram, total sounding length.
- * - costello, louise: Playhead — polyphony.
- *
- * OUTPUT FORMAT
- * -------------
- * Declared by STAT_LAYOUT (the single source of truth for slot assignments
- * and shapes, consumed by the_lab). abbott (channel 0) carries the full set;
- * costello/louise (channels 1/2) carry polyphony only.
- */
+// ─── canvas.hpp ──────────────────────────────────────────────────
+//
+// polyphony_basic — analysis cartridge. Embodies the pitch-class
+// foundation: the lowest note (the reign) and the pitch class set (the
+// union of windowed territory) are the current reading; legacy polyphony
+// is retired to a keyboard debug path.
+//
+// Sources:
+//   MidiPort    — external MIDI input via system port (loopMIDI / DAW)
+//   MidiFile    — plays a MIDI file in a loop
+//   KeyboardMidi— computer keyboard as piano (legacy debug)
+//
+// Channels:
+//   "abbott"   on Ableton 1 (internal 0) — reign + territory
+//   "costello" on Ableton 2 (internal 1) — reign + territory
+//   "louise"   on Ableton 3 (internal 2) — territory only (no lowest)
+//   "keyboard" on Ableton 4 (internal 3) — legacy debug, polyphony only
+//
+// The reads (all D-relative, PROJECT_PC_ORIGIN):
+//   lowest-PC one-hot (abbott, costello) — published per channel
+//   windowed pc length (all three)       — INTERMEDIATE; its presence
+//                                          feeds the set, not published
+//   the set (union)                      — active basis vectors: 1.0 if a
+//                                          pitch class sounds in ANY of the
+//                                          three windows, else 0.0; the
+//                                          lossy compression is the closing
+//                                          step, after all channels read
+//   polyphony (keyboard)                 — published, debug
+//
+// Each channel owns a MidiStream and a list of attached Trains. Every
+// incoming event is dispatched to the channel matching its MIDI channel
+// byte; events for unregistered channels are silently dropped.
+//
+// Output format is declared by STAT_LAYOUT (the single source of truth
+// for slot assignments and shapes, consumed by the_lab).
+//
+// Depends on: analysis/analysis_cartridge.hpp, analysis/analysis_signal.hpp,
+//             core/clock.hpp, the sources/*, musical/midi_stream.hpp,
+//             musical/playhead.hpp, musical/train.hpp, musical/musical_ops.hpp.
 
 #include "analysis/analysis_cartridge.hpp"
 #include "analysis/analysis_signal.hpp"
@@ -56,37 +59,34 @@
 namespace t7 {
 namespace polyphony_basic {
 
-// =============================================================================
-// CONSTANTS
-// =============================================================================
+// ═══ CONSTANTS ═══════════════════════════════════════════════════
 
 constexpr int MAX_NAMED_CHANNELS     = 4;
 constexpr int MAX_TRAINS_PER_CHANNEL = 4;
 
-constexpr float ABBOTT_WAGON_SPAN_BEATS   = 4.0f;  // 1 bar in 4/4
-constexpr float ABBOTT_WAGON_PERIOD_BEATS = 1.0f;  // update per beat
+constexpr float TERRITORY_WAGON_SPAN_BEATS   = 4.0f;  // 1 bar in 4/4
+constexpr float TERRITORY_WAGON_PERIOD_BEATS = 1.0f;  // update per beat
 
 constexpr int PROJECT_PC_ORIGIN = 2;  // D (C-origin index of D)
 
-// =============================================================================
-// STAT SLOT DEFINITIONS
-// =============================================================================
+constexpr int PC_COUNT = 12;  // the twelve pitch classes (the basis)
+
+// ═══ STAT SLOT DEFINITIONS ═══════════════════════════════════════
 //
-// This cartridge's output format. Visualization cartridges must know
-// this mapping to interpret the signal.
+// This cartridge's published output format. Visualization cartridges
+// must know this mapping to interpret the signal.
+//
+// The set is the union of the three channels' windowed pitch classes —
+// 12 components stored in channel-0 spare slots (after the lowest-PC
+// one-hot). The name "set" carries its meaning, not the channel.
 
-// Per-channel slot layout (every named channel uses the same layout
-// within its own AnalysisSignal channel)
-constexpr int STAT_POLYPHONY          = 0;   // scalar
-constexpr int STAT_LOWEST_PC_BASE     = 1;   // 12 slots, one-hot of lowest PC
-constexpr int STAT_LOWEST_PC_COUNT    = 12;
-constexpr int STAT_PC_HISTOGRAM_BASE  = 13;  // 12 slots, length-weighted PC histogram
-constexpr int STAT_PC_HISTOGRAM_COUNT = 12;
-constexpr int STAT_TOTAL_LENGTH       = 25;  // scalar: total sounding time in window
+constexpr int STAT_LOWEST_PC_BASE  = 0;   // 12 slots, one-hot of lowest PC
+constexpr int STAT_SET_BASE        = 12;  // 12 slots, union of windowed pcs
+constexpr int STAT_POLYPHONY       = 0;   // scalar (keyboard, channel 3)
 
-// =============================================================================
-// CANVAS - The Analysis Cartridge Implementation
-// =============================================================================
+constexpr int KEYBOARD_INTERNAL_CHANNEL = 3;  // Ableton 4
+
+// ═══ CANVAS — The Analysis Cartridge Implementation ══════════════
 
 class Canvas : public AnalysisCartridge {
 public:
@@ -95,7 +95,7 @@ public:
     Canvas(const Canvas&) = delete;
     Canvas& operator=(const Canvas&) = delete;
 
-    // ─── LIFECYCLE ──────────────────────────────────────────────────────────
+    // ── Lifecycle ────────────────────────────────────────────────
 
     void initialize(const char* asset_path) override {
         clock_.set_bpm(120.0f);
@@ -106,18 +106,26 @@ public:
                       << midi_port_.port_name() << "\n";
         }
 
-        // Register channels (Ableton 1, 2, 3)
+        // Register channels (Ableton 1, 2, 3, 4)
         register_channel("abbott",   1);
         register_channel("costello", 2);
         register_channel("louise",   3);
+        register_channel("keyboard", 4);
 
-        // Configure each Train and attach to its channel
-        setup_abbott_train();
-        setup_costello_train();
-        setup_louise_train();
+        // Configure each Train and attach to its channel.
+        // territory (windowed pcs) on all three musical channels;
+        // reign (lowest one-hot) on abbott and costello only.
+        setup_territory(abbott_train_,   abbott_);
+        setup_reign(abbott_train_,       abbott_);
+        setup_territory(costello_train_, costello_);
+        setup_reign(costello_train_,     costello_);
+        setup_territory(louise_train_,   louise_);
+        setup_keyboard(keyboard_train_);
+
         attach_train("abbott",   &abbott_train_);
         attach_train("costello", &costello_train_);
         attach_train("louise",   &louise_train_);
+        attach_train("keyboard", &keyboard_train_);
 
         // Try to load default MIDI as fallback
         if (asset_path) {
@@ -154,7 +162,7 @@ public:
         prev_beat_ = beat;
     }
 
-    // ─── INPUT ──────────────────────────────────────────────────────────────
+    // ── Input ────────────────────────────────────────────────────
 
     void on_input(const InputEvent& event) override {
         // We only care about key events for musical input
@@ -165,13 +173,13 @@ public:
         }
     }
 
-    // ─── OUTPUT ─────────────────────────────────────────────────────────────
+    // ── Output ───────────────────────────────────────────────────
 
     const AnalysisSignal& output() const override {
         return output_;
     }
 
-    // ─── CONFIGURATION ──────────────────────────────────────────────────────
+    // ── Configuration ────────────────────────────────────────────
 
     /**
      * Load a MIDI file as a source.
@@ -203,14 +211,16 @@ public:
     const Clock& clock() const { return clock_; }
 
     // Single source of truth for this cartridge's slot map and shapes.
-    // Consumed by the_lab; supersedes the prose OUTPUT FORMAT comment.
+    // Consumed by the_lab; supersedes the prose output-format comment.
+    //
+    // Only the set is published as the shared field; the two lowest-PC
+    // one-hots are published per channel (their election is deferred to
+    // the bridge). The per-channel windowed reads stay internal.
     static constexpr StatGroup STAT_LAYOUT[] = {
-        { "abbott.polyphony",    0, STAT_POLYPHONY,          1,                       StatShape::Scalar },
-        { "abbott.lowest_pc",    0, STAT_LOWEST_PC_BASE,     STAT_LOWEST_PC_COUNT,    StatShape::Vector },
-        { "abbott.pc_histogram", 0, STAT_PC_HISTOGRAM_BASE,  STAT_PC_HISTOGRAM_COUNT, StatShape::Vector },
-        { "abbott.total_length", 0, STAT_TOTAL_LENGTH,       1,                       StatShape::Scalar },
-        { "costello.polyphony",  1, STAT_POLYPHONY,          1,                       StatShape::Scalar },
-        { "louise.polyphony",    2, STAT_POLYPHONY,          1,                       StatShape::Scalar },
+        { "abbott.lowest_pc",   0, STAT_LOWEST_PC_BASE, PC_COUNT, StatShape::Vector },
+        { "costello.lowest_pc", 1, STAT_LOWEST_PC_BASE, PC_COUNT, StatShape::Vector },
+        { "set",                0, STAT_SET_BASE,       PC_COUNT, StatShape::Vector },
+        { "keyboard.polyphony", 3, STAT_POLYPHONY,      1,        StatShape::Scalar },
     };
     static constexpr int STAT_LAYOUT_COUNT =
         sizeof(STAT_LAYOUT) / sizeof(STAT_LAYOUT[0]);
@@ -224,7 +234,7 @@ public:
     }
 
 private:
-    // ─── CHANNEL INSTANCE ───────────────────────────────────────────────────
+    // ── Channel Instance ─────────────────────────────────────────
     //
     // One per registered name. Owns its MidiStream; holds non-owning
     // pointers to attached Trains (the Trains themselves are owned by
@@ -245,7 +255,20 @@ private:
         }
     };
 
-    // ─── REGISTRATION API ───────────────────────────────────────────────────
+    // ── Reading Stats ────────────────────────────────────────────
+    //
+    // The stat-ids for one musical channel's reading: the windowed
+    // territory (per-pitch-class length, intermediate — feeds the set)
+    // and the reign (lowest-PC one-hot, published per channel). A
+    // territory-only channel (louise) leaves the reign ids unset.
+
+    struct ReadingStats {
+        std::array<TrainStatId, PC_COUNT> territory{};  // wagon_pc_length per pc
+        std::array<TrainStatId, PC_COUNT> reign{};      // lowest one-hot per pc
+        bool has_reign = false;
+    };
+
+    // ── Registration API ─────────────────────────────────────────
 
     /**
      * Register a named channel. Ableton channels are 1-indexed
@@ -287,92 +310,90 @@ private:
         return nullptr;
     }
 
-    // ─── TIME ───────────────────────────────────────────────────────────────
+    // ── Time ─────────────────────────────────────────────────────
     Clock clock_;
     float prev_beat_ = 0.0f;
 
-    // ─── SOURCES ────────────────────────────────────────────────────────────
+    // ── Sources ──────────────────────────────────────────────────
     MidiFile midi_file_;
     bool midi_loaded_ = false;
-    KeyboardMidi keyboard_{ 0, 100 };  // channel 0, max 100 events
+    KeyboardMidi keyboard_{ KEYBOARD_INTERNAL_CHANNEL, 100 };  // Ableton 4, max 100 events
     MidiPort midi_port_;
 
-    // DEBUG AID — computer keyboard as MIDI into abbott (channel 0).
-    // Toggle at runtime via set_keyboard_enabled(); delete this flag,
-    // keyboard_, route_keyboard_events(), and on_music_key_* together
-    // when the prototype ships.
+    // DEBUG AID — computer keyboard as MIDI into the keyboard channel
+    // (internal 3). Toggle at runtime via set_keyboard_enabled(); delete
+    // this flag, keyboard_, the keyboard channel/Train, route_keyboard_
+    // events(), and on_music_key_* together when the prototype ships.
     bool keyboard_enabled_ = true;
 
-    // ─── CHANNELS + TRAINS ──────────────────────────────────────────────────
+    // ── Channels + Trains ────────────────────────────────────────
     std::array<ChannelInstance, MAX_NAMED_CHANNELS> channels_;
     int channel_count_ = 0;
+
+    // ═══ CURRENT — the reading ═══════════════════════════════════
+    //
+    // territory (windowed pcs) on all three musical channels; reign
+    // (lowest one-hot) on abbott and costello. The set is the union of
+    // the three territories, assembled in finalize_output.
 
     Train abbott_train_;
     Train costello_train_;
     Train louise_train_;
-    TrainStatId abbott_polyphony_stat_;
-    TrainStatId costello_polyphony_stat_;
-    TrainStatId louise_polyphony_stat_;
-    std::array<TrainStatId, STAT_LOWEST_PC_COUNT> abbott_lowest_pc_stats_;
-    std::array<TrainStatId, STAT_PC_HISTOGRAM_COUNT> abbott_pc_histogram_stats_;
-    TrainStatId abbott_total_length_stat_;
+    ReadingStats abbott_;
+    ReadingStats costello_;
+    ReadingStats louise_;
 
-    // ─── OUTPUT ─────────────────────────────────────────────────────────────
+    // ── Output ───────────────────────────────────────────────────
     AnalysisSignal output_;
 
-    // ─── TRAIN SETUP ────────────────────────────────────────────────────────
+    // ── Train Setup (current reading) ────────────────────────────
 
-    void setup_abbott_train() {
-        int ph = abbott_train_.add_playhead();
-        abbott_polyphony_stat_ = abbott_train_.define(
-            [ph](const TrainContext& ctx) {
-                return float(playhead_polyphony(ctx.playhead(ph)));
-            });
-
-        for (int pc = 0; pc < STAT_LOWEST_PC_COUNT; ++pc) {
-            abbott_lowest_pc_stats_[pc] = abbott_train_.define(
-                [ph, pc](const TrainContext& ctx) -> float {
-                    return playhead_lowest_pc_one_hot_current(ctx.playhead(ph), pc, PROJECT_PC_ORIGIN);
-                });
-        }
-
-        int wg = abbott_train_.add_wagon(
-            ABBOTT_WAGON_SPAN_BEATS,
+    // Territory: the windowed pitch classes (length-weighted per pc,
+    // D-relative). Intermediate — its presence feeds the set; the
+    // per-class lengths are not published.
+    void setup_territory(Train& train, ReadingStats& stats) {
+        int wg = train.add_wagon(
+            TERRITORY_WAGON_SPAN_BEATS,
             0.0f,
             false,
             false,
-            ABBOTT_WAGON_PERIOD_BEATS);
+            TERRITORY_WAGON_PERIOD_BEATS);
 
-        for (int pc = 0; pc < STAT_PC_HISTOGRAM_COUNT; ++pc) {
-            abbott_pc_histogram_stats_[pc] = abbott_train_.define(
+        for (int pc = 0; pc < PC_COUNT; ++pc) {
+            stats.territory[pc] = train.define(
                 [wg, pc](const TrainContext& ctx) -> float {
                     return wagon_pc_length(ctx.wagon(wg), pc, PROJECT_PC_ORIGIN);
                 });
         }
-
-        abbott_total_length_stat_ = abbott_train_.define(
-            [wg](const TrainContext& ctx) -> float {
-                return wagon_total_length(ctx.wagon(wg));
-            });
     }
 
-    void setup_costello_train() {
-        int ph = costello_train_.add_playhead();
-        costello_polyphony_stat_ = costello_train_.define(
+    // Reign: the lowest sounding note as a one-hot choice out of twelve
+    // (D-relative). Published per channel.
+    void setup_reign(Train& train, ReadingStats& stats) {
+        int ph = train.add_playhead();
+        for (int pc = 0; pc < PC_COUNT; ++pc) {
+            stats.reign[pc] = train.define(
+                [ph, pc](const TrainContext& ctx) -> float {
+                    return playhead_lowest_pc_one_hot_current(ctx.playhead(ph), pc, PROJECT_PC_ORIGIN);
+                });
+        }
+        stats.has_reign = true;
+    }
+
+    // ═══ LEGACY / DEBUG — polyphony ══════════════════════════════
+
+    TrainStatId keyboard_polyphony_stat_;
+    Train keyboard_train_;
+
+    void setup_keyboard(Train& train) {
+        int ph = train.add_playhead();
+        keyboard_polyphony_stat_ = train.define(
             [ph](const TrainContext& ctx) {
                 return float(playhead_polyphony(ctx.playhead(ph)));
             });
     }
 
-    void setup_louise_train() {
-        int ph = louise_train_.add_playhead();
-        louise_polyphony_stat_ = louise_train_.define(
-            [ph](const TrainContext& ctx) {
-                return float(playhead_polyphony(ctx.playhead(ph)));
-            });
-    }
-
-    // ─── EVENT ROUTING ──────────────────────────────────────────────────────
+    // ── Event Routing ────────────────────────────────────────────
 
     void route_midi_port_events(float beat) {
         if (!midi_port_.is_open()) return;
@@ -422,7 +443,7 @@ private:
         }
     }
 
-    // ─── KEYBOARD INPUT ─────────────────────────────────────────────────────
+    // ── Keyboard Input ───────────────────────────────────────────
 
     void on_music_key_down(char key) {
         if (key >= 'A' && key <= 'Z') {
@@ -440,31 +461,40 @@ private:
         }
     }
 
-    // ─── OUTPUT FINALIZATION ────────────────────────────────────────────────
+    // ── Output Finalization ──────────────────────────────────────
+    //
+    // Each cycle: write abbott/costello lowest one-hots; assemble the
+    // set as the union of the three windowed territories (active basis
+    // vectors — 1.0 if a pitch class sounds in ANY window, else 0.0);
+    // write keyboard polyphony. The set's lossy compression is the
+    // closing step, after every channel has been read.
 
     void finalize_output() {
         output_.t_seconds = clock_.t_seconds();
         output_.t_beats   = clock_.t_beats();
         output_.dt        = clock_.dt();
 
-        output_.set_stat(0, STAT_POLYPHONY,
-                         abbott_train_.get(abbott_polyphony_stat_));
-        output_.set_stat(1, STAT_POLYPHONY,
-                         costello_train_.get(costello_polyphony_stat_));
-        output_.set_stat(2, STAT_POLYPHONY,
-                         louise_train_.get(louise_polyphony_stat_));
-
-        for (int pc = 0; pc < STAT_LOWEST_PC_COUNT; ++pc) {
+        // Reign: lowest-PC one-hots, published per channel (D-relative).
+        for (int pc = 0; pc < PC_COUNT; ++pc) {
             output_.set_stat(0, STAT_LOWEST_PC_BASE + pc,
-                             abbott_train_.get(abbott_lowest_pc_stats_[pc]));
+                             abbott_train_.get(abbott_.reign[pc]));
+            output_.set_stat(1, STAT_LOWEST_PC_BASE + pc,
+                             costello_train_.get(costello_.reign[pc]));
         }
 
-        for (int pc = 0; pc < STAT_PC_HISTOGRAM_COUNT; ++pc) {
-            output_.set_stat(0, STAT_PC_HISTOGRAM_BASE + pc,
-                             abbott_train_.get(abbott_pc_histogram_stats_[pc]));
+        // The set: union of the three windowed territories. A pitch class
+        // is in play if its windowed length is nonzero in ANY channel.
+        for (int pc = 0; pc < PC_COUNT; ++pc) {
+            bool present =
+                abbott_train_.get(abbott_.territory[pc])     > 0.0f ||
+                costello_train_.get(costello_.territory[pc]) > 0.0f ||
+                louise_train_.get(louise_.territory[pc])     > 0.0f;
+            output_.set_stat(0, STAT_SET_BASE + pc, present ? 1.0f : 0.0f);
         }
-        output_.set_stat(0, STAT_TOTAL_LENGTH,
-                         abbott_train_.get(abbott_total_length_stat_));
+
+        // Legacy debug: keyboard polyphony.
+        output_.set_stat(KEYBOARD_INTERNAL_CHANNEL, STAT_POLYPHONY,
+                         keyboard_train_.get(keyboard_polyphony_stat_));
     }
 };
 
