@@ -3183,14 +3183,19 @@ namespace t7 {
                         player_.readback_portal_trigger = -1;
                         player_.readback_x = 0.0f;
                         player_.readback_z = 0.0f;
-                        // Preserve the player's tier across mood transitions.
-                        // Body identity (tier) is a property of the player, not
-                        // the old mood — possessing a Scout and stepping through
-                        // a portal should leave you as a Scout on the other side.
-                        // Everything else about the body resets to idle defaults.
+                        // Preserve the player's tier AND body color across mood
+                        // transitions. Both are part of the player's identity, not
+                        // the old mood — possessing a Scout (in some palette color)
+                        // and stepping through a portal should leave you a Scout in
+                        // that same color on the other side. Everything else about
+                        // the body resets to idle defaults.
                         uint32_t preserved_tier = agent_state_.slots[player_.possessed_slot].tier_idx;
+                        float preserved_color_r = agent_state_.slots[player_.possessed_slot].color_r;
+                        float preserved_color_g = agent_state_.slots[player_.possessed_slot].color_g;
+                        float preserved_color_b = agent_state_.slots[player_.possessed_slot].color_b;
 
-                        gpuState_.reset_player_agent(queue, preserved_tier);
+                        gpuState_.reset_player_agent(queue, preserved_tier,
+                            preserved_color_r, preserved_color_g, preserved_color_b);
                         gpuState_.set_possessed_slot(0);
                         // Keep agent_state_.slots in sync with the GPU reset so
                         // patch streaming + ribbon + Caps Lock see current state.
@@ -3202,6 +3207,9 @@ namespace t7 {
                         agent_state_.slots[0].is_active = 1u;
                         agent_state_.slots[0].behavior_id = AGENT_BEHAVIOR_PLAYER_CONTROLLED;
                         agent_state_.slots[0].tier_idx = preserved_tier;
+                        agent_state_.slots[0].color_r = preserved_color_r;
+                        agent_state_.slots[0].color_g = preserved_color_g;
+                        agent_state_.slots[0].color_b = preserved_color_b;
                         agent_state_.slots[0].portal_trigger = -1;
                         player_.possessed_slot = 0;
                         gpuState_.set_world_seed(world_state_.active_seed);

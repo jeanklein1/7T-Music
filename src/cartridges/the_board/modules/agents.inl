@@ -592,6 +592,15 @@ static void populate_agent_slot_(const AgentState& as,
     out.tier_idx       = tier_idx;
     out.is_active      = 1u;
     out.portal_trigger = -1;
+
+    // Body color — random pick from COLUMN_PALETTE, deterministic from the
+    // agent seed (salt 7u). Resolved CPU-side so the slot carries final RGB
+    // (mirrors how columns upload final color).
+    uint32_t ci = cpu_hash(agent_seed, 7u) % COLUMN_PALETTE_COUNT;
+    out.color_r = COLUMN_PALETTE[ci][0];
+    out.color_g = COLUMN_PALETTE[ci][1];
+    out.color_b = COLUMN_PALETTE[ci][2];
+    out._pad0   = 0.0f;
 }
 
 

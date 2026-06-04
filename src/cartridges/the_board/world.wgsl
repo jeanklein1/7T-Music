@@ -634,7 +634,7 @@ struct TerrainState {
 
 // --- [STATE:agent] AgentState
 //
-// Unified entity state — mirrors GPUAgentState in state.hpp (80 bytes).
+// Unified entity state — mirrors GPUAgentState in state.hpp (96 bytes).
 // Slot 0 is the player's body (possessed at session start); slots 1..31
 // are mood-authored agents driven by AGENT_BEHAVIORS. Scalar fields
 // throughout so WGSL uniform/storage layout matches C++ without vec3
@@ -663,6 +663,10 @@ struct AgentState {
     orient_y: f32,
     orient_z: f32,
     orient_w: f32,
+    color_r: f32,   // per-agent body color (palette pick at spawn; 0 = tier fallback)
+    color_g: f32,
+    color_b: f32,
+    _pad0: f32,
 }
 
 // ═══ AGENT REGISTRIES (read-only uniform buffers) ═══════════════════════
@@ -3851,16 +3855,20 @@ fn pawn_vs(@builtin(vertex_index) vid: u32,
     let rotated_pos = quat_rotate(pawn_q, local_pos * active_f);
     let rotated_normal = quat_rotate(pawn_q, local_normal);
 
-    // Tier color — body identity (the player's tier is whatever slot
-    // they currently inhabit; tier_idx is set at spawn / possession).
+    // Body color — per-agent palette pick (resolved CPU-side at spawn and
+    // carried per-instance). The per-tier color is the fallback when a slot
+    // carries no per-agent color (all-zero) — e.g. the never-possessed player.
     let tier = min(agent.tier_idx, AGENT_TIER_COUNT_WGSL - 1u);
     let tg = agent_tier_gains[tier];
+    let agent_color = vec3(agent.color_r, agent.color_g, agent.color_b);
+    let body_color = select(vec3(tg.color_r, tg.color_g, tg.color_b),
+                            agent_color, any(agent_color > vec3(0.0)));
 
     var out: EntityVarying;
     out.clip_pos = render_vp.m * vec4(rotated_pos + pawn_p, 1.0);
     out.world_pos = rotated_pos + pawn_p;
     out.normal = rotated_normal;
-    out.entity_color = vec3(tg.color_r, tg.color_g, tg.color_b);
+    out.entity_color = body_color;
     return out;
 }
 

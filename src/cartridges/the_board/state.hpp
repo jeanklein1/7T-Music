@@ -527,7 +527,11 @@ namespace t7 {
             float orient_y;        // 68
             float orient_z;        // 72
             float orient_w;        // 76
-        };                         // 80 total
+            float color_r;         // 80 — per-agent body color (palette pick at spawn)
+            float color_g;         // 84
+            float color_b;         // 88
+            float _pad0;           // 92
+        };                         // 96 total
 
         // ─── Agent registry GPU structs ──────────────────────────────
         //
@@ -1385,7 +1389,7 @@ namespace t7 {
             "GPUPortalArray layout check");
         static_assert(sizeof(GPUTrajectory) == 16, "GPUTrajectory must be 16 bytes");
         static_assert(sizeof(GPUTerrainState) == 32, "GPUTerrainState must be 32 bytes");
-        static_assert(sizeof(GPUAgentState) == 80, "GPUAgentState must be 80 bytes");
+        static_assert(sizeof(GPUAgentState) == 96, "GPUAgentState must be 96 bytes");
         static_assert(sizeof(GPUAgentState) % 16 == 0, "GPUAgentState must be 16-byte aligned");
         static_assert(sizeof(GPUAgentBehaviorDef) == 32, "GPUAgentBehaviorDef must be 32 bytes");
         static_assert(sizeof(GPUAgentBehaviorDef) % 16 == 0, "GPUAgentBehaviorDef must be 16-byte aligned");
@@ -2158,8 +2162,11 @@ namespace t7 {
             // player inhabits is part of their identity, not a property
             // of the old mood. Caller passes the desired tier (typically
             // the tier of whatever slot the player was in at teardown).
-            // Defaults to Worker for initial session spawn.
-            void reset_player_agent(wgpu::Queue& queue, uint32_t tier_idx = 0u) {
+            // Defaults to Worker for initial session spawn. color_r/g/b carry
+            // the player's body color the same way; 0 means "no per-agent
+            // color", which the pawn shader resolves to the tier color.
+            void reset_player_agent(wgpu::Queue& queue, uint32_t tier_idx = 0u,
+                                    float color_r = 0.0f, float color_g = 0.0f, float color_b = 0.0f) {
                 GPUAgentState buf[Dim::MAX_AGENTS] = {};
                 auto& p = buf[0];
                 p.pos_x = Idle::PAWN_POS_X;
@@ -2174,6 +2181,9 @@ namespace t7 {
                 p.behavior_id = 0u;  // AGENT_BEHAVIOR_PLAYER_CONTROLLED
                 p.tier_idx = tier_idx;
                 p.portal_trigger = -1;
+                p.color_r = color_r;
+                p.color_g = color_g;
+                p.color_b = color_b;
                 queue.WriteBuffer(agentStateBuffer_, 0, buf, sizeof(buf));
             }
             // Upload the full 32-slot agent array. Slot 0 (player) is rewritten
