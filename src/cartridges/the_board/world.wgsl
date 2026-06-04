@@ -1561,8 +1561,9 @@ const SPHERE_MIN_TERRAIN_CLEARANCE: f32 = 5.0;
 // Cubes bob and now drift via Phase-3 behaviors; the drift integrator
 // can pull pos below ground if a behavior pushes drift.y negative
 // faster than the spring restores it. update_cube clamps drift.y from
-// below to keep pos.y at least this far above local ground.
-const CUBE_TERRAIN_CLEARANCE: f32 = 1.0;
+// below to keep the cube's base (center minus half-height) at least this
+// far above local ground.
+const CUBE_TERRAIN_CLEARANCE: f32 = 3.0;
 
 // Bindings 21 and 40 reserved (currently unused — kept open for
 // future cell-system features).
@@ -6390,16 +6391,17 @@ fn update_cube() {
             // pawn, drift.xz overlays on top, pos.xz is where the cube
             // actually is, ground is queried there.
             //
-            // Clamp drift.y from below such that home.y + drift.y stays
-            // at least CUBE_TERRAIN_CLEARANCE above local ground at
-            // pos.xz. When the clamp engages we kill negative drift_vel.y
+            // Clamp drift.y from below such that the cube's base (center
+            // home.y + drift.y, minus its vertical half-extent) stays at
+            // least CUBE_TERRAIN_CLEARANCE above local ground at pos.xz.
+            // When the clamp engages we kill negative drift_vel.y
             // so the integrator doesn't accumulate downward energy
             // against the floor — when behavior force flips upward the
             // cube responds immediately.
             let pos_xz = vec2(home.x + fe.drift.x, home.z + fe.drift.z);
             let pos_qi = QueryInputs(vec3(pos_xz.x, 0.0, pos_xz.y), signal.t_seconds);
             let ground = query_ground_flyer(pos_xz, pos_qi);
-            let cube_floor_y = ground + CUBE_TERRAIN_CLEARANCE;
+            let cube_floor_y = ground + CUBE_TERRAIN_CLEARANCE + fe.body_radius * fe.aspect_y;
             let min_drift_y = cube_floor_y - home.y;
             if (fe.drift.y < min_drift_y) {
                 fe.drift.y = min_drift_y;

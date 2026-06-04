@@ -116,7 +116,7 @@ static constexpr float CUBE_DEFAULT_DRAG             = 1.5f;   // 1/s,  gentle d
 // Kite mode (F7) doesn't change the radius/duration — it just changes
 // whether the ring is in world or pawn-relative space.
 
-static constexpr float CUBE_CORRAL_RADIUS   = 30.0f;   // ring radius around pawn (world units)
+static constexpr float CUBE_CORRAL_RADIUS   = 120.0f;  // ring radius around pawn (world units)
 static constexpr float CUBE_CORRAL_DURATION = 4.0f;    // glide duration (seconds)
 
 // ─ Diagnostics (coordination cycle) ─────────────────────────────
