@@ -1854,6 +1854,7 @@ const ZONE_SPHERE_TINT_STRENGTH: f32 = 0.5;
 // --- Pawn GoL suppression radii (shared between height_at + extrusion VS)
 const ZONE_SUPPRESS_INNER: f32 = 4.0;   // full suppression inside this radius
 const ZONE_SUPPRESS_OUTER: f32 = 15.0;  // zero suppression beyond this radius
+const ZONE_SUPPRESS_OVERSHOOT: f32 = 1.08;  // suppressed cells settle ~8% of height below terrain
 
 // --- [COUPLING:cells→terrain:height]
 const PIER_TOTAL: u32 = 68u;
@@ -2656,7 +2657,7 @@ fn query_ground_walker(xz: vec2<f32>, qi: QueryInputs) -> f32 {
     let gol = contrib_gol_zones_at(xz);
     let d = distance(xz, qi.consumer_pos.xz);
     let supp_factor = 1.0 - smoothstep(ZONE_SUPPRESS_INNER, ZONE_SUPPRESS_OUTER, d);
-    h += gol * (1.0 - supp_factor);
+    h += gol * (1.0 - supp_factor * ZONE_SUPPRESS_OVERSHOOT);
 
     h += contrib_terrain_waves_at(xz);
     h += contrib_radial_pulses_at(xz, qi.t_seconds);
@@ -2703,7 +2704,7 @@ fn query_ground_walker_tilt(xz: vec2<f32>, qi: QueryInputs) -> f32 {
 // preceding commit). Same supp_factor applied to GoL here.
 //
 // Shape of the return vec2:
-//   .x = walker      = tilt + pawn_aura_self − gol * supp_factor
+//   .x = walker      = tilt + pawn_aura_self − gol * supp_factor * ZONE_SUPPRESS_OVERSHOOT
 //   .y = walker_tilt = base + pyramids + gol + waves + pulses
 fn query_ground_walker_pair(xz: vec2<f32>, qi: QueryInputs) -> vec2<f32> {
     // Shared 5-contributor tilt base.
@@ -2719,7 +2720,7 @@ fn query_ground_walker_pair(xz: vec2<f32>, qi: QueryInputs) -> vec2<f32> {
     // GoL suppression (inlined, reusing the same `gol` value).
     let d = distance(xz, qi.consumer_pos.xz);
     let supp_factor = 1.0 - smoothstep(ZONE_SUPPRESS_INNER, ZONE_SUPPRESS_OUTER, d);
-    let walker = tilt + contrib_pawn_aura_at_self() - gol * supp_factor;
+    let walker = tilt + contrib_pawn_aura_at_self() - gol * supp_factor * ZONE_SUPPRESS_OVERSHOOT;
 
     return vec2(walker, tilt);
 }
@@ -7201,7 +7202,7 @@ fn zone_extrusion_vs(
     let pawn_dist = distance(pos.xz, pawn_xz);
     let suppression = 1.0 - smoothstep(ZONE_SUPPRESS_INNER, ZONE_SUPPRESS_OUTER, pawn_dist);
     if (suppression > 0.001) {
-        world_pos.y = mix(pos.y, ground_target, suppression);
+        world_pos.y = mix(pos.y, ground_target, suppression * ZONE_SUPPRESS_OVERSHOOT);
     }
 
     var out: ZoneExtrusionVarying;
