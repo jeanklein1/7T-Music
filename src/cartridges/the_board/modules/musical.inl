@@ -451,11 +451,12 @@ static void reset_musical_couplings(MusicalState& ms, Cartridge* c, wgpu::Queue&
 // shadow drift that would feel uncanny.
 //
 //   effective_azimuth = mood_azimuth + sin(phase) × MAX_SWING
-//   phase += dt × ORBITAL_RATE × (1 + polyphony × ORBITAL_GAIN)
+//   phase += dt × ORBITAL_RATE × (polyphony × ORBITAL_GAIN)
 //
-// At full polyphony the rate is ~3× baseline, so a full half-swing
-// (zero → max) takes about 1.7s; at silence it takes 5s. This tunes
-// to "the sun is alive but never flighty."
+// Advance is proportional to polyphony only — at full polyphony a
+// full half-swing (zero → max) takes about 2.6s; at silence the
+// phase holds, so the sun stays put. This tunes to "the sun is
+// alive but never flighty."
 static constexpr float SUN_ORBITAL_RATE  = 0.3f;   // rad/s baseline phase rate
 static constexpr float SUN_ORBITAL_GAIN  = 2.0f;   // multiplier from polyphony
 static constexpr float SUN_MAX_SWING     = 0.785f; // ~45° from baseline (in radians)
@@ -473,7 +474,7 @@ static void tick_sun_coupling(MoodState& mds, Cartridge* c, float polyphony, flo
     const float poly_norm = std::min(polyphony / MMODE_POLYPHONY_FULL, 1.0f);
 
     // Accumulate phase
-    mds.sun_orbit_phase += dt * SUN_ORBITAL_RATE * (1.0f + poly_norm * SUN_ORBITAL_GAIN);
+    mds.sun_orbit_phase += dt * SUN_ORBITAL_RATE * (poly_norm * SUN_ORBITAL_GAIN);
 
     // Wrap to keep float precision
     if (mds.sun_orbit_phase > 2.0f * 3.14159265358979f) mds.sun_orbit_phase -= 2.0f * 3.14159265358979f;

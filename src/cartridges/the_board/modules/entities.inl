@@ -201,15 +201,18 @@ static constexpr uint32_t COLUMN_TIER_COUNT = static_cast<uint32_t>(ColumnTier::
 
 // ── Color Palette ────────────────────────────────────────────────
 static constexpr float COLUMN_PALETTE[][3] = {
-    { 0.82f, 0.80f, 0.78f },   // 0: light grey stone
-    { 0.88f, 0.83f, 0.72f },   // 1: warm limestone (cream/ivory)
-    { 0.55f, 0.58f, 0.63f },   // 2: cool blue-grey slate
-    { 0.72f, 0.45f, 0.32f },   // 3: terracotta / burnt sienna
-    { 0.90f, 0.87f, 0.82f },   // 4: weathered marble (off-white, subtle warmth)
-    { 0.35f, 0.33f, 0.32f },   // 5: dark basalt
-    { 0.52f, 0.58f, 0.48f },   // 6: mossy green-grey
+    { 0.937f, 0.902f, 0.831f },   // 0: sand      #EFE6D4
+    { 0.882f, 0.827f, 0.714f },   // 1: bone      #E1D3B6
+    { 0.129f, 0.118f, 0.110f },   // 2: ink       #211E1C
+    { 0.353f, 0.333f, 0.298f },   // 3: ink-soft  #5A554C
+    { 0.431f, 0.608f, 0.753f },   // 4: sky       #6E9BC0
+    { 0.863f, 0.596f, 0.482f },   // 5: coral     #DC987B
+    { 0.878f, 0.635f, 0.306f },   // 6: gold      #E0A24E
+    { 0.616f, 0.631f, 0.467f },   // 7: olive     #9DA177
+    { 0.635f, 0.620f, 0.686f },   // 8: lavender  #A29EAF
+    { 0.753f, 0.325f, 0.184f },   // 9: orb       #C0532F
 };
-static constexpr uint32_t COLUMN_PALETTE_COUNT = 7;
+static constexpr uint32_t COLUMN_PALETTE_COUNT = 10;
 static constexpr float COLUMN_SANDSTONE_BASE[3] = { 0.75f, 0.68f, 0.60f };
 static constexpr float COLUMN_SANDSTONE_VARIANCE = 0.04f;
 
