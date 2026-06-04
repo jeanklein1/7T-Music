@@ -451,9 +451,10 @@ struct OrbsState {
     bool     dome_center_initialized = false;
 
     // ── Motion rule + flocking gesture ───────────────────────────
-    // Motion rule refreshes from mood on transition (mood character).
-    // Flock gesture persists across mood transitions (player gesture).
+    // Motion rule and flock gesture are both player-owned: they persist
+    // across mood transitions. The rule seeds to Brownian on first run.
     uint32_t current_motion_rule = 0u;
+    bool     motion_rule_initialized = false;  // one-time Brownian seed guard
     // Per-rule gesture indices. Index 2 (Frozen) is vestigial
     // — Frozen has no gestures; cycle_orb_gesture short-circuits. All
     // four indices persist across mood transitions (player state).
@@ -695,7 +696,7 @@ static void log_configure_(const OrbsState& os, const OrbMoodConfig& cfg,
         << " palette=" << ORB_PAL_NAMES[palette_id]
         << " drag=" << eff_drag
         << " noise=" << ORB_NOISE_FLOOR << ".." << os.active_noise_amp
-        << " rule=" << RULE_NAMES[std::min(cfg.motion_rule, 3u)]
+        << " rule=" << RULE_NAMES[std::min(os.current_motion_rule, 3u)]
         << " rot=" << cfg.rotation_speed
         << " orbital=" << eff_orbital_speed
         << " color:"
@@ -743,8 +744,12 @@ static void configure_orbs(OrbsState& os, Cartridge* c, const OrbMoodConfig& cfg
 
     // First-run mood defaults for player-owned state.
     apply_mood_first_run_defaults_(os, cfg);
-    // Motion rule is refreshed from the mood every transition (it IS mood character).
-    os.current_motion_rule = cfg.motion_rule;
+    // Motion rule is player-owned (like the flock gesture): seed once to
+    // Brownian, then leave it — mood transitions no longer overwrite it.
+    if (!os.motion_rule_initialized) {
+        os.current_motion_rule = ORB_RULE_BROWNIAN;
+        os.motion_rule_initialized = true;
+    }
 
     // Normalize rotation axis on CPU (GPU renormalizes too but this
     // keeps uploaded values unit-length to avoid surprises).
@@ -769,7 +774,7 @@ static void configure_orbs(OrbsState& os, Cartridge* c, const OrbMoodConfig& cfg
     gpuCfg.dt = 0.0f;
     gpuCfg.t_seconds = 0.0f;
     gpuCfg.force_radial = 0.0f;
-    gpuCfg.motion_rule = cfg.motion_rule;
+    gpuCfg.motion_rule = os.current_motion_rule;
     gpuCfg.rotation_speed = cfg.rotation_speed;
     gpuCfg.rotation_axis_x = rx;
     gpuCfg.rotation_axis_y = ry;
@@ -805,7 +810,7 @@ static void configure_orbs(OrbsState& os, Cartridge* c, const OrbMoodConfig& cfg
         cfg.rule_drag_brownian, cfg.rule_drag_orbital,
         cfg.rule_drag_frozen, cfg.rule_drag_flocking);
 
-    os.flock_active = (cfg.motion_rule == 3u);
+    os.flock_active = (os.current_motion_rule == ORB_RULE_FLOCKING);
 
     c->gpuState_.upload_orb_config(queue, gpuCfg);
     os.init_pending = true;
@@ -1189,10 +1194,10 @@ static void render_orbs(OrbsState& os, Cartridge* c, wgpu::RenderPassEncoder& pa
 //
 //                                              en     n    hueB   hueV   bri    drg   nz      rul  rotS    rotAxis                  orbS  pal  pul    cnv    srg    hct    anc    trs           sepR   alnR    cohR    sepW   alnW   cohW   maxS   gst  drgB  drgO  drgF  drgK
 static constexpr OrbMoodConfig ORB_MOOD_TABLE[MOOD_COUNT] = {
-    /* 0 open_default        */ {  true,  128, 0.08f, 0.06f, 0.85f, 0.4f, 20.0f,  0u,  0.012f, {0.15f, 0.97f, 0.10f},  0.0f, 0u,  true,  true,  true,  0.12f, false, 0u,           50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
+    /* 0 open_default        */ {  true,  128, 0.08f, 0.06f, 0.85f, 0.4f, 20.0f,  0u,  0.012f, {0.15f, 0.97f, 0.10f},  0.0f, 0u,  true,  true,  true,  0.12f, true,  0u,           50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
     /* 1 open_sunset         */ {  true,  128, 0.08f, 0.06f, 0.85f, 0.4f, 20.0f,  3u,  0.012f, {0.15f, 0.97f, 0.10f},  0.0f, 0u,  true,  false, false, 0.08f, false, 0u,           50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
     /* 2 indoor_flat         */ {  false, 0,   0.08f, 0.05f, 0.80f, 0.5f, 0.0f,   0u,  0.000f, {0.00f, 1.00f, 0.00f},  0.0f, 0u,  false, false, false, 0.12f, false, 0xFFFFFFFFu,  50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
     /* 3 indoor_vault        */ {  false, 0,   0.08f, 0.05f, 0.80f, 0.5f, 0.0f,   0u,  0.000f, {0.00f, 1.00f, 0.00f},  0.0f, 0u,  false, false, false, 0.12f, false, 0xFFFFFFFFu,  50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
-    /* 4 finite_outdoor      */ {  true,  128, 0.08f, 0.06f, 0.85f, 0.4f, 20.0f,  0u,  0.012f, {0.15f, 0.97f, 0.10f},  0.0f, 0u,  true,  true,  true,  0.12f, false, 0u,           50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
-    /* 5 finite_outdoor_ref  */ {  true,  128, 0.08f, 0.06f, 0.85f, 0.4f, 20.0f,  0u,  0.012f, {0.15f, 0.97f, 0.10f},  0.0f, 0u,  true,  true,  true,  0.12f, false, 0u,           50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
+    /* 4 finite_outdoor      */ {  true,  128, 0.08f, 0.06f, 0.85f, 0.4f, 20.0f,  0u,  0.012f, {0.15f, 0.97f, 0.10f},  0.0f, 0u,  true,  true,  true,  0.12f, true,  0u,           50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
+    /* 5 finite_outdoor_ref  */ {  true,  128, 0.08f, 0.06f, 0.85f, 0.4f, 20.0f,  0u,  0.012f, {0.15f, 0.97f, 0.10f},  0.0f, 0u,  true,  true,  true,  0.12f, true,  0u,           50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
 };
