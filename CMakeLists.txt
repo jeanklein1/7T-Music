@@ -676,6 +676,26 @@ source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/src/analysis/${INCUBATOR_ANALYSIS
     FILES ${LAB_ANALYSIS_HEADERS}
 )
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# ── PROBE — headless reading check (RtMidi only; no Dawn, no ImGui) ──
+# ═══════════════════════════════════════════════════════════════════════════════
+#   cmake --build . --target probe
+#   ./probe            (opens first "loopMIDI" port)
+#   ./probe 0          (opens port index 0)
+add_executable(probe
+    src/dev/probe.cpp
+    src/external/RtMidi.cpp
+)
+target_include_directories(probe PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/dev    # reworked musical/ views shadow the old ones
+    ${CMAKE_SOURCE_DIR}/src        # shared substrate, sources/, core/
+)
+if(MSVC)
+    target_compile_options(probe PRIVATE ${MSVC_COMPILE_OPTS})
+    target_compile_definitions(probe PRIVATE ${MSVC_COMPILE_DEFS})  # __WINDOWS_MM__ for RtMidi
+    target_link_libraries(probe PRIVATE winmm)                      # RtMidi's WinMM backend
+endif()
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # MAIN TARGET — Full program with all cartridges
