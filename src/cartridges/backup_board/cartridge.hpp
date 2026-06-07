@@ -2,6 +2,9 @@
 
 // ─── cartridge.hpp ───────────────────────────────────────────────
 //
+// BACKUP_BOARD — frozen copy of the_board (pre-coupling-strip reference).
+//   A live, selectable second cartridge in its own namespace; kept as an
+//   A/B baseline against the the_board refactor. Original banner below.
 // THE_BOARD — Generative world engine. CPU orchestration spine.
 // See world.wgsl for GPU-side (single source of truth).
 //
@@ -85,8 +88,8 @@
 
 #include "render/render_cartridge.hpp"
 #include "core/input_event.hpp"
-#include "cartridges/the_board/state.hpp"
-#include "cartridges/the_board/renderer.hpp"
+#include "cartridges/backup_board/state.hpp"
+#include "cartridges/backup_board/renderer.hpp"
 #include "musical/trajectory.hpp"
 #include <cmath>
 #include <cstring>
@@ -103,7 +106,7 @@
 #include "external/stb_image.h"
 
 namespace t7 {
-    namespace the_board {
+    namespace backup_board {
 
         class Cartridge : public RenderCartridge {
 
@@ -4210,5 +4213,5 @@ namespace t7 {
 
         };
 
-    } // namespace the_board
+    } // namespace backup_board
 } // namespace t7/

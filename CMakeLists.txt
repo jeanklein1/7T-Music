@@ -243,6 +243,10 @@ dawn_lib(LIB_SPIRV_TOOLS_OPT    "third_party/spirv-tools/source/opt/Debug/SPIRV-
 #   Render cartridges:   src/cartridges/<name>/cartridge.hpp
 #   Analysis cartridges: src/analysis/<name>/canvas.hpp
 #
+#   Available render cartridges: the_chord, the_board, backup_board
+#     backup_board = frozen copy of the_board (pre-coupling-strip A/B baseline).
+#     e.g.  cmake -B build -DINCUBATOR_DUAL_RENDER_CARTRIDGE=backup_board
+#
 # Set INCUBATOR_ONLY=ON during development to hide the main target entirely.
 # The main target pulls ALL cartridges and pollutes IntelliSense.
 

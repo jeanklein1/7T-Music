@@ -1,6 +1,7 @@
 #pragma once
 
-// THE_BOARD CARTRIDGE — GPU State Management (Rasterized)
+// BACKUP_BOARD CARTRIDGE — GPU State Management (Rasterized)
+//   Frozen copy of the_board; see cartridge.hpp banner.
 // =============================================================
 //
 // CPU/GPU data contract: structs, buffers, textures, bind groups.
@@ -58,7 +59,7 @@
 #include <cmath>
 
 namespace t7 {
-    namespace the_board {
+    namespace backup_board {
 
         // =====================================================================
         // S1 DIMENSIONS — Grid sizes, mesh resolutions, buffer capacities
@@ -5803,5 +5804,5 @@ namespace t7 {
             }
         };
 
-    } // namespace the_board
+    } // namespace backup_board
 } // namespace t7

@@ -1,6 +1,7 @@
 ﻿#pragma once
 
-// THE_BOARD CARTRIDGE -- Renderer (Rasterized)
+// BACKUP_BOARD CARTRIDGE -- Renderer (Rasterized)
+//   Frozen copy of the_board; see cartridge.hpp banner.
 // ==================================================
 //
 // Pipeline management for patch-streaming rasterized rendering.
@@ -32,7 +33,7 @@
 //
 // See world.wgsl for the GPU shader (single source of truth).
 
-#include "cartridges/the_board/state.hpp"
+#include "cartridges/backup_board/state.hpp"
 #include <webgpu/webgpu_cpp.h>
 #include <string>
 #include <fstream>
@@ -46,7 +47,7 @@
 #include <iomanip>
 
 namespace t7 {
-    namespace the_board {
+    namespace backup_board {
 
 
         // =====================================================================
@@ -1331,8 +1332,8 @@ namespace t7 {
                 else {
                     // First load: search for the shader
                     std::array<const char*, 6> paths = {
-                        "../../../src/cartridges/the_board/world.wgsl",
-                        "src/cartridges/the_board/world.wgsl",
+                        "../../../src/cartridges/backup_board/world.wgsl",
+                        "src/cartridges/backup_board/world.wgsl",
                     };
 
                     const char* loadedPath = nullptr;
@@ -1364,7 +1365,7 @@ namespace t7 {
 
                 wgpu::ShaderModuleDescriptor desc{};
                 desc.nextInChain = &wgslSource;
-                desc.label = "world.wgsl (The_Board Cartridge)";
+                desc.label = "world.wgsl (Backup_Board Cartridge)";
 
                 auto tShader0 = std::chrono::high_resolution_clock::now();
                 shaderModule_ = device_.CreateShaderModule(&desc);
@@ -2899,5 +2900,5 @@ namespace t7 {
             }
         };
 
-    } // namespace the_board
+    } // namespace backup_board
 } // namespace t7
