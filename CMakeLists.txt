@@ -761,9 +761,7 @@ source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/src/analysis/${INCUBATOR_ANALYSIS
 # ═══════════════════════════════════════════════════════════════════════════════
 # ── PROBE — headless reading check (RtMidi only; no Dawn, no ImGui) ──
 # ═══════════════════════════════════════════════════════════════════════════════
-#   cmake --build . --target probe
-#   ./probe            (opens first "loopMIDI" port)
-#   ./probe 0          (opens port index 0)
+
 add_executable(probe
     src/dev/probe.cpp
     src/external/RtMidi.cpp
@@ -778,6 +776,17 @@ if(MSVC)
     target_link_libraries(probe PRIVATE winmm)                      # RtMidi's WinMM backend
 endif()
 
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ── PROBE_VECTOR — headless reading check (RtMidi only; no Dawn, no ImGui) ──
+# ═══════════════════════════════════════════════════════════════════════════════
+
+add_executable(probe_vector src/dev/probe_vector.cpp src/external/RtMidi.cpp)
+target_include_directories(probe_vector PRIVATE src/dev src)
+if (MSVC)
+    target_compile_definitions(probe_vector PRIVATE __WINDOWS_MM__)
+    target_link_libraries(probe_vector PRIVATE winmm)
+endif()
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # MAIN TARGET — Full program with all cartridges
