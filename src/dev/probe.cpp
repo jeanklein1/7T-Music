@@ -1,20 +1,21 @@
 // probe.cpp ─────────────────────────────────────────────────────────
 //
-// Reading probe. One rung past midi_monitor: incoming events now feed the
-// real per-channel Context, and we print what the substrate actually sees —
-// the Playhead (present set) when it changes, and once per beat the Wagon's
-// completed-in-window notes. No analysis operations yet; this confirms the
-// substrate reads correctly from live MIDI before layer B is built.
+// DAW-synced reading probe. Incoming events feed the per-channel Context;
+// musical time comes from the DAW, not a local clock — the MidiPort counts
+// MIDI timing-clock pulses (24/quarter) into a beat position, so the Wagon's
+// windows fall on Ableton's beats and a stop freezes them.
 //
-// RtMidi is the only non-header dependency — no Dawn, no ImGui. Adjust the
-// include paths to your tree if needed. Run on the machine with Ableton +
-// loopMIDI:
-//     ./probe            (opens the first "loopMIDI" port)
-//     ./probe 0          (opens port index 0)
+// Three self-identifying line types:
+//   TRANSPORT  the DAW play state + tempo (prints on change)
+//   PLAYHEAD   the present set, @instant
+//   WAGON      completed notes in a window [t0..t1], each with (in-window length)
+//
+// Needs RtMidi. In Ableton, enable this port's Clock/Sync output, then play.
+//   ./probe            (opens first "loopMIDI" port)
+//   ./probe 0          (opens port index 0)
 
 #include "sources/midi_port.hpp"
 #include "sources/midi_event.hpp"
-#include "core/clock.hpp"
 #include "musical/context.hpp"
 
 #include <array>
@@ -29,18 +30,16 @@
 using namespace t7;
 
 static std::string note_name(int midi) {
-    static const char* n[] = { "C","C#","D","D#","E","F","F#","G","G#","A","A#","B" };
+    static const char* n[] = {"C","C#","D","D#","E","F","F#","G","G#","A","A#","B"};
     return std::string(n[((midi % 12) + 12) % 12]) + std::to_string(midi / 12 - 1);
 }
 
-// ── Probe configuration ──────────────────────────────────────────────
-constexpr int   PROBE_CHANNELS = 16;     // one Context per MIDI channel
-constexpr float PROBE_WAGON_SPAN = 4.0f;   // window span, beats (a 4/4 bar)
-constexpr float PROBE_RETENTION = 16.0f;  // completed-history kept, beats
-constexpr float PROBE_BPM = 120.0f; // set to your Ableton tempo
+constexpr int   PROBE_CHANNELS   = 16;
+constexpr float PROBE_WAGON_SPAN = 4.0f;   // window span, beats
+constexpr float PROBE_RETENTION  = 16.0f;  // completed-history kept, beats
 
 int main(int argc, char** argv) {
-    std::cout << std::unitbuf;   // live, line-by-line output
+    std::cout << std::unitbuf;
 
     MidiPort port;
     auto ports = port.enumerate();
@@ -60,13 +59,9 @@ int main(int argc, char** argv) {
         return 1;
     }
     std::cout << "\nListening on: " << port.port_name() << "   (Ctrl-C to stop)\n";
-    std::cout << "  PLAYHEAD  the present, @instant       "
-        "WAGON  a window [t0..t1]; each note carries its (in-window length)\n\n";
+    std::cout << "  PLAYHEAD  present @instant      WAGON  window [t0..t1], notes carry (in-window length)\n";
+    std::cout << "  Waiting for MIDI clock — enable this port's Sync output in Ableton and press play.\n\n";
 
-    Clock clock;
-    clock.set_bpm(PROBE_BPM);   // free-running local clock, not Ableton's transport
-
-    // One Context per channel, each with a single bar-length Wagon.
     std::array<Context, PROBE_CHANNELS> ctx;
     for (int c = 0; c < PROBE_CHANNELS; ++c) {
         ctx[c].set_channel(c);
@@ -74,33 +69,37 @@ int main(int argc, char** argv) {
         ctx[c].add_wagon(PROBE_WAGON_SPAN);
     }
 
-    // Change detection: last printed present-mask, and last wagon size, per channel.
     std::array<PitchBitmask, PROBE_CHANNELS> last_present{};
-    std::array<int, PROBE_CHANNELS> last_wagon{};
-    last_wagon.fill(-1);
-
-    using clk = std::chrono::steady_clock;
-    auto prev = clk::now();
-    int last_beat = -1;
+    bool announced = false;
+    bool last_playing = false;
+    int  last_beat = -1;
     MidiEvent ev[256];
 
     while (true) {
-        const auto now = clk::now();
-        clock.tick(std::chrono::duration<float>(now - prev).count());
-        prev = now;
-        const float beat = clock.t_beats();
+        if (!announced && port.ever_synced()) {
+            announced = true;
+            std::cout << "  -- MIDI clock detected --\n";
+        }
 
-        // Route each event to its channel's Context.
+        const float beat = static_cast<float>(port.beats());
+
         const int n = port.poll(beat, ev, 256);
         for (int i = 0; i < n; ++i) {
             const MidiEvent& e = ev[i];
             if (e.channel < PROBE_CHANNELS) ctx[e.channel].receive(e);
         }
-
-        // Advance every Context: snapshot the present, rebuild the windows.
         for (int c = 0; c < PROBE_CHANNELS; ++c) ctx[c].update(beat);
 
-        // Present set — print on change (never per frame).
+        // TRANSPORT — on play/stop change.
+        if (port.playing() != last_playing) {
+            last_playing = port.playing();
+            char line[64];
+            std::snprintf(line, sizeof line, "TRANSPORT  %-4s  @%-8.2f bpm %.1f",
+                          last_playing ? "play" : "stop", beat, port.bpm());
+            std::cout << line << "\n";
+        }
+
+        // PLAYHEAD — present set, on change.
         for (int c = 0; c < PROBE_CHANNELS; ++c) {
             const PlayheadReadout& ph = ctx[c].playhead();
             const PitchBitmask& m = ph.current_mask;
@@ -109,7 +108,7 @@ int main(int argc, char** argv) {
                 char when[24];
                 std::snprintf(when, sizeof when, "@%.2f", beat);
                 std::cout << "PLAYHEAD  ch" << std::left << std::setw(3) << c
-                    << std::setw(14) << when << std::right;
+                          << std::setw(14) << when << std::right;
                 if (ph.current_count == 0) std::cout << "-";
                 else for (int k = 0; k < ph.current_count; ++k) {
                     if (k) std::cout << ' ';
@@ -120,18 +119,17 @@ int main(int argc, char** argv) {
             }
         }
 
-        // Wagon — once per beat, for any channel whose window is non-empty.
+        // WAGON — once per beat, non-empty windows.
         const int ibeat = static_cast<int>(beat);
         if (ibeat != last_beat) {
             last_beat = ibeat;
             for (int c = 0; c < PROBE_CHANNELS; ++c) {
                 const WagonReadout& wg = ctx[c].wagon(0);
-                if (wg.note_count == 0) { last_wagon[c] = 0; continue; }
-                last_wagon[c] = wg.note_count;
+                if (wg.note_count == 0) continue;
                 char span[32];
                 std::snprintf(span, sizeof span, "[%.1f..%.1f]", wg.window_start, wg.window_end);
                 std::cout << "   WAGON  ch" << std::left << std::setw(3) << c
-                    << std::setw(14) << span << std::right;
+                          << std::setw(14) << span << std::right;
                 for (int k = 0; k < wg.note_count; ++k) {
                     const WindowNote& wn = wg.notes[k];
                     char d[16];
@@ -146,4 +144,4 @@ int main(int argc, char** argv) {
 
         std::this_thread::sleep_for(std::chrono::milliseconds(2));
     }
-}git
+}
