@@ -330,7 +330,7 @@ void clear_input_deltas() {
 void toggle_fpv_mode() {
     player_.fpv_mode = !player_.fpv_mode;
     gpuState_.set_fpv_mode(player_.fpv_mode ? 1 : 0);
-    std::cout << "[the_board] Camera mode: "
+    std::cout << "[backup_board] Camera mode: "
         << (player_.fpv_mode ? "First-Person View" : "Orbit") << std::endl;
 }
 
@@ -340,7 +340,7 @@ void set_render_radius(uint32_t r) {
     if (r == world_state_.active_radius) return;
     world_state_.active_radius = r;
     uint32_t side = 2 * r + 1;
-    std::cout << "[the_board] Render radius: " << r
+    std::cout << "[backup_board] Render radius: " << r
         << " (" << side << "x" << side << " = " << side * side << " patches)" << std::endl;
     // Force full re-evaluation on next frame
     world_state_.last_center_x = INT32_MAX;
