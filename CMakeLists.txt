@@ -245,6 +245,8 @@ dawn_lib(LIB_SPIRV_TOOLS_OPT    "third_party/spirv-tools/source/opt/Debug/SPIRV-
 #
 #   Available render cartridges: the_chord, the_board, backup_board
 #     backup_board = frozen copy of the_board (pre-coupling-strip A/B baseline).
+#     Has its own dedicated target: build 'incubator_backup' to run it
+#     side-by-side with incubator_dual's the_board. Or point any target at it,
 #     e.g.  cmake -B build -DINCUBATOR_DUAL_RENDER_CARTRIDGE=backup_board
 #
 # Set INCUBATOR_ONLY=ON during development to hide the main target entirely.
@@ -258,12 +260,18 @@ set(INCUBATOR_ANALYSIS_CARTRIDGE      "polyphony_basic"  CACHE STRING "Analysis 
 
 set(INCUBATOR_DUAL_RENDER_CARTRIDGE   "the_board"        CACHE STRING "Render cartridge for the 'incubator_dual' target")
 set(INCUBATOR_DUAL_ANALYSIS_CARTRIDGE "polyphony_basic"  CACHE STRING "Analysis cartridge for the 'incubator_dual' target")
+
+# Dedicated A/B target: runs the frozen backup_board alongside incubator_dual's
+# the_board, so the two can be diffed side-by-side during the refactor.
+set(INCUBATOR_BACKUP_RENDER_CARTRIDGE   "backup_board"     CACHE STRING "Render cartridge for the 'incubator_backup' target")
+set(INCUBATOR_BACKUP_ANALYSIS_CARTRIDGE "polyphony_basic"  CACHE STRING "Analysis cartridge for the 'incubator_backup' target")
 option(INCUBATOR_ONLY "Build only incubator targets (cleaner IntelliSense)" ON)
 
 message(STATUS "")
 message(STATUS "Active cartridges:")
 message(STATUS "  incubator      -> render: ${INCUBATOR_RENDER_CARTRIDGE}      analysis: ${INCUBATOR_ANALYSIS_CARTRIDGE}")
 message(STATUS "  incubator_dual -> render: ${INCUBATOR_DUAL_RENDER_CARTRIDGE} analysis: ${INCUBATOR_DUAL_ANALYSIS_CARTRIDGE}")
+message(STATUS "  incubator_backup -> render: ${INCUBATOR_BACKUP_RENDER_CARTRIDGE} analysis: ${INCUBATOR_BACKUP_ANALYSIS_CARTRIDGE}")
 message(STATUS "  Incubator only: ${INCUBATOR_ONLY}")
 message(STATUS "")
 
@@ -601,6 +609,76 @@ source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/src/cartridges/${INCUBATOR_DUAL_R
 source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/src/analysis/${INCUBATOR_DUAL_ANALYSIS_CARTRIDGE}"
     PREFIX "Analysis Cartridge"
     FILES ${DUAL_ANALYSIS_HEADERS}
+)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# INCUBATOR BACKUP — A/B sibling of incubator_dual (runs backup_board)
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Same dual-cartridge harness as incubator_dual (src/incubator_dual.cpp, keyed
+# off INCUBATE_RENDER / INCUBATE_ANALYSIS), wired to the frozen backup_board
+# render cartridge. Lets the pre-strip baseline run side-by-side with the_board
+# without disturbing incubator_dual's slot.
+# Uses INCUBATOR_BACKUP_RENDER_CARTRIDGE and INCUBATOR_BACKUP_ANALYSIS_CARTRIDGE.
+#
+# Build:  cmake --build . --target incubator_backup
+# Run:    ./incubator_backup.exe [optional_midi_file]
+#
+
+# Only the active cartridges' headers → scoped IntelliSense
+file(GLOB_RECURSE BACKUP_RENDER_HEADERS
+    "src/cartridges/${INCUBATOR_BACKUP_RENDER_CARTRIDGE}/*.hpp"
+)
+file(GLOB_RECURSE BACKUP_ANALYSIS_HEADERS
+    "src/analysis/${INCUBATOR_BACKUP_ANALYSIS_CARTRIDGE}/*.hpp"
+)
+
+add_executable(incubator_backup
+    src/incubator_dual.cpp
+    src/external/stb_image.cpp
+    src/external/RtMidi.cpp
+    ${BACKUP_RENDER_HEADERS}
+    ${BACKUP_ANALYSIS_HEADERS}
+)
+
+target_include_directories(incubator_backup PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${DAWN_INCLUDES}
+)
+
+target_link_libraries(incubator_backup PRIVATE ${DAWN_LIBS})
+
+if(MSVC)
+    target_compile_options(incubator_backup PRIVATE ${MSVC_COMPILE_OPTS})
+    target_compile_definitions(incubator_backup PRIVATE
+        ${MSVC_COMPILE_DEFS}
+        INCUBATE_RENDER=${INCUBATOR_BACKUP_RENDER_CARTRIDGE}
+        INCUBATE_ANALYSIS=${INCUBATOR_BACKUP_ANALYSIS_CARTRIDGE}
+    )
+endif()
+
+add_custom_command(TARGET incubator_backup POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/cartridges
+    $<TARGET_FILE_DIR:incubator_backup>/cartridges
+    COMMENT "Copying cartridges for incubator_backup..."
+)
+
+add_custom_command(TARGET incubator_backup POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    ${CMAKE_CURRENT_SOURCE_DIR}/assets
+    $<TARGET_FILE_DIR:incubator_backup>/assets
+    COMMENT "Copying assets for incubator_backup..."
+)
+
+source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/src/cartridges/${INCUBATOR_BACKUP_RENDER_CARTRIDGE}"
+    PREFIX "Render Cartridge"
+    FILES ${BACKUP_RENDER_HEADERS}
+)
+source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/src/analysis/${INCUBATOR_BACKUP_ANALYSIS_CARTRIDGE}"
+    PREFIX "Analysis Cartridge"
+    FILES ${BACKUP_ANALYSIS_HEADERS}
 )
 
 
