@@ -681,19 +681,19 @@ namespace t7 {
             float twist_amp;                                                    // 28
             float color[3];                                                     // 32
             float lateral_amp;                                                  // 44
-            float lateral_cycles;                                               // 48 (unused: propagation-first model derives cycles from speed × travel_time)
-            float lateral_speed;                                                // 52
-            float vertical_amp;                                                 // 56
-            float vertical_cycles;                                              // 60 (unused — see lateral_cycles)
-            float vertical_speed;                                               // 64
-            float twist_cycles;                                                 // 68 (unused)
-            float twist_speed;                                                  // 72
-            uint32_t is_visible;                                                // 76
-            float orientation;                                                  // 80 (heading radians)
-            uint32_t color_mode;                                                // 84
-            float _pad0;                                                        // 88
-            float _pad1;                                                        // 92
-        };                                                                      // 96 total
+            float lateral_freq;                                                 // 48 (rad/s, head oscillation rate)
+            float vertical_amp;                                                 // 52
+            float vertical_freq;                                                // 56
+            float twist_freq;                                                   // 60
+            float propagation_speed;                                            // 64 (world units/s; head→tail trail rate)
+            uint32_t is_visible;                                                // 68
+            float orientation;                                                  // 72 (heading radians)
+            uint32_t color_mode;                                                // 76
+            float _pad0;                                                        // 80
+            float _pad1;                                                        // 84
+            float _pad2;                                                        // 88
+            float _pad3;                                                        // 92
+        };                                                                      // 96 total (mirrors world.wgsl RibbonState)
 
         // Pre-computed per-ring transform (compute pass output, VS + update_world input)
         struct alignas(16) GPURibbonRingTransform {
@@ -5760,14 +5760,14 @@ namespace t7 {
                 ribbon.color[0] = 0.85f;
                 ribbon.color[1] = 0.12f;
                 ribbon.color[2] = 0.08f;
+                // Default (hidden) ribbon — set trail-frame fields directly
+                // (bypasses commit; is_visible=0 so values are placeholders).
                 ribbon.lateral_amp = 2.7f;
-                ribbon.lateral_cycles = 2.0f;
-                ribbon.lateral_speed = 1.1f;
+                ribbon.lateral_freq = 1.1f;
                 ribbon.vertical_amp = 1.7f;
-                ribbon.vertical_cycles = 1.0f;
-                ribbon.vertical_speed = 1.2f;
-                ribbon.twist_cycles = 2.5f;
-                ribbon.twist_speed = 1.0f;
+                ribbon.vertical_freq = 1.2f;
+                ribbon.twist_freq = 1.0f;
+                ribbon.propagation_speed = 40.0f;  // placeholder (hidden ribbon, never drawn)
                 ribbon.is_visible = 0u;  // hidden until spawning system activates one
                 queue.WriteBuffer(ribbonBuffer_, 0, &ribbon, sizeof(ribbon));
 
