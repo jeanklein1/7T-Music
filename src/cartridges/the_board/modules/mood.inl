@@ -666,13 +666,10 @@ void apply_mood_anchor_ribbon(uint32_t mood, wgpu::Queue& queue) {
     plan.orientation    = sel.orientation;
     plan.lateral_amp    = sel.lateral_amp;
     plan.lateral_cycles = sel.lateral_cycles;
-    plan.lateral_speed  = sel.lateral_speed;
     plan.vertical_amp   = sel.vertical_amp;
     plan.vertical_cycles= sel.vertical_cycles;
-    plan.vertical_speed = sel.vertical_speed;
     plan.twist_amp      = sel.twist_amp;
     plan.twist_cycles   = sel.twist_cycles;
-    plan.twist_speed    = sel.twist_speed;
     plan.color_mode     = sel.color_mode;
     std::memcpy(plan.color, sel.color, sizeof(plan.color));
 
