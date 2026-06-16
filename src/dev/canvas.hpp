@@ -14,12 +14,40 @@
 // reads back — which spec, with which windows and memories, on which channel
 // — so the composition is visible before a note flows.
 //
-// The speaking half: the canvas composes an AnalysisSignal and publishes a
-// StatLayout over it. The signal carries the readings as flat float slots; the
-// layout names them — which group sits in which channel's band, at which slot,
-// of what width and shape — and is the whole contract a render side needs (it
-// imports the generic StatGroup, never this header). output() returns the
-// signal, stat_layout() the map.
+// The speaking half is a declared list of published readings. The signal is
+// fixed in size — MAX_CHANNELS bands of STATS_PER_CHANNEL slots — but the
+// layout is the curated surface a render side binds to. The canvas holds the
+// full capability to compute every reading; the published list is the
+// contract, and what runs serves what is published, not the reverse: publish()
+// walks the list, computes each declared reading from its source, and writes it
+// to its address — nothing outside that closure is computed.
+//
+// A published reading names three things: the reading (Field, present_count,
+// …), its source, and its address in the signal. Declaring one — publish_reading
+// — gates two things together, its layout group and its slot-write, so the
+// signal and the layout never disagree about what is present. Two rules hold
+// the slots steady. A reading's slot is canonical (Field is slot 61 whether or
+// not it is published, so opting one in or out never moves another); and a
+// reading may be declared only if the analysis makes it available — the line
+// readings require the spine, the window readings a wagon — so a declaration
+// the spec cannot feed is refused.
+//
+// A source is one channel or a union of channels. A per-channel reading draws
+// from a single channel's views and lands in that channel's band; a group
+// reading draws from the union of several — combined by presence one level out,
+// the same shape feeding the same field machinery untouched — and lands in a
+// reserved band (the last index) carrying cross-channel readings, named without
+// a voice prefix. So a reading can rise: rather than each channel publishing its
+// own, a group publishes one, taken across the texture.
+//
+// The first instance: two voices subscribed (slot 0 ← MIDI 0, slot 1 ← MIDI 1),
+// each a present and a four-beat window with the spine off — the spec pruning
+// what the published set does not ask for. One reading is published: the field,
+// source the union {0, 1}, computed from both voices' present-and-window sets,
+// named `field` in the group band. No per-channel field; the per-channel held
+// fields are never stepped. The other seven readings stay as capability in the
+// modules, computed by nothing this round — each one a single publish_reading
+// away. Every pitch-class vector is re-origined to D; lengths are in beats.
 //
 // The canvas IS an AnalysisCartridge. It owns its MIDI port, opens it in
 // initialize(), and in update(dt) drains the port and advances on the DAW's
@@ -27,19 +55,8 @@
 // t_seconds telemetry, never the musical clock. A render side (the_lab, the
 // console) runs the canvas through the cartridge interface alone: initialize
 // once, update each frame, read output() by stat_layout(). Tests drive the
-// same frame directly through route() and advance(beat), the port dormant.
-//
-// All eight readings flow: the polyphony; the present's content and the
-// present-plus-window content — pitch classes by count and by length; the
-// spine's line — the current note as a one-hot and the signed distance it
-// moved; and the field — which of six declared harmonic fields the music sits
-// in. The first seven are pure reads. The field is the one step: the canvas
-// holds the bank of six masks in hierarchy order and a held field per channel,
-// scores the present-plus-window against the bank once a frame in advance(),
-// and moves the incumbent only when a field strictly out-scores it — holding
-// through ambiguity and silence, and reading the top of the hierarchy until the
-// first field scores. Every pitch-class vector is re-origined to D before it
-// ships; lengths are in beats, the unit the clock already counts, so unscaled.
+// same frame directly through configure(), publish_reading(), route() and
+// advance(beat), the port dormant.
 //
 // A channel here is an analysis slot, 0..MAX_CHANNELS-1, the same channel the
 // signal publishes under. A slot's spec names the MIDI channel it listens to,
@@ -50,7 +67,8 @@
 //             musical/spine_ops.hpp, musical/field.hpp,
 //             musical/vector_dressing.hpp, sources/midi_event.hpp,
 //             sources/midi_port.hpp, analysis/analysis_signal.hpp,
-//             analysis/analysis_cartridge.hpp, <array>, <cstdint>.
+//             analysis/analysis_cartridge.hpp, <array>, <cstdint>,
+//             <initializer_list>.
 
 #include "musical/context.hpp"
 #include "musical/context_spec.hpp"
@@ -66,6 +84,7 @@
 
 #include <array>
 #include <cstdint>
+#include <initializer_list>
 
 namespace t7 {
 
@@ -79,12 +98,19 @@ public:
 
     void initialize(const char* asset_path) override {
         (void)asset_path;   // no asset to load; the DAW is the source
-        // The composition — a placeholder until the composer sets it: one
-        // channel on MIDI 0, with the present, a four-beat window, and the
-        // spine's elected line.
-        ContextSpec s = default_spec(/*midi*/ 0, /*window*/ 4.0f);
-        s.crossings.active = true;
-        configure(0, s);
+        // Two voices: slot 0 reads MIDI channel 0, slot 1 reads MIDI channel 1.
+        // Each keeps the present and a four-beat trailing window; the spine is
+        // left off (default_spec turns no memory on), since the published field
+        // reads the present-and-window set, not the line — the spec pruning what
+        // the published set does not ask for, so the spine is never built.
+        configure(0, default_spec(/*midi*/ 0, /*window*/ 4.0f));
+        configure(1, default_spec(/*midi*/ 1, /*window*/ 4.0f));
+
+        // The sole published reading: the field, taken across the union of both
+        // voices and published once in the reserved group band — no per-channel
+        // field. The union is the contract's first and only tenant this round.
+        publish_reading(Reading::Field, Source::group({0, 1}), "field");
+
         port_.open_by_name("loopMIDI");   // the DAW's virtual port
     }
 
@@ -105,20 +131,73 @@ public:
 
     // ── Composition and frame (the seam tests drive directly) ────
     //
-    // configure() composes one analysis slot; route() ingests one event;
-    // advance() is the frame at a given beat. update() is built from the last
-    // two; a test reaches them straight, without a port.
+    // configure() composes one analysis slot; publish_reading() declares a
+    // reading for publication; route() ingests one event; advance() is the
+    // frame at a given beat. update() is built from the last two; a test reaches
+    // them straight, without a port.
 
-    // Configure one analysis slot: store its spec, realize its Context, and
-    // register the outputs it will publish. Realize once into the slot's fresh
-    // Context; reconfiguring a used slot would accumulate windows, so a slot is
+    // The readings the canvas can publish, and a reading's source: one channel,
+    // or a union of several. The vocabulary of the published-set contract — a
+    // composer (initialize, or a test) names a reading and a source to
+    // publish_reading; a render side never needs them, resolving by name.
+    enum class Reading : uint8_t {
+        PresentCount, PresentLength, WindowCount, WindowLength,
+        CurrentPC, Distance, Field, Polyphony
+    };
+
+    struct Source {
+        uint32_t mask = 0;   // bit i set ⇒ channel i contributes
+
+        static Source channel(int c) { return Source{ 1u << c }; }
+        static Source group(std::initializer_list<int> cs) {
+            uint32_t m = 0;
+            for (int c : cs) m |= (1u << c);
+            return Source{ m };
+        }
+        int  count() const {
+            int n = 0;
+            for (int i = 0; i < MAX_CHANNELS; ++i) if (mask & (1u << i)) ++n;
+            return n;
+        }
+        bool is_group() const { return count() > 1; }
+        int  first()    const {
+            for (int i = 0; i < MAX_CHANNELS; ++i) if (mask & (1u << i)) return i;
+            return -1;
+        }
+    };
+
+    // Configure one analysis slot: store its spec and realize its Context. What
+    // the slot publishes is declared separately, by publish_reading, so the
+    // contract is opt-in. Realize once into the slot's fresh Context;
+    // reconfiguring a used slot would accumulate windows, so a slot is
     // configured a single time.
     bool configure(int slot, const ContextSpec& spec) {
         if (slot < 0 || slot >= MAX_CHANNELS) return false;
         specs_[slot]  = spec;
         realize(spec, contexts_[slot]);
         active_[slot] = true;
-        register_outputs(slot);
+        return true;
+    }
+
+    // Declare a reading for publication. The opt-in: it gates the layout group
+    // and the slot-write together, so the signal and its map never disagree.
+    // Refused — and nothing added — if the source's analysis cannot feed the
+    // reading (a window or a line the spec did not build), the source is empty,
+    // or the list is full, so a declaration that could not be computed never
+    // enters the contract. A per-channel source lands the reading in that
+    // channel's band; a union lands it in the reserved group band. The name is
+    // the render side's handle and must be static storage.
+    bool publish_reading(Reading r, const Source& src, const char* name) {
+        if (src.count() == 0)                  return false;
+        if (!available(r, src))                return false;
+        if (published_count_ >= MAX_PUBLISHED) return false;
+
+        const ReadingSpec rs = reading_spec(r);
+        const int band = src.is_group() ? GROUP_BAND : src.first();
+
+        layout_[published_count_]    = StatGroup{ name, band, rs.slot, rs.width, rs.shape };
+        published_[published_count_] = Published{ r, src.mask, band, HeldField{} };
+        ++published_count_;
         return true;
     }
 
@@ -136,7 +215,7 @@ public:
 
     // Advance every configured channel's views to `beat`, step the held fields,
     // then publish. The memories already moved in route(), so the views rebuild
-    // from the present and the windows, the field steps once on the rebuilt
+    // from the present and the windows, the fields step once on the rebuilt
     // views, and publish() reads everything into the signal.
     void advance(float beat) {
         for (int i = 0; i < MAX_CHANNELS; ++i)
@@ -154,7 +233,7 @@ public:
     const AnalysisSignal& output() const override { return output_; }
 
     StatLayoutView stat_layout() const override {
-        return StatLayoutView{ layout_.data(), static_cast<uint32_t>(layout_count_) };
+        return StatLayoutView{ layout_.data(), static_cast<uint32_t>(published_count_) };
     }
 
     // ── Read access — the binding, for inspection ────────────────
@@ -167,12 +246,14 @@ public:
     const std::string& port_name()       const { return port_.port_name(); }
 
 private:
-    // ── Published slot map (per channel; one 0..STATS_PER_CHANNEL band) ─
+    // ── The published-set contract (the canonical slot map) ──────
     //
-    // Where each reading lands in a channel's band. The full packet is declared
-    // so the shape is fixed; the names are positional, since a channel is
-    // whatever Ableton routes to it. Sixty-three of the hundred-and-twenty-eight
-    // slots are spoken for; the rest are room.
+    // A reading's canonical address-within-a-band and shape, the same whether
+    // the reading is published or not — opting one in or out never moves
+    // another. Sixty-three of the hundred-and-twenty-eight slots are spoken
+    // for; the rest are room. The names are positional, since a channel is
+    // whatever Ableton routes to it; the name a group is published under is
+    // supplied at declaration, without a voice prefix.
 
     static constexpr int SLOT_PRESENT_COUNT  = 0;    // 12  present pcs, by count
     static constexpr int SLOT_PRESENT_LENGTH = 12;   // 12  present pcs, by length (beats)
@@ -183,92 +264,109 @@ private:
     static constexpr int SLOT_FIELD          = 61;   // 1   held field index 1..6
     static constexpr int SLOT_POLYPHONY      = 62;   // 1   present voice count
 
+    struct ReadingSpec { int slot; int width; StatShape shape; };
+
+    static ReadingSpec reading_spec(Reading r) {
+        switch (r) {
+            case Reading::PresentCount:  return { SLOT_PRESENT_COUNT,  12, StatShape::Vector };
+            case Reading::PresentLength: return { SLOT_PRESENT_LENGTH, 12, StatShape::Vector };
+            case Reading::WindowCount:   return { SLOT_WINDOW_COUNT,   12, StatShape::Vector };
+            case Reading::WindowLength:  return { SLOT_WINDOW_LENGTH,  12, StatShape::Vector };
+            case Reading::CurrentPC:     return { SLOT_CURRENT_PC,     12, StatShape::Vector };
+            case Reading::Distance:      return { SLOT_DISTANCE,        1, StatShape::Scalar };
+            case Reading::Field:         return { SLOT_FIELD,           1, StatShape::Scalar };
+            case Reading::Polyphony:     return { SLOT_POLYPHONY,       1, StatShape::Scalar };
+        }
+        return { 0, 1, StatShape::Scalar };   // unreachable; quiets the compiler
+    }
+
+    // What an analysis must supply for a reading to be available. The present is
+    // always maintained, so present-only readings need nothing; the window
+    // readings — and the field, which reads the present-and-window set — need a
+    // wagon; the line readings need the spine.
+    static bool reading_needs_window(Reading r) {
+        return r == Reading::WindowCount || r == Reading::WindowLength
+            || r == Reading::Field;
+    }
+    static bool reading_needs_spine(Reading r) {
+        return r == Reading::CurrentPC || r == Reading::Distance;
+    }
+
+    // One published reading: its kind, the channels it draws from, the band it
+    // lands in, and — when it is a field — the held incumbent that is its one
+    // piece of state. The held field lives with the entry, so only a published
+    // field holds and steps; an unpublished one neither exists nor moves.
+    struct Published {
+        Reading   reading     = Reading::Field;
+        uint32_t  source_mask = 0;
+        int       band        = 0;
+        HeldField field{};     // stateful; used only when reading == Field
+    };
+
+    // The reserved band for cross-channel (group) readings: the last index, the
+    // home a group reading takes since it belongs to no single voice.
+    static constexpr int GROUP_BAND = MAX_CHANNELS - 1;
+
     // The composition's home — the root every published vector re-origins to —
     // and the size of the field bank.
     static constexpr int PROJECT_PC_ORIGIN = 2;      // D
     static constexpr int BANK_SIZE         = 6;      // the six declared fields
 
-    // Group names, per slot — positional, unique to (channel, reading) so the
-    // render side resolves without collision. Static, so the layout may hold
-    // pointers into them for the program's life.
-    static constexpr const char* NAME_PRESENT_COUNT[MAX_CHANNELS] = {
-        "ch0.present_count", "ch1.present_count", "ch2.present_count", "ch3.present_count"
-    };
-    static constexpr const char* NAME_PRESENT_LENGTH[MAX_CHANNELS] = {
-        "ch0.present_length", "ch1.present_length", "ch2.present_length", "ch3.present_length"
-    };
-    static constexpr const char* NAME_WINDOW_COUNT[MAX_CHANNELS] = {
-        "ch0.window_count", "ch1.window_count", "ch2.window_count", "ch3.window_count"
-    };
-    static constexpr const char* NAME_WINDOW_LENGTH[MAX_CHANNELS] = {
-        "ch0.window_length", "ch1.window_length", "ch2.window_length", "ch3.window_length"
-    };
-    static constexpr const char* NAME_CURRENT_PC[MAX_CHANNELS] = {
-        "ch0.current_pc", "ch1.current_pc", "ch2.current_pc", "ch3.current_pc"
-    };
-    static constexpr const char* NAME_DISTANCE[MAX_CHANNELS] = {
-        "ch0.distance", "ch1.distance", "ch2.distance", "ch3.distance"
-    };
-    static constexpr const char* NAME_FIELD[MAX_CHANNELS] = {
-        "ch0.field", "ch1.field", "ch2.field", "ch3.field"
-    };
-    static constexpr const char* NAME_POLYPHONY[MAX_CHANNELS] = {
-        "ch0.polyphony", "ch1.polyphony", "ch2.polyphony", "ch3.polyphony"
-    };
+    // The most readings publishable at once: each canonical slot, once per band.
+    static constexpr int MAX_PUBLISHED = MAX_CHANNELS * 8;
 
-    // Append this slot's published groups to the layout, in the band's order.
-    void register_outputs(int slot) {
-        layout_[layout_count_++] = StatGroup{ NAME_PRESENT_COUNT[slot],  slot, SLOT_PRESENT_COUNT,  12, StatShape::Vector };
-        layout_[layout_count_++] = StatGroup{ NAME_PRESENT_LENGTH[slot], slot, SLOT_PRESENT_LENGTH, 12, StatShape::Vector };
-        layout_[layout_count_++] = StatGroup{ NAME_WINDOW_COUNT[slot],   slot, SLOT_WINDOW_COUNT,   12, StatShape::Vector };
-        layout_[layout_count_++] = StatGroup{ NAME_WINDOW_LENGTH[slot],  slot, SLOT_WINDOW_LENGTH,  12, StatShape::Vector };
-        layout_[layout_count_++] = StatGroup{ NAME_CURRENT_PC[slot],     slot, SLOT_CURRENT_PC,     12, StatShape::Vector };
-        layout_[layout_count_++] = StatGroup{ NAME_DISTANCE[slot],       slot, SLOT_DISTANCE,        1,  StatShape::Scalar };
-        layout_[layout_count_++] = StatGroup{ NAME_FIELD[slot],          slot, SLOT_FIELD,           1,  StatShape::Scalar };
-        layout_[layout_count_++] = StatGroup{ NAME_POLYPHONY[slot],      slot, SLOT_POLYPHONY,       1,  StatShape::Scalar };
+    // Whether every channel a reading draws from supplies what it needs. A
+    // source channel must be active and its spec must build the window or the
+    // spine the reading reads; the present is always there.
+    bool available(Reading r, const Source& src) const {
+        for (int i = 0; i < MAX_CHANNELS; ++i) {
+            if (!(src.mask & (1u << i))) continue;
+            if (!active_[i]) return false;
+            if (reading_needs_window(r) && !specs_[i].has_window())    return false;
+            if (reading_needs_spine(r)  && !specs_[i].has_crossings()) return false;
+        }
+        return true;
     }
 
-    // Compose the signal for this frame: stamp the clocks, then write each
-    // active channel's readings to their slots. The advertised slots are
-    // overwritten every frame, so the signal stays fresh without a clear. The
-    // beat is the DAW's musical position; t_seconds and dt are the wall-clock
-    // telemetry carried alongside it.
-    //
-    // The present's content is read off the playhead, the present-plus-window
-    // content off the playhead summed with the primary wagon, the line off the
-    // spine — the current note dressed to D as a one-hot, the distance a bare
-    // signed scalar. The vectors are dressed and written twelve slots each; the
-    // field is the held incumbent as a one-based rank; the polyphony the present
-    // voice count.
+    // ── The frame's speaking ─────────────────────────────────────
+
+    // Compose the signal for this frame: stamp the clocks, then write every
+    // published reading to its address. The beat is the DAW's musical position;
+    // t_seconds and dt are the wall-clock telemetry carried alongside it. Only
+    // the published list is walked — an unpublished reading is neither written
+    // nor computed, so the signal's other slots simply stay at their value-
+    // initialized zero.
     void publish(float beat) {
         output_.t_beats   = beat;
         output_.t_seconds = t_seconds_;
         output_.dt        = dt_;
 
-        const VectorDressing to_D{ /*reorigin*/ true, PROJECT_PC_ORIGIN, VectorDressing::Scale::None };
+        for (int k = 0; k < published_count_; ++k)
+            write_reading(published_[k]);
+    }
 
-        for (int i = 0; i < MAX_CHANNELS; ++i) {
-            if (!active_[i]) continue;
-            const Context&         ctx = contexts_[i];
-            const PlayheadReadout&  ph = ctx.playhead();
-            const WagonReadout&     wg = ctx.wagon(0);   // the primary trailing window
-            const Spine&            sp = ctx.spine();    // the elected line
-
-            write_vector(i, SLOT_PRESENT_COUNT,  dress(pc_count (ph),     to_D));
-            write_vector(i, SLOT_PRESENT_LENGTH, dress(pc_length(ph),     to_D));
-            write_vector(i, SLOT_WINDOW_COUNT,   dress(pc_count (ph, wg), to_D));
-            write_vector(i, SLOT_WINDOW_LENGTH,  dress(pc_length(ph, wg), to_D));
-            write_vector(i, SLOT_CURRENT_PC,     dress(current_note(sp),  to_D));
-            output_.set_stat(i, SLOT_DISTANCE,   static_cast<float>(line_distance(sp)));
-            output_.set_stat(i, SLOT_FIELD,      static_cast<float>(field_index(i)));
-            output_.set_stat(i, SLOT_POLYPHONY,  static_cast<float>(ph.current_count));
+    // Write one published reading to its band and canonical slot. Only the field
+    // is wired this round — the lean scope: the other readings stay as
+    // capability in the modules (pc_count, spine_ops, vector_dressing) and gain
+    // their line here when first published. The field ships as a one-based rank;
+    // silence reads as the top of the hierarchy, never zero.
+    void write_reading(const Published& p) {
+        const int slot = reading_spec(p.reading).slot;
+        switch (p.reading) {
+            case Reading::Field:
+                output_.set_stat(p.band, slot, static_cast<float>(field_index(p.field)));
+                break;
+            default:
+                // capability, not yet wired into the publish path
+                break;
         }
     }
 
-    // Write a twelve-component vector into a channel's slot band.
-    void write_vector(int channel, int slot_base, const PitchClassVector& v) {
+    // Write a twelve-component vector into a band's slot run — the writer the
+    // vector readings use once they are published.
+    void write_vector(int band, int slot_base, const PitchClassVector& v) {
         for (int pc = 0; pc < 12; ++pc)
-            output_.set_stat(channel, slot_base + pc, v.v[pc]);
+            output_.set_stat(band, slot_base + pc, v.v[pc]);
     }
 
     // ── The field — the one step ─────────────────────────────────
@@ -289,45 +387,62 @@ private:
         return b;
     }
 
-    // Step each channel's held field once this frame: score the present-plus-
-    // window set, re-origined to D, against the bank, and move the incumbent
-    // only on a strict win. Called in advance() after the views rebuild and
-    // before publish() reads the incumbent — the canvas's one mutation a frame.
+    // Step each published field once this frame: union its source channels'
+    // present-and-window sets into one set by presence, re-origin to D, and move
+    // that field's held incumbent on a strict win. The canvas's one mutation a
+    // frame; called in advance() after the views rebuild and before publish()
+    // reads the incumbents. A per-channel field would step on a single channel's
+    // set — none is published, so none steps.
     void step_fields() {
-        for (int i = 0; i < MAX_CHANNELS; ++i) {
-            if (!active_[i]) continue;
-            const Context& ctx = contexts_[i];
+        for (int k = 0; k < published_count_; ++k) {
+            Published& p = published_[k];
+            if (p.reading != Reading::Field) continue;
             const PitchClassVector degrees =
-                to_degrees(present_set(ctx.playhead(), ctx.wagon(0)), PROJECT_PC_ORIGIN);
-            held_field_[i].step(degrees, bank(), BANK_SIZE);
+                to_degrees(union_present_set(p.source_mask), PROJECT_PC_ORIGIN);
+            p.field.step(degrees, bank(), BANK_SIZE);
         }
+    }
+
+    // The union of a source's present-and-window sets, combined by presence: a
+    // pitch class is in iff it sounds now or completed in the window of any
+    // contributing channel. Binary, the same shape a single channel's
+    // present_set returns, so the field machinery one level out is untouched.
+    PitchClassVector union_present_set(uint32_t mask) const {
+        PitchClassVector s;
+        for (int i = 0; i < MAX_CHANNELS; ++i) {
+            if (!(mask & (1u << i)) || !active_[i]) continue;
+            const PitchClassVector cs =
+                present_set(contexts_[i].playhead(), contexts_[i].wagon(0));
+            for (int pc = 0; pc < 12; ++pc)
+                if (cs.v[pc] > 0.0f) s.v[pc] = 1.0f;
+        }
+        return s;
     }
 
     // The published field index: the incumbent as a one-based rank, or the top
     // of the hierarchy before any field has scored — so the index is always
     // 1..6 and silence never opens a phantom seventh.
-    int field_index(int channel) const {
-        const int inc = held_field_[channel].incumbent;
-        return (inc < 0) ? 1 : inc + 1;
+    int field_index(const HeldField& hf) const {
+        return (hf.incumbent < 0) ? 1 : hf.incumbent + 1;
     }
 
     std::array<ContextSpec, MAX_CHANNELS> specs_{};
     std::array<Context,     MAX_CHANNELS> contexts_{};
     std::array<bool,        MAX_CHANNELS> active_{};
-    std::array<HeldField,   MAX_CHANNELS> held_field_{};   // the one stateful reading
 
     MidiPort port_;             // the DAW's MIDI port, owned and drained each frame
     float    t_seconds_ = 0.0f; // wall-clock accumulation, the signal's telemetry
     float    dt_        = 0.0f; // the last frame's wall-clock delta
 
-    // The published signal and the map naming its groups. The layout grows as
-    // channels are configured; it is sized for the full packet on every channel
-    // so the view's backing never moves. The signal is value-initialized, so
-    // every slot reads zero until a publish writes it.
+    // The published signal and the contract over it: the list of published
+    // readings (each carrying its own field state) and the parallel layout
+    // naming their groups. The two grow together in publish_reading and share an
+    // index, so the map and the writes can never disagree. The signal is
+    // value-initialized, so every unpublished slot reads zero until written.
     AnalysisSignal output_{};
-    static constexpr int GROUPS_PER_CHANNEL = 8;
-    std::array<StatGroup, MAX_CHANNELS * GROUPS_PER_CHANNEL> layout_{};
-    int layout_count_ = 0;
+    std::array<Published, MAX_PUBLISHED> published_{};
+    std::array<StatGroup, MAX_PUBLISHED> layout_{};
+    int published_count_ = 0;
 };
 
 } // namespace t7
