@@ -781,12 +781,58 @@ endif()
 # ── PROBE_VECTOR — headless reading check (RtMidi only; no Dawn, no ImGui) ──
 # ═══════════════════════════════════════════════════════════════════════════════
 
-add_executable(probe_vector src/dev/probe_vector.cpp src/external/RtMidi.cpp)
-target_include_directories(probe_vector PRIVATE src/dev src)
+add_executable(probe_vector_count  src/dev/probe_vector_count.cpp  src/external/RtMidi.cpp)
+add_executable(probe_vector_length src/dev/probe_vector_length.cpp src/external/RtMidi.cpp)
+foreach(t probe_vector_count probe_vector_length)
+    target_include_directories(${t} PRIVATE src/dev src)
+    if (MSVC)
+        target_compile_definitions(${t} PRIVATE __WINDOWS_MM__)
+        target_link_libraries(${t} PRIVATE winmm)
+    endif()
+endforeach()
+
+add_executable(probe_vector_set src/dev/probe_vector_set.cpp src/external/RtMidi.cpp)
+target_include_directories(probe_vector_set PRIVATE src/dev src)
 if (MSVC)
-    target_compile_definitions(probe_vector PRIVATE __WINDOWS_MM__)
-    target_link_libraries(probe_vector PRIVATE winmm)
+    target_compile_definitions(probe_vector_set PRIVATE __WINDOWS_MM__)
+    target_link_libraries(probe_vector_set PRIVATE winmm)
 endif()
+
+add_executable(probe_lowest src/dev/probe_lowest.cpp src/external/RtMidi.cpp)
+target_include_directories(probe_lowest PRIVATE src/dev src)
+if (MSVC)
+    target_compile_definitions(probe_lowest PRIVATE __WINDOWS_MM__)
+    target_link_libraries(probe_lowest PRIVATE winmm)
+endif()
+
+add_executable(probe_events src/dev/probe_events.cpp src/external/RtMidi.cpp)
+target_include_directories(probe_events PRIVATE src/dev src)
+if(MSVC)
+    target_compile_definitions(probe_events PRIVATE __WINDOWS_MM__)
+    target_link_libraries(probe_events PRIVATE winmm)
+endif()
+
+add_executable(probe_interval src/dev/probe_interval.cpp src/external/RtMidi.cpp)
+target_include_directories(probe_interval PRIVATE src/dev src)
+if(MSVC)
+    target_compile_definitions(probe_interval PRIVATE __WINDOWS_MM__)
+    target_link_libraries(probe_interval PRIVATE winmm)
+endif()
+
+add_executable(probe_field src/dev/probe_field.cpp src/external/RtMidi.cpp)
+target_include_directories(probe_field PRIVATE src/dev src)
+if(MSVC)
+    target_compile_definitions(probe_field PRIVATE __WINDOWS_MM__)
+    target_link_libraries(probe_field PRIVATE winmm)
+endif()
+
+add_executable(probe_canvas src/dev/probe_canvas.cpp src/external/RtMidi.cpp)
+target_include_directories(probe_canvas PRIVATE src/dev src)
+if(MSVC)
+    target_compile_definitions(probe_canvas PRIVATE __WINDOWS_MM__)
+    target_link_libraries(probe_canvas PRIVATE winmm)
+endif()
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # MAIN TARGET — Full program with all cartridges

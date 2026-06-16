@@ -12,8 +12,11 @@
 //                   union/intersection/complement), PitchClassVector
 //                   (12-float weighted distribution, the linear-algebra
 //                   currency).
-// Primitives      : pc_of (MIDI → pitch class), pc_relative_to
-//                   (re-origin a pitch class — the reign's transpose).
+// Primitives      : pc_of (MIDI → pitch class), pc_relative_to (re-origin a
+//                   pitch class — the reign's transpose), distance (signed
+//                   registral interval between two pitches), to_degrees
+//                   (re-origin a whole vector — pc_relative_to's rotation
+//                   carried to the distribution).
 //
 // Depends on: <array>, <cmath>, <cstdint>. Nothing upstream.
 
@@ -40,6 +43,15 @@ inline int pc_of(int midi_pitch) {
  */
 inline int pc_relative_to(int pc, int origin) {
     return ((pc - origin) % 12 + 12) % 12;
+}
+
+/**
+ * Signed registral interval between two pitches, in semitones: the distance
+ * travelled from `from` up to `to`, positive upward. The registral cousin of
+ * pc_relative_to — that folds onto one class, this keeps the octave.
+ */
+inline int distance(int from, int to) {
+    return to - from;
 }
 
 // ═══ REPRESENTATIONS ═════════════════════════════════════════════
@@ -127,5 +139,20 @@ struct PitchClassVector {
         return r;
     }
 };
+
+// ═══ RE-ORIGIN (VECTOR) ══════════════════════════════════════════
+
+/**
+ * Rotate a vector so `root_pc` lands on bin 0; bin i is then the degree i
+ * semitones above the root. The vector form of pc_relative_to — one class
+ * re-expressed becomes the whole distribution re-expressed. Root 0 (C) is
+ * the identity.
+ */
+inline PitchClassVector to_degrees(const PitchClassVector& abs, int root_pc) {
+    PitchClassVector p;
+    int r = ((root_pc % 12) + 12) % 12;
+    for (int i = 0; i < 12; ++i) p.v[i] = abs.v[(r + i) % 12];
+    return p;
+}
 
 } // namespace t7

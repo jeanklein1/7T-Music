@@ -1,25 +1,33 @@
-// probe.cpp ─────────────────────────────────────────────────────────
+// probe_lowest.cpp ───────────────────────────────────────────────────
 //
-// DAW-synced reading probe. Incoming events feed the per-channel Context;
-// musical time comes from the DAW (the MidiPort counts MIDI timing-clock
-// pulses into a beat position), so the Wagon's windows fall on Ableton's
-// beats and a stop freezes them.
+// DAW-synced SELECTION probe — Playhead source. It elects the lowest note
+// sounding now, the bass, and holds it forward as a reign: the harmonic
+// ground for the bars ahead, not a measurement of the past. A live note
+// thrones and resets the clock; silence holds the ground for
+// PROBE_REIGN_DECAY beats; once the reign is over the frame falls back to the
+// home — a reference must always have a value for what it grounds.
 //
-// Channels are read across at one instant — side by side, separated by the
-// pipe, label and beat stated once at the head, a one-time header naming
-// the columns. `-` is an empty collection.
+// Scope is the present (the Playhead) only. The window (Wagon) is a different
+// frame and is left out here; frames are chosen, not combined.
 //
-//   PLAYHEAD   the present set, on present-change
-//      WAGON   completed notes in the window, name(in-window length), per beat
+//   REIGN      the present's lowest, held forward by the decaying latch, with
+//              the composition's home (a D) as fallback. A live or held
+//              election prints plain (C2); the fallback prints in parens (D2).
+//              Printed when the held note changes (election, abdication, or
+//              the return to home).
 //   TRANSPORT  the DAW play state + tempo (on change)
 //
+// Channels side by side under a one-time header, label and beat at the head.
+//
 // Needs RtMidi. In Ableton, enable this port's Clock/Sync output, then play.
-//   ./probe            (opens first "loopMIDI" port)
-//   ./probe 0          (opens port index 0)
+//   ./probe_lowest            (opens first "loopMIDI" port)
+//   ./probe_lowest 0          (opens port index 0)
 
 #include "sources/midi_port.hpp"
 #include "sources/midi_event.hpp"
 #include "musical/context.hpp"
+#include "musical/note_select.hpp"
+#include "musical/reign.hpp"
 
 #include <array>
 #include <chrono>
@@ -37,32 +45,12 @@ static std::string note_name(int midi) {
     return std::string(n[((midi % 12) + 12) % 12]) + std::to_string(midi / 12 - 1);
 }
 
-constexpr int   N_CHANNELS       = 2;
-constexpr int   CHANNEL_W        = 30;     // field per channel (note lists)
-constexpr float PROBE_WAGON_SPAN = 4.0f;   // window span, beats
-constexpr float PROBE_RETENTION  = 16.0f;  // completed-history kept, beats
+constexpr int   N_CHANNELS         = 2;
+constexpr int   CHANNEL_W          = 7;      // field per channel (one note, room for parens)
+constexpr float PROBE_RETENTION    = 16.0f;  // completed-history kept, beats
+constexpr float PROBE_REIGN_DECAY  = 2.0f;   // beats of silence the reign survives
+constexpr int   PROBE_FALLBACK_PITCH = 38;   // D2 — the composition's home (another criterion)
 static const char* SEP = " | ";
-
-// ── Cell builders ────────────────────────────────────────────────────
-
-static std::string present_list(const PlayheadReadout& ph) {
-    if (ph.current_count == 0) return "-";
-    std::string s;
-    for (int i = 0; i < ph.current_count; ++i) { if (i) s += ' '; s += note_name(ph.current[i].pitch); }
-    if (ph.has_overflow()) s += " (+more)";
-    return s;
-}
-static std::string window_list(const WagonReadout& wg) {
-    if (wg.note_count == 0) return "-";
-    std::string s; char d[16];
-    for (int i = 0; i < wg.note_count; ++i) {
-        if (i) s += ' ';
-        std::snprintf(d, sizeof d, "%.2f", wg.notes[i].window_duration());
-        s += note_name(wg.notes[i].pitch); s += '('; s += d; s += ')';
-    }
-    if (wg.has_overflow()) s += " (+more)";
-    return s;
-}
 
 // ── Rendering ────────────────────────────────────────────────────────
 
@@ -101,26 +89,32 @@ int main(int argc, char** argv) {
         ? port.open(static_cast<unsigned>(std::stoi(argv[1])))
         : port.open_by_name("loopMIDI");
     if (!opened) {
-        std::cout << "\nFailed to open a port. Pass an index, e.g.  ./probe 0\n";
+        std::cout << "\nFailed to open a port. Pass an index, e.g.  ./probe_lowest 0\n";
         return 1;
     }
     std::cout << "\nListening on: " << port.port_name() << "   (Ctrl-C to stop)\n";
-    std::cout << "  PLAYHEAD present, on change   WAGON window, name(length), per beat   `-` = empty\n";
+    std::cout << "  REIGN  present's lowest, held " << PROBE_REIGN_DECAY
+              << " beats then home " << note_name(PROBE_FALLBACK_PITCH)
+              << " in parens   (Playhead source only)\n";
     std::cout << "  Waiting for MIDI clock — enable this port's Sync output in Ableton and press play.\n\n";
 
     std::array<Context, N_CHANNELS> ctx;
+    std::array<Reign<CurrentNote>, N_CHANNELS> reign;
+    CurrentNote home{};
+    home.pitch = static_cast<uint8_t>(PROBE_FALLBACK_PITCH);
     for (int c = 0; c < N_CHANNELS; ++c) {
         ctx[c].set_channel(c);
         ctx[c].set_retention_beats(PROBE_RETENTION);
-        ctx[c].add_wagon(PROBE_WAGON_SPAN);
+        reign[c].set_decay(PROBE_REIGN_DECAY);
+        reign[c].set_fallback(home);
     }
 
     print_header();
 
-    std::array<PitchBitmask, N_CHANNELS> last_present{};
+    struct Shown { bool reigning = false; bool has = false; uint8_t pitch = 0; };
+    std::array<Shown, N_CHANNELS> last_shown{};
     bool announced = false;
     bool last_playing = false;
-    int  last_beat = -1;
     MidiEvent ev[256];
 
     while (true) {
@@ -147,28 +141,32 @@ int main(int argc, char** argv) {
             std::cout << line << "\n";
         }
 
-        // PLAYHEAD — present sets, reprinted when any channel's present changes.
-        bool present_changed = false;
+        // REIGN — feed each channel's present-lowest into its decaying latch
+        // every frame (abdication and the return to home are time-based, not
+        // event-based), and reprint when any channel's frame changes — whether
+        // a new election, the reign expiring, or the home reasserting.
+        bool changed = false;
         for (int c = 0; c < N_CHANNELS; ++c) {
-            const PitchBitmask& m = ctx[c].playhead().current_mask;
-            if (m.lo != last_present[c].lo || m.hi != last_present[c].hi) {
-                present_changed = true;
-                last_present[c] = m;
+            const PlayheadReadout& ph = ctx[c].playhead();
+            reign[c].update(select_lowest(ph.current.data(), ph.current_count), beat);
+            const auto nt = reign[c].note();
+            Shown cur{ reign[c].reigning(), nt.has_value(), nt ? nt->pitch : (uint8_t)0 };
+            if (cur.reigning != last_shown[c].reigning ||
+                cur.has      != last_shown[c].has      ||
+                cur.pitch    != last_shown[c].pitch) {
+                changed = true;
+                last_shown[c] = cur;
             }
         }
-        if (present_changed) {
+        if (changed) {
             std::string cells[N_CHANNELS];
-            for (int c = 0; c < N_CHANNELS; ++c) cells[c] = present_list(ctx[c].playhead());
-            print_row("PLAYHEAD", beat, cells);
-        }
-
-        // WAGON — window note-lists, once per beat, every channel.
-        const int ibeat = static_cast<int>(beat);
-        if (ibeat != last_beat) {
-            last_beat = ibeat;
-            std::string cells[N_CHANNELS];
-            for (int c = 0; c < N_CHANNELS; ++c) cells[c] = window_list(ctx[c].wagon(0));
-            print_row("WAGON", beat, cells);
+            for (int c = 0; c < N_CHANNELS; ++c) {
+                const auto nt = reign[c].note();
+                if (!nt)                      cells[c] = "-";
+                else if (reign[c].reigning()) cells[c] = note_name(nt->pitch);
+                else                          cells[c] = "(" + note_name(nt->pitch) + ")";
+            }
+            print_row("REIGN", beat, cells);
         }
 
         std::this_thread::sleep_for(std::chrono::milliseconds(2));

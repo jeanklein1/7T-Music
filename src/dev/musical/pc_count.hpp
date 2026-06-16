@@ -2,26 +2,28 @@
 
 // ─── pc_count.hpp ────────────────────────────────────────────────
 //
-// The first layer-C operation: lift a view's notes into the 12-slot
-// pitch-class COUNT vector. Each occurrence adds 1 at its pitch class;
-// octaves are folded by pc_of. The twelve slots are the basis (C = 0),
-// the vector a point in that space — counting is just summing the unit
-// vectors of what occurred.
+// Canvas operations over a view's notes, in the 12-slot pitch-class space
+// (C = 0, octaves folded by pc_of). The count is the base; the others
+// derive from it — the same loop with a different weight, a fold of the
+// count, or the disjoint sum of two views.
 //
-//   Playhead → counts the notes sounding NOW, per pitch class.
-//   Wagon    → counts the completed occurrences in the window, per pc.
+//   pc_count  — weight 1 per occurrence (the base). Over the present, the
+//               window, or their union.
+//   pc_length — weight = the note's length. The present carries a
+//               provisional length (anchor − onset, still growing while
+//               held); the window a completed one; the union sums the two,
+//               which are disjoint because a note is sounding or completed,
+//               never both.
+//   pc_set    — support of a count: the pitch-class SET, a class in iff it
+//               occurred at all. Derives FROM the count (count dominates;
+//               the set is recoverable from the count, not the reverse).
 //
-// Count is one weight choice; the loop is weight-agnostic. Count uses
-// weight 1. A length-weighted vector is the SAME loop with the weight set
-// to the note's in-window length — the seam is marked below, deliberately
-// not built until asked.
+// The union operations take both readouts and sum the single-view results.
+// The disjointness of present and window is what lets the sum stand without
+// double-counting: the same note instance never appears in both.
 //
-// Kept here, beside probe_vector, until a second consumer (the canvas)
-// makes it shared vocabulary and earns a move into musical_ops.
-//
-// Depends on: musical/musical_ops.hpp (PitchClassVector, pc_of),
-//             musical/playhead.hpp (PlayheadReadout),
-//             musical/wagon.hpp (WagonReadout).
+// Depends on: musical/musical_ops.hpp (PitchClassVector, PitchClassBits,
+//             pc_of), musical/playhead.hpp, musical/wagon.hpp.
 
 #include "musical/musical_ops.hpp"
 #include "musical/playhead.hpp"
@@ -29,12 +31,14 @@
 
 namespace t7 {
 
+// ═══ COUNT ═══════════════════════════════════════════════════════
+
 // Present notes → pitch-class counts. One sounding note adds 1 at its pc;
 // two sounding notes of the same class (different octaves) add 2.
 inline PitchClassVector pc_count(const PlayheadReadout& ph) {
     PitchClassVector v;
     for (int i = 0; i < ph.current_count; ++i)
-        v[pc_of(ph.current[i].pitch)] += 1.0f;   // count: weight 1
+        v[pc_of(ph.current[i].pitch)] += 1.0f;
     return v;
 }
 
@@ -43,10 +47,61 @@ inline PitchClassVector pc_count(const PlayheadReadout& ph) {
 inline PitchClassVector pc_count(const WagonReadout& wg) {
     PitchClassVector v;
     for (int i = 0; i < wg.note_count; ++i)
-        v[pc_of(wg.notes[i].pitch)] += 1.0f;     // count: weight 1
-                                                 // length mode (later):
-                                                 //   += wg.notes[i].window_duration()
+        v[pc_of(wg.notes[i].pitch)] += 1.0f;
     return v;
+}
+
+// Present + window counts, the disjoint union. A note is sounding now or
+// completed in the window, never both, so the sum does not double-count.
+inline PitchClassVector pc_count(const PlayheadReadout& ph, const WagonReadout& wg) {
+    PitchClassVector v = pc_count(ph);
+    const PitchClassVector w = pc_count(wg);
+    for (int i = 0; i < 12; ++i) v.v[i] += w.v[i];
+    return v;
+}
+
+// ═══ LENGTH ══════════════════════════════════════════════════════
+
+// Present notes → cumulative provisional length per pitch class. The same
+// reduction as the present count, with the weight switched from 1 to the
+// note's provisional span at the anchor (anchor − onset, still growing).
+inline PitchClassVector pc_length(const PlayheadReadout& ph) {
+    PitchClassVector v;
+    for (int i = 0; i < ph.current_count; ++i)
+        v[pc_of(ph.current[i].pitch)] += ph.current_duration(i);
+    return v;
+}
+
+// Windowed cumulative in-window length per pitch class. The same reduction
+// as the window count, with the weight switched from 1 to the note's clipped
+// span (window_duration). Summed across occurrences of the class.
+inline PitchClassVector pc_length(const WagonReadout& wg) {
+    PitchClassVector v;
+    for (int i = 0; i < wg.note_count; ++i)
+        v[pc_of(wg.notes[i].pitch)] += wg.notes[i].window_duration();
+    return v;
+}
+
+// Present + window length, the disjoint union: the present's provisional
+// span summed with the window's completed span. Disjoint as the counts are,
+// so the two halves add without overlap.
+inline PitchClassVector pc_length(const PlayheadReadout& ph, const WagonReadout& wg) {
+    PitchClassVector v = pc_length(ph);
+    const PitchClassVector w = pc_length(wg);
+    for (int i = 0; i < 12; ++i) v.v[i] += w.v[i];
+    return v;
+}
+
+// ═══ SET ═════════════════════════════════════════════════════════
+
+// Support of a count vector: the pitch-class set. A class is in the set iff
+// its count is greater than zero. The set type carries set algebra (union,
+// intersection, complement) for the compound layer; here it is simply the
+// thresholded count.
+inline PitchClassBits pc_set(const PitchClassVector& count) {
+    PitchClassBits s;
+    for (int i = 0; i < 12; ++i) if (count.v[i] > 0.0f) s.set(i);
+    return s;
 }
 
 } // namespace t7
