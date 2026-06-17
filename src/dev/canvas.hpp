@@ -403,20 +403,19 @@ private:
         }
     }
 
-    // The union of a source's present-and-window sets, combined by presence: a
-    // pitch class is in iff it sounds now or completed in the window of any
-    // contributing channel. Binary, the same shape a single channel's
-    // present_set returns, so the field machinery one level out is untouched.
+    // The union of a source's present-and-window sets: gather each active source
+    // channel's present_set and join them with present_union — the presence-OR
+    // that lives beside the field. Binary in, binary out, the same shape a single
+    // channel returns, so the field machinery one level out is untouched; the
+    // rise from a voice to a group is invisible past this point.
     PitchClassVector union_present_set(uint32_t mask) const {
-        PitchClassVector s;
+        PitchClassVector sets[MAX_CHANNELS];
+        int n = 0;
         for (int i = 0; i < MAX_CHANNELS; ++i) {
             if (!(mask & (1u << i)) || !active_[i]) continue;
-            const PitchClassVector cs =
-                present_set(contexts_[i].playhead(), contexts_[i].wagon(0));
-            for (int pc = 0; pc < 12; ++pc)
-                if (cs.v[pc] > 0.0f) s.v[pc] = 1.0f;
+            sets[n++] = present_set(contexts_[i].playhead(), contexts_[i].wagon(0));
         }
-        return s;
+        return present_union(sets, n);
     }
 
     // The published field index: the incumbent as a one-based rank, or the top

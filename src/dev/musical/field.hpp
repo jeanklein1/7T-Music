@@ -37,6 +37,21 @@ inline PitchClassVector present_set(const PlayheadReadout& ph,
     return s;
 }
 
+// Presence union across channels: a class is in the union iff it is present in
+// ANY of the given per-channel sets -- "sounding somewhere on the field". Each
+// input is a binary present_set, so the union is their element-wise maximum,
+// which cannot pass 1; the result is again a clean binary set. The field reads
+// it exactly as it reads one voice's set -- the rise from a voice to a group is
+// invisible past this point, and that invisibility is the whole mechanism: a
+// reading rises by widening its source, with nothing downstream changed.
+inline PitchClassVector present_union(const PitchClassVector* sets, int n) {
+    PitchClassVector u;
+    for (int c = 0; c < n; ++c)
+        for (int i = 0; i < 12; ++i)
+            if (sets[c].v[i] > u.v[i]) u.v[i] = sets[c].v[i];
+    return u;
+}
+
 // to_degrees — the re-origin onto the root — now lives in musical_ops, beside
 // pc_relative_to, since the dressing and the spine reach for it too. field.hpp
 // includes musical_ops, so the rotation is in scope here unchanged.
