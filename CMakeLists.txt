@@ -776,6 +776,28 @@ endif()
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# ── CANVAS_1 CHECKS — headless assertion tests (no Dawn, no ImGui) ──
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# check_canvas_union   — the published surface end-to-end: two voices, the union
+#                        field in the group band, opt-in and availability-bound.
+#                        Drives the canvas directly, port dormant; needs RtMidi
+#                        linked (the Canvas owns a MidiPort) but never opens it.
+# check_field_union    — the union primitive + field election in isolation, over
+#                        field.hpp alone; no canvas, no port, no RtMidi.
+
+add_executable(check_canvas_union src/analysis/canvas_1/check_canvas_union.cpp src/external/RtMidi.cpp)
+target_include_directories(check_canvas_union PRIVATE src)
+if(MSVC)
+    target_compile_definitions(check_canvas_union PRIVATE __WINDOWS_MM__)
+    target_link_libraries(check_canvas_union PRIVATE winmm)
+endif()
+
+add_executable(check_field_union src/analysis/canvas_1/check_field_union.cpp)
+target_include_directories(check_field_union PRIVATE src)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # MAIN TARGET — Full program with all cartridges
 # ═══════════════════════════════════════════════════════════════════════════════
 #

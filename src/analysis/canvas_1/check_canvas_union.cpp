@@ -16,6 +16,7 @@
 #include <string_view>
 
 using namespace t7;
+using namespace t7::canvas_1;   // the Canvas now lives in the cartridge's namespace
 
 // Subscribe two voices and publish the union field — the first instance,
 // composed without opening the port (the test's standing-in for initialize()).
