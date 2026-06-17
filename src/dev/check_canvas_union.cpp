@@ -118,6 +118,20 @@ int main() {
         std::printf("availability: line reading refused (spine off), contract unchanged\n");
     }
 
+    // 5. Write-gating: a reading whose value-writer is not yet wired is refused
+    //    even when the analysis could feed it — so the layout never advertises a
+    //    slot that would stay zero. present_count is available (the present is
+    //    always there) but unwired this round, so its declaration is refused.
+    {
+        Canvas cv; setup(cv);
+        const bool refused = !cv.publish_reading(Canvas::Reading::PresentCount,
+                                                 Canvas::Source::channel(0), "ch0.present_count");
+        assert(refused);
+        (void)refused;
+        assert(cv.stat_layout().count == 1);        // nothing was added
+        std::printf("write-gating: available-but-unwired reading refused, contract unchanged\n");
+    }
+
     std::printf("\nOK -- the union field publishes: one reading across both voices, in the group band, opt-in and availability-bound.\n");
     return 0;
 }

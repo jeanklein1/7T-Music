@@ -155,4 +155,23 @@ inline PitchClassVector to_degrees(const PitchClassVector& abs, int root_pc) {
     return p;
 }
 
+// ═══ UNION (VECTOR) ══════════════════════════════════════════════
+
+/**
+ * Element-wise maximum of several pitch-class vectors. For the binary
+ * present-sets the field reads, that maximum is set union: a class is marked
+ * iff it is marked in any input, and the max of ones and zeros is again one or
+ * zero, so binary in gives binary out. (Weighted vectors would combine by their
+ * strongest per-class weight; the field uses the binary case alone.) This is how
+ * a reading rises from one voice to a group — widen the source here, and nothing
+ * downstream changes.
+ */
+inline PitchClassVector present_union(const PitchClassVector* sets, int n) {
+    PitchClassVector u;
+    for (int c = 0; c < n; ++c)
+        for (int i = 0; i < 12; ++i)
+            if (sets[c].v[i] > u.v[i]) u.v[i] = sets[c].v[i];
+    return u;
+}
+
 } // namespace t7

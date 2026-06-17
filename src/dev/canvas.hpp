@@ -182,14 +182,16 @@ public:
     // Declare a reading for publication. The opt-in: it gates the layout group
     // and the slot-write together, so the signal and its map never disagree.
     // Refused — and nothing added — if the source's analysis cannot feed the
-    // reading (a window or a line the spec did not build), the source is empty,
-    // or the list is full, so a declaration that could not be computed never
+    // reading (a window or a line the spec did not build), the reading's writer
+    // is not yet wired into the publish path, the source is empty, or the list is
+    // full — so a declaration that could not be both computed AND written never
     // enters the contract. A per-channel source lands the reading in that
     // channel's band; a union lands it in the reserved group band. The name is
     // the render side's handle and must be static storage.
     bool publish_reading(Reading r, const Source& src, const char* name) {
         if (src.count() == 0)                  return false;
         if (!available(r, src))                return false;
+        if (!writer_wired(r))                  return false;
         if (published_count_ >= MAX_PUBLISHED) return false;
 
         const ReadingSpec rs = reading_spec(r);
@@ -292,6 +294,14 @@ private:
         return r == Reading::CurrentPC || r == Reading::Distance;
     }
 
+    // Whether a reading's value-writer is built. Only the field is wired into the
+    // publish path this round (the lean scope); declaring a reading whose writer
+    // does not exist yet would advertise a layout group whose slot never fills,
+    // so the contract refuses it until write_reading handles it — keeping the
+    // gate of layout and write a single, honest act. A new reading's case in
+    // write_reading and its line here are added together.
+    static bool writer_wired(Reading r) { return r == Reading::Field; }
+
     // One published reading: its kind, the channels it draws from, the band it
     // lands in, and — when it is a field — the held incumbent that is its one
     // piece of state. The held field lives with the entry, so only a published
@@ -357,7 +367,9 @@ private:
                 output_.set_stat(p.band, slot, static_cast<float>(field_index(p.field)));
                 break;
             default:
-                // capability, not yet wired into the publish path
+                // Unreachable: publish_reading refuses any reading not wired here
+                // (see writer_wired). The other readings stay as capability in the
+                // modules and gain their case when first published.
                 break;
         }
     }
