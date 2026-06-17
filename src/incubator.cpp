@@ -34,7 +34,7 @@
  // =========================================================================
 
 #ifndef INCUBATE_ANALYSIS
-#define INCUBATE_ANALYSIS polyphony_basic
+#define INCUBATE_ANALYSIS canvas_1
 #endif
 
 #ifndef INCUBATE_RENDER
@@ -64,7 +64,7 @@
 // These literal includes give VS navigation (Peek Definition, Go To, etc.).
 // The compiler ignores them -- the macro includes below pull in the same files.
 #if defined(__INTELLISENSE__)
-#include "analysis/polyphony_basic/canvas.hpp"
+#include "analysis/canvas_1/canvas.hpp"
 #include "cartridges/the_chord/cartridge.hpp"
 #else
 #include ANALYSIS_HEADER(INCUBATE_ANALYSIS)

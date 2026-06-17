@@ -27,7 +27,7 @@
 // =========================================================================
 
 #ifndef LAB_ANALYSIS
-#define LAB_ANALYSIS polyphony_basic
+#define LAB_ANALYSIS canvas_1
 #endif
 
 #define STRINGIFY(x) STRINGIFY2(x)
@@ -45,7 +45,7 @@
 // IntelliSense cannot resolve macro-expanded #include paths.
 // Literal include gives navigation; the macro include below pulls the same file.
 #if defined(__INTELLISENSE__)
-#include "analysis/polyphony_basic/canvas.hpp"
+#include "analysis/canvas_1/canvas.hpp"
 #else
 #include ANALYSIS_HEADER(LAB_ANALYSIS)
 #endif

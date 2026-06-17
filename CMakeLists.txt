@@ -256,10 +256,10 @@ dawn_lib(LIB_SPIRV_TOOLS_OPT    "third_party/spirv-tools/source/opt/Debug/SPIRV-
 # render cartridge; both share polyphony_basic until a second analysis
 # module exists.
 set(INCUBATOR_RENDER_CARTRIDGE        "the_chord"        CACHE STRING "Render cartridge for the 'incubator' target")
-set(INCUBATOR_ANALYSIS_CARTRIDGE      "polyphony_basic"  CACHE STRING "Analysis cartridge for the 'incubator' target")
+set(INCUBATOR_ANALYSIS_CARTRIDGE      "canvas_1"         CACHE STRING "Analysis cartridge for the 'incubator' target")
 
 set(INCUBATOR_DUAL_RENDER_CARTRIDGE   "the_board"        CACHE STRING "Render cartridge for the 'incubator_dual' target")
-set(INCUBATOR_DUAL_ANALYSIS_CARTRIDGE "polyphony_basic"  CACHE STRING "Analysis cartridge for the 'incubator_dual' target")
+set(INCUBATOR_DUAL_ANALYSIS_CARTRIDGE "canvas_1"         CACHE STRING "Analysis cartridge for the 'incubator_dual' target")
 
 # Dedicated A/B target: runs the frozen backup_board alongside incubator_dual's
 # the_board, so the two can be diffed side-by-side during the refactor.
@@ -767,8 +767,8 @@ source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/src/analysis/${INCUBATOR_ANALYSIS
 # building the analysis layer and have been archived under
 # "src/dev/BACKUP 15 06/"; their targets are removed.
 
-add_executable(probe_canvas src/dev/probe_canvas.cpp src/external/RtMidi.cpp)
-target_include_directories(probe_canvas PRIVATE src/dev src)
+add_executable(probe_canvas src/analysis/canvas_1/probe_canvas.cpp src/external/RtMidi.cpp)
+target_include_directories(probe_canvas PRIVATE src)
 if(MSVC)
     target_compile_definitions(probe_canvas PRIVATE __WINDOWS_MM__)
     target_link_libraries(probe_canvas PRIVATE winmm)

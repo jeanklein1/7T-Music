@@ -87,6 +87,7 @@
 #include <initializer_list>
 
 namespace t7 {
+namespace canvas_1 {
 
 class Canvas : public AnalysisCartridge {
 public:
@@ -456,4 +457,5 @@ private:
     int published_count_ = 0;
 };
 
+} // namespace canvas_1
 } // namespace t7

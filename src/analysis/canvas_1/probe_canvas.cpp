@@ -29,6 +29,7 @@
 #include <thread>
 
 using namespace t7;
+using namespace t7::canvas_1;   // the Canvas now lives in the cartridge's namespace
 
 static std::string note_name(int midi) {
     static const char* n[] = {"C","C#","D","D#","E","F","F#","G","G#","A","A#","B"};

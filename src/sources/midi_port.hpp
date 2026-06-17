@@ -1,40 +1,28 @@
 #pragma once
 
-// ─── midi_port.hpp ───────────────────────────────────────────────
+// ─── midi_port.hpp  (dev: transport-aware) ───────────────────────
 //
-// External MIDI input via a system port (loopMIDI / DAW). Connects to a
-// system MIDI input port (typically a loopMIDI virtual port fed by
-// Ableton or another DAW) and queues incoming note events for the
-// analysis cartridge to drain via poll().
+// External MIDI input via a system port (loopMIDI / DAW), now also reading
+// the DAW's transport. Same note path as the original — incoming note
+// events go into a lock-free ring drained by poll() — with one addition:
+// the callback also feeds MIDI clock and transport messages to a
+// MidiTransport, so the port surfaces the DAW's musical position, play
+// state, and tempo.
 //
-// Inert construction: constructing a MidiPort never fails, even if the
-// MIDI subsystem is unavailable. is_open() reports false until open()
-// succeeds, so the analysis cartridge can include it unconditionally —
-// the port simply stays silent if no DAW is connected.
+// Change from the original: ignoreTypes no longer drops timing (clock now
+// flows), and handle_message offers each message to the transport first;
+// only non-transport messages fall through to the note decode. Note
+// consumers are unaffected — they still just poll() events.
 //
-// Threading: RtMidi runs its own input thread and invokes a callback
-// when MIDI arrives. The callback decodes the bytes and pushes a
-// MidiEvent into a single-producer / single-consumer ring buffer; the
-// main thread drains the ring via poll(). Lock-free, no allocations
-// during runtime.
+// In Ableton: enable this port's Clock/Sync output. The port then counts
+// the 24-per-quarter pulses into beats() — phase-locked, and frozen when
+// the DAW is stopped.
 //
-// Beat stamping: the callback runs on RtMidi's thread without access to
-// our Clock, so events are stamped with the caller-provided beat at poll
-// time. Timing error is bounded by frame duration (~16ms at 60fps), well
-// within the Playhead's 50ms chord tolerance.
-//
-// Usage:
-//   MidiPort port;
-//   port.open_by_name("loopMIDI");   // case-insensitive substring match
-//   MidiEvent events[64];
-//   int count = port.poll(current_beat, events, 64);   // each frame
-//   for (int i = 0; i < count; ++i)
-//       stream.receive(events[i]);
-//
-// Depends on: sources/midi_event.hpp, external/RtMidi.h, <array>,
-//             <atomic>, and the standard headers below.
+// Depends on: sources/midi_event.hpp, sources/transport.hpp,
+//             external/RtMidi.h, and the standard headers below.
 
 #include "sources/midi_event.hpp"
+#include "sources/transport.hpp"
 #include "external/RtMidi.h"
 
 #include <array>
@@ -66,37 +54,28 @@ public:
 
     // ── Connection ───────────────────────────────────────────────
 
-    /**
-     * List available input port names.
-     * Safe to call before open().
-     */
     std::vector<std::string> enumerate() const {
         std::vector<std::string> result;
         if (!midi_in_) return result;
         try {
             unsigned int n = midi_in_->getPortCount();
-            for (unsigned int i = 0; i < n; ++i) {
+            for (unsigned int i = 0; i < n; ++i)
                 result.push_back(midi_in_->getPortName(i));
-            }
         } catch (RtMidiError&) {}
         return result;
     }
 
-    /**
-     * Open a port by index. Returns true on success.
-     */
     bool open(unsigned int port_index) {
         if (!midi_in_) return false;
         if (open_) close();
-
         try {
             unsigned int n = midi_in_->getPortCount();
             if (port_index >= n) return false;
 
             midi_in_->openPort(port_index);
             midi_in_->setCallback(&MidiPort::on_rtmidi_callback, this);
-            // Drop noise: sysex, MIDI clock/timing, active sense
-            midi_in_->ignoreTypes(true, true, true);
+            // Keep timing clock (middle = false); drop sysex and active sense.
+            midi_in_->ignoreTypes(true, false, true);
 
             port_name_ = midi_in_->getPortName(port_index);
             open_ = true;
@@ -106,70 +85,53 @@ public:
         }
     }
 
-    /**
-     * Open the first port whose name contains the given substring
-     * (case-insensitive). Returns true on success.
-     */
     bool open_by_name(const std::string& name_substring) {
         if (!midi_in_) return false;
-
         std::vector<std::string> ports = enumerate();
-        for (size_t i = 0; i < ports.size(); ++i) {
-            if (icontains(ports[i], name_substring)) {
+        for (size_t i = 0; i < ports.size(); ++i)
+            if (icontains(ports[i], name_substring))
                 return open(static_cast<unsigned int>(i));
-            }
-        }
         return false;
     }
 
-    /**
-     * Close the port. Safe to call even if not open.
-     */
     void close() {
         if (!midi_in_ || !open_) return;
         try {
             midi_in_->cancelCallback();
             midi_in_->closePort();
-        } catch (RtMidiError&) {
-            // Closing - swallow
-        }
+        } catch (RtMidiError&) {}
         open_ = false;
         port_name_.clear();
+        transport_.reset();
     }
 
     bool is_open() const { return open_; }
     const std::string& port_name() const { return port_name_; }
 
-    // ── POLL - Retrieve pending events ───────────────────────────
+    // ── DAW transport (read side) ────────────────────────────────
 
-    /**
-     * Drain pending events. Each event is stamped with current_beat.
-     *
-     * @param current_beat Beat to stamp events with
-     * @param out          Output buffer
-     * @param max_out      Maximum events to write
-     * @return Number of events written
-     */
+    bool     playing()     const { return transport_.playing(); }
+    double   beats()       const { return transport_.beats(); }
+    float    bpm()         const { return transport_.bpm(); }
+    bool     ever_synced() const { return transport_.ever_synced(); }
+    uint32_t pulses()      const { return transport_.pulses(); }
+
+    // ── POLL — drain note events, stamp with current_beat ─────────
+
     int poll(float current_beat, MidiEvent* out, int max_out) {
         int count = 0;
-
         const uint32_t write = write_idx_.load(std::memory_order_acquire);
         uint32_t read = read_idx_.load(std::memory_order_relaxed);
-
         while (read != write && count < max_out) {
             out[count] = ring_[read & RING_MASK];
             out[count].beat = current_beat;
             ++read;
             ++count;
         }
-
         read_idx_.store(read, std::memory_order_release);
         return count;
     }
 
-    /**
-     * Approximate count of events pending in the ring.
-     */
     int pending_count() const {
         const uint32_t write = write_idx_.load(std::memory_order_acquire);
         const uint32_t read = read_idx_.load(std::memory_order_acquire);
@@ -185,21 +147,26 @@ private:
     bool open_ = false;
     std::string port_name_;
 
-    // SPSC ring buffer
+    MidiTransport transport_;
+
     std::array<MidiEvent, RING_SIZE> ring_{};
-    std::atomic<uint32_t> write_idx_{0};  // producer: RtMidi callback thread
-    std::atomic<uint32_t> read_idx_{0};   // consumer: main thread
+    std::atomic<uint32_t> write_idx_{0};
+    std::atomic<uint32_t> read_idx_{0};
 
     // ── CALLBACK (runs on RtMidi's thread) ───────────────────────
 
-    static void on_rtmidi_callback(double /*deltatime*/,
+    static void on_rtmidi_callback(double deltatime,
                                    std::vector<unsigned char>* msg,
                                    void* user) {
         if (!msg || msg->empty() || !user) return;
-        static_cast<MidiPort*>(user)->handle_message(*msg);
+        static_cast<MidiPort*>(user)->handle_message(deltatime, *msg);
     }
 
-    void handle_message(const std::vector<unsigned char>& m) {
+    void handle_message(double deltatime, const std::vector<unsigned char>& m) {
+        // Clock / start / stop / continue / song-position go to the transport.
+        if (transport_.feed(deltatime, m)) return;
+
+        // Everything else: the note path, unchanged.
         if (m.size() < 3) return;
 
         const uint8_t status   = m[0];
@@ -210,28 +177,19 @@ private:
 
         MidiEvent ev;
         if (type == 0x90 && velocity > 0) {
-            // Note On
             ev = MidiEvent::note_on(channel, pitch, velocity / 127.0f, 0.0f);
         } else if (type == 0x80 || (type == 0x90 && velocity == 0)) {
-            // Note Off (explicit, or running-status note-on with velocity 0)
             ev = MidiEvent::note_off(channel, pitch, 0.0f);
         } else {
-            return;  // Not a note message — ignore CCs, pitch bend, etc.
+            return;  // CC, pitch bend, aftertouch — ignore
         }
-
         push(ev);
     }
 
     void push(const MidiEvent& ev) {
         const uint32_t write = write_idx_.load(std::memory_order_relaxed);
         const uint32_t read  = read_idx_.load(std::memory_order_acquire);
-
-        if ((write - read) >= RING_SIZE) {
-            // Ring full — drop event. At musical event rates this is
-            // effectively impossible (256 events per frame would be ~15kHz).
-            return;
-        }
-
+        if ((write - read) >= RING_SIZE) return;   // full — drop
         ring_[write & RING_MASK] = ev;
         write_idx_.store(write + 1, std::memory_order_release);
     }
@@ -241,19 +199,11 @@ private:
     static bool icontains(const std::string& haystack, const std::string& needle) {
         if (needle.empty()) return true;
         if (haystack.size() < needle.size()) return false;
-
-        auto lower = [](unsigned char c) -> char {
-            return static_cast<char>(std::tolower(c));
-        };
-
+        auto lower = [](unsigned char c) -> char { return static_cast<char>(std::tolower(c)); };
         for (size_t i = 0; i + needle.size() <= haystack.size(); ++i) {
             bool match = true;
-            for (size_t j = 0; j < needle.size(); ++j) {
-                if (lower(haystack[i+j]) != lower(needle[j])) {
-                    match = false;
-                    break;
-                }
-            }
+            for (size_t j = 0; j < needle.size(); ++j)
+                if (lower(haystack[i+j]) != lower(needle[j])) { match = false; break; }
             if (match) return true;
         }
         return false;
