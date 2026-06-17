@@ -816,34 +816,6 @@ target_include_directories(check_field_union PRIVATE src)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# ── RUNTIME DLL DEPLOYMENT (MSVC) ──
-# ═══════════════════════════════════════════════════════════════════════════════
-#
-# Copy the C/C++ runtime DLLs (e.g. MSVCP140D.dll, VCRUNTIME140D.dll, ucrtbased.dll
-# for a Debug build) next to each executable, so they launch outside a Visual
-# Studio environment. The debug CRT is not redistributable and lives only where VS
-# is installed; without this, an exe started from Explorer or a plain shell fails
-# with "MSVCP140D.dll not found". InstallRequiredSystemLibraries discovers the
-# matching runtime; we copy it next to each exe rather than install() it.
-if(MSVC)
-    set(CMAKE_INSTALL_DEBUG_LIBRARIES TRUE)
-    set(CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS_SKIP TRUE)   # discover only; copy ourselves
-    include(InstallRequiredSystemLibraries)
-
-    foreach(_tgt incubator incubator_dual incubator_backup the_lab
-                 probe_canvas check_canvas_union check_field_union)
-        if(TARGET ${_tgt} AND CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS)
-            add_custom_command(TARGET ${_tgt} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                        ${CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS} $<TARGET_FILE_DIR:${_tgt}>
-                COMMAND_EXPAND_LISTS
-                COMMENT "Deploying runtime DLLs next to ${_tgt}")
-        endif()
-    endforeach()
-endif()
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
 # MAIN TARGET — Full program with all cartridges
 # ═══════════════════════════════════════════════════════════════════════════════
 #
