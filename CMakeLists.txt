@@ -253,7 +253,7 @@ dawn_lib(LIB_SPIRV_TOOLS_OPT    "third_party/spirv-tools/source/opt/Debug/SPIRV-
 # The main target pulls ALL cartridges and pollutes IntelliSense.
 
 # Per-target cartridge selection. Each incubator target points at its own
-# render cartridge; both share polyphony_basic until a second analysis
+# render cartridge; all three share canvas_1 until a second analysis
 # module exists.
 set(INCUBATOR_RENDER_CARTRIDGE        "the_chord"        CACHE STRING "Render cartridge for the 'incubator' target")
 set(INCUBATOR_ANALYSIS_CARTRIDGE      "canvas_1"         CACHE STRING "Analysis cartridge for the 'incubator' target")

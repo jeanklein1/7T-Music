@@ -8,7 +8,7 @@
  * CMakeLists.txt:
  *
  *   set(INCUBATOR_RENDER_CARTRIDGE   "the_chord")
- *   set(INCUBATOR_ANALYSIS_CARTRIDGE "polyphony_basic")
+ *   set(INCUBATOR_ANALYSIS_CARTRIDGE "canvas_1")
  *
  * CMake passes these as compile definitions (INCUBATE_RENDER, INCUBATE_ANALYSIS).
  * No need to edit this file to switch cartridges.
@@ -17,7 +17,7 @@
  *   Analysis cartridges:
  *   | Folder name          | Namespace              | Class  |
  *   |----------------------|------------------------|--------|
- *   | polyphony_basic/     | t7::polyphony_basic    | Canvas |
+ *   | canvas_1/            | t7::canvas_1           | Canvas |
  *
  *   Render cartridges:
  *   | Folder name          | Namespace              | Class     |

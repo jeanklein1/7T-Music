@@ -19,7 +19,7 @@
  * CONVENTION
  *   | Folder name        | Namespace            | Class  |
  *   |--------------------|----------------------|--------|
- *   | polyphony_basic/   | t7::polyphony_basic  | Canvas |
+ *   | canvas_1/          | t7::canvas_1         | Canvas |
  */
 
 // =========================================================================
