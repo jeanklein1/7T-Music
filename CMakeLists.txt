@@ -264,7 +264,7 @@ set(INCUBATOR_DUAL_ANALYSIS_CARTRIDGE "canvas_1"         CACHE STRING "Analysis 
 # Dedicated A/B target: runs the frozen backup_board alongside incubator_dual's
 # the_board, so the two can be diffed side-by-side during the refactor.
 set(INCUBATOR_BACKUP_RENDER_CARTRIDGE   "backup_board"     CACHE STRING "Render cartridge for the 'incubator_backup' target")
-set(INCUBATOR_BACKUP_ANALYSIS_CARTRIDGE "polyphony_basic"  CACHE STRING "Analysis cartridge for the 'incubator_backup' target")
+set(INCUBATOR_BACKUP_ANALYSIS_CARTRIDGE "canvas_1"         CACHE STRING "Analysis cartridge for the 'incubator_backup' target")
 option(INCUBATOR_ONLY "Build only incubator targets (cleaner IntelliSense)" ON)
 
 message(STATUS "")
@@ -493,7 +493,7 @@ file(GLOB_RECURSE INCUBATOR_RENDER_HEADERS
     "src/cartridges/${INCUBATOR_RENDER_CARTRIDGE}/*.inl"
     "src/cartridges/${INCUBATOR_RENDER_CARTRIDGE}/*.wgsl"
 )
-file(GLOB_RECURSE INCUBATOR_ANALYSIS_HEADERS
+file(GLOB_RECURSE INCUBATOR_ANALYSIS_HEADERS CONFIGURE_DEPENDS
     "src/analysis/${INCUBATOR_ANALYSIS_CARTRIDGE}/*.hpp"
 )
 
@@ -560,7 +560,7 @@ source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/src/analysis/${INCUBATOR_ANALYSIS
 file(GLOB_RECURSE DUAL_RENDER_HEADERS
     "src/cartridges/${INCUBATOR_DUAL_RENDER_CARTRIDGE}/*.hpp"
 )
-file(GLOB_RECURSE DUAL_ANALYSIS_HEADERS
+file(GLOB_RECURSE DUAL_ANALYSIS_HEADERS CONFIGURE_DEPENDS
     "src/analysis/${INCUBATOR_DUAL_ANALYSIS_CARTRIDGE}/*.hpp"
 )
 
@@ -630,7 +630,7 @@ source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/src/analysis/${INCUBATOR_DUAL_ANA
 file(GLOB_RECURSE BACKUP_RENDER_HEADERS
     "src/cartridges/${INCUBATOR_BACKUP_RENDER_CARTRIDGE}/*.hpp"
 )
-file(GLOB_RECURSE BACKUP_ANALYSIS_HEADERS
+file(GLOB_RECURSE BACKUP_ANALYSIS_HEADERS CONFIGURE_DEPENDS
     "src/analysis/${INCUBATOR_BACKUP_ANALYSIS_CARTRIDGE}/*.hpp"
 )
 
@@ -695,7 +695,7 @@ source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/src/analysis/${INCUBATOR_BACKUP_A
 #
 
 # Analysis cartridge headers (shares the incubator target's analysis cartridge)
-file(GLOB_RECURSE LAB_ANALYSIS_HEADERS
+file(GLOB_RECURSE LAB_ANALYSIS_HEADERS CONFIGURE_DEPENDS
     "src/analysis/${INCUBATOR_ANALYSIS_CARTRIDGE}/*.hpp"
 )
 
@@ -798,6 +798,34 @@ target_include_directories(check_field_union PRIVATE src)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# ── RUNTIME DLL DEPLOYMENT (MSVC) ──
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Copy the C/C++ runtime DLLs (e.g. MSVCP140D.dll, VCRUNTIME140D.dll, ucrtbased.dll
+# for a Debug build) next to each executable, so they launch outside a Visual
+# Studio environment. The debug CRT is not redistributable and lives only where VS
+# is installed; without this, an exe started from Explorer or a plain shell fails
+# with "MSVCP140D.dll not found". InstallRequiredSystemLibraries discovers the
+# matching runtime; we copy it next to each exe rather than install() it.
+if(MSVC)
+    set(CMAKE_INSTALL_DEBUG_LIBRARIES TRUE)
+    set(CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS_SKIP TRUE)   # discover only; copy ourselves
+    include(InstallRequiredSystemLibraries)
+
+    foreach(_tgt incubator incubator_dual incubator_backup the_lab
+                 probe_canvas check_canvas_union check_field_union)
+        if(TARGET ${_tgt} AND CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS)
+            add_custom_command(TARGET ${_tgt} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                        ${CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS} $<TARGET_FILE_DIR:${_tgt}>
+                COMMAND_EXPAND_LISTS
+                COMMENT "Deploying runtime DLLs next to ${_tgt}")
+        endif()
+    endforeach()
+endif()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # MAIN TARGET — Full program with all cartridges
 # ═══════════════════════════════════════════════════════════════════════════════
 #
@@ -850,7 +878,6 @@ set(HEADERS
     src/musical/musical_ops.hpp
     src/musical/playhead.hpp
     src/musical/wagon.hpp
-    src/musical/train.hpp
 
     # Cartridges (auto-discovered)
     ${CARTRIDGE_HEADERS}
@@ -899,7 +926,7 @@ source_group("Render" FILES src/render/render_cartridge.hpp)
 source_group("Sources" FILES src/sources/midi_event.hpp src/sources/midi_file.hpp src/sources/keyboard_midi.hpp src/sources/midi_port.hpp)
 source_group("Musical" FILES
     src/musical/stream_data.hpp src/musical/midi_stream.hpp src/musical/musical_ops.hpp
-    src/musical/playhead.hpp src/musical/wagon.hpp src/musical/train.hpp
+    src/musical/playhead.hpp src/musical/wagon.hpp
 )
 source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/src/cartridges"
     PREFIX "Cartridges"
