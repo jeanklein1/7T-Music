@@ -267,6 +267,24 @@ set(INCUBATOR_BACKUP_RENDER_CARTRIDGE   "backup_board"     CACHE STRING "Render 
 set(INCUBATOR_BACKUP_ANALYSIS_CARTRIDGE "canvas_1"         CACHE STRING "Analysis cartridge for the 'incubator_backup' target")
 option(INCUBATOR_ONLY "Build only incubator targets (cleaner IntelliSense)" ON)
 
+# ── Self-heal a stale cartridge selection ──────────────────────────────────────
+# A CACHE value persists in an existing build directory and is NOT overwritten by
+# the defaults above (a `set(... CACHE ...)` without FORCE is a no-op once the
+# entry exists). So a build dir configured before a cartridge was renamed or
+# removed — e.g. the old 'polyphony_basic' — keeps pointing at a directory that no
+# longer exists, and the build fails with a confusing "cannot find file". Detect
+# that and reset to the current default, so a plain reconfigure recovers without
+# anyone having to clear the cache by hand. A still-valid selection is left alone,
+# so an intentional -D choice of another (existing) cartridge is preserved.
+foreach(_sel INCUBATOR_ANALYSIS_CARTRIDGE
+             INCUBATOR_DUAL_ANALYSIS_CARTRIDGE
+             INCUBATOR_BACKUP_ANALYSIS_CARTRIDGE)
+    if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/analysis/${${_sel}}/canvas.hpp")
+        message(STATUS "Cartridge '${${_sel}}' (cached in ${_sel}) not found; resetting to 'canvas_1'.")
+        set(${_sel} "canvas_1" CACHE STRING "Analysis cartridge" FORCE)
+    endif()
+endforeach()
+
 message(STATUS "")
 message(STATUS "Active cartridges:")
 message(STATUS "  incubator      -> render: ${INCUBATOR_RENDER_CARTRIDGE}      analysis: ${INCUBATOR_ANALYSIS_CARTRIDGE}")
