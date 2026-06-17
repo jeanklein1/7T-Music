@@ -157,13 +157,9 @@ int main(int argc, char* argv[]) {
     AnalysisCartridge analysis;
     analysis.initialize("assets");
 
-    // Optional: load MIDI from command line
-    // Note: Comment out if your analysis cartridge doesn't support load_midi()
-    if (argc > 1) {
-        if (analysis.load_midi(argv[1])) {
-            std::cout << "[Incubator] Loaded MIDI: " << argv[1] << "\n";
-        }
-    }
+    // canvas_1's source is the DAW transport (loopMIDI), not a MIDI file, so
+    // there is no command-line MIDI to load.
+    (void)argc; (void)argv;
 
     std::cout << "[Incubator] " << ANALYSIS_NAME << " analysis ready\n";
 
@@ -228,15 +224,8 @@ int main(int argc, char* argv[]) {
         // --- Update ---------------------------------------------------------
         analysis.update(dt);
 
-        // Debug: print keyboard polyphony every 0.5s (polyphony is now
-        // keyboard-only; abbott/costello/louise carry the lowest/set reads).
-        static float debug_accum = 0.0f;
-        debug_accum += dt;
-        if (debug_accum >= 0.5f) {
-            debug_accum = 0.0f;
-            float kp = analysis.output().stat(3, analysis_ns::STAT_POLYPHONY);
-            std::cout << "\n[mc] keyboard.polyphony=" << kp << "\n";
-        }
+        // (canvas_1 publishes the union field; the render side reads it through
+        // the bound stat layout — no per-cartridge debug stat to print here.)
 
         render.update(analysis.output(), console.aspect_ratio(), queue);
 

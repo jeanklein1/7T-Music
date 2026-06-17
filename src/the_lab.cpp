@@ -73,6 +73,12 @@ using AnalysisCartridge = analysis_ns::Canvas;
 
 constexpr const char* ANALYSIS_NAME = STRINGIFY(LAB_ANALYSIS);
 
+// canvas_1 publishes its stat layout at runtime via stat_layout(), not as a
+// compile-time static array. Capture a copy once (after initialize()) and read
+// it through g_layout[] / layout_count() wherever the old static STAT_LAYOUT was.
+static std::vector<t7::StatGroup> g_layout;
+static int layout_count() { return static_cast<int>(g_layout.size()); }
+
 // =========================================================================
 // SCROLLING BUFFER -- Ring buffer for ImPlot time series
 // =========================================================================
@@ -146,7 +152,7 @@ struct VectorHistory {
 
 struct TestCoupling {
     bool  enabled        = true;
-    int   source_group   = 0;     // index into STAT_LAYOUT (group carries its channel)
+    int   source_group   = 0;     // index into g_layout (group carries its channel)
     int   source_index   = 0;     // within-group slot, 0 .. count-1
     float attack         = 4.0f;  // 1/s
     float release        = 2.5f;  // 1/s
@@ -161,7 +167,7 @@ struct TestCoupling {
     void tick(const t7::AnalysisSignal& signal) {
         // Source addressing derives from the named group: group picks the
         // channel + slot_base, source_index selects within a multi-wide group.
-        const t7::StatGroup& g = AnalysisCartridge::STAT_LAYOUT[source_group];
+        const t7::StatGroup& g = g_layout[source_group];
         const float input = signal.stat(g.channel, g.slot_base + source_index);
         const float target = enabled ? std::min(input / full, 1.0f) : 0.0f;
         const float rate = (target > trajectory.value) ? attack : release;
@@ -212,7 +218,7 @@ static void draw_coupling_controls(TestCoupling& tc) {
     ImGui::SeparatorText("Test Coupling  (intensity idiom)");
 
     // Resolve the selected group up front (also drives the source readout).
-    const t7::StatGroup& g0 = AnalysisCartridge::STAT_LAYOUT[tc.source_group];
+    const t7::StatGroup& g0 = g_layout[tc.source_group];
 
     ImGui::Checkbox("Enabled", &tc.enabled);
     ImGui::SameLine();
@@ -223,9 +229,9 @@ static void draw_coupling_controls(TestCoupling& tc) {
     // multi-wide groups) an index within it. Same named source a render
     // coupling targets — e.g. "abbott.lowest_pc" + index k is PC-k's one-hot.
     if (ImGui::BeginCombo("Source", g0.name)) {
-        for (int i = 0; i < AnalysisCartridge::STAT_LAYOUT_COUNT; ++i) {
+        for (int i = 0; i < layout_count(); ++i) {
             const bool sel = (i == tc.source_group);
-            if (ImGui::Selectable(AnalysisCartridge::STAT_LAYOUT[i].name, sel)) {
+            if (ImGui::Selectable(g_layout[i].name, sel)) {
                 tc.source_group = i;
                 tc.source_index = 0;   // reset index when group changes
             }
@@ -233,7 +239,7 @@ static void draw_coupling_controls(TestCoupling& tc) {
         }
         ImGui::EndCombo();
     }
-    const t7::StatGroup& g = AnalysisCartridge::STAT_LAYOUT[tc.source_group];
+    const t7::StatGroup& g = g_layout[tc.source_group];
     if (g.count > 1) {
         ImGui::SliderInt("Index", &tc.source_index, 0, g.count - 1);
     }
@@ -289,8 +295,8 @@ static void draw_trajectory_scope(const TestCoupling& tc, float now) {
 
 // ─── Stat panels (descriptor-driven) ──────────────────────────────────────
 // Renders each StatGroup in its declared shape: scalars as scrolling lines,
-// vectors as bar charts. Iterates AnalysisCartridge::STAT_LAYOUT, so no slot
-// numbers are hardcoded here — new stats appear by adding a STAT_LAYOUT row.
+// vectors as bar charts. Iterates the published layout (g_layout), so no slot
+// numbers are hardcoded here — new stats appear by publishing them.
 
 static void draw_scalar(const t7::StatGroup& g, const ScrollingBuffer& buf,
                         const t7::AnalysisSignal& signal) {
@@ -367,14 +373,15 @@ struct StatScopes {
     struct ChannelGroup {
         int  channel;
         char label[32];          // "abbott" etc., parsed from the name prefix
-        std::vector<int> stats;  // STAT_LAYOUT indices, declared order
+        std::vector<int> stats;  // g_layout indices, declared order
     };
     std::vector<ChannelGroup> channel_groups;
-    std::array<int, AnalysisCartridge::STAT_LAYOUT_COUNT> hist_index;  // group -> buffer slot
+    std::vector<int> hist_index;  // group -> buffer slot (sized at construction)
 
     StatScopes() {
-        for (int g = 0; g < AnalysisCartridge::STAT_LAYOUT_COUNT; ++g) {
-            const auto& grp = AnalysisCartridge::STAT_LAYOUT[g];
+        hist_index.resize(layout_count());
+        for (int g = 0; g < layout_count(); ++g) {
+            const auto& grp = g_layout[g];
 
             // history buffers, in declared order; remember each group's slot
             if (grp.shape == t7::StatShape::Scalar) {
@@ -405,8 +412,8 @@ struct StatScopes {
     }
 
     void tick(const t7::AnalysisSignal& signal) {
-        for (int g = 0; g < AnalysisCartridge::STAT_LAYOUT_COUNT; ++g) {
-            const auto& grp = AnalysisCartridge::STAT_LAYOUT[g];
+        for (int g = 0; g < layout_count(); ++g) {
+            const auto& grp = g_layout[g];
             if (grp.shape == t7::StatShape::Scalar) {
                 scalar_history[hist_index[g]].push(
                     signal.t_seconds, signal.stat(grp.channel, grp.slot_base));
@@ -451,7 +458,7 @@ struct StatScopes {
         for (auto& cg : channel_groups) {
             ImGui::Begin(cg.label);
             for (int g : cg.stats) {
-                const auto& grp = AnalysisCartridge::STAT_LAYOUT[g];
+                const auto& grp = g_layout[g];
 
                 // stat name without the channel prefix
                 const char* dot = grp.name;
@@ -489,9 +496,8 @@ static void draw_coupling_window(const t7::AnalysisSignal& signal,
 
     ImGui::Text("t = %.2f s   beat = %.2f   dt = %.4f s   |   analysis: %s",
                 signal.t_seconds, signal.t_beats, signal.dt, ANALYSIS_NAME);
-    bool kbd = analysis.keyboard_enabled();
-    if (ImGui::Checkbox("keyboard debug input (-> abbott)", &kbd))
-        analysis.set_keyboard_enabled(kbd);
+    // canvas_1 reads the DAW transport; it has no keyboard-debug source toggle.
+    (void)analysis;
     ImGui::Separator();
 
     draw_coupling_controls(tc);
@@ -530,10 +536,13 @@ int main(int argc, char* argv[]) {
     AnalysisCartridge analysis;
     analysis.initialize("assets");
 
-    if (argc > 1) {
-        if (analysis.load_midi(argv[1])) {
-            std::cout << "[Lab] Loaded MIDI: " << argv[1] << "\n";
-        }
+    // canvas_1 reads the DAW transport (loopMIDI), not a MIDI file.
+    (void)argc; (void)argv;
+
+    // Capture the published stat layout once, for the descriptor-driven panels.
+    {
+        t7::StatLayoutView lay = analysis.stat_layout();
+        g_layout.assign(lay.groups, lay.groups + lay.count);
     }
 
     std::cout << "[Lab] " << ANALYSIS_NAME << " analysis ready\n";
