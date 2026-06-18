@@ -814,6 +814,13 @@ endif()
 add_executable(check_field_union src/analysis/canvas_1/check_field_union.cpp)
 target_include_directories(check_field_union PRIVATE src)
 
+add_executable(check_canvas_compound src/analysis/canvas_1/check_canvas_compound.cpp src/external/RtMidi.cpp)
+target_include_directories(check_canvas_compound PRIVATE src)
+if(MSVC)
+    target_compile_definitions(check_canvas_compound PRIVATE __WINDOWS_MM__)
+    target_link_libraries(check_canvas_compound PRIVATE winmm)
+endif()
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # MAIN TARGET — Full program with all cartridges

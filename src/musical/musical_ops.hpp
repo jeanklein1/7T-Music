@@ -107,6 +107,21 @@ struct PitchClassVector {
 
     void clear() { v.fill(0.0f); }
 
+    // Element-wise sum — vector addition. The additive combine for compound
+    // readings: a group's count/length is the sum of its channels' vectors, and
+    // re-origin commutes with it (to_degrees is a rotation), so the compound
+    // equals the sum of the per-channel published vectors. The set/field combine
+    // is present_union (OR), below; addition is for weights.
+    PitchClassVector operator+(const PitchClassVector& o) const {
+        PitchClassVector r;
+        for (int i = 0; i < 12; ++i) r.v[i] = v[i] + o.v[i];
+        return r;
+    }
+    PitchClassVector& operator+=(const PitchClassVector& o) {
+        for (int i = 0; i < 12; ++i) v[i] += o.v[i];
+        return *this;
+    }
+
     float sum() const {
         float s = 0.0f;
         for (float x : v) s += x;

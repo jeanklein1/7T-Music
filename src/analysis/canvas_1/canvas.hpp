@@ -99,18 +99,33 @@ public:
 
     void initialize(const char* asset_path) override {
         (void)asset_path;   // no asset to load; the DAW is the source
-        // Two voices: slot 0 reads MIDI channel 0, slot 1 reads MIDI channel 1.
-        // Each keeps the present and a four-beat trailing window; the spine is
-        // left off (default_spec turns no memory on), since the published field
-        // reads the present-and-window set, not the line — the spec pruning what
-        // the published set does not ask for, so the spine is never built.
-        configure(0, default_spec(/*midi*/ 0, /*window*/ 4.0f));
-        configure(1, default_spec(/*midi*/ 1, /*window*/ 4.0f));
+        // The composition (a placeholder until the composer sets it): seven
+        // voices, slot v <- MIDI v, each present + a four-beat window + the spine
+        // on (so the line readings are available). The split of bands into voices
+        // and a compound band is the composer's, not fixed: here voices 0..6 and
+        // the cross-voice compounds in the group band (7).
+        constexpr int VOICES = 7;
+        for (int v = 0; v < VOICES; ++v) {
+            ContextSpec s = default_spec(/*midi*/ v, /*window*/ 4.0f);
+            s.crossings.active = true;   // the spine — current_pc and distance read it
+            configure(v, s);
+        }
 
-        // The sole published reading: the field, taken across the union of both
-        // voices and published once in the reserved group band — no per-channel
-        // field. The union is the contract's first and only tenant this round.
-        publish_reading(Reading::Field, Source::group({0, 1}), "field");
+        // Per-voice readings: the current note (one-hot), the present+window
+        // length (beats), and the line's signed distance.
+        for (int v = 0; v < VOICES; ++v) {
+            publish_reading(Reading::CurrentPC,    Source::channel(v), NAME_CURRENT_PC[v]);
+            publish_reading(Reading::WindowLength, Source::channel(v), NAME_WINDOW_LENGTH[v]);
+            publish_reading(Reading::Distance,     Source::channel(v), NAME_DISTANCE[v]);
+        }
+
+        // Compound readings over the union of all voices, in the group band: the
+        // field (set-union then election), the current notes (vector sum — a
+        // per-pc voice count), and the present+window length (vector sum).
+        const Source all = Source::group({0, 1, 2, 3, 4, 5, 6});
+        publish_reading(Reading::Field,        all, "all.field");
+        publish_reading(Reading::CurrentPC,    all, "all.current_pc");
+        publish_reading(Reading::WindowLength, all, "all.window_length");
 
         port_.open_by_name("loopMIDI");   // the DAW's virtual port
     }
@@ -187,16 +202,18 @@ public:
     // is not yet wired into the publish path, the source is empty, or the list is
     // full — so a declaration that could not be both computed AND written never
     // enters the contract. A per-channel source lands the reading in that
-    // channel's band; a union lands it in the reserved group band. The name is
-    // the render side's handle and must be static storage.
-    bool publish_reading(Reading r, const Source& src, const char* name) {
+    // channel's band; a union lands it in the group band by default, or in an
+    // explicit `want_band` if given — the voices/compounds split is not fixed.
+    // The name is the render side's handle and must be static storage.
+    bool publish_reading(Reading r, const Source& src, const char* name, int want_band = -1) {
         if (src.count() == 0)                  return false;
         if (!available(r, src))                return false;
         if (!writer_wired(r))                  return false;
         if (published_count_ >= MAX_PUBLISHED) return false;
 
         const ReadingSpec rs = reading_spec(r);
-        const int band = src.is_group() ? GROUP_BAND : src.first();
+        const int band = (want_band >= 0) ? want_band
+                       : (src.is_group() ? GROUP_BAND : src.first());
 
         layout_[published_count_]    = StatGroup{ name, band, rs.slot, rs.width, rs.shape };
         published_[published_count_] = Published{ r, src.mask, band, HeldField{} };
@@ -267,6 +284,22 @@ private:
     static constexpr int SLOT_FIELD          = 61;   // 1   held field index 1..6
     static constexpr int SLOT_POLYPHONY      = 62;   // 1   present voice count
 
+    // Per-voice reading names, positional — the index is the channel. Static, so
+    // the layout may hold pointers into them for the program's life. Compound
+    // readings are named at the publish_reading call (e.g. "all.current_pc").
+    static constexpr const char* NAME_CURRENT_PC[MAX_CHANNELS] = {
+        "ch0.current_pc","ch1.current_pc","ch2.current_pc","ch3.current_pc",
+        "ch4.current_pc","ch5.current_pc","ch6.current_pc","ch7.current_pc"
+    };
+    static constexpr const char* NAME_WINDOW_LENGTH[MAX_CHANNELS] = {
+        "ch0.window_length","ch1.window_length","ch2.window_length","ch3.window_length",
+        "ch4.window_length","ch5.window_length","ch6.window_length","ch7.window_length"
+    };
+    static constexpr const char* NAME_DISTANCE[MAX_CHANNELS] = {
+        "ch0.distance","ch1.distance","ch2.distance","ch3.distance",
+        "ch4.distance","ch5.distance","ch6.distance","ch7.distance"
+    };
+
     struct ReadingSpec { int slot; int width; StatShape shape; };
 
     static ReadingSpec reading_spec(Reading r) {
@@ -295,13 +328,16 @@ private:
         return r == Reading::CurrentPC || r == Reading::Distance;
     }
 
-    // Whether a reading's value-writer is built. Only the field is wired into the
-    // publish path this round (the lean scope); declaring a reading whose writer
+    // Whether a reading's value-writer is built. Declaring a reading whose writer
     // does not exist yet would advertise a layout group whose slot never fills,
     // so the contract refuses it until write_reading handles it — keeping the
     // gate of layout and write a single, honest act. A new reading's case in
-    // write_reading and its line here are added together.
-    static bool writer_wired(Reading r) { return r == Reading::Field; }
+    // write_reading and its line here are added together. Wired so far: the
+    // field, the current note, the present+window length, and the line distance.
+    static bool writer_wired(Reading r) {
+        return r == Reading::Field || r == Reading::CurrentPC
+            || r == Reading::WindowLength || r == Reading::Distance;
+    }
 
     // One published reading: its kind, the channels it draws from, the band it
     // lands in, and — when it is a field — the held incumbent that is its one
@@ -367,10 +403,25 @@ private:
             case Reading::Field:
                 output_.set_stat(p.band, slot, static_cast<float>(field_index(p.field)));
                 break;
+            case Reading::CurrentPC:
+            case Reading::WindowLength: {
+                // Vector readings: the per-source sum dressed to D. One channel ->
+                // that channel's reading; a union -> the cross-voice vector sum —
+                // same code, since the additive compound is just the sum.
+                const VectorDressing to_D{ /*reorigin*/ true, PROJECT_PC_ORIGIN, VectorDressing::Scale::None };
+                write_vector(p.band, slot, dress(reading_vector(p.reading, p.source_mask), to_D));
+                break;
+            }
+            case Reading::Distance: {
+                // The line's signed interval — a per-voice scalar; no union form.
+                const int c = first_source(p.source_mask);
+                output_.set_stat(p.band, slot,
+                    c >= 0 ? static_cast<float>(line_distance(contexts_[c].spine())) : 0.0f);
+                break;
+            }
             default:
                 // Unreachable: publish_reading refuses any reading not wired here
-                // (see writer_wired). The other readings stay as capability in the
-                // modules and gain their case when first published.
+                // (see writer_wired). The remaining readings stay as capability.
                 break;
         }
     }
@@ -380,6 +431,37 @@ private:
     void write_vector(int band, int slot_base, const PitchClassVector& v) {
         for (int pc = 0; pc < 12; ++pc)
             output_.set_stat(band, slot_base + pc, v.v[pc]);
+    }
+
+    // A vector reading over a source: the element-wise sum of each active source
+    // channel's per-channel vector. One channel -> that channel's reading; a
+    // union -> the cross-voice sum (the additive compound). Raw; dressed at the
+    // sink. (The field's combine is a set union, not this; see step_fields.)
+    PitchClassVector reading_vector(Reading r, uint32_t mask) const {
+        PitchClassVector acc;
+        for (int i = 0; i < MAX_CHANNELS; ++i) {
+            if (!(mask & (1u << i)) || !active_[i]) continue;
+            acc += per_channel_reading(r, i);
+        }
+        return acc;
+    }
+
+    // One channel's raw vector for a reading: the current note as a one-hot, or
+    // the present+window length per pitch class.
+    PitchClassVector per_channel_reading(Reading r, int i) const {
+        const Context& c = contexts_[i];
+        switch (r) {
+            case Reading::CurrentPC:    return current_note(c.spine());
+            case Reading::WindowLength: return pc_length(c.playhead(), c.wagon(0));
+            default:                    return PitchClassVector{};
+        }
+    }
+
+    // The first active channel a source draws from (for per-voice scalars).
+    int first_source(uint32_t mask) const {
+        for (int i = 0; i < MAX_CHANNELS; ++i)
+            if ((mask & (1u << i)) && active_[i]) return i;
+        return -1;
     }
 
     // ── The field — the one step ─────────────────────────────────
