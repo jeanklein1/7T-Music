@@ -16,7 +16,7 @@
  * This signal crosses that boundary. The visualization receives these numbers
  * without knowing what "polyphony" means — just that slot N has value X.
  * 
- * LAYOUT (2080 bytes)
+ * LAYOUT (4128 bytes)
  * -------------------
  *
  *   Offset  Field                Size
@@ -24,22 +24,22 @@
  *   4       t_beats              4
  *   8       dt                   4
  *   12      _pad0                4
- *   16      stats[512]           2048
- *   2064    _pad1[4]             16
- *   2080    END
+ *   16      stats[1024]          4096
+ *   4112    _pad1[4]             16
+ *   4128    END
  *
  * STAT ARRAY DESIGN
  * -----------------
  *
- * The stats array holds 512 floats for multi-channel musical analysis.
+ * The stats array holds 1024 floats for multi-channel musical analysis.
  *
  * Indexing: stats[channel * STATS_PER_CHANNEL + stat]
  *
- * With 4 channels and 128 stats per channel:
+ * With 8 channels and 128 stats per channel:
  *   Channel 0: stats[0..127]
  *   Channel 1: stats[128..255]
- *   Channel 2: stats[256..383]
- *   Channel 3: stats[384..511]
+ *   ...
+ *   Channel 7: stats[896..1023]
  * 
  * Which slots carry which meaning is defined by the analysis cartridge.
  * The visualization cartridge must know the mapping to interpret the data.
@@ -54,9 +54,9 @@ namespace t7 {
 // STAT ARRAY LAYOUT (infrastructure)
 // =============================================================================
 
-constexpr int MAX_CHANNELS = 4;
+constexpr int MAX_CHANNELS = 8;
 constexpr int STATS_PER_CHANNEL = 128;
-constexpr int TOTAL_STATS = MAX_CHANNELS * STATS_PER_CHANNEL;  // 512
+constexpr int TOTAL_STATS = MAX_CHANNELS * STATS_PER_CHANNEL;  // 1024
 
 /**
  * Compute array index for a (channel, stat) pair.
@@ -104,7 +104,7 @@ struct alignas(16) AnalysisSignal {
     }
 };
 
-static_assert(sizeof(AnalysisSignal) == 2080, "AnalysisSignal must be 2080 bytes");
+static_assert(sizeof(AnalysisSignal) == 4128, "AnalysisSignal must be 4128 bytes");
 static_assert(alignof(AnalysisSignal) == 16, "AnalysisSignal must be 16-byte aligned");
 
 // ─── STAT LAYOUT DESCRIPTOR ───────────────────────────────────────────
