@@ -196,7 +196,7 @@ static void draw_stats_grid(const t7::AnalysisSignal& signal) {
         }
         ImGui::TableHeadersRow();
 
-        for (int c = 0; c < MAX_CHANNELS; ++c) {
+        for (int c = 0; c < t7::MAX_CHANNELS; ++c) {
             ImGui::TableNextRow();
             ImGui::TableSetColumnIndex(0);
             ImGui::Text("ch%d", c);
