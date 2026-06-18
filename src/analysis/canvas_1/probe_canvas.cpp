@@ -1,19 +1,25 @@
 // probe_canvas.cpp ──────────────────────────────────────────────────
 //
-// DAW-synced probe for the canvas — run as the cartridge it now is. It
-// constructs the canvas, calls initialize() (which composes the channel and
-// opens loopMIDI), and then drives it the way the_lab does: update() each
-// frame, read the published signal back through stat_layout(). At startup it
-// prints the binding and the published layout; then, on each note transition,
-// it prints what the canvas speaks at that beat, with the present notes in
-// parentheses as ground truth.
+// DAW-synced lab for canvas_1 — run as the cartridge it now is. It constructs
+// the canvas, calls initialize() (which composes its two voices and opens
+// loopMIDI), drives it the way the_lab does (update() each frame), and reads the
+// published signal back through stat_layout().
 //
-// The canvas owns its port and reads the beat from it, so this harness no
-// longer routes events or holds a port: it passes the wall-clock dt to update()
-// — the signal's t_seconds telemetry — and reads the musical beat back from the
-// published signal. A note transition is seen from the playhead's own onset and
-// release counts, not from events. Whatever the layout advertises is printed, so
-// a reading added later appears here without changing this probe.
+// canvas_1's composition: two voices — slot 0 <- MIDI 0, slot 1 <- MIDI 1 —
+// each a present and a four-beat window, the spine off. It publishes ONE
+// reading: the field, taken across the UNION of both voices, in the group band.
+//
+// At startup it prints the binding of every active slot and the published
+// layout. Then, on each note transition (seen from any voice's playhead) it
+// prints three things in step: what the canvas speaks (the published field);
+// the present notes of BOTH voices as ground truth; and the combined present-
+// and-window pitch-class set the field elects from — so the printed field rank
+// is explained by the notes that produced it. Whatever the layout advertises is
+// printed, so a reading added later appears here without changing this probe.
+//
+// The canvas owns its port and reads the beat from it, so this harness passes
+// wall-clock dt to update() (the signal's t_seconds telemetry) and reads the
+// musical beat back from the published signal; it routes no events of its own.
 //
 // Needs RtMidi and the transport-aware MidiPort. In Ableton, enable loopMIDI's
 // Clock/Sync output, then play.  (Ctrl-C to stop)
@@ -108,16 +114,49 @@ static bool note_changed(const Canvas& canvas) {
     return false;
 }
 
+// The present notes of one voice — ground truth for what that channel holds now.
+static std::string present_notes(const Canvas& canvas, int slot) {
+    const PlayheadReadout& ph = canvas.context(slot).playhead();
+    std::string s;
+    for (int k = 0; k < ph.current_count; ++k) {
+        if (k) s += " ";
+        s += note_name(ph.current[k].pitch);
+    }
+    return s;
+}
+
+// The field's actual input: the cross-voice union of each active channel's
+// present-and-window pitch-class set, built from the same present_set /
+// present_union the canvas feeds the field. Printed as pitch-class letters so
+// the published field rank is explained by the classes that produced it. (For
+// canvas_1 the active voices are exactly the field's source, {0,1}.)
+static std::string field_input(const Canvas& canvas) {
+    PitchClassVector sets[MAX_CHANNELS];
+    int n = 0;
+    for (int slot = 0; slot < MAX_CHANNELS; ++slot) {
+        if (!canvas.active(slot)) continue;
+        const Context& c = canvas.context(slot);
+        sets[n++] = present_set(c.playhead(), c.wagon(0));
+    }
+    const PitchClassVector u = present_union(sets, n);
+    static const char* PC[] = {"C","C#","D","D#","E","F","F#","G","G#","A","A#","B"};
+    std::string s;
+    for (int i = 0; i < 12; ++i)
+        if (u.v[i] > 0.0f) { if (!s.empty()) s += " "; s += PC[i]; }
+    return s;
+}
+
 int main() {
     std::cout << std::unitbuf;
 
-    // Construct and bring up the cartridge: initialize() composes the channel
-    // (present + a four-beat window + the spine, on MIDI 0) and opens loopMIDI.
+    // Construct and bring up the cartridge: initialize() composes two voices
+    // (slot 0 <- MIDI 0, slot 1 <- MIDI 1), each present + a four-beat window,
+    // the spine off; publishes the union field; and opens loopMIDI.
     Canvas canvas;
     canvas.initialize(/*asset_path*/ nullptr);
 
-    std::cout << "canvas wiring -- the binding\n";
-    print_binding(canvas, 0);
+    std::cout << "canvas wiring -- the bindings\n";
+    for (int slot = 0; slot < MAX_CHANNELS; ++slot) print_binding(canvas, slot);
     std::cout << "\n";
     print_layout(canvas);
     std::cout << "\n";
@@ -143,14 +182,13 @@ int main() {
         if (note_changed(canvas)) {
             const float beat = canvas.output().t_beats;
             std::printf("@%-7.2f ", beat);
-            print_published(canvas);
-            const PlayheadReadout& ph = canvas.context(0).playhead();
-            std::printf("   (");
-            for (int k = 0; k < ph.current_count; ++k) {
-                if (k) std::printf(" ");
-                std::printf("%s", note_name(ph.current[k].pitch).c_str());
+            print_published(canvas);                 // what the canvas speaks (the field)
+            std::printf("   ");
+            for (int slot = 0; slot < MAX_CHANNELS; ++slot) {
+                if (!canvas.active(slot)) continue;
+                std::printf("ch%d(%s) ", slot, present_notes(canvas, slot).c_str());
             }
-            std::printf(")\n");
+            std::printf("  field-input{ %s }\n", field_input(canvas).c_str());
         }
 
         std::this_thread::sleep_for(std::chrono::milliseconds(2));
