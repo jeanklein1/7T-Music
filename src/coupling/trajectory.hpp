@@ -3,43 +3,45 @@
 // ─── coupling/trajectory.hpp ─────────────────────────────────────────
 //
 // The coupling layer's linear motion system (CPU side). A coupling turns a
-// musical reading into a moving visual parameter; this is the one mechanism
-// that moves it, the same way for every coupling. Two layers:
+// musical reading into a moving visual parameter; this is the mechanism that
+// moves it. Two layers:
 //
 //   MOVE   (Segment, plan_segment, sample_segment) — a straight line from a
 //          value to a target over a span of beats, then a hold. Sampled on
-//          the beat clock, it arrives exactly at start_beat + duration_beats.
+//          the beat clock, arrival is exact at start_beat + duration_beats.
 //
-//   FOLLOW (trajectory_release) — what a coupling calls each frame: hold one
-//          Segment, re-aim it at the current goal, read the value. While the
-//          goal keeps moving the value chases it; once the goal settles — at
-//          idle when the stimulus stops — the last move runs to completion,
-//          so a value returns to idle in exactly DEFAULT_RELEASE_BEATS.
+//   FOLLOW (trajectory_release(Segment&, …)) — the per-frame call every
+//          coupling shares: hold one Segment, re-aim at the goal, read the
+//          value. A value returns to idle in span_beats once its goal settles
+//          (default DEFAULT_RELEASE_BEATS); the move lands exactly, so no
+//          endpoint snapping is needed.
 //
-// Linear, by choice. The move is velocity-blind — it ignores how fast the
-// value was already going, so it kicks as it leaves and stops dead as it
-// lands, and a re-aim snaps to a new rate. Accepted for now: idle is just
-// another target, leaving and returning are one move pointed at different
-// ends, and exact arrival means no endpoint snapping is needed. Easing
-// (curved arrivals) and feedback (asymptotic follow) are deferred; their
-// math is kept in design notes.
+// COMPAT (TEMPORARY, at the foot). The previous first-order release survives
+// as the Trajectory overload — exponential, the prior behavior — purely so the
+// not-yet-migrated modules (musical.inl, pawn.inl) keep building and running
+// unchanged. Convert those call sites to the Segment FOLLOW one at a time;
+// when none remain, delete the COMPAT section and the <cmath> include.
 //
-// The GPU keeps its own release primitive in world.wgsl §1.2 for amplitude
-// envelopes; this header does not mirror it — a move is CPU-side intent the
-// GPU realizes as geometry, carrying no shader obligation.
+// Linear, by choice. The move is velocity-blind — it kicks as it leaves and
+// stops dead as it lands, and a re-aim snaps to a new rate. Accepted: idle is
+// just another target, leaving and returning are one move, exact arrival
+// means no snapping. Easing and asymptotic feedback are deferred; their math
+// is kept in design notes.
 //
-// SEAM[trajectory:foundations] the coupling foundation — pure math, no deps.
-//   Same family as seed_utils.
+// The GPU keeps its own release primitive in world.wgsl §1.2; this header
+// does not mirror it — a move is CPU-side intent the GPU realizes as geometry.
 //
-// Depends on: nothing.
+// SEAM[trajectory:foundations] the coupling foundation. The linear system has
+//   no dependencies; <cmath> is pulled only for the temporary COMPAT shim.
+
+#include <cmath>
 
 namespace t7 {
 
     // ═══ MOVE — a linear segment ═══════════════════════════════════════════════
     //
     // A straight run from `from` to `to` over `duration_beats`, anchored at
-    // `start_beat`. Arrival is exact at the end; outside the span it reads the
-    // endpoints.
+    // `start_beat`. Arrival is exact at the end; outside the span, the endpoints.
 
     struct Segment {
         float from = 0.0f;
@@ -68,20 +70,39 @@ namespace t7 {
     //
     // The per-frame entry point every coupling shares. Hold one Segment; call this
     // each frame with the current goal and beat. When the goal moves it re-aims
-    // over DEFAULT_RELEASE_BEATS from wherever the value is; when the goal holds,
-    // the move completes and the value rests exactly on it — so a return to idle
-    // takes exactly DEFAULT_RELEASE_BEATS, no endpoint snapping. Seed the Segment
-    // to the coupling's idle value (e.g. Segment{idle,idle,0,0}) so the first
-    // move departs from idle.
+    // over `span_beats` from wherever the value is; when the goal holds, the move
+    // completes and the value rests exactly on it — so a return to idle takes
+    // exactly `span_beats`. Seed the Segment to the coupling's idle value (e.g.
+    // Segment{idle,idle,0,0}) so the first move departs from idle.
 
     inline constexpr float DEFAULT_RELEASE_BEATS = 8.0f;
 
     inline float trajectory_release(Segment& seg, float goal, float beat,
-                                    float span_beats = DEFAULT_RELEASE_BEATS) {
+        float span_beats = DEFAULT_RELEASE_BEATS) {
         if (seg.to != goal) {          // goal moved → re-aim from the current value
             seg = plan_segment(sample_segment(seg, beat), goal, span_beats, beat);
         }
         return sample_segment(seg, beat);
+    }
+
+    // ═══ COMPAT — first-order release (TEMPORARY) ══════════════════════════════
+    //
+    // The previous release primitive, verbatim, so musical.inl and pawn.inl build
+    // and run unchanged until each migrates to the Segment FOLLOW above.
+    // Exponential (the prior behavior); matches world.wgsl §1.2. It overloads on
+    // Trajectory, so it never collides with the Segment FOLLOW. DELETE this whole
+    // section, and the <cmath> include, once no module calls the Trajectory form.
+
+    struct Trajectory {
+        float value = 0.0f;
+        float velocity = 0.0f;
+        float _pad0 = 0.0f;
+        float _pad1 = 0.0f;
+    };
+
+    inline Trajectory trajectory_release(Trajectory t, float goal, float dt, float rate) {
+        const float new_val = t.value + (goal - t.value) * (1.0f - std::exp(-rate * dt));
+        return Trajectory{ new_val, 0.0f, 0.0f, 0.0f };
     }
 
 } // namespace t7
