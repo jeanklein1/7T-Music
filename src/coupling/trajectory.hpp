@@ -76,9 +76,10 @@ namespace t7 {
 
     inline constexpr float DEFAULT_RELEASE_BEATS = 8.0f;
 
-    inline float trajectory_release(Segment& seg, float goal, float beat) {
+    inline float trajectory_release(Segment& seg, float goal, float beat,
+                                    float span_beats = DEFAULT_RELEASE_BEATS) {
         if (seg.to != goal) {          // goal moved → re-aim from the current value
-            seg = plan_segment(sample_segment(seg, beat), goal, DEFAULT_RELEASE_BEATS, beat);
+            seg = plan_segment(sample_segment(seg, beat), goal, span_beats, beat);
         }
         return sample_segment(seg, beat);
     }

@@ -142,40 +142,34 @@ struct VectorHistory {
 };
 
 // =========================================================================
-// TEST COUPLING -- One coupling under design; intensity idiom
-// =========================================================================
 //
-// Reads one stat from the AnalysisSignal, normalizes by FULL, ramps a
-// Trajectory toward the normalized target with asymmetric attack/release.
-// This is the simplest coupling shape (the most common one in musical.inl);
-// future iterations of the lab can host rate and event idioms alongside.
+// Reads one stat from the AnalysisSignal, normalizes by FULL, and moves a
+// Segment toward the normalized target over a fixed beat span (the FOLLOW
+// path in trajectory.hpp). The simplest coupling shape; future lab
+// iterations can host other idioms alongside.
 
 struct TestCoupling {
-    bool  enabled        = true;
-    int   source_group   = 0;     // index into g_layout (group carries its channel)
-    int   source_index   = 0;     // within-group slot, 0 .. count-1
-    float attack         = 4.0f;  // 1/s
-    float release        = 2.5f;  // 1/s
-    float full           = 6.0f;  // input value that saturates target at 1.0
+    bool  enabled      = true;
+    int   source_group = 0;       // index into g_layout (group carries its channel)
+    int   source_index = 0;       // within-group slot, 0 .. count-1
+    float span_beats   = 8.0f;    // beats to arrive (leaving or returning)
+    float full         = 6.0f;    // input value that saturates target at 1.0
 
-    t7::Trajectory trajectory{};
+    t7::Segment trajectory{};     // the held linear move (idle = 0)
 
     ScrollingBuffer input_history;   // raw stat over time
     ScrollingBuffer target_history;  // normalized target over time
-    ScrollingBuffer output_history;  // trajectory.value over time
+    ScrollingBuffer output_history;  // sampled value over time
 
     void tick(const t7::AnalysisSignal& signal) {
-        // Source addressing derives from the named group: group picks the
-        // channel + slot_base, source_index selects within a multi-wide group.
         const t7::StatGroup& g = g_layout[source_group];
-        const float input = signal.stat(g.channel, g.slot_base + source_index);
+        const float input  = signal.stat(g.channel, g.slot_base + source_index);
         const float target = enabled ? std::min(input / full, 1.0f) : 0.0f;
-        const float rate = (target > trajectory.value) ? attack : release;
-        trajectory = t7::trajectory_release(trajectory, target, signal.dt, rate);
+        const float value  = t7::trajectory_release(trajectory, target, signal.t_beats, span_beats);
 
         input_history.push(signal.t_seconds, input);
         target_history.push(signal.t_seconds, target);
-        output_history.push(signal.t_seconds, trajectory.value);
+        output_history.push(signal.t_seconds, value);
     }
 };
 
@@ -244,8 +238,7 @@ static void draw_coupling_controls(TestCoupling& tc) {
         ImGui::SliderInt("Index", &tc.source_index, 0, g.count - 1);
     }
 
-    ImGui::SliderFloat("Attack rate (1/s)",   &tc.attack,  0.1f, 20.0f, "%.2f");
-    ImGui::SliderFloat("Release rate (1/s)",  &tc.release, 0.1f, 20.0f, "%.2f");
+    ImGui::SliderFloat("Span (beats)", &tc.span_beats, 0.25f, 16.0f, "%.2f");
     ImGui::SliderFloat("Normalization (FULL)", &tc.full,   1.0f, 16.0f, "%.2f");
 }
 
