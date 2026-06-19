@@ -87,7 +87,7 @@
 #include "core/input_event.hpp"
 #include "cartridges/the_board/state.hpp"
 #include "cartridges/the_board/renderer.hpp"
-#include "musical/trajectory.hpp"
+#include "coupling/trajectory.hpp"
 #include <cmath>
 #include <cstring>
 #include <iostream>

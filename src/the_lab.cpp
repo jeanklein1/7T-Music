@@ -40,7 +40,7 @@
 // =========================================================================
 
 #include "console/console.hpp"
-#include "musical/trajectory.hpp"
+#include "coupling/trajectory.hpp"
 
 // IntelliSense cannot resolve macro-expanded #include paths.
 // Literal include gives navigation; the macro include below pulls the same file.
