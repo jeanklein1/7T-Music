@@ -1496,6 +1496,7 @@ namespace t7 {
             wgpu::Buffer cameraBuffer_, floatingEntityBuffer_, trajectoriesBuffer_;
             wgpu::Buffer ribbonBuffer_;
             wgpu::Buffer ringTransformsBuffer_;
+            wgpu::Buffer headPosesBuffer_;  // ribbon head-path (CPU-seeded, read by ribbon_centerline_at)
             // (bindings 21, 40 reserved — formerly proximity_field, cell_states)
             wgpu::Buffer pierBuffer_;   // unified pier instances (Storage | CopyDst)
             wgpu::Buffer vpBuffer_;
@@ -1844,6 +1845,29 @@ namespace t7 {
 
             void upload_ribbon(wgpu::Queue& queue, const GPURibbonState& ribbon) {
                 queue.WriteBuffer(ribbonBuffer_, 0, &ribbon, sizeof(GPURibbonState));
+            }
+
+            // Stage 1c: seed the head-path with the straight arc —
+            // head_poses[i] = the analytic centerline at t = i/(n-1). Resampled
+            // by ribbon_centerline_at this reproduces today's stationary arc;
+            // stage 2 records a real trail as the head moves.
+            void upload_ribbon_head_poses(wgpu::Queue& queue, const GPURibbonState& ribbon) {
+                const uint32_t n = ribbon.cube_count;
+                const uint32_t span = (n >= 2u) ? (n - 1u) : 1u;
+                const float L = static_cast<float>(n) * ribbon.cube_size;
+                const float c = std::cos(ribbon.orientation);
+                const float s = std::sin(ribbon.orientation);
+                const uint32_t count = (n < Dim::RIBBON_MAX_RINGS) ? n : Dim::RIBBON_MAX_RINGS;
+                std::array<float, 4 * Dim::RIBBON_MAX_RINGS> poses{};
+                for (uint32_t i = 0; i < count; ++i) {
+                    const float along = (static_cast<float>(i) / static_cast<float>(span)) * L;
+                    poses[4 * i + 0] = ribbon.anchor[0] + along * c;
+                    poses[4 * i + 1] = ribbon.anchor[1] + ribbon.height;
+                    poses[4 * i + 2] = ribbon.anchor[2] + along * s;
+                    poses[4 * i + 3] = 0.0f;
+                }
+                queue.WriteBuffer(headPosesBuffer_, 0, poses.data(),
+                    sizeof(float) * 4 * Dim::RIBBON_MAX_RINGS);
             }
 
             void upload_floating_entity_slot(wgpu::Queue& queue, uint32_t slot, const GPUFloatingEntityState& entity) {
@@ -2827,6 +2851,9 @@ namespace t7 {
                 ringTransformsBuffer_ = makeBuffer("Ring Transforms",
                     sizeof(GPURibbonRingTransform) * Dim::RIBBON_MAX_RINGS,
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::CopySrc);
+                headPosesBuffer_ = makeBuffer("Ribbon Head Poses",
+                    sizeof(float) * 4 * Dim::RIBBON_MAX_RINGS,
+                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
                 trajectoriesBuffer_ = makeBuffer("Trajectories", sizeof(GPUTrajectory) * Dim::MAX_TRAJECTORIES, SU);
                 // (proximity_field and terrain_cells stubs removed — bindings 21, 40 reserved)
                 vpBuffer_ = makeBuffer("VP Matrix", sizeof(GPUVPMatrix),
@@ -2905,7 +2932,7 @@ namespace t7 {
 
                 return signalBuffer_ && configBuffer_ && terrainBuffer_ &&
                     agentStateBuffer_ && agentStateReadbackStaging_ &&
-                    cameraBuffer_ && floatingEntityBuffer_ && trajectoriesBuffer_ && ringTransformsBuffer_ &&
+                    cameraBuffer_ && floatingEntityBuffer_ && trajectoriesBuffer_ && ringTransformsBuffer_ && headPosesBuffer_ &&
                     vpBuffer_ && spotLightArrayBuffer_ && spotVPStagingBuffer_ && directionalLightBuffer_ && pointLightsBuffer_ && patchParamsBuffer_ &&
                     patchStagingBuffer_ && tileGridBuffer_ && pierBuffer_ && patchInstancesBuffer_ &&
                     patchGridBuffer_ &&
@@ -4078,9 +4105,9 @@ namespace t7 {
                 // Runs BEFORE update_world so pawn overlay can read results.
                 //
                 // Bindings: tile_grid @25, pier_instances @26, ribbon_state @120,
-                // ring_xforms @121.
+                // ring_xforms @121, head_poses @122.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 4> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 5> entries{};
 
                     entries[0].binding = 25;
                     entries[0].visibility = wgpu::ShaderStage::Compute;
@@ -4097,6 +4124,10 @@ namespace t7 {
                     entries[3].binding = 121;
                     entries[3].visibility = wgpu::ShaderStage::Compute;
                     entries[3].buffer.type = wgpu::BufferBindingType::Storage;
+
+                    entries[4].binding = 122;  // head_poses (storage, read) — ribbon head-path
+                    entries[4].visibility = wgpu::ShaderStage::Compute;
+                    entries[4].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Ribbon Compute Layout";
@@ -5012,9 +5043,9 @@ namespace t7 {
                     if (!patchGenBindGroup_) return false;
                 }
 
-                // Ribbon compute bind group (4 entries: dedicated ring transform pass)
+                // Ribbon compute bind group (5 entries: dedicated ring transform pass)
                 {
-                    std::array<wgpu::BindGroupEntry, 4> entries{};
+                    std::array<wgpu::BindGroupEntry, 5> entries{};
 
                     entries[0].binding = 25;  // tile_grid (matches @binding(25))
                     entries[0].buffer = tileGridBuffer_;
@@ -5031,6 +5062,10 @@ namespace t7 {
                     entries[3].binding = 121; // ring_transforms (matches @binding(121))
                     entries[3].buffer = ringTransformsBuffer_;
                     entries[3].size = sizeof(GPURibbonRingTransform) * Dim::RIBBON_MAX_RINGS;
+
+                    entries[4].binding = 122; // head_poses (matches @binding(122))
+                    entries[4].buffer = headPosesBuffer_;
+                    entries[4].size = sizeof(float) * 4 * Dim::RIBBON_MAX_RINGS;
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Ribbon Compute BindGroup";

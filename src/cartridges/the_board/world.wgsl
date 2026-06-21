@@ -4172,11 +4172,16 @@ fn shadow_shell_vs(in: ShellVertexInput) -> ShadowVarying {
 // Stationary: the straight arc from the anchor along the heading. Stage 1c
 // swaps this body for the resampled head-path when is_roaming.
 fn ribbon_centerline_at(t: f32, ribbon: RibbonState) -> vec3<f32> {
-    let total_length = f32(ribbon.cube_count) * ribbon.cube_size;
-    let along = t * total_length;
-    let c = cos(ribbon.orientation);
-    let s = sin(ribbon.orientation);
-    return ribbon.anchor + vec3(along * c, ribbon.height, along * s);
+    // Resample the recorded head-path (only reached when is_roaming). The CPU
+    // seeds head_poses with the straight arc, so for a stationary head this
+    // reconstructs the analytic centerline at each ring's t exactly. Stage 2
+    // upgrades this to an arc-length walk over a real trail.
+    let span = max(ribbon.cube_count, 2u) - 1u;
+    let fidx = clamp(t, 0.0, 1.0) * f32(span);
+    let i0 = u32(floor(fidx));
+    let i1 = min(i0 + 1u, span);
+    let frac = fidx - f32(i0);
+    return mix(head_poses[i0].xyz, head_poses[i1].xyz, frac);
 }
 
 fn ribbon_spine_at(t: f32, ribbon: RibbonState) -> vec3<f32> {
@@ -4411,9 +4416,11 @@ fn ribbon_vs(@builtin(vertex_index) vid: u32) -> EntityVarying {
     if (xform_valid) {
         motor = Motor(xform.motor_p0, xform.motor_p1);
     } else {
-        // Fallback rare: only fires before compute_ribbon_rings has
-        // run for the current frame.
-        motor = ribbon_ring_motor(ring_idx, ribbon);
+        // Pre-compute frame (rare): identity motor. The inline spine recompute
+        // was retired so render/shadow don't reference head_poses; compute writes
+        // the rings before render reads them, so this branch doesn't fire in
+        // normal operation.
+        motor = Motor(vec4(1.0, 0.0, 0.0, 0.0), vec4(0.0));
     }
     let orient = Motor(motor.p0, vec4(0.0));
 
@@ -4505,7 +4512,7 @@ fn shadow_ribbon_vs(@builtin(vertex_index) vid: u32) -> ShadowVarying {
     if (xform_valid) {
         motor = Motor(xform.motor_p0, xform.motor_p1);
     } else {
-        motor = ribbon_ring_motor(ring_idx, ribbon);  // see ribbon_vs note
+        motor = Motor(vec4(1.0, 0.0, 0.0, 0.0), vec4(0.0));  // see ribbon_vs note
     }
     var world_pos = sw_mp(motor, local_pos);
 
@@ -4632,6 +4639,10 @@ const GROUND_ATLAS_BLADE: i32    = 100;
 // --- Ribbon compute (Group 0: binding 121, separate pipeline layout)
 // Written by compute_ribbon_rings, read by ribbon VS via render_ring_xforms.
 @group(0) @binding(121) var<storage, read_write> ring_xforms: array<RibbonRingTransform, 400>;
+
+// Ribbon head-path (CPU-seeded straight arc today; recorded trail in stage 2).
+// .xyz = position; read by ribbon_centerline_at when is_roaming.
+@group(0) @binding(122) var<storage, read> head_poses: array<vec4<f32>, 400>;
 
 // --- Light system (Group 0: render, bindings 320-339)
 @group(0) @binding(320) var<storage, read> render_light: DirectionalLight;
