@@ -127,6 +127,7 @@ namespace t7 {
             // the fog flush in update() reads it. Bound once at startup.
             VisualCanvas  visual_canvas_;
             TargetBinding fog_density_dst_{};   // resolved "fog.density" pipe
+            TargetBinding fog_color_dst_{};      // resolved "fog.color" pipe (3 wide)
 
             struct InputState {
                 float move_x = 0.0f;
@@ -3117,9 +3118,11 @@ namespace t7 {
                 // the fog.density pipe so the per-frame flush reads it by base.
                 visual_canvas_.bind(v);
                 fog_density_dst_ = visual_canvas_.layout().resolve("fog.density");
+                fog_color_dst_   = visual_canvas_.layout().resolve("fog.color");
                 std::fprintf(stderr,
-                    "[the_chord] fog.density pipe: base=%d valid=%d\n",
-                    fog_density_dst_.base, (int)fog_density_dst_.valid);
+                    "[the_chord] fog.density base=%d valid=%d | fog.color base=%d count=%d valid=%d\n",
+                    fog_density_dst_.base, (int)fog_density_dst_.valid,
+                    fog_color_dst_.base, fog_color_dst_.count, (int)fog_color_dst_.valid);
             }
 
             // DONE[spine:K1 / musical:K2 / mood:K3 / pawn:K1] update() is now
@@ -3164,14 +3167,15 @@ namespace t7 {
 
                 // --- Couplings: tick the visual canvas, then flush its pipes ---------
                 // The canvas reads the analysis signal by name and writes the
-                // parameter bank; here we flush fog.density (field-driven) to the
-                // GPU, keeping the active mood's fog color.
+                // parameter bank; here we flush both fog pipes — density and color,
+                // both field-driven — to the GPU. The mood no longer touches fog.
                 visual_canvas_.tick(signal);
-                if (fog_density_dst_.valid) {
-                    gpuState_.set_fog(visual_canvas_.params().get(fog_density_dst_.base),
-                                      MOOD_TABLE[mood_state_.active].fog_color[0],
-                                      MOOD_TABLE[mood_state_.active].fog_color[1],
-                                      MOOD_TABLE[mood_state_.active].fog_color[2]);
+                if (fog_density_dst_.valid && fog_color_dst_.valid) {
+                    const VisualParams& fp = visual_canvas_.params();
+                    gpuState_.set_fog(fp.get(fog_density_dst_.base),
+                                      fp.get(fog_color_dst_.base + 0),
+                                      fp.get(fog_color_dst_.base + 1),
+                                      fp.get(fog_color_dst_.base + 2));
                 }
 
                 // --- Upload to GPU --------------------------------------------------
