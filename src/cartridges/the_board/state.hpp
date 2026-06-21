@@ -1502,6 +1502,13 @@ namespace t7 {
             // head_poses each frame.
             uint32_t ribbonTrailCount_ = 0;
             std::array<float, 3 * Dim::RIBBON_MAX_RINGS> ribbonTrail_{};
+            // Stage 2b: head mover. The head walks a path (a test arc today, the
+            // music-driven goal at the coupling stage); the trail records it.
+            bool ribbonHeadSeeded_ = false;
+            uint32_t ribbonHeadSlot_ = UINT32_MAX;
+            float ribbonHeadOrigin_[3] = {0.0f, 0.0f, 0.0f};
+            float ribbonHeadLastPush_[3] = {0.0f, 0.0f, 0.0f};
+            float ribbonHeadStart_ = 0.0f;
             // (bindings 21, 40 reserved — formerly proximity_field, cell_states)
             wgpu::Buffer pierBuffer_;   // unified pier instances (Storage | CopyDst)
             wgpu::Buffer vpBuffer_;
@@ -1852,13 +1859,75 @@ namespace t7 {
                 queue.WriteBuffer(ribbonBuffer_, 0, &ribbon, sizeof(GPURibbonState));
             }
 
-            // Stage 2a: the head-path now flows through a trail. Seed it with the
-            // straight arc, then resample to head_poses. Identical to the 1c direct
-            // computation, but through the trail + arc-length walk — stage 2b
-            // records a moving head into the trail instead of re-seeding.
-            void upload_ribbon_head_poses(wgpu::Queue& queue, const GPURibbonState& ribbon) {
-                seed_ribbon_trail_straight(ribbon);
+            // Stage 2b: advance the head one frame, record it, resample. When
+            // is_roaming the head walks a test arc off its spawn origin; the
+            // coupling stage swaps that arc for the music-driven goal. Not roaming
+            // → the trail stays the straight arc (head_poses dormant anyway).
+            void advance_ribbon_head(wgpu::Queue& queue, const GPURibbonState& ribbon,
+                                     uint32_t slot, float t) {
+                const uint32_t n = ribbon.cube_count;
+                const uint32_t span = (n >= 2u) ? (n - 1u) : 1u;
+                const float L = static_cast<float>(n) * ribbon.cube_size;
+                const float spacing = L / static_cast<float>(span);   // one ring-spacing
+
+                if (!ribbonHeadSeeded_ || ribbonHeadSlot_ != slot) {
+                    ribbonHeadOrigin_[0] = ribbon.anchor[0];
+                    ribbonHeadOrigin_[1] = ribbon.anchor[1] + ribbon.height;
+                    ribbonHeadOrigin_[2] = ribbon.anchor[2];
+                    ribbonHeadLastPush_[0] = ribbonHeadOrigin_[0];
+                    ribbonHeadLastPush_[1] = ribbonHeadOrigin_[1];
+                    ribbonHeadLastPush_[2] = ribbonHeadOrigin_[2];
+                    ribbonHeadStart_ = t;
+                    seed_ribbon_trail_straight(ribbon);
+                    ribbonHeadSeeded_ = true;
+                    ribbonHeadSlot_ = slot;
+                }
+
+                if (ribbon.is_roaming == 1u) {
+                    // Test arc: starts at the origin moving along -heading (so the
+                    // straight seed trails directly behind), curving left. Throwaway.
+                    const float th = ribbon.orientation;
+                    const float fwd_x  = -std::cos(th), fwd_z  = -std::sin(th);
+                    const float left_x =  std::sin(th), left_z = -std::cos(th);
+                    const float w = 0.1f;          // rad/s, gentle
+                    const float R = 1.0f * L;      // radius ~ body length (≈1 rad bend)
+                    const float a = w * (t - ribbonHeadStart_);
+                    const float sn = std::sin(a), cs = std::cos(a);
+                    const float hx = ribbonHeadOrigin_[0] + R * sn * fwd_x + R * (1.0f - cs) * left_x;
+                    const float hy = ribbonHeadOrigin_[1];
+                    const float hz = ribbonHeadOrigin_[2] + R * sn * fwd_z + R * (1.0f - cs) * left_z;
+
+                    const float dx = hx - ribbonHeadLastPush_[0];
+                    const float dy = hy - ribbonHeadLastPush_[1];
+                    const float dz = hz - ribbonHeadLastPush_[2];
+                    if (std::sqrt(dx * dx + dy * dy + dz * dz) >= spacing) {
+                        push_ribbon_trail_point(hx, hy, hz);
+                        ribbonHeadLastPush_[0] = hx;
+                        ribbonHeadLastPush_[1] = hy;
+                        ribbonHeadLastPush_[2] = hz;
+                    }
+                } else {
+                    seed_ribbon_trail_straight(ribbon);
+                }
+
                 resample_ribbon_trail_upload(queue, ribbon);
+            }
+
+            // Prepend a point to the head-path trail (newest at [0]), dropping the
+            // oldest beyond capacity.
+            void push_ribbon_trail_point(float x, float y, float z) {
+                const uint32_t cap = Dim::RIBBON_MAX_RINGS;
+                uint32_t keep = ribbonTrailCount_;
+                if (keep >= cap) keep = cap - 1u;
+                for (uint32_t k = keep; k > 0u; --k) {
+                    ribbonTrail_[3 * k + 0] = ribbonTrail_[3 * (k - 1u) + 0];
+                    ribbonTrail_[3 * k + 1] = ribbonTrail_[3 * (k - 1u) + 1];
+                    ribbonTrail_[3 * k + 2] = ribbonTrail_[3 * (k - 1u) + 2];
+                }
+                ribbonTrail_[0] = x;
+                ribbonTrail_[1] = y;
+                ribbonTrail_[2] = z;
+                ribbonTrailCount_ = keep + 1u;
             }
 
             // Trail seed: ribbonTrail_[k] = the straight-arc centerline at
