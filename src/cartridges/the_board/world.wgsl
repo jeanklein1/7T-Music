@@ -4213,12 +4213,21 @@ fn ribbon_spine_at(t: f32, ribbon: RibbonState) -> vec3<f32> {
     let stationary = ribbon.anchor + vec3(rotated_along, ribbon.height + vertical + twist_vert, rotated_lateral + twist_depth);
 
     if (ribbon.is_roaming == 1u) {
-        // Roaming: centerline (the straight arc today; the resampled head-path
-        // in 1c) plus the wave displacement. With a straight centerline this is
-        // the same point as the stationary spine — sway is rotated into the
-        // heading, vertical and twist add as before.
-        let wave = vec3(-lateral * s, vertical + twist_vert, lateral * c + twist_depth);
-        return ribbon_centerline_at(t, ribbon) + wave;
+        // Roaming: centerline + wave, with the lateral sway laid on the
+        // centerline's local tangent so it banks through turns. Finite-difference
+        // the centerline for the heading; sway rides its horizontal left-
+        // perpendicular; vertical and twist add as before (world up / world Z).
+        // A straight centerline reproduces the prior wave exactly.
+        let center = ribbon_centerline_at(t, ribbon);
+        let eps = 1.0 / f32(max(ribbon.cube_count, 2u) - 1u);
+        let p_head = ribbon_centerline_at(max(t - eps, 0.0), ribbon);
+        let p_tail = ribbon_centerline_at(min(t + eps, 1.0), ribbon);
+        let dir = vec3(p_tail.x - p_head.x, 0.0, p_tail.z - p_head.z);
+        let dlen = length(dir);
+        let tang = select(vec3(c, 0.0, s), dir / max(dlen, 1e-6), dlen > 1e-6);
+        let leftp = vec3(-tang.z, 0.0, tang.x);
+        let wave = lateral * leftp + vec3(0.0, vertical + twist_vert, twist_depth);
+        return center + wave;
     }
     return stationary;
 }
