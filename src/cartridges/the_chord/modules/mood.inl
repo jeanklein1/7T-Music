@@ -524,8 +524,9 @@ void apply_mood_lighting(const MoodProfile& m, wgpu::Queue& /*queue*/) {
     clearColor_[1] = m.clear_color[1];
     clearColor_[2] = m.clear_color[2];
 
-    gpuState_.set_fog(m.fog_density,
-                      m.fog_color[0], m.fog_color[1], m.fog_color[2]);
+    // Fog retired here — density is now field-driven and color is flushed every
+    // frame from MOOD_TABLE[active] by the visual-canvas fog flush in
+    // cartridge.hpp::update(). apply_mood no longer touches fog.
     gpuState_.set_terrain_amp_ceiling(m.indoor ? 0.5f : 0.0f);
     mood_state_.terrain_amp_ceiling = m.indoor ? 0.5f : 0.0f;
     entities_state_.lights_dirty = true;

@@ -88,6 +88,7 @@
 #include "cartridges/the_chord/state.hpp"
 #include "cartridges/the_chord/renderer.hpp"
 #include "coupling/trajectory.hpp"
+#include "coupling/visual_canvas.hpp"
 #include "musical/signal_layout.hpp"
 #include <cmath>
 #include <cstring>
@@ -121,6 +122,11 @@ namespace t7 {
             // received/resolved once at startup (see bind_signal_layout).
             SignalLayout signal_layout_;
             SourceBinding lowest_pc_src_;   // §5 ribbon-color source ("abbott.lowest_pc")
+
+            // Coupling layer: the visual canvas writes a named parameter bank;
+            // the fog flush in update() reads it. Bound once at startup.
+            VisualCanvas  visual_canvas_;
+            TargetBinding fog_density_dst_{};   // resolved "fog.density" pipe
 
             struct InputState {
                 float move_x = 0.0f;
@@ -3105,6 +3111,15 @@ namespace t7 {
                     "[the_chord] lowest_pc_src: channel=%d base=%d count=%d valid=%d\n",
                     lowest_pc_src_.channel, lowest_pc_src_.base,
                     lowest_pc_src_.count, (int)lowest_pc_src_.valid);
+
+                // Coupling layer: bind the visual canvas to the same layout (it
+                // resolves its own couplings' sources internally), and resolve
+                // the fog.density pipe so the per-frame flush reads it by base.
+                visual_canvas_.bind(v);
+                fog_density_dst_ = visual_canvas_.layout().resolve("fog.density");
+                std::fprintf(stderr,
+                    "[the_chord] fog.density pipe: base=%d valid=%d\n",
+                    fog_density_dst_.base, (int)fog_density_dst_.valid);
             }
 
             // DONE[spine:K1 / musical:K2 / mood:K3 / pawn:K1] update() is now
@@ -3146,6 +3161,18 @@ namespace t7 {
                 time_state_.beats = signal.t_beats;
                 time_state_.seconds = signal.t_seconds;
                 time_state_.dt = signal.dt;
+
+                // --- Couplings: tick the visual canvas, then flush its pipes ---------
+                // The canvas reads the analysis signal by name and writes the
+                // parameter bank; here we flush fog.density (field-driven) to the
+                // GPU, keeping the active mood's fog color.
+                visual_canvas_.tick(signal);
+                if (fog_density_dst_.valid) {
+                    gpuState_.set_fog(visual_canvas_.params().get(fog_density_dst_.base),
+                                      MOOD_TABLE[mood_state_.active].fog_color[0],
+                                      MOOD_TABLE[mood_state_.active].fog_color[1],
+                                      MOOD_TABLE[mood_state_.active].fog_color[2]);
+                }
 
                 // --- Upload to GPU --------------------------------------------------
 
