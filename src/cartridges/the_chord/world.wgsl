@@ -4074,6 +4074,17 @@ fn shadow_shell_vs(in: ShellVertexInput) -> ShadowVarying {
 //    Visible cycles emerge from freq × travel_time (preserving the authored
 //    per-tier cycle counts); crests propagate head → tail at the single
 //    propagation_speed (uniform across all three axes).
+// The ribbon's centerline at parameter t, before the wave is layered on.
+// Stationary: the straight arc from the anchor along the heading. Stage 1c
+// swaps this body for the resampled head-path when is_roaming.
+fn ribbon_centerline_at(t: f32, ribbon: RibbonState) -> vec3<f32> {
+    let total_length = f32(ribbon.cube_count) * ribbon.cube_size;
+    let along = t * total_length;
+    let c = cos(ribbon.orientation);
+    let s = sin(ribbon.orientation);
+    return ribbon.anchor + vec3(along * c, ribbon.height, along * s);
+}
+
 fn ribbon_spine_at(t: f32, ribbon: RibbonState) -> vec3<f32> {
     let total_length = f32(ribbon.cube_count) * ribbon.cube_size;
     let time = ribbon.time;
@@ -4103,8 +4114,12 @@ fn ribbon_spine_at(t: f32, ribbon: RibbonState) -> vec3<f32> {
     let stationary = ribbon.anchor + vec3(rotated_along, ribbon.height + vertical + twist_vert, rotated_lateral + twist_depth);
 
     if (ribbon.is_roaming == 1u) {
-        // [stage 1b] roaming centerline lands here; identical until wired.
-        return stationary;
+        // Roaming: centerline (the straight arc today; the resampled head-path
+        // in 1c) plus the wave displacement. With a straight centerline this is
+        // the same point as the stationary spine — sway is rotated into the
+        // heading, vertical and twist add as before.
+        let wave = vec3(-lateral * s, vertical + twist_vert, lateral * c + twist_depth);
+        return ribbon_centerline_at(t, ribbon) + wave;
     }
     return stationary;
 }
