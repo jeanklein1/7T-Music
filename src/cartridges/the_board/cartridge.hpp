@@ -88,6 +88,7 @@
 #include "cartridges/the_board/state.hpp"
 #include "cartridges/the_board/renderer.hpp"
 #include "coupling/trajectory.hpp"
+#include "coupling/visual_canvas.hpp"
 #include <cmath>
 #include <cstring>
 #include <iostream>
@@ -147,6 +148,13 @@ namespace t7 {
                 float dt      = 0.016f;
             };
             TimeState time_state_;
+
+            // Coupling layer: the visual canvas writes a named parameter bank;
+            // the fog flush in update() reads it. Bound once at startup
+            // (bind_signal_layout); fog is field-driven via canvas_1's "all.field".
+            VisualCanvas  visual_canvas_;
+            TargetBinding fog_density_dst_{};   // resolved "fog.density" pipe
+            TargetBinding fog_color_dst_{};      // resolved "fog.color" pipe (3 wide)
 
             // Sun + atmosphere (driven by active mood — see apply_mood)
             float sunDirection_[3] = { 0.69f, -0.71f, -0.14f };
@@ -3082,6 +3090,20 @@ namespace t7 {
                 return true;
             }
 
+            // Coupling layer: receive the analysis stat layout once at startup,
+            // bind the visual canvas to it (it resolves its couplings' sources
+            // internally), and resolve the fog pipes the per-frame flush reads by
+            // base. Mirrors the_chord's coupling wiring; called from the harness.
+            void bind_signal_layout(StatLayoutView v) {
+                visual_canvas_.bind(v);
+                fog_density_dst_ = visual_canvas_.layout().resolve("fog.density");
+                fog_color_dst_   = visual_canvas_.layout().resolve("fog.color");
+                std::fprintf(stderr,
+                    "[the_board] fog.density base=%d valid=%d | fog.color base=%d count=%d valid=%d\n",
+                    fog_density_dst_.base, (int)fog_density_dst_.valid,
+                    fog_color_dst_.base, fog_color_dst_.count, (int)fog_color_dst_.valid);
+            }
+
             // DONE[spine:K1 / musical:K2 / mood:K3 / pawn:K1] update() is now
             //   the phase-orchestration sequence the seam map called for:
             //   build signal → upload → transition state machine →
@@ -3121,6 +3143,19 @@ namespace t7 {
                 time_state_.beats = signal.t_beats;
                 time_state_.seconds = signal.t_seconds;
                 time_state_.dt = signal.dt;
+
+                // --- Couplings: tick the visual canvas, then flush its pipes ---------
+                // The canvas reads the analysis signal by name and writes the
+                // parameter bank; here we flush both fog pipes — density and color,
+                // both field-driven — to the GPU. The mood no longer touches fog.
+                visual_canvas_.tick(signal);
+                if (fog_density_dst_.valid && fog_color_dst_.valid) {
+                    const VisualParams& fp = visual_canvas_.params();
+                    gpuState_.set_fog(fp.get(fog_density_dst_.base),
+                                      fp.get(fog_color_dst_.base + 0),
+                                      fp.get(fog_color_dst_.base + 1),
+                                      fp.get(fog_color_dst_.base + 2));
+                }
 
                 // --- Upload to GPU --------------------------------------------------
 

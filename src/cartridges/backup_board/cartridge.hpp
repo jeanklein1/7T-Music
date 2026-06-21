@@ -3085,6 +3085,12 @@ namespace t7 {
                 return true;
             }
 
+            // Coupling stub — backup_board is the frozen pre-coupling baseline and
+            // has no visual canvas. This no-op exists only so the shared dual
+            // harness (incubator_dual.cpp), which calls bind_signal_layout on the
+            // concrete render cartridge, still compiles when wired to backup_board.
+            void bind_signal_layout(StatLayoutView) {}
+
             // DONE[spine:K1 / musical:K2 / mood:K3 / pawn:K1] update() is now
             //   the phase-orchestration sequence the seam map called for:
             //   build signal → upload → transition state machine →

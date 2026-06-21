@@ -172,6 +172,11 @@ int main(int argc, char* argv[]) {
 
     std::cout << "[Incubator] " << RENDER_NAME << " renderer ready\n";
 
+    // Both cartridges are initialized; publish the slot map once so the render
+    // side can resolve coupling sources by name (the_board's fog coupling reads
+    // "all.field"). STAT_LAYOUT is constexpr, valid the moment analysis exists.
+    render.bind_signal_layout(analysis.stat_layout());
+
     // --- Setup File Watcher -------------------------------------------------
     FileWatcher watcher;
     watcher.watch(render.shader_path());
