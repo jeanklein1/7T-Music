@@ -688,7 +688,7 @@ namespace t7 {
             uint32_t is_visible;                                                // 68
             float orientation;                                                  // 72 (heading radians)
             uint32_t color_mode;                                                // 76
-            float _pad0;                                                        // 80
+            uint32_t is_roaming;                                                // 80 (0 = stationary spine = today; 1 = head roams, wired stage 1b)
             float _pad1;                                                        // 84
             float _pad2;                                                        // 88
             float _pad3;                                                        // 92

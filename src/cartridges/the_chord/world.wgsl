@@ -823,7 +823,7 @@ struct RibbonState {
     is_visible: u32,        // 0 = hidden, 1 = flying
     orientation: f32,       // heading angle (radians, 0 = +X axis)
     color_mode: u32,        // 0=smooth, 1=tinted, 2=contrast
-    _pad0: f32,
+    is_roaming: u32,        // 0 = stationary spine (today); 1 = head roams (stage 1b)
     _pad1: f32,
     _pad2: f32,
     _pad3: f32,
@@ -4097,7 +4097,16 @@ fn ribbon_spine_at(t: f32, ribbon: RibbonState) -> vec3<f32> {
     let twist_depth = sin(twist_phase) * 0.4 * ribbon.twist_amp;
     let twist_vert  = cos(twist_phase) * 0.3 * ribbon.twist_amp;
 
-    return ribbon.anchor + vec3(rotated_along, ribbon.height + vertical + twist_vert, rotated_lateral + twist_depth);
+    // Stationary spine — today, byte-for-byte. Stage 1b swaps the anchor+along
+    // base for the resampled head-path when is_roaming; the wave above is
+    // unchanged and will then layer on the centerline's local frame.
+    let stationary = ribbon.anchor + vec3(rotated_along, ribbon.height + vertical + twist_vert, rotated_lateral + twist_depth);
+
+    if (ribbon.is_roaming == 1u) {
+        // [stage 1b] roaming centerline lands here; identical until wired.
+        return stationary;
+    }
+    return stationary;
 }
 
 // Tangent direction at parameter t (central finite difference).
