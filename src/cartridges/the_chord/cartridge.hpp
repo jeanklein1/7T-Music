@@ -3561,6 +3561,7 @@ namespace t7 {
 
                         if (nearest != UINT32_MAX) {
                             gpuState_.upload_ribbon(queue, ribbon_state_.gpu[nearest]);
+                            gpuState_.upload_ribbon_head_poses(queue, ribbon_state_.gpu[nearest]);  // 1c: seed head-path
                             ribbon_state_.rendered_slot = nearest;
                         }
                         else if (ribbon_state_.rendered_slot != UINT32_MAX) {
