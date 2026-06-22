@@ -1893,7 +1893,7 @@ namespace t7 {
                     const float th = ribbon.orientation;
                     const float fwd_x  = -std::cos(th), fwd_z  = -std::sin(th);
                     const float left_x =  std::sin(th), left_z = -std::cos(th);
-                    const float w = 0.1f;          // rad/s, gentle
+                    const float w = 0.01f;         // rad/s — head angular rate (speed = R*w); /10 vs the first arc
                     const float R = 1.0f * L;      // radius ~ body length (≈1 rad bend)
                     const float a = w * (t - ribbonHeadStart_);
                     const float sn = std::sin(a), cs = std::cos(a);
