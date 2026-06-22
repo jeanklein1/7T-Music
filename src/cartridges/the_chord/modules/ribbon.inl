@@ -92,6 +92,12 @@ static constexpr float MIN_ADDED_HEIGHT   = 20.0f;    // floor on height added a
 static constexpr float FOOTPRINT_RADIUS   = 5.0f;     // ribbon spawn footprint radius
 static constexpr float ORIENTATION_SPREAD = 1.0472f;  // ±60° (π/3) around away-from-pawn
 
+// Head-roaming master switch (ribbon stages 1–2c). true = the head walks a path
+// and the body trails it; false = stationary spine (the prior look). Applied to
+// every committed ribbon's is_roaming in commit_ribbon. The head path is still
+// the 2b test arc until the music-driven coupling stage lands.
+static constexpr bool RIBBON_ROAMING = true;
+
 
 // ═══ COLOR VOCABULARY ════════════════════════════════════════════
 
@@ -644,6 +650,7 @@ static void commit_ribbon(RibbonState& rs, Cartridge* c,
     r.color[1] = plan.color[1];
     r.color[2] = plan.color[2];
     r.is_visible = 1u;
+    r.is_roaming = RIBBON_ROAMING ? 1u : 0u;   // head-roaming master switch (top of file)
 
     // Store in CPU mirror (per-frame nearest-selection uploads to GPU)
     uint32_t s = plan.slot;
