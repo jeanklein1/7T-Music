@@ -4157,11 +4157,25 @@ fn ribbon_ring_motor(ring_idx: u32, ribbon: RibbonState) -> Motor {
     let center = ribbon_spine_at(t, ribbon);
     let tangent = ribbon_tangent_at(t, ribbon);
 
-    // Step 1: Pre-rotate local frame to the ribbon heading.
-    let heading = rotor(vec3(0.0, 1.0, 0.0), ribbon.orientation);
+    // Step 1: Pre-rotate local frame to the ribbon heading. When roaming, use the
+    // LOCAL centerline heading (not the fixed spawn orientation) so the body's
+    // turn is absorbed here and the Step-2 correction stays small. A large
+    // correction (spawn heading → a far-curved tangent) twists the cross-section
+    // through the turn — the kinks seen on the roaming curve. Stationary keeps the
+    // spawn orientation exactly (local heading == orientation for a straight
+    // centerline), so its look is unchanged.
+    var head_ori = ribbon.orientation;
+    if (ribbon.is_roaming == 1u) {
+        let heps = 1.0 / f32(max(ribbon.cube_count, 2u) - 1u);
+        let hph = ribbon_centerline_at(max(t - heps, 0.0), ribbon);
+        let hpt = ribbon_centerline_at(min(t + heps, 1.0), ribbon);
+        let cdir = vec3(hpt.x - hph.x, 0.0, hpt.z - hph.z);
+        if (length(cdir) > 1e-6) { head_ori = atan2(cdir.z, cdir.x); }
+    }
+    let heading = rotor(vec3(0.0, 1.0, 0.0), head_ori);
 
     // Step 2: Small correction from heading direction to actual tangent.
-    let heading_dir = vec3(cos(ribbon.orientation), 0.0, sin(ribbon.orientation));
+    let heading_dir = vec3(cos(head_ori), 0.0, sin(head_ori));
     let corr_axis = cross(heading_dir, tangent);
     let corr_cos = dot(heading_dir, tangent);
 
