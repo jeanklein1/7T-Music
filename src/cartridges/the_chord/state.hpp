@@ -1887,6 +1887,10 @@ namespace t7 {
                     ribbonHeadSlot_ = slot;
                 }
 
+                // The live head this frame (continuous). Passed to the resample so
+                // the whole body glides between trail appends instead of snapping
+                // to the last pushed point.
+                float hx, hy, hz;
                 if (ribbon.is_roaming == 1u) {
                     // Test arc: starts at the origin moving along -heading (so the
                     // straight seed trails directly behind), curving left. Throwaway.
@@ -1897,10 +1901,13 @@ namespace t7 {
                     const float R = 1.0f * L;      // radius ~ body length (≈1 rad bend)
                     const float a = w * (t - ribbonHeadStart_);
                     const float sn = std::sin(a), cs = std::cos(a);
-                    const float hx = ribbonHeadOrigin_[0] + R * sn * fwd_x + R * (1.0f - cs) * left_x;
-                    const float hy = ribbonHeadOrigin_[1];
-                    const float hz = ribbonHeadOrigin_[2] + R * sn * fwd_z + R * (1.0f - cs) * left_z;
+                    hx = ribbonHeadOrigin_[0] + R * sn * fwd_x + R * (1.0f - cs) * left_x;
+                    hy = ribbonHeadOrigin_[1];
+                    hz = ribbonHeadOrigin_[2] + R * sn * fwd_z + R * (1.0f - cs) * left_z;
 
+                    // Append to the trail once the head has advanced a ring-spacing
+                    // (the trail records at ring resolution; the head stays
+                    // continuous via the resample's virtual head point below).
                     const float dx = hx - ribbonHeadLastPush_[0];
                     const float dy = hy - ribbonHeadLastPush_[1];
                     const float dz = hz - ribbonHeadLastPush_[2];
@@ -1912,9 +1919,12 @@ namespace t7 {
                     }
                 } else {
                     seed_ribbon_trail_straight(ribbon);
+                    hx = ribbonTrail_[0];
+                    hy = ribbonTrail_[1];
+                    hz = ribbonTrail_[2];
                 }
 
-                resample_ribbon_trail_upload(queue, ribbon);
+                resample_ribbon_trail_upload(queue, ribbon, hx, hy, hz);
             }
 
             // Prepend a point to the head-path trail (newest at [0]), dropping the
@@ -1952,49 +1962,55 @@ namespace t7 {
                 ribbonTrailCount_ = count;
             }
 
-            // Resample the trail to uniform arc-length samples → head_poses.
-            // out[i] is the point (i/span)*L behind the head along the path. A
-            // straight trail reproduces the straight arc; a curved one (stage 2b)
-            // is what the body follows.
-            void resample_ribbon_trail_upload(wgpu::Queue& queue, const GPURibbonState& ribbon) {
+            // Resample the head-path to uniform arc-length samples → head_poses.
+            // The path is the live head followed by the committed trail —
+            // [head, trail[0..count-1]] — so out[0] is the continuously-moving head
+            // and the whole body glides between appends (no per-spacing stepping);
+            // out[i] is the point (i/span)*L behind the head. A straight path (head
+            // == trail[0]) reproduces the straight arc.
+            void resample_ribbon_trail_upload(wgpu::Queue& queue, const GPURibbonState& ribbon,
+                                              float hx, float hy, float hz) {
                 const uint32_t n = ribbon.cube_count;
                 const uint32_t span = (n >= 2u) ? (n - 1u) : 1u;
                 const float L = static_cast<float>(n) * ribbon.cube_size;
                 const uint32_t out_n = (n < Dim::RIBBON_MAX_RINGS) ? n : Dim::RIBBON_MAX_RINGS;
-                const uint32_t count = ribbonTrailCount_;
+                const uint32_t pts = ribbonTrailCount_ + 1u;   // virtual: [0]=live head, [1..]=trail
+                // Path point accessor: j==0 → live head, j>=1 → trail[j-1].
+                auto P = [&](uint32_t j, uint32_t axis) -> float {
+                    if (j == 0u) return (axis == 0u) ? hx : (axis == 1u ? hy : hz);
+                    return ribbonTrail_[3 * (j - 1u) + axis];
+                };
                 std::array<float, 4 * Dim::RIBBON_MAX_RINGS> poses{};
-                if (count >= 1u) {
-                    poses[0] = ribbonTrail_[0];
-                    poses[1] = ribbonTrail_[1];
-                    poses[2] = ribbonTrail_[2];
-                    uint32_t seg = 0u;        // current segment trail[seg] -> trail[seg+1]
-                    float seg_acc = 0.0f;     // arc-length at trail[seg]
-                    for (uint32_t i = 1u; i < out_n; ++i) {
-                        const float target = (static_cast<float>(i) / static_cast<float>(span)) * L;
-                        bool placed = false;
-                        while (seg + 1u < count) {
-                            const float dx = ribbonTrail_[3 * (seg + 1u) + 0] - ribbonTrail_[3 * seg + 0];
-                            const float dy = ribbonTrail_[3 * (seg + 1u) + 1] - ribbonTrail_[3 * seg + 1];
-                            const float dz = ribbonTrail_[3 * (seg + 1u) + 2] - ribbonTrail_[3 * seg + 2];
-                            const float seglen = std::sqrt(dx * dx + dy * dy + dz * dz);
-                            if (seg_acc + seglen >= target) {
-                                float f = (seglen > 1e-6f) ? ((target - seg_acc) / seglen) : 0.0f;
-                                f = (f < 0.0f) ? 0.0f : (f > 1.0f ? 1.0f : f);
-                                poses[4 * i + 0] = ribbonTrail_[3 * seg + 0] + dx * f;
-                                poses[4 * i + 1] = ribbonTrail_[3 * seg + 1] + dy * f;
-                                poses[4 * i + 2] = ribbonTrail_[3 * seg + 2] + dz * f;
-                                placed = true;
-                                break;
-                            }
-                            seg_acc += seglen;
-                            seg += 1u;
+                poses[0] = hx;
+                poses[1] = hy;
+                poses[2] = hz;
+                uint32_t seg = 0u;        // current segment P(seg) -> P(seg+1)
+                float seg_acc = 0.0f;     // arc-length at P(seg)
+                for (uint32_t i = 1u; i < out_n; ++i) {
+                    const float target = (static_cast<float>(i) / static_cast<float>(span)) * L;
+                    bool placed = false;
+                    while (seg + 1u < pts) {
+                        const float dx = P(seg + 1u, 0u) - P(seg, 0u);
+                        const float dy = P(seg + 1u, 1u) - P(seg, 1u);
+                        const float dz = P(seg + 1u, 2u) - P(seg, 2u);
+                        const float seglen = std::sqrt(dx * dx + dy * dy + dz * dz);
+                        if (seg_acc + seglen >= target) {
+                            float f = (seglen > 1e-6f) ? ((target - seg_acc) / seglen) : 0.0f;
+                            f = (f < 0.0f) ? 0.0f : (f > 1.0f ? 1.0f : f);
+                            poses[4 * i + 0] = P(seg, 0u) + dx * f;
+                            poses[4 * i + 1] = P(seg, 1u) + dy * f;
+                            poses[4 * i + 2] = P(seg, 2u) + dz * f;
+                            placed = true;
+                            break;
                         }
-                        if (!placed) {
-                            const uint32_t last = count - 1u;   // ran past the trail → clamp to oldest
-                            poses[4 * i + 0] = ribbonTrail_[3 * last + 0];
-                            poses[4 * i + 1] = ribbonTrail_[3 * last + 1];
-                            poses[4 * i + 2] = ribbonTrail_[3 * last + 2];
-                        }
+                        seg_acc += seglen;
+                        seg += 1u;
+                    }
+                    if (!placed) {
+                        const uint32_t last = pts - 1u;   // ran past the path → clamp to oldest
+                        poses[4 * i + 0] = P(last, 0u);
+                        poses[4 * i + 1] = P(last, 1u);
+                        poses[4 * i + 2] = P(last, 2u);
                     }
                 }
                 queue.WriteBuffer(headPosesBuffer_, 0, poses.data(),
