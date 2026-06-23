@@ -3546,12 +3546,6 @@ namespace t7 {
                         gpuState_.upload_ribbon_time(queue, time_state_.seconds);
                         gpuState_.upload_ribbon_color(queue,
                             ribbon_state_.gpu[ribbon_state_.rendered_slot].color);
-                        // Roaming head must advance EVERY frame; the slot-switch
-                        // call below only seeds it (a = 0 at selection). Without
-                        // this the head stays frozen and the ribbon never roams.
-                        gpuState_.advance_ribbon_head(queue,
-                            ribbon_state_.gpu[ribbon_state_.rendered_slot],
-                            ribbon_state_.rendered_slot, time_state_.seconds);
                     }
                     else {
                         // Current slot is gone — find nearest active ribbon
