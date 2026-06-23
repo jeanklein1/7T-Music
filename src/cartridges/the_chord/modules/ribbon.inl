@@ -644,6 +644,7 @@ static void commit_ribbon(RibbonState& rs, Cartridge* c,
     r.color[1] = plan.color[1];
     r.color[2] = plan.color[2];
     r.is_visible = 1u;
+    r.is_roaming = 1u;   // head-roaming on (test arc until the coupling stage)
 
     // Store in CPU mirror (per-frame nearest-selection uploads to GPU)
     uint32_t s = plan.slot;

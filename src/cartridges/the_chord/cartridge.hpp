@@ -3546,6 +3546,15 @@ namespace t7 {
                         gpuState_.upload_ribbon_time(queue, time_state_.seconds);
                         gpuState_.upload_ribbon_color(queue,
                             ribbon_state_.gpu[ribbon_state_.rendered_slot].color);
+                        // The head mover must run EVERY frame for the held ribbon,
+                        // not only on slot eviction. Without this the trail is seeded
+                        // straight once and never advances, so the ribbon looks
+                        // stationary despite is_roaming = 1. The mover's init guard
+                        // (slot unchanged) makes this a pure per-frame advance — no
+                        // re-seed, no double work with the eviction-branch call below.
+                        gpuState_.advance_ribbon_head(queue,
+                            ribbon_state_.gpu[ribbon_state_.rendered_slot],
+                            ribbon_state_.rendered_slot, time_state_.seconds);
                     }
                     else {
                         // Current slot is gone — find nearest active ribbon
