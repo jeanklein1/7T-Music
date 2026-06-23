@@ -1910,6 +1910,16 @@ namespace t7 {
                         ribbonHeadLastPush_[1] = hy;
                         ribbonHeadLastPush_[2] = hz;
                     }
+                    // ── TEMP ROAM PROBE — delete after diagnosis ──────────────
+                    static float roam_dbg_last = -1e9f;
+                    if (t - roam_dbg_last > 1.0f) {
+                        roam_dbg_last = t;
+                        std::cout << "[ROAM] slot=" << slot << " hslot=" << ribbonHeadSlot_
+                                  << " t=" << t << " start=" << ribbonHeadStart_ << " a=" << a
+                                  << " head=(" << hx << "," << hz << ")"
+                                  << " origin=(" << ribbonHeadOrigin_[0] << "," << ribbonHeadOrigin_[2] << ")"
+                                  << " trailN=" << ribbonTrailCount_ << "\n";
+                    }
                 } else {
                     seed_ribbon_trail_straight(ribbon);
                 }
