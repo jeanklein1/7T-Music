@@ -4157,25 +4157,52 @@ fn ribbon_ring_motor(ring_idx: u32, ribbon: RibbonState) -> Motor {
     let center = ribbon_spine_at(t, ribbon);
     let tangent = ribbon_tangent_at(t, ribbon);
 
-    // Step 1: Pre-rotate local frame to the ribbon heading.
-    let heading = rotor(vec3(0.0, 1.0, 0.0), ribbon.orientation);
-
-    // Step 2: Small correction from heading direction to actual tangent.
-    let heading_dir = vec3(cos(ribbon.orientation), 0.0, sin(ribbon.orientation));
-    let corr_axis = cross(heading_dir, tangent);
-    let corr_cos = dot(heading_dir, tangent);
-
-    var correction: Motor;
-    if (length(corr_axis) < 0.001) {
-        correction = MOTOR_IDENTITY;
+    // Orient the cross-section's axis (local +X) along the spine tangent.
+    var orient: Motor;
+    if (ribbon.is_roaming == 1u) {
+        // Roaming: yaw to the tangent's OWN horizontal heading. atan2 is total
+        // over the circle, so the tangent may point any horizontal direction —
+        // including opposite the spawn heading — with no singularity. The
+        // leftover correction is then a pure pitch (vertical tilt). At spawn the
+        // tangent equals the spawn heading, so this reduces to the stationary
+        // decomposition in the else-branch.
+        let horiz = vec3(tangent.x, 0.0, tangent.z);
+        let hlen = length(horiz);
+        if (hlen < 1e-4) {
+            // Near-vertical tube (rare for a horizontal ribbon): no defined
+            // horizontal heading — fall back to the spawn heading.
+            orient = rotor(vec3(0.0, 1.0, 0.0), ribbon.orientation);
+        } else {
+            let base = rotor(vec3(0.0, 1.0, 0.0), atan2(tangent.z, tangent.x));
+            let base_dir = horiz / hlen;
+            let pitch_axis = cross(base_dir, tangent);
+            let pitch_cos  = dot(base_dir, tangent);
+            var pitch: Motor;
+            if (length(pitch_axis) < 1e-4) {
+                pitch = MOTOR_IDENTITY;          // tangent already horizontal
+            } else {
+                pitch = rotor(pitch_axis, acos(clamp(pitch_cos, -1.0, 1.0)));
+            }
+            orient = gp_mm(base, pitch);
+        }
     } else {
-        correction = rotor(corr_axis, acos(clamp(corr_cos, -1.0, 1.0)));
+        // Stationary — unchanged (verified). Heading rotor + a small shortest-arc
+        // correction from the spawn heading to the tangent.
+        let heading = rotor(vec3(0.0, 1.0, 0.0), ribbon.orientation);
+        let heading_dir = vec3(cos(ribbon.orientation), 0.0, sin(ribbon.orientation));
+        let corr_axis = cross(heading_dir, tangent);
+        let corr_cos = dot(heading_dir, tangent);
+        var correction: Motor;
+        if (length(corr_axis) < 0.001) {
+            correction = MOTOR_IDENTITY;
+        } else {
+            correction = rotor(corr_axis, acos(clamp(corr_cos, -1.0, 1.0)));
+        }
+        orient = gp_mm(heading, correction);
     }
 
-    // Compose: correction * heading * translate
-    // In this PGA implementation, gp_mm(A, B) applies A first, then B.
-    // We want: orient the cross-section, then place it at center.
-    let orient = gp_mm(heading, correction);
+    // orient first, then translate to the ring center (gp_mm applies its first
+    // argument first).
     let trans = Motor(vec4(1.0, 0.0, 0.0, 0.0), vec4(-0.5 * center, 0.0));
     return gp_mm(orient, trans);
 }
