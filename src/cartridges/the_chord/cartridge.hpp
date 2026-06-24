@@ -3162,6 +3162,22 @@ namespace t7 {
                 gpuSignal.pan_y_delta = inputState_.pan_y_delta;
                 gpuSignal._pad1 = 0.0f;
 
+                // Sky mode: hand the GPU pawn update the (one-frame-old) ribbon
+                // head pose so the possessed pawn snaps onto the flown head. The
+                // lag is imperceptible at frame rate. SEAM[ribbon:sky-mode].
+                {
+                    float hx = 0.0f, hy = 0.0f, hz = 0.0f, hh = 0.0f;
+                    gpuState_.get_ribbon_head_pose(hx, hy, hz, hh);
+                    gpuSignal.sky_mode    = player_.sky_mode ? 1u : 0u;
+                    gpuSignal.sky_head_x  = hx;
+                    gpuSignal.sky_head_y  = hy;
+                    gpuSignal.sky_head_z  = hz;
+                    gpuSignal.sky_heading = hh;
+                    gpuSignal._pad2 = 0.0f;
+                    gpuSignal._pad3 = 0.0f;
+                    gpuSignal._pad4 = 0.0f;
+                }
+
                 time_state_.beats = signal.t_beats;
                 time_state_.seconds = signal.t_seconds;
                 time_state_.dt = signal.dt;

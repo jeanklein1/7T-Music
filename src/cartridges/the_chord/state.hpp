@@ -341,6 +341,16 @@ namespace t7 {
             float pan_x_delta;
             float pan_y_delta;
             float _pad1;
+            // Sky mode: ribbon head pose handed to the GPU pawn update so the
+            // possessed pawn snaps onto the flown head. SEAM[ribbon:sky-mode].
+            uint32_t sky_mode;       // 0 = grounded, 1 = mounted on the ribbon head
+            float    sky_head_x;
+            float    sky_head_y;
+            float    sky_head_z;
+            float    sky_heading;
+            float    _pad2;
+            float    _pad3;
+            float    _pad4;
         };
 
         struct alignas(16) GPUDesignConfig {
@@ -1363,7 +1373,7 @@ namespace t7 {
             uint32_t entries[Dim::MAX_ACTIVE_PATCHES];
         };
 
-        static_assert(sizeof(GPUFrameSignal) == 304, "GPUFrameSignal must be 304 bytes");
+        static_assert(sizeof(GPUFrameSignal) == 336, "GPUFrameSignal must be 336 bytes");
         static_assert(sizeof(GPUDesignConfig) == 400, "GPUDesignConfig must be 400 bytes");
 
         // Portal ellipse array — uploaded when portal set changes.
@@ -1869,6 +1879,14 @@ namespace t7 {
             // is_roaming the head walks a test arc off its spawn origin; the
             // coupling stage swaps that arc for the music-driven goal. Not roaming
             // → the trail stays the straight arc (head_poses dormant anyway).
+            // Last computed ribbon head pose — read by the pawn mount (sky mode).
+            void get_ribbon_head_pose(float& x, float& y, float& z, float& heading) const {
+                x = ribbonHeadPos_[0];
+                y = ribbonHeadPos_[1];
+                z = ribbonHeadPos_[2];
+                heading = ribbonHeadHeading_;
+            }
+
             void advance_ribbon_head(wgpu::Queue& queue, const GPURibbonState& ribbon,
                                      uint32_t slot, float t,
                                      bool flown, float yaw_in, float throttle_in, float dt) {

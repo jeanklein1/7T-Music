@@ -619,6 +619,14 @@ struct FrameSignal {
     pan_x_delta: f32,
     pan_y_delta: f32,
     dt_beats: f32,        // beat-time delta (currentBeats_ - prevBeats_)
+    sky_mode: u32,        // 0 = grounded, 1 = pawn mounted on the ribbon head
+    sky_head_x: f32,
+    sky_head_y: f32,
+    sky_head_z: f32,
+    sky_heading: f32,
+    _pad2: f32,
+    _pad3: f32,
+    _pad4: f32,
 }
 
 // --- [STATE:terrain] TerrainState
@@ -5357,6 +5365,21 @@ fn agent_post_step(agent_in: AgentState, drag: f32, speed_cap: f32, speed_gain: 
 // — by convention that is the same slot as config.possessed_slot.
 fn behavior_player_controlled(agent_in: AgentState) -> AgentState {
     var agent = agent_in;
+
+    // Sky mode: the pawn is mounted on the ribbon head. Snap to the head pose
+    // (delivered per-frame in the signal) and skip walking, ground-resolve, and
+    // terrain tilt entirely. SEAM[ribbon:sky-mode].
+    if (signal.sky_mode != 0u) {
+        agent.pos_x = signal.sky_head_x;
+        agent.pos_y = signal.sky_head_y;
+        agent.pos_z = signal.sky_head_z;
+        agent.heading = signal.sky_heading;
+        agent.vel_x = 0.0;
+        agent.vel_y = 0.0;
+        agent.vel_z = 0.0;
+        return agent;
+    }
+
     let dt = signal.dt;
     let prev_xz = vec2(agent.pos_x, agent.pos_z);
     let prev_y  = agent.pos_y;
