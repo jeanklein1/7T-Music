@@ -3661,8 +3661,9 @@ namespace t7 {
                 // seat offset. Ordered before dispatch_compute, which runs the player
                 // agent kernel that reads sky_*. SEAM[ribbon:sky-mode].
                 {
-                    float hx, hy, hz, hh;
-                    gpuState_.get_ribbon_head_pose(hx, hy, hz, hh);
+                    // DIAGNOSTIC PIN (temporary): fixed pose, decoupled from the ribbon.
+                    float hx = 0.0f, hy = 200.0f, hz = 0.0f, hh = 0.0f;
+                    // gpuState_.get_ribbon_head_pose(hx, hy, hz, hh);
                     gpuState_.resync_sky_head(queue, player_.sky_mode ? 1u : 0u, hx, hy, hz, hh);
                 }
 
