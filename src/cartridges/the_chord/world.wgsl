@@ -4155,22 +4155,28 @@ fn ribbon_tangent_at(t: f32, ribbon: RibbonState) -> vec3<f32> {
 fn ribbon_ring_motor(ring_idx: u32, ribbon: RibbonState) -> Motor {
     let t = f32(ring_idx) / f32(max(ribbon.cube_count - 1u, 1u));
     let center = ribbon_spine_at(t, ribbon);
-    let tangent = ribbon_tangent_at(t, ribbon);
-
-    // Orient the cross-section's axis (local +X) along the spine tangent.
+    // Orient the cross-section's axis (local +X) along the ribbon's direction.
     var orient: Motor;
     if (ribbon.is_roaming == 1u) {
-        // Roaming: yaw to the tangent's OWN horizontal heading. atan2 is total
-        // over the circle, so the tangent may point any horizontal direction —
-        // including opposite the spawn heading — with no singularity. The
-        // leftover correction is then a pure pitch (vertical tilt). At spawn the
-        // tangent equals the spawn heading, so this reduces to the stationary
-        // decomposition in the else-branch.
+        // Orient from the CENTERLINE (path) tangent, NOT the spine tangent. The
+        // lateral wave rides the path's rotating perpendicular; differentiating
+        // the spine injects a lateral·d(perp)/dt term that steps at the
+        // piecewise-linear centerline's ring boundaries and jerks the rings
+        // wherever the path curves (zeroing the wave removed it — the diagnostic).
+        // The centerline tangent is the smooth path direction. The wave still
+        // displaces the spine positionally, so the ribbon still undulates — only
+        // the ring ORIENTATION follows the path.
+        let eps_c = 1.0 / f32(max(ribbon.cube_count, 2u) - 1u);   // one ring span
+        let c_head = ribbon_centerline_at(max(t - eps_c, 0.0), ribbon);
+        let c_tail = ribbon_centerline_at(min(t + eps_c, 1.0), ribbon);
+        let tangent = normalize(c_tail - c_head);
+
+        // Yaw to the tangent's OWN horizontal heading (atan2 is total over the
+        // circle — no antiparallel singularity), then a pure pitch for vertical
+        // tilt. Near-vertical tube falls back to the spawn heading.
         let horiz = vec3(tangent.x, 0.0, tangent.z);
         let hlen = length(horiz);
         if (hlen < 1e-4) {
-            // Near-vertical tube (rare for a horizontal ribbon): no defined
-            // horizontal heading — fall back to the spawn heading.
             orient = rotor(vec3(0.0, 1.0, 0.0), ribbon.orientation);
         } else {
             let base = rotor(vec3(0.0, 1.0, 0.0), atan2(tangent.z, tangent.x));
@@ -4179,15 +4185,16 @@ fn ribbon_ring_motor(ring_idx: u32, ribbon: RibbonState) -> Motor {
             let pitch_cos  = dot(base_dir, tangent);
             var pitch: Motor;
             if (length(pitch_axis) < 1e-4) {
-                pitch = MOTOR_IDENTITY;          // tangent already horizontal
+                pitch = MOTOR_IDENTITY;
             } else {
                 pitch = rotor(pitch_axis, acos(clamp(pitch_cos, -1.0, 1.0)));
             }
             orient = gp_mm(base, pitch);
         }
     } else {
-        // Stationary — unchanged (verified). Heading rotor + a small shortest-arc
-        // correction from the spawn heading to the tangent.
+        // Stationary — unchanged (verified). Spine tangent + heading rotor with a
+        // small shortest-arc correction from the spawn heading.
+        let tangent = ribbon_tangent_at(t, ribbon);
         let heading = rotor(vec3(0.0, 1.0, 0.0), ribbon.orientation);
         let heading_dir = vec3(cos(ribbon.orientation), 0.0, sin(ribbon.orientation));
         let corr_axis = cross(heading_dir, tangent);
