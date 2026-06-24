@@ -1766,6 +1766,25 @@ namespace t7 {
                 queue.WriteBuffer(signalBuffer_, 0, &signal, sizeof(GPUFrameSignal));
             }
 
+            // Re-write only the sky_* block of the frame signal. Used to re-sync the
+            // pawn mount after advance_ribbon_head so the pawn is sampled at the same
+            // frame as the ribbon it rides (removes the one-frame mount lag). The eight
+            // sky_* words are contiguous in GPUFrameSignal — a targeted sub-range write,
+            // the same idiom as upload_ribbon_time. The local block mirrors that field
+            // order exactly; the static_assert guards the 8-word size.
+            void resync_sky_head(wgpu::Queue& queue, uint32_t sky_mode,
+                                 float head_x, float head_y, float head_z, float heading) {
+                struct SkyBlock {
+                    uint32_t sky_mode;
+                    float head_x, head_y, head_z, heading;
+                    float pad2, pad3, pad4;
+                } block{ sky_mode, head_x, head_y, head_z, heading, 0.0f, 0.0f, 0.0f };
+                static_assert(sizeof(SkyBlock) == 32,
+                    "SkyBlock must mirror GPUFrameSignal's eight contiguous sky_* words");
+                queue.WriteBuffer(signalBuffer_, offsetof(GPUFrameSignal, sky_mode),
+                                  &block, sizeof(block));
+            }
+
             // Upload the agent behavior + tier registries to the GPU.
             // Called once at world-init from the cartridge — values are
             // constexpr-equivalent (sourced from AGENT_BEHAVIORS /
