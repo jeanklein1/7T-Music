@@ -833,7 +833,7 @@ struct RibbonState {
     orientation: f32,       // heading angle (radians, 0 = +X axis)
     color_mode: u32,        // 0=smooth, 1=tinted, 2=contrast
     is_roaming: u32,        // 0 = stationary spine (today); 1 = head roams (stage 1b)
-    _pad1: f32,
+    head_heading: f32,      // live head heading (radians); orients the head ring to the direction of travel
     _pad2: f32,
     _pad3: f32,
 }
@@ -4265,8 +4265,18 @@ fn ribbon_ruler_tangent_at(t: f32, ribbon: RibbonState) -> vec3<f32> {
     let p_tail = ribbon_centerline_at(min(t + eps, 1.0), ribbon);
     let dir = vec3(p_tail.x - p_head.x, 0.0, p_tail.z - p_head.z);
     let dlen = length(dir);
-    let fallback = vec3(cos(ribbon.orientation), 0.0, sin(ribbon.orientation));
-    return select(fallback, dir / max(dlen, 1e-6), dlen > 1e-6);
+    // Direction of travel, known exactly: the head flies along -head_heading, so the
+    // ruler tangent (toward the tail) is +head_heading. Degenerate/clamped rings fall
+    // back to this live heading instead of the fixed spawn orientation, so they stop
+    // snapping to one global direction (the turn pinch).
+    let heading_dir = vec3(cos(ribbon.head_heading), 0.0, sin(ribbon.head_heading));
+    let path_dir = select(heading_dir, dir / max(dlen, 1e-6), dlen > 1e-6);
+    // The head — and a short blend behind it — stays square to travel even when the
+    // recorded path near the head is the straight spawn seed (hovering). When flying,
+    // path_dir already ~= heading_dir here, so the blend is seamless; the cost is paid
+    // only where they disagree. Blend span ~ the first 4 rings.
+    let blend = smoothstep(0.0, 4.0 * eps, t);
+    return normalize(mix(heading_dir, path_dir, blend));
 }
 
 // Build a PGA motor that places and orients one cross-section ring.

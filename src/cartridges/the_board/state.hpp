@@ -700,7 +700,7 @@ namespace t7 {
             float orientation;                                                  // 72 (heading radians)
             uint32_t color_mode;                                                // 76
             uint32_t is_roaming;                                                // 80 (0 = stationary spine = today; 1 = head roams, wired stage 1b)
-            float _pad1;                                                        // 84
+            float head_heading;                                                 // 84 live head heading (radians); orients the head ring to the direction of travel
             float _pad2;                                                        // 88
             float _pad3;                                                        // 92
         };                                                                      // 96 total (mirrors world.wgsl RibbonState)
@@ -1996,6 +1996,12 @@ namespace t7 {
                 }
 
                 resample_ribbon_trail_upload(queue, ribbon, head_x, head_y, head_z);
+
+                // Publish the live head heading so the GPU orients the head ring to the
+                // direction of travel (head faces forward), not the fixed spawn
+                // orientation. Same targeted-write idiom as upload_ribbon_time.
+                queue.WriteBuffer(ribbonBuffer_, offsetof(GPURibbonState, head_heading),
+                                  &ribbonHeadHeading_, sizeof(float));
             }
 
             // Prepend a point to the head-path trail (newest at [0]), dropping the
