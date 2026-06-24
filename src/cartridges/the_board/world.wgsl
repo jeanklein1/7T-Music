@@ -4184,6 +4184,18 @@ fn ribbon_centerline_at(t: f32, ribbon: RibbonState) -> vec3<f32> {
     return mix(head_poses[i0].xyz, head_poses[i1].xyz, frac);
 }
 
+// The head's transverse displacement (the choreography) at echo time
+// `phase_age`. Two components -- lateral (sway) and vertical (bob). This is the
+// single displacement the body echoes along the ruler. Its IDLE SCRIPT, here, is
+// a pair of sines; music will later drive these two values at the head
+// [SEAM:ribbon-displacement] -- the body needs no change, it already echoes
+// whatever the head carries.
+fn ribbon_displacement_at(phase_age: f32, ribbon: RibbonState) -> vec2<f32> {
+    let lateral  = sin(ribbon.lateral_freq  * phase_age) * ribbon.lateral_amp;
+    let vertical = sin(ribbon.vertical_freq * phase_age) * ribbon.vertical_amp;
+    return vec2(lateral, vertical);
+}
+
 fn ribbon_spine_at(t: f32, ribbon: RibbonState) -> vec3<f32> {
     let total_length = f32(ribbon.cube_count) * ribbon.cube_size;
     let time = ribbon.time;
@@ -4193,8 +4205,9 @@ fn ribbon_spine_at(t: f32, ribbon: RibbonState) -> vec3<f32> {
     let phase_age = time - t * total_length / max(ribbon.propagation_speed, 1e-6);
 
     let along = t * total_length;
-    let lateral  = sin(ribbon.lateral_freq  * phase_age) * ribbon.lateral_amp;
-    let vertical = sin(ribbon.vertical_freq * phase_age) * ribbon.vertical_amp;
+    let d = ribbon_displacement_at(phase_age, ribbon);
+    let lateral = d.x;
+    let vertical = d.y;
 
     // Heading rotation (lateral sway only — no twist here)
     let c = cos(ribbon.orientation);
@@ -4213,21 +4226,16 @@ fn ribbon_spine_at(t: f32, ribbon: RibbonState) -> vec3<f32> {
     let stationary = ribbon.anchor + vec3(rotated_along, ribbon.height + vertical + twist_vert, rotated_lateral + twist_depth);
 
     if (ribbon.is_roaming == 1u) {
-        // Roaming: centerline + wave, with the lateral sway laid on the
-        // centerline's local tangent so it banks through turns. Finite-difference
-        // the centerline for the heading; sway rides its horizontal left-
-        // perpendicular; vertical and twist add as before (world up / world Z).
-        // A straight centerline reproduces the prior wave exactly.
+        // Roaming: the body is the head's displacement echoed along the ruler.
+        // Place the sway in the SAME world-up frame the ring orients with
+        // (ribbon_frame_from_tangent on the ruler heading), so banking is
+        // intrinsic: lateral on the frame's lateral axis (fr.right), vertical on
+        // its vertical axis (fr.up). Twist is set aside. For the horizontal ruler
+        // this reproduces the prior sway exactly -- fr.right == the old leftp,
+        // fr.up == world up -- minus twist.
         let center = ribbon_centerline_at(t, ribbon);
-        let eps = 1.0 / f32(max(ribbon.cube_count, 2u) - 1u);
-        let p_head = ribbon_centerline_at(max(t - eps, 0.0), ribbon);
-        let p_tail = ribbon_centerline_at(min(t + eps, 1.0), ribbon);
-        let dir = vec3(p_tail.x - p_head.x, 0.0, p_tail.z - p_head.z);
-        let dlen = length(dir);
-        let tang = select(vec3(c, 0.0, s), dir / max(dlen, 1e-6), dlen > 1e-6);
-        let leftp = vec3(-tang.z, 0.0, tang.x);
-        let wave = lateral * leftp + vec3(0.0, vertical + twist_vert, twist_depth);
-        return center + wave;
+        let fr = ribbon_frame_from_tangent(ribbon_ruler_tangent_at(t, ribbon), ribbon.orientation);
+        return center + lateral * fr.right + vertical * fr.up;
     }
     return stationary;
 }
@@ -4238,6 +4246,21 @@ fn ribbon_tangent_at(t: f32, ribbon: RibbonState) -> vec3<f32> {
     return normalize(ribbon_spine_at(t + eps, ribbon) - ribbon_spine_at(t - eps, ribbon));
 }
 
+// Smooth heading of the resampled head-path (the RULER), wave-free.
+// +/-1-ring central difference of the centerline -- the same span the roaming
+// spine uses to bank the sway -- so the ring frame tracks the PATH, not the
+// central-difference of the wave-perturbed spine. Horizontal, normalized;
+// falls back to the spawn heading where the path is too short to differentiate.
+fn ribbon_ruler_tangent_at(t: f32, ribbon: RibbonState) -> vec3<f32> {
+    let eps = 1.0 / f32(max(ribbon.cube_count, 2u) - 1u);
+    let p_head = ribbon_centerline_at(max(t - eps, 0.0), ribbon);
+    let p_tail = ribbon_centerline_at(min(t + eps, 1.0), ribbon);
+    let dir = vec3(p_tail.x - p_head.x, 0.0, p_tail.z - p_head.z);
+    let dlen = length(dir);
+    let fallback = vec3(cos(ribbon.orientation), 0.0, sin(ribbon.orientation));
+    return select(fallback, dir / max(dlen, 1e-6), dlen > 1e-6);
+}
+
 // Build a PGA motor that places and orients one cross-section ring.
 // Composes: orient * translate — rotate the local frame, then place it.
 //
@@ -4246,30 +4269,73 @@ fn ribbon_tangent_at(t: f32, ribbon: RibbonState) -> vec3<f32> {
 //   1. heading_rotor: Y-axis rotation by orientation angle
 //      — maps (1,0,0) → (cos(θ),0,sin(θ)), always well-defined
 //      — angle is always small because the tangent tracks the heading
+// World-up look-at frame for a ring, built from a heading direction.
+// forward = local +X (tube axis), up = local +Y (ring vertical),
+// right = local +Z (ring lateral). The roaming ruler tangent is horizontal,
+// so worldUp (+Y) is never parallel to forward and `right` is always defined --
+// the antiparallel/pole case cannot arise. The SAME frame orients the ring
+// (here) and places the sway (Pass 3), so the two never diverge.
+struct RibbonFrame {
+    forward: vec3<f32>,
+    up: vec3<f32>,
+    right: vec3<f32>,
+}
+
+fn ribbon_frame_from_tangent(tangent: vec3<f32>, fallback_heading: f32) -> RibbonFrame {
+    let horiz = vec3(tangent.x, 0.0, tangent.z);
+    let hlen = length(horiz);
+    let fwd = select(
+        vec3(cos(fallback_heading), 0.0, sin(fallback_heading)),
+        horiz / max(hlen, 1e-6),
+        hlen > 1e-4
+    );
+    let world_up = vec3(0.0, 1.0, 0.0);
+    let right = normalize(cross(fwd, world_up));   // horizontal; equals the spine's leftp
+    let up = cross(right, fwd);                    // equals world_up for a horizontal fwd
+    return RibbonFrame(fwd, up, right);
+}
+
 fn ribbon_ring_motor(ring_idx: u32, ribbon: RibbonState) -> Motor {
     let t = f32(ring_idx) / f32(max(ribbon.cube_count - 1u, 1u));
     let center = ribbon_spine_at(t, ribbon);
-    let tangent = ribbon_tangent_at(t, ribbon);
-
-    // Step 1: Pre-rotate local frame to the ribbon heading.
-    let heading = rotor(vec3(0.0, 1.0, 0.0), ribbon.orientation);
-
-    // Step 2: Small correction from heading direction to actual tangent.
-    let heading_dir = vec3(cos(ribbon.orientation), 0.0, sin(ribbon.orientation));
-    let corr_axis = cross(heading_dir, tangent);
-    let corr_cos = dot(heading_dir, tangent);
-
-    var correction: Motor;
-    if (length(corr_axis) < 0.001) {
-        correction = MOTOR_IDENTITY;
+    // Pass 1: roaming rings orient from the smooth ruler heading (wave-free),
+    // not the central-difference of the wave-perturbed spine -- this removes the
+    // per-ring tangent kick at turns. Stationary is unchanged.
+    var tangent: vec3<f32>;
+    if (ribbon.is_roaming == 1u) {
+        tangent = ribbon_ruler_tangent_at(t, ribbon);
     } else {
-        correction = rotor(corr_axis, acos(clamp(corr_cos, -1.0, 1.0)));
+        tangent = ribbon_tangent_at(t, ribbon);
     }
 
-    // Compose: correction * heading * translate
-    // In this PGA implementation, gp_mm(A, B) applies A first, then B.
-    // We want: orient the cross-section, then place it at center.
-    let orient = gp_mm(heading, correction);
+    // Orient the cross-section's axis (local +X) along the spine tangent.
+    var orient: Motor;
+    if (ribbon.is_roaming == 1u) {
+        // Roaming: orient the ring with the world-up look-at frame from the ruler
+        // heading. The ruler tangent is horizontal, so this is a pure yaw about
+        // +Y -- worldUp is never parallel to forward (no antiparallel/pole case),
+        // and the pitch the stationary branch needs is identically zero here.
+        // Pass 3 places the sway in this SAME frame (fr.up / fr.right).
+        let fr = ribbon_frame_from_tangent(tangent, ribbon.orientation);
+        orient = rotor(vec3(0.0, 1.0, 0.0), atan2(fr.forward.z, fr.forward.x));
+    } else {
+        // Stationary — unchanged (verified). Heading rotor + a small shortest-arc
+        // correction from the spawn heading to the tangent.
+        let heading = rotor(vec3(0.0, 1.0, 0.0), ribbon.orientation);
+        let heading_dir = vec3(cos(ribbon.orientation), 0.0, sin(ribbon.orientation));
+        let corr_axis = cross(heading_dir, tangent);
+        let corr_cos = dot(heading_dir, tangent);
+        var correction: Motor;
+        if (length(corr_axis) < 0.001) {
+            correction = MOTOR_IDENTITY;
+        } else {
+            correction = rotor(corr_axis, acos(clamp(corr_cos, -1.0, 1.0)));
+        }
+        orient = gp_mm(heading, correction);
+    }
+
+    // orient first, then translate to the ring center (gp_mm applies its first
+    // argument first).
     let trans = Motor(vec4(1.0, 0.0, 0.0, 0.0), vec4(-0.5 * center, 0.0));
     return gp_mm(orient, trans);
 }

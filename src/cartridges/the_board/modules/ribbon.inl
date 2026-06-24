@@ -67,7 +67,7 @@
 
 // ── Spawn ────────────────────────────────────────────────────────
 struct RibbonConfig {
-    static constexpr float SPAWN_CHANCE = 0.400f;
+    static constexpr float SPAWN_CHANCE = 0.900f;   // TESTING: was 0.400f -- bumped for ribbon-dev visibility; revert before ship (control-panel constant)
     // SEAM[ribbon:P4] hygiene rows pattern — { open, sunset,
     //   [indoor_flat=0], [indoor_vault=0], [finite_outdoor=1],
     //   [finite_outdoor_ref=0] }. Same family as gol_zones:P4
@@ -644,6 +644,7 @@ static void commit_ribbon(RibbonState& rs, Cartridge* c,
     r.color[1] = plan.color[1];
     r.color[2] = plan.color[2];
     r.is_visible = 1u;
+    r.is_roaming = 1u;   // head-roaming on (test arc until the coupling stage)
 
     // Store in CPU mirror (per-frame nearest-selection uploads to GPU)
     uint32_t s = plan.slot;
