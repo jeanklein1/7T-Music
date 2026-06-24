@@ -3634,6 +3634,21 @@ namespace t7 {
                 }
                 upload_portal_array(queue);
                 upload_lights(queue);
+
+                // Re-sync the pawn mount to THIS frame. advance_ribbon_head (in the
+                // ribbon block above) just recomputed ribbonHeadMount_, but the signal
+                // uploaded earlier — and therefore the pawn — still carries the previous
+                // frame's mount. Re-write the sky_* block so the pawn and the ribbon are
+                // sampled at the same frame: the one-frame lag (a ~throttle·MAX_SPEED·dt
+                // slide along the tube) disappears, leaving MOUNT_SETBACK as the sole
+                // seat offset. Ordered before dispatch_compute, which runs the player
+                // agent kernel that reads sky_*. SEAM[ribbon:sky-mode].
+                {
+                    float hx, hy, hz, hh;
+                    gpuState_.get_ribbon_head_pose(hx, hy, hz, hh);
+                    gpuState_.resync_sky_head(queue, player_.sky_mode ? 1u : 0u, hx, hy, hz, hh);
+                }
+
                 dispatch_compute(encoder);
 
                 // Copy full agent buffer from GPU to staging (for readback next frame)

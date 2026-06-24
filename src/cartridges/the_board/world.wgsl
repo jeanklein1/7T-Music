@@ -5471,6 +5471,13 @@ fn behavior_player_controlled(agent_in: AgentState) -> AgentState {
         agent.vel_x = 0.0;
         agent.vel_y = 0.0;
         agent.vel_z = 0.0;
+        // Upright on the head, facing the flight heading — drop the stale ground
+        // tilt the walker left in orient_* at takeoff. SEAM[ribbon:sky-mode].
+        let sky_q = quat_from_axis_angle(vec3(0.0, 1.0, 0.0), signal.sky_heading);
+        agent.orient_x = sky_q.x;
+        agent.orient_y = sky_q.y;
+        agent.orient_z = sky_q.z;
+        agent.orient_w = sky_q.w;
         return agent;
     }
 
