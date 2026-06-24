@@ -4144,6 +4144,21 @@ fn ribbon_tangent_at(t: f32, ribbon: RibbonState) -> vec3<f32> {
     return normalize(ribbon_spine_at(t + eps, ribbon) - ribbon_spine_at(t - eps, ribbon));
 }
 
+// Smooth heading of the resampled head-path (the RULER), wave-free.
+// +/-1-ring central difference of the centerline -- the same span the roaming
+// spine uses to bank the sway -- so the ring frame tracks the PATH, not the
+// central-difference of the wave-perturbed spine. Horizontal, normalized;
+// falls back to the spawn heading where the path is too short to differentiate.
+fn ribbon_ruler_tangent_at(t: f32, ribbon: RibbonState) -> vec3<f32> {
+    let eps = 1.0 / f32(max(ribbon.cube_count, 2u) - 1u);
+    let p_head = ribbon_centerline_at(max(t - eps, 0.0), ribbon);
+    let p_tail = ribbon_centerline_at(min(t + eps, 1.0), ribbon);
+    let dir = vec3(p_tail.x - p_head.x, 0.0, p_tail.z - p_head.z);
+    let dlen = length(dir);
+    let fallback = vec3(cos(ribbon.orientation), 0.0, sin(ribbon.orientation));
+    return select(fallback, dir / max(dlen, 1e-6), dlen > 1e-6);
+}
+
 // Build a PGA motor that places and orients one cross-section ring.
 // Composes: orient * translate — rotate the local frame, then place it.
 //
@@ -4155,7 +4170,15 @@ fn ribbon_tangent_at(t: f32, ribbon: RibbonState) -> vec3<f32> {
 fn ribbon_ring_motor(ring_idx: u32, ribbon: RibbonState) -> Motor {
     let t = f32(ring_idx) / f32(max(ribbon.cube_count - 1u, 1u));
     let center = ribbon_spine_at(t, ribbon);
-    let tangent = ribbon_tangent_at(t, ribbon);
+    // Pass 1: roaming rings orient from the smooth ruler heading (wave-free),
+    // not the central-difference of the wave-perturbed spine -- this removes the
+    // per-ring tangent kick at turns. Stationary is unchanged.
+    var tangent: vec3<f32>;
+    if (ribbon.is_roaming == 1u) {
+        tangent = ribbon_ruler_tangent_at(t, ribbon);
+    } else {
+        tangent = ribbon_tangent_at(t, ribbon);
+    }
 
     // Orient the cross-section's axis (local +X) along the spine tangent.
     var orient: Motor;
