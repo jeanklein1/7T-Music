@@ -238,6 +238,7 @@ namespace t7 {
                 // ── Camera + readback (Scope B migration #11) ──
                 bool    fpv_mode = false;                // first-person view toggle
                 bool    sky_mode = false;                // sky-flight: arrows drive the rendered ribbon's head (SEAM[ribbon:sky-mode])
+                bool    sky_mode_prev = false;           // previous-frame sky_mode — drives the exit edge (ribbon release)
                 float   readback_x = 0.0f;               // GPU readback of pawn world X
                 float   readback_z = 0.0f;               // GPU readback of pawn world Z
                 int32_t readback_portal_trigger = -1;    // set by readback callback when pawn hits portal
@@ -1367,6 +1368,15 @@ namespace t7 {
                 uint32_t slot, wgpu::Queue& queue) {
                 auto& ar = self->ribbon_state_.active[slot];
                 if (!ar.active) return;
+
+                // Sky mode: the flown ribbon is pinned for the flight's duration.
+                // Its anchor patches stream out as the player flies away, but the
+                // ribbon must persist — skip eviction entirely while it is the
+                // mounted, rendered ribbon. update() releases it on exit (the
+                // sky_mode_prev edge). SEAM[ribbon:sky-mode].
+                if (self->player_.sky_mode && slot == self->ribbon_state_.rendered_slot) {
+                    return;
+                }
 
                 // Decrement ref count — one anchor patch has been evicted.
                 // Only fully evict when all referencing patches are gone.
@@ -3537,6 +3547,21 @@ namespace t7 {
                         if (ribbon_state_.active[i].active)
                             ribbon_state_.gpu[i].time = time_state_.seconds;
                     }
+
+                    // Sky mode just ended — release the pinned (now anchor-less)
+                    // ribbon so a fresh one can spawn. SEAM[ribbon:sky-mode].
+                    if (player_.sky_mode_prev && !player_.sky_mode) {
+                        uint32_t s = ribbon_state_.rendered_slot;
+                        if (s != UINT32_MAX && ribbon_state_.active[s].active) {
+                            ribbon_state_.active[s] = ActiveRibbon{};
+                            ribbon_state_.gpu[s] = GPURibbonState{};
+                            if (ribbon_state_.active_count > 0) ribbon_state_.active_count--;
+                            GPURibbonState empty{};
+                            gpuState_.upload_ribbon(queue, empty);
+                            ribbon_state_.rendered_slot = UINT32_MAX;
+                        }
+                    }
+                    player_.sky_mode_prev = player_.sky_mode;
 
                     // Render one ribbon: hold the current slot until it's evicted,
                     // then pick the nearest active ribbon as the new rendered slot.
