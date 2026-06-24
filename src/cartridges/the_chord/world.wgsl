@@ -4167,6 +4167,32 @@ fn ribbon_ruler_tangent_at(t: f32, ribbon: RibbonState) -> vec3<f32> {
 //   1. heading_rotor: Y-axis rotation by orientation angle
 //      — maps (1,0,0) → (cos(θ),0,sin(θ)), always well-defined
 //      — angle is always small because the tangent tracks the heading
+// World-up look-at frame for a ring, built from a heading direction.
+// forward = local +X (tube axis), up = local +Y (ring vertical),
+// right = local +Z (ring lateral). The roaming ruler tangent is horizontal,
+// so worldUp (+Y) is never parallel to forward and `right` is always defined --
+// the antiparallel/pole case cannot arise. The SAME frame orients the ring
+// (here) and places the sway (Pass 3), so the two never diverge.
+struct RibbonFrame {
+    forward: vec3<f32>,
+    up: vec3<f32>,
+    right: vec3<f32>,
+}
+
+fn ribbon_frame_from_tangent(tangent: vec3<f32>, fallback_heading: f32) -> RibbonFrame {
+    let horiz = vec3(tangent.x, 0.0, tangent.z);
+    let hlen = length(horiz);
+    let fwd = select(
+        vec3(cos(fallback_heading), 0.0, sin(fallback_heading)),
+        horiz / max(hlen, 1e-6),
+        hlen > 1e-4
+    );
+    let world_up = vec3(0.0, 1.0, 0.0);
+    let right = normalize(cross(fwd, world_up));   // horizontal; equals the spine's leftp
+    let up = cross(right, fwd);                    // equals world_up for a horizontal fwd
+    return RibbonFrame(fwd, up, right);
+}
+
 fn ribbon_ring_motor(ring_idx: u32, ribbon: RibbonState) -> Motor {
     let t = f32(ring_idx) / f32(max(ribbon.cube_count - 1u, 1u));
     let center = ribbon_spine_at(t, ribbon);
@@ -4183,31 +4209,13 @@ fn ribbon_ring_motor(ring_idx: u32, ribbon: RibbonState) -> Motor {
     // Orient the cross-section's axis (local +X) along the spine tangent.
     var orient: Motor;
     if (ribbon.is_roaming == 1u) {
-        // Roaming: yaw to the tangent's OWN horizontal heading. atan2 is total
-        // over the circle, so the tangent may point any horizontal direction —
-        // including opposite the spawn heading — with no singularity. The
-        // leftover correction is then a pure pitch (vertical tilt). At spawn the
-        // tangent equals the spawn heading, so this reduces to the stationary
-        // decomposition in the else-branch.
-        let horiz = vec3(tangent.x, 0.0, tangent.z);
-        let hlen = length(horiz);
-        if (hlen < 1e-4) {
-            // Near-vertical tube (rare for a horizontal ribbon): no defined
-            // horizontal heading — fall back to the spawn heading.
-            orient = rotor(vec3(0.0, 1.0, 0.0), ribbon.orientation);
-        } else {
-            let base = rotor(vec3(0.0, 1.0, 0.0), atan2(tangent.z, tangent.x));
-            let base_dir = horiz / hlen;
-            let pitch_axis = cross(base_dir, tangent);
-            let pitch_cos  = dot(base_dir, tangent);
-            var pitch: Motor;
-            if (length(pitch_axis) < 1e-4) {
-                pitch = MOTOR_IDENTITY;          // tangent already horizontal
-            } else {
-                pitch = rotor(pitch_axis, acos(clamp(pitch_cos, -1.0, 1.0)));
-            }
-            orient = gp_mm(base, pitch);
-        }
+        // Roaming: orient the ring with the world-up look-at frame from the ruler
+        // heading. The ruler tangent is horizontal, so this is a pure yaw about
+        // +Y -- worldUp is never parallel to forward (no antiparallel/pole case),
+        // and the pitch the stationary branch needs is identically zero here.
+        // Pass 3 places the sway in this SAME frame (fr.up / fr.right).
+        let fr = ribbon_frame_from_tangent(tangent, ribbon.orientation);
+        orient = rotor(vec3(0.0, 1.0, 0.0), atan2(fr.forward.z, fr.forward.x));
     } else {
         // Stationary — unchanged (verified). Heading rotor + a small shortest-arc
         // correction from the spawn heading to the tangent.
