@@ -1972,9 +1972,12 @@ namespace t7 {
                     const float ver = std::sin(ribbon.vertical_freq * ph) * ribbon.vertical_amp;
                     const float ch  = std::cos(ribbonHeadHeading_);
                     const float sh  = std::sin(ribbonHeadHeading_);
-                    ribbonHeadMount_[0] = head_x + lat * (-sh);
+                    // Setback toward the tail (+heading) so the pawn's body sits
+                    // over the tube instead of straddling the leading cap. Tunable.
+                    constexpr float MOUNT_SETBACK = 1.5f;
+                    ribbonHeadMount_[0] = head_x + lat * (-sh) + MOUNT_SETBACK * ch;
                     ribbonHeadMount_[1] = head_y + ver + ribbon.cube_size * 0.5f;
-                    ribbonHeadMount_[2] = head_z + lat * ( ch);
+                    ribbonHeadMount_[2] = head_z + lat * ( ch) + MOUNT_SETBACK * sh;
                 }
 
                 resample_ribbon_trail_upload(queue, ribbon, head_x, head_y, head_z);
