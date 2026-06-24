@@ -186,6 +186,9 @@
 #ifndef GLFW_KEY_F7
 #define GLFW_KEY_F7  296
 #endif
+#ifndef GLFW_KEY_F8
+#define GLFW_KEY_F8  297
+#endif
 
 
 // ═══ KEY DISPATCH ════════════════════════════════════════════════
@@ -258,6 +261,7 @@ void on_key_down(int key) {
     case GLFW_KEY_F5: cycle_floater_coordination(cube_behaviors_state_, this);        break;
     case GLFW_KEY_F6: corral_cubes(cube_behaviors_state_, this, q);                   break;
     case GLFW_KEY_F7: toggle_cube_kite_mode(cube_behaviors_state_, this, q);          break;
+    case GLFW_KEY_F8: toggle_sky_mode();                                              break;
     }
     update_movement_intent();
 }
@@ -332,6 +336,16 @@ void toggle_fpv_mode() {
     gpuState_.set_fpv_mode(player_.fpv_mode ? 1 : 0);
     std::cout << "[the_board] Camera mode: "
         << (player_.fpv_mode ? "First-Person View" : "Orbit") << std::endl;
+}
+
+// Sky-flight toggle (Stage 1). While ON, the arrow keys steer the rendered
+// ribbon's head (up/down = throttle, left/right = yaw) at fixed sky altitude;
+// while OFF, the ribbon holds its stationary arc. Stages 2-3 add the pawn snap,
+// camera follow, and fade transition. SEAM[ribbon:sky-mode].
+void toggle_sky_mode() {
+    player_.sky_mode = !player_.sky_mode;
+    std::cout << "[the_board] Sky mode: "
+        << (player_.sky_mode ? "ON (fly the ribbon with arrows)" : "OFF") << std::endl;
 }
 
 void set_render_radius(uint32_t r) {

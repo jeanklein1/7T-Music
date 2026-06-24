@@ -237,6 +237,7 @@ namespace t7 {
 
                 // ── Camera + readback (Scope B migration #11) ──
                 bool    fpv_mode = false;                // first-person view toggle
+                bool    sky_mode = false;                // sky-flight: arrows drive the rendered ribbon's head (SEAM[ribbon:sky-mode])
                 float   readback_x = 0.0f;               // GPU readback of pawn world X
                 float   readback_z = 0.0f;               // GPU readback of pawn world Z
                 int32_t readback_portal_trigger = -1;    // set by readback callback when pawn hits portal
@@ -3526,6 +3527,12 @@ namespace t7 {
                     bool current_alive = ribbon_state_.rendered_slot != UINT32_MAX
                         && ribbon_state_.active[ribbon_state_.rendered_slot].active;
 
+                    // Sky-mode flight input for the head mover (Stage 1): up/down =
+                    // throttle (move_z), left/right = yaw (move_x); zero when OFF.
+                    const bool  ribbon_flown  = player_.sky_mode;
+                    const float ribbon_yaw_in = ribbon_flown ?  inputState_.move_x : 0.0f;
+                    const float ribbon_thr_in = ribbon_flown ? -inputState_.move_z : 0.0f;
+
                     if (current_alive) {
                         // Hold — just update time
                         gpuState_.upload_ribbon_time(queue, time_state_.seconds);
@@ -3537,7 +3544,8 @@ namespace t7 {
                         // re-seed, no double work with the eviction-branch call below.
                         gpuState_.advance_ribbon_head(queue,
                             ribbon_state_.gpu[ribbon_state_.rendered_slot],
-                            ribbon_state_.rendered_slot, time_state_.seconds);
+                            ribbon_state_.rendered_slot, time_state_.seconds,
+                            ribbon_flown, ribbon_yaw_in, ribbon_thr_in, time_state_.dt);
                     }
                     else {
                         // Current slot is gone — find nearest active ribbon
@@ -3553,7 +3561,8 @@ namespace t7 {
 
                         if (nearest != UINT32_MAX) {
                             gpuState_.upload_ribbon(queue, ribbon_state_.gpu[nearest]);
-                            gpuState_.advance_ribbon_head(queue, ribbon_state_.gpu[nearest], nearest, time_state_.seconds);  // 2b: head mover
+                            gpuState_.advance_ribbon_head(queue, ribbon_state_.gpu[nearest], nearest, time_state_.seconds,
+                                ribbon_flown, ribbon_yaw_in, ribbon_thr_in, time_state_.dt);  // 2b: head mover
                             ribbon_state_.rendered_slot = nearest;
                         }
                         else if (ribbon_state_.rendered_slot != UINT32_MAX) {
