@@ -4090,6 +4090,18 @@ fn ribbon_centerline_at(t: f32, ribbon: RibbonState) -> vec3<f32> {
     return mix(head_poses[i0].xyz, head_poses[i1].xyz, frac);
 }
 
+// The head's transverse displacement (the choreography) at echo time
+// `phase_age`. Two components -- lateral (sway) and vertical (bob). This is the
+// single displacement the body echoes along the ruler. Its IDLE SCRIPT, here, is
+// a pair of sines; music will later drive these two values at the head
+// [SEAM:ribbon-displacement] -- the body needs no change, it already echoes
+// whatever the head carries.
+fn ribbon_displacement_at(phase_age: f32, ribbon: RibbonState) -> vec2<f32> {
+    let lateral  = sin(ribbon.lateral_freq  * phase_age) * ribbon.lateral_amp;
+    let vertical = sin(ribbon.vertical_freq * phase_age) * ribbon.vertical_amp;
+    return vec2(lateral, vertical);
+}
+
 fn ribbon_spine_at(t: f32, ribbon: RibbonState) -> vec3<f32> {
     let total_length = f32(ribbon.cube_count) * ribbon.cube_size;
     let time = ribbon.time;
@@ -4099,8 +4111,9 @@ fn ribbon_spine_at(t: f32, ribbon: RibbonState) -> vec3<f32> {
     let phase_age = time - t * total_length / max(ribbon.propagation_speed, 1e-6);
 
     let along = t * total_length;
-    let lateral  = sin(ribbon.lateral_freq  * phase_age) * ribbon.lateral_amp;
-    let vertical = sin(ribbon.vertical_freq * phase_age) * ribbon.vertical_amp;
+    let d = ribbon_displacement_at(phase_age, ribbon);
+    let lateral = d.x;
+    let vertical = d.y;
 
     // Heading rotation (lateral sway only — no twist here)
     let c = cos(ribbon.orientation);
