@@ -1521,6 +1521,7 @@ namespace t7 {
             float ribbonHeadStart_ = 0.0f;
             float ribbonHeadHeading_ = 0.0f;               // sky-flight heading (yawed by input)
             float ribbonHeadPos_[3] = {0.0f, 0.0f, 0.0f};  // live integrated head position
+            float ribbonHeadMount_[3] = {0.0f, 0.0f, 0.0f}; // visible head-ring center + half-tube (pawn mount point)
             // (bindings 21, 40 reserved — formerly proximity_field, cell_states)
             wgpu::Buffer pierBuffer_;   // unified pier instances (Storage | CopyDst)
             wgpu::Buffer vpBuffer_;
@@ -1877,9 +1878,9 @@ namespace t7 {
             // → the trail stays the straight arc (head_poses dormant anyway).
             // Last computed ribbon head pose — read by the pawn mount (sky mode).
             void get_ribbon_head_pose(float& x, float& y, float& z, float& heading) const {
-                x = ribbonHeadPos_[0];
-                y = ribbonHeadPos_[1];
-                z = ribbonHeadPos_[2];
+                x = ribbonHeadMount_[0];
+                y = ribbonHeadMount_[1];
+                z = ribbonHeadMount_[2];
                 heading = ribbonHeadHeading_;
             }
 
@@ -1953,6 +1954,23 @@ namespace t7 {
                     head_x = ribbonHeadPos_[0];
                     head_y = ribbonHeadPos_[1];
                     head_z = ribbonHeadPos_[2];
+                }
+
+                // Pawn mount point (sky mode): the VISIBLE head-ring center —
+                // centerline + the wave along the head's frame — lifted half a tube
+                // so the pawn's feet sit on top. Mirrors ribbon_spine_at(0) for the
+                // roaming case: the ruler tangent at the head points toward the tail
+                // (+heading), so right = (-sin h, 0, cos h) and up = world-up; the
+                // head's phase_age is ribbon.time. SEAM[ribbon:sky-mode].
+                {
+                    const float ph  = ribbon.time;
+                    const float lat = std::sin(ribbon.lateral_freq  * ph) * ribbon.lateral_amp;
+                    const float ver = std::sin(ribbon.vertical_freq * ph) * ribbon.vertical_amp;
+                    const float ch  = std::cos(ribbonHeadHeading_);
+                    const float sh  = std::sin(ribbonHeadHeading_);
+                    ribbonHeadMount_[0] = head_x + lat * (-sh);
+                    ribbonHeadMount_[1] = head_y + ver + ribbon.cube_size * 0.5f;
+                    ribbonHeadMount_[2] = head_z + lat * ( ch);
                 }
 
                 resample_ribbon_trail_upload(queue, ribbon, head_x, head_y, head_z);
