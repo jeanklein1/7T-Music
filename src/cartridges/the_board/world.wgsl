@@ -833,7 +833,7 @@ struct RibbonState {
     orientation: f32,       // heading angle (radians, 0 = +X axis)
     color_mode: u32,        // 0=smooth, 1=tinted, 2=contrast
     is_roaming: u32,        // 0 = stationary spine (today); 1 = head roams (stage 1b)
-    head_heading: f32,      // live head heading (radians); orients the head ring to the direction of travel
+    head_heading: f32,      // live head heading (radians); orients the ring frame to the direction of travel
     _pad2: f32,
     _pad3: f32,
 }
@@ -4265,18 +4265,11 @@ fn ribbon_ruler_tangent_at(t: f32, ribbon: RibbonState) -> vec3<f32> {
     let p_tail = ribbon_centerline_at(min(t + eps, 1.0), ribbon);
     let dir = vec3(p_tail.x - p_head.x, 0.0, p_tail.z - p_head.z);
     let dlen = length(dir);
-    // Direction of travel, known exactly: the head flies along -head_heading, so the
-    // ruler tangent (toward the tail) is +head_heading. Degenerate/clamped rings fall
-    // back to this live heading instead of the fixed spawn orientation, so they stop
-    // snapping to one global direction (the turn pinch).
-    let heading_dir = vec3(cos(ribbon.head_heading), 0.0, sin(ribbon.head_heading));
-    let path_dir = select(heading_dir, dir / max(dlen, 1e-6), dlen > 1e-6);
-    // The head — and a short blend behind it — stays square to travel even when the
-    // recorded path near the head is the straight spawn seed (hovering). When flying,
-    // path_dir already ~= heading_dir here, so the blend is seamless; the cost is paid
-    // only where they disagree. Blend span ~ the first 4 rings.
-    let blend = smoothstep(0.0, 4.0 * eps, t);
-    return normalize(mix(heading_dir, path_dir, blend));
+    // Fall back to the live head heading (not the fixed spawn orientation) where the
+    // path is too short to differentiate, so the wave-placement frame at the head
+    // tracks the direction of travel.
+    let fallback = vec3(cos(ribbon.head_heading), 0.0, sin(ribbon.head_heading));
+    return select(fallback, dir / max(dlen, 1e-6), dlen > 1e-6);
 }
 
 // Build a PGA motor that places and orients one cross-section ring.
@@ -4316,12 +4309,20 @@ fn ribbon_frame_from_tangent(tangent: vec3<f32>, fallback_heading: f32) -> Ribbo
 fn ribbon_ring_motor(ring_idx: u32, ribbon: RibbonState) -> Motor {
     let t = f32(ring_idx) / f32(max(ribbon.cube_count - 1u, 1u));
     let center = ribbon_spine_at(t, ribbon);
-    // Pass 1: roaming rings orient from the smooth ruler heading (wave-free),
-    // not the central-difference of the wave-perturbed spine -- this removes the
-    // per-ring tangent kick at turns. Stationary is unchanged.
+    // Roaming rings orient from the FULL 3D spine tangent (neighbouring ring centres,
+    // one ring apart) so the cross-section pitches to follow the vertical undulation,
+    // not just the horizontal path. One-ring spacing keeps it smooth (no tiny-eps
+    // kick). Falls back to the live head heading where the centres coincide (the head).
+    // Stationary is unchanged.
     var tangent: vec3<f32>;
     if (ribbon.is_roaming == 1u) {
-        tangent = ribbon_ruler_tangent_at(t, ribbon);
+        let ring_dt = 1.0 / f32(max(ribbon.cube_count, 2u) - 1u);
+        let c_prev = ribbon_spine_at(max(t - ring_dt, 0.0), ribbon);
+        let c_next = ribbon_spine_at(min(t + ring_dt, 1.0), ribbon);
+        let raw = c_next - c_prev;
+        let raw_len = length(raw);
+        let hd = vec3(cos(ribbon.head_heading), 0.0, sin(ribbon.head_heading));
+        tangent = select(hd, raw / max(raw_len, 1e-6), raw_len > 1e-6);
     } else {
         tangent = ribbon_tangent_at(t, ribbon);
     }
@@ -4329,13 +4330,26 @@ fn ribbon_ring_motor(ring_idx: u32, ribbon: RibbonState) -> Motor {
     // Orient the cross-section's axis (local +X) along the spine tangent.
     var orient: Motor;
     if (ribbon.is_roaming == 1u) {
-        // Roaming: orient the ring with the world-up look-at frame from the ruler
-        // heading. The ruler tangent is horizontal, so this is a pure yaw about
-        // +Y -- worldUp is never parallel to forward (no antiparallel/pole case),
-        // and the pitch the stationary branch needs is identically zero here.
-        // Pass 3 places the sway in this SAME frame (fr.up / fr.right).
-        let fr = ribbon_frame_from_tangent(tangent, ribbon.orientation);
-        orient = rotor(vec3(0.0, 1.0, 0.0), atan2(fr.forward.z, fr.forward.x));
+        // Roaming: yaw to the tangent's OWN horizontal heading, then a pure-pitch
+        // shortest-arc up to the full 3D tangent -- the same construction the
+        // stationary branch is verified with, so it inherits the sign handling. Per
+        // ring the base is the tangent's own horizontal projection, so the correction
+        // is only the elevation: dot(heading_dir, tangent) = |tangent.xz| >= 0, so it
+        // is never antiparallel (no bowtie), and the square ends up perpendicular to
+        // the true direction of travel, pitched to follow the undulation.
+        let h_len = length(tangent.xz);
+        let ring_heading = select(ribbon.head_heading, atan2(tangent.z, tangent.x), h_len > 1e-4);
+        let heading = rotor(vec3(0.0, 1.0, 0.0), ring_heading);
+        let heading_dir = vec3(cos(ring_heading), 0.0, sin(ring_heading));
+        let corr_axis = cross(heading_dir, tangent);
+        let corr_cos = dot(heading_dir, tangent);
+        var correction: Motor;
+        if (length(corr_axis) < 0.001) {
+            correction = MOTOR_IDENTITY;
+        } else {
+            correction = rotor(corr_axis, acos(clamp(corr_cos, -1.0, 1.0)));
+        }
+        orient = gp_mm(heading, correction);
     } else {
         // Stationary — unchanged (verified). Heading rotor + a small shortest-arc
         // correction from the spawn heading to the tangent.
