@@ -1936,36 +1936,26 @@ namespace t7 {
                     // Pitch/altitude is deferred (the frame is horizontal-only by
                     // construction). Constants are tunable — control-panel material.
                     // SEAM[ribbon:sky-mode].
-                    constexpr float YAW_RATE  = 1.0f;    // rad/s at full deflection
+                    // Steering model: yaw is STEERING, not free aim. The available
+                    // yaw rate is min(YAW_RATE, speed / R_MIN): the heading can only
+                    // change while moving, and the flown path can never be tighter
+                    // than the minimum turn radius. So the velocity is always the
+                    // face's outward normal (trajectory orthogonal to the face, by
+                    // construction), the face can never turn inward against the
+                    // body, and heading-vs-path divergence stays at a few degrees —
+                    // the resampler blend's (-pi, pi) precondition holds trivially.
+                    // Reverse is forbidden (a snake does not burrow into its own
+                    // body): down-arrow is no thrust. Constants: control-panel
+                    // material. SEAM[ribbon:sky-mode].
+                    constexpr float YAW_RATE  = 1.0f;    // rad/s cap at full deflection
                     constexpr float MAX_SPEED = 80.0f;   // world units/s at full throttle
-                    ribbonHeadHeading_ += yaw_in * YAW_RATE * dt;
-
-                    // Aim window: the head may aim only within ±AIM_LIMIT of the
-                    // body's own tailward direction (head → newest trail point) —
-                    // a snake cannot face its own spine. Hover hold-yaw swings the
-                    // face to the window edge and holds (no endless 360s, no
-                    // turning inward); in flight the path curves with the heading,
-                    // the window travels with it, and the clamp is inert. Bounding
-                    // the aim also bounds the resampler's heading-vs-path blend
-                    // inside (-pi, pi), so its wrap-snap (rings 1-3 twitching each
-                    // half-lap) is unreachable. Control-panel material.
-                    // SEAM[ribbon:sky-mode].
-                    constexpr float AIM_LIMIT = 1.5707963f;   // ±90° off the body
-                    if (ribbonTrailCount_ > 0u) {
-                        const float bx = ribbonTrail_[0] - ribbonHeadPos_[0];
-                        const float bz = ribbonTrail_[2] - ribbonHeadPos_[2];
-                        if (bx * bx + bz * bz > 1e-8f) {
-                            const float tailward = std::atan2(bz, bx);
-                            float rel = std::remainder(
-                                ribbonHeadHeading_ - tailward, 6.2831853f);
-                            rel = (rel >  AIM_LIMIT) ?  AIM_LIMIT :
-                                  (rel < -AIM_LIMIT) ? -AIM_LIMIT : rel;
-                            ribbonHeadHeading_ = tailward + rel;
-                        }
-                    }
+                    constexpr float R_MIN     = 40.0f;   // minimum turn radius (units)
+                    const float speed = std::max(throttle_in, 0.0f) * MAX_SPEED;
+                    const float yaw_avail = std::min(YAW_RATE, speed / R_MIN);
+                    ribbonHeadHeading_ += yaw_in * yaw_avail * dt;
                     const float ch = std::cos(ribbonHeadHeading_);
                     const float sh = std::sin(ribbonHeadHeading_);
-                    const float step = throttle_in * MAX_SPEED * dt;
+                    const float step = speed * dt;
                     ribbonHeadPos_[0] -= ch * step;
                     ribbonHeadPos_[2] -= sh * step;
                     ribbonHeadPos_[1] = ribbonHeadOrigin_[1];
