@@ -143,6 +143,7 @@ static constexpr float CONTRAST_RANGE[3] = { 0.35f, 0.30f, 0.25f };
 //   420-429  lateral wave  (amp, cycles, speed; rest reserved)
 //   430-439  vertical wave (amp, ratio; rest reserved)
 //   440-449  twist wave    (amp, ratio; rest reserved)
+//   450-459  wander        (roll, cruise, rng seed; rest reserved)
 //   The per-axis stride of 10 leaves room for future per-axis
 //   params without renumbering downstream. Same self-documentation
 //   discipline used by the WGSL side.
@@ -168,6 +169,9 @@ struct RibbonProp {
     static constexpr uint32_t VERTICAL_RATIO = 433u;    // seed roll for vertical harmonic ratio selection
     static constexpr uint32_t TWIST_AMP = 440u;
     static constexpr uint32_t TWIST_RATIO = 443u;       // seed roll for twist harmonic ratio selection
+    static constexpr uint32_t WANDER_ROLL = 450u;       // wander yes/no
+    static constexpr uint32_t WANDER_CRUISE = 451u;     // gaussian draw: cruise fraction of MAX_SPEED
+    static constexpr uint32_t WANDER_RNG = 452u;        // seeds the runtime waypoint stream
 };
 
 
@@ -392,8 +396,8 @@ struct ActiveRibbon {
 // ── Wander policy ─────────────────────────────────────────────────
 // Constants: control-panel material.
 static constexpr float WANDER_CHANCE      = 0.30f;   // per-spawn roll
-static constexpr float WANDER_CRUISE_BASE = 0.35f;   // triangular center (fraction)
-static constexpr float WANDER_CRUISE_VAR  = 0.30f;   // triangular half-width
+static constexpr float WANDER_CRUISE_BASE  = 0.35f;   // gaussian mean (fraction of MAX_SPEED)
+static constexpr float WANDER_CRUISE_SIGMA = 0.15f;   // gaussian sigma
 static constexpr float WANDER_CRUISE_MIN  = 0.15f;
 static constexpr float WANDER_CRUISE_MAX  = 0.80f;
 static constexpr float WANDER_LEASH       = 300.0f;  // max drift from anchor (units)
@@ -641,6 +645,7 @@ static bool place_ribbon_from_selection(Cartridge* c,
 
     plan = RibbonPlacement{};
     plan.slot = sel.slot;
+    plan.seed = sel.seed;
     plan.trigger_gx = sel.trigger_gx;
     plan.trigger_gz = sel.trigger_gz;
     plan.host_gx = pos.host_gx;
@@ -727,26 +732,23 @@ static void commit_ribbon(RibbonState& rs, Cartridge* c,
     ar.anchor_x = plan.cx;
     ar.anchor_z = plan.cz;
 
-    // Wander roll. Self-contained RNG seeded from spawn identity (commit does
-    // not receive the spawn seed; see the policy block above ActiveRibbon).
+    // Wander: seed-driven — every decision a pure channel of the spawn seed
+    // (RibbonProp 450-452), like tier, geometry, color, and position. The seed
+    // determines the wander decision, the cruise, and (by seeding the runtime
+    // stream) the entire waypoint sequence. Channel draws are stateless, so
+    // this decade perturbs no existing draw.
+    ar.wander = cpu_hash_f(plan.seed, RibbonProp::WANDER_ROLL) < WANDER_CHANCE;
     {
-        uint32_t ws = 2166136261u;                 // FNV-1a mix
-        auto mix = [&ws](uint32_t v) { ws ^= v; ws *= 16777619u; };
-        mix((uint32_t)trigger_gx); mix((uint32_t)trigger_gz); mix(s);
-        uint32_t ob; std::memcpy(&ob, &r.orientation, sizeof(ob)); mix(ob);
-        ar.wander_rng = (ws == 0u) ? 1u : ws;
-
-        ar.wander = wander_rand01(ar.wander_rng) < WANDER_CHANCE;
-        const float u1 = wander_rand01(ar.wander_rng);
-        const float u2 = wander_rand01(ar.wander_rng);
-        float cruise = WANDER_CRUISE_BASE + (u1 + u2 - 1.0f) * WANDER_CRUISE_VAR;
-        cruise = (cruise < WANDER_CRUISE_MIN) ? WANDER_CRUISE_MIN
-               : (cruise > WANDER_CRUISE_MAX) ? WANDER_CRUISE_MAX : cruise;
-        ar.wander_cruise = cruise;
-        ar.wander_tx = plan.cx;                    // first waypoint: the anchor
-        ar.wander_tz = plan.cz;
-        ar.wander_retarget = 0.0f;                 // pick a real one immediately
+        float cr = cpu_sample_gaussian(plan.seed, RibbonProp::WANDER_CRUISE,
+                                       WANDER_CRUISE_BASE, WANDER_CRUISE_SIGMA);
+        ar.wander_cruise = (cr < WANDER_CRUISE_MIN) ? WANDER_CRUISE_MIN
+                         : (cr > WANDER_CRUISE_MAX) ? WANDER_CRUISE_MAX : cr;
     }
+    ar.wander_rng = 1u + (uint32_t)(cpu_hash_f(plan.seed, RibbonProp::WANDER_RNG)
+                                    * 16777215.0f);
+    ar.wander_tx = plan.cx;                        // first waypoint: the anchor
+    ar.wander_tz = plan.cz;
+    ar.wander_retarget = 0.0f;                     // pick a real one immediately
 
     // Two-tip anchoring: anchor IS the near tip (t=0).
     // Body extends entirely in the orientation direction (away from pawn).
