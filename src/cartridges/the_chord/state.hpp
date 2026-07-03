@@ -1505,20 +1505,14 @@ namespace t7 {
             wgpu::Buffer cameraBuffer_, floatingEntityBuffer_, trajectoriesBuffer_;
             wgpu::Buffer ribbonBuffer_;
             wgpu::Buffer ringTransformsBuffer_;
-            wgpu::Buffer headPosesBuffer_;  // ribbon head-path (CPU-seeded, read by ribbon_centerline_at)
-            // Stage 2a: CPU head-path trail (raw positions, [0] = head). Seeded
-            // straight today; stage 2b records the moving head. Resampled to
-            // head_poses each frame.
-            uint32_t ribbonTrailCount_ = 0;
-            std::array<float, 3 * Dim::RIBBON_MAX_RINGS> ribbonTrail_{};
-            // Stage 2b: head mover. The head walks a path (a test arc today, the
-            // music-driven goal at the coupling stage); the trail records it.
+            wgpu::Buffer headPosesBuffer_;  // ribbon body (rebuilt each frame from the propagation history; read by ribbon_centerline_at)
+            // Head mover: player-flown or wandering; the propagation history
+            // above is the body's memory.
             bool ribbonHeadSeeded_ = false;
             uint32_t ribbonHeadSlot_ = UINT32_MAX;
             float ribbonHeadOrigin_[3] = {0.0f, 0.0f, 0.0f};
             float ribbonHeadClearance_ = 0.0f;   // altitude held ABOVE the ground beneath the head
             float ribbonHeadAltTarget_ = 0.0f;   // low-passed altitude target (landscape swells, not texture)
-            float ribbonHeadLastPush_[3] = {0.0f, 0.0f, 0.0f};
             float ribbonHeadStart_ = 0.0f;
             float ribbonHeadHeading_ = 0.0f;               // sky-flight heading (yawed by input)
             float ribbonHeadPos_[3] = {0.0f, 0.0f, 0.0f};  // live integrated head position
@@ -1932,9 +1926,6 @@ namespace t7 {
                     ribbonHeadOrigin_[0] = ribbon.anchor[0];
                     ribbonHeadOrigin_[1] = ribbon.anchor[1] + ribbon.height;
                     ribbonHeadOrigin_[2] = ribbon.anchor[2];
-                    ribbonHeadLastPush_[0] = ribbonHeadOrigin_[0];
-                    ribbonHeadLastPush_[1] = ribbonHeadOrigin_[1];
-                    ribbonHeadLastPush_[2] = ribbonHeadOrigin_[2];
                     ribbonHeadStart_ = t;
                     // Clearance: the altitude this ribbon holds ABOVE the ground.
                     // Defined at birth as spawn altitude minus spawn ground — the
@@ -2019,9 +2010,6 @@ namespace t7 {
                     ribbonHeadPos_[0] = ribbon.anchor[0];
                     ribbonHeadPos_[1] = ribbon.anchor[1] + ribbon.height;
                     ribbonHeadPos_[2] = ribbon.anchor[2];
-                    ribbonHeadLastPush_[0] = ribbonHeadPos_[0];
-                    ribbonHeadLastPush_[1] = ribbonHeadPos_[1];
-                    ribbonHeadLastPush_[2] = ribbonHeadPos_[2];
                     head_x = ribbonHeadPos_[0];
                     head_y = ribbonHeadPos_[1];
                     head_z = ribbonHeadPos_[2];
@@ -2061,25 +2049,6 @@ namespace t7 {
                 rebuild_ribbon_body_upload(queue, ribbon, head_x, head_y, head_z);
             }
 
-            // Prepend a point to the head-path trail (newest at [0]), dropping the
-            // oldest beyond capacity.
-            void push_ribbon_trail_point(float x, float y, float z) {
-                const uint32_t cap = Dim::RIBBON_MAX_RINGS;
-                uint32_t keep = ribbonTrailCount_;
-                if (keep >= cap) keep = cap - 1u;
-                for (uint32_t k = keep; k > 0u; --k) {
-                    ribbonTrail_[3 * k + 0] = ribbonTrail_[3 * (k - 1u) + 0];
-                    ribbonTrail_[3 * k + 1] = ribbonTrail_[3 * (k - 1u) + 1];
-                    ribbonTrail_[3 * k + 2] = ribbonTrail_[3 * (k - 1u) + 2];
-                }
-                ribbonTrail_[0] = x;
-                ribbonTrail_[1] = y;
-                ribbonTrail_[2] = z;
-                ribbonTrailCount_ = keep + 1u;
-            }
-
-            // Trail seed: ribbonTrail_[k] = the straight-arc centerline at
-            // t = k/(n-1). [0] is the head; increasing k recedes toward the tail.
             // Invalidate the head/trail state so the next advance re-inits and
             // re-seeds. Called on release and eviction: slots are reused, so the
             // slot-change guard alone cannot detect a successor ribbon.
@@ -2090,22 +2059,6 @@ namespace t7 {
             // and at the ANCHOR for the first frame of a life.
             bool ribbon_head_is(uint32_t slot) const {
                 return ribbonHeadSeeded_ && ribbonHeadSlot_ == slot;
-            }
-
-            void seed_ribbon_trail_straight(const GPURibbonState& ribbon) {
-                const uint32_t n = ribbon.cube_count;
-                const uint32_t span = (n >= 2u) ? (n - 1u) : 1u;
-                const float L = static_cast<float>(n) * ribbon.cube_size;
-                const float c = std::cos(ribbon.orientation);
-                const float s = std::sin(ribbon.orientation);
-                const uint32_t count = (n < Dim::RIBBON_MAX_RINGS) ? n : Dim::RIBBON_MAX_RINGS;
-                for (uint32_t k = 0; k < count; ++k) {
-                    const float along = (static_cast<float>(k) / static_cast<float>(span)) * L;
-                    ribbonTrail_[3 * k + 0] = ribbon.anchor[0] + along * c;
-                    ribbonTrail_[3 * k + 1] = ribbon.anchor[1] + ribbon.height;
-                    ribbonTrail_[3 * k + 2] = ribbon.anchor[2] + along * s;
-                }
-                ribbonTrailCount_ = count;
             }
 
             // Sample the propagation history `age` seconds into the past
