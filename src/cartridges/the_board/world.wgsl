@@ -4281,7 +4281,13 @@ fn ribbon_ring_motor(ring_idx: u32, ribbon: RibbonState) -> Motor {
         // is needed here. One channel feeds ring orient, wave frame, and pawn
         // mount. Pure yaw about world-up: the path is planar; the wave rides as
         // displacement, not as frame pitch.
-        orient = rotor(vec3(0.0, 1.0, 0.0), head_poses[ring_idx].w);
+        // Negated: rotor+sw_mp map +X to (cos θ, −sin θ) (hand-verified), while
+        // the channel — like the whole analytic codebase — speaks dir(θ) =
+        // (cos θ, +sin θ). rotor(Y, −w) lands the tube axis on tailward exactly,
+        // and the ring's lateral axis on (−sin w, 0, cos w) — identical to the
+        // spine wave's explicit right and the mount's right. One convention,
+        // three consumers, coherent.
+        orient = rotor(vec3(0.0, 1.0, 0.0), -head_poses[ring_idx].w);
     } else {
         // Stationary needs the analytic spine tangent (roaming reads the
         // channel and differences nothing).
@@ -5432,7 +5438,9 @@ fn behavior_player_controlled(agent_in: AgentState) -> AgentState {
         agent.vel_z = 0.0;
         // Upright on the head, facing the flight heading — drop the stale ground
         // tilt the walker left in orient_* at takeoff. SEAM[ribbon:sky-mode].
-        let sky_q = quat_from_axis_angle(vec3(0.0, 1.0, 0.0), signal.sky_heading);
+        // Negated: quat_rotate maps +X to (cos θ, −sin θ); the heading speaks
+        // dir(θ) = (cos θ, +sin θ). Same mirror as the ring motor, same fix.
+        let sky_q = quat_from_axis_angle(vec3(0.0, 1.0, 0.0), -signal.sky_heading);
         agent.orient_x = sky_q.x;
         agent.orient_y = sky_q.y;
         agent.orient_z = sky_q.z;
