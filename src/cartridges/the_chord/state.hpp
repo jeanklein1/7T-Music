@@ -1516,6 +1516,7 @@ namespace t7 {
             bool ribbonHeadSeeded_ = false;
             uint32_t ribbonHeadSlot_ = UINT32_MAX;
             float ribbonHeadOrigin_[3] = {0.0f, 0.0f, 0.0f};
+            float ribbonHeadClearance_ = 0.0f;   // altitude held ABOVE the ground beneath the head
             float ribbonHeadLastPush_[3] = {0.0f, 0.0f, 0.0f};
             float ribbonHeadStart_ = 0.0f;
             float ribbonHeadHeading_ = 0.0f;               // sky-flight heading (yawed by input)
@@ -1909,7 +1910,8 @@ namespace t7 {
 
             void advance_ribbon_head(wgpu::Queue& queue, const GPURibbonState& ribbon,
                                      uint32_t slot, float t,
-                                     bool flown, float yaw_in, float throttle_in, float dt) {
+                                     bool flown, float yaw_in, float throttle_in, float dt,
+                                     float ground_y) {
                 const uint32_t n = ribbon.cube_count;
                 const uint32_t span = (n >= 2u) ? (n - 1u) : 1u;
                 const float L = static_cast<float>(n) * ribbon.cube_size;
@@ -1923,6 +1925,10 @@ namespace t7 {
                     ribbonHeadLastPush_[1] = ribbonHeadOrigin_[1];
                     ribbonHeadLastPush_[2] = ribbonHeadOrigin_[2];
                     ribbonHeadStart_ = t;
+                    // Clearance: the altitude this ribbon holds ABOVE the ground.
+                    // Defined at birth as spawn altitude minus spawn ground — the
+                    // y-channel's single authority. SEAM[ribbon:sky-mode].
+                    ribbonHeadClearance_ = ribbonHeadOrigin_[1] - ground_y;
                     ribbonHeadHeading_ = ribbon.orientation;
                     ribbonHeadPos_[0] = ribbonHeadOrigin_[0];
                     ribbonHeadPos_[1] = ribbonHeadOrigin_[1];
@@ -1954,6 +1960,7 @@ namespace t7 {
                     constexpr float YAW_RATE  = 1.0f;    // rad/s cap at full deflection
                     constexpr float MAX_SPEED = 40.0f;   // world units/s at full throttle (halved; full-throttle turns bottom out at R_MIN)
                     constexpr float R_MIN     = 40.0f;   // minimum turn radius (units)
+                    constexpr float RIBBON_CLIMB_RATE = 15.0f;  // u/s vertical slew — hills become gentle rises
                     const float speed = std::max(throttle_in, 0.0f) * MAX_SPEED;
                     const float yaw_avail = std::min(YAW_RATE, speed / R_MIN);
                     ribbonHeadHeading_ += yaw_in * yaw_avail * dt;
@@ -1962,7 +1969,15 @@ namespace t7 {
                     const float step = speed * dt;
                     ribbonHeadPos_[0] -= ch * step;
                     ribbonHeadPos_[2] -= sh * step;
-                    ribbonHeadPos_[1] = ribbonHeadOrigin_[1];
+                    // Terrain following: hold CLEARANCE above the ground beneath the
+                    // head, slew-limited — no teleports, gentle rise and fall.
+                    {
+                        const float target_y = ground_y + ribbonHeadClearance_;
+                        float dy = target_y - ribbonHeadPos_[1];
+                        const float max_dy = RIBBON_CLIMB_RATE * dt;
+                        dy = (dy >  max_dy) ?  max_dy : (dy < -max_dy) ? -max_dy : dy;
+                        ribbonHeadPos_[1] += dy;
+                    }
 
                     const float dx = ribbonHeadPos_[0] - ribbonHeadLastPush_[0];
                     const float dy = ribbonHeadPos_[1] - ribbonHeadLastPush_[1];
@@ -2040,6 +2055,13 @@ namespace t7 {
             // re-seeds. Called on release and eviction: slots are reused, so the
             // slot-change guard alone cannot detect a successor ribbon.
             void invalidate_ribbon_head() { ribbonHeadSeeded_ = false; }
+
+            // True when the head state belongs to this slot (post-init). The
+            // cartridge uses it to sample the ground at the HEAD when ready,
+            // and at the ANCHOR for the first frame of a life.
+            bool ribbon_head_is(uint32_t slot) const {
+                return ribbonHeadSeeded_ && ribbonHeadSlot_ == slot;
+            }
 
             void seed_ribbon_trail_straight(const GPURibbonState& ribbon) {
                 const uint32_t n = ribbon.cube_count;

@@ -3620,10 +3620,20 @@ namespace t7 {
                         // stationary despite is_roaming = 1. The mover's init guard
                         // (slot unchanged) makes this a pure per-frame advance — no
                         // re-seed, no double work with the eviction-branch call below.
+                        float rib_gnd;
+                        {
+                            const auto& rb = ribbon_state_.gpu[ribbon_state_.rendered_slot];
+                            float gx = rb.anchor[0], gz = rb.anchor[2];
+                            if (gpuState_.ribbon_head_is(ribbon_state_.rendered_slot)) {
+                                float hy, hh; gpuState_.get_ribbon_head_pose(gx, hy, gz, hh);
+                            }
+                            rib_gnd = estimate_terrain_height(gx, gz);
+                        }
                         gpuState_.advance_ribbon_head(queue,
                             ribbon_state_.gpu[ribbon_state_.rendered_slot],
                             ribbon_state_.rendered_slot, time_state_.seconds,
-                            ribbon_flown, ribbon_yaw_in, ribbon_thr_in, time_state_.dt);
+                            ribbon_flown, ribbon_yaw_in, ribbon_thr_in, time_state_.dt,
+                            rib_gnd);
                     }
                     else {
                         // Current slot is gone — find nearest active ribbon
@@ -3639,8 +3649,18 @@ namespace t7 {
 
                         if (nearest != UINT32_MAX) {
                             gpuState_.upload_ribbon(queue, ribbon_state_.gpu[nearest]);
+                            float rib_gnd;
+                            {
+                                const auto& rb = ribbon_state_.gpu[nearest];
+                                float gx = rb.anchor[0], gz = rb.anchor[2];
+                                if (gpuState_.ribbon_head_is(nearest)) {
+                                    float hy, hh; gpuState_.get_ribbon_head_pose(gx, hy, gz, hh);
+                                }
+                                rib_gnd = estimate_terrain_height(gx, gz);
+                            }
                             gpuState_.advance_ribbon_head(queue, ribbon_state_.gpu[nearest], nearest, time_state_.seconds,
-                                ribbon_flown, ribbon_yaw_in, ribbon_thr_in, time_state_.dt);  // 2b: head mover
+                                ribbon_flown, ribbon_yaw_in, ribbon_thr_in, time_state_.dt,
+                                rib_gnd);  // 2b: head mover
                             ribbon_state_.rendered_slot = nearest;
                         }
                         else if (ribbon_state_.rendered_slot != UINT32_MAX) {
