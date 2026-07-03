@@ -1968,14 +1968,17 @@ namespace t7 {
                     const float step = speed * dt;
                     ribbonHeadPos_[0] -= ch * step;
                     ribbonHeadPos_[2] -= sh * step;
-                    // Terrain following: hold CLEARANCE above the ground beneath the
-                    // head. Two stages: (1) the target is low-passed over travel
-                    // DISTANCE, so the centerline carries only the landscape's long
-                    // swells — the path stays below the wave's frequency band and
-                    // the two compose; (2) the slew is the hard safety beneath it.
-                    // Zero travel (hover) freezes the target: altitude holds.
+                    // Sky altitude with a terrain FLOOR (not a tether): the target is
+                    // the ribbon's own spawn altitude, floored by the smoothed ground
+                    // plus its clearance margin. Valleys and mood changes leave it
+                    // untouched at its sky; only ground tall enough to threaten it
+                    // lifts it — and it settles back beyond. The low-pass keeps the
+                    // floor reading the LANDSCAPE (long swells), the slew is the hard
+                    // safety, and zero travel (hover) freezes the target.
                     {
-                        const float raw_target = ground_y + ribbonHeadClearance_;
+                        const float floor_y = ground_y + ribbonHeadClearance_;
+                        const float raw_target = (ribbonHeadOrigin_[1] > floor_y)
+                                               ? ribbonHeadOrigin_[1] : floor_y;
                         const float travel = std::fabs(step);   // this frame's distance
                         const float alpha = 1.0f - std::exp(-travel / RIBBON_ALT_SMOOTH_DIST);
                         ribbonHeadAltTarget_ += (raw_target - ribbonHeadAltTarget_) * alpha;
