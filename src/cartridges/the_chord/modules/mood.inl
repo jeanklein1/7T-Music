@@ -653,6 +653,7 @@ void apply_mood_anchor_ribbon(uint32_t mood, wgpu::Queue& queue) {
     // Build placement (forced position — no negotiation)
     RibbonPlacement plan{};
     plan.slot           = 0;
+    plan.seed           = sel.seed;   // wander channels sample this — without it every mood-forced ribbon draws from seed 0
     plan.trigger_gx     = 0;
     plan.trigger_gz     = 0;
     plan.host_gx        = (int32_t)std::floor(ax / PATCH_EXTENT);
