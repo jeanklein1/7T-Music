@@ -1524,6 +1524,16 @@ namespace t7 {
             float ribbonHeadHeading_ = 0.0f;               // sky-flight heading (yawed by input)
             float ribbonHeadPos_[3] = {0.0f, 0.0f, 0.0f};  // live integrated head position
             float ribbonHeadMount_[3] = {0.0f, 0.0f, 0.0f}; // visible head-ring center + half-tube (pawn mount point)
+            // ── Propagation history ── the body is the head's past, replayed at
+            // propagation speed: ring k wears the head's state from
+            // age = k·spacing/P seconds ago. Two channels suffice (heading, y);
+            // XZ is reconstructed by integrating the delayed heading tailward.
+            static constexpr float    RIBBON_HIST_DT  = 0.05f;  // sample cadence (s)
+            static constexpr uint32_t RIBBON_HIST_CAP = 1024u;  // ~51 s of past > max body age (~38 s)
+            std::array<float, RIBBON_HIST_CAP> ribbonHistHeading_{};
+            std::array<float, RIBBON_HIST_CAP> ribbonHistY_{};
+            uint32_t ribbonHistHead_ = 0;    // ring buffer: newest sample index
+            float    ribbonHistTime_ = 0.0f; // time of the newest sample
             // (bindings 21, 40 reserved — formerly proximity_field, cell_states)
             wgpu::Buffer pierBuffer_;   // unified pier instances (Storage | CopyDst)
             wgpu::Buffer vpBuffer_;
@@ -1931,7 +1941,12 @@ namespace t7 {
                     ribbonHeadPos_[0] = ribbonHeadOrigin_[0];
                     ribbonHeadPos_[1] = ribbonHeadOrigin_[1];
                     ribbonHeadPos_[2] = ribbonHeadOrigin_[2];
-                    seed_ribbon_trail_straight(ribbon);
+                    // A newborn body is a constant past: straight along the spawn
+                    // heading at the spawn altitude — the seed, restated as time.
+                    ribbonHistHeading_.fill(ribbonHeadHeading_);
+                    ribbonHistY_.fill(ribbonHeadPos_[1]);
+                    ribbonHistHead_ = 0;
+                    ribbonHistTime_ = t;
                     ribbonHeadSeeded_ = true;
                     ribbonHeadSlot_ = slot;
                 }
@@ -1989,23 +2004,13 @@ namespace t7 {
                         ribbonHeadPos_[1] += dy;
                     }
 
-                    const float dx = ribbonHeadPos_[0] - ribbonHeadLastPush_[0];
-                    const float dy = ribbonHeadPos_[1] - ribbonHeadLastPush_[1];
-                    const float dz = ribbonHeadPos_[2] - ribbonHeadLastPush_[2];
-                    if (std::sqrt(dx * dx + dy * dy + dz * dz) >= spacing) {
-                        push_ribbon_trail_point(ribbonHeadPos_[0], ribbonHeadPos_[1], ribbonHeadPos_[2]);
-                        ribbonHeadLastPush_[0] = ribbonHeadPos_[0];
-                        ribbonHeadLastPush_[1] = ribbonHeadPos_[1];
-                        ribbonHeadLastPush_[2] = ribbonHeadPos_[2];
-                    }
                     head_x = ribbonHeadPos_[0];
                     head_y = ribbonHeadPos_[1];
                     head_z = ribbonHeadPos_[2];
                 } else {
-                    // Not flying: head holds at the anchor (straight arc / stationary
-                    // shape). Keep the flight state primed at the anchor so toggling
-                    // into sky mode begins cleanly.
-                    seed_ribbon_trail_straight(ribbon);
+                    // Not flying: head holds at the anchor; heading holds the spawn
+                    // orientation. The body is the (constant) history — straight —
+                    // so nothing needs seeding. Flight state stays primed.
                     ribbonHeadHeading_ = ribbon.orientation;
                     ribbonHeadPos_[0] = ribbon.anchor[0];
                     ribbonHeadPos_[1] = ribbon.anchor[1] + ribbon.height;
@@ -2039,7 +2044,17 @@ namespace t7 {
                     ribbonHeadMount_[2] = head_z + lat * ( ch) + MOUNT_SETBACK * sh;
                 }
 
-                resample_ribbon_trail_upload(queue, ribbon, head_x, head_y, head_z);
+                // Record the head's state into the propagation history (catch-up
+                // at fixed cadence; a frame hitch holds the current state across
+                // the gap — the past never has holes).
+                while (t - ribbonHistTime_ >= RIBBON_HIST_DT) {
+                    ribbonHistHead_ = (ribbonHistHead_ + 1u) % RIBBON_HIST_CAP;
+                    ribbonHistHeading_[ribbonHistHead_] = ribbonHeadHeading_;
+                    ribbonHistY_[ribbonHistHead_]       = ribbonHeadPos_[1];
+                    ribbonHistTime_ += RIBBON_HIST_DT;
+                }
+
+                rebuild_ribbon_body_upload(queue, ribbon, head_x, head_y, head_z);
             }
 
             // Prepend a point to the head-path trail (newest at [0]), dropping the
@@ -2089,106 +2104,58 @@ namespace t7 {
                 ribbonTrailCount_ = count;
             }
 
-            // Resample the trail to uniform arc-length samples → head_poses.
-            // out[i] is the point (i/span)*L behind the head along the path. A
-            // straight trail reproduces the straight arc; a curved one (stage 2b)
-            // is what the body follows.
-            void resample_ribbon_trail_upload(wgpu::Queue& queue, const GPURibbonState& ribbon,
-                                              float head_x, float head_y, float head_z) {
-                const uint32_t n = ribbon.cube_count;
-                const uint32_t span = (n >= 2u) ? (n - 1u) : 1u;
-                const float L = static_cast<float>(n) * ribbon.cube_size;
-                const uint32_t out_n = (n < Dim::RIBBON_MAX_RINGS) ? n : Dim::RIBBON_MAX_RINGS;
+            // Sample the propagation history `age` seconds into the past
+            // (0 = now). Heading is an integrator's output — continuous — so
+            // plain lerp is safe; y likewise.
+            void ribbon_history_sample(float age, float& h, float& y) const {
+                float fidx = age / RIBBON_HIST_DT;
+                if (fidx < 0.0f) fidx = 0.0f;
+                const float fmax = static_cast<float>(RIBBON_HIST_CAP - 2u);
+                if (fidx > fmax) fidx = fmax;
+                const uint32_t j0 = static_cast<uint32_t>(fidx);
+                const float frac = fidx - static_cast<float>(j0);
+                const uint32_t i0 = (ribbonHistHead_ + RIBBON_HIST_CAP - j0) % RIBBON_HIST_CAP;
+                const uint32_t i1 = (ribbonHistHead_ + RIBBON_HIST_CAP - (j0 + 1u)) % RIBBON_HIST_CAP;
+                h = ribbonHistHeading_[i0] + (ribbonHistHeading_[i1] - ribbonHistHeading_[i0]) * frac;
+                y = ribbonHistY_[i0]       + (ribbonHistY_[i1]       - ribbonHistY_[i0])       * frac;
+            }
 
-                // Walk = the LIVE head, then the recorded trail (newest→oldest).
-                // Leading with the live head keeps head_poses[0] (and every ring
-                // behind it) moving every frame; the trail supplies the path.
-                // A recorded point lands where the head already was, so it never
-                // introduces a discontinuity. Without this lead the ribbon froze
-                // between ring-spacing pushes and jumped — the "not smooth" artifact.
-                const uint32_t wn = ribbonTrailCount_ + 1u;   // ≤ RIBBON_MAX_RINGS + 1
-                std::array<float, 3 * (Dim::RIBBON_MAX_RINGS + 1)> walk{};
-                walk[0] = head_x; walk[1] = head_y; walk[2] = head_z;
-                for (uint32_t k = 0u; k < ribbonTrailCount_; ++k) {
-                    walk[3 * (k + 1u) + 0] = ribbonTrail_[3 * k + 0];
-                    walk[3 * (k + 1u) + 1] = ribbonTrail_[3 * k + 1];
-                    walk[3 * (k + 1u) + 2] = ribbonTrail_[3 * k + 2];
-                }
+            // THE LAW: the body is the head's past, replayed at propagation
+            // speed. Ring k wears the head's state from age = k·spacing/P
+            // seconds ago — its delayed heading orients the segment and fills
+            // the yaw channel (continuous by construction); its delayed y is
+            // the altitude. XZ integrates the delayed heading TAILWARD
+            // (+heading) from the live head. A turn made now travels down the
+            // body at P through space; so does an altitude swell; so will
+            // every musical gesture at the head. Replaces the spatial trail:
+            // a bend is motion, not a mark on the floor.
+            void rebuild_ribbon_body_upload(wgpu::Queue& queue, const GPURibbonState& ribbon,
+                                            float head_x, float head_y, float head_z) {
+                const uint32_t n = std::min(ribbon.cube_count, Dim::RIBBON_MAX_RINGS);
+                if (n < 2u) return;
+                const float spacing = ribbon.cube_size;
+                const float inv_p = 1.0f / std::max(ribbon.propagation_speed, 0.001f);
 
                 std::array<float, 4 * Dim::RIBBON_MAX_RINGS> poses{};
-                poses[0] = walk[0];
-                poses[1] = walk[1];
-                poses[2] = walk[2];
+                poses[0] = head_x;
+                poses[1] = head_y;
+                poses[2] = head_z;
+                poses[3] = ribbonHeadHeading_;   // ring 0: the live head, live heading
 
-                // Yaw channel (poses[4i+3]): CPU-authored per-ring TAILWARD heading.
-                // Unwrapped ring-to-ring (shortest signed step, clamped to
-                // MAX_RING_TURN), so adjacent values are continuous and the GPU may
-                // lerp them naively — per-ring flips are impossible by construction.
-                // Ring 0 is the LIVE flight heading, blended into the path over the
-                // first BLEND_RINGS rings: hover-yaw turns the head ring (and the
-                // mounted pawn, which shares this heading) while the laid path keeps
-                // its frames. One channel feeds ring orient, wave frame, and mount.
-                // Constants: control-panel material.
-                constexpr float BLEND_RINGS   = 4.0f;
-                constexpr float MAX_RING_TURN = 1.0f;
-                auto wrap_pi = [](float a) { return std::remainder(a, 6.2831853f); };
-                float prev_theta;   // unwrapped PATH yaw chain
-                {
-                    const float dx0 = walk[3] - walk[0];
-                    const float dz0 = walk[5] - walk[2];
-                    prev_theta = (dx0 * dx0 + dz0 * dz0 > 1e-8f)
-                        ? std::atan2(dz0, dx0) : ribbonHeadHeading_;
-                }
-                const float blend_delta = wrap_pi(ribbonHeadHeading_ - prev_theta);
-                poses[3] = prev_theta + blend_delta;   // ring 0 = live heading exactly
-                uint32_t seg = 0u;        // current segment walk[seg] -> walk[seg+1]
-                float seg_acc = 0.0f;     // arc-length at walk[seg]
-                for (uint32_t i = 1u; i < out_n; ++i) {
-                    const float target = (static_cast<float>(i) / static_cast<float>(span)) * L;
-                    bool placed = false;
-                    while (seg + 1u < wn) {
-                        const float dx = walk[3 * (seg + 1u) + 0] - walk[3 * seg + 0];
-                        const float dy = walk[3 * (seg + 1u) + 1] - walk[3 * seg + 1];
-                        const float dz = walk[3 * (seg + 1u) + 2] - walk[3 * seg + 2];
-                        const float seglen = std::sqrt(dx * dx + dy * dy + dz * dz);
-                        if (seg_acc + seglen >= target) {
-                            float f = (seglen > 1e-6f) ? ((target - seg_acc) / seglen) : 0.0f;
-                            f = (f < 0.0f) ? 0.0f : (f > 1.0f ? 1.0f : f);
-                            poses[4 * i + 0] = walk[3 * seg + 0] + dx * f;
-                            poses[4 * i + 1] = walk[3 * seg + 1] + dy * f;
-                            poses[4 * i + 2] = walk[3 * seg + 2] + dz * f;
-                            // Yaw channel: this ring's raw tailward heading is its
-                            // segment's direction; unwrap-step from the previous ring.
-                            if (dx * dx + dz * dz > 1e-8f) {
-                                float step = wrap_pi(std::atan2(dz, dx) - prev_theta);
-                                step = (step >  MAX_RING_TURN) ?  MAX_RING_TURN :
-                                       (step < -MAX_RING_TURN) ? -MAX_RING_TURN : step;
-                                prev_theta += step;
-                            }
-                            {
-                                const float s = std::min(
-                                    static_cast<float>(i) / BLEND_RINGS, 1.0f);
-                                poses[4 * i + 3] = prev_theta + blend_delta * (1.0f - s);
-                            }
-                            placed = true;
-                            break;
-                        }
-                        seg_acc += seglen;
-                        seg += 1u;
-                    }
-                    if (!placed) {
-                        const uint32_t last = wn - 1u;   // ran past the walk → clamp to oldest
-                        poses[4 * i + 0] = walk[3 * last + 0];
-                        poses[4 * i + 1] = walk[3 * last + 1];
-                        poses[4 * i + 2] = walk[3 * last + 2];
-                        // Yaw channel: hold the last real heading (with its blend share).
-                        const float s = std::min(
-                            static_cast<float>(i) / BLEND_RINGS, 1.0f);
-                        poses[4 * i + 3] = prev_theta + blend_delta * (1.0f - s);
-                    }
+                float px = head_x, pz = head_z;
+                for (uint32_t k = 1u; k < n; ++k) {
+                    const float age = (static_cast<float>(k) * spacing) * inv_p;
+                    float h, y;
+                    ribbon_history_sample(age, h, y);
+                    px += spacing * std::cos(h);   // tailward = +heading
+                    pz += spacing * std::sin(h);
+                    poses[4u * k + 0u] = px;
+                    poses[4u * k + 1u] = y;
+                    poses[4u * k + 2u] = pz;
+                    poses[4u * k + 3u] = h;        // yaw channel: the delayed heading
                 }
                 queue.WriteBuffer(headPosesBuffer_, 0, poses.data(),
-                    sizeof(float) * 4 * Dim::RIBBON_MAX_RINGS);
+                                  poses.size() * sizeof(float));
             }
 
             void upload_floating_entity_slot(wgpu::Queue& queue, uint32_t slot, const GPUFloatingEntityState& entity) {
