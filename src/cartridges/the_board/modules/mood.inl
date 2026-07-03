@@ -663,7 +663,8 @@ void apply_mood_anchor_ribbon(uint32_t mood, wgpu::Queue& queue) {
     plan.rotation       = sel.orientation;
     plan.cube_count     = sel.cube_count;
     plan.cube_size      = sel.cube_size;
-    plan.height         = sel.height;
+    // Spawn-relative altitude: birth ground + the seed-drawn clearance.
+    plan.height         = sel.height + estimate_terrain_height(ax, az);
     plan.orientation    = sel.orientation;
     plan.lateral_amp    = sel.lateral_amp;
     plan.lateral_cycles = sel.lateral_cycles;
