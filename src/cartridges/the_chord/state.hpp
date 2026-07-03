@@ -1943,6 +1943,30 @@ namespace t7 {
                     constexpr float YAW_RATE  = 1.0f;    // rad/s at full deflection
                     constexpr float MAX_SPEED = 80.0f;   // world units/s at full throttle
                     ribbonHeadHeading_ += yaw_in * YAW_RATE * dt;
+
+                    // Aim window: the head may aim only within ±AIM_LIMIT of the
+                    // body's own tailward direction (head → newest trail point) —
+                    // a snake cannot face its own spine. Hover hold-yaw swings the
+                    // face to the window edge and holds (no endless 360s, no
+                    // turning inward); in flight the path curves with the heading,
+                    // the window travels with it, and the clamp is inert. Bounding
+                    // the aim also bounds the resampler's heading-vs-path blend
+                    // inside (-pi, pi), so its wrap-snap (rings 1-3 twitching each
+                    // half-lap) is unreachable. Control-panel material.
+                    // SEAM[ribbon:sky-mode].
+                    constexpr float AIM_LIMIT = 1.5707963f;   // ±90° off the body
+                    if (ribbonTrailCount_ > 0u) {
+                        const float bx = ribbonTrail_[0] - ribbonHeadPos_[0];
+                        const float bz = ribbonTrail_[2] - ribbonHeadPos_[2];
+                        if (bx * bx + bz * bz > 1e-8f) {
+                            const float tailward = std::atan2(bz, bx);
+                            float rel = std::remainder(
+                                ribbonHeadHeading_ - tailward, 6.2831853f);
+                            rel = (rel >  AIM_LIMIT) ?  AIM_LIMIT :
+                                  (rel < -AIM_LIMIT) ? -AIM_LIMIT : rel;
+                            ribbonHeadHeading_ = tailward + rel;
+                        }
+                    }
                     const float ch = std::cos(ribbonHeadHeading_);
                     const float sh = std::sin(ribbonHeadHeading_);
                     const float step = throttle_in * MAX_SPEED * dt;
