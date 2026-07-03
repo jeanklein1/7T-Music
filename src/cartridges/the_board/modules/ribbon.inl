@@ -400,11 +400,13 @@ static constexpr float WANDER_CRUISE_BASE  = 0.35f;   // gaussian mean (fraction
 static constexpr float WANDER_CRUISE_SIGMA = 0.15f;   // gaussian sigma
 static constexpr float WANDER_CRUISE_MIN  = 0.15f;
 static constexpr float WANDER_CRUISE_MAX  = 0.80f;
-static constexpr float WANDER_LEASH       = 300.0f;  // max drift from anchor (units)
-static constexpr float WANDER_DISC        = 240.0f;  // waypoint disc radius (< leash)
-static constexpr float WANDER_RETARGET_MIN = 4.0f;   // seconds between waypoints
-static constexpr float WANDER_RETARGET_VAR = 5.0f;
+static constexpr float WANDER_LEG_MIN     = 200.0f;  // waypoint leg length (units)
+static constexpr float WANDER_LEG_MAX     = 500.0f;
+static constexpr float WANDER_SPREAD      = 1.0f;    // rad of bearing spread around current motion
+static constexpr float WANDER_RETARGET_MIN = 10.0f;  // seconds between waypoints
+static constexpr float WANDER_RETARGET_VAR = 15.0f;
 static constexpr float WANDER_STEER_SOFT  = 0.5f;    // rad of heading error for full deflection
+static constexpr float WANDER_YAW_MAX     = 0.15f;   // yaw cap: radius >= R_MIN/0.15 (~270 u) — body-scale arcs
 
 static inline float wander_rand01(uint32_t& s) {
     // xorshift32 → [0,1)
@@ -420,30 +422,30 @@ static void ribbon_wander_inputs(ActiveRibbon& ar,
                                  float head_x, float head_z, float heading,
                                  float dt, float& yaw_in, float& thr_in)
 {
-    const float ax = ar.anchor_x, az = ar.anchor_z;
-    const float dxa = head_x - ax, dza = head_z - az;
-    const bool  beyond_leash = (dxa * dxa + dza * dza) > (WANDER_LEASH * WANDER_LEASH);
-
+    // Free roam: waypoints are picked AHEAD of the current motion — a bearing
+    // spread around where the ribbon is already going, a leg of 200-500 units.
+    // No leash: a rendered wanderer is pinned against eviction instead, and
+    // the yaw cap below keeps every turn at body scale (radius >= R_MIN /
+    // WANDER_YAW_MAX). Gorgeous, contemplative arcs by construction.
     ar.wander_retarget -= dt;
-    if (beyond_leash) {
-        // Come home first; pick a fresh waypoint once back inside.
-        ar.wander_tx = ax;
-        ar.wander_tz = az;
-        ar.wander_retarget = WANDER_RETARGET_MIN;
-    } else if (ar.wander_retarget <= 0.0f) {
-        const float r = WANDER_DISC * std::sqrt(wander_rand01(ar.wander_rng));
-        const float a = 6.2831853f * wander_rand01(ar.wander_rng);
-        ar.wander_tx = ax + r * std::cos(a);
-        ar.wander_tz = az + r * std::sin(a);
+    if (ar.wander_retarget <= 0.0f) {
+        const float move_dir = heading + 3.14159265f;           // movement = -heading
+        const float spread = (wander_rand01(ar.wander_rng) * 2.0f - 1.0f) * WANDER_SPREAD;
+        const float leg = WANDER_LEG_MIN
+                        + (WANDER_LEG_MAX - WANDER_LEG_MIN) * wander_rand01(ar.wander_rng);
+        const float b = move_dir + spread;
+        ar.wander_tx = head_x + leg * std::cos(b);
+        ar.wander_tz = head_z + leg * std::sin(b);
         ar.wander_retarget = WANDER_RETARGET_MIN
                            + WANDER_RETARGET_VAR * wander_rand01(ar.wander_rng);
     }
 
     const float bearing = std::atan2(ar.wander_tz - head_z, ar.wander_tx - head_x);
-    const float desired = bearing + 3.14159265f;               // movement = -heading
+    const float desired = bearing + 3.14159265f;                // movement = -heading
     const float err = std::remainder(desired - heading, 6.2831853f);
     yaw_in = err / WANDER_STEER_SOFT;
-    yaw_in = (yaw_in > 1.0f) ? 1.0f : (yaw_in < -1.0f) ? -1.0f : yaw_in;
+    yaw_in = (yaw_in >  WANDER_YAW_MAX) ?  WANDER_YAW_MAX :
+             (yaw_in < -WANDER_YAW_MAX) ? -WANDER_YAW_MAX : yaw_in;
     thr_in = ar.wander_cruise;
 }
 

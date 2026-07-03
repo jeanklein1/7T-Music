@@ -2032,6 +2032,11 @@ namespace t7 {
 
             // Trail seed: ribbonTrail_[k] = the straight-arc centerline at
             // t = k/(n-1). [0] is the head; increasing k recedes toward the tail.
+            // Invalidate the head/trail state so the next advance re-inits and
+            // re-seeds. Called on release and eviction: slots are reused, so the
+            // slot-change guard alone cannot detect a successor ribbon.
+            void invalidate_ribbon_head() { ribbonHeadSeeded_ = false; }
+
             void seed_ribbon_trail_straight(const GPURibbonState& ribbon) {
                 const uint32_t n = ribbon.cube_count;
                 const uint32_t span = (n >= 2u) ? (n - 1u) : 1u;
