@@ -699,7 +699,7 @@ namespace t7 {
             float orientation;                                                  // 72 (heading radians)
             uint32_t color_mode;                                                // 76
             uint32_t is_roaming;                                                // 80 (0 = stationary spine = today; 1 = head roams, wired stage 1b)
-            float head_heading;                                                 // 84 live head heading (radians); orients the ring frame to the direction of travel
+            float _pad1;                                                        // 84
             float _pad2;                                                        // 88
             float _pad3;                                                        // 92
         };                                                                      // 96 total (size enforced by static_assert below; mirrors world.wgsl RibbonState)
@@ -1980,11 +1980,12 @@ namespace t7 {
                 }
 
                 // Pawn mount point (sky mode): the VISIBLE head-ring center —
-                // centerline + the wave along the head's frame — lifted half a tube
-                // so the pawn's feet sit on top. Mirrors ribbon_spine_at(0) for the
-                // roaming case: the ruler tangent at the head points toward the tail
-                // (+heading), so right = (-sin h, 0, cos h) and up = world-up; the
-                // head's phase_age is ribbon.time. SEAM[ribbon:sky-mode].
+                // centerline + the wave in the head ring's frame — lifted half a tube
+                // so the pawn's feet sit on top. Mirrors ribbon_spine_at(0): ring 0's
+                // yaw-channel value IS the live heading (head_poses[0].w), so
+                // right = (-sin h, 0, cos h), up = world-up, phase_age = ribbon.time.
+                // The pawn and the head ring share one frame and one wave, exactly.
+                // SEAM[ribbon:sky-mode].
                 {
                     const float ph  = ribbon.time;
                     const float lat = std::sin(ribbon.lateral_freq  * ph) * ribbon.lateral_amp;
@@ -2000,12 +2001,6 @@ namespace t7 {
                 }
 
                 resample_ribbon_trail_upload(queue, ribbon, head_x, head_y, head_z);
-
-                // Publish the live head heading so the GPU orients the ring frame to
-                // the direction of travel, not the fixed spawn orientation. Same
-                // targeted-write idiom as upload_ribbon_time.
-                queue.WriteBuffer(ribbonBuffer_, offsetof(GPURibbonState, head_heading),
-                                  &ribbonHeadHeading_, sizeof(float));
             }
 
             // Prepend a point to the head-path trail (newest at [0]), dropping the
@@ -2073,6 +2068,28 @@ namespace t7 {
                 poses[0] = walk[0];
                 poses[1] = walk[1];
                 poses[2] = walk[2];
+
+                // Yaw channel (poses[4i+3]): CPU-authored per-ring TAILWARD heading.
+                // Unwrapped ring-to-ring (shortest signed step, clamped to
+                // MAX_RING_TURN), so adjacent values are continuous and the GPU may
+                // lerp them naively — per-ring flips are impossible by construction.
+                // Ring 0 is the LIVE flight heading, blended into the path over the
+                // first BLEND_RINGS rings: hover-yaw turns the head ring (and the
+                // mounted pawn, which shares this heading) while the laid path keeps
+                // its frames. One channel feeds ring orient, wave frame, and mount.
+                // Constants: control-panel material.
+                constexpr float BLEND_RINGS   = 4.0f;
+                constexpr float MAX_RING_TURN = 1.0f;
+                auto wrap_pi = [](float a) { return std::remainder(a, 6.2831853f); };
+                float prev_theta;   // unwrapped PATH yaw chain
+                {
+                    const float dx0 = walk[3] - walk[0];
+                    const float dz0 = walk[5] - walk[2];
+                    prev_theta = (dx0 * dx0 + dz0 * dz0 > 1e-8f)
+                        ? std::atan2(dz0, dx0) : ribbonHeadHeading_;
+                }
+                const float blend_delta = wrap_pi(ribbonHeadHeading_ - prev_theta);
+                poses[3] = prev_theta + blend_delta;   // ring 0 = live heading exactly
                 uint32_t seg = 0u;        // current segment walk[seg] -> walk[seg+1]
                 float seg_acc = 0.0f;     // arc-length at walk[seg]
                 for (uint32_t i = 1u; i < out_n; ++i) {
@@ -2089,6 +2106,19 @@ namespace t7 {
                             poses[4 * i + 0] = walk[3 * seg + 0] + dx * f;
                             poses[4 * i + 1] = walk[3 * seg + 1] + dy * f;
                             poses[4 * i + 2] = walk[3 * seg + 2] + dz * f;
+                            // Yaw channel: this ring's raw tailward heading is its
+                            // segment's direction; unwrap-step from the previous ring.
+                            if (dx * dx + dz * dz > 1e-8f) {
+                                float step = wrap_pi(std::atan2(dz, dx) - prev_theta);
+                                step = (step >  MAX_RING_TURN) ?  MAX_RING_TURN :
+                                       (step < -MAX_RING_TURN) ? -MAX_RING_TURN : step;
+                                prev_theta += step;
+                            }
+                            {
+                                const float s = std::min(
+                                    static_cast<float>(i) / BLEND_RINGS, 1.0f);
+                                poses[4 * i + 3] = prev_theta + blend_delta * (1.0f - s);
+                            }
                             placed = true;
                             break;
                         }
@@ -2100,6 +2130,10 @@ namespace t7 {
                         poses[4 * i + 0] = walk[3 * last + 0];
                         poses[4 * i + 1] = walk[3 * last + 1];
                         poses[4 * i + 2] = walk[3 * last + 2];
+                        // Yaw channel: hold the last real heading (with its blend share).
+                        const float s = std::min(
+                            static_cast<float>(i) / BLEND_RINGS, 1.0f);
+                        poses[4 * i + 3] = prev_theta + blend_delta * (1.0f - s);
                     }
                 }
                 queue.WriteBuffer(headPosesBuffer_, 0, poses.data(),
