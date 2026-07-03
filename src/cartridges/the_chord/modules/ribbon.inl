@@ -89,7 +89,6 @@ struct RibbonConfig {
 static constexpr float MIN_CUBE_COUNT     = 20.0f;    // floor on Gaussian-sampled cube_count
 static constexpr float MIN_CUBE_SIZE      = 1.0f;     // floor on cube_size
 static constexpr float MIN_ADDED_HEIGHT   = 20.0f;    // floor on the band draw (keeps every tier airborne)
-static constexpr float RIBBON_SKY_BASE    = 40.0f;    // the sky band's base altitude — ABSOLUTE, mood- and terrain-independent (control-panel)
 static constexpr float FOOTPRINT_RADIUS   = 5.0f;     // ribbon spawn footprint radius
 static constexpr float ORIENTATION_SPREAD = 1.0472f;  // ±60° (π/3) around away-from-pawn
 
@@ -524,10 +523,10 @@ static void fill_ribbon_selection_geometry(
     if ((float)sel.cube_count * sel.cube_size > RIBBON_MAX_LENGTH)
         sel.cube_count = (uint32_t)(RIBBON_MAX_LENGTH / sel.cube_size);
 
-    // ABSOLUTE sky altitude: the band base plus the tier's seed draw. Terrain
-    // does not enter — a ribbon owns its plane across moods and terrain; the
-    // flight floor (state.hpp) lifts it over tall ground. Pure from seed.
-    sel.height = RIBBON_SKY_BASE + std::max(MIN_ADDED_HEIGHT,
+    // The seed draw is this ribbon's CLEARANCE above its birthplace — pure
+    // from seed. The ground itself is added at placement, where the position
+    // is known (identity from the seed; ground from the meeting).
+    sel.height = std::max(MIN_ADDED_HEIGHT,
         cpu_sample_gaussian(seed, RibbonProp::HEIGHT, tp.height_mean, tp.height_sigma));
 
     sel.orientation = cpu_hash_f(seed, RibbonProp::ORIENTATION) * 6.2831853f;
@@ -660,7 +659,10 @@ static bool place_ribbon_from_selection(Cartridge* c,
 
     plan.cube_count = sel.cube_count;
     plan.cube_size = sel.cube_size;
-    plan.height = sel.height;
+    // Spawn-relative altitude: birth ground + the seed-drawn clearance. The
+    // ribbon then holds this plane absolutely for life (the flight floor and
+    // landscape smoothing handle tall ground en route).
+    plan.height = sel.height + c->estimate_terrain_height(plan.cx, plan.cz);
     plan.orientation = sel.orientation;
     plan.lateral_amp = sel.lateral_amp;
     plan.lateral_cycles = sel.lateral_cycles;
