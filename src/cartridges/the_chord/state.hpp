@@ -1517,6 +1517,7 @@ namespace t7 {
             uint32_t ribbonHeadSlot_ = UINT32_MAX;
             float ribbonHeadOrigin_[3] = {0.0f, 0.0f, 0.0f};
             float ribbonHeadClearance_ = 0.0f;   // altitude held ABOVE the ground beneath the head
+            float ribbonHeadAltTarget_ = 0.0f;   // low-passed altitude target (landscape swells, not texture)
             float ribbonHeadLastPush_[3] = {0.0f, 0.0f, 0.0f};
             float ribbonHeadStart_ = 0.0f;
             float ribbonHeadHeading_ = 0.0f;               // sky-flight heading (yawed by input)
@@ -1929,6 +1930,7 @@ namespace t7 {
                     // Defined at birth as spawn altitude minus spawn ground — the
                     // y-channel's single authority. SEAM[ribbon:sky-mode].
                     ribbonHeadClearance_ = ribbonHeadOrigin_[1] - ground_y;
+                    ribbonHeadAltTarget_ = ribbonHeadOrigin_[1];
                     ribbonHeadHeading_ = ribbon.orientation;
                     ribbonHeadPos_[0] = ribbonHeadOrigin_[0];
                     ribbonHeadPos_[1] = ribbonHeadOrigin_[1];
@@ -1961,6 +1963,7 @@ namespace t7 {
                     constexpr float MAX_SPEED = 40.0f;   // world units/s at full throttle (halved; full-throttle turns bottom out at R_MIN)
                     constexpr float R_MIN     = 40.0f;   // minimum turn radius (units)
                     constexpr float RIBBON_CLIMB_RATE = 15.0f;  // u/s vertical slew — hills become gentle rises
+                    constexpr float RIBBON_ALT_SMOOTH_DIST = 180.0f;  // units of travel over which the altitude target relaxes — the head reads the LANDSCAPE, not the terrain texture
                     const float speed = std::max(throttle_in, 0.0f) * MAX_SPEED;
                     const float yaw_avail = std::min(YAW_RATE, speed / R_MIN);
                     ribbonHeadHeading_ += yaw_in * yaw_avail * dt;
@@ -1970,10 +1973,18 @@ namespace t7 {
                     ribbonHeadPos_[0] -= ch * step;
                     ribbonHeadPos_[2] -= sh * step;
                     // Terrain following: hold CLEARANCE above the ground beneath the
-                    // head, slew-limited — no teleports, gentle rise and fall.
+                    // head. Two stages: (1) the target is low-passed over travel
+                    // DISTANCE, so the centerline carries only the landscape's long
+                    // swells — the path stays below the wave's frequency band and
+                    // the two compose; (2) the slew is the hard safety beneath it.
+                    // Zero travel (hover) freezes the target: altitude holds.
                     {
-                        const float target_y = ground_y + ribbonHeadClearance_;
-                        float dy = target_y - ribbonHeadPos_[1];
+                        const float raw_target = ground_y + ribbonHeadClearance_;
+                        const float travel = std::fabs(step);   // this frame's distance
+                        const float alpha = 1.0f - std::exp(-travel / RIBBON_ALT_SMOOTH_DIST);
+                        ribbonHeadAltTarget_ += (raw_target - ribbonHeadAltTarget_) * alpha;
+
+                        float dy = ribbonHeadAltTarget_ - ribbonHeadPos_[1];
                         const float max_dy = RIBBON_CLIMB_RATE * dt;
                         dy = (dy >  max_dy) ?  max_dy : (dy < -max_dy) ? -max_dy : dy;
                         ribbonHeadPos_[1] += dy;
