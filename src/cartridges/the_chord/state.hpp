@@ -1952,7 +1952,7 @@ namespace t7 {
                     // body): down-arrow is no thrust. Constants: control-panel
                     // material. SEAM[ribbon:sky-mode].
                     constexpr float YAW_RATE  = 1.0f;    // rad/s cap at full deflection
-                    constexpr float MAX_SPEED = 80.0f;   // world units/s at full throttle
+                    constexpr float MAX_SPEED = 40.0f;   // world units/s at full throttle (halved; full-throttle turns bottom out at R_MIN)
                     constexpr float R_MIN     = 40.0f;   // minimum turn radius (units)
                     const float speed = std::max(throttle_in, 0.0f) * MAX_SPEED;
                     const float yaw_avail = std::min(YAW_RATE, speed / R_MIN);

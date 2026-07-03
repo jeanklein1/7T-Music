@@ -377,7 +377,71 @@ struct ActiveRibbon {
     uint32_t ref_count = 0;     // patches referencing this ribbon via record_entity
     bool active = false;
     float spawn_color[3] = { 0.0f, 0.0f, 0.0f };   // idle target for musical color couplings
+
+    // ── Wander (autonomous drift) ── rolled at commit; a wanderer authors the
+    // same yaw/throttle inputs the player does, through the same steering
+    // integrator. SEAM[ribbon:sky-mode].
+    bool     wander = false;
+    float    wander_cruise = 0.0f;      // throttle fraction of MAX_SPEED
+    float    wander_tx = 0.0f;          // current waypoint (world XZ)
+    float    wander_tz = 0.0f;
+    float    wander_retarget = 0.0f;    // seconds until a new waypoint
+    uint32_t wander_rng = 1u;           // self-contained xorshift state
 };
+
+// ── Wander policy ─────────────────────────────────────────────────
+// Constants: control-panel material.
+static constexpr float WANDER_CHANCE      = 0.30f;   // per-spawn roll
+static constexpr float WANDER_CRUISE_BASE = 0.35f;   // triangular center (fraction)
+static constexpr float WANDER_CRUISE_VAR  = 0.30f;   // triangular half-width
+static constexpr float WANDER_CRUISE_MIN  = 0.15f;
+static constexpr float WANDER_CRUISE_MAX  = 0.80f;
+static constexpr float WANDER_LEASH       = 300.0f;  // max drift from anchor (units)
+static constexpr float WANDER_DISC        = 240.0f;  // waypoint disc radius (< leash)
+static constexpr float WANDER_RETARGET_MIN = 4.0f;   // seconds between waypoints
+static constexpr float WANDER_RETARGET_VAR = 5.0f;
+static constexpr float WANDER_STEER_SOFT  = 0.5f;    // rad of heading error for full deflection
+
+static inline float wander_rand01(uint32_t& s) {
+    // xorshift32 → [0,1)
+    s ^= s << 13; s ^= s >> 17; s ^= s << 5;
+    return (float)(s & 0x00FFFFFFu) / 16777216.0f;
+}
+
+// Author this frame's flight inputs for a wandering ribbon. Movement is along
+// -heading (the flight convention), so the desired heading is the bearing to
+// the waypoint plus pi. The steering integrator downstream enforces R_MIN, so
+// any waypoint yields a legal, frame-safe path.
+static void ribbon_wander_inputs(ActiveRibbon& ar,
+                                 float head_x, float head_z, float heading,
+                                 float dt, float& yaw_in, float& thr_in)
+{
+    const float ax = ar.anchor_x, az = ar.anchor_z;
+    const float dxa = head_x - ax, dza = head_z - az;
+    const bool  beyond_leash = (dxa * dxa + dza * dza) > (WANDER_LEASH * WANDER_LEASH);
+
+    ar.wander_retarget -= dt;
+    if (beyond_leash) {
+        // Come home first; pick a fresh waypoint once back inside.
+        ar.wander_tx = ax;
+        ar.wander_tz = az;
+        ar.wander_retarget = WANDER_RETARGET_MIN;
+    } else if (ar.wander_retarget <= 0.0f) {
+        const float r = WANDER_DISC * std::sqrt(wander_rand01(ar.wander_rng));
+        const float a = 6.2831853f * wander_rand01(ar.wander_rng);
+        ar.wander_tx = ax + r * std::cos(a);
+        ar.wander_tz = az + r * std::sin(a);
+        ar.wander_retarget = WANDER_RETARGET_MIN
+                           + WANDER_RETARGET_VAR * wander_rand01(ar.wander_rng);
+    }
+
+    const float bearing = std::atan2(ar.wander_tz - head_z, ar.wander_tx - head_x);
+    const float desired = bearing + 3.14159265f;               // movement = -heading
+    const float err = std::remainder(desired - heading, 6.2831853f);
+    yaw_in = err / WANDER_STEER_SOFT;
+    yaw_in = (yaw_in > 1.0f) ? 1.0f : (yaw_in < -1.0f) ? -1.0f : yaw_in;
+    thr_in = ar.wander_cruise;
+}
 
 // ── Ribbon module state (Scope B migration #1) ────────────────────
 // All ribbon-owned state lives in this struct, accessed via
@@ -644,7 +708,7 @@ static void commit_ribbon(RibbonState& rs, Cartridge* c,
     r.color[1] = plan.color[1];
     r.color[2] = plan.color[2];
     r.is_visible = 1u;
-    r.is_roaming = 1u;   // head-roaming on (test arc until the coupling stage)
+    r.is_roaming = 1u;   // head-roaming on (player-flown or wandering; parked when neither)
 
     // Store in CPU mirror (per-frame nearest-selection uploads to GPU)
     uint32_t s = plan.slot;
@@ -662,6 +726,27 @@ static void commit_ribbon(RibbonState& rs, Cartridge* c,
     ar.host_gz = plan.host_gz;
     ar.anchor_x = plan.cx;
     ar.anchor_z = plan.cz;
+
+    // Wander roll. Self-contained RNG seeded from spawn identity (commit does
+    // not receive the spawn seed; see the policy block above ActiveRibbon).
+    {
+        uint32_t ws = 2166136261u;                 // FNV-1a mix
+        auto mix = [&ws](uint32_t v) { ws ^= v; ws *= 16777619u; };
+        mix((uint32_t)trigger_gx); mix((uint32_t)trigger_gz); mix(s);
+        uint32_t ob; std::memcpy(&ob, &r.orientation, sizeof(ob)); mix(ob);
+        ar.wander_rng = (ws == 0u) ? 1u : ws;
+
+        ar.wander = wander_rand01(ar.wander_rng) < WANDER_CHANCE;
+        const float u1 = wander_rand01(ar.wander_rng);
+        const float u2 = wander_rand01(ar.wander_rng);
+        float cruise = WANDER_CRUISE_BASE + (u1 + u2 - 1.0f) * WANDER_CRUISE_VAR;
+        cruise = (cruise < WANDER_CRUISE_MIN) ? WANDER_CRUISE_MIN
+               : (cruise > WANDER_CRUISE_MAX) ? WANDER_CRUISE_MAX : cruise;
+        ar.wander_cruise = cruise;
+        ar.wander_tx = plan.cx;                    // first waypoint: the anchor
+        ar.wander_tz = plan.cz;
+        ar.wander_retarget = 0.0f;                 // pick a real one immediately
+    }
 
     // Two-tip anchoring: anchor IS the near tip (t=0).
     // Body extends entirely in the orientation direction (away from pawn).

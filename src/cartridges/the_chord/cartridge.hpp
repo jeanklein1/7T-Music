@@ -3581,11 +3581,23 @@ namespace t7 {
                     bool current_alive = ribbon_state_.rendered_slot != UINT32_MAX
                         && ribbon_state_.active[ribbon_state_.rendered_slot].active;
 
-                    // Sky-mode flight input for the head mover (Stage 1): up/down =
-                    // throttle (move_z), left/right = yaw (move_x); zero when OFF.
-                    const bool  ribbon_flown  = player_.sky_mode;
-                    const float ribbon_yaw_in = ribbon_flown ?  inputState_.move_x : 0.0f;
-                    const float ribbon_thr_in = ribbon_flown ? -inputState_.move_z : 0.0f;
+                    // Flight input for the head mover: the player when sky mode is
+                    // on; the wander policy when the rendered ribbon is a wanderer;
+                    // parked otherwise. One control law, many authors.
+                    // SEAM[ribbon:sky-mode].
+                    bool  ribbon_flown  = player_.sky_mode;
+                    float ribbon_yaw_in = ribbon_flown ?  inputState_.move_x : 0.0f;
+                    float ribbon_thr_in = ribbon_flown ? -inputState_.move_z : 0.0f;
+                    if (!ribbon_flown && current_alive
+                        && ribbon_state_.active[ribbon_state_.rendered_slot].wander) {
+                        float whx, why, whz, whh;
+                        gpuState_.get_ribbon_head_pose(whx, why, whz, whh);
+                        ribbon_wander_inputs(
+                            ribbon_state_.active[ribbon_state_.rendered_slot],
+                            whx, whz, whh, time_state_.dt,
+                            ribbon_yaw_in, ribbon_thr_in);
+                        ribbon_flown = true;
+                    }
 
                     if (current_alive) {
                         // Hold — update time + color (color is animated each frame by
