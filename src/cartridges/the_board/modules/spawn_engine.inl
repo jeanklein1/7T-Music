@@ -994,6 +994,7 @@ struct RibbonPlacement {
     float twist_amp, twist_cycles;
     uint32_t color_mode;
     float color[3];
+    uint32_t seed = 0u;   // spawn seed, carried so commit samples its channels
 };
 
 // Mid-file include — see SEAM[spawn_engine:structural] above.
