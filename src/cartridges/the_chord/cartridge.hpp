@@ -1360,8 +1360,12 @@ namespace t7 {
                 // Its anchor patches stream out as the player flies away, but the
                 // ribbon must persist — skip eviction entirely while it is the
                 // mounted, rendered ribbon. update() releases it on exit (the
-                // sky_mode_prev edge). SEAM[ribbon:sky-mode].
-                if (self->player_.sky_mode && slot == self->ribbon_state_.rendered_slot) {
+                // sky_mode_prev edge). A rendered WANDERER is pinned the same way:
+                // it drifts freely off its spawn patch, and with one slot the
+                // world's ribbon persists — a contemplative object should.
+                // SEAM[ribbon:sky-mode].
+                if (slot == self->ribbon_state_.rendered_slot
+                    && (self->player_.sky_mode || ar.wander)) {
                     return;
                 }
 
@@ -1380,6 +1384,8 @@ namespace t7 {
                     GPURibbonState empty{};
                     self->gpuState_.upload_ribbon(queue, empty);
                     self->ribbon_state_.rendered_slot = UINT32_MAX;
+                    // Successor ribbons reuse this slot — force re-init.
+                    self->gpuState_.invalidate_ribbon_head();
                 }
                 std::cout << "[Ribbon] EVICT slot=" << slot << "\n";
             }
@@ -3572,6 +3578,8 @@ namespace t7 {
                             GPURibbonState empty{};
                             gpuState_.upload_ribbon(queue, empty);
                             ribbon_state_.rendered_slot = UINT32_MAX;
+                            // Successor ribbons reuse this slot — force re-init.
+                            gpuState_.invalidate_ribbon_head();
                         }
                     }
                     player_.sky_mode_prev = player_.sky_mode;
