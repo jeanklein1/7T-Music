@@ -1914,6 +1914,15 @@ namespace t7 {
                 heading = ribbonHeadHeading_;
             }
 
+            // The PEN — the true integrated head. Steering reads this; the
+            // mount above is the SADDLE (pen + wave + setback), for the pawn
+            // and camera only. Two consumers, two truths, never mixed.
+            void get_ribbon_head_pen(float& x, float& z, float& heading) const {
+                x = ribbonHeadPos_[0];
+                z = ribbonHeadPos_[2];
+                heading = ribbonHeadHeading_;
+            }
+
             void advance_ribbon_head(wgpu::Queue& queue, const GPURibbonState& ribbon,
                                      uint32_t slot, float t,
                                      bool flown, float yaw_in, float throttle_in, float dt,

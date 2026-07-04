@@ -3613,8 +3613,8 @@ namespace t7 {
                     }
                     if (!ribbon_flown && current_alive
                         && ribbon_state_.active[ribbon_state_.rendered_slot].wander) {
-                        float whx, why, whz, whh;
-                        gpuState_.get_ribbon_head_pose(whx, why, whz, whh);
+                        float whx, whz, whh;
+                        gpuState_.get_ribbon_head_pen(whx, whz, whh);
                         ribbon_wander_inputs(
                             ribbon_state_.active[ribbon_state_.rendered_slot],
                             whx, whz, whh, time_state_.dt,
