@@ -28,7 +28,11 @@
 // │       and spawn-engine helpers; not part of ribbon's data)       │
 // │    commit_ribbon(rs, c, plan, gx, gz, queue)    — Phase 3: state │
 // │                                                                  │
-// │  Head mover (per frame, called from the cartridge frame block):  │
+// │  Frame conductor (ONE call per frame from update()):             │
+// │    ribbon_frame_tick(rs, c, queue)                               │
+// │      — author selection, slot hold/adopt, uploads, advance       │
+// │                                                                  │
+// │  Head mover (called by the conductor):                           │
 // │    ribbon_advance_head(rs, gpuState, queue, ribbon, slot, …)     │
 // │    ribbon_head_pose(rs, x, y, z, h)   — the SADDLE (mount)       │
 // │    ribbon_head_pen(rs, x, z, h)       — the PEN (steering reads) │
@@ -120,6 +124,7 @@ static constexpr float RIBBON_FLOOR_MARGIN   = 25.0f;   // guaranteed gap over t
 static constexpr float RIBBON_ALT_SMOOTH_DIST = 180.0f; // units of travel over which the altitude target relaxes — the head reads the LANDSCAPE, not the terrain texture
 static constexpr float RIBBON_ALT_STIFF      = 0.36f;   // (rad/s)^2 — the pen's stiffness; damping = 2*sqrt(stiffness), critically damped
 static constexpr float RIBBON_MOUNT_SETBACK  = 1.5f;    // pawn seat setback toward the tail (+heading) so the body sits over the tube, not the leading cap
+static constexpr float RIBBON_SKY_YAW_TAU    = 0.6f;    // s; first-order ease on the PLAYER's yaw hand — the body replays the heading history, so bang-bang arrows must become curves; short tau keeps it immediate
 
 // ── Wander policy ─────────────────────────────────────────────────
 // The steering channel's IDLE SCRIPT — the shape of autonomous drift.
@@ -718,6 +723,148 @@ static void ribbon_head_pen(const RibbonState& rs, float& x, float& z, float& he
     x = rs.head.pos[0];
     z = rs.head.pos[2];
     heading = rs.head.heading;
+}
+
+
+// ═══ FRAME ORCHESTRATION ═════════════════════════════════════════
+//
+// The ribbon's per-frame conductor: choose the author (player in sky
+// mode, wanderer when the rendered ribbon wanders, parked otherwise),
+// advance the head through the laws, keep the rendered slot (hold
+// until eviction, then adopt the nearest active ribbon), and flush
+// the per-frame GPU uploads (time, color). update() calls this once
+// per frame at the ribbon block's old position. External consumers
+// of the head pose (camera signal, pawn-mount resync) read
+// ribbon_head_pose from their own order-sensitive sites in update()
+// — they consume, they do not orchestrate.
+static void ribbon_frame_tick(RibbonState& rs, Cartridge* c, wgpu::Queue& queue) {
+    // Ribbon eviction is fully event-driven via ref_count in
+    // evict_patch_entities — no per-frame scan needed.
+
+    // Update time on all CPU mirrors
+    for (uint32_t i = 0; i < MAX_RIBBON_INSTANCES; i++) {
+        if (rs.active[i].active)
+            rs.gpu[i].time = c->time_state_.seconds;
+    }
+
+    // Sky mode just ended — release the pinned (now anchor-less)
+    // ribbon so a fresh one can spawn. SEAM[ribbon:sky-mode].
+    if (c->player_.sky_mode_prev && !c->player_.sky_mode) {
+        uint32_t s = rs.rendered_slot;
+        if (s != UINT32_MAX && rs.active[s].active) {
+            rs.active[s] = ActiveRibbon{};
+            rs.gpu[s] = GPURibbonState{};
+            if (rs.active_count > 0) rs.active_count--;
+            GPURibbonState empty{};
+            c->gpuState_.upload_ribbon(queue, empty);
+            rs.rendered_slot = UINT32_MAX;
+            // Successor ribbons reuse this slot — force re-init.
+            ribbon_invalidate_head(rs);
+        }
+    }
+    c->player_.sky_mode_prev = c->player_.sky_mode;
+
+    // Render one ribbon: hold the current slot until it's evicted,
+    // then pick the nearest active ribbon as the new rendered slot.
+    bool current_alive = rs.rendered_slot != UINT32_MAX
+        && rs.active[rs.rendered_slot].active;
+
+    // Flight input for the head mover: the player when sky mode is
+    // on; the wander policy when the rendered ribbon is a wanderer;
+    // parked otherwise. One control law, many authors.
+    // SEAM[ribbon:sky-mode].
+    bool  ribbon_flown  = c->player_.sky_mode;
+    float ribbon_yaw_in = ribbon_flown ?  c->inputState_.move_x : 0.0f;
+    float ribbon_thr_in = ribbon_flown ? -c->inputState_.move_z : 0.0f;
+    // The player's pen, eased like the wanderer's (RIBBON_SKY_YAW_TAU
+    // in the tuning console).
+    {
+        if (c->player_.sky_mode) {
+            const float a = 1.0f - std::exp(-c->time_state_.dt / RIBBON_SKY_YAW_TAU);
+            c->player_.sky_yaw_eased += (ribbon_yaw_in - c->player_.sky_yaw_eased) * a;
+            ribbon_yaw_in = c->player_.sky_yaw_eased;
+        } else {
+            c->player_.sky_yaw_eased = 0.0f;
+        }
+    }
+    if (!ribbon_flown && current_alive
+        && ribbon_head_is(rs, rs.rendered_slot)
+        && rs.active[rs.rendered_slot].wander) {
+        float whx, whz, whh;
+        ribbon_head_pen(rs, whx, whz, whh);
+        ribbon_wander_inputs(
+            rs.active[rs.rendered_slot],
+            whx, whz, whh, c->time_state_.dt,
+            ribbon_yaw_in, ribbon_thr_in);
+        ribbon_flown = true;
+    }
+
+    if (current_alive) {
+        // Hold — update time + color (color is animated each frame by
+        // tick_musical_couplings section 5b's release lerp; the full
+        // upload_ribbon path only runs on slot eviction below).
+        c->gpuState_.upload_ribbon_time(queue, c->time_state_.seconds);
+        c->gpuState_.upload_ribbon_color(queue,
+            rs.gpu[rs.rendered_slot].color);
+        // The head mover must run EVERY frame for the held ribbon,
+        // not only on slot eviction. Without this the trail is seeded
+        // straight once and never advances, so the ribbon looks
+        // stationary despite is_roaming = 1. The mover's init guard
+        // (slot unchanged) makes this a pure per-frame advance — no
+        // re-seed, no double work with the eviction-branch call below.
+        float rib_gnd;
+        bool  rib_gnd_valid;
+        {
+            const auto& rb = rs.gpu[rs.rendered_slot];
+            float gx = rb.anchor[0], gz = rb.anchor[2];
+            if (ribbon_head_is(rs, rs.rendered_slot)) {
+                float hy, hh; ribbon_head_pose(rs, gx, hy, gz, hh);
+            }
+            rib_gnd = c->estimate_terrain_height(gx, gz);
+            rib_gnd_valid = c->terrain_tile_warm(gx, gz);
+        }
+        ribbon_advance_head(rs, c->gpuState_, queue,
+            rs.gpu[rs.rendered_slot],
+            rs.rendered_slot, c->time_state_.seconds,
+            ribbon_flown, ribbon_yaw_in, ribbon_thr_in, c->time_state_.dt,
+            rib_gnd, rib_gnd_valid);
+    }
+    else {
+        // Current slot is gone — find nearest active ribbon
+        uint32_t nearest = UINT32_MAX;
+        float nearest_d2 = FLT_MAX;
+        for (uint32_t i = 0; i < MAX_RIBBON_INSTANCES; i++) {
+            if (!rs.active[i].active) continue;
+            float dx = rs.active[i].anchor_x - c->player_.readback_x;
+            float dz = rs.active[i].anchor_z - c->player_.readback_z;
+            float d2 = dx * dx + dz * dz;
+            if (d2 < nearest_d2) { nearest = i; nearest_d2 = d2; }
+        }
+
+        if (nearest != UINT32_MAX) {
+            c->gpuState_.upload_ribbon(queue, rs.gpu[nearest]);
+            float rib_gnd;
+            bool  rib_gnd_valid;
+            {
+                const auto& rb = rs.gpu[nearest];
+                float gx = rb.anchor[0], gz = rb.anchor[2];
+                if (ribbon_head_is(rs, nearest)) {
+                    float hy, hh; ribbon_head_pose(rs, gx, hy, gz, hh);
+                }
+                rib_gnd = c->estimate_terrain_height(gx, gz);
+                rib_gnd_valid = c->terrain_tile_warm(gx, gz);
+            }
+            ribbon_advance_head(rs, c->gpuState_, queue, rs.gpu[nearest], nearest, c->time_state_.seconds,
+                ribbon_flown, ribbon_yaw_in, ribbon_thr_in, c->time_state_.dt,
+                rib_gnd, rib_gnd_valid);  // 2b: head mover
+            rs.rendered_slot = nearest;
+        }
+        else if (rs.rendered_slot != UINT32_MAX) {
+            GPURibbonState empty{};
+            c->gpuState_.upload_ribbon(queue, empty);
+            rs.rendered_slot = UINT32_MAX;
+        }
+    }
 }
 
 

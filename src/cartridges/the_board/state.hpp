@@ -1872,6 +1872,11 @@ namespace t7 {
                 queue.WriteBuffer(ribbonBuffer_, offsetof(GPURibbonState, time), &time, sizeof(float));
             }
 
+            void upload_ribbon_color(wgpu::Queue& queue, const float (&color)[3]) {
+                // Only update the color[3] field (offset 32 — see GPURibbonState layout)
+                queue.WriteBuffer(ribbonBuffer_, offsetof(GPURibbonState, color), color, sizeof(color));
+            }
+
             void upload_ribbon(wgpu::Queue& queue, const GPURibbonState& ribbon) {
                 queue.WriteBuffer(ribbonBuffer_, 0, &ribbon, sizeof(GPURibbonState));
             }
