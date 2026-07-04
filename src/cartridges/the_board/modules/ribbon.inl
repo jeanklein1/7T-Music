@@ -1,11 +1,11 @@
-// ─── ribbon.inl ──────────────────────────────────────────────────
+﻿// ─── ribbon.inl ──────────────────────────────────────────────────
 //
 // Sky Ribbon: complete subsystem (vocabulary + machinery in one
 // module). Single-instance, bespoke pipeline — runs through the
 // 3-phase select/place/commit shape but doesn't share entity_pipeline's
 // generic machinery.
 //
-// Flying ribbons: compound wave functions (lateral + vertical + twist)
+// Flying ribbons: compound wave functions (lateral + vertical sway)
 // forming square-tube geometry in the sky. Each ribbon is a tier
 // instance with Gaussian-sampled parameters.
 //
@@ -51,11 +51,10 @@
 //   mood.inl::apply_mood for mood-5 forced spawn. The dual entry
 //   point is owned by mood:K4 (mood-5 reference clone), not by
 //   ribbon machinery. Tag-only awareness.
-// SEAM[ribbon:P8] LATENT — two unwired blocks live in this file: the
-//   harmonic-ratio palettes and the CPU spine/tangent/rotor mirrors
-//   (ribbon_spine_at_cpu, ribbon_tangent_cpu, ribbon_rotor_diag).
-//   Authored but not called today; see each section's banner. Tag
-//   retained pending the annotation-convention decision.
+// SEAM[ribbon:P8] LATENT — one unwired block lives in this file: the
+//   harmonic-ratio palettes. Authored but not called today; see the
+//   section banner. Tag retained pending the annotation-convention
+//   decision.
 // ─────────────────────────────────────────────────────────────────
 
 
@@ -78,7 +77,7 @@ struct RibbonConfig {
 
 // ── Length cap ───────────────────────────────────────────────────
 // Total ribbon length (cube_count × cube_size) is capped here to
-// keep anchor coverage viable (~30 patches max). RIBBON_MAX_LENGTH
+// keep anchor coverage viable (700 u = 14 patches). RIBBON_MAX_LENGTH
 // itself is defined below in this file (Capacity section); consumed
 // in fill_ribbon_selection_geometry.
 
@@ -307,9 +306,10 @@ struct RibbonTierProfile {
 //   they are the intended per-tier values once ratios go live.
 static constexpr RibbonTierProfile RIBBON_TIERS[RIBBON_TIER_COUNT] = {
     // Tier 0: Serpentine — long, massive, slow motion
-    // (Length matched to Streamer (Tier 2): 188 × 8.0 ≈ 1500 units, vs.
-    //  Streamer's 250 × 6.0 = 1500. Keeps Serpentine's chunky 8.0 cube_size
-    //  that distinguishes its character from the other tiers.)
+    // (NOTE: the cube_count means for Serpentine and Streamer target
+    //  ~1500 u, but RIBBON_MAX_LENGTH = 700 pins both at the cap, so
+    //  count variation is currently expressed only through cube_size.
+    //  Open decision: restore the cap to 1500 or re-mean the tiers.)
     {   188.0f, 35.0f,     // cube_count
           8.0f,  2.0f,      // cube_size
          60.0f, 15.0f,      // height
@@ -372,8 +372,6 @@ struct ActiveRibbon {
     int32_t patch_gx = 0, patch_gz = 0;   // trigger patch
     int32_t host_gx = 0, host_gz = 0;     // host patch (anchor position)
     float anchor_x = 0.0f, anchor_z = 0.0f;
-    float near_tip_x = 0.0f, near_tip_z = 0.0f;
-    float far_tip_x = 0.0f, far_tip_z = 0.0f;
     int32_t near_tip_gx = 0, near_tip_gz = 0;
     int32_t far_tip_gx = 0, far_tip_gz = 0;
     bool near_tip_registered = false;
@@ -666,7 +664,6 @@ static bool place_ribbon_from_selection(Cartridge* c,
     plan.tier_idx = sel.tier_idx;
     plan.cx = pos.cx;
     plan.cz = pos.cz;
-    plan.rotation = pos.rotation;
 
     plan.cube_count = sel.cube_count;
     plan.cube_size = sel.cube_size;
@@ -780,15 +777,12 @@ static void commit_ribbon(RibbonState& rs, Cartridge* c,
     float dir_x = std::cos(plan.orientation);
     float dir_z = std::sin(plan.orientation);
 
-    ar.near_tip_x = plan.cx;
-    ar.near_tip_z = plan.cz;
-    ar.far_tip_x = plan.cx + dir_x * total_length;
-    ar.far_tip_z = plan.cz + dir_z * total_length;
-
-    ar.near_tip_gx = (int32_t)std::floor(ar.near_tip_x / PATCH_EXTENT);
-    ar.near_tip_gz = (int32_t)std::floor(ar.near_tip_z / PATCH_EXTENT);
-    ar.far_tip_gx = (int32_t)std::floor(ar.far_tip_x / PATCH_EXTENT);
-    ar.far_tip_gz = (int32_t)std::floor(ar.far_tip_z / PATCH_EXTENT);
+    const float far_x = plan.cx + dir_x * total_length;
+    const float far_z = plan.cz + dir_z * total_length;
+    ar.near_tip_gx = (int32_t)std::floor(plan.cx / PATCH_EXTENT);
+    ar.near_tip_gz = (int32_t)std::floor(plan.cz / PATCH_EXTENT);
+    ar.far_tip_gx = (int32_t)std::floor(far_x / PATCH_EXTENT);
+    ar.far_tip_gz = (int32_t)std::floor(far_z / PATCH_EXTENT);
 
     ar.near_tip_registered = false;
     ar.far_tip_registered = false;
@@ -806,96 +800,3 @@ static void commit_ribbon(RibbonState& rs, Cartridge* c,
         << " near=(" << ar.near_tip_gx << "," << ar.near_tip_gz
         << ") far=(" << ar.far_tip_gx << "," << ar.far_tip_gz << ")\n";
 }
-
-
-// ═══ CPU MIRRORS — LATENT ════════════════════════════════════════
-//
-// LATENT — kept byte-aligned with world.wgsl §6.5 (ribbon_spine_at /
-//   ribbon_tangent_at / ring motor) for future CPU-side picking,
-//   queries, and diagnostics. Not called today. If the GPU law
-//   changes, update here too — this is a hand-maintained mirror.
-//
-// SEAM[ribbon:P8] cross-ref tag retained pending the annotation-
-//   convention decision; same latent family as the harmonic-ratio
-//   palettes above.
-
-// CPU mirror of WGSL ribbon_spine_at — evaluate one ring's world position.
-// Trail-frame: the body is the trail of a harmonic-oscillator head sampled
-// at age = t * total_length / propagation_speed seconds in the past. Matches
-// the WGSL minus-sign convention (this fixes the prior CPU +/- sign bug).
-static void ribbon_spine_at_cpu(const GPURibbonState& r, float time, uint32_t ring_idx, float out[3]) {
-    float t = (float)ring_idx / (float)std::max(r.cube_count - 1u, 1u);
-    float total_length = (float)r.cube_count * r.cube_size;
-    float phase_age = time - t * total_length / std::max(r.propagation_speed, 1e-6f);
-
-    float along = t * total_length;
-    float lateral = std::sin(r.lateral_freq * phase_age) * r.lateral_amp;
-    float vertical = r.height + std::sin(r.vertical_freq * phase_age) * r.vertical_amp;
-
-    float c = std::cos(r.orientation);
-    float s = std::sin(r.orientation);
-    float rotated_along = along * c - lateral * s;
-    float rotated_lateral = along * s + lateral * c;
-
-    float twist_phase = r.twist_freq * phase_age;
-    float twist_depth = std::sin(twist_phase) * 0.4f * r.twist_amp;
-    float twist_vert = std::cos(twist_phase) * 0.3f * r.twist_amp;
-
-    out[0] = r.anchor[0] + rotated_along;
-    out[1] = vertical + twist_vert;
-    out[2] = r.anchor[2] + rotated_lateral + twist_depth;
-}
-
-// CPU mirror of WGSL ribbon_tangent_at — central finite difference.
-static void ribbon_tangent_cpu(const GPURibbonState& r, float time, uint32_t ring_idx, float out[3]) {
-    constexpr float eps = 0.0005f;
-    float t = (float)ring_idx / (float)std::max(r.cube_count - 1u, 1u);
-    // Evaluate spine at t±eps using the trail-frame parametric form
-    auto eval = [&](float tp, float p[3]) {
-        float total_length = (float)r.cube_count * r.cube_size;
-        float phase_age = time - tp * total_length / std::max(r.propagation_speed, 1e-6f);
-        float along = tp * total_length;
-        float lateral = std::sin(r.lateral_freq * phase_age) * r.lateral_amp;
-        float vertical = r.height + std::sin(r.vertical_freq * phase_age) * r.vertical_amp;
-        float c = std::cos(r.orientation);
-        float s = std::sin(r.orientation);
-        float rotated_along = along * c - lateral * s;
-        float rotated_lateral = along * s + lateral * c;
-        float twist_phase = r.twist_freq * phase_age;
-        float twist_depth = std::sin(twist_phase) * 0.4f * r.twist_amp;
-        float twist_vert = std::cos(twist_phase) * 0.3f * r.twist_amp;
-        p[0] = r.anchor[0] + rotated_along;
-        p[1] = vertical + twist_vert;
-        p[2] = r.anchor[2] + rotated_lateral + twist_depth;
-    };
-    float a[3], b[3];
-    eval(t + eps, a);
-    eval(t - eps, b);
-    float dx = a[0] - b[0], dy = a[1] - b[1], dz = a[2] - b[2];
-    float len = std::sqrt(dx * dx + dy * dy + dz * dz);
-    if (len < 1e-8f) { out[0] = 1; out[1] = 0; out[2] = 0; return; }
-    out[0] = dx / len; out[1] = dy / len; out[2] = dz / len;
-}
-
-// CPU mirror of rotor construction — returns axis, angle, and whether it degenerated.
-struct RotorDiag {
-    float axis[3];
-    float angle_deg;
-    float cross_len;   // length of cross(forward, tangent) — near 0 = degenerate
-    bool antiparallel; // tangent ≈ -forward
-};
-static RotorDiag ribbon_rotor_diag(const float tangent[3]) {
-    RotorDiag d{};
-    // forward = (1,0,0)
-    // cross(forward, tangent) = (0*tz - 0*ty, 0*tx - 1*tz, 1*ty - 0*tx)
-    //                         = (0, -tz, ty)
-    d.axis[0] = 0.0f;
-    d.axis[1] = -tangent[2];
-    d.axis[2] = tangent[1];
-    d.cross_len = std::sqrt(d.axis[1] * d.axis[1] + d.axis[2] * d.axis[2]);
-    float dot = tangent[0]; // dot((1,0,0), tangent)
-    d.angle_deg = std::acos(std::max(-1.0f, std::min(1.0f, dot))) * 57.2958f;
-    d.antiparallel = (d.cross_len < 0.001f && dot < 0.0f);
-    return d;
-}
-

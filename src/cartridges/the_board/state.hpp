@@ -1515,7 +1515,6 @@ namespace t7 {
             float ribbonHeadAltTarget_ = 0.0f;   // low-passed altitude target (landscape swells, not texture)
             float ribbonHeadYVel_ = 0.0f;        // the pen's vertical velocity (critically damped follower)
             bool  ribbonHeadAltBaked_ = false;   // birthright latched? (re-bakes until the ground sample is warm)
-            float ribbonHeadStart_ = 0.0f;
             float ribbonHeadHeading_ = 0.0f;               // sky-flight heading (yawed by input)
             float ribbonHeadPos_[3] = {0.0f, 0.0f, 0.0f};  // live integrated head position
             float ribbonHeadMount_[3] = {0.0f, 0.0f, 0.0f}; // visible head-ring center + half-tube (pawn mount point)
@@ -1524,7 +1523,7 @@ namespace t7 {
             // age = k·spacing/P seconds ago. Two channels suffice (heading, y);
             // XZ is reconstructed by integrating the delayed heading tailward.
             static constexpr float    RIBBON_HIST_DT  = 0.05f;  // sample cadence (s)
-            static constexpr uint32_t RIBBON_HIST_CAP = 1024u;  // ~51 s of past > max body age (~38 s)
+            static constexpr uint32_t RIBBON_HIST_CAP = 1024u;  // ~51 s of past > max body age (~29 s = RIBBON_MAX_LENGTH / slowest tier P — grow this if the cap grows)
             std::array<float, RIBBON_HIST_CAP> ribbonHistHeading_{};
             std::array<float, RIBBON_HIST_CAP> ribbonHistY_{};
             uint32_t ribbonHistHead_ = 0;    // ring buffer: newest sample index
@@ -1898,10 +1897,12 @@ namespace t7 {
                 queue.WriteBuffer(ribbonBuffer_, 0, &ribbon, sizeof(GPURibbonState));
             }
 
-            // Stage 2b: advance the head one frame, record it, resample. When
-            // is_roaming the head walks a test arc off its spawn origin; the
-            // coupling stage swaps that arc for the music-driven goal. Not roaming
-            // → the trail stays the straight arc (head_poses dormant anyway).
+            // Advance the head one frame — flown (player, wanderer, or a
+            // future musical author, all through the same integrator) or
+            // parked (held at the anchor) — record heading + Y into the
+            // propagation history, rebuild the body. head_poses is ALWAYS
+            // the rendered body: a parked head has a constant past, which
+            // reads as the straight spawn arc.
             // Last computed ribbon head pose — read by the pawn mount (sky mode).
             void get_ribbon_head_pose(float& x, float& y, float& z, float& heading) const {
                 x = ribbonHeadMount_[0];
@@ -1931,7 +1932,6 @@ namespace t7 {
                 if (!ribbonHeadSeeded_ || ribbonHeadSlot_ != slot) {
                     ribbonHeadOrigin_[0] = ribbon.anchor[0];
                     ribbonHeadOrigin_[2] = ribbon.anchor[2];
-                    ribbonHeadStart_ = t;
                     ribbonHeadHeading_ = ribbon.orientation;
                     ribbonHeadPos_[0] = ribbonHeadOrigin_[0];
                     ribbonHeadPos_[2] = ribbonHeadOrigin_[2];
@@ -1976,8 +1976,7 @@ namespace t7 {
                     // than the minimum turn radius. So the velocity is always the
                     // face's outward normal (trajectory orthogonal to the face, by
                     // construction), the face can never turn inward against the
-                    // body, and heading-vs-path divergence stays at a few degrees —
-                    // the resampler blend's (-pi, pi) precondition holds trivially.
+                    // body, and heading-vs-path divergence stays at a few degrees.
                     // Reverse is forbidden (a snake does not burrow into its own
                     // body): down-arrow is no thrust. Constants: control-panel
                     // material. SEAM[ribbon:sky-mode].

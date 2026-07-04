@@ -661,7 +661,6 @@ void apply_mood_anchor_ribbon(uint32_t mood, wgpu::Queue& queue) {
     plan.tier_idx       = tier_idx;
     plan.cx             = ax;
     plan.cz             = az;
-    plan.rotation       = sel.orientation;
     plan.cube_count     = sel.cube_count;
     plan.cube_size      = sel.cube_size;
     plan.height         = sel.height;

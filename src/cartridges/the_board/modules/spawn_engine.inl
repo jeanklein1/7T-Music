@@ -985,7 +985,7 @@ struct RibbonPlacement {
     int32_t  trigger_gx, trigger_gz;
     int32_t  host_gx, host_gz;
     uint32_t tier_idx;
-    float cx, cz, rotation;
+    float cx, cz;
     // Geometry (copied from selection)
     uint32_t cube_count;
     float cube_size, height, orientation;
