@@ -3604,6 +3604,7 @@ namespace t7 {
                         // (slot unchanged) makes this a pure per-frame advance — no
                         // re-seed, no double work with the eviction-branch call below.
                         float rib_gnd;
+                        bool  rib_gnd_valid;
                         {
                             const auto& rb = ribbon_state_.gpu[ribbon_state_.rendered_slot];
                             float gx = rb.anchor[0], gz = rb.anchor[2];
@@ -3611,12 +3612,13 @@ namespace t7 {
                                 float hy, hh; gpuState_.get_ribbon_head_pose(gx, hy, gz, hh);
                             }
                             rib_gnd = estimate_terrain_height(gx, gz);
+                            rib_gnd_valid = terrain_tile_warm(gx, gz);
                         }
                         gpuState_.advance_ribbon_head(queue,
                             ribbon_state_.gpu[ribbon_state_.rendered_slot],
                             ribbon_state_.rendered_slot, time_state_.seconds,
                             ribbon_flown, ribbon_yaw_in, ribbon_thr_in, time_state_.dt,
-                            rib_gnd);
+                            rib_gnd, rib_gnd_valid);
                     }
                     else {
                         // Current slot is gone — find nearest active ribbon
@@ -3633,6 +3635,7 @@ namespace t7 {
                         if (nearest != UINT32_MAX) {
                             gpuState_.upload_ribbon(queue, ribbon_state_.gpu[nearest]);
                             float rib_gnd;
+                            bool  rib_gnd_valid;
                             {
                                 const auto& rb = ribbon_state_.gpu[nearest];
                                 float gx = rb.anchor[0], gz = rb.anchor[2];
@@ -3640,10 +3643,11 @@ namespace t7 {
                                     float hy, hh; gpuState_.get_ribbon_head_pose(gx, hy, gz, hh);
                                 }
                                 rib_gnd = estimate_terrain_height(gx, gz);
+                                rib_gnd_valid = terrain_tile_warm(gx, gz);
                             }
                             gpuState_.advance_ribbon_head(queue, ribbon_state_.gpu[nearest], nearest, time_state_.seconds,
                                 ribbon_flown, ribbon_yaw_in, ribbon_thr_in, time_state_.dt,
-                                rib_gnd);  // 2b: head mover
+                                rib_gnd, rib_gnd_valid);  // 2b: head mover
                             ribbon_state_.rendered_slot = nearest;
                         }
                         else if (ribbon_state_.rendered_slot != UINT32_MAX) {
