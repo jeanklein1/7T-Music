@@ -3612,6 +3612,7 @@ namespace t7 {
                         }
                     }
                     if (!ribbon_flown && current_alive
+                        && gpuState_.ribbon_head_is(ribbon_state_.rendered_slot)
                         && ribbon_state_.active[ribbon_state_.rendered_slot].wander) {
                         float whx, whz, whh;
                         gpuState_.get_ribbon_head_pen(whx, whz, whh);
