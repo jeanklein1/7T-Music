@@ -1,9 +1,15 @@
-﻿// ─── ribbon.inl ──────────────────────────────────────────────────
+// ─── ribbon.inl ──────────────────────────────────────────────────
 //
 // Sky Ribbon: complete subsystem (vocabulary + machinery in one
 // module). Single-instance, bespoke pipeline — runs through the
 // 3-phase select/place/commit shape but doesn't share entity_pipeline's
 // generic machinery.
+//
+// THE HEAD IS THE INSTRUMENT; THE BODY IS THE LAW'S CONSEQUENCE.
+// Every author — player, wanderer, and (soon) the musical canvas —
+// plays the head through one steering integrator and one altitude
+// pen; the propagation law replays the head's past down the body at
+// P. Couple the head, and the rest follows.
 //
 // Flying ribbons: compound wave functions (lateral + vertical sway)
 // forming square-tube geometry in the sky. Each ribbon is a tier
@@ -21,6 +27,12 @@
 // │      (note: takes no RibbonState — only mediates between sel     │
 // │       and spawn-engine helpers; not part of ribbon's data)       │
 // │    commit_ribbon(rs, c, plan, gx, gz, queue)    — Phase 3: state │
+// │                                                                  │
+// │  Head mover (per frame, called from the cartridge frame block):  │
+// │    ribbon_advance_head(rs, gpuState, queue, ribbon, slot, …)     │
+// │    ribbon_head_pose(rs, x, y, z, h)   — the SADDLE (mount)       │
+// │    ribbon_head_pen(rs, x, z, h)       — the PEN (steering reads) │
+// │    ribbon_invalidate_head(rs), ribbon_head_is(rs, slot)          │
 // │                                                                  │
 // │  Shared geometry helper (also called by mood.inl::apply_mood     │
 // │  for the mood-5 forced spawn path):                              │
@@ -41,11 +53,16 @@
 //             record_placement_bookkeeping, footprint registry,
 //             evaluate_spawn_gate, jittered_position),
 //             seed_utils.inl, cartridge.hpp core (time_state_.seconds,
-//             pawnReadback_*, THEMES, PATCH_EXTENT, Dim::*).
+//             pawnReadback_*, THEMES, PATCH_EXTENT, Dim::*),
+//             state.hpp (GPUState::upload_ribbon_head_poses — the one
+//             dumb wire the head laws write through).
 //
 // SEAM[ribbon:complete-subsystem] complete bespoke pipeline in one
-//   module — vocabulary + state + machinery + lifecycle. Same family
-//   as gol_zones (Ch. 12.B) and gallery (Ch. 12.E).
+//   module — vocabulary + state + machinery + lifecycle + head laws.
+//   Same family as gol_zones (Ch. 12.B) and gallery (Ch. 12.E), and
+//   the reference instance of the entity-module pattern: tuning
+//   console → registry → tiers → runtime state → author seats →
+//   head laws → target surface → lifecycle.
 // SEAM[ribbon:dual-entry] commit_ribbon below has TWO callers:
 //   FAMILY_DISPATCH[RIBBON].try_commit during patch streaming, AND
 //   mood.inl::apply_mood for mood-5 forced spawn. The dual entry
@@ -56,9 +73,10 @@
 
 // ═══ TUNING CONSOLE ══════════════════════════════════════════════
 //
-// System-level dials for the ribbon subsystem. Per-tier values
-// (the Gaussian means/sigmas that shape each tier's feel) live in
-// RIBBON_TIERS below. Everything here applies across all tiers.
+// System-level dials for the ribbon subsystem — the DESIGN-TIME
+// control panel (change and rebuild). Per-tier values (the Gaussian
+// means/sigmas that shape each tier's feel) live in RIBBON_TIERS
+// below. Everything here applies across all tiers.
 
 // ── Spawn ────────────────────────────────────────────────────────
 struct RibbonConfig {
@@ -86,6 +104,40 @@ static constexpr float MIN_CUBE_SIZE      = 1.0f;     // floor on cube_size
 static constexpr float MIN_ADDED_HEIGHT   = 20.0f;    // floor on the clearance draw
 static constexpr float FOOTPRINT_RADIUS   = 5.0f;     // ribbon spawn footprint radius
 static constexpr float ORIENTATION_SPREAD = 1.0472f;  // ±60° (π/3) around away-from-pawn
+
+// ── Head control law ─────────────────────────────────────────────
+// The steering integrator and altitude pen constants — one law, many
+// authors. Yaw is STEERING, not free aim: available yaw rate is
+// min(RIBBON_YAW_RATE, speed / RIBBON_R_MIN), so the heading can only
+// change while moving and the flown path can never be tighter than
+// the minimum turn radius. Consumed in ribbon_advance_head. All
+// control-panel material.
+static constexpr float RIBBON_YAW_RATE       = 1.0f;    // rad/s cap at full deflection
+static constexpr float RIBBON_MAX_SPEED      = 40.0f;   // world units/s at full throttle (halved; full-throttle turns bottom out at R_MIN)
+static constexpr float RIBBON_R_MIN          = 40.0f;   // minimum turn radius (units)
+static constexpr float RIBBON_CLIMB_RATE     = 15.0f;   // u/s cap on the pen's vertical velocity
+static constexpr float RIBBON_FLOOR_MARGIN   = 25.0f;   // guaranteed gap over tall ground
+static constexpr float RIBBON_ALT_SMOOTH_DIST = 180.0f; // units of travel over which the altitude target relaxes — the head reads the LANDSCAPE, not the terrain texture
+static constexpr float RIBBON_ALT_STIFF      = 0.36f;   // (rad/s)^2 — the pen's stiffness; damping = 2*sqrt(stiffness), critically damped
+static constexpr float RIBBON_MOUNT_SETBACK  = 1.5f;    // pawn seat setback toward the tail (+heading) so the body sits over the tube, not the leading cap
+
+// ── Wander policy ─────────────────────────────────────────────────
+// The steering channel's IDLE SCRIPT — the shape of autonomous drift.
+// Constants: control-panel material.
+static constexpr float WANDER_CHANCE      = 0.30f;   // per-spawn roll
+static constexpr float WANDER_CRUISE_BASE  = 0.35f;   // gaussian mean (fraction of RIBBON_MAX_SPEED)
+static constexpr float WANDER_CRUISE_SIGMA = 0.15f;   // gaussian sigma
+static constexpr float WANDER_CRUISE_MIN  = 0.15f;
+static constexpr float WANDER_CRUISE_MAX  = 0.80f;
+static constexpr float WANDER_LEG_MIN     = 200.0f;  // waypoint leg length (units)
+static constexpr float WANDER_LEG_MAX     = 500.0f;
+static constexpr float WANDER_SPREAD      = 1.0f;    // rad of bearing spread around current motion
+static constexpr float WANDER_RETARGET_MIN = 10.0f;  // seconds between waypoints
+static constexpr float WANDER_RETARGET_VAR = 15.0f;
+static constexpr float WANDER_STEER_SOFT  = 0.5f;    // rad of heading error for full deflection
+static constexpr float WANDER_YAW_MAX     = 0.15f;   // yaw cap: radius >= RIBBON_R_MIN/0.15 (~270 u) — body-scale arcs
+static constexpr float WANDER_YAW_TAU     = 2.0f;    // s; first-order ease on the steering — curvature stays continuous (control-panel)
+static constexpr float WANDER_ARRIVE_RADIUS = 120.0f; // u; arrival = retarget — inside this the bearing chase degenerates (control-panel)
 
 
 // ═══ COLOR VOCABULARY ════════════════════════════════════════════
@@ -162,7 +214,7 @@ struct RibbonProp {
     static constexpr uint32_t LATERAL_CYCLES = 421u;
     static constexpr uint32_t VERTICAL_AMP = 430u;
     static constexpr uint32_t WANDER_ROLL = 450u;       // wander yes/no
-    static constexpr uint32_t WANDER_CRUISE = 451u;     // gaussian draw: cruise fraction of MAX_SPEED
+    static constexpr uint32_t WANDER_CRUISE = 451u;     // gaussian draw: cruise fraction of RIBBON_MAX_SPEED
     static constexpr uint32_t WANDER_RNG = 452u;        // seeds the runtime waypoint stream
 };
 
@@ -272,8 +324,9 @@ static constexpr const char* RIBBON_COLOR_NAMES[] = {
 
 // ═══ RUNTIME STATE ═══════════════════════════════════════════════
 //
-// Per-instance ribbon state and the GPU-state mirrors. Single-render
-// today (MAX_RIBBON_INSTANCES = 1), structured to scale when the GPU
+// Per-instance ribbon state, the GPU-state mirrors, and the head —
+// the one live instrument. Single-render today
+// (MAX_RIBBON_INSTANCES = 1), structured to scale when the GPU
 // supports multi-ribbon.
 
 // ── Capacity ─────────────────────────────────────────────────────
@@ -299,7 +352,7 @@ struct ActiveRibbon {
     // same yaw/throttle inputs the player does, through the same steering
     // integrator. SEAM[ribbon:sky-mode].
     bool     wander = false;
-    float    wander_cruise = 0.0f;      // throttle fraction of MAX_SPEED
+    float    wander_cruise = 0.0f;      // throttle fraction of RIBBON_MAX_SPEED
     float    wander_tx = 0.0f;          // current waypoint (world XZ)
     float    wander_tz = 0.0f;
     float    wander_retarget = 0.0f;    // seconds until a new waypoint
@@ -307,22 +360,70 @@ struct ActiveRibbon {
     float    wander_yaw_state = 0.0f;   // eased steering output (curvature continuity)
 };
 
-// ── Wander policy ─────────────────────────────────────────────────
-// Constants: control-panel material.
-static constexpr float WANDER_CHANCE      = 0.30f;   // per-spawn roll
-static constexpr float WANDER_CRUISE_BASE  = 0.35f;   // gaussian mean (fraction of MAX_SPEED)
-static constexpr float WANDER_CRUISE_SIGMA = 0.15f;   // gaussian sigma
-static constexpr float WANDER_CRUISE_MIN  = 0.15f;
-static constexpr float WANDER_CRUISE_MAX  = 0.80f;
-static constexpr float WANDER_LEG_MIN     = 200.0f;  // waypoint leg length (units)
-static constexpr float WANDER_LEG_MAX     = 500.0f;
-static constexpr float WANDER_SPREAD      = 1.0f;    // rad of bearing spread around current motion
-static constexpr float WANDER_RETARGET_MIN = 10.0f;  // seconds between waypoints
-static constexpr float WANDER_RETARGET_VAR = 15.0f;
-static constexpr float WANDER_STEER_SOFT  = 0.5f;    // rad of heading error for full deflection
-static constexpr float WANDER_YAW_MAX     = 0.15f;   // yaw cap: radius >= R_MIN/0.15 (~270 u) — body-scale arcs
-static constexpr float WANDER_YAW_TAU     = 2.0f;    // s; first-order ease on the steering — curvature stays continuous (control-panel)
-static constexpr float WANDER_ARRIVE_RADIUS = 120.0f; // u; arrival = retarget — inside this the bearing chase degenerates (control-panel)
+// ── The head ──────────────────────────────────────────────────────
+// The live instrument: integrated position, heading, the altitude
+// pen, and the propagation history the body is rebuilt from. ONE head
+// exists (the rendered ribbon wears it); identity is (seeded, slot),
+// and since slots are reused, REBIRTH is signalled by
+// ribbon_invalidate_head — commit sends it (see the succession note
+// there).
+struct RibbonHead {
+    bool     seeded = false;
+    uint32_t slot = UINT32_MAX;
+    float    origin[3] = { 0.0f, 0.0f, 0.0f };
+    float    alt_target = 0.0f;   // low-passed altitude target (landscape swells, not texture)
+    float    y_vel = 0.0f;        // the pen's vertical velocity (critically damped follower)
+    bool     alt_baked = false;   // birthright latched? (re-bakes until the ground sample is warm)
+    float    heading = 0.0f;               // sky-flight heading (yawed by input)
+    float    pos[3] = { 0.0f, 0.0f, 0.0f };  // live integrated head position
+    float    mount[3] = { 0.0f, 0.0f, 0.0f }; // visible head-ring center + half-tube (pawn mount point)
+
+    // ── Propagation history ── the body is the head's past, replayed at
+    // propagation speed: ring k wears the head's state from
+    // age = k·spacing/P seconds ago. Two channels suffice (heading, y);
+    // XZ is reconstructed by integrating the delayed heading tailward.
+    static constexpr float    HIST_DT  = 0.05f;  // sample cadence (s)
+    static constexpr uint32_t HIST_CAP = 1024u;  // ~51 s of past > max body age (~29 s = RIBBON_MAX_LENGTH / slowest tier P — grow this if the cap grows)
+    std::array<float, HIST_CAP> hist_heading{};
+    std::array<float, HIST_CAP> hist_y{};
+    uint32_t hist_head = 0;    // ring buffer: newest sample index
+    float    hist_time = 0.0f; // time of the newest sample
+};
+
+// ── Ribbon module state (Scope B migration #1) ────────────────────
+// All ribbon-owned state lives in this struct, accessed via
+// ribbon_state_ on the Cartridge. Module functions take
+// `RibbonState& rs` explicitly rather than reaching via Cartridge*,
+// making ownership language-visible and dependencies explicit in
+// signatures.
+struct RibbonState {
+    ActiveRibbon   active[MAX_RIBBON_INSTANCES]{};
+    uint32_t       active_count = 0;
+
+    // GPU-state CPU mirror. Per-frame, the spine picks the nearest
+    // ribbon to the pawn and uploads its slot to the GPU.
+    // rendered_slot is the currently rendered slot (UINT32_MAX = none).
+    GPURibbonState gpu[MAX_RIBBON_INSTANCES]{};
+    uint32_t       rendered_slot = UINT32_MAX;
+
+    // The head mover — see RibbonHead above.
+    RibbonHead     head{};
+
+    // Mood-5 ribbon anchor offset. Seed-derived position centered on
+    // the finite world. Adjust to manually shift the mood-5 anchor XZ
+    // (read by mood.inl::apply_mood).
+    float          mood_offset[2] = { 0.0f, 0.0f };
+};
+RibbonState ribbon_state_;
+
+
+// ═══ AUTHOR SEATS ════════════════════════════════════════════════
+//
+// The steering integrator has three seats, all writing the same two
+// inputs (yaw_in, throttle_in): the PLAYER (cartridge frame block,
+// sky mode), the WANDERER below (the idle script), and one EMPTY
+// SEAT reserved for the musical canvas. One control law, many
+// authors.
 
 static inline float wander_rand01(uint32_t& s) {
     // xorshift32 → [0,1)
@@ -332,8 +433,8 @@ static inline float wander_rand01(uint32_t& s) {
 
 // Author this frame's flight inputs for a wandering ribbon. Movement is along
 // -heading (the flight convention), so the desired heading is the bearing to
-// the waypoint plus pi. The steering integrator downstream enforces R_MIN, so
-// any waypoint yields a legal, frame-safe path.
+// the waypoint plus pi. The steering integrator downstream enforces
+// RIBBON_R_MIN, so any waypoint yields a legal, frame-safe path.
 static void ribbon_wander_inputs(ActiveRibbon& ar,
                                  float head_x, float head_z, float heading,
                                  float dt, float& yaw_in, float& thr_in)
@@ -341,7 +442,7 @@ static void ribbon_wander_inputs(ActiveRibbon& ar,
     // Free roam: waypoints are picked AHEAD of the current motion — a bearing
     // spread around where the ribbon is already going, a leg of 200-500 units.
     // No leash: a rendered wanderer is pinned against eviction instead, and
-    // the yaw cap below keeps every turn at body scale (radius >= R_MIN /
+    // the yaw cap below keeps every turn at body scale (radius >= RIBBON_R_MIN /
     // WANDER_YAW_MAX). Gorgeous, contemplative arcs by construction.
     ar.wander_retarget -= dt;
     const float wdx = ar.wander_tx - head_x;
@@ -374,28 +475,250 @@ static void ribbon_wander_inputs(ActiveRibbon& ar,
     thr_in = ar.wander_cruise;
 }
 
-// ── Ribbon module state (Scope B migration #1) ────────────────────
-// All ribbon-owned state lives in this struct, accessed via
-// ribbon_state_ on the Cartridge. Module functions take
-// `RibbonState& rs` explicitly rather than reaching via Cartridge*,
-// making ownership language-visible and dependencies explicit in
-// signatures.
-struct RibbonState {
-    ActiveRibbon   active[MAX_RIBBON_INSTANCES]{};
-    uint32_t       active_count = 0;
 
-    // GPU-state CPU mirror. Per-frame, the spine picks the nearest
-    // ribbon to the pawn and uploads its slot to the GPU.
-    // rendered_slot is the currently rendered slot (UINT32_MAX = none).
-    GPURibbonState gpu[MAX_RIBBON_INSTANCES]{};
-    uint32_t       rendered_slot = UINT32_MAX;
+// ═══ HEAD LAWS ═══════════════════════════════════════════════════
+//
+// The head mover: the steering integrator, the altitude pen, the
+// propagation history, and THE LAW that rebuilds the body from it.
+// CPU authors intent; the GPU realizes geometry — these laws write
+// the GPU exactly once per frame, through
+// GPUState::upload_ribbon_head_poses (a dumb wire).
 
-    // Mood-5 ribbon anchor offset. Seed-derived position centered on
-    // the finite world. Adjust to manually shift the mood-5 anchor XZ
-    // (read by mood.inl::apply_mood).
-    float          mood_offset[2] = { 0.0f, 0.0f };
-};
-RibbonState ribbon_state_;
+// Sample the propagation history `age` seconds into the past
+// (0 = now). Heading is an integrator's output — continuous — so
+// plain lerp is safe; y likewise.
+static void ribbon_history_sample(const RibbonState& rs, float age, float& h, float& y) {
+    const RibbonHead& hd = rs.head;
+    float fidx = age / RibbonHead::HIST_DT;
+    if (fidx < 0.0f) fidx = 0.0f;
+    const float fmax = static_cast<float>(RibbonHead::HIST_CAP - 2u);
+    if (fidx > fmax) fidx = fmax;
+    const uint32_t j0 = static_cast<uint32_t>(fidx);
+    const float frac = fidx - static_cast<float>(j0);
+    const uint32_t i0 = (hd.hist_head + RibbonHead::HIST_CAP - j0) % RibbonHead::HIST_CAP;
+    const uint32_t i1 = (hd.hist_head + RibbonHead::HIST_CAP - (j0 + 1u)) % RibbonHead::HIST_CAP;
+    h = hd.hist_heading[i0] + (hd.hist_heading[i1] - hd.hist_heading[i0]) * frac;
+    y = hd.hist_y[i0]       + (hd.hist_y[i1]       - hd.hist_y[i0])       * frac;
+}
+
+// THE LAW: the body is the head's past, replayed at propagation
+// speed. Ring k wears the head's state from age = k·spacing/P
+// seconds ago — its delayed heading orients the segment and fills
+// the yaw channel (continuous by construction); its delayed y is
+// the altitude. XZ integrates the delayed heading TAILWARD
+// (+heading) from the live head. A turn made now travels down the
+// body at P through space; so does an altitude swell; so will
+// every musical gesture at the head. Replaces the spatial trail:
+// a bend is motion, not a mark on the floor.
+static void ribbon_rebuild_body_upload(RibbonState& rs, GPUState& gpuState,
+                                       wgpu::Queue& queue, const GPURibbonState& ribbon,
+                                       float head_x, float head_y, float head_z) {
+    const uint32_t n = std::min(ribbon.cube_count, Dim::RIBBON_MAX_RINGS);
+    if (n < 2u) return;
+    const float spacing = ribbon.cube_size;
+    const float inv_p = 1.0f / std::max(ribbon.propagation_speed, 0.001f);
+
+    std::array<float, 4 * Dim::RIBBON_MAX_RINGS> poses{};
+    poses[0] = head_x;
+    poses[1] = head_y;
+    poses[2] = head_z;
+    poses[3] = rs.head.heading;   // ring 0: the live head, live heading
+
+    float px = head_x, pz = head_z;
+    for (uint32_t k = 1u; k < n; ++k) {
+        const float age = (static_cast<float>(k) * spacing) * inv_p;
+        float h, y;
+        ribbon_history_sample(rs, age, h, y);
+        px += spacing * std::cos(h);   // tailward = +heading
+        pz += spacing * std::sin(h);
+        poses[4u * k + 0u] = px;
+        poses[4u * k + 1u] = y;
+        poses[4u * k + 2u] = pz;
+        poses[4u * k + 3u] = h;        // yaw channel: the delayed heading
+    }
+    gpuState.upload_ribbon_head_poses(queue, poses.data(),
+                                      poses.size() * sizeof(float));
+}
+
+// Advance the head one frame — flown (player, wanderer, or a
+// future musical author, all through the same integrator) or
+// parked (held at the anchor) — record heading + Y into the
+// propagation history, rebuild the body. head_poses is ALWAYS
+// the rendered body: a parked head has a constant past, which
+// reads as the straight spawn arc.
+static void ribbon_advance_head(RibbonState& rs, GPUState& gpuState,
+                                wgpu::Queue& queue, const GPURibbonState& ribbon,
+                                uint32_t slot, float t,
+                                bool flown, float yaw_in, float throttle_in, float dt,
+                                float ground_y, bool ground_valid) {
+    RibbonHead& hd = rs.head;
+
+    if (!hd.seeded || hd.slot != slot) {
+        hd.origin[0] = ribbon.anchor[0];
+        hd.origin[2] = ribbon.anchor[2];
+        hd.heading = ribbon.orientation;
+        hd.pos[0] = hd.origin[0];
+        hd.pos[2] = hd.origin[2];
+        // A newborn body is a constant past: straight along the spawn
+        // heading — the seed, restated as time. (The Y channel fills in
+        // the bake below.)
+        hd.hist_heading.fill(hd.heading);
+        hd.hist_head = 0;
+        hd.hist_time = t;
+        hd.alt_baked = false;   // altitude bakes below, latching on the first warm ground sample
+        hd.seeded = true;
+        hd.slot = slot;
+    }
+
+    // THE BAKE — altitude is a birthright: the ground of the birthplace
+    // plus the seed-drawn clearance (ribbon.height), baked ONCE at first
+    // truth, never chased. After a mood flip the estimator returns 0 for
+    // a still-cold tile — indistinguishable from flat ground by value —
+    // so the bake re-runs each frame until the call site reports a WARM
+    // sample, then latches. Parked ribbons hold this number forever.
+    // SEAM[ribbon:sky-mode].
+    if (!hd.alt_baked) {
+        hd.origin[1]  = ground_y + ribbon.height;   // first truth, once
+        hd.pos[1]     = hd.origin[1];
+        hd.alt_target = hd.origin[1];
+        hd.y_vel      = 0.0f;
+        hd.hist_y.fill(hd.pos[1]);   // the body's constant past re-bases with the bake
+        hd.alt_baked  = ground_valid;
+    }
+
+    float head_x, head_y, head_z;
+    if (flown) {
+        // Planar flight: yaw the heading, throttle the head along it at
+        // fixed sky altitude. The head moves along -heading so the
+        // straight seed (laid +heading from the anchor) trails behind it.
+        // Pitch/altitude is deferred (the frame is horizontal-only by
+        // construction). Constants live in the tuning console (head
+        // control law). SEAM[ribbon:sky-mode].
+        // Steering model: yaw is STEERING, not free aim. The available
+        // yaw rate is min(RIBBON_YAW_RATE, speed / RIBBON_R_MIN): the
+        // heading can only change while moving, and the flown path can
+        // never be tighter than the minimum turn radius. So the velocity
+        // is always the face's outward normal (trajectory orthogonal to
+        // the face, by construction), the face can never turn inward
+        // against the body, and heading-vs-path divergence stays at a
+        // few degrees. Reverse is forbidden (a snake does not burrow
+        // into its own body): down-arrow is no thrust.
+        // SEAM[ribbon:sky-mode].
+        const float speed = std::max(throttle_in, 0.0f) * RIBBON_MAX_SPEED;
+        const float yaw_avail = std::min(RIBBON_YAW_RATE, speed / RIBBON_R_MIN);
+        hd.heading += yaw_in * yaw_avail * dt;
+        const float ch = std::cos(hd.heading);
+        const float sh = std::sin(hd.heading);
+        const float step = speed * dt;
+        hd.pos[0] -= ch * step;
+        hd.pos[2] -= sh * step;
+        // Sky altitude with a terrain FLOOR (not a tether): the target is
+        // the ribbon's baked birthright altitude, floored by the smoothed
+        // ground plus a constant safety margin. Valleys and mood changes
+        // leave it untouched at its sky; only ground tall enough to
+        // threaten it lifts it — and it settles back beyond. The low-pass
+        // keeps the floor reading the LANDSCAPE (long swells); zero travel
+        // (hover) freezes the target; the critically damped PEN below
+        // turns every correction into a smooth S-curve — never a
+        // constant-rate ramp, never a corner.
+        {
+            const float floor_y = ground_y + RIBBON_FLOOR_MARGIN;
+            const float raw_target = (hd.origin[1] > floor_y)
+                                   ? hd.origin[1] : floor_y;
+            const float travel = std::fabs(step);   // this frame's distance
+            const float alpha = 1.0f - std::exp(-travel / RIBBON_ALT_SMOOTH_DIST);
+            hd.alt_target += (raw_target - hd.alt_target) * alpha;
+
+            // THE PEN: critically damped vertical follower — stiffness
+            // sets the ease, damping = 2*sqrt(stiffness) means no
+            // overshoot, the velocity clamp bounds extreme corrections.
+            const float damp = 2.0f * std::sqrt(RIBBON_ALT_STIFF);
+            hd.y_vel += ((hd.alt_target - hd.pos[1]) * RIBBON_ALT_STIFF
+                         - damp * hd.y_vel) * dt;
+            hd.y_vel = (hd.y_vel >  RIBBON_CLIMB_RATE) ?  RIBBON_CLIMB_RATE :
+                       (hd.y_vel < -RIBBON_CLIMB_RATE) ? -RIBBON_CLIMB_RATE : hd.y_vel;
+            hd.pos[1] += hd.y_vel * dt;
+        }
+
+        head_x = hd.pos[0];
+        head_y = hd.pos[1];
+        head_z = hd.pos[2];
+    } else {
+        // Not flying: head holds at the anchor at its BAKED birthright
+        // altitude; heading holds the spawn orientation. The body is the
+        // (constant) history — straight. Flight state stays primed.
+        hd.heading = ribbon.orientation;
+        hd.pos[0] = ribbon.anchor[0];
+        hd.pos[1] = hd.origin[1];
+        hd.pos[2] = ribbon.anchor[2];
+        head_x = hd.pos[0];
+        head_y = hd.pos[1];
+        head_z = hd.pos[2];
+    }
+
+    // Pawn mount point (sky mode): the VISIBLE head-ring center —
+    // centerline + the wave in the head ring's frame — lifted half a tube
+    // so the pawn's feet sit on top. Mirrors ribbon_spine_at(0): ring 0's
+    // yaw-channel value IS the live heading (head_poses[0].w), so
+    // right = (-sin h, 0, cos h), up = world-up, phase_age = ribbon.time.
+    // The pawn and the head ring share one frame and one wave, exactly.
+    // SEAM[ribbon:sky-mode].
+    {
+        const float ph  = ribbon.time;
+        const float lat = std::sin(ribbon.lateral_freq  * ph) * ribbon.lateral_amp;
+        const float ver = std::sin(ribbon.vertical_freq * ph) * ribbon.vertical_amp;
+        const float ch  = std::cos(hd.heading);
+        const float sh  = std::sin(hd.heading);
+        // Setback toward the tail (+heading) so the pawn's body sits
+        // over the tube instead of straddling the leading cap.
+        hd.mount[0] = head_x + lat * (-sh) + RIBBON_MOUNT_SETBACK * ch;
+        hd.mount[1] = head_y + ver + ribbon.cube_size * 0.5f;
+        hd.mount[2] = head_z + lat * ( ch) + RIBBON_MOUNT_SETBACK * sh;
+    }
+
+    // Record the head's state into the propagation history (catch-up
+    // at fixed cadence; a frame hitch holds the current state across
+    // the gap — the past never has holes).
+    while (t - hd.hist_time >= RibbonHead::HIST_DT) {
+        hd.hist_head = (hd.hist_head + 1u) % RibbonHead::HIST_CAP;
+        hd.hist_heading[hd.hist_head] = hd.heading;
+        hd.hist_y[hd.hist_head]       = hd.pos[1];
+        hd.hist_time += RibbonHead::HIST_DT;
+    }
+
+    ribbon_rebuild_body_upload(rs, gpuState, queue, ribbon, head_x, head_y, head_z);
+}
+
+// Invalidate the head/trail state so the next advance re-inits and
+// re-seeds. Called on release, eviction, and succession (commit):
+// slots are reused, so the slot-change guard alone cannot detect a
+// successor ribbon.
+static void ribbon_invalidate_head(RibbonState& rs) { rs.head.seeded = false; }
+
+// True when the head state belongs to this slot (post-init). The
+// cartridge uses it to sample the ground at the HEAD when ready,
+// and at the ANCHOR for the first frame of a life.
+static bool ribbon_head_is(const RibbonState& rs, uint32_t slot) {
+    return rs.head.seeded && rs.head.slot == slot;
+}
+
+// Last computed ribbon head pose — the SADDLE (mount): pen + wave +
+// setback. Read by the pawn mount and camera (sky mode).
+static void ribbon_head_pose(const RibbonState& rs, float& x, float& y, float& z, float& heading) {
+    x = rs.head.mount[0];
+    y = rs.head.mount[1];
+    z = rs.head.mount[2];
+    heading = rs.head.heading;
+}
+
+// The PEN — the true integrated head. Steering reads this; the
+// mount above is the SADDLE (pen + wave + setback), for the pawn
+// and camera only. Two consumers, two truths, never mixed.
+static void ribbon_head_pen(const RibbonState& rs, float& x, float& z, float& heading) {
+    x = rs.head.pos[0];
+    z = rs.head.pos[2];
+    heading = rs.head.heading;
+}
 
 
 // ═══ TARGET SURFACE ══════════════════════════════════════════════
@@ -449,7 +772,7 @@ static void fill_ribbon_selection_geometry(
         sel.cube_count = (uint32_t)(RIBBON_MAX_LENGTH / sel.cube_size);
 
     // The seed draw is this ribbon's CLEARANCE above its birthplace — pure
-    // from seed; the ground joins once, at head init (state.hpp).
+    // from seed; the ground joins once, at head init (ribbon_advance_head).
     sel.height = std::max(MIN_ADDED_HEIGHT,
         cpu_sample_gaussian(seed, RibbonProp::HEIGHT, tp.height_mean, tp.height_sigma));
 
@@ -672,11 +995,11 @@ static void commit_ribbon(RibbonState& rs, Cartridge* c,
     ar.wander_yaw_state = 0.0f;
     // Succession: a commit into the slot the head is wearing is a REBIRTH.
     // Slots are reused (MAX_RIBBON_INSTANCES = 1), so the slot-equality init
-    // guard in advance_ribbon_head cannot see a successor — only this signal
+    // guard in ribbon_advance_head cannot see a successor — only this signal
     // can. Every ribbon life passes through commit (dispatch AND mood force-
     // spawn), so the head dies here, and no other site needs to remember.
-    if (c->gpuState_.ribbon_head_is(s))
-        c->gpuState_.invalidate_ribbon_head();
+    if (ribbon_head_is(rs, s))
+        ribbon_invalidate_head(rs);
 
     // Two-tip anchoring: anchor IS the near tip (t=0).
     // Body extends entirely in the orientation direction (away from pawn).
