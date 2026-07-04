@@ -640,15 +640,15 @@ void apply_mood_anchor_ribbon(uint32_t mood, wgpu::Queue& queue) {
     const uint32_t tier_idx = select_tier_biased(rseed, RibbonProp::TIER,
         RIBBON_BASE_TIER_WEIGHTS, RIBBON_TIER_COUNT, PopFamily::RIBBON);
 
-    // Sample geometry through the shared helper
-    const float terrain_est = estimate_terrain_height(ax, az);
+    // Sample geometry through the shared helper (pure from seed; the ground
+    // joins once, at head init in state.hpp)
     RibbonSelection sel{};
     sel.seed       = rseed;
     sel.trigger_gx = 0;
     sel.trigger_gz = 0;
     sel.slot       = 0;
     sel.tier_idx   = tier_idx;
-    fill_ribbon_selection_geometry(rseed, tier_idx, terrain_est, sel);
+    fill_ribbon_selection_geometry(rseed, tier_idx, sel);
 
     // Build placement (forced position — no negotiation)
     RibbonPlacement plan{};

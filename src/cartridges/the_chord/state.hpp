@@ -1511,8 +1511,9 @@ namespace t7 {
             bool ribbonHeadSeeded_ = false;
             uint32_t ribbonHeadSlot_ = UINT32_MAX;
             float ribbonHeadOrigin_[3] = {0.0f, 0.0f, 0.0f};
-            float ribbonHeadClearance_ = 0.0f;   // altitude held ABOVE the ground beneath the head
             float ribbonHeadAltTarget_ = 0.0f;   // low-passed altitude target (landscape swells, not texture)
+            float ribbonHeadYVel_ = 0.0f;        // the pen's vertical velocity (critically damped follower)
+            bool  ribbonHeadAltBaked_ = false;   // birthright latched? (re-bakes until the ground sample is warm)
             float ribbonHeadStart_ = 0.0f;
             float ribbonHeadHeading_ = 0.0f;               // sky-flight heading (yawed by input)
             float ribbonHeadPos_[3] = {0.0f, 0.0f, 0.0f};  // live integrated head position
@@ -1916,7 +1917,7 @@ namespace t7 {
             void advance_ribbon_head(wgpu::Queue& queue, const GPURibbonState& ribbon,
                                      uint32_t slot, float t,
                                      bool flown, float yaw_in, float throttle_in, float dt,
-                                     float ground_y) {
+                                     float ground_y, bool ground_valid) {
                 const uint32_t n = ribbon.cube_count;
                 const uint32_t span = (n >= 2u) ? (n - 1u) : 1u;
                 const float L = static_cast<float>(n) * ribbon.cube_size;
@@ -1924,26 +1925,36 @@ namespace t7 {
 
                 if (!ribbonHeadSeeded_ || ribbonHeadSlot_ != slot) {
                     ribbonHeadOrigin_[0] = ribbon.anchor[0];
-                    ribbonHeadOrigin_[1] = ribbon.anchor[1] + ribbon.height;
                     ribbonHeadOrigin_[2] = ribbon.anchor[2];
                     ribbonHeadStart_ = t;
-                    // Clearance: the altitude this ribbon holds ABOVE the ground.
-                    // Defined at birth as spawn altitude minus spawn ground — the
-                    // y-channel's single authority. SEAM[ribbon:sky-mode].
-                    ribbonHeadClearance_ = ribbonHeadOrigin_[1] - ground_y;
-                    ribbonHeadAltTarget_ = ribbonHeadOrigin_[1];
                     ribbonHeadHeading_ = ribbon.orientation;
                     ribbonHeadPos_[0] = ribbonHeadOrigin_[0];
-                    ribbonHeadPos_[1] = ribbonHeadOrigin_[1];
                     ribbonHeadPos_[2] = ribbonHeadOrigin_[2];
                     // A newborn body is a constant past: straight along the spawn
-                    // heading at the spawn altitude — the seed, restated as time.
+                    // heading — the seed, restated as time. (The Y channel fills in
+                    // the bake below.)
                     ribbonHistHeading_.fill(ribbonHeadHeading_);
-                    ribbonHistY_.fill(ribbonHeadPos_[1]);
                     ribbonHistHead_ = 0;
                     ribbonHistTime_ = t;
+                    ribbonHeadAltBaked_ = false;   // altitude bakes below, latching on the first warm ground sample
                     ribbonHeadSeeded_ = true;
                     ribbonHeadSlot_ = slot;
+                }
+
+                // THE BAKE — altitude is a birthright: the ground of the birthplace
+                // plus the seed-drawn clearance (ribbon.height), baked ONCE at first
+                // truth, never chased. After a mood flip the estimator returns 0 for
+                // a still-cold tile — indistinguishable from flat ground by value —
+                // so the bake re-runs each frame until the call site reports a WARM
+                // sample, then latches. Parked ribbons hold this number forever.
+                // SEAM[ribbon:sky-mode].
+                if (!ribbonHeadAltBaked_) {
+                    ribbonHeadOrigin_[1] = ground_y + ribbon.height;   // first truth, once
+                    ribbonHeadPos_[1]    = ribbonHeadOrigin_[1];
+                    ribbonHeadAltTarget_ = ribbonHeadOrigin_[1];
+                    ribbonHeadYVel_      = 0.0f;
+                    ribbonHistY_.fill(ribbonHeadPos_[1]);   // the body's constant past re-bases with the bake
+                    ribbonHeadAltBaked_  = ground_valid;
                 }
 
                 float head_x, head_y, head_z;
@@ -1968,7 +1979,8 @@ namespace t7 {
                     constexpr float YAW_RATE  = 1.0f;    // rad/s cap at full deflection
                     constexpr float MAX_SPEED = 40.0f;   // world units/s at full throttle (halved; full-throttle turns bottom out at R_MIN)
                     constexpr float R_MIN     = 40.0f;   // minimum turn radius (units)
-                    constexpr float RIBBON_CLIMB_RATE = 15.0f;  // u/s vertical slew — hills become gentle rises
+                    constexpr float RIBBON_CLIMB_RATE = 15.0f;  // u/s cap on the pen's vertical velocity (control-panel)
+                    constexpr float RIBBON_FLOOR_MARGIN = 25.0f; // guaranteed gap over tall ground (control-panel)
                     constexpr float RIBBON_ALT_SMOOTH_DIST = 180.0f;  // units of travel over which the altitude target relaxes — the head reads the LANDSCAPE, not the terrain texture
                     const float speed = std::max(throttle_in, 0.0f) * MAX_SPEED;
                     const float yaw_avail = std::min(YAW_RATE, speed / R_MIN);
@@ -1979,36 +1991,44 @@ namespace t7 {
                     ribbonHeadPos_[0] -= ch * step;
                     ribbonHeadPos_[2] -= sh * step;
                     // Sky altitude with a terrain FLOOR (not a tether): the target is
-                    // the ribbon's own spawn altitude, floored by the smoothed ground
-                    // plus its clearance margin. Valleys and mood changes leave it
-                    // untouched at its sky; only ground tall enough to threaten it
-                    // lifts it — and it settles back beyond. The low-pass keeps the
-                    // floor reading the LANDSCAPE (long swells), the slew is the hard
-                    // safety, and zero travel (hover) freezes the target.
+                    // the ribbon's baked birthright altitude, floored by the smoothed
+                    // ground plus a constant safety margin. Valleys and mood changes
+                    // leave it untouched at its sky; only ground tall enough to
+                    // threaten it lifts it — and it settles back beyond. The low-pass
+                    // keeps the floor reading the LANDSCAPE (long swells); zero travel
+                    // (hover) freezes the target; the critically damped PEN below
+                    // turns every correction into a smooth S-curve — never a
+                    // constant-rate ramp, never a corner.
                     {
-                        const float floor_y = ground_y + ribbonHeadClearance_;
+                        const float floor_y = ground_y + RIBBON_FLOOR_MARGIN;
                         const float raw_target = (ribbonHeadOrigin_[1] > floor_y)
                                                ? ribbonHeadOrigin_[1] : floor_y;
                         const float travel = std::fabs(step);   // this frame's distance
                         const float alpha = 1.0f - std::exp(-travel / RIBBON_ALT_SMOOTH_DIST);
                         ribbonHeadAltTarget_ += (raw_target - ribbonHeadAltTarget_) * alpha;
 
-                        float dy = ribbonHeadAltTarget_ - ribbonHeadPos_[1];
-                        const float max_dy = RIBBON_CLIMB_RATE * dt;
-                        dy = (dy >  max_dy) ?  max_dy : (dy < -max_dy) ? -max_dy : dy;
-                        ribbonHeadPos_[1] += dy;
+                        // THE PEN: critically damped vertical follower — stiffness
+                        // sets the ease, damping = 2*sqrt(stiffness) means no
+                        // overshoot, the velocity clamp bounds extreme corrections.
+                        constexpr float RIBBON_ALT_STIFF = 0.36f;   // (rad/s)^2 — control-panel
+                        const float damp = 2.0f * std::sqrt(RIBBON_ALT_STIFF);
+                        ribbonHeadYVel_ += ((ribbonHeadAltTarget_ - ribbonHeadPos_[1]) * RIBBON_ALT_STIFF
+                                            - damp * ribbonHeadYVel_) * dt;
+                        ribbonHeadYVel_ = (ribbonHeadYVel_ >  RIBBON_CLIMB_RATE) ?  RIBBON_CLIMB_RATE :
+                                          (ribbonHeadYVel_ < -RIBBON_CLIMB_RATE) ? -RIBBON_CLIMB_RATE : ribbonHeadYVel_;
+                        ribbonHeadPos_[1] += ribbonHeadYVel_ * dt;
                     }
 
                     head_x = ribbonHeadPos_[0];
                     head_y = ribbonHeadPos_[1];
                     head_z = ribbonHeadPos_[2];
                 } else {
-                    // Not flying: head holds at the anchor; heading holds the spawn
-                    // orientation. The body is the (constant) history — straight —
-                    // so nothing needs seeding. Flight state stays primed.
+                    // Not flying: head holds at the anchor at its BAKED birthright
+                    // altitude; heading holds the spawn orientation. The body is the
+                    // (constant) history — straight. Flight state stays primed.
                     ribbonHeadHeading_ = ribbon.orientation;
                     ribbonHeadPos_[0] = ribbon.anchor[0];
-                    ribbonHeadPos_[1] = ribbon.anchor[1] + ribbon.height;
+                    ribbonHeadPos_[1] = ribbonHeadOrigin_[1];
                     ribbonHeadPos_[2] = ribbon.anchor[2];
                     head_x = ribbonHeadPos_[0];
                     head_y = ribbonHeadPos_[1];

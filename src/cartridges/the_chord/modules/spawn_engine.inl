@@ -1116,4 +1116,14 @@ float estimate_terrain_height(float wx, float wz) const {
     return 0.0f;
 }
 
+// True when the terrain tile under (wx, wz) has been generated — i.e. the
+// estimate above is a real sample, not the cold-cache 0 (which is
+// indistinguishable from flat ground by value). Consumed by the ribbon
+// altitude bake (state.hpp) to defer latching until first truth.
+bool terrain_tile_warm(float wx, float wz) const {
+    int32_t tx = (int32_t)std::floor(wx / PATCH_EXTENT);
+    int32_t tz = (int32_t)std::floor(wz / PATCH_EXTENT);
+    return tileCache_.find({ tx, tz }) != tileCache_.end();
+}
+
 
