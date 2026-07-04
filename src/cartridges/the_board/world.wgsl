@@ -4629,8 +4629,10 @@ const GROUND_ATLAS_BLADE: i32    = 100;
 // Written by compute_ribbon_rings, read by ribbon VS via render_ring_xforms.
 @group(0) @binding(121) var<storage, read_write> ring_xforms: array<RibbonRingTransform, 400>;
 
-// Ribbon head-path (CPU-seeded straight arc today; recorded trail in stage 2).
-// .xyz = position; read by ribbon_centerline_at when is_roaming.
+// Ribbon body — rebuilt each frame from the propagation history (heading +
+// Y replayed at P, XZ integrated tailward). .xyz = ring position, .w = the
+// ring's unwrapped yaw; read by ribbon_centerline_at / ribbon_spine_at /
+// ribbon_ring_motor.
 @group(0) @binding(122) var<storage, read> head_poses: array<vec4<f32>, 400>;
 
 // --- Light system (Group 0: render, bindings 320-339)

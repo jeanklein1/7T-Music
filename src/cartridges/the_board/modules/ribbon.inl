@@ -444,7 +444,7 @@ static void fill_ribbon_selection_geometry(
     sel.cube_size = std::max(MIN_CUBE_SIZE,
         cpu_sample_gaussian(seed, RibbonProp::CUBE_SIZE, tp.cube_size_mean, tp.cube_size_sigma));
 
-    // Length cap — keeps anchor coverage viable (~30 patches max)
+    // Length cap — keeps anchor coverage viable (700 u = 14 patches)
     if ((float)sel.cube_count * sel.cube_size > RIBBON_MAX_LENGTH)
         sel.cube_count = (uint32_t)(RIBBON_MAX_LENGTH / sel.cube_size);
 
