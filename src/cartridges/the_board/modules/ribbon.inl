@@ -762,6 +762,13 @@ static void commit_ribbon(RibbonState& rs, Cartridge* c,
     ar.wander_tz = plan.cz - 300.0f * std::sin(r.orientation);
     ar.wander_retarget = WANDER_RETARGET_MIN;
     ar.wander_yaw_state = 0.0f;
+    // Succession: a commit into the slot the head is wearing is a REBIRTH.
+    // Slots are reused (MAX_RIBBON_INSTANCES = 1), so the slot-equality init
+    // guard in advance_ribbon_head cannot see a successor — only this signal
+    // can. Every ribbon life passes through commit (dispatch AND mood force-
+    // spawn), so the head dies here, and no other site needs to remember.
+    if (c->gpuState_.ribbon_head_is(s))
+        c->gpuState_.invalidate_ribbon_head();
 
     // Two-tip anchoring: anchor IS the near tip (t=0).
     // Body extends entirely in the orientation direction (away from pawn).
