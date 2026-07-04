@@ -641,13 +641,14 @@ void apply_mood_anchor_ribbon(uint32_t mood, wgpu::Queue& queue) {
         RIBBON_BASE_TIER_WEIGHTS, RIBBON_TIER_COUNT, PopFamily::RIBBON);
 
     // Sample geometry through the shared helper
+    const float terrain_est = estimate_terrain_height(ax, az);
     RibbonSelection sel{};
     sel.seed       = rseed;
     sel.trigger_gx = 0;
     sel.trigger_gz = 0;
     sel.slot       = 0;
     sel.tier_idx   = tier_idx;
-    fill_ribbon_selection_geometry(rseed, tier_idx, sel);
+    fill_ribbon_selection_geometry(rseed, tier_idx, terrain_est, sel);
 
     // Build placement (forced position — no negotiation)
     RibbonPlacement plan{};
@@ -663,8 +664,7 @@ void apply_mood_anchor_ribbon(uint32_t mood, wgpu::Queue& queue) {
     plan.rotation       = sel.orientation;
     plan.cube_count     = sel.cube_count;
     plan.cube_size      = sel.cube_size;
-    // Spawn-relative altitude: birth ground + the seed-drawn clearance.
-    plan.height         = sel.height + estimate_terrain_height(ax, az);
+    plan.height         = sel.height;
     plan.orientation    = sel.orientation;
     plan.lateral_amp    = sel.lateral_amp;
     plan.lateral_cycles = sel.lateral_cycles;

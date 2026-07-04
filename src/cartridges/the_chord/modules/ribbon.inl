@@ -88,7 +88,7 @@ struct RibbonConfig {
 // fill_ribbon_selection_geometry / select_ribbon_for_patch.
 static constexpr float MIN_CUBE_COUNT     = 20.0f;    // floor on Gaussian-sampled cube_count
 static constexpr float MIN_CUBE_SIZE      = 1.0f;     // floor on cube_size
-static constexpr float MIN_ADDED_HEIGHT   = 20.0f;    // floor on the band draw (keeps every tier airborne)
+static constexpr float MIN_ADDED_HEIGHT   = 20.0f;    // floor on height added above terrain_est
 static constexpr float FOOTPRINT_RADIUS   = 5.0f;     // ribbon spawn footprint radius
 static constexpr float ORIENTATION_SPREAD = 1.0472f;  // ±60° (π/3) around away-from-pawn
 
@@ -508,7 +508,7 @@ static int ribbon_color_targets(RibbonState& rs,
 // pipeline and the mood forced-spawn path (see SEAM[ribbon:dual-entry]).
 // Pure: no ribbon state access; all sampling is from `seed`.
 static void fill_ribbon_selection_geometry(
-    uint32_t seed, uint32_t tier_idx,
+    uint32_t seed, uint32_t tier_idx, float terrain_est,
     RibbonSelection& sel)
 {
     const auto& tp = RIBBON_TIERS[tier_idx];
@@ -523,10 +523,7 @@ static void fill_ribbon_selection_geometry(
     if ((float)sel.cube_count * sel.cube_size > RIBBON_MAX_LENGTH)
         sel.cube_count = (uint32_t)(RIBBON_MAX_LENGTH / sel.cube_size);
 
-    // The seed draw is this ribbon's CLEARANCE above its birthplace — pure
-    // from seed. The ground itself is added at placement, where the position
-    // is known (identity from the seed; ground from the meeting).
-    sel.height = std::max(MIN_ADDED_HEIGHT,
+    sel.height = terrain_est + std::max(MIN_ADDED_HEIGHT,
         cpu_sample_gaussian(seed, RibbonProp::HEIGHT, tp.height_mean, tp.height_sigma));
 
     sel.orientation = cpu_hash_f(seed, RibbonProp::ORIENTATION) * 6.2831853f;
@@ -610,7 +607,10 @@ static bool select_ribbon_for_patch(RibbonState& rs, Cartridge* c,
     sel.slot = gate.slot;
     sel.tier_idx = tier_idx;
 
-    fill_ribbon_selection_geometry(gate.seed, tier_idx, sel);
+    float terrain_est = c->estimate_terrain_height(
+        (gx + 0.5f) * PATCH_EXTENT, (gz + 0.5f) * PATCH_EXTENT);
+
+    fill_ribbon_selection_geometry(gate.seed, tier_idx, terrain_est, sel);
 
     // Constrain orientation: ribbon body extends primarily away
     // from the pawn. The hash provides ±60° of spread around the
@@ -659,10 +659,7 @@ static bool place_ribbon_from_selection(Cartridge* c,
 
     plan.cube_count = sel.cube_count;
     plan.cube_size = sel.cube_size;
-    // Spawn-relative altitude: birth ground + the seed-drawn clearance. The
-    // ribbon then holds this plane absolutely for life (the flight floor and
-    // landscape smoothing handle tall ground en route).
-    plan.height = sel.height + c->estimate_terrain_height(plan.cx, plan.cz);
+    plan.height = sel.height;
     plan.orientation = sel.orientation;
     plan.lateral_amp = sel.lateral_amp;
     plan.lateral_cycles = sel.lateral_cycles;

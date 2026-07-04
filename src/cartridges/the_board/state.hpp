@@ -1512,6 +1512,7 @@ namespace t7 {
             bool ribbonHeadSeeded_ = false;
             uint32_t ribbonHeadSlot_ = UINT32_MAX;
             float ribbonHeadOrigin_[3] = {0.0f, 0.0f, 0.0f};
+            float ribbonHeadClearance_ = 0.0f;   // altitude held ABOVE the ground beneath the head
             float ribbonHeadAltTarget_ = 0.0f;   // low-passed altitude target (landscape swells, not texture)
             float ribbonHeadStart_ = 0.0f;
             float ribbonHeadHeading_ = 0.0f;               // sky-flight heading (yawed by input)
@@ -1922,8 +1923,10 @@ namespace t7 {
                     ribbonHeadOrigin_[1] = ribbon.anchor[1] + ribbon.height;
                     ribbonHeadOrigin_[2] = ribbon.anchor[2];
                     ribbonHeadStart_ = t;
-                    // The ribbon's plane: its absolute spawn altitude (the sky
-                    // band). The flight floor below only lifts it over tall ground.
+                    // Clearance: the altitude this ribbon holds ABOVE the ground.
+                    // Defined at birth as spawn altitude minus spawn ground — the
+                    // y-channel's single authority. SEAM[ribbon:sky-mode].
+                    ribbonHeadClearance_ = ribbonHeadOrigin_[1] - ground_y;
                     ribbonHeadAltTarget_ = ribbonHeadOrigin_[1];
                     ribbonHeadHeading_ = ribbon.orientation;
                     ribbonHeadPos_[0] = ribbonHeadOrigin_[0];
@@ -1962,7 +1965,6 @@ namespace t7 {
                     constexpr float MAX_SPEED = 40.0f;   // world units/s at full throttle (halved; full-throttle turns bottom out at R_MIN)
                     constexpr float R_MIN     = 40.0f;   // minimum turn radius (units)
                     constexpr float RIBBON_CLIMB_RATE = 15.0f;  // u/s vertical slew — hills become gentle rises
-                    constexpr float RIBBON_FLOOR_MARGIN = 25.0f; // guaranteed gap over tall ground (control-panel)
                     constexpr float RIBBON_ALT_SMOOTH_DIST = 180.0f;  // units of travel over which the altitude target relaxes — the head reads the LANDSCAPE, not the terrain texture
                     const float speed = std::max(throttle_in, 0.0f) * MAX_SPEED;
                     const float yaw_avail = std::min(YAW_RATE, speed / R_MIN);
@@ -1980,7 +1982,7 @@ namespace t7 {
                     // floor reading the LANDSCAPE (long swells), the slew is the hard
                     // safety, and zero travel (hover) freezes the target.
                     {
-                        const float floor_y = ground_y + RIBBON_FLOOR_MARGIN;
+                        const float floor_y = ground_y + ribbonHeadClearance_;
                         const float raw_target = (ribbonHeadOrigin_[1] > floor_y)
                                                ? ribbonHeadOrigin_[1] : floor_y;
                         const float travel = std::fabs(step);   // this frame's distance
