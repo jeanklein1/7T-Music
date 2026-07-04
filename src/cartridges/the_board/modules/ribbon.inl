@@ -409,6 +409,7 @@ static constexpr float WANDER_RETARGET_VAR = 15.0f;
 static constexpr float WANDER_STEER_SOFT  = 0.5f;    // rad of heading error for full deflection
 static constexpr float WANDER_YAW_MAX     = 0.15f;   // yaw cap: radius >= R_MIN/0.15 (~270 u) — body-scale arcs
 static constexpr float WANDER_YAW_TAU     = 2.0f;    // s; first-order ease on the steering — curvature stays continuous (control-panel)
+static constexpr float WANDER_ARRIVE_RADIUS = 120.0f; // u; arrival = retarget — inside this the bearing chase degenerates (control-panel)
 
 static inline float wander_rand01(uint32_t& s) {
     // xorshift32 → [0,1)
@@ -430,7 +431,10 @@ static void ribbon_wander_inputs(ActiveRibbon& ar,
     // the yaw cap below keeps every turn at body scale (radius >= R_MIN /
     // WANDER_YAW_MAX). Gorgeous, contemplative arcs by construction.
     ar.wander_retarget -= dt;
-    if (ar.wander_retarget <= 0.0f) {
+    const float wdx = ar.wander_tx - head_x;
+    const float wdz = ar.wander_tz - head_z;
+    if (ar.wander_retarget <= 0.0f
+        || wdx * wdx + wdz * wdz < WANDER_ARRIVE_RADIUS * WANDER_ARRIVE_RADIUS) {
         const float move_dir = heading + 3.14159265f;           // movement = -heading
         const float spread = (wander_rand01(ar.wander_rng) * 2.0f - 1.0f) * WANDER_SPREAD;
         const float leg = WANDER_LEG_MIN
