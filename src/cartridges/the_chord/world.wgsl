@@ -831,7 +831,7 @@ struct RibbonState {
     is_visible: u32,        // 0 = hidden, 1 = flying
     orientation: f32,       // heading angle (radians, 0 = +X axis)
     color_mode: u32,        // 0=smooth, 1=tinted, 2=contrast
-    is_roaming: u32,        // 0 = stationary spine (today); 1 = head roams (stage 1b)
+    is_roaming: u32,        // constant 1 (analytic stationary spine removed); field retained until the next struct relayout
     _pad1: f32,
     _pad2: f32,
     _pad3: f32,
@@ -4082,14 +4082,10 @@ fn shadow_shell_vs(in: ShellVertexInput) -> ShadowVarying {
 //    Visible cycles emerge from freq × travel_time (preserving the authored
 //    per-tier cycle counts); crests propagate head → tail at the single
 //    propagation_speed (uniform across all three axes).
-// The ribbon's centerline at parameter t, before the wave is layered on.
-// Stationary: the straight arc from the anchor along the heading. Stage 1c
-// swaps this body for the resampled head-path when is_roaming.
+// The ribbon's centerline at parameter t, before the wave is layered on:
+// lerp over head_poses, the CPU-rebuilt propagation body. A parked head has
+// a constant past, so this reads as the straight spawn arc.
 fn ribbon_centerline_at(t: f32, ribbon: RibbonState) -> vec3<f32> {
-    // Resample the recorded head-path (only reached when is_roaming). The CPU
-    // seeds head_poses with the straight arc, so for a stationary head this
-    // reconstructs the analytic centerline at each ring's t exactly. Stage 2
-    // upgrades this to an arc-length walk over a real trail.
     let span = max(ribbon.cube_count, 2u) - 1u;
     let fidx = clamp(t, 0.0, 1.0) * f32(span);
     let i0 = u32(floor(fidx));
@@ -4099,11 +4095,14 @@ fn ribbon_centerline_at(t: f32, ribbon: RibbonState) -> vec3<f32> {
 }
 
 // The head's transverse displacement (the choreography) at echo time
-// `phase_age`. Two components -- lateral (sway) and vertical (bob). This is the
-// single displacement the body echoes along the ruler. Its IDLE SCRIPT, here, is
-// a pair of sines; music will later drive these two values at the head
-// [SEAM:ribbon-displacement] -- the body needs no change, it already echoes
-// whatever the head carries.
+// `phase_age`. Two components -- lateral (sway) and vertical (bob). This is
+// the single displacement the body echoes along the ruler. The echo is
+// ANALYTIC: the body re-evaluates the head's timetable at a delayed time —
+// honest only while the script is a pure function of time.
+// [SEAM:ribbon-displacement] To let music drive displacement at the head,
+// record lat/vert into the propagation history beside heading and Y and read
+// the delayed samples here. Coupling amp/freq parameters directly would move
+// the whole body at once — a teleport, not a gesture.
 fn ribbon_displacement_at(phase_age: f32, ribbon: RibbonState) -> vec2<f32> {
     let lateral  = sin(ribbon.lateral_freq  * phase_age) * ribbon.lateral_amp;
     let vertical = sin(ribbon.vertical_freq * phase_age) * ribbon.vertical_amp;
@@ -4112,106 +4111,48 @@ fn ribbon_displacement_at(phase_age: f32, ribbon: RibbonState) -> vec2<f32> {
 
 fn ribbon_spine_at(t: f32, ribbon: RibbonState) -> vec3<f32> {
     let total_length = f32(ribbon.cube_count) * ribbon.cube_size;
-    let time = ribbon.time;
 
     // Trail-frame phase: how long ago (seconds) this ring's head-state was
     // emitted. Shared across all axes so crests stay synchronized.
-    let phase_age = time - t * total_length / max(ribbon.propagation_speed, 1e-6);
+    let phase_age = ribbon.time - t * total_length / max(ribbon.propagation_speed, 1e-6);
 
-    let along = t * total_length;
+    // The body is the head's displacement echoed along the ruler. Place the
+    // sway in the ring's OWN frame — the CPU-authored yaw channel
+    // (head_poses[i].w; unwrapped, so plain lerp between rings is safe). The
+    // SAME channel orients the ring motor and the pawn mount, so the three
+    // never diverge: lateral on right = (-sin yaw, 0, cos yaw), vertical on
+    // world-up.
     let d = ribbon_displacement_at(phase_age, ribbon);
-    let lateral = d.x;
-    let vertical = d.y;
-
-    // Heading rotation (lateral sway only — no twist here)
-    let c = cos(ribbon.orientation);
-    let s = sin(ribbon.orientation);
-    let rotated_along   = along * c - lateral * s;
-    let rotated_lateral = along * s + lateral * c;
-
-    // Twist: helical displacement PERPENDICULAR to the sway plane.
-    let twist_phase = ribbon.twist_freq * phase_age;
-    let twist_depth = sin(twist_phase) * 0.4 * ribbon.twist_amp;
-    let twist_vert  = cos(twist_phase) * 0.3 * ribbon.twist_amp;
-
-    // Stationary spine — today, byte-for-byte. Stage 1b swaps the anchor+along
-    // base for the resampled head-path when is_roaming; the wave above is
-    // unchanged and will then layer on the centerline's local frame.
-    let stationary = ribbon.anchor + vec3(rotated_along, ribbon.height + vertical + twist_vert, rotated_lateral + twist_depth);
-
-    if (ribbon.is_roaming == 1u) {
-        // Roaming: the body is the head's displacement echoed along the ruler.
-        // Place the sway in the ring's OWN frame — the CPU-authored yaw channel
-        // (head_poses[i].w; unwrapped, so plain lerp between rings is safe). The
-        // SAME channel orients the ring motor and the pawn mount, so the three
-        // never diverge: lateral on right = (-sin yaw, 0, cos yaw), vertical on
-        // world-up. Twist is set aside.
-        let center = ribbon_centerline_at(t, ribbon);
-        let span_u = max(ribbon.cube_count, 2u) - 1u;
-        let fidx = clamp(t, 0.0, 1.0) * f32(span_u);
-        let i0 = u32(floor(fidx));
-        let i1 = min(i0 + 1u, span_u);
-        let yaw = mix(head_poses[i0].w, head_poses[i1].w, fidx - f32(i0));
-        let right = vec3(-sin(yaw), 0.0, cos(yaw));
-        return center + lateral * right + vertical * vec3(0.0, 1.0, 0.0);
-    }
-    return stationary;
-}
-
-// Tangent direction at parameter t (central finite difference).
-fn ribbon_tangent_at(t: f32, ribbon: RibbonState) -> vec3<f32> {
-    let eps = 0.0005;
-    return normalize(ribbon_spine_at(t + eps, ribbon) - ribbon_spine_at(t - eps, ribbon));
+    let center = ribbon_centerline_at(t, ribbon);
+    let span_u = max(ribbon.cube_count, 2u) - 1u;
+    let fidx = clamp(t, 0.0, 1.0) * f32(span_u);
+    let i0 = u32(floor(fidx));
+    let i1 = min(i0 + 1u, span_u);
+    let yaw = mix(head_poses[i0].w, head_poses[i1].w, fidx - f32(i0));
+    let right = vec3(-sin(yaw), 0.0, cos(yaw));
+    return center + d.x * right + d.y * vec3(0.0, 1.0, 0.0);
 }
 
 // Build a PGA motor that places and orients one cross-section ring.
 // Composes: orient * translate — rotate the local frame, then place it.
-//
-// The orientation is decomposed into two rotors to avoid the
-// antiparallel singularity that occurs when orientation ≈ 180°:
-//   1. heading_rotor: Y-axis rotation by orientation angle
-//      — maps (1,0,0) → (cos(θ),0,sin(θ)), always well-defined
-//      — angle is always small because the tangent tracks the heading
 fn ribbon_ring_motor(ring_idx: u32, ribbon: RibbonState) -> Motor {
     let t = f32(ring_idx) / f32(max(ribbon.cube_count - 1u, 1u));
     let center = ribbon_spine_at(t, ribbon);
 
-    // Orient the cross-section's axis (local +X).
-    var orient: Motor;
-    if (ribbon.is_roaming == 1u) {
-        // Roaming: the ring yaw is CPU-AUTHORED — head_poses[i].w carries the
-        // unwrapped per-ring tailward heading (ring 0 = the live flight heading,
-        // blended into the path over the first rings). Adjacent values are
-        // continuous by construction — the CPU unwraps while walking the rings
-        // in order — so per-ring flips are impossible and no finite difference
-        // is needed here. One channel feeds ring orient, wave frame, and pawn
-        // mount. Pure yaw about world-up: the path is planar; the wave rides as
-        // displacement, not as frame pitch.
-        // Negated: rotor+sw_mp map +X to (cos θ, −sin θ) (hand-verified), while
-        // the channel — like the whole analytic codebase — speaks dir(θ) =
-        // (cos θ, +sin θ). rotor(Y, −w) lands the tube axis on tailward exactly,
-        // and the ring's lateral axis on (−sin w, 0, cos w) — identical to the
-        // spine wave's explicit right and the mount's right. One convention,
-        // three consumers, coherent.
-        orient = rotor(vec3(0.0, 1.0, 0.0), -head_poses[ring_idx].w);
-    } else {
-        // Stationary needs the analytic spine tangent (roaming reads the
-        // channel and differences nothing).
-        let tangent = ribbon_tangent_at(t, ribbon);
-        // Stationary — unchanged (verified). Heading rotor + a small shortest-arc
-        // correction from the spawn heading to the tangent.
-        let heading = rotor(vec3(0.0, 1.0, 0.0), ribbon.orientation);
-        let heading_dir = vec3(cos(ribbon.orientation), 0.0, sin(ribbon.orientation));
-        let corr_axis = cross(heading_dir, tangent);
-        let corr_cos = dot(heading_dir, tangent);
-        var correction: Motor;
-        if (length(corr_axis) < 0.001) {
-            correction = MOTOR_IDENTITY;
-        } else {
-            correction = rotor(corr_axis, acos(clamp(corr_cos, -1.0, 1.0)));
-        }
-        orient = gp_mm(heading, correction);
-    }
+    // The ring yaw is CPU-AUTHORED — head_poses[i].w carries the unwrapped
+    // per-ring tailward heading (ring 0 = the live flight heading). Adjacent
+    // values are continuous by construction — the CPU unwraps while walking
+    // the rings in order — so per-ring flips are impossible and no finite
+    // difference is needed. One channel feeds ring orient, wave frame, and
+    // pawn mount. Pure yaw about world-up: the path is planar; the wave
+    // rides as displacement, not as frame pitch.
+    // Negated: rotor+sw_mp map +X to (cos θ, −sin θ) (hand-verified), while
+    // the channel — like the whole analytic codebase — speaks dir(θ) =
+    // (cos θ, +sin θ). rotor(Y, −w) lands the tube axis on tailward exactly,
+    // and the ring's lateral axis on (−sin w, 0, cos w) — identical to the
+    // spine wave's explicit right and the mount's right. One convention,
+    // three consumers, coherent.
+    let orient = rotor(vec3(0.0, 1.0, 0.0), -head_poses[ring_idx].w);
 
     // orient first, then translate to the ring center (gp_mm applies its first
     // argument first).
