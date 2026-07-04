@@ -391,6 +391,7 @@ struct ActiveRibbon {
     float    wander_tz = 0.0f;
     float    wander_retarget = 0.0f;    // seconds until a new waypoint
     uint32_t wander_rng = 1u;           // self-contained xorshift state
+    float    wander_yaw_state = 0.0f;   // eased steering output (curvature continuity)
 };
 
 // ── Wander policy ─────────────────────────────────────────────────
@@ -407,6 +408,7 @@ static constexpr float WANDER_RETARGET_MIN = 10.0f;  // seconds between waypoint
 static constexpr float WANDER_RETARGET_VAR = 15.0f;
 static constexpr float WANDER_STEER_SOFT  = 0.5f;    // rad of heading error for full deflection
 static constexpr float WANDER_YAW_MAX     = 0.15f;   // yaw cap: radius >= R_MIN/0.15 (~270 u) — body-scale arcs
+static constexpr float WANDER_YAW_TAU     = 2.0f;    // s; first-order ease on the steering — curvature stays continuous (control-panel)
 
 static inline float wander_rand01(uint32_t& s) {
     // xorshift32 → [0,1)
@@ -443,9 +445,15 @@ static void ribbon_wander_inputs(ActiveRibbon& ar,
     const float bearing = std::atan2(ar.wander_tz - head_z, ar.wander_tx - head_x);
     const float desired = bearing + 3.14159265f;                // movement = -heading
     const float err = std::remainder(desired - heading, 6.2831853f);
-    yaw_in = err / WANDER_STEER_SOFT;
-    yaw_in = (yaw_in >  WANDER_YAW_MAX) ?  WANDER_YAW_MAX :
-             (yaw_in < -WANDER_YAW_MAX) ? -WANDER_YAW_MAX : yaw_in;
+    float cmd = err / WANDER_STEER_SOFT;
+    cmd = (cmd >  WANDER_YAW_MAX) ?  WANDER_YAW_MAX :
+          (cmd < -WANDER_YAW_MAX) ? -WANDER_YAW_MAX : cmd;
+    // Ease the steering: the body replays the heading history, and bang-bang
+    // commands print elbows. First-order toward the command keeps curvature
+    // continuous — turns enter and exit as curves, never as joints.
+    const float ease = 1.0f - std::exp(-dt / WANDER_YAW_TAU);
+    ar.wander_yaw_state += (cmd - ar.wander_yaw_state) * ease;
+    yaw_in = ar.wander_yaw_state;
     thr_in = ar.wander_cruise;
 }
 
@@ -747,9 +755,13 @@ static void commit_ribbon(RibbonState& rs, Cartridge* c,
     }
     ar.wander_rng = 1u + (uint32_t)(cpu_hash_f(plan.seed, RibbonProp::WANDER_RNG)
                                     * 16777215.0f);
-    ar.wander_tx = plan.cx;                        // first waypoint: the anchor
-    ar.wander_tz = plan.cz;
-    ar.wander_retarget = 0.0f;                     // pick a real one immediately
+    // Hatchling rule: a newborn departs along its own body. Movement is
+    // -heading = -orientation, so the first waypoint lies straight ahead;
+    // the meander begins at the second pick. No pose contradiction at birth.
+    ar.wander_tx = plan.cx - 300.0f * std::cos(r.orientation);
+    ar.wander_tz = plan.cz - 300.0f * std::sin(r.orientation);
+    ar.wander_retarget = WANDER_RETARGET_MIN;
+    ar.wander_yaw_state = 0.0f;
 
     // Two-tip anchoring: anchor IS the near tip (t=0).
     // Body extends entirely in the orientation direction (away from pawn).
