@@ -971,8 +971,7 @@ struct RibbonSelection {
     float height;
     float orientation;
     float lateral_amp, lateral_cycles;
-    float vertical_amp, vertical_cycles;
-    float twist_amp, twist_cycles;
+    float vertical_amp;
     // Color
     uint32_t color_mode;
     float color[3];
@@ -990,8 +989,7 @@ struct RibbonPlacement {
     uint32_t cube_count;
     float cube_size, height, orientation;
     float lateral_amp, lateral_cycles;
-    float vertical_amp, vertical_cycles;
-    float twist_amp, twist_cycles;
+    float vertical_amp;
     uint32_t color_mode;
     float color[3];
     uint32_t seed = 0u;   // spawn seed, carried so commit samples its channels

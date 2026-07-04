@@ -687,13 +687,13 @@ namespace t7 {
             uint32_t cube_count;                                                // 16
             float cube_size;                                                    // 20
             float height;                                                       // 24
-            float twist_amp;                                                    // 28
+            float twist_amp;                                                    // 28 (unused — layout ballast until the displacement-history relayout)
             float color[3];                                                     // 32
             float lateral_amp;                                                  // 44
             float lateral_freq;                                                 // 48 (rad/s, head oscillation rate)
             float vertical_amp;                                                 // 52
             float vertical_freq;                                                // 56
-            float twist_freq;                                                   // 60
+            float twist_freq;                                                   // 60 (unused — layout ballast until the displacement-history relayout)
             float propagation_speed;                                            // 64 (world units/s; head→tail trail rate)
             uint32_t is_visible;                                                // 68
             float orientation;                                                  // 72 (heading radians)
@@ -6058,7 +6058,6 @@ namespace t7 {
                 ribbon.cube_count = 200;
                 ribbon.cube_size = 3.0f;
                 ribbon.height = 40.0f;
-                ribbon.twist_amp = 1.0f;
                 ribbon.color[0] = 0.85f;
                 ribbon.color[1] = 0.12f;
                 ribbon.color[2] = 0.08f;
@@ -6068,7 +6067,6 @@ namespace t7 {
                 ribbon.lateral_freq = 1.1f;
                 ribbon.vertical_amp = 1.7f;
                 ribbon.vertical_freq = 1.2f;
-                ribbon.twist_freq = 1.0f;
                 ribbon.propagation_speed = 40.0f;  // placeholder (hidden ribbon, never drawn)
                 ribbon.is_visible = 0u;  // hidden until spawning system activates one
                 queue.WriteBuffer(ribbonBuffer_, 0, &ribbon, sizeof(ribbon));

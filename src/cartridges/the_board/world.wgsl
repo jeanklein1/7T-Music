@@ -821,13 +821,13 @@ struct RibbonState {
     cube_count: u32,        // number of cross-section rings along the tube
     cube_size: f32,         // cross-section side length (ring spacing = cube_size)
     height: f32,            // base height above terrain
-    twist_amp: f32,         // amplitude of corkscrew twist
+    twist_amp: f32,         // unused — layout ballast until the displacement-history relayout
     color: vec3<f32>,       // ribbon color
     lateral_amp: f32,       // lateral wave amplitude (XZ plane sway)
     lateral_freq: f32,      // lateral head oscillation rate (rad/s)
     vertical_amp: f32,      // vertical wave amplitude (world Y)
     vertical_freq: f32,     // vertical head oscillation rate (rad/s)
-    twist_freq: f32,        // twist head oscillation rate (rad/s)
+    twist_freq: f32,        // unused — layout ballast until the displacement-history relayout
     propagation_speed: f32, // head→tail trail rate (world units/s)
     is_visible: u32,        // 0 = hidden, 1 = flying
     orientation: f32,       // heading angle (radians, 0 = +X axis)
