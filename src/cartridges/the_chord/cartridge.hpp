@@ -244,6 +244,7 @@ namespace t7 {
                 bool    fpv_mode = false;                // first-person view toggle
                 bool    sky_mode = false;                // sky-flight: arrows drive the rendered ribbon's head (SEAM[ribbon:sky-mode])
                 bool    sky_mode_prev = false;           // previous-frame sky_mode — drives the exit edge (ribbon release)
+                float   sky_yaw_eased = 0.0f;            // player's eased yaw (curvature continuity)
                 float   readback_x = 0.0f;               // GPU readback of pawn world X
                 float   readback_z = 0.0f;               // GPU readback of pawn world Z
                 int32_t readback_portal_trigger = -1;    // set by readback callback when pawn hits portal
@@ -3596,6 +3597,20 @@ namespace t7 {
                     bool  ribbon_flown  = player_.sky_mode;
                     float ribbon_yaw_in = ribbon_flown ?  inputState_.move_x : 0.0f;
                     float ribbon_thr_in = ribbon_flown ? -inputState_.move_z : 0.0f;
+                    // The player's pen, eased like the wanderer's: the body
+                    // replays the heading history, so the hand's bang-bang
+                    // arrows must become curves. Short tau keeps it immediate.
+                    // Control-panel material.
+                    {
+                        constexpr float SKY_YAW_TAU = 0.6f;
+                        if (player_.sky_mode) {
+                            const float a = 1.0f - std::exp(-time_state_.dt / SKY_YAW_TAU);
+                            player_.sky_yaw_eased += (ribbon_yaw_in - player_.sky_yaw_eased) * a;
+                            ribbon_yaw_in = player_.sky_yaw_eased;
+                        } else {
+                            player_.sky_yaw_eased = 0.0f;
+                        }
+                    }
                     if (!ribbon_flown && current_alive
                         && ribbon_state_.active[ribbon_state_.rendered_slot].wander) {
                         float whx, why, whz, whh;
