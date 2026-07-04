@@ -1,4 +1,4 @@
-// ─── ribbon.inl ──────────────────────────────────────────────────
+﻿// ─── ribbon.inl ──────────────────────────────────────────────────
 //
 // Sky Ribbon: complete subsystem (vocabulary + machinery in one
 // module). Single-instance, bespoke pipeline — runs through the

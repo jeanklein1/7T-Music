@@ -1386,7 +1386,7 @@ namespace t7 {
                     self->gpuState_.upload_ribbon(queue, empty);
                     self->ribbon_state_.rendered_slot = UINT32_MAX;
                     // Successor ribbons reuse this slot — force re-init.
-                    self->gpuState_.invalidate_ribbon_head();
+                    ribbon_invalidate_head(self->ribbon_state_);
                 }
                 std::cout << "[Ribbon] EVICT slot=" << slot << "\n";
             }
@@ -3184,7 +3184,7 @@ namespace t7 {
                 // lag is imperceptible at frame rate. SEAM[ribbon:sky-mode].
                 {
                     float hx = 0.0f, hy = 0.0f, hz = 0.0f, hh = 0.0f;
-                    gpuState_.get_ribbon_head_pose(hx, hy, hz, hh);
+                    ribbon_head_pose(ribbon_state_, hx, hy, hz, hh);
                     gpuSignal.sky_mode    = player_.sky_mode ? 1u : 0u;
                     gpuSignal.sky_head_x  = hx;
                     gpuSignal.sky_head_y  = hy;
@@ -3580,7 +3580,7 @@ namespace t7 {
                             gpuState_.upload_ribbon(queue, empty);
                             ribbon_state_.rendered_slot = UINT32_MAX;
                             // Successor ribbons reuse this slot — force re-init.
-                            gpuState_.invalidate_ribbon_head();
+                            ribbon_invalidate_head(ribbon_state_);
                         }
                     }
                     player_.sky_mode_prev = player_.sky_mode;
@@ -3612,10 +3612,10 @@ namespace t7 {
                         }
                     }
                     if (!ribbon_flown && current_alive
-                        && gpuState_.ribbon_head_is(ribbon_state_.rendered_slot)
+                        && ribbon_head_is(ribbon_state_, ribbon_state_.rendered_slot)
                         && ribbon_state_.active[ribbon_state_.rendered_slot].wander) {
                         float whx, whz, whh;
-                        gpuState_.get_ribbon_head_pen(whx, whz, whh);
+                        ribbon_head_pen(ribbon_state_, whx, whz, whh);
                         ribbon_wander_inputs(
                             ribbon_state_.active[ribbon_state_.rendered_slot],
                             whx, whz, whh, time_state_.dt,
@@ -3641,13 +3641,13 @@ namespace t7 {
                         {
                             const auto& rb = ribbon_state_.gpu[ribbon_state_.rendered_slot];
                             float gx = rb.anchor[0], gz = rb.anchor[2];
-                            if (gpuState_.ribbon_head_is(ribbon_state_.rendered_slot)) {
-                                float hy, hh; gpuState_.get_ribbon_head_pose(gx, hy, gz, hh);
+                            if (ribbon_head_is(ribbon_state_, ribbon_state_.rendered_slot)) {
+                                float hy, hh; ribbon_head_pose(ribbon_state_, gx, hy, gz, hh);
                             }
                             rib_gnd = estimate_terrain_height(gx, gz);
                             rib_gnd_valid = terrain_tile_warm(gx, gz);
                         }
-                        gpuState_.advance_ribbon_head(queue,
+                        ribbon_advance_head(ribbon_state_, gpuState_, queue,
                             ribbon_state_.gpu[ribbon_state_.rendered_slot],
                             ribbon_state_.rendered_slot, time_state_.seconds,
                             ribbon_flown, ribbon_yaw_in, ribbon_thr_in, time_state_.dt,
@@ -3672,13 +3672,13 @@ namespace t7 {
                             {
                                 const auto& rb = ribbon_state_.gpu[nearest];
                                 float gx = rb.anchor[0], gz = rb.anchor[2];
-                                if (gpuState_.ribbon_head_is(nearest)) {
-                                    float hy, hh; gpuState_.get_ribbon_head_pose(gx, hy, gz, hh);
+                                if (ribbon_head_is(ribbon_state_, nearest)) {
+                                    float hy, hh; ribbon_head_pose(ribbon_state_, gx, hy, gz, hh);
                                 }
                                 rib_gnd = estimate_terrain_height(gx, gz);
                                 rib_gnd_valid = terrain_tile_warm(gx, gz);
                             }
-                            gpuState_.advance_ribbon_head(queue, ribbon_state_.gpu[nearest], nearest, time_state_.seconds,
+                            ribbon_advance_head(ribbon_state_, gpuState_, queue, ribbon_state_.gpu[nearest], nearest, time_state_.seconds,
                                 ribbon_flown, ribbon_yaw_in, ribbon_thr_in, time_state_.dt,
                                 rib_gnd, rib_gnd_valid);  // 2b: head mover
                             ribbon_state_.rendered_slot = nearest;
@@ -3712,8 +3712,8 @@ namespace t7 {
                 upload_portal_array(queue);
                 upload_lights(queue);
 
-                // Re-sync the pawn mount to THIS frame. advance_ribbon_head (in the
-                // ribbon block above) just recomputed ribbonHeadMount_, but the signal
+                // Re-sync the pawn mount to THIS frame. ribbon_advance_head (in the
+                // ribbon block above) just recomputed the head mount, but the signal
                 // uploaded earlier — and therefore the pawn — still carries the previous
                 // frame's mount. Re-write the sky_* block so the pawn and the ribbon are
                 // sampled at the same frame: the one-frame lag (a ~throttle·MAX_SPEED·dt
@@ -3722,7 +3722,7 @@ namespace t7 {
                 // agent kernel that reads sky_*. SEAM[ribbon:sky-mode].
                 {
                     float hx, hy, hz, hh;
-                    gpuState_.get_ribbon_head_pose(hx, hy, hz, hh);
+                    ribbon_head_pose(ribbon_state_, hx, hy, hz, hh);
                     gpuState_.resync_sky_head(queue, player_.sky_mode ? 1u : 0u, hx, hy, hz, hh);
                 }
 
