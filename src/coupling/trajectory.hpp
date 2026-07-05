@@ -18,7 +18,7 @@
 //
 // COMPAT (TEMPORARY, at the foot). The previous first-order release survives
 // as the Trajectory overload — exponential, the prior behavior — purely so the
-// not-yet-migrated modules (musical.inl, pawn.inl) keep building and running
+// not-yet-migrated module (pawn.inl) keeps building and running
 // unchanged. Convert those call sites to the Segment FOLLOW one at a time;
 // when none remain, delete the COMPAT section and the <cmath> include.
 //
@@ -87,8 +87,8 @@ namespace t7 {
 
     // ═══ COMPAT — first-order release (TEMPORARY) ══════════════════════════════
     //
-    // The previous release primitive, verbatim, so musical.inl and pawn.inl build
-    // and run unchanged until each migrates to the Segment FOLLOW above.
+    // The previous release primitive, verbatim, so pawn.inl builds
+    // and runs unchanged until it migrates to the Segment FOLLOW above.
     // Exponential (the prior behavior); matches world.wgsl §1.2. It overloads on
     // Trajectory, so it never collides with the Segment FOLLOW. DELETE this whole
     // section, and the <cmath> include, once no module calls the Trajectory form.

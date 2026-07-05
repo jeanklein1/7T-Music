@@ -612,6 +612,9 @@ struct FrameSignal {
     t_beats: f32,
     dt: f32,
     aspect_ratio: f32,
+    // DRIVERLESS: no shader consumer since M1-C. Kept as infrastructure;
+    // whether GPU-side direct coupling exists at all is a parked gen-2
+    // design decision.
     stats: array<f32, 64>,
     move_x: f32,
     move_z: f32,
@@ -1767,6 +1770,10 @@ fn fpv_mode_active() -> bool {
 // §3.1 signal → terrain
 
 // --- [COUPLING:signal.polyphony→terrain:amplitude]
+// DRIVERLESS since gen-1 retirement (the 8th capability — raw
+// signal.stats[0] terrain-amplitude coupling, retired M1-C). Revive
+// only as a deliberately designed gen-2 idiom; direct shader reads of
+// the signal bypass canvas and bank (sovereignty decision, parked).
 
 fn coupling_signal_polyphony_to_terrain_amplitude(polyphony: f32, traj: Trajectory, dt: f32) -> Trajectory {
     let goal = IDLE_AMPLITUDE_SCALE * (1.0 + polyphony/4);
@@ -5089,7 +5096,9 @@ fn update_terrain_config() {
     var amplitude_scale = terrain_state.amplitude_scale;
 
     if (signal_active() && coupling_active(COUPLING_POLYPHONY_TO_AMPLITUDE)) {
-        let poly = signal.stats[0];
+        // DRIVERLESS (M1-C): raw signal.stats[0] substituted with the
+        // neutral 0.0 — amplitude rests at IDLE_AMPLITUDE_SCALE.
+        let poly = 0.0;
         let traj = trajectories[0];
         let new_traj = coupling_signal_polyphony_to_terrain_amplitude(poly, traj, dt);
         trajectories[0] = new_traj;
@@ -6028,8 +6037,10 @@ fn update_sphere() {
         }
 
         if (signal_active() && coupling_active(COUPLING_POLYPHONY_TO_SPHERE_COLOR)) {
+            // DRIVERLESS (M1-C): raw signal.stats[0] substituted with the
+            // neutral 0.0 — color rests at base_color.
             floating_entities.entities[slot].color = coupling_signal_polyphony_to_sphere_color(
-                signal.stats[0],
+                0.0,
                 floating_entities.entities[slot].color,
                 floating_entities.entities[slot].base_color,
                 dt
@@ -6268,8 +6279,10 @@ fn update_cube() {
 
         // Musical coupling — same as spheres for now
         if (signal_active() && coupling_active(COUPLING_POLYPHONY_TO_SPHERE_COLOR)) {
+            // DRIVERLESS (M1-C): raw signal.stats[0] substituted with the
+            // neutral 0.0 — color rests at base_color.
             floating_entities.entities[slot].color = coupling_signal_polyphony_to_sphere_color(
-                signal.stats[0],
+                0.0,
                 floating_entities.entities[slot].color,
                 floating_entities.entities[slot].base_color,
                 dt
