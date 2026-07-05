@@ -1329,8 +1329,11 @@ namespace t7 {
                     }
                 }
                 else {
-                    // First load: search for the shader
-                    std::array<const char*, 6> paths = {
+                    // First load: search for the shader. Array is sized to its
+                    // contents — trailing nullptr slots would reach
+                    // ifstream(nullptr) (a CRT assert dialog, not a readable
+                    // error) exactly when the file is missing.
+                    std::array<const char*, 2> paths = {
                         "../../../src/cartridges/the_board/world.wgsl",
                         "src/cartridges/the_board/world.wgsl",
                     };

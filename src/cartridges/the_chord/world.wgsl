@@ -498,6 +498,8 @@ fn evaluate_lattice_wave(
 }
 
 // --- Polyphony-driven band motion accessors
+// DRIVERLESS since gen-1 retirement — held at neutral by the boot
+// block; revive via a gen-2 coupling or delete on the next pass here.
 fn get_band_blend(band_index: u32) -> f32 {
     switch(band_index) {
         case 0u: { return config.band_blend_0; }
@@ -2473,6 +2475,8 @@ const PULSE_AGE_DECAY: f32 = 0.4;      // age damping (1/seconds — half amplit
 // Notes: t_seconds is an explicit parameter so the contributor works in
 //   both render stages (render_signal.t_seconds) and compute stages
 //   (signal.t_seconds). 8-slot ring buffer; dead entries early-exit.
+// DRIVERLESS since gen-1 retirement — held at neutral by the boot
+// block; revive via a gen-2 coupling or delete on the next pass here.
 fn contrib_radial_pulses_at(world_xz: vec2<f32>, t_seconds: f32) -> f32 {
     if (config.pulse_count == 0u) { return 0.0; }
 
@@ -4685,6 +4689,8 @@ fn pulse_cell_target(cell_x: u32, cell_y: u32, t_beats: f32,
     let h2 = gol_cell_hash(cell_x + 137u, cell_y + 251u);
     let tempo_jitter = 1.0 + (gol_cell_variation(h2) - 0.5) * tempo_randomness;
 
+    // DRIVERLESS since gen-1 retirement — held at neutral by the boot
+    // block; revive via a gen-2 coupling or delete on the next pass here.
     let freq = tempo_jitter / max(tick_period * config.mode_gol_tick_scale, 0.1);
     let phase = t_beats * freq * 2.0 * PI + cell_phase;
 
@@ -6587,6 +6593,8 @@ fn animated_cell_color(world_xz: vec2<f32>) -> vec3<f32> {
     let cell_seed = lattice_node_seed(config.world_seed, vec2(cell_gx, cell_gz), 200u);
 
     let fields = evaluate_cell_fields(world_xz, cell_gx, cell_gz, cell_seed);
+    // DRIVERLESS since gen-1 retirement — held at neutral by the boot
+    // block; revive via a gen-2 coupling or delete on the next pass here.
     let mode_bias = config.mode_color_shift;
     let sparse_bias = config.mode_checker_scatter;
 
@@ -6594,6 +6602,8 @@ fn animated_cell_color(world_xz: vec2<f32>) -> vec3<f32> {
     let base = composite_cell_color_biased(fields, mode_bias, sparse_bias);
 
     // Pass 2: palette drift — each system drifts within its own vocabulary
+    // DRIVERLESS since gen-1 retirement — held at neutral by the boot
+    // block; revive via a gen-2 coupling or delete on the next pass here.
     let drift = config.mode_palette_intensity;
     if (drift > 0.001) {
         var drifted = fields;
@@ -8647,6 +8657,9 @@ struct OrbConfig {
     base_size:          f32,
     dt:                 f32,
     t_seconds:          f32,
+    // DRIVERLESS since gen-1 retirement (force/color/flock/speed coupling
+    // inputs) — held at neutral by configure_orbs' config-site zeros;
+    // revive via a gen-2 coupling or delete on the next pass here.
     force_radial:       f32,    // polyphony-coupled expansion force
     motion_rule:        u32,    // 0=Brownian 1=Orbital 2=Frozen 3=Flocking
     rotation_speed:     f32,

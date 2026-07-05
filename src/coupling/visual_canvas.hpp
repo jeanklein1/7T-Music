@@ -25,11 +25,10 @@
 // modulation instead of snapping. The source, "all.field", is already
 // published, so the analysis side is untouched.
 //
-// WIRING (left to the integration)
-//   The cartridge owns a VisualCanvas, calls bind() once with the analysis
-//   layout it was handed at startup, and tick(signal) each frame. It then
-//   flushes fog — density and color, both from params() — to set_fog. Fog has
-//   one driver now: the field. The mood no longer touches it.
+// WIRING (live). The cartridge owns a VisualCanvas, binds it once in
+// bind_signal_layout with the analysis layout, ticks it each frame in
+// update() after the signal, and flushes fog — density and color —
+// from params() to set_fog. Fog has one driver: the field.
 //
 // USAGE
 //   visual_canvas_.bind(analysis_layout);          // startup

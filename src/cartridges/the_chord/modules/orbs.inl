@@ -435,6 +435,8 @@ struct OrbsState {
     // Population speed multiplier. Smoothed on the CPU, uploaded via
     // upload_orb_speed_mult only when it moves.
     float    speed_mult_current = 1.0f;
+    // rests at 1.0 (identity); writer retired with gen-1 — the gen-2
+    // "orb.speed" pipe lands here when its coupling is designed.
 };
 OrbsState orbs_state_;
 
