@@ -84,11 +84,17 @@ vs travel-at-P (historian feel); layer one above is idiom-independent.
 ## 6. RELATED SURFACES ALREADY LIVE OR TAGGED
 fog.density / fog.color — the played coupling (all.field, held→table).
 ribbon.amp_lateral_mult / ribbon.amp_vertical_mult — PARAM_LAYOUT rows
-4–5, LIVE AT REST since pitch-compass P1: multipliers composed over the
+4–5, LIVE (coupling #2, the pitch compass): multipliers composed over the
 spawn-drawn wave amps at the conductor's per-frame flush (rest 1 = the
 seed's dance; the pawn mount reads the same mirror — the rider breathes
-with the coupled dance for free). The compass decode (P2) lands with its
-wagon amendment.
+with the coupled dance for free). Source, per amendment A1 (the Wagon
+ruling): "all.window_length" — the Wagon's duration-weighted chroma,
+whose X₁ (resultant / center of mass) IS the compass. θ = pc·30°,
+multipliers = 1 + GAIN·(cosθ, sinθ), Segment-glided over PITCH_VEC_SPAN;
+double-smoothed by construction (the window drains in per-beat stairs,
+the Segments glide between them); silence is a two-stage release. The
+raw per-note Playhead variant ("all.present_length") stays in the back
+pocket, unbuilt.
 Terrain palette machinery — DRIVERLESS, scene-level future siblings
 (band motion, palette drift, mode color shift) — same grammar, one scale up.
 sphere/floater color — DRIVERLESS landing sites from the demolition.

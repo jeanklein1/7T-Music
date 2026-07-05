@@ -93,6 +93,16 @@ namespace t7 {
     // constant if color should lead or lag density.
     inline constexpr float FOG_SPAN = 2.0f;   // beats — glide into the new field
 
+    // ── Pitch compass ── pc circle → (lateral, vertical) deviation circle.
+    // θ = pc·30°; multipliers = 1 + GAIN·(cosθ, sinθ) while stimulated,
+    // → 1 on silence. ORIGIN_DEG rotates which degree points pure-lateral
+    // (default: degree 0 — the tonic rests in the horizontal). Chords
+    // decode as the RESULTANT of their unit vectors: dissonance diffuses
+    // the gesture, unison commits it. Compositional dials — tune by ear.
+    inline constexpr float PITCH_VEC_GAIN   = 0.35f;   // amp swing ±35%
+    inline constexpr float PITCH_VEC_SPAN   = 1.5f;    // beats — re-aim/release glide
+    inline constexpr float PITCH_VEC_ORIGIN = 0.0f;    // radians — rotates the compass
+
     // ═══ MASTER CONTROL PANEL ════════════════════════════════════════════════════
     // The one place every exposed pipe is declared — name, slot, width, and the
     // value it rests at. Slots are assigned here, by hand, in this single table, so
@@ -135,6 +145,13 @@ namespace t7 {
                 fog_color_seg_[c] = Segment{ FOG_COLOR_BY_FIELD[0][c],
                                              FOG_COLOR_BY_FIELD[0][c], 0.0f, 0.0f };
             }
+
+            // pitch compass: the Wagon's duration-weighted chroma → amp pipes
+            wagon_chroma_ = signal_layout_.resolve("all.window_length");
+            amp_lat_  = param_layout_.resolve("ribbon.amp_lateral_mult");
+            amp_vert_ = param_layout_.resolve("ribbon.amp_vertical_mult");
+            amp_lat_seg_  = Segment{ 1.0f, 1.0f, 0.0f, 0.0f };
+            amp_vert_seg_ = Segment{ 1.0f, 1.0f, 0.0f, 0.0f };
         }
 
         // One frame: run every coupling — read its source, decode inline, carry the
@@ -163,6 +180,35 @@ namespace t7 {
                     }
                 }
             }
+
+            // ── pitch compass (X₁ of the Wagon chroma) ──────────────────
+            // Duration-weighted resultant: direction = where the remembered
+            // harmony's center of mass points; magnitude = its concentration
+            // (unison commits, clusters diffuse). Double-smoothed by
+            // construction: the window drains in per-beat stairs, the
+            // Segments glide between them. Silence = a two-stage release —
+            // the window empties, then the dance glides home.
+            if (wagon_chroma_.valid && amp_lat_.valid && amp_vert_.valid) {
+                float vx = 0.0f, vy = 0.0f, energy = 0.0f;
+                for (int i = 0; i < 12; ++i) {
+                    const float w = signal.stat(wagon_chroma_.channel, wagon_chroma_.base + i);
+                    if (w <= 0.0f) continue;
+                    const float th = PITCH_VEC_ORIGIN + (float)i * 0.523598776f; // 30°
+                    vx += w * std::cos(th);
+                    vy += w * std::sin(th);
+                    energy += w;
+                }
+                float gl = 1.0f, gv = 1.0f;
+                if (energy > 0.0f) {
+                    const float inv = 1.0f / energy;      // resultant, unit-ish
+                    gl = 1.0f + PITCH_VEC_GAIN * (vx * inv);
+                    gv = 1.0f + PITCH_VEC_GAIN * (vy * inv);
+                }
+                params_.set(amp_lat_.base,
+                    trajectory_release(amp_lat_seg_,  gl, beat, PITCH_VEC_SPAN));
+                params_.set(amp_vert_.base,
+                    trajectory_release(amp_vert_seg_, gv, beat, PITCH_VEC_SPAN));
+            }
         }
 
         // Consumers read the bank (and resolve their pipe once through layout()).
@@ -180,6 +226,16 @@ namespace t7 {
         TargetBinding fog_color_{};
         Segment       fog_seg_{};
         Segment       fog_color_seg_[3]{};
+
+        // ── pitch compass coupling state ─────────────────────────────────────────
+        SourceBinding wagon_chroma_{};      // "all.window_length" — the Wagon's
+                                            // duration-weighted chroma (12-wide);
+                                            // X₁ of THIS is the compass: the
+                                            // remembered music's center of mass
+        TargetBinding amp_lat_{};
+        TargetBinding amp_vert_{};
+        Segment       amp_lat_seg_{};
+        Segment       amp_vert_seg_{};
     };
 
 } // namespace t7
