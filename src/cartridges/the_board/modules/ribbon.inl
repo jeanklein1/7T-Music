@@ -150,7 +150,7 @@ static constexpr float WANDER_ARRIVE_RADIUS = 120.0f; // u; arrival = retarget �
 struct RibbonColorMode {
     static constexpr uint32_t SMOOTH = 0;  // terrain-derived monochrome
     static constexpr uint32_t TINTED = 1;  // warm/cool hue shift
-    static constexpr uint32_t CONTRAST = 2;  // checkered skin: per-cell parity between two medians + seeded scatter
+    static constexpr uint32_t CONTRAST = 2;  // cell skin: per-cell coloring — pair-contrast species (two medians, parity) or median-field species (one median, terrain-patch texture); see fill
     static constexpr uint32_t COUNT = 3;
     static constexpr float WEIGHTS[COUNT] = { 0.40f, 0.35f, 0.25f };
 };
@@ -230,6 +230,18 @@ static constexpr float FREE_HUE_VAR[2]    = { 0.00f, 1.00f };  // raffled, UNCAP
 static constexpr float CHROMA_D1[3] = { 0.8165f, -0.4082f, -0.4082f };
 static constexpr float CHROMA_D2[3] = { 0.0f,     0.7071f, -0.7071f };
 
+// MEDIAN-FIELD species — some cell-skinned ribbons are not defined by
+// contrast at all: ONE median, cells as variations around it — the
+// terrain-patch grammar on a tube (color_b == color; the parity term
+// vanishes by algebra). Luma band is broad (no parity to protect);
+// VALUE_VAR floor sits higher so the cells read through texture, as
+// terrain cells do. All control-panel.
+static constexpr float CELLS_MEDIAN_CHANCE   = 0.35f;  // species roll, above the pair fork
+static constexpr float MEDIAN_LUMA[2]        = { 0.25f, 0.85f };
+static constexpr float MEDIAN_CHROMA[2]      = { 0.04f, 0.30f };
+static constexpr float MEDIAN_VALUE_VAR[2]   = { 0.06f, 0.35f };
+static constexpr float MEDIAN_HUE_VAR[2]     = { 0.00f, 1.00f };
+
 
 // ═══ PROPERTY INDEX REGISTRY ═════════════════════════════════════
 //
@@ -242,6 +254,7 @@ static constexpr float CHROMA_D2[3] = { 0.0f,     0.7071f, -0.7071f };
 //   440-449  checker skin  (pair roll, median jitter, hue sibling-jitter; rest reserved)
 //   450-459  wander        (roll, cruise, rng seed; rest reserved)
 //   460-469  checker free raffle (mode, dark l/c/h, light l/c/h, vars; rest reserved)
+//   470-479  checker median-field (species roll, luma, chroma, hue, vars; rest reserved)
 //   The per-axis stride of 10 leaves room for future per-axis
 //   params without renumbering downstream. Same self-documentation
 //   discipline used by the WGSL side.
@@ -278,6 +291,12 @@ struct RibbonProp {
     static constexpr uint32_t FREE_LIGHT_H     = 466u;
     static constexpr uint32_t FREE_VALUE_ROLL  = 467u;
     static constexpr uint32_t FREE_HUE_ROLL    = 468u;
+    static constexpr uint32_t MEDIAN_SPECIES_ROLL = 470u;
+    static constexpr uint32_t MEDIAN_L            = 471u;
+    static constexpr uint32_t MEDIAN_C            = 472u;
+    static constexpr uint32_t MEDIAN_H            = 473u;
+    static constexpr uint32_t MEDIAN_VALUE_ROLL   = 474u;
+    static constexpr uint32_t MEDIAN_HUE_ROLL     = 475u;
     static constexpr uint32_t WANDER_ROLL = 450u;       // wander yes/no
     static constexpr uint32_t WANDER_CRUISE = 451u;     // gaussian draw: cruise fraction of RIBBON_MAX_SPEED
     static constexpr uint32_t WANDER_RNG = 452u;        // seeds the runtime waypoint stream
@@ -1015,7 +1034,24 @@ static void fill_ribbon_selection_geometry(
         sel.color[2] = cpu_hash_f(seed, RibbonProp::COLOR_B) * TINTED_RANGE[2] + TINTED_BASE[2];
     }
     else {
-        if (cpu_hash_f(seed, RibbonProp::FREE_MODE_ROLL) < FREE_PAIR_CHANCE) {
+        if (cpu_hash_f(seed, RibbonProp::MEDIAN_SPECIES_ROLL) < CELLS_MEDIAN_CHANCE) {
+            // MEDIAN-FIELD: one raffled median; color_b == color kills the
+            // parity; texture (value + hue machinery) carries the cells.
+            const auto lerpf = [](const float b[2], float t) {
+                return b[0] + (b[1] - b[0]) * t; };
+            const float ang = cpu_hash_f(seed, RibbonProp::MEDIAN_H) * 6.2831853f;
+            const float ca = std::cos(ang), sa = std::sin(ang);
+            const float luma   = lerpf(MEDIAN_LUMA,   cpu_hash_f(seed, RibbonProp::MEDIAN_L));
+            const float chroma = lerpf(MEDIAN_CHROMA, cpu_hash_f(seed, RibbonProp::MEDIAN_C));
+            for (int i = 0; i < 3; ++i) {
+                sel.color[i] = luma + (CHROMA_D1[i]*ca + CHROMA_D2[i]*sa) * chroma;
+                sel.color_b[i] = sel.color[i];
+            }
+            sel.checker_scatter = lerpf(MEDIAN_VALUE_VAR,
+                cpu_hash_f(seed, RibbonProp::MEDIAN_VALUE_ROLL));
+            sel.checker_hue_spread = lerpf(MEDIAN_HUE_VAR,
+                cpu_hash_f(seed, RibbonProp::MEDIAN_HUE_ROLL)) * 3.14159265f;
+        } else if (cpu_hash_f(seed, RibbonProp::FREE_MODE_ROLL) < FREE_PAIR_CHANCE) {
             // FREE RAFFLE — both medians as raffled (luma, chroma, hue)
             // points; both variances raffled. lerp helper inline.
             const auto lerpf = [](const float b[2], float t) {

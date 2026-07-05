@@ -1,4 +1,4 @@
-# RIBBON COLOR & CELLS — COUPLING DATASHEET (post-CB-1f)
+# RIBBON COLOR & CELLS — COUPLING DATASHEET (post-CB-1g)
 The couplable surface of the ribbon's color system and cell skin, exposed in
 contract-datasheet form. Classes per the standing key: L-global (body-wide,
 Segment-safe), LH (through the head's history), D (discrete; selection +
@@ -14,7 +14,7 @@ surface it describes.
 | field            | meaning                              | class | idle (rest)            | coupling notes |
 |------------------|--------------------------------------|-------|------------------------|----------------|
 | color[3]         | dark median / uniform color          | L-global | spawn draw (pair.dark, free dark median, or SMOOTH/TINTED draw) | T2's target: gen-2 design = color_stim[3] + color_mix pipes, flush lerp(spawn, stim, mix); mix rest 0 ⇒ spawn exactly. Flush seam LIVE today: the frame conductor uploads color every frame (ribbon.inl, upload_ribbon_color) |
-| color_b[3]       | light median (CONTRAST)              | L-global | pair.light + shared jitter, or free light median | opens a NEW musical dimension: drive the medians apart/toward ⇒ "contrast" itself as a coupled quantity. Commit-only today (rides the full-struct upload) |
+| color_b[3]       | light median (CONTRAST)              | L-global | pair.light + shared jitter, or free light median; median-field species: ≡ color by construction | opens a NEW musical dimension: drive the medians apart/toward ⇒ "contrast" itself as a coupled quantity. Commit-only today (rides the full-struct upload) |
 | checker_scatter  | per-cell lightness texture amplitude | L-global | pair.value_var or free draw | texture-energy idiom; pipe as multiplier, rest 1. Commit-only today |
 | hue_spread       | the colorful axis, radians [0, π]    | L-global | pair.hue_var(±sib)·π or free draw [0, π] | THE riot dial; pipe as additive deviation, rest 0; needs per-frame flush seam (commit-only today) — ledger item |
 | seed             | GPU hash key                         | C     | spawn seed             | identity; never coupled |
@@ -35,12 +35,25 @@ FREE_PAIR_CHANCE (0 = pure curation, 1 = pure generation) is the population
 dial and a spawn-time D-class coupling candidate — section-level shifts
 between curated and wild.
 
+MEDIAN-FIELD region spec (CB-1g) — the species above both pair paths:
+one median raffled in (luma, chroma, hue), color_b ≡ color so the parity
+term dies by algebra and the per-cell machinery carries everything —
+the terrain-patch grammar on a tube. MEDIAN_LUMA is broad (no parity to
+protect); MEDIAN_VALUE_VAR's floor sits higher so cells read through
+texture. CELLS_MEDIAN_CHANCE is the species dial (spawn-time D-class
+candidate, same idiom as FREE_PAIR_CHANCE).
+
 Two further future D-couplings live here:
 - PAIR RE-RAFFLE: a musical event re-rolls a ribbon's pair (state
   inheritance: the body keeps flying; only the skin's medians re-target
   through Segments — the CA-rule-swap grammar, applied to palette).
 - WEIGHT MODULATION: mood/section-level shifts of the raffle distribution
   (spawn-time; changes the flock's composition, not existing ribbons).
+- CONTRAST COLLAPSE (ledger, CB-1g): the species boundary is the distance
+  between two struct fields, so a coupling driving color_b toward color
+  dissolves a chessboard into a field LIVE (and back) — contrast as a
+  fader, not a category. L-global; needs the color_b wire when its day
+  comes.
 
 ## 3. SHADER CONSTANTS (world.wgsl, hot-reloadable — scene-level dials)
 | const                | meaning                         | class | notes |
