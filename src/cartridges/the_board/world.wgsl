@@ -6492,7 +6492,7 @@ fn update_cube() {
             floating_entities.entities[slot] = fe;
         }
 
-        // Musical coupling — same as spheres for now
+        // Floater color — shares the sphere-color capability below.
         if (signal_active() && coupling_active(COUPLING_POLYPHONY_TO_SPHERE_COLOR)) {
             // DRIVERLESS (M1-C): raw signal.stats[0] substituted with the
             // neutral 0.0 — color rests at base_color.

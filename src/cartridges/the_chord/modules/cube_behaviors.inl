@@ -324,9 +324,9 @@ struct CubeCorralAnim {
     float  ax_to,   az_to;
 };
 
-// ═══ CUBE BEHAVIORS MODULE STATE (Scope B migration #4) ══════════
+// ═══ DIAGNOSTIC STATE (owned by the tools above) ═════════════════
 //
-// All cube-behavior-owned state lives in this struct, accessed via
+// All diagnostic-tool state lives in this struct, accessed via
 // cube_behaviors_state_ on the Cartridge. Module functions take
 // `CubeBehaviorsState& cbs` explicitly rather than reaching via
 // Cartridge*, making ownership language-visible and dependencies
