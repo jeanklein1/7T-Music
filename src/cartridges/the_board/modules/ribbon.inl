@@ -212,6 +212,24 @@ static constexpr uint32_t CHECKER_PAIR_COUNT =
 static constexpr float CHECKER_PAIR_JITTER = 0.03f;  // shared per-ribbon median offset
 static constexpr float CHECKER_HUE_SIBLING_JITTER = 0.10f;  // per-ribbon ± around the pair's hue_var
 
+// FREE RAFFLE — the terrain's discrete-region grammar for the skin: both
+// medians raffled as points in (luma, chroma, hue) space, both variances
+// raffled. The bounds below ARE the lattice; narrow them to tame, widen to
+// liberate. The one kept law: disjoint luma bands preserve the dark/light
+// parity under any hue — the chessboard survives its own liberation.
+// All control-panel.
+static constexpr float FREE_PAIR_CHANCE   = 0.50f;  // vs the authored pair table
+static constexpr float FREE_DARK_LUMA[2]  = { 0.10f, 0.35f };
+static constexpr float FREE_DARK_CHROMA[2]= { 0.05f, 0.30f };
+static constexpr float FREE_LIGHT_LUMA[2] = { 0.70f, 0.95f };
+static constexpr float FREE_LIGHT_CHROMA[2]={ 0.02f, 0.22f };
+static constexpr float FREE_VALUE_VAR[2]  = { 0.02f, 0.30f };  // raffled, generous ceiling
+static constexpr float FREE_HUE_VAR[2]    = { 0.00f, 1.00f };  // raffled, UNCAPPED (full axis)
+// Rodrigues basis about the gray axis (unit chroma + its quadrature) —
+// the CPU twin of the shader's hue machinery.
+static constexpr float CHROMA_D1[3] = { 0.8165f, -0.4082f, -0.4082f };
+static constexpr float CHROMA_D2[3] = { 0.0f,     0.7071f, -0.7071f };
+
 
 // ═══ PROPERTY INDEX REGISTRY ═════════════════════════════════════
 //
@@ -223,6 +241,7 @@ static constexpr float CHECKER_HUE_SIBLING_JITTER = 0.10f;  // per-ribbon ± aro
 //   430-439  vertical wave (amp; rest reserved)
 //   440-449  checker skin  (pair roll, median jitter, hue sibling-jitter; rest reserved)
 //   450-459  wander        (roll, cruise, rng seed; rest reserved)
+//   460-469  checker free raffle (mode, dark l/c/h, light l/c/h, vars; rest reserved)
 //   The per-axis stride of 10 leaves room for future per-axis
 //   params without renumbering downstream. Same self-documentation
 //   discipline used by the WGSL side.
@@ -250,6 +269,15 @@ struct RibbonProp {
     static constexpr uint32_t CHECKER_JIT_G     = 442u;
     static constexpr uint32_t CHECKER_JIT_B     = 443u;
     static constexpr uint32_t CHECKER_HUE_JITTER_ROLL = 444u;  // sibling ± around the pair's hue_var
+    static constexpr uint32_t FREE_MODE_ROLL   = 460u;  // free vs authored table
+    static constexpr uint32_t FREE_DARK_L      = 461u;
+    static constexpr uint32_t FREE_DARK_C      = 462u;
+    static constexpr uint32_t FREE_DARK_H      = 463u;
+    static constexpr uint32_t FREE_LIGHT_L     = 464u;
+    static constexpr uint32_t FREE_LIGHT_C     = 465u;
+    static constexpr uint32_t FREE_LIGHT_H     = 466u;
+    static constexpr uint32_t FREE_VALUE_ROLL  = 467u;
+    static constexpr uint32_t FREE_HUE_ROLL    = 468u;
     static constexpr uint32_t WANDER_ROLL = 450u;       // wander yes/no
     static constexpr uint32_t WANDER_CRUISE = 451u;     // gaussian draw: cruise fraction of RIBBON_MAX_SPEED
     static constexpr uint32_t WANDER_RNG = 452u;        // seeds the runtime waypoint stream
@@ -987,33 +1015,58 @@ static void fill_ribbon_selection_geometry(
         sel.color[2] = cpu_hash_f(seed, RibbonProp::COLOR_B) * TINTED_RANGE[2] + TINTED_BASE[2];
     }
     else {
-        // The pair raffle — cumulative-weight pick, the terrain's roll and
-        // SMOOTH's pick, one mechanism.
-        const float roll = cpu_hash_f(seed, RibbonProp::CHECKER_PAIR_ROLL);
-        uint32_t pick = CHECKER_PAIR_COUNT - 1;
-        float ccum = 0.0f;
-        for (uint32_t i = 0; i < CHECKER_PAIR_COUNT; ++i) {
-            ccum += CHECKER_PAIRS[i].weight;
-            if (roll < ccum) { pick = i; break; }
-        }
-        const CheckerPair& pr = CHECKER_PAIRS[pick];
-        // One shared jitter moves both medians together: siblings differ,
-        // the pair's designed contrast survives.
-        const float jr = (cpu_hash_f(seed, RibbonProp::CHECKER_JIT_R) - 0.5f) * 2.0f * CHECKER_PAIR_JITTER;
-        const float jg = (cpu_hash_f(seed, RibbonProp::CHECKER_JIT_G) - 0.5f) * 2.0f * CHECKER_PAIR_JITTER;
-        const float jb = (cpu_hash_f(seed, RibbonProp::CHECKER_JIT_B) - 0.5f) * 2.0f * CHECKER_PAIR_JITTER;
-        sel.color[0]   = pr.dark[0]  + jr;  sel.color_b[0] = pr.light[0] + jr;
-        sel.color[1]   = pr.dark[1]  + jg;  sel.color_b[1] = pr.light[1] + jg;
-        sel.color[2]   = pr.dark[2]  + jb;  sel.color_b[2] = pr.light[2] + jb;
-        sel.checker_scatter = pr.value_var;
-        {
-            // hue_spread (radians, [0, pi]) = the pair's authored hue_var,
-            // sibling-jittered per ribbon, scaled onto the shader's axis.
-            const float sib = (cpu_hash_f(seed, RibbonProp::CHECKER_HUE_JITTER_ROLL) - 0.5f)
-                            * 2.0f * CHECKER_HUE_SIBLING_JITTER;
-            float hv = pr.hue_var + sib;
-            hv = (hv < 0.0f) ? 0.0f : (hv > 1.0f) ? 1.0f : hv;
-            sel.checker_hue_spread = hv * 3.14159265f;
+        if (cpu_hash_f(seed, RibbonProp::FREE_MODE_ROLL) < FREE_PAIR_CHANCE) {
+            // FREE RAFFLE — both medians as raffled (luma, chroma, hue)
+            // points; both variances raffled. lerp helper inline.
+            const auto lerpf = [](const float b[2], float t) {
+                return b[0] + (b[1] - b[0]) * t; };
+            const auto median = [&](float luma, float chroma, float ang,
+                                    float out[3]) {
+                const float ca = std::cos(ang), sa = std::sin(ang);
+                for (int i = 0; i < 3; ++i)
+                    out[i] = luma + (CHROMA_D1[i]*ca + CHROMA_D2[i]*sa) * chroma;
+            };
+            median(lerpf(FREE_DARK_LUMA,  cpu_hash_f(seed, RibbonProp::FREE_DARK_L)),
+                   lerpf(FREE_DARK_CHROMA,cpu_hash_f(seed, RibbonProp::FREE_DARK_C)),
+                   cpu_hash_f(seed, RibbonProp::FREE_DARK_H) * 6.2831853f,
+                   sel.color);
+            median(lerpf(FREE_LIGHT_LUMA,  cpu_hash_f(seed, RibbonProp::FREE_LIGHT_L)),
+                   lerpf(FREE_LIGHT_CHROMA,cpu_hash_f(seed, RibbonProp::FREE_LIGHT_C)),
+                   cpu_hash_f(seed, RibbonProp::FREE_LIGHT_H) * 6.2831853f,
+                   sel.color_b);
+            sel.checker_scatter = lerpf(FREE_VALUE_VAR,
+                cpu_hash_f(seed, RibbonProp::FREE_VALUE_ROLL));
+            sel.checker_hue_spread = lerpf(FREE_HUE_VAR,
+                cpu_hash_f(seed, RibbonProp::FREE_HUE_ROLL)) * 3.14159265f;
+        } else {
+            // The pair raffle — cumulative-weight pick, the terrain's roll and
+            // SMOOTH's pick, one mechanism.
+            const float roll = cpu_hash_f(seed, RibbonProp::CHECKER_PAIR_ROLL);
+            uint32_t pick = CHECKER_PAIR_COUNT - 1;
+            float ccum = 0.0f;
+            for (uint32_t i = 0; i < CHECKER_PAIR_COUNT; ++i) {
+                ccum += CHECKER_PAIRS[i].weight;
+                if (roll < ccum) { pick = i; break; }
+            }
+            const CheckerPair& pr = CHECKER_PAIRS[pick];
+            // One shared jitter moves both medians together: siblings differ,
+            // the pair's designed contrast survives.
+            const float jr = (cpu_hash_f(seed, RibbonProp::CHECKER_JIT_R) - 0.5f) * 2.0f * CHECKER_PAIR_JITTER;
+            const float jg = (cpu_hash_f(seed, RibbonProp::CHECKER_JIT_G) - 0.5f) * 2.0f * CHECKER_PAIR_JITTER;
+            const float jb = (cpu_hash_f(seed, RibbonProp::CHECKER_JIT_B) - 0.5f) * 2.0f * CHECKER_PAIR_JITTER;
+            sel.color[0]   = pr.dark[0]  + jr;  sel.color_b[0] = pr.light[0] + jr;
+            sel.color[1]   = pr.dark[1]  + jg;  sel.color_b[1] = pr.light[1] + jg;
+            sel.color[2]   = pr.dark[2]  + jb;  sel.color_b[2] = pr.light[2] + jb;
+            sel.checker_scatter = pr.value_var;
+            {
+                // hue_spread (radians, [0, pi]) = the pair's authored hue_var,
+                // sibling-jittered per ribbon, scaled onto the shader's axis.
+                const float sib = (cpu_hash_f(seed, RibbonProp::CHECKER_HUE_JITTER_ROLL) - 0.5f)
+                                * 2.0f * CHECKER_HUE_SIBLING_JITTER;
+                float hv = pr.hue_var + sib;
+                hv = (hv < 0.0f) ? 0.0f : (hv > 1.0f) ? 1.0f : hv;
+                sel.checker_hue_spread = hv * 3.14159265f;
+            }
         }
     }
 
