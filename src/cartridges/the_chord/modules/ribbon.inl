@@ -181,38 +181,35 @@ static constexpr float TINTED_RANGE[3] = { 0.45f, 0.40f, 0.45f };
 static constexpr float TINTED_BASE[3]  = { 0.40f, 0.35f, 0.35f };
 
 // CONTRAST — the checker pair raffle, shaped like the terrain's §2.2
-// palette system (world.wgsl): each entry is an authored PAIR (dark
-// median, light median), a per-pair VARIANCE (the per-cell scatter
-// amplitude — constant per palette, as PALETTE_VARIANCE is), and a
-// WEIGHT (cumulative-roll selection probability; rare pairs are events
-// in the flock, the way green terrain regions are). Weights sum to 1.
-// PAIR_JITTER shifts BOTH medians of a picked pair by one small shared
-// per-ribbon offset, so same-palette siblings differ without breaking
-// the pair's designed contrast. All control-panel; author freely.
+// palette system. Each pair authors its colors AND its character:
+//   value_var — per-cell RGB scatter amplitude (texture). Legibility
+//               guidance: beyond ~0.15 the dark/light parity starts to
+//               blur; author past it only on purpose.
+//   hue_var   — 0..1, the colorful axis: scales the per-cell hue
+//               rotation and chroma injection (world.wgsl skin block).
+//               0 = strict chessboard; 1 = full-wheel mosaic on BOTH
+//               squares (light cells go pastel at their own lightness).
+//   weight    — cumulative-roll probability; rare pairs are events.
+// Weights sum to 1. All control-panel; author freely.
 struct CheckerPair {
     float dark[3];
     float light[3];
-    float variance;   // per-cell scatter amplitude
-    float weight;     // raffle probability
+    float value_var;
+    float hue_var;
+    float weight;
 };
 static constexpr CheckerPair CHECKER_PAIRS[] = {
-    { {0.16f,0.15f,0.17f}, {0.88f,0.86f,0.82f}, 0.05f, 0.30f },  // obsidian / bone
-    { {0.30f,0.12f,0.18f}, {0.92f,0.78f,0.80f}, 0.06f, 0.20f },  // wine / rose
-    { {0.14f,0.16f,0.34f}, {0.87f,0.76f,0.58f}, 0.06f, 0.20f },  // indigo / sand
-    { {0.10f,0.24f,0.16f}, {0.78f,0.90f,0.80f}, 0.07f, 0.15f },  // forest / mint
-    { {0.38f,0.18f,0.10f}, {0.90f,0.85f,0.74f}, 0.06f, 0.10f },  // rust / cream
-    { {0.13f,0.13f,0.13f}, {0.92f,0.80f,0.45f}, 0.05f, 0.05f },  // charcoal / gold (rare)
+    { {0.16f,0.15f,0.17f}, {0.88f,0.86f,0.82f}, 0.05f, 0.05f, 0.30f },  // obsidian / bone   — strict
+    { {0.30f,0.12f,0.18f}, {0.92f,0.78f,0.80f}, 0.06f, 0.20f, 0.20f },  // wine / rose       — calm
+    { {0.14f,0.16f,0.34f}, {0.87f,0.76f,0.58f}, 0.06f, 0.30f, 0.20f },  // indigo / sand     — lively
+    { {0.10f,0.24f,0.16f}, {0.78f,0.90f,0.80f}, 0.07f, 0.55f, 0.15f },  // forest / mint     — wild
+    { {0.38f,0.18f,0.10f}, {0.90f,0.85f,0.74f}, 0.06f, 0.35f, 0.10f },  // rust / cream      — lively
+    { {0.13f,0.13f,0.13f}, {0.92f,0.80f,0.45f}, 0.05f, 0.75f, 0.05f },  // charcoal / gold   — rare riot
 };
 static constexpr uint32_t CHECKER_PAIR_COUNT =
     sizeof(CHECKER_PAIRS) / sizeof(CHECKER_PAIRS[0]);
 static constexpr float CHECKER_PAIR_JITTER = 0.03f;  // shared per-ribbon median offset
-
-// Hue-spread index: per-ribbon amplitude of per-cell hue rotation.
-// draw h in [0,1) → spread = MAX * h * h (the square biases the
-// population low: most CONTRAST ribbons stay near the two-tone look,
-// the tail goes colorful; raise the exponent for rarer confetti).
-// MAX = pi ⇒ a full-spread ribbon reaches any hue. Control-panel.
-static constexpr float CHECKER_HUE_SPREAD_MAX = 3.14159265f;
+static constexpr float CHECKER_HUE_SIBLING_JITTER = 0.10f;  // per-ribbon ± around the pair's hue_var
 
 
 // ═══ PROPERTY INDEX REGISTRY ═════════════════════════════════════
@@ -223,7 +220,7 @@ static constexpr float CHECKER_HUE_SPREAD_MAX = 3.14159265f;
 //   410-419  cube-count / size / height       (10-row reserve)
 //   420-429  lateral wave  (amp, cycles, speed; rest reserved)
 //   430-439  vertical wave (amp; rest reserved)
-//   440-449  checker skin  (pair roll, median jitter, hue-spread; rest reserved)
+//   440-449  checker skin  (pair roll, median jitter, hue sibling-jitter; rest reserved)
 //   450-459  wander        (roll, cruise, rng seed; rest reserved)
 //   The per-axis stride of 10 leaves room for future per-axis
 //   params without renumbering downstream. Same self-documentation
@@ -251,7 +248,7 @@ struct RibbonProp {
     static constexpr uint32_t CHECKER_JIT_R     = 441u;   // shared median jitter
     static constexpr uint32_t CHECKER_JIT_G     = 442u;
     static constexpr uint32_t CHECKER_JIT_B     = 443u;
-    static constexpr uint32_t CHECKER_HUE_SPREAD = 444u;  // unchanged
+    static constexpr uint32_t CHECKER_HUE_JITTER_ROLL = 444u;  // sibling ± around the pair's hue_var
     static constexpr uint32_t WANDER_ROLL = 450u;       // wander yes/no
     static constexpr uint32_t WANDER_CRUISE = 451u;     // gaussian draw: cruise fraction of RIBBON_MAX_SPEED
     static constexpr uint32_t WANDER_RNG = 452u;        // seeds the runtime waypoint stream
@@ -1007,10 +1004,15 @@ static void fill_ribbon_selection_geometry(
         sel.color[0]   = pr.dark[0]  + jr;  sel.color_b[0] = pr.light[0] + jr;
         sel.color[1]   = pr.dark[1]  + jg;  sel.color_b[1] = pr.light[1] + jg;
         sel.color[2]   = pr.dark[2]  + jb;  sel.color_b[2] = pr.light[2] + jb;
-        sel.checker_scatter = pr.variance;
+        sel.checker_scatter = pr.value_var;
         {
-            const float h = cpu_hash_f(seed, RibbonProp::CHECKER_HUE_SPREAD);
-            sel.checker_hue_spread = CHECKER_HUE_SPREAD_MAX * h * h;
+            // hue_spread (radians, [0, pi]) = the pair's authored hue_var,
+            // sibling-jittered per ribbon, scaled onto the shader's axis.
+            const float sib = (cpu_hash_f(seed, RibbonProp::CHECKER_HUE_JITTER_ROLL) - 0.5f)
+                            * 2.0f * CHECKER_HUE_SIBLING_JITTER;
+            float hv = pr.hue_var + sib;
+            hv = (hv < 0.0f) ? 0.0f : (hv > 1.0f) ? 1.0f : hv;
+            sel.checker_hue_spread = hv * 3.14159265f;
         }
     }
 
