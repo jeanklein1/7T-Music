@@ -843,7 +843,7 @@ struct RibbonState {
     _pad2: f32,
     _pad3: f32,
     color_b: vec3<f32>,     // second checker median (CONTRAST)
-    _pad_cb0: f32,
+    hue_spread: f32,        // radians — per-cell hue rotation amplitude (CONTRAST skin; 0 = CB-1 look)
 }
 
 // Pre-computed per-ring transform (compute pass → VS + pawn overlay)
@@ -4331,6 +4331,15 @@ fn compute_ribbon_rings(@builtin(global_invocation_id) gid: vec3<u32>) {
 
 // --- Ribbon Vertex Shader: Square Tube
 @vertex
+// Branchless hue rotation about the RGB gray axis (Rodrigues form).
+// Identity at a = 0 by construction — the CB-1b hue-spread dial rests
+// there for SMOOTH/TINTED and low-draw CONTRAST ribbons.
+fn hue_rotate(c: vec3<f32>, a: f32) -> vec3<f32> {
+    let k = vec3<f32>(0.577350269);
+    let ca = cos(a); let sa = sin(a);
+    return c * ca + cross(k, c) * sa + k * dot(k, c) * (1.0 - ca);
+}
+
 fn ribbon_vs(@builtin(vertex_index) vid: u32) -> EntityVarying {
     let ribbon = render_ribbon;
     let ring_count = ribbon.cube_count;   // number of cross-section rings
@@ -4450,7 +4459,13 @@ fn ribbon_vs(@builtin(vertex_index) vid: u32) -> EntityVarying {
                             hash_property(cell_key, 1u),
                             hash_property(cell_key, 2u)) - vec3(0.5))
                       * ribbon.checker_scatter;
-    let checker = clamp(mix(ribbon.color, ribbon.color_b, cell_parity) + cell_jitter,
+    // CB-1b hue-spread: rotate the cell's median around the color wheel
+    // by its own seeded amount before the scatter. Distinct salt so the
+    // hue draw decorrelates from the RGB scatter; identity at spread 0.
+    let hue_h = hash_property(cell_key ^ 0x9E3779B9u, 0u) - 0.5;
+    let cell_median = hue_rotate(mix(ribbon.color, ribbon.color_b, cell_parity),
+                                 hue_h * 2.0 * ribbon.hue_spread);
+    let checker = clamp(cell_median + cell_jitter,
                         vec3(0.0), vec3(1.0));
     out.entity_color = select(ribbon.color, checker,
         ribbon.color_mode == 2u && vid < body_verts);

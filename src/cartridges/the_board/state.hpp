@@ -704,7 +704,7 @@ namespace t7 {
             float _pad2;                                                        // 88
             float _pad3;                                                        // 92
             float color_b[3];                                                   // 96 — second checker median (CONTRAST)
-            float _pad_cb0;                                                     // 108
+            float hue_spread;                                                   // 108 — radians; per-cell hue rotation amplitude (CONTRAST skin; 0 = CB-1 look)
         };                                                                      // 112 total (mirrors world.wgsl RibbonState)
 
         // Pre-computed per-ring transform (compute pass output, VS + update_world input)
@@ -1413,6 +1413,7 @@ namespace t7 {
         static_assert(offsetof(GPURibbonState, checker_scatter) == 28, "checker_scatter must sit at twist_amp's retired slot (28)");
         static_assert(offsetof(GPURibbonState, seed) == 60, "seed must sit at twist_freq's retired slot (60)");
         static_assert(offsetof(GPURibbonState, color_b) == 96, "color_b must sit 16-aligned at the old struct end (96)");
+        static_assert(offsetof(GPURibbonState, hue_spread) == 108, "hue_spread must sit at CB-1's retired tail pad (108)");
         static_assert(sizeof(GPUVPMatrix) == 128, "GPUVPMatrix must be 128 bytes");
         static_assert(sizeof(GPUDirectionalLight) == 48, "GPUDirectionalLight must be 48 bytes");
         static_assert(sizeof(GPUPointLight) == 32, "GPUPointLight must be 32 bytes");

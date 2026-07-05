@@ -640,6 +640,7 @@ void apply_mood_anchor_ribbon(uint32_t mood, wgpu::Queue& queue) {
     std::memcpy(plan.color, sel.color, sizeof(plan.color));
     std::memcpy(plan.color_b, sel.color_b, sizeof(plan.color_b));
     plan.checker_scatter = sel.checker_scatter;
+    plan.checker_hue_spread = sel.checker_hue_spread;
 
     // Commit through the standard path
     commit_ribbon(ribbon_state_, this, plan, 0, 0, queue);

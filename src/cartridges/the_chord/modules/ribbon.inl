@@ -194,6 +194,13 @@ static constexpr float CONTRAST_B_RANGE[3] = { 0.10f, 0.10f, 0.12f };
 static constexpr float CHECKER_SCATTER_MIN = 0.03f;
 static constexpr float CHECKER_SCATTER_MAX = 0.10f;
 
+// Hue-spread index: per-ribbon amplitude of per-cell hue rotation.
+// draw h in [0,1) → spread = MAX * h * h (the square biases the
+// population low: most CONTRAST ribbons stay near the two-tone look,
+// the tail goes colorful; raise the exponent for rarer confetti).
+// MAX = pi ⇒ a full-spread ribbon reaches any hue. Control-panel.
+static constexpr float CHECKER_HUE_SPREAD_MAX = 3.14159265f;
+
 
 // ═══ PROPERTY INDEX REGISTRY ═════════════════════════════════════
 //
@@ -203,7 +210,7 @@ static constexpr float CHECKER_SCATTER_MAX = 0.10f;
 //   410-419  cube-count / size / height       (10-row reserve)
 //   420-429  lateral wave  (amp, cycles, speed; rest reserved)
 //   430-439  vertical wave (amp; rest reserved)
-//   440-449  checker skin  (median-B r/g/b, scatter; rest reserved)
+//   440-449  checker skin  (median-B r/g/b, scatter, hue-spread; rest reserved)
 //   450-459  wander        (roll, cruise, rng seed; rest reserved)
 //   The per-axis stride of 10 leaves room for future per-axis
 //   params without renumbering downstream. Same self-documentation
@@ -231,6 +238,7 @@ struct RibbonProp {
     static constexpr uint32_t CHECKER_B_G = 441u;
     static constexpr uint32_t CHECKER_B_B = 442u;
     static constexpr uint32_t CHECKER_SCATTER = 443u;
+    static constexpr uint32_t CHECKER_HUE_SPREAD = 444u;
     static constexpr uint32_t WANDER_ROLL = 450u;       // wander yes/no
     static constexpr uint32_t WANDER_CRUISE = 451u;     // gaussian draw: cruise fraction of RIBBON_MAX_SPEED
     static constexpr uint32_t WANDER_RNG = 452u;        // seeds the runtime waypoint stream
@@ -978,6 +986,10 @@ static void fill_ribbon_selection_geometry(
         sel.checker_scatter = CHECKER_SCATTER_MIN
             + (CHECKER_SCATTER_MAX - CHECKER_SCATTER_MIN)
               * cpu_hash_f(seed, RibbonProp::CHECKER_SCATTER);
+        {
+            const float h = cpu_hash_f(seed, RibbonProp::CHECKER_HUE_SPREAD);
+            sel.checker_hue_spread = CHECKER_HUE_SPREAD_MAX * h * h;
+        }
     }
 
     sel.footprint_r = FOOTPRINT_RADIUS;
@@ -1078,6 +1090,7 @@ static bool place_ribbon_from_selection(Cartridge* c,
     std::memcpy(plan.color, sel.color, sizeof(plan.color));
     std::memcpy(plan.color_b, sel.color_b, sizeof(plan.color_b));
     plan.checker_scatter = sel.checker_scatter;
+    plan.checker_hue_spread = sel.checker_hue_spread;
 
     c->record_placement_bookkeeping(PopFamily::RIBBON, plan.tier_idx);
     return true;
@@ -1126,6 +1139,7 @@ static void commit_ribbon(RibbonState& rs, Cartridge* c,
     r.color_b[1] = plan.color_b[1];
     r.color_b[2] = plan.color_b[2];
     r.checker_scatter = plan.checker_scatter;
+    r.hue_spread = plan.checker_hue_spread;
     r.seed = plan.seed;
     r.is_visible = 1u;
     r.is_roaming = 1u;   // head-roaming on (player-flown or wandering; parked when neither)
