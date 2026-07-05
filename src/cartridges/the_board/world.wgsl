@@ -820,19 +820,20 @@ struct FloatingEntityArray {
 }
 
 // --- [STATE:ribbon] RibbonState
+// Mirrors GPURibbonState in state.hpp BYTE-FOR-BYTE (112 B / 16-aligned).
 struct RibbonState {
     anchor: vec3<f32>,      // world-space center of the ribbon
     time: f32,              // animation time (seconds) — drives the head's oscillation
     cube_count: u32,        // number of cross-section rings along the tube
     cube_size: f32,         // cross-section side length (ring spacing = cube_size)
     height: f32,            // base height above terrain
-    twist_amp: f32,         // unused — layout ballast until the displacement-history relayout
+    checker_scatter: f32,   // per-cell color jitter amplitude (CONTRAST skin)
     color: vec3<f32>,       // ribbon color
     lateral_amp: f32,       // lateral wave amplitude (XZ plane sway)
     lateral_freq: f32,      // lateral head oscillation rate (rad/s)
     vertical_amp: f32,      // vertical wave amplitude (world Y)
     vertical_freq: f32,     // vertical head oscillation rate (rad/s)
-    twist_freq: f32,        // unused — layout ballast until the displacement-history relayout
+    seed: u32,              // spawn seed (GPU-side per-ribbon hash key)
     propagation_speed: f32, // head→tail trail rate (world units/s)
     is_visible: u32,        // 0 = hidden, 1 = flying
     orientation: f32,       // heading angle (radians, 0 = +X axis)
@@ -841,6 +842,8 @@ struct RibbonState {
     _pad1: f32,
     _pad2: f32,
     _pad3: f32,
+    color_b: vec3<f32>,     // second checker median (CONTRAST)
+    _pad_cb0: f32,
 }
 
 // Pre-computed per-ring transform (compute pass → VS + pawn overlay)
@@ -4431,7 +4434,26 @@ fn ribbon_vs(@builtin(vertex_index) vid: u32) -> EntityVarying {
     out.clip_pos = render_vp.m * vec4(world_pos, 1.0);
     out.world_pos = world_pos;
     out.normal = world_normal;
-    out.entity_color = ribbon.color;
+
+    // CONTRAST checker skin (CB-1): per-cell parity between the two
+    // authored medians plus a seeded per-cell scatter. A cell is one
+    // segment × face quad — cell_seg/cell_face restate the SAME vid
+    // decomposition the body path uses, so all six vertices of a quad
+    // agree and the cells sit flat. Caps are outside the cell grid by
+    // declaration and keep median A. Branchless: SMOOTH/TINTED fall
+    // through the select to ribbon.color.
+    let cell_seg = vid / TUBE_VERTS_PER_SEGMENT;
+    let cell_face = (vid % TUBE_VERTS_PER_SEGMENT) / 6u;
+    let cell_parity = f32((cell_seg + cell_face) & 1u);
+    let cell_key = (cell_seg * 4u + cell_face) ^ ribbon.seed;
+    let cell_jitter = (vec3(hash_property(cell_key, 0u),
+                            hash_property(cell_key, 1u),
+                            hash_property(cell_key, 2u)) - vec3(0.5))
+                      * ribbon.checker_scatter;
+    let checker = clamp(mix(ribbon.color, ribbon.color_b, cell_parity) + cell_jitter,
+                        vec3(0.0), vec3(1.0));
+    out.entity_color = select(ribbon.color, checker,
+        ribbon.color_mode == 2u && vid < body_verts);
     return out;
 }
 

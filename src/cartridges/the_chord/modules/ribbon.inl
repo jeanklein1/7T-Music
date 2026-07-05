@@ -150,7 +150,7 @@ static constexpr float WANDER_ARRIVE_RADIUS = 120.0f; // u; arrival = retarget �
 struct RibbonColorMode {
     static constexpr uint32_t SMOOTH = 0;  // terrain-derived monochrome
     static constexpr uint32_t TINTED = 1;  // warm/cool hue shift
-    static constexpr uint32_t CONTRAST = 2;  // high-contrast alternating segments
+    static constexpr uint32_t CONTRAST = 2;  // checkered skin: per-cell parity between two medians + seeded scatter
     static constexpr uint32_t COUNT = 3;
     static constexpr float WEIGHTS[COUNT] = { 0.40f, 0.35f, 0.25f };
 };
@@ -185,6 +185,15 @@ static constexpr float TINTED_BASE[3]  = { 0.40f, 0.35f, 0.35f };
 static constexpr float CONTRAST_BASE[3]  = { 0.20f, 0.18f, 0.22f };
 static constexpr float CONTRAST_RANGE[3] = { 0.35f, 0.30f, 0.25f };
 
+// CONTRAST second median (the checker's other square) + per-cell scatter.
+// Median A above draws dark-saturated; B draws light-neutral, so the
+// parity reads at distance. Scatter is the per-cell jitter amplitude,
+// hash-lerped between MIN and MAX per ribbon. All control-panel.
+static constexpr float CONTRAST_B_BASE[3]  = { 0.85f, 0.82f, 0.78f };
+static constexpr float CONTRAST_B_RANGE[3] = { 0.10f, 0.10f, 0.12f };
+static constexpr float CHECKER_SCATTER_MIN = 0.03f;
+static constexpr float CHECKER_SCATTER_MAX = 0.10f;
+
 
 // ═══ PROPERTY INDEX REGISTRY ═════════════════════════════════════
 //
@@ -194,7 +203,7 @@ static constexpr float CONTRAST_RANGE[3] = { 0.35f, 0.30f, 0.25f };
 //   410-419  cube-count / size / height       (10-row reserve)
 //   420-429  lateral wave  (amp, cycles, speed; rest reserved)
 //   430-439  vertical wave (amp; rest reserved)
-//   440-449  (freed — twist removed with the analytic stationary spine)
+//   440-449  checker skin  (median-B r/g/b, scatter; rest reserved)
 //   450-459  wander        (roll, cruise, rng seed; rest reserved)
 //   The per-axis stride of 10 leaves room for future per-axis
 //   params without renumbering downstream. Same self-documentation
@@ -218,6 +227,10 @@ struct RibbonProp {
     static constexpr uint32_t LATERAL_AMP = 420u;
     static constexpr uint32_t LATERAL_CYCLES = 421u;
     static constexpr uint32_t VERTICAL_AMP = 430u;
+    static constexpr uint32_t CHECKER_B_R = 440u;
+    static constexpr uint32_t CHECKER_B_G = 441u;
+    static constexpr uint32_t CHECKER_B_B = 442u;
+    static constexpr uint32_t CHECKER_SCATTER = 443u;
     static constexpr uint32_t WANDER_ROLL = 450u;       // wander yes/no
     static constexpr uint32_t WANDER_CRUISE = 451u;     // gaussian draw: cruise fraction of RIBBON_MAX_SPEED
     static constexpr uint32_t WANDER_RNG = 452u;        // seeds the runtime waypoint stream
@@ -959,6 +972,12 @@ static void fill_ribbon_selection_geometry(
         sel.color[0] = CONTRAST_BASE[0] + hue * CONTRAST_RANGE[0];
         sel.color[1] = CONTRAST_BASE[1] + (1.0f - hue) * CONTRAST_RANGE[1];
         sel.color[2] = CONTRAST_BASE[2] + cpu_hash_f(seed, RibbonProp::COLOR_B) * CONTRAST_RANGE[2];
+        sel.color_b[0] = CONTRAST_B_BASE[0] + cpu_hash_f(seed, RibbonProp::CHECKER_B_R) * CONTRAST_B_RANGE[0];
+        sel.color_b[1] = CONTRAST_B_BASE[1] + cpu_hash_f(seed, RibbonProp::CHECKER_B_G) * CONTRAST_B_RANGE[1];
+        sel.color_b[2] = CONTRAST_B_BASE[2] + cpu_hash_f(seed, RibbonProp::CHECKER_B_B) * CONTRAST_B_RANGE[2];
+        sel.checker_scatter = CHECKER_SCATTER_MIN
+            + (CHECKER_SCATTER_MAX - CHECKER_SCATTER_MIN)
+              * cpu_hash_f(seed, RibbonProp::CHECKER_SCATTER);
     }
 
     sel.footprint_r = FOOTPRINT_RADIUS;
@@ -1057,6 +1076,8 @@ static bool place_ribbon_from_selection(Cartridge* c,
     plan.vertical_amp = sel.vertical_amp;
     plan.color_mode = sel.color_mode;
     std::memcpy(plan.color, sel.color, sizeof(plan.color));
+    std::memcpy(plan.color_b, sel.color_b, sizeof(plan.color_b));
+    plan.checker_scatter = sel.checker_scatter;
 
     c->record_placement_bookkeeping(PopFamily::RIBBON, plan.tier_idx);
     return true;
@@ -1101,6 +1122,11 @@ static void commit_ribbon(RibbonState& rs, Cartridge* c,
     r.color[0] = plan.color[0];
     r.color[1] = plan.color[1];
     r.color[2] = plan.color[2];
+    r.color_b[0] = plan.color_b[0];
+    r.color_b[1] = plan.color_b[1];
+    r.color_b[2] = plan.color_b[2];
+    r.checker_scatter = plan.checker_scatter;
+    r.seed = plan.seed;
     r.is_visible = 1u;
     r.is_roaming = 1u;   // head-roaming on (player-flown or wandering; parked when neither)
 

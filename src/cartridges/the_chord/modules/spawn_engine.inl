@@ -977,6 +977,8 @@ struct RibbonSelection {
     // Color
     uint32_t color_mode;
     float color[3];
+    float color_b[3];        // CONTRAST second median
+    float checker_scatter = 0.0f;
     // Footprint
     float footprint_r;
 };
@@ -994,6 +996,8 @@ struct RibbonPlacement {
     float vertical_amp;
     uint32_t color_mode;
     float color[3];
+    float color_b[3];        // CONTRAST second median
+    float checker_scatter = 0.0f;
     uint32_t seed = 0u;   // spawn seed, carried so commit samples its channels
 };
 

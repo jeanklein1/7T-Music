@@ -687,13 +687,13 @@ namespace t7 {
             uint32_t cube_count;                                                // 16
             float cube_size;                                                    // 20
             float height;                                                       // 24
-            float twist_amp;                                                    // 28 (unused — layout ballast until the displacement-history relayout)
+            float checker_scatter;                                              // 28 — per-cell color jitter amplitude (CONTRAST skin)
             float color[3];                                                     // 32
             float lateral_amp;                                                  // 44
             float lateral_freq;                                                 // 48 (rad/s, head oscillation rate)
             float vertical_amp;                                                 // 52
             float vertical_freq;                                                // 56
-            float twist_freq;                                                   // 60 (unused — layout ballast until the displacement-history relayout)
+            uint32_t seed;                                                      // 60 — spawn seed (GPU-side per-ribbon hash key)
             float propagation_speed;                                            // 64 (world units/s; head→tail trail rate)
             uint32_t is_visible;                                                // 68
             float orientation;                                                  // 72 (heading radians)
@@ -702,7 +702,9 @@ namespace t7 {
             float _pad1;                                                        // 84
             float _pad2;                                                        // 88
             float _pad3;                                                        // 92
-        };                                                                      // 96 total (size enforced by static_assert below; mirrors world.wgsl RibbonState)
+            float color_b[3];                                                   // 96 — second checker median (CONTRAST)
+            float _pad_cb0;                                                     // 108
+        };                                                                      // 112 total (size enforced by static_assert below; mirrors world.wgsl RibbonState)
 
         // Pre-computed per-ring transform (compute pass output, VS + update_world input)
         struct alignas(16) GPURibbonRingTransform {
@@ -1406,7 +1408,10 @@ namespace t7 {
         static_assert(sizeof(GPUAgentTierDef) % 16 == 0, "GPUAgentTierDef must be 16-byte aligned");
         static_assert(sizeof(GPUCameraState) == 48, "GPUCameraState must be 48 bytes");
         static_assert(sizeof(GPUFloatingEntityState) == 208, "GPUFloatingEntityState must be 208 bytes");
-        static_assert(sizeof(GPURibbonState) == 96, "GPURibbonState must be 96 bytes");
+        static_assert(sizeof(GPURibbonState) == 112, "GPURibbonState must be 112 bytes");
+        static_assert(offsetof(GPURibbonState, checker_scatter) == 28, "checker_scatter must sit at twist_amp's retired slot (28)");
+        static_assert(offsetof(GPURibbonState, seed) == 60, "seed must sit at twist_freq's retired slot (60)");
+        static_assert(offsetof(GPURibbonState, color_b) == 96, "color_b must sit 16-aligned at the old struct end (96)");
         static_assert(sizeof(GPUVPMatrix) == 128, "GPUVPMatrix must be 128 bytes");
         static_assert(sizeof(GPUDirectionalLight) == 48, "GPUDirectionalLight must be 48 bytes");
         static_assert(sizeof(GPUPointLight) == 32, "GPUPointLight must be 32 bytes");
