@@ -157,6 +157,13 @@ namespace t7 {
                 float beats   = 0.0f;
                 float seconds = 0.0f;
                 float dt      = 0.016f;
+                // Musical tempo follower: beats per second, HELD-LAST. Updates
+                // whenever the beat clock advances; holds through silence and
+                // stopped transport; defaults to 100 BPM before any tempo
+                // settles (100 BPM is also the calibration anchor at which the
+                // authored idle motion matches the old wall-clock feel exactly).
+                float beat_rate   = 100.0f / 60.0f;
+                float prev_beats  = 0.0f;
             };
             TimeState time_state_;
 
@@ -3178,6 +3185,12 @@ namespace t7 {
                 time_state_.beats = signal.t_beats;
                 time_state_.seconds = signal.t_seconds;
                 time_state_.dt = signal.dt;
+                {
+                    const float db = signal.t_beats - time_state_.prev_beats;
+                    if (db > 1e-6f && time_state_.dt > 1e-6f)
+                        time_state_.beat_rate = db / time_state_.dt;
+                    time_state_.prev_beats = signal.t_beats;
+                }
 
                 // --- Couplings: tick the visual canvas, then flush its pipes ---------
                 // The canvas reads the analysis signal by name and writes the

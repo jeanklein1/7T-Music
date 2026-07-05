@@ -125,6 +125,7 @@ static constexpr float RIBBON_ALT_SMOOTH_DIST = 180.0f; // units of travel over 
 static constexpr float RIBBON_ALT_STIFF      = 0.36f;   // (rad/s)^2 — the pen's stiffness; damping = 2*sqrt(stiffness), critically damped
 static constexpr float RIBBON_MOUNT_SETBACK  = 1.5f;    // pawn seat setback toward the tail (+heading) so the body sits over the tube, not the leading cap
 static constexpr float RIBBON_SKY_YAW_TAU    = 0.6f;    // s; first-order ease on the PLAYER's yaw hand — the body replays the heading history, so bang-bang arrows must become curves; short tau keeps it immediate
+static constexpr float RIBBON_REFERENCE_BPM  = 100.0f;  // the tempo at which the tiers' authored sway is DEFINED; phase advances at live-tempo/this (control-panel)
 
 // ── Wander policy ─────────────────────────────────────────────────
 // The steering channel's IDLE SCRIPT — the shape of autonomous drift.
@@ -431,6 +432,7 @@ struct ActiveRibbon {
     uint32_t ref_count = 0;     // patches referencing this ribbon via record_entity
     bool active = false;
     float spawn_color[3] = { 0.0f, 0.0f, 0.0f };   // idle target for musical color couplings
+    float phase = 0.0f;   // sway phase clock — integrates at the tempo follower's rate (100 BPM ⇒ wall seconds exactly)
 
     // ── Wander (autonomous drift) ── rolled at commit; a wanderer authors the
     // same yaw/throttle inputs the player does, through the same steering
@@ -820,10 +822,18 @@ static void ribbon_frame_tick(RibbonState& rs, Cartridge* c, wgpu::Queue& queue)
     // Ribbon eviction is fully event-driven via ref_count in
     // evict_patch_entities — no per-frame scan needed.
 
-    // Update time on all CPU mirrors
+    // Phase clock on all CPU mirrors — MUSICAL TIME: the
+    // sway integrates at the tempo follower's rate, scaled
+    // so 100 BPM reproduces wall seconds exactly (the
+    // calibration anchor). Held-last: transport stops, the
+    // world keeps the pulse.
+    const float phase_rate = c->time_state_.beat_rate
+                           * (60.0f / RIBBON_REFERENCE_BPM);
     for (uint32_t i = 0; i < MAX_RIBBON_INSTANCES; i++) {
-        if (rs.active[i].active)
-            rs.gpu[i].time = c->time_state_.seconds;
+        auto& par = rs.active[i];
+        if (!par.active) continue;
+        par.phase += phase_rate * c->time_state_.dt;
+        rs.gpu[i].time = par.phase;
     }
 
     // Sky mode just ended — release the pinned (now anchor-less)
@@ -884,7 +894,8 @@ static void ribbon_frame_tick(RibbonState& rs, Cartridge* c, wgpu::Queue& queue)
         // stays — it is the seam the gen-2 color coupling (color_stim ×
         // color_mix over spawn; see coupling_layer_migration_map.md) will
         // write through.
-        c->gpuState_.upload_ribbon_time(queue, c->time_state_.seconds);
+        c->gpuState_.upload_ribbon_time(queue,
+            rs.gpu[rs.rendered_slot].time);
         c->gpuState_.upload_ribbon_color(queue,
             rs.gpu[rs.rendered_slot].color);
         // The head mover must run EVERY frame for the held ribbon,
@@ -1269,6 +1280,7 @@ static void commit_ribbon(RibbonState& rs, Cartridge* c,
     ar.spawn_color[0] = r.color[0];
     ar.spawn_color[1] = r.color[1];
     ar.spawn_color[2] = r.color[2];
+    ar.phase = r.time;    // seed = wall clock, so the 100 BPM anchor reproduces the old clock exactly
     ar.patch_gx = trigger_gx;
     ar.patch_gz = trigger_gz;
     ar.host_gx = plan.host_gx;
