@@ -23,7 +23,6 @@
 // │    input.inl    — toggles aura_enabled, aura_height_enabled;     │
 // │                   marks aura_cfg_dirty                           │
 // │    mood.inl     — clears aura_enabled when mood disallows aura   │
-// │    musical.inl  — marks aura_cfg_dirty when coupling changes     │
 // │                                                                  │
 // │  Cross-module readers (read pawn_state_ from outside):           │
 // │    cartridge.hpp — aura compute dispatch reads all fields per    │
@@ -33,9 +32,7 @@
 // └──────────────────────────────────────────────────────────────────┘
 //
 // Included inside the Cartridge class body.
-// Depends on: musical/trajectory.hpp (release primitive), musical.inl
-//             (player_.mmode_intensities[MMODE_AURA_EXPAND] for the expand
-//             coupling).
+// Depends on: musical/trajectory.hpp (release primitive).
 // ─────────────────────────────────────────────────────────────────
 
 
@@ -52,12 +49,6 @@
 // deliberate (~3s), disable feels release-y (~2s).
 static constexpr float AURA_PRESENCE_ATTACK  = 1.0f;   // 1/s — ~3s to full (spring converges in ~0.5s)
 static constexpr float AURA_PRESENCE_RELEASE = 1.5f;   // 1/s — ~2s to zero
-
-// ── Musical coupling ─────────────────────────────────────────────
-// Aura height is gained by player_.mmode_intensities[MMODE_AURA_EXPAND].
-// At zero musical intensity, height = base × presence.
-// At full intensity,         height = base × presence × (1 + GAIN).
-static constexpr float AURA_EXPAND_GAIN = 3.0f;        // 4× baseline at full music
 
 
 struct PawnAuraDeltaMode {
@@ -141,10 +132,7 @@ PawnState pawn_state_;
 //
 // DONE[pawn:K1] aura presence ramp + height computation moved out of
 //   cartridge.hpp::update() into this single named tick. The presence
-//   value uses trajectory_release (mirroring WGSL §1.2). The height
-//   computation reads player_.mmode_intensities[MMODE_AURA_EXPAND] from
-//   musical.inl — kept the cross-module read explicit since the
-//   coupling is genuinely musical→aura, not pawn-internal.
+//   value uses trajectory_release (mirroring WGSL §1.2).
 //
 // Caller: cartridge.hpp::update() — runs once per frame after the
 // signal is built and before world bounds are uploaded.
@@ -165,12 +153,10 @@ static void tick_pawn_couplings(PawnState& ps, Cartridge* c, wgpu::Queue& queue)
         if (c->player_.aura_presence != prev) ps.aura_cfg_dirty = true;
     }
 
-    // Pawn aura height: presence × base height × musical-expand multiplier.
-    // Same value is consumed by terrain VS for extrusion, so pawn and
-    // terrain always agree.
-    const float aura_expand_mult = 1.0f + c->player_.mmode_intensities[MMODE_AURA_EXPAND] * AURA_EXPAND_GAIN;
+    // Pawn aura height: presence × base height. Same value is consumed
+    // by terrain VS for extrusion, so pawn and terrain always agree.
     const float effective_aura_height = ps.aura_height_enabled
-        ? ps.active_aura_profile.height_scale * c->player_.aura_presence * aura_expand_mult
+        ? ps.active_aura_profile.height_scale * c->player_.aura_presence
         : 0.0f;
     c->gpuState_.set_pawn_aura_height(effective_aura_height);
     // Keep compute running while ramping down (so the trail decays cleanly).

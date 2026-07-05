@@ -30,7 +30,7 @@
 // remappable input vocabularies — not by these specific keys.
 //
 // What's durable: the *functions* in the registry below
-//   (try_possess_nearest, toggle_mmode, cycle_orb_palette, ...).
+//   (try_possess_nearest, cycle_orb_palette, ...).
 //   Other modules' Public surfaces document those functions as their
 //   permanent entry points.
 //
@@ -47,7 +47,7 @@
 // ──────────────────────────────────────────────────────────────────
 //
 // Included inside the Cartridge class body (private section).
-// Depends on: musical.inl (toggle_mmode, MMODE_*), pawn.inl
+// Depends on: pawn.inl
 //             (pawn_state_.aura_enabled, pawn_state_.aura_height_enabled, pawn_state_.aura_cfg_dirty),
 //             mood.inl (request_mood_transition, MOOD_*),
 //             agents.inl (try_possess_nearest, cycle_agent_*,
@@ -84,14 +84,7 @@
 //   [              set_render_radius(-1)        — smaller patch ring
 //   ]              set_render_radius(+1)        — larger patch ring
 //
-// ── Musical modes (numpad) ───────────────────────────────────────
-//   KP_1           toggle_mmode(MMODE_TERRAIN_WAVES)
-//   KP_2           toggle_mmode(MMODE_COLOR_SHIFT)
-//   KP_3           toggle_mmode(MMODE_CHECKER_SCATTER)
-//   KP_4           toggle_mmode(MMODE_PALETTE_DRIFT)
-//   KP_5           toggle_mmode(MMODE_GOL_TEMPO)
-//   KP_6           toggle_mmode(MMODE_AURA_EXPAND)
-//   KP_7           toggle_mmode(MMODE_RADIAL_PULSE)
+// ── Orb utilities (numpad) ───────────────────────────────────────
 //   KP_8           cycle_orb_motion_rule()      — next orb motion rule
 //   KP_9           toggle_orb_anchor()          — orb anchor on/off
 //   KP_DECIMAL     cycle_orb_gesture()          — next gesture per rule
@@ -234,14 +227,7 @@ void on_key_down(int key) {
     case GLFW_KEY_LEFT_BRACKET:   set_render_radius(world_state_.active_radius - 1); break;
     case GLFW_KEY_RIGHT_BRACKET:  set_render_radius(world_state_.active_radius + 1); break;
 
-    // ── Musical modes (numpad) ───────────────────────────────────
-    case GLFW_KEY_KP_1:       toggle_mmode(musical_state_, this, MMODE_TERRAIN_WAVES);   break;
-    case GLFW_KEY_KP_2:       toggle_mmode(musical_state_, this, MMODE_COLOR_SHIFT);     break;
-    case GLFW_KEY_KP_3:       toggle_mmode(musical_state_, this, MMODE_CHECKER_SCATTER); break;
-    case GLFW_KEY_KP_4:       toggle_mmode(musical_state_, this, MMODE_PALETTE_DRIFT);   break;
-    case GLFW_KEY_KP_5:       toggle_mmode(musical_state_, this, MMODE_GOL_TEMPO);       break;
-    case GLFW_KEY_KP_6:       toggle_mmode(musical_state_, this, MMODE_AURA_EXPAND);     break;
-    case GLFW_KEY_KP_7:       toggle_mmode(musical_state_, this, MMODE_RADIAL_PULSE);    break;
+    // ── Orb utilities (numpad) ───────────────────────────────────
     case GLFW_KEY_KP_8:       cycle_orb_motion_rule(orbs_state_, this, q);            break;
     case GLFW_KEY_KP_9:       toggle_orb_anchor(orbs_state_, this);                 break;
     case GLFW_KEY_KP_DECIMAL: cycle_orb_gesture(orbs_state_, this, q);                break;

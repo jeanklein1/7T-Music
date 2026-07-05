@@ -27,7 +27,7 @@
 // │                                                                  │
 // │  Cross-module reads (consumed by other modules):                 │
 // │    mood_state_.active                          — read everywhere        │
-// │    musical_state_.mood_allows_modes, gol_state_.mood_allowed                  │
+// │    gol_state_.mood_allowed                                        │
 // │    mood_state_.back_portal_pending, backPortalPosition_                       │
 // │    mood_state_.spot_light_active, entities_state_.lights_dirty, mood_state_.portals_dirty                 │
 // │                                                                  │
@@ -35,8 +35,6 @@
 //
 // Included inside the Cartridge class body.
 // Depends on: entities.inl (ARCH_TIERS, ArchIdx, ArchTier),
-//             musical.inl (reset_musical_couplings, is_mmode_on,
-//             MMODE_TERRAIN_WAVES, band motion state, mmode_intensity),
 //             ribbon.inl (RibbonProp, RIBBON_BASE_TIER_WEIGHTS,
 //             RIBBON_TIER_COUNT, fill_ribbon_selection_geometry,
 //             commit_ribbon, ribbon_state_.gpu, ribbon_state_.rendered_slot,
@@ -53,13 +51,8 @@
 //   pendingDestination_ / transitionPhase_; the actual mood activation
 //   happens here. The orchestrator owns only ordering and the
 //   activate-mood bookkeeping; the substantive work splits across
-//   five named sub-functions (apply_mood_lighting, _spot_lights,
-//   _indoor_shell, _band_motion, _anchor_ribbon).
-// SEAM[mood:K3] reset_musical_couplings is called from apply_mood as
-//   part of the per-mood-transition lifecycle. The musical reset
-//   used to be duplicated across cartridge.hpp::teardown_world and
-//   apply_mood; consolidated to a single function in musical.inl
-//   with one call site here. See DONE[mood:K3] in musical.inl.
+//   four named sub-functions (apply_mood_lighting, _spot_lights,
+//   _indoor_shell, _anchor_ribbon).
 // SEAM[mood:K4] apply_mood_anchor_ribbon below is the second entry
 //   point to commit_ribbon (the dual-entry pattern noted at
 //   ribbon.inl::SEAM[ribbon:dual-entry]). Mood-5 forces a ribbon
@@ -595,31 +588,6 @@ void apply_mood_indoor_shell(const MoodProfile& m, wgpu::Queue& queue) {
     }
 }
 
-// 4) Polyphony band motion setup. Snapshots state at mood-entry
-//    so per-frame tick_musical_couplings starts from a known origin.
-void apply_mood_band_motion() {
-    musical_state_.band_motion_active = is_mmode_on(musical_state_, MMODE_TERRAIN_WAVES);
-    if (musical_state_.band_motion_active) {
-        for (int i = 0; i < 6; i++) {
-            musical_state_.band_blend[i]       = 0.0f;
-            musical_state_.band_blend_target[i] = 0.0f;
-            musical_state_.band_phase_origin[i] = 0.0f;
-        }
-        gpuState_.set_band_motion(musical_state_.band_blend, musical_state_.band_phase_origin);
-        gpuState_.set_terrain_time(0.0f);
-    } else {
-        float inactive[6] = { -1.f, -1.f, -1.f, -1.f, -1.f, -1.f };
-        float zeros[6]    = {};
-        gpuState_.set_band_motion(inactive, zeros);
-        gpuState_.set_terrain_time(0.0f);
-        for (int i = 0; i < 6; i++) {
-            musical_state_.band_blend[i]       = -1.0f;
-            musical_state_.band_blend_target[i] = 0.0f;
-            musical_state_.band_phase_origin[i] = 0.0f;
-        }
-    }
-}
-
 // 5) Anchor ribbon spawn — only fires when MoodProfile.has_anchor_ribbon.
 //    Seed-derived position centered on the finite world; goes through
 //    fill_ribbon_selection_geometry + commit_ribbon (the dual-entry
@@ -692,24 +660,20 @@ void apply_mood(uint32_t mood, wgpu::Queue& queue) {
     // Frustum cull is mood-driven (not tied to indoor/outdoor).
     renderer_.set_frustum_cull_active(m.allow_frustum_cull);
 
-    // Per-mood feature gates: musical modes, GoL zones, aura.
+    // Per-mood feature gates: GoL zones, aura.
     // Aura policy: respect player preference when permitted, force off when forbidden.
-    musical_state_.mood_allows_modes = m.allow_musical_modes;
     gol_state_.mood_allowed     = m.allow_gol_zones;
     if (!m.allow_pawn_aura) pawn_state_.aura_enabled = false;
 
     apply_mood_lighting(m, queue);          // sun + fog + amp ceiling
     apply_mood_spot_lights(m, queue);       // indoor only
     apply_mood_indoor_shell(m, queue);      // shell + camera ceiling clamp
-    apply_mood_band_motion();               // polyphony→bands setup
-    reset_musical_couplings(musical_state_, this, queue);         // SEAM[mood:K3] anchor — mode intensities, pulse, palette drift
     apply_mood_anchor_ribbon(mood, queue);  // SEAM[mood:K4]/[mood:L1] anchor — has_anchor_ribbon only
     configure_orbs(orbs_state_, this, ORB_MOOD_TABLE[mood], queue);
 
     std::cout << "[Mood] Applied: " << mood_name(mood)
         << " (mood=" << mood
         << (m.indoor ? " INDOOR" : " outdoor")
-        << (musical_state_.band_motion_active ? " BAND_MOTION" : "")
         << ")\n";
 }
 

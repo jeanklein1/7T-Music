@@ -39,8 +39,7 @@
 // Included inside the Cartridge class body.
 // Depends on: seed_utils.inl (cpu_hash, cpu_lattice_node_seed,
 //             cpu_sample_gaussian), spawn_engine.inl (footprint
-//             registry, population biases), musical.inl
-//             (GOL_TICK_GAIN, MMODE_GOL_TEMPO).
+//             registry, population biases).
 //
 // SEAM[gol_zones:complete-subsystem] complete bespoke pipeline in one
 //   block — vocabulary + state + lifecycle + dispatch all together.
@@ -593,16 +592,11 @@ static void upload_gol_zone_config(GoLState& gs, Cartridge* c, wgpu::Queue& queu
     uint32_t count = 0;
     uint32_t tick_mask = 0;
 
-    // GoL tempo mode: scale tick period (> 1 = slower, inverse of polyphony).
-    // GAIN constant lives in musical.inl alongside the coupling that drives it.
-    float gol_tick_scale = 1.0f + c->player_.mmode_intensities[MMODE_GOL_TEMPO] * GOL_TICK_GAIN;
-
     for (uint32_t i = 0; i < Dim::MAX_GOL_ZONES; i++) {
         if (!gs.zones[i].active) continue;
 
         // Conway tick gating: exactly one tick per period
-        // Scale period by musical mode (affects both Conway and Pulse in sync)
-        float effective_period = std::max(gs.zones[i].tick_period * gol_tick_scale, 0.01f);
+        float effective_period = std::max(gs.zones[i].tick_period, 0.01f);
         int32_t current_tick = (int32_t)std::floor(c->time_state_.beats / effective_period);
         if (current_tick != gs.zones[i].last_tick_index) {
             tick_mask |= (1u << i);

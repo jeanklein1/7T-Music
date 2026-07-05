@@ -998,8 +998,7 @@ static void update_orb_anchor(OrbsState& os, Cartridge* c, float pawn_x, float p
 // SEAM[orbs:P1] this function is the architectural exemplar for the
 //   "per-frame coupling lives in the owning module, not the spine"
 //   pattern. Originally the only instance; now the convention,
-//   joined by tick_musical_couplings (musical:K2),
-//   reset_musical_couplings (mood:K3), and tick_pawn_couplings
+//   joined by tick_pawn_couplings
 //   (pawn:K1). Spine update() is a phase-orchestration call list;
 //   each named tick lives where its data lives. Referenced from
 //   cartridge.hpp::update() at the orb coupling call site.

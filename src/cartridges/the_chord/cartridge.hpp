@@ -59,9 +59,9 @@
 //   previous worlds via world_state_.world_gen capture in the closure. Genuinely
 //   spine-owned, not a leak.
 // SEAM[spine:P8] PlayerState's commented "Future (deferred)" fields
-//   are explicit latent infrastructure: aura_presence and
-//   mmode_intensities are scheduled to migrate here once the unified
-//   entity layer is finalized. Pattern P8 visible in source.
+//   are explicit latent infrastructure: aura_presence is scheduled
+//   to migrate here once the unified entity layer is finalized.
+//   Pattern P8 visible in source.
 // SEAM[spine:active-patch-system] the ActivePatch struct,
 //   patches_[MAX_PATCHES] array, find_patch / evict_patch /
 //   evict_patch_entities / audit_entity_integrity, plus the entity_refs
@@ -121,7 +121,6 @@ namespace t7 {
             // Analysis stat layout + this run's resolved coupling sources,
             // received/resolved once at startup (see bind_signal_layout).
             SignalLayout signal_layout_;
-            SourceBinding lowest_pc_src_;   // §5 ribbon-color source ("abbott.lowest_pc")
 
             // Coupling layer: the visual canvas writes a named parameter bank;
             // the fog flush in update() reads it. Bound once at startup.
@@ -214,15 +213,6 @@ namespace t7 {
             };
             MoodState mood_state_;
 
-            // ── Musical Coupling State (modules/musical.inl) ──
-            // See DONE[musical:K2] in musical.inl + DONE[mood:K3] in
-            //   mood.inl: per-frame ramps moved from cartridge.hpp::update()
-            //   into musical.inl as tick_musical_couplings();
-            //   per-mood-transition reset moved into reset_musical_couplings()
-            //   called by mood.inl::apply_mood. update() shrinks to a
-            //   phase-orchestration sequence of named tick calls.
-#include "modules/musical.inl"
-
             // ═══ PLAYER STATE ════════════════════════════════════════════
             //
             // The player's relationship to the world, not a physical body.
@@ -233,10 +223,9 @@ namespace t7 {
             // See agent_system_design.md §2.1 for the full design.
             //
             // SEAM[spine:P8] PlayerState commented "Future (deferred)" fields
-            //   are explicit latent infrastructure: aura_presence and
-            //   mmode_intensities are scheduled to migrate here once the
-            //   unified entity layer is finalized. Pattern P8 visible
-            //   in source.
+            //   are explicit latent infrastructure: aura_presence is
+            //   scheduled to migrate here once the unified entity
+            //   layer is finalized. Pattern P8 visible in source.
             struct PlayerState {
                 uint32_t possessed_slot = 0;   // slot in agent_state[] that the player inhabits
 
@@ -249,13 +238,12 @@ namespace t7 {
                 float   readback_z = 0.0f;               // GPU readback of pawn world Z
                 int32_t readback_portal_trigger = -1;    // set by readback callback when pawn hits portal
 
-                // ── Aura + musical-mode intensities (closes SEAM[spine:P8]) ──
-                // Migrated here from pawn_state_ / musical_state_ because they
-                // travel with the player, not the body or the world. When the
-                // player possesses a different agent (Caps Lock), these stay
-                // with the player. Trajectory-style 0→1 ramps in [0,1].
+                // ── Aura presence (closes SEAM[spine:P8]) ──
+                // Migrated here from pawn_state_ because it travels with the
+                // player, not the body or the world. When the player
+                // possesses a different agent (Caps Lock), it stays with
+                // the player. Trajectory-style 0→1 ramp in [0,1].
                 float aura_presence = 0.0f;                  // pawn aura ramp (was player_.aura_presence)
-                float mmode_intensities[MMODE_COUNT] = {};   // per-mode intensity (was player_.mmode_intensities)
 
                 // Future (deferred):
                 //   uint32_t active_couplings;         // COUPLING_* bitmask owned by player
@@ -352,7 +340,6 @@ namespace t7 {
                 // Each mood independently declares which systems are active.
                 // Not tied to indoor/outdoor — a walled mood can still have
                 // musical modes, an open mood can still skip pawn aura.
-                bool   allow_musical_modes;    // mode_* config values + terrain wave overlay
                 bool   allow_gol_zones;        // GoL zone spawning + visualization
                 bool   allow_pawn_aura;        // toroidal spring grid tinting + height boost
                 bool   allow_frustum_cull;     // GPU frustum cull for LOD0 terrain (Tier 4)
@@ -397,14 +384,14 @@ namespace t7 {
             //   identifier, not a discriminator — atmospheric data is
             //   profile-driven. See mood.inl::SEAM[mood:L1] for the
             //   gating call site.
-            //                                  fin  r_min r_max  sun_dir                sun_color              int   amb   fog_d   fog_color               indoor  ceil       ceil_h  clear_color            wall_color             ceil_color               modes   zones  aura   cull   ribbon
+            //                                  fin  r_min r_max  sun_dir                sun_color              int   amb   fog_d   fog_color               indoor  ceil       ceil_h  clear_color            wall_color             ceil_color               zones  aura   cull   ribbon
             static constexpr MoodProfile MOOD_TABLE[MOOD_COUNT] = {
-                /* MOOD_OPEN_DEFAULT       */  { false, 2, 2, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true,  false },
-                /* MOOD_OPEN_SUNSET        */  { false, 2, 2, { 0.96f,-0.26f,-0.13f}, {1.0f, 0.75f, 0.45f}, 0.90f, 0.20f, 0.0050f, {0.95f, 0.70f, 0.45f},  false, CeilingType::NONE,  0.0f,  {0.95f, 0.70f, 0.45f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true,  false },
-                /* MOOD_INDOOR_FLAT        */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f, 0.0003f, {0.15f, 0.12f, 0.10f},  true,  CeilingType::FLAT,  20.0f, {0.15f, 0.12f, 0.10f}, {0.65f,0.58f,0.50f}, {0.60f,0.55f,0.48f},   true,  true,  true,  false, false },
-                /* MOOD_INDOOR_VAULT       */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f, 0.0003f, {0.15f, 0.12f, 0.10f},  true,  CeilingType::VAULT, 25.0f, {0.15f, 0.12f, 0.10f}, {0.70f,0.62f,0.52f}, {0.65f,0.58f,0.50f},   true,  true,  true,  false, false },
-                /* MOOD_FINITE_OUTDOOR     */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true,  false },
-                /* MOOD_FINITE_OUTDOOR_REF */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true,  true  },
+                /* MOOD_OPEN_DEFAULT       */  { false, 2, 2, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  false },
+                /* MOOD_OPEN_SUNSET        */  { false, 2, 2, { 0.96f,-0.26f,-0.13f}, {1.0f, 0.75f, 0.45f}, 0.90f, 0.20f, 0.0050f, {0.95f, 0.70f, 0.45f},  false, CeilingType::NONE,  0.0f,  {0.95f, 0.70f, 0.45f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  false },
+                /* MOOD_INDOOR_FLAT        */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f, 0.0003f, {0.15f, 0.12f, 0.10f},  true,  CeilingType::FLAT,  20.0f, {0.15f, 0.12f, 0.10f}, {0.65f,0.58f,0.50f}, {0.60f,0.55f,0.48f},   true,  true,  false, false },
+                /* MOOD_INDOOR_VAULT       */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f, 0.0003f, {0.15f, 0.12f, 0.10f},  true,  CeilingType::VAULT, 25.0f, {0.15f, 0.12f, 0.10f}, {0.70f,0.62f,0.52f}, {0.65f,0.58f,0.50f},   true,  true,  false, false },
+                /* MOOD_FINITE_OUTDOOR     */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  false },
+                /* MOOD_FINITE_OUTDOOR_REF */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true  },
             };
 
             // Orb mood config (ORB_MOOD_TABLE) lives in modules/orbs.inl
@@ -2643,17 +2630,6 @@ namespace t7 {
                 // Lights need re-upload with potentially new config
                 entities_state_.lights_dirty = true;
 
-                // Band motion: reset (apply_mood will re-initialize if needed)
-                musical_state_.band_motion_active = false;
-                for (int i = 0; i < 6; i++) {
-                    musical_state_.band_blend[i] = -1.0f;
-                    musical_state_.band_blend_target[i] = 0.0f;
-                    musical_state_.band_phase_origin[i] = 0.0f;
-                }
-
-                // Musical modes: reset intensities (mask stays — circuits remain wired)
-                reset_musical_couplings(musical_state_, this, queue);
-
                 // Y correction
 
                 // New world decides its own upload frequency policy
@@ -3007,6 +2983,23 @@ namespace t7 {
                 std::cout << "[Cartridge] GPUState init:    "
                     << std::chrono::duration_cast<std::chrono::milliseconds>(tGpu1 - tGpu0).count()
                     << " ms\n";
+
+                // Gen-1 coupling uniforms held at neutral: the capabilities
+                // remain in the shaders as future coupling targets (see
+                // coupling_layer_migration_map.md decisions), driverless since
+                // the M1 retirement. −1 band blend = activity field.
+                {
+                    float inactive[6] = { -1.f, -1.f, -1.f, -1.f, -1.f, -1.f };
+                    float zeros6[6] = {};
+                    gpuState_.set_band_motion(inactive, zeros6);
+                    gpuState_.set_terrain_time(0.0f);
+                    gpuState_.set_mode_color_shift(0.0f);
+                    gpuState_.set_mode_checker_scatter(0.0f);
+                    gpuState_.set_mode_palette_drift(0.0f, 0.0f, 0.0f);
+                    gpuState_.set_mode_gol_scales(1.0f, 1.0f);
+                    float zero_pulses[32] = {};
+                    gpuState_.set_pulse_data(0, zero_pulses);
+                }
             }
 
             bool init_renderer(
@@ -3115,21 +3108,11 @@ namespace t7 {
             // after both cartridges are initialized (see incubator.cpp).
             // The render side resolves coupling sources by name through
             // this; it never includes the analysis cartridge's headers.
-            // B2 resolves the §5 ribbon-color source here; the read happens
-            // in musical.inl through the stored binding.
             void bind_signal_layout(StatLayoutView v) {
                 signal_layout_.bind(v);
                 // B1 acceptance log — proves the real layout arrived.
                 std::fprintf(stderr, "[the_chord] bound signal layout: %u groups\n",
                              signal_layout_.count());
-                // B2: resolve this run's coupling sources once. When the
-                // coupling registry lands, this generalizes to "resolve every
-                // coupling's source at bind"; for now, the §5 ribbon color.
-                lowest_pc_src_ = signal_layout_.resolve("abbott.lowest_pc");
-                std::fprintf(stderr,
-                    "[the_chord] lowest_pc_src: channel=%d base=%d count=%d valid=%d\n",
-                    lowest_pc_src_.channel, lowest_pc_src_.base,
-                    lowest_pc_src_.count, (int)lowest_pc_src_.valid);
 
                 // Coupling layer: bind the visual canvas to the same layout (it
                 // resolves its own couplings' sources internally), and resolve
@@ -3143,15 +3126,12 @@ namespace t7 {
                     fog_color_dst_.base, fog_color_dst_.count, (int)fog_color_dst_.valid);
             }
 
-            // DONE[spine:K1 / musical:K2 / mood:K3 / pawn:K1] update() is now
-            //   the phase-orchestration sequence the seam map called for:
-            //   build signal → upload → transition state machine →
-            //   tick_musical_couplings → orb couplings → photographer →
-            //   clear input deltas. ~200 lines of inline ramps moved into
-            //   musical.inl (tick_musical_couplings, reset_musical_couplings)
-            //   using the musical/trajectory.hpp primitive (mirroring WGSL §1.2).
-            //   Pawn aura presence ramp (pawn:K1) closed similarly —
-            //   tick_pawn_couplings(queue) call below lives in pawn.inl.
+            // DONE[spine:K1 / pawn:K1] update() is the phase-orchestration
+            //   sequence the seam map called for: build signal → upload →
+            //   transition state machine → orb couplings → photographer →
+            //   clear input deltas. Per-frame ramps live in named module
+            //   ticks (tick_pawn_couplings in pawn.inl; the gen-1 musical
+            //   ticks retired in M1 — see coupling_layer_migration_map.md).
             // DONE[spine:L4] phase order is named at each call site
             //   (ramps live in named ticks; orchestration is the
             //   call-list shape).
@@ -3239,13 +3219,11 @@ namespace t7 {
                         break;
                     case TransitionPhase::TEARDOWN:
                     {
-                        // DONE[mood:K3] per-transition musical reset
-                        //   (reset_musical_couplings) lives in musical.inl;
-                        //   apply_mood calls it. This TEARDOWN block stays
-                        //   focused on the integration concerns it correctly
-                        //   owns: worldGen bump (P5 stale-callback guard),
-                        //   return-state capture, agent reset, ribbon cleanup,
-                        //   patch teardown.
+                        // This TEARDOWN block stays focused on the
+                        //   integration concerns it correctly owns: worldGen
+                        //   bump (P5 stale-callback guard), return-state
+                        //   capture, agent reset, ribbon cleanup, patch
+                        //   teardown.
                         // SEAM[spine:P5] world_state_.world_gen++ at top of TEARDOWN is the
                         //   stale-callback guard (P5 family). Genuinely
                         //   spine-owned.
@@ -3337,18 +3315,6 @@ namespace t7 {
 
                 gpuState_.upload_signal(queue, gpuSignal);
 
-                // ─── Musical couplings ──────────────────────────────────
-                // Band motion + per-mode intensities + palette drift +
-                // radial pulse onset detection. All ramps live in
-                // musical.inl as Trajectory-based per-frame ticks
-                // (closes musical:K2, musical:K3).
-                tick_musical_couplings(musical_state_, this, signal, queue);
-
-                // Sun orbit coupling (azimuth swings around mood baseline,
-                // polyphony drives the rate). No GPU plumbing needed — the
-                // tick directly calls gpuState_.set_sun_direction().
-                tick_sun_coupling(mood_state_, this, signal.stats[0], signal.dt);
-
                 gpuState_.upload_config(queue);
 
                 // Orb musical coupling: polyphony → radial expansion.
@@ -3357,10 +3323,7 @@ namespace t7 {
                 //
                 // SEAM[orbs:P1] counter-example to ramp-in-spine: the orb
                 //   per-frame coupling is decomposed into orbs.inl
-                //   (update_orb_coupling). This was the target shape for
-                //   musical:K2, mood:K3, pawn:K1 — all three now closed
-                //   (tick_musical_couplings, reset_musical_couplings,
-                //   tick_pawn_couplings). Pattern P1 retained as the
+                //   (update_orb_coupling). Pattern P1 retained as the
                 //   architectural exemplar for future per-frame couplings.
                 update_orb_coupling(orbs_state_, this, signal.stats[0], signal.dt, queue);
 
@@ -3661,24 +3624,22 @@ namespace t7 {
                         // Full config upload — profile changed or first frame
                         pawn_state_.aura_cfg_dirty = false;
                         const auto& ap = pawn_state_.active_aura_profile;
-                        // Aura expansion mode: scale radius, height, tint by intensity
-                        float aura_expand = player_.mmode_intensities[MMODE_AURA_EXPAND];
-                        float radius_scale = 1.0f + aura_expand * 2.0f;    // up to 3× radius
-                        float tint_scale = 1.0f + aura_expand * 1.5f;      // up to 2.5× tint
+                        // Aura at base config — the gen-1 AURA_EXPAND
+                        // coupling retired in M1.
 
                         // Presence scales all aura params for smooth raise/lower
                         float p = player_.aura_presence;
 
                         GPUPawnAuraConfig auraCfg{};
                         auraCfg.cell_size = PATCH_CELL_SIZE;
-                        auraCfg.influence_radius = ap.influence_radius * radius_scale * p;
+                        auraCfg.influence_radius = ap.influence_radius * p;
                         auraCfg.attack_stiffness = ap.attack_stiffness;
                         auraCfg.attack_damping = ap.attack_damping;
                         auraCfg.release_rate = (p > 0.01f) ? ap.release_rate : 999.0f;
                         auraCfg.dt = time_state_.dt;
                         auraCfg.effect_mask = ap.effect_mask;
                         auraCfg.aura_n = 64;
-                        auraCfg.tint_strength = std::min(ap.tint_strength * tint_scale * p, 1.0f);
+                        auraCfg.tint_strength = std::min(ap.tint_strength * p, 1.0f);
                         auraCfg.tint_r = ap.tint_r;
                         auraCfg.tint_g = ap.tint_g;
                         auraCfg.tint_b = ap.tint_b;

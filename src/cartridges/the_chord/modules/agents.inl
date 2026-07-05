@@ -78,7 +78,7 @@
 // └──────────────────────────────────────────────────────────────────┘
 //
 // Included inside the Cartridge class body, after orbs.inl.
-// Depends on: state.hpp (Dim::MAX_AGENTS), musical.inl (MMODE_COUNT),
+// Depends on: state.hpp (Dim::MAX_AGENTS),
 //             MOOD_COUNT in enclosing class.
 // ─────────────────────────────────────────────────────────────────
 

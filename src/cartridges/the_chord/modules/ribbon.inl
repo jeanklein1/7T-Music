@@ -800,9 +800,11 @@ static void ribbon_frame_tick(RibbonState& rs, Cartridge* c, wgpu::Queue& queue)
     }
 
     if (current_alive) {
-        // Hold — update time + color (color is animated each frame by
-        // tick_musical_couplings section 5b's release lerp; the full
-        // upload_ribbon path only runs on slot eviction below).
+        // Hold — update time + color. Color is static at the spawn draw
+        // since the gen-1 §5 coupling retired; the per-frame color upload
+        // stays — it is the seam the gen-2 color coupling (color_stim ×
+        // color_mix over spawn; see coupling_layer_migration_map.md) will
+        // write through.
         c->gpuState_.upload_ribbon_time(queue, c->time_state_.seconds);
         c->gpuState_.upload_ribbon_color(queue,
             rs.gpu[rs.rendered_slot].color);

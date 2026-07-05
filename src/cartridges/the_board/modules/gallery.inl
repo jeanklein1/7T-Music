@@ -65,8 +65,7 @@
 // SEAM[gallery:P8] DONE[gallery:L1] keeps ENVIRONMENTAL at weight
 //   0.01 deliberately — authored-but-unused, kept available for a
 //   future "wide environmental" framing pass. Same family as the
-//   ribbon harmonic-ratio palettes (ribbon:P8) and the latent
-//   MMODE_NAMES[6] slot (musical:P8).
+//   ribbon harmonic-ratio palettes (ribbon:P8).
 // NOTE[gallery:shadows-missing] paintings (terrain quads) and wall
 //   frames are not currently drawn in the shadow pass
 //   (render_passes.inl::draw_shadow_all). They render in the main
