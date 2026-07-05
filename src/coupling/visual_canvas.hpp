@@ -243,6 +243,12 @@ namespace t7 {
                 }
                 float mix_goal = 0.0f;
                 if (deg >= 0 && best > 0.0f) {
+                    // Degree → angle: a SWAPPABLE TABLE, one line. Chromatic
+                    // today (θ = d·30°, the identity seating). Futures: the
+                    // circle of fifths (θ = (7·d mod 12)·30°) — harmonic
+                    // distance becomes angular distance — or an authored
+                    // ordering. Everything downstream (compass, wheel,
+                    // equivariance) survives ANY fixed assignment.
                     const float th = PITCH_VEC_ORIGIN + (float)deg * 0.523598776f;
                     const float ca = std::cos(th), sa = std::sin(th);
                     for (int c2 = 0; c2 < 3; ++c2) {

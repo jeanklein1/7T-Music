@@ -54,6 +54,17 @@ Two further future D-couplings live here:
   dissolves a chessboard into a field LIVE (and back) — contrast as a
   fader, not a category. L-global; needs the color_b wire when its day
   comes.
+- DEGREE→ANGLE SEATING (ledger, T2 rev A): the map is a swappable table,
+  one line at the tint decode (and the compass shares the law) —
+  chromatic today (θ = d·30°, the identity seating); circle of fifths
+  (θ = (7·d mod 12)·30°, harmonic distance as angular distance) and
+  authored orderings are one-line futures. Equivariance holds per
+  re-seating: any fixed assignment transposes as a rotation. NB: a fifth
+  is +7 semitones = 210° under the chromatic seating (a fourth, +5,
+  gives 150°).
+- ColorSlot RETIRED (T2): the in-module target surface (ColorSlot +
+  ribbon_color_targets) deleted with zero consumers since M1 — the bank
+  rows are its successor.
 
 ## 3. SHADER CONSTANTS (world.wgsl, hot-reloadable — scene-level dials)
 | const                | meaning                         | class | notes |
