@@ -66,7 +66,8 @@
 //   Same family as gol_zones (Ch. 12.B) and gallery (Ch. 12.E), and
 //   the reference instance of the entity-module pattern: tuning
 //   console → registry → tiers → runtime state → author seats →
-//   head laws → target surface → lifecycle.
+//   head laws → lifecycle. (surface = the bank rows; the in-module
+//   section retired with its last legacy consumer).
 // SEAM[ribbon:dual-entry] commit_ribbon below has TWO callers:
 //   FAMILY_DISPATCH[RIBBON].try_commit during patch streaming, AND
 //   mood.inl::apply_mood for mood-5 forced spawn. The dual entry
@@ -431,7 +432,7 @@ struct ActiveRibbon {
     bool far_tip_registered = false;
     uint32_t ref_count = 0;     // patches referencing this ribbon via record_entity
     bool active = false;
-    float spawn_color[3] = { 0.0f, 0.0f, 0.0f };   // idle target for musical color couplings
+    float spawn_color[3] = { 0.0f, 0.0f, 0.0f };   // idle base for the line-tint coupling (gen-2): gpu.color = lerp(spawn, stim, mix)
     float spawn_lateral_amp = 0.0f;   // seed-drawn wave amps — the amp pipes'
     float spawn_vertical_amp = 0.0f;  //   idle bases (gpu = base × pipe mult)
     float phase = 0.0f;   // sway phase clock — integrates at the tempo follower's rate (100 BPM ⇒ wall seconds exactly)
@@ -844,6 +845,20 @@ static void ribbon_frame_tick(RibbonState& rs, Cartridge* c, wgpu::Queue& queue)
                 ? vp.get(c->ribbon_amp_vert_dst_.base) : 1.0f;
             rs.gpu[i].lateral_amp  = rs.active[i].spawn_lateral_amp  * ml;
             rs.gpu[i].vertical_amp = rs.active[i].spawn_vertical_amp * mv;
+
+            // Line tint (color gen-2): gpu.color = lerp(spawn, stim, mix).
+            // Rest = mix 0 = the seed-drawn color exactly; the held-slot
+            // upload_ribbon_color line ships it unchanged.
+            const float mix = c->ribbon_tint_mix_dst_.valid
+                ? vp.get(c->ribbon_tint_mix_dst_.base) : 0.0f;
+            const float* st = c->ribbon_tint_stim_dst_.valid
+                ? vp.run(c->ribbon_tint_stim_dst_.base) : nullptr;
+            for (int c2 = 0; c2 < 3; ++c2) {
+                const float s = st ? st[c2] : 0.0f;
+                rs.gpu[i].color[c2] =
+                    par.spawn_color[c2]
+                    + (s - par.spawn_color[c2]) * mix;
+            }
         }
     }
 
@@ -971,34 +986,6 @@ static void ribbon_frame_tick(RibbonState& rs, Cartridge* c, wgpu::Queue& queue)
             rs.rendered_slot = UINT32_MAX;
         }
     }
-}
-
-
-// ═══ TARGET SURFACE ══════════════════════════════════════════════
-//
-// The ribbon's drivable parameters, exposed for the coupling layer.
-// A coupling reaches a parameter through these enumerators, never
-// through gpu[]/active[] directly: the module owns what is drivable,
-// where it lives, and which instances are active; the coupling owns
-// the idiom that moves it. Pointers are frame-local — valid for the
-// duration of the tick.
-
-struct ColorSlot {
-    float*       value;   // -> gpu[s].color    (3 wide, read/write)
-    const float* idle;    // -> spawn_color     (3 wide, read-only)
-};
-
-// Fills out[] with one ColorSlot per ACTIVE ribbon; returns the count.
-static int ribbon_color_targets(RibbonState& rs,
-                                ColorSlot out[MAX_RIBBON_INSTANCES]) {
-    int n = 0;
-    for (uint32_t s = 0; s < MAX_RIBBON_INSTANCES; ++s) {
-        if (!rs.active[s].active) continue;
-        out[n].value = rs.gpu[s].color;        // float[3] -> float*
-        out[n].idle  = rs.active[s].spawn_color;
-        ++n;
-    }
-    return n;
 }
 
 
@@ -1288,9 +1275,9 @@ static void commit_ribbon(RibbonState& rs, Cartridge* c,
     rs.gpu[s] = r;
 
     auto& ar = rs.active[s];
-    // Snapshot the spawn color as the idle target — the home a future
-    // gen-2 color coupling releases toward (the gen-1 §5 coupling
-    // retired in M1; see coupling_layer_migration_map.md).
+    // Snapshot the spawn color as the idle base — the home the line-tint
+    // coupling (gen-2, T2) mixes over: gpu.color = lerp(spawn, stim, mix)
+    // in the conductor's flush; mix rests 0 ⇒ this color exactly.
     ar.spawn_color[0] = r.color[0];
     ar.spawn_color[1] = r.color[1];
     ar.spawn_color[2] = r.color[2];

@@ -130,6 +130,8 @@ namespace t7 {
             // Ribbon amp pipes (pitch compass) — resolved once at bind.
             TargetBinding ribbon_amp_lat_dst_{};
             TargetBinding ribbon_amp_vert_dst_{};
+            TargetBinding ribbon_tint_stim_dst_{};
+            TargetBinding ribbon_tint_mix_dst_{};
 
             struct InputState {
                 float move_x = 0.0f;
@@ -3132,6 +3134,8 @@ namespace t7 {
                 fog_color_dst_   = visual_canvas_.layout().resolve("fog.color");
                 ribbon_amp_lat_dst_  = visual_canvas_.layout().resolve("ribbon.amp_lateral_mult");
                 ribbon_amp_vert_dst_ = visual_canvas_.layout().resolve("ribbon.amp_vertical_mult");
+                ribbon_tint_stim_dst_ = visual_canvas_.layout().resolve("ribbon.color_stim");
+                ribbon_tint_mix_dst_  = visual_canvas_.layout().resolve("ribbon.color_mix");
                 std::fprintf(stderr,
                     "[the_chord] fog.density base=%d valid=%d | fog.color base=%d count=%d valid=%d\n",
                     fog_density_dst_.base, (int)fog_density_dst_.valid,

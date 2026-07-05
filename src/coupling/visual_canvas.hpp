@@ -103,6 +103,20 @@ namespace t7 {
     inline constexpr float PITCH_VEC_SPAN   = 1.5f;    // beats — re-aim/release glide
     inline constexpr float PITCH_VEC_ORIGIN = 0.0f;    // radians — rotates the compass
 
+    // ── Line tint (color gen-2) ── the melody paints the ribbon: the
+    // line's degree sets a hue by the SAME 30°-per-semitone law as the
+    // compass (shared ORIGIN ⇒ cross-channel equivariance). The stimulus
+    // is a TINTING VOICE at authored luma/chroma, mixed over the spawn
+    // color; mix rises while the line sounds, releases to 0 in silence —
+    // rest = the seed-drawn ribbon exactly. Compositional dials.
+    inline constexpr float TINT_LUMA    = 0.55f;
+    inline constexpr float TINT_CHROMA  = 0.35f;
+    inline constexpr float TINT_MIX_MAX = 0.85f;
+    inline constexpr float TINT_SPAN    = 2.0f;    // beats — attack and release
+    // Rodrigues basis about the gray axis (canvas-side twin of the skin's):
+    inline constexpr float TINT_D1[3] = { 0.8165f, -0.4082f, -0.4082f };
+    inline constexpr float TINT_D2[3] = { 0.0f,     0.7071f, -0.7071f };
+
     // ═══ MASTER CONTROL PANEL ════════════════════════════════════════════════════
     // The one place every exposed pipe is declared — name, slot, width, and the
     // value it rests at. Slots are assigned here, by hand, in this single table, so
@@ -119,6 +133,8 @@ namespace t7 {
         // draws at the entity flush; rest = identity (1 = the seed's dance).
         { "ribbon.amp_lateral_mult",  4, 1, ParamShape::Scalar, 1.0f },
         { "ribbon.amp_vertical_mult", 5, 1, ParamShape::Scalar, 1.0f },
+        { "ribbon.color_stim", 6, 3, ParamShape::Vector, 0.0f },
+        { "ribbon.color_mix",  9, 1, ParamShape::Scalar, 0.0f },
     };
     inline constexpr uint32_t PARAM_LAYOUT_COUNT =
         sizeof(PARAM_LAYOUT) / sizeof(PARAM_LAYOUT[0]);
@@ -152,6 +168,14 @@ namespace t7 {
             amp_vert_ = param_layout_.resolve("ribbon.amp_vertical_mult");
             amp_lat_seg_  = Segment{ 1.0f, 1.0f, 0.0f, 0.0f };
             amp_vert_seg_ = Segment{ 1.0f, 1.0f, 0.0f, 0.0f };
+
+            // line tint: the sung line paints the ribbon over its spawn color
+            line_pc_   = signal_layout_.resolve("all.current_pc");
+            tint_stim_ = param_layout_.resolve("ribbon.color_stim");
+            tint_mix_  = param_layout_.resolve("ribbon.color_mix");
+            for (int c2 = 0; c2 < 3; ++c2)
+                tint_stim_seg_[c2] = Segment{ 0.0f, 0.0f, 0.0f, 0.0f };
+            tint_mix_seg_ = Segment{ 0.0f, 0.0f, 0.0f, 0.0f };
         }
 
         // One frame: run every coupling — read its source, decode inline, carry the
@@ -209,6 +233,36 @@ namespace t7 {
                 params_.set(amp_vert_.base,
                     trajectory_release(amp_vert_seg_, gv, beat, PITCH_VEC_SPAN));
             }
+
+            // ── line tint (hue by the 30° law; mix is the envelope) ─────
+            if (line_pc_.valid && tint_stim_.valid && tint_mix_.valid) {
+                float best = 0.0f; int deg = -1;
+                for (int i = 0; i < 12; ++i) {
+                    const float w = signal.stat(line_pc_.channel, line_pc_.base + i);
+                    if (w > best) { best = w; deg = i; }
+                }
+                float mix_goal = 0.0f;
+                if (deg >= 0 && best > 0.0f) {
+                    const float th = PITCH_VEC_ORIGIN + (float)deg * 0.523598776f;
+                    const float ca = std::cos(th), sa = std::sin(th);
+                    for (int c2 = 0; c2 < 3; ++c2) {
+                        const float v = TINT_LUMA
+                            + (TINT_D1[c2]*ca + TINT_D2[c2]*sa) * TINT_CHROMA;
+                        params_.set(tint_stim_.base + c2,
+                            trajectory_release(tint_stim_seg_[c2], v, beat, TINT_SPAN));
+                    }
+                    mix_goal = TINT_MIX_MAX;
+                } else {
+                    // silence: stim segments hold their last hue; only the
+                    // MIX releases — the tint fades, it does not gray out.
+                    for (int c2 = 0; c2 < 3; ++c2)
+                        params_.set(tint_stim_.base + c2,
+                            trajectory_release(tint_stim_seg_[c2],
+                                tint_stim_seg_[c2].to, beat, TINT_SPAN));
+                }
+                params_.set(tint_mix_.base,
+                    trajectory_release(tint_mix_seg_, mix_goal, beat, TINT_SPAN));
+            }
         }
 
         // Consumers read the bank (and resolve their pipe once through layout()).
@@ -236,6 +290,13 @@ namespace t7 {
         TargetBinding amp_vert_{};
         Segment       amp_lat_seg_{};
         Segment       amp_vert_seg_{};
+
+        // ── line tint coupling state ─────────────────────────────────────────────
+        SourceBinding line_pc_{};           // "all.current_pc" — the sung line
+        TargetBinding tint_stim_{};
+        TargetBinding tint_mix_{};
+        Segment       tint_stim_seg_[3]{};
+        Segment       tint_mix_seg_{};
     };
 
 } // namespace t7
