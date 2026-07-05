@@ -182,7 +182,8 @@ static constexpr float TINTED_BASE[3]  = { 0.40f, 0.35f, 0.35f };
 
 // CONTRAST — the checker pair raffle, shaped like the terrain's §2.2
 // palette system. Each pair authors its colors AND its character:
-//   value_var — per-cell RGB scatter amplitude (texture). Legibility
+//   value_var — per-cell lightness texture: fraction of headroom each
+//               cell travels toward black/white (clip-free). Legibility
 //               guidance: beyond ~0.15 the dark/light parity starts to
 //               blur; author past it only on purpose.
 //   hue_var   — 0..1, the colorful axis: scales the per-cell hue

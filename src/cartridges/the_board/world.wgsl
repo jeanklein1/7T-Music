@@ -4329,14 +4329,14 @@ fn compute_ribbon_rings(@builtin(global_invocation_id) gid: vec3<u32>) {
     ring_xforms[ring_idx].terrain_y = terrain_y;
 }
 
-// Chroma injection for the checker skin: a unit chroma direction (pure
-// red minus its gray component, normalized) rotated per cell by the same
-// hash angle as the hue rotation. GAIN is chroma-per-radian-of-spread —
-// at full spread (pi) a cell gains ~0.19 chroma. Near-gray cells (median
-// B) become pastel at their own luminance; saturated cells enrich.
-// Control-panel constants; world.wgsl hot-reloads, so tune live.
+// Chroma constants for the checker skin's CB-1e reconstruction: DIR is
+// the fallback direction for near-gray cells (pure red minus its gray
+// component, normalized); FLOOR is the chroma magnitude every cell is
+// guaranteed at FULL spread (pi), so both parities reach the same
+// colorfulness at the same hue_var. Hot-reloadable; tune live.
 const CHECKER_CHROMA_DIR: vec3<f32> = vec3<f32>(0.8165, -0.4082, -0.4082);
-const CHECKER_CHROMA_GAIN: f32 = 0.06;
+// Chroma at FULL spread (pi). Hot-reloadable; the punch dial.
+const CHECKER_CHROMA_FLOOR: f32 = 0.22;
 
 // Branchless hue rotation about the RGB gray axis (Rodrigues form).
 // Identity at a = 0 by construction — the CB-1b hue-spread dial rests
@@ -4464,24 +4464,34 @@ fn ribbon_vs(@builtin(vertex_index) vid: u32) -> EntityVarying {
     let cell_face = (vid % TUBE_VERTS_PER_SEGMENT) / 6u;
     let cell_parity = f32((cell_seg + cell_face) & 1u);
     let cell_key = (cell_seg * 4u + cell_face) ^ ribbon.seed;
-    let cell_jitter = (vec3(hash_property(cell_key, 0u),
-                            hash_property(cell_key, 1u),
-                            hash_property(cell_key, 2u)) - vec3(0.5))
-                      * ribbon.checker_scatter;
-    // CB-1b hue-spread: rotate the cell's median around the color wheel
-    // by its own seeded amount before the scatter. Distinct salt so the
-    // hue draw decorrelates from the RGB scatter; identity at spread 0.
-    // CB-1b.1 chroma injection: rotation preserves chroma magnitude, so
-    // the near-gray median B would stay white — inject chroma along the
-    // SAME hash angle, scaled by spread (zero at spread 0, so identity
-    // survives). Both parities go colorful; luminance parity stays.
+    // CB-1b hue-spread: per-cell hue angle from a salted hash draw,
+    // decorrelated from the value scatter; identity at spread 0.
     let hue_h = hash_property(cell_key ^ 0x9E3779B9u, 0u) - 0.5;
     let hue_a = hue_h * 2.0 * ribbon.hue_spread;
-    let cell_median = hue_rotate(mix(ribbon.color, ribbon.color_b, cell_parity), hue_a)
-                    + hue_rotate(CHECKER_CHROMA_DIR, hue_a)
-                      * (ribbon.hue_spread * CHECKER_CHROMA_GAIN);
-    let checker = clamp(cell_median + cell_jitter,
-                        vec3(0.0), vec3(1.0));
+    var base = mix(ribbon.color, ribbon.color_b, cell_parity);
+
+    // Chroma (CB-1e): decompose about the gray axis, rotate the DIRECTION
+    // by the cell's angle, set the MAGNITUDE to max(existing, spread-
+    // scaled floor). Both parities reach the same colorfulness at the
+    // same hue_var; a near-gray median gains chroma instead of rotating
+    // nothing. spread = 0 ⇒ angle 0 and magnitude = existing ⇒ EXACT
+    // identity.
+    let g  = vec3<f32>(0.577350269) * dot(vec3<f32>(0.577350269), base);
+    let ch = base - g;
+    let cl = length(ch);
+    let cdir = select(ch / max(cl, 1e-4), CHECKER_CHROMA_DIR, cl < 1e-3);
+    let cmag = max(cl, (ribbon.hue_spread * 0.318309886) * CHECKER_CHROMA_FLOOR);
+    base = g + hue_rotate(cdir, hue_a) * cmag;
+
+    // Value (CB-1e): travel a FRACTION of the available headroom toward
+    // black or white. Cannot clip; reads with matched perceptual weight
+    // on dark and light squares alike. One scalar per cell: lightness
+    // texture only — chroma stays the hue axis's business.
+    let vj = (hash_property(cell_key ^ 0x85EBCA6Bu, 0u) - 0.5) * 2.0;
+    let pole = select(vec3<f32>(0.0), vec3<f32>(1.0), vj > 0.0);
+    base = mix(base, pole, abs(vj) * ribbon.checker_scatter);
+
+    let checker = clamp(base, vec3(0.0), vec3(1.0));
     out.entity_color = select(ribbon.color, checker,
         ribbon.color_mode == 2u && vid < body_verts);
     return out;
