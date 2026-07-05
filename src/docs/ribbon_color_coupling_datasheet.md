@@ -83,6 +83,12 @@ vs travel-at-P (historian feel); layer one above is idiom-independent.
 
 ## 6. RELATED SURFACES ALREADY LIVE OR TAGGED
 fog.density / fog.color — the played coupling (all.field, held→table).
+ribbon.amp_lateral_mult / ribbon.amp_vertical_mult — PARAM_LAYOUT rows
+4–5, LIVE AT REST since pitch-compass P1: multipliers composed over the
+spawn-drawn wave amps at the conductor's per-frame flush (rest 1 = the
+seed's dance; the pawn mount reads the same mirror — the rider breathes
+with the coupled dance for free). The compass decode (P2) lands with its
+wagon amendment.
 Terrain palette machinery — DRIVERLESS, scene-level future siblings
 (band motion, palette drift, mode color shift) — same grammar, one scale up.
 sphere/floater color — DRIVERLESS landing sites from the demolition.

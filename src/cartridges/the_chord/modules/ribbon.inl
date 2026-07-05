@@ -432,6 +432,8 @@ struct ActiveRibbon {
     uint32_t ref_count = 0;     // patches referencing this ribbon via record_entity
     bool active = false;
     float spawn_color[3] = { 0.0f, 0.0f, 0.0f };   // idle target for musical color couplings
+    float spawn_lateral_amp = 0.0f;   // seed-drawn wave amps — the amp pipes'
+    float spawn_vertical_amp = 0.0f;  //   idle bases (gpu = base × pipe mult)
     float phase = 0.0f;   // sway phase clock — integrates at the tempo follower's rate (100 BPM ⇒ wall seconds exactly)
 
     // ── Wander (autonomous drift) ── rolled at commit; a wanderer authors the
@@ -834,6 +836,15 @@ static void ribbon_frame_tick(RibbonState& rs, Cartridge* c, wgpu::Queue& queue)
         if (!par.active) continue;
         par.phase += phase_rate * c->time_state_.dt;
         rs.gpu[i].time = par.phase;
+        {
+            const VisualParams& vp = c->visual_canvas_.params();
+            const float ml = c->ribbon_amp_lat_dst_.valid
+                ? vp.get(c->ribbon_amp_lat_dst_.base)  : 1.0f;
+            const float mv = c->ribbon_amp_vert_dst_.valid
+                ? vp.get(c->ribbon_amp_vert_dst_.base) : 1.0f;
+            rs.gpu[i].lateral_amp  = rs.active[i].spawn_lateral_amp  * ml;
+            rs.gpu[i].vertical_amp = rs.active[i].spawn_vertical_amp * mv;
+        }
     }
 
     // Sky mode just ended — release the pinned (now anchor-less)
@@ -898,6 +909,9 @@ static void ribbon_frame_tick(RibbonState& rs, Cartridge* c, wgpu::Queue& queue)
             rs.gpu[rs.rendered_slot].time);
         c->gpuState_.upload_ribbon_color(queue,
             rs.gpu[rs.rendered_slot].color);
+        c->gpuState_.upload_ribbon_wave_amps(queue,
+            rs.gpu[rs.rendered_slot].lateral_amp,
+            rs.gpu[rs.rendered_slot].vertical_amp);
         // The head mover must run EVERY frame for the held ribbon,
         // not only on slot eviction. Without this the trail is seeded
         // straight once and never advances, so the ribbon looks
@@ -1280,6 +1294,8 @@ static void commit_ribbon(RibbonState& rs, Cartridge* c,
     ar.spawn_color[0] = r.color[0];
     ar.spawn_color[1] = r.color[1];
     ar.spawn_color[2] = r.color[2];
+    ar.spawn_lateral_amp  = r.lateral_amp;
+    ar.spawn_vertical_amp = r.vertical_amp;
     ar.phase = r.time;    // seed = wall clock, so the 100 BPM anchor reproduces the old clock exactly
     ar.patch_gx = trigger_gx;
     ar.patch_gz = trigger_gz;

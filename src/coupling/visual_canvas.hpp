@@ -105,6 +105,10 @@ namespace t7 {
     inline constexpr ParamSlot PARAM_LAYOUT[] = {
         { "fog.density",          0,    1,    ParamShape::Scalar, FOG_DENSITY_NONE },
         { "fog.color",            1,    3,    ParamShape::Vector, 0.80f            },
+        // ── ribbon (pitch compass) ── deviations composed over the seed
+        // draws at the entity flush; rest = identity (1 = the seed's dance).
+        { "ribbon.amp_lateral_mult",  4, 1, ParamShape::Scalar, 1.0f },
+        { "ribbon.amp_vertical_mult", 5, 1, ParamShape::Scalar, 1.0f },
     };
     inline constexpr uint32_t PARAM_LAYOUT_COUNT =
         sizeof(PARAM_LAYOUT) / sizeof(PARAM_LAYOUT[0]);

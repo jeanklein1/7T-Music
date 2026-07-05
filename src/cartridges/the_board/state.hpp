@@ -1887,6 +1887,11 @@ namespace t7 {
                 queue.WriteBuffer(ribbonBuffer_, 0, &ribbon, sizeof(GPURibbonState));
             }
 
+            void upload_ribbon_wave_amps(wgpu::Queue& queue, float lateral_amp, float vertical_amp) {
+                queue.WriteBuffer(ribbonBuffer_, offsetof(GPURibbonState, lateral_amp), &lateral_amp, sizeof(float));
+                queue.WriteBuffer(ribbonBuffer_, offsetof(GPURibbonState, vertical_amp), &vertical_amp, sizeof(float));
+            }
+
             // Ribbon body upload — a dumb wire. The head mover lives in
             // modules/ribbon.inl (ribbon_rebuild_body_upload computes the
             // poses; this uploads them). CPU authors intent; the GPU

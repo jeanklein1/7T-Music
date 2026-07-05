@@ -161,6 +161,9 @@ namespace t7 {
             // (bind_signal_layout); fog is field-driven via canvas_1's "all.field".
             VisualCanvas  visual_canvas_;
             TargetBinding fog_density_dst_{};   // resolved "fog.density" pipe
+            // Ribbon amp pipes (pitch compass) — resolved once at bind.
+            TargetBinding ribbon_amp_lat_dst_{};
+            TargetBinding ribbon_amp_vert_dst_{};
             TargetBinding fog_color_dst_{};      // resolved "fog.color" pipe (3 wide)
 
             // Sun + atmosphere (driven by active mood — see apply_mood)
@@ -3117,6 +3120,8 @@ namespace t7 {
                 visual_canvas_.bind(v);
                 fog_density_dst_ = visual_canvas_.layout().resolve("fog.density");
                 fog_color_dst_   = visual_canvas_.layout().resolve("fog.color");
+                ribbon_amp_lat_dst_  = visual_canvas_.layout().resolve("ribbon.amp_lateral_mult");
+                ribbon_amp_vert_dst_ = visual_canvas_.layout().resolve("ribbon.amp_vertical_mult");
                 std::fprintf(stderr,
                     "[the_board] fog.density base=%d valid=%d | fog.color base=%d count=%d valid=%d\n",
                     fog_density_dst_.base, (int)fog_density_dst_.valid,
