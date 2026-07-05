@@ -3128,10 +3128,10 @@ namespace t7 {
 
             // DONE[spine:K1 / pawn:K1] update() is the phase-orchestration
             //   sequence the seam map called for: build signal → upload →
-            //   transition state machine → orb couplings → photographer →
-            //   clear input deltas. Per-frame ramps live in named module
-            //   ticks (tick_pawn_couplings in pawn.inl; the gen-1 musical
-            //   ticks retired in M1 — see coupling_layer_migration_map.md).
+            //   transition state machine → photographer → clear input
+            //   deltas. Per-frame ramps live in named module ticks
+            //   (tick_pawn_couplings in pawn.inl; the gen-1 couplings
+            //   retired in M1/M1-B — see coupling_layer_migration_map.md).
             // DONE[spine:L4] phase order is named at each call site
             //   (ramps live in named ticks; orchestration is the
             //   call-list shape).
@@ -3316,16 +3316,6 @@ namespace t7 {
                 gpuState_.upload_signal(queue, gpuSignal);
 
                 gpuState_.upload_config(queue);
-
-                // Orb musical coupling: polyphony → radial expansion.
-                // Always-on when orbs are active; future coupling grammar
-                // will put this behind a gate.
-                //
-                // SEAM[orbs:P1] counter-example to ramp-in-spine: the orb
-                //   per-frame coupling is decomposed into orbs.inl
-                //   (update_orb_coupling). Pattern P1 retained as the
-                //   architectural exemplar for future per-frame couplings.
-                update_orb_coupling(orbs_state_, this, signal.stats[0], signal.dt, queue);
 
                 // Orb dome anchor: follow pawn when toggled on. Uses
                 // last-frame pawn readback — one-frame lag is imperceptible.

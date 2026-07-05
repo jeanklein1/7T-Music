@@ -2,8 +2,8 @@
 //
 // Sky orb layer — luminous points on a dome above the world. A fixed
 // population of billboarded quads sampled from a dome of radius
-// ORB_DOME_RADIUS, driven by CPU-authored mood config + per-frame
-// musical couplings, updated by a compute kernel, rendered additively.
+// ORB_DOME_RADIUS, driven by CPU-authored mood config, updated by a
+// compute kernel, rendered additively.
 //
 // The control surfaces (tuning console, palette registry, tier sets,
 // flocking gestures, ORB_MOOD_TABLE in cartridge.hpp) are intended
@@ -28,7 +28,6 @@
 // │                                                                 │
 // │  Per-frame updates:                                             │
 // │    update_orb_anchor(os, c, x, z, q)   — dirty-flagged push     │
-// │    update_orb_coupling(os, c, poly, dt, q) — polyphony → couples│
 // │                                                                 │
 // │  GPU dispatches (called from render tick):                      │
 // │    dispatch_orb_init(os, c, encoder)        — one-shot seed     │
@@ -59,33 +58,11 @@
 static constexpr float ORB_DOME_RADIUS = 450.0f;
 static constexpr float ORB_BASE_SIZE = 3.0f;
 
-// ── Musical couplings ────────────────────────────────────────────
-// Attack/release rates are in 1/s; exponential ramps. Attack faster
-// than release = onsets feel punchy, the sky "holds" after phrases
-// end. Each coupling's extras (scales, floors, ceilings) sit with
-// its rates rather than in a separate orphan block.
-
-// Force — radial expansion; also drives the noise ceiling lerp.
-static constexpr float ORB_FORCE_ATTACK   = 3.0f;
-static constexpr float ORB_FORCE_RELEASE  = 1.5f;
-static constexpr float ORB_FORCE_SCALE    = 40.0f;   // world-units/s² at full intensity
-static constexpr float ORB_NOISE_FLOOR    = 0.3f;    // barely perceptible drift in silence
-
-// Color — pulse / converge / surge trajectories, gated per-mood.
-static constexpr float ORB_COLOR_ATTACK   = 5.0f;
-static constexpr float ORB_COLOR_RELEASE  = 2.5f;
-
-// Flock — neighbor-force tightening under pressure. Release matches
-// attack so silence returns the flock smoothly (~0.4s time constant).
-static constexpr float ORB_FLOCK_ATTACK   = 2.5f;
-static constexpr float ORB_FLOCK_RELEASE  = 2.5f;
-
-// Speed — population-wide velocity multiplier. At rest (silence)
-// the target is 1.0 (identity); at full polyphony it's ORB_SPEED_CEILING.
-// Every rule's dominant speed parameter scales with the multiplier.
-static constexpr float ORB_SPEED_ATTACK   = 2.0f;
-static constexpr float ORB_SPEED_RELEASE  = 1.0f;    // slower return feels like settling
-static constexpr float ORB_SPEED_CEILING  = 3.0f;    // 3× baseline at full music
+// ── Noise floor ──────────────────────────────────────────────────
+// Barely perceptible drift in silence. The steady noise amplitude
+// since the gen-1 orb coupling retired (M1-B) — the kernel's noise
+// input rests here; a gen-2 coupling may lerp it again.
+static constexpr float ORB_NOISE_FLOOR    = 0.3f;
 
 // ── Rule-critical parameter floors ───────────────────────────────
 // Applied in configure_orbs when the mood authors 0.0 for a given
@@ -94,7 +71,6 @@ static constexpr float ORB_SPEED_CEILING  = 3.0f;    // 3× baseline at full mus
 // wanting "almost zero" should author a tiny non-zero (e.g. 0.001f),
 // which reads as intentional.
 static constexpr float ORB_DEFAULT_DRAG = 0.5f;
-static constexpr float ORB_DEFAULT_NOISE_AMP = 8.0f;
 static constexpr float ORB_DEFAULT_ORBITAL_SPEED = 0.15f;
 static constexpr float ORB_DEFAULT_FLOCK_SEP_R = 50.0f;
 static constexpr float ORB_DEFAULT_FLOCK_ALIGN_R = 120.0f;
@@ -378,16 +354,12 @@ struct OrbMoodConfig {
     float    brightness = 0.8f;     // value center; palette spreads around it
     // Motion
     float    drag = ORB_DEFAULT_DRAG;
-    float    noise_amp = ORB_DEFAULT_NOISE_AMP;  // ceiling (floor is ORB_NOISE_FLOOR)
     uint32_t motion_rule = 0;                       // 0=Brownian 1=Orbital 2=Frozen 3=Flocking
     float    rotation_speed = 0.0f;                   // rad/s
     float    rotation_axis[3] = { 0.0f, 1.0f, 0.0f };   // normalized in configure_orbs
     float    orbital_base_speed = 0.0f;               // rad/s, rule 1 only
     // Color palette
     uint32_t palette_id = ORB_PAL_JWST_DEEP;
-    bool     color_pulse_enabled = false;
-    bool     color_converge_enabled = false;
-    bool     color_surge_enabled = false;
     float    hue_converge_target = 0.12f;
     // Anchor (mood default applies only on first configure; player wins after)
     bool     anchor_to_pawn_default = false;
@@ -422,7 +394,6 @@ struct OrbMoodConfig {
 //   • lifecycle      — kernel arming flags, palette
 //   • anchor         — player-owned dome-center follow
 //   • motion         — current rule + per-rule gesture indices
-//   • couplings      — smoothed musical intensities + active flags
 //   • speed          — population speed multiplier
 //
 // Motion rule identifiers, named for legibility at gesture-dispatch
@@ -460,23 +431,6 @@ struct OrbsState {
     // four indices persist across mood transitions (player state).
     uint32_t gesture_idx[4]         = { 0u, 0u, 0u, 0u };
     bool     gesture_initialized[4] = { false, false, false, false };
-
-    // ── Musical couplings (smoothed intensities) ─────────────────
-    // Force + noise share a single intensity (polyphony-driven). Color
-    // and flocking have their own smoothers. Active flags gate the
-    // couplings per mood.
-    float    force_intensity = 0.0f;
-    float    active_noise_amp = 0.0f;   // mood's configured ceiling
-
-    float    color_pulse_intensity = 0.0f;
-    float    color_converge_intensity = 0.0f;
-    float    color_surge_intensity = 0.0f;
-    bool     color_pulse_active = false;
-    bool     color_converge_active = false;
-    bool     color_surge_active = false;
-
-    float    flock_intensity = 0.0f;
-    bool     flock_active = false;  // true when active rule is Flocking
 
     // ── Speed ────────────────────────────────────────────────────
     // Population speed multiplier. Smoothed on the CPU, uploaded via
@@ -695,16 +649,10 @@ static void log_configure_(const OrbsState& os, const OrbMoodConfig& cfg,
     std::cout << "[Orbs] Configured: count=" << os.count
         << " palette=" << ORB_PAL_NAMES[palette_id]
         << " drag=" << eff_drag
-        << " noise=" << ORB_NOISE_FLOOR << ".." << os.active_noise_amp
+        << " noise=" << ORB_NOISE_FLOOR
         << " rule=" << RULE_NAMES[std::min(os.current_motion_rule, 3u)]
         << " rot=" << cfg.rotation_speed
         << " orbital=" << eff_orbital_speed
-        << " color:"
-        << (cfg.color_pulse_enabled ? " pulse" : "")
-        << (cfg.color_converge_enabled ? " converge" : "")
-        << (cfg.color_surge_enabled ? " surge" : "")
-        << (cfg.color_pulse_enabled || cfg.color_converge_enabled || cfg.color_surge_enabled
-            ? "" : " off")
         << " anchor=" << (os.pawn_anchored ? "pawn" : "origin")
         << " tiers="
         << (cfg.tierset_id < ORB_TIERSET_COUNT
@@ -730,7 +678,6 @@ static void configure_orbs(OrbsState& os, Cartridge* c, const OrbMoodConfig& cfg
         return (authored > 0.0f) ? authored : fallback;
         };
     const float eff_drag = eff(cfg.drag, ORB_DEFAULT_DRAG);
-    const float eff_noise_amp = eff(cfg.noise_amp, ORB_DEFAULT_NOISE_AMP);
     const float eff_orbital_speed = eff(cfg.orbital_base_speed, ORB_DEFAULT_ORBITAL_SPEED);
     const float eff_flock_sep_r = eff(cfg.flock_sep_radius, ORB_DEFAULT_FLOCK_SEP_R);
     const float eff_flock_align_r = eff(cfg.flock_align_radius, ORB_DEFAULT_FLOCK_ALIGN_R);
@@ -739,8 +686,6 @@ static void configure_orbs(OrbsState& os, Cartridge* c, const OrbMoodConfig& cfg
     const float eff_flock_align_w = eff(cfg.flock_align_weight, ORB_DEFAULT_FLOCK_ALIGN_W);
     const float eff_flock_coh_w = eff(cfg.flock_coh_weight, ORB_DEFAULT_FLOCK_COH_W);
     const float eff_flock_max_speed = eff(cfg.flock_max_speed, ORB_DEFAULT_FLOCK_MAX_SPEED);
-
-    os.active_noise_amp = eff_noise_amp;
 
     // First-run mood defaults for player-owned state.
     apply_mood_first_run_defaults_(os, cfg);
@@ -768,7 +713,7 @@ static void configure_orbs(OrbsState& os, Cartridge* c, const OrbMoodConfig& cfg
     gpuCfg.hue_variance = cfg.hue_variance;
     gpuCfg.brightness = cfg.brightness;
     gpuCfg.drag = eff_drag;
-    gpuCfg.noise_amp = ORB_NOISE_FLOOR;   // start at floor; coupling lerps up to ceiling
+    gpuCfg.noise_amp = ORB_NOISE_FLOOR;   // rests at the floor (driverless since the gen-1 retirement)
     gpuCfg.dome_radius = ORB_DOME_RADIUS;
     gpuCfg.base_size = ORB_BASE_SIZE;
     gpuCfg.dt = 0.0f;
@@ -783,8 +728,10 @@ static void configure_orbs(OrbsState& os, Cartridge* c, const OrbMoodConfig& cfg
 
     pack_palette_(os, gpuCfg, cfg.palette_id);
 
-    // Color dynamics start at rest; couplings lift them under music.
-    // hue_converge_target is mood-scoped (changes only at mood entry).
+    // Color dynamics rest at zero — driverless capabilities since the
+    // gen-1 retirement (gen-2 coupling targets; see
+    // coupling_layer_migration_map.md). hue_converge_target is
+    // mood-scoped (changes only at mood entry).
     gpuCfg.color_pulse = 0.0f;
     gpuCfg.color_converge = 0.0f;
     gpuCfg.color_surge = 0.0f;
@@ -798,10 +745,6 @@ static void configure_orbs(OrbsState& os, Cartridge* c, const OrbMoodConfig& cfg
     gpuCfg._pad_anchor = 0.0f;
     os.dome_center_initialized = false;   // force dirty-flag re-eval
 
-    os.color_pulse_active = cfg.color_pulse_enabled;
-    os.color_converge_active = cfg.color_converge_enabled;
-    os.color_surge_active = cfg.color_surge_enabled;
-
     pack_tiers_(gpuCfg, cfg.tierset_id);
     pack_flocking_(os, gpuCfg,
         eff_flock_sep_r, eff_flock_align_r, eff_flock_coh_r,
@@ -810,8 +753,6 @@ static void configure_orbs(OrbsState& os, Cartridge* c, const OrbMoodConfig& cfg
         cfg.rule_drag_brownian, cfg.rule_drag_orbital,
         cfg.rule_drag_frozen, cfg.rule_drag_flocking);
 
-    os.flock_active = (os.current_motion_rule == ORB_RULE_FLOCKING);
-
     c->gpuState_.upload_orb_config(queue, gpuCfg);
     os.init_pending = true;
 
@@ -819,26 +760,13 @@ static void configure_orbs(OrbsState& os, Cartridge* c, const OrbMoodConfig& cfg
 }
 
 // Mood exit: stop dispatching. Resets mood-owned runtime state
-// (intensities, active flags, dome-center cache). Preserves
-// player-owned state (anchor, flock gesture) across transitions.
+// (speed multiplier, dome-center cache). Preserves player-owned
+// state (anchor, flock gesture) across transitions.
 static void teardown_orbs(OrbsState& os, Cartridge* c) {
     os.active = false;
     os.count = 0;
     os.init_pending = false;
     os.recolor_pending = false;
-
-    os.force_intensity = 0.0f;
-    os.active_noise_amp = 0.0f;
-
-    os.color_pulse_intensity = 0.0f;
-    os.color_converge_intensity = 0.0f;
-    os.color_surge_intensity = 0.0f;
-    os.color_pulse_active = false;
-    os.color_converge_active = false;
-    os.color_surge_active = false;
-
-    os.flock_intensity = 0.0f;
-    os.flock_active = false;
 
     // Speed multiplier resets with the mood (not player state).
     os.speed_mult_current = 1.0f;
@@ -892,7 +820,6 @@ static void cycle_orb_motion_rule(OrbsState& os, Cartridge* c, wgpu::Queue& queu
 
     os.current_motion_rule = (os.current_motion_rule + 1u) % 4u;
     c->gpuState_.upload_orb_motion_rule(queue, os.current_motion_rule);
-    os.flock_active = (os.current_motion_rule == 3u);   // coupling gate
 
     static const char* RULE_NAMES[] = { "brownian", "orbital", "frozen", "flocking" };
     std::cout << "[Orbs] Motion rule: " << RULE_NAMES[os.current_motion_rule];
@@ -987,100 +914,6 @@ static void update_orb_anchor(OrbsState& os, Cartridge* c, float pawn_x, float p
     }
 }
 
-// Polyphony drives three smoothed intensities:
-//   force+noise (motion) — radial expansion + noise ceiling lerp
-//   color (pulse/converge/surge) — three trajectories, mood-gated
-//   flock — cohesion/separation balance
-// Each is structurally independent; they share polyphony for now
-// so they move together. Swapping sources later desyncs the channels.
-// Uploads fire only when a value actually moves.
-//
-// SEAM[orbs:P1] this function is the architectural exemplar for the
-//   "per-frame coupling lives in the owning module, not the spine"
-//   pattern. Originally the only instance; now the convention,
-//   joined by tick_pawn_couplings
-//   (pawn:K1). Spine update() is a phase-orchestration call list;
-//   each named tick lives where its data lives. Referenced from
-//   cartridge.hpp::update() at the orb coupling call site.
-static void update_orb_coupling(OrbsState& os, Cartridge* c, float polyphony, float dt, wgpu::Queue& queue) {
-    if (!os.active || os.count == 0) return;
-
-    float target = std::min(polyphony / 6.0f, 1.0f);
-
-    // Local smoother — returns true iff the intensity actually moved.
-    auto smooth = [&](bool enabled, float& intensity,
-        float attack, float release) -> bool {
-            float t = enabled ? target : 0.0f;
-            float prev = intensity;
-            float rate = (t > prev) ? attack : release;
-            float next = prev + (t - prev) * (1.0f - std::exp(-rate * dt));
-            if (next < 0.001f && t == 0.0f) next = 0.0f;
-            if (next > 0.999f && t >= 1.0f) next = 1.0f;
-            if (next != prev) { intensity = next; return true; }
-            return false;
-        };
-
-    // Motion: force + noise share one intensity.
-    if (smooth(true, os.force_intensity, ORB_FORCE_ATTACK, ORB_FORCE_RELEASE)) {
-        float radial = os.force_intensity * ORB_FORCE_SCALE;
-        c->gpuState_.upload_orb_force(queue, radial);
-
-        float noise = ORB_NOISE_FLOOR
-            + os.force_intensity * (os.active_noise_amp - ORB_NOISE_FLOOR);
-        c->gpuState_.upload_orb_noise(queue, noise);
-    }
-
-    // Color: three independent trajectories, each gated per-mood.
-    bool color_changed = false;
-    if (smooth(os.color_pulse_active, os.color_pulse_intensity,
-        ORB_COLOR_ATTACK, ORB_COLOR_RELEASE))    color_changed = true;
-    if (smooth(os.color_converge_active, os.color_converge_intensity,
-        ORB_COLOR_ATTACK, ORB_COLOR_RELEASE))    color_changed = true;
-    if (smooth(os.color_surge_active, os.color_surge_intensity,
-        ORB_COLOR_ATTACK, ORB_COLOR_RELEASE))    color_changed = true;
-
-    if (color_changed) {
-        c->gpuState_.upload_orb_color_dynamics(queue,
-            os.color_pulse_intensity,
-            os.color_converge_intensity,
-            os.color_surge_intensity);
-    }
-
-    // Flocking: separate attack/release from color so the flock
-    // tightens as a gesture rather than snapping.
-    if (os.flock_active) {
-        float prev = os.flock_intensity;
-        float rate = (target > prev) ? ORB_FLOCK_ATTACK : ORB_FLOCK_RELEASE;
-        float next = prev + (target - prev) * (1.0f - std::exp(-rate * dt));
-        if (next < 0.001f && target == 0.0f) next = 0.0f;
-        if (next > 0.999f && target >= 1.0f) next = 1.0f;
-        if (next != prev) {
-            os.flock_intensity = next;
-            c->gpuState_.upload_orb_flock_intensity(queue, os.flock_intensity);
-        }
-    }
-
-    // Population speed attractor. `target` (computed above,
-    // clamped polyphony 0..1) drives speed_target from 1.0 at silence
-    // up to ORB_SPEED_CEILING at full music. The sky breathes in
-    // literal speed-of-motion with whatever the music is doing.
-    {
-        const float speed_target = 1.0f + target * (ORB_SPEED_CEILING - 1.0f);
-
-        float prev = os.speed_mult_current;
-        float rate = (speed_target > prev) ? ORB_SPEED_ATTACK : ORB_SPEED_RELEASE;
-        float next = prev + (speed_target - prev) * (1.0f - std::exp(-rate * dt));
-        // Snap back to unity when silence returns, so the idle state
-        // stops generating queue traffic.
-        if (next < 1.001f && next > 0.999f && speed_target == 1.0f) next = 1.0f;
-        if (next != prev) {
-            os.speed_mult_current = next;
-            c->gpuState_.upload_orb_speed_mult(queue, os.speed_mult_current);
-        }
-    }
-}
-
-
 // ═══ GPU DISPATCHES ══════════════════════════════════════════════
 
 // One-shot seed-to-dome kernel. Fires once per configure_orbs when
@@ -1172,7 +1005,7 @@ static void render_orbs(OrbsState& os, Cartridge* c, wgpu::RenderPassEncoder& pa
 //
 // Per-mood orb config. Indexed by the same mood index as MOOD_TABLE.
 // See OrbMoodConfig in orbs.inl (above) for field semantics. Zero-
-// valued rule-critical fields (drg, nz, orbS, flock radii/weights)
+// valued rule-critical fields (drg, orbS, flock radii/weights)
 // are sanitized to system defaults in configure_orbs — "0 = no
 // opinion, system picks a working value." Explicit small non-zero
 // reads as deliberate authorship.
@@ -1181,22 +1014,21 @@ static void render_orbs(OrbsState& os, Cartridge* c, wgpu::RenderPassEncoder& pa
 //    en      enabled              rotAxis rotation_axis[3]
 //    n       count                orbS    orbital_base_speed (rule 1)
 //    hueB    base_hue (legacy)    pal     palette_id (ORB_PAL_*)
-//    hueV    hue_variance         pul     color_pulse_enabled
-//    bri     brightness           cnv     color_converge_enabled
-//    drg     drag (1/s)           srg     color_surge_enabled
-//    nz      noise_amp ceiling    hct     hue_converge_target
-//    rul     motion_rule          anc     anchor_to_pawn_default
-//    rotS    rotation_speed       trs     tierset_id (0xFFFFFFFFu = legacy)
+//    hueV    hue_variance         hct     hue_converge_target
+//    bri     brightness           anc     anchor_to_pawn_default
+//    drg     drag (1/s)           trs     tierset_id (0xFFFFFFFFu = legacy)
+//    rul     motion_rule
+//    rotS    rotation_speed
 //    sepR/alnR/cohR/sepW/alnW/cohW/maxS   flocking parameters
 //    gst     flock_gesture_default (0..7, ORB_FLOCK_GESTURES index)
 //    drgB/drgO/drgF/drgK          per-rule drag multipliers (0 = 1.0× pass-through)
 //
-//                                              en     n    hueB   hueV   bri    drg   nz      rul  rotS    rotAxis                  orbS  pal  pul    cnv    srg    hct    anc    trs           sepR   alnR    cohR    sepW   alnW   cohW   maxS   gst  drgB  drgO  drgF  drgK
+//                                              en     n    hueB   hueV   bri    drg   rul  rotS    rotAxis                  orbS  pal  hct    anc    trs           sepR   alnR    cohR    sepW   alnW   cohW   maxS   gst  drgB  drgO  drgF  drgK
 static constexpr OrbMoodConfig ORB_MOOD_TABLE[MOOD_COUNT] = {
-    /* 0 open_default        */ {  true,  128, 0.08f, 0.06f, 0.85f, 0.4f, 20.0f,  0u,  0.012f, {0.15f, 0.97f, 0.10f},  0.0f, 0u,  true,  true,  true,  0.12f, true,  0u,           50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
-    /* 1 open_sunset         */ {  true,  128, 0.08f, 0.06f, 0.85f, 0.4f, 20.0f,  3u,  0.012f, {0.15f, 0.97f, 0.10f},  0.0f, 0u,  true,  false, false, 0.08f, false, 0u,           50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
-    /* 2 indoor_flat         */ {  false, 0,   0.08f, 0.05f, 0.80f, 0.5f, 0.0f,   0u,  0.000f, {0.00f, 1.00f, 0.00f},  0.0f, 0u,  false, false, false, 0.12f, false, 0xFFFFFFFFu,  50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
-    /* 3 indoor_vault        */ {  false, 0,   0.08f, 0.05f, 0.80f, 0.5f, 0.0f,   0u,  0.000f, {0.00f, 1.00f, 0.00f},  0.0f, 0u,  false, false, false, 0.12f, false, 0xFFFFFFFFu,  50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
-    /* 4 finite_outdoor      */ {  true,  128, 0.08f, 0.06f, 0.85f, 0.4f, 20.0f,  0u,  0.012f, {0.15f, 0.97f, 0.10f},  0.0f, 0u,  true,  true,  true,  0.12f, true,  0u,           50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
-    /* 5 finite_outdoor_ref  */ {  true,  128, 0.08f, 0.06f, 0.85f, 0.4f, 20.0f,  0u,  0.012f, {0.15f, 0.97f, 0.10f},  0.0f, 0u,  true,  true,  true,  0.12f, true,  0u,           50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
+    /* 0 open_default        */ {  true,  128, 0.08f, 0.06f, 0.85f, 0.4f,  0u,  0.012f, {0.15f, 0.97f, 0.10f},  0.0f, 0u,  0.12f, true,  0u,           50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
+    /* 1 open_sunset         */ {  true,  128, 0.08f, 0.06f, 0.85f, 0.4f,  3u,  0.012f, {0.15f, 0.97f, 0.10f},  0.0f, 0u,  0.08f, false, 0u,           50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
+    /* 2 indoor_flat         */ {  false, 0,   0.08f, 0.05f, 0.80f, 0.5f,  0u,  0.000f, {0.00f, 1.00f, 0.00f},  0.0f, 0u,  0.12f, false, 0xFFFFFFFFu,  50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
+    /* 3 indoor_vault        */ {  false, 0,   0.08f, 0.05f, 0.80f, 0.5f,  0u,  0.000f, {0.00f, 1.00f, 0.00f},  0.0f, 0u,  0.12f, false, 0xFFFFFFFFu,  50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
+    /* 4 finite_outdoor      */ {  true,  128, 0.08f, 0.06f, 0.85f, 0.4f,  0u,  0.012f, {0.15f, 0.97f, 0.10f},  0.0f, 0u,  0.12f, true,  0u,           50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
+    /* 5 finite_outdoor_ref  */ {  true,  128, 0.08f, 0.06f, 0.85f, 0.4f,  0u,  0.012f, {0.15f, 0.97f, 0.10f},  0.0f, 0u,  0.12f, true,  0u,           50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
 };

@@ -165,9 +165,8 @@ static constexpr float PAINTING_AREA[] = {
 // SEAM[gallery:wall-art] WallArtConfig + WALL_ART are the indoor
 //   half of gallery's :dual-role surface. They live here (not in
 //   cartridge.hpp) because place_wall_paintings — the only
-//   consumer — lives here. Same migration class as
-//   musical_state_.mood_allows_modes (Q-closed-1) and ribbon active state
-//   (Q-closed-4).
+//   consumer — lives here. Same migration class as ribbon active
+//   state (Q-closed-4).
 //
 // Concerns:
 //   PhotographerCaptureConfig — snapshot capture cadence

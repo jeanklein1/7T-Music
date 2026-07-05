@@ -1109,8 +1109,9 @@ static void commit_ribbon(RibbonState& rs, Cartridge* c,
     rs.gpu[s] = r;
 
     auto& ar = rs.active[s];
-    // Snapshot the spawn color as the idle target for musical color couplings
-    // (musical.inl section 5 releases here when no PC is stimulating the ribbon).
+    // Snapshot the spawn color as the idle target — the home a future
+    // gen-2 color coupling releases toward (the gen-1 §5 coupling
+    // retired in M1; see coupling_layer_migration_map.md).
     ar.spawn_color[0] = r.color[0];
     ar.spawn_color[1] = r.color[1];
     ar.spawn_color[2] = r.color[2];
