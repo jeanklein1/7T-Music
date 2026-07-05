@@ -4234,8 +4234,6 @@ fn compute_ribbon_rings(@builtin(global_invocation_id) gid: vec3<u32>) {
     ring_xforms[ring_idx].terrain_y = terrain_y;
 }
 
-// --- Ribbon Vertex Shader: Square Tube
-@vertex
 // Branchless hue rotation about the RGB gray axis (Rodrigues form).
 // Identity at a = 0 by construction — the CB-1b hue-spread dial rests
 // there for SMOOTH/TINTED and low-draw CONTRAST ribbons.
@@ -4245,6 +4243,8 @@ fn hue_rotate(c: vec3<f32>, a: f32) -> vec3<f32> {
     return c * ca + cross(k, c) * sa + k * dot(k, c) * (1.0 - ca);
 }
 
+// --- Ribbon Vertex Shader: Square Tube
+@vertex
 fn ribbon_vs(@builtin(vertex_index) vid: u32) -> EntityVarying {
     let ribbon = render_ribbon;
     let ring_count = ribbon.cube_count;   // number of cross-section rings
