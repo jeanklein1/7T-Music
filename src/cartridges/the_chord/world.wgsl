@@ -4122,12 +4122,28 @@ fn ribbon_displacement_at(phase_age: f32, ribbon: RibbonState) -> vec2<f32> {
     return vec2(lateral, vertical);
 }
 
-fn ribbon_spine_at(t: f32, ribbon: RibbonState) -> vec3<f32> {
-    let total_length = f32(ribbon.cube_count) * ribbon.cube_size;
+// Analytic wave slopes — the displacement's derivative twin, per unit of
+// phase_age. Used by the ring motor to aim the frame along the TRUE
+// instantaneous motion (heading + wave) and to bank into the swing.
+fn ribbon_wave_slopes(phase_age: f32, ribbon: RibbonState) -> vec2<f32> {
+    let d_lat  = cos(ribbon.lateral_freq  * phase_age)
+               * ribbon.lateral_amp  * ribbon.lateral_freq;
+    let d_vert = cos(ribbon.vertical_freq * phase_age)
+               * ribbon.vertical_amp * ribbon.vertical_freq;
+    return vec2<f32>(d_lat, d_vert);
+}
 
-    // Trail-frame phase: how long ago (seconds) this ring's head-state was
-    // emitted. Shared across all axes so crests stay synchronized.
-    let phase_age = ribbon.time - t * total_length / max(ribbon.propagation_speed, 1e-6);
+// Trail-frame phase for spine parameter t: how long ago (seconds) this
+// ring's head-state was emitted. THE one expression — shared by the spine
+// echo and the ring motor's frame law (BNK-1) so the two can never drift.
+fn ribbon_phase_age(t: f32, ribbon: RibbonState) -> f32 {
+    let total_length = f32(ribbon.cube_count) * ribbon.cube_size;
+    return ribbon.time - t * total_length / max(ribbon.propagation_speed, 1e-6);
+}
+
+fn ribbon_spine_at(t: f32, ribbon: RibbonState) -> vec3<f32> {
+    // Trail-frame phase: shared across all axes so crests stay synchronized.
+    let phase_age = ribbon_phase_age(t, ribbon);
 
     // The body is the head's displacement echoed along the ruler. Place the
     // sway in the ring's OWN frame — the CPU-authored yaw channel
@@ -4145,6 +4161,18 @@ fn ribbon_spine_at(t: f32, ribbon: RibbonState) -> vec3<f32> {
     let right = vec3(-sin(yaw), 0.0, cos(yaw));
     return center + d.x * right + d.y * vec3(0.0, 1.0, 0.0);
 }
+
+// ── The frame law (BNK-1) ── how each ring's FRAME answers the wave.
+// ALIGN: 0 = frames ignore the wave (the old yaw-only law); 1 = the nose
+//   and every ring aim along the true instantaneous motion — heading
+//   deflected by the wave's slope (the head faces where it swims).
+// BANK: roll into the lateral swing — max lean crossing center, level at
+//   the extremes, clamped. Slope scales with amplitude, so the sustain
+//   swell deepens the carve and the lean with no extra pipe.
+// Identity at 0/0. Hot-reloadable; tune by save.
+const RIBBON_TANGENT_ALIGN: f32 = 1.0;
+const RIBBON_BANK_GAIN: f32 = 0.9;
+const RIBBON_BANK_MAX: f32 = 0.6;   // radians, clamp
 
 // Build a PGA motor that places and orients one cross-section ring.
 // Composes: orient * translate — rotate the local frame, then place it.
@@ -4165,10 +4193,38 @@ fn ribbon_ring_motor(ring_idx: u32, ribbon: RibbonState) -> Motor {
     // and the ring's lateral axis on (−sin w, 0, cos w) — identical to the
     // spine wave's explicit right and the mount's right. One convention,
     // three consumers, coherent.
-    let orient = rotor(vec3(0.0, 1.0, 0.0), -head_poses[ring_idx].w);
+    // BNK-1: frame now aims along the displaced tangent and banks; the
+    // mount and camera still read the CPU yaw-only pose — the saddle rides
+    // GIMBAL-level over a banking body, pending Jean's ruling.
 
-    // orient first, then translate to the ring center (gp_mm applies its first
-    // argument first).
+    // Phase age for THIS ring: the exact expression ribbon_spine_at uses,
+    // shared via ribbon_phase_age (refactored to a helper, not mirrored,
+    // so the frame answers the very wave the spine draws — no drift).
+    let phase_age = ribbon_phase_age(t, ribbon);
+    let slopes = ribbon_wave_slopes(phase_age, ribbon);
+    let p = max(ribbon.propagation_speed, 1e-3);
+
+    // Deflections of the frame toward the true tangent: the wave's
+    // velocity against forward travel. Small-angle honest: atan.
+    let yaw_off   = RIBBON_TANGENT_ALIGN * atan(slopes.x / p);
+    let pitch_off = RIBBON_TANGENT_ALIGN * atan(slopes.y / p);
+    let roll      = clamp(RIBBON_BANK_GAIN * (slopes.x / p),
+                          -RIBBON_BANK_MAX, RIBBON_BANK_MAX);
+
+    // Compose: base yaw (the CPU-authored heading, negated per the
+    // convention note above) → pitch about the ring's LATERAL axis →
+    // roll about the tube AXIS. Local axes in ring space before the
+    // base yaw: tube axis = +X, lateral = +Z, up = +Y (per tube_corner /
+    // tube_face_normal). Apply the local rotors FIRST, then the base
+    // yaw, then translate — gp_mm order per the existing comment (first
+    // argument applies first). Sign convention: verify on screen with
+    // the sweep test; if the nose crabs OUTWARD or the bank leans
+    // out of the turn, flip the offending sign and note it.
+    let base_yaw = rotor(vec3(0.0, 1.0, 0.0), -(head_poses[ring_idx].w) - yaw_off);
+    let r_pitch  = rotor(vec3(0.0, 0.0, 1.0), pitch_off);
+    let r_roll   = rotor(vec3(1.0, 0.0, 0.0), roll);
+    let orient   = gp_mm(gp_mm(r_roll, r_pitch), base_yaw);
+
     let trans = Motor(vec4(1.0, 0.0, 0.0, 0.0), vec4(-0.5 * center, 0.0));
     return gp_mm(orient, trans);
 }

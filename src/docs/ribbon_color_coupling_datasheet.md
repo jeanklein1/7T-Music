@@ -90,6 +90,19 @@ Two further future D-couplings live here:
   response (the lesson). The 2× ceiling had already made the duck's
   visibility job obsolete; additive-over-identity-rest is the deviation
   law's pure form. Music ADDS to the idle dance; it never suppresses it.
+- FRAME LAW (ledger, BNK-1): the ring frames now answer the wave — the
+  nose aims along the true instantaneous motion (heading deflected by
+  the analytic wave slope) and the body BANKS into the lateral swing.
+  Slope ∝ amplitude, so the sustain swell deepens the carve and the
+  lean with no extra pipe; identity at gains 0/0. This changes the IDLE
+  look deliberately. Hot-loop dials in world.wgsl:
+  RIBBON_TANGENT_ALIGN / RIBBON_BANK_GAIN / RIBBON_BANK_MAX. The
+  checker skin rotates through the roll — the faces know they dance.
+  MOUNT GIMBAL RULING OPEN: the mount and camera still read the CPU
+  yaw-only pose — the saddle rides gimbal-level over a banking body,
+  keep-or-mirror pending. The diameter law (DM-1) remains parked and
+  COMPOSES with this: the diameter would reorient the wave these
+  frames answer.
 
 ## 3. SHADER CONSTANTS (world.wgsl, hot-reloadable — scene-level dials)
 | const                | meaning                         | class | notes |
