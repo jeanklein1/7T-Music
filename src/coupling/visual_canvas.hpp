@@ -98,13 +98,11 @@ namespace t7 {
     // of these is the CASTING SHEET. The ribbon is the chordal piano.
     inline constexpr const char* RIBBON_VOICE = "ch1";   // live prefix verified: chN (canvas_1 NAME_* tables)
 
-    // ── Sustain swell (movement) ── the dance swells with how long the
-    // current chord has been held, uninterrupted, on the ribbon's voice.
-    // Any note added or released re-articulates (the hold restarts).
-    // RULED: ceiling = 2× idle, reached at 8 beats. The sidechain floor
-    // (DUCK) makes presence read: the body settles to listen, then
-    // swells. Silence ⇒ 1 ⇒ the seed dance exactly.
-    inline constexpr float RIBBON_SIDECHAIN_DUCK = 0.70f;
+    // ── Sustain swell (movement) ── PURE ADDITIVE: the dance is the seed
+    // idle PLUS the chord's contribution. goal = 1 + (CEILING−1)·t where
+    // t ramps over the hold; silence gives 1 from the formula itself —
+    // no branch, identity by construction. Music only ever gives;
+    // idleness is inviolate. RULED: ceiling 2× idle at 8 beats.
     inline constexpr float RIBBON_SWELL_CEILING  = 2.00f;  // × idle (ruled)
     inline constexpr float RIBBON_SWELL_RAMP     = 8.0f;   // beats (ruled)
     inline constexpr float RIBBON_SWELL_SPAN     = 1.0f;   // Segment glide
@@ -222,8 +220,8 @@ namespace t7 {
             // ── sustain swell (movement = TIME, the ribbon's voice) ─────
             // The dance swells with how long the current chord has held,
             // uninterrupted, on ch1's Playhead. Any change to the sounding
-            // SET re-articulates: dip to the sidechain floor, regrow.
-            // Ruled: floor→2× over 8 beats. Silence ⇒ 1 ⇒ the seed dance.
+            // SET re-articulates: breathe to baseline (1), regrow.
+            // Ruled: 1→2× over 8 beats. Silence ⇒ 1 ⇒ the seed dance.
             if (voice_playhead_.valid && amp_lat_.valid && amp_vert_.valid) {
                 uint32_t mask = 0u;
                 for (int i = 0; i < 12; ++i)
@@ -235,13 +233,11 @@ namespace t7 {
                 else if (dbeats > 0.0f)               hold_beats_ += dbeats;
                 hold_mask_ = mask;
 
-                float goal = 1.0f;
-                if (mask != 0u) {
-                    const float t = (hold_beats_ < RIBBON_SWELL_RAMP)
-                        ? hold_beats_ / RIBBON_SWELL_RAMP : 1.0f;
-                    goal = RIBBON_SIDECHAIN_DUCK
-                         + (RIBBON_SWELL_CEILING - RIBBON_SIDECHAIN_DUCK) * t;
-                }
+                // One expression: hold==0 (silence or fresh chord) gives
+                // goal 1 by itself. Re-articulation breathes to BASELINE.
+                const float t = (hold_beats_ < RIBBON_SWELL_RAMP)
+                    ? hold_beats_ / RIBBON_SWELL_RAMP : 1.0f;
+                const float goal = 1.0f + (RIBBON_SWELL_CEILING - 1.0f) * t;
                 params_.set(amp_lat_.base,
                     trajectory_release(amp_lat_seg_,  goal, beat, RIBBON_SWELL_SPAN));
                 params_.set(amp_vert_.base,

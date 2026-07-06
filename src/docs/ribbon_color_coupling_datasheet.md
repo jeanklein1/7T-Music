@@ -1,4 +1,4 @@
-# RIBBON COLOR & CELLS — COUPLING DATASHEET (post-SS-2)
+# RIBBON COLOR & CELLS — COUPLING DATASHEET (post-SS-3)
 The couplable surface of the ribbon's color system and cell skin, exposed in
 contract-datasheet form. Classes per the standing key: L-global (body-wide,
 Segment-safe), LH (through the head's history), D (discrete; selection +
@@ -85,6 +85,11 @@ Two further future D-couplings live here:
   predictions, and verify-first gates are their mandatory counterweight
   — SS-2's "visual_canvas.hpp ONLY" line met readings-on-demand and the
   law won, exactly as designed.
+- SIDECHAIN IDIOM RETIRED (ledger, SS-3): presence-ducking punishes
+  short gestures — staccato dipped the body BELOW idle, an inverted
+  response (the lesson). The 2× ceiling had already made the duck's
+  visibility job obsolete; additive-over-identity-rest is the deviation
+  law's pure form. Music ADDS to the idle dance; it never suppresses it.
 
 ## 3. SHADER CONSTANTS (world.wgsl, hot-reloadable — scene-level dials)
 | const                | meaning                         | class | notes |
@@ -115,16 +120,17 @@ vs travel-at-P (historian feel); layer one above is idiom-independent.
 ## 6. RELATED SURFACES ALREADY LIVE OR TAGGED
 fog.density / fog.color — the played coupling (all.field, held→table).
 ribbon.amp_lateral_mult / ribbon.amp_vertical_mult — PARAM_LAYOUT rows
-4–5, LIVE (coupling #2, REDESIGNED by SS-2: sustain swell — movement
-carries TIME): the dance swells with how long the current chord has
-held, uninterrupted, on the ribbon's cast voice ("ch1.present_count",
-the Playhead's sounding set; the casting sheet's first row). Any change
-to the set re-articulates: dip to the sidechain floor (0.70), regrow.
-RULED: ceiling 2× idle, reached at 8 beats. Silence ⇒ 1 ⇒ the seed
-dance exactly (rest = identity holds). Multipliers composed over the
-spawn-drawn wave amps at the conductor's per-frame flush; the pawn
-mount reads the same mirror — the rider breathes with the coupled
-dance for free.
+4–5, LIVE (coupling #2, REDESIGNED by SS-2, made ADDITIVE by SS-3:
+sustain swell — movement carries TIME): the dance swells with how long
+the current chord has held, uninterrupted, on the ribbon's cast voice
+("ch1.present_count", the Playhead's sounding set; the casting sheet's
+first row). LAW: 1 + contribution (additive; idle inviolate) — music
+only ever gives. Any change to the set re-articulates: breathe to
+baseline (1.0), regrow. RULED: ceiling 2× idle, reached at 8 beats.
+Silence ⇒ 1 from the formula itself (identity by construction, not by
+branch). Multipliers composed over the spawn-drawn wave amps at the
+conductor's per-frame flush; the pawn mount reads the same mirror —
+the rider breathes with the coupled dance for free.
 Terrain palette machinery — DRIVERLESS, scene-level future siblings
 (band motion, palette drift, mode color shift) — same grammar, one scale up.
 sphere/floater color — DRIVERLESS landing sites from the demolition.
