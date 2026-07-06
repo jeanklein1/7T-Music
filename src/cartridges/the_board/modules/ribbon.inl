@@ -792,8 +792,11 @@ static void ribbon_advance_head(RibbonState& rs, GPUState& gpuState,
                            * ribbon.lateral_amp  * ribbon.lateral_freq;
         const float sl_ver = std::cos(ribbon.vertical_freq * s_age)
                            * ribbon.vertical_amp * ribbon.vertical_freq;
-        hd.mount_yaw_off = MOUNT_TANGENT_ALIGN * std::atan(sl_lat / p_spd);
-        hd.mount_pitch   = MOUNT_TANGENT_ALIGN * std::atan(sl_ver / p_spd);
+        // Negated tangent-align, in LOCKSTEP with the GPU ring motor
+        // (the drift-trap resolution: the sweep test flipped the shader
+        // side; this mirror flips with it, same commit).
+        hd.mount_yaw_off = -MOUNT_TANGENT_ALIGN * std::atan(sl_lat / p_spd);
+        hd.mount_pitch   = -MOUNT_TANGENT_ALIGN * std::atan(sl_ver / p_spd);
         const float bank = MOUNT_BANK_GAIN * (sl_lat / p_spd);
         hd.mount_roll = (bank >  MOUNT_BANK_MAX) ?  MOUNT_BANK_MAX :
                         (bank < -MOUNT_BANK_MAX) ? -MOUNT_BANK_MAX : bank;

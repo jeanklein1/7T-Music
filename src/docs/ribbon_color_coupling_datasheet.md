@@ -125,6 +125,20 @@ Two further future D-couplings live here:
   samples the wave at the seat's arc position (head age offset by
   MOUNT_SETBACK/p) while the mount POSITION samples at the head's age
   — a deliberate seam, Jean's eyes on it at the ride gate.
+- SIGN RESOLUTION + THE DRIFT CAUGHT (ledger, BNK-1/BNK-2): the
+  committed tangent-align deflections were MIRRORED across the base
+  heading — the tube axis runs tailward, and the tailward tangent is
+  exactly dir(w − atan(slopes.x/p)), so the terms enter NEGATED; with
+  a plus the nose crabs outward of the swing and dives on the rise
+  (gate-4's named failure). The sweep test caught it on screen; the
+  hot-loop flip never reached Door B's CPU mirror, and the rider
+  leaned against the face — the twin-authorship contract's drift
+  alarm, firing on its first opportunity, resolved by flipping BOTH
+  sides of the mirror in one commit. Confirmed beforehand by three
+  independent adversarial derivations (operator handedness numeric to
+  1e-16; spatial-tangent and apparent-velocity models agree exactly:
+  ring velocity = −p × tailward tangent). The bank's sign is
+  aesthetic and stands as authored.
 
 ## 3. SHADER CONSTANTS (world.wgsl, hot-reloadable — scene-level dials)
 | const                | meaning                         | class | notes |
