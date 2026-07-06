@@ -23,7 +23,8 @@ documented to the wiggle-test standard (§6). PANEL: the future generic
 renderer over declared rows — also the certification bench.
 
 ## §2 — WHAT YOU DELIVER
-D1. The module file(s), per §3 anatomy, genre declared in the header.
+D1. The module file(s), per §3 anatomy, its kind named in the header's
+    identity sentence.
 D2. Shader section(s) if you realize geometry — numbered into world.wgsl's
     § scheme, mirrors comment-pinned, hazards of §9 respected.
 D3. The datasheet, per §6, true at delivery.
@@ -50,8 +51,11 @@ R4. CONDUCTOR: one function, called once per frame from its position in
 R5. LIFECYCLE: select → place → commit → evict, all four owned; COMMIT is
     the succession choke point — identity and rebirth are structural
     there, never policed at call sites; eviction restores rest truthfully.
-R6. DETERMINISM: the seed is the entity's whole biography — stateless,
-    order-independent channels; same seed, same entity, always.
+R6. DETERMINISM: the seed and the spawn moment are the entity's whole
+    biography — every seed-drawn property is a stateless,
+    order-independent channel: same seed, same draws, always. (Live
+    steering by the player is the instrument's hands, by design outside
+    the biography.)
 R7. COMMENTS state present behavior; history lives in git; exceptions are
     tagged in place with their retirement condition (constitution §5
     format).
@@ -165,9 +169,14 @@ H1. FXC fragility: instance structs in hot loops stay lean and
     solids; CPU dead-reckoning handles footprint precision.
 H2. Attribute adjacency: never place a function between @vertex/@fragment/
     @compute and its fn — insertions name an exact host.
-H3. Uniform layout: array<f32,N> strides to 16 in uniform space — use
-    vec3/vec4 packing; mirrors are byte-pinned with static_asserts CPU-
-    side and stated sizes shader-side.
+H3. Uniform layout: WGSL's uniform address space wants 16-byte array
+    strides — prefer vec3/vec4 packing (pulse_data is the worked
+    example); mirrors are byte-pinned with static_asserts CPU-side and
+    stated sizes shader-side. STANDING EXCEPTION, eyes open: the frame
+    signal's stats array<f32,64> rides packed in a uniform binding and
+    works on the current Dawn (the sky words after it read true) — do
+    not "fix" it to vec4s without moving the CPU mirror in the same
+    commit, and re-verify on any Dawn upgrade.
 H4. Sized aggregates initialized short are compiler-silent nullptr
     factories — size arrays to contents.
 H5. Hot-reload: world.wgsl is live; prefer WGSL residence for purely

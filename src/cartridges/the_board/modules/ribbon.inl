@@ -150,6 +150,7 @@ static constexpr float WANDER_LEG_MAX     = 500.0f;
 static constexpr float WANDER_SPREAD      = 1.0f;    // rad of bearing spread around current motion
 static constexpr float WANDER_RETARGET_MIN = 10.0f;  // seconds between waypoints
 static constexpr float WANDER_RETARGET_VAR = 15.0f;
+static constexpr float WANDER_HATCH_LEG   = 300.0f;  // hatchling's first-waypoint leg (units) — the newborn's opening stride, sized between LEG_MIN/MAX's band; consumed in commit_ribbon's hatchling rule
 static constexpr float WANDER_STEER_SOFT  = 0.5f;    // rad of heading error for full deflection
 static constexpr float WANDER_YAW_MAX     = 0.15f;   // yaw cap: radius >= RIBBON_R_MIN/0.15 (~270 u) — body-scale arcs
 static constexpr float WANDER_YAW_TAU     = 2.0f;    // s; first-order ease on the steering — curvature stays continuous (control-panel)
@@ -1382,8 +1383,8 @@ static void commit_ribbon(RibbonState& rs, Cartridge* c,
     // Hatchling rule: a newborn departs along its own body. Movement is
     // -heading = -orientation, so the first waypoint lies straight ahead;
     // the meander begins at the second pick. No pose contradiction at birth.
-    ar.wander_tx = plan.cx - 300.0f * std::cos(r.orientation);
-    ar.wander_tz = plan.cz - 300.0f * std::sin(r.orientation);
+    ar.wander_tx = plan.cx - WANDER_HATCH_LEG * std::cos(r.orientation);
+    ar.wander_tz = plan.cz - WANDER_HATCH_LEG * std::sin(r.orientation);
     ar.wander_retarget = WANDER_RETARGET_MIN;
     ar.wander_yaw_state = 0.0f;
     // Succession: a commit into the slot the head is wearing is a REBIRTH.
