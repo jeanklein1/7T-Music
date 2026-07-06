@@ -3510,6 +3510,8 @@ namespace t7 {
 
                 stream_patches(encoder, queue);
 
+                // DIAG-unwrapped (census: constitution §5): autonomous
+                // stdout — wrap in #ifdef DIAG_AGENT_CENSUS at ship.
                 // Periodic agent census dump — followed by the player's
                 // last-known position from the GPU readback. The pos line
                 // tells us at-a-glance whether the readback is current

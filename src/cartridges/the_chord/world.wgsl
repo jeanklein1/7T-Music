@@ -42,16 +42,17 @@
 //   contributor or policy: see "Extension patterns" subsection
 //   below for the exact step list across both files.
 // SEAM[world.wgsl:fxc-constraints] the Windows D3D12/FXC backend
-//   imposes hard limits documented in cartridge.hpp:
-//     - SolidInstance must remain ≤ 32 bytes
-//     - evaluate_solid must not gain new branches
+//   imposes hard limits, honored by structure in this file:
+//     - instance structs in hot loops stay lean and byte-pinned
+//       (GPUPierInstance: 48 B, static_assert in state.hpp — the
+//       successor of the retired 32-byte SolidInstance rule)
+//     - the collision/ground chain admits no new runtime branching;
+//       evaluate_pier's caller bounds its loop by a uniform
+//       (config.pier_count) and dispatch is by uniform function
+//       choice, not branches
 //     - texture-array stamps in the collision chain hang FXC
 //     - one DrawIndexedIndirect per render pass maximum
 //     - storage buffers / stage = 10; uniform buffers / stage = 12
-//   These are observed in cartridge.hpp's notes; honored by
-//   structure here (e.g. SolidInstance compactness, query_ground_*
-//   dispatch via uniform function choice rather than runtime
-//   branching).
 // ─────────────────────────────────────────────────────────────────────
 
 // THE_CHORD CARTRIDGE — GPU Scroll

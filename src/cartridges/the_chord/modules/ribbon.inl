@@ -28,7 +28,7 @@
 // │       and spawn-engine helpers; not part of ribbon's data)       │
 // │    commit_ribbon(rs, c, plan, gx, gz, queue)    — Phase 3: state │
 // │                                                                  │
-// │  Frame conductor (ONE call per frame from update()):             │
+// │  Frame conductor (ONE call per frame from render()):             │
 // │    ribbon_frame_tick(rs, c, queue)                               │
 // │      — author selection, slot hold/adopt, uploads, advance       │
 // │                                                                  │
@@ -890,11 +890,11 @@ static void ribbon_head_pen(const RibbonState& rs, float& x, float& z, float& he
 // mode, wanderer when the rendered ribbon wanders, parked otherwise),
 // advance the head through the laws, keep the rendered slot (hold
 // until eviction, then adopt the nearest active ribbon), and flush
-// the per-frame GPU uploads (time, color). update() calls this once
-// per frame at the ribbon block's old position. External consumers
-// of the head pose (camera signal, pawn-mount resync) read
-// ribbon_head_pose from their own order-sensitive sites in update()
-// — they consume, they do not orchestrate.
+// the per-frame GPU uploads (time, color). render() calls this once
+// per frame at the ribbon block's position in the frame cascade.
+// External consumers of the head pose (camera signal, pawn-mount
+// resync) read ribbon_head_pose from their own order-sensitive sites
+// after this tick — they consume, they do not orchestrate.
 static void ribbon_frame_tick(RibbonState& rs, Cartridge* c, wgpu::Queue& queue) {
     // Ribbon eviction is fully event-driven via ref_count in
     // evict_patch_entities — no per-frame scan needed.

@@ -32,7 +32,7 @@
 // └──────────────────────────────────────────────────────────────────┘
 //
 // Included inside the Cartridge class body.
-// Depends on: musical/trajectory.hpp (release primitive).
+// Depends on: coupling/trajectory.hpp (release primitive).
 // ─────────────────────────────────────────────────────────────────
 
 
@@ -139,6 +139,9 @@ PawnState pawn_state_;
 static void tick_pawn_couplings(PawnState& ps, Cartridge* c, wgpu::Queue& queue) {
     // Aura presence ramp: smooth 0→1 on enable / 1→0 on disable.
     // (aura_presence migrated to player_ in SEAM[spine:P8] — see Cartridge::PlayerState)
+    // COMPAT: this ramp is the last consumer of the legacy exponential
+    // Trajectory — trajectory.hpp's COMPAT section exists for it.
+    // Dies at M3 (census: constitution §5).
     {
         const float target = ps.aura_enabled ? 1.0f : 0.0f;
         const float prev   = c->player_.aura_presence;

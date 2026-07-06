@@ -8,9 +8,12 @@ A cartridge is the composition root and the ambient world: the one place
 where entities are assembled into an exhibit, and the environment every
 module breathes. It is swappable as a whole — the_chord (the lab) and
 the_board (the exhibit) are two instances of one anatomy, mirrors except
-where a divergence is authored and declared. Nothing musical happens in
-it except through the canvas; nothing entity-shaped lives in it except
-assembly.
+where a divergence is authored and declared. Mirror conventions (the
+practiced law): mirrored-module deltas are byte-identical (ribbon.inl,
+pawn.inl); ribbon.inl carries a UTF-8 BOM; world.wgsl is BOM-free LF;
+world.wgsl deltas are byte-identical between cartridges. Nothing musical
+happens in it except through the canvas; nothing entity-shaped lives in
+it except assembly.
 
 ## §1 — THE SINGLE-ORGANISM LAW
 Modules are class-body includes; the cartridge is one class whose
@@ -35,21 +38,32 @@ What must NOT live here: entity laws, entity state, coupling decodes
 hidden; they are §5 entries with retirement conditions (the eviction
 thunks are the standing example).
 
-## §3 — THE CONDUCTOR CONTRACT: update() AS THE SCORE
-update() reads top to bottom as the frame's score, in fixed cascade
-order: clocks adopt (seconds, beats, and the TEMPO FOLLOWER — beat_rate
-held-last through stops, defaulting to the 100 BPM CALIBRATION ANCHOR at
-which authored idle motion equals wall-clock feel; periodic idles
-converge to it as their modules are touched) → analysis is read → the
-canvas ticks (all coupling decodes, nowhere else) → entity conductors
-flush and advance, ONE CALL PER ENTITY → consumers consume (camera,
-mounts — reads, never laws) → the frame signal fills FROM POST-ADVANCE
-STATE (the SNAP-1 ordering: what the kernels snap to and what the rings
-render must derive from the same advance) → uploads ship. THE KEYHOLE: a
-conductor may reach through its cartridge pointer for declared services —
-the clocks, the canvas's params, the GPU wires, its own resolved bindings
-— and for nothing entity-private of a peer. Consumers consume;
-conductors orchestrate; the cartridge itself merely calls.
+## §3 — THE CONDUCTOR CONTRACT: THE FRAME AS A SCORE
+The frame's score is fixed-order across TWO MOVEMENTS — update() then
+render(), the host calling them in that order every frame.
+update(): the frame signal builds from analysis (clocks and stats
+copied; the sky words ship NEUTRAL ZEROS — see the SNAP-1 clause) →
+clocks adopt (seconds, beats, and the TEMPO FOLLOWER — beat_rate
+held-last through stops, defaulting to the 100 BPM CALIBRATION ANCHOR
+at which authored idle motion equals wall-clock feel; periodic idles
+converge to it as their modules are touched) → the canvas ticks (all
+coupling decodes, nowhere else) → the pawn conductor flushes → the
+signal uploads.
+render(): the ribbon conductor advances (ONE CALL PER ENTITY holds for
+both conductors) → the sky words are REWRITTEN from post-advance state
+(the SNAP-1 clause: resync_sky_head is the authoritative author,
+ordered after the tick and before dispatch; queue writes land in
+submission order, so what the kernels snap to and what the rings render
+derive from the same advance — the neutral fill exists so losing the
+resync fails loud, not silently one frame late) → kernels dispatch →
+passes encode.
+THE KEYHOLE: a conductor may reach through its cartridge pointer for
+declared services — the clocks, the canvas's params, the GPU wires, its
+own resolved bindings, the spine-owned player/flight state and raw
+input (the sky author's seat; its two writes are SEAM-tagged in place),
+and the spine's terrain and spawn-engine services — and for nothing
+entity-private of a peer. Consumers consume; conductors orchestrate;
+the cartridge itself merely calls.
 
 ## §4 — THE DOORS LAW
 Boundaries are defined by transport, one door per source kind:
@@ -63,41 +77,60 @@ frame: one composer for pawn orientation, two doors for its ingredients).
 MUSIC enters through THE BANK — entities read pipes; they never learn
 what drove them.
 Beneath all three, GPU SOVEREIGNTY: the CPU authors intent, the GPU
-realizes geometry; no CPU law duplicates a shader law.
+realizes geometry; no CPU law duplicates a shader law except as a
+DECLARED TWIN under §6's hot-reload rule (the MOUNT_* frame mirrors are
+the standing instance — lockstep-commented both sides, drift test
+stated).
 
 ## §5 — THE EXCEPTION LEDGER (the living section)
 An exception is a tagged deviation with a named decision and a
 retirement condition. This section IS the census; it updates same-commit
 with any change to its entries. Classes and counts as of this commit:
+Counting convention: mirrored pairs count once; counts are per
+cartridge unless stated.
 - COMPAT (1 debt, two files): pawn.inl's aura ramp holds the legacy
-  Trajectory; trajectory.hpp's COMPAT section exists for it. Dies at M3.
+  Trajectory (COMPAT-tagged at the ramp); trajectory.hpp's COMPAT
+  section exists for it. Dies at M3.
 - TESTING (1): ribbon SPAWN_CHANCE 0.9. Dies at ship.
-- DIAG-unwrapped (1): [Ribbon] SPAWN stdout. Wrapped at ship.
-- DRIVERLESS (11 shader tags): capabilities whose drivers the demolition
-  removed (terrain amplitude, sphere/floater color, band motion, mode
-  uniforms, GoL scales, pulses). Each dies by revive-or-delete when its
-  region is next worked.
+- DIAG-unwrapped (6 sites, tag-greppable as 'DIAG-unwrapped' plus the
+  ribbon's SEAM[ribbon:L1]): [Ribbon] SPAWN; the periodic agent census
+  + [Player] pos block (cartridge.hpp); [Photographer] Capture,
+  [Gallery] slot, [Authored] Rotated, [WallPainting] Placed
+  (gallery.inl). Autonomous stdout, all tagged in place. Wrapped at
+  ship. (Key-command feedback prints are the instrument's UI, not
+  census members.)
+- DRIVERLESS (11 shader tags + 1 CPU landing site): capabilities whose
+  drivers the demolition removed (terrain amplitude, sphere/floater
+  color, band motion, mode uniforms, GoL scales, pulses, orb inputs,
+  the stats-array infrastructure; CPU: orbs speed_mult). Each dies by
+  revive-or-delete when its region is next worked.
 - BOOT-NEUTRAL WRITES (1 block): init writes retired uniforms to their
   neutral values so driverless capabilities rest true. Dies with the
   last driverless entry it serves.
-- TEARDOWN BULK SWEEPS (2): mood-transition teardown clears by sweep
-  rather than per-entity eviction. Documented; dies if eviction ever
-  unifies.
-- EVICTION THUNKS (1 class): dispatch_evict_* live cartridge-side though
-  eviction is lifecycle (a §2 trespass). Die as entities absorb their
-  evictors on next touch.
+- TEARDOWN BULK SWEEPS (2 sites in the transition path): teardown_world
+  clears every family by slot loops, and the finite-mode ribbon sweep
+  inside TEARDOWN. By sweep rather than per-entity eviction;
+  documented; dies if eviction ever unifies.
+- EVICTION THUNKS (1 class, 13 functions): dispatch_evict_* live
+  cartridge-side though eviction is lifecycle (a §2 trespass). Die as
+  entities absorb their evictors on next touch.
 - WHITELIST (1): the_lab.cpp reads the contract directly — the permanent
   instrument-panel exception, by charter.
-- NAMED TODO (1): world.wgsl seam-map binding 144 cleanup.
-- HISTORICAL NARRATION (33 tags): Scope-B/DONE archaeology. PENDING
-  RULING F3 (strip and keep SEAM[], recommended).
+- NAMED TODO (3): world.wgsl seam-map binding 144 cleanup; entities.inl
+  spawn-rules placeholder (dies with the object vocabulary); world.wgsl
+  is_roaming retained field (dies at the next struct relayout).
+- HISTORICAL NARRATION (33 tags): 'Scope B' / DONE[] archaeology — 22
+  primary DONE[] tags + 11 'Scope B migration' banners, cross-references
+  excluded. PENDING RULING F3 (strip and keep SEAM[], recommended).
 Anything deviant and untagged is a bug in this document first.
 
 ## §6 — BOOT, HOT-RELOAD, TEARDOWN
-BOOT: construct state → init GPU → compile pipelines (loaders guard
-missing files; arrays sized to contents — the crash law) → bind the
-signal layout (all canvas resolves happen once, here; resolve fails soft
-and the bind log is the truth) → boot-neutral writes → first adoption.
+BOOT: construct state → init GPU (the boot-neutral writes land here,
+immediately after, so driverless capabilities rest true before any
+pipeline exists) → compile pipelines (loaders guard missing files;
+arrays sized to contents — the crash law) → bind the signal layout (all
+canvas resolves happen once, here; resolve fails soft and the bind log
+is the truth) → first adoption.
 HOT-RELOAD: world.wgsl is live; purely visual constants prefer WGSL-side
 residence for the edit-save-look loop. Where a CPU twin must exist (the
 MOUNT_* frame mirrors), the GPU set is the TUNING AUTHORITY, the mirror

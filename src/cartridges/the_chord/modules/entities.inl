@@ -114,6 +114,8 @@ static constexpr float ARCH_SANDSTONE_VARIANCE = 0.04f;
 // Controls WHERE arches appear; deliberately separate from the tier
 // matrix in entity_pipeline.inl (which controls WHAT each looks
 // like). Spawn rules are placeholder, awaiting full object vocabulary.
+// NAMED TODO (census: constitution §5): the placeholder dies when the
+// object vocabulary lands.
 struct ArchConfig {
     static constexpr float SPAWN_CHANCE = 0.030f;
     // Per-mood spawn multiplier (Bayesian: prior × mood_factor × adjacency_factor)

@@ -8,6 +8,32 @@ with its idle, because rest = identity is the safety contract.
 Standing rule: this file updates in the SAME COMMIT as any change to the
 surface it describes.
 
+## 0. ROW REGISTER (the wiggle table — contract §6 schema)
+Every pipe, one row: name · slot · width · shape · class · REST · what
+the eye sees when it moves · guardrail. Slots are PARAM_LAYOUT rows
+(visual_canvas.hpp); "—" = declared intent, no row yet (ledger-backed,
+wires-on-demand per contract R9). Clamps are WRITE-SIDE (the canvas's
+goal laws), declared per row per contract R13.
+
+| name | slot | width | shape | class | REST | the eye sees | guardrail |
+|------|------|-------|-------|-------|------|--------------|-----------|
+| fog.density | 0 | 1 | Scalar | L-global (scene) | field-table value | fog thickens/thins with the room's field | held→table, glides over FOG_SPAN 2.0 beats |
+| fog.color | 1–3 | 3 | Vector | L-global (scene) | field-table color | fog hue follows the field | held→table, same span |
+| ribbon.amp_lateral_mult | 4 | 1 | Scalar | L-global | 1 | the dance widens; carve + bank deepen with it (BNK-1) | write-side: goal = 1 + (2−1)·t ∈ [1, 2], ceiling RULED |
+| ribbon.amp_vertical_mult | 5 | 1 | Scalar | L-global | 1 | the bob deepens | write-side: same law, same clamp |
+| ribbon.color_stim | 6–8 | 3 | Vector | L-global | 0,0,0 | tint hue re-aims toward the room's harmonic center | luma/chroma authored (TINT_LUMA 0.55 / TINT_CHROMA 0.35); holds last hue in silence |
+| ribbon.color_mix | 9 | 1 | Scalar | L-global | 0 | tint fades in on sound, out on silence | write-side: mix_goal ∈ {0, TINT_MIX_MAX 0.85} |
+| ribbon.color_b | — | 3 | Vector | L-global | spawn light median | contrast collapses/expands (chessboard ⇄ field) | commit-only today; wire on demand |
+| ribbon.checker_scatter | — | 1 | Scalar | L-global | spawn draw | cell lightness texture energy | multiplier idiom, rest 1; commit-only today |
+| ribbon.hue_spread | — | 1 | Scalar | L-global | spawn draw | the riot dial — per-cell hue fan | additive deviation, rest 0, range [0, π]; commit-only today |
+| ribbon.seed | — | 1 | — | C | spawn seed | (identity; never moves) | never coupled |
+| ribbon.color_mode | — | 1 | Discrete | D (birth) | seed roll × weights | species change (SMOOTH/TINTED/CONTRAST) | rebirth-class only |
+
+Casting note: the ribbon's voice is RIBBON_VOICE = "ch1" (the casting
+sheet's first row); the room rows read "all.*". Envelope constants:
+swell attack 0.35 / release 2.0; tint mix attack 0.5 / release 3.0;
+hue re-aim 2.0 (ENV-1).
+
 ## 1. PER-RIBBON PARAMETERS (GPURibbonState; written at commit, static per
 ##    life today — any per-frame coupling needs the flush seam, noted where)
 

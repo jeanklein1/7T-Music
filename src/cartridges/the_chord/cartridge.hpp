@@ -1415,8 +1415,9 @@ namespace t7 {
             // COUNT=12) but route every dispatch step to these no-ops so
             // they never spawn, place, commit, evict, or mesh-gen. Their
             // GPU pipelines were removed in the Pass-3 strip; their CPU
-            // state and GPU buffers remain as dead-but-valid allocations
-            // (see deferral note on state.hpp).
+            // state and GPU buffers remain as dead-but-valid allocations —
+            // a deliberate deferral: reclaiming them means a PopFamily
+            // renumber and buffer-layout churn for zero runtime cost today.
             static bool dispatch_select_noop(Cartridge*, int32_t, int32_t, EntityQueueEntry&) { return false; }
             static bool dispatch_place_noop(Cartridge*, EntityQueueEntry&, PlacementEntry&) { return false; }
             static void dispatch_commit_noop(Cartridge*, PlacementEntry&, wgpu::Queue&) {}
@@ -3512,6 +3513,8 @@ namespace t7 {
 
                 stream_patches(encoder, queue);
 
+                // DIAG-unwrapped (census: constitution §5): autonomous
+                // stdout — wrap in #ifdef DIAG_AGENT_CENSUS at ship.
                 // Periodic agent census dump — followed by the player's
                 // last-known position from the GPU readback. The pos line
                 // tells us at-a-glance whether the readback is current

@@ -738,6 +738,8 @@ static void capture_snapshot(GalleryState& gs, Cartridge* c, float pawn_x, float
         "Panoramic", "Environmental", "Medium", "Close-up",
         "Portrait", "Bird's Eye", "Low Angle", "Cinematic"
     };
+    // DIAG-unwrapped (census: constitution §5): autonomous stdout
+    // (walk-cadence capture) — wrap in #ifdef DIAG_GALLERY at ship.
     std::cout << "[Photographer] Capture -> layer " << layer
         << " (" << shot_names[static_cast<uint32_t>(shot)] << ")"
         << " aspect=" << aspect_ratio
@@ -1150,6 +1152,8 @@ static void commit_gallery(GalleryState& gs, Cartridge* c,
         gc.active = false;  // no paintings placed — release center
     }
     else {
+        // DIAG-unwrapped (census: constitution §5): autonomous stdout
+        // (procedural placement) — wrap in #ifdef DIAG_GALLERY at ship.
         std::cout << "[Gallery] slot=" << plan.slot
             << " at (" << gallery_cx << "," << gallery_cz << ")"
             << " host=(" << plan.host_gx << "," << plan.host_gz << ")"
@@ -1386,6 +1390,8 @@ static void rotate_authored_staging(GalleryState& gs, Cartridge* c, wgpu::Queue&
         for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) {
             if (gs.authored_staging[i].valid) gs.authored_staged_count++;
         }
+        // DIAG-unwrapped (census: constitution §5): autonomous stdout
+        // (teardown rotation) — wrap in #ifdef DIAG_GALLERY at ship.
         std::cout << "[Authored] Rotated " << rotated
             << " slot(s), " << gs.authored_staged_count << " valid"
             << ", disk cursor at " << gs.authored_disk_cursor
@@ -1749,6 +1755,8 @@ static void place_wall_paintings(GalleryState& gs, Cartridge* c, wgpu::Queue& qu
 
     const char* site_type_name = (site_type == IndoorSiteType::SNAPSHOT_ONLY) ? "SNAPSHOT"
         : (site_type == IndoorSiteType::MIXED) ? "MIXED" : "AUTHORED";
+    // DIAG-unwrapped (census: constitution §5): autonomous stdout
+    // (mood apply) — wrap in #ifdef DIAG_GALLERY at ship.
     std::cout << "[WallPainting] Placed " << gs.wall_frame_count
         << " frame(s) across " << active_wall_count << " walls"
         << " (" << site_type_name << ")\n";

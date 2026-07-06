@@ -19,7 +19,7 @@
 // SEAM[seed_utils:P9] textbook "library without state" module — pure
 //   functions, no class members referenced, no domain assumptions.
 //   Easiest module to extract: zero compilation-order constraints,
-//   no semantic change. Same family as musical/trajectory.hpp and
+//   no semantic change. Same family as coupling/trajectory.hpp and
 //   entity_types.inl as P9 instances.
 // SEAM[seed_utils:contract] cpu_lattice_node_seed and cpu_sample_gaussian
 //   are FXC mirrors — must produce identical bit-for-bit results to the

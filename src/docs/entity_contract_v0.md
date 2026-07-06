@@ -34,15 +34,19 @@ D4. Console defaults that look intentional with zero music — your entity
 R1. ANATOMY: header (identity sentence, public-surface box, SEAM tags) →
     tuning console → vocabulary → registry (stride convention stated) →
     tiers beside their governing law → runtime state → author seats →
-    laws → conductor → target surface → lifecycle. Every section present;
-    an empty section is a statement, a missing one is a question.
+    laws → conductor → lifecycle. Every section present; an empty
+    section is a statement, a missing one is a question. (The in-module
+    target-surface section is RETIRED: the bank rows ARE the surface —
+    R10's declaration replaced it; the ribbon's T2 deletion is the
+    precedent.)
 R2. CONSTANTS: no number hides inline in a law; design-time dials live in
     the console with the governing law in the adjacent comment.
 R3. STATE: one XxxState struct; module functions take it explicitly;
     cross-cutting needs reach only through the conductor keyhole.
-R4. CONDUCTOR: one function, called once per frame by update(); consumers
-    consume, only the conductor orchestrates; no per-entity logic leaks
-    into the cartridge.
+R4. CONDUCTOR: one function, called once per frame from its position in
+    the cartridge's frame score (constitution §3 — one movement, one
+    call); consumers consume, only the conductor orchestrates; no
+    per-entity logic leaks into the cartridge.
 R5. LIFECYCLE: select → place → commit → evict, all four owned; COMMIT is
     the succession choke point — identity and rebirth are structural
     there, never policed at call sites; eviction restores rest truthfully.
@@ -52,14 +56,17 @@ R7. COMMENTS state present behavior; history lives in git; exceptions are
     tagged in place with their retirement condition (constitution §5
     format).
 R8. ENCODINGS AND BANNERS follow the repo conventions (stated in the
-    pattern doc); deltas to both cartridges byte-identical unless a
-    divergence is authored and declared.
+    constitution §0's mirror-conventions clause); deltas to both
+    cartridges byte-identical unless a divergence is authored and
+    declared.
 
 ## §4 — THE SURFACE (your couplable self)
-R9. COMPLETENESS AT DELIVERY: every parameter you intend ever to be
-    played is declared at delivery — at a boundary we cannot cross later,
-    the surface is the product. (Inside your module, build-on-demand
-    still governs machinery; the DECLARATION is what must be complete.)
+R9. COMPLETENESS OF DECLARED INTENT: every parameter you intend ever to
+    be played is DECLARED at delivery — in the datasheet, as a row or a
+    ledger entry with class and rest — because at a boundary we cannot
+    cross later, the surface is the product. Bank rows and wires may
+    land wires-on-demand as couplings arrive (G4: growth appends); the
+    DECLARATION is what must be complete, not the plumbing.
 R10. ROWS: each pipe is a PARAM_LAYOUT row — name (entity.param), slot,
     width, shape, REST. Names are namespaced by your entity.
 R11. REST = IDENTITY (the safety contract): with every pipe at rest, your
@@ -72,7 +79,9 @@ R12. DEVIATIONS COMPOSE ADDITIVELY over inviolate idleness: couplings add
 R13. FLUSH SHIPS INSIDE: your conductor contains the bank-reading,
     deviation-composing seams for every declared pipe — reading valid
     rows, composing over your idle bases (spawn snapshots where lifetime
-    values need an anchor), clamping so invariants survive any music.
+    values need an anchor), clamped so invariants survive any music
+    (entity-side, or write-side where the canvas's goal law is the
+    declared guardrail — the datasheet states which, per row).
 R14. CLASSES DECLARED per pipe: L-global (body-wide), LH (through
     history/propagation), D (discrete, state-inheriting on swap), C
     (identity — never a live target). Frequencies are never pipes; expose
@@ -93,9 +102,11 @@ R18. GPU SOVEREIGNTY: CPU authors intent, GPU realizes geometry; no law
     is duplicated across the bus; mirrors are comment-pinned and, where
     constants twin (hot-reload tuning), the GPU set is the tuning
     authority with lockstep comments both sides and a stated drift test.
-R19. THE KEYHOLE: through the cartridge pointer you may reach the clocks,
-    the canvas params, the GPU wires, your own bindings — nothing
-    entity-private of a peer.
+R19. THE KEYHOLE: through the cartridge pointer you may reach the
+    declared services — the clocks, the canvas params, the GPU wires,
+    your own bindings, the spine-owned player/flight state and raw
+    input (writes SEAM-tagged in place), the spine's terrain and
+    spawn-engine services — and nothing entity-private of a peer.
 R20. TIME: periodic idles run on the beat-rate follower scaled by your
     reference-BPM anchor, so your authored feel is defined at the anchor
     and converges to live tempo.
@@ -144,10 +155,14 @@ G7. THE CANVAS CARRIES THE MUSIC: decodes, organs, envelopes evolve
     freely on our side; your surface is the stable interface between us.
 
 ## §9 — KNOWN SUBSTRATE HAZARDS (read before writing WGSL)
-H1. FXC fragility: SolidInstance must not exceed 32 bytes; evaluate_solid
-    admits no new branches; texture/array stamps hang compilation; new
-    collision shapes proxy existing rect solids; CPU dead-reckoning
-    handles footprint precision.
+H1. FXC fragility: instance structs in hot loops stay lean and
+    byte-pinned (GPUPierInstance, 48 B with its static_assert, is the
+    living instance — successor of the retired 32-byte SolidInstance
+    rule); the collision/ground chain admits no new runtime branching —
+    bounded loops over uniform counts and uniform function choice, not
+    branches (evaluate_pier's caller is the pattern); texture/array
+    stamps hang compilation; new collision shapes proxy existing rect
+    solids; CPU dead-reckoning handles footprint precision.
 H2. Attribute adjacency: never place a function between @vertex/@fragment/
     @compute and its fn — insertions name an exact host.
 H3. Uniform layout: array<f32,N> strides to 16 in uniform space — use
