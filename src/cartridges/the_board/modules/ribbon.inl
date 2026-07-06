@@ -763,29 +763,26 @@ static void ribbon_advance_head(RibbonState& rs, GPUState& gpuState,
 
     // Pawn mount point (sky mode): the VISIBLE head-ring center —
     // centerline + the wave in the head ring's frame — lifted half a tube
-    // so the pawn's feet sit on top. Mirrors ribbon_spine_at(0): ring 0's
-    // yaw-channel value IS the live heading (head_poses[0].w), so
-    // right = (-sin h, 0, cos h), up = world-up, phase_age = ribbon.time.
-    // The pawn and the head ring share one frame and one wave, exactly.
-    // SEAM[ribbon:sky-mode].
+    // along the SEAT FRAME'S up (seat polish) so the pawn's feet ride the
+    // top face through roll and pitch. Mirrors ribbon_spine_at(0): ring
+    // 0's yaw-channel value IS the live heading (head_poses[0].w), so
+    // right = (-sin h, 0, cos h), wave vertical on world-up, phase_age =
+    // ribbon.time. The pawn and the head ring share one frame and one
+    // wave, exactly. SEAM[ribbon:sky-mode].
     {
         const float ph  = ribbon.time;
         const float lat = std::sin(ribbon.lateral_freq  * ph) * ribbon.lateral_amp;
         const float ver = std::sin(ribbon.vertical_freq * ph) * ribbon.vertical_amp;
         const float ch  = std::cos(hd.heading);
         const float sh  = std::sin(hd.heading);
-        // Setback toward the tail (+heading) so the pawn's body sits
-        // over the tube instead of straddling the leading cap.
-        hd.mount[0] = head_x + lat * (-sh) + RIBBON_MOUNT_SETBACK * ch;
-        hd.mount[1] = head_y + ver + ribbon.cube_size * 0.5f;
-        hd.mount[2] = head_z + lat * ( ch) + RIBBON_MOUNT_SETBACK * sh;
 
         // The saddle's FRAME (BNK-2): identical math to the GPU ring
         // motor (BNK-1), evaluated at the SADDLE's arc position — the
         // head's age offset by the seat setback at propagation speed.
         // Inputs are this slot's CPU mirror (amps POST-swell: the
         // conductor's flush runs before this mover), so the rider's
-        // lean deepens with the musical swell for free.
+        // lean deepens with the musical swell for free. Computed FIRST:
+        // the seat lift below rides the frame's up.
         const float p_spd  = std::max(ribbon.propagation_speed, 1e-3f);
         const float s_age  = ribbon.time - RIBBON_MOUNT_SETBACK / p_spd;
         const float sl_lat = std::cos(ribbon.lateral_freq  * s_age)
@@ -800,6 +797,29 @@ static void ribbon_advance_head(RibbonState& rs, GPUState& gpuState,
         const float bank = MOUNT_BANK_GAIN * (sl_lat / p_spd);
         hd.mount_roll = (bank >  MOUNT_BANK_MAX) ?  MOUNT_BANK_MAX :
                         (bank < -MOUNT_BANK_MAX) ? -MOUNT_BANK_MAX : bank;
+
+        // Seat lift along the FRAME's up (seat polish, ruled): the top
+        // face tilts with roll/pitch (BNK-1); a world-vertical lift
+        // sinks the feet by half·(1/cos tilt − 1) mid-swing. Rotate ŷ
+        // through the same roll → pitch → yaw the GPU frames use —
+        // closed form verified against the quaternion path to 1e-12.
+        // Identity at a level frame: u = world up exactly.
+        const float cr = std::cos(hd.mount_roll),  sr = std::sin(hd.mount_roll);
+        const float cp = std::cos(hd.mount_pitch), sp = std::sin(hd.mount_pitch);
+        const float uxl = -sp * cr;   // local up after roll, then pitch
+        const float uyl =  cp * cr;
+        const float uzl =  sr;
+        const float thy = -hd.heading - hd.mount_yaw_off;
+        const float cy = std::cos(thy), sy = std::sin(thy);
+        const float ux =  uxl * cy + uzl * sy;   // base yaw into world
+        const float uz = -uxl * sy + uzl * cy;
+        const float half_t = ribbon.cube_size * 0.5f;
+
+        // Setback toward the tail (+heading) so the pawn's body sits
+        // over the tube instead of straddling the leading cap.
+        hd.mount[0] = head_x + lat * (-sh) + RIBBON_MOUNT_SETBACK * ch + half_t * ux;
+        hd.mount[1] = head_y + ver                                    + half_t * uyl;
+        hd.mount[2] = head_z + lat * ( ch) + RIBBON_MOUNT_SETBACK * sh + half_t * uz;
     }
 
     // Record the head's state into the propagation history (catch-up

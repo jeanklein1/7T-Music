@@ -139,6 +139,17 @@ Two further future D-couplings live here:
   1e-16; spatial-tangent and apparent-velocity models agree exactly:
   ring velocity = −p × tailward tangent). The bank's sign is
   aesthetic and stands as authored.
+- SEAT POLISH (ledger, BNK-2 follow-up, RULED): the half-tube seat
+  lift now rides the FRAME's up instead of world up — BNK-1 tilts the
+  top face with roll/pitch, and a world-vertical lift sank the feet
+  by half·(1/cos tilt − 1): ~0.02–0.15u in normal play, up to ~9% of
+  the tube at the roll clamp. Door B form: computed CPU-side in the
+  mount block (the frame angles now precede the mount writes; ŷ
+  rotated through the same roll → pitch → yaw as the GPU frames —
+  closed form verified against the quaternion path to 1e-12). The
+  camera shares the saddle and breathes with the lean (sub-unit).
+  Identity at a level frame: u = world up exactly, gains 0/0
+  unchanged.
 
 ## 3. SHADER CONSTANTS (world.wgsl, hot-reloadable — scene-level dials)
 | const                | meaning                         | class | notes |
