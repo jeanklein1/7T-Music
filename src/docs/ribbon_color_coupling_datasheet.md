@@ -13,7 +13,7 @@ surface it describes.
 
 | field            | meaning                              | class | idle (rest)            | coupling notes |
 |------------------|--------------------------------------|-------|------------------------|----------------|
-| color[3]         | dark median / uniform color          | L-global | spawn draw (pair.dark, free dark median, or SMOOTH/TINTED draw) | LIVE (coupling #3, T2, RECOMPOSED by SS-2): ribbon.color_stim (rows 6–8) + ribbon.color_mix (row 9); the conductor's flush computes lerp(spawn, stim, mix) per mirror and the held-slot upload ships it; mix rest 0 ⇒ spawn exactly. COLOR = THE ROOM: the Wagon AIMS the hue ("all.window_length" resultant — no argmax flicker on chords); the Playhead GATES the mix ("all.present_count": sounding ⇒ worn, silence ⇒ fades on its last hue). Same 30°-per-semitone seating, shared ORIGIN ⇒ equivariance |
+| color[3]         | dark median / uniform color          | L-global | spawn draw (pair.dark, free dark median, or SMOOTH/TINTED draw) | LIVE (coupling #3, T2, RECOMPOSED by SS-2): ribbon.color_stim (rows 6–8) + ribbon.color_mix (row 9); the conductor's flush computes lerp(spawn, stim, mix) per mirror and the held-slot upload ships it; mix rest 0 ⇒ spawn exactly. COLOR = THE ROOM: the Wagon AIMS the hue ("all.window_length" resultant — no argmax flicker on chords); the Playhead GATES the mix ("all.present_count": sounding ⇒ worn, silence ⇒ fades on its last hue). Same 30°-per-semitone seating, shared ORIGIN ⇒ equivariance. ENVELOPE (ENV-1): mix attack 0.5 / release 3.0 beats (catches fast, fades long); hue re-aims on 2.0 |
 | color_b[3]       | light median (CONTRAST)              | L-global | pair.light + shared jitter, or free light median; median-field species: ≡ color by construction | opens a NEW musical dimension: drive the medians apart/toward ⇒ "contrast" itself as a coupled quantity. Commit-only today (rides the full-struct upload) |
 | checker_scatter  | per-cell lightness texture amplitude | L-global | pair.value_var or free draw | texture-energy idiom; pipe as multiplier, rest 1. Commit-only today |
 | hue_spread       | the colorful axis, radians [0, π]    | L-global | pair.hue_var(±sib)·π or free draw [0, π] | THE riot dial; pipe as additive deviation, rest 0; needs per-frame flush seam (commit-only today) — ledger item |
@@ -90,6 +90,14 @@ Two further future D-couplings live here:
   response (the lesson). The 2× ceiling had already made the duck's
   visibility job obsolete; additive-over-identity-rest is the deviation
   law's pure form. Music ADDS to the idle dance; it never suppresses it.
+- ENVELOPE IDIOM (ledger, ENV-1): attack ≠ release, chosen at the CALL
+  SITE — the caller authored the idle, so it knows its direction
+  (goal == idle ⇒ RELEASE, else ATTACK); trajectory.hpp untouched. The
+  exact compare is sound only under SS-3's additive law (baseline is
+  the unique at-rest goal — the retired duck would have broken it).
+  Fog stays symmetric for now (stepwise-rare source); extending it is
+  three lines. BREATH constant (independent re-articulation dip span)
+  ruling OPEN — one line on the word.
 - FRAME LAW (ledger, BNK-1): the ring frames now answer the wave — the
   nose aims along the true instantaneous motion (heading deflected by
   the analytic wave slope) and the body BANKS into the lateral swing.
@@ -141,7 +149,10 @@ first row). LAW: 1 + contribution (additive; idle inviolate) — music
 only ever gives. Any change to the set re-articulates: breathe to
 baseline (1.0), regrow. RULED: ceiling 2× idle, reached at 8 beats.
 Silence ⇒ 1 from the formula itself (identity by construction, not by
-branch). Multipliers composed over the spawn-drawn wave amps at the
+branch). ENVELOPE (ENV-1): attack 0.35 / release 2.0 beats — fast
+catch, slow let-go; release governs the re-articulation breath and the
+after-silence let-go (span chosen at the call site: goal == idle ⇒
+RELEASE). Multipliers composed over the spawn-drawn wave amps at the
 conductor's per-frame flush; the pawn mount reads the same mirror —
 the rider breathes with the coupled dance for free.
 Terrain palette machinery — DRIVERLESS, scene-level future siblings

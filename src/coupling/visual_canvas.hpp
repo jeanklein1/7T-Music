@@ -105,7 +105,13 @@ namespace t7 {
     // idleness is inviolate. RULED: ceiling 2× idle at 8 beats.
     inline constexpr float RIBBON_SWELL_CEILING  = 2.00f;  // × idle (ruled)
     inline constexpr float RIBBON_SWELL_RAMP     = 8.0f;   // beats (ruled)
-    inline constexpr float RIBBON_SWELL_SPAN     = 1.0f;   // Segment glide
+    // Envelope: the swell's goal is continuous during the ramp, so ATTACK
+    // engages only at discontinuities (rare); RELEASE governs the breath
+    // on re-articulation and the let-go after silence. Fast catch, slow
+    // let-go. (A separate BREATH span for re-articulation is one line if
+    // the dip wants independence from the final release — say the word.)
+    inline constexpr float RIBBON_SWELL_ATTACK   = 0.35f;  // beats
+    inline constexpr float RIBBON_SWELL_RELEASE  = 2.0f;   // beats
 
     // PITCH_VEC_ORIGIN survives the compass redesign: the tint's angle
     // law and the swappable seating live on it.
@@ -120,7 +126,11 @@ namespace t7 {
     inline constexpr float TINT_LUMA    = 0.55f;
     inline constexpr float TINT_CHROMA  = 0.35f;
     inline constexpr float TINT_MIX_MAX = 0.85f;
-    inline constexpr float TINT_SPAN    = 2.0f;    // beats — attack and release
+    // Envelope: the mix catches the room quickly and fades long on its
+    // last hue; the hue itself re-aims between actives on one span.
+    inline constexpr float TINT_MIX_ATTACK  = 0.5f;   // beats
+    inline constexpr float TINT_MIX_RELEASE = 3.0f;   // beats
+    inline constexpr float TINT_HUE_SPAN    = 2.0f;   // beats
     // Rodrigues basis about the gray axis (canvas-side twin of the skin's):
     inline constexpr float TINT_D1[3] = { 0.8165f, -0.4082f, -0.4082f };
     inline constexpr float TINT_D2[3] = { 0.0f,     0.7071f, -0.7071f };
@@ -239,9 +249,11 @@ namespace t7 {
                     ? hold_beats_ / RIBBON_SWELL_RAMP : 1.0f;
                 const float goal = 1.0f + (RIBBON_SWELL_CEILING - 1.0f) * t;
                 params_.set(amp_lat_.base,
-                    trajectory_release(amp_lat_seg_,  goal, beat, RIBBON_SWELL_SPAN));
+                    trajectory_release(amp_lat_seg_,  goal, beat,
+                        (goal == 1.0f ? RIBBON_SWELL_RELEASE : RIBBON_SWELL_ATTACK)));
                 params_.set(amp_vert_.base,
-                    trajectory_release(amp_vert_seg_, goal, beat, RIBBON_SWELL_SPAN));
+                    trajectory_release(amp_vert_seg_, goal, beat,
+                        (goal == 1.0f ? RIBBON_SWELL_RELEASE : RIBBON_SWELL_ATTACK)));
             }
 
             // ── room tint (color = the room) ────────────────────────────
@@ -268,7 +280,7 @@ namespace t7 {
                         const float v = TINT_LUMA
                             + (TINT_D1[c2]*ca + TINT_D2[c2]*sa) * TINT_CHROMA;
                         params_.set(tint_stim_.base + c2,
-                            trajectory_release(tint_stim_seg_[c2], v, beat, TINT_SPAN));
+                            trajectory_release(tint_stim_seg_[c2], v, beat, TINT_HUE_SPAN));
                     }
                 } else {
                     // window drained: stim segments hold their last hue; the
@@ -276,7 +288,7 @@ namespace t7 {
                     for (int c2 = 0; c2 < 3; ++c2)
                         params_.set(tint_stim_.base + c2,
                             trajectory_release(tint_stim_seg_[c2],
-                                tint_stim_seg_[c2].to, beat, TINT_SPAN));
+                                tint_stim_seg_[c2].to, beat, TINT_HUE_SPAN));
                 }
 
                 float room_sounding = 0.0f;
@@ -286,7 +298,8 @@ namespace t7 {
                                                      room_playhead_.base + i);
                 const float mix_goal = (room_sounding > 0.0f) ? TINT_MIX_MAX : 0.0f;
                 params_.set(tint_mix_.base,
-                    trajectory_release(tint_mix_seg_, mix_goal, beat, TINT_SPAN));
+                    trajectory_release(tint_mix_seg_, mix_goal, beat,
+                        (mix_goal == 0.0f ? TINT_MIX_RELEASE : TINT_MIX_ATTACK)));
             }
 
             last_beat_ = beat;   // single write, shared by the swell's hold clock
