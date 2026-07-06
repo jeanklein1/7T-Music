@@ -45,6 +45,7 @@
 #include "coupling/trajectory.hpp"
 #include "musical/signal_layout.hpp"
 #include "analysis/analysis_signal.hpp"
+#include <string>   // casting-sheet name composition ("<voice>.present_count")
 
 namespace t7 {
 
@@ -93,15 +94,24 @@ namespace t7 {
     // constant if color should lead or lag density.
     inline constexpr float FOG_SPAN = 2.0f;   // beats — glide into the new field
 
-    // ── Pitch compass ── pc circle → (lateral, vertical) deviation circle.
-    // θ = pc·30°; multipliers = 1 + GAIN·(cosθ, sinθ) while stimulated,
-    // → 1 on silence. ORIGIN_DEG rotates which degree points pure-lateral
-    // (default: degree 0 — the tonic rests in the horizontal). Chords
-    // decode as the RESULTANT of their unit vectors: dissonance diffuses
-    // the gesture, unison commits it. Compositional dials — tune by ear.
-    inline constexpr float PITCH_VEC_GAIN   = 0.35f;   // amp swing ±35%
-    inline constexpr float PITCH_VEC_SPAN   = 1.5f;    // beats — re-aim/release glide
-    inline constexpr float PITCH_VEC_ORIGIN = 0.0f;    // radians — rotates the compass
+    // ── Casting (the avatar principle) ── one voice per entity; the set
+    // of these is the CASTING SHEET. The ribbon is the chordal piano.
+    inline constexpr const char* RIBBON_VOICE = "ch1";   // live prefix verified: chN (canvas_1 NAME_* tables)
+
+    // ── Sustain swell (movement) ── the dance swells with how long the
+    // current chord has been held, uninterrupted, on the ribbon's voice.
+    // Any note added or released re-articulates (the hold restarts).
+    // RULED: ceiling = 2× idle, reached at 8 beats. The sidechain floor
+    // (DUCK) makes presence read: the body settles to listen, then
+    // swells. Silence ⇒ 1 ⇒ the seed dance exactly.
+    inline constexpr float RIBBON_SIDECHAIN_DUCK = 0.70f;
+    inline constexpr float RIBBON_SWELL_CEILING  = 2.00f;  // × idle (ruled)
+    inline constexpr float RIBBON_SWELL_RAMP     = 8.0f;   // beats (ruled)
+    inline constexpr float RIBBON_SWELL_SPAN     = 1.0f;   // Segment glide
+
+    // PITCH_VEC_ORIGIN survives the compass redesign: the tint's angle
+    // law and the swappable seating live on it.
+    inline constexpr float PITCH_VEC_ORIGIN = 0.0f;    // radians — rotates the hue seating
 
     // ── Line tint (color gen-2) ── the melody paints the ribbon: the
     // line's degree sets a hue by the SAME 30°-per-semitone law as the
@@ -162,15 +172,19 @@ namespace t7 {
                                              FOG_COLOR_BY_FIELD[0][c], 0.0f, 0.0f };
             }
 
-            // pitch compass: the Wagon's duration-weighted chroma → amp pipes
-            wagon_chroma_ = signal_layout_.resolve("all.window_length");
+            // ribbon sources (the casting sheet): the voice's Playhead drives
+            // the sustain swell; the room's Wagon aims the tint's hue; the
+            // room's Playhead gates the tint's mix.
+            {
+                std::string v(RIBBON_VOICE);
+                voice_playhead_ = signal_layout_.resolve((v + ".present_count").c_str());
+            }
+            room_wagon_    = signal_layout_.resolve("all.window_length");
+            room_playhead_ = signal_layout_.resolve("all.present_count");
             amp_lat_  = param_layout_.resolve("ribbon.amp_lateral_mult");
             amp_vert_ = param_layout_.resolve("ribbon.amp_vertical_mult");
             amp_lat_seg_  = Segment{ 1.0f, 1.0f, 0.0f, 0.0f };
             amp_vert_seg_ = Segment{ 1.0f, 1.0f, 0.0f, 0.0f };
-
-            // line tint: the sung line paints the ribbon over its spawn color
-            line_pc_   = signal_layout_.resolve("all.current_pc");
             tint_stim_ = param_layout_.resolve("ribbon.color_stim");
             tint_mix_  = param_layout_.resolve("ribbon.color_mix");
             for (int c2 = 0; c2 < 3; ++c2)
@@ -205,70 +219,81 @@ namespace t7 {
                 }
             }
 
-            // ── pitch compass (X₁ of the Wagon chroma) ──────────────────
-            // Duration-weighted resultant: direction = where the remembered
-            // harmony's center of mass points; magnitude = its concentration
-            // (unison commits, clusters diffuse). Double-smoothed by
-            // construction: the window drains in per-beat stairs, the
-            // Segments glide between them. Silence = a two-stage release —
-            // the window empties, then the dance glides home.
-            if (wagon_chroma_.valid && amp_lat_.valid && amp_vert_.valid) {
-                float vx = 0.0f, vy = 0.0f, energy = 0.0f;
-                for (int i = 0; i < 12; ++i) {
-                    const float w = signal.stat(wagon_chroma_.channel, wagon_chroma_.base + i);
-                    if (w <= 0.0f) continue;
-                    const float th = PITCH_VEC_ORIGIN + (float)i * 0.523598776f; // 30°
-                    vx += w * std::cos(th);
-                    vy += w * std::sin(th);
-                    energy += w;
-                }
-                float gl = 1.0f, gv = 1.0f;
-                if (energy > 0.0f) {
-                    const float inv = 1.0f / energy;      // resultant, unit-ish
-                    gl = 1.0f + PITCH_VEC_GAIN * (vx * inv);
-                    gv = 1.0f + PITCH_VEC_GAIN * (vy * inv);
+            // ── sustain swell (movement = TIME, the ribbon's voice) ─────
+            // The dance swells with how long the current chord has held,
+            // uninterrupted, on ch1's Playhead. Any change to the sounding
+            // SET re-articulates: dip to the sidechain floor, regrow.
+            // Ruled: floor→2× over 8 beats. Silence ⇒ 1 ⇒ the seed dance.
+            if (voice_playhead_.valid && amp_lat_.valid && amp_vert_.valid) {
+                uint32_t mask = 0u;
+                for (int i = 0; i < 12; ++i)
+                    if (signal.stat(voice_playhead_.channel,
+                                    voice_playhead_.base + i) > 0.0f)
+                        mask |= (1u << i);
+                const float dbeats = beat - last_beat_;
+                if (mask == 0u || mask != hold_mask_) hold_beats_ = 0.0f;
+                else if (dbeats > 0.0f)               hold_beats_ += dbeats;
+                hold_mask_ = mask;
+
+                float goal = 1.0f;
+                if (mask != 0u) {
+                    const float t = (hold_beats_ < RIBBON_SWELL_RAMP)
+                        ? hold_beats_ / RIBBON_SWELL_RAMP : 1.0f;
+                    goal = RIBBON_SIDECHAIN_DUCK
+                         + (RIBBON_SWELL_CEILING - RIBBON_SIDECHAIN_DUCK) * t;
                 }
                 params_.set(amp_lat_.base,
-                    trajectory_release(amp_lat_seg_,  gl, beat, PITCH_VEC_SPAN));
+                    trajectory_release(amp_lat_seg_,  goal, beat, RIBBON_SWELL_SPAN));
                 params_.set(amp_vert_.base,
-                    trajectory_release(amp_vert_seg_, gv, beat, PITCH_VEC_SPAN));
+                    trajectory_release(amp_vert_seg_, goal, beat, RIBBON_SWELL_SPAN));
             }
 
-            // ── line tint (hue by the 30° law; mix is the envelope) ─────
-            if (line_pc_.valid && tint_stim_.valid && tint_mix_.valid) {
-                float best = 0.0f; int deg = -1;
+            // ── room tint (color = the room) ────────────────────────────
+            // The Wagon AIMS the hue (remembered center of mass — no argmax
+            // flicker on chords); the Playhead GATES the mix (sounding ⇒
+            // worn; silence ⇒ fades on its last hue).
+            if (room_wagon_.valid && tint_stim_.valid && tint_mix_.valid) {
+                float vx = 0.0f, vy = 0.0f, energy = 0.0f;
                 for (int i = 0; i < 12; ++i) {
-                    const float w = signal.stat(line_pc_.channel, line_pc_.base + i);
-                    if (w > best) { best = w; deg = i; }
+                    const float w = signal.stat(room_wagon_.channel, room_wagon_.base + i);
+                    if (w <= 0.0f) continue;
+                    // Unit-vector seating: the SWAPPABLE TABLE (one line).
+                    // Chromatic today (i·30°); circle of fifths ((7i mod 12)
+                    // ·30°) or an authored ordering are one-line futures —
+                    // the circle rework is PARKED with Jean's name on it.
+                    const float th = PITCH_VEC_ORIGIN + (float)i * 0.523598776f;
+                    vx += w * std::cos(th); vy += w * std::sin(th);
+                    energy += w;
                 }
-                float mix_goal = 0.0f;
-                if (deg >= 0 && best > 0.0f) {
-                    // Degree → angle: a SWAPPABLE TABLE, one line. Chromatic
-                    // today (θ = d·30°, the identity seating). Futures: the
-                    // circle of fifths (θ = (7·d mod 12)·30°) — harmonic
-                    // distance becomes angular distance — or an authored
-                    // ordering. Everything downstream (compass, wheel,
-                    // equivariance) survives ANY fixed assignment.
-                    const float th = PITCH_VEC_ORIGIN + (float)deg * 0.523598776f;
-                    const float ca = std::cos(th), sa = std::sin(th);
+                const float len = std::sqrt(vx*vx + vy*vy);
+                if (len > 1e-4f) {
+                    const float ca = vx / len, sa = vy / len;   // hue direction, no atan needed
                     for (int c2 = 0; c2 < 3; ++c2) {
                         const float v = TINT_LUMA
                             + (TINT_D1[c2]*ca + TINT_D2[c2]*sa) * TINT_CHROMA;
                         params_.set(tint_stim_.base + c2,
                             trajectory_release(tint_stim_seg_[c2], v, beat, TINT_SPAN));
                     }
-                    mix_goal = TINT_MIX_MAX;
                 } else {
-                    // silence: stim segments hold their last hue; only the
-                    // MIX releases — the tint fades, it does not gray out.
+                    // window drained: stim segments hold their last hue; the
+                    // MIX below is what releases — fade, not gray-out.
                     for (int c2 = 0; c2 < 3; ++c2)
                         params_.set(tint_stim_.base + c2,
                             trajectory_release(tint_stim_seg_[c2],
                                 tint_stim_seg_[c2].to, beat, TINT_SPAN));
                 }
+
+                float room_sounding = 0.0f;
+                if (room_playhead_.valid)
+                    for (int i = 0; i < 12; ++i)
+                        room_sounding += signal.stat(room_playhead_.channel,
+                                                     room_playhead_.base + i);
+                const float mix_goal = (room_sounding > 0.0f) ? TINT_MIX_MAX : 0.0f;
                 params_.set(tint_mix_.base,
                     trajectory_release(tint_mix_seg_, mix_goal, beat, TINT_SPAN));
             }
+
+            last_beat_ = beat;   // single write, shared by the swell's hold clock
         }
 
         // Consumers read the bank (and resolve their pipe once through layout()).
@@ -287,18 +312,17 @@ namespace t7 {
         Segment       fog_seg_{};
         Segment       fog_color_seg_[3]{};
 
-        // ── pitch compass coupling state ─────────────────────────────────────────
-        SourceBinding wagon_chroma_{};      // "all.window_length" — the Wagon's
-                                            // duration-weighted chroma (12-wide);
-                                            // X₁ of THIS is the compass: the
-                                            // remembered music's center of mass
+        // ── ribbon coupling state (sustain swell + room tint) ───────────────────
+        SourceBinding voice_playhead_{};   // "<RIBBON_VOICE>.present_count" — the chord's sounding set
+        SourceBinding room_wagon_{};       // "all.window_length" — the room's remembered chroma (aims the hue)
+        SourceBinding room_playhead_{};    // "all.present_count" — the room sounding (gates the mix)
+        uint32_t hold_mask_ = 0u;          // sustain state: the chord's set signature
+        float    hold_beats_ = 0.0f;       //   and how long it has held, in beats
+        float    last_beat_ = 0.0f;
         TargetBinding amp_lat_{};
         TargetBinding amp_vert_{};
         Segment       amp_lat_seg_{};
         Segment       amp_vert_seg_{};
-
-        // ── line tint coupling state ─────────────────────────────────────────────
-        SourceBinding line_pc_{};           // "all.current_pc" — the sung line
         TargetBinding tint_stim_{};
         TargetBinding tint_mix_{};
         Segment       tint_stim_seg_[3]{};

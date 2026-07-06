@@ -1,4 +1,4 @@
-# RIBBON COLOR & CELLS — COUPLING DATASHEET (post-CB-1g)
+# RIBBON COLOR & CELLS — COUPLING DATASHEET (post-SS-2)
 The couplable surface of the ribbon's color system and cell skin, exposed in
 contract-datasheet form. Classes per the standing key: L-global (body-wide,
 Segment-safe), LH (through the head's history), D (discrete; selection +
@@ -13,7 +13,7 @@ surface it describes.
 
 | field            | meaning                              | class | idle (rest)            | coupling notes |
 |------------------|--------------------------------------|-------|------------------------|----------------|
-| color[3]         | dark median / uniform color          | L-global | spawn draw (pair.dark, free dark median, or SMOOTH/TINTED draw) | LIVE (coupling #3, T2): ribbon.color_stim (rows 6–8) + ribbon.color_mix (row 9); the conductor's flush computes lerp(spawn, stim, mix) per mirror and the held-slot upload ships it; mix rest 0 ⇒ spawn exactly. Source "all.current_pc" (the LINE paints; the Wagon steers) — hue by the same 30°-per-semitone law, shared ORIGIN ⇒ cross-channel equivariance. Silence: stim holds its last hue, only mix releases (fade, not gray-out) |
+| color[3]         | dark median / uniform color          | L-global | spawn draw (pair.dark, free dark median, or SMOOTH/TINTED draw) | LIVE (coupling #3, T2, RECOMPOSED by SS-2): ribbon.color_stim (rows 6–8) + ribbon.color_mix (row 9); the conductor's flush computes lerp(spawn, stim, mix) per mirror and the held-slot upload ships it; mix rest 0 ⇒ spawn exactly. COLOR = THE ROOM: the Wagon AIMS the hue ("all.window_length" resultant — no argmax flicker on chords); the Playhead GATES the mix ("all.present_count": sounding ⇒ worn, silence ⇒ fades on its last hue). Same 30°-per-semitone seating, shared ORIGIN ⇒ equivariance |
 | color_b[3]       | light median (CONTRAST)              | L-global | pair.light + shared jitter, or free light median; median-field species: ≡ color by construction | opens a NEW musical dimension: drive the medians apart/toward ⇒ "contrast" itself as a coupled quantity. Commit-only today (rides the full-struct upload) |
 | checker_scatter  | per-cell lightness texture amplitude | L-global | pair.value_var or free draw | texture-energy idiom; pipe as multiplier, rest 1. Commit-only today |
 | hue_spread       | the colorful axis, radians [0, π]    | L-global | pair.hue_var(±sib)·π or free draw [0, π] | THE riot dial; pipe as additive deviation, rest 0; needs per-frame flush seam (commit-only today) — ledger item |
@@ -65,6 +65,26 @@ Two further future D-couplings live here:
 - ColorSlot RETIRED (T2): the in-module target surface (ColorSlot +
   ribbon_color_targets) deleted with zero consumers since M1 — the bank
   rows are its successor.
+- CIRCLE-OF-DIRECTIONS REWORK (ledger, SS-2): PARKED, Jean's ruling
+  pending — the seating comment at the tint decode marks the door.
+- CHANNEL NAMES (ledger, SS-2): the scaffolding names (abbott/costello/
+  louise) are retired; channels are numbered chN. The currency caveat is
+  CLOSED definitively — the live publish inventory, read from
+  canvas_1/canvas.hpp: per voice (ch0..ch6 active of ch0..ch7 named):
+  chN.current_pc, chN.present_count, chN.window_length, chN.distance;
+  room-wide: all.field, all.current_pc, all.present_count,
+  all.window_length. PresentCount was published on demand by SS-2 (the
+  sustain law is its first consumer — readings-on-demand firing on
+  schedule); its reserved layout was slot 0, the seat identified as
+  gen-1's dead input during the demolition — the oldest empty chair in
+  the contract, now filled by its intended occupant.
+- COMPASS CONCEPT (ledger, SS-2): the pitch compass now lives in color
+  (the Wagon aims the tint); it returns to movement when a directional
+  target calls.
+- CANON (method): scope claims about unverified surfaces are
+  predictions, and verify-first gates are their mandatory counterweight
+  — SS-2's "visual_canvas.hpp ONLY" line met readings-on-demand and the
+  law won, exactly as designed.
 
 ## 3. SHADER CONSTANTS (world.wgsl, hot-reloadable — scene-level dials)
 | const                | meaning                         | class | notes |
@@ -95,17 +115,16 @@ vs travel-at-P (historian feel); layer one above is idiom-independent.
 ## 6. RELATED SURFACES ALREADY LIVE OR TAGGED
 fog.density / fog.color — the played coupling (all.field, held→table).
 ribbon.amp_lateral_mult / ribbon.amp_vertical_mult — PARAM_LAYOUT rows
-4–5, LIVE (coupling #2, the pitch compass): multipliers composed over the
-spawn-drawn wave amps at the conductor's per-frame flush (rest 1 = the
-seed's dance; the pawn mount reads the same mirror — the rider breathes
-with the coupled dance for free). Source, per amendment A1 (the Wagon
-ruling): "all.window_length" — the Wagon's duration-weighted chroma,
-whose X₁ (resultant / center of mass) IS the compass. θ = pc·30°,
-multipliers = 1 + GAIN·(cosθ, sinθ), Segment-glided over PITCH_VEC_SPAN;
-double-smoothed by construction (the window drains in per-beat stairs,
-the Segments glide between them); silence is a two-stage release. The
-raw per-note Playhead variant ("all.present_length") stays in the back
-pocket, unbuilt.
+4–5, LIVE (coupling #2, REDESIGNED by SS-2: sustain swell — movement
+carries TIME): the dance swells with how long the current chord has
+held, uninterrupted, on the ribbon's cast voice ("ch1.present_count",
+the Playhead's sounding set; the casting sheet's first row). Any change
+to the set re-articulates: dip to the sidechain floor (0.70), regrow.
+RULED: ceiling 2× idle, reached at 8 beats. Silence ⇒ 1 ⇒ the seed
+dance exactly (rest = identity holds). Multipliers composed over the
+spawn-drawn wave amps at the conductor's per-frame flush; the pawn
+mount reads the same mirror — the rider breathes with the coupled
+dance for free.
 Terrain palette machinery — DRIVERLESS, scene-level future siblings
 (band motion, palette drift, mode color shift) — same grammar, one scale up.
 sphere/floater color — DRIVERLESS landing sites from the demolition.

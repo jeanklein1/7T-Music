@@ -111,20 +111,25 @@ public:
             configure(v, s);
         }
 
-        // Per-voice readings: the current note (one-hot), the present+window
-        // length (beats), and the line's signed distance.
+        // Per-voice readings: the current note (one-hot), the present set (the
+        // Playhead, by count — published on demand for the sustain law, its
+        // first consumer), the present+window length (beats), and the line's
+        // signed distance.
         for (int v = 0; v < VOICES; ++v) {
             publish_reading(Reading::CurrentPC,    Source::channel(v), NAME_CURRENT_PC[v]);
+            publish_reading(Reading::PresentCount, Source::channel(v), NAME_PRESENT_COUNT[v]);
             publish_reading(Reading::WindowLength, Source::channel(v), NAME_WINDOW_LENGTH[v]);
             publish_reading(Reading::Distance,     Source::channel(v), NAME_DISTANCE[v]);
         }
 
         // Compound readings over the union of all voices, in the group band: the
         // field (set-union then election), the current notes (vector sum — a
-        // per-pc voice count), and the present+window length (vector sum).
+        // per-pc voice count), the present set (the room sounding), and the
+        // present+window length (vector sum).
         const Source all = Source::group({0, 1, 2, 3, 4, 5, 6});
         publish_reading(Reading::Field,        all, "all.field");
         publish_reading(Reading::CurrentPC,    all, "all.current_pc");
+        publish_reading(Reading::PresentCount, all, "all.present_count");
         publish_reading(Reading::WindowLength, all, "all.window_length");
 
         port_.open_by_name("loopMIDI");   // the DAW's virtual port
@@ -291,6 +296,10 @@ private:
         "ch0.current_pc","ch1.current_pc","ch2.current_pc","ch3.current_pc",
         "ch4.current_pc","ch5.current_pc","ch6.current_pc","ch7.current_pc"
     };
+    static constexpr const char* NAME_PRESENT_COUNT[MAX_CHANNELS] = {
+        "ch0.present_count","ch1.present_count","ch2.present_count","ch3.present_count",
+        "ch4.present_count","ch5.present_count","ch6.present_count","ch7.present_count"
+    };
     static constexpr const char* NAME_WINDOW_LENGTH[MAX_CHANNELS] = {
         "ch0.window_length","ch1.window_length","ch2.window_length","ch3.window_length",
         "ch4.window_length","ch5.window_length","ch6.window_length","ch7.window_length"
@@ -336,6 +345,7 @@ private:
     // field, the current note, the present+window length, and the line distance.
     static bool writer_wired(Reading r) {
         return r == Reading::Field || r == Reading::CurrentPC
+            || r == Reading::PresentCount
             || r == Reading::WindowLength || r == Reading::Distance;
     }
 
@@ -404,6 +414,7 @@ private:
                 output_.set_stat(p.band, slot, static_cast<float>(field_index(p.field)));
                 break;
             case Reading::CurrentPC:
+            case Reading::PresentCount:
             case Reading::WindowLength: {
                 // Vector readings: the per-source sum dressed to D. One channel ->
                 // that channel's reading; a union -> the cross-voice vector sum —
@@ -452,6 +463,7 @@ private:
         const Context& c = contexts_[i];
         switch (r) {
             case Reading::CurrentPC:    return current_note(c.spine());
+            case Reading::PresentCount: return pc_count(c.playhead());
             case Reading::WindowLength: return pc_length(c.playhead(), c.wagon(0));
             default:                    return PitchClassVector{};
         }
