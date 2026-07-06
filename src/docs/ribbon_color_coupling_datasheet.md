@@ -150,6 +150,24 @@ Two further future D-couplings live here:
   camera shares the saddle and breathes with the lean (sub-unit).
   Identity at a level frame: u = world up exactly, gains 0/0
   unchanged.
+- SNAP-1: THE SEAT SAMPLES ITS OWN ARC (ledger, RULED — audit): two
+  stacked phase skews addressed. M1: the seat POSITION sampled the
+  wave at the HEAD's age while the frame and the surface beneath
+  sample the SADDLE's — error ∝ amp·freq·(setback/P), the
+  amplitude-scaling float/dip. One s_age now serves position, frame,
+  and the tube beneath: THE SEAT SAMPLES EVERYTHING AT ITS OWN ARC
+  POSITION (the law, canonized). Ruling reversed on the record: the
+  earlier "sample at the head's age" call was wrong at the seat. M5
+  (same-frame coherence): JUDGED against the tree — the invariant
+  already held: resync_sky_head re-writes the sky block AFTER
+  ribbon_frame_tick and BEFORE dispatch_compute, and queue writes
+  apply in submission order, so the kernel's pose/frame and the ring
+  transforms derive from the same advance. The update()-side fill was
+  a dead write the resync always overwrote; it now ships NEUTRAL
+  zeros and says so — one authoritative author, and losing the resync
+  fails loud (pawn to origin) instead of silently one frame late.
+  Straight-walk setback approximation retained (< 0.03 u at R_MIN —
+  accepted, bounded; the comment states it).
 
 ## 3. SHADER CONSTANTS (world.wgsl, hot-reloadable — scene-level dials)
 | const                | meaning                         | class | notes |

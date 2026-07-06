@@ -3165,22 +3165,25 @@ namespace t7 {
                 gpuSignal.pan_y_delta = inputState_.pan_y_delta;
                 gpuSignal._pad1 = 0.0f;
 
-                // Sky mode: hand the GPU pawn update the (one-frame-old) ribbon
-                // head pose so the possessed pawn snaps onto the flown head. The
-                // lag is imperceptible at frame rate. SEAM[ribbon:sky-mode].
+                // Sky mode (SNAP-1 / M5 same-frame coherence): the pose/frame
+                // words here are NEUTRAL placeholders. The authoritative
+                // author is resync_sky_head, ordered AFTER ribbon_frame_tick
+                // and BEFORE dispatch_compute — queue writes apply in
+                // submission order, so the kernel always reads THIS frame's
+                // advance, the same advance the ring transforms render.
+                // Filling from ribbon_head_pose here would carry the PREVIOUS
+                // frame's pose (the M5 skew); zeros instead make any future
+                // loss of the resync fail LOUD (pawn to origin) rather than
+                // silently one frame late. SEAM[ribbon:sky-mode].
                 {
-                    float hx = 0.0f, hy = 0.0f, hz = 0.0f, hh = 0.0f;
-                    ribbon_head_pose(ribbon_state_, hx, hy, hz, hh);
-                    float fyaw = 0.0f, fpitch = 0.0f, froll = 0.0f;
-                    ribbon_head_frame(ribbon_state_, fyaw, fpitch, froll);
                     gpuSignal.sky_mode    = player_.sky_mode ? 1u : 0u;
-                    gpuSignal.sky_head_x  = hx;
-                    gpuSignal.sky_head_y  = hy;
-                    gpuSignal.sky_head_z  = hz;
-                    gpuSignal.sky_heading = hh;
-                    gpuSignal.sky_yaw_off = fyaw;
-                    gpuSignal.sky_pitch   = fpitch;
-                    gpuSignal.sky_roll    = froll;
+                    gpuSignal.sky_head_x  = 0.0f;
+                    gpuSignal.sky_head_y  = 0.0f;
+                    gpuSignal.sky_head_z  = 0.0f;
+                    gpuSignal.sky_heading = 0.0f;
+                    gpuSignal.sky_yaw_off = 0.0f;
+                    gpuSignal.sky_pitch   = 0.0f;
+                    gpuSignal.sky_roll    = 0.0f;
                 }
 
                 time_state_.beats = signal.t_beats;

@@ -761,18 +761,25 @@ static void ribbon_advance_head(RibbonState& rs, GPUState& gpuState,
         head_z = hd.pos[2];
     }
 
-    // Pawn mount point (sky mode): the VISIBLE head-ring center —
-    // centerline + the wave in the head ring's frame — lifted half a tube
-    // along the SEAT FRAME'S up (seat polish) so the pawn's feet ride the
-    // top face through roll and pitch. Mirrors ribbon_spine_at(0): ring
-    // 0's yaw-channel value IS the live heading (head_poses[0].w), so
-    // right = (-sin h, 0, cos h), wave vertical on world-up, phase_age =
-    // ribbon.time. The pawn and the head ring share one frame and one
-    // wave, exactly. SEAM[ribbon:sky-mode].
+    // Pawn mount point (sky mode): the SEAT — centerline + the wave in
+    // the ring frame, sampled at the SADDLE's arc age (s_age), lifted
+    // half a tube along the seat frame's up (seat polish) so the pawn's
+    // feet ride the top face through roll and pitch. Mirrors
+    // ribbon_spine_at at the seat's arc: ring 0's yaw-channel value IS
+    // the live heading (head_poses[0].w), so right = (-sin h, 0, cos h),
+    // wave vertical on world-up. The pawn, its frame, and the tube
+    // beneath the seat share one wave at one age — the saddle's —
+    // exactly. SEAM[ribbon:sky-mode].
     {
-        const float ph  = ribbon.time;
-        const float lat = std::sin(ribbon.lateral_freq  * ph) * ribbon.lateral_amp;
-        const float ver = std::sin(ribbon.vertical_freq * ph) * ribbon.vertical_amp;
+        // ONE age for the whole seat: position, frame, and the tube
+        // beneath all sample the SADDLE's arc (the head's age offset by
+        // the seat setback at propagation speed). Sampling any of them
+        // at the head's age instead shears the seat against the surface
+        // by amp·freq·(setback/P) — the float/dip this block once had.
+        const float p_spd = std::max(ribbon.propagation_speed, 1e-3f);
+        const float s_age = ribbon.time - RIBBON_MOUNT_SETBACK / p_spd;
+        const float lat = std::sin(ribbon.lateral_freq  * s_age) * ribbon.lateral_amp;
+        const float ver = std::sin(ribbon.vertical_freq * s_age) * ribbon.vertical_amp;
         const float ch  = std::cos(hd.heading);
         const float sh  = std::sin(hd.heading);
 
@@ -782,9 +789,8 @@ static void ribbon_advance_head(RibbonState& rs, GPUState& gpuState,
         // Inputs are this slot's CPU mirror (amps POST-swell: the
         // conductor's flush runs before this mover), so the rider's
         // lean deepens with the musical swell for free. Computed FIRST:
-        // the seat lift below rides the frame's up.
-        const float p_spd  = std::max(ribbon.propagation_speed, 1e-3f);
-        const float s_age  = ribbon.time - RIBBON_MOUNT_SETBACK / p_spd;
+        // the seat lift below rides the frame's up. One s_age definition
+        // above serves position and frame both (SNAP-1).
         const float sl_lat = std::cos(ribbon.lateral_freq  * s_age)
                            * ribbon.lateral_amp  * ribbon.lateral_freq;
         const float sl_ver = std::cos(ribbon.vertical_freq * s_age)
@@ -816,7 +822,9 @@ static void ribbon_advance_head(RibbonState& rs, GPUState& gpuState,
         const float half_t = ribbon.cube_size * 0.5f;
 
         // Setback toward the tail (+heading) so the pawn's body sits
-        // over the tube instead of straddling the leading cap.
+        // over the tube instead of straddling the leading cap. (Straight
+        // walk vs curved history errs < 0.03 u at R_MIN — accepted,
+        // bounded.)
         hd.mount[0] = head_x + lat * (-sh) + RIBBON_MOUNT_SETBACK * ch + half_t * ux;
         hd.mount[1] = head_y + ver                                    + half_t * uyl;
         hd.mount[2] = head_z + lat * ( ch) + RIBBON_MOUNT_SETBACK * sh + half_t * uz;
