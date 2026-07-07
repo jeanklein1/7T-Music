@@ -210,9 +210,6 @@ namespace t7 {
                 uint32_t back_portal_return_mood   = 0;
                 uint32_t back_portal_return_radius = 2;
 
-                // ── Deterministic mood-reroll counter ──
-                uint32_t pop_batch_counter = 0;
-
                 // ── Sun orbit (musical coupling) ──
                 // Phase accumulator for sun-orbit coupling. Music drives the
                 // orbital rate; effective azimuth = mood baseline + sin(phase) × max_swing.
@@ -1801,283 +1798,18 @@ namespace t7 {
             static constexpr float AMP_MOMENTUM_THRESHOLD = 0.15f;  // |jitter - 1.0| above this → emit amp momentum
             static constexpr float AMP_MOMENTUM_CARRY = 0.6f;       // fraction of excess carried forward
 
-            // ═══ POPULATION BATCH SYSTEM ═════════════════════════════════
-            //
-            // Entities spawn in observed batches. The first few entities of a
-            // batch define the neighborhood's character; the rest follow it.
-            //
-            // Two derived biases update LIVE as observations accumulate:
-            //   Type affinity — types that appeared more get boosted proportionally.
-            //   Scale tendency — average tier scale biases select_tier toward similar.
-            //
-            // After POP_BATCH_SIZE patches, the batch resets: a few "exploratory"
-            // patches with neutral priors, then the new batch character emerges.
-            //
-            // Each batch rolls a MODE at birth:
-            //   Affinity  — more of the same (columns attract columns)
-            //   Repulsion — opposites attract (columns push toward pyramids/arches)
-            //   Neutral   — no bias (pure independent rolls, breathing room)
-            //
-            // No hand-crafted affinity matrices. The correlation IS the aesthetic.
-            //
-            //  ┌──────────────────────────────────────────────────────────────────────────────────────────┐
-            //  │ POPULATION BATCH CONTROL SURFACE                                                        │
-            //  ├─────────────────────────────────┬───────────┬────────────────────────────────────────────┤
-            //  │ Constant                        │ Value     │ Effect                                     │
-            //  ├─────────────────────────────────┼───────────┼────────────────────────────────────────────┤
-            //  │ POP_BATCH_SIZE                  │  16       │ Patches per observation window              │
-            //  │ POP_TYPE_AFFINITY_STRENGTH      │  0.0      │ Max spawn boost for dominant type           │
-            //  │ POP_SCALE_TENDENCY_STRENGTH     │  0.0      │ Max tier proximity boost                    │
-            //  │ POP_GOL_SUPPRESSION             │  0.05     │ GoL chance reduction per unit structure     │
-            //  │ POP_MIN_OBSERVATIONS            │  1        │ Min entities before bias activates          │
-            //  │ POP_MODE_AFFINITY_CHANCE        │  0.0      │ Probability of affinity batch               │
-            //  │ POP_MODE_REPULSION_CHANCE       │  0.0      │ Probability of repulsion batch              │
-            //  │ (remainder)                     │  1.0      │ Probability of neutral batch                │
-            //  └─────────────────────────────────┴───────────┴────────────────────────────────────────────┘
-
-            struct PopBatchMode {
-                static constexpr uint32_t AFFINITY = 0;  // more of the same
-                static constexpr uint32_t REPULSION = 1;  // opposites attract
-                static constexpr uint32_t NEUTRAL = 2;  // pure independent rolls
-            };
-
-            static constexpr uint32_t POP_BATCH_SIZE = 16;
-            static constexpr float POP_TYPE_AFFINITY_STRENGTH = 0.0f;
-            static constexpr float POP_SCALE_TENDENCY_STRENGTH = 0.0f;
-            static constexpr float POP_GOL_SUPPRESSION = 0.05f;
-            static constexpr uint32_t POP_MIN_OBSERVATIONS = 1;
-            static constexpr float POP_MODE_AFFINITY_CHANCE = 0.0f;
-            static constexpr float POP_MODE_REPULSION_CHANCE = 0.0f;
-            // remainder (1.0) = neutral
-
-            // ── Cross-Family Affinity Matrix ──────────────────────────────────
-            //
-            // When family X is observed, how much does it influence family Y's
-            // spawn chance? Read as: row = observed, column = target.
-            // 1.0 = neutral. >1.0 = attracts. <1.0 = suppresses.
-            //
-            // In AFFINITY mode, values >1 boost the target.
-            // In REPULSION mode, the matrix is read inverted (1/value).
-            //
-            //  ┌──────────────────────────────────────────────────────────────────────────┐
-            //  │ CROSS-FAMILY AFFINITY              target →                              │
-            //  │ observed ↓          │  Pyramid     │  Arch        │  Column              │
-            //  ├──────────────────────┼──────────────┼──────────────┼──────────────────────┤
-            //  │ Pyramid              │  0.5 (rare)  │  2.0 (gates) │  1.5 (colonnades)   │
-            //  │ Arch                 │  0.8 (mild)  │  1.5 (chain) │  2.0 (flanking)     │
-            //  │ Column               │  0.3 (supp)  │  1.2 (mild)  │  1.8 (cluster)      │
-            //  └──────────────────────┴──────────────┴──────────────┴──────────────────────┘
-
-            static constexpr float POP_CROSS_AFFINITY[PopFamily::COUNT][PopFamily::COUNT] = {
-                //          target:  Pyramid  Arch    Column  Antenna  Palm    Cactus  Blade   Sphere  Ribn    Cube    GoL     Gall
-                /* Pyramid */     {  0.5f,    2.0f,   1.5f,   1.5f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f },
-                /* Arch    */     {  0.8f,    1.5f,   2.0f,   2.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f },
-                /* Column  */     {  0.3f,    1.2f,   1.8f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f },
-                /* Antenna */     {  0.3f,    1.2f,   1.0f,   1.8f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f },
-                /* Palm    */     {  0.3f,    1.0f,   1.0f,   1.0f,   1.5f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f },
-                /* Cactus  */     {  1.0f,    1.0f,   1.0f,   1.0f,   1.0f,   1.5f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f },
-                /* Blade   */     {  1.0f,    1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f },
-                /* Sphere  */     {  1.0f,    1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f },
-                /* Ribn    */     {  1.0f,    1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f },
-                /* Cube    */     {  1.0f,    1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f },
-                /* GoL     */     {  1.0f,    1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f },
-                /* Gall    */     {  1.0f,    1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f },
-            };
-
-            // ── Per-Tier Scale Character ──────────────────────────────────────
-            //
-            // Each tier declares its compositional "size character" on [0, 1].
-            // 0.0 = human-scale intimate. 1.0 = monumental/colossal.
-            // This replaces the linear tier_idx/(count-1) mapping.
-            //
-            // Used by record_population_observation to accumulate scale_sum,
-            // and by select_tier_biased to compute proximity to the tendency.
-            //
-            //  ┌──────────────────────────────────────────────────────────┐
-            //  │ TIER SCALE CHARACTER                                    │
-            //  ├──────────────────────────┬─────────┬────────────────────┤
-            //  │ Entity                   │ Scale   │ Character          │
-            //  ├──────────────────────────┼─────────┼────────────────────┤
-            //  │ Pyramid: Obelisk         │  0.35   │ tall but narrow    │
-            //  │ Pyramid: Temple          │  0.60   │ moderate platform  │
-            //  │ Pyramid: Colossus        │  1.00   │ massive landmark   │
-            //  ├──────────────────────────┼─────────┼────────────────────┤
-            //  │ Arch: Doorway            │  0.10   │ human passage      │
-            //  │ Arch: Standard           │  0.55   │ medium gateway     │
-            //  │ Arch: Monumental         │  0.95   │ cathedral-scale    │
-            //  ├──────────────────────────┼─────────┼────────────────────┤
-            //  │ Column: Pillar           │  0.15   │ squat post         │
-            //  │ Column: Doric            │  0.30   │ classical human    │
-            //  │ Column: Ornate           │  0.50   │ decorated medium   │
-            //  │ Column: Antenna          │  0.60   │ tall with drums    │
-            //  │ Column: Antenna Squat    │  0.45   │ wide + short drums │
-            //  │ Column: Antenna Colossal │  0.85   │ tower-scale        │
-            //  └──────────────────────────┴─────────┴────────────────────┘
-
-            static constexpr float TIER_SCALE_PYRAMID[] = { 0.35f, 0.60f, 1.00f };
-            static constexpr float TIER_SCALE_ARCH[] = { 0.10f, 0.55f, 0.95f };
-            static constexpr float TIER_SCALE_COLUMN[] = { 0.15f, 0.30f, 0.50f };
-            static constexpr float TIER_SCALE_ANTENNA[] = { 0.60f, 0.45f, 0.85f };
-            static constexpr float TIER_SCALE_PALM[] = { 0.20f, 0.45f, 0.75f };
-            static constexpr float TIER_SCALE_CACTUS[] = { 0.15f, 0.40f, 0.70f };
-            static constexpr float TIER_SCALE_SPHERE[] = { 0.25f, 0.20f };
-            static constexpr float TIER_SCALE_CUBE[] = { 0.15f, 0.35f, 0.60f, 0.40f };
-            static constexpr float TIER_SCALE_RIBBON[] = { 0.80f, 0.50f, 0.65f };
-            // GoL compound tiers: Conway 0–6, then Pulse 7–9
-            static constexpr float TIER_SCALE_GOL[] = {
-                0.70f, 0.30f, 0.45f, 0.55f, 0.35f, 0.80f, 0.65f,   // Conway: Pillars..Glacier
-                0.40f, 0.25f, 0.50f                                   // Pulse: Breathe, Sparkle, Drift
-            };
-            // Gallery tiers = archetypes: 0=mountainous, 1=varied, 2=basin, 3=pool
-            static constexpr float TIER_SCALE_GALLERY[] = { 0.20f, 0.40f, 0.65f, 0.75f };
-
-            // Accessor: look up scale character by family + tier index.
-            static float tier_scale_character(uint32_t family, uint32_t tier_idx) {
-                switch (family) {
-                case PopFamily::PYRAMID: return (tier_idx < 3) ? TIER_SCALE_PYRAMID[tier_idx] : 0.5f;
-                case PopFamily::ARCH:    return (tier_idx < 3) ? TIER_SCALE_ARCH[tier_idx] : 0.5f;
-                case PopFamily::COLUMN:  return (tier_idx < 3) ? TIER_SCALE_COLUMN[tier_idx] : 0.5f;
-                case PopFamily::ANTENNA: return (tier_idx < 3) ? TIER_SCALE_ANTENNA[tier_idx] : 0.5f;
-                case PopFamily::PALM:    return (tier_idx < 3) ? TIER_SCALE_PALM[tier_idx] : 0.5f;
-                case PopFamily::CACTUS:   return (tier_idx < 3) ? TIER_SCALE_CACTUS[tier_idx] : 0.5f;
-                case PopFamily::SPHERE:   return (tier_idx < 2) ? TIER_SCALE_SPHERE[tier_idx] : 0.5f;
-                case PopFamily::RIBBON:   return (tier_idx < 3) ? TIER_SCALE_RIBBON[tier_idx] : 0.5f;
-                case PopFamily::CUBE:     return (tier_idx < 4) ? TIER_SCALE_CUBE[tier_idx] : 0.5f;
-                case PopFamily::GOL:      return (tier_idx < 10) ? TIER_SCALE_GOL[tier_idx] : 0.5f;
-                case PopFamily::GALLERY:  return (tier_idx < 4) ? TIER_SCALE_GALLERY[tier_idx] : 0.5f;
-                default: return 0.5f;
-                }
-            }
-
-            struct PopulationBatch {
-                uint32_t type_count[PopFamily::COUNT] = {};  // entities per family
-                float scale_sum = 0.0f;        // sum of normalized tier positions [0,1]
-                uint32_t scale_n = 0;          // number of scale observations
-                uint32_t patches_elapsed = 0;  // patches since batch start
-                uint32_t mode = PopBatchMode::AFFINITY;  // rolled at batch birth
-            };
-
-            PopulationBatch popBatch_{};
-            // (pop_batch_counter migrated into MoodState — see top of class)
-
-            // ── Recording ─────────────────────────────────────────────────────
-            //
-            // Called inside each spawn function after successful spawn.
-            // tier_idx: which tier was selected (0-based).
-            // tier_count: total tiers in that family (for normalization).
-
-            void record_population_observation(uint32_t family, uint32_t tier_idx) {
-                popBatch_.type_count[family]++;
-                float scale = tier_scale_character(family, tier_idx);
-                popBatch_.scale_sum += scale;
-                popBatch_.scale_n++;
-            }
-
-            // ── Batch Advance ─────────────────────────────────────────────────
-            //
-            // Called once per patch after all entity spawns complete.
-            // Increments patch counter; resets batch when budget expires.
-            // New batch rolls its mode from (seed, batchCounter).
-
-            void advance_population_batch() {
-                popBatch_.patches_elapsed++;
-                if (popBatch_.patches_elapsed >= POP_BATCH_SIZE) {
-                    popBatch_ = PopulationBatch{};
-                    // Roll batch mode deterministically
-                    mood_state_.pop_batch_counter++;
-                    uint32_t mode_seed = cpu_hash(world_state_.active_seed ^ mood_state_.pop_batch_counter, 330u);
-                    float mode_roll = cpu_hash_f(mode_seed, 331u);
-                    if (mode_roll < POP_MODE_AFFINITY_CHANCE) {
-                        popBatch_.mode = PopBatchMode::AFFINITY;
-                    }
-                    else if (mode_roll < POP_MODE_AFFINITY_CHANCE + POP_MODE_REPULSION_CHANCE) {
-                        popBatch_.mode = PopBatchMode::REPULSION;
-                    }
-                    else {
-                        popBatch_.mode = PopBatchMode::NEUTRAL;
-                    }
-                }
-            }
-
-            // ── Live Accessors (read current batch state) ─────────────────────
-            //
-            // Called inside spawn functions and GoL detection.
-            // Bias builds as observations accumulate within the batch.
-            // Before POP_MIN_OBSERVATIONS, returns neutral (1.0 / 0.0 / 0.5).
-            //
-            // In AFFINITY mode: types that appeared more get boosted.
-            // In REPULSION mode: types that appeared LESS get boosted.
-            // In NEUTRAL mode: always returns 1.0 (no bias).
-
-            float population_type_affinity(uint32_t family) const {
-                if (popBatch_.mode == PopBatchMode::NEUTRAL) return 1.0f;
-                uint32_t total = popBatch_.type_count[0] + popBatch_.type_count[1] + popBatch_.type_count[2];
-                if (total < POP_MIN_OBSERVATIONS) return 1.0f;
-                // Weighted sum: each observed family contributes its cross-affinity to the target
-                float influence = 0.0f;
-                for (uint32_t obs = 0; obs < PopFamily::COUNT; obs++) {
-                    float fraction = (float)popBatch_.type_count[obs] / (float)total;
-                    float affinity = POP_CROSS_AFFINITY[obs][family];
-                    if (popBatch_.mode == PopBatchMode::REPULSION) {
-                        affinity = (affinity > 0.01f) ? (1.0f / affinity) : 10.0f;  // invert
-                    }
-                    influence += fraction * affinity;
-                }
-                return 1.0f + (influence - 1.0f) * POP_TYPE_AFFINITY_STRENGTH;
-            }
-
-            float population_scale_tendency() const {
-                if (popBatch_.mode == PopBatchMode::NEUTRAL) return 0.5f;
-                if (popBatch_.scale_n < POP_MIN_OBSERVATIONS) return 0.5f;
-                float raw = popBatch_.scale_sum / (float)popBatch_.scale_n;
-                if (popBatch_.mode == PopBatchMode::REPULSION) {
-                    raw = 1.0f - raw;  // invert: small observations push toward large
-                }
-                return raw;
-            }
-
-            float population_automata_bias() const {
-                if (popBatch_.mode == PopBatchMode::NEUTRAL) return 0.0f;
-                uint32_t total = popBatch_.type_count[0] + popBatch_.type_count[1] + popBatch_.type_count[2];
-                if (total < POP_MIN_OBSERVATIONS) return 0.0f;
-                float avg_affinity = (population_type_affinity(0) +
-                    population_type_affinity(1) +
-                    population_type_affinity(2)) / 3.0f;
-                return -(avg_affinity - 1.0f) * POP_GOL_SUPPRESSION;
-            }
-
             // ── Biased Tier Selection ─────────────────────────────────────────
             //
-            // Applies scale tendency to tier weights before rolling.
-            // Tiers near the batch's average scale get boosted (affinity)
-            // or tiers FAR from it get boosted (repulsion).
-            // Falls back to unbiased select_tier in neutral mode or pre-observations.
-            //
-            // family: PopFamily index — needed to look up tier scale character.
+            // Thin forwarder to select_tier over base_weights. The scale-
+            // tendency bias this once applied was zero-strength (the mode
+            // was pinned NEUTRAL) and retired with the population-batch
+            // machinery. The `family` parameter is vestigial — campaign A2
+            // folds these callers into select_tier directly and removes
+            // this function.
 
             uint32_t select_tier_biased(uint32_t seed, uint32_t tier_prop,
-                const float* base_weights, uint32_t count, uint32_t family) const {
-                if (popBatch_.mode == PopBatchMode::NEUTRAL ||
-                    popBatch_.scale_n < POP_MIN_OBSERVATIONS) {
-                    return select_tier(seed, tier_prop, base_weights, count);
-                }
-                float tendency = population_scale_tendency();
-                float weights[8];  // max tiers across all families
-                float total = 0.0f;
-                for (uint32_t t = 0; t < count && t < 8; t++) {
-                    float scale = tier_scale_character(family, t);
-                    float proximity = 1.0f - std::abs(scale - tendency);
-                    weights[t] = base_weights[t] * (1.0f + proximity * POP_SCALE_TENDENCY_STRENGTH);
-                    total += weights[t];
-                }
-                for (uint32_t t = 0; t < count; t++) weights[t] /= total;
-                float roll = cpu_hash_f(seed, tier_prop);
-                float cumul = 0.0f;
-                for (uint32_t t = 0; t < count; t++) {
-                    cumul += weights[t];
-                    if (roll < cumul) return t;
-                }
-                return count - 1;
+                const float* base_weights, uint32_t count, uint32_t /*family*/) const {
+                return select_tier(seed, tier_prop, base_weights, count);
             }
 
             // ── Theme Envelope State (replaces lattice-based selection) ─────
@@ -2451,9 +2183,6 @@ namespace t7 {
                     terrainTokens_[t] = TerrainToken{};
                 }
 
-                // Population batch
-                popBatch_ = PopulationBatch{};
-                mood_state_.pop_batch_counter = 0;
                 entityQueue_.clear();
                 placementResults_.clear();
 
@@ -2893,7 +2622,6 @@ namespace t7 {
                     active_theme_idx_ = evaluate_theme_envelope(
                         tile_seed(world_state_.active_seed, patches_[pi].grid_x, patches_[pi].grid_z));
                     select_entities_for_patch(patches_[pi].grid_x, patches_[pi].grid_z);
-                    advance_population_batch();
                     patches_[pi].phase = PatchPhase::SPAWNED;
                 }
                 place_entity_queue();

@@ -10,7 +10,7 @@
 // │  Shared spawn helpers (used by every family — generic + bespoke):│
 // │    run_spawn_preamble<ActiveT>(...)   — gate + slot reservation  │
 // │    negotiate_position(...)            — jitter + footprint check │
-// │    record_placement_bookkeeping(...)  — population observation   │
+// │    record_placement_bookkeeping(...)  — placement seam (vacant)  │
 // │    evaluate_spawn_gate(...)           — seed + flat probability  │
 // │    jittered_position(...)             — patch-relative position  │
 // │                                                                  │
@@ -118,7 +118,6 @@ SpawnGatePreambleResult run_spawn_preamble(
 
     // 2-6. Spawn modifier chain
     float adj_mod = mood_mult[mood_state_.active];
-    adj_mod *= population_type_affinity(family);
     adj_mod *= GLOBAL_ENTITY_DENSITY;
     r.theme_idx = active_theme_idx_;
     {
@@ -240,12 +239,12 @@ PositionResult negotiate_position(
 
 // ── Helper 3: record_placement_bookkeeping ──────────────────
 //
-// Tail bookkeeping shared by every family (the generic pipeline plus
-// the bespoke gallery/gol/ribbon commits).
+// Per-placement seam, called after each family's commit. Its body —
+// the population-observation batch record — retired with that
+// machinery (campaign Stage 3); the seam is currently vacant.
 
-void record_placement_bookkeeping(uint32_t family, uint32_t tier_idx)
+void record_placement_bookkeeping(uint32_t /*family*/, uint32_t /*tier_idx*/)
 {
-    record_population_observation(family, tier_idx);
 }
 
 // ═══ MESH GEN PREPARERS + CULLING ════════════════════════════════

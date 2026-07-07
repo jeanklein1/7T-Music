@@ -322,7 +322,6 @@ static bool select_gol_for_patch(GoLState& gs, Cartridge* c,
 
     // Density + theme modifiers
     adj_mod *= GLOBAL_ENTITY_DENSITY;
-    adj_mod *= c->population_type_affinity(PopFamily::GOL);
     {
         auto dit = c->tileCache_.find({ gx, gz });
         if (dit != c->tileCache_.end()) {
@@ -367,7 +366,6 @@ static bool select_gol_for_patch(GoLState& gs, Cartridge* c,
             uint32_t seed = cpu_lattice_node_seed(c->world_state_.active_seed, nx, nz, GoLZoneProp::SEED_BAND);
             float roll = cpu_hash_f(seed, GoLZoneProp::SPAWN_ROLL);
             float chance = GoLZoneSpawnConfig::SPAWN_CHANCE * adj_mod;
-            chance += c->population_automata_bias();
             chance = std::max(0.0f, std::min(1.0f, chance));
             if (roll >= chance) continue;
 

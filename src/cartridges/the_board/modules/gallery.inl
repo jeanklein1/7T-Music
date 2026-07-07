@@ -770,7 +770,6 @@ static bool select_gallery_for_patch(GalleryState& gs, Cartridge* c, int32_t gx,
 
     // Density + theme modifiers
     adj_mod *= GLOBAL_ENTITY_DENSITY;
-    adj_mod *= c->population_type_affinity(PopFamily::GALLERY);
     uint32_t archetype = 1;
     {
         auto dit = c->tileCache_.find({ gx, gz });
