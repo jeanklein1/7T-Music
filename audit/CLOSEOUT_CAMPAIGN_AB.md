@@ -174,24 +174,49 @@ addition).
 
 ---
 
-## STAGES B2 / B3 — GATED, NOT STARTED
+## STAGES B2 / B3 — RESOLVED against the post-M1 world
 
-- **B2 (musical.inl onto the beat clock)** — **BLOCKED.** `musical.inl`
-  is absent from the board tree; it exists only under
-  `src/cartridges/backup_board/modules/musical.inl`. Per the gate ruling
-  ("run 1–6 through B1, commit, and STOP — B2/B3 wait for the file; do
-  not guess at musical.inl's contents or migrate blind"), no census was
-  taken and no caller was migrated. **The B2 per-caller census table
-  (caller / driven value / MIGRATED-or-STOPPED-nonmusical / span shipped)
-  must be produced when the file is supplied** — it cannot be authored
-  against an absent file.
-- **B3 (delete COMPAT, converge the twins)** — **BLOCKED** on B2. The
-  COMPAT section in `coupling/trajectory.hpp` (the `Trajectory` struct +
-  the dt/rate `trajectory_release` overload + `<cmath>`) is **left
-  intact**; it now has **no board consumer** after B1 but cannot be
-  deleted until B2 confirms no musical follower needs it. Constitution §5
-  COMPAT was decremented to *one file* by B1 (below); B3 takes it to
-  zero.
+The musical.inl gate turned out **stale** (operator ruling): `musical.inl`
+was retired during **M1** in favour of `coupling/visual_canvas.hpp` — the
+gen-1 demolition — so Campaign B's tail no longer described reality. A
+read-only consumer census (`audit/COMPAT_CONSUMER_CENSUS.md`) established
+that on the live tree the COMPAT section had **no consumer** beyond the
+one surviving twin. The tail was then rewritten and executed:
+
+- **B2 (musical.inl onto the beat clock)** — **DISSOLVED.** The file does
+  not exist in the live tree; there is nothing to migrate. No census
+  table applies. Its FOLLOW/Segment target is instead consumed live by
+  `visual_canvas.hpp` (see F-B3.2), which needs no migration.
+- **B3 (delete COMPAT, converge the twins)** — **DONE (full close,
+  Option 1).** One commit:
+  1. Converged the CPU twin — applied the B1 inline verbatim to
+     `the_chord/modules/pawn.inl` (the last live COMPAT consumer). The
+     two `pawn.inl` twins are now **byte-identical** (`cmp` clean),
+     restoring mirror discipline.
+  2. Deleted the COMPAT section (the `Trajectory` struct + the dt/rate
+     `trajectory_release` overload) **and** the `<cmath>` include from
+     `coupling/trajectory.hpp`; updated its header manifesto + SEAM to
+     drop the COMPAT/`<cmath>` prose. The **FOLLOW/Segment** MOVE system
+     is left fully intact.
+  3. Dropped the now-redundant `#include "coupling/trajectory.hpp"` from
+     `the_board/cartridge.hpp:90` (`visual_canvas.hpp`, included on the
+     next line, re-provides it transitively); `<cmath>` still arrives via
+     `cartridge.hpp` + `state.hpp`.
+  4. Fixed the stale board comments at `cartridge.hpp:2929` (Ruling 1)
+     **and** `:250` ("Trajectory-style/-driven" → "real-time
+     exponential"; the latter beyond Ruling 1's explicit `:2929`, swept
+     for a clean close).
+  5. Took Constitution §5's COMPAT entry to **zero** — the bullet is
+     removed (the ledger is a census of *active* exceptions; a retired
+     one leaves it), same commit.
+  - `world.wgsl`'s shader-side `Trajectory`/`trajectory_release` and the
+    unrelated `GPUTrajectory` GPU buffer struct were left untouched, as
+    flagged. Verification: `grep COMPAT|Trajectory|std::|cmath` in
+    `trajectory.hpp` = 0; zero COMPAT-overload consumers in either live
+    cartridge; both twins byte-identical; braces balanced
+    (trajectory.hpp 10→8, cartridge.hpp 642→642); encoding matches L0.
+
+**Campaign B is complete; the COMPAT ledger entry is zero.**
 
 ---
 
@@ -226,9 +251,31 @@ addition).
   `pawn.inl:135` `DONE[pawn:K1]` ("uses trajectory_release" → "uses an
   inlined real-time exponential step"). Not census-tracked; corrected to
   avoid leaving fresh drift.
+- **F-B3.1 (the_chord drift, recorded not forced)** — converging
+  `the_chord/pawn.inl` makes two of its `cartridge.hpp` references
+  redundant/stale: the direct `#include "coupling/trajectory.hpp"` at
+  `the_chord/cartridge.hpp:90` (now redundant, `visual_canvas.hpp`
+  re-provides it) and the comment at `:3226` ("Trajectory-driven tick").
+  Ruling 1 scoped the include-drop and comment-fix to **board**, and
+  `cartridge.hpp` is not a byte-identical twin, so these were **left** as
+  part of the_chord's accepted lockstep drift — recommended for the
+  the_chord reconciliation pass, not forced here.
+- **F-B3.2 (census correction)** — `COMPAT_CONSUMER_CENSUS.md` stated the
+  FOLLOW/Segment system "has no live consumer in either cartridge"; that
+  grep covered only `src/cartridges/`. `coupling/visual_canvas.hpp` (the
+  M1 canvas machinery, included by both cartridges) **is** a live
+  FOLLOW/Segment consumer (fog / color / amp / tint Segments via
+  `trajectory_release(Segment&, beat)`), and it `#include`s
+  `trajectory.hpp` itself. This reinforces "keep FOLLOW/Segment" and is
+  exactly why dropping the board's direct include is safe.
+- **F-B3.3** — `backup_board` (the frozen pre-M1 snapshot) still holds
+  COMPAT consumers (`pawn.inl:158`, `musical.inl` ×5). It is out of the
+  live build and was not touched; noted so a future backup_board revival
+  is not surprised by the removed COMPAT surface.
 
 ## FOUND-NOT-FIXED
 
-None among the landed stages A1/A2/B1. The only outstanding work is
-B2/B3, which are **gated** (blocked on `musical.inl`), not deferred by
-choice.
+None. Stages A1, A2, B1 landed clean; B2 dissolved and B3 executed as the
+full close (COMPAT retired, §5 → zero). The only recorded residue is
+the_chord's accepted lockstep drift (F-B3.1), deferred by ruling to a
+the_chord reconciliation pass, not by omission.

@@ -87,7 +87,6 @@
 #include "core/input_event.hpp"
 #include "cartridges/the_board/state.hpp"
 #include "cartridges/the_board/renderer.hpp"
-#include "coupling/trajectory.hpp"
 #include "coupling/visual_canvas.hpp"
 #include <cmath>
 #include <cstring>
@@ -247,7 +246,7 @@ namespace t7 {
                 // Migrated here from pawn_state_ because it travels with the
                 // player, not the body or the world. When the player
                 // possesses a different agent (Caps Lock), it stays with
-                // the player. Trajectory-style 0→1 ramp in [0,1].
+                // the player. Real-time exponential 0→1 ramp in [0,1].
                 float aura_presence = 0.0f;                  // pawn aura ramp (was pawn_state_.aura_presence)
 
                 // Future (deferred):
@@ -2926,7 +2925,7 @@ namespace t7 {
                 // --- Upload to GPU --------------------------------------------------
 
                 // Pawn presence ramp + aura height computation.
-                // Lives in pawn.inl as a Trajectory-driven tick (closes pawn:K1).
+                // Lives in pawn.inl as a real-time exponential tick (closes pawn:K1).
                 tick_pawn_couplings(pawn_state_, this, queue);
                 gpuState_.set_world_seed(world_state_.active_seed);
                 if (world_state_.finite_mode) {

@@ -16,12 +16,6 @@
 //          (default DEFAULT_RELEASE_BEATS); the move lands exactly, so no
 //          endpoint snapping is needed.
 //
-// COMPAT (TEMPORARY, at the foot). The previous first-order release survives
-// as the Trajectory overload — exponential, the prior behavior — purely so the
-// not-yet-migrated module (pawn.inl) keeps building and running
-// unchanged. Convert those call sites to the Segment FOLLOW one at a time;
-// when none remain, delete the COMPAT section and the <cmath> include.
-//
 // Linear, by choice. The move is velocity-blind — it kicks as it leaves and
 // stops dead as it lands, and a re-aim snaps to a new rate. Accepted: idle is
 // just another target, leaving and returning are one move, exact arrival
@@ -32,9 +26,7 @@
 // does not mirror it — a move is CPU-side intent the GPU realizes as geometry.
 //
 // SEAM[trajectory:foundations] the coupling foundation. The linear system has
-//   no dependencies; <cmath> is pulled only for the temporary COMPAT shim.
-
-#include <cmath>
+//   no dependencies.
 
 namespace t7 {
 
@@ -83,26 +75,6 @@ namespace t7 {
             seg = plan_segment(sample_segment(seg, beat), goal, span_beats, beat);
         }
         return sample_segment(seg, beat);
-    }
-
-    // ═══ COMPAT — first-order release (TEMPORARY) ══════════════════════════════
-    //
-    // The previous release primitive, verbatim, so pawn.inl builds
-    // and runs unchanged until it migrates to the Segment FOLLOW above.
-    // Exponential (the prior behavior); matches world.wgsl §1.2. It overloads on
-    // Trajectory, so it never collides with the Segment FOLLOW. DELETE this whole
-    // section, and the <cmath> include, once no module calls the Trajectory form.
-
-    struct Trajectory {
-        float value = 0.0f;
-        float velocity = 0.0f;
-        float _pad0 = 0.0f;
-        float _pad1 = 0.0f;
-    };
-
-    inline Trajectory trajectory_release(Trajectory t, float goal, float dt, float rate) {
-        const float new_val = t.value + (goal - t.value) * (1.0f - std::exp(-rate * dt));
-        return Trajectory{ new_val, 0.0f, 0.0f, 0.0f };
     }
 
 } // namespace t7
