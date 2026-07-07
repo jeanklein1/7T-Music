@@ -1,144 +1,174 @@
 # INVESTIGATION — mood-transition patch seam / discontinuity
 
-Read-only diagnostic, non-blocking (Part 3 of the GATE RESULT + CADENCE
-CHANGE handoff). No code was changed by this investigation. Branch
-`FINAL_TOUCH`; findings anchored to the live tree at commit `63a1742`
-(campaign B1), which post-dates the campaign edits — the LOD subsystem
-named below was untouched by any campaign/closeout stage.
+Read-only diagnostic, non-blocking. **This revision supersedes the earlier
+T-junction hypothesis**, per Jean's redirect: three reported conditions
+(the crack is *intermittent*, *appears after mood transitions*, and
+*correlates with leaving the initialization area* — near origin, no
+transition, it does not occur) a static geometric seam cannot produce.
+A fixed LOD T-junction would render *always and everywhere* the boundary
+is drawn; these conditions point at **state / world-space precision that
+degrades as the world travels from its init origin**, with the LOD
+boundary being where it becomes *visible*, not its cause.
 
-## Charter (as briefed)
-
-> A mood transition leaves a visible discontinuity at patch boundaries.
-> "Something gets stale." Worse the further the pawn is from origin.
-> Pre-existing (predates the refactor). Two named suspects: **S-A**
-> grid-dim / stride twins; **S-B** the five duplicated finite-bound
-> copies in mood.inl.
+No code changed. Anchored to `FINAL_TOUCH @ c55a67b` (HEAD verified).
 
 ## Method & tree-anchoring note
 
-The parallel read pass initially ran in a worktree that had forked from
-an **ancestor** of FINAL_TOUCH (`e82abc2`, "refactoring cartridge
-generative algorithm overhauling") rather than the working tip. `e82abc2`
-*is* an ancestor of FINAL_TOUCH (it is the merge-base), so the mechanism
-transfers, but its line numbers are stale (e.g. mood.inl 262 vs. the
-live 536; a pre-refactor copy sits under `4 4 BEFORE REFAC/`). **Every
-address below was re-anchored by symbol against the live FINAL_TOUCH
-tree** and re-verified after the Stage-3 pop-batch deletion shifted
-cartridge.hpp by −245 lines. The LOD subsystem is byte-for-byte the same
-system in both trees (verified).
+The first read pass ran in a worktree forked from an *ancestor* of
+FINAL_TOUCH (`e82abc2`, the merge-base) with stale line numbers. All
+addresses below were re-anchored by symbol against the live tree and
+re-verified after the Stage-3 pop-batch deletion shifted cartridge.hpp by
+−245 lines. (Standing rule going forward: isolated-worktree agents launch
+pinned to a named commit and print/confirm HEAD before reading.)
 
-## Symptom, restated precisely
+## Symptom, corrected
 
-The discontinuity is **geometric**, not a data-staleness artifact. The
-"something gets stale" framing is *disconfirmed* in the state sense (see
-S-A / S-B / transition verdicts — nothing survives a mood change to go
-stale). The mechanism that actually fits all three symptom clauses is a
-distance-dependent **level-of-detail seam**, below.
+A **distance-correlated, intermittent** discontinuity along patch
+boundaries — not a static geometric gap. It is absent near origin, grows
+as the pawn leaves the init area, and (per the added test) is expected to
+*reset* when the pawn returns near origin. That signature is the
+fingerprint of **absolute-world-space evaluation losing float32 precision
+with distance** — not stale mesh topology.
 
-## Suspects examined
+## Suspects still ruled out (unchanged, and consistent with the redirect)
 
-| Suspect | Verdict | Evidence |
-|---|---|---|
-| **S-A** grid-dim / stride twin ("13" vs live) | **RULED OUT** | The "13" survives only as a *stale comment* (state.hpp GPUTileGrid.side annotation). No merge/edge/stride computation reads 13. The bake+render tile stride is the **dynamic** `tile_grid.side` (uploaded; =17 open, `2*(fr+1)+1` finite). Heightfield layers, instance buffer, and MAX_PATCHES are all `PREGEN_SIDE²`=225. No 13-vs-15/17 or 225-vs-289 divergence exists in any *computation*. One latent-but-inert twin: `tileGridSide` is uploaded from runtime `activeRadius_` rather than the const, but always yields the correct value (`activeRadius_`=7 open, capped to `finiteRadius_ ∈ [1,4]`). |
-| **S-B** five duplicated finite-bound copies (mood.inl) | **RULED OUT** | All five copies read the *same* live `finiteRadius_` member and the `PATCH_EXTENT` const. `finiteRadius_` is written once per world and never mutated mid-world, so the transition path and the streamer cannot disagree. Duplication is a DRY smell, not a correctness bug. |
-| Transition vs. streamer coherence | **AGREE (not the cause)** | A mood change is FADE_OUT → TEARDOWN → FADE_IN. Teardown clears `tileCache_`, zeroes the patch set, and resets `lastCenter = INT32_MAX`, so the next `stream_patches` is a **full regen**. No patch, tile, or modifier survives a transition to carry stale state across it. |
+| Suspect | Verdict |
+|---|---|
+| **S-A** grid-dim / stride "13" twin | RULED OUT — the "13" is a stale comment; every computation uses the dynamic `tile_grid.side`. No dimension mismatch exists. |
+| **S-B** five duplicated finite-bound copies | RULED OUT — all read the same single-source `finiteRadius_`, written once per world, never mutated mid-world. |
+| Transition vs. streamer coherence | AGREE — TEARDOWN clears `tileCache_`, zeroes patches, `last_center = INT32_MAX`; the next stream is a full regen. Nothing carries stale state *across* the transition. (This is why the seam appears *after* the pawn moves, not at the transition instant.) |
 
-## Root-cause hypothesis (leading; medium-high confidence)
+## Redirected suspects — findings against (a) / (b) / (c)
 
-**LOD-0 / LOD-1 T-junction cracks at the pawn-relative LOD boundary,
-with no stitching geometry.**
+### (a) World-space precision — LEADING (structurally confirmed)
 
-- Terrain patches render at **LOD-0** (64×64) or **LOD-1** (32×32). The
-  LOD-1 index buffer is built by stepping through the *same* 65×65 vertex
-  grid with `step = 2` — it **skips every other edge vertex**
-  (state.hpp:3020).
-- There is **no skirt / stitch geometry** anywhere in the terrain path
-  (grep for skirt/stitch/T-junction in the_board returns only palm-crown
-  foliage params, never terrain). So where a LOD-0 patch abuts a LOD-1
-  patch, the LOD-1 edge is a **coarser polyline missing the LOD-0 edge
-  vertices** → a T-junction, i.e. a hairline crack / shading seam along
-  the shared boundary.
-- LOD assignment is **pawn-relative**: patches inside
-  `LOD_FULL_RADIUS = 3.5` patches are LOD-0, beyond it LOD-1
-  (cartridge.hpp:3812). The boundary is a moving annulus at
-  `3.5 × PATCH_EXTENT(50) = 175` world units from the pawn.
+**There is no floating-origin / recenter of the terrain onto the pawn.**
+Patches are keyed and baked in *absolute* world coordinates that grow
+without bound as the pawn walks away from (0,0):
 
-### Why it fits every clause
+- `make_patch_params` (cartridge.hpp:2474-2475):
+  `p.origin = ((gx + 0.5) * PATCH_EXTENT, (gz + 0.5) * PATCH_EXTENT)` —
+  `gx/gz` are absolute grid indices; nothing rebases them to a local
+  frame. At gx≈1000 the origin is ≈50 000 wu.
+- The GPU bake evaluates each texel's world position **per patch,
+  independently** (world.wgsl:6711-6715):
+  `world_xz = patch_params.origin + (uv − 0.5) * extent`, then
+  `ground_formed_with_complexity(world_xz)`.
 
-- *"discontinuities at patch boundaries"* = the T-junction crack at the
-  LOD-0/LOD-1 boundary.
-- *"worse away from origin"* = walking toward the finite boundary pushes
-  more of the world across the 3.5-patch ring into LOD-1, so more
-  boundaries become mixed-LOD T-junctions that were uniform LOD-0 at
-  spawn/origin.
-- *"pre-existing"* = pawn-relative LOD + absent skirts predate the
-  generative refactor; the mood transition merely *re-reveals* the seam
-  after each full regen (it does not create it).
+**The crack mechanism.** Two adjacent patches share an edge. Patch A's
+far edge is `origin_A + 0.5·extent`; patch B's near edge is
+`origin_B − 0.5·extent`. Algebraically equal (`origin_B = origin_A +
+extent`). In **float32 they are not** — `(origin_A + 0.5·extent)` and
+`((origin_A + extent) − 0.5·extent)` round differently, and the gap is
+≈1 ULP *at the magnitude of the origin*. Near (0,0) the ULP is ~1e-5 wu
+(sub-visible); at 50 000 wu it is ~4e-3 wu. Each patch then samples the
+high-frequency terrain function at a slightly *different* world point
+along the shared edge, so the edge heights disagree → a hairline crack at
+the patch boundary whose size scales with the local gradient × the ULP
+gap. This is **intermittent** (whether the two roundings coincide depends
+on the exact origin bits), **worsens with distance from origin** (ULP
+grows), and **vanishes near origin** (ULP → sub-pixel).
 
-## Corroboration in the live tree
+**Why "after a mood transition."** TEARDOWN *resets the pawn to origin*
+and installs a new seed (cartridge.hpp:2973 `active_seed = …`;
+2983-2984 `readback_x/z = 0`; 3002 pawn at `Idle::PAWN_POS 0,0`). So a
+transition returns you to a fresh origin with cracks gone; they reappear
+only once you **leave** the new world's init area — precisely the
+reported ordering. The transition doesn't *create* the seam; it resets
+the reference point the seam is measured from.
 
-The engine **already documents this exact annulus** as a trouble zone —
-cartridge.hpp:3840-3845:
+**Why it shows at the LOD boundary.** There is exactly **one heightfield
++ gradient texture per patch, shared by both LOD meshes** (LOD differs
+only in the index buffer). So the boundary crack is between *adjacent
+patches*, and the LOD-0/LOD-1 transition merely makes an existing
+patch-boundary discrepancy more visible (a full-res edge abutting a
+decimated one). Jean's read — "the LOD boundary is where it becomes
+visible, not the cause" — is correct.
 
-> "Push the CPU's banding pawn so the GPU frustum-cull shader uses the
-> same pawn position to apply the LOD0 distance gate. Without this, GPU
-> reads the live pawn (1-2 frames ahead of pawnReadback) and disagrees
-> with CPU at the LOD0/LOD1 boundary annulus, causing patch flicker
-> around ~175 world units from the pawn."
+### (b) LOD height/gradient regeneration lag — SECONDARY (transient only)
 
-That fix synchronizes **which tier** each patch is assigned to (killing a
-CPU/GPU *classification* flicker). It does **not** add stitching, so it
-cannot close the **geometric** T-junction between a correctly-classified
-LOD-0 patch and its correctly-classified LOD-1 neighbour. The remaining
-discontinuity is that geometric gap — distinct from, and downstream of,
-the flicker the existing comment addresses. Same ring (~175 wu), two
-different defects.
+There is no separate per-LOD height data to fall out of sync (one
+heightfield per patch, above), so the literal "one LOD lags" cannot
+happen. The nearest real variant: `init_patch_system` (cartridge.hpp:2370)
+on teardown clears CPU bookkeeping and `tileCache_` but **does not zero
+the GPU heightfield layers**; each layer re-bakes when its patch
+re-streams, over a **budgeted** several-frame window. Any resulting
+old-world/new-world boundary is a *transient* during FADE_IN (masked by
+the fade), not a persistent, distance-correlated seam. Does not fit the
+symptom triad.
 
-## Live FINAL_TOUCH addresses (re-anchored)
+### (c) Stale LOD-boundary center after transition — SECONDARY
 
-| Symbol / site | Address | Role |
-|---|---|---|
-| `PATCH_MESH_N = 64` | state.hpp:113 | LOD-0 subdivisions |
-| `PATCH_MESH_N_LOD1 = 32` | state.hpp:115 | LOD-1 subdivisions |
-| LOD-1 decimation `step = PATCH_MESH_N / PATCH_MESH_N_LOD1  // = 2` | state.hpp:3020 | skips every other edge vertex |
-| `stride = PATCH_MESH_N + 1  // 65` | state.hpp:3021 | shared vertex grid both LODs index into |
-| `patchIndexBufferLOD1_` | state.hpp:1537 | half-res index buffer (the decimated edges) |
-| `LOD_FULL_RADIUS = 3.5f` | cartridge.hpp:2521 | LOD-0/LOD-1 split radius (patches) |
-| `LOD0_CYLINDER_RADIUS = 3.5 × PATCH_EXTENT = 175 wu` | cartridge.hpp:2535 | the moving boundary annulus |
-| `if (d2 <= LOD0_CYLINDER_RADIUS_SQ) lod0 else lod1` | cartridge.hpp:3812-3817 | per-patch tier assignment |
-| LOD band pack + `lod_pawn` sync comment | cartridge.hpp:3824-3848 | the documented ~175 wu flicker fix |
-| `PATCH_EXTENT = 50.0f` | state.hpp:103 | world units per patch side (→ 3.5×50=175) |
+The LOD split reads the pawn readback (`centerX/Z =
+floor(readback / PATCH_EXTENT)`, cartridge.hpp:3506-3507) and the band
+pack measures from `pawn_wx/pawn_wz`, pushed to the GPU as `lod_pawn`
+(3846). A stale center makes CPU and GPU disagree about *which tier* a
+patch is — a **classification flicker**, already mitigated by the
+`lod_pawn` sync (documented at 3840-3845, "~175 wu from the pawn"). That
+is a flicker of tier assignment, not a height discontinuity, and it is
+pawn-relative (moves with the pawn), not origin-relative. Not the
+distance-from-origin seam.
 
-## Settling test (for Jean — confirm before any fix is scoped)
+## Important caveat — finite vs. open world (decides (a) vs. a modifier bug)
 
-Launch a finite mood (key 8/9). Stand at origin, note the seam density.
-Walk toward the boundary and watch the boundaries **~175 wu out**:
+Suspect (a) needs **large** absolute coordinates. In an **open** world
+the pawn walks to arbitrary distance → (a) fully applies. In a **small
+finite** world (radius 2-4 ⇒ ≤ ~200 wu, the key 8/9 case), the ULP gap is
+~1e-5 wu — **too small to be visible**. So:
 
-- New cracks appearing along a ring that **tracks the pawn** → LOD
-  T-junction **confirmed** (this hypothesis).
-- Seams pinned to **fixed world coordinates** (not moving with the pawn)
-  → a bake-value issue instead; the next step would be to instrument
-  `mark_patches_for_regen` rather than the LOD path.
+- If the seam reproduces while walking far in an **open** world → (a)
+  world-space precision, high confidence.
+- If it reproduces in a **small finite** world (≤ a few hundred wu from
+  origin) → precision is *insufficient*; the cause is more likely a
+  **modifier / tile-grid reference that shifts on recenter** (the
+  heightfield gen reads per-tile modifiers from the tile grid whose
+  origin is `last_center`; a patch baked against one grid origin abutting
+  a neighbor baked against another would crack independent of absolute
+  magnitude) or the transient regen-lag (b). This is the one fork the
+  static read cannot close without the runtime.
 
-## Remediation directions (NOT executed — for a future handoff)
+## Settling test (refined — for Jean)
 
-Recorded only so the next work order has a starting menu; the charter was
-diagnosis, and no fix is authorized here.
+Launch, stand near origin (note seam density), then:
 
-1. **Skirt geometry** — extrude a short vertical curtain at every patch
-   perimeter so a crack is hidden behind overlapping wall, not open sky.
-   Cheapest; hides the seam without solving the topology.
-2. **Edge-vertex retention** — keep LOD-1 patches at full resolution on
-   any edge shared with a LOD-0 neighbour (constrained decimation), so
-   the shared polyline matches. Correct but needs neighbour-LOD awareness
-   at index-build time.
-3. **Uniform-LOD annulus** — widen or feather the transition so abutting
-   patches are never more than a discrete LOD apart, and/or geomorph the
-   LOD-1 edge vertices toward their LOD-0 positions across the band.
+1. **Open world:** walk far. Cracks appear along patch boundaries and
+   **worsen with distance**, densest at the LOD-0/LOD-1 ring but present
+   on plain boundaries too → **(a) confirmed.**
+2. **Return toward origin:** cracks **thin out / vanish** as coordinates
+   shrink → confirms the origin-relative (precision) signature and rules
+   out a pawn-relative (LOD-topology) cause.
+3. **Small finite world (key 8/9):** if the seam is still obvious at ≤200
+   wu from origin, precision is too small — redirect to the tile-grid /
+   modifier-origin path (the finite-fork above), not (a).
+
+Discriminator in one line: **origin-relative (worse far, resets near
+init) ⇒ (a) precision; pawn-relative (tracks the pawn at ~175 wu) ⇒ LOD
+classification; transient (fades after settling) ⇒ regen-lag.**
+
+## Remediation directions (NOT executed — parked per ruling)
+
+Recorded only. The defect is *disagreement between neighbors at a shared
+edge*, so any fix that makes both neighbors compute the shared edge from
+an **identical expression** closes the crack regardless of absolute
+magnitude:
+
+1. **Canonical sample lattice** — derive each texel's `world_xz` from a
+   *global integer lattice index* (`f32(global_ix) * texel_size`) instead
+   of `per-patch origin + offset`. Neighbors share the same integer index
+   on the shared edge → bit-identical world position → identical height.
+   Most targeted; closes the seam without a broader refactor.
+2. **Floating origin / world rebase** — periodically recenter the terrain
+   frame on the pawn so bake coordinates stay small. Fixes precision
+   globally (also helps distant entities), larger change.
+3. **Skirt/curtain geometry** — cosmetic fallback that hides any residual
+   crack behind overlapping wall; does not address the root disagreement.
 
 ## Confidence
 
-Medium-high. The mechanism is structurally present and uniquely fits all
-three symptom clauses, and the engine independently flags the same 175 wu
-annulus. The settling test converts this to a certainty (or redirects to
-the bake path) in one launch.
+**(a) world-space precision is the leading cause for open worlds** —
+mechanism structurally confirmed and it uniquely fits intermittent +
+worse-with-distance + resets-near-origin + appears-after-transition (via
+the origin reset). The single open fork is the small-finite-world case,
+which the refined settling test resolves in one launch. It remains
+cosmetic, pre-existing, and blocks nothing; a geometry/precision fix is a
+separate stage only if the test confirms the origin-relative signature.
