@@ -88,9 +88,10 @@ retirement condition. This section IS the census; it updates same-commit
 with any change to its entries. Classes and counts as of this commit:
 Counting convention: mirrored pairs count once; counts are per
 cartridge unless stated.
-- COMPAT (1 debt, two files): pawn.inl's aura ramp holds the legacy
-  Trajectory (COMPAT-tagged at the ramp); trajectory.hpp's COMPAT
-  section exists for it. Dies at M3.
+- COMPAT (1 debt, one file): the legacy exponential release survives
+  only as trajectory.hpp's COMPAT Trajectory overload. pawn.inl's aura
+  ramp — its former board consumer — went real-time (inlined) and no
+  longer holds it, so no board module is COMPAT-tagged. Dies at M3.
 - TESTING (1): ribbon SPAWN_CHANCE 0.9. Dies at ship.
 - DIAG-unwrapped (6 sites, tag-greppable as 'DIAG-unwrapped' plus the
   ribbon's SEAM[ribbon:L1]): [Ribbon] SPAWN; the periodic agent census

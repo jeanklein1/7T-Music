@@ -9,7 +9,7 @@
 //   PawnAuraDeltaMode  — color differential strategy
 //   GPUPawnAuraConfig  — per-frame GPU config (in state.hpp)
 //   GPUPawnAuraCell    — per-cell state (in state.hpp)
-//   aura_presence       — Trajectory-style 0→1 ramp on toggle
+//   aura_presence       — real-time exponential 0→1 ramp on toggle
 //
 // ┌─── Public surface (called from outside this file) ──────────────┐
 // │                                                                  │
@@ -32,7 +32,9 @@
 // └──────────────────────────────────────────────────────────────────┘
 //
 // Included inside the Cartridge class body.
-// Depends on: coupling/trajectory.hpp (release primitive).
+// Depends on: cartridge core only — the aura ramp is now a self-contained
+// real-time exponential (std::exp), lifted inline from the former
+// coupling/trajectory.hpp release primitive in campaign B1.
 // ─────────────────────────────────────────────────────────────────
 
 
@@ -132,23 +134,22 @@ PawnState pawn_state_;
 //
 // DONE[pawn:K1] aura presence ramp + height computation moved out of
 //   cartridge.hpp::update() into this single named tick. The presence
-//   value uses trajectory_release (mirroring WGSL §1.2).
+//   value uses an inlined real-time exponential step (mirroring WGSL §1.2).
 //
 // Caller: cartridge.hpp::update() — runs once per frame after the
 // signal is built and before world bounds are uploaded.
 static void tick_pawn_couplings(PawnState& ps, Cartridge* c, wgpu::Queue& queue) {
     // Aura presence ramp: smooth 0→1 on enable / 1→0 on disable.
     // (aura_presence migrated to player_ in SEAM[spine:P8] — see Cartridge::PlayerState)
-    // COMPAT: this ramp is the last consumer of the legacy exponential
-    // Trajectory — trajectory.hpp's COMPAT section exists for it.
-    // Dies at M3 (census: constitution §5).
     {
         const float target = ps.aura_enabled ? 1.0f : 0.0f;
         const float prev   = c->player_.aura_presence;
         const float rate   = (target > prev) ? AURA_PRESENCE_ATTACK : AURA_PRESENCE_RELEASE;
-        Trajectory ap{ prev, 0.0f, 0.0f, 0.0f };
-        ap = trajectory_release(ap, target, c->time_state_.dt, rate);
-        c->player_.aura_presence = ap.value;
+        // Real-time exponential BY RULING: a possession affordance, not a
+        // musical gesture — the beat clock stays out of UI ramps. Shape
+        // mirrors the GPU release primitive (world.wgsl §1.2); arithmetic
+        // lifted verbatim from the retired COMPAT overload.
+        c->player_.aura_presence = prev + (target - prev) * (1.0f - std::exp(-rate * c->time_state_.dt));
 
         // Snap to endpoints to avoid perpetual drift
         if (c->player_.aura_presence < 0.001f && target == 0.0f) c->player_.aura_presence = 0.0f;
