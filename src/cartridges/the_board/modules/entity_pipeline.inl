@@ -69,7 +69,7 @@
 // Included inside the Cartridge class body, AFTER the EntityQueueEntry
 // and PlacementEntry unions are declared in spawn_engine.inl.
 // Depends on: entity_types.inl (declarations), seed_utils.inl
-//             (cpu_hash_f, cpu_sample_gaussian, select_tier_biased),
+//             (cpu_hash_f, cpu_sample_gaussian, select_tier),
 //             entities.inl (vocabulary: tier enums, prop registries,
 //             color palettes, configs).
 //
@@ -212,8 +212,8 @@ bool generic_select(
     for (uint32_t t = 0; t < traits.tier_count && t < 8; t++)
         weights[t] *= theme_tw[t];
 
-    uint32_t tier = select_tier_biased(gate.seed, traits.tier_prop,
-        weights, traits.tier_count, traits.family_id);
+    uint32_t tier = select_tier(gate.seed, traits.tier_prop,
+        weights, traits.tier_count);
     const auto& profile = adapter.get_tier_profile(tier);
 
     // ── Sample all parameters from tier profile ──

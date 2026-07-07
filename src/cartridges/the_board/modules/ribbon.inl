@@ -56,7 +56,7 @@
 // Included inside the Cartridge class body.
 // Depends on: spawn_engine.inl (run_spawn_preamble, negotiate_position,
 //             record_placement_bookkeeping, footprint registry,
-//             select_tier_biased), seed_utils.inl, cartridge.hpp core
+//             select_tier), seed_utils.inl, cartridge.hpp core
 //             (time_state_.seconds, THEMES, PATCH_EXTENT, Dim::*, the
 //             four ribbon canvas bindings, player_ sky fields,
 //             estimate_terrain_height), state.hpp GPU wires
@@ -1220,8 +1220,8 @@ static bool select_ribbon_for_patch(RibbonState& rs, Cartridge* c,
         tier_weights[t] = RIBBON_BASE_TIER_WEIGHTS[t];
     for (uint32_t t = 0; t < RIBBON_TIER_COUNT; t++)
         tier_weights[t] *= THEMES[gate.theme_idx].tier_wt_ribbon[t];
-    uint32_t tier_idx = c->select_tier_biased(gate.seed, RibbonProp::TIER,
-        tier_weights, RIBBON_TIER_COUNT, PopFamily::RIBBON);
+    uint32_t tier_idx = select_tier(gate.seed, RibbonProp::TIER,
+        tier_weights, RIBBON_TIER_COUNT);
 
     sel.seed = gate.seed;
     sel.trigger_gx = gx;

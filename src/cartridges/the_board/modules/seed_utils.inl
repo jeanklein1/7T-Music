@@ -82,9 +82,9 @@ static float cpu_sample_gaussian(uint32_t seed, uint32_t property, float mean, f
 //   shared across every domain. The Q10 consolidation has LANDED:
 //   the hand-rolled copies in agents.inl, gol_zones.inl, ribbon.inl,
 //   and gallery.inl now call select_weighted / select_tier. The
-//   generic entity pipeline was never a separate copy — it routes
-//   through select_tier_biased (a thin forwarder, retired in
-//   campaign A2).
+//   generic entity pipeline was never a separate copy — it now
+//   calls select_tier directly (its thin biased forwarder was
+//   retired in campaign A2).
 
 // The bucket walk. Takes a pre-rolled uniform in [0,1); returns the
 // first index whose cumulative weight exceeds it; count-1 on the

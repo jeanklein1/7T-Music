@@ -1798,20 +1798,6 @@ namespace t7 {
             static constexpr float AMP_MOMENTUM_THRESHOLD = 0.15f;  // |jitter - 1.0| above this → emit amp momentum
             static constexpr float AMP_MOMENTUM_CARRY = 0.6f;       // fraction of excess carried forward
 
-            // ── Biased Tier Selection ─────────────────────────────────────────
-            //
-            // Thin forwarder to select_tier over base_weights. The scale-
-            // tendency bias this once applied was zero-strength (the mode
-            // was pinned NEUTRAL) and retired with the population-batch
-            // machinery. The `family` parameter is vestigial — campaign A2
-            // folds these callers into select_tier directly and removes
-            // this function.
-
-            uint32_t select_tier_biased(uint32_t seed, uint32_t tier_prop,
-                const float* base_weights, uint32_t count, uint32_t /*family*/) const {
-                return select_tier(seed, tier_prop, base_weights, count);
-            }
-
             // ── Theme Envelope State (replaces lattice-based selection) ─────
             ThemeEnvelope themeEnvelope_{};
             uint32_t active_theme_idx_ = 0;   // set per-patch by evaluate_theme_envelope
