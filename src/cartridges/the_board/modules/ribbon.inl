@@ -1103,13 +1103,8 @@ static void fill_ribbon_selection_geometry(
     sel.vertical_amp = std::max(0.1f, cpu_sample_gaussian(seed, RibbonProp::VERTICAL_AMP, tp.vertical_amp_mean, tp.vertical_amp_sigma));
 
     // Color
-    float color_roll = cpu_hash_f(seed, RibbonProp::COLOR_ROLL);
-    sel.color_mode = RibbonColorMode::COUNT - 1;
-    float ccum = 0.0f;
-    for (uint32_t c = 0; c < RibbonColorMode::COUNT; c++) {
-        ccum += RibbonColorMode::WEIGHTS[c];
-        if (color_roll < ccum) { sel.color_mode = c; break; }
-    }
+    sel.color_mode = select_tier(seed, RibbonProp::COLOR_ROLL,
+        RibbonColorMode::WEIGHTS, RibbonColorMode::COUNT);
 
     if (sel.color_mode == RibbonColorMode::SMOOTH) {
         uint32_t pal_idx = (uint32_t)(cpu_hash_f(seed, RibbonProp::PALETTE_IDX) * RIBBON_SMOOTH_PALETTE_COUNT);
@@ -1168,13 +1163,9 @@ static void fill_ribbon_selection_geometry(
         } else {
             // The pair raffle — cumulative-weight pick, the terrain's roll and
             // SMOOTH's pick, one mechanism.
-            const float roll = cpu_hash_f(seed, RibbonProp::CHECKER_PAIR_ROLL);
-            uint32_t pick = CHECKER_PAIR_COUNT - 1;
-            float ccum = 0.0f;
-            for (uint32_t i = 0; i < CHECKER_PAIR_COUNT; ++i) {
-                ccum += CHECKER_PAIRS[i].weight;
-                if (roll < ccum) { pick = i; break; }
-            }
+            float w[CHECKER_PAIR_COUNT];
+            for (uint32_t i = 0; i < CHECKER_PAIR_COUNT; ++i) w[i] = CHECKER_PAIRS[i].weight;
+            uint32_t pick = select_tier(seed, RibbonProp::CHECKER_PAIR_ROLL, w, CHECKER_PAIR_COUNT);
             const CheckerPair& pr = CHECKER_PAIRS[pick];
             // One shared jitter moves both medians together: siblings differ,
             // the pair's designed contrast survives.

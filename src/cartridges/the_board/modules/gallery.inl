@@ -472,13 +472,10 @@ struct PhotographerState {
     }
     // tier selection — reads weights from SHOT_PARAMS matrix
     ShotType sample_shot_type() {
-        float roll = uniform(0.0f, 1.0f);
-        float cumul = 0.0f;
-        for (uint32_t t = 0; t < static_cast<uint32_t>(ShotType::COUNT); t++) {
-            cumul += SHOT_PARAMS[t].weight;
-            if (roll < cumul) return static_cast<ShotType>(t);
-        }
-        return static_cast<ShotType>(static_cast<uint32_t>(ShotType::COUNT) - 1);
+        constexpr uint32_t n = static_cast<uint32_t>(ShotType::COUNT);
+        float w[n];
+        for (uint32_t t = 0; t < n; t++) w[t] = SHOT_PARAMS[t].weight;
+        return static_cast<ShotType>(select_weighted(uniform(0.0f, 1.0f), w, n));
     }
 };
 
@@ -1696,13 +1693,9 @@ static void place_wall_paintings(GalleryState& gs, Cartridge* c, wgpu::Queue& qu
             uint32_t p_seed = cpu_hash(w_seed, WallArtProp::PER_PAINTING_BASE + p * WallArtProp::PER_PAINTING_STRIDE);
 
             // Scale selection (weighted)
-            float scale_roll = cpu_hash_f(p_seed, WallPaintingProp::SCALE_ROLL);
-            float cumul = 0.0f;
-            uint32_t scale_idx = INDOOR_SCALE_COUNT - 1;
-            for (uint32_t si = 0; si < INDOOR_SCALE_COUNT; si++) {
-                cumul += INDOOR_SCALES[si]->weight;
-                if (scale_roll < cumul) { scale_idx = si; break; }
-            }
+            float w[INDOOR_SCALE_COUNT];
+            for (uint32_t si = 0; si < INDOOR_SCALE_COUNT; si++) w[si] = INDOOR_SCALES[si]->weight;
+            uint32_t scale_idx = select_tier(p_seed, WallPaintingProp::SCALE_ROLL, w, INDOOR_SCALE_COUNT);
             float h = INDOOR_SCALES[scale_idx]->height_lo
                 + cpu_hash_f(p_seed, WallPaintingProp::HEIGHT_JITTER) * (INDOOR_SCALES[scale_idx]->height_hi - INDOOR_SCALES[scale_idx]->height_lo);
             painting_heights[p] = h;
@@ -1734,13 +1727,9 @@ static void place_wall_paintings(GalleryState& gs, Cartridge* c, wgpu::Queue& qu
 
             // Vertical position: scale-dependent offset from base
             // Intimate pieces: hung higher. Statement pieces: anchored lower.
-            float scale_roll = cpu_hash_f(p_seed, WallPaintingProp::SCALE_ROLL);
-            float cumul = 0.0f;
-            uint32_t scale_idx = INDOOR_SCALE_COUNT - 1;
-            for (uint32_t si = 0; si < INDOOR_SCALE_COUNT; si++) {
-                cumul += INDOOR_SCALES[si]->weight;
-                if (scale_roll < cumul) { scale_idx = si; break; }
-            }
+            float w[INDOOR_SCALE_COUNT];
+            for (uint32_t si = 0; si < INDOOR_SCALE_COUNT; si++) w[si] = INDOOR_SCALES[si]->weight;
+            uint32_t scale_idx = select_tier(p_seed, WallPaintingProp::SCALE_ROLL, w, INDOOR_SCALE_COUNT);
 
             // Y-offset: uniform [lo, hi] per bucket from WALL_ART.
             const auto& bucket = *INDOOR_SCALES[scale_idx];

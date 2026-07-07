@@ -76,20 +76,31 @@ static float cpu_sample_gaussian(uint32_t seed, uint32_t property, float mean, f
     return mean + z * sigma;
 }
 
-// Weighted tier selection from cumulative weights.
+// Weighted selection from cumulative weights.
 //
-// SEAM[seed_utils:Q10-target] this is the canonical cumulative-weight
-//   tier-picker. Several modules (gol_zones.inl, ribbon.inl,
-//   entity_pipeline.inl per-family adapters) currently roll their
-//   own copy of this loop. Replacing those with select_tier calls is
-//   the Q10 consolidation task in the rollout open-questions report.
-static uint32_t select_tier(uint32_t seed, uint32_t tier_prop,
-    const float* weights, uint32_t count) {
-    float roll = cpu_hash_f(seed, tier_prop);
+// SEAM[seed_utils:Q10-target] the ONE cumulative-weight bucket walk,
+//   shared across every domain. The Q10 consolidation has LANDED:
+//   the hand-rolled copies in agents.inl, gol_zones.inl, ribbon.inl,
+//   and gallery.inl now call select_weighted / select_tier. The
+//   generic entity pipeline was never a separate copy — it routes
+//   through select_tier_biased (a thin forwarder, retired in
+//   campaign A2).
+
+// The bucket walk. Takes a pre-rolled uniform in [0,1); returns the
+// first index whose cumulative weight exceeds it; count-1 on the
+// float-epsilon miss. Weights are the caller's contract (normalized
+// or authored-to-sum-1); the walk does not normalize.
+static uint32_t select_weighted(float roll, const float* weights,
+                                uint32_t count) {
     float cumul = 0.0f;
     for (uint32_t t = 0; t < count; t++) {
         cumul += weights[t];
         if (roll < cumul) return t;
     }
     return count - 1;
+}
+
+static uint32_t select_tier(uint32_t seed, uint32_t tier_prop,
+                            const float* weights, uint32_t count) {
+    return select_weighted(cpu_hash_f(seed, tier_prop), weights, count);
 }

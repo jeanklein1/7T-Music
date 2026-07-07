@@ -400,13 +400,9 @@ static bool select_gol_for_patch(GoLState& gs, Cartridge* c,
             uint32_t tier_idx = 0;
 
             if (algorithm == AlgorithmType::CONWAY) {
-                float tier_roll = cpu_hash_f(seed, GoLZoneProp::TIER);
-                uint32_t tier = GOL_TIER_COUNT - 1;
-                float cumul = 0.0f;
-                for (uint32_t t = 0; t < GOL_TIER_COUNT; t++) {
-                    cumul += GOL_TIERS[t].weight;
-                    if (tier_roll < cumul) { tier = t; break; }
-                }
+                float w[GOL_TIER_COUNT];
+                for (uint32_t t = 0; t < GOL_TIER_COUNT; t++) w[t] = GOL_TIERS[t].weight;
+                uint32_t tier = select_tier(seed, GoLZoneProp::TIER, w, GOL_TIER_COUNT);
                 const auto& tp = GOL_TIERS[tier];
                 if (tp.force_no_height) height_enabled = false;
                 tick_period = std::max(0.1f,
@@ -418,13 +414,9 @@ static bool select_gol_for_patch(GoLState& gs, Cartridge* c,
                 tier_idx = tier;  // Conway: 0–6
             }
             else {
-                float tier_roll = cpu_hash_f(seed, PulseZoneProp::PULSE_TIER);
-                uint32_t tier = PULSE_TIER_COUNT - 1;
-                float cumul = 0.0f;
-                for (uint32_t t = 0; t < PULSE_TIER_COUNT; t++) {
-                    cumul += PULSE_TIERS[t].weight;
-                    if (tier_roll < cumul) { tier = t; break; }
-                }
+                float w[PULSE_TIER_COUNT];
+                for (uint32_t t = 0; t < PULSE_TIER_COUNT; t++) w[t] = PULSE_TIERS[t].weight;
+                uint32_t tier = select_tier(seed, PulseZoneProp::PULSE_TIER, w, PULSE_TIER_COUNT);
                 const auto& pp = PULSE_TIERS[tier];
                 if (pp.force_no_height) height_enabled = false;
                 tick_period = std::max(0.1f,

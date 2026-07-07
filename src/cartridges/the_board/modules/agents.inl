@@ -541,12 +541,10 @@ static void populate_agent_slot_(const AgentState& as,
     if (as.behavior_override != AGENT_OVERRIDE_NONE) {
         behavior_id = as.behavior_override;
     } else {
-        float roll = cpu_hash_f(agent_seed, 1u);
-        float cum = 0.0f;
-        for (uint32_t b = 0; b < AGENT_BEHAVIOR_COUNT; b++) {
-            cum += pop.behavior_weights[b] / beh_sum;
-            if (roll < cum) { behavior_id = b; break; }
-        }
+        float w[AGENT_BEHAVIOR_COUNT];
+        for (uint32_t b = 0; b < AGENT_BEHAVIOR_COUNT; b++)
+            w[b] = pop.behavior_weights[b] / beh_sum;
+        behavior_id = select_tier(agent_seed, 1u, w, AGENT_BEHAVIOR_COUNT);
     }
 
     // ── Roll tier (or honor override) ─────────────────────────────
@@ -554,12 +552,10 @@ static void populate_agent_slot_(const AgentState& as,
     if (as.tier_override != AGENT_OVERRIDE_NONE) {
         tier_idx = as.tier_override;
     } else {
-        float roll = cpu_hash_f(agent_seed, 2u);
-        float cum = 0.0f;
-        for (uint32_t t = 0; t < AGENT_TIER_COUNT; t++) {
-            cum += pop.tier_weights[t] / tier_sum;
-            if (roll < cum) { tier_idx = t; break; }
-        }
+        float w[AGENT_TIER_COUNT];
+        for (uint32_t t = 0; t < AGENT_TIER_COUNT; t++)
+            w[t] = pop.tier_weights[t] / tier_sum;
+        tier_idx = select_tier(agent_seed, 2u, w, AGENT_TIER_COUNT);
     }
 
     // ── Sample annulus position (uniform area distribution) ───────

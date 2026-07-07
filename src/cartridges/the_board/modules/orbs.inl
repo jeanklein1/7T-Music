@@ -549,6 +549,8 @@ static void pack_tiers_(GPUOrbConfig& gpuCfg, uint32_t tierset_id) {
     uint32_t n = std::min(ts.count, MAX_ORB_TIERS);
     gpuCfg.tier_count = n;
 
+    // Deliberately distinct from seed_utils select_weighted: this BUILDS
+    // the cumulative table the shader rolls against; it picks nothing.
     // Normalize weights → cumulative table so the shader can roll
     // a single uniform sample and bucket it into a tier.
     float wsum = 0.0f;
