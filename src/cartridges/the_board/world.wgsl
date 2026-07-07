@@ -5113,7 +5113,11 @@ struct PawnAuraCell {
 // --- Zone heightfield sampling (mesh gen terrain alignment)
 @group(0) @binding(163) var zone_heightfield: texture_2d_array<f32>;
 @group(0) @binding(164) var zone_hf_sampler: sampler;
-@group(0) @binding(165) var<storage, read> zone_patch_instances: array<PatchInstance, 169>;
+// Twin of CPU Dim::MAX_ACTIVE_PATCHES (PATCH_PREGEN_SIDE² = 15² = 225).
+// Zone terrain scan covers every active patch slot; overflow to the
+// analytic fallback is thereby eliminated, not merely bounded.
+const ZONE_PATCH_CAP: u32 = 225u;
+@group(0) @binding(165) var<storage, read> zone_patch_instances: array<PatchInstance, ZONE_PATCH_CAP>;
 
 // --- Zone Parameter Derivation (GPU-authoritative) ──────────────────────
 //
@@ -5287,7 +5291,7 @@ fn zone_derive_params(@builtin(global_invocation_id) gid: vec3<u32>) {
 // Sample baked heightfield at world XZ — exact terrain as rendered.
 // Searches patch instances for the covering patch and samples its layer.
 fn zone_sample_baked_terrain_y(world_xz: vec2<f32>) -> f32 {
-    for (var i = 0u; i < 169u; i++) {
+    for (var i = 0u; i < ZONE_PATCH_CAP; i++) {
         let pi = zone_patch_instances[i];
         if (pi.extent < 0.01) { continue; }  // empty slot
         let local = world_xz - pi.origin;
