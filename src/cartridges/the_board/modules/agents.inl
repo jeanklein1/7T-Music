@@ -9,7 +9,7 @@
 // The player's relationship to this array is `player_.possessed_slot`;
 // the compute kernel treats that slot as the PlayerControlled branch
 // and every other active slot as its authored behavior. See
-// agent_system_design.md for the full rationale.
+// state.hpp AgentState and world.wgsl §7 for the wiring.
 //
 // ┌─── Three registries ────────────────────────────────────────────┐
 // │                                                                  │

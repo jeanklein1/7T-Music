@@ -225,7 +225,7 @@ namespace t7 {
 
             // Agent system — unified entity layer. Slot 0 is the player's
             // body; slots 1..MAX_AGENTS-1 are mood-authored agents. See
-            // modules/agents.inl and agent_system_design.md.
+            // modules/agents.inl.
             constexpr uint32_t MAX_AGENTS = 32;
         }
 
@@ -275,7 +275,7 @@ namespace t7 {
         // =====================================================================
 
         // DONE[state:L1] reserved-slot annotations mirrored from
-        //   world.wgsl §2 (lines 1675–1696). MUST match those bit
+        //   world.wgsl §2 — the COUPLING_* bit-flag block. MUST match those bit
         //   values 1:1 — semantic drift here would corrupt every
         //   GPU-side coupling read silently. Reserved slots stay
         //   declared because their bits flow through legacy code
@@ -821,7 +821,7 @@ namespace t7 {
         //
         // MUST match world.wgsl::PyramidMeshParams (§9.0).
         // If this struct gains/loses a field, the WGSL side and
-        // cpu_gpu_pair_manifest.md must be updated together.
+        // its sizeof static_assert must be updated together.
         struct alignas(16) GPUPyramidMeshParams {
             float center_x;
             float center_z;
@@ -843,7 +843,7 @@ namespace t7 {
         //
         // MUST match world.wgsl::ArchMeshParams (§9.1).
         // If this struct gains/loses a field, the WGSL side and
-        // cpu_gpu_pair_manifest.md must be updated together.
+        // its sizeof static_assert must be updated together.
         // Catenary parameter 'a' is precomputed on CPU (50-iter
         // bisection) to keep the shader simple.
         struct alignas(16) GPUArchMeshParams {
@@ -871,7 +871,7 @@ namespace t7 {
         //
         // MUST match world.wgsl::ColumnMeshParams (§9.2).
         // If this struct gains/loses a field, the WGSL side and
-        // cpu_gpu_pair_manifest.md must be updated together.
+        // its sizeof static_assert must be updated together.
         struct alignas(16) GPUColumnMeshParams {
             float center_x;
             float center_z;
@@ -906,7 +906,7 @@ namespace t7 {
         //
         // MUST match world.wgsl::PalmMeshParams (§9.3).
         // If this struct gains/loses a field, the WGSL side and
-        // cpu_gpu_pair_manifest.md must be updated together.
+        // its sizeof static_assert must be updated together.
         struct alignas(16) GPUPalmMeshParams {
             float center_x, center_z;
             float height;
@@ -941,7 +941,7 @@ namespace t7 {
         //
         // MUST match world.wgsl::CactusMeshParams (§9.4).
         // If this struct gains/loses a field, the WGSL side and
-        // cpu_gpu_pair_manifest.md must be updated together.
+        // its sizeof static_assert must be updated together.
         // 21 floats + 4 uint32_t = 100 bytes data + 28 bytes pad = 128
         struct alignas(16) GPUCactusMeshParams {
             float center_x, center_z;                    // 2 floats
@@ -975,7 +975,7 @@ namespace t7 {
         //
         // MUST match world.wgsl::BladeClusterMeshParams (§9.5).
         // If this struct gains/loses a field, the WGSL side and
-        // cpu_gpu_pair_manifest.md must be updated together.
+        // its sizeof static_assert must be updated together.
         struct alignas(16) GPUBladeClusterMeshParams {
             float center_x, center_z;                        // 2 floats
             float blade_count;                               // 1 float (cast to u32 in shader)

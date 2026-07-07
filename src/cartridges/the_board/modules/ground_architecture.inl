@@ -6,11 +6,11 @@
 // per-policy bitmasks as `const` values so shader code can refer to
 // them by symbol. Keep the two in sync.
 //
-// See ground_hierarchy_design.md for the design rationale and
-// ground_refactor_claude_code_brief.md for how the migration landed.
-// The architecture overview comment at the top of the ground section
-// in world.wgsl describes contributor classes, extension patterns,
-// and the fused-inline hot paths that bypass the query API.
+// The design rationale now lives in the code: CONTRIBUTOR_DAG /
+// POLICIES[] below, and the architecture overview comment at the top
+// of the ground section in world.wgsl, which describes contributor
+// classes, extension patterns, and the fused-inline hot paths that
+// bypass the query API.
 //
 // ┌─── Public surface (consumed by other files) ────────────────────┐
 // │                                                                  │

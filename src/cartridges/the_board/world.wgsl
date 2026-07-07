@@ -658,7 +658,7 @@ struct TerrainState {
 // alignment surprises. Orientation stored (not derived) to preserve
 // terrain-tilt transparency for the possessed slot.
 //
-// See agent_system_design.md and modules/agents.inl for rationale.
+// See modules/agents.inl for rationale.
 struct AgentState {
     pos_x: f32,
     pos_y: f32,
@@ -2168,8 +2168,6 @@ const POLICY_CELESTIAL_MASK            : u32 = 0u;
 // policy-selected contributor sum.
 //
 // See:
-//   ground_hierarchy_design.md          — full design rationale
-//   ground_refactor_claude_code_brief.md — migration plan
 //   modules/ground_architecture.inl      — ContributorId / PolicyId /
 //                                          CONTRIBUTOR_DAG / POLICIES[]
 //                                          plus compile-time DAG closure
@@ -2328,7 +2326,7 @@ fn contrib_vegetation_base_at(world_xz: vec2<f32>) -> f32 {
 // because the complexity metric is a free byproduct of the same lattice
 // pass and per-texel cost dominates patch generation. If the baked policy's
 // contributor set ever changes, update this function to match.
-// See ground_hierarchy_design.md §8 (fused inline evaluations).
+// See modules/ground_architecture.inl (fused inline evaluations).
 fn ground_formed_with_complexity(world_xz: vec2<f32>) -> vec2<f32> {
     let hc = terrain_height_and_complexity(world_xz, config.world_seed, 0.0);
     let mods = tile_modifiers_at(world_xz);
@@ -2550,8 +2548,8 @@ fn contrib_pawn_aura_at_external(world_xz: vec2<f32>) -> f32 {
 // Used by POLICY_WALKER.
 //
 // Why not sample the grid at pawn_state.pos.xz?  compute_pawn_aura
-// computes a directional-biased cell value (see world.wgsl near line
-// 6081+: leading ramp toward heading, steeper drop behind). Sampling
+// computes a directional-biased cell value (see §7.4 PAWN AURA:
+// leading ramp toward heading, steeper drop behind). Sampling
 // at the pawn's own XZ reads that bias — and as the pawn walks across
 // cells, the bias produces vertical oscillation (visible as bobbing).
 // The pre-refactor pawn Y code was a flat scalar add; this restores
@@ -2572,7 +2570,7 @@ fn contrib_pawn_aura_at_self() -> f32 {
 // its own call site (a compile-time constant choice of function) so
 // FXC sees uniform branching and can dead-code-eliminate anything
 // outside that policy's contributor set. Runtime policy dispatch is
-// deliberately avoided — see ground_refactor_claude_code_brief.md §1.3.
+// deliberately avoided — see modules/ground_architecture.inl (POLICIES[]).
 //
 // Contributor sets mirror POLICIES[] in modules/ground_architecture.inl.
 // The architecture overview above this section explains classes, DAG,
@@ -3514,7 +3512,7 @@ struct PatchTerrainVarying {
 // patch, so a function-call-per-contributor dispatch would dominate
 // frame time; that's why this stays hand-fused.
 //
-// See ground_hierarchy_design.md §8 (fused inline evaluations).
+// See modules/ground_architecture.inl (fused inline evaluations).
 @vertex
 fn patch_terrain_vs(
     @builtin(vertex_index) vi: u32,
@@ -8611,7 +8609,7 @@ const PMG_TOTAL_INDICES: u32 = 288u;        // 8 × 36
 //
 // MUST match state.hpp::GPUPyramidMeshParams (size: 48 bytes).
 // If this struct gains/loses a field, the CPU side and
-// cpu_gpu_pair_manifest.md must be updated together.
+// its state.hpp sizeof static_assert must be updated together.
 
 struct PyramidMeshParams {
     center_x: f32,
@@ -8815,7 +8813,7 @@ const AMG_BACK_CAP: u32    = 3u;
 //
 // MUST match state.hpp::GPUArchMeshParams (size: 64 bytes).
 // If this struct gains/loses a field, the CPU side and
-// cpu_gpu_pair_manifest.md must be updated together.
+// its state.hpp sizeof static_assert must be updated together.
 
 struct ArchMeshParams {
     center_x: f32,
@@ -9164,7 +9162,7 @@ const CMG_PI: f32                    = 3.14159265359;
 //
 // MUST match state.hpp::GPUColumnMeshParams (size: 128 bytes).
 // If this struct gains/loses a field, the CPU side and
-// cpu_gpu_pair_manifest.md must be updated together.
+// its state.hpp sizeof static_assert must be updated together.
 
 struct ColumnMeshParams {
     center_x: f32,
@@ -9660,7 +9658,7 @@ fn column_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
 //
 // PalmMeshParams MUST match state.hpp::GPUPalmMeshParams (size: 128 bytes).
 // If this struct gains/loses a field, the CPU side and
-// cpu_gpu_pair_manifest.md must be updated together.
+// its state.hpp sizeof static_assert must be updated together.
 
 struct PalmMeshParams {
     center_x: f32, center_z: f32,
@@ -9981,7 +9979,7 @@ fn shadow_palm_vs(in: ArchVertexInput) -> ShadowVarying {
 //
 // CactusMeshParams MUST match state.hpp::GPUCactusMeshParams (size: 128 bytes).
 // If this struct gains/loses a field, the CPU side and
-// cpu_gpu_pair_manifest.md must be updated together.
+// its state.hpp sizeof static_assert must be updated together.
 
 // 21 floats + 4 uint32_t + 7 pad floats = 32 fields × 4 = 128 bytes
 struct CactusMeshParams {
@@ -10311,7 +10309,7 @@ fn shadow_cactus_vs(in: ArchVertexInput) -> ShadowVarying {
 //
 // BladeClusterMeshParams MUST match state.hpp::GPUBladeClusterMeshParams
 // (size: 80 bytes). If this struct gains/loses a field, the CPU side
-// and cpu_gpu_pair_manifest.md must be updated together.
+// and its state.hpp sizeof static_assert must be updated together.
 
 // 16 floats + 4 u32 = 20 fields × 4 = 80 bytes
 struct BladeClusterMeshParams {

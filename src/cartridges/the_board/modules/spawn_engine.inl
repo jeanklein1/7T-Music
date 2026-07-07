@@ -709,11 +709,14 @@ struct PopFamily {
 //  │ Cactus   │  0.100   │ 1.0   1.0    1.0   1.0    1.0   0.0  │  0.35  │
 //  │ Blade    │  0.025   │ 1.0   1.0    1.0   1.0    1.0   0.0  │  0.30  │
 //  │ Sphere   │  0.015   │ 1.0   1.0    0.0   0.0    1.0   0.0  │  0.40  │
-//  │ Ribbon   │  0.400   │ 1.0   1.0    0.0   0.0    1.0   0.0  │  0.30  │
+//  │ Ribbon   │  0.900*  │ 1.0   1.0    0.0   0.0    1.0   0.0  │  0.30  │
 //  │ Cube     │  0.060   │ 1.0   1.0    0.0   0.0    1.0   0.0  │  0.40  │
 //  │ GoL      │  0.150   │ 1.0   1.0    0.0   0.0    1.0   0.0  │  (lattice) │
 //  │ Gallery  │  varies  │ 1.0   1.0    1.0   1.0    1.0   0.0  │  0.30  │
 //  └──────────┴──────────┴───────────────────────────────────────┴────────┘
+//
+// * Ribbon CHANCE 0.900 is a TESTING bump for ribbon-dev visibility;
+//   ship value 0.400 (ribbon.inl SPAWN_CHANCE, reverted at ship).
 //
 // Spawn chance is flat — archetype/terrain no longer gates spawning.
 // Spatial variation comes from theme lattice and density field.
@@ -1101,7 +1104,7 @@ void commit_entity_queue(wgpu::Queue& queue) {
 // Estimate terrain height from tile cache (rough CPU-side approximation).
 //
 // NOT a ground policy query. Deliberately kept as the CPU fast
-// path per ground_hierarchy_design.md §6.2: the CPU stays on an
+// path per the ground policy (modules/ground_architecture.inl): the CPU stays on an
 // approximate tile-cache lookup rather than growing a parallel
 // query_ground_* system. Callers that need accurate height must
 // either (a) pick up the GPU-baked heightfield via readback

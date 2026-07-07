@@ -225,7 +225,7 @@ namespace t7 {
             // struct is what travels with the player on possession
             // transfer (Caps Lock).
             //
-            // See agent_system_design.md §2.1 for the full design.
+            // See state.hpp AgentState / PlayerState for the layout.
             //
             // SEAM[spine:P8] PlayerState commented "Future (deferred)" fields
             //   are explicit latent infrastructure: aura_presence has
