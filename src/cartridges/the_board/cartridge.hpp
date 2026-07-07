@@ -3163,7 +3163,7 @@ namespace t7 {
                 gpuSignal.zoom_delta = inputState_.zoom_delta;
                 gpuSignal.pan_x_delta = inputState_.pan_x_delta;
                 gpuSignal.pan_y_delta = inputState_.pan_y_delta;
-                gpuSignal._pad1 = 0.0f;
+                gpuSignal.dt_beats = signal.t_beats - time_state_.prev_beats;  // beats since last frame -> step_trigger
 
                 // Sky mode (SNAP-1 / M5 same-frame coherence): the pose/frame
                 // words here are NEUTRAL placeholders. The authoritative

@@ -340,7 +340,9 @@ namespace t7 {
             float zoom_delta;
             float pan_x_delta;
             float pan_y_delta;
-            float _pad1;
+            float dt_beats;       // beats elapsed since last frame; mirrors
+                                  // world.wgsl GPUFrameSignal.dt_beats,
+                                  // consumed by step_trigger.
             // Sky mode: ribbon head pose handed to the GPU pawn update so the
             // possessed pawn snaps onto the flown head. SEAM[ribbon:sky-mode].
             uint32_t sky_mode;       // 0 = grounded, 1 = mounted on the ribbon head
