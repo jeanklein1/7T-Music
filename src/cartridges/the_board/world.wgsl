@@ -66,7 +66,7 @@
 // Section references (§N.M) are stable; search by section number.
 //
 // ── Color Palettes (§2.2) ─────────────────────────────────────────
-//   PALETTE_CENTER[4]             Sand/salmon/green/grey RGB
+//   PALETTE_CENTER[4]             Sand/salmon/green/warm RGB
 //   PALETTE_LIGHT[4]              Light variant per palette
 //   PALETTE_VARIANCE[4]           Per-cell noise amplitude
 //   PALETTE_WEIGHT[4]             Selection probability
@@ -86,7 +86,7 @@
 // ── Terrain-Mode Coupling (§2.2) ──────────────────────────────────
 //   COUPLING_LATTICE_SPACING      250 wu — where coupling is active
 //   COUPLING_STRENGTH_EXPONENT    3.0 — cubic: ~50% coupled
-//   MODE_COUPLING_MAGNITUDE       0.25 — max mode shift
+//   MODE_COUPLING_MAGNITUDE       0.0 — max mode shift (DISABLED)
 //   ARCHETYPE_MODE_CHARACTER[4]   Per-archetype coupling direction
 //
 // ── Terrain Waves (§1.6) ──────────────────────────────────────────
@@ -1409,7 +1409,7 @@ struct DesignConfig {
     // ─── Musical animation modes ─────────────────────────────────
     mode_color_shift: f32,        // [0,~0.6] bias on smooth→discrete mode field
     mode_checker_scatter: f32,    // [0,~0.5] reduction of sparse survival threshold
-    mode_palette_target: f32,     // [0,3] target palette (0=sand 1=salmon 2=green 3=grey)
+    mode_palette_target: f32,     // [0,3] target palette (0=sand 1=salmon 2=green 3=warm)
     mode_palette_intensity: f32,  // [0,1] drift strength toward target palette
     mode_discrete_tier: f32,      // [0,4] target discrete tier (0=color 1=tinted 2=BW 3=chessBW 4=chessColor)
     mode_gol_tick_scale: f32,     // tick period multiplier (1.0=normal, <1=faster)
@@ -1664,7 +1664,9 @@ const GOL_TIERS = array<GoLTierParams, 7>(
 // Pulse zones: periodic breathing of cell color/height, no neighbor rules.
 // Each cell oscillates between terrain base and a displaced target.
 // CPU selects tier and uploads parameters via GoLZoneConfig; these
-// definitions are the single source of truth for the tier vocabulary.
+// definitions have a live CPU twin in gol_zones.inl (GOL_TIERS /
+// PULSE_TIERS) — the GPU renders from these, the CPU seeds/ticks from
+// the twin, so both are authoritative and a tuner must edit both.
 //
 // Algorithm and boundary mode constants (shared CPU ↔ GPU):
 //   GOL_ALGORITHM_CONWAY = 0   GOL_ALGORITHM_PULSE = 1
@@ -4293,9 +4295,9 @@ fn ribbon_ring_motor(ring_idx: u32, ribbon: RibbonState) -> Motor {
     // and the ring's lateral axis on (−sin w, 0, cos w) — identical to the
     // spine wave's explicit right and the mount's right. One convention,
     // three consumers, coherent.
-    // BNK-1: frame now aims along the displaced tangent and banks; the
-    // mount and camera still read the CPU yaw-only pose — the saddle rides
-    // GIMBAL-level over a banking body, pending Jean's ruling.
+    // BNK-1 aimed the frame along the displaced tangent and banked it.
+    // BNK-2 has since landed: the saddle now wears the full frame (CPU
+    // mount angles composed in the sky branch), no longer gimbal-level.
 
     // Phase age for THIS ring: the exact expression ribbon_spine_at uses,
     // shared via ribbon_phase_age (refactored to a helper, not mirrored,
@@ -6142,9 +6144,9 @@ const AGENT_EVICTION_RADIUS_SQ: f32 = AGENT_EVICTION_RADIUS * AGENT_EVICTION_RAD
 // Earlier value of 360 (only +10 over spawn radius) caused near-100%
 // eviction-at-spawn while the player was moving.
 //
-// MIRRORED MANUALLY in modules/cube_behaviors.inl — currently
-// referenced by the C++ readback path on allocator pressure. If you
-// change this, change the C++ side too.
+// GPU-only: no C++ constant mirrors this today. The CPU learns of
+// kernel evictions through the is_active readback, not a duplicated
+// radius (cartridge.hpp names this constant only in comments).
 const FLOATER_EVICTION_RADIUS:    f32 = 400.0;
 const FLOATER_EVICTION_RADIUS_SQ: f32 = FLOATER_EVICTION_RADIUS * FLOATER_EVICTION_RADIUS;
 
@@ -10557,7 +10559,7 @@ fn shadow_blade_cluster_vs(in: ArchVertexInput) -> ShadowVarying {
 //   2 Frozen    — drag-to-zero, dome rotation only
 //   3 Flocking  — neighbor-based boids with per-force signs
 //
-// Musical couplings uploaded per-frame:
+// Musical couplings — held at neutral (configure_orbs zeros them, no upload):
 //   force_radial          polyphony → expansion force
 //   noise_amp             polyphony → noise ceiling lerp
 //   color_pulse/converge/surge   polyphony → three color trajectories

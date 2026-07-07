@@ -46,7 +46,7 @@
 // │  Cross-module reads (this module's state read by others):        │
 // │    gallery_state_.wall_frame_count       — read by render_passes │
 // │    gallery_state_.active_painting_count  — read by render_passes │
-// │    gallery_state_.gallery_centers[]      — read by spine         │
+// │    gallery_state_.gallery_centers[]      — read/written by spine │
 // │                                                                  │
 // └──────────────────────────────────────────────────────────────────┘
 //
@@ -246,14 +246,14 @@ struct GalleryConfig {
     // In mixed mode, each painting independently rolls its content source.
     //
     // Outdoor (select_gallery_for_patch → commit_gallery):
-    //   70% snapshot-only terrain quads
-    //   20% mixed (each painting rolls independently)
-    //   10% authored-only wall frames (monuments in the desert)
+    //   80% snapshot-only terrain quads
+    //   5% mixed (each painting rolls independently)
+    //   15% authored-only wall frames (monuments in the desert)
     //
     // Indoor (place_wall_paintings):
-    //   40% snapshot-only wall frames
-    //   20% mixed (each painting rolls independently)
-    //   40% authored-only wall frames
+    //   15% snapshot-only wall frames
+    //   5% mixed (each painting rolls independently)
+    //   80% authored-only wall frames
     //
     static constexpr float OUTDOOR_SNAPSHOT_ONLY = 0.80f;  // [0.00, 0.80)
     static constexpr float OUTDOOR_MIXED = 0.05f;  // [0.80, 0.85)
@@ -572,7 +572,7 @@ struct GalleryState {
     uint32_t              authored_disk_cursor = 0;     // walks through authored_disk_manifest
     uint32_t              authored_staged_count = 0;
     bool                  authored_textures_loaded = false;
-    std::vector<std::string> authored_disk_manifest;    // scanned at startup, sorted alphabetically
+    std::vector<std::string> authored_disk_manifest;    // scanned lazily on first load, sorted numerically
 
     // Exhibition layers (32) hold textures stable until portal transition;
     // painting slots (per-instance) describe each visible painting on
@@ -1381,7 +1381,7 @@ static void load_authored_image_to_staging(GalleryState& gs, Cartridge* c, wgpu:
 }
 
 // ── Paintings folder scan ──
-// Scans assets/paintings/ for PAINTING_*.jpg/jpeg, sorted alphabetically.
+// Scans assets/paintings/ for PAINTING_*.jpg/jpeg, sorted numerically.
 // Called once at first load. The full collection lives on disk;
 // a rotating 16-layer staging window loads into GPU memory.
 
@@ -1529,7 +1529,7 @@ static uint32_t count_unused_authored(const GalleryState& gs, const bool usedAut
     return count;
 }
 
-// Pick the next authored painting in alphabetical order (lowest disk_index first)
+// Pick the next authored painting in numeric order (lowest disk_index first)
 static uint32_t pick_authored_staging(GalleryState& gs, uint32_t /*seed*/, uint32_t /*prop*/) {
     uint32_t best_slot = UINT32_MAX;
     uint32_t best_disk = UINT32_MAX;

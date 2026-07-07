@@ -5,7 +5,8 @@
 //
 // Pipeline management for patch-streaming rasterized rendering.
 //
-// COMPUTE PIPELINES:
+// COMPUTE PIPELINES (representative; the bodies build 31 compute pipelines —
+// the per-family entity mesh-gen pipelines are omitted from this list):
 //   Pipeline                    Dimension    Purpose
 //   update_terrain_config       0D (1,1,1)   terrain amplitude from polyphony
 //   update_player_agent         0D (1,1,1)   walker policy for possessed slot only (compile-cost contained)
@@ -26,9 +27,11 @@
 //   zone_gol_mesh_reset         0D (1,1,1)  zone mesh indirect reset
 //   zone_gol_mesh_gen           2D (4x4x8)  zone extrusion mesh generation
 //
-// RENDER PIPELINES:
+// RENDER PIPELINES (the bodies build 34 render pipelines):
 //   patch_terrain, zone_extrusion, pawn, sphere, arch, column, pyramid,
-//   ribbon, gallery_frame + shadow variants for each
+//   ribbon, gallery_frame + shadow variants for each. The pyramid render
+//   pipeline and the wall-painting shadow pipeline are built but not
+//   currently drawn.
 //
 // See world.wgsl for the GPU shader (single source of truth).
 
@@ -50,7 +53,7 @@ namespace t7 {
 
 
         // =====================================================================
-        // S1 ENTRY POINTS — Must match world.wgsl §7
+        // S1 ENTRY POINTS — Must match world.wgsl §6-§9
         // =====================================================================
 
         namespace Entry {

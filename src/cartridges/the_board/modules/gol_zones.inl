@@ -33,7 +33,7 @@
 // │  Cross-module reads (consumed by other modules):                 │
 // │    gol_state_.zones[], gol_state_.zone_count   — read by spine   │
 // │    gol_state_.mood_allowed                     — read by spine   │
-// │                                                                  │
+// │      (spine writes zones[].active; mood sets mood_allowed)       │
 // └──────────────────────────────────────────────────────────────────┘
 //
 // Included inside the Cartridge class body.
@@ -58,8 +58,10 @@
 //
 // System-level dials for the GoL zone subsystem. Per-tier values
 // (the actual Gaussian means/sigmas that shape each tier's feel)
-// live in GOL_TIERS and PULSE_TIERS below — those are the
-// per-tier consoles. Everything here applies across all tiers.
+// live in GOL_TIERS and PULSE_TIERS below — those are the CPU
+// per-tier consoles. Note: the GPU keeps a twin of these tables
+// (world.wgsl §2.2); both are live (CPU seeds/ticks, GPU renders),
+// so a tuner must edit BOTH. Everything here applies across all tiers.
 
 // ── Spatial constants ────────────────────────────────────────────
 // DONE[gol_zones:L1] MUST match world.wgsl's MODE_LATTICE_SPACING

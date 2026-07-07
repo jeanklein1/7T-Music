@@ -18,7 +18,7 @@
 //   20        terrain_state        Storage          —
 //   21        (reserved)           —                —
 //   25        tile_grid            Uniform          —
-//   26        solid_instances      Uniform          —
+//   26        pier_instances       ReadOnlyStorage  —
 //   40        (reserved)           —                —
 //   60        agent_state          Storage          —    (unified entity buffer, slot 0 = player)
 //   80        camera_state         Storage          —
@@ -427,7 +427,7 @@ namespace t7 {
             // Values are [0,1] intensity, driven by polyphony through trajectory ramp.
             float mode_color_shift;           // bias added to smooth→discrete mode field
             float mode_checker_scatter;       // bias subtracted from sparse survival threshold
-            float mode_palette_target;        // [0,3] target palette index (0=sand 1=salmon 2=green 3=grey)
+            float mode_palette_target;        // [0,3] target palette index (0=sand 1=salmon 2=green 3=warm)
             float mode_palette_intensity;     // [0,1] how strongly to override spatial palette weights
             float mode_discrete_tier;         // [0,4] target discrete tier (0=color 1=tinted 2=BW 3=chessBW 4=chessColor)
             float mode_gol_tick_scale;        // tick period multiplier (1.0=normal, <1=faster, >1=slower)
@@ -450,7 +450,7 @@ namespace t7 {
             uint32_t pulse_count;             // active entries (0–8)
             // ─── Agent system ────────────────────────────────────────────
             // Slot index of the player's current body in agent_state[].
-            // Piggybacks on the existing _pulse_pad triple (kept size 384).
+            // Piggybacks on the existing _pulse_pad triple (struct is now 400 bytes).
             uint32_t possessed_slot;          // slot 0 at session start
             float _pulse_pad[2];
             float pulse_data[32];             // 8 × {origin_x, origin_z, onset_beats, amplitude}
@@ -486,7 +486,7 @@ namespace t7 {
         struct alignas(16) GPUTileGrid {
             int32_t origin_x;          // grid-space X of entry [0][0]
             int32_t origin_z;          // grid-space Z of entry [0][0]
-            uint32_t side;             // grid dimension (13)
+            uint32_t side;             // grid dimension (17)
             float cell_extent;         // world units per cell (50.0)
             GPUTileGridEntry entries[TILE_GRID_MAX];
         };
@@ -600,7 +600,7 @@ namespace t7 {
             float step_gain;       //  0 — multiplies behavior.step_size impulse
             float persist_gain;    //  4 — multiplies behavior.persistence (and home_pull)
             float speed_gain;      //  8 — multiplies behavior.speed_cap
-            float color_r;         // 12 — vertex shader entity color (line 3798 in world.wgsl)
+            float color_r;         // 12 — vertex shader entity color (world.wgsl §6.3)
             float color_g;         // 16
             float color_b;         // 20
             float _pad[2];         // 24-31 — pad to 32 bytes (16-byte alignment)
@@ -817,7 +817,7 @@ namespace t7 {
 
         // GPU pyramid mesh generation parameters (CPU → GPU per-slot).
         //
-        // MUST match world.wgsl::PyramidMeshParams (around line 8369).
+        // MUST match world.wgsl::PyramidMeshParams (§9.0).
         // If this struct gains/loses a field, the WGSL side and
         // cpu_gpu_pair_manifest.md must be updated together.
         struct alignas(16) GPUPyramidMeshParams {
@@ -839,7 +839,7 @@ namespace t7 {
 
         // GPU arch mesh generation parameters (CPU → GPU per-slot).
         //
-        // MUST match world.wgsl::ArchMeshParams (around line 8569).
+        // MUST match world.wgsl::ArchMeshParams (§9.1).
         // If this struct gains/loses a field, the WGSL side and
         // cpu_gpu_pair_manifest.md must be updated together.
         // Catenary parameter 'a' is precomputed on CPU (50-iter
@@ -867,7 +867,7 @@ namespace t7 {
 
         // GPU column mesh generation parameters (CPU → GPU per-slot).
         //
-        // MUST match world.wgsl::ColumnMeshParams (around line 8914).
+        // MUST match world.wgsl::ColumnMeshParams (§9.2).
         // If this struct gains/loses a field, the WGSL side and
         // cpu_gpu_pair_manifest.md must be updated together.
         struct alignas(16) GPUColumnMeshParams {
@@ -902,7 +902,7 @@ namespace t7 {
 
         // ─── Palm GPU structs ─────────────────────────────────────────────
         //
-        // MUST match world.wgsl::PalmMeshParams (around line 9406).
+        // MUST match world.wgsl::PalmMeshParams (§9.3).
         // If this struct gains/loses a field, the WGSL side and
         // cpu_gpu_pair_manifest.md must be updated together.
         struct alignas(16) GPUPalmMeshParams {
@@ -937,7 +937,7 @@ namespace t7 {
 
         // ─── Cactus GPU structs ──────────────────────────────────────────
         //
-        // MUST match world.wgsl::CactusMeshParams (around line 9724).
+        // MUST match world.wgsl::CactusMeshParams (§9.4).
         // If this struct gains/loses a field, the WGSL side and
         // cpu_gpu_pair_manifest.md must be updated together.
         // 21 floats + 4 uint32_t = 100 bytes data + 28 bytes pad = 128
@@ -971,7 +971,7 @@ namespace t7 {
 
         // ─── Blade Cluster GPU structs ──────────────────────────────────
         //
-        // MUST match world.wgsl::BladeClusterMeshParams (around line 10050).
+        // MUST match world.wgsl::BladeClusterMeshParams (§9.5).
         // If this struct gains/loses a field, the WGSL side and
         // cpu_gpu_pair_manifest.md must be updated together.
         struct alignas(16) GPUBladeClusterMeshParams {
@@ -1129,7 +1129,7 @@ namespace t7 {
             float    t_seconds;          // 40: elapsed seconds
             float    force_radial;       // 44: polyphony-driven radial force
             // ── Pass 4: motion rules + dome rotation ─────────────
-            uint32_t motion_rule;        // 48: 0=Brownian, 1=Orbital, 2=Frozen
+            uint32_t motion_rule;        // 48: 0=Brownian, 1=Orbital, 2=Frozen, 3=Flocking
             float    rotation_speed;     // 52: dome angular velocity (rad/s)
             float    rotation_axis_x;    // 56: rotation axis X
             float    rotation_axis_y;    // 60: rotation axis Y
@@ -1537,18 +1537,18 @@ namespace t7 {
             uint32_t patchIndexCount_ = 0;
             uint32_t patchIndexCountLOD1_ = 0;
 
-            // Patch heightfield texture array (49 layers × 256×256, RGBA16Float)
+            // Patch heightfield texture array (225 layers × 256×256, RGBA16Float)
             wgpu::Texture patchHeightfieldArrayTexture_;
             wgpu::TextureView patchHeightfieldArrayWriteView_;  // full array for storage write
             wgpu::TextureView patchHeightfieldArrayReadView_;   // full array for sampling
 
-            // Patch cell color texture array (49 layers × 16×16, RGBA8Unorm)
+            // Patch cell color texture array (225 layers × 16×16, RGBA8Unorm)
             // RGB = cell color, A = mode (0=smooth, 1=discrete)
             wgpu::Texture patchCellColorArrayTexture_;
             wgpu::TextureView patchCellColorArrayWriteView_;
             wgpu::TextureView patchCellColorArrayReadView_;
 
-            // Cell spatial field LUT (49 layers × 16×16, RGBA16Float)
+            // Cell spatial field LUT (225 layers × 16×16, RGBA16Float)
             // Baked in generate_patch_cells. R=mode(post-coupling), G=style, B=sparse, A=reserved
             wgpu::Texture cellFieldsArrayTexture_;
             wgpu::TextureView cellFieldsArrayWriteView_;
@@ -1923,7 +1923,7 @@ namespace t7 {
 
             // Partial write: just the behavior_id u32 inside a cube slot.
             // Used by the Phase-3 override-cycling path to flip behavior on
-            // every active cube without re-uploading the whole 192-byte
+            // every active cube without re-uploading the whole 208-byte
             // struct. Field offset is calculated at compile time.
             void upload_cube_behavior_id(wgpu::Queue& queue, uint32_t slot, uint32_t behavior_id) {
                 size_t base = (Dim::CUBE_SLOT_OFFSET + slot) * sizeof(GPUFloatingEntityState);
@@ -4704,7 +4704,7 @@ namespace t7 {
 
                 // -- Bind group instances ------------------------------------
 
-                // Compute entity bind group (17 entries: systems + terrain + GoL zones + portals + cached heightfield)
+                // Compute entity bind group (19 entries: systems + terrain + GoL zones + portals + cached heightfield)
                 {
                     std::array<wgpu::BindGroupEntry, 19> entries{};
 
@@ -5443,7 +5443,7 @@ namespace t7 {
                     if (!pawnAuraComputeGroup_) return false;
                 }
 
-                // Orb compute bind group (2 entries: state storage rw + config uniform)
+                // Orb compute bind group (3 entries: state storage rw + config uniform)
                 {
                     std::array<wgpu::BindGroupEntry, 3> entries{};
 

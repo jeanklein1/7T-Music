@@ -35,6 +35,7 @@
 // │  Head mover (called by the conductor):                           │
 // │    ribbon_advance_head(rs, gpuState, queue, ribbon, slot, …)     │
 // │    ribbon_head_pose(rs, x, y, z, h)   — the SADDLE (mount)       │
+// │    ribbon_head_frame(rs, yaw_off, pitch, roll) — render (saddle) │
 // │    ribbon_head_pen(rs, x, z, h)       — the PEN (steering reads) │
 // │    ribbon_invalidate_head(rs), ribbon_head_is(rs, slot)          │
 // │                                                                  │
@@ -48,18 +49,19 @@
 // │    ribbon_state_.active_count                    — read by spine │
 // │    ribbon_state_.rendered_slot                   — read by spine │
 // │    ribbon_state_.mood_offset                     — read by mood  │
-// │    MAX_RIBBON_INSTANCES, RIBBON_MAX_LENGTH                       │
+// │    MAX_RIBBON_INSTANCES                                          │
 // │                                                                  │
 // └──────────────────────────────────────────────────────────────────┘
 //
 // Included inside the Cartridge class body.
 // Depends on: spawn_engine.inl (run_spawn_preamble, negotiate_position,
 //             record_placement_bookkeeping, footprint registry,
-//             evaluate_spawn_gate, jittered_position),
-//             seed_utils.inl, cartridge.hpp core (time_state_.seconds,
-//             pawnReadback_*, THEMES, PATCH_EXTENT, Dim::*),
-//             state.hpp (GPUState::upload_ribbon_head_poses — the one
-//             dumb wire the head laws write through).
+//             select_tier_biased), seed_utils.inl, cartridge.hpp core
+//             (time_state_.seconds, THEMES, PATCH_EXTENT, Dim::*, the
+//             four ribbon canvas bindings, player_ sky fields,
+//             estimate_terrain_height), state.hpp GPU wires
+//             (upload_ribbon_time / _color / _wave_amps / _head_poses —
+//             the flush + head laws write through).
 //
 // SEAM[ribbon:complete-subsystem] complete bespoke pipeline in one
 //   module — vocabulary + state + machinery + lifecycle + head laws.
@@ -497,8 +499,10 @@ struct RibbonHead {
 };
 
 // ── Ribbon module state (Scope B migration #1) ────────────────────
-// All ribbon-owned state lives in this struct, accessed via
-// ribbon_state_ on the Cartridge. Module functions take
+// Most ribbon-owned state lives in this struct, accessed via
+// ribbon_state_ on the Cartridge — the exceptions are the four ribbon
+// canvas bindings and player_.sky_yaw_eased, which live on the
+// Cartridge (the conductor writes them). Module functions take
 // `RibbonState& rs` explicitly rather than reaching via Cartridge*,
 // making ownership language-visible and dependencies explicit in
 // signatures.
@@ -694,12 +698,12 @@ static void ribbon_advance_head(RibbonState& rs, GPUState& gpuState,
 
     float head_x, head_y, head_z;
     if (flown) {
-        // Planar flight: yaw the heading, throttle the head along it at
-        // fixed sky altitude. The head moves along -heading so the
+        // Planar flight: yaw the heading, throttle the head along it in
+        // the horizontal plane. The head moves along -heading so the
         // straight seed (laid +heading from the anchor) trails behind it.
-        // Pitch/altitude is deferred (the frame is horizontal-only by
-        // construction). Constants live in the tuning console (head
-        // control law). SEAM[ribbon:sky-mode].
+        // Pitch is deferred (the frame is horizontal-only by
+        // construction); altitude is managed by the pen below. Constants
+        // live in the tuning console (head control law). SEAM[ribbon:sky-mode].
         // Steering model: yaw is STEERING, not free aim. The available
         // yaw rate is min(RIBBON_YAW_RATE, speed / RIBBON_R_MIN): the
         // heading can only change while moving, and the flown path can
@@ -990,11 +994,11 @@ static void ribbon_frame_tick(RibbonState& rs, Cartridge* c, wgpu::Queue& queue)
     }
 
     if (current_alive) {
-        // Hold — update time + color. Color is static at the spawn draw
-        // since the gen-1 §5 coupling retired; the per-frame color upload
-        // stays — it is the seam the gen-2 color coupling (color_stim ×
-        // color_mix over spawn; see coupling_layer_migration_map.md) will
-        // write through.
+        // Hold — update time + color. The gen-1 §5 coupling retired; the
+        // gen-2 line tint (color_stim × color_mix over spawn; see
+        // coupling_layer_migration_map.md) now computes the color per
+        // frame in the flush loop above, and this upload ships that lerp
+        // (rest = mix 0 = the seed-drawn color exactly).
         c->gpuState_.upload_ribbon_time(queue,
             rs.gpu[rs.rendered_slot].time);
         c->gpuState_.upload_ribbon_color(queue,

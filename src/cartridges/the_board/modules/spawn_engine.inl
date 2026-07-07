@@ -27,9 +27,7 @@
 // │    dump_entity_census(trigger)        — full snapshot to stdout  │
 // │                                                                  │
 // │  Mesh gen preparers + culling:                                   │
-// │    prepare_arch_mesh_gen(queue)                                  │
-// │    prepare_column_mesh_gen(queue)     — covers Antenna too       │
-// │    prepare_pyramid_mesh_gen(queue)                               │
+// │    prepare_{arch,column,pyramid}_mesh_gen — now in entities.inl  │
 // │    update_entity_draw_visibility(queue) — distance culling       │
 // │    write_pier(...), clear_pier(...), flush_pier_count(...)       │
 // │                                                                  │
@@ -242,7 +240,8 @@ PositionResult negotiate_position(
 
 // ── Helper 3: record_placement_bookkeeping ──────────────────
 //
-// Tail bookkeeping shared by all three families.
+// Tail bookkeeping shared by every family (the generic pipeline plus
+// the bespoke gallery/gol/ribbon commits).
 
 void record_placement_bookkeeping(uint32_t family, uint32_t tier_idx)
 {

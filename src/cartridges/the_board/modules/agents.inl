@@ -423,7 +423,7 @@ static_assert(AGENT_POPULATIONS[MOOD_FINITE_OUTDOOR_REF].mood_id == MOOD_FINITE_
 //
 // AGENT_BEHAVIORS and AGENT_TIER_GAINS are the single source of
 // truth for behavior/tier parameters. The compute kernels read them
-// from GPU storage buffers (bindings 110 / 111), uploaded once at
+// from GPU uniform buffers (bindings 110 / 111), uploaded once at
 // world-init by this helper. Values are constexpr-equivalent —
 // they never change during a session, so a one-shot upload at boot
 // is sufficient.

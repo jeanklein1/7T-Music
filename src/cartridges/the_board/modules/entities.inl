@@ -666,9 +666,9 @@ EntitiesState entities_state_;
 // type it contains. The result: state struct + functions consuming
 // it both live at the file's end.
 //
-// Counterparts for arch / column / antenna / pyramid currently live
-// in spawn_engine.inl (non-static Cartridge members); they will be
-// hoisted here in migration #10 along with the remaining helpers.
+// Counterparts for arch / column / antenna / pyramid now live here
+// too (below): migration #10 hoisted them out of spawn_engine.inl
+// alongside the remaining helpers.
 
 static bool prepare_palm_mesh_gen(EntitiesState& es, Cartridge* c, wgpu::Queue& queue) {
     if (!es.palm_mesh_gen_pending) return false;

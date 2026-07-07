@@ -1,6 +1,6 @@
 ﻿// ─── entity_pipeline.inl ─────────────────────────────────────────
 //
-// Generic entity lifecycle for the seven cookie-cutter families
+// Generic entity lifecycle for the nine cookie-cutter families
 // (Blade, Palm, Cactus, Column+Antenna, Pyramid, Sphere, Cube,
 // Arch). Three generics drive every spawn:
 //
@@ -31,7 +31,7 @@
 // │        apply_indoor_rescale functions                            │
 // │                                                                  │
 // │  Per-family dispatch wrappers (consumed by FAMILY_DISPATCH in    │
-// │  cartridge.hpp — three per family, eight families):              │
+// │  cartridge.hpp — three per family, nine families):               │
 // │    dispatch_{select,place,commit}_<family>_generic(...)          │
 // │                                                                  │
 // └──────────────────────────────────────────────────────────────────┘
@@ -178,7 +178,7 @@ static void rescale_to_rolled_target(EntityInstance& inst, float ceiling_h,
 // ═══ GENERIC THREE-PHASE PIPELINE ════════════════════════════════
 //
 // generic_select → generic_place → generic_commit. These are the
-// implementations that all eight family blocks below funnel into
+// implementations that all nine families below funnel into
 // via their dispatch wrappers.
 
 // ─── Generic Select ──────────────────────────────────────────────
@@ -2269,7 +2269,7 @@ static void dispatch_commit_arch_generic(Cartridge* self, PlacementEntry& pe, wg
 // ─── FAMILY_DISPATCH Integration ─────────────────────────────────
 //
 // The dispatch wrappers above are entries in FAMILY_DISPATCH (in
-// cartridge.hpp). Three per family, eight families: 24 entries
+// cartridge.hpp). Three per family, nine families: 27 entries
 // total. Adding a new family means adding a block matching the
 // template in this file's header, plus three entries in
 // FAMILY_DISPATCH.

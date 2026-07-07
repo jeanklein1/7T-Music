@@ -59,9 +59,9 @@
 //   previous worlds via world_state_.world_gen capture in the closure. Genuinely
 //   spine-owned, not a leak.
 // SEAM[spine:P8] PlayerState's commented "Future (deferred)" fields
-//   are explicit latent infrastructure: aura_presence is scheduled
-//   to migrate here once the unified entity layer is finalized.
-//   Pattern P8 visible in source.
+//   are explicit latent infrastructure: aura_presence has already
+//   migrated here; the other deferred fields await the unified
+//   entity layer. Pattern P8 visible in source.
 // SEAM[spine:active-patch-system] the ActivePatch struct,
 //   patches_[MAX_PATCHES] array, find_patch / evict_patch /
 //   evict_patch_entities / audit_entity_integrity, plus the entity_refs
@@ -231,9 +231,9 @@ namespace t7 {
             // See agent_system_design.md §2.1 for the full design.
             //
             // SEAM[spine:P8] PlayerState commented "Future (deferred)" fields
-            //   are explicit latent infrastructure: aura_presence is
-            //   scheduled to migrate here once the unified entity
-            //   layer is finalized. Pattern P8 visible in source.
+            //   are explicit latent infrastructure: aura_presence has
+            //   already migrated here; the other deferred fields await
+            //   the unified entity layer. Pattern P8 visible in source.
             struct PlayerState {
                 uint32_t possessed_slot = 0;   // slot in agent_state[] that the player inhabits
 
@@ -251,7 +251,7 @@ namespace t7 {
                 // player, not the body or the world. When the player
                 // possesses a different agent (Caps Lock), it stays with
                 // the player. Trajectory-style 0→1 ramp in [0,1].
-                float aura_presence = 0.0f;                  // pawn aura ramp (was player_.aura_presence)
+                float aura_presence = 0.0f;                  // pawn aura ramp (was pawn_state_.aura_presence)
 
                 // Future (deferred):
                 //   uint32_t active_couplings;         // COUPLING_* bitmask owned by player
@@ -407,8 +407,8 @@ namespace t7 {
             // indexed by the same mood index.
 
             static const char* mood_name(uint32_t mood) {
-                // Sized array so the compiler catches a missing entry if
-                // MOOD_COUNT changes without updating this list.
+                // Sized array: the compiler catches an EXTRA entry past
+                // MOOD_COUNT, but not a missing one — it zero-fills to nullptr.
                 static const char* NAMES[MOOD_COUNT] = {
                     "open_default", "open_sunset", "indoor_flat",
                     "indoor_vault", "finite_outdoor", "finite_outdoor_ref"
@@ -958,8 +958,8 @@ namespace t7 {
             //  │ DENSITY_LATTICE_SPACING          │ 250 wu    │ Region size (~5 patches)              │
             //  │ DENSITY_SEED_BAND                │ 160       │ Decorrelated from terrain/color       │
             //  │ DENSITY_EXPONENT                 │ 0.6       │ <1 = skew toward dense, >1 = sparse  │
-            //  │ DENSITY_MIN                      │ 0.1       │ Floor (never fully empty)             │
-            //  │ DENSITY_MAX                      │ 3.0       │ Ceiling (3× base spawn rates)         │
+            //  │ DENSITY_MIN                      │ 1.0       │ Floor (never fully empty)             │
+            //  │ DENSITY_MAX                      │ 1.0       │ Ceiling (now 1.0× — no boost)         │
             //  └──────────────────────────────────┴───────────┴──────────────────────────────────────┘
 
             static constexpr float DENSITY_LATTICE_SPACING = 250.0f;
@@ -1481,11 +1481,11 @@ namespace t7 {
             //  ├──────────────────────┬──────────────────────┬────────────────────────────────────────────┤
             //  │ Theme                │ Weight  Density      │ Character                                  │
             //  ├──────────────────────┼──────────────────────┼────────────────────────────────────────────┤
-            //  │ 0: Transition        │  0.40   ×1.0         │ Sparse, quiet connective tissue            │
-            //  │ 1: Monumental        │  0.12   ×0.7         │ Big pyramids, monumental arches, imposing  │
-            //  │ 2: Colonnade         │  0.18   ×1.5         │ Dense columns, doorway arcades, no pyramid │
-            //  │ 3: Antenna path      │  0.15   ×1.2         │ Antenna corridor, colossal sentinels       │
-            //  │ 4: Barren            │  0.15   ×0.3         │ Near-empty, occasional obelisk             │
+            //  │ 0: Transition        │  0.21   ×1.0         │ Sparse, quiet connective tissue            │
+            //  │ 1: Monumental        │  0.30   ×1.0         │ Big pyramids, monumental arches, imposing  │
+            //  │ 2: Colonnade         │  0.31   ×1.0         │ Dense columns, doorway arcades, no pyramid │
+            //  │ 3: Antenna path      │  0.18   ×1.0         │ Antenna corridor, colossal sentinels       │
+            //  │ 4: Barren            │  0.04   ×1.0         │ Near-empty, occasional obelisk             │
             //  └──────────────────────┴──────────────────────┴────────────────────────────────────────────┘
 
             static constexpr float THEME_LATTICE_SPACING = 500.0f;
@@ -1825,14 +1825,14 @@ namespace t7 {
             //  ├─────────────────────────────────┬───────────┬────────────────────────────────────────────┤
             //  │ Constant                        │ Value     │ Effect                                     │
             //  ├─────────────────────────────────┼───────────┼────────────────────────────────────────────┤
-            //  │ POP_BATCH_SIZE                  │  4        │ Patches per observation window              │
-            //  │ POP_TYPE_AFFINITY_STRENGTH      │  3.0      │ Max spawn boost for dominant type           │
-            //  │ POP_SCALE_TENDENCY_STRENGTH     │  2.0      │ Max tier proximity boost                    │
+            //  │ POP_BATCH_SIZE                  │  16       │ Patches per observation window              │
+            //  │ POP_TYPE_AFFINITY_STRENGTH      │  0.0      │ Max spawn boost for dominant type           │
+            //  │ POP_SCALE_TENDENCY_STRENGTH     │  0.0      │ Max tier proximity boost                    │
             //  │ POP_GOL_SUPPRESSION             │  0.05     │ GoL chance reduction per unit structure     │
-            //  │ POP_MIN_OBSERVATIONS            │  2        │ Min entities before bias activates          │
-            //  │ POP_MODE_AFFINITY_CHANCE        │  0.50     │ Probability of affinity batch               │
-            //  │ POP_MODE_REPULSION_CHANCE       │  0.25     │ Probability of repulsion batch              │
-            //  │ (remainder)                     │  0.25     │ Probability of neutral batch                │
+            //  │ POP_MIN_OBSERVATIONS            │  1        │ Min entities before bias activates          │
+            //  │ POP_MODE_AFFINITY_CHANCE        │  0.0      │ Probability of affinity batch               │
+            //  │ POP_MODE_REPULSION_CHANCE       │  0.0      │ Probability of repulsion batch              │
+            //  │ (remainder)                     │  1.0      │ Probability of neutral batch                │
             //  └─────────────────────────────────┴───────────┴────────────────────────────────────────────┘
 
             struct PopBatchMode {
@@ -3505,7 +3505,7 @@ namespace t7 {
 
                 // Advance any in-flight cube corral animations. No-op
                 // when none are armed (the common case — animations
-                // only run for ~3s after F6 is pressed).
+                // only run for ~4s after F6 is pressed).
                 tick_cube_corral_animations(cube_behaviors_state_, this, queue);
 
                 stream_patches(encoder, queue);
@@ -3706,7 +3706,7 @@ namespace t7 {
                     dispatch_placement_correction(encoder);
                 }
 
-                // DIAG: frustum cull bypassed — direct draw active
+                // DIAG: frustum cull re-enabled — indirect draw active
                 dispatch_frustum_cull(encoder, queue);
 
                 render_shadow_pass(encoder);
@@ -3759,7 +3759,7 @@ namespace t7 {
                 //
                 // DISTANCE-DRIVEN SPAWN (every frame, after allocation):
                 //   Scans unspawned patches, sorts by distance to pawn.
-                //   Spawns up to SPAWN_BUDGET_PER_FRAME (pyramids → arches → columns).
+                //   Spawns up to SPAWN_BUDGET_PER_FRAME (families in FAMILY_DISPATCH order).
                 //
                 // DISTANCE-DRIVEN GENERATION (every frame, after spawn):
                 //   Scans spawned-but-ungenerated patches + pending regens.
@@ -4017,8 +4017,8 @@ namespace t7 {
                 //
                 // Every frame, scan for unspawned patches. Sort by distance
                 // to pawn (nearest first), spawn up to SPAWN_BUDGET_PER_FRAME.
-                // Priority order within each patch: pyramids → arches → columns
-                // (largest footprint first, matching the ground hierarchy).
+                // Priority order within each patch follows FAMILY_DISPATCH
+                // (families iterated 0..PopFamily::COUNT; pyramid/arch/column lead).
                 //
                 // Spawning must complete before generation — piers from spawned
                 // entities affect heightfield baking. The generation scan below

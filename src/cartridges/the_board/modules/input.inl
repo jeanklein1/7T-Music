@@ -99,8 +99,9 @@
 //   F3             force_respawn_population        repopulate evicted agents
 //   F4             cycle_cube_behavior_override    stationary → curlfield → phasewave
 //   F5             cycle_floater_coordination      0.0 → 0.5 → 1.0
-//   F6             corral_cubes                    teleport cubes around pawn
+//   F6             corral_cubes                    glide cubes around pawn (4s)
 //   F7             toggle_cube_kite_mode           cubes follow pawn on/off
+//   F8             toggle_sky_mode                 sky-flight ribbon steering on/off
 //
 // ── Mouse / scroll ───────────────────────────────────────────────
 //   LMB drag       look_az_delta, look_el_delta
@@ -324,10 +325,11 @@ void toggle_fpv_mode() {
         << (player_.fpv_mode ? "First-Person View" : "Orbit") << std::endl;
 }
 
-// Sky-flight toggle (Stage 1). While ON, the arrow keys steer the rendered
-// ribbon's head (up/down = throttle, left/right = yaw) at fixed sky altitude;
-// while OFF, the ribbon holds its stationary arc. Stages 2-3 add the pawn snap,
-// camera follow, and fade transition. SEAM[ribbon:sky-mode].
+// Sky-flight toggle. While ON, the arrow keys steer the rendered
+// ribbon's head (up/down = throttle, left/right = yaw); the sky altitude
+// is held by a critically damped pen, not fixed. While OFF, the ribbon
+// holds its stationary arc. The pawn snap and camera follow have landed;
+// only the fade transition remains unbuilt. SEAM[ribbon:sky-mode].
 void toggle_sky_mode() {
     player_.sky_mode = !player_.sky_mode;
     std::cout << "[the_board] Sky mode: "

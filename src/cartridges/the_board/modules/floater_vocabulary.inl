@@ -40,7 +40,7 @@
 // └──────────────────────────────────────────────────────────────────┘
 //
 // Included inside the Cartridge class body.
-// Depends on: state.hpp (Dim::*), entities.inl (MOOD_COUNT).
+// Depends on: state.hpp (Dim::*), cartridge.hpp (MOOD_COUNT).
 //
 // SEAM[floater_vocabulary:taxonomy] generic-pipeline floater families
 //   parallel grounded families (entities.inl) but live here because

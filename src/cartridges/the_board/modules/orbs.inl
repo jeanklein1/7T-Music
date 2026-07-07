@@ -21,7 +21,7 @@
 // │    teardown_orbs(os, c)              — mood exit: disable       │
 // │                                                                 │
 // │  Player commands:                                               │
-// │    cycle_orb_palette(os, c, queue)     — KP_0  next palette     │
+// │    cycle_orb_palette(os, c, queue)     — 0     next palette     │
 // │    cycle_orb_motion_rule(os, c, queue) — KP_8  next rule        │
 // │    cycle_orb_gesture(os, c, queue)     — KP_DECIMAL next gest.  │
 // │    toggle_orb_anchor(os, c)            — KP_9  world↔pawn       │
@@ -784,7 +784,7 @@ static void teardown_orbs(OrbsState& os, Cartridge* c) {
 
 // ═══ PLAYER COMMANDS ═════════════════════════════════════════════
 
-// KP_0: cycle palette forward. Re-arms the recolor kernel so
+// 0: cycle palette forward. Re-arms the recolor kernel so
 // positions and colors both refresh on the next frame. Session-
 // local within a mood — the next mood transition resets to that
 // mood's configured palette.

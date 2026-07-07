@@ -34,8 +34,8 @@ sheet's first row); the room rows read "all.*". Envelope constants:
 swell attack 0.35 / release 2.0; tint mix attack 0.5 / release 3.0;
 hue re-aim 2.0 (ENV-1).
 
-## 1. PER-RIBBON PARAMETERS (GPURibbonState; written at commit, static per
-##    life today — any per-frame coupling needs the flush seam, noted where)
+## 1. PER-RIBBON PARAMETERS (GPURibbonState; written at commit, then time
+##    + coupled color/amps flush per frame — flush seams noted per row)
 
 | field            | meaning                              | class | idle (rest)            | coupling notes |
 |------------------|--------------------------------------|-------|------------------------|----------------|
@@ -150,7 +150,9 @@ Two further future D-couplings live here:
   layout, was declined as renderer surgery). The saddle's frame
   samples the wave at the seat's arc position (head age offset by
   MOUNT_SETBACK/p) while the mount POSITION samples at the head's age
-  — a deliberate seam, Jean's eyes on it at the ride gate.
+  — a deliberate seam, Jean's eyes on it at the ride gate. (SUPERSEDED
+  by SNAP-1 below: one s_age now serves position and frame alike; the
+  seam was reversed on the record.)
 - SIGN RESOLUTION + THE DRIFT CAUGHT (ledger, BNK-1/BNK-2): the
   committed tangent-align deflections were MIRRORED across the base
   heading — the tube axis runs tailward, and the tailward tangent is

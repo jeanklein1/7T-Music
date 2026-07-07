@@ -111,7 +111,8 @@ cartridge unless stated.
   clears every family by slot loops, and the finite-mode ribbon sweep
   inside TEARDOWN. By sweep rather than per-entity eviction;
   documented; dies if eviction ever unifies.
-- EVICTION THUNKS (1 class, 13 functions): dispatch_evict_* live
+- EVICTION THUNKS (1 class, 12 functions in the_board; 13 in the_chord,
+  which keeps a dispatch_evict_noop): dispatch_evict_* live
   cartridge-side though eviction is lifecycle (a §2 trespass). Die as
   entities absorb their evictors on next touch.
 - WHITELIST (1): the_lab.cpp reads the contract directly — the permanent

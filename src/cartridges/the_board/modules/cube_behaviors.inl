@@ -45,7 +45,7 @@
 // │                                                                  │
 // │  Per-frame:                                                      │
 // │    tick_cube_corral_animations(cbs, c, queue)                    │
-// │      Called from update(); advances any in-flight glides.        │
+// │      Called from render(); advances any in-flight glides.        │
 // │                                                                  │
 // │  Player commands (function keys; chosen to avoid the A-Z piano   │
 // │                   range the analysis layer consumes):            │
@@ -449,7 +449,7 @@ static void corral_cubes(CubeBehaviorsState& cbs, Cartridge* c, wgpu::Queue& que
 
 // Per-frame: advance any active animations and push interpolated
 // position to GPU. Skips cleanly when nothing is animating. Called
-// from the cartridge's update() path.
+// from the cartridge's render() path.
 static void tick_cube_corral_animations(CubeBehaviorsState& cbs, Cartridge* c, wgpu::Queue& queue) {
     for (uint32_t i = 0; i < Dim::MAX_CUBE_INSTANCES; i++) {
         auto& anim = cbs.corral_anim[i];

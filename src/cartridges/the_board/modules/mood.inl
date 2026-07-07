@@ -66,7 +66,7 @@
 // DONE[mood:K2] apply_mood was a 217-line linear sequence mixing 12
 //   concerns (atmospheric, indoor lighting, indoor shell, band
 //   motion, musical reset, anchor ribbon, orbs). Split into named
-//   helpers; apply_mood itself orchestrates. The five helpers below
+//   helpers; apply_mood itself orchestrates. The four helpers below
 //   match the natural seams in the flow. Per-mood-transition order
 //   is preserved exactly — no semantic change, just nameable
 //   sub-blocks.
@@ -484,11 +484,11 @@ void derive_indoor_lights(uint32_t seed, float bmin, float bmax,
 
 // ═══ APPLY MOOD ══════════════════════════════════════════════════
 //
-// One canonical mood entry point: apply_mood. Five named sub-
-// functions handle atmospheric, spot lighting, indoor shell, band
-// motion, and anchor ribbon. The orchestrator owns only ordering
-// and the activate-mood bookkeeping. See DONE[mood:K2] in the file
-// header for the split rationale.
+// One canonical mood entry point: apply_mood. Four named sub-
+// functions handle atmospheric, spot lighting, indoor shell, and
+// anchor ribbon. The orchestrator owns only ordering and the
+// activate-mood bookkeeping. See DONE[mood:K2] in the file header
+// for the split rationale.
 
 // 1) Atmospheric: sun direction/color/intensity, fog, ambient,
 //    terrain amp ceiling. Touches GPU directly + a few member fields.
@@ -653,7 +653,7 @@ void apply_mood_anchor_ribbon(uint32_t mood, wgpu::Queue& queue) {
 // ── apply_mood (orchestrator) ──
 //
 // Owns the mood activation bookkeeping (mood id, feature gates) and
-// the order-of-operations of the five sub-functions. The sub-
+// the order-of-operations of the four sub-functions. The sub-
 // functions own the substantive work.
 void apply_mood(uint32_t mood, wgpu::Queue& queue) {
     mood = std::min(mood, MOOD_COUNT - 1);
