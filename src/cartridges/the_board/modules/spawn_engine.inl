@@ -300,23 +300,26 @@ void flush_pier_count(wgpu::Queue& queue) {
 
 // ─── Entity Distance Culling ─────────────────────────────────────
 //
-// Entities beyond a size-proportional distance from the pawn are
-// temporarily hidden by zeroing their GPU mesh params (producing
-// degenerate triangles the rasterizer discards for free).
+// Entities are hidden past the terrain-VISIBLE edge by zeroing their GPU
+// mesh params (producing degenerate triangles the rasterizer discards for
+// free), so an entity draws ONLY where the terrain beneath it draws.
 //
-// IMPORTANT: the cull floor is set to the PREGEN radius so that
-// every entity within the allocation window always has its mesh
-// ready. Entities are spawned at allocation time; their meshes
-// must be built before the visible circle can reach them.
-// The system becomes active only when the world is extended
-// beyond the current pregen ring (future LOD work).
+// The cull floor is the terrain-visible ring (VISIBILITY_CYLINDER_RADIUS =
+// 275 wu), pulled one EDGE_MARGIN inside so the whole footprint sits over
+// drawn ground. (It was PREGEN×EXTENT = 350 — the allocation ring, a stale
+// pre-LOD intent — which let entities lead their terrain by 75+ wu.) The
+// base is read in update_entity_draw_visibility below (a function body is a
+// complete-class context); VISIBILITY_CYLINDER_RADIUS is a Cartridge member
+// declared past this include point, so it cannot initialize a constant here.
 //
-// Hysteresis prevents oscillation near the threshold.
+// Size-awareness is re-signed: a taller entity culls slightly EARLIER (its
+// base stays safely inside the edge), never later — the old outward lead is
+// gone. The inset is small and capped. Hysteresis prevents oscillation.
 
-static constexpr float ENTITY_CULL_BASE = (float)Dim::PATCH_PREGEN_RADIUS * Dim::PATCH_EXTENT;  // = 350: never cull inside pregen
-static constexpr float ENTITY_CULL_ARCH_SCALE = 2.5f;   // per unit of max(span, total_height)
-static constexpr float ENTITY_CULL_COL_SCALE = 3.0f;   // per unit of column height
-static constexpr float ENTITY_CULL_HYSTERESIS = 50.0f;  // band width: show at far-hyst, hide at far
+static constexpr float ENTITY_CULL_EDGE_MARGIN    = 0.5f * Dim::PATCH_EXTENT;  // 25 wu inside the visible edge
+static constexpr float ENTITY_CULL_SIZE_INSET     = 0.5f;    // wu of inward inset per unit of entity size
+static constexpr float ENTITY_CULL_SIZE_INSET_MAX = 60.0f;   // cap: never cull nearer than base − this
+static constexpr float ENTITY_CULL_HYSTERESIS     = 40.0f;   // band: hide at the (inset) edge, show 40 wu inside
 
 // Rebuild GPUArchMeshParams from cached ActiveArch data.
 GPUArchMeshParams build_arch_mesh_params(uint32_t slot) const {
@@ -392,6 +395,12 @@ GPUColumnMeshParams build_column_mesh_params(uint32_t slot) const {
 uint32_t update_entity_draw_visibility(wgpu::Queue& queue) {
     uint32_t culled = 0;
 
+    // Cull floor: the terrain-visible edge minus a margin, so an entity draws
+    // only where its ground draws. Read here (a function body is a complete-
+    // class context) because VISIBILITY_CYLINDER_RADIUS is a Cartridge member
+    // declared past this file's include point.
+    const float cull_base = VISIBILITY_CYLINDER_RADIUS - ENTITY_CULL_EDGE_MARGIN;  // 275 − 25 = 250
+
     // Arches
     for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++) {
         if (!entities_state_.arches[i].active) continue;
@@ -401,12 +410,13 @@ uint32_t update_entity_draw_visibility(wgpu::Queue& queue) {
         float dist = std::sqrt(dx * dx + dz * dz);
 
         float entity_size = std::max(a.half_span * 2.0f, a.total_height);
-        float cull_far = ENTITY_CULL_BASE + entity_size * ENTITY_CULL_ARCH_SCALE;
-        float cull_near = cull_far - ENTITY_CULL_HYSTERESIS;
+        float inset = std::min(entity_size * ENTITY_CULL_SIZE_INSET, ENTITY_CULL_SIZE_INSET_MAX);
+        float cull_far  = cull_base - inset;                 // taller ⇒ earlier, never past the edge
+        float cull_near = cull_far - ENTITY_CULL_HYSTERESIS; // show only when this far inside
 
         bool should_show = a.draw_visible
-            ? (dist <= cull_far)          // currently visible: hide when exceeding far
-            : (dist <= cull_near);        // currently hidden:  show when inside near
+            ? (dist <= cull_far)          // visible: hide at the (inset) edge
+            : (dist <= cull_near);        // hidden:  show when comfortably inside
 
         if (should_show != a.draw_visible) {
             entities_state_.arches[i].draw_visible = should_show;
@@ -431,7 +441,8 @@ uint32_t update_entity_draw_visibility(wgpu::Queue& queue) {
         float dz = c.world_z - player_.readback_z;
         float dist = std::sqrt(dx * dx + dz * dz);
 
-        float cull_far = ENTITY_CULL_BASE + c.height * ENTITY_CULL_COL_SCALE;
+        float inset = std::min(c.height * ENTITY_CULL_SIZE_INSET, ENTITY_CULL_SIZE_INSET_MAX);
+        float cull_far  = cull_base - inset;
         float cull_near = cull_far - ENTITY_CULL_HYSTERESIS;
 
         bool should_show = c.draw_visible
@@ -462,7 +473,8 @@ uint32_t update_entity_draw_visibility(wgpu::Queue& queue) {
         float dist = std::sqrt(dx * dx + dz * dz);
         uint32_t gpu_slot = i + Dim::ANTENNA_SLOT_OFFSET;
 
-        float cull_far = ENTITY_CULL_BASE + c.height * ENTITY_CULL_COL_SCALE;
+        float inset = std::min(c.height * ENTITY_CULL_SIZE_INSET, ENTITY_CULL_SIZE_INSET_MAX);
+        float cull_far  = cull_base - inset;
         float cull_near = cull_far - ENTITY_CULL_HYSTERESIS;
 
         bool should_show = c.draw_visible
