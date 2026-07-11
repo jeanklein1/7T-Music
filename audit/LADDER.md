@@ -316,3 +316,96 @@ carries the M-c precondition**: the live floater state needs an OWNER
 module first (the vocabulary can't convert cleanly while the mutable
 floater state it reads has no home). That is a design ruling for Jean, not
 a CC task — flagged here so the ladder's next rung isn't taken blind.
+
+## LADDER-3 — L-MID: SEVEN RUNGS, TWO GRADUATIONS (converted; mood held)
+
+Order as ratified: c1 gol_zones → c2 agents (+G1) → c3 cube_behaviors →
+c4 gallery → c5 ribbon → c6 input (+G2) → c7 render_passes. Mood
+EXCLUDED (K4 held for Jean). One mid-arc defect found and fixed by the
+c4 pre-flight (below).
+
+| rung | module | status | note (commit) |
+|---|---|---|---|
+| c1 | **gol_zones** | ✅ LANDED | near-verbatim; GoLSelection/GoLPlacement came home from spawn_engine (038c30c) |
+| c2 | **agents** | ✅ LANDED | + G1: the six Mood IDs → mood_constants.hpp; BOM preserved, LF (the CRLF half of the spec's claim didn't hold) (459253d) |
+| c3 | **cube_behaviors** | ✅ LANDED | G1's second consumer; carries c0's cube active array (4f8b5dd) |
+| — | **wiring fix** | ✅ LANDED | c2/c3 impls were self-wrapped but NEVER ADDED to the zone — the fix-2 LNK2019 shape reproduced by omission; caught by the c4 pre-flight re-read of the zone tail, before any rig build ran over it; + repaired c1's truncated zone comment/newline (5862f3c) |
+| c4 | **gallery** | ✅ LANDED | largest module; GallerySelection/GalleryPlacement came home; frame-preset section hoisted + 3 impl-internal fwd decls (namespace scope has no class-body two-pass lookup); 19 bodies verified byte-identical mod transforms (d0b63b6) |
+| c5 | **ribbon** | ✅ LANDED | THE PAIRING RULING: byte-identical mirror with the_chord SUSPENDED, named in ribbon.hpp's banner (pawn precedent); RibbonSelection/RibbonPlacement came home — spawn_engine's payload section is now three relocation notes, zero structs; MOUNT_* lockstep mirrors travel intact; BOM preserved, LF (ce92d14) |
+| c6 | **input** | ✅ LANDED | + G2: InputState/KeyState/MouseState → input.hpp, instances stay at the root; THE REAL RETROFIT begins — ~41 ambient reads → keyhole, all ten fns gain Cartridge* c, six call sites gain `this`; GLFW dependency UNPAPERED (input.inl includes <GLFW/glfw3.h> itself) (77fc3a3) |
+| c7 | **render_passes** | ✅ LANDED | the heavy retrofit — 243 ambient reads → keyhole (mechanical transform, re-verified independently); if-census 19=19, ZERO draw self-gates added; light-VP helpers stay pure (compute_sun_matrices: zero callers, LATENT, travels); BOM preserved (cdc93ca) |
+
+**L-MID IS CONVERTED (minus mood).** The L2 gate — ONE end-build at the
+rig, screen-golden — is now due. The disclosed checkpoint option at c6
+(77fc3a3) remains a valid bisection point if the end-build goes red.
+
+### LADDER-3 close-out (census with recipes)
+
+**D3 verdict, refined:** FALSIFIED again for the five stateful modules
+(c1–c5: every function already took (State&/Cartridge*, ...); zero
+signature changes; all callers unqualified) — but c6/c7 were true
+member-function modules, and the retrofit recipe ran exactly as priced:
+functions gain a leading `Cartridge* c`, ambient reads gain `c->`,
+call sites gain `this` (input: 6 sites; render_passes: 6 sites), bodies
+otherwise verbatim (verified per-function by normalized byte-compare on
+every rung: c4 19/19 fns, c5 15/15 fns + 60 console constants + all
+structs, c6 10/10 fns, c7 9/9 fns + gate census).
+
+**Keyhole static form (running total this arc):** PATCH_EXTENT ×13
+(gol/gallery/ribbon), PopFamily ×11 (GOL/GALLERY/RIBBON),
+GLOBAL_ENTITY_DENSITY ×2, TransitionPhase ×1, THEMES ×1,
+GRID_RADIUS/PREGEN_RADIUS ×2 (input).
+
+**Payloads home (the entity_types precedent, completed):** GoL (c1),
+Gallery (c4), Ribbon (c5) Selection/Placement pairs all relocated to
+their modules' headers; spawn_engine.inl's payload section now carries
+three relocation notes and no structs.
+
+**Graduations:** G1 (c2) six Mood IDs; G2 (c6) three input structs.
+Both by the second-consumer law; instances at the COMPOSITION ROOT.
+
+**Specimen probes (all real .hpp+.inl, real fix-2 wiring, environment
+stubbed):** c1 lattice→commit→derive lifecycle; c2 registry→spawn→
+possess→census; c3 corral/kite/coordination/clear; c4 capture cadence →
+snapshot render → 3-phase outdoor → evict (center persists) → authored
+staging → wall paintings → rotation (exit 0); c5 3-phase spawn →
+conductor adoption → altitude bake (ground+clearance exact) → wanderer
+motion through the one integrator → succession kill → sky-release drain
+(exit 0); c6 full dispatch table (12 sibling commands), fallback key
+constants exercised by a sparse shadow GLFW, intent normalization,
+radius clamp through Cartridge:: statics (exit 0); c7 all seven entity
+families' ground entries, dispatch variants (8/7), frustum cull
+outdoor/indoor, shadow outdoor + 3-light indoor atlas, main pass
+indirect/direct, finite light-VPs incl. header defaults (exit 0).
+
+**Bytes report:** new headers gol_zones.hpp, gallery.hpp, ribbon.hpp,
+input.hpp, render_passes.hpp all no-BOM/LF; agents.inl, ribbon.inl,
+render_passes.inl BOM (`ef bb bf`) PRESERVED, LF; gallery.inl,
+input.inl, cube_behaviors.inl, spawn_engine.inl no-BOM/LF;
+cartridge.hpp no-BOM/LF, code-only braces 640/640 (the G2 struct-def
+graduation accounts for exactly −3 pairs from 643).
+
+**The composition root now holds:** sphere_state_,
+cube_behaviors_state_, pawn_state_, entities_state_, orbs_state_,
+gol_state_, agent_state_, gallery_state_, ribbon_state_, inputState_,
+keys_, mouse_. **The MODULE IMPLEMENTATIONS zone holds (in ladder
+order):** pawn, entities, orbs, gol_zones, agents, cube_behaviors,
+gallery, ribbon, input, render_passes.
+
+**Pattern addendum (the wiring-fix lesson):** the zone edit is PART OF
+THE RUNG — a specimen proves the module, not the cartridge's wiring;
+the rung recipe now ends with "re-read the zone tail." Second lesson:
+namespace scope has no class-body two-pass lookup — before-definition
+intra-module calls need either original-order luck (ribbon), a header
+declaration (public fns), or an impl-internal forward-declaration block
+(gallery).
+
+## L-HUBS (queued — the remaining class-body includes)
+
+mood.inl (**K4 — Jean's marination item, unchanged**: transition
+machine, portal force-spawn, apply_mood fan-out, dual-entry ownership),
+spawn_engine.inl (services hub: run_spawn_preamble/negotiate_position/
+footprints — every converted module reaches it through the keyhole),
+entity_pipeline.inl (the generic family dispatch), and the spine
+chapters that remain the cartridge's own body. No rung is cut until
+K4 is ruled.
