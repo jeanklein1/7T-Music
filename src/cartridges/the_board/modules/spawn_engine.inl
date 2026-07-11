@@ -922,34 +922,10 @@ static float solve_catenary_a(float half_span, float target_h) {
 //  below by construction, the entity_types precedent.)
 
 // ─── Gallery Selection / Placement ───────────────────────────────
-// (Outdoor art exhibitions — composite: 1 center → N paintings)
 
-struct GallerySelection {
-    uint32_t seed;
-    int32_t  trigger_gx, trigger_gz;
-    uint32_t slot;              // gallery center slot
-    float    cx, cz;            // gallery center (jittered)
-    float    footprint_r;       // gallery spatial envelope
-    uint32_t archetype;         // 0–3 (terrain type, used as tier_idx)
-    uint32_t painting_count;
-    float    facing_angle;
-    float    gallery_size_mean;
-    uint32_t site_type;         // 0=snapshot, 1=mixed, 2=authored
-};
-
-struct GalleryPlacement {
-    uint32_t slot;
-    int32_t  trigger_gx, trigger_gz;
-    int32_t  host_gx, host_gz;
-    uint32_t tier_idx;          // = archetype
-    float    cx, cz;
-    float    footprint_r;
-    uint32_t archetype;
-    uint32_t painting_count;
-    float    facing_angle;
-    float    gallery_size_mean;
-    uint32_t site_type;
-};
+// (GallerySelection / GalleryPlacement RELOCATED to gallery.hpp — LADDER-3
+//  c4. They are gallery vocabulary; at file scope they precede the queue
+//  unions below by construction, the entity_types precedent.)
 
 // ─── Ribbon Selection / Placement ────────────────────────────
 

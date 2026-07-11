@@ -106,6 +106,7 @@
 #include "cartridges/the_board/modules/gol_zones.hpp"            // LADDER-3 c1: GoL vocabulary + payloads + GoLState + decls (impl is gol_zones.inl, post-class)
 #include "cartridges/the_board/modules/agents.hpp"               // LADDER-3 c2: agent registries + console + AgentState + decls (impl is agents.inl, post-class)
 #include "cartridges/the_board/modules/cube_behaviors.hpp"       // LADDER-3 c3: cube behavior registry + CubeBehaviorsState + decls (impl is cube_behaviors.inl, post-class)
+#include "cartridges/the_board/modules/gallery.hpp"              // LADDER-3 c4: shot vocabulary + console + payloads + GalleryState + decls (impl is gallery.inl, post-class)
 #include "cartridges/the_board/renderer.hpp"
 #include "coupling/visual_canvas.hpp"
 #include <cmath>
@@ -198,6 +199,12 @@ namespace t7 {
             //     declared in agents.inl (class body); relocated here in
             //     LADDER-3 c2.
             AgentState agent_state_;
+
+            //   gallery_state_ — GalleryState (gallery.hpp), the photographer
+            //     (RNG + cadence) + snapshot/authored staging + exhibition
+            //     layers + painting slots + gallery centers. Was declared in
+            //     gallery.inl (class body); relocated here in LADDER-3 c4.
+            GalleryState gallery_state_;
 
             struct InputState {
                 float move_x = 0.0f;
@@ -654,8 +661,17 @@ namespace t7 {
             // (gol_state_) is declared at the COMPOSITION ROOT. The
             // mood_allowed request-flag write stays K4's territory. See §1.
 
-            // ── Gallery System (modules/gallery.inl) ──
-#include "modules/gallery.inl"
+            // ── Gallery System — CONVERTED (LADDER-3 c4, header/impl split) ──
+            // Shot vocabulary + tuning console + GallerySelection/
+            // GalleryPlacement (relocated from spawn_engine.inl) +
+            // PhotographerState + GalleryState + declarations are in
+            // gallery.hpp (file scope, above the class); the definitions
+            // (which reach the keyhole + in-class statics via the complete
+            // type) are in gallery.inl, included at FILE SCOPE in the
+            // post-class MODULE IMPLEMENTATIONS zone. The instance
+            // (gallery_state_) is declared at the COMPOSITION ROOT. The
+            // photographer-inside-gallery roster note travels untouched.
+            // See §1.
 
             // ═══ ACTIVE PATCH SYSTEM ═════════════════════════════════════
             //
@@ -4248,3 +4264,4 @@ namespace t7 {
 #include "modules/gol_zones.inl"  // LADDER-3 c1 — GoL three-phase lifecycle + per-frame uploads/dispatch
 #include "modules/agents.inl"     // LADDER-3 c2 — agent registry upload + spawn/respawn/possession/diagnostics
 #include "modules/cube_behaviors.inl"  // LADDER-3 c3 — cube registry upload + corral/kite/coordination + clear
+#include "modules/gallery.inl"    // LADDER-3 c4 — photographer + gallery sites + authored loading + wall paintings
