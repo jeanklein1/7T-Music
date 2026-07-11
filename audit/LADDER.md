@@ -240,16 +240,74 @@ and a file-scope header can't see an in-class constant.
 |---|---|---|---|
 | prereq | MOOD_COUNT | ✅ LANDED | graduated to mood_constants.hpp (ab8e79c) |
 | c0 | **M-c floater split** | ✅ LANDED | spheres.hpp (SphereState, born converted) + cube→CubeBehaviorsState + floater_vocabulary.hpp (types); owner clears; §5 slivers (d56347d) |
-| c2 | **pawn** | ✅ LANDED | header/impl split — pattern established + isolation-validated (compiles/links/runs) (86190b5) |
-| c1 | entities | ⏳ queued | highest risk: EntitiesState + configs to header; D3 signature retrofit; impl post-class (758 lines) |
-| c3 | orbs | ⏳ queued | OrbsState + ORB_MOOD_TABLE; (os,c,…) sigs; impl post-class; don't touch ORB-1 anchor semantics (1040 lines) |
-| c4 | floater_vocabulary | ⏳ queued | configs/tables join floater_vocabulary.hpp; delete the .inl |
+| c2 | **pawn** | ✅ LANDED | header/impl split — pattern established (86190b5); the two access/wiring corollaries were rig-found on this head and fixed (16f836e, b0a0095); rebuild GREEN |
+| c1 | **entities** | ✅ LANDED | D3 suspect FALSIFIED — zero retrofit; PortalDestination graduated to mood_constants.hpp; PAWN_HEIGHT_UNITS tagged LATENT[unused] (74b3d7f) |
+| c3 | **orbs** | ✅ LANDED | near-verbatim; ORB_MOOD_TABLE to header; ORB-1 anchor semantics untouched (b67983c) |
+| c4 | **floater_vocabulary** | ✅ LANDED | configs/registries joined the .hpp; .inl deleted; the banner tells the truth (c704b4a) |
 
-pawn was landed before entities to prove the new header/impl pattern on the
-cleanest module before the large retrofit. c1/c3/c4 reuse the validated
-pattern. Recommended: a rig build-check of the header/impl split (pawn is
-the smallest surface) before the large conversions — the cautious path the
-handoff offered.
+**L-NEXT IS CONVERTED.** One rig build (L1) certifies the arc: same seed,
+two runs, pixel-stable, indistinguishable from the LADDER-1 head.
+
+### LADDER-2 close-out (census with recipes)
+
+**The two mid-arc rulings** (recon-surfaced, Jean-decided): MOOD_COUNT
+graduates first (the config-bearing headers size per-mood tables by it);
+conversion model = header/impl split. A third small graduation followed
+the same second-consumer law at c1: PortalDestination (embedded in
+ActiveArch) → mood_constants.hpp.
+
+**D3 verdict (the arc's headline):** the retrofit suspect was FALSIFIED.
+Every stateful module's functions already took (State&, Cartridge*, ...)
+explicitly — entities' 6 preparers, orbs' 11 public functions, pawn's
+tick. ZERO signatures changed across the whole arc; every call site
+carried on unqualified lookup (R4 recipe: grep `Cartridge::<sym>` /
+`this-><sym>` per moved symbol — zero hits, all stages).
+
+**Specimen probes (all real artifacts, real include wiring):**
+- c1 entities: state.hpp shadowed by an environment stub (Dawn absent in
+  the probe env; state.hpp itself is rig-proven) — preparer scans slots,
+  uploads (max+1)×stride via the keyhole. PASS.
+- c3 orbs: environment mocked to the exact reached surface — configure
+  packs/uploads/arms; init one-shots; anchor pushes pawn coords (ORB-1
+  verified unchanged); rule cycles. PASS.
+- c4 floater_vocabulary: pure header, real deps only — probed with NO
+  mocks. PASS.
+
+**Bytes report** (created/touched this arc; all new headers no-BOM/LF):
+mood_constants.hpp, spheres.hpp, floater_vocabulary.hpp, pawn.hpp,
+entities.hpp, orbs.hpp `23 70 72`/LF; pawn.inl, entities.inl, orbs.inl,
+cube_behaviors.inl, input.inl, spawn_engine.inl `2f 2f 20`/LF;
+entity_pipeline.inl + render_passes.inl BOM (`ef bb bf`) PRESERVED;
+cartridge.hpp no-BOM/LF, code-only braces 643/643;
+floater_vocabulary.inl DELETED (c4).
+
+**Unused-symbol census:** PAWN_HEIGHT_UNITS (entities.hpp) — zero
+callers; STATUS: LATENT[unused], kept per flag-don't-delete. Nothing else
+surfaced.
+
+**The composition root now holds:** sphere_state_, pawn_state_,
+entities_state_, orbs_state_ (converted); cube_behaviors_state_ remains
+in cube_behaviors.inl (unconverted regime, converts in L-mid). The
+MODULE IMPLEMENTATIONS zone holds pawn.inl, entities.inl, orbs.inl.
+
+**LADDER-1 findings consumed by this arc** (one line each): the
+header/impl access corollary (organs public) and the wiring corollary
+(self-wrapping impl → file-scope zone) became the pattern's definition;
+the specimen rule replaced portrait probes; roster.hpp's namespace
+precedent (t7::the_board) held for every new header; the encoding law
+(match tree reality per file) held — two BOM files preserved.
+
+## L-MID (queued — next rungs)
+
+cube_behaviors (its state now carries the cube active array; converts
+whole), gol_zones, gallery, ribbon, agents, input, render_passes,
+entity_pipeline, spawn_engine, ground/terrain spine chapters. **K4 —
+mood's conversion shape — is the next MARINATION ITEM for Jean's queue:**
+mood.inl is the largest unconverted module with the deepest spine
+entanglement (transition machine, portal force-spawn, apply_mood fan-out,
+its own internal private palettes); its conversion shape (one module vs
+transition-machine split; what K4's request channel changes) wants a
+ruling before the rung is cut.
 
 ## L-NEXT-NEXT (preview only — no action; design ruling for Jean's queue)
 
