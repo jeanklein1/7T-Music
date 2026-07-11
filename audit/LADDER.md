@@ -169,7 +169,39 @@ world.wgsl is untouchable (scope guard / R5); the module notes update as
 each converts. entity_pipeline.inl's and spawn_engine.inl's notes were
 updated in c3 (they named the retired mechanism / converted deps directly).
 
-## L-NEXT (preview only — no action; design ruling for Jean's queue)
+## LADDER-2 — L-NEXT (in progress)
+
+Stacks on LADDER-1. Two of Jean's rulings shaped it:
+1. **M-c** (per-species floater ownership) — the state splits to owners, the
+   types stay shared vocabulary, "floater" gets no CPU module.
+2. **Conversion model** for stateful modules whose laws dereference the
+   complete Cartridge → **header/impl split**: the header (state struct +
+   configs + declarations) sits above the class so the instance member
+   works; the definitions sit in a `.inl` included AFTER the class, in a new
+   `MODULE IMPLEMENTATIONS (post-class)` zone, where the keyhole is complete.
+   Still one TU. A stateful module's `.inl` is REPURPOSED as that impl, not
+   deleted (unlike LADDER-1's pure-header leaves).
+
+A prereq was also required and ruled: **MOOD_COUNT graduated to file scope**
+(mood_constants.hpp) — the config-bearing modules size per-mood tables by it
+and a file-scope header can't see an in-class constant.
+
+| stage | module | status | notes |
+|---|---|---|---|
+| prereq | MOOD_COUNT | ✅ LANDED | graduated to mood_constants.hpp (ab8e79c) |
+| c0 | **M-c floater split** | ✅ LANDED | spheres.hpp (SphereState, born converted) + cube→CubeBehaviorsState + floater_vocabulary.hpp (types); owner clears; §5 slivers (d56347d) |
+| c2 | **pawn** | ✅ LANDED | header/impl split — pattern established + isolation-validated (compiles/links/runs) (86190b5) |
+| c1 | entities | ⏳ queued | highest risk: EntitiesState + configs to header; D3 signature retrofit; impl post-class (758 lines) |
+| c3 | orbs | ⏳ queued | OrbsState + ORB_MOOD_TABLE; (os,c,…) sigs; impl post-class; don't touch ORB-1 anchor semantics (1040 lines) |
+| c4 | floater_vocabulary | ⏳ queued | configs/tables join floater_vocabulary.hpp; delete the .inl |
+
+pawn was landed before entities to prove the new header/impl pattern on the
+cleanest module before the large retrofit. c1/c3/c4 reuse the validated
+pattern. Recommended: a rig build-check of the header/impl split (pawn is
+the smallest surface) before the large conversions — the cautious path the
+handoff offered.
+
+## L-NEXT-NEXT (preview only — no action; design ruling for Jean's queue)
 
 The leaves done, L-next continues the ladder. **`floater_vocabulary`
 carries the M-c precondition**: the live floater state needs an OWNER
