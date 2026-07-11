@@ -3459,6 +3459,10 @@ namespace t7 {
                     }
                 }
                 upload_portal_array(queue);
+                // ROSTER sun rider: upload_lights is UNGATED — the sun rides
+                // this upload, and the sun is foundational, not a piece. The
+                // gateable lights (spot_lights) are gated upstream at their
+                // apply_mood configure; the buffer upload itself always runs.
                 upload_lights(queue);
 
                 // Re-sync the pawn mount to THIS frame. ribbon_advance_head (in the
