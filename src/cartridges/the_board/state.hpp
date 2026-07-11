@@ -51,6 +51,7 @@
 //
 
 #include "analysis/analysis_signal.hpp"
+#include "cartridges/the_board/roster.hpp"  // ROSTER-1b 3a: second consumer (GPUState::init gates creation)
 #include <webgpu/webgpu_cpp.h>
 #include <cstring>
 #include <array>
