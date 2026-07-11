@@ -108,6 +108,7 @@
 #include "cartridges/the_board/modules/cube_behaviors.hpp"       // LADDER-3 c3: cube behavior registry + CubeBehaviorsState + decls (impl is cube_behaviors.inl, post-class)
 #include "cartridges/the_board/modules/gallery.hpp"              // LADDER-3 c4: shot vocabulary + console + payloads + GalleryState + decls (impl is gallery.inl, post-class)
 #include "cartridges/the_board/modules/ribbon.hpp"               // LADDER-3 c5: ribbon console + color vocabulary + tiers + payloads + RibbonState + decls (impl is ribbon.inl, post-class; pairing suspension named in its banner)
+#include "cartridges/the_board/modules/input.hpp"                // LADDER-3 c6 + G2: InputState/KeyState/MouseState + decls (impl is input.inl, post-class; carries its own GLFW include)
 #include "cartridges/the_board/renderer.hpp"
 #include "coupling/visual_canvas.hpp"
 #include <cmath>
@@ -215,27 +216,15 @@ namespace t7 {
             //     body); relocated here in LADDER-3 c5.
             RibbonState ribbon_state_;
 
-            struct InputState {
-                float move_x = 0.0f;
-                float move_z = 0.0f;
-                float look_az_delta = 0.0f;
-                float look_el_delta = 0.0f;
-                float zoom_delta = 0.0f;
-                float pan_x_delta = 0.0f;
-                float pan_y_delta = 0.0f;
-            } inputState_;
-
-            struct KeyState {
-                bool forward = false;
-                bool backward = false;
-                bool left = false;
-                bool right = false;
-            } keys_;
-
-            struct MouseState {
-                bool left_dragging = false;
-                bool right_dragging = false;
-            } mouse_;
+            //   inputState_ / keys_ / mouse_ — InputState / KeyState /
+            //     MouseState (input.hpp, G2): per-frame intent + deltas,
+            //     held movement keys, mouse drag state. Were in-class
+            //     struct defs here; the TYPES graduated to input.hpp in
+            //     LADDER-3 c6 (file-scope declarations need them), the
+            //     instances stay at this root.
+            InputState inputState_;
+            KeyState keys_;
+            MouseState mouse_;
 
             // ═══ TIME STATE (Scope B migration #11) ═════════════════════
             // Per-frame clock state used everywhere. beats/seconds advance
@@ -3297,7 +3286,7 @@ namespace t7 {
 
                 // --- Clear deltas for next frame ------------------------------------
                 update_photographer(gallery_state_, this, queue);
-                clear_input_deltas();
+                clear_input_deltas(this);
             }
 
             // ORDER (STREAMING PATCH MODE):
@@ -4212,27 +4201,37 @@ namespace t7 {
             void on_input(const InputEvent& event) override {
                 switch (event.type) {
                 case InputEvent::Type::KeyDown:
-                    on_key_down(event.key);
+                    on_key_down(this, event.key);
                     break;
                 case InputEvent::Type::KeyUp:
-                    on_key_up(event.key);
+                    on_key_up(this, event.key);
                     break;
                 case InputEvent::Type::MouseMove:
-                    on_mouse_move(event.x, event.y);
+                    on_mouse_move(this, event.x, event.y);
                     break;
                 case InputEvent::Type::MouseButton:
-                    on_mouse_button(event.button, event.pressed);
+                    on_mouse_button(this, event.button, event.pressed);
                     break;
                 case InputEvent::Type::Scroll:
-                    on_scroll(event.y);
+                    on_scroll(this, event.y);
                     break;
                 }
             }
 
         private:
 
-            // ── Input Handling (modules/input.inl) ──
-#include "modules/input.inl"
+            // ── Input Handling — CONVERTED (LADDER-3 c6, header/impl split + G2) ──
+            // InputState/KeyState/MouseState (graduated from this class
+            // body — G2) + the ten declarations are in input.hpp (file
+            // scope, above the class); the definitions (the ~41-read
+            // keyhole retrofit — bodies otherwise verbatim) are in
+            // input.inl, included at FILE SCOPE in the post-class MODULE
+            // IMPLEMENTATIONS zone, carrying its own <GLFW/glfw3.h>
+            // include (the unpapered dependency). The instances
+            // (inputState_ / keys_ / mouse_) are declared at the
+            // COMPOSITION ROOT. The key-binding registry travels in the
+            // impl; mood transitions stay member calls (K4's territory).
+            // See §1.
 
         public:
 
@@ -4286,3 +4285,4 @@ namespace t7 {
 #include "modules/cube_behaviors.inl"  // LADDER-3 c3 — cube registry upload + corral/kite/coordination + clear
 #include "modules/gallery.inl"    // LADDER-3 c4 — photographer + gallery sites + authored loading + wall paintings
 #include "modules/ribbon.inl"     // LADDER-3 c5 — author seats + head laws + frame conductor + three-phase lifecycle
+#include "modules/input.inl"      // LADDER-3 c6 — key/mouse dispatch + movement intent + camera commands (own GLFW include)
