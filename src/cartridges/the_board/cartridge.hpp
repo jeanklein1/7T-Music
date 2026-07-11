@@ -95,6 +95,7 @@
 #include "cartridges/the_board/roster.hpp"
 #include "cartridges/the_board/modules/seed_utils.hpp"           // LADDER-1 c1: converted leaf (was a class-body include)
 #include "cartridges/the_board/modules/ground_architecture.hpp"  // LADDER-1 c2: converted leaf (was a class-body include)
+#include "cartridges/the_board/modules/entity_types.hpp"         // LADDER-1 c3: converted leaf (was a mid-file include in spawn_engine)
 #include "cartridges/the_board/state.hpp"
 #include "cartridges/the_board/renderer.hpp"
 #include "coupling/visual_canvas.hpp"

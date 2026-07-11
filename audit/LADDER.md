@@ -35,7 +35,7 @@ unused-symbol census as STATUS tags + a ledger line.
 |---|---|---|---|
 | c1 | **seed_utils** | ✅ LANDED | the self-nominated easiest leaf; the §1 amendment rides this commit |
 | c2 | **ground_architecture** | ✅ LANDED | tables + asserts move whole; IIFE static_assert idiom UNTOUCHED (restyle is a named later stage) |
-| c3 | entity_types | ⏳ pending | + spawn_engine mid-file include removal + `SEAM[spawn_engine:structural]` retirement |
+| c3 | **entity_types** | ✅ LANDED | + spawn_engine mid-file include removal + `SEAM[spawn_engine:structural]` retirement |
 
 Jean builds ONCE after c3 (L0 LADDER GOLDEN certifies all three at once;
 bisection exists if it ever fails).
@@ -85,6 +85,40 @@ bisection exists if it ever fails).
   by the GPU mirror; that IS their contract (the banner states "no runtime
   symbols exported"). Not unused — validated-and-mirrored. Zero STATUS
   tags needed.
+
+### c3 — entity_types (LANDED)
+
+- `modules/entity_types.hpp` created — pipeline-contract constants
+  (`MAX_ENTITY_PARAMS`/`MAX_COLOR_CHANNELS` static constexpr → inline
+  constexpr), `enum class ParamDist`, and the structs (`TierParamDef`,
+  `TierMuSigma`, `TierProfile`, `ColorPartDef`, `EntityFamilyTraits`,
+  `SpawnGateOutput`, `EntityInstance`, `EntityFamilyAdapter`). Namespace
+  `t7::the_board`. Self-contained: dep `<cstdint>` plus **forward
+  declarations** of `Cartridge` (adapter fn-ptrs take `Cartridge*`) and
+  `wgpu::Queue` (taken by reference in two fn-ptrs) — both used only as
+  pointer/reference in typedefs, so forward decls suffice and make every
+  dependency explicit at the boundary (§1). Standalone compile probe:
+  PASS (no wgpu build artifact needed).
+- **THE STRUCTURAL SEAM RETIREMENT** (R3): the mid-file
+  `#include` of entity_types in `spawn_engine.inl` is deleted;
+  `SEAM[spawn_engine:structural]` is retired in place (all 4 mentions now
+  read the retirement) — entity_types precedes the `EntityQueueEntry`
+  union by construction at file scope, so the union-member-ordering
+  constraint is satisfied without the mid-file include. The "keep one
+  file" ruling is honored (spawn_engine was never split). entity_types'
+  banner drops the mid-file caveat.
+- Call-site census: 0 qualified forms; state.hpp/renderer.hpp don't use
+  the types (cohort order-free). R5: no GPU twin (types are CPU-only;
+  world.wgsl mirrors are per-struct byte contracts noted at those
+  structs, unchanged). Stale union-ordering + dependency comments in
+  `entity_pipeline.inl` updated same-commit (they named the retired
+  mechanism / the converted deps).
+- R7: zero remaining `entity_types.inl` path references in the_board
+  (grep-clean). Unused-symbol census: none — every type has a live
+  consumer in entity_pipeline.inl / spawn_engine.inl.
+
+**THE THREE LEAVES ARE CONVERTED.** L0 (Jean, one build) certifies all
+three at once.
 
 ## L-NEXT (preview only — no action; design ruling for Jean's queue)
 

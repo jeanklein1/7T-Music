@@ -1,4 +1,5 @@
-// ─── entity_types.inl ────────────────────────────────────────────
+#pragma once
+// ─── entity_types.hpp ────────────────────────────────────────────
 //
 // Type definitions for the generic entity pipeline. Header-style
 // file: pure declarations, no functions, no class-body coupling
@@ -24,16 +25,22 @@
 // │                                                                  │
 // └──────────────────────────────────────────────────────────────────┘
 //
-// Included inside the Cartridge class body, mid-block from
-// spawn_engine.inl (see SEAM[spawn_engine:structural] for the C++
-// union-member-ordering reason). Do not move this include site
-// without resolving the union ordering constraint.
+// A REAL HEADER at file scope (LADDER-1 c3) — no longer included inside
+// the Cartridge class body mid-block from spawn_engine.inl. Included above
+// the class with roster.hpp's cohort, it now PRECEDES the EntityQueueEntry
+// union in spawn_engine.inl by construction, so the former structural
+// mid-file include is retired (SEAM[spawn_engine:structural]). Namespace
+// t7::the_board (the cartridge's own). Depends on: <cstdint>; a forward
+// declaration of Cartridge (adapter fn-ptrs take Cartridge* — a pointer,
+// incomplete is fine) and of wgpu::Queue (taken by reference in two
+// adapter fn-ptrs) make every dependency explicit at the boundary.
 //
 // SEAM[entity_types:P9] this file is the canonical home of pattern
-//   P9 (type definitions extracted to header-style file). Pure
-//   declarations; the implementations they describe live in
-//   entity_pipeline.inl (generic functions, family data, adapters,
-//   dispatch wrappers). Same family as seed_utils.inl (P9 instance
+//   P9 (type definitions extracted to header-style file), its
+//   header-style nature now REALIZED as a real file-scope header
+//   (LADDER-1 c3). Pure declarations; the implementations they describe
+//   live in entity_pipeline.inl (generic functions, family data, adapters,
+//   dispatch wrappers). Same family as seed_utils (P9 instance
 //   for hashing primitives).
 // DONE[entity_types:K1] tier sampling profile + extras moved off
 //   EntityFamilyTraits and into per-family TierRow structs in
@@ -42,6 +49,14 @@
 //   is the convention.
 // ─────────────────────────────────────────────────────────────────
 
+#include <cstdint>
+
+namespace wgpu { class Queue; }  // fwd — adapter fn-ptrs take wgpu::Queue& (reference; forward decl suffices)
+
+namespace t7 {
+namespace the_board {
+
+class Cartridge;  // fwd — adapter fn-ptrs take Cartridge* (pointer; incomplete OK)
 
 // ═══ PIPELINE CONTRACTS ══════════════════════════════════════════
 //
@@ -50,8 +65,8 @@
 // interface — touch only with intent.
 
 // ── Array bounds ─────────────────────────────────────────────────
-static constexpr uint32_t MAX_ENTITY_PARAMS = 32;
-static constexpr uint32_t MAX_COLOR_CHANNELS = 12;
+inline constexpr uint32_t MAX_ENTITY_PARAMS = 32;
+inline constexpr uint32_t MAX_COLOR_CHANNELS = 12;
 
 // ── Sampling distributions ───────────────────────────────────────
 // Determines how a TierParamDef's `prop` is rolled. GAUSSIAN draws
@@ -197,4 +212,7 @@ struct EntityFamilyAdapter {
     const TierProfile& (*get_tier_profile)(uint32_t tier_idx);
 };
 
-// ═══ END entity_types.inl ════════════════════════════════════════
+} // namespace the_board
+} // namespace t7
+
+// ═══ END entity_types.hpp ════════════════════════════════════════

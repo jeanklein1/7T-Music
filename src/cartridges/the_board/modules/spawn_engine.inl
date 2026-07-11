@@ -51,20 +51,23 @@
 // │                                                                  │
 // └──────────────────────────────────────────────────────────────────┘
 //
-// Included inside the Cartridge class body.
-// Depends on: entities.inl, terrain_cpu.inl, seed_utils.inl;
-//             entity_types.inl is included MID-FILE — see
-//             SEAM[spawn_engine:structural] below.
+// Included inside the Cartridge class body (an UNCONVERTED module under
+// the §1 transitional regime).
+// Depends on: entities.inl, terrain_cpu.inl, seed_utils (file-scope
+//             header); entity_types (file-scope header, precedes the class).
 //
 // SEAM[spawn_engine:P11] home of pattern P11 (templated active-array
 //   helper) — run_spawn_preamble<ActiveT> is the canonical instance.
 //   One implementation, ten callers. Same family as P10's per-family
 //   vocabulary block at the algorithm level.
-// SEAM[spawn_engine:structural] mid-file `#include "modules/entity_types.inl"`
-//   is load-bearing: EntityQueueEntry has a union member of type
-//   EntityInstance, and C++ requires the union member's type to be
-//   defined before the union itself. Keep one file with the include
-//   rather than splitting into pre/post files; tag-only awareness.
+// SEAM[spawn_engine:structural] RETIRED (LADDER-1 c3). The former mid-file
+//   include of entity_types was load-bearing: EntityQueueEntry
+//   has a union member of type EntityInstance, and C++ requires the union
+//   member's type to be defined before the union itself. entity_types is now
+//   a file-scope header (entity_types.hpp) included above the class, so
+//   EntityInstance precedes EntityQueueEntry by construction — the mid-file
+//   include is gone. The "keep one file" ruling is honored: spawn_engine was
+//   never split into pre/post files.
 // SEAM[spawn_engine:L1] latent diagnostic — DIAG_ENTITY_LIFECYCLE is
 //   compile-time guarded (#define commented out below). Same family
 //   as the [DIAG:*] stdout pattern noted across the codebase.
@@ -905,10 +908,11 @@ static float solve_catenary_a(float half_span, float target_h) {
 // count, wave parameters). These structs are the type-tagged
 // payloads in EntityQueueEntry / PlacementEntry below.
 //
-// The structural mid-file include of entity_types.inl lands here
-// because EntityQueueEntry has a union member of type
-// EntityInstance (defined in entity_types.inl), and C++ requires
-// the union member's type to be defined before the union itself.
+// EntityQueueEntry (below) has a union member of type EntityInstance,
+// and C++ requires the union member's type to be defined before the
+// union itself. EntityInstance now comes from the file-scope header
+// entity_types.hpp (included above the class), so it is already defined
+// here — the former structural mid-file include is retired.
 // See SEAM[spawn_engine:structural] in the file header.
 
 // ─── GoL Zone Selection / Placement ──────────────────────────────
@@ -1014,8 +1018,10 @@ struct RibbonPlacement {
     uint32_t seed = 0u;   // spawn seed, carried so commit samples its channels
 };
 
-// Mid-file include — see SEAM[spawn_engine:structural] above.
-#include "modules/entity_types.inl"
+// (The structural mid-file include of entity_types is RETIRED — LADDER-1 c3.
+//  EntityInstance now comes from the file-scope header entity_types.hpp,
+//  included above the class, so it precedes the EntityQueueEntry union by
+//  construction. See SEAM[spawn_engine:structural] in the file header.)
 
 // ═══ ENTITY DISPATCH PIPELINE ════════════════════════════════════
 //

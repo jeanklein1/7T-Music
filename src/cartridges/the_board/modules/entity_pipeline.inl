@@ -10,8 +10,9 @@
 //
 // Each family contributes a block with the same 10-element template
 // (see "Family block template" below). Type definitions live in
-// entity_types.inl, which is included before the union in
-// spawn_engine.inl. This file is included AFTER the unions.
+// entity_types.hpp, a file-scope header included above the class (so it
+// precedes every union by construction — LADDER-1 c3 retired the former
+// mid-file include). This file is included AFTER the unions.
 //
 // ┌─── Public surface ──────────────────────────────────────────────┐
 // │                                                                  │
@@ -68,7 +69,7 @@
 //
 // Included inside the Cartridge class body, AFTER the EntityQueueEntry
 // and PlacementEntry unions are declared in spawn_engine.inl.
-// Depends on: entity_types.inl (declarations), seed_utils.inl
+// Depends on: entity_types.hpp (declarations), seed_utils.hpp
 //             (cpu_hash_f, cpu_sample_gaussian, select_tier),
 //             entities.inl (vocabulary: tier enums, prop registries,
 //             color palettes, configs).

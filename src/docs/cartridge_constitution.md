@@ -146,8 +146,8 @@ cartridge unless stated.
   superseded by the composition law under a two-regime transitional
   clause (a CONVERTED file-scope header vs an UNCONVERTED class-body
   include coexist lawfully). Converted leaves so far: seed_utils,
-  ground_architecture (LADDER-1 c1–c2). The remaining modules stay
-  class-body includes under
+  ground_architecture, entity_types (LADDER-1 c1–c3 — the three leaves).
+  The remaining modules stay class-body includes under
   the prior law until their stage. This transitional entry dies when the
   last module converts and §1's transitional clause is struck. Ladder
   record: audit/LADDER.md.
