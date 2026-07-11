@@ -2878,6 +2878,36 @@ namespace t7 {
                 std::cout << "[Cartridge] Total init:       "
                     << std::chrono::duration_cast<std::chrono::milliseconds>(t3 - t0).count() << " ms\n";
 
+                // ROSTER boot summary (ROSTER-1b 3g): one line when any piece
+                // is disabled — which pieces are off, and which of them
+                // actually skipped GPU creation (only SEPARABLE pieces do;
+                // SH·* pieces stay created-pristine per the R' cost table).
+                // The whole block is `if constexpr`-discarded when all-enabled,
+                // so the golden gate's binary AND stdout stay byte-identical.
+                if constexpr (!ROSTER.all_enabled()) {
+                    std::string off;
+                    auto mark = [&](bool enabled, const char* name) {
+                        if (!enabled) { if (!off.empty()) off += ", "; off += name; }
+                    };
+                    mark(ROSTER.pyramid, "pyramid");     mark(ROSTER.arch, "arch");
+                    mark(ROSTER.column, "column");       mark(ROSTER.antenna, "antenna");
+                    mark(ROSTER.palm, "palm");           mark(ROSTER.cactus, "cactus");
+                    mark(ROSTER.blade, "blade");         mark(ROSTER.sphere, "sphere");
+                    mark(ROSTER.ribbon, "ribbon");       mark(ROSTER.cube, "cube");
+                    mark(ROSTER.gol, "gol");             mark(ROSTER.gallery, "gallery");
+                    mark(ROSTER.pawn_aura, "pawn_aura"); mark(ROSTER.orbs, "orbs");
+                    mark(ROSTER.spot_lights, "spot_lights");
+                    mark(ROSTER.indoor_shell, "indoor_shell");
+                    mark(ROSTER.portal, "portal");       mark(ROSTER.transitions, "transitions");
+                    mark(ROSTER.wanderers, "wanderers");
+                    // Only indoor_shell (SEP) skips creation in v0.
+                    const char* skipped = ROSTER.indoor_shell
+                        ? "(none — every disabled piece is SH-shared, created-pristine)"
+                        : "indoor_shell (shell VB/IB + shell/shadow pipelines)";
+                    std::cout << "[ROSTER] pieces disabled: " << off
+                        << " | creations skipped: " << skipped << "\n";
+                }
+
                 return true;
             }
 

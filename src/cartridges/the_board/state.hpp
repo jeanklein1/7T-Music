@@ -2885,6 +2885,7 @@ namespace t7 {
                 floatingEntityBuffer_ = makeBuffer("Floating Entity Array",
                     Dim::TOTAL_FLOATING_SLOTS * sizeof(GPUFloatingEntityState),
                     SU | wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopySrc);
+                // LATENT[gate-a-shared] ribbon (SH·mb): ribbonRing pipeline + readback staging droppable, but ribbonBuffer_/ringTransformsBuffer_ are exclusive-in-Render-Entity + Photographer. Retire = re-section those groups. See ROSTER_GATE_A.
                 ribbonBuffer_ = makeBuffer("Ribbon State", sizeof(GPURibbonState), SU | wgpu::BufferUsage::Uniform);
                 ringTransformsBuffer_ = makeBuffer("Ring Transforms",
                     sizeof(GPURibbonRingTransform) * Dim::RIBBON_MAX_RINGS,
@@ -2898,6 +2899,7 @@ namespace t7 {
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
                 directionalLightBuffer_ = makeBuffer("Directional Light", sizeof(GPUDirectionalLight), SU);
                 pointLightsBuffer_ = makeBuffer("Point Lights", sizeof(GPUPointLightArray), SU);
+                // LATENT[gate-a-shared] spot_lights (SH·mb): spotVPStagingBuffer_ + spotShadowMapTexture_ (atlas) partly dedicated, but spotLightArrayBuffer_ is exclusive-in-Render-Entity + Photographer and the atlas is bound in Shadow Texture. Retire = re-section those groups. See ROSTER_GATE_A.
                 spotLightArrayBuffer_ = makeBuffer("Spot Light Array", sizeof(GPUSpotLightArray), SU);
                 spotVPStagingBuffer_ = makeBuffer("Spot VP Staging",
                     MAX_SPOT_LIGHTS * 64,
@@ -2952,6 +2954,7 @@ namespace t7 {
                 photographerConfigBuffer_ = makeBuffer("Photographer Config",
                     sizeof(GPUPhotographerConfig),
                     wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);
+                // LATENT[gate-a-shared] gallery (SH·mb): gallery/wall-painting/photographer pipelines + offscreen textures + gallery groups droppable (photographer rides gallery's bit — LATENT[roster-split:photographer]), but paintingSlotsBuffer_ is exclusive-in-Compute-Entity + Entity-Placement. Retire = re-section those groups. See ROSTER_GATE_A.
                 paintingSlotsBuffer_ = makeBuffer("Painting Slots",
                     sizeof(GPUPaintingSlot) * Dim::PAINTING_MAX_SLOTS,
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
@@ -3047,6 +3050,7 @@ namespace t7 {
             // (createCellMeshBuffers removed — legacy cell mesh gen)
 
             bool createSphereMesh() {
+                // LATENT[gate-a-shared] sphere (SH·dc): VB/IB exclusive+droppable, but co-owns floatingEntityBuffer_ (sphere+cube) and draw_sphere isn't self-count-gated. Retire = draw self-gate, then skip. See ROSTER_GATE_A.
                 std::vector<MeshVertex> v;
                 std::vector<uint32_t> idx;
                 const int ST = Dim::SPHERE_STACKS, SL = Dim::SPHERE_SLICES;
@@ -3076,6 +3080,7 @@ namespace t7 {
 
 
             bool createMonolithMesh() {
+                // LATENT[gate-a-shared] cube (SH·dc): monolith VB/IB exclusive+droppable, but co-owns floatingEntityBuffer_ (sphere+cube) and draw_monolith isn't self-count-gated. Retire = draw self-gate, then skip. See ROSTER_GATE_A.
                 // Imperfect unit cube: 6 faces, slightly jittered corners.
                 // Same MeshVertex format as sphere (pos + normal).
                 // Face index derived from normal direction in VS.
@@ -3152,6 +3157,7 @@ namespace t7 {
             }
 
             bool createArchMesh() {
+                // LATENT[gate-a-shared] arch (SH·mb): mesh VB/IB/params + 3 pipelines droppable, but archGroundBuffer_ is exclusive-in-Entity-Placement. Retire = re-section Entity Placement. See ROSTER_GATE_A.
                 // VB: Vertex + CopyDst (transition fallback) + Storage (GPU compute writes)
                 archVertexBuffer_ = makeBuffer("Arch VB (GPU mesh gen)",
                     Dim::AMG_TOTAL_VERTICES * sizeof(ArchVertex),
@@ -3196,6 +3202,7 @@ namespace t7 {
             }
 
             bool createColumnMesh() {
+                // LATENT[gate-a-shared] column (SH·mb): mesh VB/IB/params + 3 pipelines droppable (antenna rides this mesh — NO-RES), but columnGroundBuffer_ is exclusive-in-Entity-Placement. Retire = re-section Entity Placement. See ROSTER_GATE_A.
                 columnVertexBuffer_ = makeBuffer("Column VB (GPU mesh gen)",
                     Dim::CMG_TOTAL_VERTICES * sizeof(ArchVertex),
                     wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Storage);
@@ -3234,6 +3241,7 @@ namespace t7 {
             }
 
             bool createPalmMesh() {
+                // LATENT[gate-a-shared] palm (SH·dc): VB/IB/params exclusive+droppable, but co-owns plantComputeGroundBuffer_ (palm+cactus+blade) and draw_palm isn't self-count-gated. Retire = draw self-gate, then skip. See ROSTER_GATE_A.
                 palmVertexBuffer_ = makeBuffer("Palm VB (GPU mesh gen)",
                     Dim::PALMG_TOTAL_VERTICES * sizeof(ArchVertex),
                     wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Storage);
@@ -3261,6 +3269,7 @@ namespace t7 {
             }
 
             bool createCactusMesh() {
+                // LATENT[gate-a-shared] cactus (SH·dc): VB/IB/params exclusive+droppable, but co-owns plantComputeGroundBuffer_ (palm+cactus+blade) and draw_cactus isn't self-count-gated. Retire = draw self-gate, then skip. See ROSTER_GATE_A.
                 cactusVertexBuffer_ = makeBuffer("Cactus VB (GPU mesh gen)",
                     Dim::CACTUSG_TOTAL_VERTICES * sizeof(ArchVertex),
                     wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Storage);
@@ -3286,6 +3295,7 @@ namespace t7 {
             }
 
             bool createBladeMesh() {
+                // LATENT[gate-a-shared] blade (SH·dc): VB/IB/params exclusive+droppable, but co-owns plantComputeGroundBuffer_ (palm+cactus+blade, allocated below) and draw_blade isn't self-count-gated. Retire = draw self-gate, then skip. See ROSTER_GATE_A.
                 bladeVertexBuffer_ = makeBuffer("Blade VB (GPU mesh gen)",
                     Dim::BLADEG_TOTAL_VERTICES * sizeof(ArchVertex),
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst);
@@ -3320,6 +3330,7 @@ namespace t7 {
             }
 
             bool createPyramidMesh() {
+                // LATENT[gate-a-shared] pyramid (SH·mb): mesh VB/IB/params + 3 pipelines droppable, but pyramidInstancesBuffer_ (Compute Entity) + pyramidGroundBuffer_ (Entity Placement) are exclusive-in-megabind. Retire = re-section both groups. See ROSTER_GATE_A.
                 // VB: Vertex + CopyDst (transition fallback) + Storage (GPU compute writes)
                 pyramidVertexBuffer_ = makeBuffer("Pyramid VB (GPU mesh gen)",
                     Dim::PMG_TOTAL_VERTICES * sizeof(ArchVertex),
@@ -3370,6 +3381,15 @@ namespace t7 {
             }
 
             bool createShellMesh() {
+                // ROSTER-GATE indoor_shell (a) — SEPARABLE: skip shell VB/IB
+                // creation when disabled (zero GPU allocation, Rider A). The
+                // shell is drawn only via draw_shell / draw_shadow_shell, both
+                // of which early-return on shell_index_count==0; the count
+                // stays 0 because apply_mood_indoor_shell is (b)-gated, so the
+                // null buffers are never bound. The one SEPARABLE piece this
+                // arc (ROSTER_GATE_A cost table); everything else is SH·* and
+                // stays created-pristine.
+                if constexpr (!ROSTER.indoor_shell) return true;
                 shellVertexBuffer_ = makeBuffer("Shell VB",
                     Dim::SHELL_MAX_VERTICES * sizeof(ShellVertex),
                     wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst);
@@ -3385,6 +3405,8 @@ namespace t7 {
             }
 
             bool createGoLZoneBuffers() {
+                // LATENT[gate-a-shared] gol (SH·mb): zone-mesh buffers + zoneLifeTexture_ + GoL Zone group + 5 gol pipelines droppable, but zoneConfigBuffer_/zoneLifeBuffer_ are exclusive-in-Compute-Entity + Entity-Placement. Retire = re-section both groups. (Residue recipe stays the Phase-I pristine form — gol is SH, not SEP.) See ROSTER_GATE_A.
+                // NOTE: this function also creates the pawn-aura and orb buffers below (each its own LATENT tag).
                 zoneConfigBuffer_ = makeBuffer("GoL Zone Config",
                     sizeof(GPUGoLZoneArray),
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
@@ -3450,6 +3472,7 @@ namespace t7 {
                     << Dim::ZONE_MESH_MAX_INDICES << " index capacity\n";
 
                 // Pawn aura buffers
+                // LATENT[gate-a-shared] pawn_aura (SH·mb): config/cells buffers + Pawn Aura group + pawnAura pipeline droppable, but pawnAuraTexture_ (created in createTextures) is sampled by the terrain FS → bound in Render Texture + Compute Texture groups. Retire = re-section those two groups. See ROSTER_GATE_A.
                 pawnAuraConfigBuffer_ = makeBuffer("Pawn Aura Config",
                     sizeof(GPUPawnAuraConfig),
                     wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);
@@ -3471,6 +3494,7 @@ namespace t7 {
                 }
 
                 // Orb sky layer buffers
+                // LATENT[gate-a-shared] orbs (SH·mb): orbStatePrev + quad VB/IB + Orb Compute/Copy groups + 5 orb pipelines droppable, but orbStateBuffer_/orbConfigBuffer_ are read by the entity render + photographer passes → exclusive-in-Render-Entity + Photographer. Retire = re-section those groups. See ROSTER_GATE_A.
                 orbStateBuffer_ = makeBuffer("Orb State",
                     Dim::MAX_ORBS * sizeof(GPUOrbState),
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);

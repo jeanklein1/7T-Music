@@ -119,6 +119,17 @@ struct Roster {
             default: return true;
         }
     }
+
+    // True iff every piece is enabled (the golden config). Used to make the
+    // boot summary (ROSTER-1b 3g) compile to ZERO code in the all-enabled
+    // build — `if constexpr (!ROSTER.all_enabled())` is discarded whole, so
+    // the golden gate's binary and stdout are byte-identical.
+    constexpr bool all_enabled() const {
+        return pyramid && arch && column && antenna && palm && cactus &&
+               blade && sphere && ribbon && cube && gol && gallery &&
+               pawn_aura && orbs && spot_lights && indoor_shell && portal &&
+               transitions && wanderers;
+    }
 };
 
 // v0: ALL PIECES ENABLED — the golden anchor (G0: all-enabled is

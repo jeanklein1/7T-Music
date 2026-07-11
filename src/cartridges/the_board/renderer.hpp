@@ -2292,10 +2292,16 @@ namespace t7 {
                     desc.depthStencil = &depthStencil;
                     desc.fragment = &fragment;
 
-                    if (!tPipe("shell", [&]() {
-                        shellPipeline_ = device_.CreateRenderPipeline(&desc);
-                        return shellPipeline_ != nullptr;
-                    })) return false;
+                    // ROSTER-GATE indoor_shell (a) — SEPARABLE: skip the shell
+                    // pipeline creation when disabled. draw_shell self-gates on
+                    // shell_index_count==0 (stays 0 — apply_mood_indoor_shell is
+                    // (b)-gated), so the null pipeline is never bound.
+                    if constexpr (ROSTER.indoor_shell) {
+                        if (!tPipe("shell", [&]() {
+                            shellPipeline_ = device_.CreateRenderPipeline(&desc);
+                            return shellPipeline_ != nullptr;
+                        })) return false;
+                    }
                 }
 
                 // Ribbon pipeline -- sky ribbon, GPU-generated cubes from vertex_index
@@ -2784,10 +2790,15 @@ namespace t7 {
                         desc.depthStencil = &shadowDepth;
                         desc.fragment = nullptr;
 
-                        if (!tPipe("shadow_shell", [&]() {
-                            shadowShellPipeline_ = device_.CreateRenderPipeline(&desc);
-                            return shadowShellPipeline_ != nullptr;
-                        })) return false;
+                        // ROSTER-GATE indoor_shell (a) — SEPARABLE: skip the
+                        // shadow-shell pipeline too. draw_shadow_shell self-gates
+                        // on count==0 (shared helper's early-out).
+                        if constexpr (ROSTER.indoor_shell) {
+                            if (!tPipe("shadow_shell", [&]() {
+                                shadowShellPipeline_ = device_.CreateRenderPipeline(&desc);
+                                return shadowShellPipeline_ != nullptr;
+                            })) return false;
+                        }
                     }
 
                     // Shadow Ribbon (no vertex buffer, GPU-generated from vertex_index)
