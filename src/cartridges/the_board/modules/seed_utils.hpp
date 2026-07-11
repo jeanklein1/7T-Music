@@ -1,4 +1,5 @@
-// ─── seed_utils.inl ──────────────────────────────────────────────
+#pragma once
+// ─── seed_utils.hpp ──────────────────────────────────────────────
 //
 // Pure math. Hash, Gaussian, tier selection.
 // No member state. No domain knowledge.
@@ -13,14 +14,16 @@
 //   cpu_sample_gaussian(s, prop, μ, σ)     — Box-Muller, ±3σ truncated
 //   select_tier(seed, prop, weights, n)    — cumulative-weight selection
 //
-// Included inside the Cartridge class body.
-// Depends on: nothing (foundations layer — pure math).
+// A REAL HEADER at file scope (LADDER-1 c1) — no longer included inside
+// the Cartridge class body. Namespace t7::the_board (the cartridge's own).
+// Depends on: nothing but the standard library (foundations layer — pure math).
 //
 // SEAM[seed_utils:P9] textbook "library without state" module — pure
-//   functions, no class members referenced, no domain assumptions.
-//   Easiest module to extract: zero compilation-order constraints,
-//   no semantic change. Same family as coupling/trajectory.hpp and
-//   entity_types.inl as P9 instances.
+//   functions, no class members referenced, no domain assumptions. Named
+//   the easiest module to extract (zero compilation-order constraints, no
+//   semantic change) — and now EXTRACTED (LADDER-1 c1), the ladder's first
+//   leaf. Same family as coupling/trajectory.hpp and entity_types
+//   (P9 instances).
 // SEAM[seed_utils:contract] cpu_lattice_node_seed and cpu_sample_gaussian
 //   are FXC mirrors — must produce identical bit-for-bit results to the
 //   WGSL counterparts (lattice_node_seed, sample_gaussian). The
@@ -28,8 +31,15 @@
 //   state.hpp's GPU struct contract.
 // ─────────────────────────────────────────────────────────────────
 
+#include <cstdint>
+#include <algorithm>  // std::max, std::min
+#include <cmath>      // std::sqrt, std::log, std::cos
+
+namespace t7 {
+namespace the_board {
+
 // Hashing utilities (mirror GPU hash functions for determinism)
-static uint32_t cpu_hash(uint32_t seed, uint32_t property) {
+inline uint32_t cpu_hash(uint32_t seed, uint32_t property) {
     uint32_t h = seed * 747796405u + property * 2891336453u + 1u;
     h = ((h >> 16) ^ h) * 2654435769u;
     h = ((h >> 16) ^ h) * 2654435769u;
@@ -37,11 +47,11 @@ static uint32_t cpu_hash(uint32_t seed, uint32_t property) {
     return h;
 }
 
-static float cpu_hash_f(uint32_t seed, uint32_t property) {
+inline float cpu_hash_f(uint32_t seed, uint32_t property) {
     return (float)cpu_hash(seed, property) / (float)0xFFFFFFFFu;
 }
 
-static uint32_t tile_seed(uint32_t master_seed, int32_t gx, int32_t gz) {
+inline uint32_t tile_seed(uint32_t master_seed, int32_t gx, int32_t gz) {
     uint32_t h = master_seed;
     h ^= (uint32_t)gx * 73856093u;
     h ^= (uint32_t)gz * 19349663u;
@@ -51,7 +61,7 @@ static uint32_t tile_seed(uint32_t master_seed, int32_t gx, int32_t gz) {
 }
 
 // CPU mirror of WGSL lattice_node_seed (must produce identical results)
-static uint32_t cpu_lattice_node_seed(uint32_t master_seed, int32_t nx, int32_t nz, uint32_t band) {
+inline uint32_t cpu_lattice_node_seed(uint32_t master_seed, int32_t nx, int32_t nz, uint32_t band) {
     uint32_t h = master_seed;
     h ^= (uint32_t)nx * 73856093u;
     h ^= (uint32_t)nz * 19349663u;
@@ -61,14 +71,14 @@ static uint32_t cpu_lattice_node_seed(uint32_t master_seed, int32_t nx, int32_t 
     return h;
 }
 
-static float cpu_smoothstep(float e0, float e1, float x) {
+inline float cpu_smoothstep(float e0, float e1, float x) {
     float t = std::max(0.0f, std::min(1.0f, (x - e0) / (e1 - e0)));
     return t * t * (3.0f - 2.0f * t);
 }
 
 // CPU-side Gaussian sampling that mirrors the WGSL sample_gaussian exactly.
 // (seed, property) → Box-Muller → truncated at ±3σ.
-static float cpu_sample_gaussian(uint32_t seed, uint32_t property, float mean, float sigma) {
+inline float cpu_sample_gaussian(uint32_t seed, uint32_t property, float mean, float sigma) {
     float u1 = std::max(cpu_hash_f(seed, property), 1e-6f);
     float u2 = cpu_hash_f(seed, property + 1000u);  // matches GAUSSIAN_PAIR_OFFSET
     float z = std::sqrt(-2.0f * std::log(u1)) * std::cos(2.0f * 3.14159265359f * u2);
@@ -90,7 +100,7 @@ static float cpu_sample_gaussian(uint32_t seed, uint32_t property, float mean, f
 // first index whose cumulative weight exceeds it; count-1 on the
 // float-epsilon miss. Weights are the caller's contract (normalized
 // or authored-to-sum-1); the walk does not normalize.
-static uint32_t select_weighted(float roll, const float* weights,
+inline uint32_t select_weighted(float roll, const float* weights,
                                 uint32_t count) {
     float cumul = 0.0f;
     for (uint32_t t = 0; t < count; t++) {
@@ -100,7 +110,10 @@ static uint32_t select_weighted(float roll, const float* weights,
     return count - 1;
 }
 
-static uint32_t select_tier(uint32_t seed, uint32_t tier_prop,
+inline uint32_t select_tier(uint32_t seed, uint32_t tier_prop,
                             const float* weights, uint32_t count) {
     return select_weighted(cpu_hash_f(seed, tier_prop), weights, count);
 }
+
+} // namespace the_board
+} // namespace t7

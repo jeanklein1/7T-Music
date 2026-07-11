@@ -15,17 +15,31 @@ world.wgsl deltas are byte-identical between cartridges. Nothing musical
 happens in it except through the canvas; nothing entity-shaped lives in
 it except assembly.
 
-## §1 — THE SINGLE-ORGANISM LAW
-Modules are class-body includes; the cartridge is one class whose
-chapters see each other. This is design, not accident: it buys order-free
-wiring (chapters reference chapters without forward ceremony) and
-complete-class visibility (a conductor can be handed the whole organism
-through one pointer). The boundary that keeps it honest: ambient SIGHT is
-free, ambient WRITING is not — cross-cutting writes pass through declared
-seams (the keyhole, the signal, the bank), never through casual reaches.
-A stranger reading this codebase will mistake the single translation unit
-for a hack precisely once: this section exists so the mistake dies on
-first contact.
+## §1 — THE COMPOSITION LAW (amended 2026-07-11; supersedes the
+## single-organism law)
+THE TARGET: modules are real headers that own their state structs
+and laws; the cartridge is the COMPOSITION ROOT — it declares the
+member instances, includes the headers at file scope, calls the
+conductors, and owns assembly, nothing else. Sight is granted by
+explicit parameters (state references, the keyhole pointer,
+declared services) — never by ambient membership. What this section
+once kept honest by discipline (sight free, writing through
+declared seams) the boundary now keeps honest by scope: a converted
+module's every dependency is visible in its includes and its
+signatures.
+THE TRANSITIONAL REGIME: during the header ladder two regimes
+coexist lawfully. A CONVERTED module lives at file scope under the
+target law and sees nothing ambiently. An UNCONVERTED module
+remains a class-body include under the prior law, unchanged. Each
+ladder stage moves exactly ONE module across, behavior-identical,
+golden-gated; the cartridge remains ONE translation unit throughout
+— the change is boundary honesty, not compilation strategy.
+THE MISTAKE CLAUSE (held, doubled): a stranger will mistake the
+single TU for a hack precisely once, and the remaining class-body
+includes for the destination precisely once; this section exists so
+both mistakes die on first contact.
+COMPLETION: when the last module converts, the transitional clause
+is struck and §1 becomes the composition law alone.
 
 ## §2 — CHAPTERS AND RESIDENCY
 The cartridge is organized in banner-titled chapters; a chapter earns a
@@ -128,6 +142,14 @@ cartridge unless stated.
   roster's Rider A while disabled; each dies when its retirement is paid.
   Only indoor_shell (SEPARABLE) skips creation today. Full cost table:
   audit/ROSTER_GATE_A.md.
+- HEADER LADDER (§1 amended 2026-07-11): the single-organism law is
+  superseded by the composition law under a two-regime transitional
+  clause (a CONVERTED file-scope header vs an UNCONVERTED class-body
+  include coexist lawfully). Converted leaves so far: seed_utils
+  (LADDER-1 c1). The remaining modules stay class-body includes under
+  the prior law until their stage. This transitional entry dies when the
+  last module converts and §1's transitional clause is struck. Ladder
+  record: audit/LADDER.md.
 - HISTORICAL NARRATION (33 tags): 'Scope B' / DONE[] archaeology — 22
   primary DONE[] tags + 11 'Scope B migration' banners, cross-references
   excluded. PENDING RULING F3 (strip and keep SEAM[], recommended).

@@ -11,6 +11,12 @@
 // system, and the per-mood authoring tables. Module includes splice
 // in domain-specific work at well-defined points.
 //
+// TWO REGIMES (Constitution §1, amended — the header ladder): CONVERTED
+// modules are real file-scope headers included above the class (the
+// roster.hpp / seed_utils.hpp cohort) and see nothing ambiently;
+// UNCONVERTED modules remain class-body includes under the prior law.
+// Both coexist lawfully until the last module converts. See §1.
+//
 // ┌─── Public surface (RenderCartridge override) ───────────────────┐
 // │                                                                  │
 // │  Lifecycle:                                                      │
@@ -87,6 +93,7 @@
 #include "render/render_cartridge.hpp"
 #include "core/input_event.hpp"
 #include "cartridges/the_board/roster.hpp"
+#include "cartridges/the_board/modules/seed_utils.hpp"  // LADDER-1 c1: converted leaf (was a class-body include)
 #include "cartridges/the_board/state.hpp"
 #include "cartridges/the_board/renderer.hpp"
 #include "coupling/visual_canvas.hpp"
@@ -504,8 +511,11 @@ namespace t7 {
             // step-height checks. No allocator — slot = f(entity_slot).
             GPUPierInstance cpuPiers_[Dim::PIER_TOTAL]{};
 
-            // ── Seed Utilities (modules/seed_utils.inl) ──
-#include "modules/seed_utils.inl"
+            // ── Seed Utilities — CONVERTED (LADDER-1 c1) ──
+            // Now a real file-scope header (modules/seed_utils.hpp), included
+            // above the class with roster.hpp's cohort. Its pure functions
+            // live in namespace t7::the_board; unqualified calls resolve here
+            // unchanged. See §1 (two-regime transitional clause).
 
             // ── Terrain CPU mirror deleted ────────────────────────────────
             // GPU is single source of truth for entity ground_y.
