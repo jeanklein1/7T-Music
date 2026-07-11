@@ -39,6 +39,22 @@
 // `query_ground_<policy>` function in world.wgsl evaluates the
 // policy-selected contributor sum.
 //
+// ── STATUS convention (TER-2 alignment) ─────────────────────────
+//
+// Every policy row and declared capability carries an explicit status
+// marker, so declaration-vs-realization is visible instead of implied:
+//
+//   STATUS: REALIZED      — wired and live (the consumer is cited).
+//   STATUS: LATENT[name]  — capability with a plausible future; kept
+//                           and tagged; revive-or-rewire when this
+//                           region is next worked (the DRIVERLESS
+//                           pattern, generalized).
+//   STATUS: INTENT        — declared, zero realization yet; kept in
+//                           the declaration with the status stated
+//                           (honest futures, not lies).
+//
+// The registry says what is realized rather than shrinking to it.
+//
 // ── What this file declares ─────────────────────────────────────
 //
 //   ContributorId         Stable id per contributor (0..CONTRIB_COUNT).
@@ -69,17 +85,20 @@
 // contain `from`. This prevents policies like "pyramids without
 // terrain_lattice" from compiling.
 //
-// Expressed as a macro expansion (ASSERT_POLICY_DAG_CLOSED) rather
-// than a constexpr validator call because C++ class-body
-// static_asserts cannot invoke member constexpr functions defined in
-// the same class (the enclosing type isn't complete at the point of
-// the static_assert). DAG_EDGE_CLOSED is a pure bit-arithmetic
-// predicate — given the mask and an edge, it checks
-// `(mask has to) ⇒ (mask has from)` as a constant expression.
+// The check ITERATES CONTRIBUTOR_DAG[] itself (over
+// CONTRIBUTOR_DAG_EDGE_COUNT), so the edge table is load-bearing:
+// adding an edge to the table re-validates every policy with no
+// further edits here. It is expressed as an immediately-invoked
+// constexpr lambda inside each static_assert rather than a member
+// constexpr function, because class-body static_asserts cannot call
+// member functions of the still-incomplete enclosing class; a
+// lambda's body is parsed in place and reads only the
+// already-initialized static constexpr tables above it.
 //
 // Every policy runs the check for every DAG edge at compile time;
 // adding a new policy means adding one ASSERT_POLICY_DAG_CLOSED
-// invocation at the bottom of this file.
+// invocation at the bottom of this file. Adding an edge means adding
+// one CONTRIBUTOR_DAG row — the assert iterates the table.
 //
 // Included inside the Cartridge class body.
 // Depends on: nothing (pure enum + table definitions + macro checks).
@@ -104,12 +123,12 @@ enum ContributorId : uint32_t {
     CONTRIB_TILE_MODIFIERS    = 1,   // fused into contrib_static_base_at
     CONTRIB_SOLIDS            = 2,   // piers, ramps; fused into contrib_static_base_at
     CONTRIB_PYRAMIDS          = 3,
-    CONTRIB_PAINTINGS_BASES   = 4,   // placeholder (stub contributor — returns 0.0)
-    CONTRIB_VEGETATION_BASES  = 5,   // placeholder (stub contributor — returns 0.0)
+    CONTRIB_PAINTINGS_BASES   = 4,   // STATUS: INTENT — 0.0 stub (contrib_paintings_base_at); in no policy mask
+    CONTRIB_VEGETATION_BASES  = 5,   // STATUS: INTENT — 0.0 stub (contrib_vegetation_base_at); in no policy mask
     CONTRIB_GOL_ZONES         = 6,   // slow_dynamic
     CONTRIB_TERRAIN_WAVES     = 7,   // deformation_field, global
     CONTRIB_RADIAL_PULSES     = 8,   // deformation_field, global
-    CONTRIB_PAWN_AURA         = 9,   // deformation_field, global pawn-centered
+    CONTRIB_PAWN_AURA         = 9,   // deformation_field, global pawn-centered (two consumer forms: _at_self scalar peak / _at_external grid — see world.wgsl's contributor notes)
     CONTRIB_GOL_SUPPRESSION   = 10,  // deformation_field, consumer-local (subtractive)
     CONTRIB_COUNT             = 11,
 };
@@ -121,10 +140,11 @@ enum PolicyId : uint32_t {
     POLICY_BAKED_HEIGHTFIELD    = 3,
     POLICY_FLYER                = 4,
     POLICY_WALKER               = 5,
-    POLICY_WALKER_TILT          = 6,   // walker minus self-centered fields (aura, suppression)
+    POLICY_WALKER_TILT          = 6,   // walker minus the self aura; carries walker's pawn-centered GoL suppression
     POLICY_WALKER_AGENT         = 7,
     POLICY_CELESTIAL            = 8,
-    POLICY_COUNT                = 9,
+    POLICY_TERRAIN_RENDER       = 9,   // the fused render set: baked + aura + waves + pulses (no GoL)
+    POLICY_COUNT                = 10,
 };
 
 // ═══ DEPENDENCY DAG ══════════════════════════════════════════════
@@ -144,9 +164,14 @@ struct ContributorEdge {
 };
 
 static constexpr ContributorEdge CONTRIBUTOR_DAG[] = {
+    // STATUS: REALIZED — the composition order of every pyramid-bearing
+    // query (contrib_static_base_at + contrib_pyramids_at) and the bake.
     { CONTRIB_TERRAIN_LATTICE,  CONTRIB_PYRAMIDS         },
     { CONTRIB_TILE_MODIFIERS,   CONTRIB_PYRAMIDS         },
     { CONTRIB_SOLIDS,           CONTRIB_PYRAMIDS         },
+    // STATUS: INTENT — endpoints are 0.0 stubs today; real composition
+    // pending paintings/vegetation bases. Kept: closure over them is
+    // well-defined (currently vacuous — no mask includes the stubs).
     { CONTRIB_PYRAMIDS,         CONTRIB_PAINTINGS_BASES  },
     { CONTRIB_SOLIDS,           CONTRIB_PAINTINGS_BASES  },
     { CONTRIB_SOLIDS,           CONTRIB_VEGETATION_BASES },
@@ -176,22 +201,36 @@ static constexpr uint32_t GROUND_STATIC_BASE_MASK =
 static constexpr PolicyDef POLICIES[] = {
     // Placement policies — spawn-time Y correction. No deformation
     // fields (placement should be stable against animated terrain).
+    //
+    // STATUS: LATENT[policy-surface] (all three placement rows) — the
+    // declared placement queries have no live caller; the live Y path is
+    // compute_entity_placement's baked-heightfield hybrid (world.wgsl
+    // §compute_entity_placement). These rows are the future interface's
+    // landing sites — rewiring candidates when placement moves onto the
+    // policy API. NOTE where a declared mask EXCLUDES a contributor the
+    // live baked path includes (pyramid / vegetation exclude
+    // CONTRIB_PYRAMIDS; the bake caches it): the declared-intent
+    // exclusion is a possible future aesthetic ruling (Jean's); changing
+    // behavior is a BEHAVIOR stage, not a truth-fix.
     { POLICY_PLACEMENT_PYRAMID, "placement_pyramid",
-      GROUND_STATIC_BASE_MASK,
+      GROUND_STATIC_BASE_MASK,               // declared intent: "pyramids don't see themselves"; live baked path includes pyramids
       /*gradient=*/false },
 
     { POLICY_PLACEMENT_PAINTING, "placement_painting",
       GROUND_STATIC_BASE_MASK
         | (1u << CONTRIB_PYRAMIDS)
         | (1u << CONTRIB_GOL_ZONES),       // paintings sit on current GoL (preserves pre-refactor behavior)
-      /*gradient=*/false },
+      /*gradient=*/false },                 // realized-of-record: the documented baked+analytic-GoL hybrid matches this set
 
     { POLICY_PLACEMENT_VEGETATION, "placement_vegetation",
-      GROUND_STATIC_BASE_MASK,              // trees don't stand on pyramids
+      GROUND_STATIC_BASE_MASK,              // declared intent: "trees don't stand on pyramids"; live baked path includes pyramids
       /*gradient=*/false },
 
     // Baked heightfield — cached static ground texture consumed by
     // patch VS interpolation and CPU readbacks.
+    // STATUS: REALIZED — fused twin ground_formed_with_complexity feeds
+    // the bake; analytic form is the zone-mesh fallback; texture variant
+    // is sample_terrain_y_at.
     { POLICY_BAKED_HEIGHTFIELD, "baked_heightfield",
       GROUND_STATIC_BASE_MASK
         | (1u << CONTRIB_PYRAMIDS),
@@ -199,6 +238,10 @@ static constexpr PolicyDef POLICIES[] = {
 
     // Fly-over policy — spheres, cubes, cameras. Includes all global
     // deformation fields so flyers ride pulses and auras.
+    // STATUS: REALIZED — camera clamp, sphere orbit clearance, cube
+    // hover + clearance (query_ground_flyer). gradient=true is intent:
+    // query_ground_flyer_gradient exists with zero callers — see its
+    // LATENT[policy-surface] tag.
     { POLICY_FLYER, "flyer",
       GROUND_STATIC_BASE_MASK
         | (1u << CONTRIB_PYRAMIDS)
@@ -206,11 +249,15 @@ static constexpr PolicyDef POLICIES[] = {
         | (1u << CONTRIB_TERRAIN_WAVES)
         | (1u << CONTRIB_RADIAL_PULSES)
         | (1u << CONTRIB_PAWN_AURA),
-      /*gradient=*/true },
+      /*gradient=*/true },                  // (intent; gradient path uncalled — see status)
 
     // Walker — the pawn. Everything flyer includes, plus the
     // consumer-local GoL suppression that flattens the zone under
     // the querying consumer's feet.
+    // STATUS: REALIZED — pawn_ground_resolve via query_ground_walker_pair.
+    // gradient=true is intent: query_ground_walker_gradient and
+    // query_ground_walker_walkable exist with zero callers (the live
+    // tilt path is terrain_normal_at's 3-tap over walker_tilt).
     { POLICY_WALKER, "walker",
       GROUND_STATIC_BASE_MASK
         | (1u << CONTRIB_PYRAMIDS)
@@ -219,23 +266,30 @@ static constexpr PolicyDef POLICIES[] = {
         | (1u << CONTRIB_RADIAL_PULSES)
         | (1u << CONTRIB_PAWN_AURA)
         | (1u << CONTRIB_GOL_SUPPRESSION),
-      /*gradient=*/true },
+      /*gradient=*/true },                  // (intent; gradient path uncalled — see status)
 
-    // Walker-tilt — walker minus self-centered fields (PAWN_AURA and
-    // GOL_SUPPRESSION), used for tilt/normal computation and step-climb
-    // decisions. Including self-centered contributors in the gradient
-    // produces manufactured slopes (the pawn would tilt against its own
-    // aura's radial profile). The pawn still STANDS on full POLICY_WALKER
-    // ground; only the tilt and step decisions read this policy.
+    // Walker-tilt — walker minus the self aura, used for tilt/normal
+    // computation and step-climb decisions. Excludes CONTRIB_PAWN_AURA
+    // (the self form is a zero-gradient scalar; excluded so self-centered
+    // fields never drive tilt). It CARRIES the same pawn-centered GoL
+    // suppression the walker applies (truth-fix TER-2: the mask now
+    // states what the body computes) — the suppression is flat
+    // (supp_factor = 1, zero gradient) within the eps = 0.5 tilt-sample
+    // ring, so no slope is manufactured. The pawn still STANDS on full
+    // POLICY_WALKER ground; only tilt and step decisions read this policy.
+    // STATUS: REALIZED — terrain_normal_at (3-tap) and
+    // query_ground_walker_pair's tilt half.
     { POLICY_WALKER_TILT, "walker_tilt",
       GROUND_STATIC_BASE_MASK
         | (1u << CONTRIB_PYRAMIDS)
         | (1u << CONTRIB_GOL_ZONES)
         | (1u << CONTRIB_TERRAIN_WAVES)
-        | (1u << CONTRIB_RADIAL_PULSES),
+        | (1u << CONTRIB_RADIAL_PULSES)
+        | (1u << CONTRIB_GOL_SUPPRESSION),  // pawn-centered; same suppression walker applies
       /*gradient=*/true },
 
     // Walker-agent — agents feel the full GoL lift (no suppression).
+    // STATUS: REALIZED — agent_post_step ground snap (scalar only).
     { POLICY_WALKER_AGENT, "walker_agent",
       GROUND_STATIC_BASE_MASK
         | (1u << CONTRIB_PYRAMIDS)
@@ -243,12 +297,35 @@ static constexpr PolicyDef POLICIES[] = {
         | (1u << CONTRIB_TERRAIN_WAVES)
         | (1u << CONTRIB_RADIAL_PULSES)
         | (1u << CONTRIB_PAWN_AURA),
-      /*gradient=*/true },
+      /*gradient=*/true },                  // (intent; gradient path unrealized — no gradient fn, no multi-sample consumer)
 
     // Celestial — no ground (sun, stars). Symmetry slot.
+    // STATUS: INTENT — declared, zero realization ("none today");
+    // kept for symmetry.
     { POLICY_CELESTIAL, "celestial",
       0u,
       /*gradient=*/false },
+
+    // Terrain-render — the fused render-side set: the baked heightfield
+    // (static base + pyramids) + pawn aura + terrain waves + radial
+    // pulses. Deliberately NO CONTRIB_GOL_ZONES: the patch heightfield
+    // does not cache GoL; zones render as their own extrusion pass.
+    // This policy has NO query_ground_* function by design — its
+    // realizations are hand-fused for per-vertex cost: patch_terrain_vs
+    // (the full set; gradients realized there via texture .yz + the
+    // analytic wave gradient) and shadow_patch_terrain_vs (baked + waves
+    // subset, documented at its site). The ~15 entity/painting VS sites
+    // that add contrib_terrain_waves_at alone atop the entity ground
+    // atlas are sanctioned single-contributor consumptions of this same
+    // render set.
+    // STATUS: REALIZED (fused-only).
+    { POLICY_TERRAIN_RENDER, "terrain_render",
+      GROUND_STATIC_BASE_MASK
+        | (1u << CONTRIB_PYRAMIDS)
+        | (1u << CONTRIB_TERRAIN_WAVES)
+        | (1u << CONTRIB_RADIAL_PULSES)
+        | (1u << CONTRIB_PAWN_AURA),
+      /*gradient=*/true },                  // realized in the fused VS (texture .yz + analytic wave gradient)
 };
 static constexpr uint32_t POLICY_COUNT_IN_TABLE =
     sizeof(POLICIES) / sizeof(POLICIES[0]);
@@ -259,38 +336,33 @@ static_assert(POLICY_COUNT_IN_TABLE == POLICY_COUNT,
 // ═══ COMPILE-TIME DAG-CLOSURE VALIDATION ═════════════════════════
 //
 // For every contributor in a policy's set, all of its ancestors via
-// CONTRIBUTOR_DAG must also be in the set. Expressed as one
-// static_assert per (policy, edge) pair via the DAG_EDGE_CLOSED macro:
+// CONTRIBUTOR_DAG must also be in the set. The predicate ITERATES the
+// CONTRIBUTOR_DAG[] table (over CONTRIBUTOR_DAG_EDGE_COUNT) — the
+// declared table is load-bearing: adding an edge re-validates every
+// policy with no edits here.
 //
-//   mask has `to` → mask has `from`
-// = !(mask has `to`) || mask has `from`
-//
-// Using a macro avoids calling a member constexpr function from a
-// class-body static_assert (which fails because the enclosing class
-// isn't complete at that point).
+// Shape (TER-2 2d): an immediately-invoked constexpr lambda per
+// static_assert, not a member constexpr function — class-body
+// static_asserts cannot call member functions of the still-incomplete
+// enclosing class, but a lambda's body is parsed in place and reads
+// only the already-initialized static constexpr tables above. INTENT
+// edges (stub endpoints) participate like any other edge: their
+// endpoints exist as ContributorId bits, so closure over them is
+// well-defined (and currently vacuous — no mask includes the stubs).
 
-#define DAG_EDGE_CLOSED(MASK, FROM, TO) \
-    ( (((MASK) >> (TO)) & 1u) == 0u || (((MASK) >> (FROM)) & 1u) != 0u )
-
-#define ASSERT_POLICY_DAG_CLOSED(POLICY_IDX, POLICY_NAME)                                                       \
-    static_assert(DAG_EDGE_CLOSED(POLICIES[POLICY_IDX].contributors,                                            \
-                                  CONTRIB_TERRAIN_LATTICE, CONTRIB_PYRAMIDS),                                   \
-                  POLICY_NAME ": includes PYRAMIDS but not TERRAIN_LATTICE");                                   \
-    static_assert(DAG_EDGE_CLOSED(POLICIES[POLICY_IDX].contributors,                                            \
-                                  CONTRIB_TILE_MODIFIERS, CONTRIB_PYRAMIDS),                                    \
-                  POLICY_NAME ": includes PYRAMIDS but not TILE_MODIFIERS");                                    \
-    static_assert(DAG_EDGE_CLOSED(POLICIES[POLICY_IDX].contributors,                                            \
-                                  CONTRIB_SOLIDS, CONTRIB_PYRAMIDS),                                            \
-                  POLICY_NAME ": includes PYRAMIDS but not SOLIDS");                                            \
-    static_assert(DAG_EDGE_CLOSED(POLICIES[POLICY_IDX].contributors,                                            \
-                                  CONTRIB_PYRAMIDS, CONTRIB_PAINTINGS_BASES),                                   \
-                  POLICY_NAME ": includes PAINTINGS_BASES but not PYRAMIDS");                                   \
-    static_assert(DAG_EDGE_CLOSED(POLICIES[POLICY_IDX].contributors,                                            \
-                                  CONTRIB_SOLIDS, CONTRIB_PAINTINGS_BASES),                                     \
-                  POLICY_NAME ": includes PAINTINGS_BASES but not SOLIDS");                                     \
-    static_assert(DAG_EDGE_CLOSED(POLICIES[POLICY_IDX].contributors,                                            \
-                                  CONTRIB_SOLIDS, CONTRIB_VEGETATION_BASES),                                    \
-                  POLICY_NAME ": includes VEGETATION_BASES but not SOLIDS")
+#define ASSERT_POLICY_DAG_CLOSED(POLICY_IDX, POLICY_NAME)                       \
+    static_assert(                                                              \
+        [] {                                                                    \
+            for (uint32_t e = 0u; e < CONTRIBUTOR_DAG_EDGE_COUNT; e++) {        \
+                const uint32_t mask = POLICIES[POLICY_IDX].contributors;        \
+                const bool has_to   = ((mask >> CONTRIBUTOR_DAG[e].to)   & 1u) != 0u; \
+                const bool has_from = ((mask >> CONTRIBUTOR_DAG[e].from) & 1u) != 0u; \
+                if (has_to && !has_from) { return false; }                      \
+            }                                                                   \
+            return true;                                                        \
+        }(),                                                                    \
+        POLICY_NAME ": contributor mask not closed under CONTRIBUTOR_DAG"       \
+                    " (a masked contributor is missing a DAG ancestor)")
 
 ASSERT_POLICY_DAG_CLOSED(POLICY_PLACEMENT_PYRAMID,    "POLICY_PLACEMENT_PYRAMID");
 ASSERT_POLICY_DAG_CLOSED(POLICY_PLACEMENT_PAINTING,   "POLICY_PLACEMENT_PAINTING");
@@ -301,6 +373,6 @@ ASSERT_POLICY_DAG_CLOSED(POLICY_WALKER,               "POLICY_WALKER");
 ASSERT_POLICY_DAG_CLOSED(POLICY_WALKER_TILT,          "POLICY_WALKER_TILT");
 ASSERT_POLICY_DAG_CLOSED(POLICY_WALKER_AGENT,         "POLICY_WALKER_AGENT");
 ASSERT_POLICY_DAG_CLOSED(POLICY_CELESTIAL,            "POLICY_CELESTIAL");
+ASSERT_POLICY_DAG_CLOSED(POLICY_TERRAIN_RENDER,       "POLICY_TERRAIN_RENDER");
 
-#undef DAG_EDGE_CLOSED
 #undef ASSERT_POLICY_DAG_CLOSED

@@ -906,6 +906,12 @@ fn tile_grid_lookup(gx: i32, gz: i32) -> TileGridEntry {
 }
 
 // Interpolate tile modifiers at a world position.
+// STATUS: LATENT[tile-activation] — the .z channel (activation_scale) is
+// authored CPU-side and Hermite-interpolated here, but consumed by
+// neither height caller (contrib_static_base_at and
+// ground_formed_with_complexity read only .x/.y). It is the intended
+// tile-character axis; wiring is one multiply into band activation when
+// wanted. No field changes — kept both sides.
 fn tile_modifiers_at(world_xz: vec2<f32>) -> vec3<f32> {
     let cell = tile_grid.cell_extent;
     let gpos = world_xz / cell - 0.5;
@@ -2079,6 +2085,10 @@ fn contrib_gol_zones_at(world_xz: vec2<f32>) -> f32 {
 // to avoid double-evaluating the zone loop, which compounds
 // significantly under FXC loop unrolling. New walker-side consumers
 // should do the same.
+// STATUS: LATENT[policy-surface] — the standalone form has zero callers
+// today (the contributor is realized inline in walker/tilt/pair per the
+// FXC fusion above); kept as the reference form for any consumer that
+// wants suppression as a separate value.
 fn contrib_gol_suppression_at(world_xz: vec2<f32>, consumer_pos: vec3<f32>) -> f32 {
     let h = contrib_gol_zones_at(world_xz);
     let d = distance(world_xz, consumer_pos.xz);
@@ -2141,7 +2151,8 @@ const POLICY_WALKER_TILT_MASK          : u32 = GROUND_STATIC_BASE_MASK
                                               | (1u << CONTRIB_PYRAMIDS)
                                               | (1u << CONTRIB_GOL_ZONES)
                                               | (1u << CONTRIB_TERRAIN_WAVES)
-                                              | (1u << CONTRIB_RADIAL_PULSES);
+                                              | (1u << CONTRIB_RADIAL_PULSES)
+                                              | (1u << CONTRIB_GOL_SUPPRESSION);  // pawn-centered; same suppression walker applies (truth-fix TER-2)
 const POLICY_WALKER_AGENT_MASK         : u32 = GROUND_STATIC_BASE_MASK
                                               | (1u << CONTRIB_PYRAMIDS)
                                               | (1u << CONTRIB_GOL_ZONES)
@@ -2149,6 +2160,21 @@ const POLICY_WALKER_AGENT_MASK         : u32 = GROUND_STATIC_BASE_MASK
                                               | (1u << CONTRIB_RADIAL_PULSES)
                                               | (1u << CONTRIB_PAWN_AURA);
 const POLICY_CELESTIAL_MASK            : u32 = 0u;
+// POLICY_TERRAIN_RENDER — the fused render-side set: the baked
+// heightfield (static base + pyramids) + pawn aura + terrain waves +
+// radial pulses. Deliberately NO CONTRIB_GOL_ZONES (the patch
+// heightfield does not cache GoL; zones render as their own extrusion
+// pass). Fused-only policy: there is NO query_ground_* function by
+// design — realizations are patch_terrain_vs (full set) and
+// shadow_patch_terrain_vs (baked + waves subset). The ~15
+// entity/painting VS sites adding contrib_terrain_waves_at alone atop
+// the entity ground atlas are sanctioned single-contributor
+// consumptions of this same render set. STATUS: REALIZED (fused-only).
+const POLICY_TERRAIN_RENDER_MASK       : u32 = GROUND_STATIC_BASE_MASK
+                                              | (1u << CONTRIB_PYRAMIDS)
+                                              | (1u << CONTRIB_TERRAIN_WAVES)
+                                              | (1u << CONTRIB_RADIAL_PULSES)
+                                              | (1u << CONTRIB_PAWN_AURA);
 
 // ═══ Ground Architecture ═══════════════════════════════════════════
 //
@@ -2221,13 +2247,17 @@ const POLICY_CELESTIAL_MASK            : u32 = 0u;
 //   POLICY_FLYER               live all-global-deformations (spheres, cubes)
 //   POLICY_WALKER              flyer + consumer-local gol_suppression
 //                              (used for the pawn's resolved standing y)
-//   POLICY_WALKER_TILT         walker minus self-centered fields
-//                              (no aura, no suppression). Used for tilt
-//                              and step-climb so radial profiles of
-//                              self-centered fields don't manufacture
-//                              slopes between adjacent ε-samples.
+//   POLICY_WALKER_TILT         walker minus the self aura (a zero-
+//                              gradient scalar); carries the SAME
+//                              pawn-centered GoL suppression as the
+//                              walker. Used for tilt and step-climb so
+//                              the aura's radial profile doesn't
+//                              manufacture slopes between ε-samples.
 //   POLICY_WALKER_AGENT        walker minus suppression
-//   POLICY_CELESTIAL           empty — ground is 0.0
+//   POLICY_CELESTIAL           empty — ground is 0.0 (STATUS: INTENT)
+//   POLICY_TERRAIN_RENDER      the fused render set: baked + aura +
+//                              waves + pulses, no GoL. Fused-only —
+//                              no query fn; see its mask block.
 //
 // Cached-texture variant: POLICY_BAKED_HEIGHTFIELD can be consumed
 // analytically via query_ground_baked_heightfield, OR by sampling the
@@ -2249,7 +2279,7 @@ const POLICY_CELESTIAL_MASK            : u32 = 0u;
 // Add a new contributor:
 //   1. Add a ContributorId in ground_architecture.inl; bump CONTRIB_COUNT.
 //   2. Declare its DAG edges (if static_landform) in CONTRIBUTOR_DAG;
-//      update ASSERT_POLICY_DAG_CLOSED's edge list.
+//      the closure assert iterates the table — no further edit there.
 //   3. Implement contrib_<name>_at in world.wgsl with a header comment
 //      naming the contributor id, class, and deps.
 //   4. Add it to the relevant POLICIES[].contributors masks (C++ side)
@@ -2275,8 +2305,8 @@ const POLICY_CELESTIAL_MASK            : u32 = 0u;
 //   ground_formed_with_complexity (two-pass patch heightfield gen)
 //     ≡ POLICY_BAKED_HEIGHTFIELD, plus a complexity byproduct.
 //   patch_terrain_vs (main terrain VS, ~256×256 invocations/patch)
-//     ≡ POLICY_WALKER minus gol_suppression (rendering is not
-//       consumer-local).
+//     ≡ POLICY_TERRAIN_RENDER (baked heightfield + aura + waves +
+//       pulses; no GoL — zones draw as their own extrusion pass).
 //
 // Both must stay consistent with their policy's contributor set. If
 // a policy gains or loses a contributor, update the fused function.
@@ -2590,6 +2620,11 @@ struct QueryInputs {
 //   (i.e. contrib_static_base_at).
 // Typical consumers: pyramid spawn engines deciding candidate Y at a tile.
 // Notes: "pyramids don't see themselves" — no CONTRIB_PYRAMIDS in the set.
+// STATUS: LATENT[policy-surface] — declared placement query, no live
+//   caller; the live Y path is compute_entity_placement's baked hybrid
+//   (whose set INCLUDES pyramids — the declared-intent exclusion is a
+//   possible future aesthetic ruling; see the POLICIES[] row). Rewiring
+//   candidate when placement moves onto the policy API.
 fn query_ground_placement_pyramid(xz: vec2<f32>) -> f32 {
     return contrib_static_base_at(xz);
 }
@@ -2599,6 +2634,10 @@ fn query_ground_placement_pyramid(xz: vec2<f32>) -> f32 {
 // Typical consumers: painting spawn engines (terrain quads + wall frames).
 // Notes: paintings sit on current GoL extrusion. No deformation fields,
 //   so spawn position is stable against animated terrain.
+// STATUS: LATENT[policy-surface] — declared placement query, no live
+//   caller; the live path is compute_entity_placement's documented
+//   baked + analytic-GoL hybrid (same contributor set). Rewiring
+//   candidate when placement moves onto the policy API.
 fn query_ground_placement_painting(xz: vec2<f32>) -> f32 {
     var h = contrib_static_base_at(xz);
     h += contrib_pyramids_at(xz);
@@ -2612,6 +2651,11 @@ fn query_ground_placement_painting(xz: vec2<f32>) -> f32 {
 // Typical consumers: vegetation spawn engines (palm, cactus, blade, columns,
 //   antennas, arches).
 // Notes: "trees don't stand on pyramids" — no CONTRIB_PYRAMIDS in the set.
+// STATUS: LATENT[policy-surface] — declared placement query, no live
+//   caller; the live vegetation Y path samples the baked heightfield
+//   (whose set INCLUDES pyramids — the declared-intent exclusion is a
+//   possible future aesthetic ruling; see the POLICIES[] row). Rewiring
+//   candidate when placement moves onto the policy API.
 fn query_ground_placement_vegetation(xz: vec2<f32>) -> f32 {
     return contrib_static_base_at(xz);
 }
@@ -2788,6 +2832,7 @@ fn query_ground_walker_agent(xz: vec2<f32>, qi: QueryInputs) -> f32 {
 // Contributors: none.
 // Typical consumers: future celestial entity placement (none today).
 // Notes: returns 0.0 unconditionally; kept for symmetry.
+// STATUS: INTENT — declared, zero realization; the row says so too.
 fn query_ground_celestial(xz: vec2<f32>) -> f32 {
     return 0.0;
 }
@@ -2799,6 +2844,8 @@ fn query_ground_celestial(xz: vec2<f32>) -> f32 {
 // POLICY_FLYER gradient.
 // Returns vec3(h, dh/dx, dh/dz). Five samples (center + four neighbors)
 // of query_ground_flyer.
+// STATUS: LATENT[policy-surface] — zero callers; plausible consumer:
+//   multi-sample flyer slope/approach users (e.g. slope-aware hover).
 fn query_ground_flyer_gradient(xz: vec2<f32>, qi: QueryInputs, eps: f32) -> vec3<f32> {
     let h   = query_ground_flyer(xz,                     qi);
     let hpx = query_ground_flyer(xz + vec2(eps,  0.0),   qi);
@@ -2813,6 +2860,9 @@ fn query_ground_flyer_gradient(xz: vec2<f32>, qi: QueryInputs, eps: f32) -> vec3
 // Returns vec3(h, dh/dx, dh/dz). Five samples of query_ground_walker.
 // Notes: for tilt and step-climb, prefer query_ground_walker_tilt to
 //   avoid manufactured slopes from the pawn's own aura/suppression.
+// STATUS: LATENT[policy-surface] — zero callers; the live tilt path is
+//   terrain_normal_at's 3-tap over walker_tilt. Plausible consumer:
+//   full-walker slope users that want the self fields included.
 fn query_ground_walker_gradient(xz: vec2<f32>, qi: QueryInputs, eps: f32) -> vec3<f32> {
     let h   = query_ground_walker(xz,                     qi);
     let hpx = query_ground_walker(xz + vec2(eps,  0.0),   qi);
@@ -2830,6 +2880,9 @@ fn query_ground_walker_gradient(xz: vec2<f32>, qi: QueryInputs, eps: f32) -> vec
 // Notes: as with query_ground_walker_gradient, the self-centered
 //   fields can produce noisy gradients near the pawn — prefer the
 //   tilt-policy variant for tilt and step-climb decisions.
+// STATUS: LATENT[policy-surface] — zero callers; plausible consumer:
+//   cliff-aware locomotion (walkability tests that must not read a
+//   cliff face as a slope).
 fn query_ground_walker_walkable(xz: vec2<f32>, qi: QueryInputs, eps: f32, step_h: f32) -> vec3<f32> {
     let h0 = query_ground_walker(xz, qi);
 
@@ -3491,7 +3544,7 @@ struct PatchTerrainVarying {
     @location(4) @interpolate(flat) layer: u32,  // heightfield/cell array layer
 }
 
-// patch_terrain_vs — hand-fused POLICY_FLYER-ish evaluation.
+// patch_terrain_vs — hand-fused POLICY_TERRAIN_RENDER evaluation.
 //
 // Inlines the contributor sum for per-vertex performance:
 //   patch heightfield texture (cached CONTRIB_STATIC_BASE + CONTRIB_PYRAMIDS)
@@ -3506,11 +3559,11 @@ struct PatchTerrainVarying {
 // because the gradient is needed for the fragment normal and is computed
 // analytically in the same loop pass.
 //
-// Keep consistent with POLICY_FLYER: if a new deformation field is added
-// to POLICY_FLYER, add it here too — or explicitly document why the
-// render side diverges. The patch VS runs ~256×256 invocations per
-// patch, so a function-call-per-contributor dispatch would dominate
-// frame time; that's why this stays hand-fused.
+// Keep consistent with POLICY_TERRAIN_RENDER: if that policy's mask
+// gains or loses a contributor, update this function to match — or
+// document the divergence at the mask block. The patch VS runs ~256×256
+// invocations per patch, so a function-call-per-contributor dispatch
+// would dominate frame time; that's why this stays hand-fused.
 //
 // See modules/ground_architecture.inl (fused inline evaluations).
 @vertex
@@ -3569,6 +3622,9 @@ fn patch_terrain_vs(
     out.clip_pos = render_vp.m * vec4(world_pos, 1.0);
     out.world_pos = world_pos;
     out.gradients = height_data.yz + wave.yz;
+    // STATUS: LATENT[complexity] — baked and shipped per-vertex, read by
+    // no fragment shader today (palette calls hardcode 0.5). A future
+    // coupling target: wave-interference density → material.
     out.complexity = height_data.w;
     out.patch_uv = uv;
     out.layer = pi.layer;
@@ -5339,12 +5395,14 @@ fn update_terrain_config() {
 }
 
 // --- Walker terrain normal (forward-difference)
-// POLICY_WALKER_TILT samples — static_base + pyramids + GoL zones +
-// terrain waves + radial pulses. Excludes CONTRIB_PAWN_AURA and
-// CONTRIB_GOL_SUPPRESSION because their self-centered radial profiles
-// would manufacture tilt slopes (the pawn would tilt against its own
-// aura's gradient). The pawn still stands on full POLICY_WALKER
-// ground; only the tilt direction reads the tilt-safe policy.
+// POLICY_WALKER_TILT samples — static_base + pyramids + GoL zones
+// (pawn-suppressed) + terrain waves + radial pulses. Excludes
+// CONTRIB_PAWN_AURA (the self form is a zero-gradient scalar — self
+// fields never drive tilt); it CARRIES the same pawn-centered GoL
+// suppression the walker applies, which is flat (supp_factor = 1, zero
+// gradient) within the eps = 0.5 sample ring, so no slope is
+// manufactured. The pawn still stands on full POLICY_WALKER ground;
+// only the tilt direction reads the tilt-safe policy.
 fn terrain_normal_at(xz: vec2<f32>, qi: QueryInputs) -> vec3<f32> {
     let eps = 0.5;
     let h0  = query_ground_walker_tilt(xz, qi);
@@ -6808,6 +6866,9 @@ fn generate_patch_gradients(
         grad_z = (h_pz - h_mz) / (2.0 * eps);
     }
 
+    // STATUS: LATENT[complexity] — the .w channel is baked here and
+    // carried to the terrain varying, but no consumer reads it today;
+    // a future coupling target (interference density → material).
     textureStore(patch_heightfield_array_write, texel, layer, vec4(height, grad_x, grad_z, complexity));
 }
 
@@ -7874,9 +7935,11 @@ fn compute_photographer_vp() {
 // (static_base + pyramids) once per texel and caches the result.
 // This Y-correction pass samples the cache rather than re-evaluating
 // contributors analytically — it is *not* a spawn-time placement
-// query. The analytical query_ground_placement_* functions are only
-// used by the real spawn decision code (e.g. patch entity proposal /
-// spawn engines in cartridge.hpp), not here.
+// query. The analytical query_ground_placement_* functions have NO
+// live caller today (STATUS: LATENT[policy-surface]): CPU spawn
+// decisions stay on estimate_terrain_height (the tile-cache proxy in
+// spawn_engine.inl), and this GPU pass is the live Y path via the
+// baked heightfield.
 //
 // Paintings: terrain + GoL zone extrusion.
 // Arch: 2-point min at pier feet + pier_height offset.

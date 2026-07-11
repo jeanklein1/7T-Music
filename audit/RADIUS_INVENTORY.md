@@ -213,3 +213,13 @@ Concern (ii) is answered in full (§1 + frames). Concern (i) has its
 verdict and a classified, arithmetic-backed fix (§2) — **RAD-2 not
 applied.** Concern (iii) is scoped only (§3) — **RAD-3 not designed.**
 Nothing committed to code.
+
+---
+
+**ADDENDUM (2026-07-11, TER-2 1e) — RAD-2 has landed.** The §1
+`ENTITY_CULL_BASE = 350` rows and §2's "fix classification" above are the
+pre-RAD-2 record: the live cull base is now
+`cull_base = VISIBILITY_CYLINDER_RADIUS − ENTITY_CULL_EDGE_MARGIN
+= 275 − 25 = 250 wu`, with the size term re-signed to a capped inward
+inset (spawn_engine.inl, Entity Distance Culling block). Entities never
+lead terrain.

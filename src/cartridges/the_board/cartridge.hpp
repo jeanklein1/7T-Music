@@ -1851,6 +1851,10 @@ namespace t7 {
                 uint32_t archetype = 1;      // default: varied
                 float height_bias = 0.0f;
                 float amp_scale = 1.0f;
+                // STATUS: LATENT[tile-activation] — authored here (per-archetype
+                // act column) and uploaded + interpolated GPU-side, but consumed
+                // by neither height caller; the intended tile-character axis —
+                // wiring is one multiply into band activation when wanted.
                 float activation_scale = 1.0f;
                 float amp_momentum = 0.0f;   // signed amplitude excess, carried by terrain tokens
                 float entity_density = 1.0f; // spatial density multiplier for entity spawning
