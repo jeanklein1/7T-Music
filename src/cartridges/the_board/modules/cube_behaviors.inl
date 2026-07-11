@@ -3,7 +3,7 @@
 // Cube behavior system. Spheres do their own thing (analytical PGA
 // orbit, no behavior layer); this module is cube-only by design.
 // Floater vocabulary (Sphere + Cube tier counts, configs, prop
-// registries, active tracking) lives in floater_vocabulary.inl;
+// registries, active-tracking types) lives in floater_vocabulary.hpp;
 // behavior gains (forces, coordination, kite, corral) live here.
 //
 // ┌─── Three registries ────────────────────────────────────────────┐
@@ -194,7 +194,7 @@ static void apply_cube_tier_gains(float& spring_stiffness, float& drag, uint32_t
 // sum to 1; the picker normalizes.
 //
 // Mood ordering matches MOOD_TABLE in cartridge.hpp. Cubes are gated
-// by CubeConfig::MOOD_MULTIPLIER (in floater_vocabulary.inl) which is
+// by CubeConfig::MOOD_MULTIPLIER (in floater_vocabulary.hpp) which is
 // {1, 1, 0, 0, 1, 0} — cubes don't spawn in indoor moods or in
 // MOOD_FINITE_OUTDOOR_REF, so those rows here are never consulted in
 // practice. We declare them anyway for hygiene; if the spawn gate

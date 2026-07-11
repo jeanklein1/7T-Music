@@ -1,28 +1,73 @@
 #pragma once
 #include <cstdint>
+#include "cartridges/the_board/modules/mood_constants.hpp"   // MOOD_COUNT (sizes the configs' MOOD_MULTIPLIER)
 
-// ─── floater_vocabulary.hpp (TYPES) ──────────────────────────────
+// ─── floater_vocabulary.hpp ──────────────────────────────────────
 //
-// The runtime-tracking TYPES for the two generic-pipeline floater
-// families: ActiveFloater (sphere) and ActiveCube (cube). Pure structs,
-// shared vocabulary — never state (the state ARRAYS moved to their owners
-// in LADDER-2 c0: SphereState in spheres.hpp; CubeBehaviorsState in
-// cube_behaviors.inl).
+// Vocabulary for the two generic-pipeline floater families: Sphere
+// (orbital, PGA motor-driven) and Cube (hover-bob monoliths). Tier
+// counts, base tier weights, spawn config, property-index registry,
+// runtime tracking TYPES. A REAL HEADER at file scope (LADDER-2: types
+// led at c0 so the state owners could reference them; the configs and
+// registries joined at c4 and the .inl retired) — the banner finally
+// tells the truth: this file is pure vocabulary, zero state, zero
+// functions, zero class-body coupling. Namespace t7::the_board.
 //
-// LADDER-2 NOTE (disclosed deviation on ordering): these type definitions
-//   lead the vocabulary's headerization. The state owners — spheres.hpp
-//   (born converted, file scope) and CubeBehaviorsState — must reference
-//   ActiveFloater / ActiveCube at file scope, so the types graduate here at
-//   c0. The vocabulary's CONFIGS / tier tables / property registries stay
-//   in floater_vocabulary.inl (class body) until c4, when they join this
-//   header and the .inl is retired. c0.3 ("types stay in the vocabulary")
-//   is honored — the vocabulary is this header now.
+// ┌─── Family overview ─────────────────────────────────────────────┐
+// │                                                                  │
+// │  Family   GPU compute    Vertex shader    Behavior layer         │
+// │  ──────   ───────────    ─────────────    ────────────────       │
+// │  Sphere   update_sphere  sphere_vs        none (analytical PGA)  │
+// │  Cube     update_cube    monolith_vs      cube_behaviors.inl     │
+// │                                                                  │
+// │  Three concerns, three files (per family):                       │
+// │    Vocabulary           → here                                   │
+// │    Sampling profile     → entity_pipeline.inl (TierRow + traits) │
+// │    Behavior layer       → cube_behaviors.inl (cubes only)        │
+// │                                                                  │
+// └──────────────────────────────────────────────────────────────────┘
+//
+// ┌─── Public surface (consumed by other files) ────────────────────┐
+// │                                                                  │
+// │  Sphere:                                                         │
+// │    SPHERE_TIER_COUNT, SPHERE_BASE_TIER_WEIGHTS                   │
+// │    SPHERE_TIER_NAMES                                             │
+// │    SphereConfig (SPAWN_CHANCE, MOOD_MULTIPLIER, POSITION_JITTER) │
+// │    FloatingEntityProp (property indices 100–126)                 │
+// │    ActiveFloater (type; the active-slot STATE lives in           │
+// │                   SphereState, spheres.hpp — LADDER-2 c0)        │
+// │                                                                  │
+// │  Cube:                                                           │
+// │    CUBE_TIER_COUNT, CUBE_BASE_TIER_WEIGHTS                       │
+// │    CUBE_TIER_NAMES                                               │
+// │    CubeConfig (SPAWN_CHANCE, MOOD_MULTIPLIER, POSITION_JITTER)   │
+// │    CubeEntityProp (property indices 130–156)                     │
+// │    ActiveCube (type; the active-slot STATE lives in              │
+// │                CubeBehaviorsState, cube_behaviors.inl — c0)      │
+// │                                                                  │
+// └──────────────────────────────────────────────────────────────────┘
+//
+// Depends on: <cstdint>, mood_constants.hpp (MOOD_COUNT). Nothing else —
+// share vocabulary freely, never state.
 //
 // STATUS: LATENT[naming] — ActiveFloater is the sphere family's active
 //   struct; the ActiveFloater -> ActiveSphere rename is flagged, not
-//   performed (seed-stable churn rides a later stage; the "FloatingEntity"
-//   property name is likewise preserved for hash stability — see the .inl).
+//   performed (seed-stable churn rides a later stage; the
+//   "FloatingEntity" property name is likewise preserved for hash
+//   stability — see the registry note below).
 //
+// SEAM[floater_vocabulary:taxonomy] generic-pipeline floater families
+//   parallel grounded families (entities.hpp) but live here because
+//   their tier shapes differ (sphere has orbit_radius/orbit_speed,
+//   cube doesn't). Three concerns, three files: vocabulary here,
+//   sampling profile in entity_pipeline.inl, cube behavior in
+//   cube_behaviors.inl. Spheres have no behavior layer.
+// SEAM[sphere:taxonomy] sphere VOCABULARY lives here, not in
+//   entities.hpp. Generic-pipeline floater family — vocabulary class
+//   distinct from grounded families.
+// SEAM[cube:taxonomy] cube VOCABULARY lives here, not in entities.hpp.
+//   Three concerns, three files (vocabulary / sampling profile /
+//   behavior gains), each correct.
 // SEAM[sphere:P5] last_alloc_time is pattern P5 (release-pending sentinel /
 //   race protection) — CPU-timestamp variant. When GPU readback arrives
 //   stale ("kernel evicted this slot"), the timestamp protects freshly-
@@ -32,14 +77,62 @@
 // SEAM[cube:cx-cz-mirror] ActiveCube has cx, cz fields — CPU mirror of GPU
 //   anchor for cube_behaviors.inl::corral_cubes / toggle_cube_kite_mode to
 //   read without GPU readback. Same family as agents:D2 (slot-0 reads);
-//   when pawn.inl extracts and provides accessors, corral/kite could
-//   analogously have cube_anchor(slot) accessors.
+//   when the pawn module provides accessors, corral/kite could analogously
+//   have cube_anchor(slot) accessors.
 // ─────────────────────────────────────────────────────────────────
 
 namespace t7 {
 namespace the_board {
 
-// ── Active Sphere Tracking ───────────────────────────────────────
+// ═══ FAMILY: SPHERE ═══════════════════════════════════════════════
+//
+// Orbital spheres. Rare, PGA motor-driven orbits around anchors.
+// Slots 0 .. MAX_SPHERE_INSTANCES-1 in the shared floating entity buffer.
+// No behavior layer — the GPU compute kernel (update_sphere) drives
+// spheres entirely from analytical PGA orbits.
+
+// ── Tier registry ────────────────────────────────────────────────
+inline constexpr uint32_t SPHERE_TIER_COUNT = 2;
+
+inline constexpr float SPHERE_BASE_TIER_WEIGHTS[SPHERE_TIER_COUNT] = { 0.65f, 0.35f };
+inline constexpr const char* SPHERE_TIER_NAMES[] = { "Sentinel", "Anomaly" };
+
+// ── Spawn Configuration ──────────────────────────────────────────
+struct SphereConfig {
+    static constexpr float SPAWN_CHANCE = 0.015f;
+    static constexpr float MOOD_MULTIPLIER[MOOD_COUNT] = { 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f };
+    static constexpr float POSITION_JITTER = 0.4f;
+};
+
+// ── Property Index Registry ──────────────────────────────────────
+// Range: 100–126 (legacy "FloatingEntity" name preserved for seed
+// stability — renaming the struct would change hash inputs and shift
+// every sphere's parameters across already-rendered worlds).
+struct FloatingEntityProp {
+    static constexpr uint32_t SPAWN_ROLL = 100u;
+    static constexpr uint32_t ANCHOR_X = 101u;
+    static constexpr uint32_t ANCHOR_Z = 102u;
+    static constexpr uint32_t TIER = 103u;
+    static constexpr uint32_t BODY_RADIUS = 110u;
+    static constexpr uint32_t ORBIT_RADIUS = 111u;
+    static constexpr uint32_t ORBIT_HEIGHT = 112u;
+    static constexpr uint32_t ORBIT_SPEED = 113u;
+    static constexpr uint32_t INFLUENCE_RADIUS = 114u;
+    static constexpr uint32_t SPIN_SPEED = 115u;
+    static constexpr uint32_t BOB_AMPLITUDE = 116u;
+    static constexpr uint32_t BOB_PERIOD = 117u;
+    static constexpr uint32_t SPIN_TILT_X = 118u;
+    static constexpr uint32_t SPIN_TILT_Z = 119u;
+    static constexpr uint32_t COLOR_R = 120u;
+    static constexpr uint32_t COLOR_G = 121u;
+    static constexpr uint32_t COLOR_B = 122u;
+    static constexpr uint32_t ASPECT_Y = 123u;
+    static constexpr uint32_t ASPECT_Z = 124u;
+    static constexpr uint32_t FACE_VARIANCE = 125u;
+    static constexpr uint32_t ROTATION = 126u;
+};
+
+// ── Active Sphere Tracking (TYPE — state lives in spheres.hpp) ───
 struct ActiveFloater {
     int32_t patch_gx = 0, patch_gz = 0;
     int32_t host_gx = 0, host_gz = 0;
@@ -51,7 +144,59 @@ struct ActiveFloater {
     bool active = false;
 };
 
-// ── Active Cube Tracking ─────────────────────────────────────────
+
+// ═══ FAMILY: CUBE ═════════════════════════════════════════════════
+//
+// Hover-bob monoliths. Colorful cubes/slabs floating above terrain.
+// Slots 0 .. MAX_CUBE_INSTANCES-1 (buffer offset by CUBE_SLOT_OFFSET).
+// Behavior layer (forces, coordination, kite mode, corral) lives in
+// cube_behaviors.inl.
+//
+// Lineage. Cube and Sphere are siblings by file (both generic-
+// pipeline floaters) but distinct in shape: sphere has orbit
+// radius/speed/height, cube doesn't. Sphere has no behavior layer
+// (analytical PGA orbits); Cube has a full behavior system. The
+// shared infrastructure lives in entity_pipeline.inl as their
+// per-family TierRow and adapters.
+
+// ── Tier registry ────────────────────────────────────────────────
+inline constexpr uint32_t CUBE_TIER_COUNT = 4;
+
+inline constexpr float CUBE_BASE_TIER_WEIGHTS[CUBE_TIER_COUNT] = { 0.40f, 0.32f, 0.20f, 0.08f };
+inline constexpr const char* CUBE_TIER_NAMES[] = { "SmallCube", "MedCube", "LargeCube", "Monolith" };
+
+// ── Spawn Configuration ──────────────────────────────────────────
+struct CubeConfig {
+    static constexpr float SPAWN_CHANCE = 0.60f;
+    static constexpr float MOOD_MULTIPLIER[MOOD_COUNT] = { 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f };
+    static constexpr float POSITION_JITTER = 0.4f;
+};
+
+// ── Property Index Registry ──────────────────────────────────────
+// Range: 130–156 (avoids sphere's 100–126).
+struct CubeEntityProp {
+    static constexpr uint32_t SPAWN_ROLL = 130u;
+    static constexpr uint32_t ANCHOR_X = 131u;
+    static constexpr uint32_t ANCHOR_Z = 132u;
+    static constexpr uint32_t TIER = 133u;
+    static constexpr uint32_t BODY_RADIUS = 140u;
+    static constexpr uint32_t ORBIT_HEIGHT = 142u;
+    static constexpr uint32_t INFLUENCE_RADIUS = 144u;
+    static constexpr uint32_t SPIN_SPEED = 145u;
+    static constexpr uint32_t BOB_AMPLITUDE = 146u;
+    static constexpr uint32_t BOB_PERIOD = 147u;
+    static constexpr uint32_t SPIN_TILT_X = 148u;
+    static constexpr uint32_t SPIN_TILT_Z = 149u;
+    static constexpr uint32_t COLOR_R = 150u;
+    static constexpr uint32_t COLOR_G = 151u;
+    static constexpr uint32_t COLOR_B = 152u;
+    static constexpr uint32_t ASPECT_Y = 153u;
+    static constexpr uint32_t ASPECT_Z = 154u;
+    static constexpr uint32_t FACE_VARIANCE = 155u;
+    static constexpr uint32_t ROTATION = 156u;
+};
+
+// ── Active Cube Tracking (TYPE — state lives in cube_behaviors.inl) ─
 struct ActiveCube {
     int32_t patch_gx = 0, patch_gz = 0;
     int32_t host_gx = 0, host_gz = 0;

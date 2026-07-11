@@ -621,8 +621,12 @@ namespace t7 {
 // ── Spawn Engine & Entity Lifecycle (modules/spawn_engine.inl) ──
 #include "modules/spawn_engine.inl"
 
-            // ── Floater Vocabulary (modules/floater_vocabulary.inl) ──
-#include "modules/floater_vocabulary.inl"
+            // ── Floater Vocabulary — CONVERTED (LADDER-2 c0+c4) ──
+            // Pure vocabulary, fully in floater_vocabulary.hpp (file scope,
+            // above the class): the ActiveFloater/ActiveCube TYPES led at c0
+            // (their state moved to the species owners), the configs / tier
+            // registries / property indices joined at c4, and the .inl is
+            // retired. Zero state, zero functions — nothing post-class. See §1.
 
             // ── Ribbon Dispatch Pipeline (modules/ribbon.inl) ──
 #include "modules/ribbon.inl"

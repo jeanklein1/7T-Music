@@ -28,7 +28,7 @@
 //
 // Included inside the Cartridge class body.
 // Depends on: entities.inl, gallery.inl, gol_zones.inl, pawn.inl,
-//             ribbon.inl, floater_vocabulary.inl.
+//             ribbon.inl, floater_vocabulary.hpp.
 // ─────────────────────────────────────────────────────────────────
 
 

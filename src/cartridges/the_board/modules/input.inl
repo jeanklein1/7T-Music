@@ -53,7 +53,7 @@
 //             agents.inl (try_possess_nearest, cycle_agent_*,
 //             force_respawn_population), cube_behaviors.inl
 //             (cycle_cube_behavior_override, corral_cubes,
-//             toggle_cube_kite_mode), floater_vocabulary.inl
+//             toggle_cube_kite_mode), floater_vocabulary.hpp
 //             (cycle_floater_coordination), orbs.inl (cycle_orb_*,
 //             toggle_orb_anchor).
 // ─────────────────────────────────────────────────────────────────
