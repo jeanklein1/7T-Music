@@ -31,6 +31,10 @@
 // self-contained real-time exponential (std::exp, in the .inl).
 // ─────────────────────────────────────────────────────────────────
 
+// LOCKSTEP INSURANCE (same construct as entity_types.hpp): mirrors
+// webgpu_cpp.h's declaration form (`class Queue`, in namespace wgpu). If
+// Dawn ever changes that form, replace this forward declaration with the
+// include.
 namespace wgpu { class Queue; }
 
 namespace t7 {

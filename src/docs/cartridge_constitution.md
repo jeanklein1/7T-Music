@@ -77,7 +77,10 @@ own resolved bindings, the spine-owned player/flight state and raw
 input (the sky author's seat; its two writes are SEAM-tagged in place),
 and the spine's terrain and spawn-engine services — and for nothing
 entity-private of a peer. Consumers consume; conductors orchestrate;
-the cartridge itself merely calls.
+the cartridge itself merely calls. ACCESS NOTE (LADDER-2): the organs
+are language-public — C++ access control never enforced this section's
+seam law and does not now; the census does. The outside enters only
+through the RenderCartridge interface and the public lifecycle.
 
 ## §4 — THE DOORS LAW
 Boundaries are defined by transport, one door per source kind:
@@ -161,7 +164,11 @@ cartridge unless stated.
   The remaining modules stay class-body includes under
   the prior law until their stage. This transitional entry dies when the
   last module converts and §1's transitional clause is struck. Ladder
-  record: audit/LADDER.md.
+  record: audit/LADDER.md. ACCESS RULING (LADDER-2 fix): the organs went
+  language-public — the header/impl split's post-class definitions stand
+  outside the class, and access control never enforced the seam law (§3's
+  access note). Entity Contract §1's MODULE definition amended to the
+  two-regime form same-commit.
 - HISTORICAL NARRATION (33 tags): 'Scope B' / DONE[] archaeology — 22
   primary DONE[] tags + 11 'Scope B migration' banners, cross-references
   excluded. PENDING RULING F3 (strip and keep SEAM[], recommended).

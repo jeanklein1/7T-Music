@@ -14,7 +14,10 @@ through pipes you named. The canvas is the only hands.
 
 ## §1 — DEFINITIONS
 ENTITY: a self-contained inhabitant (look + motion + lifecycle) delivered
-as one module. MODULE: a class-body include in the cartridge organism.
+as one module. MODULE: a self-contained header at file scope owning its
+state and laws, or — under the transitional regime of the cartridge
+constitution's amended §1 (the header ladder) — a class-body include in
+the cartridge organism; both lawful until the last module converts.
 PIPE: one runtime-writable parameter row in the bank. READING: one
 published musical quantity in the analysis contract. REST: a pipe's idle
 value. COUPLING: a canvas decode writing pipes from readings. CONDUCTOR:

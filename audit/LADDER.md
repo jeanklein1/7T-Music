@@ -182,6 +182,27 @@ Stacks on LADDER-1. Two of Jean's rulings shaped it:
    Still one TU. A stateful module's `.inl` is REPURPOSED as that impl, not
    deleted (unlike LADDER-1's pure-header leaves).
 
+   **THE ACCESS COROLLARY (rig-found, now part of the pattern's
+   definition).** Post-class definitions see the complete type but stand
+   OUTSIDE the class — membership-exemption is gone, so private organs deny
+   the keyhole itself (the rig's C2248 at pawn.inl:22, MSVC). Jean's
+   ruling: THE ORGANS GO PUBLIC — one `public:` at the head of the organ
+   region, banner stating the law (sight free; writes through declared
+   seams; the census enforces the seam law, access control never did; the
+   outside enters only through the RenderCartridge interface + public
+   lifecycle). Friend-registry was priced (per-function ceremony scaling
+   with the whole ladder; signature drift as a new failure mode; a friend
+   sees all privates anyway) and declined. Residuals that stay private:
+   the 4132–4137 stretch (input.inl's region) and mood.inl's internal
+   `private:` stretch (its own authoring palettes) — no post-class
+   consumer needs either; census re-checks at each conversion.
+   **Harness corollary upgrade:** the pattern probe's mock is now a
+   `class` mirroring the REAL access topology. Recorded runs — pre-fix
+   topology (organs private): FAILS at pawn.inl:22 "player_ is private
+   within this context" (the rig's exact error, reproduced); post-fix
+   topology (public organ region): compiles, links, runs. The access
+   dimension is tested from now on.
+
 A prereq was also required and ruled: **MOOD_COUNT graduated to file scope**
 (mood_constants.hpp) — the config-bearing modules size per-mood tables by it
 and a file-scope header can't see an in-class constant.

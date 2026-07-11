@@ -51,7 +51,11 @@
 
 #include <cstdint>
 
-namespace wgpu { class Queue; }  // fwd — adapter fn-ptrs take wgpu::Queue& (reference; forward decl suffices)
+// fwd — adapter fn-ptrs take wgpu::Queue& (reference; forward decl
+// suffices). LOCKSTEP INSURANCE: this mirrors webgpu_cpp.h's declaration
+// form (`class Queue`, in namespace wgpu). If Dawn ever changes that form,
+// replace this forward declaration with the include.
+namespace wgpu { class Queue; }
 
 namespace t7 {
 namespace the_board {

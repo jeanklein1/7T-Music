@@ -122,7 +122,15 @@ namespace t7 {
 
         class Cartridge : public RenderCartridge {
 
-        private:
+        // COMPOSITION ROOT — ORGANS ARE PUBLIC by the composition law:
+        // sight is free; writes pass through declared seams (keyhole,
+        // signal, bank); access control never enforced the seam law — the
+        // census does; the outside enters only through the RenderCartridge
+        // interface and the public lifecycle. (LADDER-2 access ruling: the
+        // header/impl split's post-class definitions stand outside the
+        // class — membership-exemption is gone, so `private:` here would
+        // deny the keyhole itself. Friend-registry was priced and declined.)
+        public:
 
             wgpu::Device device_;
             wgpu::TextureFormat colorFormat_;
