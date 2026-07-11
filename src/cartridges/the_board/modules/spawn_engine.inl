@@ -929,46 +929,9 @@ static float solve_catenary_a(float half_span, float target_h) {
 
 // ─── Ribbon Selection / Placement ────────────────────────────
 
-struct RibbonSelection {
-    uint32_t seed;
-    int32_t  trigger_gx, trigger_gz;
-    uint32_t slot;
-    uint32_t tier_idx;
-    // Geometry (from select_ribbon_for_patch)
-    uint32_t cube_count;
-    float cube_size;
-    float height;
-    float orientation;
-    float lateral_amp, lateral_cycles;
-    float vertical_amp;
-    // Color
-    uint32_t color_mode;
-    float color[3];
-    float color_b[3];        // CONTRAST second median
-    float checker_scatter = 0.0f;
-    float checker_hue_spread = 0.0f;
-    // Footprint
-    float footprint_r;
-};
-
-struct RibbonPlacement {
-    uint32_t slot;
-    int32_t  trigger_gx, trigger_gz;
-    int32_t  host_gx, host_gz;
-    uint32_t tier_idx;
-    float cx, cz;
-    // Geometry (copied from selection)
-    uint32_t cube_count;
-    float cube_size, height, orientation;
-    float lateral_amp, lateral_cycles;
-    float vertical_amp;
-    uint32_t color_mode;
-    float color[3];
-    float color_b[3];        // CONTRAST second median
-    float checker_scatter = 0.0f;
-    float checker_hue_spread = 0.0f;
-    uint32_t seed = 0u;   // spawn seed, carried so commit samples its channels
-};
+// (RibbonSelection / RibbonPlacement RELOCATED to ribbon.hpp — LADDER-3
+//  c5. They are ribbon vocabulary; at file scope they precede the queue
+//  unions below by construction, the entity_types precedent.)
 
 // (The structural mid-file include of entity_types is RETIRED — LADDER-1 c3.
 //  EntityInstance now comes from the file-scope header entity_types.hpp,

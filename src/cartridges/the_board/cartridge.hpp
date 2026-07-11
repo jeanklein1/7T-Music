@@ -107,6 +107,7 @@
 #include "cartridges/the_board/modules/agents.hpp"               // LADDER-3 c2: agent registries + console + AgentState + decls (impl is agents.inl, post-class)
 #include "cartridges/the_board/modules/cube_behaviors.hpp"       // LADDER-3 c3: cube behavior registry + CubeBehaviorsState + decls (impl is cube_behaviors.inl, post-class)
 #include "cartridges/the_board/modules/gallery.hpp"              // LADDER-3 c4: shot vocabulary + console + payloads + GalleryState + decls (impl is gallery.inl, post-class)
+#include "cartridges/the_board/modules/ribbon.hpp"               // LADDER-3 c5: ribbon console + color vocabulary + tiers + payloads + RibbonState + decls (impl is ribbon.inl, post-class; pairing suspension named in its banner)
 #include "cartridges/the_board/renderer.hpp"
 #include "coupling/visual_canvas.hpp"
 #include <cmath>
@@ -205,6 +206,14 @@ namespace t7 {
             //     layers + painting slots + gallery centers. Was declared in
             //     gallery.inl (class body); relocated here in LADDER-3 c4.
             GalleryState gallery_state_;
+
+            //   ribbon_state_ — RibbonState (ribbon.hpp), the active/GPU
+            //     mirrors + rendered slot + the head (the one live
+            //     instrument) + mood_offset. The four ribbon canvas bindings
+            //     and player_.sky_yaw_eased stay Cartridge-side (the
+            //     conductor writes them). Was declared in ribbon.inl (class
+            //     body); relocated here in LADDER-3 c5.
+            RibbonState ribbon_state_;
 
             struct InputState {
                 float move_x = 0.0f;
@@ -648,8 +657,19 @@ namespace t7 {
             // registries / property indices joined at c4, and the .inl is
             // retired. Zero state, zero functions — nothing post-class. See §1.
 
-            // ── Ribbon Dispatch Pipeline (modules/ribbon.inl) ──
-#include "modules/ribbon.inl"
+            // ── Ribbon — CONVERTED (LADDER-3 c5, header/impl split) ──
+            // Tuning console (head control law, MOUNT_* lockstep mirrors,
+            // wander policy) + color vocabulary + tier matrix +
+            // RibbonSelection/RibbonPlacement (relocated from
+            // spawn_engine.inl) + ActiveRibbon/RibbonHead/RibbonState +
+            // declarations are in ribbon.hpp (file scope, above the class);
+            // the definitions (which reach the keyhole + in-class statics
+            // via the complete type) are in ribbon.inl, included at FILE
+            // SCOPE in the post-class MODULE IMPLEMENTATIONS zone. The
+            // instance (ribbon_state_) is declared at the COMPOSITION ROOT.
+            // The byte-identical mirror with the_chord is SUSPENDED (the
+            // pairing ruling — named in ribbon.hpp's banner); the mood-5
+            // dual entry stays K4's territory. See §1.
 
             // ── GoL Zones — CONVERTED (LADDER-3 c1, header/impl split) ──
             // Vocabulary + GoLSelection/GoLPlacement (relocated from
@@ -4265,3 +4285,4 @@ namespace t7 {
 #include "modules/agents.inl"     // LADDER-3 c2 — agent registry upload + spawn/respawn/possession/diagnostics
 #include "modules/cube_behaviors.inl"  // LADDER-3 c3 — cube registry upload + corral/kite/coordination + clear
 #include "modules/gallery.inl"    // LADDER-3 c4 — photographer + gallery sites + authored loading + wall paintings
+#include "modules/ribbon.inl"     // LADDER-3 c5 — author seats + head laws + frame conductor + three-phase lifecycle
