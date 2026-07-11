@@ -28,5 +28,18 @@ namespace the_board {
 // MOOD_MULTIPLIER arrays). Indices are the Mood IDs in cartridge.hpp.
 inline constexpr uint32_t MOOD_COUNT = 6;
 
+// Portal destination — describes the world a door leads to. Also used as
+// the pending transition target (keys + portal crossings). GRADUATED here
+// from the Cartridge class body (LADDER-2 c1): ActiveArch (entities.hpp,
+// file scope) embeds one per arch, and a file-scope header cannot see an
+// in-class type — the second-consumer law, applied as for MOOD_COUNT.
+// This header is the mood/transition shared vocabulary.
+struct PortalDestination {
+    uint32_t seed = 0;
+    bool finite = false;
+    uint32_t finite_radius = 2;
+    uint32_t mood = 0;               // 0=open, 1=finite (expandable)
+};
+
 } // namespace the_board
 } // namespace t7

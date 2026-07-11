@@ -101,6 +101,7 @@
 #include "cartridges/the_board/modules/pawn.hpp"                 // LADDER-2 c2: PawnState + configs + decls (impl is pawn.inl, post-class)
 #include "cartridges/the_board/state.hpp"
 #include "cartridges/the_board/modules/spheres.hpp"              // LADDER-2 c0: SphereState (born converted; needs GPUState from state.hpp)
+#include "cartridges/the_board/modules/entities.hpp"             // LADDER-2 c1: grounded-family vocabulary + EntitiesState + preparer decls (impl is entities.inl, post-class)
 #include "cartridges/the_board/renderer.hpp"
 #include "coupling/visual_canvas.hpp"
 #include <cmath>
@@ -164,6 +165,14 @@ namespace t7 {
             //     in LADDER-2 c2 (header/impl split — pawn.hpp owns the struct,
             //     pawn.inl the post-class definitions).
             PawnState pawn_state_;
+
+            //   entities_state_ — EntitiesState (entities.hpp), the seven
+            //     grounded families' active arrays + counts + mesh-gen flags
+            //     + the pyramid CPU mirror. Was declared in entities.inl
+            //     (class body); relocated here in LADDER-2 c1 (header/impl
+            //     split — entities.hpp owns the struct, entities.inl the
+            //     post-class preparer definitions).
+            EntitiesState entities_state_;
 
             struct InputState {
                 float move_x = 0.0f;
@@ -322,14 +331,10 @@ namespace t7 {
             // (transition_timer / transition_fade_duration / transition_fade_alpha
             //  migrated into MoodState — see top of class)
 
-            // Portal destination — describes the world a door leads to.
-            // Also used as the pending transition target (keys + portal crossings).
-            struct PortalDestination {
-                uint32_t seed = 0;
-                bool finite = false;
-                uint32_t finite_radius = 2;
-                uint32_t mood = 0;               // 0=open, 1=finite (expandable)
-            };
+            // Portal destination — GRADUATED to mood_constants.hpp (LADDER-2
+            // c1): ActiveArch (entities.hpp, file scope) embeds one, and a
+            // file-scope header cannot see an in-class type. Visible here by
+            // namespace lookup; all uses were unqualified and carry.
             PortalDestination pendingDestination_{};
 
             // (finite_mode / finite_radius migrated into WorldState — see top of class)
@@ -566,8 +571,15 @@ namespace t7 {
             // compute_entity_placement samples the heightfield directly.
             // Only estimate_terrain_height (tileCache_ lookup) survives for ribbon.
 
-            // ── Entity Type Definitions (modules/entities.inl) ──
-#include "modules/entities.inl"
+            // ── Entities — CONVERTED (LADDER-2 c1, header/impl split) ──
+            // Grounded-family vocabulary + EntitiesState + the preparer
+            // declarations are in entities.hpp (file scope, above the
+            // class); the preparer definitions (which dereference the
+            // keyhole's gpuState_) are in entities.inl, included at FILE
+            // SCOPE in the post-class MODULE IMPLEMENTATIONS zone. The
+            // instance (entities_state_) is declared at the COMPOSITION
+            // ROOT. D3 census verdict: zero ambient-style functions — no
+            // signatures changed. See §1.
 
                         // ── Pawn — CONVERTED (LADDER-2 c2, header/impl split) ──
                         // PawnState + configs + declarations are in pawn.hpp
@@ -4186,4 +4198,5 @@ namespace t7 {
 // silently and satisfies nothing (the rig's LNK2019). Impl-file
 // definitions are `inline` free functions; the class-body `static` never
 // survives the move.
-#include "modules/pawn.inl"   // LADDER-2 c2 — tick_pawn_couplings/
+#include "modules/pawn.inl"       // LADDER-2 c2 — tick_pawn_couplings
+#include "modules/entities.inl"   // LADDER-2 c1 — the six prepare_*_mesh_gen preparers/
