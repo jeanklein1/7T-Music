@@ -1,144 +1,20 @@
-﻿// ─── pawn.inl ────────────────────────────────────────────────────
+// ─── pawn.inl (IMPL: post-class definitions) ─────────────────────
 //
-// Player-relative state: aura field (toroidal 64×64 spring grid that
-// activates near the pawn and releases when it moves away),
-// presence trajectory, per-frame coupling tick.
-//
-// Architecture:
-//   PawnAuraProfile    — declarative parameter table
-//   PawnAuraDeltaMode  — color differential strategy
-//   GPUPawnAuraConfig  — per-frame GPU config (in state.hpp)
-//   GPUPawnAuraCell    — per-cell state (in state.hpp)
-//   aura_presence       — real-time exponential 0→1 ramp on toggle
-//
-// ┌─── Public surface (called from outside this file) ──────────────┐
-// │                                                                  │
-// │  Module functions are static, take PawnState& explicitly.        │
-// │                                                                  │
-// │  Per-frame updates:                                              │
-// │    tick_pawn_couplings(ps, c, queue)                             │
-// │      — presence ramp + height compute                            │
-// │                                                                  │
-// │  Cross-module writers (set pawn_state_ flags from outside):      │
-// │    input.inl    — toggles aura_enabled, aura_height_enabled;     │
-// │                   marks aura_cfg_dirty                           │
-// │    mood.inl     — clears aura_enabled when mood disallows aura   │
-// │                                                                  │
-// │  Cross-module readers (read pawn_state_ from outside):           │
-// │    cartridge.hpp — aura compute dispatch reads all fields per    │
-// │                    frame (currently inline; candidate for future │
-// │                    cross-file move into pawn.inl)                │
-// │                                                                  │
-// └──────────────────────────────────────────────────────────────────┘
-//
-// Included inside the Cartridge class body.
-// Depends on: cartridge core only — the aura ramp is now a self-contained
-// real-time exponential (std::exp), lifted inline from the former
-// coupling/trajectory.hpp release primitive in campaign B1.
+// Definitions for pawn.hpp's declared laws. Included AFTER the Cartridge
+// class (LADDER-2 c2 header/impl split, per Jean) so the keyhole is a
+// complete type — tick_pawn_couplings dereferences c->player_,
+// c->time_state_, c->gpuState_. The state STRUCT + declarative laws live in
+// pawn.hpp (file scope, above the class). Namespace t7::the_board.
 // ─────────────────────────────────────────────────────────────────
 
+#include <cmath>  // std::exp (the real-time presence ramp)
 
-// ═══ TUNING CONSOLE ══════════════════════════════════════════════
-//
-// System-level dials for the pawn aura. Profile-authored values
-// (radius, stiffness, tints, mode) live in PawnAuraProfile below;
-// these are dials that apply regardless of which profile is active.
-
-// ── Aura presence ramp ───────────────────────────────────────────
-// aura_presence ramps 0→1 on enable and 1→0 on disable. Smooths
-// the transition so terrain extrusion and pawn height change
-// gradually rather than snapping. Asymmetric: enable feels
-// deliberate (~3s), disable feels release-y (~2s).
-static constexpr float AURA_PRESENCE_ATTACK  = 1.0f;   // 1/s — ~3s to full (spring converges in ~0.5s)
-static constexpr float AURA_PRESENCE_RELEASE = 1.5f;   // 1/s — ~2s to zero
-
-
-struct PawnAuraDeltaMode {
-    static constexpr uint32_t CONVERGENT = 0;  // all cells shift toward signature tint
-    static constexpr uint32_t RANDOM = 1;  // each cell gets unique random delta
-};
-
-struct PawnAuraProfile {
-    float influence_radius;
-    float attack_stiffness;
-    float attack_damping;
-    float release_rate;
-    float tint_strength;
-    float tint_r, tint_g, tint_b;
-    uint32_t delta_mode;
-    float delta_magnitude;     // random mode: max offset per channel
-    uint32_t effect_mask;      // bit 0=color, bit 1=height
-    float height_scale;        // height extrusion in world units
-};
-
-static constexpr PawnAuraProfile PAWN_AURA_DEFAULT = {
-    20.0f,             // influence_radius
-    12.0f,             // attack_stiffness
-    0.7f,              // attack_damping
-    1.5f,              // release_rate
-    0.5f,              // tint_strength
-    0.4f, 0.2f, 0.5f, // tint RGB (purple)
-    PawnAuraDeltaMode::CONVERGENT,
-    0.3f,              // delta_magnitude (used in random mode)
-    0x3u,              // effect_mask: color tint + height
-    3.0f,              // height_scale
-};
-
-// ═══ PAWN MODULE STATE (Scope B migration #5) ═══════════════════
-//
-// All pawn-owned state lives in this struct, accessed via
-// pawn_state_ on the Cartridge. Module functions take
-// `PawnState& ps` explicitly rather than reaching via Cartridge*,
-// making ownership language-visible and dependencies explicit
-// in signatures.
-//
-// Field roles:
-//
-//   active_aura_profile — Currently active profile. Starts as
-//     PAWN_AURA_DEFAULT and can be swapped by landmarks/commands.
-//
-//   aura_enabled — On/off intent. Currently toggled by numpad 3
-//     (input.inl); the presence ramp below smooths the transition
-//     so the toggle never snaps. The toggle key is temporary —
-//     see input.inl's binding fluidity note; the function this
-//     controls (aura on/off) will remain even when the binding
-//     changes.
-//
-//   aura_height_enabled — Height-effect gate. Currently toggled
-//     by key 2 (input.inl); leaves the color tint visible while
-//     flattening the terrain extrusion. Same temporary-binding
-//     caveat as aura_enabled.
-//
-//   aura_needs_clear — Internal: marks need to clear cells next
-//     frame after aura disable.
-//
-//   aura_cfg_dirty — Internal: full-config upload flag. true at
-//     boot → first frame uploads full config. Set true by external
-//     writers (input keys, mood transitions, musical coupling
-//     changes) when a parameter shift requires re-upload.
-//
-//   (aura_presence — migrated to player_.aura_presence in SEAM[spine:P8].
-//    Read here as c->player_.aura_presence; written in tick_pawn_aura.)
-
-struct PawnState {
-    PawnAuraProfile active_aura_profile = PAWN_AURA_DEFAULT;
-    bool            aura_enabled        = false;
-    bool            aura_height_enabled = true;
-    bool            aura_needs_clear    = false;
-    bool            aura_cfg_dirty      = true;
-};
-PawnState pawn_state_;
-
+namespace t7 {
+namespace the_board {
 
 // ─── Per-frame pawn coupling tick ────────────────────────────────
-//
-// DONE[pawn:K1] aura presence ramp + height computation moved out of
-//   cartridge.hpp::update() into this single named tick. The presence
-//   value uses an inlined real-time exponential step (mirroring WGSL §1.2).
-//
-// Caller: cartridge.hpp::update() — runs once per frame after the
-// signal is built and before world bounds are uploaded.
-static void tick_pawn_couplings(PawnState& ps, Cartridge* c, wgpu::Queue& queue) {
+void tick_pawn_couplings(PawnState& ps, Cartridge* c, wgpu::Queue& queue) {
+    (void)queue;
     // Aura presence ramp: smooth 0→1 on enable / 1→0 on disable.
     // (aura_presence migrated to player_ in SEAM[spine:P8] — see Cartridge::PlayerState)
     {
@@ -166,3 +42,6 @@ static void tick_pawn_couplings(PawnState& ps, Cartridge* c, wgpu::Queue& queue)
     // Keep compute running while ramping down (so the trail decays cleanly).
     c->gpuState_.set_aura_enabled(c->player_.aura_presence > 0.001f);
 }
+
+} // namespace the_board
+} // namespace t7

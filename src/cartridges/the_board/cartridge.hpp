@@ -98,6 +98,7 @@
 #include "cartridges/the_board/modules/entity_types.hpp"         // LADDER-1 c3: converted leaf (was a mid-file include in spawn_engine)
 #include "cartridges/the_board/modules/mood_constants.hpp"       // LADDER-2 prereq: MOOD_COUNT graduated to file scope (per Jean)
 #include "cartridges/the_board/modules/floater_vocabulary.hpp"   // LADDER-2 c0: floater TYPES (ActiveFloater/ActiveCube), file scope
+#include "cartridges/the_board/modules/pawn.hpp"                 // LADDER-2 c2: PawnState + configs + decls (impl is pawn.inl, post-class)
 #include "cartridges/the_board/state.hpp"
 #include "cartridges/the_board/modules/spheres.hpp"              // LADDER-2 c0: SphereState (born converted; needs GPUState from state.hpp)
 #include "cartridges/the_board/renderer.hpp"
@@ -146,9 +147,15 @@ namespace t7 {
             //     LADDER-2 c0 per Jean's M-c per-species ownership ruling.
             //
             // (cube_behaviors_state_ still lives in cube_behaviors.inl under
-            //  the transitional regime — it converts in L-mid. entities/pawn/
-            //  orbs instances join this chapter as they convert, c1-c3.)
+            //  the transitional regime — it converts in L-mid. entities/orbs
+            //  instances join this chapter as they convert, c1/c3.)
             SphereState sphere_state_;
+
+            //   pawn_state_ — PawnState (pawn.hpp), the pawn aura + presence
+            //     state. Was declared in pawn.inl (class body); relocated here
+            //     in LADDER-2 c2 (header/impl split — pawn.hpp owns the struct,
+            //     pawn.inl the post-class definitions).
+            PawnState pawn_state_;
 
             struct InputState {
                 float move_x = 0.0f;
@@ -554,10 +561,13 @@ namespace t7 {
             // ── Entity Type Definitions (modules/entities.inl) ──
 #include "modules/entities.inl"
 
-                        // ── Pawn (modules/pawn.inl) ──
-                        // Aura field state + presence trajectory + per-frame
-                        // tick_pawn_couplings. Closes pawn:K1.
-#include "modules/pawn.inl"
+                        // ── Pawn — CONVERTED (LADDER-2 c2, header/impl split) ──
+                        // PawnState + configs + declarations are in pawn.hpp
+                        // (file scope, above the class); the definitions
+                        // (tick_pawn_couplings, which dereferences the keyhole)
+                        // are in pawn.inl, included AFTER the class where
+                        // Cartridge is complete. See §1 + the post-class MODULE
+                        // IMPLEMENTATIONS zone below.
 
                         // ── Ground Architecture — CONVERTED (LADDER-1 c2) ──
                         // Now a real file-scope header
@@ -4144,6 +4154,19 @@ namespace t7 {
             const std::string& shader_path() const { return renderer_.shader_path(); }
 
         };
+
+        // ═══ MODULE IMPLEMENTATIONS (post-class) ═════════════════════
+        //
+        // Definitions for CONVERTED modules whose laws dereference the
+        // COMPLETE Cartridge (the keyhole). Each such module declares its
+        // functions in its header (file scope, above the class, so the
+        // instance member works); the definitions land here, after the
+        // class, where Cartridge is a complete type. Still ONE translation
+        // unit — this is the header/impl split of the amended §1, not a
+        // separate compilation unit (LADDER-2, per Jean's ruling). The call
+        // sites inside the class see each function's declaration via its
+        // header; the linker binds these definitions.
+        #include "modules/pawn.inl"   // LADDER-2 c2 — tick_pawn_couplings
 
     } // namespace the_board
 } // namespace t7/
