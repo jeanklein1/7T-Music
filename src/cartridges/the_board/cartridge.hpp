@@ -102,6 +102,7 @@
 #include "cartridges/the_board/state.hpp"
 #include "cartridges/the_board/modules/spheres.hpp"              // LADDER-2 c0: SphereState (born converted; needs GPUState from state.hpp)
 #include "cartridges/the_board/modules/entities.hpp"             // LADDER-2 c1: grounded-family vocabulary + EntitiesState + preparer decls (impl is entities.inl, post-class)
+#include "cartridges/the_board/modules/orbs.hpp"                 // LADDER-2 c3: orb console/registries + OrbsState + ORB_MOOD_TABLE + decls (impl is orbs.inl, post-class)
 #include "cartridges/the_board/renderer.hpp"
 #include "coupling/visual_canvas.hpp"
 #include <cmath>
@@ -173,6 +174,13 @@ namespace t7 {
             //     split — entities.hpp owns the struct, entities.inl the
             //     post-class preparer definitions).
             EntitiesState entities_state_;
+
+            //   orbs_state_ — OrbsState (orbs.hpp), the sky-dome lifecycle +
+            //     player-owned anchor/rule/gesture state. Was declared in
+            //     orbs.inl (class body); relocated here in LADDER-2 c3
+            //     (header/impl split — orbs.hpp owns the struct, orbs.inl the
+            //     post-class definitions).
+            OrbsState orbs_state_;
 
             struct InputState {
                 float move_x = 0.0f;
@@ -597,8 +605,14 @@ namespace t7 {
                         // t7::the_board; no runtime C++ consumers (world.wgsl
                         // mirrors it). See §1 (two-regime transitional clause).
 
-                        // ── Sky Orbs (modules/orbs.inl) ──
-#include "modules/orbs.inl"
+                        // ── Sky Orbs — CONVERTED (LADDER-2 c3, header/impl split) ──
+                        // Console + registries + OrbMoodConfig/ORB_MOOD_TABLE +
+                        // OrbsState + declarations are in orbs.hpp (file scope,
+                        // above the class); the definitions (which dereference
+                        // the keyhole) are in orbs.inl, included at FILE SCOPE
+                        // in the post-class MODULE IMPLEMENTATIONS zone. The
+                        // instance (orbs_state_) is declared at the COMPOSITION
+                        // ROOT. ORB-1 anchor semantics untouched. See §1.
 
             // ── Agents (modules/agents.inl) ──
             // Unified entity registry: behaviors, tier gains, populations.
@@ -4199,4 +4213,5 @@ namespace t7 {
 // definitions are `inline` free functions; the class-body `static` never
 // survives the move.
 #include "modules/pawn.inl"       // LADDER-2 c2 — tick_pawn_couplings
-#include "modules/entities.inl"   // LADDER-2 c1 — the six prepare_*_mesh_gen preparers/
+#include "modules/entities.inl"   // LADDER-2 c1 — the six prepare_*_mesh_gen preparers
+#include "modules/orbs.inl"       // LADDER-2 c3 — orb lifecycle/commands/dispatches/render/
