@@ -119,6 +119,15 @@ cartridge unless stated.
 - NAMED TODO (3): world.wgsl seam-map binding 144 cleanup; entities.inl
   spawn-rules placeholder (dies with the object vocabulary); world.wgsl
   is_roaming retained field (dies at the next struct relayout).
+- LATENT[gate-a-shared] (14 sites, tag-greppable in state.hpp): the
+  ROSTER-1b gate-(a) SHARED pieces — 9 SH·mb (an exclusive buffer/texture
+  bound into a megabind; retire by re-sectioning the named group) + 5
+  SH·dc (a co-owned instance store plus a forward draw that isn't
+  self-count-gated; retire by a behavior-identical `if(indexCount==0)
+  return` draw self-gate, then skip). Created-but-pristine under the
+  roster's Rider A while disabled; each dies when its retirement is paid.
+  Only indoor_shell (SEPARABLE) skips creation today. Full cost table:
+  audit/ROSTER_GATE_A.md.
 - HISTORICAL NARRATION (33 tags): 'Scope B' / DONE[] archaeology — 22
   primary DONE[] tags + 11 'Scope B migration' banners, cross-references
   excluded. PENDING RULING F3 (strip and keep SEAM[], recommended).

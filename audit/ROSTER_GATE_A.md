@@ -152,3 +152,30 @@ manifest doc (3d); the manifest **gains the gate-(a) status column** (3e);
 gol residue recipe **unchanged** (3f n/a); boot summary line when ≥1 piece
 disabled, silent when all-enabled (3g). All-enabled stays byte-identical
 (build + stdout) to `3774c56`.
+
+---
+
+## PHASE I' — LANDED
+
+- **3a** `roster.hpp` created; `inline constexpr ROSTER` + struct + edge +
+  full doc block (incl. the gate-(a) status column and NO-RES recording).
+  `family_enabled` uses literal indices; the PopFamily binding is asserted
+  in cartridge.hpp. Included by state.hpp (second consumer) + cartridge.hpp.
+- **3b** `indoor_shell` (SEP) creation gated (`ROSTER-GATE indoor_shell (a)`
+  ×3): shell VB/IB (`createShellMesh` early-return) + shell/shadow
+  pipelines (both `tPipe` calls). Draws self-gate on `shell_index_count==0`,
+  so zero render change.
+- **3c** 14 `LATENT[gate-a-shared]` tags (9 SH·mb + 5 SH·dc) at their
+  creation sites, each with its retirement. Also logged as a Constitution
+  §5 class.
+- **3d/3e** in the manifest doc block (roster.hpp), landed with 3a.
+- **3f** n/a — gol is SH·mb; residue recipe stays the Phase-I pristine form.
+- **3g** boot summary: `if constexpr (!ROSTER.all_enabled())`-discarded when
+  all-enabled (byte-identical binary + stdout); prints the disabled pieces
+  + creations-skipped line otherwise.
+
+Invariants held: all-enabled byte-identical by construction (every gate is
+`if constexpr`, discarded or transparent); per-piece atomicity
+(indoor_shell off → zero shell buffers + pipelines, boot valid); zero
+stray consults; Rider A for SH pieces; scope guard (no algorithm, no
+world.wgsl). Rig gates H0–H4 confirm at the rig.
