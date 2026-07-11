@@ -1699,7 +1699,7 @@ static constexpr EntityFamilyTraits SPHERE_TRAITS = {
 };
 
 static SpawnGateOutput sphere_run_gate(Cartridge* c, int32_t gx, int32_t gz) {
-    auto gate = c->run_spawn_preamble(gx, gz, c->activeFloaters_, Dim::MAX_SPHERE_INSTANCES,
+    auto gate = c->run_spawn_preamble(gx, gz, c->sphere_state_.activeFloaters_, Dim::MAX_SPHERE_INSTANCES,
         FloatingEntityProp::SPAWN_ROLL, SphereConfig::SPAWN_CHANCE,
         SphereConfig::MOOD_MULTIPLIER, PopFamily::SPHERE, "sph");
     return { gate.ok, gate.seed, gate.slot, gate.theme_idx };
@@ -1719,12 +1719,12 @@ static void sphere_compute_colors(EntityInstance& inst, const EntityFamilyTraits
 }
 
 static void sphere_write_active(Cartridge* c, const EntityInstance& inst) {
-    auto& af = c->activeFloaters_[inst.slot];
+    auto& af = c->sphere_state_.activeFloaters_[inst.slot];
     af.patch_gx = inst.trigger_gx; af.patch_gz = inst.trigger_gz;
     af.host_gx = inst.host_gx; af.host_gz = inst.host_gz;
     af.last_alloc_time = c->time_state_.seconds;
     af.active = true;
-    c->activeFloaterCount_++;
+    c->sphere_state_.activeFloaterCount_++;
 }
 
 static void sphere_write_gpu(Cartridge* c, const EntityInstance& inst, wgpu::Queue& queue) {
@@ -1764,7 +1764,7 @@ static bool dispatch_select_sphere_generic(Cartridge* self, int32_t gx, int32_t 
 static bool dispatch_place_sphere_generic(Cartridge* self, EntityQueueEntry& e, PlacementEntry& pe) {
     pe.family = e.family; pe.gx = e.gx; pe.gz = e.gz;
     if (self->generic_place(SPHERE_TRAITS, e.generic)) { pe.generic = e.generic; return true; }
-    self->activeFloaters_[e.generic.slot].active = false; return false;
+    self->sphere_state_.activeFloaters_[e.generic.slot].active = false; return false;
 }
 static void dispatch_commit_sphere_generic(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue) {
     auto* host = self->find_patch(pe.generic.host_gx, pe.generic.host_gz);
@@ -1784,7 +1784,7 @@ static void dispatch_commit_sphere_generic(Cartridge* self, PlacementEntry& pe, 
         // unlikely in practice; if it surfaces, add a continuous readback
         // mirroring agent_state_readback_staging (cartridge.hpp ~7990).
     }
-    else { self->activeFloaters_[pe.generic.slot].active = false; }
+    else { self->sphere_state_.activeFloaters_[pe.generic.slot].active = false; }
 }
 
 
@@ -1876,7 +1876,7 @@ static constexpr EntityFamilyTraits CUBE_TRAITS = {
 };
 
 static SpawnGateOutput cube_run_gate(Cartridge* c, int32_t gx, int32_t gz) {
-    auto gate = c->run_spawn_preamble(gx, gz, c->activeCubes_, Dim::MAX_CUBE_INSTANCES,
+    auto gate = c->run_spawn_preamble(gx, gz, c->cube_behaviors_state_.activeCubes_, Dim::MAX_CUBE_INSTANCES,
         CubeEntityProp::SPAWN_ROLL, CubeConfig::SPAWN_CHANCE,
         CubeConfig::MOOD_MULTIPLIER, PopFamily::CUBE, "cube");
     return { gate.ok, gate.seed, gate.slot, gate.theme_idx };
@@ -1896,13 +1896,13 @@ static void cube_compute_colors(EntityInstance& inst, const EntityFamilyTraits&,
 }
 
 static void cube_write_active(Cartridge* c, const EntityInstance& inst) {
-    auto& ac = c->activeCubes_[inst.slot];
+    auto& ac = c->cube_behaviors_state_.activeCubes_[inst.slot];
     ac.patch_gx = inst.trigger_gx; ac.patch_gz = inst.trigger_gz;
     ac.host_gx = inst.host_gx; ac.host_gz = inst.host_gz;
     ac.cx = inst.cx; ac.cz = inst.cz;
     ac.last_alloc_time = c->time_state_.seconds;
     ac.active = true;
-    c->activeCubeCount_++;
+    c->cube_behaviors_state_.activeCubeCount_++;
 }
 
 static void cube_write_gpu(Cartridge* c, const EntityInstance& inst, wgpu::Queue& queue) {
@@ -1977,7 +1977,7 @@ static bool dispatch_select_cube_generic(Cartridge* self, int32_t gx, int32_t gz
 static bool dispatch_place_cube_generic(Cartridge* self, EntityQueueEntry& e, PlacementEntry& pe) {
     pe.family = e.family; pe.gx = e.gx; pe.gz = e.gz;
     if (self->generic_place(CUBE_TRAITS, e.generic)) { pe.generic = e.generic; return true; }
-    self->activeCubes_[e.generic.slot].active = false; return false;
+    self->cube_behaviors_state_.activeCubes_[e.generic.slot].active = false; return false;
 }
 static void dispatch_commit_cube_generic(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue) {
     auto* host = self->find_patch(pe.generic.host_gx, pe.generic.host_gz);
@@ -1986,7 +1986,7 @@ static void dispatch_commit_cube_generic(Cartridge* self, PlacementEntry& pe, wg
         // Lifecycle Phase 2: cube lifetime decoupled from host patch.
         // See dispatch_commit_sphere_generic for the rationale.
     }
-    else { self->activeCubes_[pe.generic.slot].active = false; }
+    else { self->cube_behaviors_state_.activeCubes_[pe.generic.slot].active = false; }
 }
 
 

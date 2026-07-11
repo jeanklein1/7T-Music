@@ -123,11 +123,22 @@ cartridge unless stated.
 - TEARDOWN BULK SWEEPS (2 sites in the transition path): teardown_world
   clears every family by slot loops, and the finite-mode ribbon sweep
   inside TEARDOWN. By sweep rather than per-entity eviction;
-  documented; dies if eviction ever unifies.
+  documented; dies if eviction ever unifies. SLIVER RETIRED (LADDER-2
+  c0): the sphere + cube slot-loop clears left the inline teardown_world
+  sweep and became per-owner clear functions — clear_spheres
+  (spheres.hpp) and clear_cubes (cube_behaviors.inl), each still CPU +
+  per-slot-GPU paired. The remaining family clears and the ribbon sweep
+  stand.
 - EVICTION THUNKS (1 class, 12 functions in the_board; 13 in the_chord,
   which keeps a dispatch_evict_noop): dispatch_evict_* live
   cartridge-side though eviction is lifecycle (a §2 trespass). Die as
-  entities absorb their evictors on next touch.
+  entities absorb their evictors on next touch. SLIVER PROGRESSED
+  (LADDER-2 c0): the sphere + cube active-slot state left the ambient
+  class body and now lives in its species owner (SphereState /
+  CubeBehaviorsState), which carries the paired clear function — the
+  groundwork for dispatch_evict_sphere / _cube to be absorbed into their
+  owners on the next touch. The thunks themselves still stand
+  cartridge-side (count unchanged); the state home is the step taken.
 - WHITELIST (1): the_lab.cpp reads the contract directly — the permanent
   instrument-panel exception, by charter.
 - NAMED TODO (3): world.wgsl seam-map binding 144 cleanup; entities.inl

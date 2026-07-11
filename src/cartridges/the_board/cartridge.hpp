@@ -97,7 +97,9 @@
 #include "cartridges/the_board/modules/ground_architecture.hpp"  // LADDER-1 c2: converted leaf (was a class-body include)
 #include "cartridges/the_board/modules/entity_types.hpp"         // LADDER-1 c3: converted leaf (was a mid-file include in spawn_engine)
 #include "cartridges/the_board/modules/mood_constants.hpp"       // LADDER-2 prereq: MOOD_COUNT graduated to file scope (per Jean)
+#include "cartridges/the_board/modules/floater_vocabulary.hpp"   // LADDER-2 c0: floater TYPES (ActiveFloater/ActiveCube), file scope
 #include "cartridges/the_board/state.hpp"
+#include "cartridges/the_board/modules/spheres.hpp"              // LADDER-2 c0: SphereState (born converted; needs GPUState from state.hpp)
 #include "cartridges/the_board/renderer.hpp"
 #include "coupling/visual_canvas.hpp"
 #include <cmath>
@@ -127,6 +129,26 @@ namespace t7 {
 
             GPUState gpuState_;
             Renderer renderer_;
+
+            // ═══ COMPOSITION ROOT — MODULE STATE (LADDER-2) ══════════════
+            //
+            // The root's own manifest of organs: the instances of state
+            // structs owned by CONVERTED modules (amended §1 / D1). Each
+            // struct lives in its module's file-scope header; the cartridge
+            // declares the instance here so both converted modules (by
+            // explicit state& parameter) and, transitionally, unconverted
+            // modules (by ambient member reach, D2) can see it. §2-residency
+            // legal by definition — this is assembly.
+            //
+            //   sphere_state_ — SphereState (spheres.hpp), the orbital-sphere
+            //     active-slot mirror. Was activeFloaters_/activeFloaterCount_
+            //     in floater_vocabulary.inl (class body); relocated here in
+            //     LADDER-2 c0 per Jean's M-c per-species ownership ruling.
+            //
+            // (cube_behaviors_state_ still lives in cube_behaviors.inl under
+            //  the transitional regime — it converts in L-mid. entities/pawn/
+            //  orbs instances join this chapter as they convert, c1-c3.)
+            SphereState sphere_state_;
 
             struct InputState {
                 float move_x = 0.0f;
@@ -1188,8 +1210,8 @@ namespace t7 {
 
             static void dispatch_evict_sphere(Cartridge* self,
                 uint32_t slot, wgpu::Queue& queue) {
-                self->activeFloaters_[slot].active = false;
-                self->activeFloaterCount_--;
+                self->sphere_state_.activeFloaters_[slot].active = false;  // LADDER-2 c0: sphere state owned by SphereState
+                self->sphere_state_.activeFloaterCount_--;
                 GPUFloatingEntityState empty{};
                 self->gpuState_.upload_sphere_entity_slot(queue, slot, empty);
 #ifdef DIAG_ENTITY_LIFECYCLE
@@ -1207,8 +1229,8 @@ namespace t7 {
 
             static void dispatch_evict_cube(Cartridge* self,
                 uint32_t slot, wgpu::Queue& queue) {
-                self->activeCubes_[slot].active = false;
-                self->activeCubeCount_--;
+                self->cube_behaviors_state_.activeCubes_[slot].active = false;  // LADDER-2 c0: cube state owned by CubeBehaviorsState
+                self->cube_behaviors_state_.activeCubeCount_--;
                 GPUFloatingEntityState empty{};
                 self->gpuState_.upload_cube_entity_slot(queue, slot, empty);
 #ifdef DIAG_ENTITY_LIFECYCLE
@@ -2360,21 +2382,12 @@ namespace t7 {
                     gpuState_.upload_ribbon(queue, empty);
                 }
 
-                // Sphere entities — clear all slots (0..MAX_SPHERE_INSTANCES-1)
-                for (uint32_t i = 0; i < Dim::MAX_SPHERE_INSTANCES; i++) {
-                    activeFloaters_[i] = ActiveFloater{};
-                    GPUFloatingEntityState empty{};
-                    gpuState_.upload_sphere_entity_slot(queue, i, empty);
-                }
-                activeFloaterCount_ = 0;
-
-                // Cube entities — clear all slots (0..MAX_CUBE_INSTANCES-1)
-                for (uint32_t i = 0; i < Dim::MAX_CUBE_INSTANCES; i++) {
-                    activeCubes_[i] = ActiveCube{};
-                    GPUFloatingEntityState empty{};
-                    gpuState_.upload_cube_entity_slot(queue, i, empty);
-                }
-                activeCubeCount_ = 0;
+                // Sphere + cube entities — LADDER-2 c0.4: the paired CPU +
+                // per-slot GPU clears are now per-owner clear functions the
+                // teardown calls (behavior-identical to the former inline
+                // sweeps). See §5 TEARDOWN BULK SWEEPS / EVICTION THUNKS.
+                clear_spheres(sphere_state_, gpuState_, queue);
+                clear_cubes(cube_behaviors_state_, gpuState_, queue);
 
                 // Gallery / paintings — clear all exhibition + slots, keep staging intact
                 for (uint32_t i = 0; i < MAX_GALLERIES; i++) {
@@ -3283,19 +3296,21 @@ namespace t7 {
                                         // Spheres: slots [0, MAX_SPHERE_INSTANCES)
                                         for (uint32_t i = 0; i < Dim::MAX_SPHERE_INSTANCES; i++) {
                                             bool gpu_active = (data[i].is_active != 0u);
-                                            if (activeFloaters_[i].active && !gpu_active &&
-                                                (now - activeFloaters_[i].last_alloc_time) > SPAWN_PROTECTION_S) {
-                                                activeFloaters_[i].active = false;
-                                                if (activeFloaterCount_ > 0) activeFloaterCount_--;
+                                            // LADDER-2 c0: sphere active-slot mirror owned by SphereState
+                                            if (sphere_state_.activeFloaters_[i].active && !gpu_active &&
+                                                (now - sphere_state_.activeFloaters_[i].last_alloc_time) > SPAWN_PROTECTION_S) {
+                                                sphere_state_.activeFloaters_[i].active = false;
+                                                if (sphere_state_.activeFloaterCount_ > 0) sphere_state_.activeFloaterCount_--;
                                             }
                                         }
                                         // Cubes: slots [CUBE_SLOT_OFFSET, TOTAL_FLOATING_SLOTS)
                                         for (uint32_t i = 0; i < Dim::MAX_CUBE_INSTANCES; i++) {
                                             bool gpu_active = (data[Dim::CUBE_SLOT_OFFSET + i].is_active != 0u);
-                                            if (activeCubes_[i].active && !gpu_active &&
-                                                (now - activeCubes_[i].last_alloc_time) > SPAWN_PROTECTION_S) {
-                                                activeCubes_[i].active = false;
-                                                if (activeCubeCount_ > 0) activeCubeCount_--;
+                                            // LADDER-2 c0: cube active-slot mirror owned by CubeBehaviorsState
+                                            if (cube_behaviors_state_.activeCubes_[i].active && !gpu_active &&
+                                                (now - cube_behaviors_state_.activeCubes_[i].last_alloc_time) > SPAWN_PROTECTION_S) {
+                                                cube_behaviors_state_.activeCubes_[i].active = false;
+                                                if (cube_behaviors_state_.activeCubeCount_ > 0) cube_behaviors_state_.activeCubeCount_--;
                                             }
                                         }
                                     }

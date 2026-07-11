@@ -26,21 +26,23 @@
 // │    SPHERE_TIER_NAMES                                             │
 // │    SphereConfig (SPAWN_CHANCE, MOOD_MULTIPLIER, POSITION_JITTER) │
 // │    FloatingEntityProp (property indices 100–126)                 │
-// │    ActiveFloater                                                 │
-// │    activeFloaters_[],  activeFloaterCount_                       │
+// │    (ActiveFloater TYPE → floater_vocabulary.hpp; the active-slot │
+// │     STATE → SphereState in spheres.hpp — LADDER-2 c0)            │
 // │                                                                  │
 // │  Cube:                                                           │
 // │    CUBE_TIER_COUNT, CUBE_BASE_TIER_WEIGHTS                       │
 // │    CUBE_TIER_NAMES                                               │
 // │    CubeConfig (SPAWN_CHANCE, MOOD_MULTIPLIER, POSITION_JITTER)   │
 // │    CubeEntityProp (property indices 130–156)                     │
-// │    ActiveCube                                                    │
-// │    activeCubes_[],  activeCubeCount_                             │
+// │    (ActiveCube TYPE → floater_vocabulary.hpp; the active-slot    │
+// │     STATE → CubeBehaviorsState in cube_behaviors.inl — c0)       │
 // │                                                                  │
 // └──────────────────────────────────────────────────────────────────┘
 //
-// Included inside the Cartridge class body.
-// Depends on: state.hpp (Dim::*), cartridge.hpp (MOOD_COUNT).
+// Included inside the Cartridge class body (an UNCONVERTED module — the
+// CONFIGS / tier tables / property registries below convert into
+// floater_vocabulary.hpp in c4; the TYPES already did, in c0).
+// Depends on: state.hpp (Dim::*), mood_constants.hpp (MOOD_COUNT).
 //
 // SEAM[floater_vocabulary:taxonomy] generic-pipeline floater families
 //   parallel grounded families (entities.inl) but live here because
@@ -54,12 +56,8 @@
 // SEAM[cube:taxonomy] cube VOCABULARY lives here, not in entities.inl.
 //   Three concerns, three files (vocabulary / sampling profile /
 //   behavior gains), each correct.
-// SEAM[cube:cx-cz-mirror] ActiveCube has cx, cz fields — CPU mirror
-//   of GPU anchor for cube_behaviors.inl::corral_cubes /
-//   toggle_cube_kite_mode to read without GPU readback. Same family
-//   as agents:D2 (slot-0 reads); when pawn.inl extracts and provides
-//   accessors, corral/kite could analogously have cube_anchor(slot)
-//   accessors.
+// SEAM[cube:cx-cz-mirror] travels with ActiveCube — now in
+//   floater_vocabulary.hpp (LADDER-2 c0). Kept there verbatim.
 // ─────────────────────────────────────────────────────────────────
 
 
@@ -112,25 +110,11 @@ struct FloatingEntityProp {
 };
 
 // ── Active Sphere Tracking ───────────────────────────────────────
-//
-// SEAM[sphere:P5] last_alloc_time is pattern P5 (release-pending
-//   sentinel / race protection) — CPU-timestamp variant. When GPU
-//   readback arrives stale ("kernel evicted this slot"), the
-//   timestamp protects freshly-allocated slots from being incorrectly
-//   marked inactive. Same intent as cube_behaviors.inl::
-//   toggle_cube_kite_mode's GPU sentinel; different mechanism.
-struct ActiveFloater {
-    int32_t patch_gx = 0, patch_gz = 0;
-    int32_t host_gx = 0, host_gz = 0;
-    // See ActiveCube::last_alloc_time — same race protection for
-    // sphere slots. Spheres rarely evict in practice (orbital,
-    // anchored at origin), but the readback path covers them
-    // uniformly so the protection covers them uniformly too.
-    float   last_alloc_time = -1000.0f;
-    bool active = false;
-};
-ActiveFloater activeFloaters_[Dim::MAX_SPHERE_INSTANCES]{};
-uint32_t activeFloaterCount_ = 0;
+// The ActiveFloater TYPE moved to floater_vocabulary.hpp (LADDER-2 c0),
+// with SEAM[sphere:P5]. The active-slot STATE (activeFloaters_[] /
+// activeFloaterCount_) moved to SphereState (spheres.hpp), per Jean's M-c
+// per-species ownership ruling. Nothing tracked here now — vocabulary,
+// never state.
 
 
 // ═══ FAMILY: CUBE ═════════════════════════════════════════════════
@@ -185,23 +169,8 @@ struct CubeEntityProp {
 };
 
 // ── Active Cube Tracking ─────────────────────────────────────────
-struct ActiveCube {
-    int32_t patch_gx = 0, patch_gz = 0;
-    int32_t host_gx = 0, host_gz = 0;
-    // World XZ of the cube's anchor — mirror of fe.anchor[0,2] on GPU.
-    // Captured at spawn so cube_behaviors.inl::corral_cubes can read
-    // the current anchor without a GPU readback. Updated when corral
-    // writes a new anchor.
-    float   cx = 0.0f, cz = 0.0f;
-    // Time (time_state_.seconds) when this slot was last marked active.
-    // Used to suppress race between freshly allocated slots and the
-    // floater readback path: readback callbacks process previous-frame
-    // data, so a slot allocated this frame would be incorrectly marked
-    // inactive by the readback (which sees the *prior tenant* as
-    // evicted). Suppression window covers two readback cycles. See
-    // render() floater sync block for the consumer.
-    float   last_alloc_time = -1000.0f;
-    bool active = false;
-};
-ActiveCube activeCubes_[Dim::MAX_CUBE_INSTANCES]{};
-uint32_t activeCubeCount_ = 0;
+// The ActiveCube TYPE moved to floater_vocabulary.hpp (LADDER-2 c0), with
+// SEAM[cube:cx-cz-mirror]. The active-slot STATE (activeCubes_[] /
+// activeCubeCount_) moved into CubeBehaviorsState (cube_behaviors.inl) —
+// the behavior layer that already owns cube runtime state — per Jean's M-c
+// per-species ownership ruling. Nothing tracked here now.
