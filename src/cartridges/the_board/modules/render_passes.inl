@@ -1,36 +1,30 @@
-﻿// ─── render_passes.inl ──────────────────────────────────────────
+﻿// ─── render_passes.inl (IMPL: post-class definitions) ────────────
 //
-// GPU dispatch and draw calls. The speaker at the end of the
-// signal chain: reads final state, issues compute and render passes.
+// Definitions for render_passes.hpp's declared dispatch/pass functions
+// + the two pure light-matrix helpers. Included AFTER the Cartridge
+// class (LADDER-3 c7 header/impl split) so the keyhole is a complete
+// type — the bodies reach c->gpuState_ / c->renderer_ /
+// c->entities_state_ / c->cpuPiers_ / c->cpuSpotLights_ /
+// c->world_state_ / c->gol_state_ / c->ribbon_state_ /
+// c->gallery_state_ / c->orbs_state_ / c->mood_state_ /
+// c->clearColor_ via the complete type (the c7 retrofit: 243 ambient
+// organ reads became keyhole reads; bodies otherwise verbatim, ZERO
+// draw self-gate additions).
 //
-// ┌─── Public surface (called from outside this file) ──────────────┐
-// │                                                                  │
-// │  Pre-render data preparation:                                    │
-// │    upload_ground_entries(queue)         — pack entity positions  │
-// │    dispatch_placement_correction(enc)   — Y-correct on heightfld │
-// │                                                                  │
-// │  GPU compute dispatch:                                           │
-// │    dispatch_compute(enc)                — ribbon, pawn, agents,  │
-// │                                           camera, sphere, cube,  │
-// │                                           VP matrix              │
-// │    dispatch_frustum_cull(enc, queue)    — outdoor patch culling  │
-// │                                                                  │
-// │  Render passes:                                                  │
-// │    render_shadow_pass(enc)              — depth-only             │
-// │    draw_shadow_all(pass)                — shared shadow drawlist │
-// │    render_main_pass(enc, color, depth)  — full color pass        │
-// │                                                                  │
-// │  Light matrix helpers (called from update path):                 │
-// │    compute_spot_light_vp(light, vp_out)                          │
-// │    compute_sun_matrices(direction, vp_out, light_dir_out)        │
-// │                                                                  │
-// └──────────────────────────────────────────────────────────────────┘
-//
-// Included inside the Cartridge class body.
-// Depends on: entities.inl, gallery.inl, gol_zones.inl, pawn.inl,
-//             ribbon.inl, floater_vocabulary.hpp.
+// WRAPPING FORM (the proven fix-2 rule): SELF-WRAPPING — opens
+// t7::the_board itself, carries its own standard includes; the MODULE
+// IMPLEMENTATIONS zone includes it at FILE SCOPE. Definitions are
+// `inline` free functions. Section order is the original — every
+// definition already precedes its first use (draw_shadow_all follows
+// render_shadow_pass but is declared by the header).
 // ─────────────────────────────────────────────────────────────────
 
+#include <algorithm>   // std::max, std::min
+#include <cmath>       // std::sqrt, std::abs, std::acos, std::tan
+#include <cstdint>
+
+namespace t7 {
+namespace the_board {
 
 // ═══ PRE-RENDER DATA PREP ════════════════════════════════════════
 //
@@ -42,50 +36,50 @@
 // ground_y = 0 for all families. The GPU compute shader
 // (compute_entity_placement) REPLACES it with the heightfield
 // sample, which already includes pier contributions.
-void upload_ground_entries(wgpu::Queue& queue) {
+inline void upload_ground_entries(Cartridge* c, wgpu::Queue& queue) {
     // ── Arch ground entries ──
     GPUArchGroundEntry archOrigins[Dim::MAX_ARCH_INSTANCES]{};
     for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++) {
-        if (!entities_state_.arches[i].active) continue;
-        const auto& pl = cpuPiers_[Dim::PIER_ARCH_BASE + i * 2];
-        const auto& pr = cpuPiers_[Dim::PIER_ARCH_BASE + i * 2 + 1];
+        if (!c->entities_state_.arches[i].active) continue;
+        const auto& pl = c->cpuPiers_[Dim::PIER_ARCH_BASE + i * 2];
+        const auto& pr = c->cpuPiers_[Dim::PIER_ARCH_BASE + i * 2 + 1];
         archOrigins[i].pier_left_x = pl.origin[0];
         archOrigins[i].pier_left_z = pl.origin[1];
         archOrigins[i].pier_right_x = pr.origin[0];
         archOrigins[i].pier_right_z = pr.origin[1];
         archOrigins[i].is_active = 1;
-        archOrigins[i].ground_y = entities_state_.arches[i].cached_ground_y;
+        archOrigins[i].ground_y = c->entities_state_.arches[i].cached_ground_y;
         archOrigins[i].pier_correction_left = 0.0f;
         archOrigins[i].pier_correction_right = 0.0f;
     }
-    gpuState_.upload_arch_origins(queue, archOrigins, Dim::MAX_ARCH_INSTANCES);
+    c->gpuState_.upload_arch_origins(queue, archOrigins, Dim::MAX_ARCH_INSTANCES);
 
     // ── Column + Antenna ground entries (shared GPU buffer, split arrays) ──
     GPUColumnGroundEntry columnOrigins[Dim::MAX_COLUMN_INSTANCES]{};
     for (uint32_t i = 0; i < Dim::MAX_COLUMN_ONLY; i++) {
-        if (!entities_state_.columns[i].active) continue;
-        columnOrigins[i].center_x = entities_state_.columns[i].world_x;
-        columnOrigins[i].center_z = entities_state_.columns[i].world_z;
+        if (!c->entities_state_.columns[i].active) continue;
+        columnOrigins[i].center_x = c->entities_state_.columns[i].world_x;
+        columnOrigins[i].center_z = c->entities_state_.columns[i].world_z;
         columnOrigins[i].is_active = 1;
-        columnOrigins[i].ground_y = entities_state_.columns[i].cached_ground_y;
+        columnOrigins[i].ground_y = c->entities_state_.columns[i].cached_ground_y;
         columnOrigins[i].pier_correction = 0.0f;
     }
     for (uint32_t i = 0; i < Dim::MAX_ANTENNA_ONLY; i++) {
-        if (!entities_state_.antennas[i].active) continue;
+        if (!c->entities_state_.antennas[i].active) continue;
         uint32_t gpu_slot = i + Dim::ANTENNA_SLOT_OFFSET;
-        columnOrigins[gpu_slot].center_x = entities_state_.antennas[i].world_x;
-        columnOrigins[gpu_slot].center_z = entities_state_.antennas[i].world_z;
+        columnOrigins[gpu_slot].center_x = c->entities_state_.antennas[i].world_x;
+        columnOrigins[gpu_slot].center_z = c->entities_state_.antennas[i].world_z;
         columnOrigins[gpu_slot].is_active = 1;
-        columnOrigins[gpu_slot].ground_y = entities_state_.antennas[i].cached_ground_y;
+        columnOrigins[gpu_slot].ground_y = c->entities_state_.antennas[i].cached_ground_y;
         columnOrigins[gpu_slot].pier_correction = 0.0f;
     }
-    gpuState_.upload_column_origins(queue, columnOrigins, Dim::MAX_COLUMN_INSTANCES);
+    c->gpuState_.upload_column_origins(queue, columnOrigins, Dim::MAX_COLUMN_INSTANCES);
 
     // ── Pyramid ground entries ──
     GPUPyramidGroundEntry pyramidOrigins[Dim::MAX_PYRAMID_INSTANCES]{};
     for (uint32_t i = 0; i < Dim::MAX_PYRAMID_INSTANCES; i++) {
-        if (!entities_state_.pyramids[i].active) continue;
-        const auto& inst = entities_state_.cpu_pyramids.instances[i];
+        if (!c->entities_state_.pyramids[i].active) continue;
+        const auto& inst = c->entities_state_.cpu_pyramids.instances[i];
         pyramidOrigins[i].center_x = inst.origin[0];
         pyramidOrigins[i].center_z = inst.origin[1];
         pyramidOrigins[i].is_active = 1;
@@ -93,9 +87,9 @@ void upload_ground_entries(wgpu::Queue& queue) {
         pyramidOrigins[i].half_x = inst.half_size[0];
         pyramidOrigins[i].half_z = inst.half_size[1];
         pyramidOrigins[i].rotation = inst.rotation;
-        pyramidOrigins[i].ground_y = entities_state_.pyramids[i].cached_ground_y;
+        pyramidOrigins[i].ground_y = c->entities_state_.pyramids[i].cached_ground_y;
     }
-    gpuState_.upload_pyramid_origins(queue, pyramidOrigins, Dim::MAX_PYRAMID_INSTANCES);
+    c->gpuState_.upload_pyramid_origins(queue, pyramidOrigins, Dim::MAX_PYRAMID_INSTANCES);
 
     // ── Plant ground entries (palm + cactus + blade) ──
     // Combined compute buffer: [0..23] palm, [24..43] cactus, [44..75] blade.
@@ -108,29 +102,29 @@ void upload_ground_entries(wgpu::Queue& queue) {
     GPUPalmGroundEntry plantOrigins[PLANT_COUNT]{};
 
     for (uint32_t i = 0; i < Dim::MAX_PALM_INSTANCES; i++) {
-        if (!entities_state_.palms[i].active) continue;
-        plantOrigins[PALM_OFF + i].center_x = entities_state_.palms[i].world_x;
-        plantOrigins[PALM_OFF + i].center_z = entities_state_.palms[i].world_z;
+        if (!c->entities_state_.palms[i].active) continue;
+        plantOrigins[PALM_OFF + i].center_x = c->entities_state_.palms[i].world_x;
+        plantOrigins[PALM_OFF + i].center_z = c->entities_state_.palms[i].world_z;
         plantOrigins[PALM_OFF + i].is_active = 1;
-        plantOrigins[PALM_OFF + i].ground_y = entities_state_.palms[i].cached_ground_y;
+        plantOrigins[PALM_OFF + i].ground_y = c->entities_state_.palms[i].cached_ground_y;
     }
     for (uint32_t i = 0; i < Dim::MAX_CACTUS_INSTANCES; i++) {
-        if (!entities_state_.cacti[i].active) continue;
-        plantOrigins[CACT_OFF + i].center_x = entities_state_.cacti[i].world_x;
-        plantOrigins[CACT_OFF + i].center_z = entities_state_.cacti[i].world_z;
+        if (!c->entities_state_.cacti[i].active) continue;
+        plantOrigins[CACT_OFF + i].center_x = c->entities_state_.cacti[i].world_x;
+        plantOrigins[CACT_OFF + i].center_z = c->entities_state_.cacti[i].world_z;
         plantOrigins[CACT_OFF + i].is_active = 1;
-        plantOrigins[CACT_OFF + i].ground_y = entities_state_.cacti[i].cached_ground_y;
+        plantOrigins[CACT_OFF + i].ground_y = c->entities_state_.cacti[i].cached_ground_y;
     }
     for (uint32_t i = 0; i < Dim::MAX_BLADE_INSTANCES; i++) {
-        if (!entities_state_.blades[i].active) continue;
-        plantOrigins[BLAD_OFF + i].center_x = entities_state_.blades[i].world_x;
-        plantOrigins[BLAD_OFF + i].center_z = entities_state_.blades[i].world_z;
+        if (!c->entities_state_.blades[i].active) continue;
+        plantOrigins[BLAD_OFF + i].center_x = c->entities_state_.blades[i].world_x;
+        plantOrigins[BLAD_OFF + i].center_z = c->entities_state_.blades[i].world_z;
         plantOrigins[BLAD_OFF + i].is_active = 1;
-        plantOrigins[BLAD_OFF + i].ground_y = entities_state_.blades[i].cached_ground_y;
+        plantOrigins[BLAD_OFF + i].ground_y = c->entities_state_.blades[i].cached_ground_y;
     }
 
     // One write to the combined compute storage buffer
-    queue.WriteBuffer(gpuState_.plant_compute_ground_buffer(), 0,
+    queue.WriteBuffer(c->gpuState_.plant_compute_ground_buffer(), 0,
         plantOrigins, sizeof(plantOrigins));
 }
 
@@ -139,12 +133,12 @@ void upload_ground_entries(wgpu::Queue& queue) {
 // positions and adds terrain height to the CPU-uploaded pier offsets.
 // Handles paintings (terrain + GoL), columns, palms, cacti (single-point),
 // arches (2-point pier feet min), pyramids (5-point corner min).
-void dispatch_placement_correction(wgpu::CommandEncoder& encoder) {
+inline void dispatch_placement_correction(Cartridge* c, wgpu::CommandEncoder& encoder) {
     wgpu::ComputePassDescriptor cpd{};
     cpd.label = "Entity Placement Y Correction";
     wgpu::ComputePassEncoder compute = encoder.BeginComputePass(&cpd);
-    renderer_.dispatch_entity_placement(
-        compute, gpuState_.entity_placement_compute_group()
+    c->renderer_.dispatch_entity_placement(
+        compute, c->gpuState_.entity_placement_compute_group()
     );
     compute.End();
 }
@@ -156,61 +150,61 @@ void dispatch_placement_correction(wgpu::CommandEncoder& encoder) {
 // frustum cull pass that classifies visible patches into LOD0.
 
 // Per-frame compute: ribbon transforms, agents, camera, VP.
-void dispatch_compute(wgpu::CommandEncoder& encoder) {
+inline void dispatch_compute(Cartridge* c, wgpu::CommandEncoder& encoder) {
     wgpu::ComputePassDescriptor desc{};
     desc.label = "Compute Phase";
     wgpu::ComputePassEncoder compute = encoder.BeginComputePass(&desc);
 
-    if (ribbon_state_.rendered_slot != UINT32_MAX) {
-        renderer_.dispatch_compute_ribbon_rings(
+    if (c->ribbon_state_.rendered_slot != UINT32_MAX) {
+        c->renderer_.dispatch_compute_ribbon_rings(
             compute,
-            gpuState_.ribbon_compute_group(),
+            c->gpuState_.ribbon_compute_group(),
             GPUState::ribbon_ring_workgroups()
         );
     }
 
-    renderer_.dispatch_update_terrain_config(
+    c->renderer_.dispatch_update_terrain_config(
         compute,
-        gpuState_.compute_entity_group()
+        c->gpuState_.compute_entity_group()
     );
 
     // Player kernel runs first: the walker policy updates
     // the possessed slot's position. The other-agents kernel
     // then sees the player's current-frame position when it
     // computes eviction distances.
-    renderer_.dispatch_update_player_agent(
+    c->renderer_.dispatch_update_player_agent(
         compute,
-        gpuState_.compute_entity_group(),
-        gpuState_.compute_texture_group()   // aura + sampler for POLICY_WALKER
+        c->gpuState_.compute_entity_group(),
+        c->gpuState_.compute_texture_group()   // aura + sampler for POLICY_WALKER
     );
 
-    renderer_.dispatch_update_other_agents(
+    c->renderer_.dispatch_update_other_agents(
         compute,
-        gpuState_.compute_entity_group(),
-        gpuState_.compute_texture_group()   // aura + sampler for POLICY_WALKER_AGENT
+        c->gpuState_.compute_entity_group(),
+        c->gpuState_.compute_texture_group()   // aura + sampler for POLICY_WALKER_AGENT
     );
 
-    renderer_.dispatch_update_camera(
+    c->renderer_.dispatch_update_camera(
         compute,
-        gpuState_.compute_entity_group(),
-        gpuState_.compute_texture_group()   // aura + sampler for POLICY_FLYER
+        c->gpuState_.compute_entity_group(),
+        c->gpuState_.compute_texture_group()   // aura + sampler for POLICY_FLYER
     );
 
-    renderer_.dispatch_update_sphere(
+    c->renderer_.dispatch_update_sphere(
         compute,
-        gpuState_.compute_entity_group(),
-        gpuState_.compute_texture_group()   // aura + sampler for POLICY_FLYER
+        c->gpuState_.compute_entity_group(),
+        c->gpuState_.compute_texture_group()   // aura + sampler for POLICY_FLYER
     );
 
-    renderer_.dispatch_update_cube(
+    c->renderer_.dispatch_update_cube(
         compute,
-        gpuState_.compute_entity_group(),
-        gpuState_.compute_texture_group()   // aura + sampler for POLICY_FLYER
+        c->gpuState_.compute_entity_group(),
+        c->gpuState_.compute_texture_group()   // aura + sampler for POLICY_FLYER
     );
 
-    renderer_.dispatch_compute_vp(
+    c->renderer_.dispatch_compute_vp(
         compute,
-        gpuState_.compute_entity_group()
+        c->gpuState_.compute_entity_group()
     );
 
     compute.End();
@@ -223,27 +217,27 @@ void dispatch_compute(wgpu::CommandEncoder& encoder) {
 //      appends to visible_patch_indices
 //   3. CopyBufferToBuffer transfers compute buffer → indirect buffer
 //   4. Main pass DrawIndexedIndirect from indirect buffer
-void dispatch_frustum_cull(wgpu::CommandEncoder& encoder, wgpu::Queue& queue) {
-    if (!renderer_.use_indirect_terrain()) { return; }   // indoor: skip
+inline void dispatch_frustum_cull(Cartridge* c, wgpu::CommandEncoder& encoder, wgpu::Queue& queue) {
+    if (!c->renderer_.use_indirect_terrain()) { return; }   // indoor: skip
 
     // 1. Reset compute buffer (constant args + zero instanceCount)
-    gpuState_.reset_frustum_indirect(queue);
+    c->gpuState_.reset_frustum_indirect(queue);
 
     // 2. Compute pass — frustum cull writes atomics + visible indices
     {
         wgpu::ComputePassDescriptor cpd{};
         cpd.label = "Frustum Cull Patches";
         wgpu::ComputePassEncoder compute = encoder.BeginComputePass(&cpd);
-        renderer_.dispatch_frustum_cull(
-            compute, gpuState_.frustum_cull_group()
+        c->renderer_.dispatch_frustum_cull(
+            compute, c->gpuState_.frustum_cull_group()
         );
         compute.End();
     }
 
     // 3. Copy compute buffer → indirect buffer (Dawn D3D12 can't share Storage|Indirect)
     encoder.CopyBufferToBuffer(
-        gpuState_.frustum_compute_buffer(), 0,
-        gpuState_.frustum_indirect_lod0(), 0,
+        c->gpuState_.frustum_compute_buffer(), 0,
+        c->gpuState_.frustum_indirect_lod0(), 0,
         5 * sizeof(uint32_t)
     );
 }
@@ -255,17 +249,17 @@ void dispatch_frustum_cull(wgpu::CommandEncoder& encoder, wgpu::Queue& queue) {
 //          lights 2-3 on the spot map. Each texture is split left/right
 //          into 2048×4096 tiles for per-light shadows.
 
-void render_shadow_pass(wgpu::CommandEncoder& encoder) {
-    if (mood_state_.spot_light_active && cpuSpotLights_.count > 0) {
+inline void render_shadow_pass(Cartridge* c, wgpu::CommandEncoder& encoder) {
+    if (c->mood_state_.spot_light_active && c->cpuSpotLights_.count > 0) {
         // ─── Two-texture atlas shadow pass (indoor) ──────────
         static constexpr uint32_t TILE_W = Dim::SHADOW_MAP_SIZE / 2;  // 2048
         static constexpr uint32_t TILE_H = Dim::SHADOW_MAP_SIZE;      // 4096
 
-        for (uint32_t li = 0; li < cpuSpotLights_.count && li < MAX_SPOT_LIGHTS; li++) {
+        for (uint32_t li = 0; li < c->cpuSpotLights_.count && li < MAX_SPOT_LIGHTS; li++) {
             // Copy this light's VP from staging → VP buffer's light_vp slot
             encoder.CopyBufferToBuffer(
-                gpuState_.spot_vp_staging(), li * 64,
-                gpuState_.vp_buffer(), GPUState::light_vp_offset(),
+                c->gpuState_.spot_vp_staging(), li * 64,
+                c->gpuState_.vp_buffer(), GPUState::light_vp_offset(),
                 GPUState::light_vp_size());
 
             // Lights 0-1 → sun map (idle in indoor mode), lights 2-3 → spot map
@@ -274,8 +268,8 @@ void render_shadow_pass(wgpu::CommandEncoder& encoder) {
 
             wgpu::RenderPassDepthStencilAttachment depthAttachment{};
             depthAttachment.view = use_sun_map
-                ? gpuState_.shadow_map_view()
-                : gpuState_.spot_shadow_map_view();
+                ? c->gpuState_.shadow_map_view()
+                : c->gpuState_.spot_shadow_map_view();
             depthAttachment.depthLoadOp = (within == 0) ? wgpu::LoadOp::Clear : wgpu::LoadOp::Load;
             depthAttachment.depthStoreOp = wgpu::StoreOp::Store;
             depthAttachment.depthClearValue = 1.0f;
@@ -291,14 +285,14 @@ void render_shadow_pass(wgpu::CommandEncoder& encoder) {
             pass.SetViewport(vx, 0.0f, static_cast<float>(TILE_W), static_cast<float>(TILE_H), 0.0f, 1.0f);
             pass.SetScissorRect(within * TILE_W, 0, TILE_W, TILE_H);
 
-            draw_shadow_all(pass);
+            draw_shadow_all(c, pass);
             pass.End();
         }
     }
     else {
         // ─── Standard shadow pass (outdoor) ──────────────────
         wgpu::RenderPassDepthStencilAttachment depthAttachment{};
-        depthAttachment.view = gpuState_.shadow_map_view();
+        depthAttachment.view = c->gpuState_.shadow_map_view();
         depthAttachment.depthLoadOp = wgpu::LoadOp::Clear;
         depthAttachment.depthStoreOp = wgpu::StoreOp::Store;
         depthAttachment.depthClearValue = 1.0f;
@@ -310,126 +304,126 @@ void render_shadow_pass(wgpu::CommandEncoder& encoder) {
 
         wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&desc);
 
-        draw_shadow_all(pass);
+        draw_shadow_all(c, pass);
         pass.End();
     }
 }
 
 // All shadow draws: terrain + entities
-void draw_shadow_all(wgpu::RenderPassEncoder& pass) {
+inline void draw_shadow_all(Cartridge* c, wgpu::RenderPassEncoder& pass) {
     // Terrain (LOD-0 + LOD-1)
-    renderer_.draw_shadow_patch_terrain(
+    c->renderer_.draw_shadow_patch_terrain(
         pass,
-        gpuState_.render_entity_group(),
-        gpuState_.shadow_texture_group(),
-        gpuState_.patch_index_buffer(),
-        gpuState_.patch_index_count(),
-        world_state_.lod0_patch_count
+        c->gpuState_.render_entity_group(),
+        c->gpuState_.shadow_texture_group(),
+        c->gpuState_.patch_index_buffer(),
+        c->gpuState_.patch_index_count(),
+        c->world_state_.lod0_patch_count
     );
-    if (world_state_.render_patch_count > world_state_.lod0_patch_count) {
-        pass.SetIndexBuffer(gpuState_.patch_index_buffer_lod1(), wgpu::IndexFormat::Uint32);
-        pass.DrawIndexed(gpuState_.patch_index_count_lod1(),
-            world_state_.render_patch_count - world_state_.lod0_patch_count, 0, 0, world_state_.lod0_patch_count);
+    if (c->world_state_.render_patch_count > c->world_state_.lod0_patch_count) {
+        pass.SetIndexBuffer(c->gpuState_.patch_index_buffer_lod1(), wgpu::IndexFormat::Uint32);
+        pass.DrawIndexed(c->gpuState_.patch_index_count_lod1(),
+            c->world_state_.render_patch_count - c->world_state_.lod0_patch_count, 0, 0, c->world_state_.lod0_patch_count);
     }
 
     // Entities
-    if (gol_state_.zone_count > 0) {
-        renderer_.draw_shadow_zone_extrusion(
+    if (c->gol_state_.zone_count > 0) {
+        c->renderer_.draw_shadow_zone_extrusion(
             pass,
-            gpuState_.render_entity_group(),
-            gpuState_.shadow_texture_group(),
-            gpuState_.zone_mesh_vertex_buffer(),
-            gpuState_.zone_mesh_index_buffer(),
-            gpuState_.zone_mesh_indirect_buffer()
+            c->gpuState_.render_entity_group(),
+            c->gpuState_.shadow_texture_group(),
+            c->gpuState_.zone_mesh_vertex_buffer(),
+            c->gpuState_.zone_mesh_index_buffer(),
+            c->gpuState_.zone_mesh_indirect_buffer()
         );
     }
 
-    renderer_.draw_shadow_pawn(
+    c->renderer_.draw_shadow_pawn(
         pass,
-        gpuState_.render_entity_group(),
-        gpuState_.shadow_texture_group(),
+        c->gpuState_.render_entity_group(),
+        c->gpuState_.shadow_texture_group(),
         GPUState::pawn_vertex_count()
     );
 
-    renderer_.draw_shadow_sphere(
+    c->renderer_.draw_shadow_sphere(
         pass,
-        gpuState_.render_entity_group(),
-        gpuState_.shadow_texture_group(),
-        gpuState_.sphere_vertex_buffer(),
-        gpuState_.sphere_index_buffer(),
-        gpuState_.sphere_index_count()
+        c->gpuState_.render_entity_group(),
+        c->gpuState_.shadow_texture_group(),
+        c->gpuState_.sphere_vertex_buffer(),
+        c->gpuState_.sphere_index_buffer(),
+        c->gpuState_.sphere_index_count()
     );
 
-    renderer_.draw_shadow_monolith(
+    c->renderer_.draw_shadow_monolith(
         pass,
-        gpuState_.render_entity_group(),
-        gpuState_.shadow_texture_group(),
-        gpuState_.monolith_vertex_buffer(),
-        gpuState_.monolith_index_buffer(),
-        gpuState_.monolith_index_count()
+        c->gpuState_.render_entity_group(),
+        c->gpuState_.shadow_texture_group(),
+        c->gpuState_.monolith_vertex_buffer(),
+        c->gpuState_.monolith_index_buffer(),
+        c->gpuState_.monolith_index_count()
     );
 
-    if (ribbon_state_.rendered_slot != UINT32_MAX) {
-        renderer_.draw_shadow_ribbon(
+    if (c->ribbon_state_.rendered_slot != UINT32_MAX) {
+        c->renderer_.draw_shadow_ribbon(
             pass,
-            gpuState_.render_entity_group(),
-            gpuState_.shadow_texture_group(),
+            c->gpuState_.render_entity_group(),
+            c->gpuState_.shadow_texture_group(),
             GPUState::ribbon_vertex_count()
         );
     }
 
-    renderer_.draw_shadow_arch(
+    c->renderer_.draw_shadow_arch(
         pass,
-        gpuState_.render_entity_group(),
-        gpuState_.shadow_texture_group(),
-        gpuState_.arch_vertex_buffer(),
-        gpuState_.arch_index_buffer(),
-        gpuState_.arch_index_count()
+        c->gpuState_.render_entity_group(),
+        c->gpuState_.shadow_texture_group(),
+        c->gpuState_.arch_vertex_buffer(),
+        c->gpuState_.arch_index_buffer(),
+        c->gpuState_.arch_index_count()
     );
 
-    renderer_.draw_shadow_column(
+    c->renderer_.draw_shadow_column(
         pass,
-        gpuState_.render_entity_group(),
-        gpuState_.shadow_texture_group(),
-        gpuState_.column_vertex_buffer(),
-        gpuState_.column_index_buffer(),
-        gpuState_.column_index_count()
+        c->gpuState_.render_entity_group(),
+        c->gpuState_.shadow_texture_group(),
+        c->gpuState_.column_vertex_buffer(),
+        c->gpuState_.column_index_buffer(),
+        c->gpuState_.column_index_count()
     );
 
-    renderer_.draw_shadow_palm(
+    c->renderer_.draw_shadow_palm(
         pass,
-        gpuState_.render_entity_group(),
-        gpuState_.shadow_texture_group(),
-        gpuState_.palm_vertex_buffer(),
-        gpuState_.palm_index_buffer(),
-        gpuState_.palm_index_count()
+        c->gpuState_.render_entity_group(),
+        c->gpuState_.shadow_texture_group(),
+        c->gpuState_.palm_vertex_buffer(),
+        c->gpuState_.palm_index_buffer(),
+        c->gpuState_.palm_index_count()
     );
 
-    renderer_.draw_shadow_cactus(
+    c->renderer_.draw_shadow_cactus(
         pass,
-        gpuState_.render_entity_group(),
-        gpuState_.shadow_texture_group(),
-        gpuState_.cactus_vertex_buffer(),
-        gpuState_.cactus_index_buffer(),
-        gpuState_.cactus_index_count()
+        c->gpuState_.render_entity_group(),
+        c->gpuState_.shadow_texture_group(),
+        c->gpuState_.cactus_vertex_buffer(),
+        c->gpuState_.cactus_index_buffer(),
+        c->gpuState_.cactus_index_count()
     );
 
-    renderer_.draw_shadow_blade(
+    c->renderer_.draw_shadow_blade(
         pass,
-        gpuState_.render_entity_group(),
-        gpuState_.shadow_texture_group(),
-        gpuState_.blade_vertex_buffer(),
-        gpuState_.blade_index_buffer(),
-        gpuState_.blade_index_count()
+        c->gpuState_.render_entity_group(),
+        c->gpuState_.shadow_texture_group(),
+        c->gpuState_.blade_vertex_buffer(),
+        c->gpuState_.blade_index_buffer(),
+        c->gpuState_.blade_index_count()
     );
 
-    renderer_.draw_shadow_shell(
+    c->renderer_.draw_shadow_shell(
         pass,
-        gpuState_.render_entity_group(),
-        gpuState_.shadow_texture_group(),
-        gpuState_.shell_vertex_buffer(),
-        gpuState_.shell_index_buffer(),
-        gpuState_.shell_index_count()
+        c->gpuState_.render_entity_group(),
+        c->gpuState_.shadow_texture_group(),
+        c->gpuState_.shell_vertex_buffer(),
+        c->gpuState_.shell_index_buffer(),
+        c->gpuState_.shell_index_count()
     );
 }
 
@@ -439,14 +433,14 @@ void draw_shadow_all(wgpu::RenderPassEncoder& pass) {
 // pawn, all entities, gallery, ribbon, sky orbs, fade overlay.
 // Drawn in order so depth-tested transparency layers correctly.
 
-void render_main_pass(wgpu::CommandEncoder& encoder,
+inline void render_main_pass(Cartridge* c, wgpu::CommandEncoder& encoder,
     wgpu::TextureView backbuffer, wgpu::TextureView depth) {
 
     wgpu::RenderPassColorAttachment colorAttachment{};
     colorAttachment.view = backbuffer;
     colorAttachment.loadOp = wgpu::LoadOp::Clear;
     colorAttachment.storeOp = wgpu::StoreOp::Store;
-    colorAttachment.clearValue = { (double)clearColor_[0], (double)clearColor_[1], (double)clearColor_[2], 1.0 };
+    colorAttachment.clearValue = { (double)c->clearColor_[0], (double)c->clearColor_[1], (double)c->clearColor_[2], 1.0 };
 
     wgpu::RenderPassDepthStencilAttachment depthAttachment{};
     depthAttachment.view = depth;
@@ -463,169 +457,169 @@ void render_main_pass(wgpu::CommandEncoder& encoder,
     wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&desc);
 
     // Terrain LOD0
-    if (renderer_.use_indirect_terrain()) {
+    if (c->renderer_.use_indirect_terrain()) {
         // Outdoor: GPU-frustum-culled LOD0 via DrawIndexedIndirect
-        renderer_.draw_patch_terrain_lod0_indirect(
+        c->renderer_.draw_patch_terrain_lod0_indirect(
             pass,
-            gpuState_.render_entity_group(),
-            gpuState_.render_texture_group(),
-            gpuState_.patch_index_buffer(),
-            gpuState_.frustum_indirect_lod0()
+            c->gpuState_.render_entity_group(),
+            c->gpuState_.render_texture_group(),
+            c->gpuState_.patch_index_buffer(),
+            c->gpuState_.frustum_indirect_lod0()
         );
     } else {
         // Indoor: direct draw with CPU count
-        renderer_.draw_patch_terrain_direct(
+        c->renderer_.draw_patch_terrain_direct(
             pass,
-            gpuState_.render_entity_group(),
-            gpuState_.render_texture_group(),
-            gpuState_.patch_index_buffer(),
-            gpuState_.patch_index_count(),
-            world_state_.lod0_patch_count
+            c->gpuState_.render_entity_group(),
+            c->gpuState_.render_texture_group(),
+            c->gpuState_.patch_index_buffer(),
+            c->gpuState_.patch_index_count(),
+            c->world_state_.lod0_patch_count
         );
     }
 
     // Terrain LOD1 — always direct (Dawn D3D12 limit: only one indirect per pass)
-    if (world_state_.render_patch_count > world_state_.lod0_patch_count) {
-        renderer_.draw_patch_terrain_direct(
+    if (c->world_state_.render_patch_count > c->world_state_.lod0_patch_count) {
+        c->renderer_.draw_patch_terrain_direct(
             pass,
-            gpuState_.render_entity_group(),
-            gpuState_.render_texture_group(),
-            gpuState_.patch_index_buffer_lod1(),
-            gpuState_.patch_index_count_lod1(),
-            world_state_.render_patch_count - world_state_.lod0_patch_count,
-            world_state_.lod0_patch_count
+            c->gpuState_.render_entity_group(),
+            c->gpuState_.render_texture_group(),
+            c->gpuState_.patch_index_buffer_lod1(),
+            c->gpuState_.patch_index_count_lod1(),
+            c->world_state_.render_patch_count - c->world_state_.lod0_patch_count,
+            c->world_state_.lod0_patch_count
         );
     }
 
-    if (gol_state_.zone_count > 0) {
-        renderer_.draw_zone_extrusion(
+    if (c->gol_state_.zone_count > 0) {
+        c->renderer_.draw_zone_extrusion(
             pass,
-            gpuState_.render_entity_group(),
-            gpuState_.render_texture_group(),
-            gpuState_.zone_mesh_vertex_buffer(),
-            gpuState_.zone_mesh_index_buffer(),
-            gpuState_.zone_mesh_indirect_buffer()
+            c->gpuState_.render_entity_group(),
+            c->gpuState_.render_texture_group(),
+            c->gpuState_.zone_mesh_vertex_buffer(),
+            c->gpuState_.zone_mesh_index_buffer(),
+            c->gpuState_.zone_mesh_indirect_buffer()
         );
     }
 
-    renderer_.draw_pawn(
+    c->renderer_.draw_pawn(
         pass,
-        gpuState_.render_entity_group(),
-        gpuState_.render_texture_group(),
+        c->gpuState_.render_entity_group(),
+        c->gpuState_.render_texture_group(),
         GPUState::pawn_vertex_count()
     );
 
-    renderer_.draw_sphere(
+    c->renderer_.draw_sphere(
         pass,
-        gpuState_.render_entity_group(),
-        gpuState_.render_texture_group(),
-        gpuState_.sphere_vertex_buffer(),
-        gpuState_.sphere_index_buffer(),
-        gpuState_.sphere_index_count()
+        c->gpuState_.render_entity_group(),
+        c->gpuState_.render_texture_group(),
+        c->gpuState_.sphere_vertex_buffer(),
+        c->gpuState_.sphere_index_buffer(),
+        c->gpuState_.sphere_index_count()
     );
 
-    renderer_.draw_monolith(
+    c->renderer_.draw_monolith(
         pass,
-        gpuState_.render_entity_group(),
-        gpuState_.render_texture_group(),
-        gpuState_.monolith_vertex_buffer(),
-        gpuState_.monolith_index_buffer(),
-        gpuState_.monolith_index_count()
+        c->gpuState_.render_entity_group(),
+        c->gpuState_.render_texture_group(),
+        c->gpuState_.monolith_vertex_buffer(),
+        c->gpuState_.monolith_index_buffer(),
+        c->gpuState_.monolith_index_count()
     );
 
-    renderer_.draw_arch(
+    c->renderer_.draw_arch(
         pass,
-        gpuState_.render_entity_group(),
-        gpuState_.render_texture_group(),
-        gpuState_.arch_vertex_buffer(),
-        gpuState_.arch_index_buffer(),
-        gpuState_.arch_index_count()
+        c->gpuState_.render_entity_group(),
+        c->gpuState_.render_texture_group(),
+        c->gpuState_.arch_vertex_buffer(),
+        c->gpuState_.arch_index_buffer(),
+        c->gpuState_.arch_index_count()
     );
 
-    renderer_.draw_column(
+    c->renderer_.draw_column(
         pass,
-        gpuState_.render_entity_group(),
-        gpuState_.render_texture_group(),
-        gpuState_.column_vertex_buffer(),
-        gpuState_.column_index_buffer(),
-        gpuState_.column_index_count()
+        c->gpuState_.render_entity_group(),
+        c->gpuState_.render_texture_group(),
+        c->gpuState_.column_vertex_buffer(),
+        c->gpuState_.column_index_buffer(),
+        c->gpuState_.column_index_count()
     );
 
-    renderer_.draw_palm(
+    c->renderer_.draw_palm(
         pass,
-        gpuState_.render_entity_group(),
-        gpuState_.render_texture_group(),
-        gpuState_.palm_vertex_buffer(),
-        gpuState_.palm_index_buffer(),
-        gpuState_.palm_index_count()
+        c->gpuState_.render_entity_group(),
+        c->gpuState_.render_texture_group(),
+        c->gpuState_.palm_vertex_buffer(),
+        c->gpuState_.palm_index_buffer(),
+        c->gpuState_.palm_index_count()
     );
 
-    renderer_.draw_cactus(
+    c->renderer_.draw_cactus(
         pass,
-        gpuState_.render_entity_group(),
-        gpuState_.render_texture_group(),
-        gpuState_.cactus_vertex_buffer(),
-        gpuState_.cactus_index_buffer(),
-        gpuState_.cactus_index_count()
+        c->gpuState_.render_entity_group(),
+        c->gpuState_.render_texture_group(),
+        c->gpuState_.cactus_vertex_buffer(),
+        c->gpuState_.cactus_index_buffer(),
+        c->gpuState_.cactus_index_count()
     );
 
-    renderer_.draw_blade(
+    c->renderer_.draw_blade(
         pass,
-        gpuState_.render_entity_group(),
-        gpuState_.render_texture_group(),
-        gpuState_.blade_vertex_buffer(),
-        gpuState_.blade_index_buffer(),
-        gpuState_.blade_index_count()
+        c->gpuState_.render_entity_group(),
+        c->gpuState_.render_texture_group(),
+        c->gpuState_.blade_vertex_buffer(),
+        c->gpuState_.blade_index_buffer(),
+        c->gpuState_.blade_index_count()
     );
 
-    renderer_.draw_shell(
+    c->renderer_.draw_shell(
         pass,
-        gpuState_.render_entity_group(),
-        gpuState_.render_texture_group(),
-        gpuState_.shell_vertex_buffer(),
-        gpuState_.shell_index_buffer(),
-        gpuState_.shell_index_count()
+        c->gpuState_.render_entity_group(),
+        c->gpuState_.render_texture_group(),
+        c->gpuState_.shell_vertex_buffer(),
+        c->gpuState_.shell_index_buffer(),
+        c->gpuState_.shell_index_count()
     );
 
     // Wall-mounted framed paintings (indoor)
-    renderer_.draw_wall_paintings(
+    c->renderer_.draw_wall_paintings(
         pass,
-        gpuState_.gallery_entity_group(),
-        gpuState_.gallery_texture_group(),
-        gallery_state_.wall_frame_count
+        c->gpuState_.gallery_entity_group(),
+        c->gpuState_.gallery_texture_group(),
+        c->gallery_state_.wall_frame_count
     );
 
     // Pyramids: terrain surface IS the pyramid shape (via the baked
     // heightfield, which caches POLICY_BAKED_HEIGHTFIELD = static
     // base + pyramids). No separate mesh draw needed.
 
-    if (ribbon_state_.rendered_slot != UINT32_MAX) {
-        renderer_.draw_ribbon(
+    if (c->ribbon_state_.rendered_slot != UINT32_MAX) {
+        c->renderer_.draw_ribbon(
             pass,
-            gpuState_.render_entity_group(),
-            gpuState_.render_texture_group(),
+            c->gpuState_.render_entity_group(),
+            c->gpuState_.render_texture_group(),
             GPUState::ribbon_vertex_count()
         );
     }
 
     // Gallery frames (self-portrait paintings on terrain)
-    renderer_.draw_gallery_frames(
+    c->renderer_.draw_gallery_frames(
         pass,
-        gpuState_.gallery_entity_group(),
-        gpuState_.gallery_texture_group(),
-        gallery_state_.active_painting_count
+        c->gpuState_.gallery_entity_group(),
+        c->gpuState_.gallery_texture_group(),
+        c->gallery_state_.active_painting_count
     );
 
     // Sky orbs (additive, depth-tested, depth-write off).
     // After opaque entities so they depth-test correctly; before
     // fade overlay so the overlay fades the orbs too.
-    render_orbs(orbs_state_, this, pass);
+    render_orbs(c->orbs_state_, c, pass);
 
     // Fade overlay (drawn last, alpha blended over everything)
-    renderer_.draw_fade_overlay(
+    c->renderer_.draw_fade_overlay(
         pass,
-        gpuState_.mesh_gen_entity_group(),
-        mood_state_.transition_fade_alpha
+        c->gpuState_.mesh_gen_entity_group(),
+        c->mood_state_.transition_fade_alpha
     );
 
     pass.End();
@@ -640,7 +634,7 @@ void render_main_pass(wgpu::CommandEncoder& encoder,
 // Perspective projection for spot light shadow map.
 // Physically correct: shadows fan out from the source.
 // Bias is handled in the shader with distance-scaled + normal offset.
-static void compute_spot_light_vp(const GPUSpotLight& light, float* view_proj_out) {
+inline void compute_spot_light_vp(const GPUSpotLight& light, float* view_proj_out) {
     const float* pos = light.position;
     float ld[3] = { light.direction[0], light.direction[1], light.direction[2] };
     float dlen = std::sqrt(ld[0] * ld[0] + ld[1] * ld[1] + ld[2] * ld[2]);
@@ -717,8 +711,8 @@ static void compute_spot_light_vp(const GPUSpotLight& light, float* view_proj_ou
 // Covers a fixed area centered at world origin. The light "looks"
 // along its direction from a high altitude.
 
-void compute_sun_matrices(const float* direction, float* view_proj_out,
-    float center_x = 0.0f, float center_z = 0.0f) {
+inline void compute_sun_matrices(const float* direction, float* view_proj_out,
+    float center_x, float center_z) {   // defaults live on the header declaration
     // Sun orbits the pawn at a fixed distance.
     // The frustum is sized to cover the 11×11 patch grid (radius 5).
     //
@@ -800,3 +794,5 @@ void compute_sun_matrices(const float* direction, float* view_proj_out,
         }
     }
 }
+} // namespace the_board
+} // namespace t7

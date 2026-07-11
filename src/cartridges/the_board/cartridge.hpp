@@ -109,6 +109,7 @@
 #include "cartridges/the_board/modules/gallery.hpp"              // LADDER-3 c4: shot vocabulary + console + payloads + GalleryState + decls (impl is gallery.inl, post-class)
 #include "cartridges/the_board/modules/ribbon.hpp"               // LADDER-3 c5: ribbon console + color vocabulary + tiers + payloads + RibbonState + decls (impl is ribbon.inl, post-class; pairing suspension named in its banner)
 #include "cartridges/the_board/modules/input.hpp"                // LADDER-3 c6 + G2: InputState/KeyState/MouseState + decls (impl is input.inl, post-class; carries its own GLFW include)
+#include "cartridges/the_board/modules/render_passes.hpp"        // LADDER-3 c7: the nine pass/dispatch + light-VP decls (impl is render_passes.inl, post-class; module owns no state)
 #include "cartridges/the_board/renderer.hpp"
 #include "coupling/visual_canvas.hpp"
 #include <cmath>
@@ -3568,7 +3569,7 @@ namespace t7 {
                                               hx, hy, hz, hh, fyaw, fpitch, froll);
                 }
 
-                dispatch_compute(encoder);
+                dispatch_compute(this, encoder);
 
                 // Copy full agent buffer from GPU to staging (for readback next frame)
                 if (pawnReadbackState_ == PawnReadbackState::IDLE) {
@@ -3695,18 +3696,18 @@ namespace t7 {
                 if (world_state_.ground_entries_dirty) {
                     world_state_.ground_entries_dirty = false;
                     world_state_.placement_dirty = true;
-                    upload_ground_entries(queue);
+                    upload_ground_entries(this, queue);
                 }
                 if (world_state_.placement_dirty) {
                     world_state_.placement_dirty = false;
-                    dispatch_placement_correction(encoder);
+                    dispatch_placement_correction(this, encoder);
                 }
 
                 // DIAG: frustum cull re-enabled — indirect draw active
-                dispatch_frustum_cull(encoder, queue);
+                dispatch_frustum_cull(this, encoder, queue);
 
-                render_shadow_pass(encoder);
-                render_main_pass(encoder, backbuffer, depth);
+                render_shadow_pass(this, encoder);
+                render_main_pass(this, encoder, backbuffer, depth);
                 render_snapshot_pass(gallery_state_, this, encoder);
 
                 // --- Flush pending texture promotions (staging → exhibition) ---
@@ -4193,8 +4194,15 @@ namespace t7 {
 #include "modules/mood.inl"
 
 
-// ── Render Passes (modules/render_passes.inl) ──
-#include "modules/render_passes.inl"
+// ── Render Passes — CONVERTED (LADDER-3 c7, header/impl split) ──
+// The speaker owns no state — all verbs. The nine declarations are in
+// render_passes.hpp (file scope, above the class); the definitions
+// (the 243-read keyhole retrofit — the seven pass/dispatch functions
+// gained Cartridge* c, the two light-VP helpers stay pure; bodies
+// otherwise verbatim, ZERO draw self-gate additions) are in
+// render_passes.inl, included at FILE SCOPE in the post-class MODULE
+// IMPLEMENTATIONS zone. mood.inl's compute_spot_light_vp call
+// resolves by namespace lookup, unchanged. See §1.
 
         public:
 
@@ -4286,3 +4294,4 @@ namespace t7 {
 #include "modules/gallery.inl"    // LADDER-3 c4 — photographer + gallery sites + authored loading + wall paintings
 #include "modules/ribbon.inl"     // LADDER-3 c5 — author seats + head laws + frame conductor + three-phase lifecycle
 #include "modules/input.inl"      // LADDER-3 c6 — key/mouse dispatch + movement intent + camera commands (own GLFW include)
+#include "modules/render_passes.inl"  // LADDER-3 c7 — ground-entry prep + compute dispatch + shadow/main passes + light VPs
