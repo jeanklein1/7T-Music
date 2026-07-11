@@ -1,243 +1,34 @@
-// ─── cube_behaviors.inl ─────────────────────────────────────────
+// ─── cube_behaviors.inl (IMPL: post-class definitions) ───────────
 //
-// Cube behavior system. Spheres do their own thing (analytical PGA
-// orbit, no behavior layer); this module is cube-only by design.
-// Floater vocabulary (Sphere + Cube tier counts, configs, prop
-// registries, active-tracking types) lives in floater_vocabulary.hpp;
-// behavior gains (forces, coordination, kite, corral) live here.
+// Definitions for cube_behaviors.hpp's declared laws, plus the module-
+// internal helpers (corral_ease_, apply_cube_behavior_override).
+// Included AFTER the Cartridge class (LADDER-3 c3 header/impl split) so
+// the keyhole is a complete type — the bodies reach c->gpuState_ /
+// c->agent_state_ / c->player_ / c->time_state_. Registries + console +
+// CubeBehaviorsState + declarations live in cube_behaviors.hpp (file
+// scope, above the class).
 //
-// ┌─── Three registries ────────────────────────────────────────────┐
-// │                                                                  │
-// │  CUBE_BEHAVIORS     id + name table; force functions live in     │
-// │                     world.wgsl as cube_force_<n> + a switch      │
-// │                     case in cube_behavior_force                  │
-// │  CUBE_TIER_GAINS    per-tier multipliers on spring/drag/forces;  │
-// │                     applied at spawn so each tier gets its own   │
-// │                     baked-in dynamics signature                  │
-// │  CUBE_POPULATIONS   per-mood weights across behaviors; consulted │
-// │                     at spawn to assign behavior_id stochastically│
-// │                                                                  │
-// └──────────────────────────────────────────────────────────────────┘
-//
-// ┌─── The four-axis vocabulary (from the design doc) ──────────────┐
-// │                                                                  │
-// │  LATTICE     where cubes can be (anchor xz, pawn-relative)       │
-// │  COUPLING    how cubes relate to each other (shared field        │
-// │              samples vs independent, shared phase vs random)     │
-// │  TRAJECTORY  what each cube does over time (the behaviors)       │
-// │  TIER        which "weight class" the cube belongs to            │
-// │                                                                  │
-// │ Coordination ∈ [0,1] is the system-wide knob that slides each    │
-// │ behavior between high-individual and high-coupled regimes.       │
-// │                                                                  │
-// └──────────────────────────────────────────────────────────────────┘
-//
-// ┌─── Public surface (called from outside this file) ──────────────┐
-// │                                                                  │
-// │  Module functions (other than the two pure spawn helpers below)  │
-// │  are static, take CubeBehaviorsState& explicitly. Spawn helpers  │
-// │  are stateless and stay free.                                    │
-// │                                                                  │
-// │  Spawn-side (stateless, no struct ref needed):                   │
-// │    pick_cube_behavior_for_spawn(mood, seed)  → behavior_id u32   │
-// │    apply_cube_tier_gains(spring, drag, tier) → adjusted (sp, dr) │
-// │      Both consumed by entity_pipeline.inl's cube_write_gpu.      │
-// │                                                                  │
-// │  Per-frame:                                                      │
-// │    tick_cube_corral_animations(cbs, c, queue)                    │
-// │      Called from render(); advances any in-flight glides.        │
-// │                                                                  │
-// │  Player commands (function keys; chosen to avoid the A-Z piano   │
-// │                   range the analysis layer consumes):            │
-// │    cycle_cube_behavior_override(cbs, c, q)  F4  next behavior    │
-// │    cycle_floater_coordination(cbs, c)       F5  step coordination│
-// │    corral_cubes(cbs, c, q)                  F6  ring around pawn │
-// │    toggle_cube_kite_mode(cbs, c, q)         F7  follow pawn      │
-// │                                                                  │
-// │  Owned state (LADDER-2 c0): activeCubes_[] / activeCubeCount_     │
-// │    now live in CubeBehaviorsState below (was floater_vocabulary).│
-// │  Cross-module reads (this module reads, doesn't own):            │
-// │    agent_state_.slots, player_.possessed_slot                    │
-// │                                                                  │
-// └──────────────────────────────────────────────────────────────────┘
-//
-// Included inside the Cartridge class body. Depends on:
-//   state.hpp           GPUFloatingEntityState fields,
-//                       GPUDesignConfig::floater_coordination
-//   entity_pipeline.inl cube_write_gpu calls into pick_cube_behavior_for_spawn
-//                       and apply_cube_tier_gains
-//   world.wgsl          force functions and dispatch switch
-// ──────────────────────────────────────────────────────────────────
+// WRAPPING FORM (the proven fix-2 rule): SELF-WRAPPING — opens
+// t7::the_board itself, carries its own standard includes; the MODULE
+// IMPLEMENTATIONS zone includes it at FILE SCOPE. Definitions are
+// `inline` free functions.
+// ─────────────────────────────────────────────────────────────────
 
+#include <cmath>      // std::cos, std::sin
+#include <algorithm>  // std::clamp
+#include <iostream>   // diagnostics feedback
 
-// ═══ BEHAVIOR IDS ════════════════════════════════════════════════
-//
-// Mirror the WGSL constants in world.wgsl (search "Cube behavior
-// registry"). Adding a behavior is four steps:
-//   1) Add an id constant here and bump CUBE_BEHAVIOR_COUNT
-//   2) Add the name in CUBE_BEHAVIOR_NAMES
-//   3) Add a const + force function + switch case in world.wgsl
-//   4) Populate CUBE_POPULATIONS rows with a non-zero weight where
-//      the behavior should appear
-
-static constexpr uint32_t CUBE_BEHAVIOR_STATIONARY = 0;
-static constexpr uint32_t CUBE_BEHAVIOR_CURLFIELD  = 1;
-static constexpr uint32_t CUBE_BEHAVIOR_PHASEWAVE  = 2;
-// DONE[floaters:L4] CUBE_BEHAVIOR_COUNT_WGSL added on the WGSL side
-//   (world.wgsl §7 cube behavior registry). MUST match this value —
-//   when adding a behavior, bump both. Mirrors the agents pattern
-//   (AGENT_BEHAVIOR_COUNT_WGSL).
-static constexpr uint32_t CUBE_BEHAVIOR_COUNT      = 3;
-
-static constexpr const char* CUBE_BEHAVIOR_NAMES[CUBE_BEHAVIOR_COUNT] = {
-    "stationary", "curlfield", "phasewave"
-};
-
-
-// ═══ TUNING CONSOLE ══════════════════════════════════════════════
-//
-// One place for every system-level number that shapes the cube
-// system's feel. WGSL kernel constants (force amplitudes, noise
-// frequencies, wave wavelengths) cannot be moved here — they're
-// shader literals — but they're documented below as the source of
-// truth for tuning. If you ever want CPU-side adjustability, promote
-// them to GPUDesignConfig fields and read them from the kernel.
-
-// ─ Substrate (drift integrator) ─────────────────────────────────
-// Cube tuning constants live here so the file is the one place to
-// look when adjusting cube dynamics. Each spawn multiplies these by
-// the row's tier gain (see CUBE_TIER_GAINS) so different tiers get
-// distinct dynamics signatures from the same defaults.
-
-static constexpr float CUBE_DEFAULT_SPRING_STIFFNESS = 4.0f;   // 1/s², ~0.5s settle
-static constexpr float CUBE_DEFAULT_DRAG             = 1.5f;   // 1/s,  gentle damping
-
-// ─ Diagnostics (corral) ─────────────────────────────────────────
-// Used by F6 to glide every active cube into a ring around the pawn.
-// Kite mode (F7) doesn't change the radius/duration — it just changes
-// whether the ring is in world or pawn-relative space.
-
-static constexpr float CUBE_CORRAL_RADIUS   = 120.0f;  // ring radius around pawn (world units)
-static constexpr float CUBE_CORRAL_DURATION = 4.0f;    // glide duration (seconds)
-
-// ─ Diagnostics (coordination cycle) ─────────────────────────────
-// F5 steps the system-wide coordination knob through these values.
-// floater_coordination is uploaded to GPUDesignConfig each frame.
-
-static constexpr float FLOATER_COORDINATION_STEPS[3] = { 0.0f, 0.5f, 1.0f };
-
-// ─ WGSL kernel constants (NOT here, but documented) ─────────────
-//
-//   cube_force_curlfield (world.wgsl):
-//     freq_high   = 0.040    high spatial frequency at coordination=0
-//     freq_low    = 0.005    low  spatial frequency at coordination=1
-//     amplitude   = 12.0     force magnitude (≈ 10× spring)
-//     time_scale  = 0.25     1/s, evolution rate
-//
-//   cube_force_phasewave (world.wgsl):
-//     k_x         = 0.020    wavefront freq in X
-//     k_z         = 0.012    wavefront freq in Z (asymmetric)
-//     omega       = 1.5      1/s, temporal frequency
-//     amplitude   = 30.0     force magnitude (vertical)
-//
-// To change these, edit world.wgsl. Promote to config if you need
-// CPU-side adjustability (~16 bytes of uniform space + 4 lines).
-
-
-// ═══ REGISTRY: TIER GAINS ════════════════════════════════════════
-//
-// Per-tier multipliers applied at spawn time. The cube's stored
-// spring_stiffness and drag are CUBE_DEFAULT_* × tier gain, so each
-// tier gets a baked-in dynamics signature without runtime branching.
-//
-// behavior_amp_mult is reserved for future use — the kernel applies
-// forces uniformly today. To wire it up, kernels would need to read
-// tier_idx and multiply force outputs. Defer until a behavior demands
-// per-tier amplitude differentiation.
-//
-// Defaults are all 1.0 (no per-tier differentiation). Character pass
-// will populate with real values.
-
-struct CubeTierGain {
-    uint32_t tier_idx;
-    const char* name;
-    float spring_stiffness_mult;
-    float drag_mult;
-    float behavior_amp_mult;   // reserved; not yet consumed by kernel
-};
-
-static constexpr CubeTierGain CUBE_TIER_GAINS[CUBE_TIER_COUNT] = {
-    //                            spring  drag   amp
-    /* 0 SmallCube */ { 0, "SmallCube", 1.0f, 1.0f, 1.0f },
-    /* 1 MedCube   */ { 1, "MedCube",   1.0f, 1.0f, 1.0f },
-    /* 2 LargeCube */ { 2, "LargeCube", 1.0f, 1.0f, 1.0f },
-    /* 3 Monolith  */ { 3, "Monolith",  1.0f, 1.0f, 1.0f },
-};
-
-static_assert(sizeof(CUBE_TIER_GAINS) / sizeof(CUBE_TIER_GAINS[0]) == CUBE_TIER_COUNT,
-              "CUBE_TIER_GAINS must declare one row per cube tier");
+namespace t7 {
+namespace the_board {
 
 // Apply tier gains to base substrate values. Called by cube_write_gpu
 // during spawn — the result is what gets stored on the cube.
-static void apply_cube_tier_gains(float& spring_stiffness, float& drag, uint32_t tier_idx) {
+inline void apply_cube_tier_gains(float& spring_stiffness, float& drag, uint32_t tier_idx) {
     if (tier_idx >= CUBE_TIER_COUNT) return;  // defensive; tier_idx is bounded at select
     const auto& g = CUBE_TIER_GAINS[tier_idx];
     spring_stiffness *= g.spring_stiffness_mult;
     drag             *= g.drag_mult;
 }
-
-
-// ═══ REGISTRY: POPULATIONS ═══════════════════════════════════════
-//
-// Per-mood weights across the three behaviors. Each spawn picks a
-// behavior stochastically by sampling these weights. Weights need not
-// sum to 1; the picker normalizes.
-//
-// Mood ordering matches MOOD_TABLE in cartridge.hpp. Cubes are gated
-// by CubeConfig::MOOD_MULTIPLIER (in floater_vocabulary.hpp) which is
-// {1, 1, 0, 0, 1, 0} — cubes don't spawn in indoor moods or in
-// MOOD_FINITE_OUTDOOR_REF, so those rows here are never consulted in
-// practice. We declare them anyway for hygiene; if the spawn gate
-// ever changes, the populations will already exist.
-//
-// Defaults are all-Stationary. Character pass will populate with
-// real per-mood character.
-
-struct CubePopulationDef {
-    uint32_t mood_id;
-    std::array<float, CUBE_BEHAVIOR_COUNT> behavior_weights;
-};
-
-static constexpr CubePopulationDef CUBE_POPULATIONS[MOOD_COUNT] = {
-    /* MOOD_OPEN_DEFAULT */
-    { MOOD_OPEN_DEFAULT,
-      //                    stat curl  wave
-      /*behavior_weights=*/ { 1.0f, 0.0f, 0.0f } },
-    /* MOOD_OPEN_SUNSET */
-    { MOOD_OPEN_SUNSET,
-      /*behavior_weights=*/ { 1.0f, 0.0f, 0.0f } },
-    /* MOOD_INDOOR_FLAT — cubes don't spawn here; row exists for hygiene */
-    { MOOD_INDOOR_FLAT,
-      /*behavior_weights=*/ { 1.0f, 0.0f, 0.0f } },
-    /* MOOD_INDOOR_VAULT — cubes don't spawn here; row exists for hygiene */
-    { MOOD_INDOOR_VAULT,
-      /*behavior_weights=*/ { 1.0f, 0.0f, 0.0f } },
-    /* MOOD_FINITE_OUTDOOR */
-    { MOOD_FINITE_OUTDOOR,
-      /*behavior_weights=*/ { 1.0f, 0.0f, 0.0f } },
-    /* MOOD_FINITE_OUTDOOR_REF — cubes don't spawn here; row exists for hygiene */
-    { MOOD_FINITE_OUTDOOR_REF,
-      /*behavior_weights=*/ { 1.0f, 0.0f, 0.0f } },
-};
-
-static_assert(sizeof(CUBE_POPULATIONS) / sizeof(CUBE_POPULATIONS[0]) == MOOD_COUNT,
-              "CUBE_POPULATIONS must declare one row per mood");
-static_assert(CUBE_POPULATIONS[0].mood_id == MOOD_OPEN_DEFAULT,        "row 0 must be MOOD_OPEN_DEFAULT");
-static_assert(CUBE_POPULATIONS[1].mood_id == MOOD_OPEN_SUNSET,         "row 1 must be MOOD_OPEN_SUNSET");
-static_assert(CUBE_POPULATIONS[2].mood_id == MOOD_INDOOR_FLAT,         "row 2 must be MOOD_INDOOR_FLAT");
-static_assert(CUBE_POPULATIONS[3].mood_id == MOOD_INDOOR_VAULT,        "row 3 must be MOOD_INDOOR_VAULT");
-static_assert(CUBE_POPULATIONS[4].mood_id == MOOD_FINITE_OUTDOOR,      "row 4 must be MOOD_FINITE_OUTDOOR");
-static_assert(CUBE_POPULATIONS[5].mood_id == MOOD_FINITE_OUTDOOR_REF,  "row 5 must be MOOD_FINITE_OUTDOOR_REF");
 
 // Stochastic behavior pick. seed is the cube's spawn seed (used as
 // the entity_seed in the GPU struct), so behavior assignments are
@@ -247,7 +38,7 @@ static_assert(CUBE_POPULATIONS[5].mood_id == MOOD_FINITE_OUTDOOR_REF,  "row 5 mu
 // Mix constant 0xBEEF11A0u is unrelated to behavior_phase's mix
 // constant (0xF10A7E70u in entity_pipeline.inl) so the two derived
 // values are decorrelated.
-static uint32_t pick_cube_behavior_for_spawn(uint32_t mood_id, uint32_t seed) {
+inline uint32_t pick_cube_behavior_for_spawn(uint32_t mood_id, uint32_t seed) {
     if (mood_id >= MOOD_COUNT) return CUBE_BEHAVIOR_STATIONARY;
     const auto& pop = CUBE_POPULATIONS[mood_id];
 
@@ -276,9 +67,8 @@ static uint32_t pick_cube_behavior_for_spawn(uint32_t mood_id, uint32_t seed) {
 // Inspection tools, not part of the system's primary expression.
 // Keypress-driven; the system runs without them. Anything below
 // this point can be commented out and the cubes still spawn,
-// populate, and behave correctly per the registries above.
-
-
+// populate, and behave correctly per the registries in the header.
+//
 // ─── Coordination cycle ─────────────────────────────────────────────
 //
 // F5 steps coordination through 0.0 / 0.5 / 1.0 for quick visual
@@ -317,44 +107,11 @@ static uint32_t pick_cube_behavior_for_spawn(uint32_t mood_id, uint32_t seed) {
 // pawn_offset tracks the per-cube offset so we reconstruct
 // world position correctly: cube_xz = pawn.xz + offset.xz.
 
-struct CubeCorralAnim {
-    bool   active;
-    float  t0;
-    float  duration;
-    float  ax_from, az_from;
-    float  ax_to,   az_to;
-};
-
-// ═══ DIAGNOSTIC STATE (owned by the tools above) ═════════════════
-//
-// All diagnostic-tool state lives in this struct, accessed via
-// cube_behaviors_state_ on the Cartridge. Module functions take
-// `CubeBehaviorsState& cbs` explicitly rather than reaching via
-// Cartridge*, making ownership language-visible and dependencies
-// explicit in signatures.
-
-struct CubeBehaviorsState {
-    uint32_t       coordination_step  = 0;
-    uint32_t       behavior_override  = CUBE_BEHAVIOR_STATIONARY;
-    CubeCorralAnim corral_anim[Dim::MAX_CUBE_INSTANCES] = {};
-    bool           kite_mode          = false;
-    float          pawn_offset[Dim::MAX_CUBE_INSTANCES][2] = {};  // xz only
-    // LADDER-2 c0 (Jean's M-c per-species ownership): the cube active-slot
-    // mirror moved here from floater_vocabulary.inl's class-body
-    // `activeCubes_[]` / `activeCubeCount_`. The behavior layer already owns
-    // cube runtime state; the active array joins it. ActiveCube stays shared
-    // vocabulary (floater_vocabulary.hpp).
-    ActiveCube     activeCubes_[Dim::MAX_CUBE_INSTANCES]{};
-    uint32_t       activeCubeCount_ = 0;
-};
-CubeBehaviorsState cube_behaviors_state_;
-
 // Teardown owner-clear (LADDER-2 c0.4): the cube half of teardown_world's
-// bulk sweep, now an owner function — CPU clear + per-slot GPU clear,
-// paired, behavior-identical to the former inline sweep. cube_behaviors.inl
-// is still a class-body include, so this may take the keyhole; it uses only
-// the GPU service, matching spheres.hpp::clear_spheres for symmetry.
-static void clear_cubes(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue) {
+// bulk sweep — CPU clear + per-slot GPU clear, paired, behavior-identical
+// to the former inline sweep. Uses only the GPU service, matching
+// spheres.hpp::clear_spheres for symmetry.
+inline void clear_cubes(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue) {
     for (uint32_t i = 0; i < Dim::MAX_CUBE_INSTANCES; i++) {
         cbs.activeCubes_[i] = ActiveCube{};
         GPUFloatingEntityState empty{};
@@ -363,11 +120,11 @@ static void clear_cubes(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& que
     cbs.activeCubeCount_ = 0;
 }
 
-static float corral_ease_(float t) {
+inline float corral_ease_(float t) {
     return t * t * (3.0f - 2.0f * t);  // smoothstep
 }
 
-static void cycle_floater_coordination(CubeBehaviorsState& cbs, Cartridge* c) {
+inline void cycle_floater_coordination(CubeBehaviorsState& cbs, Cartridge* c) {
     cbs.coordination_step = (cbs.coordination_step + 1) % 3;
     float v = FLOATER_COORDINATION_STEPS[cbs.coordination_step];
     c->gpuState_.config().floater_coordination = v;
@@ -375,14 +132,14 @@ static void cycle_floater_coordination(CubeBehaviorsState& cbs, Cartridge* c) {
 }
 
 
-static void apply_cube_behavior_override(CubeBehaviorsState& cbs, Cartridge* c, wgpu::Queue& queue) {
+inline void apply_cube_behavior_override(CubeBehaviorsState& cbs, Cartridge* c, wgpu::Queue& queue) {
     for (uint32_t i = 0; i < Dim::MAX_CUBE_INSTANCES; i++) {
         if (!cbs.activeCubes_[i].active) continue;
         c->gpuState_.upload_cube_behavior_id(queue, i, cbs.behavior_override);
     }
 }
 
-static void cycle_cube_behavior_override(CubeBehaviorsState& cbs, Cartridge* c, wgpu::Queue& queue) {
+inline void cycle_cube_behavior_override(CubeBehaviorsState& cbs, Cartridge* c, wgpu::Queue& queue) {
     cbs.behavior_override = (cbs.behavior_override + 1) % CUBE_BEHAVIOR_COUNT;
     apply_cube_behavior_override(cbs, c, queue);
     std::cout << "[Floaters] cube behavior: "
@@ -390,7 +147,8 @@ static void cycle_cube_behavior_override(CubeBehaviorsState& cbs, Cartridge* c, 
 }
 
 
-static void corral_cubes(CubeBehaviorsState& cbs, Cartridge* c, wgpu::Queue& queue) {
+inline void corral_cubes(CubeBehaviorsState& cbs, Cartridge* c, wgpu::Queue& queue) {
+    (void)queue;
     // DONE[floaters:L1] read the player's pos from the possessed slot
     //   (which is 0 by default but tracks the player on possession
     //   transfer), not from slot 0 directly. Old hardcode was visible
@@ -472,7 +230,7 @@ static void corral_cubes(CubeBehaviorsState& cbs, Cartridge* c, wgpu::Queue& que
 // Per-frame: advance any active animations and push interpolated
 // position to GPU. Skips cleanly when nothing is animating. Called
 // from the cartridge's render() path.
-static void tick_cube_corral_animations(CubeBehaviorsState& cbs, Cartridge* c, wgpu::Queue& queue) {
+inline void tick_cube_corral_animations(CubeBehaviorsState& cbs, Cartridge* c, wgpu::Queue& queue) {
     for (uint32_t i = 0; i < Dim::MAX_CUBE_INSTANCES; i++) {
         auto& anim = cbs.corral_anim[i];
         if (!anim.active) continue;
@@ -497,7 +255,7 @@ static void tick_cube_corral_animations(CubeBehaviorsState& cbs, Cartridge* c, w
 
 // ─── Kite mode toggle (F7) ──────────────────────────────────────
 
-static void toggle_cube_kite_mode(CubeBehaviorsState& cbs, Cartridge* c, wgpu::Queue& queue) {
+inline void toggle_cube_kite_mode(CubeBehaviorsState& cbs, Cartridge* c, wgpu::Queue& queue) {
     cbs.kite_mode = !cbs.kite_mode;
     // DONE[floaters:L1] possessed_slot for kite mode too — see corral_cubes.
     const float px = c->agent_state_.slots[c->player_.possessed_slot].pos_x;
@@ -543,3 +301,6 @@ static void toggle_cube_kite_mode(CubeBehaviorsState& cbs, Cartridge* c, wgpu::Q
     std::cout << "[Floaters] kite mode: " << (cbs.kite_mode ? "ON" : "OFF")
               << " (" << affected << " cube(s))\n";
 }
+
+} // namespace the_board
+} // namespace t7

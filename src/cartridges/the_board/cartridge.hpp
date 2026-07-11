@@ -105,6 +105,7 @@
 #include "cartridges/the_board/modules/orbs.hpp"                 // LADDER-2 c3: orb console/registries + OrbsState + ORB_MOOD_TABLE + decls (impl is orbs.inl, post-class)
 #include "cartridges/the_board/modules/gol_zones.hpp"            // LADDER-3 c1: GoL vocabulary + payloads + GoLState + decls (impl is gol_zones.inl, post-class)
 #include "cartridges/the_board/modules/agents.hpp"               // LADDER-3 c2: agent registries + console + AgentState + decls (impl is agents.inl, post-class)
+#include "cartridges/the_board/modules/cube_behaviors.hpp"       // LADDER-3 c3: cube behavior registry + CubeBehaviorsState + decls (impl is cube_behaviors.inl, post-class)
 #include "cartridges/the_board/renderer.hpp"
 #include "coupling/visual_canvas.hpp"
 #include <cmath>
@@ -158,10 +159,13 @@ namespace t7 {
             //     in floater_vocabulary.inl (class body); relocated here in
             //     LADDER-2 c0 per Jean's M-c per-species ownership ruling.
             //
-            // (cube_behaviors_state_ still lives in cube_behaviors.inl under
-            //  the transitional regime — it converts in L-mid. entities/orbs
-            //  instances join this chapter as they convert, c1/c3.)
             SphereState sphere_state_;
+
+            //   cube_behaviors_state_ — CubeBehaviorsState
+            //     (cube_behaviors.hpp), the cube diagnostics + the c0 cube
+            //     active-slot mirror. Was declared in cube_behaviors.inl
+            //     (class body); relocated here in LADDER-3 c3.
+            CubeBehaviorsState cube_behaviors_state_;
 
             //   pawn_state_ — PawnState (pawn.hpp), the pawn aura + presence
             //     state. Was declared in pawn.inl (class body); relocated here
@@ -1531,10 +1535,16 @@ namespace t7 {
             // ── Generic Entity Pipeline (modules/entity_pipeline.inl) ──
 #include "modules/entity_pipeline.inl"
 
-            // ── Cube Behavior Registry (modules/cube_behaviors.inl) ──
-            // Cube behavior IDs, coordination knob, cycling helpers.
-            // Depends on entity_pipeline.inl (cube_write_gpu seeds behavior_phase).
-#include "modules/cube_behaviors.inl"
+            // ── Cube Behaviors — CONVERTED (LADDER-3 c3, header/impl split) ──
+            // Behavior registry + console + populations (G1's second
+            // consumer) + CubeBehaviorsState (carrying c0's cube active
+            // array) + declarations are in cube_behaviors.hpp (file scope,
+            // above the class); definitions in cube_behaviors.inl, included
+            // at FILE SCOPE in the post-class MODULE IMPLEMENTATIONS zone.
+            // The instance (cube_behaviors_state_) is declared at the
+            // COMPOSITION ROOT. entity_pipeline's cube_write_gpu calls the
+            // two spawn helpers via their header declarations. The
+            // cube_behaviors → cubes rename stays FLAGGED, not performed.
 
             static constexpr FamilyDispatch FAMILY_DISPATCH[PopFamily::COUNT] = {
                 { dispatch_select_pyramid_generic, dispatch_place_pyramid_generic, dispatch_commit_pyramid_generic,
