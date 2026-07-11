@@ -203,6 +203,35 @@ Stacks on LADDER-1. Two of Jean's rulings shaped it:
    topology (public organ region): compiles, links, runs. The access
    dimension is tested from now on.
 
+   **THE WIRING COROLLARY (rig-found, fix 2 — the unresolved conductor).**
+   Impl files are SELF-WRAPPING (each opens `t7::the_board` itself and
+   carries its own standard includes), so the MODULE IMPLEMENTATIONS zone
+   sits at FILE SCOPE, after both namespace closes. Including a
+   self-wrapping impl INSIDE the namespaces double-wraps its symbols into
+   `t7::the_board::t7::the_board::` — a legal nested namespace that
+   compiles silently and satisfies nothing (the rig's LNK2019: unresolved
+   `tick_pawn_couplings`, call side correct by the mangling). The audit
+   ran the ranked three: (a) `static` survivals — none in pawn.inl;
+   (b) signature parity — exact; (c) wiring — CONFIRMED (the cause).
+   Rule recorded into the pattern's definition: **impl-file definitions
+   are `inline` free functions; the class-body `static` never survives
+   the move** (inline landed with this fix — one TU makes plain legal,
+   inline makes tomorrow legal too).
+
+   **PROBE THE ARTIFACTS, NOT A RE-CREATION.** Two rig failures, one
+   root: the probes validated hand-written portraits (first
+   implicitly-public organs; then a correct include topology the real
+   tree didn't have — the include-site topology IS part of the
+   artifact). The probe is now a SPECIMEN: it compiles and links the
+   REAL pawn.hpp + REAL pawn.inl around a mock Cartridge supplying
+   exactly the members pawn reaches, replicating the tree's include
+   wiring. Recorded runs — pre-fix (real files, the double-wrap wiring):
+   LINK FAILS, "undefined reference to t7::the_board::
+   tick_pawn_couplings(...)" referenced from Cartridge::update — the
+   rig's exact missing symbol; post-fix (real files, file-scope
+   include): compiles, links, runs. All future conversion stages
+   (c1/c3/c4 and every L-mid rung) use specimen probes.
+
 A prereq was also required and ruled: **MOOD_COUNT graduated to file scope**
 (mood_constants.hpp) — the config-bearing modules size per-mood tables by it
 and a file-scope header can't see an in-class constant.

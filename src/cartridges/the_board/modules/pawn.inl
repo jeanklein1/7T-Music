@@ -4,7 +4,15 @@
 // class (LADDER-2 c2 header/impl split, per Jean) so the keyhole is a
 // complete type — tick_pawn_couplings dereferences c->player_,
 // c->time_state_, c->gpuState_. The state STRUCT + declarative laws live in
-// pawn.hpp (file scope, above the class). Namespace t7::the_board.
+// pawn.hpp (file scope, above the class).
+//
+// WRAPPING FORM (fix 2): this file is SELF-WRAPPING — it opens
+// t7::the_board itself and carries its own standard includes — so the
+// MODULE IMPLEMENTATIONS zone includes it at FILE SCOPE (after the
+// namespace closes in cartridge.hpp), never inside the namespaces
+// (double-wrap = silent nested namespace = unresolved link). Definitions
+// are `inline` free functions: one TU today makes plain legal; inline
+// makes tomorrow legal too (the LADDER-1 rule, applied to impl files).
 // ─────────────────────────────────────────────────────────────────
 
 #include <cmath>  // std::exp (the real-time presence ramp)
@@ -13,7 +21,7 @@ namespace t7 {
 namespace the_board {
 
 // ─── Per-frame pawn coupling tick ────────────────────────────────
-void tick_pawn_couplings(PawnState& ps, Cartridge* c, wgpu::Queue& queue) {
+inline void tick_pawn_couplings(PawnState& ps, Cartridge* c, wgpu::Queue& queue) {
     (void)queue;
     // Aura presence ramp: smooth 0→1 on enable / 1→0 on disable.
     // (aura_presence migrated to player_ in SEAM[spine:P8] — see Cartridge::PlayerState)

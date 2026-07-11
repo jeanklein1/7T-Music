@@ -4163,18 +4163,27 @@ namespace t7 {
 
         };
 
-        // ═══ MODULE IMPLEMENTATIONS (post-class) ═════════════════════
-        //
-        // Definitions for CONVERTED modules whose laws dereference the
-        // COMPLETE Cartridge (the keyhole). Each such module declares its
-        // functions in its header (file scope, above the class, so the
-        // instance member works); the definitions land here, after the
-        // class, where Cartridge is a complete type. Still ONE translation
-        // unit — this is the header/impl split of the amended §1, not a
-        // separate compilation unit (LADDER-2, per Jean's ruling). The call
-        // sites inside the class see each function's declaration via its
-        // header; the linker binds these definitions.
-        #include "modules/pawn.inl"   // LADDER-2 c2 — tick_pawn_couplings
-
     } // namespace the_board
-} // namespace t7/
+} // namespace t7
+
+// ═══ MODULE IMPLEMENTATIONS (post-class, FILE SCOPE) ══════════════════
+//
+// Definitions for CONVERTED modules whose laws dereference the COMPLETE
+// Cartridge (the keyhole). Each such module declares its functions in its
+// header (file scope, above the class, so the instance member works); the
+// definitions land here, after the class, where Cartridge is a complete
+// type. Still ONE translation unit — this is the header/impl split of the
+// amended §1, not a separate compilation unit (LADDER-2, per Jean's
+// ruling). The call sites inside the class see each function's declaration
+// via its header; the linker binds these definitions.
+//
+// WIRING FORM (LADDER-2 fix 2 — the unresolved conductor): impl files are
+// SELF-WRAPPING — each carries its own `namespace t7 { namespace
+// the_board {` and its own standard includes — so this zone sits at FILE
+// SCOPE, after both namespace closes. Including a self-wrapping impl
+// INSIDE the namespaces double-wraps its symbols into
+// t7::the_board::t7::the_board:: — a legal nested namespace that compiles
+// silently and satisfies nothing (the rig's LNK2019). Impl-file
+// definitions are `inline` free functions; the class-body `static` never
+// survives the move.
+#include "modules/pawn.inl"   // LADDER-2 c2 — tick_pawn_couplings/
