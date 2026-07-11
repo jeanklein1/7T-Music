@@ -96,6 +96,7 @@
 #include "cartridges/the_board/modules/seed_utils.hpp"           // LADDER-1 c1: converted leaf (was a class-body include)
 #include "cartridges/the_board/modules/ground_architecture.hpp"  // LADDER-1 c2: converted leaf (was a class-body include)
 #include "cartridges/the_board/modules/entity_types.hpp"         // LADDER-1 c3: converted leaf (was a mid-file include in spawn_engine)
+#include "cartridges/the_board/modules/mood_constants.hpp"       // LADDER-2 prereq: MOOD_COUNT graduated to file scope (per Jean)
 #include "cartridges/the_board/state.hpp"
 #include "cartridges/the_board/renderer.hpp"
 #include "coupling/visual_canvas.hpp"
@@ -366,7 +367,11 @@ namespace t7 {
                 // definitions and the table itself.
             };
 
-            static constexpr uint32_t MOOD_COUNT = 6;
+            // MOOD_COUNT graduated to file scope (LADDER-2 prereq, per Jean) —
+            // now t7::the_board::MOOD_COUNT in modules/mood_constants.hpp,
+            // included above the class so the config-bearing converted headers
+            // (entities/orbs/floater_vocabulary) can size their per-mood tables.
+            // Visible here by namespace lookup; unqualified references unchanged.
 
             // ─── Mood IDs ───────────────────────────────────────────────────
             //
