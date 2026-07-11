@@ -400,6 +400,34 @@ intra-module calls need either original-order luck (ribbon), a header
 declaration (public fns), or an impl-internal forward-declaration block
 (gallery).
 
+**STANDING INVARIANT — THE ZONE CENSUS (LADDER-3 rider; closes the
+omission class):** the specimen wires its own zone, so it can never see
+the real zone's omissions. Every rung's verification therefore includes,
+BESIDE the specimen probe, this mechanical cross-check (no compile
+needed):
+
+    set(post-class impl files in modules/)
+      == set(includes in the MODULE IMPLEMENTATIONS zone),
+    each exactly once.
+
+Discriminator: a post-class impl is SELF-WRAPPING (opens `namespace
+t7 {` itself); a class-body .inl is not — so the census also checks the
+converse for free (each class-body .inl included exactly once, inside
+the class, never in the zone; no duplicates on either side).
+
+Retroactive run over the LADDER-3 head (08e565c): **CLEAN** — 10
+self-wrapping impls == 10 zone includes (pawn, entities, orbs,
+gol_zones, agents, cube_behaviors, gallery, ribbon, input,
+render_passes), each exactly once; 3 class-body files (spawn_engine,
+entity_pipeline, mood) each exactly once, in-class.
+
+**RATIFICATION (LADDER-3 rider):** the arc is RATIFIED as committed,
+wiring fix included. Explicitly ratified as disclosed judgment calls:
+the spawn_engine payload relocations to their owner headers (the weld
+thinning from the correct side, ahead of the hubs era); the ribbon
+pairing suspension named in its banner; the c4 hoists + forward
+declarations (the two-pass-lookup corollary, now the addendum above).
+
 ## L-HUBS (queued — the remaining class-body includes)
 
 mood.inl (**K4 — Jean's marination item, unchanged**: transition
