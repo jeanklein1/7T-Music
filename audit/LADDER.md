@@ -120,6 +120,55 @@ bisection exists if it ever fails).
 **THE THREE LEAVES ARE CONVERTED.** L0 (Jean, one build) certifies all
 three at once.
 
+## LADDER-1 — CLOSE-OUT
+
+Three commits (c1 `876b32a`, c2 `6efdeee`, c3 `38efdc5`) on MOD_1_ROSTER,
+stacked on ROSTER-1b, never force-pushed. One build after c3 (L0).
+
+**Bytes report** (per file created/touched; the ladder's own headers match
+roster.hpp's no-BOM/LF precedent; `entity_pipeline.inl` keeps its BOM):
+
+| file | first-3 bytes | EOL | note |
+|---|---|---|---|
+| modules/seed_utils.hpp | `23 70 72` (no-BOM) | LF | created (c1) |
+| modules/ground_architecture.hpp | `23 70 72` (no-BOM) | LF | created (c2) |
+| modules/entity_types.hpp | `23 70 72` (no-BOM) | LF | created (c3) |
+| audit/LADDER.md | `23 20 54` (no-BOM) | LF | created (c1) |
+| cartridge.hpp | `23 70 72` (no-BOM) | LF | touched (all) |
+| cartridge_constitution.md | `23 20 54` (no-BOM) | LF | touched (c1–c3) |
+| modules/spawn_engine.inl | `2f 2f 20` (no-BOM) | LF | touched (c3) |
+| modules/entity_pipeline.inl | `ef bb bf` (BOM) | LF | touched (c3), BOM preserved |
+| modules/{seed_utils,ground_architecture,entity_types}.inl | — | — | DELETED (relocated) |
+
+**Census (with recipes):**
+- Standalone compile probes: 3/3 PASS (self-containedness — the
+  boundary-honesty test). Recipe: throwaway TU `#include`-ing only each
+  header; `g++ -std=c++20 -I.`.
+- Call-site census: seed_utils 241 calls / 0 qualified; ground_architecture
+  0 runtime C++ consumers (source-of-truth mirrored by world.wgsl);
+  entity_types 0 qualified. Recipe: grep `Cartridge::<sym>` / `this-><sym>`
+  across the_board. Zero qualified forms anywhere → all call sites carry.
+- Old-path census: zero `.inl` INCLUDE references to the three in the_board.
+  Recipe: grep `#include "modules/<name>.inl"`.
+- Unused-symbol census: none — every converted symbol has a live consumer
+  (or, for ground_architecture, is a compile-time-validated + GPU-mirrored
+  contract). Zero STATUS tags needed; flag-don't-delete not triggered.
+- Braces: cartridge.hpp 652/652, spawn_engine.inl 131/131,
+  entity_pipeline.inl 702/702, and the three new headers balanced.
+
+**SEAM ledger:** SEAM[seed_utils:P9] and SEAM[ground_architecture:P9]
+updated to their extracted state; SEAM[spawn_engine:structural] RETIRED
+(all four mentions carry the retirement reason); the FXC/mirror contract
+seams (seed_utils:contract, ground_architecture:contract) preserved
+verbatim; world.wgsl untouched.
+
+**DISCLOSED (deferred, not silent):** "Depends on: seed_utils.inl" comment
+notes still stand in four unconverted modules (entities, gol_zones,
+gallery, ribbon) and world.wgsl's mirror note names the old `.inl`.
+world.wgsl is untouchable (scope guard / R5); the module notes update as
+each converts. entity_pipeline.inl's and spawn_engine.inl's notes were
+updated in c3 (they named the retired mechanism / converted deps directly).
+
 ## L-NEXT (preview only — no action; design ruling for Jean's queue)
 
 The leaves done, L-next continues the ladder. **`floater_vocabulary`
