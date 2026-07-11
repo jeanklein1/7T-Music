@@ -1,4 +1,5 @@
-// ─── ground_architecture.inl ─────────────────────────────────────
+#pragma once
+// ─── ground_architecture.hpp ─────────────────────────────────────
 //
 // Canonical registry for the ground query architecture:
 // contributors, explicit dependency DAG, and policies. Single source
@@ -89,25 +90,31 @@
 // CONTRIBUTOR_DAG_EDGE_COUNT), so the edge table is load-bearing:
 // adding an edge to the table re-validates every policy with no
 // further edits here. It is expressed as an immediately-invoked
-// constexpr lambda inside each static_assert rather than a member
-// constexpr function, because class-body static_asserts cannot call
-// member functions of the still-incomplete enclosing class; a
-// lambda's body is parsed in place and reads only the
-// already-initialized static constexpr tables above it.
+// constexpr lambda inside each static_assert rather than a
+// constexpr function. NOTE (LADDER-1 c2): the class-body constraint
+// that ORIGINALLY forced the lambda — a class-body static_assert
+// cannot call a member function of the still-incomplete enclosing
+// class — has DISSOLVED now that this is a file-scope header; the
+// restyle to a namespace constexpr function is a NAMED LATER STAGE,
+// kept AS-IS here for a clean bisection. The lambda's body is parsed
+// in place and reads only the already-initialized inline constexpr
+// tables above it.
 //
 // Every policy runs the check for every DAG edge at compile time;
 // adding a new policy means adding one ASSERT_POLICY_DAG_CLOSED
 // invocation at the bottom of this file. Adding an edge means adding
 // one CONTRIBUTOR_DAG row — the assert iterates the table.
 //
-// Included inside the Cartridge class body.
-// Depends on: nothing (pure enum + table definitions + macro checks).
+// A REAL HEADER at file scope (LADDER-1 c2) — no longer included inside
+// the Cartridge class body. Namespace t7::the_board (the cartridge's own).
+// Depends on: <cstdint> only (pure enum + table definitions + macro checks).
 //
 // SEAM[ground_architecture:P9] header-style file: pure declarations
 //   (enums + tables) + compile-time validation macros, zero runtime
-//   logic, no class-member coupling. Same family as entity_types.inl,
-//   coupling/trajectory.hpp, seed_utils.inl as P9 instances. The
-//   ASSERT_POLICY_DAG_CLOSED macro pattern is the unique
+//   logic, no class-member coupling — its header-style nature now
+//   REALIZED as a real file-scope header (LADDER-1 c2). Same family as
+//   entity_types, coupling/trajectory.hpp, seed_utils as P9 instances.
+//   The ASSERT_POLICY_DAG_CLOSED macro pattern is the unique
 //   contribution of this file — compile-time relational integrity
 //   over a registry table.
 // SEAM[ground_architecture:contract] CONTRIBUTOR_COUNT, POLICY_COUNT,
@@ -117,6 +124,11 @@
 //   GPU than what CPU placement believed. Same family as agents:L2
 //   and seed_utils:contract.
 // ─────────────────────────────────────────────────────────────────
+
+#include <cstdint>
+
+namespace t7 {
+namespace the_board {
 
 enum ContributorId : uint32_t {
     CONTRIB_TERRAIN_LATTICE   = 0,   // fused into contrib_static_base_at
@@ -163,7 +175,7 @@ struct ContributorEdge {
     ContributorId to;
 };
 
-static constexpr ContributorEdge CONTRIBUTOR_DAG[] = {
+inline constexpr ContributorEdge CONTRIBUTOR_DAG[] = {
     // STATUS: REALIZED — the composition order of every pyramid-bearing
     // query (contrib_static_base_at + contrib_pyramids_at) and the bake.
     { CONTRIB_TERRAIN_LATTICE,  CONTRIB_PYRAMIDS         },
@@ -176,7 +188,7 @@ static constexpr ContributorEdge CONTRIBUTOR_DAG[] = {
     { CONTRIB_SOLIDS,           CONTRIB_PAINTINGS_BASES  },
     { CONTRIB_SOLIDS,           CONTRIB_VEGETATION_BASES },
 };
-static constexpr uint32_t CONTRIBUTOR_DAG_EDGE_COUNT =
+inline constexpr uint32_t CONTRIBUTOR_DAG_EDGE_COUNT =
     sizeof(CONTRIBUTOR_DAG) / sizeof(CONTRIBUTOR_DAG[0]);
 
 // ═══ POLICY DEFINITIONS ══════════════════════════════════════════
@@ -193,12 +205,12 @@ struct PolicyDef {
 
 // The three fused static-base contributors travel together in every
 // policy that wants a landform base.
-static constexpr uint32_t GROUND_STATIC_BASE_MASK =
+inline constexpr uint32_t GROUND_STATIC_BASE_MASK =
     (1u << CONTRIB_TERRAIN_LATTICE) |
     (1u << CONTRIB_TILE_MODIFIERS)  |
     (1u << CONTRIB_SOLIDS);
 
-static constexpr PolicyDef POLICIES[] = {
+inline constexpr PolicyDef POLICIES[] = {
     // Placement policies — spawn-time Y correction. No deformation
     // fields (placement should be stable against animated terrain).
     //
@@ -327,7 +339,7 @@ static constexpr PolicyDef POLICIES[] = {
         | (1u << CONTRIB_PAWN_AURA),
       /*gradient=*/true },                  // realized in the fused VS (texture .yz + analytic wave gradient)
 };
-static constexpr uint32_t POLICY_COUNT_IN_TABLE =
+inline constexpr uint32_t POLICY_COUNT_IN_TABLE =
     sizeof(POLICIES) / sizeof(POLICIES[0]);
 
 static_assert(POLICY_COUNT_IN_TABLE == POLICY_COUNT,
@@ -342,13 +354,16 @@ static_assert(POLICY_COUNT_IN_TABLE == POLICY_COUNT,
 // policy with no edits here.
 //
 // Shape (TER-2 2d): an immediately-invoked constexpr lambda per
-// static_assert, not a member constexpr function — class-body
-// static_asserts cannot call member functions of the still-incomplete
-// enclosing class, but a lambda's body is parsed in place and reads
-// only the already-initialized static constexpr tables above. INTENT
-// edges (stub endpoints) participate like any other edge: their
-// endpoints exist as ContributorId bits, so closure over them is
-// well-defined (and currently vacuous — no mask includes the stubs).
+// static_assert, kept AS-IS across the LADDER-1 c2 extraction. The
+// class-body constraint that ORIGINALLY forced the lambda (a class-body
+// static_assert cannot call a member function of the still-incomplete
+// enclosing class) has dissolved at file scope; the restyle to a
+// namespace constexpr function is a NAMED LATER STAGE. The lambda's body
+// is parsed in place and reads only the already-initialized inline
+// constexpr tables above. INTENT edges (stub endpoints) participate like
+// any other edge: their endpoints exist as ContributorId bits, so
+// closure over them is well-defined (and currently vacuous — no mask
+// includes the stubs).
 
 #define ASSERT_POLICY_DAG_CLOSED(POLICY_IDX, POLICY_NAME)                       \
     static_assert(                                                              \
@@ -376,3 +391,6 @@ ASSERT_POLICY_DAG_CLOSED(POLICY_CELESTIAL,            "POLICY_CELESTIAL");
 ASSERT_POLICY_DAG_CLOSED(POLICY_TERRAIN_RENDER,       "POLICY_TERRAIN_RENDER");
 
 #undef ASSERT_POLICY_DAG_CLOSED
+
+} // namespace the_board
+} // namespace t7

@@ -93,7 +93,8 @@
 #include "render/render_cartridge.hpp"
 #include "core/input_event.hpp"
 #include "cartridges/the_board/roster.hpp"
-#include "cartridges/the_board/modules/seed_utils.hpp"  // LADDER-1 c1: converted leaf (was a class-body include)
+#include "cartridges/the_board/modules/seed_utils.hpp"           // LADDER-1 c1: converted leaf (was a class-body include)
+#include "cartridges/the_board/modules/ground_architecture.hpp"  // LADDER-1 c2: converted leaf (was a class-body include)
 #include "cartridges/the_board/state.hpp"
 #include "cartridges/the_board/renderer.hpp"
 #include "coupling/visual_canvas.hpp"
@@ -530,8 +531,13 @@ namespace t7 {
                         // tick_pawn_couplings. Closes pawn:K1.
 #include "modules/pawn.inl"
 
-                        // ── Ground Architecture (modules/ground_architecture.inl) ──
-#include "modules/ground_architecture.inl"
+                        // ── Ground Architecture — CONVERTED (LADDER-1 c2) ──
+                        // Now a real file-scope header
+                        // (modules/ground_architecture.hpp), included above the
+                        // class with roster.hpp's cohort. Its enums/tables and
+                        // compile-time DAG-closure asserts live in namespace
+                        // t7::the_board; no runtime C++ consumers (world.wgsl
+                        // mirrors it). See §1 (two-regime transitional clause).
 
                         // ── Sky Orbs (modules/orbs.inl) ──
 #include "modules/orbs.inl"

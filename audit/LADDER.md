@@ -34,7 +34,7 @@ unused-symbol census as STATUS tags + a ledger line.
 | stage | module | status | notes |
 |---|---|---|---|
 | c1 | **seed_utils** | ✅ LANDED | the self-nominated easiest leaf; the §1 amendment rides this commit |
-| c2 | ground_architecture | ⏳ pending | tables + asserts move whole; IIFE static_assert idiom UNTOUCHED (restyle is a named later stage) |
+| c2 | **ground_architecture** | ✅ LANDED | tables + asserts move whole; IIFE static_assert idiom UNTOUCHED (restyle is a named later stage) |
 | c3 | entity_types | ⏳ pending | + spawn_engine mid-file include removal + `SEAM[spawn_engine:structural]` retirement |
 
 Jean builds ONCE after c3 (L0 LADDER GOLDEN certifies all three at once;
@@ -60,6 +60,31 @@ bisection exists if it ever fails).
   still name the old `.inl`. These are documentation, not includes;
   world.wgsl is untouchable (scope guard / R5), so they are left to update
   as each module converts — not chased in c1 (would create a split state).
+
+### c2 — ground_architecture (LANDED)
+
+- `modules/ground_architecture.hpp` created — 2 enums (`ContributorId`,
+  `PolicyId`), 2 structs (`ContributorEdge`, `PolicyDef`), the tables
+  (`CONTRIBUTOR_DAG`, `POLICIES`, `GROUND_STATIC_BASE_MASK`, the counts)
+  `static constexpr` → `inline constexpr`, and the 10 compile-time
+  DAG-closure `static_assert`s via the `ASSERT_POLICY_DAG_CLOSED` macro.
+  Namespace `t7::the_board`. Dep: `<cstdint>`. Standalone compile probe:
+  PASS — the DAG-closure asserts hold at namespace scope.
+- The IIFE (immediately-invoked-lambda) static_assert idiom is UNTOUCHED;
+  the comment now notes the class-body constraint that forced it has
+  dissolved at file scope, and the restyle to a namespace constexpr
+  function is a NAMED LATER STAGE (clean bisection).
+- Call-site census: the enums/tables have **zero runtime C++ consumers** —
+  they are a compile-time-validated source-of-truth that only world.wgsl
+  mirrors (the 4 files matching `POLICY_WALKER` etc. do so in comments).
+  Nothing to carry; 0 qualified forms.
+- SEAM[ground_architecture:P9] updated (header-style nature now realized);
+  SEAM[ground_architecture:contract] (world.wgsl mirror) preserved
+  verbatim; world.wgsl untouched.
+- Unused-symbol census: the tables are consumed only at compile time +
+  by the GPU mirror; that IS their contract (the banner states "no runtime
+  symbols exported"). Not unused — validated-and-mirrored. Zero STATUS
+  tags needed.
 
 ## L-NEXT (preview only — no action; design ruling for Jean's queue)
 
