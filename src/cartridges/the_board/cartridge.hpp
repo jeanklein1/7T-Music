@@ -104,6 +104,7 @@
 #include "cartridges/the_board/modules/entities.hpp"             // LADDER-2 c1: grounded-family vocabulary + EntitiesState + preparer decls (impl is entities.inl, post-class)
 #include "cartridges/the_board/modules/orbs.hpp"                 // LADDER-2 c3: orb console/registries + OrbsState + ORB_MOOD_TABLE + decls (impl is orbs.inl, post-class)
 #include "cartridges/the_board/modules/gol_zones.hpp"            // LADDER-3 c1: GoL vocabulary + payloads + GoLState + decls (impl is gol_zones.inl, post-class)
+#include "cartridges/the_board/modules/agents.hpp"               // LADDER-3 c2: agent registries + console + AgentState + decls (impl is agents.inl, post-class)
 #include "cartridges/the_board/renderer.hpp"
 #include "coupling/visual_canvas.hpp"
 #include <cmath>
@@ -187,6 +188,12 @@ namespace t7 {
             //     counts + mood gate + derive-request queue. Was declared in
             //     gol_zones.inl (class body); relocated here in LADDER-3 c1.
             GoLState gol_state_;
+
+            //   agent_state_ — AgentState (agents.hpp), the 32-slot CPU
+            //     mirror + respawn counters + diagnostic overrides. Was
+            //     declared in agents.inl (class body); relocated here in
+            //     LADDER-3 c2.
+            AgentState agent_state_;
 
             struct InputState {
                 float move_x = 0.0f;
@@ -429,20 +436,10 @@ namespace t7 {
             // (entities/orbs/floater_vocabulary) can size their per-mood tables.
             // Visible here by namespace lookup; unqualified references unchanged.
 
-            // ─── Mood IDs ───────────────────────────────────────────────────
-            //
-            // Named indices into MOOD_TABLE / ORB_MOOD_TABLE / AGENT_POPULATIONS
-            // and any per-mood multiplier array elsewhere in the codebase.
-            // The order is canonical — every per-mood table is written in
-            // this order, and AGENT_POPULATIONS has per-row static_asserts
-            // that catch reordering.
-
-            static constexpr uint32_t MOOD_OPEN_DEFAULT = 0;
-            static constexpr uint32_t MOOD_OPEN_SUNSET = 1;
-            static constexpr uint32_t MOOD_INDOOR_FLAT = 2;
-            static constexpr uint32_t MOOD_INDOOR_VAULT = 3;
-            static constexpr uint32_t MOOD_FINITE_OUTDOOR = 4;
-            static constexpr uint32_t MOOD_FINITE_OUTDOOR_REF = 5;
+            // ─── Mood IDs — GRADUATED to mood_constants.hpp (LADDER-3 G1) ───
+            // agents' and cube_behaviors' population tables need them
+            // DECLARATION-side in file-scope headers. Visible here by
+            // namespace lookup; every use was unqualified and carries.
 
             // ═══ MOOD DEFINITIONS ════════════════════════════════════════
             //
@@ -620,9 +617,15 @@ namespace t7 {
                         // instance (orbs_state_) is declared at the COMPOSITION
                         // ROOT. ORB-1 anchor semantics untouched. See §1.
 
-            // ── Agents (modules/agents.inl) ──
-            // Unified entity registry: behaviors, tier gains, populations.
-#include "modules/agents.inl"
+            // ── Agents — CONVERTED (LADDER-3 c2, header/impl split) ──
+            // Registries (behaviors / tier gains / populations) + console +
+            // AgentState + declarations are in agents.hpp (file scope, above
+            // the class); the definitions are in agents.inl, included at
+            // FILE SCOPE in the post-class MODULE IMPLEMENTATIONS zone. G1
+            // rode this rung (Mood IDs → mood_constants.hpp). The instance
+            // (agent_state_) is declared at the COMPOSITION ROOT. Agents
+            // machinery stays FOUNDATIONAL; wanderers-bit + slot-0 SEAM
+            // semantics untouched. See §1.
 
 // ── Spawn Engine & Entity Lifecycle (modules/spawn_engine.inl) ──
 #include "modules/spawn_engine.inl"
