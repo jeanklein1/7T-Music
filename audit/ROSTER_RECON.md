@@ -205,3 +205,34 @@ the two judgment calls (photographer⊂gallery; agents foundational); (2)
 the portal second-door site (`force_spawn_portal_at`); (3) the 2c edge
 mechanism (unconditional `static_assert(ROSTER.portal)` vs a `transitions`
 bit). Nothing is cut until these land.
+
+---
+
+## LEDGER APPENDIX (dispositions — recorded per the method: silence is the
+one deviation form the method forbids)
+
+- **terrain tokens** — judged **substrate** (generation composition), not a
+  piece; gating deferred to **M-m**. (`tick_terrain_tokens` /
+  `terrainTokens_` compose per-tile amplitude momentum during generation;
+  they shape the ground the doors gate, they are not a door.) Disclosed
+  here rather than left as a silent exclusion.
+- **test-rig piers** — **TESTING** class, NO roster bit (roster rows are
+  design pieces, not scaffolds). Mortal retirement: dies at ship
+  (checklist). Tagged in-code `TESTING[test-rig-piers]` at
+  `setup_test_rig_piers`; added to Constitution §5 TESTING (count 1→2);
+  joins the future exhibition-guard discussion with
+  `SEAM[spawn_engine:L1]` DIAG_ENTITY_LIFECYCLE.
+
+## PHASE I — LANDED (ratified go-order)
+
+Manifest `Roster ROSTER` (v0, all-enabled) added to the spine banner's
+owned list. 12 family bits + 7 feature bits (pawn_aura, orbs, spot_lights,
+indoor_shell, portal, transitions, wanderers) + a FOUNDATIONAL note
+(agents machinery: pawn is slot 0, buffer co-resides 7 bind groups).
+Gates carry the `ROSTER-GATE <piece> (<b|c>)` sentinel; the gol residue
+check carries `ROSTER-RESIDUE gol`. The 2c edge is
+`static_assert(!ROSTER.transitions || ROSTER.portal, …)` (conditional, so
+the lean build stays legal) plus the maturity-proof early-return doors in
+`request_mood_transition` and `force_spawn_portal_at`. spot_lights ×
+indoor_shell verified INDEPENDENT (§5). See the Phase-I close-out in the
+commit body / chat report.

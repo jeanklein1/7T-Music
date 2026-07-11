@@ -28,6 +28,7 @@
 // │                                                                  │
 // │  Spine-owned tables (read by every entity-aware module):         │
 // │    FAMILY_DISPATCH[PopFamily::COUNT]   — dispatch hub            │
+// │    ROSTER (Roster, v0 constexpr)        — piece enable manifest  │
 // │    THEMES[THEME_COUNT]                  — population themes      │
 // │    ARCHETYPES[ARCHETYPE_COUNT]          — terrain archetypes     │
 // │    MIN_SEPARATION[][]                   — entity-pair spacing    │
@@ -476,6 +477,13 @@ namespace t7 {
             FloaterReadbackState floaterReadbackState_ = FloaterReadbackState::IDLE;
             // (readback_portal_trigger / readback_x / readback_z migrated
             //  into PlayerState — see top of class)
+
+            // ROSTER-RESIDUE gol (2e) instrumentation: count of frames the GoL
+            // zone-compute block ran (the sole writer of the zone GPU buffers),
+            // and the residue-report cadence timer. Read only by the residue
+            // check when ROSTER.gol is disabled (proves the buffers pristine).
+            uint64_t rosterGolZoneRuns_ = 0;
+            float    rosterGolResidueDump_ = 0.0f;
 
             // World generation counter — bumped on every teardown.
             // Captured by readback callbacks so that callbacks issued
@@ -1458,6 +1466,116 @@ namespace t7 {
                   "gall" },
             };
 
+            // ═══ ROSTER MANIFEST (v0) — ROSTER-1a ════════════════════════
+            //
+            // Spine-owned single source of truth for which PIECES are
+            // enabled. The roster gates DOORS (dispatch/registration,
+            // boot/teardown); it never changes an algorithm (scope guard).
+            // Consulted ONLY at gate sites, each tagged with the literal
+            // sentinel ROSTER-GATE (piece + gate kind b/c); the residue
+            // check (gol) is tagged ROSTER-RESIDUE.
+            //
+            // RIDER A: DISABLED = ZERO GPU WRITES, not merely zero draws. A
+            //   disabled piece is never collected / registered / dispatched
+            //   / drawn and writes no instance buffer, indirect arg, or
+            //   compute output. Buffers may still EXIST (buffer
+            //   non-creation is ROSTER-1b's gate (a)); here they stay
+            //   pristine.
+            //
+            // MATURITY DIAL: v0 is this constexpr table. The GATES are the
+            //   stable contract; the table's CONSTNESS is the dial — v0
+            //   constexpr -> boot-time table -> requirements-face resolver
+            //   (theory v1 M-j). The dependency edges below (FOUNDATIONAL +
+            //   the transitions=>portal edge) are the resolver embryo: one
+            //   structure of bits, edges, and root-anchored edges — not a
+            //   table plus a footnote.
+            //
+            // FOUNDATIONAL (non-gateable — a reader might expect a bit;
+            //   there is none, by dependency, anchored at the build root):
+            //   * agents machinery — agentStateBuffer_, the agent compute
+            //     kernel, and slot 0. The reference body (the pawn) IS
+            //     agent slot 0, and the buffer co-resides 7 shared bind
+            //     groups (ROSTER_RECON R2). Disabling it would unmake the
+            //     pawn. The GATEABLE half is `wanderers` (the mood-authored
+            //     population, agent slots 1+); slot 0 is untouched by it.
+            //
+            // LATENT[roster-split:photographer]: the photographer (capture
+            //   cadence + snapshot pass) rides gallery's bit for v0. Split
+            //   into its own bit the day authored-only exhibits with a dead
+            //   camera are wanted.
+            //
+            // spot_lights x indoor_shell: INDEPENDENT (ROSTER-1a §5 check) —
+            //   apply_mood_spot_lights keys off derive_indoor_lights,
+            //   apply_mood_indoor_shell off the ceiling mesh; both off
+            //   m.indoor separately, no shared state. Either may be disabled
+            //   without the other (spots then light an open scene; a dark
+            //   shell has no spots). No edge.
+            struct Roster {
+                // FAMILIES (12) — order MUST match PopFamily. (b) gate: the
+                // select loop (spawn_engine.inl); the per-frame mesh-prepare
+                // loop folds these by constexpr (R1 hot-path caveat — no
+                // runtime branch on a disabled piece in the hot path).
+                bool pyramid, arch, column, antenna, palm, cactus, blade,
+                     sphere, ribbon, cube, gol, gallery;
+                // FEATURES (7)
+                bool pawn_aura;     // presence ramp + aura terrain compute
+                bool orbs;          // sky dome (distinct from the sphere family)
+                bool spot_lights;   // indoor spot array + shadow atlas
+                bool indoor_shell;  // walls + ceiling mesh
+                bool portal;        // force-spawn portal arches (the second door)
+                bool transitions;   // mood-transition ENTRY (request + portal trigger)
+                bool wanderers;     // mood-authored NPC population (agent slots 1+)
+
+                // Family bit by PopFamily id — constexpr, usable at runtime
+                // (select loop) and compile time (mesh fold:
+                // `if constexpr (ROSTER.family_enabled(F))`).
+                constexpr bool family_enabled(uint32_t f) const {
+                    switch (f) {
+                        case PopFamily::PYRAMID: return pyramid;
+                        case PopFamily::ARCH:    return arch;
+                        case PopFamily::COLUMN:  return column;
+                        case PopFamily::ANTENNA: return antenna;
+                        case PopFamily::PALM:    return palm;
+                        case PopFamily::CACTUS:  return cactus;
+                        case PopFamily::BLADE:   return blade;
+                        case PopFamily::SPHERE:  return sphere;
+                        case PopFamily::RIBBON:  return ribbon;
+                        case PopFamily::CUBE:    return cube;
+                        case PopFamily::GOL:     return gol;
+                        case PopFamily::GALLERY: return gallery;
+                        default:                 return true;
+                    }
+                }
+            };
+
+            // v0: ALL PIECES ENABLED — the golden anchor (G0: all-enabled is
+            // byte-identical to the pre-roster build). Flip a bit to gate a
+            // piece. Lean music-viz build (the founding customer): set
+            // transitions/portal/indoor_shell/spot_lights/wanderers false.
+            static constexpr Roster ROSTER = {
+                // families, PopFamily order: pyr arch col ant palm cact blade sph rib cube gol gall
+                true, true, true, true, true, true, true, true, true, true, true, true,
+                // features: pawn_aura orbs spot_lights indoor_shell portal transitions wanderers
+                true,      true, true,       true,        true,   true,       true,
+            };
+            static_assert(PopFamily::COUNT == 12,
+                "Roster family bits must match PopFamily (12 families)");
+
+            // THE FIRST EDGE (2c) — transitions REQUIRE portal (M-j embryo).
+            // Portals are BOTH the transition trigger IN and the guaranteed
+            // return path OUT; transitions on + portal off soft-locks.
+            // CONDITIONAL (not unconditional) so the lean music-viz build —
+            // the founding customer, transitions+portal off together — stays
+            // legal; an unconditional assert would make the portal bit never
+            // legally false. DUAL MATURITY: this static_assert is v0's form
+            // of the edge; the early-return door in request_mood_transition
+            // (and force_spawn_portal_at) is the maturity-proof form that
+            // goes live when the table turns boot-time. Both doors, both
+            // correct, different maturities.
+            static_assert(!ROSTER.transitions || ROSTER.portal,
+                "ROSTER: portal disabled while transitions enabled — "
+                "transitions REQUIRE portal (the trigger in, the return path out)");
+
             // ═══ POPULATION THEMES ═══════════════════════════════════════
             //
             // A theme is the compositional intent for a region. Like a palette
@@ -2347,11 +2465,14 @@ namespace t7 {
                 }
 
                 // Aura
-                pawn_state_.aura_needs_clear = true;
-                pawn_state_.aura_cfg_dirty = true;
+                if constexpr (ROSTER.pawn_aura) {  // ROSTER-GATE pawn_aura (c) — teardown clear skipped when disabled (no aura to clear)
+                    pawn_state_.aura_needs_clear = true;
+                    pawn_state_.aura_cfg_dirty = true;
+                }
 
                 // Sky orbs: apply_mood re-enables + re-seeds as needed
-                teardown_orbs(orbs_state_, this);
+                if constexpr (ROSTER.orbs)  // ROSTER-GATE orbs (c) — teardown one-shot skipped when disabled
+                    teardown_orbs(orbs_state_, this);
 
                 // Indoor shell
                 gpuState_.set_shell_index_count(0);
@@ -2389,6 +2510,12 @@ namespace t7 {
 
             // Test rig piers: ramp + plateau + block at pier slots 0-2.
             // Same geometry as the old test rig solids, now as GPUPierInstance.
+            // TESTING[test-rig-piers] (ROSTER-1a §1 ruling): a debug ground
+            //   fixture, NOT a roster piece (roster rows are design pieces,
+            //   not scaffolds). Mortal retirement: dies at ship (checklist).
+            //   Joins the future exhibition-guard discussion alongside
+            //   SEAM[spawn_engine:L1]'s DIAG_ENTITY_LIFECYCLE. Constitution §5
+            //   TESTING class.
             void setup_test_rig_piers(wgpu::Queue queue) {
                 // Ramp: height 0→3 along +X.
                 GPUPierInstance ramp{};
@@ -2774,7 +2901,7 @@ namespace t7 {
                 setup_test_rig_piers(device_.GetQueue());
 
                 // Sky orbs for the initial mood (apply_mood runs only on transitions).
-                {
+                if constexpr (ROSTER.orbs) {  // ROSTER-GATE orbs (c) — boot one-shot skipped when disabled
                     wgpu::Queue q = device_.GetQueue();
                     configure_orbs(orbs_state_, this, ORB_MOOD_TABLE[mood_state_.active], q);
                 }
@@ -2806,8 +2933,11 @@ namespace t7 {
                     agent_state_.slots[0].portal_trigger = -1;
 
                     wgpu::Queue q = device_.GetQueue();
-                    spawn_population_for_mood(agent_state_, this, mood_state_.active, world_state_.active_seed,
-                        Idle::PAWN_POS_X, Idle::PAWN_POS_Z, q);
+                    // ROSTER-GATE wanderers (c) — boot population (agent slots
+                    // 1+). Slot 0 (the pawn, seeded just above) is untouched.
+                    if constexpr (ROSTER.wanderers)
+                        spawn_population_for_mood(agent_state_, this, mood_state_.active, world_state_.active_seed,
+                            Idle::PAWN_POS_X, Idle::PAWN_POS_Z, q);
                     dump_agent_census(agent_state_, this, "boot");
                 }
 
@@ -2930,7 +3060,8 @@ namespace t7 {
 
                 // Pawn presence ramp + aura height computation.
                 // Lives in pawn.inl as a real-time exponential tick (closes pawn:K1).
-                tick_pawn_couplings(pawn_state_, this, queue);
+                if constexpr (ROSTER.pawn_aura)  // ROSTER-GATE pawn_aura (b) — disabled: presence never raised, no aura height
+                    tick_pawn_couplings(pawn_state_, this, queue);
                 gpuState_.set_world_seed(world_state_.active_seed);
                 if (world_state_.finite_mode) {
                     float bmin = -(float)world_state_.finite_radius * PATCH_EXTENT;
@@ -3016,8 +3147,10 @@ namespace t7 {
                         player_.possessed_slot = 0;
                         gpuState_.set_world_seed(world_state_.active_seed);
                         apply_mood(pendingDestination_.mood, queue);
-                        spawn_population_for_mood(agent_state_, this, pendingDestination_.mood, world_state_.active_seed,
-                            Idle::PAWN_POS_X, Idle::PAWN_POS_Z, queue);
+                        // ROSTER-GATE wanderers (c) — transition population (slots 1+); slot 0 preserved above.
+                        if constexpr (ROSTER.wanderers)
+                            spawn_population_for_mood(agent_state_, this, pendingDestination_.mood, world_state_.active_seed,
+                                Idle::PAWN_POS_X, Idle::PAWN_POS_Z, queue);
                         dump_agent_census(agent_state_, this, "mood-transition");
                         // Deactivate ribbons in finite mode unless the mood
                         // spawns its own anchor ribbon in apply_mood.
@@ -3061,7 +3194,8 @@ namespace t7 {
 
                 // Orb dome anchor: follow pawn when toggled on. Uses
                 // last-frame pawn readback — one-frame lag is imperceptible.
-                update_orb_anchor(orbs_state_, this, player_.readback_x, player_.readback_z, queue);
+                if constexpr (ROSTER.orbs)  // ROSTER-GATE orbs (b)
+                    update_orb_anchor(orbs_state_, this, player_.readback_x, player_.readback_z, queue);
 
                 // Pawn position comes from GPU readback (one-frame latency).
                 // See render() for the readback state machine.
@@ -3201,6 +3335,10 @@ namespace t7 {
                 }
 
                 // Check if GPU reported a portal trigger
+                // ROSTER-GATE transitions (b) — ENTRY door #2 (portal trigger).
+                // With transitions off + portal on (a legal config), portal
+                // arches exist but stepping through must NOT start a transition.
+                if constexpr (ROSTER.transitions)
                 if (player_.readback_portal_trigger >= 0 && transitionPhase_ == TransitionPhase::IDLE) {
                     uint32_t arch_idx = static_cast<uint32_t>(player_.readback_portal_trigger);
                     player_.readback_portal_trigger = -1;
@@ -3218,7 +3356,9 @@ namespace t7 {
 
                 // Refill any agent slots the GPU evicted last frame.
                 // No-op when no slots were evicted — just a 32-slot scan.
-                respawn_evicted_agents(agent_state_, this, mood_state_.active, world_state_.active_seed, queue);
+                // ROSTER-GATE wanderers (b) — per-frame refill of evicted NPC slots (1+); slot 0 never evicted.
+                if constexpr (ROSTER.wanderers)
+                    respawn_evicted_agents(agent_state_, this, mood_state_.active, world_state_.active_seed, queue);
 
                 // Advance any in-flight cube corral animations. No-op
                 // when none are armed (the common case — animations
@@ -3235,6 +3375,25 @@ namespace t7 {
                 // (a stuck readback would freeze the position; an idle
                 // player would do the same — pair the two by visiting
                 // the world manually if you need to disambiguate).
+                // ROSTER-RESIDUE gol (2e) — residue recipe. When gol is
+                // disabled it is never selected (b), so zone_count stays 0 and
+                // the sole writer of the zone GPU buffers (the compute block
+                // above, guarded by zone_count>0) never runs. Prove it across
+                // frames: report pristine, and fail LOUD if either invariant
+                // is ever violated. Used at gate G3. Zero effect when enabled.
+                if constexpr (!ROSTER.gol) {
+                    if (time_state_.seconds - rosterGolResidueDump_ >= AGENT_CENSUS_INTERVAL) {
+                        if (gol_state_.zone_count != 0 || rosterGolZoneRuns_ != 0) {
+                            std::cerr << "[ROSTER residue] VIOLATION: gol disabled but zone_count="
+                                << gol_state_.zone_count << " runs=" << rosterGolZoneRuns_ << "\n";
+                        } else {
+                            std::cout << "[ROSTER residue] gol disabled: zone buffers pristine"
+                                << " (zone_count=0, zone-compute runs this session=0)\n";
+                        }
+                        rosterGolResidueDump_ = time_state_.seconds;
+                    }
+                }
+
                 if (time_state_.seconds - agent_state_.last_census_dump >= AGENT_CENSUS_INTERVAL) {
                     dump_agent_census(agent_state_, this, "periodic");
                     const auto& player = agent_state_.slots[0];
@@ -3260,16 +3419,39 @@ namespace t7 {
 
                 // ─── Entity mesh gen: single compute pass for all dirty families ──
                 {
-                    bool dirty[PopFamily::COUNT];
+                    bool dirty[PopFamily::COUNT] = {};
                     bool anyDirty = false;
-                    for (uint32_t f = 0; f < PopFamily::COUNT; f++) {
-                        dirty[f] = FAMILY_DISPATCH[f].prepare_mesh(this, queue);
-                        anyDirty = anyDirty || dirty[f];
-                    }
+                    // ROSTER-GATE family (b) — the per-frame mesh-prepare
+                    // loop folds over the roster at COMPILE TIME (R1 hot-path
+                    // caveat): a disabled family's prepare_mesh is eliminated
+                    // (no call, no runtime branch on a disabled piece).
+                    // All-enabled unrolls to the original 12 calls in order.
+                    #define ROSTER_PREP_FAMILY(F) \
+                        if constexpr (ROSTER.family_enabled(F)) { \
+                            dirty[F] = FAMILY_DISPATCH[F].prepare_mesh(this, queue); \
+                            anyDirty = anyDirty || dirty[F]; \
+                        }
+                    ROSTER_PREP_FAMILY(PopFamily::PYRAMID);
+                    ROSTER_PREP_FAMILY(PopFamily::ARCH);
+                    ROSTER_PREP_FAMILY(PopFamily::COLUMN);
+                    ROSTER_PREP_FAMILY(PopFamily::ANTENNA);
+                    ROSTER_PREP_FAMILY(PopFamily::PALM);
+                    ROSTER_PREP_FAMILY(PopFamily::CACTUS);
+                    ROSTER_PREP_FAMILY(PopFamily::BLADE);
+                    ROSTER_PREP_FAMILY(PopFamily::SPHERE);
+                    ROSTER_PREP_FAMILY(PopFamily::RIBBON);
+                    ROSTER_PREP_FAMILY(PopFamily::CUBE);
+                    ROSTER_PREP_FAMILY(PopFamily::GOL);
+                    ROSTER_PREP_FAMILY(PopFamily::GALLERY);
+                    #undef ROSTER_PREP_FAMILY
                     if (anyDirty) {
                         wgpu::ComputePassDescriptor cpd{};
                         cpd.label = "Entity Mesh Gen";
                         wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
+                        // dispatch skips disabled families structurally:
+                        // dirty[f] stays false for a disabled family (never
+                        // set above), so this branches on dirty-ness, not on
+                        // the enable bit.
                         for (uint32_t f = 0; f < PopFamily::COUNT; f++) {
                             if (dirty[f]) FAMILY_DISPATCH[f].dispatch_mesh(this, pass);
                         }
@@ -3320,6 +3502,7 @@ namespace t7 {
 
                 // GoL zone compute — derive params + sync + evolve (separate passes for barrier)
                 if (gol_state_.zone_count > 0) {
+                    rosterGolZoneRuns_++;  // ROSTER-RESIDUE gol (2e) — the only writer of the zone GPU buffers; counted so the disabled-piece residue check can prove pristine
                     flush_zone_derive_requests(gol_state_, this, queue);
                     upload_gol_zone_config(gol_state_, this, queue);
 
@@ -3356,6 +3539,9 @@ namespace t7 {
 
                 // Pawn aura compute — persistent terrain influence
                 // Run while presence > 0 (ramping down after toggle-off) or clearing
+                // ROSTER-GATE pawn_aura (b) — disabled: the whole aura compute
+                // (config upload + dispatch) is eliminated; zero GPU writes.
+                if constexpr (ROSTER.pawn_aura)
                 if (player_.aura_presence > 0.0f || pawn_state_.aura_needs_clear) {
                     if (pawn_state_.aura_cfg_dirty) {
                         // Full config upload — profile changed or first frame
@@ -3408,10 +3594,13 @@ namespace t7 {
                 // Orb sky layer: one-shot init, optional color-only refresh,
                 // snapshot previous state for flocking neighbor reads, then
                 // advance dynamics.
-                dispatch_orb_init(orbs_state_, this, encoder);
-                dispatch_orb_recolor(orbs_state_, this, encoder);
-                dispatch_orb_copy_prev(orbs_state_, this, encoder);
-                dispatch_orb_dynamics(orbs_state_, this, encoder, queue);
+                // ROSTER-GATE orbs (b) — disabled: no orb compute dispatched.
+                if constexpr (ROSTER.orbs) {
+                    dispatch_orb_init(orbs_state_, this, encoder);
+                    dispatch_orb_recolor(orbs_state_, this, encoder);
+                    dispatch_orb_copy_prev(orbs_state_, this, encoder);
+                    dispatch_orb_dynamics(orbs_state_, this, encoder, queue);
+                }
 
                 if (world_state_.ground_entries_dirty) {
                     world_state_.ground_entries_dirty = false;

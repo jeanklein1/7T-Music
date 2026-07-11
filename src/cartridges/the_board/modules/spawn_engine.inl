@@ -1069,6 +1069,7 @@ std::vector<PlacementEntry> placementResults_;
 
 void select_entities_for_patch(int32_t gx, int32_t gz) {
     for (uint32_t f = 0; f < PopFamily::COUNT; f++) {
+        if (!ROSTER.family_enabled(f)) continue;  // ROSTER-GATE family (b) — disabled family never selected -> never placed/committed/meshed/drawn. Budgeted stream path, not the per-frame hot path.
         EntityQueueEntry e{};
         e.family = f;
         e.gx = gx; e.gz = gz;

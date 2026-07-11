@@ -668,11 +668,14 @@ void apply_mood(uint32_t mood, wgpu::Queue& queue) {
     gol_state_.mood_allowed     = m.allow_gol_zones;
     if (!m.allow_pawn_aura) pawn_state_.aura_enabled = false;
 
-    apply_mood_lighting(m, queue);          // sun + fog + amp ceiling
-    apply_mood_spot_lights(m, queue);       // indoor only
-    apply_mood_indoor_shell(m, queue);      // shell + camera ceiling clamp
-    apply_mood_anchor_ribbon(mood, queue);  // SEAM[mood:K4]/[mood:L1] anchor — has_anchor_ribbon only
-    configure_orbs(orbs_state_, this, ORB_MOOD_TABLE[mood], queue);
+    apply_mood_lighting(m, queue);          // sun + fog + amp ceiling (foundational — sun is not a piece)
+    if constexpr (ROSTER.spot_lights)       // ROSTER-GATE spot_lights (b) — indoor spot array never configured
+        apply_mood_spot_lights(m, queue);   // indoor only
+    if constexpr (ROSTER.indoor_shell)      // ROSTER-GATE indoor_shell (b) — walls/ceiling never generated
+        apply_mood_indoor_shell(m, queue);  // shell + camera ceiling clamp
+    apply_mood_anchor_ribbon(mood, queue);  // SEAM[mood:K4]/[mood:L1] anchor — has_anchor_ribbon only (ribbon-gated inside)
+    if constexpr (ROSTER.orbs)              // ROSTER-GATE orbs (b) — sky dome never configured
+        configure_orbs(orbs_state_, this, ORB_MOOD_TABLE[mood], queue);
 
     std::cout << "[Mood] Applied: " << mood_name(mood)
         << " (mood=" << mood
@@ -886,6 +889,15 @@ void generate_indoor_shell(wgpu::Queue& queue, const MoodProfile& m) {
 uint32_t force_spawn_portal_at(wgpu::Queue& queue,
     float cx, float cz, float rotation,
     const PortalDestination& dest, bool is_back_portal) {
+    // ROSTER-GATE portal (b) — THE SECOND DOOR. Portals force-spawn arches
+    // directly (bypassing FAMILY_DISPATCH — ROSTER_RECON R3), so this is the
+    // single choke point every portal spawner routes through (back, finite,
+    // future). Disabled: spawn nothing (no arch, no piers, no mesh-pending),
+    // return the no-free-slot sentinel so callers treat it as "none placed".
+    // RETIREMENT: temporary law. When mood converts (K4) and force-spawn
+    // becomes a request channel, this door MIGRATES INTO that channel — the
+    // conversion inherits an instruction, not a surprise.
+    if constexpr (!ROSTER.portal) { (void)queue; (void)cx; (void)cz; (void)rotation; (void)dest; (void)is_back_portal; return UINT32_MAX; }
 
     uint32_t slot = UINT32_MAX;
     for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++) {
@@ -1314,6 +1326,11 @@ void upload_lights(wgpu::Queue& queue) {
 // header for why this lives in mood.inl rather than input.inl
 // (one door, many keys).
 void request_mood_transition(uint32_t mood) {
+    // ROSTER-GATE transitions (b) — ENTRY door #1 (keyboard mood requests).
+    // Disabled: the machine stays at IDLE forever; the bit gates requests,
+    // nothing structural. Maturity-proof form of the transitions=>portal
+    // edge (the v0 form is the manifest static_assert).
+    if constexpr (!ROSTER.transitions) { (void)mood; return; }
     if (transitionPhase_ != TransitionPhase::IDLE) return;
     if (mood >= MOOD_COUNT) return;
 

@@ -88,7 +88,9 @@ retirement condition. This section IS the census; it updates same-commit
 with any change to its entries. Classes and counts as of this commit:
 Counting convention: mirrored pairs count once; counts are per
 cartridge unless stated.
-- TESTING (1): ribbon SPAWN_CHANCE 0.9. Dies at ship.
+- TESTING (2): ribbon SPAWN_CHANCE 0.9; test-rig piers (ramp/plateau/block
+  at pier slots 0-2, TESTING[test-rig-piers], setup_test_rig_piers — a
+  debug ground fixture, not a roster piece, ROSTER-1a). Both die at ship.
 - DIAG-unwrapped (6 sites, tag-greppable as 'DIAG-unwrapped' plus the
   ribbon's SEAM[ribbon:L1]): [Ribbon] SPAWN; the periodic agent census
   + [Player] pos block (cartridge.hpp); [Photographer] Capture,
