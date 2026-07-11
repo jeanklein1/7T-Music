@@ -4245,4 +4245,6 @@ namespace t7 {
 #include "modules/pawn.inl"       // LADDER-2 c2 — tick_pawn_couplings
 #include "modules/entities.inl"   // LADDER-2 c1 — the six prepare_*_mesh_gen preparers
 #include "modules/orbs.inl"       // LADDER-2 c3 — orb lifecycle/commands/dispatches/render
-#include "modules/gol_zones.inl"  // LADDER-3 c1 — GoL three-phase lifecycle + per-frame uploads/
+#include "modules/gol_zones.inl"  // LADDER-3 c1 — GoL three-phase lifecycle + per-frame uploads/dispatch
+#include "modules/agents.inl"     // LADDER-3 c2 — agent registry upload + spawn/respawn/possession/diagnostics
+#include "modules/cube_behaviors.inl"  // LADDER-3 c3 — cube registry upload + corral/kite/coordination + clear
