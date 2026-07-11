@@ -917,33 +917,9 @@ static float solve_catenary_a(float half_span, float target_h) {
 
 // ─── GoL Zone Selection / Placement ──────────────────────────────
 
-struct GoLSelection {
-    uint32_t seed;
-    int32_t  trigger_gx, trigger_gz;
-    uint32_t slot;
-    int32_t  zone_nx, zone_nz;     // lattice node
-    float    corner_x, corner_z;   // zone corner (cell-grid-snapped)
-    uint32_t algorithm;            // AlgorithmType::CONWAY or PULSE
-    uint32_t tier_idx;             // compound: Conway 0–6, Pulse 7–9
-    float    tick_period;
-    float    initial_density;
-    bool     height_enabled;
-    float    footprint_r;
-};
-
-struct GoLPlacement {
-    uint32_t slot;
-    int32_t  trigger_gx, trigger_gz;
-    int32_t  host_gx, host_gz;
-    uint32_t tier_idx;
-    float    cx, cz;               // zone center
-    int32_t  zone_nx, zone_nz;
-    float    corner_x, corner_z;
-    uint32_t algorithm;
-    float    tick_period;
-    float    initial_density;
-    bool     height_enabled;
-};
+// (GoLSelection / GoLPlacement RELOCATED to gol_zones.hpp — LADDER-3 c1.
+//  They are GoL vocabulary; at file scope they precede the queue unions
+//  below by construction, the entity_types precedent.)
 
 // ─── Gallery Selection / Placement ───────────────────────────────
 // (Outdoor art exhibitions — composite: 1 center → N paintings)

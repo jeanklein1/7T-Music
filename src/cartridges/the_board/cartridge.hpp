@@ -103,6 +103,7 @@
 #include "cartridges/the_board/modules/spheres.hpp"              // LADDER-2 c0: SphereState (born converted; needs GPUState from state.hpp)
 #include "cartridges/the_board/modules/entities.hpp"             // LADDER-2 c1: grounded-family vocabulary + EntitiesState + preparer decls (impl is entities.inl, post-class)
 #include "cartridges/the_board/modules/orbs.hpp"                 // LADDER-2 c3: orb console/registries + OrbsState + ORB_MOOD_TABLE + decls (impl is orbs.inl, post-class)
+#include "cartridges/the_board/modules/gol_zones.hpp"            // LADDER-3 c1: GoL vocabulary + payloads + GoLState + decls (impl is gol_zones.inl, post-class)
 #include "cartridges/the_board/renderer.hpp"
 #include "coupling/visual_canvas.hpp"
 #include <cmath>
@@ -181,6 +182,11 @@ namespace t7 {
             //     (header/impl split — orbs.hpp owns the struct, orbs.inl the
             //     post-class definitions).
             OrbsState orbs_state_;
+
+            //   gol_state_ — GoLState (gol_zones.hpp), the zone slots +
+            //     counts + mood gate + derive-request queue. Was declared in
+            //     gol_zones.inl (class body); relocated here in LADDER-3 c1.
+            GoLState gol_state_;
 
             struct InputState {
                 float move_x = 0.0f;
@@ -631,8 +637,15 @@ namespace t7 {
             // ── Ribbon Dispatch Pipeline (modules/ribbon.inl) ──
 #include "modules/ribbon.inl"
 
-            // ── GoL Zones (modules/gol_zones.inl) ──
-#include "modules/gol_zones.inl"
+            // ── GoL Zones — CONVERTED (LADDER-3 c1, header/impl split) ──
+            // Vocabulary + GoLSelection/GoLPlacement (relocated from
+            // spawn_engine.inl) + GoLState + declarations are in
+            // gol_zones.hpp (file scope, above the class); the definitions
+            // (which reach the keyhole + in-class statics via the complete
+            // type) are in gol_zones.inl, included at FILE SCOPE in the
+            // post-class MODULE IMPLEMENTATIONS zone. The instance
+            // (gol_state_) is declared at the COMPOSITION ROOT. The
+            // mood_allowed request-flag write stays K4's territory. See §1.
 
             // ── Gallery System (modules/gallery.inl) ──
 #include "modules/gallery.inl"
@@ -4218,4 +4231,5 @@ namespace t7 {
 // survives the move.
 #include "modules/pawn.inl"       // LADDER-2 c2 — tick_pawn_couplings
 #include "modules/entities.inl"   // LADDER-2 c1 — the six prepare_*_mesh_gen preparers
-#include "modules/orbs.inl"       // LADDER-2 c3 — orb lifecycle/commands/dispatches/render/
+#include "modules/orbs.inl"       // LADDER-2 c3 — orb lifecycle/commands/dispatches/render
+#include "modules/gol_zones.inl"  // LADDER-3 c1 — GoL three-phase lifecycle + per-frame uploads/
