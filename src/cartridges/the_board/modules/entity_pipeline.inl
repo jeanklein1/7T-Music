@@ -502,7 +502,7 @@ static bool dispatch_place_column_generic(Cartridge* self, EntityQueueEntry& e, 
     self->entities_state_.columns[e.generic.slot].active = false; return false;
 }
 static void dispatch_commit_column_generic(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue) {
-    auto* host = self->find_patch(pe.generic.host_gx, pe.generic.host_gz);
+    auto* host = find_patch(self, pe.generic.host_gx, pe.generic.host_gz);
     if (host) { self->generic_commit(COLUMN_TRAITS, COLUMN_ADAPTER, pe.generic, queue); host->record_entity(PopFamily::COLUMN, pe.generic.slot); }
     else { self->entities_state_.columns[pe.generic.slot].active = false; }
 }
@@ -663,7 +663,7 @@ static bool dispatch_place_antenna_generic(Cartridge* self, EntityQueueEntry& e,
     self->entities_state_.antennas[e.generic.slot].active = false; return false;
 }
 static void dispatch_commit_antenna_generic(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue) {
-    auto* host = self->find_patch(pe.generic.host_gx, pe.generic.host_gz);
+    auto* host = find_patch(self, pe.generic.host_gx, pe.generic.host_gz);
     if (host) { self->generic_commit(ANTENNA_TRAITS, ANTENNA_ADAPTER, pe.generic, queue); host->record_entity(PopFamily::ANTENNA, pe.generic.slot); }
     else { self->entities_state_.antennas[pe.generic.slot].active = false; }
 }
@@ -860,7 +860,7 @@ static bool dispatch_place_pyramid_generic(Cartridge* self, EntityQueueEntry& e,
     self->entities_state_.pyramids[e.generic.slot].active = false; return false;
 }
 static void dispatch_commit_pyramid_generic(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue) {
-    auto* host = self->find_patch(pe.generic.host_gx, pe.generic.host_gz);
+    auto* host = find_patch(self, pe.generic.host_gx, pe.generic.host_gz);
     if (host) { self->generic_commit(PYRAMID_TRAITS, PYRAMID_ADAPTER, pe.generic, queue); host->record_entity(PopFamily::PYRAMID, pe.generic.slot); }
     else { self->entities_state_.pyramids[pe.generic.slot].active = false; }
 }
@@ -1134,7 +1134,7 @@ static bool dispatch_place_arch_generic(Cartridge* self, EntityQueueEntry& e, Pl
     self->entities_state_.arches[e.generic.slot].active = false; return false;
 }
 static void dispatch_commit_arch_generic(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue) {
-    auto* host = self->find_patch(pe.generic.host_gx, pe.generic.host_gz);
+    auto* host = find_patch(self, pe.generic.host_gx, pe.generic.host_gz);
     if (host) { self->generic_commit(ARCH_TRAITS, ARCH_ADAPTER, pe.generic, queue); host->record_entity(PopFamily::ARCH, pe.generic.slot); }
     else { self->entities_state_.arches[pe.generic.slot].active = false; }
 }

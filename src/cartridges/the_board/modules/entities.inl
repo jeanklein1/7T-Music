@@ -7,10 +7,10 @@
 // adapters, dispatch funnels). The preparers dereference
 // c->gpuState_'s index-count setters; the force-spawn author
 // additionally reaches c->write_pier, c->gpuState_'s mesh-params
-// upload, and the in-class statics (Cartridge::ARCH_TIERS /
-// Cartridge::ArchIdx / Cartridge::solve_catenary_a /
-// Cartridge::PATCH_EXTENT — residents of entity_pipeline.inl's
-// class-body chapter); the recipes reach the machine's generic
+// upload, the in-class statics (Cartridge::ARCH_TIERS /
+// Cartridge::ArchIdx / Cartridge::solve_catenary_a — residents of
+// entity_pipeline.inl's class-body chapter), and PATCH_EXTENT
+// (patch_system.hpp); the recipes reach the machine's generic
 // three-phase verbs and services via the keyhole and
 // THEMES (INTENT[services:themes]).
 //
@@ -155,8 +155,8 @@ inline uint32_t force_spawn_portal_arch(EntitiesState& es, Cartridge* c, wgpu::Q
     float pier_half_x = thickness * 0.5f + pier_padding + edge_blend;
     float pier_half_z = depth * 0.5f + pier_padding + edge_blend;
 
-    int32_t gx = static_cast<int32_t>(std::floor(cx / Cartridge::PATCH_EXTENT));
-    int32_t gz = static_cast<int32_t>(std::floor(cz / Cartridge::PATCH_EXTENT));
+    int32_t gx = static_cast<int32_t>(std::floor(cx / PATCH_EXTENT));
+    int32_t gz = static_cast<int32_t>(std::floor(cz / PATCH_EXTENT));
 
     float cos_r = std::cos(rotation);
     float sin_r = std::sin(rotation);
@@ -534,7 +534,7 @@ inline bool dispatch_place_blade_generic(Cartridge* self, EntityQueueEntry& e, P
     self->entities_state_.blades[e.generic.slot].active = false; return false;
 }
 inline void dispatch_commit_blade_generic(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue) {
-    auto* host = self->find_patch(pe.generic.host_gx, pe.generic.host_gz);
+    auto* host = find_patch(self, pe.generic.host_gx, pe.generic.host_gz);
     if (host) { self->generic_commit(BLADE_TRAITS, BLADE_ADAPTER, pe.generic, queue); host->record_entity(PopFamily::BLADE, pe.generic.slot); }
     else { self->entities_state_.blades[pe.generic.slot].active = false; }
 }
@@ -764,7 +764,7 @@ inline bool dispatch_place_palm_generic(Cartridge* self, EntityQueueEntry& e, Pl
     self->entities_state_.palms[e.generic.slot].active = false; return false;
 }
 inline void dispatch_commit_palm_generic(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue) {
-    auto* host = self->find_patch(pe.generic.host_gx, pe.generic.host_gz);
+    auto* host = find_patch(self, pe.generic.host_gx, pe.generic.host_gz);
     if (host) { self->generic_commit(PALM_TRAITS, PALM_ADAPTER, pe.generic, queue); host->record_entity(PopFamily::PALM, pe.generic.slot); }
     else { self->entities_state_.palms[pe.generic.slot].active = false; }
 }
@@ -939,7 +939,7 @@ inline bool dispatch_place_cactus_generic(Cartridge* self, EntityQueueEntry& e, 
     self->entities_state_.cacti[e.generic.slot].active = false; return false;
 }
 inline void dispatch_commit_cactus_generic(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue) {
-    auto* host = self->find_patch(pe.generic.host_gx, pe.generic.host_gz);
+    auto* host = find_patch(self, pe.generic.host_gx, pe.generic.host_gz);
     if (host) { self->generic_commit(CACTUS_TRAITS, CACTUS_ADAPTER, pe.generic, queue); host->record_entity(PopFamily::CACTUS, pe.generic.slot); }
     else { self->entities_state_.cacti[pe.generic.slot].active = false; }
 }

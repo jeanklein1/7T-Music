@@ -6,8 +6,8 @@
 // c->inputState_ / c->visual_canvas_ + the four ribbon canvas bindings
 // and the spine services (run_spawn_preamble / negotiate_position /
 // record_placement_bookkeeping / estimate_terrain_height /
-// terrain_tile_warm), plus the in-class statics (THEMES /
-// Cartridge::PATCH_EXTENT); PopFamily is roster.hpp vocabulary.
+// terrain_tile_warm), plus THEMES (population_themes.hpp) and
+// PATCH_EXTENT (patch_system.hpp); PopFamily is roster.hpp vocabulary.
 //
 // WRAPPING FORM (fix-2): SELF-WRAPPING — the zone includes impls at FILE SCOPE; law in audit/LADDER.md.
 //
@@ -666,8 +666,8 @@ inline bool select_ribbon_for_patch(RibbonState& rs, Cartridge* c,
     fill_ribbon_selection_geometry(gate.seed, tier_idx, sel);
 
     {
-        float patch_cx = (gx + 0.5f) * Cartridge::PATCH_EXTENT;
-        float patch_cz = (gz + 0.5f) * Cartridge::PATCH_EXTENT;
+        float patch_cx = (gx + 0.5f) * PATCH_EXTENT;
+        float patch_cz = (gz + 0.5f) * PATCH_EXTENT;
         float away_angle = std::atan2(patch_cz - c->player_.readback_z,
             patch_cx - c->player_.readback_x);
         float hash_spread = cpu_hash_f(gate.seed, RibbonProp::ORIENTATION);
@@ -802,10 +802,10 @@ inline void commit_ribbon(RibbonState& rs, Cartridge* c,
 
     const float far_x = plan.cx + dir_x * total_length;
     const float far_z = plan.cz + dir_z * total_length;
-    ar.near_tip_gx = (int32_t)std::floor(plan.cx / Cartridge::PATCH_EXTENT);
-    ar.near_tip_gz = (int32_t)std::floor(plan.cz / Cartridge::PATCH_EXTENT);
-    ar.far_tip_gx = (int32_t)std::floor(far_x / Cartridge::PATCH_EXTENT);
-    ar.far_tip_gz = (int32_t)std::floor(far_z / Cartridge::PATCH_EXTENT);
+    ar.near_tip_gx = (int32_t)std::floor(plan.cx / PATCH_EXTENT);
+    ar.near_tip_gz = (int32_t)std::floor(plan.cz / PATCH_EXTENT);
+    ar.far_tip_gx = (int32_t)std::floor(far_x / PATCH_EXTENT);
+    ar.far_tip_gz = (int32_t)std::floor(far_z / PATCH_EXTENT);
 
     ar.near_tip_registered = false;
     ar.far_tip_registered = false;
@@ -854,13 +854,13 @@ inline void dispatch_commit_ribbon(Cartridge* self,
     // Register with tip patches that currently exist.
     // Late registration handles the other tip when its patch is allocated.
     uint32_t refs = 0;
-    auto* near_host = self->find_patch(ar.near_tip_gx, ar.near_tip_gz);
+    auto* near_host = find_patch(self, ar.near_tip_gx, ar.near_tip_gz);
     if (near_host) {
         near_host->record_entity(PopFamily::RIBBON, slot);
         ar.near_tip_registered = true;
         refs++;
     }
-    auto* far_host = self->find_patch(ar.far_tip_gx, ar.far_tip_gz);
+    auto* far_host = find_patch(self, ar.far_tip_gx, ar.far_tip_gz);
     if (far_host && (ar.far_tip_gx != ar.near_tip_gx || ar.far_tip_gz != ar.near_tip_gz)) {
         far_host->record_entity(PopFamily::RIBBON, slot);
         ar.far_tip_registered = true;

@@ -428,7 +428,7 @@ inline bool dispatch_place_cube_generic(Cartridge* self, EntityQueueEntry& e, Pl
     self->cube_behaviors_state_.activeCubes_[e.generic.slot].active = false; return false;
 }
 inline void dispatch_commit_cube_generic(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue) {
-    auto* host = self->find_patch(pe.generic.host_gx, pe.generic.host_gz);
+    auto* host = find_patch(self, pe.generic.host_gx, pe.generic.host_gz);
     if (host) {
         self->generic_commit(CUBE_TRAITS, CUBE_ADAPTER, pe.generic, queue);
         // Lifecycle Phase 2: cube lifetime decoupled from host patch.

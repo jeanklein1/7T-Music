@@ -4,7 +4,7 @@
 // The four verbs over what the terrain remembers. generate reaches
 // c->mood_state_ / MOOD_TABLE / c->world_state_ and the theme module;
 // upload reaches c->gpuState_; evict derives its radius from
-// Cartridge::PREGEN_RADIUS through the complete type.
+// PREGEN_RADIUS (patch_system.hpp).
 //
 // WRAPPING FORM (fix-2): SELF-WRAPPING — the zone includes impls at FILE SCOPE; law in audit/LADDER.md.
 
@@ -15,7 +15,7 @@ namespace t7 {
 namespace the_board {
 
 // Forgetting radius: tiles beyond this many grid cells get evicted
-inline constexpr int32_t FORGET_RADIUS = (int32_t)Cartridge::PREGEN_RADIUS + 2;  // eviction radius (beyond pre-gen)
+inline constexpr int32_t FORGET_RADIUS = (int32_t)PREGEN_RADIUS + 2;  // eviction radius (beyond pre-gen)
 
 inline void evict_distant_tiles(TileWorldState& tw, int32_t centerX, int32_t centerZ) {
     auto it = tw.tileCache_.begin();
@@ -41,7 +41,7 @@ inline void upload_tile_grid_now(TileWorldState& tw, Cartridge* c, wgpu::Queue& 
     grid.origin_x = cx - rp;
     grid.origin_z = cz - rp;
     grid.side = tileGridSide;
-    grid.cell_extent = Cartridge::PATCH_EXTENT;
+    grid.cell_extent = PATCH_EXTENT;
 
     for (int32_t gz = cz - rp; gz <= cz + rp; gz++) {
         for (int32_t gx = cx - rp; gx <= cx + rp; gx++) {
@@ -148,8 +148,8 @@ inline TileState generate_tile_state(TileWorldState& tw, Cartridge* c, int32_t g
 
     // ── Entity density field (coarse spatial noise) ──────────
     {
-        float patch_cx = (gx + 0.5f) * Cartridge::PATCH_EXTENT;
-        float patch_cz = (gz + 0.5f) * Cartridge::PATCH_EXTENT;
+        float patch_cx = (gx + 0.5f) * PATCH_EXTENT;
+        float patch_cz = (gz + 0.5f) * PATCH_EXTENT;
         float dlx = patch_cx / DENSITY_LATTICE_SPACING;
         float dlz = patch_cz / DENSITY_LATTICE_SPACING;
         int32_t dbx = (int32_t)std::floor(dlx);
@@ -170,8 +170,8 @@ inline TileState generate_tile_state(TileWorldState& tw, Cartridge* c, int32_t g
 
     // ── Theme field (coarse compositional character) ─────────
     {
-        float patch_cx = (gx + 0.5f) * Cartridge::PATCH_EXTENT;
-        float patch_cz = (gz + 0.5f) * Cartridge::PATCH_EXTENT;
+        float patch_cx = (gx + 0.5f) * PATCH_EXTENT;
+        float patch_cz = (gz + 0.5f) * PATCH_EXTENT;
         float tlx = patch_cx / THEME_LATTICE_SPACING;
         float tlz = patch_cz / THEME_LATTICE_SPACING;
         int32_t tbx = (int32_t)std::floor(tlx);

@@ -6,8 +6,8 @@
 // c->player_ / c->world_state_ / c->device_ / c->gpuState_ /
 // c->pawn_state_ / c->agent_state_ / c->orbs_state_ /
 // c->cube_behaviors_state_, the mood door request_mood_transition
-// (mood.hpp), and the in-class statics (Cartridge::GRID_RADIUS /
-// Cartridge::PREGEN_RADIUS).
+// (mood.hpp), and the patch radii (GRID_RADIUS / PREGEN_RADIUS —
+// patch_system.hpp vocabulary).
 //
 // This impl includes <GLFW/glfw3.h> itself — the dependency is named here, not inherited from the host TU.
 //
@@ -250,8 +250,8 @@ inline void toggle_sky_mode(Cartridge* c) {
 }
 
 inline void set_render_radius(Cartridge* c, uint32_t r) {
-    r = std::max(r, Cartridge::GRID_RADIUS);
-    r = std::min(r, Cartridge::PREGEN_RADIUS);
+    r = std::max(r, GRID_RADIUS);
+    r = std::min(r, PREGEN_RADIUS);
     if (r == c->world_state_.active_radius) return;
     c->world_state_.active_radius = r;
     uint32_t side = 2 * r + 1;

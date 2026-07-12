@@ -15,9 +15,8 @@
 // orbs_state_ / cube_behaviors_state_), the converted modules' commands
 // (agents.hpp / orbs.hpp / cube_behaviors.hpp / floater_vocabulary.hpp
 // / mood.hpp's request_mood_transition) + mood_constants.hpp's MOOD_*
-// IDs, and in-class statics (Cartridge::GRID_RADIUS /
-// Cartridge::PREGEN_RADIUS) through the complete type (Cartridge:: /
-// keyhole).
+// IDs, and the patch radii (GRID_RADIUS / PREGEN_RADIUS —
+// patch_system.hpp vocabulary).
 // ─────────────────────────────────────────────────────────────────
 
 namespace t7 {

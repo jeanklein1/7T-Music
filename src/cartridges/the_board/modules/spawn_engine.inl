@@ -649,11 +649,11 @@ void mark_patches_for_regen(float min_wx, float min_wz,
     int32_t pg_z1 = (int32_t)std::floor(max_wz / PATCH_EXTENT);
 
     for (uint32_t p = 0; p < world_state_.active_patch_count; p++) {
-        if (patches_[p].phase != PatchPhase::GENERATED) continue;
-        if (patches_[p].grid_x == home_gx && patches_[p].grid_z == home_gz) continue;
-        if (patches_[p].grid_x >= pg_x0 && patches_[p].grid_x <= pg_x1 &&
-            patches_[p].grid_z >= pg_z0 && patches_[p].grid_z <= pg_z1) {
-            patches_[p].phase = PatchPhase::NEEDS_REGEN;
+        if (patch_system_state_.patches_[p].phase != PatchPhase::GENERATED) continue;
+        if (patch_system_state_.patches_[p].grid_x == home_gx && patch_system_state_.patches_[p].grid_z == home_gz) continue;
+        if (patch_system_state_.patches_[p].grid_x >= pg_x0 && patch_system_state_.patches_[p].grid_x <= pg_x1 &&
+            patch_system_state_.patches_[p].grid_z >= pg_z0 && patch_system_state_.patches_[p].grid_z <= pg_z1) {
+            patch_system_state_.patches_[p].phase = PatchPhase::NEEDS_REGEN;
         }
     }
 }

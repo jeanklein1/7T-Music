@@ -14,9 +14,10 @@
 //
 // The art system.
 //
-// The impl additionally reaches spawn-engine services and in-class
-// statics (PATCH_EXTENT / GLOBAL_ENTITY_DENSITY) through the complete
-// type (Cartridge:: / keyhole), PopFamily (roster.hpp vocabulary), and
+// The impl additionally reaches spawn-engine services and
+// GLOBAL_ENTITY_DENSITY through the complete type (Cartridge:: /
+// keyhole), PATCH_EXTENT (patch_system.hpp), PopFamily (roster.hpp
+// vocabulary), and
 // stb_image (authored disk loading).
 //
 // SEAM[gallery:complete-subsystem] complete bespoke pipeline in one

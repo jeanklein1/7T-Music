@@ -5,9 +5,9 @@
 // functions. The bodies reach c->gpuState_ / c->renderer_ / c->device_ /
 // c->tileCache_ / c->mood_state_ / c->world_state_ / c->time_state_ and
 // the spine services (check_position / register_footprint /
-// record_placement_bookkeeping), plus the in-class statics
-// (Cartridge::PATCH_EXTENT / Cartridge::GLOBAL_ENTITY_DENSITY);
-// PopFamily is roster.hpp vocabulary.
+// record_placement_bookkeeping), plus
+// Cartridge::GLOBAL_ENTITY_DENSITY (in-class) and PATCH_EXTENT
+// (patch_system.hpp); PopFamily is roster.hpp vocabulary.
 //
 // WRAPPING FORM (fix-2): SELF-WRAPPING — the zone includes impls at FILE SCOPE; law in audit/LADDER.md.
 // ─────────────────────────────────────────────────────────────────
@@ -41,10 +41,10 @@ inline bool select_gol_for_patch(GoLState& gs, Cartridge* c,
     }
 
     // Scan lattice nodes overlapping this patch
-    float wx0 = gx * Cartridge::PATCH_EXTENT;
-    float wx1 = (gx + 1) * Cartridge::PATCH_EXTENT;
-    float wz0 = gz * Cartridge::PATCH_EXTENT;
-    float wz1 = (gz + 1) * Cartridge::PATCH_EXTENT;
+    float wx0 = gx * PATCH_EXTENT;
+    float wx1 = (gx + 1) * PATCH_EXTENT;
+    float wz0 = gz * PATCH_EXTENT;
+    float wz1 = (gz + 1) * PATCH_EXTENT;
 
     int32_t nx0 = (int32_t)std::floor(wx0 / MODE_LATTICE_SPACING);
     int32_t nx1 = (int32_t)std::floor(wx1 / MODE_LATTICE_SPACING);
@@ -58,8 +58,8 @@ inline bool select_gol_for_patch(GoLState& gs, Cartridge* c,
             float raw_cz = (nz + 0.5f) * MODE_LATTICE_SPACING;
 
             // Authoritative patch: only the patch containing the center owns this node
-            int32_t auth_gx = (int32_t)std::floor(raw_cx / Cartridge::PATCH_EXTENT);
-            int32_t auth_gz = (int32_t)std::floor(raw_cz / Cartridge::PATCH_EXTENT);
+            int32_t auth_gx = (int32_t)std::floor(raw_cx / PATCH_EXTENT);
+            int32_t auth_gz = (int32_t)std::floor(raw_cz / PATCH_EXTENT);
             if (auth_gx != gx || auth_gz != gz) continue;
 
             // Idempotency: already active at this node?
@@ -168,8 +168,8 @@ inline bool place_gol_from_selection(Cartridge* c,
     if (!c->check_position(cx, cz, sel.footprint_r, PopFamily::GOL))
         return false;
 
-    int32_t host_gx = (int32_t)std::floor(cx / Cartridge::PATCH_EXTENT);
-    int32_t host_gz = (int32_t)std::floor(cz / Cartridge::PATCH_EXTENT);
+    int32_t host_gx = (int32_t)std::floor(cx / PATCH_EXTENT);
+    int32_t host_gz = (int32_t)std::floor(cz / PATCH_EXTENT);
 
     if (c->register_footprint(cx, cz, sel.footprint_r,
         host_gx, host_gz, PopFamily::GOL, sel.tier_idx) == UINT32_MAX)
@@ -336,7 +336,7 @@ inline bool dispatch_place_gol(Cartridge* self,
 
 inline void dispatch_commit_gol(Cartridge* self,
     PlacementEntry& pe, wgpu::Queue& queue) {
-    auto* host = self->find_patch(pe.gol.host_gx, pe.gol.host_gz);
+    auto* host = find_patch(self, pe.gol.host_gx, pe.gol.host_gz);
     if (host) {
         commit_gol(self->gol_state_, self, pe.gol, pe.gx, pe.gz, queue);
         host->record_entity(PopFamily::GOL, pe.gol.slot);

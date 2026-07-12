@@ -173,7 +173,7 @@ inline bool dispatch_place_sphere_generic(Cartridge* self, EntityQueueEntry& e, 
     self->sphere_state_.activeFloaters_[e.generic.slot].active = false; return false;
 }
 inline void dispatch_commit_sphere_generic(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue) {
-    auto* host = self->find_patch(pe.generic.host_gx, pe.generic.host_gz);
+    auto* host = find_patch(self, pe.generic.host_gx, pe.generic.host_gz);
     if (host) {
         self->generic_commit(SPHERE_TRAITS, SPHERE_ADAPTER, pe.generic, queue);
         // Lifecycle Phase 2: sphere lifetime is no longer tied to its

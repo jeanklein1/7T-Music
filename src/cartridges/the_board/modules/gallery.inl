@@ -6,9 +6,9 @@
 // c->gpuState_ / c->renderer_ / c->tileCache_ / c->player_ /
 // c->world_state_ / c->mood_state_ / c->ribbon_state_ / c->clearColor_ /
 // c->sunDirection_ and the spine services (check_position /
-// register_footprint / record_placement_bookkeeping), plus the in-class
-// statics (Cartridge::PATCH_EXTENT / Cartridge::GLOBAL_ENTITY_DENSITY);
-// PopFamily is roster.hpp vocabulary.
+// register_footprint / record_placement_bookkeeping), plus
+// Cartridge::GLOBAL_ENTITY_DENSITY (in-class) and PATCH_EXTENT
+// (patch_system.hpp); PopFamily is roster.hpp vocabulary.
 //
 // WRAPPING FORM (fix-2): SELF-WRAPPING — the zone includes impls at FILE SCOPE; law in audit/LADDER.md.
 //
@@ -140,8 +140,8 @@ inline void update_photographer(GalleryState& gs, Cartridge* c, wgpu::Queue& que
 
         // Pace modulation: less active in sand/basin, more in colored terrain
         float pace = 1.0f;
-        int32_t tx = (int32_t)std::floor(px / Cartridge::PATCH_EXTENT);
-        int32_t tz = (int32_t)std::floor(pz / Cartridge::PATCH_EXTENT);
+        int32_t tx = (int32_t)std::floor(px / PATCH_EXTENT);
+        int32_t tz = (int32_t)std::floor(pz / PATCH_EXTENT);
         auto it = c->tileCache_.find({ tx, tz });
         if (it != c->tileCache_.end()) {
             pace = GalleryConfig::PHOTO_PACE_BY_ARCHETYPE[it->second.archetype];
@@ -272,9 +272,9 @@ inline bool select_gallery_for_patch(GalleryState& gs, Cartridge* c, int32_t gx,
     if (gallery_roll >= gallery_chance) return false;
 
     // Gallery center (jittered within patch)
-    float patch_cx = (gx + 0.5f) * Cartridge::PATCH_EXTENT;
-    float patch_cz = (gz + 0.5f) * Cartridge::PATCH_EXTENT;
-    float center_offset = cpu_hash_f(seed, GalleryProp::CENTER_OFFSET) * Cartridge::PATCH_EXTENT * GalleryConfig::POSITION_JITTER;
+    float patch_cx = (gx + 0.5f) * PATCH_EXTENT;
+    float patch_cz = (gz + 0.5f) * PATCH_EXTENT;
+    float center_offset = cpu_hash_f(seed, GalleryProp::CENTER_OFFSET) * PATCH_EXTENT * GalleryConfig::POSITION_JITTER;
     float center_angle = cpu_hash_f(seed, GalleryProp::CENTER_ANGLE) * 6.283185f;
     float gallery_cx = patch_cx + std::cos(center_angle) * center_offset;
     float gallery_cz = patch_cz + std::sin(center_angle) * center_offset;
@@ -353,8 +353,8 @@ inline bool place_gallery_from_selection(Cartridge* c, const GallerySelection& s
     if (!c->check_position(sel.cx, sel.cz, sel.footprint_r, PopFamily::GALLERY))
         return false;
 
-    int32_t host_gx = (int32_t)std::floor(sel.cx / Cartridge::PATCH_EXTENT);
-    int32_t host_gz = (int32_t)std::floor(sel.cz / Cartridge::PATCH_EXTENT);
+    int32_t host_gx = (int32_t)std::floor(sel.cx / PATCH_EXTENT);
+    int32_t host_gz = (int32_t)std::floor(sel.cz / PATCH_EXTENT);
 
     if (c->register_footprint(sel.cx, sel.cz, sel.footprint_r,
         host_gx, host_gz, PopFamily::GALLERY, sel.archetype) == UINT32_MAX)
@@ -1284,7 +1284,7 @@ inline bool dispatch_place_gallery(Cartridge* self,
 
 inline void dispatch_commit_gallery(Cartridge* self,
     PlacementEntry& pe, wgpu::Queue& queue) {
-    auto* host = self->find_patch(pe.gallery.host_gx, pe.gallery.host_gz);
+    auto* host = find_patch(self, pe.gallery.host_gx, pe.gallery.host_gz);
     if (host) {
         commit_gallery(self->gallery_state_, self, pe.gallery, pe.gx, pe.gz, queue);
         // Only record entity_ref if gallery is still active (commit may deactivate on 0 paintings)
