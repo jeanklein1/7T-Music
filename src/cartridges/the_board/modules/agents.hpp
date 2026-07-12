@@ -3,6 +3,7 @@
 #include <array>
 #include "cartridges/the_board/state.hpp"                    // Dim::MAX_AGENTS, GPUAgentState, GPU_AGENT_*_COUNT, wgpu
 #include "cartridges/the_board/modules/mood_constants.hpp"   // MOOD_COUNT + the Mood IDs
+#include "cartridges/the_board/modules/keyhole.hpp"          // Cartridge + wgpu::Queue fwds (the keyhole)
 
 // ─── agents.hpp (HEADER: registries + console + state + decls) ───
 // Converted (LADDER-3 c2, G1): history in audit/LADDER.md.
@@ -92,8 +93,6 @@
 
 namespace t7 {
 namespace the_board {
-
-class Cartridge;  // fwd — module fns take the keyhole (defined in agents.inl, post-class)
 
 // ═══ BEHAVIOR IDS ════════════════════════════════════════════════
 //

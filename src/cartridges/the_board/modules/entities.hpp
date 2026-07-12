@@ -2,6 +2,7 @@
 #include <cstdint>
 #include "cartridges/the_board/state.hpp"                    // Dim::*, GPUPyramidArray, wgpu
 #include "cartridges/the_board/modules/mood_constants.hpp"   // MOOD_COUNT, PortalDestination
+#include "cartridges/the_board/modules/keyhole.hpp"          // Cartridge + wgpu::Queue fwds (the keyhole)
 
 // ─── entities.hpp (HEADER: vocabulary + state + declarations) ────
 // Converted (LADDER-2 c1; the LADDER-4 channel): history in audit/LADDER.md.
@@ -80,8 +81,6 @@
 
 namespace t7 {
 namespace the_board {
-
-class Cartridge;  // fwd — the preparers take the keyhole Cartridge* (defined in entities.inl, post-class)
 
 // ═══ SHARED CONSTANTS ════════════════════════════════════════════
 

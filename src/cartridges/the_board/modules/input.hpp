@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include "cartridges/the_board/modules/keyhole.hpp"  // Cartridge + wgpu::Queue fwds (the keyhole)
 
 // ─── input.hpp (HEADER: state + decls) ────────────────────────────
 // Converted (LADDER-3 c6, G2): history in audit/LADDER.md.
@@ -56,7 +57,8 @@
 //
 // ──────────────────────────────────────────────────────────────────
 //
-// Depends on: nothing header-side (plain aggregates + declarations).
+// Depends on: keyhole.hpp only, header-side (plain aggregates +
+// declarations).
 // The impl reaches GLFW (<GLFW/glfw3.h>, its own include), the
 // keyhole's organs (inputState_ / keys_ / mouse_ / player_ /
 // world_state_ / device_ / gpuState_ / pawn_state_ / agent_state_ /
@@ -70,8 +72,6 @@
 
 namespace t7 {
 namespace the_board {
-
-class Cartridge;  // fwd — module fns take the keyhole (defined in input.inl, post-class)
 
 // ═══ INPUT STATE ═════════════════════════════════════════════════
 

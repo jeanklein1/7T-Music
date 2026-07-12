@@ -6,6 +6,7 @@
 #include "cartridges/the_board/state.hpp"                    // Dim::*, GPUPaintingSlot, GPUPhotographerConfig, wgpu
 #include "cartridges/the_board/modules/mood_constants.hpp"   // MOOD_COUNT (sizes the mood gate)
 #include "cartridges/the_board/modules/seed_utils.hpp"       // select_weighted (PhotographerState::sample_shot_type)
+#include "cartridges/the_board/modules/keyhole.hpp"          // Cartridge + wgpu::Queue fwds (the keyhole)
 
 // ─── gallery.hpp (HEADER: vocabulary + configs + payloads + state + decls) ─
 // Converted (LADDER-3 c4): history in audit/LADDER.md.
@@ -89,8 +90,6 @@
 
 namespace t7 {
 namespace the_board {
-
-class Cartridge;  // fwd — module fns take the keyhole (defined in gallery.inl, post-class)
 
 // ═══ SHOT TIERS (vocabulary) ═════════════════════════════════════
 //

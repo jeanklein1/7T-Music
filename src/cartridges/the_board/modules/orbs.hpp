@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdint>
 #include "cartridges/the_board/modules/mood_constants.hpp"   // MOOD_COUNT (sizes ORB_MOOD_TABLE)
+#include "cartridges/the_board/modules/keyhole.hpp"          // Cartridge + wgpu::Queue fwds (the keyhole)
 
 // ─── orbs.hpp (HEADER: console + registries + state + decls) ─────
 // Converted (LADDER-2 c3): history in audit/LADDER.md.
@@ -49,22 +50,21 @@
 // │                                                                 │
 // └─────────────────────────────────────────────────────────────────┘
 //
-// Depends on: mood_constants.hpp (MOOD_COUNT); forward declarations of
-// Cartridge (keyhole) and the wgpu handle classes used by reference in
-// the declarations. The impl additionally needs state.hpp (GPUOrbConfig,
-// Dim::MAX_ORBS) and renderer.hpp — both precede it in the TU.
+// Depends on: mood_constants.hpp (MOOD_COUNT); keyhole.hpp (the
+// Cartridge + wgpu::Queue fwds) plus the two encoder handles below,
+// used by reference in the declarations. The impl additionally needs
+// state.hpp (GPUOrbConfig, Dim::MAX_ORBS) and renderer.hpp — both
+// precede it in the TU.
 // ─────────────────────────────────────────────────────────────────
 
-// LOCKSTEP INSURANCE (same construct as entity_types.hpp): mirrors
-// webgpu_cpp.h's declaration forms (`class Queue` / `class CommandEncoder`
-// / `class RenderPassEncoder`, in namespace wgpu). If Dawn ever changes
+// LOCKSTEP INSURANCE (same construct as keyhole.hpp): mirrors
+// webgpu_cpp.h's declaration forms (`class CommandEncoder` /
+// `class RenderPassEncoder`, in namespace wgpu). If Dawn ever changes
 // those forms, replace these forward declarations with the include.
-namespace wgpu { class Queue; class CommandEncoder; class RenderPassEncoder; }
+namespace wgpu { class CommandEncoder; class RenderPassEncoder; }
 
 namespace t7 {
 namespace the_board {
-
-class Cartridge;  // fwd — the module functions take the keyhole Cartridge* (defined in orbs.inl, post-class)
 
 // ═══ TUNING CONSOLE ══════════════════════════════════════════════
 //

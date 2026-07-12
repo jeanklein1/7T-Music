@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include "cartridges/the_board/modules/keyhole.hpp"  // Cartridge + wgpu::Queue fwds (the keyhole)
 
 // ─── pawn.hpp (HEADER: state + configs + declarations) ───────────
 // Converted (LADDER-2 c2): history in audit/LADDER.md.
@@ -17,21 +18,14 @@
 // │  Cross-module readers: cartridge.hpp aura compute dispatch      │
 // └──────────────────────────────────────────────────────────────────┘
 //
-// Depends on: <cstdint>; forward declarations of Cartridge (keyhole, taken
-// by pointer) and wgpu::Queue (taken by reference). The aura ramp is a
-// self-contained real-time exponential (std::exp, in the .inl).
+// Depends on: <cstdint> + keyhole.hpp (the Cartridge and wgpu::Queue
+// forward declarations — taken by pointer and reference respectively).
+// The aura ramp is a self-contained real-time exponential (std::exp,
+// in the .inl).
 // ─────────────────────────────────────────────────────────────────
-
-// LOCKSTEP INSURANCE (same construct as entity_types.hpp): mirrors
-// webgpu_cpp.h's declaration form (`class Queue`, in namespace wgpu). If
-// Dawn ever changes that form, replace this forward declaration with the
-// include.
-namespace wgpu { class Queue; }
 
 namespace t7 {
 namespace the_board {
-
-class Cartridge;  // fwd — tick_pawn_couplings takes the keyhole Cartridge* (defined in pawn.inl, post-class)
 
 // ═══ TUNING CONSOLE ══════════════════════════════════════════════
 //

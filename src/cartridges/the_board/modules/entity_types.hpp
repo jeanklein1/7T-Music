@@ -29,10 +29,11 @@
 // A file-scope header, included above the class with roster.hpp's
 // cohort — it PRECEDES the EntityQueueEntry union in spawn_engine.inl
 // by construction (SEAM[spawn_engine:structural]). Namespace
-// t7::the_board (the cartridge's own). Depends on: <cstdint>; a forward
-// declaration of Cartridge (adapter fn-ptrs take Cartridge* — a pointer,
-// incomplete is fine) and of wgpu::Queue (taken by reference in two
-// adapter fn-ptrs) make every dependency explicit at the boundary.
+// t7::the_board (the cartridge's own). Depends on: <cstdint> +
+// keyhole.hpp (the Cartridge and wgpu::Queue forward declarations —
+// adapter fn-ptrs take Cartridge* by pointer and wgpu::Queue& by
+// reference; incomplete types suffice). Every dependency is explicit
+// at the boundary.
 //
 // SEAM[entity_types:P9] this file is the canonical home of pattern
 //   P9 (type definitions extracted to header-style file) — a real
@@ -46,17 +47,10 @@
 // ─────────────────────────────────────────────────────────────────
 
 #include <cstdint>
-
-// fwd — adapter fn-ptrs take wgpu::Queue& (reference; forward decl
-// suffices). LOCKSTEP INSURANCE: this mirrors webgpu_cpp.h's declaration
-// form (`class Queue`, in namespace wgpu). If Dawn ever changes that form,
-// replace this forward declaration with the include.
-namespace wgpu { class Queue; }
+#include "cartridges/the_board/modules/keyhole.hpp"  // Cartridge + wgpu::Queue fwds (the keyhole)
 
 namespace t7 {
 namespace the_board {
-
-class Cartridge;  // fwd — adapter fn-ptrs take Cartridge* (pointer; incomplete OK)
 
 // ═══ PIPELINE CONTRACTS ══════════════════════════════════════════
 //

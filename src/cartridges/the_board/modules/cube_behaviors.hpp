@@ -4,6 +4,7 @@
 #include "cartridges/the_board/state.hpp"                       // Dim::MAX_CUBE_INSTANCES, GPUState, GPUFloatingEntityState, wgpu
 #include "cartridges/the_board/modules/floater_vocabulary.hpp"  // ActiveCube, CUBE_TIER_COUNT
 #include "cartridges/the_board/modules/mood_constants.hpp"      // MOOD_COUNT + the Mood IDs
+#include "cartridges/the_board/modules/keyhole.hpp"             // Cartridge + wgpu::Queue fwds (the keyhole)
 
 // ─── cube_behaviors.hpp (HEADER: registries + console + state + decls) ─
 // Converted (LADDER-3 c3): history in audit/LADDER.md.
@@ -85,8 +86,6 @@
 
 namespace t7 {
 namespace the_board {
-
-class Cartridge;  // fwd — module fns take the keyhole (defined in cube_behaviors.inl, post-class)
 
 // ═══ BEHAVIOR IDS ════════════════════════════════════════════════
 //
