@@ -522,8 +522,92 @@ file (commit 1), declaration-identical with disclosed recipe
 totals, per-file bytes, rescue disclosures, and the code-repetition
 appendix: audit/COMPACT1_SWEEP.md.
 
-## LADDER-5 (queued — no action): THE HUBS INTERFACE EXTRACTION
+## LADDER-5 — THE CONTRACTS STRATUM (extraction, not conversion; LANDED)
 
-spawn_engine.inl + entity_pipeline.inl, the two remaining class-body
-includes. FIRST PRIZE, as named: the PopFamily graduation — retiring
-roster.hpp's literal-index family_enabled switch per its own seam-note.
+Map: audit/LADDER5_RECON.md (its counts governed). Four stages, four
+commits, bisection-ready. Scope guard held: code moved, boundaries
+drawn, zero generation/placement redesign.
+
+### e1 — THE GRADUATIONS
+EntityQueueEntry + PlacementEntry + the FamilyDispatch row type
+graduated to entity_types.hpp — THE CONTRACT HOME (it gained the three
+bespoke subsystem includes; the union IS the coupling, and the
+consequence is structural: owner headers can never include the
+contract home, so queue-shaped signatures declare there).
+PopFamily graduated to roster.hpp: identity + enablement one
+self-binding document; family_enabled's literal-index switch died into
+named labels; cartridge.hpp's ~20-line static_assert binding block
+died entirely; 11 Cartridge::PopFamily sites re-pathed; 100
+unqualified uses carried (G1 precedent). Riders: the misplaced
+seed_utils note deleted; spawn_engine's stale export-box rows fixed.
+Gates: all four constructs TOKEN-IDENTICAL at their new homes.
+
+### e2 — THE TABLE AT FILE SCOPE + THE WRAPPER SPLIT
+FAMILY_DISPATCH: extern-declared in the contract home, DEFINED at file
+scope in modules/family_dispatch.inl (born; zone include, last) — the
+spine's loops kept reading it by namespace lookup, zero consumer edits
+at all 7 sites. Specifier disclosed: static constexpr member ->
+inline const namespace definition (address-constant initializers,
+static initialization; zero constant-expression consumers). The 9
+bespoke funnels moved verbatim to their owners' impls; the 10
+identical no-op prepare/mesh stubs collapsed into ONE shared pair
+(the mechanical subset — the remainder, 12 real one-line adapters
+with unmatchable signatures, stays spine-side, disclosed).
+
+### e3 — THE EVICTORS WENT HOME (§5 retired per condition)
+The twelve evict bodies relocated into their owners' impls as
+keyhole-shaped evict_<family>, declared in owner headers, named
+directly by the table: entities.inl ×7, cube_behaviors.inl,
+gol_zones.inl, gallery.inl, ribbon.inl (sky-mode pin + ref-count law
+traveled intact), and modules/spheres.inl BORN for the sphere evictor
+(SphereState's owner had no impl file — disclosed; census 13 == 13).
+Constitution §5 EVICTION THUNKS: RETIRED PER CONDITION, same commit.
+Gates: 12 bodies TOKEN-IDENTICAL (rename + inline the only deltas);
+dispatch_evict_* = 0 remaining.
+
+### e4 — THE CLEAN THREE RELOCATED (close-out)
+blade (196 L), palm (232 L), cactus (180 L) recipes moved whole to
+entities.inl beside their preparers and evictors — 611 lines exactly
+as forecast. Two disclosed transforms only: line-start static ->
+inline, THEMES -> Cartridge::THEMES (tagged INTENT[services:themes]
+at its definition — future services-graduation item, not graduated,
+by order). Funnel declarations joined the contract home; 9 table rows
+re-pointed. Welds honored: column+antenna untouched (one GPU store);
+arch/pyramid stay with the machine.
+
+### CLOSE-OUT
+
+**Wrapper-inventory delta (70 -> 62):** 27 generic funnels (18 stay
+in-class with the six machine-side families; 9 relocated with the
+clean three) + 9 bespoke funnels (owners) + 12 evictors (owners) + 12
+real prepare/mesh adapters (spine) + 2 shared no-ops = 62 functions.
+Spine-side family wrappers: 70 -> 30 (18 funnels + 12 adapters);
+owner-side: 0 -> 30; shared: 2. The DISPATCH WRAPPERS chapter fell
+394 -> 37 code lines.
+
+**§5 update:** EVICTION THUNKS retired per its own written condition
+(e3, same commit). the_chord's copy untouched.
+
+**Sphere/cube relocation forecast (DEFERRED BY DEFAULT, Jean may
+pull):** the same shape as the clean three, now purely mechanical —
+sphere block ~165 L -> spheres.inl, cube block ~200 L ->
+cube_behaviors.inl; funnel declarations to the contract home; 6 table
+slots re-pointed; the THEMES read qualifies identically. No new
+blockers: e1/e2 removed them all. ~365 lines, one commit.
+
+**Spine chapter map restated (for the LADDER-6 / arrow-law A6
+ruling):** cartridge.hpp 2,423 -> 2,068 code lines this arc.
+COMPOSITION ROOT ~699 · WORLD-ENGINE ~1,330 · DISPATCH 394 -> 37.
+The hubs: spawn_engine.inl 550 -> 513 code (the machine — queues,
+footprints, services, loops), entity_pipeline.inl 1,672 -> 1,177
+(generic verbs + six family blocks), entities.inl 154 -> 774 (the
+owner grew into itself). The world-engine class (~1,330 spine lines +
+spawn_engine's 513) remains the confession for Jean's ruling on
+whether the spine walks the ladder.
+
+**Gates standing at close:** zone census 13 == 13 (family_dispatch.inl
++ spheres.inl born this arc); encodings byte-checked per stage (BOM
+quartet intact); every moved construct token-verified at its new home.
+L4 GOLDEN due at the rig: one build post-e4, same seed, two runs,
+indistinguishable. Optional family-off spot check offered (flip one
+ROSTER family bit; semantics must survive the table's relocation).

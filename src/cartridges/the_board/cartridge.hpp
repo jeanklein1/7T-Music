@@ -1035,6 +1035,13 @@ namespace t7 {
             //  │ 4 Barren         │  0.4   │  0.3   │  0.5   │  ×1.0   │ 100/12/3/4             │
             //  └──────────────────┴────────┴────────┴────────┴─────────┴─────────────────────────┘
 
+            // INTENT[services:themes] the theme table is class-nested
+            //   vocabulary with owner-side readers — the per-family
+            //   get_theme_tier_weights adapters (entities.inl and
+            //   entity_pipeline.inl) reach it as (Cartridge::)THEMES.
+            //   Future services-graduation item; revisit when the
+            //   world-engine stratum is ruled (LADDER-6 / A6). Not
+            //   graduated now, by order.
             static constexpr PopulationTheme THEMES[THEME_COUNT] = {
                 // ── 0: TRANSITION — sparse connective tissue ─────────────────
                 {   { 0.4f, 0.3f, 0.7f, 0.3f, 0.3f, 0.3f, 0.5f, 0.3f, 1.0f, 0.5f, 0.5f, 0.5f },   // spawn_weight [pyr..sph, ribn, cube, gol, gall]
@@ -3583,7 +3590,7 @@ namespace t7 {
 // definitions are `inline` free functions; the class-body `static` never
 // survives the move.
 #include "modules/pawn.inl"       // tick_pawn_couplings
-#include "modules/entities.inl"   // the six prepare_*_mesh_gen preparers + the seven grounded-family evictors
+#include "modules/entities.inl"   // the six preparers + the seven grounded-family evictors + the blade/palm/cactus recipes
 #include "modules/spheres.inl"    // the sphere evictor
 #include "modules/orbs.inl"       // orb lifecycle/commands/dispatches/render
 #include "modules/gol_zones.inl"  // GoL three-phase lifecycle + per-frame uploads/dispatch
