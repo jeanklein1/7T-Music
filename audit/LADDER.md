@@ -505,6 +505,19 @@ runs, indistinguishable (L2 ran green, so this build certifies LADDER-4
 alone; bisection anchors — the pre-LADDER-4 head bfd143d and c6 77fc3a3
 — stand if it disagrees).
 
+## COMPACT-2 — THE PROTOTYPE COMMENT LAW (one sweep, stamped)
+
+Jean's ruling (2026-07-12): per-file structural prose retired until
+ship; the four keep-classes (identity sentence / requirements-face
+prose / ledger / code-adjacent one-liners) are the documentation;
+§6 datasheets return at certification. Comment tokens 112,669 ->
+65,608 (−47.1k; forecast −55.3k — the delta is D3's pin retention on
+the GPU contract surface, itemized in the close-out). 134 constraint
+rescues hand-ruled. Constitution §1 prototype-regime clause +
+contract §6 note + §5 ledger entry rode the sweep. Gates green:
+code-token-identical 37/37, encodings (BOM = quartet + renderer.hpp),
+zone census 13 == 13. Close-out: audit/COMPACT2_SWEEP.md.
+
 ## COMPACT-1 — THE SWEEP (comment-only; F3 executed)
 
 The narration stratum this record describes was compressed out of the
