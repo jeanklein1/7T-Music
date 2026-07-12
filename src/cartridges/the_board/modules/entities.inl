@@ -711,7 +711,7 @@ inline constexpr uint32_t PALM_INDOOR_RESCALE_PARAMS[] = {
 // Palms read as canopy-defining architectural anchors and look wrong
 // when too small — tighter target range than other indoor families.
 inline void palm_apply_indoor_rescale(EntityInstance& inst, float ceiling_h) {
-    rescale_to_rolled_target(inst, ceiling_h,
+    Cartridge::rescale_to_rolled_target(inst, ceiling_h,
         /*target_lo*/ 0.80f, /*target_hi*/ 0.95f,
         /*current_h*/ inst.params[PalmIdx::HEIGHT],
         PALM_INDOOR_RESCALE_PARAMS);

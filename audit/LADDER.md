@@ -625,3 +625,60 @@ quartet intact); every moved construct token-verified at its new home.
 L4 GOLDEN due at the rig: one build post-e4, same seed, two runs,
 indistinguishable. Optional family-off spot check offered (flip one
 ROSTER family bit; semantics must survive the table's relocation).
+
+### FIX — THE IMPLICIT-THIS CALL (rig-found, entities.inl:714)
+
+Rig C3861: `rescale_to_rolled_target` — a STATIC member of the
+class-body pipeline (entity_pipeline.inl), called unqualified inside
+e4's moved palm recipe. Inside the class, membership supplied the
+lookup; at namespace scope it supplies nothing (and ADL cannot find
+class statics). Token-identity gates are BLIND to this by design —
+the call moved verbatim; VERBATIM WAS THE BUG. Membership's fourth
+privilege, now named beside the LADDER-2 corollaries:
+**ACCESS, LINKAGE, LOOKUP ORDER, IMPLICIT-THIS CALLS.**
+
+**The fix:** `Cartridge::rescale_to_rolled_target(...)` — a static,
+so the class qualifies it (the adapter signature carries no keyhole;
+c-> for members, Cartridge:: for statics).
+
+**The sweep (recipe disclosed):** direct-member census = every name
+declared at CLASS SCOPE (relative brace depth 0) across cartridge.hpp's
+class body + spawn_engine.inl + entity_pipeline.inl (the class-body
+includes) — 325 names after subtracting file-scope collisions; then
+every region this arc moved (the e2 funnels ×3 impls, the e3 evictors
+×6 impls, the e4 recipes, family_dispatch.inl) scanned for unqualified
+identifier reaches — reads AND calls — against that census. RESULT:
+**1 found (the rig's site), 0 siblings.** The recipe was validated
+against the pre-fix tree first: it flags exactly the rig's site and
+nothing else.
+
+**Specimen post-mortem (hypothesis CORRECTED, not confirmed):** no
+stub supplied the missing name at namespace scope — e4's gate suite
+contained NO compile specimen at all. This environment builds no Dawn;
+the gates were textual (token identity, censuses, zone), with compile
+certification disclosed as rig-side. The blindness was ABSENCE, not a
+lying stub — but the ordered law lands regardless, and the corrected
+stub now EXISTS and ran here (g++ is available for reduced
+specimens): a mock Cartridge supplying rescale_to_rolled_target AS A
+MEMBER, with the moved recipe shape at namespace scope. PRE-FIX it
+reproduces the rig's exact error class ("'rescale_to_rolled_target'
+was not declared in this scope" — the C3861 analog); POST-FIX it
+compiles clean. Recipe: scratchpad specimen_lookup_{prefix,postfix}.cpp,
+g++ -std=c++20 -fsyntax-only.
+
+**LAWS (pattern section):**
+- STUBS SUPPLY MEMBERS ONLY — a mock Cartridge provides member
+  functions and organs mirroring the real access topology; it never
+  provides namespace-scope names for things that are members in the
+  tree. A SPECIMEN COMPILE FAILURE IS DATA, never an inconvenience to
+  stub away.
+- PREFLIGHT AMENDMENT — the ambient-reach scan censuses CALLS, not
+  just data/statics: every identifier a moved region invokes is
+  checked against the member census. A reach is a reach whether it
+  reads or invokes.
+- Every extraction arc carries a LOOKUP SPECIMEN henceforth: the
+  moved region's lookup shape compiled against the corrected stub,
+  pre-fix red / post-fix green.
+
+Rebuild is take two; the e5 rider and COMPACT-2 stay queued behind
+that green, in that order.
