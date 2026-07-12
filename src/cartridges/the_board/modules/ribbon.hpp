@@ -28,13 +28,13 @@
 // split remain subject to the mirror law's spirit until the pairing is
 // re-ratified.
 //
-// The impl additionally reaches spawn-engine services
+// The impl additionally reaches the spawn-engine services
 // (run_spawn_preamble, negotiate_position,
-// record_placement_bookkeeping), seed_utils.hpp, and cartridge core
-// (time_state_.seconds/dt/beat_rate, THEMES / PATCH_EXTENT
-// (file-scope vocabulary), the four ribbon canvas bindings, player_ sky
-// fields, estimate_terrain_height / terrain_tile_warm) through the
-// complete type (Cartridge:: / keyhole), and the GPU wires
+// record_placement_bookkeeping — spawn_engine.hpp), the tile_world
+// surface samplers (estimate_terrain_height / terrain_tile_warm),
+// seed_utils.hpp, cartridge core (time_state_.seconds/dt/beat_rate,
+// THEMES / PATCH_EXTENT (file-scope vocabulary), the four ribbon
+// canvas bindings, player_ sky fields) through the keyhole, and the GPU wires
 // (upload_ribbon_time / _color / _wave_amps / _head_poses — the flush +
 // head laws write through).
 //

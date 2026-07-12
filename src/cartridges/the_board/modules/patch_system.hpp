@@ -155,13 +155,16 @@ struct PatchSystemState {
     ActivePatch patches_[MAX_PATCHES]{};
     // Free-list of available texture layers
     uint32_t freeLayerStack_[MAX_PATCHES]{};
+    // The unified pier mirror (rode in from spawn_engine at its
+    // conversion — Phase R stamp: PIERS ride patch_system)
+    GPUPierInstance cpuPiers_[Dim::PIER_TOTAL]{};
 };
 
 // ═══ MODULE FUNCTIONS — DECLARATIONS ═══════════════════════════════
 //
 // DEFINED in patch_system.inl (post-class): the machine reaches the
-// keyhole for the root organs, the S3 dispatch members (select/place/
-// commit, piers), and the GPU wire (gpuState_ / renderer_).
+// keyhole for the root organs, the S3 dispatch seam (select/place/
+// commit — spawn_engine.hpp), and the GPU wire (gpuState_ / renderer_).
 
 // THE S2/S3 BOUNDARY FACE: the patch registry is read across the
 // boundary by the occupier commits (host->record_entity via
@@ -179,6 +182,13 @@ uint32_t patches_budget_this_frame(Cartridge* c);
 void teardown_world(Cartridge* c, wgpu::Queue& queue);
 
 void init_patch_system(Cartridge* c);
+void write_pier(Cartridge* c, wgpu::Queue& queue, uint32_t slot, const GPUPierInstance& pier);
+void clear_pier(Cartridge* c, wgpu::Queue& queue, uint32_t slot);
+void recompute_and_upload_pier_count(Cartridge* c, wgpu::Queue& queue);
+void flush_pier_count(Cartridge* c, wgpu::Queue& queue);
+void mark_patches_for_regen(Cartridge* c, float min_wx, float min_wz,
+    float max_wx, float max_wz,
+    int32_t home_gx, int32_t home_gz);
 void setup_test_rig_piers(Cartridge* c, wgpu::Queue queue);
 void generate_patch_batch(Cartridge* c, wgpu::CommandEncoder& encoder, wgpu::Queue& queue,
     const GPUPatchParams* params, uint32_t count,

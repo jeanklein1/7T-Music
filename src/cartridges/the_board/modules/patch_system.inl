@@ -5,8 +5,9 @@
 // → spawn → generate → evict), the frame budgets, world teardown, the
 // layer allocator, and the streaming conductor. Reaches the keyhole
 // for the root organs (c->world_state_ / c->player_ / the module
-// states), the S3 dispatch members (c->select_entities_for_patch /
-// piers), and the GPU wire (c->gpuState_ / c->renderer_).
+// states), the S3 dispatch seam (select_entities_for_patch / place /
+// commit — spawn_engine.hpp), and the GPU wire (c->gpuState_ /
+// c->renderer_).
 //
 // WRAPPING FORM (fix-2): SELF-WRAPPING — the zone includes impls at FILE SCOPE; law in audit/LADDER.md.
 
@@ -34,7 +35,7 @@ inline void evict_patch(Cartridge* c, uint32_t pi, wgpu::Queue& queue) {
     free_layer(c, c->patch_system_state_.patches_[pi].layer);
     // Painting eviction now handled by evict_gallery (gallery.inl) via entity_refs
     evict_patch_entities(c, c->patch_system_state_.patches_[pi], queue);
-    c->unregister_footprints_for_patch(c->patch_system_state_.patches_[pi].grid_x, c->patch_system_state_.patches_[pi].grid_z);
+    unregister_footprints_for_patch(c, c->patch_system_state_.patches_[pi].grid_x, c->patch_system_state_.patches_[pi].grid_z);
     c->patch_system_state_.patches_[pi].valid = false;
 }
 
@@ -198,7 +199,7 @@ inline void teardown_world(Cartridge* c, wgpu::Queue& queue) {
 
     // Clear all entity piers (keep test rig at slots 0-2)
     for (uint32_t i = Dim::PIER_ARCH_BASE; i < Dim::PIER_TOTAL; i++) {
-        c->clear_pier(queue, i);
+        clear_pier(c, queue, i);
     }
 
     // Arches
@@ -345,8 +346,8 @@ inline void teardown_world(Cartridge* c, wgpu::Queue& queue) {
     for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) c->gallery_state_.authored_staging[i].consumed = false;
 
     // Footprints
-    for (uint32_t i = 0; i < Cartridge::MAX_FOOTPRINTS; i++) {
-        c->footprints_[i] = Cartridge::GroundFootprint{};
+    for (uint32_t i = 0; i < MAX_FOOTPRINTS; i++) {
+        c->footprints_[i] = GroundFootprint{};
     }
 
     // Aura
@@ -367,6 +368,60 @@ inline void teardown_world(Cartridge* c, wgpu::Queue& queue) {
 
     // New world decides its own upload frequency policy
     c->gpuState_.set_config_dynamic(false);
+}
+
+// ── The pier writers ───────────────────────────────────────────────
+//
+// Rode in from spawn_engine at its conversion (Phase R stamp: PIERS
+// ride patch_system); cpuPiers_ is module state (patch_system_state_).
+inline void write_pier(Cartridge* c, wgpu::Queue& queue, uint32_t slot, const GPUPierInstance& pier) {
+    c->patch_system_state_.cpuPiers_[slot] = pier;
+    c->gpuState_.upload_pier_slot(queue, slot, pier);
+    c->world_state_.pier_count_dirty = true;
+    c->world_state_.ground_entries_dirty = true;
+}
+
+inline void clear_pier(Cartridge* c, wgpu::Queue& queue, uint32_t slot) {
+    GPUPierInstance empty{};
+    c->patch_system_state_.cpuPiers_[slot] = empty;
+    c->gpuState_.upload_pier_slot(queue, slot, empty);
+    c->world_state_.pier_count_dirty = true;
+    c->world_state_.ground_entries_dirty = true;
+}
+
+inline void recompute_and_upload_pier_count(Cartridge* c, wgpu::Queue& queue) {
+    uint32_t highest = 0;
+    for (uint32_t i = 0; i < Dim::PIER_TOTAL; i++) {
+        if (c->patch_system_state_.cpuPiers_[i].is_active) highest = i + 1;
+    }
+    c->gpuState_.config().pier_count = highest;
+    c->gpuState_.upload_pier_count(queue);
+}
+
+inline void flush_pier_count(Cartridge* c, wgpu::Queue& queue) {
+    if (!c->world_state_.pier_count_dirty) return;
+    c->world_state_.pier_count_dirty = false;
+    recompute_and_upload_pier_count(c, queue);
+}
+
+// Rode in from spawn_engine at its conversion (Phase R stamp): the
+// pier writers' regen fan-out over the registry.
+inline void mark_patches_for_regen(Cartridge* c, float min_wx, float min_wz,
+    float max_wx, float max_wz,
+    int32_t home_gx, int32_t home_gz) {
+    int32_t pg_x0 = (int32_t)std::floor(min_wx / PATCH_EXTENT);
+    int32_t pg_x1 = (int32_t)std::floor(max_wx / PATCH_EXTENT);
+    int32_t pg_z0 = (int32_t)std::floor(min_wz / PATCH_EXTENT);
+    int32_t pg_z1 = (int32_t)std::floor(max_wz / PATCH_EXTENT);
+
+    for (uint32_t p = 0; p < c->world_state_.active_patch_count; p++) {
+        if (c->patch_system_state_.patches_[p].phase != PatchPhase::GENERATED) continue;
+        if (c->patch_system_state_.patches_[p].grid_x == home_gx && c->patch_system_state_.patches_[p].grid_z == home_gz) continue;
+        if (c->patch_system_state_.patches_[p].grid_x >= pg_x0 && c->patch_system_state_.patches_[p].grid_x <= pg_x1 &&
+            c->patch_system_state_.patches_[p].grid_z >= pg_z0 && c->patch_system_state_.patches_[p].grid_z <= pg_z1) {
+            c->patch_system_state_.patches_[p].phase = PatchPhase::NEEDS_REGEN;
+        }
+    }
 }
 
 // ── Patch subsystem setup ──────────────────────────────────────────
@@ -406,7 +461,7 @@ inline void setup_test_rig_piers(Cartridge* c, wgpu::Queue queue) {
     ramp.edge_blend = 0.5f;
     ramp.tier = PierTier::TEST_RIG;
     ramp.is_active = 1;
-    c->write_pier(queue, 0, ramp);
+    write_pier(c, queue, 0, ramp);
 
     // Plateau: flat at height 3, overlaps ramp at x=18.
     GPUPierInstance plat{};
@@ -417,7 +472,7 @@ inline void setup_test_rig_piers(Cartridge* c, wgpu::Queue queue) {
     plat.edge_blend = 0.5f;
     plat.tier = PierTier::TEST_RIG;
     plat.is_active = 1;
-    c->write_pier(queue, 1, plat);
+    write_pier(c, queue, 1, plat);
 
     // Block: sharp edges → step-height walls (impassable).
     GPUPierInstance block{};
@@ -428,7 +483,7 @@ inline void setup_test_rig_piers(Cartridge* c, wgpu::Queue queue) {
     block.edge_blend = 0.0f;
     block.tier = PierTier::TEST_RIG;
     block.is_active = 1;
-    c->write_pier(queue, 2, block);
+    write_pier(c, queue, 2, block);
 }
 
 // ── Patch generation ───────────────────────────────────────────────
@@ -564,11 +619,11 @@ inline void spawn_selected_patches(Cartridge* c, const PatchCandidate* candidate
         uint32_t pi = candidates[s].idx;
         c->themes_state_.active_theme_idx_ = evaluate_theme_envelope(c->themes_state_, c, 
             tile_seed(c->world_state_.active_seed, c->patch_system_state_.patches_[pi].grid_x, c->patch_system_state_.patches_[pi].grid_z));
-        c->select_entities_for_patch(c->patch_system_state_.patches_[pi].grid_x, c->patch_system_state_.patches_[pi].grid_z);
+        select_entities_for_patch(c, c->patch_system_state_.patches_[pi].grid_x, c->patch_system_state_.patches_[pi].grid_z);
         c->patch_system_state_.patches_[pi].phase = PatchPhase::SPAWNED;
     }
-    c->place_entity_queue();
-    c->commit_entity_queue(queue);
+    place_entity_queue(c);
+    commit_entity_queue(c, queue);
 
     for (uint32_t s = 0; s < count; s++) {
         uint32_t pi = candidates[s].idx;
@@ -638,9 +693,9 @@ inline void generate_selected_patches(Cartridge* c, const PatchCandidate* candid
 // eviction, allocation, spawn + generation budgets, visibility
 // banding, deferred uploads.
 // SEAM[patch:spawn-trigger] the S3-trigger calls are the declared
-//   seam face: c->select_entities_for_patch / c->place_entity_queue /
-//   c->commit_entity_queue (via spawn_selected_patches), plus
-//   c->update_entity_draw_visibility + c->flush_pier_count at the
+//   seam face: select_entities_for_patch / place_entity_queue /
+//   commit_entity_queue (via spawn_selected_patches), plus
+//   update_entity_draw_visibility + flush_pier_count at the
 //   frame tail — the surface machine waking the occupier machine.
 inline void stream_patches(Cartridge* c, wgpu::CommandEncoder& encoder, wgpu::Queue& queue) {
     // ─── Patch Generation Pipeline ─────────────────────────────────
@@ -986,11 +1041,11 @@ inline void stream_patches(Cartridge* c, wgpu::CommandEncoder& encoder, wgpu::Qu
     c->world_state_.patch_instances_dirty = false;
 
     // ─── Entity distance culling ─────────────────────────────
-    c->world_state_.entities_culled = c->update_entity_draw_visibility(queue);
+    c->world_state_.entities_culled = update_entity_draw_visibility(c, queue);
 
     // ─── Deferred uploads (one per frame max) ────────────────
     if (tileGridDirty) upload_tile_grid_now(c->tile_world_state_, c, queue, c->world_state_.last_center_x, c->world_state_.last_center_z);
-    c->flush_pier_count(queue);
+    flush_pier_count(c, queue);
 
     audit_entity_integrity(c);
 

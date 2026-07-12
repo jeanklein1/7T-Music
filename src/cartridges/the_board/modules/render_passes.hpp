@@ -8,7 +8,7 @@
 // GPU dispatch and draw calls.
 //
 // The impl reaches the keyhole's organs (gpuState_ / renderer_ /
-// entities_state_ / cpuPiers_ / cpuSpotLights_ / world_state_ /
+// entities_state_ / patch_system_state_.cpuPiers_ / cpuSpotLights_ / world_state_ /
 // gol_state_ / ribbon_state_ / gallery_state_ / orbs_state_ /
 // mood_state_ / clearColor_) through the complete type, and the
 // converted modules' surfaces (render_orbs from orbs.hpp).

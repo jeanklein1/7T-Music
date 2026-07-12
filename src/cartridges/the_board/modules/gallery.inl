@@ -6,8 +6,8 @@
 // c->gpuState_ / c->renderer_ / c->tileCache_ / c->player_ /
 // c->world_state_ / c->mood_state_ / c->ribbon_state_ / c->clearColor_ /
 // c->sunDirection_ and the spine services (check_position /
-// register_footprint / record_placement_bookkeeping), plus
-// Cartridge::GLOBAL_ENTITY_DENSITY (in-class) and PATCH_EXTENT
+// register_footprint / record_placement_bookkeeping — spawn_engine.hpp),
+// plus GLOBAL_ENTITY_DENSITY (spawn_engine.hpp) and PATCH_EXTENT
 // (patch_system.hpp); PopFamily is roster.hpp vocabulary.
 //
 // WRAPPING FORM (fix-2): SELF-WRAPPING — the zone includes impls at FILE SCOPE; law in audit/LADDER.md.
@@ -239,7 +239,7 @@ inline bool select_gallery_for_patch(GalleryState& gs, Cartridge* c, int32_t gx,
     if (adj_mod <= 0.0f) return false;
 
     // Density + theme modifiers
-    adj_mod *= Cartridge::GLOBAL_ENTITY_DENSITY;
+    adj_mod *= GLOBAL_ENTITY_DENSITY;
     uint32_t archetype = 1;
     {
         auto dit = c->tileCache_.find({ gx, gz });
@@ -350,13 +350,13 @@ inline bool select_gallery_for_patch(GalleryState& gs, Cartridge* c, int32_t gx,
 // ── place_gallery_from_selection ──
 
 inline bool place_gallery_from_selection(Cartridge* c, const GallerySelection& sel, GalleryPlacement& plan) {
-    if (!c->check_position(sel.cx, sel.cz, sel.footprint_r, PopFamily::GALLERY))
+    if (!check_position(c, sel.cx, sel.cz, sel.footprint_r, PopFamily::GALLERY))
         return false;
 
     int32_t host_gx = (int32_t)std::floor(sel.cx / PATCH_EXTENT);
     int32_t host_gz = (int32_t)std::floor(sel.cz / PATCH_EXTENT);
 
-    if (c->register_footprint(sel.cx, sel.cz, sel.footprint_r,
+    if (register_footprint(c, sel.cx, sel.cz, sel.footprint_r,
         host_gx, host_gz, PopFamily::GALLERY, sel.archetype) == UINT32_MAX)
         return false;
 
@@ -376,7 +376,7 @@ inline bool place_gallery_from_selection(Cartridge* c, const GallerySelection& s
     plan.gallery_size_mean = sel.gallery_size_mean;
     plan.site_type = sel.site_type;
 
-    c->record_placement_bookkeeping(PopFamily::GALLERY, plan.tier_idx);
+    record_placement_bookkeeping(PopFamily::GALLERY, plan.tier_idx);
     return true;
 }
 

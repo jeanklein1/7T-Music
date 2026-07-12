@@ -9,7 +9,7 @@
 // flags (c->gol_state_.mood_allowed / c->pawn_state_.aura_enabled /
 // c->entities_state_.lights_dirty — request-flags, channel-shaped),
 // plus the in-class statics (Cartridge::ARCH_TIERS / Cartridge::ArchIdx /
-// Cartridge::solve_catenary_a / Cartridge::TransitionPhase) and
+// Cartridge::TransitionPhase), solve_catenary_a (seed_utils.hpp), and
 // PATCH_EXTENT (patch_system.hpp).
 //
 // THE CHANNEL: the force-spawn mutation of the arch belongs to the arch's owner.
@@ -620,8 +620,8 @@ inline void generate_indoor_shell(Cartridge* c, wgpu::Queue& queue, const MoodPr
         float half_z = (bmax - bmin) * 0.5f;
         float center_x = (bmin + bmax) * 0.5f;
         float center_z = (bmin + bmax) * 0.5f;
-        float cat_a_x = Cartridge::solve_catenary_a(half_x, rise);
-        float cat_a_z = Cartridge::solve_catenary_a(half_z, rise);
+        float cat_a_x = solve_catenary_a(half_x, rise);
+        float cat_a_z = solve_catenary_a(half_z, rise);
 
         static constexpr uint32_t VAULT_N = 32;
 

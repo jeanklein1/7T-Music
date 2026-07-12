@@ -2,13 +2,20 @@
 // Born at LADDER-6 (S2 extraction): history in audit/LADDER.md.
 //
 // The envelope machine's per-patch step. Reaches the keyhole only for
-// the flag-gated census dump (c->dump_entity_census /
-// Cartridge::theme_short_name).
+// the flag-gated census dump (dump_entity_census, spawn_engine.hpp);
+// theme_short_name lives here, beside the names it abbreviates.
 //
 // WRAPPING FORM (fix-2): SELF-WRAPPING — the zone includes impls at FILE SCOPE; law in audit/LADDER.md.
 
 namespace t7 {
 namespace the_board {
+
+// Census home (LADDER-6 3b): sole consumer is the census dump below;
+// the names are this module's vocabulary.
+inline const char* theme_short_name(uint32_t theme) {
+    static const char* NAMES[] = { "transition", "monumental", "colonnade", "antenna", "barren" };
+    return (theme < THEME_COUNT) ? NAMES[theme] : "???";
+}
 
 inline uint32_t evaluate_theme_envelope(ThemesState& ts, Cartridge* c, uint32_t tile_seed_value) {
     (void)c;
@@ -50,7 +57,7 @@ inline uint32_t evaluate_theme_envelope(ThemesState& ts, Cartridge* c, uint32_t 
 
         // Census dump on theme transition
 #ifdef DIAG_ENTITY_CENSUS
-        c->dump_entity_census(Cartridge::theme_short_name(selected));
+        dump_entity_census(c, theme_short_name(selected));
 #endif
     }
     else {

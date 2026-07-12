@@ -4,10 +4,11 @@
 // Definitions for ribbon.hpp's declared lifecycle + conductor + head-law
 // functions. The bodies reach c->gpuState_ / c->time_state_ / c->player_ /
 // c->inputState_ / c->visual_canvas_ + the four ribbon canvas bindings
-// and the spine services (run_spawn_preamble / negotiate_position /
-// record_placement_bookkeeping / estimate_terrain_height /
-// terrain_tile_warm), plus THEMES (population_themes.hpp) and
-// PATCH_EXTENT (patch_system.hpp); PopFamily is roster.hpp vocabulary.
+// and the spawn-engine services (run_spawn_preamble /
+// negotiate_position / record_placement_bookkeeping) + the tile_world
+// surface samplers (estimate_terrain_height / terrain_tile_warm),
+// plus THEMES (population_themes.hpp) and PATCH_EXTENT
+// (patch_system.hpp); PopFamily is roster.hpp vocabulary.
 //
 // WRAPPING FORM (fix-2): SELF-WRAPPING — the zone includes impls at FILE SCOPE; law in audit/LADDER.md.
 //
@@ -459,8 +460,8 @@ inline void ribbon_frame_tick(RibbonState& rs, Cartridge* c, wgpu::Queue& queue)
             if (ribbon_head_is(rs, rs.rendered_slot)) {
                 float hy, hh; ribbon_head_pose(rs, gx, hy, gz, hh);
             }
-            rib_gnd = c->estimate_terrain_height(gx, gz);
-            rib_gnd_valid = c->terrain_tile_warm(gx, gz);
+            rib_gnd = estimate_terrain_height(c->tile_world_state_, gx, gz);
+            rib_gnd_valid = terrain_tile_warm(c->tile_world_state_, gx, gz);
         }
         ribbon_advance_head(rs, c->gpuState_, queue,
             rs.gpu[rs.rendered_slot],
@@ -490,8 +491,8 @@ inline void ribbon_frame_tick(RibbonState& rs, Cartridge* c, wgpu::Queue& queue)
                 if (ribbon_head_is(rs, nearest)) {
                     float hy, hh; ribbon_head_pose(rs, gx, hy, gz, hh);
                 }
-                rib_gnd = c->estimate_terrain_height(gx, gz);
-                rib_gnd_valid = c->terrain_tile_warm(gx, gz);
+                rib_gnd = estimate_terrain_height(c->tile_world_state_, gx, gz);
+                rib_gnd_valid = terrain_tile_warm(c->tile_world_state_, gx, gz);
             }
             ribbon_advance_head(rs, c->gpuState_, queue, rs.gpu[nearest], nearest, c->time_state_.seconds,
                 ribbon_flown, ribbon_yaw_in, ribbon_thr_in, c->time_state_.dt,
@@ -641,7 +642,7 @@ inline bool select_ribbon_for_patch(RibbonState& rs, Cartridge* c,
             (rs.active[i].far_tip_gx == gx && rs.active[i].far_tip_gz == gz))
             return false;
     }
-    auto gate = c->run_spawn_preamble(gx, gz,
+    auto gate = run_spawn_preamble(c, gx, gz,
         rs.active, MAX_RIBBON_INSTANCES,
         RibbonProp::SPAWN_ROLL, RibbonConfig::SPAWN_CHANCE,
         RibbonConfig::MOOD_MULTIPLIER,
@@ -681,7 +682,7 @@ inline bool select_ribbon_for_patch(RibbonState& rs, Cartridge* c,
 //
 inline bool place_ribbon_from_selection(Cartridge* c,
     const RibbonSelection& sel, RibbonPlacement& plan) {
-    auto pos = c->negotiate_position(sel.seed,
+    auto pos = negotiate_position(c, sel.seed,
         sel.trigger_gx, sel.trigger_gz,
         RibbonProp::ANCHOR_X, RibbonProp::ANCHOR_Z,
         RibbonConfig::POSITION_JITTER,
@@ -713,7 +714,7 @@ inline bool place_ribbon_from_selection(Cartridge* c,
     plan.checker_scatter = sel.checker_scatter;
     plan.checker_hue_spread = sel.checker_hue_spread;
 
-    c->record_placement_bookkeeping(PopFamily::RIBBON, plan.tier_idx);
+    record_placement_bookkeeping(PopFamily::RIBBON, plan.tier_idx);
     return true;
 }
 

@@ -34,8 +34,8 @@
 // fill/commit, gallery's wall paintings, orbs' configure,
 // render_passes' compute_spot_light_vp), in-class statics
 // (Cartridge::ARCH_TIERS / Cartridge::ArchIdx /
-// Cartridge::solve_catenary_a / Cartridge::TransitionPhase) through
-// the complete type, and PATCH_EXTENT (patch_system.hpp).
+// Cartridge::TransitionPhase) through the complete type,
+// solve_catenary_a (seed_utils.hpp), and PATCH_EXTENT (patch_system.hpp).
 //
 // SEAM[mood:K1] apply_mood is the single canonical mood entry point.
 //   All mood transitions — keyboard, portal crossings, world

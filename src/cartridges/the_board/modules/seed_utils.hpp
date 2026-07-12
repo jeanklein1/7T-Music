@@ -98,5 +98,22 @@ inline uint32_t select_tier(uint32_t seed, uint32_t tier_prop,
     return select_weighted(cpu_hash_f(seed, tier_prop), weights, count);
 }
 
+
+// Precompute catenary parameter 'a' from (half_span, rise).
+// 50-iteration bisection, passed to GPU in ArchMeshParams.
+// Census home (LADDER-6 3b): pure math with four cross-module
+// consumers (spawn_engine, entity_pipeline, entities, mood) — the
+// pure-math leaf is the shared header.
+inline float solve_catenary_a(float half_span, float target_h) {
+    float a_lo = 0.1f, a_hi = std::max(half_span * 10.0f, 5.0f);
+    float a = half_span;
+    for (int iter = 0; iter < 50; iter++) {
+        a = 0.5f * (a_lo + a_hi);
+        float val = a * (std::cosh(half_span / a) - 1.0f);
+        if (val > target_h) a_lo = a; else a_hi = a;
+    }
+    return a;
+}
+
 } // namespace the_board
 } // namespace t7

@@ -337,7 +337,7 @@ inline constexpr EntityFamilyTraits CUBE_TRAITS = {
 };
 
 inline SpawnGateOutput cube_run_gate(Cartridge* c, int32_t gx, int32_t gz) {
-    auto gate = c->run_spawn_preamble(gx, gz, c->cube_behaviors_state_.activeCubes_, Dim::MAX_CUBE_INSTANCES,
+    auto gate = run_spawn_preamble(c, gx, gz, c->cube_behaviors_state_.activeCubes_, Dim::MAX_CUBE_INSTANCES,
         CubeEntityProp::SPAWN_ROLL, CubeConfig::SPAWN_CHANCE,
         CubeConfig::MOOD_MULTIPLIER, PopFamily::CUBE, "cube");
     return { gate.ok, gate.seed, gate.slot, gate.theme_idx };

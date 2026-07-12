@@ -6,10 +6,10 @@
 // clean-three recipes (blade / palm / cactus: tier tables, traits,
 // adapters, dispatch funnels). The preparers dereference
 // c->gpuState_'s index-count setters; the force-spawn author
-// additionally reaches c->write_pier, c->gpuState_'s mesh-params
-// upload, the in-class statics (Cartridge::ARCH_TIERS /
-// Cartridge::ArchIdx / Cartridge::solve_catenary_a — residents of
-// entity_pipeline.inl's class-body chapter), and PATCH_EXTENT
+// additionally reaches write_pier (patch_system.hpp), c->gpuState_'s
+// mesh-params upload, the in-class statics (Cartridge::ARCH_TIERS /
+// Cartridge::ArchIdx — residents of entity_pipeline.inl's class-body
+// chapter), solve_catenary_a (seed_utils.hpp), and PATCH_EXTENT
 // (patch_system.hpp); the recipes reach the machine's generic
 // three-phase verbs and services via the keyhole and
 // THEMES (INTENT[services:themes]).
@@ -175,7 +175,7 @@ inline uint32_t force_spawn_portal_arch(EntitiesState& es, Cartridge* c, wgpu::Q
     pl.rotation = rotation;  pl.edge_blend = edge_blend;
     pl.tier = PierTier::ARCH_DOORWAY;
     pl.is_active = 1;
-    c->write_pier(queue, pier_l_slot, pl);
+    write_pier(c, queue, pier_l_slot, pl);
 
     GPUPierInstance pr{};
     pr.origin[0] = pr_x;  pr.origin[1] = pr_z;
@@ -184,7 +184,7 @@ inline uint32_t force_spawn_portal_arch(EntitiesState& es, Cartridge* c, wgpu::Q
     pr.rotation = rotation;  pr.edge_blend = edge_blend;
     pr.tier = PierTier::ARCH_DOORWAY;
     pr.is_active = 1;
-    c->write_pier(queue, pier_r_slot, pr);
+    write_pier(c, queue, pier_r_slot, pr);
 
     auto& aa = es.arches[slot];
     aa.patch_gx = gx;
@@ -228,7 +228,7 @@ inline uint32_t force_spawn_portal_arch(EntitiesState& es, Cartridge* c, wgpu::Q
     meshParams.thickness = thickness;
     meshParams.pier_height = pier_height;
     meshParams.burial = aa.burial;
-    meshParams.catenary_a = Cartridge::solve_catenary_a(half_span, rise);
+    meshParams.catenary_a = solve_catenary_a(half_span, rise);
     meshParams.segs_u = tp.segs_u;
     meshParams.segs_v = tp.segs_v;
     meshParams.color_r = portal_color[0];
@@ -267,8 +267,8 @@ inline void evict_pyramid(Cartridge* self,
 inline void evict_arch(Cartridge* self,
     uint32_t slot, wgpu::Queue& queue)
 {
-    self->clear_pier(queue, Dim::PIER_ARCH_BASE + slot * 2);
-    self->clear_pier(queue, Dim::PIER_ARCH_BASE + slot * 2 + 1);
+    clear_pier(self, queue, Dim::PIER_ARCH_BASE + slot * 2);
+    clear_pier(self, queue, Dim::PIER_ARCH_BASE + slot * 2 + 1);
     self->entities_state_.arches[slot].active = false;
     self->entities_state_.arch_count--;
     self->mood_state_.portals_dirty = true;
@@ -282,7 +282,7 @@ inline void evict_arch(Cartridge* self,
 inline void evict_column(Cartridge* self,
     uint32_t slot, wgpu::Queue& queue)
 {
-    self->clear_pier(queue, Dim::PIER_COLUMN_BASE + slot);
+    clear_pier(self, queue, Dim::PIER_COLUMN_BASE + slot);
     self->entities_state_.columns[slot].active = false;
     self->entities_state_.column_count--;
     { GPUColumnMeshParams ep{}; self->gpuState_.upload_column_mesh_params_slot(queue, slot, ep); }
@@ -296,7 +296,7 @@ inline void evict_antenna(Cartridge* self,
     uint32_t slot, wgpu::Queue& queue)
 {
     uint32_t gpu_slot = slot + Dim::ANTENNA_SLOT_OFFSET;
-    self->clear_pier(queue, Dim::PIER_COLUMN_BASE + gpu_slot);
+    clear_pier(self, queue, Dim::PIER_COLUMN_BASE + gpu_slot);
     self->entities_state_.antennas[slot].active = false;
     self->entities_state_.antenna_count--;
     { GPUColumnMeshParams ep{}; self->gpuState_.upload_column_mesh_params_slot(queue, gpu_slot, ep); }
@@ -448,7 +448,7 @@ inline constexpr EntityFamilyTraits BLADE_TRAITS = {
 
 inline SpawnGateOutput blade_run_gate(Cartridge* c,
     int32_t gx, int32_t gz) {
-    auto gate = c->run_spawn_preamble(gx, gz,
+    auto gate = run_spawn_preamble(c, gx, gz,
         c->entities_state_.blades, Dim::MAX_BLADE_INSTANCES,
         BladeProp::SPAWN_ROLL, BladeClusterConfig::SPAWN_CHANCE,
         BladeClusterConfig::MOOD_MULTIPLIER,
@@ -648,7 +648,7 @@ inline constexpr EntityFamilyTraits PALM_TRAITS = {
 // ── Palm adapter functions ──
 
 inline SpawnGateOutput palm_run_gate(Cartridge* c, int32_t gx, int32_t gz) {
-    auto gate = c->run_spawn_preamble(gx, gz,
+    auto gate = run_spawn_preamble(c, gx, gz,
         c->entities_state_.palms, Dim::MAX_PALM_INSTANCES,
         PalmProp::SPAWN_ROLL, PalmConfig::SPAWN_CHANCE,
         PalmConfig::MOOD_MULTIPLIER, PopFamily::PALM, "palm");
@@ -861,7 +861,7 @@ inline constexpr EntityFamilyTraits CACTUS_TRAITS = {
 // ── Cactus adapter functions ──
 
 inline SpawnGateOutput cactus_run_gate(Cartridge* c, int32_t gx, int32_t gz) {
-    auto gate = c->run_spawn_preamble(gx, gz,
+    auto gate = run_spawn_preamble(c, gx, gz,
         c->entities_state_.cacti, Dim::MAX_CACTUS_INSTANCES,
         CactusProp::SPAWN_ROLL, CactusConfig::SPAWN_CHANCE,
         CactusConfig::MOOD_MULTIPLIER, PopFamily::CACTUS, "cact");

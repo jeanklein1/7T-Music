@@ -280,5 +280,23 @@ inline void tick_terrain_tokens(TileWorldState& tw, const TileState& outcome, ui
     tw.terrainTokens_[slot] = token;
 }
 
+// THE S2/S3 BOUNDARY FACE: the surface samplers — the occupiers ask
+// the terrain's memory for height and warmth (rode in from
+// spawn_engine at its conversion, per the Phase R stamp).
+inline float estimate_terrain_height(const TileWorldState& tw, float wx, float wz) {
+    int32_t tx = (int32_t)std::floor(wx / PATCH_EXTENT);
+    int32_t tz = (int32_t)std::floor(wz / PATCH_EXTENT);
+    auto it = tw.tileCache_.find({ tx, tz });
+    if (it != tw.tileCache_.end())
+        return it->second.height_bias + it->second.amp_scale * 5.0f;
+    return 0.0f;
+}
+
+inline bool terrain_tile_warm(const TileWorldState& tw, float wx, float wz) {
+    int32_t tx = (int32_t)std::floor(wx / PATCH_EXTENT);
+    int32_t tz = (int32_t)std::floor(wz / PATCH_EXTENT);
+    return tw.tileCache_.find({ tx, tz }) != tw.tileCache_.end();
+}
+
 } // namespace the_board
 } // namespace t7

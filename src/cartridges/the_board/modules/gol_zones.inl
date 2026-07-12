@@ -5,8 +5,8 @@
 // functions. The bodies reach c->gpuState_ / c->renderer_ / c->device_ /
 // c->tileCache_ / c->mood_state_ / c->world_state_ / c->time_state_ and
 // the spine services (check_position / register_footprint /
-// record_placement_bookkeeping), plus
-// Cartridge::GLOBAL_ENTITY_DENSITY (in-class) and PATCH_EXTENT
+// record_placement_bookkeeping — spawn_engine.hpp), plus
+// GLOBAL_ENTITY_DENSITY (spawn_engine.hpp) and PATCH_EXTENT
 // (patch_system.hpp); PopFamily is roster.hpp vocabulary.
 //
 // WRAPPING FORM (fix-2): SELF-WRAPPING — the zone includes impls at FILE SCOPE; law in audit/LADDER.md.
@@ -31,7 +31,7 @@ inline bool select_gol_for_patch(GoLState& gs, Cartridge* c,
     if (adj_mod <= 0.0f) return false;
 
     // Density + theme modifiers
-    adj_mod *= Cartridge::GLOBAL_ENTITY_DENSITY;
+    adj_mod *= GLOBAL_ENTITY_DENSITY;
     {
         auto dit = c->tileCache_.find({ gx, gz });
         if (dit != c->tileCache_.end()) {
@@ -165,13 +165,13 @@ inline bool place_gol_from_selection(Cartridge* c,
     float cx = sel.corner_x + GoLZoneSpawnConfig::ZONE_EXTENT * 0.5f;
     float cz = sel.corner_z + GoLZoneSpawnConfig::ZONE_EXTENT * 0.5f;
 
-    if (!c->check_position(cx, cz, sel.footprint_r, PopFamily::GOL))
+    if (!check_position(c, cx, cz, sel.footprint_r, PopFamily::GOL))
         return false;
 
     int32_t host_gx = (int32_t)std::floor(cx / PATCH_EXTENT);
     int32_t host_gz = (int32_t)std::floor(cz / PATCH_EXTENT);
 
-    if (c->register_footprint(cx, cz, sel.footprint_r,
+    if (register_footprint(c, cx, cz, sel.footprint_r,
         host_gx, host_gz, PopFamily::GOL, sel.tier_idx) == UINT32_MAX)
         return false;
 
@@ -193,7 +193,7 @@ inline bool place_gol_from_selection(Cartridge* c,
     plan.initial_density = sel.initial_density;
     plan.height_enabled = sel.height_enabled;
 
-    c->record_placement_bookkeeping(PopFamily::GOL, plan.tier_idx);
+    record_placement_bookkeeping(PopFamily::GOL, plan.tier_idx);
     return true;
 }
 

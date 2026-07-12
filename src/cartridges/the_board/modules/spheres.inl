@@ -105,7 +105,7 @@ inline constexpr EntityFamilyTraits SPHERE_TRAITS = {
 };
 
 inline SpawnGateOutput sphere_run_gate(Cartridge* c, int32_t gx, int32_t gz) {
-    auto gate = c->run_spawn_preamble(gx, gz, c->sphere_state_.activeFloaters_, Dim::MAX_SPHERE_INSTANCES,
+    auto gate = run_spawn_preamble(c, gx, gz, c->sphere_state_.activeFloaters_, Dim::MAX_SPHERE_INSTANCES,
         FloatingEntityProp::SPAWN_ROLL, SphereConfig::SPAWN_CHANCE,
         SphereConfig::MOOD_MULTIPLIER, PopFamily::SPHERE, "sph");
     return { gate.ok, gate.seed, gate.slot, gate.theme_idx };

@@ -66,6 +66,7 @@
 #include "cartridges/the_board/modules/population_themes.hpp"  // S2: THEMES + ThemeEnvelope + ThemesState + decls (impl is population_themes.inl, post-class)
 #include "cartridges/the_board/modules/tile_world.hpp"          // S2: archetypes + tokens + TileState/cache + TileWorldState + decls (impl is tile_world.inl, post-class)
 #include "cartridges/the_board/modules/patch_system.hpp"     // S2: WorldState + ActivePatch + budgets + visibility + PatchSystemState + decls (impl is patch_system.inl, post-class)
+#include "cartridges/the_board/modules/spawn_engine.hpp"     // S3: spawn vocabulary + separation/proximity tables + SpawnEngineState + the preamble template + decls (impl is spawn_engine.inl, post-class)
 #include "cartridges/the_board/renderer.hpp"
 #include "coupling/visual_canvas.hpp"
 #include <cmath>
@@ -145,6 +146,10 @@ namespace t7 {
             //     stamp, R-a): the struct lives with patch_system; the
             //     instance stays here at the root.
             WorldState world_state_;
+
+            //   spawn_engine_state_ — SpawnEngineState (spawn_engine.hpp), the
+            //     two dispatch queues + the footprint registry + the census clock.
+            SpawnEngineState spawn_engine_state_;
 
             InputState inputState_;
             KeyState keys_;
@@ -290,14 +295,8 @@ namespace t7 {
             uint64_t rosterGolZoneRuns_ = 0;
             float    rosterGolResidueDump_ = 0.0f;
 
-            // ═══ UNIFIED PIER SYSTEM ═════════════════════════════════════
-            //
-            GPUPierInstance cpuPiers_[Dim::PIER_TOTAL]{};
-
             // ── Terrain CPU mirror deleted ────────────────────────────────
 
-// ── Spawn Engine & Entity Lifecycle (modules/spawn_engine.inl) ──
-#include "modules/spawn_engine.inl"
 
             // ═══ FAMILY DISPATCH TABLE ═══════════════════════════════════
             //
@@ -909,9 +908,9 @@ namespace t7 {
 
                 // Periodic entity census dump
 #ifdef DIAG_ENTITY_CENSUS
-                if (time_state_.seconds - lastCensusDump_ >= CENSUS_DUMP_INTERVAL) {
-                    dump_entity_census("periodic");
-                    lastCensusDump_ = time_state_.seconds;
+                if (time_state_.seconds - spawn_engine_state_.lastCensusDump_ >= CENSUS_DUMP_INTERVAL) {
+                    dump_entity_census(this, "periodic");
+                    spawn_engine_state_.lastCensusDump_ = time_state_.seconds;
                 }
 #endif
 
@@ -1205,5 +1204,6 @@ namespace t7 {
 #include "modules/mood.inl"       // indoor light derivation + appliers + apply_mood + shell + portals + uploads + transition request + derivers
 #include "modules/population_themes.inl"  // the envelope machine per-patch step
 #include "modules/tile_world.inl"  // the four verbs over what the terrain remembers
+#include "modules/spawn_engine.inl"  // the spawn engine — negotiation + footprints + culling + census + the select/place/commit loops
 #include "modules/patch_system.inl"  // the active-patch machine — registry lifecycle + budgets + teardown + allocator + the streaming conductor
 #include "modules/family_dispatch.inl"  // THE TABLE — FAMILY_DISPATCH definition + shared no-op mesh adapters

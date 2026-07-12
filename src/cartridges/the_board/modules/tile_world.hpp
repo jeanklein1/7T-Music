@@ -139,6 +139,8 @@ void evict_distant_tiles(TileWorldState& tw, int32_t centerX, int32_t centerZ);
 void upload_tile_grid_now(TileWorldState& tw, Cartridge* c, wgpu::Queue& queue, int32_t cx, int32_t cz);
 TileState generate_tile_state(TileWorldState& tw, Cartridge* c, int32_t gx, int32_t gz);
 void tick_terrain_tokens(TileWorldState& tw, const TileState& outcome, uint32_t seed);
+float estimate_terrain_height(const TileWorldState& tw, float wx, float wz);
+bool terrain_tile_warm(const TileWorldState& tw, float wx, float wz);
 
 } // namespace the_board
 } // namespace t7

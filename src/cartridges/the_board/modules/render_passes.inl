@@ -3,7 +3,7 @@
 //
 // Definitions for render_passes.hpp's declared dispatch/pass functions
 // + the two pure light-matrix helpers. The bodies reach c->gpuState_ /
-// c->renderer_ / c->entities_state_ / c->cpuPiers_ / c->cpuSpotLights_ /
+// c->renderer_ / c->entities_state_ / c->patch_system_state_.cpuPiers_ / c->cpuSpotLights_ /
 // c->world_state_ / c->gol_state_ / c->ribbon_state_ / c->gallery_state_ /
 // c->orbs_state_ / c->mood_state_ / c->clearColor_.
 //
@@ -25,8 +25,8 @@ inline void upload_ground_entries(Cartridge* c, wgpu::Queue& queue) {
     GPUArchGroundEntry archOrigins[Dim::MAX_ARCH_INSTANCES]{};
     for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++) {
         if (!c->entities_state_.arches[i].active) continue;
-        const auto& pl = c->cpuPiers_[Dim::PIER_ARCH_BASE + i * 2];
-        const auto& pr = c->cpuPiers_[Dim::PIER_ARCH_BASE + i * 2 + 1];
+        const auto& pl = c->patch_system_state_.cpuPiers_[Dim::PIER_ARCH_BASE + i * 2];
+        const auto& pr = c->patch_system_state_.cpuPiers_[Dim::PIER_ARCH_BASE + i * 2 + 1];
         archOrigins[i].pier_left_x = pl.origin[0];
         archOrigins[i].pier_left_z = pl.origin[1];
         archOrigins[i].pier_right_x = pr.origin[0];

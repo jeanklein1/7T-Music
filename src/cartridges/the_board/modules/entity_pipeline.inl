@@ -157,7 +157,7 @@ bool generic_place(
     const EntityFamilyTraits& traits,
     EntityInstance& inst)
 {
-    auto pos = negotiate_position(inst.seed,
+    auto pos = negotiate_position(this, inst.seed,
         inst.trigger_gx, inst.trigger_gz,
         traits.pos_x_prop, traits.pos_z_prop,
         traits.position_jitter,
@@ -355,7 +355,7 @@ static constexpr EntityFamilyTraits ANTENNA_TRAITS = {
 // ── Column adapter functions ──
 
 static SpawnGateOutput column_run_gate(Cartridge* c, int32_t gx, int32_t gz) {
-    auto gate = c->run_spawn_preamble(gx, gz,
+    auto gate = run_spawn_preamble(c, gx, gz,
         c->entities_state_.columns, Dim::MAX_COLUMN_ONLY,
         ColumnProp::SPAWN_ROLL, ColumnConfig::SPAWN_CHANCE,
         ColumnConfig::MOOD_MULTIPLIER, PopFamily::COLUMN, "col");
@@ -478,7 +478,7 @@ static void column_post_commit(Cartridge* c, const EntityInstance& inst, wgpu::Q
     pier.edge_blend = inst.params[ColIdx::EDGE_BLEND];
     pier.tier = PierTier::COL_PILLAR + inst.tier_idx;
     pier.is_active = 1;
-    c->write_pier(queue, pier_slot, pier);
+    write_pier(c, queue, pier_slot, pier);
 }
 
 static constexpr EntityFamilyAdapter COLUMN_ADAPTER = {
@@ -510,7 +510,7 @@ static void dispatch_commit_column_generic(Cartridge* self, PlacementEntry& pe, 
 // ── Antenna adapter functions ──
 
 static SpawnGateOutput antenna_run_gate(Cartridge* c, int32_t gx, int32_t gz) {
-    auto gate = c->run_spawn_preamble(gx, gz,
+    auto gate = run_spawn_preamble(c, gx, gz,
         c->entities_state_.antennas, Dim::MAX_ANTENNA_ONLY,
         AntennaProp::SPAWN_ROLL, AntennaConfig::SPAWN_CHANCE,
         AntennaConfig::MOOD_MULTIPLIER, PopFamily::ANTENNA, "ant");
@@ -639,7 +639,7 @@ static void antenna_post_commit(Cartridge* c, const EntityInstance& inst, wgpu::
     pier.edge_blend = inst.params[ColIdx::EDGE_BLEND];
     pier.tier = PierTier::COL_PILLAR + inst.tier_idx;
     pier.is_active = 1;
-    c->write_pier(queue, pier_slot, pier);
+    write_pier(c, queue, pier_slot, pier);
 }
 
 static constexpr EntityFamilyAdapter ANTENNA_ADAPTER = {
@@ -732,7 +732,7 @@ static constexpr EntityFamilyTraits PYRAMID_TRAITS = {
 };
 
 static SpawnGateOutput pyramid_run_gate(Cartridge* c, int32_t gx, int32_t gz) {
-    auto gate = c->run_spawn_preamble(gx, gz,
+    auto gate = run_spawn_preamble(c, gx, gz,
         c->entities_state_.pyramids, Dim::MAX_PYRAMID_INSTANCES,
         PyramidProp::SPAWN_ROLL, PyramidConfig::SPAWN_CHANCE,
         PyramidConfig::MOOD_MULTIPLIER, PopFamily::PYRAMID, "pyr");
@@ -833,7 +833,7 @@ static void pyramid_post_commit(Cartridge* c, const EntityInstance& inst, wgpu::
     float abs_cr = std::abs(cr), abs_sr = std::abs(sr);
     float ext_x = (half_x + blend) * abs_cr + (half_z + blend) * abs_sr;
     float ext_z = (half_x + blend) * abs_sr + (half_z + blend) * abs_cr;
-    c->mark_patches_for_regen(
+    mark_patches_for_regen(c, 
         inst.cx - ext_x, inst.cz - ext_z,
         inst.cx + ext_x, inst.cz + ext_z,
         inst.host_gx, inst.host_gz);
@@ -937,7 +937,7 @@ static constexpr EntityFamilyTraits ARCH_TRAITS = {
 };
 
 static SpawnGateOutput arch_run_gate(Cartridge* c, int32_t gx, int32_t gz) {
-    auto gate = c->run_spawn_preamble(gx, gz, c->entities_state_.arches, Dim::MAX_ARCH_INSTANCES,
+    auto gate = run_spawn_preamble(c, gx, gz, c->entities_state_.arches, Dim::MAX_ARCH_INSTANCES,
         ArchProp::SPAWN_ROLL, ArchConfig::SPAWN_CHANCE,
         ArchConfig::MOOD_MULTIPLIER, PopFamily::ARCH, "arch");
     return { gate.ok, gate.seed, gate.slot, gate.theme_idx };
@@ -1094,7 +1094,7 @@ static void arch_post_commit(Cartridge* c, const EntityInstance& inst, wgpu::Que
     pier_l.edge_blend = edge_blend;
     pier_l.tier = PierTier::ARCH_DOORWAY + inst.tier_idx;
     pier_l.is_active = 1;
-    c->write_pier(queue, pier_l_slot, pier_l);
+    write_pier(c, queue, pier_l_slot, pier_l);
 
     // Right pier
     GPUPierInstance pier_r{};
@@ -1105,11 +1105,11 @@ static void arch_post_commit(Cartridge* c, const EntityInstance& inst, wgpu::Que
     pier_r.edge_blend = edge_blend;
     pier_r.tier = PierTier::ARCH_DOORWAY + inst.tier_idx;
     pier_r.is_active = 1;
-    c->write_pier(queue, pier_l_slot + 1, pier_r);
+    write_pier(c, queue, pier_l_slot + 1, pier_r);
 
     // Regen AABB
     float reach = std::max(pier_half_x, pier_half_z) + edge_blend;
-    c->mark_patches_for_regen(
+    mark_patches_for_regen(c, 
         std::min(pl_x, pr_x) - reach, std::min(pl_z, pr_z) - reach,
         std::max(pl_x, pr_x) + reach, std::max(pl_z, pr_z) + reach,
         inst.host_gx, inst.host_gz);

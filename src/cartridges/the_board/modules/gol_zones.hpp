@@ -10,10 +10,10 @@
 //
 // Zone-local Game of Life + Pulse automata.
 //
-// The impl additionally reaches spawn-engine services and
-// GLOBAL_ENTITY_DENSITY through the complete type (Cartridge:: /
-// keyhole), and PATCH_EXTENT (patch_system.hpp); PopFamily is
-// roster.hpp vocabulary.
+// The impl additionally reaches the spawn-engine services and
+// GLOBAL_ENTITY_DENSITY (spawn_engine.hpp, keyhole form), and
+// PATCH_EXTENT (patch_system.hpp); PopFamily is roster.hpp
+// vocabulary.
 //
 // SEAM[gol_zones:complete-subsystem] complete bespoke pipeline in one
 //   module — vocabulary + state + lifecycle + dispatch all together.
