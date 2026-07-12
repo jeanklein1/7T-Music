@@ -1042,3 +1042,39 @@ couples, NOTHING else ever appears; two runs, pixel-stable. DEMO-2
 (the terrain's voice — the wave rewired) queues behind Jean's word
 and M1's disposition.
 
+## DEMO-1 RIDER — THE CMAKE DOOR (one edit, then never again)
+
+THE EXACT PAIR (disclosed): THE_BOARD_DEMO (the CMake cache variable,
+default "full") -> INCUBATE_DEMO (the compile define) ->
+demos/<name>.hpp (the sentence, stringify-included by the selector).
+The DEMO-1 arc had shipped the door per-target (INCUBATOR_DUAL_DEMO);
+the rider renames it to the cartridge-owned name and wires it into
+BOTH incubator targets' define blocks (inert unless the target's
+render cartridge is the_board — only its selector consults the
+define). CMakeLists edited once, here; never again per demo.
+
+THE GOLDEN HOLDS, verified by inspection: the real configure needs
+Dawn (rig-only), so a harness carrying the door lines verbatim
+around a stub target was configured both ways and the GENERATED
+COMPILE COMMAND read directly — default configure (no -D) puts
+-DINCUBATE_DEMO=full on the line (the cache default IS the golden
+path); -DTHE_BOARD_DEMO=minimal puts -DINCUBATE_DEMO=minimal there;
+the cache holds across reconfigure (the door remembers). The rig's
+real configure re-proves on Jean's next build. Sighting on record:
+the define blocks sit under if(MSVC) beside their INCUBATE_RENDER
+siblings — consistent, the build file is MSVC/Dawn-pathed throughout.
+
+THE SWITCH RECIPE (the production line's cadence, written where a
+stranger finds it):
+  command line:  cmake -B build -DTHE_BOARD_DEMO=minimal
+                 cmake --build build --target incubator_dual
+  Visual Studio: Project > CMake Settings (CMakeSettings.json) >
+                 CMake variables -> set THE_BOARD_DEMO to the
+                 sentence name (e.g. minimal); rebuild. Back to
+                 golden: set it to full — or delete the cache
+                 entry; the default IS full.
+
+Rig gate unchanged: Jean configures default (G0' golden), then
+-DTHE_BOARD_DEMO=minimal for M1 and the sky checkpoint, reporting
+dispositions as the DEMO-1 handoff ordered.
+
