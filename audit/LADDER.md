@@ -605,6 +605,20 @@ owner grew into itself). The world-engine class (~1,330 spine lines +
 spawn_engine's 513) remains the confession for Jean's ruling on
 whether the spine walks the ladder.
 
+**Separation/proximity census (rider — report, Jean rules):**
+MIN_SEPARATION[PopFamily::COUNT][PopFamily::COUNT] (cartridge.hpp,
+TERRAIN TOKENS chapter) and the five PROXIMITY_* tables
+(spawn_engine.inl) are pair-separation vocabulary split across the two
+hubs. ALL consumers are machine-side: check_position reads
+MIN_SEPARATION + PROXIMITY_AFFINITY + PROXIMITY_GAP_REDUCTION;
+proximity_affinity_boost reads the rest. Nothing crosses the
+machine/owner boundary, so they do NOT belong in the contract file
+(which carries only what crosses); the flaw is the SPLIT, not the
+residence. Recommendation if ruled: MIN_SEPARATION joins its only
+readers beside the PROXIMITY_* tables in spawn_engine.inl — one
+machine-side vocabulary block, no contract involvement. The integrity
+audit's four-family coverage stands as choice-not-bug, as ruled.
+
 **Gates standing at close:** zone census 13 == 13 (family_dispatch.inl
 + spheres.inl born this arc); encodings byte-checked per stage (BOM
 quartet intact); every moved construct token-verified at its new home.
