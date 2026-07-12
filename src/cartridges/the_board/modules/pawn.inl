@@ -1,10 +1,8 @@
 // ─── pawn.inl (IMPL: post-class definitions) ─────────────────────
+// Impl of pawn.hpp (LADDER-2 c2): history in audit/LADDER.md.
 //
-// Definitions for pawn.hpp's declared laws. Included AFTER the Cartridge
-// class (LADDER-2 c2 header/impl split, per Jean) so the keyhole is a
-// complete type — tick_pawn_couplings dereferences c->player_,
-// c->time_state_, c->gpuState_. The state STRUCT + declarative laws live in
-// pawn.hpp (file scope, above the class).
+// Definitions for pawn.hpp's declared laws — tick_pawn_couplings
+// dereferences c->player_, c->time_state_, c->gpuState_.
 //
 // WRAPPING FORM (fix 2): this file is SELF-WRAPPING — it opens
 // t7::the_board itself and carries its own standard includes — so the
@@ -12,7 +10,7 @@
 // namespace closes in cartridge.hpp), never inside the namespaces
 // (double-wrap = silent nested namespace = unresolved link). Definitions
 // are `inline` free functions: one TU today makes plain legal; inline
-// makes tomorrow legal too (the LADDER-1 rule, applied to impl files).
+// makes tomorrow legal too.
 // ─────────────────────────────────────────────────────────────────
 
 #include <cmath>  // std::exp (the real-time presence ramp)
@@ -24,7 +22,7 @@ namespace the_board {
 inline void tick_pawn_couplings(PawnState& ps, Cartridge* c, wgpu::Queue& queue) {
     (void)queue;
     // Aura presence ramp: smooth 0→1 on enable / 1→0 on disable.
-    // (aura_presence migrated to player_ in SEAM[spine:P8] — see Cartridge::PlayerState)
+    // (aura_presence lives on player_ — SEAM[spine:P8]; see Cartridge::PlayerState)
     {
         const float target = ps.aura_enabled ? 1.0f : 0.0f;
         const float prev   = c->player_.aura_presence;

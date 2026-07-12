@@ -2,20 +2,11 @@
 #include <cstdint>
 
 // ─── pawn.hpp (HEADER: state + configs + declarations) ───────────
+// Converted (LADDER-2 c2): history in audit/LADDER.md.
 //
 // Player-relative state: aura field (toroidal 64×64 spring grid that
 // activates near the pawn and releases when it moves away), presence
 // trajectory, per-frame coupling tick.
-//
-// CONVERTED (LADDER-2 c2, header/impl split per Jean's ruling): this
-// header owns the state STRUCT (PawnState) + the declarative laws
-// (PawnAuraProfile / PAWN_AURA_DEFAULT / the ramp constants) + the
-// function DECLARATION. It is included at file scope above the class, so
-// the cartridge can declare the instance (pawn_state_) in its COMPOSITION
-// ROOT chapter. The function DEFINITION dereferences the complete Cartridge
-// (the keyhole) — c->player_, c->time_state_, c->gpuState_ — so it lives in
-// pawn.inl, included AFTER the class where Cartridge is a complete type.
-// Namespace t7::the_board.
 //
 // ┌─── Public surface (called from outside this file) ──────────────┐
 // │  Per-frame updates:                                              │
@@ -56,7 +47,6 @@ class Cartridge;  // fwd — tick_pawn_couplings takes the keyhole Cartridge* (d
 inline constexpr float AURA_PRESENCE_ATTACK  = 1.0f;   // 1/s — ~3s to full (spring converges in ~0.5s)
 inline constexpr float AURA_PRESENCE_RELEASE = 1.5f;   // 1/s — ~2s to zero
 
-
 struct PawnAuraDeltaMode {
     static constexpr uint32_t CONVERGENT = 0;  // all cells shift toward signature tint
     static constexpr uint32_t RANDOM = 1;  // each cell gets unique random delta
@@ -88,7 +78,7 @@ inline constexpr PawnAuraProfile PAWN_AURA_DEFAULT = {
     3.0f,              // height_scale
 };
 
-// ═══ PAWN MODULE STATE (Scope B migration #5) ═══════════════════
+// ═══ PAWN MODULE STATE ═══════════════════════════════════════════
 //
 // All pawn-owned state lives in this struct, accessed via pawn_state_
 // on the Cartridge (declared at the composition root). Module functions
@@ -106,7 +96,7 @@ inline constexpr PawnAuraProfile PAWN_AURA_DEFAULT = {
 //   aura_needs_clear — Internal: clear cells next frame after aura disable.
 //   aura_cfg_dirty — Internal: full-config upload flag; true at boot; set by
 //     external writers on a parameter shift.
-//   (aura_presence — migrated to player_.aura_presence in SEAM[spine:P8];
+//   (aura_presence — lives at player_.aura_presence, SEAM[spine:P8];
 //    read as c->player_.aura_presence; written in tick_pawn_couplings.)
 
 struct PawnState {
@@ -119,11 +109,10 @@ struct PawnState {
 
 // ─── Per-frame pawn coupling tick — DECLARATION ──────────────────
 // Defined in pawn.inl (post-class), where the keyhole is complete.
-// DONE[pawn:K1] aura presence ramp + height computation moved out of
-//   cartridge.hpp::update() into this single named tick. The presence
-//   value uses an inlined real-time exponential step (mirroring WGSL §1.2).
-// Caller: cartridge.hpp::update() — once per frame after the signal is
-// built and before world bounds are uploaded.
+// The presence value uses an inlined real-time exponential step
+// (mirroring WGSL §1.2). Caller: cartridge.hpp::update() — once per
+// frame after the signal is built and before world bounds are
+// uploaded.
 void tick_pawn_couplings(PawnState& ps, Cartridge* c, wgpu::Queue& queue);
 
 } // namespace the_board

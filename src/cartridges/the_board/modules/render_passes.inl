@@ -1,15 +1,11 @@
 ﻿// ─── render_passes.inl (IMPL: post-class definitions) ────────────
+// Impl of render_passes.hpp (LADDER-3 c7): history in audit/LADDER.md.
 //
 // Definitions for render_passes.hpp's declared dispatch/pass functions
-// + the two pure light-matrix helpers. Included AFTER the Cartridge
-// class (LADDER-3 c7 header/impl split) so the keyhole is a complete
-// type — the bodies reach c->gpuState_ / c->renderer_ /
-// c->entities_state_ / c->cpuPiers_ / c->cpuSpotLights_ /
-// c->world_state_ / c->gol_state_ / c->ribbon_state_ /
-// c->gallery_state_ / c->orbs_state_ / c->mood_state_ /
-// c->clearColor_ via the complete type (the c7 retrofit: 243 ambient
-// organ reads became keyhole reads; bodies otherwise verbatim, ZERO
-// draw self-gate additions).
+// + the two pure light-matrix helpers. The bodies reach c->gpuState_ /
+// c->renderer_ / c->entities_state_ / c->cpuPiers_ / c->cpuSpotLights_ /
+// c->world_state_ / c->gol_state_ / c->ribbon_state_ / c->gallery_state_ /
+// c->orbs_state_ / c->mood_state_ / c->clearColor_.
 //
 // WRAPPING FORM (the proven fix-2 rule): SELF-WRAPPING — opens
 // t7::the_board itself, carries its own standard includes; the MODULE

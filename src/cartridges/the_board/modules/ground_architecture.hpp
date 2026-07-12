@@ -1,5 +1,6 @@
 #pragma once
 // ─── ground_architecture.hpp ─────────────────────────────────────
+// Converted (LADDER-1 c2): history in audit/LADDER.md.
 //
 // Canonical registry for the ground query architecture:
 // contributors, explicit dependency DAG, and policies. Single source
@@ -90,30 +91,23 @@
 // CONTRIBUTOR_DAG_EDGE_COUNT), so the edge table is load-bearing:
 // adding an edge to the table re-validates every policy with no
 // further edits here. It is expressed as an immediately-invoked
-// constexpr lambda inside each static_assert rather than a
-// constexpr function. NOTE (LADDER-1 c2): the class-body constraint
-// that ORIGINALLY forced the lambda — a class-body static_assert
-// cannot call a member function of the still-incomplete enclosing
-// class — has DISSOLVED now that this is a file-scope header; the
-// restyle to a namespace constexpr function is a NAMED LATER STAGE,
-// kept AS-IS here for a clean bisection. The lambda's body is parsed
-// in place and reads only the already-initialized inline constexpr
-// tables above it.
+// constexpr lambda inside each static_assert; the restyle to a
+// namespace constexpr function is a NAMED LATER STAGE. The lambda's
+// body is parsed in place and reads only the already-initialized
+// inline constexpr tables above it.
 //
 // Every policy runs the check for every DAG edge at compile time;
 // adding a new policy means adding one ASSERT_POLICY_DAG_CLOSED
 // invocation at the bottom of this file. Adding an edge means adding
 // one CONTRIBUTOR_DAG row — the assert iterates the table.
 //
-// A REAL HEADER at file scope (LADDER-1 c2) — no longer included inside
-// the Cartridge class body. Namespace t7::the_board (the cartridge's own).
 // Depends on: <cstdint> only (pure enum + table definitions + macro checks).
 //
 // SEAM[ground_architecture:P9] header-style file: pure declarations
 //   (enums + tables) + compile-time validation macros, zero runtime
-//   logic, no class-member coupling — its header-style nature now
-//   REALIZED as a real file-scope header (LADDER-1 c2). Same family as
-//   entity_types, coupling/trajectory.hpp, seed_utils as P9 instances.
+//   logic, no class-member coupling — a real file-scope header. Same
+//   family as entity_types, coupling/trajectory.hpp, seed_utils as P9
+//   instances.
 //   The ASSERT_POLICY_DAG_CLOSED macro pattern is the unique
 //   contribution of this file — compile-time relational integrity
 //   over a registry table.
@@ -353,17 +347,12 @@ static_assert(POLICY_COUNT_IN_TABLE == POLICY_COUNT,
 // declared table is load-bearing: adding an edge re-validates every
 // policy with no edits here.
 //
-// Shape (TER-2 2d): an immediately-invoked constexpr lambda per
-// static_assert, kept AS-IS across the LADDER-1 c2 extraction. The
-// class-body constraint that ORIGINALLY forced the lambda (a class-body
-// static_assert cannot call a member function of the still-incomplete
-// enclosing class) has dissolved at file scope; the restyle to a
-// namespace constexpr function is a NAMED LATER STAGE. The lambda's body
-// is parsed in place and reads only the already-initialized inline
-// constexpr tables above. INTENT edges (stub endpoints) participate like
-// any other edge: their endpoints exist as ContributorId bits, so
-// closure over them is well-defined (and currently vacuous — no mask
-// includes the stubs).
+// Shape: an immediately-invoked constexpr lambda per static_assert;
+// the restyle to a namespace constexpr function is a NAMED LATER
+// STAGE. INTENT edges (stub endpoints) participate like any other
+// edge: their endpoints exist as ContributorId bits, so closure over
+// them is well-defined (and currently vacuous — no mask includes the
+// stubs).
 
 #define ASSERT_POLICY_DAG_CLOSED(POLICY_IDX, POLICY_NAME)                       \
     static_assert(                                                              \

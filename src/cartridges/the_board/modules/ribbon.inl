@@ -1,15 +1,13 @@
 ﻿// ─── ribbon.inl (IMPL: post-class definitions) ───────────────────
+// Impl of ribbon.hpp (LADDER-3 c5): history in audit/LADDER.md.
 //
 // Definitions for ribbon.hpp's declared lifecycle + conductor + head-law
-// functions. Included AFTER the Cartridge class (LADDER-3 c5 header/impl
-// split) so the keyhole is a complete type — the bodies reach
-// c->gpuState_ / c->time_state_ / c->player_ / c->inputState_ /
-// c->visual_canvas_ + the four ribbon canvas bindings and the spine
-// services (run_spawn_preamble / negotiate_position /
+// functions. The bodies reach c->gpuState_ / c->time_state_ / c->player_ /
+// c->inputState_ / c->visual_canvas_ + the four ribbon canvas bindings
+// and the spine services (run_spawn_preamble / negotiate_position /
 // record_placement_bookkeeping / estimate_terrain_height /
 // terrain_tile_warm), plus the in-class statics (Cartridge::THEMES /
-// Cartridge::PATCH_EXTENT / Cartridge::PopFamily) via the complete
-// type — the keyhole's static form.
+// Cartridge::PATCH_EXTENT / Cartridge::PopFamily).
 //
 // WRAPPING FORM (the proven fix-2 rule): SELF-WRAPPING — opens
 // t7::the_board itself, carries its own standard includes; the MODULE
@@ -91,7 +89,6 @@ inline void ribbon_wander_inputs(ActiveRibbon& ar,
     yaw_in = ar.wander_yaw_state;
     thr_in = ar.wander_cruise;
 }
-
 
 // ═══ HEAD LAWS ═══════════════════════════════════════════════════
 //
@@ -395,7 +392,6 @@ inline void ribbon_head_pen(const RibbonState& rs, float& x, float& z, float& he
     heading = rs.head.heading;
 }
 
-
 // ═══ FRAME ORCHESTRATION ═════════════════════════════════════════
 //
 // The ribbon's per-frame conductor: choose the author (player in sky
@@ -573,7 +569,6 @@ inline void ribbon_frame_tick(RibbonState& rs, Cartridge* c, wgpu::Queue& queue)
         }
     }
 }
-
 
 // ═══ LIFECYCLE — three-phase + shared helper ═════════════════════
 

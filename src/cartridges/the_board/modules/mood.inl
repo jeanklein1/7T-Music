@@ -1,33 +1,29 @@
 // ─── mood.inl (IMPL: post-class definitions) ─────────────────────
+// Impl of mood.hpp (LADDER-4): history in audit/LADDER.md.
 //
 // Definitions for mood.hpp's declared doors + appliers + derivers.
-// Included AFTER the Cartridge class (LADDER-4, per K4 as ruled) so the
-// keyhole is a complete type — the bodies reach the SPINE-OWNED state
-// (c->mood_state_ / c->transitionPhase_ / c->pendingDestination_ /
-// c->backPortalPosition_ / c->cpuSpotLights_ / c->cpuPortalArray_ /
-// c->sunDirection_ / c->sunColor_ / c->clearColor_ / c->world_state_)
-// and the feature-gate flags (c->gol_state_.mood_allowed /
-// c->pawn_state_.aura_enabled / c->entities_state_.lights_dirty — the
-// request-flags, channel-shaped as ruled), plus the in-class statics
-// (Cartridge::ARCH_TIERS / Cartridge::ArchIdx /
+// The bodies reach the SPINE-OWNED state (c->mood_state_ /
+// c->transitionPhase_ / c->pendingDestination_ / c->backPortalPosition_ /
+// c->cpuSpotLights_ / c->cpuPortalArray_ / c->sunDirection_ /
+// c->sunColor_ / c->clearColor_ / c->world_state_) and the feature-gate
+// flags (c->gol_state_.mood_allowed / c->pawn_state_.aura_enabled /
+// c->entities_state_.lights_dirty — request-flags, channel-shaped),
+// plus the in-class statics (Cartridge::ARCH_TIERS / Cartridge::ArchIdx /
 // Cartridge::solve_catenary_a / Cartridge::PATCH_EXTENT /
-// Cartridge::TransitionPhase) via the complete type — the keyhole's
-// static form.
+// Cartridge::TransitionPhase).
 //
-// K4'S CHANNEL: the force-spawn mutation of the arch belongs to the
+// THE CHANNEL: the force-spawn mutation of the arch belongs to the
 // arch's owner. force_spawn_portal_at below COMPUTES VALUES — the
 // destination, the position, the flags, the portal color — and calls
 // entities' force_spawn_portal_arch (entities.inl), which owns the slot
 // scan, the tier-mean geometry, the pier authorship, the slot writes,
-// arch_count, and mesh-pending. The ROSTER portal door migrated there
-// with it. Mood never again writes a peer's fields. All three spawner
-// paths (general / back / finite) route through the one choke point.
+// arch_count, and mesh-pending. Mood never writes a peer’s fields. All
+// three spawner paths (general / back / finite) route through the one
+// choke point.
 //
-// The indoor lighting-scheme tables live HERE (impl-side, per the
-// census — single consumer derive_indoor_lights; module-internal
-// authoring tables, the agents precedent). The class-body
-// private/public access toggle that used to guard them died with the
-// conversion — its written retirement, fulfilled.
+// The indoor lighting-scheme tables live impl-side: single consumer
+// (derive_indoor_lights); module-internal authoring tables. The wall
+// PALETTES — the other half of SEAM[mood:tuning-data] — live in mood.hpp.
 //
 // WRAPPING FORM (the proven fix-2 rule): SELF-WRAPPING — opens
 // t7::the_board itself, carries its own standard includes; the MODULE
@@ -192,7 +188,6 @@ inline constexpr LightScheme LIGHT_SCHEMES[SCHEME_COUNT] = {
         { AnchorRole::SEED_PICK, 10.0f, 2.5f, 0.5f, 0.2f, 1.2f, 0.15f, 0.45f, 0.25f,  0.50f, 0.40f, 0.0f, 0.30f,   0.50f, 0.15f, 0.65f, 0.10f },
     }},
 };
-
 
 // ═══ INDOOR LIGHT DERIVATION ═════════════════════════════════════
 //
@@ -414,8 +409,7 @@ inline void derive_indoor_lights(Cartridge* c, uint32_t seed, float bmin, float 
 // One canonical mood entry point: apply_mood. Four named sub-
 // functions handle atmospheric, spot lighting, indoor shell, and
 // anchor ribbon. The orchestrator owns only ordering and the
-// activate-mood bookkeeping. See DONE[mood:K2] in mood.hpp's header
-// for the split rationale.
+// activate-mood bookkeeping.
 
 // 1) Atmospheric: sun direction/color/intensity, fog, ambient,
 //    terrain amp ceiling. Touches GPU directly + a few member fields.
@@ -518,7 +512,7 @@ inline void apply_mood_indoor_shell(Cartridge* c, const MoodProfile& m, wgpu::Qu
 // 5) Anchor ribbon spawn — only fires when MoodProfile.has_anchor_ribbon.
 //    Seed-derived position centered on the finite world; goes through
 //    fill_ribbon_selection_geometry + commit_ribbon (the dual-entry
-//    site flagged at ribbon:dual-entry / mood:K4).
+//    site — SEAM[ribbon:dual-entry]).
 inline void apply_mood_anchor_ribbon(Cartridge* c, uint32_t mood, wgpu::Queue& queue) {
     if (!MOOD_TABLE[mood].has_anchor_ribbon) return;
 
@@ -814,14 +808,10 @@ inline void generate_indoor_shell(Cartridge* c, wgpu::Queue& queue, const MoodPr
 // portal color, and the given destination. Returns the slot used, or
 // UINT32_MAX if no slot was free.
 //
-// K4's CHANNEL: mood COMPUTES VALUES — the destination, the position,
-// the flags, the portal color (mood vocabulary) — and the arch's owner
-// authors the arch: entities' force_spawn_portal_arch (entities.inl)
-// owns the slot scan, the tier-mean geometry, the pier authorship, the
-// slot writes, arch_count, and mesh-pending. The ROSTER portal door
-// migrated there with it (its written retirement, fulfilled). Mood
-// never again writes a peer's fields; portals_dirty is mood's own flag,
-// set here on success.
+// Mood computes the values (color from PORTAL_COLORS / PORTAL_COLOR_BACK,
+// destination, position, flags); entities' force_spawn_portal_arch
+// authors the arch. portals_dirty is mood's own flag, set here on
+// success.
 inline uint32_t force_spawn_portal_at(Cartridge* c, wgpu::Queue& queue,
     float cx, float cz, float rotation,
     const PortalDestination& dest, bool is_back_portal) {
@@ -1151,9 +1141,9 @@ inline void upload_lights(Cartridge* c, wgpu::Queue& queue) {
 // ═══ MOOD TRANSITION REQUEST ═════════════════════════════════════
 //
 // Single canonical entry point for mood transitions. Bails if a
-// transition is already in flight. See DONE[input:L1] in mood.hpp's
-// header for why this lives in the mood module rather than input
-// (one door, many keys).
+// transition is already in flight. Lives in the mood module rather
+// than input because portal crossings and other code paths also drive
+// mood transitions (one door, many keys).
 inline void request_mood_transition(Cartridge* c, uint32_t mood) {
     // ROSTER-GATE transitions (b) — ENTRY door #1 (keyboard mood requests).
     // Disabled: the machine stays at IDLE forever; the bit gates requests,

@@ -1,12 +1,10 @@
 // ─── orbs.inl (IMPL: post-class definitions) ─────────────────────
+// Impl of orbs.hpp (LADDER-2 c3): history in audit/LADDER.md.
 //
 // Definitions for orbs.hpp's declared laws, plus the module-internal
-// helpers (GPU layout mapping, config packing, logging). Included AFTER
-// the Cartridge class (LADDER-2 c3 header/impl split) so the keyhole is a
-// complete type — the functions dereference c->gpuState_, c->renderer_,
-// c->world_state_, c->player_, c->time_state_. The console, registries,
-// OrbMoodConfig + ORB_MOOD_TABLE, OrbsState, and declarations live in
-// orbs.hpp (file scope, above the class).
+// helpers (GPU layout mapping, config packing, logging). The functions
+// dereference c->gpuState_, c->renderer_, c->world_state_, c->player_,
+// c->time_state_.
 //
 // WRAPPING FORM (the proven fix-2 rule): this file is SELF-WRAPPING — it
 // opens t7::the_board itself and carries its own standard includes — so
@@ -44,7 +42,6 @@ inline float* orb_tier_flock_ptr(GPUOrbConfig& cfg, uint32_t i) {
     auto* base = reinterpret_cast<char*>(&cfg);
     return reinterpret_cast<float*>(base + 416u + i * 16u);
 }
-
 
 // ═══ CONFIGURE HELPERS ═══════════════════════════════════════════
 
@@ -108,9 +105,9 @@ inline void pack_palette_(OrbsState& os, GPUOrbConfig& gpuCfg, uint32_t palette_
 // Sentinel tierset_id → zero everything; orb_init falls back to
 // legacy uniform population.
 inline void pack_tiers_(GPUOrbConfig& gpuCfg, uint32_t tierset_id) {
-    // Note: offsets 180-188 used to be _pad_tier0/1/2 here. They now
-    // hold Brownian gesture fields (brownian_radial_sign/vert_bias/
-    // coherence), written by pack_flocking_. Do NOT zero them here.
+    // Note: offsets 180-188 hold Brownian gesture fields
+    // (brownian_radial_sign/vert_bias/coherence), written by
+    // pack_flocking_. Do NOT zero them here.
 
     if (tierset_id >= ORB_TIERSET_COUNT) {
         // Legacy path: zero main tier block + flocking gains.
@@ -249,7 +246,6 @@ inline void log_configure_(const OrbsState& os, const OrbMoodConfig& cfg,
         << "\n";
 }
 
-
 // ═══ LIFECYCLE ═══════════════════════════════════════════════════
 
 // Mood entry: sanitize rule-critical zeros against system defaults,
@@ -366,7 +362,6 @@ inline void teardown_orbs(OrbsState& os, Cartridge* c) {
     os.dome_center_initialized = false;
 }
 
-
 // ═══ PLAYER COMMANDS ═════════════════════════════════════════════
 
 // 0: cycle palette forward. Re-arms the recolor kernel so
@@ -477,7 +472,6 @@ inline void toggle_orb_anchor(OrbsState& os, const Cartridge* c) {
         << c->player_.readback_x << ", " << c->player_.readback_z << ")"
         << "\n";
 }
-
 
 // ═══ PER-FRAME UPDATES ═══════════════════════════════════════════
 

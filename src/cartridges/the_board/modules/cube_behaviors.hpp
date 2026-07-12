@@ -3,9 +3,10 @@
 #include <array>
 #include "cartridges/the_board/state.hpp"                       // Dim::MAX_CUBE_INSTANCES, GPUState, GPUFloatingEntityState, wgpu
 #include "cartridges/the_board/modules/floater_vocabulary.hpp"  // ActiveCube, CUBE_TIER_COUNT
-#include "cartridges/the_board/modules/mood_constants.hpp"      // MOOD_COUNT + the Mood IDs (G1)
+#include "cartridges/the_board/modules/mood_constants.hpp"      // MOOD_COUNT + the Mood IDs
 
 // ─── cube_behaviors.hpp (HEADER: registries + console + state + decls) ─
+// Converted (LADDER-3 c3): history in audit/LADDER.md.
 //
 // Cube behavior system. Spheres do their own thing (analytical PGA
 // orbit, no behavior layer); this module is cube-only by design.
@@ -13,14 +14,7 @@
 // registries, active-tracking types) lives in floater_vocabulary.hpp;
 // behavior gains (forces, coordination, kite, corral) live here.
 //
-// CONVERTED (LADDER-3 c3, header/impl split): this header owns the
-// behavior registry, tuning console, tier gains, populations (naming the
-// Mood IDs declaration-side — G1's second consumer), CubeCorralAnim, and
-// CubeBehaviorsState (carrying c0's cube active-slot mirror); the
-// cartridge declares the instance (cube_behaviors_state_) at its
-// COMPOSITION ROOT. Definitions live in cube_behaviors.inl (post-class).
 // The cube_behaviors → cubes rename stays FLAGGED, not performed.
-// Namespace t7::the_board.
 //
 // ┌─── Three registries ────────────────────────────────────────────┐
 // │                                                                  │
@@ -60,7 +54,7 @@
 // │      Both consumed by entity_pipeline.inl's cube_write_gpu.      │
 // │                                                                  │
 // │  Teardown:                                                       │
-// │    clear_cubes(cbs, gpu, queue)   — owner clear (LADDER-2 c0.4)  │
+// │    clear_cubes(cbs, gpu, queue)   — teardown owner clear         │
 // │                                                                  │
 // │  Per-frame:                                                      │
 // │    tick_cube_corral_animations(cbs, c, queue)                    │
@@ -73,7 +67,7 @@
 // │    corral_cubes(cbs, c, q)                  F6  ring around pawn │
 // │    toggle_cube_kite_mode(cbs, c, q)         F7  follow pawn      │
 // │                                                                  │
-// │  Owned state (LADDER-2 c0): activeCubes_[] / activeCubeCount_     │
+// │  Owned state: activeCubes_[] / activeCubeCount_                   │
 // │    live in CubeBehaviorsState below (was floater_vocabulary).    │
 // │  Cross-module reads (this module reads, doesn't own):            │
 // │    agent_state_.slots, player_.possessed_slot                    │
@@ -107,16 +101,15 @@ class Cartridge;  // fwd — module fns take the keyhole (defined in cube_behavi
 inline constexpr uint32_t CUBE_BEHAVIOR_STATIONARY = 0;
 inline constexpr uint32_t CUBE_BEHAVIOR_CURLFIELD  = 1;
 inline constexpr uint32_t CUBE_BEHAVIOR_PHASEWAVE  = 2;
-// DONE[floaters:L4] CUBE_BEHAVIOR_COUNT_WGSL added on the WGSL side
-//   (world.wgsl §7 cube behavior registry). MUST match this value —
-//   when adding a behavior, bump both. Mirrors the agents pattern
-//   (AGENT_BEHAVIOR_COUNT_WGSL).
+// CUBE_BEHAVIOR_COUNT_WGSL exists on the WGSL side (world.wgsl §7
+// cube behavior registry). MUST match this value — when adding a
+// behavior, bump both. Mirrors the agents pattern
+// (AGENT_BEHAVIOR_COUNT_WGSL).
 inline constexpr uint32_t CUBE_BEHAVIOR_COUNT      = 3;
 
 inline constexpr const char* CUBE_BEHAVIOR_NAMES[CUBE_BEHAVIOR_COUNT] = {
     "stationary", "curlfield", "phasewave"
 };
-
 
 // ═══ TUNING CONSOLE ══════════════════════════════════════════════
 //
@@ -167,7 +160,6 @@ inline constexpr float FLOATER_COORDINATION_STEPS[3] = { 0.0f, 0.5f, 1.0f };
 // To change these, edit world.wgsl. Promote to config if you need
 // CPU-side adjustability (~16 bytes of uniform space + 4 lines).
 
-
 // ═══ REGISTRY: TIER GAINS ════════════════════════════════════════
 //
 // Per-tier multipliers applied at spawn time. The cube's stored
@@ -200,7 +192,6 @@ inline constexpr CubeTierGain CUBE_TIER_GAINS[CUBE_TIER_COUNT] = {
 
 static_assert(sizeof(CUBE_TIER_GAINS) / sizeof(CUBE_TIER_GAINS[0]) == CUBE_TIER_COUNT,
               "CUBE_TIER_GAINS must declare one row per cube tier");
-
 
 // ═══ REGISTRY: POPULATIONS ═══════════════════════════════════════
 //
@@ -254,7 +245,6 @@ static_assert(CUBE_POPULATIONS[3].mood_id == MOOD_INDOOR_VAULT,        "row 3 mu
 static_assert(CUBE_POPULATIONS[4].mood_id == MOOD_FINITE_OUTDOOR,      "row 4 must be MOOD_FINITE_OUTDOOR");
 static_assert(CUBE_POPULATIONS[5].mood_id == MOOD_FINITE_OUTDOOR_REF,  "row 5 must be MOOD_FINITE_OUTDOOR_REF");
 
-
 // ═══ DIAGNOSTIC STATE TYPES ══════════════════════════════════════
 //
 // (The diagnostics themselves are documented at their definitions in
@@ -283,15 +273,12 @@ struct CubeBehaviorsState {
     CubeCorralAnim corral_anim[Dim::MAX_CUBE_INSTANCES] = {};
     bool           kite_mode          = false;
     float          pawn_offset[Dim::MAX_CUBE_INSTANCES][2] = {};  // xz only
-    // LADDER-2 c0 (Jean's M-c per-species ownership): the cube active-slot
-    // mirror moved here from floater_vocabulary.inl's class-body
-    // `activeCubes_[]` / `activeCubeCount_`. The behavior layer already owns
-    // cube runtime state; the active array joins it. ActiveCube stays shared
-    // vocabulary (floater_vocabulary.hpp).
+    // The behavior layer owns cube runtime state; the cube active-slot
+    // mirror (activeCubes_[] / activeCubeCount_) lives here with it.
+    // ActiveCube stays shared vocabulary (floater_vocabulary.hpp).
     ActiveCube     activeCubes_[Dim::MAX_CUBE_INSTANCES]{};
     uint32_t       activeCubeCount_ = 0;
 };
-
 
 // ═══ MODULE FUNCTIONS — DECLARATIONS ═════════════════════════════
 //
@@ -302,7 +289,7 @@ struct CubeBehaviorsState {
 // Spawn-side (stateless — consumed by entity_pipeline.inl's cube_write_gpu)
 void apply_cube_tier_gains(float& spring_stiffness, float& drag, uint32_t tier_idx);
 uint32_t pick_cube_behavior_for_spawn(uint32_t mood_id, uint32_t seed);
-// Teardown owner-clear (LADDER-2 c0.4)
+// Teardown owner-clear
 void clear_cubes(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue);
 // Player commands
 void cycle_floater_coordination(CubeBehaviorsState& cbs, Cartridge* c);

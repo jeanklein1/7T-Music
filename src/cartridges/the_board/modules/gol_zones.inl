@@ -1,15 +1,13 @@
 // ─── gol_zones.inl (IMPL: post-class definitions) ────────────────
+// Impl of gol_zones.hpp (LADDER-3 c1): history in audit/LADDER.md.
 //
 // Definitions for gol_zones.hpp's declared lifecycle + per-frame
-// functions. Included AFTER the Cartridge class (LADDER-3 c1 header/impl
-// split) so the keyhole is a complete type — the bodies reach
-// c->gpuState_ / c->renderer_ / c->device_ / c->tileCache_ /
-// c->mood_state_ / c->world_state_ / c->time_state_ and the spine
-// services (check_position / register_footprint /
+// functions. The bodies reach c->gpuState_ / c->renderer_ / c->device_ /
+// c->tileCache_ / c->mood_state_ / c->world_state_ / c->time_state_ and
+// the spine services (check_position / register_footprint /
 // record_placement_bookkeeping), plus the in-class statics
 // (Cartridge::PopFamily / Cartridge::PATCH_EXTENT /
-// Cartridge::GLOBAL_ENTITY_DENSITY) via the complete type — the
-// keyhole's static form.
+// Cartridge::GLOBAL_ENTITY_DENSITY).
 //
 // WRAPPING FORM (the proven fix-2 rule): SELF-WRAPPING — opens
 // t7::the_board itself, carries its own standard includes; the MODULE
@@ -292,7 +290,6 @@ inline void seed_gol_zone(GoLState& gs, Cartridge* c,
     // Upload all 7 slots
     c->gpuState_.upload_zone_life(queue, slot, life.data(), height_factors.data(), Dim::GOL_ZONE_CELLS);
 }
-
 
 // ═══ PER-FRAME UPLOAD ════════════════════════════════════════════
 

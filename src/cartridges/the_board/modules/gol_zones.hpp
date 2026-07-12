@@ -4,20 +4,11 @@
 #include "cartridges/the_board/modules/mood_constants.hpp"   // MOOD_COUNT (sizes the mood gate)
 
 // ─── gol_zones.hpp (HEADER: vocabulary + payloads + state + decls) ─
+// Converted (LADDER-3 c1): history in audit/LADDER.md.
 //
 // Zone-local Game of Life + Pulse automata. Each zone is a 32×32
 // grid anchored to a mode lattice node. Conway zones evolve by
 // neighbor rules; Pulse zones breathe periodically.
-//
-// CONVERTED (LADDER-3 c1, header/impl split): this header owns the
-// tuning console, both algorithms' vocabulary, the spawn payload structs
-// (GoLSelection / GoLPlacement — relocated from spawn_engine.inl; they
-// are GoL vocabulary that spawn_engine's queue unions carry, and at file
-// scope they precede those unions by construction, the entity_types
-// precedent), GoLZoneState/GoLState, and the six function DECLARATIONS.
-// The cartridge declares the instance (gol_state_) at its COMPOSITION
-// ROOT. Definitions live in gol_zones.inl, included at FILE SCOPE in the
-// post-class MODULE IMPLEMENTATIONS zone. Namespace t7::the_board.
 //
 // Architecture (mirrors the Column entity pattern):
 //   GoLZoneProp        — property index registry (seed-based rolls)
@@ -49,7 +40,7 @@
 // │    gol_state_.zones[], gol_state_.zone_count   — read by spine   │
 // │    gol_state_.mood_allowed                     — read by spine   │
 // │      (spine writes zones[].active; mood sets mood_allowed —      │
-// │       the request-flag is K4's territory, untouched)             │
+// │       the request-flag stays channel-shaped)                     │
 // └──────────────────────────────────────────────────────────────────┘
 //
 // Depends on: state.hpp (Dim::*, GPUZoneDeriveRequestArray),
@@ -85,11 +76,9 @@ class Cartridge;  // fwd — module fns take the keyhole (defined in gol_zones.i
 // so a tuner must edit BOTH. Everything here applies across all tiers.
 
 // ── Spatial constants ────────────────────────────────────────────
-// DONE[gol_zones:L1] MUST match world.wgsl's MODE_LATTICE_SPACING
-//   (in TUNING SURFACE DIRECTORY: "MODE_LATTICE_SPACING 120 wu —
-//   smooth/discrete clusters"). Hardware mirror — same family as
-//   agents:L2 / sample_gaussian / lattice_node_seed.
-//   When tuning, change both sides.
+// MUST match world.wgsl's MODE_LATTICE_SPACING (TUNING SURFACE
+// DIRECTORY: "MODE_LATTICE_SPACING 120 wu — smooth/discrete
+// clusters"). Hardware mirror — when tuning, change both sides.
 inline constexpr float MODE_LATTICE_SPACING = 120.0f;
 inline constexpr float PATCH_CELL_SIZE = (float)Dim::PATCH_EXTENT / 16.0f;  // 3.125
 
@@ -98,7 +87,6 @@ inline constexpr float PATCH_CELL_SIZE = (float)Dim::PATCH_EXTENT / 16.0f;  // 3
 // Conway. The dial that controls the dual-algorithm balance —
 // 0.0 = pure Conway, 1.0 = pure Pulse, 0.35 = current mix.
 inline constexpr float PULSE_ALGORITHM_CHANCE = 0.35f;
-
 
 // ═══ ALGORITHM TYPES (shared) ════════════════════════════════════
 
@@ -111,7 +99,6 @@ struct BoundaryMode {
     static constexpr uint32_t REFLECT = 0;
     static constexpr uint32_t WRAP = 1;
 };
-
 
 // ═══ ZONE-LEVEL VOCABULARY (shared across both algorithms) ═══════
 
@@ -178,7 +165,6 @@ struct GoLColorMode {
     static constexpr float WEIGHTS_NO_HEIGHT[COUNT] = { 0.00f, 0.55f, 0.45f };
 };
 
-
 // ═══ CONWAY ALGORITHM ════════════════════════════════════════════
 
 // ── Tier Profile (mean+sigma, matches ColumnTierParams pattern) ──
@@ -225,7 +211,6 @@ inline constexpr const char* GOL_TIER_NAMES[] = {
 inline constexpr const char* GOL_COLOR_NAMES[] = {
     "neutral", "lens", "blackish"
 };
-
 
 // ═══ PULSE ALGORITHM ═════════════════════════════════════════════
 //
@@ -285,13 +270,12 @@ inline constexpr const char* PULSE_TIER_NAMES[] = {
     "Breathe", "Sparkle", "Drift"
 };
 
-
-// ═══ SPAWN PAYLOADS (relocated from spawn_engine.inl — LADDER-3 c1) ═
+// ═══ SPAWN PAYLOADS ══════════════════════════════════════════════
 //
 // The type-tagged payloads spawn_engine's EntityQueueEntry /
 // PlacementEntry unions carry for the GoL family. GoL vocabulary; at
-// file scope they precede those unions by construction (the
-// entity_types precedent). Plain aggregates.
+// file scope they precede those unions by construction. Plain
+// aggregates.
 
 struct GoLSelection {
     uint32_t seed;
@@ -321,7 +305,6 @@ struct GoLPlacement {
     bool     height_enabled;
 };
 
-
 // ═══ RUNTIME CPU STATE ═══════════════════════════════════════════
 //
 // Everything the CPU tracks for the GoL zone subsystem while
@@ -341,7 +324,7 @@ struct GoLZoneState {
     int32_t last_tick_index = -1;
 };
 
-// ── GoL module state (Scope B migration #2) ──────────────────────
+// ── GoL module state ──────────────────────────────────────────
 // All GoL-zone-owned state lives in this struct, accessed via
 // gol_state_ on the Cartridge (declared at the composition root).
 // Module functions take `GoLState& gs` explicitly rather than reaching
@@ -361,7 +344,6 @@ struct GoLState {
     // per frame as a single GPU compute dispatch (zone_derive_params).
     GPUZoneDeriveRequestArray pending_derive_requests{};
 };
-
 
 // ═══ MODULE FUNCTIONS — DECLARATIONS ═════════════════════════════
 //

@@ -1,9 +1,10 @@
 #pragma once
 // ─── entity_types.hpp ────────────────────────────────────────────
+// Converted (LADDER-1 c3): history in audit/LADDER.md.
 //
-// Type definitions for the generic entity pipeline. Header-style
-// file: pure declarations, no functions, no class-body coupling
-// beyond the Cartridge forward reference in adapter signatures.
+// Type definitions for the generic entity pipeline: pure
+// declarations, no functions, no coupling beyond the Cartridge
+// forward reference in adapter signatures.
 //
 // ┌─── Public surface (consumed by other files) ────────────────────┐
 // │                                                                  │
@@ -25,28 +26,23 @@
 // │                                                                  │
 // └──────────────────────────────────────────────────────────────────┘
 //
-// A REAL HEADER at file scope (LADDER-1 c3) — no longer included inside
-// the Cartridge class body mid-block from spawn_engine.inl. Included above
-// the class with roster.hpp's cohort, it now PRECEDES the EntityQueueEntry
-// union in spawn_engine.inl by construction, so the former structural
-// mid-file include is retired (SEAM[spawn_engine:structural]). Namespace
+// A file-scope header, included above the class with roster.hpp's
+// cohort — it PRECEDES the EntityQueueEntry union in spawn_engine.inl
+// by construction (SEAM[spawn_engine:structural]). Namespace
 // t7::the_board (the cartridge's own). Depends on: <cstdint>; a forward
 // declaration of Cartridge (adapter fn-ptrs take Cartridge* — a pointer,
 // incomplete is fine) and of wgpu::Queue (taken by reference in two
 // adapter fn-ptrs) make every dependency explicit at the boundary.
 //
 // SEAM[entity_types:P9] this file is the canonical home of pattern
-//   P9 (type definitions extracted to header-style file), its
-//   header-style nature now REALIZED as a real file-scope header
-//   (LADDER-1 c3). Pure declarations; the implementations they describe
-//   live in entity_pipeline.inl (generic functions, family data, adapters,
-//   dispatch wrappers). Same family as seed_utils (P9 instance
-//   for hashing primitives).
-// DONE[entity_types:K1] tier sampling profile + extras moved off
-//   EntityFamilyTraits and into per-family TierRow structs in
-//   entity_pipeline.inl, reached via adapter.get_tier_profile.
-//   Cleared the breadcrumb from the struct definitions; the migration
-//   is the convention.
+//   P9 (type definitions extracted to header-style file) — a real
+//   file-scope header. Pure declarations; the implementations they
+//   describe live in entity_pipeline.inl (generic functions, family
+//   data, adapters, dispatch wrappers). Same family as seed_utils (P9
+//   instance for hashing primitives).
+// Tier sampling profiles + extras live in per-family TierRow structs
+//   in entity_pipeline.inl, reached via adapter.get_tier_profile —
+//   not on EntityFamilyTraits.
 // ─────────────────────────────────────────────────────────────────
 
 #include <cstdint>
@@ -123,7 +119,6 @@ struct ColorPartDef {
     uint32_t prop_offset;
 };
 
-
 // ═══ FAMILY DESCRIPTION ══════════════════════════════════════════
 //
 // Declarative metadata describing a generic-pipeline family. One
@@ -156,7 +151,6 @@ struct EntityFamilyTraits {
     uint32_t    color_part_count;
     const ColorPartDef* color_parts;
 };
-
 
 // ═══ PER-INSTANCE + ADAPTER ══════════════════════════════════════
 //

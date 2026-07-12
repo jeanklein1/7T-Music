@@ -179,9 +179,12 @@ cartridge unless stated.
   outside the class, and access control never enforced the seam law (§3's
   access note). Entity Contract §1's MODULE definition amended to the
   two-regime form same-commit.
-- HISTORICAL NARRATION (33 tags): 'Scope B' / DONE[] archaeology — 22
-  primary DONE[] tags + 11 'Scope B migration' banners, cross-references
-  excluded. PENDING RULING F3 (strip and keep SEAM[], recommended).
+- HISTORICAL NARRATION: F3 EXECUTED (COMPACT-1, 2026-07-12), both strata
+  — the DONE[] tags and 'Scope B' banners are stripped (pre-MOD and
+  MOD-era alike); present-behavior content they carried survives in
+  present phrasing at the same sites. SEAM[] tags stay. Per-file
+  provenance is one banner pointer line ("Converted <arc>: history in
+  audit/LADDER.md"); the narrative lives in audit/LADDER.md.
 Anything deviant and untagged is a bug in this document first.
 
 ## §6 — BOOT, HOT-RELOAD, TEARDOWN

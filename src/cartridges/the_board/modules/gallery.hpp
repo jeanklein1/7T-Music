@@ -8,25 +8,11 @@
 #include "cartridges/the_board/modules/seed_utils.hpp"       // select_weighted (PhotographerState::sample_shot_type)
 
 // ─── gallery.hpp (HEADER: vocabulary + configs + payloads + state + decls) ─
+// Converted (LADDER-3 c4): history in audit/LADDER.md.
 //
 // The art system. Photographer captures snapshots; gallery sites
 // curate and display them on terrain (outdoor) or on walls (indoor).
 // Authored images load from disk and exhibit alongside snapshots.
-//
-// CONVERTED (LADDER-3 c4, header/impl split): this header owns the
-// shot-tier vocabulary (ShotType / SHOT_PARAMS / PAINTING_AREA), the
-// tuning console (PhotographerCaptureConfig / GalleryConfig /
-// GallerySiteType / WALL_ART + the four property registries), the spawn
-// payload structs (GallerySelection / GalleryPlacement — relocated from
-// spawn_engine.inl; they are gallery vocabulary that spawn_engine's queue
-// unions carry, and at file scope they precede those unions by
-// construction, the entity_types precedent), PhotographerState + the
-// state sub-structs, GalleryState, and the ten function DECLARATIONS.
-// The cartridge declares the instance (gallery_state_) at its
-// COMPOSITION ROOT. Definitions live in gallery.inl, included at FILE
-// SCOPE in the post-class MODULE IMPLEMENTATIONS zone. Namespace
-// t7::the_board. The photographer-inside-gallery roster note travels
-// untouched.
 //
 // ┌─── Two halves ──────────────────────────────────────────────────┐
 // │                                                                  │
@@ -90,7 +76,7 @@
 //   shared image loading + frame rendering, divergent spawn paths.
 //   The header's "Two halves" box names the division. Not a leak;
 //   intentional dual role.
-// SEAM[gallery:P8] DONE[gallery:L1] keeps ENVIRONMENTAL at weight
+// SEAM[gallery:P8] keeps ENVIRONMENTAL at weight
 //   0.01 deliberately — authored-but-unused, kept available for a
 //   future "wide environmental" framing pass. Same family as the
 //   ribbon harmonic-ratio palettes (ribbon:P8).
@@ -148,13 +134,9 @@ struct ShotTypeParams {
 // To tune a tier: adjust its row. To add a tier: add a row + enum.
 
 //                          dist  σ     elev   σ     fov    σ     asp_lo asp_hi  track  off_x  off_y   weight
-// DONE[gallery:L1] ENVIRONMENTAL keeps weight 0.01 deliberately —
-//   in practice it produced near-duplicates of MEDIUM / PANORAMIC
-//   without contributing distinct character, so the row is held
-//   at near-zero rather than removed (deleting the enum value
-//   would rotate every downstream tier index). Latent (P8):
-//   keep available in case a future "wide environmental" framing
-//   pass differentiates it. Bump the weight to revive.
+// ENVIRONMENTAL keeps weight 0.01 deliberately — held near-zero rather
+// than removed (deleting the enum value would rotate every downstream
+// tier index); bump the weight to revive. See SEAM[gallery:P8].
 inline constexpr ShotTypeParams SHOT_PARAMS[] = {
     /* PANORAMIC     */ {  6.0f, 4.0f,  0.16f, 0.15f,  45.0f, 15.0f,  1.78f, 2.35f,  true,  0.6f, 0.4f,   0.30f },
     /* ENVIRONMENTAL */ { 10.0f, 4.0f,  0.30f, 0.15f,  45.0f, 10.0f,  1.50f, 2.00f,  true,  0.7f, 0.5f,   0.01f },
@@ -469,7 +451,6 @@ struct WallPaintingProp {
     static constexpr uint32_t SCALE_ROLL        = 7u;
 };
 
-
 // ═══ STATE: PHOTOGRAPHER ═════════════════════════════════════════
 //
 // The photographer's per-session RNG, capture cadence state, and
@@ -511,7 +492,6 @@ struct PhotographerState {
         return static_cast<ShotType>(select_weighted(uniform(0.0f, 1.0f), w, n));
     }
 };
-
 
 // ═══ STATE SUB-STRUCTS ═══════════════════════════════════════════
 
@@ -560,13 +540,12 @@ struct PendingSnapshot {
     uint32_t target_layer = 0;
 };
 
-
-// ═══ SPAWN PAYLOADS (relocated from spawn_engine.inl — LADDER-3 c4) ═
+// ═══ SPAWN PAYLOADS ══════════════════════════════════════════════
 //
 // The type-tagged payloads spawn_engine's EntityQueueEntry /
 // PlacementEntry unions carry for the gallery family. Gallery
-// vocabulary; at file scope they precede those unions by construction
-// (the entity_types precedent). Plain aggregates.
+// vocabulary; at file scope they precede those unions by construction.
+// Plain aggregates.
 // (Outdoor art exhibitions — composite: 1 center → N paintings)
 
 struct GallerySelection {
@@ -596,8 +575,7 @@ struct GalleryPlacement {
     uint32_t site_type;
 };
 
-
-// ═══ GALLERY MODULE STATE (Scope B migration #6) ═════════════════
+// ═══ GALLERY MODULE STATE ════════════════════════════════════════
 //
 // All gallery-owned state lives in this struct, accessed via
 // gallery_state_ on the Cartridge (declared at the composition root).
@@ -657,7 +635,6 @@ struct GalleryState {
 
     PendingSnapshot pending_snapshot;
 };
-
 
 // ═══ MODULE FUNCTIONS — DECLARATIONS ═════════════════════════════
 //

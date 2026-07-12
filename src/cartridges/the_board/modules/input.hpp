@@ -2,20 +2,10 @@
 #include <cstdint>
 
 // ─── input.hpp (HEADER: state + decls) ────────────────────────────
+// Converted (LADDER-3 c6, G2): history in audit/LADDER.md.
 //
 // The home of input dispatch. Keyboard, mouse, scroll. Routes raw
 // GLFW events to module-owned commands.
-//
-// CONVERTED (LADDER-3 c6, header/impl split + G2): this header owns
-// the three input state structs — InputState (per-frame intent +
-// deltas), KeyState (held movement keys), MouseState (drag state) —
-// graduated from the Cartridge class body (G2: file-scope headers and
-// the composition root need them DECLARATION-side), and the ten
-// function DECLARATIONS. The cartridge declares the instances
-// (inputState_ / keys_ / mouse_) at its COMPOSITION ROOT. Definitions
-// live in input.inl, included at FILE SCOPE in the post-class MODULE
-// IMPLEMENTATIONS zone; the impl carries its own <GLFW/glfw3.h>
-// include (the unpapered dependency — c6). Namespace t7::the_board.
 //
 // ┌─── Public surface (called from outside this module) ────────────┐
 // │                                                                  │
@@ -72,8 +62,8 @@
 // world_state_ / device_ / gpuState_ / pawn_state_ / agent_state_ /
 // orbs_state_ / cube_behaviors_state_), the converted modules'
 // commands (agents.hpp / orbs.hpp / cube_behaviors.hpp /
-// floater_vocabulary.hpp / mood.hpp's request_mood_transition — K4
-// ruled, LADDER-4) + mood_constants.hpp's MOOD_* IDs, and
+// floater_vocabulary.hpp / mood.hpp's request_mood_transition) +
+// mood_constants.hpp's MOOD_* IDs, and
 // in-class statics (Cartridge::GRID_RADIUS / Cartridge::PREGEN_RADIUS)
 // through the complete type (Cartridge:: / keyhole).
 // ─────────────────────────────────────────────────────────────────
@@ -83,7 +73,7 @@ namespace the_board {
 
 class Cartridge;  // fwd — module fns take the keyhole (defined in input.inl, post-class)
 
-// ═══ INPUT STATE (G2 — graduated from the class body) ════════════
+// ═══ INPUT STATE ═════════════════════════════════════════════════
 
 // Per-frame movement intent + look/zoom/pan deltas. Written by the
 // dispatch below; read by the pawn kernel signal fill, the camera
@@ -114,12 +104,11 @@ struct MouseState {
     bool right_dragging = false;
 };
 
-
 // ═══ MODULE FUNCTIONS — DECLARATIONS ═════════════════════════════
 //
 // DEFINED in input.inl (post-class, self-wrapping) — the bodies reach
 // the keyhole's organs and the other modules' command functions via
-// the complete type (the c6 ~41-read retrofit to keyhole form).
+// the complete type.
 
 // GLFW callbacks (routed by the spine's on_input override)
 void on_key_down(Cartridge* c, int key);

@@ -1,16 +1,14 @@
 // ─── gallery.inl (IMPL: post-class definitions) ──────────────────
+// Impl of gallery.hpp (LADDER-3 c4): history in audit/LADDER.md.
 //
 // Definitions for gallery.hpp's declared per-frame + outdoor-lifecycle
-// + indoor-entry + authored-loading functions. Included AFTER the
-// Cartridge class (LADDER-3 c4 header/impl split) so the keyhole is a
-// complete type — the bodies reach c->gpuState_ / c->renderer_ /
-// c->tileCache_ / c->player_ / c->world_state_ / c->mood_state_ /
-// c->ribbon_state_ / c->clearColor_ / c->sunDirection_ and the spine
-// services (check_position / register_footprint /
-// record_placement_bookkeeping), plus the in-class statics
-// (Cartridge::PopFamily / Cartridge::PATCH_EXTENT /
-// Cartridge::GLOBAL_ENTITY_DENSITY) via the complete type — the
-// keyhole's static form.
+// + indoor-entry + authored-loading functions. The bodies reach
+// c->gpuState_ / c->renderer_ / c->tileCache_ / c->player_ /
+// c->world_state_ / c->mood_state_ / c->ribbon_state_ / c->clearColor_ /
+// c->sunDirection_ and the spine services (check_position /
+// register_footprint / record_placement_bookkeeping), plus the in-class
+// statics (Cartridge::PopFamily / Cartridge::PATCH_EXTENT /
+// Cartridge::GLOBAL_ENTITY_DENSITY).
 //
 // WRAPPING FORM (the proven fix-2 rule): SELF-WRAPPING — opens
 // t7::the_board itself, carries its own standard includes; the MODULE
@@ -809,7 +807,6 @@ inline void render_snapshot_pass(GalleryState& gs, Cartridge* c, wgpu::CommandEn
     wgpu::Extent3D extent = { Dim::PAINTING_RESOLUTION, Dim::PAINTING_RESOLUTION, 1 };
     encoder.CopyTextureToTexture(&src, &dst, &extent);
 }
-
 
 // ═══ AUTHORED IMAGE LOADING ══════════════════════════════════════
 //

@@ -1,4 +1,5 @@
 // ─── spawn_engine.inl ────────────────────────────────────────────
+// Payload relocations (LADDER-3): history in audit/LADDER.md.
 //
 // How and when things appear: shared spawn helpers, footprint
 // registry, proximity affinity, mesh gen prep, distance culling,
@@ -60,14 +61,12 @@
 //   helper) — run_spawn_preamble<ActiveT> is the canonical instance.
 //   One implementation, ten callers. Same family as P10's per-family
 //   vocabulary block at the algorithm level.
-// SEAM[spawn_engine:structural] RETIRED (LADDER-1 c3). The former mid-file
-//   include of entity_types was load-bearing: EntityQueueEntry
-//   has a union member of type EntityInstance, and C++ requires the union
-//   member's type to be defined before the union itself. entity_types is now
-//   a file-scope header (entity_types.hpp) included above the class, so
-//   EntityInstance precedes EntityQueueEntry by construction — the mid-file
-//   include is gone. The "keep one file" ruling is honored: spawn_engine was
-//   never split into pre/post files.
+// SEAM[spawn_engine:structural] RETIRED. EntityQueueEntry has a union
+//   member of type EntityInstance, and C++ requires the union member's
+//   type to be defined before the union itself. entity_types.hpp is a
+//   file-scope header included above the class, so EntityInstance
+//   precedes EntityQueueEntry by construction — no mid-file include.
+//   spawn_engine stays ONE file, never split into pre/post files.
 // SEAM[spawn_engine:L1] latent diagnostic — DIAG_ENTITY_LIFECYCLE is
 //   compile-time guarded (#define commented out below). Same family
 //   as the [DIAG:*] stdout pattern noted across the codebase.
@@ -76,7 +75,6 @@
 // ─────────────────────────────────────────────────────────────────
 
 // #define DIAG_ENTITY_LIFECYCLE   // uncomment to enable spawn/evict diagnostics
-
 
 // ═══ SHARED SPAWN HELPERS ════════════════════════════════════════
 //
@@ -792,7 +790,6 @@ static constexpr float GLOBAL_ENTITY_DENSITY = 1.0f;
 //  250 vs tile_seed). Do NOT move GoL props into the tile_seed
 //  range without resolving the collision.
 
-
 // ═══ PROXIMITY AFFINITY ══════════════════════════════════════════
 //
 // Distance-based spawn boost: "how much does a nearby entity of
@@ -884,7 +881,6 @@ void mark_patches_for_regen(float min_wx, float min_wz,
     }
 }
 
-
 // (generate_arch_mesh removed — replaced by GPU compute: arch_mesh_gen)
 
 // Precompute catenary parameter 'a' from (half_span, rise).
@@ -917,24 +913,20 @@ static float solve_catenary_a(float half_span, float target_h) {
 
 // ─── GoL Zone Selection / Placement ──────────────────────────────
 
-// (GoLSelection / GoLPlacement RELOCATED to gol_zones.hpp — LADDER-3 c1.
-//  They are GoL vocabulary; at file scope they precede the queue unions
-//  below by construction, the entity_types precedent.)
+// (GoLSelection / GoLPlacement live in gol_zones.hpp — file-scope
+//  vocabulary preceding these unions by construction.)
 
 // ─── Gallery Selection / Placement ───────────────────────────────
 
-// (GallerySelection / GalleryPlacement RELOCATED to gallery.hpp — LADDER-3
-//  c4. They are gallery vocabulary; at file scope they precede the queue
-//  unions below by construction, the entity_types precedent.)
+// (GallerySelection / GalleryPlacement live in gallery.hpp — file-scope
+//  vocabulary preceding these unions by construction.)
 
 // ─── Ribbon Selection / Placement ────────────────────────────
 
-// (RibbonSelection / RibbonPlacement RELOCATED to ribbon.hpp — LADDER-3
-//  c5. They are ribbon vocabulary; at file scope they precede the queue
-//  unions below by construction, the entity_types precedent.)
+// (RibbonSelection / RibbonPlacement live in ribbon.hpp — file-scope
+//  vocabulary preceding these unions by construction.)
 
-// (The structural mid-file include of entity_types is RETIRED — LADDER-1 c3.
-//  EntityInstance now comes from the file-scope header entity_types.hpp,
+// (EntityInstance comes from the file-scope header entity_types.hpp,
 //  included above the class, so it precedes the EntityQueueEntry union by
 //  construction. See SEAM[spawn_engine:structural] in the file header.)
 
@@ -959,7 +951,7 @@ struct EntityQueueEntry {
         RibbonSelection ribbon;
         GoLSelection    gol;
         GallerySelection gallery;
-        EntityInstance   generic;    // used by all 9 migrated families
+        EntityInstance   generic;    // used by all 9 generic-pipeline families
     };
     EntityQueueEntry() : family(0), gx(0), gz(0) { std::memset(&generic, 0, sizeof(generic)); }
 };
@@ -979,7 +971,7 @@ struct PlacementEntry {
         RibbonPlacement ribbon;
         GoLPlacement    gol;
         GalleryPlacement gallery;
-        EntityInstance   generic;    // used by all 9 migrated families
+        EntityInstance   generic;    // used by all 9 generic-pipeline families
     };
     PlacementEntry() : family(0), gx(0), gz(0) { std::memset(&generic, 0, sizeof(generic)); }
 };
@@ -1033,8 +1025,6 @@ void commit_entity_queue(wgpu::Queue& queue) {
     placementResults_.clear();
 }
 
-
-
 // Estimate terrain height from tile cache (rough CPU-side approximation).
 //
 // NOT a ground policy query. Deliberately kept as the CPU fast
@@ -1062,5 +1052,3 @@ bool terrain_tile_warm(float wx, float wz) const {
     int32_t tz = (int32_t)std::floor(wz / PATCH_EXTENT);
     return tileCache_.find({ tx, tz }) != tileCache_.end();
 }
-
-

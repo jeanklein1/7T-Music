@@ -5,6 +5,7 @@
 #include "cartridges/the_board/modules/mood_constants.hpp"   // MOOD_COUNT (sizes the mood gate)
 
 // ─── ribbon.hpp (HEADER: console + vocabulary + payloads + state + decls) ─
+// Converted (LADDER-3 c5): history in audit/LADDER.md.
 //
 // Sky Ribbon: complete subsystem (vocabulary + machinery in one
 // module). Single-instance, bespoke pipeline — runs through the
@@ -20,20 +21,6 @@
 // Flying ribbons: compound wave functions (lateral + vertical sway)
 // forming square-tube geometry in the sky. Each ribbon is a tier
 // instance with Gaussian-sampled parameters.
-//
-// CONVERTED (LADDER-3 c5, header/impl split): this header owns the
-// tuning console (spawn / head control law / MOUNT_* frame-law mirrors /
-// wander policy), the color vocabulary (palettes, checker raffle, free
-// raffle, median-field), the property registry, the tier matrix, the
-// runtime state structs (ActiveRibbon / RibbonHead / RibbonState), the
-// spawn payload structs (RibbonSelection / RibbonPlacement — relocated
-// from spawn_engine.inl; they are ribbon vocabulary that spawn_engine's
-// queue unions carry, and at file scope they precede those unions by
-// construction, the entity_types precedent), and the eleven function
-// DECLARATIONS. The cartridge declares the instance (ribbon_state_) at
-// its COMPOSITION ROOT. Definitions live in ribbon.inl, included at
-// FILE SCOPE in the post-class MODULE IMPLEMENTATIONS zone. Namespace
-// t7::the_board.
 //
 // PAIRING (the mirror law, AMENDED at LADDER-3 c5): the constitution's
 // practiced convention — the_board/the_chord mirrored-module deltas are
@@ -194,7 +181,6 @@ inline constexpr float WANDER_YAW_MAX     = 0.15f;   // yaw cap: radius >= RIBBO
 inline constexpr float WANDER_YAW_TAU     = 2.0f;    // s; first-order ease on the steering — curvature stays continuous (control-panel)
 inline constexpr float WANDER_ARRIVE_RADIUS = 120.0f; // u; arrival = retarget — inside this the bearing chase degenerates (control-panel)
 
-
 // ═══ COLOR VOCABULARY ════════════════════════════════════════════
 
 struct RibbonColorMode {
@@ -292,10 +278,9 @@ inline constexpr float MEDIAN_CHROMA[2]      = { 0.04f, 0.30f };
 inline constexpr float MEDIAN_VALUE_VAR[2]   = { 0.06f, 0.35f };
 inline constexpr float MEDIAN_HUE_VAR[2]     = { 0.00f, 1.00f };
 
-
 // ═══ PROPERTY INDEX REGISTRY ═════════════════════════════════════
 //
-// DONE[ribbon:L1] Stride convention (intentional, do not compact):
+// Stride convention (intentional, do not compact):
 //   400      SPAWN_ROLL
 //   401-409  per-instance scalar rolls (ANCHOR_X..PALETTE_IDX)
 //   410-419  cube-count / size / height       (10-row reserve)
@@ -351,7 +336,6 @@ struct RibbonProp {
     static constexpr uint32_t WANDER_CRUISE = 451u;     // gaussian draw: cruise fraction of RIBBON_MAX_SPEED
     static constexpr uint32_t WANDER_RNG = 452u;        // seeds the runtime waypoint stream
 };
-
 
 // ═══ TIER PROFILE + MATRIX ═══════════════════════════════════════
 //
@@ -455,13 +439,12 @@ inline constexpr const char* RIBBON_COLOR_NAMES[] = {
     "smooth", "tinted", "contrast"
 };
 
-
-// ═══ SPAWN PAYLOADS (relocated from spawn_engine.inl — LADDER-3 c5) ═
+// ═══ SPAWN PAYLOADS ══════════════════════════════════════════════
 //
 // The type-tagged payloads spawn_engine's EntityQueueEntry /
 // PlacementEntry unions carry for the ribbon family. Ribbon
-// vocabulary; at file scope they precede those unions by construction
-// (the entity_types precedent). Plain aggregates.
+// vocabulary; at file scope they precede those unions by construction.
+// Plain aggregates.
 
 struct RibbonSelection {
     uint32_t seed;
@@ -503,7 +486,6 @@ struct RibbonPlacement {
     float checker_hue_spread = 0.0f;
     uint32_t seed = 0u;   // spawn seed, carried so commit samples its channels
 };
-
 
 // ═══ RUNTIME STATE ═══════════════════════════════════════════════
 //
@@ -583,7 +565,7 @@ struct RibbonHead {
     float    hist_time = 0.0f; // time of the newest sample
 };
 
-// ── Ribbon module state (Scope B migration #1) ────────────────────
+// ── Ribbon module state ──────────────────────────────────────────
 // Most ribbon-owned state lives in this struct, accessed via
 // ribbon_state_ on the Cartridge (declared at the composition root) —
 // the exceptions are the four ribbon canvas bindings and
@@ -609,7 +591,6 @@ struct RibbonState {
     // (read by mood.inl::apply_mood).
     float          mood_offset[2] = { 0.0f, 0.0f };
 };
-
 
 // ═══ MODULE FUNCTIONS — DECLARATIONS ═════════════════════════════
 //

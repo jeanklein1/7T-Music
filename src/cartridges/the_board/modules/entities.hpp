@@ -4,24 +4,12 @@
 #include "cartridges/the_board/modules/mood_constants.hpp"   // MOOD_COUNT, PortalDestination
 
 // ─── entities.hpp (HEADER: vocabulary + state + declarations) ────
+// Converted (LADDER-2 c1; the LADDER-4 channel): history in audit/LADDER.md.
 //
 // Vocabulary for the grounded entity families that share the
 // generic dispatch pipeline. Tier enums, color palettes, configs,
 // property registries, active-instance tracking. Seven families:
 // Arch, Column, Antenna, Palm, Cactus, Blade, Pyramid.
-//
-// CONVERTED (LADDER-2 c1, header/impl split): this header owns the
-// vocabulary + EntitiesState + the preparer DECLARATIONS; the cartridge
-// declares the instance (entities_state_) at its COMPOSITION ROOT. The
-// preparer DEFINITIONS dereference the complete Cartridge (the keyhole:
-// c->gpuState_ index-count setters), so they live in entities.inl,
-// included at FILE SCOPE in the post-class MODULE IMPLEMENTATIONS zone
-// (the proven self-wrapping form). Namespace t7::the_board.
-//
-// D3 CENSUS VERDICT (recorded): entities was the retrofit suspect; the
-// census falsified it — every module function already took
-// (EntitiesState&, Cartridge*, queue) explicitly. Zero signatures
-// changed in this conversion; the banner below told the truth.
 //
 // ┌─── Family overview ─────────────────────────────────────────────┐
 // │                                                                  │
@@ -36,7 +24,7 @@
 // │  Pyramid  —         baked into heightfield                       │
 // │                                                                  │
 // │  All seven share entity_pipeline.inl as their machinery home.    │
-// │  Tier matrices migrated to entity_pipeline.inl as <Family>TierRow│
+// │  Tier matrices live in entity_pipeline.inl as <Family>TierRow    │
 // │  per entities:K1 (Option B). Tier enums stay here — they're      │
 // │  indexing semantics, not data.                                   │
 // │                                                                  │
@@ -84,12 +72,10 @@
 //   grounded families that share entity_pipeline.inl. Sphere/Cube
 //   vocabulary is in floater_vocabulary.hpp/.inl; Ribbon, Gallery, and
 //   GoL are complete subsystems in their own files.
-// DONE[entities:K1] resolved via Option B: tier sampling profile +
-//   extras live as a single per-family TierRow struct in
-//   entity_pipeline.inl. The TierParams structs and TIERS arrays that
-//   used to sit here are gone (single source of truth, no converters,
-//   no derived tables). The legacy enum classes (ArchTier, ColumnTier,
-//   etc.) stay here — they're indexing semantics, not data.
+// Tier sampling profiles + extras live as a single per-family TierRow
+//   struct in entity_pipeline.inl (single source of truth, no
+//   converters, no derived tables). The tier enum classes (ArchTier,
+//   ColumnTier, etc.) stay here — they're indexing semantics, not data.
 // ─────────────────────────────────────────────────────────────────
 
 namespace t7 {
@@ -103,7 +89,6 @@ class Cartridge;  // fwd — the preparers take the keyhole Cartridge* (defined 
 // declared as the CPU mirror of WGSL PAWN_HEIGHT. Kept per flag-don't-
 // delete; revive-or-delete when the pawn-height coupling is next worked.
 inline constexpr float PAWN_HEIGHT_UNITS = 1.5f;     // matches WGSL PAWN_HEIGHT
-
 
 // ═══ VOCABULARY: ARCH ════════════════════════════════════════════
 //
@@ -207,7 +192,6 @@ struct ActiveArch {
 
 // (Arch state lives in EntitiesState — see end of file)
 
-
 // ═══ VOCABULARY: COLUMN ══════════════════════════════════════════
 //
 // Generative columns. Three classical tiers: pillar, doric, ornate.
@@ -274,7 +258,6 @@ struct ColumnProp {
     static constexpr uint32_t COLOR_VAR_G = 742u;
     static constexpr uint32_t COLOR_VAR_B = 743u;
 };
-
 
 // ═══ VOCABULARY: ANTENNA ═════════════════════════════════════════
 //
@@ -367,7 +350,6 @@ struct ActiveColumn {
 
 // (Column + Antenna state lives in EntitiesState — see end of file)
 
-
 // ═══ VOCABULARY: PALM ════════════════════════════════════════════
 //
 // Generative palms. Three tiers: Sapling, Coastal, Royal. Tapered
@@ -437,7 +419,6 @@ struct ActivePalm {
 
 // (Palm state lives in EntitiesState — see end of file)
 
-
 // ═══ VOCABULARY: CACTUS ══════════════════════════════════════════
 //
 // Generative cacti. Three tiers: Finger, Saguaro, Candelabra. Ribbed
@@ -502,7 +483,6 @@ struct ActiveCactus {
 
 // (Cactus state lives in EntitiesState — see end of file)
 
-
 // ═══ VOCABULARY: BLADE ═══════════════════════════════════════════
 //
 // Generative blade clusters. Three tiers: Sprout, Clump, Thicket.
@@ -563,7 +543,6 @@ struct ActiveBlade {
 
 // (Blade state lives in EntitiesState — see end of file)
 
-
 // ═══ VOCABULARY: PYRAMID ═════════════════════════════════════════
 //
 // Generative pyramids. Three tiers: obelisk, temple, colossus.
@@ -623,7 +602,7 @@ struct ActivePyramid {
     float cached_ground_y = 0.0f;         // absolute base Y for VS offset
 };
 
-// ═══ ENTITIES MODULE STATE (Scope B migration #9) ═════════════════
+// ═══ ENTITIES MODULE STATE ════════════════════════════════════════
 //
 // All grounded-entity state lives in this struct, accessed via
 // entities_state_ on the Cartridge (declared at the composition root).
@@ -692,18 +671,17 @@ bool prepare_column_mesh_gen(EntitiesState& es, Cartridge* c, wgpu::Queue& queue
 bool prepare_arch_mesh_gen(EntitiesState& es, Cartridge* c, wgpu::Queue& queue);
 bool prepare_pyramid_mesh_gen(EntitiesState& es, Cartridge* c, wgpu::Queue& queue);
 
-// ═══ THE ARCH FORCE-SPAWN AUTHOR (LADDER-4 — K4's channel) ═══════
+// ═══ THE ARCH FORCE-SPAWN AUTHOR (the portal channel) ═══════════
 //
 // Forced portal-arch authoring: the arch's OWNER writes the arch. Mood
 // computes values — position, rotation, destination, back-portal flag,
 // portal color (mood vocabulary, passed in) — and this entry point owns
-// the mutation: the ROSTER portal door (migrated here from mood's
-// force_spawn_portal_at — its written retirement, fulfilled), the free-
-// slot scan, the Doorway tier-mean geometry, the pier authorship
-// (write_pier via the keyhole — K1's authoring channel), the slot
-// writes, arch_count, the mesh-params upload + arch_mesh_gen_pending.
-// All three portal spawner paths (general/back/finite) route through
-// here. Returns the slot used, or UINT32_MAX if gated or no slot free.
+// the mutation: the ROSTER portal door, the free-slot scan, the Doorway
+// tier-mean geometry, the pier authorship (write_pier via the keyhole),
+// the slot writes, arch_count, the mesh-params upload +
+// arch_mesh_gen_pending. All three portal spawner paths
+// (general/back/finite) route through here. Returns the slot used, or
+// UINT32_MAX if gated or no slot free.
 uint32_t force_spawn_portal_arch(EntitiesState& es, Cartridge* c, wgpu::Queue& queue,
     float cx, float cz, float rotation,
     const PortalDestination& dest, bool is_back_portal,

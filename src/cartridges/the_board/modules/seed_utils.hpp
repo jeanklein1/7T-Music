@@ -1,5 +1,6 @@
 #pragma once
 // ─── seed_utils.hpp ──────────────────────────────────────────────
+// Converted (LADDER-1 c1): history in audit/LADDER.md.
 //
 // Pure math. Hash, Gaussian, tier selection.
 // No member state. No domain knowledge.
@@ -14,16 +15,12 @@
 //   cpu_sample_gaussian(s, prop, μ, σ)     — Box-Muller, ±3σ truncated
 //   select_tier(seed, prop, weights, n)    — cumulative-weight selection
 //
-// A REAL HEADER at file scope (LADDER-1 c1) — no longer included inside
-// the Cartridge class body. Namespace t7::the_board (the cartridge's own).
 // Depends on: nothing but the standard library (foundations layer — pure math).
 //
 // SEAM[seed_utils:P9] textbook "library without state" module — pure
-//   functions, no class members referenced, no domain assumptions. Named
-//   the easiest module to extract (zero compilation-order constraints, no
-//   semantic change) — and now EXTRACTED (LADDER-1 c1), the ladder's first
-//   leaf. Same family as coupling/trajectory.hpp and entity_types
-//   (P9 instances).
+//   functions, no class members referenced, no domain assumptions (zero
+//   compilation-order constraints). Same family as
+//   coupling/trajectory.hpp and entity_types (P9 instances).
 // SEAM[seed_utils:contract] cpu_lattice_node_seed and cpu_sample_gaussian
 //   are FXC mirrors — must produce identical bit-for-bit results to the
 //   WGSL counterparts (lattice_node_seed, sample_gaussian). The

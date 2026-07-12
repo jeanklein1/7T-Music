@@ -1,13 +1,11 @@
 ﻿// ─── agents.inl (IMPL: post-class definitions) ───────────────────
+// Impl of agents.hpp (LADDER-3 c2): history in audit/LADDER.md.
 //
 // Definitions for agents.hpp's declared laws, plus the module-internal
-// helpers (populate_agent_slot_, apply_agent_overrides_). Included AFTER
-// the Cartridge class (LADDER-3 c2 header/impl split) so the keyhole is a
-// complete type — the bodies reach c->gpuState_ / c->player_ /
-// c->world_state_ / c->time_state_ / c->transitionPhase_ (the phase enum
-// via Cartridge::TransitionPhase — the keyhole's static form) and read
-// COLUMN_PALETTE from entities.hpp. Registries + console + AgentState +
-// declarations live in agents.hpp (file scope, above the class).
+// helpers (populate_agent_slot_, apply_agent_overrides_). The bodies
+// reach c->gpuState_ / c->player_ / c->world_state_ / c->time_state_ /
+// c->transitionPhase_ (the phase enum via Cartridge::TransitionPhase)
+// and read COLUMN_PALETTE from entities.hpp.
 //
 // WRAPPING FORM (the proven fix-2 rule): SELF-WRAPPING — opens
 // t7::the_board itself, carries its own standard includes; the MODULE
@@ -71,7 +69,6 @@ inline void upload_agent_registries_to_gpu(Cartridge* c, wgpu::Queue& queue) {
         gpu_behaviors, AGENT_BEHAVIOR_COUNT,
         gpu_tiers,     AGENT_TIER_COUNT);
 }
-
 
 // ═══ SHARED POPULATION HELPER ════════════════════════════════════
 //
@@ -159,7 +156,6 @@ inline void populate_agent_slot_(const AgentState& as,
     out._pad0   = 0.0f;
 }
 
-
 // ═══ SPAWN ════════════════════════════════════════════════════════
 //
 // Deterministic mood-driven population. Preserves slot 0 (player),
@@ -220,7 +216,6 @@ inline void spawn_population_for_mood(AgentState& as, Cartridge* c,
     std::cout << "[Agents] Spawned " << spawned << " for mood " << mood_id
               << " around (" << center_x << "," << center_z << ")\n";
 }
-
 
 // ═══ RESPAWN (per-frame, evicted slots → fresh agents) ════════════
 //
@@ -289,7 +284,6 @@ inline void respawn_evicted_agents(AgentState& as, Cartridge* c,
                   << " around (" << px << "," << pz << ")\n";
     }
 }
-
 
 // ═══ POSSESSION TRANSFER (Caps Lock) ══════════════════════════════
 //
@@ -365,7 +359,6 @@ inline void try_possess_nearest(AgentState& as, Cartridge* c, wgpu::Queue& queue
               << " (tier " << as.slots[new_slot].tier_idx
               << ", dist " << std::sqrt(best_d2) << ")\n";
 }
-
 
 // ═══ DIAGNOSTIC CYCLING ══════════════════════════════════════════
 //
@@ -471,7 +464,6 @@ inline void force_respawn_population(AgentState& as, Cartridge* c, wgpu::Queue& 
     std::cout << "[Agents] force-respawn cleared " << cleared
               << " slot(s); refill on next frame\n";
 }
-
 
 // ═══ DIAGNOSTIC: agent census ═════════════════════════════════════
 //

@@ -2,19 +2,14 @@
 #include "cartridges/the_board/state.hpp"   // wgpu, GPUSpotLight (the light-VP helper's parameter)
 
 // ─── render_passes.hpp (HEADER: decls) ────────────────────────────
+// Converted (LADDER-3 c7): history in audit/LADDER.md.
 //
 // GPU dispatch and draw calls. The speaker at the end of the
 // signal chain: reads final state, issues compute and render passes.
 //
-// CONVERTED (LADDER-3 c7, header/impl split): this module owns no
-// state — it is all verbs — so the header carries only the nine
-// function DECLARATIONS. The seven pass/dispatch functions gain the
-// keyhole (Cartridge* c — the c7 retrofit: the module's ~240 ambient
-// organ reads become c-> reads, bodies otherwise verbatim, ZERO draw
-// self-gate additions); the two light-matrix helpers are pure math
-// and take no keyhole. Definitions live in render_passes.inl,
-// included at FILE SCOPE in the post-class MODULE IMPLEMENTATIONS
-// zone. Namespace t7::the_board.
+// The module owns no state — all verbs. The seven pass/dispatch
+// functions take the keyhole (Cartridge* c); the two light-matrix
+// helpers are pure math and take none.
 //
 // ┌─── Public surface (called from outside this module) ────────────┐
 // │                                                                  │

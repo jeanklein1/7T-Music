@@ -10,9 +10,9 @@
 //
 // Each family contributes a block with the same 10-element template
 // (see "Family block template" below). Type definitions live in
-// entity_types.hpp, a file-scope header included above the class (so it
-// precedes every union by construction — LADDER-1 c3 retired the former
-// mid-file include). This file is included AFTER the unions.
+// entity_types.hpp, a file-scope header included above the class, so
+// they precede every union by construction. This file is included
+// AFTER the unions.
 //
 // ┌─── Public surface ──────────────────────────────────────────────┐
 // │                                                                  │
@@ -76,11 +76,8 @@
 //
 // SEAM[entity_pipeline:K1] tier sampling profile + extras live as a
 //   single per-family TierRow struct embedded in this file. Single
-//   source of truth — no converters, no derived tables. The legacy
-//   *TierParams structs and *_TIERS arrays that used to live in
-//   entities.inl are gone (closed: see DONE[entities:K1]).
+//   source of truth — no converters, no derived tables.
 // ─────────────────────────────────────────────────────────────────
-
 
 // ═══ GENERIC HELPERS ═════════════════════════════════════════════
 
@@ -321,12 +318,10 @@ void generic_commit(
     world_state_.ground_entries_dirty = true;
 }
 
-
 // ═══ FAMILY: BLADE ════════════════════════════════════════════════
 //
 // Ground-level leaf clusters.
 //
-
 
 // ─── Blade Parameter Index Registry ──────────────────────────────
 // These index into EntityInstance::params[], matching the order
@@ -524,7 +519,6 @@ static void dispatch_commit_blade_generic(Cartridge* self, PlacementEntry& pe, w
 //
 // Tall trunk + radial fronds. Vegetation-cluster sibling of Cactus and Blade.
 //
-
 
 struct PalmIdx {
     static constexpr uint32_t HEIGHT       = 0;
@@ -754,12 +748,10 @@ static void dispatch_commit_palm_generic(Cartridge* self, PlacementEntry& pe, wg
     else { self->entities_state_.palms[pe.generic.slot].active = false; }
 }
 
-
 // ═══ FAMILY: CACTUS ═══════════════════════════════════════════════
 //
 // Ribbed columnar trunk + optional arms. Vegetation-cluster sibling of Palm and Blade.
 //
-
 
 struct CactusIdx {
     static constexpr uint32_t HEIGHT     = 0;
@@ -937,12 +929,10 @@ static void dispatch_commit_cactus_generic(Cartridge* self, PlacementEntry& pe, 
     else { self->entities_state_.cacti[pe.generic.slot].active = false; }
 }
 
-
 // ═══ FAMILY: COLUMN + ANTENNA ═════════════════════════════════════
 //
 // Pier-creating entities sharing the ColumnTierRow shape. Antenna is a design cell division from Column.
 //
-
 
 // Shared param index layout (both families sample the same 13 params)
 struct ColIdx {
@@ -1252,7 +1242,6 @@ static void dispatch_commit_column_generic(Cartridge* self, PlacementEntry& pe, 
     else { self->entities_state_.columns[pe.generic.slot].active = false; }
 }
 
-
 // ── Antenna adapter functions ──
 
 static SpawnGateOutput antenna_run_gate(Cartridge* c, int32_t gx, int32_t gz) {
@@ -1418,12 +1407,10 @@ static void dispatch_commit_antenna_generic(Cartridge* self, PlacementEntry& pe,
     else { self->entities_state_.antennas[pe.generic.slot].active = false; }
 }
 
-
 // ═══ FAMILY: PYRAMID ══════════════════════════════════════════════
 //
 // Heightfield-baking entity (GPUPyramidArray + mesh gen).
 //
-
 
 struct PyrIdx {
     static constexpr uint32_t HEIGHT     = 0;
@@ -1620,12 +1607,10 @@ static void dispatch_commit_pyramid_generic(Cartridge* self, PlacementEntry& pe,
     else { self->entities_state_.pyramids[pe.generic.slot].active = false; }
 }
 
-
 // ═══ FAMILY: SPHERE ═══════════════════════════════════════════════
 //
 // Orbital floating entity. No ground contact.
 //
-
 
 struct SphIdx {
     static constexpr uint32_t BODY_RADIUS      = 0;
@@ -1787,12 +1772,10 @@ static void dispatch_commit_sphere_generic(Cartridge* self, PlacementEntry& pe, 
     else { self->sphere_state_.activeFloaters_[pe.generic.slot].active = false; }
 }
 
-
 // ═══ FAMILY: CUBE ═════════════════════════════════════════════════
 //
 // Hover-bob monolith. No ground contact.
 //
-
 
 struct CubeIdx {
     static constexpr uint32_t BODY_RADIUS      = 0;
@@ -1989,12 +1972,10 @@ static void dispatch_commit_cube_generic(Cartridge* self, PlacementEntry& pe, wg
     else { self->cube_behaviors_state_.activeCubes_[pe.generic.slot].active = false; }
 }
 
-
 // ═══ FAMILY: ARCH ═════════════════════════════════════════════════
 //
 // 2-pier catenary entity with portal detection.
 //
-
 
 struct ArchIdx {
     static constexpr uint32_t SPAN         = 0;  // full span (halved in compute_solid_half)
@@ -2265,7 +2246,6 @@ static void dispatch_commit_arch_generic(Cartridge* self, PlacementEntry& pe, wg
     if (host) { self->generic_commit(ARCH_TRAITS, ARCH_ADAPTER, pe.generic, queue); host->record_entity(PopFamily::ARCH, pe.generic.slot); }
     else { self->entities_state_.arches[pe.generic.slot].active = false; }
 }
-
 
 // ─── FAMILY_DISPATCH Integration ─────────────────────────────────
 //

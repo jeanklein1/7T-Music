@@ -4,30 +4,29 @@
 #include "cartridges/the_board/modules/mood_constants.hpp"   // MOOD_COUNT, the Mood IDs, PortalDestination
 
 // ─── mood.hpp (HEADER: vocabulary + palettes + decls) ─────────────
+// Converted (LADDER-4, per K4): history in audit/LADDER.md.
 //
 // Atmosphere, indoor lighting, shell geometry, portals.
 // One canonical mood entry point: apply_mood. Mood transitions are
 // requested via request_mood_transition (also exposed for portal
 // crossings).
 //
-// CONVERTED (LADDER-4, per K4 as ruled): mood is VOCABULARY + APPLIERS
-// + SIX DOORS. This header owns the vocabulary — CeilingType,
-// MoodProfile, MOOD_TABLE, the portal color table, the indoor wall
-// palettes, INDOOR_ENTITY_WALL_MARGIN (second consumer:
-// negotiate_position) — and the DECLARATIONS of the six doors
+// Mood is VOCABULARY + APPLIERS + SIX DOORS. This header owns the
+// vocabulary — CeilingType, MoodProfile, MOOD_TABLE, the portal color
+// table, the indoor wall palettes, INDOOR_ENTITY_WALL_MARGIN (also
+// read by negotiate_position) — and the DECLARATIONS of the six doors
 // (apply_mood, request_mood_transition, force_spawn_back_portal,
 // upload_lights, upload_portal_array, mood_name) plus the appliers and
-// derivers. The Mood IDs are already at file scope (G1) — consumed,
-// not moved. MOOD OWNS NO STATE: no MoodState exists here or at the
-// composition root — mood_state_ and the transition machine
-// (transitionPhase_ / pendingDestination_ and kin) are SPINE-OWNED
-// orchestration (SEAM[spine:transitions] at the machine's banner;
-// constitution §2). The force-spawn mutation of the arch belongs to
-// the arch's owner — mood's force_spawn_* internals COMPUTE VALUES and
-// call entities' force_spawn_portal_arch (K4's channel; the ROSTER
-// portal door migrated there with it). Definitions live in mood.inl,
-// included at FILE SCOPE in the post-class MODULE IMPLEMENTATIONS
-// zone. Namespace t7::the_board.
+// derivers. The Mood IDs are file-scope vocabulary
+// (mood_constants.hpp), consumed here. MOOD OWNS NO STATE: no
+// MoodState exists here or at the composition root — mood_state_ and
+// the transition machine (transitionPhase_ / pendingDestination_ and
+// kin) are SPINE-OWNED orchestration (SEAM[spine:transitions] at the
+// machine's banner; constitution §2). The force-spawn mutation of the
+// arch belongs to the arch's owner — mood's force_spawn_* internals
+// COMPUTE VALUES and call entities' force_spawn_portal_arch.
+// Definitions live in mood.inl, included at FILE SCOPE in the
+// post-class MODULE IMPLEMENTATIONS zone. Namespace t7::the_board.
 //
 // ┌─── Public surface (called from outside this module) ────────────┐
 // │                                                                  │
@@ -96,19 +95,13 @@
 //   for moods 0-4; true for mood 5 (FINITE_OUTDOOR_REF). Read there
 //   and referenced from orbs as mood:L1 in the anchor-ribbon
 //   gating logic.
-// DONE[mood:K2] apply_mood was a 217-line linear sequence mixing 12
-//   concerns (atmospheric, indoor lighting, indoor shell, band
-//   motion, musical reset, anchor ribbon, orbs). Split into named
-//   helpers; apply_mood itself orchestrates. The four helpers
-//   match the natural seams in the flow. Per-mood-transition order
-//   is preserved exactly — no semantic change, just nameable
-//   sub-blocks.
-// DONE[input:L1] request_mood_transition is the single canonical
-//   transition entry point. Replaces the five copy-paste cases in
-//   input.inl (KEY_5..KEY_9). Bails if a transition is already in
-//   flight. Lives in the mood module rather than input because portal
-//   crossings and other code paths can also drive mood transitions.
-//   One door, many keys.
+// apply_mood orchestrates the named applier helpers; the appliers
+//   match the natural seams in the flow, and their per-mood-transition
+//   call order is load-bearing.
+// request_mood_transition is the single canonical transition entry
+//   point. Bails if a transition is already in flight. Lives in the
+//   mood module rather than input because portal crossings and other
+//   code paths can also drive mood transitions. One door, many keys.
 // ─────────────────────────────────────────────────────────────────
 
 namespace t7 {
@@ -185,13 +178,10 @@ struct MoodProfile {
 //   bool `indoor` flags. With finite_outdoor and finite_outdoor_ref,
 //   the binary doesn't survive contact — the encoding is correct
 //   for today but worth re-examining when finite_outdoor design lands.
-// DONE[mood:L1] has_anchor_ribbon flag (last column). Mood-5
-//   (FINITE_OUTDOOR_REF) is the only row that sets it true,
-//   replacing the magic-number check `mood == 5` previously
-//   scattered across mood.inl and orbs.inl. The ID is now an
-//   identifier, not a discriminator — atmospheric data is
-//   profile-driven. See mood.hpp::SEAM[mood:L1] for the
-//   gating call site.
+// has_anchor_ribbon flag (last column): mood 5 (FINITE_OUTDOOR_REF)
+//   is the only row that sets it true. The mood ID is an identifier,
+//   not a discriminator — atmospheric data is profile-driven. See
+//   SEAM[mood:L1] above for the gating call site.
 //                                  fin  r_min r_max  sun_dir                sun_color              int   amb   fog_d   fog_color               indoor  ceil       ceil_h  clear_color            wall_color             ceil_color               zones  aura   cull   ribbon
 inline constexpr MoodProfile MOOD_TABLE[MOOD_COUNT] = {
     /* MOOD_OPEN_DEFAULT       */  { false, 2, 2, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  false },
@@ -235,8 +225,7 @@ inline constexpr float PORTAL_COLOR_BACK[3] = { 0.35f, 0.55f, 0.90f };  // back-
 // SEAM[mood:tuning-data] the palettes are consumed only by
 //   apply_mood_indoor_shell; the indoor lighting SCHEMES (the other
 //   half of this seam) are consumed only by derive_indoor_lights and
-//   stay impl-side (mood.inl) per the census — module-internal
-//   authoring tables, the agents precedent.
+//   stay impl-side (mood.inl) — module-internal authoring tables.
 struct IndoorPalette {
     const char* name;
     float wall_color[3];

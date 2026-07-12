@@ -1,16 +1,13 @@
 // ─── entities.inl (IMPL: post-class definitions) ─────────────────
+// Impl of entities.hpp (LADDER-2 c1; LADDER-4 channel): history in audit/LADDER.md.
 //
 // Definitions for entities.hpp's declared preparers + the arch
-// force-spawn author (LADDER-4 — K4's channel). Included AFTER the
-// Cartridge class (LADDER-2 c1 header/impl split) so the keyhole is a
-// complete type — each preparer dereferences c->gpuState_'s index-count
-// setters; the force-spawn author additionally reaches c->write_pier
-// (K1's authoring channel), c->gpuState_'s mesh-params upload, and the
-// in-class statics (Cartridge::ARCH_TIERS / Cartridge::ArchIdx /
-// Cartridge::solve_catenary_a / Cartridge::PATCH_EXTENT — they reside
-// in entity_pipeline.inl's class-body chapter). Vocabulary +
-// EntitiesState + declarations live in entities.hpp (file scope, above
-// the class).
+// force-spawn author. Each preparer dereferences c->gpuState_’s
+// index-count setters; the force-spawn author additionally reaches
+// c->write_pier, c->gpuState_'s mesh-params upload, and the in-class
+// statics (Cartridge::ARCH_TIERS / Cartridge::ArchIdx /
+// Cartridge::solve_catenary_a / Cartridge::PATCH_EXTENT — residents of
+// entity_pipeline.inl's class-body chapter).
 //
 // WRAPPING FORM (the proven fix-2 rule): this file is SELF-WRAPPING — it
 // opens t7::the_board itself — so the MODULE IMPLEMENTATIONS zone includes
@@ -129,16 +126,13 @@ inline bool prepare_pyramid_mesh_gen(EntitiesState& es, Cartridge* c, wgpu::Queu
     return true;
 }
 
-// ═══ THE ARCH FORCE-SPAWN AUTHOR (LADDER-4 — K4's channel) ═══════
+// ═══ THE ARCH FORCE-SPAWN AUTHOR (the portal channel) ═══════════
 //
-// The arch's owner authors the forced portal-arch. Body EXTRACTED
-// VERBATIM from mood's force_spawn_portal_at (LADDER-4): the mutation
-// half of that function — everything from the slot scan to
-// mesh-pending — moved here; mood keeps the value-computing half
-// (color, destination, position) and calls through. Same operations,
-// same order, same call timing: behavior-identical by construction.
+// The arch's owner authors the forced portal-arch: mood computes the
+// values (color, destination, position, flags) and calls through; this
+// function owns the mutation from the slot scan to mesh-pending.
 // portals_dirty is the CALLER's flag (mood's own state) — mood sets it
-// on success; the request-flags stay channel-shaped as ruled.
+// on success; the request-flags stay channel-shaped.
 
 inline uint32_t force_spawn_portal_arch(EntitiesState& es, Cartridge* c, wgpu::Queue& queue,
     float cx, float cz, float rotation,

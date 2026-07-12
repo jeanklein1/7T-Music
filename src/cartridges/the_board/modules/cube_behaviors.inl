@@ -1,12 +1,10 @@
 // ─── cube_behaviors.inl (IMPL: post-class definitions) ───────────
+// Impl of cube_behaviors.hpp (LADDER-3 c3): history in audit/LADDER.md.
 //
 // Definitions for cube_behaviors.hpp's declared laws, plus the module-
-// internal helpers (corral_ease_, apply_cube_behavior_override).
-// Included AFTER the Cartridge class (LADDER-3 c3 header/impl split) so
-// the keyhole is a complete type — the bodies reach c->gpuState_ /
-// c->agent_state_ / c->player_ / c->time_state_. Registries + console +
-// CubeBehaviorsState + declarations live in cube_behaviors.hpp (file
-// scope, above the class).
+// internal helpers (corral_ease_, apply_cube_behavior_override). The
+// bodies reach c->gpuState_ / c->agent_state_ / c->player_ /
+// c->time_state_.
 //
 // WRAPPING FORM (the proven fix-2 rule): SELF-WRAPPING — opens
 // t7::the_board itself, carries its own standard includes; the MODULE
@@ -61,7 +59,6 @@ inline uint32_t pick_cube_behavior_for_spawn(uint32_t mood_id, uint32_t seed) {
     return CUBE_BEHAVIOR_STATIONARY;  // unreachable; total > 0 was checked
 }
 
-
 // ═══ DIAGNOSTICS ═════════════════════════════════════════════════
 //
 // Inspection tools, not part of the system's primary expression.
@@ -107,9 +104,8 @@ inline uint32_t pick_cube_behavior_for_spawn(uint32_t mood_id, uint32_t seed) {
 // pawn_offset tracks the per-cube offset so we reconstruct
 // world position correctly: cube_xz = pawn.xz + offset.xz.
 
-// Teardown owner-clear (LADDER-2 c0.4): the cube half of teardown_world's
-// bulk sweep — CPU clear + per-slot GPU clear, paired, behavior-identical
-// to the former inline sweep. Uses only the GPU service, matching
+// The cube half of teardown_world's bulk sweep — CPU clear + per-slot
+// GPU clear, paired. Uses only the GPU service, matching
 // spheres.hpp::clear_spheres for symmetry.
 inline void clear_cubes(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue) {
     for (uint32_t i = 0; i < Dim::MAX_CUBE_INSTANCES; i++) {
@@ -131,7 +127,6 @@ inline void cycle_floater_coordination(CubeBehaviorsState& cbs, Cartridge* c) {
     std::cout << "[Floaters] coordination: " << v << "\n";
 }
 
-
 inline void apply_cube_behavior_override(CubeBehaviorsState& cbs, Cartridge* c, wgpu::Queue& queue) {
     for (uint32_t i = 0; i < Dim::MAX_CUBE_INSTANCES; i++) {
         if (!cbs.activeCubes_[i].active) continue;
@@ -146,13 +141,8 @@ inline void cycle_cube_behavior_override(CubeBehaviorsState& cbs, Cartridge* c, 
               << CUBE_BEHAVIOR_NAMES[cbs.behavior_override] << "\n";
 }
 
-
 inline void corral_cubes(CubeBehaviorsState& cbs, Cartridge* c, wgpu::Queue& queue) {
     (void)queue;
-    // DONE[floaters:L1] read the player's pos from the possessed slot
-    //   (which is 0 by default but tracks the player on possession
-    //   transfer), not from slot 0 directly. Old hardcode was visible
-    //   under F6/F7 after Caps Lock possession.
     const float px = c->agent_state_.slots[c->player_.possessed_slot].pos_x;
     const float pz = c->agent_state_.slots[c->player_.possessed_slot].pos_z;
 
@@ -252,12 +242,10 @@ inline void tick_cube_corral_animations(CubeBehaviorsState& cbs, Cartridge* c, w
     }
 }
 
-
 // ─── Kite mode toggle (F7) ──────────────────────────────────────
 
 inline void toggle_cube_kite_mode(CubeBehaviorsState& cbs, Cartridge* c, wgpu::Queue& queue) {
     cbs.kite_mode = !cbs.kite_mode;
-    // DONE[floaters:L1] possessed_slot for kite mode too — see corral_cubes.
     const float px = c->agent_state_.slots[c->player_.possessed_slot].pos_x;
     const float pz = c->agent_state_.slots[c->player_.possessed_slot].pos_z;
 

@@ -1,21 +1,17 @@
 // ─── input.inl (IMPL: post-class definitions) ────────────────────
+// Impl of input.hpp (LADDER-3 c6): history in audit/LADDER.md.
 //
 // Definitions for input.hpp's declared dispatch + per-frame + command
-// functions. Included AFTER the Cartridge class (LADDER-3 c6 header/impl
-// split) so the keyhole is a complete type — the bodies reach
-// c->inputState_ / c->keys_ / c->mouse_ / c->player_ / c->world_state_ /
-// c->device_ / c->gpuState_ / c->pawn_state_ / c->agent_state_ /
-// c->orbs_state_ / c->cube_behaviors_state_, the mood door
-// request_mood_transition (mood.hpp — K4 ruled, LADDER-4), and the in-class
-// statics (Cartridge::GRID_RADIUS / Cartridge::PREGEN_RADIUS) via the
-// complete type — the keyhole's static form (the c6 retrofit: the
-// module's ambient reads become keyhole reads; no other body changes).
+// functions. The bodies reach c->inputState_ / c->keys_ / c->mouse_ /
+// c->player_ / c->world_state_ / c->device_ / c->gpuState_ /
+// c->pawn_state_ / c->agent_state_ / c->orbs_state_ /
+// c->cube_behaviors_state_, the mood door request_mood_transition
+// (mood.hpp), and the in-class statics (Cartridge::GRID_RADIUS /
+// Cartridge::PREGEN_RADIUS).
 //
-// THE UNPAPERED DEPENDENCY (c6): this impl includes <GLFW/glfw3.h>
-// itself. Under the class-body law the GLFW key codes leaked in from
-// whichever host TU included the cartridge after GLFW — a papered
-// dependency. The include below names it; the #ifndef fallbacks stay
-// for GLFW variants that omit the numpad/function-key constants.
+// This impl includes <GLFW/glfw3.h> itself — the dependency is named
+// here, not inherited from the host TU. The #ifndef fallbacks below
+// cover GLFW variants that omit the numpad/function-key constants.
 //
 // WRAPPING FORM (the proven fix-2 rule): SELF-WRAPPING — opens
 // t7::the_board itself, carries its own standard includes; the MODULE
@@ -79,7 +75,6 @@
 //   RMB drag       pan_x_delta, pan_y_delta
 //   scroll         zoom_delta
 // ─────────────────────────────────────────────────────────────────
-
 
 // ═══ GLFW KEY CODE FALLBACKS ═════════════════════════════════════
 //
@@ -190,9 +185,6 @@ inline void on_key_down(Cartridge* c, int key) {
         c->pawn_state_.aura_cfg_dirty = true;
         std::cout << "[Aura] Field: " << (c->pawn_state_.aura_enabled ? "ON" : "OFF") << "\n";
         break;
-    // DONE[input:L1] five copy-paste cases collapsed into one helper
-    //   call. request_mood_transition() lives in the mood module
-    //   (mood.hpp declares it — LADDER-4).
     case GLFW_KEY_5: request_mood_transition(c, MOOD_OPEN_SUNSET);        break;
     case GLFW_KEY_6: request_mood_transition(c, MOOD_INDOOR_FLAT);        break;
     case GLFW_KEY_7: request_mood_transition(c, MOOD_INDOOR_VAULT);       break;
@@ -237,7 +229,6 @@ inline void on_key_up(Cartridge* c, int key) {
     update_movement_intent(c);
 }
 
-
 // ═══ MOUSE / SCROLL ══════════════════════════════════════════════
 
 inline void on_mouse_move(Cartridge* c, float dx, float dy) {
@@ -260,7 +251,6 @@ inline void on_mouse_button(Cartridge* c, int button, bool pressed) {
 inline void on_scroll(Cartridge* c, float delta) {
     c->inputState_.zoom_delta -= delta * 2.0f;
 }
-
 
 // ═══ MOVEMENT INTENT + DELTA CLEAR ═══════════════════════════════
 
@@ -288,7 +278,6 @@ inline void clear_input_deltas(Cartridge* c) {
     c->inputState_.pan_x_delta = 0.0f;
     c->inputState_.pan_y_delta = 0.0f;
 }
-
 
 // ═══ CAMERA / VIEW COMMANDS ══════════════════════════════════════
 

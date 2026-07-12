@@ -51,7 +51,6 @@
 namespace t7 {
     namespace the_board {
 
-
         // =====================================================================
         // S1 ENTRY POINTS — Must match world.wgsl §6-§9
         // =====================================================================
@@ -156,7 +155,6 @@ namespace t7 {
             constexpr const char* ORB_VS             = "orb_vs";
             constexpr const char* ORB_FS             = "orb_fs";
         }
-
 
         // =====================================================================
         // S2-S7  RENDERER CLASS — Pipeline creation and dispatch
@@ -317,7 +315,6 @@ namespace t7 {
             wgpu::ComputePipeline cactusMeshGenPipeline_;
             wgpu::ComputePipeline bladeMeshGenPipeline_;
 
-
         public:
 
             // =================================================================
@@ -327,7 +324,6 @@ namespace t7 {
             Renderer() = default;
             Renderer(const Renderer&) = delete;
             Renderer& operator=(const Renderer&) = delete;
-
 
             // =================================================================
             // S4 BOOT — Compile shaders and create pipelines from GPUState layouts
@@ -397,7 +393,6 @@ namespace t7 {
 
                 return true;
             }
-
 
             // =================================================================
             // S5 COMPUTE DISPATCH — Ordered passes
@@ -490,7 +485,6 @@ namespace t7 {
                 pass.SetBindGroup(0, entityBindGroup);
                 pass.DispatchWorkgroups(1, 1, 1);  // 0D: single invocation
             }
-
 
             // Terrain index generation -- one-shot at init.
             // Fills the terrain index buffer on the GPU. Called once, never again.
@@ -792,14 +786,12 @@ namespace t7 {
                 pass.DrawIndexedIndirect(indirectBuffer, 0);
             }
 
-
             // =================================================================
             // S6 DRAW — Main pass and shadow pass draw calls
             // =================================================================
             //
             // Four-layer rasterized rendering with shared depth buffer.
             // Draw order: terrain -> cell extrusion -> pawn -> sphere
-
 
             // GPU frustum-culled LOD0 terrain draw — single DrawIndexedIndirect.
             // (Dawn D3D12 limit: only one indirect draw per render pass.)
@@ -840,7 +832,6 @@ namespace t7 {
             // Walled worlds (small, finite) benefit less from culling; open worlds do.
             void set_frustum_cull_active(bool active) { useIndirectTerrainPipeline_ = active; }
             bool use_indirect_terrain() const { return useIndirectTerrainPipeline_; }
-
 
             void draw_pawn(
                 wgpu::RenderPassEncoder& pass,
@@ -1058,7 +1049,6 @@ namespace t7 {
                 pass.Draw(3);  // fullscreen triangle from vertex ID
             }
 
-
             // -----------------------------------------------------------------
             // Shadow pass draw methods (depth-only)
             // -----------------------------------------------------------------
@@ -1094,7 +1084,6 @@ namespace t7 {
                 pass.DrawIndexed(indexCount, instanceCount, 0, 0, firstInstance);
             }
 
-
             void draw_shadow_patch_terrain(
                 wgpu::RenderPassEncoder& pass,
                 wgpu::BindGroup entityBindGroup,
@@ -1109,7 +1098,6 @@ namespace t7 {
                 pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint32);
                 pass.DrawIndexed(indexCount, instanceCount);
             }
-
 
             void draw_shadow_pawn(
                 wgpu::RenderPassEncoder& pass,
@@ -1282,7 +1270,6 @@ namespace t7 {
                 pass.Draw(Dim::PAINTING_QUAD_VERTS, Dim::PAINTING_MAX_SLOTS);
             }
 
-
             // =================================================================
             // S7 HOT RELOAD — Recompile shaders without restart
             // =================================================================
@@ -1297,7 +1284,6 @@ namespace t7 {
 
             const std::string& shader_path() const { return shaderPath_; }
 
-
         private:
 
             // =================================================================
@@ -1308,13 +1294,10 @@ namespace t7 {
             // Shader loading
             // -----------------------------------------------------------------
             //
-            // DONE[renderer:L2] Reads world.wgsl from disk by searching a
-            //   small list of known relative paths (see the search loop
-            //   below). Expected to live next to the executable or one
-            //   directory up — search order tries both. If the path moves,
-            //   update the search list rather than relying on cwd.
-            //   Documented here rather than as a constant because the
-            //   lookup logic is what defines the contract.
+            // Reads world.wgsl from disk by searching a small list of known
+            // relative paths (see the search loop below) — next to the executable
+            // or one directory up. If the path moves, update the search list
+            // rather than relying on cwd. The lookup logic is the contract.
 
             bool loadShader() {
                 // On reload, use the already-known path instead of searching
@@ -1507,8 +1490,6 @@ namespace t7 {
                     computeVPPipeline_ = device_.CreateComputePipeline(&desc);
                     return computeVPPipeline_ != nullptr;
                     })) return false;
-
-
 
                 // Pipeline 10: generate_terrain_indices (2D, one-shot)
                 if (!tPipe("gen_terrain_indices", [&]() {
@@ -1972,8 +1953,6 @@ namespace t7 {
                 colorTarget.format = colorFormat_;
                 colorTarget.writeMask = wgpu::ColorWriteMask::All;
 
-
-
                 // Patch terrain pipeline -- instanced, no vertex buffer
                 {
                     wgpu::FragmentState fragment{};
@@ -2034,8 +2013,6 @@ namespace t7 {
                     })) return false;
                 }
 
-
-
                 // Zone cell extrusion pipeline (GoL alive cells with height)
                 {
                     std::array<wgpu::VertexAttribute, 4> zoneAttrs{};
@@ -2083,7 +2060,6 @@ namespace t7 {
                     })) return false;
                 }
 
-
                 // Pawn pipeline -- chess pawn, GPU-generated from vertex_index
                 {
                     wgpu::FragmentState fragment{};
@@ -2109,7 +2085,6 @@ namespace t7 {
                         return pawnPipeline_ != nullptr;
                     })) return false;
                 }
-
 
                 // Sphere pipeline -- sphere entity, MeshVertex (pos+normal)
                 {
@@ -2589,7 +2564,6 @@ namespace t7 {
                     shadowMeshVBL.attributeCount = shadowMeshAttrs.size();
                     shadowMeshVBL.attributes = shadowMeshAttrs.data();
 
-
                     // Shadow Patch Terrain (instanced, no vertex buffer)
                     {
                         wgpu::RenderPipelineDescriptor desc{};
@@ -2820,7 +2794,6 @@ namespace t7 {
                             return shadowRibbonPipeline_ != nullptr;
                         })) return false;
                     }
-
 
                     // Shadow Zone Extrusion (CellMeshVertex buffer, GoL zones)
                     {

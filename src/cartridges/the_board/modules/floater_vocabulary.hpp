@@ -3,15 +3,13 @@
 #include "cartridges/the_board/modules/mood_constants.hpp"   // MOOD_COUNT (sizes the configs' MOOD_MULTIPLIER)
 
 // ─── floater_vocabulary.hpp ──────────────────────────────────────
+// Converted (LADDER-2 c0/c4): history in audit/LADDER.md.
 //
 // Vocabulary for the two generic-pipeline floater families: Sphere
 // (orbital, PGA motor-driven) and Cube (hover-bob monoliths). Tier
 // counts, base tier weights, spawn config, property-index registry,
-// runtime tracking TYPES. A REAL HEADER at file scope (LADDER-2: types
-// led at c0 so the state owners could reference them; the configs and
-// registries joined at c4 and the .inl retired) — the banner finally
-// tells the truth: this file is pure vocabulary, zero state, zero
-// functions, zero class-body coupling. Namespace t7::the_board.
+// runtime tracking TYPES. Pure vocabulary: zero state, zero functions.
+// Namespace t7::the_board.
 //
 // ┌─── Family overview ─────────────────────────────────────────────┐
 // │                                                                  │
@@ -35,7 +33,7 @@
 // │    SphereConfig (SPAWN_CHANCE, MOOD_MULTIPLIER, POSITION_JITTER) │
 // │    FloatingEntityProp (property indices 100–126)                 │
 // │    ActiveFloater (type; the active-slot STATE lives in           │
-// │                   SphereState, spheres.hpp — LADDER-2 c0)        │
+// │                   SphereState, spheres.hpp)                      │
 // │                                                                  │
 // │  Cube:                                                           │
 // │    CUBE_TIER_COUNT, CUBE_BASE_TIER_WEIGHTS                       │
@@ -143,7 +141,6 @@ struct ActiveFloater {
     float   last_alloc_time = -1000.0f;
     bool active = false;
 };
-
 
 // ═══ FAMILY: CUBE ═════════════════════════════════════════════════
 //

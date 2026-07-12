@@ -1,6 +1,7 @@
 #pragma once
 
 // ─── cartridge.hpp ───────────────────────────────────────────────
+// MOD campaign (ROSTER-1a/1b + LADDER-1..4): conversion history in audit/LADDER.md.
 //
 // THE_BOARD — Generative world engine. CPU orchestration spine.
 // See world.wgsl for GPU-side (single source of truth).
@@ -38,7 +39,6 @@
 // │    THEMES[THEME_COUNT]                  — population themes      │
 // │    ARCHETYPES[ARCHETYPE_COUNT]          — terrain archetypes     │
 // │    MIN_SEPARATION[][]                   — entity-pair spacing    │
-// │    MOOD_TABLE[MOOD_COUNT] — GRADUATED to mood.hpp (LADDER-4)     │
 // │                                                                  │
 // │  Cross-module reads (consumed by modules):                       │
 // │    mood_state_.active, world_state_.active_seed, time_state_.beats, time_state_.seconds      │
@@ -66,9 +66,9 @@
 //   previous worlds via world_state_.world_gen capture in the closure. Genuinely
 //   spine-owned, not a leak.
 // SEAM[spine:P8] PlayerState's commented "Future (deferred)" fields
-//   are explicit latent infrastructure: aura_presence has already
-//   migrated here; the other deferred fields await the unified
-//   entity layer. Pattern P8 visible in source.
+//   are explicit latent infrastructure: aura_presence is live here;
+//   the other deferred fields await the unified entity layer.
+//   Pattern P8 visible in source.
 // SEAM[spine:active-patch-system] the ActivePatch struct,
 //   patches_[MAX_PATCHES] array, find_patch / evict_patch /
 //   evict_patch_entities / audit_entity_integrity, plus the entity_refs
@@ -93,24 +93,24 @@
 #include "render/render_cartridge.hpp"
 #include "core/input_event.hpp"
 #include "cartridges/the_board/roster.hpp"
-#include "cartridges/the_board/modules/seed_utils.hpp"           // LADDER-1 c1: converted leaf (was a class-body include)
-#include "cartridges/the_board/modules/ground_architecture.hpp"  // LADDER-1 c2: converted leaf (was a class-body include)
-#include "cartridges/the_board/modules/entity_types.hpp"         // LADDER-1 c3: converted leaf (was a mid-file include in spawn_engine)
-#include "cartridges/the_board/modules/mood_constants.hpp"       // LADDER-2 prereq: MOOD_COUNT graduated to file scope (per Jean)
-#include "cartridges/the_board/modules/floater_vocabulary.hpp"   // LADDER-2 c0: floater TYPES (ActiveFloater/ActiveCube), file scope
-#include "cartridges/the_board/modules/pawn.hpp"                 // LADDER-2 c2: PawnState + configs + decls (impl is pawn.inl, post-class)
+#include "cartridges/the_board/modules/seed_utils.hpp"           // hash/gaussian/tier-select helpers (pure-math leaf)
+#include "cartridges/the_board/modules/ground_architecture.hpp"  // ground contributor/policy tables + compile-time DAG checks
+#include "cartridges/the_board/modules/entity_types.hpp"         // entity pipeline types (precedes spawn_engine's unions)
+#include "cartridges/the_board/modules/mood_constants.hpp"       // MOOD_COUNT + the Mood IDs + PortalDestination
+#include "cartridges/the_board/modules/floater_vocabulary.hpp"   // floater TYPES (ActiveFloater/ActiveCube), file scope
+#include "cartridges/the_board/modules/pawn.hpp"                 // PawnState + configs + decls (impl is pawn.inl, post-class)
 #include "cartridges/the_board/state.hpp"
-#include "cartridges/the_board/modules/spheres.hpp"              // LADDER-2 c0: SphereState (born converted; needs GPUState from state.hpp)
-#include "cartridges/the_board/modules/entities.hpp"             // LADDER-2 c1: grounded-family vocabulary + EntitiesState + preparer decls (impl is entities.inl, post-class)
-#include "cartridges/the_board/modules/orbs.hpp"                 // LADDER-2 c3: orb console/registries + OrbsState + ORB_MOOD_TABLE + decls (impl is orbs.inl, post-class)
-#include "cartridges/the_board/modules/gol_zones.hpp"            // LADDER-3 c1: GoL vocabulary + payloads + GoLState + decls (impl is gol_zones.inl, post-class)
-#include "cartridges/the_board/modules/agents.hpp"               // LADDER-3 c2: agent registries + console + AgentState + decls (impl is agents.inl, post-class)
-#include "cartridges/the_board/modules/cube_behaviors.hpp"       // LADDER-3 c3: cube behavior registry + CubeBehaviorsState + decls (impl is cube_behaviors.inl, post-class)
-#include "cartridges/the_board/modules/gallery.hpp"              // LADDER-3 c4: shot vocabulary + console + payloads + GalleryState + decls (impl is gallery.inl, post-class)
-#include "cartridges/the_board/modules/ribbon.hpp"               // LADDER-3 c5: ribbon console + color vocabulary + tiers + payloads + RibbonState + decls (impl is ribbon.inl, post-class; pairing suspension named in its banner)
-#include "cartridges/the_board/modules/input.hpp"                // LADDER-3 c6 + G2: InputState/KeyState/MouseState + decls (impl is input.inl, post-class; carries its own GLFW include)
-#include "cartridges/the_board/modules/render_passes.hpp"        // LADDER-3 c7: the nine pass/dispatch + light-VP decls (impl is render_passes.inl, post-class; module owns no state)
-#include "cartridges/the_board/modules/mood.hpp"                 // LADDER-4 (K4): MoodProfile + MOOD_TABLE + portal colors + palettes + door/applier/deriver decls (impl is mood.inl, post-class; mood owns no state)
+#include "cartridges/the_board/modules/spheres.hpp"              // SphereState (needs GPUState from state.hpp)
+#include "cartridges/the_board/modules/entities.hpp"             // grounded-family vocabulary + EntitiesState + preparer decls (impl is entities.inl, post-class)
+#include "cartridges/the_board/modules/orbs.hpp"                 // orb console/registries + OrbsState + ORB_MOOD_TABLE + decls (impl is orbs.inl, post-class)
+#include "cartridges/the_board/modules/gol_zones.hpp"            // GoL vocabulary + payloads + GoLState + decls (impl is gol_zones.inl, post-class)
+#include "cartridges/the_board/modules/agents.hpp"               // agent registries + console + AgentState + decls (impl is agents.inl, post-class)
+#include "cartridges/the_board/modules/cube_behaviors.hpp"       // cube behavior registry + CubeBehaviorsState + decls (impl is cube_behaviors.inl, post-class)
+#include "cartridges/the_board/modules/gallery.hpp"              // shot vocabulary + console + payloads + GalleryState + decls (impl is gallery.inl, post-class)
+#include "cartridges/the_board/modules/ribbon.hpp"               // ribbon console + color vocabulary + tiers + payloads + RibbonState + decls (impl is ribbon.inl, post-class; pairing suspension named in its banner)
+#include "cartridges/the_board/modules/input.hpp"                // InputState/KeyState/MouseState + decls (impl is input.inl, post-class; carries its own GLFW include)
+#include "cartridges/the_board/modules/render_passes.hpp"        // the nine pass/dispatch + light-VP decls (impl is render_passes.inl, post-class; module owns no state)
+#include "cartridges/the_board/modules/mood.hpp"                 // MoodProfile + MOOD_TABLE + portal colors + palettes + door/applier/deriver decls (impl is mood.inl, post-class; mood owns no state)
 #include "cartridges/the_board/renderer.hpp"
 #include "coupling/visual_canvas.hpp"
 #include <cmath>
@@ -134,12 +134,9 @@ namespace t7 {
 
         // COMPOSITION ROOT — ORGANS ARE PUBLIC by the composition law:
         // sight is free; writes pass through declared seams (keyhole,
-        // signal, bank); access control never enforced the seam law — the
-        // census does; the outside enters only through the RenderCartridge
-        // interface and the public lifecycle. (LADDER-2 access ruling: the
-        // header/impl split's post-class definitions stand outside the
-        // class — membership-exemption is gone, so `private:` here would
-        // deny the keyhole itself. Friend-registry was priced and declined.)
+        // signal, bank); the census enforces the seam law, not access
+        // control; the outside enters only through the RenderCartridge
+        // interface and the public lifecycle.
         public:
 
             wgpu::Device device_;
@@ -149,86 +146,63 @@ namespace t7 {
             GPUState gpuState_;
             Renderer renderer_;
 
-            // ═══ COMPOSITION ROOT — MODULE STATE (LADDER-2) ══════════════
+            // ═══ COMPOSITION ROOT — MODULE STATE ════════════════════════
             //
             // The root's own manifest of organs: the instances of state
-            // structs owned by CONVERTED modules (amended §1 / D1). Each
-            // struct lives in its module's file-scope header; the cartridge
-            // declares the instance here so both converted modules (by
-            // explicit state& parameter) and, transitionally, unconverted
-            // modules (by ambient member reach, D2) can see it. §2-residency
-            // legal by definition — this is assembly.
+            // structs owned by converted modules. Each struct lives in its
+            // module's file-scope header; the cartridge declares the instance
+            // here so converted modules (by explicit state& parameter) and
+            // unconverted modules (by ambient member reach) can see it.
+            // §2-residency legal by definition — this is assembly.
             //
             //   sphere_state_ — SphereState (spheres.hpp), the orbital-sphere
-            //     active-slot mirror. Was activeFloaters_/activeFloaterCount_
-            //     in floater_vocabulary.inl (class body); relocated here in
-            //     LADDER-2 c0 per Jean's M-c per-species ownership ruling.
+            //     active-slot mirror.
             //
             SphereState sphere_state_;
 
-            //   cube_behaviors_state_ — CubeBehaviorsState
-            //     (cube_behaviors.hpp), the cube diagnostics + the c0 cube
-            //     active-slot mirror. Was declared in cube_behaviors.inl
-            //     (class body); relocated here in LADDER-3 c3.
+            //   cube_behaviors_state_ — CubeBehaviorsState (cube_behaviors.hpp),
+            //     the cube diagnostics + the cube active-slot mirror.
             CubeBehaviorsState cube_behaviors_state_;
 
-            //   pawn_state_ — PawnState (pawn.hpp), the pawn aura + presence
-            //     state. Was declared in pawn.inl (class body); relocated here
-            //     in LADDER-2 c2 (header/impl split — pawn.hpp owns the struct,
-            //     pawn.inl the post-class definitions).
+            //   pawn_state_ — PawnState (pawn.hpp), the pawn aura + presence state.
             PawnState pawn_state_;
 
-            //   entities_state_ — EntitiesState (entities.hpp), the seven
-            //     grounded families' active arrays + counts + mesh-gen flags
-            //     + the pyramid CPU mirror. Was declared in entities.inl
-            //     (class body); relocated here in LADDER-2 c1 (header/impl
-            //     split — entities.hpp owns the struct, entities.inl the
-            //     post-class preparer definitions).
+            //   entities_state_ — EntitiesState (entities.hpp), the seven grounded
+            //     families' active arrays + counts + mesh-gen flags + the pyramid
+            //     CPU mirror.
             EntitiesState entities_state_;
 
             //   orbs_state_ — OrbsState (orbs.hpp), the sky-dome lifecycle +
-            //     player-owned anchor/rule/gesture state. Was declared in
-            //     orbs.inl (class body); relocated here in LADDER-2 c3
-            //     (header/impl split — orbs.hpp owns the struct, orbs.inl the
-            //     post-class definitions).
+            //     player-owned anchor/rule/gesture state.
             OrbsState orbs_state_;
 
-            //   gol_state_ — GoLState (gol_zones.hpp), the zone slots +
-            //     counts + mood gate + derive-request queue. Was declared in
-            //     gol_zones.inl (class body); relocated here in LADDER-3 c1.
+            //   gol_state_ — GoLState (gol_zones.hpp), the zone slots + counts +
+            //     mood gate + derive-request queue.
             GoLState gol_state_;
 
-            //   agent_state_ — AgentState (agents.hpp), the 32-slot CPU
-            //     mirror + respawn counters + diagnostic overrides. Was
-            //     declared in agents.inl (class body); relocated here in
-            //     LADDER-3 c2.
+            //   agent_state_ — AgentState (agents.hpp), the 32-slot CPU mirror +
+            //     respawn counters + diagnostic overrides.
             AgentState agent_state_;
 
-            //   gallery_state_ — GalleryState (gallery.hpp), the photographer
-            //     (RNG + cadence) + snapshot/authored staging + exhibition
-            //     layers + painting slots + gallery centers. Was declared in
-            //     gallery.inl (class body); relocated here in LADDER-3 c4.
+            //   gallery_state_ — GalleryState (gallery.hpp), the photographer (RNG
+            //     + cadence) + snapshot/authored staging + exhibition layers +
+            //     painting slots + gallery centers.
             GalleryState gallery_state_;
 
-            //   ribbon_state_ — RibbonState (ribbon.hpp), the active/GPU
-            //     mirrors + rendered slot + the head (the one live
-            //     instrument) + mood_offset. The four ribbon canvas bindings
-            //     and player_.sky_yaw_eased stay Cartridge-side (the
-            //     conductor writes them). Was declared in ribbon.inl (class
-            //     body); relocated here in LADDER-3 c5.
+            //   ribbon_state_ — RibbonState (ribbon.hpp), the active/GPU mirrors +
+            //     rendered slot + the head (the one live instrument) + mood_offset.
+            //     The four ribbon canvas bindings and player_.sky_yaw_eased stay
+            //     Cartridge-side (the conductor writes them).
             RibbonState ribbon_state_;
 
-            //   inputState_ / keys_ / mouse_ — InputState / KeyState /
-            //     MouseState (input.hpp, G2): per-frame intent + deltas,
-            //     held movement keys, mouse drag state. Were in-class
-            //     struct defs here; the TYPES graduated to input.hpp in
-            //     LADDER-3 c6 (file-scope declarations need them), the
-            //     instances stay at this root.
+            //   inputState_ / keys_ / mouse_ — InputState / KeyState / MouseState
+            //     (input.hpp): per-frame intent + deltas, held movement keys,
+            //     mouse drag state.
             InputState inputState_;
             KeyState keys_;
             MouseState mouse_;
 
-            // ═══ TIME STATE (Scope B migration #11) ═════════════════════
+            // ═══ TIME STATE ═════════════════════════════════════════════
             // Per-frame clock state used everywhere. beats/seconds advance
             // monotonically; dt is the most recent frame delta.
             struct TimeState {
@@ -262,7 +236,7 @@ namespace t7 {
             float sunColor_[3] = { 1.0f, 0.95f, 0.9f };
             float clearColor_[3] = { 0.85f, 0.78f, 0.72f };
 
-            // ═══ MOOD STATE (Scope B migration #11) ═════════════════════
+            // ═══ MOOD STATE ═════════════════════════════════════════════
             // Mood-runtime state: which mood is active, its applied
             // values (lighting, terrain, spot lights), the transition
             // machinery, and back-portal return bookkeeping.
@@ -317,13 +291,13 @@ namespace t7 {
             // See state.hpp AgentState / PlayerState for the layout.
             //
             // SEAM[spine:P8] PlayerState commented "Future (deferred)" fields
-            //   are explicit latent infrastructure: aura_presence has
-            //   already migrated here; the other deferred fields await
-            //   the unified entity layer. Pattern P8 visible in source.
+            //   are explicit latent infrastructure: aura_presence is live
+            //   here; the other deferred fields await the unified entity
+            //   layer. Pattern P8 visible in source.
             struct PlayerState {
                 uint32_t possessed_slot = 0;   // slot in agent_state[] that the player inhabits
 
-                // ── Camera + readback (Scope B migration #11) ──
+                // ── Camera + readback ──
                 bool    fpv_mode = false;                // first-person view toggle
                 bool    sky_mode = false;                // sky-flight: arrows drive the rendered ribbon's head (SEAM[ribbon:sky-mode])
                 bool    sky_mode_prev = false;           // previous-frame sky_mode — drives the exit edge (ribbon release)
@@ -345,7 +319,6 @@ namespace t7 {
             PlayerState player_{};
 
             GPUSpotLightArray cpuSpotLights_{};  // count=0 disables (outdoor)
-            // (spot_light_active migrated into MoodState — see top of class)
 
             // ═══ PORTAL & TRANSITION STATE MACHINE ═══════════════════════
             //
@@ -366,54 +339,29 @@ namespace t7 {
             //   (force_spawn_* functions read pendingDestination_), input.inl
             //   (keypress mood transitions request via mood.hpp's
             //   request_mood_transition), render() (readback callback drives
-            //   portal trigger detection). The PORTAL_COLORS table GRADUATED
-            //   to mood.hpp (LADDER-4) — portal color is mood vocabulary; the
-            //   machine keeps the pending state and the trigger hooks.
+            //   portal trigger detection). PORTAL_COLORS lives in mood.hpp —
+            //   portal color is mood vocabulary; the machine keeps the
+            //   pending state and the trigger hooks.
 
             enum class TransitionPhase { IDLE, FADE_OUT, TEARDOWN, FADE_IN };
             TransitionPhase transitionPhase_ = TransitionPhase::IDLE;
-            // (transition_timer / transition_fade_duration / transition_fade_alpha
-            //  migrated into MoodState — see top of class)
 
-            // Portal destination — GRADUATED to mood_constants.hpp (LADDER-2
-            // c1): ActiveArch (entities.hpp, file scope) embeds one, and a
-            // file-scope header cannot see an in-class type. Visible here by
-            // namespace lookup; all uses were unqualified and carry.
             PortalDestination pendingDestination_{};
 
-            // (finite_mode / finite_radius migrated into WorldState — see top of class)
-
-            // ── Portal detection + colors — GRADUATED to mood.hpp (LADDER-4) ──
             // PORTAL_DENSITY, PORTAL_COLORS, PORTAL_COLOR_BACK are mood
             // vocabulary (indexed by destination.mood); consumed by
             // entity_pipeline's portal roll and by mood's force-spawn value
-            // computation. Visible here by namespace lookup; every use was
-            // unqualified and carries.
+            // computation. Visible here by namespace lookup.
 
-            // ═══ MOOD SYSTEM — GRADUATED to mood.hpp (LADDER-4, per K4) ═══
-            //
-            // CeilingType, MoodProfile, MOOD_TABLE, and mood_name are mood
-            // VOCABULARY — they live in modules/mood.hpp (file scope, above
-            // the class), beside the indoor palettes and the door/applier/
-            // deriver declarations. MOOD_COUNT graduated earlier (LADDER-2
-            // prereq → mood_constants.hpp); the Mood IDs at LADDER-3 G1.
-            // Visible here by namespace lookup; every use was unqualified
-            // and carries (spawn_engine's wall clamp, entity_pipeline's
-            // portal roll + indoor rescale, the spine's indoor checks).
-            // SEAM[mood:K1] and DONE[mood:L1] travel with the table.
-
-            // (INDOOR_ENTITY_WALL_MARGIN — GRADUATED to mood.hpp, LADDER-4.
-            //  Second-consumer law: negotiate_position's wall clamp and
-            //  mood's portal-margin computation both read it. Its clamp
-            //  rationale travels with it.)
+            // CeilingType, MoodProfile, MOOD_TABLE, and mood_name live in
+            // modules/mood.hpp; visible here by namespace lookup
+            // (spawn_engine's wall clamp, entity_pipeline's portal roll +
+            // indoor rescale, the spine's indoor checks).
 
             GPUPortalArray cpuPortalArray_{};
-            // (portals_dirty migrated into MoodState — see top of class)
 
             // ── Back-portal (guaranteed exit from finite worlds) ──
             // Position is configurable so special-case layouts can relocate it.
-            // (back_portal_pending / back_portal_return_seed/mood/radius
-            //  migrated into MoodState — see top of class)
             float backPortalPosition_[2] = { 10.0f, 0.0f };   // world XZ
 
             // ═══ GPU READBACK + WORLDGEN ═════════════════════════════════
@@ -446,8 +394,6 @@ namespace t7 {
             // MAX_*_INSTANCES.
             enum class FloaterReadbackState { IDLE, COPIED, MAPPING };
             FloaterReadbackState floaterReadbackState_ = FloaterReadbackState::IDLE;
-            // (readback_portal_trigger / readback_x / readback_z migrated
-            //  into PlayerState — see top of class)
 
             // ROSTER-RESIDUE gol (2e) instrumentation: count of frames the GoL
             // zone-compute block ran (the sole writer of the zone GPU buffers),
@@ -456,16 +402,13 @@ namespace t7 {
             uint64_t rosterGolZoneRuns_ = 0;
             float    rosterGolResidueDump_ = 0.0f;
 
-            // World generation counter — bumped on every teardown.
-            // Captured by readback callbacks so that callbacks issued
-            // for the previous world drop their data on the floor instead
-            // of overwriting player_.readback_x/z_ with a stale position
-            // (which would corrupt tile-cache archetype rolls in the
-            // first frames of the new world). See update() TEARDOWN
-            // case and the agent_state readback lambda in render().
-            // (world_gen migrated into WorldState — see top of class)
-            // [former world_state_.world_gen: incremented on world transitions; readback callbacks
-            //  use it as a generation token to guard against stale GPU writes]
+            // World generation counter (world_state_.world_gen) — bumped on every
+            // teardown. Captured by readback callbacks so callbacks issued for the
+            // previous world drop their data on the floor instead of overwriting
+            // player_.readback_x/z_ with a stale position (which would corrupt
+            // tile-cache archetype rolls in the first frames of the new world).
+            // See update() TEARDOWN case and the agent_state readback lambda in
+            // render().
 
             // ═══ UNIFIED PIER SYSTEM ═════════════════════════════════════
             //
@@ -474,7 +417,6 @@ namespace t7 {
             // step-height checks. No allocator — slot = f(entity_slot).
             GPUPierInstance cpuPiers_[Dim::PIER_TOTAL]{};
 
-            // ── Seed Utilities — CONVERTED (LADDER-1 c1) ──
             // Now a real file-scope header (modules/seed_utils.hpp), included
             // above the class with roster.hpp's cohort. Its pure functions
             // live in namespace t7::the_board; unqualified calls resolve here
@@ -485,7 +427,6 @@ namespace t7 {
             // compute_entity_placement samples the heightfield directly.
             // Only estimate_terrain_height (tileCache_ lookup) survives for ribbon.
 
-            // ── Entities — CONVERTED (LADDER-2 c1, header/impl split) ──
             // Grounded-family vocabulary + EntitiesState + the preparer
             // declarations are in entities.hpp (file scope, above the
             // class); the preparer definitions (which dereference the
@@ -495,7 +436,6 @@ namespace t7 {
             // ROOT. D3 census verdict: zero ambient-style functions — no
             // signatures changed. See §1.
 
-                        // ── Pawn — CONVERTED (LADDER-2 c2, header/impl split) ──
                         // PawnState + configs + declarations are in pawn.hpp
                         // (file scope, above the class); the definitions
                         // (tick_pawn_couplings, which dereferences the keyhole)
@@ -503,7 +443,6 @@ namespace t7 {
                         // Cartridge is complete. See §1 + the post-class MODULE
                         // IMPLEMENTATIONS zone below.
 
-                        // ── Ground Architecture — CONVERTED (LADDER-1 c2) ──
                         // Now a real file-scope header
                         // (modules/ground_architecture.hpp), included above the
                         // class with roster.hpp's cohort. Its enums/tables and
@@ -511,7 +450,6 @@ namespace t7 {
                         // t7::the_board; no runtime C++ consumers (world.wgsl
                         // mirrors it). See §1 (two-regime transitional clause).
 
-                        // ── Sky Orbs — CONVERTED (LADDER-2 c3, header/impl split) ──
                         // Console + registries + OrbMoodConfig/ORB_MOOD_TABLE +
                         // OrbsState + declarations are in orbs.hpp (file scope,
                         // above the class); the definitions (which dereference
@@ -520,51 +458,15 @@ namespace t7 {
                         // instance (orbs_state_) is declared at the COMPOSITION
                         // ROOT. ORB-1 anchor semantics untouched. See §1.
 
-            // ── Agents — CONVERTED (LADDER-3 c2, header/impl split) ──
-            // Registries (behaviors / tier gains / populations) + console +
-            // AgentState + declarations are in agents.hpp (file scope, above
-            // the class); the definitions are in agents.inl, included at
-            // FILE SCOPE in the post-class MODULE IMPLEMENTATIONS zone. G1
-            // rode this rung (Mood IDs → mood_constants.hpp). The instance
-            // (agent_state_) is declared at the COMPOSITION ROOT. Agents
-            // machinery stays FOUNDATIONAL; wanderers-bit + slot-0 SEAM
-            // semantics untouched. See §1.
-
 // ── Spawn Engine & Entity Lifecycle (modules/spawn_engine.inl) ──
 #include "modules/spawn_engine.inl"
 
-            // ── Floater Vocabulary — CONVERTED (LADDER-2 c0+c4) ──
             // Pure vocabulary, fully in floater_vocabulary.hpp (file scope,
             // above the class): the ActiveFloater/ActiveCube TYPES led at c0
             // (their state moved to the species owners), the configs / tier
             // registries / property indices joined at c4, and the .inl is
             // retired. Zero state, zero functions — nothing post-class. See §1.
 
-            // ── Ribbon — CONVERTED (LADDER-3 c5, header/impl split) ──
-            // Tuning console (head control law, MOUNT_* lockstep mirrors,
-            // wander policy) + color vocabulary + tier matrix +
-            // RibbonSelection/RibbonPlacement (relocated from
-            // spawn_engine.inl) + ActiveRibbon/RibbonHead/RibbonState +
-            // declarations are in ribbon.hpp (file scope, above the class);
-            // the definitions (which reach the keyhole + in-class statics
-            // via the complete type) are in ribbon.inl, included at FILE
-            // SCOPE in the post-class MODULE IMPLEMENTATIONS zone. The
-            // instance (ribbon_state_) is declared at the COMPOSITION ROOT.
-            // The byte-identical mirror with the_chord is SUSPENDED (the
-            // pairing ruling — named in ribbon.hpp's banner); the mood-5
-            // dual entry stays K4's territory. See §1.
-
-            // ── GoL Zones — CONVERTED (LADDER-3 c1, header/impl split) ──
-            // Vocabulary + GoLSelection/GoLPlacement (relocated from
-            // spawn_engine.inl) + GoLState + declarations are in
-            // gol_zones.hpp (file scope, above the class); the definitions
-            // (which reach the keyhole + in-class statics via the complete
-            // type) are in gol_zones.inl, included at FILE SCOPE in the
-            // post-class MODULE IMPLEMENTATIONS zone. The instance
-            // (gol_state_) is declared at the COMPOSITION ROOT. The
-            // mood_allowed request-flag write stays K4's territory. See §1.
-
-            // ── Gallery System — CONVERTED (LADDER-3 c4, header/impl split) ──
             // Shot vocabulary + tuning console + GallerySelection/
             // GalleryPlacement (relocated from spawn_engine.inl) +
             // PhotographerState + GalleryState + declarations are in
@@ -588,7 +490,6 @@ namespace t7 {
             //   (evict_paintings_for_patch via dispatch_evict_gallery), and
             //   the family dispatch eviction wrappers below.
 
-            // ═══ WORLD STATE (Scope B migration #11) ═════════════════════
             // World-generation state: seed, finite-mode parameters, the
             // recenter cursor (lastCenter), patch counts the spine tracks,
             // dirty flags for deferred GPU uploads, and the free-layer
@@ -636,8 +537,6 @@ namespace t7 {
             static constexpr uint32_t PREGEN_RADIUS = Dim::PATCH_PREGEN_RADIUS; // deep pre-gen buffer (7)
             static constexpr uint32_t MAX_PATCHES = Dim::MAX_ACTIVE_PATCHES;    // 225
 
-            // (active_radius migrated into WorldState — initialized in ctor to PREGEN_RADIUS)
-
             enum class PatchPhase : uint8_t {
                 ALLOCATED,      // layer assigned, tile cached, no entities yet
                 SPAWNED,        // entities selected + placed + committed
@@ -677,12 +576,9 @@ namespace t7 {
                     }
                 }
 
-
             };
 
             ActivePatch patches_[MAX_PATCHES]{};
-            // (last_center_x/z, active/render/lod0/all_patch_count, entities_culled
-            //  migrated into WorldState — see top of class)
 
             // Find the ActivePatch entry for a given grid coordinate.
             // Returns nullptr if not found (should not happen for host patches
@@ -720,26 +616,15 @@ namespace t7 {
                     FAMILY_DISPATCH[ref.family].evict_slot(this, ref.slot, queue);
                 }
 
-                // DONE[spine:L1] Vestigial for-loop removed. Git history
-                //   (commit 6f0007f) shows the loop body was originally
-                //   `clear_entity_presence(gx, gz, FAMILY_DISPATCH[f].presence_clear_flag)`,
-                //   removed when the entity-presence flag system was retired in
-                //   favor of the entity_refs[] registry (the loop above this).
-                //   The wrapper + gx/gz decls were left behind, accidentally
-                //   absorbing `patch.entity_ref_count = 0` as a phantom body
-                //   that ran PopFamily::COUNT times to set the same field to 0.
-                //   Fix: keep the single assignment, drop the wrapper.
                 patch.entity_ref_count = 0;
             }
 
             void audit_entity_integrity() {
 #ifdef DIAG_ENTITY_LIFECYCLE
-                // DONE[spine:L2] Coverage rationale documented.
-                //   Audit covers 4 of 12 families: Arch, Column, Antenna,
-                //   Pyramid — the generic-pipeline grounded families whose
-                //   lifecycle is the simple { Active*[slot].active ↔ patch
-                //   entity_refs } pair this audit checks. Coverage gaps
-                //   split into two categories:
+                // Coverage: 4 of 12 families — Arch, Column, Antenna, Pyramid —
+                // the generic-pipeline grounded families whose lifecycle is the
+                // simple { Active*[slot].active ↔ patch entity_refs } pair this
+                // audit checks. Coverage gaps split into two categories:
                 //
                 //   - Palm, Cactus, Blade — same generic-pipeline grounded
                 //     pattern. Audit shape applies cleanly; not yet extended.
@@ -850,13 +735,8 @@ namespace t7 {
 #endif
             }
 
-            // ═══ DEFERRED UPLOAD FLAGS (migrated into WorldState) ════════
-            // (pier_count_dirty, ground_entries_dirty, patch_instances_dirty,
-            //  placement_dirty migrated into WorldState — see top of class)
-
             // Free-list of available texture layers
             uint32_t freeLayerStack_[MAX_PATCHES]{};
-            // (free_layer_count migrated into WorldState — see top of class)
 
             // ═══ DYNAMIC BUDGETS ═════════════════════════════════════════
             //
@@ -906,15 +786,6 @@ namespace t7 {
             // Each patch is a tile with an archetype that configures its terrain
             // character. Archetypes are rolled based on the spatial cache of
             // neighboring tiles, creating coherent regions with variety.
-
-            // (derive_finite_radius / pick_portal_mood — GRADUATED to the
-            //  mood module, LADDER-4: they are mood DERIVERS (mood-table
-            //  bounds; mood-biased destination selection). Declarations in
-            //  mood.hpp, definitions in mood.inl; pick_portal_mood takes the
-            //  keyhole for its world_state_.finite_mode read. Callers carry:
-            //  derive_finite_radius unqualified (entity_pipeline + mood);
-            //  entity_pipeline's c->pick_portal_mood became
-            //  pick_portal_mood(c, ...).)
 
             // ── Three Archetypes ──
             //
@@ -1177,7 +1048,7 @@ namespace t7 {
 
             static void dispatch_evict_sphere(Cartridge* self,
                 uint32_t slot, wgpu::Queue& queue) {
-                self->sphere_state_.activeFloaters_[slot].active = false;  // LADDER-2 c0: sphere state owned by SphereState
+                self->sphere_state_.activeFloaters_[slot].active = false;  // sphere state owned by SphereState
                 self->sphere_state_.activeFloaterCount_--;
                 GPUFloatingEntityState empty{};
                 self->gpuState_.upload_sphere_entity_slot(queue, slot, empty);
@@ -1196,7 +1067,7 @@ namespace t7 {
 
             static void dispatch_evict_cube(Cartridge* self,
                 uint32_t slot, wgpu::Queue& queue) {
-                self->cube_behaviors_state_.activeCubes_[slot].active = false;  // LADDER-2 c0: cube state owned by CubeBehaviorsState
+                self->cube_behaviors_state_.activeCubes_[slot].active = false;  // cube state owned by CubeBehaviorsState
                 self->cube_behaviors_state_.activeCubeCount_--;
                 GPUFloatingEntityState empty{};
                 self->gpuState_.upload_cube_entity_slot(queue, slot, empty);
@@ -1434,17 +1305,6 @@ namespace t7 {
             // ── Generic Entity Pipeline (modules/entity_pipeline.inl) ──
 #include "modules/entity_pipeline.inl"
 
-            // ── Cube Behaviors — CONVERTED (LADDER-3 c3, header/impl split) ──
-            // Behavior registry + console + populations (G1's second
-            // consumer) + CubeBehaviorsState (carrying c0's cube active
-            // array) + declarations are in cube_behaviors.hpp (file scope,
-            // above the class); definitions in cube_behaviors.inl, included
-            // at FILE SCOPE in the post-class MODULE IMPLEMENTATIONS zone.
-            // The instance (cube_behaviors_state_) is declared at the
-            // COMPOSITION ROOT. entity_pipeline's cube_write_gpu calls the
-            // two spawn helpers via their header declarations. The
-            // cube_behaviors → cubes rename stays FLAGGED, not performed.
-
             static constexpr FamilyDispatch FAMILY_DISPATCH[PopFamily::COUNT] = {
                 { dispatch_select_pyramid_generic, dispatch_place_pyramid_generic, dispatch_commit_pyramid_generic,
                   dispatch_evict_pyramid, dispatch_prepare_mesh_pyramid, dispatch_mesh_gen_pyramid,
@@ -1484,7 +1344,6 @@ namespace t7 {
                   "gall" },
             };
 
-            // ═══ ROSTER MANIFEST — graduated to roster.hpp (ROSTER-1b 3a) ══
             //
             // The spine-owned piece-enable manifest (struct Roster, the
             // ROSTER constant, the transitions=>portal edge, and the full doc
@@ -2355,10 +2214,8 @@ namespace t7 {
                     gpuState_.upload_ribbon(queue, empty);
                 }
 
-                // Sphere + cube entities — LADDER-2 c0.4: the paired CPU +
-                // per-slot GPU clears are now per-owner clear functions the
-                // teardown calls (behavior-identical to the former inline
-                // sweeps). See §5 TEARDOWN BULK SWEEPS / EVICTION THUNKS.
+                // Sphere + cube clears are per-owner functions (clear_spheres /
+                // clear_cubes) — CPU + per-slot-GPU paired. See §5 TEARDOWN BULK SWEEPS.
                 clear_spheres(sphere_state_, gpuState_, queue);
                 clear_cubes(cube_behaviors_state_, gpuState_, queue);
 
@@ -2886,12 +2743,11 @@ namespace t7 {
                 std::cout << "[Cartridge] Total init:       "
                     << std::chrono::duration_cast<std::chrono::milliseconds>(t3 - t0).count() << " ms\n";
 
-                // ROSTER boot summary (ROSTER-1b 3g): one line when any piece
-                // is disabled — which pieces are off, and which of them
-                // actually skipped GPU creation (only SEPARABLE pieces do;
-                // SH·* pieces stay created-pristine per the R' cost table).
-                // The whole block is `if constexpr`-discarded when all-enabled,
-                // so the golden gate's binary AND stdout stay byte-identical.
+                // ROSTER boot summary: one line when any piece is disabled — which
+                // pieces are off, and which of them actually skipped GPU creation
+                // (only SEPARABLE pieces do; SH·* pieces stay created-pristine). The
+                // whole block is `if constexpr`-discarded when all-enabled, so the
+                // all-enabled binary AND stdout carry no trace of it.
                 if constexpr (!ROSTER.all_enabled()) {
                     std::string off;
                     auto mark = [&](bool enabled, const char* name) {
@@ -2937,15 +2793,6 @@ namespace t7 {
                     fog_color_dst_.base, fog_color_dst_.count, (int)fog_color_dst_.valid);
             }
 
-            // DONE[spine:K1 / pawn:K1] update() is the phase-orchestration
-            //   sequence the seam map called for: build signal → upload →
-            //   transition state machine → photographer → clear input
-            //   deltas. Per-frame ramps live in named module ticks
-            //   (tick_pawn_couplings in pawn.inl; the gen-1 couplings
-            //   retired in M1/M1-B — see coupling_layer_migration_map.md).
-            // DONE[spine:L4] phase order is named at each call site
-            //   (ramps live in named ticks; orchestration is the
-            //   call-list shape).
             void update(const AnalysisSignal& signal,
                 float aspect_ratio,
                 wgpu::Queue& queue) override {
@@ -3269,7 +3116,7 @@ namespace t7 {
                                         // Spheres: slots [0, MAX_SPHERE_INSTANCES)
                                         for (uint32_t i = 0; i < Dim::MAX_SPHERE_INSTANCES; i++) {
                                             bool gpu_active = (data[i].is_active != 0u);
-                                            // LADDER-2 c0: sphere active-slot mirror owned by SphereState
+                                            // sphere active-slot mirror owned by SphereState (spheres.hpp)
                                             if (sphere_state_.activeFloaters_[i].active && !gpu_active &&
                                                 (now - sphere_state_.activeFloaters_[i].last_alloc_time) > SPAWN_PROTECTION_S) {
                                                 sphere_state_.activeFloaters_[i].active = false;
@@ -3279,7 +3126,7 @@ namespace t7 {
                                         // Cubes: slots [CUBE_SLOT_OFFSET, TOTAL_FLOATING_SLOTS)
                                         for (uint32_t i = 0; i < Dim::MAX_CUBE_INSTANCES; i++) {
                                             bool gpu_active = (data[Dim::CUBE_SLOT_OFFSET + i].is_active != 0u);
-                                            // LADDER-2 c0: cube active-slot mirror owned by CubeBehaviorsState
+                                            // cube active-slot mirror owned by CubeBehaviorsState (cube_behaviors.hpp)
                                             if (cube_behaviors_state_.activeCubes_[i].active && !gpu_active &&
                                                 (now - cube_behaviors_state_.activeCubes_[i].last_alloc_time) > SPAWN_PROTECTION_S) {
                                                 cube_behaviors_state_.activeCubes_[i].active = false;
@@ -3595,7 +3442,6 @@ namespace t7 {
                 }
                 gallery_state_.pending_promotion_count = 0;
             }
-
 
             // --- Patch streaming: determine active 7×7 grid, generate new patches ---
             // SEAM[spine:owns] stream_patches is the patch-streaming integration
@@ -4063,7 +3909,6 @@ namespace t7 {
                 if (world_state_.finite_mode) { world_state_.active_radius = savedRadius; }
             }
 
-            // ── Mood System — CONVERTED (LADDER-4, per K4 as ruled) ──
             // Mood is VOCABULARY + APPLIERS + SIX DOORS: CeilingType /
             // MoodProfile / MOOD_TABLE / portal colors / indoor palettes +
             // the door, applier, and deriver declarations are in mood.hpp
@@ -4071,25 +3916,20 @@ namespace t7 {
             // the spine-owned state + in-class statics via the complete
             // type) are in mood.inl, included at FILE SCOPE in the
             // post-class MODULE IMPLEMENTATIONS zone. MOOD OWNS NO STATE —
-            // nothing joined the COMPOSITION ROOT; mood_state_ and the
-            // transition machine stay spine-resident
+            // nothing at the COMPOSITION ROOT; mood_state_ and the
+            // transition machine are spine-resident
             // (SEAM[spine:transitions], constitution §2). The force-spawn
-            // mutation moved to the arch's owner: entities'
-            // force_spawn_portal_arch (K4's channel; the ROSTER portal door
-            // migrated with it). The lighting-scheme tables stay impl-side;
-            // the class-body private/public toggle they needed is retired.
-            // See §1.
+            // mutation belongs to the arch's owner: entities'
+            // force_spawn_portal_arch (the ROSTER portal door lives
+            // there). The lighting-scheme tables stay impl-side. See §1.
 
-
-// ── Render Passes — CONVERTED (LADDER-3 c7, header/impl split) ──
 // The speaker owns no state — all verbs. The nine declarations are in
 // render_passes.hpp (file scope, above the class); the definitions
-// (the 243-read keyhole retrofit — the seven pass/dispatch functions
-// gained Cartridge* c, the two light-VP helpers stay pure; bodies
-// otherwise verbatim, ZERO draw self-gate additions) are in
-// render_passes.inl, included at FILE SCOPE in the post-class MODULE
-// IMPLEMENTATIONS zone. mood.inl's compute_spot_light_vp call
-// resolves by namespace lookup, unchanged. See §1.
+// (the seven pass/dispatch functions take the keyhole Cartridge* c;
+// the two light-VP helpers stay pure; draws carry NO self-gates) are
+// in render_passes.inl, included at FILE SCOPE in the post-class
+// MODULE IMPLEMENTATIONS zone. mood.inl's compute_spot_light_vp call
+// resolves by namespace lookup. See §1.
 
         public:
 
@@ -4114,19 +3954,6 @@ namespace t7 {
             }
 
         private:
-
-            // ── Input Handling — CONVERTED (LADDER-3 c6, header/impl split + G2) ──
-            // InputState/KeyState/MouseState (graduated from this class
-            // body — G2) + the ten declarations are in input.hpp (file
-            // scope, above the class); the definitions (the ~41-read
-            // keyhole retrofit — bodies otherwise verbatim) are in
-            // input.inl, included at FILE SCOPE in the post-class MODULE
-            // IMPLEMENTATIONS zone, carrying its own <GLFW/glfw3.h>
-            // include (the unpapered dependency). The instances
-            // (inputState_ / keys_ / mouse_) are declared at the
-            // COMPOSITION ROOT. The key-binding registry travels in the
-            // impl; mood transitions stay member calls (K4's territory).
-            // See §1.
 
         public:
 
@@ -4158,10 +3985,9 @@ namespace t7 {
 // Cartridge (the keyhole). Each such module declares its functions in its
 // header (file scope, above the class, so the instance member works); the
 // definitions land here, after the class, where Cartridge is a complete
-// type. Still ONE translation unit — this is the header/impl split of the
-// amended §1, not a separate compilation unit (LADDER-2, per Jean's
-// ruling). The call sites inside the class see each function's declaration
-// via its header; the linker binds these definitions.
+// type. Still ONE translation unit — a header/impl split, not a separate
+// compilation unit. The call sites inside the class see each function's
+// declaration via its header; the linker binds these definitions.
 //
 // WIRING FORM (LADDER-2 fix 2 — the unresolved conductor): impl files are
 // SELF-WRAPPING — each carries its own `namespace t7 { namespace
@@ -4172,14 +3998,14 @@ namespace t7 {
 // silently and satisfies nothing (the rig's LNK2019). Impl-file
 // definitions are `inline` free functions; the class-body `static` never
 // survives the move.
-#include "modules/pawn.inl"       // LADDER-2 c2 — tick_pawn_couplings
-#include "modules/entities.inl"   // LADDER-2 c1 — the six prepare_*_mesh_gen preparers
-#include "modules/orbs.inl"       // LADDER-2 c3 — orb lifecycle/commands/dispatches/render
-#include "modules/gol_zones.inl"  // LADDER-3 c1 — GoL three-phase lifecycle + per-frame uploads/dispatch
-#include "modules/agents.inl"     // LADDER-3 c2 — agent registry upload + spawn/respawn/possession/diagnostics
-#include "modules/cube_behaviors.inl"  // LADDER-3 c3 — cube registry upload + corral/kite/coordination + clear
-#include "modules/gallery.inl"    // LADDER-3 c4 — photographer + gallery sites + authored loading + wall paintings
-#include "modules/ribbon.inl"     // LADDER-3 c5 — author seats + head laws + frame conductor + three-phase lifecycle
-#include "modules/input.inl"      // LADDER-3 c6 — key/mouse dispatch + movement intent + camera commands (own GLFW include)
-#include "modules/render_passes.inl"  // LADDER-3 c7 — ground-entry prep + compute dispatch + shadow/main passes + light VPs
-#include "modules/mood.inl"       // LADDER-4 (K4) — indoor light derivation + appliers + apply_mood + shell + portals + uploads + transition request + derivers
+#include "modules/pawn.inl"       // tick_pawn_couplings
+#include "modules/entities.inl"   // the six prepare_*_mesh_gen preparers
+#include "modules/orbs.inl"       // orb lifecycle/commands/dispatches/render
+#include "modules/gol_zones.inl"  // GoL three-phase lifecycle + per-frame uploads/dispatch
+#include "modules/agents.inl"     // agent registry upload + spawn/respawn/possession/diagnostics
+#include "modules/cube_behaviors.inl"  // cube registry upload + corral/kite/coordination + clear
+#include "modules/gallery.inl"    // photographer + gallery sites + authored loading + wall paintings
+#include "modules/ribbon.inl"     // author seats + head laws + frame conductor + three-phase lifecycle
+#include "modules/input.inl"      // key/mouse dispatch + movement intent + camera commands (own GLFW include)
+#include "modules/render_passes.inl"  // ground-entry prep + compute dispatch + shadow/main passes + light VPs
+#include "modules/mood.inl"       // indoor light derivation + appliers + apply_mood + shell + portals + uploads + transition request + derivers

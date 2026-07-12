@@ -1,7 +1,7 @@
 #pragma once
 #include <cstdint>
 
-// ═══ ROSTER MANIFEST (v0) — ROSTER-1a / 1b ═══════════════════════════════
+// ═══ ROSTER MANIFEST (v0) ═══════════════════════════════════════════
 //
 // Spine-owned single source of truth for which PIECES are enabled. The
 // roster gates DOORS — (a) buffer creation, (b) dispatch/registration,
@@ -47,13 +47,13 @@
 //   snapshot pass) rides gallery's bit for v0. Split into its own bit the
 //   day authored-only exhibits with a dead camera are wanted.
 //
-// spot_lights x indoor_shell: INDEPENDENT (ROSTER-1a §5 check) —
-//   apply_mood_spot_lights keys off derive_indoor_lights,
-//   apply_mood_indoor_shell off the ceiling mesh; both off m.indoor
-//   separately, no shared state. Either may be disabled without the other.
-//   No edge.
+// spot_lights x indoor_shell: INDEPENDENT — apply_mood_spot_lights
+//   keys off derive_indoor_lights, apply_mood_indoor_shell off the
+//   ceiling mesh; both key off m.indoor separately, no shared state.
+//   Either may be disabled without the other. No edge.
 //
-// ─── GATE-(a) STATUS (ROSTER-1b Phase R' — the M-j cost column) ──────────
+// ─── GATE-(a) STATUS (the M-j cost column) ──────────────────────────
+// ROSTER-1a/1b: creation + graduation history in audit/LADDER.md.
 //   The creation-side classification (see audit/ROSTER_GATE_A.md for the
 //   full cost table with buffers/groups/pipelines and retirement per piece).
 //   SEP     = separable now: creation skipped atomically, boot+draws safe.
@@ -91,7 +91,7 @@ struct Roster {
     bool orbs;          // sky dome (distinct from the sphere family)
     bool spot_lights;   // indoor spot array + shadow atlas
     bool indoor_shell;  // walls + ceiling mesh
-    bool portal;        // force-spawn portal arches (the second door — LADDER-4: lives in entities' force_spawn_portal_arch, the arch owner's authoring channel)
+    bool portal;        // force-spawn portal arches (the second door — lives in entities' force_spawn_portal_arch, the arch owner's authoring channel)
     bool transitions;   // mood-transition ENTRY (request + portal trigger)
     bool wanderers;     // mood-authored NPC population (agent slots 1+)
 
@@ -120,10 +120,10 @@ struct Roster {
         }
     }
 
-    // True iff every piece is enabled (the golden config). Used to make the
-    // boot summary (ROSTER-1b 3g) compile to ZERO code in the all-enabled
-    // build — `if constexpr (!ROSTER.all_enabled())` is discarded whole, so
-    // the golden gate's binary and stdout are byte-identical.
+    // True iff every piece is enabled (the golden config). Makes the boot
+    // summary compile to ZERO code in the all-enabled build —
+    // `if constexpr (!ROSTER.all_enabled())` is discarded whole, so the
+    // all-enabled binary and stdout carry no trace of it.
     constexpr bool all_enabled() const {
         return pyramid && arch && column && antenna && palm && cactus &&
                blade && sphere && ribbon && cube && gol && gallery &&
@@ -143,17 +143,16 @@ inline constexpr Roster ROSTER = {
     true,      true, true,       true,        true,   true,       true,
 };
 
-// THE FIRST EDGE (2c) — transitions REQUIRE portal (M-j embryo). Portals
-// are BOTH the transition trigger IN and the guaranteed return path OUT;
-// transitions on + portal off soft-locks. CONDITIONAL (not unconditional)
-// so the lean music-viz build — the founding customer, transitions+portal
-// off together — stays legal; an unconditional assert would make the portal
-// bit never legally false. DUAL MATURITY: this static_assert is v0's form
-// of the edge; the early-return doors — request_mood_transition (mood.inl)
-// and entities' force_spawn_portal_arch (the portal door's LADDER-4 home,
-// migrated per its own retirement text from mood's force_spawn_portal_at) —
-// are the maturity-proof form that goes live when the table turns
-// boot-time. Both doors, both correct, different maturities.
+// THE FIRST EDGE — transitions REQUIRE portal (M-j embryo). Portals
+// are BOTH the transition trigger IN and the guaranteed return path
+// OUT; transitions on + portal off soft-locks. CONDITIONAL (not
+// unconditional) so the lean music-viz build — transitions+portal off
+// together — stays legal; an unconditional assert would make the
+// portal bit never legally false. DUAL MATURITY: this static_assert
+// is v0’s form of the edge; the early-return doors —
+// request_mood_transition (mood.inl) and entities'
+// force_spawn_portal_arch — are the maturity-proof form that goes
+// live when the table turns boot-time.
 static_assert(!ROSTER.transitions || ROSTER.portal,
     "ROSTER: portal disabled while transitions enabled — "
     "transitions REQUIRE portal (the trigger in, the return path out)");

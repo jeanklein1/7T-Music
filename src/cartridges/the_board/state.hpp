@@ -51,7 +51,7 @@
 //
 
 #include "analysis/analysis_signal.hpp"
-#include "cartridges/the_board/roster.hpp"  // ROSTER-1b 3a: second consumer (GPUState::init gates creation)
+#include "cartridges/the_board/roster.hpp"  // feature bits (GPUState::init gates creation)
 #include <webgpu/webgpu_cpp.h>
 #include <cstring>
 #include <array>
@@ -230,7 +230,6 @@ namespace t7 {
             constexpr uint32_t MAX_AGENTS = 32;
         }
 
-
         // =====================================================================
         // S2 IDLE — Default values for state initialization
         // =====================================================================
@@ -270,17 +269,16 @@ namespace t7 {
             constexpr float ACTIVE_CELL_SIZE = 64.0f;
         }
 
-
         // =====================================================================
         // S3 COUPLING BITS — Bitmask flags for entity-to-entity wires
         // =====================================================================
 
-        // DONE[state:L1] reserved-slot annotations mirrored from
-        //   world.wgsl §2 — the COUPLING_* bit-flag block. MUST match those bit
-        //   values 1:1 — semantic drift here would corrupt every
-        //   GPU-side coupling read silently. Reserved slots stay
-        //   declared because their bits flow through legacy code
-        //   paths; reusing them needs cross-side coordination.
+        // Reserved-slot annotations mirrored from world.wgsl §2 — the
+        // COUPLING_* bit-flag block. MUST match those bit values 1:1 —
+        // semantic drift here would corrupt every GPU-side coupling read
+        // silently. Reserved slots stay declared because their bits flow
+        // through legacy code paths; reusing them needs cross-side
+        // coordination.
         namespace Coupling {
             constexpr uint32_t POLYPHONY_TO_AMPLITUDE    = 1u << 0;
             constexpr uint32_t TERRAIN_TO_PAWN_Y         = 1u << 1;
@@ -322,7 +320,6 @@ namespace t7 {
             constexpr uint32_t SPHERE_APPEARANCE = POLYPHONY_TO_SPHERE_COLOR;
             constexpr uint32_t ZONE = PAWN_TO_ZONE_HEIGHT | PAWN_TO_ZONE_COLOR | SPHERE_TO_ZONE_HEIGHT | SPHERE_TO_ZONE_COLOR;
         }
-
 
         // =====================================================================
         // S4 GPU STRUCTURES — Byte-aligned data contracts (must match WGSL)
@@ -1486,7 +1483,6 @@ namespace t7 {
         };
         static_assert(sizeof(GPUPhotographerConfig) == 48, "GPUPhotographerConfig must be 48 bytes");
 
-
         // =====================================================================
         // S5-S10  GPU STATE CLASS
         // =====================================================================
@@ -1728,7 +1724,6 @@ namespace t7 {
             wgpu::BindGroup photographerRenderEntityBindGroup_;
             wgpu::Sampler paintingSampler_;
 
-
         public:
 
             // =================================================================
@@ -1738,7 +1733,6 @@ namespace t7 {
             GPUState() = default;
             GPUState(const GPUState&) = delete;
             GPUState& operator=(const GPUState&) = delete;
-
 
             // =================================================================
             // S7 BOOT — Device initialization sequence
@@ -1754,7 +1748,6 @@ namespace t7 {
                 if (!initializeState()) return false;
                 return true;
             }
-
 
             // =================================================================
             // S8 PER-FRAME — Upload methods called each tick
@@ -2155,7 +2148,6 @@ namespace t7 {
                 return true;
             }
 
-
             // =================================================================
             // S9 DESIGN MODE — Runtime config toggles
             // =================================================================
@@ -2377,7 +2369,7 @@ namespace t7 {
             void set_config_dynamic(bool d) { configDynamic_ = d; }
             void mark_config_dirty() { configDirty_ = true; }
 
-            // --- Config field setters (dirty-flagged, for fields previously written directly) ---
+            // --- Config field setters (dirty-flagged) ---
             void set_pawn_aura_height(float h) {
                 if (config_.pawn_aura_height != h) { config_.pawn_aura_height = h; configDirty_ = true; }
             }
@@ -2387,7 +2379,6 @@ namespace t7 {
             void set_pawn_height_bias(float b) {
                 if (config_.pawn_height_bias != b) { config_.pawn_height_bias = b; configDirty_ = true; }
             }
-
 
             // =================================================================
             // S10 ACCESSORS — Grouped by render-pass concern
@@ -2849,13 +2840,11 @@ namespace t7 {
                     params, sizeof(GPUPatchParams) * count);
             }
 
-
         private:
 
             // =================================================================
             // S7 BOOT (continued) — Private creation methods
             // =================================================================
-
 
             wgpu::Buffer makeBuffer(const char* label, uint64_t size, wgpu::BufferUsage usage) {
                 wgpu::BufferDescriptor d{}; d.label = label; d.size = size; d.usage = usage;
@@ -2984,7 +2973,6 @@ namespace t7 {
                     frustumIndirectLOD0_ && frustumComputeBuffer_ && visiblePatchIndicesBuffer_;
             }
 
-
             bool createMeshBuffers() {
                 // Terrain index buffer -- filled once by compute shader, read every frame
                 terrainIndexBuffer_ = makeBuffer("Terrain IB",
@@ -3077,7 +3065,6 @@ namespace t7 {
                 q.WriteBuffer(sphereIndexBuffer_, 0, idx.data(), idx.size() * 4);
                 return true;
             }
-
 
             bool createMonolithMesh() {
                 // LATENT[gate-a-shared] cube (SH·dc): monolith VB/IB exclusive+droppable, but co-owns floatingEntityBuffer_ (sphere+cube) and draw_monolith isn't self-count-gated. Retire = draw self-gate, then skip. See ROSTER_GATE_A.
@@ -3533,7 +3520,6 @@ namespace t7 {
                 return true;
             }
 
-
             bool createTextures() {
                 // (legacy 1×1 stub textures removed — bindings 20-21, 24 and compute 0-2 reserved)
 
@@ -3656,7 +3642,6 @@ namespace t7 {
                 return true;
             }
 
-
             bool createSamplers() {
                 {
                     wgpu::SamplerDescriptor desc{};
@@ -3705,7 +3690,6 @@ namespace t7 {
 
                 return true;
             }
-
 
             bool createBindGroups() {
 
@@ -4728,7 +4712,6 @@ namespace t7 {
                     if (!bladeMeshGenLayout_) return false;
                 }
 
-
                 // -- Bind group instances ------------------------------------
 
                 // Compute entity bind group (19 entries: systems + terrain + GoL zones + portals + cached heightfield)
@@ -5667,7 +5650,6 @@ namespace t7 {
 
                 return true;
             }
-
 
             bool initializeState() {
                 wgpu::Queue queue = device_.GetQueue();

@@ -2,9 +2,10 @@
 #include <cstdint>
 #include <array>
 #include "cartridges/the_board/state.hpp"                    // Dim::MAX_AGENTS, GPUAgentState, GPU_AGENT_*_COUNT, wgpu
-#include "cartridges/the_board/modules/mood_constants.hpp"   // MOOD_COUNT + the Mood IDs (G1)
+#include "cartridges/the_board/modules/mood_constants.hpp"   // MOOD_COUNT + the Mood IDs
 
 // ─── agents.hpp (HEADER: registries + console + state + decls) ───
+// Converted (LADDER-3 c2, G1): history in audit/LADDER.md.
 //
 // Unified entity registry: the control panel for the agent system.
 // Every pawn-like body on the board — the one the player inhabits and
@@ -16,17 +17,6 @@
 // the compute kernel treats that slot as the PlayerControlled branch
 // and every other active slot as its authored behavior. See
 // state.hpp AgentState and world.wgsl §7 for the wiring.
-//
-// CONVERTED (LADDER-3 c2, header/impl split): this header owns the three
-// registries, the tuning console, AgentState, and the function
-// DECLARATIONS; the cartridge declares the instance (agent_state_) at its
-// COMPOSITION ROOT. Definitions live in agents.inl, included at FILE
-// SCOPE in the post-class MODULE IMPLEMENTATIONS zone. G1 rides this
-// rung: the Mood IDs graduated to mood_constants.hpp so
-// AGENT_POPULATIONS can name them declaration-side. The agents machinery
-// stays FOUNDATIONAL (no roster bit — the pawn IS slot 0); the gateable
-// half is the roster's `wanderers` bit, and slot-0 semantics are
-// untouched by this conversion. Namespace t7::the_board.
 //
 // ┌─── Three registries ────────────────────────────────────────────┐
 // │                                                                  │
@@ -125,7 +115,6 @@ enum AgentBehaviorId : uint32_t {
     AGENT_BEHAVIOR_COUNT             = 10,
 };
 
-
 // ═══ TIER IDS ════════════════════════════════════════════════════
 //
 // Visual + parametric archetype — a property of the body, not of the
@@ -172,7 +161,6 @@ inline constexpr const char* AGENT_TIER_NAMES[AGENT_TIER_COUNT] = {
     "leader",        //  3
 };
 
-
 // ═══ TUNING CONSOLE ══════════════════════════════════════════════
 //
 // All authored radii live here so the relationships between them are
@@ -186,7 +174,6 @@ inline constexpr const char* AGENT_TIER_NAMES[AGENT_TIER_COUNT] = {
 // the player into a non-zero slot (player_.possessed_slot tracks
 // which one); reads of "where is the player right now" should go
 // through agent_state_.slots[player_.possessed_slot], not [PLAYER_SLOT].
-// DONE[agents:L1] comment updated to reflect possession transfer.
 inline constexpr uint32_t PLAYER_SLOT = 0;
 
 // POSSESSION_RADIUS — Caps Lock teleports the player into the nearest
@@ -220,7 +207,6 @@ inline constexpr float AGENT_EVICTION_RADIUS_SQ = AGENT_EVICTION_RADIUS * AGENT_
 // AGENT_CENSUS_INTERVAL — period (seconds) between automatic
 // [AGENTS] census log lines + the [Player] position emission.
 inline constexpr float AGENT_CENSUS_INTERVAL = 30.0f;
-
 
 // ═══ REGISTRY: BEHAVIORS ═════════════════════════════════════════
 //
@@ -276,7 +262,6 @@ inline constexpr AgentBehaviorDef AGENT_BEHAVIORS[AGENT_BEHAVIOR_COUNT] = {
 static_assert(sizeof(AGENT_BEHAVIORS) / sizeof(AGENT_BEHAVIORS[0]) == AGENT_BEHAVIOR_COUNT,
               "AGENT_BEHAVIORS must declare one row per AgentBehaviorId");
 
-
 // ═══ REGISTRY: TIER GAINS ════════════════════════════════════════
 //
 // Per-tier multipliers on behavior parameters, plus render color.
@@ -307,7 +292,6 @@ inline constexpr AgentTierDef AGENT_TIER_GAINS[AGENT_TIER_COUNT] = {
 
 static_assert(sizeof(AGENT_TIER_GAINS) / sizeof(AGENT_TIER_GAINS[0]) == AGENT_TIER_COUNT,
               "AGENT_TIER_GAINS must declare one row per AgentTierId");
-
 
 // ═══ REGISTRY: POPULATIONS ═══════════════════════════════════════
 //
@@ -345,24 +329,18 @@ struct AgentPopulationDef {
 
 // ─── Why no constexpr helper builders ───────────────────────────
 //
-// An earlier draft factored the weight arrays through helpers like
-// `bw_only(AGENT_BEHAVIOR_BIASED_WALK)`. MSVC rejected it: agents was
-// then included into the Cartridge class body, so the helpers became
-// static member functions of an incomplete class, and AGENT_POPULATIONS
-// (a class-body constexpr initializer) cannot call them at constant-
-// expression time. NOTE (LADDER-3 c2): that class-body constraint has
-// DISSOLVED at file scope — a restyle through helpers is now legal but
-// is a NAMED LATER STAGE, not this one (clean bisection; same treatment
-// as ground_architecture's IIFE asserts).
+// The weight arrays are written out unfolded rather than factored
+// through constexpr helpers; the restyle is a NAMED LATER STAGE
+// (clean bisection).
 //
 // The fix is plain literal initialization with column-header comments
 // above each row indicating which behavior / tier slot is non-zero.
 // std::array accepts braced lists via brace elision (single braces
 // suffice), so the rows stay readable.
 
-// Mood ordering matches MOOD_TABLE in cartridge.hpp. The named
-// constants (MOOD_OPEN_DEFAULT, etc. — mood_constants.hpp since G1)
-// and per-row static_asserts below catch any reordering at compile time.
+// Mood ordering matches MOOD_TABLE (mood.hpp). The named constants
+// (mood_constants.hpp) and per-row static_asserts below catch any
+// reordering at compile time.
 //
 // Outdoor moods spawn agents on a wide annulus near the patch
 // pre-gen edge — agents appear at distance, walk inward, evict at
@@ -429,11 +407,9 @@ inline constexpr AgentPopulationDef AGENT_POPULATIONS[MOOD_COUNT] = {
 static_assert(sizeof(AGENT_POPULATIONS) / sizeof(AGENT_POPULATIONS[0]) == MOOD_COUNT,
               "AGENT_POPULATIONS must declare one row per mood");
 
-// Row order must match the mood ids in MOOD_TABLE (cartridge.hpp).
-// Unfolded rather than written as a constexpr loop — originally because
-// class-body static_asserts cannot call member constexpr functions; the
-// constraint has dissolved at file scope (LADDER-3 c2), the restyle is a
-// named later stage. Same treatment as ground_architecture.
+// Row order must match the mood ids in MOOD_TABLE (mood.hpp).
+// Unfolded rather than a constexpr loop — the restyle is a named
+// later stage.
 static_assert(AGENT_POPULATIONS[MOOD_OPEN_DEFAULT      ].mood_id == MOOD_OPEN_DEFAULT,       "AGENT_POPULATIONS row 0 must be MOOD_OPEN_DEFAULT");
 static_assert(AGENT_POPULATIONS[MOOD_OPEN_SUNSET       ].mood_id == MOOD_OPEN_SUNSET,        "AGENT_POPULATIONS row 1 must be MOOD_OPEN_SUNSET");
 static_assert(AGENT_POPULATIONS[MOOD_INDOOR_FLAT       ].mood_id == MOOD_INDOOR_FLAT,        "AGENT_POPULATIONS row 2 must be MOOD_INDOOR_FLAT");
@@ -441,8 +417,7 @@ static_assert(AGENT_POPULATIONS[MOOD_INDOOR_VAULT      ].mood_id == MOOD_INDOOR_
 static_assert(AGENT_POPULATIONS[MOOD_FINITE_OUTDOOR    ].mood_id == MOOD_FINITE_OUTDOOR,     "AGENT_POPULATIONS row 4 must be MOOD_FINITE_OUTDOOR");
 static_assert(AGENT_POPULATIONS[MOOD_FINITE_OUTDOOR_REF].mood_id == MOOD_FINITE_OUTDOOR_REF, "AGENT_POPULATIONS row 5 must be MOOD_FINITE_OUTDOOR_REF");
 
-
-// ═══ AGENT MODULE STATE (Scope B migration #3) ══════════════════
+// ═══ AGENT MODULE STATE ══════════════════════════════════════════
 //
 // All agent-owned state lives in this struct, accessed via
 // agent_state_ on the Cartridge (declared at the composition root).
@@ -483,7 +458,6 @@ struct AgentState {
     uint32_t      tier_override                     = AGENT_OVERRIDE_NONE;
     float         last_census_dump                  = -999.0f;
 };
-
 
 // ═══ MODULE FUNCTIONS — DECLARATIONS ═════════════════════════════
 //
