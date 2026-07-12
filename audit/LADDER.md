@@ -505,6 +505,23 @@ runs, indistinguishable (L2 ran green, so this build certifies LADDER-4
 alone; bisection anchors — the pre-LADDER-4 head bfd143d and c6 77fc3a3
 — stand if it disagrees).
 
+## COMPACT-1 — THE SWEEP (comment-only; F3 executed)
+
+The narration stratum this record describes was compressed out of the
+source: every NARRATION block is now at most one provenance pointer
+line per file ("Converted <arc>: history in audit/LADDER.md" — this
+file is that history). F3 executed on both strata (DONE[] 26→0,
+Scope-B 11→0; SEAM[] stays); the graduated-symbol memorials in
+cartridge.hpp are gone. Present behavior revealed inside cut narration
+was rescued in present phrasing, never deleted. Boilerplate
+consolidation rode as its own commit: modules/keyhole.hpp (the
+forward-decl home) now provides the Cartridge + wgpu::Queue fwds once;
+the twelve module headers include it. Gates: code-token-identical per
+file (commit 1), declaration-identical with disclosed recipe
+(commit 2), zone census + encodings throughout. Full close-out with
+totals, per-file bytes, rescue disclosures, and the code-repetition
+appendix: audit/COMPACT1_SWEEP.md.
+
 ## LADDER-5 (queued — no action): THE HUBS INTERFACE EXTRACTION
 
 spawn_engine.inl + entity_pipeline.inl, the two remaining class-body
