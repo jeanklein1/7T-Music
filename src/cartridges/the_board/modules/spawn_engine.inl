@@ -30,7 +30,7 @@
 struct SpawnGatePreambleResult {
     uint32_t seed;          // from evaluate_spawn_gate
     uint32_t slot;          // reserved slot index
-    uint32_t theme_idx;     // active_theme_idx_ at evaluation time
+    uint32_t theme_idx;     // themes_state_.active_theme_idx_ at evaluation time
     bool ok;                // false = early exit (idempotency, gate, no slot)
 };
 
@@ -57,7 +57,7 @@ SpawnGatePreambleResult run_spawn_preamble(
     // 2-6. Spawn modifier chain
     float adj_mod = mood_mult[mood_state_.active];
     adj_mod *= GLOBAL_ENTITY_DENSITY;
-    r.theme_idx = active_theme_idx_;
+    r.theme_idx = themes_state_.active_theme_idx_;
     {
         auto dit = tileCache_.find({ gx, gz });
         if (dit != tileCache_.end()) {

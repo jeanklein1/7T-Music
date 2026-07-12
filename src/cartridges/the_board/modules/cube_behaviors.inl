@@ -254,7 +254,7 @@ inline void evict_cube(Cartridge* self,
 //
 // Tier tables, traits, adapter, and dispatch funnels — beside the
 // evictor. Funnels declared in cube_behaviors.hpp; table rows point
-// here (family_dispatch.inl). THEMES is reached as Cartridge::THEMES
+// here (family_dispatch.inl). THEMES is reached as THEMES
 // (INTENT[services:themes] at its definition).
 
 // ═══ FAMILY: CUBE ═════════════════════════════════════════════════
@@ -342,7 +342,7 @@ inline SpawnGateOutput cube_run_gate(Cartridge* c, int32_t gx, int32_t gz) {
         CubeConfig::MOOD_MULTIPLIER, PopFamily::CUBE, "cube");
     return { gate.ok, gate.seed, gate.slot, gate.theme_idx };
 }
-inline const float* cube_get_theme_tier_weights(uint32_t ti) { return Cartridge::THEMES[ti].tier_wt_cube; }
+inline const float* cube_get_theme_tier_weights(uint32_t ti) { return THEMES[ti].tier_wt_cube; }
 
 inline void cube_compute_solid_half(EntityInstance& inst, const TierProfile&) {
     inst.solid_half = inst.params[CubeIdx::BODY_RADIUS];

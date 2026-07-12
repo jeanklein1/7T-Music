@@ -71,6 +71,7 @@
 #include "cartridges/the_board/modules/input.hpp"                // InputState/KeyState/MouseState + decls (impl is input.inl, post-class; carries its own GLFW include)
 #include "cartridges/the_board/modules/render_passes.hpp"        // the nine pass/dispatch + light-VP decls (impl is render_passes.inl, post-class; module owns no state)
 #include "cartridges/the_board/modules/mood.hpp"                 // MoodProfile + MOOD_TABLE + portal colors + palettes + door/applier/deriver decls (impl is mood.inl, post-class; mood owns no state)
+#include "cartridges/the_board/modules/population_themes.hpp"  // S2: THEMES + ThemeEnvelope + ThemesState + decls (impl is population_themes.inl, post-class)
 #include "cartridges/the_board/renderer.hpp"
 #include "coupling/visual_canvas.hpp"
 #include <cmath>
@@ -132,6 +133,10 @@ namespace t7 {
             GalleryState gallery_state_;
 
             RibbonState ribbon_state_;
+
+            //   themes_state_ — ThemesState (population_themes.hpp), the theme
+            //     envelope machine + the per-patch selection.
+            ThemesState themes_state_;
 
             InputState inputState_;
             KeyState keys_;
@@ -679,225 +684,6 @@ namespace t7 {
             // (t7::the_board::ROSTER); every ROSTER-GATE / ROSTER-RESIDUE
             // consult below is unchanged.
 
-            // ═══ POPULATION THEMES ═══════════════════════════════════════
-
-            static constexpr float THEME_LATTICE_SPACING = 500.0f;
-            static constexpr uint32_t THEME_SEED_BAND = 170u;
-            static constexpr uint32_t THEME_COUNT = 5;
-            static constexpr float THEME_BASE_WEIGHT = 10.0f;
-
-            // ── Theme Envelope ──────────────────────────────────────────────
-
-            struct ThemeEnvelope {
-                int32_t  active = -1;              // theme index, or -1 (no bias)
-                uint32_t elapsed = 0;               // patches since this theme fired
-                uint32_t cooldowns[THEME_COUNT]{};  // per-theme remaining cooldown
-            };
-
-            struct PopulationTheme {
-                float spawn_weight[PopFamily::COUNT];          // multiplier on base spawn chance per family
-                float tier_wt_pyramid[3];                      // multiplier on pyramid tier base weights
-                float tier_wt_arch[3];                         // multiplier on arch tier base weights
-                float tier_wt_column[3];                       // multiplier on column tier base weights (Pillar, Doric, Ornate)
-                float tier_wt_antenna[3];                      // multiplier on antenna tier base weights (Antenna, Squat, Colossal)
-                float tier_wt_palm[3];                         // multiplier on palm tier base weights (Sapling, Coastal, Royal)
-                float tier_wt_cactus[3];                       // multiplier on cactus tier base weights (Finger, Saguaro, Candelabra)
-                float tier_wt_blade[3];                        // multiplier on blade tier base weights (Sprout, Clump, Thicket)
-                float tier_wt_sphere[2];                       // multiplier on sphere tier base weights (Sentinel, Anomaly)
-                float tier_wt_ribbon[3];                       // multiplier on ribbon tier base weights (Serpentine, Helix, Streamer)
-                float tier_wt_cube[4];                         // multiplier on cube tier base weights (SmCube..Monolith)
-                float density_mult;                            // multiplier on entity_density
-
-                // Envelope parameters (replace lattice weight for theme selection)
-                float    spike;
-                uint32_t sustain;       // patches at full spike
-                uint32_t decay;         // patches for linear decay to base
-                uint32_t cooldown;      // patches before re-eligible after expiry
-
-                // Lattice node weight (spatial distribution of themes)
-                float weight;
-            };
-
-            // INTENT[services:themes] the theme table is class-nested
-            //   vocabulary with owner-side readers — the per-family
-            //   get_theme_tier_weights adapters (entities.inl and
-            //   entity_pipeline.inl) reach it as (Cartridge::)THEMES.
-            //   Future services-graduation item; revisit when the
-            //   world-engine stratum is ruled (LADDER-6 / A6). Not
-            //   graduated now, by order.
-            static constexpr PopulationTheme THEMES[THEME_COUNT] = {
-                // ── 0: TRANSITION — sparse connective tissue ─────────────────
-                {   { 0.4f, 0.3f, 0.7f, 0.3f, 0.3f, 0.3f, 0.5f, 0.3f, 1.0f, 0.5f, 0.5f, 0.5f },   // spawn_weight [pyr..sph, ribn, cube, gol, gall]
-                    { 1.0f, 1.0f, 1.0f },                                       // tier_pyr
-                    { 1.0f, 0.3f, 1.0f },                                       // tier_arch
-                    { 0.1f, 0.2f, 0.3f },                                       // tier_col
-                    { 0.1f, 2.0f, 0.7f },                                       // tier_ant
-                    { 1.0f, 1.0f, 1.0f },                                       // tier_palm
-                    { 1.0f, 1.0f, 1.0f },                                       // tier_cactus
-                    { 1.0f, 1.0f, 1.0f },                                       // tier_blade
-                    { 1.0f, 1.0f },                                              // tier_sphere (neutral)
-                    { 1.0f, 1.0f, 1.0f },                                       // tier_ribbon (neutral)
-                    { 1.0f, 1.0f, 1.0f, 1.0f },                                 // tier_cube (neutral)
-                    1.0f,                                                         // density
-                    150.0f, 20u, 3u, 0u,                                          // spike, sustain, decay, cooldown
-                    0.21f                                                         // weight
-                },
-                // ── 1: MONUMENTAL — big pyramids, varied arches, heavy columns
-                {   { 1.5f, 1.0f, 1.0f, 0.5f, 0.2f, 0.2f, 0.5f, 0.3f, 1.0f, 0.3f, 0.3f, 0.3f },
-                    { 0.2f, 0.5f, 3.0f },
-                    { 2.0f, 0.1f, 3.0f },
-                    { 0.01f, 0.01f, 1.0f },
-                    { 0.5f, 1.5f, 0.5f },
-                    { 1.0f, 1.0f, 1.0f },
-                    { 1.0f, 1.0f, 1.0f },
-                    { 1.0f, 1.0f, 1.0f },
-                    { 1.0f, 1.0f },
-                    { 1.0f, 1.0f, 1.0f },
-                    { 1.0f, 1.0f, 1.0f, 1.0f },
-                    1.0f,
-                    150.0f, 10u, 10u, 8u,
-                    0.30f
-                },
-                // ── 2: COLONNADE — dense columns, moderate arches ────────────
-                {   { 0.3f, 1.0f, 4.0f, 0.5f, 0.3f, 0.3f, 0.5f, 0.3f, 1.0f, 0.3f, 0.5f, 0.4f },
-                    { 1.0f, 1.0f, 1.0f },
-                    { 3.0f, 0.5f, 1.0f },
-                    { 0.3f, 3.0f, 5.0f },
-                    { 0.2f, 0.1f, 0.1f },
-                    { 1.0f, 1.0f, 1.0f },
-                    { 1.0f, 1.0f, 1.0f },
-                    { 1.0f, 1.0f, 1.0f },
-                    { 1.0f, 1.0f },
-                    { 1.0f, 1.0f, 1.0f },
-                    { 1.0f, 1.0f, 1.0f, 1.0f },
-                    1.0f,
-                    150.0f, 15u, 6u, 6u,
-                    0.31f
-                },
-                // ── 3: ANTENNA — antenna-dominant corridor ───────────────────
-                {   { 0.5f, 0.5f, 1.0f, 4.0f, 0.5f, 0.5f, 0.5f, 0.3f, 1.0f, 0.3f, 0.3f, 0.3f },
-                    { 1.0f, 0.05f, 2.0f },
-                    { 1.0f, 0.2f, 0.8f },
-                    { 0.1f, 0.3f, 0.3f },
-                    { 0.5f, 3.5f, 1.0f },
-                    { 1.0f, 1.0f, 1.0f },
-                    { 1.0f, 1.0f, 1.0f },
-                    { 1.0f, 1.0f, 1.0f },
-                    { 1.0f, 1.0f },
-                    { 1.0f, 1.0f, 1.0f },
-                    { 1.0f, 1.0f, 1.0f, 1.0f },
-                    1.0f,
-                    180.0f, 10u, 5u, 5u,
-                    0.18f
-                },
-                // ── 4: BARREN — near-empty ───────────────────────────────────
-                {   { 0.4f, 0.3f, 0.5f, 0.3f, 0.2f, 0.2f, 0.1f, 0.3f, 1.0f, 0.1f, 0.2f, 0.6f },
-                    { 2.0f, 0.5f, 0.2f },
-                    { 1.0f, 1.0f, 1.0f },
-                    { 0.2f, 0.5f, 0.5f },
-                    { 1.0f, 1.0f, 1.0f },
-                    { 1.0f, 1.0f, 1.0f },
-                    { 1.0f, 1.0f, 1.0f },
-                    { 1.0f, 1.0f, 1.0f },
-                    { 1.0f, 1.0f },
-                    { 1.0f, 1.0f, 1.0f },
-                    { 1.0f, 1.0f, 1.0f, 1.0f },
-                    1.0f,
-                    100.0f, 12u, 3u, 4u,
-                    0.04f
-                },
-            };
-
-            // Select a theme at a lattice node from cumulative weights
-            static uint32_t select_theme_at_node(uint32_t node_seed) {
-                float roll = cpu_hash_f(node_seed, 370u);
-                float cumul = 0.0f;
-                float total = 0.0f;
-                for (uint32_t t = 0; t < THEME_COUNT; t++) total += THEMES[t].weight;
-                for (uint32_t t = 0; t < THEME_COUNT; t++) {
-                    cumul += THEMES[t].weight / total;
-                    if (roll < cumul) return t;
-                }
-                return THEME_COUNT - 1;
-            }
-
-            // ── Theme Envelope — sequential theme selection ──────────────────
-
-            static float theme_envelope_weight(const PopulationTheme& theme, uint32_t elapsed) {
-                if (elapsed < theme.sustain) return theme.spike;
-                if (elapsed < theme.sustain + theme.decay) {
-                    float t = (float)(elapsed - theme.sustain) / (float)theme.decay;
-                    return theme.spike + (THEME_BASE_WEIGHT - theme.spike) * t;
-                }
-                return THEME_BASE_WEIGHT;
-            }
-
-            // Called ONCE per patch, inside the spawn loop, BEFORE per-family gates.
-            // Returns the theme index to use for this patch.
-            uint32_t evaluate_theme_envelope(uint32_t tile_seed_value) {
-                auto& env = themeEnvelope_;
-
-                // Build effective weights
-                float weights[THEME_COUNT];
-                float total = 0.0f;
-                for (uint32_t i = 0; i < THEME_COUNT; i++) {
-                    if (env.cooldowns[i] > 0) {
-                        weights[i] = 0.0f;
-                    }
-                    else if ((int32_t)i == env.active) {
-                        weights[i] = theme_envelope_weight(THEMES[i], env.elapsed);
-                    }
-                    else {
-                        weights[i] = THEME_BASE_WEIGHT;
-                    }
-                    total += weights[i];
-                }
-                if (total < 0.001f) total = 1.0f;
-
-                // Roll from weights
-                float roll = cpu_hash_f(tile_seed_value, 370u);
-                uint32_t selected = THEME_COUNT - 1;
-                float cumul = 0.0f;
-                for (uint32_t i = 0; i < THEME_COUNT; i++) {
-                    cumul += weights[i] / total;
-                    if (roll < cumul) { selected = i; break; }
-                }
-
-                // State transitions
-                if ((int32_t)selected != env.active) {
-                    if (env.active >= 0) {
-                        env.cooldowns[env.active] = THEMES[env.active].cooldown;
-                    }
-                    env.active = (int32_t)selected;
-                    env.elapsed = 0;
-
-                    // Census dump on theme transition
-#ifdef DIAG_ENTITY_CENSUS
-                    dump_entity_census(theme_short_name(selected));
-#endif
-                }
-                else {
-                    env.elapsed++;
-                }
-
-                // Check expiry
-                if (env.active >= 0) {
-                    const auto& th = THEMES[env.active];
-                    if (env.elapsed >= th.sustain + th.decay) {
-                        env.cooldowns[env.active] = th.cooldown;
-                        env.active = -1;
-                        env.elapsed = 0;
-                    }
-                }
-
-                // Tick cooldowns
-                for (uint32_t i = 0; i < THEME_COUNT; i++) {
-                    if (env.cooldowns[i] > 0) env.cooldowns[i]--;
-                }
-
-                return selected;
-            }
-
             // ═══ TERRAIN TOKENS ══════════════════════════════════════════
 
             static constexpr uint32_t MAX_TERRAIN_TOKENS = 8;
@@ -937,8 +723,6 @@ namespace t7 {
             static constexpr float AMP_MOMENTUM_CARRY = 0.6f;       // fraction of excess carried forward
 
             // ── Theme Envelope State (replaces lattice-based selection) ─────
-            ThemeEnvelope themeEnvelope_{};
-            uint32_t active_theme_idx_ = 0;   // set per-patch by evaluate_theme_envelope
 
             struct TileState {
                 uint32_t archetype = 1;      // default: varied
@@ -1256,8 +1040,7 @@ namespace t7 {
                 placementResults_.clear();
 
                 // Theme envelope
-                themeEnvelope_ = ThemeEnvelope{};
-                active_theme_idx_ = 0;
+                themes_state_ = ThemesState{};
 
                 // Clear all entity piers (keep test rig at slots 0-2)
                 for (uint32_t i = Dim::PIER_ARCH_BASE; i < Dim::PIER_TOTAL; i++) {
@@ -1649,7 +1432,7 @@ namespace t7 {
             {
                 for (uint32_t s = 0; s < count; s++) {
                     uint32_t pi = candidates[s].idx;
-                    active_theme_idx_ = evaluate_theme_envelope(
+                    themes_state_.active_theme_idx_ = evaluate_theme_envelope(themes_state_, this, 
                         tile_seed(world_state_.active_seed, patches_[pi].grid_x, patches_[pi].grid_z));
                     select_entities_for_patch(patches_[pi].grid_x, patches_[pi].grid_z);
                     patches_[pi].phase = PatchPhase::SPAWNED;
@@ -2898,4 +2681,5 @@ namespace t7 {
 #include "modules/input.inl"      // key/mouse dispatch + movement intent + camera commands (own GLFW include)
 #include "modules/render_passes.inl"  // ground-entry prep + compute dispatch + shadow/main passes + light VPs
 #include "modules/mood.inl"       // indoor light derivation + appliers + apply_mood + shell + portals + uploads + transition request + derivers
+#include "modules/population_themes.inl"  // the envelope machine per-patch step
 #include "modules/family_dispatch.inl"  // THE TABLE — FAMILY_DISPATCH definition + shared no-op mesh adapters

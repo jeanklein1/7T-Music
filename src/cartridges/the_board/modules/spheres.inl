@@ -28,7 +28,7 @@ inline void evict_sphere(Cartridge* self,
 //
 // Tier tables, traits, adapter, and dispatch funnels — beside the
 // evictor. Funnels declared in spheres.hpp; table rows point here
-// (family_dispatch.inl). THEMES is reached as Cartridge::THEMES
+// (family_dispatch.inl). THEMES is reached as THEMES
 // (INTENT[services:themes] at its definition).
 
 // ═══ FAMILY: SPHERE ═══════════════════════════════════════════════
@@ -110,7 +110,7 @@ inline SpawnGateOutput sphere_run_gate(Cartridge* c, int32_t gx, int32_t gz) {
         SphereConfig::MOOD_MULTIPLIER, PopFamily::SPHERE, "sph");
     return { gate.ok, gate.seed, gate.slot, gate.theme_idx };
 }
-inline const float* sphere_get_theme_tier_weights(uint32_t ti) { return Cartridge::THEMES[ti].tier_wt_sphere; }
+inline const float* sphere_get_theme_tier_weights(uint32_t ti) { return THEMES[ti].tier_wt_sphere; }
 
 inline void sphere_compute_solid_half(EntityInstance& inst, const TierProfile&) {
     inst.solid_half = inst.params[SphIdx::BODY_RADIUS] + inst.params[SphIdx::ORBIT_RADIUS];

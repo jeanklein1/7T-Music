@@ -12,7 +12,7 @@
 // Cartridge::PATCH_EXTENT — residents of entity_pipeline.inl's
 // class-body chapter); the recipes reach the machine's generic
 // three-phase verbs and services via the keyhole and
-// Cartridge::THEMES (INTENT[services:themes]).
+// THEMES (INTENT[services:themes]).
 //
 // WRAPPING FORM (fix-2): SELF-WRAPPING — the zone includes impls at FILE SCOPE; law in audit/LADDER.md.
 // ─────────────────────────────────────────────────────────────────
@@ -349,7 +349,7 @@ inline void evict_blade(Cartridge* self,
 //
 // Per-family tier tables, traits, adapters, and dispatch funnels.
 // Each funnels into the machine's generic three-phase verbs via the
-// keyhole; THEMES is reached as Cartridge::THEMES
+// keyhole; THEMES is reached as THEMES
 // (INTENT[services:themes] at its definition); the table rows point
 // here (family_dispatch.inl).
 
@@ -457,7 +457,7 @@ inline SpawnGateOutput blade_run_gate(Cartridge* c,
 }
 
 inline const float* blade_get_theme_tier_weights(uint32_t theme_idx) {
-    return Cartridge::THEMES[theme_idx].tier_wt_blade;
+    return THEMES[theme_idx].tier_wt_blade;
 }
 
 inline void blade_compute_solid_half(EntityInstance& inst,
@@ -656,7 +656,7 @@ inline SpawnGateOutput palm_run_gate(Cartridge* c, int32_t gx, int32_t gz) {
 }
 
 inline const float* palm_get_theme_tier_weights(uint32_t theme_idx) {
-    return Cartridge::THEMES[theme_idx].tier_wt_palm;
+    return THEMES[theme_idx].tier_wt_palm;
 }
 
 inline constexpr uint32_t PALM_INDOOR_RESCALE_PARAMS[] = {
@@ -869,7 +869,7 @@ inline SpawnGateOutput cactus_run_gate(Cartridge* c, int32_t gx, int32_t gz) {
 }
 
 inline const float* cactus_get_theme_tier_weights(uint32_t theme_idx) {
-    return Cartridge::THEMES[theme_idx].tier_wt_cactus;
+    return THEMES[theme_idx].tier_wt_cactus;
 }
 
 inline void cactus_compute_solid_half(EntityInstance& inst, const TierProfile&) {

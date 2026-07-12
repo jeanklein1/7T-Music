@@ -31,7 +31,7 @@
 // The impl additionally reaches spawn-engine services
 // (run_spawn_preamble, negotiate_position,
 // record_placement_bookkeeping), seed_utils.hpp, and cartridge core
-// (time_state_.seconds/dt/beat_rate, Cartridge::THEMES,
+// (time_state_.seconds/dt/beat_rate, THEMES,
 // Cartridge::PATCH_EXTENT, the four ribbon canvas bindings, player_ sky
 // fields, estimate_terrain_height / terrain_tile_warm) through the
 // complete type (Cartridge:: / keyhole), and the GPU wires

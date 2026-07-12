@@ -6,7 +6,7 @@
 // c->inputState_ / c->visual_canvas_ + the four ribbon canvas bindings
 // and the spine services (run_spawn_preamble / negotiate_position /
 // record_placement_bookkeeping / estimate_terrain_height /
-// terrain_tile_warm), plus the in-class statics (Cartridge::THEMES /
+// terrain_tile_warm), plus the in-class statics (THEMES /
 // Cartridge::PATCH_EXTENT); PopFamily is roster.hpp vocabulary.
 //
 // WRAPPING FORM (fix-2): SELF-WRAPPING — the zone includes impls at FILE SCOPE; law in audit/LADDER.md.
@@ -653,7 +653,7 @@ inline bool select_ribbon_for_patch(RibbonState& rs, Cartridge* c,
     for (uint32_t t = 0; t < RIBBON_TIER_COUNT; t++)
         tier_weights[t] = RIBBON_BASE_TIER_WEIGHTS[t];
     for (uint32_t t = 0; t < RIBBON_TIER_COUNT; t++)
-        tier_weights[t] *= Cartridge::THEMES[gate.theme_idx].tier_wt_ribbon[t];
+        tier_weights[t] *= THEMES[gate.theme_idx].tier_wt_ribbon[t];
     uint32_t tier_idx = select_tier(gate.seed, RibbonProp::TIER,
         tier_weights, RIBBON_TIER_COUNT);
 
