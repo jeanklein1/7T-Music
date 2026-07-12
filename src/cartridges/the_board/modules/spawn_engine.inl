@@ -15,7 +15,8 @@
 // │    evaluate_spawn_gate(...)           — seed + flat probability  │
 // │    jittered_position(...)             — patch-relative position  │
 // │                                                                  │
-// │  Footprint registry:                                             │
+// │  Footprint registry (+ the pair-separation vocabulary:           │
+// │  MIN_SEPARATION and the PROXIMITY_* tables, written once here):   │
 // │    check_position(...)                — separation check         │
 // │    register_footprint(...)            — claim spatial slot       │
 // │    unregister_footprints_for_patch(...) — release on eviction    │
@@ -775,6 +776,50 @@ static constexpr float GLOBAL_ENTITY_DENSITY = 1.0f;
 //  but are safe — they use a different seed source (lattice band
 //  250 vs tile_seed). Do NOT move GoL props into the tile_seed
 //  range without resolving the collision.
+
+// ── Minimum Separation Matrix ─────────────────────────────────────
+//
+// Compositional spacing: how far apart entities of each family pair
+// must be. Checked against the footprint registry before accepting
+// any position. Footprints persist until patch eviction, so this
+// gives full spatial coverage across the entire active world.
+//
+// 0.0 = no minimum (exception — allow intimate proximity).
+// Positive = minimum world-space center-to-center distance.
+//
+// Read as: row = entity being placed, column = existing entity.
+// The check is asymmetric: placing an arch near a pyramid may have a
+// different minimum than placing a pyramid near an arch.
+//
+//  ┌──────────────────────────────────────────────────────────────────────────────┐
+//  │ MINIMUM SEPARATION — edge-to-edge gap (wu)                                    │
+//  │ placing ↓           │  Pyramid      │  Arch         │  Column                │
+//  ├──────────────────────┼───────────────┼───────────────┼────────────────────────┤
+//  │ Pyramid              │  15 (sparse)  │  10 (wide)    │   5 (spacing)          │
+//  │ Arch                 │  10 (wide)    │  20 (corridor)│  10 (spacing)          │
+//  │ Column               │   5 (spacing) │  10 (spacing) │   8 (colonnade)        │
+//  └──────────────────────┴───────────────┴───────────────┴────────────────────────┘
+//
+// Key exception: Arch→Pyramid = 0. Doorway arches (which become portals)
+// are explicitly allowed on top of pyramids. The footprint system still
+// prevents physical overlap of collision geometry — this matrix only
+// governs aesthetic spacing.
+
+static constexpr float MIN_SEPARATION[PopFamily::COUNT][PopFamily::COUNT] = {
+    //                near:  Pyr    Arch   Col    Ant    Palm   Cact   Blad   Sph    Ribn   Cube   GoL    Gall
+    /* placing Pyramid  */ { 65.0f, 60.0f,  5.0f, 55.0f,  5.0f,  5.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f },
+    /* placing Arch     */ { 60.0f, 20.0f, 10.0f, 60.0f,  8.0f,  5.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f },
+    /* placing Column   */ {  5.0f, 10.0f,  8.0f,  6.0f,  5.0f,  5.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f },
+    /* placing Antenna  */ { 55.0f, 60.0f,  6.0f, 12.0f,  5.0f,  5.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f },
+    /* placing Palm     */ {  5.0f,  8.0f,  5.0f,  5.0f,  8.0f,  5.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f },
+    /* placing Cactus   */ {  5.0f,  5.0f,  5.0f,  5.0f,  5.0f,  8.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f },
+    /* placing Blade    */ {  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f },
+    /* placing Sphere   */ {  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f, 20.0f,  0.0f,  0.0f,  0.0f,  0.0f },
+    /* placing Ribbon   */ {  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f, 40.0f,  0.0f,  0.0f,  0.0f },
+    /* placing Cube     */ {  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f, 15.0f,  0.0f,  0.0f },
+    /* placing GoL      */ { 10.0f, 10.0f,  5.0f,  5.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f, 60.0f,  0.0f },
+    /* placing Gallery  */ { 10.0f, 10.0f,  5.0f,  5.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f, 10.0f, 30.0f },
+};
 
 // ═══ PROXIMITY AFFINITY ══════════════════════════════════════════
 //

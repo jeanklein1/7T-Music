@@ -681,4 +681,43 @@ g++ -std=c++20 -fsyntax-only.
   pre-fix red / post-fix green.
 
 Rebuild is take two; the e5 rider and COMPACT-2 stay queued behind
-that green, in that order.
+that green, in that order. (Take two ran GREEN; the arc is ratified.)
+
+### e5 — THE RIDER (post-L4-green; three moves)
+
+**e5a — DTO repatriation (the arrow correction).** The three
+Selection/Placement pairs moved from their owner headers into
+entity_types.hpp beside the unions that are their reason to exist.
+Principle on record: A DTO THAT EXISTS TO CROSS A BOUNDARY BELONGS TO
+THE BOUNDARY'S CONTRACT, not to either side. The DTOs are plain
+aggregates of built-ins, so the contract home now carries NO owner
+vocabulary: its three module includes died (a local
+wgpu::ComputePassEncoder fwd replaces their transitive completeness),
+owner headers include the contract home, and the 18 queue-shaped
+funnel declarations went back to their owners' headers (gol_zones /
+gallery / ribbon ×3, entities ×9). The e1 circularity consequence is
+struck — the arrow points the right way. Gates: 6 DTOs
+token-identical; include graph acyclic; decls 0 contract-side.
+
+**e5b — the sphere/cube pull (Jean pulled it).** The floater recipes
+moved whole to their M-c owners: sphere 164 lines → spheres.inl, cube
+199 lines → cube_behaviors.inl, beside their evictors — same two
+transforms as e4. entity_pipeline.inl keeps FOUR family blocks: the
+welded set (column+antenna, pyramid, arch), exactly the families that
+weld to the machine's pier/regen services. Six table rows re-pointed.
+The amended-preflight LOOKUP SWEEP (member census, reads AND calls)
+ran over every owner-side region: 0 unqualified member reaches.
+
+**e5c — MIN_SEPARATION home.** The pair-separation matrix (46 lines,
+token-identical) left the spine's TERRAIN TOKENS chapter and joined
+its only reader (check_position) beside the PROXIMITY_* tables in
+spawn_engine.inl — the separation/proximity vocabulary written once,
+where the machine that consumes it lives. Legality is the same
+complete-class-context lookup PROXIMITY_* already relied on.
+
+**Standing at rider close:** zone census 13 == 13; encodings green
+(BOM quartet intact); wrapper geography final — spine-side 12 real
+prepare/mesh adapters + 12 in-class generic funnels (the welded
+four), owner-side everything else. entity_pipeline.inl is down to the
+generic verbs + four welded family blocks; every clean family lives
+whole with its owner. COMPACT-2 is next in the queue.

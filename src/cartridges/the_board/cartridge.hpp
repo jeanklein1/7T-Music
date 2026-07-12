@@ -38,7 +38,7 @@
 // │    ROSTER (roster.hpp, v0 constexpr)    — piece enable manifest  │
 // │    THEMES[THEME_COUNT]                  — population themes      │
 // │    ARCHETYPES[ARCHETYPE_COUNT]          — terrain archetypes     │
-// │    MIN_SEPARATION[][]                   — entity-pair spacing    │
+// │    (MIN_SEPARATION lives with its readers in spawn_engine.inl) │
 // │                                                                  │
 // │  Cross-module reads (consumed by modules):                       │
 // │    mood_state_.active, world_state_.active_seed, time_state_.beats, time_state_.seconds      │
@@ -1305,50 +1305,6 @@ namespace t7 {
             // ── Theme Envelope State (replaces lattice-based selection) ─────
             ThemeEnvelope themeEnvelope_{};
             uint32_t active_theme_idx_ = 0;   // set per-patch by evaluate_theme_envelope
-
-            // ── Minimum Separation Matrix ─────────────────────────────────────
-            //
-            // Compositional spacing: how far apart entities of each family pair
-            // must be. Checked against the footprint registry before accepting
-            // any position. Footprints persist until patch eviction, so this
-            // gives full spatial coverage across the entire active world.
-            //
-            // 0.0 = no minimum (exception — allow intimate proximity).
-            // Positive = minimum world-space center-to-center distance.
-            //
-            // Read as: row = entity being placed, column = existing entity.
-            // The check is asymmetric: placing an arch near a pyramid may have a
-            // different minimum than placing a pyramid near an arch.
-            //
-            //  ┌──────────────────────────────────────────────────────────────────────────────┐
-            //  │ MINIMUM SEPARATION — edge-to-edge gap (wu)                                    │
-            //  │ placing ↓           │  Pyramid      │  Arch         │  Column                │
-            //  ├──────────────────────┼───────────────┼───────────────┼────────────────────────┤
-            //  │ Pyramid              │  15 (sparse)  │  10 (wide)    │   5 (spacing)          │
-            //  │ Arch                 │  10 (wide)    │  20 (corridor)│  10 (spacing)          │
-            //  │ Column               │   5 (spacing) │  10 (spacing) │   8 (colonnade)        │
-            //  └──────────────────────┴───────────────┴───────────────┴────────────────────────┘
-            //
-            // Key exception: Arch→Pyramid = 0. Doorway arches (which become portals)
-            // are explicitly allowed on top of pyramids. The footprint system still
-            // prevents physical overlap of collision geometry — this matrix only
-            // governs aesthetic spacing.
-
-            static constexpr float MIN_SEPARATION[PopFamily::COUNT][PopFamily::COUNT] = {
-                //                near:  Pyr    Arch   Col    Ant    Palm   Cact   Blad   Sph    Ribn   Cube   GoL    Gall
-                /* placing Pyramid  */ { 65.0f, 60.0f,  5.0f, 55.0f,  5.0f,  5.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f },
-                /* placing Arch     */ { 60.0f, 20.0f, 10.0f, 60.0f,  8.0f,  5.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f },
-                /* placing Column   */ {  5.0f, 10.0f,  8.0f,  6.0f,  5.0f,  5.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f },
-                /* placing Antenna  */ { 55.0f, 60.0f,  6.0f, 12.0f,  5.0f,  5.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f },
-                /* placing Palm     */ {  5.0f,  8.0f,  5.0f,  5.0f,  8.0f,  5.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f },
-                /* placing Cactus   */ {  5.0f,  5.0f,  5.0f,  5.0f,  5.0f,  8.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f },
-                /* placing Blade    */ {  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f },
-                /* placing Sphere   */ {  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f, 20.0f,  0.0f,  0.0f,  0.0f,  0.0f },
-                /* placing Ribbon   */ {  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f, 40.0f,  0.0f,  0.0f,  0.0f },
-                /* placing Cube     */ {  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f, 15.0f,  0.0f,  0.0f },
-                /* placing GoL      */ { 10.0f, 10.0f,  5.0f,  5.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f, 60.0f,  0.0f },
-                /* placing Gallery  */ { 10.0f, 10.0f,  5.0f,  5.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f, 10.0f, 30.0f },
-            };
 
             // --- Tile State (what we remember about each generated tile) ----------
 
