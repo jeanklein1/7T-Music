@@ -36,16 +36,16 @@ inline void dispatch_mesh_gen_none(Cartridge* self, wgpu::ComputePassEncoder& pa
 // ─── The table ─────────────────────────────────────────────────────
 
 inline const FamilyDispatch FAMILY_DISPATCH[PopFamily::COUNT] = {
-    { Cartridge::dispatch_select_pyramid_generic, Cartridge::dispatch_place_pyramid_generic, Cartridge::dispatch_commit_pyramid_generic,
+    { dispatch_select_pyramid_generic, dispatch_place_pyramid_generic, dispatch_commit_pyramid_generic,
       evict_pyramid, Cartridge::dispatch_prepare_mesh_pyramid, Cartridge::dispatch_mesh_gen_pyramid,
       "pyr" },
-    { Cartridge::dispatch_select_arch_generic, Cartridge::dispatch_place_arch_generic, Cartridge::dispatch_commit_arch_generic,
+    { dispatch_select_arch_generic, dispatch_place_arch_generic, dispatch_commit_arch_generic,
       evict_arch,    Cartridge::dispatch_prepare_mesh_arch,    Cartridge::dispatch_mesh_gen_arch,
       "arch" },
-    { Cartridge::dispatch_select_column_generic, Cartridge::dispatch_place_column_generic, Cartridge::dispatch_commit_column_generic,
+    { dispatch_select_column_generic, dispatch_place_column_generic, dispatch_commit_column_generic,
       evict_column,  Cartridge::dispatch_prepare_mesh_column,  Cartridge::dispatch_mesh_gen_column,
       "col" },
-    { Cartridge::dispatch_select_antenna_generic, Cartridge::dispatch_place_antenna_generic, Cartridge::dispatch_commit_antenna_generic,
+    { dispatch_select_antenna_generic, dispatch_place_antenna_generic, dispatch_commit_antenna_generic,
       evict_antenna, Cartridge::dispatch_prepare_mesh_column,  Cartridge::dispatch_mesh_gen_column,
       "ant" },
     { dispatch_select_palm_generic, dispatch_place_palm_generic, dispatch_commit_palm_generic,

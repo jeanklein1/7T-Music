@@ -32,10 +32,10 @@
 // colors / world_state_ and the feature-gate flags), the converted
 // modules' surfaces (entities' force_spawn_portal_arch, ribbon's
 // fill/commit, gallery's wall paintings, orbs' configure,
-// render_passes' compute_spot_light_vp), in-class statics
-// (Cartridge::ARCH_TIERS / Cartridge::ArchIdx /
-// Cartridge::TransitionPhase) through the complete type,
-// solve_catenary_a (seed_utils.hpp), and PATCH_EXTENT (patch_system.hpp).
+// render_passes' compute_spot_light_vp), Cartridge::TransitionPhase
+// (in-class, through the complete type), ARCH_TIERS / ArchIdx
+// (entity_pipeline.hpp), solve_catenary_a (seed_utils.hpp), and
+// PATCH_EXTENT (patch_system.hpp).
 //
 // SEAM[mood:K1] apply_mood is the single canonical mood entry point.
 //   All mood transitions — keyboard, portal crossings, world

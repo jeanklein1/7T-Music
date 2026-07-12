@@ -164,18 +164,18 @@ inline constexpr EntityFamilyAdapter SPHERE_ADAPTER = {
 
 inline bool dispatch_select_sphere_generic(Cartridge* self, int32_t gx, int32_t gz, EntityQueueEntry& e) {
     EntityInstance inst{};
-    if (!self->generic_select(SPHERE_TRAITS, SPHERE_ADAPTER, gx, gz, inst)) return false;
+    if (!generic_select(self, SPHERE_TRAITS, SPHERE_ADAPTER, gx, gz, inst)) return false;
     e.family = PopFamily::SPHERE; e.gx = gx; e.gz = gz; e.generic = inst; return true;
 }
 inline bool dispatch_place_sphere_generic(Cartridge* self, EntityQueueEntry& e, PlacementEntry& pe) {
     pe.family = e.family; pe.gx = e.gx; pe.gz = e.gz;
-    if (self->generic_place(SPHERE_TRAITS, e.generic)) { pe.generic = e.generic; return true; }
+    if (generic_place(self, SPHERE_TRAITS, e.generic)) { pe.generic = e.generic; return true; }
     self->sphere_state_.activeFloaters_[e.generic.slot].active = false; return false;
 }
 inline void dispatch_commit_sphere_generic(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue) {
     auto* host = find_patch(self, pe.generic.host_gx, pe.generic.host_gz);
     if (host) {
-        self->generic_commit(SPHERE_TRAITS, SPHERE_ADAPTER, pe.generic, queue);
+        generic_commit(self, SPHERE_TRAITS, SPHERE_ADAPTER, pe.generic, queue);
         // Lifecycle Phase 2: sphere lifetime is no longer tied to its
         // host patch. We don't call host->record_entity() here, so
         // evict_patch_entities will never evict_sphere on this

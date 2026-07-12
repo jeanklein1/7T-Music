@@ -5,9 +5,9 @@
 //
 // THE_BOARD — Generative world engine.
 //
-// TWO REGIMES (constitution §1): CONVERTED modules are file-scope
-// headers above the class; UNCONVERTED remain class-body includes —
-// both lawful until the last module converts.
+// ONE REGIME (constitution §1, completion executed 2026-07-12,
+// LADDER-6): every module is a file-scope pair around the class;
+// the cartridge is the composition root alone.
 //
 // SEAM[spine:owns] FAMILY_DISPATCH is genuinely spine work — the
 //   integration hub that ties the 12 families together. Each row's
@@ -67,6 +67,7 @@
 #include "cartridges/the_board/modules/tile_world.hpp"          // S2: archetypes + tokens + TileState/cache + TileWorldState + decls (impl is tile_world.inl, post-class)
 #include "cartridges/the_board/modules/patch_system.hpp"     // S2: WorldState + ActivePatch + budgets + visibility + PatchSystemState + decls (impl is patch_system.inl, post-class)
 #include "cartridges/the_board/modules/spawn_engine.hpp"     // S3: spawn vocabulary + separation/proximity tables + SpawnEngineState + the preamble template + decls (impl is spawn_engine.inl, post-class)
+#include "cartridges/the_board/modules/entity_pipeline.hpp"   // S3: the rescale template + arch vocabulary (ArchIdx/ARCH_TIERS) + the three-phase verb decls (impl is entity_pipeline.inl, post-class)
 #include "cartridges/the_board/renderer.hpp"
 #include "coupling/visual_canvas.hpp"
 #include <cmath>
@@ -371,8 +372,6 @@ namespace t7 {
 
             // ── The dispatch table (FAMILY_DISPATCH) is defined at file
 
-            // ── Generic Entity Pipeline (modules/entity_pipeline.inl) ──
-#include "modules/entity_pipeline.inl"
 
             //
             // The spine-owned piece-enable manifest (struct Roster, the
@@ -1206,4 +1205,5 @@ namespace t7 {
 #include "modules/tile_world.inl"  // the four verbs over what the terrain remembers
 #include "modules/spawn_engine.inl"  // the spawn engine — negotiation + footprints + culling + census + the select/place/commit loops
 #include "modules/patch_system.inl"  // the active-patch machine — registry lifecycle + budgets + teardown + allocator + the streaming conductor
+#include "modules/entity_pipeline.inl"  // the generic three-phase verbs + the welded four family blocks (column/antenna/pyramid/arch)
 #include "modules/family_dispatch.inl"  // THE TABLE — FAMILY_DISPATCH definition + shared no-op mesh adapters

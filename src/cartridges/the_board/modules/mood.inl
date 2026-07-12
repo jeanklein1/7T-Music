@@ -8,8 +8,8 @@
 // c->sunColor_ / c->clearColor_ / c->world_state_) and the feature-gate
 // flags (c->gol_state_.mood_allowed / c->pawn_state_.aura_enabled /
 // c->entities_state_.lights_dirty — request-flags, channel-shaped),
-// plus the in-class statics (Cartridge::ARCH_TIERS / Cartridge::ArchIdx /
-// Cartridge::TransitionPhase), solve_catenary_a (seed_utils.hpp), and
+// plus Cartridge::TransitionPhase (in-class), ARCH_TIERS / ArchIdx
+// (entity_pipeline.hpp), solve_catenary_a (seed_utils.hpp), and
 // PATCH_EXTENT (patch_system.hpp).
 //
 // THE CHANNEL: the force-spawn mutation of the arch belongs to the arch's owner.
@@ -730,11 +730,11 @@ inline void force_spawn_back_portal(Cartridge* c, wgpu::Queue& queue) {
 
         float WALL_MARGIN;
         if (MOOD_TABLE[c->mood_state_.active].indoor) {
-            const auto& doorway = Cartridge::ARCH_TIERS[static_cast<uint32_t>(ArchTier::DOORWAY)].profile;
-            const float doorway_half_span = doorway.params[Cartridge::ArchIdx::SPAN].mean * 0.5f;
-            const float doorway_pier_half = doorway.params[Cartridge::ArchIdx::THICKNESS].mean * 0.5f
-                + doorway.params[Cartridge::ArchIdx::PIER_PADDING].mean
-                + doorway.params[Cartridge::ArchIdx::EDGE_BLEND].mean;
+            const auto& doorway = ARCH_TIERS[static_cast<uint32_t>(ArchTier::DOORWAY)].profile;
+            const float doorway_half_span = doorway.params[ArchIdx::SPAN].mean * 0.5f;
+            const float doorway_pier_half = doorway.params[ArchIdx::THICKNESS].mean * 0.5f
+                + doorway.params[ArchIdx::PIER_PADDING].mean
+                + doorway.params[ArchIdx::EDGE_BLEND].mean;
             WALL_MARGIN = INDOOR_ENTITY_WALL_MARGIN
                 + doorway_half_span + doorway_pier_half;
         }
@@ -849,11 +849,11 @@ inline void force_spawn_finite_portals(Cartridge* c, wgpu::Queue& queue) {
 
     float margin;
     if (MOOD_TABLE[c->mood_state_.active].indoor) {
-        const auto& doorway = Cartridge::ARCH_TIERS[static_cast<uint32_t>(ArchTier::DOORWAY)].profile;
-        const float doorway_half_span = doorway.params[Cartridge::ArchIdx::SPAN].mean * 0.5f;
-        const float doorway_pier_half = doorway.params[Cartridge::ArchIdx::THICKNESS].mean * 0.5f
-            + doorway.params[Cartridge::ArchIdx::PIER_PADDING].mean
-            + doorway.params[Cartridge::ArchIdx::EDGE_BLEND].mean;
+        const auto& doorway = ARCH_TIERS[static_cast<uint32_t>(ArchTier::DOORWAY)].profile;
+        const float doorway_half_span = doorway.params[ArchIdx::SPAN].mean * 0.5f;
+        const float doorway_pier_half = doorway.params[ArchIdx::THICKNESS].mean * 0.5f
+            + doorway.params[ArchIdx::PIER_PADDING].mean
+            + doorway.params[ArchIdx::EDGE_BLEND].mean;
         margin = INDOOR_ENTITY_WALL_MARGIN
             + doorway_half_span + doorway_pier_half;
     }

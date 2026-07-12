@@ -27,19 +27,15 @@ once kept honest by discipline (sight free, writing through
 declared seams) the boundary now keeps honest by scope: a converted
 module's every dependency is visible in its includes and its
 signatures.
-THE TRANSITIONAL REGIME: during the header ladder two regimes
-coexist lawfully. A CONVERTED module lives at file scope under the
-target law and sees nothing ambiently. An UNCONVERTED module
-remains a class-body include under the prior law, unchanged. Each
-ladder stage moves exactly ONE module across, behavior-identical,
-golden-gated; the cartridge remains ONE translation unit throughout
-— the change is boundary honesty, not compilation strategy.
-THE MISTAKE CLAUSE (held, doubled): a stranger will mistake the
-single TU for a hack precisely once, and the remaining class-body
-includes for the destination precisely once; this section exists so
-both mistakes die on first contact.
-COMPLETION: when the last module converts, the transitional clause
-is struck and §1 becomes the composition law alone.
+THE MISTAKE CLAUSE (held): a stranger will mistake the single TU
+for a hack precisely once; this section exists so the mistake dies
+on first contact. (The clause's second mistake — class-body
+includes taken for the destination — died with its subject.)
+COMPLETION (executed 2026-07-12, LADDER-6 3b): the last module
+(entity_pipeline) converted; the transitional clause is struck per
+its own sentence — §1 is the composition law alone. The cartridge
+remains ONE translation unit; that was boundary honesty, not
+compilation strategy, and it stands.
 THE PROTOTYPE REGIME (Jean's ruling, 2026-07-12 — COMPACT-2): until
 the prototype ships, per-file structural PROSE is retired; a file's
 documentation is the four keep-classes — K1 one identity sentence,
@@ -173,19 +169,18 @@ cartridge unless stated.
   roster's Rider A while disabled; each dies when its retirement is paid.
   Only indoor_shell (SEPARABLE) skips creation today. Full cost table:
   audit/ROSTER_GATE_A.md.
-- HEADER LADDER (§1 amended 2026-07-11): the single-organism law is
-  superseded by the composition law under a two-regime transitional
-  clause (a CONVERTED file-scope header vs an UNCONVERTED class-body
-  include coexist lawfully). Converted leaves so far: seed_utils,
-  ground_architecture, entity_types (LADDER-1 c1–c3 — the three leaves).
-  The remaining modules stay class-body includes under
-  the prior law until their stage. This transitional entry dies when the
-  last module converts and §1's transitional clause is struck. Ladder
-  record: audit/LADDER.md. ACCESS RULING (LADDER-2 fix): the organs went
+- HEADER LADDER (§1 amended 2026-07-11; COMPLETED 2026-07-12,
+  LADDER-6): the single-organism law is superseded by the composition
+  law. The two-regime transitional clause is STRUCK per its own
+  completion sentence — the last class-body module (entity_pipeline)
+  converted at LADDER-6 3b; every module is a file-scope pair and the
+  cartridge is the composition root alone. Ladder record:
+  audit/LADDER.md. ACCESS RULING (LADDER-2 fix): the organs went
   language-public — the header/impl split's post-class definitions stand
   outside the class, and access control never enforced the seam law (§3's
   access note). Entity Contract §1's MODULE definition amended to the
-  two-regime form same-commit.
+  two-regime form same-commit (historical; the composition law now
+  stands alone).
 - PROTOTYPE-REGIME PROSE (COMPACT-2, Jean's ruling 2026-07-12): per-file
   structural prose retired tree-wide under the §1 prototype-regime
   clause — overview essays, family tables, public-surface boxes,
