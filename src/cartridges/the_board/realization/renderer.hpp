@@ -363,6 +363,7 @@ namespace t7 {
                 wgpu::BindGroup entityBindGroup,
                 wgpu::BindGroup textureBindGroup
             ) {
+                if constexpr (!(ROSTER.wanderers)) return;  // ROSTER-GATE wanderers (a') — pipeline never created; the holder tolerates (DEMO-1c)
                 pass.SetPipeline(updateOtherAgentsPipeline_);
                 pass.SetBindGroup(0, entityBindGroup);
                 pass.SetBindGroup(1, textureBindGroup);   // live-contributor textures (POLICY_WALKER_AGENT aura)
@@ -385,6 +386,7 @@ namespace t7 {
                 wgpu::BindGroup entityBindGroup,
                 wgpu::BindGroup textureBindGroup
             ) {
+                if constexpr (!(ROSTER.sphere)) return;  // ROSTER-GATE sphere (a') — pipeline never created; the holder tolerates (DEMO-1c)
                 pass.SetPipeline(updateSpherePipeline_);
                 pass.SetBindGroup(0, entityBindGroup);
                 pass.SetBindGroup(1, textureBindGroup);   // live-contributor textures (aura)
@@ -396,6 +398,7 @@ namespace t7 {
                 wgpu::BindGroup entityBindGroup,
                 wgpu::BindGroup textureBindGroup
             ) {
+                if constexpr (!(ROSTER.cube)) return;  // ROSTER-GATE cube (a') — pipeline never created; the holder tolerates (DEMO-1c)
                 pass.SetPipeline(updateCubePipeline_);
                 pass.SetBindGroup(0, entityBindGroup);
                 pass.SetBindGroup(1, textureBindGroup);   // live-contributor textures (aura)
@@ -461,6 +464,7 @@ namespace t7 {
                 wgpu::BindGroup ribbonComputeBindGroup,
                 uint32_t workgroups
             ) {
+                if constexpr (!(ROSTER.ribbon)) return;  // ROSTER-GATE ribbon (a') — pipeline never created; the holder tolerates (DEMO-1c)
                 pass.SetPipeline(ribbonRingPipeline_);
                 pass.SetBindGroup(0, ribbonComputeBindGroup);
                 pass.DispatchWorkgroups(workgroups, 1, 1);
@@ -470,6 +474,7 @@ namespace t7 {
                 wgpu::ComputePassEncoder& pass,
                 wgpu::BindGroup photographerComputeBindGroup
             ) {
+                if constexpr (!(ROSTER.gallery)) return;  // ROSTER-GATE gallery (a') — pipeline never created; the holder tolerates (DEMO-1c)
                 pass.SetPipeline(photographerVPPipeline_);
                 pass.SetBindGroup(0, photographerComputeBindGroup);
                 pass.DispatchWorkgroups(1, 1, 1);
@@ -499,6 +504,7 @@ namespace t7 {
                 wgpu::BindGroup auraComputeBindGroup,
                 uint32_t workgroups
             ) {
+                if constexpr (!(ROSTER.pawn_aura)) return;  // ROSTER-GATE pawn_aura (a') — pipeline never created; the holder tolerates (DEMO-1c)
                 pass.SetPipeline(pawnAuraPipeline_);
                 pass.SetBindGroup(0, auraComputeBindGroup);
                 pass.DispatchWorkgroups(workgroups, workgroups, 1);
@@ -509,6 +515,7 @@ namespace t7 {
                 wgpu::BindGroup orbComputeGroup,
                 uint32_t workgroups
             ) {
+                if constexpr (!(ROSTER.orbs)) return;  // ROSTER-GATE orbs (a') — pipeline never created; the holder tolerates (DEMO-1c)
                 pass.SetPipeline(orbInitPipeline_);
                 pass.SetBindGroup(0, orbComputeGroup);
                 pass.DispatchWorkgroups(workgroups, 1, 1);
@@ -519,6 +526,7 @@ namespace t7 {
                 wgpu::BindGroup orbComputeGroup,
                 uint32_t workgroups
             ) {
+                if constexpr (!(ROSTER.orbs)) return;  // ROSTER-GATE orbs (a') — pipeline never created; the holder tolerates (DEMO-1c)
                 pass.SetPipeline(orbDynamicsPipeline_);
                 pass.SetBindGroup(0, orbComputeGroup);
                 pass.DispatchWorkgroups(workgroups, 1, 1);
@@ -529,6 +537,7 @@ namespace t7 {
                 wgpu::BindGroup orbComputeGroup,
                 uint32_t workgroups
             ) {
+                if constexpr (!(ROSTER.orbs)) return;  // ROSTER-GATE orbs (a') — pipeline never created; the holder tolerates (DEMO-1c)
                 pass.SetPipeline(orbRecolorPipeline_);
                 pass.SetBindGroup(0, orbComputeGroup);
                 pass.DispatchWorkgroups(workgroups, 1, 1);
@@ -539,6 +548,7 @@ namespace t7 {
                 wgpu::BindGroup orbCopyGroup,
                 uint32_t workgroups
             ) {
+                if constexpr (!(ROSTER.orbs)) return;  // ROSTER-GATE orbs (a') — pipeline never created; the holder tolerates (DEMO-1c)
                 pass.SetPipeline(orbCopyPrevPipeline_);
                 pass.SetBindGroup(0, orbCopyGroup);
                 pass.DispatchWorkgroups(workgroups, 1, 1);
@@ -552,6 +562,7 @@ namespace t7 {
                 wgpu::Buffer quadIB,
                 uint32_t orbCount
             ) {
+                if constexpr (!(ROSTER.orbs)) return;  // ROSTER-GATE orbs (a') — pipeline never created; the holder tolerates (DEMO-1c)
                 if (orbCount == 0) return;
                 pass.SetPipeline(orbRenderPipeline_);
                 pass.SetBindGroup(0, entityBindGroup);
@@ -566,6 +577,7 @@ namespace t7 {
                 wgpu::BindGroup zoneComputeBindGroup,
                 uint32_t zone_count
             ) {
+                if constexpr (!(ROSTER.gol)) return;  // ROSTER-GATE gol (a') — pipeline never created; the holder tolerates (DEMO-1c)
                 if (zone_count == 0) return;
                 pass.SetPipeline(zoneGolSyncPipeline_);
                 pass.SetBindGroup(0, zoneComputeBindGroup);
@@ -577,6 +589,7 @@ namespace t7 {
                 wgpu::BindGroup zoneComputeBindGroup,
                 uint32_t zone_count
             ) {
+                if constexpr (!(ROSTER.gol)) return;  // ROSTER-GATE gol (a') — pipeline never created; the holder tolerates (DEMO-1c)
                 if (zone_count == 0) return;
                 pass.SetPipeline(zoneGolEvolvePipeline_);
                 pass.SetBindGroup(0, zoneComputeBindGroup);
@@ -588,6 +601,7 @@ namespace t7 {
                 wgpu::ComputePassEncoder& pass,
                 wgpu::BindGroup meshGenGroup
             ) {
+                if constexpr (!(ROSTER.gol)) return;  // ROSTER-GATE gol (a') — pipeline never created; the holder tolerates (DEMO-1c)
                 pass.SetPipeline(zoneGolMeshResetPipeline_);
                 pass.SetBindGroup(0, meshGenGroup);
                 pass.DispatchWorkgroups(1, 1, 1);
@@ -598,6 +612,7 @@ namespace t7 {
                 wgpu::BindGroup meshGenGroup,
                 uint32_t zone_count
             ) {
+                if constexpr (!(ROSTER.gol)) return;  // ROSTER-GATE gol (a') — pipeline never created; the holder tolerates (DEMO-1c)
                 if (zone_count == 0) return;
                 pass.SetPipeline(zoneGolMeshGenPipeline_);
                 pass.SetBindGroup(0, meshGenGroup);
@@ -610,6 +625,7 @@ namespace t7 {
                 wgpu::BindGroup zoneGroup,
                 uint32_t request_count
             ) {
+                if constexpr (!(ROSTER.gol)) return;  // ROSTER-GATE gol (a') — pipeline never created; the holder tolerates (DEMO-1c)
                 if (request_count == 0) return;
                 pass.SetPipeline(zoneDeriveParamsPipeline_);
                 pass.SetBindGroup(0, zoneGroup);
@@ -622,6 +638,7 @@ namespace t7 {
                 wgpu::ComputePassEncoder& pass,
                 wgpu::BindGroup meshGenGroup
             ) {
+                if constexpr (!(ROSTER.pyramid)) return;  // ROSTER-GATE pyramid (a') — pipeline never created; the holder tolerates (DEMO-1c)
                 pass.SetPipeline(pyramidMeshGenPipeline_);
                 pass.SetBindGroup(0, meshGenGroup);
                 pass.DispatchWorkgroups(Dim::MAX_PYRAMID_INSTANCES, 1, 1);
@@ -633,6 +650,7 @@ namespace t7 {
                 wgpu::ComputePassEncoder& pass,
                 wgpu::BindGroup meshGenGroup
             ) {
+                if constexpr (!(ROSTER.arch)) return;  // ROSTER-GATE arch (a') — pipeline never created; the holder tolerates (DEMO-1c)
                 pass.SetPipeline(archMeshGenPipeline_);
                 pass.SetBindGroup(0, meshGenGroup);
                 pass.DispatchWorkgroups(Dim::MAX_ARCH_INSTANCES, 4, 1);
@@ -643,6 +661,7 @@ namespace t7 {
                 wgpu::ComputePassEncoder& pass,
                 wgpu::BindGroup meshGenGroup
             ) {
+                if constexpr (!(ROSTER.column || ROSTER.antenna)) return;  // ROSTER-GATE column+antenna (shared pipelines) (a') — pipeline never created; the holder tolerates (DEMO-1c)
                 pass.SetPipeline(columnMeshGenPipeline_);
                 pass.SetBindGroup(0, meshGenGroup);
                 pass.DispatchWorkgroups(Dim::MAX_COLUMN_INSTANCES, 1, 1);
@@ -652,6 +671,7 @@ namespace t7 {
                 wgpu::ComputePassEncoder& pass,
                 wgpu::BindGroup meshGenGroup
             ) {
+                if constexpr (!(ROSTER.palm)) return;  // ROSTER-GATE palm (a') — pipeline never created; the holder tolerates (DEMO-1c)
                 pass.SetPipeline(palmMeshGenPipeline_);
                 pass.SetBindGroup(0, meshGenGroup);
                 pass.DispatchWorkgroups(Dim::MAX_PALM_INSTANCES, 1, 1);
@@ -661,6 +681,7 @@ namespace t7 {
                 wgpu::ComputePassEncoder& pass,
                 wgpu::BindGroup meshGenGroup
             ) {
+                if constexpr (!(ROSTER.cactus)) return;  // ROSTER-GATE cactus (a') — pipeline never created; the holder tolerates (DEMO-1c)
                 pass.SetPipeline(cactusMeshGenPipeline_);
                 pass.SetBindGroup(0, meshGenGroup);
                 pass.DispatchWorkgroups(Dim::MAX_CACTUS_INSTANCES, 1, 1);
@@ -670,6 +691,7 @@ namespace t7 {
                 wgpu::ComputePassEncoder& pass,
                 wgpu::BindGroup group
             ) {
+                if constexpr (!(ROSTER.blade)) return;  // ROSTER-GATE blade (a') — pipeline never created; the holder tolerates (DEMO-1c)
                 pass.SetPipeline(bladeMeshGenPipeline_);
                 pass.SetBindGroup(0, group);
                 pass.DispatchWorkgroups(Dim::MAX_BLADE_INSTANCES, 1, 1);
@@ -684,6 +706,7 @@ namespace t7 {
                 wgpu::Buffer indexBuffer,
                 wgpu::Buffer indirectBuffer
             ) {
+                if constexpr (!(ROSTER.gol)) return;  // ROSTER-GATE gol (a') — pipeline never created; the holder tolerates (DEMO-1c)
                 pass.SetPipeline(zoneExtrusionPipeline_);
                 pass.SetBindGroup(0, entityBindGroup);
                 pass.SetBindGroup(1, textureBindGroup);
@@ -700,6 +723,7 @@ namespace t7 {
                 wgpu::Buffer indexBuffer,
                 wgpu::Buffer indirectBuffer
             ) {
+                if constexpr (!(ROSTER.gol)) return;  // ROSTER-GATE gol (a') — pipeline never created; the holder tolerates (DEMO-1c)
                 pass.SetPipeline(shadowZoneExtrusionPipeline_);
                 pass.SetBindGroup(0, entityBindGroup);
                 pass.SetBindGroup(1, textureBindGroup);
@@ -768,6 +792,7 @@ namespace t7 {
                 wgpu::Buffer indexBuffer,
                 uint32_t indexCount
             ) {
+                if constexpr (!(ROSTER.sphere)) return;  // ROSTER-GATE sphere (a') — pipeline never created; the holder tolerates (DEMO-1c)
                 pass.SetPipeline(spherePipeline_);
                 pass.SetBindGroup(0, entityBindGroup);
                 pass.SetBindGroup(1, textureBindGroup);
@@ -784,6 +809,7 @@ namespace t7 {
                 wgpu::Buffer indexBuffer,
                 uint32_t indexCount
             ) {
+                if constexpr (!(ROSTER.cube)) return;  // ROSTER-GATE cube (a') — pipeline never created; the holder tolerates (DEMO-1c)
                 pass.SetPipeline(monolithPipeline_);
                 pass.SetBindGroup(0, entityBindGroup);
                 pass.SetBindGroup(1, textureBindGroup);
@@ -798,6 +824,7 @@ namespace t7 {
                 wgpu::BindGroup textureBindGroup,
                 uint32_t vertexCount
             ) {
+                if constexpr (!(ROSTER.ribbon)) return;  // ROSTER-GATE ribbon (a') — pipeline never created; the holder tolerates (DEMO-1c)
                 pass.SetPipeline(ribbonPipeline_);
                 pass.SetBindGroup(0, entityBindGroup);
                 pass.SetBindGroup(1, textureBindGroup);
@@ -812,6 +839,7 @@ namespace t7 {
                 wgpu::Buffer indexBuffer,
                 uint32_t indexCount
             ) {
+                if constexpr (!(ROSTER.arch)) return;  // ROSTER-GATE arch (a') — pipeline never created; the holder tolerates (DEMO-1c)
                 pass.SetPipeline(archPipeline_);
                 pass.SetBindGroup(0, entityBindGroup);
                 pass.SetBindGroup(1, textureBindGroup);
@@ -828,6 +856,7 @@ namespace t7 {
                 wgpu::Buffer indexBuffer,
                 uint32_t indexCount
             ) {
+                if constexpr (!(ROSTER.column || ROSTER.antenna)) return;  // ROSTER-GATE column+antenna (shared pipelines) (a') — pipeline never created; the holder tolerates (DEMO-1c)
                 pass.SetPipeline(columnPipeline_);
                 pass.SetBindGroup(0, entityBindGroup);
                 pass.SetBindGroup(1, textureBindGroup);
@@ -844,6 +873,7 @@ namespace t7 {
                 wgpu::Buffer indexBuffer,
                 uint32_t indexCount
             ) {
+                if constexpr (!(ROSTER.palm)) return;  // ROSTER-GATE palm (a') — pipeline never created; the holder tolerates (DEMO-1c)
                 pass.SetPipeline(palmPipeline_);
                 pass.SetBindGroup(0, entityBindGroup);
                 pass.SetBindGroup(1, textureBindGroup);
@@ -860,6 +890,7 @@ namespace t7 {
                 wgpu::Buffer indexBuffer,
                 uint32_t indexCount
             ) {
+                if constexpr (!(ROSTER.cactus)) return;  // ROSTER-GATE cactus (a') — pipeline never created; the holder tolerates (DEMO-1c)
                 pass.SetPipeline(cactusPipeline_);
                 pass.SetBindGroup(0, entityBindGroup);
                 pass.SetBindGroup(1, textureBindGroup);
@@ -876,6 +907,7 @@ namespace t7 {
                 wgpu::Buffer indexBuffer,
                 uint32_t indexCount
             ) {
+                if constexpr (!(ROSTER.blade)) return;  // ROSTER-GATE blade (a') — pipeline never created; the holder tolerates (DEMO-1c)
                 pass.SetPipeline(bladePipeline_);
                 pass.SetBindGroup(0, entityBindGroup);
                 pass.SetBindGroup(1, textureBindGroup);
@@ -892,6 +924,7 @@ namespace t7 {
                 wgpu::Buffer indexBuffer,
                 uint32_t indexCount
             ) {
+                if constexpr (!(ROSTER.pyramid)) return;  // ROSTER-GATE pyramid (a') — pipeline never created; the holder tolerates (DEMO-1c)
                 pass.SetPipeline(pyramidPipeline_);
                 pass.SetBindGroup(0, entityBindGroup);
                 pass.SetBindGroup(1, textureBindGroup);
@@ -908,6 +941,7 @@ namespace t7 {
                 wgpu::Buffer indexBuffer,
                 uint32_t indexCount
             ) {
+                if constexpr (!(ROSTER.indoor_shell)) return;  // ROSTER-GATE indoor_shell (a') — pipeline never created; the holder tolerates (DEMO-1c)
                 if (indexCount == 0) return;
                 pass.SetPipeline(shellPipeline_);
                 pass.SetBindGroup(0, entityBindGroup);
@@ -923,6 +957,7 @@ namespace t7 {
                 wgpu::BindGroup galleryTextureBindGroup,
                 uint32_t activePaintingCount
             ) {
+                if constexpr (!(ROSTER.gallery)) return;  // ROSTER-GATE gallery (a') — pipeline never created; the holder tolerates (DEMO-1c)
                 if (activePaintingCount == 0) return;
                 pass.SetPipeline(galleryFramePipeline_);
                 pass.SetBindGroup(0, galleryEntityBindGroup);
@@ -936,6 +971,7 @@ namespace t7 {
                 wgpu::BindGroup galleryTextureBindGroup,
                 uint32_t wallFrameCount
             ) {
+                if constexpr (!(ROSTER.gallery)) return;  // ROSTER-GATE gallery (a') — pipeline never created; the holder tolerates (DEMO-1c)
                 if (wallFrameCount == 0) return;
 
                 // Canvas pass (textured surface)
@@ -956,6 +992,7 @@ namespace t7 {
                 wgpu::BindGroup configBindGroup,
                 float fadeAlpha
             ) {
+                if constexpr (!(ROSTER.transitions)) return;  // ROSTER-GATE transitions (a') — pipeline never created; the holder tolerates (DEMO-1c)
                 if (fadeAlpha < 0.001f) return;
                 pass.SetPipeline(fadeOverlayPipeline_);
                 pass.SetBindGroup(0, configBindGroup);
@@ -1020,6 +1057,7 @@ namespace t7 {
                 wgpu::Buffer indexBuffer,
                 uint32_t indexCount
             ) {
+                if constexpr (!(ROSTER.sphere)) return;  // ROSTER-GATE sphere (a') — pipeline never created; the holder tolerates (DEMO-1c)
                 draw_shadow_indexed_mesh(pass, shadowSpherePipeline_,
                     entityBindGroup, textureBindGroup,
                     vertexBuffer, indexBuffer, indexCount,
@@ -1034,6 +1072,7 @@ namespace t7 {
                 wgpu::Buffer indexBuffer,
                 uint32_t indexCount
             ) {
+                if constexpr (!(ROSTER.cube)) return;  // ROSTER-GATE cube (a') — pipeline never created; the holder tolerates (DEMO-1c)
                 draw_shadow_indexed_mesh(pass, shadowMonolithPipeline_,
                     entityBindGroup, textureBindGroup,
                     vertexBuffer, indexBuffer, indexCount,
@@ -1046,6 +1085,7 @@ namespace t7 {
                 wgpu::BindGroup textureBindGroup,
                 uint32_t vertexCount
             ) {
+                if constexpr (!(ROSTER.ribbon)) return;  // ROSTER-GATE ribbon (a') — pipeline never created; the holder tolerates (DEMO-1c)
                 pass.SetPipeline(shadowRibbonPipeline_);
                 pass.SetBindGroup(0, entityBindGroup);
                 pass.SetBindGroup(1, textureBindGroup);
@@ -1060,6 +1100,7 @@ namespace t7 {
                 wgpu::Buffer indexBuffer,
                 uint32_t indexCount
             ) {
+                if constexpr (!(ROSTER.arch)) return;  // ROSTER-GATE arch (a') — pipeline never created; the holder tolerates (DEMO-1c)
                 draw_shadow_indexed_mesh(pass, shadowArchPipeline_,
                     entityBindGroup, textureBindGroup,
                     vertexBuffer, indexBuffer, indexCount);
@@ -1073,6 +1114,7 @@ namespace t7 {
                 wgpu::Buffer indexBuffer,
                 uint32_t indexCount
             ) {
+                if constexpr (!(ROSTER.column || ROSTER.antenna)) return;  // ROSTER-GATE column+antenna (shared pipelines) (a') — pipeline never created; the holder tolerates (DEMO-1c)
                 draw_shadow_indexed_mesh(pass, shadowColumnPipeline_,
                     entityBindGroup, textureBindGroup,
                     vertexBuffer, indexBuffer, indexCount);
@@ -1086,6 +1128,7 @@ namespace t7 {
                 wgpu::Buffer indexBuffer,
                 uint32_t indexCount
             ) {
+                if constexpr (!(ROSTER.palm)) return;  // ROSTER-GATE palm (a') — pipeline never created; the holder tolerates (DEMO-1c)
                 draw_shadow_indexed_mesh(pass, shadowPalmPipeline_,
                     entityBindGroup, textureBindGroup,
                     vertexBuffer, indexBuffer, indexCount);
@@ -1099,6 +1142,7 @@ namespace t7 {
                 wgpu::Buffer indexBuffer,
                 uint32_t indexCount
             ) {
+                if constexpr (!(ROSTER.cactus)) return;  // ROSTER-GATE cactus (a') — pipeline never created; the holder tolerates (DEMO-1c)
                 draw_shadow_indexed_mesh(pass, shadowCactusPipeline_,
                     entityBindGroup, textureBindGroup,
                     vertexBuffer, indexBuffer, indexCount);
@@ -1112,6 +1156,7 @@ namespace t7 {
                 wgpu::Buffer indexBuffer,
                 uint32_t indexCount
             ) {
+                if constexpr (!(ROSTER.blade)) return;  // ROSTER-GATE blade (a') — pipeline never created; the holder tolerates (DEMO-1c)
                 draw_shadow_indexed_mesh(pass, shadowBladePipeline_,
                     entityBindGroup, textureBindGroup,
                     vertexBuffer, indexBuffer, indexCount);
@@ -1125,6 +1170,7 @@ namespace t7 {
                 wgpu::Buffer indexBuffer,
                 uint32_t indexCount
             ) {
+                if constexpr (!(ROSTER.pyramid)) return;  // ROSTER-GATE pyramid (a') — pipeline never created; the holder tolerates (DEMO-1c)
                 draw_shadow_indexed_mesh(pass, shadowPyramidPipeline_,
                     entityBindGroup, textureBindGroup,
                     vertexBuffer, indexBuffer, indexCount);
@@ -1138,6 +1184,7 @@ namespace t7 {
                 wgpu::Buffer indexBuffer,
                 uint32_t indexCount
             ) {
+                if constexpr (!(ROSTER.indoor_shell)) return;  // ROSTER-GATE indoor_shell (a') — pipeline never created; the holder tolerates (DEMO-1c)
                 // Helper's `if (indexCount == 0) return;` covers the early-out
                 // that the original draw_shadow_shell had explicitly.
                 draw_shadow_indexed_mesh(pass, shadowShellPipeline_,
@@ -1151,6 +1198,7 @@ namespace t7 {
                 wgpu::BindGroup galleryTextureBindGroup,
                 uint32_t wallFrameCount
             ) {
+                if constexpr (!(ROSTER.gallery)) return;  // ROSTER-GATE gallery (a') — pipeline never created; the holder tolerates (DEMO-1c)
                 if (wallFrameCount == 0) return;
                 pass.SetPipeline(shadowWallPaintingPipeline_);
                 pass.SetBindGroup(0, galleryEntityBindGroup);
@@ -1164,11 +1212,35 @@ namespace t7 {
                 wgpu::BindGroup galleryTextureBindGroup,
                 uint32_t activePaintingCount
             ) {
+                if constexpr (!(ROSTER.gallery)) return;  // ROSTER-GATE gallery (a') — pipeline never created; the holder tolerates (DEMO-1c)
                 if (activePaintingCount == 0) return;
                 pass.SetPipeline(shadowGalleryFramePipeline_);
                 pass.SetBindGroup(0, galleryEntityBindGroup);
                 pass.SetBindGroup(1, galleryTextureBindGroup);
                 pass.Draw(Dim::PAINTING_QUAD_VERTS, Dim::PAINTING_MAX_SLOTS);
+            }
+
+            // DEMO-1c gate (a'): compile-time count of pipelines the
+            // selected demo skips — the boot summary's number.
+            static constexpr uint32_t pipelines_skipped() {
+                uint32_t n = 0;
+                if (!(ROSTER.sphere)) n += 3;
+                if (!(ROSTER.cube)) n += 3;
+                if (!(ROSTER.ribbon)) n += 3;
+                if (!(ROSTER.arch)) n += 3;
+                if (!(ROSTER.column || ROSTER.antenna)) n += 3;
+                if (!(ROSTER.palm)) n += 3;
+                if (!(ROSTER.cactus)) n += 3;
+                if (!(ROSTER.blade)) n += 3;
+                if (!(ROSTER.pyramid)) n += 3;
+                if (!(ROSTER.gol)) n += 7;
+                if (!(ROSTER.gallery)) n += 6;
+                if (!(ROSTER.orbs)) n += 5;
+                if (!(ROSTER.pawn_aura)) n += 1;
+                if (!(ROSTER.indoor_shell)) n += 2;
+                if (!(ROSTER.wanderers)) n += 1;
+                if (!(ROSTER.transitions)) n += 1;
+                return n;
             }
 
             bool reload() {
@@ -1316,6 +1388,7 @@ namespace t7 {
                 // grid via contrib_pawn_aura_at_external → sample_pawn_aura.
                 // The walker-policy heavy path is NOT inlined here; algorithmic
                 // behaviors only.
+                if constexpr (ROSTER.wanderers) {  // ROSTER-GATE wanderers (a') — FXC skipped when disabled (DEMO-1c)
                 if (!tPipe("update_other_agents", [&]() {
                     wgpu::ComputePipelineDescriptor desc{};
                     desc.label = "Update Other Agents (1D, 32 threads)";
@@ -1325,6 +1398,7 @@ namespace t7 {
                     updateOtherAgentsPipeline_ = device_.CreateComputePipeline(&desc);
                     return updateOtherAgentsPipeline_ != nullptr;
                     })) return false;
+                }
 
                 // Pipeline 1c: update_camera (0D)
                 // Live-contributor layout — the camera clamp now uses
@@ -1343,6 +1417,7 @@ namespace t7 {
                 // Pipeline 1d: update_sphere (0D)
                 // Uses the live-contributor layout so coupling_terrain_to_sphere_orbit_height
                 // can call query_ground_flyer (→ contrib_pawn_aura_at → sample_pawn_aura).
+                if constexpr (ROSTER.sphere) {  // ROSTER-GATE sphere (a') — FXC skipped when disabled (DEMO-1c)
                 if (!tPipe("update_sphere", [&]() {
                     wgpu::ComputePipelineDescriptor desc{};
                     desc.label = "Update Sphere (0D)";
@@ -1352,10 +1427,12 @@ namespace t7 {
                     updateSpherePipeline_ = device_.CreateComputePipeline(&desc);
                     return updateSpherePipeline_ != nullptr;
                     })) return false;
+                }
 
                 // Pipeline 1e: update_cube (0D)
                 // Same live-contributor layout — update_cube calls
                 // query_ground_flyer directly for hover-base clearance.
+                if constexpr (ROSTER.cube) {  // ROSTER-GATE cube (a') — FXC skipped when disabled (DEMO-1c)
                 if (!tPipe("update_cube", [&]() {
                     wgpu::ComputePipelineDescriptor desc{};
                     desc.label = "Update Cube (0D)";
@@ -1365,6 +1442,7 @@ namespace t7 {
                     updateCubePipeline_ = device_.CreateComputePipeline(&desc);
                     return updateCubePipeline_ != nullptr;
                     })) return false;
+                }
 
                 // Pipeline 2: compute_vp (0D)
                 if (!tPipe("compute_vp", [&]() {
@@ -1462,6 +1540,7 @@ namespace t7 {
                     })) return false;
 
                 // Pipeline 13: compute_ribbon_rings (1D, per frame when ribbon active)
+                if constexpr (ROSTER.ribbon) {  // ROSTER-GATE ribbon (a') — FXC skipped when disabled (DEMO-1c)
                 if (!tPipe("compute_ribbon_rings", [&]() {
                     std::array<wgpu::BindGroupLayout, 1> rcLayouts = {
                         ribbonComputeLayout_
@@ -1481,8 +1560,10 @@ namespace t7 {
                     ribbonRingPipeline_ = device_.CreateComputePipeline(&desc);
                     return ribbonRingPipeline_ != nullptr;
                     })) return false;
+                }
 
                 // Photographer VP compute pipeline (0D, reads pawn → writes VP)
+                if constexpr (ROSTER.gallery) {  // ROSTER-GATE gallery (a') — FXC skipped when disabled (DEMO-1c)
                 if (!tPipe("compute_photographer_vp", [&]() {
                     std::array<wgpu::BindGroupLayout, 1> layouts = { photographerComputeLayout_ };
                     wgpu::PipelineLayoutDescriptor pld{};
@@ -1499,6 +1580,7 @@ namespace t7 {
                     photographerVPPipeline_ = device_.CreateComputePipeline(&desc);
                     return photographerVPPipeline_ != nullptr;
                     })) return false;
+                }
 
                 // Entity placement Y-correction pipeline (0D, decoupled from photographer)
                 if (!tPipe("compute_entity_placement", [&]() {
@@ -1552,10 +1634,12 @@ namespace t7 {
                     desc.layout = pl;
                     desc.compute.module = shaderModule_;
                     desc.compute.entryPoint = Entry::COMPUTE_PAWN_AURA;
+                    if constexpr (ROSTER.pawn_aura) {  // ROSTER-GATE pawn_aura (a') — FXC skipped when disabled (DEMO-1c)
                     if (!tPipe("compute_pawn_aura", [&]() {
                         pawnAuraPipeline_ = device_.CreateComputePipeline(&desc);
                         return pawnAuraPipeline_ != nullptr;
                     })) return false;
+                    }
                 }
 
                 // Orb compute pipelines (init + dynamics share the dedicated orb layout)
@@ -1571,26 +1655,32 @@ namespace t7 {
                     desc.layout = pl;
                     desc.compute.module = shaderModule_;
 
+                    if constexpr (ROSTER.orbs) {  // ROSTER-GATE orbs (a') — FXC skipped when disabled (DEMO-1c)
                     if (!tPipe("orb_init", [&]() {
                         desc.label = "Orb Init";
                         desc.compute.entryPoint = Entry::ORB_INIT;
                         orbInitPipeline_ = device_.CreateComputePipeline(&desc);
                         return orbInitPipeline_ != nullptr;
                     })) return false;
+                    }
 
+                    if constexpr (ROSTER.orbs) {  // ROSTER-GATE orbs (a') — FXC skipped when disabled (DEMO-1c)
                     if (!tPipe("orb_dynamics", [&]() {
                         desc.label = "Orb Dynamics";
                         desc.compute.entryPoint = Entry::ORB_DYNAMICS;
                         orbDynamicsPipeline_ = device_.CreateComputePipeline(&desc);
                         return orbDynamicsPipeline_ != nullptr;
                     })) return false;
+                    }
 
+                    if constexpr (ROSTER.orbs) {  // ROSTER-GATE orbs (a') — FXC skipped when disabled (DEMO-1c)
                     if (!tPipe("orb_recolor", [&]() {
                         desc.label = "Orb Recolor";
                         desc.compute.entryPoint = Entry::ORB_RECOLOR;
                         orbRecolorPipeline_ = device_.CreateComputePipeline(&desc);
                         return orbRecolorPipeline_ != nullptr;
                     })) return false;
+                    }
                 }
 
                 // Orb copy-prev pipeline (Pass 9) — dedicated layout because
@@ -1608,10 +1698,12 @@ namespace t7 {
                     desc.compute.module = shaderModule_;
                     desc.label = "Orb State Prev Copy";
                     desc.compute.entryPoint = Entry::ORB_STATE_PREV_COPY;
+                    if constexpr (ROSTER.orbs) {  // ROSTER-GATE orbs (a') — FXC skipped when disabled (DEMO-1c)
                     if (!tPipe("orb_state_prev_copy", [&]() {
                         orbCopyPrevPipeline_ = device_.CreateComputePipeline(&desc);
                         return orbCopyPrevPipeline_ != nullptr;
                     })) return false;
+                    }
                 }
 
                 // GoL zone compute pipelines (dedicated layout, z-dispatched)
@@ -1627,19 +1719,23 @@ namespace t7 {
                     desc.layout = pl;
                     desc.compute.module = shaderModule_;
 
+                    if constexpr (ROSTER.gol) {  // ROSTER-GATE gol (a') — FXC skipped when disabled (DEMO-1c)
                     if (!tPipe("zone_gol_sync", [&]() {
                         desc.label = "GoL Zone Sync";
                         desc.compute.entryPoint = Entry::ZONE_GOL_SYNC;
                         zoneGolSyncPipeline_ = device_.CreateComputePipeline(&desc);
                         return zoneGolSyncPipeline_ != nullptr;
                     })) return false;
+                    }
 
+                    if constexpr (ROSTER.gol) {  // ROSTER-GATE gol (a') — FXC skipped when disabled (DEMO-1c)
                     if (!tPipe("zone_gol_evolve", [&]() {
                         desc.label = "GoL Zone Evolve";
                         desc.compute.entryPoint = Entry::ZONE_GOL_EVOLVE;
                         zoneGolEvolvePipeline_ = device_.CreateComputePipeline(&desc);
                         return zoneGolEvolvePipeline_ != nullptr;
                     })) return false;
+                    }
                 }
 
                 // Zone mesh gen pipelines (dedicated single-group layout with
@@ -1656,26 +1752,32 @@ namespace t7 {
                     desc.layout = pl;
                     desc.compute.module = shaderModule_;
 
+                    if constexpr (ROSTER.gol) {  // ROSTER-GATE gol (a') — FXC skipped when disabled (DEMO-1c)
                     if (!tPipe("zone_gol_mesh_reset", [&]() {
                         desc.label = "Zone Mesh Reset";
                         desc.compute.entryPoint = Entry::ZONE_GOL_MESH_RESET;
                         zoneGolMeshResetPipeline_ = device_.CreateComputePipeline(&desc);
                         return zoneGolMeshResetPipeline_ != nullptr;
                     })) return false;
+                    }
 
+                    if constexpr (ROSTER.gol) {  // ROSTER-GATE gol (a') — FXC skipped when disabled (DEMO-1c)
                     if (!tPipe("zone_gol_mesh_gen", [&]() {
                         desc.label = "Zone Mesh Gen";
                         desc.compute.entryPoint = Entry::ZONE_GOL_MESH_GEN;
                         zoneGolMeshGenPipeline_ = device_.CreateComputePipeline(&desc);
                         return zoneGolMeshGenPipeline_ != nullptr;
                     })) return false;
+                    }
 
+                    if constexpr (ROSTER.gol) {  // ROSTER-GATE gol (a') — FXC skipped when disabled (DEMO-1c)
                     if (!tPipe("zone_derive_params", [&]() {
                         desc.label = "Zone Derive Params";
                         desc.compute.entryPoint = Entry::ZONE_DERIVE_PARAMS;
                         zoneDeriveParamsPipeline_ = device_.CreateComputePipeline(&desc);
                         return zoneDeriveParamsPipeline_ != nullptr;
                     })) return false;
+                    }
                 }
 
                 // Pyramid mesh gen pipeline (dedicated layout, isolated from terrain eval)
@@ -1692,10 +1794,12 @@ namespace t7 {
                     desc.layout = pl;
                     desc.compute.module = shaderModule_;
                     desc.compute.entryPoint = Entry::PYRAMID_MESH_GEN;
+                    if constexpr (ROSTER.pyramid) {  // ROSTER-GATE pyramid (a') — FXC skipped when disabled (DEMO-1c)
                     if (!tPipe("pyramid_mesh_gen", [&]() {
                         pyramidMeshGenPipeline_ = device_.CreateComputePipeline(&desc);
                         return pyramidMeshGenPipeline_ != nullptr;
                     })) return false;
+                    }
                 }
 
                 // Arch mesh gen pipeline (dedicated layout — bindings 193-195)
@@ -1712,10 +1816,12 @@ namespace t7 {
                     desc.layout = pl;
                     desc.compute.module = shaderModule_;
                     desc.compute.entryPoint = Entry::ARCH_MESH_GEN;
+                    if constexpr (ROSTER.arch) {  // ROSTER-GATE arch (a') — FXC skipped when disabled (DEMO-1c)
                     if (!tPipe("arch_mesh_gen", [&]() {
                         archMeshGenPipeline_ = device_.CreateComputePipeline(&desc);
                         return archMeshGenPipeline_ != nullptr;
                     })) return false;
+                    }
                 }
 
                 // Column mesh gen pipeline (dedicated layout — bindings 196-198)
@@ -1732,10 +1838,12 @@ namespace t7 {
                     desc.layout = pl;
                     desc.compute.module = shaderModule_;
                     desc.compute.entryPoint = Entry::COLUMN_MESH_GEN;
+                    if constexpr (ROSTER.column || ROSTER.antenna) {  // ROSTER-GATE column+antenna (shared pipelines) (a') — FXC skipped when disabled (DEMO-1c)
                     if (!tPipe("column_mesh_gen", [&]() {
                         columnMeshGenPipeline_ = device_.CreateComputePipeline(&desc);
                         return columnMeshGenPipeline_ != nullptr;
                     })) return false;
+                    }
                 }
 
                 // Palm mesh gen compute pipeline
@@ -1752,10 +1860,12 @@ namespace t7 {
                     desc.layout = pl;
                     desc.compute.module = shaderModule_;
                     desc.compute.entryPoint = Entry::PALM_MESH_GEN;
+                    if constexpr (ROSTER.palm) {  // ROSTER-GATE palm (a') — FXC skipped when disabled (DEMO-1c)
                     if (!tPipe("palm_mesh_gen", [&]() {
                         palmMeshGenPipeline_ = device_.CreateComputePipeline(&desc);
                         return palmMeshGenPipeline_ != nullptr;
                     })) return false;
+                    }
                 }
 
                 // Cactus mesh gen compute pipeline
@@ -1771,10 +1881,12 @@ namespace t7 {
                     desc.layout = pl;
                     desc.compute.module = shaderModule_;
                     desc.compute.entryPoint = Entry::CACTUS_MESH_GEN;
+                    if constexpr (ROSTER.cactus) {  // ROSTER-GATE cactus (a') — FXC skipped when disabled (DEMO-1c)
                     if (!tPipe("cactus_mesh_gen", [&]() {
                         cactusMeshGenPipeline_ = device_.CreateComputePipeline(&desc);
                         return cactusMeshGenPipeline_ != nullptr;
                     })) return false;
+                    }
                 }
 
                 // Blade mesh gen compute pipeline
@@ -1790,10 +1902,12 @@ namespace t7 {
                     desc.layout = pl;
                     desc.compute.module = shaderModule_;
                     desc.compute.entryPoint = Entry::BLADE_MESH_GEN;
+                    if constexpr (ROSTER.blade) {  // ROSTER-GATE blade (a') — FXC skipped when disabled (DEMO-1c)
                     if (!tPipe("blade_cluster_mesh_gen", [&]() {
                         bladeMeshGenPipeline_ = device_.CreateComputePipeline(&desc);
                         return bladeMeshGenPipeline_ != nullptr;
                     })) return false;
+                    }
                 }
 
                 return true;
@@ -1936,10 +2050,12 @@ namespace t7 {
                     desc.depthStencil = &depthStencil;
                     desc.fragment = &fragment;
 
+                    if constexpr (ROSTER.gol) {  // ROSTER-GATE gol (a') — FXC skipped when disabled (DEMO-1c)
                     if (!tPipe("zone_extrusion", [&]() {
                         zoneExtrusionPipeline_ = device_.CreateRenderPipeline(&desc);
                         return zoneExtrusionPipeline_ != nullptr;
                     })) return false;
+                    }
                 }
 
                 // Pawn pipeline -- chess pawn, GPU-generated from vertex_index
@@ -2003,11 +2119,14 @@ namespace t7 {
                     desc.depthStencil = &depthStencil;
                     desc.fragment = &fragment;
 
+                    if constexpr (ROSTER.sphere) {  // ROSTER-GATE sphere (a') — FXC skipped when disabled (DEMO-1c)
                     if (!tPipe("sphere", [&]() {
                         spherePipeline_ = device_.CreateRenderPipeline(&desc);
                         return spherePipeline_ != nullptr;
                     })) return false;
+                    }
 
+                    if constexpr (ROSTER.cube) {  // ROSTER-GATE cube (a') — FXC skipped when disabled (DEMO-1c)
                     if (!tPipe("monolith", [&]() {
                         // Monolith pipeline — same vertex format, different VS
                         desc.label = "Monolith Entity (Rasterized)";
@@ -2015,6 +2134,7 @@ namespace t7 {
                         monolithPipeline_ = device_.CreateRenderPipeline(&desc);
                         return monolithPipeline_ != nullptr;
                     })) return false;
+                    }
                 }
 
                 // Arch pipeline -- catenary arch, ArchVertex (pos+normal+color+arch_index), static world-space
@@ -2058,11 +2178,14 @@ namespace t7 {
                     desc.depthStencil = &depthStencil;
                     desc.fragment = &fragment;
 
+                    if constexpr (ROSTER.arch) {  // ROSTER-GATE arch (a') — FXC skipped when disabled (DEMO-1c)
                     if (!tPipe("arch", [&]() {
                         archPipeline_ = device_.CreateRenderPipeline(&desc);
                         return archPipeline_ != nullptr;
                     })) return false;
+                    }
 
+                    if constexpr (ROSTER.column || ROSTER.antenna) {  // ROSTER-GATE column+antenna (shared pipelines) (a') — FXC skipped when disabled (DEMO-1c)
                     if (!tPipe("column", [&]() {
                         desc.label = "Generative Column (Rasterized)";
                         desc.vertex.entryPoint = Entry::COLUMN_VS;
@@ -2070,7 +2193,9 @@ namespace t7 {
                         columnPipeline_ = device_.CreateRenderPipeline(&desc);
                         return columnPipeline_ != nullptr;
                     })) return false;
+                    }
 
+                    if constexpr (ROSTER.palm) {  // ROSTER-GATE palm (a') — FXC skipped when disabled (DEMO-1c)
                     if (!tPipe("palm", [&]() {
                         // Palm pipeline — same vertex format, no backface culling (frond quads are single-sided)
                         desc.label = "Palm Tree (Rasterized)";
@@ -2079,7 +2204,9 @@ namespace t7 {
                         palmPipeline_ = device_.CreateRenderPipeline(&desc);
                         return palmPipeline_ != nullptr;
                     })) return false;
+                    }
 
+                    if constexpr (ROSTER.cactus) {  // ROSTER-GATE cactus (a') — FXC skipped when disabled (DEMO-1c)
                     if (!tPipe("cactus", [&]() {
                         // Cactus pipeline — same vertex format, no backface culling
                         desc.label = "Cactus (Rasterized)";
@@ -2088,7 +2215,9 @@ namespace t7 {
                         cactusPipeline_ = device_.CreateRenderPipeline(&desc);
                         return cactusPipeline_ != nullptr;
                     })) return false;
+                    }
 
+                    if constexpr (ROSTER.blade) {  // ROSTER-GATE blade (a') — FXC skipped when disabled (DEMO-1c)
                     if (!tPipe("blade", [&]() {
                         // Blade cluster pipeline — no backface culling (flat quads visible from both sides)
                         desc.label = "Blade Cluster (Rasterized)";
@@ -2097,7 +2226,9 @@ namespace t7 {
                         bladePipeline_ = device_.CreateRenderPipeline(&desc);
                         return bladePipeline_ != nullptr;
                     })) return false;
+                    }
 
+                    if constexpr (ROSTER.pyramid) {  // ROSTER-GATE pyramid (a') — FXC skipped when disabled (DEMO-1c)
                     if (!tPipe("pyramid", [&]() {
                         // Pyramid pipeline — same vertex format as arch/column, Back culling.
                         desc.label = "Generative Pyramid (Rasterized)";
@@ -2106,6 +2237,7 @@ namespace t7 {
                         pyramidPipeline_ = device_.CreateRenderPipeline(&desc);
                         return pyramidPipeline_ != nullptr;
                     })) return false;
+                    }
                 }
 
                 // Shell pipeline -- indoor ceiling + walls, ShellVertex (pos+normal+color), static world-space
@@ -2151,10 +2283,12 @@ namespace t7 {
                     // shell_index_count==0 (stays 0 — apply_mood_indoor_shell is
                     // (b)-gated), so the null pipeline is never bound.
                     if constexpr (ROSTER.indoor_shell) {
+                        if constexpr (ROSTER.indoor_shell) {  // ROSTER-GATE indoor_shell (a') — FXC skipped when disabled (DEMO-1c)
                         if (!tPipe("shell", [&]() {
                             shellPipeline_ = device_.CreateRenderPipeline(&desc);
                             return shellPipeline_ != nullptr;
                         })) return false;
+                        }
                     }
                 }
 
@@ -2178,10 +2312,12 @@ namespace t7 {
                     desc.depthStencil = &depthStencil;
                     desc.fragment = &fragment;
 
+                    if constexpr (ROSTER.ribbon) {  // ROSTER-GATE ribbon (a') — FXC skipped when disabled (DEMO-1c)
                     if (!tPipe("ribbon", [&]() {
                         ribbonPipeline_ = device_.CreateRenderPipeline(&desc);
                         return ribbonPipeline_ != nullptr;
                     })) return false;
+                    }
                 }
 
                 // Orb pipeline -- billboarded glowing sprites, additive blended,
@@ -2238,10 +2374,12 @@ namespace t7 {
                     desc.depthStencil = &orbDepth;
                     desc.fragment = &fragment;
 
+                    if constexpr (ROSTER.orbs) {  // ROSTER-GATE orbs (a') — FXC skipped when disabled (DEMO-1c)
                     if (!tPipe("orb", [&]() {
                         orbRenderPipeline_ = device_.CreateRenderPipeline(&desc);
                         return orbRenderPipeline_ != nullptr;
                     })) return false;
+                    }
                 }
 
                 // ─── Gallery Frame Pipeline ──────────────────────────────────────
@@ -2290,10 +2428,12 @@ namespace t7 {
                     desc.depthStencil = &galleryDepth;
                     desc.fragment = &frag;
 
+                    if constexpr (ROSTER.gallery) {  // ROSTER-GATE gallery (a') — FXC skipped when disabled (DEMO-1c)
                     if (!tPipe("gallery_frame", [&]() {
                         galleryFramePipeline_ = device_.CreateRenderPipeline(&desc);
                         return galleryFramePipeline_ != nullptr;
                     })) return false;
+                    }
 
                     // Shadow Gallery Frame (depth-only, instanced, same layout)
                     {
@@ -2314,10 +2454,12 @@ namespace t7 {
                         sdesc.depthStencil = &shadowDepth;
                         sdesc.fragment = nullptr;
 
+                        if constexpr (ROSTER.gallery) {  // ROSTER-GATE gallery (a') — FXC skipped when disabled (DEMO-1c)
                         if (!tPipe("shadow_gallery_frame", [&]() {
                             shadowGalleryFramePipeline_ = device_.CreateRenderPipeline(&sdesc);
                             return shadowGalleryFramePipeline_ != nullptr;
                         })) return false;
+                        }
                     }
                 }
 
@@ -2361,10 +2503,12 @@ namespace t7 {
                         desc.depthStencil = &wpDepth;
                         desc.fragment = &frag;
 
+                        if constexpr (ROSTER.gallery) {  // ROSTER-GATE gallery (a') — FXC skipped when disabled (DEMO-1c)
                         if (!tPipe("wall_painting_canvas", [&]() {
                             wallPaintingCanvasPipeline_ = device_.CreateRenderPipeline(&desc);
                             return wallPaintingCanvasPipeline_ != nullptr;
                         })) return false;
+                        }
                     }
 
                     // Frame pipeline (solid color)
@@ -2387,10 +2531,12 @@ namespace t7 {
                         desc.depthStencil = &wpDepth;
                         desc.fragment = &frag;
 
+                        if constexpr (ROSTER.gallery) {  // ROSTER-GATE gallery (a') — FXC skipped when disabled (DEMO-1c)
                         if (!tPipe("wall_painting_frame", [&]() {
                             wallPaintingFramePipeline_ = device_.CreateRenderPipeline(&desc);
                             return wallPaintingFramePipeline_ != nullptr;
                         })) return false;
+                        }
                     }
 
                     // Shadow wall painting (depth-only, Depth32Float, same gallery layouts)
@@ -2412,10 +2558,12 @@ namespace t7 {
                         desc.depthStencil = &shadowDepth;
                         desc.fragment = nullptr;
 
+                        if constexpr (ROSTER.gallery) {  // ROSTER-GATE gallery (a') — FXC skipped when disabled (DEMO-1c)
                         if (!tPipe("shadow_wall_painting", [&]() {
                             shadowWallPaintingPipeline_ = device_.CreateRenderPipeline(&desc);
                             return shadowWallPaintingPipeline_ != nullptr;
                         })) return false;
+                        }
                     }
                 }
 
@@ -2498,10 +2646,12 @@ namespace t7 {
                         desc.depthStencil = &shadowDepth;
                         desc.fragment = nullptr;
 
+                        if constexpr (ROSTER.sphere) {  // ROSTER-GATE sphere (a') — FXC skipped when disabled (DEMO-1c)
                         if (!tPipe("shadow_sphere", [&]() {
                             shadowSpherePipeline_ = device_.CreateRenderPipeline(&desc);
                             return shadowSpherePipeline_ != nullptr;
                         })) return false;
+                        }
                     }
 
                     // Shadow Monolith (same MeshVertex buffer, different VS)
@@ -2519,10 +2669,12 @@ namespace t7 {
                         desc.depthStencil = &shadowDepth;
                         desc.fragment = nullptr;
 
+                        if constexpr (ROSTER.cube) {  // ROSTER-GATE cube (a') — FXC skipped when disabled (DEMO-1c)
                         if (!tPipe("shadow_monolith", [&]() {
                             shadowMonolithPipeline_ = device_.CreateRenderPipeline(&desc);
                             return shadowMonolithPipeline_ != nullptr;
                         })) return false;
+                        }
                     }
 
                     // Shadow Arch (ArchVertex buffer: pos+normal+color+arch_index, stride 40)
@@ -2560,11 +2712,14 @@ namespace t7 {
                         desc.depthStencil = &shadowDepth;
                         desc.fragment = nullptr;
 
+                        if constexpr (ROSTER.arch) {  // ROSTER-GATE arch (a') — FXC skipped when disabled (DEMO-1c)
                         if (!tPipe("shadow_arch", [&]() {
                             shadowArchPipeline_ = device_.CreateRenderPipeline(&desc);
                             return shadowArchPipeline_ != nullptr;
                         })) return false;
+                        }
 
+                        if constexpr (ROSTER.column || ROSTER.antenna) {  // ROSTER-GATE column+antenna (shared pipelines) (a') — FXC skipped when disabled (DEMO-1c)
                         if (!tPipe("shadow_column", [&]() {
                             // Shadow Column — same vertex format, different VS
                             desc.label = "Shadow Generative Column";
@@ -2573,7 +2728,9 @@ namespace t7 {
                             shadowColumnPipeline_ = device_.CreateRenderPipeline(&desc);
                             return shadowColumnPipeline_ != nullptr;
                         })) return false;
+                        }
 
+                        if constexpr (ROSTER.palm) {  // ROSTER-GATE palm (a') — FXC skipped when disabled (DEMO-1c)
                         if (!tPipe("shadow_palm", [&]() {
                             // Shadow Palm — same vertex format, no culling
                             desc.label = "Shadow Palm Tree";
@@ -2582,7 +2739,9 @@ namespace t7 {
                             shadowPalmPipeline_ = device_.CreateRenderPipeline(&desc);
                             return shadowPalmPipeline_ != nullptr;
                         })) return false;
+                        }
 
+                        if constexpr (ROSTER.cactus) {  // ROSTER-GATE cactus (a') — FXC skipped when disabled (DEMO-1c)
                         if (!tPipe("shadow_cactus", [&]() {
                             // Shadow Cactus
                             desc.label = "Shadow Cactus";
@@ -2591,7 +2750,9 @@ namespace t7 {
                             shadowCactusPipeline_ = device_.CreateRenderPipeline(&desc);
                             return shadowCactusPipeline_ != nullptr;
                         })) return false;
+                        }
 
+                        if constexpr (ROSTER.blade) {  // ROSTER-GATE blade (a') — FXC skipped when disabled (DEMO-1c)
                         if (!tPipe("shadow_blade", [&]() {
                             // Shadow Blade Cluster
                             desc.label = "Shadow Blade Cluster";
@@ -2600,7 +2761,9 @@ namespace t7 {
                             shadowBladePipeline_ = device_.CreateRenderPipeline(&desc);
                             return shadowBladePipeline_ != nullptr;
                         })) return false;
+                        }
 
+                        if constexpr (ROSTER.pyramid) {  // ROSTER-GATE pyramid (a') — FXC skipped when disabled (DEMO-1c)
                         if (!tPipe("shadow_pyramid", [&]() {
                             // Shadow Pyramid — same vertex format, Back culling
                             desc.label = "Shadow Generative Pyramid";
@@ -2609,6 +2772,7 @@ namespace t7 {
                             shadowPyramidPipeline_ = device_.CreateRenderPipeline(&desc);
                             return shadowPyramidPipeline_ != nullptr;
                         })) return false;
+                        }
                     }
 
                     // Shadow Shell (ShellVertex: pos+normal+color, stride 36)
@@ -2647,10 +2811,12 @@ namespace t7 {
                         // shadow-shell pipeline too. draw_shadow_shell self-gates
                         // on count==0 (shared helper's early-out).
                         if constexpr (ROSTER.indoor_shell) {
+                            if constexpr (ROSTER.indoor_shell) {  // ROSTER-GATE indoor_shell (a') — FXC skipped when disabled (DEMO-1c)
                             if (!tPipe("shadow_shell", [&]() {
                                 shadowShellPipeline_ = device_.CreateRenderPipeline(&desc);
                                 return shadowShellPipeline_ != nullptr;
                             })) return false;
+                            }
                         }
                     }
 
@@ -2668,10 +2834,12 @@ namespace t7 {
                         desc.depthStencil = &shadowDepth;
                         desc.fragment = nullptr;
 
+                        if constexpr (ROSTER.ribbon) {  // ROSTER-GATE ribbon (a') — FXC skipped when disabled (DEMO-1c)
                         if (!tPipe("shadow_ribbon", [&]() {
                             shadowRibbonPipeline_ = device_.CreateRenderPipeline(&desc);
                             return shadowRibbonPipeline_ != nullptr;
                         })) return false;
+                        }
                     }
 
                     // Shadow Zone Extrusion (CellMeshVertex buffer, GoL zones)
@@ -2709,10 +2877,12 @@ namespace t7 {
                         desc.depthStencil = &shadowDepth;
                         desc.fragment = nullptr;
 
+                        if constexpr (ROSTER.gol) {  // ROSTER-GATE gol (a') — FXC skipped when disabled (DEMO-1c)
                         if (!tPipe("shadow_zone_extrusion", [&]() {
                             shadowZoneExtrusionPipeline_ = device_.CreateRenderPipeline(&desc);
                             return shadowZoneExtrusionPipeline_ != nullptr;
                         })) return false;
+                        }
                     }
                 }
 
@@ -2758,10 +2928,12 @@ namespace t7 {
                     fadeDepth.depthCompare = wgpu::CompareFunction::Always;
                     desc.depthStencil = &fadeDepth;
 
+                    if constexpr (ROSTER.transitions) {  // ROSTER-GATE transitions (a') — FXC skipped when disabled (DEMO-1c)
                     if (!tPipe("fade_overlay", [&]() {
                         fadeOverlayPipeline_ = device_.CreateRenderPipeline(&desc);
                         return fadeOverlayPipeline_ != nullptr;
                     })) return false;
+                    }
                 }
 
                 return true;

@@ -1,0 +1,47 @@
+{
+  "version": 3,
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "DAWN_DIR": "C:/dev/dawn",
+        "DAWN_BUILD": "C:/dev/dawn/out"
+      }
+    },
+    {
+      "name": "the-board-full",
+      "displayName": "the_board — full",
+      "inherits": "base",
+      "cacheVariables": {
+        "INCUBATOR_DUAL_RENDER_CARTRIDGE": "the_board",
+        "THE_BOARD_DEMO": "full"
+      }
+    },
+    {
+      "name": "the-board-minimal",
+      "displayName": "the_board — minimal",
+      "inherits": "base",
+      "cacheVariables": {
+        "INCUBATOR_DUAL_RENDER_CARTRIDGE": "the_board",
+        "THE_BOARD_DEMO": "minimal"
+      }
+    },
+    {
+      "name": "the-chord",
+      "displayName": "the_chord",
+      "inherits": "base",
+      "cacheVariables": {
+        "INCUBATOR_RENDER_CARTRIDGE": "the_chord"
+      }
+    }
+  ],
+  "buildPresets": [
+    { "name": "the-board-full",    "configurePreset": "the-board-full",    "targets": ["incubator_dual"] },
+    { "name": "the-board-minimal", "configurePreset": "the-board-minimal", "targets": ["incubator_dual"] },
+    { "name": "the-chord",         "configurePreset": "the-chord",         "targets": ["incubator"] }
+  ]
+}

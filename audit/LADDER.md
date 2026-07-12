@@ -1078,3 +1078,70 @@ Rig gate unchanged: Jean configures default (G0' golden), then
 -DTHE_BOARD_DEMO=minimal for M1 and the sky checkpoint, reporting
 dispositions as the DEMO-1 handoff ordered.
 
+## DEMO-1c — THE HANDLE AND THE PIPELINE GATE (two frictions, one rider)
+
+**THE HANDLE (CMakePresets.json; the deprecated pane retires):** three
+configure presets over a hidden base (Ninja, Debug, the Dawn paths) —
+"the_board — full" (render=the_board, THE_BOARD_DEMO=full),
+"the_board — minimal" (same render, demo=minimal), "the_chord"
+(render=the_chord). Each preset pins BOTH knobs so intent is one
+click and the inert-define trap is impossible; matching buildPresets
+name the target (incubator_dual / incubator). Verified: cmake
+--list-presets surfaces all three (VS reads the same file into the
+configuration dropdown — Jean eyeballs at the rig). The cache-var
+mechanism stands exactly as landed; presets are a handle over it.
+THE SWITCH RECIPE (updated): one click on the preset in VS — or
+  cmake --preset the-board-minimal && cmake --build --preset the-board-minimal
+
+**THE PIPELINE GATE (a') — PHASE R' CENSUS (65 pipelines, one
+creation site + one reader helper each; the helper owns the only
+SetPipeline):**
+FOUNDATIONAL (15, never gated): updateTerrainConfig,
+updatePlayerAgent (THE PLAYER), updateCamera, computeVP (camera; the
+spot path computes VPs CPU-side — spot_lights owns no pipeline),
+generateTerrainIndices, generatePatchHeights/Gradients/Cells
+(surface), patchTerrain + patchTerrainIndirect + shadowPatchTerrain
+(surface draw), pawn + shadowPawn (the playable character),
+entityPlacement (shared by ALL families — the ambiguity rule),
+frustumCull (render infra).
+GATED (50, by owner): sphere/cube/ribbon/arch/palm/cactus/blade/
+pyramid x3 each (mesh-or-update compute + draw + shadow);
+column+antenna x3 SHARED-PAIR (gate on column||antenna — the antenna
+family rides the column pipelines by design); gol x7; gallery x6
+(photographerVP rides gallery's bit per the roster's LATENT split
+note); orbs x5; pawn_aura, wanderers, transitions (fadeOverlay — its
+only consumer) x1 each; indoor_shell x2.
+RE-SECTION CASES: NONE — every gated pipeline references shared
+layouts only; nothing joins the parked ledger. Desc-mutation chains
+audited: every inter-piece descriptor dependency flows through
+unconditional outside-lambda setup; gated lambdas that mutate the
+shared desc each set all varying fields themselves.
+
+**PHASE I' (the cut, form disclosed):** each creation tPipe statement
+wrapped in `if constexpr (ROSTER.bit)` (50 consults); each owned
+helper opens with `if constexpr (!bit) return;` (49 consults — the
+holder tolerates a never-created handle at its single SetPipeline
+choke point; callers untouched, gate (b) semantics unchanged).
+reload() re-runs the same gated creation path — hot-reload honors
+the demo. Renderer::pipelines_skipped() computes the count constexpr;
+the boot summary's existing all_enabled()-gated line extends with it
+(buffer-creations wording tightened same-line) — all-enabled stdout
+unchanged by construction. Every new consult carries its sentinel:
+ROSTER-GATE 23 -> 122 (+50 creation, +49 holder); RESIDUE 5
+unchanged — and the gol residue recipe extends naturally
+(never-created pipelines are the stronger pristine).
+
+**GATES:** glaw1 GREEN at full and at minimal; zone census 18 == 18;
+encodings — renderer.hpp's BOM preserved through 100 insertions,
+cartridge.hpp clean, CMakePresets.json new no-BOM/LF. At minimal the
+constexpr count says 50 pipelines skipped (every gated one). THE RIG
+CLOSES: demo=full — byte-identical build, unchanged boot stdout,
+zero skips, golden; demo=minimal — boots FAST, pawn walks, the skip
+line reports "pipelines skipped: 50"; two runs pixel-stable.
+Boot-time before/after: Jean supplies the two timings — the
+instrument's reading, quantified.
+
+**SCOPE GUARD held:** megabind re-section, SH-dc draw unlock, and
+buffer non-creation stay parked with their prices; this rider paid
+only the FXC half the demo made hurt.
+

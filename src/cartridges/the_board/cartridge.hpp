@@ -530,12 +530,14 @@ namespace t7 {
                     mark(ROSTER.indoor_shell, "indoor_shell");
                     mark(ROSTER.portal, "portal");       mark(ROSTER.transitions, "transitions");
                     mark(ROSTER.wanderers, "wanderers");
-                    // Only indoor_shell (SEP) skips creation in v0.
+                    // Buffer creation: only indoor_shell (SEP) skips in v0;
+                    // pipelines gate per piece (gate a', DEMO-1c).
                     const char* skipped = ROSTER.indoor_shell
                         ? "(none — every disabled piece is SH-shared, created-pristine)"
-                        : "indoor_shell (shell VB/IB + shell/shadow pipelines)";
+                        : "indoor_shell (shell VB/IB)";
                     std::cout << "[ROSTER] pieces disabled: " << off
-                        << " | creations skipped: " << skipped << "\n";
+                        << " | buffer creations skipped: " << skipped
+                        << " | pipelines skipped: " << Renderer::pipelines_skipped() << "\n";
                 }
 
                 return true;
