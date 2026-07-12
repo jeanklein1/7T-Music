@@ -417,11 +417,6 @@ namespace t7 {
             // step-height checks. No allocator — slot = f(entity_slot).
             GPUPierInstance cpuPiers_[Dim::PIER_TOTAL]{};
 
-            // Now a real file-scope header (modules/seed_utils.hpp), included
-            // above the class with roster.hpp's cohort. Its pure functions
-            // live in namespace t7::the_board; unqualified calls resolve here
-            // unchanged. See §1 (two-regime transitional clause).
-
             // ── Terrain CPU mirror deleted ────────────────────────────────
             // GPU is single source of truth for entity ground_y.
             // compute_entity_placement samples the heightfield directly.
@@ -872,16 +867,10 @@ namespace t7 {
             //   layer between FAMILY_DISPATCH and per-family modules.
             // SEAM[spine:family-dispatch] anchor for cross-file references
             //   to dispatch_evict_<family> from the spawn/eviction pipelines.
-
-            struct FamilyDispatch {
-                bool (*try_select)(Cartridge* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
-                bool (*try_place)(Cartridge* self, EntityQueueEntry& e, PlacementEntry& pe);
-                void (*try_commit)(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue);
-                void (*evict_slot)(Cartridge* self, uint32_t slot, wgpu::Queue& queue);
-                bool (*prepare_mesh)(Cartridge* self, wgpu::Queue& queue);
-                void (*dispatch_mesh)(Cartridge* self, wgpu::ComputePassEncoder& pass);
-                const char* name;
-            };
+            //
+            // The row type (struct FamilyDispatch) and the queue-entry
+            // unions it walks (EntityQueueEntry / PlacementEntry) live in
+            // entity_types.hpp — the contract home.
 
             // ═══ DISPATCH WRAPPERS ═══════════════════════════════════════
             //
@@ -1355,22 +1344,6 @@ namespace t7 {
             // law). ROSTER is visible here by namespace lookup
             // (t7::the_board::ROSTER); every ROSTER-GATE / ROSTER-RESIDUE
             // consult below is unchanged.
-            //
-            // THE PopFamily BINDING stays here, not in roster.hpp: roster.hpp
-            // is included before this class, so PopFamily (declared above in
-            // spawn_engine.inl) is not visible there. Roster::family_enabled
-            // uses literal indices 0..11; these asserts bind that literal
-            // order to PopFamily so a family reorder fails loud at this seam.
-            static_assert(PopFamily::COUNT == 12,
-                "Roster family bits must match PopFamily (12 families)");
-            static_assert(PopFamily::PYRAMID == 0 && PopFamily::ARCH == 1 &&
-                PopFamily::COLUMN == 2 && PopFamily::ANTENNA == 3 &&
-                PopFamily::PALM == 4 && PopFamily::CACTUS == 5 &&
-                PopFamily::BLADE == 6 && PopFamily::SPHERE == 7 &&
-                PopFamily::RIBBON == 8 && PopFamily::CUBE == 9 &&
-                PopFamily::GOL == 10 && PopFamily::GALLERY == 11,
-                "Roster::family_enabled literal order must match PopFamily "
-                "(roster.hpp cannot see the class-nested PopFamily)");
 
             // ═══ POPULATION THEMES ═══════════════════════════════════════
             //

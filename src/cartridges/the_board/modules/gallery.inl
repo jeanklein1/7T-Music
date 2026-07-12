@@ -7,8 +7,8 @@
 // c->world_state_ / c->mood_state_ / c->ribbon_state_ / c->clearColor_ /
 // c->sunDirection_ and the spine services (check_position /
 // register_footprint / record_placement_bookkeeping), plus the in-class
-// statics (Cartridge::PopFamily / Cartridge::PATCH_EXTENT /
-// Cartridge::GLOBAL_ENTITY_DENSITY).
+// statics (Cartridge::PATCH_EXTENT / Cartridge::GLOBAL_ENTITY_DENSITY);
+// PopFamily is roster.hpp vocabulary.
 //
 // WRAPPING FORM (the proven fix-2 rule): SELF-WRAPPING — opens
 // t7::the_board itself, carries its own standard includes; the MODULE
@@ -275,7 +275,7 @@ inline bool select_gallery_for_patch(GalleryState& gs, Cartridge* c, int32_t gx,
         auto dit = c->tileCache_.find({ gx, gz });
         if (dit != c->tileCache_.end()) {
             adj_mod *= dit->second.entity_density;
-            adj_mod *= dit->second.theme_spawn[Cartridge::PopFamily::GALLERY];
+            adj_mod *= dit->second.theme_spawn[PopFamily::GALLERY];
             archetype = dit->second.archetype;
         }
     }
@@ -384,14 +384,14 @@ inline bool select_gallery_for_patch(GalleryState& gs, Cartridge* c, int32_t gx,
 // enforces MIN_SEPARATION against all families.
 
 inline bool place_gallery_from_selection(Cartridge* c, const GallerySelection& sel, GalleryPlacement& plan) {
-    if (!c->check_position(sel.cx, sel.cz, sel.footprint_r, Cartridge::PopFamily::GALLERY))
+    if (!c->check_position(sel.cx, sel.cz, sel.footprint_r, PopFamily::GALLERY))
         return false;
 
     int32_t host_gx = (int32_t)std::floor(sel.cx / Cartridge::PATCH_EXTENT);
     int32_t host_gz = (int32_t)std::floor(sel.cz / Cartridge::PATCH_EXTENT);
 
     if (c->register_footprint(sel.cx, sel.cz, sel.footprint_r,
-        host_gx, host_gz, Cartridge::PopFamily::GALLERY, sel.archetype) == UINT32_MAX)
+        host_gx, host_gz, PopFamily::GALLERY, sel.archetype) == UINT32_MAX)
         return false;
 
     plan = GalleryPlacement{};
@@ -410,7 +410,7 @@ inline bool place_gallery_from_selection(Cartridge* c, const GallerySelection& s
     plan.gallery_size_mean = sel.gallery_size_mean;
     plan.site_type = sel.site_type;
 
-    c->record_placement_bookkeeping(Cartridge::PopFamily::GALLERY, plan.tier_idx);
+    c->record_placement_bookkeeping(PopFamily::GALLERY, plan.tier_idx);
     return true;
 }
 

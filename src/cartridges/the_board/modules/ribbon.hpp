@@ -596,8 +596,8 @@ struct RibbonState {
 // DEFINED in ribbon.inl (post-class, self-wrapping) — the bodies reach
 // the keyhole (gpuState_/time_state_/player_/inputState_/
 // visual_canvas_ + the ribbon canvas bindings and the spine services)
-// and in-class statics (Cartridge::THEMES / Cartridge::PATCH_EXTENT /
-// Cartridge::PopFamily) via the complete type. wander_rand01,
+// and in-class statics (Cartridge::THEMES / Cartridge::PATCH_EXTENT)
+// via the complete type; PopFamily is roster.hpp vocabulary. wander_rand01,
 // ribbon_wander_inputs, ribbon_history_sample and
 // ribbon_rebuild_body_upload are module-internal (impl-only, not
 // declared here).

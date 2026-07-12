@@ -79,11 +79,35 @@
 namespace t7 {
 namespace the_board {
 
+// ═══ FAMILY IDENTITY ═════════════════════════════════════════════
+//
+// The family index vocabulary. Lives beside the enablement bits it
+// indexes — family identity and family enablement are one
+// self-binding document (family_enabled switches on these names
+// directly). Every spawn-aware module consumes these indices.
+
+struct PopFamily {
+    static constexpr uint32_t PYRAMID = 0;
+    static constexpr uint32_t ARCH = 1;
+    static constexpr uint32_t COLUMN = 2;
+    static constexpr uint32_t ANTENNA = 3;
+    static constexpr uint32_t PALM = 4;
+    static constexpr uint32_t CACTUS = 5;
+    static constexpr uint32_t BLADE = 6;
+    static constexpr uint32_t SPHERE = 7;    // orbital spheres
+    static constexpr uint32_t RIBBON = 8;
+    static constexpr uint32_t CUBE = 9;      // hover-bob monoliths (split from legacy FLOATING)
+    static constexpr uint32_t GOL = 10;       // Game of Life / Pulse automaton zones
+    static constexpr uint32_t GALLERY = 11;   // outdoor art exhibitions (composite: 1 center → N paintings)
+    static constexpr uint32_t COUNT = 12;
+};
+
 struct Roster {
-    // FAMILIES (12) — order MUST match PopFamily. (b) gate: the select loop
-    // (spawn_engine.inl); the per-frame mesh-prepare loop folds these by
-    // constexpr (R1 hot-path caveat — no runtime branch on a disabled piece
-    // in the hot path).
+    // FAMILIES (12) — one bool per PopFamily index, in PopFamily order
+    // (family_enabled below binds them by name). (b) gate: the select
+    // loop (spawn_engine.inl); the per-frame mesh-prepare loop folds
+    // these by constexpr (R1 hot-path caveat — no runtime branch on a
+    // disabled piece in the hot path).
     bool pyramid, arch, column, antenna, palm, cactus, blade,
          sphere, ribbon, cube, gol, gallery;
     // FEATURES (7)
@@ -97,25 +121,23 @@ struct Roster {
 
     // Family bit by PopFamily id — constexpr, usable at runtime (select
     // loop) and compile time (mesh fold: `if constexpr
-    // (ROSTER.family_enabled(F))`). PopFamily (spawn_engine.inl) is
-    // class-nested and NOT visible here (this header is included before the
-    // class); the literal order below mirrors it, and cartridge.hpp
-    // static-asserts the binding (PopFamily::PYRAMID==0 … GALLERY==11,
-    // COUNT==12) so a family reorder fails loud at that seam.
+    // (ROSTER.family_enabled(F))`). PopFamily lives above; the switch
+    // binds bit to family BY NAME — a family reorder cannot silently
+    // desynchronize identity from enablement.
     constexpr bool family_enabled(uint32_t f) const {
         switch (f) {
-            case 0:  return pyramid;   // PopFamily::PYRAMID
-            case 1:  return arch;      // PopFamily::ARCH
-            case 2:  return column;    // PopFamily::COLUMN
-            case 3:  return antenna;   // PopFamily::ANTENNA
-            case 4:  return palm;      // PopFamily::PALM
-            case 5:  return cactus;    // PopFamily::CACTUS
-            case 6:  return blade;     // PopFamily::BLADE
-            case 7:  return sphere;    // PopFamily::SPHERE
-            case 8:  return ribbon;    // PopFamily::RIBBON
-            case 9:  return cube;      // PopFamily::CUBE
-            case 10: return gol;       // PopFamily::GOL
-            case 11: return gallery;   // PopFamily::GALLERY
+            case PopFamily::PYRAMID: return pyramid;
+            case PopFamily::ARCH:    return arch;
+            case PopFamily::COLUMN:  return column;
+            case PopFamily::ANTENNA: return antenna;
+            case PopFamily::PALM:    return palm;
+            case PopFamily::CACTUS:  return cactus;
+            case PopFamily::BLADE:   return blade;
+            case PopFamily::SPHERE:  return sphere;
+            case PopFamily::RIBBON:  return ribbon;
+            case PopFamily::CUBE:    return cube;
+            case PopFamily::GOL:     return gol;
+            case PopFamily::GALLERY: return gallery;
             default: return true;
         }
     }

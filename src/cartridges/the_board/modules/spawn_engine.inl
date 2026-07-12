@@ -37,14 +37,12 @@
 // │    place_entity_queue()                                          │
 // │    commit_entity_queue(queue)                                    │
 // │                                                                  │
-// │  Bespoke families' selection/placement structs (consumed by      │
-// │  ribbon.inl, gol_zones.inl, gallery.inl, mood.inl):              │
-// │    RibbonSelection, RibbonPlacement                              │
-// │    GoLSelection, GoLPlacement                                    │
-// │    GallerySelection, GalleryPlacement                            │
+// │  The queues (state): entityQueue_, placementResults_ — their    │
+// │  entry TYPES (EntityQueueEntry / PlacementEntry) live in         │
+// │  entity_types.hpp; the bespoke Selection/Placement payloads      │
+// │  live in ribbon.hpp / gol_zones.hpp / gallery.hpp                │
 // │                                                                  │
 // │  Cross-module reads:                                             │
-// │    PopFamily indices    — every spawn-aware module               │
 // │    GLOBAL_ENTITY_DENSITY                                         │
 // │    footprints_[], MAX_FOOTPRINTS                                 │
 // │    estimate_terrain_height(wx, wz)                               │
@@ -61,12 +59,12 @@
 //   helper) — run_spawn_preamble<ActiveT> is the canonical instance.
 //   One implementation, ten callers. Same family as P10's per-family
 //   vocabulary block at the algorithm level.
-// SEAM[spawn_engine:structural] RETIRED. EntityQueueEntry has a union
-//   member of type EntityInstance, and C++ requires the union member's
-//   type to be defined before the union itself. entity_types.hpp is a
-//   file-scope header included above the class, so EntityInstance
-//   precedes EntityQueueEntry by construction — no mid-file include.
-//   spawn_engine stays ONE file, never split into pre/post files.
+// SEAM[spawn_engine:structural] RETIRED. The EntityQueueEntry /
+//   PlacementEntry unions and every type they embed live together in
+//   entity_types.hpp (the contract home) — the union-member
+//   completeness constraint is satisfied inside one header, and this
+//   file holds only the queues and loops. spawn_engine stays ONE
+//   file, never split into pre/post files.
 // SEAM[spawn_engine:L1] latent diagnostic — DIAG_ENTITY_LIFECYCLE is
 //   compile-time guarded (#define commented out below). Same family
 //   as the [DIAG:*] stdout pattern noted across the codebase.
@@ -688,22 +686,10 @@ static void jittered_position(uint32_t seed, int32_t gx, int32_t gz,
     out_z = (gz + 0.5f) * PATCH_EXTENT + (cpu_hash_f(seed, prop_z) - 0.5f) * PATCH_EXTENT * jitter;
 }
 
-// Entity families for observation indexing
-struct PopFamily {
-    static constexpr uint32_t PYRAMID = 0;
-    static constexpr uint32_t ARCH = 1;
-    static constexpr uint32_t COLUMN = 2;
-    static constexpr uint32_t ANTENNA = 3;
-    static constexpr uint32_t PALM = 4;
-    static constexpr uint32_t CACTUS = 5;
-    static constexpr uint32_t BLADE = 6;
-    static constexpr uint32_t SPHERE = 7;    // orbital spheres
-    static constexpr uint32_t RIBBON = 8;
-    static constexpr uint32_t CUBE = 9;      // hover-bob monoliths (split from legacy FLOATING)
-    static constexpr uint32_t GOL = 10;       // Game of Life / Pulse automaton zones
-    static constexpr uint32_t GALLERY = 11;   // outdoor art exhibitions (composite: 1 center → N paintings)
-    static constexpr uint32_t COUNT = 12;
-};
+// (PopFamily — the family index vocabulary — lives in roster.hpp,
+//  beside the enablement bits it indexes: identity and enablement
+//  are one document. Unqualified uses here resolve by namespace
+//  lookup.)
 
 // ─── Spawn Configuration Summary ────────────────────────────────
 //
@@ -896,39 +882,17 @@ static float solve_catenary_a(float half_span, float target_h) {
     return a;
 }
 
-// ═══ BESPOKE-FAMILY SELECTION/PLACEMENT STRUCTS ══════════════════
+// ═══ BESPOKE-FAMILY SELECTION/PLACEMENT PAYLOADS ═════════════════
 //
 // Three bespoke families (GoL, Gallery, Ribbon) don't fit the
 // generic pipeline's EntityInstance shape — their selection
 // records carry family-specific fields (lattice node, painting
-// count, wave parameters). These structs are the type-tagged
-// payloads in EntityQueueEntry / PlacementEntry below.
-//
-// EntityQueueEntry (below) has a union member of type EntityInstance,
-// and C++ requires the union member's type to be defined before the
-// union itself. EntityInstance now comes from the file-scope header
-// entity_types.hpp (included above the class), so it is already defined
-// here — the former structural mid-file include is retired.
-// See SEAM[spawn_engine:structural] in the file header.
-
-// ─── GoL Zone Selection / Placement ──────────────────────────────
-
-// (GoLSelection / GoLPlacement live in gol_zones.hpp — file-scope
-//  vocabulary preceding these unions by construction.)
-
-// ─── Gallery Selection / Placement ───────────────────────────────
-
-// (GallerySelection / GalleryPlacement live in gallery.hpp — file-scope
-//  vocabulary preceding these unions by construction.)
-
-// ─── Ribbon Selection / Placement ────────────────────────────
-
-// (RibbonSelection / RibbonPlacement live in ribbon.hpp — file-scope
-//  vocabulary preceding these unions by construction.)
-
-// (EntityInstance comes from the file-scope header entity_types.hpp,
-//  included above the class, so it precedes the EntityQueueEntry union by
-//  construction. See SEAM[spawn_engine:structural] in the file header.)
+// count, wave parameters). The payload structs live in their
+// owners' headers (gol_zones.hpp / gallery.hpp / ribbon.hpp); the
+// tagged unions that carry them — EntityQueueEntry / PlacementEntry
+// — live in entity_types.hpp (the contract home), which includes
+// those headers. See SEAM[spawn_engine:structural] in the file
+// header.
 
 // ═══ ENTITY DISPATCH PIPELINE ════════════════════════════════════
 //
@@ -937,45 +901,15 @@ static float solve_catenary_a(float half_span, float target_h) {
 // cartridge.hpp) is the function-pointer table; this file holds
 // the queues and the loops that walk them.
 
-// ─── Entity Selection Queue ─────────────────────────────────────
+// ─── The queues (machine state) ──────────────────────────────────
 //
-// Lightweight tagged entry holding one family's selection.
-// Produced by select_entities_for_patch, consumed by
-// drain_entity_queue. The queue decouples WHAT exists from
-// WHERE it goes — selections are position-independent.
-
-struct EntityQueueEntry {
-    uint32_t family;    // PopFamily index
-    int32_t  gx, gz;    // trigger patch (for commit bookkeeping)
-    union {
-        RibbonSelection ribbon;
-        GoLSelection    gol;
-        GallerySelection gallery;
-        EntityInstance   generic;    // used by all 9 generic-pipeline families
-    };
-    EntityQueueEntry() : family(0), gx(0), gz(0) { std::memset(&generic, 0, sizeof(generic)); }
-};
+// EntityQueueEntry / PlacementEntry are contract vocabulary
+// (entity_types.hpp); the QUEUES they fill are spine state and live
+// here. entityQueue_ decouples WHAT exists from WHERE it goes;
+// placementResults_ holds entities past spatial negotiation, ready
+// for GPU commit.
 
 std::vector<EntityQueueEntry> entityQueue_;
-
-// ─── Placement Results ──────────────────────────────────────────
-//
-// Output of place_entity_queue: entities that passed spatial
-// negotiation and are ready for GPU commit. Tagged union mirrors
-// EntityQueueEntry but holds Placement structs instead of Selections.
-
-struct PlacementEntry {
-    uint32_t family;
-    int32_t  gx, gz;
-    union {
-        RibbonPlacement ribbon;
-        GoLPlacement    gol;
-        GalleryPlacement gallery;
-        EntityInstance   generic;    // used by all 9 generic-pipeline families
-    };
-    PlacementEntry() : family(0), gx(0), gz(0) { std::memset(&generic, 0, sizeof(generic)); }
-};
-
 std::vector<PlacementEntry> placementResults_;
 
 // ─── Select / Place / Commit dispatch loops ─────────────────────

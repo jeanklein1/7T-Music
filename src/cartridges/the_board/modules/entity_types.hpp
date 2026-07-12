@@ -24,16 +24,26 @@
 // │    SpawnGateOutput         — gate result                         │
 // │    EntityFamilyAdapter     — function-pointer table per family   │
 // │                                                                  │
+// │  Dispatch contract (end of header):                               │
+// │    EntityQueueEntry        — tagged selection union              │
+// │    PlacementEntry          — tagged placement union              │
+// │    FamilyDispatch          — dispatch row type (six verbs + name)│
+// │                                                                  │
 // └──────────────────────────────────────────────────────────────────┘
 //
 // A file-scope header, included above the class with roster.hpp's
-// cohort — it PRECEDES the EntityQueueEntry union in spawn_engine.inl
-// by construction (SEAM[spawn_engine:structural]). Namespace
-// t7::the_board (the cartridge's own). Depends on: <cstdint> +
-// keyhole.hpp (the Cartridge and wgpu::Queue forward declarations —
-// adapter fn-ptrs take Cartridge* by pointer and wgpu::Queue& by
-// reference; incomplete types suffice). Every dependency is explicit
-// at the boundary.
+// cohort. THE CONTRACT HOME: it carries the pipeline contracts AND
+// the dispatch contract (the queue-entry unions + the row type).
+// Namespace t7::the_board (the cartridge's own). Depends on:
+// <cstdint>, <cstring>, keyhole.hpp (the Cartridge and wgpu::Queue
+// forward declarations), and the three bespoke subsystem headers —
+// ribbon.hpp / gol_zones.hpp / gallery.hpp — whose Selection/
+// Placement types the unions embed BY VALUE (complete types
+// required; they carry state.hpp, so wgpu is complete here too).
+// That dependency is honest: the union IS the coupling between the
+// machine and the bespoke subsystems. Consequence: those three
+// headers can never include this one (circularity) — functions with
+// queue-shaped signatures are declared HERE, not in owner headers.
 //
 // SEAM[entity_types:P9] this file is the canonical home of pattern
 //   P9 (type definitions extracted to header-style file) — a real
@@ -47,7 +57,11 @@
 // ─────────────────────────────────────────────────────────────────
 
 #include <cstdint>
-#include "cartridges/the_board/modules/keyhole.hpp"  // Cartridge + wgpu::Queue fwds (the keyhole)
+#include <cstring>                                        // std::memset (queue-entry ctors)
+#include "cartridges/the_board/modules/keyhole.hpp"       // Cartridge + wgpu::Queue fwds (the keyhole)
+#include "cartridges/the_board/modules/ribbon.hpp"        // RibbonSelection/RibbonPlacement (union members)
+#include "cartridges/the_board/modules/gol_zones.hpp"     // GoLSelection/GoLPlacement (union members)
+#include "cartridges/the_board/modules/gallery.hpp"       // GallerySelection/GalleryPlacement (union members)
 
 namespace t7 {
 namespace the_board {
@@ -202,6 +216,67 @@ struct EntityFamilyAdapter {
     void (*write_gpu)(Cartridge* c, const EntityInstance& inst, wgpu::Queue& queue);
     void (*post_commit)(Cartridge* c, const EntityInstance& inst, wgpu::Queue& queue);
     const TierProfile& (*get_tier_profile)(uint32_t tier_idx);
+};
+
+// ═══ DISPATCH CONTRACT (queue entries + row type) ═════════════════
+//
+// The tagged unions that carry every family — generic and bespoke —
+// through select → place → commit, and the dispatch-row type that
+// walks them. The QUEUES themselves (entityQueue_, placementResults_)
+// are machine state and live in spawn_engine.inl; only the vocabulary
+// lives here.
+
+// ─── Entity Selection Queue entry ─────────────────────────────────
+//
+// Lightweight tagged entry holding one family's selection.
+// Produced by select_entities_for_patch, consumed by
+// drain_entity_queue. The queue decouples WHAT exists from
+// WHERE it goes — selections are position-independent.
+
+struct EntityQueueEntry {
+    uint32_t family;    // PopFamily index
+    int32_t  gx, gz;    // trigger patch (for commit bookkeeping)
+    union {
+        RibbonSelection ribbon;
+        GoLSelection    gol;
+        GallerySelection gallery;
+        EntityInstance   generic;    // used by all 9 generic-pipeline families
+    };
+    EntityQueueEntry() : family(0), gx(0), gz(0) { std::memset(&generic, 0, sizeof(generic)); }
+};
+
+// ─── Placement Results entry ───────────────────────────────────────
+//
+// Output of place_entity_queue: entities that passed spatial
+// negotiation and are ready for GPU commit. Tagged union mirrors
+// EntityQueueEntry but holds Placement structs instead of Selections.
+
+struct PlacementEntry {
+    uint32_t family;
+    int32_t  gx, gz;
+    union {
+        RibbonPlacement ribbon;
+        GoLPlacement    gol;
+        GalleryPlacement gallery;
+        EntityInstance   generic;    // used by all 9 generic-pipeline families
+    };
+    PlacementEntry() : family(0), gx(0), gz(0) { std::memset(&generic, 0, sizeof(generic)); }
+};
+
+// ─── Dispatch row type ─────────────────────────────────────────────
+//
+// One row per family: the six verbs the spine's dispatch loops call
+// through. The table itself (FAMILY_DISPATCH) is the spine's
+// integration hub (SEAM[spine:owns] at its banner in cartridge.hpp).
+
+struct FamilyDispatch {
+    bool (*try_select)(Cartridge* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
+    bool (*try_place)(Cartridge* self, EntityQueueEntry& e, PlacementEntry& pe);
+    void (*try_commit)(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue);
+    void (*evict_slot)(Cartridge* self, uint32_t slot, wgpu::Queue& queue);
+    bool (*prepare_mesh)(Cartridge* self, wgpu::Queue& queue);
+    void (*dispatch_mesh)(Cartridge* self, wgpu::ComputePassEncoder& pass);
+    const char* name;
 };
 
 } // namespace the_board

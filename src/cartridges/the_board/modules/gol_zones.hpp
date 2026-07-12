@@ -47,8 +47,8 @@
 // Depends on: state.hpp (Dim::*, GPUZoneDeriveRequestArray),
 // mood_constants.hpp (MOOD_COUNT), seed_utils.hpp (the impl hashes with
 // it). The impl additionally reaches spawn-engine services and in-class
-// statics (PopFamily / PATCH_EXTENT / GLOBAL_ENTITY_DENSITY) through the
-// complete type (Cartridge:: / keyhole).
+// statics (PATCH_EXTENT / GLOBAL_ENTITY_DENSITY) through the complete
+// type (Cartridge:: / keyhole); PopFamily is roster.hpp vocabulary.
 //
 // SEAM[gol_zones:complete-subsystem] complete bespoke pipeline in one
 //   module — vocabulary + state + lifecycle + dispatch all together.

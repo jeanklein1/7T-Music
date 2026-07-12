@@ -7,7 +7,7 @@
 // and the spine services (run_spawn_preamble / negotiate_position /
 // record_placement_bookkeeping / estimate_terrain_height /
 // terrain_tile_warm), plus the in-class statics (Cartridge::THEMES /
-// Cartridge::PATCH_EXTENT / Cartridge::PopFamily).
+// Cartridge::PATCH_EXTENT); PopFamily is roster.hpp vocabulary.
 //
 // WRAPPING FORM (the proven fix-2 rule): SELF-WRAPPING — opens
 // t7::the_board itself, carries its own standard includes; the MODULE
@@ -713,7 +713,7 @@ inline bool select_ribbon_for_patch(RibbonState& rs, Cartridge* c,
         rs.active, MAX_RIBBON_INSTANCES,
         RibbonProp::SPAWN_ROLL, RibbonConfig::SPAWN_CHANCE,
         RibbonConfig::MOOD_MULTIPLIER,
-        Cartridge::PopFamily::RIBBON, "ribn");
+        PopFamily::RIBBON, "ribn");
     if (!gate.ok) return false;
 
     // Tier selection with theme bias
@@ -763,7 +763,7 @@ inline bool place_ribbon_from_selection(Cartridge* c,
         RibbonProp::ANCHOR_X, RibbonProp::ANCHOR_Z,
         RibbonConfig::POSITION_JITTER,
         RibbonProp::ORIENTATION,
-        sel.footprint_r, Cartridge::PopFamily::RIBBON, sel.tier_idx);
+        sel.footprint_r, PopFamily::RIBBON, sel.tier_idx);
     if (!pos.ok) return false;
 
     plan = RibbonPlacement{};
@@ -790,7 +790,7 @@ inline bool place_ribbon_from_selection(Cartridge* c,
     plan.checker_scatter = sel.checker_scatter;
     plan.checker_hue_spread = sel.checker_hue_spread;
 
-    c->record_placement_bookkeeping(Cartridge::PopFamily::RIBBON, plan.tier_idx);
+    c->record_placement_bookkeeping(PopFamily::RIBBON, plan.tier_idx);
     return true;
 }
 

@@ -65,9 +65,9 @@
 // FormType/ContentSource, wgpu), mood_constants.hpp (MOOD_COUNT),
 // seed_utils.hpp (select_weighted here; the impl hashes with it). The
 // impl additionally reaches spawn-engine services and in-class statics
-// (PopFamily / PATCH_EXTENT / GLOBAL_ENTITY_DENSITY) through the
-// complete type (Cartridge:: / keyhole), and stb_image (authored disk
-// loading).
+// (PATCH_EXTENT / GLOBAL_ENTITY_DENSITY) through the complete type
+// (Cartridge:: / keyhole), PopFamily (roster.hpp vocabulary), and
+// stb_image (authored disk loading).
 //
 // SEAM[gallery:complete-subsystem] complete bespoke pipeline in one
 //   module — vocabulary + state + lifecycle + dispatch all together.

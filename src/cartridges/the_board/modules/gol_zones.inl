@@ -6,8 +6,8 @@
 // c->tileCache_ / c->mood_state_ / c->world_state_ / c->time_state_ and
 // the spine services (check_position / register_footprint /
 // record_placement_bookkeeping), plus the in-class statics
-// (Cartridge::PopFamily / Cartridge::PATCH_EXTENT /
-// Cartridge::GLOBAL_ENTITY_DENSITY).
+// (Cartridge::PATCH_EXTENT / Cartridge::GLOBAL_ENTITY_DENSITY);
+// PopFamily is roster.hpp vocabulary.
 //
 // WRAPPING FORM (the proven fix-2 rule): SELF-WRAPPING — opens
 // t7::the_board itself, carries its own standard includes; the MODULE
@@ -43,7 +43,7 @@ inline bool select_gol_for_patch(GoLState& gs, Cartridge* c,
         auto dit = c->tileCache_.find({ gx, gz });
         if (dit != c->tileCache_.end()) {
             adj_mod *= dit->second.entity_density;
-            adj_mod *= dit->second.theme_spawn[Cartridge::PopFamily::GOL];
+            adj_mod *= dit->second.theme_spawn[PopFamily::GOL];
         }
     }
 
@@ -180,14 +180,14 @@ inline bool place_gol_from_selection(Cartridge* c,
     float cx = sel.corner_x + GoLZoneSpawnConfig::ZONE_EXTENT * 0.5f;
     float cz = sel.corner_z + GoLZoneSpawnConfig::ZONE_EXTENT * 0.5f;
 
-    if (!c->check_position(cx, cz, sel.footprint_r, Cartridge::PopFamily::GOL))
+    if (!c->check_position(cx, cz, sel.footprint_r, PopFamily::GOL))
         return false;
 
     int32_t host_gx = (int32_t)std::floor(cx / Cartridge::PATCH_EXTENT);
     int32_t host_gz = (int32_t)std::floor(cz / Cartridge::PATCH_EXTENT);
 
     if (c->register_footprint(cx, cz, sel.footprint_r,
-        host_gx, host_gz, Cartridge::PopFamily::GOL, sel.tier_idx) == UINT32_MAX)
+        host_gx, host_gz, PopFamily::GOL, sel.tier_idx) == UINT32_MAX)
         return false;
 
     plan = GoLPlacement{};
@@ -208,7 +208,7 @@ inline bool place_gol_from_selection(Cartridge* c,
     plan.initial_density = sel.initial_density;
     plan.height_enabled = sel.height_enabled;
 
-    c->record_placement_bookkeeping(Cartridge::PopFamily::GOL, plan.tier_idx);
+    c->record_placement_bookkeeping(PopFamily::GOL, plan.tier_idx);
     return true;
 }
 
