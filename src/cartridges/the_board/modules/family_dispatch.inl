@@ -68,13 +68,13 @@ inline const FamilyDispatch FAMILY_DISPATCH[PopFamily::COUNT] = {
     { dispatch_select_blade_generic, dispatch_place_blade_generic, dispatch_commit_blade_generic,
       evict_blade, Cartridge::dispatch_prepare_mesh_blade, Cartridge::dispatch_mesh_gen_blade,
       "blad" },
-    { Cartridge::dispatch_select_sphere_generic, Cartridge::dispatch_place_sphere_generic, Cartridge::dispatch_commit_sphere_generic,
+    { dispatch_select_sphere_generic, dispatch_place_sphere_generic, dispatch_commit_sphere_generic,
       evict_sphere, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
       "sph" },   // no CPU mesh gen — GPU compute handles update_sphere
     { dispatch_select_ribbon, dispatch_place_ribbon, dispatch_commit_ribbon,
       evict_ribbon, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
       "ribn" },  // no CPU mesh gen — GPU compute handles ribbon rendering
-    { Cartridge::dispatch_select_cube_generic, Cartridge::dispatch_place_cube_generic, Cartridge::dispatch_commit_cube_generic,
+    { dispatch_select_cube_generic, dispatch_place_cube_generic, dispatch_commit_cube_generic,
       evict_cube, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
       "cube" },  // no CPU mesh gen — GPU compute handles update_cube
     { dispatch_select_gol, dispatch_place_gol, dispatch_commit_gol,

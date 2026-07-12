@@ -2,6 +2,7 @@
 #include "cartridges/the_board/state.hpp"                    // Dim::*, GPUState, GPUFloatingEntityState, wgpu
 #include "cartridges/the_board/modules/floater_vocabulary.hpp"  // ActiveFloater
 #include "cartridges/the_board/modules/keyhole.hpp"          // Cartridge + wgpu::Queue fwds (the evictor decl)
+#include "cartridges/the_board/modules/entity_types.hpp"  // queue types (the funnel signatures)
 
 // ─── spheres.hpp ─────────────────────────────────────────────────
 // Born converted (LADDER-2 c0): history in audit/LADDER.md.
@@ -54,6 +55,10 @@ inline void clear_spheres(SphereState& ss, GPUState& gpu, wgpu::Queue& queue) {
 // Keyhole-shaped to match the FAMILY_DISPATCH evict slot (table in
 // family_dispatch.inl). DEFINED in spheres.inl (post-class).
 void evict_sphere(Cartridge* self, uint32_t slot, wgpu::Queue& queue);
+// Dispatch funnels (table-shaped; defined in spheres.inl beside the recipe)
+bool dispatch_select_sphere_generic(Cartridge* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
+bool dispatch_place_sphere_generic(Cartridge* self, EntityQueueEntry& e, PlacementEntry& pe);
+void dispatch_commit_sphere_generic(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue);
 
 } // namespace the_board
 } // namespace t7

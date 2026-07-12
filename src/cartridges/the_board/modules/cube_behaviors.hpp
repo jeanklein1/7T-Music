@@ -5,6 +5,7 @@
 #include "cartridges/the_board/modules/floater_vocabulary.hpp"  // ActiveCube, CUBE_TIER_COUNT
 #include "cartridges/the_board/modules/mood_constants.hpp"      // MOOD_COUNT + the Mood IDs
 #include "cartridges/the_board/modules/keyhole.hpp"             // Cartridge + wgpu::Queue fwds (the keyhole)
+#include "cartridges/the_board/modules/entity_types.hpp"   // queue types (the funnel signatures)
 
 // ─── cube_behaviors.hpp (HEADER: registries + console + state + decls) ─
 // Converted (LADDER-3 c3): history in audit/LADDER.md.
@@ -52,7 +53,7 @@
 // │  Spawn-side (stateless, no struct ref needed):                   │
 // │    pick_cube_behavior_for_spawn(mood, seed)  → behavior_id u32   │
 // │    apply_cube_tier_gains(spring, drag, tier) → adjusted (sp, dr) │
-// │      Both consumed by entity_pipeline.inl's cube_write_gpu.      │
+// │      Both consumed by the cube recipe's cube_write_gpu.          │
 // │                                                                  │
 // │  Teardown:                                                       │
 // │    clear_cubes(cbs, gpu, queue)   — teardown owner clear         │
@@ -79,9 +80,9 @@
 // GPUFloatingEntityState, GPUDesignConfig::floater_coordination),
 // floater_vocabulary.hpp (ActiveCube, CUBE_TIER_COUNT),
 // mood_constants.hpp (MOOD_COUNT + Mood IDs). The impl additionally
-// hashes with seed_utils and reaches the keyhole;
-// entity_pipeline.inl's cube_write_gpu calls into the two spawn helpers;
-// world.wgsl holds the force functions and dispatch switch.
+// hashes with seed_utils and reaches the keyhole; the cube recipe
+// (cube_behaviors.inl) calls into the two spawn helpers; world.wgsl
+// holds the force functions and dispatch switch.
 // ──────────────────────────────────────────────────────────────────
 
 namespace t7 {
@@ -293,6 +294,10 @@ void clear_cubes(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue);
 // The evictor — lifecycle, absorbed per §5 EVICTION THUNKS; keyhole-shaped
 // to match the FAMILY_DISPATCH evict slot (table in family_dispatch.inl)
 void evict_cube(Cartridge* self, uint32_t slot, wgpu::Queue& queue);
+// Dispatch funnels (table-shaped; defined in cube_behaviors.inl beside the recipe)
+bool dispatch_select_cube_generic(Cartridge* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
+bool dispatch_place_cube_generic(Cartridge* self, EntityQueueEntry& e, PlacementEntry& pe);
+void dispatch_commit_cube_generic(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue);
 // Player commands
 void cycle_floater_coordination(CubeBehaviorsState& cbs, Cartridge* c);
 void cycle_cube_behavior_override(CubeBehaviorsState& cbs, Cartridge* c, wgpu::Queue& queue);

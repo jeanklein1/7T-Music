@@ -100,7 +100,7 @@
 #include "cartridges/the_board/modules/floater_vocabulary.hpp"   // floater TYPES (ActiveFloater/ActiveCube), file scope
 #include "cartridges/the_board/modules/pawn.hpp"                 // PawnState + configs + decls (impl is pawn.inl, post-class)
 #include "cartridges/the_board/state.hpp"
-#include "cartridges/the_board/modules/spheres.hpp"              // SphereState + evictor decl (impl is spheres.inl, post-class)
+#include "cartridges/the_board/modules/spheres.hpp"              // SphereState + evictor/funnel decls (impl is spheres.inl, post-class)
 #include "cartridges/the_board/modules/entities.hpp"             // grounded-family vocabulary + EntitiesState + preparer decls (impl is entities.inl, post-class)
 #include "cartridges/the_board/modules/orbs.hpp"                 // orb console/registries + OrbsState + ORB_MOOD_TABLE + decls (impl is orbs.inl, post-class)
 #include "cartridges/the_board/modules/gol_zones.hpp"            // GoL vocabulary + GoLState + decls (impl is gol_zones.inl, post-class)
@@ -3591,11 +3591,11 @@ namespace t7 {
 // survives the move.
 #include "modules/pawn.inl"       // tick_pawn_couplings
 #include "modules/entities.inl"   // the six preparers + the seven grounded-family evictors + the blade/palm/cactus recipes
-#include "modules/spheres.inl"    // the sphere evictor
+#include "modules/spheres.inl"    // the sphere evictor + recipe
 #include "modules/orbs.inl"       // orb lifecycle/commands/dispatches/render
 #include "modules/gol_zones.inl"  // GoL three-phase lifecycle + per-frame uploads/dispatch
 #include "modules/agents.inl"     // agent registry upload + spawn/respawn/possession/diagnostics
-#include "modules/cube_behaviors.inl"  // cube registry upload + corral/kite/coordination + clear
+#include "modules/cube_behaviors.inl"  // cube registry upload + corral/kite/coordination + clear + evictor + recipe
 #include "modules/gallery.inl"    // photographer + gallery sites + authored loading + wall paintings
 #include "modules/ribbon.inl"     // author seats + head laws + frame conductor + three-phase lifecycle
 #include "modules/input.inl"      // key/mouse dispatch + movement intent + camera commands (own GLFW include)

@@ -306,5 +306,213 @@ inline void evict_cube(Cartridge* self,
 #endif
 }
 
+
+// ═══ THE CUBE RECIPE (relocated from entity_pipeline.inl) ═════════
+//
+// Tier tables, traits, adapter, and dispatch funnels — beside the
+// evictor. Funnels declared in cube_behaviors.hpp; table rows point
+// here (family_dispatch.inl). THEMES is reached as Cartridge::THEMES
+// (INTENT[services:themes] at its definition).
+
+// ═══ FAMILY: CUBE ═════════════════════════════════════════════════
+//
+// Hover-bob monolith. No ground contact.
+//
+
+struct CubeIdx {
+    static constexpr uint32_t BODY_RADIUS      = 0;
+    static constexpr uint32_t ORBIT_HEIGHT     = 1;
+    static constexpr uint32_t INFLUENCE_RADIUS = 2;
+    static constexpr uint32_t SPIN_SPEED       = 3;
+    static constexpr uint32_t BOB_AMPLITUDE    = 4;
+    static constexpr uint32_t BOB_PERIOD       = 5;
+    static constexpr uint32_t ASPECT_Y         = 6;
+    static constexpr uint32_t ASPECT_Z         = 7;
+    static constexpr uint32_t FACE_VARIANCE    = 8;
+    static constexpr uint32_t COUNT            = 9;
+};
+
+// Cube substrate constants (CUBE_DEFAULT_SPRING_STIFFNESS, CUBE_DEFAULT_DRAG)
+// and registry helpers (apply_cube_tier_gains, pick_cube_behavior_for_spawn)
+// live in modules/cube_behaviors.inl. cube_write_gpu calls into them at spawn time.
+
+inline constexpr TierParamDef CUBE_PARAM_DEFS[] = {
+    { CubeEntityProp::BODY_RADIUS,      0.5f, 1e30f, false, ParamDist::GAUSSIAN },
+    { CubeEntityProp::ORBIT_HEIGHT,     3.0f, 1e30f, false, ParamDist::GAUSSIAN },
+    { CubeEntityProp::INFLUENCE_RADIUS, 3.0f, 1e30f, false, ParamDist::GAUSSIAN },
+    { CubeEntityProp::SPIN_SPEED,       0.0f, 1e30f, false, ParamDist::GAUSSIAN },
+    { CubeEntityProp::BOB_AMPLITUDE,    0.0f, 1e30f, false, ParamDist::GAUSSIAN },
+    { CubeEntityProp::BOB_PERIOD,       0.5f, 1e30f, false, ParamDist::GAUSSIAN },
+    { CubeEntityProp::ASPECT_Y,         0.2f, 1e30f, false, ParamDist::GAUSSIAN },
+    { CubeEntityProp::ASPECT_Z,         0.1f, 1e30f, false, ParamDist::GAUSSIAN },
+    { CubeEntityProp::FACE_VARIANCE,    0.0f, 1e30f, false, ParamDist::GAUSSIAN },
+};
+inline constexpr uint32_t CUBE_PARAM_COUNT = sizeof(CUBE_PARAM_DEFS) / sizeof(TierParamDef);
+
+// params[] order MUST match CUBE_PARAM_DEFS:
+//   [0]BODY_RADIUS [1]ORBIT_HEIGHT [2]INFLUENCE_RADIUS [3]SPIN_SPEED
+//   [4]BOB_AMPLITUDE [5]BOB_PERIOD [6]ASPECT_Y [7]ASPECT_Z [8]FACE_VARIANCE
+struct CubeTierRow {
+    TierProfile profile;
+    float       spin_tilt_sigma;
+};
+
+inline constexpr CubeTierRow CUBE_TIERS[CUBE_TIER_COUNT] = {
+    /* 0: SmallCube */ {
+        { 0.40f, 0.0f, { {1.8f, 0.5f}, {25.0f, 20.0f}, {6.0f, 1.5f},  {0.04f, 0.015f},
+                   {1.0f, 0.3f}, {5.0f, 1.5f},
+                   {1.0f, 0.15f}, {1.0f, 0.15f}, {0.40f, 0.12f} }},
+        0.12f
+    },
+    /* 1: MedCube   */ {
+        { 0.32f, 0.0f, { {4.0f, 1.2f}, {45.0f, 30.0f}, {10.0f, 2.0f}, {0.03f, 0.01f},
+                   {1.5f, 0.4f}, {6.0f, 2.0f},
+                   {1.0f, 0.20f}, {1.0f, 0.20f}, {0.45f, 0.15f} }},
+        0.10f
+    },
+    /* 2: LargeCube */ {
+        { 0.20f, 0.0f, { {8.0f, 2.5f}, {75.0f, 45.0f}, {14.0f, 3.0f}, {0.02f, 0.008f},
+                   {2.0f, 0.5f}, {8.0f, 2.5f},
+                   {1.0f, 0.25f}, {1.0f, 0.25f}, {0.35f, 0.10f} }},
+        0.08f
+    },
+    /* 3: Monolith  */ {
+        { 0.08f, 0.0f, { {3.0f, 0.8f}, {12.0f, 8.0f}, {12.0f, 3.0f}, {0.015f, 0.005f},
+                   {1.2f, 0.3f}, {6.0f, 2.0f},
+                   {5.0f, 1.2f}, {0.15f, 0.03f}, {0.45f, 0.12f} }},
+        0.10f
+    },
+};
+
+inline const TierProfile& cube_get_tier_profile(uint32_t tier_idx) {
+    return CUBE_TIERS[tier_idx].profile;
+}
+
+inline constexpr EntityFamilyTraits CUBE_TRAITS = {
+    PopFamily::CUBE, "cube", Dim::MAX_CUBE_INSTANCES,
+    false, false, 0,
+    true, 200.0f, 0.0f,
+    CubeEntityProp::SPAWN_ROLL, CubeConfig::SPAWN_CHANCE,
+    CubeConfig::MOOD_MULTIPLIER, CubeConfig::POSITION_JITTER,
+    CUBE_TIER_COUNT, CubeEntityProp::TIER,
+    CUBE_PARAM_DEFS, CUBE_PARAM_COUNT,
+    CubeEntityProp::ANCHOR_X, CubeEntityProp::ANCHOR_Z, CubeEntityProp::ROTATION, false,
+    0, nullptr,
+};
+
+inline SpawnGateOutput cube_run_gate(Cartridge* c, int32_t gx, int32_t gz) {
+    auto gate = c->run_spawn_preamble(gx, gz, c->cube_behaviors_state_.activeCubes_, Dim::MAX_CUBE_INSTANCES,
+        CubeEntityProp::SPAWN_ROLL, CubeConfig::SPAWN_CHANCE,
+        CubeConfig::MOOD_MULTIPLIER, PopFamily::CUBE, "cube");
+    return { gate.ok, gate.seed, gate.slot, gate.theme_idx };
+}
+inline const float* cube_get_theme_tier_weights(uint32_t ti) { return Cartridge::THEMES[ti].tier_wt_cube; }
+
+inline void cube_compute_solid_half(EntityInstance& inst, const TierProfile&) {
+    inst.solid_half = inst.params[CubeIdx::BODY_RADIUS];
+    inst.ground_y_offset = 0.0f;
+    inst.burial = 0.0f;
+}
+
+inline void cube_compute_colors(EntityInstance& inst, const EntityFamilyTraits&, const TierProfile& /*tier*/) {
+    inst.colors[0] = cpu_hash_f(inst.seed, CubeEntityProp::COLOR_R) * 0.55f + 0.35f;
+    inst.colors[1] = cpu_hash_f(inst.seed, CubeEntityProp::COLOR_G) * 0.50f + 0.30f;
+    inst.colors[2] = cpu_hash_f(inst.seed, CubeEntityProp::COLOR_B) * 0.60f + 0.20f;
+}
+
+inline void cube_write_active(Cartridge* c, const EntityInstance& inst) {
+    auto& ac = c->cube_behaviors_state_.activeCubes_[inst.slot];
+    ac.patch_gx = inst.trigger_gx; ac.patch_gz = inst.trigger_gz;
+    ac.host_gx = inst.host_gx; ac.host_gz = inst.host_gz;
+    ac.cx = inst.cx; ac.cz = inst.cz;
+    ac.last_alloc_time = c->time_state_.seconds;
+    ac.active = true;
+    c->cube_behaviors_state_.activeCubeCount_++;
+}
+
+inline void cube_write_gpu(Cartridge* c, const EntityInstance& inst, wgpu::Queue& queue) {
+    // Spin tilt: custom derivation from tier constant (not a sampled param)
+    float tilt_sigma = CUBE_TIERS[inst.tier_idx].spin_tilt_sigma;
+    float tilt_x = (cpu_hash_f(inst.seed, CubeEntityProp::SPIN_TILT_X) - 0.5f) * 2.0f * tilt_sigma;
+    float tilt_z = (cpu_hash_f(inst.seed, CubeEntityProp::SPIN_TILT_Z) - 0.5f) * 2.0f * tilt_sigma;
+
+    GPUFloatingEntityState fe{};
+    fe.anchor[0] = inst.cx; fe.anchor[1] = 0.0f; fe.anchor[2] = inst.cz;
+    fe.body_radius = inst.params[CubeIdx::BODY_RADIUS];
+    fe.orbit_radius = 0.0f;
+    fe.orbit_height = inst.params[CubeIdx::ORBIT_HEIGHT];
+    fe.orbit_speed = 0.0f;
+    fe.influence_radius = inst.params[CubeIdx::INFLUENCE_RADIUS];
+    fe.spin_speed = inst.params[CubeIdx::SPIN_SPEED];
+    fe.bob_amplitude = inst.params[CubeIdx::BOB_AMPLITUDE];
+    fe.bob_period = inst.params[CubeIdx::BOB_PERIOD];
+    fe.spin_tilt_x = tilt_x; fe.spin_tilt_z = tilt_z;
+    fe.base_color[0] = inst.colors[0]; fe.base_color[1] = inst.colors[1]; fe.base_color[2] = inst.colors[2];
+    fe.color[0] = inst.colors[0]; fe.color[1] = inst.colors[1]; fe.color[2] = inst.colors[2];
+    fe.aspect_y = inst.params[CubeIdx::ASPECT_Y];
+    fe.aspect_z = inst.params[CubeIdx::ASPECT_Z];
+    fe.face_variance = inst.params[CubeIdx::FACE_VARIANCE];
+    fe.geometry_type = 1; fe.motion_type = 1;
+    fe.entity_seed = Dim::CUBE_SLOT_OFFSET + inst.slot;
+    fe.t = 0.0f; fe.orientation[3] = 1.0f;
+    fe.pos[0] = inst.cx; fe.pos[1] = fe.orbit_height; fe.pos[2] = inst.cz;
+    fe.is_active = 1;
+    // Drift-integrator substrate. drift / drift_vel start at zero so the
+    // first frame's position equals home; with behavior_force = 0 (default
+    // Stationary population), the spring is at rest, drift_vel stays zero,
+    // and pos == home — same visual as pre-Phase-3 hover-bob.
+    //
+    // Spring/drag start at the system defaults defined in cube_behaviors.inl,
+    // then pass through apply_cube_tier_gains so each tier gets its own
+    // dynamics signature baked in at spawn.
+    fe.spring_stiffness = CUBE_DEFAULT_SPRING_STIFFNESS;
+    fe.drag             = CUBE_DEFAULT_DRAG;
+    fe.tier_idx = inst.tier_idx;
+    apply_cube_tier_gains(fe.spring_stiffness, fe.drag, inst.tier_idx);
+    fe.drift[0] = 0.0f; fe.drift[1] = 0.0f; fe.drift[2] = 0.0f;
+    fe.drift_vel[0] = 0.0f; fe.drift_vel[1] = 0.0f; fe.drift_vel[2] = 0.0f;
+    // Behavior assignment. Population picks one of CUBE_BEHAVIOR_* per
+    // the active mood's weights (see CUBE_POPULATIONS). behavior_phase
+    // is a per-slot u32 used by behaviors that need decorrelated sampling
+    // (CurlField's noise origin, PhaseWave's individual offset). Mix
+    // constant differs from pick_cube_behavior_for_spawn's so the two
+    // derived values are statistically independent.
+    fe.behavior_id    = pick_cube_behavior_for_spawn(c->mood_state_.active, inst.seed);
+    fe.behavior_phase = cpu_hash(inst.seed, 0xF10A7E70u);
+    // Kite mode starts disabled — cube is anchored to its spawn patch
+    // until the user explicitly toggles kite mode via cube_behaviors.inl.
+    fe.follow_pawn = 0;
+    fe.pawn_offset[0] = 0.0f; fe.pawn_offset[1] = 0.0f; fe.pawn_offset[2] = 0.0f;
+    c->gpuState_.upload_cube_entity_slot(queue, inst.slot, fe);
+}
+
+inline constexpr EntityFamilyAdapter CUBE_ADAPTER = {
+    cube_run_gate, cube_get_theme_tier_weights,
+    nullptr,                              // apply_indoor_rescale → not eligible (floaters, not grounded)
+    cube_compute_solid_half, cube_compute_colors,
+    cube_write_active, cube_write_gpu, nullptr,
+    cube_get_tier_profile,
+};
+
+inline bool dispatch_select_cube_generic(Cartridge* self, int32_t gx, int32_t gz, EntityQueueEntry& e) {
+    EntityInstance inst{};
+    if (!self->generic_select(CUBE_TRAITS, CUBE_ADAPTER, gx, gz, inst)) return false;
+    e.family = PopFamily::CUBE; e.gx = gx; e.gz = gz; e.generic = inst; return true;
+}
+inline bool dispatch_place_cube_generic(Cartridge* self, EntityQueueEntry& e, PlacementEntry& pe) {
+    pe.family = e.family; pe.gx = e.gx; pe.gz = e.gz;
+    if (self->generic_place(CUBE_TRAITS, e.generic)) { pe.generic = e.generic; return true; }
+    self->cube_behaviors_state_.activeCubes_[e.generic.slot].active = false; return false;
+}
+inline void dispatch_commit_cube_generic(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue) {
+    auto* host = self->find_patch(pe.generic.host_gx, pe.generic.host_gz);
+    if (host) {
+        self->generic_commit(CUBE_TRAITS, CUBE_ADAPTER, pe.generic, queue);
+        // Lifecycle Phase 2: cube lifetime decoupled from host patch.
+        // See dispatch_commit_sphere_generic for the rationale.
+    }
+    else { self->cube_behaviors_state_.activeCubes_[pe.generic.slot].active = false; }
+}
+
 } // namespace the_board
 } // namespace t7
