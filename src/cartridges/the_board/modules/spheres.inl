@@ -1,15 +1,12 @@
 // ─── spheres.inl (IMPL: post-class definitions) ──────────────────
 // Born at LADDER-5 e3: history in audit/LADDER.md.
 //
-// The Sphere family's lifecycle: the evictor (absorbed per §5
-// EVICTION THUNKS) and the full recipe (tier tables, traits, adapter,
-// dispatch funnels), all named by the FAMILY_DISPATCH table
-// (family_dispatch.inl). SphereState itself is spheres.hpp.
+// The Sphere family's lifecycle: the evictor and the full recipe
+// (tier tables, traits, adapter, dispatch funnels), all named by the
+// FAMILY_DISPATCH table (family_dispatch.inl).
 //
-// WRAPPING FORM (the proven fix-2 rule): SELF-WRAPPING — opens
-// t7::the_board itself, carries its own standard includes; the MODULE
-// IMPLEMENTATIONS zone includes it at FILE SCOPE. Definitions are
-// `inline` free functions.
+// WRAPPING FORM (fix-2): SELF-WRAPPING — the zone includes impls at
+// FILE SCOPE; law in audit/LADDER.md.
 
 #include <iostream>   // [DIAG:EVICT] logging (flag-gated)
 
@@ -27,8 +24,7 @@ inline void evict_sphere(Cartridge* self,
 #endif
 }
 
-
-// ═══ THE SPHERE RECIPE (relocated from entity_pipeline.inl) ═══════
+// ═══ THE SPHERE RECIPE ════════════════════════════════════════════
 //
 // Tier tables, traits, adapter, and dispatch funnels — beside the
 // evictor. Funnels declared in spheres.hpp; table rows point here
@@ -36,9 +32,6 @@ inline void evict_sphere(Cartridge* self,
 // (INTENT[services:themes] at its definition).
 
 // ═══ FAMILY: SPHERE ═══════════════════════════════════════════════
-//
-// Orbital floating entity. No ground contact.
-//
 
 struct SphIdx {
     static constexpr uint32_t BODY_RADIUS      = 0;
@@ -191,11 +184,6 @@ inline void dispatch_commit_sphere_generic(Cartridge* self, PlacementEntry& pe, 
         // because a missing host still means "spawn was invalid"; we
         // just don't link the sphere into the patch's eviction list.
         //
-        // CPU's activeFloaters_[slot].active stays true until the next
-        // mood transition zeroes the buffer. With 8 slots and a 1.5%
-        // spawn chance, allocator pressure from stale CPU bools is
-        // unlikely in practice; if it surfaces, add a continuous readback
-        // mirroring agent_state_readback_staging (cartridge.hpp ~7990).
     }
     else { self->sphere_state_.activeFloaters_[pe.generic.slot].active = false; }
 }

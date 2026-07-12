@@ -10,18 +10,8 @@
 // statics (Cartridge::PATCH_EXTENT / Cartridge::GLOBAL_ENTITY_DENSITY);
 // PopFamily is roster.hpp vocabulary.
 //
-// WRAPPING FORM (the proven fix-2 rule): SELF-WRAPPING — opens
-// t7::the_board itself, carries its own standard includes; the MODULE
-// IMPLEMENTATIONS zone includes it at FILE SCOPE. Definitions are
-// `inline` free functions.
+// WRAPPING FORM (fix-2): SELF-WRAPPING — the zone includes impls at FILE SCOPE; law in audit/LADDER.md.
 //
-// SECTION ORDER: original order EXCEPT the FRAME STYLE PRESETS + SLOT
-// FILL section, hoisted above its consumers (commit_gallery /
-// place_wall_paintings) — namespace-scope definitions must precede
-// use now that class-body two-pass member lookup no longer applies.
-// capture_snapshot / count_unused_authored / pick_authored_staging
-// keep their original positions via the impl-internal forward
-// declarations below, for the same reason.
 // ─────────────────────────────────────────────────────────────────
 
 #include <algorithm>   // std::max, std::min, std::sort, std::transform
@@ -69,12 +59,6 @@ inline uint32_t count_unused_authored(const GalleryState& gs, const bool usedAut
 inline uint32_t pick_authored_staging(GalleryState& gs, uint32_t seed, uint32_t prop);
 
 // ═══ FRAME STYLE PRESETS + SLOT FILL ═════════════════════════════
-//
-// Frame styles (depth/width/recess/color) declared as named
-// presets, plus the helper that fills a GPUPaintingSlot for a
-// wall-frame layout. Used by both the outdoor commit_gallery
-// (when a painting is wall-style) and indoor place_wall_paintings.
-// (Hoisted above both consumers — see SECTION ORDER in the banner.)
 
 // ── Frame style presets ──
 struct FrameStyle {
@@ -120,10 +104,6 @@ inline void fill_slot_wall_frame(
 }
 
 // ═══ PHOTOGRAPHER LIFECYCLE ══════════════════════════════════════
-//
-// Captures snapshots into the snapshot staging circular buffer.
-// Never places paintings — gallery sites consume the pool. Triggers
-// based on cumulative walk distance (with archetype-aware pacing).
 
 inline void update_photographer(GalleryState& gs, Cartridge* c, wgpu::Queue& queue) {
     float px = c->player_.readback_x;
@@ -247,18 +227,8 @@ inline void capture_snapshot(GalleryState& gs, Cartridge* c, float pawn_x, float
 }
 
 // ═══ GALLERY SITES (outdoor — three-phase) ═══════════════════════
-//
-// Each patch's seed determines if it hosts a gallery, how many
-// paintings, and where. Paintings draw from the snapshot pool plus
-// authored staging (per gallery's site_type: snapshot-only, mixed,
-// or authored-only). The user discovers photos from other places
-// in distant galleries.
 
 // ── select_gallery_for_patch ──
-//
-// Phase 1: content gate, spawn roll, center jitter, parameter
-// sampling. No GPU writes. No content availability validation
-// (deferred to commit where queue is available).
 
 inline bool select_gallery_for_patch(GalleryState& gs, Cartridge* c, int32_t gx, int32_t gz, GallerySelection& sel) {
     // Content gate: minimum snapshot pool
@@ -378,10 +348,6 @@ inline bool select_gallery_for_patch(GalleryState& gs, Cartridge* c, int32_t gx,
 }
 
 // ── place_gallery_from_selection ──
-//
-// Phase 2: footprint check + registration. Gallery center is
-// seed-determined (no negotiation), but standard check_position
-// enforces MIN_SEPARATION against all families.
 
 inline bool place_gallery_from_selection(Cartridge* c, const GallerySelection& sel, GalleryPlacement& plan) {
     if (!c->check_position(sel.cx, sel.cz, sel.footprint_r, PopFamily::GALLERY))
@@ -415,10 +381,6 @@ inline bool place_gallery_from_selection(Cartridge* c, const GallerySelection& s
 }
 
 // ── commit_gallery ──
-//
-// Phase 3: content curation, painting layout, slot allocation,
-// GPU upload. All content-dependent decisions happen here where
-// queue is available for authored texture loading.
 
 inline void commit_gallery(GalleryState& gs, Cartridge* c,
     const GalleryPlacement& plan,
@@ -684,27 +646,13 @@ inline void evict_paintings_for_patch(GalleryState& gs, Cartridge* c, int32_t gx
             gs.active_painting_count--;
         }
     }
-    // Evict gallery center for this patch — NO: gallery centers persist
-    // beyond patch lifetime to prevent overlap when patches re-stream.
-    // Centers are evicted by distance sweep in stream_patches instead.
 }
 
 // ═══ SNAPSHOT RENDER ═════════════════════════════════════════════
-//
-// When the photographer captures, this pass renders the offscreen
-// camera view to the snapshot texture array. Builds the photographer
-// VP via compute, then runs a stripped-down draw pass (terrain,
-// pawn, sphere, ribbon, arch, column, shell) into an offscreen
-// target, then copies into the snapshot staging texture's chosen
-// layer.
 
 inline void render_snapshot_pass(GalleryState& gs, Cartridge* c, wgpu::CommandEncoder& encoder) {
     if (!gs.pending_snapshot.active) return;
 
-    // Snapshot needs its own VP compute (camera position + VP matrix).
-    // Entity Y-correction already ran in dispatch_placement_correction
-    // (separate pipeline, unconditional every frame).
-    // This dispatch only builds the photographer camera VP + light VP.
     {
         wgpu::ComputePassDescriptor cpd{};
         cpd.label = "Photographer VP Compute";
@@ -788,10 +736,6 @@ inline void render_snapshot_pass(GalleryState& gs, Cartridge* c, wgpu::CommandEn
         c->gpuState_.shell_index_buffer(),
         c->gpuState_.shell_index_count());
 
-    // Pyramids: terrain surface IS the pyramid shape (via the baked
-    // heightfield, which caches POLICY_BAKED_HEIGHTFIELD = static
-    // base + pyramids). No separate mesh draw needed.
-
     pass.End();
 
     wgpu::TexelCopyTextureInfo src{};
@@ -809,11 +753,6 @@ inline void render_snapshot_pass(GalleryState& gs, Cartridge* c, wgpu::CommandEn
 }
 
 // ═══ AUTHORED IMAGE LOADING ══════════════════════════════════════
-//
-// Disk-backed paintings: scan a folder for PAINTING_*.jpg/jpeg,
-// load into the authored staging circular buffer, rotate at world
-// teardown so the pawn sees fresh paintings each world. Called by
-// apply_mood / commit_gallery for indoor and mixed galleries.
 
 // ── Authored Image Loading (staging model) ──
 
@@ -879,9 +818,6 @@ inline void load_authored_image_to_staging(GalleryState& gs, Cartridge* c, wgpu:
 }
 
 // ── Paintings folder scan ──
-// Scans assets/paintings/ for PAINTING_*.jpg/jpeg, sorted numerically.
-// Called once at first load. The full collection lives on disk;
-// a rotating 16-layer staging window loads into GPU memory.
 
 inline void scan_paintings_folder(GalleryState& gs) {
     namespace fs = std::filesystem;
@@ -961,10 +897,6 @@ inline void load_authored_textures(GalleryState& gs, Cartridge* c, wgpu::Queue& 
         << "/" << manifest_size << " images\n";
 }
 
-// Replace consumed authored staging slots with the next images from disk.
-// Called at teardown — consumed slots get fresh paintings, unconsumed survive.
-// The disk cursor walks through the entire manifest across world transitions,
-// so the pawn sees different paintings in each world.
 inline void rotate_authored_staging(GalleryState& gs, Cartridge* c, wgpu::Queue& queue) {
     if (gs.authored_disk_manifest.empty()) return;
     uint32_t manifest_size = (uint32_t)gs.authored_disk_manifest.size();
@@ -1042,11 +974,6 @@ inline uint32_t pick_authored_staging(GalleryState& gs, uint32_t /*seed*/, uint3
 }
 
 // ═══ WALL PAINTINGS (indoor) ═════════════════════════════════════
-//
-// Called by mood.inl::apply_mood for indoor worlds. Places paintings
-// on 1–4 of the four interior walls, mixing snapshots and authored
-// images per the active site type. All tuning dials live in WALL_ART
-// in the TUNING CONSOLE section of gallery.hpp.
 
 inline void place_wall_paintings(GalleryState& gs, Cartridge* c, wgpu::Queue& queue, float bmin, float bmax, float ceiling_h) {
     // Clear any existing wall paintings first (indoor→indoor transitions)
@@ -1190,9 +1117,6 @@ inline void place_wall_paintings(GalleryState& gs, Cartridge* c, wgpu::Queue& qu
 
             float py = wall.py + y_offset;
 
-            // Upper clamp on painting bottom edge — keeps the bottom
-            // viewable from pawn standing height. The painting height
-            // we sampled into painting_heights[p] earlier defines half.
             float h_for_clamp = painting_heights[p];
             float bottom = py - h_for_clamp * 0.5f;
             if (bottom > WALL_ART.max_bottom_height) {
@@ -1339,13 +1263,7 @@ inline void clear_wall_paintings(GalleryState& gs, Cartridge* c, wgpu::Queue& qu
     gs.wall_frame_count = 0;
 }
 
-
 // ═══ DISPATCH FUNNELS (table-shaped; declared in entity_types.hpp) ═
-//
-// The FAMILY_DISPATCH rows for this family point here (the table
-// is defined in modules/family_dispatch.inl). Bodies delegate to
-// the module functions above and keep the spine bookkeeping
-// (find_patch / record_entity) at the seam.
 
 inline bool dispatch_select_gallery(Cartridge* self,
     int32_t gx, int32_t gz, EntityQueueEntry& e) {
@@ -1384,10 +1302,7 @@ inline void dispatch_commit_gallery(Cartridge* self,
     }
 }
 
-
-// ═══ THE EVICTOR (lifecycle, absorbed per §5 EVICTION THUNKS) ═════
-//
-// Named by the FAMILY_DISPATCH table (family_dispatch.inl).
+// ═══ THE EVICTOR ══════════════════════════════════════════════════
 
 inline void evict_gallery(Cartridge* self,
     uint32_t slot, wgpu::Queue& queue) {

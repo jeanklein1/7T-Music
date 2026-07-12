@@ -9,86 +9,9 @@
 // Converted (LADDER-3 c2, G1): history in audit/LADDER.md.
 //
 // Unified entity registry: the control panel for the agent system.
-// Every pawn-like body on the board — the one the player inhabits and
-// every mood-authored wanderer — is one slot in agentStateBuffer_,
-// driven by one of these behaviors, tinted by one of these tiers,
-// populated per mood from AGENT_POPULATIONS.
 //
-// The player's relationship to this array is `player_.possessed_slot`;
-// the compute kernel treats that slot as the PlayerControlled branch
-// and every other active slot as its authored behavior. See
-// state.hpp AgentState and world.wgsl §7 for the wiring.
-//
-// ┌─── Three registries ────────────────────────────────────────────┐
-// │                                                                  │
-// │  AGENT_BEHAVIORS    per-behavior motion parameters               │
-// │                     (step rate, step size, drag, speed cap, ...) │
-// │                                                                  │
-// │  AGENT_TIER_GAINS   per-tier multipliers + render color          │
-// │                     (Worker / Scout / Sentinel / Leader)         │
-// │                                                                  │
-// │  AGENT_POPULATIONS  per-mood population authoring                │
-// │                     (count, behavior/tier weights, spawn radius) │
-// │                                                                  │
-// └──────────────────────────────────────────────────────────────────┘
-//
-// All ten behaviors (PlayerControlled + nine algorithmic) are
-// implemented and tunable. Tier gains are authored for all four
-// tiers. Populations are authored for the outdoor + gallery moods;
-// the two finite_outdoor moods default to count=0 (unpopulated).
-//
-// ┌─── Public surface (called from outside this module) ────────────┐
-// │                                                                  │
-// │  Module functions take AgentState& explicitly                    │
-// │  (or const AgentState& when read-only).                          │
-// │                                                                  │
-// │  Lifecycle:                                                      │
-// │    upload_agent_registries_to_gpu(c, queue)   — once at init     │
-// │      (note: takes no AgentState — uploads constexpr registries   │
-// │       only, doesn't touch agent slots)                           │
-// │    spawn_population_for_mood(as, c, ...)      — mood entry       │
-// │    respawn_evicted_agents(as, c, ...)         — every-frame fill │
-// │                                                                  │
-// │  Player commands:                                                │
-// │    try_possess_nearest(as, c, queue)          — Caps Lock        │
-// │                                                                  │
-// │  Diagnostic cycling (wired in input.inl):                       │
-// │    cycle_agent_behavior_override(as, c, q)    F1                 │
-// │    cycle_agent_tier_override(as, c, q)        F2                 │
-// │    force_respawn_population(as, c, q)         F3                 │
-// │                                                                  │
-// │  Logging:                                                        │
-// │    dump_agent_census(as, c, trigger)          — periodic+on event│
-// │                                                                  │
-// │  Cross-module reads (consumed by other modules):                 │
-// │    agent_state_.slots[player_.possessed_slot] — read by spine,  │
-// │      cube_behaviors.inl (player position queries)                │
-// │                                                                  │
-// └──────────────────────────────────────────────────────────────────┘
-//
-// ┌─── Why not EntityFamilyAdapter? ─────────────────────────────────┐
-// │                                                                  │
-// │  Other living things in the world (blades, palms, arches, etc.)  │
-// │  flow through entity_pipeline.inl's generic select / place /     │
-// │  commit machinery. Agents are deliberately separate because:     │
-// │                                                                  │
-// │   • Fixed-size 32-slot array, not streaming. No per-frame        │
-// │     entity_refs eviction; the agent kernel decides who lives.    │
-// │   • Player-possessable. Slot PLAYER_SLOT is special-cased on     │
-// │     both CPU (camera, input, readback) and GPU (separate kernel  │
-// │     update_player_agent vs update_other_agents).                 │
-// │   • Has its own state-evolution kernel; entities are placed once │
-// │     and only re-rendered.                                        │
-// │                                                                  │
-// │  The `tier` vocabulary overlaps but the machinery is unrelated:  │
-// │  AgentTierDef is not EntityFamilyTraits::TierProfile.            │
-// │                                                                  │
-// └──────────────────────────────────────────────────────────────────┘
-//
-// Depends on: state.hpp (Dim::MAX_AGENTS, GPUAgentState, the GPU count
-// twins), mood_constants.hpp (MOOD_COUNT + Mood IDs), <array>. The impl
-// additionally reads COLUMN_PALETTE (entities.hpp) and reaches the
-// keyhole.
+// The impl additionally reads COLUMN_PALETTE (entities.hpp) and reaches
+// the keyhole.
 // ─────────────────────────────────────────────────────────────────
 
 namespace t7 {
@@ -115,10 +38,6 @@ enum AgentBehaviorId : uint32_t {
 };
 
 // ═══ TIER IDS ════════════════════════════════════════════════════
-//
-// Visual + parametric archetype — a property of the body, not of the
-// driver. A Scout stays a Scout when the player leaves it; a
-// RandomWalk scout moves with Scout-tier speed/persistence.
 
 enum AgentTierId : uint32_t {
     AGENT_TIER_WORKER   = 0,
@@ -161,45 +80,17 @@ inline constexpr const char* AGENT_TIER_NAMES[AGENT_TIER_COUNT] = {
 };
 
 // ═══ TUNING CONSOLE ══════════════════════════════════════════════
-//
-// All authored radii live here so the relationships between them are
-// visible at a glance. Mirrors the tuning-console block at the top of
-// orbs.hpp. If you change one of these, scan the comments below to
-// see what else may need to move.
 
-// PLAYER_SLOT — slot 0 of agentStateBuffer_ is the player's INITIAL
-// body and the canonical "skip this in respawn loops" sentinel. Every
-// spawn/respawn skips slot 0. Caps Lock possession transfer can move
-// the player into a non-zero slot (player_.possessed_slot tracks
-// which one); reads of "where is the player right now" should go
-// through agent_state_.slots[player_.possessed_slot], not [PLAYER_SLOT].
 inline constexpr uint32_t PLAYER_SLOT = 0;
 
-// POSSESSION_RADIUS — Caps Lock teleports the player into the nearest
-// active agent within this radius. Set so the player can comfortably
-// pick a target by walking near it; any larger and possession becomes
-// "leap to wherever Caps Lock feels like it." See try_possess_nearest.
 inline constexpr float POSSESSION_RADIUS    = 20.0f;
 inline constexpr float POSSESSION_RADIUS_SQ = POSSESSION_RADIUS * POSSESSION_RADIUS;
 
-// AGENT_EVICTION_RADIUS — outdoor agents that drift further than this
-// from the player are evicted (set is_active=0 by the GPU kernel) and
-// later refilled by respawn_evicted_agents.
 //
 // SEAM[agents:L2] hardware mirror — AGENT_EVICTION_RADIUS must agree
 //   with world.wgsl's identically-named const. The compiler cannot
 //   catch drift; the prose below is the contract.
 //
-// MIRRORED MANUALLY in world.wgsl as `const AGENT_EVICTION_RADIUS:
-// f32 = 360.0` (the WGSL needs a compile-time const for FXC inlining;
-// no runtime upload exists). If you change this value, change the
-// WGSL constant too — the compiler will not catch the drift.
-//
-// Couples with each population's spawn_radius below: a population
-// whose spawn_radius approaches the eviction radius will see immediate
-// re-eviction and look like it's flickering. Keep at least ~20 units
-// of headroom (spawn_radius=340 + this=360 gives a 20-unit "alive"
-// band where agents persist before being recycled).
 inline constexpr float AGENT_EVICTION_RADIUS    = 360.0f;
 inline constexpr float AGENT_EVICTION_RADIUS_SQ = AGENT_EVICTION_RADIUS * AGENT_EVICTION_RADIUS;
 
@@ -208,29 +99,6 @@ inline constexpr float AGENT_EVICTION_RADIUS_SQ = AGENT_EVICTION_RADIUS * AGENT_
 inline constexpr float AGENT_CENSUS_INTERVAL = 30.0f;
 
 // ═══ REGISTRY: BEHAVIORS ═════════════════════════════════════════
-//
-// Per-behavior motion parameters. Units:
-//   step_rate         steps per *beat* (musical time)
-//   step_size         world units per step (BiasedWalk) /
-//                     waypoint radius from home (SlowPatrol)
-//   persistence       [0,1] — directional commitment (BiasedWalk:
-//                     1=lock to travel azimuth, 0=full random)
-//   drag              1/s — velocity decay coefficient (exponential)
-//   home_pull         1/s² — spring coefficient (SlowPatrol uses for
-//                     waypoint steering)
-//   neighbor_radius   world units — flock/cohesion neighbor radius
-//   speed_cap         world units/s — per-agent max speed
-//
-// PlayerControlled rows are all zero: the kernel switch case reads
-// input directly rather than these parameters.
-//
-// Home tether (home_x/y/z in GPUAgentState) is consumed by:
-//   WANDERER     — soft pull back to home, lets the agent meander
-//   HOME_SEEKER  — strong spring to home, dominant force
-//   SLOW_PATROL  — home is the patrol anchor; waypoints orbit it
-// Other behaviors ignore the home position; spawn still seeds it
-// (cheap, harmless) so the field is meaningful if a slot's behavior
-// later changes via possession transfer or override.
 
 struct AgentBehaviorDef {
     AgentBehaviorId id;
@@ -262,13 +130,6 @@ static_assert(sizeof(AGENT_BEHAVIORS) / sizeof(AGENT_BEHAVIORS[0]) == AGENT_BEHA
               "AGENT_BEHAVIORS must declare one row per AgentBehaviorId");
 
 // ═══ REGISTRY: TIER GAINS ════════════════════════════════════════
-//
-// Per-tier multipliers on behavior parameters, plus render color.
-// Compound with behavior params: a Scout running RandomWalk takes
-// longer, less-persistent steps than a Worker running RandomWalk.
-//
-// Color authored as RGB [0,1]. The tier color is the body's identity
-// — a Scout is bronze regardless of who's driving it.
 
 struct AgentTierDef {
     AgentTierId id;
@@ -293,28 +154,6 @@ static_assert(sizeof(AGENT_TIER_GAINS) / sizeof(AGENT_TIER_GAINS[0]) == AGENT_TI
               "AGENT_TIER_GAINS must declare one row per AgentTierId");
 
 // ═══ REGISTRY: POPULATIONS ═══════════════════════════════════════
-//
-// Per-mood population authoring. Indexed by mood id; one row per
-// mood. `count = 0` means the mood spawns no agents (the player is
-// alone — a valid configuration).
-//
-// behavior_weights[] and tier_weights[] are probabilities (any
-// non-negative values; they're normalized at spawn time).
-//
-// Spawn distribution: agents appear on an *annulus* around the player
-// (uniform area distribution). spawn_inner_radius and spawn_radius
-// define the annulus bounds. When inner == 0, the annulus collapses
-// to a uniform disk — used for indoor/gallery moods where there's no
-// "horizon" to spawn beyond.
-//
-// Outdoor moods set inner just outside the visible horizon (~200) and
-// outer near the patch pre-gen edge (~340), so agents appear at
-// distance and walk inward. This matches the floater lifecycle.
-// Gallery moods set inner = 0 and outer to the room's reach, so
-// agents spawn within the room.
-//
-// home_seeding_radius is how far each agent's home tether offset
-// ranges from its spawn point.
 
 struct AgentPopulationDef {
     uint32_t mood_id;
@@ -327,29 +166,8 @@ struct AgentPopulationDef {
 };
 
 // ─── Why no constexpr helper builders ───────────────────────────
-//
-// The weight arrays are written out unfolded rather than factored
-// through constexpr helpers; the restyle is a NAMED LATER STAGE
-// (clean bisection).
-//
-// The fix is plain literal initialization with column-header comments
-// above each row indicating which behavior / tier slot is non-zero.
-// std::array accepts braced lists via brace elision (single braces
-// suffice), so the rows stay readable.
 
-// Mood ordering matches MOOD_TABLE (mood.hpp). The named constants
-// (mood_constants.hpp) and per-row static_asserts below catch any
-// reordering at compile time.
 //
-// Outdoor moods spawn agents on a wide annulus near the patch
-// pre-gen edge — agents appear at distance, walk inward, evict at
-// the world's horizon. Gallery moods use a tight annulus inside the
-// indoor world bounds; agents spawn within visibility because there
-// is no "horizon" inside a room.
-//
-// Each row's behavior_weights and tier_weights are preceded by a
-// column-header comment so the active slot is visible without
-// counting zeros.
 inline constexpr AgentPopulationDef AGENT_POPULATIONS[MOOD_COUNT] = {
     /* MOOD_OPEN_DEFAULT — desert travelers (BiasedWalk) */
     { /*mood_id=*/ MOOD_OPEN_DEFAULT, /*count=*/ 10,
@@ -417,36 +235,6 @@ static_assert(AGENT_POPULATIONS[MOOD_FINITE_OUTDOOR    ].mood_id == MOOD_FINITE_
 static_assert(AGENT_POPULATIONS[MOOD_FINITE_OUTDOOR_REF].mood_id == MOOD_FINITE_OUTDOOR_REF, "AGENT_POPULATIONS row 5 must be MOOD_FINITE_OUTDOOR_REF");
 
 // ═══ AGENT MODULE STATE ══════════════════════════════════════════
-//
-// All agent-owned state lives in this struct, accessed via
-// agent_state_ on the Cartridge (declared at the composition root).
-// Module functions take `AgentState& as` explicitly rather than
-// reaching via Cartridge*, making ownership language-visible and
-// dependencies explicit in signatures.
-//
-// Fields:
-//
-//   slots — Host-side mirror of agentStateBuffer_ refreshed from a
-//     GPU readback. Used by Caps Lock targeting (nearest-within-
-//     radius) and by patch streaming (which reads the possessed
-//     slot's XZ).
-//
-//   respawn_counters — Per-slot respawn count. Mixed into the seed
-//     each time a slot is refilled, so successive respawns of the
-//     same slot roll different attributes / pose.
-//
-//   behavior_override / tier_override — Inspection toggles. When set,
-//     every active non-player slot is forced to the override value,
-//     bypassing the population's natural rolls. AGENT_OVERRIDE_NONE
-//     means "no override — population wins." Overrides apply both to
-//     existing active agents (cycle_*_override rewrites them in
-//     place) and to newly-respawned agents (populate_agent_slot_
-//     consults the override). Clearing the override does NOT revert
-//     existing agents — only future respawns roll naturally again.
-//     Intended as developer/diagnostic dials, not gameplay state.
-//
-//   last_census_dump — Periodic census log timestamp. Read +
-//     written from the cartridge's update loop.
 
 inline constexpr uint32_t AGENT_OVERRIDE_NONE = 0xFFFFFFFFu;
 
@@ -459,10 +247,6 @@ struct AgentState {
 };
 
 // ═══ MODULE FUNCTIONS — DECLARATIONS ═════════════════════════════
-//
-// DEFINED in agents.inl (post-class, self-wrapping). populate_agent_slot_
-// and apply_agent_overrides_ are module-internal helpers (impl-only, not
-// declared here).
 
 // Lifecycle
 void upload_agent_registries_to_gpu(Cartridge* c, wgpu::Queue& queue);

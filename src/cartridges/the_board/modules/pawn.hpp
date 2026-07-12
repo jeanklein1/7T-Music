@@ -9,35 +9,15 @@
 // activates near the pawn and releases when it moves away), presence
 // trajectory, per-frame coupling tick.
 //
-// ┌─── Public surface (called from outside this file) ──────────────┐
-// │  Per-frame updates:                                              │
-// │    tick_pawn_couplings(ps, c, queue) — presence ramp + height   │
-// │  Cross-module writers (set pawn_state_ flags from outside):     │
-// │    input.inl  — toggles aura_enabled/aura_height_enabled; dirty │
-// │    mood.inl   — clears aura_enabled when mood disallows aura     │
-// │  Cross-module readers: cartridge.hpp aura compute dispatch      │
-// └──────────────────────────────────────────────────────────────────┘
-//
-// Depends on: <cstdint> + keyhole.hpp (the Cartridge and wgpu::Queue
-// forward declarations — taken by pointer and reference respectively).
-// The aura ramp is a self-contained real-time exponential (std::exp,
-// in the .inl).
+// The aura ramp is a self-contained real-time exponential (std::exp, in the .inl).
 // ─────────────────────────────────────────────────────────────────
 
 namespace t7 {
 namespace the_board {
 
 // ═══ TUNING CONSOLE ══════════════════════════════════════════════
-//
-// System-level dials for the pawn aura. Profile-authored values
-// (radius, stiffness, tints, mode) live in PawnAuraProfile below;
-// these are dials that apply regardless of which profile is active.
 
 // ── Aura presence ramp ───────────────────────────────────────────
-// aura_presence ramps 0→1 on enable and 1→0 on disable. Smooths
-// the transition so terrain extrusion and pawn height change
-// gradually rather than snapping. Asymmetric: enable feels
-// deliberate (~3s), disable feels release-y (~2s).
 inline constexpr float AURA_PRESENCE_ATTACK  = 1.0f;   // 1/s — ~3s to full (spring converges in ~0.5s)
 inline constexpr float AURA_PRESENCE_RELEASE = 1.5f;   // 1/s — ~2s to zero
 
@@ -74,12 +54,6 @@ inline constexpr PawnAuraProfile PAWN_AURA_DEFAULT = {
 
 // ═══ PAWN MODULE STATE ═══════════════════════════════════════════
 //
-// All pawn-owned state lives in this struct, accessed via pawn_state_
-// on the Cartridge (declared at the composition root). Module functions
-// take `PawnState& ps` explicitly rather than reaching via Cartridge*,
-// making ownership language-visible and dependencies explicit in
-// signatures.
-//
 // Field roles:
 //   active_aura_profile — Currently active profile (PAWN_AURA_DEFAULT;
 //     swappable by landmarks/commands).
@@ -102,11 +76,6 @@ struct PawnState {
 };
 
 // ─── Per-frame pawn coupling tick — DECLARATION ──────────────────
-// Defined in pawn.inl (post-class), where the keyhole is complete.
-// The presence value uses an inlined real-time exponential step
-// (mirroring WGSL §1.2). Caller: cartridge.hpp::update() — once per
-// frame after the signal is built and before world bounds are
-// uploaded.
 void tick_pawn_couplings(PawnState& ps, Cartridge* c, wgpu::Queue& queue);
 
 } // namespace the_board

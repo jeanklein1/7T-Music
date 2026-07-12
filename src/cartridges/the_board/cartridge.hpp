@@ -3,51 +3,11 @@
 // ─── cartridge.hpp ───────────────────────────────────────────────
 // MOD campaign (ROSTER-1a/1b + LADDER-1..4): conversion history in audit/LADDER.md.
 //
-// THE_BOARD — Generative world engine. CPU orchestration spine.
-// See world.wgsl for GPU-side (single source of truth).
+// THE_BOARD — Generative world engine.
 //
-// The cartridge is the integration hub: it owns the public lifecycle
-// (initialize, update, render, stream_patches), the FAMILY_DISPATCH
-// table that ties the 12 entity families together, the active patch
-// system, and the per-mood authoring tables. Module includes splice
-// in domain-specific work at well-defined points.
-//
-// TWO REGIMES (Constitution §1, amended — the header ladder): CONVERTED
-// modules are real file-scope headers included above the class (the
-// roster.hpp / seed_utils.hpp cohort) and see nothing ambiently;
-// UNCONVERTED modules remain class-body includes under the prior law.
-// Both coexist lawfully until the last module converts. See §1.
-//
-// ┌─── Public surface (RenderCartridge override) ───────────────────┐
-// │                                                                  │
-// │  Lifecycle:                                                      │
-// │    initialize(device)              — GPU state + renderer init   │
-// │    init_renderer(...)              — pipeline + bind groups      │
-// │    update(signal, dt)              — per-frame state advance     │
-// │    render(encoder, color, depth)   — per-frame draw + readback   │
-// │    stream_patches(encoder, queue)  — patch streaming budget pass │
-// │                                                                  │
-// │  Player + system overrides:                                      │
-// │    on_input(event)                                               │
-// │    get_clear_color(r, g, b)                                      │
-// │    supports_backspace()                                          │
-// │    reload_shaders()                                              │
-// │                                                                  │
-// │  Spine-owned tables (read by every entity-aware module):         │
-// │    FAMILY_DISPATCH[PopFamily::COUNT]   — dispatch hub            │
-// │    ROSTER (roster.hpp, v0 constexpr)    — piece enable manifest  │
-// │    THEMES[THEME_COUNT]                  — population themes      │
-// │    ARCHETYPES[ARCHETYPE_COUNT]          — terrain archetypes     │
-// │    (MIN_SEPARATION lives with its readers in spawn_engine.inl) │
-// │                                                                  │
-// │  Cross-module reads (consumed by modules):                       │
-// │    mood_state_.active, world_state_.active_seed, time_state_.beats, time_state_.seconds      │
-// │    player_.readback_x/z_, possessed_slot                            │
-// │    PATCH_EXTENT, GRID_RADIUS, PREGEN_RADIUS, MAX_PATCHES          │
-// │    world_state_.finite_mode, world_state_.finite_radius, transitionPhase_                  │
-// │    ActivePatch + entity_refs registry                            │
-// │                                                                  │
-// └──────────────────────────────────────────────────────────────────┘
+// TWO REGIMES (constitution §1): CONVERTED modules are file-scope
+// headers above the class; UNCONVERTED remain class-body includes —
+// both lawful until the last module converts.
 //
 // SEAM[spine:owns] FAMILY_DISPATCH is genuinely spine work — the
 //   integration hub that ties the 12 families together. Each row's
@@ -132,11 +92,9 @@ namespace t7 {
 
         class Cartridge : public RenderCartridge {
 
-        // COMPOSITION ROOT — ORGANS ARE PUBLIC by the composition law:
-        // sight is free; writes pass through declared seams (keyhole,
-        // signal, bank); the census enforces the seam law, not access
-        // control; the outside enters only through the RenderCartridge
-        // interface and the public lifecycle.
+        // COMPOSITION ROOT — ORGANS ARE PUBLIC: sight is free; writes pass
+        // through declared seams; the census enforces the seam law, not
+        // access control.
         public:
 
             wgpu::Device device_;
@@ -148,16 +106,6 @@ namespace t7 {
 
             // ═══ COMPOSITION ROOT — MODULE STATE ════════════════════════
             //
-            // The root's own manifest of organs: the instances of state
-            // structs owned by converted modules. Each struct lives in its
-            // module's file-scope header; the cartridge declares the instance
-            // here so converted modules (by explicit state& parameter) and
-            // unconverted modules (by ambient member reach) can see it.
-            // §2-residency legal by definition — this is assembly.
-            //
-            //   sphere_state_ — SphereState (spheres.hpp), the orbital-sphere
-            //     active-slot mirror.
-            //
             SphereState sphere_state_;
 
             //   cube_behaviors_state_ — CubeBehaviorsState (cube_behaviors.hpp),
@@ -167,9 +115,6 @@ namespace t7 {
             //   pawn_state_ — PawnState (pawn.hpp), the pawn aura + presence state.
             PawnState pawn_state_;
 
-            //   entities_state_ — EntitiesState (entities.hpp), the seven grounded
-            //     families' active arrays + counts + mesh-gen flags + the pyramid
-            //     CPU mirror.
             EntitiesState entities_state_;
 
             //   orbs_state_ — OrbsState (orbs.hpp), the sky-dome lifecycle +
@@ -184,20 +129,10 @@ namespace t7 {
             //     respawn counters + diagnostic overrides.
             AgentState agent_state_;
 
-            //   gallery_state_ — GalleryState (gallery.hpp), the photographer (RNG
-            //     + cadence) + snapshot/authored staging + exhibition layers +
-            //     painting slots + gallery centers.
             GalleryState gallery_state_;
 
-            //   ribbon_state_ — RibbonState (ribbon.hpp), the active/GPU mirrors +
-            //     rendered slot + the head (the one live instrument) + mood_offset.
-            //     The four ribbon canvas bindings and player_.sky_yaw_eased stay
-            //     Cartridge-side (the conductor writes them).
             RibbonState ribbon_state_;
 
-            //   inputState_ / keys_ / mouse_ — InputState / KeyState / MouseState
-            //     (input.hpp): per-frame intent + deltas, held movement keys,
-            //     mouse drag state.
             InputState inputState_;
             KeyState keys_;
             MouseState mouse_;
@@ -209,19 +144,14 @@ namespace t7 {
                 float beats   = 0.0f;
                 float seconds = 0.0f;
                 float dt      = 0.016f;
-                // Musical tempo follower: beats per second, HELD-LAST. Updates
-                // whenever the beat clock advances; holds through silence and
-                // stopped transport; defaults to 100 BPM before any tempo
-                // settles (100 BPM is also the calibration anchor at which the
-                // authored idle motion matches the old wall-clock feel exactly).
+                // Musical tempo follower: beats/sec, HELD-LAST through silence
+                // and stopped transport; defaults to 100 BPM (the calibration
+                // anchor for the authored idle motion).
                 float beat_rate   = 100.0f / 60.0f;
                 float prev_beats  = 0.0f;
             };
             TimeState time_state_;
 
-            // Coupling layer: the visual canvas writes a named parameter bank;
-            // the fog flush in update() reads it. Bound once at startup
-            // (bind_signal_layout); fog is field-driven via canvas_1's "all.field".
             VisualCanvas  visual_canvas_;
             TargetBinding fog_density_dst_{};   // resolved "fog.density" pipe
             // Ribbon amp pipes (pitch compass) — resolved once at bind.
@@ -237,9 +167,6 @@ namespace t7 {
             float clearColor_[3] = { 0.85f, 0.78f, 0.72f };
 
             // ═══ MOOD STATE ═════════════════════════════════════════════
-            // Mood-runtime state: which mood is active, its applied
-            // values (lighting, terrain, spot lights), the transition
-            // machinery, and back-portal return bookkeeping.
             //
             // Owned by mood.inl semantically, but lives spine-resident
             // because mood-applied values feed every other subsystem.
@@ -254,9 +181,6 @@ namespace t7 {
                 bool  spot_light_active = false;
 
                 // ── Transition machinery ──
-                // Four-phase machine (IDLE/FADE_OUT/TEARDOWN/FADE_IN) drives
-                // world-to-world portals. Phase enum + PortalDestination
-                // sub-struct stay near the portal logic below.
                 float transition_timer         = 0.0f;
                 float transition_fade_duration = 0.5f;  // seconds per fade direction
                 float transition_fade_alpha    = 0.0f;
@@ -265,30 +189,17 @@ namespace t7 {
                 bool portals_dirty = true;              // true at boot → first upload guaranteed
 
                 // ── Back-portal return state ──
-                // When a finite world is entered through a portal, these
-                // capture the originating world parameters so the back
-                // portal can return to it.
                 bool     back_portal_pending       = false;
                 uint32_t back_portal_return_seed   = 0;
                 uint32_t back_portal_return_mood   = 0;
                 uint32_t back_portal_return_radius = 2;
 
                 // ── Sun orbit (musical coupling) ──
-                // Phase accumulator for sun-orbit coupling. Music drives the
-                // orbital rate; effective azimuth = mood baseline + sin(phase) × max_swing.
-                // Elevation stays locked to the mood's authored value.
                 float sun_orbit_phase = 0.0f;
             };
             MoodState mood_state_;
 
             // ═══ PLAYER STATE ════════════════════════════════════════════
-            //
-            // The player's relationship to the world, not a physical body.
-            // The body lives in agentStateBuffer_[possessed_slot]; this
-            // struct is what travels with the player on possession
-            // transfer (Caps Lock).
-            //
-            // See state.hpp AgentState / PlayerState for the layout.
             //
             // SEAM[spine:P8] PlayerState commented "Future (deferred)" fields
             //   are explicit latent infrastructure: aura_presence is live
@@ -307,10 +218,6 @@ namespace t7 {
                 int32_t readback_portal_trigger = -1;    // set by readback callback when pawn hits portal
 
                 // ── Aura presence (closes SEAM[spine:P8]) ──
-                // Migrated here from pawn_state_ because it travels with the
-                // player, not the body or the world. When the player
-                // possesses a different agent (Caps Lock), it stays with
-                // the player. Real-time exponential 0→1 ramp in [0,1].
                 float aura_presence = 0.0f;                  // pawn aura ramp (was pawn_state_.aura_presence)
 
                 // Future (deferred):
@@ -321,10 +228,6 @@ namespace t7 {
             GPUSpotLightArray cpuSpotLights_{};  // count=0 disables (outdoor)
 
             // ═══ PORTAL & TRANSITION STATE MACHINE ═══════════════════════
-            //
-            // World-to-world transitions: pawn enters a portal, screen fades,
-            // the world tears down, a new world generates, screen fades back.
-            // Runs as a four-phase machine driven by mood_state_.transition_timer.
             //
             // SEAM[spine:transitions] (K4, Jean, 2026-07-11): the transition
             //   machine and its working members — transitionPhase_,
@@ -348,16 +251,6 @@ namespace t7 {
 
             PortalDestination pendingDestination_{};
 
-            // PORTAL_DENSITY, PORTAL_COLORS, PORTAL_COLOR_BACK are mood
-            // vocabulary (indexed by destination.mood); consumed by
-            // entity_pipeline's portal roll and by mood's force-spawn value
-            // computation. Visible here by namespace lookup.
-
-            // CeilingType, MoodProfile, MOOD_TABLE, and mood_name live in
-            // modules/mood.hpp; visible here by namespace lookup
-            // (spawn_engine's wall clamp, entity_pipeline's portal roll +
-            // indoor rescale, the spine's indoor checks).
-
             GPUPortalArray cpuPortalArray_{};
 
             // ── Back-portal (guaranteed exit from finite worlds) ──
@@ -366,32 +259,14 @@ namespace t7 {
 
             // ═══ GPU READBACK + WORLDGEN ═════════════════════════════════
             //
-            // Two parallel readback state machines (pawn + floater) plus
-            // the world_state_.world_gen counter that protects against stale callbacks
-            // from previous worlds. Both consumed by render() per-frame
-            // and by the patch streaming pipeline.
-            //
             // SEAM[spine:P5] readback state machines + world_state_.world_gen counter are
             //   pattern P5 (release-pending sentinel) at the spine level.
             //   Pawn + floater readbacks each protect against stale callbacks
             //   from previous worlds via world_state_.world_gen capture in the closure.
             //   Genuinely spine-owned, not a leak.
 
-            // GPU agent-state readback machine: IDLE → COPIED → MAPPING → IDLE.
-            // Reads the full agent_state buffer (MAX_AGENTS × GPUAgentState).
-            // Consumers: patch streaming / ribbon / photographer (possessed
-            // slot's XZ), portal triggers (possessed slot's portal_trigger),
-            // Caps Lock nearest-agent query (all slots).
             enum class PawnReadbackState { IDLE, COPIED, MAPPING };
             PawnReadbackState pawnReadbackState_ = PawnReadbackState::IDLE;
-            // Floater readback — separate state machine, same pattern.
-            // Synchronizes CPU activeFloaters_/activeCubes_ "active" mirrors
-            // with the GPU is_active field (which the kernel writes when
-            // a floater drifts beyond FLOATER_EVICTION_RADIUS). Without
-            // this sync, kernel-side evictions are invisible to the CPU
-            // allocator and slots leak — see run_spawn_preamble's slot
-            // search. Stale leakage caps effective floater count well below
-            // MAX_*_INSTANCES.
             enum class FloaterReadbackState { IDLE, COPIED, MAPPING };
             FloaterReadbackState floaterReadbackState_ = FloaterReadbackState::IDLE;
 
@@ -402,82 +277,16 @@ namespace t7 {
             uint64_t rosterGolZoneRuns_ = 0;
             float    rosterGolResidueDump_ = 0.0f;
 
-            // World generation counter (world_state_.world_gen) — bumped on every
-            // teardown. Captured by readback callbacks so callbacks issued for the
-            // previous world drop their data on the floor instead of overwriting
-            // player_.readback_x/z_ with a stale position (which would corrupt
-            // tile-cache archetype rolls in the first frames of the new world).
-            // See update() TEARDOWN case and the agent_state readback lambda in
-            // render().
-
             // ═══ UNIFIED PIER SYSTEM ═════════════════════════════════════
             //
-            // Deterministic slot addressing: test rig at 0-2, arch piers at 4-35,
-            // column piers at 36-67. CPU mirrors the GPU buffer for dead-reckoning
-            // step-height checks. No allocator — slot = f(entity_slot).
             GPUPierInstance cpuPiers_[Dim::PIER_TOTAL]{};
 
             // ── Terrain CPU mirror deleted ────────────────────────────────
-            // GPU is single source of truth for entity ground_y.
-            // compute_entity_placement samples the heightfield directly.
-            // Only estimate_terrain_height (tileCache_ lookup) survives for ribbon.
-
-            // Grounded-family vocabulary + EntitiesState + the preparer
-            // declarations are in entities.hpp (file scope, above the
-            // class); the preparer definitions (which dereference the
-            // keyhole's gpuState_) are in entities.inl, included at FILE
-            // SCOPE in the post-class MODULE IMPLEMENTATIONS zone. The
-            // instance (entities_state_) is declared at the COMPOSITION
-            // ROOT. D3 census verdict: zero ambient-style functions — no
-            // signatures changed. See §1.
-
-                        // PawnState + configs + declarations are in pawn.hpp
-                        // (file scope, above the class); the definitions
-                        // (tick_pawn_couplings, which dereferences the keyhole)
-                        // are in pawn.inl, included AFTER the class where
-                        // Cartridge is complete. See §1 + the post-class MODULE
-                        // IMPLEMENTATIONS zone below.
-
-                        // Now a real file-scope header
-                        // (modules/ground_architecture.hpp), included above the
-                        // class with roster.hpp's cohort. Its enums/tables and
-                        // compile-time DAG-closure asserts live in namespace
-                        // t7::the_board; no runtime C++ consumers (world.wgsl
-                        // mirrors it). See §1 (two-regime transitional clause).
-
-                        // Console + registries + OrbMoodConfig/ORB_MOOD_TABLE +
-                        // OrbsState + declarations are in orbs.hpp (file scope,
-                        // above the class); the definitions (which dereference
-                        // the keyhole) are in orbs.inl, included at FILE SCOPE
-                        // in the post-class MODULE IMPLEMENTATIONS zone. The
-                        // instance (orbs_state_) is declared at the COMPOSITION
-                        // ROOT. ORB-1 anchor semantics untouched. See §1.
 
 // ── Spawn Engine & Entity Lifecycle (modules/spawn_engine.inl) ──
 #include "modules/spawn_engine.inl"
 
-            // Pure vocabulary, fully in floater_vocabulary.hpp (file scope,
-            // above the class): the ActiveFloater/ActiveCube TYPES led at c0
-            // (their state moved to the species owners), the configs / tier
-            // registries / property indices joined at c4, and the .inl is
-            // retired. Zero state, zero functions — nothing post-class. See §1.
-
-            // Shot vocabulary + tuning console + GallerySelection/
-            // GalleryPlacement (relocated from spawn_engine.inl) +
-            // PhotographerState + GalleryState + declarations are in
-            // gallery.hpp (file scope, above the class); the definitions
-            // (which reach the keyhole + in-class statics via the complete
-            // type) are in gallery.inl, included at FILE SCOPE in the
-            // post-class MODULE IMPLEMENTATIONS zone. The instance
-            // (gallery_state_) is declared at the COMPOSITION ROOT. The
-            // photographer-inside-gallery roster note travels untouched.
-            // See §1.
-
             // ═══ ACTIVE PATCH SYSTEM ═════════════════════════════════════
-            //
-            // The lifecycle hub for streamed-in patches. Each patch owns a
-            // texture layer + entity records; lifecycle phases progress
-            // ALLOCATED → SPAWNED → GENERATED → (possibly NEEDS_REGEN).
             //
             // SEAM[spine:active-patch-system] cross-module readers:
             //   spawn_engine.inl (commit functions call host->record_entity),
@@ -485,17 +294,9 @@ namespace t7 {
             //   (evict_paintings_for_patch via the owner-side evict_gallery), and
             //   the family dispatch eviction wrappers below.
 
-            // World-generation state: seed, finite-mode parameters, the
-            // recenter cursor (lastCenter), patch counts the spine tracks,
-            // dirty flags for deferred GPU uploads, and the free-layer
-            // counter (slot allocation for active patches).
             struct WorldState {
                 // ── Seed + dimensions ──
                 uint32_t active_seed   = 42;     // world master seed (mutable for world transitions)
-                // Runtime render radius — toggleable within [GRID_RADIUS, RENDER_RADIUS].
-                // Buffers/textures always allocated for PREGEN_RADIUS.
-                // Visibility uses circular VISIBLE_RADIUS; RENDER_RADIUS retained for
-                // allocation bounds and GoL zone eviction.
                 uint32_t active_radius = Dim::PATCH_PREGEN_RADIUS;
                 bool     finite_mode   = false;
                 uint32_t finite_radius = 2;      // 2 → 5×5 = 25 patches
@@ -575,9 +376,6 @@ namespace t7 {
 
             ActivePatch patches_[MAX_PATCHES]{};
 
-            // Find the ActivePatch entry for a given grid coordinate.
-            // Returns nullptr if not found (should not happen for host patches
-            // within the allocation window).
             ActivePatch* find_patch(int32_t gx, int32_t gz) {
                 for (uint32_t i = 0; i < world_state_.active_patch_count; i++) {
                     if (patches_[i].valid && patches_[i].grid_x == gx && patches_[i].grid_z == gz)
@@ -616,34 +414,7 @@ namespace t7 {
 
             void audit_entity_integrity() {
 #ifdef DIAG_ENTITY_LIFECYCLE
-                // Coverage: 4 of 12 families — Arch, Column, Antenna, Pyramid —
-                // the generic-pipeline grounded families whose lifecycle is the
-                // simple { Active*[slot].active ↔ patch entity_refs } pair this
-                // audit checks. Coverage gaps split into two categories:
                 //
-                //   - Palm, Cactus, Blade — same generic-pipeline grounded
-                //     pattern. Audit shape applies cleanly; not yet extended.
-                //     Extension is mechanical (mirror the Arch/Column/etc.
-                //     blocks) but DEFERRED: the audit's design needs review
-                //     before adding families (see follow-up note below).
-                //
-                //   - Sphere, Cube, Ribbon, GoL, Gallery — different lifecycle
-                //     shapes where the simple "active vs ref" model doesn't
-                //     cleanly apply: spheres/cubes are managed via the GPU
-                //     floater readback path (last_alloc_time race protection,
-                //     not entity_refs); ribbon uses two-tip anchoring with
-                //     ref_count for partial eviction; GoL/gallery have their
-                //     own bespoke state machines. Auditing these would
-                //     require per-family audit shapes, not a uniform
-                //     extension of the existing pattern.
-                //
-                //   FOLLOW-UP[seam-map] Before extending coverage to
-                //   Palm/Cactus/Blade, the audit's structure should be
-                //   reviewed — currently each family is a hand-written block,
-                //   so 3 more families means 3× duplication. A registry-of-
-                //   audit-shapes (one entry per family lifecycle pattern)
-                //   would scale better.
-                // Count actual active slots
                 uint32_t act_a = 0, act_c = 0, act_n = 0, act_p = 0;
                 for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++) if (entities_state_.arches[i].active) act_a++;
                 for (uint32_t i = 0; i < Dim::MAX_COLUMN_ONLY; i++) if (entities_state_.columns[i].active) act_c++;
@@ -735,10 +506,6 @@ namespace t7 {
 
             // ═══ DYNAMIC BUDGETS ═════════════════════════════════════════
             //
-            // Entity spawning and heightfield generation are both distance-
-            // driven and budgeted per frame. Spawning must complete before
-            // generation (piers affect heightfields), enforced by requiring
-            // phase must be SPAWNED before a patch enters the generation scan.
             static constexpr uint32_t SPAWN_BUDGET_PER_FRAME = 4;    // max patches to spawn entities for
             static constexpr uint32_t ALLOC_BUDGET_PER_FRAME = 4;    // max patches to allocate per frame
             static constexpr uint32_t EVICT_BUDGET_PER_FRAME = 4;    // max patches to evict per frame
@@ -777,17 +544,8 @@ namespace t7 {
             }
 
             // ═══ TILE WORLD SYSTEM ═══════════════════════════════════════
-            //
-            // Each patch is a tile with an archetype that configures its terrain
-            // character. Archetypes are rolled based on the spatial cache of
-            // neighboring tiles, creating coherent regions with variety.
 
             // ── Three Archetypes ──
-            //
-            //  0: Mountainous — high amplitude, elevated, sparse fine detail
-            //  1: Varied      — moderate amplitude, wide range, balanced
-            //  2: Basin       — low amplitude, depressed, rich fine detail
-            //  3: Pool        — near-flat terrain, degenerate wave shape
 
             static constexpr uint32_t ARCHETYPE_COUNT = 4;
 
@@ -813,9 +571,6 @@ namespace t7 {
                 /* 3: pool        */  {  0.04f, -0.5f,  0.2f,  0.0f,   0.02f,   0.2f  },
             };
 
-            // Neighbor coherence rules for archetype selection.
-            // These control how the presence of neighboring archetypes
-            // biases the selection for a new tile.
             struct ArchetypeSelectionRules {
                 // Neighbor count thresholds and corresponding weight multipliers.
                 // Applied in order: first matching threshold wins.
@@ -829,20 +584,6 @@ namespace t7 {
             };
 
             // ── Entity Density Field ─────────────────────────────────────────
-            //
-            // Coarse spatial noise that creates dense and sparse regions.
-            // Evaluated per-tile in generate_tile_state, stored on TileState.
-            // All entity spawn gates multiply by this value.
-            //
-            //  ┌──────────────────────────────────┬───────────┬──────────────────────────────────────┐
-            //  │ Constant                         │ Value     │ Effect                                │
-            //  ├──────────────────────────────────┼───────────┼──────────────────────────────────────┤
-            //  │ DENSITY_LATTICE_SPACING          │ 250 wu    │ Region size (~5 patches)              │
-            //  │ DENSITY_SEED_BAND                │ 160       │ Decorrelated from terrain/color       │
-            //  │ DENSITY_EXPONENT                 │ 0.6       │ <1 = skew toward dense, >1 = sparse  │
-            //  │ DENSITY_MIN                      │ 1.0       │ Floor (never fully empty)             │
-            //  │ DENSITY_MAX                      │ 1.0       │ Ceiling (now 1.0× — no boost)         │
-            //  └──────────────────────────────────┴───────────┴──────────────────────────────────────┘
 
             static constexpr float DENSITY_LATTICE_SPACING = 250.0f;
             static constexpr uint32_t DENSITY_SEED_BAND = 160u;
@@ -851,11 +592,6 @@ namespace t7 {
             static constexpr float DENSITY_MAX = 1.0f;
 
             // ═══ FAMILY DISPATCH TABLE ═══════════════════════════════════
-            //
-            // Table-driven dispatch for the full entity lifecycle:
-            // select, place, commit, evict, and mesh generation.
-            // Adding a new entity family: write select/place/commit/
-            // prepare_mesh functions, add wrappers, add 1 row here.
             //
             // SEAM[spine:owns] FAMILY_DISPATCH is the integration hub that
             //   ties the 12 families together. Each row's body lives in
@@ -877,16 +613,6 @@ namespace t7 {
             // entity_types.hpp — the contract home.
 
             // ═══ DISPATCH WRAPPERS ═══════════════════════════════════════
-            //
-            // Per-family wrappers bound into the FAMILY_DISPATCH table
-            // (modules/family_dispatch.inl). What remains HERE: the six real
-            // prepare/mesh adapter pairs (signature adapters — module
-            // preparers take EntitiesState& first; mesh dispatches call
-            // renderer methods). Everything else lives with its owner:
-            // generic select/place/commit funnels in entity_pipeline.inl,
-            // bespoke funnels in gol_zones/gallery/ribbon .inls, the twelve
-            // evictors in their owners' impls, the shared no-op mesh pair in
-            // family_dispatch.inl.
 
             // ── Mesh gen wrappers ──
 
@@ -937,9 +663,6 @@ namespace t7 {
             }
 
             // ── The dispatch table (FAMILY_DISPATCH) is defined at file
-            //    scope in modules/family_dispatch.inl (post-class zone) and
-            //    declared in entity_types.hpp; the loops read it by
-            //    namespace lookup. ──
 
             // ── Generic Entity Pipeline (modules/entity_pipeline.inl) ──
 #include "modules/entity_pipeline.inl"
@@ -957,30 +680,6 @@ namespace t7 {
             // consult below is unchanged.
 
             // ═══ POPULATION THEMES ═══════════════════════════════════════
-            //
-            // A theme is the compositional intent for a region. Like a palette
-            // slot sets color character, a theme sets entity character: what
-            // spawns, at what scale, how densely, and how it arranges itself.
-            //
-            // A stochastic lattice at THEME_LATTICE_SPACING picks which theme
-            // dominates at each point. Spawn weights blend smoothly across
-            // boundaries. Tier bias comes from the dominant theme (no blending).
-            //
-            // The transition theme is the default — most of the world. Sparse
-            // pyramids, small antennas, column clusters, occasional arch.
-            // Interesting themes are the exceptions that emerge from the field.
-            //
-            //  ┌──────────────────────────────────────────────────────────────────────────────────────────┐
-            //  │ THEME CONTROL SURFACE                                                                   │
-            //  ├──────────────────────┬──────────────────────┬────────────────────────────────────────────┤
-            //  │ Theme                │ Weight  Density      │ Character                                  │
-            //  ├──────────────────────┼──────────────────────┼────────────────────────────────────────────┤
-            //  │ 0: Transition        │  0.21   ×1.0         │ Sparse, quiet connective tissue            │
-            //  │ 1: Monumental        │  0.30   ×1.0         │ Big pyramids, monumental arches, imposing  │
-            //  │ 2: Colonnade         │  0.31   ×1.0         │ Dense columns, doorway arcades, no pyramid │
-            //  │ 3: Antenna path      │  0.18   ×1.0         │ Antenna corridor, colossal sentinels       │
-            //  │ 4: Barren            │  0.04   ×1.0         │ Near-empty, occasional obelisk             │
-            //  └──────────────────────┴──────────────────────┴────────────────────────────────────────────┘
 
             static constexpr float THEME_LATTICE_SPACING = 500.0f;
             static constexpr uint32_t THEME_SEED_BAND = 170u;
@@ -988,10 +687,6 @@ namespace t7 {
             static constexpr float THEME_BASE_WEIGHT = 10.0f;
 
             // ── Theme Envelope ──────────────────────────────────────────────
-            //
-            // Single active theme at a time. When selected, its weight spikes
-            // and decays over a patch count. Cooldown prevents immediate
-            // repetition after expiry.
 
             struct ThemeEnvelope {
                 int32_t  active = -1;              // theme index, or -1 (no bias)
@@ -1022,18 +717,6 @@ namespace t7 {
                 // Lattice node weight (spatial distribution of themes)
                 float weight;
             };
-
-            //  ┌──────────────────────────────────────────────────────────────────────────────┐
-            //  │ THEME PROFILES — Envelope-selected                                            │
-            //  ├──────────────────┬────────┬────────┬────────┬─────────┬─────────────────────────┤
-            //  │ Theme            │ Pyr sp │ Arch sp│ Col sp │ Density │ Envelope                │
-            //  ├──────────────────┼────────┼────────┼────────┼─────────┼─────────────────────────┤
-            //  │ 0 Transition     │  0.4   │  0.3   │  0.7   │  ×1.0   │ 150/20/3/0             │
-            //  │ 1 Monumental     │  1.5   │  1.0   │  1.0   │  ×1.0   │ 150/10/10/8            │
-            //  │ 2 Colonnade      │  0.3   │  1.0   │  4.0   │  ×1.0   │ 150/15/6/6             │
-            //  │ 3 Antenna        │  0.5   │  0.5   │  4.0   │  ×1.0   │ 180/10/5/5             │
-            //  │ 4 Barren         │  0.4   │  0.3   │  0.5   │  ×1.0   │ 100/12/3/4             │
-            //  └──────────────────┴────────┴────────┴────────┴─────────┴─────────────────────────┘
 
             // INTENT[services:themes] the theme table is class-nested
             //   vocabulary with owner-side readers — the per-family
@@ -1139,10 +822,6 @@ namespace t7 {
             }
 
             // ── Theme Envelope — sequential theme selection ──────────────────
-            //
-            // Replaces the lattice-based theme blend for spawn decisions.
-            // One theme is active at a time. Its weight spikes and decays
-            // over a patch count. Cooldown prevents immediate repetition.
 
             static float theme_envelope_weight(const PopulationTheme& theme, uint32_t elapsed) {
                 if (elapsed < theme.sustain) return theme.spike;
@@ -1220,24 +899,6 @@ namespace t7 {
             }
 
             // ═══ TERRAIN TOKENS ══════════════════════════════════════════
-            //
-            // Carried compositional priors that bias sequential tile generation.
-            // Each token holds per-archetype weight multipliers and a generation
-            // budget that decrements with each primary tile generation.
-            // When budget reaches zero, the token is cleared.
-            //
-            // Tokens are READ inside generate_tile_state() (member access),
-            // TICKED and EMITTED by tick_terrain_tokens() after each primary
-            // tile generation. Neighbor padding calls do NOT tick.
-            //
-            // The mechanism:
-            //   1. Patch generates → reads active tokens as priors on archetype weights
-            //   2. Archetype outcome + its jitter properties → emission roll
-            //   3. Emission may push a new token (bias type + budget drawn stochastically)
-            //   4. All tokens decrement budget; dead tokens cleared
-            //
-            // The stack is small and fixed. If full, the oldest token (lowest budget)
-            // is evicted to make room. In practice, ≤4 are alive at any time.
 
             static constexpr uint32_t MAX_TERRAIN_TOKENS = 8;
 
@@ -1251,23 +912,9 @@ namespace t7 {
 
             // ── Emission Profiles ────────────────────────────────────────────
             //
-            // Each archetype defines how it biases subsequent tile generation
-            // when it emits a terrain token. The emission mechanism:
-            //
-            //   1. After a tile generates, it rolls emit_chance to decide
-            //      whether it emits a token at all (0.0 = never, 1.0 = always).
-            //   2. If emitting, it rolls pivot_chance: continuation vs pivot.
-            //      Continuation carries the current terrain character forward.
-            //      Pivot transitions to a different landform.
-            //   3. Budget is drawn uniformly in [budget_min, budget_max]:
-            //      how many primary tile generations the token survives.
-            //   4. The bias vector multiplies into archetype selection weights
-            //      for all tiles generated while the token is alive.
-            //      Values >1.0 boost that archetype, <1.0 suppress it.
-            //
-            // Bias vector order: { mountainous, varied, basin, pool }
-            //
-            // Tuning these profiles IS the art direction for terrain composition.
+            // Token flow: emit_chance gates emission; pivot_chance picks
+            // continuation vs pivot; budget (uniform in [min,max]) = tile
+            // generations survived; bias multiplies archetype weights.
 
             struct TerrainEmissionProfile {
                 float emit_chance;                            // [0,1] probability of emitting any token
@@ -1277,15 +924,6 @@ namespace t7 {
                 float pivot_bias[ARCHETYPE_COUNT];            // archetype weight multipliers when pivoting
             };
 
-            //  ┌────────────────────┬────────┬─────────┬──────────────────────────────────────────┬────────┬──────────────────────────────────────────┐
-            //  │                    │ emit%  │ budget  │ continuation bias                         │ pivot% │ pivot bias                               │
-            //  │                    │        │ min max │ mount  varied basin  pool                 │        │ mount  varied basin  pool                 │
-            //  ├────────────────────┼────────┼─────────┼──────────────────────────────────────────┼────────┼──────────────────────────────────────────┤
-            //  │ 0: mountainous     │  0.45  │  2   5  │  2.0    1.5    0.3    0.0  (ridge runs)  │  0.25  │  0.3    2.0    1.5    0.0  (descend)     │
-            //  │ 1: varied          │  0.25  │  1   3  │  0.8    1.5    0.8    0.2  (neutral)     │  0.30  │  1.5    0.5    1.5    0.1  (diversify)   │
-            //  │ 2: basin           │  0.40  │  2   4  │  0.2    0.8    2.0    1.0  (flat runs)   │  0.20  │  0.5    1.5    0.5    0.3  (ascend)      │
-            //  │ 3: pool            │  0.20  │  1   2  │  0.0    0.5    1.5    1.5  (hold flat)   │  0.35  │  0.3    1.0    2.0    0.2  (drain out)   │
-            //  └────────────────────┴────────┴─────────┴──────────────────────────────────────────┴────────┴──────────────────────────────────────────┘
             static constexpr TerrainEmissionProfile TERRAIN_EMISSION[ARCHETYPE_COUNT] = {
                 /* 0: mountainous */ { 0.45f,  2, 5,  { 2.0f, 1.5f, 0.3f, 0.0f },  0.25f, { 0.3f, 2.0f, 1.5f, 0.0f } },
                 /* 1: varied      */ { 0.25f,  1, 3,  { 0.8f, 1.5f, 0.8f, 0.2f },  0.30f, { 1.5f, 0.5f, 1.5f, 0.1f } },
@@ -1294,10 +932,6 @@ namespace t7 {
             };
 
             // ── Amplitude Momentum ───────────────────────────────────────────
-            //
-            // When amp_jitter rolls extreme, the token also carries amplitude
-            // bias that nudges the next patch further in that direction.
-            // Creates natural ridgelines and depth sequences.
 
             static constexpr float AMP_MOMENTUM_THRESHOLD = 0.15f;  // |jitter - 1.0| above this → emit amp momentum
             static constexpr float AMP_MOMENTUM_CARRY = 0.6f;       // fraction of excess carried forward
@@ -1305,8 +939,6 @@ namespace t7 {
             // ── Theme Envelope State (replaces lattice-based selection) ─────
             ThemeEnvelope themeEnvelope_{};
             uint32_t active_theme_idx_ = 0;   // set per-patch by evaluate_theme_envelope
-
-            // --- Tile State (what we remember about each generated tile) ----------
 
             struct TileState {
                 uint32_t archetype = 1;      // default: varied
@@ -1389,11 +1021,6 @@ namespace t7 {
                 gpuState_.upload_tile_grid(queue, grid);
             }
 
-            // --- Archetype Generation Rule ------------------------------------------
-            //
-            // Consult cached neighbors → weight archetypes → deterministic roll.
-            // All thresholds and multipliers live in ArchetypeSelectionRules.
-            // All per-archetype parameters live in the ARCHETYPES matrix.
 
             TileState generate_tile_state(int32_t gx, int32_t gz) {
                 // Count neighbor archetypes
@@ -1417,9 +1044,6 @@ namespace t7 {
                     weights[a] = ARCHETYPES[a].base_weight;
                 }
 
-                // Pool archetype: mood-aware injection.
-                // Indoor: common (flat floors are natural).
-                // Outdoor: very rare (special feature).
                 static constexpr uint32_t POOL_IDX = 3;
                 if (MOOD_TABLE[mood_state_.active].indoor) {
                     weights[POOL_IDX] = 1.5f;   // ~30% of indoor tiles become pools
@@ -1616,11 +1240,6 @@ namespace t7 {
             }
 
             // ═══ WORLD LIFECYCLE ═════════════════════════════════════════
-            //
-            // Per-world teardown invoked during the FADE_OUT → TEARDOWN
-            // transition. Resets all runtime state — patches, tokens,
-            // active arrays, footprints, photographer state — so the
-            // next world starts clean.
 
             void teardown_world(wgpu::Queue& queue) {
                 // Patches + tile cache
@@ -1785,9 +1404,6 @@ namespace t7 {
                 // Free all exhibition layers (staging persists across worlds)
                 for (uint32_t i = 0; i < Dim::EXHIBITION_LAYERS; i++) gallery_state_.exhibition_occupied[i] = false;
                 gallery_state_.exhibition_count = 0;
-                // Snapshot staging: consumed flags persist — exhibited snapshots stay consumed.
-                // Only new captures (photographer overwrites) make a slot fresh again.
-                // Authored staging: rotate consumed slots with fresh images from disk.
                 rotate_authored_staging(gallery_state_, this, queue);
                 for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) gallery_state_.authored_staging[i].consumed = false;
 
@@ -1812,16 +1428,11 @@ namespace t7 {
                 // Lights need re-upload with potentially new config
                 entities_state_.lights_dirty = true;
 
-                // Y correction
-
                 // New world decides its own upload frequency policy
                 gpuState_.set_config_dynamic(false);
             }
 
             // ═══ PATCH SUBSYSTEM SETUP ═══════════════════════════════════
-            //
-            // Initialize the patch system free-list + active counts.
-            // Called by teardown_world and at first init.
 
             void init_patch_system() {
                 for (uint32_t i = 0; i < MAX_PATCHES; i++) {
@@ -1885,14 +1496,6 @@ namespace t7 {
 
             // ═══ PATCH GENERATION ════════════════════════════════════════
             //
-            // Batch-generate patches into the caller's command encoder.
-            // Two-pass heightfield: pass 1 evaluates ground_formed_with_complexity
-            // (POLICY_BAKED_HEIGHTFIELD contributor set, fused with the complexity
-            // byproduct) per texel, pass 2 reads neighbors for gradients +
-            // evaluates complexity.
-            // Compute pass boundary between them provides the storage texture barrier.
-            // stagingOffset: slot index into the staging buffer, so multiple
-            // batches per frame don't overwrite each other's params.
             void generate_patch_batch(wgpu::CommandEncoder& encoder, wgpu::Queue& queue,
                 const GPUPatchParams* params, uint32_t count,
                 uint32_t stagingOffset = 0) {
@@ -1916,8 +1519,6 @@ namespace t7 {
                         renderer_.dispatch_generate_patch_heights(cp, gpuState_.patch_gen_group(), GPUState::patch_heightfield_workgroups());
                         cp.End();
                     }
-
-                    // Pass boundary: storage texture write → read barrier
 
                     // Pass 2: gradients from neighbor reads + complexity + cell colors
                     {
@@ -1945,10 +1546,6 @@ namespace t7 {
             }
 
             // ═══ LAYER ALLOCATOR ═════════════════════════════════════════
-            //
-            // Free-list of texture array layers used for patch heightfield
-            // storage. alloc_layer is called when a patch enters the active
-            // window; free_layer when a patch is evicted.
 
             uint32_t alloc_layer() {
                 if (world_state_.free_layer_count == 0) {
@@ -1970,25 +1567,13 @@ namespace t7 {
                     gz >= cz - r && gz <= cz + r;
             }
 
-            // Check if grid coordinate is within the VISIBLE circle (Euclidean).
-            // Radius 5.5 in grid units: inscribes cleanly within the PREGEN square,
-            // drops ~24 corner patches that would be deep in fog anyway.
-            // Pre-gen patches outside this circle are allocated and generated but NOT rendered.
             static constexpr float VISIBLE_RADIUS = 5.5f;
             static constexpr float VISIBLE_RADIUS_SQ = VISIBLE_RADIUS * VISIBLE_RADIUS;
 
-            // Multi-LOD distance bands (grid units, Euclidean from center).
-            // LOD-0 (full 64×64 mesh): patches within LOD_FULL_RADIUS
-            // LOD-1 (half 32×32 mesh): patches between LOD_FULL_RADIUS and VISIBLE_RADIUS
             static constexpr float LOD_FULL_RADIUS = 3.5f;
             static constexpr float LOD_FULL_RADIUS_SQ = LOD_FULL_RADIUS * LOD_FULL_RADIUS;
 
             // ═══ VISIBILITY CYLINDER ═════════════════════════════════════
-            //
-            // World-space cylinder centered on the pawn's actual position.
-            // Patches enter the draw list when their nearest edge crosses
-            // inside the cylinder — one at a time as the pawn moves,
-            // not in batches when a grid boundary is crossed.
             //
             // Grid-based allocation/eviction is unchanged; only the
             // draw-list gate uses world-space distance.
@@ -2007,9 +1592,6 @@ namespace t7 {
             }
 
             // ═══ PATCH STREAMING HELPERS ═════════════════════════════════
-            //
-            // Distance-sorted patch scan + spawn/generate phase loops.
-            // Used by stream_patches to budget per-frame work.
 
             // ── Distance-sorted patch scan helper ──
 
@@ -2075,10 +1657,6 @@ namespace t7 {
                 place_entity_queue();
                 commit_entity_queue(queue);
 
-                // Late registration: check if newly-spawned patches contain
-                // an active ribbon's unregistered tip. This closes the gap
-                // when a ribbon's far tip is beyond the streaming window at
-                // spawn time but comes into range as the pawn approaches.
                 for (uint32_t s = 0; s < count; s++) {
                     uint32_t pi = candidates[s].idx;
                     int32_t gx = patches_[pi].grid_x;
@@ -2146,16 +1724,6 @@ namespace t7 {
         public:
 
             // ═══ PUBLIC: CARTRIDGE LIFECYCLE ═════════════════════════════
-            //
-            // The four functions the engine calls each frame:
-            //   initialize     — once at startup; GPU state + first world
-            //   init_renderer  — pipelines + bind groups
-            //   update         — analysis signal + dt → state advance
-            //   render         — draw calls + readback issue
-            //   stream_patches — budgeted per-frame patch streaming
-            //
-            // Plus on_input (input.inl below), get_clear_color, and the
-            // shader hot-reload hook.
 
             Cartridge() = default;
 
@@ -2171,10 +1739,6 @@ namespace t7 {
                     << std::chrono::duration_cast<std::chrono::milliseconds>(tGpu1 - tGpu0).count()
                     << " ms\n";
 
-                // Gen-1 coupling uniforms held at neutral: the capabilities
-                // remain in the shaders as future coupling targets (see
-                // coupling_layer_migration_map.md decisions), driverless since
-                // the M1 retirement. −1 band blend = activity field.
                 {
                     float inactive[6] = { -1.f, -1.f, -1.f, -1.f, -1.f, -1.f };
                     float zeros6[6] = {};
@@ -2248,11 +1812,6 @@ namespace t7 {
                     upload_agent_registries_to_gpu(this, q);
                 }
 
-                // Initial agent population for boot mood. Slot 0 (player) is
-                // already live on the GPU via GPUState's init; this populates
-                // slots 1..MAX_AGENTS-1 from AGENT_POPULATIONS[mood_state_.active].
-                // Mirror the player's idle pose into agent_state_.slots[0] first so
-                // the full-buffer upload is idempotent.
                 {
                     agent_state_.slots[0].pos_x = Idle::PAWN_POS_X;
                     agent_state_.slots[0].pos_y = Idle::PAWN_POS_Y;
@@ -2290,11 +1849,6 @@ namespace t7 {
                 std::cout << "[Cartridge] Total init:       "
                     << std::chrono::duration_cast<std::chrono::milliseconds>(t3 - t0).count() << " ms\n";
 
-                // ROSTER boot summary: one line when any piece is disabled — which
-                // pieces are off, and which of them actually skipped GPU creation
-                // (only SEPARABLE pieces do; SH·* pieces stay created-pristine). The
-                // whole block is `if constexpr`-discarded when all-enabled, so the
-                // all-enabled binary AND stdout carry no trace of it.
                 if constexpr (!ROSTER.all_enabled()) {
                     std::string off;
                     auto mark = [&](bool enabled, const char* name) {
@@ -2322,10 +1876,6 @@ namespace t7 {
                 return true;
             }
 
-            // Coupling layer: receive the analysis stat layout once at startup,
-            // bind the visual canvas to it (it resolves its couplings' sources
-            // internally), and resolve the fog pipes the per-frame flush reads by
-            // base. Mirrors the_chord's coupling wiring; called from the harness.
             void bind_signal_layout(StatLayoutView v) {
                 visual_canvas_.bind(v);
                 fog_density_dst_ = visual_canvas_.layout().resolve("fog.density");
@@ -2395,10 +1945,6 @@ namespace t7 {
                     time_state_.prev_beats = signal.t_beats;
                 }
 
-                // --- Couplings: tick the visual canvas, then flush its pipes ---------
-                // The canvas reads the analysis signal by name and writes the
-                // parameter bank; here we flush both fog pipes — density and color,
-                // both field-driven — to the GPU. The mood no longer touches fog.
                 visual_canvas_.tick(signal);
                 if (fog_density_dst_.valid && fog_color_dst_.valid) {
                     const VisualParams& fp = visual_canvas_.params();
@@ -2407,8 +1953,6 @@ namespace t7 {
                                       fp.get(fog_color_dst_.base + 1),
                                       fp.get(fog_color_dst_.base + 2));
                 }
-
-                // --- Upload to GPU --------------------------------------------------
 
                 // Pawn presence ramp + aura height computation.
                 // Lives in pawn.inl as a real-time exponential tick (closes pawn:K1).
@@ -2445,10 +1989,6 @@ namespace t7 {
                         //   stale-callback guard (P5 family). Genuinely
                         //   spine-owned.
 
-                        // Bump the world generation counter so any in-flight
-                        // pawn readback callback from the previous world
-                        // drops its data instead of overwriting pawnReadback
-                        // with a stale position. See world_state_.world_gen declaration.
                         world_state_.world_gen++;
 
                         // Capture return seed + mood + radius before overwrite
@@ -2460,20 +2000,9 @@ namespace t7 {
                         world_state_.finite_mode = pendingDestination_.finite;
                         world_state_.finite_radius = pendingDestination_.finite_radius;
                         teardown_world(queue);
-                        // NOTE: do NOT force pawnReadbackState_ to IDLE here.
-                        // If a MapAsync is in-flight (MAPPING), forcing IDLE would
-                        // cause CopyBufferToBuffer to a still-mapped buffer.
-                        // The existing state machine guards will skip readback
-                        // until the pending callback resolves naturally.
                         player_.readback_portal_trigger = -1;
                         player_.readback_x = 0.0f;
                         player_.readback_z = 0.0f;
-                        // Preserve the player's tier AND body color across mood
-                        // transitions. Both are part of the player's identity, not
-                        // the old mood — possessing a Scout (in some palette color)
-                        // and stepping through a portal should leave you a Scout in
-                        // that same color on the other side. Everything else about
-                        // the body resets to idle defaults.
                         uint32_t preserved_tier = agent_state_.slots[player_.possessed_slot].tier_idx;
                         float preserved_color_r = agent_state_.slots[player_.possessed_slot].color_r;
                         float preserved_color_g = agent_state_.slots[player_.possessed_slot].color_g;
@@ -2549,22 +2078,10 @@ namespace t7 {
                 if constexpr (ROSTER.orbs)  // ROSTER-GATE orbs (b)
                     update_orb_anchor(orbs_state_, this, player_.readback_x, player_.readback_z, queue);
 
-                // Pawn position comes from GPU readback (one-frame latency).
-                // See render() for the readback state machine.
-
                 // --- Clear deltas for next frame ------------------------------------
                 update_photographer(gallery_state_, this, queue);
                 clear_input_deltas(this);
             }
-
-            // ORDER (STREAMING PATCH MODE):
-            //   1. (Optional) Compute: compute_ribbon_rings   [0D] -- ring transforms for flying ribbon
-            //   2. Compute: update_world                      [0D] -- entities, trajectories, couplings
-            //   3. Compute: compute_vp                        [0D] -- camera VP + sun VP (shadow)
-            //   4. Render:  patch terrain instances           -- heightfield array sampled in VS
-            //   5. Render:  pawn entity                       -- chess pawn
-            //   6. Render:  sphere entity                     -- sphere
-            //   7. Render:  ribbon rings                      -- instanced ring geometry
 
             // SEAM[spine:owns] render() is genuinely spine work: readback state
             //   machines, stale-callback guards, portal trigger handling,
@@ -2578,17 +2095,7 @@ namespace t7 {
 
                 wgpu::Queue queue = device_.GetQueue();
 
-                // --- GPU agent buffer readback (one-frame latency) ---
-                // Copies the full agent_state array (MAX_AGENTS × 80 bytes)
-                // to staging each frame after compute. CPU mirror is used
-                // for patch streaming / ribbon / photographer (possessed
-                // slot's XZ) and for Caps Lock nearest-agent targeting in
-                // Step 7. Portal triggers surface from the possessed slot's
-                // portal_trigger field.
                 //
-                // State machine: IDLE → copy agent buffer to staging → COPIED
-                //                COPIED → call MapAsync → MAPPING
-                //                MAPPING → callback fires, reads data → IDLE
                 if (pawnReadbackState_ == PawnReadbackState::COPIED) {
                     pawnReadbackState_ = PawnReadbackState::MAPPING;
                     gpuState_.agent_state_readback_staging().MapAsync(
@@ -2621,21 +2128,7 @@ namespace t7 {
                         });
                 }
 
-                // --- Floater is_active sync (one-frame latency) ---
-                // The kernel evicts floaters by writing is_active = 0u when
-                // they drift beyond FLOATER_EVICTION_RADIUS from the pawn.
-                // CPU mirror needs this signal to free slots for new spawns;
-                // without it, slots leak and active counts cap far below
-                // MAX_*_INSTANCES. This walks the full floater buffer and
-                // detects true→false transitions on is_active, decrementing
-                // the corresponding active count and clearing the CPU
-                // mirror so run_spawn_preamble can reuse the slot.
                 //
-                // We do NOT trust GPU→CPU for true→true (the cube's still
-                // alive, we already know) or false→false (slot's empty,
-                // nothing to do). And we do NOT propagate CPU→GPU here —
-                // CPU spawn writes a full slot already, so consistency in
-                // that direction is already maintained.
                 if (floaterReadbackState_ == FloaterReadbackState::COPIED) {
                     floaterReadbackState_ = FloaterReadbackState::MAPPING;
                     gpuState_.floating_entity_readback_staging().MapAsync(
@@ -2650,14 +2143,6 @@ namespace t7 {
                                         gpuState_.floating_entity_readback_staging().GetConstMappedRange(
                                             0, GPUState::floating_entity_buffer_size()));
                                     if (data) {
-                                        // Race protection: if a slot was allocated
-                                        // very recently (within the readback
-                                        // pipeline depth), the readback is from
-                                        // before allocation and would falsely
-                                        // mark the slot inactive. Suppress the
-                                        // decrement for slots whose last_alloc_time
-                                        // is more recent than the readback's
-                                        // "snapshot age."
                                         static constexpr float SPAWN_PROTECTION_S = 0.10f;
                                         float now = time_state_.seconds;
                                         // Spheres: slots [0, MAX_SPHERE_INSTANCES)
@@ -2714,9 +2199,6 @@ namespace t7 {
                 if constexpr (ROSTER.wanderers)
                     respawn_evicted_agents(agent_state_, this, mood_state_.active, world_state_.active_seed, queue);
 
-                // Advance any in-flight cube corral animations. No-op
-                // when none are armed (the common case — animations
-                // only run for ~4s after F6 is pressed).
                 tick_cube_corral_animations(cube_behaviors_state_, this, queue);
 
                 stream_patches(encoder, queue);
@@ -2813,10 +2295,6 @@ namespace t7 {
                     }
                 }
                 upload_portal_array(this, queue);
-                // ROSTER sun rider: upload_lights is UNGATED — the sun rides
-                // this upload, and the sun is foundational, not a piece. The
-                // gateable lights (spot_lights) are gated upstream at their
-                // apply_mood configure; the buffer upload itself always runs.
                 upload_lights(this, queue);
 
                 // Re-sync the pawn mount to THIS frame. ribbon_advance_head (in the
@@ -2847,9 +2325,6 @@ namespace t7 {
                     pawnReadbackState_ = PawnReadbackState::COPIED;
                 }
 
-                // Copy full floater buffer from GPU to staging (for readback next frame).
-                // ~55 KB/frame; pays for itself by keeping CPU active mirrors
-                // accurate so the spawn allocator can reuse evicted slots.
                 if (floaterReadbackState_ == FloaterReadbackState::IDLE) {
                     encoder.CopyBufferToBuffer(
                         gpuState_.floating_entity_buffer(), 0,
@@ -2905,8 +2380,6 @@ namespace t7 {
                         // Full config upload — profile changed or first frame
                         pawn_state_.aura_cfg_dirty = false;
                         const auto& ap = pawn_state_.active_aura_profile;
-                        // Aura at base config — the gen-1 AURA_EXPAND
-                        // coupling retired in M1.
 
                         // Presence scales all aura params for smooth raise/lower
                         float p = player_.aura_presence;
@@ -2977,9 +2450,6 @@ namespace t7 {
                 render_main_pass(this, encoder, backbuffer, depth);
                 render_snapshot_pass(gallery_state_, this, encoder);
 
-                // --- Flush pending texture promotions (staging → exhibition) ---
-                // Must run AFTER render_snapshot_pass so fresh captures are in staging
-                // before being copied to exhibition layers.
                 for (uint32_t i = 0; i < gallery_state_.pending_promotion_count; i++) {
                     auto& p = gallery_state_.pending_promotions[i];
                     wgpu::Texture src = p.is_snapshot
@@ -2997,52 +2467,6 @@ namespace t7 {
             //   don't own pieces. Per Ch. 15.
             void stream_patches(wgpu::CommandEncoder& encoder, wgpu::Queue& queue) {
                 // ─── Patch Generation Pipeline ─────────────────────────────────
-                //
-                // This function orchestrates terrain streaming. Every stage is
-                // continuous and budgeted per frame — no batched operations at
-                // grid boundaries except the lightweight grid shift event.
-                //
-                // ON GRID SHIFT (pawn crosses a patch boundary):
-                //   1. Update grid center
-                //   2. Evict distant tiles from spatial cache (map erase, no GPU)
-                //   3. Evict out-of-range GoL zones (flag clear + deactivate)
-                //   4. Re-upload tile grid with new origin
-                //   5. FULLREGEN ONLY — batch-allocate ALL, batch-spawn + generate
-                //      inner patches synchronously. Pawn needs ground immediately.
-                //
-                // CONTINUOUS EVICTION (every frame):
-                //   Scans patches outside the render window. Evicts up to
-                //   EVICT_BUDGET_PER_FRAME (farthest first): free layer, clear
-                //   entities, unregister footprints. Compact array afterward.
-                //
-                // CONTINUOUS ALLOCATION (every frame, after eviction):
-                //   Scans grid cells within world_state_.active_radius of pawn's world position.
-                //   Allocates missing patches up to ALLOC_BUDGET_PER_FRAME, nearest
-                //   first. Populates tile cache and re-uploads tile grid.
-                //
-                // DISTANCE-DRIVEN SPAWN (every frame, after allocation):
-                //   Scans unspawned patches, sorts by distance to pawn.
-                //   Spawns up to SPAWN_BUDGET_PER_FRAME (families in FAMILY_DISPATCH order).
-                //
-                // DISTANCE-DRIVEN GENERATION (every frame, after spawn):
-                //   Scans spawned-but-ungenerated patches + pending regens.
-                //   Sorts by distance to pawn (nearest first), generates up to budget.
-                //
-                // VISIBILITY CYLINDER (render list gate):
-                //   World-space distance from pawn to patch edge. Patches enter
-                //   the draw list one at a time as the pawn moves.
-                //
-                // EXTERNALLY (in render(), after stream_patches returns):
-                //   - Entity mesh gen (single compute pass: arches + columns + pyramids)
-                //   - dispatch_compute (pawn, camera, VP)
-                //   - dispatch GoL zone compute (sync + evolve, if zones active)
-                //   - dispatch_placement_correction (Y-correct arches, columns, pyramids, paintings — decoupled from photographer)
-                //   - render passes (shadow, main, snapshot)
-                //
-                // GOL ZONE LIFECYCLE:
-                //   - select_gol_for_patch: entity pipeline (select → place → commit),
-                //     lattice-gated, footprint-registered. Evicts via host-patch entity_refs.
-                //   - upload_gol_zone_config: per frame, before GoL compute dispatch.
 
                 int32_t centerX, centerZ;
                 uint32_t patchStagingOffset = 0;  // running offset into staging buffer (multiple batches per frame)
@@ -3074,24 +2498,13 @@ namespace t7 {
 
                     // Lightweight cache maintenance (no GPU buffer writes)
                     evict_distant_tiles(centerX, centerZ);
-                    // GoL zones now evict through host-patch entity_refs
 
-                    // Tile grid origin depends on grid center — re-upload
-                    // unconditionally so GPU heightfield gen reads correct
-                    // modifiers from the new origin.
                     if (!fullRegen) {
                         tileGridDirty = true;
                     }
 
-                    // Guaranteed back-portal in finite worlds (fires once after teardown)
-                    // DEFERRED: must wait for tile cache below (portals need terrain heights)
-
                     // ─── FULLREGEN: synchronous bootstrap ────────────────────
                     //
-                    // First frame of a new world: batch-allocate ALL patches,
-                    // spawn + generate inner patches synchronously so the pawn
-                    // has ground immediately. Outer patches use the per-frame
-                    // distance-driven scans like everything else.
                     if (fullRegen) {
                         int32_t rr = (int32_t)world_state_.active_radius;
                         static constexpr int32_t TILE_PAD = 1;
@@ -3157,10 +2570,6 @@ namespace t7 {
 
                 // ─── CONTINUOUS PATCH EVICTION ────────────────────────────────
                 //
-                // Every frame, scan for patches outside the render window
-                // (relative to grid center). Evict up to EVICT_BUDGET_PER_FRAME,
-                // farthest first. Frees layers for reuse by the allocation scan.
-                // Compact the array after eviction to remove holes.
                 {
                     PatchCandidate candidates[MAX_PATCHES];
                     uint32_t count = collect_sorted_patches(candidates,
@@ -3187,15 +2596,6 @@ namespace t7 {
 
                 // ─── CONTINUOUS PATCH ALLOCATION ──────────────────────────────
                 //
-                // Every frame, scan for grid cells within world_state_.active_radius of
-                // the pawn's actual world position that don't have patches.
-                // Allocate up to ALLOC_BUDGET_PER_FRAME, nearest first. This
-                // spreads allocation across idle frames so patches are ready
-                // before the grid shift that would have created them.
-                //
-                // The pawn's world position can be up to half a patch ahead
-                // of the grid center, so this naturally pre-allocates one
-                // ring in the direction of movement.
                 {
                     int32_t pawnGX = (int32_t)std::floor(player_.readback_x / PATCH_EXTENT);
                     int32_t pawnGZ = (int32_t)std::floor(player_.readback_z / PATCH_EXTENT);
@@ -3278,14 +2678,6 @@ namespace t7 {
 
                 // ─── DISTANCE-DRIVEN ENTITY SPAWNING ─────────────────────────
                 //
-                // Every frame, scan for unspawned patches. Sort by distance
-                // to pawn (nearest first), spawn up to SPAWN_BUDGET_PER_FRAME.
-                // Priority order within each patch follows FAMILY_DISPATCH
-                // (families iterated 0..PopFamily::COUNT; pyramid/arch/column lead).
-                //
-                // Spawning must complete before generation — piers from spawned
-                // entities affect heightfield baking. The generation scan below
-                // only considers patches with phase == SPAWNED or NEEDS_REGEN.
                 {
                     PatchCandidate candidates[MAX_PATCHES];
                     uint32_t count = collect_sorted_patches(candidates,
@@ -3299,13 +2691,6 @@ namespace t7 {
 
                 // ─── DISTANCE-DRIVEN HEIGHTFIELD GENERATION ──────────────────
                 //
-                // Every frame, scan all spawned patches for pending work
-                // (SPAWNED or NEEDS_REGEN). Sort by world-space distance
-                // to pawn (nearest first) and generate up to budget.
-                //
-                // Regens (stale heightfields from new piers) are already
-                // inside the visibility cylinder, so they're always closer
-                // than frontier patches and naturally get priority.
                 {
                     PatchCandidate candidates[MAX_PATCHES];
                     uint32_t count = collect_sorted_patches(candidates,
@@ -3319,10 +2704,6 @@ namespace t7 {
                         encoder, queue, patchStagingOffset, tileGridDirty);
                 }
 
-                // Upload patch instances sorted by LOD band, then pre-gen ring.
-                // Layout: [0..lod0) LOD-0 full mesh, [lod0..render) LOD-1 half mesh,
-                //          [render..all) pre-gen ring (not drawn, used for placement).
-                // This lets render passes issue two indexed draws with firstInstance offset.
                 {
                     GPUPatchInstance instances[MAX_PATCHES]{};
                     uint32_t lod0Count = 0;
@@ -3334,9 +2715,6 @@ namespace t7 {
                     GPUPatchInstance lod1[MAX_PATCHES]{};
                     GPUPatchInstance pregen[MAX_PATCHES]{};
 
-                    // Visibility cylinder: world-space distance from pawn to
-                    // nearest patch edge. Patches cross the threshold one at a
-                    // time as the pawn moves — no batch pop on grid shifts.
                     float pawn_wx = player_.readback_x;
                     float pawn_wz = player_.readback_z;
                     float half = PATCH_EXTENT * 0.5f;
@@ -3386,23 +2764,11 @@ namespace t7 {
                     gpuState_.config().placement_patch_count = w;
                     gpuState_.upload_placement_patch_count(queue);
 
-                    // Push the CPU's banding pawn so the GPU frustum-cull
-                    // shader uses the same pawn position to apply the LOD0
-                    // distance gate. Without this, GPU reads the live pawn
-                    // (1-2 frames ahead of pawnReadback) and disagrees with
-                    // CPU at the LOD0/LOD1 boundary annulus, causing patch
-                    // flicker around ~175 world units from the pawn.
                     gpuState_.config().lod_pawn_x = pawn_wx;
                     gpuState_.config().lod_pawn_z = pawn_wz;
                     gpuState_.upload_lod_pawn(queue);
 
                     // ─── Patch grid: O(1) spatial index for sample_terrain_y_at ────────
-                    // Populate (patch_gx, patch_gz) → layer map. The shader derives a
-                    // patch's grid cell from floor(world_xz / cell_extent) and looks up
-                    // the layer directly, replacing the previous linear bbox scan.
-                    // Entries store (layer + 1) so that 0 encodes an empty slot.
-                    // Anchor is the bounding-box minimum of the valid set — always fits
-                    // in a PATCH_PREGEN_SIDE × PATCH_PREGEN_SIDE window (15×15 = 225).
                     {
                         GPUPatchGrid grid{};
                         grid.side = Dim::PATCH_PREGEN_SIDE;
@@ -3420,7 +2786,6 @@ namespace t7 {
                         if (min_gx == INT32_MAX) { min_gx = 0; min_gz = 0; }
                         grid.origin_x = min_gx;
                         grid.origin_z = min_gz;
-                        // entries[] are zero-initialized by value-init above.
 
                         for (uint32_t i = 0; i < world_state_.active_patch_count; i++) {
                             if (!patches_[i].valid) continue;
@@ -3469,14 +2834,6 @@ namespace t7 {
             // mutation belongs to the arch's owner: entities'
             // force_spawn_portal_arch (the ROSTER portal door lives
             // there). The lighting-scheme tables stay impl-side. See §1.
-
-// The speaker owns no state — all verbs. The nine declarations are in
-// render_passes.hpp (file scope, above the class); the definitions
-// (the seven pass/dispatch functions take the keyhole Cartridge* c;
-// the two light-VP helpers stay pure; draws carry NO self-gates) are
-// in render_passes.inl, included at FILE SCOPE in the post-class
-// MODULE IMPLEMENTATIONS zone. mood.inl's compute_spot_light_vp call
-// resolves by namespace lookup. See §1.
 
         public:
 
@@ -3528,23 +2885,7 @@ namespace t7 {
 
 // ═══ MODULE IMPLEMENTATIONS (post-class, FILE SCOPE) ══════════════════
 //
-// Definitions for CONVERTED modules whose laws dereference the COMPLETE
-// Cartridge (the keyhole). Each such module declares its functions in its
-// header (file scope, above the class, so the instance member works); the
-// definitions land here, after the class, where Cartridge is a complete
-// type. Still ONE translation unit — a header/impl split, not a separate
-// compilation unit. The call sites inside the class see each function's
-// declaration via its header; the linker binds these definitions.
-//
-// WIRING FORM (LADDER-2 fix 2 — the unresolved conductor): impl files are
-// SELF-WRAPPING — each carries its own `namespace t7 { namespace
-// the_board {` and its own standard includes — so this zone sits at FILE
-// SCOPE, after both namespace closes. Including a self-wrapping impl
-// INSIDE the namespaces double-wraps its symbols into
-// t7::the_board::t7::the_board:: — a legal nested namespace that compiles
-// silently and satisfies nothing (the rig's LNK2019). Impl-file
-// definitions are `inline` free functions; the class-body `static` never
-// survives the move.
+// WIRING FORM (fix-2): SELF-WRAPPING — the zone includes impls at FILE SCOPE; law in audit/LADDER.md.
 #include "modules/pawn.inl"       // tick_pawn_couplings
 #include "modules/entities.inl"   // the six preparers + the seven grounded-family evictors + the blade/palm/cactus recipes
 #include "modules/spheres.inl"    // the sphere evictor + recipe

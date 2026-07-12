@@ -8,11 +8,9 @@
 // mesh adapters are Cartridge statics (named through the complete
 // type); the bespoke funnels and the twelve evictors are file-scope
 // functions in their owners' impls, declared in their owners'
-// headers (the e5a arrow correction: the contract home carries no
-// owner vocabulary, so owner headers include it and declare their
-// own queue-shaped functions). Function
-// addresses are link-time constants — declarations suffice, so this
-// file's position in the zone does not depend on the other impls.
+// headers. Function addresses are link-time constants — declarations
+// suffice, so this file's position in the zone does not depend on
+// the other impls.
 //
 // SEAM[spine:owns] consumed by the spine's dispatch loops
 //   (select_entities_for_patch / place_entity_queue /
@@ -20,19 +18,12 @@
 //   and the mesh prepare/dispatch loops in render(). Adding a family:
 //   write the six verbs with its owner, add 1 row here.
 //
-// WRAPPING FORM (the proven fix-2 rule): SELF-WRAPPING — opens
-// t7::the_board itself, carries its own standard includes; the MODULE
-// IMPLEMENTATIONS zone includes it at FILE SCOPE. Definitions are
-// `inline` free data/functions.
+// WRAPPING FORM (fix-2): SELF-WRAPPING — the zone includes impls at FILE SCOPE; law in audit/LADDER.md.
 
 namespace t7 {
 namespace the_board {
 
 // ─── Shared no-op adapters ────────────────────────────────────────
-//
-// Families with no CPU mesh-generation stage share one pair instead
-// of carrying per-family stubs. Same observable behavior: prepare
-// reports nothing-to-do; dispatch is a no-op.
 
 inline bool dispatch_prepare_mesh_none(Cartridge* self, wgpu::Queue& queue) {
     (void)self; (void)queue;
@@ -43,8 +34,6 @@ inline void dispatch_mesh_gen_none(Cartridge* self, wgpu::ComputePassEncoder& pa
 }
 
 // ─── The table ─────────────────────────────────────────────────────
-// Rows in PopFamily order; the antenna row reuses column's mesh pair
-// (the two families co-own one GPU mesh store — the named weld).
 
 inline const FamilyDispatch FAMILY_DISPATCH[PopFamily::COUNT] = {
     { Cartridge::dispatch_select_pyramid_generic, Cartridge::dispatch_place_pyramid_generic, Cartridge::dispatch_commit_pyramid_generic,

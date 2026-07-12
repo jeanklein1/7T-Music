@@ -6,10 +6,8 @@
 // bodies reach c->gpuState_ / c->agent_state_ / c->player_ /
 // c->time_state_.
 //
-// WRAPPING FORM (the proven fix-2 rule): SELF-WRAPPING — opens
-// t7::the_board itself, carries its own standard includes; the MODULE
-// IMPLEMENTATIONS zone includes it at FILE SCOPE. Definitions are
-// `inline` free functions.
+// WRAPPING FORM (fix-2): SELF-WRAPPING — the zone includes impls at
+// FILE SCOPE; law in audit/LADDER.md.
 // ─────────────────────────────────────────────────────────────────
 
 #include <cmath>      // std::cos, std::sin
@@ -28,14 +26,7 @@ inline void apply_cube_tier_gains(float& spring_stiffness, float& drag, uint32_t
     drag             *= g.drag_mult;
 }
 
-// Stochastic behavior pick. seed is the cube's spawn seed (used as
-// the entity_seed in the GPU struct), so behavior assignments are
-// deterministic across runs with the same world seed. mood_id is
-// the active mood at spawn time. Returns one of CUBE_BEHAVIOR_*.
 //
-// Mix constant 0xBEEF11A0u is unrelated to behavior_phase's mix
-// constant (0xF10A7E70u in entity_pipeline.inl) so the two derived
-// values are decorrelated.
 inline uint32_t pick_cube_behavior_for_spawn(uint32_t mood_id, uint32_t seed) {
     if (mood_id >= MOOD_COUNT) return CUBE_BEHAVIOR_STATIONARY;
     const auto& pop = CUBE_POPULATIONS[mood_id];
@@ -61,52 +52,19 @@ inline uint32_t pick_cube_behavior_for_spawn(uint32_t mood_id, uint32_t seed) {
 
 // ═══ DIAGNOSTICS ═════════════════════════════════════════════════
 //
-// Inspection tools, not part of the system's primary expression.
-// Keypress-driven; the system runs without them. Anything below
-// this point can be commented out and the cubes still spawn,
-// populate, and behave correctly per the registries in the header.
-//
 // ─── Coordination cycle ─────────────────────────────────────────────
-//
-// F5 steps coordination through 0.0 / 0.5 / 1.0 for quick visual
-// inspection. Music-driven smooth values are a future concern.
 //
 // ─── Behavior override ──────────────────────────────────────────────
 //
-// F4 walks every active cube slot and rewrites behavior_id. No
-// "OVERRIDE_NONE" sentinel because the natural state is already
-// "whatever the population assigned at spawn"; the cycle just steps
-// 0 → 1 → 2 → 0. Useful for visually verifying each behavior's
-// look without waiting for a population to favor it.
-//
 // ─── Corral animation ──────────────────────────────────────────────
 //
-// F6 smoothly gathers every active cube into a small ring around
-// the pawn. Animates anchor (anchor mode) or pawn_offset (kite mode)
-// over CUBE_CORRAL_DURATION using smooth-step easing.
-//
-// Re-pressing mid-glide captures the current interpolated value as
-// the new from-position so the formation doesn't snap.
-//
 // ─── Kite mode ─────────────────────────────────────────────────────
-//
-// F7 toggles cubes between anchor-relative (default) and pawn-
-// relative (kite) anchoring. In kite mode the kernel computes home
-// from pawn.pos + pawn_offset, so cubes follow the pawn around the
-// world like kites on invisible strings.
 //
 // Toggle on  — captures each cube's current xz as a pawn-relative
 // offset. Cube xz is preserved exactly; y resets to pawn.y +
 // orbit_height (small visible jump only if pawn's altitude differs
 // from where the cube was hovering).
-//
-// Toggle off — anchor freezes at the cube's current world xz.
-// pawn_offset tracks the per-cube offset so we reconstruct
-// world position correctly: cube_xz = pawn.xz + offset.xz.
 
-// The cube half of teardown_world's bulk sweep — CPU clear + per-slot
-// GPU clear, paired. Uses only the GPU service, matching
-// spheres.hpp::clear_spheres for symmetry.
 inline void clear_cubes(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue) {
     for (uint32_t i = 0; i < Dim::MAX_CUBE_INSTANCES; i++) {
         cbs.activeCubes_[i] = ActiveCube{};
@@ -155,9 +113,6 @@ inline void corral_cubes(CubeBehaviorsState& cbs, Cartridge* c, wgpu::Queue& que
         return;
     }
 
-    // Distribute by stable index so successive presses don't shuffle
-    // the layout. In kite mode the ring is in pawn-relative offset
-    // space; otherwise world space.
     uint32_t armed = 0;
     uint32_t k = 0;
     const float two_pi = 6.28318530718f;
@@ -217,9 +172,6 @@ inline void corral_cubes(CubeBehaviorsState& cbs, Cartridge* c, wgpu::Queue& que
               << " over " << CUBE_CORRAL_DURATION << "s\n";
 }
 
-// Per-frame: advance any active animations and push interpolated
-// position to GPU. Skips cleanly when nothing is animating. Called
-// from the cartridge's render() path.
 inline void tick_cube_corral_animations(CubeBehaviorsState& cbs, Cartridge* c, wgpu::Queue& queue) {
     for (uint32_t i = 0; i < Dim::MAX_CUBE_INSTANCES; i++) {
         auto& anim = cbs.corral_anim[i];
@@ -272,11 +224,6 @@ inline void toggle_cube_kite_mode(CubeBehaviorsState& cbs, Cartridge* c, wgpu::Q
         // needed, no readback latency.
         for (uint32_t i = 0; i < Dim::MAX_CUBE_INSTANCES; i++) {
             if (!cbs.activeCubes_[i].active) continue;
-            // Update CPU mirror cx/cz to a best-effort estimate so a
-            // subsequent corral or kite-on doesn't start from a stale
-            // value. The kernel's actual anchor write next frame may
-            // differ by a few units of drift, but for diagnostic
-            // anchoring this is close enough.
             float ax = px + cbs.pawn_offset[i][0];
             float az = pz + cbs.pawn_offset[i][1];
             cbs.activeCubes_[i].cx = ax;
@@ -290,10 +237,7 @@ inline void toggle_cube_kite_mode(CubeBehaviorsState& cbs, Cartridge* c, wgpu::Q
               << " (" << affected << " cube(s))\n";
 }
 
-
-// ═══ THE EVICTOR (lifecycle, absorbed per §5 EVICTION THUNKS) ═════
-//
-// Named by the FAMILY_DISPATCH table (family_dispatch.inl).
+// ═══ THE EVICTOR ══════════════════════════════════════════════════
 
 inline void evict_cube(Cartridge* self,
     uint32_t slot, wgpu::Queue& queue) {
@@ -306,8 +250,7 @@ inline void evict_cube(Cartridge* self,
 #endif
 }
 
-
-// ═══ THE CUBE RECIPE (relocated from entity_pipeline.inl) ═════════
+// ═══ THE CUBE RECIPE ══════════════════════════════════════════════
 //
 // Tier tables, traits, adapter, and dispatch funnels — beside the
 // evictor. Funnels declared in cube_behaviors.hpp; table rows point
@@ -315,9 +258,6 @@ inline void evict_cube(Cartridge* self,
 // (INTENT[services:themes] at its definition).
 
 // ═══ FAMILY: CUBE ═════════════════════════════════════════════════
-//
-// Hover-bob monolith. No ground contact.
-//
 
 struct CubeIdx {
     static constexpr uint32_t BODY_RADIUS      = 0;
@@ -331,10 +271,6 @@ struct CubeIdx {
     static constexpr uint32_t FACE_VARIANCE    = 8;
     static constexpr uint32_t COUNT            = 9;
 };
-
-// Cube substrate constants (CUBE_DEFAULT_SPRING_STIFFNESS, CUBE_DEFAULT_DRAG)
-// and registry helpers (apply_cube_tier_gains, pick_cube_behavior_for_spawn)
-// live in modules/cube_behaviors.inl. cube_write_gpu calls into them at spawn time.
 
 inline constexpr TierParamDef CUBE_PARAM_DEFS[] = {
     { CubeEntityProp::BODY_RADIUS,      0.5f, 1e30f, false, ParamDist::GAUSSIAN },
@@ -457,26 +393,13 @@ inline void cube_write_gpu(Cartridge* c, const EntityInstance& inst, wgpu::Queue
     fe.t = 0.0f; fe.orientation[3] = 1.0f;
     fe.pos[0] = inst.cx; fe.pos[1] = fe.orbit_height; fe.pos[2] = inst.cz;
     fe.is_active = 1;
-    // Drift-integrator substrate. drift / drift_vel start at zero so the
-    // first frame's position equals home; with behavior_force = 0 (default
-    // Stationary population), the spring is at rest, drift_vel stays zero,
-    // and pos == home — same visual as pre-Phase-3 hover-bob.
     //
-    // Spring/drag start at the system defaults defined in cube_behaviors.inl,
-    // then pass through apply_cube_tier_gains so each tier gets its own
-    // dynamics signature baked in at spawn.
     fe.spring_stiffness = CUBE_DEFAULT_SPRING_STIFFNESS;
     fe.drag             = CUBE_DEFAULT_DRAG;
     fe.tier_idx = inst.tier_idx;
     apply_cube_tier_gains(fe.spring_stiffness, fe.drag, inst.tier_idx);
     fe.drift[0] = 0.0f; fe.drift[1] = 0.0f; fe.drift[2] = 0.0f;
     fe.drift_vel[0] = 0.0f; fe.drift_vel[1] = 0.0f; fe.drift_vel[2] = 0.0f;
-    // Behavior assignment. Population picks one of CUBE_BEHAVIOR_* per
-    // the active mood's weights (see CUBE_POPULATIONS). behavior_phase
-    // is a per-slot u32 used by behaviors that need decorrelated sampling
-    // (CurlField's noise origin, PhaseWave's individual offset). Mix
-    // constant differs from pick_cube_behavior_for_spawn's so the two
-    // derived values are statistically independent.
     fe.behavior_id    = pick_cube_behavior_for_spawn(c->mood_state_.active, inst.seed);
     fe.behavior_phase = cpu_hash(inst.seed, 0xF10A7E70u);
     // Kite mode starts disabled — cube is anchored to its spawn patch

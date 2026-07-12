@@ -6,49 +6,9 @@
 // CPU/GPU data contract: structs, buffers, textures, bind groups.
 // Terrain grid is GPU-derived from vertex_index — zero geometry uploaded.
 //
-// See world.wgsl for the GPU scroll (single source of truth).
-//
 // ─── BINDING MAP ────────────────────────────────────────────────────────────
 //
-//   Binding   Entity               Compute          Render
 //   ───────   ──────               ───────          ──────
-//   0         frame_signal         Storage          —
-//   1         design_config        Uniform          —
-//   2         vp_matrix            Storage          —
-//   20        terrain_state        Storage          —
-//   21        (reserved)           —                —
-//   25        tile_grid            Uniform          —
-//   26        pier_instances       ReadOnlyStorage  —
-//   40        (reserved)           —                —
-//   60        agent_state          Storage          —    (unified entity buffer, slot 0 = player)
-//   80        camera_state         Storage          —
-//   100       sphere_state         Storage          —
-//   101       trajectories         Storage          —
-//   120       ribbon_state         Uniform          —
-//   121       ring_transforms      Storage          —
-//   200       frame_signal         —                ReadOnlyStorage
-//   201       vp_matrix            —                ReadOnlyStorage
-//   220       terrain_state        —                ReadOnlyStorage
-//   260       agent_state          —                ReadOnlyStorage  (unified; VS reads via possessed_slot)
-//   280       camera_state         —                ReadOnlyStorage
-//   300       sphere_state         —                ReadOnlyStorage
-//   320       directional_light    —                ReadOnlyStorage
-//   321       point_lights         —                ReadOnlyStorage
-//   340       patch_instances      —                ReadOnlyStorage
-//   360       ribbon_state         —                ReadOnlyStorage
-//   361       ring_transforms      —                ReadOnlyStorage
-//
-//   Texture bindings (Group 1):
-//     Compute write: 0-2 (reserved — formerly legacy heightfield/color stubs)
-//     Render read:   22=bilinear_sampler, 23=nearest_sampler,
-//                    25=shadow_map, 26=shadow_sampler,
-//                    28=patch_heightfield, 29=patch_cells
-//     Render read:   20-21, 24 (reserved — formerly legacy texture reads)
-//     Mesh gen:      40-45 (reserved — formerly legacy cell mesh gen)
-//     Patch gen:     23=params, 24=heightfield_write, 25=tile_grid,
-//                    26=solids, 27=cell_color_write
-//     Terrain IB:    22=terrain_index_buffer
-//
 
 #include "analysis/analysis_signal.hpp"
 #include "cartridges/the_board/roster.hpp"  // feature bits (GPUState::init gates creation)
@@ -60,10 +20,6 @@
 
 namespace t7 {
     namespace the_board {
-
-        // =====================================================================
-        // S1 DIMENSIONS — Grid sizes, mesh resolutions, buffer capacities
-        // =====================================================================
 
         namespace Dim {
             // Grid dimensions
@@ -203,11 +159,8 @@ namespace t7 {
 
             // Floating entity system — split into sphere (orbital) + cube (hover-bob)
             constexpr uint32_t MAX_SPHERE_INSTANCES = 8;
-            // Phase 3 bumped MAX_CUBE_INSTANCES from 64 to 256 to support the
-            // drone-show aesthetic: large coordinated populations rather than
-            // sparse individual flyers. update_cube is a single-thread kernel
-            // (@workgroup_size(1)) so cost scales linearly — at 256 slots
-            // with ~30 ops/slot, ~7.5K ops/frame, well within budget.
+            // 256 slots: drone-show populations. update_cube is single-thread
+            // (@workgroup_size(1)) — cost scales linearly, ~7.5K ops/frame.
             constexpr uint32_t MAX_CUBE_INSTANCES = 256;
             constexpr uint32_t CUBE_SLOT_OFFSET = MAX_SPHERE_INSTANCES;
             constexpr uint32_t TOTAL_FLOATING_SLOTS = MAX_SPHERE_INSTANCES + MAX_CUBE_INSTANCES;  // 264
@@ -229,10 +182,6 @@ namespace t7 {
             // modules/agents.inl.
             constexpr uint32_t MAX_AGENTS = 32;
         }
-
-        // =====================================================================
-        // S2 IDLE — Default values for state initialization
-        // =====================================================================
 
         namespace Idle {
             constexpr float AMPLITUDE_SCALE = 1.0f;
@@ -268,10 +217,6 @@ namespace t7 {
             constexpr float CAMERA_SENSITIVITY = 0.005f;
             constexpr float ACTIVE_CELL_SIZE = 64.0f;
         }
-
-        // =====================================================================
-        // S3 COUPLING BITS — Bitmask flags for entity-to-entity wires
-        // =====================================================================
 
         // Reserved-slot annotations mirrored from world.wgsl §2 — the
         // COUPLING_* bit-flag block. MUST match those bit values 1:1 —
@@ -348,9 +293,6 @@ namespace t7 {
             float    sky_head_y;
             float    sky_head_z;
             float    sky_heading;
-            // The saddle's FRAME (BNK-2) — CPU-computed beside the mount
-            // point (ribbon.inl MOUNT_* mirrors); the pawn kernel's sky
-            // branch composes the quaternion. Zeros = level (identity).
             float    sky_yaw_off;    // tangent-align yaw deflection (rad)
             float    sky_pitch;      // tangent-align pitch (rad)
             float    sky_roll;       // bank into the lateral swing (rad, clamped)
@@ -400,21 +342,12 @@ namespace t7 {
             float terrain_time;               // t_beats for terrain evaluation (0 = frozen, >0 = animated)
 
             // ─── Polyphony-driven band motion ────────────────────────────
-            // Per-band blend factor: -1.0 = use activity field (default),
-            // [0,1] = direct blend between frozen and moving terrain.
-            // CPU smoothly ramps these based on polyphony count.
-            // Indexed as band_blend[i]: 0=continental, 1=regional, 2=local,
-            //                           3=detail, 4=fine, 5=tectonic
             float band_blend_0;               // [0] continental
             float band_blend_1;               // [1] regional
             float band_blend_2;               // [2] local
             float band_blend_3;               // [3] detail
             float band_blend_4;               // [4] fine
             float band_blend_5;               // [5] tectonic
-            // Per-band phase origin (t_beats when band activated).
-            // Moving phase = phase_base + (t_beats - origin) * freq,
-            // so at activation moment the moving phase equals frozen phase.
-            // Indexed as band_phase_origin[i], same band order as above.
             float band_phase_origin_0;        // [0] continental
             float band_phase_origin_1;        // [1] regional
             float band_phase_origin_2;        // [2] local
@@ -433,20 +366,9 @@ namespace t7 {
             float mode_gol_tick_scale;        // tick period multiplier (1.0=normal, <1=faster, >1=slower)
             float mode_gol_height_scale;      // alive_height multiplier (1.0=normal, >1=taller)
             // ─── Floater system dials ────────────────────────────────────
-            // System-level coordination knob for cube behaviors. At 0.0
-            // each cube runs its behavior with maximum individual variation
-            // (independent phases / high-spatial-frequency noise samples).
-            // At 1.0 cubes lock to shared parameters (synchronized phases
-            // / low-frequency shared noise samples). The transition is
-            // a continuous lerp inside each behavior's force function.
-            // See modules/cube_behaviors.inl for behavior-by-behavior wiring.
-            // Repurposes the previous _pad_mode_3 slot — no struct growth.
             float floater_coordination;
 
             // ─── Radial pulse ring buffer ────────────────────────────────
-            // 8 recent note onsets, indexed as pulse_data[i*4 + field]:
-            //   field 0 = origin_x, 1 = origin_z, 2 = onset_beats, 3 = amplitude
-            // Evaluated in terrain VS + behavior_player_controlled as expanding ring wavefronts.
             uint32_t pulse_count;             // active entries (0–8)
             // ─── Agent system ────────────────────────────────────────────
             // Slot index of the player's current body in agent_state[].
@@ -470,9 +392,6 @@ namespace t7 {
             float _lod_pawn_pad[2];           // pad to vec4 alignment
         };
 
-        // Tile grid: modifier field for smooth archetype interpolation.
-        // The archetype index (0–2) is carried for downstream consumers
-        // (cell behavior, entity color anchoring) that need discrete terrain type.
         struct alignas(16) GPUTileGridEntry {
             float amp_scale;
             float height_bias;
@@ -508,17 +427,7 @@ namespace t7 {
             float _pad;
         };
 
-        // Unified entity state — the player's body and all mood-authored
-        // agents share this layout. Slot 0 is the player (possessed on
-        // session start); slots 1..MAX_AGENTS-1 are mood-spawned.
         //
-        // Scalar fields throughout (no vec3) so WGSL uniform/storage
-        // layout matches C++ without vec3 alignment surprises.
-        //
-        // Orientation is stored (not derived) because the player's body
-        // renders with a terrain-tilt quaternion written by
-        // behavior_player_controlled; keeping it per-slot keeps the tilt
-        // out of the vertex shader.
         struct alignas(16) GPUAgentState {
             float pos_x;           //  0
             float pos_y;           //  4
@@ -548,21 +457,12 @@ namespace t7 {
 
         // ─── Agent registry GPU structs ──────────────────────────────
         //
-        // PAIRED DECLARATIONS — KEEP IN SYNC:
-        //   GPUAgentBehaviorDef (C++, here)        ↔ AgentBehaviorParams (WGSL, world.wgsl)
-        //   GPUAgentTierDef     (C++, here)        ↔ AgentTierParams     (WGSL, world.wgsl)
-        //
         // The C++ side is uploaded as a uniform buffer (bindings 110/111);
         // the WGSL side reads from those bindings. Field count, field
         // order, and total size MUST match exactly. A field-order
         // mismatch produces silent data corruption (no compile error,
         // agents read parameters from the wrong column). The static_asserts
         // below catch size drift; field order is on the human.
-        //
-        // The translator (upload_agent_registries_to_gpu in agents.inl)
-        // bridges from the CPU-authoring structs (AgentBehaviorDef /
-        // AgentTierDef) — those structs may have additional fields like
-        // `id` and `name` that don't get uploaded.
 
         // GPU-side mirror of AgentBehaviorDef (modules/agents.inl) without
         // the `id` and `name` fields. Uploaded once at world-init from
@@ -588,10 +488,6 @@ namespace t7 {
         static constexpr uint32_t GPU_AGENT_BEHAVIOR_COUNT = 10;
         static constexpr uint32_t GPU_AGENT_TIER_COUNT = 4;
 
-        // GPU-side mirror of AgentTierDef (modules/agents.inl) without
-        // the `id` and `name` fields. Uploaded once at world-init from
-        // the C++ AGENT_TIER_GAINS table and read by the agent compute
-        // kernels via storage binding 111.
         //
         // Field layout matches WGSL `struct AgentTierParams` exactly so
         // the WGSL side can read this buffer with the same struct shape
@@ -642,11 +538,6 @@ namespace t7 {
             float aspect_y;            // 128: Y-axis scale multiplier (1.0=cube, >1=tall, <1=flat)
             float aspect_z;            // 132: Z-axis scale multiplier (1.0=cube, <1=thin slab)
             // ─── Drift-integrator substrate (cube use; spheres ignore) ────
-            // The cube motion model decomposes into:
-            //   home  = analytical rest position (anchor.xz + ground + bob)
-            //   pos   = home + drift
-            // drift_vel integrates spring-to-zero plus behavior forces.
-            // Spheres leave drift / drift_vel zero and ignore stiffness/drag.
             float spring_stiffness;    // 136: pulls drift toward zero (1/s²)
             float drag;                // 140: exponential damping on drift_vel (1/s)
             float drift[3];            // 144: position offset from home (cube)
@@ -654,21 +545,6 @@ namespace t7 {
             float drift_vel[3];        // 160: drift integrator velocity
             uint32_t behavior_id;      // 172: cube behavior registry index (Phase 3)
             // ─── Kite mode (Phase 3.3) ───────────────────────────────
-            // When follow_pawn is non-zero, the cube kernel replaces
-            //   home_xz = anchor.xz + pawn_offset.xz + pawn.xz
-            //   home.y  =  ground(...) + orbit_height + bob_y + pawn_offset.y
-            // becomes
-            //   home_xz = pawn.xz + pawn_offset.xz
-            //   home.y  = pawn.y  + pawn_offset.y + orbit_height + bob_y
-            // i.e. anchor is dynamically tied to the pawn's pose. The
-            // cube follows the pawn around the world, like a kite on
-            // an invisible string, while CurlField/PhaseWave still
-            // operate on top via the drift integrator.
-            //
-            // pawn_offset is captured at toggle-on time so each cube
-            // keeps its world-space position at the moment of toggle —
-            // no visual snap. Toggling off freezes anchor at the cube's
-            // current world position (also no snap).
             //
             // Field order: pawn_offset must sit at a 16-aligned offset
             // (176) for WGSL's vec3 alignment rules. behavior_phase
@@ -751,9 +627,6 @@ namespace t7 {
             constexpr uint32_t COL_ANTENNA_COLOSSAL = 9;
         }
 
-        // Per-arch ground truth: CPU writes both pier foot XZ positions,
-        // GPU compute samples terrain at both and takes the min for ground_y.
-        // VS reads ground_y to position arch mesh at true terrain height.
         struct alignas(16) GPUArchGroundEntry {
             float pier_left_x;
             float pier_left_z;
@@ -800,9 +673,6 @@ namespace t7 {
         static_assert(sizeof(GPUPyramidArray) == 16 + Dim::MAX_PYRAMID_INSTANCES * 32,
             "GPUPyramidArray must match WGSL layout");
 
-        // Per-pyramid ground truth: CPU writes center XZ + own height + active flag,
-        // GPU compute corrects ground_y by sampling heightfield and subtracting
-        // the pyramid's own contribution (heightfield includes pyramid).
         struct alignas(16) GPUPyramidGroundEntry {
             float center_x;
             float center_z;
@@ -815,7 +685,6 @@ namespace t7 {
         };
         static_assert(sizeof(GPUPyramidGroundEntry) == 32, "GPUPyramidGroundEntry must be 32 bytes");
 
-        // GPU pyramid mesh generation parameters (CPU → GPU per-slot).
         //
         // MUST match world.wgsl::PyramidMeshParams (§9.0).
         // If this struct gains/loses a field, the WGSL side and
@@ -837,7 +706,6 @@ namespace t7 {
         static_assert(sizeof(GPUPyramidMeshParams) == 48,
             "GPUPyramidMeshParams must be 48 bytes — keep in sync with world.wgsl::PyramidMeshParams");
 
-        // GPU arch mesh generation parameters (CPU → GPU per-slot).
         //
         // MUST match world.wgsl::ArchMeshParams (§9.1).
         // If this struct gains/loses a field, the WGSL side and
@@ -865,7 +733,6 @@ namespace t7 {
         static_assert(sizeof(GPUArchMeshParams) == 64,
             "GPUArchMeshParams must be 64 bytes — keep in sync with world.wgsl::ArchMeshParams");
 
-        // GPU column mesh generation parameters (CPU → GPU per-slot).
         //
         // MUST match world.wgsl::ColumnMeshParams (§9.2).
         // If this struct gains/loses a field, the WGSL side and
@@ -1033,9 +900,6 @@ namespace t7 {
         static_assert(sizeof(GPUGoLZoneArray) == 16 + Dim::MAX_GOL_ZONES * 80,
             "GPUGoLZoneArray must match WGSL layout");
 
-        // Zone parameter derivation: CPU → GPU request buffer.
-        // CPU sends slot + lattice coords + algorithm + height flag.
-        // GPU compute derives all tier/Gaussian parameters and writes zone_config directly.
         struct alignas(16) GPUZoneDeriveRequest {
             uint32_t slot;             // zone_config.zones[slot] to write
             int32_t nx;                // lattice node X
@@ -1255,8 +1119,6 @@ namespace t7 {
         };
         static_assert(sizeof(GPUOrbConfig) == 480, "GPUOrbConfig must be 480 bytes");
 
-        // (GPUCellState removed — legacy cell system no longer active)
-
         struct alignas(16) GPUVPMatrix {
             float m[16];               // camera view-projection
             float light_vp[16];        // directional light shadow VP
@@ -1339,11 +1201,6 @@ namespace t7 {
             float color[3];
         };
 
-        // Patch system — streaming terrain around the pawn.
-        // Patches are rectangular windows that evaluate and cache the height
-        // function over their region. As the pawn moves, new patches spawn
-        // ahead and old ones behind are recycled.
-
         struct alignas(16) GPUPatchParams {
             float origin[2];           // world-space XZ of patch origin
             float extent;              // patch side length in world units
@@ -1360,13 +1217,6 @@ namespace t7 {
             uint32_t layer;            // heightfield array layer to sample
         };
 
-        // Spatial index for O(1) sample_terrain_y_at lookup in compute shaders.
-        // CPU populates entries[lz*side + lx] with (layer + 1) for GENERATED or
-        // NEEDS_REGEN patches — 0 encodes an empty slot. Anchor (origin_x,
-        // origin_z) and cell_extent (PATCH_EXTENT) make the struct self-describing;
-        // the shader doesn't need any external patch_count parameter.
-        //
-        // Sized to MAX_ACTIVE_PATCHES (PATCH_PREGEN_SIDE² = 15² = 225).
         //
         // No alignas(16): this is a <storage> struct, all members are 4-byte,
         // natural alignment is 4. alignas(16) would pad sizeof up to 928,
@@ -1483,15 +1333,7 @@ namespace t7 {
         };
         static_assert(sizeof(GPUPhotographerConfig) == 48, "GPUPhotographerConfig must be 48 bytes");
 
-        // =====================================================================
-        // S5-S10  GPU STATE CLASS
-        // =====================================================================
-
         class GPUState {
-
-            // =================================================================
-            // S5 MEMBERS — Buffers, textures, bind groups, samplers
-            // =================================================================
 
             wgpu::Device device_;
             GPUDesignConfig config_{};
@@ -1647,8 +1489,6 @@ namespace t7 {
             wgpu::TextureView entityGroundAtlasWriteView_;   // storage texture (compute)
             wgpu::TextureView entityGroundAtlasReadView_;    // sampled texture (VS)
 
-            // (legacy 1×1 stub textures removed — render bindings 20-21, 24 reserved)
-
             wgpu::Texture shadowMapTexture_;
             wgpu::TextureView shadowMapView_;
             wgpu::Texture spotShadowMapTexture_;
@@ -1726,17 +1566,9 @@ namespace t7 {
 
         public:
 
-            // =================================================================
-            // S6 IDENTITY — Non-copyable, default-constructible
-            // =================================================================
-
             GPUState() = default;
             GPUState(const GPUState&) = delete;
             GPUState& operator=(const GPUState&) = delete;
-
-            // =================================================================
-            // S7 BOOT — Device initialization sequence
-            // =================================================================
 
             bool init(wgpu::Device device) {
                 device_ = device;
@@ -1748,10 +1580,6 @@ namespace t7 {
                 if (!initializeState()) return false;
                 return true;
             }
-
-            // =================================================================
-            // S8 PER-FRAME — Upload methods called each tick
-            // =================================================================
 
             void upload_signal(wgpu::Queue& queue, const GPUFrameSignal& signal) {
                 queue.WriteBuffer(signalBuffer_, 0, &signal, sizeof(GPUFrameSignal));
@@ -1893,10 +1721,6 @@ namespace t7 {
                 queue.WriteBuffer(ribbonBuffer_, offsetof(GPURibbonState, vertical_amp), &vertical_amp, sizeof(float));
             }
 
-            // Ribbon body upload — a dumb wire. The head mover lives in
-            // modules/ribbon.inl (ribbon_rebuild_body_upload computes the
-            // poses; this uploads them). CPU authors intent; the GPU
-            // realizes geometry — this is the one write between them.
             void upload_ribbon_head_poses(wgpu::Queue& queue, const float* data, size_t bytes) {
                 queue.WriteBuffer(headPosesBuffer_, 0, data, bytes);
             }
@@ -1927,12 +1751,6 @@ namespace t7 {
                 queue.WriteBuffer(floatingEntityBuffer_, base + off, &behavior_id, sizeof(uint32_t));
             }
 
-            // Partial write: anchor[3] inside a cube slot. Used by the
-            // corral diagnostic to relocate every active cube to a small
-            // ring around the pawn. The kernel re-derives home from the
-            // new anchor on the next frame, drift integrator pulls toward
-            // it, and the cube reappears near the pawn within ~half a
-            // second of spring settle.
             void upload_cube_anchor(wgpu::Queue& queue, uint32_t slot, float ax, float ay, float az) {
                 size_t base = (Dim::CUBE_SLOT_OFFSET + slot) * sizeof(GPUFloatingEntityState);
                 size_t off = offsetof(GPUFloatingEntityState, anchor);
@@ -2148,10 +1966,6 @@ namespace t7 {
                 return true;
             }
 
-            // =================================================================
-            // S9 DESIGN MODE — Runtime config toggles
-            // =================================================================
-
             // Mode presets
             void enter_design_mode() {
                 if (config_.mute_signal != 1 || config_.mute_couplings != Coupling::ALL) {
@@ -2205,20 +2019,7 @@ namespace t7 {
             void set_world_seed(uint32_t seed) {
                 if (config_.world_seed != seed) { config_.world_seed = seed; configDirty_ = true; }
             }
-            // Reset the player's agent slot to the idle pose. Pass 1
-            // replaces the old reset_pawn: the player's body lives in
-            // agent_state[0], so we write slot 0 with PlayerControlled
-            // defaults and clear the remaining slots. Callers should
-            // set config.possessed_slot = 0 separately (or rely on the
-            // set_possessed_slot setter for subsequent transfers).
             //
-            // tier_idx is preserved across mood transitions: the tier the
-            // player inhabits is part of their identity, not a property
-            // of the old mood. Caller passes the desired tier (typically
-            // the tier of whatever slot the player was in at teardown).
-            // Defaults to Worker for initial session spawn. color_r/g/b carry
-            // the player's body color the same way; 0 means "no per-agent
-            // color", which the pawn shader resolves to the tier color.
             void reset_player_agent(wgpu::Queue& queue, uint32_t tier_idx = 0u,
                                     float color_r = 0.0f, float color_g = 0.0f, float color_b = 0.0f) {
                 GPUAgentState buf[Dim::MAX_AGENTS] = {};
@@ -2358,14 +2159,6 @@ namespace t7 {
                 if (config_.freeze_sphere != v) { config_.freeze_sphere = v; configDirty_ = true; }
             }
 
-            // (wave toggle/freeze methods removed — legacy fixed-wave system.
-            //  Config fields wave_enable_mask, wave_freeze_mask, wave_frozen_t
-            //  remain in struct for byte alignment but are inert.)
-
-            // --- Upload frequency control ---
-            // Mood compositions call set_config_dynamic(true) for worlds with
-            // continuously varying parameters (moving sun, breathing fog, etc.).
-            // Static worlds leave this false and only upload on actual change.
             void set_config_dynamic(bool d) { configDynamic_ = d; }
             void mark_config_dirty() { configDirty_ = true; }
 
@@ -2380,15 +2173,10 @@ namespace t7 {
                 if (config_.pawn_height_bias != b) { config_.pawn_height_bias = b; configDirty_ = true; }
             }
 
-            // =================================================================
-            // S10 ACCESSORS — Grouped by render-pass concern
-            // =================================================================
-
             // --- Config ---
             GPUDesignConfig& config() { return config_; }
             const GPUDesignConfig& config() const { return config_; }
             uint32_t get_fpv_mode() const { return config_.fpv_mode; }
-            // (get_active_cell_size, wave accessors removed — legacy)
 
             // --- Compute pass ---
             wgpu::BindGroup compute_entity_group() const { return computeEntityBindGroup_; }
@@ -2405,7 +2193,6 @@ namespace t7 {
             wgpu::BindGroupLayout ribbon_compute_layout() const { return ribbonComputeLayout_; }
             wgpu::BindGroup mesh_gen_entity_group() const { return meshGenEntityBindGroup_; }
             wgpu::BindGroupLayout mesh_gen_entity_layout() const { return meshGenEntityBindGroupLayout_; }
-            // (mesh_gen_group/layout removed — legacy cell mesh gen)
 
             // --- Render pass ---
             wgpu::BindGroup render_entity_group() const { return renderEntityBindGroup_; }
@@ -2434,10 +2221,6 @@ namespace t7 {
             wgpu::BindGroupLayout frustum_cull_layout() const { return frustumCullLayout_; }
             wgpu::BindGroup frustum_cull_group() const { return frustumCullBindGroup_; }
 
-            // Reset LOD0 indirect args in the compute buffer.
-            // Writes constant fields (indexCount, firstIndex=0, baseVertex=0, firstInstance=0)
-            // and zeros instanceCount. Compute shader then atomicAdds instanceCount.
-            // After compute, CopyBufferToBuffer transfers to frustumIndirectLOD0_ for the draw.
             void reset_frustum_indirect(wgpu::Queue& queue) {
                 uint32_t args[5] = { patchIndexCount_, 0, 0, 0, 0 };
                 queue.WriteBuffer(frustumComputeBuffer_, 0, args, sizeof(args));
@@ -2687,9 +2470,6 @@ namespace t7 {
                     offsetof(GPUOrbConfig, motion_rule),
                     &rule, sizeof(uint32_t));
             }
-            // Pass 12: three flocking force signs written as a packed triple
-            // at flock_sep_sign. Each force picks up its direction multiplier
-            // from the dynamics kernel on the next dispatch.
             void upload_orb_flock_signs(wgpu::Queue& queue,
                 float sep, float align, float coh) {
                 struct { float s, a, c; } packed = { sep, align, coh };
@@ -2708,9 +2488,6 @@ namespace t7 {
                     offsetof(GPUOrbConfig, brownian_radial_sign),
                     &packed, sizeof(packed));
             }
-            // Orbital gesture bundle — two non-contiguous floats
-            // (412 and 428, interleaved by tier-flock-gain blocks).
-            // Two tiny writes — only fires on gesture cycle, not per frame.
             void upload_orb_orbital_gesture(wgpu::Queue& queue,
                 float alignment_mode,
                 float speed_var_mult) {
@@ -2842,10 +2619,6 @@ namespace t7 {
 
         private:
 
-            // =================================================================
-            // S7 BOOT (continued) — Private creation methods
-            // =================================================================
-
             wgpu::Buffer makeBuffer(const char* label, uint64_t size, wgpu::BufferUsage usage) {
                 wgpu::BufferDescriptor d{}; d.label = label; d.size = size; d.usage = usage;
                 return device_.CreateBuffer(&d);
@@ -2860,10 +2633,6 @@ namespace t7 {
                 agentStateBuffer_ = makeBuffer("Agent State",
                     Dim::MAX_AGENTS * sizeof(GPUAgentState),
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::CopySrc);
-                // Agent registries — uniform on the GPU, written once at
-                // world-init from C++ tables (see upload_agent_registries).
-                // Uniform (not storage) to stay within the 10-per-stage
-                // storage buffer cap on the compute kernels.
                 agentBehaviorsBuffer_ = makeBuffer("Agent Behaviors Table",
                     GPU_AGENT_BEHAVIOR_COUNT * sizeof(GPUAgentBehaviorDef),
                     wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);
@@ -3005,9 +2774,6 @@ namespace t7 {
                     q.WriteBuffer(patchIndexBuffer_, 0, idx.data(), idx.size() * 4);
                 }
 
-                // LOD-1: half-res 32×32 mesh stepping by 2 through the same 65×65 vertex grid.
-                // The vertex shader doesn't know it's LOD-1 — it gets different indices
-                // that happen to skip every other vertex, producing correct but coarser UVs.
                 {
                     constexpr uint32_t step = Dim::PATCH_MESH_N / Dim::PATCH_MESH_N_LOD1;  // = 2
                     constexpr uint32_t stride = Dim::PATCH_MESH_N + 1;  // 65 verts per row
@@ -3034,8 +2800,6 @@ namespace t7 {
 
                 return createSphereMesh() && createMonolithMesh() && createArchMesh() && createColumnMesh() && createPalmMesh() && createCactusMesh() && createBladeMesh() && createPyramidMesh() && createShellMesh() && createGoLZoneBuffers();
             }
-
-            // (createCellMeshBuffers removed — legacy cell mesh gen)
 
             bool createSphereMesh() {
                 // LATENT[gate-a-shared] sphere (SH·dc): VB/IB exclusive+droppable, but co-owns floatingEntityBuffer_ (sphere+cube) and draw_sphere isn't self-count-gated. Retire = draw self-gate, then skip. See ROSTER_GATE_A.
@@ -3521,7 +3285,6 @@ namespace t7 {
             }
 
             bool createTextures() {
-                // (legacy 1×1 stub textures removed — bindings 20-21, 24 and compute 0-2 reserved)
 
                 // Pawn aura texture (64×64 RGBA16Float — compute writes, FS reads)
                 {
@@ -3590,9 +3353,6 @@ namespace t7 {
                     patchCellColorArrayReadView_ = patchCellColorArrayTexture_.CreateView(&viewDesc);
                 }
 
-                // Cell spatial field LUT (RGBA16Float, 16×16 × MAX_ACTIVE_PATCHES)
-                // Baked during generate_patch_cells: mode, style, sparse, reserved.
-                // Terrain FS reads via textureLoad to skip 3 lattice noise chains.
                 {
                     wgpu::TextureDescriptor desc{};
                     desc.label = "Cell Fields LUT (RGBA16Float 16x16)";
@@ -3635,9 +3395,6 @@ namespace t7 {
                     if (!spotShadowMapTexture_) return false;
                     spotShadowMapView_ = spotShadowMapTexture_.CreateView();
                 }
-
-                // Painting and offscreen textures created later in initOffscreenResources()
-                // when the swapchain color format is known.
 
                 return true;
             }
@@ -3693,14 +3450,6 @@ namespace t7 {
 
             bool createBindGroups() {
 
-                // -- Compute entity layout (Group 0) -- 20-slot system ranges --
-                //
-                // Shared:    0-19    (signal, config, vp)
-                // Terrain:  20-39    (terrain_state, proximity_field)
-                // Cells:    40-59    (terrain_cells)
-                // Agents:   60-79    (agent_state — unified entity buffer)
-                // Camera:   80-99    (camera_state)
-                // Sphere:  100-119   (sphere_state, trajectories)
                 //
                 {
                     std::array<wgpu::BindGroupLayoutEntry, 19> entries{};
@@ -3720,9 +3469,6 @@ namespace t7 {
                     entries[3].binding = 20;
                     entries[3].visibility = wgpu::ShaderStage::Compute;
                     entries[3].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    // (bindings 21, 40 removed — formerly proximity_field, cell_states)
-                    // (binding 120 removed — ribbon_state only used by compute_ribbon_rings, separate group)
 
                     entries[4].binding = 60;
                     entries[4].visibility = wgpu::ShaderStage::Compute;
@@ -3804,14 +3550,6 @@ namespace t7 {
                     if (!computeEntityBindGroupLayout_) return false;
                 }
 
-                // -- Render entity layout (Group 0) -- +200 offset from compute --
-                //
-                // Shared:   200-219  (render_signal, render_vp)
-                // Terrain:  220-239  (render_terrain)
-                // Agents:   260-279  (render_agents — VS-side mirror)
-                // Camera:   280-299  (render_camera)
-                // Sphere:   300-319  (render_sphere)
-                // Light:    320-339  (render_light, render_point_lights)
                 //
                 // Vertex shaders need entity state for positioning + VP for transform.
                 // Fragment shaders need camera for fog distance.
@@ -3932,9 +3670,6 @@ namespace t7 {
                     if (!meshGenEntityBindGroupLayout_) return false;
                 }
 
-                // (compute texture layout removed — 0D compute shaders use Group 0 only.
-                //  Bindings 0-2 reserved for future Group 1 compute textures.)
-
                 // -- Shadow texture layout (Group 1) -- bindings 22-23, 28 --
                 // Used during shadow pass: samplers + patch heightfield only, NO shadow map.
                 // Avoids read/write conflict (shadow map is depth attachment).
@@ -4033,18 +3768,7 @@ namespace t7 {
                     if (!renderTextureBindGroupLayout_) return false;
                 }
 
-                // -- Compute texture layout (Group 1) -- bindings 23, 33 -------
-                // Live-contributor textures for compute pipelines that evaluate
-                // ground policies which require sample_pawn_aura (POLICY_FLYER,
-                // POLICY_WALKER). GoL and pyramid contributors read their
-                // storage buffers directly through Group 0 (bindings 30, 160,
-                // 161), so this layout only needs the aura texture + sampler.
                 //
-                // Attached to update_sphere, update_cube, update_agents, and
-                // update_camera pipelines so contrib_pawn_aura_at →
-                // sample_pawn_aura can run in the compute stage. Pipelines
-                // that stay on the baked heightfield path
-                // (compute_photographer_vp) do not bind this group.
                 {
                     std::array<wgpu::BindGroupLayoutEntry, 3> entries{};
 
@@ -4068,9 +3792,6 @@ namespace t7 {
                     computeTextureBindGroupLayout_ = device_.CreateBindGroupLayout(&desc);
                     if (!computeTextureBindGroupLayout_) return false;
                 }
-
-                // (mesh generation layout removed — legacy cell mesh gen.
-                //  Bindings 40-45 reserved for future Group 1 systems.)
 
                 // -- Terrain index gen layout (Group 0) -- binding 22 --------
                 // One-shot compute pass: fills terrain index buffer at init.
@@ -4146,9 +3867,6 @@ namespace t7 {
                     if (!patchGenLayout_) return false;
                 }
 
-                // -- Ribbon compute layout (Group 0) -- dedicated pass ----------
-                // Pre-computes ring transforms: motor + terrain_y for each ring.
-                // Runs BEFORE update_world so pawn overlay can read results.
                 //
                 // Bindings: tile_grid @25, pier_instances @26, ribbon_state @120,
                 // ring_xforms @121, head_poses @122.
@@ -4712,8 +4430,6 @@ namespace t7 {
                     if (!bladeMeshGenLayout_) return false;
                 }
 
-                // -- Bind group instances ------------------------------------
-
                 // Compute entity bind group (19 entries: systems + terrain + GoL zones + portals + cached heightfield)
                 {
                     std::array<wgpu::BindGroupEntry, 19> entries{};
@@ -4733,9 +4449,6 @@ namespace t7 {
                     entries[3].binding = 20;
                     entries[3].buffer = terrainBuffer_;
                     entries[3].size = sizeof(GPUTerrainState);
-
-                    // (bindings 21, 40 removed — formerly proximity_field, cell_states)
-                    // (binding 120 removed — ribbon_state only used by compute_ribbon_rings, separate group)
 
                     entries[4].binding = 60;
                     entries[4].buffer = agentStateBuffer_;
@@ -4929,9 +4642,6 @@ namespace t7 {
                     if (!meshGenEntityBindGroup_) return false;
                 }
 
-                // Compute texture bind group (3 entries: bindings 0-2)
-                // (compute texture bind group removed — no Group 1 for 0D compute)
-
                 // Shadow texture bind group (3 entries: bindings 22-23, 28)
                 {
                     std::array<wgpu::BindGroupEntry, 3> entries{};
@@ -5022,8 +4732,6 @@ namespace t7 {
                     computeTextureBindGroup_ = device_.CreateBindGroup(&desc);
                     if (!computeTextureBindGroup_) return false;
                 }
-
-                // (mesh generation bind group removed — legacy cell mesh gen)
 
                 // Terrain index gen bind group (1 entry: binding 22)
                 {
@@ -5145,9 +4853,6 @@ namespace t7 {
                     galleryEntityBindGroup_ = device_.CreateBindGroup(&desc);
                     if (!galleryEntityBindGroup_) return false;
                 }
-
-                // Gallery texture bind group created in initOffscreenResources()
-                // (needs exhibitionReadView_ which depends on colorFormat)
 
                 // Photographer render entity bind group (same layout as main, different VP)
                 {
@@ -5808,9 +5513,6 @@ namespace t7 {
                     fe.is_active = 1;
                     fe.aspect_y = 1.0f;
                     fe.aspect_z = 1.0f;
-                    // Drift-integrator substrate — unused on spheres; zero
-                    // so update_cube would skip cleanly if motion_type were
-                    // ever flipped to hover-bob on this slot.
                     fe.spring_stiffness = 0.0f;
                     fe.drag = 0.0f;
                     fe.tier_idx = 0;

@@ -7,10 +7,8 @@
 // c->transitionPhase_ (the phase enum via Cartridge::TransitionPhase)
 // and read COLUMN_PALETTE from entities.hpp.
 //
-// WRAPPING FORM (the proven fix-2 rule): SELF-WRAPPING — opens
-// t7::the_board itself, carries its own standard includes; the MODULE
-// IMPLEMENTATIONS zone includes it at FILE SCOPE. Definitions are
-// `inline` free functions.
+// WRAPPING FORM (fix-2): SELF-WRAPPING — the zone includes impls at
+// FILE SCOPE; law in audit/LADDER.md.
 // ─────────────────────────────────────────────────────────────────
 
 #include <cmath>      // std::sqrt, std::cos, std::sin
@@ -29,12 +27,6 @@ namespace the_board {
 // world-init by this helper. Values are constexpr-equivalent —
 // they never change during a session, so a one-shot upload at boot
 // is sufficient.
-//
-// The translation is a straight memcpy: AgentBehaviorDef and
-// GPUAgentBehaviorDef are intentionally laid out so the float
-// fields share order. The CPU struct has extra leading fields
-// (`id`, `name`) that aren't uploaded; we copy from `step_rate`
-// onward by offset.
 
 // upload_agent_registries_to_gpu: takes Cartridge* for gpuState_
 // access. No agent state needed — uploads constexpr registries only.
@@ -71,21 +63,6 @@ inline void upload_agent_registries_to_gpu(Cartridge* c, wgpu::Queue& queue) {
 }
 
 // ═══ SHARED POPULATION HELPER ════════════════════════════════════
-//
-// One source of truth for "given a population and a seed, fill this
-// slot's GPUAgentState." Used by both spawn_population_for_mood
-// (mood entry, full-array refill) and respawn_evicted_agents
-// (per-frame, evicted-slot refill). The two callers differ only in:
-//   • their seed-mixing recipe (different per-call so the same slot
-//     produces different agents on successive respawns)
-//   • their disk center (mood spawn uses the mood-spawn center;
-//     respawn trails the player's current XZ)
-//   • their upload strategy (full-array vs. per-slot)
-// Everything else — weight rolling, annulus sampling, home offset,
-// field initialization — lives here.
-//
-// beh_sum / tier_sum are passed in (not recomputed) so callers
-// processing many slots don't redo the sum on each call.
 
 inline void populate_agent_slot_(const AgentState& as,
                           GPUAgentState& out,
@@ -116,9 +93,6 @@ inline void populate_agent_slot_(const AgentState& as,
     }
 
     // ── Sample annulus position (uniform area distribution) ───────
-    //   r² = inner² + uniform·(outer² − inner²)
-    // When inner == 0, this collapses to a uniform disk (gallery
-    // moods that spawn anywhere in the room).
     const float two_pi = 6.28318530718f;
     float theta = cpu_hash_f(agent_seed, 3u) * two_pi;
     const float inner_sq = pop.spawn_inner_radius * pop.spawn_inner_radius;
@@ -146,9 +120,6 @@ inline void populate_agent_slot_(const AgentState& as,
     out.is_active      = 1u;
     out.portal_trigger = -1;
 
-    // Body color — random pick from COLUMN_PALETTE, deterministic from the
-    // agent seed (salt 7u). Resolved CPU-side so the slot carries final RGB
-    // (mirrors how columns upload final color).
     uint32_t ci = cpu_hash(agent_seed, 7u) % COLUMN_PALETTE_COUNT;
     out.color_r = COLUMN_PALETTE[ci][0];
     out.color_g = COLUMN_PALETTE[ci][1];
@@ -157,25 +128,6 @@ inline void populate_agent_slot_(const AgentState& as,
 }
 
 // ═══ SPAWN ════════════════════════════════════════════════════════
-//
-// Deterministic mood-driven population. Preserves slot 0 (player),
-// clears 1..MAX_AGENTS-1, then fills the first `count` non-player
-// slots by rolling behavior + tier from AGENT_POPULATIONS[mood_id]
-// weights.
-//
-// Position is uniform on an annulus around (center_x, center_z),
-// with bounds pop.spawn_inner_radius and pop.spawn_radius. Outdoor
-// moods set the inner radius just outside the visible horizon so
-// agents appear at distance; gallery moods set inner = 0 so agents
-// spawn anywhere in the room.
-//
-// home tether offset is uniform on a disk of radius
-// home_seeding_radius around each spawn point.
-//
-// Called once at boot (for the initial mood) and once per mood
-// transition, after reset_player_agent + apply_mood. Uploads the
-// full 32-slot array — slot 0's re-upload is idempotent as long as
-// agent_state_.slots[0] mirrors the player's idle pose.
 
 inline void spawn_population_for_mood(AgentState& as, Cartridge* c,
                                uint32_t mood_id,
@@ -219,19 +171,6 @@ inline void spawn_population_for_mood(AgentState& as, Cartridge* c,
 
 // ═══ RESPAWN (per-frame, evicted slots → fresh agents) ════════════
 //
-// The GPU's update_agents kernel marks any non-player slot whose XZ
-// distance from the possessed slot exceeds AGENT_EVICTION_RADIUS as
-// inactive. This routine runs every frame on the CPU side: scans
-// agent_state_.slots[1..MAX_AGENTS-1] for is_active == 0, refills each with
-// a fresh agent in a disk around the *player's current position*
-// (not the original mood spawn center — the population trails the
-// player as they wander).
-//
-// Each respawn uses a per-slot counter to advance the seed, so the
-// same slot in the same world produces a different agent on each
-// successive respawn cycle (otherwise an agent that drifts out and
-// gets re-evicted would respawn into the same place forever).
-//
 // Writes only the changed slots — never the player slot — so the
 // GPU's per-frame player update never sees a stale CPU snapshot.
 // (respawn_counters lives in the CPU MIRROR section of agents.hpp.)
@@ -268,9 +207,6 @@ inline void respawn_evicted_agents(AgentState& as, Cartridge* c,
             cpu_hash(world_seed, 0xA6E00000u + mood_id),
             slot * 0x10001u + as.respawn_counters[slot] * 0x100u);
 
-        // Center on the player so the population trails the player as
-        // they wander, rather than refilling at the original mood-spawn
-        // anchor (which would empty out as soon as they walked away).
         populate_agent_slot_(as, as.slots[slot], pop, agent_seed,
                              beh_sum, tier_sum,
                              px, pz);
@@ -286,18 +222,6 @@ inline void respawn_evicted_agents(AgentState& as, Cartridge* c,
 }
 
 // ═══ POSSESSION TRANSFER (Caps Lock) ══════════════════════════════
-//
-// Player jumps from their current body to the nearest active non-
-// player slot within POSSESSION_RADIUS. The vacated slot stays where
-// it was, switches to RANDOM_WALK, and continues under autopilot —
-// it remains a body in the world, just no longer driven by input.
-// The new slot keeps its tier (and tier color), inherits the camera,
-// inherits portal-detection, and resets velocity to zero so the
-// player has clean control on entry.
-//
-// Blocked during portal transitions to avoid mid-teardown swaps.
-// No-op when no candidate is in range.
-// (POSSESSION_RADIUS lives in the TUNING CONSOLE in agents.hpp.)
 
 inline void try_possess_nearest(AgentState& as, Cartridge* c, wgpu::Queue& queue) {
     if (c->transitionPhase_ != Cartridge::TransitionPhase::IDLE) {
@@ -334,9 +258,6 @@ inline void try_possess_nearest(AgentState& as, Cartridge* c, wgpu::Queue& queue
 
     const uint32_t new_slot = (uint32_t)best_slot;
 
-    // Old slot → autopilot RandomWalk. Slot 0's seed is zero by default
-    // (reset_player_agent leaves it zero-init); give it a fresh seed so
-    // its random walk doesn't lock to hash(0, ...).
     as.slots[cur].behavior_id = AGENT_BEHAVIOR_RANDOM_WALK;
     if (as.slots[cur].seed == 0u) {
         as.slots[cur].seed = cpu_hash(c->world_state_.active_seed, cur ^ 0xC11Cu);
@@ -361,30 +282,7 @@ inline void try_possess_nearest(AgentState& as, Cartridge* c, wgpu::Queue& queue
 }
 
 // ═══ DIAGNOSTIC CYCLING ══════════════════════════════════════════
-//
-// Runtime knobs for inspecting behaviors and tiers without editing
-// AGENT_POPULATIONS and recompiling. Mirrors the orbs pattern of
-// player-cycleable system-wide dials (cycle_orb_motion_rule, etc.).
-//
-// Wired in input.inl alongside the existing CapsLock → possess.
-// Originally bound to B/T/R; reassigned to function keys when we
-// realized A-Z plays MIDI piano in the analysis layer above the
-// cartridge — letter keys can't double as cartridge diagnostics
-// without playing notes every press.
-//   F1 → cycle_agent_behavior_override   step through nine algorithmic
-//                                        behaviors, then back to none
-//   F2 → cycle_agent_tier_override       step through four tiers, then
-//                                        back to none
-//   F3 → force_respawn_population        re-roll the current mood's
-//                                        population around the player
-//
-// These rewrite agent_state_.slots in place and re-upload the changed slots,
-// so the effect is immediate. PlayerControlled is excluded from the
-// behavior cycle — overriding every body to that would orphan input.
 
-// Walk every active non-player slot and apply whichever overrides
-// are currently set. No-op for slots that already match. Helper
-// shared by cycle_agent_behavior_override and cycle_agent_tier_override.
 inline void apply_agent_overrides_(AgentState& as, Cartridge* c, wgpu::Queue& queue) {
     for (uint32_t s = PLAYER_SLOT + 1; s < Dim::MAX_AGENTS; s++) {
         auto& a = as.slots[s];
@@ -406,9 +304,6 @@ inline void apply_agent_overrides_(AgentState& as, Cartridge* c, wgpu::Queue& qu
     }
 }
 
-// Cycle: NONE → RANDOM_WALK → BIASED_WALK → ... → LEVY_FLIGHT → NONE.
-// PlayerControlled (id 0) is skipped — putting every body under input
-// control is not a meaningful diagnostic state.
 inline void cycle_agent_behavior_override(AgentState& as, Cartridge* c, wgpu::Queue& queue) {
     if (as.behavior_override == AGENT_OVERRIDE_NONE) {
         as.behavior_override = AGENT_BEHAVIOR_RANDOM_WALK;
@@ -448,11 +343,6 @@ inline void cycle_agent_tier_override(AgentState& as, Cartridge* c, wgpu::Queue&
     }
 }
 
-// Mark every non-player slot inactive. respawn_evicted_agents (called
-// every frame from the main tick) will refill them in a disk around
-// the player on the next pass — same path as natural eviction-driven
-// refill, so no new code path. Useful for re-rolling a population
-// after editing weights or just to "shuffle" what's around the player.
 inline void force_respawn_population(AgentState& as, Cartridge* c, wgpu::Queue& queue) {
     uint32_t cleared = 0;
     for (uint32_t s = PLAYER_SLOT + 1; s < Dim::MAX_AGENTS; s++) {
@@ -466,18 +356,6 @@ inline void force_respawn_population(AgentState& as, Cartridge* c, wgpu::Queue& 
 }
 
 // ═══ DIAGNOSTIC: agent census ═════════════════════════════════════
-//
-// Snapshot of agent_state_.slots broken down by tier + behavior, plus the
-// player's current possessed slot. Reads the same CPU mirror that
-// drives possession queries and patch streaming, so it's only as
-// fresh as the latest readback (one-frame lag is fine for a log).
-//
-// Loops over the full names arrays so adding a behavior or tier
-// updates the census output automatically; only non-zero buckets are
-// printed to keep lines readable.
-//
-// (last_census_dump lives in agent_state_; AGENT_CENSUS_INTERVAL
-// in the TUNING CONSOLE in agents.hpp.)
 
 inline void dump_agent_census(const AgentState& as, const Cartridge* c, const char* trigger) {
     uint32_t active = 0;
@@ -516,9 +394,6 @@ inline void dump_agent_census(const AgentState& as, const Cartridge* c, const ch
     }
     std::cout << "}";
 
-    // Override state — only printed when something is actually
-    // overridden, to keep the line short in the common (no-override)
-    // case.
     if (as.behavior_override != AGENT_OVERRIDE_NONE
         || as.tier_override != AGENT_OVERRIDE_NONE) {
         std::cout << " override:{";

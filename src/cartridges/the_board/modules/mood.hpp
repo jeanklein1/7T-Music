@@ -8,9 +8,6 @@
 // Converted (LADDER-4, per K4): history in audit/LADDER.md.
 //
 // Atmosphere, indoor lighting, shell geometry, portals.
-// One canonical mood entry point: apply_mood. Mood transitions are
-// requested via request_mood_transition (also exposed for portal
-// crossings).
 //
 // Mood is VOCABULARY + APPLIERS + SIX DOORS. This header owns the
 // vocabulary — CeilingType, MoodProfile, MOOD_TABLE, the portal color
@@ -29,50 +26,12 @@
 // Definitions live in mood.inl, included at FILE SCOPE in the
 // post-class MODULE IMPLEMENTATIONS zone. Namespace t7::the_board.
 //
-// ┌─── Public surface (called from outside this module) ────────────┐
-// │                                                                  │
-// │  Mood lifecycle:                                                 │
-// │    apply_mood(c, mood, queue)           — atmosphere + setup     │
-// │    request_mood_transition(c, mood)     — transition entry       │
-// │                                                                  │
-// │  Indoor support:                                                 │
-// │    derive_indoor_lights(c, seed, ...)   — scheme → spot lights   │
-// │    generate_indoor_shell(c, queue, m)   — walls + ceiling mesh   │
-// │    clear_indoor_shell(c, queue)         — index count to 0       │
-// │                                                                  │
-// │  Portals (driven by transition / portal crossings):              │
-// │    force_spawn_back_portal(c, queue)                             │
-// │      (force_spawn_portal_at / force_spawn_finite_portals are     │
-// │       module-internal — they compute values and route through    │
-// │       entities' force_spawn_portal_arch, the one choke point)    │
-// │                                                                  │
-// │  Per-frame uploads:                                              │
-// │    upload_lights(c, queue)              — sun + spot + (point)   │
-// │    upload_portal_array(c, queue)        — when mood_state_.portals_dirty │
-// │                                                                  │
-// │  Derivers (shared with the portal-detection pipeline):           │
-// │    mood_name(mood)                      — display name           │
-// │    derive_finite_radius(seed, profile)  — seed → patch radius    │
-// │    pick_portal_mood(c, seed, prop)      — biased destination     │
-// │                                                                  │
-// │  Cross-module reads (spine-owned state this module writes):      │
-// │    mood_state_.active                          — read everywhere │
-// │    gol_state_.mood_allowed                                       │
-// │    mood_state_.back_portal_pending, backPortalPosition_          │
-// │    mood_state_.spot_light_active, entities_state_.lights_dirty,  │
-// │    mood_state_.portals_dirty                                     │
-// │                                                                  │
-// └──────────────────────────────────────────────────────────────────┘
-//
-// Depends on: state.hpp (wgpu, GPU light/portal types, ShellVertex,
-// Dim::*, MAX_SPOT_LIGHTS, MAX_GPU_PORTALS, PierTier, Coupling),
-// mood_constants.hpp (MOOD_COUNT, Mood IDs, PortalDestination). The
-// impl additionally reaches the keyhole's spine-resident state
+// The impl additionally reaches the keyhole's spine-resident state
 // (mood_state_ / transitionPhase_ / pendingDestination_ /
-// backPortalPosition_ / cpuSpotLights_ / cpuPortalArray_ / sun +
-// clear colors / world_state_ and the feature-gate flags), the
-// converted modules' surfaces (entities' force_spawn_portal_arch,
-// ribbon's fill/commit, gallery's wall paintings, orbs' configure,
+// backPortalPosition_ / cpuSpotLights_ / cpuPortalArray_ / sun + clear
+// colors / world_state_ and the feature-gate flags), the converted
+// modules' surfaces (entities' force_spawn_portal_arch, ribbon's
+// fill/commit, gallery's wall paintings, orbs' configure,
 // render_passes' compute_spot_light_vp), and in-class statics
 // (Cartridge::ARCH_TIERS / Cartridge::ArchIdx /
 // Cartridge::solve_catenary_a / Cartridge::PATCH_EXTENT /
@@ -109,13 +68,6 @@ namespace t7 {
 namespace the_board {
 
 // ═══ MOOD SYSTEM (vocabulary) ════════════════════════════════════
-//
-// Each mood defines an atmosphere: sun direction/color, fog,
-// finite vs. open, patch radius. Portals pick a mood for
-// their destination; the mood is applied during teardown.
-//
-// Moods 0-1: infinite outdoor.  Moods 2-3: finite indoor.
-// Mood 4: finite outdoor.  Mood 5: finite outdoor (reference clone).
 
 enum class CeilingType : uint32_t {
     NONE = 0,   // outdoor — no shell geometry
@@ -154,24 +106,14 @@ struct MoodProfile {
     float  ceiling_color[3];       // indoor ceiling surface RGB
 
     // ─── Feature selection (per-mood) ───────────────────────
-    // Each mood independently declares which systems are active.
-    // Not tied to indoor/outdoor — a walled mood can still have
-    // musical modes, an open mood can still skip pawn aura.
     bool   allow_gol_zones;        // GoL zone spawning + visualization
     bool   allow_pawn_aura;        // toroidal spring grid tinting + height boost
     bool   allow_frustum_cull;     // GPU frustum cull for LOD0 terrain (Tier 4)
     bool   has_anchor_ribbon;      // mood spawns a fixed reference ribbon at the world center
 
-    // Sky orb config is a parallel table (ORB_MOOD_TABLE in
-    // modules/orbs.hpp), indexed by the same mood index as
-    // MOOD_TABLE. See orbs.hpp for the OrbMoodConfig field
-    // definitions and the table itself.
 };
 
 // ═══ MOOD DEFINITIONS ════════════════════════════════════════════
-//
-// Sky orb config lives in ORB_MOOD_TABLE inside modules/orbs.hpp,
-// indexed by the same mood index.
 //
 // SEAM[mood:K1] indoor/outdoor binary lives here as bool `finite` +
 //   bool `indoor` flags. With finite_outdoor and finite_outdoor_ref,
@@ -209,18 +151,6 @@ inline constexpr float PORTAL_COLOR_BACK[3] = { 0.35f, 0.55f, 0.90f };  // back-
 
 // ═══ INDOOR WALL PALETTE ═════════════════════════════════════════
 //
-// Per-seed wall+ceiling color override for indoor moods. The
-// MOOD_TABLE wall_color/ceiling_color act as fallback for the
-// open-world finite cases; in flat/vault moods, apply_mood
-// selects one of these palettes from world_state_.active_seed and substitutes
-// it before generate_indoor_shell uploads the shell mesh.
-//
-// Each palette is a designed (wall, ceiling) pair where the
-// ceiling is a slightly darker shade of the wall — gives the
-// room visual depth instead of flat single-color surfaces.
-// Authored to feel like museum / gallery wall finishes rather
-// than random RGB rolls.
-//
 // SEAM[mood:tuning-data] the palettes are consumed only by
 //   apply_mood_indoor_shell; the indoor lighting SCHEMES (the other
 //   half of this seam) are consumed only by derive_indoor_lights and
@@ -245,15 +175,6 @@ inline constexpr uint32_t INDOOR_PALETTE_COUNT =
 
 // ═══ INDOOR ENTITY PLACEMENT ═════════════════════════════════════
 //
-// Minimum distance from any spawning entity's FOOTPRINT EDGE to
-// the room walls (not the entity's center — large entities still
-// keep this gap). Enforced in negotiate_position by clamping
-// the seed-determined candidate position into the legal box
-//   [bmin + margin + r, bmax - margin - r]  in both axes
-// when world_state_.finite_mode is active and the current mood is indoor.
-// Outdoor moods and open worlds are unaffected (no walls to
-// keep clear of).
-//
 // Clamp (not reject) is intentional: rejection-based logic
 // would silently drop entities anchored to corner patches,
 // because their seed-determined position keeps landing in the
@@ -266,14 +187,7 @@ inline constexpr uint32_t INDOOR_PALETTE_COUNT =
 // the wall surface and any artwork on it.
 inline constexpr float INDOOR_ENTITY_WALL_MARGIN = 20.0f;
 
-
 // ═══ MODULE FUNCTIONS — DECLARATIONS ═════════════════════════════
-//
-// DEFINED in mood.inl (post-class, self-wrapping) — the bodies reach
-// the spine-owned state and in-class statics via the complete type.
-// force_spawn_portal_at, force_spawn_finite_portals, push_quad and the
-// indoor lighting-scheme tables are module-internal (impl-only, not
-// declared here).
 
 // Mood lifecycle (doors)
 void apply_mood(Cartridge* c, uint32_t mood, wgpu::Queue& queue);

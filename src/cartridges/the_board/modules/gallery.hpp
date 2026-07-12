@@ -12,62 +12,11 @@
 // ─── gallery.hpp (HEADER: vocabulary + configs + state + decls) ──
 // Converted (LADDER-3 c4): history in audit/LADDER.md.
 //
-// The art system. Photographer captures snapshots; gallery sites
-// curate and display them on terrain (outdoor) or on walls (indoor).
-// Authored images load from disk and exhibit alongside snapshots.
+// The art system.
 //
-// ┌─── Two halves ──────────────────────────────────────────────────┐
-// │                                                                  │
-// │  Outdoor: photographer captures snapshots while pawn walks;      │
-// │           gallery sites spawn on patches as they stream in;      │
-// │           paintings appear as terrain quads.                     │
-// │                                                                  │
-// │  Indoor:  mood entry calls place_wall_paintings; paintings       │
-// │           appear as wall frames, mixing snapshots and authored.  │
-// │                                                                  │
-// │  Shared:  staging buffers (snapshot + authored), exhibition      │
-// │           layers, painting slots, frame style presets.           │
-// │                                                                  │
-// └──────────────────────────────────────────────────────────────────┘
-//
-// ┌─── Public surface (called from outside this module) ────────────┐
-// │                                                                  │
-// │  Module functions take GalleryState& explicitly                  │
-// │  (or const GalleryState& when read-only).                        │
-// │                                                                  │
-// │  Per-frame:                                                      │
-// │    update_photographer(gs, c, queue)         — capture cadence   │
-// │    render_snapshot_pass(gs, c, encoder)      — capture render    │
-// │                                                                  │
-// │  Outdoor lifecycle (three-phase):                                │
-// │    select_gallery_for_patch(gs, c, gx, gz, sel)                  │
-// │    place_gallery_from_selection(c, sel, plan)                    │
-// │      (note: no GalleryState — only mediates between sel and      │
-// │       spawn-engine helpers; not part of gallery's data)          │
-// │    commit_gallery(gs, c, plan, gx, gz, queue)                    │
-// │    evict_paintings_for_patch(gs, c, gx, gz, queue)               │
-// │                                                                  │
-// │  Indoor entry (called by mood.inl::apply_mood):                  │
-// │    place_wall_paintings(gs, c, queue, bmin, bmax, ceiling_h)     │
-// │    clear_wall_paintings(gs, c, queue)                            │
-// │                                                                  │
-// │  Authored image loading:                                         │
-// │    load_authored_textures(gs, c, queue) — first-call lazy load   │
-// │    rotate_authored_staging(gs, c, queue) — at world teardown     │
-// │                                                                  │
-// │  Cross-module reads (this module's state read by others):        │
-// │    gallery_state_.wall_frame_count       — read by render_passes │
-// │    gallery_state_.active_painting_count  — read by render_passes │
-// │    gallery_state_.gallery_centers[]      — read/written by spine │
-// │                                                                  │
-// └──────────────────────────────────────────────────────────────────┘
-//
-// Depends on: state.hpp (Dim::*, GPUPaintingSlot, GPUPhotographerConfig,
-// FormType/ContentSource, wgpu), mood_constants.hpp (MOOD_COUNT),
-// seed_utils.hpp (select_weighted here; the impl hashes with it). The
-// impl additionally reaches spawn-engine services and in-class statics
-// (PATCH_EXTENT / GLOBAL_ENTITY_DENSITY) through the complete type
-// (Cartridge:: / keyhole), PopFamily (roster.hpp vocabulary), and
+// The impl additionally reaches spawn-engine services and in-class
+// statics (PATCH_EXTENT / GLOBAL_ENTITY_DENSITY) through the complete
+// type (Cartridge:: / keyhole), PopFamily (roster.hpp vocabulary), and
 // stb_image (authored disk loading).
 //
 // SEAM[gallery:complete-subsystem] complete bespoke pipeline in one
@@ -93,17 +42,6 @@ namespace t7 {
 namespace the_board {
 
 // ═══ SHOT TIERS (vocabulary) ═════════════════════════════════════
-//
-// Each tier defines a complete photographic character: how the
-// invisible camera relates to the pawn in distance, angle, lens,
-// and how the resulting painting takes shape on the terrain.
-//
-// ShotTypeParams fields:
-//   distance_mean/sigma  — how far the camera orbits from the pawn (gaussian)
-//   elevation_mean/sigma — vertical angle above horizon in radians (gaussian)
-//   fov_degrees/sigma    — vertical field of view of the lens (gaussian)
-//   aspect_lo/hi         — width/height ratio of the painting (uniform)
-//   tracks_pawn          — whether the camera looks at the pawn or freely
 
 enum class ShotType : uint32_t {
     PANORAMIC = 0,   // distant landscape, pawn small in frame
@@ -129,9 +67,6 @@ struct ShotTypeParams {
 };
 
 // ─── Tier Definitions ───────────────────────────────────────────
-//
-// All parameters that define a tier's character live here.
-// To tune a tier: adjust its row. To add a tier: add a row + enum.
 
 //                          dist  σ     elev   σ     fov    σ     asp_lo asp_hi  track  off_x  off_y   weight
 // ENVIRONMENTAL keeps weight 0.01 deliberately — held near-zero rather
@@ -163,14 +98,6 @@ inline constexpr float PAINTING_AREA[] = {
 
 // ═══ TUNING CONSOLE ══════════════════════════════════════════════
 //
-// System-level dials for the gallery subsystem: photographer
-// capture cadence (PhotographerCaptureConfig), outdoor gallery
-// placement and curation (GalleryConfig), site-content type
-// (GallerySiteType), indoor wall art configuration (WALL_ART), and
-// property index registries (GalleryProp, GalleryPaintingProp,
-// WallArtProp, WallPaintingProp). Per-tier values (Gaussian shot
-// parameters) live in SHOT_PARAMS above.
-//
 // SEAM[gallery:L2] this is a clean instance of pattern P3 (player
 //   state vs mood state, explicit) — concerns separated into
 //   named sub-structures rather than mixed in one big config.
@@ -181,13 +108,6 @@ inline constexpr float PAINTING_AREA[] = {
 //   cartridge.hpp) because place_wall_paintings — the only
 //   consumer — lives in this module. Same migration class as
 //   ribbon active state (Q-closed-4).
-//
-// Concerns:
-//   PhotographerCaptureConfig — snapshot capture cadence
-//   GalleryConfig             — where/how paintings appear on terrain (outdoor)
-//   GallerySiteType           — site content type enum
-//   WallArtConfig + WALL_ART  — indoor wall painting placement
-//   GalleryProp et al.        — named property indices for cpu_hash calls
 
 struct PhotographerCaptureConfig {
     // Trigger: how far the pawn walks between capture events
@@ -214,10 +134,6 @@ struct PhotographerCaptureConfig {
 };
 
 struct GalleryConfig {
-    // Per-archetype gallery probability
-    //   mountainous (0): very rare
-    //   varied (1):      rare — checkerboard patterns, not exhibition space
-    //   basin (2):       moderate — smooth sand, natural gallery ground
     static constexpr float GALLERY_CHANCE_BY_ARCHETYPE[4] = { 0.03f, 0.06f, 0.30f, 0.40f };
     static constexpr float MOOD_MULTIPLIER[MOOD_COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f };
 
@@ -235,15 +151,8 @@ struct GalleryConfig {
     static constexpr float ROW_DEPTH_RANGE = 4.0f;    // depth jitter on top of minimum
     static constexpr float ROW_LATERAL_JITTER = 2.0f;
 
-    // Gallery mode: two options, no mixing
-    //   MONO: all paintings from one tier (Portrait, Panoramic, or Cinematic)
-    //   CHRONOLOGICAL: paintings in capture order, any tier
     static constexpr float MONO_TIER_CHANCE = 0.40f;  // 40% mono, 60% chronological
 
-    // Per-gallery canvas size: the gallery rolls a size mean, then
-    // each painting jitters around that mean.
-    //   Gallery mean: uniform in [GALLERY_SIZE_LO, GALLERY_SIZE_HI]
-    //   Per-painting jitter: gaussian σ = PAINTING_SIZE_SIGMA
     static constexpr float GALLERY_SIZE_LO = 0.85f;  // smallest gallery mean
     static constexpr float GALLERY_SIZE_HI = 3.0f;   // largest gallery mean
     static constexpr float PAINTING_SIZE_SIGMA = 0.3f;   // per-painting jitter around gallery mean
@@ -256,22 +165,8 @@ struct GalleryConfig {
 
     // ─── Content×Form Mixing ─────────────────────────────────
     //
-    // Each site rolls a three-way type: pure-snapshot, pure-authored, or mixed.
-    // In mixed mode, each painting independently rolls its content source.
-    //
-    // Outdoor (select_gallery_for_patch → commit_gallery):
-    //   80% snapshot-only terrain quads
-    //   5% mixed (each painting rolls independently)
-    //   15% authored-only wall frames (monuments in the desert)
-    //
-    // Indoor (place_wall_paintings):
-    //   15% snapshot-only wall frames
-    //   5% mixed (each painting rolls independently)
-    //   80% authored-only wall frames
-    //
     static constexpr float OUTDOOR_SNAPSHOT_ONLY = 0.80f;  // [0.00, 0.80)
     static constexpr float OUTDOOR_MIXED = 0.05f;  // [0.80, 0.85)
-    // remainder 0.15 = authored-only                       // [0.85, 1.00)
 
     // In mixed mode: per-painting chance of being the minority content
     static constexpr float OUTDOOR_MIX_AUTHORED_CHANCE = 0.35f;  // chance each outdoor painting is authored
@@ -291,22 +186,6 @@ struct GallerySiteType {
 };
 
 // ── Wall art configuration (indoor) ──────────────────────────────
-//
-// Centralized control for all artwork hung on indoor walls —
-// both authored frames and snapshot frames.
-//
-// Tuning workflow: edit the WALL_ART struct below, rebuild,
-// regenerate any indoor world to see the changes. No other edits
-// needed — place_wall_paintings (gallery.inl) reads everything
-// from here.
-//
-// The y-position pipeline:
-//   1) base_py = ceiling_h × paint_y_frac
-//   2) py = base_py + y_offset (sampled per-painting by bucket)
-//   3) clamp: ensure py - height/2 ≤ max_bottom_height
-//      (paintings hung too high force the camera to crane up;
-//      this guarantees the bottom edge stays viewable from
-//      pawn standing height)
 
 struct WallArtScaleBucket {
     float height_lo;     // uniform [lo, hi] sample for painting height
@@ -339,10 +218,6 @@ struct WallArtConfig {
     WallArtScaleBucket statement;
 
     // ─── Indoor content mix (snapshot vs authored) ──────────
-    // Per-site roll thresholds (cumulative, 0..1):
-    //   roll < snapshot_only_share         → all snapshot
-    //   roll < snapshot_only + mixed_share → mixed
-    //   residual                           → all authored
     float snapshot_only_share;
     float mixed_share;
     // In mixed mode: per-painting chance of being a snapshot.
@@ -378,21 +253,6 @@ inline constexpr WallArtConfig WALL_ART = {
 };
 
 // ── Property index registries ────────────────────────────────────
-//
-// Named property indices for cpu_hash / cpu_hash_f calls. Replaces
-// the previous practice of literal numeric indices (`cpu_hash_f(seed,
-// 500u)`). Same family as RibbonProp, GoLZoneProp, the per-family
-// <Family>Idx structs in entity_pipeline.inl.
-//
-// Three seeds are in play in this module's hash chain:
-//   1. patch seed  — passed in to select/commit_gallery
-//   2. site_seed   — derived from c->world_state_.active_seed for indoor placement
-//   3. p_seed      — per-painting, derived from either patch seed
-//                    (outdoor) or w_seed (indoor)
-//
-// Outdoor and indoor per-painting contexts use *different* offsets
-// off p_seed, so they get separate registries (GalleryPaintingProp
-// vs WallPaintingProp). Same physical seed type, different role.
 
 // Outdoor — patch-level seed ───────────────────────────────────
 struct GalleryProp {
@@ -452,11 +312,6 @@ struct WallPaintingProp {
 };
 
 // ═══ STATE: PHOTOGRAPHER ═════════════════════════════════════════
-//
-// The photographer's per-session RNG, capture cadence state, and
-// burst/cooldown tracking. PhotographerState is the only sub-struct
-// in this module with embedded sampling helpers — they wrap a
-// std::mt19937 specifically for the capture pipeline.
 
 struct PhotographerState {
     float cumulative_distance = 0.0f;
@@ -548,37 +403,13 @@ struct PendingSnapshot {
 // the boundary's contract, not to either side.
 
 // ═══ GALLERY MODULE STATE ════════════════════════════════════════
-//
-// All gallery-owned state lives in this struct, accessed via
-// gallery_state_ on the Cartridge (declared at the composition root).
-// Module functions take `GalleryState& gs` explicitly rather than
-// reaching via Cartridge*, making ownership language-visible and
-// dependencies explicit in signatures.
-//
-// Sub-grouped by role:
-//   • photographer        — per-session RNG + capture cadence
-//   • snapshot_staging    — fresh photographer captures (circular)
-//   • authored_staging    — disk-loaded paintings (rotation window)
-//   • exhibition          — stable layers for display textures
-//   • pending_promotions  — staging→exhibition promotion queue
-//   • painting_slots      — per-instance GPU mirror
-//   • gallery_centers     — active outdoor gallery sites
-//   • pending_snapshot    — single in-flight render target
 
 struct GalleryState {
     PhotographerState photographer;
 
-    // Cumulative walk + frame count are session-level companions to
-    // the photographer's per-trigger state — read by both the
-    // photographer (cadence) and gallery sites (sort by capture_frame).
     float    total_walk_distance = 0.0f;
     uint32_t frame_counter = 0;
 
-    // Two parallel circular buffers (16 layers each):
-    //   snapshot_staging — fresh photographer captures
-    //   authored_staging — disk-loaded paintings (rotation window
-    //                      across the full disk manifest)
-    // Promotion to exhibition happens in commit_gallery / place_wall_paintings.
     SnapshotStagingRecord snapshot_staging[Dim::STAGING_LAYERS]{};
     uint32_t              snapshot_write_cursor = 0;
     uint32_t              snapshot_count = 0;
@@ -590,9 +421,6 @@ struct GalleryState {
     bool                  authored_textures_loaded = false;
     std::vector<std::string> authored_disk_manifest;    // scanned lazily on first load, sorted numerically
 
-    // Exhibition layers (32) hold textures stable until portal transition;
-    // painting slots (per-instance) describe each visible painting on
-    // the GPU. Galleries register their centers for spatial separation.
     bool     exhibition_occupied[Dim::EXHIBITION_LAYERS]{};
     uint32_t exhibition_count = 0;
 
@@ -609,16 +437,6 @@ struct GalleryState {
 };
 
 // ═══ MODULE FUNCTIONS — DECLARATIONS ═════════════════════════════
-//
-// DEFINED in gallery.inl (post-class, self-wrapping) — the bodies
-// reach the keyhole (gpuState_/renderer_/tileCache_/player_/
-// world_state_/mood_state_/ribbon_state_/clearColor_/sunDirection_
-// and the spine services) and in-class statics via the complete type.
-// capture_snapshot, load_authored_image_to_staging,
-// scan_paintings_folder, count_unused_authored, pick_authored_staging,
-// fill_slot_wall_frame (+ the FrameStyle presets) and the
-// find_free_*/queue_promotion state-local helpers are module-internal
-// (impl-only, not declared here).
 
 // Per-frame
 void update_photographer(GalleryState& gs, Cartridge* c, wgpu::Queue& queue);
@@ -633,7 +451,7 @@ void commit_gallery(GalleryState& gs, Cartridge* c,
     int32_t trigger_gx, int32_t trigger_gz, wgpu::Queue& queue);
 void evict_paintings_for_patch(GalleryState& gs, Cartridge* c,
     int32_t gx, int32_t gz, wgpu::Queue& queue);
-// The evictor — lifecycle, absorbed per §5 EVICTION THUNKS; keyhole-shaped
+// The evictor — keyhole-shaped
 // to match the FAMILY_DISPATCH evict slot (table in family_dispatch.inl)
 void evict_gallery(Cartridge* self, uint32_t slot, wgpu::Queue& queue);
 // Dispatch funnels (table-shaped; the FAMILY_DISPATCH rows point here)

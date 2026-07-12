@@ -9,14 +9,9 @@
 // (mood.hpp), and the in-class statics (Cartridge::GRID_RADIUS /
 // Cartridge::PREGEN_RADIUS).
 //
-// This impl includes <GLFW/glfw3.h> itself — the dependency is named
-// here, not inherited from the host TU. The #ifndef fallbacks below
-// cover GLFW variants that omit the numpad/function-key constants.
+// This impl includes <GLFW/glfw3.h> itself — the dependency is named here, not inherited from the host TU.
 //
-// WRAPPING FORM (the proven fix-2 rule): SELF-WRAPPING — opens
-// t7::the_board itself, carries its own standard includes; the MODULE
-// IMPLEMENTATIONS zone includes it at FILE SCOPE. Definitions are
-// `inline` free functions.
+// WRAPPING FORM (fix-2): SELF-WRAPPING — the zone includes impls at FILE SCOPE; law in audit/LADDER.md.
 // ─────────────────────────────────────────────────────────────────
 
 #include <algorithm>       // std::max, std::min
@@ -27,61 +22,20 @@
 
 // ═══ KEY BINDING REGISTRY ════════════════════════════════════════
 //
-// What every key does, organized by purpose. Bindings are temporary
-// (see the note in input.hpp's banner); functions are durable. When
-// changing what a key does, change both this table and the dispatch
-// below.
-//
 // ── Movement (held; arrow keys) ──────────────────────────────────
-//   ↑              keys_.forward                — move pawn forward
-//   ↓              keys_.backward               — move pawn backward
-//   ←              keys_.left                   — strafe pawn left
-//   →              keys_.right                  — strafe pawn right
 //
 // ── World / aura toggles ─────────────────────────────────────────
-//   1              gpuState_.toggle_freeze_sphere() — freeze chase sphere
-//   2              pawn_state_.aura_height_enabled flip      — terrain extrusion on/off
-//   3              pawn_state_.aura_enabled flip            — aura field on/off
-//   5              request_mood_transition(MOOD_OPEN_SUNSET)
-//   6              request_mood_transition(MOOD_INDOOR_FLAT)
-//   7              request_mood_transition(MOOD_INDOOR_VAULT)
-//   8              request_mood_transition(MOOD_FINITE_OUTDOOR)
-//   9              request_mood_transition(MOOD_FINITE_OUTDOOR_REF)
-//   0              cycle_orb_palette()          — next orb palette
-//   [              set_render_radius(-1)        — smaller patch ring
-//   ]              set_render_radius(+1)        — larger patch ring
 //
 // ── Orb utilities (numpad) ───────────────────────────────────────
-//   KP_8           cycle_orb_motion_rule()      — next orb motion rule
-//   KP_9           toggle_orb_anchor()          — orb anchor on/off
-//   KP_DECIMAL     cycle_orb_gesture()          — next gesture per rule
 //
 // ── Camera / possession ──────────────────────────────────────────
-//   L_CTRL/R_CTRL  toggle_fpv_mode()            — orbit ↔ first-person
-//   CAPS_LOCK      try_possess_nearest()        — possess nearest agent
 //
 // ── Diagnostics (function keys) ──────────────────────────────────
-//   F1             cycle_agent_behavior_override   none → random_walk → ...
-//   F2             cycle_agent_tier_override       none → worker → ...
-//   F3             force_respawn_population        repopulate evicted agents
-//   F4             cycle_cube_behavior_override    stationary → curlfield → phasewave
-//   F5             cycle_floater_coordination      0.0 → 0.5 → 1.0
-//   F6             corral_cubes                    glide cubes around pawn (4s)
-//   F7             toggle_cube_kite_mode           cubes follow pawn on/off
-//   F8             toggle_sky_mode                 sky-flight ribbon steering on/off
 //
 // ── Mouse / scroll ───────────────────────────────────────────────
-//   LMB drag       look_az_delta, look_el_delta
-//   RMB drag       pan_x_delta, pan_y_delta
-//   scroll         zoom_delta
 // ─────────────────────────────────────────────────────────────────
 
 // ═══ GLFW KEY CODE FALLBACKS ═════════════════════════════════════
-//
-// Some GLFW header configurations don't expose all of these key
-// constants by default. Defining them here as fallbacks lets the
-// switch below compile regardless of which GLFW variant the host
-// project ships. Values match the GLFW 3.x canonical numbering.
 
 #ifndef GLFW_KEY_KP_0
 #define GLFW_KEY_KP_0  320
@@ -154,10 +108,6 @@ namespace t7 {
 namespace the_board {
 
 // ═══ KEY DISPATCH ════════════════════════════════════════════════
-//
-// Routes each GLFW key event to the module-owned function listed in
-// the registry above. Sub-grouped to mirror the registry's order so
-// the table and the dispatch read in parallel.
 
 inline void on_key_down(Cartridge* c, int key) {
     // Single queue fetch: every queue-using case below reuses this.

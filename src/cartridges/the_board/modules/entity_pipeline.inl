@@ -1,80 +1,13 @@
 ﻿// ─── entity_pipeline.inl ─────────────────────────────────────────
 //
-// Generic entity lifecycle for the nine cookie-cutter families
-// (Blade, Palm, Cactus, Column+Antenna, Pyramid, Sphere, Cube,
-// Arch). Three generics drive every spawn:
-//
-//   generic_select  → tier roll, parameter sample, color compute
-//   generic_place   → footprint negotiation, position commit
-//   generic_commit  → active-array write, GPU upload, post-commit
+// Generic entity lifecycle for the nine cookie-cutter families (Blade,
+// Palm, Cactus, Column+Antenna, Pyramid, Sphere, Cube, Arch).
 //
 // Each family contributes a block with the same 10-element template
 // (see "Family block template" below). Type definitions live in
 // entity_types.hpp, a file-scope header included above the class, so
 // they precede every union by construction. This file is included
 // AFTER the unions.
-//
-// ┌─── Public surface ──────────────────────────────────────────────┐
-// │                                                                  │
-// │  Generics (called by FAMILY_DISPATCH wrappers below):            │
-// │    generic_select(traits, adapter, gx, gz, inst)                 │
-// │    generic_place(traits, inst)                                   │
-// │    generic_commit(traits, adapter, inst, queue)                  │
-// │                                                                  │
-// │  Helpers used by generic_select:                                 │
-// │    generic_compute_colors(inst, traits, tier)                    │
-// │      — default color path; reads TierProfile.color_var if set,   │
-// │        else falls back to ColorPartDef.variance (closes Q24)     │
-// │    rescale_to_rolled_target(inst, ceiling_h, lo, hi, current_h,  │
-// │                              params_to_scale)                    │
-// │      — shared helper for the rolled-target rescale pattern;      │
-// │        used by Palm / Pyramid / Arch / Antenna's per-family      │
-// │        apply_indoor_rescale functions                            │
-// │                                                                  │
-// │  Per-family dispatch wrappers (consumed by FAMILY_DISPATCH in    │
-// │  family_dispatch.inl — three per family, four families here      │
-// │  (column+antenna, pyramid, arch); blade/palm/cactus live in       │
-// │  entities.inl, sphere/cube with their M-c owners):                │
-// │    dispatch_{select,place,commit}_<family>_generic(...)          │
-// │                                                                  │
-// └──────────────────────────────────────────────────────────────────┘
-//
-// ┌─── Family block template ───────────────────────────────────────┐
-// │                                                                  │
-// │  Each family's section follows this 10-element shape:            │
-// │                                                                  │
-// │    1. <Family>Idx              param indices into params[]       │
-// │    2. <FAMILY>_PARAM_DEFS      param contracts (prop, floor,     │
-// │                                ceiling, dist)                    │
-// │    3. <Family>TierRow          TierProfile + per-family extras   │
-// │    4. <FAMILY>_TIERS           tier matrix                       │
-// │    5. <family>_get_tier_profile  accessor                        │
-// │    6. <FAMILY>_COLOR_PARTS     color part definitions            │
-// │    7. <FAMILY>_TRAITS          binds everything for the generic  │
-// │                                pipeline                          │
-// │    8. Adapter functions        run_gate, get_theme_tier_weights, │
-// │                                apply_indoor_rescale (or nullptr  │
-// │                                if not eligible for indoor),      │
-// │                                compute_solid_half,               │
-// │                                compute_colors (or nullptr → use  │
-// │                                generic_compute_colors),          │
-// │                                write_active, write_gpu,          │
-// │                                post_commit (optional)            │
-// │    9. <FAMILY>_ADAPTER         function-pointer table            │
-// │   10. Dispatch wrappers        three per family                  │
-// │                                                                  │
-// │  Don't fight the cookie-cutter — it's intentional specificity    │
-// │  per family, and the parallel structure makes the eight blocks   │
-// │  scannable side-by-side.                                         │
-// │                                                                  │
-// └──────────────────────────────────────────────────────────────────┘
-//
-// Included inside the Cartridge class body, AFTER the EntityQueueEntry
-// and PlacementEntry unions are declared in spawn_engine.inl.
-// Depends on: entity_types.hpp (declarations), seed_utils.hpp
-//             (cpu_hash_f, cpu_sample_gaussian, select_tier),
-//             entities.inl (vocabulary: tier enums, prop registries,
-//             color palettes, configs).
 //
 // SEAM[entity_pipeline:K1] tier sampling profile + extras live as a
 //   single per-family TierRow struct embedded in this file. Single
@@ -84,12 +17,6 @@
 // ═══ GENERIC HELPERS ═════════════════════════════════════════════
 
 // ─── Generic Color Derivation ────────────────────────────────────
-//
-// Default color computation: for each part, base + hash variance.
-// Per-tier color_var (when nonzero) overrides per-part variance —
-// closes Q24, retires the Blade/Cactus override pattern.
-// Families with exotic color logic (Column, Antenna, Pyramid,
-// Sphere, Cube, Arch, Palm) provide their own adapter fn.
 
 static void generic_compute_colors(EntityInstance& inst,
     const EntityFamilyTraits& traits,
@@ -109,36 +36,10 @@ static void generic_compute_colors(EntityInstance& inst,
 
 // ─── Indoor Rescale Helper ───────────────────────────────────────
 //
-// Indoor moods are walled spaces 20–25 m tall; their largest entity
-// budget is the room. Without a rescale, families like Pyramid
-// (~28–78 m natural HEIGHT), Antenna (~17–125 m), Palm (~8–35 m)
-// would spawn at outdoor scale and punch through the ceiling.
-//
-// Per-family rescale lives in each family's adapter functions block
-// (look for `<family>_apply_indoor_rescale`). Each function defines
-// its own policy:
-//
 //   • Columns: HEIGHT is set to ceiling_height exactly, and every
 //     other length param scales by the same ratio so proportions
 //     hold. The capital meets the ceiling — the column reads as
 //     part of the room's architecture, not a freestanding object.
-//
-//   • Palms: target rolled in [0.80, 0.95] × ceiling_height. Tighter
-//     than the default range — palms read as canopy-defining
-//     architectural anchors and look wrong when too small.
-//
-//   • Pyramid, Arch, Antenna: target rolled in [0.50, 0.95] ×
-//     ceiling_height. All length-like params scale by
-//     target / current_height. This is the "miniature feeling" —
-//     a Royal palm shrunk to 18 m keeps every internal proportion
-//     (frond length, taper, bark ring spacing); only the absolute
-//     scale changes.
-//
-// Cactus, Blade, Sphere, Cube are deliberately NOT eligible: their
-// natural outdoor heights are below the ceiling, so the rescale
-// would scale them UP rather than down — defeating the miniature
-// intent. Their adapters have nullptr in the apply_indoor_rescale
-// slot and the dispatch site skips the call.
 //
 // Param indices below are hand-curated per family — only LENGTH
 // dimensions get scaled, never ratios (TAPER, ENTASIS, ASPECT...),
@@ -153,10 +54,6 @@ static void generic_compute_colors(EntityInstance& inst,
 //   switch on family_id; lifted to per-family adapter slot during
 //   Pass 7 of the modularity rollout.
 
-// Helper used by Palm / Pyramid / Arch / Antenna for the rolled-
-// target rescale pattern. Rolls a target height in [target_lo,
-// target_hi] × ceiling_h, computes the scale factor from current_h,
-// applies it to every param index in params_to_scale.
 //
 // Column does NOT use this helper — its policy is "snap to ceiling
 // exactly" rather than "roll a target ratio."
@@ -176,21 +73,8 @@ static void rescale_to_rolled_target(EntityInstance& inst, float ceiling_h,
 }
 
 // ═══ GENERIC THREE-PHASE PIPELINE ════════════════════════════════
-//
-// generic_select → generic_place → generic_commit. These are the
-// implementations that every generic-pipeline family funnels into
-// (the four blocks below, the clean three in entities.inl, and the
-// sphere/cube recipes with their M-c owners)
-// via their dispatch wrappers.
 
 // ─── Generic Select ──────────────────────────────────────────────
-//
-// Tier selection + parameter sampling.  Spawn gate is handled by
-// the adapter's run_gate, which calls run_spawn_preamble with the
-// family's specific active array — exact behavioral parity.
-//
-// Returns true if entity was successfully selected. On success,
-// inst is fully populated except for position (cx, cz, rotation).
 
 bool generic_select(
     const EntityFamilyTraits& traits,
@@ -268,9 +152,6 @@ bool generic_select(
 }
 
 // ─── Generic Place ───────────────────────────────────────────────
-//
-// Position negotiation: jittered position, footprint check,
-// host patch resolution. Sets cx, cz, rotation, host_gx/gz.
 
 bool generic_place(
     const EntityFamilyTraits& traits,
@@ -290,9 +171,6 @@ bool generic_place(
     inst.cz       = pos.cz;
     inst.rotation = pos.rotation;
 
-    // Ground Y: GPU compute shader samples the heightfield at entity
-    // positions. The heightfield includes pier contributions, so entities
-    // on piers get the correct elevated Y automatically. CPU uploads 0.
     inst.cached_ground_y = 0.0f;
 
     record_placement_bookkeeping(traits.family_id, inst.tier_idx);
@@ -300,8 +178,6 @@ bool generic_place(
 }
 
 // ─── Generic Commit ──────────────────────────────────────────────
-//
-// GPU writes: active tracking, footprint, GPU params upload.
 
 void generic_commit(
     const EntityFamilyTraits& traits,
@@ -323,16 +199,8 @@ void generic_commit(
 }
 
 // ═══ FAMILIES: BLADE / PALM / CACTUS — RELOCATED ══════════════════
-//
-// The three clean recipes live with their owner: entities.inl
-// (tier tables, traits, adapters, dispatch funnels — beside the
-// preparers and evictors). Funnel declarations: entity_types.hpp;
-// table rows: family_dispatch.inl.
 
 // ═══ FAMILY: COLUMN + ANTENNA ═════════════════════════════════════
-//
-// Pier-creating entities sharing the ColumnTierRow shape. Antenna is a design cell division from Column.
-//
 
 // Shared param index layout (both families sample the same 13 params)
 struct ColIdx {
@@ -495,9 +363,6 @@ static SpawnGateOutput column_run_gate(Cartridge* c, int32_t gx, int32_t gz) {
 }
 static const float* column_get_theme_tier_weights(uint32_t ti) { return THEMES[ti].tier_wt_column; }
 
-// Column shares its rescale param list with Antenna (both use the same
-// ColumnTierRow shape and ColIdx layout). Antenna references this same
-// array from its own apply_indoor_rescale.
 static constexpr uint32_t COLUMN_INDOOR_RESCALE_PARAMS[] = {
     ColIdx::HEIGHT, ColIdx::SHAFT_RADIUS,
     ColIdx::BASE_HEIGHT, ColIdx::BASE_OVERHANG,
@@ -653,10 +518,6 @@ static SpawnGateOutput antenna_run_gate(Cartridge* c, int32_t gx, int32_t gz) {
 }
 static const float* antenna_get_theme_tier_weights(uint32_t ti) { return THEMES[ti].tier_wt_antenna; }
 
-// Antenna shares the ColumnTierRow / ColIdx layout with Column, so it
-// reuses COLUMN_INDOOR_RESCALE_PARAMS. Policy is rolled-target rather
-// than snap-to-ceiling — antennas read better as miniaturized than as
-// floor-to-ceiling.
 static void antenna_apply_indoor_rescale(EntityInstance& inst, float ceiling_h) {
     rescale_to_rolled_target(inst, ceiling_h,
         /*target_lo*/ 0.50f, /*target_hi*/ 0.95f,
@@ -808,9 +669,6 @@ static void dispatch_commit_antenna_generic(Cartridge* self, PlacementEntry& pe,
 }
 
 // ═══ FAMILY: PYRAMID ══════════════════════════════════════════════
-//
-// Heightfield-baking entity (GPUPyramidArray + mesh gen).
-//
 
 struct PyrIdx {
     static constexpr uint32_t HEIGHT     = 0;
@@ -1008,16 +866,8 @@ static void dispatch_commit_pyramid_generic(Cartridge* self, PlacementEntry& pe,
 }
 
 // ═══ FAMILIES: SPHERE / CUBE — RELOCATED ═════════════════════════
-//
-// The floater recipes live with their M-c owners: spheres.inl and
-// cube_behaviors.inl (tier tables, traits, adapters, dispatch
-// funnels — beside their evictors). Funnel declarations:
-// spheres.hpp / cube_behaviors.hpp; table rows: family_dispatch.inl.
 
 // ═══ FAMILY: ARCH ═════════════════════════════════════════════════
-//
-// 2-pier catenary entity with portal detection.
-//
 
 struct ArchIdx {
     static constexpr uint32_t SPAN         = 0;  // full span (halved in compute_solid_half)
@@ -1290,11 +1140,5 @@ static void dispatch_commit_arch_generic(Cartridge* self, PlacementEntry& pe, wg
 }
 
 // ─── FAMILY_DISPATCH Integration ─────────────────────────────────
-//
-// The dispatch wrappers above are entries in FAMILY_DISPATCH
-// (modules/family_dispatch.inl) — three per family; four families
-// here, the rest with their owners. Adding a new family means
-// adding a block matching the template in this file's header (with
-// its owner), plus three entries in the table.
 
 // ═══ END entity_pipeline.inl ═════════════════════════════════════

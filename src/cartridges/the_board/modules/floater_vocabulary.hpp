@@ -6,47 +6,7 @@
 // Converted (LADDER-2 c0/c4): history in audit/LADDER.md.
 //
 // Vocabulary for the two generic-pipeline floater families: Sphere
-// (orbital, PGA motor-driven) and Cube (hover-bob monoliths). Tier
-// counts, base tier weights, spawn config, property-index registry,
-// runtime tracking TYPES. Pure vocabulary: zero state, zero functions.
-// Namespace t7::the_board.
-//
-// ┌─── Family overview ─────────────────────────────────────────────┐
-// │                                                                  │
-// │  Family   GPU compute    Vertex shader    Behavior layer         │
-// │  ──────   ───────────    ─────────────    ────────────────       │
-// │  Sphere   update_sphere  sphere_vs        none (analytical PGA)  │
-// │  Cube     update_cube    monolith_vs      cube_behaviors.inl     │
-// │                                                                  │
-// │  Three concerns, three files (per family):                       │
-// │    Vocabulary           → here                                   │
-// │    Sampling profile     → entity_pipeline.inl (TierRow + traits) │
-// │    Behavior layer       → cube_behaviors.inl (cubes only)        │
-// │                                                                  │
-// └──────────────────────────────────────────────────────────────────┘
-//
-// ┌─── Public surface (consumed by other files) ────────────────────┐
-// │                                                                  │
-// │  Sphere:                                                         │
-// │    SPHERE_TIER_COUNT, SPHERE_BASE_TIER_WEIGHTS                   │
-// │    SPHERE_TIER_NAMES                                             │
-// │    SphereConfig (SPAWN_CHANCE, MOOD_MULTIPLIER, POSITION_JITTER) │
-// │    FloatingEntityProp (property indices 100–126)                 │
-// │    ActiveFloater (type; the active-slot STATE lives in           │
-// │                   SphereState, spheres.hpp)                      │
-// │                                                                  │
-// │  Cube:                                                           │
-// │    CUBE_TIER_COUNT, CUBE_BASE_TIER_WEIGHTS                       │
-// │    CUBE_TIER_NAMES                                               │
-// │    CubeConfig (SPAWN_CHANCE, MOOD_MULTIPLIER, POSITION_JITTER)   │
-// │    CubeEntityProp (property indices 130–156)                     │
-// │    ActiveCube (type; the active-slot STATE lives in              │
-// │                CubeBehaviorsState, cube_behaviors.inl — c0)      │
-// │                                                                  │
-// └──────────────────────────────────────────────────────────────────┘
-//
-// Depends on: <cstdint>, mood_constants.hpp (MOOD_COUNT). Nothing else —
-// share vocabulary freely, never state.
+// (orbital, PGA motor-driven) and Cube (hover-bob monoliths).
 //
 // STATUS: LATENT[naming] — ActiveFloater is the sphere family's active
 //   struct; the ActiveFloater -> ActiveSphere rename is flagged, not
@@ -83,11 +43,6 @@ namespace t7 {
 namespace the_board {
 
 // ═══ FAMILY: SPHERE ═══════════════════════════════════════════════
-//
-// Orbital spheres. Rare, PGA motor-driven orbits around anchors.
-// Slots 0 .. MAX_SPHERE_INSTANCES-1 in the shared floating entity buffer.
-// No behavior layer — the GPU compute kernel (update_sphere) drives
-// spheres entirely from analytical PGA orbits.
 
 // ── Tier registry ────────────────────────────────────────────────
 inline constexpr uint32_t SPHERE_TIER_COUNT = 2;
@@ -103,9 +58,6 @@ struct SphereConfig {
 };
 
 // ── Property Index Registry ──────────────────────────────────────
-// Range: 100–126 (legacy "FloatingEntity" name preserved for seed
-// stability — renaming the struct would change hash inputs and shift
-// every sphere's parameters across already-rendered worlds).
 struct FloatingEntityProp {
     static constexpr uint32_t SPAWN_ROLL = 100u;
     static constexpr uint32_t ANCHOR_X = 101u;
@@ -134,27 +86,11 @@ struct FloatingEntityProp {
 struct ActiveFloater {
     int32_t patch_gx = 0, patch_gz = 0;
     int32_t host_gx = 0, host_gz = 0;
-    // See ActiveCube::last_alloc_time — same race protection for
-    // sphere slots. Spheres rarely evict in practice (orbital,
-    // anchored at origin), but the readback path covers them
-    // uniformly so the protection covers them uniformly too.
     float   last_alloc_time = -1000.0f;
     bool active = false;
 };
 
 // ═══ FAMILY: CUBE ═════════════════════════════════════════════════
-//
-// Hover-bob monoliths. Colorful cubes/slabs floating above terrain.
-// Slots 0 .. MAX_CUBE_INSTANCES-1 (buffer offset by CUBE_SLOT_OFFSET).
-// Behavior layer (forces, coordination, kite mode, corral) lives in
-// cube_behaviors.inl.
-//
-// Lineage. Cube and Sphere are siblings by file (both generic-
-// pipeline floaters) but distinct in shape: sphere has orbit
-// radius/speed/height, cube doesn't. Sphere has no behavior layer
-// (analytical PGA orbits); Cube has a full behavior system. The
-// shared infrastructure lives in entity_pipeline.inl as their
-// per-family TierRow and adapters.
 
 // ── Tier registry ────────────────────────────────────────────────
 inline constexpr uint32_t CUBE_TIER_COUNT = 4;
@@ -197,18 +133,7 @@ struct CubeEntityProp {
 struct ActiveCube {
     int32_t patch_gx = 0, patch_gz = 0;
     int32_t host_gx = 0, host_gz = 0;
-    // World XZ of the cube's anchor — mirror of fe.anchor[0,2] on GPU.
-    // Captured at spawn so cube_behaviors.inl::corral_cubes can read
-    // the current anchor without a GPU readback. Updated when corral
-    // writes a new anchor.
     float   cx = 0.0f, cz = 0.0f;
-    // Time (time_state_.seconds) when this slot was last marked active.
-    // Used to suppress race between freshly allocated slots and the
-    // floater readback path: readback callbacks process previous-frame
-    // data, so a slot allocated this frame would be incorrectly marked
-    // inactive by the readback (which sees the *prior tenant* as
-    // evicted). Suppression window covers two readback cycles. See
-    // render() floater sync block for the consumer.
     float   last_alloc_time = -1000.0f;
     bool active = false;
 };

@@ -9,20 +9,13 @@
 // ─── ribbon.hpp (HEADER: console + vocabulary + state + decls) ───
 // Converted (LADDER-3 c5): history in audit/LADDER.md.
 //
-// Sky Ribbon: complete subsystem (vocabulary + machinery in one
-// module). Single-instance, bespoke pipeline — runs through the
-// 3-phase select/place/commit shape but doesn't share entity_pipeline's
-// generic machinery.
+// Sky Ribbon: complete subsystem (vocabulary + machinery in one module).
 //
 // THE HEAD IS THE INSTRUMENT; THE BODY IS THE LAW'S CONSEQUENCE.
 // Every author — player, wanderer, and (soon) the musical canvas —
 // plays the head through one steering integrator and one altitude
 // pen; the propagation law replays the head's past down the body at
 // P. Couple the head, and the rest follows.
-//
-// Flying ribbons: compound wave functions (lateral + vertical sway)
-// forming square-tube geometry in the sky. Each ribbon is a tier
-// instance with Gaussian-sampled parameters.
 //
 // PAIRING (the mirror law, AMENDED at LADDER-3 c5): the constitution's
 // practiced convention — the_board/the_chord mirrored-module deltas are
@@ -35,47 +28,8 @@
 // split remain subject to the mirror law's spirit until the pairing is
 // re-ratified.
 //
-// ┌─── Public surface (called from outside this module) ────────────┐
-// │                                                                  │
-// │  Module functions take RibbonState& explicitly. This makes       │
-// │  ribbon's state ownership language-visible and cross-cutting     │
-// │  dependencies explicit in function signatures.                   │
-// │                                                                  │
-// │  Lifecycle (three-phase):                                        │
-// │    select_ribbon_for_patch(rs, c, gx, gz, sel)  — Phase 1: roll  │
-// │    place_ribbon_from_selection(c, sel, plan)    — Phase 2: place │
-// │      (note: takes no RibbonState — only mediates between sel     │
-// │       and spawn-engine helpers; not part of ribbon's data)       │
-// │    commit_ribbon(rs, c, plan, gx, gz, queue)    — Phase 3: state │
-// │                                                                  │
-// │  Frame conductor (ONE call per frame from render()):             │
-// │    ribbon_frame_tick(rs, c, queue)                               │
-// │      — author selection, slot hold/adopt, uploads, advance       │
-// │                                                                  │
-// │  Head mover (called by the conductor):                           │
-// │    ribbon_advance_head(rs, gpuState, queue, ribbon, slot, …)     │
-// │    ribbon_head_pose(rs, x, y, z, h)   — the SADDLE (mount)       │
-// │    ribbon_head_frame(rs, yaw_off, pitch, roll) — render (saddle) │
-// │    ribbon_head_pen(rs, x, z, h)       — the PEN (steering reads) │
-// │    ribbon_invalidate_head(rs), ribbon_head_is(rs, slot)          │
-// │                                                                  │
-// │  Shared geometry helper (also called by mood.inl::apply_mood     │
-// │  for the mood-5 forced spawn path):                              │
-// │    fill_ribbon_selection_geometry(seed, tier, sel)               │
-// │      — pure; no ribbon state needed                              │
-// │                                                                  │
-// │  Cross-module reads (consumed by spine, mood.inl, render):       │
-// │    ribbon_state_.active[], ribbon_state_.gpu[]   — read by spine │
-// │    ribbon_state_.active_count                    — read by spine │
-// │    ribbon_state_.rendered_slot                   — read by spine │
-// │    ribbon_state_.mood_offset                     — read by mood  │
-// │    MAX_RIBBON_INSTANCES                                          │
-// │                                                                  │
-// └──────────────────────────────────────────────────────────────────┘
-//
-// Depends on: state.hpp (Dim::*, GPURibbonState, GPUState wires, wgpu),
-// mood_constants.hpp (MOOD_COUNT). The impl additionally reaches
-// spawn-engine services (run_spawn_preamble, negotiate_position,
+// The impl additionally reaches spawn-engine services
+// (run_spawn_preamble, negotiate_position,
 // record_placement_bookkeeping), seed_utils.hpp, and cartridge core
 // (time_state_.seconds/dt/beat_rate, Cartridge::THEMES,
 // Cartridge::PATCH_EXTENT, the four ribbon canvas bindings, player_ sky
@@ -102,11 +56,6 @@ namespace t7 {
 namespace the_board {
 
 // ═══ TUNING CONSOLE ══════════════════════════════════════════════
-//
-// System-level dials for the ribbon subsystem — the DESIGN-TIME
-// control panel (change and rebuild). Per-tier values (the Gaussian
-// means/sigmas that shape each tier's feel) live in RIBBON_TIERS
-// below. Everything here applies across all tiers.
 
 // ── Spawn ────────────────────────────────────────────────────────
 struct RibbonConfig {
@@ -120,15 +69,8 @@ struct RibbonConfig {
 };
 
 // ── Length cap ───────────────────────────────────────────────────
-// Total ribbon length (cube_count × cube_size) is capped here to
-// keep anchor coverage viable (700 u = 14 patches). RIBBON_MAX_LENGTH
-// itself is defined below in this file (Capacity section); consumed
-// in fill_ribbon_selection_geometry.
 
 // ── Geometry / placement ─────────────────────────────────────────
-// Floors on the Gaussian-sampled shape draws plus the fixed spawn
-// footprint and orientation spread. Consumed in
-// fill_ribbon_selection_geometry / select_ribbon_for_patch.
 inline constexpr float MIN_CUBE_COUNT     = 20.0f;    // floor on Gaussian-sampled cube_count
 inline constexpr float MIN_CUBE_SIZE      = 1.0f;     // floor on cube_size
 inline constexpr float MIN_ADDED_HEIGHT   = 20.0f;    // floor on the clearance draw
@@ -154,10 +96,6 @@ inline constexpr float RIBBON_SKY_YAW_TAU    = 0.6f;    // s; first-order ease o
 inline constexpr float RIBBON_REFERENCE_BPM  = 100.0f;  // the tempo at which the tiers' authored sway is DEFINED; phase advances at live-tempo/this (control-panel)
 
 // ── Frame-law mirrors (BNK-2) ── LOCKSTEP MIRRORS of world.wgsl's
-// RIBBON_TANGENT_ALIGN / RIBBON_BANK_GAIN / RIBBON_BANK_MAX. The GPU set
-// is the tuning authority (hot-reload); when a value settles there, copy
-// it here. Drift is SELF-ANNOUNCING: the rider visibly leans differently
-// than the face beneath it. (values below = the settled BNK-1 values)
 inline constexpr float MOUNT_TANGENT_ALIGN = 1.0f;
 inline constexpr float MOUNT_BANK_GAIN     = 0.9f;
 inline constexpr float MOUNT_BANK_MAX      = 0.6f;
@@ -201,9 +139,6 @@ inline constexpr float RIBBON_SMOOTH_PALETTE[][3] = {
 inline constexpr uint32_t RIBBON_SMOOTH_PALETTE_COUNT = 4;
 
 // ── Color character ──────────────────────────────────────────────
-// Per-mode dials for the color draws in fill_ribbon_selection_geometry.
-// Structure (which hash prop feeds which channel, the (1 - hue) on
-// CONTRAST green) stays in code; only the magnitudes live here.
 
 // SMOOTH: per-channel variance around the palette base.
 //   var = hash * RANGE + BIAS; applied as { +var, +var*G, +var*B }.
@@ -216,18 +151,6 @@ inline constexpr float SMOOTH_VAR_B_SCALE = 0.6f; // blue  channel gets var * B_
 inline constexpr float TINTED_RANGE[3] = { 0.45f, 0.40f, 0.45f };
 inline constexpr float TINTED_BASE[3]  = { 0.40f, 0.35f, 0.35f };
 
-// CONTRAST — the checker pair raffle, shaped like the terrain's §2.2
-// palette system. Each pair authors its colors AND its character:
-//   value_var — per-cell lightness texture: fraction of headroom each
-//               cell travels toward black/white (clip-free). Legibility
-//               guidance: beyond ~0.15 the dark/light parity starts to
-//               blur; author past it only on purpose.
-//   hue_var   — 0..1, the colorful axis: scales the per-cell hue
-//               rotation and chroma injection (world.wgsl skin block).
-//               0 = strict chessboard; 1 = full-wheel mosaic on BOTH
-//               squares (light cells go pastel at their own lightness).
-//   weight    — cumulative-roll probability; rare pairs are events.
-// Weights sum to 1. All control-panel; author freely.
 struct CheckerPair {
     float dark[3];
     float light[3];
@@ -266,12 +189,6 @@ inline constexpr float FREE_HUE_VAR[2]    = { 0.00f, 1.00f };  // raffled, UNCAP
 inline constexpr float CHROMA_D1[3] = { 0.8165f, -0.4082f, -0.4082f };
 inline constexpr float CHROMA_D2[3] = { 0.0f,     0.7071f, -0.7071f };
 
-// MEDIAN-FIELD species — some cell-skinned ribbons are not defined by
-// contrast at all: ONE median, cells as variations around it — the
-// terrain-patch grammar on a tube (color_b == color; the parity term
-// vanishes by algebra). Luma band is broad (no parity to protect);
-// VALUE_VAR floor sits higher so the cells read through texture, as
-// terrain cells do. All control-panel.
 inline constexpr float CELLS_MEDIAN_CHANCE   = 0.35f;  // species roll, above the pair fork
 inline constexpr float MEDIAN_LUMA[2]        = { 0.25f, 0.85f };
 inline constexpr float MEDIAN_CHROMA[2]      = { 0.04f, 0.30f };
@@ -279,20 +196,6 @@ inline constexpr float MEDIAN_VALUE_VAR[2]   = { 0.06f, 0.35f };
 inline constexpr float MEDIAN_HUE_VAR[2]     = { 0.00f, 1.00f };
 
 // ═══ PROPERTY INDEX REGISTRY ═════════════════════════════════════
-//
-// Stride convention (intentional, do not compact):
-//   400      SPAWN_ROLL
-//   401-409  per-instance scalar rolls (ANCHOR_X..PALETTE_IDX)
-//   410-419  cube-count / size / height       (10-row reserve)
-//   420-429  lateral wave  (amp, cycles, speed; rest reserved)
-//   430-439  vertical wave (amp; rest reserved)
-//   440-449  checker skin  (pair roll, median jitter, hue sibling-jitter; rest reserved)
-//   450-459  wander        (roll, cruise, rng seed; rest reserved)
-//   460-469  checker free raffle (mode, dark l/c/h, light l/c/h, vars; rest reserved)
-//   470-479  checker median-field (species roll, luma, chroma, hue, vars; rest reserved)
-//   The per-axis stride of 10 leaves room for future per-axis
-//   params without renumbering downstream. Same self-documentation
-//   discipline used by the WGSL side.
 
 struct RibbonProp {
     static constexpr uint32_t SPAWN_ROLL = 400u;
@@ -338,9 +241,6 @@ struct RibbonProp {
 };
 
 // ═══ TIER PROFILE + MATRIX ═══════════════════════════════════════
-//
-// Three tiers — Serpentine, Helix, Streamer — each with mean+sigma
-// for every wave/geometry parameter. Pattern matches GoLTierProfile.
 
 inline constexpr uint32_t RIBBON_TIER_COUNT = 3;
 inline constexpr float RIBBON_BASE_TIER_WEIGHTS[RIBBON_TIER_COUNT] = {
@@ -352,17 +252,8 @@ struct RibbonTierProfile {
     float cube_count_mean, cube_count_sigma;
     float cube_size_mean, cube_size_sigma;
 
-    // Cube count ~50–115 across tiers; cube size ~3.5–10 (Serpentine chunky).
-
     // ─── Altitude ────────────────────────────────────────────
     float height_mean, height_sigma;
-
-    // Flying height: 50–80 units. All wave params independently seeded.
-
-    // Trail-frame: tiers author lateral_cycles (aesthetic visible cycles)
-    // + amps. Temporal rate is derived at commit: freq = cycles * 2pi *
-    // propagation_speed / total_length; vertical shares the lateral cycles
-    // (one visible wavelength, two amplitudes).
 
     // ─── Lateral wave ─────────────────────────────────────
     float lateral_amp_mean, lateral_amp_sigma;
@@ -378,30 +269,13 @@ struct RibbonTierProfile {
     float weight;
 };
 
-//                          ┌── Serpentine ──┬──── Helix ─────┬─── Streamer ───┐
-//                          │   μ       σ    │   μ       σ    │   μ       σ    │
 // ─── Geometry ────────────┤                │                │                │
-//   cube_count             │  70       7    │  85      12    │  90       9    │
-//   cube_size              │   8.0     1.0  │   5.0     0.8  │   6.0     0.8  │
 // ─── Altitude ────────────┤                │                │                │
-//   height                 │  60      15    │  55      12    │  70      20    │
 // ─── Lateral wave ────────┤                │                │                │
-//   lateral_amp            │  10.0     0.6  │   3.5     0.6  │   5.5     0.8  │
-//   lateral_cycles         │   1.2     0.3  │   1.8     0.5  │   1.5     0.4  │
 // ─── Vertical wave ───────┤  cycles = lateral (one wavelength, two amps)     │
-//   vertical_amp           │   5.0     0.8  │   2.5     0.5  │   8.0     1.2  │
 // ─── Trail-frame ─────────┤                │                │                │
-//   propagation_speed      │  40.0          │  24.0          │  48.0          │
 // ─── Selection ───────────┤                │                │                │
-//   weight                 │   0.45         │   0.30         │   0.25         │
-//                          └────────────────┴────────────────┴────────────────┘
 //
-// LENGTH LAW — the tier means live UNDER the cap; they do not fight it.
-//   μ_len = count·size ≈ 0.8 × RIBBON_MAX_LENGTH (560 / 425 / 540 u), with
-//   +2σ_len ≈ the cap, so the Gaussian breathes and capping is a rare tail
-//   event rather than the norm. lateral_cycles were rescaled by μ_len/700
-//   from the capped-era values, preserving each tier's temporal sway rate
-//   (freq = cycles·2π·P/L): 0.54 / 0.64 / 0.84 rad/s at the means.
 inline constexpr RibbonTierProfile RIBBON_TIERS[RIBBON_TIER_COUNT] = {
     // Tier 0: Serpentine — long, massive, slow motion
     {    70.0f,  7.0f,      // cube_count
@@ -447,11 +321,6 @@ inline constexpr const char* RIBBON_COLOR_NAMES[] = {
 // the boundary's contract, not to either side.
 
 // ═══ RUNTIME STATE ═══════════════════════════════════════════════
-//
-// Per-instance ribbon state, the GPU-state mirrors, and the head —
-// the one live instrument. Single-render today
-// (MAX_RIBBON_INSTANCES = 1), structured to scale when the GPU
-// supports multi-ribbon.
 
 // ── Capacity ─────────────────────────────────────────────────────
 inline constexpr uint32_t MAX_RIBBON_INSTANCES = 1;  // single-render; raise when GPU supports multi-ribbon
@@ -488,12 +357,6 @@ struct ActiveRibbon {
 };
 
 // ── The head ──────────────────────────────────────────────────────
-// The live instrument: integrated position, heading, the altitude
-// pen, and the propagation history the body is rebuilt from. ONE head
-// exists (the rendered ribbon wears it); identity is (seeded, slot),
-// and since slots are reused, REBIRTH is signalled by
-// ribbon_invalidate_head — commit sends it (see the succession note
-// there).
 struct RibbonHead {
     bool     seeded = false;
     uint32_t slot = UINT32_MAX;
@@ -504,18 +367,11 @@ struct RibbonHead {
     float    heading = 0.0f;               // sky-flight heading (yawed by input)
     float    pos[3] = { 0.0f, 0.0f, 0.0f };  // live integrated head position
     float    mount[3] = { 0.0f, 0.0f, 0.0f }; // visible head-ring center + half-tube (pawn mount point)
-    // The saddle's FRAME (BNK-2): the three angles the mounted pawn
-    // leans with — same math as the GPU ring frames (MOUNT_* mirrors),
-    // sampled at the saddle's arc position. Shipped to the pawn kernel
-    // through the frame signal's sky block. Zeros = level (identity).
     float    mount_yaw_off = 0.0f;  // tangent-align yaw deflection (rad)
     float    mount_pitch   = 0.0f;  // tangent-align pitch (rad)
     float    mount_roll    = 0.0f;  // bank into the lateral swing (rad, clamped)
 
     // ── Propagation history ── the body is the head's past, replayed at
-    // propagation speed: ring k wears the head's state from
-    // age = k·spacing/P seconds ago. Two channels suffice (heading, y);
-    // XZ is reconstructed by integrating the delayed heading tailward.
     static constexpr float    HIST_DT  = 0.05f;  // sample cadence (s)
     static constexpr uint32_t HIST_CAP = 1024u;  // ~51 s of past > max body age (~29 s = RIBBON_MAX_LENGTH / slowest tier P — grow this if the cap grows)
     std::array<float, HIST_CAP> hist_heading{};
@@ -525,42 +381,20 @@ struct RibbonHead {
 };
 
 // ── Ribbon module state ──────────────────────────────────────────
-// Most ribbon-owned state lives in this struct, accessed via
-// ribbon_state_ on the Cartridge (declared at the composition root) —
-// the exceptions are the four ribbon canvas bindings and
-// player_.sky_yaw_eased, which live on the Cartridge (the conductor
-// writes them). Module functions take `RibbonState& rs` explicitly
-// rather than reaching via Cartridge*, making ownership
-// language-visible and dependencies explicit in signatures.
 struct RibbonState {
     ActiveRibbon   active[MAX_RIBBON_INSTANCES]{};
     uint32_t       active_count = 0;
 
-    // GPU-state CPU mirror. Per-frame, the spine picks the nearest
-    // ribbon to the pawn and uploads its slot to the GPU.
-    // rendered_slot is the currently rendered slot (UINT32_MAX = none).
     GPURibbonState gpu[MAX_RIBBON_INSTANCES]{};
     uint32_t       rendered_slot = UINT32_MAX;
 
     // The head mover — see RibbonHead above.
     RibbonHead     head{};
 
-    // Mood-5 ribbon anchor offset. Seed-derived position centered on
-    // the finite world. Adjust to manually shift the mood-5 anchor XZ
-    // (read by mood.inl::apply_mood).
     float          mood_offset[2] = { 0.0f, 0.0f };
 };
 
 // ═══ MODULE FUNCTIONS — DECLARATIONS ═════════════════════════════
-//
-// DEFINED in ribbon.inl (post-class, self-wrapping) — the bodies reach
-// the keyhole (gpuState_/time_state_/player_/inputState_/
-// visual_canvas_ + the ribbon canvas bindings and the spine services)
-// and in-class statics (Cartridge::THEMES / Cartridge::PATCH_EXTENT)
-// via the complete type; PopFamily is roster.hpp vocabulary. wander_rand01,
-// ribbon_wander_inputs, ribbon_history_sample and
-// ribbon_rebuild_body_upload are module-internal (impl-only, not
-// declared here).
 
 // Lifecycle (three-phase)
 bool select_ribbon_for_patch(RibbonState& rs, Cartridge* c,
@@ -570,7 +404,7 @@ bool place_ribbon_from_selection(Cartridge* c,
 void commit_ribbon(RibbonState& rs, Cartridge* c,
     const RibbonPlacement& plan,
     int32_t trigger_gx, int32_t trigger_gz, wgpu::Queue& queue);
-// The evictor — lifecycle, absorbed per §5 EVICTION THUNKS; keyhole-shaped
+// The evictor — keyhole-shaped
 // to match the FAMILY_DISPATCH evict slot (table in family_dispatch.inl);
 // carries the sky-mode pin (SEAM[ribbon:sky-mode]) and ref-count law
 void evict_ribbon(Cartridge* self, uint32_t slot, wgpu::Queue& queue);

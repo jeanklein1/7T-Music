@@ -12,26 +12,13 @@
 // Cartridge::solve_catenary_a / Cartridge::PATCH_EXTENT /
 // Cartridge::TransitionPhase).
 //
-// THE CHANNEL: the force-spawn mutation of the arch belongs to the
-// arch's owner. force_spawn_portal_at below COMPUTES VALUES — the
-// destination, the position, the flags, the portal color — and calls
-// entities' force_spawn_portal_arch (entities.inl), which owns the slot
-// scan, the tier-mean geometry, the pier authorship, the slot writes,
-// arch_count, and mesh-pending. Mood never writes a peer’s fields. All
-// three spawner paths (general / back / finite) route through the one
-// choke point.
+// THE CHANNEL: the force-spawn mutation of the arch belongs to the arch's owner.
 //
 // The indoor lighting-scheme tables live impl-side: single consumer
 // (derive_indoor_lights); module-internal authoring tables. The wall
 // PALETTES — the other half of SEAM[mood:tuning-data] — live in mood.hpp.
 //
-// WRAPPING FORM (the proven fix-2 rule): SELF-WRAPPING — opens
-// t7::the_board itself, carries its own standard includes; the MODULE
-// IMPLEMENTATIONS zone includes it at FILE SCOPE. Definitions are
-// `inline` free functions. Section order is the original;
-// force_spawn_finite_portals keeps its position via the impl-internal
-// forward declaration below (namespace scope has no class-body
-// two-pass lookup).
+// WRAPPING FORM (fix-2): SELF-WRAPPING — the zone includes impls at FILE SCOPE; law in audit/LADDER.md.
 // ─────────────────────────────────────────────────────────────────
 
 #include <algorithm>   // std::max, std::min, std::clamp
@@ -58,20 +45,6 @@ inline void force_spawn_finite_portals(Cartridge* c, wgpu::Queue& queue);
 // (SEAM[mood:tuning-data] names the split).
 
 // ── Indoor Lighting Schemes ───────────────────────────────
-//
-// Seed-driven procedural lighting for indoor moods. Each scheme
-// defines a lighting character (which surfaces carry lights,
-// how many, primary vs accent roles). Per-light parameters
-// (position along surface, intensity, cone width, color warmth)
-// are derived from world_state_.active_seed at mood transition time.
-//
-// Three schemes:
-//   Cathedral — ceiling primary + two opposing wall sconces
-//   Gallery   — two opposing wall lights, no ceiling (dramatic)
-//   Sanctum   — single source, maximum contrast
-//
-// The seed also picks which wall pair (N/S or E/W) carries the
-// sconces, so rooms with the same scheme still feel different.
 
 enum class LightAnchor : uint32_t {
     CEILING, WALL_NORTH, WALL_SOUTH, WALL_EAST, WALL_WEST
@@ -93,11 +66,6 @@ struct IndoorLightProp {
     static constexpr uint32_t AIM_YAW = 7u;
 };
 
-// Slot definition: anchor surface + gaussian ranges for the
-// light's character. Position slide uses fixed sigmas.
-// Direction is fully parameterised per slot:
-//   aim_pitch — angle below horizontal (wall) or off-vertical (ceiling), radians
-//   aim_yaw   — lateral rotation along the anchor surface, radians
 struct LightSlotDef {
     LightAnchor anchor;
     float intensity_mean, intensity_sigma;
@@ -117,13 +85,6 @@ inline constexpr const char* SCHEME_NAMES[] = { "Cathedral", "Quartet", "Gallery
 inline constexpr const char* ANCHOR_NAMES[] = { "ceiling", "wall_N", "wall_S", "wall_E", "wall_W" };
 
 // ── Lighting Scheme Table ──
-//
-// Constexpr tier matrix for indoor lighting.
-// AnchorRole is resolved to a concrete LightAnchor at runtime
-// (WALL_A/B → N/S or E/W depending on seed-driven wall pair).
-//
-// To tune a scheme: adjust its rows. To add a scheme: add a block
-// + SCHEME_COUNT + SCHEME_WEIGHTS entry.
 
 enum class AnchorRole : uint32_t {
     CEILING,    // always ceiling
@@ -140,14 +101,6 @@ struct LightSchemeSlot {
     float warmth_mean, warmth_sigma;
     float aim_pitch_mean, aim_pitch_sigma;
     float aim_yaw_mean, aim_yaw_sigma;
-    // Position on the anchor surface (0..1 along the surface span).
-    // For ceiling: lat=X-axis, hfrac=Z-axis (both in [0..1]).
-    // For walls:   lat=along-wall, hfrac=height (both in [0..1]).
-    // Existing schemes (Cathedral/Gallery/Sanctum) used hardcoded
-    // 0.5/0.65 means with 0.15/0.10 sigmas; they keep that here.
-    // New schemes (e.g. Quartet) override per slot to place lights
-    // deliberately rather than relying on each one rolling near
-    // center independently.
     float lat_mean, lat_sigma;
     float hfrac_mean, hfrac_sigma;
 };
@@ -190,10 +143,6 @@ inline constexpr LightScheme LIGHT_SCHEMES[SCHEME_COUNT] = {
 };
 
 // ═══ INDOOR LIGHT DERIVATION ═════════════════════════════════════
-//
-// Selects a lighting scheme from world_state_.active_seed, then derives
-// per-light parameters (position, direction, intensity, cone,
-// color) from the seed. Called once at mood transition.
 
 inline void derive_indoor_lights(Cartridge* c, uint32_t seed, float bmin, float bmax,
     float ceiling_height, CeilingType ceiling_type) {
@@ -248,13 +197,6 @@ inline void derive_indoor_lights(Cartridge* c, uint32_t seed, float bmin, float 
         uint32_t base = IndoorLightProp::SLOT_BASE + i * 10;
         auto& L = c->cpuSpotLights_.lights[i];
 
-        // Position: slide along anchor surface. Mean/sigma come from the
-        // scheme slot — Cathedral/Gallery/Sanctum keep their previous
-        // (0.5, 0.15) / (0.65, 0.10) behavior, while Quartet pins each
-        // slot to a specific quadrant via tighter sigma.
-        // Clamp ranges differ by anchor: ceilings use 10–90% of either axis
-        // (lights stay inside the room edge by 10%); walls use 40–85% along
-        // the wall and 40–85% in height (sconce range, not floor or trim).
         float lat = std::clamp(
             cpu_sample_gaussian(seed, base + IndoorLightProp::LATERAL,
                 s.lat_mean, s.lat_sigma),
@@ -297,9 +239,6 @@ inline void derive_indoor_lights(Cartridge* c, uint32_t seed, float bmin, float 
             break;
         }
 
-        // Direction: seed-driven pitch + yaw per slot definition.
-        //   pitch — angle below horizontal (wall) or off-vertical (ceiling)
-        //   yaw   — lateral rotation along the anchor surface
         float pitch = cpu_sample_gaussian(seed, base + IndoorLightProp::AIM_PITCH,
             s.aim_pitch_mean, s.aim_pitch_sigma);
         float yaw = cpu_sample_gaussian(seed, base + IndoorLightProp::AIM_YAW,
@@ -375,9 +314,6 @@ inline void derive_indoor_lights(Cartridge* c, uint32_t seed, float bmin, float 
 
     // ─── Vault Uplight ───────────────────────────────────────
     //
-    // If ceiling is VAULT and a slot is free, add an upward-facing
-    // floor light. Low intensity, very wide cone aimed at the crown.
-    // Self-shadowing reveals groin vault ridge structure.
     if (ceiling_type == CeilingType::VAULT && count < MAX_SPOT_LIGHTS) {
         auto& L = c->cpuSpotLights_.lights[count];
         float center = (bmin + bmax) * 0.5f;
@@ -405,11 +341,6 @@ inline void derive_indoor_lights(Cartridge* c, uint32_t seed, float bmin, float 
 }
 
 // ═══ APPLY MOOD ══════════════════════════════════════════════════
-//
-// One canonical mood entry point: apply_mood. Four named sub-
-// functions handle atmospheric, spot lighting, indoor shell, and
-// anchor ribbon. The orchestrator owns only ordering and the
-// activate-mood bookkeeping.
 
 // 1) Atmospheric: sun direction/color/intensity, fog, ambient,
 //    terrain amp ceiling. Touches GPU directly + a few member fields.
@@ -438,17 +369,11 @@ inline void apply_mood_lighting(Cartridge* c, const MoodProfile& m, wgpu::Queue&
     c->clearColor_[1] = m.clear_color[1];
     c->clearColor_[2] = m.clear_color[2];
 
-    // Fog retired here — density and color are now field-driven and flushed every
-    // frame by the visual-canvas fog flush in cartridge.hpp::update(). apply_mood
-    // no longer touches fog.
     c->gpuState_.set_terrain_amp_ceiling(m.indoor ? 0.5f : 0.0f);
     c->mood_state_.terrain_amp_ceiling = m.indoor ? 0.5f : 0.0f;
     c->entities_state_.lights_dirty = true;
 }
 
-// 2) Indoor spot lights — only fires when m.indoor. Mutes the sun-VP
-//    coupling because the atlas shadow loop owns light_vp in indoor
-//    moods (see comment-as-policy at the call site).
 inline void apply_mood_spot_lights(Cartridge* c, const MoodProfile& m, wgpu::Queue& queue) {
     c->cpuSpotLights_ = GPUSpotLightArray{};
     if (m.indoor) {
@@ -470,10 +395,6 @@ inline void apply_mood_spot_lights(Cartridge* c, const MoodProfile& m, wgpu::Que
     }
 }
 
-// 3) Indoor shell + camera ceiling — only fires when m.indoor.
-//    Substitutes a seed-picked INDOOR_PALETTE for the wall+ceiling
-//    colors, then matches the crown computation from
-//    generate_indoor_shell to set the camera ceiling clamp.
 inline void apply_mood_indoor_shell(Cartridge* c, const MoodProfile& m, wgpu::Queue& queue) {
     if (m.indoor && m.ceiling_type != CeilingType::NONE) {
         const uint32_t pal_idx = cpu_hash(c->world_state_.active_seed, 5800u) % INDOOR_PALETTE_COUNT;
@@ -573,9 +494,6 @@ inline void apply_mood_anchor_ribbon(Cartridge* c, uint32_t mood, wgpu::Queue& q
 
 // ── apply_mood (orchestrator) ──
 //
-// Owns the mood activation bookkeeping (mood id, feature gates) and
-// the order-of-operations of the four sub-functions. The sub-
-// functions own the substantive work.
 inline void apply_mood(Cartridge* c, uint32_t mood, wgpu::Queue& queue) {
     mood = std::min(mood, MOOD_COUNT - 1);
     c->mood_state_.active = mood;
@@ -605,12 +523,6 @@ inline void apply_mood(Cartridge* c, uint32_t mood, wgpu::Queue& queue) {
 }
 
 // ═══ INDOOR SHELL GENERATION ═════════════════════════════════════
-//
-// Generates ceiling + wall geometry for indoor moods. Uploaded to
-// shell VB/IB and drawn in main + shadow passes.
-//
-// Flat ceiling: 1 quad. Vault ceiling: tessellated catenary.
-// Walls: 4 quads from floor (y=0) to wall_height.
 
 inline void clear_indoor_shell(Cartridge* c, wgpu::Queue& queue) {
     c->gpuState_.set_shell_index_count(0);
@@ -652,9 +564,6 @@ inline void generate_indoor_shell(Cartridge* c, wgpu::Queue& queue, const MoodPr
 
     // ─── Compute wall height (depends on ceiling type) ───────
     //
-    // For vault: spring line must clear paintings. Painting centers
-    // sit at ceiling_height × 0.45, half-height ≈ 5.5 units.
-    // Spring line = painting_top + margin.
     float wall_h = ch;  // flat ceiling: walls go to ceiling
     float crown_h = ch; // effective crown height for log
     float rise = 0.0f;
@@ -706,9 +615,6 @@ inline void generate_indoor_shell(Cartridge* c, wgpu::Queue& queue, const MoodPr
     }
     else if (m.ceiling_type == CeilingType::VAULT) {
         // ─── Groin vault (cross vault) ───────────────────────
-        //
-        // Two perpendicular catenary barrels; ceiling = min of both.
-        // Rise scales with room span for real architectural depth.
 
         float half_x = (bmax - bmin) * 0.5f;
         float half_z = (bmax - bmin) * 0.5f;
@@ -792,26 +698,9 @@ inline void generate_indoor_shell(Cartridge* c, wgpu::Queue& queue, const MoodPr
 }
 
 // ═══ PORTAL SPAWNING ═════════════════════════════════════════════
-//
-// Three forced-spawn paths plus the array uploader. All portals are
-// arches with portal-color override + portal-destination payload;
-// the difference is *where* and *why* they spawn:
-//   force_spawn_portal_at      — general helper (called by the others)
-//   force_spawn_back_portal    — guaranteed return-path portal in
-//                                finite worlds (one per world, perimeter)
-//   force_spawn_finite_portals — additional forward portals in finite
-//                                worlds, count scales with room size
 
 // ── force_spawn_portal_at ──
 //
-// General helper: places a Doorway arch with fixed tier-mean geometry,
-// portal color, and the given destination. Returns the slot used, or
-// UINT32_MAX if no slot was free.
-//
-// Mood computes the values (color from PORTAL_COLORS / PORTAL_COLOR_BACK,
-// destination, position, flags); entities' force_spawn_portal_arch
-// authors the arch. portals_dirty is mood's own flag, set here on
-// success.
 inline uint32_t force_spawn_portal_at(Cartridge* c, wgpu::Queue& queue,
     float cx, float cz, float rotation,
     const PortalDestination& dest, bool is_back_portal) {
@@ -828,38 +717,17 @@ inline uint32_t force_spawn_portal_at(Cartridge* c, wgpu::Queue& queue,
 
 // ── force_spawn_back_portal ──
 //
-// Guaranteed return-path portal in finite worlds. Picks a perimeter
-// spot on one of the 4 walls (seed-driven side order, jittered
-// along the wall), enforces a minimum distance from origin so the
-// pawn doesn't land next to it, falls back to first candidate if
-// no spot satisfies the origin-distance check.
 inline void force_spawn_back_portal(Cartridge* c, wgpu::Queue& queue) {
     c->mood_state_.back_portal_pending = false;
 
     // ─── Seed-driven placement ───────────────────────────────────────
     //
-    // Pick a perimeter spot on one of the 4 walls, jittered along the
-    // wall, with two constraints:
-    //   1) at least WALL_MARGIN from any wall (avoids pier/wall clipping)
-    //   2) at least MIN_FROM_ORIGIN from the spawn point (so the pawn
-    //      doesn't land right next to the back-portal)
-    //
-    // The 4 sides are tried in seed-shuffled order, and the first that
-    // satisfies the origin-distance check wins. If none does (only happens
-    // in radius-1 worlds where every perimeter point is too close to
-    // origin), we fall back to whichever side came up first — better to
-    // have a portal nearby than to fail to spawn.
     if (c->world_state_.finite_mode) {
         float bmin = -(float)c->world_state_.finite_radius * Cartridge::PATCH_EXTENT;
         float bmax = ((float)c->world_state_.finite_radius + 1.0f) * Cartridge::PATCH_EXTENT;
         float room_center = (bmin + bmax) * 0.5f;
         float room_half = (bmax - bmin) * 0.5f;
 
-        // Wall margin: footprint-aware in indoor moods (the arch's wall-
-        // side pier sits at offset (-half_span) from arch center plus
-        // pier_half_x; we add INDOOR_ENTITY_WALL_MARGIN on top so the
-        // pier edge stays ≥ that distance from the wall). Outdoor finite
-        // worlds have no rendered walls, so the legacy 8 m offset is fine.
         float WALL_MARGIN;
         if (MOOD_TABLE[c->mood_state_.active].indoor) {
             const auto& doorway = Cartridge::ARCH_TIERS[static_cast<uint32_t>(ArchTier::DOORWAY)].profile;
@@ -911,10 +779,6 @@ inline void force_spawn_back_portal(Cartridge* c, wgpu::Queue& queue) {
             }
         }
         if (!placed) {
-            // Fallback for rooms where every perimeter midpoint sits inside
-            // the origin-distance ring (radius-1 worlds = 150-unit side, half
-            // span 75 — perimeter midpoints are 75–MARGIN ≈ 67 from origin,
-            // still > 30, so this branch is rarely reached in practice).
             uint32_t side = order[0];
             c->backPortalPosition_[0] = candidates[side].x;
             c->backPortalPosition_[1] = candidates[side].z;
@@ -977,20 +841,12 @@ inline void force_spawn_back_portal(Cartridge* c, wgpu::Queue& queue) {
 
 // ── force_spawn_finite_portals ──
 //
-// Additional forward portals in finite worlds. Count scales with
-// room size: radius 1 (3×3) = 1 extra; radius 2 (5×5) = 2 extra;
-// radius 3-4 = 3 extra. Positions distributed along perimeter with
-// seed-driven jitter so they feel organic, not mechanical.
 inline void force_spawn_finite_portals(Cartridge* c, wgpu::Queue& queue) {
     float bmin = -(float)c->world_state_.finite_radius * Cartridge::PATCH_EXTENT;
     float bmax = ((float)c->world_state_.finite_radius + 1.0f) * Cartridge::PATCH_EXTENT;
     float room_center = (bmin + bmax) * 0.5f;
     float room_half = (bmax - bmin) * 0.5f;
 
-    // Wall margin: in indoor moods, use a footprint-aware computation
-    // that keeps the wall-side pier's EDGE at least INDOOR_ENTITY_WALL_MARGIN
-    // from the actual wall. Outdoor finite moods (no rendered walls) keep
-    // the legacy 8 m offset since there's no visual wall to clip into.
     float margin;
     if (MOOD_TABLE[c->mood_state_.active].indoor) {
         const auto& doorway = Cartridge::ARCH_TIERS[static_cast<uint32_t>(ArchTier::DOORWAY)].profile;
@@ -1080,10 +936,6 @@ inline void force_spawn_finite_portals(Cartridge* c, wgpu::Queue& queue) {
 }
 
 // ═══ PER-FRAME UPLOAD ════════════════════════════════════════════
-//
-// Dirty-flagged uploads called by the spine each frame. Portal
-// array re-uploads only when an arch's portal state changes;
-// lights re-upload only when sun/spot lights change.
 
 // ── upload_portal_array ──
 inline void upload_portal_array(Cartridge* c, wgpu::Queue& queue) {
@@ -1140,10 +992,6 @@ inline void upload_lights(Cartridge* c, wgpu::Queue& queue) {
 
 // ═══ MOOD TRANSITION REQUEST ═════════════════════════════════════
 //
-// Single canonical entry point for mood transitions. Bails if a
-// transition is already in flight. Lives in the mood module rather
-// than input because portal crossings and other code paths also drive
-// mood transitions (one door, many keys).
 inline void request_mood_transition(Cartridge* c, uint32_t mood) {
     // ROSTER-GATE transitions (b) — ENTRY door #1 (keyboard mood requests).
     // Disabled: the machine stays at IDLE forever; the bit gates requests,
@@ -1190,18 +1038,9 @@ inline uint32_t derive_finite_radius(uint32_t seed, const MoodProfile& mood) {
     return mood.finite_radius_min + cpu_hash(seed, 77u) % range;
 }
 
-// Biased mood selection for portal destinations.
-// In finite mode: 40% infinite outdoor (moods 0-1), 30% indoor (moods 2-3), 30% finite outdoor (moods 4-5).
-// In open mode: uniform across all moods.
 inline uint32_t pick_portal_mood(Cartridge* c, uint32_t seed, uint32_t prop) {
     float roll = cpu_hash_f(seed, prop);
     if (c->world_state_.finite_mode) {
-        // 0.00–0.20: mood 0 (open_default)
-        // 0.20–0.40: mood 1 (open_sunset)
-        // 0.40–0.55: mood 2 (indoor_flat)
-        // 0.55–0.70: mood 3 (indoor_vault)
-        // 0.70–0.85: mood 4 (finite_outdoor)
-        // 0.85–1.00: mood 5 (finite_outdoor_ref)
         if (roll < 0.20f) return 0;
         if (roll < 0.40f) return 1;
         if (roll < 0.55f) return 2;

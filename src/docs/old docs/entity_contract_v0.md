@@ -126,6 +126,10 @@ if pre-cast), envelope constants, and a LEDGER of parked couplings and
 known interactions. THE TEST: a stranger reading only this table can
 wiggle each row on the panel and predict the screen. If a claim needs
 the source to verify, the datasheet is incomplete.
+PROTOTYPE-REGIME NOTE (2026-07-12): this standard is DORMANT during
+the prototype (constitution §1, prototype-regime clause) — per-file
+prose is retired until ship, when the datasheet reactivates as a §7
+certification requirement, written once against the settled structure.
 
 ## §7 — CERTIFICATION (the bench; performable today)
 C1. Build both cartridges; FXC clean; zero warnings from your sections.

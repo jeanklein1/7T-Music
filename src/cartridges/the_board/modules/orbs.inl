@@ -6,15 +6,9 @@
 // dereference c->gpuState_, c->renderer_, c->world_state_, c->player_,
 // c->time_state_.
 //
-// WRAPPING FORM (the proven fix-2 rule): this file is SELF-WRAPPING — it
-// opens t7::the_board itself and carries its own standard includes — so
-// the MODULE IMPLEMENTATIONS zone includes it at FILE SCOPE, after the
-// namespace closes. Definitions are `inline` free functions. Requires
-// state.hpp (GPUOrbConfig, Dim::MAX_ORBS) and renderer.hpp earlier in the
-// TU (both precede the class).
+// WRAPPING FORM (fix-2): SELF-WRAPPING — the zone includes impls at
+// FILE SCOPE; law in audit/LADDER.md.
 //
-// ORB-1 (open ruling — anchor semantics): update_orb_anchor and
-// toggle_orb_anchor moved VERBATIM. Move, don't improve.
 // ─────────────────────────────────────────────────────────────────
 
 #include <cmath>      // std::sqrt (rotation-axis normalization)
@@ -26,18 +20,11 @@ namespace the_board {
 
 // ═══ GPU LAYOUT HELPERS ══════════════════════════════════════════
 
-// Map a tier index (0..3) to the first float of its 40-byte block
-// inside a GPUOrbConfig instance. Matches the per-offset layout in
-// state.hpp: tier0 starts at 192, stride 40.
 inline float* orb_tier_block_ptr(GPUOrbConfig& cfg, uint32_t i) {
     auto* base = reinterpret_cast<char*>(&cfg);
     return reinterpret_cast<float*>(base + 192u + i * 40u);
 }
 
-// Map a tier index (0..3) to the first float of its 16-byte flocking-
-// gains block. Flocking gains are stored in a parallel block after
-// the main tier block: base offset 416, stride 16. Fields per tier:
-// sep_gain, align_gain, coh_gain, pad.
 inline float* orb_tier_flock_ptr(GPUOrbConfig& cfg, uint32_t i) {
     auto* base = reinterpret_cast<char*>(&cfg);
     return reinterpret_cast<float*>(base + 416u + i * 16u);
@@ -52,10 +39,6 @@ inline void apply_mood_first_run_defaults_(OrbsState& os, const OrbMoodConfig& c
         os.pawn_anchored = cfg.anchor_to_pawn_default;
         os.anchor_initialized = true;
     }
-    // Seed each rule's gesture index on first configure.
-    // The mood carries one default (flock_gesture_default); we reuse
-    // it for all three rules with per-rule count clamping. A future
-    // pass can split this into per-rule mood defaults if wanted.
     if (!os.gesture_initialized[ORB_RULE_BROWNIAN]) {
         os.gesture_idx[ORB_RULE_BROWNIAN] = std::min(
             cfg.flock_gesture_default, ORB_BROWNIAN_GESTURE_COUNT - 1u);
@@ -100,19 +83,9 @@ inline void pack_palette_(OrbsState& os, GPUOrbConfig& gpuCfg, uint32_t palette_
     gpuCfg.pal3_weight = pal.entries[3].weight;
 }
 
-// Pack the selected tier set into the main tier block (with
-// cumulative weights) AND the parallel flocking-gains block.
-// Sentinel tierset_id → zero everything; orb_init falls back to
-// legacy uniform population.
 inline void pack_tiers_(GPUOrbConfig& gpuCfg, uint32_t tierset_id) {
-    // Note: offsets 180-188 hold Brownian gesture fields
-    // (brownian_radial_sign/vert_bias/coherence), written by
-    // pack_flocking_. Do NOT zero them here.
 
     if (tierset_id >= ORB_TIERSET_COUNT) {
-        // Legacy path: zero main tier block + flocking gains.
-        // Skip pf[3] for tier 0 — offset 428 is orbital_speed_var_mult
-        // (repurposed), written later by pack_flocking_.
         gpuCfg.tier_count = 0;
         for (uint32_t i = 0; i < MAX_ORB_TIERS; i++) {
             float* p = orb_tier_block_ptr(gpuCfg, i);
@@ -128,10 +101,6 @@ inline void pack_tiers_(GPUOrbConfig& gpuCfg, uint32_t tierset_id) {
     uint32_t n = std::min(ts.count, MAX_ORB_TIERS);
     gpuCfg.tier_count = n;
 
-    // Deliberately distinct from seed_utils select_weighted: this BUILDS
-    // the cumulative table the shader rolls against; it picks nothing.
-    // Normalize weights → cumulative table so the shader can roll
-    // a single uniform sample and bucket it into a tier.
     float wsum = 0.0f;
     for (uint32_t i = 0; i < n; i++) wsum += ts.tiers[i].weight;
     if (wsum < 1e-6f) wsum = 1.0f;  // pathological: avoid div-by-zero
@@ -171,9 +140,6 @@ inline void pack_tiers_(GPUOrbConfig& gpuCfg, uint32_t tierset_id) {
     }
 }
 
-// Pack flocking params (mood-authored, sanitized), gesture signs
-// (from current player-owned gesture index), and per-rule drag
-// multipliers (sanitized with zero → pass-through).
 inline void pack_flocking_(const OrbsState& os, GPUOrbConfig& gpuCfg,
     float sep_r, float align_r, float coh_r,
     float sep_w, float align_w, float coh_w,
@@ -189,9 +155,6 @@ inline void pack_flocking_(const OrbsState& os, GPUOrbConfig& gpuCfg,
     gpuCfg.flock_max_speed = max_speed;
     gpuCfg.flock_coupling_intensity = 0.0f;
 
-    // Pack all three rule gesture bundles. Each rule reads
-    // its own slice in the dynamics kernel; writing all three at
-    // configure time keeps them in sync whatever rule becomes active.
     {
         const auto& gb = ORB_BROWNIAN_GESTURES[os.gesture_idx[ORB_RULE_BROWNIAN]];
         gpuCfg.brownian_radial_sign = gb.radial_sign;
@@ -217,15 +180,9 @@ inline void pack_flocking_(const OrbsState& os, GPUOrbConfig& gpuCfg,
     gpuCfg.rule_drag_frozen = passthrough(rule_drag_frz);
     gpuCfg.rule_drag_flocking = passthrough(rule_drag_flk);
 
-    // Preserve the current smoothed speed multiplier across
-    // mood transitions — use the in-flight value rather than a literal
-    // 1.0 so a mood portal doesn't snap the sky back to baseline.
     gpuCfg.speed_mult = os.speed_mult_current;
 }
 
-// Log the effective config after sanitization. Shows what the GPU
-// actually runs with (not what the mood authored), which is what
-// the operator cares about when cycling rules or tuning.
 inline void log_configure_(const OrbsState& os, const OrbMoodConfig& cfg,
     float eff_drag, float eff_orbital_speed,
     uint32_t palette_id) {
@@ -248,10 +205,6 @@ inline void log_configure_(const OrbsState& os, const OrbMoodConfig& cfg,
 
 // ═══ LIFECYCLE ═══════════════════════════════════════════════════
 
-// Mood entry: sanitize rule-critical zeros against system defaults,
-// apply first-run player defaults, pack the full GPU config, arm
-// the init kernel. Called from apply_mood (mood.inl) and from the
-// initial-mood setup in the init path (cartridge.hpp).
 inline void configure_orbs(OrbsState& os, Cartridge* c, const OrbMoodConfig& cfg, wgpu::Queue& queue) {
     os.active = cfg.enabled;
     os.count = std::min(cfg.count, (uint32_t)Dim::MAX_ORBS);
@@ -312,10 +265,6 @@ inline void configure_orbs(OrbsState& os, Cartridge* c, const OrbMoodConfig& cfg
 
     pack_palette_(os, gpuCfg, cfg.palette_id);
 
-    // Color dynamics rest at zero — driverless capabilities since the
-    // gen-1 retirement (gen-2 coupling targets; see
-    // coupling_layer_migration_map.md). hue_converge_target is
-    // mood-scoped (changes only at mood entry).
     gpuCfg.color_pulse = 0.0f;
     gpuCfg.color_converge = 0.0f;
     gpuCfg.color_surge = 0.0f;
@@ -343,9 +292,6 @@ inline void configure_orbs(OrbsState& os, Cartridge* c, const OrbMoodConfig& cfg
     log_configure_(os, cfg, eff_drag, eff_orbital_speed, os.current_palette_id);
 }
 
-// Mood exit: stop dispatching. Resets mood-owned runtime state
-// (speed multiplier, dome-center cache). Preserves player-owned
-// state (anchor, flock gesture) across transitions.
 inline void teardown_orbs(OrbsState& os, Cartridge* c) {
     (void)c;
     os.active = false;
@@ -364,10 +310,6 @@ inline void teardown_orbs(OrbsState& os, Cartridge* c) {
 
 // ═══ PLAYER COMMANDS ═════════════════════════════════════════════
 
-// 0: cycle palette forward. Re-arms the recolor kernel so
-// positions and colors both refresh on the next frame. Session-
-// local within a mood — the next mood transition resets to that
-// mood's configured palette.
 inline void cycle_orb_palette(OrbsState& os, Cartridge* c, wgpu::Queue& queue) {
     if (!os.active || os.count == 0) {
         std::cout << "[Orbs] Palette cycle ignored (no active dome)\n";
@@ -393,9 +335,6 @@ inline void cycle_orb_palette(OrbsState& os, Cartridge* c, wgpu::Queue& queue) {
     std::cout << "[Orbs] Palette: " << ORB_PAL_NAMES[os.current_palette_id] << "\n";
 }
 
-// KP_8: cycle motion rule (Brownian → Orbital → Frozen → Flocking → …).
-// Does NOT reset orb state — positions and velocities carry over so
-// the character shifts seamlessly into the new rule.
 inline void cycle_orb_motion_rule(OrbsState& os, Cartridge* c, wgpu::Queue& queue) {
     if (!os.active || os.count == 0) {
         std::cout << "[Orbs] Motion rule cycle ignored (no active dome)\n";
@@ -421,10 +360,6 @@ inline void cycle_orb_motion_rule(OrbsState& os, Cartridge* c, wgpu::Queue& queu
     std::cout << "\n";
 }
 
-// KP_DECIMAL: cycle the gesture registry for the CURRENTLY ACTIVE
-// motion rule. Brownian / Orbital / Flocking each have their own
-// table; Frozen has none and short-circuits. Player state: each
-// rule's index persists across mood transitions.
 inline void cycle_orb_gesture(OrbsState& os, Cartridge* c, wgpu::Queue& queue) {
     const uint32_t r = os.current_motion_rule;
 
@@ -475,10 +410,6 @@ inline void toggle_orb_anchor(OrbsState& os, const Cartridge* c) {
 
 // ═══ PER-FRAME UPDATES ═══════════════════════════════════════════
 
-// Push the current dome center to the GPU. Dirty-flagged: a stationary
-// anchored pawn or an unanchored session produces no per-frame traffic.
-// Horizontal-only: Y is always 0 regardless of pawn altitude so the
-// sky doesn't bob with terrain.
 inline void update_orb_anchor(OrbsState& os, Cartridge* c, float pawn_x, float pawn_z, wgpu::Queue& queue) {
     if (!os.active || os.count == 0) return;
 
@@ -530,10 +461,6 @@ inline void dispatch_orb_recolor(OrbsState& os, Cartridge* c, wgpu::CommandEncod
     pass.End();
 }
 
-// Snapshot orb_state → orb_state_prev. Dynamics reads the snapshot
-// for neighbor queries so flocking invocations all see a stable
-// previous-frame view. Cheap (N parallel copies) — runs every frame
-// regardless of motion_rule so future rules can rely on prev.
 inline void dispatch_orb_copy_prev(OrbsState& os, Cartridge* c, wgpu::CommandEncoder& encoder) {
     if (!os.active || os.count == 0) return;
 

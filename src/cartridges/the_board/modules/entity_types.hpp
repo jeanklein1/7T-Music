@@ -2,53 +2,16 @@
 // ─── entity_types.hpp ────────────────────────────────────────────
 // Converted (LADDER-1 c3): history in audit/LADDER.md.
 //
-// Type definitions for the generic entity pipeline: pure
-// declarations, no functions, no coupling beyond the Cartridge
-// forward reference in adapter signatures.
+// Type definitions for the generic entity pipeline: pure declarations,
+// no functions, no coupling beyond the Cartridge forward reference in
+// adapter signatures.
 //
-// ┌─── Public surface (consumed by other files) ────────────────────┐
-// │                                                                  │
-// │  Pipeline contracts:                                             │
-// │    MAX_ENTITY_PARAMS       — params[] array length               │
-// │    MAX_COLOR_CHANNELS      — colors[] array length               │
-// │    ParamDist (enum)        — sampling distribution               │
-// │    TierParamDef            — one param's contract                │
-// │    TierMuSigma, TierProfile — Gaussian sampling input            │
-// │    ColorPartDef            — one color part's spec               │
-// │                                                                  │
-// │  Family description:                                             │
-// │    EntityFamilyTraits      — declarative family metadata         │
-// │                                                                  │
-// │  Per-instance + adapter:                                         │
-// │    EntityInstance          — one rolled instance, pipeline state │
-// │    SpawnGateOutput         — gate result                         │
-// │    EntityFamilyAdapter     — function-pointer table per family   │
-// │                                                                  │
-// │  Boundary DTOs (the bespoke families' payload pairs):             │
-// │    GoLSelection / GoLPlacement                                   │
-// │    GallerySelection / GalleryPlacement                           │
-// │    RibbonSelection / RibbonPlacement                             │
-// │                                                                  │
-// │  Dispatch contract (end of header):                               │
-// │    EntityQueueEntry        — tagged selection union              │
-// │    PlacementEntry          — tagged placement union              │
-// │    FamilyDispatch          — dispatch row type (six verbs + name)│
-// │    FAMILY_DISPATCH (extern) — the table (family_dispatch.inl)    │
-// │                                                                  │
-// └──────────────────────────────────────────────────────────────────┘
-//
-// A file-scope header, included above the class with roster.hpp's
-// cohort. THE CONTRACT HOME: it carries the pipeline contracts, the
-// boundary DTOs (the three bespoke families' Selection/Placement
-// pairs — a DTO that exists to cross a boundary belongs to the
-// boundary's contract, not to either side), AND the dispatch
-// contract (the queue-entry unions + the row type + the table
-// declaration). Namespace t7::the_board (the cartridge's own).
-// Depends on: <cstdint>, <cstring>, roster.hpp (PopFamily),
-// keyhole.hpp (the Cartridge and wgpu::Queue fwds), and a local
-// wgpu::ComputePassEncoder fwd — no module header: the DTOs are
-// plain aggregates of built-ins by design, so the contract home
-// carries no owner vocabulary and every owner header may include it.
+// THE CONTRACT HOME: pipeline contracts, the boundary DTOs (a DTO
+// that exists to cross a boundary belongs to the boundary's contract,
+// not to either side — theory v2 §8), and the dispatch contract (the
+// queue-entry unions + row type + table declaration). The DTOs are
+// plain aggregates of built-ins, so this header carries no owner
+// vocabulary and every owner header may include it.
 //
 // SEAM[entity_types:P9] this file is the canonical home of pattern
 //   P9 (type definitions extracted to header-style file) — a real
@@ -76,19 +39,12 @@ namespace t7 {
 namespace the_board {
 
 // ═══ PIPELINE CONTRACTS ══════════════════════════════════════════
-//
-// Numerical contracts and sampling primitives shared across every
-// generic-pipeline family. These define the shape of the pipeline
-// interface — touch only with intent.
 
 // ── Array bounds ─────────────────────────────────────────────────
 inline constexpr uint32_t MAX_ENTITY_PARAMS = 32;
 inline constexpr uint32_t MAX_COLOR_CHANNELS = 12;
 
 // ── Sampling distributions ───────────────────────────────────────
-// Determines how a TierParamDef's `prop` is rolled. GAUSSIAN draws
-// from the per-tier (mean, sigma); UNIFORM_01 returns hash(seed,
-// prop) directly; UNIFORM_TAU returns the same scaled to [0, 2π).
 enum class ParamDist : uint32_t {
     GAUSSIAN,
     UNIFORM_01,
@@ -121,14 +77,7 @@ struct TierProfile {
 };
 
 // ── Color part spec ──────────────────────────────────────────────
-// One row per coloured "part" of the family (body / aged / trunk /
-// frond / etc.). Variance is rolled from prop_base + prop_offset
-// triplet.
 //
-// The `variance` field is the per-part fallback. If the active
-// TierProfile carries a nonzero `color_var`, that overrides this
-// per-part value uniformly across all parts. Families that need
-// per-part-per-tier variance (Palm) keep their own override.
 struct ColorPartDef {
     float    base[3];
     float    variance;
@@ -137,11 +86,6 @@ struct ColorPartDef {
 };
 
 // ═══ FAMILY DESCRIPTION ══════════════════════════════════════════
-//
-// Declarative metadata describing a generic-pipeline family. One
-// of these is constructed per family in entity_pipeline.inl as a
-// `static constexpr <FAMILY>_TRAITS` and passed to generic_select
-// / generic_place / generic_commit.
 
 struct EntityFamilyTraits {
     uint32_t    family_id;
@@ -170,9 +114,6 @@ struct EntityFamilyTraits {
 };
 
 // ═══ PER-INSTANCE + ADAPTER ══════════════════════════════════════
-//
-// What flows through the three-phase pipeline (EntityInstance) and
-// how each family customizes the generic steps (EntityFamilyAdapter).
 
 // ── Spawn gate result ────────────────────────────────────────────
 // Returned by the family's run_gate adapter. ok=false → early exit
@@ -185,11 +126,6 @@ struct SpawnGateOutput {
 };
 
 // ── Per-instance pipeline state ──────────────────────────────────
-// One of these per spawning entity. Populated incrementally:
-//   generic_select  → family_id, seed, trigger_*, slot, tier_idx,
-//                     theme_idx, params[], colors[], solid_half
-//   generic_place   → cx, cz, rotation, host_*
-//   generic_commit  → consumed by adapter.write_active / write_gpu
 struct EntityInstance {
     uint32_t family_id = 0;
     uint32_t seed = 0;
@@ -209,12 +145,7 @@ struct EntityInstance {
 };
 
 // ── Per-family adapter ───────────────────────────────────────────
-// Function-pointer table. Each family in entity_pipeline.inl
-// constructs one as a `static constexpr <FAMILY>_ADAPTER`.
 //
-// get_tier_profile is per-family because the TierProfile lives
-// embedded in each family's per-family TierRow struct (one source
-// of truth — there's no generic table on traits to index).
 struct EntityFamilyAdapter {
     SpawnGateOutput(*run_gate)(Cartridge* c, int32_t gx, int32_t gz);
     const float* (*get_theme_tier_weights)(uint32_t theme_idx);
@@ -228,12 +159,6 @@ struct EntityFamilyAdapter {
 };
 
 // ═══ DISPATCH CONTRACT (queue entries + row type) ═════════════════
-//
-// The tagged unions that carry every family — generic and bespoke —
-// through select → place → commit, and the dispatch-row type that
-// walks them. The QUEUES themselves (entityQueue_, placementResults_)
-// are machine state and live in spawn_engine.inl; only the vocabulary
-// lives here.
 
 // ═══ SPAWN PAYLOADS (the boundary DTOs) ═══════════════════════════
 //
@@ -344,11 +269,6 @@ struct RibbonPlacement {
 };
 
 // ─── Entity Selection Queue entry ─────────────────────────────────
-//
-// Lightweight tagged entry holding one family's selection.
-// Produced by select_entities_for_patch, consumed by
-// drain_entity_queue. The queue decouples WHAT exists from
-// WHERE it goes — selections are position-independent.
 
 struct EntityQueueEntry {
     uint32_t family;    // PopFamily index
@@ -363,10 +283,6 @@ struct EntityQueueEntry {
 };
 
 // ─── Placement Results entry ───────────────────────────────────────
-//
-// Output of place_entity_queue: entities that passed spatial
-// negotiation and are ready for GPU commit. Tagged union mirrors
-// EntityQueueEntry but holds Placement structs instead of Selections.
 
 struct PlacementEntry {
     uint32_t family;
@@ -396,11 +312,6 @@ struct FamilyDispatch {
     const char* name;
 };
 
-// THE TABLE — one row per family, PopFamily order. DEFINED at file
-// scope in modules/family_dispatch.inl (post-class: the rows take the
-// addresses of wrappers that live with their owners and, for the
-// generic families, on the class); DECLARED here so the spine's
-// dispatch loops (in-class) read it by namespace lookup.
 extern const FamilyDispatch FAMILY_DISPATCH[PopFamily::COUNT];
 
 } // namespace the_board

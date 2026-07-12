@@ -9,10 +9,7 @@
 // (Cartridge::PATCH_EXTENT / Cartridge::GLOBAL_ENTITY_DENSITY);
 // PopFamily is roster.hpp vocabulary.
 //
-// WRAPPING FORM (the proven fix-2 rule): SELF-WRAPPING — opens
-// t7::the_board itself, carries its own standard includes; the MODULE
-// IMPLEMENTATIONS zone includes it at FILE SCOPE. Definitions are
-// `inline` free functions.
+// WRAPPING FORM (fix-2): SELF-WRAPPING — the zone includes impls at FILE SCOPE; law in audit/LADDER.md.
 // ─────────────────────────────────────────────────────────────────
 
 #include <cmath>      // std::floor
@@ -26,10 +23,6 @@ namespace the_board {
 // ═══ LIFECYCLE — three-phase + helper ════════════════════════════
 
 // ─── select_gol_for_patch ─────────────────────────────────────
-//
-// Phase 1: lattice-node-gated selection. Scans which MODE_LATTICE
-// nodes overlap this patch, runs spawn roll, algorithm + tier
-// selection, parameter sampling. At most one zone per patch.
 
 inline bool select_gol_for_patch(GoLState& gs, Cartridge* c,
     int32_t gx, int32_t gz, GoLSelection& sel) {
@@ -166,14 +159,6 @@ inline bool select_gol_for_patch(GoLState& gs, Cartridge* c,
 }
 
 // ─── place_gol_from_selection ─────────────────────────────────
-//
-// Phase 2: footprint check + registration. Position is lattice-
-// determined (no jitter), so we bypass negotiate_position and
-// call check_position + register_footprint directly.
-//
-// Note: this function takes no GoLState — like ribbon's place
-// function, it only mediates between selection and spawn-engine
-// helpers. Doesn't touch GoL's data.
 
 inline bool place_gol_from_selection(Cartridge* c,
     const GoLSelection& sel, GoLPlacement& plan) {
@@ -213,8 +198,6 @@ inline bool place_gol_from_selection(Cartridge* c,
 }
 
 // ─── commit_gol ──────────────────────────────────────────────
-//
-// Phase 3: CPU state + life buffer seeding + GPU derive request.
 
 inline void commit_gol(GoLState& gs, Cartridge* c,
     const GoLPlacement& plan,
@@ -257,10 +240,6 @@ inline void commit_gol(GoLState& gs, Cartridge* c,
 }
 
 // ─── seed_gol_zone ───────────────────────────────────────────
-//
-// Helper called from commit_gol. Generates the initial life pattern
-// (random alive/dead for Conway, all zeros for Pulse) and the per-cell
-// height factors (Gaussian draws). Uploads both to the GPU zone slot.
 
 inline void seed_gol_zone(GoLState& gs, Cartridge* c,
     uint32_t slot, wgpu::Queue& queue) {
@@ -276,7 +255,6 @@ inline void seed_gol_zone(GoLState& gs, Cartridge* c,
             life[i] = (roll < zone.initial_density) ? 1.0f : 0.0f;
         }
     }
-    // Pulse: all zeros — oscillation builds from silence
 
     // Generate per-cell height factors: Gaussian draw, clamped
     std::vector<float> height_factors(Dim::GOL_ZONE_CELLS);
@@ -293,10 +271,6 @@ inline void seed_gol_zone(GoLState& gs, Cartridge* c,
 
 // ═══ PER-FRAME UPLOAD ════════════════════════════════════════════
 
-// upload_gol_zone_config: per-frame header-only upload.
-// Per-zone config is GPU-derived via zone_derive_params — we only
-// write count, t_beats, dt, tick_mask. Slot deactivation happens
-// at eviction time (via evict_gol through entity_refs).
 inline void upload_gol_zone_config(GoLState& gs, Cartridge* c, wgpu::Queue& queue) {
     uint32_t count = 0;
     uint32_t tick_mask = 0;
@@ -340,13 +314,7 @@ inline void flush_zone_derive_requests(GoLState& gs, Cartridge* c, wgpu::Queue& 
     gs.pending_derive_requests.count = 0;
 }
 
-
 // ═══ DISPATCH FUNNELS (table-shaped; declared in entity_types.hpp) ═
-//
-// The FAMILY_DISPATCH rows for this family point here (the table
-// is defined in modules/family_dispatch.inl). Bodies delegate to
-// the module functions above and keep the spine bookkeeping
-// (find_patch / record_entity) at the seam.
 
 inline bool dispatch_select_gol(Cartridge* self,
     int32_t gx, int32_t gz, EntityQueueEntry& e) {
@@ -383,10 +351,7 @@ inline void dispatch_commit_gol(Cartridge* self,
     }
 }
 
-
-// ═══ THE EVICTOR (lifecycle, absorbed per §5 EVICTION THUNKS) ═════
-//
-// Named by the FAMILY_DISPATCH table (family_dispatch.inl).
+// ═══ THE EVICTOR ══════════════════════════════════════════════════
 
 inline void evict_gol(Cartridge* self,
     uint32_t slot, wgpu::Queue& queue) {

@@ -4,13 +4,8 @@
 // Definitions for pawn.hpp's declared laws — tick_pawn_couplings
 // dereferences c->player_, c->time_state_, c->gpuState_.
 //
-// WRAPPING FORM (fix 2): this file is SELF-WRAPPING — it opens
-// t7::the_board itself and carries its own standard includes — so the
-// MODULE IMPLEMENTATIONS zone includes it at FILE SCOPE (after the
-// namespace closes in cartridge.hpp), never inside the namespaces
-// (double-wrap = silent nested namespace = unresolved link). Definitions
-// are `inline` free functions: one TU today makes plain legal; inline
-// makes tomorrow legal too.
+// WRAPPING FORM (fix-2): SELF-WRAPPING — the zone includes impls at
+// FILE SCOPE; law in audit/LADDER.md.
 // ─────────────────────────────────────────────────────────────────
 
 #include <cmath>  // std::exp (the real-time presence ramp)
@@ -27,10 +22,6 @@ inline void tick_pawn_couplings(PawnState& ps, Cartridge* c, wgpu::Queue& queue)
         const float target = ps.aura_enabled ? 1.0f : 0.0f;
         const float prev   = c->player_.aura_presence;
         const float rate   = (target > prev) ? AURA_PRESENCE_ATTACK : AURA_PRESENCE_RELEASE;
-        // Real-time exponential BY RULING: a possession affordance, not a
-        // musical gesture — the beat clock stays out of UI ramps. Shape
-        // mirrors the GPU release primitive (world.wgsl §1.2); arithmetic
-        // lifted verbatim from the retired COMPAT overload.
         c->player_.aura_presence = prev + (target - prev) * (1.0f - std::exp(-rate * c->time_state_.dt));
 
         // Snap to endpoints to avoid perpetual drift

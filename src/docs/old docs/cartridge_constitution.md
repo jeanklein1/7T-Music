@@ -40,6 +40,15 @@ includes for the destination precisely once; this section exists so
 both mistakes die on first contact.
 COMPLETION: when the last module converts, the transitional clause
 is struck and §1 becomes the composition law alone.
+THE PROTOTYPE REGIME (Jean's ruling, 2026-07-12 — COMPACT-2): until
+the prototype ships, per-file structural PROSE is retired; a file's
+documentation is the four keep-classes — K1 one identity sentence,
+K2 the Depends-on/reaches line(s), K3 the ledger untouched, K4
+code-adjacent one-liners (governing-law-beside-constant may span
+two). The §6 datasheet standard of the entity contract is DORMANT,
+not violated, and reactivates as a §7 certification requirement at
+ship. We refuse to document what is still moving; git keeps every
+word; audit/ is the sole map.
 
 ## §2 — CHAPTERS AND RESIDENCY
 The cartridge is organized in banner-titled chapters; a chapter earns a
@@ -177,6 +186,12 @@ cartridge unless stated.
   outside the class, and access control never enforced the seam law (§3's
   access note). Entity Contract §1's MODULE definition amended to the
   two-regime form same-commit.
+- PROTOTYPE-REGIME PROSE (COMPACT-2, Jean's ruling 2026-07-12): per-file
+  structural prose retired tree-wide under the §1 prototype-regime
+  clause — overview essays, family tables, public-surface boxes,
+  field-role paragraphs. The four keep-classes stand; 100+ constraint
+  rescues rewritten in place as K4 one-liners; documentation returns
+  at certification as §6 datasheets against the settled structure.
 - HISTORICAL NARRATION: F3 EXECUTED (COMPACT-1, 2026-07-12), both strata
   — the DONE[] tags and 'Scope B' banners are stripped (pre-MOD and
   MOD-era alike); present-behavior content they carried survives in

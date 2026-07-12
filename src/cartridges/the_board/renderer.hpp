@@ -2,38 +2,6 @@
 
 // THE_BOARD CARTRIDGE -- Renderer (Rasterized)
 // ==================================================
-//
-// Pipeline management for patch-streaming rasterized rendering.
-//
-// COMPUTE PIPELINES (representative; the bodies build 31 compute pipelines —
-// the per-family entity mesh-gen pipelines are omitted from this list):
-//   Pipeline                    Dimension    Purpose
-//   update_terrain_config       0D (1,1,1)   terrain amplitude from polyphony
-//   update_player_agent         0D (1,1,1)   walker policy for possessed slot only (compile-cost contained)
-//   update_other_agents         1D (1,1,1)×32 algorithmic behaviors for non-possessed slots + eviction
-//   update_camera               0D (1,1,1)   camera from input + pawn state
-//   update_sphere               0D (1,1,1)   sphere orbit + color
-//   compute_vp                  0D (1,1,1)   VP matrix from camera state
-//   generate_terrain_indices    2D (32x32)   terrain index buffer (ONE-SHOT at init)
-//   generate_patch_heights      2D (16x16)   per-patch heightfield pass 1 (heights)
-//   generate_patch_gradients    2D (16x16)   per-patch heightfield pass 2 (gradients)
-//   generate_patch_cells        2D (8x8)     per-patch cell color texture
-//   compute_ribbon_rings        1D (64)      ribbon ring transforms
-//   compute_pawn_aura           2D (8x8)     pawn aura spring grid
-//   compute_photographer_vp     0D (1,1,1)   gallery camera VP (snapshot frames only)
-//   compute_entity_placement    0D (1,1,1)   entity Y-correction (every frame)
-//   zone_gol_sync               2D (8x8x8)  GoL zone life state sync
-//   zone_gol_evolve             2D (8x8x8)  GoL zone evolution + spring
-//   zone_gol_mesh_reset         0D (1,1,1)  zone mesh indirect reset
-//   zone_gol_mesh_gen           2D (4x4x8)  zone extrusion mesh generation
-//
-// RENDER PIPELINES (the bodies build 34 render pipelines):
-//   patch_terrain, zone_extrusion, pawn, sphere, arch, column, pyramid,
-//   ribbon, gallery_frame + shadow variants for each. The pyramid render
-//   pipeline and the wall-painting shadow pipeline are built but not
-//   currently drawn.
-//
-// See world.wgsl for the GPU shader (single source of truth).
 
 #include "cartridges/the_board/state.hpp"
 #include <webgpu/webgpu_cpp.h>
@@ -50,10 +18,6 @@
 
 namespace t7 {
     namespace the_board {
-
-        // =====================================================================
-        // S1 ENTRY POINTS — Must match world.wgsl §6-§9
-        // =====================================================================
 
         namespace Entry {
             // Compute — split world update (ordered by dependency)
@@ -156,15 +120,7 @@ namespace t7 {
             constexpr const char* ORB_FS             = "orb_fs";
         }
 
-        // =====================================================================
-        // S2-S7  RENDERER CLASS — Pipeline creation and dispatch
-        // =====================================================================
-
         class Renderer {
-
-            // =================================================================
-            // S2 MEMBERS — Pipelines, layouts, shader module
-            // =================================================================
 
             wgpu::Device device_;
             wgpu::BindGroupLayout computeEntityLayout_;
@@ -195,9 +151,6 @@ namespace t7 {
             std::string shaderSource_;
             std::string shaderPath_;
 
-            // Per-pipeline compile-time instrumentation. tPipe wraps each
-            // pipeline creation, prints its compile time, and records it for
-            // the sorted leaderboard printed at the end of init_renderer().
             struct PipelineTiming { std::string label; long long ms; };
             std::vector<PipelineTiming> pipelineTimings_;
 
@@ -220,8 +173,6 @@ namespace t7 {
             wgpu::ComputePipeline updateSpherePipeline_;         // 0D
             wgpu::ComputePipeline updateCubePipeline_;           // 0D
             wgpu::ComputePipeline computeVPPipeline_;         // 0D
-
-            // Legacy cell system — compiled but not dispatched in streaming mode.
 
             // Compute pipelines -- terrain index generation (one-shot at init)
             wgpu::ComputePipeline generateTerrainIndicesPipeline_;  // 2D
@@ -317,17 +268,9 @@ namespace t7 {
 
         public:
 
-            // =================================================================
-            // S3 IDENTITY — Non-copyable, default-constructible
-            // =================================================================
-
             Renderer() = default;
             Renderer(const Renderer&) = delete;
             Renderer& operator=(const Renderer&) = delete;
-
-            // =================================================================
-            // S4 BOOT — Compile shaders and create pipelines from GPUState layouts
-            // =================================================================
 
             bool init(
                 wgpu::Device device,
@@ -394,17 +337,6 @@ namespace t7 {
                 return true;
             }
 
-            // =================================================================
-            // S5 COMPUTE DISPATCH — Ordered passes
-            // =================================================================
-            //
-            // ORDER MATTERS: each pass may read what the previous pass wrote.
-            //   1. update_terrain_config -- 0D (signal → terrain amplitude)
-            //   2. update_player_agent   -- 0D (input → player slot, walker policy)
-            //   3. update_other_agents   -- 1D (32 slots → algorithmic behaviors + eviction)
-            //   4. update_camera         -- 0D (input/pawn → camera state)
-            //   5. update_sphere         -- 0D (time/signal → sphere + tint)
-            //   6. compute_vp            -- 0D VP matrix (reads camera, writes vp_data)
 
             void dispatch_update_terrain_config(
                 wgpu::ComputePassEncoder& pass,
@@ -415,10 +347,6 @@ namespace t7 {
                 pass.DispatchWorkgroups(1, 1, 1);
             }
 
-            // Player kernel: 1 thread, runs the walker policy for the
-            // possessed slot only. Should be dispatched BEFORE
-            // dispatch_update_other_agents so the player's updated
-            // position is the eviction reference for this frame.
             void dispatch_update_player_agent(
                 wgpu::ComputePassEncoder& pass,
                 wgpu::BindGroup entityBindGroup,
@@ -430,9 +358,6 @@ namespace t7 {
                 pass.DispatchWorkgroups(1, 1, 1);         // 1 workgroup × 1 thread = the possessed slot
             }
 
-            // Other-agents kernel: 32 threads, one per slot, runs
-            // algorithmic behaviors for non-possessed slots and handles
-            // eviction. Skips the possessed slot internally.
             void dispatch_update_other_agents(
                 wgpu::ComputePassEncoder& pass,
                 wgpu::BindGroup entityBindGroup,
@@ -498,9 +423,6 @@ namespace t7 {
                 pass.SetBindGroup(0, terrainIndexGenBindGroup);
                 pass.DispatchWorkgroups(workgroups, workgroups, 1);
             }
-
-            // Patch heightfield generation -- on demand when patches enter active set.
-            // Group 0 = patchGenBindGroup (params uniform), Group 1 = texture writes.
 
             // Pass 1: evaluate ground_formed() per texel, store height only.
             void dispatch_generate_patch_heights(
@@ -786,16 +708,7 @@ namespace t7 {
                 pass.DrawIndexedIndirect(indirectBuffer, 0);
             }
 
-            // =================================================================
-            // S6 DRAW — Main pass and shadow pass draw calls
-            // =================================================================
-            //
-            // Four-layer rasterized rendering with shared depth buffer.
-            // Draw order: terrain -> cell extrusion -> pawn -> sphere
 
-            // GPU frustum-culled LOD0 terrain draw — single DrawIndexedIndirect.
-            // (Dawn D3D12 limit: only one indirect draw per render pass.)
-            // LOD1 must be drawn separately via draw_patch_terrain_lod1_direct.
             void draw_patch_terrain_lod0_indirect(
                 wgpu::RenderPassEncoder& pass,
                 wgpu::BindGroup entityBindGroup,
@@ -1049,18 +962,6 @@ namespace t7 {
                 pass.Draw(3);  // fullscreen triangle from vertex ID
             }
 
-            // -----------------------------------------------------------------
-            // Shadow pass draw methods (depth-only)
-            // -----------------------------------------------------------------
-            //
-            // Most per-family shadow methods follow the same shape: bind two
-            // groups, set vertex/index buffer, draw indexed. They differ only
-            // in which pipeline they bind and (for sphere/monolith) how many
-            // instances they draw. The 9 per-family wrappers below are 1-line
-            // shims over `draw_shadow_indexed_mesh()` — pattern P12 (integration
-            // glue). Methods with genuinely different shapes — patch_terrain,
-            // pawn, ribbon, zone_extrusion, wall_paintings, gallery_frames —
-            // remain individual.
 
             // Shared helper for all "indexed mesh" shadow draws. Per-family
             // wrappers below differ only in pipeline + (rarely) instance count.
@@ -1270,10 +1171,6 @@ namespace t7 {
                 pass.Draw(Dim::PAINTING_QUAD_VERTS, Dim::PAINTING_MAX_SLOTS);
             }
 
-            // =================================================================
-            // S7 HOT RELOAD — Recompile shaders without restart
-            // =================================================================
-
             bool reload() {
                 if (!loadShader()) return false;
                 if (!createComputePipelines()) return false;
@@ -1286,13 +1183,6 @@ namespace t7 {
 
         private:
 
-            // =================================================================
-            // S4 BOOT (continued) — Private pipeline creation
-            // =================================================================
-
-            // -----------------------------------------------------------------
-            // Shader loading
-            // -----------------------------------------------------------------
             //
             // Reads world.wgsl from disk by searching a small list of known
             // relative paths (see the search loop below) — next to the executable
@@ -1363,10 +1253,6 @@ namespace t7 {
                     << " ms\n";
                 return shaderModule_ != nullptr;
             }
-
-            // -----------------------------------------------------------------
-            // Compute pipeline creation
-            // -----------------------------------------------------------------
 
             bool createComputePipelines() {
                 // Shared pipeline layout for all standard compute passes (Group 0 only)
@@ -1913,10 +1799,6 @@ namespace t7 {
                 return true;
             }
 
-            // -----------------------------------------------------------------
-            // Render pipeline creation
-            // -----------------------------------------------------------------
-
             bool createRenderPipelines() {
                 // Shadow pipeline layout (entity + textures WITHOUT shadow map)
                 std::array<wgpu::BindGroupLayout, 2> shadowLayouts = {
@@ -2182,9 +2064,6 @@ namespace t7 {
                     })) return false;
 
                     if (!tPipe("column", [&]() {
-                        // Column pipeline — same vertex format as arch, different VS.
-                        // CullMode::None because the complex profile (walls + discs + shelves)
-                        // has many normal-direction transitions that make consistent winding fragile.
                         desc.label = "Generative Column (Rasterized)";
                         desc.vertex.entryPoint = Entry::COLUMN_VS;
                         desc.primitive.cullMode = wgpu::CullMode::None;

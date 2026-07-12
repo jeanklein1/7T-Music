@@ -1,60 +1,10 @@
 // ─── spawn_engine.inl ────────────────────────────────────────────
 // Payload relocations (LADDER-3): history in audit/LADDER.md.
 //
-// How and when things appear: shared spawn helpers, footprint
-// registry, proximity affinity, mesh gen prep, distance culling,
-// census, plus the dispatch loops that drive both generic and
-// bespoke families through select → place → commit.
-//
-// ┌─── Public surface (called from outside this file) ──────────────┐
-// │                                                                  │
-// │  Shared spawn helpers (used by every family — generic + bespoke):│
-// │    run_spawn_preamble<ActiveT>(...)   — gate + slot reservation  │
-// │    negotiate_position(...)            — jitter + footprint check │
-// │    record_placement_bookkeeping(...)  — placement seam (vacant)  │
-// │    evaluate_spawn_gate(...)           — seed + flat probability  │
-// │    jittered_position(...)             — patch-relative position  │
-// │                                                                  │
-// │  Footprint registry (+ the pair-separation vocabulary:           │
-// │  MIN_SEPARATION and the PROXIMITY_* tables, written once here):   │
-// │    check_position(...)                — separation check         │
-// │    register_footprint(...)            — claim spatial slot       │
-// │    unregister_footprints_for_patch(...) — release on eviction    │
-// │                                                                  │
-// │  Proximity affinity:                                             │
-// │    proximity_affinity_boost(cx, cz, family) — spawn-chance boost │
-// │    mark_patches_for_regen(...)        — heightfield invalidation │
-// │                                                                  │
-// │  Census (diagnostics):                                           │
-// │    dump_entity_census(trigger)        — full snapshot to stdout  │
-// │                                                                  │
-// │  Mesh gen preparers + culling:                                   │
-// │    prepare_{arch,column,pyramid}_mesh_gen — now in entities.inl  │
-// │    update_entity_draw_visibility(queue) — distance culling       │
-// │    write_pier(...), clear_pier(...), flush_pier_count(...)       │
-// │                                                                  │
-// │  Entity dispatch pipeline:                                       │
-// │    select_entities_for_patch(gx, gz)                             │
-// │    place_entity_queue()                                          │
-// │    commit_entity_queue(queue)                                    │
-// │                                                                  │
-// │  The queues (state): entityQueue_, placementResults_ — their    │
-// │  entry TYPES (EntityQueueEntry / PlacementEntry) AND the bespoke │
-// │  Selection/Placement DTOs live in entity_types.hpp (the          │
-// │  contract home)                                                  │
-// │                                                                  │
-// │  Cross-module reads:                                             │
-// │    GLOBAL_ENTITY_DENSITY                                         │
-// │    footprints_[], MAX_FOOTPRINTS                                 │
-// │    estimate_terrain_height(wx, wz)                               │
-// │    solve_catenary_a(...)  — used by build_arch_mesh_params       │
-// │                                                                  │
-// └──────────────────────────────────────────────────────────────────┘
-//
-// Included inside the Cartridge class body (an UNCONVERTED module under
-// the §1 transitional regime).
-// Depends on: entities.inl, terrain_cpu.inl, seed_utils (file-scope
-//             header); entity_types (file-scope header, precedes the class).
+// How and when things appear: shared spawn helpers, footprint registry,
+// proximity affinity, mesh gen prep, distance culling, census, plus the
+// dispatch loops that drive both generic and bespoke families through
+// select → place → commit.
 //
 // SEAM[spawn_engine:P11] home of pattern P11 (templated active-array
 //   helper) — run_spawn_preamble<ActiveT> is the canonical instance.
@@ -73,21 +23,9 @@
 //   exhibition-guard discussion happens.
 // ─────────────────────────────────────────────────────────────────
 
-// #define DIAG_ENTITY_LIFECYCLE   // uncomment to enable spawn/evict diagnostics
-
 // ═══ SHARED SPAWN HELPERS ════════════════════════════════════════
-//
-// Three helpers used by every family — generic-pipeline ones
-// through their adapter's run_gate, bespoke ones (ribbon, GoL,
-// gallery) directly. The shape of the spawn lifecycle these
-// embody (gate + slot reserve → jitter + footprint → bookkeeping)
-// is the through-line of the whole engine.
 
 // ── Helper 1: SpawnGatePreamble ──────────────────────────────
-//
-// Idempotency-through-slot-reservation gate.
-// Templated on the active-slot array type so it works with
-// all Active* structs that share .active, .patch_gx, .patch_gz.
 
 struct SpawnGatePreambleResult {
     uint32_t seed;          // from evaluate_spawn_gate
@@ -160,10 +98,6 @@ SpawnGatePreambleResult run_spawn_preamble(
 }
 
 // ── Helper 2: NegotiatePosition ─────────────────────────────
-//
-// Jittered position → separation + footprint check →
-// host patch + footprint registration.  Returns the
-// accepted position or failure.
 
 struct PositionResult {
     float cx, cz, rotation;
@@ -185,7 +119,6 @@ PositionResult negotiate_position(
         pos_x_prop, pos_z_prop, jitter, r.cx, r.cz);
     r.rotation = cpu_hash_f(seed, rotation_seed_prop) * 6.283185f;
 
-    // 1b. Indoor wall-margin clamp ─────────────────────────
     //
     // In finite indoor worlds, push the candidate inward so the
     // entity's footprint stays at least INDOOR_ENTITY_WALL_MARGIN
@@ -208,9 +141,6 @@ PositionResult negotiate_position(
         float lo = bmin + clearance;
         float hi = bmax - clearance;
         if (lo > hi) {
-            // Entity too big for room — collapse to center;
-            // the footprint check below will still reject it
-            // if it overlaps something.
             float center = (bmin + bmax) * 0.5f;
             r.cx = center;
             r.cz = center;
@@ -238,35 +168,16 @@ PositionResult negotiate_position(
 }
 
 // ── Helper 3: record_placement_bookkeeping ──────────────────
-//
-// Per-placement seam, called after each family's commit. Its body —
-// the population-observation batch record — retired with that
-// machinery (campaign Stage 3); the seam is currently vacant.
 
 void record_placement_bookkeeping(uint32_t /*family*/, uint32_t /*tier_idx*/)
 {
 }
 
 // ═══ MESH GEN PREPARERS + CULLING ════════════════════════════════
-//
-// CPU-side prep for GPU mesh-gen compute dispatches: scan active
-// arrays, compute draw range, upload index counts. Plus per-frame
-// distance culling with hysteresis. Plus pier write helpers
-// (piers are derived state of arches and columns, written through
-// here so cpu/gpu mirrors stay in sync).
 
 // ─── Column / Arch / Pyramid mesh-gen preparers ───────────────
-// (Moved to entities.inl during migration #10 — they now live
-//  alongside the palm/cactus/blade preparers as static functions
-//  taking EntitiesState& explicitly. The remainder of this file
-//  retains pier writers, culling, and footprint registry, which
-//  are spawn-machinery rather than per-family state.)
 
 // ─── Pier Write Helper ───────────────────────────────────────────
-//
-// Writes a pier to both CPU mirror and GPU buffer (48 bytes per slot).
-// Maintains pier_count in config for bounded GPU iteration.
-// Inactive pier: default-constructed GPUPierInstance (is_active=0).
 
 void write_pier(wgpu::Queue& queue, uint32_t slot, const GPUPierInstance& pier) {
     cpuPiers_[slot] = pier;
@@ -299,18 +210,6 @@ void flush_pier_count(wgpu::Queue& queue) {
 }
 
 // ─── Entity Distance Culling ─────────────────────────────────────
-//
-// Entities are hidden past the terrain-VISIBLE edge by zeroing their GPU
-// mesh params (producing degenerate triangles the rasterizer discards for
-// free), so an entity draws ONLY where the terrain beneath it draws.
-//
-// The cull floor is the terrain-visible ring (VISIBILITY_CYLINDER_RADIUS =
-// 275 wu), pulled one EDGE_MARGIN inside so the whole footprint sits over
-// drawn ground. (It was PREGEN×EXTENT = 350 — the allocation ring, a stale
-// pre-LOD intent — which let entities lead their terrain by 75+ wu.) The
-// base is read in update_entity_draw_visibility below (a function body is a
-// complete-class context); VISIBILITY_CYLINDER_RADIUS is a Cartridge member
-// declared past this include point, so it cannot initialize a constant here.
 //
 // Size-awareness is re-signed: a taller entity culls slightly EARLIER (its
 // base stays safely inside the edge), never later — the old outward lead is
@@ -395,10 +294,6 @@ GPUColumnMeshParams build_column_mesh_params(uint32_t slot) const {
 uint32_t update_entity_draw_visibility(wgpu::Queue& queue) {
     uint32_t culled = 0;
 
-    // Cull floor: the terrain-visible edge minus a margin, so an entity draws
-    // only where its ground draws. Read here (a function body is a complete-
-    // class context) because VISIBILITY_CYLINDER_RADIUS is a Cartridge member
-    // declared past this file's include point.
     const float cull_base = VISIBILITY_CYLINDER_RADIUS - ENTITY_CULL_EDGE_MARGIN;  // 275 − 25 = 250
 
     // Arches
@@ -500,18 +395,6 @@ uint32_t update_entity_draw_visibility(wgpu::Queue& queue) {
 }
 
 // ═══ FOOTPRINT REGISTRY ══════════════════════════════════════════
-//
-// Prevents grounded entities (pyramids, arches, columns, galleries)
-// from overlapping. Each entity registers a circular exclusion zone
-// at spawn time. Subsequent spawns check against the registry.
-//
-// Priority order (enforced by spawn call sequence):
-//   1. Pyramids  — rarest, largest footprint
-//   2. Arches    — moderate, two pier footprints
-//   3. Columns   — common, small
-//   4. Galleries — common, moderate spread
-//
-// Linear scan is sufficient: max ~88 active footprints.
 
 struct GroundFootprint {
     float x = 0.0f, z = 0.0f;
@@ -526,9 +409,6 @@ struct GroundFootprint {
 static constexpr uint32_t MAX_FOOTPRINTS = 128;
 GroundFootprint footprints_[MAX_FOOTPRINTS]{};
 
-// Single-pass spatial check: physical overlap + aesthetic separation.
-// For entity footprints (family < COUNT): effective_min = gap + both radii.
-// Gap is reduced when proximity affinity exists between the pair.
 bool check_position(float px, float pz, float placing_radius,
     uint32_t placing_family) const {
     for (uint32_t i = 0; i < MAX_FOOTPRINTS; i++) {
@@ -571,10 +451,6 @@ void unregister_footprints_for_patch(int32_t gx, int32_t gz) {
 }
 
 // ═══ ENTITY CENSUS ═══════════════════════════════════════════════
-//
-// Complete snapshot of all active entities via the footprint registry.
-// Printed to console periodically and on theme transitions.
-// Enables determinism verification: same seed + pawn path → same census.
 
 float lastCensusDump_ = -999.0f;
 static constexpr float CENSUS_DUMP_INTERVAL = 30.0f;
@@ -646,15 +522,6 @@ void dump_entity_census(const char* trigger) const {
 // participates in.
 
 // ─── Spawn gate ──────────────────────────────────────────────────
-//
-// Shared preamble for entity spawn functions. Extracted from the
-// common skeleton of spawn_{arches,columns,pyramids}_for_patch.
-//
-// Usage:
-//   auto ctx = evaluate_spawn_gate(gx, gz, Prop::SPAWN_ROLL, Config::SPAWN_CHANCE);
-//   if (!ctx.passed) return;
-//   uint32_t tier = select_tier(ctx.seed, Prop::TIER, weights, count);
-//   jittered_position(ctx.seed, gx, gz, Prop::POSITION_X, Prop::POSITION_Z, jitter, cx, cz);
 
 struct SpawnPreamble {
     uint32_t seed;          // tile_seed(world_state_.active_seed, gx, gz)
@@ -687,123 +554,21 @@ static void jittered_position(uint32_t seed, int32_t gx, int32_t gz,
     out_z = (gz + 0.5f) * PATCH_EXTENT + (cpu_hash_f(seed, prop_z) - 0.5f) * PATCH_EXTENT * jitter;
 }
 
-// (PopFamily — the family index vocabulary — lives in roster.hpp,
-//  beside the enablement bits it indexes: identity and enablement
-//  are one document. Unqualified uses here resolve by namespace
-//  lookup.)
-
 // ─── Spawn Configuration Summary ────────────────────────────────
-//
-// Single-glance view of all entity spawn parameters.
-// Authoritative values live in each entity's Config struct.
-//
-//  ┌──────────┬──────────┬───────────────────────────────────────┬────────┐
-//  │ Family   │ CHANCE   │ MOOD_MULTIPLIER                       │ JITTER │
-//  │          │          │ open  sunset flat  vault  fin   finR  │        │
-//  ├──────────┼──────────┼───────────────────────────────────────┼────────┤
-//  │ Pyramid  │  0.030   │ 1.0   1.0    1.0   1.0    1.0   0.0  │  0.25  │
-//  │ Arch     │  0.030   │ 1.0   1.0    1.0   1.0    1.0   1.0  │  0.35  │
-//  │ Column   │  0.030   │ 1.0   1.0    1.0   1.0    1.0   0.0  │  0.35  │
-//  │ Antenna  │  0.025   │ 1.0   1.0    1.0   1.0    1.0   0.0  │  0.35  │
-//  │ Palm     │  0.200   │ 1.0   1.0    1.0   1.0    1.0   0.0  │  0.45  │
-//  │ Cactus   │  0.100   │ 1.0   1.0    1.0   1.0    1.0   0.0  │  0.35  │
-//  │ Blade    │  0.025   │ 1.0   1.0    1.0   1.0    1.0   0.0  │  0.30  │
-//  │ Sphere   │  0.015   │ 1.0   1.0    0.0   0.0    1.0   0.0  │  0.40  │
-//  │ Ribbon   │  0.900*  │ 1.0   1.0    0.0   0.0    1.0   0.0  │  0.30  │
-//  │ Cube     │  0.060   │ 1.0   1.0    0.0   0.0    1.0   0.0  │  0.40  │
-//  │ GoL      │  0.150   │ 1.0   1.0    0.0   0.0    1.0   0.0  │  (lattice) │
-//  │ Gallery  │  varies  │ 1.0   1.0    1.0   1.0    1.0   0.0  │  0.30  │
-//  └──────────┴──────────┴───────────────────────────────────────┴────────┘
 //
 // * Ribbon CHANCE 0.900 is a TESTING bump for ribbon-dev visibility;
 //   ship value 0.400 (ribbon.inl SPAWN_CHANCE, reverted at ship).
-//
-// Spawn chance is flat — archetype/terrain no longer gates spawning.
-// Spatial variation comes from theme lattice and density field.
-// Themes further multiply spawn_chance via PopulationTheme::spawn_weight[family].
-// Moods gate entire families (0.0 = suppressed in that mood).
-// Jitter is fraction of PATCH_EXTENT for position randomization.
 
 // ─── Global Entity Density ──────────────────────────────────────
-// Master multiplier applied to ALL entity spawn chances.
-// 1.0 = normal, <1.0 = sparser world, >1.0 = denser world.
-// Stacks with per-theme density_mult and per-tile entity_density.
 static constexpr float GLOBAL_ENTITY_DENSITY = 1.0f;
 
 // ─── Property Index Registry ────────────────────────────────────
-//
-// Master allocation map for cpu_hash_f(seed, prop) indices.
-// Each family claims a non-overlapping range within its seed source.
-// Collisions between families that share a seed source produce
-// correlated rolls — a subtle bug. Check this table before
-// allocating indices for new entities.
-//
-// SEED SOURCE: tile_seed(world_state_.active_seed, gx, gz)
-//  ┌───────────┬───────────┬────────────────────────────────────┐
-//  │ Range     │ Family    │ Struct                             │
-//  ├───────────┼───────────┼────────────────────────────────────┤
-//  │   1       │ Heightfld │ (inline)                           │
-//  │ 200 – 208 │ Terrain   │ CPU_WAVE_* constants               │
-//  │ 220 – 221 │ Activity  │ CPU_ACT_PROP_* constants           │
-//  │ 370       │ Theme     │ select_theme_at_node (inline)      │
-//  │ 400 – 443 │ Ribbon    │ RibbonProp                         │
-//  │ 500 – 540 │ Gallery   │ select_gallery_for_patch           │
-//  │ 600 – 623 │ Arch      │ ArchProp                           │
-//  │ 700 – 743 │ Column    │ ColumnProp                         │
-//  │ 800 – 823 │ Pyramid   │ PyramidProp                        │
-//  │ 900 – 943 │ Antenna   │ AntennaProp                        │
-//  │ 950 – 993 │ Palm      │ PalmProp                           │
-//  │1000 –1033 │ Cactus    │ CactusProp                         │
-//  │1100 –1122 │ Blade     │ BladeProp                          │
-//  │1200+      │ (free)    │ next entity family starts here     │
-//  └───────────┴───────────┴────────────────────────────────────┘
-//
-// SEED SOURCE: tile_seed (shared with all families)
-//  ┌───────────┬───────────┬────────────────────────────────────┐
-//  │ Range     │ Family    │ Struct                             │
-//  ├───────────┼───────────┼────────────────────────────────────┤
-//  │ 100 – 126 │ Floater   │ FloatingEntityProp                 │
-//  └───────────┴───────────┴────────────────────────────────────┘
-//
-// SEED SOURCE: lattice_node_seed (band 250) — GoL zones
-//  ┌───────────┬───────────┬────────────────────────────────────┐
-//  │ Range     │ Family    │ Struct                             │
-//  ├───────────┼───────────┼────────────────────────────────────┤
-//  │ 920 – 938 │ GoL Zone  │ GoLZoneProp                        │
-//  │ 950 – 954 │ Pulse     │ PulseZoneProp                      │
-//  └───────────┴───────────┴────────────────────────────────────┘
-//  NOTE: GoL/Pulse indices overlap Antenna and Palm numerically,
-//  but are safe — they use a different seed source (lattice band
-//  250 vs tile_seed). Do NOT move GoL props into the tile_seed
-//  range without resolving the collision.
 
 // ── Minimum Separation Matrix ─────────────────────────────────────
-//
-// Compositional spacing: how far apart entities of each family pair
-// must be. Checked against the footprint registry before accepting
-// any position. Footprints persist until patch eviction, so this
-// gives full spatial coverage across the entire active world.
-//
-// 0.0 = no minimum (exception — allow intimate proximity).
-// Positive = minimum world-space center-to-center distance.
 //
 // Read as: row = entity being placed, column = existing entity.
 // The check is asymmetric: placing an arch near a pyramid may have a
 // different minimum than placing a pyramid near an arch.
-//
-//  ┌──────────────────────────────────────────────────────────────────────────────┐
-//  │ MINIMUM SEPARATION — edge-to-edge gap (wu)                                    │
-//  │ placing ↓           │  Pyramid      │  Arch         │  Column                │
-//  ├──────────────────────┼───────────────┼───────────────┼────────────────────────┤
-//  │ Pyramid              │  15 (sparse)  │  10 (wide)    │   5 (spacing)          │
-//  │ Arch                 │  10 (wide)    │  20 (corridor)│  10 (spacing)          │
-//  │ Column               │   5 (spacing) │  10 (spacing) │   8 (colonnade)        │
-//  └──────────────────────┴───────────────┴───────────────┴────────────────────────┘
-//
-// Key exception: Arch→Pyramid = 0. Doorway arches (which become portals)
-// are explicitly allowed on top of pyramids. The footprint system still
-// prevents physical overlap of collision geometry — this matrix only
-// governs aesthetic spacing.
 
 static constexpr float MIN_SEPARATION[PopFamily::COUNT][PopFamily::COUNT] = {
     //                near:  Pyr    Arch   Col    Ant    Palm   Cact   Blad   Sph    Ribn   Cube   GoL    Gall
@@ -822,22 +587,6 @@ static constexpr float MIN_SEPARATION[PopFamily::COUNT][PopFamily::COUNT] = {
 };
 
 // ═══ PROXIMITY AFFINITY ══════════════════════════════════════════
-//
-// Distance-based spawn boost: "how much does a nearby entity of
-// family B increase the spawn chance of family A?"
-//
-// PROXIMITY_AFFINITY[spawning][nearby] — boost per entity within radius.
-// 0.0 = no effect. Positive = attraction. The scan accumulates a
-// weighted count and returns a multiplier capped at max boost.
-//
-// Per-family parameters control the search geometry:
-//   PROXIMITY_RADIUS     — search distance (0 = disabled)
-//   PROXIMITY_MAX_BOOST  — cap on multiplier (1.0 = no boost possible)
-//   PROXIMITY_THRESHOLD  — min nearby count before boost activates
-//   PROXIMITY_GAP_REDUCTION — how much affinity softens separation
-//
-// Precomputed participation masks enable zero-cost early-out for
-// families with no affinities defined.
 
 //                              Pyr    Arch   Col    Ant    Palm   Cact   Blad   Sph    Ribn   Cube   GoL    Gall
 static constexpr float    PROXIMITY_RADIUS[PopFamily::COUNT] = { 0.0f,  0.0f, 60.0f,  0.0f,150.0f,120.0f,120.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f };
@@ -891,9 +640,6 @@ float proximity_affinity_boost(float cx, float cz, uint32_t family) const {
     return std::min(1.0f + weighted, PROXIMITY_MAX_BOOST[family]);
 }
 
-// Mark already-generated patches that overlap a world-space AABB
-// for regeneration. Used by arches, pyramids, and any entity whose
-// collision geometry must be baked into the heightfield.
 void mark_patches_for_regen(float min_wx, float min_wz,
     float max_wx, float max_wz,
     int32_t home_gx, int32_t home_gz) {
@@ -911,8 +657,6 @@ void mark_patches_for_regen(float min_wx, float min_wz,
         }
     }
 }
-
-// (generate_arch_mesh removed — replaced by GPU compute: arch_mesh_gen)
 
 // Precompute catenary parameter 'a' from (half_span, rise).
 // 50-iteration bisection, passed to GPU in ArchMeshParams.
@@ -939,11 +683,6 @@ static float solve_catenary_a(float half_span, float target_h) {
 // SEAM[spawn_engine:structural] in the file header.
 
 // ═══ ENTITY DISPATCH PIPELINE ════════════════════════════════════
-//
-// The three-phase machinery that drives every family — generic and
-// bespoke — through select → place → commit. FAMILY_DISPATCH (in
-// cartridge.hpp) is the function-pointer table; this file holds
-// the queues and the loops that walk them.
 
 // ─── The queues (machine state) ──────────────────────────────────
 //
@@ -970,14 +709,6 @@ void select_entities_for_patch(int32_t gx, int32_t gz) {
 }
 
 // ─── Place: spatial negotiation (no GPU writes) ──────────────
-//
-// Processes entityQueue_ in FIFO order via FAMILY_DISPATCH table.
-// Each selection goes through separation, footprint. Successful
-// placements are pushed to placementResults_. Failed placements
-// unreserve the slot and are dropped.
-//
-// Mutates: footprints_, spawn records, population batch.
-// Does NOT touch: GPU queue, GPU buffers, Active* arrays.
 
 void place_entity_queue() {
     for (auto& e : entityQueue_) {
@@ -989,13 +720,6 @@ void place_entity_queue() {
 }
 
 // ─── Commit: GPU writes from placement results ──────────────
-//
-// Iterates placementResults_ via FAMILY_DISPATCH table, writes
-// GPU state for each entity. Clears placementResults_ when done.
-//
-// Mutates: GPU buffers via queue, Active* arrays, pier mirrors,
-// portal array, mesh gen flags — all render-layer state.
-// Does NOT touch: footprints, spawn records.
 
 void commit_entity_queue(wgpu::Queue& queue) {
     for (auto& pe : placementResults_)
@@ -1003,15 +727,7 @@ void commit_entity_queue(wgpu::Queue& queue) {
     placementResults_.clear();
 }
 
-// Estimate terrain height from tile cache (rough CPU-side approximation).
 //
-// NOT a ground policy query. Deliberately kept as the CPU fast
-// path per the ground policy (modules/ground_architecture.inl): the CPU stays on an
-// approximate tile-cache lookup rather than growing a parallel
-// query_ground_* system. Callers that need accurate height must
-// either (a) pick up the GPU-baked heightfield via readback
-// (POLICY_BAKED_HEIGHTFIELD texture) or (b) defer the decision
-// to a GPU compute pass.
 float estimate_terrain_height(float wx, float wz) const {
     int32_t tx = (int32_t)std::floor(wx / PATCH_EXTENT);
     int32_t tz = (int32_t)std::floor(wz / PATCH_EXTENT);
@@ -1021,10 +737,6 @@ float estimate_terrain_height(float wx, float wz) const {
     return 0.0f;
 }
 
-// True when the terrain tile under (wx, wz) has been generated — i.e. the
-// estimate above is a real sample, not the cold-cache 0 (which is
-// indistinguishable from flat ground by value). Consumed by the ribbon
-// altitude bake (state.hpp) to defer latching until first truth.
 bool terrain_tile_warm(float wx, float wz) const {
     int32_t tx = (int32_t)std::floor(wx / PATCH_EXTENT);
     int32_t tz = (int32_t)std::floor(wz / PATCH_EXTENT);

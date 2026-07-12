@@ -2,11 +2,7 @@
 
 // ─── keyhole.hpp (the forward-decl home) ──────────────────────────
 //
-// The two forward declarations every converted module header needs,
-// provided ONCE. Module functions take the keyhole — Cartridge* c,
-// the composition root (defined in cartridge.hpp) — and module/adapter
-// signatures take wgpu::Queue by reference; both appear in the headers
-// only by pointer/reference, so incomplete types suffice.
+// The two forward declarations every converted module header needs, provided ONCE.
 //
 // LOCKSTEP INSURANCE: the Queue declaration mirrors webgpu_cpp.h's
 // declaration form (`class Queue`, in namespace wgpu). If Dawn ever

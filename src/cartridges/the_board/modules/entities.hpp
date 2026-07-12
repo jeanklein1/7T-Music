@@ -8,62 +8,7 @@
 // ─── entities.hpp (HEADER: vocabulary + state + declarations) ────
 // Converted (LADDER-2 c1; the LADDER-4 channel): history in audit/LADDER.md.
 //
-// Vocabulary for the grounded entity families that share the
-// generic dispatch pipeline. Tier enums, color palettes, configs,
-// property registries, active-instance tracking. Seven families:
-// Arch, Column, Antenna, Palm, Cactus, Blade, Pyramid.
-//
-// ┌─── Family overview ─────────────────────────────────────────────┐
-// │                                                                  │
-// │  Family   GPU tier  Notes                                        │
-// │  ──────   ────────  ─────────────────────────────────────────    │
-// │  Arch     0–2       catenary + piers                             │
-// │  Column   0–2       revolution mesh                              │
-// │  Antenna  3–5       sibling of Column (design cell division)     │
-// │  Palm     —         no piers, no solids, no heightfield          │
-// │  Cactus   —         no piers, no solids, no heightfield          │
-// │  Blade    —         ground-level leaf clusters                   │
-// │  Pyramid  —         baked into heightfield                       │
-// │                                                                  │
-// │  All seven share entity_pipeline.inl as their machinery home.    │
-// │  Tier matrices live in entity_pipeline.inl as <Family>TierRow    │
-// │  per entities:K1 (Option B). Tier enums stay here — they're      │
-// │  indexing semantics, not data.                                   │
-// │                                                                  │
-// │  Not here:                                                       │
-// │    Ribbon  → ribbon.inl (complete subsystem)                     │
-// │    Gallery → gallery.inl (complete subsystem)                    │
-// │    GoL     → gol_zones.inl (complete subsystem)                  │
-// │    Sphere/Cube → floater_vocabulary.hpp (types) + owners         │
-// │                                                                  │
-// └──────────────────────────────────────────────────────────────────┘
-//
-// ┌─── Public surface (called from outside this file) ──────────────┐
-// │                                                                  │
-// │  Module functions take EntitiesState& explicitly.                │
-// │                                                                  │
-// │  Mesh-gen preparers (per family — set GPU index counts;          │
-// │  declared at the end of this header, defined in entities.inl):   │
-// │    prepare_{arch,column,palm,cactus,blade,pyramid}_mesh_gen      │
-// │        (es, c, queue)                                            │
-// │                                                                  │
-// │  Cross-module reads (consumed by entity_pipeline.inl, mesh-gen   │
-// │  dispatchers, render passes, the spine):                         │
-// │    entities_state_.arches[],     entities_state_.arch_count      │
-// │    entities_state_.columns[],    entities_state_.column_count    │
-// │    entities_state_.antennas[],   entities_state_.antenna_count   │
-// │    entities_state_.palms[],      entities_state_.palm_count      │
-// │    entities_state_.cacti[],      entities_state_.cactus_count    │
-// │    entities_state_.blades[],     entities_state_.blade_count     │
-// │    entities_state_.pyramids[],   entities_state_.pyramid_count   │
-// │    entities_state_.cpu_pyramids  (CPU mirror — heightfield bake) │
-// │    entities_state_.*_mesh_gen_pending flags                      │
-// │    entities_state_.lights_dirty                                  │
-// │                                                                  │
-// └──────────────────────────────────────────────────────────────────┘
-//
-// Depends on: state.hpp (Dim::*, GPUPyramidArray, wgpu), mood_constants.hpp
-// (MOOD_COUNT, PortalDestination), seed_utils.hpp (consumers hash with it).
+// Vocabulary for the grounded entity families that share the generic dispatch pipeline.
 //
 // SEAM[entities:P10] this block is the canonical home of pattern P10
 //   (per-family vocabulary block). Seven family applications follow.
@@ -91,19 +36,6 @@ namespace the_board {
 inline constexpr float PAWN_HEIGHT_UNITS = 1.5f;     // matches WGSL PAWN_HEIGHT
 
 // ═══ VOCABULARY: ARCH ════════════════════════════════════════════
-//
-// Generative catenary arches. Three tiers: doorway, standard,
-// monumental. Mesh is a CPU-generated barrel vault with per-vertex
-// color. Pawn-walkable via step-height; two pier solids per arch.
-//
-// Pier sizing rule. Pier footprint is DERIVED from shell geometry:
-//     pier_half_x = thickness/2 + pier_padding + edge_blend
-//     pier_half_z = depth/2     + pier_padding + edge_blend
-//   The artist controls pier_padding (extra margin beyond the shell
-//   base). Piers always cover the arch feet with room to spare.
-//
-// Color: default = warm sandstone with per-instance variance;
-//        override = arch palette (one entry, room to grow).
 
 enum class ArchTier : uint32_t {
     DOORWAY = 0,   // human-scale passage
@@ -121,11 +53,6 @@ inline constexpr float ARCH_SANDSTONE_BASE[3] = { 0.75f, 0.68f, 0.60f };
 inline constexpr float ARCH_SANDSTONE_VARIANCE = 0.04f;
 
 // ── Spawn Configuration ──────────────────────────────────────────
-// Controls WHERE arches appear; deliberately separate from the tier
-// matrix in entity_pipeline.inl (which controls WHAT each looks
-// like). Spawn rules are placeholder, awaiting full object vocabulary.
-// NAMED TODO (census: constitution §5): the placeholder dies when the
-// object vocabulary lands.
 struct ArchConfig {
     static constexpr float SPAWN_CHANCE = 0.030f;
     // Per-mood spawn multiplier (Bayesian: prior × mood_factor × adjacency_factor)
@@ -190,17 +117,7 @@ struct ActiveArch {
     PortalDestination destination{};      // world this portal leads to
 };
 
-// (Arch state lives in EntitiesState — see end of file)
-
 // ═══ VOCABULARY: COLUMN ══════════════════════════════════════════
-//
-// Generative columns. Three classical tiers: pillar, doric, ornate.
-// Mesh is a surface of revolution from a profile curve: base layers
-// → shaft (with taper + entasis) → capital layers.
-//
-// Collision: one solid per column (square footprint with edge_blend).
-// Color: default = warm sandstone with per-instance variance;
-//        override = column palette (seven entries).
 
 enum class ColumnTier : uint32_t {
     PILLAR = 0,        // thick sturdy post, minimal ornamentation
@@ -260,16 +177,6 @@ struct ColumnProp {
 };
 
 // ═══ VOCABULARY: ANTENNA ═════════════════════════════════════════
-//
-// Generative antennas. Three tiers: antenna, squat, colossal. Tall
-// posts with stacked drum elements.
-//
-// Lineage. Antenna is a design cell division from Column. The two
-// share ColumnTierRow shape in entity_pipeline.inl (with field reuse:
-// base_layers = drum_count, base_height = drum_height,
-// base_overhang = drum_radius_overhang, capital_height = spacer_height),
-// share ActiveColumn tracking, share the mesh-gen pipeline. They
-// occupy distinct GPU tier indices: Column 0–2, Antenna 3–5.
 
 enum class AntennaTier : uint32_t {
     ANTENNA = 0,       // tall post with stacked drum elements
@@ -278,10 +185,6 @@ enum class AntennaTier : uint32_t {
     COUNT = 3
 };
 inline constexpr uint32_t ANTENNA_TIER_COUNT = static_cast<uint32_t>(AntennaTier::COUNT);
-
-// Antenna has no separate color palette — it shares COLUMN_PALETTE.
-// Drum colors are sampled into the per-instance ActiveColumn::drum_colors[]
-// array (cached per spawn). See entity_pipeline.inl for the sampling.
 
 // ── Spawn Configuration ──────────────────────────────────────────
 struct AntennaConfig {
@@ -348,17 +251,7 @@ struct ActiveColumn {
     float cached_ground_y = 0.0f;         // absolute pier-top Y for VS offset
 };
 
-// (Column + Antenna state lives in EntitiesState — see end of file)
-
 // ═══ VOCABULARY: PALM ════════════════════════════════════════════
-//
-// Generative palms. Three tiers: Sapling, Coastal, Royal. Tapered
-// trunk with lean + bark rings, crowned with radial fronds.
-//
-// Lineage. Member of the vegetation cluster (Palm, Cactus, Blade) —
-// no piers, no collision solids, no heightfield contribution.
-// Color paradigm: body-part bases (trunk / frond / aged frond) with
-// per-instance variance.
 
 enum class PalmTier : uint32_t { SAPLING = 0, COASTAL = 1, ROYAL = 2, COUNT = 3 };
 inline constexpr uint32_t PALM_TIER_COUNT = static_cast<uint32_t>(PalmTier::COUNT);
@@ -417,16 +310,7 @@ struct ActivePalm {
     float cached_ground_y = 0.0f;
 };
 
-// (Palm state lives in EntitiesState — see end of file)
-
 // ═══ VOCABULARY: CACTUS ══════════════════════════════════════════
-//
-// Generative cacti. Three tiers: Finger, Saguaro, Candelabra. Ribbed
-// columnar trunk with optional forking arms.
-//
-// Lineage. Member of the vegetation cluster (Palm, Cactus, Blade) —
-// no piers, no collision solids, no heightfield contribution. Color
-// paradigm: body / rib bases with per-instance variance.
 
 enum class CactusTier : uint32_t { FINGER = 0, SAGUARO = 1, CANDELABRA = 2, COUNT = 3 };
 inline constexpr uint32_t CACTUS_TIER_COUNT = static_cast<uint32_t>(CactusTier::COUNT);
@@ -481,18 +365,7 @@ struct ActiveCactus {
     float cached_ground_y = 0.0f;
 };
 
-// (Cactus state lives in EntitiesState — see end of file)
-
 // ═══ VOCABULARY: BLADE ═══════════════════════════════════════════
-//
-// Generative blade clusters. Three tiers: Sprout, Clump, Thicket.
-// Ground-level leaf clusters of 3–7 thick pointed blades from a
-// single ground point. Geometry: flat quad strips along curved
-// midribs, golden-angle packed.
-//
-// Lineage. Member of the vegetation cluster (Palm, Cactus, Blade) —
-// no piers, no collision solids, no heightfield contribution. Color
-// paradigm: body / aged bases with per-instance variance.
 
 enum class BladeClusterTier : uint32_t { SPROUT = 0, CLUMP = 1, THICKET = 2, COUNT = 3 };
 inline constexpr uint32_t BLADE_TIER_COUNT = static_cast<uint32_t>(BladeClusterTier::COUNT);
@@ -541,17 +414,7 @@ struct ActiveBlade {
     float cached_ground_y = 0.0f;
 };
 
-// (Blade state lives in EntitiesState — see end of file)
-
 // ═══ VOCABULARY: PYRAMID ═════════════════════════════════════════
-//
-// Generative pyramids. Three tiers: obelisk, temple, colossus.
-//
-// Collision: pyramid height function baked into heightfield —
-//   pawn blocked by step-height on steep faces (no solid needed).
-// Visual: CPU-generated 4-face (pointed) or 5-face (truncated) mesh.
-// Color paradigm: sandstone base with per-instance variance only
-//   (no palette, distinct from arch/column).
 
 enum class PyramidTier : uint32_t {
     OBELISK = 0,     // tall narrow marker, pointed apex
@@ -603,19 +466,6 @@ struct ActivePyramid {
 };
 
 // ═══ ENTITIES MODULE STATE ════════════════════════════════════════
-//
-// All grounded-entity state lives in this struct, accessed via
-// entities_state_ on the Cartridge (declared at the composition root).
-// Module functions (the per-family prepare_*_mesh_gen helpers) take
-// `EntitiesState& es` explicitly.
-//
-// Cross-module reads (this state is consumed widely):
-//   • entity_pipeline.inl — adapter functions for each family read
-//     and write the per-family arrays + counts
-//   • render_passes.inl   — consumes counts to drive draw calls
-//   • cartridge.hpp       — teardown loops, dispatch wrappers,
-//                           per-frame mesh-gen orchestration
-//   • mood.inl            — clears arrays on mood transition
 
 struct EntitiesState {
     // ── Arch ─────────────────────────────────────────────────────
@@ -654,15 +504,6 @@ struct EntitiesState {
 };
 
 // ═══ MESH-GEN PREPARERS — DECLARATIONS ════════════════════════════
-//
-// Per-family CPU-side mesh-gen prep. Each preparer:
-//   • Reads the family's *_mesh_gen_pending flag and clears it
-//   • Scans the family's active array to find the highest active slot
-//   • Uploads index count = (max_slot + 1) * indices_per_slot to GPU
-//
-// DEFINED in entities.inl (post-class, self-wrapping) — each dereferences
-// the keyhole (c->gpuState_ index-count setters), which requires the
-// complete Cartridge. Callers: the FAMILY_DISPATCH prepare wrappers.
 
 bool prepare_palm_mesh_gen(EntitiesState& es, Cartridge* c, wgpu::Queue& queue);
 bool prepare_cactus_mesh_gen(EntitiesState& es, Cartridge* c, wgpu::Queue& queue);
@@ -672,11 +513,6 @@ bool prepare_arch_mesh_gen(EntitiesState& es, Cartridge* c, wgpu::Queue& queue);
 bool prepare_pyramid_mesh_gen(EntitiesState& es, Cartridge* c, wgpu::Queue& queue);
 
 // ═══ THE EVICTORS — DECLARATIONS ═══════════════════════════════════
-//
-// Lifecycle, absorbed per §5 EVICTION THUNKS: one evictor per owned
-// family, keyhole-shaped to match the FAMILY_DISPATCH evict slot
-// (table in family_dispatch.inl; reached through
-// evict_patch_entities). DEFINED in entities.inl (post-class).
 
 void evict_pyramid(Cartridge* self, uint32_t slot, wgpu::Queue& queue);
 void evict_arch(Cartridge* self, uint32_t slot, wgpu::Queue& queue);
@@ -699,15 +535,6 @@ void dispatch_commit_cactus_generic(Cartridge* self, PlacementEntry& pe, wgpu::Q
 
 // ═══ THE ARCH FORCE-SPAWN AUTHOR (the portal channel) ═══════════
 //
-// Forced portal-arch authoring: the arch's OWNER writes the arch. Mood
-// computes values — position, rotation, destination, back-portal flag,
-// portal color (mood vocabulary, passed in) — and this entry point owns
-// the mutation: the ROSTER portal door, the free-slot scan, the Doorway
-// tier-mean geometry, the pier authorship (write_pier via the keyhole),
-// the slot writes, arch_count, the mesh-params upload +
-// arch_mesh_gen_pending. All three portal spawner paths
-// (general/back/finite) route through here. Returns the slot used, or
-// UINT32_MAX if gated or no slot free.
 uint32_t force_spawn_portal_arch(EntitiesState& es, Cartridge* c, wgpu::Queue& queue,
     float cx, float cz, float rotation,
     const PortalDestination& dest, bool is_back_portal,

@@ -24,33 +24,13 @@
 //   no instance buffer, indirect arg, or compute output. A SHARED piece's
 //   buffers still EXIST (co-resident in a megabind) but stay pristine.
 //
-// MATURITY DIAL: v0 is this constexpr table. The GATES are the stable
-//   contract; the table's CONSTNESS is the dial — v0 constexpr -> boot-time
-//   table -> requirements-face resolver (theory v1 M-j). The dependency
-//   edges below (FOUNDATIONAL + the transitions=>portal edge) are the
-//   resolver embryo: one structure of bits, edges, and root-anchored
-//   edges — not a table plus a footnote.
-//
-// FOUNDATIONAL (non-gateable — a reader might expect a bit; there is none,
-//   by dependency, anchored at the build root):
-//   * agents machinery — agentStateBuffer_, the agent compute kernel, and
-//     slot 0. The reference body (the pawn) IS agent slot 0, and the buffer
-//     co-resides 7 shared bind groups (ROSTER_RECON R2). Disabling it would
-//     unmake the pawn. The GATEABLE half is `wanderers` (the mood-authored
-//     population, agent slots 1+); slot 0 is untouched by it.
-//   * the sun — directional light + shadow map + its shadow pipelines. The
-//     sun rides upload_lights (rider comment at the call site); it is not a
-//     piece. Terrain substrate, camera, frustum cull, patch stores, the
-//     frame signal / config / VP are foundational likewise.
+// MATURITY DIAL: the GATES are the stable contract; the table's
+//   CONSTNESS is the dial — v0 constexpr -> boot-time table ->
+//   requirements-face resolver (theory v2 §5).
 //
 // LATENT[roster-split:photographer]: the photographer (capture cadence +
 //   snapshot pass) rides gallery's bit for v0. Split into its own bit the
 //   day authored-only exhibits with a dead camera are wanted.
-//
-// spot_lights x indoor_shell: INDEPENDENT — apply_mood_spot_lights
-//   keys off derive_indoor_lights, apply_mood_indoor_shell off the
-//   ceiling mesh; both key off m.indoor separately, no shared state.
-//   Either may be disabled without the other. No edge.
 //
 // ─── GATE-(a) STATUS (the M-j cost column) ──────────────────────────
 // ROSTER-1a/1b: creation + graduation history in audit/LADDER.md.
@@ -65,13 +45,6 @@
 //             then skip — no re-section).
 //   NO-RES  = no gateable creation of its own.
 //
-//     SEP     indoor_shell
-//     SH·mb   pyramid arch column ribbon gol gallery pawn_aura orbs spot_lights
-//     SH·dc   sphere cube palm cactus blade
-//     NO-RES  antenna (rides column mesh)   portal (rides arch storage)
-//             transitions (owns only fadeOverlayPipeline_, draw-coupled)
-//             wanderers (rides foundational agentStateBuffer_ slots 1+)
-//
 //   Only SEP pieces skip creation in v0; SH·* sites carry
 //   LATENT[gate-a-shared] with the retirement condition; NO-RES pieces own
 //   nothing to skip. This arc gates one SEP piece (indoor_shell).
@@ -80,11 +53,6 @@ namespace t7 {
 namespace the_board {
 
 // ═══ FAMILY IDENTITY ═════════════════════════════════════════════
-//
-// The family index vocabulary. Lives beside the enablement bits it
-// indexes — family identity and family enablement are one
-// self-binding document (family_enabled switches on these names
-// directly). Every spawn-aware module consumes these indices.
 
 struct PopFamily {
     static constexpr uint32_t PYRAMID = 0;
@@ -103,11 +71,6 @@ struct PopFamily {
 };
 
 struct Roster {
-    // FAMILIES (12) — one bool per PopFamily index, in PopFamily order
-    // (family_enabled below binds them by name). (b) gate: the select
-    // loop (spawn_engine.inl); the per-frame mesh-prepare loop folds
-    // these by constexpr (R1 hot-path caveat — no runtime branch on a
-    // disabled piece in the hot path).
     bool pyramid, arch, column, antenna, palm, cactus, blade,
          sphere, ribbon, cube, gol, gallery;
     // FEATURES (7)
@@ -119,11 +82,6 @@ struct Roster {
     bool transitions;   // mood-transition ENTRY (request + portal trigger)
     bool wanderers;     // mood-authored NPC population (agent slots 1+)
 
-    // Family bit by PopFamily id — constexpr, usable at runtime (select
-    // loop) and compile time (mesh fold: `if constexpr
-    // (ROSTER.family_enabled(F))`). PopFamily lives above; the switch
-    // binds bit to family BY NAME — a family reorder cannot silently
-    // desynchronize identity from enablement.
     constexpr bool family_enabled(uint32_t f) const {
         switch (f) {
             case PopFamily::PYRAMID: return pyramid;
@@ -142,10 +100,6 @@ struct Roster {
         }
     }
 
-    // True iff every piece is enabled (the golden config). Makes the boot
-    // summary compile to ZERO code in the all-enabled build —
-    // `if constexpr (!ROSTER.all_enabled())` is discarded whole, so the
-    // all-enabled binary and stdout carry no trace of it.
     constexpr bool all_enabled() const {
         return pyramid && arch && column && antenna && palm && cactus &&
                blade && sphere && ribbon && cube && gol && gallery &&
@@ -154,10 +108,6 @@ struct Roster {
     }
 };
 
-// v0: ALL PIECES ENABLED — the golden anchor (G0: all-enabled is
-// byte-identical to the pre-roster build). Flip a bit to gate a piece.
-// Lean music-viz build (the founding customer): set
-// transitions/portal/indoor_shell/spot_lights/wanderers false.
 inline constexpr Roster ROSTER = {
     // families, PopFamily order: pyr arch col ant palm cact blade sph rib cube gol gall
     true, true, true, true, true, true, true, true, true, true, true, true,
@@ -165,16 +115,10 @@ inline constexpr Roster ROSTER = {
     true,      true, true,       true,        true,   true,       true,
 };
 
-// THE FIRST EDGE — transitions REQUIRE portal (M-j embryo). Portals
-// are BOTH the transition trigger IN and the guaranteed return path
-// OUT; transitions on + portal off soft-locks. CONDITIONAL (not
-// unconditional) so the lean music-viz build — transitions+portal off
-// together — stays legal; an unconditional assert would make the
-// portal bit never legally false. DUAL MATURITY: this static_assert
-// is v0’s form of the edge; the early-return doors —
-// request_mood_transition (mood.inl) and entities'
-// force_spawn_portal_arch — are the maturity-proof form that goes
-// live when the table turns boot-time.
+// THE FIRST EDGE — transitions REQUIRE portal: portals are both the
+// trigger IN and the guaranteed return OUT; transitions on + portal
+// off soft-locks. CONDITIONAL so transitions+portal both-off (the
+// lean build) stays legal.
 static_assert(!ROSTER.transitions || ROSTER.portal,
     "ROSTER: portal disabled while transitions enabled — "
     "transitions REQUIRE portal (the trigger in, the return path out)");

@@ -2,20 +2,7 @@
 // ─── seed_utils.hpp ──────────────────────────────────────────────
 // Converted (LADDER-1 c1): history in audit/LADDER.md.
 //
-// Pure math. Hash, Gaussian, tier selection.
-// No member state. No domain knowledge.
-// Every layer below depends on these; they depend on nothing.
-//
-// Public surface:
-//   cpu_hash(seed, prop)                   — uint32_t deterministic hash
-//   cpu_hash_f(seed, prop)                 — float in [0, 1)
-//   tile_seed(master_seed, gx, gz)         — patch-seed derivation
-//   cpu_lattice_node_seed(s, nx, nz, band) — lattice-node-seed derivation
-//   cpu_smoothstep(e0, e1, x)              — smoothstep
-//   cpu_sample_gaussian(s, prop, μ, σ)     — Box-Muller, ±3σ truncated
-//   select_tier(seed, prop, weights, n)    — cumulative-weight selection
-//
-// Depends on: nothing but the standard library (foundations layer — pure math).
+// Pure math.
 //
 // SEAM[seed_utils:P9] textbook "library without state" module — pure
 //   functions, no class members referenced, no domain assumptions (zero
@@ -83,7 +70,6 @@ inline float cpu_sample_gaussian(uint32_t seed, uint32_t property, float mean, f
     return mean + z * sigma;
 }
 
-// Weighted selection from cumulative weights.
 //
 // SEAM[seed_utils:Q10-target] the ONE cumulative-weight bucket walk,
 //   shared across every domain. The Q10 consolidation has LANDED:

@@ -2,49 +2,10 @@
 // ─── ground_architecture.hpp ─────────────────────────────────────
 // Converted (LADDER-1 c2): history in audit/LADDER.md.
 //
-// Canonical registry for the ground query architecture:
-// contributors, explicit dependency DAG, and policies. Single source
-// of truth on the C++ side; world.wgsl mirrors the same ids and
-// per-policy bitmasks as `const` values so shader code can refer to
-// them by symbol. Keep the two in sync.
-//
-// The design rationale now lives in the code: CONTRIBUTOR_DAG /
-// POLICIES[] below, and the architecture overview comment at the top
-// of the ground section in world.wgsl, which describes contributor
-// classes, extension patterns, and the fused-inline hot paths that
-// bypass the query API.
-//
-// ┌─── Public surface (consumed by other files) ────────────────────┐
-// │                                                                  │
-// │  Identifiers:                                                    │
-// │    ContributorId            — stable id per contributor          │
-// │    PolicyId                 — stable id per policy               │
-// │    CONTRIB_COUNT, POLICY_COUNT                                   │
-// │                                                                  │
-// │  Tables:                                                         │
-// │    CONTRIBUTOR_DAG[]        — placement-order edges              │
-// │    POLICIES[]               — per-policy contributor masks       │
-// │                                                                  │
-// │  Mask helpers:                                                   │
-// │    GROUND_STATIC_BASE_MASK  — fused static-base trio             │
-// │                                                                  │
-// │  Validation (compile-time only — no runtime symbols exported):   │
-// │    DAG closure asserts run at the bottom of this file.           │
-// │                                                                  │
-// └──────────────────────────────────────────────────────────────────┘
-//
+// Canonical registry for the ground query architecture: contributors,
+// explicit dependency DAG, and policies.
 // ── Vocabulary ──────────────────────────────────────────────────
-//
-// A *contributor* is a named source of height (or subtractive
-// displacement) at a world XZ. A *policy* is a named filter over the
-// contributor set: each consumer declares its policy, and a single
-// `query_ground_<policy>` function in world.wgsl evaluates the
-// policy-selected contributor sum.
-//
 // ── STATUS convention (TER-2 alignment) ─────────────────────────
-//
-// Every policy row and declared capability carries an explicit status
-// marker, so declaration-vs-realization is visible instead of implied:
 //
 //   STATUS: REALIZED      — wired and live (the consumer is cited).
 //   STATUS: LATENT[name]  — capability with a plausible future; kept
@@ -54,38 +15,8 @@
 //   STATUS: INTENT        — declared, zero realization yet; kept in
 //                           the declaration with the status stated
 //                           (honest futures, not lies).
-//
-// The registry says what is realized rather than shrinking to it.
-//
 // ── What this file declares ─────────────────────────────────────
-//
-//   ContributorId         Stable id per contributor (0..CONTRIB_COUNT).
-//                         Drives bit positions in policy masks and
-//                         endpoints in CONTRIBUTOR_DAG edges.
-//
-//   PolicyId              Stable id per policy (0..POLICY_COUNT).
-//
-//   CONTRIBUTOR_DAG       Explicit dependency edges among
-//                         static_landform contributors. "A → B" means
-//                         A is placed beneath B (B's eval composes on
-//                         top of A). Deformation fields are not in
-//                         the DAG — they act orthogonally.
-//
-//   POLICIES              Per-policy row: id + name + contributor
-//                         bitmask + gradient_supported flag. Indexed
-//                         by PolicyId (verified by a count
-//                         static_assert).
-//
-//   policy mask helpers   GROUND_STATIC_BASE_MASK groups the three
-//                         fused static-base contributors (lattice,
-//                         tile_modifiers, solids) for readability.
-//
 // ── Compile-time validation ─────────────────────────────────────
-//
-// A policy's contributor set must be *closed under CONTRIBUTOR_DAG*:
-// for every edge {from, to}, if the mask contains `to` it must also
-// contain `from`. This prevents policies like "pyramids without
-// terrain_lattice" from compiling.
 //
 // The check ITERATES CONTRIBUTOR_DAG[] itself (over
 // CONTRIBUTOR_DAG_EDGE_COUNT), so the edge table is load-bearing:
@@ -95,13 +26,6 @@
 // namespace constexpr function is a NAMED LATER STAGE. The lambda's
 // body is parsed in place and reads only the already-initialized
 // inline constexpr tables above it.
-//
-// Every policy runs the check for every DAG edge at compile time;
-// adding a new policy means adding one ASSERT_POLICY_DAG_CLOSED
-// invocation at the bottom of this file. Adding an edge means adding
-// one CONTRIBUTOR_DAG row — the assert iterates the table.
-//
-// Depends on: <cstdint> only (pure enum + table definitions + macro checks).
 //
 // SEAM[ground_architecture:P9] header-style file: pure declarations
 //   (enums + tables) + compile-time validation macros, zero runtime
@@ -154,15 +78,6 @@ enum PolicyId : uint32_t {
 };
 
 // ═══ DEPENDENCY DAG ══════════════════════════════════════════════
-//
-// A → B means "A is placed beneath B" — B's evaluation composes on
-// top of A. Edges exist only among static_landform contributors.
-// Deformation fields are orthogonal to the DAG (applied additively
-// across the static+dynamic sum).
-//
-// Note: LATTICE, TILE_MODIFIERS, SOLIDS fuse into contrib_static_base_at
-// at the shader level; the edges are still declared here so policy
-// closure validation works on logical contributor ids.
 
 struct ContributorEdge {
     ContributorId from;
@@ -186,9 +101,6 @@ inline constexpr uint32_t CONTRIBUTOR_DAG_EDGE_COUNT =
     sizeof(CONTRIBUTOR_DAG) / sizeof(CONTRIBUTOR_DAG[0]);
 
 // ═══ POLICY DEFINITIONS ══════════════════════════════════════════
-//
-// Each policy declares its contributor set as a bitmask indexed by
-// ContributorId, plus a flag for gradient evaluation support.
 
 struct PolicyDef {
     PolicyId    id;
@@ -205,8 +117,6 @@ inline constexpr uint32_t GROUND_STATIC_BASE_MASK =
     (1u << CONTRIB_SOLIDS);
 
 inline constexpr PolicyDef POLICIES[] = {
-    // Placement policies — spawn-time Y correction. No deformation
-    // fields (placement should be stable against animated terrain).
     //
     // STATUS: LATENT[policy-surface] (all three placement rows) — the
     // declared placement queries have no live caller; the live Y path is
@@ -346,13 +256,6 @@ static_assert(POLICY_COUNT_IN_TABLE == POLICY_COUNT,
 // CONTRIBUTOR_DAG[] table (over CONTRIBUTOR_DAG_EDGE_COUNT) — the
 // declared table is load-bearing: adding an edge re-validates every
 // policy with no edits here.
-//
-// Shape: an immediately-invoked constexpr lambda per static_assert;
-// the restyle to a namespace constexpr function is a NAMED LATER
-// STAGE. INTENT edges (stub endpoints) participate like any other
-// edge: their endpoints exist as ContributorId bits, so closure over
-// them is well-defined (and currently vacuous — no mask includes the
-// stubs).
 
 #define ASSERT_POLICY_DAG_CLOSED(POLICY_IDX, POLICY_NAME)                       \
     static_assert(                                                              \

@@ -9,11 +9,7 @@
 // terrain_tile_warm), plus the in-class statics (Cartridge::THEMES /
 // Cartridge::PATCH_EXTENT); PopFamily is roster.hpp vocabulary.
 //
-// WRAPPING FORM (the proven fix-2 rule): SELF-WRAPPING — opens
-// t7::the_board itself, carries its own standard includes; the MODULE
-// IMPLEMENTATIONS zone includes it at FILE SCOPE. Definitions are
-// `inline` free functions. Section order is the original — every
-// definition already precedes its first use.
+// WRAPPING FORM (fix-2): SELF-WRAPPING — the zone includes impls at FILE SCOPE; law in audit/LADDER.md.
 //
 // PAIRING (the mirror law, AMENDED at LADDER-3 c5): the byte-identical
 // mirror with the_chord's ribbon.inl is SUSPENDED by the header ladder's
@@ -46,10 +42,6 @@ inline float wander_rand01(uint32_t& s) {
     return (float)(s & 0x00FFFFFFu) / 16777216.0f;
 }
 
-// Author this frame's flight inputs for a wandering ribbon. Movement is along
-// -heading (the flight convention), so the desired heading is the bearing to
-// the waypoint plus pi. The steering integrator downstream enforces
-// RIBBON_R_MIN, so any waypoint yields a legal, frame-safe path.
 inline void ribbon_wander_inputs(ActiveRibbon& ar,
                                  float head_x, float head_z, float heading,
                                  float dt, float& yaw_in, float& thr_in)
@@ -98,9 +90,6 @@ inline void ribbon_wander_inputs(ActiveRibbon& ar,
 // the GPU exactly once per frame, through
 // GPUState::upload_ribbon_head_poses (a dumb wire).
 
-// Sample the propagation history `age` seconds into the past
-// (0 = now). Heading is an integrator's output — continuous — so
-// plain lerp is safe; y likewise.
 inline void ribbon_history_sample(const RibbonState& rs, float age, float& h, float& y) {
     const RibbonHead& hd = rs.head;
     float fidx = age / RibbonHead::HIST_DT;
@@ -154,12 +143,6 @@ inline void ribbon_rebuild_body_upload(RibbonState& rs, GPUState& gpuState,
                                       poses.size() * sizeof(float));
 }
 
-// Advance the head one frame — flown (player, wanderer, or a
-// future musical author, all through the same integrator) or
-// parked (held at the anchor) — record heading + Y into the
-// propagation history, rebuild the body. head_poses is ALWAYS
-// the rendered body: a parked head has a constant past, which
-// reads as the straight spawn arc.
 inline void ribbon_advance_head(RibbonState& rs, GPUState& gpuState,
                                 wgpu::Queue& queue, const GPURibbonState& ribbon,
                                 uint32_t slot, float t,
@@ -173,9 +156,6 @@ inline void ribbon_advance_head(RibbonState& rs, GPUState& gpuState,
         hd.heading = ribbon.orientation;
         hd.pos[0] = hd.origin[0];
         hd.pos[2] = hd.origin[2];
-        // A newborn body is a constant past: straight along the spawn
-        // heading — the seed, restated as time. (The Y channel fills in
-        // the bake below.)
         hd.hist_heading.fill(hd.heading);
         hd.hist_head = 0;
         hd.hist_time = t;
@@ -243,9 +223,6 @@ inline void ribbon_advance_head(RibbonState& rs, GPUState& gpuState,
             const float alpha = 1.0f - std::exp(-travel / RIBBON_ALT_SMOOTH_DIST);
             hd.alt_target += (raw_target - hd.alt_target) * alpha;
 
-            // THE PEN: critically damped vertical follower — stiffness
-            // sets the ease, damping = 2*sqrt(stiffness) means no
-            // overshoot, the velocity clamp bounds extreme corrections.
             const float damp = 2.0f * std::sqrt(RIBBON_ALT_STIFF);
             hd.y_vel += ((hd.alt_target - hd.pos[1]) * RIBBON_ALT_STIFF
                          - damp * hd.y_vel) * dt;
@@ -258,9 +235,6 @@ inline void ribbon_advance_head(RibbonState& rs, GPUState& gpuState,
         head_y = hd.pos[1];
         head_z = hd.pos[2];
     } else {
-        // Not flying: head holds at the anchor at its BAKED birthright
-        // altitude; heading holds the spawn orientation. The body is the
-        // (constant) history — straight. Flight state stays primed.
         hd.heading = ribbon.orientation;
         hd.pos[0] = ribbon.anchor[0];
         hd.pos[1] = hd.origin[1];
@@ -280,11 +254,6 @@ inline void ribbon_advance_head(RibbonState& rs, GPUState& gpuState,
     // beneath the seat share one wave at one age — the saddle's —
     // exactly. SEAM[ribbon:sky-mode].
     {
-        // ONE age for the whole seat: position, frame, and the tube
-        // beneath all sample the SADDLE's arc (the head's age offset by
-        // the seat setback at propagation speed). Sampling any of them
-        // at the head's age instead shears the seat against the surface
-        // by amp·freq·(setback/P) — the float/dip this block once had.
         const float p_spd = std::max(ribbon.propagation_speed, 1e-3f);
         const float s_age = ribbon.time - RIBBON_MOUNT_SETBACK / p_spd;
         const float lat = std::sin(ribbon.lateral_freq  * s_age) * ribbon.lateral_amp;
@@ -292,14 +261,6 @@ inline void ribbon_advance_head(RibbonState& rs, GPUState& gpuState,
         const float ch  = std::cos(hd.heading);
         const float sh  = std::sin(hd.heading);
 
-        // The saddle's FRAME (BNK-2): identical math to the GPU ring
-        // motor (BNK-1), evaluated at the SADDLE's arc position — the
-        // head's age offset by the seat setback at propagation speed.
-        // Inputs are this slot's CPU mirror (amps POST-swell: the
-        // conductor's flush runs before this mover), so the rider's
-        // lean deepens with the musical swell for free. Computed FIRST:
-        // the seat lift below rides the frame's up. One s_age definition
-        // above serves position and frame both (SNAP-1).
         const float sl_lat = std::cos(ribbon.lateral_freq  * s_age)
                            * ribbon.lateral_amp  * ribbon.lateral_freq;
         const float sl_ver = std::cos(ribbon.vertical_freq * s_age)
@@ -330,10 +291,6 @@ inline void ribbon_advance_head(RibbonState& rs, GPUState& gpuState,
         const float uz = -uxl * sy + uzl * cy;
         const float half_t = ribbon.cube_size * 0.5f;
 
-        // Setback toward the tail (+heading) so the pawn's body sits
-        // over the tube instead of straddling the leading cap. (Straight
-        // walk vs curved history errs < 0.03 u at R_MIN — accepted,
-        // bounded.)
         hd.mount[0] = head_x + lat * (-sh) + RIBBON_MOUNT_SETBACK * ch + half_t * ux;
         hd.mount[1] = head_y + ver                                    + half_t * uyl;
         hd.mount[2] = head_z + lat * ( ch) + RIBBON_MOUNT_SETBACK * sh + half_t * uz;
@@ -352,15 +309,8 @@ inline void ribbon_advance_head(RibbonState& rs, GPUState& gpuState,
     ribbon_rebuild_body_upload(rs, gpuState, queue, ribbon, head_x, head_y, head_z);
 }
 
-// Invalidate the head/trail state so the next advance re-inits and
-// re-seeds. Called on release, eviction, and succession (commit):
-// slots are reused, so the slot-change guard alone cannot detect a
-// successor ribbon.
 inline void ribbon_invalidate_head(RibbonState& rs) { rs.head.seeded = false; }
 
-// True when the head state belongs to this slot (post-init). The
-// cartridge uses it to sample the ground at the HEAD when ready,
-// and at the ANCHOR for the first frame of a life.
 inline bool ribbon_head_is(const RibbonState& rs, uint32_t slot) {
     return rs.head.seeded && rs.head.slot == slot;
 }
@@ -374,9 +324,6 @@ inline void ribbon_head_pose(const RibbonState& rs, float& x, float& y, float& z
     heading = rs.head.heading;
 }
 
-// The saddle's FRAME angles (BNK-2) — read by the cartridge's sky-block
-// fill beside ribbon_head_pose. Yaw offset, pitch, roll; zeros when the
-// head is unseeded (identity — the rider sits level).
 inline void ribbon_head_frame(const RibbonState& rs, float& yaw_off, float& pitch, float& roll) {
     yaw_off = rs.head.mount_yaw_off;
     pitch   = rs.head.mount_pitch;
@@ -394,18 +341,7 @@ inline void ribbon_head_pen(const RibbonState& rs, float& x, float& z, float& he
 
 // ═══ FRAME ORCHESTRATION ═════════════════════════════════════════
 //
-// The ribbon's per-frame conductor: choose the author (player in sky
-// mode, wanderer when the rendered ribbon wanders, parked otherwise),
-// advance the head through the laws, keep the rendered slot (hold
-// until eviction, then adopt the nearest active ribbon), and flush
-// the per-frame GPU uploads (time, color). render() calls this once
-// per frame at the ribbon block's position in the frame cascade.
-// External consumers of the head pose (camera signal, pawn-mount
-// resync) read ribbon_head_pose from their own order-sensitive sites
-// after this tick — they consume, they do not orchestrate.
 inline void ribbon_frame_tick(RibbonState& rs, Cartridge* c, wgpu::Queue& queue) {
-    // Ribbon eviction is fully event-driven via ref_count in
-    // evict_patch_entities — no per-frame scan needed.
 
     // Phase clock on all CPU mirrors — MUSICAL TIME: the
     // sway integrates at the tempo follower's rate, scaled
@@ -695,10 +631,6 @@ inline void fill_ribbon_selection_geometry(
 
 // ─── select_ribbon_for_patch ──────────────────────────────────
 //
-// Phase 1: tip-overlap idempotency check, then standard spawn
-// preamble (gate + slot reserve), then tier selection with theme
-// bias, then geometry sampling, then orientation-toward-pawn-away
-// constraint with ±60° spread.
 inline bool select_ribbon_for_patch(RibbonState& rs, Cartridge* c,
     int32_t gx, int32_t gz, RibbonSelection& sel) {
     // Tip-overlap idempotency: reject if ANY active ribbon's
@@ -733,9 +665,6 @@ inline bool select_ribbon_for_patch(RibbonState& rs, Cartridge* c,
 
     fill_ribbon_selection_geometry(gate.seed, tier_idx, sel);
 
-    // Constrain orientation: ribbon body extends primarily away
-    // from the pawn. The hash provides ±60° of spread around the
-    // away direction so ribbons aren't all perfectly radial.
     {
         float patch_cx = (gx + 0.5f) * Cartridge::PATCH_EXTENT;
         float patch_cz = (gz + 0.5f) * Cartridge::PATCH_EXTENT;
@@ -750,12 +679,6 @@ inline bool select_ribbon_for_patch(RibbonState& rs, Cartridge* c,
 
 // ─── place_ribbon_from_selection ──────────────────────────────
 //
-// Phase 2: footprint negotiation with jitter + rotation, copy
-// selection fields into the placement record.
-//
-// Note: this function takes no RibbonState — it only mediates
-// between the selection and spawn-engine helpers (negotiate_position,
-// record_placement_bookkeeping). It doesn't touch ribbon's data.
 inline bool place_ribbon_from_selection(Cartridge* c,
     const RibbonSelection& sel, RibbonPlacement& plan) {
     auto pos = c->negotiate_position(sel.seed,
@@ -796,9 +719,6 @@ inline bool place_ribbon_from_selection(Cartridge* c,
 
 // ─── commit_ribbon ───────────────────────────────────────────
 //
-// Phase 3: write GPU state (CPU mirror, uploaded later by spine),
-// register tip patches for cross-patch eviction tracking.
-//
 // Dual entry: also called from mood.inl::apply_mood for mood-5
 // forced spawn (SEAM[ribbon:dual-entry]).
 inline void commit_ribbon(RibbonState& rs, Cartridge* c,
@@ -814,11 +734,6 @@ inline void commit_ribbon(RibbonState& rs, Cartridge* c,
     r.cube_size = plan.cube_size;
     r.height = plan.height;
     r.orientation = plan.orientation;
-    // Trail-frame: derive the temporal freq from authored cycles, the
-    // per-tier propagation_speed, and the ribbon length. Frozen-frame
-    // visible cycles are preserved; crests propagate head→tail at
-    // propagation_speed. freq = cycles * 2pi * P / total_length. Vertical
-    // shares the lateral cycles — one visible wavelength, two amplitudes.
     {
         const float P = RIBBON_TIERS[plan.tier_idx].propagation_speed;
         const float total_length = (float)plan.cube_count * plan.cube_size;
@@ -863,11 +778,6 @@ inline void commit_ribbon(RibbonState& rs, Cartridge* c,
     ar.anchor_x = plan.cx;
     ar.anchor_z = plan.cz;
 
-    // Wander: seed-driven — every decision a pure channel of the spawn seed
-    // (RibbonProp 450-452), like tier, geometry, color, and position. The seed
-    // determines the wander decision, the cruise, and (by seeding the runtime
-    // stream) the entire waypoint sequence. Channel draws are stateless, so
-    // this decade perturbs no existing draw.
     ar.wander = cpu_hash_f(plan.seed, RibbonProp::WANDER_ROLL) < WANDER_CHANCE;
     {
         float cr = cpu_sample_gaussian(plan.seed, RibbonProp::WANDER_CRUISE,
@@ -877,18 +787,10 @@ inline void commit_ribbon(RibbonState& rs, Cartridge* c,
     }
     ar.wander_rng = 1u + (uint32_t)(cpu_hash_f(plan.seed, RibbonProp::WANDER_RNG)
                                     * 16777215.0f);
-    // Hatchling rule: a newborn departs along its own body. Movement is
-    // -heading = -orientation, so the first waypoint lies straight ahead;
-    // the meander begins at the second pick. No pose contradiction at birth.
     ar.wander_tx = plan.cx - WANDER_HATCH_LEG * std::cos(r.orientation);
     ar.wander_tz = plan.cz - WANDER_HATCH_LEG * std::sin(r.orientation);
     ar.wander_retarget = WANDER_RETARGET_MIN;
     ar.wander_yaw_state = 0.0f;
-    // Succession: a commit into the slot the head is wearing is a REBIRTH.
-    // Slots are reused (MAX_RIBBON_INSTANCES = 1), so the slot-equality init
-    // guard in ribbon_advance_head cannot see a successor — only this signal
-    // can. Every ribbon life passes through commit (dispatch AND mood force-
-    // spawn), so the head dies here, and no other site needs to remember.
     if (ribbon_head_is(rs, s))
         ribbon_invalidate_head(rs);
 
@@ -922,13 +824,7 @@ inline void commit_ribbon(RibbonState& rs, Cartridge* c,
         << ") far=(" << ar.far_tip_gx << "," << ar.far_tip_gz << ")\n";
 }
 
-
 // ═══ DISPATCH FUNNELS (table-shaped; declared in entity_types.hpp) ═
-//
-// The FAMILY_DISPATCH rows for this family point here (the table
-// is defined in modules/family_dispatch.inl). Bodies delegate to
-// the module functions above and keep the spine bookkeeping
-// (find_patch / record_entity) at the seam.
 
 inline bool dispatch_select_ribbon(Cartridge* self,
     int32_t gx, int32_t gz, EntityQueueEntry& e) {
@@ -982,10 +878,7 @@ inline void dispatch_commit_ribbon(Cartridge* self,
     ar.ref_count = refs;
 }
 
-
-// ═══ THE EVICTOR (lifecycle, absorbed per §5 EVICTION THUNKS) ═════
-//
-// Named by the FAMILY_DISPATCH table (family_dispatch.inl).
+// ═══ THE EVICTOR ══════════════════════════════════════════════════
 
 inline void evict_ribbon(Cartridge* self,
     uint32_t slot, wgpu::Queue& queue) {

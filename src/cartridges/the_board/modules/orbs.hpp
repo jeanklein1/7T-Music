@@ -6,55 +6,10 @@
 // ─── orbs.hpp (HEADER: console + registries + state + decls) ─────
 // Converted (LADDER-2 c3): history in audit/LADDER.md.
 //
-// Sky orb layer — luminous points on a dome above the world. A fixed
-// population of billboarded quads sampled from a dome of radius
-// ORB_DOME_RADIUS, driven by CPU-authored mood config, updated by a
-// compute kernel, rendered additively.
+// Sky orb layer — luminous points on a dome above the world.
 //
-// The open ORB-1 ruling (anchor semantics) governs update_orb_anchor /
-// toggle_orb_anchor.
-//
-// The control surfaces (tuning console, palette registry, tier sets,
-// flocking gestures, ORB_MOOD_TABLE below) are intended to be read as
-// matrices: one row per item, aligned columns, minimum narrative. All
-// runtime levers (cycle keys, toggles) are exposed as named functions
-// with a single-line purpose comment.
-//
-// ┌─── Public surface (called from outside this module) ───────────┐
-// │                                                                 │
-// │  Module functions take OrbsState& explicitly                    │
-// │  (or const OrbsState& when read-only).                          │
-// │                                                                 │
-// │  Lifecycle:                                                     │
-// │    configure_orbs(os, c, cfg, queue) — mood entry: upload + arm │
-// │    teardown_orbs(os, c)              — mood exit: disable       │
-// │                                                                 │
-// │  Player commands:                                               │
-// │    cycle_orb_palette(os, c, queue)     — 0     next palette     │
-// │    cycle_orb_motion_rule(os, c, queue) — KP_8  next rule        │
-// │    cycle_orb_gesture(os, c, queue)     — KP_DECIMAL next gest.  │
-// │    toggle_orb_anchor(os, c)            — KP_9  world↔pawn       │
-// │                                                                 │
-// │  Per-frame updates:                                             │
-// │    update_orb_anchor(os, c, x, z, q)   — dirty-flagged push     │
-// │                                                                 │
-// │  GPU dispatches (called from render tick):                      │
-// │    dispatch_orb_init(os, c, encoder)        — one-shot seed     │
-// │    dispatch_orb_recolor(os, c, encoder)     — palette resample  │
-// │    dispatch_orb_copy_prev(os, c, encoder)   — snapshot prev     │
-// │    dispatch_orb_dynamics(os, c, enc, q)     — rule + couplings  │
-// │    render_orbs(os, c, pass)                 — additive draw     │
-// │                                                                 │
-// │  Cross-module reads: orbs_state_ is fully encapsulated; no      │
-// │  external module reaches into its fields.                       │
-// │                                                                 │
-// └─────────────────────────────────────────────────────────────────┘
-//
-// Depends on: mood_constants.hpp (MOOD_COUNT); keyhole.hpp (the
-// Cartridge + wgpu::Queue fwds) plus the two encoder handles below,
-// used by reference in the declarations. The impl additionally needs
-// state.hpp (GPUOrbConfig, Dim::MAX_ORBS) and renderer.hpp — both
-// precede it in the TU.
+// The impl additionally needs state.hpp (GPUOrbConfig, Dim::MAX_ORBS)
+// and renderer.hpp — both precede it in the TU.
 // ─────────────────────────────────────────────────────────────────
 
 // LOCKSTEP INSURANCE (same construct as keyhole.hpp): mirrors
@@ -67,12 +22,6 @@ namespace t7 {
 namespace the_board {
 
 // ═══ TUNING CONSOLE ══════════════════════════════════════════════
-//
-// All orb-system tuning dials in one place. Anything that shapes
-// the feel of the sky — dome size, sprite size, coupling rates,
-// sanitization defaults — is here. Mood-authored values live in
-// ORB_MOOD_TABLE (end of this header); these are system-level dials
-// that apply across every mood.
 
 // ── Dome geometry ────────────────────────────────────────────────
 inline constexpr float ORB_DOME_RADIUS = 450.0f;
@@ -84,11 +33,6 @@ inline constexpr float ORB_BASE_SIZE = 3.0f;
 inline constexpr float ORB_NOISE_FLOOR    = 0.3f;
 
 // ── Rule-critical parameter floors ───────────────────────────────
-// Applied in configure_orbs when the mood authors 0.0 for a given
-// field: zero reads as "no opinion, use system default" so every
-// rule has working parameters regardless of mood authorship. A mood
-// wanting "almost zero" should author a tiny non-zero (e.g. 0.001f),
-// which reads as intentional.
 inline constexpr float ORB_DEFAULT_DRAG = 0.5f;
 inline constexpr float ORB_DEFAULT_ORBITAL_SPEED = 0.15f;
 inline constexpr float ORB_DEFAULT_FLOCK_SEP_R = 50.0f;
@@ -100,11 +44,6 @@ inline constexpr float ORB_DEFAULT_FLOCK_COH_W = 15.0f;
 inline constexpr float ORB_DEFAULT_FLOCK_MAX_SPEED = 60.0f;
 
 // ═══ REGISTRY: PALETTES ══════════════════════════════════════════
-//
-// Each palette is up to 4 weighted HSV "pockets" — a mood's sky can
-// be mostly one color with rare accents. Selection weights across
-// pockets should sum ≈ 1.0 (the last pocket catches the tail).
-// Indexed by palette_id in mood config.
 
 inline constexpr uint32_t MAX_ORB_PALETTE_ENTRIES = 4;
 
@@ -188,14 +127,6 @@ inline constexpr const char* ORB_PAL_NAMES[ORB_PAL_COUNT] = {
 };
 
 // ═══ REGISTRY: TIER SETS ═════════════════════════════════════════
-//
-// A tier classifies "what kind of orb is this" — at init each orb
-// rolls into a tier by weight, then samples its physics (mass, drag,
-// size, brightness) from that tier's ranges and carries the tier's
-// gains into the dynamics kernel (noise, force, color, flocking).
-//
-// tierset_id = 0xFFFFFFFFu (ORB_TIERSET_NONE) → uniform population,
-// ignores every tier field (see configure_orbs + orb_init).
 
 inline constexpr uint32_t MAX_ORB_TIERS = 4;
 
@@ -224,11 +155,6 @@ struct OrbTierSet {
     OrbTier tiers[MAX_ORB_TIERS];
 };
 
-// "JWST Stars" — classic deep-field population.
-//   giants  : rare, eye-catchers, slow to settle, full color, lead the flock
-//   main    : the population baseline
-//   faint   : numerous, small, reduced color; follows flow without clustering
-//   flickers: hyperactive tiny ones; high noise, edge-scouts
 inline constexpr OrbTierSet ORB_TIERSET_JWST_STARS = {
     4,
     {
@@ -240,10 +166,6 @@ inline constexpr OrbTierSet ORB_TIERSET_JWST_STARS = {
     }
 };
 
-// "Resonant" — voiced chamber-like sky.
-//   drones : heavy, slow, convergence-responsive, strong cohesion (anchor)
-//   voices : balanced baseline
-//   sparks : pure motion, no color, high separation (edge agitators)
 inline constexpr OrbTierSet ORB_TIERSET_RESONANT = {
     3,
     {
@@ -270,20 +192,6 @@ inline constexpr const char* ORB_TIERSET_NAMES[ORB_TIERSET_COUNT] = {
 };
 
 // ═══ REGISTRY: FLOCKING GESTURES ═════════════════════════════════
-//
-// Eight named sign combinations over the 2³ space (separation,
-// alignment, cohesion). Cycled by KP_DECIMAL at runtime. Each row
-// is one recognizable behavior; sign flipping reverses the
-// direction of that force in the dynamics kernel.
-//
-//   flock    (+++)  standard cohere-align-space
-//   antiflock(---)  full dispersal
-//   swirl    (+-+)  cohere but counter-flow within the cluster
-//   orbit    (-+-)  ring around empty core
-//   huddle   (-++)  dense aligned clump
-//   flee     (++-)  spaced + aligned, runs from the center
-//   chaos    (+--)  spaced + counter-flow, fleeing
-//   trap     (--+)  pulled in, counter-flow, cohesive knot
 
 struct OrbFlockGesture {
     float       sep_sign;
@@ -306,12 +214,6 @@ inline constexpr OrbFlockGesture ORB_FLOCK_GESTURES[ORB_FLOCK_GESTURE_COUNT] = {
 };
 
 // ═══ REGISTRY: BROWNIAN GESTURES ═════════════════════════════════
-//
-// Six variations over three binary dimensions — radial sign
-// (expansion vs contraction on music), vertical bias (isotropic
-// vs upward), and coherence (per-orb independent vs per-block
-// shared). Cycled by the gesture key when the active rule is
-// Brownian; player state persists across mood transitions.
 
 struct OrbBrownianGesture {
     float       radial_sign;   // ±1 — polyphony expands or contracts
@@ -332,9 +234,6 @@ inline constexpr OrbBrownianGesture ORB_BROWNIAN_GESTURES[ORB_BROWNIAN_GESTURE_C
 };
 
 // ═══ REGISTRY: ORBITAL GESTURES ══════════════════════════════════
-//
-// Four variations over axis alignment + speed variance. Cycled
-// by the gesture key when the active rule is Orbital.
 
 struct OrbOrbitalGesture {
     float       alignment_mode;   // 0 scatter, 1 parallel, 2 mirror
@@ -352,10 +251,6 @@ inline constexpr OrbOrbitalGesture ORB_ORBITAL_GESTURES[ORB_ORBITAL_GESTURE_COUN
 };
 
 // ═══ MOOD CONFIG (authoring surface) ═════════════════════════════
-//
-// Declared here; instantiated per-mood in ORB_MOOD_TABLE (end of this
-// header). configure_orbs consumes this and sanitizes rule-critical
-// zeros against the ORB_DEFAULT_* floors above.
 
 struct OrbMoodConfig {
     // Population
@@ -396,21 +291,6 @@ struct OrbMoodConfig {
 };
 
 // ═══ ORBS MODULE STATE ═══════════════════════════════════════════
-//
-// All orb-owned state lives in this struct, accessed via orbs_state_
-// on the Cartridge (declared at the composition root). Module functions
-// take `OrbsState& os` explicitly rather than reaching via Cartridge*,
-// making ownership language-visible and dependencies explicit in
-// signatures.
-//
-// Sub-grouped by role:
-//   • lifecycle      — kernel arming flags, palette
-//   • anchor         — player-owned dome-center follow
-//   • motion         — current rule + per-rule gesture indices
-//   • speed          — population speed multiplier
-//
-// Motion rule identifiers, named for legibility at gesture-dispatch
-// sites. Index into gesture_idx / gesture_initialized.
 
 inline constexpr uint32_t ORB_RULE_BROWNIAN = 0u;
 inline constexpr uint32_t ORB_RULE_ORBITAL = 1u;
@@ -439,9 +319,6 @@ struct OrbsState {
     // across mood transitions. The rule seeds to Brownian on first run.
     uint32_t current_motion_rule = 0u;
     bool     motion_rule_initialized = false;  // one-time Brownian seed guard
-    // Per-rule gesture indices. Index 2 (Frozen) is vestigial
-    // — Frozen has no gestures; cycle_orb_gesture short-circuits. All
-    // four indices persist across mood transitions (player state).
     uint32_t gesture_idx[4]         = { 0u, 0u, 0u, 0u };
     bool     gesture_initialized[4] = { false, false, false, false };
 
@@ -449,18 +326,9 @@ struct OrbsState {
     // Population speed multiplier. Smoothed on the CPU, uploaded via
     // upload_orb_speed_mult only when it moves.
     float    speed_mult_current = 1.0f;
-    // DRIVERLESS (CPU landing site; census: constitution §5): rests at
-    // 1.0 (identity); writer retired with gen-1 — the gen-2 "orb.speed"
-    // pipe lands here when its coupling is designed. Dies by
-    // revive-or-delete when this region is next worked.
 };
 
 // ═══ MODULE FUNCTIONS — DECLARATIONS ═════════════════════════════
-//
-// DEFINED in orbs.inl (post-class, self-wrapping) — each dereferences the
-// keyhole (gpuState_ uploads, renderer_ dispatches, world_state_ seed,
-// player_ readback, time_state_ clocks), which requires the complete
-// Cartridge. ORB-1's anchor semantics are untouched by the conversion.
 
 // Lifecycle
 void configure_orbs(OrbsState& os, Cartridge* c, const OrbMoodConfig& cfg, wgpu::Queue& queue);
@@ -483,33 +351,10 @@ void render_orbs(OrbsState& os, Cartridge* c, wgpu::RenderPassEncoder& pass);
 
 // ─── Orb Mood Table ─────────────────────────────────────────────
 //
-// Lives at end-of-header because OrbMoodConfig is defined above and
-// MOOD_COUNT comes from mood_constants.hpp — per-mood orb authoring
-// data lives with the struct that defines its shape.
-//
 // SEAM[mood:K4] mood-5 row is bit-identical to mood-0 (open_default)
 //   except for the implicit context that mood-5 is finite_outdoor_ref.
 //   Mirrors the same MOOD_TABLE pattern. Resolves with the
 //   has_anchor_ribbon flag (mood:L1).
-//
-// Per-mood orb config. Indexed by the same mood index as MOOD_TABLE.
-// See OrbMoodConfig above for field semantics. Zero-valued rule-critical
-// fields (drg, orbS, flock radii/weights) are sanitized to system
-// defaults in configure_orbs — "0 = no opinion, system picks a working
-// value." Explicit small non-zero reads as deliberate authorship.
-//
-//  Column legend (short → field name):
-//    en      enabled              rotAxis rotation_axis[3]
-//    n       count                orbS    orbital_base_speed (rule 1)
-//    hueB    base_hue (legacy)    pal     palette_id (ORB_PAL_*)
-//    hueV    hue_variance         hct     hue_converge_target
-//    bri     brightness           anc     anchor_to_pawn_default
-//    drg     drag (1/s)           trs     tierset_id (0xFFFFFFFFu = legacy)
-//    rul     motion_rule
-//    rotS    rotation_speed
-//    sepR/alnR/cohR/sepW/alnW/cohW/maxS   flocking parameters
-//    gst     flock_gesture_default (0..7, ORB_FLOCK_GESTURES index)
-//    drgB/drgO/drgF/drgK          per-rule drag multipliers (0 = 1.0× pass-through)
 //
 //                                              en     n    hueB   hueV   bri    drg   rul  rotS    rotAxis                  orbS  pal  hct    anc    trs           sepR   alnR    cohR    sepW   alnW   cohW   maxS   gst  drgB  drgO  drgF  drgK
 inline constexpr OrbMoodConfig ORB_MOOD_TABLE[MOOD_COUNT] = {

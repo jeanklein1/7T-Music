@@ -7,12 +7,8 @@
 // c->world_state_ / c->gol_state_ / c->ribbon_state_ / c->gallery_state_ /
 // c->orbs_state_ / c->mood_state_ / c->clearColor_.
 //
-// WRAPPING FORM (the proven fix-2 rule): SELF-WRAPPING — opens
-// t7::the_board itself, carries its own standard includes; the MODULE
-// IMPLEMENTATIONS zone includes it at FILE SCOPE. Definitions are
-// `inline` free functions. Section order is the original — every
-// definition already precedes its first use (draw_shadow_all follows
-// render_shadow_pass but is declared by the header).
+// WRAPPING FORM (fix-2): SELF-WRAPPING — the zone includes impls at
+// FILE SCOPE; law in audit/LADDER.md.
 // ─────────────────────────────────────────────────────────────────
 
 #include <algorithm>   // std::max, std::min
@@ -23,15 +19,7 @@ namespace t7 {
 namespace the_board {
 
 // ═══ PRE-RENDER DATA PREP ════════════════════════════════════════
-//
-// CPU-side packing of entity positions, then a GPU compute pass to
-// Y-correct them against the heightfield. Runs once per frame
-// before any compute or render dispatch.
 
-// --- Per-frame ground entry upload: entity positions ---
-// ground_y = 0 for all families. The GPU compute shader
-// (compute_entity_placement) REPLACES it with the heightfield
-// sample, which already includes pier contributions.
 inline void upload_ground_entries(Cartridge* c, wgpu::Queue& queue) {
     // ── Arch ground entries ──
     GPUArchGroundEntry archOrigins[Dim::MAX_ARCH_INSTANCES]{};
@@ -124,11 +112,6 @@ inline void upload_ground_entries(Cartridge* c, wgpu::Queue& queue) {
         plantOrigins, sizeof(plantOrigins));
 }
 
-// --- Entity placement Y-correction: GPU heightfield sampling ---
-// GPU-as-single-source-of-truth: samples the heightfield at entity
-// positions and adds terrain height to the CPU-uploaded pier offsets.
-// Handles paintings (terrain + GoL), columns, palms, cacti (single-point),
-// arches (2-point pier feet min), pyramids (5-point corner min).
 inline void dispatch_placement_correction(Cartridge* c, wgpu::CommandEncoder& encoder) {
     wgpu::ComputePassDescriptor cpd{};
     cpd.label = "Entity Placement Y Correction";
@@ -140,10 +123,6 @@ inline void dispatch_placement_correction(Cartridge* c, wgpu::CommandEncoder& en
 }
 
 // ═══ GPU COMPUTE DISPATCH ════════════════════════════════════════
-//
-// Per-frame compute pass: ribbon transforms, world updates (player,
-// agents, camera, sphere, cube), VP matrix. Plus the outdoor-only
-// frustum cull pass that classifies visible patches into LOD0.
 
 // Per-frame compute: ribbon transforms, agents, camera, VP.
 inline void dispatch_compute(Cartridge* c, wgpu::CommandEncoder& encoder) {
@@ -164,10 +143,6 @@ inline void dispatch_compute(Cartridge* c, wgpu::CommandEncoder& encoder) {
         c->gpuState_.compute_entity_group()
     );
 
-    // Player kernel runs first: the walker policy updates
-    // the possessed slot's position. The other-agents kernel
-    // then sees the player's current-frame position when it
-    // computes eviction distances.
     c->renderer_.dispatch_update_player_agent(
         compute,
         c->gpuState_.compute_entity_group(),
@@ -206,13 +181,6 @@ inline void dispatch_compute(Cartridge* c, wgpu::CommandEncoder& encoder) {
     compute.End();
 }
 
-// GPU frustum cull: classify visible patches into LOD0.
-// Outdoor only (indoor worlds are too small to benefit). Flow:
-//   1. CPU writes constant args (indexCount, 0, 0, 0, 0) to compute buffer
-//   2. Compute shader frustum-tests each patch, atomicAdds instanceCount,
-//      appends to visible_patch_indices
-//   3. CopyBufferToBuffer transfers compute buffer → indirect buffer
-//   4. Main pass DrawIndexedIndirect from indirect buffer
 inline void dispatch_frustum_cull(Cartridge* c, wgpu::CommandEncoder& encoder, wgpu::Queue& queue) {
     if (!c->renderer_.use_indirect_terrain()) { return; }   // indoor: skip
 
@@ -239,11 +207,6 @@ inline void dispatch_frustum_cull(Cartridge* c, wgpu::CommandEncoder& encoder, w
 }
 
 // ═══ SHADOW PASS ═════════════════════════════════════════════════
-//
-// Outdoor: single pass, directional sun VP, full 4096×4096 map.
-// Indoor:  two-texture atlas — lights 0-1 on the sun map (repurposed),
-//          lights 2-3 on the spot map. Each texture is split left/right
-//          into 2048×4096 tiles for per-light shadows.
 
 inline void render_shadow_pass(Cartridge* c, wgpu::CommandEncoder& encoder) {
     if (c->mood_state_.spot_light_active && c->cpuSpotLights_.count > 0) {
@@ -424,10 +387,6 @@ inline void draw_shadow_all(Cartridge* c, wgpu::RenderPassEncoder& pass) {
 }
 
 // ═══ MAIN PASS ═══════════════════════════════════════════════════
-//
-// Full color pass: terrain (LOD0 + LOD1), GoL zone extrusions,
-// pawn, all entities, gallery, ribbon, sky orbs, fade overlay.
-// Drawn in order so depth-tested transparency layers correctly.
 
 inline void render_main_pass(Cartridge* c, wgpu::CommandEncoder& encoder,
     wgpu::TextureView backbuffer, wgpu::TextureView depth) {
@@ -585,10 +544,6 @@ inline void render_main_pass(Cartridge* c, wgpu::CommandEncoder& encoder,
         c->gallery_state_.wall_frame_count
     );
 
-    // Pyramids: terrain surface IS the pyramid shape (via the baked
-    // heightfield, which caches POLICY_BAKED_HEIGHTFIELD = static
-    // base + pyramids). No separate mesh draw needed.
-
     if (c->ribbon_state_.rendered_slot != UINT32_MAX) {
         c->renderer_.draw_ribbon(
             pass,
@@ -606,9 +561,6 @@ inline void render_main_pass(Cartridge* c, wgpu::CommandEncoder& encoder,
         c->gallery_state_.active_painting_count
     );
 
-    // Sky orbs (additive, depth-tested, depth-write off).
-    // After opaque entities so they depth-test correctly; before
-    // fade overlay so the overlay fades the orbs too.
     render_orbs(c->orbs_state_, c, pass);
 
     // Fade overlay (drawn last, alpha blended over everything)
@@ -622,14 +574,7 @@ inline void render_main_pass(Cartridge* c, wgpu::CommandEncoder& encoder,
 }
 
 // ═══ LIGHT MATRIX COMPUTATION ════════════════════════════════════
-//
-// Build per-light view-projection matrices for shadow rendering.
-// Spot lights use perspective projection; directional sun uses
-// orthographic projection covering the patch ring.
 
-// Perspective projection for spot light shadow map.
-// Physically correct: shadows fan out from the source.
-// Bias is handled in the shader with distance-scaled + normal offset.
 inline void compute_spot_light_vp(const GPUSpotLight& light, float* view_proj_out) {
     const float* pos = light.position;
     float ld[3] = { light.direction[0], light.direction[1], light.direction[2] };
@@ -671,11 +616,6 @@ inline void compute_spot_light_vp(const GPUSpotLight& light, float* view_proj_ou
         tx, ty, tz, 1.0f
     };
 
-    // Perspective projection — FOV matched to outer cone angle.
-    // Concentrates shadow texels on the actual lit area instead of
-    // wasting resolution on the dark periphery. Small margin ensures
-    // the shadow frustum slightly exceeds the lit cone.
-    // Capped at 2.8 rad (~160°) to avoid degenerate perspective.
     const float outer_half = std::acos(std::max(light.outer_cone, -0.95f));
     const float fov = std::min(2.0f * outer_half + 0.2f, 2.8f);
     const float near_plane = 1.0f;
@@ -702,21 +642,10 @@ inline void compute_spot_light_vp(const GPUSpotLight& light, float* view_proj_ou
     }
 }
 
-//
-// Orthographic projection for directional light shadow map.
-// Covers a fixed area centered at world origin. The light "looks"
-// along its direction from a high altitude.
 
 inline void compute_sun_matrices(const float* direction, float* view_proj_out,
     float center_x, float center_z) {   // defaults live on the header declaration
-    // Sun orbits the pawn at a fixed distance.
-    // The frustum is sized to cover the 11×11 patch grid (radius 5).
     //
-    // Terrain extends ±250 from grid center. The pawn can be up to
-    // ~25 units from grid center (half-cell before shift).
-    // So worst case: terrain is ±275 from pawn in world space.
-    // At the oblique light angle, that projects to ~305 in light space.
-    // ±350 covers everything with margin. Yields 700/4096 = 0.17 units/texel.
     const float altitude = 300.0f;
     float light_pos[3] = {
         center_x - direction[0] * altitude,
@@ -764,10 +693,6 @@ inline void compute_sun_matrices(const float* direction, float* view_proj_out,
         tx,          ty,           tz,          1.0f
     };
 
-    // Orthographic projection — sized to cover all loaded terrain.
-    // With radius 5: ±250 from grid center, ±275 from pawn.
-    // At the oblique light angle, worst-case is ~305 in light space.
-    // ±350 covers everything with margin.
     const float half_extent = 350.0f;
     const float near_plane = 0.1f;
     const float far_plane = 800.0f;

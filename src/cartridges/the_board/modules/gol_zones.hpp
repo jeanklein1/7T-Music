@@ -8,46 +8,9 @@
 // ─── gol_zones.hpp (HEADER: vocabulary + state + decls) ──────────
 // Converted (LADDER-3 c1): history in audit/LADDER.md.
 //
-// Zone-local Game of Life + Pulse automata. Each zone is a 32×32
-// grid anchored to a mode lattice node. Conway zones evolve by
-// neighbor rules; Pulse zones breathe periodically.
+// Zone-local Game of Life + Pulse automata.
 //
-// Architecture (mirrors the Column entity pattern):
-//   GoLZoneProp        — property index registry (seed-based rolls)
-//   GoLZoneSpawnConfig — spawn chances and spatial constants
-//   GoLTierProfile     — mean+sigma tier matrix (Gaussian sampling)
-//   PulseTierProfile   — analogous matrix for Pulse zones
-//   GoLColorMode       — color tier weights (declarative)
-//   GoLZoneState       — per-instance runtime state
-//
-// ┌─── Public surface (called from outside this module) ────────────┐
-// │                                                                  │
-// │  Module functions take GoLState& explicitly. This makes          │
-// │  ownership language-visible and cross-cutting dependencies       │
-// │  explicit in function signatures.                                │
-// │                                                                  │
-// │  Lifecycle (three-phase + helper):                               │
-// │    select_gol_for_patch(gs, c, gx, gz, sel)   — Phase 1: roll    │
-// │    place_gol_from_selection(c, sel, plan)     — Phase 2: place   │
-// │      (note: takes no GoLState — only mediates between sel and    │
-// │       spawn-engine helpers; not part of GoL's data)              │
-// │    commit_gol(gs, c, plan, gx, gz, queue)     — Phase 3: state   │
-// │    seed_gol_zone(gs, c, slot, queue)          — life buffer init │
-// │                                                                  │
-// │  Per-frame:                                                      │
-// │    upload_gol_zone_config(gs, c, queue)       — config+tick mask │
-// │    flush_zone_derive_requests(gs, c, queue)   — GPU dispatch     │
-// │                                                                  │
-// │  Cross-module reads (consumed by other modules):                 │
-// │    gol_state_.zones[], gol_state_.zone_count   — read by spine   │
-// │    gol_state_.mood_allowed                     — read by spine   │
-// │      (spine writes zones[].active; mood sets mood_allowed —      │
-// │       the request-flag stays channel-shaped)                     │
-// └──────────────────────────────────────────────────────────────────┘
-//
-// Depends on: state.hpp (Dim::*, GPUZoneDeriveRequestArray),
-// mood_constants.hpp (MOOD_COUNT), seed_utils.hpp (the impl hashes with
-// it). The impl additionally reaches spawn-engine services and in-class
+// The impl additionally reaches spawn-engine services and in-class
 // statics (PATCH_EXTENT / GLOBAL_ENTITY_DENSITY) through the complete
 // type (Cartridge:: / keyhole); PopFamily is roster.hpp vocabulary.
 //
@@ -67,13 +30,6 @@ namespace t7 {
 namespace the_board {
 
 // ═══ TUNING CONSOLE ══════════════════════════════════════════════
-//
-// System-level dials for the GoL zone subsystem. Per-tier values
-// (the actual Gaussian means/sigmas that shape each tier's feel)
-// live in GOL_TIERS and PULSE_TIERS below — those are the CPU
-// per-tier consoles. Note: the GPU keeps a twin of these tables
-// (world.wgsl §2.2); both are live (CPU seeds/ticks, GPU renders),
-// so a tuner must edit BOTH. Everything here applies across all tiers.
 
 // ── Spatial constants ────────────────────────────────────────────
 // MUST match world.wgsl's MODE_LATTICE_SPACING (TUNING SURFACE
@@ -83,9 +39,6 @@ inline constexpr float MODE_LATTICE_SPACING = 120.0f;
 inline constexpr float PATCH_CELL_SIZE = (float)Dim::PATCH_EXTENT / 16.0f;  // 3.125
 
 // ── Algorithm gate ───────────────────────────────────────────────
-// Probability that a freshly-spawned zone is Pulse rather than
-// Conway. The dial that controls the dual-algorithm balance —
-// 0.0 = pure Conway, 1.0 = pure Pulse, 0.35 = current mix.
 inline constexpr float PULSE_ALGORITHM_CHANCE = 0.35f;
 
 // ═══ ALGORITHM TYPES (shared) ════════════════════════════════════
@@ -157,10 +110,6 @@ struct GoLColorMode {
     static constexpr uint32_t BLACKISH = 2;  // darken toward near-black
     static constexpr uint32_t COUNT = 3;
 
-    // Weight matrix: color_mode selection weights
-    // Index 0 = NEUTRAL (only available if height_enabled)
-    // Index 1 = LENS
-    // Index 2 = BLACKISH
     static constexpr float WEIGHTS_HEIGHT[COUNT] = { 0.30f, 0.40f, 0.30f };
     static constexpr float WEIGHTS_NO_HEIGHT[COUNT] = { 0.00f, 0.55f, 0.45f };
 };
@@ -213,10 +162,6 @@ inline constexpr const char* GOL_COLOR_NAMES[] = {
 };
 
 // ═══ PULSE ALGORITHM ═════════════════════════════════════════════
-//
-// Pulse zones: periodic breathing of cell color/height, no neighbor
-// rules. Each cell oscillates between terrain base and a displaced
-// target.
 
 // ── Property Indices for Pulse-specific parameters ───────────────
 struct PulseZoneProp {
@@ -278,14 +223,8 @@ inline constexpr const char* PULSE_TIER_NAMES[] = {
 // the boundary's contract, not to either side.
 
 // ═══ RUNTIME CPU STATE ═══════════════════════════════════════════
-//
-// Everything the CPU tracks for the GoL zone subsystem while
-// running. Sub-grouped by role.
 
 // ── Per-instance zone state ──────────────────────────────────────
-// CPU retains only what's needed for: tick mask computation, life
-// seeding, and zone slot lifecycle. All visual/spring/color
-// parameters are GPU-derived.
 struct GoLZoneState {
     int32_t zone_nx = 0, zone_nz = 0;
     int32_t host_gx = 0, host_gz = 0;   // host patch (for entity_refs eviction)
@@ -297,19 +236,11 @@ struct GoLZoneState {
 };
 
 // ── GoL module state ──────────────────────────────────────────
-// All GoL-zone-owned state lives in this struct, accessed via
-// gol_state_ on the Cartridge (declared at the composition root).
-// Module functions take `GoLState& gs` explicitly rather than reaching
-// via Cartridge*, making ownership language-visible and dependencies
-// explicit in signatures.
 struct GoLState {
     GoLZoneState zones[Dim::MAX_GOL_ZONES]{};
     uint32_t     zone_count = 0;
     uint32_t     active_slot_count = 0;     // highest active slot + 1 (for dispatch sizing)
 
-    // Mood gate: set by apply_mood from MoodProfile flags. Default = on.
-    // Read by the spine's spawn-detection callback to skip GoL spawning
-    // entirely in moods that don't allow zones.
     bool         mood_allowed = true;
 
     // Derive request queue: accumulated during patch gen, flushed once
@@ -318,10 +249,6 @@ struct GoLState {
 };
 
 // ═══ MODULE FUNCTIONS — DECLARATIONS ═════════════════════════════
-//
-// DEFINED in gol_zones.inl (post-class, self-wrapping) — the bodies
-// reach the keyhole (gpuState_/renderer_/device_/tileCache_/spine
-// services) and in-class statics via the complete type.
 
 // Lifecycle (three-phase + helper)
 bool select_gol_for_patch(GoLState& gs, Cartridge* c,
@@ -331,7 +258,7 @@ bool place_gol_from_selection(Cartridge* c,
 void commit_gol(GoLState& gs, Cartridge* c,
     const GoLPlacement& plan,
     int32_t trigger_gx, int32_t trigger_gz, wgpu::Queue& queue);
-// The evictor — lifecycle, absorbed per §5 EVICTION THUNKS; keyhole-shaped
+// The evictor — keyhole-shaped
 // to match the FAMILY_DISPATCH evict slot (table in family_dispatch.inl)
 void evict_gol(Cartridge* self, uint32_t slot, wgpu::Queue& queue);
 // Dispatch funnels (table-shaped; the FAMILY_DISPATCH rows point here)

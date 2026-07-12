@@ -14,10 +14,7 @@
 // three-phase verbs and services via the keyhole and
 // Cartridge::THEMES (INTENT[services:themes]).
 //
-// WRAPPING FORM (the proven fix-2 rule): this file is SELF-WRAPPING — it
-// opens t7::the_board itself — so the MODULE IMPLEMENTATIONS zone includes
-// it at FILE SCOPE, after the namespace closes. Definitions are `inline`
-// free functions.
+// WRAPPING FORM (fix-2): SELF-WRAPPING — the zone includes impls at FILE SCOPE; law in audit/LADDER.md.
 // ─────────────────────────────────────────────────────────────────
 
 #include <algorithm>   // std::max (portal-arch burial floor)
@@ -28,15 +25,6 @@ namespace t7 {
 namespace the_board {
 
 // ═══ MESH-GEN PREPARERS ═══════════════════════════════════════════
-//
-// Per-family CPU-side mesh-gen prep. Each preparer:
-//   • Reads the family's *_mesh_gen_pending flag and clears it
-//   • Scans the family's active array to find the highest active slot
-//   • Uploads index count = (max_slot + 1) * indices_per_slot to GPU
-//
-// Counterparts for arch / column / antenna / pyramid live here too:
-// migration #10 hoisted them out of spawn_engine.inl alongside the
-// remaining helpers.
 
 inline bool prepare_palm_mesh_gen(EntitiesState& es, Cartridge* c, wgpu::Queue& queue) {
     (void)queue;
@@ -132,12 +120,6 @@ inline bool prepare_pyramid_mesh_gen(EntitiesState& es, Cartridge* c, wgpu::Queu
 }
 
 // ═══ THE ARCH FORCE-SPAWN AUTHOR (the portal channel) ═══════════
-//
-// The arch's owner authors the forced portal-arch: mood computes the
-// values (color, destination, position, flags) and calls through; this
-// function owns the mutation from the slot scan to mesh-pending.
-// portals_dirty is the CALLER's flag (mood's own state) — mood sets it
-// on success; the request-flags stay channel-shaped.
 
 inline uint32_t force_spawn_portal_arch(EntitiesState& es, Cartridge* c, wgpu::Queue& queue,
     float cx, float cz, float rotation,
@@ -259,13 +241,7 @@ inline uint32_t force_spawn_portal_arch(EntitiesState& es, Cartridge* c, wgpu::Q
     return slot;
 }
 
-
-// ═══ THE EVICTORS (lifecycle, absorbed per §5 EVICTION THUNKS) ════
-//
-// One per owned family; named by the FAMILY_DISPATCH table
-// (family_dispatch.inl) and reached through evict_patch_entities.
-// Each clears the active slot, zeroes the GPU slot, and marks the
-// family mesh-pending where a CPU mesh stage exists.
+// ═══ THE EVICTORS ═════════════════════════════════════════════════
 
 inline void evict_pyramid(Cartridge* self,
     uint32_t slot, wgpu::Queue& queue)
@@ -369,25 +345,17 @@ inline void evict_blade(Cartridge* self,
 #endif
 }
 
-
 // ═══ THE CLEAN THREE — BLADE / PALM / CACTUS RECIPES ══════════════
 //
-// Relocated whole from entity_pipeline.inl: per-family tier tables,
-// traits, adapters, and dispatch funnels, beside the preparers and
-// evictors they belong with. Each funnels into the machine's
-// generic_select / generic_place / generic_commit via the keyhole;
-// THEMES is reached as Cartridge::THEMES (INTENT[services:themes] at
-// its definition). Funnel declarations live in entity_types.hpp (the
-// contract home); the table rows point here (family_dispatch.inl).
+// Per-family tier tables, traits, adapters, and dispatch funnels.
+// Each funnels into the machine's generic three-phase verbs via the
+// keyhole; THEMES is reached as Cartridge::THEMES
+// (INTENT[services:themes] at its definition); the table rows point
+// here (family_dispatch.inl).
 
 // ═══ FAMILY: BLADE ════════════════════════════════════════════════
-//
-// Ground-level leaf clusters.
-//
 
 // ─── Blade Parameter Index Registry ──────────────────────────────
-// These index into EntityInstance::params[], matching the order
-// of BLADE_PARAM_DEFS below.
 
 struct BladeIdx {
     static constexpr uint32_t BLADE_COUNT = 0;
@@ -450,9 +418,6 @@ inline const TierProfile& blade_get_tier_profile(uint32_t tier_idx) {
 }
 
 // ─── Color Parts ─────────────────────────────────────────────────
-// Body: BLADE_BODY_BASE, prop=COLOR_VAR_R, offset=0
-// Aged: BLADE_AGED_BASE, prop=COLOR_VAR_R, offset=10
-// Variance comes from the tier (color_var), applied in the adapter.
 
 inline constexpr ColorPartDef BLADE_COLOR_PARTS[] = {
     { { 0.28f, 0.52f, 0.22f },   // BLADE_BODY_BASE
@@ -500,9 +465,6 @@ inline void blade_compute_solid_half(EntityInstance& inst,
     inst.solid_half = inst.params[BladeIdx::BLADE_W] * 0.5f;
     inst.burial = 0.0f;
 }
-
-// blade_compute_colors removed — Blade uses generic_compute_colors with
-// TierProfile.color_var from BLADE_TIERS (closes Q24 / Q-closed-12).
 
 inline void blade_write_active(Cartridge* c, const EntityInstance& inst) {
     auto& ab = c->entities_state_.blades[inst.slot];
@@ -578,9 +540,6 @@ inline void dispatch_commit_blade_generic(Cartridge* self, PlacementEntry& pe, w
 }
 
 // ═══ FAMILY: PALM ═════════════════════════════════════════════════
-//
-// Tall trunk + radial fronds. Vegetation-cluster sibling of Cactus and Blade.
-//
 
 struct PalmIdx {
     static constexpr uint32_t HEIGHT       = 0;
@@ -811,9 +770,6 @@ inline void dispatch_commit_palm_generic(Cartridge* self, PlacementEntry& pe, wg
 }
 
 // ═══ FAMILY: CACTUS ═══════════════════════════════════════════════
-//
-// Ribbed columnar trunk + optional arms. Vegetation-cluster sibling of Palm and Blade.
-//
 
 struct CactusIdx {
     static constexpr uint32_t HEIGHT     = 0;
@@ -920,9 +876,6 @@ inline void cactus_compute_solid_half(EntityInstance& inst, const TierProfile&) 
     inst.solid_half = inst.params[CactusIdx::RADIUS] + 0.5f;
     inst.burial = 0.0f;
 }
-
-// cactus_compute_colors removed — Cactus uses generic_compute_colors with
-// TierProfile.color_var from CACTUS_TIERS (closes Q24 / Q-closed-12).
 
 inline void cactus_write_active(Cartridge* c, const EntityInstance& inst) {
     auto& ac = c->entities_state_.cacti[inst.slot];
