@@ -7,8 +7,10 @@
 // wrapper ADDRESSES: the generic funnels and the remaining spine-side
 // mesh adapters are Cartridge statics (named through the complete
 // type); the bespoke funnels and the twelve evictors are file-scope
-// functions in their owners' impls (funnels declared in
-// entity_types.hpp, evictors in their owners' headers). Function
+// functions in their owners' impls, declared in their owners'
+// headers (the e5a arrow correction: the contract home carries no
+// owner vocabulary, so owner headers include it and declare their
+// own queue-shaped functions). Function
 // addresses are link-time constants — declarations suffice, so this
 // file's position in the zone does not depend on the other impls.
 //

@@ -4,8 +4,9 @@
 #include "cartridges/the_board/state.hpp"                    // Dim::*, GPURibbonState, wgpu
 #include "cartridges/the_board/modules/mood_constants.hpp"   // MOOD_COUNT (sizes the mood gate)
 #include "cartridges/the_board/modules/keyhole.hpp"          // Cartridge + wgpu::Queue fwds (the keyhole)
+#include "cartridges/the_board/modules/entity_types.hpp"     // RibbonSelection/RibbonPlacement (the boundary DTOs) + queue types
 
-// ─── ribbon.hpp (HEADER: console + vocabulary + payloads + state + decls) ─
+// ─── ribbon.hpp (HEADER: console + vocabulary + state + decls) ───
 // Converted (LADDER-3 c5): history in audit/LADDER.md.
 //
 // Sky Ribbon: complete subsystem (vocabulary + machinery in one
@@ -438,53 +439,12 @@ inline constexpr const char* RIBBON_COLOR_NAMES[] = {
     "smooth", "tinted", "contrast"
 };
 
-// ═══ SPAWN PAYLOADS ══════════════════════════════════════════════
+// ═══ SPAWN PAYLOADS — AT THE CONTRACT HOME ═══════════════════════
 //
-// The type-tagged payloads spawn_engine's EntityQueueEntry /
-// PlacementEntry unions carry for the ribbon family. Ribbon
-// vocabulary; at file scope they precede those unions by construction.
-// Plain aggregates.
-
-struct RibbonSelection {
-    uint32_t seed;
-    int32_t  trigger_gx, trigger_gz;
-    uint32_t slot;
-    uint32_t tier_idx;
-    // Geometry (from select_ribbon_for_patch)
-    uint32_t cube_count;
-    float cube_size;
-    float height;
-    float orientation;
-    float lateral_amp, lateral_cycles;
-    float vertical_amp;
-    // Color
-    uint32_t color_mode;
-    float color[3];
-    float color_b[3];        // CONTRAST second median
-    float checker_scatter = 0.0f;
-    float checker_hue_spread = 0.0f;
-    // Footprint
-    float footprint_r;
-};
-
-struct RibbonPlacement {
-    uint32_t slot;
-    int32_t  trigger_gx, trigger_gz;
-    int32_t  host_gx, host_gz;
-    uint32_t tier_idx;
-    float cx, cz;
-    // Geometry (copied from selection)
-    uint32_t cube_count;
-    float cube_size, height, orientation;
-    float lateral_amp, lateral_cycles;
-    float vertical_amp;
-    uint32_t color_mode;
-    float color[3];
-    float color_b[3];        // CONTRAST second median
-    float checker_scatter = 0.0f;
-    float checker_hue_spread = 0.0f;
-    uint32_t seed = 0u;   // spawn seed, carried so commit samples its channels
-};
+// The ribbon Selection/Placement DTOs live in entity_types.hpp,
+// beside the EntityQueueEntry / PlacementEntry unions that are their
+// reason to exist: a DTO that exists to cross a boundary belongs to
+// the boundary's contract, not to either side.
 
 // ═══ RUNTIME STATE ═══════════════════════════════════════════════
 //
@@ -614,6 +574,10 @@ void commit_ribbon(RibbonState& rs, Cartridge* c,
 // to match the FAMILY_DISPATCH evict slot (table in family_dispatch.inl);
 // carries the sky-mode pin (SEAM[ribbon:sky-mode]) and ref-count law
 void evict_ribbon(Cartridge* self, uint32_t slot, wgpu::Queue& queue);
+// Dispatch funnels (table-shaped; the FAMILY_DISPATCH rows point here)
+bool dispatch_select_ribbon(Cartridge* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
+bool dispatch_place_ribbon(Cartridge* self, EntityQueueEntry& e, PlacementEntry& pe);
+void dispatch_commit_ribbon(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue);
 // Frame conductor
 void ribbon_frame_tick(RibbonState& rs, Cartridge* c, wgpu::Queue& queue);
 // Head mover

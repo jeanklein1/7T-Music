@@ -24,26 +24,31 @@
 // │    SpawnGateOutput         — gate result                         │
 // │    EntityFamilyAdapter     — function-pointer table per family   │
 // │                                                                  │
+// │  Boundary DTOs (the bespoke families' payload pairs):             │
+// │    GoLSelection / GoLPlacement                                   │
+// │    GallerySelection / GalleryPlacement                           │
+// │    RibbonSelection / RibbonPlacement                             │
+// │                                                                  │
 // │  Dispatch contract (end of header):                               │
 // │    EntityQueueEntry        — tagged selection union              │
 // │    PlacementEntry          — tagged placement union              │
 // │    FamilyDispatch          — dispatch row type (six verbs + name)│
+// │    FAMILY_DISPATCH (extern) — the table (family_dispatch.inl)    │
 // │                                                                  │
 // └──────────────────────────────────────────────────────────────────┘
 //
 // A file-scope header, included above the class with roster.hpp's
-// cohort. THE CONTRACT HOME: it carries the pipeline contracts AND
-// the dispatch contract (the queue-entry unions + the row type).
-// Namespace t7::the_board (the cartridge's own). Depends on:
-// <cstdint>, <cstring>, keyhole.hpp (the Cartridge and wgpu::Queue
-// forward declarations), and the three bespoke subsystem headers —
-// ribbon.hpp / gol_zones.hpp / gallery.hpp — whose Selection/
-// Placement types the unions embed BY VALUE (complete types
-// required; they carry state.hpp, so wgpu is complete here too).
-// That dependency is honest: the union IS the coupling between the
-// machine and the bespoke subsystems. Consequence: those three
-// headers can never include this one (circularity) — functions with
-// queue-shaped signatures are declared HERE, not in owner headers.
+// cohort. THE CONTRACT HOME: it carries the pipeline contracts, the
+// boundary DTOs (the three bespoke families' Selection/Placement
+// pairs — a DTO that exists to cross a boundary belongs to the
+// boundary's contract, not to either side), AND the dispatch
+// contract (the queue-entry unions + the row type + the table
+// declaration). Namespace t7::the_board (the cartridge's own).
+// Depends on: <cstdint>, <cstring>, roster.hpp (PopFamily),
+// keyhole.hpp (the Cartridge and wgpu::Queue fwds), and a local
+// wgpu::ComputePassEncoder fwd — no module header: the DTOs are
+// plain aggregates of built-ins by design, so the contract home
+// carries no owner vocabulary and every owner header may include it.
 //
 // SEAM[entity_types:P9] this file is the canonical home of pattern
 //   P9 (type definitions extracted to header-style file) — a real
@@ -60,9 +65,12 @@
 #include <cstring>                                        // std::memset (queue-entry ctors)
 #include "cartridges/the_board/roster.hpp"                // PopFamily (sizes the dispatch table)
 #include "cartridges/the_board/modules/keyhole.hpp"       // Cartridge + wgpu::Queue fwds (the keyhole)
-#include "cartridges/the_board/modules/ribbon.hpp"        // RibbonSelection/RibbonPlacement (union members)
-#include "cartridges/the_board/modules/gol_zones.hpp"     // GoLSelection/GoLPlacement (union members)
-#include "cartridges/the_board/modules/gallery.hpp"       // GallerySelection/GalleryPlacement (union members)
+
+// fwd — FamilyDispatch::dispatch_mesh takes wgpu::ComputePassEncoder&
+// (reference; forward decl suffices). LOCKSTEP INSURANCE (same
+// construct as keyhole.hpp): mirrors webgpu_cpp.h's declaration form.
+// If Dawn ever changes that form, replace this with the include.
+namespace wgpu { class ComputePassEncoder; }
 
 namespace t7 {
 namespace the_board {
@@ -227,6 +235,114 @@ struct EntityFamilyAdapter {
 // are machine state and live in spawn_engine.inl; only the vocabulary
 // lives here.
 
+// ═══ SPAWN PAYLOADS (the boundary DTOs) ═══════════════════════════
+//
+// The three bespoke families' Selection/Placement DTOs. They exist
+// to cross the machine/owner boundary inside EntityQueueEntry /
+// PlacementEntry (below) — and a DTO that exists to cross a boundary
+// belongs to the boundary's contract, not to either side. Plain
+// aggregates of built-ins, by design: the contract home carries no
+// owner vocabulary.
+
+// ── GoL (zone lattice; Conway/Pulse) ──────────────────────────────
+struct GoLSelection {
+    uint32_t seed;
+    int32_t  trigger_gx, trigger_gz;
+    uint32_t slot;
+    int32_t  zone_nx, zone_nz;     // lattice node
+    float    corner_x, corner_z;   // zone corner (cell-grid-snapped)
+    uint32_t algorithm;            // AlgorithmType::CONWAY or PULSE
+    uint32_t tier_idx;             // compound: Conway 0–6, Pulse 7–9
+    float    tick_period;
+    float    initial_density;
+    bool     height_enabled;
+    float    footprint_r;
+};
+
+struct GoLPlacement {
+    uint32_t slot;
+    int32_t  trigger_gx, trigger_gz;
+    int32_t  host_gx, host_gz;
+    uint32_t tier_idx;
+    float    cx, cz;               // zone center
+    int32_t  zone_nx, zone_nz;
+    float    corner_x, corner_z;
+    uint32_t algorithm;
+    float    tick_period;
+    float    initial_density;
+    bool     height_enabled;
+};
+
+// ── Gallery (outdoor art exhibitions — composite: 1 center → N paintings) ──
+struct GallerySelection {
+    uint32_t seed;
+    int32_t  trigger_gx, trigger_gz;
+    uint32_t slot;              // gallery center slot
+    float    cx, cz;            // gallery center (jittered)
+    float    footprint_r;       // gallery spatial envelope
+    uint32_t archetype;         // 0–3 (terrain type, used as tier_idx)
+    uint32_t painting_count;
+    float    facing_angle;
+    float    gallery_size_mean;
+    uint32_t site_type;         // 0=snapshot, 1=mixed, 2=authored
+};
+
+struct GalleryPlacement {
+    uint32_t slot;
+    int32_t  trigger_gx, trigger_gz;
+    int32_t  host_gx, host_gz;
+    uint32_t tier_idx;          // = archetype
+    float    cx, cz;
+    float    footprint_r;
+    uint32_t archetype;
+    uint32_t painting_count;
+    float    facing_angle;
+    float    gallery_size_mean;
+    uint32_t site_type;
+};
+
+// ── Ribbon ─────────────────────────────────────────────────────────
+struct RibbonSelection {
+    uint32_t seed;
+    int32_t  trigger_gx, trigger_gz;
+    uint32_t slot;
+    uint32_t tier_idx;
+    // Geometry (from select_ribbon_for_patch)
+    uint32_t cube_count;
+    float cube_size;
+    float height;
+    float orientation;
+    float lateral_amp, lateral_cycles;
+    float vertical_amp;
+    // Color
+    uint32_t color_mode;
+    float color[3];
+    float color_b[3];        // CONTRAST second median
+    float checker_scatter = 0.0f;
+    float checker_hue_spread = 0.0f;
+    // Footprint
+    float footprint_r;
+};
+
+struct RibbonPlacement {
+    uint32_t slot;
+    int32_t  trigger_gx, trigger_gz;
+    int32_t  host_gx, host_gz;
+    uint32_t tier_idx;
+    float cx, cz;
+    // Geometry (copied from selection)
+    uint32_t cube_count;
+    float cube_size, height, orientation;
+    float lateral_amp, lateral_cycles;
+    float vertical_amp;
+    uint32_t color_mode;
+    float color[3];
+    float color_b[3];        // CONTRAST second median
+    float checker_scatter = 0.0f;
+    float checker_hue_spread = 0.0f;
+    uint32_t seed = 0u;   // spawn seed, carried so commit samples its channels
+};
+
 // ─── Entity Selection Queue entry ─────────────────────────────────
 //
 // Lightweight tagged entry holding one family's selection.
@@ -286,41 +402,6 @@ struct FamilyDispatch {
 // generic families, on the class); DECLARED here so the spine's
 // dispatch loops (in-class) read it by namespace lookup.
 extern const FamilyDispatch FAMILY_DISPATCH[PopFamily::COUNT];
-
-// ─── Bespoke dispatch funnels (defined in their owners' impls) ────
-//
-// gol_zones.inl / gallery.inl / ribbon.inl. Declared HERE, not in the
-// owner headers, because the signatures carry the queue types and the
-// owner headers cannot include this header (circularity — see the
-// banner). The table names them by these declarations.
-
-bool dispatch_select_gol(Cartridge* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
-bool dispatch_place_gol(Cartridge* self, EntityQueueEntry& e, PlacementEntry& pe);
-void dispatch_commit_gol(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue);
-
-bool dispatch_select_gallery(Cartridge* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
-bool dispatch_place_gallery(Cartridge* self, EntityQueueEntry& e, PlacementEntry& pe);
-void dispatch_commit_gallery(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue);
-
-bool dispatch_select_ribbon(Cartridge* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
-bool dispatch_place_ribbon(Cartridge* self, EntityQueueEntry& e, PlacementEntry& pe);
-void dispatch_commit_ribbon(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue);
-
-// The clean three's generic funnels (defined in entities.inl beside
-// their recipes; they funnel into the machine's generic three-phase
-// pipeline through the keyhole):
-
-bool dispatch_select_blade_generic(Cartridge* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
-bool dispatch_place_blade_generic(Cartridge* self, EntityQueueEntry& e, PlacementEntry& pe);
-void dispatch_commit_blade_generic(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue);
-
-bool dispatch_select_palm_generic(Cartridge* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
-bool dispatch_place_palm_generic(Cartridge* self, EntityQueueEntry& e, PlacementEntry& pe);
-void dispatch_commit_palm_generic(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue);
-
-bool dispatch_select_cactus_generic(Cartridge* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
-bool dispatch_place_cactus_generic(Cartridge* self, EntityQueueEntry& e, PlacementEntry& pe);
-void dispatch_commit_cactus_generic(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue);
 
 } // namespace the_board
 } // namespace t7

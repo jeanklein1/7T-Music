@@ -3,6 +3,7 @@
 #include "cartridges/the_board/state.hpp"                    // Dim::*, GPUPyramidArray, wgpu
 #include "cartridges/the_board/modules/mood_constants.hpp"   // MOOD_COUNT, PortalDestination
 #include "cartridges/the_board/modules/keyhole.hpp"          // Cartridge + wgpu::Queue fwds (the keyhole)
+#include "cartridges/the_board/modules/entity_types.hpp"     // queue types (the clean three's funnel signatures)
 
 // ─── entities.hpp (HEADER: vocabulary + state + declarations) ────
 // Converted (LADDER-2 c1; the LADDER-4 channel): history in audit/LADDER.md.
@@ -684,6 +685,17 @@ void evict_antenna(Cartridge* self, uint32_t slot, wgpu::Queue& queue);
 void evict_palm(Cartridge* self, uint32_t slot, wgpu::Queue& queue);
 void evict_cactus(Cartridge* self, uint32_t slot, wgpu::Queue& queue);
 void evict_blade(Cartridge* self, uint32_t slot, wgpu::Queue& queue);
+// Dispatch funnels for the clean three (table-shaped; defined in
+// entities.inl beside their recipes)
+bool dispatch_select_blade_generic(Cartridge* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
+bool dispatch_place_blade_generic(Cartridge* self, EntityQueueEntry& e, PlacementEntry& pe);
+void dispatch_commit_blade_generic(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue);
+bool dispatch_select_palm_generic(Cartridge* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
+bool dispatch_place_palm_generic(Cartridge* self, EntityQueueEntry& e, PlacementEntry& pe);
+void dispatch_commit_palm_generic(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue);
+bool dispatch_select_cactus_generic(Cartridge* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
+bool dispatch_place_cactus_generic(Cartridge* self, EntityQueueEntry& e, PlacementEntry& pe);
+void dispatch_commit_cactus_generic(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue);
 
 // ═══ THE ARCH FORCE-SPAWN AUTHOR (the portal channel) ═══════════
 //

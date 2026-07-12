@@ -38,9 +38,9 @@
 // │    commit_entity_queue(queue)                                    │
 // │                                                                  │
 // │  The queues (state): entityQueue_, placementResults_ — their    │
-// │  entry TYPES (EntityQueueEntry / PlacementEntry) live in         │
-// │  entity_types.hpp; the bespoke Selection/Placement payloads      │
-// │  live in ribbon.hpp / gol_zones.hpp / gallery.hpp                │
+// │  entry TYPES (EntityQueueEntry / PlacementEntry) AND the bespoke │
+// │  Selection/Placement DTOs live in entity_types.hpp (the          │
+// │  contract home)                                                  │
 // │                                                                  │
 // │  Cross-module reads:                                             │
 // │    GLOBAL_ENTITY_DENSITY                                         │
@@ -887,12 +887,11 @@ static float solve_catenary_a(float half_span, float target_h) {
 // Three bespoke families (GoL, Gallery, Ribbon) don't fit the
 // generic pipeline's EntityInstance shape — their selection
 // records carry family-specific fields (lattice node, painting
-// count, wave parameters). The payload structs live in their
-// owners' headers (gol_zones.hpp / gallery.hpp / ribbon.hpp); the
-// tagged unions that carry them — EntityQueueEntry / PlacementEntry
-// — live in entity_types.hpp (the contract home), which includes
-// those headers. See SEAM[spawn_engine:structural] in the file
-// header.
+// count, wave parameters). The payload DTOs AND the tagged unions
+// that carry them (EntityQueueEntry / PlacementEntry) live together
+// in entity_types.hpp — the contract home; a DTO that exists to
+// cross a boundary belongs to the boundary's contract. See
+// SEAM[spawn_engine:structural] in the file header.
 
 // ═══ ENTITY DISPATCH PIPELINE ════════════════════════════════════
 //

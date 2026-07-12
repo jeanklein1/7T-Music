@@ -7,8 +7,9 @@
 #include "cartridges/the_board/modules/mood_constants.hpp"   // MOOD_COUNT (sizes the mood gate)
 #include "cartridges/the_board/modules/seed_utils.hpp"       // select_weighted (PhotographerState::sample_shot_type)
 #include "cartridges/the_board/modules/keyhole.hpp"          // Cartridge + wgpu::Queue fwds (the keyhole)
+#include "cartridges/the_board/modules/entity_types.hpp"     // GallerySelection/GalleryPlacement (the boundary DTOs) + queue types
 
-// ─── gallery.hpp (HEADER: vocabulary + configs + payloads + state + decls) ─
+// ─── gallery.hpp (HEADER: vocabulary + configs + state + decls) ──
 // Converted (LADDER-3 c4): history in audit/LADDER.md.
 //
 // The art system. Photographer captures snapshots; gallery sites
@@ -539,40 +540,12 @@ struct PendingSnapshot {
     uint32_t target_layer = 0;
 };
 
-// ═══ SPAWN PAYLOADS ══════════════════════════════════════════════
+// ═══ SPAWN PAYLOADS — AT THE CONTRACT HOME ═══════════════════════
 //
-// The type-tagged payloads spawn_engine's EntityQueueEntry /
-// PlacementEntry unions carry for the gallery family. Gallery
-// vocabulary; at file scope they precede those unions by construction.
-// Plain aggregates.
-// (Outdoor art exhibitions — composite: 1 center → N paintings)
-
-struct GallerySelection {
-    uint32_t seed;
-    int32_t  trigger_gx, trigger_gz;
-    uint32_t slot;              // gallery center slot
-    float    cx, cz;            // gallery center (jittered)
-    float    footprint_r;       // gallery spatial envelope
-    uint32_t archetype;         // 0–3 (terrain type, used as tier_idx)
-    uint32_t painting_count;
-    float    facing_angle;
-    float    gallery_size_mean;
-    uint32_t site_type;         // 0=snapshot, 1=mixed, 2=authored
-};
-
-struct GalleryPlacement {
-    uint32_t slot;
-    int32_t  trigger_gx, trigger_gz;
-    int32_t  host_gx, host_gz;
-    uint32_t tier_idx;          // = archetype
-    float    cx, cz;
-    float    footprint_r;
-    uint32_t archetype;
-    uint32_t painting_count;
-    float    facing_angle;
-    float    gallery_size_mean;
-    uint32_t site_type;
-};
+// The gallery Selection/Placement DTOs live in entity_types.hpp,
+// beside the EntityQueueEntry / PlacementEntry unions that are their
+// reason to exist: a DTO that exists to cross a boundary belongs to
+// the boundary's contract, not to either side.
 
 // ═══ GALLERY MODULE STATE ════════════════════════════════════════
 //
@@ -663,6 +636,10 @@ void evict_paintings_for_patch(GalleryState& gs, Cartridge* c,
 // The evictor — lifecycle, absorbed per §5 EVICTION THUNKS; keyhole-shaped
 // to match the FAMILY_DISPATCH evict slot (table in family_dispatch.inl)
 void evict_gallery(Cartridge* self, uint32_t slot, wgpu::Queue& queue);
+// Dispatch funnels (table-shaped; the FAMILY_DISPATCH rows point here)
+bool dispatch_select_gallery(Cartridge* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
+bool dispatch_place_gallery(Cartridge* self, EntityQueueEntry& e, PlacementEntry& pe);
+void dispatch_commit_gallery(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue);
 // Indoor entry (called by mood.inl::apply_mood)
 void place_wall_paintings(GalleryState& gs, Cartridge* c, wgpu::Queue& queue,
     float bmin, float bmax, float ceiling_h);

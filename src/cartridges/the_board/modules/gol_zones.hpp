@@ -3,8 +3,9 @@
 #include "cartridges/the_board/state.hpp"                    // Dim::*, GPUZoneDeriveRequestArray, wgpu
 #include "cartridges/the_board/modules/mood_constants.hpp"   // MOOD_COUNT (sizes the mood gate)
 #include "cartridges/the_board/modules/keyhole.hpp"          // Cartridge + wgpu::Queue fwds (the keyhole)
+#include "cartridges/the_board/modules/entity_types.hpp"     // GoLSelection/GoLPlacement (the boundary DTOs) + queue types
 
-// ─── gol_zones.hpp (HEADER: vocabulary + payloads + state + decls) ─
+// ─── gol_zones.hpp (HEADER: vocabulary + state + decls) ──────────
 // Converted (LADDER-3 c1): history in audit/LADDER.md.
 //
 // Zone-local Game of Life + Pulse automata. Each zone is a 32×32
@@ -269,40 +270,12 @@ inline constexpr const char* PULSE_TIER_NAMES[] = {
     "Breathe", "Sparkle", "Drift"
 };
 
-// ═══ SPAWN PAYLOADS ══════════════════════════════════════════════
+// ═══ SPAWN PAYLOADS — AT THE CONTRACT HOME ═══════════════════════
 //
-// The type-tagged payloads spawn_engine's EntityQueueEntry /
-// PlacementEntry unions carry for the GoL family. GoL vocabulary; at
-// file scope they precede those unions by construction. Plain
-// aggregates.
-
-struct GoLSelection {
-    uint32_t seed;
-    int32_t  trigger_gx, trigger_gz;
-    uint32_t slot;
-    int32_t  zone_nx, zone_nz;     // lattice node
-    float    corner_x, corner_z;   // zone corner (cell-grid-snapped)
-    uint32_t algorithm;            // AlgorithmType::CONWAY or PULSE
-    uint32_t tier_idx;             // compound: Conway 0–6, Pulse 7–9
-    float    tick_period;
-    float    initial_density;
-    bool     height_enabled;
-    float    footprint_r;
-};
-
-struct GoLPlacement {
-    uint32_t slot;
-    int32_t  trigger_gx, trigger_gz;
-    int32_t  host_gx, host_gz;
-    uint32_t tier_idx;
-    float    cx, cz;               // zone center
-    int32_t  zone_nx, zone_nz;
-    float    corner_x, corner_z;
-    uint32_t algorithm;
-    float    tick_period;
-    float    initial_density;
-    bool     height_enabled;
-};
+// The GoL Selection/Placement DTOs live in entity_types.hpp,
+// beside the EntityQueueEntry / PlacementEntry unions that are their
+// reason to exist: a DTO that exists to cross a boundary belongs to
+// the boundary's contract, not to either side.
 
 // ═══ RUNTIME CPU STATE ═══════════════════════════════════════════
 //
@@ -361,6 +334,10 @@ void commit_gol(GoLState& gs, Cartridge* c,
 // The evictor — lifecycle, absorbed per §5 EVICTION THUNKS; keyhole-shaped
 // to match the FAMILY_DISPATCH evict slot (table in family_dispatch.inl)
 void evict_gol(Cartridge* self, uint32_t slot, wgpu::Queue& queue);
+// Dispatch funnels (table-shaped; the FAMILY_DISPATCH rows point here)
+bool dispatch_select_gol(Cartridge* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
+bool dispatch_place_gol(Cartridge* self, EntityQueueEntry& e, PlacementEntry& pe);
+void dispatch_commit_gol(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue);
 void seed_gol_zone(GoLState& gs, Cartridge* c,
     uint32_t slot, wgpu::Queue& queue);
 // Per-frame

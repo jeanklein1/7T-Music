@@ -95,7 +95,7 @@
 #include "cartridges/the_board/roster.hpp"
 #include "cartridges/the_board/modules/seed_utils.hpp"           // hash/gaussian/tier-select helpers (pure-math leaf)
 #include "cartridges/the_board/modules/ground_architecture.hpp"  // ground contributor/policy tables + compile-time DAG checks
-#include "cartridges/the_board/modules/entity_types.hpp"         // entity pipeline types (precedes spawn_engine's unions)
+#include "cartridges/the_board/modules/entity_types.hpp"         // THE CONTRACT HOME: pipeline contracts + boundary DTOs + queue unions + dispatch row/table decl
 #include "cartridges/the_board/modules/mood_constants.hpp"       // MOOD_COUNT + the Mood IDs + PortalDestination
 #include "cartridges/the_board/modules/floater_vocabulary.hpp"   // floater TYPES (ActiveFloater/ActiveCube), file scope
 #include "cartridges/the_board/modules/pawn.hpp"                 // PawnState + configs + decls (impl is pawn.inl, post-class)
@@ -103,11 +103,11 @@
 #include "cartridges/the_board/modules/spheres.hpp"              // SphereState + evictor decl (impl is spheres.inl, post-class)
 #include "cartridges/the_board/modules/entities.hpp"             // grounded-family vocabulary + EntitiesState + preparer decls (impl is entities.inl, post-class)
 #include "cartridges/the_board/modules/orbs.hpp"                 // orb console/registries + OrbsState + ORB_MOOD_TABLE + decls (impl is orbs.inl, post-class)
-#include "cartridges/the_board/modules/gol_zones.hpp"            // GoL vocabulary + payloads + GoLState + decls (impl is gol_zones.inl, post-class)
+#include "cartridges/the_board/modules/gol_zones.hpp"            // GoL vocabulary + GoLState + decls (impl is gol_zones.inl, post-class)
 #include "cartridges/the_board/modules/agents.hpp"               // agent registries + console + AgentState + decls (impl is agents.inl, post-class)
 #include "cartridges/the_board/modules/cube_behaviors.hpp"       // cube behavior registry + CubeBehaviorsState + decls (impl is cube_behaviors.inl, post-class)
-#include "cartridges/the_board/modules/gallery.hpp"              // shot vocabulary + console + payloads + GalleryState + decls (impl is gallery.inl, post-class)
-#include "cartridges/the_board/modules/ribbon.hpp"               // ribbon console + color vocabulary + tiers + payloads + RibbonState + decls (impl is ribbon.inl, post-class; pairing suspension named in its banner)
+#include "cartridges/the_board/modules/gallery.hpp"              // shot vocabulary + console + GalleryState + decls (impl is gallery.inl, post-class)
+#include "cartridges/the_board/modules/ribbon.hpp"               // ribbon console + color vocabulary + tiers + RibbonState + decls (impl is ribbon.inl, post-class; pairing suspension named in its banner)
 #include "cartridges/the_board/modules/input.hpp"                // InputState/KeyState/MouseState + decls (impl is input.inl, post-class; carries its own GLFW include)
 #include "cartridges/the_board/modules/render_passes.hpp"        // the nine pass/dispatch + light-VP decls (impl is render_passes.inl, post-class; module owns no state)
 #include "cartridges/the_board/modules/mood.hpp"                 // MoodProfile + MOOD_TABLE + portal colors + palettes + door/applier/deriver decls (impl is mood.inl, post-class; mood owns no state)
