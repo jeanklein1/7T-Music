@@ -41,12 +41,29 @@ G-LAW 2 — NO EDIT AFTER THE LAST GATE: gates certify the COMMIT, not
 a moment mid-flight. Any byte-touching pass (prose scripts included)
 reruns the full suite behind it. If a pass cannot afford the rerun,
 the pass moves before the gates.
-COROLLARY (recorded beside them): per-file brace balance is
-insufficient alone — an unbalanced header poisons the TU downstream;
-the standalone compile is the gate that sees it. And a checker that
-shares the generator's extraction is a mirror, not a gate — the s2
-token checker sliced constructs with the same `};`-suffix heuristic
-the generator truncated with, and certified the truncation.
+COROLLARIES (recorded beside them; ratified in full at the post-L5
+rider):
+— Per-file brace balance is insufficient alone: an unbalanced header
+  poisons the TU downstream; the standalone compile is the gate that
+  sees it.
+— THE MIRROR LAW: A CHECKER THAT SHARES THE GENERATOR'S EXTRACTION
+  IS A MIRROR, NOT A GATE — every checker derives its ground truth
+  independently of the machinery it checks. (The s2 token checker
+  sliced constructs with the same `};`-suffix heuristic the generator
+  truncated with, and certified the truncation.)
+— THE WRONGLY-QUALIFIED BLIND SPOT: sweeps hunt unqualified reaches;
+  only the compiler sees stale-qualified ones — G-LAW 1 is that
+  auditor.
+
+PATTERN LAW — THE TEMPLATE KEYHOLE (ratified at the post-L5 rider):
+a header-resident generic may take the cartridge as a DEDUCED
+parameter (template<typename C, ...>, C* c); reaches are checked at
+instantiation, in complete-class context, and are documented in the
+K2 reaches line like any impl. The form names no Cartridge and is
+therefore arrow-compliant by construction; at the services era the
+deduced parameter becomes the services struct without the signature
+changing shape. run_spawn_preamble (spawn_engine.hpp) is the
+canonical instance.
 
 ## STAGES
 
@@ -826,10 +843,14 @@ surface — (a) the THEMES face: ten per-family tier-weight accessors
 preambles read them); (c) the conductor seam (patch_system's
 evaluate_theme_envelope call + teardown reset); (d) the S3 preamble's
 active_theme_idx_ read. ZERO reaches outside the declared faces.
-A-PROGRAM LEDGER ITEM: the theme axis is a cross-cutting selection
-modifier by design; if severability is wanted, the cut point is the
-adapter slot get_theme_tier_weights + a null-object THEMES row —
-that would confine deletion to the root and the table's home.
+RATIFIED GRADES (post-L5 rider): the deletion test carries two
+grades — ROOT-ONLY (the end-state: delete the module and only the
+root changes) and FACES-ONLY (the transitional pass: every non-root
+edit falls on a declared face). population_themes PASSES FACES-ONLY.
+A-PROGRAM LEDGER ITEM — the first severability recipe: the theme
+axis is a cross-cutting selection modifier by design; the cut point
+is the adapter slot get_theme_tier_weights + a null-object THEMES
+row, which would raise the module to ROOT-ONLY.
 
 **Deltas:** cartridge.hpp 2,901 -> 1,209 lines this arc (-58%; from
 3,283 at the MOD campaign's start). spawn_engine 744 -> 461 impl +
@@ -905,3 +926,20 @@ audit/tools/glaw1/ (stubs generated at run time, gitignored).
 template-keyhole pattern (its law needs writing if it stays) and the
 deletion-test ledger entry — is SUSPENDED until L5 take two at the
 rig, which also certifies COMPACT-2's sweep. Jean rebuilds.
+
+## LADDER-6 — SUSPENSION LIFTED (L5 take two GREEN; all ratifications land)
+
+L5 green at the rig certifies the arc, the fix (5116c77), and
+COMPACT-2's sweep. Phase I close-out RATIFIED as committed, fix
+included. The mirror law stands in its full form and the
+wrongly-qualified blind spot beside it (THE RECIPE's corollaries,
+above); THE TEMPLATE KEYHOLE is pattern law (arrow-compliant by
+construction — the form names no Cartridge; at the services era the
+deduced parameter becomes the services struct without the signature
+changing shape); the glaw1 harness STAYS at audit/tools/glaw1 with
+its jurisdiction line in the banner (our names, scope, and syntax —
+SDK-call correctness remains the rig's); the deletion test carries
+its two grades (ROOT-ONLY end-state, FACES-ONLY transitional) with
+population_themes passing FACES-ONLY and the A-ledger holding its
+first severability recipe. No code moved. The queue awaits Jean's
+fork ruling: the dissolution era (A2 -> A3) or the coupling dogfood.
