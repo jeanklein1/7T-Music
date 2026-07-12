@@ -72,8 +72,8 @@
 // world_state_ / device_ / gpuState_ / pawn_state_ / agent_state_ /
 // orbs_state_ / cube_behaviors_state_), the converted modules'
 // commands (agents.hpp / orbs.hpp / cube_behaviors.hpp /
-// floater_vocabulary.hpp), mood.inl's request_mood_transition (a
-// member — K4's territory) + mood_constants.hpp's MOOD_* IDs, and
+// floater_vocabulary.hpp / mood.hpp's request_mood_transition — K4
+// ruled, LADDER-4) + mood_constants.hpp's MOOD_* IDs, and
 // in-class statics (Cartridge::GRID_RADIUS / Cartridge::PREGEN_RADIUS)
 // through the complete type (Cartridge:: / keyhole).
 // ─────────────────────────────────────────────────────────────────

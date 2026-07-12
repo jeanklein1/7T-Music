@@ -2158,7 +2158,7 @@ static void arch_write_active(Cartridge* c, const EntityInstance& inst) {
         if (portal_roll < PORTAL_DENSITY) {
             aa.is_portal = true;
             uint32_t dest_seed = cpu_hash(aa.position_hash, 1u);
-            uint32_t mood = c->pick_portal_mood(aa.position_hash, 2u);
+            uint32_t mood = pick_portal_mood(c, aa.position_hash, 2u);
             const auto& mp = MOOD_TABLE[mood];
             aa.destination.seed = dest_seed;
             aa.destination.mood = mood;

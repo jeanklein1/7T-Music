@@ -5,8 +5,8 @@
 // split) so the keyhole is a complete type — the bodies reach
 // c->inputState_ / c->keys_ / c->mouse_ / c->player_ / c->world_state_ /
 // c->device_ / c->gpuState_ / c->pawn_state_ / c->agent_state_ /
-// c->orbs_state_ / c->cube_behaviors_state_, the mood member
-// request_mood_transition (K4's territory, untouched), and the in-class
+// c->orbs_state_ / c->cube_behaviors_state_, the mood door
+// request_mood_transition (mood.hpp — K4 ruled, LADDER-4), and the in-class
 // statics (Cartridge::GRID_RADIUS / Cartridge::PREGEN_RADIUS) via the
 // complete type — the keyhole's static form (the c6 retrofit: the
 // module's ambient reads become keyhole reads; no other body changes).
@@ -191,12 +191,13 @@ inline void on_key_down(Cartridge* c, int key) {
         std::cout << "[Aura] Field: " << (c->pawn_state_.aura_enabled ? "ON" : "OFF") << "\n";
         break;
     // DONE[input:L1] five copy-paste cases collapsed into one helper
-    //   call. request_mood_transition() lives in mood.inl.
-    case GLFW_KEY_5: c->request_mood_transition(MOOD_OPEN_SUNSET);        break;
-    case GLFW_KEY_6: c->request_mood_transition(MOOD_INDOOR_FLAT);        break;
-    case GLFW_KEY_7: c->request_mood_transition(MOOD_INDOOR_VAULT);       break;
-    case GLFW_KEY_8: c->request_mood_transition(MOOD_FINITE_OUTDOOR);     break;
-    case GLFW_KEY_9: c->request_mood_transition(MOOD_FINITE_OUTDOOR_REF); break;
+    //   call. request_mood_transition() lives in the mood module
+    //   (mood.hpp declares it — LADDER-4).
+    case GLFW_KEY_5: request_mood_transition(c, MOOD_OPEN_SUNSET);        break;
+    case GLFW_KEY_6: request_mood_transition(c, MOOD_INDOOR_FLAT);        break;
+    case GLFW_KEY_7: request_mood_transition(c, MOOD_INDOOR_VAULT);       break;
+    case GLFW_KEY_8: request_mood_transition(c, MOOD_FINITE_OUTDOOR);     break;
+    case GLFW_KEY_9: request_mood_transition(c, MOOD_FINITE_OUTDOOR_REF); break;
     case GLFW_KEY_0:              cycle_orb_palette(c->orbs_state_, c, q);          break;
     case GLFW_KEY_LEFT_BRACKET:   set_render_radius(c, c->world_state_.active_radius - 1); break;
     case GLFW_KEY_RIGHT_BRACKET:  set_render_radius(c, c->world_state_.active_radius + 1); break;

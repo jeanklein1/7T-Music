@@ -91,7 +91,7 @@ struct Roster {
     bool orbs;          // sky dome (distinct from the sphere family)
     bool spot_lights;   // indoor spot array + shadow atlas
     bool indoor_shell;  // walls + ceiling mesh
-    bool portal;        // force-spawn portal arches (the second door)
+    bool portal;        // force-spawn portal arches (the second door — LADDER-4: lives in entities' force_spawn_portal_arch, the arch owner's authoring channel)
     bool transitions;   // mood-transition ENTRY (request + portal trigger)
     bool wanderers;     // mood-authored NPC population (agent slots 1+)
 
@@ -149,9 +149,11 @@ inline constexpr Roster ROSTER = {
 // so the lean music-viz build — the founding customer, transitions+portal
 // off together — stays legal; an unconditional assert would make the portal
 // bit never legally false. DUAL MATURITY: this static_assert is v0's form
-// of the edge; the early-return door in request_mood_transition (and
-// force_spawn_portal_at) is the maturity-proof form that goes live when the
-// table turns boot-time. Both doors, both correct, different maturities.
+// of the edge; the early-return doors — request_mood_transition (mood.inl)
+// and entities' force_spawn_portal_arch (the portal door's LADDER-4 home,
+// migrated per its own retirement text from mood's force_spawn_portal_at) —
+// are the maturity-proof form that goes live when the table turns
+// boot-time. Both doors, both correct, different maturities.
 static_assert(!ROSTER.transitions || ROSTER.portal,
     "ROSTER: portal disabled while transitions enabled — "
     "transitions REQUIRE portal (the trigger in, the return path out)");

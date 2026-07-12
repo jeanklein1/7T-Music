@@ -38,7 +38,7 @@
 // │    THEMES[THEME_COUNT]                  — population themes      │
 // │    ARCHETYPES[ARCHETYPE_COUNT]          — terrain archetypes     │
 // │    MIN_SEPARATION[][]                   — entity-pair spacing    │
-// │    MOOD_TABLE[MOOD_COUNT]               — atmospheric profiles   │
+// │    MOOD_TABLE[MOOD_COUNT] — GRADUATED to mood.hpp (LADDER-4)     │
 // │                                                                  │
 // │  Cross-module reads (consumed by modules):                       │
 // │    mood_state_.active, world_state_.active_seed, time_state_.beats, time_state_.seconds      │
@@ -110,6 +110,7 @@
 #include "cartridges/the_board/modules/ribbon.hpp"               // LADDER-3 c5: ribbon console + color vocabulary + tiers + payloads + RibbonState + decls (impl is ribbon.inl, post-class; pairing suspension named in its banner)
 #include "cartridges/the_board/modules/input.hpp"                // LADDER-3 c6 + G2: InputState/KeyState/MouseState + decls (impl is input.inl, post-class; carries its own GLFW include)
 #include "cartridges/the_board/modules/render_passes.hpp"        // LADDER-3 c7: the nine pass/dispatch + light-VP decls (impl is render_passes.inl, post-class; module owns no state)
+#include "cartridges/the_board/modules/mood.hpp"                 // LADDER-4 (K4): MoodProfile + MOOD_TABLE + portal colors + palettes + door/applier/deriver decls (impl is mood.inl, post-class; mood owns no state)
 #include "cartridges/the_board/renderer.hpp"
 #include "coupling/visual_canvas.hpp"
 #include <cmath>
@@ -352,10 +353,22 @@ namespace t7 {
             // the world tears down, a new world generates, screen fades back.
             // Runs as a four-phase machine driven by mood_state_.transition_timer.
             //
-            // SEAM[spine:portal-system] consumed by mood.inl (force_spawn_*
-            //   functions read pendingDestination_), input.inl (keypress mood
-            //   transitions request via mood.inl::request_mood_transition),
-            //   render() (readback callback drives portal trigger detection).
+            // SEAM[spine:transitions] (K4, Jean, 2026-07-11): the transition
+            //   machine and its working members — transitionPhase_,
+            //   pendingDestination_, backPortalPosition_, cpuPortalArray_,
+            //   MoodState/mood_state_ and kin — are DECLARED SPINE-OWNED
+            //   ORCHESTRATION per the §2 residency law, the same legitimacy
+            //   class as the P5 readbacks. Mood (mood.hpp/.inl) supplies
+            //   vocabulary + appliers + six doors and owns NO state; no
+            //   MoodState exists module-side or at the composition root.
+            //   Constitution §2 carries the ruling's line.
+            // SEAM[spine:portal-system] consumed by the mood module
+            //   (force_spawn_* functions read pendingDestination_), input.inl
+            //   (keypress mood transitions request via mood.hpp's
+            //   request_mood_transition), render() (readback callback drives
+            //   portal trigger detection). The PORTAL_COLORS table GRADUATED
+            //   to mood.hpp (LADDER-4) — portal color is mood vocabulary; the
+            //   machine keeps the pending state and the trigger hooks.
 
             enum class TransitionPhase { IDLE, FADE_OUT, TEARDOWN, FADE_IN };
             TransitionPhase transitionPhase_ = TransitionPhase::IDLE;
@@ -370,149 +383,29 @@ namespace t7 {
 
             // (finite_mode / finite_radius migrated into WorldState — see top of class)
 
-            // ── Portal detection ──
-            static constexpr float PORTAL_DENSITY = 1.00f;  // fraction of Doorway arches that become portals
+            // ── Portal detection + colors — GRADUATED to mood.hpp (LADDER-4) ──
+            // PORTAL_DENSITY, PORTAL_COLORS, PORTAL_COLOR_BACK are mood
+            // vocabulary (indexed by destination.mood); consumed by
+            // entity_pipeline's portal roll and by mood's force-spawn value
+            // computation. Visible here by namespace lookup; every use was
+            // unqualified and carries.
 
-            // Portal color by mood (indexed by destination.mood)
-            static constexpr float PORTAL_COLORS[6][3] = {
-                { 0.90f, 0.45f, 0.70f },  // mood 0  open_default    — pink
-                { 0.72f, 0.45f, 0.85f },  // mood 1  open_sunset     — lilac
-                { 0.95f, 0.55f, 0.15f },  // mood 2  indoor_flat     — orange
-                { 0.95f, 0.80f, 0.20f },  // mood 3  indoor_vault    — yellow
-                { 0.85f, 0.20f, 0.15f },  // mood 4  finite_outdoor  — red
-                { 0.70f, 0.15f, 0.12f },  // mood 5  finite_outdoor_ref — dark red
-            };
-            static constexpr float PORTAL_COLOR_BACK[3] = { 0.35f, 0.55f, 0.90f };  // back-portal — blue
-
-            // ═══ MOOD SYSTEM ═════════════════════════════════════════════
+            // ═══ MOOD SYSTEM — GRADUATED to mood.hpp (LADDER-4, per K4) ═══
             //
-            // Each mood defines an atmosphere: sun direction/color, fog,
-            // finite vs. open, patch radius. Portals pick a mood for
-            // their destination; the mood is applied during teardown.
-            //
-            // Moods 0-1: infinite outdoor.  Moods 2-3: finite indoor.
-            // Mood 4: finite outdoor.  Mood 5: finite outdoor (reference clone).
+            // CeilingType, MoodProfile, MOOD_TABLE, and mood_name are mood
+            // VOCABULARY — they live in modules/mood.hpp (file scope, above
+            // the class), beside the indoor palettes and the door/applier/
+            // deriver declarations. MOOD_COUNT graduated earlier (LADDER-2
+            // prereq → mood_constants.hpp); the Mood IDs at LADDER-3 G1.
+            // Visible here by namespace lookup; every use was unqualified
+            // and carries (spawn_engine's wall clamp, entity_pipeline's
+            // portal roll + indoor rescale, the spine's indoor checks).
+            // SEAM[mood:K1] and DONE[mood:L1] travel with the table.
 
-            enum class CeilingType : uint32_t {
-                NONE = 0,   // outdoor — no shell geometry
-                FLAT = 1,   // flat slab ceiling
-                VAULT = 2,   // catenary vault ceiling
-            };
-
-            struct MoodProfile {
-                // ─── World bounds ───────────────────────────────────────
-                bool   finite;                 // true = walled world with finite radius
-                uint32_t finite_radius_min;    // min patch radius (when finite)
-                uint32_t finite_radius_max;    // max patch radius (when finite)
-
-                // ─── Lighting ───────────────────────────────────────────
-                float  sun_direction[3];       // directional light vector (normalized)
-                float  sun_color[3];           // sun RGB
-                float  sun_intensity;          // diffuse strength
-                float  sun_ambient;            // ambient fill strength
-
-                // ─── Atmosphere ─────────────────────────────────────────
-                float  fog_density;            // exponential fog coefficient
-                float  fog_color[3];           // fog/horizon RGB
-
-                // ─── Indoor shell ───────────────────────────────────────
-                bool   indoor;                 // true = enclosed space with ceiling
-                CeilingType ceiling_type;      // NONE / FLAT / VAULT
-                float  ceiling_height;         // ceiling Y (world units)
-
-                // ─── Background ─────────────────────────────────────────
-                float  clear_color[3];         // sky or dark ceiling RGB
-                float  wall_color[3];          // indoor wall surface RGB
-                float  ceiling_color[3];       // indoor ceiling surface RGB
-
-                // ─── Feature selection (per-mood) ───────────────────────
-                // Each mood independently declares which systems are active.
-                // Not tied to indoor/outdoor — a walled mood can still have
-                // musical modes, an open mood can still skip pawn aura.
-                bool   allow_gol_zones;        // GoL zone spawning + visualization
-                bool   allow_pawn_aura;        // toroidal spring grid tinting + height boost
-                bool   allow_frustum_cull;     // GPU frustum cull for LOD0 terrain (Tier 4)
-                bool   has_anchor_ribbon;      // mood spawns a fixed reference ribbon at the world center
-
-                // Sky orb config is a parallel table (ORB_MOOD_TABLE in
-                // modules/orbs.inl), indexed by the same mood index as
-                // MOOD_TABLE. See orbs.inl for the OrbMoodConfig field
-                // definitions and the table itself.
-            };
-
-            // MOOD_COUNT graduated to file scope (LADDER-2 prereq, per Jean) —
-            // now t7::the_board::MOOD_COUNT in modules/mood_constants.hpp,
-            // included above the class so the config-bearing converted headers
-            // (entities/orbs/floater_vocabulary) can size their per-mood tables.
-            // Visible here by namespace lookup; unqualified references unchanged.
-
-            // ─── Mood IDs — GRADUATED to mood_constants.hpp (LADDER-3 G1) ───
-            // agents' and cube_behaviors' population tables need them
-            // DECLARATION-side in file-scope headers. Visible here by
-            // namespace lookup; every use was unqualified and carries.
-
-            // ═══ MOOD DEFINITIONS ════════════════════════════════════════
-            //
-            // Sky orb config lives in ORB_MOOD_TABLE inside modules/orbs.inl,
-            // indexed by the same mood index.
-            //
-            // SEAM[mood:K1] indoor/outdoor binary lives here as bool `finite` +
-            //   bool `indoor` flags. With finite_outdoor and finite_outdoor_ref,
-            //   the binary doesn't survive contact — the encoding is correct
-            //   for today but worth re-examining when finite_outdoor design lands.
-            // DONE[mood:L1] has_anchor_ribbon flag (last column). Mood-5
-            //   (FINITE_OUTDOOR_REF) is the only row that sets it true,
-            //   replacing the magic-number check `mood == 5` previously
-            //   scattered across mood.inl and orbs.inl. The ID is now an
-            //   identifier, not a discriminator — atmospheric data is
-            //   profile-driven. See mood.inl::SEAM[mood:L1] for the
-            //   gating call site.
-            //                                  fin  r_min r_max  sun_dir                sun_color              int   amb   fog_d   fog_color               indoor  ceil       ceil_h  clear_color            wall_color             ceil_color               zones  aura   cull   ribbon
-            static constexpr MoodProfile MOOD_TABLE[MOOD_COUNT] = {
-                /* MOOD_OPEN_DEFAULT       */  { false, 2, 2, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  false },
-                /* MOOD_OPEN_SUNSET        */  { false, 2, 2, { 0.96f,-0.26f,-0.13f}, {1.0f, 0.75f, 0.45f}, 0.90f, 0.20f, 0.0050f, {0.95f, 0.70f, 0.45f},  false, CeilingType::NONE,  0.0f,  {0.95f, 0.70f, 0.45f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  false },
-                /* MOOD_INDOOR_FLAT        */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f, 0.0003f, {0.15f, 0.12f, 0.10f},  true,  CeilingType::FLAT,  20.0f, {0.15f, 0.12f, 0.10f}, {0.65f,0.58f,0.50f}, {0.60f,0.55f,0.48f},   true,  true,  false, false },
-                /* MOOD_INDOOR_VAULT       */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f, 0.0003f, {0.15f, 0.12f, 0.10f},  true,  CeilingType::VAULT, 25.0f, {0.15f, 0.12f, 0.10f}, {0.70f,0.62f,0.52f}, {0.65f,0.58f,0.50f},   true,  true,  false, false },
-                /* MOOD_FINITE_OUTDOOR     */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  false },
-                /* MOOD_FINITE_OUTDOOR_REF */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true  },
-            };
-
-            // Orb mood config (ORB_MOOD_TABLE) lives in modules/orbs.inl
-            // alongside its OrbMoodConfig struct. Same MOOD_COUNT size,
-            // indexed by the same mood index.
-
-            static const char* mood_name(uint32_t mood) {
-                // Sized array: the compiler catches an EXTRA entry past
-                // MOOD_COUNT, but not a missing one — it zero-fills to nullptr.
-                static const char* NAMES[MOOD_COUNT] = {
-                    "open_default", "open_sunset", "indoor_flat",
-                    "indoor_vault", "finite_outdoor", "finite_outdoor_ref"
-                };
-                return (mood < MOOD_COUNT) ? NAMES[mood] : "unknown";
-            }
-
-            // ═══ INDOOR ENTITY PLACEMENT ═════════════════════════════════
-            //
-            // Minimum distance from any spawning entity's FOOTPRINT EDGE to
-            // the room walls (not the entity's center — large entities still
-            // keep this gap). Enforced in negotiate_position by clamping
-            // the seed-determined candidate position into the legal box
-            //   [bmin + margin + r, bmax - margin - r]  in both axes
-            // when world_state_.finite_mode is active and the current mood is indoor.
-            // Outdoor moods and open worlds are unaffected (no walls to
-            // keep clear of).
-            //
-            // Clamp (not reject) is intentional: rejection-based logic
-            // would silently drop entities anchored to corner patches,
-            // because their seed-determined position keeps landing in the
-            // wall margin and never recovers. Clamping shifts the candidate
-            // to the legal-box edge and lets the existing footprint-overlap
-            // check handle any pile-ups that result.
-            // Margin doubled (was 10) so that paintings and snapshots
-            // mounted on indoor walls are visibly separated from spawning
-            // entities — the entity's footprint now reads as distinct from
-            // the wall surface and any artwork on it.
-            static constexpr float INDOOR_ENTITY_WALL_MARGIN = 20.0f;
+            // (INDOOR_ENTITY_WALL_MARGIN — GRADUATED to mood.hpp, LADDER-4.
+            //  Second-consumer law: negotiate_position's wall clamp and
+            //  mood's portal-margin computation both read it. Its clamp
+            //  rationale travels with it.)
 
             GPUPortalArray cpuPortalArray_{};
             // (portals_dirty migrated into MoodState — see top of class)
@@ -1014,34 +907,14 @@ namespace t7 {
             // character. Archetypes are rolled based on the spatial cache of
             // neighboring tiles, creating coherent regions with variety.
 
-            // Derive finite world radius from seed within mood-defined bounds.
-            static uint32_t derive_finite_radius(uint32_t seed, const MoodProfile& mood) {
-                if (mood.finite_radius_min >= mood.finite_radius_max) return mood.finite_radius_min;
-                uint32_t range = mood.finite_radius_max - mood.finite_radius_min + 1;
-                return mood.finite_radius_min + cpu_hash(seed, 77u) % range;
-            }
-
-            // Biased mood selection for portal destinations.
-            // In finite mode: 40% infinite outdoor (moods 0-1), 30% indoor (moods 2-3), 30% finite outdoor (moods 4-5).
-            // In open mode: uniform across all moods.
-            uint32_t pick_portal_mood(uint32_t seed, uint32_t prop) const {
-                float roll = cpu_hash_f(seed, prop);
-                if (world_state_.finite_mode) {
-                    // 0.00–0.20: mood 0 (open_default)
-                    // 0.20–0.40: mood 1 (open_sunset)
-                    // 0.40–0.55: mood 2 (indoor_flat)
-                    // 0.55–0.70: mood 3 (indoor_vault)
-                    // 0.70–0.85: mood 4 (finite_outdoor)
-                    // 0.85–1.00: mood 5 (finite_outdoor_ref)
-                    if (roll < 0.20f) return 0;
-                    if (roll < 0.40f) return 1;
-                    if (roll < 0.55f) return 2;
-                    if (roll < 0.70f) return 3;
-                    if (roll < 0.85f) return 4;
-                    return 5;
-                }
-                return cpu_hash(seed, prop) % MOOD_COUNT;
-            }
+            // (derive_finite_radius / pick_portal_mood — GRADUATED to the
+            //  mood module, LADDER-4: they are mood DERIVERS (mood-table
+            //  bounds; mood-biased destination selection). Declarations in
+            //  mood.hpp, definitions in mood.inl; pick_portal_mood takes the
+            //  keyhole for its world_state_.finite_mode read. Callers carry:
+            //  derive_finite_radius unqualified (entity_pipeline + mood);
+            //  entity_pipeline's c->pick_portal_mood became
+            //  pick_portal_mood(c, ...).)
 
             // ── Three Archetypes ──
             //
@@ -3231,7 +3104,7 @@ namespace t7 {
                         agent_state_.slots[0].portal_trigger = -1;
                         player_.possessed_slot = 0;
                         gpuState_.set_world_seed(world_state_.active_seed);
-                        apply_mood(pendingDestination_.mood, queue);
+                        apply_mood(this, pendingDestination_.mood, queue);
                         // ROSTER-GATE wanderers (c) — transition population (slots 1+); slot 0 preserved above.
                         if constexpr (ROSTER.wanderers)
                             spawn_population_for_mood(agent_state_, this, pendingDestination_.mood, world_state_.active_seed,
@@ -3545,12 +3418,12 @@ namespace t7 {
                         pass.End();
                     }
                 }
-                upload_portal_array(queue);
+                upload_portal_array(this, queue);
                 // ROSTER sun rider: upload_lights is UNGATED — the sun rides
                 // this upload, and the sun is foundational, not a piece. The
                 // gateable lights (spot_lights) are gated upstream at their
                 // apply_mood configure; the buffer upload itself always runs.
-                upload_lights(queue);
+                upload_lights(this, queue);
 
                 // Re-sync the pawn mount to THIS frame. ribbon_advance_head (in the
                 // ribbon block above) just recomputed the head mount, but the signal
@@ -3843,7 +3716,7 @@ namespace t7 {
 
                         // NOW spawn portals — tile cache is populated, terrain heights are correct
                         if (mood_state_.back_portal_pending) {
-                            force_spawn_back_portal(queue);
+                            force_spawn_back_portal(this, queue);
                         }
                         for (int32_t gz = centerZ - rr; gz <= centerZ + rr; gz++) {
                             for (int32_t gx = centerX - rr; gx <= centerX + rr; gx++) {
@@ -4190,8 +4063,22 @@ namespace t7 {
                 if (world_state_.finite_mode) { world_state_.active_radius = savedRadius; }
             }
 
-            // ── Mood System (modules/mood.inl) ──
-#include "modules/mood.inl"
+            // ── Mood System — CONVERTED (LADDER-4, per K4 as ruled) ──
+            // Mood is VOCABULARY + APPLIERS + SIX DOORS: CeilingType /
+            // MoodProfile / MOOD_TABLE / portal colors / indoor palettes +
+            // the door, applier, and deriver declarations are in mood.hpp
+            // (file scope, above the class); the definitions (which reach
+            // the spine-owned state + in-class statics via the complete
+            // type) are in mood.inl, included at FILE SCOPE in the
+            // post-class MODULE IMPLEMENTATIONS zone. MOOD OWNS NO STATE —
+            // nothing joined the COMPOSITION ROOT; mood_state_ and the
+            // transition machine stay spine-resident
+            // (SEAM[spine:transitions], constitution §2). The force-spawn
+            // mutation moved to the arch's owner: entities'
+            // force_spawn_portal_arch (K4's channel; the ROSTER portal door
+            // migrated with it). The lighting-scheme tables stay impl-side;
+            // the class-body private/public toggle they needed is retired.
+            // See §1.
 
 
 // ── Render Passes — CONVERTED (LADDER-3 c7, header/impl split) ──
@@ -4295,3 +4182,4 @@ namespace t7 {
 #include "modules/ribbon.inl"     // LADDER-3 c5 — author seats + head laws + frame conductor + three-phase lifecycle
 #include "modules/input.inl"      // LADDER-3 c6 — key/mouse dispatch + movement intent + camera commands (own GLFW include)
 #include "modules/render_passes.inl"  // LADDER-3 c7 — ground-entry prep + compute dispatch + shadow/main passes + light VPs
+#include "modules/mood.inl"       // LADDER-4 (K4) — indoor light derivation + appliers + apply_mood + shell + portals + uploads + transition request + derivers

@@ -51,6 +51,12 @@ What must NOT live here: entity laws, entity state, coupling decodes
 (the canvas's), GPU realization (the shader's). Known trespasses are not
 hidden; they are §5 entries with retirement conditions (the eviction
 thunks are the standing example).
+The transition machine (transitionPhase_ / pendingDestination_ /
+MoodState and kin) is DECLARED ORCHESTRATION under this law (K4, Jean,
+2026-07-11): mood supplies vocabulary + appliers + doors and owns no
+state; the spine owns the request → activation flow — same legitimacy
+class as the P5 readbacks; tagged SEAM[spine:transitions] at the
+machine's banner (the_board, LADDER-4).
 
 ## §3 — THE CONDUCTOR CONTRACT: THE FRAME AS A SCORE
 The frame's score is fixed-order across TWO MOVEMENTS — update() then
@@ -115,6 +121,10 @@ cartridge unless stated.
   (gallery.inl). Autonomous stdout, all tagged in place. Wrapped at
   ship. (Key-command feedback prints are the instrument's UI, not
   census members.)
+- INTENT (1): MoodProfile.fog_density / fog_color (mood.hpp,
+  INTENT[mood-fog-baseline]) — authored per-mood fog baselines with zero
+  readers since fog went field-driven (the visual-canvas fog flush owns
+  it per-frame). Kept as intent; revive-or-delete at the panel era.
 - DRIVERLESS (11 shader tags + 1 CPU landing site): capabilities whose
   drivers the demolition removed (terrain amplitude, sphere/floater
   color, band motion, mode uniforms, GoL scales, pulses, orb inputs,

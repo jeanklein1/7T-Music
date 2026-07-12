@@ -692,5 +692,22 @@ bool prepare_column_mesh_gen(EntitiesState& es, Cartridge* c, wgpu::Queue& queue
 bool prepare_arch_mesh_gen(EntitiesState& es, Cartridge* c, wgpu::Queue& queue);
 bool prepare_pyramid_mesh_gen(EntitiesState& es, Cartridge* c, wgpu::Queue& queue);
 
+// ═══ THE ARCH FORCE-SPAWN AUTHOR (LADDER-4 — K4's channel) ═══════
+//
+// Forced portal-arch authoring: the arch's OWNER writes the arch. Mood
+// computes values — position, rotation, destination, back-portal flag,
+// portal color (mood vocabulary, passed in) — and this entry point owns
+// the mutation: the ROSTER portal door (migrated here from mood's
+// force_spawn_portal_at — its written retirement, fulfilled), the free-
+// slot scan, the Doorway tier-mean geometry, the pier authorship
+// (write_pier via the keyhole — K1's authoring channel), the slot
+// writes, arch_count, the mesh-params upload + arch_mesh_gen_pending.
+// All three portal spawner paths (general/back/finite) route through
+// here. Returns the slot used, or UINT32_MAX if gated or no slot free.
+uint32_t force_spawn_portal_arch(EntitiesState& es, Cartridge* c, wgpu::Queue& queue,
+    float cx, float cz, float rotation,
+    const PortalDestination& dest, bool is_back_portal,
+    const float portal_color[3]);
+
 } // namespace the_board
 } // namespace t7

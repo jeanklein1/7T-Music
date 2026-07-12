@@ -437,3 +437,76 @@ footprints — every converted module reaches it through the keyhole),
 entity_pipeline.inl (the generic family dispatch), and the spine
 chapters that remain the cartridge's own body. No rung is cut until
 K4 is ruled.
+
+## LADDER-4 — MOOD, PER K4 AS RULED (converted; L-MID COMPLETE)
+
+Gated on L2; Jean reported GREEN, the rung proceeded. One module, one
+commit, the proven pattern — plus the one structural move the ruling
+ordered (the channel).
+
+**The ruling this encodes (K4, Jean, 2026-07-11):** mood is vocabulary +
+appliers + six doors; the transition machine is spine orchestration; the
+force-spawn mutation belongs to the arch's owner. No MoodState exists or
+is invented.
+
+| piece | status | note |
+|---|---|---|
+| mood.hpp | ✅ NEW | CeilingType + MoodProfile + MOOD_TABLE + mood_name decl + portal vocabulary (PORTAL_DENSITY/COLORS/COLOR_BACK) + IndoorPalette/INDOOR_PALETTES + INDOOR_ENTITY_WALL_MARGIN (second consumer: negotiate_position) + the six doors + appliers + derivers declared. Mood IDs consumed from G1, not moved. static constexpr → inline constexpr. |
+| mood.inl | ✅ REPURPOSED | no-BOM/LF verified BEFORE write, preserved. Self-wrapping, own includes, 17 inline definitions in original order (one impl-internal fwd decl: force_spawn_finite_portals). The lighting-scheme tables stay IMPL-side per the census (single consumer derive_indoor_lights — the agents precedent); the class-body private/public toggle they needed is RETIRED (its written retirement, fulfilled). The sun rider at upload_lights travels untouched. |
+| composition root | ✅ NOTHING | mood owns no state. MoodState/mood_state_, transitionPhase_, pendingDestination_, backPortalPosition_, cpuPortalArray_, cpuSpotLights_ stay SPINE-RESIDENT — SEAM[spine:transitions] added at the machine's banner naming the ruling (§2 residency, the P5-readbacks legitimacy class); one §2 line rides in the constitution. |
+| THE CHANNEL | ✅ LANDED | entities gains force_spawn_portal_arch (decl entities.hpp, def entities.inl): the arch owner authors the slot scan, Doorway tier-mean geometry, pier authorship (c->write_pier — K1's channel), the ~24 slot writes, arch_count, mesh-params upload + mesh-pending. Mood's force_spawn_portal_at SHRANK to computing values (color/destination/position/flags) + calling through; portals_dirty stays mood's flag, set caller-side on success (same frame, read only by upload_portal_array — behavior-identical). All three spawner paths route through the one choke point, as before. |
+| THE ROSTER DOOR | ✅ MIGRATED | the ROSTER-GATE portal (b) early-return moved from mood's force_spawn_portal_at into force_spawn_portal_arch — its written retirement condition, fulfilled. Comment chain updated (roster.hpp's second-door note + FIRST-EDGE dual-maturity text; the door's own HOME text names the migration). G5/G6 semantics unchanged; sentinel census re-run: 2 UINT32_MAX returns (gate + no-slot), callers treat both as "none placed", exactly as before. |
+| derivers | ✅ GRADUATED | derive_finite_radius (pure) + pick_portal_mood (keyhole — world_state_.finite_mode read) moved from cartridge members to the mood module. entity_pipeline's c->pick_portal_mood(...) became pick_portal_mood(c, ...) — the arc's ONE non-door call-site signature change; derive_finite_radius callers carry unqualified. |
+| orphans | ✅ TAGGED | MoodProfile.fog_density/fog_color → INTENT[mood-fog-baseline], retirement "revive-or-delete at the panel era"; §5 ledger entry rides the commit (TER-2 doctrine; Jean holds the delete-override). |
+
+**All-callers census (every door, every spawner path):** apply_mood ×1
+(the machine's activation site, +this), request_mood_transition ×5
+(input.inl F-row keys → (c, MOOD_*)) + the in-flight bail intact,
+force_spawn_back_portal ×1 (teardown site, +this), upload_lights ×1 +
+upload_portal_array ×1 (frame sites, +this), mood_name in-module ×5 +
+zero external, force_spawn_portal_at ×3 (back ×2 branches + finite ×1 —
+all in-module, all through the channel), pick_portal_mood ×2 (mood +
+entity_pipeline), derive_finite_radius ×3 (mood ×2 + entity_pipeline).
+Zero qualified stragglers (Cartridge::MOOD_TABLE etc. grep: none).
+
+**Bodies verified** (normalized byte-compare): 17/17 mood functions
+identical mod sanctioned transforms — two disclosed cosmetic deltas:
+comment-column alignment in apply_mood's ROSTER-gate rows, and `(void)c;`
+joining the gated early-return's cast list. The CHANNEL extraction
+verified separately: the mutation span of old force_spawn_portal_at is
+byte-identical inside force_spawn_portal_arch mod es./keyhole/Cartridge::
+forms, the color parameter, and the two moved lines (portals_dirty →
+caller; pc computation → caller).
+
+**Specimen** (real mood pair + real entities pair + real
+mood_constants/seed_utils/roster; shadow state + sibling stubs): indoor
+vault apply (Sanctum + vault uplight, palette substitution, groin-vault
+shell 1105 verts, wall paintings, ceiling clamp, orbs), mood-5 anchor
+ribbon dual-entry, transition request + in-flight bail, THE CHANNEL
+(back + 2 forward portals authored by entities: 6 pier writes, 3
+mesh-param uploads, mesh-pending, Doorway tier-mean half-span exact,
+back-portal destination intact, portals_dirty caller-set), portal-array
++ lights dirty protocols, derivers bounded/biased, outdoor apply clears
+shell + walls. Exit 0.
+
+**Zone census (both directions): CLEAN** — 11 impls == 11 zone includes,
+each once; **the class-body census reads exactly TWO (spawn_engine.inl,
+entity_pipeline.inl)** — the L-mid target, hit.
+
+**Bytes:** mood.hpp 81/81 braces no-BOM/LF; mood.inl 146/146 no-BOM/LF
+(byte truth verified before write); entities.hpp 71/71; entities.inl
+30/30; cartridge.hpp code-only 582/582 (the graduated vocabulary chapter
+accounts for the drop from 640). Constitution §2 line + §5 INTENT entry
+ride the commit.
+
+**L-MID IS COMPLETE — the last non-hub module is a citizen.** The L3
+golden gate at the rig is due: one build at this head, same seed, two
+runs, indistinguishable (L2 ran green, so this build certifies LADDER-4
+alone; bisection anchors — the pre-LADDER-4 head bfd143d and c6 77fc3a3
+— stand if it disagrees).
+
+## LADDER-5 (queued — no action): THE HUBS INTERFACE EXTRACTION
+
+spawn_engine.inl + entity_pipeline.inl, the two remaining class-body
+includes. FIRST PRIZE, as named: the PopFamily graduation — retiring
+roster.hpp's literal-index family_enabled switch per its own seam-note.
