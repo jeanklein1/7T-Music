@@ -72,6 +72,7 @@
 #include "cartridges/the_board/modules/render_passes.hpp"        // the nine pass/dispatch + light-VP decls (impl is render_passes.inl, post-class; module owns no state)
 #include "cartridges/the_board/modules/mood.hpp"                 // MoodProfile + MOOD_TABLE + portal colors + palettes + door/applier/deriver decls (impl is mood.inl, post-class; mood owns no state)
 #include "cartridges/the_board/modules/population_themes.hpp"  // S2: THEMES + ThemeEnvelope + ThemesState + decls (impl is population_themes.inl, post-class)
+#include "cartridges/the_board/modules/tile_world.hpp"          // S2: archetypes + tokens + TileState/cache + TileWorldState + decls (impl is tile_world.inl, post-class)
 #include "cartridges/the_board/renderer.hpp"
 #include "coupling/visual_canvas.hpp"
 #include <cmath>
@@ -137,6 +138,10 @@ namespace t7 {
             //   themes_state_ — ThemesState (population_themes.hpp), the theme
             //     envelope machine + the per-patch selection.
             ThemesState themes_state_;
+
+            //   tile_world_state_ — TileWorldState (tile_world.hpp), the tile
+            //     cache + the terrain tokens (what the terrain remembers).
+            TileWorldState tile_world_state_;
 
             InputState inputState_;
             KeyState keys_;
@@ -548,54 +553,6 @@ namespace t7 {
                 return std::min(budget, PATCH_BUDGET_MAX);
             }
 
-            // ═══ TILE WORLD SYSTEM ═══════════════════════════════════════
-
-            // ── Three Archetypes ──
-
-            static constexpr uint32_t ARCHETYPE_COUNT = 4;
-
-            struct ArchetypeProfile {
-                // ─── Terrain modifiers ───────────────────────────────
-                float amp_scale;           // height field amplitude multiplier
-                float height_bias;         // vertical offset (positive = elevated)
-                float activation_scale;    // activity field sensitivity
-
-                // ─── Selection ───────────────────────────────────────
-                float base_weight;         // prior probability (before neighbor influence)
-
-                // ─── Per-tile jitter ─────────────────────────────────
-                float amp_jitter_range;    // amp_scale *= 1 ± jitter/2
-                float bias_jitter_range;   // height_bias += uniform(-jitter/2, +jitter/2)
-            };
-
-            //                                     amp   bias   act   weight  amp_jit  bias_jit
-            static constexpr ArchetypeProfile ARCHETYPES[ARCHETYPE_COUNT] = {
-                /* 0: mountainous */  {  2.0f,   4.0f,  0.7f,  1.8f,   0.3f,    1.0f  },
-                /* 1: varied      */  {  1.0f,   0.0f,  1.0f,  1.3f,   0.3f,    1.0f  },
-                /* 2: basin       */  {  0.5f,  -2.0f,  1.3f,  1.0f,   0.3f,    1.0f  },
-                /* 3: pool        */  {  0.04f, -0.5f,  0.2f,  0.0f,   0.02f,   0.2f  },
-            };
-
-            struct ArchetypeSelectionRules {
-                // Neighbor count thresholds and corresponding weight multipliers.
-                // Applied in order: first matching threshold wins.
-                static constexpr uint32_t DOMINANT_THRESHOLD = 4;    // >= this many → suppress
-                static constexpr float    DOMINANT_MULTIPLIER = 0.2f; // strongly reduced
-                static constexpr uint32_t COMMON_THRESHOLD = 2;    // >= this many → mild boost
-                static constexpr float    COMMON_MULTIPLIER = 1.5f;
-                static constexpr uint32_t PRESENT_THRESHOLD = 1;    // == this many → strong coherence
-                static constexpr float    PRESENT_MULTIPLIER = 2.0f;
-                // 0 neighbors: weight stays at base_weight (no modification)
-            };
-
-            // ── Entity Density Field ─────────────────────────────────────────
-
-            static constexpr float DENSITY_LATTICE_SPACING = 250.0f;
-            static constexpr uint32_t DENSITY_SEED_BAND = 160u;
-            static constexpr float DENSITY_EXPONENT = 0.6f;
-            static constexpr float DENSITY_MIN = 1.0f;
-            static constexpr float DENSITY_MAX = 1.0f;
-
             // ═══ FAMILY DISPATCH TABLE ═══════════════════════════════════
             //
             // SEAM[spine:owns] FAMILY_DISPATCH is the integration hub that
@@ -684,345 +641,6 @@ namespace t7 {
             // (t7::the_board::ROSTER); every ROSTER-GATE / ROSTER-RESIDUE
             // consult below is unchanged.
 
-            // ═══ TERRAIN TOKENS ══════════════════════════════════════════
-
-            static constexpr uint32_t MAX_TERRAIN_TOKENS = 8;
-
-            struct TerrainToken {
-                float archetype_bias[ARCHETYPE_COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f };
-                uint32_t budget = 0;
-                bool active = false;
-            };
-
-            TerrainToken terrainTokens_[MAX_TERRAIN_TOKENS]{};
-
-            // ── Emission Profiles ────────────────────────────────────────────
-            //
-            // Token flow: emit_chance gates emission; pivot_chance picks
-            // continuation vs pivot; budget (uniform in [min,max]) = tile
-            // generations survived; bias multiplies archetype weights.
-
-            struct TerrainEmissionProfile {
-                float emit_chance;                            // [0,1] probability of emitting any token
-                uint32_t budget_min, budget_max;              // generation lifespan range
-                float continuation_bias[ARCHETYPE_COUNT];     // archetype weight multipliers when continuing
-                float pivot_chance;                           // [0,1] probability of pivoting vs continuing
-                float pivot_bias[ARCHETYPE_COUNT];            // archetype weight multipliers when pivoting
-            };
-
-            static constexpr TerrainEmissionProfile TERRAIN_EMISSION[ARCHETYPE_COUNT] = {
-                /* 0: mountainous */ { 0.45f,  2, 5,  { 2.0f, 1.5f, 0.3f, 0.0f },  0.25f, { 0.3f, 2.0f, 1.5f, 0.0f } },
-                /* 1: varied      */ { 0.25f,  1, 3,  { 0.8f, 1.5f, 0.8f, 0.2f },  0.30f, { 1.5f, 0.5f, 1.5f, 0.1f } },
-                /* 2: basin       */ { 0.40f,  2, 4,  { 0.2f, 0.8f, 2.0f, 1.0f },  0.20f, { 0.5f, 1.5f, 0.5f, 0.3f } },
-                /* 3: pool        */ { 0.20f,  1, 2,  { 0.0f, 0.5f, 1.5f, 1.5f },  0.35f, { 0.3f, 1.0f, 2.0f, 0.2f } },
-            };
-
-            // ── Amplitude Momentum ───────────────────────────────────────────
-
-            static constexpr float AMP_MOMENTUM_THRESHOLD = 0.15f;  // |jitter - 1.0| above this → emit amp momentum
-            static constexpr float AMP_MOMENTUM_CARRY = 0.6f;       // fraction of excess carried forward
-
-            // ── Theme Envelope State (replaces lattice-based selection) ─────
-
-            struct TileState {
-                uint32_t archetype = 1;      // default: varied
-                float height_bias = 0.0f;
-                float amp_scale = 1.0f;
-                // STATUS: LATENT[tile-activation] — authored here (per-archetype
-                // act column) and uploaded + interpolated GPU-side, but consumed
-                // by neither height caller; the intended tile-character axis —
-                // wiring is one multiply into band activation when wanted.
-                float activation_scale = 1.0f;
-                float amp_momentum = 0.0f;   // signed amplitude excess, carried by terrain tokens
-                float entity_density = 1.0f; // spatial density multiplier for entity spawning
-                // Theme: evaluated from theme lattice at tile generation time
-                float theme_spawn[PopFamily::COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f }; // blended per-family spawn multiplier
-                uint32_t theme_idx = 0;      // dominant theme index (for tier bias)
-            };
-
-            // Spatial cache: keyed by (grid_x, grid_z)
-            struct GridKey {
-                int32_t x, z;
-                bool operator==(const GridKey& o) const { return x == o.x && z == o.z; }
-            };
-            struct GridKeyHash {
-                size_t operator()(const GridKey& k) const {
-                    return (size_t)k.x * 73856093u ^ (size_t)k.z * 19349663u;
-                }
-            };
-
-            std::unordered_map<GridKey, TileState, GridKeyHash> tileCache_;
-
-            // Forgetting radius: tiles beyond this many grid cells get evicted
-            static constexpr int32_t FORGET_RADIUS = (int32_t)PREGEN_RADIUS + 2;  // eviction radius (beyond pre-gen)
-
-            void evict_distant_tiles(int32_t centerX, int32_t centerZ) {
-                auto it = tileCache_.begin();
-                while (it != tileCache_.end()) {
-                    int32_t dx = it->first.x - centerX;
-                    int32_t dz = it->first.z - centerZ;
-                    if (dx < -FORGET_RADIUS || dx > FORGET_RADIUS ||
-                        dz < -FORGET_RADIUS || dz > FORGET_RADIUS) {
-                        it = tileCache_.erase(it);
-                    }
-                    else {
-                        ++it;
-                    }
-                }
-            }
-
-            // Build and upload GPUTileGrid from tile cache, centered on (cx, cz).
-            void upload_tile_grid_now(wgpu::Queue& queue, int32_t cx, int32_t cz) {
-                static constexpr int32_t TILE_PAD = 1;
-                int32_t rp = (int32_t)world_state_.active_radius + TILE_PAD;
-                uint32_t tileGridSide = 2 * (world_state_.active_radius + TILE_PAD) + 1;
-                GPUTileGrid grid{};
-                grid.origin_x = cx - rp;
-                grid.origin_z = cz - rp;
-                grid.side = tileGridSide;
-                grid.cell_extent = PATCH_EXTENT;
-
-                for (int32_t gz = cz - rp; gz <= cz + rp; gz++) {
-                    for (int32_t gx = cx - rp; gx <= cx + rp; gx++) {
-                        int32_t lx = gx - grid.origin_x;
-                        int32_t lz = gz - grid.origin_z;
-                        uint32_t idx = lz * tileGridSide + lx;
-                        auto it = tileCache_.find({ gx, gz });
-                        if (it != tileCache_.end()) {
-                            grid.entries[idx].amp_scale = it->second.amp_scale;
-                            grid.entries[idx].height_bias = it->second.height_bias;
-                            grid.entries[idx].activation_scale = it->second.activation_scale;
-                            grid.entries[idx].archetype = it->second.archetype;
-                        }
-                        else {
-                            grid.entries[idx].amp_scale = 1.0f;
-                            grid.entries[idx].height_bias = 0.0f;
-                            grid.entries[idx].activation_scale = 1.0f;
-                            grid.entries[idx].archetype = 1;
-                        }
-                    }
-                }
-                gpuState_.upload_tile_grid(queue, grid);
-            }
-
-
-            TileState generate_tile_state(int32_t gx, int32_t gz) {
-                // Count neighbor archetypes
-                uint32_t neighbor_counts[ARCHETYPE_COUNT] = {};
-                uint32_t total_neighbors = 0;
-
-                for (int32_t dz = -1; dz <= 1; dz++) {
-                    for (int32_t dx = -1; dx <= 1; dx++) {
-                        if (dx == 0 && dz == 0) continue;
-                        auto it = tileCache_.find({ gx + dx, gz + dz });
-                        if (it != tileCache_.end()) {
-                            neighbor_counts[it->second.archetype]++;
-                            total_neighbors++;
-                        }
-                    }
-                }
-
-                // Build selection weights from archetype base weights + neighbor influence
-                float weights[ARCHETYPE_COUNT];
-                for (uint32_t a = 0; a < ARCHETYPE_COUNT; a++) {
-                    weights[a] = ARCHETYPES[a].base_weight;
-                }
-
-                static constexpr uint32_t POOL_IDX = 3;
-                if (MOOD_TABLE[mood_state_.active].indoor) {
-                    weights[POOL_IDX] = 1.5f;   // ~30% of indoor tiles become pools
-                }
-                else {
-                    weights[POOL_IDX] = 0.05f;  // ~1.5% of outdoor tiles
-                }
-
-                // ── Terrain token priors: multiply active tokens into weights ──
-                for (uint32_t t = 0; t < MAX_TERRAIN_TOKENS; t++) {
-                    if (!terrainTokens_[t].active) continue;
-                    for (uint32_t a = 0; a < ARCHETYPE_COUNT; a++) {
-                        weights[a] *= terrainTokens_[t].archetype_bias[a];
-                    }
-                }
-
-                if (total_neighbors > 0) {
-                    using R = ArchetypeSelectionRules;
-                    for (uint32_t a = 0; a < ARCHETYPE_COUNT; a++) {
-                        if (neighbor_counts[a] >= R::DOMINANT_THRESHOLD) {
-                            weights[a] *= R::DOMINANT_MULTIPLIER;
-                        }
-                        else if (neighbor_counts[a] >= R::COMMON_THRESHOLD) {
-                            weights[a] *= R::COMMON_MULTIPLIER;
-                        }
-                        else if (neighbor_counts[a] >= R::PRESENT_THRESHOLD) {
-                            weights[a] *= R::PRESENT_MULTIPLIER;
-                        }
-                    }
-                }
-
-                // Normalize and roll
-                float total_weight = 0.0f;
-                for (uint32_t a = 0; a < ARCHETYPE_COUNT; a++) total_weight += weights[a];
-                for (uint32_t a = 0; a < ARCHETYPE_COUNT; a++) weights[a] /= total_weight;
-
-                uint32_t seed = tile_seed(world_state_.active_seed, gx, gz);
-                float roll = cpu_hash_f(seed, 300u);
-
-                uint32_t archetype = ARCHETYPE_COUNT - 1;
-                float cumulative = 0.0f;
-                for (uint32_t a = 0; a < ARCHETYPE_COUNT; a++) {
-                    cumulative += weights[a];
-                    if (roll < cumulative) { archetype = a; break; }
-                }
-
-                // Per-tile jitter from archetype profile
-                const auto& profile = ARCHETYPES[archetype];
-                float amp_jitter = 1.0f + (cpu_hash_f(seed, 301u) - 0.5f) * profile.amp_jitter_range;
-                float bias_jitter = (cpu_hash_f(seed, 302u) - 0.5f) * profile.bias_jitter_range;
-
-                TileState ts;
-                ts.archetype = archetype;
-                ts.amp_scale = profile.amp_scale * amp_jitter;
-                ts.height_bias = profile.height_bias + bias_jitter;
-                ts.activation_scale = profile.activation_scale;
-                ts.amp_momentum = amp_jitter - 1.0f;  // signed: positive = amplified, negative = dampened
-
-                // ── Entity density field (coarse spatial noise) ──────────
-                {
-                    float patch_cx = (gx + 0.5f) * PATCH_EXTENT;
-                    float patch_cz = (gz + 0.5f) * PATCH_EXTENT;
-                    float dlx = patch_cx / DENSITY_LATTICE_SPACING;
-                    float dlz = patch_cz / DENSITY_LATTICE_SPACING;
-                    int32_t dbx = (int32_t)std::floor(dlx);
-                    int32_t dbz = (int32_t)std::floor(dlz);
-                    float dfx = dlx - dbx, dfz = dlz - dbz;
-                    float dwx = dfx * dfx * (3.0f - 2.0f * dfx);
-                    float dwz = dfz * dfz * (3.0f - 2.0f * dfz);
-                    float density = 0.0f;
-                    for (int dz = 0; dz <= 1; dz++) for (int dx = 0; dx <= 1; dx++) {
-                        uint32_t ns = cpu_lattice_node_seed(world_state_.active_seed, dbx + dx, dbz + dz, DENSITY_SEED_BAND);
-                        float raw = cpu_hash_f(ns, 350u);
-                        float shaped = std::pow(raw, DENSITY_EXPONENT);
-                        float w = ((dx == 1) ? dwx : (1.0f - dwx)) * ((dz == 1) ? dwz : (1.0f - dwz));
-                        density += shaped * w;
-                    }
-                    ts.entity_density = DENSITY_MIN + density * (DENSITY_MAX - DENSITY_MIN);
-                }
-
-                // ── Theme field (coarse compositional character) ─────────
-                {
-                    float patch_cx = (gx + 0.5f) * PATCH_EXTENT;
-                    float patch_cz = (gz + 0.5f) * PATCH_EXTENT;
-                    float tlx = patch_cx / THEME_LATTICE_SPACING;
-                    float tlz = patch_cz / THEME_LATTICE_SPACING;
-                    int32_t tbx = (int32_t)std::floor(tlx);
-                    int32_t tbz = (int32_t)std::floor(tlz);
-                    float tfx = tlx - tbx, tfz = tlz - tbz;
-                    float twx = tfx * tfx * (3.0f - 2.0f * tfx);
-                    float twz = tfz * tfz * (3.0f - 2.0f * tfz);
-
-                    // Blend spawn weights across 4 lattice nodes.
-                    // Track dominant node for discrete tier bias lookup.
-                    float blended_spawn[PopFamily::COUNT] = { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
-                    float blended_density = 0.0f;
-                    float best_w = -1.0f;
-                    uint32_t dominant_theme = 0;
-
-                    for (int dz = 0; dz <= 1; dz++) for (int dx = 0; dx <= 1; dx++) {
-                        uint32_t ns = cpu_lattice_node_seed(world_state_.active_seed, tbx + dx, tbz + dz, THEME_SEED_BAND);
-                        uint32_t tidx = select_theme_at_node(ns);
-                        const auto& theme = THEMES[tidx];
-                        float w = ((dx == 1) ? twx : (1.0f - twx)) * ((dz == 1) ? twz : (1.0f - twz));
-                        for (uint32_t f = 0; f < PopFamily::COUNT; f++) {
-                            blended_spawn[f] += theme.spawn_weight[f] * w;
-                        }
-                        blended_density += theme.density_mult * w;
-                        if (w > best_w) { best_w = w; dominant_theme = tidx; }
-                    }
-
-                    for (uint32_t f = 0; f < PopFamily::COUNT; f++)
-                        ts.theme_spawn[f] = blended_spawn[f];
-                    ts.theme_idx = dominant_theme;
-                    ts.entity_density *= blended_density;  // theme density stacks with spatial density
-                }
-
-                return ts;
-            }
-
-            // ═══ TERRAIN TOKEN TICK + EMISSION ═══════════════════════════
-            //
-            // Called ONCE per primary tile generation, NEVER for neighbor padding.
-            // Decrements all active token budgets, clears expired tokens,
-            // then evaluates the tile outcome for emission of a new token.
-
-            void tick_terrain_tokens(const TileState& outcome, uint32_t seed) {
-                // ── Tick existing tokens ─────────────────────────────────
-                for (uint32_t t = 0; t < MAX_TERRAIN_TOKENS; t++) {
-                    if (!terrainTokens_[t].active) continue;
-                    if (terrainTokens_[t].budget <= 1) {
-                        terrainTokens_[t].active = false;
-                    }
-                    else {
-                        terrainTokens_[t].budget--;
-                    }
-                }
-
-                // ── Emission from outcome ────────────────────────────────
-                const auto& ep = TERRAIN_EMISSION[outcome.archetype];
-
-                // Roll: does this outcome emit a token?
-                // Property index 310: decorrelated from archetype roll (300-302)
-                float emit_roll = cpu_hash_f(seed, 310u);
-                if (emit_roll >= ep.emit_chance) return;
-
-                // Roll: continuation or pivot?
-                float pivot_roll = cpu_hash_f(seed, 311u);
-                bool pivot = (pivot_roll < ep.pivot_chance);
-
-                // Budget draw (uniform in [budget_min, budget_max])
-                float budget_t = cpu_hash_f(seed, 312u);
-                uint32_t budget = ep.budget_min +
-                    (uint32_t)(budget_t * (float)(ep.budget_max - ep.budget_min + 1));
-                budget = std::min(budget, ep.budget_max);  // clamp rounding
-
-                // Build the token
-                TerrainToken token{};
-                const float* bias = pivot ? ep.pivot_bias : ep.continuation_bias;
-                for (uint32_t a = 0; a < ARCHETYPE_COUNT; a++) {
-                    token.archetype_bias[a] = bias[a];
-                }
-
-                // Amplitude momentum: if this patch rolled extreme, carry it
-                if (std::abs(outcome.amp_momentum) > AMP_MOMENTUM_THRESHOLD) {
-                    float carry = outcome.amp_momentum * AMP_MOMENTUM_CARRY;
-                    if (carry > 0.0f) {
-                        token.archetype_bias[0] *= (1.0f + carry);  // mountainous
-                    }
-                    else {
-                        token.archetype_bias[2] *= (1.0f - carry);  // basin (carry is negative)
-                    }
-                }
-
-                token.budget = budget;
-                token.active = true;
-
-                // ── Insert into stack ────────────────────────────────────
-                // Find a free slot. If none, evict the token with lowest budget.
-                uint32_t slot = MAX_TERRAIN_TOKENS;
-                uint32_t min_budget = UINT32_MAX;
-                uint32_t min_slot = 0;
-
-                for (uint32_t t = 0; t < MAX_TERRAIN_TOKENS; t++) {
-                    if (!terrainTokens_[t].active) { slot = t; break; }
-                    if (terrainTokens_[t].budget < min_budget) {
-                        min_budget = terrainTokens_[t].budget;
-                        min_slot = t;
-                    }
-                }
-                if (slot == MAX_TERRAIN_TOKENS) slot = min_slot;  // evict oldest
-
-                terrainTokens_[slot] = token;
-            }
-
             // ═══ WORLD LIFECYCLE ═════════════════════════════════════════
 
             void teardown_world(wgpu::Queue& queue) {
@@ -1033,7 +651,7 @@ namespace t7 {
 
                 // Terrain tokens
                 for (uint32_t t = 0; t < MAX_TERRAIN_TOKENS; t++) {
-                    terrainTokens_[t] = TerrainToken{};
+                    tile_world_state_.terrainTokens_[t] = TerrainToken{};
                 }
 
                 entityQueue_.clear();
@@ -1227,7 +845,7 @@ namespace t7 {
                 world_state_.lod0_patch_count = 0;
                 world_state_.all_patch_count = 0;
                 gpuState_.config().placement_patch_count = 0;
-                tileCache_.clear();
+                tile_world_state_.tileCache_.clear();
                 world_state_.pier_count_dirty = true;
                 world_state_.ground_entries_dirty = true;
                 world_state_.patch_instances_dirty = true;
@@ -1480,7 +1098,7 @@ namespace t7 {
             {
                 if (count == 0) return;
                 if (tileGridDirty) {
-                    upload_tile_grid_now(queue, world_state_.last_center_x, world_state_.last_center_z);
+                    upload_tile_grid_now(tile_world_state_, this, queue, world_state_.last_center_x, world_state_.last_center_z);
                     tileGridDirty = false;
                 }
                 GPUPatchParams batchParams[MAX_PATCHES];
@@ -2280,7 +1898,7 @@ namespace t7 {
                     bool fullRegen = (oldCX == INT32_MAX);  // first frame
 
                     // Lightweight cache maintenance (no GPU buffer writes)
-                    evict_distant_tiles(centerX, centerZ);
+                    evict_distant_tiles(tile_world_state_, centerX, centerZ);
 
                     if (!fullRegen) {
                         tileGridDirty = true;
@@ -2295,10 +1913,10 @@ namespace t7 {
                         for (int32_t gz = centerZ - rp; gz <= centerZ + rp; gz++) {
                             for (int32_t gx = centerX - rp; gx <= centerX + rp; gx++) {
                                 GridKey key{ gx, gz };
-                                if (tileCache_.find(key) == tileCache_.end()) {
-                                    TileState ts = generate_tile_state(gx, gz);
-                                    tick_terrain_tokens(ts, tile_seed(world_state_.active_seed, gx, gz));
-                                    tileCache_[key] = ts;
+                                if (tile_world_state_.tileCache_.find(key) == tile_world_state_.tileCache_.end()) {
+                                    TileState ts = generate_tile_state(tile_world_state_, this, gx, gz);
+                                    tick_terrain_tokens(tile_world_state_, ts, tile_seed(world_state_.active_seed, gx, gz));
+                                    tile_world_state_.tileCache_[key] = ts;
                                 }
                             }
                         }
@@ -2430,16 +2048,16 @@ namespace t7 {
                         int32_t gz = candidates[a].gz;
                         // Ensure tile cache entry (primary — ticks terrain tokens)
                         GridKey key{ gx, gz };
-                        if (tileCache_.find(key) == tileCache_.end()) {
-                            TileState ts = generate_tile_state(gx, gz);
-                            tick_terrain_tokens(ts, tile_seed(world_state_.active_seed, gx, gz));
-                            tileCache_[key] = ts;
+                        if (tile_world_state_.tileCache_.find(key) == tile_world_state_.tileCache_.end()) {
+                            TileState ts = generate_tile_state(tile_world_state_, this, gx, gz);
+                            tick_terrain_tokens(tile_world_state_, ts, tile_seed(world_state_.active_seed, gx, gz));
+                            tile_world_state_.tileCache_[key] = ts;
                         }
                         // Also cache neighbors for tile grid padding
                         for (int dz = -1; dz <= 1; dz++) for (int dx = -1; dx <= 1; dx++) {
                             GridKey nk{ gx + dx, gz + dz };
-                            if (tileCache_.find(nk) == tileCache_.end()) {
-                                tileCache_[nk] = generate_tile_state(gx + dx, gz + dz);
+                            if (tile_world_state_.tileCache_.find(nk) == tile_world_state_.tileCache_.end()) {
+                                tile_world_state_.tileCache_[nk] = generate_tile_state(tile_world_state_, this, gx + dx, gz + dz);
                             }
                         }
                         uint32_t layer = alloc_layer();
@@ -2595,7 +2213,7 @@ namespace t7 {
                 world_state_.entities_culled = update_entity_draw_visibility(queue);
 
                 // ─── Deferred uploads (one per frame max) ────────────────
-                if (tileGridDirty) upload_tile_grid_now(queue, world_state_.last_center_x, world_state_.last_center_z);
+                if (tileGridDirty) upload_tile_grid_now(tile_world_state_, this, queue, world_state_.last_center_x, world_state_.last_center_z);
                 flush_pier_count(queue);
 
                 audit_entity_integrity();
@@ -2682,4 +2300,5 @@ namespace t7 {
 #include "modules/render_passes.inl"  // ground-entry prep + compute dispatch + shadow/main passes + light VPs
 #include "modules/mood.inl"       // indoor light derivation + appliers + apply_mood + shell + portals + uploads + transition request + derivers
 #include "modules/population_themes.inl"  // the envelope machine per-patch step
+#include "modules/tile_world.inl"  // the four verbs over what the terrain remembers
 #include "modules/family_dispatch.inl"  // THE TABLE — FAMILY_DISPATCH definition + shared no-op mesh adapters

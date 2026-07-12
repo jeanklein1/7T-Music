@@ -59,8 +59,8 @@ SpawnGatePreambleResult run_spawn_preamble(
     adj_mod *= GLOBAL_ENTITY_DENSITY;
     r.theme_idx = themes_state_.active_theme_idx_;
     {
-        auto dit = tileCache_.find({ gx, gz });
-        if (dit != tileCache_.end()) {
+        auto dit = tile_world_state_.tileCache_.find({ gx, gz });
+        if (dit != tile_world_state_.tileCache_.end()) {
             adj_mod *= dit->second.entity_density;
             adj_mod *= dit->second.theme_spawn[family];
         }
@@ -537,8 +537,8 @@ SpawnPreamble evaluate_spawn_gate(int32_t gx, int32_t gz,
     float adjacency_mod = 1.0f) const {
     SpawnPreamble result{};
     result.archetype = 1;
-    auto tile_it = tileCache_.find({ gx, gz });
-    if (tile_it != tileCache_.end()) result.archetype = tile_it->second.archetype;
+    auto tile_it = tile_world_state_.tileCache_.find({ gx, gz });
+    if (tile_it != tile_world_state_.tileCache_.end()) result.archetype = tile_it->second.archetype;
 
     result.seed = tile_seed(world_state_.active_seed, gx, gz);
     float chance = std::min(spawn_chance * adjacency_mod, 1.0f);
@@ -731,8 +731,8 @@ void commit_entity_queue(wgpu::Queue& queue) {
 float estimate_terrain_height(float wx, float wz) const {
     int32_t tx = (int32_t)std::floor(wx / PATCH_EXTENT);
     int32_t tz = (int32_t)std::floor(wz / PATCH_EXTENT);
-    auto it = tileCache_.find({ tx, tz });
-    if (it != tileCache_.end())
+    auto it = tile_world_state_.tileCache_.find({ tx, tz });
+    if (it != tile_world_state_.tileCache_.end())
         return it->second.height_bias + it->second.amp_scale * 5.0f;
     return 0.0f;
 }
@@ -740,5 +740,5 @@ float estimate_terrain_height(float wx, float wz) const {
 bool terrain_tile_warm(float wx, float wz) const {
     int32_t tx = (int32_t)std::floor(wx / PATCH_EXTENT);
     int32_t tz = (int32_t)std::floor(wz / PATCH_EXTENT);
-    return tileCache_.find({ tx, tz }) != tileCache_.end();
+    return tile_world_state_.tileCache_.find({ tx, tz }) != tile_world_state_.tileCache_.end();
 }
