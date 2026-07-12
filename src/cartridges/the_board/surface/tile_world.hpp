@@ -2,8 +2,8 @@
 #include <cstdint>
 #include <cstddef>        // size_t (GridKeyHash)
 #include <unordered_map>  // the tile cache
-#include "cartridges/the_board/roster.hpp"                // PopFamily (TileState theme columns)
-#include "cartridges/the_board/modules/keyhole.hpp"       // Cartridge + wgpu::Queue fwds (the keyhole)
+#include "cartridges/the_board/contracts/roster.hpp"                // PopFamily (TileState theme columns)
+#include "cartridges/the_board/contracts/keyhole.hpp"       // Cartridge + wgpu::Queue fwds (the keyhole)
 
 // ─── tile_world.hpp (S2 · HEADER: vocabulary + state + decls) ──────
 // Born at LADDER-6 (S2 extraction; tokens merged by the stamped map):

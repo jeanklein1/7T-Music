@@ -3,11 +3,11 @@
 #include <random>     // std::mt19937 + distributions (PhotographerState sampling)
 #include <string>
 #include <vector>     // authored disk manifest
-#include "cartridges/the_board/state.hpp"                    // Dim::*, GPUPaintingSlot, GPUPhotographerConfig, wgpu
-#include "cartridges/the_board/modules/mood_constants.hpp"   // MOOD_COUNT (sizes the mood gate)
-#include "cartridges/the_board/modules/seed_utils.hpp"       // select_weighted (PhotographerState::sample_shot_type)
-#include "cartridges/the_board/modules/keyhole.hpp"          // Cartridge + wgpu::Queue fwds (the keyhole)
-#include "cartridges/the_board/modules/entity_types.hpp"     // GallerySelection/GalleryPlacement (the boundary DTOs) + queue types
+#include "cartridges/the_board/realization/state.hpp"                    // Dim::*, GPUPaintingSlot, GPUPhotographerConfig, wgpu
+#include "cartridges/the_board/contracts/mood_constants.hpp"   // MOOD_COUNT (sizes the mood gate)
+#include "cartridges/the_board/primitives/seed_utils.hpp"       // select_weighted (PhotographerState::sample_shot_type)
+#include "cartridges/the_board/contracts/keyhole.hpp"          // Cartridge + wgpu::Queue fwds (the keyhole)
+#include "cartridges/the_board/contracts/entity_types.hpp"     // GallerySelection/GalleryPlacement (the boundary DTOs) + queue types
 
 // ─── gallery.hpp (HEADER: vocabulary + configs + state + decls) ──
 // Converted (LADDER-3 c4): history in audit/LADDER.md.

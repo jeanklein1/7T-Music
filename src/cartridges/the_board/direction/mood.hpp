@@ -1,8 +1,8 @@
 #pragma once
 #include <cstdint>
-#include "cartridges/the_board/state.hpp"                    // wgpu, GPUSpotLightArray, MAX_SPOT_LIGHTS
-#include "cartridges/the_board/modules/mood_constants.hpp"   // MOOD_COUNT, the Mood IDs, PortalDestination
-#include "cartridges/the_board/modules/keyhole.hpp"          // Cartridge + wgpu::Queue fwds (the keyhole)
+#include "cartridges/the_board/realization/state.hpp"                    // wgpu, GPUSpotLightArray, MAX_SPOT_LIGHTS
+#include "cartridges/the_board/contracts/mood_constants.hpp"   // MOOD_COUNT, the Mood IDs, PortalDestination
+#include "cartridges/the_board/contracts/keyhole.hpp"          // Cartridge + wgpu::Queue fwds (the keyhole)
 
 // ─── mood.hpp (HEADER: vocabulary + palettes + decls) ─────────────
 // Converted (LADDER-4, per K4): history in audit/LADDER.md.

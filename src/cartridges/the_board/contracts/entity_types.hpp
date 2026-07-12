@@ -26,8 +26,8 @@
 
 #include <cstdint>
 #include <cstring>                                        // std::memset (queue-entry ctors)
-#include "cartridges/the_board/roster.hpp"                // PopFamily (sizes the dispatch table)
-#include "cartridges/the_board/modules/keyhole.hpp"       // Cartridge + wgpu::Queue fwds (the keyhole)
+#include "cartridges/the_board/contracts/roster.hpp"                // PopFamily (sizes the dispatch table)
+#include "cartridges/the_board/contracts/keyhole.hpp"       // Cartridge + wgpu::Queue fwds (the keyhole)
 
 // fwd — FamilyDispatch::dispatch_mesh takes wgpu::ComputePassEncoder&
 // (reference; forward decl suffices). LOCKSTEP INSURANCE (same

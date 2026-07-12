@@ -1,9 +1,9 @@
 #pragma once
 #include <cstdint>
-#include "cartridges/the_board/state.hpp"                    // Dim::*, GPUZoneDeriveRequestArray, wgpu
-#include "cartridges/the_board/modules/mood_constants.hpp"   // MOOD_COUNT (sizes the mood gate)
-#include "cartridges/the_board/modules/keyhole.hpp"          // Cartridge + wgpu::Queue fwds (the keyhole)
-#include "cartridges/the_board/modules/entity_types.hpp"     // GoLSelection/GoLPlacement (the boundary DTOs) + queue types
+#include "cartridges/the_board/realization/state.hpp"                    // Dim::*, GPUZoneDeriveRequestArray, wgpu
+#include "cartridges/the_board/contracts/mood_constants.hpp"   // MOOD_COUNT (sizes the mood gate)
+#include "cartridges/the_board/contracts/keyhole.hpp"          // Cartridge + wgpu::Queue fwds (the keyhole)
+#include "cartridges/the_board/contracts/entity_types.hpp"     // GoLSelection/GoLPlacement (the boundary DTOs) + queue types
 
 // ─── gol_zones.hpp (HEADER: vocabulary + state + decls) ──────────
 // Converted (LADDER-3 c1): history in audit/LADDER.md.

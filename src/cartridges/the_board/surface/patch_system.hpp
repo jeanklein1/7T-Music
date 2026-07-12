@@ -1,6 +1,6 @@
 #pragma once
 #include <cstdint>
-#include "cartridges/the_board/modules/keyhole.hpp"       // Cartridge + wgpu::Queue fwds (the keyhole)
+#include "cartridges/the_board/contracts/keyhole.hpp"       // Cartridge + wgpu::Queue fwds (the keyhole)
 
 // LOCKSTEP INSURANCE (mirrors orbs.hpp): the encoder handle named in
 // the conductor/generation decls, forward-declared in webgpu_cpp.h's form.

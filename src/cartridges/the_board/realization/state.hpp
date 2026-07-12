@@ -11,7 +11,7 @@
 //   ───────   ──────               ───────          ──────
 
 #include "analysis/analysis_signal.hpp"
-#include "cartridges/the_board/roster.hpp"  // feature bits (GPUState::init gates creation)
+#include "cartridges/the_board/contracts/roster.hpp"  // feature bits (GPUState::init gates creation)
 #include <webgpu/webgpu_cpp.h>
 #include <cstring>
 #include <array>

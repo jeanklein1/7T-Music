@@ -1,8 +1,10 @@
 #pragma once
 #include <cstdint>
-#include "cartridges/the_board/modules/mood_constants.hpp"   // MOOD_COUNT (sizes the configs' MOOD_MULTIPLIER)
+#include "cartridges/the_board/contracts/mood_constants.hpp"   // MOOD_COUNT (sizes the configs' MOOD_MULTIPLIER)
 
 // ─── floater_vocabulary.hpp ──────────────────────────────────────
+// LATENT[naming] (DEMO-1 s0): lives in contracts/ despite the name —
+// shared floater TYPES, not a module. Debt flagged, not paid.
 // Converted (LADDER-2 c0/c4): history in audit/LADDER.md.
 //
 // Vocabulary for the two generic-pipeline floater families: Sphere

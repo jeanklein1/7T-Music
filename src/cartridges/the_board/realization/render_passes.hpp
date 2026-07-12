@@ -1,6 +1,6 @@
 #pragma once
-#include "cartridges/the_board/state.hpp"   // wgpu, GPUSpotLight (the light-VP helper's parameter)
-#include "cartridges/the_board/modules/keyhole.hpp"  // Cartridge + wgpu::Queue fwds (the keyhole)
+#include "cartridges/the_board/realization/state.hpp"   // wgpu, GPUSpotLight (the light-VP helper's parameter)
+#include "cartridges/the_board/contracts/keyhole.hpp"  // Cartridge + wgpu::Queue fwds (the keyhole)
 
 // ─── render_passes.hpp (HEADER: decls) ────────────────────────────
 // Converted (LADDER-3 c7): history in audit/LADDER.md.

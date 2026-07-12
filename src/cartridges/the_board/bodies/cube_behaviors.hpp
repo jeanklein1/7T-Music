@@ -1,11 +1,11 @@
 #pragma once
 #include <cstdint>
 #include <array>
-#include "cartridges/the_board/state.hpp"                       // Dim::MAX_CUBE_INSTANCES, GPUState, GPUFloatingEntityState, wgpu
-#include "cartridges/the_board/modules/floater_vocabulary.hpp"  // ActiveCube, CUBE_TIER_COUNT
-#include "cartridges/the_board/modules/mood_constants.hpp"      // MOOD_COUNT + the Mood IDs
-#include "cartridges/the_board/modules/keyhole.hpp"             // Cartridge + wgpu::Queue fwds (the keyhole)
-#include "cartridges/the_board/modules/entity_types.hpp"   // queue types (the funnel signatures)
+#include "cartridges/the_board/realization/state.hpp"                       // Dim::MAX_CUBE_INSTANCES, GPUState, GPUFloatingEntityState, wgpu
+#include "cartridges/the_board/contracts/floater_vocabulary.hpp"  // ActiveCube, CUBE_TIER_COUNT
+#include "cartridges/the_board/contracts/mood_constants.hpp"      // MOOD_COUNT + the Mood IDs
+#include "cartridges/the_board/contracts/keyhole.hpp"             // Cartridge + wgpu::Queue fwds (the keyhole)
+#include "cartridges/the_board/contracts/entity_types.hpp"   // queue types (the funnel signatures)
 
 // ─── cube_behaviors.hpp (HEADER: registries + console + state + decls) ─
 // Converted (LADDER-3 c3): history in audit/LADDER.md.

@@ -44,31 +44,31 @@
 
 #include "render/render_cartridge.hpp"
 #include "core/input_event.hpp"
-#include "cartridges/the_board/roster.hpp"
-#include "cartridges/the_board/modules/seed_utils.hpp"           // hash/gaussian/tier-select helpers (pure-math leaf)
-#include "cartridges/the_board/modules/ground_architecture.hpp"  // ground contributor/policy tables + compile-time DAG checks
-#include "cartridges/the_board/modules/entity_types.hpp"         // THE CONTRACT HOME: pipeline contracts + boundary DTOs + queue unions + dispatch row/table decl
-#include "cartridges/the_board/modules/mood_constants.hpp"       // MOOD_COUNT + the Mood IDs + PortalDestination
-#include "cartridges/the_board/modules/floater_vocabulary.hpp"   // floater TYPES (ActiveFloater/ActiveCube), file scope
-#include "cartridges/the_board/modules/pawn.hpp"                 // PawnState + configs + decls (impl is pawn.inl, post-class)
-#include "cartridges/the_board/state.hpp"
-#include "cartridges/the_board/modules/spheres.hpp"              // SphereState + evictor/funnel decls (impl is spheres.inl, post-class)
-#include "cartridges/the_board/modules/entities.hpp"             // grounded-family vocabulary + EntitiesState + preparer decls (impl is entities.inl, post-class)
-#include "cartridges/the_board/modules/orbs.hpp"                 // orb console/registries + OrbsState + ORB_MOOD_TABLE + decls (impl is orbs.inl, post-class)
-#include "cartridges/the_board/modules/gol_zones.hpp"            // GoL vocabulary + GoLState + decls (impl is gol_zones.inl, post-class)
-#include "cartridges/the_board/modules/agents.hpp"               // agent registries + console + AgentState + decls (impl is agents.inl, post-class)
-#include "cartridges/the_board/modules/cube_behaviors.hpp"       // cube behavior registry + CubeBehaviorsState + decls (impl is cube_behaviors.inl, post-class)
-#include "cartridges/the_board/modules/gallery.hpp"              // shot vocabulary + console + GalleryState + decls (impl is gallery.inl, post-class)
-#include "cartridges/the_board/modules/ribbon.hpp"               // ribbon console + color vocabulary + tiers + RibbonState + decls (impl is ribbon.inl, post-class; pairing suspension named in its banner)
-#include "cartridges/the_board/modules/input.hpp"                // InputState/KeyState/MouseState + decls (impl is input.inl, post-class; carries its own GLFW include)
-#include "cartridges/the_board/modules/render_passes.hpp"        // the nine pass/dispatch + light-VP decls (impl is render_passes.inl, post-class; module owns no state)
-#include "cartridges/the_board/modules/mood.hpp"                 // MoodProfile + MOOD_TABLE + portal colors + palettes + door/applier/deriver decls (impl is mood.inl, post-class; mood owns no state)
-#include "cartridges/the_board/modules/population_themes.hpp"  // S2: THEMES + ThemeEnvelope + ThemesState + decls (impl is population_themes.inl, post-class)
-#include "cartridges/the_board/modules/tile_world.hpp"          // S2: archetypes + tokens + TileState/cache + TileWorldState + decls (impl is tile_world.inl, post-class)
-#include "cartridges/the_board/modules/patch_system.hpp"     // S2: WorldState + ActivePatch + budgets + visibility + PatchSystemState + decls (impl is patch_system.inl, post-class)
-#include "cartridges/the_board/modules/spawn_engine.hpp"     // S3: spawn vocabulary + separation/proximity tables + SpawnEngineState + the preamble template + decls (impl is spawn_engine.inl, post-class)
-#include "cartridges/the_board/modules/entity_pipeline.hpp"   // S3: the rescale template + arch vocabulary (ArchIdx/ARCH_TIERS) + the three-phase verb decls (impl is entity_pipeline.inl, post-class)
-#include "cartridges/the_board/renderer.hpp"
+#include "cartridges/the_board/contracts/roster.hpp"
+#include "cartridges/the_board/primitives/seed_utils.hpp"           // hash/gaussian/tier-select helpers (pure-math leaf)
+#include "cartridges/the_board/contracts/ground_architecture.hpp"  // ground contributor/policy tables + compile-time DAG checks
+#include "cartridges/the_board/contracts/entity_types.hpp"         // THE CONTRACT HOME: pipeline contracts + boundary DTOs + queue unions + dispatch row/table decl
+#include "cartridges/the_board/contracts/mood_constants.hpp"       // MOOD_COUNT + the Mood IDs + PortalDestination
+#include "cartridges/the_board/contracts/floater_vocabulary.hpp"   // floater TYPES (ActiveFloater/ActiveCube), file scope
+#include "cartridges/the_board/bodies/pawn.hpp"                 // PawnState + configs + decls (impl is pawn.inl, post-class)
+#include "cartridges/the_board/realization/state.hpp"
+#include "cartridges/the_board/bodies/spheres.hpp"              // SphereState + evictor/funnel decls (impl is spheres.inl, post-class)
+#include "cartridges/the_board/bodies/entities.hpp"             // grounded-family vocabulary + EntitiesState + preparer decls (impl is entities.inl, post-class)
+#include "cartridges/the_board/bodies/orbs.hpp"                 // orb console/registries + OrbsState + ORB_MOOD_TABLE + decls (impl is orbs.inl, post-class)
+#include "cartridges/the_board/bodies/gol_zones.hpp"            // GoL vocabulary + GoLState + decls (impl is gol_zones.inl, post-class)
+#include "cartridges/the_board/bodies/agents.hpp"               // agent registries + console + AgentState + decls (impl is agents.inl, post-class)
+#include "cartridges/the_board/bodies/cube_behaviors.hpp"       // cube behavior registry + CubeBehaviorsState + decls (impl is cube_behaviors.inl, post-class)
+#include "cartridges/the_board/bodies/gallery.hpp"              // shot vocabulary + console + GalleryState + decls (impl is gallery.inl, post-class)
+#include "cartridges/the_board/bodies/ribbon.hpp"               // ribbon console + color vocabulary + tiers + RibbonState + decls (impl is ribbon.inl, post-class; pairing suspension named in its banner)
+#include "cartridges/the_board/direction/input.hpp"                // InputState/KeyState/MouseState + decls (impl is input.inl, post-class; carries its own GLFW include)
+#include "cartridges/the_board/realization/render_passes.hpp"        // the nine pass/dispatch + light-VP decls (impl is render_passes.inl, post-class; module owns no state)
+#include "cartridges/the_board/direction/mood.hpp"                 // MoodProfile + MOOD_TABLE + portal colors + palettes + door/applier/deriver decls (impl is mood.inl, post-class; mood owns no state)
+#include "cartridges/the_board/surface/population_themes.hpp"  // S2: THEMES + ThemeEnvelope + ThemesState + decls (impl is population_themes.inl, post-class)
+#include "cartridges/the_board/surface/tile_world.hpp"          // S2: archetypes + tokens + TileState/cache + TileWorldState + decls (impl is tile_world.inl, post-class)
+#include "cartridges/the_board/surface/patch_system.hpp"     // S2: WorldState + ActivePatch + budgets + visibility + PatchSystemState + decls (impl is patch_system.inl, post-class)
+#include "cartridges/the_board/machine/spawn_engine.hpp"     // S3: spawn vocabulary + separation/proximity tables + SpawnEngineState + the preamble template + decls (impl is spawn_engine.inl, post-class)
+#include "cartridges/the_board/machine/entity_pipeline.hpp"   // S3: the rescale template + arch vocabulary (ArchIdx/ARCH_TIERS) + the three-phase verb decls (impl is entity_pipeline.inl, post-class)
+#include "cartridges/the_board/realization/renderer.hpp"
 #include "coupling/visual_canvas.hpp"
 #include <cmath>
 #include <cstring>
@@ -1189,21 +1189,21 @@ namespace t7 {
 // ═══ MODULE IMPLEMENTATIONS (post-class, FILE SCOPE) ══════════════════
 //
 // WIRING FORM (fix-2): SELF-WRAPPING — the zone includes impls at FILE SCOPE; law in audit/LADDER.md.
-#include "modules/pawn.inl"       // tick_pawn_couplings
-#include "modules/entities.inl"   // the six preparers + the seven grounded-family evictors + the blade/palm/cactus recipes
-#include "modules/spheres.inl"    // the sphere evictor + recipe
-#include "modules/orbs.inl"       // orb lifecycle/commands/dispatches/render
-#include "modules/gol_zones.inl"  // GoL three-phase lifecycle + per-frame uploads/dispatch
-#include "modules/agents.inl"     // agent registry upload + spawn/respawn/possession/diagnostics
-#include "modules/cube_behaviors.inl"  // cube registry upload + corral/kite/coordination + clear + evictor + recipe
-#include "modules/gallery.inl"    // photographer + gallery sites + authored loading + wall paintings
-#include "modules/ribbon.inl"     // author seats + head laws + frame conductor + three-phase lifecycle
-#include "modules/input.inl"      // key/mouse dispatch + movement intent + camera commands (own GLFW include)
-#include "modules/render_passes.inl"  // ground-entry prep + compute dispatch + shadow/main passes + light VPs
-#include "modules/mood.inl"       // indoor light derivation + appliers + apply_mood + shell + portals + uploads + transition request + derivers
-#include "modules/population_themes.inl"  // the envelope machine per-patch step
-#include "modules/tile_world.inl"  // the four verbs over what the terrain remembers
-#include "modules/spawn_engine.inl"  // the spawn engine — negotiation + footprints + culling + census + the select/place/commit loops
-#include "modules/patch_system.inl"  // the active-patch machine — registry lifecycle + budgets + teardown + allocator + the streaming conductor
-#include "modules/entity_pipeline.inl"  // the generic three-phase verbs + the welded four family blocks (column/antenna/pyramid/arch)
-#include "modules/family_dispatch.inl"  // THE TABLE — FAMILY_DISPATCH definition + shared no-op mesh adapters
+#include "bodies/pawn.inl"       // tick_pawn_couplings
+#include "bodies/entities.inl"   // the six preparers + the seven grounded-family evictors + the blade/palm/cactus recipes
+#include "bodies/spheres.inl"    // the sphere evictor + recipe
+#include "bodies/orbs.inl"       // orb lifecycle/commands/dispatches/render
+#include "bodies/gol_zones.inl"  // GoL three-phase lifecycle + per-frame uploads/dispatch
+#include "bodies/agents.inl"     // agent registry upload + spawn/respawn/possession/diagnostics
+#include "bodies/cube_behaviors.inl"  // cube registry upload + corral/kite/coordination + clear + evictor + recipe
+#include "bodies/gallery.inl"    // photographer + gallery sites + authored loading + wall paintings
+#include "bodies/ribbon.inl"     // author seats + head laws + frame conductor + three-phase lifecycle
+#include "direction/input.inl"      // key/mouse dispatch + movement intent + camera commands (own GLFW include)
+#include "realization/render_passes.inl"  // ground-entry prep + compute dispatch + shadow/main passes + light VPs
+#include "direction/mood.inl"       // indoor light derivation + appliers + apply_mood + shell + portals + uploads + transition request + derivers
+#include "surface/population_themes.inl"  // the envelope machine per-patch step
+#include "surface/tile_world.inl"  // the four verbs over what the terrain remembers
+#include "machine/spawn_engine.inl"  // the spawn engine — negotiation + footprints + culling + census + the select/place/commit loops
+#include "surface/patch_system.inl"  // the active-patch machine — registry lifecycle + budgets + teardown + allocator + the streaming conductor
+#include "machine/entity_pipeline.inl"  // the generic three-phase verbs + the welded four family blocks (column/antenna/pyramid/arch)
+#include "machine/family_dispatch.inl"  // THE TABLE — FAMILY_DISPATCH definition + shared no-op mesh adapters

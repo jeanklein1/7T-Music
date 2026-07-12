@@ -1,8 +1,8 @@
 #pragma once
 #include <cstdint>
-#include "cartridges/the_board/roster.hpp"                // PopFamily (spawn_weight indexing)
-#include "cartridges/the_board/modules/seed_utils.hpp"    // cpu_hash_f (theme rolls)
-#include "cartridges/the_board/modules/keyhole.hpp"       // Cartridge fwd (the keyhole)
+#include "cartridges/the_board/contracts/roster.hpp"                // PopFamily (spawn_weight indexing)
+#include "cartridges/the_board/primitives/seed_utils.hpp"    // cpu_hash_f (theme rolls)
+#include "cartridges/the_board/contracts/keyhole.hpp"       // Cartridge fwd (the keyhole)
 
 // ─── population_themes.hpp (S2 · HEADER: vocabulary + state + decls) ─
 // Born at LADDER-6 (S2 extraction): history in audit/LADDER.md.

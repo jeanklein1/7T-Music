@@ -1,10 +1,10 @@
 #pragma once
 #include <cstdint>
 #include <array>      // RibbonHead propagation history
-#include "cartridges/the_board/state.hpp"                    // Dim::*, GPURibbonState, wgpu
-#include "cartridges/the_board/modules/mood_constants.hpp"   // MOOD_COUNT (sizes the mood gate)
-#include "cartridges/the_board/modules/keyhole.hpp"          // Cartridge + wgpu::Queue fwds (the keyhole)
-#include "cartridges/the_board/modules/entity_types.hpp"     // RibbonSelection/RibbonPlacement (the boundary DTOs) + queue types
+#include "cartridges/the_board/realization/state.hpp"                    // Dim::*, GPURibbonState, wgpu
+#include "cartridges/the_board/contracts/mood_constants.hpp"   // MOOD_COUNT (sizes the mood gate)
+#include "cartridges/the_board/contracts/keyhole.hpp"          // Cartridge + wgpu::Queue fwds (the keyhole)
+#include "cartridges/the_board/contracts/entity_types.hpp"     // RibbonSelection/RibbonPlacement (the boundary DTOs) + queue types
 
 // ─── ribbon.hpp (HEADER: console + vocabulary + state + decls) ───
 // Converted (LADDER-3 c5): history in audit/LADDER.md.

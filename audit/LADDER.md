@@ -943,3 +943,31 @@ its two grades (ROOT-ONLY end-state, FACES-ONLY transitional) with
 population_themes passing FACES-ONLY and the A-ledger holding its
 first severability recipe. No code moved. The queue awaits Jean's
 fork ruling: the dissolution era (A2 -> A3) or the coupling dogfood.
+
+## DEMO-1 — STAGE ZERO: THE REHOMING (the directory becomes the map)
+
+One atomic commit, pure moves (git mv, history carries): 45 files
+into 7 rooms — cartridge.hpp ALONE at the top; primitives/
+(seed_utils) · contracts/ (roster, keyhole, entity_types,
+mood_constants, floater_vocabulary, ground_architecture) · surface/
+(patch_system, tile_world, population_themes — pairs) · machine/
+(spawn_engine, entity_pipeline — pairs; family_dispatch.inl) ·
+bodies/ (pawn, entities, orbs, spheres, cube_behaviors, ribbon,
+gallery, gol_zones, agents — pairs co-located) · direction/ (mood,
+input — pairs) · realization/ (render_passes pair, renderer.hpp,
+state.hpp, world.wgsl). modules/ is gone. No pair splits a room.
+Content untouched except #include path strings (94 lines, 22 files),
+renderer.hpp's two shader search strings (the hot-reload census),
+and the two ordered LATENT[naming] tags (entities.hpp — the
+grounded-seven registry misnamed; floater_vocabulary.hpp — contracts/
+resident despite the name; debts flagged, not paid). world.wgsl moved
+as BYTES. Purity proven per file: whole-file identity vs HEAD modulo
+those classes; BOM quintet intact at new paths; encodings match HEAD
+per file. Gates at new paths: glaw1 GREEN, zone census 18 == 18,
+sentinels 23/5. CMake verified glob-recursive and path-agnostic
+(nothing names modules/). Stale comment-level modules/ pointers
+censused, not edited (12: cartridge.hpp x2, state.hpp x10 — prose,
+not includes). demos/ NOT created (YAGNI).
+THE_CHORD LADDER-REPLAY LEDGER (first line): the rehoming replays
+onto the_chord when its ladder runs — same map, same purity gate.
+

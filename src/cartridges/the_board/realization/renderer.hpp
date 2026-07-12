@@ -3,7 +3,7 @@
 // THE_BOARD CARTRIDGE -- Renderer (Rasterized)
 // ==================================================
 
-#include "cartridges/the_board/state.hpp"
+#include "cartridges/the_board/realization/state.hpp"
 #include <webgpu/webgpu_cpp.h>
 #include <string>
 #include <fstream>
@@ -1210,8 +1210,8 @@ namespace t7 {
                     // ifstream(nullptr) (a CRT assert dialog, not a readable
                     // error) exactly when the file is missing.
                     std::array<const char*, 2> paths = {
-                        "../../../src/cartridges/the_board/world.wgsl",
-                        "src/cartridges/the_board/world.wgsl",
+                        "../../../src/cartridges/the_board/realization/world.wgsl",
+                        "src/cartridges/the_board/realization/world.wgsl",
                     };
 
                     const char* loadedPath = nullptr;

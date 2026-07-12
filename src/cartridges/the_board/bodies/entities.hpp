@@ -1,11 +1,14 @@
 #pragma once
 #include <cstdint>
-#include "cartridges/the_board/state.hpp"                    // Dim::*, GPUPyramidArray, wgpu
-#include "cartridges/the_board/modules/mood_constants.hpp"   // MOOD_COUNT, PortalDestination
-#include "cartridges/the_board/modules/keyhole.hpp"          // Cartridge + wgpu::Queue fwds (the keyhole)
-#include "cartridges/the_board/modules/entity_types.hpp"     // queue types (the clean three's funnel signatures)
+#include "cartridges/the_board/realization/state.hpp"                    // Dim::*, GPUPyramidArray, wgpu
+#include "cartridges/the_board/contracts/mood_constants.hpp"   // MOOD_COUNT, PortalDestination
+#include "cartridges/the_board/contracts/keyhole.hpp"          // Cartridge + wgpu::Queue fwds (the keyhole)
+#include "cartridges/the_board/contracts/entity_types.hpp"     // queue types (the clean three's funnel signatures)
 
 // ─── entities.hpp (HEADER: vocabulary + state + declarations) ────
+// LATENT[naming] (DEMO-1 s0): the worst-named file in the tree now
+// that it sits in bodies/ — it is the grounded-seven registry.
+// Debt flagged, not paid; rename queues behind Jean's word.
 // Converted (LADDER-2 c1; the LADDER-4 channel): history in audit/LADDER.md.
 //
 // Vocabulary for the grounded entity families that share the generic dispatch pipeline.

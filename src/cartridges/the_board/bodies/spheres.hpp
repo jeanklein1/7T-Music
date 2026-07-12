@@ -1,8 +1,8 @@
 #pragma once
-#include "cartridges/the_board/state.hpp"                    // Dim::*, GPUState, GPUFloatingEntityState, wgpu
-#include "cartridges/the_board/modules/floater_vocabulary.hpp"  // ActiveFloater
-#include "cartridges/the_board/modules/keyhole.hpp"          // Cartridge + wgpu::Queue fwds (the evictor decl)
-#include "cartridges/the_board/modules/entity_types.hpp"  // queue types (the funnel signatures)
+#include "cartridges/the_board/realization/state.hpp"                    // Dim::*, GPUState, GPUFloatingEntityState, wgpu
+#include "cartridges/the_board/contracts/floater_vocabulary.hpp"  // ActiveFloater
+#include "cartridges/the_board/contracts/keyhole.hpp"          // Cartridge + wgpu::Queue fwds (the evictor decl)
+#include "cartridges/the_board/contracts/entity_types.hpp"  // queue types (the funnel signatures)
 
 // ─── spheres.hpp ─────────────────────────────────────────────────
 // Born converted (LADDER-2 c0): history in audit/LADDER.md.

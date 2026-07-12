@@ -1,7 +1,7 @@
 #pragma once
 #include <cstdint>
-#include "cartridges/the_board/modules/mood_constants.hpp"   // MOOD_COUNT (sizes ORB_MOOD_TABLE)
-#include "cartridges/the_board/modules/keyhole.hpp"          // Cartridge + wgpu::Queue fwds (the keyhole)
+#include "cartridges/the_board/contracts/mood_constants.hpp"   // MOOD_COUNT (sizes ORB_MOOD_TABLE)
+#include "cartridges/the_board/contracts/keyhole.hpp"          // Cartridge + wgpu::Queue fwds (the keyhole)
 
 // ─── orbs.hpp (HEADER: console + registries + state + decls) ─────
 // Converted (LADDER-2 c3): history in audit/LADDER.md.

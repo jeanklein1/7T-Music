@@ -1,6 +1,6 @@
 #pragma once
 #include <cstdint>
-#include "cartridges/the_board/modules/keyhole.hpp"  // Cartridge + wgpu::Queue fwds (the keyhole)
+#include "cartridges/the_board/contracts/keyhole.hpp"  // Cartridge + wgpu::Queue fwds (the keyhole)
 
 // ─── pawn.hpp (HEADER: state + configs + declarations) ───────────
 // Converted (LADDER-2 c2): history in audit/LADDER.md.
