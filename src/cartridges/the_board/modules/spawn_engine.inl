@@ -206,20 +206,20 @@ inline uint32_t update_entity_draw_visibility(Cartridge* c, wgpu::Queue& queue) 
     // Columns
     for (uint32_t i = 0; i < Dim::MAX_COLUMN_ONLY; i++) {
         if (!c->entities_state_.columns[i].active) continue;
-        const auto& c = c->entities_state_.columns[i];
-        float dx = c.world_x - c->player_.readback_x;
-        float dz = c.world_z - c->player_.readback_z;
+        const auto& col = c->entities_state_.columns[i];
+        float dx = col.world_x - c->player_.readback_x;
+        float dz = col.world_z - c->player_.readback_z;
         float dist = std::sqrt(dx * dx + dz * dz);
 
-        float inset = std::min(c.height * ENTITY_CULL_SIZE_INSET, ENTITY_CULL_SIZE_INSET_MAX);
+        float inset = std::min(col.height * ENTITY_CULL_SIZE_INSET, ENTITY_CULL_SIZE_INSET_MAX);
         float cull_far  = cull_base - inset;
         float cull_near = cull_far - ENTITY_CULL_HYSTERESIS;
 
-        bool should_show = c.draw_visible
+        bool should_show = col.draw_visible
             ? (dist <= cull_far)
             : (dist <= cull_near);
 
-        if (should_show != c.draw_visible) {
+        if (should_show != col.draw_visible) {
             c->entities_state_.columns[i].draw_visible = should_show;
             if (should_show) {
                 c->gpuState_.upload_column_mesh_params_slot(queue, i, build_column_mesh_params(c, i));
@@ -237,24 +237,24 @@ inline uint32_t update_entity_draw_visibility(Cartridge* c, wgpu::Queue& queue) 
     // Antennas
     for (uint32_t i = 0; i < Dim::MAX_ANTENNA_ONLY; i++) {
         if (!c->entities_state_.antennas[i].active) continue;
-        const auto& c = c->entities_state_.antennas[i];
-        float dx = c.world_x - c->player_.readback_x;
-        float dz = c.world_z - c->player_.readback_z;
+        const auto& ant = c->entities_state_.antennas[i];
+        float dx = ant.world_x - c->player_.readback_x;
+        float dz = ant.world_z - c->player_.readback_z;
         float dist = std::sqrt(dx * dx + dz * dz);
         uint32_t gpu_slot = i + Dim::ANTENNA_SLOT_OFFSET;
 
-        float inset = std::min(c.height * ENTITY_CULL_SIZE_INSET, ENTITY_CULL_SIZE_INSET_MAX);
+        float inset = std::min(ant.height * ENTITY_CULL_SIZE_INSET, ENTITY_CULL_SIZE_INSET_MAX);
         float cull_far  = cull_base - inset;
         float cull_near = cull_far - ENTITY_CULL_HYSTERESIS;
 
-        bool should_show = c.draw_visible
+        bool should_show = ant.draw_visible
             ? (dist <= cull_far)
             : (dist <= cull_near);
 
-        if (should_show != c.draw_visible) {
+        if (should_show != ant.draw_visible) {
             c->entities_state_.antennas[i].draw_visible = should_show;
             if (should_show) {
-                c->gpuState_.upload_column_mesh_params_slot(queue, gpu_slot, build_column_mesh_params_from(c));
+                c->gpuState_.upload_column_mesh_params_slot(queue, gpu_slot, build_column_mesh_params_from(ant));
             }
             else {
                 GPUColumnMeshParams empty{};

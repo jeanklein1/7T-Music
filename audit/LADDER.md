@@ -29,6 +29,25 @@ updates only; world.wgsl untouched). R6 SEAM updates. R7 per-commit: brace
 census proving zero remaining `.inl` **include** references, an
 unused-symbol census as STATUS tags + a ledger line.
 
+TWO GATE LAWS (restored at the LADDER-6 FIX; permanent):
+G-LAW 1 — THE STANDALONE COMPILE RETURNS: every generated or edited
+header AND impl compiles whole, standalone, at final HEAD (LADDER-1
+R7, un-narrowed). Targeted red/green law-probes are ADDITIONS to this
+gate, never replacements. Any conforming compiler suffices — braces
+and scope fail everywhere. In-container executable form:
+audit/tools/glaw1/run.sh (the real cartridge TU under g++
+-fsyntax-only with only the absent SDK surface stubbed).
+G-LAW 2 — NO EDIT AFTER THE LAST GATE: gates certify the COMMIT, not
+a moment mid-flight. Any byte-touching pass (prose scripts included)
+reruns the full suite behind it. If a pass cannot afford the rerun,
+the pass moves before the gates.
+COROLLARY (recorded beside them): per-file brace balance is
+insufficient alone — an unbalanced header poisons the TU downstream;
+the standalone compile is the gate that sees it. And a checker that
+shares the generator's extraction is a mirror, not a gate — the s2
+token checker sliced constructs with the same `};`-suffix heuristic
+the generator truncated with, and certified the truncation.
+
 ## STAGES
 
 | stage | module | status | notes |
@@ -835,3 +854,54 @@ the completion record — boundary honesty, not compilation strategy.
 the theory doc's arrow-law program) or the coupling dogfood — his
 fork. M-m/M-n stay parked; the spine's remaining confession is the
 root's size (1,209 lines of assembly), which is now an honest number.
+
+## LADDER-6 FIX — THE UNCLOSED BRACE (one root, eleven sites; compile-cleared)
+
+**The root (Jean's rig, MSVC; his diagnosis verified exactly):**
+tile_world.hpp shipped at s2 with TWO unclosed structs. The s2
+generator's construct-end detection matched any line ENDING in `};` —
+and both TerrainToken's archetype_bias and TileState's theme_spawn
+carry brace-initializers ending in `};`. TerrainToken lost budget +
+active + its closing brace; TileState lost theme_idx + its closing
+brace. The error log's nested name TerrainToken::TileState::
+TileWorldState was the confession: siblings parsed as matryoshka, the
+namespace leaked past EOF into patch_system.hpp, and a standard
+header expanded inside t7::the_board (the fix-2 landmine at TU
+scale). The s2 token checker certified the truncation because it
+sliced with the same heuristic — a mirror, not a gate. REPAIR: both
+struct tails restored; TerrainToken and TileState re-verified
+token-identical against the pre-move originals at the parent commit
+(39 and 109 tokens, PASS).
+
+**The arc-wide clearance (G-LAW 1, by compile, not re-reading):**
+audit/tools/glaw1/ — the real cartridge TU under g++ -std=c++20
+-fsyntax-only, project code real, only the absent SDK surface stubbed
+(webgpu + GLFW as a universal-member lattice; Dawn's transitive std
+headers mirrored). The harness converged in rounds and found TEN MORE
+defect sites beyond the root, ALL inside the arc's generated/edited
+set — no third cause:
+- spawn_engine.inl update_entity_draw_visibility: the keyhole
+  transform collided with the pre-existing locals `const auto& c =
+  ...columns[i]/antennas[i]` — self-referential deduction, and every
+  c-> reach in those two blocks bound to the shadow. Locals renamed
+  col/ant (disclosed shadow-rename transform). This would have failed
+  MSVC identically; the 3b-i token gate passed it because the checker
+  applied the same mechanical transform — the mirror lesson again.
+- gallery.inl (x4) + gol_zones.inl (x2): c->tileCache_ survived the
+  s2 re-path (its census caught unqualified reads only, not
+  keyhole-form reads in owner impls) -> c->tile_world_state_.tileCache_.
+- patch_system.inl teardown_world (x3): c->entityQueue_ /
+  c->placementResults_ / c->footprints_ survived the 3b-i rider
+  (wrongly-qualified reaches are invisible to the implicit-this
+  sweep, which hunts unqualified ones) -> c->spawn_engine_state_.*.
+
+**Gates behind the fix (G-LAW 2):** the full TU compiles GREEN
+standalone; structural balance ALL files; zone census 18 == 18;
+sentinels 23/5; encodings match HEAD. The two G-LAWS + corollary are
+in THE RECIPE above, permanently; the harness is committed at
+audit/tools/glaw1/ (stubs generated at run time, gitignored).
+
+**Standing:** ratification of the Phase I close-out — including the
+template-keyhole pattern (its law needs writing if it stays) and the
+deletion-test ledger entry — is SUSPENDED until L5 take two at the
+rig, which also certifies COMPACT-2's sweep. Jean rebuilds.

@@ -3,7 +3,7 @@
 //
 // Definitions for gallery.hpp's declared per-frame + outdoor-lifecycle
 // + indoor-entry + authored-loading functions. The bodies reach
-// c->gpuState_ / c->renderer_ / c->tileCache_ / c->player_ /
+// c->gpuState_ / c->renderer_ / c->tile_world_state_.tileCache_ / c->player_ /
 // c->world_state_ / c->mood_state_ / c->ribbon_state_ / c->clearColor_ /
 // c->sunDirection_ and the spine services (check_position /
 // register_footprint / record_placement_bookkeeping — spawn_engine.hpp),
@@ -142,8 +142,8 @@ inline void update_photographer(GalleryState& gs, Cartridge* c, wgpu::Queue& que
         float pace = 1.0f;
         int32_t tx = (int32_t)std::floor(px / PATCH_EXTENT);
         int32_t tz = (int32_t)std::floor(pz / PATCH_EXTENT);
-        auto it = c->tileCache_.find({ tx, tz });
-        if (it != c->tileCache_.end()) {
+        auto it = c->tile_world_state_.tileCache_.find({ tx, tz });
+        if (it != c->tile_world_state_.tileCache_.end()) {
             pace = GalleryConfig::PHOTO_PACE_BY_ARCHETYPE[it->second.archetype];
         }
 
@@ -242,8 +242,8 @@ inline bool select_gallery_for_patch(GalleryState& gs, Cartridge* c, int32_t gx,
     adj_mod *= GLOBAL_ENTITY_DENSITY;
     uint32_t archetype = 1;
     {
-        auto dit = c->tileCache_.find({ gx, gz });
-        if (dit != c->tileCache_.end()) {
+        auto dit = c->tile_world_state_.tileCache_.find({ gx, gz });
+        if (dit != c->tile_world_state_.tileCache_.end()) {
             adj_mod *= dit->second.entity_density;
             adj_mod *= dit->second.theme_spawn[PopFamily::GALLERY];
             archetype = dit->second.archetype;

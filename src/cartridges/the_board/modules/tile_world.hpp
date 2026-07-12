@@ -69,6 +69,9 @@ inline constexpr uint32_t MAX_TERRAIN_TOKENS = 8;
 
 struct TerrainToken {
     float archetype_bias[ARCHETYPE_COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f };
+    uint32_t budget = 0;
+    bool active = false;
+};
 
 // Token flow: emit_chance gates emission; pivot_chance picks
 // continuation vs pivot; budget (uniform in [min,max]) = tile
@@ -106,7 +109,9 @@ struct TileState {
     float amp_momentum = 0.0f;   // signed amplitude excess, carried by terrain tokens
     float entity_density = 1.0f; // spatial density multiplier for entity spawning
     // Theme: evaluated from theme lattice at tile generation time
-    float theme_spawn[PopFamily::COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f };
+    float theme_spawn[PopFamily::COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f }; // blended per-family spawn multiplier
+    uint32_t theme_idx = 0;      // dominant theme index (for tier bias)
+};
 
 // Spatial cache: keyed by (grid_x, grid_z)
 struct GridKey {

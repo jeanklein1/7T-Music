@@ -191,8 +191,8 @@ inline void teardown_world(Cartridge* c, wgpu::Queue& queue) {
         c->tile_world_state_.terrainTokens_[t] = TerrainToken{};
     }
 
-    c->entityQueue_.clear();
-    c->placementResults_.clear();
+    c->spawn_engine_state_.entityQueue_.clear();
+    c->spawn_engine_state_.placementResults_.clear();
 
     // Theme envelope
     c->themes_state_ = ThemesState{};
@@ -347,7 +347,7 @@ inline void teardown_world(Cartridge* c, wgpu::Queue& queue) {
 
     // Footprints
     for (uint32_t i = 0; i < MAX_FOOTPRINTS; i++) {
-        c->footprints_[i] = GroundFootprint{};
+        c->spawn_engine_state_.footprints_[i] = GroundFootprint{};
     }
 
     // Aura
