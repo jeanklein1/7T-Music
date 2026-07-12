@@ -734,3 +734,104 @@ prepare/mesh adapters + 12 in-class generic funnels (the welded
 four), owner-side everything else. entity_pipeline.inl is down to the
 generic verbs + four welded family blocks; every clean family lives
 whole with its owner. COMPACT-2 is next in the queue.
+
+## LADDER-6 — THE STRATA ARC (three S2 extractions, two S3 conversions, §1 COMPLETE)
+
+**The arc (Phase R census 9257e66 stamped at three modules; Phase I
+c92120b, b308393, 0993c3a, 2e73561, bcbf1e9):** the world-engine
+class walked the ladder and the ladder ended. Three S2 extractions in
+reach order — population_themes (s1), tile_world (s2, tokens merged),
+patch_system (s3, the conductor rides whole per R-c) — then the last
+two class-body citizens converted (spawn_engine 3b-i, entity_pipeline
+3b-ii), and §1's completion sentence executed same-commit with the
+last conversion (3c). CLASS-BODY INCLUDE COUNT: ZERO. The cartridge
+is the composition root alone: organs, conductors, and the spine's
+12 prepare/mesh dispatch wrappers (the e2 integration-glue ruling
+stands).
+
+**Stamp rulings executed:** R-a — WorldState's struct home is
+patch_system.hpp, the world_state_ instance is a ROOT ORGAN. R-b —
+teardown_world in keyhole form, identity line CALLER: the transition
+machine (root); OWNER: patch_system. R-c — stream_patches moved WHOLE
+as the per-frame conductor, its banner declaring
+SEAM[patch:spawn-trigger] (select/place/commit +
+update_entity_draw_visibility + flush_pier_count as the seam face).
+PIERS (write/clear/recompute/flush + cpuPiers_) rode patch_system at
+spawn_engine's conversion; estimate_terrain_height/terrain_tile_warm
+rode tile_world (state-first, pure over the state);
+mark_patches_for_regen rode patch_system. Census-ruled homes:
+solve_catenary_a -> seed_utils.hpp (pure math, four cross-module
+consumers); theme_short_name -> population_themes.inl (sole consumer,
+its own vocabulary).
+
+**The four boundary faces carry their identity lines:** THEMES
+(population_themes.hpp, s1) · the tile cache (tile_world.hpp, s2) ·
+the patch registry via find_patch/record_entity (patch_system.hpp,
+s3) · the surface samplers estimate_terrain_height/terrain_tile_warm
+(tile_world.inl, 3b-i). All remain keyhole/state-first form this arc
+as stamped.
+
+**THE TEMPLATE KEYHOLE (new law, 3b-i):** a header-defined template
+above the incomplete class takes its cartridge parameter DEDUCED
+(template<typename C, ...>, C* c) — the c-> reaches become dependent
+and are checked at instantiation in complete-class context.
+run_spawn_preamble is the canonical instance. The specimen runs
+-Werror: GCC delays the concrete-keyhole diagnostic to a warning by
+default; the deduced form is warning-clean. THE ZONE-ORDER LAW
+(3b-ii): FAMILY_DISPATCH's address-of initializers require the
+wrapper definitions' zone include to precede family_dispatch.inl —
+specimen-proven (red: 'was not declared' at the table).
+
+**Gates, per stage:** token identity modulo disclosed transforms
+(29 + 37 + 11 constructs across the five stages, stream_patches at
+3,017 tokens the largest single construct); g++ -std=c++20 lookup
+specimens red/green per stage; scope-aware implicit-this sweeps
+(teeth-tested: planted violations detected; underscore-convention
+census names shielded from header-word leakage); zone census closed
+at every stage (15->16->17->18 == includes, family_dispatch.inl
+last); sentinels stable throughout (ROSTER-GATE 23, ROSTER-RESIDUE
+5); encodings match HEAD per file every stage (BOM riders:
+ribbon.inl, entity_pipeline.inl, render_passes.inl edited in place).
+L5 GOLDEN certifies at the rig — this arc's build and COMPACT-2's
+compile both ride Jean's first build.
+
+**§4 DELETION-TEST DRY RUN (population_themes, report-only):**
+deleting the module touches the composition root (3 lines: cohort
+include, organ comment+decl, zone include) plus 20 non-root sites in
+9 files — VERDICT: boundary honest, deletion NOT root-only.
+Classification: every non-root reach passes through a declared
+surface — (a) the THEMES face: ten per-family tier-weight accessors
+(entity_pipeline x4, entities x3, spheres, cube_behaviors, ribbon)
++ tile_world's lattice blend; (b) the TileState.theme_spawn columns
+(tile_world.hpp store; spawn preamble, gol_zones, gallery bespoke
+preambles read them); (c) the conductor seam (patch_system's
+evaluate_theme_envelope call + teardown reset); (d) the S3 preamble's
+active_theme_idx_ read. ZERO reaches outside the declared faces.
+A-PROGRAM LEDGER ITEM: the theme axis is a cross-cutting selection
+modifier by design; if severability is wanted, the cut point is the
+adapter slot get_theme_tier_weights + a null-object THEMES row —
+that would confine deletion to the root and the table's home.
+
+**Deltas:** cartridge.hpp 2,901 -> 1,209 lines this arc (-58%; from
+3,283 at the MOD campaign's start). spawn_engine 744 -> 461 impl +
+285 header; entity_pipeline 1,144 -> 1,076 impl + 131 header.
+modules/ stands at 41 files (23 headers, 18 self-wrapping impls).
+Strata tags as-built: S2 population_themes / tile_world /
+patch_system; S3 spawn_engine / entity_pipeline; prior-era modules
+untagged (their strata land when their arcs come). Root retains:
+COMPOSITION ROOT (organs), TIME/MOOD/PLAYER/PORTAL/READBACK state,
+FAMILY DISPATCH chapter prose + the 12 prepare/mesh wrappers,
+initialize/init_renderer/update/render/on_input, the frame-signal
+fill, and the transition machine.
+
+**§1 COMPLETE (3c, same commit as the last conversion):** the
+transitional clause STRUCK per its own completion sentence; the
+mistake clause holds one mistake (the single TU), its second died
+with its subject; §5 HEADER LADDER entry dated 2026-07-12; the
+cartridge banner reads ONE REGIME. The one-TU line survives inside
+the completion record — boundary honesty, not compilation strategy.
+
+**Queue restated (Jean's word):** the dissolution era (A2 -> A3 per
+the theory doc's arrow-law program) or the coupling dogfood — his
+fork. M-m/M-n stay parked; the spine's remaining confession is the
+root's size (1,209 lines of assembly), which is now an honest number.
