@@ -259,6 +259,7 @@ set(INCUBATOR_RENDER_CARTRIDGE        "the_chord"        CACHE STRING "Render ca
 set(INCUBATOR_ANALYSIS_CARTRIDGE      "canvas_1"         CACHE STRING "Analysis cartridge for the 'incubator' target")
 
 set(INCUBATOR_DUAL_RENDER_CARTRIDGE   "the_board"        CACHE STRING "Render cartridge for the 'incubator_dual' target")
+set(INCUBATOR_DUAL_DEMO               "full"             CACHE STRING "Demo sentence for the_board (demos/<name>.hpp; compile-time, DEMO-1)")
 set(INCUBATOR_DUAL_ANALYSIS_CARTRIDGE "canvas_1"         CACHE STRING "Analysis cartridge for the 'incubator_dual' target")
 
 # Dedicated A/B target: runs the frozen backup_board alongside incubator_dual's
@@ -603,6 +604,7 @@ if(MSVC)
         ${MSVC_COMPILE_DEFS}
         INCUBATE_RENDER=${INCUBATOR_DUAL_RENDER_CARTRIDGE}
         INCUBATE_ANALYSIS=${INCUBATOR_DUAL_ANALYSIS_CARTRIDGE}
+        INCUBATE_DEMO=${INCUBATOR_DUAL_DEMO}
     )
 endif()
 

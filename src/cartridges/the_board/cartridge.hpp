@@ -45,6 +45,7 @@
 #include "render/render_cartridge.hpp"
 #include "core/input_event.hpp"
 #include "cartridges/the_board/contracts/roster.hpp"
+#include "cartridges/the_board/demos/demo.hpp"             // THE SELECTED SENTENCE: DEMO + ROSTER (compile-time, INCUBATE_DEMO; default full)
 #include "cartridges/the_board/primitives/seed_utils.hpp"           // hash/gaussian/tier-select helpers (pure-math leaf)
 #include "cartridges/the_board/contracts/ground_architecture.hpp"  // ground contributor/policy tables + compile-time DAG checks
 #include "cartridges/the_board/contracts/entity_types.hpp"         // THE CONTRACT HOME: pipeline contracts + boundary DTOs + queue unions + dispatch row/table decl
@@ -191,7 +192,7 @@ namespace t7 {
             // because mood-applied values feed every other subsystem.
             struct MoodState {
                 // ── Currently active mood ──
-                uint32_t active = 0;
+                uint32_t active = DEMO.boot_mood;  // boots from the demo sentence (DEMO-1)
 
                 // ── Mood-applied values (re-set on each apply_mood) ──
                 float sun_intensity = 0.8f;
@@ -466,7 +467,7 @@ namespace t7 {
                     configure_orbs(orbs_state_, this, ORB_MOOD_TABLE[mood_state_.active], q);
                 }
 
-                // Agent registries — single source of truth in modules/agents.inl
+                // Agent registries — single source of truth in bodies/agents.inl
                 // (AGENT_BEHAVIORS / AGENT_TIER_GAINS), uploaded once to GPU
                 // storage buffers at bindings 110 + 111. Values are
                 // constexpr-equivalent and never change during a session,
@@ -914,7 +915,7 @@ namespace t7 {
 #endif
 
                 // ─── Ribbon per-frame ── one call; the conductor lives in
-                // modules/ribbon.inl (FRAME ORCHESTRATION). SEAM[ribbon:sky-mode].
+                // bodies/ribbon.inl (FRAME ORCHESTRATION). SEAM[ribbon:sky-mode].
                 ribbon_frame_tick(ribbon_state_, this, queue);
 
                 // ─── Entity mesh gen: single compute pass for all dirty families ──

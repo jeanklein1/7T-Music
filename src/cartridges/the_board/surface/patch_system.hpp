@@ -24,7 +24,8 @@ namespace wgpu { class CommandEncoder; }
 //   owner-side evict_gallery), and the family dispatch eviction rows.
 //
 // Depends on cohort include order: state.hpp (Dim:: + the GPU patch
-// DTOs) precedes this header in cartridge.hpp.
+// DTOs) and demos/demo.hpp (DEMO — the boot seed) precede this
+// header in cartridge.hpp.
 
 namespace t7 {
 namespace the_board {
@@ -35,7 +36,7 @@ namespace the_board {
 // instance (world_state_) stays at the composition root.
 struct WorldState {
     // ── Seed + dimensions ──
-    uint32_t active_seed   = 42;     // world master seed (mutable for world transitions)
+    uint32_t active_seed   = DEMO.seed;  // world master seed — boots from the demo sentence (DEMO-1); mutable for world transitions
     uint32_t active_radius = Dim::PATCH_PREGEN_RADIUS;
     bool     finite_mode   = false;
     uint32_t finite_radius = 2;      // 2 → 5×5 = 25 patches

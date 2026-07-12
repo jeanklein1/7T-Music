@@ -11,7 +11,7 @@
 //   ───────   ──────               ───────          ──────
 
 #include "analysis/analysis_signal.hpp"
-#include "cartridges/the_board/contracts/roster.hpp"  // feature bits (GPUState::init gates creation)
+#include "cartridges/the_board/demos/demo.hpp"   // ROSTER via the selected sentence (GPUState::init gates creation)  // feature bits (GPUState::init gates creation)
 #include <webgpu/webgpu_cpp.h>
 #include <cstring>
 #include <array>
@@ -179,7 +179,7 @@ namespace t7 {
 
             // Agent system — unified entity layer. Slot 0 is the player's
             // body; slots 1..MAX_AGENTS-1 are mood-authored agents. See
-            // modules/agents.inl.
+            // bodies/agents.inl.
             constexpr uint32_t MAX_AGENTS = 32;
         }
 
@@ -441,8 +441,8 @@ namespace t7 {
             float home_y;          // 36
             float home_z;          // 40
             uint32_t seed;         // 44 — stable noise source
-            uint32_t behavior_id;  // 48 — AgentBehaviorId (see modules/agents.inl)
-            uint32_t tier_idx;     // 52 — AgentTierId     (see modules/agents.inl)
+            uint32_t behavior_id;  // 48 — AgentBehaviorId (see bodies/agents.inl)
+            uint32_t tier_idx;     // 52 — AgentTierId     (see bodies/agents.inl)
             uint32_t is_active;    // 56 — 0 = inactive (collapsed in VS + skipped in update)
             int32_t  portal_trigger; // 60 — only meaningful on the possessed slot (-1 = none)
             float orient_x;        // 64 — heading ⊗ tilt quaternion
@@ -464,7 +464,7 @@ namespace t7 {
         // agents read parameters from the wrong column). The static_asserts
         // below catch size drift; field order is on the human.
 
-        // GPU-side mirror of AgentBehaviorDef (modules/agents.inl) without
+        // GPU-side mirror of AgentBehaviorDef (bodies/agents.inl) without
         // the `id` and `name` fields. Uploaded once at world-init from
         // the C++ AGENT_BEHAVIORS table (single source of truth) and read
         // by the agent compute kernels via storage binding 110.
@@ -480,7 +480,7 @@ namespace t7 {
         };                         // 32 total (16-byte aligned)
 
         // Counts mirror the AGENT_BEHAVIOR_COUNT / AGENT_TIER_COUNT
-        // enums in modules/agents.inl. Kept here so state.hpp can size
+        // enums in bodies/agents.inl. Kept here so state.hpp can size
         // its registry buffers and bind-group entries without depending
         // on agents.inl (which is included after state.hpp into the
         // cartridge class scope). Asserts in agents.inl verify
@@ -1349,14 +1349,14 @@ namespace t7 {
             wgpu::Buffer floatingEntityReadbackStaging_;
             // Agent registries — uploaded once at world-init from the C++
             // AGENT_BEHAVIORS / AGENT_TIER_GAINS tables. The single source
-            // of truth lives in modules/agents.inl; the GPU side reads
+            // of truth lives in bodies/agents.inl; the GPU side reads
             // these buffers via storage bindings 110 / 111.
             wgpu::Buffer agentBehaviorsBuffer_;
             wgpu::Buffer agentTierGainsBuffer_;
             wgpu::Buffer cameraBuffer_, floatingEntityBuffer_, trajectoriesBuffer_;
             wgpu::Buffer ribbonBuffer_;
             wgpu::Buffer ringTransformsBuffer_;
-            wgpu::Buffer headPosesBuffer_;  // ribbon body poses — written via upload_ribbon_head_poses (the head mover lives in modules/ribbon.inl); read by ribbon_centerline_at
+            wgpu::Buffer headPosesBuffer_;  // ribbon body poses — written via upload_ribbon_head_poses (the head mover lives in bodies/ribbon.inl); read by ribbon_centerline_at
             // (bindings 21, 40 reserved — formerly proximity_field, cell_states)
             wgpu::Buffer pierBuffer_;   // unified pier instances (Storage | CopyDst)
             wgpu::Buffer vpBuffer_;
@@ -1609,7 +1609,7 @@ namespace t7 {
             // Upload the agent behavior + tier registries to the GPU.
             // Called once at world-init from the cartridge — values are
             // constexpr-equivalent (sourced from AGENT_BEHAVIORS /
-            // AGENT_TIER_GAINS in modules/agents.inl) and never change
+            // AGENT_TIER_GAINS in bodies/agents.inl) and never change
             // during a session. Source data is passed as raw pointers
             // because the C++ tables are defined inside the cartridge
             // class scope and aren't visible from state.hpp; the cartridge
@@ -4508,7 +4508,7 @@ namespace t7 {
                     entries[16].buffer = patchGridBuffer_;
                     entries[16].size = sizeof(GPUPatchGrid);
 
-                    // Agent registries — see modules/agents.inl for the
+                    // Agent registries — see bodies/agents.inl for the
                     // authoring tables and GPUAgentBehaviorDef /
                     // GPUAgentTierDef in this file for GPU layout.
                     entries[17].binding = 110;
@@ -4611,7 +4611,7 @@ namespace t7 {
                     // Agent tier gains — same buffer as compute binding 111.
                     // Read by pawn_vs in the vertex stage for entity color
                     // (tier_idx → tg.color_r/g/b). Single source of truth
-                    // is the C++ AGENT_TIER_GAINS table in modules/agents.inl.
+                    // is the C++ AGENT_TIER_GAINS table in bodies/agents.inl.
                     entries[18].binding = 111;
                     entries[18].buffer = agentTierGainsBuffer_;
                     entries[18].size = GPU_AGENT_TIER_COUNT * sizeof(GPUAgentTierDef);

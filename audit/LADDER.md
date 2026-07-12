@@ -971,3 +971,74 @@ not includes). demos/ NOT created (YAGNI).
 THE_CHORD LADDER-REPLAY LEDGER (first line): the rehoming replays
 onto the_chord when its ladder runs — same map, same purity gate.
 
+## DEMO-1 — THE CONFIG SPINE (demos/ is born; minimal.hpp is sentence one)
+
+**The room and the sentences (eight rooms now):** demos/ arrives by
+need, holding demo.hpp (the selector), full.hpp (THE GOLDEN TWIN —
+today's program as a sentence; roster literal + seed 42 + boot mood
+MOOD_OPEN_DEFAULT, token-identical to the pre-spine constant), and
+minimal.hpp (the degenerate proof: all 12 family bits + all 7
+feature bits OFF, seed 42, the open default — legal by the FIRST
+EDGE's conditional form). contracts/demo_config.hpp is the contract:
+DemoConfig v0 = { Roster roster; uint32_t seed; uint32_t boot_mood }
+— nothing else; the maturity dial (compile-time include -> boot-time
+table -> panel) and the D1-D5 growth axes sit beside the type; the
+boot-time dial stays PARKED with its puller named.
+
+**The selection mechanism (disclosed form):** the incubator's idiom
+exactly — INCUBATE_DEMO=<demos basename>, default full when
+undefined; demos/demo.hpp stringify-includes the sentence
+(T7B_DEMO_HEADER, the RENDER_HEADER shape) and then DEFINES
+`inline constexpr Roster ROSTER = DEMO.roster;` plus the FIRST EDGE
+static_assert (both token-identical to their roster.hpp originals).
+THE DAG REASON on record: DemoConfig embeds Roster by value, so
+demo_config.hpp includes roster.hpp; had roster.hpp kept the
+constant it would need the selector back — a pragma-once re-entrant
+cycle that breaks when demo_config.hpp is the entry include. The
+constant therefore lives at the selection point; roster.hpp keeps
+the type, the vocabulary, and the gate law text. CMake grew
+INCUBATOR_DUAL_DEMO (cache var -> INCUBATE_DEMO define), the render-
+cartridge idiom mirrored.
+
+**Plumbing censuses (one source of truth each):** the seed enters at
+exactly ONE site — WorldState.active_seed (surface/patch_system.hpp),
+formerly `= 42`, now `= DEMO.seed` (world transitions still mutate it
+at runtime; boot comes from the sentence). Boot mood enters at
+exactly ONE site — MoodState.active (cartridge.hpp), formerly `= 0`,
+now `= DEMO.boot_mood`; apply_mood runs only on transitions, and 0
+IS MOOD_OPEN_DEFAULT, so full is value-identical. The constexpr
+chain is intact end to end: G5 verified by probe — a deliberately
+illegal scratch sentence (transitions on, portal off) fails the
+compile at demos/demo.hpp's FIRST EDGE with the exact refusal text;
+scratch deleted after the red. glaw1 GREEN at default (=full) and at
+INCUBATE_DEMO=minimal. The 12 stale modules/ prose pointers rode
+this commit as the ruled one-line pass (bodies/agents.inl x10,
+bodies/ribbon.inl x2 across cartridge.hpp + state.hpp).
+
+**M1-SKY CHECKPOINT (censused, reported, nothing repaired):** the
+sky's disposition under ribbon-off is PRESENT BY CONSTRUCTION — the
+visible sky is the clear color (spine, clearColor_ 0.85/0.78/0.72)
+plus mood fog and sun defaults (direction-owned), none of it
+roster-gated; the orbs sky-dome is absent by its OWN bit, as
+intended. SEAM[ribbon:sky-mode] names sky-FLIGHT (the pawn's ribbon
+mount), not sky rendering. THE COMPOSITION FINDING is adjacent: F8
+(toggle_sky_mode, direction/input.inl) is NOT ribbon-gated — under
+minimal it sets player_.sky_mode and the wgsl mount branch
+(signal.sky_mode != 0) mounts the pawn to a zeroed head pose with no
+ribbon alive. One keypress reaches a dead subsystem's door. LEDGER
+ENTRY: the sky-flight door rides ribbon's bit conceptually; the
+gate (a ROSTER.ribbon check at the key site or the door) is a ruled
+follow-up, not silently repaired here.
+
+**Dormant cargo (out of scope, as ordered):** the SH
+created-but-pristine allocations, world.wgsl's maximal compile, and
+state.hpp's full contract text travel with minimal untouched —
+parked, priced (audit/ROSTER_GATE_A.md), pulled on their own days.
+
+**Rig gates (Jean performs):** G0' FULL GOLDEN — demo=full
+byte-identical to head, same seed, one run. M1 MINIMAL — boots
+sunlit, terrain streams and culls, the pawn walks and snaps, camera
+couples, NOTHING else ever appears; two runs, pixel-stable. DEMO-2
+(the terrain's voice — the wave rewired) queues behind Jean's word
+and M1's disposition.
+

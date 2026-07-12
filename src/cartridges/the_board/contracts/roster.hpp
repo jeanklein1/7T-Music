@@ -108,20 +108,12 @@ struct Roster {
     }
 };
 
-inline constexpr Roster ROSTER = {
-    // families, PopFamily order: pyr arch col ant palm cact blade sph rib cube gol gall
-    true, true, true, true, true, true, true, true, true, true, true, true,
-    // features: pawn_aura orbs spot_lights indoor_shell portal transitions wanderers
-    true,      true, true,       true,        true,   true,       true,
-};
-
-// THE FIRST EDGE — transitions REQUIRE portal: portals are both the
-// trigger IN and the guaranteed return OUT; transitions on + portal
-// off soft-locks. CONDITIONAL so transitions+portal both-off (the
-// lean build) stays legal.
-static_assert(!ROSTER.transitions || ROSTER.portal,
-    "ROSTER: portal disabled while transitions enabled — "
-    "transitions REQUIRE portal (the trigger in, the return path out)");
+// ROSTER (the selected constant) is defined in demos/demo.hpp as
+// DEMO.roster — the demo sentence selected at compile time (DEMO-1,
+// the config spine). The TYPE and the gate law live here; the FIRST
+// EDGE static_assert rides the selector, where the sentence lands.
+// All-enabled (demos/full.hpp) remains byte-identical to the
+// pre-spine build — the constexpr chain is unchanged end to end.
 
 } // namespace the_board
 } // namespace t7
