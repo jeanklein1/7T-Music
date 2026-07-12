@@ -860,11 +860,13 @@ namespace t7 {
             // SEAM[spine:owns] FAMILY_DISPATCH is the integration hub that
             //   ties the 12 families together. Each row's body lives in
             //   the family's owning module.
-            // SEAM[spine:K2-related] the dispatch_evict_*, dispatch_prepare_mesh_*,
-            //   dispatch_mesh_gen_* wrappers below (~400 lines) are
-            //   integration glue, not module work — they live here
-            //   correctly. Keep wrappers here; they're the integration
-            //   layer between FAMILY_DISPATCH and per-family modules.
+            // SEAM[spine:K2-related] the dispatch_evict_* and the real
+            //   dispatch_prepare_mesh_* / dispatch_mesh_gen_* adapters below
+            //   are integration glue between FAMILY_DISPATCH and the
+            //   per-family modules. The bespoke select/place/commit funnels
+            //   live with their owners; the no-op mesh adapters are shared
+            //   (family_dispatch.inl). The evictors are ledgered lifecycle
+            //   trespass (§5 EVICTION THUNKS) with a written retirement.
             // SEAM[spine:family-dispatch] anchor for cross-file references
             //   to dispatch_evict_<family> from the spawn/eviction pipelines.
             //
@@ -874,14 +876,14 @@ namespace t7 {
 
             // ═══ DISPATCH WRAPPERS ═══════════════════════════════════════
             //
-            // Per-family wrappers that bind module functions to the
-            // FAMILY_DISPATCH function-pointer table below. Each family
-            // contributes up to six wrappers (select, place, commit,
-            // evict, prepare_mesh, mesh_gen). Generic-pipeline families
-            // (Pyramid, Arch, Column, Antenna, Palm, Cactus, Blade,
-            // Sphere, Cube) reuse the dispatch_*_<family>_generic shape
-            // from entity_pipeline.inl. Bespoke families (GoL, Gallery,
-            // Ribbon) declare their own.
+            // Per-family wrappers bound into the FAMILY_DISPATCH table
+            // (modules/family_dispatch.inl). What remains HERE: the evictors
+            // (12 — §5 retirement pending) and the six real prepare/mesh
+            // adapter pairs. Generic-pipeline families' select/place/commit
+            // funnels come from entity_pipeline.inl; the bespoke families'
+            // (GoL, Gallery, Ribbon) live in their owners' impls; families
+            // with no CPU mesh stage share the no-op pair in
+            // family_dispatch.inl.
 
             // ── Mesh gen wrappers ──
 
@@ -1046,14 +1048,6 @@ namespace t7 {
 #endif
             }
 
-            static bool dispatch_prepare_mesh_sphere(Cartridge* self, wgpu::Queue& queue) {
-                (void)self; (void)queue;
-                return false;  // no CPU mesh gen — GPU compute handles update_sphere
-            }
-            static void dispatch_mesh_gen_sphere(Cartridge* self, wgpu::ComputePassEncoder& pass) {
-                (void)self; (void)pass;
-            }
-
             static void dispatch_evict_cube(Cartridge* self,
                 uint32_t slot, wgpu::Queue& queue) {
                 self->cube_behaviors_state_.activeCubes_[slot].active = false;  // cube state owned by CubeBehaviorsState
@@ -1065,50 +1059,8 @@ namespace t7 {
 #endif
             }
 
-            static bool dispatch_prepare_mesh_cube(Cartridge* self, wgpu::Queue& queue) {
-                (void)self; (void)queue;
-                return false;  // no CPU mesh gen — GPU compute handles update_cube
-            }
-            static void dispatch_mesh_gen_cube(Cartridge* self, wgpu::ComputePassEncoder& pass) {
-                (void)self; (void)pass;
-            }
-
-            // ── GoL dispatch wrappers ──
-
-            static bool dispatch_select_gol(Cartridge* self,
-                int32_t gx, int32_t gz, EntityQueueEntry& e) {
-                if (!self->gol_state_.mood_allowed) { return false; }   // mood gate — no new zones
-                return select_gol_for_patch(self->gol_state_, self, gx, gz, e.gol);
-            }
-
-            static bool dispatch_place_gol(Cartridge* self,
-                EntityQueueEntry& e, PlacementEntry& pe) {
-                pe.family = e.family; pe.gx = e.gx; pe.gz = e.gz;
-                if (place_gol_from_selection(self, e.gol, pe.gol)) {
-                    return true;
-                }
-                else {
-                    self->gol_state_.zones[e.gol.slot].active = false;
-                    return false;
-                }
-            }
-
-            static void dispatch_commit_gol(Cartridge* self,
-                PlacementEntry& pe, wgpu::Queue& queue) {
-                auto* host = self->find_patch(pe.gol.host_gx, pe.gol.host_gz);
-                if (host) {
-                    commit_gol(self->gol_state_, self, pe.gol, pe.gx, pe.gz, queue);
-                    host->record_entity(PopFamily::GOL, pe.gol.slot);
-                }
-                else {
-                    self->gol_state_.zones[pe.gol.slot].active = false;
-#ifdef DIAG_ENTITY_LIFECYCLE
-                    std::cout << "[DIAG:REJECT] gol slot=" << pe.gol.slot
-                        << " host=(" << pe.gol.host_gx << "," << pe.gol.host_gz
-                        << ") -- no host patch\n";
-#endif
-                }
-            }
+            // ── GoL eviction wrapper (select/place/commit funnels live in
+            //    gol_zones.inl; declared in entity_types.hpp) ──
 
             static void dispatch_evict_gol(Cartridge* self,
                 uint32_t slot, wgpu::Queue& queue) {
@@ -1120,52 +1072,8 @@ namespace t7 {
 #endif
             }
 
-            static bool dispatch_prepare_mesh_gol(Cartridge* self, wgpu::Queue& queue) {
-                (void)self; (void)queue;
-                return false;  // zone mesh gen is a separate compute pass
-            }
-            static void dispatch_mesh_gen_gol(Cartridge* self, wgpu::ComputePassEncoder& pass) {
-                (void)self; (void)pass;
-            }
-
-            // ── Gallery dispatch wrappers ──
-
-            static bool dispatch_select_gallery(Cartridge* self,
-                int32_t gx, int32_t gz, EntityQueueEntry& e) {
-                return select_gallery_for_patch(self->gallery_state_, self, gx, gz, e.gallery);
-            }
-
-            static bool dispatch_place_gallery(Cartridge* self,
-                EntityQueueEntry& e, PlacementEntry& pe) {
-                pe.family = e.family; pe.gx = e.gx; pe.gz = e.gz;
-                if (place_gallery_from_selection(self, e.gallery, pe.gallery)) {
-                    return true;
-                }
-                else {
-                    self->gallery_state_.gallery_centers[e.gallery.slot].active = false;
-                    return false;
-                }
-            }
-
-            static void dispatch_commit_gallery(Cartridge* self,
-                PlacementEntry& pe, wgpu::Queue& queue) {
-                auto* host = self->find_patch(pe.gallery.host_gx, pe.gallery.host_gz);
-                if (host) {
-                    commit_gallery(self->gallery_state_, self, pe.gallery, pe.gx, pe.gz, queue);
-                    // Only record entity_ref if gallery is still active (commit may deactivate on 0 paintings)
-                    if (self->gallery_state_.gallery_centers[pe.gallery.slot].active) {
-                        host->record_entity(PopFamily::GALLERY, pe.gallery.slot);
-                    }
-                }
-                else {
-                    self->gallery_state_.gallery_centers[pe.gallery.slot].active = false;
-#ifdef DIAG_ENTITY_LIFECYCLE
-                    std::cout << "[DIAG:REJECT] gall slot=" << pe.gallery.slot
-                        << " host=(" << pe.gallery.host_gx << "," << pe.gallery.host_gz
-                        << ") -- no host patch\n";
-#endif
-                }
-            }
+            // ── Gallery eviction wrapper (select/place/commit funnels live in
+            //    gallery.inl; declared in entity_types.hpp) ──
 
             static void dispatch_evict_gallery(Cartridge* self,
                 uint32_t slot, wgpu::Queue& queue) {
@@ -1179,67 +1087,8 @@ namespace t7 {
 #endif
             }
 
-            static bool dispatch_prepare_mesh_gallery(Cartridge* self, wgpu::Queue& queue) {
-                (void)self; (void)queue;
-                return false;
-            }
-            static void dispatch_mesh_gen_gallery(Cartridge* self, wgpu::ComputePassEncoder& pass) {
-                (void)self; (void)pass;
-            }
-
-            // ── Ribbon dispatch wrappers ──
-
-            static bool dispatch_select_ribbon(Cartridge* self,
-                int32_t gx, int32_t gz, EntityQueueEntry& e) {
-                return select_ribbon_for_patch(self->ribbon_state_, self, gx, gz, e.ribbon);
-            }
-
-            static bool dispatch_place_ribbon(Cartridge* self,
-                EntityQueueEntry& e, PlacementEntry& pe) {
-                pe.family = e.family; pe.gx = e.gx; pe.gz = e.gz;
-                if (place_ribbon_from_selection(self, e.ribbon, pe.ribbon)) {
-                    return true;
-                }
-                else {
-                    self->ribbon_state_.active[e.ribbon.slot].active = false;
-                    return false;
-                }
-            }
-
-            static void dispatch_commit_ribbon(Cartridge* self,
-                PlacementEntry& pe, wgpu::Queue& queue) {
-                // Commit the ribbon state (GPU mirror, active record, tip positions)
-                commit_ribbon(self->ribbon_state_, self, pe.ribbon, pe.gx, pe.gz, queue);
-
-                uint32_t slot = pe.ribbon.slot;
-                auto& ar = self->ribbon_state_.active[slot];
-
-                // Register with tip patches that currently exist.
-                // Late registration handles the other tip when its patch is allocated.
-                uint32_t refs = 0;
-                auto* near_host = self->find_patch(ar.near_tip_gx, ar.near_tip_gz);
-                if (near_host) {
-                    near_host->record_entity(PopFamily::RIBBON, slot);
-                    ar.near_tip_registered = true;
-                    refs++;
-                }
-                auto* far_host = self->find_patch(ar.far_tip_gx, ar.far_tip_gz);
-                if (far_host && (ar.far_tip_gx != ar.near_tip_gx || ar.far_tip_gz != ar.near_tip_gz)) {
-                    far_host->record_entity(PopFamily::RIBBON, slot);
-                    ar.far_tip_registered = true;
-                    refs++;
-                }
-
-                if (refs == 0) {
-                    std::cout << "[Ribbon] REJECT slot=" << slot
-                        << " — no tip patches alive\n";
-                    ar = ActiveRibbon{};
-                    self->ribbon_state_.gpu[slot] = GPURibbonState{};
-                    self->ribbon_state_.active_count--;
-                    return;
-                }
-                ar.ref_count = refs;
-            }
+            // ── Ribbon eviction wrapper (select/place/commit funnels live in
+            //    ribbon.inl; declared in entity_types.hpp) ──
 
             static void dispatch_evict_ribbon(Cartridge* self,
                 uint32_t slot, wgpu::Queue& queue) {
@@ -1280,58 +1129,13 @@ namespace t7 {
                 std::cout << "[Ribbon] EVICT slot=" << slot << "\n";
             }
 
-            static bool dispatch_prepare_mesh_ribbon(Cartridge* self, wgpu::Queue& queue) {
-                (void)self; (void)queue;
-                return false;
-            }
-            static void dispatch_mesh_gen_ribbon(Cartridge* self, wgpu::ComputePassEncoder& pass) {
-                (void)self; (void)pass;
-                // no-op — GPU compute handles ribbon rendering
-            }
-
-            // ── Dispatch table (order matches PopFamily enum) ──
+            // ── The dispatch table (FAMILY_DISPATCH) is defined at file
+            //    scope in modules/family_dispatch.inl (post-class zone) and
+            //    declared in entity_types.hpp; the loops read it by
+            //    namespace lookup. ──
 
             // ── Generic Entity Pipeline (modules/entity_pipeline.inl) ──
 #include "modules/entity_pipeline.inl"
-
-            static constexpr FamilyDispatch FAMILY_DISPATCH[PopFamily::COUNT] = {
-                { dispatch_select_pyramid_generic, dispatch_place_pyramid_generic, dispatch_commit_pyramid_generic,
-                  dispatch_evict_pyramid, dispatch_prepare_mesh_pyramid, dispatch_mesh_gen_pyramid,
-                  "pyr" },
-                { dispatch_select_arch_generic, dispatch_place_arch_generic, dispatch_commit_arch_generic,
-                  dispatch_evict_arch,    dispatch_prepare_mesh_arch,    dispatch_mesh_gen_arch,
-                  "arch" },
-                { dispatch_select_column_generic, dispatch_place_column_generic, dispatch_commit_column_generic,
-                  dispatch_evict_column,  dispatch_prepare_mesh_column,  dispatch_mesh_gen_column,
-                  "col" },
-                { dispatch_select_antenna_generic, dispatch_place_antenna_generic, dispatch_commit_antenna_generic,
-                  dispatch_evict_antenna, dispatch_prepare_mesh_column,  dispatch_mesh_gen_column,
-                  "ant" },
-                { dispatch_select_palm_generic, dispatch_place_palm_generic, dispatch_commit_palm_generic,
-                  dispatch_evict_palm,   dispatch_prepare_mesh_palm,   dispatch_mesh_gen_palm,
-                  "palm" },
-                { dispatch_select_cactus_generic, dispatch_place_cactus_generic, dispatch_commit_cactus_generic,
-                  dispatch_evict_cactus, dispatch_prepare_mesh_cactus, dispatch_mesh_gen_cactus,
-                  "cact" },
-                { dispatch_select_blade_generic, dispatch_place_blade_generic, dispatch_commit_blade_generic,
-                  dispatch_evict_blade, dispatch_prepare_mesh_blade, dispatch_mesh_gen_blade,
-                  "blad" },
-                { dispatch_select_sphere_generic, dispatch_place_sphere_generic, dispatch_commit_sphere_generic,
-                  dispatch_evict_sphere, dispatch_prepare_mesh_sphere, dispatch_mesh_gen_sphere,
-                  "sph" },
-                { dispatch_select_ribbon, dispatch_place_ribbon, dispatch_commit_ribbon,
-                  dispatch_evict_ribbon, dispatch_prepare_mesh_ribbon, dispatch_mesh_gen_ribbon,
-                  "ribn" },
-                { dispatch_select_cube_generic, dispatch_place_cube_generic, dispatch_commit_cube_generic,
-                  dispatch_evict_cube, dispatch_prepare_mesh_cube, dispatch_mesh_gen_cube,
-                  "cube" },
-                { dispatch_select_gol, dispatch_place_gol, dispatch_commit_gol,
-                  dispatch_evict_gol, dispatch_prepare_mesh_gol, dispatch_mesh_gen_gol,
-                  "gol" },
-                { dispatch_select_gallery, dispatch_place_gallery, dispatch_commit_gallery,
-                  dispatch_evict_gallery, dispatch_prepare_mesh_gallery, dispatch_mesh_gen_gallery,
-                  "gall" },
-            };
 
             //
             // The spine-owned piece-enable manifest (struct Roster, the
@@ -3982,3 +3786,4 @@ namespace t7 {
 #include "modules/input.inl"      // key/mouse dispatch + movement intent + camera commands (own GLFW include)
 #include "modules/render_passes.inl"  // ground-entry prep + compute dispatch + shadow/main passes + light VPs
 #include "modules/mood.inl"       // indoor light derivation + appliers + apply_mood + shell + portals + uploads + transition request + derivers
+#include "modules/family_dispatch.inl"  // THE TABLE — FAMILY_DISPATCH definition + shared no-op mesh adapters

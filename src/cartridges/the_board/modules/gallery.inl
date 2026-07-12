@@ -1339,5 +1339,50 @@ inline void clear_wall_paintings(GalleryState& gs, Cartridge* c, wgpu::Queue& qu
     gs.wall_frame_count = 0;
 }
 
+
+// ═══ DISPATCH FUNNELS (table-shaped; declared in entity_types.hpp) ═
+//
+// The FAMILY_DISPATCH rows for this family point here (the table
+// is defined in modules/family_dispatch.inl). Bodies delegate to
+// the module functions above and keep the spine bookkeeping
+// (find_patch / record_entity) at the seam.
+
+inline bool dispatch_select_gallery(Cartridge* self,
+    int32_t gx, int32_t gz, EntityQueueEntry& e) {
+    return select_gallery_for_patch(self->gallery_state_, self, gx, gz, e.gallery);
+}
+
+inline bool dispatch_place_gallery(Cartridge* self,
+    EntityQueueEntry& e, PlacementEntry& pe) {
+    pe.family = e.family; pe.gx = e.gx; pe.gz = e.gz;
+    if (place_gallery_from_selection(self, e.gallery, pe.gallery)) {
+        return true;
+    }
+    else {
+        self->gallery_state_.gallery_centers[e.gallery.slot].active = false;
+        return false;
+    }
+}
+
+inline void dispatch_commit_gallery(Cartridge* self,
+    PlacementEntry& pe, wgpu::Queue& queue) {
+    auto* host = self->find_patch(pe.gallery.host_gx, pe.gallery.host_gz);
+    if (host) {
+        commit_gallery(self->gallery_state_, self, pe.gallery, pe.gx, pe.gz, queue);
+        // Only record entity_ref if gallery is still active (commit may deactivate on 0 paintings)
+        if (self->gallery_state_.gallery_centers[pe.gallery.slot].active) {
+            host->record_entity(PopFamily::GALLERY, pe.gallery.slot);
+        }
+    }
+    else {
+        self->gallery_state_.gallery_centers[pe.gallery.slot].active = false;
+#ifdef DIAG_ENTITY_LIFECYCLE
+        std::cout << "[DIAG:REJECT] gall slot=" << pe.gallery.slot
+            << " host=(" << pe.gallery.host_gx << "," << pe.gallery.host_gz
+            << ") -- no host patch\n";
+#endif
+    }
+}
+
 } // namespace the_board
 } // namespace t7

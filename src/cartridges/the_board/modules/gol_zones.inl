@@ -340,5 +340,48 @@ inline void flush_zone_derive_requests(GoLState& gs, Cartridge* c, wgpu::Queue& 
     gs.pending_derive_requests.count = 0;
 }
 
+
+// ═══ DISPATCH FUNNELS (table-shaped; declared in entity_types.hpp) ═
+//
+// The FAMILY_DISPATCH rows for this family point here (the table
+// is defined in modules/family_dispatch.inl). Bodies delegate to
+// the module functions above and keep the spine bookkeeping
+// (find_patch / record_entity) at the seam.
+
+inline bool dispatch_select_gol(Cartridge* self,
+    int32_t gx, int32_t gz, EntityQueueEntry& e) {
+    if (!self->gol_state_.mood_allowed) { return false; }   // mood gate — no new zones
+    return select_gol_for_patch(self->gol_state_, self, gx, gz, e.gol);
+}
+
+inline bool dispatch_place_gol(Cartridge* self,
+    EntityQueueEntry& e, PlacementEntry& pe) {
+    pe.family = e.family; pe.gx = e.gx; pe.gz = e.gz;
+    if (place_gol_from_selection(self, e.gol, pe.gol)) {
+        return true;
+    }
+    else {
+        self->gol_state_.zones[e.gol.slot].active = false;
+        return false;
+    }
+}
+
+inline void dispatch_commit_gol(Cartridge* self,
+    PlacementEntry& pe, wgpu::Queue& queue) {
+    auto* host = self->find_patch(pe.gol.host_gx, pe.gol.host_gz);
+    if (host) {
+        commit_gol(self->gol_state_, self, pe.gol, pe.gx, pe.gz, queue);
+        host->record_entity(PopFamily::GOL, pe.gol.slot);
+    }
+    else {
+        self->gol_state_.zones[pe.gol.slot].active = false;
+#ifdef DIAG_ENTITY_LIFECYCLE
+        std::cout << "[DIAG:REJECT] gol slot=" << pe.gol.slot
+            << " host=(" << pe.gol.host_gx << "," << pe.gol.host_gz
+            << ") -- no host patch\n";
+#endif
+    }
+}
+
 } // namespace the_board
 } // namespace t7

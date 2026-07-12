@@ -58,6 +58,7 @@
 
 #include <cstdint>
 #include <cstring>                                        // std::memset (queue-entry ctors)
+#include "cartridges/the_board/roster.hpp"                // PopFamily (sizes the dispatch table)
 #include "cartridges/the_board/modules/keyhole.hpp"       // Cartridge + wgpu::Queue fwds (the keyhole)
 #include "cartridges/the_board/modules/ribbon.hpp"        // RibbonSelection/RibbonPlacement (union members)
 #include "cartridges/the_board/modules/gol_zones.hpp"     // GoLSelection/GoLPlacement (union members)
@@ -278,6 +279,32 @@ struct FamilyDispatch {
     void (*dispatch_mesh)(Cartridge* self, wgpu::ComputePassEncoder& pass);
     const char* name;
 };
+
+// THE TABLE — one row per family, PopFamily order. DEFINED at file
+// scope in modules/family_dispatch.inl (post-class: the rows take the
+// addresses of wrappers that live with their owners and, for the
+// generic families, on the class); DECLARED here so the spine's
+// dispatch loops (in-class) read it by namespace lookup.
+extern const FamilyDispatch FAMILY_DISPATCH[PopFamily::COUNT];
+
+// ─── Bespoke dispatch funnels (defined in their owners' impls) ────
+//
+// gol_zones.inl / gallery.inl / ribbon.inl. Declared HERE, not in the
+// owner headers, because the signatures carry the queue types and the
+// owner headers cannot include this header (circularity — see the
+// banner). The table names them by these declarations.
+
+bool dispatch_select_gol(Cartridge* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
+bool dispatch_place_gol(Cartridge* self, EntityQueueEntry& e, PlacementEntry& pe);
+void dispatch_commit_gol(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue);
+
+bool dispatch_select_gallery(Cartridge* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
+bool dispatch_place_gallery(Cartridge* self, EntityQueueEntry& e, PlacementEntry& pe);
+void dispatch_commit_gallery(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue);
+
+bool dispatch_select_ribbon(Cartridge* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
+bool dispatch_place_ribbon(Cartridge* self, EntityQueueEntry& e, PlacementEntry& pe);
+void dispatch_commit_ribbon(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue);
 
 } // namespace the_board
 } // namespace t7

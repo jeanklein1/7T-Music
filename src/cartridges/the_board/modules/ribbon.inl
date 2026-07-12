@@ -922,5 +922,65 @@ inline void commit_ribbon(RibbonState& rs, Cartridge* c,
         << ") far=(" << ar.far_tip_gx << "," << ar.far_tip_gz << ")\n";
 }
 
+
+// ═══ DISPATCH FUNNELS (table-shaped; declared in entity_types.hpp) ═
+//
+// The FAMILY_DISPATCH rows for this family point here (the table
+// is defined in modules/family_dispatch.inl). Bodies delegate to
+// the module functions above and keep the spine bookkeeping
+// (find_patch / record_entity) at the seam.
+
+inline bool dispatch_select_ribbon(Cartridge* self,
+    int32_t gx, int32_t gz, EntityQueueEntry& e) {
+    return select_ribbon_for_patch(self->ribbon_state_, self, gx, gz, e.ribbon);
+}
+
+inline bool dispatch_place_ribbon(Cartridge* self,
+    EntityQueueEntry& e, PlacementEntry& pe) {
+    pe.family = e.family; pe.gx = e.gx; pe.gz = e.gz;
+    if (place_ribbon_from_selection(self, e.ribbon, pe.ribbon)) {
+        return true;
+    }
+    else {
+        self->ribbon_state_.active[e.ribbon.slot].active = false;
+        return false;
+    }
+}
+
+inline void dispatch_commit_ribbon(Cartridge* self,
+    PlacementEntry& pe, wgpu::Queue& queue) {
+    // Commit the ribbon state (GPU mirror, active record, tip positions)
+    commit_ribbon(self->ribbon_state_, self, pe.ribbon, pe.gx, pe.gz, queue);
+
+    uint32_t slot = pe.ribbon.slot;
+    auto& ar = self->ribbon_state_.active[slot];
+
+    // Register with tip patches that currently exist.
+    // Late registration handles the other tip when its patch is allocated.
+    uint32_t refs = 0;
+    auto* near_host = self->find_patch(ar.near_tip_gx, ar.near_tip_gz);
+    if (near_host) {
+        near_host->record_entity(PopFamily::RIBBON, slot);
+        ar.near_tip_registered = true;
+        refs++;
+    }
+    auto* far_host = self->find_patch(ar.far_tip_gx, ar.far_tip_gz);
+    if (far_host && (ar.far_tip_gx != ar.near_tip_gx || ar.far_tip_gz != ar.near_tip_gz)) {
+        far_host->record_entity(PopFamily::RIBBON, slot);
+        ar.far_tip_registered = true;
+        refs++;
+    }
+
+    if (refs == 0) {
+        std::cout << "[Ribbon] REJECT slot=" << slot
+            << " — no tip patches alive\n";
+        ar = ActiveRibbon{};
+        self->ribbon_state_.gpu[slot] = GPURibbonState{};
+        self->ribbon_state_.active_count--;
+        return;
+    }
+    ar.ref_count = refs;
+}
+
 } // namespace the_board
 } // namespace t7
