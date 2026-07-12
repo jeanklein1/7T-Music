@@ -296,7 +296,7 @@ inline void seed_gol_zone(GoLState& gs, Cartridge* c,
 // upload_gol_zone_config: per-frame header-only upload.
 // Per-zone config is GPU-derived via zone_derive_params — we only
 // write count, t_beats, dt, tick_mask. Slot deactivation happens
-// at eviction time (via dispatch_evict_gol through entity_refs).
+// at eviction time (via evict_gol through entity_refs).
 inline void upload_gol_zone_config(GoLState& gs, Cartridge* c, wgpu::Queue& queue) {
     uint32_t count = 0;
     uint32_t tick_mask = 0;
@@ -381,6 +381,21 @@ inline void dispatch_commit_gol(Cartridge* self,
             << ") -- no host patch\n";
 #endif
     }
+}
+
+
+// ═══ THE EVICTOR (lifecycle, absorbed per §5 EVICTION THUNKS) ═════
+//
+// Named by the FAMILY_DISPATCH table (family_dispatch.inl).
+
+inline void evict_gol(Cartridge* self,
+    uint32_t slot, wgpu::Queue& queue) {
+    self->gpuState_.deactivate_zone_slot(queue, slot);
+    self->gol_state_.zones[slot].active = false;
+    self->gol_state_.zone_count--;
+#ifdef DIAG_ENTITY_LIFECYCLE
+    std::cout << "[DIAG:EVICT]   gol slot=" << slot << "\n";
+#endif
 }
 
 } // namespace the_board

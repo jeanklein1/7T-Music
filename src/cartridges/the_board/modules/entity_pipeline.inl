@@ -1757,7 +1757,7 @@ static void dispatch_commit_sphere_generic(Cartridge* self, PlacementEntry& pe, 
         self->generic_commit(SPHERE_TRAITS, SPHERE_ADAPTER, pe.generic, queue);
         // Lifecycle Phase 2: sphere lifetime is no longer tied to its
         // host patch. We don't call host->record_entity() here, so
-        // evict_patch_entities will never dispatch_evict_sphere on this
+        // evict_patch_entities will never evict_sphere on this
         // slot — the GPU-side pawn-distance test in update_sphere is
         // the sole eviction path. The find_patch() lookup is retained
         // because a missing host still means "spawn was invalid"; we

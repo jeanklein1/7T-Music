@@ -610,6 +610,10 @@ bool place_ribbon_from_selection(Cartridge* c,
 void commit_ribbon(RibbonState& rs, Cartridge* c,
     const RibbonPlacement& plan,
     int32_t trigger_gx, int32_t trigger_gz, wgpu::Queue& queue);
+// The evictor — lifecycle, absorbed per §5 EVICTION THUNKS; keyhole-shaped
+// to match the FAMILY_DISPATCH evict slot (table in family_dispatch.inl);
+// carries the sky-mode pin (SEAM[ribbon:sky-mode]) and ref-count law
+void evict_ribbon(Cartridge* self, uint32_t slot, wgpu::Queue& queue);
 // Frame conductor
 void ribbon_frame_tick(RibbonState& rs, Cartridge* c, wgpu::Queue& queue);
 // Head mover

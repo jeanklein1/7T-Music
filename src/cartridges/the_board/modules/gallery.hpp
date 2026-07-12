@@ -660,6 +660,9 @@ void commit_gallery(GalleryState& gs, Cartridge* c,
     int32_t trigger_gx, int32_t trigger_gz, wgpu::Queue& queue);
 void evict_paintings_for_patch(GalleryState& gs, Cartridge* c,
     int32_t gx, int32_t gz, wgpu::Queue& queue);
+// The evictor — lifecycle, absorbed per §5 EVICTION THUNKS; keyhole-shaped
+// to match the FAMILY_DISPATCH evict slot (table in family_dispatch.inl)
+void evict_gallery(Cartridge* self, uint32_t slot, wgpu::Queue& queue);
 // Indoor entry (called by mood.inl::apply_mood)
 void place_wall_paintings(GalleryState& gs, Cartridge* c, wgpu::Queue& queue,
     float bmin, float bmax, float ceiling_h);

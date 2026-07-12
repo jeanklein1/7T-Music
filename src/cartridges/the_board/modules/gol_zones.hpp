@@ -358,6 +358,9 @@ bool place_gol_from_selection(Cartridge* c,
 void commit_gol(GoLState& gs, Cartridge* c,
     const GoLPlacement& plan,
     int32_t trigger_gx, int32_t trigger_gz, wgpu::Queue& queue);
+// The evictor — lifecycle, absorbed per §5 EVICTION THUNKS; keyhole-shaped
+// to match the FAMILY_DISPATCH evict slot (table in family_dispatch.inl)
+void evict_gol(Cartridge* self, uint32_t slot, wgpu::Queue& queue);
 void seed_gol_zone(GoLState& gs, Cartridge* c,
     uint32_t slot, wgpu::Queue& queue);
 // Per-frame

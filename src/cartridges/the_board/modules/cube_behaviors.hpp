@@ -290,6 +290,9 @@ void apply_cube_tier_gains(float& spring_stiffness, float& drag, uint32_t tier_i
 uint32_t pick_cube_behavior_for_spawn(uint32_t mood_id, uint32_t seed);
 // Teardown owner-clear
 void clear_cubes(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue);
+// The evictor — lifecycle, absorbed per §5 EVICTION THUNKS; keyhole-shaped
+// to match the FAMILY_DISPATCH evict slot (table in family_dispatch.inl)
+void evict_cube(Cartridge* self, uint32_t slot, wgpu::Queue& queue);
 // Player commands
 void cycle_floater_coordination(CubeBehaviorsState& cbs, Cartridge* c);
 void cycle_cube_behavior_override(CubeBehaviorsState& cbs, Cartridge* c, wgpu::Queue& queue);

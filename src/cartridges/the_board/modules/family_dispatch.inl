@@ -5,11 +5,12 @@
 // definition of the FAMILY_DISPATCH declared in entity_types.hpp
 // (the contract home). It lives post-class because the rows take
 // wrapper ADDRESSES: the generic funnels and the remaining spine-side
-// adapters are Cartridge statics (named through the complete type);
-// the bespoke funnels are file-scope functions in their owners' impls
-// (declared in entity_types.hpp). Function addresses are link-time
-// constants — declarations suffice, so this file's position in the
-// zone does not depend on the other impls.
+// mesh adapters are Cartridge statics (named through the complete
+// type); the bespoke funnels and the twelve evictors are file-scope
+// functions in their owners' impls (funnels declared in
+// entity_types.hpp, evictors in their owners' headers). Function
+// addresses are link-time constants — declarations suffice, so this
+// file's position in the zone does not depend on the other impls.
 //
 // SEAM[spine:owns] consumed by the spine's dispatch loops
 //   (select_entities_for_patch / place_entity_queue /
@@ -45,40 +46,40 @@ inline void dispatch_mesh_gen_none(Cartridge* self, wgpu::ComputePassEncoder& pa
 
 inline const FamilyDispatch FAMILY_DISPATCH[PopFamily::COUNT] = {
     { Cartridge::dispatch_select_pyramid_generic, Cartridge::dispatch_place_pyramid_generic, Cartridge::dispatch_commit_pyramid_generic,
-      Cartridge::dispatch_evict_pyramid, Cartridge::dispatch_prepare_mesh_pyramid, Cartridge::dispatch_mesh_gen_pyramid,
+      evict_pyramid, Cartridge::dispatch_prepare_mesh_pyramid, Cartridge::dispatch_mesh_gen_pyramid,
       "pyr" },
     { Cartridge::dispatch_select_arch_generic, Cartridge::dispatch_place_arch_generic, Cartridge::dispatch_commit_arch_generic,
-      Cartridge::dispatch_evict_arch,    Cartridge::dispatch_prepare_mesh_arch,    Cartridge::dispatch_mesh_gen_arch,
+      evict_arch,    Cartridge::dispatch_prepare_mesh_arch,    Cartridge::dispatch_mesh_gen_arch,
       "arch" },
     { Cartridge::dispatch_select_column_generic, Cartridge::dispatch_place_column_generic, Cartridge::dispatch_commit_column_generic,
-      Cartridge::dispatch_evict_column,  Cartridge::dispatch_prepare_mesh_column,  Cartridge::dispatch_mesh_gen_column,
+      evict_column,  Cartridge::dispatch_prepare_mesh_column,  Cartridge::dispatch_mesh_gen_column,
       "col" },
     { Cartridge::dispatch_select_antenna_generic, Cartridge::dispatch_place_antenna_generic, Cartridge::dispatch_commit_antenna_generic,
-      Cartridge::dispatch_evict_antenna, Cartridge::dispatch_prepare_mesh_column,  Cartridge::dispatch_mesh_gen_column,
+      evict_antenna, Cartridge::dispatch_prepare_mesh_column,  Cartridge::dispatch_mesh_gen_column,
       "ant" },
     { Cartridge::dispatch_select_palm_generic, Cartridge::dispatch_place_palm_generic, Cartridge::dispatch_commit_palm_generic,
-      Cartridge::dispatch_evict_palm,   Cartridge::dispatch_prepare_mesh_palm,   Cartridge::dispatch_mesh_gen_palm,
+      evict_palm,   Cartridge::dispatch_prepare_mesh_palm,   Cartridge::dispatch_mesh_gen_palm,
       "palm" },
     { Cartridge::dispatch_select_cactus_generic, Cartridge::dispatch_place_cactus_generic, Cartridge::dispatch_commit_cactus_generic,
-      Cartridge::dispatch_evict_cactus, Cartridge::dispatch_prepare_mesh_cactus, Cartridge::dispatch_mesh_gen_cactus,
+      evict_cactus, Cartridge::dispatch_prepare_mesh_cactus, Cartridge::dispatch_mesh_gen_cactus,
       "cact" },
     { Cartridge::dispatch_select_blade_generic, Cartridge::dispatch_place_blade_generic, Cartridge::dispatch_commit_blade_generic,
-      Cartridge::dispatch_evict_blade, Cartridge::dispatch_prepare_mesh_blade, Cartridge::dispatch_mesh_gen_blade,
+      evict_blade, Cartridge::dispatch_prepare_mesh_blade, Cartridge::dispatch_mesh_gen_blade,
       "blad" },
     { Cartridge::dispatch_select_sphere_generic, Cartridge::dispatch_place_sphere_generic, Cartridge::dispatch_commit_sphere_generic,
-      Cartridge::dispatch_evict_sphere, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
+      evict_sphere, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
       "sph" },   // no CPU mesh gen — GPU compute handles update_sphere
     { dispatch_select_ribbon, dispatch_place_ribbon, dispatch_commit_ribbon,
-      Cartridge::dispatch_evict_ribbon, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
+      evict_ribbon, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
       "ribn" },  // no CPU mesh gen — GPU compute handles ribbon rendering
     { Cartridge::dispatch_select_cube_generic, Cartridge::dispatch_place_cube_generic, Cartridge::dispatch_commit_cube_generic,
-      Cartridge::dispatch_evict_cube, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
+      evict_cube, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
       "cube" },  // no CPU mesh gen — GPU compute handles update_cube
     { dispatch_select_gol, dispatch_place_gol, dispatch_commit_gol,
-      Cartridge::dispatch_evict_gol, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
+      evict_gol, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
       "gol" },   // zone mesh gen is a separate compute pass
     { dispatch_select_gallery, dispatch_place_gallery, dispatch_commit_gallery,
-      Cartridge::dispatch_evict_gallery, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
+      evict_gallery, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
       "gall" },
 };
 

@@ -670,6 +670,21 @@ bool prepare_column_mesh_gen(EntitiesState& es, Cartridge* c, wgpu::Queue& queue
 bool prepare_arch_mesh_gen(EntitiesState& es, Cartridge* c, wgpu::Queue& queue);
 bool prepare_pyramid_mesh_gen(EntitiesState& es, Cartridge* c, wgpu::Queue& queue);
 
+// ═══ THE EVICTORS — DECLARATIONS ═══════════════════════════════════
+//
+// Lifecycle, absorbed per §5 EVICTION THUNKS: one evictor per owned
+// family, keyhole-shaped to match the FAMILY_DISPATCH evict slot
+// (table in family_dispatch.inl; reached through
+// evict_patch_entities). DEFINED in entities.inl (post-class).
+
+void evict_pyramid(Cartridge* self, uint32_t slot, wgpu::Queue& queue);
+void evict_arch(Cartridge* self, uint32_t slot, wgpu::Queue& queue);
+void evict_column(Cartridge* self, uint32_t slot, wgpu::Queue& queue);
+void evict_antenna(Cartridge* self, uint32_t slot, wgpu::Queue& queue);
+void evict_palm(Cartridge* self, uint32_t slot, wgpu::Queue& queue);
+void evict_cactus(Cartridge* self, uint32_t slot, wgpu::Queue& queue);
+void evict_blade(Cartridge* self, uint32_t slot, wgpu::Queue& queue);
+
 // ═══ THE ARCH FORCE-SPAWN AUTHOR (the portal channel) ═══════════
 //
 // Forced portal-arch authoring: the arch's OWNER writes the arch. Mood

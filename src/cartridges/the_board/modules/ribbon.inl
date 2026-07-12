@@ -982,5 +982,49 @@ inline void dispatch_commit_ribbon(Cartridge* self,
     ar.ref_count = refs;
 }
 
+
+// ═══ THE EVICTOR (lifecycle, absorbed per §5 EVICTION THUNKS) ═════
+//
+// Named by the FAMILY_DISPATCH table (family_dispatch.inl).
+
+inline void evict_ribbon(Cartridge* self,
+    uint32_t slot, wgpu::Queue& queue) {
+    auto& ar = self->ribbon_state_.active[slot];
+    if (!ar.active) return;
+
+    // Sky mode: the flown ribbon is pinned for the flight's duration.
+    // Its anchor patches stream out as the player flies away, but the
+    // ribbon must persist — skip eviction entirely while it is the
+    // mounted, rendered ribbon. update() releases it on exit (the
+    // sky_mode_prev edge). A rendered WANDERER is pinned the same way:
+    // it drifts freely off its spawn patch, and with one slot the
+    // world's ribbon persists — a contemplative object should.
+    // SEAM[ribbon:sky-mode].
+    if (slot == self->ribbon_state_.rendered_slot
+        && (self->player_.sky_mode || ar.wander)) {
+        return;
+    }
+
+    // Decrement ref count — one anchor patch has been evicted.
+    // Only fully evict when all referencing patches are gone.
+    if (ar.ref_count > 1) {
+        ar.ref_count--;
+        return;
+    }
+
+    // Final reference gone — full eviction
+    ar = ActiveRibbon{};
+    self->ribbon_state_.gpu[slot] = GPURibbonState{};
+    self->ribbon_state_.active_count--;
+    if (self->ribbon_state_.rendered_slot == slot) {
+        GPURibbonState empty{};
+        self->gpuState_.upload_ribbon(queue, empty);
+        self->ribbon_state_.rendered_slot = UINT32_MAX;
+        // Successor ribbons reuse this slot — force re-init.
+        ribbon_invalidate_head(self->ribbon_state_);
+    }
+    std::cout << "[Ribbon] EVICT slot=" << slot << "\n";
+}
+
 } // namespace the_board
 } // namespace t7

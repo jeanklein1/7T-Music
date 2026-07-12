@@ -1,6 +1,7 @@
 #pragma once
 #include "cartridges/the_board/state.hpp"                    // Dim::*, GPUState, GPUFloatingEntityState, wgpu
 #include "cartridges/the_board/modules/floater_vocabulary.hpp"  // ActiveFloater
+#include "cartridges/the_board/modules/keyhole.hpp"          // Cartridge + wgpu::Queue fwds (the evictor decl)
 
 // ─── spheres.hpp ─────────────────────────────────────────────────
 // Born converted (LADDER-2 c0): history in audit/LADDER.md.
@@ -48,6 +49,11 @@ inline void clear_spheres(SphereState& ss, GPUState& gpu, wgpu::Queue& queue) {
     }
     ss.activeFloaterCount_ = 0;
 }
+
+// The evictor — lifecycle, absorbed per §5 EVICTION THUNKS.
+// Keyhole-shaped to match the FAMILY_DISPATCH evict slot (table in
+// family_dispatch.inl). DEFINED in spheres.inl (post-class).
+void evict_sphere(Cartridge* self, uint32_t slot, wgpu::Queue& queue);
 
 } // namespace the_board
 } // namespace t7

@@ -290,5 +290,21 @@ inline void toggle_cube_kite_mode(CubeBehaviorsState& cbs, Cartridge* c, wgpu::Q
               << " (" << affected << " cube(s))\n";
 }
 
+
+// ═══ THE EVICTOR (lifecycle, absorbed per §5 EVICTION THUNKS) ═════
+//
+// Named by the FAMILY_DISPATCH table (family_dispatch.inl).
+
+inline void evict_cube(Cartridge* self,
+    uint32_t slot, wgpu::Queue& queue) {
+    self->cube_behaviors_state_.activeCubes_[slot].active = false;  // cube state owned by CubeBehaviorsState
+    self->cube_behaviors_state_.activeCubeCount_--;
+    GPUFloatingEntityState empty{};
+    self->gpuState_.upload_cube_entity_slot(queue, slot, empty);
+#ifdef DIAG_ENTITY_LIFECYCLE
+    std::cout << "[DIAG:EVICT]   cube slot=" << slot << "\n";
+#endif
+}
+
 } // namespace the_board
 } // namespace t7

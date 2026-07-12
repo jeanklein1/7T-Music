@@ -254,5 +254,115 @@ inline uint32_t force_spawn_portal_arch(EntitiesState& es, Cartridge* c, wgpu::Q
     return slot;
 }
 
+
+// ═══ THE EVICTORS (lifecycle, absorbed per §5 EVICTION THUNKS) ════
+//
+// One per owned family; named by the FAMILY_DISPATCH table
+// (family_dispatch.inl) and reached through evict_patch_entities.
+// Each clears the active slot, zeroes the GPU slot, and marks the
+// family mesh-pending where a CPU mesh stage exists.
+
+inline void evict_pyramid(Cartridge* self,
+    uint32_t slot, wgpu::Queue& queue)
+{
+    self->entities_state_.cpu_pyramids.instances[slot] = GPUPyramidInstance{};
+    self->entities_state_.pyramids[slot].active = false;
+    self->entities_state_.pyramid_count--;
+    self->world_state_.ground_entries_dirty = true;
+    { GPUPyramidMeshParams ep{}; self->gpuState_.upload_pyramid_mesh_params_slot(queue, slot, ep); }
+    self->entities_state_.pyramid_mesh_gen_pending = true;
+
+    uint32_t max_idx = 0;
+    for (uint32_t i = 0; i < Dim::MAX_PYRAMID_INSTANCES; i++) {
+        if (self->entities_state_.pyramids[i].active) max_idx = i + 1;
+    }
+    self->entities_state_.cpu_pyramids.count = max_idx;
+    self->gpuState_.upload_pyramids(queue, self->entities_state_.cpu_pyramids);
+#ifdef DIAG_ENTITY_LIFECYCLE
+    std::cout << "[DIAG:EVICT]   pyr slot=" << slot << "\n";
+#endif
+}
+
+inline void evict_arch(Cartridge* self,
+    uint32_t slot, wgpu::Queue& queue)
+{
+    self->clear_pier(queue, Dim::PIER_ARCH_BASE + slot * 2);
+    self->clear_pier(queue, Dim::PIER_ARCH_BASE + slot * 2 + 1);
+    self->entities_state_.arches[slot].active = false;
+    self->entities_state_.arch_count--;
+    self->mood_state_.portals_dirty = true;
+    { GPUArchMeshParams ep{}; self->gpuState_.upload_arch_mesh_params_slot(queue, slot, ep); }
+    self->entities_state_.arch_mesh_gen_pending = true;
+#ifdef DIAG_ENTITY_LIFECYCLE
+    std::cout << "[DIAG:EVICT]   arch slot=" << slot << "\n";
+#endif
+}
+
+inline void evict_column(Cartridge* self,
+    uint32_t slot, wgpu::Queue& queue)
+{
+    self->clear_pier(queue, Dim::PIER_COLUMN_BASE + slot);
+    self->entities_state_.columns[slot].active = false;
+    self->entities_state_.column_count--;
+    { GPUColumnMeshParams ep{}; self->gpuState_.upload_column_mesh_params_slot(queue, slot, ep); }
+    self->entities_state_.column_mesh_gen_pending = true;
+#ifdef DIAG_ENTITY_LIFECYCLE
+    std::cout << "[DIAG:EVICT]   col slot=" << slot << "\n";
+#endif
+}
+
+inline void evict_antenna(Cartridge* self,
+    uint32_t slot, wgpu::Queue& queue)
+{
+    uint32_t gpu_slot = slot + Dim::ANTENNA_SLOT_OFFSET;
+    self->clear_pier(queue, Dim::PIER_COLUMN_BASE + gpu_slot);
+    self->entities_state_.antennas[slot].active = false;
+    self->entities_state_.antenna_count--;
+    { GPUColumnMeshParams ep{}; self->gpuState_.upload_column_mesh_params_slot(queue, gpu_slot, ep); }
+    self->entities_state_.column_mesh_gen_pending = true;
+#ifdef DIAG_ENTITY_LIFECYCLE
+    std::cout << "[DIAG:EVICT]   ant slot=" << slot << "\n";
+#endif
+}
+
+inline void evict_palm(Cartridge* self,
+    uint32_t slot, wgpu::Queue& queue)
+{
+    self->entities_state_.palms[slot].active = false;
+    self->entities_state_.palm_count--;
+    { GPUPalmMeshParams ep{}; self->gpuState_.upload_palm_mesh_params_slot(queue, slot, ep); }
+    self->entities_state_.palm_mesh_gen_pending = true;
+    self->world_state_.ground_entries_dirty = true;
+#ifdef DIAG_ENTITY_LIFECYCLE
+    std::cout << "[DIAG:EVICT]   palm slot=" << slot << "\n";
+#endif
+}
+
+inline void evict_cactus(Cartridge* self,
+    uint32_t slot, wgpu::Queue& queue)
+{
+    self->entities_state_.cacti[slot].active = false;
+    self->entities_state_.cactus_count--;
+    { GPUCactusMeshParams ep{}; self->gpuState_.upload_cactus_mesh_params_slot(queue, slot, ep); }
+    self->entities_state_.cactus_mesh_gen_pending = true;
+    self->world_state_.ground_entries_dirty = true;
+#ifdef DIAG_ENTITY_LIFECYCLE
+    std::cout << "[DIAG:EVICT]   cact slot=" << slot << "\n";
+#endif
+}
+
+inline void evict_blade(Cartridge* self,
+    uint32_t slot, wgpu::Queue& queue)
+{
+    self->entities_state_.blades[slot].active = false;
+    self->entities_state_.blade_count--;
+    { GPUBladeClusterMeshParams ep{}; self->gpuState_.upload_blade_mesh_params_slot(queue, slot, ep); }
+    self->entities_state_.blade_mesh_gen_pending = true;
+    self->world_state_.ground_entries_dirty = true;
+#ifdef DIAG_ENTITY_LIFECYCLE
+    std::cout << "[DIAG:EVICT]   blad slot=" << slot << "\n";
+#endif
+}
+
 } // namespace the_board
 } // namespace t7

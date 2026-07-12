@@ -1384,5 +1384,22 @@ inline void dispatch_commit_gallery(Cartridge* self,
     }
 }
 
+
+// ═══ THE EVICTOR (lifecycle, absorbed per §5 EVICTION THUNKS) ═════
+//
+// Named by the FAMILY_DISPATCH table (family_dispatch.inl).
+
+inline void evict_gallery(Cartridge* self,
+    uint32_t slot, wgpu::Queue& queue) {
+    auto& gc = self->gallery_state_.gallery_centers[slot];
+    if (gc.active) {
+        evict_paintings_for_patch(self->gallery_state_, self, gc.patch_gx, gc.patch_gz, queue);
+        gc.active = false;
+    }
+#ifdef DIAG_ENTITY_LIFECYCLE
+    std::cout << "[DIAG:EVICT]   gall slot=" << slot << "\n";
+#endif
+}
+
 } // namespace the_board
 } // namespace t7

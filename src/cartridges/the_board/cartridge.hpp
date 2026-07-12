@@ -55,7 +55,7 @@
 //   map. Adding a new family means: write select/place/commit/
 //   evict/prepare_mesh in the owning module, add wrappers below,
 //   add 1 row to FAMILY_DISPATCH.
-// SEAM[spine:K2-related] the dispatch_evict_*, dispatch_prepare_mesh_*,
+// SEAM[spine:K2-related] the dispatch_prepare_mesh_*,
 //   dispatch_mesh_gen_* wrappers (~400 lines below FamilyDispatch)
 //   are integration glue, not module work. They live here correctly.
 //   NOTE[seam-map] keep wrappers here; they're the integration layer
@@ -84,7 +84,7 @@
 //   spawning (force_spawn_portal_at, force_spawn_back_portal,
 //   force_spawn_finite_portals); spine owns the request → activation
 //   flow.
-// SEAM[spine:family-dispatch] all dispatch_evict_<family>,
+// SEAM[spine:family-dispatch] all evict_<family> (owner-side),
 //   dispatch_prepare_mesh_<family>, dispatch_mesh_gen_<family>
 //   wrapper functions land here — referenced by FAMILY_DISPATCH and
 //   by spawn_engine.inl's commit/evict pipelines.
@@ -100,7 +100,7 @@
 #include "cartridges/the_board/modules/floater_vocabulary.hpp"   // floater TYPES (ActiveFloater/ActiveCube), file scope
 #include "cartridges/the_board/modules/pawn.hpp"                 // PawnState + configs + decls (impl is pawn.inl, post-class)
 #include "cartridges/the_board/state.hpp"
-#include "cartridges/the_board/modules/spheres.hpp"              // SphereState (needs GPUState from state.hpp)
+#include "cartridges/the_board/modules/spheres.hpp"              // SphereState + evictor decl (impl is spheres.inl, post-class)
 #include "cartridges/the_board/modules/entities.hpp"             // grounded-family vocabulary + EntitiesState + preparer decls (impl is entities.inl, post-class)
 #include "cartridges/the_board/modules/orbs.hpp"                 // orb console/registries + OrbsState + ORB_MOOD_TABLE + decls (impl is orbs.inl, post-class)
 #include "cartridges/the_board/modules/gol_zones.hpp"            // GoL vocabulary + payloads + GoLState + decls (impl is gol_zones.inl, post-class)
@@ -482,7 +482,7 @@ namespace t7 {
             // SEAM[spine:active-patch-system] cross-module readers:
             //   spawn_engine.inl (commit functions call host->record_entity),
             //   ribbon.inl (two-tip late registration), gallery.inl
-            //   (evict_paintings_for_patch via dispatch_evict_gallery), and
+            //   (evict_paintings_for_patch via the owner-side evict_gallery), and
             //   the family dispatch eviction wrappers below.
 
             // World-generation state: seed, finite-mode parameters, the
@@ -589,7 +589,7 @@ namespace t7 {
             // Hook: full eviction of a single patch.
             void evict_patch(uint32_t pi, wgpu::Queue& queue) {
                 free_layer(patches_[pi].layer);
-                // Painting eviction now handled by dispatch_evict_gallery via entity_refs
+                // Painting eviction now handled by evict_gallery (gallery.inl) via entity_refs
                 evict_patch_entities(patches_[pi], queue);
                 unregister_footprints_for_patch(patches_[pi].grid_x, patches_[pi].grid_z);
                 patches_[pi].valid = false;
@@ -860,15 +860,17 @@ namespace t7 {
             // SEAM[spine:owns] FAMILY_DISPATCH is the integration hub that
             //   ties the 12 families together. Each row's body lives in
             //   the family's owning module.
-            // SEAM[spine:K2-related] the dispatch_evict_* and the real
-            //   dispatch_prepare_mesh_* / dispatch_mesh_gen_* adapters below
-            //   are integration glue between FAMILY_DISPATCH and the
-            //   per-family modules. The bespoke select/place/commit funnels
-            //   live with their owners; the no-op mesh adapters are shared
-            //   (family_dispatch.inl). The evictors are ledgered lifecycle
-            //   trespass (§5 EVICTION THUNKS) with a written retirement.
-            // SEAM[spine:family-dispatch] anchor for cross-file references
-            //   to dispatch_evict_<family> from the spawn/eviction pipelines.
+            // SEAM[spine:K2-related] the six real dispatch_prepare_mesh_* /
+            //   dispatch_mesh_gen_* adapter pairs below are integration glue
+            //   between FAMILY_DISPATCH and the per-family modules (their
+            //   signatures adapt module preparers and renderer dispatches to
+            //   the row slots). The bespoke select/place/commit funnels AND
+            //   the twelve evictors live with their owners (§5 EVICTION
+            //   THUNKS: retirement fulfilled); the no-op mesh adapters are
+            //   shared (family_dispatch.inl).
+            // SEAM[spine:family-dispatch] anchor for cross-file references —
+            //   eviction routes through FAMILY_DISPATCH[f].evict_slot to the
+            //   owner-side evict_<family> functions.
             //
             // The row type (struct FamilyDispatch) and the queue-entry
             // unions it walks (EntityQueueEntry / PlacementEntry) live in
@@ -877,12 +879,13 @@ namespace t7 {
             // ═══ DISPATCH WRAPPERS ═══════════════════════════════════════
             //
             // Per-family wrappers bound into the FAMILY_DISPATCH table
-            // (modules/family_dispatch.inl). What remains HERE: the evictors
-            // (12 — §5 retirement pending) and the six real prepare/mesh
-            // adapter pairs. Generic-pipeline families' select/place/commit
-            // funnels come from entity_pipeline.inl; the bespoke families'
-            // (GoL, Gallery, Ribbon) live in their owners' impls; families
-            // with no CPU mesh stage share the no-op pair in
+            // (modules/family_dispatch.inl). What remains HERE: the six real
+            // prepare/mesh adapter pairs (signature adapters — module
+            // preparers take EntitiesState& first; mesh dispatches call
+            // renderer methods). Everything else lives with its owner:
+            // generic select/place/commit funnels in entity_pipeline.inl,
+            // bespoke funnels in gol_zones/gallery/ribbon .inls, the twelve
+            // evictors in their owners' impls, the shared no-op mesh pair in
             // family_dispatch.inl.
 
             // ── Mesh gen wrappers ──
@@ -908,84 +911,6 @@ namespace t7 {
                 self->renderer_.dispatch_column_mesh_gen(pass, self->gpuState_.column_mesh_gen_group());
             }
 
-            // ── Eviction dispatch wrappers ──
-
-            static void dispatch_evict_pyramid(Cartridge* self,
-                uint32_t slot, wgpu::Queue& queue)
-            {
-                self->entities_state_.cpu_pyramids.instances[slot] = GPUPyramidInstance{};
-                self->entities_state_.pyramids[slot].active = false;
-                self->entities_state_.pyramid_count--;
-                self->world_state_.ground_entries_dirty = true;
-                { GPUPyramidMeshParams ep{}; self->gpuState_.upload_pyramid_mesh_params_slot(queue, slot, ep); }
-                self->entities_state_.pyramid_mesh_gen_pending = true;
-
-                uint32_t max_idx = 0;
-                for (uint32_t i = 0; i < Dim::MAX_PYRAMID_INSTANCES; i++) {
-                    if (self->entities_state_.pyramids[i].active) max_idx = i + 1;
-                }
-                self->entities_state_.cpu_pyramids.count = max_idx;
-                self->gpuState_.upload_pyramids(queue, self->entities_state_.cpu_pyramids);
-#ifdef DIAG_ENTITY_LIFECYCLE
-                std::cout << "[DIAG:EVICT]   pyr slot=" << slot << "\n";
-#endif
-            }
-
-            static void dispatch_evict_arch(Cartridge* self,
-                uint32_t slot, wgpu::Queue& queue)
-            {
-                self->clear_pier(queue, Dim::PIER_ARCH_BASE + slot * 2);
-                self->clear_pier(queue, Dim::PIER_ARCH_BASE + slot * 2 + 1);
-                self->entities_state_.arches[slot].active = false;
-                self->entities_state_.arch_count--;
-                self->mood_state_.portals_dirty = true;
-                { GPUArchMeshParams ep{}; self->gpuState_.upload_arch_mesh_params_slot(queue, slot, ep); }
-                self->entities_state_.arch_mesh_gen_pending = true;
-#ifdef DIAG_ENTITY_LIFECYCLE
-                std::cout << "[DIAG:EVICT]   arch slot=" << slot << "\n";
-#endif
-            }
-
-            static void dispatch_evict_column(Cartridge* self,
-                uint32_t slot, wgpu::Queue& queue)
-            {
-                self->clear_pier(queue, Dim::PIER_COLUMN_BASE + slot);
-                self->entities_state_.columns[slot].active = false;
-                self->entities_state_.column_count--;
-                { GPUColumnMeshParams ep{}; self->gpuState_.upload_column_mesh_params_slot(queue, slot, ep); }
-                self->entities_state_.column_mesh_gen_pending = true;
-#ifdef DIAG_ENTITY_LIFECYCLE
-                std::cout << "[DIAG:EVICT]   col slot=" << slot << "\n";
-#endif
-            }
-
-            static void dispatch_evict_antenna(Cartridge* self,
-                uint32_t slot, wgpu::Queue& queue)
-            {
-                uint32_t gpu_slot = slot + Dim::ANTENNA_SLOT_OFFSET;
-                self->clear_pier(queue, Dim::PIER_COLUMN_BASE + gpu_slot);
-                self->entities_state_.antennas[slot].active = false;
-                self->entities_state_.antenna_count--;
-                { GPUColumnMeshParams ep{}; self->gpuState_.upload_column_mesh_params_slot(queue, gpu_slot, ep); }
-                self->entities_state_.column_mesh_gen_pending = true;
-#ifdef DIAG_ENTITY_LIFECYCLE
-                std::cout << "[DIAG:EVICT]   ant slot=" << slot << "\n";
-#endif
-            }
-
-            static void dispatch_evict_palm(Cartridge* self,
-                uint32_t slot, wgpu::Queue& queue)
-            {
-                self->entities_state_.palms[slot].active = false;
-                self->entities_state_.palm_count--;
-                { GPUPalmMeshParams ep{}; self->gpuState_.upload_palm_mesh_params_slot(queue, slot, ep); }
-                self->entities_state_.palm_mesh_gen_pending = true;
-                self->world_state_.ground_entries_dirty = true;
-#ifdef DIAG_ENTITY_LIFECYCLE
-                std::cout << "[DIAG:EVICT]   palm slot=" << slot << "\n";
-#endif
-            }
-
             // ── Mesh gen dispatch wrappers (palm) ──
 
             static bool dispatch_prepare_mesh_palm(Cartridge* self, wgpu::Queue& queue) {
@@ -993,19 +918,6 @@ namespace t7 {
             }
             static void dispatch_mesh_gen_palm(Cartridge* self, wgpu::ComputePassEncoder& pass) {
                 self->renderer_.dispatch_palm_mesh_gen(pass, self->gpuState_.palm_mesh_gen_group());
-            }
-
-            static void dispatch_evict_cactus(Cartridge* self,
-                uint32_t slot, wgpu::Queue& queue)
-            {
-                self->entities_state_.cacti[slot].active = false;
-                self->entities_state_.cactus_count--;
-                { GPUCactusMeshParams ep{}; self->gpuState_.upload_cactus_mesh_params_slot(queue, slot, ep); }
-                self->entities_state_.cactus_mesh_gen_pending = true;
-                self->world_state_.ground_entries_dirty = true;
-#ifdef DIAG_ENTITY_LIFECYCLE
-                std::cout << "[DIAG:EVICT]   cact slot=" << slot << "\n";
-#endif
             }
 
             // ── Mesh gen dispatch wrappers (cactus) ──
@@ -1017,116 +929,11 @@ namespace t7 {
                 self->renderer_.dispatch_cactus_mesh_gen(pass, self->gpuState_.cactus_mesh_gen_group());
             }
 
-            static void dispatch_evict_blade(Cartridge* self,
-                uint32_t slot, wgpu::Queue& queue)
-            {
-                self->entities_state_.blades[slot].active = false;
-                self->entities_state_.blade_count--;
-                { GPUBladeClusterMeshParams ep{}; self->gpuState_.upload_blade_mesh_params_slot(queue, slot, ep); }
-                self->entities_state_.blade_mesh_gen_pending = true;
-                self->world_state_.ground_entries_dirty = true;
-#ifdef DIAG_ENTITY_LIFECYCLE
-                std::cout << "[DIAG:EVICT]   blad slot=" << slot << "\n";
-#endif
-            }
-
             static bool dispatch_prepare_mesh_blade(Cartridge* self, wgpu::Queue& queue) {
                 return prepare_blade_mesh_gen(self->entities_state_, self, queue);
             }
             static void dispatch_mesh_gen_blade(Cartridge* self, wgpu::ComputePassEncoder& pass) {
                 self->renderer_.dispatch_blade_mesh_gen(pass, self->gpuState_.blade_mesh_gen_group());
-            }
-
-            static void dispatch_evict_sphere(Cartridge* self,
-                uint32_t slot, wgpu::Queue& queue) {
-                self->sphere_state_.activeFloaters_[slot].active = false;  // sphere state owned by SphereState
-                self->sphere_state_.activeFloaterCount_--;
-                GPUFloatingEntityState empty{};
-                self->gpuState_.upload_sphere_entity_slot(queue, slot, empty);
-#ifdef DIAG_ENTITY_LIFECYCLE
-                std::cout << "[DIAG:EVICT]   sph slot=" << slot << "\n";
-#endif
-            }
-
-            static void dispatch_evict_cube(Cartridge* self,
-                uint32_t slot, wgpu::Queue& queue) {
-                self->cube_behaviors_state_.activeCubes_[slot].active = false;  // cube state owned by CubeBehaviorsState
-                self->cube_behaviors_state_.activeCubeCount_--;
-                GPUFloatingEntityState empty{};
-                self->gpuState_.upload_cube_entity_slot(queue, slot, empty);
-#ifdef DIAG_ENTITY_LIFECYCLE
-                std::cout << "[DIAG:EVICT]   cube slot=" << slot << "\n";
-#endif
-            }
-
-            // ── GoL eviction wrapper (select/place/commit funnels live in
-            //    gol_zones.inl; declared in entity_types.hpp) ──
-
-            static void dispatch_evict_gol(Cartridge* self,
-                uint32_t slot, wgpu::Queue& queue) {
-                self->gpuState_.deactivate_zone_slot(queue, slot);
-                self->gol_state_.zones[slot].active = false;
-                self->gol_state_.zone_count--;
-#ifdef DIAG_ENTITY_LIFECYCLE
-                std::cout << "[DIAG:EVICT]   gol slot=" << slot << "\n";
-#endif
-            }
-
-            // ── Gallery eviction wrapper (select/place/commit funnels live in
-            //    gallery.inl; declared in entity_types.hpp) ──
-
-            static void dispatch_evict_gallery(Cartridge* self,
-                uint32_t slot, wgpu::Queue& queue) {
-                auto& gc = self->gallery_state_.gallery_centers[slot];
-                if (gc.active) {
-                    evict_paintings_for_patch(self->gallery_state_, self, gc.patch_gx, gc.patch_gz, queue);
-                    gc.active = false;
-                }
-#ifdef DIAG_ENTITY_LIFECYCLE
-                std::cout << "[DIAG:EVICT]   gall slot=" << slot << "\n";
-#endif
-            }
-
-            // ── Ribbon eviction wrapper (select/place/commit funnels live in
-            //    ribbon.inl; declared in entity_types.hpp) ──
-
-            static void dispatch_evict_ribbon(Cartridge* self,
-                uint32_t slot, wgpu::Queue& queue) {
-                auto& ar = self->ribbon_state_.active[slot];
-                if (!ar.active) return;
-
-                // Sky mode: the flown ribbon is pinned for the flight's duration.
-                // Its anchor patches stream out as the player flies away, but the
-                // ribbon must persist — skip eviction entirely while it is the
-                // mounted, rendered ribbon. update() releases it on exit (the
-                // sky_mode_prev edge). A rendered WANDERER is pinned the same way:
-                // it drifts freely off its spawn patch, and with one slot the
-                // world's ribbon persists — a contemplative object should.
-                // SEAM[ribbon:sky-mode].
-                if (slot == self->ribbon_state_.rendered_slot
-                    && (self->player_.sky_mode || ar.wander)) {
-                    return;
-                }
-
-                // Decrement ref count — one anchor patch has been evicted.
-                // Only fully evict when all referencing patches are gone.
-                if (ar.ref_count > 1) {
-                    ar.ref_count--;
-                    return;
-                }
-
-                // Final reference gone — full eviction
-                ar = ActiveRibbon{};
-                self->ribbon_state_.gpu[slot] = GPURibbonState{};
-                self->ribbon_state_.active_count--;
-                if (self->ribbon_state_.rendered_slot == slot) {
-                    GPURibbonState empty{};
-                    self->gpuState_.upload_ribbon(queue, empty);
-                    self->ribbon_state_.rendered_slot = UINT32_MAX;
-                    // Successor ribbons reuse this slot — force re-init.
-                    ribbon_invalidate_head(self->ribbon_state_);
-                }
-                std::cout << "[Ribbon] EVICT slot=" << slot << "\n";
             }
 
             // ── The dispatch table (FAMILY_DISPATCH) is defined at file
@@ -3776,7 +3583,8 @@ namespace t7 {
 // definitions are `inline` free functions; the class-body `static` never
 // survives the move.
 #include "modules/pawn.inl"       // tick_pawn_couplings
-#include "modules/entities.inl"   // the six prepare_*_mesh_gen preparers
+#include "modules/entities.inl"   // the six prepare_*_mesh_gen preparers + the seven grounded-family evictors
+#include "modules/spheres.inl"    // the sphere evictor
 #include "modules/orbs.inl"       // orb lifecycle/commands/dispatches/render
 #include "modules/gol_zones.inl"  // GoL three-phase lifecycle + per-frame uploads/dispatch
 #include "modules/agents.inl"     // agent registry upload + spawn/respawn/possession/diagnostics
