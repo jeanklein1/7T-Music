@@ -2,6 +2,7 @@
 #include <cstdint>
 #include "cartridges/the_board/contracts/spine_state.hpp"      // PlayerState (the anchor's organ) + TransitionPhase (the transition channel) + InputState (graduated)
 #include "cartridges/the_board/contracts/mood_constants.hpp"   // MOOD_* IDs (the mood keys) + PortalDestination
+#include "cartridges/the_board/contracts/point.hpp"             // PointState/PointHost (the point — the driver toggles its host; PANEL-0 p1a)
 #include <algorithm>       // std::max, std::min   // (impl, merged)
 #include <cmath>           // std::sqrt   // (impl, merged)
 #include <iostream>        // toggle / radius logs   // (impl, merged)
@@ -60,6 +61,13 @@ struct KeyState {
     bool backward = false;
     bool left = false;
     bool right = false;
+    // Free-fly held keys (W/A/S/D — PANEL-0 p1a). Consumed only when
+    // the CAMERA hosts the point; inert in pawn-host mode (arrows
+    // stay the pawn's keys — the one intent channel, host-routed).
+    bool fly_forward = false;
+    bool fly_back    = false;
+    bool fly_left    = false;
+    bool fly_right   = false;
 };
 
 // Mouse drag state — on_mouse_move reads these to decide which
@@ -88,6 +96,7 @@ struct InputDeps {
     RibbonState&  ribbon_state_;  // sky.mode — the ribbon's fixture (m6, Option A)
     GPUState&     gpuState_;      // the freeze toggle + the fpv wire
     wgpu::Device& device_;        // the queue fetch (the S5-style declared handle)
+    PointState&   point_;         // the point (PANEL-0 p1a) — host toggle + intent routing
 };
 
 // ═══ MODULE FUNCTIONS — DECLARATIONS ═════════════════════════════
@@ -112,6 +121,7 @@ void clear_input_deltas(InputDeps* c);
 // Camera / view commands
 void toggle_fpv_mode(InputDeps* c);
 void toggle_sky_mode(InputDeps* c);
+void toggle_point_host(InputDeps* c);
 void set_render_radius(InputDeps* c, uint32_t r);
 
 
@@ -182,6 +192,21 @@ void set_render_radius(InputDeps* c, uint32_t r);
 #ifndef GLFW_KEY_CAPS_LOCK
 #define GLFW_KEY_CAPS_LOCK   280
 #endif
+#ifndef GLFW_KEY_4
+#define GLFW_KEY_4  52
+#endif
+#ifndef GLFW_KEY_W
+#define GLFW_KEY_W  87
+#endif
+#ifndef GLFW_KEY_A
+#define GLFW_KEY_A  65
+#endif
+#ifndef GLFW_KEY_S
+#define GLFW_KEY_S  83
+#endif
+#ifndef GLFW_KEY_D
+#define GLFW_KEY_D  68
+#endif
 #ifndef GLFW_KEY_F1
 #define GLFW_KEY_F1  290
 #endif
@@ -228,6 +253,11 @@ inline void on_key_down(InputDeps* c, int key,
     case GLFW_KEY_DOWN:  c->keys_.backward = true; break;
     case GLFW_KEY_LEFT:  c->keys_.left = true;     break;
     case GLFW_KEY_RIGHT: c->keys_.right = true;    break;
+    // Free-fly movement (held; camera-host keys — PANEL-0 p1a)
+    case GLFW_KEY_W: c->keys_.fly_forward = true; break;
+    case GLFW_KEY_S: c->keys_.fly_back    = true; break;
+    case GLFW_KEY_A: c->keys_.fly_left    = true; break;
+    case GLFW_KEY_D: c->keys_.fly_right   = true; break;
 
     // ── World / aura toggles ─────────────────────────────────────
     case GLFW_KEY_1:
@@ -235,6 +265,7 @@ inline void on_key_down(InputDeps* c, int key,
         break;
     case GLFW_KEY_2: toggle_aura_height(pawn_state_, &pawn_deps_);  break;  // pawn command door (m4)
     case GLFW_KEY_3: toggle_aura(pawn_state_, &pawn_deps_);          break;  // pawn command door (m4)
+    case GLFW_KEY_4: toggle_point_host(c);                                break;  // the point's host: pawn (kite) <-> camera (free-fly) — PANEL-0 p1a
     case GLFW_KEY_5: request_mood_transition(transitionPhase_, pendingDestination_, mood_state_, c->world_state_, MOOD_OPEN_SUNSET);        break;
     case GLFW_KEY_6: request_mood_transition(transitionPhase_, pendingDestination_, mood_state_, c->world_state_, MOOD_INDOOR_FLAT);        break;
     case GLFW_KEY_7: request_mood_transition(transitionPhase_, pendingDestination_, mood_state_, c->world_state_, MOOD_INDOOR_VAULT);       break;
@@ -282,6 +313,10 @@ inline void on_key_up(InputDeps* c, int key) {
     case GLFW_KEY_DOWN:  c->keys_.backward = false; break;
     case GLFW_KEY_LEFT:  c->keys_.left = false;     break;
     case GLFW_KEY_RIGHT: c->keys_.right = false;    break;
+    case GLFW_KEY_W: c->keys_.fly_forward = false; break;
+    case GLFW_KEY_S: c->keys_.fly_back    = false; break;
+    case GLFW_KEY_A: c->keys_.fly_left    = false; break;
+    case GLFW_KEY_D: c->keys_.fly_right   = false; break;
     }
     update_movement_intent(c);
 }
@@ -315,10 +350,21 @@ inline void update_movement_intent(InputDeps* c) {
     c->inputState_.move_x = 0.0f;
     c->inputState_.move_z = 0.0f;
 
-    if (c->keys_.forward)  c->inputState_.move_z -= 1.0f;
-    if (c->keys_.backward) c->inputState_.move_z += 1.0f;
-    if (c->keys_.left)     c->inputState_.move_x -= 1.0f;
-    if (c->keys_.right)    c->inputState_.move_x += 1.0f;
+    // ONE INTENT CHANNEL, host-routed (PANEL-0 p1a; the sky-mode
+    // precedent): the point's host consumes move — W/A/S/D author it
+    // for the camera host (free-fly); the arrows for the pawn host
+    // (byte-identical below). The other set is inert per mode.
+    if (c->point_.host == PointHost::CAMERA) {
+        if (c->keys_.fly_forward) c->inputState_.move_z -= 1.0f;
+        if (c->keys_.fly_back)    c->inputState_.move_z += 1.0f;
+        if (c->keys_.fly_left)    c->inputState_.move_x -= 1.0f;
+        if (c->keys_.fly_right)   c->inputState_.move_x += 1.0f;
+    } else {
+        if (c->keys_.forward)  c->inputState_.move_z -= 1.0f;
+        if (c->keys_.backward) c->inputState_.move_z += 1.0f;
+        if (c->keys_.left)     c->inputState_.move_x -= 1.0f;
+        if (c->keys_.right)    c->inputState_.move_x += 1.0f;
+    }
 
     float len = std::sqrt(c->inputState_.move_x * c->inputState_.move_x +
         c->inputState_.move_z * c->inputState_.move_z);
@@ -354,6 +400,18 @@ inline void toggle_sky_mode(InputDeps* c) {
     c->ribbon_state_.sky.mode = !c->ribbon_state_.sky.mode;  // the ribbon's fixture (m6, Option A)
     std::cout << "[the_board] Sky mode: "
         << (c->ribbon_state_.sky.mode ? "ON (fly the ribbon with arrows)" : "OFF") << std::endl;
+}
+
+// The point's host toggle (PANEL-0 p1a) — the driver's iteration
+// tool, key 4: PAWN (the kite — today's follow, byte-untouched) <->
+// CAMERA (free-fly: W/A/S/D + mouse, terrain rule NONE, bubble
+// sensors dormant). Not roster-gated: the camera always exists.
+inline void toggle_point_host(InputDeps* c) {
+    c->point_.host = (c->point_.host == PointHost::PAWN)
+        ? PointHost::CAMERA : PointHost::PAWN;
+    c->gpuState_.set_point_host(static_cast<uint32_t>(c->point_.host));
+    std::cout << "[Point] Host: "
+        << (c->point_.host == PointHost::CAMERA ? "CAMERA (free-fly)" : "PAWN (the kite)") << "\n";
 }
 
 inline void set_render_radius(InputDeps* c, uint32_t r) {

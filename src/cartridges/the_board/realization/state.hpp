@@ -389,7 +389,12 @@ namespace t7 {
             // partition with the same yardstick by construction.
             float lod_pawn_x;
             float lod_pawn_z;
-            float _lod_pawn_pad[2];           // pad to vec4 alignment
+            // ─── The point (PANEL-0 p1a) ─────────────────────────────
+            // Host flag + fly speed — piggybacked on the lod-pawn pad
+            // pair (struct stays 400 bytes; the possessed_slot
+            // precedent). Mirror order matches world.wgsl's Config.
+            uint32_t point_host;              // 0 = pawn (the kite), 1 = camera (free-fly)
+            float point_fly_speed;            // W/S/A/D velocity; 0 → WGSL PAWN_SPEED fallback
         };
 
         struct alignas(16) GPUTileGridEntry {
@@ -2006,6 +2011,14 @@ namespace t7 {
             }
             void set_camera_sensitivity(float s) {
                 if (config_.camera_sensitivity != s) { config_.camera_sensitivity = s; configDirty_ = true; }
+            }
+
+            // ─── The point's host + fly speed (PANEL-0 p1a) ──────────
+            void set_point_host(uint32_t h) {
+                if (config_.point_host != h) { config_.point_host = h; configDirty_ = true; }
+            }
+            void set_point_fly_speed(float s) {
+                if (config_.point_fly_speed != s) { config_.point_fly_speed = s; configDirty_ = true; }
             }
             void set_fpv_mode(uint32_t m) {
                 if (config_.fpv_mode != m) { config_.fpv_mode = m; configDirty_ = true; }
@@ -5378,6 +5391,8 @@ namespace t7 {
                 config_.wave_time_scale = Idle::WAVE_TIME_SCALE;
                 config_.pawn_speed = Idle::PAWN_SPEED;
                 config_.camera_sensitivity = Idle::CAMERA_SENSITIVITY;
+                config_.point_host = 0;             // the pawn hosts (the kite) — PANEL-0 p1a
+                config_.point_fly_speed = 0.0f;     // 0 → WGSL PAWN_SPEED fallback (the panel authors it)
                 config_.freeze_sphere = 0;
                 config_.active_cell_size = Idle::ACTIVE_CELL_SIZE;
                 config_.fpv_mode = 0;

@@ -1435,8 +1435,11 @@ struct DesignConfig {
     // banding pawn (no 1-2 frame disagreement at the boundary).
     lod_pawn_x: f32,
     lod_pawn_z: f32,
-    _lod_pawn_pad_0: f32,
-    _lod_pawn_pad_1: f32,
+    // The point's host + fly speed (PANEL-0 p1a) — piggybacked on the
+    // lod-pawn pad pair (no struct size delta; the possessed_slot
+    // precedent). Order matches GPUDesignConfig in state.hpp.
+    point_host: u32,
+    point_fly_speed: f32,
 }
 
 // §2.2 CONSTANTS
@@ -1779,6 +1782,13 @@ fn sphere_frozen() -> bool {
 
 fn fpv_mode_active() -> bool {
     return config.fpv_mode != 0u;
+}
+
+// The point's host flag (PANEL-0 p1a; contracts/point.hpp mirror):
+// true = the CAMERA hosts the point (free-fly); false = the pawn
+// hosts (the kite — every body-path read below is unchanged).
+fn point_camera_hosted() -> bool {
+    return config.point_host == 1u;
 }
 
 
@@ -5610,7 +5620,10 @@ fn behavior_player_controlled(agent_in: AgentState) -> AgentState {
     let prev_xz = vec2(agent.pos_x, agent.pos_z);
     let prev_y  = agent.pos_y;
 
-    if (coupling_active(COUPLING_INPUT_MOVES_PLAYER)) {
+    // PANEL-0 p1a: the intent channel routes to the point's HOST —
+    // when the camera hosts (free-fly) the body idles (the else arm
+    // zeroes velocity; the pawn stands, snapped where it is).
+    if (coupling_active(COUPLING_INPUT_MOVES_PLAYER) && !point_camera_hosted()) {
         let input_dir = vec2(signal.move_x, signal.move_z);
         let world_vel = coupling_input_to_pawn_velocity(input_dir, camera_state.azimuth);
 
@@ -6287,6 +6300,39 @@ fn update_camera() {
     if (!dynamics_0d_active()) { return; }
 
     var camera = camera_state;
+
+    // ─── THE CAMERA HOSTS THE POINT (free-fly — PANEL-0 p1a) ─────
+    // The point is hosted here: input moves it and the camera
+    // coincides with it (the point's permanent witness). One intent
+    // channel: W/A/S/D author signal.move in this mode (the pawn's
+    // input coupling is unrouted — the body idles). TERRAIN RULE =
+    // NONE: every clamp below is skipped (clips freely — the
+    // revision camera). The kite path below is byte-untouched when
+    // the pawn hosts.
+    if (point_camera_hosted()) {
+        camera.azimuth += signal.look_az_delta;
+        camera.elevation = clamp(camera.elevation + signal.look_el_delta,
+            FPV_MIN_ELEVATION, FPV_MAX_ELEVATION);
+
+        let cos_el = cos(camera.elevation);
+        let sin_el = sin(camera.elevation);
+        let cos_az = cos(camera.azimuth);
+        let sin_az = sin(camera.azimuth);
+        // The look frame (build_view_projection_matrix's convention):
+        // W/S ride the look direction; A/D strafe the ground plane.
+        let fly_forward = vec3(-cos_el * sin_az, -sin_el, -cos_el * cos_az);
+        let fly_right = vec3(cos_az, 0.0, -sin_az);
+        let fly_up = cross(fly_right, fly_forward);
+
+        let fly_speed = select(PAWN_SPEED, config.point_fly_speed, config.point_fly_speed > 0.0);
+        camera.pos += (fly_forward * (-signal.move_z) + fly_right * signal.move_x) * fly_speed * signal.dt;
+        // Pan translates the point in the view plane (rotate + pan —
+        // the fly's mouse; the orbit's pan scale kept for feel).
+        camera.pos += (fly_right * signal.pan_x_delta + fly_up * signal.pan_y_delta) * camera.distance * 0.5;
+
+        camera_state = camera;
+        return;
+    }
 
     if (coupling_active(COUPLING_INPUT_ORBITS_CAMERA)) {
         camera.azimuth += signal.look_az_delta;
