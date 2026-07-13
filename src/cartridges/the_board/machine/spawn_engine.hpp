@@ -35,6 +35,13 @@
 namespace t7 {
 namespace the_board {
 
+// COHORT PROOF (DISSOLVE-1 Batch B): entities merged to a body-header
+// that lands AFTER this one (its bodies need run_spawn_preamble). This
+// header names ActiveColumn only in build_column_mesh_params_from's
+// DECLARATION; the fwd-decl suffices, the def (in the .inl, post-class)
+// sees the complete type. entities' vocab reaches this file post-class.
+struct ActiveColumn;
+
 // ── Shared spawn helper vocabulary ─────────────────────────────────
 
 struct SpawnGatePreambleResult {

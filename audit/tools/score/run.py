@@ -90,7 +90,7 @@ MANIFEST = {
     # in the score — the score has no per-frame site to gate.
     'spot_lights': [('direction/mood.inl', 'apply door', rf'if constexpr \(ROSTER\.spot_lights\)')],
     'indoor_shell':[('direction/mood.inl', 'apply door', rf'if constexpr \(ROSTER\.indoor_shell\)')],
-    'portal':      [('bodies/entities.inl', 'force-spawn door', rf'if constexpr \(!ROSTER\.portal\)')],
+    'portal':      [('bodies/entities.hpp', 'force-spawn door', rf'if constexpr \(!ROSTER\.portal\)')],  # entities.inl merged (DISSOLVE-1 Batch B)
     'transitions': [('cartridge.hpp', 'portal-trigger door #2', rf'if constexpr \(ROSTER\.transitions\){C}if \(player_\.readback_portal_trigger'),
                     ('direction/mood.inl', 'request door #1', rf'if constexpr \(!ROSTER\.transitions\)')],
     'wanderers':   [('cartridge.hpp', 'boot population', imm(r'ROSTER\.wanderers', r'spawn_population_for_mood')),
@@ -202,7 +202,7 @@ def main():
     GUARDS = [
         (r'readback_(?:x|z|portal_trigger)\s*=[^=]', {'cartridge.hpp', 'contracts/spine_state.hpp'},
          'readback trio: P5 harvest + teardown reset + portal consume (spine only; the record declares its own defaults)'),
-        (r'player_\.possessed_slot\s*=[^=]', {'bodies/agents.inl'},
+        (r'player_\.possessed_slot\s*=[^=]', {'bodies/agents.hpp'},  # agents.inl merged into agents.hpp (DISSOLVE-1 Batch B)
          'possession: the agents door only (re-anchoring, v3 §9 Act III)'),
         (r'player_\.aura_presence\s*[+]?=[^=]', {'bodies/pawn.hpp'},  # pawn.inl merged into pawn.hpp (DISSOLVE-1 Batch A3)
          'aura presence: P8, pawn-owned'),

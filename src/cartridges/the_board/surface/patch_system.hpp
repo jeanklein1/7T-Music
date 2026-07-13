@@ -65,6 +65,7 @@ struct WorldState {
 
 // Patch dimensions aliased from Dim:: for local readability
 inline constexpr float    PATCH_EXTENT = Dim::PATCH_EXTENT;
+inline constexpr float    PATCH_CELL_SIZE = (float)Dim::PATCH_EXTENT / 16.0f;  // 3.125 — patch-grid cell (graduated from gol_zones at DISSOLVE-1 Batch B; pawn aura + gol zones consume it)
 inline constexpr uint32_t GRID_RADIUS = Dim::PATCH_GRID_RADIUS;   // inner priority (3 → 7×7)
 inline constexpr uint32_t GRID_SIDE = Dim::PATCH_GRID_SIDE;
 inline constexpr uint32_t RENDER_RADIUS = Dim::PATCH_RENDER_RADIUS;  // visible radius (5)

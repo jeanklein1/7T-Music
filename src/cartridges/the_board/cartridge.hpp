@@ -54,11 +54,6 @@
 #include "cartridges/the_board/contracts/spine_state.hpp"          // TimeState + PlayerState + TransitionPhase (spine organ TYPES; instances stay at the root — REBUILD-0 m1, stamp D3)
 #include "cartridges/the_board/contracts/floater_vocabulary.hpp"   // floater TYPES (ActiveFloater/ActiveCube), file scope
 #include "cartridges/the_board/realization/state.hpp"
-#include "cartridges/the_board/bodies/entities.hpp"             // grounded-family vocabulary + EntitiesState + preparer decls (impl is entities.inl, post-class)
-#include "cartridges/the_board/bodies/orbs.hpp"                 // orb console/registries + OrbsState + ORB_MOOD_TABLE + decls (impl is orbs.inl, post-class)
-#include "cartridges/the_board/bodies/gol_zones.hpp"            // GoL vocabulary + GoLState + decls (impl is gol_zones.inl, post-class)
-#include "cartridges/the_board/bodies/agents.hpp"               // agent registries + console + AgentState + decls (impl is agents.inl, post-class)
-#include "cartridges/the_board/bodies/cube_behaviors.hpp"       // cube behavior registry + CubeBehaviorsState + decls (impl is cube_behaviors.inl, post-class)
 #include "cartridges/the_board/bodies/gallery.hpp"              // shot vocabulary + console + GalleryState + decls (impl is gallery.inl, post-class)
 #include "cartridges/the_board/bodies/ribbon.hpp"               // ribbon console + color vocabulary + tiers + RibbonState + decls (impl is ribbon.inl, post-class; pairing suspension named in its banner)
 #include "cartridges/the_board/direction/input.hpp"                // InputState/KeyState/MouseState + decls (impl is input.inl, post-class; carries its own GLFW include)
@@ -69,9 +64,14 @@
 #include "cartridges/the_board/surface/tile_world.hpp"          // S2: archetypes + tokens + TileState/cache + TileWorldDeps + impl — MERGED single file (DISSOLVE-1 Batch A d3); after patch_system for WorldState/PATCH_EXTENT
 #include "cartridges/the_board/machine/spawn_engine.hpp"     // S3: spawn vocabulary + separation/proximity tables + SpawnEngineState + the preamble template + decls (impl is spawn_engine.inl, post-class)
 #include "cartridges/the_board/machine/entity_pipeline.hpp"   // S3: the rescale template + arch vocabulary (ArchIdx/ARCH_TIERS) + the three-phase verb decls (impl is entity_pipeline.inl, post-class)
+#include "cartridges/the_board/bodies/entities.hpp"             // grounded-family vocabulary + EntitiesState + impl — MERGED (DISSOLVE-1 Batch B); after entity_pipeline for generic_*
+#include "cartridges/the_board/bodies/agents.hpp"               // AgentState + AgentsDeps + impl — MERGED (DISSOLVE-1 Batch B); after entities for COLUMN_PALETTE
+#include "cartridges/the_board/bodies/cube_behaviors.hpp"       // CubeBehaviorsState + CubeDeps + impl — MERGED (DISSOLVE-1 Batch B); after agents for AgentState
 #include "cartridges/the_board/bodies/spheres.hpp"              // SphereState + SphereDeps + impl — MERGED single file (DISSOLVE-1 Batch A d3); after entity_pipeline for the generic funnels
 #include "cartridges/the_board/realization/renderer.hpp"
 #include "cartridges/the_board/bodies/pawn.hpp"                 // PawnState + PawnDeps + impl — MERGED single file (DISSOLVE-1 Batch A d3); after renderer for Renderer/GPUState complete
+#include "cartridges/the_board/bodies/orbs.hpp"                 // OrbsState + OrbsDeps + impl — MERGED (DISSOLVE-1 Batch B); after renderer for Renderer
+#include "cartridges/the_board/bodies/gol_zones.hpp"            // GoLState + GolDeps (S5 device) + impl — MERGED (DISSOLVE-1 Batch B); after renderer/machine/tile
 #include "coupling/visual_canvas.hpp"
 #include <cmath>
 #include <cstring>
@@ -1178,11 +1178,6 @@ namespace t7 {
 // ═══ MODULE IMPLEMENTATIONS (post-class, FILE SCOPE) ══════════════════
 //
 // WIRING FORM (fix-2): SELF-WRAPPING — the zone includes impls at FILE SCOPE; law in audit/LADDER.md.
-#include "bodies/entities.inl"   // the six preparers + the seven grounded-family evictors + the blade/palm/cactus recipes
-#include "bodies/orbs.inl"       // orb lifecycle/commands/dispatches/render
-#include "bodies/gol_zones.inl"  // GoL three-phase lifecycle + per-frame uploads/dispatch
-#include "bodies/agents.inl"     // agent registry upload + spawn/respawn/possession/diagnostics
-#include "bodies/cube_behaviors.inl"  // cube registry upload + corral/kite/coordination + clear + evictor + recipe
 #include "bodies/gallery.inl"    // photographer + gallery sites + authored loading + wall paintings
 #include "bodies/ribbon.inl"     // author seats + head laws + frame conductor + three-phase lifecycle
 #include "direction/input.inl"      // key/mouse dispatch + movement intent + camera commands (own GLFW include)
