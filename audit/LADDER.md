@@ -1879,3 +1879,39 @@ AWAITING THE RIG: pawn host — WASD moves the pawn exactly as arrows
 did (the narrow pixel gate), arrows do nothing; key 4 — WASD flies
 the camera (the probe now passes); sky mode — the ribbon steers by
 its own grammar via WASD, feel unchanged.
+
+## PANEL-0 p1a-fix2 — THE MUSIC-KEY QUARANTINE (the keyboard is the
+## world's by default; the split kept behind a build flag)
+
+The rig's WASD-does-nothing was NOT a the_board bug: the harness's
+input router (incubator.cpp / incubator_dual.cpp, is_music_key) sent
+every QWERTY letter A-Z to the ANALYSIS cartridge, so W/A/S/D never
+reached the_board — arrows (non-letters) fell through to render, which
+is why they alone worked. The analysis canvas (canvas_1) even IGNORES
+on_input (its note source is the DAW), so the letters were routed to a
+handler that drops them: nothing was competing for the keys.
+
+Jean's ruling: the QWERTY-piano was the note source BEFORE Ableton;
+it isn't used now — quarantine it, keyboard non-musical by default,
+restorable at build. THE CUT (the idleness principle at the harness):
+is_music_key's body is wrapped in `#ifdef INCUBATE_MUSIC_KEYS` — the
+default returns false for every key (all keys fall to render; the
+world owns W/A/S/D and the rest), the letters->analysis routing kept
+WHOLE behind the flag for the day a keyboard-piano returns. The
+dispatch site is untouched (the split still functions when the flag is
+built). Applied to both mains that carry the router (incubator.cpp,
+render default the_chord; incubator_dual.cpp, render default
+the_board — the campaign's main); the_lab.cpp is analysis-only (no
+render split) and untouched.
+
+SCOPE NOTE: first change outside src/cartridges/the_board/ this
+campaign — Jean-directed, the harness router that was swallowing the
+ratified control channel. NO RIG GATE for the incubator mains here
+(glaw1 is the_board syntax-only); the edit is a well-formed #ifdef
+guard around an existing function (balanced directives/braces,
+review-verified), the runtime proof Jean's build/run. the_board gates
+unchanged (glaw1 GREEN full + minimal; score census GREEN; sentinels
+148/5) — the_board untouched this fix.
+AWAITING THE RIG: default build — W/A/S/D now reach the_board (pawn
+walks in pawn-host, key 4 flies the camera); every previously-swallowed
+key the world binds now arrives.
