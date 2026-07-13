@@ -1485,3 +1485,29 @@ GATES per commit: glaw1 GREEN full + minimal; score census GREEN
 (A/B/W + W-deps); zone 13==13; sentinels 148/5; encodings verified.
 AWAITING RIG BOUNDARY A: full golden (RC set standing) + minimal
 witness (boot line, no leaks, sky zeros).
+
+## DISSOLVE-1 — BATCH B (the mid cluster; → Rig Boundary B)
+
+Five more .inls retired (zone 13 -> 8). CONVERSIONS: OrbsDeps,
+AgentsDeps (player_ non-const — possession door), CubeDeps, GolDeps
+(+ S5: the DECLARED wgpu::Device& handover, SEAM[gol:derive-submit] —
+immediate mid-render submit, the refactor stays forbidden); entities'
+two residual functions (teardown_entities, force_spawn_portal_arch)
+took MachineCtx whole (no EntitiesDeps). teardown_gol gained a
+GoLState& param so GolDeps stays a pure external face. All five read
+zero Cartridge in code. MERGES: each collapsed with its cohort proof.
+Two findings worth the record: (1) entities' merge exposed a genuine
+bidirectional coupling the .inl zone had hidden — spawn_engine.hpp
+names ActiveColumn (entities vocab) in a declaration while entities'
+bodies need the machine's preamble template; it CLOSED with ONE
+forward-decl (struct ActiveColumn;), the minimal cohort proof, not a
+cycle. (2) PATCH_CELL_SIZE was mis-homed in gol_zones.hpp (it is
+PATCH_EXTENT/16, patch vocabulary, consumed by pawn's aura too); the
+gol merge would have moved it after pawn, so it graduated to
+patch_system.hpp beside PATCH_EXTENT — a clean vocabulary relocation.
+The census W file-map followed both merges (possessed_slot, force-spawn
+door). BOM census: renderer.hpp + entity_pipeline.inl +
+render_passes.inl + ribbon.inl (the three still-unmerged BOM .inls die
+in C/D). GATES per commit: glaw1 GREEN full + minimal; score census
+GREEN (A/B/W + W-deps); zone 8==8; sentinels 148/5; encodings verified.
+AWAITING RIG BOUNDARY B: golden + minimal witness; zone count 8.
