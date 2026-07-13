@@ -62,7 +62,7 @@ MANIFEST = {
                  ('cartridge.hpp', 'teardown',   imm(r'ROSTER\.ribbon',   r'teardown_ribbon')),
                  ('cartridge.hpp', 'finite rel', imm(r'ROSTER\.ribbon',   r'release_finite_ribbons')),
                  ('cartridge.hpp', 'mesh prep',  imm(r'ROSTER\.ribbon',   r'[^;]*?\.prepare_mesh')),
-                 ('direction/input.inl', 'F8 door (D9)', imm(r'ROSTER\.ribbon', r'toggle_sky_mode'))],
+                 ('direction/input.hpp', 'F8 door (D9)', imm(r'ROSTER\.ribbon', r'toggle_sky_mode'))],
     'cube':     [('cartridge.hpp', 'corral',     imm(r'ROSTER\.cube',     r'tick_cube_corral_animations')),
                  ('cartridge.hpp', 'mirror',     imm(r'ROSTER\.cube',     r'reconcile_cube_mirror')),
                  ('cartridge.hpp', 'teardown',   imm(r'ROSTER\.cube',     r'clear_cubes')),

@@ -54,7 +54,6 @@
 #include "cartridges/the_board/contracts/spine_state.hpp"          // TimeState + PlayerState + TransitionPhase (spine organ TYPES; instances stay at the root — REBUILD-0 m1, stamp D3)
 #include "cartridges/the_board/contracts/floater_vocabulary.hpp"   // floater TYPES (ActiveFloater/ActiveCube), file scope
 #include "cartridges/the_board/realization/state.hpp"
-#include "cartridges/the_board/direction/input.hpp"                // InputState/KeyState/MouseState + InputDeps + decls (impl is input.inl, post-class; carries its own GLFW include)
 #include "cartridges/the_board/realization/render_passes.hpp"        // the nine pass/dispatch + light-VP decls (impl is render_passes.inl, post-class; module owns no state)
 #include "cartridges/the_board/direction/mood.hpp"                 // MoodProfile + MOOD_TABLE + portal colors + palettes + door/applier/deriver decls (impl is mood.inl, post-class; mood owns no state)
 #include "cartridges/the_board/surface/population_themes.hpp"  // S2: THEMES + ThemeEnvelope + ThemesState — MERGED single file (DISSOLVE-1 d3 #1)
@@ -73,6 +72,7 @@
 #include "coupling/visual_canvas.hpp"
 #include "cartridges/the_board/bodies/ribbon.hpp"               // RibbonState + RibbonDeps + impl — MERGED (DISSOLVE-1 Batch C); after visual_canvas for the coupling face
 #include "cartridges/the_board/bodies/gallery.hpp"              // GalleryState + GalleryDeps + impl — MERGED (DISSOLVE-1 Batch C); after ribbon for RibbonState
+#include "cartridges/the_board/direction/input.hpp"             // KeyState/MouseState + InputDeps + impl — MERGED (DISSOLVE-1 Batch C); after ribbon for RibbonState (the sky fixture); InputState graduated to spine_state
 #include <cmath>
 #include <cstring>
 #include <iostream>
@@ -1193,7 +1193,6 @@ namespace t7 {
 // ═══ MODULE IMPLEMENTATIONS (post-class, FILE SCOPE) ══════════════════
 //
 // WIRING FORM (fix-2): SELF-WRAPPING — the zone includes impls at FILE SCOPE; law in audit/LADDER.md.
-#include "direction/input.inl"      // key/mouse dispatch + movement intent + camera commands (own GLFW include)
 #include "realization/render_passes.inl"  // ground-entry prep + compute dispatch + shadow/main passes + light VPs
 #include "direction/mood.inl"       // indoor light derivation + appliers + apply_mood + shell + portals + uploads + transition request + derivers
 #include "machine/spawn_engine.inl"  // the spawn engine — negotiation + footprints + culling + census + the select/place/commit loops

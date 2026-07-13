@@ -82,5 +82,23 @@ struct PlayerState {
 // it unqualified instead of paying the Cartridge:: tax.
 enum class TransitionPhase { IDLE, FADE_OUT, TEARDOWN, FADE_IN };
 
+// ═══ INPUT STATE — THE DRIVER'S INTENT ORGAN (DISSOLVE-1 Batch C) ═
+// Graduated from direction/input.hpp at the input merge (the m1
+// pattern: type at the contract tier, instance at the root). The
+// driver WRITES it (the callbacks + update_movement_intent); the
+// spine's signal fill and the ribbon's sky flight READ it (v3 §9
+// Act I: drivers write intents; bodies translate them). KeyState /
+// MouseState stay with input — they are the driver's private organs;
+// this record is the intent CHANNEL the bodies consume.
+struct InputState {
+    float move_x = 0.0f;
+    float move_z = 0.0f;
+    float look_az_delta = 0.0f;
+    float look_el_delta = 0.0f;
+    float zoom_delta = 0.0f;
+    float pan_x_delta = 0.0f;
+    float pan_y_delta = 0.0f;
+};
+
 } // namespace the_board
 } // namespace t7
