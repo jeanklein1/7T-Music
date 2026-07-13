@@ -183,6 +183,10 @@ uint32_t patches_budget_this_frame(Cartridge* c);
 void teardown_surface(Cartridge* c, wgpu::Queue& queue);  // was teardown_world; reduced to the surface core (REBUILD-0 m2, stamp D4)
 
 void init_patch_system(Cartridge* c);
+// The recenter door (m4): names the hidden regen request — the
+// streaming conductor re-evaluates the full window next frame.
+// Caller: the radius command (direction/input).
+void request_recenter(Cartridge* c);
 void write_pier(Cartridge* c, wgpu::Queue& queue, uint32_t slot, const GPUPierInstance& pier);
 void clear_pier(Cartridge* c, wgpu::Queue& queue, uint32_t slot);
 void recompute_and_upload_pier_count(Cartridge* c, wgpu::Queue& queue);

@@ -143,6 +143,14 @@ struct TileWorldState {
 void evict_distant_tiles(TileWorldState& tw, int32_t centerX, int32_t centerZ);
 void upload_tile_grid_now(TileWorldState& tw, Cartridge* c, wgpu::Queue& queue, int32_t cx, int32_t cz);
 TileState generate_tile_state(TileWorldState& tw, Cartridge* c, int32_t gx, int32_t gz);
+// The cache-authoring doors (m4): the streaming conductor demands,
+// the owner fills. ensure_tile ticks the terrain tokens (primary);
+// ensure_tile_padding does NOT (padding must not advance the
+// terrain's memory). reset_* are the teardown/init counterparts.
+void ensure_tile(TileWorldState& tw, Cartridge* c, int32_t gx, int32_t gz);
+void ensure_tile_padding(TileWorldState& tw, Cartridge* c, int32_t gx, int32_t gz);
+void reset_tile_cache(TileWorldState& tw);
+void reset_terrain_memory(TileWorldState& tw);
 void tick_terrain_tokens(TileWorldState& tw, const TileState& outcome, uint32_t seed);
 // THE S2 BOUNDARY FACE, four surfaces (REBUILD-0 m3b — v3 §7's first
 // toolbox pull, justified by D1). INVARIANT AT EVERY FACE: callable

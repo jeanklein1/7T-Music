@@ -953,5 +953,43 @@ inline void release_finite_ribbons(Cartridge* c, wgpu::Queue& queue) {
     }
 }
 
+
+// ─── Promote-to-rendered (owner verb; REBUILD-0 m4 — the anchor
+// ribbon's immediate promotion, folded out of mood's applier: the
+// trailing rendered_slot write now lives with its owner) ───────────
+// Immediate GPU upload: the per-frame loop may not run before the
+// first render after a mood transition.
+inline void promote_ribbon_to_rendered(RibbonState& rs, Cartridge* c, uint32_t slot, wgpu::Queue& queue) {
+    c->gpuState_.upload_ribbon(queue, rs.gpu[slot]);
+    rs.rendered_slot = slot;
+}
+
+
+// ─── Tip registration (owner verb; REBUILD-0 m4): called by the
+// streaming conductor when a patch spawns — registers whichever of a
+// ribbon's two anchor tips lives at (gx,gz) into the host patch and
+// takes the reference. The inverse (the ref_count decrement) already
+// lives owner-side in evict_ribbon.
+inline void ribbon_register_tips_at(RibbonState& rs, ActivePatch& host, int32_t gx, int32_t gz) {
+    for (uint32_t r = 0; r < MAX_RIBBON_INSTANCES; r++) {
+        auto& ar = rs.active[r];
+        if (!ar.active) continue;
+        // Check near tip
+        if (!ar.near_tip_registered &&
+            ar.near_tip_gx == gx && ar.near_tip_gz == gz) {
+            host.record_entity(PopFamily::RIBBON, r);
+            ar.near_tip_registered = true;
+            ar.ref_count++;
+        }
+        // Check far tip
+        if (!ar.far_tip_registered &&
+            ar.far_tip_gx == gx && ar.far_tip_gz == gz) {
+            host.record_entity(PopFamily::RIBBON, r);
+            ar.far_tip_registered = true;
+            ar.ref_count++;
+        }
+    }
+}
+
 } // namespace the_board
 } // namespace t7

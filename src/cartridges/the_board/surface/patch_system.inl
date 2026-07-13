@@ -184,22 +184,26 @@ inline uint32_t patches_budget_this_frame(Cartridge* c) {
 // called by the score's TEARDOWN movement; this core keeps the
 // surface's own concerns — patches, tiles, themes, dispatch queues,
 // piers, footprints — plus the world-rebirth GPU staging lines.
+// ── The recenter door (m4) ────────────────────────────────────────
+inline void request_recenter(Cartridge* c) {
+    c->world_state_.last_center_x = INT32_MAX;
+    c->world_state_.last_center_z = INT32_MAX;
+}
+
 inline void teardown_surface(Cartridge* c, wgpu::Queue& queue) {
     // Patches + tile cache
     init_patch_system(c);
     c->world_state_.last_center_x = INT32_MAX;  // force full regen on next frame
     c->world_state_.last_center_z = INT32_MAX;
 
-    // Terrain tokens
-    for (uint32_t t = 0; t < MAX_TERRAIN_TOKENS; t++) {
-        c->tile_world_state_.terrainTokens_[t] = TerrainToken{};
-    }
+    // Terrain tokens — through the owner's door (m4)
+    reset_terrain_memory(c->tile_world_state_);
 
     c->spawn_engine_state_.entityQueue_.clear();
     c->spawn_engine_state_.placementResults_.clear();
 
-    // Theme envelope
-    c->themes_state_ = ThemesState{};
+    // Theme envelope — through the owner's door (m4)
+    reset_theme_envelope(c->themes_state_);
 
     // Clear all entity piers (keep test rig at slots 0-2)
     for (uint32_t i = Dim::PIER_ARCH_BASE; i < Dim::PIER_TOTAL; i++) {
@@ -215,7 +219,7 @@ inline void teardown_surface(Cartridge* c, wgpu::Queue& queue) {
     c->gpuState_.set_shell_index_count(0);
 
     // Lights need re-upload with potentially new config
-    c->entities_state_.lights_dirty = true;
+    c->mood_state_.lights_dirty = true;
 
     // New world decides its own upload frequency policy
     c->gpuState_.set_config_dynamic(false);
@@ -287,7 +291,7 @@ inline void init_patch_system(Cartridge* c) {
     c->world_state_.lod0_patch_count = 0;
     c->world_state_.all_patch_count = 0;
     c->gpuState_.stage_placement_patch_count(0);
-    c->tile_world_state_.tileCache_.clear();
+    reset_tile_cache(c->tile_world_state_);  // owner door (m4)
     c->world_state_.pier_count_dirty = true;
     c->world_state_.ground_entries_dirty = true;
     c->world_state_.patch_instances_dirty = true;
@@ -468,7 +472,7 @@ inline void spawn_selected_patches(Cartridge* c, const PatchCandidate* candidate
 {
     for (uint32_t s = 0; s < count; s++) {
         uint32_t pi = candidates[s].idx;
-        c->themes_state_.active_theme_idx_ = evaluate_theme_envelope(c->themes_state_, c, 
+        evaluate_theme_envelope(c->themes_state_, c,
             tile_seed(c->world_state_.active_seed, c->patch_system_state_.patches_[pi].grid_x, c->patch_system_state_.patches_[pi].grid_z));
         select_entities_for_patch(c, c->patch_system_state_.patches_[pi].grid_x, c->patch_system_state_.patches_[pi].grid_z);
         c->patch_system_state_.patches_[pi].phase = PatchPhase::SPAWNED;
@@ -480,24 +484,9 @@ inline void spawn_selected_patches(Cartridge* c, const PatchCandidate* candidate
         uint32_t pi = candidates[s].idx;
         int32_t gx = c->patch_system_state_.patches_[pi].grid_x;
         int32_t gz = c->patch_system_state_.patches_[pi].grid_z;
-        for (uint32_t r = 0; r < MAX_RIBBON_INSTANCES; r++) {
-            auto& ar = c->ribbon_state_.active[r];
-            if (!ar.active) continue;
-            // Check near tip
-            if (!ar.near_tip_registered &&
-                ar.near_tip_gx == gx && ar.near_tip_gz == gz) {
-                c->patch_system_state_.patches_[pi].record_entity(PopFamily::RIBBON, r);
-                ar.near_tip_registered = true;
-                ar.ref_count++;
-            }
-            // Check far tip
-            if (!ar.far_tip_registered &&
-                ar.far_tip_gx == gx && ar.far_tip_gz == gz) {
-                c->patch_system_state_.patches_[pi].record_entity(PopFamily::RIBBON, r);
-                ar.far_tip_registered = true;
-                ar.ref_count++;
-            }
-        }
+        // Two-tip registration through the owner's door (m4): the
+        // ref-count protocol lives whole in bodies/ribbon.inl now.
+        ribbon_register_tips_at(c->ribbon_state_, c->patch_system_state_.patches_[pi], gx, gz);
     }
 }
 
@@ -594,12 +583,7 @@ inline void stream_patches(Cartridge* c, wgpu::CommandEncoder& encoder, wgpu::Qu
             int32_t rp = rr + TILE_PAD;
             for (int32_t gz = centerZ - rp; gz <= centerZ + rp; gz++) {
                 for (int32_t gx = centerX - rp; gx <= centerX + rp; gx++) {
-                    GridKey key{ gx, gz };
-                    if (c->tile_world_state_.tileCache_.find(key) == c->tile_world_state_.tileCache_.end()) {
-                        TileState ts = generate_tile_state(c->tile_world_state_, c, gx, gz);
-                        tick_terrain_tokens(c->tile_world_state_, ts, tile_seed(c->world_state_.active_seed, gx, gz));
-                        c->tile_world_state_.tileCache_[key] = ts;
-                    }
+                    ensure_tile(c->tile_world_state_, c, gx, gz);  // owner door (m4)
                 }
             }
 
@@ -728,19 +712,12 @@ inline void stream_patches(Cartridge* c, wgpu::CommandEncoder& encoder, wgpu::Qu
         for (uint32_t a = 0; a < allocThisFrame; a++) {
             int32_t gx = candidates[a].gx;
             int32_t gz = candidates[a].gz;
-            // Ensure tile cache entry (primary — ticks terrain tokens)
-            GridKey key{ gx, gz };
-            if (c->tile_world_state_.tileCache_.find(key) == c->tile_world_state_.tileCache_.end()) {
-                TileState ts = generate_tile_state(c->tile_world_state_, c, gx, gz);
-                tick_terrain_tokens(c->tile_world_state_, ts, tile_seed(c->world_state_.active_seed, gx, gz));
-                c->tile_world_state_.tileCache_[key] = ts;
-            }
-            // Also cache neighbors for tile grid padding
+            // Ensure tile cache entry (primary — ticks terrain tokens),
+            // then cache neighbors for tile grid padding — both through
+            // the owner's doors (m4).
+            ensure_tile(c->tile_world_state_, c, gx, gz);
             for (int dz = -1; dz <= 1; dz++) for (int dx = -1; dx <= 1; dx++) {
-                GridKey nk{ gx + dx, gz + dz };
-                if (c->tile_world_state_.tileCache_.find(nk) == c->tile_world_state_.tileCache_.end()) {
-                    c->tile_world_state_.tileCache_[nk] = generate_tile_state(c->tile_world_state_, c, gx + dx, gz + dz);
-                }
+                ensure_tile_padding(c->tile_world_state_, c, gx + dx, gz + dz);
             }
             uint32_t layer = alloc_layer(c);
             c->patch_system_state_.patches_[c->world_state_.active_patch_count] = ActivePatch{};

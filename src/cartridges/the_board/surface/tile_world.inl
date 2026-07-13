@@ -317,5 +317,33 @@ inline bool tile_archetype(const TileWorldState& tw, int32_t gx, int32_t gz, uin
     return false;
 }
 
+
+// ─── The cache-authoring doors (owner verbs; REBUILD-0 m4) ─────────
+inline void ensure_tile(TileWorldState& tw, Cartridge* c, int32_t gx, int32_t gz) {
+    GridKey key{ gx, gz };
+    if (tw.tileCache_.find(key) == tw.tileCache_.end()) {
+        TileState ts = generate_tile_state(tw, c, gx, gz);
+        tick_terrain_tokens(tw, ts, tile_seed(c->world_state_.active_seed, gx, gz));
+        tw.tileCache_[key] = ts;
+    }
+}
+
+inline void ensure_tile_padding(TileWorldState& tw, Cartridge* c, int32_t gx, int32_t gz) {
+    GridKey nk{ gx, gz };
+    if (tw.tileCache_.find(nk) == tw.tileCache_.end()) {
+        tw.tileCache_[nk] = generate_tile_state(tw, c, gx, gz);
+    }
+}
+
+inline void reset_tile_cache(TileWorldState& tw) {
+    tw.tileCache_.clear();
+}
+
+inline void reset_terrain_memory(TileWorldState& tw) {
+    for (uint32_t t = 0; t < MAX_TERRAIN_TOKENS; t++) {
+        tw.terrainTokens_[t] = TerrainToken{};
+    }
+}
+
 } // namespace the_board
 } // namespace t7

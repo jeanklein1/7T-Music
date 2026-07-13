@@ -102,6 +102,12 @@ struct MoodState {
 
     // ── Sun orbit (musical coupling) ──
     float sun_orbit_phase = 0.0f;
+
+    // ── Light re-upload flag (re-homed from entities_state_ at m4:
+    //    mood was both producer and consumer — the organ was wrong,
+    //    not the channel). Set true at init/teardown/apply, cleared
+    //    after upload. ──
+    bool lights_dirty = true;
 };
 
 // ═══ MOOD SYSTEM (vocabulary) ════════════════════════════════════

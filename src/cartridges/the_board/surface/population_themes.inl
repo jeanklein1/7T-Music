@@ -79,7 +79,13 @@ inline uint32_t evaluate_theme_envelope(ThemesState& ts, Cartridge* c, uint32_t 
         if (env.cooldowns[i] > 0) env.cooldowns[i]--;
     }
 
+    ts.active_theme_idx_ = selected;  // stores its own result (m4) — the caller no longer writes the organ
     return selected;
+}
+
+// ─── Teardown reset (owner verb; REBUILD-0 m4) ────────────────────
+inline void reset_theme_envelope(ThemesState& ts) {
+    ts = ThemesState{};
 }
 
 } // namespace the_board

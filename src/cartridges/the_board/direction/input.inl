@@ -125,16 +125,8 @@ inline void on_key_down(Cartridge* c, int key) {
     case GLFW_KEY_1:
         c->gpuState_.toggle_freeze_sphere();
         break;
-    case GLFW_KEY_2:
-        c->pawn_state_.aura_height_enabled = !c->pawn_state_.aura_height_enabled;
-        c->pawn_state_.aura_cfg_dirty = true;
-        std::cout << "[Aura] Height extrusion: " << (c->pawn_state_.aura_height_enabled ? "ON" : "OFF") << "\n";
-        break;
-    case GLFW_KEY_3:
-        c->pawn_state_.aura_enabled = !c->pawn_state_.aura_enabled;
-        c->pawn_state_.aura_cfg_dirty = true;
-        std::cout << "[Aura] Field: " << (c->pawn_state_.aura_enabled ? "ON" : "OFF") << "\n";
-        break;
+    case GLFW_KEY_2: toggle_aura_height(c->pawn_state_, c);  break;  // pawn command door (m4)
+    case GLFW_KEY_3: toggle_aura(c->pawn_state_, c);          break;  // pawn command door (m4)
     case GLFW_KEY_5: request_mood_transition(c, MOOD_OPEN_SUNSET);        break;
     case GLFW_KEY_6: request_mood_transition(c, MOOD_INDOOR_FLAT);        break;
     case GLFW_KEY_7: request_mood_transition(c, MOOD_INDOOR_VAULT);       break;
@@ -264,9 +256,8 @@ inline void set_render_radius(Cartridge* c, uint32_t r) {
     uint32_t side = 2 * r + 1;
     std::cout << "[the_board] Render radius: " << r
         << " (" << side << "x" << side << " = " << side * side << " patches)" << std::endl;
-    // Force full re-evaluation on next frame
-    c->world_state_.last_center_x = INT32_MAX;
-    c->world_state_.last_center_z = INT32_MAX;
+    // Force full re-evaluation on next frame — through the owner's door (m4)
+    request_recenter(c);
 }
 
 } // namespace the_board

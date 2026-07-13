@@ -475,7 +475,6 @@ struct EntitiesState {
     ActiveArch arches[Dim::MAX_ARCH_INSTANCES]{};
     uint32_t   arch_count = 0;
     bool       arch_mesh_gen_pending = false;
-    bool       lights_dirty = true;          // set true at init, cleared after first upload
 
     // ── Column + Antenna (sibling families, shared mesh-gen flag) ─
     ActiveColumn columns[Dim::MAX_COLUMN_ONLY]{};

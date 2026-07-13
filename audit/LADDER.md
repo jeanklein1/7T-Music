@@ -1291,3 +1291,45 @@ zero raw tileCache_ reads remain outside surface/.
 GATES: glaw1 GREEN full + minimal; score census GREEN; the four
 restored functions byte-identical vs 3701b5b; sentinels 148/5;
 zone 18 == 18; encodings clean.
+
+**m4 — THE CHANNELS (D5 executed; disclosure rule honored).** Seven
+conversions, all token-identity gated: (1) the input fan's pawn pair
+— keys 2/3 now speak through pawn command doors (toggle_aura_height /
+toggle_aura), matching the orbs/agents/cube pattern; (2) mood's aura
+force-off speaks through apply_aura_mood_policy — the pawn's own door,
+BYTE-IDENTICAL semantics (the recon's mood_allowed-flag idea would
+have changed behavior — preference persistence across moods — and was
+set aside under the disclosure rule); (3) lights_dirty RE-HOMED
+entities_state_ -> mood_state_ (mood was both producer and consumer;
+the organ was wrong, not the channel) — the peer-write is erased;
+(4) the anchor ribbon's immediate promotion folds into
+promote_ribbon_to_rendered (the trailing rendered_slot write lives
+with its owner); (5) the tile cache gains its authoring doors —
+ensure_tile (ticks terrain tokens) / ensure_tile_padding (does NOT —
+padding must not advance the terrain's memory) / reset_tile_cache /
+reset_terrain_memory; (6) evaluate_theme_envelope stores its own
+result + reset_theme_envelope (the teardown reset); (7) the INT32_MAX
+poke is NAMED: request_recenter, the streaming conductor's door,
+called by the radius command.
+
+THE CHANNEL REGISTRY (standing, post-m4): FLAG CHANNELS —
+mood_state_.portals_dirty [entities/pipeline/mood/patch -> mood];
+world.ground_entries_dirty [owners -> render()];
+mood_state_.lights_dirty [mood/patch -> mood; re-homed];
+mood_state_.back_portal_pending [spine -> mood via patch timing];
+gol_state_.mood_allowed [mood -> gol]; pawn.aura_cfg_dirty
+[pawn/input-doors/patch -> render()]; *_mesh_gen_pending [owners ->
+preparers]; world.pier_count_dirty [pier writers -> flush].
+COMMAND DOORS — input -> {orbs x4, agents x4, cubes x4, pawn x2,
+request_mood_transition, request_recenter, toggle_sky_mode(D9-gated),
+set_render_radius}; mood -> {force_spawn_portal_arch (THE CHANNEL),
+commit_ribbon + promote_ribbon_to_rendered, place/clear_wall_paintings,
+configure_orbs, apply_aura_mood_policy}. DECLARED ROOT DOORS —
+possession (agents -> player_.possessed_slot), P8 (pawn ->
+player_.aura_presence). THE F6 SOCKET stays RESERVED: when a driver
+must address a body it does not own by synchronous command, the
+addressed-intent socket (v3 §9 Act II, §13) is where it routes;
+nothing today requires it.
+GATES: glaw1 GREEN full + minimal; score census GREEN; relocations
+token-identical (tips, tile doors, toggles, promotion, policy door);
+sentinels 148/5; zone 18 == 18; encodings clean.

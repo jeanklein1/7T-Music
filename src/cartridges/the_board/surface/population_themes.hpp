@@ -173,7 +173,8 @@ inline float theme_envelope_weight(const PopulationTheme& theme, uint32_t elapse
 // Returns the theme index to use for this patch. DEFINED in
 // population_themes.inl (post-class — the flag-gated census dump
 // reaches the keyhole).
-uint32_t evaluate_theme_envelope(ThemesState& ts, Cartridge* c, uint32_t tile_seed_value);
+uint32_t evaluate_theme_envelope(ThemesState& ts, Cartridge* c, uint32_t tile_seed_value);  // stores its own result (m4)
+void reset_theme_envelope(ThemesState& ts);
 
 } // namespace the_board
 } // namespace t7

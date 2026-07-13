@@ -430,6 +430,9 @@ void ribbon_invalidate_head(RibbonState& rs);
 bool ribbon_head_is(const RibbonState& rs, uint32_t slot);
 void teardown_ribbon(Cartridge* c, wgpu::Queue& queue);
 void release_finite_ribbons(Cartridge* c, wgpu::Queue& queue);
+void promote_ribbon_to_rendered(RibbonState& rs, Cartridge* c, uint32_t slot, wgpu::Queue& queue);
+struct ActivePatch;  // fwd (patch_system.hpp follows this header in the cohort)
+void ribbon_register_tips_at(RibbonState& rs, ActivePatch& host, int32_t gx, int32_t gz);
 // Shared geometry helper (dual-entry: dispatch + mood-5 forced spawn)
 void fill_ribbon_selection_geometry(uint32_t seed, uint32_t tier_idx,
     RibbonSelection& sel);

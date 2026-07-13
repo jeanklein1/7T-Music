@@ -7,7 +7,7 @@
 // c->cpuSpotLights_ / c->cpuPortalArray_ / c->sunDirection_ /
 // c->sunColor_ / c->clearColor_ / c->world_state_) and the feature-gate
 // flags (c->gol_state_.mood_allowed / c->pawn_state_.aura_enabled /
-// c->entities_state_.lights_dirty — request-flags, channel-shaped),
+// c->mood_state_.lights_dirty — request-flags, channel-shaped; lights_dirty re-homed here at m4),
 // plus TransitionPhase (contracts/spine_state.hpp), ARCH_TIERS / ArchIdx
 // (entity_pipeline.hpp), solve_catenary_a (seed_utils.hpp), and
 // PATCH_EXTENT (patch_system.hpp).
@@ -371,7 +371,7 @@ inline void apply_mood_lighting(Cartridge* c, const MoodProfile& m, wgpu::Queue&
 
     c->gpuState_.set_terrain_amp_ceiling(m.indoor ? 0.5f : 0.0f);
     c->mood_state_.terrain_amp_ceiling = m.indoor ? 0.5f : 0.0f;
-    c->entities_state_.lights_dirty = true;
+    c->mood_state_.lights_dirty = true;
 }
 
 inline void apply_mood_spot_lights(Cartridge* c, const MoodProfile& m, wgpu::Queue& queue) {
@@ -487,9 +487,8 @@ inline void apply_mood_anchor_ribbon(Cartridge* c, uint32_t mood, wgpu::Queue& q
     // Commit through the standard path
     commit_ribbon(c->ribbon_state_, c, plan, 0, 0, queue);
 
-    // Immediate GPU upload (per-frame loop may not run before first render)
-    c->gpuState_.upload_ribbon(queue, c->ribbon_state_.gpu[0]);
-    c->ribbon_state_.rendered_slot = 0;
+    // Immediate promotion through the owner's door (m4).
+    promote_ribbon_to_rendered(c->ribbon_state_, c, 0, queue);
 }
 
 // ── apply_mood (orchestrator) ──
@@ -505,7 +504,7 @@ inline void apply_mood(Cartridge* c, uint32_t mood, wgpu::Queue& queue) {
     // Per-mood feature gates: GoL zones, aura.
     // Aura policy: respect player preference when permitted, force off when forbidden.
     c->gol_state_.mood_allowed     = m.allow_gol_zones;
-    if (!m.allow_pawn_aura) c->pawn_state_.aura_enabled = false;
+    apply_aura_mood_policy(c->pawn_state_, m.allow_pawn_aura);  // the pawn door (m4); byte-identical semantics
 
     apply_mood_lighting(c, m, queue);          // sun + fog + amp ceiling (foundational — sun is not a piece)
     if constexpr (ROSTER.spot_lights)          // ROSTER-GATE spot_lights (b) — indoor spot array never configured
@@ -966,8 +965,8 @@ inline void upload_portal_array(Cartridge* c, wgpu::Queue& queue) {
 // ── upload_lights ──
 // (Must precede compute for shadow VP.)
 inline void upload_lights(Cartridge* c, wgpu::Queue& queue) {
-    if (!c->entities_state_.lights_dirty) return;
-    c->entities_state_.lights_dirty = false;
+    if (!c->mood_state_.lights_dirty) return;
+    c->mood_state_.lights_dirty = false;
 
     GPUDirectionalLight sun{};
     float len = std::sqrt(c->sunDirection_[0] * c->sunDirection_[0] + c->sunDirection_[1] * c->sunDirection_[1] + c->sunDirection_[2] * c->sunDirection_[2]);

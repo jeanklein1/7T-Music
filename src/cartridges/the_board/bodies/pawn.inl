@@ -8,7 +8,9 @@
 // FILE SCOPE; law in audit/LADDER.md.
 // ─────────────────────────────────────────────────────────────────
 
-#include <cmath>  // std::exp (the real-time presence ramp)
+#include <algorithm>  // std::min (aura config assembly)
+#include <cmath>      // std::exp (the real-time presence ramp)
+#include <iostream>   // command-door logs (m4)
 
 namespace t7 {
 namespace the_board {
@@ -101,6 +103,31 @@ inline void dispatch_pawn_aura(PawnState& ps, Cartridge* c,
 
         // After one cleanup frame with release_rate=999, all cells are zero
         if (ps.aura_needs_clear) { ps.aura_needs_clear = false; }
+}
+
+
+// ─── Player commands (owner verbs; REBUILD-0 m4 — the input fan's
+// pawn pair, matching the orbs/agents/cube command pattern) ────────
+inline void toggle_aura_height(PawnState& ps, Cartridge* c) {
+    (void)c;
+    ps.aura_height_enabled = !ps.aura_height_enabled;
+    ps.aura_cfg_dirty = true;
+    std::cout << "[Aura] Height extrusion: " << (ps.aura_height_enabled ? "ON" : "OFF") << "\n";
+}
+
+inline void toggle_aura(PawnState& ps, Cartridge* c) {
+    (void)c;
+    ps.aura_enabled = !ps.aura_enabled;
+    ps.aura_cfg_dirty = true;
+    std::cout << "[Aura] Field: " << (ps.aura_enabled ? "ON" : "OFF") << "\n";
+}
+
+// ─── Mood policy door (REBUILD-0 m4): respect player preference when
+// permitted, force off when forbidden — the mood driver speaks through
+// the pawn's own door instead of writing the organ. Semantics
+// byte-identical to the direct write it replaces (disclosure rule).
+inline void apply_aura_mood_policy(PawnState& ps, bool allow) {
+    if (!allow) ps.aura_enabled = false;
 }
 
 } // namespace the_board
