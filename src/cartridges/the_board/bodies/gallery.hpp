@@ -465,6 +465,8 @@ void clear_wall_paintings(GalleryState& gs, Cartridge* c, wgpu::Queue& queue);
 // Authored image loading
 void load_authored_textures(GalleryState& gs, Cartridge* c, wgpu::Queue& queue);
 void rotate_authored_staging(GalleryState& gs, Cartridge* c, wgpu::Queue& queue);
+void teardown_gallery(Cartridge* c, wgpu::Queue& queue);
+void drain_gallery_promotions(GalleryState& gs, Cartridge* c, wgpu::CommandEncoder& encoder);
 
 } // namespace the_board
 } // namespace t7

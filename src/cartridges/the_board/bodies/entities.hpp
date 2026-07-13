@@ -535,6 +535,7 @@ void dispatch_commit_palm_generic(Cartridge* self, PlacementEntry& pe, wgpu::Que
 bool dispatch_select_cactus_generic(Cartridge* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
 bool dispatch_place_cactus_generic(Cartridge* self, EntityQueueEntry& e, PlacementEntry& pe);
 void dispatch_commit_cactus_generic(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue);
+void teardown_entities(Cartridge* c, wgpu::Queue& queue);
 
 // ═══ THE ARCH FORCE-SPAWN AUTHOR (the portal channel) ═══════════
 //

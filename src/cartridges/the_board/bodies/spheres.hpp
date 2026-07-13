@@ -29,8 +29,8 @@ struct SphereState {
     uint32_t      activeFloaterCount_ = 0;
 };
 
-// Teardown owner-clear: the sphere half of teardown_world's bulk
-// sweep — CPU clear + per-slot GPU clear, paired.
+// Teardown owner-clear: the sphere half of the score's TEARDOWN
+// movement (REBUILD-0 m2) — CPU clear + per-slot GPU clear, paired.
 inline void clear_spheres(SphereState& ss, GPUState& gpu, wgpu::Queue& queue) {
     for (uint32_t i = 0; i < Dim::MAX_SPHERE_INSTANCES; i++) {
         ss.activeFloaters_[i] = ActiveFloater{};
@@ -41,6 +41,7 @@ inline void clear_spheres(SphereState& ss, GPUState& gpu, wgpu::Queue& queue) {
 }
 
 void evict_sphere(Cartridge* self, uint32_t slot, wgpu::Queue& queue);
+void reconcile_sphere_mirror(SphereState& ss, Cartridge* c, const GPUFloatingEntityState* data);
 // Dispatch funnels (table-shaped; defined in spheres.inl beside the recipe)
 bool dispatch_select_sphere_generic(Cartridge* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
 bool dispatch_place_sphere_generic(Cartridge* self, EntityQueueEntry& e, PlacementEntry& pe);

@@ -1181,3 +1181,46 @@ token-identical vs HEAD; zone census 18 == 18; sentinels ROSTER-GATE
 122 -> 123 (+1, the D9 gate), RESIDUE 5 unchanged; encodings — the
 BOM quintet intact (agents.inl edited below its BOM), new contract
 no-BOM/LF.
+
+**m2 — THE SCORE REWRITE + THE SCORE CENSUS.** update()/render()/boot/
+teardown now read as EXPLICIT PROSE with movement banners (THE SCORE
+RULING): CLOCK/SIGNAL -> S4 DRIVERS -> S4 BODIES -> REALIZATION
+STAGING (part one, pre-machine by cited constraint) -> THE MACHINE ->
+STAGING (part two) -> WITNESS -> BOOKKEEPING in update(); WITNESS
+HARVEST (O-2 vetoes the charter's after-motion seat — banner names
+it) -> S2 -> S3 -> S4 BODIES -> REALIZATION -> WITNESS CAPTURE ->
+REALIZATION CONTINUED in render(). The typelist fold DISSOLVED:
+twelve explicit constexpr-gated prepare lines. NINE STRAYS came home
+as owner verbs (token-identity gated, 15/15 blocks): mirror
+reconciliation (spheres/cubes; SPAWN_PROTECTION_S graduated to
+floater_vocabulary), dispatch_pawn_aura, seed/reseed_player_body (the
+twins stay twins — byte-exactness outranks unification),
+release_finite_ribbons, drain_gallery_promotions, the three GoL pass
+verbs. TEARDOWN became per-owner verbs per D4 (teardown_world ->
+teardown_surface + teardown_entities/gol/ribbon/gallery/pawn_aura +
+the standing clear/teardown trio); the new teardown gates eliminate
+only zeros-over-pristine GPU writes (disclosed); the gallery organ
+gates on (gallery || indoor_shell) — wall frames share the painting
+slots. **P1 AND P2 ARE DEAD STRUCTURALLY** (update_photographer and
+load_authored_textures under ROSTER.gallery at their named lines).
+The ungated three gained gates: corral (cube), ribbon_frame_tick
+(ribbon), the GoL block (D7 — structural above runtime). REORDERS
+RC-1 (respawn after stream) + RC-2 (corral after stream) cut under
+the stamped policy with written safety arguments in place; the rig's
+pixel gate arbitrates — failure reverts per the policy. Disclosed
+residue: within-frame stdout interleave shifts (census lines now
+follow corral instead of stream); intra-teardown per-organ clear
+order changed (independent writes, argument in the score text).
+THE SCORE CENSUS lands at audit/tools/score/run.py — the standing
+tool beside glaw1: Direction A (every piece's conductor calls present
+AND gated, incl. the delegated doors in mood.inl/entities.inl/
+input.inl), Direction B (every free call in the score attributed:
+30 manifest + 24 foundational-with-justification; an ungated module
+tick is UNWRITABLE — how P1/P2 stay dead). Teeth-tested red/green
+(ungated-photographer specimen goes RED; restore goes GREEN).
+GATES: glaw1 GREEN full + minimal; score census GREEN; 15/15
+relocations token-identical vs HEAD modulo disclosed transforms
+(c-> keyhole prefixes, own-state renames); zone census 18 == 18;
+sentinels ROSTER-GATE 123 -> 148 (+25, itemized), RESIDUE 5;
+encodings — BOM pair (agents.inl, ribbon.inl) intact, all files
+unchanged.

@@ -180,7 +180,7 @@ uint32_t patches_budget_this_frame(Cartridge* c);
 
 // Keyhole form (Phase R stamp, R-b). CALLER: the transition machine
 // (root); OWNER: patch_system.
-void teardown_world(Cartridge* c, wgpu::Queue& queue);
+void teardown_surface(Cartridge* c, wgpu::Queue& queue);  // was teardown_world; reduced to the surface core (REBUILD-0 m2, stamp D4)
 
 void init_patch_system(Cartridge* c);
 void write_pier(Cartridge* c, wgpu::Queue& queue, uint32_t slot, const GPUPierInstance& pier);

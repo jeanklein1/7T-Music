@@ -188,5 +188,24 @@ inline void dispatch_commit_sphere_generic(Cartridge* self, PlacementEntry& pe, 
     else { self->sphere_state_.activeFloaters_[pe.generic.slot].active = false; }
 }
 
+
+// ─── Readback mirror reconciliation (owner verb; REBUILD-0 m2 —
+// stray (1) comes home) ─ the sphere half of the floater-readback
+// funnel: release CPU mirror slots the GPU deactivated, honoring the
+// spawn-protection window (SPAWN_PROTECTION_S, floater_vocabulary.hpp).
+inline void reconcile_sphere_mirror(SphereState& ss, Cartridge* c, const GPUFloatingEntityState* data) {
+    float now = c->time_state_.seconds;
+    // Spheres: slots [0, MAX_SPHERE_INSTANCES)
+    for (uint32_t i = 0; i < Dim::MAX_SPHERE_INSTANCES; i++) {
+        bool gpu_active = (data[i].is_active != 0u);
+        // sphere active-slot mirror owned by SphereState (spheres.hpp)
+        if (ss.activeFloaters_[i].active && !gpu_active &&
+            (now - ss.activeFloaters_[i].last_alloc_time) > SPAWN_PROTECTION_S) {
+            ss.activeFloaters_[i].active = false;
+            if (ss.activeFloaterCount_ > 0) ss.activeFloaterCount_--;
+        }
+    }
+}
+
 } // namespace the_board
 } // namespace t7

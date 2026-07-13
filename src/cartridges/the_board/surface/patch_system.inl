@@ -179,8 +179,12 @@ inline uint32_t patches_budget_this_frame(Cartridge* c) {
 // ── World lifecycle ────────────────────────────────────────────────
 //
 // Keyhole form (Phase R stamp, R-b). CALLER: the transition machine
-// (root); OWNER: patch_system.
-inline void teardown_world(Cartridge* c, wgpu::Queue& queue) {
+// (root); OWNER: patch_system. REBUILD-0 m2 (stamp D4): the bulk
+// sweep over sibling organs dissolved into per-owner teardown verbs
+// called by the score's TEARDOWN movement; this core keeps the
+// surface's own concerns — patches, tiles, themes, dispatch queues,
+// piers, footprints — plus the world-rebirth GPU staging lines.
+inline void teardown_surface(Cartridge* c, wgpu::Queue& queue) {
     // Patches + tile cache
     init_patch_system(c);
     c->world_state_.last_center_x = INT32_MAX;  // force full regen on next frame
@@ -202,163 +206,10 @@ inline void teardown_world(Cartridge* c, wgpu::Queue& queue) {
         clear_pier(c, queue, i);
     }
 
-    // Arches
-    for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++) {
-        c->entities_state_.arches[i] = ActiveArch{};
-    }
-    c->entities_state_.arch_count = 0;
-    c->mood_state_.portals_dirty = true;
-    c->gpuState_.set_arch_index_count(0);
-    // Clear all arch mesh gen param slots
-    {
-        GPUArchMeshParams emptyParams{};
-        for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++) {
-            c->gpuState_.upload_arch_mesh_params_slot(queue, i, emptyParams);
-        }
-        c->entities_state_.arch_mesh_gen_pending = true;
-    }
-
-    // Columns + Antennas
-    for (uint32_t i = 0; i < Dim::MAX_COLUMN_ONLY; i++) {
-        c->entities_state_.columns[i] = ActiveColumn{};
-    }
-    for (uint32_t i = 0; i < Dim::MAX_ANTENNA_ONLY; i++) {
-        c->entities_state_.antennas[i] = ActiveColumn{};
-    }
-    c->entities_state_.column_count = 0;
-    c->entities_state_.antenna_count = 0;
-    c->gpuState_.set_column_index_count(0);
-    // Clear all column mesh gen param slots
-    {
-        GPUColumnMeshParams emptyParams{};
-        for (uint32_t i = 0; i < Dim::MAX_COLUMN_INSTANCES; i++) {
-            c->gpuState_.upload_column_mesh_params_slot(queue, i, emptyParams);
-        }
-        c->entities_state_.column_mesh_gen_pending = true;
-    }
-
-    // Palms
-    for (uint32_t i = 0; i < Dim::MAX_PALM_INSTANCES; i++) {
-        c->entities_state_.palms[i] = ActivePalm{};
-    }
-    c->entities_state_.palm_count = 0;
-    c->gpuState_.set_palm_index_count(0);
-    {
-        GPUPalmMeshParams emptyParams{};
-        for (uint32_t i = 0; i < Dim::MAX_PALM_INSTANCES; i++) {
-            c->gpuState_.upload_palm_mesh_params_slot(queue, i, emptyParams);
-        }
-        c->entities_state_.palm_mesh_gen_pending = true;
-    }
-
-    // Cacti
-    for (uint32_t i = 0; i < Dim::MAX_CACTUS_INSTANCES; i++) {
-        c->entities_state_.cacti[i] = ActiveCactus{};
-    }
-    c->entities_state_.cactus_count = 0;
-    c->gpuState_.set_cactus_index_count(0);
-    {
-        GPUCactusMeshParams emptyParams{};
-        for (uint32_t i = 0; i < Dim::MAX_CACTUS_INSTANCES; i++) {
-            c->gpuState_.upload_cactus_mesh_params_slot(queue, i, emptyParams);
-        }
-        c->entities_state_.cactus_mesh_gen_pending = true;
-    }
-
-    // Blade clusters
-    for (uint32_t i = 0; i < Dim::MAX_BLADE_INSTANCES; i++) {
-        c->entities_state_.blades[i] = ActiveBlade{};
-    }
-    c->entities_state_.blade_count = 0;
-    c->gpuState_.set_blade_index_count(0);
-    {
-        GPUBladeClusterMeshParams emptyParams{};
-        for (uint32_t i = 0; i < Dim::MAX_BLADE_INSTANCES; i++) {
-            c->gpuState_.upload_blade_mesh_params_slot(queue, i, emptyParams);
-        }
-        c->entities_state_.blade_mesh_gen_pending = true;
-    }
-
-    // Pyramids
-    for (uint32_t i = 0; i < Dim::MAX_PYRAMID_INSTANCES; i++) {
-        c->entities_state_.pyramids[i] = ActivePyramid{};
-    }
-    c->entities_state_.pyramid_count = 0;
-    c->entities_state_.cpu_pyramids = GPUPyramidArray{};
-    c->gpuState_.upload_pyramids(queue, c->entities_state_.cpu_pyramids);
-    c->gpuState_.set_pyramid_index_count(0);
-    // Clear all mesh gen param slots (inactive → degenerates on next dispatch)
-    {
-        GPUPyramidMeshParams emptyParams{};
-        for (uint32_t i = 0; i < Dim::MAX_PYRAMID_INSTANCES; i++) {
-            c->gpuState_.upload_pyramid_mesh_params_slot(queue, i, emptyParams);
-        }
-        c->entities_state_.pyramid_mesh_gen_pending = true;
-    }
-
-    // GoL zones
-    for (uint32_t i = 0; i < Dim::MAX_GOL_ZONES; i++) {
-        c->gol_state_.zones[i] = GoLZoneState{};
-    }
-    c->gol_state_.zone_count = 0;
-    c->gol_state_.active_slot_count = 0;
-    c->gol_state_.pending_derive_requests.count = 0;
-    GPUGoLZoneArray emptyZones{};
-    c->gpuState_.upload_zone_config(queue, emptyZones);
-
-    // Ribbon — clear all slots
-    {
-        for (uint32_t i = 0; i < MAX_RIBBON_INSTANCES; i++) {
-            c->ribbon_state_.active[i] = ActiveRibbon{};
-            c->ribbon_state_.gpu[i] = GPURibbonState{};
-        }
-        c->ribbon_state_.active_count = 0;
-        c->ribbon_state_.rendered_slot = UINT32_MAX;
-        GPURibbonState empty{};
-        c->gpuState_.upload_ribbon(queue, empty);
-    }
-
-    // Sphere + cube clears are per-owner functions (clear_spheres /
-    // clear_cubes) — CPU + per-slot-GPU paired. See §5 TEARDOWN BULK SWEEPS.
-    clear_spheres(c->sphere_state_, c->gpuState_, queue);
-    clear_cubes(c->cube_behaviors_state_, c->gpuState_, queue);
-
-    // Gallery / paintings — clear all exhibition + slots, keep staging intact
-    for (uint32_t i = 0; i < MAX_GALLERIES; i++) {
-        c->gallery_state_.gallery_centers[i] = GalleryCenter{};
-    }
-    c->gallery_state_.pending_snapshot.active = false;
-    c->gallery_state_.pending_promotion_count = 0;
-    c->gallery_state_.wall_frame_count = 0;
-    c->gallery_state_.active_painting_count = 0;
-    // Clear all painting slots (CPU + GPU)
-    for (uint32_t i = 0; i < Dim::PAINTING_MAX_SLOTS; i++) {
-        c->gallery_state_.painting_slots[i] = GPUPaintingSlot{};
-    }
-    {
-        GPUPaintingSlot empty[Dim::PAINTING_MAX_SLOTS]{};
-        c->gpuState_.upload_painting_slots(queue, empty, Dim::PAINTING_MAX_SLOTS);
-    }
-    // Free all exhibition layers (staging persists across worlds)
-    for (uint32_t i = 0; i < Dim::EXHIBITION_LAYERS; i++) c->gallery_state_.exhibition_occupied[i] = false;
-    c->gallery_state_.exhibition_count = 0;
-    rotate_authored_staging(c->gallery_state_, c, queue);
-    for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) c->gallery_state_.authored_staging[i].consumed = false;
-
     // Footprints
     for (uint32_t i = 0; i < MAX_FOOTPRINTS; i++) {
         c->spawn_engine_state_.footprints_[i] = GroundFootprint{};
     }
-
-    // Aura
-    if constexpr (ROSTER.pawn_aura) {  // ROSTER-GATE pawn_aura (c) — teardown clear skipped when disabled (no aura to clear)
-        c->pawn_state_.aura_needs_clear = true;
-        c->pawn_state_.aura_cfg_dirty = true;
-    }
-
-    // Sky orbs: apply_mood re-enables + re-seeds as needed
-    if constexpr (ROSTER.orbs)  // ROSTER-GATE orbs (c) — teardown one-shot skipped when disabled
-        teardown_orbs(c->orbs_state_, c);
 
     // Indoor shell
     c->gpuState_.set_shell_index_count(0);

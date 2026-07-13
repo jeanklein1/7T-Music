@@ -1316,5 +1316,49 @@ inline void evict_gallery(Cartridge* self,
 #endif
 }
 
+
+// ─── Teardown (owner verb; REBUILD-0 m2, stamp D4) ────────────────
+// NOTE the organ is SHARED with the indoor_shell feature (wall frames
+// live in the same painting slots — form_type); the score gates the
+// call on (ROSTER.gallery || ROSTER.indoor_shell).
+inline void teardown_gallery(Cartridge* c, wgpu::Queue& queue) {
+    // Gallery / paintings — clear all exhibition + slots, keep staging intact
+    for (uint32_t i = 0; i < MAX_GALLERIES; i++) {
+        c->gallery_state_.gallery_centers[i] = GalleryCenter{};
+    }
+    c->gallery_state_.pending_snapshot.active = false;
+    c->gallery_state_.pending_promotion_count = 0;
+    c->gallery_state_.wall_frame_count = 0;
+    c->gallery_state_.active_painting_count = 0;
+    // Clear all painting slots (CPU + GPU)
+    for (uint32_t i = 0; i < Dim::PAINTING_MAX_SLOTS; i++) {
+        c->gallery_state_.painting_slots[i] = GPUPaintingSlot{};
+    }
+    {
+        GPUPaintingSlot empty[Dim::PAINTING_MAX_SLOTS]{};
+        c->gpuState_.upload_painting_slots(queue, empty, Dim::PAINTING_MAX_SLOTS);
+    }
+    // Free all exhibition layers (staging persists across worlds)
+    for (uint32_t i = 0; i < Dim::EXHIBITION_LAYERS; i++) c->gallery_state_.exhibition_occupied[i] = false;
+    c->gallery_state_.exhibition_count = 0;
+    rotate_authored_staging(c->gallery_state_, c, queue);
+    for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) c->gallery_state_.authored_staging[i].consumed = false;
+}
+
+// ─── Promotion drain (owner verb; REBUILD-0 m2 — stray (5) comes
+// home) ─ copy staged snapshot/authored layers into the exhibition
+// array. ORDER (O-7): after render_snapshot_pass, so the snapshot
+// staging texture holds this frame's shot.
+inline void drain_gallery_promotions(GalleryState& gs, Cartridge* c, wgpu::CommandEncoder& encoder) {
+    for (uint32_t i = 0; i < gs.pending_promotion_count; i++) {
+        auto& p = gs.pending_promotions[i];
+        wgpu::Texture src = p.is_snapshot
+            ? c->gpuState_.snapshot_staging_texture()
+            : c->gpuState_.authored_staging_texture();
+        c->gpuState_.promote_to_exhibition(encoder, src, p.staging_layer, p.exhibition_layer);
+    }
+    gs.pending_promotion_count = 0;
+}
+
 } // namespace the_board
 } // namespace t7

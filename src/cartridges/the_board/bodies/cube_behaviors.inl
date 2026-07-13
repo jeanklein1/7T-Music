@@ -437,5 +437,22 @@ inline void dispatch_commit_cube_generic(Cartridge* self, PlacementEntry& pe, wg
     else { self->cube_behaviors_state_.activeCubes_[pe.generic.slot].active = false; }
 }
 
+
+// ─── Readback mirror reconciliation (owner verb; REBUILD-0 m2 —
+// stray (1) comes home) ─ the cube half of the floater-readback funnel.
+inline void reconcile_cube_mirror(CubeBehaviorsState& cs, Cartridge* c, const GPUFloatingEntityState* data) {
+    float now = c->time_state_.seconds;
+    // Cubes: slots [CUBE_SLOT_OFFSET, TOTAL_FLOATING_SLOTS)
+    for (uint32_t i = 0; i < Dim::MAX_CUBE_INSTANCES; i++) {
+        bool gpu_active = (data[Dim::CUBE_SLOT_OFFSET + i].is_active != 0u);
+        // cube active-slot mirror owned by CubeBehaviorsState (cube_behaviors.hpp)
+        if (cs.activeCubes_[i].active && !gpu_active &&
+            (now - cs.activeCubes_[i].last_alloc_time) > SPAWN_PROTECTION_S) {
+            cs.activeCubes_[i].active = false;
+            if (cs.activeCubeCount_ > 0) cs.activeCubeCount_--;
+        }
+    }
+}
+
 } // namespace the_board
 } // namespace t7

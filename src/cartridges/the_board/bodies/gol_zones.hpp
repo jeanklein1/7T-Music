@@ -271,6 +271,10 @@ void seed_gol_zone(GoLState& gs, Cartridge* c,
 // Per-frame
 void upload_gol_zone_config(GoLState& gs, Cartridge* c, wgpu::Queue& queue);
 void flush_zone_derive_requests(GoLState& gs, Cartridge* c, wgpu::Queue& queue);
+void teardown_gol(Cartridge* c, wgpu::Queue& queue);
+void dispatch_zone_sync(GoLState& gs, Cartridge* c, wgpu::CommandEncoder& encoder);
+void dispatch_zone_evolve(GoLState& gs, Cartridge* c, wgpu::CommandEncoder& encoder);
+void dispatch_zone_mesh(GoLState& gs, Cartridge* c, wgpu::CommandEncoder& encoder);
 
 } // namespace the_board
 } // namespace t7

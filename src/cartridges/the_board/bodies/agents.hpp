@@ -265,6 +265,9 @@ void try_possess_nearest(AgentState& as, Cartridge* c, wgpu::Queue& queue);
 void cycle_agent_behavior_override(AgentState& as, Cartridge* c, wgpu::Queue& queue);
 void cycle_agent_tier_override(AgentState& as, Cartridge* c, wgpu::Queue& queue);
 void force_respawn_population(AgentState& as, Cartridge* c, wgpu::Queue& queue);
+void seed_player_body(AgentState& as, Cartridge* c);
+void reseed_player_body(AgentState& as, Cartridge* c, uint32_t preserved_tier,
+                        float preserved_color_r, float preserved_color_g, float preserved_color_b);
 // Logging
 void dump_agent_census(const AgentState& as, const Cartridge* c, const char* trigger);
 

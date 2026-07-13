@@ -52,6 +52,10 @@ inline constexpr uint32_t SPHERE_TIER_COUNT = 2;
 inline constexpr float SPHERE_BASE_TIER_WEIGHTS[SPHERE_TIER_COUNT] = { 0.65f, 0.35f };
 inline constexpr const char* SPHERE_TIER_NAMES[] = { "Sentinel", "Anomaly" };
 
+// ── Readback spawn-protection window (shared sphere/cube vocabulary;
+//    REBUILD-0 m2 — rode home with the mirror-reconciliation verbs) ──
+inline constexpr float SPAWN_PROTECTION_S = 0.10f;
+
 // ── Spawn Configuration ──────────────────────────────────────────
 struct SphereConfig {
     static constexpr float SPAWN_CHANCE = 0.015f;

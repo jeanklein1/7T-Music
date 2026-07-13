@@ -920,5 +920,38 @@ inline void evict_ribbon(Cartridge* self,
     std::cout << "[Ribbon] EVICT slot=" << slot << "\n";
 }
 
+
+// ─── Teardown (owner verb; REBUILD-0 m2, stamp D4) ────────────────
+inline void teardown_ribbon(Cartridge* c, wgpu::Queue& queue) {
+    // Ribbon — clear all slots
+    {
+        for (uint32_t i = 0; i < MAX_RIBBON_INSTANCES; i++) {
+            c->ribbon_state_.active[i] = ActiveRibbon{};
+            c->ribbon_state_.gpu[i] = GPURibbonState{};
+        }
+        c->ribbon_state_.active_count = 0;
+        c->ribbon_state_.rendered_slot = UINT32_MAX;
+        GPURibbonState empty{};
+        c->gpuState_.upload_ribbon(queue, empty);
+    }
+}
+
+// ─── Finite-mode release (owner verb; REBUILD-0 m2 — stray (4) comes
+// home) ─ deactivate ribbons in finite mode unless the mood spawns its
+// own anchor ribbon in apply_mood. ORDER (O-3): must run AFTER
+// apply_mood set mood_state_.active (and possibly spawned the anchor).
+inline void release_finite_ribbons(Cartridge* c, wgpu::Queue& queue) {
+    if (c->world_state_.finite_mode && c->ribbon_state_.active_count > 0 && !MOOD_TABLE[c->mood_state_.active].has_anchor_ribbon) {
+        for (uint32_t i = 0; i < MAX_RIBBON_INSTANCES; i++) {
+            c->ribbon_state_.active[i] = ActiveRibbon{};
+            c->ribbon_state_.gpu[i] = GPURibbonState{};
+        }
+        c->ribbon_state_.active_count = 0;
+        c->ribbon_state_.rendered_slot = UINT32_MAX;
+        GPURibbonState empty{};
+        c->gpuState_.upload_ribbon(queue, empty);
+    }
+}
+
 } // namespace the_board
 } // namespace t7

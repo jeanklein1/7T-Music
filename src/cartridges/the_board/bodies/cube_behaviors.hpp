@@ -168,6 +168,7 @@ void corral_cubes(CubeBehaviorsState& cbs, Cartridge* c, wgpu::Queue& queue);
 void toggle_cube_kite_mode(CubeBehaviorsState& cbs, Cartridge* c, wgpu::Queue& queue);
 // Per-frame
 void tick_cube_corral_animations(CubeBehaviorsState& cbs, Cartridge* c, wgpu::Queue& queue);
+void reconcile_cube_mirror(CubeBehaviorsState& cs, Cartridge* c, const GPUFloatingEntityState* data);
 
 } // namespace the_board
 } // namespace t7

@@ -943,5 +943,109 @@ inline void dispatch_commit_cactus_generic(Cartridge* self, PlacementEntry& pe, 
     else { self->entities_state_.cacti[pe.generic.slot].active = false; }
 }
 
+
+// ─── Teardown (owner verb; REBUILD-0 m2, stamp D4) ────────────────
+// The grounded families' half of the world-teardown sweep — CPU slot
+// clears + GPU param-slot clears + mesh-gen re-arm, seven families in
+// their one organ. UNGATED by design: the seven families share this
+// organ, and per-family gating buys nothing (empty arrays clear to
+// empty). The arch clear announces the portal-set change on the
+// standing flag channel (mood_state_.portals_dirty).
+inline void teardown_entities(Cartridge* c, wgpu::Queue& queue) {
+    // Arches
+    for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++) {
+        c->entities_state_.arches[i] = ActiveArch{};
+    }
+    c->entities_state_.arch_count = 0;
+    c->mood_state_.portals_dirty = true;
+    c->gpuState_.set_arch_index_count(0);
+    // Clear all arch mesh gen param slots
+    {
+        GPUArchMeshParams emptyParams{};
+        for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++) {
+            c->gpuState_.upload_arch_mesh_params_slot(queue, i, emptyParams);
+        }
+        c->entities_state_.arch_mesh_gen_pending = true;
+    }
+
+    // Columns + Antennas
+    for (uint32_t i = 0; i < Dim::MAX_COLUMN_ONLY; i++) {
+        c->entities_state_.columns[i] = ActiveColumn{};
+    }
+    for (uint32_t i = 0; i < Dim::MAX_ANTENNA_ONLY; i++) {
+        c->entities_state_.antennas[i] = ActiveColumn{};
+    }
+    c->entities_state_.column_count = 0;
+    c->entities_state_.antenna_count = 0;
+    c->gpuState_.set_column_index_count(0);
+    // Clear all column mesh gen param slots
+    {
+        GPUColumnMeshParams emptyParams{};
+        for (uint32_t i = 0; i < Dim::MAX_COLUMN_INSTANCES; i++) {
+            c->gpuState_.upload_column_mesh_params_slot(queue, i, emptyParams);
+        }
+        c->entities_state_.column_mesh_gen_pending = true;
+    }
+
+    // Palms
+    for (uint32_t i = 0; i < Dim::MAX_PALM_INSTANCES; i++) {
+        c->entities_state_.palms[i] = ActivePalm{};
+    }
+    c->entities_state_.palm_count = 0;
+    c->gpuState_.set_palm_index_count(0);
+    {
+        GPUPalmMeshParams emptyParams{};
+        for (uint32_t i = 0; i < Dim::MAX_PALM_INSTANCES; i++) {
+            c->gpuState_.upload_palm_mesh_params_slot(queue, i, emptyParams);
+        }
+        c->entities_state_.palm_mesh_gen_pending = true;
+    }
+
+    // Cacti
+    for (uint32_t i = 0; i < Dim::MAX_CACTUS_INSTANCES; i++) {
+        c->entities_state_.cacti[i] = ActiveCactus{};
+    }
+    c->entities_state_.cactus_count = 0;
+    c->gpuState_.set_cactus_index_count(0);
+    {
+        GPUCactusMeshParams emptyParams{};
+        for (uint32_t i = 0; i < Dim::MAX_CACTUS_INSTANCES; i++) {
+            c->gpuState_.upload_cactus_mesh_params_slot(queue, i, emptyParams);
+        }
+        c->entities_state_.cactus_mesh_gen_pending = true;
+    }
+
+    // Blade clusters
+    for (uint32_t i = 0; i < Dim::MAX_BLADE_INSTANCES; i++) {
+        c->entities_state_.blades[i] = ActiveBlade{};
+    }
+    c->entities_state_.blade_count = 0;
+    c->gpuState_.set_blade_index_count(0);
+    {
+        GPUBladeClusterMeshParams emptyParams{};
+        for (uint32_t i = 0; i < Dim::MAX_BLADE_INSTANCES; i++) {
+            c->gpuState_.upload_blade_mesh_params_slot(queue, i, emptyParams);
+        }
+        c->entities_state_.blade_mesh_gen_pending = true;
+    }
+
+    // Pyramids
+    for (uint32_t i = 0; i < Dim::MAX_PYRAMID_INSTANCES; i++) {
+        c->entities_state_.pyramids[i] = ActivePyramid{};
+    }
+    c->entities_state_.pyramid_count = 0;
+    c->entities_state_.cpu_pyramids = GPUPyramidArray{};
+    c->gpuState_.upload_pyramids(queue, c->entities_state_.cpu_pyramids);
+    c->gpuState_.set_pyramid_index_count(0);
+    // Clear all mesh gen param slots (inactive → degenerates on next dispatch)
+    {
+        GPUPyramidMeshParams emptyParams{};
+        for (uint32_t i = 0; i < Dim::MAX_PYRAMID_INSTANCES; i++) {
+            c->gpuState_.upload_pyramid_mesh_params_slot(queue, i, emptyParams);
+        }
+        c->entities_state_.pyramid_mesh_gen_pending = true;
+    }
+}
+
 } // namespace the_board
 } // namespace t7

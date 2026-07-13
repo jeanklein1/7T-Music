@@ -77,6 +77,8 @@ struct PawnState {
 
 // ─── Per-frame pawn coupling tick — DECLARATION ──────────────────
 void tick_pawn_couplings(PawnState& ps, Cartridge* c, wgpu::Queue& queue);
+void teardown_pawn_aura(PawnState& ps);
+void dispatch_pawn_aura(PawnState& ps, Cartridge* c, wgpu::CommandEncoder& encoder, wgpu::Queue& queue);
 
 } // namespace the_board
 } // namespace t7

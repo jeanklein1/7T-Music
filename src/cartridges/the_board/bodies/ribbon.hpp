@@ -425,6 +425,8 @@ void ribbon_head_frame(const RibbonState& rs, float& yaw_off, float& pitch, floa
 void ribbon_head_pen(const RibbonState& rs, float& x, float& z, float& heading);
 void ribbon_invalidate_head(RibbonState& rs);
 bool ribbon_head_is(const RibbonState& rs, uint32_t slot);
+void teardown_ribbon(Cartridge* c, wgpu::Queue& queue);
+void release_finite_ribbons(Cartridge* c, wgpu::Queue& queue);
 // Shared geometry helper (dual-entry: dispatch + mood-5 forced spawn)
 void fill_ribbon_selection_geometry(uint32_t seed, uint32_t tier_idx,
     RibbonSelection& sel);

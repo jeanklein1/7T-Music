@@ -412,5 +412,46 @@ inline void dump_agent_census(const AgentState& as, const Cartridge* c, const ch
     std::cout << "\n";
 }
 
+
+// ─── Player-body seeding (owner verbs; REBUILD-0 m2 — stray (3)
+// comes home) ─ boot twin: slot 0 at the Idle pose, WORKER tier (the
+// GPU-side twin is seeded by GPUState::initializeState).
+inline void seed_player_body(AgentState& as, Cartridge* c) {
+    (void)c;
+    as.slots[0].pos_x = Idle::PAWN_POS_X;
+    as.slots[0].pos_y = Idle::PAWN_POS_Y;
+    as.slots[0].pos_z = Idle::PAWN_POS_Z;
+    as.slots[0].heading = Idle::PAWN_HEADING;
+    as.slots[0].orient_w = 1.0f;
+    as.slots[0].is_active = 1u;
+    as.slots[0].behavior_id = AGENT_BEHAVIOR_PLAYER_CONTROLLED;
+    as.slots[0].tier_idx = AGENT_TIER_WORKER;
+    as.slots[0].portal_trigger = -1;
+}
+
+// Transition twin: keep the CPU mirror in sync with the GPU reset so
+// patch streaming + ribbon + Caps Lock see current state; possession
+// re-anchors to slot 0 (the possessed_slot write stays with the
+// declared possession door's owner). Tier + colors preserved by the
+// caller across the reset. The twins stay twins — byte-exactness
+// outranks unification (PRIME INVARIANT); merging them is later
+// material if ever pulled.
+inline void reseed_player_body(AgentState& as, Cartridge* c, uint32_t preserved_tier,
+                               float preserved_color_r, float preserved_color_g, float preserved_color_b) {
+    std::memset(as.slots, 0, sizeof(as.slots));
+    as.slots[0].pos_x = 0.0f;  // Idle::PAWN_POS_X
+    as.slots[0].pos_y = 0.0f;
+    as.slots[0].pos_z = 0.0f;
+    as.slots[0].orient_w = 1.0f;
+    as.slots[0].is_active = 1u;
+    as.slots[0].behavior_id = AGENT_BEHAVIOR_PLAYER_CONTROLLED;
+    as.slots[0].tier_idx = preserved_tier;
+    as.slots[0].color_r = preserved_color_r;
+    as.slots[0].color_g = preserved_color_g;
+    as.slots[0].color_b = preserved_color_b;
+    as.slots[0].portal_trigger = -1;
+    c->player_.possessed_slot = 0;
+}
+
 } // namespace the_board
 } // namespace t7

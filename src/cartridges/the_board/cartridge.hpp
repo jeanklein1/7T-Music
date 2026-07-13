@@ -392,6 +392,7 @@ namespace t7 {
 
                 auto t1 = std::chrono::high_resolution_clock::now();
 
+                // ═══ MOVEMENT: BOOT — REALIZATION (the stage exists first) ══
                 // --- One-shot: generate terrain index buffer on GPU -----------------
                 {
                     wgpu::CommandEncoder encoder = device_.CreateCommandEncoder();
@@ -409,9 +410,13 @@ namespace t7 {
                 }
                 auto t2 = std::chrono::high_resolution_clock::now();
 
+                // ═══ MOVEMENT: BOOT — S2 THE SURFACE ════════════════════════
                 init_patch_system(this);
                 setup_test_rig_piers(this, device_.GetQueue());
 
+                // ═══ MOVEMENT: BOOT — PER-PIECE BOOT VERBS (part one) ═══════
+                // Order is today's, preserved byte-for-byte (PRIME INVARIANT);
+                // one conductor call per piece, presence constexpr-gated.
                 // Sky orbs for the initial mood (apply_mood runs only on transitions).
                 if constexpr (ROSTER.orbs) {  // ROSTER-GATE orbs (c) — boot one-shot skipped when disabled
                     wgpu::Queue q = device_.GetQueue();
@@ -428,16 +433,11 @@ namespace t7 {
                     upload_agent_registries_to_gpu(this, q);
                 }
 
+                // ═══ MOVEMENT: BOOT — S3 PLACEMENT ══════════════════════════
                 {
-                    agent_state_.slots[0].pos_x = Idle::PAWN_POS_X;
-                    agent_state_.slots[0].pos_y = Idle::PAWN_POS_Y;
-                    agent_state_.slots[0].pos_z = Idle::PAWN_POS_Z;
-                    agent_state_.slots[0].heading = Idle::PAWN_HEADING;
-                    agent_state_.slots[0].orient_w = 1.0f;
-                    agent_state_.slots[0].is_active = 1u;
-                    agent_state_.slots[0].behavior_id = AGENT_BEHAVIOR_PLAYER_CONTROLLED;
-                    agent_state_.slots[0].tier_idx = AGENT_TIER_WORKER;
-                    agent_state_.slots[0].portal_trigger = -1;
+                    // Slot 0, the pawn — ungated: the player body is
+                    // unconditional (owner verb; REBUILD-0 m2, stray (3) home).
+                    seed_player_body(agent_state_, this);
 
                     wgpu::Queue q = device_.GetQueue();
                     // ROSTER-GATE wanderers (c) — boot population (agent slots
@@ -448,8 +448,11 @@ namespace t7 {
                     dump_agent_census(agent_state_, this, "boot");
                 }
 
-                // Eager-load authored paintings at boot (avoids mid-frame stall on first gallery)
-                {
+                // ═══ MOVEMENT: BOOT — PER-PIECE BOOT VERBS (part two) ═══════
+                // Eager-load authored paintings at boot (avoids mid-frame stall on first gallery).
+                // ROSTER-GATE gallery (c) — P2 DIES STRUCTURALLY (REBUILD-0):
+                // disabled, the authored-staging textures stay pristine.
+                if constexpr (ROSTER.gallery) {
                     wgpu::Queue q = device_.GetQueue();
                     load_authored_textures(gallery_state_, this, q);
                 }
@@ -511,6 +514,10 @@ namespace t7 {
             void update(const AnalysisSignal& signal,
                 float aspect_ratio,
                 wgpu::Queue& queue) override {
+                // ═══ MOVEMENT: THE CLOCK AND THE SIGNAL (root) ══════════════
+                // Frame-signal fill (O-5a: dt_beats reads prev_beats BEFORE the
+                // clock block advances it), the SNAP-1 neutral sky words, then
+                // the clock + tempo follower.
                 // --- Build GPU signal from analysis + input -------------------------
                 GPUFrameSignal gpuSignal;
 
@@ -563,6 +570,10 @@ namespace t7 {
                     time_state_.prev_beats = signal.t_beats;
                 }
 
+                // ═══ MOVEMENT: S4 MOTION — DRIVERS ══════════════════════════
+                // The music driver authors params through the canvas; fog is
+                // its first staged consumer. (Input was harvested by the
+                // on_input callbacks; its deltas rode the signal fill above.)
                 visual_canvas_.tick(signal);
                 if (fog_density_dst_.valid && fog_color_dst_.valid) {
                     const VisualParams& fp = visual_canvas_.params();
@@ -572,10 +583,18 @@ namespace t7 {
                                       fp.get(fog_color_dst_.base + 2));
                 }
 
+                // ═══ MOVEMENT: S4 MOTION — BODIES ═══════════════════════════
                 // Pawn presence ramp + aura height computation.
                 // Lives in pawn.inl as a real-time exponential tick (closes pawn:K1).
                 if constexpr (ROSTER.pawn_aura)  // ROSTER-GATE pawn_aura (b) — disabled: presence never raised, no aura height
                     tick_pawn_couplings(pawn_state_, this, queue);
+
+                // ═══ MOVEMENT: REALIZATION STAGING (part one — world seed +
+                // finite bounds) ═════════════════════════════════════════════
+                // Stays PRE-machine (RC policy: today's order kept, constraint
+                // recorded): the TEARDOWN case re-stages the seed itself, and
+                // moving the bounds after the machine would ship the NEW
+                // world's bounds one frame early on the teardown frame.
                 gpuState_.set_world_seed(world_state_.active_seed);
                 if (world_state_.finite_mode) {
                     float bmin = -(float)world_state_.finite_radius * PATCH_EXTENT;
@@ -586,7 +605,8 @@ namespace t7 {
                     gpuState_.set_world_bounds(0.0f, 0.0f, 0.0f, 0.0f);
                 }
 
-                // --- Transition state machine ---
+                // ═══ MOVEMENT: THE TRANSITION MACHINE (spine-owned;
+                // SEAM[spine:transitions]) ═══════════════════════════════════
                 if (transitionPhase_ != TransitionPhase::IDLE) {
                     mood_state_.transition_timer += signal.dt;
                     switch (transitionPhase_) {
@@ -598,11 +618,13 @@ namespace t7 {
                         break;
                     case TransitionPhase::TEARDOWN:
                     {
-                        // This TEARDOWN block stays focused on the
-                        //   integration concerns it correctly owns: worldGen
-                        //   bump (P5 stale-callback guard), return-state
-                        //   capture, agent reset, ribbon cleanup, patch
-                        //   teardown.
+                        // ═══ MOVEMENT: TEARDOWN (fixed sequence O-3) ════════
+                        // This TEARDOWN block owns the integration concerns:
+                        //   worldGen bump (P5 stale-callback guard),
+                        //   return-state capture, per-owner teardown verbs
+                        //   (REBUILD-0 m2, stamp D4 — the owner-verb pattern
+                        //   that already lived inside teardown_world,
+                        //   completed), agent reset, repopulation.
                         // SEAM[spine:P5] world_state_.world_gen++ at top of TEARDOWN is the
                         //   stale-callback guard (P5 family). Genuinely
                         //   spine-owned.
@@ -617,7 +639,33 @@ namespace t7 {
                         world_state_.active_seed = pendingDestination_.seed;
                         world_state_.finite_mode = pendingDestination_.finite;
                         world_state_.finite_radius = pendingDestination_.finite_radius;
-                        teardown_world(this, queue);
+
+                        // The surface core first, then one teardown verb per
+                        // owner. The per-organ clears are independent (each
+                        // touches only its organ + its own GPU slots), so the
+                        // owner-verb order is free; the new gates eliminate
+                        // only zeros-over-pristine GPU writes (disclosed at
+                        // the ladder).
+                        teardown_surface(this, queue);
+                        teardown_entities(this, queue);
+                        if constexpr (ROSTER.gol)      // ROSTER-GATE gol (c) — teardown clear skipped when disabled (organ pristine)
+                            teardown_gol(this, queue);
+                        if constexpr (ROSTER.ribbon)   // ROSTER-GATE ribbon (c) — same zero-write elimination
+                            teardown_ribbon(this, queue);
+                        if constexpr (ROSTER.sphere)   // ROSTER-GATE sphere (c)
+                            clear_spheres(sphere_state_, gpuState_, queue);
+                        if constexpr (ROSTER.cube)     // ROSTER-GATE cube (c)
+                            clear_cubes(cube_behaviors_state_, gpuState_, queue);
+                        // The gallery organ is SHARED with indoor_shell (wall
+                        // frames live in the same painting slots — form_type).
+                        if constexpr (ROSTER.gallery || ROSTER.indoor_shell)  // ROSTER-GATE gallery+indoor_shell (c)
+                            teardown_gallery(this, queue);
+                        if constexpr (ROSTER.pawn_aura)  // ROSTER-GATE pawn_aura (c) — teardown clear skipped when disabled (no aura to clear)
+                            teardown_pawn_aura(pawn_state_);
+                        // Sky orbs: apply_mood re-enables + re-seeds as needed
+                        if constexpr (ROSTER.orbs)  // ROSTER-GATE orbs (c) — teardown one-shot skipped when disabled
+                            teardown_orbs(orbs_state_, this);
+
                         player_.readback_portal_trigger = -1;
                         player_.readback_x = 0.0f;
                         player_.readback_z = 0.0f;
@@ -629,21 +677,10 @@ namespace t7 {
                         gpuState_.reset_player_agent(queue, preserved_tier,
                             preserved_color_r, preserved_color_g, preserved_color_b);
                         gpuState_.set_possessed_slot(0);
-                        // Keep agent_state_.slots in sync with the GPU reset so
-                        // patch streaming + ribbon + Caps Lock see current state.
-                        std::memset(agent_state_.slots, 0, sizeof(agent_state_.slots));
-                        agent_state_.slots[0].pos_x = 0.0f;  // Idle::PAWN_POS_X
-                        agent_state_.slots[0].pos_y = 0.0f;
-                        agent_state_.slots[0].pos_z = 0.0f;
-                        agent_state_.slots[0].orient_w = 1.0f;
-                        agent_state_.slots[0].is_active = 1u;
-                        agent_state_.slots[0].behavior_id = AGENT_BEHAVIOR_PLAYER_CONTROLLED;
-                        agent_state_.slots[0].tier_idx = preserved_tier;
-                        agent_state_.slots[0].color_r = preserved_color_r;
-                        agent_state_.slots[0].color_g = preserved_color_g;
-                        agent_state_.slots[0].color_b = preserved_color_b;
-                        agent_state_.slots[0].portal_trigger = -1;
-                        player_.possessed_slot = 0;
+                        // CPU mirror reseed rides with its owner (agents;
+                        // REBUILD-0 m2, stray (3)'s transition twin).
+                        reseed_player_body(agent_state_, this, preserved_tier,
+                            preserved_color_r, preserved_color_g, preserved_color_b);
                         gpuState_.set_world_seed(world_state_.active_seed);
                         apply_mood(this, pendingDestination_.mood, queue);
                         // ROSTER-GATE wanderers (c) — transition population (slots 1+); slot 0 preserved above.
@@ -651,18 +688,12 @@ namespace t7 {
                             spawn_population_for_mood(agent_state_, this, pendingDestination_.mood, world_state_.active_seed,
                                 Idle::PAWN_POS_X, Idle::PAWN_POS_Z, queue);
                         dump_agent_census(agent_state_, this, "mood-transition");
-                        // Deactivate ribbons in finite mode unless the mood
-                        // spawns its own anchor ribbon in apply_mood.
-                        if (world_state_.finite_mode && ribbon_state_.active_count > 0 && !MOOD_TABLE[mood_state_.active].has_anchor_ribbon) {
-                            for (uint32_t i = 0; i < MAX_RIBBON_INSTANCES; i++) {
-                                ribbon_state_.active[i] = ActiveRibbon{};
-                                ribbon_state_.gpu[i] = GPURibbonState{};
-                            }
-                            ribbon_state_.active_count = 0;
-                            ribbon_state_.rendered_slot = UINT32_MAX;
-                            GPURibbonState empty{};
-                            gpuState_.upload_ribbon(queue, empty);
-                        }
+                        // ROSTER-GATE ribbon (c) — finite-mode release, owner
+                        // verb (REBUILD-0 m2, stray (4) home). Zero effect
+                        // when ribbon is off (active_count stays 0). ORDER
+                        // (O-3): after apply_mood set mood_state_.active.
+                        if constexpr (ROSTER.ribbon)
+                            release_finite_ribbons(this, queue);
                         // Schedule guaranteed back-portal in finite worlds
                         mood_state_.back_portal_pending = world_state_.finite_mode;
 
@@ -685,19 +716,28 @@ namespace t7 {
                     default: break;
                     }
                 }
+                // ═══ MOVEMENT: REALIZATION STAGING (part two — fade + the two
+                // uploads) ═══════════════════════════════════════════════════
+                // O-5b/c: fade after the machine (alpha is current-frame);
+                // upload_signal then upload_config after ALL staging setters.
                 gpuState_.set_fade(mood_state_.transition_fade_alpha, 0.0f, 0.0f, 0.0f);
 
                 gpuState_.upload_signal(queue, gpuSignal);
 
                 gpuState_.upload_config(queue);
 
+                // ═══ MOVEMENT: WITNESS ══════════════════════════════════════
                 // Orb dome anchor: follow pawn when toggled on. Uses
-                // last-frame pawn readback — one-frame lag is imperceptible.
+                // last-frame pawn readback — one-frame lag is imperceptible (O-5d).
                 if constexpr (ROSTER.orbs)  // ROSTER-GATE orbs (b)
                     update_orb_anchor(orbs_state_, this, player_.readback_x, player_.readback_z, queue);
+                // ROSTER-GATE gallery (b) — P1 DIES STRUCTURALLY (REBUILD-0):
+                // the photographer never walks in a gallery-less demo.
+                if constexpr (ROSTER.gallery)
+                    update_photographer(gallery_state_, this, queue);
 
-                // --- Clear deltas for next frame ------------------------------------
-                update_photographer(gallery_state_, this, queue);
+                // ═══ MOVEMENT: DRIVER BOOKKEEPING ═══════════════════════════
+                // O-5e: dead-last — the signal fill above consumed the deltas.
                 clear_input_deltas(this);
             }
 
@@ -713,7 +753,12 @@ namespace t7 {
 
                 wgpu::Queue queue = device_.GetQueue();
 
-                //
+                // ═══ MOVEMENT: WITNESS — HARVEST (P5 maps; consumes LAST
+                // frame's capture) ═══════════════════════════════════════════
+                // Leads the score: every downstream consumer (stream center,
+                // portal door, corral, sorts) eats its output. The charter's
+                // after-motion seat is vetoed here by the P5 protocol (O-2);
+                // the CAPTURE half sits after dispatch_compute below.
                 if (pawnReadbackState_ == PawnReadbackState::COPIED) {
                     pawnReadbackState_ = PawnReadbackState::MAPPING;
                     gpuState_.agent_state_readback_staging().MapAsync(
@@ -761,28 +806,13 @@ namespace t7 {
                                         gpuState_.floating_entity_readback_staging().GetConstMappedRange(
                                             0, GPUState::floating_entity_buffer_size()));
                                     if (data) {
-                                        static constexpr float SPAWN_PROTECTION_S = 0.10f;
-                                        float now = time_state_.seconds;
-                                        // Spheres: slots [0, MAX_SPHERE_INSTANCES)
-                                        for (uint32_t i = 0; i < Dim::MAX_SPHERE_INSTANCES; i++) {
-                                            bool gpu_active = (data[i].is_active != 0u);
-                                            // sphere active-slot mirror owned by SphereState (spheres.hpp)
-                                            if (sphere_state_.activeFloaters_[i].active && !gpu_active &&
-                                                (now - sphere_state_.activeFloaters_[i].last_alloc_time) > SPAWN_PROTECTION_S) {
-                                                sphere_state_.activeFloaters_[i].active = false;
-                                                if (sphere_state_.activeFloaterCount_ > 0) sphere_state_.activeFloaterCount_--;
-                                            }
-                                        }
-                                        // Cubes: slots [CUBE_SLOT_OFFSET, TOTAL_FLOATING_SLOTS)
-                                        for (uint32_t i = 0; i < Dim::MAX_CUBE_INSTANCES; i++) {
-                                            bool gpu_active = (data[Dim::CUBE_SLOT_OFFSET + i].is_active != 0u);
-                                            // cube active-slot mirror owned by CubeBehaviorsState (cube_behaviors.hpp)
-                                            if (cube_behaviors_state_.activeCubes_[i].active && !gpu_active &&
-                                                (now - cube_behaviors_state_.activeCubes_[i].last_alloc_time) > SPAWN_PROTECTION_S) {
-                                                cube_behaviors_state_.activeCubes_[i].active = false;
-                                                if (cube_behaviors_state_.activeCubeCount_ > 0) cube_behaviors_state_.activeCubeCount_--;
-                                            }
-                                        }
+                                        // Owner mirror reconciliation (REBUILD-0
+                                        // m2 — stray (1) home; funnels live with
+                                        // spheres / cube_behaviors).
+                                        if constexpr (ROSTER.sphere)  // ROSTER-GATE sphere (b) — no spheres, no mirror to release
+                                            reconcile_sphere_mirror(sphere_state_, this, data);
+                                        if constexpr (ROSTER.cube)    // ROSTER-GATE cube (b)
+                                            reconcile_cube_mirror(cube_behaviors_state_, this, data);
                                     }
                                 }
                                 gpuState_.floating_entity_readback_staging().Unmap();
@@ -811,15 +841,31 @@ namespace t7 {
                     }
                 }
 
+                // ═══ MOVEMENT: S2 SURFACE LIFECYCLE ═════════════════════════
+                // The streaming conductor; carries the declared S3-trigger
+                // seam inside (SEAM[patch:spawn-trigger] — select/place/commit
+                // fire from the stream's own cadence).
+                stream_patches(this, encoder, queue);
+
+                // ═══ MOVEMENT: S3 PLACEMENT ═════════════════════════════════
+                // REORDER RC-1 (stamped policy): respawn moved AFTER stream —
+                // S3 after S2. Safety: respawn touches slots 1+ only (slot 0
+                // is never evicted), and the stream's bubble center reads
+                // player_.readback_x/z refreshed at HARVEST — no data edge.
                 // Refill any agent slots the GPU evicted last frame.
                 // No-op when no slots were evicted — just a 32-slot scan.
                 // ROSTER-GATE wanderers (b) — per-frame refill of evicted NPC slots (1+); slot 0 never evicted.
                 if constexpr (ROSTER.wanderers)
                     respawn_evicted_agents(agent_state_, this, mood_state_.active, world_state_.active_seed, queue);
 
-                tick_cube_corral_animations(cube_behaviors_state_, this, queue);
-
-                stream_patches(this, encoder, queue);
+                // ═══ MOVEMENT: S4 MOTION — BODIES ═══════════════════════════
+                // REORDER RC-2 (stamped policy): corral moved after stream —
+                // S4 after S2; the corral tick and patch eviction touch
+                // disjoint cube fields per frame, and the rig's pixel gate
+                // arbitrates. ROSTER-GATE cube (b) — ungated-site closed
+                // (REBUILD-0): no cubes, no corral animation to advance.
+                if constexpr (ROSTER.cube)
+                    tick_cube_corral_animations(cube_behaviors_state_, this, queue);
 
                 // DIAG-unwrapped (census: constitution §5): autonomous
                 // stdout — wrap in #ifdef DIAG_AGENT_CENSUS at ship.
@@ -869,35 +915,73 @@ namespace t7 {
 
                 // ─── Ribbon per-frame ── one call; the conductor lives in
                 // bodies/ribbon.inl (FRAME ORCHESTRATION). SEAM[ribbon:sky-mode].
-                ribbon_frame_tick(ribbon_state_, this, queue);
+                // ROSTER-GATE ribbon (b) — ungated-site closed (REBUILD-0):
+                // disabled, the per-frame walk over empty slots is eliminated;
+                // the resync below then ships the default (zero) head, exactly
+                // what the never-seeded head returned before. O-1: this tick
+                // must precede resync_sky_head.
+                if constexpr (ROSTER.ribbon)
+                    ribbon_frame_tick(ribbon_state_, this, queue);
 
+                // ═══ MOVEMENT: REALIZATION ══════════════════════════════════
                 // ─── Entity mesh gen: single compute pass for all dirty families ──
                 {
                     bool dirty[PopFamily::COUNT] = {};
                     bool anyDirty = false;
-                    // ROSTER-GATE family (b) — the per-frame mesh-prepare
-                    // loop folds over the roster at COMPILE TIME (R1 hot-path
-                    // caveat): a disabled family's prepare_mesh is eliminated
-                    // (no call, no runtime branch on a disabled piece).
-                    // All-enabled unrolls to the original 12 calls in order.
-                    #define ROSTER_PREP_FAMILY(F) \
-                        if constexpr (ROSTER.family_enabled(F)) { \
-                            dirty[F] = FAMILY_DISPATCH[F].prepare_mesh(this, queue); \
-                            anyDirty = anyDirty || dirty[F]; \
-                        }
-                    ROSTER_PREP_FAMILY(PopFamily::PYRAMID);
-                    ROSTER_PREP_FAMILY(PopFamily::ARCH);
-                    ROSTER_PREP_FAMILY(PopFamily::COLUMN);
-                    ROSTER_PREP_FAMILY(PopFamily::ANTENNA);
-                    ROSTER_PREP_FAMILY(PopFamily::PALM);
-                    ROSTER_PREP_FAMILY(PopFamily::CACTUS);
-                    ROSTER_PREP_FAMILY(PopFamily::BLADE);
-                    ROSTER_PREP_FAMILY(PopFamily::SPHERE);
-                    ROSTER_PREP_FAMILY(PopFamily::RIBBON);
-                    ROSTER_PREP_FAMILY(PopFamily::CUBE);
-                    ROSTER_PREP_FAMILY(PopFamily::GOL);
-                    ROSTER_PREP_FAMILY(PopFamily::GALLERY);
-                    #undef ROSTER_PREP_FAMILY
+                    // Twelve explicit prepare lines, one per family, each
+                    // presence constexpr-gated — THE SCORE RULING (REBUILD-0
+                    // m2): the typelist fold dissolved into prose. A disabled
+                    // family's prepare is eliminated at COMPILE TIME (no call,
+                    // no runtime branch); all-enabled compiles to the same 12
+                    // calls in the same order.
+                    if constexpr (ROSTER.pyramid) {   // ROSTER-GATE pyramid (b)
+                        dirty[PopFamily::PYRAMID] = FAMILY_DISPATCH[PopFamily::PYRAMID].prepare_mesh(this, queue);
+                        anyDirty = anyDirty || dirty[PopFamily::PYRAMID];
+                    }
+                    if constexpr (ROSTER.arch) {      // ROSTER-GATE arch (b)
+                        dirty[PopFamily::ARCH] = FAMILY_DISPATCH[PopFamily::ARCH].prepare_mesh(this, queue);
+                        anyDirty = anyDirty || dirty[PopFamily::ARCH];
+                    }
+                    if constexpr (ROSTER.column) {    // ROSTER-GATE column (b)
+                        dirty[PopFamily::COLUMN] = FAMILY_DISPATCH[PopFamily::COLUMN].prepare_mesh(this, queue);
+                        anyDirty = anyDirty || dirty[PopFamily::COLUMN];
+                    }
+                    if constexpr (ROSTER.antenna) {   // ROSTER-GATE antenna (b)
+                        dirty[PopFamily::ANTENNA] = FAMILY_DISPATCH[PopFamily::ANTENNA].prepare_mesh(this, queue);
+                        anyDirty = anyDirty || dirty[PopFamily::ANTENNA];
+                    }
+                    if constexpr (ROSTER.palm) {      // ROSTER-GATE palm (b)
+                        dirty[PopFamily::PALM] = FAMILY_DISPATCH[PopFamily::PALM].prepare_mesh(this, queue);
+                        anyDirty = anyDirty || dirty[PopFamily::PALM];
+                    }
+                    if constexpr (ROSTER.cactus) {    // ROSTER-GATE cactus (b)
+                        dirty[PopFamily::CACTUS] = FAMILY_DISPATCH[PopFamily::CACTUS].prepare_mesh(this, queue);
+                        anyDirty = anyDirty || dirty[PopFamily::CACTUS];
+                    }
+                    if constexpr (ROSTER.blade) {     // ROSTER-GATE blade (b)
+                        dirty[PopFamily::BLADE] = FAMILY_DISPATCH[PopFamily::BLADE].prepare_mesh(this, queue);
+                        anyDirty = anyDirty || dirty[PopFamily::BLADE];
+                    }
+                    if constexpr (ROSTER.sphere) {    // ROSTER-GATE sphere (b)
+                        dirty[PopFamily::SPHERE] = FAMILY_DISPATCH[PopFamily::SPHERE].prepare_mesh(this, queue);
+                        anyDirty = anyDirty || dirty[PopFamily::SPHERE];
+                    }
+                    if constexpr (ROSTER.ribbon) {    // ROSTER-GATE ribbon (b)
+                        dirty[PopFamily::RIBBON] = FAMILY_DISPATCH[PopFamily::RIBBON].prepare_mesh(this, queue);
+                        anyDirty = anyDirty || dirty[PopFamily::RIBBON];
+                    }
+                    if constexpr (ROSTER.cube) {      // ROSTER-GATE cube (b)
+                        dirty[PopFamily::CUBE] = FAMILY_DISPATCH[PopFamily::CUBE].prepare_mesh(this, queue);
+                        anyDirty = anyDirty || dirty[PopFamily::CUBE];
+                    }
+                    if constexpr (ROSTER.gol) {       // ROSTER-GATE gol (b)
+                        dirty[PopFamily::GOL] = FAMILY_DISPATCH[PopFamily::GOL].prepare_mesh(this, queue);
+                        anyDirty = anyDirty || dirty[PopFamily::GOL];
+                    }
+                    if constexpr (ROSTER.gallery) {   // ROSTER-GATE gallery (b)
+                        dirty[PopFamily::GALLERY] = FAMILY_DISPATCH[PopFamily::GALLERY].prepare_mesh(this, queue);
+                        anyDirty = anyDirty || dirty[PopFamily::GALLERY];
+                    }
                     if (anyDirty) {
                         wgpu::ComputePassDescriptor cpd{};
                         cpd.label = "Entity Mesh Gen";
@@ -934,6 +1018,8 @@ namespace t7 {
 
                 dispatch_compute(this, encoder);
 
+                // ═══ MOVEMENT: WITNESS — CAPTURE (O-2: staging copies AFTER
+                // compute; feeds next frame's HARVEST) ══════════════════════
                 // Copy full agent buffer from GPU to staging (for readback next frame)
                 if (pawnReadbackState_ == PawnReadbackState::IDLE) {
                     encoder.CopyBufferToBuffer(
@@ -951,94 +1037,30 @@ namespace t7 {
                     floaterReadbackState_ = FloaterReadbackState::COPIED;
                 }
 
-                // GoL zone compute — derive params + sync + evolve (separate passes for barrier)
+                // ═══ MOVEMENT: REALIZATION, CONTINUED ═══════════════════════
+                // GoL zone compute — derive params + sync + evolve, owner
+                // verbs, SEPARATE passes for the barrier (O-6a; stray (6)
+                // home). ROSTER-GATE gol (b) — D7 (REBUILD-0 stamp): the
+                // structural gate above the runtime zone_count gate;
+                // behavior-identical per the residue proof (zone_count stays
+                // 0 when disabled), and the census tool stays exception-free.
+                if constexpr (ROSTER.gol)
                 if (gol_state_.zone_count > 0) {
                     rosterGolZoneRuns_++;  // ROSTER-RESIDUE gol (2e) — the only writer of the zone GPU buffers; counted so the disabled-piece residue check can prove pristine
                     flush_zone_derive_requests(gol_state_, this, queue);
                     upload_gol_zone_config(gol_state_, this, queue);
-
-                    {
-                        wgpu::ComputePassDescriptor cpd{};
-                        cpd.label = "GoL Zone Sync";
-                        wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
-                        renderer_.dispatch_zone_gol_sync(pass,
-                            gpuState_.zone_gol_compute_group(), gol_state_.active_slot_count);
-                        pass.End();
-                    }
-                    {
-                        wgpu::ComputePassDescriptor cpd{};
-                        cpd.label = "GoL Zone Evolve";
-                        wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
-                        renderer_.dispatch_zone_gol_evolve(pass,
-                            gpuState_.zone_gol_compute_group(), gol_state_.active_slot_count);
-                        pass.End();
-                    }
-
-                    // Mesh gen pass (Group 0 = compute entity, Group 1 = zone mesh gen)
-                    {
-                        wgpu::ComputePassDescriptor cpd{};
-                        cpd.label = "GoL Zone Mesh Gen";
-                        wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
-                        renderer_.dispatch_zone_mesh_reset(pass,
-                            gpuState_.zone_mesh_gen_group());
-                        renderer_.dispatch_zone_mesh_gen(pass,
-                            gpuState_.zone_mesh_gen_group(),
-                            gol_state_.active_slot_count);
-                        pass.End();
-                    }
+                    dispatch_zone_sync(gol_state_, this, encoder);
+                    dispatch_zone_evolve(gol_state_, this, encoder);
+                    dispatch_zone_mesh(gol_state_, this, encoder);
                 }
 
-                // Pawn aura compute — persistent terrain influence
-                // Run while presence > 0 (ramping down after toggle-off) or clearing
+                // Pawn aura compute — persistent terrain influence, one owner
+                // verb (REBUILD-0 m2 — stray (2) home; the runtime while-
+                // presence/clearing condition lives inside).
                 // ROSTER-GATE pawn_aura (b) — disabled: the whole aura compute
                 // (config upload + dispatch) is eliminated; zero GPU writes.
                 if constexpr (ROSTER.pawn_aura)
-                if (player_.aura_presence > 0.0f || pawn_state_.aura_needs_clear) {
-                    if (pawn_state_.aura_cfg_dirty) {
-                        // Full config upload — profile changed or first frame
-                        pawn_state_.aura_cfg_dirty = false;
-                        const auto& ap = pawn_state_.active_aura_profile;
-
-                        // Presence scales all aura params for smooth raise/lower
-                        float p = player_.aura_presence;
-
-                        GPUPawnAuraConfig auraCfg{};
-                        auraCfg.cell_size = PATCH_CELL_SIZE;
-                        auraCfg.influence_radius = ap.influence_radius * p;
-                        auraCfg.attack_stiffness = ap.attack_stiffness;
-                        auraCfg.attack_damping = ap.attack_damping;
-                        auraCfg.release_rate = (p > 0.01f) ? ap.release_rate : 999.0f;
-                        auraCfg.dt = time_state_.dt;
-                        auraCfg.effect_mask = ap.effect_mask;
-                        auraCfg.aura_n = 64;
-                        auraCfg.tint_strength = std::min(ap.tint_strength * p, 1.0f);
-                        auraCfg.tint_r = ap.tint_r;
-                        auraCfg.tint_g = ap.tint_g;
-                        auraCfg.tint_b = ap.tint_b;
-                        auraCfg.delta_mode = ap.delta_mode;
-                        auraCfg.delta_magnitude = ap.delta_magnitude;
-                        auraCfg.t_beats = time_state_.beats;
-                        // height_scale gates the compute shader's R channel write (> 0.01 = enabled).
-                        // Actual terrain extrusion magnitude comes from config.pawn_aura_height in the VS.
-                        auraCfg.height_scale = (pawn_state_.aura_height_enabled && p > 0.01f) ? ap.height_scale : 0.0f;
-                        gpuState_.upload_pawn_aura_config(queue, auraCfg);
-                    }
-                    else {
-                        // Steady state — only dt and t_beats change per frame
-                        gpuState_.upload_pawn_aura_frame(queue, time_state_.dt, time_state_.beats);
-                    }
-
-                    wgpu::ComputePassDescriptor cpd{};
-                    cpd.label = "Pawn Aura";
-                    wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
-                    renderer_.dispatch_compute_pawn_aura(pass,
-                        gpuState_.pawn_aura_compute_group(),
-                        GPUState::pawn_aura_workgroups());
-                    pass.End();
-
-                    // After one cleanup frame with release_rate=999, all cells are zero
-                    if (pawn_state_.aura_needs_clear) { pawn_state_.aura_needs_clear = false; }
-                }
+                    dispatch_pawn_aura(pawn_state_, this, encoder, queue);
 
                 // Orb sky layer: one-shot init, optional color-only refresh,
                 // snapshot previous state for flocking neighbor reads, then
@@ -1061,6 +1083,8 @@ namespace t7 {
                     dispatch_placement_correction(this, encoder);
                 }
 
+                // O-7 tail: cull before the draw passes (indirect draws
+                // consume the cull output); snapshot before promotions.
                 // DIAG: frustum cull re-enabled — indirect draw active
                 dispatch_frustum_cull(this, encoder, queue);
 
@@ -1068,14 +1092,11 @@ namespace t7 {
                 render_main_pass(this, encoder, backbuffer, depth);
                 render_snapshot_pass(gallery_state_, this, encoder);
 
-                for (uint32_t i = 0; i < gallery_state_.pending_promotion_count; i++) {
-                    auto& p = gallery_state_.pending_promotions[i];
-                    wgpu::Texture src = p.is_snapshot
-                        ? gpuState_.snapshot_staging_texture()
-                        : gpuState_.authored_staging_texture();
-                    gpuState_.promote_to_exhibition(encoder, src, p.staging_layer, p.exhibition_layer);
-                }
-                gallery_state_.pending_promotion_count = 0;
+                // Promotion drain, one owner verb (REBUILD-0 m2 — stray (5)
+                // home). ROSTER-GATE gallery+indoor_shell (b) — with both off,
+                // no writer of pending_promotions exists.
+                if constexpr (ROSTER.gallery || ROSTER.indoor_shell)
+                    drain_gallery_promotions(gallery_state_, this, encoder);
             }
 
             // Mood is VOCABULARY + APPLIERS + SIX DOORS: CeilingType /

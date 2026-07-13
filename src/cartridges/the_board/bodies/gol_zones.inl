@@ -363,5 +363,54 @@ inline void evict_gol(Cartridge* self,
 #endif
 }
 
+
+// ─── Teardown (owner verb; REBUILD-0 m2, stamp D4) ────────────────
+inline void teardown_gol(Cartridge* c, wgpu::Queue& queue) {
+    // GoL zones
+    for (uint32_t i = 0; i < Dim::MAX_GOL_ZONES; i++) {
+        c->gol_state_.zones[i] = GoLZoneState{};
+    }
+    c->gol_state_.zone_count = 0;
+    c->gol_state_.active_slot_count = 0;
+    c->gol_state_.pending_derive_requests.count = 0;
+    GPUGoLZoneArray emptyZones{};
+    c->gpuState_.upload_zone_config(queue, emptyZones);
+}
+
+// ─── Zone compute passes (owner verbs; REBUILD-0 m2 — stray (6)
+// comes home) ─ derive params + sync + evolve + mesh, SEPARATE passes
+// for the GPU barrier (O-6a). Callers order them sync -> evolve ->
+// mesh after flush_zone_derive_requests + upload_gol_zone_config.
+inline void dispatch_zone_sync(GoLState& gs, Cartridge* c, wgpu::CommandEncoder& encoder) {
+    wgpu::ComputePassDescriptor cpd{};
+    cpd.label = "GoL Zone Sync";
+    wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
+    c->renderer_.dispatch_zone_gol_sync(pass,
+        c->gpuState_.zone_gol_compute_group(), gs.active_slot_count);
+    pass.End();
+}
+
+inline void dispatch_zone_evolve(GoLState& gs, Cartridge* c, wgpu::CommandEncoder& encoder) {
+    wgpu::ComputePassDescriptor cpd{};
+    cpd.label = "GoL Zone Evolve";
+    wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
+    c->renderer_.dispatch_zone_gol_evolve(pass,
+        c->gpuState_.zone_gol_compute_group(), gs.active_slot_count);
+    pass.End();
+}
+
+inline void dispatch_zone_mesh(GoLState& gs, Cartridge* c, wgpu::CommandEncoder& encoder) {
+    // Mesh gen pass (Group 0 = compute entity, Group 1 = zone mesh gen)
+    wgpu::ComputePassDescriptor cpd{};
+    cpd.label = "GoL Zone Mesh Gen";
+    wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
+    c->renderer_.dispatch_zone_mesh_reset(pass,
+        c->gpuState_.zone_mesh_gen_group());
+    c->renderer_.dispatch_zone_mesh_gen(pass,
+        c->gpuState_.zone_mesh_gen_group(),
+        gs.active_slot_count);
+    pass.End();
+}
+
 } // namespace the_board
 } // namespace t7
