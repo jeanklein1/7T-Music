@@ -1764,3 +1764,72 @@ sentence becomes a new standing witness) → p3 the panels (terrain
 first). FULL STOP: four stamp questions (matrix shape, terrain panel
 scope, whether a fourth perf movement, p1's roster form). p1 cuts only
 after the stamp.
+
+## PANEL-0 p1a — THE POINT AND ITS TWO HOSTS (the kite untouched;
+## free-fly born; the first parameter panel)
+
+Jean's correction, ratified mid-handoff (the point model): THE POINT
+IS THE PARENT — the anchor IS a point; the point owns the bubble; the
+camera is its permanent witness but does not own it; the point is
+HOSTED, like a spirit, wherever context demands. The recon's finding
+held through the cut: the code already lived this model —
+possessed_slot was always a host pointer restricted to agent slots;
+sky mode is the chain alive (input -> ribbon -> pawn -> camera, the
+intent channel already host-routed at ribbon.hpp's head steering);
+the damped aim point (tau 0.30) IS the kite string; and the terrain
+rule's three values all name existing realizations (the walker
+resolve, the flyer min-clearance clamp, skip). Three commits:
+
+COMMIT 1 — contracts/point.hpp: PointHost {PAWN, CAMERA},
+PointTerrainRule {NONE, SOFT_FLOOR, SNAP}, the host table, the bubble
+declared whole (sensors dormant; live per-host sensing is p1b, by
+pull), the instance (point_) at the root beside the witness record.
+Structure complete first; no behavior.
+
+COMMIT 2 — the two hosts. Config gains point_host + point_fly_speed
+by PIGGYBACK on the lod-pawn pad pair (struct stays 400 bytes — the
+possessed_slot precedent; C++/WGSL mirrors in lockstep, the size
+assert the standing proof). The PAWN host is byte-untouched: the kite
+path (damped aim, orbit, every clamp) unchanged; the one bridging
+edit is the player kernel's input-coupling condition gaining
+"&& !point_camera_hosted()" — value-identical when the pawn hosts.
+The CAMERA host (free-fly) is an early branch in update_camera: mouse
+rotates (FPV elevation range), W/S ride the look direction, A/D
+strafe the ground plane, pan translates the view plane; TERRAIN RULE
+NONE (every clamp skipped — the revision camera); PAWN_SPEED select
+fallback. The pawn idles by construction (its coupling unrouted →
+the existing zero-velocity arm): bubble sensors dormant, portal path
+untouched, slot-0 machinery untouched — exactly the amendment's
+resolution. ONE INTENT CHANNEL, host-routed (the sky-mode precedent):
+arrows author move for the pawn host (byte-identical arm), the new
+W/A/S/D held-keys for the camera host; key 4 is the driver's host
+toggle (ungated — the camera always exists); InputDeps gains the
+point.
+
+COMMIT 3 — CameraControls, the campaign's FIRST parameter panel
+(deliberately minimal; the p3 FORM TEST): LOOK_SENSITIVITY (was
+on_mouse_move's inline 0.005f — value identical) + MOVE_SPEED (wired
+to config.point_fly_speed at boot; the pawn's walk speed untouched);
+deferred growth named in the block, not carried. input.hpp's
+SCATTERED panel grade from the recon is retired.
+
+DISCLOSED EDGES (dev-tool caveats, no engineering): the sun/shadow VP
+stays kite-coupled to the pawn (fly far and you leave the shadow
+window — the shadow follows the body's neighborhood; the point
+witnesses it); sky mode + free-fly both consume the intent channel
+(the combo steers both — a dev-tool corner); pawn-aura and the sphere
+forcefield remain body-centered (correct: the body's effects live
+with the body).
+
+GATES per commit: glaw1 GREEN full + minimal; score census GREEN
+(A/B/W + W-deps); sentinels 148/5; encodings clean. NO WGSL COMPILER
+exists in this rig — the four WGSL edit sites were review-verified
+against the file's own idiom; the runtime proof is Jean's.
+AWAITING THE RIG: the PIXEL-IDENTICAL KITE (demo=full, same seed, two
+runs — pivot distance, mouse-rotate-around-pawn, indistinguishable
+from pre-p1a head) + the FREE-FLY PROBE (key 4: mouse looks, WASD
+flies camera-forward/strafe, terrain renders, clips freely, no body
+influence, no portal fire; key 4 again returns the kite) + the panel
+retune check (both dials visibly change feel). p1b (tickable body +
+portal/bubble re-seat) stays queued by pull; p2 (the matrix) next on
+Jean's word.
