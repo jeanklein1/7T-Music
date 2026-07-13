@@ -1145,3 +1145,12 @@ instrument's reading, quantified.
 buffer non-creation stay parked with their prices; this rider paid
 only the FXC half the demo made hurt.
 
+
+## REBUILD-0 — PHASE R: THE RECON (read-only; report landed, awaiting stamp)
+
+Eight parallel censuses over the full cartridge; ONE report at
+audit/REBUILD0_RECON.md — score map + proposed movement prose, deps
+table + graduation list, channel census, witness boundary, sky priced
+both ways (P3 material), packer forecast, the 34-second diagnosis
+(P4), and the census-adjusted stage order m1-m7. Zero bytes of code
+touched. The movements cut only after Jean stamps the set.
