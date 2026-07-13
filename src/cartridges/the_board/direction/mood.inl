@@ -34,7 +34,7 @@ namespace the_board {
 // ── Impl-internal forward declarations ───────────────────────────
 // Used before their definitions (which keep their original section
 // homes below). Impl-only — not part of the header surface.
-inline void force_spawn_finite_portals(Cartridge* c, wgpu::Queue& queue);
+inline void force_spawn_finite_portals(MoodDeps* c, wgpu::Queue& queue, MachineCtx& machine_ctx_);
 
 // ═══ TUNING DATA (impl-side — internal authoring tables) ═════════
 //
@@ -144,7 +144,7 @@ inline constexpr LightScheme LIGHT_SCHEMES[SCHEME_COUNT] = {
 
 // ═══ INDOOR LIGHT DERIVATION ═════════════════════════════════════
 
-inline void derive_indoor_lights(Cartridge* c, uint32_t seed, float bmin, float bmax,
+inline void derive_indoor_lights(MoodDeps* c, uint32_t seed, float bmin, float bmax,
     float ceiling_height, CeilingType ceiling_type) {
     c->cpuSpotLights_ = GPUSpotLightArray{};
 
@@ -344,7 +344,7 @@ inline void derive_indoor_lights(Cartridge* c, uint32_t seed, float bmin, float 
 
 // 1) Atmospheric: sun direction/color/intensity, fog, ambient,
 //    terrain amp ceiling. Touches GPU directly + a few member fields.
-inline void apply_mood_lighting(Cartridge* c, const MoodProfile& m, wgpu::Queue& /*queue*/) {
+inline void apply_mood_lighting(MoodDeps* c, const MoodProfile& m, wgpu::Queue& /*queue*/) {
     c->sunDirection_[0] = m.sun_direction[0];
     c->sunDirection_[1] = m.sun_direction[1];
     c->sunDirection_[2] = m.sun_direction[2];
@@ -374,7 +374,7 @@ inline void apply_mood_lighting(Cartridge* c, const MoodProfile& m, wgpu::Queue&
     c->mood_state_.lights_dirty = true;
 }
 
-inline void apply_mood_spot_lights(Cartridge* c, const MoodProfile& m, wgpu::Queue& queue) {
+inline void apply_mood_spot_lights(MoodDeps* c, const MoodProfile& m, wgpu::Queue& queue) {
     c->cpuSpotLights_ = GPUSpotLightArray{};
     if (m.indoor) {
         c->gpuState_.set_mute_coupling(Coupling::PAWN_TO_SUN_VP, true);
@@ -395,7 +395,8 @@ inline void apply_mood_spot_lights(Cartridge* c, const MoodProfile& m, wgpu::Que
     }
 }
 
-inline void apply_mood_indoor_shell(Cartridge* c, const MoodProfile& m, wgpu::Queue& queue) {
+inline void apply_mood_indoor_shell(MoodDeps* c, const MoodProfile& m, wgpu::Queue& queue,
+    GalleryState& gallery_state_, GalleryDeps& gallery_deps_) {
     if (m.indoor && m.ceiling_type != CeilingType::NONE) {
         const uint32_t pal_idx = cpu_hash(c->world_state_.active_seed, 5800u) % INDOOR_PALETTE_COUNT;
         const auto& pal = INDOOR_PALETTES[pal_idx];
@@ -406,9 +407,9 @@ inline void apply_mood_indoor_shell(Cartridge* c, const MoodProfile& m, wgpu::Qu
         }
         std::cout << "[Mood] Indoor palette: " << pal.name
                   << " (idx=" << pal_idx << ")\n";
-        generate_indoor_shell(c, queue, localMood);
+        generate_indoor_shell(c, queue, localMood, gallery_state_, gallery_deps_);
     } else {
-        clear_indoor_shell(c, queue);
+        clear_indoor_shell(c, queue, gallery_state_, gallery_deps_);
     }
 
     // Camera ceiling clamp (matches crown computation in generate_indoor_shell).
@@ -434,7 +435,8 @@ inline void apply_mood_indoor_shell(Cartridge* c, const MoodProfile& m, wgpu::Qu
 //    Seed-derived position centered on the finite world; goes through
 //    fill_ribbon_selection_geometry + commit_ribbon (the dual-entry
 //    site — SEAM[ribbon:dual-entry]).
-inline void apply_mood_anchor_ribbon(Cartridge* c, uint32_t mood, wgpu::Queue& queue) {
+inline void apply_mood_anchor_ribbon(MoodDeps* c, uint32_t mood, wgpu::Queue& queue,
+    RibbonState& ribbon_state_, MachineCtx& machine_ctx_, RibbonDeps& ribbon_deps_) {
     if (!MOOD_TABLE[mood].has_anchor_ribbon) return;
 
     const uint32_t rseed = tile_seed(c->world_state_.active_seed, 0, 0);
@@ -443,8 +445,8 @@ inline void apply_mood_anchor_ribbon(Cartridge* c, uint32_t mood, wgpu::Queue& q
     const float spread   = ((float)c->world_state_.finite_radius + 1.5f) * PATCH_EXTENT;
     const float world_cx = 0.5f * PATCH_EXTENT;
     const float world_cz = 0.5f * PATCH_EXTENT;
-    const float ax = world_cx + (cpu_hash_f(rseed, RibbonProp::ANCHOR_X) - 0.5f) * spread + c->ribbon_state_.mood_offset[0];
-    const float az = world_cz + (cpu_hash_f(rseed, RibbonProp::ANCHOR_Z) - 0.5f) * spread + c->ribbon_state_.mood_offset[1];
+    const float ax = world_cx + (cpu_hash_f(rseed, RibbonProp::ANCHOR_X) - 0.5f) * spread + ribbon_state_.mood_offset[0];
+    const float az = world_cz + (cpu_hash_f(rseed, RibbonProp::ANCHOR_Z) - 0.5f) * spread + ribbon_state_.mood_offset[1];
 
     // Tier selection (neutral weights — no theme bias in mood)
     const uint32_t tier_idx = select_tier(rseed, RibbonProp::TIER,
@@ -485,15 +487,20 @@ inline void apply_mood_anchor_ribbon(Cartridge* c, uint32_t mood, wgpu::Queue& q
     plan.checker_hue_spread = sel.checker_hue_spread;
 
     // Commit through the standard path
-    commit_ribbon(c->ribbon_state_, &c->machine_ctx_, plan, 0, 0, queue);
+    commit_ribbon(ribbon_state_, &machine_ctx_, plan, 0, 0, queue);
 
     // Immediate promotion through the owner's door (m4).
-    promote_ribbon_to_rendered(c->ribbon_state_, &c->ribbon_deps_, 0, queue);
+    promote_ribbon_to_rendered(ribbon_state_, &ribbon_deps_, 0, queue);
 }
 
 // ── apply_mood (orchestrator) ──
 //
-inline void apply_mood(Cartridge* c, uint32_t mood, wgpu::Queue& queue) {
+inline void apply_mood(MoodDeps* c, uint32_t mood, wgpu::Queue& queue,
+    MachineCtx& machine_ctx_,
+    RibbonState& ribbon_state_, RibbonDeps& ribbon_deps_,
+    OrbsState& orbs_state_, OrbsDeps& orbs_deps_,
+    GalleryState& gallery_state_, GalleryDeps& gallery_deps_,
+    PawnState& pawn_state_) {
     mood = std::min(mood, MOOD_COUNT - 1);
     c->mood_state_.active = mood;
     const auto& m = MOOD_TABLE[mood];
@@ -504,16 +511,16 @@ inline void apply_mood(Cartridge* c, uint32_t mood, wgpu::Queue& queue) {
     // Per-mood feature gates: GoL zones, aura.
     // Aura policy: respect player preference when permitted, force off when forbidden.
     c->gol_state_.mood_allowed     = m.allow_gol_zones;
-    apply_aura_mood_policy(c->pawn_state_, m.allow_pawn_aura);  // the pawn door (m4); byte-identical semantics
+    apply_aura_mood_policy(pawn_state_, m.allow_pawn_aura);  // the pawn door (m4); byte-identical semantics
 
     apply_mood_lighting(c, m, queue);          // sun + fog + amp ceiling (foundational — sun is not a piece)
     if constexpr (ROSTER.spot_lights)          // ROSTER-GATE spot_lights (b) — indoor spot array never configured
         apply_mood_spot_lights(c, m, queue);   // indoor only
     if constexpr (ROSTER.indoor_shell)         // ROSTER-GATE indoor_shell (b) — walls/ceiling never generated
-        apply_mood_indoor_shell(c, m, queue);  // shell + camera ceiling clamp
-    apply_mood_anchor_ribbon(c, mood, queue);  // SEAM[mood:K4]/[mood:L1] anchor — has_anchor_ribbon only (ribbon-gated inside)
+        apply_mood_indoor_shell(c, m, queue, gallery_state_, gallery_deps_);  // shell + camera ceiling clamp
+    apply_mood_anchor_ribbon(c, mood, queue, ribbon_state_, machine_ctx_, ribbon_deps_);  // SEAM[mood:K4]/[mood:L1] anchor — has_anchor_ribbon only (ribbon-gated inside)
     if constexpr (ROSTER.orbs)                 // ROSTER-GATE orbs (b) — sky dome never configured
-        configure_orbs(c->orbs_state_, &c->orbs_deps_, ORB_MOOD_TABLE[mood], queue);
+        configure_orbs(orbs_state_, &orbs_deps_, ORB_MOOD_TABLE[mood], queue);
 
     std::cout << "[Mood] Applied: " << mood_name(mood)
         << " (mood=" << mood
@@ -523,9 +530,10 @@ inline void apply_mood(Cartridge* c, uint32_t mood, wgpu::Queue& queue) {
 
 // ═══ INDOOR SHELL GENERATION ═════════════════════════════════════
 
-inline void clear_indoor_shell(Cartridge* c, wgpu::Queue& queue) {
+inline void clear_indoor_shell(MoodDeps* c, wgpu::Queue& queue,
+    GalleryState& gallery_state_, GalleryDeps& gallery_deps_) {
     c->gpuState_.set_shell_index_count(0);
-    clear_wall_paintings(c->gallery_state_, &c->gallery_deps_, queue);
+    clear_wall_paintings(gallery_state_, &gallery_deps_, queue);
 }
 
 // Helper: push a quad (2 triangles) into vertex/index vectors
@@ -548,7 +556,8 @@ inline void push_quad(
     indices.push_back(base); indices.push_back(base + 2); indices.push_back(base + 3);
 }
 
-inline void generate_indoor_shell(Cartridge* c, wgpu::Queue& queue, const MoodProfile& m) {
+inline void generate_indoor_shell(MoodDeps* c, wgpu::Queue& queue, const MoodProfile& m,
+    GalleryState& gallery_state_, GalleryDeps& gallery_deps_) {
     float bmin = -(float)c->world_state_.finite_radius * PATCH_EXTENT;
     float bmax = ((float)c->world_state_.finite_radius + 1.0f) * PATCH_EXTENT;
     float ch = m.ceiling_height;
@@ -686,7 +695,7 @@ inline void generate_indoor_shell(Cartridge* c, wgpu::Queue& queue, const MoodPr
 
     c->gpuState_.upload_shell_mesh(queue, verts.data(), vc, indices.data(), ic);
 
-    place_wall_paintings(c->gallery_state_, &c->gallery_deps_, queue, bmin, bmax, ch);
+    place_wall_paintings(gallery_state_, &gallery_deps_, queue, bmin, bmax, ch);
 
     std::cout << "[Shell] Generated "
         << (m.ceiling_type == CeilingType::FLAT ? "FLAT" : "GROIN VAULT")
@@ -700,14 +709,15 @@ inline void generate_indoor_shell(Cartridge* c, wgpu::Queue& queue, const MoodPr
 
 // ── force_spawn_portal_at ──
 //
-inline uint32_t force_spawn_portal_at(Cartridge* c, wgpu::Queue& queue,
+inline uint32_t force_spawn_portal_at(MoodDeps* c, wgpu::Queue& queue,
     float cx, float cz, float rotation,
-    const PortalDestination& dest, bool is_back_portal) {
+    const PortalDestination& dest, bool is_back_portal,
+    MachineCtx& machine_ctx_) {
     const float* pc = is_back_portal
         ? PORTAL_COLOR_BACK
         : PORTAL_COLORS[dest.mood % MOOD_COUNT];
 
-    uint32_t slot = force_spawn_portal_arch(c->entities_state_, &c->machine_ctx_, queue,
+    uint32_t slot = force_spawn_portal_arch(machine_ctx_.entities_state_, &machine_ctx_, queue,
         cx, cz, rotation, dest, is_back_portal, pc);
 
     if (slot != UINT32_MAX) c->mood_state_.portals_dirty = true;
@@ -716,7 +726,7 @@ inline uint32_t force_spawn_portal_at(Cartridge* c, wgpu::Queue& queue,
 
 // ── force_spawn_back_portal ──
 //
-inline void force_spawn_back_portal(Cartridge* c, wgpu::Queue& queue) {
+inline void force_spawn_back_portal(MoodDeps* c, wgpu::Queue& queue, MachineCtx& machine_ctx_) {
     c->mood_state_.back_portal_pending = false;
 
     // ─── Seed-driven placement ───────────────────────────────────────
@@ -793,7 +803,7 @@ inline void force_spawn_back_portal(Cartridge* c, wgpu::Queue& queue) {
 
         float cx = c->backPortalPosition_[0];
         float cz = c->backPortalPosition_[1];
-        uint32_t slot = force_spawn_portal_at(c, queue, cx, cz, chosen_rotation, dest, true);
+        uint32_t slot = force_spawn_portal_at(c, queue, cx, cz, chosen_rotation, dest, true, machine_ctx_);
 
         if (slot != UINT32_MAX) {
             std::cout << "[Portal] Back-portal spawned at (" << cx << "," << cz
@@ -806,7 +816,7 @@ inline void force_spawn_back_portal(Cartridge* c, wgpu::Queue& queue) {
         }
 
         // Spawn additional forward portals around the room perimeter
-        force_spawn_finite_portals(c, queue);
+        force_spawn_finite_portals(c, queue, machine_ctx_);
         return;
     }
 
@@ -822,7 +832,7 @@ inline void force_spawn_back_portal(Cartridge* c, wgpu::Queue& queue) {
 
     float cx = c->backPortalPosition_[0];
     float cz = c->backPortalPosition_[1];
-    uint32_t slot = force_spawn_portal_at(c, queue, cx, cz, 0.0f, dest, true);
+    uint32_t slot = force_spawn_portal_at(c, queue, cx, cz, 0.0f, dest, true, machine_ctx_);
 
     if (slot != UINT32_MAX) {
         std::cout << "[Portal] Back-portal spawned at (" << cx << "," << cz
@@ -835,12 +845,12 @@ inline void force_spawn_back_portal(Cartridge* c, wgpu::Queue& queue) {
     }
 
     // Spawn additional forward portals around the room perimeter
-    force_spawn_finite_portals(c, queue);
+    force_spawn_finite_portals(c, queue, machine_ctx_);
 }
 
 // ── force_spawn_finite_portals ──
 //
-inline void force_spawn_finite_portals(Cartridge* c, wgpu::Queue& queue) {
+inline void force_spawn_finite_portals(MoodDeps* c, wgpu::Queue& queue, MachineCtx& machine_ctx_) {
     float bmin = -(float)c->world_state_.finite_radius * PATCH_EXTENT;
     float bmax = ((float)c->world_state_.finite_radius + 1.0f) * PATCH_EXTENT;
     float room_center = (bmin + bmax) * 0.5f;
@@ -912,7 +922,7 @@ inline void force_spawn_finite_portals(Cartridge* c, wgpu::Queue& queue) {
 
         // Generate destination
         uint32_t dest_seed = cpu_hash(c->world_state_.active_seed, 7800u + i);
-        uint32_t mood = pick_portal_mood(&c->machine_ctx_, c->world_state_.active_seed, 7900u + i);
+        uint32_t mood = pick_portal_mood(&machine_ctx_, c->world_state_.active_seed, 7900u + i);
         const auto& mp = MOOD_TABLE[mood];
         PortalDestination dest{};
         dest.seed = dest_seed;
@@ -920,7 +930,7 @@ inline void force_spawn_finite_portals(Cartridge* c, wgpu::Queue& queue) {
         dest.finite = mp.finite;
         dest.finite_radius = derive_finite_radius(dest_seed, mp);
 
-        uint32_t slot = force_spawn_portal_at(c, queue, jx, jz, spot.rotation, dest, false);
+        uint32_t slot = force_spawn_portal_at(c, queue, jx, jz, spot.rotation, dest, false, machine_ctx_);
         if (slot != UINT32_MAX) {
             std::cout << "[Portal] Forward portal " << (spawned + 1)
                 << " at (" << jx << "," << jz
@@ -937,7 +947,7 @@ inline void force_spawn_finite_portals(Cartridge* c, wgpu::Queue& queue) {
 // ═══ PER-FRAME UPLOAD ════════════════════════════════════════════
 
 // ── upload_portal_array ──
-inline void upload_portal_array(Cartridge* c, wgpu::Queue& queue) {
+inline void upload_portal_array(MoodDeps* c, wgpu::Queue& queue) {
     if (!c->mood_state_.portals_dirty) return;
     c->mood_state_.portals_dirty = false;
 
@@ -964,7 +974,7 @@ inline void upload_portal_array(Cartridge* c, wgpu::Queue& queue) {
 
 // ── upload_lights ──
 // (Must precede compute for shadow VP.)
-inline void upload_lights(Cartridge* c, wgpu::Queue& queue) {
+inline void upload_lights(MoodDeps* c, wgpu::Queue& queue) {
     if (!c->mood_state_.lights_dirty) return;
     c->mood_state_.lights_dirty = false;
 

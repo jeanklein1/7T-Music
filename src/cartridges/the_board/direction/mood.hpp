@@ -73,7 +73,17 @@
 namespace t7 {
 namespace the_board {
 
-struct WorldState;   // patch_system.hpp — the driver door reads active_seed (reference param; fwd suffices)
+struct WorldState;   // patch_system.hpp — the doors read seeds/bounds (reference members/params; fwd suffices)
+// fwd — the deps face's true reaches and the fan's TARGET organs
+// (reference members/params; complete types arrive with their owners
+// in the cohort). GPUState + the CPU light/portal arrays come complete
+// from state.hpp (included above).
+class Renderer;
+struct GoLState;   struct EntitiesState; struct MachineCtx;
+struct RibbonState; struct RibbonDeps;
+struct OrbsState;   struct OrbsDeps;
+struct GalleryState; struct GalleryDeps;
+struct PawnState;
 
 // ═══ MOOD STATE (struct with its semantic owner; instance at root) ═
 // REBUILD-0 m1 (stamp D3): the WorldState pattern (R-a) — the struct
@@ -236,27 +246,66 @@ inline constexpr uint32_t INDOOR_PALETTE_COUNT =
 // the wall surface and any artwork on it.
 inline constexpr float INDOOR_ENTITY_WALL_MARGIN = 20.0f;
 
+// ═══ THE DEPS FACE (DISSOLVE-1 Batch D d2) ═══════════════════════
+//
+// Mood's own organs plus its true reaches — the atmosphere author's
+// face: the mood organ, the sun/clear channel, the CPU light + portal
+// staging arrays, the back-portal anchor, the realization pokes
+// (GPUState uploads, the frustum-cull flag), the gol mood gate (the
+// m4 FLAG CHANNEL [mood -> gol]), and a const view of entities (the
+// portal-array upload reads arch positions). The fan's TARGET organs
+// are deliberately NOT members (the B ruling, input's precedent):
+// ribbon/orbs/gallery/pawn pairs + the machine face ride apply_mood's
+// parameters — the spine addresses the fan's bodies at the call site,
+// through the m4 command doors.
+struct MoodDeps {
+    MoodState&           mood_state_;
+    const WorldState&    world_state_;
+    GPUState&            gpuState_;
+    Renderer&            renderer_;          // set_frustum_cull_active (per-mood realization poke)
+    GoLState&            gol_state_;         // mood_allowed — the m4 flag channel [mood -> gol]
+    const EntitiesState& entities_state_;    // upload_portal_array reads arch positions
+    float (&sunDirection_)[3];
+    float (&sunColor_)[3];
+    float (&clearColor_)[3];
+    GPUSpotLightArray&   cpuSpotLights_;
+    GPUPortalArray&      cpuPortalArray_;
+    float (&backPortalPosition_)[2];
+};
+
 // ═══ MODULE FUNCTIONS — DECLARATIONS ═════════════════════════════
 
-// Mood lifecycle (doors)
-void apply_mood(Cartridge* c, uint32_t mood, wgpu::Queue& queue);
+// Mood lifecycle (doors). The fan's targets ride apply_mood's tail
+// parameters — organ-named, addressed by the spine at the call site.
+void apply_mood(MoodDeps* c, uint32_t mood, wgpu::Queue& queue,
+    MachineCtx& machine_ctx_,
+    RibbonState& ribbon_state_, RibbonDeps& ribbon_deps_,
+    OrbsState& orbs_state_, OrbsDeps& orbs_deps_,
+    GalleryState& gallery_state_, GalleryDeps& gallery_deps_,
+    PawnState& pawn_state_);
 void request_mood_transition(TransitionPhase& phase, PortalDestination& pending,
     MoodState& ms, const WorldState& ws, uint32_t mood);
-// Appliers (apply_mood's four named sub-functions)
-void apply_mood_lighting(Cartridge* c, const MoodProfile& m, wgpu::Queue& queue);
-void apply_mood_spot_lights(Cartridge* c, const MoodProfile& m, wgpu::Queue& queue);
-void apply_mood_indoor_shell(Cartridge* c, const MoodProfile& m, wgpu::Queue& queue);
-void apply_mood_anchor_ribbon(Cartridge* c, uint32_t mood, wgpu::Queue& queue);
+// Appliers (apply_mood's four named sub-functions; each takes only
+// the targets its own fan drives)
+void apply_mood_lighting(MoodDeps* c, const MoodProfile& m, wgpu::Queue& queue);
+void apply_mood_spot_lights(MoodDeps* c, const MoodProfile& m, wgpu::Queue& queue);
+void apply_mood_indoor_shell(MoodDeps* c, const MoodProfile& m, wgpu::Queue& queue,
+    GalleryState& gallery_state_, GalleryDeps& gallery_deps_);
+void apply_mood_anchor_ribbon(MoodDeps* c, uint32_t mood, wgpu::Queue& queue,
+    RibbonState& ribbon_state_, MachineCtx& machine_ctx_, RibbonDeps& ribbon_deps_);
 // Indoor support
-void derive_indoor_lights(Cartridge* c, uint32_t seed, float bmin, float bmax,
+void derive_indoor_lights(MoodDeps* c, uint32_t seed, float bmin, float bmax,
     float ceiling_height, CeilingType ceiling_type = CeilingType::FLAT);
-void generate_indoor_shell(Cartridge* c, wgpu::Queue& queue, const MoodProfile& m);
-void clear_indoor_shell(Cartridge* c, wgpu::Queue& queue);
-// Portals (door; the internals route through entities' force_spawn_portal_arch)
-void force_spawn_back_portal(Cartridge* c, wgpu::Queue& queue);
+void generate_indoor_shell(MoodDeps* c, wgpu::Queue& queue, const MoodProfile& m,
+    GalleryState& gallery_state_, GalleryDeps& gallery_deps_);
+void clear_indoor_shell(MoodDeps* c, wgpu::Queue& queue,
+    GalleryState& gallery_state_, GalleryDeps& gallery_deps_);
+// Portals (door; the internals route through entities' force_spawn_portal_arch
+// — the arch's owner writes, so the machine face rides the tail param)
+void force_spawn_back_portal(MoodDeps* c, wgpu::Queue& queue, MachineCtx& machine_ctx_);
 // Per-frame uploads (doors)
-void upload_lights(Cartridge* c, wgpu::Queue& queue);
-void upload_portal_array(Cartridge* c, wgpu::Queue& queue);
+void upload_lights(MoodDeps* c, wgpu::Queue& queue);
+void upload_portal_array(MoodDeps* c, wgpu::Queue& queue);
 // Derivers (door + the portal-detection pipeline's shared helpers)
 const char* mood_name(uint32_t mood);
 uint32_t derive_finite_radius(uint32_t seed, const MoodProfile& mood);

@@ -589,7 +589,7 @@ inline void stream_patches(Cartridge* c, wgpu::CommandEncoder& encoder, wgpu::Qu
 
             // NOW spawn portals — tile cache is populated, terrain heights are correct
             if (c->mood_state_.back_portal_pending) {
-                force_spawn_back_portal(c, queue);
+                force_spawn_back_portal(&c->mood_deps_, queue, c->machine_ctx_);
             }
             for (int32_t gz = centerZ - rr; gz <= centerZ + rr; gz++) {
                 for (int32_t gx = centerX - rr; gx <= centerX + rr; gx++) {

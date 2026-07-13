@@ -212,6 +212,7 @@ namespace t7 {
             RibbonDeps    ribbon_deps_;
             GalleryDeps   gallery_deps_;
             InputDeps     input_deps_;
+            MoodDeps      mood_deps_;
 
             GPUSpotLightArray cpuSpotLights_{};  // count=0 disables (outdoor)
 
@@ -375,7 +376,8 @@ namespace t7 {
                 , gol_deps_{ gpuState_, renderer_, device_, time_state_ }
                 , ribbon_deps_{ gpuState_, time_state_, tile_world_state_, player_, inputState_, world_state_, mood_state_, visual_canvas_, ribbon_amp_lat_dst_, ribbon_amp_vert_dst_, ribbon_tint_stim_dst_, ribbon_tint_mix_dst_ }
                 , gallery_deps_{ gpuState_, renderer_, world_state_, tile_world_state_, ribbon_state_, player_, mood_state_, sunDirection_, clearColor_ }
-                , input_deps_{ inputState_, keys_, mouse_, player_, world_state_, ribbon_state_, gpuState_, device_ } {}
+                , input_deps_{ inputState_, keys_, mouse_, player_, world_state_, ribbon_state_, gpuState_, device_ }
+                , mood_deps_{ mood_state_, world_state_, gpuState_, renderer_, gol_state_, entities_state_, sunDirection_, sunColor_, clearColor_, cpuSpotLights_, cpuPortalArray_, backPortalPosition_ } {}
 
             Cartridge(const Cartridge&) = delete;
             Cartridge& operator=(const Cartridge&) = delete;
@@ -716,7 +718,10 @@ namespace t7 {
                         reseed_player_body(agent_state_, &agents_deps_, preserved_tier,
                             preserved_color_r, preserved_color_g, preserved_color_b);
                         gpuState_.set_world_seed(world_state_.active_seed);
-                        apply_mood(this, pendingDestination_.mood, queue);
+                        apply_mood(&mood_deps_, pendingDestination_.mood, queue,
+                            machine_ctx_, ribbon_state_, ribbon_deps_,
+                            orbs_state_, orbs_deps_, gallery_state_, gallery_deps_,
+                            pawn_state_);
                         // ROSTER-GATE wanderers (c) — transition population (slots 1+); slot 0 preserved above.
                         if constexpr (ROSTER.wanderers)
                             spawn_population_for_mood(agent_state_, &agents_deps_, pendingDestination_.mood, world_state_.active_seed,
@@ -1030,8 +1035,8 @@ namespace t7 {
                         pass.End();
                     }
                 }
-                upload_portal_array(this, queue);
-                upload_lights(this, queue);
+                upload_portal_array(&mood_deps_, queue);
+                upload_lights(&mood_deps_, queue);
 
                 // The SNAP-1 sky resync lives at the ribbon tick's tail now
                 // (m6, Option A) — O-1 by construction: tick above,
