@@ -504,7 +504,7 @@ inline void generate_selected_patches(Cartridge* c, const PatchCandidate* candid
 {
     if (count == 0) return;
     if (tileGridDirty) {
-        upload_tile_grid_now(c->tile_world_state_, c, queue, c->world_state_.last_center_x, c->world_state_.last_center_z);
+        upload_tile_grid_now(c->tile_world_state_, &c->tile_world_deps_, queue, c->world_state_.last_center_x, c->world_state_.last_center_z);
         tileGridDirty = false;
     }
     GPUPatchParams batchParams[MAX_PATCHES];
@@ -583,7 +583,7 @@ inline void stream_patches(Cartridge* c, wgpu::CommandEncoder& encoder, wgpu::Qu
             int32_t rp = rr + TILE_PAD;
             for (int32_t gz = centerZ - rp; gz <= centerZ + rp; gz++) {
                 for (int32_t gx = centerX - rp; gx <= centerX + rp; gx++) {
-                    ensure_tile(c->tile_world_state_, c, gx, gz);  // owner door (m4)
+                    ensure_tile(c->tile_world_state_, &c->tile_world_deps_, gx, gz);  // owner door (m4)
                 }
             }
 
@@ -715,9 +715,9 @@ inline void stream_patches(Cartridge* c, wgpu::CommandEncoder& encoder, wgpu::Qu
             // Ensure tile cache entry (primary — ticks terrain tokens),
             // then cache neighbors for tile grid padding — both through
             // the owner's doors (m4).
-            ensure_tile(c->tile_world_state_, c, gx, gz);
+            ensure_tile(c->tile_world_state_, &c->tile_world_deps_, gx, gz);
             for (int dz = -1; dz <= 1; dz++) for (int dx = -1; dx <= 1; dx++) {
-                ensure_tile_padding(c->tile_world_state_, c, gx + dx, gz + dz);
+                ensure_tile_padding(c->tile_world_state_, &c->tile_world_deps_, gx + dx, gz + dz);
             }
             uint32_t layer = alloc_layer(&c->machine_ctx_);
             c->patch_system_state_.patches_[c->world_state_.active_patch_count] = ActivePatch{};
@@ -871,7 +871,7 @@ inline void stream_patches(Cartridge* c, wgpu::CommandEncoder& encoder, wgpu::Qu
     c->world_state_.entities_culled = update_entity_draw_visibility(&c->machine_ctx_, queue);
 
     // ─── Deferred uploads (one per frame max) ────────────────
-    if (tileGridDirty) upload_tile_grid_now(c->tile_world_state_, c, queue, c->world_state_.last_center_x, c->world_state_.last_center_z);
+    if (tileGridDirty) upload_tile_grid_now(c->tile_world_state_, &c->tile_world_deps_, queue, c->world_state_.last_center_x, c->world_state_.last_center_z);
     flush_pier_count(&c->machine_ctx_, queue);
 
     audit_entity_integrity(c);

@@ -33,7 +33,7 @@ inline void evict_distant_tiles(TileWorldState& tw, int32_t centerX, int32_t cen
 }
 
 // Build and upload GPUTileGrid from tile cache, centered on (cx, cz).
-inline void upload_tile_grid_now(TileWorldState& tw, Cartridge* c, wgpu::Queue& queue, int32_t cx, int32_t cz) {
+inline void upload_tile_grid_now(TileWorldState& tw, TileWorldDeps* c, wgpu::Queue& queue, int32_t cx, int32_t cz) {
     static constexpr int32_t TILE_PAD = 1;
     int32_t rp = (int32_t)c->world_state_.active_radius + TILE_PAD;
     uint32_t tileGridSide = 2 * (c->world_state_.active_radius + TILE_PAD) + 1;
@@ -66,7 +66,7 @@ inline void upload_tile_grid_now(TileWorldState& tw, Cartridge* c, wgpu::Queue& 
     c->gpuState_.upload_tile_grid(queue, grid);
 }
 
-inline TileState generate_tile_state(TileWorldState& tw, Cartridge* c, int32_t gx, int32_t gz) {
+inline TileState generate_tile_state(TileWorldState& tw, TileWorldDeps* c, int32_t gx, int32_t gz) {
     // Count neighbor archetypes
     uint32_t neighbor_counts[ARCHETYPE_COUNT] = {};
     uint32_t total_neighbors = 0;
@@ -319,7 +319,7 @@ inline bool tile_archetype(const TileWorldState& tw, int32_t gx, int32_t gz, uin
 
 
 // ─── The cache-authoring doors (owner verbs; REBUILD-0 m4) ─────────
-inline void ensure_tile(TileWorldState& tw, Cartridge* c, int32_t gx, int32_t gz) {
+inline void ensure_tile(TileWorldState& tw, TileWorldDeps* c, int32_t gx, int32_t gz) {
     GridKey key{ gx, gz };
     if (tw.tileCache_.find(key) == tw.tileCache_.end()) {
         TileState ts = generate_tile_state(tw, c, gx, gz);
@@ -328,7 +328,7 @@ inline void ensure_tile(TileWorldState& tw, Cartridge* c, int32_t gx, int32_t gz
     }
 }
 
-inline void ensure_tile_padding(TileWorldState& tw, Cartridge* c, int32_t gx, int32_t gz) {
+inline void ensure_tile_padding(TileWorldState& tw, TileWorldDeps* c, int32_t gx, int32_t gz) {
     GridKey nk{ gx, gz };
     if (tw.tileCache_.find(nk) == tw.tileCache_.end()) {
         tw.tileCache_[nk] = generate_tile_state(tw, c, gx, gz);

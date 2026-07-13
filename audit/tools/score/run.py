@@ -226,6 +226,32 @@ def main():
         else:
             print(f'  {law}: HOLDS')
 
+    # Direction W (deps extension, DISSOLVE-1 d2): a deps struct may
+    # carry a NON-const PlayerState& only where a declared door writes
+    # the witness — pawn (P8), agents (possession), input (fpv). Any
+    # other module deps exposing a writable witness is a census RED.
+    print('── DIRECTION W (deps): witness reaches deps const-encoded ──')
+    W_DOORS = {'bodies/pawn.hpp', 'bodies/agents.hpp', 'direction/input.hpp'}
+    dep_offenders = []
+    for f in module_files:
+        rel = os.path.relpath(f, TB).replace(os.sep, '/')
+        if not rel.endswith('.hpp'):
+            continue
+        body = strip_comments_strings(open(f, encoding='utf-8').read())
+        # non-const PlayerState& member (allow 'const PlayerState&')
+        for m in re.finditer(r'PlayerState&\s+\w+_;', body):
+            preceding = body[max(0, m.start()-8):m.start()]
+            if 'const' in preceding:
+                continue
+            if rel not in W_DOORS:
+                dep_offenders.append(rel)
+    if dep_offenders:
+        for o in sorted(set(dep_offenders)):
+            failures.append(f'W-deps: {o} exposes a writable PlayerState& outside a declared door')
+            print(f'  ** VIOLATION ** {o}: writable witness in deps')
+    else:
+        print('  writable-witness deps confined to the three doors (pawn/agents/input): HOLDS')
+
     print('──')
     if failures:
         for f in failures: print('FAIL:', f)

@@ -125,8 +125,8 @@ inline void on_key_down(Cartridge* c, int key) {
     case GLFW_KEY_1:
         c->gpuState_.toggle_freeze_sphere();
         break;
-    case GLFW_KEY_2: toggle_aura_height(c->pawn_state_, c);  break;  // pawn command door (m4)
-    case GLFW_KEY_3: toggle_aura(c->pawn_state_, c);          break;  // pawn command door (m4)
+    case GLFW_KEY_2: toggle_aura_height(c->pawn_state_, &c->pawn_deps_);  break;  // pawn command door (m4)
+    case GLFW_KEY_3: toggle_aura(c->pawn_state_, &c->pawn_deps_);          break;  // pawn command door (m4)
     case GLFW_KEY_5: request_mood_transition(c, MOOD_OPEN_SUNSET);        break;
     case GLFW_KEY_6: request_mood_transition(c, MOOD_INDOOR_FLAT);        break;
     case GLFW_KEY_7: request_mood_transition(c, MOOD_INDOOR_VAULT);       break;

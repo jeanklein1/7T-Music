@@ -124,6 +124,20 @@ struct GridKeyHash {
     }
 };
 
+// ═══ MODULE DEPS (DISSOLVE-1 Batch A d2) ═══════════════════════════
+// The requirements face made literal: what tile_world's authoring
+// verbs consume beyond their own state. Organ-named members, bound
+// once at the root. const trio law: world + mood read-only, the GPU
+// wire writable. (WorldState fwd — patch_system.hpp follows this
+// header in the cohort; the reference member tolerates the
+// incomplete type.)
+struct WorldState;
+struct TileWorldDeps {
+    const WorldState& world_state_;
+    const MoodState&  mood_state_;
+    GPUState&         gpuState_;
+};
+
 // ═══ MODULE STATE ══════════════════════════════════════════════════
 
 // Instance (tile_world_state_) lives at the composition root.
@@ -141,14 +155,14 @@ struct TileWorldState {
 // height / terrain_tile_warm) — the interface trio's memory member.
 
 void evict_distant_tiles(TileWorldState& tw, int32_t centerX, int32_t centerZ);
-void upload_tile_grid_now(TileWorldState& tw, Cartridge* c, wgpu::Queue& queue, int32_t cx, int32_t cz);
-TileState generate_tile_state(TileWorldState& tw, Cartridge* c, int32_t gx, int32_t gz);
+void upload_tile_grid_now(TileWorldState& tw, TileWorldDeps* c, wgpu::Queue& queue, int32_t cx, int32_t cz);
+TileState generate_tile_state(TileWorldState& tw, TileWorldDeps* c, int32_t gx, int32_t gz);
 // The cache-authoring doors (m4): the streaming conductor demands,
 // the owner fills. ensure_tile ticks the terrain tokens (primary);
 // ensure_tile_padding does NOT (padding must not advance the
 // terrain's memory). reset_* are the teardown/init counterparts.
-void ensure_tile(TileWorldState& tw, Cartridge* c, int32_t gx, int32_t gz);
-void ensure_tile_padding(TileWorldState& tw, Cartridge* c, int32_t gx, int32_t gz);
+void ensure_tile(TileWorldState& tw, TileWorldDeps* c, int32_t gx, int32_t gz);
+void ensure_tile_padding(TileWorldState& tw, TileWorldDeps* c, int32_t gx, int32_t gz);
 void reset_tile_cache(TileWorldState& tw);
 void reset_terrain_memory(TileWorldState& tw);
 void tick_terrain_tokens(TileWorldState& tw, const TileState& outcome, uint32_t seed);

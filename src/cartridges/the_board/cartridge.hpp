@@ -200,6 +200,12 @@ namespace t7 {
             // organs above (contracts/entity_types.hpp owns the type).
             MachineCtx machine_ctx_;
 
+            // Per-module deps faces (DISSOLVE-1 Batch A d2) — bound once
+            // in the ctor, each the module's requirements made literal.
+            TileWorldDeps tile_world_deps_;
+            SphereDeps    sphere_deps_;
+            PawnDeps      pawn_deps_;
+
             GPUSpotLightArray cpuSpotLights_{};  // count=0 disables (outdoor)
 
             // ═══ PORTAL & TRANSITION STATE MACHINE ═══════════════════════
@@ -352,7 +358,10 @@ namespace t7 {
                                 mood_state_, patch_system_state_, spawn_engine_state_,
                                 entities_state_, sphere_state_, cube_behaviors_state_,
                                 ribbon_state_, gol_state_, gallery_state_,
-                                time_state_, player_, gpuState_, renderer_ } {}
+                                time_state_, player_, gpuState_, renderer_ }
+                , tile_world_deps_{ world_state_, mood_state_, gpuState_ }
+                , sphere_deps_{ time_state_ }
+                , pawn_deps_{ player_, time_state_, gpuState_, renderer_ } {}
 
             Cartridge(const Cartridge&) = delete;
             Cartridge& operator=(const Cartridge&) = delete;
@@ -598,7 +607,7 @@ namespace t7 {
                 // Pawn presence ramp + aura height computation.
                 // Lives in pawn.inl as a real-time exponential tick (closes pawn:K1).
                 if constexpr (ROSTER.pawn_aura)  // ROSTER-GATE pawn_aura (b) — disabled: presence never raised, no aura height
-                    tick_pawn_couplings(pawn_state_, this, queue);
+                    tick_pawn_couplings(pawn_state_, &pawn_deps_, queue);
 
                 // ═══ MOVEMENT: REALIZATION STAGING (part one — world seed +
                 // finite bounds) ═════════════════════════════════════════════
@@ -821,7 +830,7 @@ namespace t7 {
                                         // m2 — stray (1) home; funnels live with
                                         // spheres / cube_behaviors).
                                         if constexpr (ROSTER.sphere)  // ROSTER-GATE sphere (b) — no spheres, no mirror to release
-                                            reconcile_sphere_mirror(sphere_state_, this, data);
+                                            reconcile_sphere_mirror(sphere_state_, &sphere_deps_, data);
                                         if constexpr (ROSTER.cube)    // ROSTER-GATE cube (b)
                                             reconcile_cube_mirror(cube_behaviors_state_, this, data);
                                     }
@@ -1057,7 +1066,7 @@ namespace t7 {
                 // ROSTER-GATE pawn_aura (b) — disabled: the whole aura compute
                 // (config upload + dispatch) is eliminated; zero GPU writes.
                 if constexpr (ROSTER.pawn_aura)
-                    dispatch_pawn_aura(pawn_state_, this, encoder, queue);
+                    dispatch_pawn_aura(pawn_state_, &pawn_deps_, encoder, queue);
 
                 // Orb sky layer: one-shot init, optional color-only refresh,
                 // snapshot previous state for flocking neighbor reads, then

@@ -29,6 +29,14 @@ struct SphereState {
     uint32_t      activeFloaterCount_ = 0;
 };
 
+// ═══ MODULE DEPS (DISSOLVE-1 Batch A d2) ═══════════════════════════
+// The sphere half's non-machine requirements face: the readback
+// mirror reconciler reads the clock. (TimeState fwd arrives via
+// entity_types.hpp / spine_state.hpp earlier in the cohort.)
+struct SphereDeps {
+    const TimeState& time_state_;
+};
+
 // Teardown owner-clear: the sphere half of the score's TEARDOWN
 // movement (REBUILD-0 m2) — CPU clear + per-slot GPU clear, paired.
 // DEPS-FORM PRECEDENT (m3 ruling): the explicit GPUState& parameter
@@ -45,7 +53,7 @@ inline void clear_spheres(SphereState& ss, GPUState& gpu, wgpu::Queue& queue) {
 }
 
 void evict_sphere(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
-void reconcile_sphere_mirror(SphereState& ss, Cartridge* c, const GPUFloatingEntityState* data);
+void reconcile_sphere_mirror(SphereState& ss, SphereDeps* c, const GPUFloatingEntityState* data);
 // Dispatch funnels (table-shaped; defined in spheres.inl beside the recipe)
 bool dispatch_select_sphere_generic(MachineCtx* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
 bool dispatch_place_sphere_generic(MachineCtx* self, EntityQueueEntry& e, PlacementEntry& pe);

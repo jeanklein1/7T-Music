@@ -16,7 +16,7 @@ namespace t7 {
 namespace the_board {
 
 // ─── Per-frame pawn coupling tick ────────────────────────────────
-inline void tick_pawn_couplings(PawnState& ps, Cartridge* c, wgpu::Queue& queue) {
+inline void tick_pawn_couplings(PawnState& ps, PawnDeps* c, wgpu::Queue& queue) {
     (void)queue;
     // Aura presence ramp: smooth 0→1 on enable / 1→0 on disable.
     // (aura_presence lives on player_ — SEAM[spine:P8]; see PlayerState, contracts/spine_state.hpp)
@@ -56,7 +56,7 @@ inline void teardown_pawn_aura(PawnState& ps) {
 // after toggle-off) or clearing; no-op otherwise. DEFERRED-UPLOAD FLAG
 // aura_cfg_dirty (O-4): full config upload on change, dt/t_beats-only
 // in steady state.
-inline void dispatch_pawn_aura(PawnState& ps, Cartridge* c,
+inline void dispatch_pawn_aura(PawnState& ps, PawnDeps* c,
                                wgpu::CommandEncoder& encoder, wgpu::Queue& queue) {
     if (!(c->player_.aura_presence > 0.0f || ps.aura_needs_clear)) return;
         if (ps.aura_cfg_dirty) {
@@ -108,14 +108,14 @@ inline void dispatch_pawn_aura(PawnState& ps, Cartridge* c,
 
 // ─── Player commands (owner verbs; REBUILD-0 m4 — the input fan's
 // pawn pair, matching the orbs/agents/cube command pattern) ────────
-inline void toggle_aura_height(PawnState& ps, Cartridge* c) {
+inline void toggle_aura_height(PawnState& ps, PawnDeps* c) {
     (void)c;
     ps.aura_height_enabled = !ps.aura_height_enabled;
     ps.aura_cfg_dirty = true;
     std::cout << "[Aura] Height extrusion: " << (ps.aura_height_enabled ? "ON" : "OFF") << "\n";
 }
 
-inline void toggle_aura(PawnState& ps, Cartridge* c) {
+inline void toggle_aura(PawnState& ps, PawnDeps* c) {
     (void)c;
     ps.aura_enabled = !ps.aura_enabled;
     ps.aura_cfg_dirty = true;

@@ -193,7 +193,7 @@ inline void dispatch_commit_sphere_generic(MachineCtx* self, PlacementEntry& pe,
 // stray (1) comes home) ─ the sphere half of the floater-readback
 // funnel: release CPU mirror slots the GPU deactivated, honoring the
 // spawn-protection window (SPAWN_PROTECTION_S, floater_vocabulary.hpp).
-inline void reconcile_sphere_mirror(SphereState& ss, Cartridge* c, const GPUFloatingEntityState* data) {
+inline void reconcile_sphere_mirror(SphereState& ss, SphereDeps* c, const GPUFloatingEntityState* data) {
     float now = c->time_state_.seconds;
     // Spheres: slots [0, MAX_SPHERE_INSTANCES)
     for (uint32_t i = 0; i < Dim::MAX_SPHERE_INSTANCES; i++) {

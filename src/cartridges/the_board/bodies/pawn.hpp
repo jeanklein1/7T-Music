@@ -75,12 +75,28 @@ struct PawnState {
     bool            aura_cfg_dirty      = true;
 };
 
+// ═══ MODULE DEPS (DISSOLVE-1 Batch A d2) ═══════════════════════════
+// The pawn's requirements face. player_ is NON-const — the P8 door
+// (aura_presence is pawn-written, SEAM[spine:P8]); census W allows it
+// here. (GPUState/Renderer fwd — state.hpp/renderer.hpp follow this
+// header in the cohort; reference members tolerate incomplete types.)
+struct PlayerState;
+struct TimeState;
+class GPUState;
+class Renderer;
+struct PawnDeps {
+    PlayerState&     player_;       // non-const: P8 aura_presence write
+    const TimeState& time_state_;
+    GPUState&        gpuState_;
+    Renderer&        renderer_;
+};
+
 // ─── Per-frame pawn coupling tick — DECLARATION ──────────────────
-void tick_pawn_couplings(PawnState& ps, Cartridge* c, wgpu::Queue& queue);
+void tick_pawn_couplings(PawnState& ps, PawnDeps* c, wgpu::Queue& queue);
 void teardown_pawn_aura(PawnState& ps);
-void dispatch_pawn_aura(PawnState& ps, Cartridge* c, wgpu::CommandEncoder& encoder, wgpu::Queue& queue);
-void toggle_aura_height(PawnState& ps, Cartridge* c);
-void toggle_aura(PawnState& ps, Cartridge* c);
+void dispatch_pawn_aura(PawnState& ps, PawnDeps* c, wgpu::CommandEncoder& encoder, wgpu::Queue& queue);
+void toggle_aura_height(PawnState& ps, PawnDeps* c);
+void toggle_aura(PawnState& ps, PawnDeps* c);
 void apply_aura_mood_policy(PawnState& ps, bool allow);
 
 } // namespace the_board
