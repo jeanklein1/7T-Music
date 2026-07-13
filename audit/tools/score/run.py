@@ -88,11 +88,11 @@ MANIFEST = {
                  ('cartridge.hpp', 'teardown',     imm(r'ROSTER\.orbs', r'teardown_orbs'))],
     # DELEGATED pieces: the gate lives at the module door (cited), not
     # in the score — the score has no per-frame site to gate.
-    'spot_lights': [('direction/mood.inl', 'apply door', rf'if constexpr \(ROSTER\.spot_lights\)')],
-    'indoor_shell':[('direction/mood.inl', 'apply door', rf'if constexpr \(ROSTER\.indoor_shell\)')],
+    'spot_lights': [('direction/mood.hpp', 'apply door', rf'if constexpr \(ROSTER\.spot_lights\)')],
+    'indoor_shell':[('direction/mood.hpp', 'apply door', rf'if constexpr \(ROSTER\.indoor_shell\)')],
     'portal':      [('bodies/entities.hpp', 'force-spawn door', rf'if constexpr \(!ROSTER\.portal\)')],  # entities.inl merged (DISSOLVE-1 Batch B)
     'transitions': [('cartridge.hpp', 'portal-trigger door #2', rf'if constexpr \(ROSTER\.transitions\){C}if \(player_\.readback_portal_trigger'),
-                    ('direction/mood.inl', 'request door #1', rf'if constexpr \(!ROSTER\.transitions\)')],
+                    ('direction/mood.hpp', 'request door #1', rf'if constexpr \(!ROSTER\.transitions\)')],
     'wanderers':   [('cartridge.hpp', 'boot population', imm(r'ROSTER\.wanderers', r'spawn_population_for_mood')),
                     ('cartridge.hpp', 'respawn',         imm(r'ROSTER\.wanderers', r'respawn_evicted_agents'))],
 }

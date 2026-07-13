@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include "cartridges/the_board/contracts/mood_constants.hpp"   // MOOD_COUNT (sizes MOOD_TABLE) + the Mood IDs + PortalDestination (the request door)
 
 // ─── spine_state.hpp (CONTRACT: the spine's organ types) ─────────
 // Born of REBUILD-0 m1 (services graduation; recon §2.1, stamp D3):
@@ -10,9 +11,13 @@
 // INSTANCES (time_state_, player_, transitionPhase_) stay at the
 // composition root; the residency rulings (SEAM[spine:P8],
 // SEAM[spine:transitions]) are unchanged — this is a type move, not
-// an ownership move. MoodState graduates separately to
-// direction/mood.hpp (struct with its semantic owner, instance at
-// root — the WorldState pattern, R-a).
+// an ownership move. MoodState lived with mood (m1, the WorldState
+// pattern) until the mood MERGE sent mood's bodies to the cohort tail
+// (DISSOLVE-1 Batch D) — the spine-resident organ TYPE now lives here
+// with its transition machine, beside InputState (the Batch C
+// precedent), along with the atmosphere vocabulary its early readers
+// need (CeilingType / MoodProfile / MOOD_TABLE) and the transition
+// request door's DECLARATION (the def rides merged mood.hpp).
 //
 // ─────────────────────────────────────────────────────────────────
 
@@ -99,6 +104,124 @@ struct InputState {
     float pan_x_delta = 0.0f;
     float pan_y_delta = 0.0f;
 };
+
+
+struct WorldState;   // patch_system.hpp — the request door reads active_seed (fwd: reference param)
+
+// ═══ MOOD STATE (the spine's mood organ; instance at the root) ════
+// REBUILD-0 m1 (stamp D3) placed the struct with mood (the WorldState
+// pattern); the mood MERGE (DISSOLVE-1 Batch D) moved mood's bodies to
+// the cohort tail, so the TYPE graduates here — the InputState
+// precedent, and the instance was ALWAYS spine-resident with the
+// transition machine (SEAM[spine:transitions], K4). The boot default
+// reads the demo sentence; demos/demo.hpp precedes this header in the
+// cartridge include cohort (the patch_system.hpp DEMO.seed precedent).
+struct MoodState {
+    // ── Currently active mood ──
+    uint32_t active = DEMO.boot_mood;  // boots from the demo sentence (DEMO-1)
+
+    // ── Mood-applied values (re-set on each apply_mood) ──
+    float sun_intensity = 0.8f;
+    float sun_ambient   = 0.25f;
+    float terrain_amp_ceiling = 0.0f;       // mirrors GPU config.terrain_amp_ceiling
+    bool  spot_light_active = false;
+
+    // ── Transition machinery ──
+    float transition_timer         = 0.0f;
+    float transition_fade_duration = 0.5f;  // seconds per fade direction
+    float transition_fade_alpha    = 0.0f;
+
+    // ── Portal upload flag ──
+    bool portals_dirty = true;              // true at boot → first upload guaranteed
+
+    // ── Back-portal return state ──
+    bool     back_portal_pending       = false;
+    uint32_t back_portal_return_seed   = 0;
+    uint32_t back_portal_return_mood   = 0;
+    uint32_t back_portal_return_radius = 2;
+
+    // ── Sun orbit (musical coupling) ──
+    float sun_orbit_phase = 0.0f;
+
+    // ── Light re-upload flag (re-homed from entities_state_ at m4:
+    //    mood was both producer and consumer — the organ was wrong,
+    //    not the channel). Set true at init/teardown/apply, cleared
+    //    after upload. ──
+    bool lights_dirty = true;
+};
+
+// ═══ MOOD SYSTEM (vocabulary) ════════════════════════════════════
+
+enum class CeilingType : uint32_t {
+    NONE = 0,   // outdoor — no shell geometry
+    FLAT = 1,   // flat slab ceiling
+    VAULT = 2,   // catenary vault ceiling
+};
+
+struct MoodProfile {
+    // ─── World bounds ───────────────────────────────────────
+    bool   finite;                 // true = walled world with finite radius
+    uint32_t finite_radius_min;    // min patch radius (when finite)
+    uint32_t finite_radius_max;    // max patch radius (when finite)
+
+    // ─── Lighting ───────────────────────────────────────────
+    float  sun_direction[3];       // directional light vector (normalized)
+    float  sun_color[3];           // sun RGB
+    float  sun_intensity;          // diffuse strength
+    float  sun_ambient;            // ambient fill strength
+
+    // ─── Atmosphere ─────────────────────────────────────────
+    // INTENT[mood-fog-baseline] fog_density/fog_color have ZERO readers —
+    //   fog retired from apply_mood when it went field-driven (the
+    //   visual-canvas fog flush owns it per-frame). The authored per-mood
+    //   baselines are kept as intent: revive-or-delete at the panel era.
+    float  fog_density;            // exponential fog coefficient
+    float  fog_color[3];           // fog/horizon RGB
+
+    // ─── Indoor shell ───────────────────────────────────────
+    bool   indoor;                 // true = enclosed space with ceiling
+    CeilingType ceiling_type;      // NONE / FLAT / VAULT
+    float  ceiling_height;         // ceiling Y (world units)
+
+    // ─── Background ─────────────────────────────────────────
+    float  clear_color[3];         // sky or dark ceiling RGB
+    float  wall_color[3];          // indoor wall surface RGB
+    float  ceiling_color[3];       // indoor ceiling surface RGB
+
+    // ─── Feature selection (per-mood) ───────────────────────
+    bool   allow_gol_zones;        // GoL zone spawning + visualization
+    bool   allow_pawn_aura;        // toroidal spring grid tinting + height boost
+    bool   allow_frustum_cull;     // GPU frustum cull for LOD0 terrain (Tier 4)
+    bool   has_anchor_ribbon;      // mood spawns a fixed reference ribbon at the world center
+
+};
+
+// ═══ MOOD DEFINITIONS ════════════════════════════════════════════
+//
+// SEAM[mood:K1] indoor/outdoor binary lives here as bool `finite` +
+//   bool `indoor` flags. With finite_outdoor and finite_outdoor_ref,
+//   the binary doesn't survive contact — the encoding is correct
+//   for today but worth re-examining when finite_outdoor design lands.
+// has_anchor_ribbon flag (last column): mood 5 (FINITE_OUTDOOR_REF)
+//   is the only row that sets it true. The mood ID is an identifier,
+//   not a discriminator — atmospheric data is profile-driven. See
+//   SEAM[mood:L1] above for the gating call site.
+//                                  fin  r_min r_max  sun_dir                sun_color              int   amb   fog_d   fog_color               indoor  ceil       ceil_h  clear_color            wall_color             ceil_color               zones  aura   cull   ribbon
+inline constexpr MoodProfile MOOD_TABLE[MOOD_COUNT] = {
+    /* MOOD_OPEN_DEFAULT       */  { false, 2, 2, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  false },
+    /* MOOD_OPEN_SUNSET        */  { false, 2, 2, { 0.96f,-0.26f,-0.13f}, {1.0f, 0.75f, 0.45f}, 0.90f, 0.20f, 0.0050f, {0.95f, 0.70f, 0.45f},  false, CeilingType::NONE,  0.0f,  {0.95f, 0.70f, 0.45f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  false },
+    /* MOOD_INDOOR_FLAT        */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f, 0.0003f, {0.15f, 0.12f, 0.10f},  true,  CeilingType::FLAT,  20.0f, {0.15f, 0.12f, 0.10f}, {0.65f,0.58f,0.50f}, {0.60f,0.55f,0.48f},   true,  true,  false, false },
+    /* MOOD_INDOOR_VAULT       */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f, 0.0003f, {0.15f, 0.12f, 0.10f},  true,  CeilingType::VAULT, 25.0f, {0.15f, 0.12f, 0.10f}, {0.70f,0.62f,0.52f}, {0.65f,0.58f,0.50f},   true,  true,  false, false },
+    /* MOOD_FINITE_OUTDOOR     */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  false },
+    /* MOOD_FINITE_OUTDOOR_REF */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true  },
+};
+
+// ═══ THE TRANSITION REQUEST DOOR (decl; def rides merged mood.hpp) ═
+// The single canonical transition entry point — one door, many keys.
+// DEPS-FORM (Batch C): the driver world holds no keyhole; the door
+// takes the transition channel explicitly (the m3 precedent class).
+void request_mood_transition(TransitionPhase& phase, PortalDestination& pending,
+    MoodState& ms, const WorldState& ws, uint32_t mood);
 
 } // namespace the_board
 } // namespace t7

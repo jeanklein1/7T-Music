@@ -52,11 +52,10 @@
 #include "cartridges/the_board/contracts/entity_types.hpp"         // THE CONTRACT HOME: pipeline contracts + boundary DTOs + queue unions + dispatch row/table decl
 #include "cartridges/the_board/contracts/spawn_services.hpp"      // THE MACHINE'S DECL TIER: spawn/pipeline service decls + boundary DTOs + arch vocabulary + MIN_SEPARATION (DISSOLVE-1 Batch C — bodies ride the merged machine headers at the cohort tail)
 #include "cartridges/the_board/contracts/mood_constants.hpp"       // MOOD_COUNT + the Mood IDs + PortalDestination
-#include "cartridges/the_board/contracts/spine_state.hpp"          // TimeState + PlayerState + TransitionPhase (spine organ TYPES; instances stay at the root — REBUILD-0 m1, stamp D3)
+#include "cartridges/the_board/contracts/spine_state.hpp"          // TimeState + PlayerState + TransitionPhase + InputState + MoodState/MoodProfile/MOOD_TABLE + the request door decl (spine organ TYPES; instances stay at the root — m1 D3, Batch C/D graduations)
 #include "cartridges/the_board/contracts/floater_vocabulary.hpp"   // floater TYPES (ActiveFloater/ActiveCube), file scope
 #include "cartridges/the_board/realization/state.hpp"
 #include "cartridges/the_board/realization/render_passes.hpp"        // the nine pass/dispatch + light-VP decls (impl is render_passes.inl, post-class; module owns no state)
-#include "cartridges/the_board/direction/mood.hpp"                 // MoodProfile + MOOD_TABLE + portal colors + palettes + door/applier/deriver decls (impl is mood.inl, post-class; mood owns no state)
 #include "cartridges/the_board/surface/population_themes.hpp"  // S2: THEMES + ThemeEnvelope + ThemesState — MERGED single file (DISSOLVE-1 d3 #1)
 #include "cartridges/the_board/surface/patch_system.hpp"     // S2: WorldState + ActivePatch + budgets + visibility + PatchSystemState + decls (impl is patch_system.inl, post-class)
 #include "cartridges/the_board/surface/tile_world.hpp"          // S2: archetypes + tokens + TileState/cache + TileWorldDeps + impl — MERGED single file (DISSOLVE-1 Batch A d3); after patch_system for WorldState/PATCH_EXTENT
@@ -72,6 +71,7 @@
 #include "cartridges/the_board/bodies/ribbon.hpp"               // RibbonState + RibbonDeps + impl — MERGED (DISSOLVE-1 Batch C); after visual_canvas for the coupling face
 #include "cartridges/the_board/bodies/gallery.hpp"              // GalleryState + GalleryDeps + impl — MERGED (DISSOLVE-1 Batch C); after ribbon for RibbonState
 #include "cartridges/the_board/direction/input.hpp"             // KeyState/MouseState + InputDeps + impl — MERGED (DISSOLVE-1 Batch C); after ribbon for RibbonState (the sky fixture); InputState graduated to spine_state
+#include "cartridges/the_board/direction/mood.hpp"              // MoodDeps + portal/palette vocabulary + impl — MERGED (DISSOLVE-1 Batch D); after ribbon/gallery/input (fan targets), before the machine natives (they call its derivers); MoodState/MoodProfile/MOOD_TABLE graduated to spine_state
 #include "cartridges/the_board/machine/spawn_engine.hpp"        // S3: proximity tables + footprints + SpawnEngineState + the preamble template + impl — MERGED (DISSOLVE-1 Batch C); after entities/renderer for complete organs; decl tier in contracts/spawn_services.hpp
 #include "cartridges/the_board/machine/entity_pipeline.hpp"     // S3: the rescale template + the three-phase verbs + the welded four — MERGED (DISSOLVE-1 Batch C); after spawn_engine (services) + entities (vocab)
 #include <cmath>
@@ -1200,7 +1200,6 @@ namespace t7 {
 //
 // WIRING FORM (fix-2): SELF-WRAPPING — the zone includes impls at FILE SCOPE; law in audit/LADDER.md.
 #include "realization/render_passes.inl"  // ground-entry prep + compute dispatch + shadow/main passes + light VPs
-#include "direction/mood.inl"       // indoor light derivation + appliers + apply_mood + shell + portals + uploads + transition request + derivers
 #include "surface/patch_system.inl"  // the active-patch machine — registry lifecycle + budgets + teardown + allocator + the streaming conductor
 // ═══ THE TABLE — FAMILY_DISPATCH (DISSOLVE-1 Batch A, A1) ══════════
 // Inlined from machine/family_dispatch.inl (retired): the definition
