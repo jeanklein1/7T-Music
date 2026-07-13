@@ -48,6 +48,24 @@ struct AgentState; struct AgentsDeps;
 struct CubeBehaviorsState; struct CubeDeps;
 struct MoodState;
 
+// ═══ CameraControls — PARAMETER PANEL (PANEL-0 p1a; the campaign's
+// first, deliberately MINIMAL — the FORM TEST for p3's per-module
+// panels: one organized block, clear names, editable without hunting.
+// Terrain inherits this convention.) ═══════════════════════════════
+//
+// Deferred growth (named, not carried): smoothing/damping, invert-Y,
+// sprint multiplier, split H/V sensitivity, a vertical-lift axis.
+struct CameraControls {
+    // Mouse → rotation rate (radians per pixel of drag). Feeds every
+    // mouse-authored look/pan delta (on_mouse_move).
+    static constexpr float LOOK_SENSITIVITY = 0.005f;
+    // W/S/A/D velocity in free-fly (world units per second) — the
+    // camera host's MOVE_SPEED, wired to config.point_fly_speed at
+    // boot. The pawn host's walk speed is Idle::PAWN_SPEED (state.hpp),
+    // untouched by this dial.
+    static constexpr float MOVE_SPEED = 15.0f;
+};
+
 // ═══ INPUT STATE ═════════════════════════════════════════════════
 // struct InputState GRADUATED to contracts/spine_state.hpp (the
 // driver's intent organ — read by the spine's signal fill and the
@@ -324,7 +342,7 @@ inline void on_key_up(InputDeps* c, int key) {
 // ═══ MOUSE / SCROLL ══════════════════════════════════════════════
 
 inline void on_mouse_move(InputDeps* c, float dx, float dy) {
-    constexpr float sensitivity = 0.005f;
+    constexpr float sensitivity = CameraControls::LOOK_SENSITIVITY;  // the panel dial (PANEL-0 p1a)
     if (c->mouse_.left_dragging) {
         c->inputState_.look_az_delta += dx * sensitivity;
         c->inputState_.look_el_delta += dy * sensitivity;

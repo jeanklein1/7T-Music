@@ -413,6 +413,9 @@ namespace t7 {
                     gpuState_.set_mode_gol_scales(1.0f, 1.0f);
                     float zero_pulses[32] = {};
                     gpuState_.set_pulse_data(0, zero_pulses);
+                    // The CameraControls panel authors the fly speed
+                    // (PANEL-0 p1a) — one dial, one writer, at boot.
+                    gpuState_.set_point_fly_speed(CameraControls::MOVE_SPEED);
                 }
             }
 
