@@ -1177,4 +1177,63 @@ namespace t7 {
 #include "machine/spawn_engine.inl"  // the spawn engine — negotiation + footprints + culling + census + the select/place/commit loops
 #include "surface/patch_system.inl"  // the active-patch machine — registry lifecycle + budgets + teardown + allocator + the streaming conductor
 #include "machine/entity_pipeline.inl"  // the generic three-phase verbs + the welded four family blocks (column/antenna/pyramid/arch)
-#include "machine/family_dispatch.inl"  // THE TABLE — FAMILY_DISPATCH definition + shared no-op mesh adapters
+// ═══ THE TABLE — FAMILY_DISPATCH (DISSOLVE-1 Batch A, A1) ══════════
+// Inlined from machine/family_dispatch.inl (retired): the definition
+// is SEAM[spine:owns] spine work — it takes the Cartridge mesh-wrapper
+// static ADDRESSES and the family row addresses, so it lives with its
+// owner, the composition root, at the post-class point where its
+// include sat. No struct, no pair — the file simply comes home.
+namespace t7 {
+namespace the_board {
+// ─── Shared no-op adapters ────────────────────────────────────────
+
+inline bool dispatch_prepare_mesh_none(MachineCtx* self, wgpu::Queue& queue) {
+    (void)self; (void)queue;
+    return false;
+}
+inline void dispatch_mesh_gen_none(MachineCtx* self, wgpu::ComputePassEncoder& pass) {
+    (void)self; (void)pass;
+}
+
+// ─── The table ─────────────────────────────────────────────────────
+
+inline const FamilyDispatch FAMILY_DISPATCH[PopFamily::COUNT] = {
+    { dispatch_select_pyramid_generic, dispatch_place_pyramid_generic, dispatch_commit_pyramid_generic,
+      evict_pyramid, Cartridge::dispatch_prepare_mesh_pyramid, Cartridge::dispatch_mesh_gen_pyramid,
+      "pyr" },
+    { dispatch_select_arch_generic, dispatch_place_arch_generic, dispatch_commit_arch_generic,
+      evict_arch,    Cartridge::dispatch_prepare_mesh_arch,    Cartridge::dispatch_mesh_gen_arch,
+      "arch" },
+    { dispatch_select_column_generic, dispatch_place_column_generic, dispatch_commit_column_generic,
+      evict_column,  Cartridge::dispatch_prepare_mesh_column,  Cartridge::dispatch_mesh_gen_column,
+      "col" },
+    { dispatch_select_antenna_generic, dispatch_place_antenna_generic, dispatch_commit_antenna_generic,
+      evict_antenna, Cartridge::dispatch_prepare_mesh_column,  Cartridge::dispatch_mesh_gen_column,
+      "ant" },
+    { dispatch_select_palm_generic, dispatch_place_palm_generic, dispatch_commit_palm_generic,
+      evict_palm,   Cartridge::dispatch_prepare_mesh_palm,   Cartridge::dispatch_mesh_gen_palm,
+      "palm" },
+    { dispatch_select_cactus_generic, dispatch_place_cactus_generic, dispatch_commit_cactus_generic,
+      evict_cactus, Cartridge::dispatch_prepare_mesh_cactus, Cartridge::dispatch_mesh_gen_cactus,
+      "cact" },
+    { dispatch_select_blade_generic, dispatch_place_blade_generic, dispatch_commit_blade_generic,
+      evict_blade, Cartridge::dispatch_prepare_mesh_blade, Cartridge::dispatch_mesh_gen_blade,
+      "blad" },
+    { dispatch_select_sphere_generic, dispatch_place_sphere_generic, dispatch_commit_sphere_generic,
+      evict_sphere, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
+      "sph" },   // no CPU mesh gen — GPU compute handles update_sphere
+    { dispatch_select_ribbon, dispatch_place_ribbon, dispatch_commit_ribbon,
+      evict_ribbon, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
+      "ribn" },  // no CPU mesh gen — GPU compute handles ribbon rendering
+    { dispatch_select_cube_generic, dispatch_place_cube_generic, dispatch_commit_cube_generic,
+      evict_cube, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
+      "cube" },  // no CPU mesh gen — GPU compute handles update_cube
+    { dispatch_select_gol, dispatch_place_gol, dispatch_commit_gol,
+      evict_gol, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
+      "gol" },   // zone mesh gen is a separate compute pass
+    { dispatch_select_gallery, dispatch_place_gallery, dispatch_commit_gallery,
+      evict_gallery, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
+      "gall" },
+};
+} // namespace the_board
+} // namespace t7
