@@ -56,7 +56,7 @@
 #include "cartridges/the_board/contracts/floater_vocabulary.hpp"   // floater TYPES (ActiveFloater/ActiveCube), file scope
 #include "cartridges/the_board/realization/state.hpp"
 #include "cartridges/the_board/surface/population_themes.hpp"  // S2: THEMES + ThemeEnvelope + ThemesState — MERGED single file (DISSOLVE-1 d3 #1)
-#include "cartridges/the_board/surface/patch_system.hpp"     // S2: WorldState + ActivePatch + budgets + visibility + PatchSystemState + decls (impl is patch_system.inl, post-class)
+#include "cartridges/the_board/contracts/surface_services.hpp"  // THE SURFACE'S DECL TIER: WorldState + the patch registry + budgets/visibility + PatchSystemState + the surface service decls (DISSOLVE-1 Batch D — bodies ride surface/patch_system.hpp at the cohort tail)
 #include "cartridges/the_board/surface/tile_world.hpp"          // S2: archetypes + tokens + TileState/cache + TileWorldDeps + impl — MERGED single file (DISSOLVE-1 Batch A d3); after patch_system for WorldState/PATCH_EXTENT
 #include "cartridges/the_board/bodies/entities.hpp"             // grounded-family vocabulary + EntitiesState + impl — MERGED (DISSOLVE-1 Batch B); after entity_pipeline for generic_*
 #include "cartridges/the_board/bodies/agents.hpp"               // AgentState + AgentsDeps + impl — MERGED (DISSOLVE-1 Batch B); after entities for COLUMN_PALETTE
@@ -74,6 +74,7 @@
 #include "cartridges/the_board/direction/mood.hpp"              // MoodDeps + portal/palette vocabulary + impl — MERGED (DISSOLVE-1 Batch D); after ribbon/gallery/input (fan targets), before the machine natives (they call its derivers); MoodState/MoodProfile/MOOD_TABLE graduated to spine_state
 #include "cartridges/the_board/machine/spawn_engine.hpp"        // S3: proximity tables + footprints + SpawnEngineState + the preamble template + impl — MERGED (DISSOLVE-1 Batch C); after entities/renderer for complete organs; decl tier in contracts/spawn_services.hpp
 #include "cartridges/the_board/machine/entity_pipeline.hpp"     // S3: the rescale template + the three-phase verbs + the welded four — MERGED (DISSOLVE-1 Batch C); after spawn_engine (services) + entities (vocab)
+#include "cartridges/the_board/surface/patch_system.hpp"        // S2: the active-patch machine's bodies on THE MACHINE FACE — MERGED (DISSOLVE-1 Batch D, the campaign's LAST); decl tier in contracts/surface_services.hpp
 #include <cmath>
 #include <cstring>
 #include <iostream>
@@ -1196,10 +1197,13 @@ namespace t7 {
     } // namespace the_board
 } // namespace t7
 
-// ═══ MODULE IMPLEMENTATIONS (post-class, FILE SCOPE) ══════════════════
+// ═══ THE POST-CLASS ZONE — EMPTY OF MODULES (DISSOLVE-1 d4) ═══════════
 //
-// WIRING FORM (fix-2): SELF-WRAPPING — the zone includes impls at FILE SCOPE; law in audit/LADDER.md.
-#include "surface/patch_system.inl"  // the active-patch machine — registry lifecycle + budgets + teardown + allocator + the streaming conductor
+// The .inl era ended HERE: eighteen module impl includes once stood at
+// this file scope (WIRING FORM fix-2, SELF-WRAPPING — law in
+// audit/LADDER.md); every module now rides ONE pre-class header, its
+// decl tier at the contracts. What remains below is the spine's own
+// table — FAMILY_DISPATCH — which was never a module.
 // ═══ THE TABLE — FAMILY_DISPATCH (DISSOLVE-1 Batch A, A1) ══════════
 // Inlined from machine/family_dispatch.inl (retired): the definition
 // is SEAM[spine:owns] spine work — it takes the Cartridge mesh-wrapper
