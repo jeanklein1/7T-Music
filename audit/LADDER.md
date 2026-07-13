@@ -1574,3 +1574,65 @@ two findings reported to Jean for a ruling before any cut:
   that door — a faked conversion carrying the keyhole through. input
   therefore rides Batch D, after mood's door sheds Cartridge*. A disclosed
   census re-rank, not a workaround.
+
+## DISSOLVE-1 — BATCH C, part 2 (the B ruling executed; → Rig Boundary C)
+
+JEAN'S RULING (B): "InputDeps is input's own organs plus its true
+reaches; the command fan routes through the existing m4 doors; the
+target organs live at the call sites, not in the struct; the F6 socket
+stays reserved for a real addressing need. Then input, spawn_engine,
+and entity_pipeline all merge with their cohort proofs." Three commits
+executed it; three more .inls retired (zone 6 -> 3).
+
+COMMIT 1 — InputDeps, the driver's face. Eight members: the driver's
+own organs (inputState_/keys_/mouse_) + its true reaches (player_ the
+anchor toggle, world_state_ the radius command, ribbon_state_ the sky
+fixture, gpuState_ the freeze toggle + fpv wire, wgpu::Device& the
+queue fetch — the S5-style declared handle). The command fan's TARGET
+organs are NOT members: on_key_down takes them as organ-named
+PARAMETERS (pawn/orbs/agents/cubes state+deps pairs + the transition
+channel trio), and the root's on_input addresses the fan's bodies per
+event — the driver law made literal (v3 §9 Act I: a driver writes
+intents through bodies it does not own). THE F6 SOCKET stays RESERVED.
+The two m4 doors input calls shed their keyholes deps-form (the m3
+precedent class): request_mood_transition(TransitionPhase&,
+PortalDestination&, MoodState&, const WorldState&, uint32_t) and
+request_recenter(WorldState&) — the C-2 finding resolved not by
+waiting for Batch D but by converting the DOORS' faces now; mood's and
+patch_system's bodies otherwise untouched.
+
+COMMIT 2 — InputState graduates + input merges. struct InputState
+graduates to contracts/spine_state.hpp (the m1 pattern: type at the
+contract tier, instance at the root) — it is the driver's intent
+CHANNEL, read by the spine's signal fill and the ribbon's sky flight,
+so it must precede ribbon in the cohort; KeyState/MouseState stay with
+input (the driver's private organs). input.hpp+inl collapse to ONE
+header at the cohort tail (after ribbon — toggle_sky_mode derefs
+RibbonState.sky); the GLFW include + fallback #defines ride the module
+(preprocessor is namespace-blind). Census F8-door file-map followed.
+
+COMMIT 3 — the machine natives merge; the C-1 cycle closes by the
+CONTRACT SPLIT. A new contract is born — contracts/spawn_services.hpp
+(entity_types' sibling, the machine's decl tier): the spawn-service
+decls, the preamble + rescale template DECLARATIONS, the generic_*
+decls, the boundary DTOs (SpawnGatePreambleResult / PositionResult /
+SpawnPreamble), the arch vocabulary (ArchIdx / ArchTierRow /
+ARCH_TIERS), MIN_SEPARATION, GLOBAL_ENTITY_DENSITY (the sweep caught
+gol + gallery reading it pre-tail — the census's named-set grep had
+missed it), and the ActiveColumn fwd (the Batch B proof, re-homed).
+With the early tier gone, spawn_engine and entity_pipeline each merged
+to ONE header at the cohort tail; entity_pipeline's BOM died with its
+file. THE BINDING LAW, named at the contract: an inline function or
+template declared before its callers may be DEFINED later in the same
+TU — templates instantiate at end-of-TU — the mechanism the .inl zone
+always relied on, now written down. THE CORRECTION owed to the record:
+the C-1 report claimed "templates cannot be forward-declared" — WRONG
+for a single-TU design; the fix IS the ruling's mechanism. The P11
+seam note followed (C deduces MachineCtx; the template keyhole is a
+doorway now).
+
+The .inl census reads THREE, all Batch D: mood.inl, render_passes.inl,
+patch_system.inl. BOM census: renderer.hpp + render_passes.inl. GATES
+per commit: glaw1 GREEN full + minimal; score census GREEN (A/B/W +
+W-deps); zone 6==6 / 5==5 / 3==3; sentinels 148/5; encodings verified.
+AWAITING RIG BOUNDARY C: golden + minimal witness; zone count 3.
