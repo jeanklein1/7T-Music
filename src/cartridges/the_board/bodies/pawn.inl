@@ -17,7 +17,7 @@ namespace the_board {
 inline void tick_pawn_couplings(PawnState& ps, Cartridge* c, wgpu::Queue& queue) {
     (void)queue;
     // Aura presence ramp: smooth 0→1 on enable / 1→0 on disable.
-    // (aura_presence lives on player_ — SEAM[spine:P8]; see Cartridge::PlayerState)
+    // (aura_presence lives on player_ — SEAM[spine:P8]; see PlayerState, contracts/spine_state.hpp)
     {
         const float target = ps.aura_enabled ? 1.0f : 0.0f;
         const float prev   = c->player_.aura_presence;

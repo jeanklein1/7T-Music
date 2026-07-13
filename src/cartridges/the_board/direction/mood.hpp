@@ -16,13 +16,15 @@
 // (apply_mood, request_mood_transition, force_spawn_back_portal,
 // upload_lights, upload_portal_array, mood_name) plus the appliers and
 // derivers. The Mood IDs are file-scope vocabulary
-// (mood_constants.hpp), consumed here. MOOD OWNS NO STATE: no
-// MoodState exists here or at the composition root — mood_state_ and
-// the transition machine (transitionPhase_ / pendingDestination_ and
-// kin) are SPINE-OWNED orchestration (SEAM[spine:transitions] at the
-// machine's banner; constitution §2). The force-spawn mutation of the
-// arch belongs to the arch's owner — mood's force_spawn_* internals
-// COMPUTE VALUES and call entities' force_spawn_portal_arch.
+// (mood_constants.hpp), consumed here. MOOD OWNS NO INSTANCE: struct
+// MoodState's TYPE lives here (REBUILD-0 m1, stamp D3 — the WorldState
+// pattern, R-a); the instance mood_state_ and the transition machine
+// (transitionPhase_ / pendingDestination_ and kin) are SPINE-OWNED
+// orchestration (SEAM[spine:transitions] at the machine's banner;
+// constitution §2, K4 as amended by the stamp). The force-spawn
+// mutation of the arch belongs to the arch's owner — mood's
+// force_spawn_* internals COMPUTE VALUES and call entities'
+// force_spawn_portal_arch.
 // Definitions live in mood.inl, included at FILE SCOPE in the
 // post-class MODULE IMPLEMENTATIONS zone. Namespace t7::the_board.
 //
@@ -32,8 +34,8 @@
 // colors / world_state_ and the feature-gate flags), the converted
 // modules' surfaces (entities' force_spawn_portal_arch, ribbon's
 // fill/commit, gallery's wall paintings, orbs' configure,
-// render_passes' compute_spot_light_vp), Cartridge::TransitionPhase
-// (in-class, through the complete type), ARCH_TIERS / ArchIdx
+// render_passes' compute_spot_light_vp), TransitionPhase
+// (contracts/spine_state.hpp), ARCH_TIERS / ArchIdx
 // (entity_pipeline.hpp), solve_catenary_a (seed_utils.hpp), and
 // PATCH_EXTENT (patch_system.hpp).
 //
@@ -66,6 +68,41 @@
 
 namespace t7 {
 namespace the_board {
+
+// ═══ MOOD STATE (struct with its semantic owner; instance at root) ═
+// REBUILD-0 m1 (stamp D3): the WorldState pattern (R-a) — the struct
+// lives here with mood; the INSTANCE (mood_state_) stays spine-resident
+// with the transition machine (SEAM[spine:transitions], K4). The boot
+// default reads the demo sentence; demos/demo.hpp precedes this header
+// in the cartridge include cohort (the patch_system.hpp DEMO.seed
+// precedent).
+struct MoodState {
+    // ── Currently active mood ──
+    uint32_t active = DEMO.boot_mood;  // boots from the demo sentence (DEMO-1)
+
+    // ── Mood-applied values (re-set on each apply_mood) ──
+    float sun_intensity = 0.8f;
+    float sun_ambient   = 0.25f;
+    float terrain_amp_ceiling = 0.0f;       // mirrors GPU config.terrain_amp_ceiling
+    bool  spot_light_active = false;
+
+    // ── Transition machinery ──
+    float transition_timer         = 0.0f;
+    float transition_fade_duration = 0.5f;  // seconds per fade direction
+    float transition_fade_alpha    = 0.0f;
+
+    // ── Portal upload flag ──
+    bool portals_dirty = true;              // true at boot → first upload guaranteed
+
+    // ── Back-portal return state ──
+    bool     back_portal_pending       = false;
+    uint32_t back_portal_return_seed   = 0;
+    uint32_t back_portal_return_mood   = 0;
+    uint32_t back_portal_return_radius = 2;
+
+    // ── Sun orbit (musical coupling) ──
+    float sun_orbit_phase = 0.0f;
+};
 
 // ═══ MOOD SYSTEM (vocabulary) ════════════════════════════════════
 

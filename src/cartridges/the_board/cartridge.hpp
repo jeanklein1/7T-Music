@@ -30,7 +30,8 @@
 //   the other deferred fields await the unified entity layer.
 //   Pattern P8 visible in source.
 // SEAM[spine:portal-system] portal/transition state machine. Owns
-//   TransitionPhase, mood_state_.transition_timer, pendingDestination_, the
+//   transitionPhase_ (enum type in contracts/spine_state.hpp, REBUILD-0
+//   m1), mood_state_.transition_timer, pendingDestination_, the
 //   PORTAL_COLORS table, the back-portal pending state, and the
 //   trigger-detection hooks called by readback. Mood.inl drives portal
 //   spawning (force_spawn_portal_at, force_spawn_back_portal,
@@ -50,6 +51,7 @@
 #include "cartridges/the_board/contracts/ground_architecture.hpp"  // ground contributor/policy tables + compile-time DAG checks
 #include "cartridges/the_board/contracts/entity_types.hpp"         // THE CONTRACT HOME: pipeline contracts + boundary DTOs + queue unions + dispatch row/table decl
 #include "cartridges/the_board/contracts/mood_constants.hpp"       // MOOD_COUNT + the Mood IDs + PortalDestination
+#include "cartridges/the_board/contracts/spine_state.hpp"          // TimeState + PlayerState + TransitionPhase (spine organ TYPES; instances stay at the root — REBUILD-0 m1, stamp D3)
 #include "cartridges/the_board/contracts/floater_vocabulary.hpp"   // floater TYPES (ActiveFloater/ActiveCube), file scope
 #include "cartridges/the_board/bodies/pawn.hpp"                 // PawnState + configs + decls (impl is pawn.inl, post-class)
 #include "cartridges/the_board/realization/state.hpp"
@@ -158,18 +160,8 @@ namespace t7 {
             MouseState mouse_;
 
             // ═══ TIME STATE ═════════════════════════════════════════════
-            // Per-frame clock state used everywhere. beats/seconds advance
-            // monotonically; dt is the most recent frame delta.
-            struct TimeState {
-                float beats   = 0.0f;
-                float seconds = 0.0f;
-                float dt      = 0.016f;
-                // Musical tempo follower: beats/sec, HELD-LAST through silence
-                // and stopped transport; defaults to 100 BPM (the calibration
-                // anchor for the authored idle motion).
-                float beat_rate   = 100.0f / 60.0f;
-                float prev_beats  = 0.0f;
-            };
+            // Struct TimeState graduated to contracts/spine_state.hpp
+            // (REBUILD-0 m1, stamp D3); the instance stays here.
             TimeState time_state_;
 
             VisualCanvas  visual_canvas_;
@@ -188,61 +180,18 @@ namespace t7 {
 
             // ═══ MOOD STATE ═════════════════════════════════════════════
             //
-            // Owned by mood.inl semantically, but lives spine-resident
-            // because mood-applied values feed every other subsystem.
-            struct MoodState {
-                // ── Currently active mood ──
-                uint32_t active = DEMO.boot_mood;  // boots from the demo sentence (DEMO-1)
-
-                // ── Mood-applied values (re-set on each apply_mood) ──
-                float sun_intensity = 0.8f;
-                float sun_ambient   = 0.25f;
-                float terrain_amp_ceiling = 0.0f;       // mirrors GPU config.terrain_amp_ceiling
-                bool  spot_light_active = false;
-
-                // ── Transition machinery ──
-                float transition_timer         = 0.0f;
-                float transition_fade_duration = 0.5f;  // seconds per fade direction
-                float transition_fade_alpha    = 0.0f;
-
-                // ── Portal upload flag ──
-                bool portals_dirty = true;              // true at boot → first upload guaranteed
-
-                // ── Back-portal return state ──
-                bool     back_portal_pending       = false;
-                uint32_t back_portal_return_seed   = 0;
-                uint32_t back_portal_return_mood   = 0;
-                uint32_t back_portal_return_radius = 2;
-
-                // ── Sun orbit (musical coupling) ──
-                float sun_orbit_phase = 0.0f;
-            };
+            // Struct MoodState lives with its semantic owner
+            // (direction/mood.hpp — the WorldState pattern, R-a; REBUILD-0
+            // m1, stamp D3). The INSTANCE stays spine-resident because
+            // mood-applied values feed every other subsystem
+            // (SEAM[spine:transitions], K4).
             MoodState mood_state_;
 
             // ═══ PLAYER STATE ════════════════════════════════════════════
             //
-            // SEAM[spine:P8] PlayerState commented "Future (deferred)" fields
-            //   are explicit latent infrastructure: aura_presence is live
-            //   here; the other deferred fields await the unified entity
-            //   layer. Pattern P8 visible in source.
-            struct PlayerState {
-                uint32_t possessed_slot = 0;   // slot in agent_state[] that the player inhabits
-
-                // ── Camera + readback ──
-                bool    fpv_mode = false;                // first-person view toggle
-                bool    sky_mode = false;                // sky-flight: arrows drive the rendered ribbon's head (SEAM[ribbon:sky-mode])
-                bool    sky_mode_prev = false;           // previous-frame sky_mode — drives the exit edge (ribbon release)
-                float   sky_yaw_eased = 0.0f;            // player's eased yaw (curvature continuity)
-                float   readback_x = 0.0f;               // GPU readback of pawn world X
-                float   readback_z = 0.0f;               // GPU readback of pawn world Z
-                int32_t readback_portal_trigger = -1;    // set by readback callback when pawn hits portal
-
-                // ── Aura presence (closes SEAM[spine:P8]) ──
-                float aura_presence = 0.0f;                  // pawn aura ramp (was pawn_state_.aura_presence)
-
-                // Future (deferred):
-                //   uint32_t active_couplings;         // COUPLING_* bitmask owned by player
-            };
+            // Struct PlayerState graduated to contracts/spine_state.hpp
+            // (REBUILD-0 m1, stamp D3) — SEAM[spine:P8] rides with the
+            // struct; the instance stays here.
             PlayerState player_{};
 
             GPUSpotLightArray cpuSpotLights_{};  // count=0 disables (outdoor)
@@ -252,12 +201,13 @@ namespace t7 {
             // SEAM[spine:transitions] (K4, Jean, 2026-07-11): the transition
             //   machine and its working members — transitionPhase_,
             //   pendingDestination_, backPortalPosition_, cpuPortalArray_,
-            //   MoodState/mood_state_ and kin — are DECLARED SPINE-OWNED
+            //   mood_state_ and kin — are DECLARED SPINE-OWNED
             //   ORCHESTRATION per the §2 residency law, the same legitimacy
             //   class as the P5 readbacks. Mood (mood.hpp/.inl) supplies
-            //   vocabulary + appliers + six doors and owns NO state; no
-            //   MoodState exists module-side or at the composition root.
-            //   Constitution §2 carries the ruling's line.
+            //   vocabulary + appliers + six doors and owns NO instance;
+            //   struct MoodState's TYPE lives with its semantic owner
+            //   (direction/mood.hpp — the WorldState pattern, R-a) per the
+            //   REBUILD-0 stamp (D3). Constitution §2 carries the K4 line.
             // SEAM[spine:portal-system] consumed by the mood module
             //   (force_spawn_* functions read pendingDestination_), input.inl
             //   (keypress mood transitions request via mood.hpp's
@@ -266,7 +216,8 @@ namespace t7 {
             //   portal color is mood vocabulary; the machine keeps the
             //   pending state and the trigger hooks.
 
-            enum class TransitionPhase { IDLE, FADE_OUT, TEARDOWN, FADE_IN };
+            // enum TransitionPhase graduated to contracts/spine_state.hpp
+            // (REBUILD-0 m1, stamp D3); the machine member stays here.
             TransitionPhase transitionPhase_ = TransitionPhase::IDLE;
 
             PortalDestination pendingDestination_{};

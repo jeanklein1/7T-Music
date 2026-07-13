@@ -1154,3 +1154,30 @@ table + graduation list, channel census, witness boundary, sky priced
 both ways (P3 material), packer forecast, the 34-second diagnosis
 (P4), and the census-adjusted stage order m1-m7. Zero bytes of code
 touched. The movements cut only after Jean stamps the set.
+
+## REBUILD-0 — PHASE I BEGINS (stamp received; nine decisions, D1-D9)
+
+The lens landed first (Jean's push): theory v3 + the demo contract in
+src/docs/ (v2 superseded and removed by the same push). The campaign
+runs m1 -> m6; m7 packers NO-GO (assert-first rider recorded as the
+standing precondition for a future pull). R7's levers ledger: chain
+multiplier, lattice bake, pipeline blob caching — parked, outside
+this campaign.
+
+**m1 — SERVICES GRADUATION (+ the D9 micro-item).** contracts/
+spine_state.hpp is born: TimeState, PlayerState (SEAM[spine:P8]
+rides with the struct), and TransitionPhase graduate to file scope —
+TOKEN-IDENTICAL modulo indentation (gated). MoodState graduates to
+direction/mood.hpp per D3 (the WorldState pattern, R-a: struct with
+its semantic owner, instance spine-resident; the mood.hpp "OWNS NO
+STATE" banner becomes "OWNS NO INSTANCE", K4 as amended by the
+stamp). The Cartridge:: qualification tax retires at mood.inl
+1001/1008 and agents.inl 227. D9: the F8 entry door gains
+if constexpr (ROSTER.ribbon) — the pawn-to-origin trap in ribbon-less
+demos closes five stages early; m6 still re-homes the machinery.
+Readback enums + dispatch wrappers STAY per the evidence (recon
+§2.1). GATES: glaw1 GREEN at full and at minimal; four moved blocks
+token-identical vs HEAD; zone census 18 == 18; sentinels ROSTER-GATE
+122 -> 123 (+1, the D9 gate), RESIDUE 5 unchanged; encodings — the
+BOM quintet intact (agents.inl edited below its BOM), new contract
+no-BOM/LF.

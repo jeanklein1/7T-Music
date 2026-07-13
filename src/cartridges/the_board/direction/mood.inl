@@ -8,7 +8,7 @@
 // c->sunColor_ / c->clearColor_ / c->world_state_) and the feature-gate
 // flags (c->gol_state_.mood_allowed / c->pawn_state_.aura_enabled /
 // c->entities_state_.lights_dirty — request-flags, channel-shaped),
-// plus Cartridge::TransitionPhase (in-class), ARCH_TIERS / ArchIdx
+// plus TransitionPhase (contracts/spine_state.hpp), ARCH_TIERS / ArchIdx
 // (entity_pipeline.hpp), solve_catenary_a (seed_utils.hpp), and
 // PATCH_EXTENT (patch_system.hpp).
 //
@@ -998,14 +998,14 @@ inline void request_mood_transition(Cartridge* c, uint32_t mood) {
     // nothing structural. Maturity-proof form of the transitions=>portal
     // edge (the v0 form is the manifest static_assert).
     if constexpr (!ROSTER.transitions) { (void)c; (void)mood; return; }
-    if (c->transitionPhase_ != Cartridge::TransitionPhase::IDLE) return;
+    if (c->transitionPhase_ != TransitionPhase::IDLE) return;
     if (mood >= MOOD_COUNT) return;
 
     const auto& mp = MOOD_TABLE[mood];
     uint32_t dest_seed = cpu_hash(c->world_state_.active_seed, 999u);
     uint32_t radius = derive_finite_radius(dest_seed, mp);
     c->pendingDestination_ = { dest_seed, mp.finite, radius, mood };
-    c->transitionPhase_ = Cartridge::TransitionPhase::FADE_OUT;
+    c->transitionPhase_ = TransitionPhase::FADE_OUT;
     c->mood_state_.transition_timer = 0.0f;
 
     if (mp.finite) {

@@ -164,7 +164,14 @@ inline void on_key_down(Cartridge* c, int key) {
     case GLFW_KEY_F5: cycle_floater_coordination(c->cube_behaviors_state_, c);        break;
     case GLFW_KEY_F6: corral_cubes(c->cube_behaviors_state_, c, q);                   break;
     case GLFW_KEY_F7: toggle_cube_kite_mode(c->cube_behaviors_state_, c, q);          break;
-    case GLFW_KEY_F8: toggle_sky_mode(c);                                             break;
+    case GLFW_KEY_F8:
+        // ROSTER-GATE ribbon (b) — D9 (REBUILD-0 stamp): sky-flight's entry
+        // door rides the ribbon bit. Ungated, F8 in a ribbon-less demo snaps
+        // the pawn to origin (the fail-LOUD zeros turned player-facing —
+        // recon §5). m6 re-homes the machinery (Option A); this closes the
+        // trap early.
+        if constexpr (ROSTER.ribbon) toggle_sky_mode(c);
+        break;
     }
     update_movement_intent(c);
 }

@@ -4,7 +4,7 @@
 // Definitions for agents.hpp's declared laws, plus the module-internal
 // helpers (populate_agent_slot_, apply_agent_overrides_). The bodies
 // reach c->gpuState_ / c->player_ / c->world_state_ / c->time_state_ /
-// c->transitionPhase_ (the phase enum via Cartridge::TransitionPhase)
+// c->transitionPhase_ (the phase enum, contracts/spine_state.hpp)
 // and read COLUMN_PALETTE from entities.hpp.
 //
 // WRAPPING FORM (fix-2): SELF-WRAPPING — the zone includes impls at
@@ -224,7 +224,7 @@ inline void respawn_evicted_agents(AgentState& as, Cartridge* c,
 // ═══ POSSESSION TRANSFER (Caps Lock) ══════════════════════════════
 
 inline void try_possess_nearest(AgentState& as, Cartridge* c, wgpu::Queue& queue) {
-    if (c->transitionPhase_ != Cartridge::TransitionPhase::IDLE) {
+    if (c->transitionPhase_ != TransitionPhase::IDLE) {
         std::cout << "[Possess] Blocked (mid-transition)\n";
         return;
     }
