@@ -472,7 +472,7 @@ inline void spawn_selected_patches(Cartridge* c, const PatchCandidate* candidate
 {
     for (uint32_t s = 0; s < count; s++) {
         uint32_t pi = candidates[s].idx;
-        evaluate_theme_envelope(c->themes_state_, c,
+        evaluate_theme_envelope(c->themes_state_, &c->machine_ctx_,
             tile_seed(c->world_state_.active_seed, c->patch_system_state_.patches_[pi].grid_x, c->patch_system_state_.patches_[pi].grid_z));
         select_entities_for_patch(&c->machine_ctx_, c->patch_system_state_.patches_[pi].grid_x, c->patch_system_state_.patches_[pi].grid_z);
         c->patch_system_state_.patches_[pi].phase = PatchPhase::SPAWNED;

@@ -1437,3 +1437,22 @@ declared device member) executes at d2-gol.
 GATES: glaw1 GREEN full + minimal; score census GREEN (A/B/W);
 sentinels 148/5; zone 18 == 18; encodings all match HEAD; the diff
 classified line-by-line.
+
+**d2-themes + d3 MERGE #1 — THE .INL ERA'S FIRST RETIREMENT.**
+population_themes: the envelope takes the face (evaluate_theme_
+envelope's keyhole param becomes MachineCtx*; the DIAG census dump
+rides it; the stream caller hands the face) — residue hits ZERO in
+every signature, no dispatch rows, and the parked definition meets
+its condition. THE MERGE: hpp + inl collapse to ONE pre-class header;
+the .inl DELETED; the zone include retired — ZONE CENSUS 18 -> 17,
+the .inl census reads 17. THE COHORT PROOF (first exercise of the
+law): every callee is declared earlier in the cohort except the
+DIAG-gated census dump, fwd-declared under its own flag with the
+disclosure written at the site. THE KEYHOLE INCLUDE IS RETIRED with
+the merge — nothing in the module names Cartridge (the two grep hits
+are the disclosure comments). Encoding: clean UTF-8/LF, byte-verified
+(both halves were clean; the BOM plan untouched by merge #1).
+GATES: glaw1 GREEN full + minimal; score census GREEN (A/B/W);
+zone 17 == 17; sentinels 148/5. The form is proven; the remaining
+d2 conversions and merges follow it module by module in the stamped
+order (tile_world next).

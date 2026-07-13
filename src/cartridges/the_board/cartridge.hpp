@@ -66,7 +66,7 @@
 #include "cartridges/the_board/direction/input.hpp"                // InputState/KeyState/MouseState + decls (impl is input.inl, post-class; carries its own GLFW include)
 #include "cartridges/the_board/realization/render_passes.hpp"        // the nine pass/dispatch + light-VP decls (impl is render_passes.inl, post-class; module owns no state)
 #include "cartridges/the_board/direction/mood.hpp"                 // MoodProfile + MOOD_TABLE + portal colors + palettes + door/applier/deriver decls (impl is mood.inl, post-class; mood owns no state)
-#include "cartridges/the_board/surface/population_themes.hpp"  // S2: THEMES + ThemeEnvelope + ThemesState + decls (impl is population_themes.inl, post-class)
+#include "cartridges/the_board/surface/population_themes.hpp"  // S2: THEMES + ThemeEnvelope + ThemesState — MERGED single file (DISSOLVE-1 d3 #1)
 #include "cartridges/the_board/surface/tile_world.hpp"          // S2: archetypes + tokens + TileState/cache + TileWorldState + decls (impl is tile_world.inl, post-class)
 #include "cartridges/the_board/surface/patch_system.hpp"     // S2: WorldState + ActivePatch + budgets + visibility + PatchSystemState + decls (impl is patch_system.inl, post-class)
 #include "cartridges/the_board/machine/spawn_engine.hpp"     // S3: spawn vocabulary + separation/proximity tables + SpawnEngineState + the preamble template + decls (impl is spawn_engine.inl, post-class)
@@ -1173,7 +1173,6 @@ namespace t7 {
 #include "direction/input.inl"      // key/mouse dispatch + movement intent + camera commands (own GLFW include)
 #include "realization/render_passes.inl"  // ground-entry prep + compute dispatch + shadow/main passes + light VPs
 #include "direction/mood.inl"       // indoor light derivation + appliers + apply_mood + shell + portals + uploads + transition request + derivers
-#include "surface/population_themes.inl"  // the envelope machine per-patch step
 #include "surface/tile_world.inl"  // the four verbs over what the terrain remembers
 #include "machine/spawn_engine.inl"  // the spawn engine — negotiation + footprints + culling + census + the select/place/commit loops
 #include "surface/patch_system.inl"  // the active-patch machine — registry lifecycle + budgets + teardown + allocator + the streaming conductor

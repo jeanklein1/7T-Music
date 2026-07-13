@@ -2,7 +2,8 @@
 #include <cstdint>
 #include "cartridges/the_board/contracts/roster.hpp"                // PopFamily (spawn_weight indexing)
 #include "cartridges/the_board/primitives/seed_utils.hpp"    // cpu_hash_f (theme rolls)
-#include "cartridges/the_board/contracts/keyhole.hpp"       // Cartridge fwd (the keyhole)
+// keyhole include RETIRED at the merge (d3 #1) — nothing here names Cartridge;
+// MachineCtx arrives from contracts/entity_types.hpp earlier in the cohort.
 
 // ─── population_themes.hpp (S2 · HEADER: vocabulary + state + decls) ─
 // Born at LADDER-6 (S2 extraction): history in audit/LADDER.md.
@@ -173,8 +174,103 @@ inline float theme_envelope_weight(const PopulationTheme& theme, uint32_t elapse
 // Returns the theme index to use for this patch. DEFINED in
 // population_themes.inl (post-class — the flag-gated census dump
 // reaches the keyhole).
-uint32_t evaluate_theme_envelope(ThemesState& ts, Cartridge* c, uint32_t tile_seed_value);  // stores its own result (m4)
+uint32_t evaluate_theme_envelope(ThemesState& ts, MachineCtx* c, uint32_t tile_seed_value);  // stores its own result (m4); takes the face (d2)
 void reset_theme_envelope(ThemesState& ts);
+
+
+// ═══ IMPL (merged from population_themes.inl — DISSOLVE-1 d3, merge
+// #1; the parked definition met its condition: ZERO keyhole residue
+// in any signature, no dispatch rows). COHORT PROOF: every callee is
+// declared earlier in the cohort — cpu_hash_f (seed_utils, contracts
+// side), THEMES/theme_envelope_weight (above), EXCEPT the DIAG-gated
+// census dump, fwd-declared here under its own flag (spawn_engine.hpp
+// follows this header in the cohort; disclosed per the cohort law).
+// The keyhole include is RETIRED with the merge — nothing here names
+// Cartridge. MachineCtx's type precedes via contracts/entity_types.hpp
+// (the patch_system.hpp cohort precedent). ═══════════════════════════
+
+#ifdef DIAG_ENTITY_CENSUS
+void dump_entity_census(MachineCtx* c, const char* trigger);  // fwd (cohort law disclosure)
+#endif
+
+// Census home (LADDER-6 3b): sole consumer is the census dump below;
+// the names are this module's vocabulary.
+inline const char* theme_short_name(uint32_t theme) {
+    static const char* NAMES[] = { "transition", "monumental", "colonnade", "antenna", "barren" };
+    return (theme < THEME_COUNT) ? NAMES[theme] : "???";
+}
+
+inline uint32_t evaluate_theme_envelope(ThemesState& ts, MachineCtx* c, uint32_t tile_seed_value) {
+    (void)c;
+    auto& env = ts.envelope_;
+
+    // Build effective weights
+    float weights[THEME_COUNT];
+    float total = 0.0f;
+    for (uint32_t i = 0; i < THEME_COUNT; i++) {
+        if (env.cooldowns[i] > 0) {
+            weights[i] = 0.0f;
+        }
+        else if ((int32_t)i == env.active) {
+            weights[i] = theme_envelope_weight(THEMES[i], env.elapsed);
+        }
+        else {
+            weights[i] = THEME_BASE_WEIGHT;
+        }
+        total += weights[i];
+    }
+    if (total < 0.001f) total = 1.0f;
+
+    // Roll from weights
+    float roll = cpu_hash_f(tile_seed_value, 370u);
+    uint32_t selected = THEME_COUNT - 1;
+    float cumul = 0.0f;
+    for (uint32_t i = 0; i < THEME_COUNT; i++) {
+        cumul += weights[i] / total;
+        if (roll < cumul) { selected = i; break; }
+    }
+
+    // State transitions
+    if ((int32_t)selected != env.active) {
+        if (env.active >= 0) {
+            env.cooldowns[env.active] = THEMES[env.active].cooldown;
+        }
+        env.active = (int32_t)selected;
+        env.elapsed = 0;
+
+        // Census dump on theme transition
+#ifdef DIAG_ENTITY_CENSUS
+        dump_entity_census(c, theme_short_name(selected));
+#endif
+    }
+    else {
+        env.elapsed++;
+    }
+
+    // Check expiry
+    if (env.active >= 0) {
+        const auto& th = THEMES[env.active];
+        if (env.elapsed >= th.sustain + th.decay) {
+            env.cooldowns[env.active] = th.cooldown;
+            env.active = -1;
+            env.elapsed = 0;
+        }
+    }
+
+    // Tick cooldowns
+    for (uint32_t i = 0; i < THEME_COUNT; i++) {
+        if (env.cooldowns[i] > 0) env.cooldowns[i]--;
+    }
+
+    ts.active_theme_idx_ = selected;  // stores its own result (m4) — the caller no longer writes the organ
+    return selected;
+}
+
+// ─── Teardown reset (owner verb; REBUILD-0 m4) ────────────────────
+inline void reset_theme_envelope(ThemesState& ts) {
+    ts = ThemesState{};
+}
+
 
 } // namespace the_board
 } // namespace t7
