@@ -50,6 +50,7 @@
 #include "cartridges/the_board/primitives/seed_utils.hpp"           // hash/gaussian/tier-select helpers (pure-math leaf)
 #include "cartridges/the_board/contracts/ground_architecture.hpp"  // ground contributor/policy tables + compile-time DAG checks
 #include "cartridges/the_board/contracts/entity_types.hpp"         // THE CONTRACT HOME: pipeline contracts + boundary DTOs + queue unions + dispatch row/table decl
+#include "cartridges/the_board/contracts/spawn_services.hpp"      // THE MACHINE'S DECL TIER: spawn/pipeline service decls + boundary DTOs + arch vocabulary + MIN_SEPARATION (DISSOLVE-1 Batch C — bodies ride the merged machine headers at the cohort tail)
 #include "cartridges/the_board/contracts/mood_constants.hpp"       // MOOD_COUNT + the Mood IDs + PortalDestination
 #include "cartridges/the_board/contracts/spine_state.hpp"          // TimeState + PlayerState + TransitionPhase (spine organ TYPES; instances stay at the root — REBUILD-0 m1, stamp D3)
 #include "cartridges/the_board/contracts/floater_vocabulary.hpp"   // floater TYPES (ActiveFloater/ActiveCube), file scope
@@ -59,8 +60,6 @@
 #include "cartridges/the_board/surface/population_themes.hpp"  // S2: THEMES + ThemeEnvelope + ThemesState — MERGED single file (DISSOLVE-1 d3 #1)
 #include "cartridges/the_board/surface/patch_system.hpp"     // S2: WorldState + ActivePatch + budgets + visibility + PatchSystemState + decls (impl is patch_system.inl, post-class)
 #include "cartridges/the_board/surface/tile_world.hpp"          // S2: archetypes + tokens + TileState/cache + TileWorldDeps + impl — MERGED single file (DISSOLVE-1 Batch A d3); after patch_system for WorldState/PATCH_EXTENT
-#include "cartridges/the_board/machine/spawn_engine.hpp"     // S3: spawn vocabulary + separation/proximity tables + SpawnEngineState + the preamble template + decls (impl is spawn_engine.inl, post-class)
-#include "cartridges/the_board/machine/entity_pipeline.hpp"   // S3: the rescale template + arch vocabulary (ArchIdx/ARCH_TIERS) + the three-phase verb decls (impl is entity_pipeline.inl, post-class)
 #include "cartridges/the_board/bodies/entities.hpp"             // grounded-family vocabulary + EntitiesState + impl — MERGED (DISSOLVE-1 Batch B); after entity_pipeline for generic_*
 #include "cartridges/the_board/bodies/agents.hpp"               // AgentState + AgentsDeps + impl — MERGED (DISSOLVE-1 Batch B); after entities for COLUMN_PALETTE
 #include "cartridges/the_board/bodies/cube_behaviors.hpp"       // CubeBehaviorsState + CubeDeps + impl — MERGED (DISSOLVE-1 Batch B); after agents for AgentState
@@ -73,6 +72,8 @@
 #include "cartridges/the_board/bodies/ribbon.hpp"               // RibbonState + RibbonDeps + impl — MERGED (DISSOLVE-1 Batch C); after visual_canvas for the coupling face
 #include "cartridges/the_board/bodies/gallery.hpp"              // GalleryState + GalleryDeps + impl — MERGED (DISSOLVE-1 Batch C); after ribbon for RibbonState
 #include "cartridges/the_board/direction/input.hpp"             // KeyState/MouseState + InputDeps + impl — MERGED (DISSOLVE-1 Batch C); after ribbon for RibbonState (the sky fixture); InputState graduated to spine_state
+#include "cartridges/the_board/machine/spawn_engine.hpp"        // S3: proximity tables + footprints + SpawnEngineState + the preamble template + impl — MERGED (DISSOLVE-1 Batch C); after entities/renderer for complete organs; decl tier in contracts/spawn_services.hpp
+#include "cartridges/the_board/machine/entity_pipeline.hpp"     // S3: the rescale template + the three-phase verbs + the welded four — MERGED (DISSOLVE-1 Batch C); after spawn_engine (services) + entities (vocab)
 #include <cmath>
 #include <cstring>
 #include <iostream>
@@ -1195,9 +1196,7 @@ namespace t7 {
 // WIRING FORM (fix-2): SELF-WRAPPING — the zone includes impls at FILE SCOPE; law in audit/LADDER.md.
 #include "realization/render_passes.inl"  // ground-entry prep + compute dispatch + shadow/main passes + light VPs
 #include "direction/mood.inl"       // indoor light derivation + appliers + apply_mood + shell + portals + uploads + transition request + derivers
-#include "machine/spawn_engine.inl"  // the spawn engine — negotiation + footprints + culling + census + the select/place/commit loops
 #include "surface/patch_system.inl"  // the active-patch machine — registry lifecycle + budgets + teardown + allocator + the streaming conductor
-#include "machine/entity_pipeline.inl"  // the generic three-phase verbs + the welded four family blocks (column/antenna/pyramid/arch)
 // ═══ THE TABLE — FAMILY_DISPATCH (DISSOLVE-1 Batch A, A1) ══════════
 // Inlined from machine/family_dispatch.inl (retired): the definition
 // is SEAM[spine:owns] spine work — it takes the Cartridge mesh-wrapper

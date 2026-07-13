@@ -549,8 +549,9 @@ uint32_t force_spawn_portal_arch(EntitiesState& es, MachineCtx* c, wgpu::Queue& 
 
 // ═══ IMPL (merged from entities.inl — DISSOLVE-1 Batch B):
 // bodies deref EntitiesState(own) + World/Mood/GPU via MachineCtx; no
-// Cartridge. COHORT: after entity_pipeline.hpp (generic_*) + spawn_engine.hpp
-// (preamble) + patch_system.hpp (WorldState, write_pier/find_patch) + mood.hpp.
+// Cartridge. COHORT: after contracts/spawn_services.hpp (generic_* +
+// preamble DECLS — the machine bodies ride the cohort tail, Batch C) +
+// patch_system.hpp (WorldState, write_pier/find_patch) + mood.hpp.
 
 // ═══ MESH-GEN PREPARERS ═══════════════════════════════════════════
 

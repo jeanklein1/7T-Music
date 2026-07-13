@@ -11,7 +11,7 @@
 // Zone-local Game of Life + Pulse automata.
 //
 // The impl additionally reaches the spawn-engine services and
-// GLOBAL_ENTITY_DENSITY (spawn_engine.hpp, keyhole form), and
+// GLOBAL_ENTITY_DENSITY (contracts/spawn_services.hpp), and
 // PATCH_EXTENT (patch_system.hpp); PopFamily is roster.hpp
 // vocabulary.
 //

@@ -63,9 +63,10 @@ void dispatch_commit_sphere_generic(MachineCtx* self, PlacementEntry& pe, wgpu::
 
 // ═══ IMPL (merged from spheres.inl — DISSOLVE-1 Batch A d3): the row
 // bodies deref sphere_state_ + world/mood/gpu/time via MachineCtx;
-// reconcile via SphereDeps. COHORT PROOF: sits AFTER entity_pipeline.hpp
-// (generic_select/place/commit) and spawn_engine.hpp (run_spawn_preamble
-// template + negotiate_position); WorldState/MoodState complete upstream.
+// reconcile via SphereDeps. COHORT PROOF: sits AFTER
+// contracts/spawn_services.hpp (generic_select/place/commit +
+// run_spawn_preamble + negotiate_position DECLS — the machine bodies
+// ride the cohort tail, Batch C); WorldState/MoodState complete upstream.
 // clear_spheres keeps its deps-form GPUState& (m3 precedent). ═════════
 
 inline void evict_sphere(MachineCtx* self,
