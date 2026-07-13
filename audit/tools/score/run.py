@@ -198,6 +198,36 @@ def main():
     else:
         print(f'  every free call attributed ({len(MANIFEST_CALLS)} manifest, {len(FOUNDATIONAL)} foundational)')
 
+    # Direction W (m5): the witness sole-author law — no module file
+    # may write the witness record's guarded fields.
+    print('── DIRECTION W: the witness sole-author law ──')
+    GUARDS = [
+        (r'readback_(?:x|z|portal_trigger)\s*=[^=]', {'cartridge.hpp', 'contracts/spine_state.hpp'},
+         'readback trio: P5 harvest + teardown reset + portal consume (spine only; the record declares its own defaults)'),
+        (r'player_\.possessed_slot\s*=[^=]', {'bodies/agents.inl'},
+         'possession: the agents door only (re-anchoring, v3 §9 Act III)'),
+        (r'player_\.aura_presence\s*[+]?=[^=]', {'bodies/pawn.inl'},
+         'aura presence: P8, pawn-owned'),
+    ]
+    import glob as _glob
+    module_files = [f for f in _glob.glob(os.path.join(TB, '**', '*.inl'), recursive=True)
+                    + _glob.glob(os.path.join(TB, '**', '*.hpp'), recursive=True)]
+    for pat, allowed, law in GUARDS:
+        offenders = []
+        for f in module_files:
+            rel = os.path.relpath(f, TB).replace(os.sep, '/')
+            if rel in allowed or rel == 'cartridge.hpp' and 'cartridge.hpp' in allowed:
+                continue
+            body = strip_comments_strings(open(f, encoding='utf-8').read())
+            if re.search(pat, body):
+                offenders.append(rel)
+        if offenders:
+            for o in offenders:
+                failures.append(f'W: {o} writes a guarded witness field ({law})')
+                print(f'  ** VIOLATION ** {o}: {law}')
+        else:
+            print(f'  {law}: HOLDS')
+
     print('──')
     if failures:
         for f in failures: print('FAIL:', f)

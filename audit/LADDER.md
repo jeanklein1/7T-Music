@@ -1333,3 +1333,17 @@ nothing today requires it.
 GATES: glaw1 GREEN full + minimal; score census GREEN; relocations
 token-identical (tips, tile doors, toggles, promotion, policy door);
 sentinels 148/5; zone 18 == 18; encodings clean.
+
+**m5 — THE WITNESS (declared and toothed).** The witness census
+(recon R4) already proved the boundary law-abiding — m5 makes it LAW:
+THE WITNESS CONTRACT is written at the record (PlayerState,
+contracts/spine_state.hpp, citing v3 §11 and §9 Act III — possession
+is re-anchoring; the camera is what we control and HAS NO CPU MIRROR;
+there is no readback_y; neither is to be invented), and the score
+census gains DIRECTION W, the sole-author teeth: the readback trio
+writes only at the spine (P5 harvest + teardown reset + portal
+consume), possessed_slot only behind the agents door, aura_presence
+only in pawn.inl (P8). A module write to any guarded field is now a
+census RED. The consumers-through-deps clause rides the parked sweep;
+the S2 faces (m3b) + this contract carry the boundary meanwhile.
+GATES: glaw1 GREEN full + minimal; score census GREEN incl. W.
