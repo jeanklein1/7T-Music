@@ -1456,3 +1456,32 @@ GATES: glaw1 GREEN full + minimal; score census GREEN (A/B/W);
 zone 17 == 17; sentinels 148/5. The form is proven; the remaining
 d2 conversions and merges follow it module by module in the stamped
 order (tile_world next).
+
+## DISSOLVE-1 — BATCH A (the low-risk floor; → Rig Boundary A)
+
+Four .inls retired (zone 16 -> 13), the batch cadence's first block.
+**A1 family_dispatch**: no struct, no pair — SEAM[spine:owns] work that
+takes the Cartridge mesh-wrapper static addresses; inlined into the
+composition root's post-class zone at its include point, .inl deleted.
+**A2 deps conversions**: TileWorldDeps {const WorldState&, const
+MoodState&, GPUState&}, SphereDeps {const TimeState&}, PawnDeps
+{PlayerState&, const TimeState&, GPUState&, Renderer&} — requirements
+faces made literal; Cartridge* -> XDeps* with byte-identical bodies
+(the organ-naming key); the root binds each once in the ctor init
+list. PawnDeps.player_ is non-const (the P8 door); the score census
+gains DIRECTION W (deps): a writable PlayerState& outside pawn/agents/
+input is a RED, teeth-tested. **A3 merges**: the three pairs meet the
+parked definition's condition and collapse to one pre-class header
+each, .inls deleted. COHORT PROOFS: pawn after renderer.hpp (Renderer/
+GPUState + PATCH_CELL_SIZE); tile_world after patch_system.hpp
+(WorldState + PATCH_EXTENT/PREGEN_RADIUS) and themes/mood; spheres
+after entity_pipeline.hpp (generic funnels) + spawn_engine.hpp (the
+preamble template). The merge moved pawn's aura_presence write
+hpp-side — the census W file-map followed (pawn.inl -> pawn.hpp),
+caught by the gate as designed. Merged files clean UTF-8/LF; the BOM
+census now reads renderer.hpp + the four still-unmerged .inls
+(entity_pipeline, render_passes, agents, ribbon — they die in B/C).
+GATES per commit: glaw1 GREEN full + minimal; score census GREEN
+(A/B/W + W-deps); zone 13==13; sentinels 148/5; encodings verified.
+AWAITING RIG BOUNDARY A: full golden (RC set standing) + minimal
+witness (boot line, no leaks, sky zeros).
