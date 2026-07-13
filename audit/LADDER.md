@@ -1511,3 +1511,66 @@ render_passes.inl + ribbon.inl (the three still-unmerged BOM .inls die
 in C/D). GATES per commit: glaw1 GREEN full + minimal; score census
 GREEN (A/B/W + W-deps); zone 8==8; sentinels 148/5; encodings verified.
 AWAITING RIG BOUNDARY B: golden + minimal witness; zone count 8.
+
+## DISSOLVE-1 — BATCH C, part 1 (ribbon + gallery; → Rig Boundary C)
+
+Two more .inls retired (zone 8 -> 6). CONVERSIONS: RibbonDeps (12
+members — the widest deps face yet: GPUState&, and const views of
+time/tile_world/player/input/world/mood/visual_canvas + four const
+TargetBinding&, the ribbon's four aim channels); GalleryDeps (GPUState&,
+Renderer&, const views of world/tile_world/ribbon/player/mood + two
+const float(&)[3] — sunDirection_, clearColor_). teardown_ribbon and
+release_finite_ribbons gained a RibbonState& param; teardown_gallery a
+GalleryState& — the teardown-verb pattern holds, the deps stay pure
+external faces. Both read zero Cartridge in code. MERGES: ribbon
+collapsed after visual_canvas.hpp (it derefs VisualCanvas + TargetBinding
+whole); gallery after ribbon (GalleryDeps holds a const RibbonState&).
+Two doors worth the record: (1) gallery's dual-entry pair
+(load_authored_textures, load_authored_image_to_staging) is called from
+BOTH the MachineCtx commit row AND GalleryDeps' place_wall_paintings —
+GalleryDeps carries no machine_ctx_, so both took the S2 deps-form
+(explicit GPUState& gpu), the context-agnostic door, five call sites
+retargeted. (2) gallery-merged names stbi_load; stb_image.h had been
+cartridge.hpp's terminal include (after gallery in the cohort), so it
+moved INTO gallery.hpp — the module names its own external dep, and
+cartridge.hpp sheds its last body-include. The census W file-map needed
+no change (readback trio still pawn/agents; gallery authors no witness
+slot). BOM census now reads renderer.hpp + entity_pipeline.inl +
+render_passes.inl (ribbon.inl's BOM died with its file; the last two die
+in the machine-natives ruling + Batch D). GATES per commit: glaw1 GREEN
+full + minimal; score census GREEN (A/B/W + W-deps); zone 6==6; sentinels
+148/5; encodings verified. AWAITING RIG BOUNDARY C: golden + minimal
+witness; zone count 6.
+
+Part 2 (input + machine natives) is STOPPED at the disclosure rule —
+two findings reported to Jean for a ruling before any cut:
+
+  FINDING C-1 (machine natives — the before/after-entities split). The
+  merge of spawn_engine.{hpp,inl} and entity_pipeline.{hpp,inl} does NOT
+  close. The two files each hold a genuine two-tier shape the .inl split
+  had been quietly expressing: a DECL tier that must precede entities
+  (spawn_engine.hpp's run_spawn_preamble<C,ActiveT> template + entity_
+  pipeline.hpp's generic_* family, consumed by entities.hpp at the family
+  recipes — run_spawn_preamble called 3×, generic_select/place/commit and
+  rescale_to_rolled_target throughout), and a BODY tier that must FOLLOW
+  entities (spawn_engine.inl's build_arch_mesh_params / build_column_mesh_
+  params / update_entity_draw_visibility and entity_pipeline.inl's frame
+  bodies — 29 c->entities_state_ derefs across arches/columns/antennas/
+  pyramids, needing EntitiesState complete). A single pre-class header
+  cannot be both before and after entities in a linear include model, and
+  the escape hatch fails: the decl tier is a TEMPLATE, which cannot be
+  forward-declared and instantiated later. This is the one shape the
+  Batch-B ActiveColumn forward-decl trick does NOT reach. The RULING owed:
+  relocate the body tier (build_*/update_entity_draw_visibility + entity_
+  pipeline's frame bodies) into entities.hpp post the EntitiesState def —
+  or accept spawn_engine.inl + entity_pipeline.inl as the NAMED, REASONED
+  .inl remainder (the welded-four is already stamped machine-side by the
+  dispatch seam).
+
+  FINDING C-2 (input defers to Batch D). input.inl calls request_mood_
+  transition(c, MOOD_*) 5× — a mood-owned door whose signature is still
+  void request_mood_transition(Cartridge* c, uint32_t) (mood converts in
+  Batch D). An InputDeps built now would have to hand a Cartridge* into
+  that door — a faked conversion carrying the keyhole through. input
+  therefore rides Batch D, after mood's door sheds Cartridge*. A disclosed
+  census re-rank, not a workaround.
