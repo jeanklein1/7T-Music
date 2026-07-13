@@ -194,6 +194,12 @@ namespace t7 {
             // struct; the instance stays here.
             PlayerState player_{};
 
+            // ═══ THE MACHINE FACE (DISSOLVE-1 d1) ═══════════════════════
+            // The one declared context the dispatch contract hands the
+            // rows — references bound once, in the constructor, to the
+            // organs above (contracts/entity_types.hpp owns the type).
+            MachineCtx machine_ctx_;
+
             GPUSpotLightArray cpuSpotLights_{};  // count=0 disables (outdoor)
 
             // ═══ PORTAL & TRANSITION STATE MACHINE ═══════════════════════
@@ -276,49 +282,49 @@ namespace t7 {
 
             // ── Mesh gen wrappers ──
 
-            static bool dispatch_prepare_mesh_pyramid(Cartridge* self, wgpu::Queue& queue) {
+            static bool dispatch_prepare_mesh_pyramid(MachineCtx* self, wgpu::Queue& queue) {
                 return prepare_pyramid_mesh_gen(self->entities_state_, self, queue);
             }
-            static void dispatch_mesh_gen_pyramid(Cartridge* self, wgpu::ComputePassEncoder& pass) {
+            static void dispatch_mesh_gen_pyramid(MachineCtx* self, wgpu::ComputePassEncoder& pass) {
                 self->renderer_.dispatch_pyramid_mesh_gen(pass, self->gpuState_.pyramid_mesh_gen_group());
             }
 
-            static bool dispatch_prepare_mesh_arch(Cartridge* self, wgpu::Queue& queue) {
+            static bool dispatch_prepare_mesh_arch(MachineCtx* self, wgpu::Queue& queue) {
                 return prepare_arch_mesh_gen(self->entities_state_, self, queue);
             }
-            static void dispatch_mesh_gen_arch(Cartridge* self, wgpu::ComputePassEncoder& pass) {
+            static void dispatch_mesh_gen_arch(MachineCtx* self, wgpu::ComputePassEncoder& pass) {
                 self->renderer_.dispatch_arch_mesh_gen(pass, self->gpuState_.arch_mesh_gen_group());
             }
 
-            static bool dispatch_prepare_mesh_column(Cartridge* self, wgpu::Queue& queue) {
+            static bool dispatch_prepare_mesh_column(MachineCtx* self, wgpu::Queue& queue) {
                 return prepare_column_mesh_gen(self->entities_state_, self, queue);
             }
-            static void dispatch_mesh_gen_column(Cartridge* self, wgpu::ComputePassEncoder& pass) {
+            static void dispatch_mesh_gen_column(MachineCtx* self, wgpu::ComputePassEncoder& pass) {
                 self->renderer_.dispatch_column_mesh_gen(pass, self->gpuState_.column_mesh_gen_group());
             }
 
             // ── Mesh gen dispatch wrappers (palm) ──
 
-            static bool dispatch_prepare_mesh_palm(Cartridge* self, wgpu::Queue& queue) {
+            static bool dispatch_prepare_mesh_palm(MachineCtx* self, wgpu::Queue& queue) {
                 return prepare_palm_mesh_gen(self->entities_state_, self, queue);
             }
-            static void dispatch_mesh_gen_palm(Cartridge* self, wgpu::ComputePassEncoder& pass) {
+            static void dispatch_mesh_gen_palm(MachineCtx* self, wgpu::ComputePassEncoder& pass) {
                 self->renderer_.dispatch_palm_mesh_gen(pass, self->gpuState_.palm_mesh_gen_group());
             }
 
             // ── Mesh gen dispatch wrappers (cactus) ──
 
-            static bool dispatch_prepare_mesh_cactus(Cartridge* self, wgpu::Queue& queue) {
+            static bool dispatch_prepare_mesh_cactus(MachineCtx* self, wgpu::Queue& queue) {
                 return prepare_cactus_mesh_gen(self->entities_state_, self, queue);
             }
-            static void dispatch_mesh_gen_cactus(Cartridge* self, wgpu::ComputePassEncoder& pass) {
+            static void dispatch_mesh_gen_cactus(MachineCtx* self, wgpu::ComputePassEncoder& pass) {
                 self->renderer_.dispatch_cactus_mesh_gen(pass, self->gpuState_.cactus_mesh_gen_group());
             }
 
-            static bool dispatch_prepare_mesh_blade(Cartridge* self, wgpu::Queue& queue) {
+            static bool dispatch_prepare_mesh_blade(MachineCtx* self, wgpu::Queue& queue) {
                 return prepare_blade_mesh_gen(self->entities_state_, self, queue);
             }
-            static void dispatch_mesh_gen_blade(Cartridge* self, wgpu::ComputePassEncoder& pass) {
+            static void dispatch_mesh_gen_blade(MachineCtx* self, wgpu::ComputePassEncoder& pass) {
                 self->renderer_.dispatch_blade_mesh_gen(pass, self->gpuState_.blade_mesh_gen_group());
             }
 
@@ -341,7 +347,12 @@ namespace t7 {
 
             // ═══ PUBLIC: CARTRIDGE LIFECYCLE ═════════════════════════════
 
-            Cartridge() = default;
+            Cartridge()
+                : machine_ctx_{ world_state_, tile_world_state_, themes_state_,
+                                mood_state_, patch_system_state_, spawn_engine_state_,
+                                entities_state_, sphere_state_, cube_behaviors_state_,
+                                ribbon_state_, gol_state_, gallery_state_,
+                                time_state_, player_, gpuState_, renderer_ } {}
 
             Cartridge(const Cartridge&) = delete;
             Cartridge& operator=(const Cartridge&) = delete;
@@ -454,7 +465,7 @@ namespace t7 {
                 // disabled, the authored-staging textures stay pristine.
                 if constexpr (ROSTER.gallery) {
                     wgpu::Queue q = device_.GetQueue();
-                    load_authored_textures(gallery_state_, this, q);
+                    load_authored_textures(gallery_state_, &machine_ctx_, q);
                 }
 
                 auto t3 = std::chrono::high_resolution_clock::now();
@@ -908,7 +919,7 @@ namespace t7 {
                 // Periodic entity census dump
 #ifdef DIAG_ENTITY_CENSUS
                 if (time_state_.seconds - spawn_engine_state_.lastCensusDump_ >= CENSUS_DUMP_INTERVAL) {
-                    dump_entity_census(this, "periodic");
+                    dump_entity_census(&machine_ctx_, "periodic");
                     spawn_engine_state_.lastCensusDump_ = time_state_.seconds;
                 }
 #endif
@@ -935,51 +946,51 @@ namespace t7 {
                     // no runtime branch); all-enabled compiles to the same 12
                     // calls in the same order.
                     if constexpr (ROSTER.pyramid) {   // ROSTER-GATE pyramid (b)
-                        dirty[PopFamily::PYRAMID] = FAMILY_DISPATCH[PopFamily::PYRAMID].prepare_mesh(this, queue);
+                        dirty[PopFamily::PYRAMID] = FAMILY_DISPATCH[PopFamily::PYRAMID].prepare_mesh(&machine_ctx_, queue);
                         anyDirty = anyDirty || dirty[PopFamily::PYRAMID];
                     }
                     if constexpr (ROSTER.arch) {      // ROSTER-GATE arch (b)
-                        dirty[PopFamily::ARCH] = FAMILY_DISPATCH[PopFamily::ARCH].prepare_mesh(this, queue);
+                        dirty[PopFamily::ARCH] = FAMILY_DISPATCH[PopFamily::ARCH].prepare_mesh(&machine_ctx_, queue);
                         anyDirty = anyDirty || dirty[PopFamily::ARCH];
                     }
                     if constexpr (ROSTER.column) {    // ROSTER-GATE column (b)
-                        dirty[PopFamily::COLUMN] = FAMILY_DISPATCH[PopFamily::COLUMN].prepare_mesh(this, queue);
+                        dirty[PopFamily::COLUMN] = FAMILY_DISPATCH[PopFamily::COLUMN].prepare_mesh(&machine_ctx_, queue);
                         anyDirty = anyDirty || dirty[PopFamily::COLUMN];
                     }
                     if constexpr (ROSTER.antenna) {   // ROSTER-GATE antenna (b)
-                        dirty[PopFamily::ANTENNA] = FAMILY_DISPATCH[PopFamily::ANTENNA].prepare_mesh(this, queue);
+                        dirty[PopFamily::ANTENNA] = FAMILY_DISPATCH[PopFamily::ANTENNA].prepare_mesh(&machine_ctx_, queue);
                         anyDirty = anyDirty || dirty[PopFamily::ANTENNA];
                     }
                     if constexpr (ROSTER.palm) {      // ROSTER-GATE palm (b)
-                        dirty[PopFamily::PALM] = FAMILY_DISPATCH[PopFamily::PALM].prepare_mesh(this, queue);
+                        dirty[PopFamily::PALM] = FAMILY_DISPATCH[PopFamily::PALM].prepare_mesh(&machine_ctx_, queue);
                         anyDirty = anyDirty || dirty[PopFamily::PALM];
                     }
                     if constexpr (ROSTER.cactus) {    // ROSTER-GATE cactus (b)
-                        dirty[PopFamily::CACTUS] = FAMILY_DISPATCH[PopFamily::CACTUS].prepare_mesh(this, queue);
+                        dirty[PopFamily::CACTUS] = FAMILY_DISPATCH[PopFamily::CACTUS].prepare_mesh(&machine_ctx_, queue);
                         anyDirty = anyDirty || dirty[PopFamily::CACTUS];
                     }
                     if constexpr (ROSTER.blade) {     // ROSTER-GATE blade (b)
-                        dirty[PopFamily::BLADE] = FAMILY_DISPATCH[PopFamily::BLADE].prepare_mesh(this, queue);
+                        dirty[PopFamily::BLADE] = FAMILY_DISPATCH[PopFamily::BLADE].prepare_mesh(&machine_ctx_, queue);
                         anyDirty = anyDirty || dirty[PopFamily::BLADE];
                     }
                     if constexpr (ROSTER.sphere) {    // ROSTER-GATE sphere (b)
-                        dirty[PopFamily::SPHERE] = FAMILY_DISPATCH[PopFamily::SPHERE].prepare_mesh(this, queue);
+                        dirty[PopFamily::SPHERE] = FAMILY_DISPATCH[PopFamily::SPHERE].prepare_mesh(&machine_ctx_, queue);
                         anyDirty = anyDirty || dirty[PopFamily::SPHERE];
                     }
                     if constexpr (ROSTER.ribbon) {    // ROSTER-GATE ribbon (b)
-                        dirty[PopFamily::RIBBON] = FAMILY_DISPATCH[PopFamily::RIBBON].prepare_mesh(this, queue);
+                        dirty[PopFamily::RIBBON] = FAMILY_DISPATCH[PopFamily::RIBBON].prepare_mesh(&machine_ctx_, queue);
                         anyDirty = anyDirty || dirty[PopFamily::RIBBON];
                     }
                     if constexpr (ROSTER.cube) {      // ROSTER-GATE cube (b)
-                        dirty[PopFamily::CUBE] = FAMILY_DISPATCH[PopFamily::CUBE].prepare_mesh(this, queue);
+                        dirty[PopFamily::CUBE] = FAMILY_DISPATCH[PopFamily::CUBE].prepare_mesh(&machine_ctx_, queue);
                         anyDirty = anyDirty || dirty[PopFamily::CUBE];
                     }
                     if constexpr (ROSTER.gol) {       // ROSTER-GATE gol (b)
-                        dirty[PopFamily::GOL] = FAMILY_DISPATCH[PopFamily::GOL].prepare_mesh(this, queue);
+                        dirty[PopFamily::GOL] = FAMILY_DISPATCH[PopFamily::GOL].prepare_mesh(&machine_ctx_, queue);
                         anyDirty = anyDirty || dirty[PopFamily::GOL];
                     }
                     if constexpr (ROSTER.gallery) {   // ROSTER-GATE gallery (b)
-                        dirty[PopFamily::GALLERY] = FAMILY_DISPATCH[PopFamily::GALLERY].prepare_mesh(this, queue);
+                        dirty[PopFamily::GALLERY] = FAMILY_DISPATCH[PopFamily::GALLERY].prepare_mesh(&machine_ctx_, queue);
                         anyDirty = anyDirty || dirty[PopFamily::GALLERY];
                     }
                     if (anyDirty) {
@@ -991,7 +1002,7 @@ namespace t7 {
                         // set above), so this branches on dirty-ness, not on
                         // the enable bit.
                         for (uint32_t f = 0; f < PopFamily::COUNT; f++) {
-                            if (dirty[f]) FAMILY_DISPATCH[f].dispatch_mesh(this, pass);
+                            if (dirty[f]) FAMILY_DISPATCH[f].dispatch_mesh(&machine_ctx_, pass);
                         }
                         pass.End();
                     }

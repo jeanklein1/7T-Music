@@ -13,7 +13,7 @@
 namespace t7 {
 namespace the_board {
 
-inline void evict_sphere(Cartridge* self,
+inline void evict_sphere(MachineCtx* self,
     uint32_t slot, wgpu::Queue& queue) {
     self->sphere_state_.activeFloaters_[slot].active = false;  // sphere state owned by SphereState
     self->sphere_state_.activeFloaterCount_--;
@@ -104,7 +104,7 @@ inline constexpr EntityFamilyTraits SPHERE_TRAITS = {
     0, nullptr,
 };
 
-inline SpawnGateOutput sphere_run_gate(Cartridge* c, int32_t gx, int32_t gz) {
+inline SpawnGateOutput sphere_run_gate(MachineCtx* c, int32_t gx, int32_t gz) {
     auto gate = run_spawn_preamble(c, gx, gz, c->sphere_state_.activeFloaters_, Dim::MAX_SPHERE_INSTANCES,
         FloatingEntityProp::SPAWN_ROLL, SphereConfig::SPAWN_CHANCE,
         SphereConfig::MOOD_MULTIPLIER, PopFamily::SPHERE, "sph");
@@ -124,7 +124,7 @@ inline void sphere_compute_colors(EntityInstance& inst, const EntityFamilyTraits
     inst.colors[2] = cpu_hash_f(inst.seed, FloatingEntityProp::COLOR_B) * 0.60f + 0.20f;
 }
 
-inline void sphere_write_active(Cartridge* c, const EntityInstance& inst) {
+inline void sphere_write_active(MachineCtx* c, const EntityInstance& inst) {
     auto& af = c->sphere_state_.activeFloaters_[inst.slot];
     af.patch_gx = inst.trigger_gx; af.patch_gz = inst.trigger_gz;
     af.host_gx = inst.host_gx; af.host_gz = inst.host_gz;
@@ -133,7 +133,7 @@ inline void sphere_write_active(Cartridge* c, const EntityInstance& inst) {
     c->sphere_state_.activeFloaterCount_++;
 }
 
-inline void sphere_write_gpu(Cartridge* c, const EntityInstance& inst, wgpu::Queue& queue) {
+inline void sphere_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Queue& queue) {
     GPUFloatingEntityState fe{};
     fe.anchor[0] = inst.cx; fe.anchor[1] = 0.0f; fe.anchor[2] = inst.cz;
     fe.body_radius = inst.params[SphIdx::BODY_RADIUS];
@@ -162,17 +162,17 @@ inline constexpr EntityFamilyAdapter SPHERE_ADAPTER = {
     sphere_get_tier_profile,
 };
 
-inline bool dispatch_select_sphere_generic(Cartridge* self, int32_t gx, int32_t gz, EntityQueueEntry& e) {
+inline bool dispatch_select_sphere_generic(MachineCtx* self, int32_t gx, int32_t gz, EntityQueueEntry& e) {
     EntityInstance inst{};
     if (!generic_select(self, SPHERE_TRAITS, SPHERE_ADAPTER, gx, gz, inst)) return false;
     e.family = PopFamily::SPHERE; e.gx = gx; e.gz = gz; e.generic = inst; return true;
 }
-inline bool dispatch_place_sphere_generic(Cartridge* self, EntityQueueEntry& e, PlacementEntry& pe) {
+inline bool dispatch_place_sphere_generic(MachineCtx* self, EntityQueueEntry& e, PlacementEntry& pe) {
     pe.family = e.family; pe.gx = e.gx; pe.gz = e.gz;
     if (generic_place(self, SPHERE_TRAITS, e.generic)) { pe.generic = e.generic; return true; }
     self->sphere_state_.activeFloaters_[e.generic.slot].active = false; return false;
 }
-inline void dispatch_commit_sphere_generic(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue) {
+inline void dispatch_commit_sphere_generic(MachineCtx* self, PlacementEntry& pe, wgpu::Queue& queue) {
     auto* host = find_patch(self, pe.generic.host_gx, pe.generic.host_gz);
     if (host) {
         generic_commit(self, SPHERE_TRAITS, SPHERE_ADAPTER, pe.generic, queue);

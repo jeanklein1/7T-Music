@@ -156,11 +156,11 @@ uint32_t pick_cube_behavior_for_spawn(uint32_t mood_id, uint32_t seed);
 void clear_cubes(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue);  // DEPS-FORM PRECEDENT (m3 ruling): explicit GPUState& param, born-converted
 // The evictor — keyhole-shaped
 // to match the FAMILY_DISPATCH evict slot (table in family_dispatch.inl)
-void evict_cube(Cartridge* self, uint32_t slot, wgpu::Queue& queue);
+void evict_cube(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
 // Dispatch funnels (table-shaped; defined in cube_behaviors.inl beside the recipe)
-bool dispatch_select_cube_generic(Cartridge* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
-bool dispatch_place_cube_generic(Cartridge* self, EntityQueueEntry& e, PlacementEntry& pe);
-void dispatch_commit_cube_generic(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue);
+bool dispatch_select_cube_generic(MachineCtx* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
+bool dispatch_place_cube_generic(MachineCtx* self, EntityQueueEntry& e, PlacementEntry& pe);
+void dispatch_commit_cube_generic(MachineCtx* self, PlacementEntry& pe, wgpu::Queue& queue);
 // Player commands
 void cycle_floater_coordination(CubeBehaviorsState& cbs, Cartridge* c);
 void cycle_cube_behavior_override(CubeBehaviorsState& cbs, Cartridge* c, wgpu::Queue& queue);

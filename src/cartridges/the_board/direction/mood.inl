@@ -485,7 +485,7 @@ inline void apply_mood_anchor_ribbon(Cartridge* c, uint32_t mood, wgpu::Queue& q
     plan.checker_hue_spread = sel.checker_hue_spread;
 
     // Commit through the standard path
-    commit_ribbon(c->ribbon_state_, c, plan, 0, 0, queue);
+    commit_ribbon(c->ribbon_state_, &c->machine_ctx_, plan, 0, 0, queue);
 
     // Immediate promotion through the owner's door (m4).
     promote_ribbon_to_rendered(c->ribbon_state_, c, 0, queue);
@@ -912,7 +912,7 @@ inline void force_spawn_finite_portals(Cartridge* c, wgpu::Queue& queue) {
 
         // Generate destination
         uint32_t dest_seed = cpu_hash(c->world_state_.active_seed, 7800u + i);
-        uint32_t mood = pick_portal_mood(c, c->world_state_.active_seed, 7900u + i);
+        uint32_t mood = pick_portal_mood(&c->machine_ctx_, c->world_state_.active_seed, 7900u + i);
         const auto& mp = MOOD_TABLE[mood];
         PortalDestination dest{};
         dest.seed = dest_seed;
@@ -1037,7 +1037,7 @@ inline uint32_t derive_finite_radius(uint32_t seed, const MoodProfile& mood) {
     return mood.finite_radius_min + cpu_hash(seed, 77u) % range;
 }
 
-inline uint32_t pick_portal_mood(Cartridge* c, uint32_t seed, uint32_t prop) {
+inline uint32_t pick_portal_mood(MachineCtx* c, uint32_t seed, uint32_t prop) {
     float roll = cpu_hash_f(seed, prop);
     if (c->world_state_.finite_mode) {
         if (roll < 0.20f) return 0;

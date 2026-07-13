@@ -42,7 +42,7 @@ inline void generic_compute_colors(EntityInstance& inst,
 
 // ─── Generic Select ──────────────────────────────────────────────
 
-inline bool generic_select(Cartridge* c,
+inline bool generic_select(MachineCtx* c,
     const EntityFamilyTraits& traits,
     const EntityFamilyAdapter& adapter,
     int32_t gx, int32_t gz,
@@ -119,7 +119,7 @@ inline bool generic_select(Cartridge* c,
 
 // ─── Generic Place ───────────────────────────────────────────────
 
-inline bool generic_place(Cartridge* c,
+inline bool generic_place(MachineCtx* c,
     const EntityFamilyTraits& traits,
     EntityInstance& inst)
 {
@@ -145,7 +145,7 @@ inline bool generic_place(Cartridge* c,
 
 // ─── Generic Commit ──────────────────────────────────────────────
 
-inline void generic_commit(Cartridge* c,
+inline void generic_commit(MachineCtx* c,
     const EntityFamilyTraits& traits,
     const EntityFamilyAdapter& adapter,
     const EntityInstance& inst,
@@ -320,7 +320,7 @@ inline constexpr EntityFamilyTraits ANTENNA_TRAITS = {
 
 // ── Column adapter functions ──
 
-inline SpawnGateOutput column_run_gate(Cartridge* c, int32_t gx, int32_t gz) {
+inline SpawnGateOutput column_run_gate(MachineCtx* c, int32_t gx, int32_t gz) {
     auto gate = run_spawn_preamble(c, gx, gz,
         c->entities_state_.columns, Dim::MAX_COLUMN_ONLY,
         ColumnProp::SPAWN_ROLL, ColumnConfig::SPAWN_CHANCE,
@@ -377,7 +377,7 @@ inline void column_compute_colors(EntityInstance& inst, const EntityFamilyTraits
     for (int i = 3; i < 12; i++) inst.colors[i] = 0.0f;
 }
 
-inline void column_write_active(Cartridge* c, const EntityInstance& inst) {
+inline void column_write_active(MachineCtx* c, const EntityInstance& inst) {
     auto& ac = c->entities_state_.columns[inst.slot];
     ac.patch_gx = inst.trigger_gx; ac.patch_gz = inst.trigger_gz;
     ac.host_gx = inst.host_gx; ac.host_gz = inst.host_gz;
@@ -404,7 +404,7 @@ inline void column_write_active(Cartridge* c, const EntityInstance& inst) {
     c->entities_state_.column_count++;
 }
 
-inline void column_write_gpu(Cartridge* c, const EntityInstance& inst, wgpu::Queue& queue) {
+inline void column_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Queue& queue) {
     GPUColumnMeshParams mp{};
     mp.center_x = inst.cx; mp.center_z = inst.cz;
     mp.height = inst.params[ColIdx::HEIGHT];
@@ -431,7 +431,7 @@ inline void column_write_gpu(Cartridge* c, const EntityInstance& inst, wgpu::Que
     c->entities_state_.column_mesh_gen_pending = true;
 }
 
-inline void column_post_commit(Cartridge* c, const EntityInstance& inst, wgpu::Queue& queue) {
+inline void column_post_commit(MachineCtx* c, const EntityInstance& inst, wgpu::Queue& queue) {
     uint32_t pier_slot = Dim::PIER_COLUMN_BASE + inst.slot;
     GPUPierInstance pier{};
     pier.origin[0] = inst.cx;
@@ -457,17 +457,17 @@ inline constexpr EntityFamilyAdapter COLUMN_ADAPTER = {
 
 // ── Column dispatch wrappers ──
 
-inline bool dispatch_select_column_generic(Cartridge* self, int32_t gx, int32_t gz, EntityQueueEntry& e) {
+inline bool dispatch_select_column_generic(MachineCtx* self, int32_t gx, int32_t gz, EntityQueueEntry& e) {
     EntityInstance inst{};
     if (!generic_select(self, COLUMN_TRAITS, COLUMN_ADAPTER, gx, gz, inst)) return false;
     e.family = PopFamily::COLUMN; e.gx = gx; e.gz = gz; e.generic = inst; return true;
 }
-inline bool dispatch_place_column_generic(Cartridge* self, EntityQueueEntry& e, PlacementEntry& pe) {
+inline bool dispatch_place_column_generic(MachineCtx* self, EntityQueueEntry& e, PlacementEntry& pe) {
     pe.family = e.family; pe.gx = e.gx; pe.gz = e.gz;
     if (generic_place(self, COLUMN_TRAITS, e.generic)) { pe.generic = e.generic; return true; }
     self->entities_state_.columns[e.generic.slot].active = false; return false;
 }
-inline void dispatch_commit_column_generic(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue) {
+inline void dispatch_commit_column_generic(MachineCtx* self, PlacementEntry& pe, wgpu::Queue& queue) {
     auto* host = find_patch(self, pe.generic.host_gx, pe.generic.host_gz);
     if (host) { generic_commit(self, COLUMN_TRAITS, COLUMN_ADAPTER, pe.generic, queue); host->record_entity(PopFamily::COLUMN, pe.generic.slot); }
     else { self->entities_state_.columns[pe.generic.slot].active = false; }
@@ -475,7 +475,7 @@ inline void dispatch_commit_column_generic(Cartridge* self, PlacementEntry& pe, 
 
 // ── Antenna adapter functions ──
 
-inline SpawnGateOutput antenna_run_gate(Cartridge* c, int32_t gx, int32_t gz) {
+inline SpawnGateOutput antenna_run_gate(MachineCtx* c, int32_t gx, int32_t gz) {
     auto gate = run_spawn_preamble(c, gx, gz,
         c->entities_state_.antennas, Dim::MAX_ANTENNA_ONLY,
         AntennaProp::SPAWN_ROLL, AntennaConfig::SPAWN_CHANCE,
@@ -536,7 +536,7 @@ inline void antenna_compute_colors(EntityInstance& inst, const EntityFamilyTrait
     inst.colors[11] = DRUM_PALETTE[d3][2] + (cpu_hash_f(inst.seed, 868u) - 0.5f) * v;
 }
 
-inline void antenna_write_active(Cartridge* c, const EntityInstance& inst) {
+inline void antenna_write_active(MachineCtx* c, const EntityInstance& inst) {
     auto& ac = c->entities_state_.antennas[inst.slot];
     ac.patch_gx = inst.trigger_gx; ac.patch_gz = inst.trigger_gz;
     ac.host_gx = inst.host_gx; ac.host_gz = inst.host_gz;
@@ -563,7 +563,7 @@ inline void antenna_write_active(Cartridge* c, const EntityInstance& inst) {
     c->entities_state_.antenna_count++;
 }
 
-inline void antenna_write_gpu(Cartridge* c, const EntityInstance& inst, wgpu::Queue& queue) {
+inline void antenna_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Queue& queue) {
     uint32_t gpu_slot = inst.slot + Dim::ANTENNA_SLOT_OFFSET;
     uint32_t raw_tier = inst.tier_idx - COLUMN_TIER_COUNT;
     GPUColumnMeshParams mp{};
@@ -591,7 +591,7 @@ inline void antenna_write_gpu(Cartridge* c, const EntityInstance& inst, wgpu::Qu
     c->entities_state_.column_mesh_gen_pending = true;
 }
 
-inline void antenna_post_commit(Cartridge* c, const EntityInstance& inst, wgpu::Queue& queue) {
+inline void antenna_post_commit(MachineCtx* c, const EntityInstance& inst, wgpu::Queue& queue) {
     uint32_t gpu_slot = inst.slot + Dim::ANTENNA_SLOT_OFFSET;
     uint32_t pier_slot = Dim::PIER_COLUMN_BASE + gpu_slot;
     GPUPierInstance pier{};
@@ -618,17 +618,17 @@ inline constexpr EntityFamilyAdapter ANTENNA_ADAPTER = {
 
 // ── Antenna dispatch wrappers ──
 
-inline bool dispatch_select_antenna_generic(Cartridge* self, int32_t gx, int32_t gz, EntityQueueEntry& e) {
+inline bool dispatch_select_antenna_generic(MachineCtx* self, int32_t gx, int32_t gz, EntityQueueEntry& e) {
     EntityInstance inst{};
     if (!generic_select(self, ANTENNA_TRAITS, ANTENNA_ADAPTER, gx, gz, inst)) return false;
     e.family = PopFamily::ANTENNA; e.gx = gx; e.gz = gz; e.generic = inst; return true;
 }
-inline bool dispatch_place_antenna_generic(Cartridge* self, EntityQueueEntry& e, PlacementEntry& pe) {
+inline bool dispatch_place_antenna_generic(MachineCtx* self, EntityQueueEntry& e, PlacementEntry& pe) {
     pe.family = e.family; pe.gx = e.gx; pe.gz = e.gz;
     if (generic_place(self, ANTENNA_TRAITS, e.generic)) { pe.generic = e.generic; return true; }
     self->entities_state_.antennas[e.generic.slot].active = false; return false;
 }
-inline void dispatch_commit_antenna_generic(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue) {
+inline void dispatch_commit_antenna_generic(MachineCtx* self, PlacementEntry& pe, wgpu::Queue& queue) {
     auto* host = find_patch(self, pe.generic.host_gx, pe.generic.host_gz);
     if (host) { generic_commit(self, ANTENNA_TRAITS, ANTENNA_ADAPTER, pe.generic, queue); host->record_entity(PopFamily::ANTENNA, pe.generic.slot); }
     else { self->entities_state_.antennas[pe.generic.slot].active = false; }
@@ -697,7 +697,7 @@ inline constexpr EntityFamilyTraits PYRAMID_TRAITS = {
     0, nullptr,  // color handled by adapter
 };
 
-inline SpawnGateOutput pyramid_run_gate(Cartridge* c, int32_t gx, int32_t gz) {
+inline SpawnGateOutput pyramid_run_gate(MachineCtx* c, int32_t gx, int32_t gz) {
     auto gate = run_spawn_preamble(c, gx, gz,
         c->entities_state_.pyramids, Dim::MAX_PYRAMID_INSTANCES,
         PyramidProp::SPAWN_ROLL, PyramidConfig::SPAWN_CHANCE,
@@ -740,7 +740,7 @@ inline void pyramid_compute_colors(EntityInstance& inst, const EntityFamilyTrait
     inst.colors[2] = PYRAMID_SANDSTONE_BASE[2] + (cpu_hash_f(inst.seed, PyramidProp::COLOR_VAR_B) - 0.5f) * PYRAMID_SANDSTONE_VARIANCE * 2.0f;
 }
 
-inline void pyramid_write_active(Cartridge* c, const EntityInstance& inst) {
+inline void pyramid_write_active(MachineCtx* c, const EntityInstance& inst) {
     auto& ap = c->entities_state_.pyramids[inst.slot];
     ap.patch_gx = inst.trigger_gx; ap.patch_gz = inst.trigger_gz;
     ap.host_gx = inst.host_gx; ap.host_gz = inst.host_gz;
@@ -754,7 +754,7 @@ inline void pyramid_write_active(Cartridge* c, const EntityInstance& inst) {
     c->entities_state_.pyramid_count++;
 }
 
-inline void pyramid_write_gpu(Cartridge* c, const EntityInstance& inst, wgpu::Queue& queue) {
+inline void pyramid_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Queue& queue) {
     float half_x = inst.params[PyrIdx::BASE_HALF];
     float half_z = inst.params[PyrIdx::BASE_HALF] * inst.params[PyrIdx::ASPECT];
 
@@ -790,7 +790,7 @@ inline void pyramid_write_gpu(Cartridge* c, const EntityInstance& inst, wgpu::Qu
     c->entities_state_.pyramid_mesh_gen_pending = true;
 }
 
-inline void pyramid_post_commit(Cartridge* c, const EntityInstance& inst, wgpu::Queue&) {
+inline void pyramid_post_commit(MachineCtx* c, const EntityInstance& inst, wgpu::Queue&) {
     // Mark heightfield patches for regen (pyramid gets baked in)
     float half_x = inst.params[PyrIdx::BASE_HALF];
     float half_z = inst.params[PyrIdx::BASE_HALF] * inst.params[PyrIdx::ASPECT];
@@ -815,17 +815,17 @@ inline constexpr EntityFamilyAdapter PYRAMID_ADAPTER = {
 
 // ── Pyramid dispatch wrappers ──
 
-inline bool dispatch_select_pyramid_generic(Cartridge* self, int32_t gx, int32_t gz, EntityQueueEntry& e) {
+inline bool dispatch_select_pyramid_generic(MachineCtx* self, int32_t gx, int32_t gz, EntityQueueEntry& e) {
     EntityInstance inst{};
     if (!generic_select(self, PYRAMID_TRAITS, PYRAMID_ADAPTER, gx, gz, inst)) return false;
     e.family = PopFamily::PYRAMID; e.gx = gx; e.gz = gz; e.generic = inst; return true;
 }
-inline bool dispatch_place_pyramid_generic(Cartridge* self, EntityQueueEntry& e, PlacementEntry& pe) {
+inline bool dispatch_place_pyramid_generic(MachineCtx* self, EntityQueueEntry& e, PlacementEntry& pe) {
     pe.family = e.family; pe.gx = e.gx; pe.gz = e.gz;
     if (generic_place(self, PYRAMID_TRAITS, e.generic)) { pe.generic = e.generic; return true; }
     self->entities_state_.pyramids[e.generic.slot].active = false; return false;
 }
-inline void dispatch_commit_pyramid_generic(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue) {
+inline void dispatch_commit_pyramid_generic(MachineCtx* self, PlacementEntry& pe, wgpu::Queue& queue) {
     auto* host = find_patch(self, pe.generic.host_gx, pe.generic.host_gz);
     if (host) { generic_commit(self, PYRAMID_TRAITS, PYRAMID_ADAPTER, pe.generic, queue); host->record_entity(PopFamily::PYRAMID, pe.generic.slot); }
     else { self->entities_state_.pyramids[pe.generic.slot].active = false; }
@@ -864,7 +864,7 @@ inline constexpr EntityFamilyTraits ARCH_TRAITS = {
     0, nullptr,
 };
 
-inline SpawnGateOutput arch_run_gate(Cartridge* c, int32_t gx, int32_t gz) {
+inline SpawnGateOutput arch_run_gate(MachineCtx* c, int32_t gx, int32_t gz) {
     auto gate = run_spawn_preamble(c, gx, gz, c->entities_state_.arches, Dim::MAX_ARCH_INSTANCES,
         ArchProp::SPAWN_ROLL, ArchConfig::SPAWN_CHANCE,
         ArchConfig::MOOD_MULTIPLIER, PopFamily::ARCH, "arch");
@@ -922,7 +922,7 @@ inline void arch_compute_colors(EntityInstance& inst, const EntityFamilyTraits&,
     inst.colors[5] = inst.colors[2];
 }
 
-inline void arch_write_active(Cartridge* c, const EntityInstance& inst) {
+inline void arch_write_active(MachineCtx* c, const EntityInstance& inst) {
     float half_span = inst.params[ArchIdx::SPAN];  // already halved
     float rise      = inst.params[ArchIdx::RISE];
     float pier_h    = inst.params[ArchIdx::PIER_HEIGHT];
@@ -972,7 +972,7 @@ inline void arch_write_active(Cartridge* c, const EntityInstance& inst) {
     c->mood_state_.portals_dirty = true;
 }
 
-inline void arch_write_gpu(Cartridge* c, const EntityInstance& inst, wgpu::Queue& queue) {
+inline void arch_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Queue& queue) {
     float half_span = inst.params[ArchIdx::SPAN];
     float rise      = inst.params[ArchIdx::RISE];
 
@@ -995,7 +995,7 @@ inline void arch_write_gpu(Cartridge* c, const EntityInstance& inst, wgpu::Queue
     c->entities_state_.arch_mesh_gen_pending = true;
 }
 
-inline void arch_post_commit(Cartridge* c, const EntityInstance& inst, wgpu::Queue& queue) {
+inline void arch_post_commit(MachineCtx* c, const EntityInstance& inst, wgpu::Queue& queue) {
     float half_span    = inst.params[ArchIdx::SPAN];
     float thickness    = inst.params[ArchIdx::THICKNESS];
     float depth        = inst.params[ArchIdx::DEPTH];
@@ -1051,17 +1051,17 @@ inline constexpr EntityFamilyAdapter ARCH_ADAPTER = {
     arch_get_tier_profile,
 };
 
-inline bool dispatch_select_arch_generic(Cartridge* self, int32_t gx, int32_t gz, EntityQueueEntry& e) {
+inline bool dispatch_select_arch_generic(MachineCtx* self, int32_t gx, int32_t gz, EntityQueueEntry& e) {
     EntityInstance inst{};
     if (!generic_select(self, ARCH_TRAITS, ARCH_ADAPTER, gx, gz, inst)) return false;
     e.family = PopFamily::ARCH; e.gx = gx; e.gz = gz; e.generic = inst; return true;
 }
-inline bool dispatch_place_arch_generic(Cartridge* self, EntityQueueEntry& e, PlacementEntry& pe) {
+inline bool dispatch_place_arch_generic(MachineCtx* self, EntityQueueEntry& e, PlacementEntry& pe) {
     pe.family = e.family; pe.gx = e.gx; pe.gz = e.gz;
     if (generic_place(self, ARCH_TRAITS, e.generic)) { pe.generic = e.generic; return true; }
     self->entities_state_.arches[e.generic.slot].active = false; return false;
 }
-inline void dispatch_commit_arch_generic(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue) {
+inline void dispatch_commit_arch_generic(MachineCtx* self, PlacementEntry& pe, wgpu::Queue& queue) {
     auto* host = find_patch(self, pe.generic.host_gx, pe.generic.host_gz);
     if (host) { generic_commit(self, ARCH_TRAITS, ARCH_ADAPTER, pe.generic, queue); host->record_entity(PopFamily::ARCH, pe.generic.slot); }
     else { self->entities_state_.arches[pe.generic.slot].active = false; }

@@ -252,21 +252,21 @@ struct GoLState {
 // ═══ MODULE FUNCTIONS — DECLARATIONS ═════════════════════════════
 
 // Lifecycle (three-phase + helper)
-bool select_gol_for_patch(GoLState& gs, Cartridge* c,
+bool select_gol_for_patch(GoLState& gs, MachineCtx* c,
     int32_t gx, int32_t gz, GoLSelection& sel);
-bool place_gol_from_selection(Cartridge* c,
+bool place_gol_from_selection(MachineCtx* c,
     const GoLSelection& sel, GoLPlacement& plan);
-void commit_gol(GoLState& gs, Cartridge* c,
+void commit_gol(GoLState& gs, MachineCtx* c,
     const GoLPlacement& plan,
     int32_t trigger_gx, int32_t trigger_gz, wgpu::Queue& queue);
 // The evictor — keyhole-shaped
 // to match the FAMILY_DISPATCH evict slot (table in family_dispatch.inl)
-void evict_gol(Cartridge* self, uint32_t slot, wgpu::Queue& queue);
+void evict_gol(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
 // Dispatch funnels (table-shaped; the FAMILY_DISPATCH rows point here)
-bool dispatch_select_gol(Cartridge* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
-bool dispatch_place_gol(Cartridge* self, EntityQueueEntry& e, PlacementEntry& pe);
-void dispatch_commit_gol(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue);
-void seed_gol_zone(GoLState& gs, Cartridge* c,
+bool dispatch_select_gol(MachineCtx* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
+bool dispatch_place_gol(MachineCtx* self, EntityQueueEntry& e, PlacementEntry& pe);
+void dispatch_commit_gol(MachineCtx* self, PlacementEntry& pe, wgpu::Queue& queue);
+void seed_gol_zone(GoLState& gs, MachineCtx* c,
     uint32_t slot, wgpu::Queue& queue);
 // Per-frame
 void upload_gol_zone_config(GoLState& gs, Cartridge* c, wgpu::Queue& queue);

@@ -409,21 +409,21 @@ struct RibbonState {
 // ═══ MODULE FUNCTIONS — DECLARATIONS ═════════════════════════════
 
 // Lifecycle (three-phase)
-bool select_ribbon_for_patch(RibbonState& rs, Cartridge* c,
+bool select_ribbon_for_patch(RibbonState& rs, MachineCtx* c,
     int32_t gx, int32_t gz, RibbonSelection& sel);
-bool place_ribbon_from_selection(Cartridge* c,
+bool place_ribbon_from_selection(MachineCtx* c,
     const RibbonSelection& sel, RibbonPlacement& plan);
-void commit_ribbon(RibbonState& rs, Cartridge* c,
+void commit_ribbon(RibbonState& rs, MachineCtx* c,
     const RibbonPlacement& plan,
     int32_t trigger_gx, int32_t trigger_gz, wgpu::Queue& queue);
 // The evictor — keyhole-shaped
 // to match the FAMILY_DISPATCH evict slot (table in family_dispatch.inl);
 // carries the sky-mode pin (SEAM[ribbon:sky-mode]) and ref-count law
-void evict_ribbon(Cartridge* self, uint32_t slot, wgpu::Queue& queue);
+void evict_ribbon(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
 // Dispatch funnels (table-shaped; the FAMILY_DISPATCH rows point here)
-bool dispatch_select_ribbon(Cartridge* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
-bool dispatch_place_ribbon(Cartridge* self, EntityQueueEntry& e, PlacementEntry& pe);
-void dispatch_commit_ribbon(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue);
+bool dispatch_select_ribbon(MachineCtx* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
+bool dispatch_place_ribbon(MachineCtx* self, EntityQueueEntry& e, PlacementEntry& pe);
+void dispatch_commit_ribbon(MachineCtx* self, PlacementEntry& pe, wgpu::Queue& queue);
 // Frame conductor
 void ribbon_frame_tick(RibbonState& rs, Cartridge* c, wgpu::Queue& queue);
 // Head mover

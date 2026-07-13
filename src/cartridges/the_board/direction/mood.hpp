@@ -253,7 +253,7 @@ void upload_portal_array(Cartridge* c, wgpu::Queue& queue);
 // Derivers (door + the portal-detection pipeline's shared helpers)
 const char* mood_name(uint32_t mood);
 uint32_t derive_finite_radius(uint32_t seed, const MoodProfile& mood);
-uint32_t pick_portal_mood(Cartridge* c, uint32_t seed, uint32_t prop);
+uint32_t pick_portal_mood(MachineCtx* c, uint32_t seed, uint32_t prop);
 
 } // namespace the_board
 } // namespace t7

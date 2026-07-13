@@ -44,12 +44,12 @@ inline void clear_spheres(SphereState& ss, GPUState& gpu, wgpu::Queue& queue) {
     ss.activeFloaterCount_ = 0;
 }
 
-void evict_sphere(Cartridge* self, uint32_t slot, wgpu::Queue& queue);
+void evict_sphere(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
 void reconcile_sphere_mirror(SphereState& ss, Cartridge* c, const GPUFloatingEntityState* data);
 // Dispatch funnels (table-shaped; defined in spheres.inl beside the recipe)
-bool dispatch_select_sphere_generic(Cartridge* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
-bool dispatch_place_sphere_generic(Cartridge* self, EntityQueueEntry& e, PlacementEntry& pe);
-void dispatch_commit_sphere_generic(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue);
+bool dispatch_select_sphere_generic(MachineCtx* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
+bool dispatch_place_sphere_generic(MachineCtx* self, EntityQueueEntry& e, PlacementEntry& pe);
+void dispatch_commit_sphere_generic(MachineCtx* self, PlacementEntry& pe, wgpu::Queue& queue);
 
 } // namespace the_board
 } // namespace t7

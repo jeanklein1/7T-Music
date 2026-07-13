@@ -241,7 +241,7 @@ inline void toggle_cube_kite_mode(CubeBehaviorsState& cbs, Cartridge* c, wgpu::Q
 
 // ═══ THE EVICTOR ══════════════════════════════════════════════════
 
-inline void evict_cube(Cartridge* self,
+inline void evict_cube(MachineCtx* self,
     uint32_t slot, wgpu::Queue& queue) {
     self->cube_behaviors_state_.activeCubes_[slot].active = false;  // cube state owned by CubeBehaviorsState
     self->cube_behaviors_state_.activeCubeCount_--;
@@ -338,7 +338,7 @@ inline constexpr EntityFamilyTraits CUBE_TRAITS = {
     0, nullptr,
 };
 
-inline SpawnGateOutput cube_run_gate(Cartridge* c, int32_t gx, int32_t gz) {
+inline SpawnGateOutput cube_run_gate(MachineCtx* c, int32_t gx, int32_t gz) {
     auto gate = run_spawn_preamble(c, gx, gz, c->cube_behaviors_state_.activeCubes_, Dim::MAX_CUBE_INSTANCES,
         CubeEntityProp::SPAWN_ROLL, CubeConfig::SPAWN_CHANCE,
         CubeConfig::MOOD_MULTIPLIER, PopFamily::CUBE, "cube");
@@ -358,7 +358,7 @@ inline void cube_compute_colors(EntityInstance& inst, const EntityFamilyTraits&,
     inst.colors[2] = cpu_hash_f(inst.seed, CubeEntityProp::COLOR_B) * 0.60f + 0.20f;
 }
 
-inline void cube_write_active(Cartridge* c, const EntityInstance& inst) {
+inline void cube_write_active(MachineCtx* c, const EntityInstance& inst) {
     auto& ac = c->cube_behaviors_state_.activeCubes_[inst.slot];
     ac.patch_gx = inst.trigger_gx; ac.patch_gz = inst.trigger_gz;
     ac.host_gx = inst.host_gx; ac.host_gz = inst.host_gz;
@@ -368,7 +368,7 @@ inline void cube_write_active(Cartridge* c, const EntityInstance& inst) {
     c->cube_behaviors_state_.activeCubeCount_++;
 }
 
-inline void cube_write_gpu(Cartridge* c, const EntityInstance& inst, wgpu::Queue& queue) {
+inline void cube_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Queue& queue) {
     // Spin tilt: custom derivation from tier constant (not a sampled param)
     float tilt_sigma = CUBE_TIERS[inst.tier_idx].spin_tilt_sigma;
     float tilt_x = (cpu_hash_f(inst.seed, CubeEntityProp::SPIN_TILT_X) - 0.5f) * 2.0f * tilt_sigma;
@@ -419,17 +419,17 @@ inline constexpr EntityFamilyAdapter CUBE_ADAPTER = {
     cube_get_tier_profile,
 };
 
-inline bool dispatch_select_cube_generic(Cartridge* self, int32_t gx, int32_t gz, EntityQueueEntry& e) {
+inline bool dispatch_select_cube_generic(MachineCtx* self, int32_t gx, int32_t gz, EntityQueueEntry& e) {
     EntityInstance inst{};
     if (!generic_select(self, CUBE_TRAITS, CUBE_ADAPTER, gx, gz, inst)) return false;
     e.family = PopFamily::CUBE; e.gx = gx; e.gz = gz; e.generic = inst; return true;
 }
-inline bool dispatch_place_cube_generic(Cartridge* self, EntityQueueEntry& e, PlacementEntry& pe) {
+inline bool dispatch_place_cube_generic(MachineCtx* self, EntityQueueEntry& e, PlacementEntry& pe) {
     pe.family = e.family; pe.gx = e.gx; pe.gz = e.gz;
     if (generic_place(self, CUBE_TRAITS, e.generic)) { pe.generic = e.generic; return true; }
     self->cube_behaviors_state_.activeCubes_[e.generic.slot].active = false; return false;
 }
-inline void dispatch_commit_cube_generic(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue) {
+inline void dispatch_commit_cube_generic(MachineCtx* self, PlacementEntry& pe, wgpu::Queue& queue) {
     auto* host = find_patch(self, pe.generic.host_gx, pe.generic.host_gz);
     if (host) {
         generic_commit(self, CUBE_TRAITS, CUBE_ADAPTER, pe.generic, queue);

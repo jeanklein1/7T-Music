@@ -24,7 +24,7 @@ namespace the_board {
 
 // ─── select_gol_for_patch ─────────────────────────────────────
 
-inline bool select_gol_for_patch(GoLState& gs, Cartridge* c,
+inline bool select_gol_for_patch(GoLState& gs, MachineCtx* c,
     int32_t gx, int32_t gz, GoLSelection& sel) {
     // Mood gate
     float adj_mod = GoLZoneSpawnConfig::MOOD_MULTIPLIER[c->mood_state_.active];
@@ -154,7 +154,7 @@ inline bool select_gol_for_patch(GoLState& gs, Cartridge* c,
 
 // ─── place_gol_from_selection ─────────────────────────────────
 
-inline bool place_gol_from_selection(Cartridge* c,
+inline bool place_gol_from_selection(MachineCtx* c,
     const GoLSelection& sel, GoLPlacement& plan) {
     float cx = sel.corner_x + GoLZoneSpawnConfig::ZONE_EXTENT * 0.5f;
     float cz = sel.corner_z + GoLZoneSpawnConfig::ZONE_EXTENT * 0.5f;
@@ -193,7 +193,7 @@ inline bool place_gol_from_selection(Cartridge* c,
 
 // ─── commit_gol ──────────────────────────────────────────────
 
-inline void commit_gol(GoLState& gs, Cartridge* c,
+inline void commit_gol(GoLState& gs, MachineCtx* c,
     const GoLPlacement& plan,
     int32_t trigger_gx, int32_t trigger_gz, wgpu::Queue& queue)
 {
@@ -235,7 +235,7 @@ inline void commit_gol(GoLState& gs, Cartridge* c,
 
 // ─── seed_gol_zone ───────────────────────────────────────────
 
-inline void seed_gol_zone(GoLState& gs, Cartridge* c,
+inline void seed_gol_zone(GoLState& gs, MachineCtx* c,
     uint32_t slot, wgpu::Queue& queue) {
     auto& zone = gs.zones[slot];
     uint32_t seed = cpu_lattice_node_seed(c->world_state_.active_seed, zone.zone_nx, zone.zone_nz, GoLZoneProp::SEED_BAND);
@@ -310,13 +310,13 @@ inline void flush_zone_derive_requests(GoLState& gs, Cartridge* c, wgpu::Queue& 
 
 // ═══ DISPATCH FUNNELS (table-shaped; declared in entity_types.hpp) ═
 
-inline bool dispatch_select_gol(Cartridge* self,
+inline bool dispatch_select_gol(MachineCtx* self,
     int32_t gx, int32_t gz, EntityQueueEntry& e) {
     if (!self->gol_state_.mood_allowed) { return false; }   // mood gate — no new zones
     return select_gol_for_patch(self->gol_state_, self, gx, gz, e.gol);
 }
 
-inline bool dispatch_place_gol(Cartridge* self,
+inline bool dispatch_place_gol(MachineCtx* self,
     EntityQueueEntry& e, PlacementEntry& pe) {
     pe.family = e.family; pe.gx = e.gx; pe.gz = e.gz;
     if (place_gol_from_selection(self, e.gol, pe.gol)) {
@@ -328,7 +328,7 @@ inline bool dispatch_place_gol(Cartridge* self,
     }
 }
 
-inline void dispatch_commit_gol(Cartridge* self,
+inline void dispatch_commit_gol(MachineCtx* self,
     PlacementEntry& pe, wgpu::Queue& queue) {
     auto* host = find_patch(self, pe.gol.host_gx, pe.gol.host_gz);
     if (host) {
@@ -347,7 +347,7 @@ inline void dispatch_commit_gol(Cartridge* self,
 
 // ═══ THE EVICTOR ══════════════════════════════════════════════════
 
-inline void evict_gol(Cartridge* self,
+inline void evict_gol(MachineCtx* self,
     uint32_t slot, wgpu::Queue& queue) {
     self->gpuState_.deactivate_zone_slot(queue, slot);
     self->gol_state_.zones[slot].active = false;

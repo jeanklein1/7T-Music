@@ -112,15 +112,15 @@ inline constexpr ArchTierRow ARCH_TIERS[] = {
 // spawn-engine services; the family adapters write c->entities_state_
 // and the GPU wire.
 
-bool generic_select(Cartridge* c,
+bool generic_select(MachineCtx* c,
     const EntityFamilyTraits& traits,
     const EntityFamilyAdapter& adapter,
     int32_t gx, int32_t gz,
     EntityInstance& inst);
-bool generic_place(Cartridge* c,
+bool generic_place(MachineCtx* c,
     const EntityFamilyTraits& traits,
     EntityInstance& inst);
-void generic_commit(Cartridge* c,
+void generic_commit(MachineCtx* c,
     const EntityFamilyTraits& traits,
     const EntityFamilyAdapter& adapter,
     const EntityInstance& inst,

@@ -57,7 +57,7 @@ inline uint32_t evaluate_theme_envelope(ThemesState& ts, Cartridge* c, uint32_t 
 
         // Census dump on theme transition
 #ifdef DIAG_ENTITY_CENSUS
-        dump_entity_census(c, theme_short_name(selected));
+        dump_entity_census(&c->machine_ctx_, theme_short_name(selected));
 #endif
     }
     else {

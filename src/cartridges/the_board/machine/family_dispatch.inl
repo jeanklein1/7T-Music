@@ -25,11 +25,11 @@ namespace the_board {
 
 // ─── Shared no-op adapters ────────────────────────────────────────
 
-inline bool dispatch_prepare_mesh_none(Cartridge* self, wgpu::Queue& queue) {
+inline bool dispatch_prepare_mesh_none(MachineCtx* self, wgpu::Queue& queue) {
     (void)self; (void)queue;
     return false;
 }
-inline void dispatch_mesh_gen_none(Cartridge* self, wgpu::ComputePassEncoder& pass) {
+inline void dispatch_mesh_gen_none(MachineCtx* self, wgpu::ComputePassEncoder& pass) {
     (void)self; (void)pass;
 }
 

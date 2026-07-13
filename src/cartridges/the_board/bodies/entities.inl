@@ -25,7 +25,7 @@ namespace the_board {
 
 // ═══ MESH-GEN PREPARERS ═══════════════════════════════════════════
 
-inline bool prepare_palm_mesh_gen(EntitiesState& es, Cartridge* c, wgpu::Queue& queue) {
+inline bool prepare_palm_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue& queue) {
     (void)queue;
     if (!es.palm_mesh_gen_pending) return false;
     es.palm_mesh_gen_pending = false;
@@ -39,7 +39,7 @@ inline bool prepare_palm_mesh_gen(EntitiesState& es, Cartridge* c, wgpu::Queue& 
     return true;
 }
 
-inline bool prepare_cactus_mesh_gen(EntitiesState& es, Cartridge* c, wgpu::Queue& queue) {
+inline bool prepare_cactus_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue& queue) {
     (void)queue;
     if (!es.cactus_mesh_gen_pending) return false;
     es.cactus_mesh_gen_pending = false;
@@ -53,7 +53,7 @@ inline bool prepare_cactus_mesh_gen(EntitiesState& es, Cartridge* c, wgpu::Queue
     return true;
 }
 
-inline bool prepare_blade_mesh_gen(EntitiesState& es, Cartridge* c, wgpu::Queue& queue) {
+inline bool prepare_blade_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue& queue) {
     (void)queue;
     if (!es.blade_mesh_gen_pending) return false;
     es.blade_mesh_gen_pending = false;
@@ -67,7 +67,7 @@ inline bool prepare_blade_mesh_gen(EntitiesState& es, Cartridge* c, wgpu::Queue&
     return true;
 }
 
-inline bool prepare_column_mesh_gen(EntitiesState& es, Cartridge* c, wgpu::Queue& queue) {
+inline bool prepare_column_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue& queue) {
     (void)queue;
     if (!es.column_mesh_gen_pending) return false;
     es.column_mesh_gen_pending = false;
@@ -88,7 +88,7 @@ inline bool prepare_column_mesh_gen(EntitiesState& es, Cartridge* c, wgpu::Queue
     return true;
 }
 
-inline bool prepare_arch_mesh_gen(EntitiesState& es, Cartridge* c, wgpu::Queue& queue) {
+inline bool prepare_arch_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue& queue) {
     (void)queue;
     if (!es.arch_mesh_gen_pending) return false;
     es.arch_mesh_gen_pending = false;
@@ -103,7 +103,7 @@ inline bool prepare_arch_mesh_gen(EntitiesState& es, Cartridge* c, wgpu::Queue& 
     return true;
 }
 
-inline bool prepare_pyramid_mesh_gen(EntitiesState& es, Cartridge* c, wgpu::Queue& queue) {
+inline bool prepare_pyramid_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue& queue) {
     (void)queue;
     if (!es.pyramid_mesh_gen_pending) return false;
     es.pyramid_mesh_gen_pending = false;
@@ -174,7 +174,7 @@ inline uint32_t force_spawn_portal_arch(EntitiesState& es, Cartridge* c, wgpu::Q
     pl.rotation = rotation;  pl.edge_blend = edge_blend;
     pl.tier = PierTier::ARCH_DOORWAY;
     pl.is_active = 1;
-    write_pier(c, queue, pier_l_slot, pl);
+    write_pier(&c->machine_ctx_, queue, pier_l_slot, pl);
 
     GPUPierInstance pr{};
     pr.origin[0] = pr_x;  pr.origin[1] = pr_z;
@@ -183,7 +183,7 @@ inline uint32_t force_spawn_portal_arch(EntitiesState& es, Cartridge* c, wgpu::Q
     pr.rotation = rotation;  pr.edge_blend = edge_blend;
     pr.tier = PierTier::ARCH_DOORWAY;
     pr.is_active = 1;
-    write_pier(c, queue, pier_r_slot, pr);
+    write_pier(&c->machine_ctx_, queue, pier_r_slot, pr);
 
     auto& aa = es.arches[slot];
     aa.patch_gx = gx;
@@ -242,7 +242,7 @@ inline uint32_t force_spawn_portal_arch(EntitiesState& es, Cartridge* c, wgpu::Q
 
 // ═══ THE EVICTORS ═════════════════════════════════════════════════
 
-inline void evict_pyramid(Cartridge* self,
+inline void evict_pyramid(MachineCtx* self,
     uint32_t slot, wgpu::Queue& queue)
 {
     self->entities_state_.cpu_pyramids.instances[slot] = GPUPyramidInstance{};
@@ -263,7 +263,7 @@ inline void evict_pyramid(Cartridge* self,
 #endif
 }
 
-inline void evict_arch(Cartridge* self,
+inline void evict_arch(MachineCtx* self,
     uint32_t slot, wgpu::Queue& queue)
 {
     clear_pier(self, queue, Dim::PIER_ARCH_BASE + slot * 2);
@@ -278,7 +278,7 @@ inline void evict_arch(Cartridge* self,
 #endif
 }
 
-inline void evict_column(Cartridge* self,
+inline void evict_column(MachineCtx* self,
     uint32_t slot, wgpu::Queue& queue)
 {
     clear_pier(self, queue, Dim::PIER_COLUMN_BASE + slot);
@@ -291,7 +291,7 @@ inline void evict_column(Cartridge* self,
 #endif
 }
 
-inline void evict_antenna(Cartridge* self,
+inline void evict_antenna(MachineCtx* self,
     uint32_t slot, wgpu::Queue& queue)
 {
     uint32_t gpu_slot = slot + Dim::ANTENNA_SLOT_OFFSET;
@@ -305,7 +305,7 @@ inline void evict_antenna(Cartridge* self,
 #endif
 }
 
-inline void evict_palm(Cartridge* self,
+inline void evict_palm(MachineCtx* self,
     uint32_t slot, wgpu::Queue& queue)
 {
     self->entities_state_.palms[slot].active = false;
@@ -318,7 +318,7 @@ inline void evict_palm(Cartridge* self,
 #endif
 }
 
-inline void evict_cactus(Cartridge* self,
+inline void evict_cactus(MachineCtx* self,
     uint32_t slot, wgpu::Queue& queue)
 {
     self->entities_state_.cacti[slot].active = false;
@@ -331,7 +331,7 @@ inline void evict_cactus(Cartridge* self,
 #endif
 }
 
-inline void evict_blade(Cartridge* self,
+inline void evict_blade(MachineCtx* self,
     uint32_t slot, wgpu::Queue& queue)
 {
     self->entities_state_.blades[slot].active = false;
@@ -445,7 +445,7 @@ inline constexpr EntityFamilyTraits BLADE_TRAITS = {
 
 // ─── Blade Adapter Functions ─────────────────────────────────────
 
-inline SpawnGateOutput blade_run_gate(Cartridge* c,
+inline SpawnGateOutput blade_run_gate(MachineCtx* c,
     int32_t gx, int32_t gz) {
     auto gate = run_spawn_preamble(c, gx, gz,
         c->entities_state_.blades, Dim::MAX_BLADE_INSTANCES,
@@ -465,7 +465,7 @@ inline void blade_compute_solid_half(EntityInstance& inst,
     inst.burial = 0.0f;
 }
 
-inline void blade_write_active(Cartridge* c, const EntityInstance& inst) {
+inline void blade_write_active(MachineCtx* c, const EntityInstance& inst) {
     auto& ab = c->entities_state_.blades[inst.slot];
     ab.patch_gx = inst.trigger_gx;
     ab.patch_gz = inst.trigger_gz;
@@ -482,7 +482,7 @@ inline void blade_write_active(Cartridge* c, const EntityInstance& inst) {
     c->entities_state_.blade_count++;
 }
 
-inline void blade_write_gpu(Cartridge* c,
+inline void blade_write_gpu(MachineCtx* c,
     const EntityInstance& inst, wgpu::Queue& queue) {
     GPUBladeClusterMeshParams mp{};
     mp.center_x    = inst.cx;
@@ -522,17 +522,17 @@ inline constexpr EntityFamilyAdapter BLADE_ADAPTER = {
 
 // ── Blade dispatch wrappers ──
 
-inline bool dispatch_select_blade_generic(Cartridge* self, int32_t gx, int32_t gz, EntityQueueEntry& e) {
+inline bool dispatch_select_blade_generic(MachineCtx* self, int32_t gx, int32_t gz, EntityQueueEntry& e) {
     EntityInstance inst{};
     if (!generic_select(self, BLADE_TRAITS, BLADE_ADAPTER, gx, gz, inst)) return false;
     e.family = PopFamily::BLADE; e.gx = gx; e.gz = gz; e.generic = inst; return true;
 }
-inline bool dispatch_place_blade_generic(Cartridge* self, EntityQueueEntry& e, PlacementEntry& pe) {
+inline bool dispatch_place_blade_generic(MachineCtx* self, EntityQueueEntry& e, PlacementEntry& pe) {
     pe.family = e.family; pe.gx = e.gx; pe.gz = e.gz;
     if (generic_place(self, BLADE_TRAITS, e.generic)) { pe.generic = e.generic; return true; }
     self->entities_state_.blades[e.generic.slot].active = false; return false;
 }
-inline void dispatch_commit_blade_generic(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue) {
+inline void dispatch_commit_blade_generic(MachineCtx* self, PlacementEntry& pe, wgpu::Queue& queue) {
     auto* host = find_patch(self, pe.generic.host_gx, pe.generic.host_gz);
     if (host) { generic_commit(self, BLADE_TRAITS, BLADE_ADAPTER, pe.generic, queue); host->record_entity(PopFamily::BLADE, pe.generic.slot); }
     else { self->entities_state_.blades[pe.generic.slot].active = false; }
@@ -646,7 +646,7 @@ inline constexpr EntityFamilyTraits PALM_TRAITS = {
 
 // ── Palm adapter functions ──
 
-inline SpawnGateOutput palm_run_gate(Cartridge* c, int32_t gx, int32_t gz) {
+inline SpawnGateOutput palm_run_gate(MachineCtx* c, int32_t gx, int32_t gz) {
     auto gate = run_spawn_preamble(c, gx, gz,
         c->entities_state_.palms, Dim::MAX_PALM_INSTANCES,
         PalmProp::SPAWN_ROLL, PalmConfig::SPAWN_CHANCE,
@@ -699,7 +699,7 @@ inline void palm_compute_colors(EntityInstance& inst, const EntityFamilyTraits& 
     inst.colors[8] = traits.color_parts[2].base[2] + (cpu_hash_f(inst.seed, PalmProp::COLOR_VAR_B + 20u) - 0.5f) * tp.frond_var;
 }
 
-inline void palm_write_active(Cartridge* c, const EntityInstance& inst) {
+inline void palm_write_active(MachineCtx* c, const EntityInstance& inst) {
     auto& ap = c->entities_state_.palms[inst.slot];
     ap.patch_gx = inst.trigger_gx; ap.patch_gz = inst.trigger_gz;
     ap.host_gx = inst.host_gx; ap.host_gz = inst.host_gz;
@@ -712,7 +712,7 @@ inline void palm_write_active(Cartridge* c, const EntityInstance& inst) {
     c->entities_state_.palm_count++;
 }
 
-inline void palm_write_gpu(Cartridge* c, const EntityInstance& inst, wgpu::Queue& queue) {
+inline void palm_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Queue& queue) {
     const auto& tp = PALM_TIERS[inst.tier_idx];
     GPUPalmMeshParams mp{};
     mp.center_x     = inst.cx;
@@ -752,17 +752,17 @@ inline constexpr EntityFamilyAdapter PALM_ADAPTER = {
 
 // ── Palm dispatch wrappers ──
 
-inline bool dispatch_select_palm_generic(Cartridge* self, int32_t gx, int32_t gz, EntityQueueEntry& e) {
+inline bool dispatch_select_palm_generic(MachineCtx* self, int32_t gx, int32_t gz, EntityQueueEntry& e) {
     EntityInstance inst{};
     if (!generic_select(self, PALM_TRAITS, PALM_ADAPTER, gx, gz, inst)) return false;
     e.family = PopFamily::PALM; e.gx = gx; e.gz = gz; e.generic = inst; return true;
 }
-inline bool dispatch_place_palm_generic(Cartridge* self, EntityQueueEntry& e, PlacementEntry& pe) {
+inline bool dispatch_place_palm_generic(MachineCtx* self, EntityQueueEntry& e, PlacementEntry& pe) {
     pe.family = e.family; pe.gx = e.gx; pe.gz = e.gz;
     if (generic_place(self, PALM_TRAITS, e.generic)) { pe.generic = e.generic; return true; }
     self->entities_state_.palms[e.generic.slot].active = false; return false;
 }
-inline void dispatch_commit_palm_generic(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue) {
+inline void dispatch_commit_palm_generic(MachineCtx* self, PlacementEntry& pe, wgpu::Queue& queue) {
     auto* host = find_patch(self, pe.generic.host_gx, pe.generic.host_gz);
     if (host) { generic_commit(self, PALM_TRAITS, PALM_ADAPTER, pe.generic, queue); host->record_entity(PopFamily::PALM, pe.generic.slot); }
     else { self->entities_state_.palms[pe.generic.slot].active = false; }
@@ -859,7 +859,7 @@ inline constexpr EntityFamilyTraits CACTUS_TRAITS = {
 
 // ── Cactus adapter functions ──
 
-inline SpawnGateOutput cactus_run_gate(Cartridge* c, int32_t gx, int32_t gz) {
+inline SpawnGateOutput cactus_run_gate(MachineCtx* c, int32_t gx, int32_t gz) {
     auto gate = run_spawn_preamble(c, gx, gz,
         c->entities_state_.cacti, Dim::MAX_CACTUS_INSTANCES,
         CactusProp::SPAWN_ROLL, CactusConfig::SPAWN_CHANCE,
@@ -876,7 +876,7 @@ inline void cactus_compute_solid_half(EntityInstance& inst, const TierProfile&) 
     inst.burial = 0.0f;
 }
 
-inline void cactus_write_active(Cartridge* c, const EntityInstance& inst) {
+inline void cactus_write_active(MachineCtx* c, const EntityInstance& inst) {
     auto& ac = c->entities_state_.cacti[inst.slot];
     ac.patch_gx = inst.trigger_gx; ac.patch_gz = inst.trigger_gz;
     ac.host_gx = inst.host_gx; ac.host_gz = inst.host_gz;
@@ -889,7 +889,7 @@ inline void cactus_write_active(Cartridge* c, const EntityInstance& inst) {
     c->entities_state_.cactus_count++;
 }
 
-inline void cactus_write_gpu(Cartridge* c, const EntityInstance& inst, wgpu::Queue& queue) {
+inline void cactus_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Queue& queue) {
     const auto& tp = CACTUS_TIERS[inst.tier_idx];
     GPUCactusMeshParams mp{};
     mp.center_x   = inst.cx;
@@ -927,17 +927,17 @@ inline constexpr EntityFamilyAdapter CACTUS_ADAPTER = {
 
 // ── Cactus dispatch wrappers ──
 
-inline bool dispatch_select_cactus_generic(Cartridge* self, int32_t gx, int32_t gz, EntityQueueEntry& e) {
+inline bool dispatch_select_cactus_generic(MachineCtx* self, int32_t gx, int32_t gz, EntityQueueEntry& e) {
     EntityInstance inst{};
     if (!generic_select(self, CACTUS_TRAITS, CACTUS_ADAPTER, gx, gz, inst)) return false;
     e.family = PopFamily::CACTUS; e.gx = gx; e.gz = gz; e.generic = inst; return true;
 }
-inline bool dispatch_place_cactus_generic(Cartridge* self, EntityQueueEntry& e, PlacementEntry& pe) {
+inline bool dispatch_place_cactus_generic(MachineCtx* self, EntityQueueEntry& e, PlacementEntry& pe) {
     pe.family = e.family; pe.gx = e.gx; pe.gz = e.gz;
     if (generic_place(self, CACTUS_TRAITS, e.generic)) { pe.generic = e.generic; return true; }
     self->entities_state_.cacti[e.generic.slot].active = false; return false;
 }
-inline void dispatch_commit_cactus_generic(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue) {
+inline void dispatch_commit_cactus_generic(MachineCtx* self, PlacementEntry& pe, wgpu::Queue& queue) {
     auto* host = find_patch(self, pe.generic.host_gx, pe.generic.host_gz);
     if (host) { generic_commit(self, CACTUS_TRAITS, CACTUS_ADAPTER, pe.generic, queue); host->record_entity(PopFamily::CACTUS, pe.generic.slot); }
     else { self->entities_state_.cacti[pe.generic.slot].active = false; }

@@ -170,10 +170,10 @@ struct PatchSystemState {
 // THE S2/S3 BOUNDARY FACE: the patch registry is read across the
 // boundary by the occupier commits (host->record_entity via
 // find_patch) — the interface trio's registry member.
-ActivePatch* find_patch(Cartridge* c, int32_t gx, int32_t gz);
+ActivePatch* find_patch(MachineCtx* c, int32_t gx, int32_t gz);
 
 void evict_patch(Cartridge* c, uint32_t pi, wgpu::Queue& queue);
-void evict_patch_entities(Cartridge* c, ActivePatch& patch, wgpu::Queue& queue);
+void evict_patch_entities(MachineCtx* c, ActivePatch& patch, wgpu::Queue& queue);
 void audit_entity_integrity(Cartridge* c);
 uint32_t count_pending_patches(Cartridge* c);
 uint32_t patches_budget_this_frame(Cartridge* c);
@@ -187,11 +187,11 @@ void init_patch_system(Cartridge* c);
 // streaming conductor re-evaluates the full window next frame.
 // Caller: the radius command (direction/input).
 void request_recenter(Cartridge* c);
-void write_pier(Cartridge* c, wgpu::Queue& queue, uint32_t slot, const GPUPierInstance& pier);
-void clear_pier(Cartridge* c, wgpu::Queue& queue, uint32_t slot);
-void recompute_and_upload_pier_count(Cartridge* c, wgpu::Queue& queue);
-void flush_pier_count(Cartridge* c, wgpu::Queue& queue);
-void mark_patches_for_regen(Cartridge* c, float min_wx, float min_wz,
+void write_pier(MachineCtx* c, wgpu::Queue& queue, uint32_t slot, const GPUPierInstance& pier);
+void clear_pier(MachineCtx* c, wgpu::Queue& queue, uint32_t slot);
+void recompute_and_upload_pier_count(MachineCtx* c, wgpu::Queue& queue);
+void flush_pier_count(MachineCtx* c, wgpu::Queue& queue);
+void mark_patches_for_regen(MachineCtx* c, float min_wx, float min_wz,
     float max_wx, float max_wz,
     int32_t home_gx, int32_t home_gz);
 void setup_test_rig_piers(Cartridge* c, wgpu::Queue queue);
@@ -199,8 +199,8 @@ void generate_patch_batch(Cartridge* c, wgpu::CommandEncoder& encoder, wgpu::Que
     const GPUPatchParams* params, uint32_t count,
     uint32_t stagingOffset = 0);
 GPUPatchParams make_patch_params(Cartridge* c, int32_t gx, int32_t gz, uint32_t layer);
-uint32_t alloc_layer(Cartridge* c);
-void free_layer(Cartridge* c, uint32_t layer);
+uint32_t alloc_layer(MachineCtx* c);
+void free_layer(MachineCtx* c, uint32_t layer);
 bool in_render_window(Cartridge* c, int32_t gx, int32_t gz, int32_t cx, int32_t cz);
 float patch_distance_sq(float px, float pz, float origin_x, float origin_z, float half);
 template<typename Pred>

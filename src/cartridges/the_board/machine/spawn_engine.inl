@@ -23,7 +23,7 @@ namespace the_board {
 
 // ── Helper 2: NegotiatePosition ─────────────────────────────
 
-inline PositionResult negotiate_position(Cartridge* c,
+inline PositionResult negotiate_position(MachineCtx* c,
     uint32_t seed, int32_t trigger_gx, int32_t trigger_gz,
     uint32_t pos_x_prop, uint32_t pos_z_prop, float jitter,
     uint32_t rotation_seed_prop,
@@ -96,7 +96,7 @@ inline void record_placement_bookkeeping(uint32_t /*family*/, uint32_t /*tier_id
 // ─── Column / Arch / Pyramid mesh-gen preparers ───────────────
 
 // Rebuild GPUArchMeshParams from cached ActiveArch data.
-inline GPUArchMeshParams build_arch_mesh_params(Cartridge* c, uint32_t slot) {
+inline GPUArchMeshParams build_arch_mesh_params(MachineCtx* c, uint32_t slot) {
     const auto& a = c->entities_state_.arches[slot];
     GPUArchMeshParams p{};
     p.center_x = a.world_x;
@@ -160,13 +160,13 @@ inline GPUColumnMeshParams build_column_mesh_params_from(const ActiveColumn& c) 
     return p;
 }
 
-inline GPUColumnMeshParams build_column_mesh_params(Cartridge* c, uint32_t slot) {
+inline GPUColumnMeshParams build_column_mesh_params(MachineCtx* c, uint32_t slot) {
     return build_column_mesh_params_from(c->entities_state_.columns[slot]);
 }
 
 // Scan all active entities, toggle draw_visible with hysteresis,
 // and upload mesh param changes. Returns count of currently hidden entities.
-inline uint32_t update_entity_draw_visibility(Cartridge* c, wgpu::Queue& queue) {
+inline uint32_t update_entity_draw_visibility(MachineCtx* c, wgpu::Queue& queue) {
     uint32_t culled = 0;
 
     const float cull_base = VISIBILITY_CYLINDER_RADIUS - ENTITY_CULL_EDGE_MARGIN;  // 275 − 25 = 250
@@ -271,7 +271,7 @@ inline uint32_t update_entity_draw_visibility(Cartridge* c, wgpu::Queue& queue) 
 
 // ═══ FOOTPRINT REGISTRY ══════════════════════════════════════════
 
-inline bool check_position(Cartridge* c, float px, float pz, float placing_radius,
+inline bool check_position(MachineCtx* c, float px, float pz, float placing_radius,
     uint32_t placing_family) {
     for (uint32_t i = 0; i < MAX_FOOTPRINTS; i++) {
         if (!c->spawn_engine_state_.footprints_[i].active) continue;
@@ -291,7 +291,7 @@ inline bool check_position(Cartridge* c, float px, float pz, float placing_radiu
     return true;
 }
 
-inline uint32_t register_footprint(Cartridge* c, float x, float z, float radius,
+inline uint32_t register_footprint(MachineCtx* c, float x, float z, float radius,
     int32_t gx, int32_t gz, uint32_t family,
     uint32_t tier) {
     for (uint32_t i = 0; i < MAX_FOOTPRINTS; i++) {
@@ -303,7 +303,7 @@ inline uint32_t register_footprint(Cartridge* c, float x, float z, float radius,
     return UINT32_MAX;  // full — entity should not spawn
 }
 
-inline void unregister_footprints_for_patch(Cartridge* c, int32_t gx, int32_t gz) {
+inline void unregister_footprints_for_patch(MachineCtx* c, int32_t gx, int32_t gz) {
     for (uint32_t i = 0; i < MAX_FOOTPRINTS; i++) {
         if (c->spawn_engine_state_.footprints_[i].active &&
             c->spawn_engine_state_.footprints_[i].patch_gx == gx && c->spawn_engine_state_.footprints_[i].patch_gz == gz) {
@@ -319,7 +319,7 @@ inline const char* family_short_name(uint32_t family) {
     return (family < PopFamily::COUNT) ? NAMES[family] : "???";
 }
 
-inline void dump_entity_census(Cartridge* c, const char* trigger) {
+inline void dump_entity_census(MachineCtx* c, const char* trigger) {
     uint32_t count = 0;
     uint32_t by_family[PopFamily::COUNT] = {};
     for (uint32_t i = 0; i < MAX_FOOTPRINTS; i++) {
@@ -379,7 +379,7 @@ inline void dump_entity_census(Cartridge* c, const char* trigger) {
 
 // Evaluate the spawn gate: seed + flat probability check.
 // adjacency_mod is a multiplier from the full spawn cascade.
-inline SpawnPreamble evaluate_spawn_gate(Cartridge* c, int32_t gx, int32_t gz,
+inline SpawnPreamble evaluate_spawn_gate(MachineCtx* c, int32_t gx, int32_t gz,
     uint32_t spawn_roll_prop,
     float spawn_chance,
     float adjacency_mod) {
@@ -401,7 +401,7 @@ inline void jittered_position(uint32_t seed, int32_t gx, int32_t gz,
     out_z = (gz + 0.5f) * PATCH_EXTENT + (cpu_hash_f(seed, prop_z) - 0.5f) * PATCH_EXTENT * jitter;
 }
 
-inline float proximity_affinity_boost(Cartridge* c, float cx, float cz, uint32_t family) {
+inline float proximity_affinity_boost(MachineCtx* c, float cx, float cz, uint32_t family) {
     if (!proximity_row_active(family)) return 1.0f;
     float radius = PROXIMITY_RADIUS[family];
     if (radius <= 0.0f) return 1.0f;
@@ -426,7 +426,7 @@ inline float proximity_affinity_boost(Cartridge* c, float cx, float cz, uint32_t
 
 // ─── Select / Place / Commit dispatch loops ─────────────────────
 
-inline void select_entities_for_patch(Cartridge* c, int32_t gx, int32_t gz) {
+inline void select_entities_for_patch(MachineCtx* c, int32_t gx, int32_t gz) {
     for (uint32_t f = 0; f < PopFamily::COUNT; f++) {
         if (!ROSTER.family_enabled(f)) continue;  // ROSTER-GATE family (b) — disabled family never selected -> never placed/committed/meshed/drawn. Budgeted stream path, not the per-frame hot path.
         EntityQueueEntry e{};
@@ -439,7 +439,7 @@ inline void select_entities_for_patch(Cartridge* c, int32_t gx, int32_t gz) {
 
 // ─── Place: spatial negotiation (no GPU writes) ──────────────
 
-inline void place_entity_queue(Cartridge* c) {
+inline void place_entity_queue(MachineCtx* c) {
     for (auto& e : c->spawn_engine_state_.entityQueue_) {
         PlacementEntry pe{};
         if (FAMILY_DISPATCH[e.family].try_place(c, e, pe))
@@ -450,7 +450,7 @@ inline void place_entity_queue(Cartridge* c) {
 
 // ─── Commit: GPU writes from placement results ──────────────
 
-inline void commit_entity_queue(Cartridge* c, wgpu::Queue& queue) {
+inline void commit_entity_queue(MachineCtx* c, wgpu::Queue& queue) {
     for (auto& pe : c->spawn_engine_state_.placementResults_)
         FAMILY_DISPATCH[pe.family].try_commit(c, pe, queue);
     c->spawn_engine_state_.placementResults_.clear();

@@ -649,7 +649,7 @@ inline void fill_ribbon_selection_geometry(
 
 // ─── select_ribbon_for_patch ──────────────────────────────────
 //
-inline bool select_ribbon_for_patch(RibbonState& rs, Cartridge* c,
+inline bool select_ribbon_for_patch(RibbonState& rs, MachineCtx* c,
     int32_t gx, int32_t gz, RibbonSelection& sel) {
     // Tip-overlap idempotency: reject if ANY active ribbon's
     // near or far tip falls within this trigger patch.
@@ -697,7 +697,7 @@ inline bool select_ribbon_for_patch(RibbonState& rs, Cartridge* c,
 
 // ─── place_ribbon_from_selection ──────────────────────────────
 //
-inline bool place_ribbon_from_selection(Cartridge* c,
+inline bool place_ribbon_from_selection(MachineCtx* c,
     const RibbonSelection& sel, RibbonPlacement& plan) {
     auto pos = negotiate_position(c, sel.seed,
         sel.trigger_gx, sel.trigger_gz,
@@ -739,7 +739,7 @@ inline bool place_ribbon_from_selection(Cartridge* c,
 //
 // Dual entry: also called from mood.inl::apply_mood for mood-5
 // forced spawn (SEAM[ribbon:dual-entry]).
-inline void commit_ribbon(RibbonState& rs, Cartridge* c,
+inline void commit_ribbon(RibbonState& rs, MachineCtx* c,
     const RibbonPlacement& plan,
     int32_t trigger_gx, int32_t trigger_gz, wgpu::Queue& queue)
 {
@@ -844,12 +844,12 @@ inline void commit_ribbon(RibbonState& rs, Cartridge* c,
 
 // ═══ DISPATCH FUNNELS (table-shaped; declared in entity_types.hpp) ═
 
-inline bool dispatch_select_ribbon(Cartridge* self,
+inline bool dispatch_select_ribbon(MachineCtx* self,
     int32_t gx, int32_t gz, EntityQueueEntry& e) {
     return select_ribbon_for_patch(self->ribbon_state_, self, gx, gz, e.ribbon);
 }
 
-inline bool dispatch_place_ribbon(Cartridge* self,
+inline bool dispatch_place_ribbon(MachineCtx* self,
     EntityQueueEntry& e, PlacementEntry& pe) {
     pe.family = e.family; pe.gx = e.gx; pe.gz = e.gz;
     if (place_ribbon_from_selection(self, e.ribbon, pe.ribbon)) {
@@ -861,7 +861,7 @@ inline bool dispatch_place_ribbon(Cartridge* self,
     }
 }
 
-inline void dispatch_commit_ribbon(Cartridge* self,
+inline void dispatch_commit_ribbon(MachineCtx* self,
     PlacementEntry& pe, wgpu::Queue& queue) {
     // Commit the ribbon state (GPU mirror, active record, tip positions)
     commit_ribbon(self->ribbon_state_, self, pe.ribbon, pe.gx, pe.gz, queue);
@@ -898,7 +898,7 @@ inline void dispatch_commit_ribbon(Cartridge* self,
 
 // ═══ THE EVICTOR ══════════════════════════════════════════════════
 
-inline void evict_ribbon(Cartridge* self,
+inline void evict_ribbon(MachineCtx* self,
     uint32_t slot, wgpu::Queue& queue) {
     auto& ar = self->ribbon_state_.active[slot];
     if (!ar.active) return;

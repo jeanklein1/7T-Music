@@ -230,7 +230,7 @@ inline void capture_snapshot(GalleryState& gs, Cartridge* c, float pawn_x, float
 
 // ── select_gallery_for_patch ──
 
-inline bool select_gallery_for_patch(GalleryState& gs, Cartridge* c, int32_t gx, int32_t gz, GallerySelection& sel) {
+inline bool select_gallery_for_patch(GalleryState& gs, MachineCtx* c, int32_t gx, int32_t gz, GallerySelection& sel) {
     // Content gate: minimum snapshot pool
     if (gs.snapshot_count < GalleryConfig::MIN_POOL_SIZE) return false;
 
@@ -343,7 +343,7 @@ inline bool select_gallery_for_patch(GalleryState& gs, Cartridge* c, int32_t gx,
 
 // ── place_gallery_from_selection ──
 
-inline bool place_gallery_from_selection(Cartridge* c, const GallerySelection& sel, GalleryPlacement& plan) {
+inline bool place_gallery_from_selection(MachineCtx* c, const GallerySelection& sel, GalleryPlacement& plan) {
     if (!check_position(c, sel.cx, sel.cz, sel.footprint_r, PopFamily::GALLERY))
         return false;
 
@@ -376,7 +376,7 @@ inline bool place_gallery_from_selection(Cartridge* c, const GallerySelection& s
 
 // ── commit_gallery ──
 
-inline void commit_gallery(GalleryState& gs, Cartridge* c,
+inline void commit_gallery(GalleryState& gs, MachineCtx* c,
     const GalleryPlacement& plan,
     int32_t trigger_gx, int32_t trigger_gz, wgpu::Queue& queue)
 {
@@ -619,7 +619,7 @@ inline void commit_gallery(GalleryState& gs, Cartridge* c,
             << "\n";
     }
 }
-inline void evict_paintings_for_patch(GalleryState& gs, Cartridge* c, int32_t gx, int32_t gz, wgpu::Queue& queue) {
+inline void evict_paintings_for_patch(GalleryState& gs, MachineCtx* c, int32_t gx, int32_t gz, wgpu::Queue& queue) {
     for (uint32_t i = 0; i < Dim::PAINTING_MAX_SLOTS; i++) {
         if (gs.painting_slots[i].is_active != 0 &&
             gs.painting_slots[i].patch_gx == gx && gs.painting_slots[i].patch_gz == gz) {
@@ -750,7 +750,7 @@ inline void render_snapshot_pass(GalleryState& gs, Cartridge* c, wgpu::CommandEn
 
 // ── Authored Image Loading (staging model) ──
 
-inline void load_authored_image_to_staging(GalleryState& gs, Cartridge* c, wgpu::Queue& queue, uint32_t staging_layer, uint32_t disk_index, const char* path) {
+inline void load_authored_image_to_staging(GalleryState& gs, MachineCtx* c, wgpu::Queue& queue, uint32_t staging_layer, uint32_t disk_index, const char* path) {
     int width = 0, height = 0, channels = 0;
     unsigned char* data = stbi_load(path, &width, &height, &channels, 4);
     if (!data) {
@@ -865,7 +865,7 @@ inline void scan_paintings_folder(GalleryState& gs) {
         << " — found " << gs.authored_disk_manifest.size() << " paintings\n";
 }
 
-inline void load_authored_textures(GalleryState& gs, Cartridge* c, wgpu::Queue& queue) {
+inline void load_authored_textures(GalleryState& gs, MachineCtx* c, wgpu::Queue& queue) {
     if (gs.authored_textures_loaded) return;
 
     // Scan folder on first load
@@ -919,7 +919,7 @@ inline void rotate_authored_staging(GalleryState& gs, Cartridge* c, wgpu::Queue&
                 continue;
             }
             // Load this image into the vacated staging slot
-            load_authored_image_to_staging(gs, c, queue, i, disk_idx,
+            load_authored_image_to_staging(gs, &c->machine_ctx_, queue, i, disk_idx,
                 gs.authored_disk_manifest[disk_idx].c_str());
             if (disk_idx < 256) disk_in_use[disk_idx] = true;
             rotated++;
@@ -973,7 +973,7 @@ inline void place_wall_paintings(GalleryState& gs, Cartridge* c, wgpu::Queue& qu
     // Clear any existing wall paintings first (indoor→indoor transitions)
     clear_wall_paintings(gs, c, queue);
 
-    load_authored_textures(gs, c, queue);
+    load_authored_textures(gs, &c->machine_ctx_, queue);
 
     // Painting center base height (fraction of ceiling) — WALL_ART knob.
     constexpr float WALL_OFFSET = 0.05f;    // distance from wall surface
@@ -1259,12 +1259,12 @@ inline void clear_wall_paintings(GalleryState& gs, Cartridge* c, wgpu::Queue& qu
 
 // ═══ DISPATCH FUNNELS (table-shaped; declared in entity_types.hpp) ═
 
-inline bool dispatch_select_gallery(Cartridge* self,
+inline bool dispatch_select_gallery(MachineCtx* self,
     int32_t gx, int32_t gz, EntityQueueEntry& e) {
     return select_gallery_for_patch(self->gallery_state_, self, gx, gz, e.gallery);
 }
 
-inline bool dispatch_place_gallery(Cartridge* self,
+inline bool dispatch_place_gallery(MachineCtx* self,
     EntityQueueEntry& e, PlacementEntry& pe) {
     pe.family = e.family; pe.gx = e.gx; pe.gz = e.gz;
     if (place_gallery_from_selection(self, e.gallery, pe.gallery)) {
@@ -1276,7 +1276,7 @@ inline bool dispatch_place_gallery(Cartridge* self,
     }
 }
 
-inline void dispatch_commit_gallery(Cartridge* self,
+inline void dispatch_commit_gallery(MachineCtx* self,
     PlacementEntry& pe, wgpu::Queue& queue) {
     auto* host = find_patch(self, pe.gallery.host_gx, pe.gallery.host_gz);
     if (host) {
@@ -1298,7 +1298,7 @@ inline void dispatch_commit_gallery(Cartridge* self,
 
 // ═══ THE EVICTOR ══════════════════════════════════════════════════
 
-inline void evict_gallery(Cartridge* self,
+inline void evict_gallery(MachineCtx* self,
     uint32_t slot, wgpu::Queue& queue) {
     auto& gc = self->gallery_state_.gallery_centers[slot];
     if (gc.active) {

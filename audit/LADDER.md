@@ -1408,3 +1408,32 @@ analysis first-hand: the derive pass must keep executing before the
 frame's agent kernels, so the refactor stays forbidden and the
 handover is declared instead; rows with behavior-changing forms:
 NONE). FULL STOP — d1 cuts only after the stamp (S1-S5).
+
+## DISSOLVE-1 — PHASE I (the stamp: S1-S5 resolved; the face cuts)
+
+**d1 — THE MACHINE FACE.** MachineCtx lands in the dispatch contract
+(contracts/entity_types.hpp): sixteen organ-named reference members,
+the const trio (tiles/time/player) as the arrow law's compiler teeth,
+bound once at the root (the constructor's one init list — the default
+ctor retires). The conversion: 228 signature lines Cartridge* ->
+MachineCtx* (rows, adapters, machine verbs, the 12 spine wrappers, 9
+patch_system verbs, 13+9 entities rows, the family row sets), 36
+call-site context-args where Cartridge-world callers now hand the
+face (&machine_ctx_ / &c->machine_ctx_), bodies BYTE-IDENTICAL by the
+organ-naming key — the diff classifier proved the shape (signature /
+context-arg / face-block / comments; zero unexplained lines).
+run_spawn_preamble UNCHANGED (deduced C now lands on MachineCtx —
+the escape clause executed textually). THE MACHINE ROOM READS ZERO:
+grep over machine/ finds no Cartridge* in code — the table seam's
+keyhole is RETIRED (the K2 stamp updated by its own escape clause).
+DISCLOSED per S2: the dual-entry doors landed CONCRETE on the face,
+not as deduced templates — the census showed all their reaches fit
+MachineCtx whole, so callers pass the context and zero new template
+machinery was minted (same access outcome; the simpler mechanism);
+also derive_finite_radius turned out never to take the keyhole — the
+dual set was three (commit_ribbon, load_authored_textures,
+pick_portal_mood), not four. The S5 ruling (GolDeps gains the
+declared device member) executes at d2-gol.
+GATES: glaw1 GREEN full + minimal; score census GREEN (A/B/W);
+sentinels 148/5; zone 18 == 18; encodings all match HEAD; the diff
+classified line-by-line.

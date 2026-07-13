@@ -507,33 +507,33 @@ struct EntitiesState {
 
 // ═══ MESH-GEN PREPARERS — DECLARATIONS ════════════════════════════
 
-bool prepare_palm_mesh_gen(EntitiesState& es, Cartridge* c, wgpu::Queue& queue);
-bool prepare_cactus_mesh_gen(EntitiesState& es, Cartridge* c, wgpu::Queue& queue);
-bool prepare_blade_mesh_gen(EntitiesState& es, Cartridge* c, wgpu::Queue& queue);
-bool prepare_column_mesh_gen(EntitiesState& es, Cartridge* c, wgpu::Queue& queue);
-bool prepare_arch_mesh_gen(EntitiesState& es, Cartridge* c, wgpu::Queue& queue);
-bool prepare_pyramid_mesh_gen(EntitiesState& es, Cartridge* c, wgpu::Queue& queue);
+bool prepare_palm_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue& queue);
+bool prepare_cactus_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue& queue);
+bool prepare_blade_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue& queue);
+bool prepare_column_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue& queue);
+bool prepare_arch_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue& queue);
+bool prepare_pyramid_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue& queue);
 
 // ═══ THE EVICTORS — DECLARATIONS ═══════════════════════════════════
 
-void evict_pyramid(Cartridge* self, uint32_t slot, wgpu::Queue& queue);
-void evict_arch(Cartridge* self, uint32_t slot, wgpu::Queue& queue);
-void evict_column(Cartridge* self, uint32_t slot, wgpu::Queue& queue);
-void evict_antenna(Cartridge* self, uint32_t slot, wgpu::Queue& queue);
-void evict_palm(Cartridge* self, uint32_t slot, wgpu::Queue& queue);
-void evict_cactus(Cartridge* self, uint32_t slot, wgpu::Queue& queue);
-void evict_blade(Cartridge* self, uint32_t slot, wgpu::Queue& queue);
+void evict_pyramid(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
+void evict_arch(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
+void evict_column(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
+void evict_antenna(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
+void evict_palm(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
+void evict_cactus(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
+void evict_blade(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
 // Dispatch funnels for the clean three (table-shaped; defined in
 // entities.inl beside their recipes)
-bool dispatch_select_blade_generic(Cartridge* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
-bool dispatch_place_blade_generic(Cartridge* self, EntityQueueEntry& e, PlacementEntry& pe);
-void dispatch_commit_blade_generic(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue);
-bool dispatch_select_palm_generic(Cartridge* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
-bool dispatch_place_palm_generic(Cartridge* self, EntityQueueEntry& e, PlacementEntry& pe);
-void dispatch_commit_palm_generic(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue);
-bool dispatch_select_cactus_generic(Cartridge* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
-bool dispatch_place_cactus_generic(Cartridge* self, EntityQueueEntry& e, PlacementEntry& pe);
-void dispatch_commit_cactus_generic(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue);
+bool dispatch_select_blade_generic(MachineCtx* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
+bool dispatch_place_blade_generic(MachineCtx* self, EntityQueueEntry& e, PlacementEntry& pe);
+void dispatch_commit_blade_generic(MachineCtx* self, PlacementEntry& pe, wgpu::Queue& queue);
+bool dispatch_select_palm_generic(MachineCtx* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
+bool dispatch_place_palm_generic(MachineCtx* self, EntityQueueEntry& e, PlacementEntry& pe);
+void dispatch_commit_palm_generic(MachineCtx* self, PlacementEntry& pe, wgpu::Queue& queue);
+bool dispatch_select_cactus_generic(MachineCtx* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
+bool dispatch_place_cactus_generic(MachineCtx* self, EntityQueueEntry& e, PlacementEntry& pe);
+void dispatch_commit_cactus_generic(MachineCtx* self, PlacementEntry& pe, wgpu::Queue& queue);
 void teardown_entities(Cartridge* c, wgpu::Queue& queue);
 
 // ═══ THE ARCH FORCE-SPAWN AUTHOR (the portal channel) ═══════════

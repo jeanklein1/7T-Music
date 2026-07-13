@@ -442,28 +442,28 @@ struct GalleryState {
 void update_photographer(GalleryState& gs, Cartridge* c, wgpu::Queue& queue);
 void render_snapshot_pass(GalleryState& gs, Cartridge* c, wgpu::CommandEncoder& encoder);
 // Outdoor lifecycle (three-phase)
-bool select_gallery_for_patch(GalleryState& gs, Cartridge* c,
+bool select_gallery_for_patch(GalleryState& gs, MachineCtx* c,
     int32_t gx, int32_t gz, GallerySelection& sel);
-bool place_gallery_from_selection(Cartridge* c,
+bool place_gallery_from_selection(MachineCtx* c,
     const GallerySelection& sel, GalleryPlacement& plan);
-void commit_gallery(GalleryState& gs, Cartridge* c,
+void commit_gallery(GalleryState& gs, MachineCtx* c,
     const GalleryPlacement& plan,
     int32_t trigger_gx, int32_t trigger_gz, wgpu::Queue& queue);
-void evict_paintings_for_patch(GalleryState& gs, Cartridge* c,
+void evict_paintings_for_patch(GalleryState& gs, MachineCtx* c,
     int32_t gx, int32_t gz, wgpu::Queue& queue);
 // The evictor — keyhole-shaped
 // to match the FAMILY_DISPATCH evict slot (table in family_dispatch.inl)
-void evict_gallery(Cartridge* self, uint32_t slot, wgpu::Queue& queue);
+void evict_gallery(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
 // Dispatch funnels (table-shaped; the FAMILY_DISPATCH rows point here)
-bool dispatch_select_gallery(Cartridge* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
-bool dispatch_place_gallery(Cartridge* self, EntityQueueEntry& e, PlacementEntry& pe);
-void dispatch_commit_gallery(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue);
+bool dispatch_select_gallery(MachineCtx* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
+bool dispatch_place_gallery(MachineCtx* self, EntityQueueEntry& e, PlacementEntry& pe);
+void dispatch_commit_gallery(MachineCtx* self, PlacementEntry& pe, wgpu::Queue& queue);
 // Indoor entry (called by mood.inl::apply_mood)
 void place_wall_paintings(GalleryState& gs, Cartridge* c, wgpu::Queue& queue,
     float bmin, float bmax, float ceiling_h);
 void clear_wall_paintings(GalleryState& gs, Cartridge* c, wgpu::Queue& queue);
 // Authored image loading
-void load_authored_textures(GalleryState& gs, Cartridge* c, wgpu::Queue& queue);
+void load_authored_textures(GalleryState& gs, MachineCtx* c, wgpu::Queue& queue);
 void rotate_authored_staging(GalleryState& gs, Cartridge* c, wgpu::Queue& queue);
 void teardown_gallery(Cartridge* c, wgpu::Queue& queue);
 void drain_gallery_promotions(GalleryState& gs, Cartridge* c, wgpu::CommandEncoder& encoder);

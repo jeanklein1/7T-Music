@@ -38,6 +38,48 @@ namespace wgpu { class ComputePassEncoder; }
 namespace t7 {
 namespace the_board {
 
+// ═══ THE MACHINE FACE (DISSOLVE-1 d1; stamp S1) ═══════════════════
+// ONE declared struct carrying what the machine may hand a family —
+// the requirements face made literal at the machine's boundary.
+// Members are NAMED AS THE ORGANS: the deduced-C conversion leaves
+// every row and verb body byte-identical (the template keyhole's
+// escape clause, executed). References bound ONCE at the root.
+// THE CONST TRIO is the arrow law's compiler teeth at this boundary:
+// the machine reads the surface only through the m3b faces, reads
+// the clock, reads the witness — and can write none of them.
+struct WorldState;            struct TileWorldState;
+struct ThemesState;           struct MoodState;
+struct PatchSystemState;      struct SpawnEngineState;
+struct EntitiesState;         struct SphereState;
+struct CubeBehaviorsState;    struct RibbonState;
+struct GoLState;              struct GalleryState;
+struct TimeState;             struct PlayerState;
+class GPUState;               class Renderer;
+
+struct MachineCtx {
+    // S1/S2 — the surface the machine stands on
+    WorldState&              world_state_;
+    const TileWorldState&    tile_world_state_;    // const: only the m3b faces consume it
+    const ThemesState&       themes_state_;        // const: the preamble reads the envelope
+    MoodState&               mood_state_;          // active R; portals_dirty W (the arch channel)
+    PatchSystemState&        patch_system_state_;
+    SpawnEngineState&        spawn_engine_state_;
+    // the family organs the rows own
+    EntitiesState&           entities_state_;
+    SphereState&             sphere_state_;
+    CubeBehaviorsState&      cube_behaviors_state_;
+    RibbonState&             ribbon_state_;
+    GoLState&                gol_state_;
+    GalleryState&            gallery_state_;
+    // clock + witness (read-only by census)
+    const TimeState&         time_state_;
+    const PlayerState&       player_;
+    // realization
+    GPUState&                gpuState_;
+    Renderer&                renderer_;
+};
+
+
 // ═══ PIPELINE CONTRACTS ══════════════════════════════════════════
 
 // ── Array bounds ─────────────────────────────────────────────────
@@ -147,14 +189,14 @@ struct EntityInstance {
 // ── Per-family adapter ───────────────────────────────────────────
 //
 struct EntityFamilyAdapter {
-    SpawnGateOutput(*run_gate)(Cartridge* c, int32_t gx, int32_t gz);
+    SpawnGateOutput(*run_gate)(MachineCtx* c, int32_t gx, int32_t gz);
     const float* (*get_theme_tier_weights)(uint32_t theme_idx);
     void (*apply_indoor_rescale)(EntityInstance& inst, float ceiling_h);
     void (*compute_solid_half)(EntityInstance& inst, const TierProfile& tier);
     void (*compute_colors)(EntityInstance& inst, const EntityFamilyTraits& traits, const TierProfile& tier);
-    void (*write_active)(Cartridge* c, const EntityInstance& inst);
-    void (*write_gpu)(Cartridge* c, const EntityInstance& inst, wgpu::Queue& queue);
-    void (*post_commit)(Cartridge* c, const EntityInstance& inst, wgpu::Queue& queue);
+    void (*write_active)(MachineCtx* c, const EntityInstance& inst);
+    void (*write_gpu)(MachineCtx* c, const EntityInstance& inst, wgpu::Queue& queue);
+    void (*post_commit)(MachineCtx* c, const EntityInstance& inst, wgpu::Queue& queue);
     const TierProfile& (*get_tier_profile)(uint32_t tier_idx);
 };
 
@@ -303,12 +345,12 @@ struct PlacementEntry {
 // integration hub (SEAM[spine:owns] at its banner in cartridge.hpp).
 
 struct FamilyDispatch {
-    bool (*try_select)(Cartridge* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
-    bool (*try_place)(Cartridge* self, EntityQueueEntry& e, PlacementEntry& pe);
-    void (*try_commit)(Cartridge* self, PlacementEntry& pe, wgpu::Queue& queue);
-    void (*evict_slot)(Cartridge* self, uint32_t slot, wgpu::Queue& queue);
-    bool (*prepare_mesh)(Cartridge* self, wgpu::Queue& queue);
-    void (*dispatch_mesh)(Cartridge* self, wgpu::ComputePassEncoder& pass);
+    bool (*try_select)(MachineCtx* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
+    bool (*try_place)(MachineCtx* self, EntityQueueEntry& e, PlacementEntry& pe);
+    void (*try_commit)(MachineCtx* self, PlacementEntry& pe, wgpu::Queue& queue);
+    void (*evict_slot)(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
+    bool (*prepare_mesh)(MachineCtx* self, wgpu::Queue& queue);
+    void (*dispatch_mesh)(MachineCtx* self, wgpu::ComputePassEncoder& pass);
     const char* name;
 };
 

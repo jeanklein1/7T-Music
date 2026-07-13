@@ -22,7 +22,7 @@ namespace the_board {
 
 // ── The patch registry ─────────────────────────────────────────────
 
-inline ActivePatch* find_patch(Cartridge* c, int32_t gx, int32_t gz) {
+inline ActivePatch* find_patch(MachineCtx* c, int32_t gx, int32_t gz) {
     for (uint32_t i = 0; i < c->world_state_.active_patch_count; i++) {
         if (c->patch_system_state_.patches_[i].valid && c->patch_system_state_.patches_[i].grid_x == gx && c->patch_system_state_.patches_[i].grid_z == gz)
             return &c->patch_system_state_.patches_[i];
@@ -32,14 +32,14 @@ inline ActivePatch* find_patch(Cartridge* c, int32_t gx, int32_t gz) {
 
 // Hook: full eviction of a single patch.
 inline void evict_patch(Cartridge* c, uint32_t pi, wgpu::Queue& queue) {
-    free_layer(c, c->patch_system_state_.patches_[pi].layer);
+    free_layer(&c->machine_ctx_, c->patch_system_state_.patches_[pi].layer);
     // Painting eviction now handled by evict_gallery (gallery.inl) via entity_refs
-    evict_patch_entities(c, c->patch_system_state_.patches_[pi], queue);
-    unregister_footprints_for_patch(c, c->patch_system_state_.patches_[pi].grid_x, c->patch_system_state_.patches_[pi].grid_z);
+    evict_patch_entities(&c->machine_ctx_, c->patch_system_state_.patches_[pi], queue);
+    unregister_footprints_for_patch(&c->machine_ctx_, c->patch_system_state_.patches_[pi].grid_x, c->patch_system_state_.patches_[pi].grid_z);
     c->patch_system_state_.patches_[pi].valid = false;
 }
 
-inline void evict_patch_entities(Cartridge* c, ActivePatch& patch, wgpu::Queue& queue) {
+inline void evict_patch_entities(MachineCtx* c, ActivePatch& patch, wgpu::Queue& queue) {
 #ifdef DIAG_ENTITY_LIFECYCLE
     if (patch.entity_ref_count > 0) {
         float wx = (patch.grid_x + 0.5f) * PATCH_EXTENT;
@@ -207,7 +207,7 @@ inline void teardown_surface(Cartridge* c, wgpu::Queue& queue) {
 
     // Clear all entity piers (keep test rig at slots 0-2)
     for (uint32_t i = Dim::PIER_ARCH_BASE; i < Dim::PIER_TOTAL; i++) {
-        clear_pier(c, queue, i);
+        clear_pier(&c->machine_ctx_, queue, i);
     }
 
     // Footprints
@@ -229,14 +229,14 @@ inline void teardown_surface(Cartridge* c, wgpu::Queue& queue) {
 //
 // Rode in from spawn_engine at its conversion (Phase R stamp: PIERS
 // ride patch_system); cpuPiers_ is module state (patch_system_state_).
-inline void write_pier(Cartridge* c, wgpu::Queue& queue, uint32_t slot, const GPUPierInstance& pier) {
+inline void write_pier(MachineCtx* c, wgpu::Queue& queue, uint32_t slot, const GPUPierInstance& pier) {
     c->patch_system_state_.cpuPiers_[slot] = pier;
     c->gpuState_.upload_pier_slot(queue, slot, pier);
     c->world_state_.pier_count_dirty = true;
     c->world_state_.ground_entries_dirty = true;
 }
 
-inline void clear_pier(Cartridge* c, wgpu::Queue& queue, uint32_t slot) {
+inline void clear_pier(MachineCtx* c, wgpu::Queue& queue, uint32_t slot) {
     GPUPierInstance empty{};
     c->patch_system_state_.cpuPiers_[slot] = empty;
     c->gpuState_.upload_pier_slot(queue, slot, empty);
@@ -244,7 +244,7 @@ inline void clear_pier(Cartridge* c, wgpu::Queue& queue, uint32_t slot) {
     c->world_state_.ground_entries_dirty = true;
 }
 
-inline void recompute_and_upload_pier_count(Cartridge* c, wgpu::Queue& queue) {
+inline void recompute_and_upload_pier_count(MachineCtx* c, wgpu::Queue& queue) {
     uint32_t highest = 0;
     for (uint32_t i = 0; i < Dim::PIER_TOTAL; i++) {
         if (c->patch_system_state_.cpuPiers_[i].is_active) highest = i + 1;
@@ -253,7 +253,7 @@ inline void recompute_and_upload_pier_count(Cartridge* c, wgpu::Queue& queue) {
     c->gpuState_.upload_pier_count(queue);
 }
 
-inline void flush_pier_count(Cartridge* c, wgpu::Queue& queue) {
+inline void flush_pier_count(MachineCtx* c, wgpu::Queue& queue) {
     if (!c->world_state_.pier_count_dirty) return;
     c->world_state_.pier_count_dirty = false;
     recompute_and_upload_pier_count(c, queue);
@@ -261,7 +261,7 @@ inline void flush_pier_count(Cartridge* c, wgpu::Queue& queue) {
 
 // Rode in from spawn_engine at its conversion (Phase R stamp): the
 // pier writers' regen fan-out over the registry.
-inline void mark_patches_for_regen(Cartridge* c, float min_wx, float min_wz,
+inline void mark_patches_for_regen(MachineCtx* c, float min_wx, float min_wz,
     float max_wx, float max_wz,
     int32_t home_gx, int32_t home_gz) {
     int32_t pg_x0 = (int32_t)std::floor(min_wx / PATCH_EXTENT);
@@ -316,7 +316,7 @@ inline void setup_test_rig_piers(Cartridge* c, wgpu::Queue queue) {
     ramp.edge_blend = 0.5f;
     ramp.tier = PierTier::TEST_RIG;
     ramp.is_active = 1;
-    write_pier(c, queue, 0, ramp);
+    write_pier(&c->machine_ctx_, queue, 0, ramp);
 
     // Plateau: flat at height 3, overlaps ramp at x=18.
     GPUPierInstance plat{};
@@ -327,7 +327,7 @@ inline void setup_test_rig_piers(Cartridge* c, wgpu::Queue queue) {
     plat.edge_blend = 0.5f;
     plat.tier = PierTier::TEST_RIG;
     plat.is_active = 1;
-    write_pier(c, queue, 1, plat);
+    write_pier(&c->machine_ctx_, queue, 1, plat);
 
     // Block: sharp edges → step-height walls (impassable).
     GPUPierInstance block{};
@@ -338,7 +338,7 @@ inline void setup_test_rig_piers(Cartridge* c, wgpu::Queue queue) {
     block.edge_blend = 0.0f;
     block.tier = PierTier::TEST_RIG;
     block.is_active = 1;
-    write_pier(c, queue, 2, block);
+    write_pier(&c->machine_ctx_, queue, 2, block);
 }
 
 // ── Patch generation ───────────────────────────────────────────────
@@ -394,7 +394,7 @@ inline GPUPatchParams make_patch_params(Cartridge* c, int32_t gx, int32_t gz, ui
 
 // ── Layer allocator ────────────────────────────────────────────────
 
-inline uint32_t alloc_layer(Cartridge* c) {
+inline uint32_t alloc_layer(MachineCtx* c) {
     if (c->world_state_.free_layer_count == 0) {
         // Safety: no free layers — recycle layer 0 rather than crash.
         // This shouldn't happen if eviction works correctly.
@@ -403,7 +403,7 @@ inline uint32_t alloc_layer(Cartridge* c) {
     return c->patch_system_state_.freeLayerStack_[--c->world_state_.free_layer_count];
 }
 
-inline void free_layer(Cartridge* c, uint32_t layer) {
+inline void free_layer(MachineCtx* c, uint32_t layer) {
     c->patch_system_state_.freeLayerStack_[c->world_state_.free_layer_count++] = layer;
 }
 
@@ -474,11 +474,11 @@ inline void spawn_selected_patches(Cartridge* c, const PatchCandidate* candidate
         uint32_t pi = candidates[s].idx;
         evaluate_theme_envelope(c->themes_state_, c,
             tile_seed(c->world_state_.active_seed, c->patch_system_state_.patches_[pi].grid_x, c->patch_system_state_.patches_[pi].grid_z));
-        select_entities_for_patch(c, c->patch_system_state_.patches_[pi].grid_x, c->patch_system_state_.patches_[pi].grid_z);
+        select_entities_for_patch(&c->machine_ctx_, c->patch_system_state_.patches_[pi].grid_x, c->patch_system_state_.patches_[pi].grid_z);
         c->patch_system_state_.patches_[pi].phase = PatchPhase::SPAWNED;
     }
-    place_entity_queue(c);
-    commit_entity_queue(c, queue);
+    place_entity_queue(&c->machine_ctx_);
+    commit_entity_queue(&c->machine_ctx_, queue);
 
     for (uint32_t s = 0; s < count; s++) {
         uint32_t pi = candidates[s].idx;
@@ -600,7 +600,7 @@ inline void stream_patches(Cartridge* c, wgpu::CommandEncoder& encoder, wgpu::Qu
                         }
                     }
                     if (!found && c->world_state_.free_layer_count > 0) {
-                        uint32_t layer = alloc_layer(c);
+                        uint32_t layer = alloc_layer(&c->machine_ctx_);
                         c->patch_system_state_.patches_[c->world_state_.active_patch_count] = ActivePatch{};
                         c->patch_system_state_.patches_[c->world_state_.active_patch_count].grid_x = gx;
                         c->patch_system_state_.patches_[c->world_state_.active_patch_count].grid_z = gz;
@@ -719,7 +719,7 @@ inline void stream_patches(Cartridge* c, wgpu::CommandEncoder& encoder, wgpu::Qu
             for (int dz = -1; dz <= 1; dz++) for (int dx = -1; dx <= 1; dx++) {
                 ensure_tile_padding(c->tile_world_state_, c, gx + dx, gz + dz);
             }
-            uint32_t layer = alloc_layer(c);
+            uint32_t layer = alloc_layer(&c->machine_ctx_);
             c->patch_system_state_.patches_[c->world_state_.active_patch_count] = ActivePatch{};
             c->patch_system_state_.patches_[c->world_state_.active_patch_count].grid_x = gx;
             c->patch_system_state_.patches_[c->world_state_.active_patch_count].grid_z = gz;
@@ -868,11 +868,11 @@ inline void stream_patches(Cartridge* c, wgpu::CommandEncoder& encoder, wgpu::Qu
     c->world_state_.patch_instances_dirty = false;
 
     // ─── Entity distance culling ─────────────────────────────
-    c->world_state_.entities_culled = update_entity_draw_visibility(c, queue);
+    c->world_state_.entities_culled = update_entity_draw_visibility(&c->machine_ctx_, queue);
 
     // ─── Deferred uploads (one per frame max) ────────────────
     if (tileGridDirty) upload_tile_grid_now(c->tile_world_state_, c, queue, c->world_state_.last_center_x, c->world_state_.last_center_z);
-    flush_pier_count(c, queue);
+    flush_pier_count(&c->machine_ctx_, queue);
 
     audit_entity_integrity(c);
 
