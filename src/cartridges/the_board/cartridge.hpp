@@ -55,7 +55,6 @@
 #include "cartridges/the_board/contracts/spine_state.hpp"          // TimeState + PlayerState + TransitionPhase + InputState + MoodState/MoodProfile/MOOD_TABLE + the request door decl (spine organ TYPES; instances stay at the root — m1 D3, Batch C/D graduations)
 #include "cartridges/the_board/contracts/floater_vocabulary.hpp"   // floater TYPES (ActiveFloater/ActiveCube), file scope
 #include "cartridges/the_board/realization/state.hpp"
-#include "cartridges/the_board/realization/render_passes.hpp"        // the nine pass/dispatch + light-VP decls (impl is render_passes.inl, post-class; module owns no state)
 #include "cartridges/the_board/surface/population_themes.hpp"  // S2: THEMES + ThemeEnvelope + ThemesState — MERGED single file (DISSOLVE-1 d3 #1)
 #include "cartridges/the_board/surface/patch_system.hpp"     // S2: WorldState + ActivePatch + budgets + visibility + PatchSystemState + decls (impl is patch_system.inl, post-class)
 #include "cartridges/the_board/surface/tile_world.hpp"          // S2: archetypes + tokens + TileState/cache + TileWorldDeps + impl — MERGED single file (DISSOLVE-1 Batch A d3); after patch_system for WorldState/PATCH_EXTENT
@@ -71,6 +70,7 @@
 #include "cartridges/the_board/bodies/ribbon.hpp"               // RibbonState + RibbonDeps + impl — MERGED (DISSOLVE-1 Batch C); after visual_canvas for the coupling face
 #include "cartridges/the_board/bodies/gallery.hpp"              // GalleryState + GalleryDeps + impl — MERGED (DISSOLVE-1 Batch C); after ribbon for RibbonState
 #include "cartridges/the_board/direction/input.hpp"             // KeyState/MouseState + InputDeps + impl — MERGED (DISSOLVE-1 Batch C); after ribbon for RibbonState (the sky fixture); InputState graduated to spine_state
+#include "cartridges/the_board/realization/render_passes.hpp"   // the pass/dispatch bodies on THE MACHINE FACE + light-VP helpers — MERGED (DISSOLVE-1 Batch D); before mood (compute_spot_light_vp)
 #include "cartridges/the_board/direction/mood.hpp"              // MoodDeps + portal/palette vocabulary + impl — MERGED (DISSOLVE-1 Batch D); after ribbon/gallery/input (fan targets), before the machine natives (they call its derivers); MoodState/MoodProfile/MOOD_TABLE graduated to spine_state
 #include "cartridges/the_board/machine/spawn_engine.hpp"        // S3: proximity tables + footprints + SpawnEngineState + the preamble template + impl — MERGED (DISSOLVE-1 Batch C); after entities/renderer for complete organs; decl tier in contracts/spawn_services.hpp
 #include "cartridges/the_board/machine/entity_pipeline.hpp"     // S3: the rescale template + the three-phase verbs + the welded four — MERGED (DISSOLVE-1 Batch C); after spawn_engine (services) + entities (vocab)
@@ -1041,7 +1041,7 @@ namespace t7 {
                 // The SNAP-1 sky resync lives at the ribbon tick's tail now
                 // (m6, Option A) — O-1 by construction: tick above,
                 // dispatch below, queue writes in submission order.
-                dispatch_compute(this, encoder);
+                dispatch_compute(&machine_ctx_, encoder);
 
                 // ═══ MOVEMENT: WITNESS — CAPTURE (O-2: staging copies AFTER
                 // compute; feeds next frame's HARVEST) ══════════════════════
@@ -1101,20 +1101,20 @@ namespace t7 {
                 if (world_state_.ground_entries_dirty) {
                     world_state_.ground_entries_dirty = false;
                     world_state_.placement_dirty = true;
-                    upload_ground_entries(this, queue);
+                    upload_ground_entries(&machine_ctx_, queue);
                 }
                 if (world_state_.placement_dirty) {
                     world_state_.placement_dirty = false;
-                    dispatch_placement_correction(this, encoder);
+                    dispatch_placement_correction(&machine_ctx_, encoder);
                 }
 
                 // O-7 tail: cull before the draw passes (indirect draws
                 // consume the cull output); snapshot before promotions.
                 // DIAG: frustum cull re-enabled — indirect draw active
-                dispatch_frustum_cull(this, encoder, queue);
+                dispatch_frustum_cull(&machine_ctx_, encoder, queue);
 
-                render_shadow_pass(this, encoder);
-                render_main_pass(this, encoder, backbuffer, depth);
+                render_shadow_pass(&machine_ctx_, encoder, cpuSpotLights_);
+                render_main_pass(&machine_ctx_, encoder, backbuffer, depth, clearColor_, orbs_state_, orbs_deps_);
                 render_snapshot_pass(gallery_state_, &gallery_deps_, encoder);
 
                 // Promotion drain, one owner verb (REBUILD-0 m2 — stray (5)
@@ -1199,7 +1199,6 @@ namespace t7 {
 // ═══ MODULE IMPLEMENTATIONS (post-class, FILE SCOPE) ══════════════════
 //
 // WIRING FORM (fix-2): SELF-WRAPPING — the zone includes impls at FILE SCOPE; law in audit/LADDER.md.
-#include "realization/render_passes.inl"  // ground-entry prep + compute dispatch + shadow/main passes + light VPs
 #include "surface/patch_system.inl"  // the active-patch machine — registry lifecycle + budgets + teardown + allocator + the streaming conductor
 // ═══ THE TABLE — FAMILY_DISPATCH (DISSOLVE-1 Batch A, A1) ══════════
 // Inlined from machine/family_dispatch.inl (retired): the definition
