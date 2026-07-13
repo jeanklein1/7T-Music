@@ -123,7 +123,7 @@ inline constexpr float RIBBON_FLOOR_MARGIN   = 25.0f;   // guaranteed gap over t
 inline constexpr float RIBBON_ALT_SMOOTH_DIST = 180.0f; // units of travel over which the altitude target relaxes — the head reads the LANDSCAPE, not the terrain texture
 inline constexpr float RIBBON_ALT_STIFF      = 0.36f;   // (rad/s)^2 — the pen's stiffness; damping = 2*sqrt(stiffness), critically damped
 inline constexpr float RIBBON_MOUNT_SETBACK  = 1.5f;    // pawn seat setback toward the tail (+heading) so the body sits over the tube, not the leading cap
-inline constexpr float RIBBON_SKY_YAW_TAU    = 0.6f;    // s; first-order ease on the PLAYER's yaw hand — the body replays the heading history, so bang-bang arrows must become curves; short tau keeps it immediate
+inline constexpr float RIBBON_SKY_YAW_TAU    = 0.6f;    // s; first-order ease on the PLAYER's yaw hand — the body replays the heading history, so bang-bang key input must become curves; short tau keeps it immediate
 inline constexpr float RIBBON_REFERENCE_BPM  = 100.0f;  // the tempo at which the tiers' authored sway is DEFINED; phase advances at live-tempo/this (control-panel)
 
 // ── Frame-law mirrors (BNK-2) ── LOCKSTEP MIRRORS of world.wgsl's
@@ -430,7 +430,7 @@ struct RibbonState {
     //    flips mode; the exit edge reads mode_prev; yaw_eased is the
     //    player's eased pen (curvature continuity). ──
     struct SkyFlight {
-        bool  mode = false;        // sky-flight: arrows drive the rendered ribbon's head
+        bool  mode = false;        // sky-flight: the move channel (W/S/A/D) drives the rendered ribbon's head
         bool  mode_prev = false;   // previous-frame mode — drives the exit edge (ribbon release)
         float yaw_eased = 0.0f;    // player's eased yaw
     };
@@ -653,7 +653,7 @@ inline void ribbon_advance_head(RibbonState& rs, GPUState& gpuState,
         // the face, by construction), the face can never turn inward
         // against the body, and heading-vs-path divergence stays at a
         // few degrees. Reverse is forbidden (a snake does not burrow
-        // into its own body): down-arrow is no thrust.
+        // into its own body): S (reverse intent) is no thrust — the ribbon's forward grammar.
         // SEAM[ribbon:sky-mode].
         const float speed = std::max(throttle_in, 0.0f) * RIBBON_MAX_SPEED;
         const float yaw_avail = std::min(RIBBON_YAW_RATE, speed / RIBBON_R_MIN);

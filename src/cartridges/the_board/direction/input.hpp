@@ -72,20 +72,21 @@ struct CameraControls {
 // ribbon's sky flight, so it precedes them in the cohort). KeyState /
 // MouseState stay here: the driver's private organs.
 
-// Held movement keys (arrow keys) — update_movement_intent folds
+// Held movement keys (W/S/A/D — THE UNIVERSAL MOVE CHANNEL, p1a-fix):
+// one key set authors the driver's move-intent; WHOEVER HOSTS THE
+// POINT consumes it, under that host's own constraint AND mapping —
+// the constraint-and-mapping IS the host's behavioral identity (pawn:
+// camera-relative full-directional, snap; camera: camera-relative
+// full-directional, rule none; ribbon in sky mode: its own
+// forward-biased grammar — a ribbon that could reverse and strafe
+// wouldn't be a ribbon). Arrows RETIRED completely (census: no
+// non-movement arrow use existed). update_movement_intent folds
 // these into inputState_.move_x/move_z.
 struct KeyState {
     bool forward = false;
     bool backward = false;
     bool left = false;
     bool right = false;
-    // Free-fly held keys (W/A/S/D — PANEL-0 p1a). Consumed only when
-    // the CAMERA hosts the point; inert in pawn-host mode (arrows
-    // stay the pawn's keys — the one intent channel, host-routed).
-    bool fly_forward = false;
-    bool fly_back    = false;
-    bool fly_left    = false;
-    bool fly_right   = false;
 };
 
 // Mouse drag state — on_mouse_move reads these to decide which
@@ -114,7 +115,7 @@ struct InputDeps {
     RibbonState&  ribbon_state_;  // sky.mode — the ribbon's fixture (m6, Option A)
     GPUState&     gpuState_;      // the freeze toggle + the fpv wire
     wgpu::Device& device_;        // the queue fetch (the S5-style declared handle)
-    PointState&   point_;         // the point (PANEL-0 p1a) — host toggle + intent routing
+    PointState&   point_;         // the point (PANEL-0 p1a) — the host toggle (key 4)
 };
 
 // ═══ MODULE FUNCTIONS — DECLARATIONS ═════════════════════════════
@@ -153,7 +154,7 @@ void set_render_radius(InputDeps* c, uint32_t r);
 
 // ═══ KEY BINDING REGISTRY ════════════════════════════════════════
 //
-// ── Movement (held; arrow keys) ──────────────────────────────────
+// ── Movement (held; W/S/A/D — the universal move channel) ────────
 //
 // ── World / aura toggles ─────────────────────────────────────────
 //
@@ -267,15 +268,10 @@ inline void on_key_down(InputDeps* c, int key,
     switch (key) {
 
     // ── Movement ─────────────────────────────────────────────────
-    case GLFW_KEY_UP:    c->keys_.forward = true;  break;
-    case GLFW_KEY_DOWN:  c->keys_.backward = true; break;
-    case GLFW_KEY_LEFT:  c->keys_.left = true;     break;
-    case GLFW_KEY_RIGHT: c->keys_.right = true;    break;
-    // Free-fly movement (held; camera-host keys — PANEL-0 p1a)
-    case GLFW_KEY_W: c->keys_.fly_forward = true; break;
-    case GLFW_KEY_S: c->keys_.fly_back    = true; break;
-    case GLFW_KEY_A: c->keys_.fly_left    = true; break;
-    case GLFW_KEY_D: c->keys_.fly_right   = true; break;
+    case GLFW_KEY_W: c->keys_.forward = true;  break;
+    case GLFW_KEY_S: c->keys_.backward = true; break;
+    case GLFW_KEY_A: c->keys_.left = true;     break;
+    case GLFW_KEY_D: c->keys_.right = true;    break;
 
     // ── World / aura toggles ─────────────────────────────────────
     case GLFW_KEY_1:
@@ -327,14 +323,10 @@ inline void on_key_down(InputDeps* c, int key,
 
 inline void on_key_up(InputDeps* c, int key) {
     switch (key) {
-    case GLFW_KEY_UP:    c->keys_.forward = false;  break;
-    case GLFW_KEY_DOWN:  c->keys_.backward = false; break;
-    case GLFW_KEY_LEFT:  c->keys_.left = false;     break;
-    case GLFW_KEY_RIGHT: c->keys_.right = false;    break;
-    case GLFW_KEY_W: c->keys_.fly_forward = false; break;
-    case GLFW_KEY_S: c->keys_.fly_back    = false; break;
-    case GLFW_KEY_A: c->keys_.fly_left    = false; break;
-    case GLFW_KEY_D: c->keys_.fly_right   = false; break;
+    case GLFW_KEY_W: c->keys_.forward = false;  break;
+    case GLFW_KEY_S: c->keys_.backward = false; break;
+    case GLFW_KEY_A: c->keys_.left = false;     break;
+    case GLFW_KEY_D: c->keys_.right = false;    break;
     }
     update_movement_intent(c);
 }
@@ -368,21 +360,14 @@ inline void update_movement_intent(InputDeps* c) {
     c->inputState_.move_x = 0.0f;
     c->inputState_.move_z = 0.0f;
 
-    // ONE INTENT CHANNEL, host-routed (PANEL-0 p1a; the sky-mode
-    // precedent): the point's host consumes move — W/A/S/D author it
-    // for the camera host (free-fly); the arrows for the pawn host
-    // (byte-identical below). The other set is inert per mode.
-    if (c->point_.host == PointHost::CAMERA) {
-        if (c->keys_.fly_forward) c->inputState_.move_z -= 1.0f;
-        if (c->keys_.fly_back)    c->inputState_.move_z += 1.0f;
-        if (c->keys_.fly_left)    c->inputState_.move_x -= 1.0f;
-        if (c->keys_.fly_right)   c->inputState_.move_x += 1.0f;
-    } else {
-        if (c->keys_.forward)  c->inputState_.move_z -= 1.0f;
-        if (c->keys_.backward) c->inputState_.move_z += 1.0f;
-        if (c->keys_.left)     c->inputState_.move_x -= 1.0f;
-        if (c->keys_.right)    c->inputState_.move_x += 1.0f;
-    }
+    // THE UNIVERSAL MOVE CHANNEL (p1a-fix): W/S/A/D author this fold;
+    // consumption is host-routed downstream (the pawn kernel's
+    // point_camera_hosted guard, the camera's fly branch, the ribbon's
+    // sky steering) — no CPU-side routing needed with one key set.
+    if (c->keys_.forward)  c->inputState_.move_z -= 1.0f;
+    if (c->keys_.backward) c->inputState_.move_z += 1.0f;
+    if (c->keys_.left)     c->inputState_.move_x -= 1.0f;
+    if (c->keys_.right)    c->inputState_.move_x += 1.0f;
 
     float len = std::sqrt(c->inputState_.move_x * c->inputState_.move_x +
         c->inputState_.move_z * c->inputState_.move_z);
@@ -409,15 +394,18 @@ inline void toggle_fpv_mode(InputDeps* c) {
         << (c->player_.fpv_mode ? "First-Person View" : "Orbit") << std::endl;
 }
 
-// Sky-flight toggle. While ON, the arrow keys steer the rendered
-// ribbon's head (up/down = throttle, left/right = yaw); the sky altitude
+// Sky-flight toggle. While ON, the move channel (W/S = throttle,
+// A/D = yaw) steers the rendered ribbon's head — the ribbon consumes
+// the ONE channel under its own forward-biased grammar (p1a-fix: the
+// host owns its mapping; sky mode's arrow special case retired into
+// the general rule); the sky altitude
 // is held by a critically damped pen, not fixed. While OFF, the ribbon
 // holds its stationary arc. The pawn snap and camera follow have landed;
 // only the fade transition remains unbuilt. SEAM[ribbon:sky-mode].
 inline void toggle_sky_mode(InputDeps* c) {
     c->ribbon_state_.sky.mode = !c->ribbon_state_.sky.mode;  // the ribbon's fixture (m6, Option A)
     std::cout << "[the_board] Sky mode: "
-        << (c->ribbon_state_.sky.mode ? "ON (fly the ribbon with arrows)" : "OFF") << std::endl;
+        << (c->ribbon_state_.sky.mode ? "ON (fly the ribbon with W/S/A/D)" : "OFF") << std::endl;
 }
 
 // The point's host toggle (PANEL-0 p1a) — the driver's iteration

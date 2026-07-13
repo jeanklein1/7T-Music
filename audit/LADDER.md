@@ -1833,3 +1833,49 @@ influence, no portal fire; key 4 again returns the kite) + the panel
 retune check (both dials visibly change feel). p1b (tickable body +
 portal/bubble re-seat) stays queued by pull; p2 (the matrix) next on
 Jean's word.
+
+## PANEL-0 p1a-fix — THE UNIVERSAL MOVE CHANNEL (WASD binds; arrows
+## retire; the host owns its mapping)
+
+Rig Boundary p1a: the kite PIXEL-IDENTICAL (Jean); key 4 switches
+hosts correctly; WASD moved nothing because WASD WAS NEVER BOUND —
+the camera host read a channel nothing wrote. The fix, per Jean's
+ratified principle: ONE move-intent channel, authored by W/S/A/D,
+consumed by WHOEVER HOSTS THE POINT under that host's own constraint
+AND mapping — THE CONSTRAINT-AND-MAPPING IS THE HOST'S BEHAVIORAL
+IDENTITY (succession note for v3 §11, joining the point model; sky
+mode's arrow-routing special case retires into the general rule).
+
+THE CENSUS CAME BACK EMPTY: arrows existed in code ONLY as the eight
+movement key cases (input.hpp) — no non-movement arrow use anywhere;
+nothing kept. The ribbon steers via the CHANNEL (RibbonDeps'
+inputState_), not via arrows — its "arrow" mentions were comments,
+now corrected to the channel truth.
+
+THE CUT: W/S/A/D author keys_.forward/backward/left/right (the same
+fields — arrows' cases replaced, the p1a fly_* fields retired); with
+ONE key set the p1a CPU routing branch COLLAPSES — update_movement_
+intent's fold returns to its pre-p1a body byte-identical, which
+satisfies the narrow pixel gate BY CONSTRUCTION (same fields, same
+fold, same signal; pixels cannot tell which physical key authored the
+intent). Consumption stays host-routed downstream exactly as cut in
+p1a: the pawn kernel's point_camera_hosted guard, the camera's fly
+branch, the ribbon's sky steering — zero WGSL changes this fix. Host
+mappings recorded: pawn camera-relative full-directional SNAP
+(unchanged math); camera camera-relative full-directional NONE;
+ribbon forward-biased grammar UNCHANGED (a ribbon that could reverse
+and strafe wouldn't be a ribbon — W/S throttle, A/D yaw, S is no
+thrust).
+
+SEPARATELY QUEUED (held for p1b, Jean's second rig point): the
+SHADOW-VP RE-ANCHOR to the point — the distinguishing rule for the
+record: VIEWPOINT-SERVING resources follow the POINT (shadow-VP);
+ENTITY-EMANATING fields follow the BODY (aura, forcefield). Touches
+the pixel-gated shadow path; pairs with p1b's point-following work.
+
+GATES: glaw1 GREEN full + minimal; score census GREEN (A/B/W +
+W-deps); sentinels 148/5; encodings clean; arrows ZERO in code.
+AWAITING THE RIG: pawn host — WASD moves the pawn exactly as arrows
+did (the narrow pixel gate), arrows do nothing; key 4 — WASD flies
+the camera (the probe now passes); sky mode — the ribbon steers by
+its own grammar via WASD, feel unchanged.
