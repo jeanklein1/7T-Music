@@ -53,6 +53,7 @@
 #include "cartridges/the_board/contracts/spawn_services.hpp"      // THE MACHINE'S DECL TIER: spawn/pipeline service decls + boundary DTOs + arch vocabulary + MIN_SEPARATION (DISSOLVE-1 Batch C — bodies ride the merged machine headers at the cohort tail)
 #include "cartridges/the_board/contracts/mood_constants.hpp"       // MOOD_COUNT + the Mood IDs + PortalDestination
 #include "cartridges/the_board/contracts/spine_state.hpp"          // TimeState + PlayerState + TransitionPhase + InputState + MoodState/MoodProfile/MOOD_TABLE + the request door decl (spine organ TYPES; instances stay at the root — m1 D3, Batch C/D graduations)
+#include "cartridges/the_board/contracts/point.hpp"                // THE POINT (PANEL-0 p1a): the parent of the player system — host enum + terrain rule + the bubble decl; instance at the root
 #include "cartridges/the_board/contracts/floater_vocabulary.hpp"   // floater TYPES (ActiveFloater/ActiveCube), file scope
 #include "cartridges/the_board/realization/state.hpp"
 #include "cartridges/the_board/surface/population_themes.hpp"  // S2: THEMES + ThemeEnvelope + ThemesState — MERGED single file (DISSOLVE-1 d3 #1)
@@ -194,6 +195,15 @@ namespace t7 {
             // (REBUILD-0 m1, stamp D3) — SEAM[spine:P8] rides with the
             // struct; the instance stays here.
             PlayerState player_{};
+
+            // ═══ THE POINT (PANEL-0 p1a) ═════════════════════════════════
+            //
+            // The parent of the player system (contracts/point.hpp): the
+            // camera is its permanent witness; the pawn is its default
+            // host (the kite); free-fly re-hosts it on the camera. The
+            // GPU mirror is config.point_host; the toggle is input's
+            // point-host command (key 4).
+            PointState point_{};
 
             // ═══ THE MACHINE FACE (DISSOLVE-1 d1) ═══════════════════════
             // The one declared context the dispatch contract hands the
