@@ -1635,4 +1635,93 @@ The .inl census reads THREE, all Batch D: mood.inl, render_passes.inl,
 patch_system.inl. BOM census: renderer.hpp + render_passes.inl. GATES
 per commit: glaw1 GREEN full + minimal; score census GREEN (A/B/W +
 W-deps); zone 6==6 / 5==5 / 3==3; sentinels 148/5; encodings verified.
-AWAITING RIG BOUNDARY C: golden + minimal witness; zone count 3.
+RIG BOUNDARY C: CLEAN (Jean, golden run — "All is good with the build").
+
+## DISSOLVE-1 — BATCH D (mood, render_passes, patch_system; d3 COMPLETE)
+
+Five commits; the last three .inls retired (zone 3 -> 0). The
+pattern-book from A/B/C carried the whole batch: the B law (fan
+targets at the call sites, never in the struct), MachineCtx-whole
+where the face covers it, deps-form doors, the contract split for
+two-tier orchestrators.
+
+MOOD (2 commits). MoodDeps — the atmosphere author's face, 12
+members: the mood organ, a const world view, the realization pokes
+(GPUState + the frustum-cull flag on Renderer), the gol mood gate
+(the m4 flag channel), a const entities view (the portal-array upload
+reads arch positions), the sun/clear channel (three float(&)[3]), the
+CPU light + portal staging arrays, the back-portal anchor. The fan —
+ribbon/orbs/gallery/pawn + the machine face — rides apply_mood's tail
+parameters; the force-spawn internals carry the machine face down
+(the arch's owner writes through its own door, so the deps view of
+entities stays const). THE GRADUATION had one course correction worth
+the record: the first-cut home (mood_constants) closed a CYCLE with
+the demo sentence — the demos include mood_constants for the Mood
+IDs, and MoodState's boot default reads DEMO — so the DEMO-reading
+tier (MoodState / CeilingType / MoodProfile / MOOD_TABLE + the
+request door decl) rides contracts/spine_state.hpp instead: the
+InputState precedent, the mood organ was ALWAYS spine-resident with
+its transition machine (K4), and demo.hpp precedes spine_state in the
+cohort (the patch_system DEMO.seed precedent). mood.hpp+inl collapsed
+to ONE header at the tail; the census file-map followed (three
+delegated-gate sites mood.inl -> mood.hpp — the gate caught the stale
+map again, as designed).
+
+RENDER_PASSES (1 commit). The realization conductor stands on THE
+MACHINE FACE whole — its nine organ reaches are all machine members,
+byte-identical through the face. The three reaches outside it ride
+the call site: the CPU spot-light array (const, shadow pass), the
+clear color (const, main pass), the orbs pair (render_orbs — the one
+sibling door). Merged BEFORE mood in the tail (mood's spot-light
+applier calls compute_spot_light_vp) — no graduation needed at all.
+render_passes.inl's BOM died with the file: the BOM census read
+renderer.hpp ALONE from this commit on.
+
+PATCH_SYSTEM (2 commits — LAST, alone, per the cadence). Fifteen
+keyholed verbs convert to MachineCtx* (bodies byte-identical; the
+fifteen &c->machine_ctx_ handoffs collapse to c). The reaches outside
+the face ride the call sites — and the COMPILER found the one the
+census grep missed: the machine face's tile_world/themes views are
+CONST (the arrow law's stamped teeth), but patch_system is the
+surface's LIFECYCLE owner and mutates both through the m4 doors
+(ensure_tile / reset_tile_cache / reset_terrain_memory /
+evaluate_theme_envelope / reset_theme_envelope). The stamped const
+face stayed untouched; the writable organs thread down from the
+spine's call sites with the tile deps, the mood deps (the back-portal
+door), and the driver's intent organ (the movement budget read).
+THEN THE LAST MERGE: contracts/surface_services.hpp is born
+(spawn_services' sibling — WorldState, the patch registry vocabulary,
+PatchSystemState, budgets + visibility, the surface service decls),
+and surface/patch_system.hpp became the machine's bodies whole at the
+cohort tail's end.
+
+## DISSOLVE-1 — d4 CLOSE-OUT (the .inl era ends)
+
+THE COVENANT IS KEPT (v3 §7, the second puller): the .inl were not
+desired from the beginning, and the census now reads what the theory
+asked for —
+  · .inl files: ZERO (was eighteen).
+  · The post-class zone: EMPTY OF MODULES — eighteen impl includes
+    once stood at that file scope; what remains is FAMILY_DISPATCH,
+    the spine's own table, which was never a module.
+  · Cartridge* keyhole residue in module code: ZERO files. The
+    keyhole survives only as keyhole.hpp's forward declaration and
+    the root's own class.
+  · BOM census: renderer.hpp ALONE (the lone deliberate carrier).
+  · File census: 34 hpp / 0 inl — the module impl tier (18 files)
+    is GONE; the contracts tier grew by two named boundaries
+    (spawn_services, surface_services — the machine's and the
+    surface's decl tiers).
+  · The cohort, readable in one pass of cartridge.hpp's includes:
+    contracts (roster/demo/seed_utils/ground_architecture/
+    entity_types/spawn_services/mood_constants/spine_state/
+    floater_vocabulary) -> state -> themes -> surface_services ->
+    tile_world -> entities -> agents -> cube -> spheres -> renderer
+    -> pawn -> orbs -> gol -> visual_canvas -> ribbon -> gallery ->
+    input -> render_passes -> mood -> spawn_engine -> entity_pipeline
+    -> patch_system -> THE CLASS -> FAMILY_DISPATCH.
+GATES at close: glaw1 GREEN full + minimal; score census GREEN
+(A/B/W + W-deps); sentinels 148/5; encodings clean UTF-8/LF.
+AWAITING RIG BOUNDARY D (the campaign's last): golden + minimal
+witness; zone count 0. Lane 3 (the pipeline blob cache) is next in
+the queue after the boundary.
