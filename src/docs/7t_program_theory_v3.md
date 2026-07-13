@@ -95,7 +95,11 @@ re-framed: THE DISSOLUTION TOOLBOX — A2 (services graduation) and A3
 (keyhole dissolution, pair-merges) are no longer an era but tools,
 pulled per joint when a demo axis demands substitution there; first
 named candidate: the S2 boundary face (its four surfaces are already
-censused). Parked with names: M-m generation blockization, M-n
+censused). SECOND PULLER (DISSOLVE-1, Jean's ruling, verbatim): "The
+.inl were not desired from the beginning." THE COVENANT —
+comprehension — pulls dissolution arc-wide: zero keyhole residue
+module by module, the services face first so no conversion is ever
+incomplete or fake, pairs merging as residue hits zero. Parked with names: M-m generation blockization, M-n
 spawning evolution, the SH re-sections, the panel. NEW DIRECTIONS
 (v3, each pulled, none pre-built): M-o THE SEEDED SAMPLER (§12);
 M-p THE DIRECTION LAYER (§13); M-q THE BUBBLE SYSTEM (§11); M-r THE

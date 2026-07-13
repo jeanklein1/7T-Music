@@ -1386,3 +1386,25 @@ the campaign's head. Parked with names: the seventeen-module sweep
 the gol device_ self-submit (submission-order hazard), m7 packers
 (assert-first rider is the standing precondition), and R7's three
 levers (chain multiplier, lattice bake, pipeline blob caching).
+
+## DISSOLVE-1 — THE MACHINE FACE AND THE MERGES (Phase R landed; ONE STOP)
+
+Puller on record: THE COVENANT (comprehension) — Jean's sentence,
+now verbatim in v3 §7 (d0 rides this commit): "The .inl were not
+desired from the beginning." The m3 poisons are cured by ORDER — the
+services face (MachineCtx) cuts first. Phase R's face census is ONE
+report at audit/DISSOLVE1_FACES.md: R1 the MachineCtx composition
+(organ-named reference members — the template keyhole's escape
+clause executed: deduced C becomes MachineCtx with byte-identical
+bodies; const trio tiles/time/player load-bearing; the DUAL-ENTRY
+RULE names the four doors that template-ize), R2 the finalized deps
+table (post-campaign, const-encoded, witness clause folds in with a
+Direction W extension), R3 the merge forecast (THE COHORT LAW — each
+merge lands with a topological include-order proof; the BOM plan —
+the four .inl BOMs die with the .inls, renderer.hpp remains the lone
+deliberate BOM; patch_system merges last), R4 the holdouts (the gol
+self-submit DISSOLVES BY DECLARATION on GolDeps — submission-order
+analysis first-hand: the derive pass must keep executing before the
+frame's agent kernels, so the refactor stays forbidden and the
+handover is declared instead; rows with behavior-changing forms:
+NONE). FULL STOP — d1 cuts only after the stamp (S1-S5).
