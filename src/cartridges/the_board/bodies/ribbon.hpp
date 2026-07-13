@@ -415,7 +415,7 @@ void dispatch_commit_ribbon(Cartridge* self, PlacementEntry& pe, wgpu::Queue& qu
 // Frame conductor
 void ribbon_frame_tick(RibbonState& rs, Cartridge* c, wgpu::Queue& queue);
 // Head mover
-void ribbon_advance_head(RibbonState& rs, GPUState& gpuState,
+void ribbon_advance_head(RibbonState& rs, Cartridge* c,
     wgpu::Queue& queue, const GPURibbonState& ribbon,
     uint32_t slot, float t,
     bool flown, float yaw_in, float throttle_in, float dt,

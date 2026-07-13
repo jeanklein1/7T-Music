@@ -1224,3 +1224,25 @@ relocations token-identical vs HEAD modulo disclosed transforms
 sentinels ROSTER-GATE 123 -> 148 (+25, itemized), RESIDUE 5;
 encodings — BOM pair (agents.inl, ribbon.inl) intact, all files
 unchanged.
+
+**m3a — THE BYPASS CLEANUPS (the invariant slice of m3; recipe note
+holds the rest).** The four GPUState&-signature functions take the
+keyhole: clear_spheres moved header->inl (the pre-class header could
+not deref the incomplete Cartridge — that WAS the bypass's cause),
+clear_cubes re-shaped in place, ribbon_advance_head +
+ribbon_rebuild_body_upload re-shaped with both call sites. The raw
+config() pokes are NAMED: stage_pier_count / stage_placement_patch_
+count / stage_lod_pawn / stage_floater_coordination — STAGED setters,
+deliberately without configDirty_ (the pokes ride targeted sub-range
+uploads or the next dirty/dynamic full upload; the house setter's
+dirty flag would have CHANGED upload behavior — scope guard held).
+The gol device_ self-submit is DEFERRED BY NAME: folding it into the
+frame encoder reorders GPU submission — not behavior-safe without
+the rig. THE REST OF m3 AWAITS A RECIPE STAMP: the reach-order sweep
+self-blocks on services-last (censused in audit/REBUILD0_M3_RECIPE.md),
+the table seam keeps keyhole faces by standing stamp, pair merges are
+unspecified, and theory v3 §7 re-frames A3 as pulled-per-joint — the
+lens governs where framing differs; Q1-Q3 put the fork to Jean.
+GATES: glaw1 GREEN full + minimal; score census GREEN; clear_spheres
+move token-identical; sentinels 148/5 unchanged; zone 18 == 18;
+encodings clean.

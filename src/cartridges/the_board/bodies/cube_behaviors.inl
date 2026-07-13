@@ -65,11 +65,11 @@ inline uint32_t pick_cube_behavior_for_spawn(uint32_t mood_id, uint32_t seed) {
 // orbit_height (small visible jump only if pawn's altitude differs
 // from where the cube was hovering).
 
-inline void clear_cubes(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue) {
+inline void clear_cubes(CubeBehaviorsState& cbs, Cartridge* c, wgpu::Queue& queue) {
     for (uint32_t i = 0; i < Dim::MAX_CUBE_INSTANCES; i++) {
         cbs.activeCubes_[i] = ActiveCube{};
         GPUFloatingEntityState empty{};
-        gpu.upload_cube_entity_slot(queue, i, empty);
+        c->gpuState_.upload_cube_entity_slot(queue, i, empty);
     }
     cbs.activeCubeCount_ = 0;
 }
@@ -81,7 +81,7 @@ inline float corral_ease_(float t) {
 inline void cycle_floater_coordination(CubeBehaviorsState& cbs, Cartridge* c) {
     cbs.coordination_step = (cbs.coordination_step + 1) % 3;
     float v = FLOATER_COORDINATION_STEPS[cbs.coordination_step];
-    c->gpuState_.config().floater_coordination = v;
+    c->gpuState_.stage_floater_coordination(v);
     std::cout << "[Floaters] coordination: " << v << "\n";
 }
 

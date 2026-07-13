@@ -245,7 +245,7 @@ inline void recompute_and_upload_pier_count(Cartridge* c, wgpu::Queue& queue) {
     for (uint32_t i = 0; i < Dim::PIER_TOTAL; i++) {
         if (c->patch_system_state_.cpuPiers_[i].is_active) highest = i + 1;
     }
-    c->gpuState_.config().pier_count = highest;
+    c->gpuState_.stage_pier_count(highest);
     c->gpuState_.upload_pier_count(queue);
 }
 
@@ -286,7 +286,7 @@ inline void init_patch_system(Cartridge* c) {
     c->world_state_.render_patch_count = 0;
     c->world_state_.lod0_patch_count = 0;
     c->world_state_.all_patch_count = 0;
-    c->gpuState_.config().placement_patch_count = 0;
+    c->gpuState_.stage_placement_patch_count(0);
     c->tile_world_state_.tileCache_.clear();
     c->world_state_.pier_count_dirty = true;
     c->world_state_.ground_entries_dirty = true;
@@ -844,11 +844,10 @@ inline void stream_patches(Cartridge* c, wgpu::CommandEncoder& encoder, wgpu::Qu
 
         // Sync placement_patch_count so compute_entity_placement
         // can sample heightfields from the current frame's patch set.
-        c->gpuState_.config().placement_patch_count = w;
+        c->gpuState_.stage_placement_patch_count(w);
         c->gpuState_.upload_placement_patch_count(queue);
 
-        c->gpuState_.config().lod_pawn_x = pawn_wx;
-        c->gpuState_.config().lod_pawn_z = pawn_wz;
+        c->gpuState_.stage_lod_pawn(pawn_wx, pawn_wz);
         c->gpuState_.upload_lod_pawn(queue);
 
         // ─── Patch grid: O(1) spatial index for sample_terrain_y_at ────────

@@ -114,7 +114,7 @@ inline void ribbon_history_sample(const RibbonState& rs, float age, float& h, fl
 // body at P through space; so does an altitude swell; so will
 // every musical gesture at the head. Replaces the spatial trail:
 // a bend is motion, not a mark on the floor.
-inline void ribbon_rebuild_body_upload(RibbonState& rs, GPUState& gpuState,
+inline void ribbon_rebuild_body_upload(RibbonState& rs, Cartridge* c,
                                        wgpu::Queue& queue, const GPURibbonState& ribbon,
                                        float head_x, float head_y, float head_z) {
     const uint32_t n = std::min(ribbon.cube_count, Dim::RIBBON_MAX_RINGS);
@@ -140,11 +140,11 @@ inline void ribbon_rebuild_body_upload(RibbonState& rs, GPUState& gpuState,
         poses[4u * k + 2u] = pz;
         poses[4u * k + 3u] = h;        // yaw channel: the delayed heading
     }
-    gpuState.upload_ribbon_head_poses(queue, poses.data(),
-                                      poses.size() * sizeof(float));
+    c->gpuState_.upload_ribbon_head_poses(queue, poses.data(),
+                                          poses.size() * sizeof(float));
 }
 
-inline void ribbon_advance_head(RibbonState& rs, GPUState& gpuState,
+inline void ribbon_advance_head(RibbonState& rs, Cartridge* c,
                                 wgpu::Queue& queue, const GPURibbonState& ribbon,
                                 uint32_t slot, float t,
                                 bool flown, float yaw_in, float throttle_in, float dt,
@@ -307,7 +307,7 @@ inline void ribbon_advance_head(RibbonState& rs, GPUState& gpuState,
         hd.hist_time += RibbonHead::HIST_DT;
     }
 
-    ribbon_rebuild_body_upload(rs, gpuState, queue, ribbon, head_x, head_y, head_z);
+    ribbon_rebuild_body_upload(rs, c, queue, ribbon, head_x, head_y, head_z);
 }
 
 inline void ribbon_invalidate_head(RibbonState& rs) { rs.head.seeded = false; }
@@ -463,7 +463,7 @@ inline void ribbon_frame_tick(RibbonState& rs, Cartridge* c, wgpu::Queue& queue)
             rib_gnd = estimate_terrain_height(c->tile_world_state_, gx, gz);
             rib_gnd_valid = terrain_tile_warm(c->tile_world_state_, gx, gz);
         }
-        ribbon_advance_head(rs, c->gpuState_, queue,
+        ribbon_advance_head(rs, c, queue,
             rs.gpu[rs.rendered_slot],
             rs.rendered_slot, c->time_state_.seconds,
             ribbon_flown, ribbon_yaw_in, ribbon_thr_in, c->time_state_.dt,
@@ -494,7 +494,7 @@ inline void ribbon_frame_tick(RibbonState& rs, Cartridge* c, wgpu::Queue& queue)
                 rib_gnd = estimate_terrain_height(c->tile_world_state_, gx, gz);
                 rib_gnd_valid = terrain_tile_warm(c->tile_world_state_, gx, gz);
             }
-            ribbon_advance_head(rs, c->gpuState_, queue, rs.gpu[nearest], nearest, c->time_state_.seconds,
+            ribbon_advance_head(rs, c, queue, rs.gpu[nearest], nearest, c->time_state_.seconds,
                 ribbon_flown, ribbon_yaw_in, ribbon_thr_in, c->time_state_.dt,
                 rib_gnd, rib_gnd_valid);  // 2b: head mover
             rs.rendered_slot = nearest;

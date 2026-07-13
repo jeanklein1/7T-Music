@@ -2175,6 +2175,18 @@ namespace t7 {
 
             // --- Config ---
             GPUDesignConfig& config() { return config_; }
+
+            // ── Staged config writes (REBUILD-0 m3a: the poke idiom,
+            // named). Deliberately NO configDirty_: these fields ride
+            // targeted sub-range uploads (upload_pier_count /
+            // upload_placement_patch_count / upload_lod_pawn) or the
+            // next dirty/dynamic full upload (floater_coordination) —
+            // exactly the raw config() pokes they replace, identical
+            // in upload behavior.
+            void stage_pier_count(uint32_t n)            { config_.pier_count = n; }
+            void stage_placement_patch_count(uint32_t n) { config_.placement_patch_count = n; }
+            void stage_lod_pawn(float x, float z)        { config_.lod_pawn_x = x; config_.lod_pawn_z = z; }
+            void stage_floater_coordination(float v)     { config_.floater_coordination = v; }
             const GPUDesignConfig& config() const { return config_; }
             uint32_t get_fpv_mode() const { return config_.fpv_mode; }
 

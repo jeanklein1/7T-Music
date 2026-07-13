@@ -31,14 +31,10 @@ struct SphereState {
 
 // Teardown owner-clear: the sphere half of the score's TEARDOWN
 // movement (REBUILD-0 m2) — CPU clear + per-slot GPU clear, paired.
-inline void clear_spheres(SphereState& ss, GPUState& gpu, wgpu::Queue& queue) {
-    for (uint32_t i = 0; i < Dim::MAX_SPHERE_INSTANCES; i++) {
-        ss.activeFloaters_[i] = ActiveFloater{};
-        GPUFloatingEntityState empty{};
-        gpu.upload_sphere_entity_slot(queue, i, empty);
-    }
-    ss.activeFloaterCount_ = 0;
-}
+// Keyhole form since m3a (the GPUState& bypass retired; the defn
+// moved to spheres.inl — the pre-class header cannot deref the
+// incomplete Cartridge, which is why the bypass existed).
+void clear_spheres(SphereState& ss, Cartridge* c, wgpu::Queue& queue);
 
 void evict_sphere(Cartridge* self, uint32_t slot, wgpu::Queue& queue);
 void reconcile_sphere_mirror(SphereState& ss, Cartridge* c, const GPUFloatingEntityState* data);

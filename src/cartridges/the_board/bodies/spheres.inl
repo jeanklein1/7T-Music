@@ -207,5 +207,16 @@ inline void reconcile_sphere_mirror(SphereState& ss, Cartridge* c, const GPUFloa
     }
 }
 
+
+// ─── Teardown owner-clear (moved from spheres.hpp at m3a; keyhole form) ─
+inline void clear_spheres(SphereState& ss, Cartridge* c, wgpu::Queue& queue) {
+    for (uint32_t i = 0; i < Dim::MAX_SPHERE_INSTANCES; i++) {
+        ss.activeFloaters_[i] = ActiveFloater{};
+        GPUFloatingEntityState empty{};
+        c->gpuState_.upload_sphere_entity_slot(queue, i, empty);
+    }
+    ss.activeFloaterCount_ = 0;
+}
+
 } // namespace the_board
 } // namespace t7
