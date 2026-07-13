@@ -54,7 +54,7 @@
 #include "cartridges/the_board/contracts/spine_state.hpp"          // TimeState + PlayerState + TransitionPhase (spine organ TYPES; instances stay at the root — REBUILD-0 m1, stamp D3)
 #include "cartridges/the_board/contracts/floater_vocabulary.hpp"   // floater TYPES (ActiveFloater/ActiveCube), file scope
 #include "cartridges/the_board/realization/state.hpp"
-#include "cartridges/the_board/direction/input.hpp"                // InputState/KeyState/MouseState + decls (impl is input.inl, post-class; carries its own GLFW include)
+#include "cartridges/the_board/direction/input.hpp"                // InputState/KeyState/MouseState + InputDeps + decls (impl is input.inl, post-class; carries its own GLFW include)
 #include "cartridges/the_board/realization/render_passes.hpp"        // the nine pass/dispatch + light-VP decls (impl is render_passes.inl, post-class; module owns no state)
 #include "cartridges/the_board/direction/mood.hpp"                 // MoodProfile + MOOD_TABLE + portal colors + palettes + door/applier/deriver decls (impl is mood.inl, post-class; mood owns no state)
 #include "cartridges/the_board/surface/population_themes.hpp"  // S2: THEMES + ThemeEnvelope + ThemesState — MERGED single file (DISSOLVE-1 d3 #1)
@@ -210,6 +210,7 @@ namespace t7 {
             GolDeps       gol_deps_;
             RibbonDeps    ribbon_deps_;
             GalleryDeps   gallery_deps_;
+            InputDeps     input_deps_;
 
             GPUSpotLightArray cpuSpotLights_{};  // count=0 disables (outdoor)
 
@@ -372,7 +373,8 @@ namespace t7 {
                 , cube_deps_{ gpuState_, time_state_, agent_state_, player_, mood_state_ }
                 , gol_deps_{ gpuState_, renderer_, device_, time_state_ }
                 , ribbon_deps_{ gpuState_, time_state_, tile_world_state_, player_, inputState_, world_state_, mood_state_, visual_canvas_, ribbon_amp_lat_dst_, ribbon_amp_vert_dst_, ribbon_tint_stim_dst_, ribbon_tint_mix_dst_ }
-                , gallery_deps_{ gpuState_, renderer_, world_state_, tile_world_state_, ribbon_state_, player_, mood_state_, sunDirection_, clearColor_ } {}
+                , gallery_deps_{ gpuState_, renderer_, world_state_, tile_world_state_, ribbon_state_, player_, mood_state_, sunDirection_, clearColor_ }
+                , input_deps_{ inputState_, keys_, mouse_, player_, world_state_, ribbon_state_, gpuState_, device_ } {}
 
             Cartridge(const Cartridge&) = delete;
             Cartridge& operator=(const Cartridge&) = delete;
@@ -769,7 +771,7 @@ namespace t7 {
 
                 // ═══ MOVEMENT: DRIVER BOOKKEEPING ═══════════════════════════
                 // O-5e: dead-last — the signal fill above consumed the deltas.
-                clear_input_deltas(this);
+                clear_input_deltas(&input_deps_);
             }
 
             // SEAM[spine:owns] render() is genuinely spine work: readback state
@@ -1135,19 +1137,29 @@ namespace t7 {
             void on_input(const InputEvent& event) override {
                 switch (event.type) {
                 case InputEvent::Type::KeyDown:
-                    on_key_down(this, event.key);
+                    // The command fan's TARGET organs ride the call site
+                    // (DISSOLVE-1 Batch C): the root addresses the fan's
+                    // bodies per event, through the m4 doors — the driver
+                    // owns none of them (v3 §9 Act I). The F6 socket stays
+                    // RESERVED for a real addressing need.
+                    on_key_down(&input_deps_, event.key,
+                        pawn_state_, pawn_deps_,
+                        orbs_state_, orbs_deps_,
+                        agent_state_, agents_deps_,
+                        cube_behaviors_state_, cube_deps_,
+                        transitionPhase_, pendingDestination_, mood_state_);
                     break;
                 case InputEvent::Type::KeyUp:
-                    on_key_up(this, event.key);
+                    on_key_up(&input_deps_, event.key);
                     break;
                 case InputEvent::Type::MouseMove:
-                    on_mouse_move(this, event.x, event.y);
+                    on_mouse_move(&input_deps_, event.x, event.y);
                     break;
                 case InputEvent::Type::MouseButton:
-                    on_mouse_button(this, event.button, event.pressed);
+                    on_mouse_button(&input_deps_, event.button, event.pressed);
                     break;
                 case InputEvent::Type::Scroll:
-                    on_scroll(this, event.y);
+                    on_scroll(&input_deps_, event.y);
                     break;
                 }
             }

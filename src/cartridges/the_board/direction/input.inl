@@ -2,12 +2,14 @@
 // Impl of input.hpp (LADDER-3 c6): history in audit/LADDER.md.
 //
 // Definitions for input.hpp's declared dispatch + per-frame + command
-// functions. The bodies reach c->inputState_ / c->keys_ / c->mouse_ /
-// c->player_ / c->world_state_ / c->device_ / c->gpuState_ /
-// c->pawn_state_ / c->agent_state_ / c->orbs_state_ /
-// c->cube_behaviors_state_, the mood door request_mood_transition
-// (mood.hpp), and the patch radii (GRID_RADIUS / PREGEN_RADIUS —
-// patch_system.hpp vocabulary).
+// functions. The bodies reach the deps face (c->inputState_ /
+// c->keys_ / c->mouse_ / c->player_ / c->world_state_ /
+// c->ribbon_state_ / c->gpuState_ / c->device_), the command fan's
+// target organs (on_key_down's parameters — pawn / orbs / agents /
+// cubes + the transition channel), the m4 doors
+// (request_mood_transition — mood.hpp; request_recenter —
+// patch_system.hpp), and the patch radii (GRID_RADIUS /
+// PREGEN_RADIUS — patch_system.hpp vocabulary).
 //
 // This impl includes <GLFW/glfw3.h> itself — the dependency is named here, not inherited from the host TU.
 //
@@ -109,7 +111,14 @@ namespace the_board {
 
 // ═══ KEY DISPATCH ════════════════════════════════════════════════
 
-inline void on_key_down(Cartridge* c, int key) {
+inline void on_key_down(InputDeps* c, int key,
+    PawnState& pawn_state_, PawnDeps& pawn_deps_,
+    OrbsState& orbs_state_, OrbsDeps& orbs_deps_,
+    AgentState& agent_state_, AgentsDeps& agents_deps_,
+    CubeBehaviorsState& cube_behaviors_state_, CubeDeps& cube_deps_,
+    TransitionPhase& transitionPhase_, PortalDestination& pendingDestination_,
+    MoodState& mood_state_)
+{
     // Single queue fetch: every queue-using case below reuses this.
     wgpu::Queue q = c->device_.GetQueue();
 
@@ -125,37 +134,37 @@ inline void on_key_down(Cartridge* c, int key) {
     case GLFW_KEY_1:
         c->gpuState_.toggle_freeze_sphere();
         break;
-    case GLFW_KEY_2: toggle_aura_height(c->pawn_state_, &c->pawn_deps_);  break;  // pawn command door (m4)
-    case GLFW_KEY_3: toggle_aura(c->pawn_state_, &c->pawn_deps_);          break;  // pawn command door (m4)
-    case GLFW_KEY_5: request_mood_transition(c, MOOD_OPEN_SUNSET);        break;
-    case GLFW_KEY_6: request_mood_transition(c, MOOD_INDOOR_FLAT);        break;
-    case GLFW_KEY_7: request_mood_transition(c, MOOD_INDOOR_VAULT);       break;
-    case GLFW_KEY_8: request_mood_transition(c, MOOD_FINITE_OUTDOOR);     break;
-    case GLFW_KEY_9: request_mood_transition(c, MOOD_FINITE_OUTDOOR_REF); break;
-    case GLFW_KEY_0:              cycle_orb_palette(c->orbs_state_, &c->orbs_deps_, q);          break;
+    case GLFW_KEY_2: toggle_aura_height(pawn_state_, &pawn_deps_);  break;  // pawn command door (m4)
+    case GLFW_KEY_3: toggle_aura(pawn_state_, &pawn_deps_);          break;  // pawn command door (m4)
+    case GLFW_KEY_5: request_mood_transition(transitionPhase_, pendingDestination_, mood_state_, c->world_state_, MOOD_OPEN_SUNSET);        break;
+    case GLFW_KEY_6: request_mood_transition(transitionPhase_, pendingDestination_, mood_state_, c->world_state_, MOOD_INDOOR_FLAT);        break;
+    case GLFW_KEY_7: request_mood_transition(transitionPhase_, pendingDestination_, mood_state_, c->world_state_, MOOD_INDOOR_VAULT);       break;
+    case GLFW_KEY_8: request_mood_transition(transitionPhase_, pendingDestination_, mood_state_, c->world_state_, MOOD_FINITE_OUTDOOR);     break;
+    case GLFW_KEY_9: request_mood_transition(transitionPhase_, pendingDestination_, mood_state_, c->world_state_, MOOD_FINITE_OUTDOOR_REF); break;
+    case GLFW_KEY_0:              cycle_orb_palette(orbs_state_, &orbs_deps_, q);          break;
     case GLFW_KEY_LEFT_BRACKET:   set_render_radius(c, c->world_state_.active_radius - 1); break;
     case GLFW_KEY_RIGHT_BRACKET:  set_render_radius(c, c->world_state_.active_radius + 1); break;
 
     // ── Orb utilities (numpad) ───────────────────────────────────
-    case GLFW_KEY_KP_8:       cycle_orb_motion_rule(c->orbs_state_, &c->orbs_deps_, q);            break;
-    case GLFW_KEY_KP_9:       toggle_orb_anchor(c->orbs_state_, &c->orbs_deps_);                 break;
-    case GLFW_KEY_KP_DECIMAL: cycle_orb_gesture(c->orbs_state_, &c->orbs_deps_, q);                break;
+    case GLFW_KEY_KP_8:       cycle_orb_motion_rule(orbs_state_, &orbs_deps_, q);            break;
+    case GLFW_KEY_KP_9:       toggle_orb_anchor(orbs_state_, &orbs_deps_);                 break;
+    case GLFW_KEY_KP_DECIMAL: cycle_orb_gesture(orbs_state_, &orbs_deps_, q);                break;
 
     // ── Camera / possession ──────────────────────────────────────
     case GLFW_KEY_LEFT_CONTROL:
     case GLFW_KEY_RIGHT_CONTROL:
         toggle_fpv_mode(c);
         break;
-    case GLFW_KEY_CAPS_LOCK:  try_possess_nearest(c->agent_state_, &c->agents_deps_, q);  break;
+    case GLFW_KEY_CAPS_LOCK:  try_possess_nearest(agent_state_, &agents_deps_, q);  break;
 
     // ── Diagnostics (function keys) ──────────────────────────────
-    case GLFW_KEY_F1: cycle_agent_behavior_override(c->agent_state_, &c->agents_deps_, q);  break;
-    case GLFW_KEY_F2: cycle_agent_tier_override(c->agent_state_, &c->agents_deps_, q);      break;
-    case GLFW_KEY_F3: force_respawn_population(c->agent_state_, &c->agents_deps_, q);       break;
-    case GLFW_KEY_F4: cycle_cube_behavior_override(c->cube_behaviors_state_, &c->cube_deps_, q);   break;
-    case GLFW_KEY_F5: cycle_floater_coordination(c->cube_behaviors_state_, &c->cube_deps_);        break;
-    case GLFW_KEY_F6: corral_cubes(c->cube_behaviors_state_, &c->cube_deps_, q);                   break;
-    case GLFW_KEY_F7: toggle_cube_kite_mode(c->cube_behaviors_state_, &c->cube_deps_, q);          break;
+    case GLFW_KEY_F1: cycle_agent_behavior_override(agent_state_, &agents_deps_, q);  break;
+    case GLFW_KEY_F2: cycle_agent_tier_override(agent_state_, &agents_deps_, q);      break;
+    case GLFW_KEY_F3: force_respawn_population(agent_state_, &agents_deps_, q);       break;
+    case GLFW_KEY_F4: cycle_cube_behavior_override(cube_behaviors_state_, &cube_deps_, q);   break;
+    case GLFW_KEY_F5: cycle_floater_coordination(cube_behaviors_state_, &cube_deps_);        break;
+    case GLFW_KEY_F6: corral_cubes(cube_behaviors_state_, &cube_deps_, q);                   break;
+    case GLFW_KEY_F7: toggle_cube_kite_mode(cube_behaviors_state_, &cube_deps_, q);          break;
     case GLFW_KEY_F8:
         // ROSTER-GATE ribbon (b) — D9 (REBUILD-0 stamp): sky-flight's entry
         // door rides the ribbon bit. Ungated, F8 in a ribbon-less demo snaps
@@ -168,7 +177,7 @@ inline void on_key_down(Cartridge* c, int key) {
     update_movement_intent(c);
 }
 
-inline void on_key_up(Cartridge* c, int key) {
+inline void on_key_up(InputDeps* c, int key) {
     switch (key) {
     case GLFW_KEY_UP:    c->keys_.forward = false;  break;
     case GLFW_KEY_DOWN:  c->keys_.backward = false; break;
@@ -180,7 +189,7 @@ inline void on_key_up(Cartridge* c, int key) {
 
 // ═══ MOUSE / SCROLL ══════════════════════════════════════════════
 
-inline void on_mouse_move(Cartridge* c, float dx, float dy) {
+inline void on_mouse_move(InputDeps* c, float dx, float dy) {
     constexpr float sensitivity = 0.005f;
     if (c->mouse_.left_dragging) {
         c->inputState_.look_az_delta += dx * sensitivity;
@@ -192,18 +201,18 @@ inline void on_mouse_move(Cartridge* c, float dx, float dy) {
     }
 }
 
-inline void on_mouse_button(Cartridge* c, int button, bool pressed) {
+inline void on_mouse_button(InputDeps* c, int button, bool pressed) {
     if (button == 0) c->mouse_.left_dragging = pressed;
     if (button == 1) c->mouse_.right_dragging = pressed;
 }
 
-inline void on_scroll(Cartridge* c, float delta) {
+inline void on_scroll(InputDeps* c, float delta) {
     c->inputState_.zoom_delta -= delta * 2.0f;
 }
 
 // ═══ MOVEMENT INTENT + DELTA CLEAR ═══════════════════════════════
 
-inline void update_movement_intent(Cartridge* c) {
+inline void update_movement_intent(InputDeps* c) {
     c->inputState_.move_x = 0.0f;
     c->inputState_.move_z = 0.0f;
 
@@ -220,7 +229,7 @@ inline void update_movement_intent(Cartridge* c) {
     }
 }
 
-inline void clear_input_deltas(Cartridge* c) {
+inline void clear_input_deltas(InputDeps* c) {
     c->inputState_.look_az_delta = 0.0f;
     c->inputState_.look_el_delta = 0.0f;
     c->inputState_.zoom_delta = 0.0f;
@@ -230,7 +239,7 @@ inline void clear_input_deltas(Cartridge* c) {
 
 // ═══ CAMERA / VIEW COMMANDS ══════════════════════════════════════
 
-inline void toggle_fpv_mode(Cartridge* c) {
+inline void toggle_fpv_mode(InputDeps* c) {
     c->player_.fpv_mode = !c->player_.fpv_mode;
     c->gpuState_.set_fpv_mode(c->player_.fpv_mode ? 1 : 0);
     std::cout << "[the_board] Camera mode: "
@@ -242,13 +251,13 @@ inline void toggle_fpv_mode(Cartridge* c) {
 // is held by a critically damped pen, not fixed. While OFF, the ribbon
 // holds its stationary arc. The pawn snap and camera follow have landed;
 // only the fade transition remains unbuilt. SEAM[ribbon:sky-mode].
-inline void toggle_sky_mode(Cartridge* c) {
+inline void toggle_sky_mode(InputDeps* c) {
     c->ribbon_state_.sky.mode = !c->ribbon_state_.sky.mode;  // the ribbon's fixture (m6, Option A)
     std::cout << "[the_board] Sky mode: "
         << (c->ribbon_state_.sky.mode ? "ON (fly the ribbon with arrows)" : "OFF") << std::endl;
 }
 
-inline void set_render_radius(Cartridge* c, uint32_t r) {
+inline void set_render_radius(InputDeps* c, uint32_t r) {
     r = std::max(r, GRID_RADIUS);
     r = std::min(r, PREGEN_RADIUS);
     if (r == c->world_state_.active_radius) return;
@@ -257,7 +266,7 @@ inline void set_render_radius(Cartridge* c, uint32_t r) {
     std::cout << "[the_board] Render radius: " << r
         << " (" << side << "x" << side << " = " << side * side << " patches)" << std::endl;
     // Force full re-evaluation on next frame — through the owner's door (m4)
-    request_recenter(c);
+    request_recenter(c->world_state_);
 }
 
 } // namespace the_board

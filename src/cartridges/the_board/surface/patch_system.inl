@@ -184,10 +184,10 @@ inline uint32_t patches_budget_this_frame(Cartridge* c) {
 // called by the score's TEARDOWN movement; this core keeps the
 // surface's own concerns — patches, tiles, themes, dispatch queues,
 // piers, footprints — plus the world-rebirth GPU staging lines.
-// ── The recenter door (m4) ────────────────────────────────────────
-inline void request_recenter(Cartridge* c) {
-    c->world_state_.last_center_x = INT32_MAX;
-    c->world_state_.last_center_z = INT32_MAX;
+// ── The recenter door (m4; deps-form, DISSOLVE-1 Batch C) ─────────
+inline void request_recenter(WorldState& ws) {
+    ws.last_center_x = INT32_MAX;
+    ws.last_center_z = INT32_MAX;
 }
 
 inline void teardown_surface(Cartridge* c, wgpu::Queue& queue) {

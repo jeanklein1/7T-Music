@@ -186,8 +186,10 @@ void teardown_surface(Cartridge* c, wgpu::Queue& queue);  // was teardown_world;
 void init_patch_system(Cartridge* c);
 // The recenter door (m4): names the hidden regen request — the
 // streaming conductor re-evaluates the full window next frame.
-// Caller: the radius command (direction/input).
-void request_recenter(Cartridge* c);
+// Caller: the radius command (direction/input). DEPS-FORM (DISSOLVE-1
+// Batch C): the driver world holds no keyhole — the door takes its
+// one organ explicitly (the m3 precedent class, clear_spheres).
+void request_recenter(WorldState& ws);
 void write_pier(MachineCtx* c, wgpu::Queue& queue, uint32_t slot, const GPUPierInstance& pier);
 void clear_pier(MachineCtx* c, wgpu::Queue& queue, uint32_t slot);
 void recompute_and_upload_pier_count(MachineCtx* c, wgpu::Queue& queue);

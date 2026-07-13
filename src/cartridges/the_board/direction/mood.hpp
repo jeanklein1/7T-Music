@@ -2,6 +2,7 @@
 #include <cstdint>
 #include "cartridges/the_board/realization/state.hpp"                    // wgpu, GPUSpotLightArray, MAX_SPOT_LIGHTS
 #include "cartridges/the_board/contracts/mood_constants.hpp"   // MOOD_COUNT, the Mood IDs, PortalDestination
+#include "cartridges/the_board/contracts/spine_state.hpp"      // TransitionPhase (the transition channel — the driver door's param)
 #include "cartridges/the_board/contracts/keyhole.hpp"          // Cartridge + wgpu::Queue fwds (the keyhole)
 
 // ─── mood.hpp (HEADER: vocabulary + palettes + decls) ─────────────
@@ -64,10 +65,15 @@
 //   point. Bails if a transition is already in flight. Lives in the
 //   mood module rather than input because portal crossings and other
 //   code paths can also drive mood transitions. One door, many keys.
+//   DEPS-FORM (DISSOLVE-1 Batch C): the driver world holds no keyhole
+//   — the door takes the transition channel explicitly (the m3
+//   precedent class, clear_spheres).
 // ─────────────────────────────────────────────────────────────────
 
 namespace t7 {
 namespace the_board {
+
+struct WorldState;   // patch_system.hpp — the driver door reads active_seed (reference param; fwd suffices)
 
 // ═══ MOOD STATE (struct with its semantic owner; instance at root) ═
 // REBUILD-0 m1 (stamp D3): the WorldState pattern (R-a) — the struct
@@ -234,7 +240,8 @@ inline constexpr float INDOOR_ENTITY_WALL_MARGIN = 20.0f;
 
 // Mood lifecycle (doors)
 void apply_mood(Cartridge* c, uint32_t mood, wgpu::Queue& queue);
-void request_mood_transition(Cartridge* c, uint32_t mood);
+void request_mood_transition(TransitionPhase& phase, PortalDestination& pending,
+    MoodState& ms, const WorldState& ws, uint32_t mood);
 // Appliers (apply_mood's four named sub-functions)
 void apply_mood_lighting(Cartridge* c, const MoodProfile& m, wgpu::Queue& queue);
 void apply_mood_spot_lights(Cartridge* c, const MoodProfile& m, wgpu::Queue& queue);

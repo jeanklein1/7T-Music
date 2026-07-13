@@ -991,30 +991,31 @@ inline void upload_lights(Cartridge* c, wgpu::Queue& queue) {
 
 // ═══ MOOD TRANSITION REQUEST ═════════════════════════════════════
 //
-inline void request_mood_transition(Cartridge* c, uint32_t mood) {
+inline void request_mood_transition(TransitionPhase& phase, PortalDestination& pending,
+    MoodState& ms, const WorldState& ws, uint32_t mood) {
     // ROSTER-GATE transitions (b) — ENTRY door #1 (keyboard mood requests).
     // Disabled: the machine stays at IDLE forever; the bit gates requests,
     // nothing structural. Maturity-proof form of the transitions=>portal
     // edge (the v0 form is the manifest static_assert).
-    if constexpr (!ROSTER.transitions) { (void)c; (void)mood; return; }
-    if (c->transitionPhase_ != TransitionPhase::IDLE) return;
+    if constexpr (!ROSTER.transitions) { (void)phase; (void)pending; (void)ms; (void)ws; (void)mood; return; }
+    if (phase != TransitionPhase::IDLE) return;
     if (mood >= MOOD_COUNT) return;
 
     const auto& mp = MOOD_TABLE[mood];
-    uint32_t dest_seed = cpu_hash(c->world_state_.active_seed, 999u);
+    uint32_t dest_seed = cpu_hash(ws.active_seed, 999u);
     uint32_t radius = derive_finite_radius(dest_seed, mp);
-    c->pendingDestination_ = { dest_seed, mp.finite, radius, mood };
-    c->transitionPhase_ = TransitionPhase::FADE_OUT;
-    c->mood_state_.transition_timer = 0.0f;
+    pending = { dest_seed, mp.finite, radius, mood };
+    phase = TransitionPhase::FADE_OUT;
+    ms.transition_timer = 0.0f;
 
     if (mp.finite) {
         uint32_t side = 2 * radius + 1;
         std::cout << "[World] Transition (" << mood_name(mood) << " "
-            << side << "x" << side << "): seed " << c->world_state_.active_seed
-            << " -> " << c->pendingDestination_.seed << "\n";
+            << side << "x" << side << "): seed " << ws.active_seed
+            << " -> " << pending.seed << "\n";
     } else {
         std::cout << "[World] Transition (" << mood_name(mood) << "): seed "
-            << c->world_state_.active_seed << " -> " << c->pendingDestination_.seed << "\n";
+            << ws.active_seed << " -> " << pending.seed << "\n";
     }
 }
 
