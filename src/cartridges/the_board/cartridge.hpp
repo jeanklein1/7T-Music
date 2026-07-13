@@ -53,9 +53,7 @@
 #include "cartridges/the_board/contracts/mood_constants.hpp"       // MOOD_COUNT + the Mood IDs + PortalDestination
 #include "cartridges/the_board/contracts/spine_state.hpp"          // TimeState + PlayerState + TransitionPhase (spine organ TYPES; instances stay at the root — REBUILD-0 m1, stamp D3)
 #include "cartridges/the_board/contracts/floater_vocabulary.hpp"   // floater TYPES (ActiveFloater/ActiveCube), file scope
-#include "cartridges/the_board/bodies/pawn.hpp"                 // PawnState + configs + decls (impl is pawn.inl, post-class)
 #include "cartridges/the_board/realization/state.hpp"
-#include "cartridges/the_board/bodies/spheres.hpp"              // SphereState + evictor/funnel decls (impl is spheres.inl, post-class)
 #include "cartridges/the_board/bodies/entities.hpp"             // grounded-family vocabulary + EntitiesState + preparer decls (impl is entities.inl, post-class)
 #include "cartridges/the_board/bodies/orbs.hpp"                 // orb console/registries + OrbsState + ORB_MOOD_TABLE + decls (impl is orbs.inl, post-class)
 #include "cartridges/the_board/bodies/gol_zones.hpp"            // GoL vocabulary + GoLState + decls (impl is gol_zones.inl, post-class)
@@ -67,11 +65,13 @@
 #include "cartridges/the_board/realization/render_passes.hpp"        // the nine pass/dispatch + light-VP decls (impl is render_passes.inl, post-class; module owns no state)
 #include "cartridges/the_board/direction/mood.hpp"                 // MoodProfile + MOOD_TABLE + portal colors + palettes + door/applier/deriver decls (impl is mood.inl, post-class; mood owns no state)
 #include "cartridges/the_board/surface/population_themes.hpp"  // S2: THEMES + ThemeEnvelope + ThemesState — MERGED single file (DISSOLVE-1 d3 #1)
-#include "cartridges/the_board/surface/tile_world.hpp"          // S2: archetypes + tokens + TileState/cache + TileWorldState + decls (impl is tile_world.inl, post-class)
 #include "cartridges/the_board/surface/patch_system.hpp"     // S2: WorldState + ActivePatch + budgets + visibility + PatchSystemState + decls (impl is patch_system.inl, post-class)
+#include "cartridges/the_board/surface/tile_world.hpp"          // S2: archetypes + tokens + TileState/cache + TileWorldDeps + impl — MERGED single file (DISSOLVE-1 Batch A d3); after patch_system for WorldState/PATCH_EXTENT
 #include "cartridges/the_board/machine/spawn_engine.hpp"     // S3: spawn vocabulary + separation/proximity tables + SpawnEngineState + the preamble template + decls (impl is spawn_engine.inl, post-class)
 #include "cartridges/the_board/machine/entity_pipeline.hpp"   // S3: the rescale template + arch vocabulary (ArchIdx/ARCH_TIERS) + the three-phase verb decls (impl is entity_pipeline.inl, post-class)
+#include "cartridges/the_board/bodies/spheres.hpp"              // SphereState + SphereDeps + impl — MERGED single file (DISSOLVE-1 Batch A d3); after entity_pipeline for the generic funnels
 #include "cartridges/the_board/realization/renderer.hpp"
+#include "cartridges/the_board/bodies/pawn.hpp"                 // PawnState + PawnDeps + impl — MERGED single file (DISSOLVE-1 Batch A d3); after renderer for Renderer/GPUState complete
 #include "coupling/visual_canvas.hpp"
 #include <cmath>
 #include <cstring>
@@ -1170,9 +1170,7 @@ namespace t7 {
 // ═══ MODULE IMPLEMENTATIONS (post-class, FILE SCOPE) ══════════════════
 //
 // WIRING FORM (fix-2): SELF-WRAPPING — the zone includes impls at FILE SCOPE; law in audit/LADDER.md.
-#include "bodies/pawn.inl"       // tick_pawn_couplings
 #include "bodies/entities.inl"   // the six preparers + the seven grounded-family evictors + the blade/palm/cactus recipes
-#include "bodies/spheres.inl"    // the sphere evictor + recipe
 #include "bodies/orbs.inl"       // orb lifecycle/commands/dispatches/render
 #include "bodies/gol_zones.inl"  // GoL three-phase lifecycle + per-frame uploads/dispatch
 #include "bodies/agents.inl"     // agent registry upload + spawn/respawn/possession/diagnostics
@@ -1182,7 +1180,6 @@ namespace t7 {
 #include "direction/input.inl"      // key/mouse dispatch + movement intent + camera commands (own GLFW include)
 #include "realization/render_passes.inl"  // ground-entry prep + compute dispatch + shadow/main passes + light VPs
 #include "direction/mood.inl"       // indoor light derivation + appliers + apply_mood + shell + portals + uploads + transition request + derivers
-#include "surface/tile_world.inl"  // the four verbs over what the terrain remembers
 #include "machine/spawn_engine.inl"  // the spawn engine — negotiation + footprints + culling + census + the select/place/commit loops
 #include "surface/patch_system.inl"  // the active-patch machine — registry lifecycle + budgets + teardown + allocator + the streaming conductor
 #include "machine/entity_pipeline.inl"  // the generic three-phase verbs + the welded four family blocks (column/antenna/pyramid/arch)

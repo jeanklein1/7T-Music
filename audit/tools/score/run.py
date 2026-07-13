@@ -204,7 +204,7 @@ def main():
          'readback trio: P5 harvest + teardown reset + portal consume (spine only; the record declares its own defaults)'),
         (r'player_\.possessed_slot\s*=[^=]', {'bodies/agents.inl'},
          'possession: the agents door only (re-anchoring, v3 §9 Act III)'),
-        (r'player_\.aura_presence\s*[+]?=[^=]', {'bodies/pawn.inl'},
+        (r'player_\.aura_presence\s*[+]?=[^=]', {'bodies/pawn.hpp'},  # pawn.inl merged into pawn.hpp (DISSOLVE-1 Batch A3)
          'aura presence: P8, pawn-owned'),
     ]
     import glob as _glob
