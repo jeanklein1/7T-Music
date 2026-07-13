@@ -164,26 +164,34 @@ struct PatchSystemState {
 
 // ═══ MODULE FUNCTIONS — DECLARATIONS ═══════════════════════════════
 //
-// DEFINED in patch_system.inl (post-class): the machine reaches the
-// keyhole for the root organs, the S3 dispatch seam (select/place/
-// commit — spawn_engine.hpp), and the GPU wire (gpuState_ / renderer_).
+// DEFINED in patch_system.inl (post-class): the machine stands on
+// THE MACHINE FACE (Batch D — no keyhole), the S3 dispatch seam
+// (select/place/commit — contracts/spawn_services.hpp), and the GPU
+// wire (gpuState_ / renderer_). The reaches outside the face ride
+// the call sites: the tile doors' deps, the mood deps, the driver's
+// intent organ.
+struct TileWorldState;  // tile_world.hpp — the tile cache organ (fwd: the lifecycle owner mutates it through the m4 doors; the machine face's view is const)
+struct ThemesState;     // population_themes.hpp — the theme envelope organ (fwd: same law)
+struct TileWorldDeps;   // tile_world.hpp — the tile doors' face (fwd: reference param)
+struct MoodDeps;        // mood.hpp — the back-portal door's face (fwd: reference param)
 
 // THE S2/S3 BOUNDARY FACE: the patch registry is read across the
 // boundary by the occupier commits (host->record_entity via
 // find_patch) — the interface trio's registry member.
 ActivePatch* find_patch(MachineCtx* c, int32_t gx, int32_t gz);
 
-void evict_patch(Cartridge* c, uint32_t pi, wgpu::Queue& queue);
+void evict_patch(MachineCtx* c, uint32_t pi, wgpu::Queue& queue);
 void evict_patch_entities(MachineCtx* c, ActivePatch& patch, wgpu::Queue& queue);
-void audit_entity_integrity(Cartridge* c);
-uint32_t count_pending_patches(Cartridge* c);
-uint32_t patches_budget_this_frame(Cartridge* c);
+void audit_entity_integrity(MachineCtx* c);
+uint32_t count_pending_patches(MachineCtx* c);
+uint32_t patches_budget_this_frame(MachineCtx* c, const InputState& inputState_);
 
 // Keyhole form (Phase R stamp, R-b). CALLER: the transition machine
 // (root); OWNER: patch_system.
-void teardown_surface(Cartridge* c, wgpu::Queue& queue);  // was teardown_world; reduced to the surface core (REBUILD-0 m2, stamp D4)
+void teardown_surface(MachineCtx* c, wgpu::Queue& queue,
+    TileWorldState& tile_world_state_, ThemesState& themes_state_);  // was teardown_world; reduced to the surface core (REBUILD-0 m2, stamp D4)
 
-void init_patch_system(Cartridge* c);
+void init_patch_system(MachineCtx* c, TileWorldState& tile_world_state_);
 // The recenter door (m4): names the hidden regen request — the
 // streaming conductor re-evaluates the full window next frame.
 // Caller: the radius command (direction/input). DEPS-FORM (DISSOLVE-1
@@ -197,28 +205,32 @@ void flush_pier_count(MachineCtx* c, wgpu::Queue& queue);
 void mark_patches_for_regen(MachineCtx* c, float min_wx, float min_wz,
     float max_wx, float max_wz,
     int32_t home_gx, int32_t home_gz);
-void setup_test_rig_piers(Cartridge* c, wgpu::Queue queue);
-void generate_patch_batch(Cartridge* c, wgpu::CommandEncoder& encoder, wgpu::Queue& queue,
+void setup_test_rig_piers(MachineCtx* c, wgpu::Queue queue);
+void generate_patch_batch(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Queue& queue,
     const GPUPatchParams* params, uint32_t count,
     uint32_t stagingOffset = 0);
-GPUPatchParams make_patch_params(Cartridge* c, int32_t gx, int32_t gz, uint32_t layer);
+GPUPatchParams make_patch_params(MachineCtx* c, int32_t gx, int32_t gz, uint32_t layer);
 uint32_t alloc_layer(MachineCtx* c);
 void free_layer(MachineCtx* c, uint32_t layer);
-bool in_render_window(Cartridge* c, int32_t gx, int32_t gz, int32_t cx, int32_t cz);
+bool in_render_window(MachineCtx* c, int32_t gx, int32_t gz, int32_t cx, int32_t cz);
 float patch_distance_sq(float px, float pz, float origin_x, float origin_z, float half);
 template<typename Pred>
-uint32_t collect_sorted_patches(Cartridge* c, PatchCandidate* out,
+uint32_t collect_sorted_patches(MachineCtx* c, PatchCandidate* out,
     float pawn_wx, float pawn_wz, Pred&& pred, bool nearest_first);
-bool in_priority_window(Cartridge* c, int32_t gx, int32_t gz, int32_t cx, int32_t cz);
-void spawn_selected_patches(Cartridge* c, const PatchCandidate* candidates, uint32_t count,
-    wgpu::Queue& queue);
-void on_patch_first_generated(Cartridge* c, uint32_t pi, wgpu::Queue& queue);
-void generate_selected_patches(Cartridge* c, const PatchCandidate* candidates, uint32_t count,
+bool in_priority_window(MachineCtx* c, int32_t gx, int32_t gz, int32_t cx, int32_t cz);
+void spawn_selected_patches(MachineCtx* c, const PatchCandidate* candidates, uint32_t count,
+    wgpu::Queue& queue,
+    ThemesState& themes_state_);
+void on_patch_first_generated(MachineCtx* c, uint32_t pi, wgpu::Queue& queue);
+void generate_selected_patches(MachineCtx* c, const PatchCandidate* candidates, uint32_t count,
     wgpu::CommandEncoder& encoder, wgpu::Queue& queue,
-    uint32_t& patchStagingOffset, bool& tileGridDirty);
+    uint32_t& patchStagingOffset, bool& tileGridDirty,
+    TileWorldState& tile_world_state_, TileWorldDeps& tile_world_deps_);
 
 // THE CONDUCTOR (Phase R stamp, R-c): the per-frame streaming step.
-void stream_patches(Cartridge* c, wgpu::CommandEncoder& encoder, wgpu::Queue& queue);
+void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Queue& queue,
+    TileWorldState& tile_world_state_, ThemesState& themes_state_,
+    TileWorldDeps& tile_world_deps_, MoodDeps& mood_deps_, const InputState& inputState_);
 
 } // namespace the_board
 } // namespace t7

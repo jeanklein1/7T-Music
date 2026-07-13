@@ -447,8 +447,8 @@ namespace t7 {
                 auto t2 = std::chrono::high_resolution_clock::now();
 
                 // ═══ MOVEMENT: BOOT — S2 THE SURFACE ════════════════════════
-                init_patch_system(this);
-                setup_test_rig_piers(this, device_.GetQueue());
+                init_patch_system(&machine_ctx_, tile_world_state_);
+                setup_test_rig_piers(&machine_ctx_, device_.GetQueue());
 
                 // ═══ MOVEMENT: BOOT — PER-PIECE BOOT VERBS (part one) ═══════
                 // Order is today's, preserved byte-for-byte (PRIME INVARIANT);
@@ -682,7 +682,7 @@ namespace t7 {
                         // owner-verb order is free; the new gates eliminate
                         // only zeros-over-pristine GPU writes (disclosed at
                         // the ladder).
-                        teardown_surface(this, queue);
+                        teardown_surface(&machine_ctx_, queue, tile_world_state_, themes_state_);
                         teardown_entities(&machine_ctx_, queue);
                         if constexpr (ROSTER.gol)      // ROSTER-GATE gol (c) — teardown clear skipped when disabled (organ pristine)
                             teardown_gol(gol_state_, &gol_deps_, queue);
@@ -884,7 +884,7 @@ namespace t7 {
                 // The streaming conductor; carries the declared S3-trigger
                 // seam inside (SEAM[patch:spawn-trigger] — select/place/commit
                 // fire from the stream's own cadence).
-                stream_patches(this, encoder, queue);
+                stream_patches(&machine_ctx_, encoder, queue, tile_world_state_, themes_state_, tile_world_deps_, mood_deps_, inputState_);
 
                 // ═══ MOVEMENT: S3 PLACEMENT ═════════════════════════════════
                 // REORDER RC-1 (stamped policy): respawn moved AFTER stream —
