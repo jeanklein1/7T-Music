@@ -1725,3 +1725,42 @@ GATES at close: glaw1 GREEN full + minimal; score census GREEN
 AWAITING RIG BOUNDARY D (the campaign's last): golden + minimal
 witness; zone count 0. Lane 3 (the pipeline blob cache) is next in
 the queue after the boundary.
+
+## PANEL-0 — THE AUTHORING-SURFACE RECON (report-first; ONE STOP)
+
+Read-only. The campaign that makes demos easy to author at dev time —
+a pieces × demos MATRIX (existence) + per-module PARAMETER PANELS
+(tuning), both compile-time, edited before any request reaches Claude.
+Report: audit/PANEL0_RECON.md. Five movements sized; two parallel
+scouts (the world.wgsl call-tree for R1, the per-module constant
+readiness for R4) + the spine's own reads (pawn fusion, the existence
+surface, terrain in full).
+
+FINDINGS. R1 (the honest perf question, settled first): the ~34s boot
+is world.wgsl recompiled every launch (no blob cache exists); the hot
+locus is behavior_player_controlled's 7 walker-chains × 24 lattice
+unrolls (pawn_ground_resolve + terrain_normal_at, world.wgsl:5438/5406)
+— and the cost is BODY-side (terrain-snap/step-climb/tilt), NOT the
+player/driver, NOT the gait. THE SEPARATION HELD: the pawn split is
+COMPREHENSION; boot time is untouched by a CPU rename alone — the perf
+lever is a BODY-chain pipeline extraction or a lattice-bake (R7's
+levers), and the blob cache is the orthogonal warm-boot lever. R2: the
+pawn is three near-separate things wearing one name — the PLAYER
+(PlayerState.possessed_slot, the anchor + witness), the BODY (agent
+slot 0, FOUNDATIONAL/ungated), the gait (behavior 0, WGSL); the split
+is low-cost, no weld resists, the rows are always-green. R3: 19 roster
+bits, DemoConfig{roster,seed,boot_mood}, two demos, ONE dependency edge
+(THE FIRST EDGE transitions⟹portal); the matrix = pieces × demos grid
+preserving the constexpr fold, grow-by-pull. R4: terrain's dials live
+in FOUR homes (surface_services/tile_world/population_themes C++ +
+world.wgsl's bands/palette/voice/mesh), each gathered within, scattered
+across — the panel challenge is the four-home scatter + the C++/WGSL
+split (recommend v1 = consolidate C++ + index WGSL; the uniform bridge
+is a named sub-movement). Non-terrain: 9 GATHERED, 3 MIXED (mood the
+biggest scatter), 2 SCATTERED (input trivial, render_passes the "look"
+dials); entities + ribbon are the exemplars. R5: p1 pawn decomposition
+(comprehension; perf per R1, separate) → p2 the matrix (a terrain-only
+sentence becomes a new standing witness) → p3 the panels (terrain
+first). FULL STOP: four stamp questions (matrix shape, terrain panel
+scope, whether a fourth perf movement, p1's roster form). p1 cuts only
+after the stamp.
