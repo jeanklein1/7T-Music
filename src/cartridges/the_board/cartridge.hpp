@@ -54,8 +54,6 @@
 #include "cartridges/the_board/contracts/spine_state.hpp"          // TimeState + PlayerState + TransitionPhase (spine organ TYPES; instances stay at the root — REBUILD-0 m1, stamp D3)
 #include "cartridges/the_board/contracts/floater_vocabulary.hpp"   // floater TYPES (ActiveFloater/ActiveCube), file scope
 #include "cartridges/the_board/realization/state.hpp"
-#include "cartridges/the_board/bodies/gallery.hpp"              // shot vocabulary + console + GalleryState + decls (impl is gallery.inl, post-class)
-#include "cartridges/the_board/bodies/ribbon.hpp"               // ribbon console + color vocabulary + tiers + RibbonState + decls (impl is ribbon.inl, post-class; pairing suspension named in its banner)
 #include "cartridges/the_board/direction/input.hpp"                // InputState/KeyState/MouseState + decls (impl is input.inl, post-class; carries its own GLFW include)
 #include "cartridges/the_board/realization/render_passes.hpp"        // the nine pass/dispatch + light-VP decls (impl is render_passes.inl, post-class; module owns no state)
 #include "cartridges/the_board/direction/mood.hpp"                 // MoodProfile + MOOD_TABLE + portal colors + palettes + door/applier/deriver decls (impl is mood.inl, post-class; mood owns no state)
@@ -73,6 +71,8 @@
 #include "cartridges/the_board/bodies/orbs.hpp"                 // OrbsState + OrbsDeps + impl — MERGED (DISSOLVE-1 Batch B); after renderer for Renderer
 #include "cartridges/the_board/bodies/gol_zones.hpp"            // GoLState + GolDeps (S5 device) + impl — MERGED (DISSOLVE-1 Batch B); after renderer/machine/tile
 #include "coupling/visual_canvas.hpp"
+#include "cartridges/the_board/bodies/ribbon.hpp"               // RibbonState + RibbonDeps + impl — MERGED (DISSOLVE-1 Batch C); after visual_canvas for the coupling face
+#include "cartridges/the_board/bodies/gallery.hpp"              // GalleryState + GalleryDeps + impl — MERGED (DISSOLVE-1 Batch C); after ribbon for RibbonState
 #include <cmath>
 #include <cstring>
 #include <iostream>
@@ -85,7 +85,6 @@
 #include <algorithm>
 #include <string>
 #include <vector>
-#include "external/stb_image.h"
 
 namespace t7 {
     namespace the_board {
@@ -209,6 +208,8 @@ namespace t7 {
             AgentsDeps    agents_deps_;
             CubeDeps      cube_deps_;
             GolDeps       gol_deps_;
+            RibbonDeps    ribbon_deps_;
+            GalleryDeps   gallery_deps_;
 
             GPUSpotLightArray cpuSpotLights_{};  // count=0 disables (outdoor)
 
@@ -369,7 +370,9 @@ namespace t7 {
                 , orbs_deps_{ gpuState_, renderer_, player_, time_state_, world_state_ }
                 , agents_deps_{ gpuState_, player_, transitionPhase_, world_state_, time_state_ }
                 , cube_deps_{ gpuState_, time_state_, agent_state_, player_, mood_state_ }
-                , gol_deps_{ gpuState_, renderer_, device_, time_state_ } {}
+                , gol_deps_{ gpuState_, renderer_, device_, time_state_ }
+                , ribbon_deps_{ gpuState_, time_state_, tile_world_state_, player_, inputState_, world_state_, mood_state_, visual_canvas_, ribbon_amp_lat_dst_, ribbon_amp_vert_dst_, ribbon_tint_stim_dst_, ribbon_tint_mix_dst_ }
+                , gallery_deps_{ gpuState_, renderer_, world_state_, tile_world_state_, ribbon_state_, player_, mood_state_, sunDirection_, clearColor_ } {}
 
             Cartridge(const Cartridge&) = delete;
             Cartridge& operator=(const Cartridge&) = delete;
@@ -482,7 +485,7 @@ namespace t7 {
                 // disabled, the authored-staging textures stay pristine.
                 if constexpr (ROSTER.gallery) {
                     wgpu::Queue q = device_.GetQueue();
-                    load_authored_textures(gallery_state_, &machine_ctx_, q);
+                    load_authored_textures(gallery_state_, gpuState_, q);
                 }
 
                 auto t3 = std::chrono::high_resolution_clock::now();
@@ -679,7 +682,7 @@ namespace t7 {
                         if constexpr (ROSTER.gol)      // ROSTER-GATE gol (c) — teardown clear skipped when disabled (organ pristine)
                             teardown_gol(gol_state_, &gol_deps_, queue);
                         if constexpr (ROSTER.ribbon)   // ROSTER-GATE ribbon (c) — same zero-write elimination
-                            teardown_ribbon(this, queue);
+                            teardown_ribbon(ribbon_state_, &ribbon_deps_, queue);
                         if constexpr (ROSTER.sphere)   // ROSTER-GATE sphere (c)
                             clear_spheres(sphere_state_, gpuState_, queue);
                         if constexpr (ROSTER.cube)     // ROSTER-GATE cube (c)
@@ -687,7 +690,7 @@ namespace t7 {
                         // The gallery organ is SHARED with indoor_shell (wall
                         // frames live in the same painting slots — form_type).
                         if constexpr (ROSTER.gallery || ROSTER.indoor_shell)  // ROSTER-GATE gallery+indoor_shell (c)
-                            teardown_gallery(this, queue);
+                            teardown_gallery(gallery_state_, &gallery_deps_, queue);
                         if constexpr (ROSTER.pawn_aura)  // ROSTER-GATE pawn_aura (c) — teardown clear skipped when disabled (no aura to clear)
                             teardown_pawn_aura(pawn_state_);
                         // Sky orbs: apply_mood re-enables + re-seeds as needed
@@ -721,7 +724,7 @@ namespace t7 {
                         // when ribbon is off (active_count stays 0). ORDER
                         // (O-3): after apply_mood set mood_state_.active.
                         if constexpr (ROSTER.ribbon)
-                            release_finite_ribbons(this, queue);
+                            release_finite_ribbons(ribbon_state_, &ribbon_deps_, queue);
                         // Schedule guaranteed back-portal in finite worlds
                         mood_state_.back_portal_pending = world_state_.finite_mode;
 
@@ -762,7 +765,7 @@ namespace t7 {
                 // ROSTER-GATE gallery (b) — P1 DIES STRUCTURALLY (REBUILD-0):
                 // the photographer never walks in a gallery-less demo.
                 if constexpr (ROSTER.gallery)
-                    update_photographer(gallery_state_, this, queue);
+                    update_photographer(gallery_state_, &gallery_deps_, queue);
 
                 // ═══ MOVEMENT: DRIVER BOOKKEEPING ═══════════════════════════
                 // O-5e: dead-last — the signal fill above consumed the deltas.
@@ -949,7 +952,7 @@ namespace t7 {
                 // words then hold update()'s neutral zeros forever, which is
                 // exactly the ribbon-less contract (F8 is D9-gated too).
                 if constexpr (ROSTER.ribbon)
-                    ribbon_frame_tick(ribbon_state_, this, queue);
+                    ribbon_frame_tick(ribbon_state_, &ribbon_deps_, queue);
 
                 // ═══ MOVEMENT: REALIZATION ══════════════════════════════════
                 // ─── Entity mesh gen: single compute pass for all dirty families ──
@@ -1104,13 +1107,13 @@ namespace t7 {
 
                 render_shadow_pass(this, encoder);
                 render_main_pass(this, encoder, backbuffer, depth);
-                render_snapshot_pass(gallery_state_, this, encoder);
+                render_snapshot_pass(gallery_state_, &gallery_deps_, encoder);
 
                 // Promotion drain, one owner verb (REBUILD-0 m2 — stray (5)
                 // home). ROSTER-GATE gallery+indoor_shell (b) — with both off,
                 // no writer of pending_promotions exists.
                 if constexpr (ROSTER.gallery || ROSTER.indoor_shell)
-                    drain_gallery_promotions(gallery_state_, this, encoder);
+                    drain_gallery_promotions(gallery_state_, &gallery_deps_, encoder);
             }
 
             // Mood is VOCABULARY + APPLIERS + SIX DOORS: CeilingType /
@@ -1178,8 +1181,6 @@ namespace t7 {
 // ═══ MODULE IMPLEMENTATIONS (post-class, FILE SCOPE) ══════════════════
 //
 // WIRING FORM (fix-2): SELF-WRAPPING — the zone includes impls at FILE SCOPE; law in audit/LADDER.md.
-#include "bodies/gallery.inl"    // photographer + gallery sites + authored loading + wall paintings
-#include "bodies/ribbon.inl"     // author seats + head laws + frame conductor + three-phase lifecycle
 #include "direction/input.inl"      // key/mouse dispatch + movement intent + camera commands (own GLFW include)
 #include "realization/render_passes.inl"  // ground-entry prep + compute dispatch + shadow/main passes + light VPs
 #include "direction/mood.inl"       // indoor light derivation + appliers + apply_mood + shell + portals + uploads + transition request + derivers

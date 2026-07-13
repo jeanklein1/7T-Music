@@ -488,7 +488,7 @@ inline void apply_mood_anchor_ribbon(Cartridge* c, uint32_t mood, wgpu::Queue& q
     commit_ribbon(c->ribbon_state_, &c->machine_ctx_, plan, 0, 0, queue);
 
     // Immediate promotion through the owner's door (m4).
-    promote_ribbon_to_rendered(c->ribbon_state_, c, 0, queue);
+    promote_ribbon_to_rendered(c->ribbon_state_, &c->ribbon_deps_, 0, queue);
 }
 
 // ── apply_mood (orchestrator) ──
@@ -525,7 +525,7 @@ inline void apply_mood(Cartridge* c, uint32_t mood, wgpu::Queue& queue) {
 
 inline void clear_indoor_shell(Cartridge* c, wgpu::Queue& queue) {
     c->gpuState_.set_shell_index_count(0);
-    clear_wall_paintings(c->gallery_state_, c, queue);
+    clear_wall_paintings(c->gallery_state_, &c->gallery_deps_, queue);
 }
 
 // Helper: push a quad (2 triangles) into vertex/index vectors
@@ -686,7 +686,7 @@ inline void generate_indoor_shell(Cartridge* c, wgpu::Queue& queue, const MoodPr
 
     c->gpuState_.upload_shell_mesh(queue, verts.data(), vc, indices.data(), ic);
 
-    place_wall_paintings(c->gallery_state_, c, queue, bmin, bmax, ch);
+    place_wall_paintings(c->gallery_state_, &c->gallery_deps_, queue, bmin, bmax, ch);
 
     std::cout << "[Shell] Generated "
         << (m.ceiling_type == CeilingType::FLAT ? "FLAT" : "GROIN VAULT")
