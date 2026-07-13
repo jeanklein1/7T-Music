@@ -34,7 +34,7 @@
 // surface samplers (estimate_terrain_height / terrain_tile_warm),
 // seed_utils.hpp, cartridge core (time_state_.seconds/dt/beat_rate,
 // THEMES / PATCH_EXTENT (file-scope vocabulary), the four ribbon
-// canvas bindings, player_ sky fields) through the keyhole, and the GPU wires
+// canvas bindings; the sky trio is OWN state since m6) through the keyhole, and the GPU wires
 // (upload_ribbon_time / _color / _wave_amps / _head_poses — the flush +
 // head laws write through).
 //
@@ -392,6 +392,18 @@ struct RibbonState {
     RibbonHead     head{};
 
     float          mood_offset[2] = { 0.0f, 0.0f };
+
+    // ── Sky-flight fixture (REBUILD-0 m6, Option A): the rider state,
+    //    re-homed from PlayerState — the mount was always ribbon-owned;
+    //    this completes the ownership. F8 (D9-gated on ROSTER.ribbon)
+    //    flips mode; the exit edge reads mode_prev; yaw_eased is the
+    //    player's eased pen (curvature continuity). ──
+    struct SkyFlight {
+        bool  mode = false;        // sky-flight: arrows drive the rendered ribbon's head
+        bool  mode_prev = false;   // previous-frame mode — drives the exit edge (ribbon release)
+        float yaw_eased = 0.0f;    // player's eased yaw
+    };
+    SkyFlight      sky{};
 };
 
 // ═══ MODULE FUNCTIONS — DECLARATIONS ═════════════════════════════

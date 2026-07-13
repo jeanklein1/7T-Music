@@ -125,8 +125,6 @@ FOUNDATIONAL = {
     'stream_patches':               'S2 — the streaming conductor (carries SEAM[patch:spawn-trigger])',
     'upload_portal_array':          'flag-consumer at owner tick (portals_dirty); count-guarded',
     'upload_lights':                'light array upload; count=0 disables (mood-authored)',
-    'ribbon_head_pose':             'SNAP-1 resync read (const); ships zeros when ribbon off; m6 re-homes per Option A',
-    'ribbon_head_frame':            'SNAP-1 resync read (const); same',
     'dispatch_compute':             'REALIZATION — the frame compute dispatch',
     'upload_ground_entries':        'flag-driven realization (ground_entries_dirty cascade, O-4)',
     'dispatch_placement_correction': 'flag-driven realization (placement_dirty, O-4)',

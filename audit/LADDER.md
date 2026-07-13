@@ -1347,3 +1347,42 @@ only in pawn.inl (P8). A module write to any guarded field is now a
 census RED. The consumers-through-deps clause rides the parked sweep;
 the S2 faces (m3b) + this contract carry the boundary meanwhile.
 GATES: glaw1 GREEN full + minimal; score census GREEN incl. W.
+
+**m6 — THE SKY COMES HOME (Option A, per D6; the campaign's last
+movement).** The rider state leaves the witness record: RibbonState
+gains the SkyFlight fixture (mode / mode_prev / yaw_eased) — the
+mount was always ribbon-owned (RibbonHead.mount); this completes the
+ownership with a single CPU owner. The SNAP-1 resync moves from the
+score to the ribbon tick's TAIL — O-1 holds BY CONSTRUCTION now (the
+head advances above it, dispatch_compute follows the tick in the
+score, queue writes apply in submission order); update()'s signal
+block ships all-neutral zeros including the mode word (the tail
+resync is the sole author). F8 retargets to the fixture and keeps its
+D9 gate; with ribbon off, the gated tick eliminates the resync too
+and the sky words hold zeros forever — the ribbon-less contract,
+closed both sides. PlayerState sheds its last SEAM[ribbon:sky-mode]
+tenants; the witness contract text updates to past tense; the two
+head readers leave the score census whitelist with the resync.
+world.wgsl and state.hpp: untouched, as priced (dumb wires).
+GATES: glaw1 GREEN full + minimal; score census GREEN (A, B, W);
+player_.sky greps to zero; sentinels 148/5; zone 18 == 18; encodings
+clean (ribbon.inl BOM intact).
+
+## REBUILD-0 — THE CAMPAIGN CLOSES (m1-m6 landed; m7 NO-GO per D8)
+
+The derivation campaign is cut whole: the lens landed (v3 + the demo
+contract), the spine's types graduated (m1), the score became prose
+with the census standing guard (m2, P1/P2 dead), the dissolution
+became a pulled toolbox with the S2 boundary as its first pull (m3
+per the ruling — the lens amended the stamp, precedent on record),
+the channels converted with the registry standing (m4), the witness
+contract is law with census teeth (m5), and the sky came home to its
+single owner (m6). Standing throughout: PRIME INVARIANT, the score
+census (A/B/W), glaw1 at both demo sentences, the minimal witness.
+AWAITING THE RIG: RC-1/RC-2 pixel arbitration (m2's two reorders —
+failure reverts per the stamped policy) and the two-demo run over
+the campaign's head. Parked with names: the seventeen-module sweep
+(pulled per joint), pair merges (defined, zero-keyhole-residue law),
+the gol device_ self-submit (submission-order hazard), m7 packers
+(assert-first rider is the standing precondition), and R7's three
+levers (chain multiplier, lattice bake, pipeline blob caching).

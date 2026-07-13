@@ -50,8 +50,9 @@ struct TimeState {
 //   · THE CAMERA HAS NO CPU MIRROR — it lives GPU-resident, keyed on
 //     config.possessed_slot; and there is NO readback_y (the witness
 //     altitude is GPU-only). Neither is to be invented.
-//   · sky_mode / sky_mode_prev / sky_yaw_eased are the ribbon rider's
-//     fields, re-homed at m6 per Option A (SEAM[ribbon:sky-mode]).
+//   · the sky trio (mode / mode_prev / yaw_eased) LEFT this record
+//     at m6 per Option A — it lives in RibbonState.sky, with its
+//     single CPU owner (SEAM[ribbon:sky-mode], closed player-side).
 //
 // SEAM[spine:P8] PlayerState commented "Future (deferred)" fields
 //   are explicit latent infrastructure: aura_presence is live here;
@@ -62,9 +63,6 @@ struct PlayerState {
 
     // ── Camera + readback ──
     bool    fpv_mode = false;                // first-person view toggle
-    bool    sky_mode = false;                // sky-flight: arrows drive the rendered ribbon's head (SEAM[ribbon:sky-mode])
-    bool    sky_mode_prev = false;           // previous-frame sky_mode — drives the exit edge (ribbon release)
-    float   sky_yaw_eased = 0.0f;            // player's eased yaw (curvature continuity)
     float   readback_x = 0.0f;               // GPU readback of pawn world X
     float   readback_z = 0.0f;               // GPU readback of pawn world Z
     int32_t readback_portal_trigger = -1;    // set by readback callback when pawn hits portal

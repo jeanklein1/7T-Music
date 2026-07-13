@@ -383,7 +383,7 @@ inline void ribbon_frame_tick(RibbonState& rs, Cartridge* c, wgpu::Queue& queue)
 
     // Sky mode just ended — release the pinned (now anchor-less)
     // ribbon so a fresh one can spawn. SEAM[ribbon:sky-mode].
-    if (c->player_.sky_mode_prev && !c->player_.sky_mode) {
+    if (rs.sky.mode_prev && !rs.sky.mode) {
         uint32_t s = rs.rendered_slot;
         if (s != UINT32_MAX && rs.active[s].active) {
             rs.active[s] = ActiveRibbon{};
@@ -396,7 +396,7 @@ inline void ribbon_frame_tick(RibbonState& rs, Cartridge* c, wgpu::Queue& queue)
             ribbon_invalidate_head(rs);
         }
     }
-    c->player_.sky_mode_prev = c->player_.sky_mode;
+    rs.sky.mode_prev = rs.sky.mode;
 
     // Render one ribbon: hold the current slot until it's evicted,
     // then pick the nearest active ribbon as the new rendered slot.
@@ -407,18 +407,18 @@ inline void ribbon_frame_tick(RibbonState& rs, Cartridge* c, wgpu::Queue& queue)
     // on; the wander policy when the rendered ribbon is a wanderer;
     // parked otherwise. One control law, many authors.
     // SEAM[ribbon:sky-mode].
-    bool  ribbon_flown  = c->player_.sky_mode;
+    bool  ribbon_flown  = rs.sky.mode;
     float ribbon_yaw_in = ribbon_flown ?  c->inputState_.move_x : 0.0f;
     float ribbon_thr_in = ribbon_flown ? -c->inputState_.move_z : 0.0f;
     // The player's pen, eased like the wanderer's (RIBBON_SKY_YAW_TAU
     // in the tuning console).
     {
-        if (c->player_.sky_mode) {
+        if (rs.sky.mode) {
             const float a = 1.0f - std::exp(-c->time_state_.dt / RIBBON_SKY_YAW_TAU);
-            c->player_.sky_yaw_eased += (ribbon_yaw_in - c->player_.sky_yaw_eased) * a;
-            ribbon_yaw_in = c->player_.sky_yaw_eased;
+            rs.sky.yaw_eased += (ribbon_yaw_in - rs.sky.yaw_eased) * a;
+            ribbon_yaw_in = rs.sky.yaw_eased;
         } else {
-            c->player_.sky_yaw_eased = 0.0f;
+            rs.sky.yaw_eased = 0.0f;
         }
     }
     if (!ribbon_flown && current_alive
@@ -504,6 +504,23 @@ inline void ribbon_frame_tick(RibbonState& rs, Cartridge* c, wgpu::Queue& queue)
             c->gpuState_.upload_ribbon(queue, empty);
             rs.rendered_slot = UINT32_MAX;
         }
+    }
+
+    // ── SNAP-1 resync, the tick's tail (REBUILD-0 m6, Option A —
+    // moved from the score; O-1 holds BY CONSTRUCTION now: the head
+    // advanced above, dispatch_compute follows the tick in the score,
+    // and queue writes apply in submission order). Re-writes the
+    // sky_* signal block so the pawn and the ribbon are sampled at
+    // the same frame — the one-frame mount lag disappears, leaving
+    // MOUNT_SETBACK as the sole seat offset. update() ships neutral
+    // zeros; THIS is the authoritative author. SEAM[ribbon:sky-mode].
+    {
+        float hx, hy, hz, hh;
+        ribbon_head_pose(rs, hx, hy, hz, hh);
+        float fyaw, fpitch, froll;
+        ribbon_head_frame(rs, fyaw, fpitch, froll);
+        c->gpuState_.resync_sky_head(queue, rs.sky.mode ? 1u : 0u,
+                                     hx, hy, hz, hh, fyaw, fpitch, froll);
     }
 }
 
@@ -895,7 +912,7 @@ inline void evict_ribbon(Cartridge* self,
     // world's ribbon persists — a contemplative object should.
     // SEAM[ribbon:sky-mode].
     if (slot == self->ribbon_state_.rendered_slot
-        && (self->player_.sky_mode || ar.wander)) {
+        && (self->ribbon_state_.sky.mode || ar.wander)) {
         return;
     }
 

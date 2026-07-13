@@ -550,7 +550,7 @@ namespace t7 {
                 // loss of the resync fail LOUD (pawn to origin) rather than
                 // silently one frame late. SEAM[ribbon:sky-mode].
                 {
-                    gpuSignal.sky_mode    = player_.sky_mode ? 1u : 0u;
+                    gpuSignal.sky_mode    = 0u;  // m6: the whole block is neutral now — the ribbon tick's tail resync is the sole author
                     gpuSignal.sky_head_x  = 0.0f;
                     gpuSignal.sky_head_y  = 0.0f;
                     gpuSignal.sky_head_z  = 0.0f;
@@ -916,10 +916,10 @@ namespace t7 {
                 // ─── Ribbon per-frame ── one call; the conductor lives in
                 // bodies/ribbon.inl (FRAME ORCHESTRATION). SEAM[ribbon:sky-mode].
                 // ROSTER-GATE ribbon (b) — ungated-site closed (REBUILD-0):
-                // disabled, the per-frame walk over empty slots is eliminated;
-                // the resync below then ships the default (zero) head, exactly
-                // what the never-seeded head returned before. O-1: this tick
-                // must precede resync_sky_head.
+                // disabled, the per-frame walk over empty slots is eliminated,
+                // and with it the SNAP-1 resync at its tail (m6) — the sky
+                // words then hold update()'s neutral zeros forever, which is
+                // exactly the ribbon-less contract (F8 is D9-gated too).
                 if constexpr (ROSTER.ribbon)
                     ribbon_frame_tick(ribbon_state_, this, queue);
 
@@ -999,23 +999,9 @@ namespace t7 {
                 upload_portal_array(this, queue);
                 upload_lights(this, queue);
 
-                // Re-sync the pawn mount to THIS frame. ribbon_advance_head (in the
-                // ribbon block above) just recomputed the head mount, but the signal
-                // uploaded earlier — and therefore the pawn — still carries the previous
-                // frame's mount. Re-write the sky_* block so the pawn and the ribbon are
-                // sampled at the same frame: the one-frame lag (a ~throttle·MAX_SPEED·dt
-                // slide along the tube) disappears, leaving MOUNT_SETBACK as the sole
-                // seat offset. Ordered before dispatch_compute, which runs the player
-                // agent kernel that reads sky_*. SEAM[ribbon:sky-mode].
-                {
-                    float hx, hy, hz, hh;
-                    ribbon_head_pose(ribbon_state_, hx, hy, hz, hh);
-                    float fyaw, fpitch, froll;
-                    ribbon_head_frame(ribbon_state_, fyaw, fpitch, froll);
-                    gpuState_.resync_sky_head(queue, player_.sky_mode ? 1u : 0u,
-                                              hx, hy, hz, hh, fyaw, fpitch, froll);
-                }
-
+                // The SNAP-1 sky resync lives at the ribbon tick's tail now
+                // (m6, Option A) — O-1 by construction: tick above,
+                // dispatch below, queue writes in submission order.
                 dispatch_compute(this, encoder);
 
                 // ═══ MOVEMENT: WITNESS — CAPTURE (O-2: staging copies AFTER

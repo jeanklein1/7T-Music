@@ -243,9 +243,9 @@ inline void toggle_fpv_mode(Cartridge* c) {
 // holds its stationary arc. The pawn snap and camera follow have landed;
 // only the fade transition remains unbuilt. SEAM[ribbon:sky-mode].
 inline void toggle_sky_mode(Cartridge* c) {
-    c->player_.sky_mode = !c->player_.sky_mode;
+    c->ribbon_state_.sky.mode = !c->ribbon_state_.sky.mode;  // the ribbon's fixture (m6, Option A)
     std::cout << "[the_board] Sky mode: "
-        << (c->player_.sky_mode ? "ON (fly the ribbon with arrows)" : "OFF") << std::endl;
+        << (c->ribbon_state_.sky.mode ? "ON (fly the ribbon with arrows)" : "OFF") << std::endl;
 }
 
 inline void set_render_radius(Cartridge* c, uint32_t r) {
