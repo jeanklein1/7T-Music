@@ -144,8 +144,23 @@ void evict_distant_tiles(TileWorldState& tw, int32_t centerX, int32_t centerZ);
 void upload_tile_grid_now(TileWorldState& tw, Cartridge* c, wgpu::Queue& queue, int32_t cx, int32_t cz);
 TileState generate_tile_state(TileWorldState& tw, Cartridge* c, int32_t gx, int32_t gz);
 void tick_terrain_tokens(TileWorldState& tw, const TileState& outcome, uint32_t seed);
+// THE S2 BOUNDARY FACE, four surfaces (REBUILD-0 m3b — v3 §7's first
+// toolbox pull, justified by D1). INVARIANT AT EVERY FACE: callable
+// WITHOUT the complete Cartridge — a generated-once surface cast
+// could implement these four and the occupiers would never know.
+//   F1 HEIGHT · F2 WARMTH · F3 SPAWN-MULT · F4 ARCHETYPE
 float estimate_terrain_height(const TileWorldState& tw, float wx, float wz);
 bool terrain_tile_warm(const TileWorldState& tw, float wx, float wz);
+// F3: applies the tile's spawn modifiers ONTO the accumulator —
+// density then per-family theme multiplier, in that order (the two
+// multiplies stay separate: bit-identity under FP non-associativity);
+// no memory of the tile = no change.
+void tile_apply_spawn_mult(const TileWorldState& tw, int32_t gx, int32_t gz,
+                           uint32_t family, float& adj_mod);
+// F4: the tile's terrain archetype; returns false (out untouched)
+// where the tile is cold — callers keep their own miss defaults
+// (they differ: pace keeps 1.0, placement keeps archetype 1).
+bool tile_archetype(const TileWorldState& tw, int32_t gx, int32_t gz, uint32_t& out);
 
 } // namespace the_board
 } // namespace t7

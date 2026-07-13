@@ -653,9 +653,9 @@ namespace t7 {
                         if constexpr (ROSTER.ribbon)   // ROSTER-GATE ribbon (c) — same zero-write elimination
                             teardown_ribbon(this, queue);
                         if constexpr (ROSTER.sphere)   // ROSTER-GATE sphere (c)
-                            clear_spheres(sphere_state_, this, queue);
+                            clear_spheres(sphere_state_, gpuState_, queue);
                         if constexpr (ROSTER.cube)     // ROSTER-GATE cube (c)
-                            clear_cubes(cube_behaviors_state_, this, queue);
+                            clear_cubes(cube_behaviors_state_, gpuState_, queue);
                         // The gallery organ is SHARED with indoor_shell (wall
                         // frames live in the same painting slots — form_type).
                         if constexpr (ROSTER.gallery || ROSTER.indoor_shell)  // ROSTER-GATE gallery+indoor_shell (c)

@@ -1246,3 +1246,48 @@ lens governs where framing differs; Q1-Q3 put the fork to Jean.
 GATES: glaw1 GREEN full + minimal; score census GREEN; clear_spheres
 move token-identical; sentinels 148/5 unchanged; zone 18 == 18;
 encodings clean.
+
+**m3 — THE RULING (the lens overrules the stamp; PRECEDENT).** Jean's
+ruling on audit/REBUILD0_M3_RECIPE.md Q1-Q3: v3 §7 GOVERNS — the
+seventeen-module sweep is PARKED; dissolution is a toolbox pulled per
+joint with a demo-axis justification named at pull time. THE
+PRECEDENT, recorded explicitly: the stamped stage order was AMENDED
+BY THE LENS (strata law) — stamps bow to the lens, including the
+stamp that ordered the sweep. Q2 is moot and recorded as the PROOF:
+both poisons (services-first inverts pull-value; c-through-deps fakes
+the dissolution) being real is why the era-shape was wrong. Q3: PAIR
+MERGES DEFINED AND PARKED — a merge collapses hpp+inl into one
+pre-class header, lawful ONLY at zero keyhole residue in any
+signature INCLUDING dispatch rows (today's eligible set: likely
+empty); the zone architecture remains standing law; no merge rides
+m3.
+
+**m3a — AMENDED per the ruling.** The four GPUState&-parameter
+functions are restored byte-identical to their pre-m3a forms and
+RECLASSIFIED: bypass -> DEPS-FORM PRECEDENT (the deps form's first
+citizens, born-converted, callable without the complete Cartridge);
+their banners now say so, and say they are not to be re-shaped
+keyhole-ward. KEPT from the first cut: the staged setters
+(stage_pier_count / stage_placement_patch_count / stage_lod_pawn /
+stage_floater_coordination — named verbs for the poke-then-flush
+idiom, deliberately without configDirty_) and the gol device_
+self-submit PARKED with its hazard named (submission-order
+arbitration is the rig's).
+
+**m3b — THE S2 BOUNDARY FACE (v3 §7's first toolbox pull; D1 is the
+puller).** tile_world's boundary is now FOUR DECLARED FACES, each
+carrying the invariant in its banner (callable WITHOUT the complete
+Cartridge — a generated-once surface cast could implement them):
+F1 estimate_terrain_height + F2 terrain_tile_warm (pre-existing,
+invariant stated); F3 tile_apply_spawn_mult (APPLIES onto the
+accumulator — the two multiplies stay separate and ordered, bit-
+identity under FP non-associativity); F4 tile_archetype (BOOL-OUT —
+the miss default stays with the caller: the pace site keeps 1.0, the
+placement sites keep archetype 1; the naive default-1 form would
+have silently changed cold-tile pace to PHOTO_PACE_BY_ARCHETYPE[1]
+= 0.8). Five consumer sites converted (gol select, gallery pace,
+gallery place, the P11 preamble template, evaluate_spawn_gate);
+zero raw tileCache_ reads remain outside surface/.
+GATES: glaw1 GREEN full + minimal; score census GREEN; the four
+restored functions byte-identical vs 3701b5b; sentinels 148/5;
+zone 18 == 18; encodings clean.

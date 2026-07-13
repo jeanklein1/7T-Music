@@ -415,7 +415,10 @@ void dispatch_commit_ribbon(Cartridge* self, PlacementEntry& pe, wgpu::Queue& qu
 // Frame conductor
 void ribbon_frame_tick(RibbonState& rs, Cartridge* c, wgpu::Queue& queue);
 // Head mover
-void ribbon_advance_head(RibbonState& rs, Cartridge* c,
+// DEPS-FORM PRECEDENT (m3 ruling): the head mover and its body
+// uploader take GPUState& explicitly — born-converted, callable
+// without the complete Cartridge.
+void ribbon_advance_head(RibbonState& rs, GPUState& gpuState,
     wgpu::Queue& queue, const GPURibbonState& ribbon,
     uint32_t slot, float t,
     bool flown, float yaw_in, float throttle_in, float dt,

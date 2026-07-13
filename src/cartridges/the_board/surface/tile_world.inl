@@ -298,5 +298,24 @@ inline bool terrain_tile_warm(const TileWorldState& tw, float wx, float wz) {
     return tw.tileCache_.find({ tx, tz }) != tw.tileCache_.end();
 }
 
+// F3 (m3b): the spawn-modifier face. The two multiplies preserve the
+// consumers' original operation order exactly (density, then theme).
+inline void tile_apply_spawn_mult(const TileWorldState& tw, int32_t gx, int32_t gz,
+                                  uint32_t family, float& adj_mod) {
+    auto it = tw.tileCache_.find({ gx, gz });
+    if (it != tw.tileCache_.end()) {
+        adj_mod *= it->second.entity_density;
+        adj_mod *= it->second.theme_spawn[family];
+    }
+}
+
+// F4 (m3b): the archetype face, bool-out — the miss default stays
+// with the caller (pace keeps 1.0, placement keeps archetype 1).
+inline bool tile_archetype(const TileWorldState& tw, int32_t gx, int32_t gz, uint32_t& out) {
+    auto it = tw.tileCache_.find({ gx, gz });
+    if (it != tw.tileCache_.end()) { out = it->second.archetype; return true; }
+    return false;
+}
+
 } // namespace the_board
 } // namespace t7

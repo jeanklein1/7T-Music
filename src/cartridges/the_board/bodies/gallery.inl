@@ -3,7 +3,7 @@
 //
 // Definitions for gallery.hpp's declared per-frame + outdoor-lifecycle
 // + indoor-entry + authored-loading functions. The bodies reach
-// c->gpuState_ / c->renderer_ / c->tile_world_state_.tileCache_ / c->player_ /
+// c->gpuState_ / c->renderer_ / the S2 boundary faces (m3b) / c->player_ /
 // c->world_state_ / c->mood_state_ / c->ribbon_state_ / c->clearColor_ /
 // c->sunDirection_ and the spine services (check_position /
 // register_footprint / record_placement_bookkeeping — spawn_engine.hpp),
@@ -142,9 +142,9 @@ inline void update_photographer(GalleryState& gs, Cartridge* c, wgpu::Queue& que
         float pace = 1.0f;
         int32_t tx = (int32_t)std::floor(px / PATCH_EXTENT);
         int32_t tz = (int32_t)std::floor(pz / PATCH_EXTENT);
-        auto it = c->tile_world_state_.tileCache_.find({ tx, tz });
-        if (it != c->tile_world_state_.tileCache_.end()) {
-            pace = GalleryConfig::PHOTO_PACE_BY_ARCHETYPE[it->second.archetype];
+        uint32_t pace_archetype = 0;
+        if (tile_archetype(c->tile_world_state_, tx, tz, pace_archetype)) {  // F4 (m3b): miss keeps pace 1.0
+            pace = GalleryConfig::PHOTO_PACE_BY_ARCHETYPE[pace_archetype];
         }
 
         gs.photographer.next_threshold = std::max(
@@ -241,14 +241,8 @@ inline bool select_gallery_for_patch(GalleryState& gs, Cartridge* c, int32_t gx,
     // Density + theme modifiers
     adj_mod *= GLOBAL_ENTITY_DENSITY;
     uint32_t archetype = 1;
-    {
-        auto dit = c->tile_world_state_.tileCache_.find({ gx, gz });
-        if (dit != c->tile_world_state_.tileCache_.end()) {
-            adj_mod *= dit->second.entity_density;
-            adj_mod *= dit->second.theme_spawn[PopFamily::GALLERY];
-            archetype = dit->second.archetype;
-        }
-    }
+    tile_apply_spawn_mult(c->tile_world_state_, gx, gz, PopFamily::GALLERY, adj_mod);  // F3 (m3b)
+    tile_archetype(c->tile_world_state_, gx, gz, archetype);                           // F4 (m3b): miss keeps 1
 
     // Idempotency: skip if paintings already exist at this patch
     for (uint32_t i = 0; i < Dim::PAINTING_MAX_SLOTS; i++) {

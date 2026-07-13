@@ -65,11 +65,13 @@ inline uint32_t pick_cube_behavior_for_spawn(uint32_t mood_id, uint32_t seed) {
 // orbit_height (small visible jump only if pawn's altitude differs
 // from where the cube was hovering).
 
-inline void clear_cubes(CubeBehaviorsState& cbs, Cartridge* c, wgpu::Queue& queue) {
+// DEPS-FORM PRECEDENT (m3 ruling): explicit GPUState& parameter —
+// the deps form's first citizen; not a keyhole bypass.
+inline void clear_cubes(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue) {
     for (uint32_t i = 0; i < Dim::MAX_CUBE_INSTANCES; i++) {
         cbs.activeCubes_[i] = ActiveCube{};
         GPUFloatingEntityState empty{};
-        c->gpuState_.upload_cube_entity_slot(queue, i, empty);
+        gpu.upload_cube_entity_slot(queue, i, empty);
     }
     cbs.activeCubeCount_ = 0;
 }

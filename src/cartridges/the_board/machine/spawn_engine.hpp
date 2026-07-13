@@ -242,13 +242,7 @@ SpawnGatePreambleResult run_spawn_preamble(C* c,
     float adj_mod = mood_mult[c->mood_state_.active];
     adj_mod *= GLOBAL_ENTITY_DENSITY;
     r.theme_idx = c->themes_state_.active_theme_idx_;
-    {
-        auto dit = c->tile_world_state_.tileCache_.find({ gx, gz });
-        if (dit != c->tile_world_state_.tileCache_.end()) {
-            adj_mod *= dit->second.entity_density;
-            adj_mod *= dit->second.theme_spawn[family];
-        }
-    }
+    tile_apply_spawn_mult(c->tile_world_state_, gx, gz, family, adj_mod);  // F3 (m3b): the S2 boundary face
 
     // 6b. Proximity affinity boost (nearby entities attract)
     {

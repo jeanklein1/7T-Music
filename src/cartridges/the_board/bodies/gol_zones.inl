@@ -3,7 +3,7 @@
 //
 // Definitions for gol_zones.hpp's declared lifecycle + per-frame
 // functions. The bodies reach c->gpuState_ / c->renderer_ / c->device_ /
-// c->tile_world_state_.tileCache_ / c->mood_state_ / c->world_state_ / c->time_state_ and
+// the S2 boundary faces (tile_world.hpp, m3b) / c->mood_state_ / c->world_state_ / c->time_state_ and
 // the spine services (check_position / register_footprint /
 // record_placement_bookkeeping — spawn_engine.hpp), plus
 // GLOBAL_ENTITY_DENSITY (spawn_engine.hpp) and PATCH_EXTENT
@@ -32,13 +32,7 @@ inline bool select_gol_for_patch(GoLState& gs, Cartridge* c,
 
     // Density + theme modifiers
     adj_mod *= GLOBAL_ENTITY_DENSITY;
-    {
-        auto dit = c->tile_world_state_.tileCache_.find({ gx, gz });
-        if (dit != c->tile_world_state_.tileCache_.end()) {
-            adj_mod *= dit->second.entity_density;
-            adj_mod *= dit->second.theme_spawn[PopFamily::GOL];
-        }
-    }
+    tile_apply_spawn_mult(c->tile_world_state_, gx, gz, PopFamily::GOL, adj_mod);  // F3 (m3b)
 
     // Scan lattice nodes overlapping this patch
     float wx0 = gx * PATCH_EXTENT;

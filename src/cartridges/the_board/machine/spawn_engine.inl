@@ -385,8 +385,7 @@ inline SpawnPreamble evaluate_spawn_gate(Cartridge* c, int32_t gx, int32_t gz,
     float adjacency_mod) {
     SpawnPreamble result{};
     result.archetype = 1;
-    auto tile_it = c->tile_world_state_.tileCache_.find({ gx, gz });
-    if (tile_it != c->tile_world_state_.tileCache_.end()) result.archetype = tile_it->second.archetype;
+    tile_archetype(c->tile_world_state_, gx, gz, result.archetype);  // F4 (m3b): miss keeps 1
 
     result.seed = tile_seed(c->world_state_.active_seed, gx, gz);
     float chance = std::min(spawn_chance * adjacency_mod, 1.0f);
