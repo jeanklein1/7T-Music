@@ -20,6 +20,18 @@
 namespace t7 {
 namespace the_board {
 
+// ═══ MODULE DEPS (DISSOLVE-1 Batch B) ══════════════════════════════
+// The cube commands' requirements face: corral/kite read the pawn
+// through the possessed agent slot; all reads except the GPU wire.
+struct AgentState;
+struct CubeDeps {
+    GPUState&        gpuState_;
+    const TimeState& time_state_;
+    const AgentState& agent_state_;
+    const PlayerState& player_;
+    const MoodState& mood_state_;
+};
+
 // ═══ BEHAVIOR IDS ════════════════════════════════════════════════
 
 inline constexpr uint32_t CUBE_BEHAVIOR_STATIONARY = 0;
@@ -162,13 +174,13 @@ bool dispatch_select_cube_generic(MachineCtx* self, int32_t gx, int32_t gz, Enti
 bool dispatch_place_cube_generic(MachineCtx* self, EntityQueueEntry& e, PlacementEntry& pe);
 void dispatch_commit_cube_generic(MachineCtx* self, PlacementEntry& pe, wgpu::Queue& queue);
 // Player commands
-void cycle_floater_coordination(CubeBehaviorsState& cbs, Cartridge* c);
-void cycle_cube_behavior_override(CubeBehaviorsState& cbs, Cartridge* c, wgpu::Queue& queue);
-void corral_cubes(CubeBehaviorsState& cbs, Cartridge* c, wgpu::Queue& queue);
-void toggle_cube_kite_mode(CubeBehaviorsState& cbs, Cartridge* c, wgpu::Queue& queue);
+void cycle_floater_coordination(CubeBehaviorsState& cbs, CubeDeps* c);
+void cycle_cube_behavior_override(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& queue);
+void corral_cubes(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& queue);
+void toggle_cube_kite_mode(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& queue);
 // Per-frame
-void tick_cube_corral_animations(CubeBehaviorsState& cbs, Cartridge* c, wgpu::Queue& queue);
-void reconcile_cube_mirror(CubeBehaviorsState& cs, Cartridge* c, const GPUFloatingEntityState* data);
+void tick_cube_corral_animations(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& queue);
+void reconcile_cube_mirror(CubeBehaviorsState& cs, CubeDeps* c, const GPUFloatingEntityState* data);
 
 } // namespace the_board
 } // namespace t7

@@ -205,6 +205,10 @@ namespace t7 {
             TileWorldDeps tile_world_deps_;
             SphereDeps    sphere_deps_;
             PawnDeps      pawn_deps_;
+            OrbsDeps      orbs_deps_;
+            AgentsDeps    agents_deps_;
+            CubeDeps      cube_deps_;
+            GolDeps       gol_deps_;
 
             GPUSpotLightArray cpuSpotLights_{};  // count=0 disables (outdoor)
 
@@ -361,7 +365,11 @@ namespace t7 {
                                 time_state_, player_, gpuState_, renderer_ }
                 , tile_world_deps_{ world_state_, mood_state_, gpuState_ }
                 , sphere_deps_{ time_state_ }
-                , pawn_deps_{ player_, time_state_, gpuState_, renderer_ } {}
+                , pawn_deps_{ player_, time_state_, gpuState_, renderer_ }
+                , orbs_deps_{ gpuState_, renderer_, player_, time_state_, world_state_ }
+                , agents_deps_{ gpuState_, player_, transitionPhase_, world_state_, time_state_ }
+                , cube_deps_{ gpuState_, time_state_, agent_state_, player_, mood_state_ }
+                , gol_deps_{ gpuState_, renderer_, device_, time_state_ } {}
 
             Cartridge(const Cartridge&) = delete;
             Cartridge& operator=(const Cartridge&) = delete;
@@ -440,7 +448,7 @@ namespace t7 {
                 // Sky orbs for the initial mood (apply_mood runs only on transitions).
                 if constexpr (ROSTER.orbs) {  // ROSTER-GATE orbs (c) — boot one-shot skipped when disabled
                     wgpu::Queue q = device_.GetQueue();
-                    configure_orbs(orbs_state_, this, ORB_MOOD_TABLE[mood_state_.active], q);
+                    configure_orbs(orbs_state_, &orbs_deps_, ORB_MOOD_TABLE[mood_state_.active], q);
                 }
 
                 // Agent registries — single source of truth in bodies/agents.inl
@@ -450,22 +458,22 @@ namespace t7 {
                 // so this is a one-shot write at boot.
                 {
                     wgpu::Queue q = device_.GetQueue();
-                    upload_agent_registries_to_gpu(this, q);
+                    upload_agent_registries_to_gpu(&agents_deps_, q);
                 }
 
                 // ═══ MOVEMENT: BOOT — S3 PLACEMENT ══════════════════════════
                 {
                     // Slot 0, the pawn — ungated: the player body is
                     // unconditional (owner verb; REBUILD-0 m2, stray (3) home).
-                    seed_player_body(agent_state_, this);
+                    seed_player_body(agent_state_, &agents_deps_);
 
                     wgpu::Queue q = device_.GetQueue();
                     // ROSTER-GATE wanderers (c) — boot population (agent slots
                     // 1+). Slot 0 (the pawn, seeded just above) is untouched.
                     if constexpr (ROSTER.wanderers)
-                        spawn_population_for_mood(agent_state_, this, mood_state_.active, world_state_.active_seed,
+                        spawn_population_for_mood(agent_state_, &agents_deps_, mood_state_.active, world_state_.active_seed,
                             Idle::PAWN_POS_X, Idle::PAWN_POS_Z, q);
-                    dump_agent_census(agent_state_, this, "boot");
+                    dump_agent_census(agent_state_, &agents_deps_, "boot");
                 }
 
                 // ═══ MOVEMENT: BOOT — PER-PIECE BOOT VERBS (part two) ═══════
@@ -667,9 +675,9 @@ namespace t7 {
                         // only zeros-over-pristine GPU writes (disclosed at
                         // the ladder).
                         teardown_surface(this, queue);
-                        teardown_entities(this, queue);
+                        teardown_entities(&machine_ctx_, queue);
                         if constexpr (ROSTER.gol)      // ROSTER-GATE gol (c) — teardown clear skipped when disabled (organ pristine)
-                            teardown_gol(this, queue);
+                            teardown_gol(gol_state_, &gol_deps_, queue);
                         if constexpr (ROSTER.ribbon)   // ROSTER-GATE ribbon (c) — same zero-write elimination
                             teardown_ribbon(this, queue);
                         if constexpr (ROSTER.sphere)   // ROSTER-GATE sphere (c)
@@ -684,7 +692,7 @@ namespace t7 {
                             teardown_pawn_aura(pawn_state_);
                         // Sky orbs: apply_mood re-enables + re-seeds as needed
                         if constexpr (ROSTER.orbs)  // ROSTER-GATE orbs (c) — teardown one-shot skipped when disabled
-                            teardown_orbs(orbs_state_, this);
+                            teardown_orbs(orbs_state_, &orbs_deps_);
 
                         player_.readback_portal_trigger = -1;
                         player_.readback_x = 0.0f;
@@ -699,15 +707,15 @@ namespace t7 {
                         gpuState_.set_possessed_slot(0);
                         // CPU mirror reseed rides with its owner (agents;
                         // REBUILD-0 m2, stray (3)'s transition twin).
-                        reseed_player_body(agent_state_, this, preserved_tier,
+                        reseed_player_body(agent_state_, &agents_deps_, preserved_tier,
                             preserved_color_r, preserved_color_g, preserved_color_b);
                         gpuState_.set_world_seed(world_state_.active_seed);
                         apply_mood(this, pendingDestination_.mood, queue);
                         // ROSTER-GATE wanderers (c) — transition population (slots 1+); slot 0 preserved above.
                         if constexpr (ROSTER.wanderers)
-                            spawn_population_for_mood(agent_state_, this, pendingDestination_.mood, world_state_.active_seed,
+                            spawn_population_for_mood(agent_state_, &agents_deps_, pendingDestination_.mood, world_state_.active_seed,
                                 Idle::PAWN_POS_X, Idle::PAWN_POS_Z, queue);
-                        dump_agent_census(agent_state_, this, "mood-transition");
+                        dump_agent_census(agent_state_, &agents_deps_, "mood-transition");
                         // ROSTER-GATE ribbon (c) — finite-mode release, owner
                         // verb (REBUILD-0 m2, stray (4) home). Zero effect
                         // when ribbon is off (active_count stays 0). ORDER
@@ -750,7 +758,7 @@ namespace t7 {
                 // Orb dome anchor: follow pawn when toggled on. Uses
                 // last-frame pawn readback — one-frame lag is imperceptible (O-5d).
                 if constexpr (ROSTER.orbs)  // ROSTER-GATE orbs (b)
-                    update_orb_anchor(orbs_state_, this, player_.readback_x, player_.readback_z, queue);
+                    update_orb_anchor(orbs_state_, &orbs_deps_, player_.readback_x, player_.readback_z, queue);
                 // ROSTER-GATE gallery (b) — P1 DIES STRUCTURALLY (REBUILD-0):
                 // the photographer never walks in a gallery-less demo.
                 if constexpr (ROSTER.gallery)
@@ -832,7 +840,7 @@ namespace t7 {
                                         if constexpr (ROSTER.sphere)  // ROSTER-GATE sphere (b) — no spheres, no mirror to release
                                             reconcile_sphere_mirror(sphere_state_, &sphere_deps_, data);
                                         if constexpr (ROSTER.cube)    // ROSTER-GATE cube (b)
-                                            reconcile_cube_mirror(cube_behaviors_state_, this, data);
+                                            reconcile_cube_mirror(cube_behaviors_state_, &cube_deps_, data);
                                     }
                                 }
                                 gpuState_.floating_entity_readback_staging().Unmap();
@@ -876,7 +884,7 @@ namespace t7 {
                 // No-op when no slots were evicted — just a 32-slot scan.
                 // ROSTER-GATE wanderers (b) — per-frame refill of evicted NPC slots (1+); slot 0 never evicted.
                 if constexpr (ROSTER.wanderers)
-                    respawn_evicted_agents(agent_state_, this, mood_state_.active, world_state_.active_seed, queue);
+                    respawn_evicted_agents(agent_state_, &agents_deps_, mood_state_.active, world_state_.active_seed, queue);
 
                 // ═══ MOVEMENT: S4 MOTION — BODIES ═══════════════════════════
                 // REORDER RC-2 (stamped policy): corral moved after stream —
@@ -885,7 +893,7 @@ namespace t7 {
                 // arbitrates. ROSTER-GATE cube (b) — ungated-site closed
                 // (REBUILD-0): no cubes, no corral animation to advance.
                 if constexpr (ROSTER.cube)
-                    tick_cube_corral_animations(cube_behaviors_state_, this, queue);
+                    tick_cube_corral_animations(cube_behaviors_state_, &cube_deps_, queue);
 
                 // DIAG-unwrapped (census: constitution §5): autonomous
                 // stdout — wrap in #ifdef DIAG_AGENT_CENSUS at ship.
@@ -915,7 +923,7 @@ namespace t7 {
                 }
 
                 if (time_state_.seconds - agent_state_.last_census_dump >= AGENT_CENSUS_INTERVAL) {
-                    dump_agent_census(agent_state_, this, "periodic");
+                    dump_agent_census(agent_state_, &agents_deps_, "periodic");
                     const auto& player = agent_state_.slots[0];
                     std::cout << "[Player] pos=(" << std::fixed << std::setprecision(1)
                         << player.pos_x << "," << player.pos_z
@@ -1053,11 +1061,11 @@ namespace t7 {
                 if constexpr (ROSTER.gol)
                 if (gol_state_.zone_count > 0) {
                     rosterGolZoneRuns_++;  // ROSTER-RESIDUE gol (2e) — the only writer of the zone GPU buffers; counted so the disabled-piece residue check can prove pristine
-                    flush_zone_derive_requests(gol_state_, this, queue);
-                    upload_gol_zone_config(gol_state_, this, queue);
-                    dispatch_zone_sync(gol_state_, this, encoder);
-                    dispatch_zone_evolve(gol_state_, this, encoder);
-                    dispatch_zone_mesh(gol_state_, this, encoder);
+                    flush_zone_derive_requests(gol_state_, &gol_deps_, queue);
+                    upload_gol_zone_config(gol_state_, &gol_deps_, queue);
+                    dispatch_zone_sync(gol_state_, &gol_deps_, encoder);
+                    dispatch_zone_evolve(gol_state_, &gol_deps_, encoder);
+                    dispatch_zone_mesh(gol_state_, &gol_deps_, encoder);
                 }
 
                 // Pawn aura compute — persistent terrain influence, one owner
@@ -1073,10 +1081,10 @@ namespace t7 {
                 // advance dynamics.
                 // ROSTER-GATE orbs (b) — disabled: no orb compute dispatched.
                 if constexpr (ROSTER.orbs) {
-                    dispatch_orb_init(orbs_state_, this, encoder);
-                    dispatch_orb_recolor(orbs_state_, this, encoder);
-                    dispatch_orb_copy_prev(orbs_state_, this, encoder);
-                    dispatch_orb_dynamics(orbs_state_, this, encoder, queue);
+                    dispatch_orb_init(orbs_state_, &orbs_deps_, encoder);
+                    dispatch_orb_recolor(orbs_state_, &orbs_deps_, encoder);
+                    dispatch_orb_copy_prev(orbs_state_, &orbs_deps_, encoder);
+                    dispatch_orb_dynamics(orbs_state_, &orbs_deps_, encoder, queue);
                 }
 
                 if (world_state_.ground_entries_dirty) {

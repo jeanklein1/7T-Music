@@ -120,7 +120,7 @@ inline bool prepare_pyramid_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Que
 
 // ═══ THE ARCH FORCE-SPAWN AUTHOR (the portal channel) ═══════════
 
-inline uint32_t force_spawn_portal_arch(EntitiesState& es, Cartridge* c, wgpu::Queue& queue,
+inline uint32_t force_spawn_portal_arch(EntitiesState& es, MachineCtx* c, wgpu::Queue& queue,
     float cx, float cz, float rotation,
     const PortalDestination& dest, bool is_back_portal,
     const float portal_color[3]) {
@@ -174,7 +174,7 @@ inline uint32_t force_spawn_portal_arch(EntitiesState& es, Cartridge* c, wgpu::Q
     pl.rotation = rotation;  pl.edge_blend = edge_blend;
     pl.tier = PierTier::ARCH_DOORWAY;
     pl.is_active = 1;
-    write_pier(&c->machine_ctx_, queue, pier_l_slot, pl);
+    write_pier(c, queue, pier_l_slot, pl);
 
     GPUPierInstance pr{};
     pr.origin[0] = pr_x;  pr.origin[1] = pr_z;
@@ -183,7 +183,7 @@ inline uint32_t force_spawn_portal_arch(EntitiesState& es, Cartridge* c, wgpu::Q
     pr.rotation = rotation;  pr.edge_blend = edge_blend;
     pr.tier = PierTier::ARCH_DOORWAY;
     pr.is_active = 1;
-    write_pier(&c->machine_ctx_, queue, pier_r_slot, pr);
+    write_pier(c, queue, pier_r_slot, pr);
 
     auto& aa = es.arches[slot];
     aa.patch_gx = gx;
@@ -951,7 +951,7 @@ inline void dispatch_commit_cactus_generic(MachineCtx* self, PlacementEntry& pe,
 // organ, and per-family gating buys nothing (empty arrays clear to
 // empty). The arch clear announces the portal-set change on the
 // standing flag channel (mood_state_.portals_dirty).
-inline void teardown_entities(Cartridge* c, wgpu::Queue& queue) {
+inline void teardown_entities(MachineCtx* c, wgpu::Queue& queue) {
     // Arches
     for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++) {
         c->entities_state_.arches[i] = ActiveArch{};

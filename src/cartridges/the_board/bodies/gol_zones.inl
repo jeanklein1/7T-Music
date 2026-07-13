@@ -265,7 +265,7 @@ inline void seed_gol_zone(GoLState& gs, MachineCtx* c,
 
 // ═══ PER-FRAME UPLOAD ════════════════════════════════════════════
 
-inline void upload_gol_zone_config(GoLState& gs, Cartridge* c, wgpu::Queue& queue) {
+inline void upload_gol_zone_config(GoLState& gs, GolDeps* c, wgpu::Queue& queue) {
     uint32_t count = 0;
     uint32_t tick_mask = 0;
 
@@ -288,7 +288,7 @@ inline void upload_gol_zone_config(GoLState& gs, Cartridge* c, wgpu::Queue& queu
 
 // Flush pending zone derive requests as a GPU compute dispatch.
 // Called once per frame after all patch generation is complete.
-inline void flush_zone_derive_requests(GoLState& gs, Cartridge* c, wgpu::Queue& queue) {
+inline void flush_zone_derive_requests(GoLState& gs, GolDeps* c, wgpu::Queue& queue) {
     if (gs.pending_derive_requests.count == 0) return;
 
     c->gpuState_.upload_zone_derive_requests(queue, gs.pending_derive_requests);
@@ -359,14 +359,14 @@ inline void evict_gol(MachineCtx* self,
 
 
 // ─── Teardown (owner verb; REBUILD-0 m2, stamp D4) ────────────────
-inline void teardown_gol(Cartridge* c, wgpu::Queue& queue) {
-    // GoL zones
+inline void teardown_gol(GoLState& gs, GolDeps* c, wgpu::Queue& queue) {
+    // GoL zones (gs is the own organ, explicit; c is the external face)
     for (uint32_t i = 0; i < Dim::MAX_GOL_ZONES; i++) {
-        c->gol_state_.zones[i] = GoLZoneState{};
+        gs.zones[i] = GoLZoneState{};
     }
-    c->gol_state_.zone_count = 0;
-    c->gol_state_.active_slot_count = 0;
-    c->gol_state_.pending_derive_requests.count = 0;
+    gs.zone_count = 0;
+    gs.active_slot_count = 0;
+    gs.pending_derive_requests.count = 0;
     GPUGoLZoneArray emptyZones{};
     c->gpuState_.upload_zone_config(queue, emptyZones);
 }
@@ -375,7 +375,7 @@ inline void teardown_gol(Cartridge* c, wgpu::Queue& queue) {
 // comes home) ─ derive params + sync + evolve + mesh, SEPARATE passes
 // for the GPU barrier (O-6a). Callers order them sync -> evolve ->
 // mesh after flush_zone_derive_requests + upload_gol_zone_config.
-inline void dispatch_zone_sync(GoLState& gs, Cartridge* c, wgpu::CommandEncoder& encoder) {
+inline void dispatch_zone_sync(GoLState& gs, GolDeps* c, wgpu::CommandEncoder& encoder) {
     wgpu::ComputePassDescriptor cpd{};
     cpd.label = "GoL Zone Sync";
     wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
@@ -384,7 +384,7 @@ inline void dispatch_zone_sync(GoLState& gs, Cartridge* c, wgpu::CommandEncoder&
     pass.End();
 }
 
-inline void dispatch_zone_evolve(GoLState& gs, Cartridge* c, wgpu::CommandEncoder& encoder) {
+inline void dispatch_zone_evolve(GoLState& gs, GolDeps* c, wgpu::CommandEncoder& encoder) {
     wgpu::ComputePassDescriptor cpd{};
     cpd.label = "GoL Zone Evolve";
     wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
@@ -393,7 +393,7 @@ inline void dispatch_zone_evolve(GoLState& gs, Cartridge* c, wgpu::CommandEncode
     pass.End();
 }
 
-inline void dispatch_zone_mesh(GoLState& gs, Cartridge* c, wgpu::CommandEncoder& encoder) {
+inline void dispatch_zone_mesh(GoLState& gs, GolDeps* c, wgpu::CommandEncoder& encoder) {
     // Mesh gen pass (Group 0 = compute entity, Group 1 = zone mesh gen)
     wgpu::ComputePassDescriptor cpd{};
     cpd.label = "GoL Zone Mesh Gen";

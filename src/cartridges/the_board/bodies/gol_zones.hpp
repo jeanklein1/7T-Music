@@ -30,6 +30,21 @@
 namespace t7 {
 namespace the_board {
 
+// ═══ MODULE DEPS (DISSOLVE-1 Batch B; S5) ══════════════════════════
+// The GoL score-verbs' requirements face. device_ is the DECLARED
+// handover (stamp S5): flush_zone_derive_requests submits its derive
+// pass on its OWN encoder, MID-RENDER, and it MUST execute before the
+// same frame's agent kernels — SEAM[gol:derive-submit]. Declaring the
+// device changes access, never submission order; the refactor (folding
+// into the frame encoder) stays FORBIDDEN.
+class Renderer;
+struct GolDeps {
+    GPUState&        gpuState_;
+    Renderer&        renderer_;
+    wgpu::Device&    device_;   // SEAM[gol:derive-submit] — immediate mid-render submit; never folds into the frame encoder
+    const TimeState& time_state_;  // upload_gol_zone_config reads beats/dt for the header
+};
+
 // ═══ TUNING CONSOLE ══════════════════════════════════════════════
 
 // ── Spatial constants ────────────────────────────────────────────
@@ -269,12 +284,12 @@ void dispatch_commit_gol(MachineCtx* self, PlacementEntry& pe, wgpu::Queue& queu
 void seed_gol_zone(GoLState& gs, MachineCtx* c,
     uint32_t slot, wgpu::Queue& queue);
 // Per-frame
-void upload_gol_zone_config(GoLState& gs, Cartridge* c, wgpu::Queue& queue);
-void flush_zone_derive_requests(GoLState& gs, Cartridge* c, wgpu::Queue& queue);
-void teardown_gol(Cartridge* c, wgpu::Queue& queue);
-void dispatch_zone_sync(GoLState& gs, Cartridge* c, wgpu::CommandEncoder& encoder);
-void dispatch_zone_evolve(GoLState& gs, Cartridge* c, wgpu::CommandEncoder& encoder);
-void dispatch_zone_mesh(GoLState& gs, Cartridge* c, wgpu::CommandEncoder& encoder);
+void upload_gol_zone_config(GoLState& gs, GolDeps* c, wgpu::Queue& queue);
+void flush_zone_derive_requests(GoLState& gs, GolDeps* c, wgpu::Queue& queue);
+void teardown_gol(GoLState& gs, GolDeps* c, wgpu::Queue& queue);
+void dispatch_zone_sync(GoLState& gs, GolDeps* c, wgpu::CommandEncoder& encoder);
+void dispatch_zone_evolve(GoLState& gs, GolDeps* c, wgpu::CommandEncoder& encoder);
+void dispatch_zone_mesh(GoLState& gs, GolDeps* c, wgpu::CommandEncoder& encoder);
 
 } // namespace the_board
 } // namespace t7

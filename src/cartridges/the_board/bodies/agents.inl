@@ -30,7 +30,7 @@ namespace the_board {
 
 // upload_agent_registries_to_gpu: takes Cartridge* for gpuState_
 // access. No agent state needed — uploads constexpr registries only.
-inline void upload_agent_registries_to_gpu(Cartridge* c, wgpu::Queue& queue) {
+inline void upload_agent_registries_to_gpu(AgentsDeps* c, wgpu::Queue& queue) {
     GPUAgentBehaviorDef gpu_behaviors[AGENT_BEHAVIOR_COUNT] = {};
     for (uint32_t i = 0; i < AGENT_BEHAVIOR_COUNT; i++) {
         const auto& src = AGENT_BEHAVIORS[i];
@@ -129,7 +129,7 @@ inline void populate_agent_slot_(const AgentState& as,
 
 // ═══ SPAWN ════════════════════════════════════════════════════════
 
-inline void spawn_population_for_mood(AgentState& as, Cartridge* c,
+inline void spawn_population_for_mood(AgentState& as, AgentsDeps* c,
                                uint32_t mood_id,
                                uint32_t seed,
                                float center_x, float center_z,
@@ -175,7 +175,7 @@ inline void spawn_population_for_mood(AgentState& as, Cartridge* c,
 // GPU's per-frame player update never sees a stale CPU snapshot.
 // (respawn_counters lives in the CPU MIRROR section of agents.hpp.)
 
-inline void respawn_evicted_agents(AgentState& as, Cartridge* c,
+inline void respawn_evicted_agents(AgentState& as, AgentsDeps* c,
                             uint32_t mood_id,
                             uint32_t world_seed,
                             wgpu::Queue& queue) {
@@ -223,7 +223,7 @@ inline void respawn_evicted_agents(AgentState& as, Cartridge* c,
 
 // ═══ POSSESSION TRANSFER (Caps Lock) ══════════════════════════════
 
-inline void try_possess_nearest(AgentState& as, Cartridge* c, wgpu::Queue& queue) {
+inline void try_possess_nearest(AgentState& as, AgentsDeps* c, wgpu::Queue& queue) {
     if (c->transitionPhase_ != TransitionPhase::IDLE) {
         std::cout << "[Possess] Blocked (mid-transition)\n";
         return;
@@ -283,7 +283,7 @@ inline void try_possess_nearest(AgentState& as, Cartridge* c, wgpu::Queue& queue
 
 // ═══ DIAGNOSTIC CYCLING ══════════════════════════════════════════
 
-inline void apply_agent_overrides_(AgentState& as, Cartridge* c, wgpu::Queue& queue) {
+inline void apply_agent_overrides_(AgentState& as, AgentsDeps* c, wgpu::Queue& queue) {
     for (uint32_t s = PLAYER_SLOT + 1; s < Dim::MAX_AGENTS; s++) {
         auto& a = as.slots[s];
         if (a.is_active == 0u) continue;
@@ -304,7 +304,7 @@ inline void apply_agent_overrides_(AgentState& as, Cartridge* c, wgpu::Queue& qu
     }
 }
 
-inline void cycle_agent_behavior_override(AgentState& as, Cartridge* c, wgpu::Queue& queue) {
+inline void cycle_agent_behavior_override(AgentState& as, AgentsDeps* c, wgpu::Queue& queue) {
     if (as.behavior_override == AGENT_OVERRIDE_NONE) {
         as.behavior_override = AGENT_BEHAVIOR_RANDOM_WALK;
     } else {
@@ -324,7 +324,7 @@ inline void cycle_agent_behavior_override(AgentState& as, Cartridge* c, wgpu::Qu
 }
 
 // Cycle: NONE → WORKER → SCOUT → SENTINEL → LEADER → NONE.
-inline void cycle_agent_tier_override(AgentState& as, Cartridge* c, wgpu::Queue& queue) {
+inline void cycle_agent_tier_override(AgentState& as, AgentsDeps* c, wgpu::Queue& queue) {
     if (as.tier_override == AGENT_OVERRIDE_NONE) {
         as.tier_override = AGENT_TIER_WORKER;
     } else {
@@ -343,7 +343,7 @@ inline void cycle_agent_tier_override(AgentState& as, Cartridge* c, wgpu::Queue&
     }
 }
 
-inline void force_respawn_population(AgentState& as, Cartridge* c, wgpu::Queue& queue) {
+inline void force_respawn_population(AgentState& as, AgentsDeps* c, wgpu::Queue& queue) {
     uint32_t cleared = 0;
     for (uint32_t s = PLAYER_SLOT + 1; s < Dim::MAX_AGENTS; s++) {
         if (as.slots[s].is_active == 0u) continue;
@@ -357,7 +357,7 @@ inline void force_respawn_population(AgentState& as, Cartridge* c, wgpu::Queue& 
 
 // ═══ DIAGNOSTIC: agent census ═════════════════════════════════════
 
-inline void dump_agent_census(const AgentState& as, const Cartridge* c, const char* trigger) {
+inline void dump_agent_census(const AgentState& as, const AgentsDeps* c, const char* trigger) {
     uint32_t active = 0;
     uint32_t by_behavior[AGENT_BEHAVIOR_COUNT] = {};
     uint32_t by_tier[AGENT_TIER_COUNT] = {};
@@ -416,7 +416,7 @@ inline void dump_agent_census(const AgentState& as, const Cartridge* c, const ch
 // ─── Player-body seeding (owner verbs; REBUILD-0 m2 — stray (3)
 // comes home) ─ boot twin: slot 0 at the Idle pose, WORKER tier (the
 // GPU-side twin is seeded by GPUState::initializeState).
-inline void seed_player_body(AgentState& as, Cartridge* c) {
+inline void seed_player_body(AgentState& as, AgentsDeps* c) {
     (void)c;
     as.slots[0].pos_x = Idle::PAWN_POS_X;
     as.slots[0].pos_y = Idle::PAWN_POS_Y;
@@ -436,7 +436,7 @@ inline void seed_player_body(AgentState& as, Cartridge* c) {
 // caller across the reset. The twins stay twins — byte-exactness
 // outranks unification (PRIME INVARIANT); merging them is later
 // material if ever pulled.
-inline void reseed_player_body(AgentState& as, Cartridge* c, uint32_t preserved_tier,
+inline void reseed_player_body(AgentState& as, AgentsDeps* c, uint32_t preserved_tier,
                                float preserved_color_r, float preserved_color_g, float preserved_color_b) {
     std::memset(as.slots, 0, sizeof(as.slots));
     as.slots[0].pos_x = 0.0f;  // Idle::PAWN_POS_X

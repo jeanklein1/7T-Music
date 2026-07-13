@@ -80,28 +80,28 @@ inline float corral_ease_(float t) {
     return t * t * (3.0f - 2.0f * t);  // smoothstep
 }
 
-inline void cycle_floater_coordination(CubeBehaviorsState& cbs, Cartridge* c) {
+inline void cycle_floater_coordination(CubeBehaviorsState& cbs, CubeDeps* c) {
     cbs.coordination_step = (cbs.coordination_step + 1) % 3;
     float v = FLOATER_COORDINATION_STEPS[cbs.coordination_step];
     c->gpuState_.stage_floater_coordination(v);
     std::cout << "[Floaters] coordination: " << v << "\n";
 }
 
-inline void apply_cube_behavior_override(CubeBehaviorsState& cbs, Cartridge* c, wgpu::Queue& queue) {
+inline void apply_cube_behavior_override(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& queue) {
     for (uint32_t i = 0; i < Dim::MAX_CUBE_INSTANCES; i++) {
         if (!cbs.activeCubes_[i].active) continue;
         c->gpuState_.upload_cube_behavior_id(queue, i, cbs.behavior_override);
     }
 }
 
-inline void cycle_cube_behavior_override(CubeBehaviorsState& cbs, Cartridge* c, wgpu::Queue& queue) {
+inline void cycle_cube_behavior_override(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& queue) {
     cbs.behavior_override = (cbs.behavior_override + 1) % CUBE_BEHAVIOR_COUNT;
     apply_cube_behavior_override(cbs, c, queue);
     std::cout << "[Floaters] cube behavior: "
               << CUBE_BEHAVIOR_NAMES[cbs.behavior_override] << "\n";
 }
 
-inline void corral_cubes(CubeBehaviorsState& cbs, Cartridge* c, wgpu::Queue& queue) {
+inline void corral_cubes(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& queue) {
     (void)queue;
     const float px = c->agent_state_.slots[c->player_.possessed_slot].pos_x;
     const float pz = c->agent_state_.slots[c->player_.possessed_slot].pos_z;
@@ -174,7 +174,7 @@ inline void corral_cubes(CubeBehaviorsState& cbs, Cartridge* c, wgpu::Queue& que
               << " over " << CUBE_CORRAL_DURATION << "s\n";
 }
 
-inline void tick_cube_corral_animations(CubeBehaviorsState& cbs, Cartridge* c, wgpu::Queue& queue) {
+inline void tick_cube_corral_animations(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& queue) {
     for (uint32_t i = 0; i < Dim::MAX_CUBE_INSTANCES; i++) {
         auto& anim = cbs.corral_anim[i];
         if (!anim.active) continue;
@@ -198,7 +198,7 @@ inline void tick_cube_corral_animations(CubeBehaviorsState& cbs, Cartridge* c, w
 
 // ─── Kite mode toggle (F7) ──────────────────────────────────────
 
-inline void toggle_cube_kite_mode(CubeBehaviorsState& cbs, Cartridge* c, wgpu::Queue& queue) {
+inline void toggle_cube_kite_mode(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& queue) {
     cbs.kite_mode = !cbs.kite_mode;
     const float px = c->agent_state_.slots[c->player_.possessed_slot].pos_x;
     const float pz = c->agent_state_.slots[c->player_.possessed_slot].pos_z;
@@ -442,7 +442,7 @@ inline void dispatch_commit_cube_generic(MachineCtx* self, PlacementEntry& pe, w
 
 // ─── Readback mirror reconciliation (owner verb; REBUILD-0 m2 —
 // stray (1) comes home) ─ the cube half of the floater-readback funnel.
-inline void reconcile_cube_mirror(CubeBehaviorsState& cs, Cartridge* c, const GPUFloatingEntityState* data) {
+inline void reconcile_cube_mirror(CubeBehaviorsState& cs, CubeDeps* c, const GPUFloatingEntityState* data) {
     float now = c->time_state_.seconds;
     // Cubes: slots [CUBE_SLOT_OFFSET, TOTAL_FLOATING_SLOTS)
     for (uint32_t i = 0; i < Dim::MAX_CUBE_INSTANCES; i++) {

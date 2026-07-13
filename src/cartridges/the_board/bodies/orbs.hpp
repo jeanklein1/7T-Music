@@ -21,6 +21,19 @@ namespace wgpu { class CommandEncoder; class RenderPassEncoder; }
 namespace t7 {
 namespace the_board {
 
+// ═══ MODULE DEPS (DISSOLVE-1 Batch B) ══════════════════════════════
+// The sky-dome feature's requirements face. const trio: witness +
+// clock + world read-only; GPU wire + renderer writable.
+struct PlayerState; struct TimeState; struct WorldState;
+class GPUState; class Renderer;
+struct OrbsDeps {
+    GPUState&         gpuState_;
+    Renderer&         renderer_;
+    const PlayerState& player_;
+    const TimeState&  time_state_;
+    const WorldState& world_state_;
+};
+
 // ═══ TUNING CONSOLE ══════════════════════════════════════════════
 
 // ── Dome geometry ────────────────────────────────────────────────
@@ -331,23 +344,23 @@ struct OrbsState {
 // ═══ MODULE FUNCTIONS — DECLARATIONS ═════════════════════════════
 
 // Lifecycle
-void configure_orbs(OrbsState& os, Cartridge* c, const OrbMoodConfig& cfg, wgpu::Queue& queue);
-void teardown_orbs(OrbsState& os, Cartridge* c);
+void configure_orbs(OrbsState& os, OrbsDeps* c, const OrbMoodConfig& cfg, wgpu::Queue& queue);
+void teardown_orbs(OrbsState& os, OrbsDeps* c);
 // Player commands
-void cycle_orb_palette(OrbsState& os, Cartridge* c, wgpu::Queue& queue);
-void cycle_orb_motion_rule(OrbsState& os, Cartridge* c, wgpu::Queue& queue);
-void cycle_orb_gesture(OrbsState& os, Cartridge* c, wgpu::Queue& queue);
-void toggle_orb_anchor(OrbsState& os, const Cartridge* c);
+void cycle_orb_palette(OrbsState& os, OrbsDeps* c, wgpu::Queue& queue);
+void cycle_orb_motion_rule(OrbsState& os, OrbsDeps* c, wgpu::Queue& queue);
+void cycle_orb_gesture(OrbsState& os, OrbsDeps* c, wgpu::Queue& queue);
+void toggle_orb_anchor(OrbsState& os, const OrbsDeps* c);
 // Per-frame updates
-void update_orb_anchor(OrbsState& os, Cartridge* c, float pawn_x, float pawn_z, wgpu::Queue& queue);
+void update_orb_anchor(OrbsState& os, OrbsDeps* c, float pawn_x, float pawn_z, wgpu::Queue& queue);
 // GPU dispatches
-void dispatch_orb_init(OrbsState& os, Cartridge* c, wgpu::CommandEncoder& encoder);
-void dispatch_orb_recolor(OrbsState& os, Cartridge* c, wgpu::CommandEncoder& encoder);
-void dispatch_orb_copy_prev(OrbsState& os, Cartridge* c, wgpu::CommandEncoder& encoder);
-void dispatch_orb_dynamics(OrbsState& os, Cartridge* c, wgpu::CommandEncoder& encoder,
+void dispatch_orb_init(OrbsState& os, OrbsDeps* c, wgpu::CommandEncoder& encoder);
+void dispatch_orb_recolor(OrbsState& os, OrbsDeps* c, wgpu::CommandEncoder& encoder);
+void dispatch_orb_copy_prev(OrbsState& os, OrbsDeps* c, wgpu::CommandEncoder& encoder);
+void dispatch_orb_dynamics(OrbsState& os, OrbsDeps* c, wgpu::CommandEncoder& encoder,
     wgpu::Queue& queue);
 // Render
-void render_orbs(OrbsState& os, Cartridge* c, wgpu::RenderPassEncoder& pass);
+void render_orbs(OrbsState& os, OrbsDeps* c, wgpu::RenderPassEncoder& pass);
 
 // ─── Orb Mood Table ─────────────────────────────────────────────
 //

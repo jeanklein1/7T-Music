@@ -513,7 +513,7 @@ inline void apply_mood(Cartridge* c, uint32_t mood, wgpu::Queue& queue) {
         apply_mood_indoor_shell(c, m, queue);  // shell + camera ceiling clamp
     apply_mood_anchor_ribbon(c, mood, queue);  // SEAM[mood:K4]/[mood:L1] anchor — has_anchor_ribbon only (ribbon-gated inside)
     if constexpr (ROSTER.orbs)                 // ROSTER-GATE orbs (b) — sky dome never configured
-        configure_orbs(c->orbs_state_, c, ORB_MOOD_TABLE[mood], queue);
+        configure_orbs(c->orbs_state_, &c->orbs_deps_, ORB_MOOD_TABLE[mood], queue);
 
     std::cout << "[Mood] Applied: " << mood_name(mood)
         << " (mood=" << mood
@@ -707,7 +707,7 @@ inline uint32_t force_spawn_portal_at(Cartridge* c, wgpu::Queue& queue,
         ? PORTAL_COLOR_BACK
         : PORTAL_COLORS[dest.mood % MOOD_COUNT];
 
-    uint32_t slot = force_spawn_portal_arch(c->entities_state_, c, queue,
+    uint32_t slot = force_spawn_portal_arch(c->entities_state_, &c->machine_ctx_, queue,
         cx, cz, rotation, dest, is_back_portal, pc);
 
     if (slot != UINT32_MAX) c->mood_state_.portals_dirty = true;

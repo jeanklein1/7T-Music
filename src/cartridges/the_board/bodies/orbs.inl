@@ -205,7 +205,7 @@ inline void log_configure_(const OrbsState& os, const OrbMoodConfig& cfg,
 
 // ═══ LIFECYCLE ═══════════════════════════════════════════════════
 
-inline void configure_orbs(OrbsState& os, Cartridge* c, const OrbMoodConfig& cfg, wgpu::Queue& queue) {
+inline void configure_orbs(OrbsState& os, OrbsDeps* c, const OrbMoodConfig& cfg, wgpu::Queue& queue) {
     os.active = cfg.enabled;
     os.count = std::min(cfg.count, (uint32_t)Dim::MAX_ORBS);
     if (!os.active || os.count == 0) return;
@@ -292,7 +292,7 @@ inline void configure_orbs(OrbsState& os, Cartridge* c, const OrbMoodConfig& cfg
     log_configure_(os, cfg, eff_drag, eff_orbital_speed, os.current_palette_id);
 }
 
-inline void teardown_orbs(OrbsState& os, Cartridge* c) {
+inline void teardown_orbs(OrbsState& os, OrbsDeps* c) {
     (void)c;
     os.active = false;
     os.count = 0;
@@ -310,7 +310,7 @@ inline void teardown_orbs(OrbsState& os, Cartridge* c) {
 
 // ═══ PLAYER COMMANDS ═════════════════════════════════════════════
 
-inline void cycle_orb_palette(OrbsState& os, Cartridge* c, wgpu::Queue& queue) {
+inline void cycle_orb_palette(OrbsState& os, OrbsDeps* c, wgpu::Queue& queue) {
     if (!os.active || os.count == 0) {
         std::cout << "[Orbs] Palette cycle ignored (no active dome)\n";
         return;
@@ -335,7 +335,7 @@ inline void cycle_orb_palette(OrbsState& os, Cartridge* c, wgpu::Queue& queue) {
     std::cout << "[Orbs] Palette: " << ORB_PAL_NAMES[os.current_palette_id] << "\n";
 }
 
-inline void cycle_orb_motion_rule(OrbsState& os, Cartridge* c, wgpu::Queue& queue) {
+inline void cycle_orb_motion_rule(OrbsState& os, OrbsDeps* c, wgpu::Queue& queue) {
     if (!os.active || os.count == 0) {
         std::cout << "[Orbs] Motion rule cycle ignored (no active dome)\n";
         return;
@@ -360,7 +360,7 @@ inline void cycle_orb_motion_rule(OrbsState& os, Cartridge* c, wgpu::Queue& queu
     std::cout << "\n";
 }
 
-inline void cycle_orb_gesture(OrbsState& os, Cartridge* c, wgpu::Queue& queue) {
+inline void cycle_orb_gesture(OrbsState& os, OrbsDeps* c, wgpu::Queue& queue) {
     const uint32_t r = os.current_motion_rule;
 
     if (r == ORB_RULE_BROWNIAN) {
@@ -398,7 +398,7 @@ inline void cycle_orb_gesture(OrbsState& os, Cartridge* c, wgpu::Queue& queue) {
 
 // KP_9: flip dome anchor between world origin and pawn-following.
 // Player state: persists across mood transitions.
-inline void toggle_orb_anchor(OrbsState& os, const Cartridge* c) {
+inline void toggle_orb_anchor(OrbsState& os, const OrbsDeps* c) {
     os.pawn_anchored = !os.pawn_anchored;
     std::cout << "[Orbs] Anchor: "
         << (os.pawn_anchored ? "ON — dome follows pawn"
@@ -410,7 +410,7 @@ inline void toggle_orb_anchor(OrbsState& os, const Cartridge* c) {
 
 // ═══ PER-FRAME UPDATES ═══════════════════════════════════════════
 
-inline void update_orb_anchor(OrbsState& os, Cartridge* c, float pawn_x, float pawn_z, wgpu::Queue& queue) {
+inline void update_orb_anchor(OrbsState& os, OrbsDeps* c, float pawn_x, float pawn_z, wgpu::Queue& queue) {
     if (!os.active || os.count == 0) return;
 
     float target_x = os.pawn_anchored ? pawn_x : 0.0f;
@@ -432,7 +432,7 @@ inline void update_orb_anchor(OrbsState& os, Cartridge* c, float pawn_x, float p
 
 // One-shot seed-to-dome kernel. Fires once per configure_orbs when
 // os.init_pending is armed.
-inline void dispatch_orb_init(OrbsState& os, Cartridge* c, wgpu::CommandEncoder& encoder) {
+inline void dispatch_orb_init(OrbsState& os, OrbsDeps* c, wgpu::CommandEncoder& encoder) {
     if (!os.init_pending) return;
     os.init_pending = false;
 
@@ -449,7 +449,7 @@ inline void dispatch_orb_init(OrbsState& os, Cartridge* c, wgpu::CommandEncoder&
 
 // Palette re-sample kernel. Fires on cycle_orb_palette — keeps
 // positions/velocities/twinkle, only hues shift.
-inline void dispatch_orb_recolor(OrbsState& os, Cartridge* c, wgpu::CommandEncoder& encoder) {
+inline void dispatch_orb_recolor(OrbsState& os, OrbsDeps* c, wgpu::CommandEncoder& encoder) {
     if (!os.recolor_pending) return;
     os.recolor_pending = false;
 
@@ -461,7 +461,7 @@ inline void dispatch_orb_recolor(OrbsState& os, Cartridge* c, wgpu::CommandEncod
     pass.End();
 }
 
-inline void dispatch_orb_copy_prev(OrbsState& os, Cartridge* c, wgpu::CommandEncoder& encoder) {
+inline void dispatch_orb_copy_prev(OrbsState& os, OrbsDeps* c, wgpu::CommandEncoder& encoder) {
     if (!os.active || os.count == 0) return;
 
     wgpu::ComputePassDescriptor cpd{};
@@ -473,7 +473,7 @@ inline void dispatch_orb_copy_prev(OrbsState& os, Cartridge* c, wgpu::CommandEnc
 }
 
 // Per-frame rule + couplings. Uploads dt/t_seconds, then dispatches.
-inline void dispatch_orb_dynamics(OrbsState& os, Cartridge* c, wgpu::CommandEncoder& encoder,
+inline void dispatch_orb_dynamics(OrbsState& os, OrbsDeps* c, wgpu::CommandEncoder& encoder,
     wgpu::Queue& queue) {
     if (!os.active || os.count == 0) return;
 
@@ -490,7 +490,7 @@ inline void dispatch_orb_dynamics(OrbsState& os, Cartridge* c, wgpu::CommandEnco
 // ═══ RENDER ══════════════════════════════════════════════════════
 
 // Additive billboard draw into the main render pass.
-inline void render_orbs(OrbsState& os, Cartridge* c, wgpu::RenderPassEncoder& pass) {
+inline void render_orbs(OrbsState& os, OrbsDeps* c, wgpu::RenderPassEncoder& pass) {
     if (!os.active || os.count == 0) return;
     c->renderer_.draw_orbs(pass,
         c->gpuState_.render_entity_group(),

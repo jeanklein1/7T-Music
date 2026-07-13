@@ -132,30 +132,30 @@ inline void on_key_down(Cartridge* c, int key) {
     case GLFW_KEY_7: request_mood_transition(c, MOOD_INDOOR_VAULT);       break;
     case GLFW_KEY_8: request_mood_transition(c, MOOD_FINITE_OUTDOOR);     break;
     case GLFW_KEY_9: request_mood_transition(c, MOOD_FINITE_OUTDOOR_REF); break;
-    case GLFW_KEY_0:              cycle_orb_palette(c->orbs_state_, c, q);          break;
+    case GLFW_KEY_0:              cycle_orb_palette(c->orbs_state_, &c->orbs_deps_, q);          break;
     case GLFW_KEY_LEFT_BRACKET:   set_render_radius(c, c->world_state_.active_radius - 1); break;
     case GLFW_KEY_RIGHT_BRACKET:  set_render_radius(c, c->world_state_.active_radius + 1); break;
 
     // ── Orb utilities (numpad) ───────────────────────────────────
-    case GLFW_KEY_KP_8:       cycle_orb_motion_rule(c->orbs_state_, c, q);            break;
-    case GLFW_KEY_KP_9:       toggle_orb_anchor(c->orbs_state_, c);                 break;
-    case GLFW_KEY_KP_DECIMAL: cycle_orb_gesture(c->orbs_state_, c, q);                break;
+    case GLFW_KEY_KP_8:       cycle_orb_motion_rule(c->orbs_state_, &c->orbs_deps_, q);            break;
+    case GLFW_KEY_KP_9:       toggle_orb_anchor(c->orbs_state_, &c->orbs_deps_);                 break;
+    case GLFW_KEY_KP_DECIMAL: cycle_orb_gesture(c->orbs_state_, &c->orbs_deps_, q);                break;
 
     // ── Camera / possession ──────────────────────────────────────
     case GLFW_KEY_LEFT_CONTROL:
     case GLFW_KEY_RIGHT_CONTROL:
         toggle_fpv_mode(c);
         break;
-    case GLFW_KEY_CAPS_LOCK:  try_possess_nearest(c->agent_state_, c, q);  break;
+    case GLFW_KEY_CAPS_LOCK:  try_possess_nearest(c->agent_state_, &c->agents_deps_, q);  break;
 
     // ── Diagnostics (function keys) ──────────────────────────────
-    case GLFW_KEY_F1: cycle_agent_behavior_override(c->agent_state_, c, q);  break;
-    case GLFW_KEY_F2: cycle_agent_tier_override(c->agent_state_, c, q);      break;
-    case GLFW_KEY_F3: force_respawn_population(c->agent_state_, c, q);       break;
-    case GLFW_KEY_F4: cycle_cube_behavior_override(c->cube_behaviors_state_, c, q);   break;
-    case GLFW_KEY_F5: cycle_floater_coordination(c->cube_behaviors_state_, c);        break;
-    case GLFW_KEY_F6: corral_cubes(c->cube_behaviors_state_, c, q);                   break;
-    case GLFW_KEY_F7: toggle_cube_kite_mode(c->cube_behaviors_state_, c, q);          break;
+    case GLFW_KEY_F1: cycle_agent_behavior_override(c->agent_state_, &c->agents_deps_, q);  break;
+    case GLFW_KEY_F2: cycle_agent_tier_override(c->agent_state_, &c->agents_deps_, q);      break;
+    case GLFW_KEY_F3: force_respawn_population(c->agent_state_, &c->agents_deps_, q);       break;
+    case GLFW_KEY_F4: cycle_cube_behavior_override(c->cube_behaviors_state_, &c->cube_deps_, q);   break;
+    case GLFW_KEY_F5: cycle_floater_coordination(c->cube_behaviors_state_, &c->cube_deps_);        break;
+    case GLFW_KEY_F6: corral_cubes(c->cube_behaviors_state_, &c->cube_deps_, q);                   break;
+    case GLFW_KEY_F7: toggle_cube_kite_mode(c->cube_behaviors_state_, &c->cube_deps_, q);          break;
     case GLFW_KEY_F8:
         // ROSTER-GATE ribbon (b) — D9 (REBUILD-0 stamp): sky-flight's entry
         // door rides the ribbon bit. Ungated, F8 in a ribbon-less demo snaps

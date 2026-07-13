@@ -17,6 +17,22 @@
 namespace t7 {
 namespace the_board {
 
+// ═══ MODULE DEPS (DISSOLVE-1 Batch B) ══════════════════════════════
+// The agent population's requirements face. player_ is NON-const —
+// possession re-anchors (agents door, v3 §9 Act III); the rest is
+// read-only. (fwds: spine_state / patch_system types follow in the
+// cohort.)
+struct PlayerState; struct WorldState; struct TimeState;
+enum class TransitionPhase;
+class GPUState;
+struct AgentsDeps {
+    GPUState&              gpuState_;
+    PlayerState&           player_;         // non-const: possession door
+    const TransitionPhase& transitionPhase_;
+    const WorldState&      world_state_;
+    const TimeState&       time_state_;
+};
+
 // ═══ BEHAVIOR IDS ════════════════════════════════════════════════
 //
 // Stable indices into AGENT_BEHAVIORS. The compute kernel's behavior
@@ -249,27 +265,27 @@ struct AgentState {
 // ═══ MODULE FUNCTIONS — DECLARATIONS ═════════════════════════════
 
 // Lifecycle
-void upload_agent_registries_to_gpu(Cartridge* c, wgpu::Queue& queue);
-void spawn_population_for_mood(AgentState& as, Cartridge* c,
+void upload_agent_registries_to_gpu(AgentsDeps* c, wgpu::Queue& queue);
+void spawn_population_for_mood(AgentState& as, AgentsDeps* c,
                                uint32_t mood_id,
                                uint32_t seed,
                                float center_x, float center_z,
                                wgpu::Queue& queue);
-void respawn_evicted_agents(AgentState& as, Cartridge* c,
+void respawn_evicted_agents(AgentState& as, AgentsDeps* c,
                             uint32_t mood_id,
                             uint32_t world_seed,
                             wgpu::Queue& queue);
 // Player commands
-void try_possess_nearest(AgentState& as, Cartridge* c, wgpu::Queue& queue);
+void try_possess_nearest(AgentState& as, AgentsDeps* c, wgpu::Queue& queue);
 // Diagnostic cycling (wired in input.inl)
-void cycle_agent_behavior_override(AgentState& as, Cartridge* c, wgpu::Queue& queue);
-void cycle_agent_tier_override(AgentState& as, Cartridge* c, wgpu::Queue& queue);
-void force_respawn_population(AgentState& as, Cartridge* c, wgpu::Queue& queue);
-void seed_player_body(AgentState& as, Cartridge* c);
-void reseed_player_body(AgentState& as, Cartridge* c, uint32_t preserved_tier,
+void cycle_agent_behavior_override(AgentState& as, AgentsDeps* c, wgpu::Queue& queue);
+void cycle_agent_tier_override(AgentState& as, AgentsDeps* c, wgpu::Queue& queue);
+void force_respawn_population(AgentState& as, AgentsDeps* c, wgpu::Queue& queue);
+void seed_player_body(AgentState& as, AgentsDeps* c);
+void reseed_player_body(AgentState& as, AgentsDeps* c, uint32_t preserved_tier,
                         float preserved_color_r, float preserved_color_g, float preserved_color_b);
 // Logging
-void dump_agent_census(const AgentState& as, const Cartridge* c, const char* trigger);
+void dump_agent_census(const AgentState& as, const AgentsDeps* c, const char* trigger);
 
 } // namespace the_board
 } // namespace t7

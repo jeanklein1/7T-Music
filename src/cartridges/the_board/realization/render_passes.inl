@@ -561,7 +561,7 @@ inline void render_main_pass(Cartridge* c, wgpu::CommandEncoder& encoder,
         c->gallery_state_.active_painting_count
     );
 
-    render_orbs(c->orbs_state_, c, pass);
+    render_orbs(c->orbs_state_, &c->orbs_deps_, pass);
 
     // Fade overlay (drawn last, alpha blended over everything)
     c->renderer_.draw_fade_overlay(

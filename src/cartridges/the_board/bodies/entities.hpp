@@ -534,11 +534,11 @@ void dispatch_commit_palm_generic(MachineCtx* self, PlacementEntry& pe, wgpu::Qu
 bool dispatch_select_cactus_generic(MachineCtx* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
 bool dispatch_place_cactus_generic(MachineCtx* self, EntityQueueEntry& e, PlacementEntry& pe);
 void dispatch_commit_cactus_generic(MachineCtx* self, PlacementEntry& pe, wgpu::Queue& queue);
-void teardown_entities(Cartridge* c, wgpu::Queue& queue);
+void teardown_entities(MachineCtx* c, wgpu::Queue& queue);
 
 // ═══ THE ARCH FORCE-SPAWN AUTHOR (the portal channel) ═══════════
 //
-uint32_t force_spawn_portal_arch(EntitiesState& es, Cartridge* c, wgpu::Queue& queue,
+uint32_t force_spawn_portal_arch(EntitiesState& es, MachineCtx* c, wgpu::Queue& queue,
     float cx, float cz, float rotation,
     const PortalDestination& dest, bool is_back_portal,
     const float portal_color[3]);
