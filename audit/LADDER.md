@@ -2360,3 +2360,19 @@ pixel-identical by construction (host-guarded branches; same-snapshot
 value identity; the probe freshness rule); e the one stamped
 look-change. The witness contract, the point contract, and the census
 manifest all amended in place — the paper trail is the code's.
+
+## PANEL-0 p1b-tune — TWO DIALS (Jean, from the rig): free-fly ×2,
+## the orb dome out of the fog
+
+Two rig-observed tuning turns, no structure:
+- CameraControls::MOVE_SPEED 15 → 30 (the free-fly velocity, wired to
+  config.point_fly_speed at boot — camera-host ONLY; the pawn walk
+  Idle::PAWN_SPEED is a separate constant, untouched). W/S/A/D flies
+  twice as fast.
+- ORB_DOME_RADIUS 700 → 500 (the p1b-e skybox radius). At 700 the dome
+  had fallen past the fog far-plane and vanished; 500 sits inside it,
+  visible again. Still a true skybox (eye-centered, p1b-e); only the
+  shell distance moved.
+
+GATES: glaw1 GREEN full + minimal; score census GREEN; sentinels
+147/5; encodings clean. Two constexpr edits, no wire/score change.

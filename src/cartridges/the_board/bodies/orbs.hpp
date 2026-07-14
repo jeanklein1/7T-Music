@@ -41,7 +41,7 @@ struct OrbsDeps {
 // ═══ TUNING CONSOLE ══════════════════════════════════════════════
 
 // ── Dome geometry ────────────────────────────────────────────────
-inline constexpr float ORB_DOME_RADIUS = 700.0f;   // p1b-e: the skybox radius (was 450; Jean's dial — larger so movement reads static)
+inline constexpr float ORB_DOME_RADIUS = 500.0f;   // p1b-e skybox radius; 700 fell into the fog, 500 the visible dial (Jean)
 inline constexpr float ORB_BASE_SIZE = 3.0f;
 
 // ── Noise floor ──────────────────────────────────────────────────

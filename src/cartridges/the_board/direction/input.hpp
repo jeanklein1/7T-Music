@@ -62,8 +62,8 @@ struct CameraControls {
     // W/S/A/D velocity in free-fly (world units per second) — the
     // camera host's MOVE_SPEED, wired to config.point_fly_speed at
     // boot. The pawn host's walk speed is Idle::PAWN_SPEED (state.hpp),
-    // untouched by this dial.
-    static constexpr float MOVE_SPEED = 15.0f;
+    // untouched by this dial. (30 = 2× the p1a default — Jean's dial.)
+    static constexpr float MOVE_SPEED = 30.0f;
 };
 
 // ═══ INPUT STATE ═════════════════════════════════════════════════
