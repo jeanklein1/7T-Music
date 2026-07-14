@@ -3008,14 +3008,15 @@ close-out (the rulings are the only code; b3's structural streaming
 rewrite is not done — the origin-pin stays, harmless, until/unless the
 cap+unification is pursued).
 
-=== STAGE 1: COMPLETE (one held sub-decision) ===
+=== STAGE 1: COMPLETE ===
 Landed + rig-confirmed: b1 (interface + pawn normal), b1-cohort
 (manifold_position + 7 consumers), b4 (tile_world shape/population
 split, compiler-verified). Subsumed: b2a (fold met by b1's dispatch).
 Ruled + noted: b2 body-merge (deferred to Stage 3), b3 containment
 (stays a separate shell; query pure; Boundary declared-dormant).
-Deferred by design: b2b (agreement flip). HELD: the finite_radius cap
-(disclosure gate triggered — moods use 4).
+Deferred by design: b2b (agreement flip). RESOLVED: the finite_radius
+bounding decision → DEFERRED TO b3 (see resolution below); no radius
+code lands in Stage 1.
 THE OUTCOME: terrain presents a manifold interface (manifold_resolve
 orient-to-surface, manifold_position snap-to-surface); the heightfield
 is the sole cast BEHIND it; the Y-up assumption lives in the cast not
@@ -3039,8 +3040,8 @@ movement/index), inheriting everything above.
   shell too. NOT opened now — Stage 1 closes with the shell separate-
   but-present; a candidate next campaign; b3's grounding (shell over
   infinite ground) is its starting evidence.
-- THE finite_radius CAP: pending Jean's confirm (cap 3 / raise pregen /
-  other) — the one held sub-decision.
+- THE finite_radius BOUNDING DECISION: RESOLVED → deferred to b3 (see
+  the disclosure-gate resolution below). No radius code in Stage 1.
 - THE SDF EXCAVATION + dead-code sweep: wire-first-clean-second; the
   TERRAIN-1 M6 disposition table is the standing map.
 
@@ -3048,3 +3049,27 @@ GATES: glaw1 GREEN full + minimal; score census GREEN; sentinels
 147/5; encodings clean UTF-8/LF, no CR. Comment-only world.wgsl (the
 two rulings as in-place notes; the stale b3 comment corrected) — no
 behavior change, nothing for the rig to re-verify beyond "still builds."
+
+=== DISCLOSURE-GATE RESOLUTION: finite_radius → DEFERRED TO b3 ===
+Jean's ruling on the held sub-decision: DEFER to b3, land no radius code
+in Stage 1. Two facts completed the disclosure and inverted the intent:
+(1) SCOPE — raising PATCH_PREGEN_RADIUS 7->8 touches ONLY open worlds:
+in finite mode active_radius is capped to finite_radius
+(patch_system.hpp:569-571) and the center is origin-pinned (:558-560),
+so the raise is swallowed there; its whole runtime effect is on the
+(majority) open worlds — pregen ring 15x15->17x17 (MAX_ACTIVE_PATCHES
+225->289, +28%; state.hpp:69), tile grid 17x17->19x19. (2) TIMING —
+radius-4 is NOT at risk today: the invariant active_radius >=
+2*finite_radius is a precondition of the FOLLOWING-window (= b3, still
+deferred), not of current behavior. Origin-pin + radius-cap makes the
+finite pregen set exactly the box every frame, so radius-4 (9x9=81
+patches) renders fully inside the 225-patch buffer with no popping. The
+cap (Option 1) would have BROKEN radius-4; the raise (Option 2) buys
+nothing present, only pre-pays open-world memory for a deferred b3.
+CONCLUSION: neither cap nor raise is needed for present correctness;
+both pre-pay for b3. The radius bounding choice (raise pregen / lower
+finite_radius_max / keep origin-pin as the degenerate case) is exactly
+b3 finding (a)'s ruling — decided WHEN b3 lands, with the full
+following-window in hand. Stage 1 therefore closes with ONLY the two
+comment rulings (6ed3520) + b1/b1-cohort/b4; the origin-pin stays,
+harmless. b3 inherits the bounding decision intact.
