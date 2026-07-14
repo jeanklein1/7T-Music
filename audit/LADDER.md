@@ -2761,17 +2761,26 @@ the cheap analytic overlay), per-frame (the pass re-runs; gol reads the
 re-simmed zone_life buffer — no explicit time needed). Bindings verified:
 zone_config/zone_life/config all in the entity_placement layout (paintings
 already use contrib_gol_zones_at here) — state.hpp:4055-4114.
-DISCLOSURES: (1) PULSES deferred — need signal.t_seconds; the FrameSignal
-is NOT in this pipeline's bind group → a C++ bind-group-layout change, its
-own commit (Jean to rule whether to pursue). (2) WAVES deferred — config
-.terrain_time IS bound but the wave voice is dead (no-op); add on revival.
-(3) STALE COMMENT FIXED — the header said "Blade: excluded (CPU mirror)"
-but the blade GPU path is LIVE (compute writes GROUND_ATLAS_BLADE, the
-blade VS reads it, world.wgsl:10841/10855); note corrected.
+DISCLOSURES / RESOLUTIONS: (1) PULSES — RULED A NON-ISSUE (Jean), not
+deferred-pending: structures were never meant to ride pulses, nothing
+reads as floating, the baked+GoL height is correct. The FrameSignal
+bind-group change is NOT pursued; the banner note stays as documentation
+of the decision. (2) WAVES — dead today (config.terrain_time gates to 0,
+a no-op); whether a revived wave carries structures is a future call, not
+a pending gap. (3) STALE COMMENT FIXED — the header said "Blade: excluded
+(CPU mirror)" but the blade GPU path is LIVE (compute writes
+GROUND_ATLAS_BLADE, the blade VS reads it, world.wgsl:10841/10855).
 GATES: glaw1 GREEN; score census GREEN; world.wgsl clean UTF-8/LF, no CR.
-Blind-WGSL — hand-verified; the RIG is the proof (OBSERVABLE: standing
-structures rise with GoL zones; no change where gol is off/absent). HELD.
-STILL OPEN: Delta 2 (pyramid drape/union) — Jean's fix-now/mark-intent.
+RIG: GREEN — b2b observable ride confirmed (standing structures rise with
+GoL zones; no change where gol is off/absent).
+DELTA 2 (pyramid drape/union): WITHDRAWN (Jean) — NO bug; additive
+base+pyramid is correct and always has been; the drape/union idea was a
+misread of a metaphor. Composition stays as-is: not fixed, not
+mark-intent.
+b2a STATUS: LANDED as its own commit 7d30038 (rig-green before b2b) —
+manifold_overlay_stack dedups the four query_ground_* bodies into one
+additive core. THE b2 THREAD IS FULLY CLOSED: b2a landed; b2b GoL-ride
+landed; pulses / waves / Delta-2 resolved-closed.
 
 ## TERRAIN-2 — SKIRTS (side excursion; weld #2; own rig-gated commit)
 Jean's order: skirt the terrain patch mesh (plain patch edges) to hide

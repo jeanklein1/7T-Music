@@ -8262,13 +8262,16 @@ fn compute_photographer_vp() {
 // renders, not the baked static height — the sink/float fix. Raw GoL, no
 // pawn suppression (structures are not movers). PYRAMIDS are EXCLUDED:
 // they are CAST (buried occupiers the terrain drapes over), not
-// surface-standers. NOT-YET-RIDDEN world-anchored terms (named so the set
-// is honest against patch_terrain_vs, which folds waves + pulses into the
-// mesh): (a) RADIAL PULSES need signal.t_seconds, and the FrameSignal is
-// NOT in this pipeline's bind group (entity_placement layout, state.hpp)
-// — a bind-group change, its own commit; (b) TERRAIN WAVES — config
-// .terrain_time IS bound but the wave voice is dead today (no-op), added
-// when it revives. GoL is the live term landed now.
+// surface-standers. GoL is the ONLY overlay ridden — and that is CORRECT,
+// not a partial set:
+//   - RADIAL PULSES: structures deliberately do NOT ride them — RULED a
+//     non-issue (pulses are transient; nothing reads as floating over them,
+//     the baked + GoL height is the right, working behavior). The
+//     FrameSignal (signal.t_seconds) is NOT bound in this pipeline and is
+//     NOT to be added. Recorded as a decision, not a gap.
+//   - TERRAIN WAVES: the wave voice is dead today (config.terrain_time
+//     gates it to 0 — a no-op regardless). Whether a revived wave should
+//     carry structures is a future call, not wired here.
 @compute @workgroup_size(1)
 fn compute_entity_placement() {
     // Patch lookup is O(1) via patch_grid — no patch_count needed.
