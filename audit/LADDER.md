@@ -2842,3 +2842,55 @@ bisect on demo=full / demo=minimal pixel-identity at the rig (the pawn
 tilts exactly as before; nothing else observable changed).
 AWAITING THE RIG: pixel-identical — the pawn's body-lean is unchanged
 (the normal flows through the interface but computes the same value).
+
+## TERRAIN-2 (STAGE 1) b1-cohort — THE POSITION-READERS MIGRATE
+## (manifold_position added; 7 consumers onto the interface; pixel-
+## identical AND perf-neutral by construction)
+
+b1 landed the interface + the pawn's normal (rig-confirmed pixel-
+identical). This cohort moves the position-reader consumers onto it,
+WITHOUT the DCE gamble b1's ladder flagged.
+
+THE POSITION-ONLY FACE (world.wgsl): manifold_position(query_pos: vec3,
+policy: u32, qi) -> vec3 — the surface POINT without its orientation,
+for consumers that snap to the surface but don't orient to it. PERF-
+NEUTRAL BY CONSTRUCTION: exactly one manifold_height_hf evaluation, no
+normal work — no reliance on the compiler DCE-ing an unused normal (the
+open question from b1, closed by construction). Cast-agnostic like
+manifold_resolve (a sphere returns center+dir*radius here; the tangent-
+normal work stays in the full resolve). manifold_resolve refactored to
+take its position from manifold_position — the pawn normal stays
+BYTE-IDENTICAL (h0 = manifold_position(..).y = the same
+manifold_height_hf value b1 shipped). Disclosed: manifold_position is a
+small companion beyond the stamped manifold_resolve — the sphere-honest,
+perf-neutral answer to "consumers that need only the point"; foldable if
+Jean prefers the DCE route.
+
+SEVEN CONSUMERS MIGRATED (each manifold_position(pos3, POLICY, qi).y,
+byte-identical: .y = manifold_height_hf(pos3.xz,..) = the original
+query_ground_<policy>(xz,..)): the primary camera clamp (POLICY_FLYER),
+the sphere orbit clearance, the arch ground, the cube kite home + the
+cube anchor home, the entity flyer ground, and the agent ground-snap
+(POLICY_WALKER_AGENT). All the analytic flyer/walker_agent scalar
+consumers now speak through the interface.
+
+STILL ON THE RAW CAST (deliberate, later): the LATENT
+query_ground_flyer_gradient (5 internal samples — an idle scaffold, no
+consumer); placement + photographer (TEXTURE readers via
+sample_terrain_y_at — the cached-cast variant, a distinct migration);
+the pawn step-climb HEIGHT path (pawn_ground_resolve's perf-tuned
+paired query, left whole). The cast's own manifold_height_hf dispatch
+still calls query_ground_<policy> — that IS the delegation, not a
+consumer.
+
+GATES: glaw1 GREEN full + minimal; score census GREEN; sentinels
+147/5; encodings clean UTF-8/LF, no CR. NO-WGSL-COMPILER HAND-
+VERIFICATION: manifold_position defined once (world.wgsl:2992) before
+all 8 callers (manifold_resolve + the 7 consumers); every migration's
+xz equals the original arg (proven per-site); the pawn normal unchanged.
+BISECTION ANCHOR: this commit; bisect on demo=full/minimal pixel-
+identity + frame-time (perf-neutral by construction — the rig confirms
+no regression on the camera/entity/sphere/cube hot paths).
+AWAITING THE RIG: pixel-identical (every ground clamp/snap returns the
+same value) AND frame-time unchanged (one height eval per consumer, as
+before — no wasted normal).

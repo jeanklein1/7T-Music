@@ -2978,21 +2978,37 @@ fn manifold_height_hf(xz: vec2<f32>, policy: u32, qi: QueryInputs) -> f32 {
     }
 }
 
-// THE RESOLVE (heightfield cast). position = (x, height, z); normal =
-// the heightfield gradient normal (finite-diff, eps=0.5) — bit-identical
-// to terrain_normal_at's form for POLICY_WALKER_TILT. valid=1u until b3
-// activates the boundary. A height-only consumer reads .position.y and
-// the compiler DCEs the normal's two extra samples.
+// THE POSITION-ONLY FACE (TERRAIN-2 b1-cohort). The surface POINT
+// without its orientation — for consumers that snap to the surface but
+// do not orient to it (the camera clearance clamp, flyer/entity
+// ground). PERF-NEUTRAL BY CONSTRUCTION: exactly one height evaluation,
+// no normal work — no reliance on the compiler DCE-ing an unused
+// normal. Cast-agnostic like manifold_resolve: a spherical cast returns
+// center + dir*radius here (the surface point), the tangent-normal work
+// only in the full resolve. In Stage 1 the heightfield cast returns
+// (x, height, z) and consumers read .y (Y-up stays TRUE, provided by
+// the cast); the sphere rewrites those .y reads to the full-vec3 form
+// at Stage 3 (the Y-up movement weld).
+fn manifold_position(query_pos: vec3<f32>, policy: u32, qi: QueryInputs) -> vec3<f32> {
+    let xz = query_pos.xz;
+    return vec3(xz.x, manifold_height_hf(xz, policy, qi), xz.y);
+}
+
+// THE RESOLVE (heightfield cast). position = the surface point (via
+// manifold_position); normal = the heightfield gradient normal
+// (finite-diff, eps=0.5) — bit-identical to terrain_normal_at's form
+// for POLICY_WALKER_TILT. valid=1u until b3 activates the boundary.
 fn manifold_resolve(query_pos: vec3<f32>, policy: u32, qi: QueryInputs) -> SurfaceHit {
     let xz = query_pos.xz;
     let eps = 0.5;
-    let h0  = manifold_height_hf(xz,                    policy, qi);
+    let p0  = manifold_position(query_pos, policy, qi);
+    let h0  = p0.y;
     let h_x = manifold_height_hf(xz + vec2(eps, 0.0),   policy, qi);
     let h_z = manifold_height_hf(xz + vec2(0.0, eps),   policy, qi);
     let dx = (h_x - h0) / eps;
     let dz = (h_z - h0) / eps;
     var hit: SurfaceHit;
-    hit.position = vec3(xz.x, h0, xz.y);
+    hit.position = p0;
     hit.normal   = normalize(vec3(-dx, 1.0, -dz));
     hit.valid    = 1u;
     return hit;
@@ -3015,7 +3031,7 @@ fn coupling_terrain_to_sphere_orbit_height(sphere_xz: vec2<f32>, base_height: f3
     // consumer_pos is unused by flyer (no consumer-local fields); pass
     // a placeholder Y — only xz matters.
     let qi = QueryInputs(vec3(sphere_xz.x, 0.0, sphere_xz.y), signal.t_seconds);
-    let ground = query_ground_flyer(sphere_xz, qi);
+    let ground = manifold_position(vec3(sphere_xz.x, 0.0, sphere_xz.y), POLICY_FLYER, qi).y;
 
     // Ensure minimum clearance above ground
     let min_height = ground + SPHERE_MIN_TERRAIN_CLEARANCE;
@@ -5652,7 +5668,7 @@ fn agent_post_step(agent_in: AgentState, drag: f32, speed_cap: f32, speed_gain: 
 
     // Ground snap (walker policy — base + pyramids + GoL + waves + pulses + aura).
     let qi = QueryInputs(vec3(a.pos_x, a.pos_y, a.pos_z), t);
-    a.pos_y = query_ground_walker_agent(vec2(a.pos_x, a.pos_z), qi);
+    a.pos_y = manifold_position(vec3(a.pos_x, 0.0, a.pos_z), POLICY_WALKER_AGENT, qi).y;
 
     // Heading from velocity (when moving).
     if (sp2 > 0.01) {
@@ -5824,7 +5840,7 @@ fn behavior_player_controlled(agent_in: AgentState) -> AgentState {
             var in_bubble = true;
             if (point_camera_hosted()) {
                 let qi = QueryInputs(vec3(p.x, 0.0, p.z), signal.t_seconds);
-                let arch_ground = query_ground_flyer(vec2(p.x, p.z), qi);
+                let arch_ground = manifold_position(vec3(p.x, 0.0, p.z), POLICY_FLYER, qi).y;
                 in_bubble = abs(probe.y - arch_ground) < POINT_BUBBLE_RADIUS;
             }
             if (in_bubble) {
@@ -6515,7 +6531,7 @@ fn update_camera() {
     {
         let min_clearance = 1.5;  // minimum height above terrain
         let qi = QueryInputs(camera.pos, signal.t_seconds);
-        let ground_at_cam = query_ground_flyer(camera.pos.xz, qi);
+        let ground_at_cam = manifold_position(camera.pos, POLICY_FLYER, qi).y;
         camera.pos.y = max(camera.pos.y, ground_at_cam + min_clearance);
     }
 
@@ -6814,12 +6830,12 @@ fn update_cube() {
                                    point_p.z + fe.pawn_offset.z);
                 let kite_qi = QueryInputs(vec3(kite_xz.x, 0.0, kite_xz.y),
                                           signal.t_seconds);
-                let ground_k = query_ground_flyer(kite_xz, kite_qi);
+                let ground_k = manifold_position(vec3(kite_xz.x, 0.0, kite_xz.y), POLICY_FLYER, kite_qi).y;
                 home = vec3(kite_xz.x, ground_k + fe.orbit_height + bob_y, kite_xz.y);
             } else {
                 let home_xz = vec2(fe.anchor.x, fe.anchor.z);
                 let qi = QueryInputs(fe.anchor, signal.t_seconds);
-                let ground_a = query_ground_flyer(home_xz, qi);
+                let ground_a = manifold_position(vec3(home_xz.x, 0.0, home_xz.y), POLICY_FLYER, qi).y;
                 home = vec3(fe.anchor.x, ground_a + fe.orbit_height + bob_y, fe.anchor.z);
             }
 
@@ -6861,7 +6877,7 @@ fn update_cube() {
             // cube responds immediately.
             let pos_xz = vec2(home.x + fe.drift.x, home.z + fe.drift.z);
             let pos_qi = QueryInputs(vec3(pos_xz.x, 0.0, pos_xz.y), signal.t_seconds);
-            let ground = query_ground_flyer(pos_xz, pos_qi);
+            let ground = manifold_position(vec3(pos_xz.x, 0.0, pos_xz.y), POLICY_FLYER, pos_qi).y;
             let cube_floor_y = ground + CUBE_TERRAIN_CLEARANCE + fe.body_radius * fe.aspect_y;
             let min_drift_y = cube_floor_y - home.y;
             if (fe.drift.y < min_drift_y) {
