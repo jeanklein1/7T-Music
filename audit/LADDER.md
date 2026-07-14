@@ -2773,6 +2773,42 @@ Blind-WGSL — hand-verified; the RIG is the proof (OBSERVABLE: standing
 structures rise with GoL zones; no change where gol is off/absent). HELD.
 STILL OPEN: Delta 2 (pyramid drape/union) — Jean's fix-now/mark-intent.
 
+## TERRAIN-2 — SKIRTS (side excursion; weld #2; own rig-gated commit)
+Jean's order: skirt the terrain patch mesh (plain patch edges) to hide
+inter-patch cracks — precision AND LOD/T-junction — with ONE mechanism.
+GoL extrusion mesh untouched. METHOD: each patch skirts its FULL
+perimeter (duplicate edge ring, drop copies by skirt_depth, quad-strip
+ring->copy); interior skirts overlap into the gap and hide under
+neighbors (no exposed-edge detection). Skirt verts inherit the edge
+verts' FINAL COMPOSITED height (read the displaced ring, no recompute) —
+overlays come free, the curtain tracks the live surface.
+BLAST RADIUS (exceeds the stated world.wgsl-only): the patch mesh is
+implicit VS verts (65x65 grid) + a C++-GENERATED index buffer
+(state.hpp) — so skirt geometry is state.hpp (index gen, LOD0 + LOD1,
+compiler-verified) + world.wgsl (VS branch, blind). BOTH VS functions:
+patch_terrain_vs AND shadow_patch_terrain_vs (the shadow pass SHARES the
+patch IBs, render_passes.hpp:323/328 — else vi>=grid reads garbage).
+MECHANISM: skirt vert (ring index k) = vertex_index PATCH_GRID_VERT_COUNT
+(4225) + k; patch_skirt_grid(k) maps k in [0,256) to the perimeter grid
+vertex (CW walk bottom/right/top/left), MIRRORED by state.hpp
+skirt_grid_index (the two MUST agree). LOD0 appends all 256 ring
+segments; LOD1 appends every-`step`th so the skirt top matches the LOD1
+interior edge. WINDING (a,b,sa)+(b,sb,sa) DERIVED, not guessed: the
+grid's known-front tri (i00,i01,i10) has a +Y normal = front under
+cullMode=Back/frontFace=CCW, so outward-normal = front; the skirt quad
+is outward on all four edges (per-edge verified). All draw paths use the
+dynamic index counts (patch_index_count()/_lod1()/indirect args from
+patchIndexCount_) — skirt auto-covered, no hardcoded count.
+skirt_depth = 8.0 (start; heightfield curtains only show at the crack or
+the finite outer rim, so generous is safe; rig-tunes).
+OUTER RIM: skirt every edge (Jean's default); if the finite-world outer
+perimeter reads as a wall in the rig, suppress the outermost ring (a
+follow-up; the containment clamp may keep the camera off it entirely).
+GATES: glaw1 GREEN (verifies the C++ index gen — lambda/constexpr/loops);
+score census GREEN; world.wgsl + state.hpp clean UTF-8/LF, no CR. Blind
+half = the VS drop (winding derived); the RIG is the proof + tunes
+skirt_depth. OBSERVABLE: inter-patch cracks close. HELD for rig.
+
 ## TERRAIN-2 (STAGE 1) Phase A — THE MANIFOLD INTERFACE, SPHERE-DIRECTED
 ## (design on paper; ONE report; STOP for Jean's stamp before any code)
 

@@ -255,6 +255,31 @@ const PATCH_EXTENT: f32 = 50.0;         // world units per patch side
 const PATCH_MESH_N: u32 = 64u;          // mesh subdivisions per patch (VS bilinear-samples 256-texel heightfield)
 const PATCH_MESH_STRIDE: u32 = PATCH_MESH_N + 1u;
 
+// ─── Patch skirts (weld #2, TERRAIN-2 SKIRTS) ───────────────────────
+// Each patch skirts its FULL perimeter to hide inter-patch cracks
+// (precision + LOD/T-junction) with one mechanism: duplicate the edge
+// ring, drop the copies below the composited surface, quad-strip
+// ring→copy. Skirt verts have vertex_index >= PATCH_GRID_VERT_COUNT; the
+// index geometry is appended by the C++ patch-IB gen (state.hpp).
+const PATCH_GRID_VERT_COUNT: u32 = PATCH_MESH_STRIDE * PATCH_MESH_STRIDE;  // 65*65 = 4225
+const PATCH_SKIRT_RING: u32 = 4u * PATCH_MESH_N;                           // 256 perimeter verts
+// Curtain depth (world units below the composited edge). For a heightfield
+// the curtain only ever shows at the crack it fills or, in a finite world,
+// the outer rim — so start generous; rig-tuned.
+const PATCH_SKIRT_DEPTH: f32 = 8.0;
+
+// Skirt ring index k in [0, PATCH_SKIRT_RING) -> its perimeter grid vertex
+// (vx, vz), each in [0, PATCH_MESH_N]. CW walk: bottom, right, top, left.
+// MIRROR of the C++ skirt_grid_index (state.hpp patch IB) — the two MUST
+// agree so each skirt quad's top edge reads the right composited height.
+fn patch_skirt_grid(k: u32) -> vec2<u32> {
+    let n = PATCH_MESH_N;
+    if (k < n)         { return vec2<u32>(k, 0u); }
+    else if (k < 2u*n) { return vec2<u32>(n, k - n); }
+    else if (k < 3u*n) { return vec2<u32>(n - (k - 2u*n), n); }
+    else               { return vec2<u32>(0u, n - (k - 3u*n)); }
+}
+
 
 // §1.4 UTILITIES
 
@@ -3727,9 +3752,21 @@ fn patch_terrain_vs(
     if (USE_PATCH_INDIRECTION) { actual_id = visible_patch_indices[patch_id]; }
     let pi = patch_instances[actual_id];
 
-    // Decode grid position from vertex index (PATCH_MESH_N×PATCH_MESH_N grid)
-    let vx = vi % PATCH_MESH_STRIDE;
-    let vz = vi / PATCH_MESH_STRIDE;
+    // Decode grid position from vertex index. Skirt verts (index >=
+    // PATCH_GRID_VERT_COUNT) map to a perimeter grid vertex; they inherit the
+    // full composited surface below and get dropped by PATCH_SKIRT_DEPTH after.
+    var vx: u32;
+    var vz: u32;
+    var is_skirt = false;
+    if (vi >= PATCH_GRID_VERT_COUNT) {
+        let g = patch_skirt_grid(vi - PATCH_GRID_VERT_COUNT);
+        vx = g.x;
+        vz = g.y;
+        is_skirt = true;
+    } else {
+        vx = vi % PATCH_MESH_STRIDE;
+        vz = vi / PATCH_MESH_STRIDE;
+    }
 
     // UV within the patch [0, 1]
     let uv = vec2(
@@ -3768,6 +3805,11 @@ fn patch_terrain_vs(
     // Radial pulses: expanding ring wavefronts from note onsets
     let pulse_h = contrib_radial_pulses_at(world_pos.xz, render_signal.t_seconds);
     world_pos.y += pulse_h;
+
+    // Skirt curtain: drop the ring copy below the surface it just inherited
+    // (heightfield + aura + wave + pulse — no recompute; the curtain tracks
+    // the live surface). GoL is a separate extrusion mesh (untouched).
+    if (is_skirt) { world_pos.y -= PATCH_SKIRT_DEPTH; }
 
     var out: PatchTerrainVarying;
     out.clip_pos = render_vp.m * vec4(world_pos, 1.0);
@@ -3894,8 +3936,21 @@ fn shadow_patch_terrain_vs(
 ) -> ShadowVarying {
     let pi = patch_instances[patch_id];
 
-    let vx = vi % PATCH_MESH_STRIDE;
-    let vz = vi / PATCH_MESH_STRIDE;
+    // Same skirt decode as patch_terrain_vs — the shadow pass shares the
+    // patch index buffers (which now carry skirt indices), so it must map
+    // and drop skirt verts too, else vi >= grid count reads garbage.
+    var vx: u32;
+    var vz: u32;
+    var is_skirt = false;
+    if (vi >= PATCH_GRID_VERT_COUNT) {
+        let g = patch_skirt_grid(vi - PATCH_GRID_VERT_COUNT);
+        vx = g.x;
+        vz = g.y;
+        is_skirt = true;
+    } else {
+        vx = vi % PATCH_MESH_STRIDE;
+        vz = vi / PATCH_MESH_STRIDE;
+    }
 
     let uv = vec2(
         f32(vx) / f32(PATCH_MESH_N),
@@ -3912,7 +3967,9 @@ fn shadow_patch_terrain_vs(
 
     let wx = pi.origin.x + (uv.x - 0.5) * pi.extent;
     let wz = pi.origin.y + (uv.y - 0.5) * pi.extent;
-    let world_pos = vec3(wx, height_data.x + contrib_terrain_waves_at(vec2(wx, wz)), wz);
+    var world_pos = vec3(wx, height_data.x + contrib_terrain_waves_at(vec2(wx, wz)), wz);
+    // Skirt curtain drop (shadow surface = heightfield + waves only).
+    if (is_skirt) { world_pos.y -= PATCH_SKIRT_DEPTH; }
 
     var out: ShadowVarying;
     out.clip_pos = render_vp.light_vp * vec4(world_pos, 1.0);

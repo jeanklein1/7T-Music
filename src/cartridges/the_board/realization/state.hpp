@@ -2784,6 +2784,26 @@ namespace t7 {
                 if (!terrainIndexBuffer_) return false;
 
                 // Patch index buffer -- CPU-generated, shared by all patch instances
+                // SKIRTS (weld #2): each LOD appends a full-perimeter skirt — the
+                // edge ring duplicated as verts [SKIRT_GRID_VERTS + k], which the
+                // VS drops by PATCH_SKIRT_DEPTH and quad-strips ring->copy to hide
+                // inter-patch cracks. skirt_grid_index MIRRORS world.wgsl
+                // patch_skirt_grid — the two MUST agree. Winding (a,b,sa)+(b,sb,sa)
+                // faces outward on all four edges (matched to the grid's +Y-front
+                // convention under cullMode=Back/frontFace=CCW).
+                constexpr uint32_t SKIRT_RING = 4 * Dim::PATCH_MESH_N;                                   // 256
+                constexpr uint32_t SKIRT_GRID_VERTS = (Dim::PATCH_MESH_N + 1) * (Dim::PATCH_MESH_N + 1); // 4225
+                auto skirt_grid_index = [](uint32_t k) -> uint32_t {
+                    const uint32_t N = Dim::PATCH_MESH_N;
+                    const uint32_t S = N + 1;
+                    uint32_t vx, vz;
+                    if      (k < N)     { vx = k;             vz = 0; }
+                    else if (k < 2 * N) { vx = N;             vz = k - N; }
+                    else if (k < 3 * N) { vx = N - (k - 2 * N); vz = N; }
+                    else                { vx = 0;             vz = N - (k - 3 * N); }
+                    return vz * S + vx;
+                };
+
                 // LOD-0: full 64×64 mesh (24576 indices)
                 {
                     std::vector<uint32_t> idx;
@@ -2798,6 +2818,16 @@ namespace t7 {
                             idx.push_back(i00); idx.push_back(i01); idx.push_back(i10);
                             idx.push_back(i10); idx.push_back(i01); idx.push_back(i11);
                         }
+                    }
+                    // Skirt: every ring segment (LOD-0 full density).
+                    for (uint32_t k = 0; k < SKIRT_RING; k++) {
+                        uint32_t k1 = (k + 1) % SKIRT_RING;
+                        uint32_t a  = skirt_grid_index(k);
+                        uint32_t b  = skirt_grid_index(k1);
+                        uint32_t sa = SKIRT_GRID_VERTS + k;
+                        uint32_t sb = SKIRT_GRID_VERTS + k1;
+                        idx.push_back(a); idx.push_back(b); idx.push_back(sa);
+                        idx.push_back(b); idx.push_back(sb); idx.push_back(sa);
                     }
                     patchIndexCount_ = (uint32_t)idx.size();
                     patchIndexBuffer_ = makeBuffer("Patch IB",
@@ -2822,6 +2852,17 @@ namespace t7 {
                             idx.push_back(i00); idx.push_back(i01); idx.push_back(i10);
                             idx.push_back(i10); idx.push_back(i01); idx.push_back(i11);
                         }
+                    }
+                    // Skirt: coarse ring — LOD-1 uses every `step`th perimeter vert
+                    // so the skirt top matches the LOD-1 interior edge exactly.
+                    for (uint32_t k = 0; k < SKIRT_RING; k += step) {
+                        uint32_t k1 = (k + step) % SKIRT_RING;
+                        uint32_t a  = skirt_grid_index(k);
+                        uint32_t b  = skirt_grid_index(k1);
+                        uint32_t sa = SKIRT_GRID_VERTS + k;
+                        uint32_t sb = SKIRT_GRID_VERTS + k1;
+                        idx.push_back(a); idx.push_back(b); idx.push_back(sa);
+                        idx.push_back(b); idx.push_back(sb); idx.push_back(sa);
                     }
                     patchIndexCountLOD1_ = (uint32_t)idx.size();
                     patchIndexBufferLOD1_ = makeBuffer("Patch IB LOD1",
