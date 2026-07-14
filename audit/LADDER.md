@@ -2688,3 +2688,92 @@ grounds; wave-deadness masks it, revival widens it); (5) wire-first-
 clean-second — the SDF residue is one isolated excavation, the dormant
 voice a separate revival, the gradient scaffold kept as the manifold's
 landing site. NOTHING CUT — the map is drawn; the campaign decides.
+
+## TERRAIN-2 (STAGE 1) Phase A — THE MANIFOLD INTERFACE, SPHERE-DIRECTED
+## (design on paper; ONE report; STOP for Jean's stamp before any code)
+
+The destination is the SPHERE (+ family — polar/torus/non-planar sheets, the
+music-visualizer environments). Stage 1 builds the INTERFACE the sphere plugs
+into, filled by the heightfield as the sole placeholder cast, so the sphere
+(Stage 3) is a NEW CAST behind a proven interface, not a scattered rewrite.
+BINDING intent: the query face + composition fold are shaped by what a
+SPHERICAL cast requires, NOT by tidying the heightfield. NO code until the
+stamp. Product: audit/TERRAIN2_STAGE1_INTERFACE.md.
+
+A1 THE QUERY SIGNATURE: manifold_resolve(query_pos: vec3, policy: u32, qi:
+QueryInputs) -> SurfaceHit{position: vec3, normal: vec3, valid: u32}. INPUT =
+a WORLD-SPACE vec3 (the coordinate every consumer already has; QueryInputs.
+consumer_pos is already vec3) — the signature does NOT hardcode xz; the CAST
+projects world-pos into its own parameter (heightfield reads .xz; sphere takes
+normalize(pos-center)). This is the no-templates/no-new-struct answer: a world
+position is the universal coordinate, projecting it is the cast's private
+business (the intrinsic-parameter GENERATE face the generator walks is a
+separate face = one of the four welds Stage 1 does NOT touch; Stage 1 freezes
+the RESOLVE face). OUTPUT = a full surface point + TRUE normal RETURNED by the
+cast (heightfield fills position=(x,h,z), normal=(-gx,1,-gz) — its current
+values, now returned not assumed; the literal 1.0 leaves the caller). BOUNDARY
+= carried in the query (Boundary{center,extent}; extent=0=infinite per today's
+world_bound(0,0,0,0)); the cast returns valid=0 + boundary-projected position
+outside (the pawn/camera clamp becomes a return value). THE SPHERE MAKES
+FINITE NATURAL — a closed manifold has no edge, valid always 1; a large sphere
+is effectively-infinite-with-seeded-novelty (Jean's model, no boundary
+branch). Adopts TERRAIN-1's idle *_gradient scaffold (already returns vec3(h,
+dh/dx,dh/dz), zero callers) — named, not invented. Proven: a sphere cast
+implements the signature UNCHANGED (walk-through in the report).
+
+A2 THE CAST BOUNDARY: INTERFACE (frozen) = the signature + SurfaceHit/Boundary
++ the fold declaration (ground_architecture.hpp's POLICIES[] masks ARE the
+fold) + the consumer call sites. CAST (heightfield now, sphere later) = the
+four welds (texel format, mesh VS, normal basis, Y-up/XZ movement+index) + the
+base-shape bodies (terrain_height_at/contrib_static_base/tile_modifiers/piers/
+pyramids) + the world-pos->parameter projection. Stage 3 replaces exactly the
+CAST column, inherits the interface.
+
+A3 THE COMPOSITION FOLD: the unifying insight is a BASE-SHAPE vs OVERLAY
+partition = the cast/interface line. BASE-SHAPE authors (the CAST's, replaced
+by the sphere) = seed-lattice*tile-amp + tile-bias + piers + pyramids. OVERLAY
+authors (UNIVERSAL, fold along the normal onto any cast) = GoL + terrain waves
+(voice) + radial pulses + pawn aura. The ONE declared fold: base =
+CAST.base_shape(pos); displace along base.normal by the sum of GLOBAL overlays
+(same for all) + CONSUMER-LOCAL terms (policy-parameterized: GoL-suppression
+center, self-aura exclusion — legitimate divergence, kept). The three-sampler
+BUG is only that the baked sampler omits the GLOBAL overlays; that is A4's fix.
+The masks already encode this; Stage 1 makes them the ONE declaration + one run
+site (kills the shadow-VS hand-fusion drift). The base/overlay line is
+load-bearing: the sphere replaces base-shape, keeps overlays untouched.
+
+A4 THE SAMPLER UNIFICATION (the free bug-fix, delta disclosed loud): CPU
+estimate -> the CPU cast (ribbon Y becomes accurate, or keep documented-coarse);
+baked sample_terrain_y -> cached base-shape (.x->pos, .yz->normal) + the overlay
+fold; analytic query_ground_* -> analytic base-shape + fold (no delta). THE
+DELTA: today the pawn stands on GoL/aura-deformed ground but placed entities sit
+on un-deformed baked ground (sink/float), shadows drop aura+pulses, the
+photographer clamps to un-overlaid ground; unifying makes them AGREE (a
+correctness fix — paintings already hand-compensate). Visible delta today
+confined to GoL zones + the pawn-aura region (waves dead). GATING RECOMMENDATION:
+split b2 into b2a (the fold STRUCTURE, every policy keeps its current set ->
+PIXEL-IDENTICAL, lands the interface) + b2b (the AGREEMENT flip, baked gains the
+overlays -> the disclosed delta, its own rig gate). LEAN: land b2a in Stage 1,
+DEFER b2b. Jean rules.
+
+A5 THE tile_world CROSS-CUT SPLIT (TERRAIN-0 Law 2 resolved): TileState ->
+TileShape{archetype,height_bias,amp_scale,activation_scale,amp_momentum} = the
+CAST's shape authorship (+ the TerrainToken momentum) + TilePopulation{entity_
+density,theme_spawn[],theme_idx} = the population concern (population_themes).
+The F1-F4 face splits (F1/F2/F4 shape, F3 population). Two clean gifts: the GPU
+mirror is already shape-only (population is CPU-only, never crosses), and one
+generate_tile_state fills both (only storage+readers separate). Behavior-
+identical.
+
+PHASE B shape (sized at the stamp): b1 the interface lands (pixel-identical);
+b2a the fold structure (pixel-identical); b2b the agreement flip (gated,
+disclosed delta, recommend defer); b3 the finite collapse (6 branches -> one
+window=intersect(follow,boundary) rule + boundary-carrying query, behavior-
+identical); b4 the cross-cut split (behavior-identical). Each: pixel/behavior
+gate + the no-WGSL-compiler hand-verification pass.
+
+FIVE STAMP QUESTIONS: (1) the signature shape; (2) the interface/cast
+partition; (3) the fold + base-shape/overlay partition; (4) the sampler-delta
+ruling (b2a-now/b2b-defer recommended; ribbon unify-or-coarse); (5) the
+cross-cut split. NO CODE until the stamp — the interface is the sphere's
+foundation, gotten right on paper first.
