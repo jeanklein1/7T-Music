@@ -2591,3 +2591,100 @@ graduate-or-index fork; (4) the frozen generator + driverless voice — is
 terrain the moment they get a driver; (5) A6 GoL geometry — a seam owner +
 the shadow-caster divergence. NOTHING CUT — the audit answers "what is
 terrain"; the campaign decides what to do.
+
+## TERRAIN-1 — THE MANIFOLD RECON (read-only; two targets, one map;
+## STOP for the manifold-spine design conversation)
+
+The reframe (Jean, ratified): terrain is a PLACEMENT MANIFOLD (coord →
+position + normal); the heightfield y=f(x,z) is our DEFAULT CAST, not
+the essence; finite vs infinite is a BOUNDARY CONDITION on one manifold.
+This recon measures the distance from the code to that model. Four
+parallel deep-reads + a policy-mask synthesis; every claim file:line'd.
+NOTHING moved. Product: audit/TERRAIN1_MANIFOLD_RECON.md.
+
+TARGET 1 — HOW MANIFOLD-SHAPED IS THE CODE ALREADY?
+M1 THE QUERY FACE: every ground query is xz→scalar y, Y-up, one height
+per column — NO coord→surface-point signature exists. BUT the manifold's
+future interface is already SCAFFOLDED and idle: the *_gradient family
+already returns (height, slope_x, slope_z) — one step from coord→
+position+normal — and the POLICY_PLACEMENT_* rows declare a clean
+placement-query API; both are LATENT (zero callers), the live paths
+bypass them. QueryInputs.consumer_pos is already a vec3 (the signature
+carries a 3D point; the scalar-Y assumption is in the bodies). The
+manifold spine is one return-type + a consumer-move away, not a new
+subsystem.
+M2 THE HEIGHTFIELD BLAST: the value provider is a thin LEAF (swap the
+body, "give me y at xz" callers unaffected — tile_world F1-F4 advertises
+this). "Y-up/XZ-ground" is a pervasive SPREAD across FOUR welds: the
+rgba16float texel contract (height,grad_x,grad_z,complexity — no room
+for position+normal), both mesh VS (planar XZ grid displaced only in Y —
+cannot fold/overhang), the normal basis (reconstructed vec3(-gx,1.0,-gz),
+the literal 1.0 IS the assumption), and the Y-up movement + XZ spatial
+index (~30 pos.y+= sites, agent XZ-integrate-then-snap-Y, PAWN_STEP along
+Y, patch/tile grids keyed (gx,gz)). A non-heightfield cast rewrites
+storage+mesh+normals+movement+index; only the per-column value functions
+survive.
+M3 THE EXTENT MODEL: on the SURFACE side finite and infinite are ALREADY
+ONE MECHANISM — generation is byte-identical regardless of finiteness
+(no producer reads finite_mode/finite_radius/world_bound); finite_radius
+IS the boundary parameter, open = world_bound(0,0,0,0). "Finite" is ~6
+scattered imperative branches (center-pin, radius-cap, all-visible band,
+pawn-clamp, camera-clamp, containment decoration), each clamping the
+INPUT xz before the query — "1.5 code paths," generation fully shared.
+Always streamed (nothing pre-bakes; finite = "the window stops growing +
+stops following the pawn"); world_bound is a CONTAINMENT SHELL (input
+clamp), not terrain extent (MOOD_FINITE_OUTDOOR is finite with no walls);
+finiteness only ever entered via portal, the world always boots open.
+Distance to Jean's model: small + structural — collapse the six branches
+behind one window=intersect(follow,boundary) rule + a boundary-carrying
+query; generation needs zero change.
+M4 THE COMPOSITION ORDER: base = terrain_height(seed)*tile_amp + bias +
+piers (three authors, one scalar); bake +pyramids; live queries +GoL
++waves +pulses +aura per policy. The SIX-CONSUMER / SIX-GROUND
+divergence, exact from the masks: pawn stands on base+pyr+GoL+waves+
+pulses+aura(+suppression); camera clamps to same minus suppression;
+entities placed on baked base+pyr ONLY (no GoL/aura); terrain renders
+base+pyr+waves+pulses+aura (NO GoL — separate extrusion); shadows from
+baked+waves (no aura/pulses); ribbon on CPU tile-only estimate;
+paintings re-add GoL analytically. Today partly masked by the dead wave
+voice; GoL+aura are LIVE, so reviving the voice WIDENS the divergence.
+The raw material for one consistent manifold query — mapped, not fixed.
+
+TARGET 2 — THE RAYMARCHING RESIDUE
+M5 THE EXCAVATION MAP: exactly ONE raymarch-era subsystem survives and
+is essentially fully ISOLATED — the TerrainState/render_terrain buffer +
+everything computing into it, WRITE-ONLY across the whole shader (no
+VS/FS reader, no CPU readback). Smoking gun: lipschitz_factor =
+sqrt(1+max_grad²) (world.wgsl:5415), the cone/sphere-trace step bound of
+a heightfield graph, read by nobody; its own comment names the
+provenance ("Legacy fixed-wave dynamics … Only gradient_max survives for
+Lipschitz"). The FS-visible binding 220 render_terrain (read by nobody)
+is exactly where an SDF shade-fragment plugged in. Excises whole: buffer
++ struct + Idle init + update_terrain_config kernel + dispatch + binding
+20/220 + the legacy WAVES table + wave_enable/freeze/frozen_t + the
+amplitude-trajectory feeder. THE ONE ENTANGLED WIRE: terrain_state.tint
+is a dead store inside the LIVE update_sphere kernel (+ coupling_sphere_
+to_terrain_tint) — a surgical delete, not a clean lift. NOT residue
+(live): the finite-diff normal functions (return vec3 normals for
+shading/tilt) + the VP builder's stale "raymarch_get_direction" comment.
+M6 THE DISPOSITION TABLE (the critical separation — TWO wave systems,
+easily confused): DORMANT-VOICE (revive as DEMO-2) = the OVERLAY-wave
+geometry voice + substrate temporal machinery + color voice/mode
+coupling + tile activation_scale. SDF-RESIDUE (excavate) = the
+TerrainState block + lipschitz chain + the LEGACY WAVES table +
+freeze/amplitude feeder + the sphere-tint wire (entangled). GENUINELY-
+DEAD (delete) = complexity texel channel, the density lattice no-op,
+ActivePatch::animated + RENDER_RADIUS aliases + binding 144. LATENT-
+SCAFFOLD (KEEP) = the POLICY_PLACEMENT_* + *_gradient API — NOT dead, it
+is the manifold's own future interface. LIVE-BUT-FRAGILE (keep+note) =
+the GoL-suppression triple + the hot-path family (shadow copy already
+diverges).
+
+FIVE DISTANCES for the design conversation: (1) the interface is one
+return-type away (scaffold idle); (2) the cast is a rewrite, the value a
+leaf; (3) finiteness is already a boundary parameter (six clamps → one
+window rule); (4) the composition tangle is the real spine question (six
+grounds; wave-deadness masks it, revival widens it); (5) wire-first-
+clean-second — the SDF residue is one isolated excavation, the dormant
+voice a separate revival, the gradient scaffold kept as the manifold's
+landing site. NOTHING CUT — the map is drawn; the campaign decides.
