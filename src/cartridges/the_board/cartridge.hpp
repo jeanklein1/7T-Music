@@ -786,10 +786,8 @@ namespace t7 {
                 gpuState_.upload_config(queue);
 
                 // ═══ MOVEMENT: WITNESS ══════════════════════════════════════
-                // Orb dome anchor: follow pawn when toggled on. Uses
-                // last-frame pawn readback — one-frame lag is imperceptible (O-5d).
-                if constexpr (ROSTER.orbs)  // ROSTER-GATE orbs (b)
-                    update_orb_anchor(orbs_state_, &orbs_deps_, player_.readback_x, player_.readback_z, queue);
+                // (The orb dome anchor movement retired at p1b-e — the dome
+                // is a skybox, eye-centered in the orb VS; no CPU upload.)
                 // ROSTER-GATE gallery (b) — P1 DIES STRUCTURALLY (REBUILD-0):
                 // the photographer never walks in a gallery-less demo.
                 if constexpr (ROSTER.gallery)

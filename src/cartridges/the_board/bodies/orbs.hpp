@@ -41,7 +41,7 @@ struct OrbsDeps {
 // ═══ TUNING CONSOLE ══════════════════════════════════════════════
 
 // ── Dome geometry ────────────────────────────────────────────────
-inline constexpr float ORB_DOME_RADIUS = 450.0f;
+inline constexpr float ORB_DOME_RADIUS = 700.0f;   // p1b-e: the skybox radius (was 450; Jean's dial — larger so movement reads static)
 inline constexpr float ORB_BASE_SIZE = 3.0f;
 
 // ── Noise floor ──────────────────────────────────────────────────
@@ -286,8 +286,6 @@ struct OrbMoodConfig {
     // Color palette
     uint32_t palette_id = ORB_PAL_JWST_DEEP;
     float    hue_converge_target = 0.12f;
-    // Anchor (mood default applies only on first configure; player wins after)
-    bool     anchor_to_pawn_default = false;
     // Population variety (ORB_TIERSET_NONE = uniform population)
     uint32_t tierset_id = ORB_TIERSET_NONE;
     // Flocking (used when motion_rule == 3)
@@ -322,15 +320,6 @@ struct OrbsState {
     bool     recolor_pending = false;
     uint32_t current_palette_id = ORB_PAL_JWST_DEEP;
 
-    // ── Anchor (dome-center follow) ──────────────────────────────
-    // Player state: persists across mood transitions. Dirty-flag cache
-    // means an idle or unanchored dome produces no per-frame queue traffic.
-    bool     pawn_anchored = false;
-    bool     anchor_initialized = false;   // seeded by mood default on first configure
-    float    last_dome_center_x = 0.0f;
-    float    last_dome_center_z = 0.0f;
-    bool     dome_center_initialized = false;
-
     // ── Motion rule + flocking gesture ───────────────────────────
     // Motion rule and flock gesture are both player-owned: they persist
     // across mood transitions. The rule seeds to Brownian on first run.
@@ -354,9 +343,6 @@ void teardown_orbs(OrbsState& os, OrbsDeps* c);
 void cycle_orb_palette(OrbsState& os, OrbsDeps* c, wgpu::Queue& queue);
 void cycle_orb_motion_rule(OrbsState& os, OrbsDeps* c, wgpu::Queue& queue);
 void cycle_orb_gesture(OrbsState& os, OrbsDeps* c, wgpu::Queue& queue);
-void toggle_orb_anchor(OrbsState& os, const OrbsDeps* c);
-// Per-frame updates
-void update_orb_anchor(OrbsState& os, OrbsDeps* c, float pawn_x, float pawn_z, wgpu::Queue& queue);
 // GPU dispatches
 void dispatch_orb_init(OrbsState& os, OrbsDeps* c, wgpu::CommandEncoder& encoder);
 void dispatch_orb_recolor(OrbsState& os, OrbsDeps* c, wgpu::CommandEncoder& encoder);
@@ -375,12 +361,12 @@ void render_orbs(OrbsState& os, OrbsDeps* c, wgpu::RenderPassEncoder& pass);
 //
 //                                              en     n    hueB   hueV   bri    drg   rul  rotS    rotAxis                  orbS  pal  hct    anc    trs           sepR   alnR    cohR    sepW   alnW   cohW   maxS   gst  drgB  drgO  drgF  drgK
 inline constexpr OrbMoodConfig ORB_MOOD_TABLE[MOOD_COUNT] = {
-    /* 0 open_default        */ {  true,  128, 0.08f, 0.06f, 0.85f, 0.4f,  0u,  0.012f, {0.15f, 0.97f, 0.10f},  0.0f, 0u,  0.12f, true,  0u,           50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
-    /* 1 open_sunset         */ {  true,  128, 0.08f, 0.06f, 0.85f, 0.4f,  3u,  0.012f, {0.15f, 0.97f, 0.10f},  0.0f, 0u,  0.08f, false, 0u,           50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
-    /* 2 indoor_flat         */ {  false, 0,   0.08f, 0.05f, 0.80f, 0.5f,  0u,  0.000f, {0.00f, 1.00f, 0.00f},  0.0f, 0u,  0.12f, false, 0xFFFFFFFFu,  50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
-    /* 3 indoor_vault        */ {  false, 0,   0.08f, 0.05f, 0.80f, 0.5f,  0u,  0.000f, {0.00f, 1.00f, 0.00f},  0.0f, 0u,  0.12f, false, 0xFFFFFFFFu,  50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
-    /* 4 finite_outdoor      */ {  true,  128, 0.08f, 0.06f, 0.85f, 0.4f,  0u,  0.012f, {0.15f, 0.97f, 0.10f},  0.0f, 0u,  0.12f, true,  0u,           50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
-    /* 5 finite_outdoor_ref  */ {  true,  128, 0.08f, 0.06f, 0.85f, 0.4f,  0u,  0.012f, {0.15f, 0.97f, 0.10f},  0.0f, 0u,  0.12f, true,  0u,           50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
+    /* 0 open_default        */ {  true,  128, 0.08f, 0.06f, 0.85f, 0.4f,  0u,  0.012f, {0.15f, 0.97f, 0.10f},  0.0f, 0u,  0.12f, 0u,           50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
+    /* 1 open_sunset         */ {  true,  128, 0.08f, 0.06f, 0.85f, 0.4f,  3u,  0.012f, {0.15f, 0.97f, 0.10f},  0.0f, 0u,  0.08f, 0u,           50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
+    /* 2 indoor_flat         */ {  false, 0,   0.08f, 0.05f, 0.80f, 0.5f,  0u,  0.000f, {0.00f, 1.00f, 0.00f},  0.0f, 0u,  0.12f, 0xFFFFFFFFu,  50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
+    /* 3 indoor_vault        */ {  false, 0,   0.08f, 0.05f, 0.80f, 0.5f,  0u,  0.000f, {0.00f, 1.00f, 0.00f},  0.0f, 0u,  0.12f, 0xFFFFFFFFu,  50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
+    /* 4 finite_outdoor      */ {  true,  128, 0.08f, 0.06f, 0.85f, 0.4f,  0u,  0.012f, {0.15f, 0.97f, 0.10f},  0.0f, 0u,  0.12f, 0u,           50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
+    /* 5 finite_outdoor_ref  */ {  true,  128, 0.08f, 0.06f, 0.85f, 0.4f,  0u,  0.012f, {0.15f, 0.97f, 0.10f},  0.0f, 0u,  0.12f, 0u,           50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
 };
 
 // ═══ IMPL (merged from orbs.inl — DISSOLVE-1 Batch B):
@@ -401,13 +387,10 @@ inline float* orb_tier_flock_ptr(GPUOrbConfig& cfg, uint32_t i) {
 
 // ═══ CONFIGURE HELPERS ═══════════════════════════════════════════
 
-// Apply mood's first-run defaults to player-owned state. Anchor and
-// flock gesture are both "mood seeds once, player wins after."
+// Apply mood's first-run defaults to player-owned state. The flock
+// gesture is "mood seeds once, player wins after." (The anchor seed
+// retired at p1b-e — the dome is a skybox, eye-centered always.)
 inline void apply_mood_first_run_defaults_(OrbsState& os, const OrbMoodConfig& cfg) {
-    if (!os.anchor_initialized) {
-        os.pawn_anchored = cfg.anchor_to_pawn_default;
-        os.anchor_initialized = true;
-    }
     if (!os.gesture_initialized[ORB_RULE_BROWNIAN]) {
         os.gesture_idx[ORB_RULE_BROWNIAN] = std::min(
             cfg.flock_gesture_default, ORB_BROWNIAN_GESTURE_COUNT - 1u);
@@ -564,7 +547,6 @@ inline void log_configure_(const OrbsState& os, const OrbMoodConfig& cfg,
         << " rule=" << RULE_NAMES[std::min(os.current_motion_rule, 3u)]
         << " rot=" << cfg.rotation_speed
         << " orbital=" << eff_orbital_speed
-        << " anchor=" << (os.pawn_anchored ? "pawn" : "origin")
         << " tiers="
         << (cfg.tierset_id < ORB_TIERSET_COUNT
             ? ORB_TIERSET_NAMES[cfg.tierset_id]
@@ -639,13 +621,12 @@ inline void configure_orbs(OrbsState& os, OrbsDeps* c, const OrbMoodConfig& cfg,
     gpuCfg.color_surge = 0.0f;
     gpuCfg.hue_converge_target = cfg.hue_converge_target;
 
-    // Dome center: start at origin; per-frame update_orb_anchor catches
-    // up next frame with fresh pawnReadback values (not yet ready here).
+    // Dome center — DEAD WIRE (p1b-e): the orb VS eye-centers the
+    // dome (the skybox); these bytes are zero-filled for the ABI only.
     gpuCfg.dome_center_x = 0.0f;
     gpuCfg.dome_center_y = 0.0f;
     gpuCfg.dome_center_z = 0.0f;
     gpuCfg._pad_anchor = 0.0f;
-    os.dome_center_initialized = false;   // force dirty-flag re-eval
 
     pack_tiers_(gpuCfg, cfg.tierset_id);
     pack_flocking_(os, gpuCfg,
@@ -670,11 +651,6 @@ inline void teardown_orbs(OrbsState& os, OrbsDeps* c) {
 
     // Speed multiplier resets with the mood (not player state).
     os.speed_mult_current = 1.0f;
-
-    // Force fresh anchor upload on next configure (cache cleared, flag state preserved).
-    os.last_dome_center_x = 0.0f;
-    os.last_dome_center_z = 0.0f;
-    os.dome_center_initialized = false;
 }
 
 // ═══ PLAYER COMMANDS ═════════════════════════════════════════════
@@ -765,37 +741,8 @@ inline void cycle_orb_gesture(OrbsState& os, OrbsDeps* c, wgpu::Queue& queue) {
     std::cout << "[Orbs] Frozen has no gestures (stillness is the rule).\n";
 }
 
-// KP_9: flip dome anchor between world origin and pawn-following.
-// Player state: persists across mood transitions.
-inline void toggle_orb_anchor(OrbsState& os, const OrbsDeps* c) {
-    os.pawn_anchored = !os.pawn_anchored;
-    std::cout << "[Orbs] Anchor: "
-        << (os.pawn_anchored ? "ON — dome follows pawn"
-            : "OFF — dome fixed at world origin")
-        << "  (pawn readback: "
-        << c->player_.readback_x << ", " << c->player_.readback_z << ")"
-        << "\n";
-}
-
-// ═══ PER-FRAME UPDATES ═══════════════════════════════════════════
-
-inline void update_orb_anchor(OrbsState& os, OrbsDeps* c, float pawn_x, float pawn_z, wgpu::Queue& queue) {
-    if (!os.active || os.count == 0) return;
-
-    float target_x = os.pawn_anchored ? pawn_x : 0.0f;
-    float target_z = os.pawn_anchored ? pawn_z : 0.0f;
-
-    bool changed = !os.dome_center_initialized
-        || target_x != os.last_dome_center_x
-        || target_z != os.last_dome_center_z;
-
-    if (changed) {
-        c->gpuState_.upload_orb_dome_center(queue, target_x, 0.0f, target_z);
-        os.last_dome_center_x = target_x;
-        os.last_dome_center_z = target_z;
-        os.dome_center_initialized = true;
-    }
-}
+// (The dome anchor commands retired at p1b-e — the dome is a SKYBOX,
+// eye-centered in the orb VS every frame; KP_9 freed.)
 
 // ═══ GPU DISPATCHES ══════════════════════════════════════════════
 

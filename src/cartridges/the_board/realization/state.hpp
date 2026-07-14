@@ -1029,9 +1029,9 @@ namespace t7 {
             float    color_surge;        //152: saturation-surge intensity (0..1)
             float    hue_converge_target;//156: target hue for convergence (0..1)
             // ── Pass 7: pawn-anchored dome ────────────────────────
-            float    dome_center_x;      //160: dome center world X
-            float    dome_center_y;      //164: dome center world Y (typically 0)
-            float    dome_center_z;      //168: dome center world Z
+            float    dome_center_x;      //160: DEAD WIRE (p1b-e: orb VS eye-centers; ABI bytes)
+            float    dome_center_y;      //164: dead wire
+            float    dome_center_z;      //168: dead wire
             float    _pad_anchor;        //172: reserved (future anchor mode/rate)
             // ── Pass 8: tier profiles (header + 4 tier blocks) ────
             // tier_count = 0 → legacy uniform population.
@@ -2548,15 +2548,8 @@ namespace t7 {
                     offsetof(GPUOrbConfig, color_pulse),
                     &packed, sizeof(packed));
             }
-            // Dome center: world-space anchor point added at render time by orb_vs.
-            // 12-byte write; _pad_anchor is left untouched for future use.
-            void upload_orb_dome_center(wgpu::Queue& queue,
-                float x, float y, float z) {
-                struct { float x, y, z; } packed = { x, y, z };
-                queue.WriteBuffer(orbConfigBuffer_,
-                    offsetof(GPUOrbConfig, dome_center_x),
-                    &packed, sizeof(packed));
-            }
+            // (upload_orb_dome_center retired at p1b-e — the orb VS
+            // eye-centers the dome; dome_center_* is dead wire.)
             // Partial upload of the palette slice (palette_count..pal3_weight).
             // 72 bytes contiguous from offset 72. Preserves per-frame fields
             // (dt, t_seconds, noise_amp, force_radial) elsewhere in the struct.
@@ -3671,7 +3664,7 @@ namespace t7 {
                     entries[16].visibility = wgpu::ShaderStage::Vertex;
                     entries[16].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
-                    // Orb config (VS reads dome_center for anchored mode in Pass 7)
+                    // Orb config (radius/palette/tiers; dome_center dead wire — p1b-e, Pass 7)
                     entries[17].binding = 411;
                     entries[17].visibility = wgpu::ShaderStage::Vertex;
                     entries[17].buffer.type = wgpu::BufferBindingType::Uniform;
@@ -4649,7 +4642,7 @@ namespace t7 {
                     entries[16].buffer = orbStateBuffer_;
                     entries[16].size = Dim::MAX_ORBS * sizeof(GPUOrbState);
 
-                    // Orb config (VS reads dome_center for anchored mode)
+                    // Orb config (radius/palette/tiers; dome_center dead wire — p1b-e)
                     entries[17].binding = 411;
                     entries[17].buffer = orbConfigBuffer_;
                     entries[17].size = sizeof(GPUOrbConfig);
@@ -4959,7 +4952,7 @@ namespace t7 {
                     entries[16].buffer = orbStateBuffer_;
                     entries[16].size = Dim::MAX_ORBS * sizeof(GPUOrbState);
 
-                    // Orb config (VS reads dome_center) — same buffer as main path
+                    // Orb config (dome_center dead wire — p1b-e) — same buffer as main path
                     entries[17].binding = 411;
                     entries[17].buffer = orbConfigBuffer_;
                     entries[17].size = sizeof(GPUOrbConfig);

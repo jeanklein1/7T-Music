@@ -10817,7 +10817,8 @@ struct OrbConfig {
     color_surge:         f32,   // 0..1
     hue_converge_target: f32,   // mood-scoped, changes at mood entry
 
-    // ── Dome anchor (world origin or pawn-follow) ────────────
+    // ── Dome anchor — DEAD WIRE (p1b-e: the VS eye-centers the
+    // dome; bytes retained for ABI, zero-filled by configure) ──
     dome_center_x:       f32,
     dome_center_y:       f32,
     dome_center_z:       f32,
@@ -11541,13 +11542,13 @@ fn orb_vs(
     let cam_right = vec3<f32>(cos_az, 0.0, -sin_az);
     let cam_up = cross(orbital, cam_right);
 
-    // orb.pos is dome-local; the dome's world-space anchor is carried
-    // by orb_config (origin when unanchored, pawn position when anchored).
-    let dome_center = vec3<f32>(
-        orb_config.dome_center_x,
-        orb_config.dome_center_y,
-        orb_config.dome_center_z
-    );
+    // orb.pos is dome-local; the dome is a SKYBOX (p1b-e, Jean's
+    // ruling): centered on the camera EYE, all three axes, every
+    // frame — the sky rises when you fly and never parallaxes away.
+    // render_camera is already in this VS (the billboard basis above);
+    // the old orb_config.dome_center_* wire is dead (bytes retained
+    // for ABI; the CPU anchor machinery retired with it).
+    let dome_center = render_camera.pos;
     let world_pos = dome_center + orb.pos
         + cam_right * (quad_pos.x * orb.size)
         + cam_up    * (quad_pos.y * orb.size);

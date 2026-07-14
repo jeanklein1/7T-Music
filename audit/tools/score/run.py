@@ -81,7 +81,8 @@ MANIFEST = {
                  ('cartridge.hpp', 'aura compute',   imm(r'ROSTER\.pawn_aura', r'dispatch_pawn_aura')),
                  ('cartridge.hpp', 'teardown',       imm(r'ROSTER\.pawn_aura', r'teardown_pawn_aura'))],
     'orbs':     [('cartridge.hpp', 'boot config',  blk(r'ROSTER\.orbs', 'configure_orbs')),
-                 ('cartridge.hpp', 'anchor',       imm(r'ROSTER\.orbs', r'update_orb_anchor')),
+                 # ('anchor' row retired at p1b-e: the dome is a skybox,
+                 # eye-centered in the orb VS — no CPU anchor movement)
                  ('cartridge.hpp', 'compute chain', blk(r'ROSTER\.orbs',
                      'dispatch_orb_init', 'dispatch_orb_recolor',
                      'dispatch_orb_copy_prev', 'dispatch_orb_dynamics')),
@@ -105,7 +106,7 @@ MANIFEST_CALLS = {
     'upload_gol_zone_config', 'dispatch_zone_sync', 'dispatch_zone_evolve', 'dispatch_zone_mesh',
     'load_authored_textures', 'update_photographer', 'teardown_gallery', 'drain_gallery_promotions',
     'tick_pawn_couplings', 'dispatch_pawn_aura', 'teardown_pawn_aura',
-    'configure_orbs', 'update_orb_anchor', 'dispatch_orb_init', 'dispatch_orb_recolor',
+    'configure_orbs', 'dispatch_orb_init', 'dispatch_orb_recolor',
     'dispatch_orb_copy_prev', 'dispatch_orb_dynamics', 'teardown_orbs',
     'spawn_population_for_mood', 'respawn_evicted_agents',
 }

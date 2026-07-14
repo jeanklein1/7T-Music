@@ -2306,3 +2306,57 @@ AWAITING THE RIG: pawn host — portal stepping identical (same probe,
 same ellipse, no gate). Free-fly — flying THROUGH a portal at arch
 height triggers the transition; flying OVER its xz high up does not;
 the 20-unit band is a dial (bump POINT_BUBBLE_RADIUS in both mirrors).
+
+## PANEL-0 p1b-e — THE ORB SKYBOX (eye-centered all axes; radius 700;
+## the anchor machinery retired whole; sentinels 148→147 by design)
+
+The fifth movement — the ONE authorized departure from the pawn-host
+pixel gate (Jean's ruling: the orbs center on the camera to look
+static; radius up so movement doesn't read on the sky).
+
+THE CUT IS A SIMPLIFICATION. The orb VS already carried the camera
+(render_camera, the billboard basis) — the dome center becomes
+render_camera.pos, ALL THREE AXES, every frame, GPU-side, zero
+uploads: dome_center = render_camera.pos. Flying up, the sky rises
+with you (the old dome was ground-pinned at y=0 — climb and the orbs
+sank below). The photographer pass binds its own camera at the same
+slot, so SNAPSHOTS inherit a correct skybox automatically.
+ORB_DOME_RADIUS 450 → 700 (Jean's dial).
+
+THE ANCHOR MACHINERY RETIRED WHOLE (dead the moment the VS
+eye-centers): update_orb_anchor + toggle_orb_anchor (fns + decls);
+the five OrbsState anchor fields; the mood table's
+anchor_to_pawn_default COLUMN (struct field + all six positional
+rows, hue-value-disambiguated edits); the first-run anchor seed; the
+status print's anchor field; the teardown reset; upload_orb_dome_
+center (state.hpp); the spine's anchor movement (cartridge.hpp); the
+KP_9 case (the key FREED — noted in place). The GPU struct's
+dome_center_* fields stay as ABI bytes, zero-filled, marked DEAD WIRE
+in both mirrors (C++ + WGSL).
+
+THE GATE BASELINE MOVES, DOCUMENTED: sentinels 148/5 → 147/5 — the
+retired anchor movement carried a ROSTER-GATE orbs (b); the score
+census manifest retired the matching 'anchor' row + the
+update_orb_anchor whitelist entry IN THE SAME COMMIT (Direction A/B
+both re-prove GREEN at the new baseline). the_chord keeps its own
+copy of the old anchor (separate cartridge, out of campaign scope).
+
+GATES: glaw1 GREEN full + minimal; score census GREEN at the new
+manifest; sentinels 147/5 (the new baseline, minus-one by design);
+encodings clean; residual grep for every retired name: ZERO.
+AWAITING THE RIG (the authorized look-change, BOTH hosts): the orb
+sky reads as a true skybox — static under all movement, rising with
+flight; slightly shifted vs the old ground-pinned dome in pawn-host
+(the kited eye sits off the pawn); radius 700 the dial to taste.
+
+## PANEL-0 p1b — THE CAMPAIGN CLOSES (a…e landed; the point is real)
+
+Five single-intent cuts, one arc: the point OWNS presence (position →
+streaming/LOD/cull/shadow/orb-follow, p1b-a; the living population,
+p1b-b; the record, p1b-c; the bubble's first sense, p1b-d) and the
+sky became the witness's skybox (p1b-e). The pawn keeps emanation and
+body-identity, idle in free-fly by construction. a–d pawn-host
+pixel-identical by construction (host-guarded branches; same-snapshot
+value identity; the probe freshness rule); e the one stamped
+look-change. The witness contract, the point contract, and the census
+manifest all amended in place — the paper trail is the code's.

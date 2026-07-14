@@ -291,7 +291,8 @@ inline void on_key_down(InputDeps* c, int key,
 
     // ── Orb utilities (numpad) ───────────────────────────────────
     case GLFW_KEY_KP_8:       cycle_orb_motion_rule(orbs_state_, &orbs_deps_, q);            break;
-    case GLFW_KEY_KP_9:       toggle_orb_anchor(orbs_state_, &orbs_deps_);                 break;
+    // KP_9 freed (p1b-e): the dome anchor toggle retired — the dome is
+    // a skybox, eye-centered always.
     case GLFW_KEY_KP_DECIMAL: cycle_orb_gesture(orbs_state_, &orbs_deps_, q);                break;
 
     // ── Camera / possession ──────────────────────────────────────
