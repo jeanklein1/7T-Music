@@ -2689,6 +2689,25 @@ clean-second — the SDF residue is one isolated excavation, the dormant
 voice a separate revival, the gradient scaffold kept as the manifold's
 landing site. NOTHING CUT — the map is drawn; the campaign decides.
 
+=== CARTRIDGE MODULE CENSUS (read-only; audit/CARTRIDGE_MODULE_CENSUS.md) ===
+Whole-cartridge census: 34 hpp + world.wgsl (no .inl exist), anchored to
+theory v3 (§2 L0-L5, §9 S1-S4) + M6. §1 module table (strat | role |
+offer-face | requires | stability | terrain-touch); §2 terrain map
+(each terrain-toucher → IFACE / BASE / 4 welds / OVL / 3 samplers).
+STABILITY: SPINE-dominant. IN-FLIGHT = 3 — ground_architecture.hpp
+(INTENT contributor stubs + LATENT policy-surface), ribbon.hpp (TESTING
+SPAWN_CHANCE=0.900 "revert before ship" L93), input.hpp (sky-mode fade
+unbuilt). NO whole-module RESIDUE — residue is intra-module: world.wgsl
+hosts the SDF block (M6 excavate) + dead channels; dome_center dead wire
+(orbs/state, ABI); activation_scale DORMANT-VOICE (tile_world);
+POLICY_* scaffold KEEP (ground_architecture). §2 SPANNER FINDINGS:
+world.wgsl = the whole manifold (Stage-3 blast radius); the four welds
+smear across 6 C++ modules (welds ARE the cost, confirmed structurally);
+W-mi most diffuse (5 modules); IFACE has only 2 authors (world.wgsl body
++ ground_architecture contract), consumers all in-shader — the frozen
+signature's surface is small, which is what makes the sphere plug-in
+cheap above the welds. Read-only, no code touched.
+
 ## TERRAIN-2 (STAGE 1) Phase A — THE MANIFOLD INTERFACE, SPHERE-DIRECTED
 ## (design on paper; ONE report; STOP for Jean's stamp before any code)
 
