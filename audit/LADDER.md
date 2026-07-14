@@ -2453,3 +2453,60 @@ column-selectors; (3) p3 terrain-only rides minimal (pawn idle) or
 needs the body-tickable prerequisite. Seed/mood as per-column scalars
 (DemoConfig unchanged) the recommended default. NOTHING CUT — p2 cuts
 after the stamp.
+
+## PANEL-0 p2 — THE MATRIX (the grid cut; headers retired; the golden
+## has teeth; composing a demo is ticking cells)
+
+Jean's three stamps, all confirmed and cut: (1) the body row
+LOCKED-AND-NOTED; (2) the per-demo headers RETIRED, the column
+token-pasted; (3) terrain-only rides minimal-with-idle-pawn, the
+body-tickable cut stays deferred. First p-series cut with NO pixel
+gate — pure authoring surface.
+
+THE GRID (demos/matrix.hpp, NEW): constexpr bool
+GRID[Piece::COUNT][DemoCol::COUNT] — rows = pieces (named down the
+left, Roster field order), columns = demos (full, minimal). The four
+FOUNDATIONAL pieces (surface, sun, the point, the pawn body) ride a
+LOCKED banner above the grid — always-on, so not tickable cells; the
+census reads whole without pretending they toggle. The body carries
+its locked-AND-NOTED note (tickable the day a demo pulls the deferred
+body-tickable cut — then terrain gains a cleaner column, one cell
+flipped, no rework). column_to_roster(DemoCol) aggregate-inits a
+Roster in field order — folds whole, so every one of the 148 gate
+sites sees the same constexpr bool it always did. Seed + boot_mood are
+per-column arrays (DEMO_SEED / DEMO_BOOT_MOOD); demo_config() assembles
+the full DemoConfig.
+
+THE DROP-IN (demo.hpp): DEMO is now demo_config(T7B_DEMO_COL(
+INCUBATE_DEMO)) — the token-paste resolves INCUBATE_DEMO=<name> to
+DemoCol::<name>, no per-demo header FILE (full.hpp + minimal.hpp
+DELETED). A bad name → DemoCol::xyz → clean unknown-enumerator error.
+ROSTER = DEMO.roster and the FIRST EDGE assert are BYTE-UNCHANGED —
+the assert still rides the folded ROSTER, the guardrail the grid feeds
+but never reimplements (free ticking: the grid encodes zero edges).
+
+THE BYTE-EQUIVALENCE GOLDEN (Jean's mandatory gate, made PERMANENT):
+four static_asserts in matrix.hpp pin the two migrated columns to the
+retired headers' exact values — full.roster.all_enabled() +
+seed 42/OPEN_DEFAULT; minimal.roster.none_enabled() (the new mirror
+method on Roster, its one consumer) + seed 42/OPEN_DEFAULT. The
+headers are gone; these asserts are what prove the retirement lost
+nothing and keep it lossless forever. A clean compile IS the proof.
+PROVEN TO HAVE TEETH: a negative test (full's pyramid cell flipped
+off) fired the exact assertion — the gate is not vacuous. Plus a
+Piece::COUNT==19 assert pins the row/field-order mapping (add a Roster
+field ⇒ add a row ⇒ or the build trips).
+
+GATES: glaw1 GREEN full (default→DemoCol::full) + minimal
+(INCUBATE_DEMO=minimal→DemoCol::minimal); the golden asserts compile
+(byte-equivalence proven, negative-tested); score census GREEN (no
+gate site touched); sentinels 147/5 (ROSTER identical, no gate
+added/removed); encodings clean UTF-8/LF. NO PIXEL GATE, no WGSL, no
+behavior — pure config authoring; the rig sees demo=full and
+demo=minimal exactly as before.
+
+THE WORKBENCH: composing a demo is ticking cells in one visible grid.
+p3 — the terrain panel on the terrain-only column (= minimal today,
+pawn present-but-idle) — is the last movement: sit in the isolated
+surface and tune it, the two-dial camera panel already proving the
+form terrain inherits.

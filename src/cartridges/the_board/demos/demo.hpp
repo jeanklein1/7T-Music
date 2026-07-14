@@ -1,41 +1,52 @@
 #pragma once
+#include "cartridges/the_board/demos/matrix.hpp"   // THE MATRIX: Piece rows × DemoCol columns → demo_config
 
-// ─── demo.hpp (THE SELECTOR: which sentence builds) ────────────────
-// Born at DEMO-1 (the config spine): history in audit/LADDER.md.
+// ─── demo.hpp (THE SELECTOR: which column of the matrix builds) ────
+// Born at DEMO-1 (the config spine); the per-demo headers retired into
+// the MATRIX at PANEL-0 p2 (history in audit/LADDER.md, design record
+// in audit/PANEL0_P2_MATRIX_RECON.md).
 //
-// DEMO SELECTION IS COMPILE-TIME in v0 (the design refinement on
-// record): the incubator's idiom, parallel to INCUBATE_RENDER —
-// pass INCUBATE_DEMO=<sentence> (a demos/ basename) as a define;
-// default when undefined: full. One define and a rebuild is the
-// production line's cadence, not a compromise. The boot-time dial
-// stays parked with its puller named (live switching / the panel
-// era — see contracts/demo_config.hpp's maturity dial).
+// DEMO SELECTION IS COMPILE-TIME in v0: pass INCUBATE_DEMO=<name> (a
+// DemoCol enumerator — a column of the matrix) as a define; default
+// when undefined: full. One define and a rebuild is the production
+// line's cadence. The boot-time dial stays parked with its puller
+// named (live switching / the panel era — see demo_config.hpp's
+// maturity dial).
 //
-// ROSTER (the selected sentence's manifest) is DEFINED here: the
-// type and the gate law live in contracts/roster.hpp; the constant
-// initializes from the selected DemoConfig, namespace-scope inline
-// constexpr as before — the compiler still folds every gate, and
-// the FIRST EDGE still refuses illegal sentences at compile time.
+// THE SELECTION reduces to a token-paste: INCUBATE_DEMO=<name> resolves
+// to DemoCol::<name>, and demo_config() reads that column into the
+// DemoConfig. A bad name (INCUBATE_DEMO=xyz) becomes DemoCol::xyz — an
+// unknown enumerator, a clean compile error. There are no per-demo
+// header FILES any more; adding a demo is adding a column to the
+// matrix (Jean's p2 stamp: the grid is the single authoring surface).
+//
+// ROSTER (the selected sentence's manifest) is DEFINED here: the type
+// and the gate law live in contracts/roster.hpp; the constant
+// initializes from the selected column's DemoConfig, namespace-scope
+// inline constexpr as before — the compiler still folds every gate,
+// and the FIRST EDGE still refuses illegal sentences at compile time.
 
 #ifndef INCUBATE_DEMO
 #define INCUBATE_DEMO full
 #endif
 
-#define T7B_DEMO_STR2(x) #x
-#define T7B_DEMO_STR(x) T7B_DEMO_STR2(x)
-#define T7B_DEMO_HEADER(name) T7B_DEMO_STR(cartridges/the_board/demos/name.hpp)
-
-#include T7B_DEMO_HEADER(INCUBATE_DEMO)
+#define T7B_DEMO_COL2(x) t7::the_board::DemoCol::x
+#define T7B_DEMO_COL(x)  T7B_DEMO_COL2(x)
 
 namespace t7 {
 namespace the_board {
+
+inline constexpr DemoConfig DEMO = demo_config( T7B_DEMO_COL(INCUBATE_DEMO) );
 
 inline constexpr Roster ROSTER = DEMO.roster;
 
 // THE FIRST EDGE — transitions REQUIRE portal: portals are both the
 // trigger IN and the guaranteed return OUT; transitions on + portal
 // off soft-locks. CONDITIONAL so transitions+portal both-off (the
-// lean build) stays legal.
+// lean build) stays legal. Rides the folded ROSTER, so it fires
+// identically whether the sentence came from the matrix or (once) a
+// hand-written header — the guardrail the grid FEEDS but never
+// reimplements.
 static_assert(!ROSTER.transitions || ROSTER.portal,
     "ROSTER: portal disabled while transitions enabled — "
     "transitions REQUIRE portal (the trigger in, the return path out)");

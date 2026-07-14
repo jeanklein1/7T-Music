@@ -106,14 +106,27 @@ struct Roster {
                pawn_aura && orbs && spot_lights && indoor_shell && portal &&
                transitions && wanderers;
     }
+
+    // Mirror of all_enabled — the degenerate sentence (every tickable
+    // bit off). Its one consumer is the matrix's minimal-column golden
+    // (demos/matrix.hpp), the compile-time proof that demo=minimal
+    // still equals the retired minimal.hpp.
+    constexpr bool none_enabled() const {
+        return !pyramid && !arch && !column && !antenna && !palm && !cactus &&
+               !blade && !sphere && !ribbon && !cube && !gol && !gallery &&
+               !pawn_aura && !orbs && !spot_lights && !indoor_shell && !portal &&
+               !transitions && !wanderers;
+    }
 };
 
 // ROSTER (the selected constant) is defined in demos/demo.hpp as
 // DEMO.roster — the demo sentence selected at compile time (DEMO-1,
-// the config spine). The TYPE and the gate law live here; the FIRST
-// EDGE static_assert rides the selector, where the sentence lands.
-// All-enabled (demos/full.hpp) remains byte-identical to the
-// pre-spine build — the constexpr chain is unchanged end to end.
+// the config spine; the sentence's bits authored in the MATRIX,
+// demos/matrix.hpp, since PANEL-0 p2). The TYPE and the gate law live
+// here; the FIRST EDGE static_assert rides the selector, where the
+// sentence lands. All-enabled (the matrix's full column) remains
+// byte-identical to the pre-spine build — the constexpr chain is
+// unchanged end to end.
 
 } // namespace the_board
 } // namespace t7
