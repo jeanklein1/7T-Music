@@ -2942,15 +2942,24 @@ fn query_ground_walker_walkable(xz: vec2<f32>, qi: QueryInputs, eps: f32, step_h
 // INPUT: query_pos is a WORLD-SPACE position; the cast projects it into
 // its own parameter space (the heightfield reads .xz). No coordinate
 // generic — a world position is the universal coordinate.
-// BOUNDARY: Boundary{center, extent} is DECLARED here; the finite
-// collapse (open = extent 0 = infinity; the cast returns valid=0 +
-// boundary-projected position outside) lands at b3 — for now valid is
-// always 1u and no boundary projection runs (consumers still clamp).
+// BOUNDARY: Boundary{center, extent} + valid stay DECLARED-DORMANT.
+// TERRAIN-2 b3 RULING (Stage 1 close-out): containment (the finite
+// world_bound) is a SEPARATE flat-manifold shell — an "am I allowed
+// here?" clamp AROUND the query — NOT folded into this "where is the
+// surface?" query, which stays PURE. On the heightfield the ground
+// extends infinitely even in a finite world (world_bound is an
+// invisible wall, not terrain extent — MOOD_FINITE_OUTDOOR is finite
+// with no walls), so valid is always 1u and consumers clamp via the
+// separate containment layer as today. Boundary's real home is the
+// manifold FAMILY's closedness story: a sphere is CLOSED — no edge,
+// valid always 1 — closedness replaces containment on closed
+// manifolds; the type is kept declared for that future, not for a
+// heightfield containment fold.
 
 struct SurfaceHit {
     position: vec3<f32>,   // the surface point in world space (the cast fills all 3 axes)
     normal:   vec3<f32>,   // the true surface normal (cast-computed; heightfield: (-gx,1,-gz))
-    valid:    u32,         // 1 = resolved inside boundary (b3 makes this real)
+    valid:    u32,         // stays 1u — containment is a separate layer, not folded in (b3 ruling)
 }
 
 struct Boundary {
@@ -2964,6 +2973,19 @@ struct Boundary {
 // fused VS weld with no scalar query (not a resolve policy); CELESTIAL
 // is groundless — both fall to the static base. The switch arms go
 // live as consumers migrate onto manifold_resolve across the b1 cohort.
+//
+// THE FOLD (TERRAIN-2 b2 RULING, Stage 1 close-out): this switch IS the
+// ONE declared place the composition fold runs — in the order the
+// POLICIES[] masks declare (contracts/ground_architecture.hpp). b2a's
+// structural goal (one declared fold, every live consumer running it)
+// is MET here; no analytic site hand-copies the fold. The physical
+// merge of the per-policy query_ground_* BODIES into a single
+// manifold_fold is NOT pulled — it is low-value (they don't drift) and
+// high-FP-risk blind shader work; the real drift hazard lives in the
+// WELDS (the bake, patch_terrain_vs, shadow_patch_terrain_vs), which
+// Stage 3 rewrites — the body-merge rides that weld work IF wanted.
+// b2b (the agreement flip: baked consumers seeing the live overlays)
+// stays deferred to its own gated cut.
 fn manifold_height_hf(xz: vec2<f32>, policy: u32, qi: QueryInputs) -> f32 {
     switch policy {
         case 0u:  { return query_ground_placement_pyramid(xz); }     // POLICY_PLACEMENT_PYRAMID

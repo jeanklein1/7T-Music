@@ -2951,3 +2951,100 @@ Residual flat-access grep: ZERO (every TileState field now via .shape/
 values, same spawn, same terrain — the split is type-only).
 AWAITING THE RIG: behavior-identical (terrain shape, spawn density, and
 themes all unchanged; the cache holds the same data reorganized).
+
+## TERRAIN-2 (STAGE 1) — CLOSE-OUT (the two rulings; Stage 1 complete;
+## the radius cap HELD on the disclosure gate)
+
+Jean ruled the b-handoff's two open decisions; Stage 1 closes. The
+manifold interface is landed, the heightfield sits behind it, the
+sphere's plug-in point is real. This close-out is comment-only in
+world.wgsl (the two rulings as notes) + this record; ONE sub-decision
+is held on Jean's own disclosure gate.
+
+b2 — THE FOLD: MET BY b1; BODY-MERGE DEFERRED (ruling, noted at the
+manifold_height_hf header). b1's dispatch IS the one declared place the
+fold runs, in the POLICIES[]-declared order — b2a's structural goal is
+MET; no analytic site hand-copies the fold. The physical merge of the
+per-policy query_ground_* bodies into one manifold_fold is NOT pulled
+(low-value — they don't drift; high-FP-risk blind shader work); the
+real drift hazard lives in the WELDS (bake, patch_terrain_vs,
+shadow_patch_terrain_vs) = Stage 3, so the body-merge rides Stage 3's
+weld work IF wanted. b2b (the agreement flip) stays deferred by design.
+
+b3 — CONTAINMENT STAYS A SEPARATE SHELL; THE QUERY STAYS PURE (ruling,
+noted at the SurfaceHit/Boundary header). world_bound is a containment
+SHELL over infinite ground (MOOD_FINITE_OUTDOOR = finite, no walls),
+not terrain extent; the code already keeps the surface query ("where is
+the ground") separate from containment ("am I allowed here"). RULED
+KEEP SEPARATE — do NOT fold the shell into resolve-time valid; the
+manifold query stays PURE; containment stays its own layer; consumers
+clamp as today. Boundary{center,extent}+valid stay DECLARED-DORMANT —
+their real home is the manifold FAMILY's closedness story (a sphere is
+closed: no edge, valid always 1; closedness replaces containment on
+closed manifolds). The stale "b3 makes this real" comment is CORRECTED
+to the ruling. Three converging rationales: the code already separates
+them; finiteness-as-enclosure (Jean's indoor-walls instinct) is a
+bounding layer not a terrain property; the sphere model makes
+containment a flat-manifold-specific shell, belonging AROUND the query
+not IN it.
+
+THE INVARIANT SUB-DECISION — HELD ON THE DISCLOSURE GATE. Ruling was:
+CAP finite_radius AT 3 (active_radius 7 >= 2*finite_radius holds across
+[1,3]; retires the origin-pin workaround; no pregen-radius boot cost),
+WITH the gate "if a live mood actually uses 4, report before capping."
+FINDING (disclosure triggered): ALL FOUR finite moods declare
+finite_radius_max = 4 — MOOD_INDOOR_FLAT / INDOOR_VAULT /
+FINITE_OUTDOOR / FINITE_OUTDOOR_REF, all {finite, 1, 4} at
+spine_state.hpp:226-229. derive_finite_radius yields {1,2,3,4}, so
+radius-4 finite worlds ARE live (~1/4 of finite spawns per mood).
+Capping max 4->3 SHRINKS the largest finite worlds: radius-4 (9x9
+patches, 450x450 wu) -> radius-3 (7x7, 350x350 wu), a content change to
+every finite room. Per Jean's own gate, the cap is HELD for his
+confirm: cap at 3 (accept the shrink) OR raise PATCH_PREGEN_RADIUS to
+>=8 (preserve radius-4, wider ring for all worlds — small boot cost) OR
+another extent ruling. NOT capped blindly. Note: the follow-window
+streaming unification (the origin-pin retirement) was NOT part of this
+close-out (the rulings are the only code; b3's structural streaming
+rewrite is not done — the origin-pin stays, harmless, until/unless the
+cap+unification is pursued).
+
+=== STAGE 1: COMPLETE (one held sub-decision) ===
+Landed + rig-confirmed: b1 (interface + pawn normal), b1-cohort
+(manifold_position + 7 consumers), b4 (tile_world shape/population
+split, compiler-verified). Subsumed: b2a (fold met by b1's dispatch).
+Ruled + noted: b2 body-merge (deferred to Stage 3), b3 containment
+(stays a separate shell; query pure; Boundary declared-dormant).
+Deferred by design: b2b (agreement flip). HELD: the finite_radius cap
+(disclosure gate triggered — moods use 4).
+THE OUTCOME: terrain presents a manifold interface (manifold_resolve
+orient-to-surface, manifold_position snap-to-surface); the heightfield
+is the sole cast BEHIND it; the Y-up assumption lives in the cast not
+the callers; the cast/interface boundary is drawn (A2); the containment
+shell is separate from the pure query. THE SPHERE'S PLUG-IN POINT
+EXISTS: Stage 3 writes a spherical cast behind the frozen signature,
+rewriting only the four welds (storage, mesh VS, normal basis,
+movement/index), inheriting everything above.
+
+=== STANDING (pulled, not pushed) ===
+- STAGE 3 THE SPHERE + the manifold family (polar/torus/non-planar):
+  the four-weld rewrite as new casts behind the frozen interface —
+  pulled when a demo wants a non-heightfield world; the b2 body-merge
+  rides this if wanted; the welds are the real cost, paid once under a
+  test baseline behind a proven interface.
+- b2b THE AGREEMENT FLIP: "baked consumers see the live surface" —
+  its own gated cut, pulled when wanted.
+- THE FINITENESS-AS-ENCLOSURE QUESTION (Jean's Model B): move
+  finiteness ENTIRELY to the occupier/collision layer (walls bound
+  you; terrain stays pure infinite manifold), retiring the containment
+  shell too. NOT opened now — Stage 1 closes with the shell separate-
+  but-present; a candidate next campaign; b3's grounding (shell over
+  infinite ground) is its starting evidence.
+- THE finite_radius CAP: pending Jean's confirm (cap 3 / raise pregen /
+  other) — the one held sub-decision.
+- THE SDF EXCAVATION + dead-code sweep: wire-first-clean-second; the
+  TERRAIN-1 M6 disposition table is the standing map.
+
+GATES: glaw1 GREEN full + minimal; score census GREEN; sentinels
+147/5; encodings clean UTF-8/LF, no CR. Comment-only world.wgsl (the
+two rulings as in-place notes; the stale b3 comment corrected) — no
+behavior change, nothing for the rig to re-verify beyond "still builds."
