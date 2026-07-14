@@ -99,7 +99,21 @@ inline constexpr float AMP_MOMENTUM_CARRY = 0.6f;       // fraction of excess ca
 
 // ── Tile State ─────────────────────────────────────────────────────
 
-struct TileState {
+// TERRAIN-2 Stage 1 b4 (A5, the tile_world cross-cut split): one tile's
+// memory carried TWO concerns welded under one name (TERRAIN-0 Law 2) —
+// landform SHAPE and entity POPULATION. Split by concern here so the
+// SHAPE half is the heightfield CAST's (the sphere replaces it at Stage
+// 3) and the POPULATION half is the population/themes concern. They stay
+// rolled together at one generation moment under one (gx,gz) key
+// (generate_tile_state fills both); only the TYPE separates the concern,
+// and the readers touch the half they own. The GPU mirror (GPUTileEntry)
+// was already shape-only — the split does not touch the C++/WGSL wire.
+
+// THE SHAPE HALF — the cast's per-tile base-shape modulation. Read by
+// the GPU tile upload (amp/bias/activation/archetype), estimate_terrain_
+// height (F1), tile_archetype (F4), the neighbor archetype roll, and the
+// terrain-token emission.
+struct TileShape {
     uint32_t archetype = 1;      // default: varied
     float height_bias = 0.0f;
     float amp_scale = 1.0f;
@@ -109,10 +123,21 @@ struct TileState {
     // wiring is one multiply into band activation when wanted.
     float activation_scale = 1.0f;
     float amp_momentum = 0.0f;   // signed amplitude excess, carried by terrain tokens
+};
+
+// THE POPULATION HALF — spawn density + per-family theme weights (NOT
+// terrain shape; the population/themes concern). Read by tile_apply_
+// spawn_mult (F3).
+struct TilePopulation {
     float entity_density = 1.0f; // spatial density multiplier for entity spawning
     // Theme: evaluated from theme lattice at tile generation time
     float theme_spawn[PopFamily::COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f }; // blended per-family spawn multiplier
     uint32_t theme_idx = 0;      // dominant theme index (for tier bias)
+};
+
+struct TileState {
+    TileShape      shape;   // the cast's (landform character)
+    TilePopulation pop;     // themes' (spawn density + weights)
 };
 
 // Spatial cache: keyed by (grid_x, grid_z)
@@ -229,10 +254,10 @@ inline void upload_tile_grid_now(TileWorldState& tw, TileWorldDeps* c, wgpu::Que
             uint32_t idx = lz * tileGridSide + lx;
             auto it = tw.tileCache_.find({ gx, gz });
             if (it != tw.tileCache_.end()) {
-                grid.entries[idx].amp_scale = it->second.amp_scale;
-                grid.entries[idx].height_bias = it->second.height_bias;
-                grid.entries[idx].activation_scale = it->second.activation_scale;
-                grid.entries[idx].archetype = it->second.archetype;
+                grid.entries[idx].amp_scale = it->second.shape.amp_scale;
+                grid.entries[idx].height_bias = it->second.shape.height_bias;
+                grid.entries[idx].activation_scale = it->second.shape.activation_scale;
+                grid.entries[idx].archetype = it->second.shape.archetype;
             }
             else {
                 grid.entries[idx].amp_scale = 1.0f;
@@ -255,7 +280,7 @@ inline TileState generate_tile_state(TileWorldState& tw, TileWorldDeps* c, int32
             if (dx == 0 && dz == 0) continue;
             auto it = tw.tileCache_.find({ gx + dx, gz + dz });
             if (it != tw.tileCache_.end()) {
-                neighbor_counts[it->second.archetype]++;
+                neighbor_counts[it->second.shape.archetype]++;
                 total_neighbors++;
             }
         }
@@ -319,11 +344,11 @@ inline TileState generate_tile_state(TileWorldState& tw, TileWorldDeps* c, int32
     float bias_jitter = (cpu_hash_f(seed, 302u) - 0.5f) * profile.bias_jitter_range;
 
     TileState ts;
-    ts.archetype = archetype;
-    ts.amp_scale = profile.amp_scale * amp_jitter;
-    ts.height_bias = profile.height_bias + bias_jitter;
-    ts.activation_scale = profile.activation_scale;
-    ts.amp_momentum = amp_jitter - 1.0f;  // signed: positive = amplified, negative = dampened
+    ts.shape.archetype = archetype;
+    ts.shape.amp_scale = profile.amp_scale * amp_jitter;
+    ts.shape.height_bias = profile.height_bias + bias_jitter;
+    ts.shape.activation_scale = profile.activation_scale;
+    ts.shape.amp_momentum = amp_jitter - 1.0f;  // signed: positive = amplified, negative = dampened
 
     // ── Entity density field (coarse spatial noise) ──────────
     {
@@ -344,7 +369,7 @@ inline TileState generate_tile_state(TileWorldState& tw, TileWorldDeps* c, int32
             float w = ((dx == 1) ? dwx : (1.0f - dwx)) * ((dz == 1) ? dwz : (1.0f - dwz));
             density += shaped * w;
         }
-        ts.entity_density = DENSITY_MIN + density * (DENSITY_MAX - DENSITY_MIN);
+        ts.pop.entity_density = DENSITY_MIN + density * (DENSITY_MAX - DENSITY_MIN);
     }
 
     // ── Theme field (coarse compositional character) ─────────
@@ -379,9 +404,9 @@ inline TileState generate_tile_state(TileWorldState& tw, TileWorldDeps* c, int32
         }
 
         for (uint32_t f = 0; f < PopFamily::COUNT; f++)
-            ts.theme_spawn[f] = blended_spawn[f];
-        ts.theme_idx = dominant_theme;
-        ts.entity_density *= blended_density;  // theme density stacks with spatial density
+            ts.pop.theme_spawn[f] = blended_spawn[f];
+        ts.pop.theme_idx = dominant_theme;
+        ts.pop.entity_density *= blended_density;  // theme density stacks with spatial density
     }
 
     return ts;
@@ -403,7 +428,7 @@ inline void tick_terrain_tokens(TileWorldState& tw, const TileState& outcome, ui
     }
 
     // ── Emission from outcome ────────────────────────────────
-    const auto& ep = TERRAIN_EMISSION[outcome.archetype];
+    const auto& ep = TERRAIN_EMISSION[outcome.shape.archetype];
 
     // Roll: does this outcome emit a token?
     // Property index 310: decorrelated from archetype roll (300-302)
@@ -428,8 +453,8 @@ inline void tick_terrain_tokens(TileWorldState& tw, const TileState& outcome, ui
     }
 
     // Amplitude momentum: if this patch rolled extreme, carry it
-    if (std::abs(outcome.amp_momentum) > AMP_MOMENTUM_THRESHOLD) {
-        float carry = outcome.amp_momentum * AMP_MOMENTUM_CARRY;
+    if (std::abs(outcome.shape.amp_momentum) > AMP_MOMENTUM_THRESHOLD) {
+        float carry = outcome.shape.amp_momentum * AMP_MOMENTUM_CARRY;
         if (carry > 0.0f) {
             token.archetype_bias[0] *= (1.0f + carry);  // mountainous
         }
@@ -467,7 +492,7 @@ inline float estimate_terrain_height(const TileWorldState& tw, float wx, float w
     int32_t tz = (int32_t)std::floor(wz / PATCH_EXTENT);
     auto it = tw.tileCache_.find({ tx, tz });
     if (it != tw.tileCache_.end())
-        return it->second.height_bias + it->second.amp_scale * 5.0f;
+        return it->second.shape.height_bias + it->second.shape.amp_scale * 5.0f;
     return 0.0f;
 }
 
@@ -483,8 +508,8 @@ inline void tile_apply_spawn_mult(const TileWorldState& tw, int32_t gx, int32_t 
                                   uint32_t family, float& adj_mod) {
     auto it = tw.tileCache_.find({ gx, gz });
     if (it != tw.tileCache_.end()) {
-        adj_mod *= it->second.entity_density;
-        adj_mod *= it->second.theme_spawn[family];
+        adj_mod *= it->second.pop.entity_density;
+        adj_mod *= it->second.pop.theme_spawn[family];
     }
 }
 
@@ -492,7 +517,7 @@ inline void tile_apply_spawn_mult(const TileWorldState& tw, int32_t gx, int32_t 
 // with the caller (pace keeps 1.0, placement keeps archetype 1).
 inline bool tile_archetype(const TileWorldState& tw, int32_t gx, int32_t gz, uint32_t& out) {
     auto it = tw.tileCache_.find({ gx, gz });
-    if (it != tw.tileCache_.end()) { out = it->second.archetype; return true; }
+    if (it != tw.tileCache_.end()) { out = it->second.shape.archetype; return true; }
     return false;
 }
 

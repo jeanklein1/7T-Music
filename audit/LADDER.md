@@ -2894,3 +2894,60 @@ no regression on the camera/entity/sphere/cube hot paths).
 AWAITING THE RIG: pixel-identical (every ground clamp/snap returns the
 same value) AND frame-time unchanged (one height eval per consumer, as
 before — no wasted normal).
+
+## TERRAIN-2 (STAGE 1) b4 — THE tile_world CROSS-CUT SPLIT (A5;
+## TileState -> TileShape + TilePopulation; behavior-identical; C++,
+## COMPILER-VERIFIED)
+
+SEQUENCING NOTE (disclosed): taken BEFORE b2/b3 by deliberate risk
+choice. b4 is pure C++ — glaw1 COMPILES the real TU, so the split is
+compiler-verified, not blind — behavior-identical, contained to
+tile_world.hpp, and it isolates the base-shape's tile half the sphere
+replaces. b2 (the fold) is the campaign's most intricate BLIND-WGSL
+change (FP bit-identity on the hottest inner loop + the aura self/
+external forms + GoL suppression + the perf-tuned walker_pair); it gets
+a focused careful pass next. b3 (finite collapse) sits between. Order
+flagged to Jean; redirectable.
+
+THE SPLIT (TERRAIN-0 Law 2 resolved): TileState carried two welded
+concerns — landform SHAPE and entity POPULATION. Split by concern:
+- TileShape { archetype, height_bias, amp_scale, activation_scale,
+  amp_momentum } — the heightfield CAST's per-tile base-shape
+  modulation (the sphere replaces this at Stage 3). Read by the GPU
+  tile upload, estimate_terrain_height (F1), tile_archetype (F4), the
+  neighbor archetype roll, the terrain-token emission.
+- TilePopulation { entity_density, theme_spawn[PopFamily::COUNT],
+  theme_idx } — the population/themes concern (NOT terrain shape). Read
+  by tile_apply_spawn_mult (F3).
+- TileState { TileShape shape; TilePopulation pop; } — the two rolled
+  together at ONE generation moment under ONE (gx,gz) key
+  (generate_tile_state fills both); only the TYPE separates the
+  concern, the readers touch the half they own.
+
+BEHAVIOR-IDENTICAL BY CONSTRUCTION: nesting preserves every field,
+default, and computation order; ~19 field accesses re-pointed to
+.shape / .pop (writes in generate_tile_state; reads in the GPU upload,
+the neighbor roll, the token emission, F1/F3/F4). NO C++/WGSL WIRE
+TOUCHED: GPUTileEntry (the GPU mirror) was already shape-only — it
+reads it->second.shape.amp_scale now, the same value; the population
+half never crosses to the GPU (A5's structural gift, confirmed).
+CONTAINED: TileState/tileCache_/generate_tile_state are referenced only
+in tile_world.hpp (+ a cartridge.hpp wiring instance); the .archetype/
+.theme_idx hits elsewhere (entity_pipeline/spawn_engine/bodies) are
+UNRELATED structs (gate/sel/plan), not TileState.
+
+A5 NOTE: this draws the concern LINE in the type (shape vs population,
+each reader declaring which it owns). The physical relocation of
+TilePopulation into population_themes.hpp (a cross-module move) is a
+heavier follow-on, pulled if wanted; the type-split is the behavior-
+identical b4 deliverable and is what the sphere needs (TileShape is now
+a named, separable thing the base-shape authorship owns).
+
+GATES: glaw1 GREEN full + minimal (COMPILER-VERIFIED — the real TU
+through g++, name lookup + syntax proven, not merely hand-checked);
+score census GREEN; sentinels 147/5; encodings clean UTF-8/LF, no CR.
+Residual flat-access grep: ZERO (every TileState field now via .shape/
+.pop). BISECTION ANCHOR: this commit; behavior-identical (same tile
+values, same spawn, same terrain — the split is type-only).
+AWAITING THE RIG: behavior-identical (terrain shape, spawn density, and
+themes all unchanged; the cache holds the same data reorganized).
