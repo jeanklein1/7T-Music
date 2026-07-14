@@ -396,3 +396,70 @@ pawn-host stays byte-identical:
 
 Nothing cut. p1b-a…d cut only after the stamp; every sub-movement pawn-host
 pixel-identical by the ternary; the rig is binding.
+
+### 7.7 — THE ORB SKYBOX (Jean's fifth ruling)
+
+Ruling: the orbs should **center on the camera, to look static** — "increase
+the radius so movement doesn't seem to affect it." The code splits this cleanly:
+
+- **Half is FREE.** The dome center already follows `readback_x/z`
+  (`orbs.hpp:782-793`, `pawn_anchored` mode, KP_9). So the moment p1b-a
+  host-routes the harvest, in free-fly the dome centers on the point = the
+  camera automatically — pawn-host pixel-safe (point = pawn there). "Orbs
+  follow the camera in free-fly" rides p1b-a, no orb edit.
+- **The static look is a DELIBERATE polish** = the classic skybox: center the
+  dome on the camera EYE (`camera_state.pos` — GPU-resident, all three axes)
+  and enlarge the radius. Today `dome_center.y` is pinned to ground
+  (`upload_orb_dome_center(q, x, 0.0f, z)`), so flying UP sinks the orbs below
+  you; an eye-centered dome rises with you — truly static. And `ORB_DOME_RADIUS
+  = 450` (`orbs.hpp:44`) bumped further flattens residual parallax.
+- **This is the ONE authorized departure from the pawn-host pixel gate** — it
+  intentionally changes the pawn-host sky (the kited eye sits off the pawn, so
+  an eye-centered dome shifts the sky slightly), for the better, by Jean's
+  call. Mechanism is a SIMPLIFICATION: eye-center on the GPU (no readback —
+  `camera_state` is already there), retire the CPU ground-anchor path, bump
+  the radius (a rig dial). Becomes **p1b-e**.
+
+---
+
+## 8 — THE STAMP, CLOSED (all rulings ratified)
+
+Jean ratified §7 and added the orb ruling. The audit's open questions are now
+settled; this is the ratified spec p1b cuts from.
+
+- **Presence vs. emanation (7.3): RATIFIED.** The point owns presence; the pawn
+  owns emanation + body-identity.
+- **(1) Possession / population existence: CONFIRMED** — agent + floater
+  spawn/evict/cluster/possess-reach follow the point; a living world you fly
+  over.
+- **(2) Floaters = spheres AND cubes: CONFIRMED** — evict + kite target → the
+  point.
+- **(3) Pursuit/flee: CONFIRMED** — behavior unchanged (wander when no active
+  body), but the agents SPAWN in the xz plane around the point. Existence →
+  point; behavior stays.
+- **(4) Photographer: CONFIRMED** — the travelogue; VP → `point_pos()`, the
+  empty-center landscape accepted ("modern art").
+- **(5) Orbs: RULED** — eye-centered skybox + larger radius (7.7); the one
+  authorized pawn-host look-change.
+
+**The final movement list (each single-intent; a…d pawn-host pixel-identical,
+e the authorized sky look-change):**
+- **p1b-a** THE POINT'S POSITION — `point_pos()` + camera-pos readback (opt A)
+  + host-route the harvest + repoint shadow-VP. Fixes the terrain freeze;
+  carries the photographer trigger + the orb free-fly follow for free.
+- **p1b-b** THE LIVING WORLD FOLLOWS THE POINT — agent + floater
+  evict/respawn/possess/kite centers → the point; pursuit/flee wander-when-
+  no-body.
+- **p1b-c** THE POINT'S RECORD — photographer VP → `point_pos()`.
+- **p1b-d** THE BUBBLE'S FIRST SENSE — portal → `point_pos()` + 3D/altitude
+  gate; `PointBubble` gains its radius.
+- **p1b-e** THE ORB SKYBOX — eye-center the dome on `camera_state.pos` (all
+  axes) + enlarge the radius; retire the CPU ground-anchor.
+
+**The last open dials (not blockers — rig tuning):** the orb radius value
+(450 → ?), the skybox-y confirmation (eye-centered all axes, lean yes), and
+one untouched §4 item — **ribbon-ride selection stays BODY** (riding is a
+host-migration onto the body's neighborhood; unruled, held at the §4 lean).
+
+Nothing cut. p1b-a…e cut on Jean's go; a…d pixel-identical, e the authorized
+look-change; the rig binding.

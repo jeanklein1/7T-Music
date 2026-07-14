@@ -2082,3 +2082,48 @@ photographer's empty-center landscape travelogue in free-fly or hold it
 body-only. NOTHING CUT — the model is now medium (four cuts) not the
 small the audit first sized; every sub-movement pawn-host pixel-
 identical; the rig binding.
+
+## PANEL-0 p1b — THE STAMP CLOSED (all rulings ratified; the orb
+## skybox added; audit §7.7 + §8; STILL nothing cut, awaiting the go)
+
+Jean ratified the presence/emanation model and answered all four:
+(1) population existence follows the point — CONFIRMED; (2) floaters =
+spheres AND cubes, kite target → point — CONFIRMED; (3) pursuit/flee
+behavior unchanged (wander when no active body) but the agents SPAWN
+in the xz plane around the point — existence → point, behavior stays;
+(4) photographer = the travelogue, empty-center landscape accepted
+("modern art") — CONFIRMED.
+
+FIFTH RULING — THE ORBS: center on the camera to look static, enlarge
+the radius so movement doesn't affect it. The code splits it: HALF IS
+FREE — the dome already follows readback_x/z (orbs.hpp:782-793,
+pawn_anchored/KP_9), so p1b-a's harvest re-route makes it center on the
+point=camera in free-fly, pawn-host pixel-safe. THE STATIC LOOK is a
+deliberate polish = the classic skybox: center the dome on the camera
+EYE (camera_state.pos, GPU-resident, all axes) + bigger radius
+(ORB_DOME_RADIUS 450, orbs.hpp:44). Today dome_center.y is pinned to
+ground (upload_orb_dome_center(q,x,0,z)) so flying up sinks the orbs;
+an eye-centered dome rises with you. THIS IS THE ONE AUTHORIZED
+DEPARTURE FROM THE PAWN-HOST PIXEL GATE — it intentionally shifts the
+pawn-host sky (kited eye off the pawn), for the better, by Jean's call.
+Mechanism is a SIMPLIFICATION: eye-center on the GPU (no readback),
+retire the CPU ground-anchor, bump the radius (a rig dial). Becomes
+p1b-e.
+
+THE FINAL MOVEMENT LIST (each single-intent; a-d pawn-host pixel-
+identical, e the authorized sky look-change): p1b-a THE POINT'S
+POSITION (point_pos() + camera-pos readback opt A + host-route harvest
++ repoint shadow-VP; fixes the terrain freeze, carries the photographer
+trigger AND the orb free-fly follow free); p1b-b THE LIVING WORLD
+FOLLOWS THE POINT (agent+floater evict/respawn/possess/kite → point;
+pursuit/flee wander-when-no-body); p1b-c THE POINT'S RECORD
+(photographer VP → point_pos()); p1b-d THE BUBBLE'S FIRST SENSE (portal
+→ point_pos() + 3D gate; PointBubble gains its radius); p1b-e THE ORB
+SKYBOX (eye-center the dome + enlarge radius; retire the CPU
+ground-anchor).
+
+LAST OPEN DIALS (not blockers — rig tuning): orb radius value (450→?),
+skybox-y (lean eye-centered all axes), and one untouched §4 item —
+ribbon-ride selection STAYS BODY (riding is a host-migration onto the
+body's neighborhood; held at the §4 lean unless Jean re-rules). NOTHING
+CUT — p1b-a…e cut on Jean's go; the audit is now the ratified spec.
