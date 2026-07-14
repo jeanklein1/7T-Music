@@ -260,3 +260,139 @@ impact; the sizing (§6). Open for the stamp:
 
 Nothing cut. p1b cuts only after the stamp; the pawn-host pixel gate is
 Jean's rig, held binding.
+
+---
+
+## 7 — THE STAMP ANSWERS & THE REFINED MODEL (Jean's rulings, folded in)
+
+Jean answered the four questions and opened a fifth (possession-at-range).
+His answers push a CLEANER line than §4's "body owns the living world" — so
+this addendum re-grounds each in the code and states the model that emerges.
+Still read-only. Still STOP.
+
+### 7.1 — What the answers were
+
+- **Readback:** Option **(A)** — camera-state readback, pawn-host path
+  byte-untouched. RULED.
+- **Photographer:** **follows the point.** RULED.
+- **Floaters:** **follow the point.** RULED.
+- **Portal/bubble:** **the point owns it** — and the sharp question: flying
+  the camera HIGH but over a portal's xz, does it fire? OPEN (investigated
+  below).
+- **Possession (new):** when the camera flies far enough that the original
+  pawn is gone — *do we possess the nearest pawn?* OPEN (investigated below).
+
+### 7.2 — What the code forces (the grounding)
+
+**The photographer is half-free.** Its TRIGGER already reads
+`readback_x/z` (`gallery.hpp:583-600`, accumulates walk distance between
+snapshots) — so it follows the point THE MOMENT the harvest is host-routed,
+zero edit: in free-fly it accumulates FLIGHT distance and snapshots the
+journey. Only its VP (`world.wgsl:7921`, eye = spherical offset from
+`compute_pawn_pos()`, aim = the pawn) needs `point_pos()`. In free-fly the VP
+then frames the point's vantage with no body at the center — the self-portrait
+gallery becomes a landscape travelogue. (Its light-VP, `:7967`, rides the same
+`point_pos()` as the main shadow.)
+
+**The portal is 2D — no altitude term exists.** The trigger
+(`world.wgsl:5697-5711`) is a flat xz ellipse on the possessed agent's
+position (lateral/forward against the portal footprint, `e < 1.0`); GPU-
+authored on the slot, harvested at `cartridge.hpp:838`. So if the point owns
+it AS-IS, flying over the footprint at ANY height teleports — exactly Jean's
+worry. The fix and the BUBBLE are the same movement (§7.4).
+
+**The living world is BODY-centered in every lifecycle path** —
+this is the possession linchpin:
+- agent eviction: non-player agents beyond 360u of `agent_state[possessed_slot]`
+  die (`world.wgsl:6288-6292`);
+- agent respawn: evicted slots re-cluster around `slots[possessed].pos`
+  (`agents.hpp:470-490`);
+- possession search: `try_possess_nearest` scans within 20u of
+  `slots[cur].pos` — the OLD body (`agents.hpp:510-529`).
+
+So in free-fly the whole population lives around the STRANDED pawn. Fly past
+360u and there is **nothing near you** — not because possession centers wrong,
+but because no agent EXISTS out there to possess. **Possess-nearest-the-point
+only works if the population's EXISTENCE also follows the point.** That is the
+non-obvious consequence, and it re-rules §4's NPC/possession leanings.
+
+### 7.3 — THE REFINED MODEL (supersedes §4's rule)
+
+The doubled position (§0) splits not into "framing vs. living world" but into
+**PRESENCE vs. EMANATION**:
+
+> **THE POINT owns PRESENCE** — everything about *where the world happens
+> around you*: the terrain that streams in, LOD/cull/shadow, the entities that
+> populate your surroundings (agents AND floaters — spawn / evict / cluster /
+> possess-reach), the gallery's record of your journey, the bubble that senses
+> portals. Wherever the point is, the world is there and alive.
+>
+> **THE PAWN owns EMANATION & BODY-IDENTITY** — only what a body physically
+> IS or emits: its walk / draw / tilt, its aura deformation dome, its
+> speed-grown forcefield, and its role as the AI PURSUIT TARGET (creatures
+> chase the body when one is active). These IDLE in free-fly — no active body,
+> nothing emitted — by construction, not by special-case.
+
+Under PRESENCE-vs-EMANATION the ambiguous set resolves the other way from §4:
+floaters, agents, possession, photographer all → POINT (they are presence);
+aura, forcefield, pursuit-target → PAWN (emanation, idle in free-fly). The two
+AI-behavior cases that read the body — pursuit/flee (`world.wgsl` cases 6/7) —
+stay BODY-referenced and simply find no active target in free-fly, so they fall
+to wander. (Alternative: they reference the point and gather under the flying
+camera — a fine aesthetic, but "wander when no body" is the lower-risk default;
+a sub-ruling.)
+
+### 7.4 — THE BUBBLE GETS ITS FIRST FIELD (the fly-above answer)
+
+Jean's altitude question is precisely what forces the bubble out of dormancy.
+The portal owned by the point + "high above shouldn't fire" = the point's
+awareness must have a VERTICAL/3D extent. So `PointBubble{}` (empty since p1a)
+gains its **first real field — a radius** — and the portal becomes its **first
+sensor**: the arch fires when it enters the point's bubble, tested in 3D (or
+xz-ellipse gated by a vertical band). Fly high enough that the arch leaves the
+bubble → no fire; skim over it → fire. The p1a "dormant bubble" ruling is
+lifted for exactly this: the bubble now has one concrete realization, driven by
+the very question Jean raised. (Mechanically: re-center the portal test on
+`point_pos()`, add the y/3D gate, write a point-owned trigger the harvest
+reads — small GPU + harvest edit.)
+
+### 7.5 — RESEQUENCED p1b (four pawn-host-identical sub-movements)
+
+The refined model is MEDIUM, not the SMALL of §6 — but it decomposes into four
+single-intent cuts, each guarded `point_camera_hosted() ? <point> : <pawn>` so
+pawn-host stays byte-identical:
+
+- **p1b-a — THE POINT'S POSITION** (the foundational cut; = §5 as sized).
+  `point_pos()` accessor + the camera-position readback (Option A) + host-route
+  the harvest (`cartridge.hpp:835`) + repoint the shadow-VP (`:6768`; the cull
+  rides `lod_pawn`). Alone this fixes Jean's terrain freeze AND carries the
+  photographer TRIGGER for free (it reads `readback_x/z`). Streaming, LOD,
+  recenter, orb, shadow all re-track.
+- **p1b-b — THE LIVING WORLD FOLLOWS THE POINT** (answers possession).
+  Agent evict/respawn/possess centers → the point; floater evict/kite/tint →
+  the point. Now flying anywhere keeps the world alive and possess-nearest has
+  bodies to grab. Pursuit/flee idle-to-wander when no body (7.3).
+- **p1b-c — THE POINT'S RECORD** (photographer). VP → `point_pos()` (trigger
+  already followed in p1b-a). The gallery documents body-walks and free-flights
+  alike.
+- **p1b-d — THE BUBBLE'S FIRST SENSE** (portal). Portal test → `point_pos()`
+  with the 3D/altitude gate; `PointBubble` gains its radius (7.4).
+
+### 7.6 — THE PRECISION QUESTIONS THAT REMAIN
+
+1. **Possession direction** — confirm: population EXISTENCE (agent + floater
+   spawn/evict/cluster) follows the point, so possess-nearest finds bodies
+   wherever you fly? (This is the necessary consequence of "possess the nearest
+   pawn"; naming the tradeoff: NPCs then populate/wander around a bodiless
+   camera in free-fly — a living world you fly over, vs. today's dead expanse.)
+2. **"Floaters" scope** — spheres AND cubes (they share the floating-entity
+   buffer; cubes add the F7 "kite-to-player" leash — lean: yes, both, and the
+   kite target becomes the point), or the sphere subset only?
+3. **Pursuit/flee in free-fly** — wander when no active body (lean), or
+   reference the point (creatures gather under the camera)?
+4. **Photographer's empty center** — in free-fly the VP frames the point with
+   no body at the aim; accept the landscape-travelogue reading, or hold the
+   photographer body-only after all?
+
+Nothing cut. p1b-a…d cut only after the stamp; every sub-movement pawn-host
+pixel-identical by the ternary; the rig is binding.

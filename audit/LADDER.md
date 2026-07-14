@@ -2014,3 +2014,71 @@ or B (unified buffer)? (3) move the portal trigger to the bubble in p1b
 or defer it? (4) photographer stays body-anchored or follows the point?
 NOTHING CUT — p1b cuts only after the stamp; the pawn-host pixel gate
 is Jean's rig, held binding.
+
+## PANEL-0 p1b — THE STAMP ANSWERS & THE REFINED MODEL (audit §7
+## addendum; Jean's rulings folded in; still read-only, still STOP)
+
+Jean answered and opened a fifth question. His answers push a CLEANER
+line than the audit's §4 "body owns the living world": readback = option
+A (ruled); photographer FOLLOWS THE POINT (ruled); floaters FOLLOW THE
+POINT (ruled); portal = the POINT owns it, with the sharp question —
+flying HIGH but over a portal's xz, does it fire?; and a new one —
+when the camera flies past the stranded pawn, do we possess the nearest
+pawn? Grounded each in the code (audit §7).
+
+THE GROUNDING: the photographer is HALF-FREE — its trigger already reads
+readback_x/z (gallery.hpp:583-600, walk-distance accumulation), so it
+follows the point the moment the harvest is host-routed (in free-fly it
+snapshots the FLIGHT); only its VP (world.wgsl:7921) needs point_pos().
+The portal is 2D — a flat xz ellipse on the possessed slot
+(world.wgsl:5697-5711), NO altitude term, so owning it as-is means
+flying over at any height teleports (Jean's worry, confirmed). The
+living world is BODY-CENTERED in EVERY lifecycle path: agent eviction
+(world.wgsl:6288, beyond 360u of the possessed slot dies), respawn
+cluster (agents.hpp:470, around the possessed slot), possession search
+(agents.hpp:510, within 20u of the OLD body). So in free-fly the whole
+population lives around the stranded pawn; fly past 360u and nothing
+EXISTS near you — possess-nearest-the-point only works if the
+population's EXISTENCE also follows the point. The non-obvious
+consequence; it re-rules §4's NPC/possession leanings.
+
+THE REFINED MODEL (supersedes §4): the doubled position splits into
+PRESENCE vs EMANATION. THE POINT owns PRESENCE — where the world
+happens around you: streaming/LOD/cull/shadow, the entities that
+populate your surroundings (agents AND floaters — spawn/evict/cluster/
+possess-reach), the gallery's record of your journey, the bubble that
+senses portals. THE PAWN owns EMANATION & BODY-IDENTITY — only what a
+body IS or emits: walk/draw/tilt, the aura dome, the speed-grown
+forcefield, the AI-pursuit-target role — all IDLE in free-fly by
+construction. Under presence-vs-emanation the ambiguous set flips the
+other way from §4: floaters/agents/possession/photographer → POINT;
+aura/forcefield/pursuit-target → PAWN.
+
+THE BUBBLE GETS ITS FIRST FIELD: Jean's altitude question forces the
+bubble out of p1a dormancy. Point-owned portal + "high shouldn't fire"
+= the point's awareness needs a 3D extent, so PointBubble{} (empty
+since p1a) gains its first real field — a RADIUS — and the portal
+becomes its FIRST SENSOR (fires when the arch enters the bubble, tested
+in 3D / xz-ellipse gated by a vertical band). The dormant-bubble ruling
+is lifted for exactly this.
+
+RESEQUENCED p1b — FOUR single-intent sub-movements, each guarded
+point_camera_hosted() ? <point> : <pawn> so pawn-host stays
+byte-identical: (a) THE POINT'S POSITION — point_pos() + camera-pos
+readback (opt A) + host-route the harvest + repoint shadow-VP; fixes
+the terrain freeze, carries the photographer trigger free. (b) THE
+LIVING WORLD FOLLOWS THE POINT — agent+floater evict/respawn/possess/
+kite centers → the point; answers possession; pursuit/flee idle-to-
+wander when no body. (c) THE POINT'S RECORD — photographer VP →
+point_pos(). (d) THE BUBBLE'S FIRST SENSE — portal → point_pos() + 3D
+gate; PointBubble gains its radius.
+
+FOUR PRECISION QUESTIONS RETURNED: (1) confirm population EXISTENCE
+follows the point (naming the tradeoff — NPCs then wander around a
+bodiless camera vs. today's dead expanse); (2) "floaters" = spheres AND
+cubes (lean both, kite target → point) or spheres only; (3) pursuit/
+flee wander-when-no-body (lean) or reference the point; (4) accept the
+photographer's empty-center landscape travelogue in free-fly or hold it
+body-only. NOTHING CUT — the model is now medium (four cuts) not the
+small the audit first sized; every sub-movement pawn-host pixel-
+identical; the rig binding.
