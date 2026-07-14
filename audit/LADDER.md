@@ -1915,3 +1915,102 @@ unchanged (glaw1 GREEN full + minimal; score census GREEN; sentinels
 AWAITING THE RIG: default build — W/A/S/D now reach the_board (pawn
 walks in pawn-host, key 4 flies the camera); every previously-swallowed
 key the world binds now arrives.
+
+## PANEL-0 p1b — THE PAWN/POINT DISENTANGLEMENT AUDIT (read-only; the
+## viewpoint/body split enumerated; ONE STOP for the stamp)
+
+Jean's trigger: patch generation centers on the pawn, so in camera-host
+the world stops streaming — one of a whole class of pawn-position
+couplings that need classifying. The question: what must the PAWN own
+by definition (the body), and what should the POINT own instead (the
+viewpoint/awareness primitive that lives in whichever host)? NOTHING
+CUT — this is the recon that precedes the cut. Product:
+audit/POINT_P1B_AUDIT.md.
+
+METHOD: two parallel censuses read EVERY pawn-position consumer — the
+GPU (every compute_pawn_pos / render_pawn_pos / config.lod_pawn read
+across world.wgsl) and the CPU (every readback_x/z, lod_pawn,
+slots[possessed_slot].pos read across cartridge.hpp, the surface, the
+bodies). Every claim file:line'd. v3 §9 (driver law/anchor) and §11
+(witness/bubble) the lens.
+
+THE DEFINITIONAL ANSWER: the pawn's position does DOUBLE DUTY today —
+it is at once the BODY's location and the VIEWPOINT's location, because
+the pawn was the only host the point ever had. The whole entanglement
+is that one conflation. THE PAWN owns (the body): its walk +
+terrain-snap, its draw/tilt, its ENTITY-EMANATING fields (aura dome,
+speed-grown forcefield), its AI REFERENCE FRAME (NPCs pursue/flee/
+cluster the body; floaters/cubes leashed), its POSSESSION TARGET /
+portal-stepping / photographic-subject roles. THE POINT owns (the
+viewpoint/awareness): the position the camera renders from, the
+STREAMING/generation center, LOD/cull center, visibility window,
+recenter cursor, the SHADOW-VP center, and the BUBBLE (v3 §11). The
+existing design's luck: the CPU ALREADY splits these into two places —
+player_.readback_x/z (de-facto viewpoint) vs slots[possessed_slot].pos
+(body reference frame); today they hold the same value; the
+disentanglement makes readback_x/z follow the POINT and leaves
+slots[].pos the BODY. Half-built already.
+
+THE CENTRAL SIMPLIFICATION: ONE lever re-tracks the whole CPU side.
+cartridge.hpp:835-837 (the witness HARVEST) is the SOLE AUTHOR of
+readback_x/z and reads the possessed pawn slot without consulting
+config.point_host — so in camera-host readback_x/z freezes and every
+CPU viewpoint consumer downstream freezes with it (Jean's terrain
+freeze). Host-routing THAT ONE SITE re-tracks the entire CPU viewpoint
+set (streaming center, recenter, LOD banding, lod_pawn stage, entity
+draw-cull, orb anchor) — none needs its own edit. The catch the
+witness law predicts: in camera-host the point = the CAMERA, whose
+position is GPU-resident and NEVER read back to CPU today (confirmed —
+only agent_state + floating_entity are staged, cartridge.hpp:1064-74).
+So the ONE genuinely new piece of machinery is a CAMERA-POSITION
+READBACK.
+
+THE GPU SIDE is even more contained: only TWO reads, and one rides the
+CPU change. VIEWPOINT-migrate: shadow-VP (world.wgsl:6768,
+coupling_pawn_to_sun_vp(compute_pawn_pos())) — the ONLY GPU hand-edit;
+and the frustum-cull LOD0 center (world.wgsl:8216, config.lod_pawn) —
+but that is CPU-staged, so it follows the harvest automatically, NO GPU
+edit. The camera aim (world.wgsl:6359) is ALREADY point-correct — the
+camera-hosted branch returns before it (:6335). BODY reads confirmed
+staying put every site: aura (sample_pawn_aura), forcefield
+(zone_pawn_ff, radius grows with body speed), GoL suppression,
+floater/cube leashing, and every possessed_slot IDENTITY/AI-frame read.
+
+THE MECHANISM (sized): the point gains a WORLD POSITION, host-sourced,
+both sides. GPU: point_pos() = point_camera_hosted() ? camera_state.pos
+: compute_pawn_pos(); repoint the shadow-VP (one read); cull follows
+CPU lod_pawn. CPU: a point-position readback — pawn-host reads the slot
+exactly as today (PIXEL-IDENTICAL), camera-host reads back
+camera_state.pos.xz. Two options: (A) camera-state readback only in
+camera-host, pawn-host path byte-untouched (RECOMMENDED — pixel gate
+binding, identity by construction); (B) a unified point-position
+buffer both hosts read (more faithful to "the point has a position,"
+but routes pawn-host through a new buffer so identity rests on value
+not path). CENSUS-W impact: readback_x/z becomes the POINT's
+(host-authored) while readback_portal_trigger stays the BODY's until
+the bubble moves — the readback trio SPLITS along the pawn/point line;
+Direction W's sole-author record updates to name the point.
+
+THE ONE REAL HAZARD: the anti-flicker coupling. lod_pawn is CPU-banded
+on purpose so the CPU banding and GPU cull "partition with the same
+yardstick" (state.hpp:379-389 / world.wgsl:8209-15). Because the cull
+reads the CPU-staged lod_pawn, routing the harvest to the point moves
+BOTH sides together — the yardstick stays shared. Touch only one side
+and boundary flicker returns. Keep coupled.
+
+THE AMBIGUOUS SET (rulings owed, leanings given): the proposed rule —
+the VIEWPOINT owns terrain existence and framing (streaming, LOD,
+shadow, orb dome); the BODY owns the living world around it (NPCs,
+floaters, possession, the photograph). Under it only the ORB DOME (and
+the deferred bubble/portal) move to the point; NPC-respawn, possession
+radius, cube corral, ribbon-ride selection, photographer VP all stay
+BODY. Portal/bubble trigger leans POINT but stays pawn-realized until
+the bubble machinery moves (p1a's dormant-bubble ruling), a bubble
+sub-movement.
+
+STOP — FOUR STAMP QUESTIONS: (1) is the viewpoint/body rule right, so
+only orb dome + deferred bubble move? (2) readback option A (pixel-safe)
+or B (unified buffer)? (3) move the portal trigger to the bubble in p1b
+or defer it? (4) photographer stays body-anchored or follows the point?
+NOTHING CUT — p1b cuts only after the stamp; the pawn-host pixel gate
+is Jean's rig, held binding.
