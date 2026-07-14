@@ -2777,3 +2777,68 @@ partition; (3) the fold + base-shape/overlay partition; (4) the sampler-delta
 ruling (b2a-now/b2b-defer recommended; ribbon unify-or-coarse); (5) the
 cross-cut split. NO CODE until the stamp — the interface is the sphere's
 foundation, gotten right on paper first.
+
+## TERRAIN-2 (STAGE 1) b1 — THE INTERFACE LANDS (manifold_resolve;
+## the pawn's normal migrated; pixel-identical; world.wgsl-only)
+
+Phase B's first cut, the stamped interface made real. b1 lands the
+manifold query face + the heightfield cast behind it, and migrates the
+first consumer — the pawn's tilt normal — byte-identical.
+
+THE INTERFACE (world.wgsl, end of the Ground Query API):
+- SurfaceHit { position: vec3, normal: vec3, valid: u32 } + Boundary
+  { center: vec3, extent: f32 } (extent=0=infinite, mirroring
+  config.world_bound's (0,0,0,0) convention). Boundary is DECLARED but
+  not yet collapsed — valid is always 1u, no boundary projection runs
+  (consumers still clamp); the finite collapse is b3.
+- POLICY_* id consts (world.wgsl, above POLICY_*_MASK) mirroring the
+  C++ PolicyId enum byte-for-byte (a mirror-law addition; the C++ enum
+  gained the pointer-note). manifold_resolve switches on them.
+- manifold_height_hf(xz, policy, qi) — the heightfield cast's scalar
+  height, DISPATCHING to the existing per-policy query_ground_*
+  functions (delegation = byte-identical VALUES by construction). All
+  8 resolve policies + a static-base default for CELESTIAL/RENDER (the
+  render policy is a fused VS weld with no scalar query; not a resolve
+  policy).
+- manifold_resolve(query_pos: vec3, policy: u32, qi) -> SurfaceHit —
+  position = (x, h0, z); normal = the eps=0.5 finite-diff gradient
+  normal normalize(vec3(-dx,1,-dz)) — the Y-up 1.0 now lives IN THE
+  CAST (where the sphere replaces it), no longer reconstructed by each
+  caller. valid=1u.
+
+THE FIRST CONSUMER MIGRATED: terrain_normal_at (the pawn's tilt normal,
+its sole caller update_player_agent) now delegates to
+manifold_resolve(vec3(xz.x,0,xz.y), POLICY_WALKER_TILT, qi).normal.
+PROVEN BYTE-IDENTICAL: manifold_resolve for WALKER_TILT computes the
+exact same three query_ground_walker_tilt samples at eps=0.5, the same
+dx/dz, the same normalize(vec3(-dx,1,-dz)) the inline body did;
+query_pos.y is ignored (only .xz read). PERF-NEUTRAL: same three
+evaluations, no waste (the normal consumer uses all three samples).
+
+DEFERRED TO THE b1 COHORT (follow-on, each a clean .position.y
+extraction, single-intent + rig-gated): the position-reader consumers —
+camera clamp (world.wgsl:6428), sphere orbit (2930), arch ground
+(5737), cube kite (6727/6732), entity flyer (6774), agent snap (5565);
+then later placement's multi-sample + photographer (both TEXTURE
+readers via sample_terrain_y_at — a distinct cached-cast variant, not
+the analytic path) and the pawn's step-climb HEIGHT path (the
+perf-tuned paired query, left whole). NOTE for the cohort: a
+height-only consumer reading .position.y relies on the compiler DCE-ing
+the normal's two extra samples; confirm on the rig, else add a
+height-only companion — a perf question, never a pixel one.
+
+NO C++/GPU MIRROR, NO BINDINGS: SurfaceHit/Boundary are function-local
+value types (never uploaded); b1 is a pure world.wgsl function addition
++ one C++ comment. That is why b1 is the low-risk interface-landing.
+
+GATES: glaw1 GREEN full + minimal; score census GREEN; sentinels
+147/5; encodings clean UTF-8/LF, no CR. NO-WGSL-COMPILER HAND-
+VERIFICATION (the law): definition order verified (POLICY consts <
+structs < manifold_height_hf < manifold_resolve < terrain_normal_at
+caller — every use after def); manifold_resolve defined once; the
+switch total (8 cases + default, all return f32); the pawn-normal
+delegation proven byte-identical above. BISECTION ANCHOR: this commit;
+bisect on demo=full / demo=minimal pixel-identity at the rig (the pawn
+tilts exactly as before; nothing else observable changed).
+AWAITING THE RIG: pixel-identical — the pawn's body-lean is unchanged
+(the normal flows through the interface but computes the same value).

@@ -63,6 +63,10 @@ enum ContributorId : uint32_t {
     CONTRIB_COUNT             = 11,
 };
 
+// MIRROR (TERRAIN-2 Stage 1 b1): these ids are mirrored byte-for-byte
+// as the WGSL POLICY_* consts (world.wgsl, above the POLICY_*_MASK
+// block) — the manifold interface's manifold_resolve switches on them.
+// Keep the two in lock-step (same order/values), as with CONTRIB_*.
 enum PolicyId : uint32_t {
     POLICY_PLACEMENT_PYRAMID    = 0,
     POLICY_PLACEMENT_PAINTING   = 1,

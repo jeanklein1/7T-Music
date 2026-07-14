@@ -2127,6 +2127,22 @@ const CONTRIB_PAWN_AURA         : u32 = 9u;
 const CONTRIB_GOL_SUPPRESSION   : u32 = 10u;
 const CONTRIB_COUNT             : u32 = 11u;
 
+// Policy IDs — the manifold interface's policy selector (TERRAIN-2
+// Stage 1 b1). MUST mirror enum PolicyId in ground_architecture.hpp
+// byte-for-byte (same order/values); the masks above are per-policy
+// contributor sets, these are the discrete ids manifold_resolve
+// switches on.
+const POLICY_PLACEMENT_PYRAMID    : u32 = 0u;
+const POLICY_PLACEMENT_PAINTING   : u32 = 1u;
+const POLICY_PLACEMENT_VEGETATION : u32 = 2u;
+const POLICY_BAKED_HEIGHTFIELD    : u32 = 3u;
+const POLICY_FLYER                : u32 = 4u;
+const POLICY_WALKER               : u32 = 5u;
+const POLICY_WALKER_TILT          : u32 = 6u;
+const POLICY_WALKER_AGENT         : u32 = 7u;
+const POLICY_CELESTIAL            : u32 = 8u;
+const POLICY_TERRAIN_RENDER       : u32 = 9u;
+
 // Fused-static-base bitmask: lattice + tile_modifiers + solids travel
 // together in every policy that wants a landform base.
 const GROUND_STATIC_BASE_MASK: u32 =
@@ -2908,6 +2924,78 @@ fn query_ground_walker_walkable(xz: vec2<f32>, qi: QueryInputs, eps: f32, step_h
 
     let inv_2eps = 0.5 / eps;
     return vec3(h0, (hpx - hmx) * inv_2eps, (hpz - hmz) * inv_2eps);
+}
+
+// ════════════════════════════════════════════════════════════════
+// THE MANIFOLD INTERFACE (TERRAIN-2 Stage 1, ratified Phase A).
+//
+// The ONE query every consumer uses to ask "where is the surface, and
+// how is it oriented, at this coordinate, within this boundary?" The
+// heightfield is the sole CAST behind it in Stage 1 — position/normal
+// are RETURNED by the cast, not reconstructed by the caller (the
+// Y-up 1.0 lives here now, not at every call site). A spherical cast
+// (Stage 3) implements this signature UNCHANGED: query_pos projects to
+// the sphere direction, position = center + dir*radius, normal = the
+// tangent-perturbed direction — the caller never learns which cast
+// answered. See audit/TERRAIN2_STAGE1_INTERFACE.md.
+//
+// INPUT: query_pos is a WORLD-SPACE position; the cast projects it into
+// its own parameter space (the heightfield reads .xz). No coordinate
+// generic — a world position is the universal coordinate.
+// BOUNDARY: Boundary{center, extent} is DECLARED here; the finite
+// collapse (open = extent 0 = infinity; the cast returns valid=0 +
+// boundary-projected position outside) lands at b3 — for now valid is
+// always 1u and no boundary projection runs (consumers still clamp).
+
+struct SurfaceHit {
+    position: vec3<f32>,   // the surface point in world space (the cast fills all 3 axes)
+    normal:   vec3<f32>,   // the true surface normal (cast-computed; heightfield: (-gx,1,-gz))
+    valid:    u32,         // 1 = resolved inside boundary (b3 makes this real)
+}
+
+struct Boundary {
+    center: vec3<f32>,
+    extent: f32,           // 0 = infinite (mirrors config.world_bound's (0,0,0,0) convention)
+}
+
+// THE HEIGHTFIELD CAST — the scalar height for a policy at an xz.
+// Dispatches to the existing per-policy query functions (delegation =
+// byte-identical values by construction). POLICY_TERRAIN_RENDER is a
+// fused VS weld with no scalar query (not a resolve policy); CELESTIAL
+// is groundless — both fall to the static base. The switch arms go
+// live as consumers migrate onto manifold_resolve across the b1 cohort.
+fn manifold_height_hf(xz: vec2<f32>, policy: u32, qi: QueryInputs) -> f32 {
+    switch policy {
+        case 0u:  { return query_ground_placement_pyramid(xz); }     // POLICY_PLACEMENT_PYRAMID
+        case 1u:  { return query_ground_placement_painting(xz); }    // POLICY_PLACEMENT_PAINTING
+        case 2u:  { return query_ground_placement_vegetation(xz); }  // POLICY_PLACEMENT_VEGETATION
+        case 3u:  { return query_ground_baked_heightfield(xz); }     // POLICY_BAKED_HEIGHTFIELD (analytic form)
+        case 4u:  { return query_ground_flyer(xz, qi); }             // POLICY_FLYER
+        case 5u:  { return query_ground_walker(xz, qi); }            // POLICY_WALKER
+        case 6u:  { return query_ground_walker_tilt(xz, qi); }       // POLICY_WALKER_TILT
+        case 7u:  { return query_ground_walker_agent(xz, qi); }      // POLICY_WALKER_AGENT
+        default:  { return contrib_static_base_at(xz); }             // CELESTIAL/RENDER: static base fallback
+    }
+}
+
+// THE RESOLVE (heightfield cast). position = (x, height, z); normal =
+// the heightfield gradient normal (finite-diff, eps=0.5) — bit-identical
+// to terrain_normal_at's form for POLICY_WALKER_TILT. valid=1u until b3
+// activates the boundary. A height-only consumer reads .position.y and
+// the compiler DCEs the normal's two extra samples.
+fn manifold_resolve(query_pos: vec3<f32>, policy: u32, qi: QueryInputs) -> SurfaceHit {
+    let xz = query_pos.xz;
+    let eps = 0.5;
+    let h0  = manifold_height_hf(xz,                    policy, qi);
+    let h_x = manifold_height_hf(xz + vec2(eps, 0.0),   policy, qi);
+    let h_z = manifold_height_hf(xz + vec2(0.0, eps),   policy, qi);
+    let dx = (h_x - h0) / eps;
+    let dz = (h_z - h0) / eps;
+    var hit: SurfaceHit;
+    hit.position = vec3(xz.x, h0, xz.y);
+    hit.normal   = normalize(vec3(-dx, 1.0, -dz));
+    hit.valid    = 1u;
+    return hit;
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -5425,13 +5513,15 @@ fn update_terrain_config() {
 // manufactured. The pawn still stands on full POLICY_WALKER ground;
 // only the tilt direction reads the tilt-safe policy.
 fn terrain_normal_at(xz: vec2<f32>, qi: QueryInputs) -> vec3<f32> {
-    let eps = 0.5;
-    let h0  = query_ground_walker_tilt(xz, qi);
-    let h_x = query_ground_walker_tilt(xz + vec2(eps, 0.0), qi);
-    let h_z = query_ground_walker_tilt(xz + vec2(0.0, eps), qi);
-    let dx = (h_x - h0) / eps;
-    let dz = (h_z - h0) / eps;
-    return normalize(vec3(-dx, 1.0, -dz));
+    // TERRAIN-2 Stage 1 b1: the pawn's tilt normal now flows through
+    // the manifold interface (POLICY_WALKER_TILT). BYTE-IDENTICAL — the
+    // cast's normal is the same eps=0.5 finite-diff of
+    // query_ground_walker_tilt this body computed inline (same three
+    // samples, same dx/dz, same normalize(vec3(-dx,1,-dz))); query_pos.y
+    // is ignored (only .xz is read). The normal is now RETURNED by the
+    // cast, no longer reconstructed here — the Y-up 1.0 moved into the
+    // cast, which is where the sphere will replace it.
+    return manifold_resolve(vec3(xz.x, 0.0, xz.y), POLICY_WALKER_TILT, qi).normal;
 }
 
 // --- Pawn ground resolve
