@@ -2181,3 +2181,53 @@ shadow, LOD; the copy never encodes). Key 4 free-fly — TERRAIN NOW
 STREAMS under the camera (the p1b trigger fixed); the shadow box
 follows the view; LOD/cull recenter; the orb dome follows (its anchor
 reads the point now); the photographer accumulates flight distance.
+
+## PANEL-0 p1b-b — THE LIVING WORLD FOLLOWS THE POINT (existence →
+## point; behaviors untouched; the kite lock-step; a deps face shrinks)
+
+The presence half of the ratified rule, cut. EXISTENCE follows the
+point; BEHAVIOR stays the body's (Jean's precision: "agents wander
+like they do, but spawn in the xz plane around the point").
+
+THE GPU (world.wgsl, all in kernels whose main compute layout already
+carries binding 80): agent eviction re-centers on point_pos() (was
+agent_state[possessed_slot]); sphere eviction + cube eviction
+re-center on point_pos().xz (was compute_pawn_pos().xz); the cube
+KITE HOME re-targets the point (follow_pawn=1: home.xz = point.xz +
+offset); the sphere→terrain tint picks the nearest sphere to the
+POINT (the tint colors the terrain around the viewpoint — presence,
+not emanation; a judgment call under the ratified rule, disclosed).
+Pursuit/flee (behaviors 6/7) UNTOUCHED — they still reference the
+body, per the ruling. The pawn-host values are identical everywhere
+(point_pos IS the possessed slot's pos there).
+
+THE CPU: respawn clustering (agents.hpp) and possession reach
+(try_possess_nearest) re-center on readback_x/z — THE POINT's
+position; cube corral + kite-offset capture (cube_behaviors.hpp)
+likewise. VALUE-IDENTICAL in pawn-host: the slot mirror and
+readback_x/z are written from the SAME P5 harvest snapshot, so the
+old slot read and the new readback read cannot differ there. THE
+KITE LOCK-STEP: the CPU offset capture (cube.cx - point.xz) and the
+GPU kite home (point.xz + offset) moved in the same commit — the F7
+toggle still preserves world position exactly, the audit's
+lock-step law honored (same shape as the lod yardstick).
+
+A DEPS FACE SHRINKS: corral/kite were CubeDeps' only agent_state_
+readers — the member is retired (struct + wiring + banner); the cube
+module now reaches the witness record only. The deps law (faces carry
+true reaches) enforced by the cut itself.
+
+TWO RIG-SAVING CATCHES (the no-WGSL-compiler gap, hand-checked): the
+cube kernel's SECOND pawn_xz use — the behavior-force call — would
+have dangled after the rename (fixed: passes point_xz; the param was
+unused inside, renamed for honesty). Wire names follow_pawn /
+pawn_offset (GPU struct fields) NOT renamed — they are the buffer
+ABI; renaming is a separate hygiene cut if ever wanted.
+
+GATES: glaw1 GREEN full + minimal; score census GREEN; sentinels
+148/5; encodings clean UTF-8/LF, no CR.
+AWAITING THE RIG: pawn host — identical (all centers = the pawn's
+pos, same values, same math). Free-fly — agents evict/respawn under
+the camera (a living world you fly over); Caps Lock possesses a body
+wherever you flew; spheres/cubes live around the view; F7 kite
+follows the flight; the tint tracks the view.

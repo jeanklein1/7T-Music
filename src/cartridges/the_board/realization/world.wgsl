@@ -6184,10 +6184,11 @@ fn behavior_levy_flight(agent_in: AgentState) -> AgentState {
 //                           behavior switch for algorithmic behaviors.
 //                           The walker policy is NOT inlined here.
 //
-// Dispatch order: player first, then others. The player's updated
-// position becomes the eviction reference for this frame's other
-// agents. Matches the semantic "the player moves, the world adjusts
-// around them."
+// Dispatch order: player first, then others. THE POINT (p1b-b) is
+// the eviction reference for this frame's other agents — the
+// player's updated position when the pawn hosts, the camera when it
+// hosts. Matches the semantic "the point moves, the world adjusts
+// around it" (presence follows the point; the ratified p1b rule).
 //
 // MAX_AGENTS = 32 — must stay in sync with Dim::MAX_AGENTS.
 //
@@ -6292,13 +6293,15 @@ fn update_other_agents(@builtin(global_invocation_id) gid: vec3<u32>) {
         default: { /* unknown behavior — no-op */ }
     }
 
-    // Player-centered eviction. Non-player agents that wander too far
-    // from the possessed slot are deactivated; the CPU readback path
-    // detects them on the next frame and respawns fresh agents in a
-    // disk around the player.
-    let pp = agent_state[config.possessed_slot];
-    let dx = agent.pos_x - pp.pos_x;
-    let dz = agent.pos_z - pp.pos_z;
+    // Point-centered eviction (p1b-b: was the possessed slot).
+    // Non-player agents that wander too far from THE POINT are
+    // deactivated; the CPU readback path detects them on the next
+    // frame and respawns fresh agents in a disk around the point.
+    // Pawn-host identical (the point IS the possessed slot's pos
+    // there); in free-fly the population lives under the camera.
+    let pp = point_pos();
+    let dx = agent.pos_x - pp.x;
+    let dz = agent.pos_z - pp.z;
     if (dx * dx + dz * dz > AGENT_EVICTION_RADIUS_SQ) {
         agent.is_active = 0u;
     }
@@ -6420,19 +6423,20 @@ fn update_sphere() {
     if (!dynamics_0d_active()) { return; }
 
     let dt = signal.dt;
-    let pawn_xz = compute_pawn_pos().xz;
+    let point_xz = point_pos().xz;
 
     // Update sphere slots only (orbital motion)
     for (var slot = 0u; slot < SPHERE_SLOT_COUNT; slot++) {
         var fe = floating_entities.entities[slot];
         if (fe.is_active == 0u) { continue; }
 
-        // Lifecycle: pawn-distance eviction. A sphere stays alive as
-        // long as it's within FLOATER_EVICTION_RADIUS of the pawn.
+        // Lifecycle: point-distance eviction (p1b-b: was the pawn —
+        // floaters follow the point, Jean's ruling). A sphere stays
+        // alive within FLOATER_EVICTION_RADIUS of THE POINT.
         // Patch eviction no longer touches floaters (commit path skips
         // entity_refs for sphere/cube), so this is the sole death path.
-        let to_pawn = fe.pos.xz - pawn_xz;
-        if (dot(to_pawn, to_pawn) > FLOATER_EVICTION_RADIUS_SQ) {
+        let to_point = fe.pos.xz - point_xz;
+        if (dot(to_point, to_point) > FLOATER_EVICTION_RADIUS_SQ) {
             floating_entities.entities[slot].is_active = 0u;
             continue;
         }
@@ -6460,17 +6464,19 @@ fn update_sphere() {
         }
     }
 
-    // Terrain tint from nearest active sphere to pawn
+    // Terrain tint from nearest active sphere to THE POINT (p1b-b:
+    // was the pawn — the tint colors the terrain around the viewpoint;
+    // presence, not emanation).
     if (coupling_active(COUPLING_SPHERE_TO_TERRAIN_TINT)) {
         var best_dist_sq = 999999.0;
         var best_slot = 0u;
         var found = false;
-        let pawn_p = compute_pawn_pos();
+        let point_p = point_pos();
         for (var slot = 0u; slot < SPHERE_SLOT_COUNT; slot++) {
             let fe = floating_entities.entities[slot];
             if (fe.is_active == 0u || fe.orbit_radius <= 0.0) { continue; }
-            let dx = fe.pos.x - pawn_p.x;
-            let dz = fe.pos.z - pawn_p.z;
+            let dx = fe.pos.x - point_p.x;
+            let dz = fe.pos.z - point_p.z;
             let d2 = dx * dx + dz * dz;
             if (d2 < best_dist_sq) {
                 best_dist_sq = d2;
@@ -6578,7 +6584,7 @@ fn cube_force_phasewave(rest_xz: vec2<f32>, t: f32, behavior_phase: u32, coordin
 // ─ Dispatch ──────────────────────────────────────────────────────
 // Switch by behavior_id. New behaviors land here as additional cases
 // alongside their authoring registry rows in modules/cube_behaviors.inl.
-fn cube_behavior_force(fe: FloatingEntityState, t: f32, pawn_xz: vec2<f32>, coordination: f32) -> vec3<f32> {
+fn cube_behavior_force(fe: FloatingEntityState, t: f32, point_xz: vec2<f32>, coordination: f32) -> vec3<f32> {
     let rest_xz = vec2<f32>(fe.anchor.x, fe.anchor.z);
     switch (fe.behavior_id) {
         case 1u: { return cube_force_curlfield(rest_xz, t, coordination); }
@@ -6592,7 +6598,7 @@ fn update_cube() {
     if (!dynamics_0d_active()) { return; }
 
     let dt = signal.dt;
-    let pawn_xz = compute_pawn_pos().xz;
+    let point_xz = point_pos().xz;
 
     // Update cube slots — drift integrator on top of analytical home.
     //
@@ -6612,12 +6618,13 @@ fn update_cube() {
         var fe = floating_entities.entities[slot];
         if (fe.is_active == 0u) { continue; }
 
-        // Lifecycle: pawn-distance eviction. Cube stays alive as long
-        // as its current position (home + drift) is within range of
-        // the pawn. Patch eviction no longer touches cubes — see the
+        // Lifecycle: point-distance eviction (p1b-b: was the pawn —
+        // floaters follow the point). Cube stays alive as long as its
+        // current position (home + drift) is within range of THE
+        // POINT. Patch eviction no longer touches cubes — see the
         // matching test in update_sphere for the lifecycle rationale.
-        let to_pawn = fe.pos.xz - pawn_xz;
-        if (dot(to_pawn, to_pawn) > FLOATER_EVICTION_RADIUS_SQ) {
+        let to_point = fe.pos.xz - point_xz;
+        if (dot(to_point, to_point) > FLOATER_EVICTION_RADIUS_SQ) {
             floating_entities.entities[slot].is_active = 0u;
             continue;
         }
@@ -6659,27 +6666,31 @@ fn update_cube() {
             // Two modes:
             //   follow_pawn = 0 (default): home.xz = anchor.xz; home.y
             //     terrain-relative at home.xz.
-            //   follow_pawn = 1 (kite mode): home.xz = pawn.xz + offset;
+            //   follow_pawn = 1 (kite mode): home.xz = POINT.xz +
+            //     offset (p1b-b: was the pawn — the kite target is the
+            //     point, Jean's ruling; the CPU offset capture in
+            //     cube_behaviors.hpp moved in lock-step, so the F7
+            //     toggle still preserves world position exactly).
             //     home.y still terrain-relative at home.xz.
             //
             // Y is *always* terrain-relative in both modes. This makes
             // F7 toggle preserve world position cleanly: at the moment
             // of toggle, the home.xz interpretation switches but the
             // ground query underneath gives the same answer (anchor.xz
-            // == pawn.xz + offset.xz at the toggle moment by construction,
-            // since offset is captured as cube.cx - pawn.xz). Cubes feel
-            // like balloons leashed to the pawn — float at orbit_height
-            // above whatever terrain they're over, regardless of pawn's
-            // current altitude.
+            // == point.xz + offset.xz at the toggle moment by
+            // construction, since offset is captured as cube.cx -
+            // point.xz). Cubes feel like balloons leashed to the point
+            // — float at orbit_height above whatever terrain they're
+            // over, regardless of the point's current altitude.
             //
             // POLICY_FLYER — the ground query picks up radial pulses
             // and pawn aura, same as anchor mode.
             let bob_y = sin(fe.t * 6.283185 / max(fe.bob_period, 0.1)) * fe.bob_amplitude;
             var home: vec3<f32>;
             if (fe.follow_pawn != 0u) {
-                let pawn_p = compute_pawn_pos();
-                let kite_xz = vec2(pawn_p.x + fe.pawn_offset.x,
-                                   pawn_p.z + fe.pawn_offset.z);
+                let point_p = point_pos();
+                let kite_xz = vec2(point_p.x + fe.pawn_offset.x,
+                                   point_p.z + fe.pawn_offset.z);
                 let kite_qi = QueryInputs(vec3(kite_xz.x, 0.0, kite_xz.y),
                                           signal.t_seconds);
                 let ground_k = query_ground_flyer(kite_xz, kite_qi);
@@ -6701,7 +6712,7 @@ fn update_cube() {
             // coordination knob from config. Stationary returns zero,
             // making this a no-op for the default population.
             let behavior_force = cube_behavior_force(
-                fe, signal.t_seconds, pawn_xz, config.floater_coordination);
+                fe, signal.t_seconds, point_xz, config.floater_coordination);
             let spring_a = -fe.drift * fe.spring_stiffness;
             fe.drift_vel = fe.drift_vel + (spring_a + behavior_force) * dt;
             fe.drift_vel = fe.drift_vel * exp(-fe.drag * dt);

@@ -25,13 +25,12 @@ namespace t7 {
 namespace the_board {
 
 // ═══ MODULE DEPS (DISSOLVE-1 Batch B) ══════════════════════════════
-// The cube commands' requirements face: corral/kite read the pawn
-// through the possessed agent slot; all reads except the GPU wire.
-struct AgentState;
+// The cube commands' requirements face: corral/kite center on THE
+// POINT through the witness record (readback_x/z, p1b-b — the agent
+// slot reach retired with it); all reads except the GPU wire.
 struct CubeDeps {
     GPUState&        gpuState_;
     const TimeState& time_state_;
-    const AgentState& agent_state_;
     const PlayerState& player_;
     const MoodState& mood_state_;
 };
@@ -60,7 +59,7 @@ inline constexpr float CUBE_DEFAULT_DRAG             = 1.5f;   // 1/s,  gentle d
 
 // ─ Diagnostics (corral) ─────────────────────────────────────────
 
-inline constexpr float CUBE_CORRAL_RADIUS   = 120.0f;  // ring radius around pawn (world units)
+inline constexpr float CUBE_CORRAL_RADIUS   = 120.0f;  // ring radius around the point (world units)
 inline constexpr float CUBE_CORRAL_DURATION = 4.0f;    // glide duration (seconds)
 
 // ─ Diagnostics (coordination cycle) ─────────────────────────────
@@ -234,8 +233,8 @@ inline uint32_t pick_cube_behavior_for_spawn(uint32_t mood_id, uint32_t seed) {
 //
 // ─── Kite mode ─────────────────────────────────────────────────────
 //
-// Toggle on  — captures each cube's current xz as a pawn-relative
-// offset. Cube xz is preserved exactly; y resets to pawn.y +
+// Toggle on  — captures each cube's current xz as a point-relative
+// offset (p1b-b: the kite leashes to the point). Cube xz is preserved exactly; y resets to pawn.y +
 // orbit_height (small visible jump only if pawn's altitude differs
 // from where the cube was hovering).
 
@@ -277,8 +276,11 @@ inline void cycle_cube_behavior_override(CubeBehaviorsState& cbs, CubeDeps* c, w
 
 inline void corral_cubes(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& queue) {
     (void)queue;
-    const float px = c->agent_state_.slots[c->player_.possessed_slot].pos_x;
-    const float pz = c->agent_state_.slots[c->player_.possessed_slot].pos_z;
+    // THE POINT (p1b-b): the corral ring forms around the point —
+    // readback_x/z, host-authored (pawn-host value-identical: same
+    // P5 harvest snapshot as the slot mirror).
+    const float px = c->player_.readback_x;
+    const float pz = c->player_.readback_z;
 
     uint32_t active_count = 0;
     for (uint32_t i = 0; i < Dim::MAX_CUBE_INSTANCES; i++) {
@@ -343,7 +345,7 @@ inline void corral_cubes(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& queu
     }
 
     std::cout << "[Floaters] corral: " << armed << " cube(s) gliding "
-              << (cbs.kite_mode ? "to ring offset around pawn" : "to ring")
+              << (cbs.kite_mode ? "to ring offset around the point" : "to ring")
               << " radius " << CUBE_CORRAL_RADIUS
               << " over " << CUBE_CORRAL_DURATION << "s\n";
 }
@@ -374,8 +376,12 @@ inline void tick_cube_corral_animations(CubeBehaviorsState& cbs, CubeDeps* c, wg
 
 inline void toggle_cube_kite_mode(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& queue) {
     cbs.kite_mode = !cbs.kite_mode;
-    const float px = c->agent_state_.slots[c->player_.possessed_slot].pos_x;
-    const float pz = c->agent_state_.slots[c->player_.possessed_slot].pos_z;
+    // THE POINT (p1b-b): the kite leashes to the point — the offset
+    // capture here and the GPU kite home (update_cube) moved in
+    // LOCK-STEP, so the F7 toggle still preserves world position
+    // exactly. Pawn-host value-identical (same harvest snapshot).
+    const float px = c->player_.readback_x;
+    const float pz = c->player_.readback_z;
 
     uint32_t affected = 0;
     if (cbs.kite_mode) {

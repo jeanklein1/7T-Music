@@ -389,7 +389,7 @@ namespace t7 {
                 , pawn_deps_{ player_, time_state_, gpuState_, renderer_ }
                 , orbs_deps_{ gpuState_, renderer_, player_, time_state_, world_state_ }
                 , agents_deps_{ gpuState_, player_, transitionPhase_, world_state_, time_state_ }
-                , cube_deps_{ gpuState_, time_state_, agent_state_, player_, mood_state_ }
+                , cube_deps_{ gpuState_, time_state_, player_, mood_state_ }
                 , gol_deps_{ gpuState_, renderer_, device_, time_state_ }
                 , ribbon_deps_{ gpuState_, time_state_, tile_world_state_, player_, inputState_, world_state_, mood_state_, visual_canvas_, ribbon_amp_lat_dst_, ribbon_amp_vert_dst_, ribbon_tint_stim_dst_, ribbon_tint_mix_dst_ }
                 , gallery_deps_{ gpuState_, renderer_, world_state_, tile_world_state_, ribbon_state_, player_, mood_state_, sunDirection_, clearColor_ }

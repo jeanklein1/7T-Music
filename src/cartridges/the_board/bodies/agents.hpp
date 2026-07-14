@@ -468,8 +468,14 @@ inline void respawn_evicted_agents(AgentState& as, AgentsDeps* c,
     if (beh_sum <= 0.0f || tier_sum <= 0.0f) return;
 
     const uint32_t possessed = c->player_.possessed_slot;
-    const float px = as.slots[possessed].pos_x;
-    const float pz = as.slots[possessed].pos_z;
+    // THE POINT (p1b-b): fresh agents cluster around the point —
+    // readback_x/z, host-authored. Pawn-host value-identical (the
+    // slot mirror and the readback come from the same P5 harvest
+    // snapshot); in free-fly the population spawns in the xz plane
+    // around wherever you flew (Jean's ruling — presence follows
+    // the point; behaviors unchanged).
+    const float px = c->player_.readback_x;
+    const float pz = c->player_.readback_z;
 
     const uint32_t n = std::min(pop.count, Dim::MAX_AGENTS - 1u);
     uint32_t respawned = 0;
@@ -508,8 +514,13 @@ inline void try_possess_nearest(AgentState& as, AgentsDeps* c, wgpu::Queue& queu
     }
 
     const uint32_t cur = c->player_.possessed_slot;
-    const float px = as.slots[cur].pos_x;
-    const float pz = as.slots[cur].pos_z;
+    // THE POINT (p1b-b): possession reaches from the point — the
+    // nearest agent to where you ARE. Pawn-host value-identical (same
+    // harvest snapshot as the slot mirror); in free-fly Caps Lock
+    // grabs a body wherever you flew (xz-plane reach, per the spawn
+    // ruling — the population lives there now, so there is one).
+    const float px = c->player_.readback_x;
+    const float pz = c->player_.readback_z;
 
     int best_slot = -1;
     float best_d2 = POSSESSION_RADIUS_SQ;
@@ -530,7 +541,7 @@ inline void try_possess_nearest(AgentState& as, AgentsDeps* c, wgpu::Queue& queu
 
     if (best_slot < 0) {
         std::cout << "[Possess] No agent within " << POSSESSION_RADIUS
-                  << " units of player at (" << px << "," << pz << ")\n";
+                  << " units of the point at (" << px << "," << pz << ")\n";
         return;
     }
 
