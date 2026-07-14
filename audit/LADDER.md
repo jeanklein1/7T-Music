@@ -2510,3 +2510,84 @@ p3 — the terrain panel on the terrain-only column (= minimal today,
 pawn present-but-idle) — is the last movement: sit in the isolated
 surface and tune it, the two-dial camera panel already proving the
 form terrain inherits.
+
+## TERRAIN-0 — THE "WHAT IS TERRAIN?" AUDIT (read-only; the definitional
+## map; ONE report; STOP for the design conversation)
+
+The critical section's recon, cut deep-not-wide via a 13-agent workflow
+(5 seam readers A1-A5, each distinctness verdict adversarially challenged,
++ a module-reality pass + a dependency/dependent sweep + a completeness
+critic; ~1M tokens, 0 errors). Every claim file:line'd. NOTHING moved.
+Product: audit/TERRAIN0_AUDIT.md.
+
+THE DEFINITIONAL ANSWER: terrain is SIX roles under one word, and — unlike
+the pawn's three cleanly-nested roles — welded by an ASYMMETRY: a near-leaf
+AUTHORING MEMORY on its input face (seed-pure stateless height + per-tile
+character memory) that becomes a deeply-FUSED COMPOSITION SURFACE on its
+output face, because "the ground at (x,z)" is NOT stored — it is re-composed
+inside every query from five authors (seed lattice + tile character +
+spawn-placed solids/piers + GoL zones + pawn aura). There is no single
+"terrain boundary" to hold; the composition happens inside the query.
+
+THE SIX SEAMS (verdicts survived adversarial challenge): A1 THE FRAME =
+PARTIALLY_FUSED (a distinct policy-composition-and-dispatch architecture —
+ground_architecture.hpp POLICIES[] → query_ground_* — whose composition
+truth is duplicated by hand in the leaf-collapsed static base + the hot
+paths ground_formed_with_complexity/patch_terrain_vs/shadow_patch_terrain_vs;
+gait is clean delegation NOT fusion). A2 THE GENERATOR = DISTINCT (a
+stateless seed→height 6-band lattice-wave field entering composition as one
+clean multiplicand) BUT (i) its temporal machinery is INERT — both callers
+pass t_beats=0, the living generator is FROZEN; (ii) it has NO single home
+(a committee across §1.6 WGSL + tile_world amp/bias + patch_system piers +
+ground_architecture composition). A3 THE LIFECYCLE = PARTIALLY_FUSED
+(distinct residency core — integer-windowed alloc/evict/layer-pool/phase —
+with a separable VISIBILITY/LOD-banding sub-seam braided into stream_patches,
+different metric + cursor, the LOD0 constant hand-duplicated across the
+C++/WGSL boundary with lod_pawn shipped to keep them equal). A4 THE SPAWNING
+SURFACE = PARTIALLY_FUSED — fractures on the VERB: "can I stand here?" is
+terrain-AGNOSTIC (occupier machine, 2D packing, terrain never vetoes); only
+"at what Y?" is terrain-owned (sample_terrain_y_at + compute_entity_placement);
++ the patch-tether. A5 THE VOICE = PARTIALLY_FUSED (two sub-seams geometry-
+wave + color-palette; owns NO module, only additive/re-composite hooks; fully
+authored but DRIVERLESS — every dial's one live writer is the boot block
+holding it neutral). A6 THE LIVING-TILE (GoL) GEOMETRY = the critic's found
+seam: a parallel terrain-geometry organ (own extrusion mesh + a suppression
+law hand-synced across THREE sites) that A1 only composes and nobody owns as
+terrain.
+
+TWO STRUCTURAL LAWS: LAW 1 the asymmetry (near-leaf input, five-author
+composition output). LAW 2 the tile_world CROSS-CUT (terrain's anchor+body+
+gait) — one module fuses HALF of A2 (landform character: amp/bias/activation)
++ HALF of A4 (spawn density/theme) via one TileState + one generation moment.
+COROLLARY the baked/live divergence: baked consumers (placement/shadow/
+photographer) see static_base+pyramids; live consumers (camera/pawn/agents)
+see aura+waves+pulses+GoL — three disagreeing height samplers; paintings
+already re-add GoL analytically to compensate. Mood is a THIN MODIFIER not
+the author (seed-pure landform + two amplitude-only touches).
+
+MODULE REALITY (D): population_themes = cleanest single-seam owner;
+ground_architecture + surface_services = minimality candidates (pure-decl
+mirror-registry; decl-tier-split-for-cohort-law); tile_world = the key
+cross-cut; world.wgsl = the multi-seam monolith (generator + voice + GoL +
+GPU realization). Large DEAD/DRIVERLESS register (report-only): the whole
+wave-overlay chain (band_blend=-1/terrain_time=0), the WAVES→lipschitz_factor
+dead limb, MODE_COUPLING_MAGNITUDE=0, the density lattice no-op
+(DENSITY_MIN==MAX==1.0), terrain_state.tint/render_terrain dead consumer, the
+LATENT placement-policy API, + smaller latents; and the hand-mirror hazards
+(GoL suppression triple, the hot-path family whose shadow copy already
+diverges by dropping aura+pulses).
+
+PANEL SURFACE (E): the decisive finding — the CORE aesthetic dials
+(TERRAIN_BANDS spectrum, PALETTE_*, OVERLAY_WAVES) live in WGSL compile-time
+consts with NO C++ mirror → not panel-authorable without the graduate-or-
+index fork. The panel emerges in two tiers: a READY tier (seed, amp_ceiling,
+the whole lifecycle set, the voice dial VALUES — C++/mirror today) and a FORK
+tier (band spectrum + palette + overlay-wave spectrum). The two-dial camera
+panel (p1b) is the form the ready tier inherits.
+
+FIVE DESIGN FORKS surfaced for the conversation: (1) the tile_world split;
+(2) the baked/live divergence — one ground or intentional split; (3) the
+graduate-or-index fork; (4) the frozen generator + driverless voice — is
+terrain the moment they get a driver; (5) A6 GoL geometry — a seam owner +
+the shadow-caster divergence. NOTHING CUT — the audit answers "what is
+terrain"; the campaign decides what to do.
