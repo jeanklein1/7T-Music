@@ -49,9 +49,13 @@ struct TimeState {
 //     option A, Jean's stamp). SOLE AUTHOR is still the P5 HARVEST;
 //     the spine's only other touches are the TEARDOWN reset and the
 //     portal door's consume. No module writes them, ever.
-//   · readback_portal_trigger — stays the BODY's (the pawn's portal
-//     crossing) until the bubble moves (p1b-d); the trio SPLITS along
-//     the pawn/point line but keeps the same sole-author law.
+//   · readback_portal_trigger — THE POINT'S BUBBLE SENSOR (p1b-d):
+//     the probe is host-sourced (the body's own crossing in
+//     pawn-host, byte-identical; the camera + the bubble's vertical
+//     gate in free-fly). The trigger RIDES the possessed slot's wire
+//     and the same P5 harvest — the wire is the realization, the
+//     bubble (contracts/point.hpp) is the semantics. Same sole-author
+//     law.
 //   · possessed_slot — possession is RE-ANCHORING (v3 §9 Act III:
 //     the anchor is a role; the camera is what we control). The
 //     writes live behind the agents door (try_possess_nearest,
@@ -79,7 +83,7 @@ struct PlayerState {
     bool    fpv_mode = false;                // first-person view toggle
     float   readback_x = 0.0f;               // THE POINT's world X (host-authored — p1b-a)
     float   readback_z = 0.0f;               // THE POINT's world Z (host-authored — p1b-a)
-    int32_t readback_portal_trigger = -1;    // set by readback callback when pawn hits portal (BODY's until p1b-d)
+    int32_t readback_portal_trigger = -1;    // the point's bubble sensor (p1b-d), on the possessed slot's wire
 
     // ── Aura presence (closes SEAM[spine:P8]) ──
     float aura_presence = 0.0f;                  // pawn aura ramp (was pawn_state_.aura_presence)

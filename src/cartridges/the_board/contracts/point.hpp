@@ -29,21 +29,21 @@
 // was always a host pointer restricted to agent slots; this contract
 // names the general form.
 //
-// REALIZATION (p1a): POSITION lives in the HOST's GPU storage — the
-// agent slot when the pawn hosts (agent_state[possessed_slot]), the
-// camera state when the camera hosts. The host flag
-// (config.point_host) routes reads and the input intent channel; a
-// literal point storage of its own arrives at p1b, when live sensing
-// must travel with the point. THE BUBBLE is declared here as part of
-// the point's shape (the structure stays whole — first-principles
-// assembly); its current REALIZATION — the 64-slot resolve loop and
-// the aura grid — is physically centered on the default host (the
-// pawn) because the pawn is today's only sensing host. In free-fly
-// the sensors are DORMANT (kept, not active — Jean's standing
-// ruling): the pawn idles, so nothing fires away from it and the
-// slot-0 machinery is untouched by construction. Migrating the
-// machinery to follow the point generally is p1b, pulled when a demo
-// needs live sensing away from the pawn.
+// REALIZATION (p1a; p1b landed): POSITION lives in the HOST's GPU
+// storage — the agent slot when the pawn hosts
+// (agent_state[possessed_slot]), the camera state when the camera
+// hosts — read through point_pos() (world.wgsl) on the GPU and the
+// host-routed P5 harvest (readback_x/z) on the CPU; no separate
+// point buffer was needed (the point readback, option A, Jean's
+// stamp). The host flag (config.point_host) routes reads and the
+// input intent channel. PRESENCE FOLLOWS THE POINT (the ratified
+// p1b rule): streaming, LOD/cull, the shadow box, the orb dome, the
+// living population's existence (agent + floater spawn/evict/
+// possess-reach/kite/corral), the photographer's record. EMANATION
+// STAYS THE BODY'S: the walk, the aura dome, the forcefield, the
+// AI-pursuit-target role — all idle in free-fly by construction.
+// THE BUBBLE is real (below): its first field and first sensor
+// landed at p1b-d.
 // ─────────────────────────────────────────────────────────────────
 
 namespace t7 {
@@ -77,14 +77,23 @@ inline constexpr PointTerrainRule POINT_HOST_TERRAIN_RULE[2] = {
     PointTerrainRule::NONE,   // CAMERA — pure fly; every clamp skipped
 };
 
-// ═══ THE BUBBLE (declared; sensors dormant until p1b) ══════════════
+// ═══ THE BUBBLE (first field + first sensor live — p1b-d) ══════════
 // The bounded awareness region around the point (v3 §11): proximity,
-// the portal trigger, the coming event source. Declared as part of
-// the point's shape so the structure is whole; it carries no fields
-// yet — the realization is the pawn-centered machinery named in the
-// banner, and live per-host sensing arrives at p1b by pull.
+// the portal trigger, the coming event source. Its FIRST FIELD is the
+// radius; its FIRST SENSOR is the portal (p1b-d, pulled by Jean's
+// altitude question): in camera-host an arch fires only when it sits
+// within the bubble — the xz ellipse as ever, gated vertically by
+// this radius (skim over → fire; fly high → no fire). In pawn-host
+// the body's own crossing is the sensor, byte-identical to the
+// pre-point era. The trigger rides the possessed slot's wire and the
+// same P5 harvest — the wire is the realization, the bubble is the
+// semantics.
 
-struct PointBubble {};
+inline constexpr float POINT_BUBBLE_RADIUS = 20.0f;   // world units; MUST match world.wgsl POINT_BUBBLE_RADIUS
+
+struct PointBubble {
+    float radius = POINT_BUBBLE_RADIUS;   // the awareness bound (the portal's vertical gate today)
+};
 
 // ═══ THE POINT ═════════════════════════════════════════════════════
 // The instance (point_) lives at the composition root, beside the

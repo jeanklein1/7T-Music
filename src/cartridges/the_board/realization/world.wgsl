@@ -5707,17 +5707,40 @@ fn behavior_player_controlled(agent_in: AgentState) -> AgentState {
 
     // --- Portal ellipse detection (GPU-authoritative)
     // Ellipse spans the arch opening: lateral = half_span, forward = depth/2.
+    //
+    // THE POINT'S BUBBLE (p1b-d): the portal is the bubble's FIRST
+    // SENSOR — the probe is host-sourced. When the pawn hosts, the
+    // probe is the body's pos THIS FRAME (agent.pos, the local —
+    // byte-identical to the pre-p1b test; point_pos() is deliberately
+    // NOT used here: it reads the storage copy, one frame stale).
+    // When the camera hosts, the probe is the point (the camera) and
+    // the bubble's VERTICAL GATE applies: the arch must sit within
+    // POINT_BUBBLE_RADIUS of the point's altitude — skim over a portal
+    // and it fires; fly high above its xz and the arch is outside the
+    // bubble, no fire (Jean's altitude ruling). The ground query runs
+    // only on an xz-hit (at most one per frame). The trigger stays on
+    // the possessed slot's wire, harvested by the same P5 path.
     agent.portal_trigger = -1;
+    var probe = vec3(agent.pos_x, agent.pos_y, agent.pos_z);
+    if (point_camera_hosted()) { probe = camera_state.pos; }
     for (var pi = 0u; pi < portal_array.count; pi++) {
         let p = portal_array.portals[pi];
-        let dx = agent.pos_x - p.x;
-        let dz = agent.pos_z - p.z;
+        let dx = probe.x - p.x;
+        let dz = probe.z - p.z;
         let lat = dx * p.facing_cos + dz * p.facing_sin;
         let fwd = -dx * p.facing_sin + dz * p.facing_cos;
         let e = lat * lat * p.inv_span_sq + fwd * fwd * p.inv_depth_sq;
         if (e < 1.0) {
-            agent.portal_trigger = i32(p.arch_index);
-            break;
+            var in_bubble = true;
+            if (point_camera_hosted()) {
+                let qi = QueryInputs(vec3(p.x, 0.0, p.z), signal.t_seconds);
+                let arch_ground = query_ground_flyer(vec2(p.x, p.z), qi);
+                in_bubble = abs(probe.y - arch_ground) < POINT_BUBBLE_RADIUS;
+            }
+            if (in_bubble) {
+                agent.portal_trigger = i32(p.arch_index);
+                break;
+            }
         }
     }
 
@@ -6234,6 +6257,14 @@ const AGENT_EVICTION_RADIUS_SQ: f32 = AGENT_EVICTION_RADIUS * AGENT_EVICTION_RAD
 // radius (cartridge.hpp names this constant only in comments).
 const FLOATER_EVICTION_RADIUS:    f32 = 400.0;
 const FLOATER_EVICTION_RADIUS_SQ: f32 = FLOATER_EVICTION_RADIUS * FLOATER_EVICTION_RADIUS;
+
+// POINT_BUBBLE_RADIUS — the point's bounded awareness (v3 §11; the
+// bubble's first field, p1b-d). Today its one sensor is the portal's
+// vertical gate in camera-host: an arch fires only within this many
+// units of the point's altitude. MUST match POINT_BUBBLE_RADIUS in
+// contracts/point.hpp (compile-time const, the eviction-radius
+// pattern — no runtime upload).
+const POINT_BUBBLE_RADIUS: f32 = 20.0;
 
 // ─── Player kernel ───────────────────────────────────────────────
 // Single thread, runs once per frame on config.possessed_slot.

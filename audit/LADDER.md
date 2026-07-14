@@ -2267,3 +2267,42 @@ AWAITING THE RIG: pawn host — identical (same subject, same VP, same
 trigger cadence). Free-fly — snapshots accumulate along the flight;
 paintings appear on terrain streamed under the camera; each is a
 landscape from the flight path (no body in frame).
+
+## PANEL-0 p1b-d — THE BUBBLE'S FIRST SENSE (the portal is the
+## point's; the altitude gate; the bubble gains its radius)
+
+Jean's fly-above question, answered in code. The portal is the
+bubble's FIRST SENSOR and the bubble gains its FIRST FIELD.
+
+THE PROBE IS HOST-SOURCED — with a freshness subtlety the cut had to
+honor: in pawn-host the probe is agent.pos THIS FRAME (the local var
+mid-kernel — byte-identical to the pre-p1b test; point_pos() was
+deliberately NOT used, it reads the storage copy which is one frame
+stale and would have made the pawn's portal fire a frame late). In
+camera-host the probe is camera_state.pos (the point; last frame's —
+free-fly tolerates the standard lag).
+
+THE VERTICAL GATE (camera-host only): on an xz ellipse hit, the arch
+ground is sampled (query_ground_flyer at the portal's center — runs
+only on a hit, at most one query per frame) and the trigger fires only
+if |probe.y - arch_ground| < POINT_BUBBLE_RADIUS. Skim over a portal →
+fire; fly high above its xz → the arch is outside the bubble → no fire
+(Jean's ruling made mechanism). Pawn-host: the gate branch is never
+taken — identical by construction.
+
+THE BUBBLE IS REAL: PointBubble{} (empty since p1a) gains float radius
+= POINT_BUBBLE_RADIUS (20.0f, contracts/point.hpp) mirrored as the
+WGSL const (MUST-match pair, the eviction-radius pattern — no runtime
+upload; a rig dial). The point.hpp banner sheds its dormant-bubble
+prophecy for the realized state (presence follows the point; emanation
+stays the body's; the bubble live). The witness contract updates:
+readback_portal_trigger is the point's bubble sensor riding the
+possessed slot's wire in both hosts — the wire is the realization,
+the bubble is the semantics; same sole-author law.
+
+GATES: glaw1 GREEN full + minimal; score census GREEN; sentinels
+148/5; encodings clean.
+AWAITING THE RIG: pawn host — portal stepping identical (same probe,
+same ellipse, no gate). Free-fly — flying THROUGH a portal at arch
+height triggers the transition; flying OVER its xz high up does not;
+the 20-unit band is a dial (bump POINT_BUBBLE_RADIUS in both mirrors).

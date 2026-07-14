@@ -843,8 +843,9 @@ namespace t7 {
                                         // POINT's position — the body authors it
                                         // only when the pawn hosts; the camera
                                         // harvest below authors it in camera-host.
-                                        // The portal trigger stays the BODY's
-                                        // until the bubble moves (p1b-d).
+                                        // The portal trigger is the point's BUBBLE
+                                        // sensor (p1b-d), riding the possessed
+                                        // slot's wire in both hosts.
                                         if (point_.host == PointHost::PAWN) {
                                             player_.readback_x = p.pos_x;
                                             player_.readback_z = p.pos_z;
