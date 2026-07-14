@@ -2745,6 +2745,33 @@ overlay bottom) is DOCUMENTATION until a layer goes non-additive.
 GATES: glaw1 GREEN; score census GREEN (bijection holds); world.wgsl
 clean UTF-8/LF, no CR. Blind-WGSL (no WGSL compiler in env) — hand-
 verified bit-identity; the RIG is the pixel/frame proof. HELD for rig.
+RIG: GREEN (Jean, "you may continue") — b2a pixel-identical confirmed.
+
+=== b2b — WORLD-ANCHORED OVERLAY RIDE (observable) ===
+The sink/float fix: surface-standing families now sit on the LIVE zone
+surface the mesh renders, not the baked static height. In
+compute_entity_placement, every standing family gains + contrib_gol_
+zones_at (raw — structures aren't movers, no suppression), extending the
+PAINTING precedent (which already did sample_terrain_y_at + gol) to
+column/antenna (8264), palm (8274), cactus (8285), blade (8296), arch
+per-foot-then-min (8308). PYRAMIDS EXCLUDED — they are CAST (buried
+occupiers the terrain drapes over), not surface-standers.
+MECHANISM = delta-on-baked (keeps the O(1) baked geology cached, adds
+the cheap analytic overlay), per-frame (the pass re-runs; gol reads the
+re-simmed zone_life buffer — no explicit time needed). Bindings verified:
+zone_config/zone_life/config all in the entity_placement layout (paintings
+already use contrib_gol_zones_at here) — state.hpp:4055-4114.
+DISCLOSURES: (1) PULSES deferred — need signal.t_seconds; the FrameSignal
+is NOT in this pipeline's bind group → a C++ bind-group-layout change, its
+own commit (Jean to rule whether to pursue). (2) WAVES deferred — config
+.terrain_time IS bound but the wave voice is dead (no-op); add on revival.
+(3) STALE COMMENT FIXED — the header said "Blade: excluded (CPU mirror)"
+but the blade GPU path is LIVE (compute writes GROUND_ATLAS_BLADE, the
+blade VS reads it, world.wgsl:10841/10855); note corrected.
+GATES: glaw1 GREEN; score census GREEN; world.wgsl clean UTF-8/LF, no CR.
+Blind-WGSL — hand-verified; the RIG is the proof (OBSERVABLE: standing
+structures rise with GoL zones; no change where gol is off/absent). HELD.
+STILL OPEN: Delta 2 (pyramid drape/union) — Jean's fix-now/mark-intent.
 
 ## TERRAIN-2 (STAGE 1) Phase A — THE MANIFOLD INTERFACE, SPHERE-DIRECTED
 ## (design on paper; ONE report; STOP for Jean's stamp before any code)

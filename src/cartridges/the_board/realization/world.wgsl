@@ -8195,8 +8195,23 @@ fn compute_photographer_vp() {
 // Paintings: terrain + GoL zone extrusion.
 // Arch: 2-point min at pier feet + pier_height offset.
 // Pyramid: 5-point min at center + 4 rotated corners.
-// Column/antenna, palm, cactus: single-point center.
-// Blade: excluded (no compute binding — uses CPU terrain mirror).
+// Column/antenna, palm, cactus, blade: single-point center.
+//   (The blade GPU path IS live — this compute writes GROUND_ATLAS_BLADE
+//   and the blade VS reads it; the old "excluded/CPU-mirror" note was stale.)
+//
+// b2b — WORLD-ANCHORED OVERLAY RIDE (TERRAIN-2). The surface-STANDING
+// families (paintings, column/antenna, palm/cactus/blade, arch feet) add
+// contrib_gol_zones_at so they sit on the LIVE zone surface the mesh
+// renders, not the baked static height — the sink/float fix. Raw GoL, no
+// pawn suppression (structures are not movers). PYRAMIDS are EXCLUDED:
+// they are CAST (buried occupiers the terrain drapes over), not
+// surface-standers. NOT-YET-RIDDEN world-anchored terms (named so the set
+// is honest against patch_terrain_vs, which folds waves + pulses into the
+// mesh): (a) RADIAL PULSES need signal.t_seconds, and the FrameSignal is
+// NOT in this pipeline's bind group (entity_placement layout, state.hpp)
+// — a bind-group change, its own commit; (b) TERRAIN WAVES — config
+// .terrain_time IS bound but the wave voice is dead today (no-op), added
+// when it revives. GoL is the live term landed now.
 @compute @workgroup_size(1)
 fn compute_entity_placement() {
     // Patch lookup is O(1) via patch_grid — no patch_count needed.
@@ -8241,7 +8256,12 @@ fn compute_entity_placement() {
     for (var i = 0u; i < 32u; i++) {
         if (column_ground[i].is_active != 0u) {
             let xz = vec2(column_ground[i].center_x, column_ground[i].center_z);
-            column_ground[i].ground_y = sample_terrain_y_at(xz);
+            // b2b: ride the world-anchored GoL extrusion (raw — structures are
+            // not movers, so no pawn suppression). Matches the painting hybrid;
+            // seats the structure on the live zone surface instead of floating
+            // on the baked static height. (Waves/pulses: see the b2b note at
+            // compute_entity_placement's banner.)
+            column_ground[i].ground_y = sample_terrain_y_at(xz) + contrib_gol_zones_at(xz);
             textureStore(entity_ground_atlas_write, vec2<i32>(i32(i) + GROUND_ATLAS_COLUMN, 0), vec4<f32>(column_ground[i].ground_y, 0.0, 0.0, 0.0));
         }
     }
@@ -8250,7 +8270,8 @@ fn compute_entity_placement() {
     for (var i = 0u; i < 24u; i++) {
         if (plant_ground[i].is_active != 0u) {
             let xz = vec2(plant_ground[i].center_x, plant_ground[i].center_z);
-            plant_ground[i].ground_y = sample_terrain_y_at(xz);
+            // b2b: + world-anchored GoL (see column).
+            plant_ground[i].ground_y = sample_terrain_y_at(xz) + contrib_gol_zones_at(xz);
             textureStore(entity_ground_atlas_write, vec2<i32>(i32(i) + GROUND_ATLAS_PALM, 0), vec4<f32>(plant_ground[i].ground_y, 0.0, 0.0, 0.0));
         }
     }
@@ -8260,7 +8281,8 @@ fn compute_entity_placement() {
         let slot = 24u + i;
         if (plant_ground[slot].is_active != 0u) {
             let xz = vec2(plant_ground[slot].center_x, plant_ground[slot].center_z);
-            plant_ground[slot].ground_y = sample_terrain_y_at(xz);
+            // b2b: + world-anchored GoL (see column).
+            plant_ground[slot].ground_y = sample_terrain_y_at(xz) + contrib_gol_zones_at(xz);
             textureStore(entity_ground_atlas_write, vec2<i32>(i32(i) + GROUND_ATLAS_CACTUS, 0), vec4<f32>(plant_ground[slot].ground_y, 0.0, 0.0, 0.0));
         }
     }
@@ -8270,7 +8292,8 @@ fn compute_entity_placement() {
         let slot = 44u + i;
         if (plant_ground[slot].is_active != 0u) {
             let xz = vec2(plant_ground[slot].center_x, plant_ground[slot].center_z);
-            plant_ground[slot].ground_y = sample_terrain_y_at(xz);
+            // b2b: + world-anchored GoL (see column).
+            plant_ground[slot].ground_y = sample_terrain_y_at(xz) + contrib_gol_zones_at(xz);
             textureStore(entity_ground_atlas_write, vec2<i32>(i32(i) + GROUND_ATLAS_BLADE, 0), vec4<f32>(plant_ground[slot].ground_y, 0.0, 0.0, 0.0));
         }
     }
@@ -8281,8 +8304,9 @@ fn compute_entity_placement() {
         if (arch_ground[i].is_active != 0u) {
             let left_xz = vec2(arch_ground[i].pier_left_x, arch_ground[i].pier_left_z);
             let right_xz = vec2(arch_ground[i].pier_right_x, arch_ground[i].pier_right_z);
-            let tl = sample_terrain_y_at(left_xz);
-            let tr = sample_terrain_y_at(right_xz);
+            // b2b: each pier foot rides its own local GoL, then min (see column).
+            let tl = sample_terrain_y_at(left_xz) + contrib_gol_zones_at(left_xz);
+            let tr = sample_terrain_y_at(right_xz) + contrib_gol_zones_at(right_xz);
             arch_ground[i].ground_y = min(tl, tr);
             textureStore(entity_ground_atlas_write, vec2<i32>(i32(i) + GROUND_ATLAS_ARCH, 0), vec4<f32>(arch_ground[i].ground_y, 0.0, 0.0, 0.0));
         }
