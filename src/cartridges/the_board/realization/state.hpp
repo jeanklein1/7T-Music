@@ -3996,11 +3996,12 @@ namespace t7 {
                 }
 
                 // -- Photographer compute layout (Group 0) -- VP + terrain clamp --
-                // Reads GPU pawn position + config → builds VP, clamps camera above terrain.
+                // Reads THE POINT's position (host-sourced, p1b-c) + config →
+                // builds VP, clamps camera above terrain.
                 // Entity Y-correction is handled separately by compute_entity_placement.
-                // 1 config uniform + 3 storage + 1 read-only + 1 uniform + 1 texture + 1 sampler + 1 patch_grid = 9 entries.
+                // 1 config uniform + 4 storage + 1 read-only + 1 uniform + 1 texture + 1 sampler + 1 patch_grid = 10 entries.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 9> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 10> entries{};
 
                     entries[0].binding = 1;    // config (DesignConfig — possessed_slot lookup via compute_pawn_pos)
                     entries[0].visibility = wgpu::ShaderStage::Compute;
@@ -4009,6 +4010,10 @@ namespace t7 {
                     entries[1].binding = 60;   // agent_state (read pos via possessed_slot)
                     entries[1].visibility = wgpu::ShaderStage::Compute;
                     entries[1].buffer.type = wgpu::BufferBindingType::Storage;
+
+                    entries[9].binding = 80;   // camera_state (point_pos — the point's camera-host source, p1b-c)
+                    entries[9].visibility = wgpu::ShaderStage::Compute;
+                    entries[9].buffer.type = wgpu::BufferBindingType::Storage;
 
                     entries[2].binding = 140;  // photographer_config (camera params)
                     entries[2].visibility = wgpu::ShaderStage::Compute;
@@ -4974,15 +4979,18 @@ namespace t7 {
                     if (!photographerRenderEntityBindGroup_) return false;
                 }
 
-                // Photographer compute bind group (9 entries: config + agents + outputs + terrain + patch_grid)
+                // Photographer compute bind group (10 entries: config + agents + camera + outputs + terrain + patch_grid)
                 {
-                    std::array<wgpu::BindGroupEntry, 9> entries{};
+                    std::array<wgpu::BindGroupEntry, 10> entries{};
                     entries[0].binding = 1;
                     entries[0].buffer = configBuffer_;
                     entries[0].size = sizeof(GPUDesignConfig);
                     entries[1].binding = 60;
                     entries[1].buffer = agentStateBuffer_;
                     entries[1].size = Dim::MAX_AGENTS * sizeof(GPUAgentState);
+                    entries[9].binding = 80;
+                    entries[9].buffer = cameraBuffer_;
+                    entries[9].size = sizeof(GPUCameraState);
                     entries[2].binding = 140;
                     entries[2].buffer = photographerConfigBuffer_;
                     entries[2].size = sizeof(GPUPhotographerConfig);

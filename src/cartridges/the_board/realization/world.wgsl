@@ -7787,7 +7787,8 @@ fn compute_pawn_aura(@builtin(global_invocation_id) gid: vec3<u32>) {
 }
 
 
-// §8 SELF-PORTRAIT GALLERY — Paintings of the pawn distributed over terrain
+// §8 SELF-PORTRAIT GALLERY — Paintings of the point's journey over terrain
+// (the body's self-portraits in pawn-host; the travelogue in free-fly — p1b-c)
 // §8.0 PHOTOGRAPHER COMPUTE — GPU-coupled snapshot camera
 struct PhotographerConfig {
     sun_direction: vec3<f32>,
@@ -7943,15 +7944,20 @@ fn build_lookat_vp(eye: vec3<f32>, aim_pt: vec3<f32>, fov_rad: f32, aspect: f32)
 @compute @workgroup_size(1)
 fn compute_photographer_vp() {
     let cfg = photographer_config;
-    let pawn_pos = compute_pawn_pos();
+    // THE POINT (p1b-c): the photographer frames the point — the body
+    // when the pawn hosts (the self-portrait, identical to before),
+    // the camera's vantage in free-fly (the travelogue — Jean's
+    // ruling; the trigger already accumulates flight distance through
+    // the point readback).
+    let point_p = point_pos();
 
-    // --- Camera position: spherical offset from pawn
+    // --- Camera position: spherical offset from the point
     let cos_el = cos(cfg.elevation);
     let sin_el = sin(cfg.elevation);
     let cos_az = cos(cfg.azimuth);
     let sin_az = sin(cfg.azimuth);
 
-    let eye_raw = pawn_pos + vec3(
+    let eye_raw = point_p + vec3(
         cfg.distance * cos_el * sin_az,
         cfg.distance * sin_el + 1.5,
         cfg.distance * cos_el * cos_az
@@ -7967,29 +7973,29 @@ fn compute_photographer_vp() {
     let terrain_at_cam = sample_terrain_y_at(eye_raw.xz);
     let eye = vec3(eye_raw.x, max(eye_raw.y, terrain_at_cam + 0.1), eye_raw.z);
 
-    // --- Build VP looking at pawn, with frame offset
-    let aim_base = pawn_pos + vec3(0.0, 1.0, 0.0);
+    // --- Build VP looking at the point, with frame offset
+    let aim_base = point_p + vec3(0.0, 1.0, 0.0);
 
-    // Derive camera frame from initial eye→pawn direction
+    // Derive camera frame from initial eye→point direction
     let fwd_init = normalize(aim_base - eye);
     var world_up_init = vec3(0.0, 1.0, 0.0);
     if (abs(fwd_init.y) > 0.99) { world_up_init = vec3(0.0, 0.0, 1.0); }
     let right_init = normalize(cross(fwd_init, world_up_init));
     let up_init = cross(right_init, fwd_init);
 
-    // Scale offset by FOV angular extent at the pawn's distance
+    // Scale offset by FOV angular extent at the point's distance
     let half_fov = cfg.fov_rad * 0.5;
-    let cam_to_pawn = length(aim_base - eye);
-    let h_extent = tan(half_fov) * cam_to_pawn * cfg.aspect_ratio;
-    let v_extent = tan(half_fov) * cam_to_pawn;
+    let cam_to_point = length(aim_base - eye);
+    let h_extent = tan(half_fov) * cam_to_point * cfg.aspect_ratio;
+    let v_extent = tan(half_fov) * cam_to_point;
 
-    // Shift aim point — camera looks away from pawn, placing pawn off-center
+    // Shift aim point — camera looks away from the subject, placing it off-center
     let aim_pt = aim_base
         - right_init * cfg.frame_offset_x * h_extent
         - up_init * cfg.frame_offset_y * v_extent;
 
     photographer_vp.m = build_lookat_vp(eye, aim_pt, cfg.fov_rad, cfg.aspect_ratio);
-    photographer_vp.light_vp = coupling_pawn_to_sun_vp(pawn_pos, cfg.sun_direction);
+    photographer_vp.light_vp = coupling_pawn_to_sun_vp(point_p, cfg.sun_direction);
     photographer_camera_out.pos = eye;
 }
 

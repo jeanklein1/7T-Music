@@ -2231,3 +2231,39 @@ pos, same values, same math). Free-fly — agents evict/respawn under
 the camera (a living world you fly over); Caps Lock possesses a body
 wherever you flew; spheres/cubes live around the view; F7 kite
 follows the flight; the tint tracks the view.
+
+## PANEL-0 p1b-c — THE POINT'S RECORD (the photographer follows;
+## the layout grows a binding; the travelogue is live)
+
+The smallest cut, as audited — the TRIGGER already followed the point
+the moment p1b-a host-routed the harvest (update_photographer reads
+readback_x/z; its step>5 teleport guard even absorbs host-toggle
+jumps for free). This cut moves the VP.
+
+THE GPU: compute_photographer_vp frames point_pos() — eye = spherical
+offset from the point, aim = the point, light-VP = the point's sun
+box. Pawn-host identical (the point IS the body there — the
+self-portrait unchanged); free-fly frames the vantage with no body at
+the center — THE TRAVELOGUE, Jean's "modern art", accepted by stamp.
+Locals renamed honest (point_p, cam_to_point); the §8 banner names
+the journey.
+
+THE ONE STRUCTURAL EDIT: the photographer compute LAYOUT did NOT
+carry binding 80 (camera_state) — the "retained for future use" slot
+was the placement layout's, not the photographer's (the audit's
+grounding caught this before the rig could). point_pos() statically
+reads camera_state, so the photographer layout + bind group grew to
+10 entries (binding 80 → cameraBuffer_), edited in LOCK-STEP (layout
+and group must match or pipeline creation fails).
+
+THE CPU: no functional edit (the trigger followed at p1b-a). Honesty
+renames only: prev_pawn_x/z → prev_point_x/z (module-internal, 8
+sites) + the trigger comment (the point travels; the body's walk in
+pawn-host, the flight in free-fly).
+
+GATES: glaw1 GREEN full + minimal; score census GREEN; sentinels
+148/5; encodings clean.
+AWAITING THE RIG: pawn host — identical (same subject, same VP, same
+trigger cadence). Free-fly — snapshots accumulate along the flight;
+paintings appear on terrain streamed under the camera; each is a
+landscape from the flight path (no body in frame).

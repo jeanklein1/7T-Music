@@ -137,7 +137,9 @@ inline constexpr float PAINTING_AREA[] = {
 //   ribbon active state (Q-closed-4).
 
 struct PhotographerCaptureConfig {
-    // Trigger: how far the pawn walks between capture events
+    // Trigger: how far THE POINT travels between capture events
+    // (p1b-c: the body's walk in pawn-host — identical; the flight in
+    // free-fly — the travelogue)
     static constexpr float TRIGGER_DISTANCE_MEAN = 50.0f;
     static constexpr float TRIGGER_DISTANCE_SIGMA = 8.0f;
     static constexpr float TRIGGER_DISTANCE_FLOOR = 20.0f;
@@ -344,8 +346,8 @@ struct PhotographerState {
     float cumulative_distance = 0.0f;
     float next_threshold = PhotographerCaptureConfig::TRIGGER_DISTANCE_MEAN;
     uint32_t pending_shots = 0;
-    float prev_pawn_x = 0.0f;
-    float prev_pawn_z = 0.0f;
+    float prev_point_x = 0.0f;
+    float prev_point_z = 0.0f;
     bool initialized = false;
     uint32_t frame_cooldown = 0;
     std::mt19937 rng{ 7742u };
@@ -584,17 +586,17 @@ inline void update_photographer(GalleryState& gs, GalleryDeps* c, wgpu::Queue& q
     float pz = c->player_.readback_z;
 
     if (!gs.photographer.initialized) {
-        gs.photographer.prev_pawn_x = px;
-        gs.photographer.prev_pawn_z = pz;
+        gs.photographer.prev_point_x = px;
+        gs.photographer.prev_point_z = pz;
         gs.photographer.initialized = true;
         return;
     }
 
-    float dx = px - gs.photographer.prev_pawn_x;
-    float dz = pz - gs.photographer.prev_pawn_z;
+    float dx = px - gs.photographer.prev_point_x;
+    float dz = pz - gs.photographer.prev_point_z;
     float step = std::sqrt(dx * dx + dz * dz);
-    gs.photographer.prev_pawn_x = px;
-    gs.photographer.prev_pawn_z = pz;
+    gs.photographer.prev_point_x = px;
+    gs.photographer.prev_point_z = pz;
     if (step > 5.0f) return;
 
     gs.photographer.cumulative_distance += step;
