@@ -2376,3 +2376,80 @@ Two rig-observed tuning turns, no structure:
 
 GATES: glaw1 GREEN full + minimal; score census GREEN; sentinels
 147/5; encodings clean. Two constexpr edits, no wire/score change.
+
+## PANEL-0 p2 — THE MATRIX RECON (read-only; the grid shape proposed;
+## ONE STOP for the stamp)
+
+Goal (ratified): replace the hand-written per-demo headers with ONE
+constexpr grid — pieces as rows, demos as columns, cells booleans —
+COMPLETE (foundational pieces as locked rows) and CODE-MATRIX (the
+grid IS C++), preserving the compile-time boolean fold the pipeline
+gate depends on. First p-series cut with NO pixel gate. NOTHING
+touched. Product: audit/PANEL0_P2_MATRIX_RECON.md.
+
+THE CURRENT SURFACE (R1): DemoConfig = {Roster roster; uint32_t seed;
+uint32_t boot_mood}. Exactly three consumers — DEMO.roster → ROSTER
+(demo.hpp:33, the 148 gate sites); DEMO.seed → surface_services.hpp:47
+(WorldState boot); DEMO.boot_mood → spine_state.hpp:134 (mood wake).
+full.hpp/minimal.hpp are positional aggregate brace-lists (19 bools in
+Roster field order + seed + mood). Selection: INCUBATE_DEMO (default
+full) → demo.hpp token-pastes the header path → #include
+demos/<name>.hpp defines DEMO → demo.hpp derives ROSTER + the FIRST
+EDGE assert. DROP-IN LAW: the grid must still emit inline constexpr
+DemoConfig DEMO at the same point — then demo.hpp/ROSTER/the 148 gates
+are untouched.
+
+THE ROW CENSUS (R2, COMPLETE): 19 TICKABLE rows (12 families + 7
+features). 4 LOCKED rows, census-checked against the score
+FOUNDATIONAL whitelist: THE SURFACE, THE SUN, THE POINT (witness, the
+p1b parent), THE PAWN BODY (slot-0, never evicted). Per-column scalars
+(not rows): seed, boot_mood. Clean seam: slot-0 body LOCKED vs slots
+1+ = wanderers TICKABLE. BODY DISPOSITION FLAGGED: lean LOCKED-and-
+noted (complete census; the body always exists; a graduation note says
+it becomes tickable when a demo pulls a bodiless world) vs off-grid;
+p2 does NOT make it tickable either way. Jean rules.
+
+THE TABLE SHAPE (R3): constexpr bool GRID[Piece::COUNT][DemoCol::COUNT]
+— rows = pieces (name down the left, the spreadsheet layout), columns
+= demos (named header), locked four on a comment banner above (always-
+on, not cells). column_to_roster(DemoCol) returns Roster{...19 in field
+order...}, fully folded; a static_assert pins Piece::COUNT==19 (the one
+ordering invariant). Seed+mood as DEMO_SEED[]/DEMO_BOOT_MOOD[] per
+column; DEMO built from all three (DemoConfig unchanged, downstream
+byte-identical). SELECTOR two options: token-paste DemoCol::
+INCUBATE_DEMO + retire the per-demo headers (LEAN), or thin one-line
+column-selector headers (selection path byte-unchanged). FREE TICKING
+CONFIRMED: the census finds ONE legality edge (transitions⇒portal, the
+FIRST EDGE assert) — the grid does NOT encode it; the assert rides
+ROSTER and fires identically. The cross-bit reads (gallery||indoor_
+shell, column||antenna ×7) are shared-resource GATES not legality
+edges — no encoding. The matrix feeds the resolver, never reimplements
+it.
+
+MIGRATION (R4): full = 19 tickable 1; minimal = 19 tickable 0; both
+seed 42 / OPEN_DEFAULT. Byte-equivalent by construction (same 19 bools
+same order → same ROSTER fold). GOLDEN: ROSTER's 19 fields + DEMO.seed
++ DEMO.boot_mood value-for-value vs the pre-matrix headers. Headers:
+recommend retire (primary selector); keep-as-thin-selector the
+conservative alt.
+
+TERRAIN-ONLY (R5): expressible — a terrain column (every tickable 0)
+EQUALS minimal's column (locked surface/sun/point/body always on) and
+boots. THE FINDING: because the body is LOCKED (not tickable in p2),
+terrain-only-as-defined IS minimal (pawn present-but-idle, you free-
+fly). A truly BODILESS terrain-only needs the body-tickable cut first.
+So p3 either revises terrain on minimal (pawn idle) today, or pulls
+the body-tickable cut so terrain unticks the body row (the one bit
+distinguishing it from minimal). Flagged; not a p2 blocker (scopes p3).
+
+SIZING (R6): small — pure config authoring, no WGSL, no behavior, no
+pixel gate. Gates: glaw1 full+minimal unchanged; the byte-equivalence
+golden (full+minimal ROSTER/seed/mood identical to pre-matrix); score
+census GREEN; sentinels 147/5; encodings clean.
+
+STOP — THREE STAMP QUESTIONS: (1) body row LOCKED-and-noted (lean) or
+off-grid; (2) selector token-paste-retire-headers (lean) or thin
+column-selectors; (3) p3 terrain-only rides minimal (pawn idle) or
+needs the body-tickable prerequisite. Seed/mood as per-column scalars
+(DemoConfig unchanged) the recommended default. NOTHING CUT — p2 cuts
+after the stamp.
