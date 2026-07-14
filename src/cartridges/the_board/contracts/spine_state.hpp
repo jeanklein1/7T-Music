@@ -42,10 +42,16 @@ struct TimeState {
 //
 // THE WITNESS CONTRACT, declared and census-checked (the score
 // census, Direction W):
-//   · readback_x/z + readback_portal_trigger — SOLE AUTHOR is the
-//     spine's P5 HARVEST; the spine's only other touches are the
-//     TEARDOWN reset and the portal door's consume. No module writes
-//     them, ever.
+//   · readback_x/z — THE POINT's position (PANEL-0 p1b-a; the point
+//     contract, contracts/point.hpp): HOST-AUTHORED by the spine's
+//     P5 HARVEST — the possessed body's pos when the pawn hosts, the
+//     camera's pos.xz when the camera hosts (the point readback,
+//     option A, Jean's stamp). SOLE AUTHOR is still the P5 HARVEST;
+//     the spine's only other touches are the TEARDOWN reset and the
+//     portal door's consume. No module writes them, ever.
+//   · readback_portal_trigger — stays the BODY's (the pawn's portal
+//     crossing) until the bubble moves (p1b-d); the trio SPLITS along
+//     the pawn/point line but keeps the same sole-author law.
 //   · possessed_slot — possession is RE-ANCHORING (v3 §9 Act III:
 //     the anchor is a role; the camera is what we control). The
 //     writes live behind the agents door (try_possess_nearest,
@@ -53,8 +59,11 @@ struct TimeState {
 //   · aura_presence — P8, the pawn is the semantic owner (writes in
 //     pawn.inl only).
 //   · THE CAMERA HAS NO CPU MIRROR — it lives GPU-resident, keyed on
-//     config.possessed_slot; and there is NO readback_y (the witness
-//     altitude is GPU-only). Neither is to be invented.
+//     config.possessed_slot. The ONE sanctioned window (p1b-a): in
+//     CAMERA-HOST the P5 harvest reads camera pos.xz back as the
+//     point's position — a two-float harvest into the trio above,
+//     not a mirror. There is still NO readback_y (the witness
+//     altitude is GPU-only); it is not to be invented.
 //   · the sky trio (mode / mode_prev / yaw_eased) LEFT this record
 //     at m6 per Option A — it lives in RibbonState.sky, with its
 //     single CPU owner (SEAM[ribbon:sky-mode], closed player-side).
@@ -68,9 +77,9 @@ struct PlayerState {
 
     // ── Camera + readback ──
     bool    fpv_mode = false;                // first-person view toggle
-    float   readback_x = 0.0f;               // GPU readback of pawn world X
-    float   readback_z = 0.0f;               // GPU readback of pawn world Z
-    int32_t readback_portal_trigger = -1;    // set by readback callback when pawn hits portal
+    float   readback_x = 0.0f;               // THE POINT's world X (host-authored — p1b-a)
+    float   readback_z = 0.0f;               // THE POINT's world Z (host-authored — p1b-a)
+    int32_t readback_portal_trigger = -1;    // set by readback callback when pawn hits portal (BODY's until p1b-d)
 
     // ── Aura presence (closes SEAM[spine:P8]) ──
     float aura_presence = 0.0f;                  // pawn aura ramp (was pawn_state_.aura_presence)

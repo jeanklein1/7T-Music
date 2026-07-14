@@ -4794,6 +4794,17 @@ fn compute_pawn_heading() -> f32 {
     return agent_state[config.possessed_slot].heading;
 }
 
+// THE POINT's position (compute stage) — host-sourced, per the point
+// contract (contracts/point.hpp; PANEL-0 p1b): the possessed body
+// when the pawn hosts, the camera eye when the camera hosts.
+// VIEWPOINT-serving reads (the shadow-VP here; the CPU streaming
+// center via the point readback) go through this; ENTITY-EMANATING
+// fields (aura, forcefield) keep reading the pawn directly.
+fn point_pos() -> vec3<f32> {
+    if (point_camera_hosted()) { return camera_state.pos; }
+    return compute_pawn_pos();
+}
+
 // --- [BINDINGS:compute] Group 0 — Render entity mirrors (read-only, +200 offset)
 @group(0) @binding(200) var<storage, read> render_signal: FrameSignal;
 @group(0) @binding(201) var<storage, read> render_vp: VPMatrix;
@@ -6762,10 +6773,13 @@ fn compute_vp() {
         signal.aspect_ratio
     );
 
-    // Sun VP: kite coupling — sun orbits pawn at fixed offset
+    // Sun VP: kite coupling — the sun orbits THE POINT at fixed
+    // offset (p1b-a: was the pawn; the 300-unit shadow box must cover
+    // what the eye sees, so it follows the point's host — identical
+    // when the pawn hosts, tracks the camera in free-fly).
     if (coupling_active(COUPLING_PAWN_TO_SUN_VP)) {
         vp_data.light_vp = coupling_pawn_to_sun_vp(
-            compute_pawn_pos(),
+            point_pos(),
             config.sun_direction
         );
     }

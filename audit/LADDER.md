@@ -2127,3 +2127,57 @@ skybox-y (lean eye-centered all axes), and one untouched §4 item —
 ribbon-ride selection STAYS BODY (riding is a host-migration onto the
 body's neighborhood; held at the §4 lean unless Jean re-rules). NOTHING
 CUT — p1b-a…e cut on Jean's go; the audit is now the ratified spec.
+
+## PANEL-0 p1b-a — THE POINT'S POSITION (the go given; dials closed;
+## the terrain freeze fixed; pawn-host byte-untouched)
+
+Jean closed the dials (skybox-y eye-centered ALL AXES; orb radius 700;
+ribbon-ride stays BODY) and gave the go. p1b-a is the foundational cut:
+THE POINT GAINS A WORLD POSITION, host-sourced, on both sides.
+
+THE GPU: point_pos() lands beside the possessed-agent helpers
+(world.wgsl, compute stage) — camera_state.pos when the camera hosts,
+compute_pawn_pos() when the pawn hosts. ONE consumer repointed: the
+sun/shadow VP in compute_vp (the 300-unit shadow box must cover what
+the eye sees) — coupling_pawn_to_sun_vp(point_pos()). Pawn-host
+identical by construction (point_pos IS compute_pawn_pos there). The
+frustum-cull center needed NO GPU edit — it reads the CPU-staged
+lod_pawn, which now follows the harvest (the anti-flicker yardstick
+moves as one, exactly as the audit required).
+
+THE CPU: the point readback, option A as stamped. The camera buffer
+gains CopySrc; a 48-byte staging buffer (Camera State Readback
+Staging) + a third state machine (CameraReadbackState IDLE/COPIED/
+MAPPING) mirror the agent pattern exactly. THE COPY IS ENCODED ONLY IN
+CAMERA-HOST (point_.host == CAMERA) — the pawn-host frame is
+byte-untouched, the binding pixel gate satisfied by construction. THE
+HARVEST is host-routed at its one source (cartridge.hpp P5): the agent
+harvest authors readback_x/z only when the pawn hosts; the new camera
+harvest authors it from camera pos.xz only when the camera hosts (host
+re-checked inside the async callback so a mid-flight toggle cannot let
+a stale value overwrite the other author). readback_portal_trigger
+stays the BODY's until p1b-d. Downstream, UNTOUCHED BY DESIGN: the
+streaming center, recenter cursor, LOD banding, lod_pawn stage, entity
+draw-cull, orb anchor, photographer trigger ALL follow the point
+through readback_x/z with zero edits — the audit's central
+simplification, realized.
+
+THE WITNESS CONTRACT AMENDED IN PLACE (spine_state.hpp): readback_x/z
+is now THE POINT's position, host-authored, sole author still the P5
+harvest; the trio splits along the pawn/point line
+(readback_portal_trigger the body's until p1b-d); the no-CPU-mirror
+clause gains its ONE sanctioned window (camera-host pos.xz, two floats
+into the trio, not a mirror) — no readback_y, still not to be
+invented. Score census Direction W: HOLDS unchanged (the writes stay
+spine-side P5).
+
+GATES: glaw1 GREEN full + minimal; score census GREEN (A/B/W +
+W-deps); sentinels 148/5; encodings clean UTF-8/LF, no CR. NO WGSL
+COMPILER HERE — the shader edit is two sites (accessor + one repoint)
+reading only bindings compute_vp already reads (camera_state, config,
+agent_state); runtime proof is the rig's.
+AWAITING THE RIG: pawn host — pixel-identical everywhere (streaming,
+shadow, LOD; the copy never encodes). Key 4 free-fly — TERRAIN NOW
+STREAMS under the camera (the p1b trigger fixed); the shadow box
+follows the view; LOD/cull recenter; the orb dome follows (its anchor
+reads the point now); the photographer accumulates flight distance.

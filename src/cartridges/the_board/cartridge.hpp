@@ -271,6 +271,12 @@ namespace t7 {
             PawnReadbackState pawnReadbackState_ = PawnReadbackState::IDLE;
             enum class FloaterReadbackState { IDLE, COPIED, MAPPING };
             FloaterReadbackState floaterReadbackState_ = FloaterReadbackState::IDLE;
+            // The point readback (PANEL-0 p1b-a, option A): runs ONLY in
+            // camera-host — the camera's GPU position IS the point's, so
+            // it must reach the CPU for the viewpoint set (streaming,
+            // LOD, cull, orb). Pawn-host never arms this machine.
+            enum class CameraReadbackState { IDLE, COPIED, MAPPING };
+            CameraReadbackState cameraReadbackState_ = CameraReadbackState::IDLE;
 
             // ROSTER-RESIDUE gol (2e) instrumentation: count of frames the GoL
             // zone-compute block ran (the sole writer of the zone GPU buffers),
@@ -833,8 +839,16 @@ namespace t7 {
                                         std::memcpy(agent_state_.slots, data,
                                             GPUState::agent_state_buffer_size());
                                         const auto& p = agent_state_.slots[player_.possessed_slot];
-                                        player_.readback_x = p.pos_x;
-                                        player_.readback_z = p.pos_z;
+                                        // THE POINT (p1b-a): readback_x/z is the
+                                        // POINT's position — the body authors it
+                                        // only when the pawn hosts; the camera
+                                        // harvest below authors it in camera-host.
+                                        // The portal trigger stays the BODY's
+                                        // until the bubble moves (p1b-d).
+                                        if (point_.host == PointHost::PAWN) {
+                                            player_.readback_x = p.pos_x;
+                                            player_.readback_z = p.pos_z;
+                                        }
                                         player_.readback_portal_trigger = p.portal_trigger;
                                     }
                                 }
@@ -871,6 +885,40 @@ namespace t7 {
                                 gpuState_.floating_entity_readback_staging().Unmap();
                             }
                             floaterReadbackState_ = FloaterReadbackState::IDLE;
+                        });
+                }
+
+                // THE POINT's camera-host harvest (p1b-a, option A): when
+                // the camera hosts the point, its GPU-resident position is
+                // the point's position — read it back so the CPU viewpoint
+                // set (streaming center, recenter, LOD banding, lod stage,
+                // entity cull, orb anchor) follows the point. The pawn-host
+                // frame never encodes the copy, so that path stays
+                // byte-untouched (the binding pixel gate, by construction).
+                if (cameraReadbackState_ == CameraReadbackState::COPIED) {
+                    cameraReadbackState_ = CameraReadbackState::MAPPING;
+                    gpuState_.camera_state_readback_staging().MapAsync(
+                        wgpu::MapMode::Read, 0, GPUState::camera_state_buffer_size(),
+                        wgpu::CallbackMode::AllowSpontaneous,
+                        [this, gen = world_state_.world_gen](wgpu::MapAsyncStatus status, wgpu::StringView) {
+                            if (status == wgpu::MapAsyncStatus::Success) {
+                                // Drop stale callbacks from a previous world.
+                                if (gen == world_state_.world_gen) {
+                                    const auto* cam = static_cast<const GPUCameraState*>(
+                                        gpuState_.camera_state_readback_staging().GetConstMappedRange(
+                                            0, GPUState::camera_state_buffer_size()));
+                                    // Host re-checked at harvest: a toggle
+                                    // between copy and map must not let a
+                                    // stale camera pos overwrite the pawn's
+                                    // authorship.
+                                    if (cam && point_.host == PointHost::CAMERA) {
+                                        player_.readback_x = cam->pos[0];
+                                        player_.readback_z = cam->pos[2];
+                                    }
+                                }
+                                gpuState_.camera_state_readback_staging().Unmap();
+                            }
+                            cameraReadbackState_ = CameraReadbackState::IDLE;
                         });
                 }
 
@@ -1074,6 +1122,18 @@ namespace t7 {
                         gpuState_.floating_entity_readback_staging(), 0,
                         GPUState::floating_entity_buffer_size());
                     floaterReadbackState_ = FloaterReadbackState::COPIED;
+                }
+
+                // The point readback copy (p1b-a): CAMERA-HOST ONLY — the
+                // pawn-host frame encodes no camera copy (option A; the
+                // pawn path stays byte-untouched).
+                if (point_.host == PointHost::CAMERA &&
+                    cameraReadbackState_ == CameraReadbackState::IDLE) {
+                    encoder.CopyBufferToBuffer(
+                        gpuState_.camera_state_buffer(), 0,
+                        gpuState_.camera_state_readback_staging(), 0,
+                        GPUState::camera_state_buffer_size());
+                    cameraReadbackState_ = CameraReadbackState::COPIED;
                 }
 
                 // ═══ MOVEMENT: REALIZATION, CONTINUED ═══════════════════════

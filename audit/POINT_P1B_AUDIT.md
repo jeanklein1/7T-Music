@@ -456,10 +456,9 @@ e the authorized sky look-change):**
 - **p1b-e** THE ORB SKYBOX — eye-center the dome on `camera_state.pos` (all
   axes) + enlarge the radius; retire the CPU ground-anchor.
 
-**The last open dials (not blockers — rig tuning):** the orb radius value
-(450 → ?), the skybox-y confirmation (eye-centered all axes, lean yes), and
-one untouched §4 item — **ribbon-ride selection stays BODY** (riding is a
-host-migration onto the body's neighborhood; unruled, held at the §4 lean).
+**The last dials — RULED (Jean, closing the stamp):** skybox-y = eye-centered
+on ALL THREE AXES (confirmed); orb radius = **700** (was 450); ribbon-ride
+selection **stays BODY** (confirmed). The spec is whole; the go was given.
 
-Nothing cut. p1b-a…e cut on Jean's go; a…d pixel-identical, e the authorized
+p1b-a…e cut in sequence from here; a…d pixel-identical, e the authorized
 look-change; the rig binding.

@@ -1352,6 +1352,7 @@ namespace t7 {
             wgpu::Buffer agentStateBuffer_;
             wgpu::Buffer agentStateReadbackStaging_;
             wgpu::Buffer floatingEntityReadbackStaging_;
+            wgpu::Buffer cameraStateReadbackStaging_;   // the point readback (p1b-a; camera-host only)
             // Agent registries — uploaded once at world-init from the C++
             // AGENT_BEHAVIORS / AGENT_TIER_GAINS tables. The single source
             // of truth lives in bodies/agents.inl; the GPU side reads
@@ -2388,6 +2389,13 @@ namespace t7 {
             }
             static constexpr size_t agent_state_buffer_size() { return Dim::MAX_AGENTS * sizeof(GPUAgentState); }
             static constexpr size_t agent_slot_size() { return sizeof(GPUAgentState); }
+            // The point readback (PANEL-0 p1b-a, option A): camera-host
+            // only — the spine copies the camera state to staging and
+            // harvests pos.xz as THE POINT's position. Pawn-host never
+            // touches these (that path stays the agent readback).
+            wgpu::Buffer camera_state_buffer() const { return cameraBuffer_; }
+            wgpu::Buffer camera_state_readback_staging() const { return cameraStateReadbackStaging_; }
+            static constexpr size_t camera_state_buffer_size() { return sizeof(GPUCameraState); }
             void set_possessed_slot(uint32_t slot) {
                 if (config_.possessed_slot != slot) {
                     config_.possessed_slot = slot;
@@ -2664,7 +2672,8 @@ namespace t7 {
                 agentTierGainsBuffer_ = makeBuffer("Agent Tier Gains Table",
                     GPU_AGENT_TIER_COUNT * sizeof(GPUAgentTierDef),
                     wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);
-                cameraBuffer_ = makeBuffer("Camera State", sizeof(GPUCameraState), SU);
+                cameraBuffer_ = makeBuffer("Camera State", sizeof(GPUCameraState),
+                    SU | wgpu::BufferUsage::CopySrc);   // CopySrc: the point readback (p1b-a; camera-host)
                 floatingEntityBuffer_ = makeBuffer("Floating Entity Array",
                     Dim::TOTAL_FLOATING_SLOTS * sizeof(GPUFloatingEntityState),
                     SU | wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopySrc);
@@ -2701,6 +2710,13 @@ namespace t7 {
                     sd.size = Dim::TOTAL_FLOATING_SLOTS * sizeof(GPUFloatingEntityState);
                     sd.usage = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::MapRead;
                     floatingEntityReadbackStaging_ = device_.CreateBuffer(&sd);
+                }
+                {
+                    wgpu::BufferDescriptor sd{};
+                    sd.label = "Camera State Readback Staging";
+                    sd.size = sizeof(GPUCameraState);
+                    sd.usage = wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::MapRead;
+                    cameraStateReadbackStaging_ = device_.CreateBuffer(&sd);
                 }
                 {
                     wgpu::BufferDescriptor sd{};
@@ -2763,7 +2779,7 @@ namespace t7 {
                     patchHeightScratchBuffer_ &&
                     photographerVPBuffer_ && photographerCameraBuffer_ &&
                     photographerConfigBuffer_ && paintingSlotsBuffer_ &&
-                    portalArrayBuffer_ && ribbonReadbackStaging_ &&
+                    portalArrayBuffer_ && ribbonReadbackStaging_ && cameraStateReadbackStaging_ &&
                     frustumIndirectLOD0_ && frustumComputeBuffer_ && visiblePatchIndicesBuffer_;
             }
 
