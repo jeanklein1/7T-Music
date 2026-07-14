@@ -2708,6 +2708,44 @@ W-mi most diffuse (5 modules); IFACE has only 2 authors (world.wgsl body
 signature's surface is small, which is what makes the sphere plug-in
 cheap above the welds. Read-only, no code touched.
 
+## TERRAIN-2 (STAGE 1 cont.) — b2 THE FOLD, PULLED (Jean's hierarchy ruling)
+Jean handed the reconciled stack (via Claude Chat): CAST = geology →
+pyramids (drape) → piers; OVERLAY = waves (bottom) → GoL+pulses → aura+
+suppression. Rulings: b2a = the safe shared-stack helper (shape a, NOT
+the data-driven fold); b2b = RULED scope (placed structures gain the
+WORLD-ANCHORED overlays; mover-anchored stay divergent); b2b mechanism =
+CC's call; Delta 2 (pyramid drape/union) = separate base-shape fork.
+
+RECON (world.wgsl, verified): patch_terrain_vs folds waves(3751) +
+pulses(3755) + aura(3747) into the rendered mesh; GoL height is a
+SEPARATE extrusion pass (not in the VS). The b2b mechanism already
+exists in-tree: paintings do sample_terrain_y_at + contrib_gol_zones_at
+(8212) = baked static + analytic world-anchored delta; the other
+grounded families read BARE sample_terrain_y_at (columns 8229, palm/
+cactus/blade 8238-58, arch 8269 min, pyramid 8288 5-pt min). So b2b =
+extend the painting pattern (GoL+pulses delta) to every grounded family.
+compute_entity_placement is per-frame → structures will ride.
+
+=== b2a — THE SHARED DYNAMIC-OVERLAY STACK (pixel-identical) ===
+manifold_overlay_stack(xz, qi, gol_term) = static_base + pyramids +
+gol_term + waves + pulses (world.wgsl:2723). The four dynamic policies
+(flyer/walker/walker_tilt/walker_agent) now call it; the MOVER-ANCHORED
+aura is added AFTER the stack by each caller (external/self/none) — the
+world/mover split made explicit at the call site, pre-figuring b2b.
+BIT-IDENTICAL by construction: all four already summed in the identical
+order base→pyr→gol→waves→pulses→aura; gol_term carries the caller's
+resolved GoL (raw for flyer/agent; inline pawn-suppressed gol*(1−supp)
+kept a SINGLE term for the walkers); walker_tilt = the stack alone (no
+aura, no +0.0). walker_pair LEFT hand-fused (its shared-eval halves the
+per-XZ work — the ground_formed_with_complexity precedent). Gradient
+variants + manifold_height_hf unchanged (same signatures/returns).
+ORDER NOTE: the sum keeps the historical operand order (GoL before
+waves) for bit-identity; the hierarchy's canonical order (waves at the
+overlay bottom) is DOCUMENTATION until a layer goes non-additive.
+GATES: glaw1 GREEN; score census GREEN (bijection holds); world.wgsl
+clean UTF-8/LF, no CR. Blind-WGSL (no WGSL compiler in env) — hand-
+verified bit-identity; the RIG is the pixel/frame proof. HELD for rig.
+
 ## TERRAIN-2 (STAGE 1) Phase A — THE MANIFOLD INTERFACE, SPHERE-DIRECTED
 ## (design on paper; ONE report; STOP for Jean's stamp before any code)
 

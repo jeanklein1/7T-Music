@@ -2700,6 +2700,35 @@ fn query_ground_baked_heightfield(xz: vec2<f32>) -> f32 {
     return h;
 }
 
+// ─── The shared dynamic-overlay stack (TERRAIN-2 b2a) ───────────────
+// The additive fold every DYNAMIC ground policy shares, authored ONCE:
+//   contrib_static_base_at + contrib_pyramids_at + <gol_term>
+//     + contrib_terrain_waves_at + contrib_radial_pulses_at
+// The mover-anchored pawn aura is NOT here — callers add their own aura
+// form (external / self / none) AFTER this stack, so the per-body
+// divergence stays explicit at the call site (world-anchored terms live
+// in the stack; mover-anchored terms live at the caller).
+//
+// gol_term is the caller's already-resolved GoL contribution: the raw
+// contrib_gol_zones_at for flyer/agent, or the inline pawn-suppressed
+// form gol*(1 − supp_factor) for the walkers — kept a SINGLE term so the
+// walker stays bit-identical (see query_ground_walker).
+//
+// ORDER: the sum preserves the historical operand order (GoL before
+// waves) so every caller is bit-identical. The terrain hierarchy's
+// canonical layering puts waves at the BOTTOM of the overlay stack; that
+// order is DOCUMENTATION here — reordering plain-additive terms only
+// shifts float round-off, so it is deferred until a layer stops being a
+// plain add (reordered then under its own rig gate).
+fn manifold_overlay_stack(xz: vec2<f32>, qi: QueryInputs, gol_term: f32) -> f32 {
+    var h = contrib_static_base_at(xz);
+    h += contrib_pyramids_at(xz);
+    h += gol_term;
+    h += contrib_terrain_waves_at(xz);
+    h += contrib_radial_pulses_at(xz, qi.t_seconds);
+    return h;
+}
+
 // --- Fly-over: all global deformation fields included ---
 
 // POLICY_FLYER — non-walking entities that ride animated terrain.
@@ -2713,13 +2742,10 @@ fn query_ground_baked_heightfield(xz: vec2<f32>) -> f32 {
 //   sample away from the pawn's position. Gradient variant:
 //   query_ground_flyer_gradient.
 fn query_ground_flyer(xz: vec2<f32>, qi: QueryInputs) -> f32 {
-    var h = contrib_static_base_at(xz);
-    h += contrib_pyramids_at(xz);
-    h += contrib_gol_zones_at(xz);
-    h += contrib_terrain_waves_at(xz);
-    h += contrib_radial_pulses_at(xz, qi.t_seconds);
-    h += contrib_pawn_aura_at_external(xz);
-    return h;
+    // Raw GoL (flyers don't self-suppress) over the shared stack; external
+    // aura (sampled away from the pawn) added after as the mover term.
+    return manifold_overlay_stack(xz, qi, contrib_gol_zones_at(xz))
+         + contrib_pawn_aura_at_external(xz);
 }
 
 // --- Walkers: everything the flyer sees, plus walker-specific fields ---
@@ -2746,23 +2772,19 @@ fn query_ground_flyer(xz: vec2<f32>, qi: QueryInputs) -> f32 {
 // compounds significantly under FXC loop unrolling). See
 // contrib_gol_suppression_at for the standalone subtractive form.
 fn query_ground_walker(xz: vec2<f32>, qi: QueryInputs) -> f32 {
-    var h = contrib_static_base_at(xz);
-    h += contrib_pyramids_at(xz);
-
     // GoL with inline pawn-centered suppression. Equivalent to
     //   contrib_gol_zones_at(xz) - contrib_gol_suppression_at(xz, consumer_pos)
     // but evaluates the zone loop once instead of twice. The suppression
     // factor pulls the GoL lift toward zero near the consumer — walker
     // intent: "GoL doesn't push me up into the air while I'm standing on it."
+    // Kept a SINGLE term (gol*(1−supp)) so the walker stays bit-identical.
     let gol = contrib_gol_zones_at(xz);
     let d = distance(xz, qi.consumer_pos.xz);
     let supp_factor = 1.0 - smoothstep(ZONE_SUPPRESS_INNER, ZONE_SUPPRESS_OUTER, d);
-    h += gol * (1.0 - supp_factor);
-
-    h += contrib_terrain_waves_at(xz);
-    h += contrib_radial_pulses_at(xz, qi.t_seconds);
-    h += contrib_pawn_aura_at_self();
-    return h;
+    // Shared world stack + the mover-anchored self-aura (added after so the
+    // pawn stands on its own aura peak without reading the grid).
+    return manifold_overlay_stack(xz, qi, gol * (1.0 - supp_factor))
+         + contrib_pawn_aura_at_self();
 }
 
 // POLICY_WALKER_TILT — walker minus the self-centered pawn aura.
@@ -2781,17 +2803,13 @@ fn query_ground_walker(xz: vec2<f32>, qi: QueryInputs) -> f32 {
 //     INNER = 4, where supp_factor = 1 with zero gradient — the smoothstep
 //     only ramps over 4→15, which the normal samples never reach.
 fn query_ground_walker_tilt(xz: vec2<f32>, qi: QueryInputs) -> f32 {
-    var h = contrib_static_base_at(xz);
-    h += contrib_pyramids_at(xz);
-    // GoL with the same pawn-centered suppression the walker applies —
-    // zero within the immediate radius (see the policy note above).
+    // Same pawn-suppressed GoL as the walker; NO aura (the self field is a
+    // constant scalar with zero tilt gradient — excluded for clarity). Just
+    // the shared world stack.
     let gol = contrib_gol_zones_at(xz);
     let d = distance(xz, qi.consumer_pos.xz);
     let supp_factor = 1.0 - smoothstep(ZONE_SUPPRESS_INNER, ZONE_SUPPRESS_OUTER, d);
-    h += gol * (1.0 - supp_factor);
-    h += contrib_terrain_waves_at(xz);
-    h += contrib_radial_pulses_at(xz, qi.t_seconds);
-    return h;
+    return manifold_overlay_stack(xz, qi, gol * (1.0 - supp_factor));
 }
 
 // Paired walker + walker_tilt query.
@@ -2843,13 +2861,10 @@ fn query_ground_walker_pair(xz: vec2<f32>, qi: QueryInputs) -> vec2<f32> {
 //   contrib_<agent>_aura_at_self() forms (defer until a second consumer
 //   asks for one).
 fn query_ground_walker_agent(xz: vec2<f32>, qi: QueryInputs) -> f32 {
-    var h = contrib_static_base_at(xz);
-    h += contrib_pyramids_at(xz);
-    h += contrib_gol_zones_at(xz);
-    h += contrib_terrain_waves_at(xz);
-    h += contrib_radial_pulses_at(xz, qi.t_seconds);
-    h += contrib_pawn_aura_at_external(xz);
-    return h;
+    // Full GoL lift (agents don't self-suppress) over the shared stack;
+    // external aura (the agent is not the pawn) added after as the mover term.
+    return manifold_overlay_stack(xz, qi, contrib_gol_zones_at(xz))
+         + contrib_pawn_aura_at_external(xz);
 }
 
 // --- Celestial: empty contributor set ---
