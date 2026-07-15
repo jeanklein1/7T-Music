@@ -3104,6 +3104,22 @@ IDENTICAL — the whole limb was write-only, so removing it cannot move a pixel.
 FREED GPU RESOURCE: one per-frame compute dispatch (update_terrain_config,
 1x1x1) eliminated. (The buffer itself is not yet freed — see the flag below.)
 
+=== commit 2 — the one entangled wire (surgical, inside a LIVE kernel) ===
+terrain_state.tint was a DEAD STORE inside the live update_sphere kernel. The
+nearest-active-sphere search that computed it wrote ONLY terrain_state.tint
+(read by nobody); its locals fed nothing live. Deleted (world.wgsl): the whole
+tint block inside update_sphere, coupling_sphere_to_terrain_tint (its sole
+producer), and SAND_DUNE_CENTER/SAND_DUNE_VARIANCE (used only by that coupling).
+PRESERVED: update_sphere's live work (slot eviction + orbital motion via
+compose_sphere_from_orbit_pga + polyphony->color, all writing floating_entities)
+is above the tint block and untouched — the fn closes cleanly after the excision.
+The COUPLING_SPHERE_TO_TERRAIN_TINT bitmask slot is left as-is (an enum bit,
+harmless once unreferenced — not renumbered).
+GATE: glaw1 GREEN (C++ untouched; WGSL-only, blind — rig-gated); score census
+GREEN. RIG: PIXEL-IDENTICAL — a dead store into an unread buffer; removing it
+cannot move a pixel. Executed SECOND (after commit 1) but order-independent:
+neither commit removes the buffer, so neither dangles.
+
 FLAG — the buffer/binding/struct HUSK is a LAYOUT/STORAGE-WELD follow-on, NOT cut
 here. The verification is 100% clean (reader-free), but the PHYSICAL removal of
 the terrain_state buffer + bindings 20 (compute) / 220 (fragment) + GPUTerrainState

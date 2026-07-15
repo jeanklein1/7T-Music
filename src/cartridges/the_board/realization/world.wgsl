@@ -1477,8 +1477,8 @@ struct DesignConfig {
 // were the animated field the dead SDF marched — read only by the
 // (also removed) update_terrain_config lipschitz chain, never by any live
 // VS/FS. Removed. NOT the live OVERLAY_WAVES voice (that stays).
-const SAND_DUNE_CENTER: vec3<f32> = vec3(0.85, 0.70, 0.50);
-const SAND_DUNE_VARIANCE: f32 = 0.35;
+// SAND_DUNE_CENTER / SAND_DUNE_VARIANCE removed — used only by the
+// (removed) coupling_sphere_to_terrain_tint. (RAYMARCH/SDF excavation)
 
 // --- Terrain palette system
 const PALETTE_CENTER = array<vec3<f32>, 4>(
@@ -3174,22 +3174,9 @@ fn coupling_velocity_to_pawn_heading(velocity: vec2<f32>, current_heading: f32, 
 
 // §3.6 entities → terrain
 
-// --- [COUPLING:sphere→terrain:tint]
-fn coupling_sphere_to_terrain_tint(sphere_pos: vec3<f32>, orbit_radius: f32) -> vec3<f32> {
-    // Normalize position to [-1, 1] based on orbit radius
-    let r = max(orbit_radius, 1.0);  // guard against zero
-    let nx = sphere_pos.x / r;
-    let nz = sphere_pos.z / r;
-    
-    // Map sphere position to RGB offsets within variance bounds
-    let offset = vec3(
-        nx * SAND_DUNE_VARIANCE,
-        nz * SAND_DUNE_VARIANCE * 0.5,
-        -nx * SAND_DUNE_VARIANCE * 0.6
-    );
-    
-    return clamp(SAND_DUNE_CENTER + offset, vec3(0.0), vec3(1.0));
-}
+// RAYMARCH/SDF EXCAVATION: coupling_sphere_to_terrain_tint removed — it fed
+// only the dead terrain_state.tint store (the residue's one entangled wire,
+// severed surgically from the live update_sphere kernel).
 
 // §3.7 GoL → evolution
 
@@ -6644,35 +6631,11 @@ fn update_sphere() {
         }
     }
 
-    // Terrain tint from nearest active sphere to THE POINT (p1b-b:
-    // was the pawn — the tint colors the terrain around the viewpoint;
-    // presence, not emanation).
-    if (coupling_active(COUPLING_SPHERE_TO_TERRAIN_TINT)) {
-        var best_dist_sq = 999999.0;
-        var best_slot = 0u;
-        var found = false;
-        let point_p = point_pos();
-        for (var slot = 0u; slot < SPHERE_SLOT_COUNT; slot++) {
-            let fe = floating_entities.entities[slot];
-            if (fe.is_active == 0u || fe.orbit_radius <= 0.0) { continue; }
-            let dx = fe.pos.x - point_p.x;
-            let dz = fe.pos.z - point_p.z;
-            let d2 = dx * dx + dz * dz;
-            if (d2 < best_dist_sq) {
-                best_dist_sq = d2;
-                best_slot = slot;
-                found = true;
-            }
-        }
-        if (found) {
-            let fe = floating_entities.entities[best_slot];
-            terrain_state.tint = coupling_sphere_to_terrain_tint(fe.pos, fe.orbit_radius);
-        } else {
-            terrain_state.tint = vec3(1.0);
-        }
-    } else {
-        terrain_state.tint = vec3(1.0);
-    }
+    // RAYMARCH/SDF EXCAVATION: the terrain-tint dead store removed. This
+    // whole nearest-sphere search wrote only terrain_state.tint (the dead
+    // TerrainState buffer, read by nobody); its locals fed nothing live.
+    // update_sphere's live work (eviction + orbital motion + sphere color,
+    // which write floating_entities) is above and untouched.
 }
 
 // ─── Cube behavior registry ─────────────────────────────────────
