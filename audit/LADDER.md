@@ -3018,6 +3018,57 @@ density / flavor all unchanged) and per-commit stamp.
 SEAM STATUS: 9 (Q6a) + 11 (Q7) + 10 (Q6b) all cut & pushed. The 11-commit
 patch-gen + spawn cut plan is COMPLETE pending Jean's Q6b rig stamp.
 
+## GoL TWO-BUG DIAGNOSIS (read-only) + the b3 camera fix (pulled forward)
+Two GoL symptoms in the new build, diagnosed read-only (two parallel Explore
+agents + git archaeology), reported with file:line, then ONE fix cut per Jean's
+ruling.
+S1 — GoL frozen (no beat-time evolution). MECHANISM: the Conway rule is GPU-
+gated on zone_config.tick_mask (world.wgsl:7516); the CPU producer
+(upload_gol_zone_config, gol_zones.hpp:549-568) sets a zone's bit only when
+floor(time_state_.beats / tick_period) crosses an integer. The GoL clock is
+time_state_.beats = signal.t_beats = the DAW transport position (port_.beats(),
+canvas.hpp:141), NOT wall-clock. Springs/mesh/pawn-aura run on wall-clock dt —
+so the pawn still deforms cells while Conway is frozen. git range c312440..HEAD
+touched NONE of gol_zones.hpp / canvas.hpp / spine_state.hpp / the beat-block —
+the tick path is unchanged by the campaign. GPUPatchParams.time (=0) is a red
+herring (never read by the GoL shader). RULING: S1 CLOSED — 1a, working as
+designed (music off -> no beat -> static GoL). No fix. Transport was the missing
+piece.
+S2 — camera rides GoL. MECHANISM: the pawn-host camera clamp read
+manifold_position(camera.pos, POLICY_FLYER).y (world.wgsl:6628); POLICY_FLYER
+folds RAW contrib_gol_zones_at with NO suppression (mask :2188-2193), while the
+pawn body uses POLICY_WALKER (gol*(1-supp), :2799-2812). So the body sat low
+(suppressed) but the camera floor rode the un-suppressed GoL and lifted. ORIGIN:
+a82ab7d ("migrate camera clamp to POLICY_FLYER"), PRE-TERRAIN-2 — b1-cohort
+(byte-identical) and b2a (pixel-identical) only re-expressed it; b2b touched
+compute_entity_placement (structures), not the camera. The campaign made it
+PROMINENT (b2b's world-anchored GoL + S1's freeze pinned GoL up), not present.
+"One shared cause" REFUTED: no shared dirty-flag (GoL uses tick_mask/
+last_tick_index; terrain/placement use ground_entries_dirty/placement_dirty,
+cartridge.hpp:1174-1182); Q6b's active_seed move never touched world_state_ or
+any time/GoL read.
+THE b3 CAMERA FIX (pulled forward, own commit; advances b3 task #52):
+world.wgsl:6628 POLICY_FLYER -> POLICY_WALKER_TILT, and the clamp's qi
+consumer_pos camera.pos -> pawn_pos. WHY WALKER_TILT (not WALKER): WALKER adds
+contrib_pawn_aura_at_self() = config.pawn_aura_height, a CONSTANT peak (:2643) —
+wrong to bake into the camera floor; WALKER_TILT is the walker's world surface
+(base+pyramids+gol*(1-supp)+waves+pulses) MINUS that self-aura = exactly b3's
+"live minus suppression". WHY consumer_pos = pawn_pos: genuine 2a centers the
+suppression on the PAWN (matching the pawn body's own center, gol_zones/pawn
+qi at world.wgsl:5872), so pawn-local GoL — where the body stands flat — does
+not lift the camera, while world-anchored waves/pulses and GoL AWAY from the
+pawn still clear the camera (no clip of animated ridges). consumer_pos = camera
+would degenerate to full self-suppression (d=0 -> gol*0), i.e. 2b (GoL excluded
+everywhere) — rejected; Jean chose 2a. The clamp block runs pawn-host only
+(camera-host returns at world.wgsl:6579), so pawn_pos is always the real pawn.
+SIDE EFFECT flagged for the rig: WALKER_TILT drops the external pawn aura the
+flyer carried — the camera no longer rides the aura bump either (consistent with
+"don't lift for pawn-local deformation", but rig-observe for aura-ridge clip).
+GATE: blind WGSL (glaw1 compiles C++ only — GREEN, unchanged; census GREEN).
+RIG-HELD: pawn walks into a GoL zone -> camera tracks the body (sits with it),
+does NOT lift above it. Per-commit rig stamp; on green, b3 task #52 advances one
+notch (the camera-suppression piece landed ahead of the finite collapse).
+
 ## TERRAIN-2 — SKIRTS (side excursion; weld #2; own rig-gated commit)
 Jean's order: skirt the terrain patch mesh (plain patch edges) to hide
 inter-patch cracks — precision AND LOD/T-junction — with ONE mechanism.
