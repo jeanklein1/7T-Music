@@ -2879,6 +2879,23 @@ evict/compaction invariant introduced (the CARE note was moot).
 GATE: gate-only. glaw1 GREEN (helper + both sites + GridKey visibility +
 no name conflict); score census GREEN; encodings clean. Behavior-identical.
 
+=== commit 4 — Q3: one build_mesh_params (commit paths → build_from) ===
+The two commit-path inline builds (column_write_gpu entity_pipeline.hpp:478,
+antenna_write_gpu :637) now route through build_column_mesh_params_from
+(spawn_engine.hpp:329) — the same builder the reupload/cull path uses — so
+there is ONE producer of GPUColumnMeshParams. FIELD-PARITY GATE PASSED (the
+stamped gate): hand-verified all ~20 fields for BOTH families — write_active
+(column :451 / antenna :610) runs before write_gpu and stores every field
+build_from reads (segs/rings from COLUMN_TIERS vs ANTENNA_TIERS resp.,
+already baked into the ActiveColumn), so build_from(the just-written
+ActiveColumn) reproduces each inline mp byte-for-byte. NO divergence → NO
+pre-existing bug surfaced (had one diverged, it would have been flagged, not
+forced). Removed antenna's now-unused raw_tier. Visibility: spawn_engine.hpp
+precedes entity_pipeline.hpp in cartridge.hpp, so the builder is in scope
+(glaw1 confirms — real compile).
+GATE: gate-only (DTO pack, parity-verified). glaw1 GREEN; score census
+GREEN; encodings clean. Behavior-identical.
+
 ## TERRAIN-2 — SKIRTS (side excursion; weld #2; own rig-gated commit)
 Jean's order: skirt the terrain patch mesh (plain patch edges) to hide
 inter-patch cracks — precision AND LOD/T-junction — with ONE mechanism.

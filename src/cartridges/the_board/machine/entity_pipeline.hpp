@@ -476,28 +476,11 @@ inline void column_write_active(MachineCtx* c, const EntityInstance& inst) {
 }
 
 inline void column_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Queue& queue) {
-    GPUColumnMeshParams mp{};
-    mp.center_x = inst.cx; mp.center_z = inst.cz;
-    mp.height = inst.params[ColIdx::HEIGHT];
-    mp.shaft_radius = inst.params[ColIdx::SHAFT_RADIUS];
-    mp.taper = inst.params[ColIdx::TAPER];
-    mp.entasis = inst.params[ColIdx::ENTASIS];
-    mp.base_height = inst.params[ColIdx::BASE_HEIGHT];
-    mp.base_overhang = inst.params[ColIdx::BASE_OVERHANG];
-    mp.capital_height = inst.params[ColIdx::CAP_HEIGHT];
-    mp.capital_overhang = inst.params[ColIdx::CAP_OVERHANG];
-    mp.burial = inst.burial;
-    mp.color_r = inst.colors[0]; mp.color_g = inst.colors[1]; mp.color_b = inst.colors[2];
-    mp.base_layers = (uint32_t)inst.params[ColIdx::BASE_LAYERS];
-    mp.capital_layers = (uint32_t)inst.params[ColIdx::CAP_LAYERS];
-    mp.segs_around = COLUMN_TIERS[inst.tier_idx].segs_around;
-    mp.shaft_rings = COLUMN_TIERS[inst.tier_idx].shaft_rings;
-    mp.is_active = 1;
-    mp.tier = inst.tier_idx;
-    // drum colors from inst.colors[3..11]
-    mp.drum_color_r1 = inst.colors[3]; mp.drum_color_g1 = inst.colors[4]; mp.drum_color_b1 = inst.colors[5];
-    mp.drum_color_r2 = inst.colors[6]; mp.drum_color_g2 = inst.colors[7]; mp.drum_color_b2 = inst.colors[8];
-    mp.drum_color_r3 = inst.colors[9]; mp.drum_color_g3 = inst.colors[10]; mp.drum_color_b3 = inst.colors[11];
+    // Q3: one builder. column_write_active (above) has already written this
+    // ActiveColumn this frame; build_column_mesh_params_from reproduces the
+    // same GPUColumnMeshParams field-for-field (verified parity), so the
+    // commit path and the reupload/cull path now share ONE producer.
+    GPUColumnMeshParams mp = build_column_mesh_params_from(c->entities_state_.columns[inst.slot]);
     c->gpuState_.upload_column_mesh_params_slot(queue, inst.slot, mp);
     c->entities_state_.column_mesh_gen_pending = true;
 }
@@ -636,28 +619,11 @@ inline void antenna_write_active(MachineCtx* c, const EntityInstance& inst) {
 
 inline void antenna_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Queue& queue) {
     uint32_t gpu_slot = inst.slot + Dim::ANTENNA_SLOT_OFFSET;
-    uint32_t raw_tier = inst.tier_idx - COLUMN_TIER_COUNT;
-    GPUColumnMeshParams mp{};
-    mp.center_x = inst.cx; mp.center_z = inst.cz;
-    mp.height = inst.params[ColIdx::HEIGHT];
-    mp.shaft_radius = inst.params[ColIdx::SHAFT_RADIUS];
-    mp.taper = inst.params[ColIdx::TAPER];
-    mp.entasis = inst.params[ColIdx::ENTASIS];
-    mp.base_height = inst.params[ColIdx::BASE_HEIGHT];
-    mp.base_overhang = inst.params[ColIdx::BASE_OVERHANG];
-    mp.capital_height = inst.params[ColIdx::CAP_HEIGHT];
-    mp.capital_overhang = inst.params[ColIdx::CAP_OVERHANG];
-    mp.burial = inst.burial;
-    mp.color_r = inst.colors[0]; mp.color_g = inst.colors[1]; mp.color_b = inst.colors[2];
-    mp.base_layers = (uint32_t)inst.params[ColIdx::BASE_LAYERS];
-    mp.capital_layers = (uint32_t)inst.params[ColIdx::CAP_LAYERS];
-    mp.segs_around = ANTENNA_TIERS[raw_tier].segs_around;
-    mp.shaft_rings = ANTENNA_TIERS[raw_tier].shaft_rings;
-    mp.is_active = 1;
-    mp.tier = inst.tier_idx;  // GPU tier: 3,4,5 for antennas
-    mp.drum_color_r1 = inst.colors[3]; mp.drum_color_g1 = inst.colors[4]; mp.drum_color_b1 = inst.colors[5];
-    mp.drum_color_r2 = inst.colors[6]; mp.drum_color_g2 = inst.colors[7]; mp.drum_color_b2 = inst.colors[8];
-    mp.drum_color_r3 = inst.colors[9]; mp.drum_color_g3 = inst.colors[10]; mp.drum_color_b3 = inst.colors[11];
+    // Q3: one builder — antenna reuses the column GPU struct + slot; its
+    // ActiveColumn (written by antenna_write_active above, segs/rings from
+    // ANTENNA_TIERS) feeds the same build_column_mesh_params_from as the
+    // reupload path. Verified field-parity.
+    GPUColumnMeshParams mp = build_column_mesh_params_from(c->entities_state_.antennas[inst.slot]);
     c->gpuState_.upload_column_mesh_params_slot(queue, gpu_slot, mp);
     c->entities_state_.column_mesh_gen_pending = true;
 }
