@@ -2782,6 +2782,33 @@ manifold_overlay_stack dedups the four query_ground_* bodies into one
 additive core. THE b2 THREAD IS FULLY CLOSED: b2a landed; b2b GoL-ride
 landed; pulses / waves / Delta-2 resolved-closed.
 
+## PATCH GENERATION + SPAWNING — RECON (read-only; audit/PATCH_GEN_SPAWN_RECON.md)
+The candidate API for the two systems + their seam. Read-only, nothing
+moved; delivered as ONE report, STOP for the design conversation. Method:
+an 8-way parallel deep-read workflow (A residency/LOD-vis/gen; B sampler/
+packing/grounding/population; the seam+wire) over an anchor (theory v3
+§9/§12/§0 + the standing record), synthesized, completeness-critiqued (12
+gaps), revised; load-bearing file:lines spot-verified by hand.
+SHAPE: §1 ownership table · §2 ~29 unit cards (offer/requires face, home,
+bit-identity, C++/WGSL) · §3 the seam · §4 constraints · §5 questions +
+dead register. BOUNDARY: stops at data-ready-for-GPU (the DTO/upload
+wire), not the patch VS/FS or the draw.
+KEY RESULTS: (1) the seam is clean — A meets B at generate_tile_state
+under one (gx,gz) key; b4 split the TYPE-line only, but shape and pop draw
+DISJOINT seed streams (tile_seed vs cpu_lattice_node_seed), which is why
+the split is bit-clean and the TilePopulation physical relocation is
+safe-but-deferred. (2) Sharpest forks: the LOD-banding block has no
+callable home + braids the baked-sampler grid index; three
+(gx,gz)->existence impls; the mesh-param map transcribed 3x; the bucket
+walk reached the entity selectors but not the two theme selectors. (3)
+Dead register an API must NOT enshrine: the whole "render" radius
+vocabulary (RENDER_RADIUS/VISIBLE_RADIUS_SQ/LOD_FULL_RADIUS_SQ) is dead
+(live gate = the world-space cylinder); cached_ground_y==0, ground_y_
+offset/gpu_ground_y/theme_idx dead, entity_density a provable x1.0 no-op.
+(4) Latent hazard: GPUPatchParams.resolution=256 is a hand-typed literal
+decoupled from Dim::PATCH_HEIGHTFIELD_N=256 (no static_assert link).
+No cut order, no sequencing. HELD for the design conversation.
+
 ## TERRAIN-2 — SKIRTS (side excursion; weld #2; own rig-gated commit)
 Jean's order: skirt the terrain patch mesh (plain patch edges) to hide
 inter-patch cracks — precision AND LOD/T-junction — with ONE mechanism.
