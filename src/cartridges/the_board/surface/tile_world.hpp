@@ -58,12 +58,9 @@ struct ArchetypeSelectionRules {
 };
 
 // ── Entity Density Field ───────────────────────────────────────────
-
-inline constexpr float DENSITY_LATTICE_SPACING = 250.0f;
-inline constexpr uint32_t DENSITY_SEED_BAND = 160u;
-inline constexpr float DENSITY_EXPONENT = 0.6f;
-inline constexpr float DENSITY_MIN = 1.0f;
-inline constexpr float DENSITY_MAX = 1.0f;
+// The DENSITY_* lattice constants + TilePopulation + its authoring moved
+// to population_themes.hpp (Q6b) — the density/theme half of the tile is
+// a population concern. Only TileState (below) still names TilePopulation.
 
 // ── Terrain Tokens ─────────────────────────────────────────────────
 
@@ -125,15 +122,10 @@ struct TileShape {
     float amp_momentum = 0.0f;   // signed amplitude excess, carried by terrain tokens
 };
 
-// THE POPULATION HALF — spawn density + per-family theme weights (NOT
-// terrain shape; the population/themes concern). Read by tile_apply_
-// spawn_mult (F3).
-struct TilePopulation {
-    float entity_density = 1.0f; // spatial density multiplier for entity spawning
-    // Theme: evaluated from theme lattice at tile generation time
-    float spatial_density[PopFamily::COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f }; // Q7 SPATIAL axis: per-family, position-locked density (applied by F3 tile_apply_spawn_mult). Independent of temporal_flavor — a different axis, not a duplicate.
-    uint32_t theme_idx = 0;      // dominant theme index (for tier bias)
-};
+// THE POPULATION HALF — TilePopulation (spawn density + per-family theme
+// weights) lives in population_themes.hpp (Q6b), beside the authoring that
+// fills it and the theme vocabulary it samples. It is complete here: that
+// header precedes this one in the cohort. Read by tile_apply_spawn_mult (F3).
 
 struct TileState {
     TileShape      shape;   // the cast's (landform character)
@@ -362,64 +354,13 @@ inline TileState generate_tile_state(TileWorldState& tw, TileWorldDeps* c, int32
     ts.shape.activation_scale = profile.activation_scale;
     ts.shape.amp_momentum = amp_jitter - 1.0f;  // signed: positive = amplified, negative = dampened
 
-    // ── Entity density field (coarse spatial noise) ──────────
-    {
-        float patch_cx = (gx + 0.5f) * PATCH_EXTENT;
-        float patch_cz = (gz + 0.5f) * PATCH_EXTENT;
-        float dlx = patch_cx / DENSITY_LATTICE_SPACING;
-        float dlz = patch_cz / DENSITY_LATTICE_SPACING;
-        int32_t dbx = (int32_t)std::floor(dlx);
-        int32_t dbz = (int32_t)std::floor(dlz);
-        float dfx = dlx - dbx, dfz = dlz - dbz;
-        float dwx = dfx * dfx * (3.0f - 2.0f * dfx);
-        float dwz = dfz * dfz * (3.0f - 2.0f * dfz);
-        float density = 0.0f;
-        for (int dz = 0; dz <= 1; dz++) for (int dx = 0; dx <= 1; dx++) {
-            uint32_t ns = cpu_lattice_node_seed(c->world_state_.active_seed, dbx + dx, dbz + dz, DENSITY_SEED_BAND);
-            float raw = cpu_hash_f(ns, 350u);
-            float shaped = std::pow(raw, DENSITY_EXPONENT);
-            float w = ((dx == 1) ? dwx : (1.0f - dwx)) * ((dz == 1) ? dwz : (1.0f - dwz));
-            density += shaped * w;
-        }
-        ts.pop.entity_density = DENSITY_MIN + density * (DENSITY_MAX - DENSITY_MIN);
-    }
-
-    // ── Theme field (coarse compositional character) ─────────
-    {
-        float patch_cx = (gx + 0.5f) * PATCH_EXTENT;
-        float patch_cz = (gz + 0.5f) * PATCH_EXTENT;
-        float tlx = patch_cx / THEME_LATTICE_SPACING;
-        float tlz = patch_cz / THEME_LATTICE_SPACING;
-        int32_t tbx = (int32_t)std::floor(tlx);
-        int32_t tbz = (int32_t)std::floor(tlz);
-        float tfx = tlx - tbx, tfz = tlz - tbz;
-        float twx = tfx * tfx * (3.0f - 2.0f * tfx);
-        float twz = tfz * tfz * (3.0f - 2.0f * tfz);
-
-        // Blend spawn weights across 4 lattice nodes.
-        // Track dominant node for discrete tier bias lookup.
-        float blended_spawn[PopFamily::COUNT] = { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
-        float blended_density = 0.0f;
-        float best_w = -1.0f;
-        uint32_t dominant_theme = 0;
-
-        for (int dz = 0; dz <= 1; dz++) for (int dx = 0; dx <= 1; dx++) {
-            uint32_t ns = cpu_lattice_node_seed(c->world_state_.active_seed, tbx + dx, tbz + dz, THEME_SEED_BAND);
-            uint32_t tidx = select_theme_at_node(ns);
-            const auto& theme = THEMES[tidx];
-            float w = ((dx == 1) ? twx : (1.0f - twx)) * ((dz == 1) ? twz : (1.0f - twz));
-            for (uint32_t f = 0; f < PopFamily::COUNT; f++) {
-                blended_spawn[f] += theme.spawn_weight[f] * w;
-            }
-            blended_density += theme.density_mult * w;
-            if (w > best_w) { best_w = w; dominant_theme = tidx; }
-        }
-
-        for (uint32_t f = 0; f < PopFamily::COUNT; f++)
-            ts.pop.spatial_density[f] = blended_spawn[f];
-        ts.pop.theme_idx = dominant_theme;
-        ts.pop.entity_density *= blended_density;  // theme density stacks with spatial density
-    }
+    // ── The population half (Q6b) ────────────────────────────
+    // Authored by population_themes.hpp off the density/theme seed bands
+    // (active_seed passed in) — disjoint from the shape draws above, which
+    // consume tile_seed props. Same one (gx,gz) generation moment; the
+    // TYPE-line split (b4) still holds, the authoring now lives with its
+    // vocabulary.
+    ts.pop = generate_tile_population(c->world_state_.active_seed, gx, gz);
 
     return ts;
 }

@@ -2988,8 +2988,35 @@ next member theme_idx), fixed, re-gated GREEN. The blind-catch worked.
 Landed BEFORE Q6b so TilePopulation relocates under its final name.
 GATE: gate-only (rename). glaw1 GREEN; score census GREEN; zero residual
 old-name references; encodings clean. Behavior-identical.
-SEAM STATUS: 9 (Q6a) + 11 (Q7) landed ahead. NEXT: 10 (Q6b) — the RIG
-commit; HELD for Jean's per-commit rig stamp.
+=== commit 10 — Q6b: relocate TilePopulation into population_themes.hpp (RIG) ===
+The seam's ONE cross-module commit. Moved the population half off tile_world
+onto its vocabulary: (a) TilePopulation struct, (b) the DENSITY_* lattice
+constants, (c) a new generate_tile_population(active_seed,gx,gz)->TilePopulation
+holding the two authoring blocks verbatim (entity-density field + theme field).
+generate_tile_state now calls it: `ts.pop = generate_tile_population(c->world_
+state_.active_seed, gx, gz);`. TileState keeps `TilePopulation pop;` — complete
+because population_themes (:59) precedes tile_world (:61) in the cohort; F3
+tile_apply_spawn_mult STAYS in tile_world (reads tileCache_).
+LADDER CONSTRAINT solved: population_themes sits at :59, BEFORE surface_services
+(:60, PATCH_EXTENT alias + WorldState) and tile_world (:61, DENSITY_*). So the
+move required pulling DENSITY_* along (they're population-authoring inputs, not
+shape) and two substitutions that preserve the bytes: PATCH_EXTENT ->
+Dim::PATCH_EXTENT (state.hpp :58, same constexpr 50.0f), and the WorldState
+deref lifted to the active_seed parameter (uint32_t, read once = same value).
+Added #include <cmath> (std::floor/std::pow, was transitive via seed_utils).
+BIT-IDENTITY: LIVE (hash arithmetic) but byte-identical BY ARGUMENT — every
+op/constant/loop-order/seed-band unchanged; only symbol resolution differs and
+both resolve to the identical value. Disjoint from the shape draws (tile_seed
+props) that stay in tile_world — the b4 TYPE-line split still holds; the one
+(gx,gz) generation moment and the shared call site are untouched.
+GATE: rig (cross-module, live draw). glaw1 GREEN (Dim:: visibility at :59,
+TilePopulation complete at TileState, no dangling DENSITY_*/select_theme_at_node
+in tile_world); score census GREEN. RIG-HELD: this is the one commit that is
+byte-identical by argument, not by construction — HELD for Jean's deliberate rig
+pass (watch spawn density + themes in a GoL-active world; confirm placement /
+density / flavor all unchanged) and per-commit stamp.
+SEAM STATUS: 9 (Q6a) + 11 (Q7) + 10 (Q6b) all cut & pushed. The 11-commit
+patch-gen + spawn cut plan is COMPLETE pending Jean's Q6b rig stamp.
 
 ## TERRAIN-2 — SKIRTS (side excursion; weld #2; own rig-gated commit)
 Jean's order: skirt the terrain patch mesh (plain patch edges) to hide
