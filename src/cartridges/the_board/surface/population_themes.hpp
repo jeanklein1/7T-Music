@@ -52,8 +52,8 @@ struct PopulationTheme {
 };
 
 // THE S2/S3 BOUNDARY FACE: THEMES is read across the boundary by the
-// per-family get_theme_tier_weights adapters (the interface trio's
-// vocabulary member — theory v2 §4; formalized at the A-era).
+// theme_tier_weights accessor (the interface trio's vocabulary member —
+// theory v2 §4; formalized at the A-era; Q5 unified the per-family plugs).
 inline constexpr PopulationTheme THEMES[THEME_COUNT] = {
     // ── 0: TRANSITION — sparse connective tissue ─────────────────
     {   { 0.4f, 0.3f, 0.7f, 0.3f, 0.3f, 0.3f, 0.5f, 0.3f, 1.0f, 0.5f, 0.5f, 0.5f },   // spawn_weight [pyr..sph, ribn, cube, gol, gall]
@@ -149,6 +149,27 @@ struct ThemesState {
 // ═══ MODULE FUNCTIONS ══════════════════════════════════════════════
 
 // Select a theme at a lattice node from cumulative weights
+// Q5: the ONE tier-weight accessor over the family→member map. Replaces the
+// per-family *_get_theme_tier_weights plugs — the generic pipeline calls it
+// with traits.family_id (a PopFamily). Tables untouched; bit-safe (returns
+// the same const float* into the PopulationTheme row the old plug did).
+inline const float* theme_tier_weights(uint32_t theme_idx, uint32_t family_id) {
+    const PopulationTheme& th = THEMES[theme_idx];
+    switch (family_id) {
+        case PopFamily::PYRAMID: return th.tier_wt_pyramid;
+        case PopFamily::ARCH:    return th.tier_wt_arch;
+        case PopFamily::COLUMN:  return th.tier_wt_column;
+        case PopFamily::ANTENNA: return th.tier_wt_antenna;
+        case PopFamily::PALM:    return th.tier_wt_palm;
+        case PopFamily::CACTUS:  return th.tier_wt_cactus;
+        case PopFamily::BLADE:   return th.tier_wt_blade;
+        case PopFamily::SPHERE:  return th.tier_wt_sphere;
+        case PopFamily::RIBBON:  return th.tier_wt_ribbon;
+        case PopFamily::CUBE:    return th.tier_wt_cube;
+        default:                 return th.tier_wt_column;
+    }
+}
+
 inline uint32_t select_theme_at_node(uint32_t node_seed) {
     float roll = cpu_hash_f(node_seed, 370u);
     float cumul = 0.0f;

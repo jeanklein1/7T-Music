@@ -131,7 +131,7 @@ inline bool generic_select(MachineCtx* c,
         weights[t] = adapter.get_tier_profile(t).weight;
 
     // Apply theme tier weights (per-family array from PopulationTheme)
-    const float* theme_tw = adapter.get_theme_tier_weights(gate.theme_idx);
+    const float* theme_tw = theme_tier_weights(gate.theme_idx, traits.family_id);
     for (uint32_t t = 0; t < traits.tier_count && t < 8; t++)
         weights[t] *= theme_tw[t];
 
@@ -398,7 +398,6 @@ inline SpawnGateOutput column_run_gate(MachineCtx* c, int32_t gx, int32_t gz) {
         ColumnConfig::MOOD_MULTIPLIER, PopFamily::COLUMN, "col");
     return { gate.ok, gate.seed, gate.slot, gate.theme_idx };
 }
-inline const float* column_get_theme_tier_weights(uint32_t ti) { return THEMES[ti].tier_wt_column; }
 
 inline constexpr uint32_t COLUMN_INDOOR_RESCALE_PARAMS[] = {
     ColIdx::HEIGHT, ColIdx::SHAFT_RADIUS,
@@ -502,7 +501,7 @@ inline void column_post_commit(MachineCtx* c, const EntityInstance& inst, wgpu::
 }
 
 inline constexpr EntityFamilyAdapter COLUMN_ADAPTER = {
-    column_run_gate, column_get_theme_tier_weights,
+    column_run_gate,
     column_apply_indoor_rescale,
     column_compute_solid_half, column_compute_colors,
     column_write_active, column_write_gpu, column_post_commit,
@@ -536,7 +535,6 @@ inline SpawnGateOutput antenna_run_gate(MachineCtx* c, int32_t gx, int32_t gz) {
         AntennaConfig::MOOD_MULTIPLIER, PopFamily::ANTENNA, "ant");
     return { gate.ok, gate.seed, gate.slot, gate.theme_idx };
 }
-inline const float* antenna_get_theme_tier_weights(uint32_t ti) { return THEMES[ti].tier_wt_antenna; }
 
 inline void antenna_apply_indoor_rescale(EntityInstance& inst, float ceiling_h) {
     rescale_to_rolled_target(inst, ceiling_h,
@@ -646,7 +644,7 @@ inline void antenna_post_commit(MachineCtx* c, const EntityInstance& inst, wgpu:
 }
 
 inline constexpr EntityFamilyAdapter ANTENNA_ADAPTER = {
-    antenna_run_gate, antenna_get_theme_tier_weights,
+    antenna_run_gate,
     antenna_apply_indoor_rescale,
     antenna_compute_solid_half, antenna_compute_colors,
     antenna_write_active, antenna_write_gpu, antenna_post_commit,
@@ -741,7 +739,6 @@ inline SpawnGateOutput pyramid_run_gate(MachineCtx* c, int32_t gx, int32_t gz) {
         PyramidConfig::MOOD_MULTIPLIER, PopFamily::PYRAMID, "pyr");
     return { gate.ok, gate.seed, gate.slot, gate.theme_idx };
 }
-inline const float* pyramid_get_theme_tier_weights(uint32_t ti) { return THEMES[ti].tier_wt_pyramid; }
 
 inline constexpr uint32_t PYRAMID_INDOOR_RESCALE_PARAMS[] = {
     PyrIdx::HEIGHT, PyrIdx::BASE_HALF, PyrIdx::EDGE_BLEND,
@@ -843,7 +840,7 @@ inline void pyramid_post_commit(MachineCtx* c, const EntityInstance& inst, wgpu:
 }
 
 inline constexpr EntityFamilyAdapter PYRAMID_ADAPTER = {
-    pyramid_run_gate, pyramid_get_theme_tier_weights,
+    pyramid_run_gate,
     pyramid_apply_indoor_rescale,
     pyramid_compute_solid_half, pyramid_compute_colors,
     pyramid_write_active, pyramid_write_gpu, pyramid_post_commit,
@@ -907,7 +904,6 @@ inline SpawnGateOutput arch_run_gate(MachineCtx* c, int32_t gx, int32_t gz) {
         ArchConfig::MOOD_MULTIPLIER, PopFamily::ARCH, "arch");
     return { gate.ok, gate.seed, gate.slot, gate.theme_idx };
 }
-inline const float* arch_get_theme_tier_weights(uint32_t ti) { return THEMES[ti].tier_wt_arch; }
 
 inline constexpr uint32_t ARCH_INDOOR_RESCALE_PARAMS[] = {
     ArchIdx::SPAN, ArchIdx::RISE, ArchIdx::DEPTH, ArchIdx::THICKNESS,
@@ -1081,7 +1077,7 @@ inline void arch_post_commit(MachineCtx* c, const EntityInstance& inst, wgpu::Qu
 }
 
 inline constexpr EntityFamilyAdapter ARCH_ADAPTER = {
-    arch_run_gate, arch_get_theme_tier_weights,
+    arch_run_gate,
     arch_apply_indoor_rescale,
     arch_compute_solid_half, arch_compute_colors,
     arch_write_active, arch_write_gpu, arch_post_commit,

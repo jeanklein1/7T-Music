@@ -985,9 +985,6 @@ inline SpawnGateOutput blade_run_gate(MachineCtx* c,
     return { gate.ok, gate.seed, gate.slot, gate.theme_idx };
 }
 
-inline const float* blade_get_theme_tier_weights(uint32_t theme_idx) {
-    return THEMES[theme_idx].tier_wt_blade;
-}
 
 inline void blade_compute_solid_half(EntityInstance& inst,
     const TierProfile& /*tier*/) {
@@ -1040,7 +1037,6 @@ inline void blade_write_gpu(MachineCtx* c,
 
 inline constexpr EntityFamilyAdapter BLADE_ADAPTER = {
     blade_run_gate,
-    blade_get_theme_tier_weights,
     nullptr,                  // apply_indoor_rescale → not eligible (outdoor < ceiling)
     blade_compute_solid_half,
     nullptr,                  // compute_colors → use generic (Q24)
@@ -1184,9 +1180,6 @@ inline SpawnGateOutput palm_run_gate(MachineCtx* c, int32_t gx, int32_t gz) {
     return { gate.ok, gate.seed, gate.slot, gate.theme_idx };
 }
 
-inline const float* palm_get_theme_tier_weights(uint32_t theme_idx) {
-    return THEMES[theme_idx].tier_wt_palm;
-}
 
 inline constexpr uint32_t PALM_INDOOR_RESCALE_PARAMS[] = {
     PalmIdx::HEIGHT, PalmIdx::BASE_R, PalmIdx::TOP_R, PalmIdx::BARK_DEPTH,
@@ -1273,7 +1266,7 @@ inline void palm_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Queu
 }
 
 inline constexpr EntityFamilyAdapter PALM_ADAPTER = {
-    palm_run_gate, palm_get_theme_tier_weights,
+    palm_run_gate,
     palm_apply_indoor_rescale,
     palm_compute_solid_half, palm_compute_colors,
     palm_write_active, palm_write_gpu, nullptr,
@@ -1397,9 +1390,6 @@ inline SpawnGateOutput cactus_run_gate(MachineCtx* c, int32_t gx, int32_t gz) {
     return { gate.ok, gate.seed, gate.slot, gate.theme_idx };
 }
 
-inline const float* cactus_get_theme_tier_weights(uint32_t theme_idx) {
-    return THEMES[theme_idx].tier_wt_cactus;
-}
 
 inline void cactus_compute_solid_half(EntityInstance& inst, const TierProfile&) {
     inst.solid_half = inst.params[CactusIdx::RADIUS] + 0.5f;
@@ -1448,7 +1438,7 @@ inline void cactus_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Qu
 }
 
 inline constexpr EntityFamilyAdapter CACTUS_ADAPTER = {
-    cactus_run_gate, cactus_get_theme_tier_weights,
+    cactus_run_gate,
     nullptr,                              // apply_indoor_rescale → not eligible
     cactus_compute_solid_half, nullptr,   // compute_colors → use generic (Q24)
     cactus_write_active, cactus_write_gpu, nullptr,

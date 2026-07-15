@@ -190,7 +190,10 @@ struct EntityInstance {
 //
 struct EntityFamilyAdapter {
     SpawnGateOutput(*run_gate)(MachineCtx* c, int32_t gx, int32_t gz);
-    const float* (*get_theme_tier_weights)(uint32_t theme_idx);
+    // Q5: the per-family get_theme_tier_weights fn-ptr is gone — tier weights
+    // now come from the ONE theme_tier_weights(theme_idx, traits.family_id)
+    // accessor (population_themes.hpp), keyed on the family the adapter's
+    // traits already carry. No per-family plug needed.
     void (*apply_indoor_rescale)(EntityInstance& inst, float ceiling_h);
     void (*compute_solid_half)(EntityInstance& inst, const TierProfile& tier);
     void (*compute_colors)(EntityInstance& inst, const EntityFamilyTraits& traits, const TierProfile& tier);

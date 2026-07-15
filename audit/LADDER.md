@@ -2919,6 +2919,26 @@ exactly 17 (fills the DTO, zero margin) — the guard makes that structural
 fact enforced, not incidental. No behavior change (guard only).
 GATE: gate-only (free guard). glaw1 GREEN; score census GREEN; clean.
 
+=== commit 7 — Q5: one tier-weight accessor (the plugs collapse) ===
+The 9 per-family *_get_theme_tier_weights plugs collapse into ONE accessor
+theme_tier_weights(theme_idx, family_id) (population_themes.hpp) — a
+family->member switch/map. The generic pipeline keys it on
+traits.family_id, which EntityFamilyTraits already carries
+(entity_types.hpp:133), so the consumer is clean; the get_theme_tier_
+weights fn-ptr is REMOVED from EntityFamilyAdapter and from all 9 positional
+initializers, and the 9 wrappers are deleted. Tables untouched; bit-safe
+(same const float* into the PopulationTheme row). BREADTH NOTE: this is the
+batch's widest commit — 6 files (population_themes/entity_types/entity_
+pipeline/entities/spheres/cube_behaviors), a struct change + 9 initializers.
+It is NOT riskier for it: the adapter fn-ptrs are type-distinct, so any
+positional misalignment is a glaw1 compile error, not a silent swap — no
+silent-bug surface. Ribbon's inline tier_wt_ribbon use is bespoke (not an
+adapter plug), left as-is. Fixed a stale THEMES boundary comment.
+GATE: gate-only (pointer return). glaw1 GREEN (generic + struct/init
+alignment + zero dangling refs + call-site resolves); score census GREEN;
+encodings clean; residual get_theme_tier_weights refs are comments only.
+Behavior-identical.
+
 ## TERRAIN-2 — SKIRTS (side excursion; weld #2; own rig-gated commit)
 Jean's order: skirt the terrain patch mesh (plain patch edges) to hide
 inter-patch cracks — precision AND LOD/T-junction — with ONE mechanism.

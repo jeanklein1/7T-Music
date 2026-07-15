@@ -524,7 +524,6 @@ inline SpawnGateOutput cube_run_gate(MachineCtx* c, int32_t gx, int32_t gz) {
         CubeConfig::MOOD_MULTIPLIER, PopFamily::CUBE, "cube");
     return { gate.ok, gate.seed, gate.slot, gate.theme_idx };
 }
-inline const float* cube_get_theme_tier_weights(uint32_t ti) { return THEMES[ti].tier_wt_cube; }
 
 inline void cube_compute_solid_half(EntityInstance& inst, const TierProfile&) {
     inst.solid_half = inst.params[CubeIdx::BODY_RADIUS];
@@ -592,7 +591,7 @@ inline void cube_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Queu
 }
 
 inline constexpr EntityFamilyAdapter CUBE_ADAPTER = {
-    cube_run_gate, cube_get_theme_tier_weights,
+    cube_run_gate,
     nullptr,                              // apply_indoor_rescale → not eligible (floaters, not grounded)
     cube_compute_solid_half, cube_compute_colors,
     cube_write_active, cube_write_gpu, nullptr,

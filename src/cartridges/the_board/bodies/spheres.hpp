@@ -166,7 +166,6 @@ inline SpawnGateOutput sphere_run_gate(MachineCtx* c, int32_t gx, int32_t gz) {
         SphereConfig::MOOD_MULTIPLIER, PopFamily::SPHERE, "sph");
     return { gate.ok, gate.seed, gate.slot, gate.theme_idx };
 }
-inline const float* sphere_get_theme_tier_weights(uint32_t ti) { return THEMES[ti].tier_wt_sphere; }
 
 inline void sphere_compute_solid_half(EntityInstance& inst, const TierProfile&) {
     inst.solid_half = inst.params[SphIdx::BODY_RADIUS] + inst.params[SphIdx::ORBIT_RADIUS];
@@ -211,7 +210,7 @@ inline void sphere_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Qu
 }
 
 inline constexpr EntityFamilyAdapter SPHERE_ADAPTER = {
-    sphere_run_gate, sphere_get_theme_tier_weights,
+    sphere_run_gate,
     nullptr,                              // apply_indoor_rescale → not eligible (floaters, not grounded)
     sphere_compute_solid_half, sphere_compute_colors,
     sphere_write_active, sphere_write_gpu, nullptr,
