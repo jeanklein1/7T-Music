@@ -3273,6 +3273,37 @@ shadow-VS + VBL); part 2c the genuine SPECIALS stay bespoke (patch-terrain +
 USE_PATCH_INDIRECTION override, zone-extrusion, ribbon, orb, fade, gallery-frame,
 dual-FS wall-painting) — flagged, not collapsed.
 
+=== C3 (part 2b — the RENDER side, SHADOW/DEPTH category) — the shadow builder ===
+(Cut after part 2a rigged green.) The 13 shadow pipelines (patch_terrain, pawn,
+sphere, monolith, arch, column, palm, cactus, blade, pyramid, shell, ribbon,
+zone_extrusion) routed through a SECOND builder makeShadow(label, dbgLabel,
+vsEntry, vbl*, cull, out&) inside the shadow cluster block, capturing
+shadowRenderLayout + shadowDepth (Depth32Float shadow-map state). Entry strings
+verbatim; same 13 pipelines; no binding changes. Per-format VBL construction
+(shadowMeshVBL 24 / shadowArchVBL 40 / shadowShellVBL 36 / zone 44 / bufferless)
+stays inline — the fork. All 13 cull modes verified against the original (patch/
+sphere/monolith/arch/pyramid/zone Back; pawn/column/palm/cactus/blade/shell/ribbon
+None). Collapsed the shadow-shell's redundant double-nested indoor_shell gate.
+The 2 ORPHAN shadows (shadow_gallery_frame, shadow_wall_painting) stay bespoke,
+embedded in their gallery/wall-painting special blocks — untouched (2 of the 4
+orphans; their removal is C2).
+DISCIPLINE 2 (the category boundary): makeShadow is a SEPARATE builder from
+makeEntity, NOT makeEntity(isShadow=true). Color-vs-depth is a real boundary —
+different layout (shadowRenderLayout), different depth state (Depth32Float shadow
+map vs the main depth), and NO fragment. Folding them into one builder with an
+isShadow flag would bury that edge under a branch; two builders keep it explicit.
+GATE: glaw1 GREEN (13 makeShadow calls; residual 13 CreateRenderPipeline = 9
+bespoke specials + 2 orphan shadows + the 2 builder lambdas). HELD for Jean's
+BOOT CHECK (all shadow pipelines create) + pixel-identical rig (shadows are
+descriptor-sensitive: a wrong cull would show as shadow acne / peter-panning).
+GRAPH EDGE REVEALED: the shadow/depth category is the ENTITY category projected
+onto depth — same families, same vertex formats, same Back/None cull split, minus
+the fragment shader + color target, plus the Depth32Float shadow-map depth state.
+So the render half has exactly TWO node-types (makeEntity, makeShadow), and the
+shadow half = the color half with the color stripped and the depth swapped. The
+two builders ARE the render graph's node-types; the specials (part 2c) are the
+non-conforming remainder that keeps its own shape.
+
 ## TERRAIN-2 — SKIRTS (side excursion; weld #2; own rig-gated commit)
 Jean's order: skirt the terrain patch mesh (plain patch edges) to hide
 inter-patch cracks — precision AND LOD/T-junction — with ONE mechanism.

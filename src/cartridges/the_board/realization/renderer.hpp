@@ -2158,6 +2158,35 @@ namespace t7 {
                     shadowDepth.depthWriteEnabled = true;
                     shadowDepth.depthCompare = wgpu::CompareFunction::Less;
 
+                    // C3-render (shadow/depth category): the builder every shadow pipeline
+                    // shares — shadowRenderLayout + shadowDepth (Depth32Float shadow map) +
+                    // NO fragment (depth-only) + TriangleList + CCW. It is a SEPARATE builder
+                    // from makeEntity (not one with an isShadow flag): color-vs-depth is a
+                    // real category boundary (different layout, different depth state, no FS).
+                    // Forks are parameters: shadow-VS (verbatim), VBL, cullMode — same
+                    // Back/None split as the entity family (single-sided column/palm/cactus/
+                    // blade + pawn/ribbon/shell → None; solids → Back).
+                    auto makeShadow = [&](const char* label, const char* dbgLabel, const char* vsEntry,
+                                          const wgpu::VertexBufferLayout* vbl, wgpu::CullMode cull,
+                                          wgpu::RenderPipeline& out) -> bool {
+                        wgpu::RenderPipelineDescriptor desc{};
+                        desc.label = dbgLabel;
+                        desc.layout = shadowRenderLayout;
+                        desc.vertex.module = shaderModule_;
+                        desc.vertex.entryPoint = vsEntry;
+                        desc.vertex.bufferCount = vbl ? 1u : 0u;
+                        desc.vertex.buffers = vbl;
+                        desc.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
+                        desc.primitive.cullMode = cull;
+                        desc.primitive.frontFace = wgpu::FrontFace::CCW;
+                        desc.depthStencil = &shadowDepth;
+                        desc.fragment = nullptr;
+                        return tPipe(label, [&]() {
+                            out = device_.CreateRenderPipeline(&desc);
+                            return out != nullptr;
+                        });
+                    };
+
                     // MeshVertex layout (pos+normal) for sphere shadow
                     std::array<wgpu::VertexAttribute, 2> shadowMeshAttrs{};
                     shadowMeshAttrs[0].format = wgpu::VertexFormat::Float32x3;
@@ -2173,90 +2202,20 @@ namespace t7 {
                     shadowMeshVBL.attributeCount = shadowMeshAttrs.size();
                     shadowMeshVBL.attributes = shadowMeshAttrs.data();
 
-                    // Shadow Patch Terrain (instanced, no vertex buffer)
-                    {
-                        wgpu::RenderPipelineDescriptor desc{};
-                        desc.label = "Shadow Patch Terrain";
-                        desc.layout = shadowRenderLayout;
-                        desc.vertex.module = shaderModule_;
-                        desc.vertex.entryPoint = Entry::SHADOW_PATCH_TERRAIN_VS;
-                        desc.vertex.bufferCount = 0;
-                        desc.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
-                        desc.primitive.cullMode = wgpu::CullMode::Back;
-                        desc.primitive.frontFace = wgpu::FrontFace::CCW;
-                        desc.depthStencil = &shadowDepth;
-                        desc.fragment = nullptr;
+                    // Shadow patch-terrain (bufferless, Back) + pawn (bufferless, None).
+                    if (!makeShadow("shadow_patch_terrain", "Shadow Patch Terrain", Entry::SHADOW_PATCH_TERRAIN_VS,
+                        nullptr, wgpu::CullMode::Back, shadowPatchTerrainPipeline_)) return false;
+                    if (!makeShadow("shadow_pawn", "Shadow Pawn", Entry::SHADOW_PAWN_VS,
+                        nullptr, wgpu::CullMode::None, shadowPawnPipeline_)) return false;
 
-                        if (!tPipe("shadow_patch_terrain", [&]() {
-                            shadowPatchTerrainPipeline_ = device_.CreateRenderPipeline(&desc);
-                            return shadowPatchTerrainPipeline_ != nullptr;
-                        })) return false;
+                    // Shadow sphere + monolith (MeshVertex, Back).
+                    if constexpr (ROSTER.sphere) {  // ROSTER-GATE sphere (a') — FXC skipped when disabled (DEMO-1c)
+                    if (!makeShadow("shadow_sphere", "Shadow Sphere", Entry::SHADOW_SPHERE_VS,
+                        &shadowMeshVBL, wgpu::CullMode::Back, shadowSpherePipeline_)) return false;
                     }
-
-                    // Shadow Pawn (no vertex buffer, vertex_index)
-                    {
-                        wgpu::RenderPipelineDescriptor desc{};
-                        desc.label = "Shadow Pawn";
-                        desc.layout = shadowRenderLayout;
-                        desc.vertex.module = shaderModule_;
-                        desc.vertex.entryPoint = Entry::SHADOW_PAWN_VS;
-                        desc.vertex.bufferCount = 0;
-                        desc.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
-                        desc.primitive.cullMode = wgpu::CullMode::None;
-                        desc.primitive.frontFace = wgpu::FrontFace::CCW;
-                        desc.depthStencil = &shadowDepth;
-                        desc.fragment = nullptr;
-
-                        if (!tPipe("shadow_pawn", [&]() {
-                            shadowPawnPipeline_ = device_.CreateRenderPipeline(&desc);
-                            return shadowPawnPipeline_ != nullptr;
-                        })) return false;
-                    }
-
-                    // Shadow Sphere (MeshVertex buffer)
-                    {
-                        wgpu::RenderPipelineDescriptor desc{};
-                        desc.label = "Shadow Sphere";
-                        desc.layout = shadowRenderLayout;
-                        desc.vertex.module = shaderModule_;
-                        desc.vertex.entryPoint = Entry::SHADOW_SPHERE_VS;
-                        desc.vertex.bufferCount = 1;
-                        desc.vertex.buffers = &shadowMeshVBL;
-                        desc.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
-                        desc.primitive.cullMode = wgpu::CullMode::Back;
-                        desc.primitive.frontFace = wgpu::FrontFace::CCW;
-                        desc.depthStencil = &shadowDepth;
-                        desc.fragment = nullptr;
-
-                        if constexpr (ROSTER.sphere) {  // ROSTER-GATE sphere (a') — FXC skipped when disabled (DEMO-1c)
-                        if (!tPipe("shadow_sphere", [&]() {
-                            shadowSpherePipeline_ = device_.CreateRenderPipeline(&desc);
-                            return shadowSpherePipeline_ != nullptr;
-                        })) return false;
-                        }
-                    }
-
-                    // Shadow Monolith (same MeshVertex buffer, different VS)
-                    {
-                        wgpu::RenderPipelineDescriptor desc{};
-                        desc.label = "Shadow Monolith";
-                        desc.layout = shadowRenderLayout;
-                        desc.vertex.module = shaderModule_;
-                        desc.vertex.entryPoint = Entry::SHADOW_MONOLITH_VS;
-                        desc.vertex.bufferCount = 1;
-                        desc.vertex.buffers = &shadowMeshVBL;
-                        desc.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
-                        desc.primitive.cullMode = wgpu::CullMode::Back;
-                        desc.primitive.frontFace = wgpu::FrontFace::CCW;
-                        desc.depthStencil = &shadowDepth;
-                        desc.fragment = nullptr;
-
-                        if constexpr (ROSTER.cube) {  // ROSTER-GATE cube (a') — FXC skipped when disabled (DEMO-1c)
-                        if (!tPipe("shadow_monolith", [&]() {
-                            shadowMonolithPipeline_ = device_.CreateRenderPipeline(&desc);
-                            return shadowMonolithPipeline_ != nullptr;
-                        })) return false;
-                        }
+                    if constexpr (ROSTER.cube) {  // ROSTER-GATE cube (a') — FXC skipped when disabled (DEMO-1c)
+                    if (!makeShadow("shadow_monolith", "Shadow Monolith", Entry::SHADOW_MONOLITH_VS,
+                        &shadowMeshVBL, wgpu::CullMode::Back, shadowMonolithPipeline_)) return false;
                     }
 
                     // Shadow Arch (ArchVertex buffer: pos+normal+color+arch_index, stride 40)
@@ -2281,79 +2240,32 @@ namespace t7 {
                         shadowArchVBL.attributeCount = shadowArchAttrs.size();
                         shadowArchVBL.attributes = shadowArchAttrs.data();
 
-                        wgpu::RenderPipelineDescriptor desc{};
-                        desc.label = "Shadow Catenary Arch";
-                        desc.layout = shadowRenderLayout;
-                        desc.vertex.module = shaderModule_;
-                        desc.vertex.entryPoint = Entry::SHADOW_ARCH_VS;
-                        desc.vertex.bufferCount = 1;
-                        desc.vertex.buffers = &shadowArchVBL;
-                        desc.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
-                        desc.primitive.cullMode = wgpu::CullMode::Back;
-                        desc.primitive.frontFace = wgpu::FrontFace::CCW;
-                        desc.depthStencil = &shadowDepth;
-                        desc.fragment = nullptr;
-
+                        // arch/column/palm/cactus/blade/pyramid shadows — same ArchVertex
+                        // format; cull matches the color pass (arch + pyramid Back, the
+                        // single-sided column/palm/cactus/blade None).
                         if constexpr (ROSTER.arch) {  // ROSTER-GATE arch (a') — FXC skipped when disabled (DEMO-1c)
-                        if (!tPipe("shadow_arch", [&]() {
-                            shadowArchPipeline_ = device_.CreateRenderPipeline(&desc);
-                            return shadowArchPipeline_ != nullptr;
-                        })) return false;
+                        if (!makeShadow("shadow_arch", "Shadow Catenary Arch", Entry::SHADOW_ARCH_VS,
+                            &shadowArchVBL, wgpu::CullMode::Back, shadowArchPipeline_)) return false;
                         }
-
                         if constexpr (ROSTER.column || ROSTER.antenna) {  // ROSTER-GATE column+antenna (shared pipelines) (a') — FXC skipped when disabled (DEMO-1c)
-                        if (!tPipe("shadow_column", [&]() {
-                            // Shadow Column — same vertex format, different VS
-                            desc.label = "Shadow Generative Column";
-                            desc.vertex.entryPoint = Entry::SHADOW_COLUMN_VS;
-                            desc.primitive.cullMode = wgpu::CullMode::None;
-                            shadowColumnPipeline_ = device_.CreateRenderPipeline(&desc);
-                            return shadowColumnPipeline_ != nullptr;
-                        })) return false;
+                        if (!makeShadow("shadow_column", "Shadow Generative Column", Entry::SHADOW_COLUMN_VS,
+                            &shadowArchVBL, wgpu::CullMode::None, shadowColumnPipeline_)) return false;
                         }
-
                         if constexpr (ROSTER.palm) {  // ROSTER-GATE palm (a') — FXC skipped when disabled (DEMO-1c)
-                        if (!tPipe("shadow_palm", [&]() {
-                            // Shadow Palm — same vertex format, no culling
-                            desc.label = "Shadow Palm Tree";
-                            desc.vertex.entryPoint = Entry::SHADOW_PALM_VS;
-                            desc.primitive.cullMode = wgpu::CullMode::None;
-                            shadowPalmPipeline_ = device_.CreateRenderPipeline(&desc);
-                            return shadowPalmPipeline_ != nullptr;
-                        })) return false;
+                        if (!makeShadow("shadow_palm", "Shadow Palm Tree", Entry::SHADOW_PALM_VS,
+                            &shadowArchVBL, wgpu::CullMode::None, shadowPalmPipeline_)) return false;
                         }
-
                         if constexpr (ROSTER.cactus) {  // ROSTER-GATE cactus (a') — FXC skipped when disabled (DEMO-1c)
-                        if (!tPipe("shadow_cactus", [&]() {
-                            // Shadow Cactus
-                            desc.label = "Shadow Cactus";
-                            desc.vertex.entryPoint = Entry::SHADOW_CACTUS_VS;
-                            desc.primitive.cullMode = wgpu::CullMode::None;
-                            shadowCactusPipeline_ = device_.CreateRenderPipeline(&desc);
-                            return shadowCactusPipeline_ != nullptr;
-                        })) return false;
+                        if (!makeShadow("shadow_cactus", "Shadow Cactus", Entry::SHADOW_CACTUS_VS,
+                            &shadowArchVBL, wgpu::CullMode::None, shadowCactusPipeline_)) return false;
                         }
-
                         if constexpr (ROSTER.blade) {  // ROSTER-GATE blade (a') — FXC skipped when disabled (DEMO-1c)
-                        if (!tPipe("shadow_blade", [&]() {
-                            // Shadow Blade Cluster
-                            desc.label = "Shadow Blade Cluster";
-                            desc.vertex.entryPoint = Entry::SHADOW_BLADE_VS;
-                            desc.primitive.cullMode = wgpu::CullMode::None;
-                            shadowBladePipeline_ = device_.CreateRenderPipeline(&desc);
-                            return shadowBladePipeline_ != nullptr;
-                        })) return false;
+                        if (!makeShadow("shadow_blade", "Shadow Blade Cluster", Entry::SHADOW_BLADE_VS,
+                            &shadowArchVBL, wgpu::CullMode::None, shadowBladePipeline_)) return false;
                         }
-
                         if constexpr (ROSTER.pyramid) {  // ROSTER-GATE pyramid (a') — FXC skipped when disabled (DEMO-1c)
-                        if (!tPipe("shadow_pyramid", [&]() {
-                            // Shadow Pyramid — same vertex format, Back culling
-                            desc.label = "Shadow Generative Pyramid";
-                            desc.vertex.entryPoint = Entry::SHADOW_PYRAMID_VS;
-                            desc.primitive.cullMode = wgpu::CullMode::Back;
-                            shadowPyramidPipeline_ = device_.CreateRenderPipeline(&desc);
-                            return shadowPyramidPipeline_ != nullptr;
-                        })) return false;
+                        if (!makeShadow("shadow_pyramid", "Shadow Generative Pyramid", Entry::SHADOW_PYRAMID_VS,
+                            &shadowArchVBL, wgpu::CullMode::Back, shadowPyramidPipeline_)) return false;
                         }
                     }
 
@@ -2376,52 +2288,19 @@ namespace t7 {
                         shadowShellVBL.attributeCount = shadowShellAttrs.size();
                         shadowShellVBL.attributes = shadowShellAttrs.data();
 
-                        wgpu::RenderPipelineDescriptor desc{};
-                        desc.label = "Shadow Indoor Shell";
-                        desc.layout = shadowRenderLayout;
-                        desc.vertex.module = shaderModule_;
-                        desc.vertex.entryPoint = Entry::SHADOW_SHELL_VS;
-                        desc.vertex.bufferCount = 1;
-                        desc.vertex.buffers = &shadowShellVBL;
-                        desc.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
-                        desc.primitive.cullMode = wgpu::CullMode::None;
-                        desc.primitive.frontFace = wgpu::FrontFace::CCW;
-                        desc.depthStencil = &shadowDepth;
-                        desc.fragment = nullptr;
-
                         // ROSTER-GATE indoor_shell (a) — SEPARABLE: skip the
                         // shadow-shell pipeline too. draw_shadow_shell self-gates
                         // on count==0 (shared helper's early-out).
-                        if constexpr (ROSTER.indoor_shell) {
-                            if constexpr (ROSTER.indoor_shell) {  // ROSTER-GATE indoor_shell (a') — FXC skipped when disabled (DEMO-1c)
-                            if (!tPipe("shadow_shell", [&]() {
-                                shadowShellPipeline_ = device_.CreateRenderPipeline(&desc);
-                                return shadowShellPipeline_ != nullptr;
-                            })) return false;
-                            }
+                        if constexpr (ROSTER.indoor_shell) {  // ROSTER-GATE indoor_shell (a') — FXC skipped when disabled (DEMO-1c)
+                        if (!makeShadow("shadow_shell", "Shadow Indoor Shell", Entry::SHADOW_SHELL_VS,
+                            &shadowShellVBL, wgpu::CullMode::None, shadowShellPipeline_)) return false;
                         }
                     }
 
-                    // Shadow Ribbon (no vertex buffer, GPU-generated from vertex_index)
-                    {
-                        wgpu::RenderPipelineDescriptor desc{};
-                        desc.label = "Shadow Sky Ribbon";
-                        desc.layout = shadowRenderLayout;
-                        desc.vertex.module = shaderModule_;
-                        desc.vertex.entryPoint = Entry::SHADOW_RIBBON_VS;
-                        desc.vertex.bufferCount = 0;
-                        desc.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
-                        desc.primitive.cullMode = wgpu::CullMode::None;
-                        desc.primitive.frontFace = wgpu::FrontFace::CCW;
-                        desc.depthStencil = &shadowDepth;
-                        desc.fragment = nullptr;
-
-                        if constexpr (ROSTER.ribbon) {  // ROSTER-GATE ribbon (a') — FXC skipped when disabled (DEMO-1c)
-                        if (!tPipe("shadow_ribbon", [&]() {
-                            shadowRibbonPipeline_ = device_.CreateRenderPipeline(&desc);
-                            return shadowRibbonPipeline_ != nullptr;
-                        })) return false;
-                        }
+                    // Shadow ribbon (bufferless, GPU-generated from vertex_index; None).
+                    if constexpr (ROSTER.ribbon) {  // ROSTER-GATE ribbon (a') — FXC skipped when disabled (DEMO-1c)
+                    if (!makeShadow("shadow_ribbon", "Shadow Sky Ribbon", Entry::SHADOW_RIBBON_VS,
+                        nullptr, wgpu::CullMode::None, shadowRibbonPipeline_)) return false;
                     }
 
                     // Shadow Zone Extrusion (CellMeshVertex buffer, GoL zones)
@@ -2446,24 +2325,9 @@ namespace t7 {
                         vbl.attributeCount = attrs.size();
                         vbl.attributes = attrs.data();
 
-                        wgpu::RenderPipelineDescriptor desc{};
-                        desc.label = "Shadow Zone Extrusion";
-                        desc.layout = shadowRenderLayout;
-                        desc.vertex.module = shaderModule_;
-                        desc.vertex.entryPoint = Entry::SHADOW_ZONE_EXTRUSION_VS;
-                        desc.vertex.bufferCount = 1;
-                        desc.vertex.buffers = &vbl;
-                        desc.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
-                        desc.primitive.cullMode = wgpu::CullMode::Back;
-                        desc.primitive.frontFace = wgpu::FrontFace::CCW;
-                        desc.depthStencil = &shadowDepth;
-                        desc.fragment = nullptr;
-
                         if constexpr (ROSTER.gol) {  // ROSTER-GATE gol (a') — FXC skipped when disabled (DEMO-1c)
-                        if (!tPipe("shadow_zone_extrusion", [&]() {
-                            shadowZoneExtrusionPipeline_ = device_.CreateRenderPipeline(&desc);
-                            return shadowZoneExtrusionPipeline_ != nullptr;
-                        })) return false;
+                        if (!makeShadow("shadow_zone_extrusion", "Shadow Zone Extrusion", Entry::SHADOW_ZONE_EXTRUSION_VS,
+                            &vbl, wgpu::CullMode::Back, shadowZoneExtrusionPipeline_)) return false;
                         }
                     }
                 }
