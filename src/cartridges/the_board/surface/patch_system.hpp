@@ -662,6 +662,24 @@ inline void build_patch_grid(MachineCtx* c, wgpu::Queue& queue) {
     c->gpuState_.upload_patch_grid(queue, grid);
 }
 
+// ── build_active_patch_set (the (gx,gz) existence set — O(1) lookup) ────
+// Rebuilt from the registry each call — a per-scan LOCAL, NOT a maintained
+// member (evict/compaction keep patches_ correct; this reads it fresh). It
+// enumerates ALL active-count entries (no .valid filter — matching the raw
+// scans it replaces, so existence is bit-identical). Shared by the alloc
+// window scan AND the fullRegen re-roll (killing that inner scan's O(N^2)).
+// find_patch stays the O(N) single-lookup handle — a persistent index for
+// one lookup isn't worth an alloc/evict/compaction invariant. Bit-safe:
+// existence, not value.
+inline std::unordered_set<GridKey, GridKeyHash> build_active_patch_set(MachineCtx* c) {
+    std::unordered_set<GridKey, GridKeyHash> set;
+    set.reserve(c->world_state_.active_patch_count);
+    for (uint32_t i = 0; i < c->world_state_.active_patch_count; i++) {
+        set.insert({ c->patch_system_state_.patches_[i].grid_x, c->patch_system_state_.patches_[i].grid_z });
+    }
+    return set;
+}
+
 // --- Patch streaming: determine active 7×7 grid, generate new patches ---
 // THE CONDUCTOR (Phase R stamp, R-c): the per-frame step — recenter,
 // eviction, allocation, spawn + generation budgets, visibility
@@ -727,14 +745,13 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
             if (c->mood_state_.back_portal_pending) {
                 force_spawn_back_portal(&mood_deps_, queue, *c);
             }
+            // Built ONCE before the window loop: bit-identical to the old
+            // per-cell O(N) scan (each cell is unique, so a patch added at an
+            // earlier cell never matches a later one). Kills the O(N^2).
+            auto existingPatches = build_active_patch_set(c);
             for (int32_t gz = centerZ - rr; gz <= centerZ + rr; gz++) {
                 for (int32_t gx = centerX - rr; gx <= centerX + rr; gx++) {
-                    bool found = false;
-                    for (uint32_t i = 0; i < c->world_state_.active_patch_count; i++) {
-                        if (c->patch_system_state_.patches_[i].grid_x == gx && c->patch_system_state_.patches_[i].grid_z == gz) {
-                            found = true; break;
-                        }
-                    }
+                    bool found = existingPatches.count({ gx, gz }) > 0;
                     if (!found && c->world_state_.free_layer_count > 0) {
                         uint32_t layer = alloc_layer(c);
                         c->patch_system_state_.patches_[c->world_state_.active_patch_count] = ActivePatch{};
@@ -808,11 +825,7 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
         float half = PATCH_EXTENT * 0.5f;
 
         // O(1) patch existence lookup (replaces O(N) inner scan)
-        std::unordered_set<GridKey, GridKeyHash> activePatchSet;
-        activePatchSet.reserve(c->world_state_.active_patch_count);
-        for (uint32_t i = 0; i < c->world_state_.active_patch_count; i++) {
-            activePatchSet.insert({ c->patch_system_state_.patches_[i].grid_x, c->patch_system_state_.patches_[i].grid_z });
-        }
+        auto activePatchSet = build_active_patch_set(c);
 
         struct AllocCandidate { int32_t gx, gz; float dist2; };
         AllocCandidate candidates[MAX_PATCHES];

@@ -2863,6 +2863,21 @@ score census GREEN; encodings clean. Behavior-identical; rig smoke-check
 optional (a baked-sampler-path commit — first place to look if it twitches).
 THE CONDUCTOR CHAPTER (Q1) IS COMPLETE. Breakpoint: after-2 (Jean's batch
 review). Dedups + guards (commits 3-8) ride next.
+CHAPTER STAMPED (Jean): build confirms commit 2 behavior-identical.
+
+=== commit 3 — Q2: kill the fullRegen O(N^2) via build_active_patch_set ===
+Extracted the (gx,gz) existence set into build_active_patch_set(c)
+(patch_system.hpp) — the per-scan LOCAL alloc already used inline, now
+shared. fullRegen's raw O(N) inner scan (per window cell) → one pre-loop
+set + O(1) .count(); alloc's inline build → the helper call. find_patch
+UNTOUCHED (stays the O(N) single-lookup handle). Bit-identical: both scans
+enumerate all active-count entries (no .valid filter, matching the
+originals); the pre-loop set == the fresh per-cell scan because each
+window cell is unique (an earlier-added patch never matches a later cell).
+The flagged premise correction holds — NO persistent member, NO alloc/
+evict/compaction invariant introduced (the CARE note was moot).
+GATE: gate-only. glaw1 GREEN (helper + both sites + GridKey visibility +
+no name conflict); score census GREEN; encodings clean. Behavior-identical.
 
 ## TERRAIN-2 — SKIRTS (side excursion; weld #2; own rig-gated commit)
 Jean's order: skirt the terrain patch mesh (plain patch edges) to hide
