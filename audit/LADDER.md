@@ -3069,6 +3069,59 @@ RIG-HELD: pawn walks into a GoL zone -> camera tracks the body (sits with it),
 does NOT lift above it. Per-commit rig stamp; on green, b3 task #52 advances one
 notch (the camera-suppression piece landed ahead of the finite collapse).
 
+## RAYMARCH / SDF EXCAVATION (cleanup chapter, first cut; M5/M6 verified at HEAD)
+Jean RULED raymarch GENUINELY-DEAD -> delete (not dormant-voice). Anchor: the
+TERRAIN-1 M5 isolated-subsystem map + M6 disposition table. Per-item safety gate
+BEFORE deleting: grep-at-HEAD reader-freedom (lines shifted since recon). Three
+read-only verification agents ran the three clusters; ALL returned reader-free
+(no VS/FS/CPU consumer). One agent discrepancy CAUGHT by the gate: IDLE_AMPLITUDE_
+SCALE / HEIGHT_MAX_AMPLITUDE claimed "live" by one agent — grep proved they are
+read ONLY inside the dead chain (coupling_signal_polyphony_to_terrain_amplitude +
+dynamics_terrain_gradient_max, both confined to update_terrain_config). Deletable.
+
+THE TRAP (navigated): two wave systems. The LIVE OVERLAY voice (OVERLAY_WAVES,
+contrib_terrain_waves_at, terrain_wave_overlay_with_gradient, band_*) is DORMANT-
+VOICE (wired into ~24 live VS sites incl. the manifold_overlay_stack) — LEFT
+UNTOUCHED. Only the LEGACY WAVES table (the animated field the SDF marched) was
+cut. Confirmed contrib_terrain_waves_at reads OVERLAY_WAVES, never the legacy WAVES.
+
+=== commit 1 — the dead computation + the writer kernel (SAFE, glaw1-gated) ===
+Deleted (world.wgsl): the legacy WAVES table (WaveComponent/WAVES/WAVE_COUNT/
+HEIGHT_MAX_AMPLITUDE), the amplitude-trajectory feeder (IDLE_AMPLITUDE_SCALE/
+ATTACK/RELEASE + coupling_signal_polyphony_to_terrain_amplitude), the lipschitz
+chain (wave_enabled + dynamics_terrain_gradient_max — WAVES -> gradient_max ->
+lipschitz_factor, a cone-march step bound read by nobody), and the whole
+update_terrain_config @compute kernel (the sole writer of amplitude_scale +
+lipschitz_factor, both unread). Deleted (C++): renderer.hpp Entry::UPDATE_TERRAIN_
+CONFIG + updateTerrainConfigPipeline_ member + dispatch_update_terrain_config +
+its pipeline-creation block; render_passes.hpp the per-frame dispatch call.
+PRESERVE honored: finite-diff normals untouched; the stale "raymarch_get_direction
+convention" comment in the VP builder FIXED (comment only); the "0D split into 5
+entry points" comment corrected to 4.
+GATE: glaw1 GREEN (all C++ buffer/dispatch/pipeline refs resolve after deletion);
+no dangling refs (only breadcrumb comments name the removed symbols). RIG: PIXEL-
+IDENTICAL — the whole limb was write-only, so removing it cannot move a pixel.
+FREED GPU RESOURCE: one per-frame compute dispatch (update_terrain_config,
+1x1x1) eliminated. (The buffer itself is not yet freed — see the flag below.)
+
+FLAG — the buffer/binding/struct HUSK is a LAYOUT/STORAGE-WELD follow-on, NOT cut
+here. The verification is 100% clean (reader-free), but the PHYSICAL removal of
+the terrain_state buffer + bindings 20 (compute) / 220 (fragment) + GPUTerrainState
+struct + the GPUConfig wave fields (wave_enable_mask/wave_freeze_mask/wave_frozen_t)
+is a glaw1-BLIND risk class: (1) bindings 20/220 live in five fixed std::array<
+BindGroupLayoutEntry/BindGroupEntry, 19> blocks (compute layout+group, render
+layout, main+photographer render groups) — removal needs entry re-index + count
+shrink, and glaw1 (syntax-only) cannot validate the runtime bind-group layout;
+(2) removing the GPUConfig wave fields shifts world_seed's offset (LIVE, used
+everywhere) in a heavily-used uniform with NO size assert, WGSL<->C++ lockstep
+required. Same risk class Jean carved out for the complexity texel. After commit 1
+the buffer is a fully-dead husk (no writer, no reader) — behavior-neutral,
+allocated-but-unused. RECOMMEND: its own commit with a CRASH-AWARE rig gate (does
+the app launch — bind-group validation — in addition to pixel-identical), OR fold
+into the complexity-texel storage-weld follow-on. HELD for Jean's ruling.
+(Ordering note: the husk removal must come AFTER commit 2's tint-store removal,
+since that store writes the buffer.)
+
 ## TERRAIN-2 — SKIRTS (side excursion; weld #2; own rig-gated commit)
 Jean's order: skirt the terrain patch mesh (plain patch edges) to hide
 inter-patch cracks — precision AND LOD/T-junction — with ONE mechanism.

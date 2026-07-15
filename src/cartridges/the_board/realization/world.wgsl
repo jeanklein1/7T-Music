@@ -1471,23 +1471,12 @@ struct DesignConfig {
 
 // --- Terrain constants
 
-struct WaveComponent {
-    amplitude: f32,
-    frequency: f32,
-    dir: vec2<f32>,
-    period: f32,
-}
-
-const WAVES = array<WaveComponent, 3>(
-    WaveComponent(1.0, 0.15, vec2(0.7, 0.7),   8.0),
-    WaveComponent(0.5, 0.30, vec2(-0.5, 0.8),  6.0),
-    WaveComponent(0.3, 0.50, vec2(0.9, -0.3),  4.0),
-);
-const WAVE_COUNT: i32 = 3;
-const HEIGHT_MAX_AMPLITUDE: f32 = 2.0;
-const IDLE_AMPLITUDE_SCALE: f32 = 1.0;
-const AMPLITUDE_ATTACK_TIME: f32 = 10.0;
-const AMPLITUDE_RELEASE_TIME: f32 = 5.0;
+// RAYMARCH/SDF EXCAVATION: the legacy WAVES table + WAVE_COUNT +
+// HEIGHT_MAX_AMPLITUDE + the amplitude-trajectory feeder constants
+// (IDLE_AMPLITUDE_SCALE / AMPLITUDE_ATTACK_TIME / AMPLITUDE_RELEASE_TIME)
+// were the animated field the dead SDF marched — read only by the
+// (also removed) update_terrain_config lipschitz chain, never by any live
+// VS/FS. Removed. NOT the live OVERLAY_WAVES voice (that stays).
 const SAND_DUNE_CENTER: vec3<f32> = vec3(0.85, 0.70, 0.50);
 const SAND_DUNE_VARIANCE: f32 = 0.35;
 
@@ -1827,20 +1816,9 @@ fn point_camera_hosted() -> bool {
 // only as a deliberately designed gen-2 idiom; direct shader reads of
 // the signal bypass canvas and bank (sovereignty decision, parked).
 
-fn coupling_signal_polyphony_to_terrain_amplitude(polyphony: f32, traj: Trajectory, dt: f32) -> Trajectory {
-    let goal = IDLE_AMPLITUDE_SCALE * (1.0 + polyphony/4);
-    
-    if (polyphony > 0.0) {
-        // Attack: fast exponential approach
-        let rate = 3.0 / AMPLITUDE_ATTACK_TIME;
-        let new_val = traj.value + (goal - traj.value) * (1.0 - exp(-rate * dt));
-        return Trajectory(new_val, 0.0, 0.0, 0.0);
-    } else {
-        // Release: slow exponential decay
-        let rate = 3.0 / AMPLITUDE_RELEASE_TIME;
-        return trajectory_release(traj, IDLE_AMPLITUDE_SCALE, dt, rate);
-    }
-}
+// RAYMARCH/SDF EXCAVATION: coupling_signal_polyphony_to_terrain_amplitude
+// removed — the amplitude-trajectory feeder into the dead lipschitz limb
+// (its only consumer was update_terrain_config, also removed).
 
 // §3.2 signal → entities
 
@@ -3224,27 +3202,11 @@ fn coupling_gol_next_state(alive: bool, neighbors: i32) -> f32 {
     }
 }
 
-// --- Legacy fixed-wave dynamics (Lipschitz bound still alive) ---
-
-fn wave_enabled(index: i32) -> bool {
-    return (config.wave_enable_mask & (1u << u32(index))) != 0u;
-}
-
-// (dynamics_terrain_wave_single, dynamics_terrain_wave_eval,
-//  wave_frozen, wave_time_for, dynamics_terrain_gradient_single,
-//  dynamics_terrain_gradient_eval, dynamics_terrain_normal removed —
-//  replaced by lattice-based terrain. Only gradient_max survives
-//  for Lipschitz factor computation in update_terrain_config.)
-
-fn dynamics_terrain_gradient_max(amplitude_scale: f32) -> f32 {
-    var max_grad: f32 = 0.0;
-    for (var i: i32 = 0; i < WAVE_COUNT; i++) {
-        if (wave_enabled(i)) {
-            max_grad += WAVES[i].amplitude * WAVES[i].frequency;
-        }
-    }
-    return max_grad * amplitude_scale * HEIGHT_MAX_AMPLITUDE * 1.5;
-}
+// RAYMARCH/SDF EXCAVATION: the legacy fixed-wave dynamics limb removed —
+// wave_enabled + dynamics_terrain_gradient_max were the last survivors of
+// the SDF cone-march (gradient_max → lipschitz_factor, a step bound read by
+// nobody). Whole chain (WAVES → gradient_max → lipschitz) was dead; gone
+// with update_terrain_config.
 
 // §4 DYNAMICS
 // §4.1 PGA MOTOR INTEGRATION
@@ -3367,9 +3329,9 @@ fn compose_camera_position_from_orbit(aim_point: vec3<f32>, cam: CameraState) ->
     return look_at + offset;
 }
 
-// §5.1 0D COMPOSITION — Now split into 5 entry points (§7.1):
-//   update_terrain_config, update_player_agent, update_other_agents,
-//   update_camera, update_sphere
+// §5.1 0D COMPOSITION — split into 4 entry points (§7.1):
+//   update_player_agent, update_other_agents, update_camera, update_sphere
+//   (update_terrain_config removed — RAYMARCH/SDF excavation)
 struct VPMatrix {
     m: mat4x4<f32>,
     light_vp: mat4x4<f32>,
@@ -3381,7 +3343,7 @@ fn build_view_projection_matrix(
     elevation: f32,
     aspect: f32
 ) -> mat4x4<f32> {
-    // --- Camera frame (matches raymarch_get_direction convention)
+    // --- Camera frame (look-direction basis for the rasterization view matrix)
     let cos_el = cos(elevation);
     let sin_el = sin(elevation);
     let cos_az = cos(azimuth);
@@ -5589,29 +5551,10 @@ const ZONE_MESH_MAX_INDICES: u32 = 75000u;
 
 // §7.1 COMPUTE ENTRY POINTS
 // Execution order (critical for correctness):
-@compute @workgroup_size(1)
-fn update_terrain_config() {
-    if (!dynamics_0d_active()) { return; }
-
-    let dt = signal.dt;
-
-    var amplitude_scale = terrain_state.amplitude_scale;
-
-    if (signal_active() && coupling_active(COUPLING_POLYPHONY_TO_AMPLITUDE)) {
-        // DRIVERLESS (M1-C): raw signal.stats[0] substituted with the
-        // neutral 0.0 — amplitude rests at IDLE_AMPLITUDE_SCALE.
-        let poly = 0.0;
-        let traj = trajectories[0];
-        let new_traj = coupling_signal_polyphony_to_terrain_amplitude(poly, traj, dt);
-        trajectories[0] = new_traj;
-        amplitude_scale = new_traj.value;
-    }
-
-    terrain_state.amplitude_scale = amplitude_scale;
-
-    let max_grad = dynamics_terrain_gradient_max(amplitude_scale);
-    terrain_state.lipschitz_factor = sqrt(1.0 + max_grad * max_grad);
-}
+// RAYMARCH/SDF EXCAVATION: update_terrain_config removed — the writer kernel
+// of the dead TerrainState buffer (it wrote amplitude_scale + lipschitz_factor,
+// read by nobody). Its C++ dispatch + pipeline went with it. The terrain_state
+// buffer/bindings/struct husk is a flagged layout-weld follow-on.
 
 // --- Walker terrain normal (forward-difference)
 // POLICY_WALKER_TILT samples — static_base + pyramids + GoL zones

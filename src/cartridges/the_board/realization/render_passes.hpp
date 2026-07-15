@@ -182,10 +182,8 @@ inline void dispatch_compute(MachineCtx* c, wgpu::CommandEncoder& encoder) {
         );
     }
 
-    c->renderer_.dispatch_update_terrain_config(
-        compute,
-        c->gpuState_.compute_entity_group()
-    );
+    // RAYMARCH/SDF EXCAVATION: dispatch_update_terrain_config removed (dead
+    // writer of the TerrainState buffer — no reader).
 
     c->renderer_.dispatch_update_player_agent(
         compute,

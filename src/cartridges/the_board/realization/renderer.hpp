@@ -21,7 +21,6 @@ namespace t7 {
 
         namespace Entry {
             // Compute — split world update (ordered by dependency)
-            constexpr const char* UPDATE_TERRAIN_CONFIG = "update_terrain_config";  // 0D
             constexpr const char* UPDATE_PLAYER_AGENT = "update_player_agent";        // 0D (1 thread, possessed slot)
             constexpr const char* UPDATE_OTHER_AGENTS = "update_other_agents";        // 1D (32 threads, non-possessed slots)
             constexpr const char* UPDATE_CAMERA = "update_camera";                  // 0D
@@ -166,7 +165,6 @@ namespace t7 {
             }
 
             // Compute pipelines -- per-frame (split world update)
-            wgpu::ComputePipeline updateTerrainConfigPipeline_;  // 0D
             wgpu::ComputePipeline updatePlayerAgentPipeline_;    // 0D (1 thread, possessed slot)
             wgpu::ComputePipeline updateOtherAgentsPipeline_;    // 1D (32 threads, non-possessed)
             wgpu::ComputePipeline updateCameraPipeline_;         // 0D
@@ -338,14 +336,8 @@ namespace t7 {
             }
 
 
-            void dispatch_update_terrain_config(
-                wgpu::ComputePassEncoder& pass,
-                wgpu::BindGroup entityBindGroup
-            ) {
-                pass.SetPipeline(updateTerrainConfigPipeline_);
-                pass.SetBindGroup(0, entityBindGroup);
-                pass.DispatchWorkgroups(1, 1, 1);
-            }
+            // RAYMARCH/SDF EXCAVATION: dispatch_update_terrain_config removed
+            // (dead TerrainState writer).
 
             void dispatch_update_player_agent(
                 wgpu::ComputePassEncoder& pass,
@@ -1358,16 +1350,8 @@ namespace t7 {
                     device_.CreatePipelineLayout(&liveContribLayoutDesc);
                 if (!liveContribComputeLayout) return false;
 
-                // Pipeline 1a: update_terrain_config (0D)
-                if (!tPipe("update_terrain_config", [&]() {
-                    wgpu::ComputePipelineDescriptor desc{};
-                    desc.label = "Update Terrain Config (0D)";
-                    desc.layout = computeLayout;
-                    desc.compute.module = shaderModule_;
-                    desc.compute.entryPoint = Entry::UPDATE_TERRAIN_CONFIG;
-                    updateTerrainConfigPipeline_ = device_.CreateComputePipeline(&desc);
-                    return updateTerrainConfigPipeline_ != nullptr;
-                    })) return false;
+                // RAYMARCH/SDF EXCAVATION: update_terrain_config pipeline
+                // removed (dead TerrainState writer kernel).
 
                 // Pipeline 1b: update_player_agent (0D, 1 thread — possessed slot only)
                 // Live-contributor layout — pawn_ground_resolve, terrain_normal_at
