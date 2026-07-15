@@ -3190,6 +3190,51 @@ column_vs/palm_vs/cactus.../blade.../pyramid_vs). ShellVertex is the indoor-shel
 format (ceiling/walls/floor). The "six families, one vertex format" edge was
 implicit in the shared sizeof; it is now compiler-enforced.
 
+=== C3 (part 1 — the COMPUTE side) — the compute-pipeline creation collapse ===
+All 30 compute pipeline creations routed through TWO helpers on Renderer:
+computeLayoutFor(bgl) (wraps a single bind-group layout into a pipeline layout —
+the ~24 dedicated compute pipelines each repeated that 4-line boilerplate) and
+makeComputePipeline(label, dbgLabel, layout, entry, out&) (the uniform creation
+ALL 30 shared: desc.label/layout/module=shaderModule_/entryPoint + Create +
+null-check). HARD CONSTRAINTS honored: every entry string passed VERBATIM as
+Entry::X (the sole C++->shader link); the SAME 30 pipelines are built (the 4
+render orphans are C2's problem, untouched); no pipeline gains/loses a binding.
+VERIFIED: 30 call sites, exactly one CreateComputePipeline remains (inside the
+helper), zero tPipe left in createComputePipelines, all 30 Entry->member pairs
+cross-check by name (UPDATE_CAMERA->updateCameraPipeline_, ...) — the mitigation
+for the one blind axis (entry/member transcription).
+Two boot-only, non-pixel side effects, noted for the rig: (1) the layout-build
+moved just outside the tPipe timing block, so the boot-leaderboard ms for
+dedicated-layout pipelines now excludes the trivial layout creation; (2) repeated
+per-family/per-orb/per-zone `if constexpr (ROSTER.x)` gates consolidated to one
+per group (same compile-time condition; a disabled group now also skips its
+now-pointless layout build — that layout was unused when the pipeline was skipped).
+GATE: glaw1 GREEN. HELD for Jean's BOOT CHECK (all 30 compute pipelines still
+create — the glaw1-blind failure mode is a wrong-but-valid entry string) +
+pixel-identical rig.
+GRAPH EDGE REVEALED: every compute pipeline is a pure (bind-group-layout,
+shader-entry) pair over the ONE shaderModule_ — the descriptor carried no other
+per-pipeline state; that is now literal in makeComputePipeline's signature. The
+LAYOUT is the only fork, and it partitions the 30: 6 world-updates share the
+pre-built liveContrib/compute layouts; ~24 carry dedicated single-BGL layouts
+(patch-gen x3 share patchGenLayout; orb x3 share; zone x2 + zone-mesh x3 share;
+the 6 mesh-gen families each own one). The frame's compute graph = 30 nodes over
+~a dozen distinct bind-group layouts.
+DISCIPLINE-2 FLAG (a REAL FORK, not forced): the 34 RENDER pipelines did NOT fold
+into makeComputePipeline — they RESIST because their descriptors genuinely diverge
+(vertex-buffer layout/stride, topology, cull, depth, blend, dual-FS, the
+USE_PATCH_INDIRECTION override). That resistance is the edge: render pipelines are
+a genuine category carrying real per-pipeline GPU state, NOT "the same thing
+written N times" the way compute is. Deferred to C3 part 2 (own commit) for two
+reasons: (a) risk isolation — a subtle render-descriptor diff is a PIXEL change,
+not glaw1-catchable, unlike compute (which only selects which kernel runs); (b) the
+render side has its OWN sub-collapse to earn its own edge-notes — the entity-render
+pipelines (arch/column/palm/cactus/blade/pyramid + pawn/sphere/monolith) already
+share a mutated desc + ENTITY_FS (an entity-builder candidate), the shadow
+pipelines are a depth-only category, and terrain/zone/orb/fade/gallery/wall-painting
+are the genuinely-unique specials. Per Jean's sequencing (separate commits let the
+rig isolate + keep the edge-notes clean).
+
 ## TERRAIN-2 — SKIRTS (side excursion; weld #2; own rig-gated commit)
 Jean's order: skirt the terrain patch mesh (plain patch edges) to hide
 inter-patch cracks — precision AND LOD/T-junction — with ONE mechanism.

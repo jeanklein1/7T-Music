@@ -164,6 +164,37 @@ namespace t7 {
                 return ok;
             }
 
+            // C3 (cable management): the two collapses every compute pipeline shared.
+            // computeLayoutFor wraps a single bind-group layout into a pipeline layout
+            // (the ~24 dedicated compute pipelines each repeated this 4-line boilerplate).
+            // makeComputePipeline is the uniform creation ALL 30 compute pipelines shared —
+            // a pure (entry-point, pipeline-layout) pair over the one shaderModule_; the
+            // descriptor carried no other per-pipeline state. The FORKS stay at the call
+            // site: which layout, which entry string (passed VERBATIM — the sole C++->shader
+            // link), which member, and the ROSTER gate. (The layout-build moves just outside
+            // the tPipe timing block; the boot-leaderboard ms now excludes the trivial layout
+            // creation — no behavior/pixel effect.)
+            wgpu::PipelineLayout computeLayoutFor(wgpu::BindGroupLayout bgl) {
+                std::array<wgpu::BindGroupLayout, 1> a = { bgl };
+                wgpu::PipelineLayoutDescriptor d{};
+                d.bindGroupLayoutCount = a.size();
+                d.bindGroupLayouts = a.data();
+                return device_.CreatePipelineLayout(&d);
+            }
+            bool makeComputePipeline(const char* label, const char* dbgLabel,
+                                     wgpu::PipelineLayout layout, const char* entry,
+                                     wgpu::ComputePipeline& out) {
+                return tPipe(label, [&]() {
+                    wgpu::ComputePipelineDescriptor desc{};
+                    desc.label = dbgLabel;
+                    desc.layout = layout;
+                    desc.compute.module = shaderModule_;
+                    desc.compute.entryPoint = entry;
+                    out = device_.CreateComputePipeline(&desc);
+                    return out != nullptr;
+                });
+            }
+
             // Compute pipelines -- per-frame (split world update)
             wgpu::ComputePipeline updatePlayerAgentPipeline_;    // 0D (1 thread, possessed slot)
             wgpu::ComputePipeline updateOtherAgentsPipeline_;    // 1D (32 threads, non-possessed)
@@ -1357,15 +1388,8 @@ namespace t7 {
                 // Live-contributor layout — pawn_ground_resolve, terrain_normal_at
                 // call query_ground_walker → contrib_pawn_aura_at → sample_pawn_aura.
                 // The walker-policy heavy path inlines once, for one slot.
-                if (!tPipe("update_player_agent", [&]() {
-                    wgpu::ComputePipelineDescriptor desc{};
-                    desc.label = "Update Player Agent (0D, 1 thread)";
-                    desc.layout = liveContribComputeLayout;
-                    desc.compute.module = shaderModule_;
-                    desc.compute.entryPoint = Entry::UPDATE_PLAYER_AGENT;
-                    updatePlayerAgentPipeline_ = device_.CreateComputePipeline(&desc);
-                    return updatePlayerAgentPipeline_ != nullptr;
-                    })) return false;
+                if (!makeComputePipeline("update_player_agent", "Update Player Agent (0D, 1 thread)",
+                    liveContribComputeLayout, Entry::UPDATE_PLAYER_AGENT, updatePlayerAgentPipeline_)) return false;
 
                 // Pipeline 1c: update_other_agents (1D, 32 threads — non-possessed slots)
                 // Live-contributor layout — query_ground_walker_agent reads aura
@@ -1373,525 +1397,186 @@ namespace t7 {
                 // The walker-policy heavy path is NOT inlined here; algorithmic
                 // behaviors only.
                 if constexpr (ROSTER.wanderers) {  // ROSTER-GATE wanderers (a') — FXC skipped when disabled (DEMO-1c)
-                if (!tPipe("update_other_agents", [&]() {
-                    wgpu::ComputePipelineDescriptor desc{};
-                    desc.label = "Update Other Agents (1D, 32 threads)";
-                    desc.layout = liveContribComputeLayout;
-                    desc.compute.module = shaderModule_;
-                    desc.compute.entryPoint = Entry::UPDATE_OTHER_AGENTS;
-                    updateOtherAgentsPipeline_ = device_.CreateComputePipeline(&desc);
-                    return updateOtherAgentsPipeline_ != nullptr;
-                    })) return false;
+                if (!makeComputePipeline("update_other_agents", "Update Other Agents (1D, 32 threads)",
+                    liveContribComputeLayout, Entry::UPDATE_OTHER_AGENTS, updateOtherAgentsPipeline_)) return false;
                 }
 
                 // Pipeline 1c: update_camera (0D)
-                // Live-contributor layout — the camera clamp now uses
-                // POLICY_FLYER (sphere/cube parity) so it clears
-                // aura-lifted and pulse-lifted ground.
-                if (!tPipe("update_camera", [&]() {
-                    wgpu::ComputePipelineDescriptor desc{};
-                    desc.label = "Update Camera (0D)";
-                    desc.layout = liveContribComputeLayout;
-                    desc.compute.module = shaderModule_;
-                    desc.compute.entryPoint = Entry::UPDATE_CAMERA;
-                    updateCameraPipeline_ = device_.CreateComputePipeline(&desc);
-                    return updateCameraPipeline_ != nullptr;
-                    })) return false;
+                // Live-contributor layout — the camera clamp uses a walker-style
+                // policy that reads the aura texture (sample_pawn_aura).
+                if (!makeComputePipeline("update_camera", "Update Camera (0D)",
+                    liveContribComputeLayout, Entry::UPDATE_CAMERA, updateCameraPipeline_)) return false;
 
                 // Pipeline 1d: update_sphere (0D)
                 // Uses the live-contributor layout so coupling_terrain_to_sphere_orbit_height
                 // can call query_ground_flyer (→ contrib_pawn_aura_at → sample_pawn_aura).
                 if constexpr (ROSTER.sphere) {  // ROSTER-GATE sphere (a') — FXC skipped when disabled (DEMO-1c)
-                if (!tPipe("update_sphere", [&]() {
-                    wgpu::ComputePipelineDescriptor desc{};
-                    desc.label = "Update Sphere (0D)";
-                    desc.layout = liveContribComputeLayout;
-                    desc.compute.module = shaderModule_;
-                    desc.compute.entryPoint = Entry::UPDATE_SPHERE;
-                    updateSpherePipeline_ = device_.CreateComputePipeline(&desc);
-                    return updateSpherePipeline_ != nullptr;
-                    })) return false;
+                if (!makeComputePipeline("update_sphere", "Update Sphere (0D)",
+                    liveContribComputeLayout, Entry::UPDATE_SPHERE, updateSpherePipeline_)) return false;
                 }
 
                 // Pipeline 1e: update_cube (0D)
                 // Same live-contributor layout — update_cube calls
                 // query_ground_flyer directly for hover-base clearance.
                 if constexpr (ROSTER.cube) {  // ROSTER-GATE cube (a') — FXC skipped when disabled (DEMO-1c)
-                if (!tPipe("update_cube", [&]() {
-                    wgpu::ComputePipelineDescriptor desc{};
-                    desc.label = "Update Cube (0D)";
-                    desc.layout = liveContribComputeLayout;
-                    desc.compute.module = shaderModule_;
-                    desc.compute.entryPoint = Entry::UPDATE_CUBE;
-                    updateCubePipeline_ = device_.CreateComputePipeline(&desc);
-                    return updateCubePipeline_ != nullptr;
-                    })) return false;
+                if (!makeComputePipeline("update_cube", "Update Cube (0D)",
+                    liveContribComputeLayout, Entry::UPDATE_CUBE, updateCubePipeline_)) return false;
                 }
 
                 // Pipeline 2: compute_vp (0D)
-                if (!tPipe("compute_vp", [&]() {
-                    wgpu::ComputePipelineDescriptor desc{};
-                    desc.label = "Compute VP Matrix (0D)";
-                    desc.layout = computeLayout;
-                    desc.compute.module = shaderModule_;
-                    desc.compute.entryPoint = Entry::COMPUTE_VP;
-                    computeVPPipeline_ = device_.CreateComputePipeline(&desc);
-                    return computeVPPipeline_ != nullptr;
-                    })) return false;
+                if (!makeComputePipeline("compute_vp", "Compute VP Matrix (0D)",
+                    computeLayout, Entry::COMPUTE_VP, computeVPPipeline_)) return false;
 
                 // Pipeline 10: generate_terrain_indices (2D, one-shot)
-                if (!tPipe("gen_terrain_indices", [&]() {
-                    std::array<wgpu::BindGroupLayout, 1> tigLayouts = {
-                        terrainIndexGenLayout_
-                    };
-
-                    wgpu::PipelineLayoutDescriptor tigLayoutDesc{};
-                    tigLayoutDesc.bindGroupLayoutCount = tigLayouts.size();
-                    tigLayoutDesc.bindGroupLayouts = tigLayouts.data();
-                    wgpu::PipelineLayout tigPipelineLayout = device_.CreatePipelineLayout(&tigLayoutDesc);
-                    if (!tigPipelineLayout) return false;
-
-                    wgpu::ComputePipelineDescriptor desc{};
-                    desc.label = "Generate Terrain Indices (2D, one-shot)";
-                    desc.layout = tigPipelineLayout;
-                    desc.compute.module = shaderModule_;
-                    desc.compute.entryPoint = Entry::GENERATE_TERRAIN_INDICES;
-                    generateTerrainIndicesPipeline_ = device_.CreateComputePipeline(&desc);
-                    return generateTerrainIndicesPipeline_ != nullptr;
-                    })) return false;
+                {
+                    wgpu::PipelineLayout pl = computeLayoutFor(terrainIndexGenLayout_);
+                    if (!pl) return false;
+                    if (!makeComputePipeline("gen_terrain_indices", "Generate Terrain Indices (2D, one-shot)",
+                        pl, Entry::GENERATE_TERRAIN_INDICES, generateTerrainIndicesPipeline_)) return false;
+                }
 
                 // Pipeline 11a: generate_patch_heights (2D, pass 1 — heights only)
-                if (!tPipe("gen_patch_heights", [&]() {
-                    std::array<wgpu::BindGroupLayout, 1> patchLayouts = {
-                        patchGenLayout_
-                    };
-
-                    wgpu::PipelineLayoutDescriptor patchLayoutDesc{};
-                    patchLayoutDesc.bindGroupLayoutCount = patchLayouts.size();
-                    patchLayoutDesc.bindGroupLayouts = patchLayouts.data();
-                    wgpu::PipelineLayout patchPipelineLayout = device_.CreatePipelineLayout(&patchLayoutDesc);
-                    if (!patchPipelineLayout) return false;
-
-                    wgpu::ComputePipelineDescriptor desc{};
-                    desc.label = "Generate Patch Heights (2D, pass 1)";
-                    desc.layout = patchPipelineLayout;
-                    desc.compute.module = shaderModule_;
-                    desc.compute.entryPoint = Entry::GENERATE_PATCH_HEIGHTS;
-                    generatePatchHeightsPipeline_ = device_.CreateComputePipeline(&desc);
-                    return generatePatchHeightsPipeline_ != nullptr;
-                    })) return false;
+                {
+                    wgpu::PipelineLayout pl = computeLayoutFor(patchGenLayout_);
+                    if (!pl) return false;
+                    if (!makeComputePipeline("gen_patch_heights", "Generate Patch Heights (2D, pass 1)",
+                        pl, Entry::GENERATE_PATCH_HEIGHTS, generatePatchHeightsPipeline_)) return false;
+                }
 
                 // Pipeline 11b: generate_patch_gradients (2D, pass 2 — gradients + complexity)
-                if (!tPipe("gen_patch_gradients", [&]() {
-                    std::array<wgpu::BindGroupLayout, 1> patchLayouts = {
-                        patchGenLayout_
-                    };
-
-                    wgpu::PipelineLayoutDescriptor patchLayoutDesc{};
-                    patchLayoutDesc.bindGroupLayoutCount = patchLayouts.size();
-                    patchLayoutDesc.bindGroupLayouts = patchLayouts.data();
-                    wgpu::PipelineLayout patchPipelineLayout = device_.CreatePipelineLayout(&patchLayoutDesc);
-                    if (!patchPipelineLayout) return false;
-
-                    wgpu::ComputePipelineDescriptor desc{};
-                    desc.label = "Generate Patch Gradients (2D, pass 2)";
-                    desc.layout = patchPipelineLayout;
-                    desc.compute.module = shaderModule_;
-                    desc.compute.entryPoint = Entry::GENERATE_PATCH_GRADIENTS;
-                    generatePatchGradientsPipeline_ = device_.CreateComputePipeline(&desc);
-                    return generatePatchGradientsPipeline_ != nullptr;
-                    })) return false;
+                {
+                    wgpu::PipelineLayout pl = computeLayoutFor(patchGenLayout_);
+                    if (!pl) return false;
+                    if (!makeComputePipeline("gen_patch_gradients", "Generate Patch Gradients (2D, pass 2)",
+                        pl, Entry::GENERATE_PATCH_GRADIENTS, generatePatchGradientsPipeline_)) return false;
+                }
 
                 // Pipeline 12: generate_patch_cells (2D, on demand)
-                if (!tPipe("gen_patch_cells", [&]() {
-                    std::array<wgpu::BindGroupLayout, 1> patchLayouts = {
-                        patchGenLayout_
-                    };
-
-                    wgpu::PipelineLayoutDescriptor patchLayoutDesc{};
-                    patchLayoutDesc.bindGroupLayoutCount = patchLayouts.size();
-                    patchLayoutDesc.bindGroupLayouts = patchLayouts.data();
-                    wgpu::PipelineLayout patchPipelineLayout = device_.CreatePipelineLayout(&patchLayoutDesc);
-                    if (!patchPipelineLayout) return false;
-
-                    wgpu::ComputePipelineDescriptor desc{};
-                    desc.label = "Generate Patch Cells (2D, on demand)";
-                    desc.layout = patchPipelineLayout;
-                    desc.compute.module = shaderModule_;
-                    desc.compute.entryPoint = Entry::GENERATE_PATCH_CELLS;
-                    generatePatchCellsPipeline_ = device_.CreateComputePipeline(&desc);
-                    return generatePatchCellsPipeline_ != nullptr;
-                    })) return false;
+                {
+                    wgpu::PipelineLayout pl = computeLayoutFor(patchGenLayout_);
+                    if (!pl) return false;
+                    if (!makeComputePipeline("gen_patch_cells", "Generate Patch Cells (2D, on demand)",
+                        pl, Entry::GENERATE_PATCH_CELLS, generatePatchCellsPipeline_)) return false;
+                }
 
                 // Pipeline 13: compute_ribbon_rings (1D, per frame when ribbon active)
                 if constexpr (ROSTER.ribbon) {  // ROSTER-GATE ribbon (a') — FXC skipped when disabled (DEMO-1c)
-                if (!tPipe("compute_ribbon_rings", [&]() {
-                    std::array<wgpu::BindGroupLayout, 1> rcLayouts = {
-                        ribbonComputeLayout_
-                    };
-
-                    wgpu::PipelineLayoutDescriptor rcLayoutDesc{};
-                    rcLayoutDesc.bindGroupLayoutCount = rcLayouts.size();
-                    rcLayoutDesc.bindGroupLayouts = rcLayouts.data();
-                    wgpu::PipelineLayout rcPipelineLayout = device_.CreatePipelineLayout(&rcLayoutDesc);
-                    if (!rcPipelineLayout) return false;
-
-                    wgpu::ComputePipelineDescriptor desc{};
-                    desc.label = "Compute Ribbon Rings (1D, per frame)";
-                    desc.layout = rcPipelineLayout;
-                    desc.compute.module = shaderModule_;
-                    desc.compute.entryPoint = Entry::COMPUTE_RIBBON_RINGS;
-                    ribbonRingPipeline_ = device_.CreateComputePipeline(&desc);
-                    return ribbonRingPipeline_ != nullptr;
-                    })) return false;
+                    wgpu::PipelineLayout pl = computeLayoutFor(ribbonComputeLayout_);
+                    if (!pl) return false;
+                    if (!makeComputePipeline("compute_ribbon_rings", "Compute Ribbon Rings (1D, per frame)",
+                        pl, Entry::COMPUTE_RIBBON_RINGS, ribbonRingPipeline_)) return false;
                 }
 
                 // Photographer VP compute pipeline (0D, reads pawn → writes VP)
                 if constexpr (ROSTER.gallery) {  // ROSTER-GATE gallery (a') — FXC skipped when disabled (DEMO-1c)
-                if (!tPipe("compute_photographer_vp", [&]() {
-                    std::array<wgpu::BindGroupLayout, 1> layouts = { photographerComputeLayout_ };
-                    wgpu::PipelineLayoutDescriptor pld{};
-                    pld.bindGroupLayoutCount = layouts.size();
-                    pld.bindGroupLayouts = layouts.data();
-                    wgpu::PipelineLayout pl = device_.CreatePipelineLayout(&pld);
+                    wgpu::PipelineLayout pl = computeLayoutFor(photographerComputeLayout_);
                     if (!pl) return false;
-
-                    wgpu::ComputePipelineDescriptor desc{};
-                    desc.label = "Compute Photographer VP (0D)";
-                    desc.layout = pl;
-                    desc.compute.module = shaderModule_;
-                    desc.compute.entryPoint = Entry::COMPUTE_PHOTOGRAPHER_VP;
-                    photographerVPPipeline_ = device_.CreateComputePipeline(&desc);
-                    return photographerVPPipeline_ != nullptr;
-                    })) return false;
+                    if (!makeComputePipeline("compute_photographer_vp", "Compute Photographer VP (0D)",
+                        pl, Entry::COMPUTE_PHOTOGRAPHER_VP, photographerVPPipeline_)) return false;
                 }
 
                 // Entity placement Y-correction pipeline (0D, decoupled from photographer)
-                if (!tPipe("compute_entity_placement", [&]() {
-                    std::array<wgpu::BindGroupLayout, 1> layouts = { entityPlacementComputeLayout_ };
-                    wgpu::PipelineLayoutDescriptor pld{};
-                    pld.bindGroupLayoutCount = layouts.size();
-                    pld.bindGroupLayouts = layouts.data();
-                    wgpu::PipelineLayout pl = device_.CreatePipelineLayout(&pld);
+                {
+                    wgpu::PipelineLayout pl = computeLayoutFor(entityPlacementComputeLayout_);
                     if (!pl) return false;
-
-                    wgpu::ComputePipelineDescriptor desc{};
-                    desc.label = "Compute Entity Placement (0D)";
-                    desc.layout = pl;
-                    desc.compute.module = shaderModule_;
-                    desc.compute.entryPoint = Entry::COMPUTE_ENTITY_PLACEMENT;
-                    entityPlacementPipeline_ = device_.CreateComputePipeline(&desc);
-                    return entityPlacementPipeline_ != nullptr;
-                    })) return false;
+                    if (!makeComputePipeline("compute_entity_placement", "Compute Entity Placement (0D)",
+                        pl, Entry::COMPUTE_ENTITY_PLACEMENT, entityPlacementPipeline_)) return false;
+                }
 
                 // GPU frustum cull pipeline (dedicated layout)
                 {
-                    std::array<wgpu::BindGroupLayout, 1> layouts = { frustumCullLayout_ };
-                    wgpu::PipelineLayoutDescriptor pld{};
-                    pld.bindGroupLayoutCount = layouts.size();
-                    pld.bindGroupLayouts = layouts.data();
-                    wgpu::PipelineLayout pl = device_.CreatePipelineLayout(&pld);
+                    wgpu::PipelineLayout pl = computeLayoutFor(frustumCullLayout_);
                     if (!pl) return false;
-
-                    wgpu::ComputePipelineDescriptor desc{};
-                    desc.label = "Frustum Cull Patches";
-                    desc.layout = pl;
-                    desc.compute.module = shaderModule_;
-                    desc.compute.entryPoint = Entry::FRUSTUM_CULL_PATCHES;
-                    if (!tPipe("frustum_cull_patches", [&]() {
-                        frustumCullPipeline_ = device_.CreateComputePipeline(&desc);
-                        return frustumCullPipeline_ != nullptr;
-                    })) return false;
+                    if (!makeComputePipeline("frustum_cull_patches", "Frustum Cull Patches",
+                        pl, Entry::FRUSTUM_CULL_PATCHES, frustumCullPipeline_)) return false;
                 }
 
                 // Pawn aura compute pipeline (dedicated layout)
-                {
-                    std::array<wgpu::BindGroupLayout, 1> layouts = { pawnAuraComputeLayout_ };
-                    wgpu::PipelineLayoutDescriptor pld{};
-                    pld.bindGroupLayoutCount = layouts.size();
-                    pld.bindGroupLayouts = layouts.data();
-                    wgpu::PipelineLayout pl = device_.CreatePipelineLayout(&pld);
+                if constexpr (ROSTER.pawn_aura) {  // ROSTER-GATE pawn_aura (a') — FXC skipped when disabled (DEMO-1c)
+                    wgpu::PipelineLayout pl = computeLayoutFor(pawnAuraComputeLayout_);
                     if (!pl) return false;
-
-                    wgpu::ComputePipelineDescriptor desc{};
-                    desc.label = "Compute Pawn Aura (2D)";
-                    desc.layout = pl;
-                    desc.compute.module = shaderModule_;
-                    desc.compute.entryPoint = Entry::COMPUTE_PAWN_AURA;
-                    if constexpr (ROSTER.pawn_aura) {  // ROSTER-GATE pawn_aura (a') — FXC skipped when disabled (DEMO-1c)
-                    if (!tPipe("compute_pawn_aura", [&]() {
-                        pawnAuraPipeline_ = device_.CreateComputePipeline(&desc);
-                        return pawnAuraPipeline_ != nullptr;
-                    })) return false;
-                    }
+                    if (!makeComputePipeline("compute_pawn_aura", "Compute Pawn Aura (2D)",
+                        pl, Entry::COMPUTE_PAWN_AURA, pawnAuraPipeline_)) return false;
                 }
 
-                // Orb compute pipelines (init + dynamics share the dedicated orb layout)
-                {
-                    std::array<wgpu::BindGroupLayout, 1> layouts = { orbComputeLayout_ };
-                    wgpu::PipelineLayoutDescriptor pld{};
-                    pld.bindGroupLayoutCount = layouts.size();
-                    pld.bindGroupLayouts = layouts.data();
-                    wgpu::PipelineLayout pl = device_.CreatePipelineLayout(&pld);
+                // Orb compute pipelines (init + dynamics + recolor share the dedicated orb layout)
+                if constexpr (ROSTER.orbs) {  // ROSTER-GATE orbs (a') — FXC skipped when disabled (DEMO-1c)
+                    wgpu::PipelineLayout pl = computeLayoutFor(orbComputeLayout_);
                     if (!pl) return false;
-
-                    wgpu::ComputePipelineDescriptor desc{};
-                    desc.layout = pl;
-                    desc.compute.module = shaderModule_;
-
-                    if constexpr (ROSTER.orbs) {  // ROSTER-GATE orbs (a') — FXC skipped when disabled (DEMO-1c)
-                    if (!tPipe("orb_init", [&]() {
-                        desc.label = "Orb Init";
-                        desc.compute.entryPoint = Entry::ORB_INIT;
-                        orbInitPipeline_ = device_.CreateComputePipeline(&desc);
-                        return orbInitPipeline_ != nullptr;
-                    })) return false;
-                    }
-
-                    if constexpr (ROSTER.orbs) {  // ROSTER-GATE orbs (a') — FXC skipped when disabled (DEMO-1c)
-                    if (!tPipe("orb_dynamics", [&]() {
-                        desc.label = "Orb Dynamics";
-                        desc.compute.entryPoint = Entry::ORB_DYNAMICS;
-                        orbDynamicsPipeline_ = device_.CreateComputePipeline(&desc);
-                        return orbDynamicsPipeline_ != nullptr;
-                    })) return false;
-                    }
-
-                    if constexpr (ROSTER.orbs) {  // ROSTER-GATE orbs (a') — FXC skipped when disabled (DEMO-1c)
-                    if (!tPipe("orb_recolor", [&]() {
-                        desc.label = "Orb Recolor";
-                        desc.compute.entryPoint = Entry::ORB_RECOLOR;
-                        orbRecolorPipeline_ = device_.CreateComputePipeline(&desc);
-                        return orbRecolorPipeline_ != nullptr;
-                    })) return false;
-                    }
+                    if (!makeComputePipeline("orb_init", "Orb Init", pl, Entry::ORB_INIT, orbInitPipeline_)) return false;
+                    if (!makeComputePipeline("orb_dynamics", "Orb Dynamics", pl, Entry::ORB_DYNAMICS, orbDynamicsPipeline_)) return false;
+                    if (!makeComputePipeline("orb_recolor", "Orb Recolor", pl, Entry::ORB_RECOLOR, orbRecolorPipeline_)) return false;
                 }
 
                 // Orb copy-prev pipeline (Pass 9) — dedicated layout because
                 // it flips the access modes on orb_state / orb_state_prev.
-                {
-                    std::array<wgpu::BindGroupLayout, 1> layouts = { orbCopyLayout_ };
-                    wgpu::PipelineLayoutDescriptor pld{};
-                    pld.bindGroupLayoutCount = layouts.size();
-                    pld.bindGroupLayouts = layouts.data();
-                    wgpu::PipelineLayout pl = device_.CreatePipelineLayout(&pld);
+                if constexpr (ROSTER.orbs) {  // ROSTER-GATE orbs (a') — FXC skipped when disabled (DEMO-1c)
+                    wgpu::PipelineLayout pl = computeLayoutFor(orbCopyLayout_);
                     if (!pl) return false;
-
-                    wgpu::ComputePipelineDescriptor desc{};
-                    desc.layout = pl;
-                    desc.compute.module = shaderModule_;
-                    desc.label = "Orb State Prev Copy";
-                    desc.compute.entryPoint = Entry::ORB_STATE_PREV_COPY;
-                    if constexpr (ROSTER.orbs) {  // ROSTER-GATE orbs (a') — FXC skipped when disabled (DEMO-1c)
-                    if (!tPipe("orb_state_prev_copy", [&]() {
-                        orbCopyPrevPipeline_ = device_.CreateComputePipeline(&desc);
-                        return orbCopyPrevPipeline_ != nullptr;
-                    })) return false;
-                    }
+                    if (!makeComputePipeline("orb_state_prev_copy", "Orb State Prev Copy",
+                        pl, Entry::ORB_STATE_PREV_COPY, orbCopyPrevPipeline_)) return false;
                 }
 
                 // GoL zone compute pipelines (dedicated layout, z-dispatched)
-                {
-                    std::array<wgpu::BindGroupLayout, 1> layouts = { zoneGolComputeLayout_ };
-                    wgpu::PipelineLayoutDescriptor pld{};
-                    pld.bindGroupLayoutCount = layouts.size();
-                    pld.bindGroupLayouts = layouts.data();
-                    wgpu::PipelineLayout pl = device_.CreatePipelineLayout(&pld);
+                if constexpr (ROSTER.gol) {  // ROSTER-GATE gol (a') — FXC skipped when disabled (DEMO-1c)
+                    wgpu::PipelineLayout pl = computeLayoutFor(zoneGolComputeLayout_);
                     if (!pl) return false;
-
-                    wgpu::ComputePipelineDescriptor desc{};
-                    desc.layout = pl;
-                    desc.compute.module = shaderModule_;
-
-                    if constexpr (ROSTER.gol) {  // ROSTER-GATE gol (a') — FXC skipped when disabled (DEMO-1c)
-                    if (!tPipe("zone_gol_sync", [&]() {
-                        desc.label = "GoL Zone Sync";
-                        desc.compute.entryPoint = Entry::ZONE_GOL_SYNC;
-                        zoneGolSyncPipeline_ = device_.CreateComputePipeline(&desc);
-                        return zoneGolSyncPipeline_ != nullptr;
-                    })) return false;
-                    }
-
-                    if constexpr (ROSTER.gol) {  // ROSTER-GATE gol (a') — FXC skipped when disabled (DEMO-1c)
-                    if (!tPipe("zone_gol_evolve", [&]() {
-                        desc.label = "GoL Zone Evolve";
-                        desc.compute.entryPoint = Entry::ZONE_GOL_EVOLVE;
-                        zoneGolEvolvePipeline_ = device_.CreateComputePipeline(&desc);
-                        return zoneGolEvolvePipeline_ != nullptr;
-                    })) return false;
-                    }
+                    if (!makeComputePipeline("zone_gol_sync", "GoL Zone Sync", pl, Entry::ZONE_GOL_SYNC, zoneGolSyncPipeline_)) return false;
+                    if (!makeComputePipeline("zone_gol_evolve", "GoL Zone Evolve", pl, Entry::ZONE_GOL_EVOLVE, zoneGolEvolvePipeline_)) return false;
                 }
 
                 // Zone mesh gen pipelines (dedicated single-group layout with
                 // terrain eval + zone data + mesh output bindings)
-                {
-                    std::array<wgpu::BindGroupLayout, 1> layouts = { zoneMeshGenLayout_ };
-                    wgpu::PipelineLayoutDescriptor pld{};
-                    pld.bindGroupLayoutCount = layouts.size();
-                    pld.bindGroupLayouts = layouts.data();
-                    wgpu::PipelineLayout pl = device_.CreatePipelineLayout(&pld);
+                if constexpr (ROSTER.gol) {  // ROSTER-GATE gol (a') — FXC skipped when disabled (DEMO-1c)
+                    wgpu::PipelineLayout pl = computeLayoutFor(zoneMeshGenLayout_);
                     if (!pl) return false;
-
-                    wgpu::ComputePipelineDescriptor desc{};
-                    desc.layout = pl;
-                    desc.compute.module = shaderModule_;
-
-                    if constexpr (ROSTER.gol) {  // ROSTER-GATE gol (a') — FXC skipped when disabled (DEMO-1c)
-                    if (!tPipe("zone_gol_mesh_reset", [&]() {
-                        desc.label = "Zone Mesh Reset";
-                        desc.compute.entryPoint = Entry::ZONE_GOL_MESH_RESET;
-                        zoneGolMeshResetPipeline_ = device_.CreateComputePipeline(&desc);
-                        return zoneGolMeshResetPipeline_ != nullptr;
-                    })) return false;
-                    }
-
-                    if constexpr (ROSTER.gol) {  // ROSTER-GATE gol (a') — FXC skipped when disabled (DEMO-1c)
-                    if (!tPipe("zone_gol_mesh_gen", [&]() {
-                        desc.label = "Zone Mesh Gen";
-                        desc.compute.entryPoint = Entry::ZONE_GOL_MESH_GEN;
-                        zoneGolMeshGenPipeline_ = device_.CreateComputePipeline(&desc);
-                        return zoneGolMeshGenPipeline_ != nullptr;
-                    })) return false;
-                    }
-
-                    if constexpr (ROSTER.gol) {  // ROSTER-GATE gol (a') — FXC skipped when disabled (DEMO-1c)
-                    if (!tPipe("zone_derive_params", [&]() {
-                        desc.label = "Zone Derive Params";
-                        desc.compute.entryPoint = Entry::ZONE_DERIVE_PARAMS;
-                        zoneDeriveParamsPipeline_ = device_.CreateComputePipeline(&desc);
-                        return zoneDeriveParamsPipeline_ != nullptr;
-                    })) return false;
-                    }
+                    if (!makeComputePipeline("zone_gol_mesh_reset", "Zone Mesh Reset", pl, Entry::ZONE_GOL_MESH_RESET, zoneGolMeshResetPipeline_)) return false;
+                    if (!makeComputePipeline("zone_gol_mesh_gen", "Zone Mesh Gen", pl, Entry::ZONE_GOL_MESH_GEN, zoneGolMeshGenPipeline_)) return false;
+                    if (!makeComputePipeline("zone_derive_params", "Zone Derive Params", pl, Entry::ZONE_DERIVE_PARAMS, zoneDeriveParamsPipeline_)) return false;
                 }
 
-                // Pyramid mesh gen pipeline (dedicated layout, isolated from terrain eval)
-                {
-                    std::array<wgpu::BindGroupLayout, 1> layouts = { pyramidMeshGenLayout_ };
-                    wgpu::PipelineLayoutDescriptor pld{};
-                    pld.bindGroupLayoutCount = layouts.size();
-                    pld.bindGroupLayouts = layouts.data();
-                    wgpu::PipelineLayout pl = device_.CreatePipelineLayout(&pld);
+                // Mesh-gen compute pipelines — one dedicated single-group layout each,
+                // per-family ROSTER gate; identical creation modulo (layout, entry, member).
+                if constexpr (ROSTER.pyramid) {  // ROSTER-GATE pyramid (a') — FXC skipped when disabled (DEMO-1c)
+                    wgpu::PipelineLayout pl = computeLayoutFor(pyramidMeshGenLayout_);
                     if (!pl) return false;
-
-                    wgpu::ComputePipelineDescriptor desc{};
-                    desc.label = "Pyramid Mesh Gen";
-                    desc.layout = pl;
-                    desc.compute.module = shaderModule_;
-                    desc.compute.entryPoint = Entry::PYRAMID_MESH_GEN;
-                    if constexpr (ROSTER.pyramid) {  // ROSTER-GATE pyramid (a') — FXC skipped when disabled (DEMO-1c)
-                    if (!tPipe("pyramid_mesh_gen", [&]() {
-                        pyramidMeshGenPipeline_ = device_.CreateComputePipeline(&desc);
-                        return pyramidMeshGenPipeline_ != nullptr;
-                    })) return false;
-                    }
+                    if (!makeComputePipeline("pyramid_mesh_gen", "Pyramid Mesh Gen",
+                        pl, Entry::PYRAMID_MESH_GEN, pyramidMeshGenPipeline_)) return false;
                 }
 
-                // Arch mesh gen pipeline (dedicated layout — bindings 193-195)
-                {
-                    std::array<wgpu::BindGroupLayout, 1> layouts = { archMeshGenLayout_ };
-                    wgpu::PipelineLayoutDescriptor pld{};
-                    pld.bindGroupLayoutCount = layouts.size();
-                    pld.bindGroupLayouts = layouts.data();
-                    wgpu::PipelineLayout pl = device_.CreatePipelineLayout(&pld);
+                if constexpr (ROSTER.arch) {  // ROSTER-GATE arch (a') — FXC skipped when disabled (DEMO-1c)
+                    wgpu::PipelineLayout pl = computeLayoutFor(archMeshGenLayout_);   // bindings 193-195
                     if (!pl) return false;
-
-                    wgpu::ComputePipelineDescriptor desc{};
-                    desc.label = "Arch Mesh Gen";
-                    desc.layout = pl;
-                    desc.compute.module = shaderModule_;
-                    desc.compute.entryPoint = Entry::ARCH_MESH_GEN;
-                    if constexpr (ROSTER.arch) {  // ROSTER-GATE arch (a') — FXC skipped when disabled (DEMO-1c)
-                    if (!tPipe("arch_mesh_gen", [&]() {
-                        archMeshGenPipeline_ = device_.CreateComputePipeline(&desc);
-                        return archMeshGenPipeline_ != nullptr;
-                    })) return false;
-                    }
+                    if (!makeComputePipeline("arch_mesh_gen", "Arch Mesh Gen",
+                        pl, Entry::ARCH_MESH_GEN, archMeshGenPipeline_)) return false;
                 }
 
-                // Column mesh gen pipeline (dedicated layout — bindings 196-198)
-                {
-                    std::array<wgpu::BindGroupLayout, 1> layouts = { columnMeshGenLayout_ };
-                    wgpu::PipelineLayoutDescriptor pld{};
-                    pld.bindGroupLayoutCount = layouts.size();
-                    pld.bindGroupLayouts = layouts.data();
-                    wgpu::PipelineLayout pl = device_.CreatePipelineLayout(&pld);
+                if constexpr (ROSTER.column || ROSTER.antenna) {  // ROSTER-GATE column+antenna (shared pipelines) (a') — FXC skipped when disabled (DEMO-1c)
+                    wgpu::PipelineLayout pl = computeLayoutFor(columnMeshGenLayout_);  // bindings 196-198
                     if (!pl) return false;
-
-                    wgpu::ComputePipelineDescriptor desc{};
-                    desc.label = "Column Mesh Gen";
-                    desc.layout = pl;
-                    desc.compute.module = shaderModule_;
-                    desc.compute.entryPoint = Entry::COLUMN_MESH_GEN;
-                    if constexpr (ROSTER.column || ROSTER.antenna) {  // ROSTER-GATE column+antenna (shared pipelines) (a') — FXC skipped when disabled (DEMO-1c)
-                    if (!tPipe("column_mesh_gen", [&]() {
-                        columnMeshGenPipeline_ = device_.CreateComputePipeline(&desc);
-                        return columnMeshGenPipeline_ != nullptr;
-                    })) return false;
-                    }
+                    if (!makeComputePipeline("column_mesh_gen", "Column Mesh Gen",
+                        pl, Entry::COLUMN_MESH_GEN, columnMeshGenPipeline_)) return false;
                 }
 
-                // Palm mesh gen compute pipeline
-                {
-                    std::array<wgpu::BindGroupLayout, 1> layouts = { palmMeshGenLayout_ };
-                    wgpu::PipelineLayoutDescriptor pld{};
-                    pld.bindGroupLayoutCount = layouts.size();
-                    pld.bindGroupLayouts = layouts.data();
-                    wgpu::PipelineLayout pl = device_.CreatePipelineLayout(&pld);
+                if constexpr (ROSTER.palm) {  // ROSTER-GATE palm (a') — FXC skipped when disabled (DEMO-1c)
+                    wgpu::PipelineLayout pl = computeLayoutFor(palmMeshGenLayout_);
                     if (!pl) return false;
-
-                    wgpu::ComputePipelineDescriptor desc{};
-                    desc.label = "Palm Mesh Gen";
-                    desc.layout = pl;
-                    desc.compute.module = shaderModule_;
-                    desc.compute.entryPoint = Entry::PALM_MESH_GEN;
-                    if constexpr (ROSTER.palm) {  // ROSTER-GATE palm (a') — FXC skipped when disabled (DEMO-1c)
-                    if (!tPipe("palm_mesh_gen", [&]() {
-                        palmMeshGenPipeline_ = device_.CreateComputePipeline(&desc);
-                        return palmMeshGenPipeline_ != nullptr;
-                    })) return false;
-                    }
+                    if (!makeComputePipeline("palm_mesh_gen", "Palm Mesh Gen",
+                        pl, Entry::PALM_MESH_GEN, palmMeshGenPipeline_)) return false;
                 }
 
-                // Cactus mesh gen compute pipeline
-                {
-                    std::array<wgpu::BindGroupLayout, 1> layouts = { cactusMeshGenLayout_ };
-                    wgpu::PipelineLayoutDescriptor pld{};
-                    pld.bindGroupLayoutCount = layouts.size();
-                    pld.bindGroupLayouts = layouts.data();
-                    wgpu::PipelineLayout pl = device_.CreatePipelineLayout(&pld);
+                if constexpr (ROSTER.cactus) {  // ROSTER-GATE cactus (a') — FXC skipped when disabled (DEMO-1c)
+                    wgpu::PipelineLayout pl = computeLayoutFor(cactusMeshGenLayout_);
                     if (!pl) return false;
-                    wgpu::ComputePipelineDescriptor desc{};
-                    desc.label = "Cactus Mesh Gen";
-                    desc.layout = pl;
-                    desc.compute.module = shaderModule_;
-                    desc.compute.entryPoint = Entry::CACTUS_MESH_GEN;
-                    if constexpr (ROSTER.cactus) {  // ROSTER-GATE cactus (a') — FXC skipped when disabled (DEMO-1c)
-                    if (!tPipe("cactus_mesh_gen", [&]() {
-                        cactusMeshGenPipeline_ = device_.CreateComputePipeline(&desc);
-                        return cactusMeshGenPipeline_ != nullptr;
-                    })) return false;
-                    }
+                    if (!makeComputePipeline("cactus_mesh_gen", "Cactus Mesh Gen",
+                        pl, Entry::CACTUS_MESH_GEN, cactusMeshGenPipeline_)) return false;
                 }
 
-                // Blade mesh gen compute pipeline
-                {
-                    std::array<wgpu::BindGroupLayout, 1> layouts = { bladeMeshGenLayout_ };
-                    wgpu::PipelineLayoutDescriptor pld{};
-                    pld.bindGroupLayoutCount = layouts.size();
-                    pld.bindGroupLayouts = layouts.data();
-                    wgpu::PipelineLayout pl = device_.CreatePipelineLayout(&pld);
+                if constexpr (ROSTER.blade) {  // ROSTER-GATE blade (a') — FXC skipped when disabled (DEMO-1c)
+                    wgpu::PipelineLayout pl = computeLayoutFor(bladeMeshGenLayout_);
                     if (!pl) return false;
-                    wgpu::ComputePipelineDescriptor desc{};
-                    desc.label = "Blade Mesh Gen";
-                    desc.layout = pl;
-                    desc.compute.module = shaderModule_;
-                    desc.compute.entryPoint = Entry::BLADE_MESH_GEN;
-                    if constexpr (ROSTER.blade) {  // ROSTER-GATE blade (a') — FXC skipped when disabled (DEMO-1c)
-                    if (!tPipe("blade_cluster_mesh_gen", [&]() {
-                        bladeMeshGenPipeline_ = device_.CreateComputePipeline(&desc);
-                        return bladeMeshGenPipeline_ != nullptr;
-                    })) return false;
-                    }
+                    if (!makeComputePipeline("blade_cluster_mesh_gen", "Blade Mesh Gen",
+                        pl, Entry::BLADE_MESH_GEN, bladeMeshGenPipeline_)) return false;
                 }
 
                 return true;
