@@ -1278,6 +1278,13 @@ namespace t7 {
         static_assert(sizeof(GPUPointLight) == 32, "GPUPointLight must be 32 bytes");
         static_assert(sizeof(GPUPointLightArray) == 272, "GPUPointLightArray must be 272 bytes");
         static_assert(sizeof(MeshVertex) == 24, "MeshVertex must be 24 bytes");
+        // C1 (cable management): pin the GPU-written vertex formats to the vertex-buffer
+        // arrayStride the render/shadow pipelines declare — the stride is ALSO the WGSL
+        // ArchVertexInput/ShellVertexInput layout, so this is the C++<->WGSL contract that
+        // was previously unguarded (the recon's standout latent hazard). ArchVertex is the
+        // SHARED format for six families (arch/column/palm/cactus/blade/pyramid mesh-gen).
+        static_assert(sizeof(ArchVertex) == 40, "ArchVertex must be 40 bytes (arch/shadow VBL arrayStride = 40; WGSL ArchVertexInput)");
+        static_assert(sizeof(ShellVertex) == 36, "ShellVertex must be 36 bytes (shell/shadow VBL arrayStride = 36; WGSL ShellVertexInput)");
         static_assert(sizeof(GPUPatchParams) == 32, "GPUPatchParams must be 32 bytes");
         static_assert(sizeof(GPUPatchInstance) == 16, "GPUPatchInstance must be 16 bytes");
         static_assert(sizeof(GPUPatchGrid) == 16 + Dim::MAX_ACTIVE_PATCHES * 4,

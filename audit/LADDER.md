@@ -3158,6 +3158,38 @@ Two items, one risk class (format/layout weld, glaw1-blind at runtime):
 GATE when pulled: app launches + bind-group/pipeline validation passes, THEN
 pixel-identical. Not this campaign's pixel-only gate.
 
+## RENDER/UPDATE — CABLE MANAGEMENT (opening: C1, then C3/C4)
+Anchor: the render/update recon (bf9c237). GOVERNING FRAME (Jean): the frame's
+graph is buried under redundancy, not absent — each redundancy collapsed is an
+edge the graph was forced to fork. We excavate the graph BY removing the noise;
+behavior-neutral cable management that reveals structure, not a redesign. NO
+model decisions this campaign.
+TWO STANDING DISCIPLINES (every cut): (1) NOTE THE REVEALED EDGE — each entry
+carries a "GRAPH EDGE REVEALED:" line so the graph accretes from the margins.
+(2) COLLAPSE MECHANISM, NEVER A DISTINCTION — unify only what is genuinely the
+same thing written N times; if a unification needs per-case flags/branches to
+stay behavior-identical, STOP and FLAG — that resistance is a REAL FORK (a graph
+edge), not noise. A partial collapse with a flagged remainder beats a forced one.
+
+=== C1 — the vertex-format size asserts (Tier 0; glaw1-terminal) ===
+Added static_assert(sizeof(ArchVertex)==40) + static_assert(sizeof(ShellVertex)
+==36) to the state.hpp assert block, pinning the two GPU-written/GPU-read vertex
+mirrors that had NO guard (the recon's standout latent hazard) to the vertex-
+buffer arrayStride the render + shadow pipelines declare (archVBL/shadowArchVBL
+=40 renderer.hpp:2141/2681; shellVBL/shadowShellVBL=36 :2241/2776) — which is ALSO
+the WGSL ArchVertexInput/ShellVertexInput layout. The assert value is the GPU/WGSL
+CONTRACT, not a C++ self-reference, so it catches future C++<->WGSL drift.
+GATE: glaw1 GREEN — both asserts PASS -> the byte layout is correct TODAY,
+behavior-identical, glaw1-terminal (no rig; a failing assert here would have been
+a bug-find, per the discipline, but none surfaced).
+GRAPH EDGE REVEALED: ArchVertex is a SHARED vertex format across SIX mesh-gen
+families — arch, column, palm, cactus, blade, pyramid all size their VB + bind
+entry via sizeof(ArchVertex) and their VS reads ArchVertexInput (state.hpp
+2990/3034/3073/3101/3127/3163; 5308/5333/5358/5383/5406/5427; world.wgsl arch_vs/
+column_vs/palm_vs/cactus.../blade.../pyramid_vs). ShellVertex is the indoor-shell
+format (ceiling/walls/floor). The "six families, one vertex format" edge was
+implicit in the shared sizeof; it is now compiler-enforced.
+
 ## TERRAIN-2 — SKIRTS (side excursion; weld #2; own rig-gated commit)
 Jean's order: skirt the terrain patch mesh (plain patch edges) to hide
 inter-patch cracks — precision AND LOD/T-junction — with ONE mechanism.
