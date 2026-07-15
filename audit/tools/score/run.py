@@ -33,6 +33,36 @@ def read(rel):
 
 CART = read('cartridge.hpp')
 
+# ── THE FRAME SPINE (FRAME_CONDUCTOR CUT 1): update()/render() now call named
+# phase methods that wrap the movements. The census sees THROUGH the extraction
+# by inlining each `phase_XXX(...)` conductor call with its method body — the
+# flattened conductor reads as the pre-extraction score, so the manifest and
+# attribution sets below are UNCHANGED. (CUT 2 makes the spine a declarative
+# table; the census's source of truth migrates onto that table then.)
+def _phase_bodies(text):
+    bodies = {}
+    for m in re.finditer(r'void (phase_[A-Za-z0-9_]+)\s*\([^;{]*\)\s*\{', text):
+        name = m.group(1)
+        i = text.index('{', m.start())
+        depth, j = 0, i
+        while True:
+            if text[j] == '{': depth += 1
+            elif text[j] == '}': depth -= 1
+            if depth == 0: break
+            j += 1
+        bodies[name] = text[i + 1:j]
+    return bodies
+
+def _inline_phases(text):
+    # Replace conductor CALLS `phase_XXX(args);` with the method body. The
+    # definitions `void phase_XXX(args) {` are not calls (no `);`) so are left
+    # in place; existence checks tolerate the resulting duplication.
+    bodies = _phase_bodies(text)
+    pat = re.compile(r'\b(phase_[A-Za-z0-9_]+)\s*\([^;{}]*\)\s*;')
+    return pat.sub(lambda m: bodies.get(m.group(1), m.group(0)), text)
+
+CART = _inline_phases(CART)
+
 # comments (line or block) may sit between a gate and its call
 C = r'(?:\s|//[^\n]*\n|/\*.*?\*/)*'
 
@@ -41,9 +71,12 @@ def imm(bit_expr, call):
     return rf'if constexpr \({bit_expr}\){C}{call}\('
 
 def blk(bit_expr, *calls):
-    """gate applied to a brace-free block body containing the calls in order"""
-    inner = r'[^}}]*'.join(re.escape(c) + r'\(' for c in calls)
-    return rf'if constexpr \({bit_expr}\)\s*(?:\{{|if \([^\n]*\{{)[^}}]*{inner}'
+    """gate applied to a block body containing the calls in order. Comment-
+    tolerant ({C}), and the block-open brace is OPTIONAL: after the frame-spine
+    extraction a single-phase movement inlines to bare statements after the gate
+    (no call-site brace), while a runtime-guarded one keeps its `if (...) {`."""
+    inner = r'[^}}]*?'.join(re.escape(c) + r'\(' for c in calls)
+    return rf'if constexpr \({bit_expr}\){C}(?:\{{|if \([^\n]*\{{)?{C}[^}}]*?{inner}'
 
 # ── DIRECTION A: the manifest ─────────────────────────────────────
 # piece -> list of (file, human site name, regex)

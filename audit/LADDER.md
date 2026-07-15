@@ -3430,6 +3430,59 @@ it draws; the pyramid realizes as a fold in the ground. Design + placement
 WITHOUT self-drawn realization — that is the CAST edge, and it now lives in the
 none-fork of the table rather than in a dead pipeline nobody named.
 
+## THE FRAME SPINE — CUT 1: THE EXTRACTION (pixel-identical; glaw1 +
+## score-census GREEN; own commit; HOLD for the rig)
+Jean's ruling (the conductor becomes the program's temporal dispatch table,
+FAMILY_DISPATCH-shaped): AUTHORED order, CHECKED by validation, never COMPUTED
+— no topo-solver; deliberate stale-reads and write-order designs are LAWS, not
+bugs; pixel-identity culture holds. Anchor: FRAME_CONDUCTOR_RECON (0e89d77)
+§1 timeline. Four cuts, one commit + rig each. This is CUT 1.
+
+WHAT: update()'s ten movements (§1a: U1..U10) and render()'s twenty-one
+(§1b: R1..R21) are lifted VERBATIM into named phase methods; update()/render()
+become pages of calls in the recon's order. PURE LIFT — no reordering, no
+logic change (glaw1-strong: this is C++-only, no WGSL blindness; the rig is the
+pixel formality). U7 (the transition machine) is ONE phase, internals
+untouched. The hidden 2nd submit (R12's flush_zone_derive_requests) is its own
+named phase (phase_gol_derive_flush), split from the zone sync/evolve/mesh
+dispatch (phase_gol_zone_compute) — the ruling's "hidden submit = its own phase"
+made structural. 31 phase methods, 32 counting the R12 split.
+
+DESIGN CHOICES (flagged for the rig, adjustable before CUT 2):
+- NATURAL signatures, not a uniform ctx yet — each phase takes what it needs
+  (gpuSignal threaded as an update() local through U1/U2→U8; encoder/queue/
+  backbuffer/depth passed to the render phases). The uniform-row question — and
+  Discipline 2's fork-flagging — belongs to CUT 2 (the table), where a phase
+  that resists the uniform ctx is the REAL FORK.
+- Whole-movement `if constexpr(ROSTER.x)` gates stay at the CALL SITE (they
+  become the CUT-2 spine-row's roster-gate column). Runtime data-guards
+  (zone_count>0, dirty flags, rendered_slot) live INSIDE their phase. Intra-
+  movement gates (R8's 12 per-family prepares; U7's per-owner teardown verbs)
+  stay inside their phase, untouched.
+
+THE CENSUS RODE ALONG (score/run.py). The bijection tool pattern-matches the
+LITERAL conductor; the extraction moved the family calls one hop into the phase
+methods, so Direction A (gate+call adjacency) and Direction B (free-call
+attribution) both went RED — tool-staleness, not a bijection break (glaw1 says
+behavior-identical). Fix: the census now SEES THROUGH the extraction — it
+inlines each `phase_XXX(...)` conductor call with its method body before
+checking, so the flattened conductor reads as the pre-extraction score and the
+manifest + attribution sets are UNCHANGED. Two `blk` patterns gained comment-
+tolerance + an optional block-brace (a single-phase movement inlines to bare
+statements after the gate). Analog to C2's pipelines_skipped() update: the
+audit tool must track the code it audits. (CUT 2 migrates the census's source
+of truth onto the declarative spine table — its natural machine-readable home.)
+
+GRAPH EDGE REVEALED — the frame's DAG now has NAMES in code, not comments. The
+recon's `MOVEMENT:` banners and O-#/RC-# constraints were a phase list written
+in the margins (recon §5); CUT 1 lands them as 31 first-class methods. What is
+still NOT structural: the phase SEQUENCE (reorder two calls → still compiles),
+each phase's read/write FACE, and the frame-truth axes (§3). Those are CUT 2
+(the table + the O-1..O-7 validation block) and CUT 4 (C7 drain). The straining
+toward a declared phase sequence is now half-resolved: the phases exist; the
+ORDER-AND-FACES-AS-LAW is the next cut. GATES: glaw1 + score-census GREEN;
+pixel-identical rig pending (Jean's machine).
+
 ## TERRAIN-2 — SKIRTS (side excursion; weld #2; own rig-gated commit)
 Jean's order: skirt the terrain patch mesh (plain patch edges) to hide
 inter-patch cracks — precision AND LOD/T-junction — with ONE mechanism.
