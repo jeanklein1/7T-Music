@@ -2896,6 +2896,15 @@ precedes entity_pipeline.hpp in cartridge.hpp, so the builder is in scope
 GATE: gate-only (DTO pack, parity-verified). glaw1 GREEN; score census
 GREEN; encodings clean. Behavior-identical.
 
+=== commit 5 — Q9: GPUPatchParams.resolution from the Dim source ===
+make_patch_params (patch_system.hpp:397) now sets p.resolution =
+Dim::PATCH_HEIGHTFIELD_N instead of the 256 literal — one source of truth,
+closing the silent-divergence surface (the same Dim const sizes the write
+texture at state.hpp:3396 and the dispatch divisor at :2632; a literal in
+the DTO could have drifted from the actual texel side with no static_assert
+link). Byte-identical today (256==256).
+GATE: gate-only (free guard). glaw1 GREEN; score census GREEN; clean.
+
 ## TERRAIN-2 — SKIRTS (side excursion; weld #2; own rig-gated commit)
 Jean's order: skirt the terrain patch mesh (plain patch edges) to hide
 inter-patch cracks — precision AND LOD/T-junction — with ONE mechanism.

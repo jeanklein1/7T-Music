@@ -394,7 +394,7 @@ inline GPUPatchParams make_patch_params(MachineCtx* c, int32_t gx, int32_t gz, u
     p.origin[0] = (gx + 0.5f) * PATCH_EXTENT;
     p.origin[1] = (gz + 0.5f) * PATCH_EXTENT;
     p.extent = PATCH_EXTENT;
-    p.resolution = 256;
+    p.resolution = Dim::PATCH_HEIGHTFIELD_N;  // Q9: one source of truth (was a 256 literal decoupled from the Dim const that sizes the write texture + the dispatch divisor)
     p.master_seed = c->world_state_.active_seed;
     p.time = 0.0f;
     p.layer = layer;
