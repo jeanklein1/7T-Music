@@ -1662,10 +1662,8 @@ namespace t7 {
                 uint32_t behavior_count,
                 const GPUAgentTierDef* tiers,
                 uint32_t tier_count) {
-                queue.WriteBuffer(agentBehaviorsBuffer_, 0, behaviors,
-                    behavior_count * sizeof(GPUAgentBehaviorDef));
-                queue.WriteBuffer(agentTierGainsBuffer_, 0, tiers,
-                    tier_count * sizeof(GPUAgentTierDef));
+                writeArray(queue, agentBehaviorsBuffer_, behaviors, behavior_count);
+                writeArray(queue, agentTierGainsBuffer_, tiers, tier_count);
             }
 
             void upload_config(wgpu::Queue& queue) {
@@ -1737,7 +1735,7 @@ namespace t7 {
             }
 
             void upload_patch_instances(wgpu::Queue& queue, const GPUPatchInstance* instances, uint32_t count) {
-                queue.WriteBuffer(patchInstancesBuffer_, 0, instances, sizeof(GPUPatchInstance) * count);
+                writeArray(queue, patchInstancesBuffer_, instances, count);
             }
 
             void upload_patch_grid(wgpu::Queue& queue, const GPUPatchGrid& grid) {
@@ -1768,9 +1766,7 @@ namespace t7 {
             }
 
             void upload_floating_entity_slot(wgpu::Queue& queue, uint32_t slot, const GPUFloatingEntityState& entity) {
-                queue.WriteBuffer(floatingEntityBuffer_,
-                    slot * sizeof(GPUFloatingEntityState),
-                    &entity, sizeof(GPUFloatingEntityState));
+                writeSlot(queue, floatingEntityBuffer_, slot, entity);
             }
 
             // Sphere slots: 0 .. MAX_SPHERE_INSTANCES-1  (direct offset)
@@ -1817,16 +1813,12 @@ namespace t7 {
             }
 
             void upload_pier_slot(wgpu::Queue& queue, uint32_t slot, const GPUPierInstance& pier) {
-                queue.WriteBuffer(pierBuffer_,
-                    slot * sizeof(GPUPierInstance),
-                    &pier, sizeof(GPUPierInstance));
+                writeSlot(queue, pierBuffer_, slot, pier);
             }
 
             // GPU mesh gen: write params for a single arch slot (64 bytes per spawn/evict)
             void upload_arch_mesh_params_slot(wgpu::Queue& queue, uint32_t slot, const GPUArchMeshParams& params) {
-                queue.WriteBuffer(archMeshParamsBuffer_,
-                    slot * sizeof(GPUArchMeshParams),
-                    &params, sizeof(GPUArchMeshParams));
+                writeSlot(queue, archMeshParamsBuffer_, slot, params);
             }
 
             // Arch GPU mesh gen bind group (dedicated layout — bindings 193-195)
@@ -1834,12 +1826,11 @@ namespace t7 {
             wgpu::BindGroup arch_mesh_gen_group() const { return archMeshGenBindGroup_; }
 
             void upload_painting_slots(wgpu::Queue& queue, const GPUPaintingSlot* slots, uint32_t count) {
-                queue.WriteBuffer(paintingSlotsBuffer_, 0, slots, sizeof(GPUPaintingSlot) * count);
+                writeArray(queue, paintingSlotsBuffer_, slots, count);
             }
 
             void upload_painting_slot(wgpu::Queue& queue, uint32_t index, const GPUPaintingSlot& slot) {
-                queue.WriteBuffer(paintingSlotsBuffer_,
-                    index * sizeof(GPUPaintingSlot), &slot, sizeof(GPUPaintingSlot));
+                writeSlot(queue, paintingSlotsBuffer_, index, slot);
             }
 
             void deactivate_painting_slot(wgpu::Queue& queue, uint32_t index) {
@@ -2095,8 +2086,7 @@ namespace t7 {
             // to whatever the caller has in agent_state_.slots[0] — caller is responsible
             // for keeping that mirror consistent with the player's idle pose.
             void upload_agent_state_all(wgpu::Queue& queue, const GPUAgentState* src) {
-                queue.WriteBuffer(agentStateBuffer_, 0, src,
-                    Dim::MAX_AGENTS * sizeof(GPUAgentState));
+                writeArray(queue, agentStateBuffer_, src, Dim::MAX_AGENTS);
             }
             // Upload one slot only. Used by per-frame respawns so writes
             // don't race with the GPU's own update of slot 0 (the player).
@@ -2104,9 +2094,7 @@ namespace t7 {
                 uint32_t slot,
                 const GPUAgentState* src) {
                 if (slot >= Dim::MAX_AGENTS) return;
-                queue.WriteBuffer(agentStateBuffer_,
-                    slot * sizeof(GPUAgentState),
-                    src, sizeof(GPUAgentState));
+                writeSlot(queue, agentStateBuffer_, slot, *src);
             }
             void set_fog(float density, float r, float g, float b) {
                 if (config_.fog_density != density ||
@@ -2303,8 +2291,7 @@ namespace t7 {
             void set_arch_index_count(uint32_t count) { archIndexCount_ = count; }
 
             void upload_arch_origins(wgpu::Queue& queue, const GPUArchGroundEntry* entries, uint32_t count) {
-                queue.WriteBuffer(archGroundBuffer_, 0, entries,
-                    sizeof(GPUArchGroundEntry) * std::min(count, Dim::MAX_ARCH_INSTANCES));
+                writeArray(queue, archGroundBuffer_, entries, std::min(count, Dim::MAX_ARCH_INSTANCES));
             }
             wgpu::Buffer column_vertex_buffer() const { return columnVertexBuffer_; }
             wgpu::Buffer column_index_buffer() const { return columnIndexBuffer_; }
@@ -2314,9 +2301,7 @@ namespace t7 {
 
             // GPU mesh gen: write params for a single column slot (80 bytes per spawn/evict)
             void upload_column_mesh_params_slot(wgpu::Queue& queue, uint32_t slot, const GPUColumnMeshParams& params) {
-                queue.WriteBuffer(columnMeshParamsBuffer_,
-                    slot * sizeof(GPUColumnMeshParams),
-                    &params, sizeof(GPUColumnMeshParams));
+                writeSlot(queue, columnMeshParamsBuffer_, slot, params);
             }
 
             // Column GPU mesh gen bind group
@@ -2324,8 +2309,7 @@ namespace t7 {
             wgpu::BindGroup column_mesh_gen_group() const { return columnMeshGenBindGroup_; }
 
             void upload_column_origins(wgpu::Queue& queue, const GPUColumnGroundEntry* entries, uint32_t count) {
-                queue.WriteBuffer(columnGroundBuffer_, 0, entries,
-                    sizeof(GPUColumnGroundEntry) * std::min(count, Dim::MAX_COLUMN_INSTANCES));
+                writeArray(queue, columnGroundBuffer_, entries, std::min(count, Dim::MAX_COLUMN_INSTANCES));
             }
 
             // --- Palm accessors and upload ---
@@ -2335,9 +2319,7 @@ namespace t7 {
             void set_palm_index_count(uint32_t count) { palmIndexCount_ = count; }
 
             void upload_palm_mesh_params_slot(wgpu::Queue& queue, uint32_t slot, const GPUPalmMeshParams& params) {
-                queue.WriteBuffer(palmMeshParamsBuffer_,
-                    slot * sizeof(GPUPalmMeshParams),
-                    &params, sizeof(GPUPalmMeshParams));
+                writeSlot(queue, palmMeshParamsBuffer_, slot, params);
             }
 
             wgpu::BindGroupLayout palm_mesh_gen_layout() const { return palmMeshGenLayout_; }
@@ -2349,9 +2331,7 @@ namespace t7 {
             uint32_t cactus_index_count() const { return cactusIndexCount_; }
             void set_cactus_index_count(uint32_t count) { cactusIndexCount_ = count; }
             void upload_cactus_mesh_params_slot(wgpu::Queue& queue, uint32_t slot, const GPUCactusMeshParams& params) {
-                queue.WriteBuffer(cactusMeshParamsBuffer_,
-                    slot * sizeof(GPUCactusMeshParams),
-                    &params, sizeof(GPUCactusMeshParams));
+                writeSlot(queue, cactusMeshParamsBuffer_, slot, params);
             }
             wgpu::BindGroupLayout cactus_mesh_gen_layout() const { return cactusMeshGenLayout_; }
             wgpu::BindGroup cactus_mesh_gen_group() const { return cactusMeshGenBindGroup_; }
@@ -2364,9 +2344,7 @@ namespace t7 {
             void set_blade_index_count(uint32_t count) { bladeIndexCount_ = count; }
             void upload_blade_mesh_params_slot(wgpu::Queue& queue, uint32_t slot,
                 const GPUBladeClusterMeshParams& params) {
-                queue.WriteBuffer(bladeMeshParamsBuffer_,
-                    slot * sizeof(GPUBladeClusterMeshParams),
-                    &params, sizeof(GPUBladeClusterMeshParams));
+                writeSlot(queue, bladeMeshParamsBuffer_, slot, params);
             }
             wgpu::BindGroupLayout blade_mesh_gen_layout() const { return bladeMeshGenLayout_; }
             wgpu::BindGroup blade_mesh_gen_group() const { return bladeMeshGenBindGroup_; }
@@ -2384,9 +2362,7 @@ namespace t7 {
 
             // GPU mesh gen: write params for a single slot (48 bytes per spawn/evict)
             void upload_pyramid_mesh_params_slot(wgpu::Queue& queue, uint32_t slot, const GPUPyramidMeshParams& params) {
-                queue.WriteBuffer(pyramidMeshParamsBuffer_,
-                    slot * sizeof(GPUPyramidMeshParams),
-                    &params, sizeof(GPUPyramidMeshParams));
+                writeSlot(queue, pyramidMeshParamsBuffer_, slot, params);
             }
 
             // GPU mesh gen bind group
@@ -2394,8 +2370,7 @@ namespace t7 {
             wgpu::BindGroup pyramid_mesh_gen_group() const { return pyramidMeshGenBindGroup_; }
 
             void upload_pyramid_origins(wgpu::Queue& queue, const GPUPyramidGroundEntry* entries, uint32_t count) {
-                queue.WriteBuffer(pyramidGroundBuffer_, 0, entries,
-                    sizeof(GPUPyramidGroundEntry) * std::min(count, Dim::MAX_PYRAMID_INSTANCES));
+                writeArray(queue, pyramidGroundBuffer_, entries, std::min(count, Dim::MAX_PYRAMID_INSTANCES));
             }
 
             // Indoor shell accessors
@@ -2407,10 +2382,8 @@ namespace t7 {
             void upload_shell_mesh(wgpu::Queue& queue,
                 const ShellVertex* verts, uint32_t vertCount,
                 const uint32_t* indices, uint32_t idxCount) {
-                queue.WriteBuffer(shellVertexBuffer_, 0, verts,
-                    sizeof(ShellVertex) * std::min(vertCount, Dim::SHELL_MAX_VERTICES));
-                queue.WriteBuffer(shellIndexBuffer_, 0, indices,
-                    sizeof(uint32_t) * std::min(idxCount, Dim::SHELL_MAX_INDICES));
+                writeArray(queue, shellVertexBuffer_, verts, std::min(vertCount, Dim::SHELL_MAX_VERTICES));
+                writeArray(queue, shellIndexBuffer_, indices, std::min(idxCount, Dim::SHELL_MAX_INDICES));
                 shellIndexCount_ = idxCount;
             }
 

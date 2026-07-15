@@ -3334,6 +3334,49 @@ one of three write tempos the upload surface runs: A dirty-driven whole-writes
 bespoke offsetof field-writers = the per-frame HOT fields (a third tempo, named
 in C4b). The upload API is not one thing — it is three clocks.
 
+=== C4b — the upload collapse, Shapes B+C (commit-slots + count-arrays) ===
+(Cut after C4a rigged green — build + pixel-identical.) Converted 20 sites: 10
+Shape-B slot writes -> writeSlot (floating_entity_slot, pier_slot, painting_slot,
+agent_slot [guard + *src], arch/column/palm/cactus/blade/pyramid_mesh_params_slot)
+and 10 Shape-C array writes -> writeArray (agent_registries x2, patch_instances,
+painting_slots, agent_state_all, arch/column/pyramid_origins [std::min clamp
+preserved as the count arg], shell_mesh x2). PER-SITE CHECK ran on each (offset ==
+slot*sizeof(T); size == sizeof(T)*count). The offset arithmetic that was hand-typed
+at 19 sites now lives in the TWO audited formulas inside writeSlot/writeArray.
+SUB-FORK (Discipline 2): the armed writeSlot `base` param went UNUSED — no clean
+full-slot writer has a byte base (the cube region's offset is index arithmetic in
+a delegating wrapper: upload_cube_entity_slot -> upload_floating_entity_slot with
+CUBE_SLOT_OFFSET+slot). Left armed for future header-before-array slots.
+A DIFFERENT fork FLAGGED, left bespoke: upload_patch_staging is an ARRAY write at a
+SLOT offset (WriteBuffer(buf, offset*sizeof(T), params, sizeof(T)*count)) — fits
+neither formula (writeArray is offset-0, writeSlot is single-item); a genuine
+array-at-offset one-off, not forced.
+GATE: glaw1 GREEN (10 writeSlot + 10 writeArray). HELD for Jean's rig (the build
+AFTER b).
+GRAPH EDGE REVEALED — the CADENCE TAXONOMY completed. The upload surface runs on
+FOUR clocks, now legible in the code:
+  A writeStruct — DIRTY-driven whole-buffer writes (the whole DTO changed; config
+    signal lights patch/tile/grid ribbon photographer pyramids aura orb zone portal)
+  B writeSlot   — COMMIT-driven slot writes (one entity spawned/evicted at a time;
+    floater/pier/painting/agent + the 5 family mesh-params slots)
+  C writeArray  — COUNT-driven array writes (a whole set rebuilt; patch_instances,
+    painting_slots, agent_state_all, the *_origins arrays, registries, shell_mesh)
+  HOT (bespoke, NAMED) — PER-FRAME field writes, the fastest clock: the ~25 offsetof
+    field-writers written in isolation to avoid re-uploading a whole struct —
+    resync_sky_head, config sub-writers (pier_count/placement_patch_count/lod_pawn),
+    stage_spot_vps, ribbon_time/color/wave_amps, the cube kite-state writers, the
+    12-method orb frame cluster, pawn_aura_frame, zone_config_header, zone_life.
+Out of band (a fifth, slowest cadence, out of the per-frame upload scope):
+reset/boot verbs — reset_player_agent, reset_frustum_indirect, initializeState's
+boot writes. The "upload API" was never one surface; it is a clock tower.
+=== CABLE MANAGEMENT — OPENING COMPLETE (C1 + C3 + C4). The render/update surface
+now carries its own structure in the cleaned code: the pipeline graph (compute =
+(layout,entry); render = makeEntity/makeShadow over {format}x{cull} + irreducible
+specials) and the upload cadence taxonomy (dirty/commit/count/hot). Parked next
+cuts, unblocked as the graph is now clearer: C2 orphan sweep (+ pyramid ruling),
+C5 family/draw table, C6 binding registry (the storage-weld climax that also
+retires the parked TerrainState husk), C7/C8 ordering barriers. ===
+
 ## TERRAIN-2 — SKIRTS (side excursion; weld #2; own rig-gated commit)
 Jean's order: skirt the terrain patch mesh (plain patch edges) to hide
 inter-patch cracks — precision AND LOD/T-junction — with ONE mechanism.
