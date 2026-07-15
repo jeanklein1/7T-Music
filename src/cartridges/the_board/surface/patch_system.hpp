@@ -618,6 +618,50 @@ inline void band_patches(MachineCtx* c, wgpu::Queue& queue) {
     c->gpuState_.upload_lod_pawn(queue);
 }
 
+// ── build_patch_grid (the (gx,gz)→layer index the baked sampler reads) ──
+// The OTHER conductor-tail unit: build the GPUPatchGrid — the O(1) spatial
+// index (origin + side + per-cell layer+1, 0=empty) that
+// sample_terrain_y_at hashes into to find a patch's heightfield layer. Its
+// OWN walk over the GENERATED patches; a separate consumer and offer-face
+// from band_patches — they only coincided in the same tail block, never
+// shared the walk.
+//   offer-face: GPUPatchGrid (origin_x/z, side, entries[]) uploaded.
+//   requires:   patches_ registry (grid_x/grid_z/layer/valid/phase),
+//               PATCH_PREGEN_SIDE, PATCH_EXTENT; upload_patch_grid.
+// Bit-safe: index layout = wire layout, not a draw. entries = layer+1
+// (0 = empty) is the frozen convention the WGSL sampler decodes.
+inline void build_patch_grid(MachineCtx* c, wgpu::Queue& queue) {
+    GPUPatchGrid grid{};
+    grid.side = Dim::PATCH_PREGEN_SIDE;
+    grid.cell_extent = PATCH_EXTENT;
+
+    int32_t min_gx = INT32_MAX;
+    int32_t min_gz = INT32_MAX;
+    for (uint32_t i = 0; i < c->world_state_.active_patch_count; i++) {
+        if (!c->patch_system_state_.patches_[i].valid) continue;
+        if (c->patch_system_state_.patches_[i].phase != PatchPhase::GENERATED &&
+            c->patch_system_state_.patches_[i].phase != PatchPhase::NEEDS_REGEN) continue;
+        min_gx = std::min(min_gx, c->patch_system_state_.patches_[i].grid_x);
+        min_gz = std::min(min_gz, c->patch_system_state_.patches_[i].grid_z);
+    }
+    if (min_gx == INT32_MAX) { min_gx = 0; min_gz = 0; }
+    grid.origin_x = min_gx;
+    grid.origin_z = min_gz;
+
+    for (uint32_t i = 0; i < c->world_state_.active_patch_count; i++) {
+        if (!c->patch_system_state_.patches_[i].valid) continue;
+        if (c->patch_system_state_.patches_[i].phase != PatchPhase::GENERATED &&
+            c->patch_system_state_.patches_[i].phase != PatchPhase::NEEDS_REGEN) continue;
+        int32_t lx = c->patch_system_state_.patches_[i].grid_x - grid.origin_x;
+        int32_t lz = c->patch_system_state_.patches_[i].grid_z - grid.origin_z;
+        if (lx < 0 || lz < 0 ||
+            lx >= int32_t(grid.side) || lz >= int32_t(grid.side)) continue;
+        grid.entries[lz * grid.side + lx] = c->patch_system_state_.patches_[i].layer + 1u;
+    }
+
+    c->gpuState_.upload_patch_grid(queue, grid);
+}
+
 // --- Patch streaming: determine active 7×7 grid, generate new patches ---
 // THE CONDUCTOR (Phase R stamp, R-c): the per-frame step — recenter,
 // eviction, allocation, spawn + generation budgets, visibility
@@ -856,42 +900,9 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
             encoder, queue, patchStagingOffset, tileGridDirty, tile_world_state_, tile_world_deps_);
     }
 
-    {
-        band_patches(c, queue);
-
-        // ─── Patch grid: O(1) spatial index for sample_terrain_y_at ────────
-        {
-            GPUPatchGrid grid{};
-            grid.side = Dim::PATCH_PREGEN_SIDE;
-            grid.cell_extent = PATCH_EXTENT;
-
-            int32_t min_gx = INT32_MAX;
-            int32_t min_gz = INT32_MAX;
-            for (uint32_t i = 0; i < c->world_state_.active_patch_count; i++) {
-                if (!c->patch_system_state_.patches_[i].valid) continue;
-                if (c->patch_system_state_.patches_[i].phase != PatchPhase::GENERATED &&
-                    c->patch_system_state_.patches_[i].phase != PatchPhase::NEEDS_REGEN) continue;
-                min_gx = std::min(min_gx, c->patch_system_state_.patches_[i].grid_x);
-                min_gz = std::min(min_gz, c->patch_system_state_.patches_[i].grid_z);
-            }
-            if (min_gx == INT32_MAX) { min_gx = 0; min_gz = 0; }
-            grid.origin_x = min_gx;
-            grid.origin_z = min_gz;
-
-            for (uint32_t i = 0; i < c->world_state_.active_patch_count; i++) {
-                if (!c->patch_system_state_.patches_[i].valid) continue;
-                if (c->patch_system_state_.patches_[i].phase != PatchPhase::GENERATED &&
-                    c->patch_system_state_.patches_[i].phase != PatchPhase::NEEDS_REGEN) continue;
-                int32_t lx = c->patch_system_state_.patches_[i].grid_x - grid.origin_x;
-                int32_t lz = c->patch_system_state_.patches_[i].grid_z - grid.origin_z;
-                if (lx < 0 || lz < 0 ||
-                    lx >= int32_t(grid.side) || lz >= int32_t(grid.side)) continue;
-                grid.entries[lz * grid.side + lx] = c->patch_system_state_.patches_[i].layer + 1u;
-            }
-
-            c->gpuState_.upload_patch_grid(queue, grid);
-        }
-    }
+    // The conductor tail as a sequence of named units (was one inline block).
+    band_patches(c, queue);
+    build_patch_grid(c, queue);
     // GPU Y-correction is additive (ground_y += terrain), so ground
     // entries must be re-uploaded with offset-only values whenever
     // the heightfield changes. Tie groundEntriesDirty to patch changes.

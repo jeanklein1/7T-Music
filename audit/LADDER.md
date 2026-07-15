@@ -2845,6 +2845,25 @@ GATE: gate-only (bit-safe, pack order = wire layout, not a draw). glaw1
 GREEN (real C++ compile — extraction valid); score census GREEN;
 patch_system.hpp clean UTF-8/LF, no CR. Behavior-identical.
 
+=== commit 2 — build_patch_grid (the conductor split, part 2) — CHAPTER DONE ===
+Extracted the patch-grid block into build_patch_grid(c, queue): its own
+walk over the GENERATED patches building the GPUPatchGrid (origin + side +
+per-cell layer+1, 0=empty) that sample_terrain_y_at hashes into — the
+baked-sampler O(1) index. Kept SEPARATE from band_patches (different
+consumer/offer-face; they never shared the walk — two independent walks in
+the old block, confirming the ruling's "perf coincidence"). Flattened the
+now-vestigial wrapper `{}`: the conductor tail is now a SEQUENCE of named
+units — `band_patches(c,queue); build_patch_grid(c,queue);` — stream_
+patches is a SEQUENCER, not an organ. Byte-identical (same ops, same
+order; locals moved from block-scope to function-scope, same lifetime).
+BAKED-SAMPLER-PATH commit (Jean's rig-attention flag #1 of 2) — grid =
+shape/layer, does NOT collide with Q6b (population, CPU-only).
+GATE: gate-only (bit-safe, index layout = wire layout). glaw1 GREEN;
+score census GREEN; encodings clean. Behavior-identical; rig smoke-check
+optional (a baked-sampler-path commit — first place to look if it twitches).
+THE CONDUCTOR CHAPTER (Q1) IS COMPLETE. Breakpoint: after-2 (Jean's batch
+review). Dedups + guards (commits 3-8) ride next.
+
 ## TERRAIN-2 — SKIRTS (side excursion; weld #2; own rig-gated commit)
 Jean's order: skirt the terrain patch mesh (plain patch edges) to hide
 inter-patch cracks — precision AND LOD/T-junction — with ONE mechanism.
