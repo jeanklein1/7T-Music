@@ -2905,6 +2905,20 @@ the DTO could have drifted from the actual texel side with no static_assert
 link). Byte-identical today (256==256).
 GATE: gate-only (free guard). glaw1 GREEN; score census GREEN; clean.
 
+=== commit 6 — Q8: TILE_GRID capacity guard (static_assert) ===
+upload_tile_grid_now (tile_world.hpp:243) builds tileGridSide =
+2*(active_radius + TILE_PAD)+1 into GPUTileGrid.entries[TILE_GRID_MAX=289]
+(17^2, sized from PATCH_PREGEN_RADIUS+1). Overflow iff tileGridSide^2 > 289
+<=> active_radius > PATCH_PREGEN_RADIUS. Both the DTO side and the
+active_radius clamp (set_render_radius; finite cap lower) track
+PATCH_PREGEN_RADIUS, so the only free variable that could overflow is
+TILE_PAD (the DTO's pad is +1). Added static_assert(TILE_PAD <= 1) with the
+full-invariant comment — closes the compile-time half; the runtime half is
+the existing active_radius clamp. At active_radius=7 the built side is
+exactly 17 (fills the DTO, zero margin) — the guard makes that structural
+fact enforced, not incidental. No behavior change (guard only).
+GATE: gate-only (free guard). glaw1 GREEN; score census GREEN; clean.
+
 ## TERRAIN-2 — SKIRTS (side excursion; weld #2; own rig-gated commit)
 Jean's order: skirt the terrain patch mesh (plain patch edges) to hide
 inter-patch cracks — precision AND LOD/T-junction — with ONE mechanism.
