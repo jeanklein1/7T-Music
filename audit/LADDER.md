@@ -3134,9 +3134,29 @@ required. Same risk class Jean carved out for the complexity texel. After commit
 the buffer is a fully-dead husk (no writer, no reader) — behavior-neutral,
 allocated-but-unused. RECOMMEND: its own commit with a CRASH-AWARE rig gate (does
 the app launch — bind-group validation — in addition to pixel-identical), OR fold
-into the complexity-texel storage-weld follow-on. HELD for Jean's ruling.
+into the complexity-texel storage-weld follow-on.
+RULING (Jean): B — DEFER, do NOT cut now. Post-commit the husk is allocated-but-
+fully-dead (no writer/reader/dispatch), costing only a static allocation; its
+removal is a glaw1-blind offset-shift + 5 bind-array re-indexes whose failure mode
+is a CRASH / corrupted world_seed, NOT a pixel-diff — folding it in would poison
+this campaign's pixel-identical proof model. BATCHED with the complexity texel as
+ONE storage-weld follow-on under a crash-aware gate (app launches + bind-group
+validation passes). Marker dropped at the GPUTerrainState decl (state.hpp) —
+"DEAD: no writer/reader post-851ce68; awaiting storage-weld removal (see LADDER)"
+— so the husk doesn't read as live infra to the next sweep (the gradient-
+scaffold's "not dead" marker, inverted).
 (Ordering note: the husk removal must come AFTER commit 2's tint-store removal,
 since that store writes the buffer.)
+
+=== STORAGE-WELD FOLLOW-ON (parked; own crash-aware rig gate) ===
+Two items, one risk class (format/layout weld, glaw1-blind at runtime):
+- the TerrainState/render_terrain HUSK: buffer + bindings 20/220 (5 bind-array
+  re-indexes) + GPUTerrainState struct + GPUConfig wave fields (world_seed offset
+  shift). Reader-free (verified); marker in place.
+- the complexity texel channel (.w of the heightfield rgba16float) — dead, removal
+  changes the TEXTURE FORMAT.
+GATE when pulled: app launches + bind-group/pipeline validation passes, THEN
+pixel-identical. Not this campaign's pixel-only gate.
 
 ## TERRAIN-2 — SKIRTS (side excursion; weld #2; own rig-gated commit)
 Jean's order: skirt the terrain patch mesh (plain patch edges) to hide

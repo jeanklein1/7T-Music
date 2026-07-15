@@ -423,6 +423,7 @@ namespace t7 {
             float _pad1;
         };
 
+        // DEAD: no writer/reader post-851ce68; awaiting storage-weld removal (see LADDER)
         struct alignas(16) GPUTerrainState {
             float amplitude_scale;
             float max_amplitude;
