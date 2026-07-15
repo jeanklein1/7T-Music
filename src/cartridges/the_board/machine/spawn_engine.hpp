@@ -174,7 +174,7 @@ SpawnGatePreambleResult run_spawn_preamble(C* c,
     // 2-6. Spawn modifier chain
     float adj_mod = mood_mult[c->mood_state_.active];
     adj_mod *= GLOBAL_ENTITY_DENSITY;
-    r.theme_idx = c->themes_state_.active_theme_idx_;
+    r.theme_idx = c->themes_state_.temporal_flavor;
     tile_apply_spawn_mult(c->tile_world_state_, gx, gz, family, adj_mod);  // F3 (m3b): the S2 boundary face
 
     // 6b. Proximity affinity boost (nearby entities attract)

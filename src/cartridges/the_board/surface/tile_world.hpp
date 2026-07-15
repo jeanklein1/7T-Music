@@ -131,7 +131,7 @@ struct TileShape {
 struct TilePopulation {
     float entity_density = 1.0f; // spatial density multiplier for entity spawning
     // Theme: evaluated from theme lattice at tile generation time
-    float theme_spawn[PopFamily::COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f }; // blended per-family spawn multiplier
+    float spatial_density[PopFamily::COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f }; // Q7 SPATIAL axis: per-family, position-locked density (applied by F3 tile_apply_spawn_mult). Independent of temporal_flavor — a different axis, not a duplicate.
     uint32_t theme_idx = 0;      // dominant theme index (for tier bias)
 };
 
@@ -416,7 +416,7 @@ inline TileState generate_tile_state(TileWorldState& tw, TileWorldDeps* c, int32
         }
 
         for (uint32_t f = 0; f < PopFamily::COUNT; f++)
-            ts.pop.theme_spawn[f] = blended_spawn[f];
+            ts.pop.spatial_density[f] = blended_spawn[f];
         ts.pop.theme_idx = dominant_theme;
         ts.pop.entity_density *= blended_density;  // theme density stacks with spatial density
     }
@@ -526,7 +526,7 @@ inline void tile_apply_spawn_mult(const TileWorldState& tw, int32_t gx, int32_t 
     auto it = tw.tileCache_.find({ gx, gz });
     if (it != tw.tileCache_.end()) {
         adj_mod *= it->second.pop.entity_density;
-        adj_mod *= it->second.pop.theme_spawn[family];
+        adj_mod *= it->second.pop.spatial_density[family];
     }
 }
 

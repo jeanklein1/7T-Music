@@ -2974,6 +2974,23 @@ GATE: gate-only. glaw1 GREEN (helper visibility + GridKey.x/.z + repoints);
 score census GREEN; the only residual floor(w/EXTENT) is inside tile_key.
 Behavior-identical.
 
+=== commit 11 — Q7: rename to spatial_density / temporal_flavor ===
+Rename-only (no semantics), so the two independent axes stop reading as
+duplication. theme_spawn[] -> spatial_density (TilePopulation, tile_world:
+decl + write + F3 read) = the SPATIAL axis (per-family position-locked
+density, applied by F3 tile_apply_spawn_mult). active_theme_idx_ ->
+temporal_flavor (ThemesState, population_themes decl + write; spawn_engine
+read; spawn_services comment) = the TEMPORAL axis (drifting theme index ->
+tier weights). Distinct identifiers (no collision with theme_idx). Added a
+paired-axis note at each declaration. NOTE: a comment edit dropped the
+spatial_density array's terminating ';' — glaw1 caught it (error at the
+next member theme_idx), fixed, re-gated GREEN. The blind-catch worked.
+Landed BEFORE Q6b so TilePopulation relocates under its final name.
+GATE: gate-only (rename). glaw1 GREEN; score census GREEN; zero residual
+old-name references; encodings clean. Behavior-identical.
+SEAM STATUS: 9 (Q6a) + 11 (Q7) landed ahead. NEXT: 10 (Q6b) — the RIG
+commit; HELD for Jean's per-commit rig stamp.
+
 ## TERRAIN-2 — SKIRTS (side excursion; weld #2; own rig-gated commit)
 Jean's order: skirt the terrain patch mesh (plain patch edges) to hide
 inter-patch cracks — precision AND LOD/T-junction — with ONE mechanism.

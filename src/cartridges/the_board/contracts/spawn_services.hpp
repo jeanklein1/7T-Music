@@ -40,7 +40,7 @@ struct GPUColumnMeshParams;
 struct SpawnGatePreambleResult {
     uint32_t seed;          // from evaluate_spawn_gate
     uint32_t slot;          // reserved slot index
-    uint32_t theme_idx;     // themes_state_.active_theme_idx_ at evaluation time
+    uint32_t theme_idx;     // themes_state_.temporal_flavor at evaluation time
     bool ok;                // false = early exit (idempotency, gate, no slot)
 };
 

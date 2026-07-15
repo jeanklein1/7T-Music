@@ -143,7 +143,7 @@ inline constexpr PopulationTheme THEMES[THEME_COUNT] = {
 // Instance (themes_state_) lives at the composition root.
 struct ThemesState {
     ThemeEnvelope envelope_{};
-    uint32_t active_theme_idx_ = 0;   // set per-patch by evaluate_theme_envelope
+    uint32_t temporal_flavor = 0;   // Q7 TEMPORAL axis: the drifting theme index (drives tier weights), set per-patch by evaluate_theme_envelope. Independent of spatial_density — a different axis, not a duplicate.
 };
 
 // ═══ MODULE FUNCTIONS ══════════════════════════════════════════════
@@ -289,7 +289,7 @@ inline uint32_t evaluate_theme_envelope(ThemesState& ts, MachineCtx* c, uint32_t
         if (env.cooldowns[i] > 0) env.cooldowns[i]--;
     }
 
-    ts.active_theme_idx_ = selected;  // stores its own result (m4) — the caller no longer writes the organ
+    ts.temporal_flavor = selected;  // stores its own result (m4) — the caller no longer writes the organ
     return selected;
 }
 
