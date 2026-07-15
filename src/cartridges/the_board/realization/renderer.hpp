@@ -1618,6 +1618,41 @@ namespace t7 {
                 colorTarget.format = colorFormat_;
                 colorTarget.writeMask = wgpu::ColorWriteMask::All;
 
+                // C3-render (entity category): the builder every ENTITY_FS pipeline shares —
+                // renderLayout + depthStencil + colorTarget + ENTITY_FS + TriangleList + CCW.
+                // The genuine forks are parameters: the VS entry (passed VERBATIM), the
+                // vertex-buffer layout (nullptr = bufferless, GPU-generated from vertex_index),
+                // and cullMode — a REAL per-pipeline field, NOT noise: single-sided frond/
+                // blade/column quads disable backface cull (None), solids keep Back. Same
+                // shared desc the originals mutated in place, rebuilt fresh per call
+                // (byte-identical result). Captures renderLayout/depthStencil/colorTarget.
+                auto makeEntity = [&](const char* label, const char* dbgLabel, const char* vsEntry,
+                                      const wgpu::VertexBufferLayout* vbl, wgpu::CullMode cull,
+                                      wgpu::RenderPipeline& out) -> bool {
+                    wgpu::FragmentState fragment{};
+                    fragment.module = shaderModule_;
+                    fragment.entryPoint = Entry::ENTITY_FS;
+                    fragment.targetCount = 1;
+                    fragment.targets = &colorTarget;
+
+                    wgpu::RenderPipelineDescriptor desc{};
+                    desc.label = dbgLabel;
+                    desc.layout = renderLayout;
+                    desc.vertex.module = shaderModule_;
+                    desc.vertex.entryPoint = vsEntry;
+                    desc.vertex.bufferCount = vbl ? 1u : 0u;
+                    desc.vertex.buffers = vbl;
+                    desc.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
+                    desc.primitive.cullMode = cull;
+                    desc.primitive.frontFace = wgpu::FrontFace::CCW;
+                    desc.depthStencil = &depthStencil;
+                    desc.fragment = &fragment;
+                    return tPipe(label, [&]() {
+                        out = device_.CreateRenderPipeline(&desc);
+                        return out != nullptr;
+                    });
+                };
+
                 // Patch terrain pipeline -- instanced, no vertex buffer
                 {
                     wgpu::FragmentState fragment{};
@@ -1727,31 +1762,9 @@ namespace t7 {
                     }
                 }
 
-                // Pawn pipeline -- chess pawn, GPU-generated from vertex_index
-                {
-                    wgpu::FragmentState fragment{};
-                    fragment.module = shaderModule_;
-                    fragment.entryPoint = Entry::ENTITY_FS;
-                    fragment.targetCount = 1;
-                    fragment.targets = &colorTarget;
-
-                    wgpu::RenderPipelineDescriptor desc{};
-                    desc.label = "Pawn Entity (Chess Pawn)";
-                    desc.layout = renderLayout;
-                    desc.vertex.module = shaderModule_;
-                    desc.vertex.entryPoint = Entry::PAWN_VS;
-                    desc.vertex.bufferCount = 0;
-                    desc.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
-                    desc.primitive.cullMode = wgpu::CullMode::None;
-                    desc.primitive.frontFace = wgpu::FrontFace::CCW;
-                    desc.depthStencil = &depthStencil;
-                    desc.fragment = &fragment;
-
-                    if (!tPipe("pawn", [&]() {
-                        pawnPipeline_ = device_.CreateRenderPipeline(&desc);
-                        return pawnPipeline_ != nullptr;
-                    })) return false;
-                }
+                // Pawn pipeline -- chess pawn, GPU-generated from vertex_index (bufferless, cull None)
+                if (!makeEntity("pawn", "Pawn Entity (Chess Pawn)", Entry::PAWN_VS,
+                    nullptr, wgpu::CullMode::None, pawnPipeline_)) return false;
 
                 // Sphere pipeline -- sphere entity, MeshVertex (pos+normal)
                 {
@@ -1769,40 +1782,14 @@ namespace t7 {
                     meshVBL.attributeCount = meshAttrs.size();
                     meshVBL.attributes = meshAttrs.data();
 
-                    wgpu::FragmentState fragment{};
-                    fragment.module = shaderModule_;
-                    fragment.entryPoint = Entry::ENTITY_FS;
-                    fragment.targetCount = 1;
-                    fragment.targets = &colorTarget;
-
-                    wgpu::RenderPipelineDescriptor desc{};
-                    desc.label = "Sphere Entity (Rasterized)";
-                    desc.layout = renderLayout;
-                    desc.vertex.module = shaderModule_;
-                    desc.vertex.entryPoint = Entry::SPHERE_VS;
-                    desc.vertex.bufferCount = 1;
-                    desc.vertex.buffers = &meshVBL;
-                    desc.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
-                    desc.primitive.cullMode = wgpu::CullMode::Back;
-                    desc.primitive.frontFace = wgpu::FrontFace::CCW;
-                    desc.depthStencil = &depthStencil;
-                    desc.fragment = &fragment;
-
+                    // Sphere + Monolith — same MeshVertex format, Back cull, differ only by VS.
                     if constexpr (ROSTER.sphere) {  // ROSTER-GATE sphere (a') — FXC skipped when disabled (DEMO-1c)
-                    if (!tPipe("sphere", [&]() {
-                        spherePipeline_ = device_.CreateRenderPipeline(&desc);
-                        return spherePipeline_ != nullptr;
-                    })) return false;
+                    if (!makeEntity("sphere", "Sphere Entity (Rasterized)", Entry::SPHERE_VS,
+                        &meshVBL, wgpu::CullMode::Back, spherePipeline_)) return false;
                     }
-
                     if constexpr (ROSTER.cube) {  // ROSTER-GATE cube (a') — FXC skipped when disabled (DEMO-1c)
-                    if (!tPipe("monolith", [&]() {
-                        // Monolith pipeline — same vertex format, different VS
-                        desc.label = "Monolith Entity (Rasterized)";
-                        desc.vertex.entryPoint = Entry::MONOLITH_VS;
-                        monolithPipeline_ = device_.CreateRenderPipeline(&desc);
-                        return monolithPipeline_ != nullptr;
-                    })) return false;
+                    if (!makeEntity("monolith", "Monolith Entity (Rasterized)", Entry::MONOLITH_VS,
+                        &meshVBL, wgpu::CullMode::Back, monolithPipeline_)) return false;
                     }
                 }
 
@@ -1828,84 +1815,32 @@ namespace t7 {
                     archVBL.attributeCount = archAttrs.size();
                     archVBL.attributes = archAttrs.data();
 
-                    wgpu::FragmentState fragment{};
-                    fragment.module = shaderModule_;
-                    fragment.entryPoint = Entry::ENTITY_FS;
-                    fragment.targetCount = 1;
-                    fragment.targets = &colorTarget;
-
-                    wgpu::RenderPipelineDescriptor desc{};
-                    desc.label = "Catenary Arch (Rasterized)";
-                    desc.layout = renderLayout;
-                    desc.vertex.module = shaderModule_;
-                    desc.vertex.entryPoint = Entry::ARCH_VS;
-                    desc.vertex.bufferCount = 1;
-                    desc.vertex.buffers = &archVBL;
-                    desc.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
-                    desc.primitive.cullMode = wgpu::CullMode::Back;
-                    desc.primitive.frontFace = wgpu::FrontFace::CCW;
-                    desc.depthStencil = &depthStencil;
-                    desc.fragment = &fragment;
-
+                    // Arch/column/palm/cactus/blade/pyramid — same ArchVertex format; differ by
+                    // VS + cull. Single-sided column/palm/cactus/blade quads disable backface
+                    // cull (None); arch + pyramid are solids (Back). (cullMode is a real fork.)
                     if constexpr (ROSTER.arch) {  // ROSTER-GATE arch (a') — FXC skipped when disabled (DEMO-1c)
-                    if (!tPipe("arch", [&]() {
-                        archPipeline_ = device_.CreateRenderPipeline(&desc);
-                        return archPipeline_ != nullptr;
-                    })) return false;
+                    if (!makeEntity("arch", "Catenary Arch (Rasterized)", Entry::ARCH_VS,
+                        &archVBL, wgpu::CullMode::Back, archPipeline_)) return false;
                     }
-
                     if constexpr (ROSTER.column || ROSTER.antenna) {  // ROSTER-GATE column+antenna (shared pipelines) (a') — FXC skipped when disabled (DEMO-1c)
-                    if (!tPipe("column", [&]() {
-                        desc.label = "Generative Column (Rasterized)";
-                        desc.vertex.entryPoint = Entry::COLUMN_VS;
-                        desc.primitive.cullMode = wgpu::CullMode::None;
-                        columnPipeline_ = device_.CreateRenderPipeline(&desc);
-                        return columnPipeline_ != nullptr;
-                    })) return false;
+                    if (!makeEntity("column", "Generative Column (Rasterized)", Entry::COLUMN_VS,
+                        &archVBL, wgpu::CullMode::None, columnPipeline_)) return false;
                     }
-
                     if constexpr (ROSTER.palm) {  // ROSTER-GATE palm (a') — FXC skipped when disabled (DEMO-1c)
-                    if (!tPipe("palm", [&]() {
-                        // Palm pipeline — same vertex format, no backface culling (frond quads are single-sided)
-                        desc.label = "Palm Tree (Rasterized)";
-                        desc.vertex.entryPoint = Entry::PALM_VS;
-                        desc.primitive.cullMode = wgpu::CullMode::None;
-                        palmPipeline_ = device_.CreateRenderPipeline(&desc);
-                        return palmPipeline_ != nullptr;
-                    })) return false;
+                    if (!makeEntity("palm", "Palm Tree (Rasterized)", Entry::PALM_VS,
+                        &archVBL, wgpu::CullMode::None, palmPipeline_)) return false;
                     }
-
                     if constexpr (ROSTER.cactus) {  // ROSTER-GATE cactus (a') — FXC skipped when disabled (DEMO-1c)
-                    if (!tPipe("cactus", [&]() {
-                        // Cactus pipeline — same vertex format, no backface culling
-                        desc.label = "Cactus (Rasterized)";
-                        desc.vertex.entryPoint = Entry::CACTUS_VS;
-                        desc.primitive.cullMode = wgpu::CullMode::None;
-                        cactusPipeline_ = device_.CreateRenderPipeline(&desc);
-                        return cactusPipeline_ != nullptr;
-                    })) return false;
+                    if (!makeEntity("cactus", "Cactus (Rasterized)", Entry::CACTUS_VS,
+                        &archVBL, wgpu::CullMode::None, cactusPipeline_)) return false;
                     }
-
                     if constexpr (ROSTER.blade) {  // ROSTER-GATE blade (a') — FXC skipped when disabled (DEMO-1c)
-                    if (!tPipe("blade", [&]() {
-                        // Blade cluster pipeline — no backface culling (flat quads visible from both sides)
-                        desc.label = "Blade Cluster (Rasterized)";
-                        desc.vertex.entryPoint = Entry::BLADE_VS;
-                        desc.primitive.cullMode = wgpu::CullMode::None;
-                        bladePipeline_ = device_.CreateRenderPipeline(&desc);
-                        return bladePipeline_ != nullptr;
-                    })) return false;
+                    if (!makeEntity("blade", "Blade Cluster (Rasterized)", Entry::BLADE_VS,
+                        &archVBL, wgpu::CullMode::None, bladePipeline_)) return false;
                     }
-
                     if constexpr (ROSTER.pyramid) {  // ROSTER-GATE pyramid (a') — FXC skipped when disabled (DEMO-1c)
-                    if (!tPipe("pyramid", [&]() {
-                        // Pyramid pipeline — same vertex format as arch/column, Back culling.
-                        desc.label = "Generative Pyramid (Rasterized)";
-                        desc.vertex.entryPoint = Entry::PYRAMID_VS;
-                        desc.primitive.cullMode = wgpu::CullMode::Back;
-                        pyramidPipeline_ = device_.CreateRenderPipeline(&desc);
-                        return pyramidPipeline_ != nullptr;
-                    })) return false;
+                    if (!makeEntity("pyramid", "Generative Pyramid (Rasterized)", Entry::PYRAMID_VS,
+                        &archVBL, wgpu::CullMode::Back, pyramidPipeline_)) return false;
                     }
                 }
 
@@ -1928,36 +1863,14 @@ namespace t7 {
                     shellVBL.attributeCount = shellAttrs.size();
                     shellVBL.attributes = shellAttrs.data();
 
-                    wgpu::FragmentState fragment{};
-                    fragment.module = shaderModule_;
-                    fragment.entryPoint = Entry::ENTITY_FS;
-                    fragment.targetCount = 1;
-                    fragment.targets = &colorTarget;
-
-                    wgpu::RenderPipelineDescriptor desc{};
-                    desc.label = "Indoor Shell (Ceiling + Walls)";
-                    desc.layout = renderLayout;
-                    desc.vertex.module = shaderModule_;
-                    desc.vertex.entryPoint = Entry::SHELL_VS;
-                    desc.vertex.bufferCount = 1;
-                    desc.vertex.buffers = &shellVBL;
-                    desc.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
-                    desc.primitive.cullMode = wgpu::CullMode::None;  // normals face inward (ceiling) and outward (walls)
-                    desc.primitive.frontFace = wgpu::FrontFace::CCW;
-                    desc.depthStencil = &depthStencil;
-                    desc.fragment = &fragment;
-
                     // ROSTER-GATE indoor_shell (a) — SEPARABLE: skip the shell
                     // pipeline creation when disabled. draw_shell self-gates on
                     // shell_index_count==0 (stays 0 — apply_mood_indoor_shell is
                     // (b)-gated), so the null pipeline is never bound.
-                    if constexpr (ROSTER.indoor_shell) {
-                        if constexpr (ROSTER.indoor_shell) {  // ROSTER-GATE indoor_shell (a') — FXC skipped when disabled (DEMO-1c)
-                        if (!tPipe("shell", [&]() {
-                            shellPipeline_ = device_.CreateRenderPipeline(&desc);
-                            return shellPipeline_ != nullptr;
-                        })) return false;
-                        }
+                    // cull None: shell normals face inward (ceiling) + outward (walls).
+                    if constexpr (ROSTER.indoor_shell) {  // ROSTER-GATE indoor_shell (a') — FXC skipped when disabled (DEMO-1c)
+                    if (!makeEntity("shell", "Indoor Shell (Ceiling + Walls)", Entry::SHELL_VS,
+                        &shellVBL, wgpu::CullMode::None, shellPipeline_)) return false;
                     }
                 }
 

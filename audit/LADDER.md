@@ -3235,6 +3235,44 @@ pipelines are a depth-only category, and terrain/zone/orb/fade/gallery/wall-pain
 are the genuinely-unique specials. Per Jean's sequencing (separate commits let the
 rig isolate + keep the edge-notes clean).
 
+=== C3 (part 2a — the RENDER side, ENTITY category) — the entity-render builder ===
+(Cut AFTER C1 + C3-compute rigged green — no second blind cut stacked on an
+unrigged one.) The 10 ENTITY_FS render pipelines (pawn, sphere, monolith, arch,
+column, palm, cactus, blade, pyramid, shell) routed through one builder — a
+makeEntity(label, dbgLabel, vsEntry, vbl*, cull, out&) lambda inside
+createRenderPipelines that captures the shared scaffold (renderLayout +
+depthStencil + colorTarget + ENTITY_FS + TriangleList + frontFace CCW). Entry
+strings passed VERBATIM; same 10 pipelines built (pyramid render stays built — it
+is an orphan but its removal is C2, untouched here); no binding changes. The
+per-format vertex-buffer-layout construction (meshVBL 24 / archVBL 40 / shellVBL
+36 / bufferless) stays inline at the call site — the genuine fork.
+DISCIPLINE 2 HELD (the important part): cullMode did NOT fold flat — it is a
+parameter, because it is a REAL per-pipeline field. Single-sided quads
+(column/palm/cactus/blade + pawn + shell) use CullMode::None; solids
+(sphere/monolith/arch/pyramid) use Back. Forcing one cull would have flipped
+backface culling on the single-sided families — a PIXEL change. The Back-vs-None
+split is an edge, so it survives as an argument, not a flag buried in the helper.
+BYTE-IDENTITY: same 10 descriptors field-for-field (VS/VBL/cull each verified);
+the only structural change is the shared-desc-mutated-in-place pattern
+(sphere->monolith; arch->column->...->pyramid) becomes a fresh desc per call —
+identical result. Also collapsed the shell's redundant double-nested
+`if constexpr (ROSTER.indoor_shell)` to one (same compile-time condition).
+GATE: glaw1 GREEN (10 makeEntity calls, 24 untouched render creations + 1 in the
+helper). HELD for Jean's BOOT CHECK (all entity pipelines create) + pixel-identical
+rig — this is descriptor-sensitive, so a wrong cull/VBL is a pixel diff, not a
+compile error.
+GRAPH EDGE REVEALED: the entity-render category = one FS (ENTITY_FS) + one layout
+over {3 vertex formats: bufferless / MeshVertex-24 / ArchVertex-40 / ShellVertex-36}
+x {2 cull modes: Back solids / None single-sided}, selected per pipeline. That
+product — 3(+1)formats x 2 culls — IS the structure of the render half's first
+category; compute had no such product (it was pure (layout, entry)), which is
+exactly why render carries the model and compute didn't.
+STILL AHEAD (this cut's siblings, each its own commit + rig): part 2b the
+SHADOW/DEPTH builder (depth-only, fragment=nullptr, shadowRenderLayout, differ by
+shadow-VS + VBL); part 2c the genuine SPECIALS stay bespoke (patch-terrain +
+USE_PATCH_INDIRECTION override, zone-extrusion, ribbon, orb, fade, gallery-frame,
+dual-FS wall-painting) — flagged, not collapsed.
+
 ## TERRAIN-2 — SKIRTS (side excursion; weld #2; own rig-gated commit)
 Jean's order: skirt the terrain patch mesh (plain patch edges) to hide
 inter-patch cracks — precision AND LOD/T-junction — with ONE mechanism.
