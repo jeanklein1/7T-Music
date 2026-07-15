@@ -2809,6 +2809,42 @@ offset/gpu_ground_y/theme_idx dead, entity_density a provable x1.0 no-op.
 decoupled from Dim::PATCH_HEIGHTFIELD_N=256 (no static_assert link).
 No cut order, no sequencing. HELD for the design conversation.
 
+## PATCH-GEN + SPAWN — THE CUT (stamped plan; per-commit)
+Rulings + sequenced plan STAMPED (Jean). Governing rule: unify mechanism,
+never touch the biography draw — bit-identity NONE merges freely, LIVE
+stays forked. TWO recon reads corrected under the flag clause (Jean
+accepted both as corrections, not overrides): Q2 — the O(1) set is a
+per-scan LOCAL (patch_system.hpp:687), not a maintained member, so
+find_patch STAYS O(N)/untouched and NO persistent invariant is introduced
+(kill the fullRegen O(N^2) via a shared build_active_patch_set); Q3 —
+antenna is the SAME GPUColumnMeshParams layout (antenna_write_gpu
+entity_pipeline.hpp:637 vs build_column_mesh_params_from :329, proven by
+the live reupload path :457), merge gated on FIELD-PARITY (a divergence
+surfaces as a pre-existing commit-vs-reupload bug, NOT forced). Q7 names:
+spatial_density / temporal_flavor. SEQUENCE: [1] band_patches · [2]
+build_patch_grid · [3] Q2 · [4] Q3 · [5] Q9 · [6] Q8 · [7] Q5 · [8] Q4 ·
+[9] Q6a key-helper · [10] Q6b relocate (RIG) · [11] Q7 rename. Baked-
+sampler-path commits to watch: 2 (grid) + 10 (Q6b), non-colliding
+(grid=shape/layer, population=CPU-only). Batch-review breakpoints: after
+2, after 8, after 11. Gate class: all gate-only except Q6b (rig, cross-
+module); Q1 ruled gate-only, rig smoke-check optional.
+
+=== commit 1 — band_patches (the conductor split, part 1) ===
+Extracted the visibility/LOD banding tail block of stream_patches into
+band_patches(c, queue) (patch_system.hpp, defined just above the
+conductor): walk GENERATED patches -> gate on the visibility cylinder
+(finite = all-visible) -> split LOD0/LOD1/pregen -> pack [lod0|lod1|
+pregen] -> upload instances + lod0/render/all counts + placement_patch_
+count + lod_pawn (the anti-flicker push). PURE extraction, byte-identical
+(same ops, same order); stream_patches now CALLS it. The patch-grid block
+stays inline (commit 2). offer-face: GPUPatchInstance[] + counts +
+lod_pawn. Did NOT carry the dead "render" radius vocabulary
+(RENDER_RADIUS/VISIBLE_RADIUS_SQ) into the offer-face — flagged, not
+enshrined. stream_patches moves from organ toward sequencer.
+GATE: gate-only (bit-safe, pack order = wire layout, not a draw). glaw1
+GREEN (real C++ compile — extraction valid); score census GREEN;
+patch_system.hpp clean UTF-8/LF, no CR. Behavior-identical.
+
 ## TERRAIN-2 — SKIRTS (side excursion; weld #2; own rig-gated commit)
 Jean's order: skirt the terrain patch mesh (plain patch edges) to hide
 inter-patch cracks — precision AND LOD/T-junction — with ONE mechanism.

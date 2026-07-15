@@ -538,6 +538,86 @@ inline void generate_selected_patches(MachineCtx* c, const PatchCandidate* candi
     c->world_state_.patch_instances_dirty = true;
 }
 
+// ── band_patches (visibility/LOD → the draw-instance set) ──────────
+// One unit of the conductor: walk the GENERATED patches, gate each on the
+// world-space visibility cylinder (finite mode = all visible, "walls
+// define boundary, not fog"), split LOD0/LOD1/pregen, pack them
+// [lod0|lod1|pregen] (the draw-split contract the render reads by count),
+// upload the instance buffer + the lod0/render/all counts + the placement
+// patch count, and push lod_pawn so the frustum-cull shader re-bands on
+// the SAME pawn the CPU banded on (the anti-flicker contract).
+//   offer-face: GPUPatchInstance[] + lod0/render/all counts + lod_pawn.
+//   requires:   patches_ registry, player readback, patch_distance_sq,
+//               the cylinder thresholds, finite_mode; the upload doors.
+// Bit-safe: pack order = wire layout, not a draw. Separate from
+// build_patch_grid (different consumer/offer-face); they only coincided
+// in the same tail block. Does NOT touch the dead "render" radius
+// vocabulary (RENDER_RADIUS/VISIBLE_RADIUS_SQ) — the live gates are the
+// cylinder squares; those stay flagged in the dead register.
+inline void band_patches(MachineCtx* c, wgpu::Queue& queue) {
+    GPUPatchInstance instances[MAX_PATCHES]{};
+    uint32_t lod0Count = 0;
+    uint32_t lod1Count = 0;
+    uint32_t pregenCount = 0;
+
+    // Temporary arrays for each band
+    GPUPatchInstance lod0[MAX_PATCHES]{};
+    GPUPatchInstance lod1[MAX_PATCHES]{};
+    GPUPatchInstance pregen[MAX_PATCHES]{};
+
+    float pawn_wx = c->player_.readback_x;
+    float pawn_wz = c->player_.readback_z;
+    float half = PATCH_EXTENT * 0.5f;
+
+    for (uint32_t i = 0; i < c->world_state_.active_patch_count; i++) {
+        if (c->patch_system_state_.patches_[i].phase != PatchPhase::GENERATED &&
+            c->patch_system_state_.patches_[i].phase != PatchPhase::NEEDS_REGEN) continue;
+
+        float ox = (c->patch_system_state_.patches_[i].grid_x + 0.5f) * PATCH_EXTENT;
+        float oz = (c->patch_system_state_.patches_[i].grid_z + 0.5f) * PATCH_EXTENT;
+
+        GPUPatchInstance inst{};
+        inst.origin[0] = ox;
+        inst.origin[1] = oz;
+        inst.extent = PATCH_EXTENT;
+        inst.layer = c->patch_system_state_.patches_[i].layer;
+
+        float d2 = patch_distance_sq(pawn_wx, pawn_wz, ox, oz, half);
+
+        // Finite mode: all patches visible (walls define boundary, not fog)
+        if (c->world_state_.finite_mode || d2 <= VISIBILITY_CYLINDER_RADIUS_SQ) {
+            if (d2 <= LOD0_CYLINDER_RADIUS_SQ) {
+                lod0[lod0Count++] = inst;
+            }
+            else {
+                lod1[lod1Count++] = inst;
+            }
+        }
+        else {
+            pregen[pregenCount++] = inst;
+        }
+    }
+
+    // Pack: LOD-0, then LOD-1, then pregen
+    uint32_t w = 0;
+    std::memcpy(instances + w, lod0, lod0Count * sizeof(GPUPatchInstance)); w += lod0Count;
+    std::memcpy(instances + w, lod1, lod1Count * sizeof(GPUPatchInstance)); w += lod1Count;
+    std::memcpy(instances + w, pregen, pregenCount * sizeof(GPUPatchInstance)); w += pregenCount;
+
+    c->gpuState_.upload_patch_instances(queue, instances, w);
+    c->world_state_.lod0_patch_count = lod0Count;
+    c->world_state_.render_patch_count = lod0Count + lod1Count;
+    c->world_state_.all_patch_count = w;
+
+    // Sync placement_patch_count so compute_entity_placement
+    // can sample heightfields from the current frame's patch set.
+    c->gpuState_.stage_placement_patch_count(w);
+    c->gpuState_.upload_placement_patch_count(queue);
+
+    c->gpuState_.stage_lod_pawn(pawn_wx, pawn_wz);
+    c->gpuState_.upload_lod_pawn(queue);
+}
+
 // --- Patch streaming: determine active 7×7 grid, generate new patches ---
 // THE CONDUCTOR (Phase R stamp, R-c): the per-frame step — recenter,
 // eviction, allocation, spawn + generation budgets, visibility
@@ -777,67 +857,7 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
     }
 
     {
-        GPUPatchInstance instances[MAX_PATCHES]{};
-        uint32_t lod0Count = 0;
-        uint32_t lod1Count = 0;
-        uint32_t pregenCount = 0;
-
-        // Temporary arrays for each band
-        GPUPatchInstance lod0[MAX_PATCHES]{};
-        GPUPatchInstance lod1[MAX_PATCHES]{};
-        GPUPatchInstance pregen[MAX_PATCHES]{};
-
-        float pawn_wx = c->player_.readback_x;
-        float pawn_wz = c->player_.readback_z;
-        float half = PATCH_EXTENT * 0.5f;
-
-        for (uint32_t i = 0; i < c->world_state_.active_patch_count; i++) {
-            if (c->patch_system_state_.patches_[i].phase != PatchPhase::GENERATED &&
-                c->patch_system_state_.patches_[i].phase != PatchPhase::NEEDS_REGEN) continue;
-
-            float ox = (c->patch_system_state_.patches_[i].grid_x + 0.5f) * PATCH_EXTENT;
-            float oz = (c->patch_system_state_.patches_[i].grid_z + 0.5f) * PATCH_EXTENT;
-
-            GPUPatchInstance inst{};
-            inst.origin[0] = ox;
-            inst.origin[1] = oz;
-            inst.extent = PATCH_EXTENT;
-            inst.layer = c->patch_system_state_.patches_[i].layer;
-
-            float d2 = patch_distance_sq(pawn_wx, pawn_wz, ox, oz, half);
-
-            // Finite mode: all patches visible (walls define boundary, not fog)
-            if (c->world_state_.finite_mode || d2 <= VISIBILITY_CYLINDER_RADIUS_SQ) {
-                if (d2 <= LOD0_CYLINDER_RADIUS_SQ) {
-                    lod0[lod0Count++] = inst;
-                }
-                else {
-                    lod1[lod1Count++] = inst;
-                }
-            }
-            else {
-                pregen[pregenCount++] = inst;
-            }
-        }
-
-        // Pack: LOD-0, then LOD-1, then pregen
-        uint32_t w = 0;
-        std::memcpy(instances + w, lod0, lod0Count * sizeof(GPUPatchInstance)); w += lod0Count;
-        std::memcpy(instances + w, lod1, lod1Count * sizeof(GPUPatchInstance)); w += lod1Count;
-        std::memcpy(instances + w, pregen, pregenCount * sizeof(GPUPatchInstance)); w += pregenCount;
-
-        c->gpuState_.upload_patch_instances(queue, instances, w);
-        c->world_state_.lod0_patch_count = lod0Count;
-        c->world_state_.render_patch_count = lod0Count + lod1Count;
-        c->world_state_.all_patch_count = w;
-
-        // Sync placement_patch_count so compute_entity_placement
-        // can sample heightfields from the current frame's patch set.
-        c->gpuState_.stage_placement_patch_count(w);
-        c->gpuState_.upload_placement_patch_count(queue);
-
-        c->gpuState_.stage_lod_pawn(pawn_wx, pawn_wz);
-        c->gpuState_.upload_lod_pawn(queue);
+        band_patches(c, queue);
 
         // ─── Patch grid: O(1) spatial index for sample_terrain_y_at ────────
         {
