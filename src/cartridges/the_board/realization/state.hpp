@@ -1595,8 +1595,36 @@ namespace t7 {
                 return true;
             }
 
+            // C4 (upload collapse): the WriteBuffer pattern lives in three shape
+            // helpers, and the SIZE is derived from the value's type — a write can
+            // never again carry a mismatched sizeof (the recon's silent-corruption
+            // class). The three shapes ARE a CADENCE taxonomy — the graph's first
+            // TEMPORAL edges:
+            //   writeStruct — Shape A: DIRTY-DRIVEN whole-buffer writes
+            //   writeSlot   — Shape B: COMMIT-DRIVEN slot writes (base = a header
+            //                 that precedes the slot array)
+            //   writeArray  — Shape C: COUNT-DRIVEN array writes
+            // The frame's PER-FRAME HOT fields are NOT here: they are the bespoke
+            // offsetof field-writers (resync_sky_head, the config sub-writers,
+            // upload_ribbon_time/color/wave_amps, upload_*_frame, zone header/life).
+            // A third tempo — left bespoke, offsetof asserts undisturbed.
+            template <class T>
+            void writeStruct(wgpu::Queue& queue, const wgpu::Buffer& buf, const T& v) {
+                queue.WriteBuffer(buf, 0, &v, sizeof(T));
+            }
+            template <class T>
+            void writeSlot(wgpu::Queue& queue, const wgpu::Buffer& buf, uint32_t slot,
+                           const T& v, uint64_t base = 0) {
+                queue.WriteBuffer(buf, base + (uint64_t)slot * sizeof(T), &v, sizeof(T));
+            }
+            template <class T>
+            void writeArray(wgpu::Queue& queue, const wgpu::Buffer& buf,
+                            const T* data, uint32_t count) {
+                queue.WriteBuffer(buf, 0, data, (size_t)sizeof(T) * count);
+            }
+
             void upload_signal(wgpu::Queue& queue, const GPUFrameSignal& signal) {
-                queue.WriteBuffer(signalBuffer_, 0, &signal, sizeof(GPUFrameSignal));
+                writeStruct(queue, signalBuffer_, signal);
             }
 
             // Re-write only the sky_* block of the frame signal. Used to re-sync the
@@ -1643,7 +1671,7 @@ namespace t7 {
             void upload_config(wgpu::Queue& queue) {
                 if (!configDirty_ && !configDynamic_) return;
                 configDirty_ = false;
-                queue.WriteBuffer(configBuffer_, 0, &config_, sizeof(GPUDesignConfig));
+                writeStruct(queue, configBuffer_, config_);   // Shape A, dirty-driven — the canonical cadence
             }
 
             // Targeted 4-byte upload of pier_count only — called from write_pier/clear_pier.
@@ -1675,15 +1703,15 @@ namespace t7 {
             }
 
             void upload_directional_light(wgpu::Queue& queue, const GPUDirectionalLight& light) {
-                queue.WriteBuffer(directionalLightBuffer_, 0, &light, sizeof(GPUDirectionalLight));
+                writeStruct(queue, directionalLightBuffer_, light);
             }
 
             void upload_point_lights(wgpu::Queue& queue, const GPUPointLightArray& lights) {
-                queue.WriteBuffer(pointLightsBuffer_, 0, &lights, sizeof(GPUPointLightArray));
+                writeStruct(queue, pointLightsBuffer_, lights);
             }
 
             void upload_spot_lights(wgpu::Queue& queue, const GPUSpotLightArray& arr) {
-                queue.WriteBuffer(spotLightArrayBuffer_, 0, &arr, sizeof(GPUSpotLightArray));
+                writeStruct(queue, spotLightArrayBuffer_, arr);
             }
 
             // Stage all active spot light VPs into the staging buffer (4 × 64 bytes).
@@ -1701,11 +1729,11 @@ namespace t7 {
             static constexpr size_t light_vp_size() { return 16 * sizeof(float); }
 
             void upload_patch_params(wgpu::Queue& queue, const GPUPatchParams& params) {
-                queue.WriteBuffer(patchParamsBuffer_, 0, &params, sizeof(GPUPatchParams));
+                writeStruct(queue, patchParamsBuffer_, params);
             }
 
             void upload_tile_grid(wgpu::Queue& queue, const GPUTileGrid& grid) {
-                queue.WriteBuffer(tileGridBuffer_, 0, &grid, sizeof(GPUTileGrid));
+                writeStruct(queue, tileGridBuffer_, grid);
             }
 
             void upload_patch_instances(wgpu::Queue& queue, const GPUPatchInstance* instances, uint32_t count) {
@@ -1713,7 +1741,7 @@ namespace t7 {
             }
 
             void upload_patch_grid(wgpu::Queue& queue, const GPUPatchGrid& grid) {
-                queue.WriteBuffer(patchGridBuffer_, 0, &grid, sizeof(GPUPatchGrid));
+                writeStruct(queue, patchGridBuffer_, grid);
             }
 
             void upload_ribbon_time(wgpu::Queue& queue, float time) {
@@ -1727,7 +1755,7 @@ namespace t7 {
             }
 
             void upload_ribbon(wgpu::Queue& queue, const GPURibbonState& ribbon) {
-                queue.WriteBuffer(ribbonBuffer_, 0, &ribbon, sizeof(GPURibbonState));
+                writeStruct(queue, ribbonBuffer_, ribbon);
             }
 
             void upload_ribbon_wave_amps(wgpu::Queue& queue, float lateral_amp, float vertical_amp) {
@@ -1822,17 +1850,17 @@ namespace t7 {
             }
 
             void upload_photographer_vp(wgpu::Queue& queue, const GPUVPMatrix& vp) {
-                queue.WriteBuffer(photographerVPBuffer_, 0, &vp, sizeof(GPUVPMatrix));
+                writeStruct(queue, photographerVPBuffer_, vp);
             }
 
             void upload_photographer_camera(wgpu::Queue& queue, float x, float y, float z) {
                 GPUCameraState cam{};
                 cam.pos[0] = x; cam.pos[1] = y; cam.pos[2] = z;
-                queue.WriteBuffer(photographerCameraBuffer_, 0, &cam, sizeof(GPUCameraState));
+                writeStruct(queue, photographerCameraBuffer_, cam);
             }
 
             void upload_photographer_config(wgpu::Queue& queue, const GPUPhotographerConfig& cfg) {
-                queue.WriteBuffer(photographerConfigBuffer_, 0, &cfg, sizeof(GPUPhotographerConfig));
+                writeStruct(queue, photographerConfigBuffer_, cfg);
             }
 
             // Upload an authored image into the unified painting texture array.
@@ -2351,7 +2379,7 @@ namespace t7 {
             void set_pyramid_index_count(uint32_t count) { pyramidIndexCount_ = count; }
 
             void upload_pyramids(wgpu::Queue& queue, const GPUPyramidArray& arr) {
-                queue.WriteBuffer(pyramidInstancesBuffer_, 0, &arr, sizeof(GPUPyramidArray));
+                writeStruct(queue, pyramidInstancesBuffer_, arr);
             }
 
             // GPU mesh gen: write params for a single slot (48 bytes per spawn/evict)
@@ -2468,7 +2496,7 @@ namespace t7 {
             wgpu::BindGroupLayout pawn_aura_compute_layout() const { return pawnAuraComputeLayout_; }
             wgpu::BindGroup pawn_aura_compute_group() const { return pawnAuraComputeGroup_; }
             void upload_pawn_aura_config(wgpu::Queue& queue, const GPUPawnAuraConfig& cfg) {
-                queue.WriteBuffer(pawnAuraConfigBuffer_, 0, &cfg, sizeof(GPUPawnAuraConfig));
+                writeStruct(queue, pawnAuraConfigBuffer_, cfg);
             }
             void upload_pawn_aura_frame(wgpu::Queue& queue, float dt, float t_beats) {
                 queue.WriteBuffer(pawnAuraConfigBuffer_, offsetof(GPUPawnAuraConfig, dt), &dt, sizeof(float));
@@ -2486,7 +2514,7 @@ namespace t7 {
             wgpu::BindGroupLayout orb_copy_layout() const { return orbCopyLayout_; }
             wgpu::BindGroup orb_copy_group() const { return orbCopyGroup_; }
             void upload_orb_config(wgpu::Queue& queue, const GPUOrbConfig& cfg) {
-                queue.WriteBuffer(orbConfigBuffer_, 0, &cfg, sizeof(GPUOrbConfig));
+                writeStruct(queue, orbConfigBuffer_, cfg);
             }
             void upload_orb_frame(wgpu::Queue& queue, float dt, float t_seconds) {
                 queue.WriteBuffer(orbConfigBuffer_, offsetof(GPUOrbConfig, dt), &dt, sizeof(float));
@@ -2579,7 +2607,7 @@ namespace t7 {
             wgpu::Buffer zone_mesh_indirect_buffer() const { return zoneMeshIndirectBuffer_; }
 
             void upload_zone_config(wgpu::Queue& queue, const GPUGoLZoneArray& config) {
-                queue.WriteBuffer(zoneConfigBuffer_, 0, &config, sizeof(GPUGoLZoneArray));
+                writeStruct(queue, zoneConfigBuffer_, config);
             }
 
             // Header-only upload: count, t_beats, dt, tick_mask.
@@ -2604,11 +2632,11 @@ namespace t7 {
             }
 
             void upload_zone_derive_requests(wgpu::Queue& queue, const GPUZoneDeriveRequestArray& requests) {
-                queue.WriteBuffer(zoneDeriveRequestBuffer_, 0, &requests, sizeof(GPUZoneDeriveRequestArray));
+                writeStruct(queue, zoneDeriveRequestBuffer_, requests);
             }
 
             void upload_portal_array(wgpu::Queue& queue, const GPUPortalArray& arr) {
-                queue.WriteBuffer(portalArrayBuffer_, 0, &arr, sizeof(GPUPortalArray));
+                writeStruct(queue, portalArrayBuffer_, arr);
             }
 
             void upload_zone_life(wgpu::Queue& queue, uint32_t slot,

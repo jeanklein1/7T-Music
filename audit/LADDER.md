@@ -3304,6 +3304,36 @@ shadow half = the color half with the color stripped and the depth swapped. The
 two builders ARE the render graph's node-types; the specials (part 2c) are the
 non-conforming remainder that keeps its own shape.
 
+=== C4a — the upload collapse, Shape A (helpers + dirty-driven whole-writes) ===
+REFRAME (Jean's, on record): the shape partition IS a CADENCE partition, so C4's
+edge-notes are the graph's first TEMPORAL edges. Added three shape helpers to
+GPUState — writeStruct<T> / writeSlot<T> / writeArray<T> — each DERIVING the write
+size from the value's type, so a write can never carry a mismatched sizeof (the
+recon's silent-corruption class, removed by construction). Converted the 18
+Shape-A upload methods (signal, config, directional/point/spot lights, patch_params,
+tile_grid, patch_grid, ribbon, photographer_vp/camera/config, pyramids,
+pawn_aura_config, orb_config, zone_config, zone_derive_requests, portal_array)
+to writeStruct.
+PER-SITE CHECK (Jean's gate) ran on every site: original size == sizeof(the
+argument's actual type). All 18 passed. TWO correctly EXCLUDED as partial writes
+wearing Shape A's clothes: upload_zone_config_header (writes only the 16-byte
+header of the bigger zone buffer — "does NOT overwrite per-zone configs") and
+deactivate_zone_slot (an offsetof field write). Those stay bespoke.
+GATE: glaw1 GREEN (18 writeStruct calls; the only residual WriteBuffer(buf,0,&v,
+sizeof) are the helper body + the boot writes — see flag). HELD for Jean's rig
+(one build between a and b).
+FLAG (out of scope, a FOURTH cadence): initializeState()'s 6 boot-init full-struct
+writes (config_/terrain/camera/floating-entity/ribbon/zeroVP, state.hpp ~5545-5699)
+are Shape-A-shaped but are the BOOT-ONCE tempo, not the per-frame upload API — left
+untouched; a future consistency pass could route them through writeStruct too.
+GRAPH EDGE REVEALED (temporal): Shape A is the frame's DIRTY-DRIVEN whole-write
+cadence — the "the whole DTO changed, replace it" tempo, pushed when its CPU-side
+state is marked dirty (canonical: upload_config's configDirty_ guard). This is
+one of three write tempos the upload surface runs: A dirty-driven whole-writes
+(here), B commit-driven slot-writes + C count-driven arrays (C4b), and the ~25
+bespoke offsetof field-writers = the per-frame HOT fields (a third tempo, named
+in C4b). The upload API is not one thing — it is three clocks.
+
 ## TERRAIN-2 — SKIRTS (side excursion; weld #2; own rig-gated commit)
 Jean's order: skirt the terrain patch mesh (plain patch edges) to hide
 inter-patch cracks — precision AND LOD/T-junction — with ONE mechanism.
