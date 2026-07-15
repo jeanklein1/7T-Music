@@ -275,9 +275,9 @@ inline PositionResult negotiate_position(MachineCtx* c,
     if (!check_position(c, r.cx, r.cz, footprint_r, family))
         return r;
 
-    // 3. Host patch + footprint registration
-    r.host_gx = (int32_t)std::floor(r.cx / PATCH_EXTENT);
-    r.host_gz = (int32_t)std::floor(r.cz / PATCH_EXTENT);
+    // 3. Host patch + footprint registration (Q6a: one key derivation)
+    auto hk = tile_key(r.cx, r.cz);
+    r.host_gx = hk.x; r.host_gz = hk.z;
     if (register_footprint(c, r.cx, r.cz, footprint_r,
         r.host_gx, r.host_gz, family, tier) == UINT32_MAX) return r;
 

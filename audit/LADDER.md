@@ -2959,6 +2959,20 @@ corrections held (Q2 no persistent set; Q3 clean parity). REMAINING: the
 seam — [9] Q6a tile_key helper, [10] Q6b relocate TilePopulation (RIG,
 cross-module), [11] Q7 rename spatial_density/temporal_flavor. HELD for
 Jean's after-8 batch review.
+BATCH STAMPED (Jean): build green, pipelines clean. Into the seam; order
+Q6a → Q7 → Q6b (Q6b = the one real rig pass, per-commit stamp; 9+11 ride
+ahead).
+
+=== commit 9 — Q6a: the tile_key helper (one key derivation) ===
+Extracted the world-xz → tile grid key into tile_key(wx,wz)->GridKey
+(tile_world.hpp) = the ONE (int)floor(w/PATCH_EXTENT). Repointed the three
+recompute sites: F1 estimate_terrain_height, F2 terrain_tile_warm
+(tile_world), and negotiate_position's host_gx/gz (spawn_engine — visible
+via the include order, tile_world precedes spawn_engine). Bit-identical
+(same floor form → same keys). The prereq for Q6b's relocate.
+GATE: gate-only. glaw1 GREEN (helper visibility + GridKey.x/.z + repoints);
+score census GREEN; the only residual floor(w/EXTENT) is inside tile_key.
+Behavior-identical.
 
 ## TERRAIN-2 — SKIRTS (side excursion; weld #2; own rig-gated commit)
 Jean's order: skirt the terrain patch mesh (plain patch edges) to hide

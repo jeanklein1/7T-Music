@@ -499,19 +499,24 @@ inline void tick_terrain_tokens(TileWorldState& tw, const TileState& outcome, ui
 // THE S2/S3 BOUNDARY FACE: the surface samplers — the occupiers ask
 // the terrain's memory for height and warmth (rode in from
 // spawn_engine at its conversion, per the Phase R stamp).
+// Q6a: the world-xz → tile grid key. The ONE place a boundary-face reader
+// turns world coords into (x,z), so every reader reproduces the SAME
+// (int)floor(w/PATCH_EXTENT) derivation (it was recomputed at each site).
+// NOTE: this is a container LOOKUP key — GridKeyHash's primes are a bucket
+// hash, NOT a (seed,prop)→value biography path.
+inline GridKey tile_key(float wx, float wz) {
+    return { (int32_t)std::floor(wx / PATCH_EXTENT), (int32_t)std::floor(wz / PATCH_EXTENT) };
+}
+
 inline float estimate_terrain_height(const TileWorldState& tw, float wx, float wz) {
-    int32_t tx = (int32_t)std::floor(wx / PATCH_EXTENT);
-    int32_t tz = (int32_t)std::floor(wz / PATCH_EXTENT);
-    auto it = tw.tileCache_.find({ tx, tz });
+    auto it = tw.tileCache_.find(tile_key(wx, wz));
     if (it != tw.tileCache_.end())
         return it->second.shape.height_bias + it->second.shape.amp_scale * 5.0f;
     return 0.0f;
 }
 
 inline bool terrain_tile_warm(const TileWorldState& tw, float wx, float wz) {
-    int32_t tx = (int32_t)std::floor(wx / PATCH_EXTENT);
-    int32_t tz = (int32_t)std::floor(wz / PATCH_EXTENT);
-    return tw.tileCache_.find({ tx, tz }) != tw.tileCache_.end();
+    return tw.tileCache_.find(tile_key(wx, wz)) != tw.tileCache_.end();
 }
 
 // F3 (m3b): the spawn-modifier face. The two multiplies preserve the
