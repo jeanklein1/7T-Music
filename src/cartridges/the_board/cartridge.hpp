@@ -312,13 +312,11 @@ namespace t7 {
             // ═══ DISPATCH WRAPPERS ═══════════════════════════════════════
 
             // ── Mesh gen wrappers ──
-
-            static bool dispatch_prepare_mesh_pyramid(MachineCtx* self, wgpu::Queue& queue) {
-                return prepare_pyramid_mesh_gen(self->entities_state_, self, queue);
-            }
-            static void dispatch_mesh_gen_pyramid(MachineCtx* self, wgpu::ComputePassEncoder& pass) {
-                self->renderer_.dispatch_pyramid_mesh_gen(pass, self->gpuState_.pyramid_mesh_gen_group());
-            }
+            // pyramid mesh-gen wrappers CUT (C2 orphan sweep) — the pyramid row's
+            // FAMILY_DISPATCH mesh hook routes to the none-fork below;
+            // prepare_pyramid_mesh_gen removed. The pyramid is the first entity whose
+            // realization IS the terrain: it keeps its select/place/commit/evict verbs
+            // (placement feeds the heightfield) but has no mesh realization of its own.
 
             static bool dispatch_prepare_mesh_arch(MachineCtx* self, wgpu::Queue& queue) {
                 return prepare_arch_mesh_gen(self->entities_state_, self, queue);
@@ -1298,7 +1296,7 @@ inline void dispatch_mesh_gen_none(MachineCtx* self, wgpu::ComputePassEncoder& p
 
 inline const FamilyDispatch FAMILY_DISPATCH[PopFamily::COUNT] = {
     { dispatch_select_pyramid_generic, dispatch_place_pyramid_generic, dispatch_commit_pyramid_generic,
-      evict_pyramid, Cartridge::dispatch_prepare_mesh_pyramid, Cartridge::dispatch_mesh_gen_pyramid,
+      evict_pyramid, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,   // mesh hook → none-fork (C2): pyramid mesh dead-by-design; placement feeds the heightfield
       "pyr" },
     { dispatch_select_arch_generic, dispatch_place_arch_generic, dispatch_commit_arch_generic,
       evict_arch,    Cartridge::dispatch_prepare_mesh_arch,    Cartridge::dispatch_mesh_gen_arch,

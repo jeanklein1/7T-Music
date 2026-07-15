@@ -505,7 +505,7 @@ struct EntitiesState {
     // ── Pyramid ──────────────────────────────────────────────────
     ActivePyramid   pyramids[Dim::MAX_PYRAMID_INSTANCES]{};
     uint32_t        pyramid_count = 0;
-    bool            pyramid_mesh_gen_pending = false;
+    bool            pyramid_mesh_gen_pending = false;  // DEAD (C2): consumer prepare_pyramid_mesh_gen cut; remaining writers are dead-stores → C6
     GPUPyramidArray cpu_pyramids{};                 // CPU mirror for heightfield baking
 };
 
@@ -516,7 +516,7 @@ bool prepare_cactus_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue& queu
 bool prepare_blade_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue& queue);
 bool prepare_column_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue& queue);
 bool prepare_arch_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue& queue);
-bool prepare_pyramid_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue& queue);
+// prepare_pyramid_mesh_gen CUT (C2 orphan sweep) — pyramid mesh dead-by-design
 
 // ═══ THE EVICTORS — DECLARATIONS ═══════════════════════════════════
 
@@ -633,20 +633,10 @@ inline bool prepare_arch_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue&
     return true;
 }
 
-inline bool prepare_pyramid_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue& queue) {
-    (void)queue;
-    if (!es.pyramid_mesh_gen_pending) return false;
-    es.pyramid_mesh_gen_pending = false;
-
-    uint32_t maxSlot = 0;
-    bool anyActive = false;
-    for (uint32_t i = 0; i < Dim::MAX_PYRAMID_INSTANCES; i++) {
-        if (es.pyramids[i].active) { maxSlot = i; anyActive = true; }
-    }
-    c->gpuState_.set_pyramid_index_count(anyActive
-        ? (maxSlot + 1) * Dim::PMG_MAX_INDICES_PER_SLOT : 0);
-    return true;
-}
+// prepare_pyramid_mesh_gen CUT (C2 orphan sweep) — the pyramid mesh-gen driver
+// is gone (mesh never drawn). Its sole caller (the FAMILY_DISPATCH wrapper) was
+// removed; the pyramid_mesh_gen_pending flag + set_pyramid_index_count it drove
+// are now a dead-store husk (→ C6).
 
 // ═══ THE ARCH FORCE-SPAWN AUTHOR (the portal channel) ═══════════
 

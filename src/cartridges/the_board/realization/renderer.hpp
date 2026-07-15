@@ -55,21 +55,20 @@ namespace t7 {
             constexpr const char* SHADOW_ARCH_VS = "shadow_arch_vs";
             constexpr const char* COLUMN_VS = "column_vs";
             constexpr const char* SHADOW_COLUMN_VS = "shadow_column_vs";
-            constexpr const char* PYRAMID_VS = "pyramid_vs";
-            constexpr const char* SHADOW_PYRAMID_VS = "shadow_pyramid_vs";
+            // PYRAMID_VS / SHADOW_PYRAMID_VS CUT (C2 orphan sweep) — pyramid mesh never drawn
             constexpr const char* SHELL_VS = "shell_vs";
             constexpr const char* SHADOW_SHELL_VS = "shadow_shell_vs";
 
             // Gallery (self-portrait painting frames)
             constexpr const char* GALLERY_FRAME_VS = "gallery_frame_vs";
             constexpr const char* GALLERY_FRAME_FS = "gallery_frame_fs";
-            constexpr const char* SHADOW_GALLERY_FRAME_VS = "shadow_gallery_frame_vs";
+            // SHADOW_GALLERY_FRAME_VS CUT (C2 orphan sweep) — caller-free shadow
 
             // Wall-mounted framed paintings (indoor)
             constexpr const char* WALL_PAINTING_VS        = "wall_painting_vs";
             constexpr const char* WALL_PAINTING_CANVAS_FS = "wall_painting_canvas_fs";
             constexpr const char* WALL_PAINTING_FRAME_FS  = "wall_painting_frame_fs";
-            constexpr const char* SHADOW_WALL_PAINTING_VS = "shadow_wall_painting_vs";
+            // SHADOW_WALL_PAINTING_VS CUT (C2 orphan sweep) — caller-free shadow
 
             // Photographer compute (GPU-coupled snapshot camera)
             constexpr const char* COMPUTE_PHOTOGRAPHER_VP = "compute_photographer_vp";
@@ -92,8 +91,7 @@ namespace t7 {
             constexpr const char* ZONE_EXTRUSION_FS = "zone_extrusion_fs";
             constexpr const char* SHADOW_ZONE_EXTRUSION_VS = "shadow_zone_extrusion_vs";
 
-            // GPU Entity Mesh Gen (Phase 1: Pyramids, Phase 2: Arches, Phase 3: Columns)
-            constexpr const char* PYRAMID_MESH_GEN = "pyramid_mesh_gen";
+            // GPU Entity Mesh Gen (Phase 2: Arches, Phase 3: Columns — pyramid mesh-gen CUT in C2)
             constexpr const char* ARCH_MESH_GEN = "arch_mesh_gen";
             constexpr const char* COLUMN_MESH_GEN = "column_mesh_gen";
             constexpr const char* PALM_MESH_GEN = "palm_mesh_gen";
@@ -137,7 +135,7 @@ namespace t7 {
             wgpu::BindGroupLayout pawnAuraComputeLayout_;
             wgpu::BindGroupLayout zoneGolComputeLayout_;
             wgpu::BindGroupLayout zoneMeshGenLayout_;
-            wgpu::BindGroupLayout pyramidMeshGenLayout_;
+            wgpu::BindGroupLayout pyramidMeshGenLayout_;  // DEAD (C2): mesh-gen pipeline cut; layout noun left for the C6 layout-weld
             wgpu::BindGroupLayout archMeshGenLayout_;
             wgpu::BindGroupLayout columnMeshGenLayout_;
             wgpu::BindGroupLayout palmMeshGenLayout_;
@@ -222,7 +220,7 @@ namespace t7 {
             wgpu::RenderPipeline palmPipeline_;          // Palm tree entity
             wgpu::RenderPipeline cactusPipeline_;         // Cactus entity
             wgpu::RenderPipeline bladePipeline_;          // Blade cluster entity
-            wgpu::RenderPipeline pyramidPipeline_;       // Generative pyramid entity
+            // pyramidPipeline_ CUT (C2 orphan sweep) — pyramid mesh never drawn
             wgpu::RenderPipeline shellPipeline_;         // Indoor shell (ceiling + walls)
 
             // Shadow pass pipelines (depth-only, no fragment shader)
@@ -235,7 +233,7 @@ namespace t7 {
             wgpu::RenderPipeline shadowPalmPipeline_;
             wgpu::RenderPipeline shadowCactusPipeline_;
             wgpu::RenderPipeline shadowBladePipeline_;
-            wgpu::RenderPipeline shadowPyramidPipeline_;
+            // shadowPyramidPipeline_ CUT (C2 orphan sweep)
             wgpu::RenderPipeline shadowShellPipeline_;
 
             // Patch terrain pipelines (instanced rendering)
@@ -246,12 +244,12 @@ namespace t7 {
 
             // Gallery frame pipeline (painting quads in the world)
             wgpu::RenderPipeline galleryFramePipeline_;
-            wgpu::RenderPipeline shadowGalleryFramePipeline_;
+            // shadowGalleryFramePipeline_ CUT (C2 orphan sweep) — caller-free shadow
 
             // Wall-mounted framed paintings (indoor) — uses galleryEntity + galleryTexture layouts
             wgpu::RenderPipeline wallPaintingCanvasPipeline_;
             wgpu::RenderPipeline wallPaintingFramePipeline_;
-            wgpu::RenderPipeline shadowWallPaintingPipeline_;
+            // shadowWallPaintingPipeline_ CUT (C2 orphan sweep) — caller-free shadow
 
             // Photographer VP compute pipeline (0D, GPU-coupled camera)
             wgpu::ComputePipeline photographerVPPipeline_;
@@ -287,8 +285,7 @@ namespace t7 {
             // Fade overlay (fullscreen alpha-blended triangle)
             wgpu::RenderPipeline fadeOverlayPipeline_;
 
-            // GPU entity mesh gen (Phase 1: pyramids, Phase 2: arches, Phase 3: columns)
-            wgpu::ComputePipeline pyramidMeshGenPipeline_;
+            // GPU entity mesh gen (Phase 2: arches, Phase 3: columns — pyramid mesh-gen CUT in C2)
             wgpu::ComputePipeline archMeshGenPipeline_;
             wgpu::ComputePipeline columnMeshGenPipeline_;
             wgpu::ComputePipeline palmMeshGenPipeline_;
@@ -655,17 +652,8 @@ namespace t7 {
                 pass.DispatchWorkgroups(request_count, 1, 1);
             }
 
-            // GPU pyramid mesh gen — generates all 8 slots in one dispatch.
-            // Inactive slots produce degenerate triangles (zero-area, free to rasterize).
-            void dispatch_pyramid_mesh_gen(
-                wgpu::ComputePassEncoder& pass,
-                wgpu::BindGroup meshGenGroup
-            ) {
-                if constexpr (!(ROSTER.pyramid)) return;  // ROSTER-GATE pyramid (a') — pipeline never created; the holder tolerates (DEMO-1c)
-                pass.SetPipeline(pyramidMeshGenPipeline_);
-                pass.SetBindGroup(0, meshGenGroup);
-                pass.DispatchWorkgroups(Dim::MAX_PYRAMID_INSTANCES, 1, 1);
-            }
+            // dispatch_pyramid_mesh_gen CUT (C2 orphan sweep) — mesh never drawn;
+            // the FAMILY_DISPATCH pyramid mesh hook now routes to the none-fork.
 
             // GPU arch mesh gen — generates all 16 slots × 4 sub-meshes.
             // gid.x = slot (0..15), gid.y = sub-mesh (outer shell, inner shell, front cap, back cap).
@@ -939,22 +927,7 @@ namespace t7 {
                 pass.DrawIndexed(indexCount);
             }
 
-            void draw_pyramid(
-                wgpu::RenderPassEncoder& pass,
-                wgpu::BindGroup entityBindGroup,
-                wgpu::BindGroup textureBindGroup,
-                wgpu::Buffer vertexBuffer,
-                wgpu::Buffer indexBuffer,
-                uint32_t indexCount
-            ) {
-                if constexpr (!(ROSTER.pyramid)) return;  // ROSTER-GATE pyramid (a') — pipeline never created; the holder tolerates (DEMO-1c)
-                pass.SetPipeline(pyramidPipeline_);
-                pass.SetBindGroup(0, entityBindGroup);
-                pass.SetBindGroup(1, textureBindGroup);
-                pass.SetVertexBuffer(0, vertexBuffer);
-                pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint32);
-                pass.DrawIndexed(indexCount);
-            }
+            // draw_pyramid CUT (C2 orphan sweep) — caller-free; pyramid mesh never drawn
 
             void draw_shell(
                 wgpu::RenderPassEncoder& pass,
@@ -1185,19 +1158,7 @@ namespace t7 {
                     vertexBuffer, indexBuffer, indexCount);
             }
 
-            void draw_shadow_pyramid(
-                wgpu::RenderPassEncoder& pass,
-                wgpu::BindGroup entityBindGroup,
-                wgpu::BindGroup textureBindGroup,
-                wgpu::Buffer vertexBuffer,
-                wgpu::Buffer indexBuffer,
-                uint32_t indexCount
-            ) {
-                if constexpr (!(ROSTER.pyramid)) return;  // ROSTER-GATE pyramid (a') — pipeline never created; the holder tolerates (DEMO-1c)
-                draw_shadow_indexed_mesh(pass, shadowPyramidPipeline_,
-                    entityBindGroup, textureBindGroup,
-                    vertexBuffer, indexBuffer, indexCount);
-            }
+            // draw_shadow_pyramid CUT (C2 orphan sweep) — caller-free
 
             void draw_shadow_shell(
                 wgpu::RenderPassEncoder& pass,
@@ -1215,33 +1176,9 @@ namespace t7 {
                     vertexBuffer, indexBuffer, indexCount);
             }
 
-            void draw_shadow_wall_paintings(
-                wgpu::RenderPassEncoder& pass,
-                wgpu::BindGroup galleryEntityBindGroup,
-                wgpu::BindGroup galleryTextureBindGroup,
-                uint32_t wallFrameCount
-            ) {
-                if constexpr (!(ROSTER.gallery)) return;  // ROSTER-GATE gallery (a') — pipeline never created; the holder tolerates (DEMO-1c)
-                if (wallFrameCount == 0) return;
-                pass.SetPipeline(shadowWallPaintingPipeline_);
-                pass.SetBindGroup(0, galleryEntityBindGroup);
-                pass.SetBindGroup(1, galleryTextureBindGroup);
-                pass.Draw(Dim::PAINTING_FRAME_VERTEX_COUNT);
-            }
-
-            void draw_shadow_gallery_frames(
-                wgpu::RenderPassEncoder& pass,
-                wgpu::BindGroup galleryEntityBindGroup,
-                wgpu::BindGroup galleryTextureBindGroup,
-                uint32_t activePaintingCount
-            ) {
-                if constexpr (!(ROSTER.gallery)) return;  // ROSTER-GATE gallery (a') — pipeline never created; the holder tolerates (DEMO-1c)
-                if (activePaintingCount == 0) return;
-                pass.SetPipeline(shadowGalleryFramePipeline_);
-                pass.SetBindGroup(0, galleryEntityBindGroup);
-                pass.SetBindGroup(1, galleryTextureBindGroup);
-                pass.Draw(Dim::PAINTING_QUAD_VERTS, Dim::PAINTING_MAX_SLOTS);
-            }
+            // draw_shadow_wall_paintings + draw_shadow_gallery_frames CUT
+            // (C2 orphan sweep) — both caller-free (frames/paintings are drawn
+            // in the color pass but never cast a mesh-shadow).
 
             // DEMO-1c gate (a'): compile-time count of pipelines the
             // selected demo skips — the boot summary's number.
@@ -1255,9 +1192,9 @@ namespace t7 {
                 if (!(ROSTER.palm)) n += 3;
                 if (!(ROSTER.cactus)) n += 3;
                 if (!(ROSTER.blade)) n += 3;
-                if (!(ROSTER.pyramid)) n += 3;
+                // pyramid: 0 pipelines after C2 orphan sweep (mesh-gen + render + shadow all cut)
                 if (!(ROSTER.gol)) n += 7;
-                if (!(ROSTER.gallery)) n += 6;
+                if (!(ROSTER.gallery)) n += 4;  // was 6; shadow_gallery_frame + shadow_wall_painting cut (C2)
                 if (!(ROSTER.orbs)) n += 5;
                 if (!(ROSTER.pawn_aura)) n += 1;
                 if (!(ROSTER.indoor_shell)) n += 2;
@@ -1537,12 +1474,7 @@ namespace t7 {
 
                 // Mesh-gen compute pipelines — one dedicated single-group layout each,
                 // per-family ROSTER gate; identical creation modulo (layout, entry, member).
-                if constexpr (ROSTER.pyramid) {  // ROSTER-GATE pyramid (a') — FXC skipped when disabled (DEMO-1c)
-                    wgpu::PipelineLayout pl = computeLayoutFor(pyramidMeshGenLayout_);
-                    if (!pl) return false;
-                    if (!makeComputePipeline("pyramid_mesh_gen", "Pyramid Mesh Gen",
-                        pl, Entry::PYRAMID_MESH_GEN, pyramidMeshGenPipeline_)) return false;
-                }
+                // pyramid mesh-gen pipeline CUT (C2 orphan sweep) — mesh never drawn.
 
                 if constexpr (ROSTER.arch) {  // ROSTER-GATE arch (a') — FXC skipped when disabled (DEMO-1c)
                     wgpu::PipelineLayout pl = computeLayoutFor(archMeshGenLayout_);   // bindings 193-195
@@ -1838,10 +1770,7 @@ namespace t7 {
                     if (!makeEntity("blade", "Blade Cluster (Rasterized)", Entry::BLADE_VS,
                         &archVBL, wgpu::CullMode::None, bladePipeline_)) return false;
                     }
-                    if constexpr (ROSTER.pyramid) {  // ROSTER-GATE pyramid (a') — FXC skipped when disabled (DEMO-1c)
-                    if (!makeEntity("pyramid", "Generative Pyramid (Rasterized)", Entry::PYRAMID_VS,
-                        &archVBL, wgpu::CullMode::Back, pyramidPipeline_)) return false;
-                    }
+                    // pyramid render pipeline CUT (C2 orphan sweep) — mesh never drawn
                 }
 
                 // Shell pipeline -- indoor ceiling + walls, ShellVertex (pos+normal+color), static world-space
@@ -2017,32 +1946,7 @@ namespace t7 {
                     })) return false;
                     }
 
-                    // Shadow Gallery Frame (depth-only, instanced, same layout)
-                    {
-                        wgpu::DepthStencilState shadowDepth{};
-                        shadowDepth.format = wgpu::TextureFormat::Depth32Float;
-                        shadowDepth.depthWriteEnabled = true;
-                        shadowDepth.depthCompare = wgpu::CompareFunction::Less;
-
-                        wgpu::RenderPipelineDescriptor sdesc{};
-                        sdesc.label = "Shadow Gallery Frame";
-                        sdesc.layout = galleryLayout;
-                        sdesc.vertex.module = shaderModule_;
-                        sdesc.vertex.entryPoint = Entry::SHADOW_GALLERY_FRAME_VS;
-                        sdesc.vertex.bufferCount = 0;
-                        sdesc.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
-                        sdesc.primitive.cullMode = wgpu::CullMode::None;
-                        sdesc.primitive.frontFace = wgpu::FrontFace::CCW;
-                        sdesc.depthStencil = &shadowDepth;
-                        sdesc.fragment = nullptr;
-
-                        if constexpr (ROSTER.gallery) {  // ROSTER-GATE gallery (a') — FXC skipped when disabled (DEMO-1c)
-                        if (!tPipe("shadow_gallery_frame", [&]() {
-                            shadowGalleryFramePipeline_ = device_.CreateRenderPipeline(&sdesc);
-                            return shadowGalleryFramePipeline_ != nullptr;
-                        })) return false;
-                        }
-                    }
+                    // Shadow Gallery Frame pipeline CUT (C2 orphan sweep) — caller-free
                 }
 
                 // ─── Wall Painting Pipelines (framed paintings on indoor walls) ──
@@ -2121,32 +2025,7 @@ namespace t7 {
                         }
                     }
 
-                    // Shadow wall painting (depth-only, Depth32Float, same gallery layouts)
-                    {
-                        wgpu::DepthStencilState shadowDepth{};
-                        shadowDepth.format = wgpu::TextureFormat::Depth32Float;
-                        shadowDepth.depthWriteEnabled = true;
-                        shadowDepth.depthCompare = wgpu::CompareFunction::Less;
-
-                        wgpu::RenderPipelineDescriptor desc{};
-                        desc.label = "Shadow Wall Painting";
-                        desc.layout = wpLayout;
-                        desc.vertex.module = shaderModule_;
-                        desc.vertex.entryPoint = Entry::SHADOW_WALL_PAINTING_VS;
-                        desc.vertex.bufferCount = 0;
-                        desc.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
-                        desc.primitive.cullMode = wgpu::CullMode::None;
-                        desc.primitive.frontFace = wgpu::FrontFace::CCW;
-                        desc.depthStencil = &shadowDepth;
-                        desc.fragment = nullptr;
-
-                        if constexpr (ROSTER.gallery) {  // ROSTER-GATE gallery (a') — FXC skipped when disabled (DEMO-1c)
-                        if (!tPipe("shadow_wall_painting", [&]() {
-                            shadowWallPaintingPipeline_ = device_.CreateRenderPipeline(&desc);
-                            return shadowWallPaintingPipeline_ != nullptr;
-                        })) return false;
-                        }
-                    }
+                    // Shadow Wall Painting pipeline CUT (C2 orphan sweep) — caller-free
                 }
 
                 // ─── Shadow Pipelines (depth-only, Depth32Float) ─────────────────
@@ -2240,9 +2119,9 @@ namespace t7 {
                         shadowArchVBL.attributeCount = shadowArchAttrs.size();
                         shadowArchVBL.attributes = shadowArchAttrs.data();
 
-                        // arch/column/palm/cactus/blade/pyramid shadows — same ArchVertex
-                        // format; cull matches the color pass (arch + pyramid Back, the
-                        // single-sided column/palm/cactus/blade None).
+                        // arch/column/palm/cactus/blade shadows — same ArchVertex
+                        // format; cull matches the color pass (arch Back, the
+                        // single-sided column/palm/cactus/blade None). pyramid shadow cut (C2).
                         if constexpr (ROSTER.arch) {  // ROSTER-GATE arch (a') — FXC skipped when disabled (DEMO-1c)
                         if (!makeShadow("shadow_arch", "Shadow Catenary Arch", Entry::SHADOW_ARCH_VS,
                             &shadowArchVBL, wgpu::CullMode::Back, shadowArchPipeline_)) return false;
@@ -2263,10 +2142,7 @@ namespace t7 {
                         if (!makeShadow("shadow_blade", "Shadow Blade Cluster", Entry::SHADOW_BLADE_VS,
                             &shadowArchVBL, wgpu::CullMode::None, shadowBladePipeline_)) return false;
                         }
-                        if constexpr (ROSTER.pyramid) {  // ROSTER-GATE pyramid (a') — FXC skipped when disabled (DEMO-1c)
-                        if (!makeShadow("shadow_pyramid", "Shadow Generative Pyramid", Entry::SHADOW_PYRAMID_VS,
-                            &shadowArchVBL, wgpu::CullMode::Back, shadowPyramidPipeline_)) return false;
-                        }
+                        // shadow_pyramid pipeline CUT (C2 orphan sweep) — mesh never drawn
                     }
 
                     // Shadow Shell (ShellVertex: pos+normal+color, stride 36)

@@ -2351,21 +2351,23 @@ namespace t7 {
 
             // --- Pyramid accessors and upload ---
             wgpu::Buffer pyramid_vertex_buffer() const { return pyramidVertexBuffer_; }
-            wgpu::Buffer pyramid_index_buffer() const { return pyramidIndexBuffer_; }
-            wgpu::Buffer pyramid_ground_buffer() const { return pyramidGroundBuffer_; }
-            uint32_t pyramid_index_count() const { return pyramidIndexCount_; }
-            void set_pyramid_index_count(uint32_t count) { pyramidIndexCount_ = count; }
+            wgpu::Buffer pyramid_index_buffer() const { return pyramidIndexBuffer_; }   // DEAD (C2): mesh VB, no live draw → C6
+            wgpu::Buffer pyramid_ground_buffer() const { return pyramidGroundBuffer_; } // LIVE: placement → ground atlas → heightfield
+            uint32_t pyramid_index_count() const { return pyramidIndexCount_; }         // DEAD (C2): fed only the cut draw → C6
+            void set_pyramid_index_count(uint32_t count) { pyramidIndexCount_ = count; } // DEAD (C2): writers are dead-stores → C6
 
             void upload_pyramids(wgpu::Queue& queue, const GPUPyramidArray& arr) {
                 writeStruct(queue, pyramidInstancesBuffer_, arr);
             }
 
             // GPU mesh gen: write params for a single slot (48 bytes per spawn/evict)
+            // DEAD (C2): the pyramid_mesh_gen kernel that consumed these params was
+            // cut; the three live callers (spawn/commit/evict) are now dead-stores → C6.
             void upload_pyramid_mesh_params_slot(wgpu::Queue& queue, uint32_t slot, const GPUPyramidMeshParams& params) {
                 writeSlot(queue, pyramidMeshParamsBuffer_, slot, params);
             }
 
-            // GPU mesh gen bind group
+            // GPU mesh gen bind group — DEAD (C2): no pipeline/dispatch uses it → C6 layout-weld
             wgpu::BindGroupLayout pyramid_mesh_gen_layout() const { return pyramidMeshGenLayout_; }
             wgpu::BindGroup pyramid_mesh_gen_group() const { return pyramidMeshGenBindGroup_; }
 

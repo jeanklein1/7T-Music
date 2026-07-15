@@ -4343,33 +4343,12 @@ fn shadow_column_vs(in: ArchVertexInput) -> ShadowVarying {
     return out;
 }
 
-// --- Generative Pyramids
-@vertex
-fn pyramid_vs(in: ArchVertexInput) -> EntityVarying {
-    let idx = u32(in.arch_index);
-    let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(idx) + GROUND_ATLAS_PYRAMID, 0), 0).r;
-    var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
-    world_pos.y += contrib_terrain_waves_at(world_pos.xz);
-
-    var out: EntityVarying;
-    out.clip_pos = render_vp.m * vec4(world_pos, 1.0);
-    out.world_pos = world_pos;
-    out.normal = in.normal;
-    out.entity_color = in.color;
-    return out;
-}
-
-@vertex
-fn shadow_pyramid_vs(in: ArchVertexInput) -> ShadowVarying {
-    let idx = u32(in.arch_index);
-    let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(idx) + GROUND_ATLAS_PYRAMID, 0), 0).r;
-    var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
-    world_pos.y += contrib_terrain_waves_at(world_pos.xz);
-
-    var out: ShadowVarying;
-    out.clip_pos = render_vp.light_vp * vec4(world_pos, 1.0);
-    return out;
-}
+// --- Generative Pyramids: pyramid_vs + shadow_pyramid_vs CUT (C2 orphan
+//     sweep) — the pyramid mesh was never drawn (draw_pyramid /
+//     draw_shadow_pyramid were caller-free). Both read the
+//     GROUND_ATLAS_PYRAMID slot; with the readers gone that slot is now a
+//     write-only husk (still populated by the live placement kernel — see the
+//     atlas-write flag at the placement kernel and §9.0). → C6 layout-weld.
 
 // --- Indoor Shell (ceiling + walls)
 // Pre-baked world-space geometry, no per-instance transforms.
@@ -4984,7 +4963,9 @@ fn render_pawn_orientation() -> vec4<f32> {
 // Atlas slot offsets (must match Dim:: constants in state.hpp)
 const GROUND_ATLAS_ARCH: i32     = 0;
 const GROUND_ATLAS_COLUMN: i32   = 16;
-const GROUND_ATLAS_PYRAMID: i32  = 48;
+const GROUND_ATLAS_PYRAMID: i32  = 48;  // DEAD-READ (C2): slot still written by the
+                                        // placement kernel but its only readers
+                                        // (pyramid_vs/shadow_pyramid_vs) were cut → write-only husk (→ C6)
 const GROUND_ATLAS_PALM: i32     = 56;
 const GROUND_ATLAS_CACTUS: i32   = 80;
 const GROUND_ATLAS_BLADE: i32    = 100;
@@ -8303,6 +8284,8 @@ fn compute_entity_placement() {
             let y_mz = sample_terrain_y_at(vec2(cx + hz * sr, cz - hz * cr));
 
             pyramid_ground[i].ground_y = min(min(y_c, min(y_px, y_mx)), min(y_pz, y_mz));
+            // DEAD-WRITE (C2): the atlas store below fed pyramid_vs (now cut) —
+            // write-only husk left in place (live blind WGSL) → C6.
             textureStore(entity_ground_atlas_write, vec2<i32>(i32(i) + GROUND_ATLAS_PYRAMID, 0), vec4<f32>(pyramid_ground[i].ground_y, 0.0, 0.0, 0.0));
         }
     }
@@ -8583,65 +8566,10 @@ fn gallery_frame_vs(
     return out;
 }
 
-// §8.1.1 GALLERY FRAME SHADOW — depth-only pass for terrain-quad paintings
-// Same instanced subdivided quad geometry, projected through light_vp.
-
-@vertex
-fn shadow_gallery_frame_vs(
-    @builtin(vertex_index) vid: u32,
-    @builtin(instance_index) iid: u32,
-) -> ShadowVarying {
-    var out: ShadowVarying;
-    let slot = painting_slots[iid];
-
-    if (slot.is_active == 0u || slot.form_type != FORM_TERRAIN_QUAD) {
-        out.clip_pos = vec4(0.0, 0.0, 0.0, 1.0);
-        return out;
-    }
-
-    let N = GALLERY_QUAD_N;
-    let tri_in_quad = vid / 3u;
-    let vert_in_tri = vid % 3u;
-    let quad_idx = tri_in_quad / 2u;
-    let second_tri = tri_in_quad % 2u;
-    let qx = quad_idx % N;
-    let qy = quad_idx / N;
-
-    var dx: u32; var dy: u32;
-    if (second_tri == 0u) {
-        switch (vert_in_tri) {
-            case 0u: { dx = 0u; dy = 0u; }
-            case 1u: { dx = 1u; dy = 0u; }
-            default: { dx = 0u; dy = 1u; }
-        }
-    } else {
-        switch (vert_in_tri) {
-            case 0u: { dx = 1u; dy = 0u; }
-            case 1u: { dx = 1u; dy = 1u; }
-            default: { dx = 0u; dy = 1u; }
-        }
-    }
-
-    let gx = qx + dx;
-    let gy = qy + dy;
-    let uv = vec2(f32(gx) / f32(N), f32(gy) / f32(N));
-
-    var local = vec3(
-        (uv.x - 0.5) * slot.scale_x,
-        (uv.y - 0.5) * slot.scale_y,
-        0.0
-    );
-    local = deform_gallery_frame(local, uv, slot.geometry_seed);
-
-    let fwd = normalize(slot.forward);
-    let up_raw = normalize(slot.up);
-    let right = normalize(cross(up_raw, fwd));
-    let up = cross(fwd, right);
-    let world = slot.position + right * local.x + up * local.y + fwd * local.z;
-
-    out.clip_pos = render_vp.light_vp * vec4(world, 1.0);
-    return out;
-}
+// §8.1.1 GALLERY FRAME SHADOW — CUT (C2 orphan sweep): shadow_gallery_frame_vs
+// was caller-free (draw_shadow_gallery_frames had no caller — gallery frames
+// are drawn in the color pass but never cast a mesh-shadow). Shared helper
+// deform_gallery_frame is retained (used by the live gallery_frame_vs).
 
 // --- Fragment Shader
 @fragment
@@ -8861,34 +8789,10 @@ fn wall_painting_frame_fs(in: WallPaintingVarying) -> @location(0) vec4<f32> {
     return vec4(mix(lit, config.fog_color, fog), 1.0);
 }
 
-// §8.3 WALL PAINTING SHADOW — depth-only pass for framed paintings
-// Reuses compute_wall_painting_geometry for identical mesh, projects through light_vp.
-
-@vertex
-fn shadow_wall_painting_vs(@builtin(vertex_index) vid: u32) -> ShadowVarying {
-    let pidx = vid / PAINTING_FRAME_VERTS_PER;
-    let local_vid = vid % PAINTING_FRAME_VERTS_PER;
-
-    if (pidx >= PAINTING_MAX_SLOTS) {
-        var out: ShadowVarying;
-        out.clip_pos = vec4(0.0);
-        return out;
-    }
-
-    let slot = painting_slots[pidx];
-
-    if (slot.is_active == 0u || slot.form_type != FORM_WALL_FRAME) {
-        var out: ShadowVarying;
-        out.clip_pos = vec4(0.0);
-        return out;
-    }
-
-    var geom = compute_wall_painting_geometry(slot, pidx, local_vid);
-    geom.world_pos.y += contrib_terrain_waves_at(geom.world_pos.xz);
-    var out: ShadowVarying;
-    out.clip_pos = render_vp.light_vp * vec4(geom.world_pos, 1.0);
-    return out;
-}
+// §8.3 WALL PAINTING SHADOW — CUT (C2 orphan sweep): shadow_wall_painting_vs
+// was caller-free (draw_shadow_wall_paintings had no caller). Shared helper
+// compute_wall_painting_geometry is retained (used by the live wall-painting
+// color pass).
 
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -8905,6 +8809,9 @@ fn shadow_wall_painting_vs(@builtin(vertex_index) vid: u32) -> ShadowVarying {
 // = 10 × f32 per vertex = 40 bytes. VB is accessed as array<f32>.
 
 // §9.0 PYRAMID MESH GENERATION
+// DEAD (C2 orphan sweep): the entry point `pyramid_mesh_gen` (below) is cut;
+// the constants/struct/bindings/helpers here are a write-only husk with no
+// live reader → C6 layout-weld with the C++ bind-group layout + buffers.
 
 const PMG_MAX_VERTS_PER_SLOT: u32  = 36u;   // truncated: 12 tris × 3 (sides + top + bottom)
 const PMG_MAX_INDICES_PER_SLOT: u32 = 36u;  // unindexed triangles (1:1 vert:idx)
@@ -8998,97 +8905,15 @@ fn pmg_emit_tri(
     return cursor + 3u;
 }
 
-// ── Compute entry point ───────────────────────────────────────────────
-//
-// Dispatch: (8, 1, 1) — one invocation per slot.
-// Each invocation writes its slot's fixed region of the VB/IB.
-// Inactive slots get degenerate indices (all pointing to vertex 0).
-
-@compute @workgroup_size(1, 1, 1)
-fn pyramid_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
-    let slot = gid.x;
-    if (slot >= PMG_MAX_SLOTS) { return; }
-
-    let p = pmg_params[slot];
-    let slot_vb = slot * PMG_MAX_VERTS_PER_SLOT;
-    let slot_ib = slot * PMG_MAX_INDICES_PER_SLOT;
-
-    // ── Inactive: write degenerate indices ───────────────────────
-    if (p.is_active == 0u) {
-        for (var i = 0u; i < PMG_MAX_INDICES_PER_SLOT; i++) {
-            pmg_indices[slot_ib + i] = slot_vb;
-        }
-        return;
-    }
-
-    // ── Active: build geometry ────────────────────────────────────
-    let co = cos(p.rotation);
-    let si = sin(p.rotation);
-    let cx = p.center_x;
-    let cz = p.center_z;
-
-    // Base corners (Y = 0, ground-relative — VS adds ground_y)
-    let b00 = pmg_to_world(-p.half_x, 0.0, -p.half_z, cx, cz, co, si);
-    let b10 = pmg_to_world( p.half_x, 0.0, -p.half_z, cx, cz, co, si);
-    let b11 = pmg_to_world( p.half_x, 0.0,  p.half_z, cx, cz, co, si);
-    let b01 = pmg_to_world(-p.half_x, 0.0,  p.half_z, cx, cz, co, si);
-
-    let cr = p.color_r;
-    let cg = p.color_g;
-    let cb = p.color_b;
-
-    var vi = 0u;   // vertex/index cursor (relative to slot base)
-
-    if (p.truncation < 0.01) {
-        // ── Pointed: 4 triangular faces + bottom cap ─────────────
-        let apex = pmg_to_world(0.0, p.height, 0.0, cx, cz, co, si);
-
-        // Winding matches CPU: bases[(face+1)%4], bases[face], apex
-        vi = pmg_emit_tri(slot_vb, slot_ib, vi, b10, b00, apex, cr, cg, cb, slot);
-        vi = pmg_emit_tri(slot_vb, slot_ib, vi, b11, b10, apex, cr, cg, cb, slot);
-        vi = pmg_emit_tri(slot_vb, slot_ib, vi, b01, b11, apex, cr, cg, cb, slot);
-        vi = pmg_emit_tri(slot_vb, slot_ib, vi, b00, b01, apex, cr, cg, cb, slot);
-        // Bottom cap: b00, b11, b01 + b00, b10, b11 (CW from above → -Y normal)
-        vi = pmg_emit_tri(slot_vb, slot_ib, vi, b00, b11, b01, cr, cg, cb, slot);
-        vi = pmg_emit_tri(slot_vb, slot_ib, vi, b00, b10, b11, cr, cg, cb, slot);
-        // vi = 18
-
-    } else {
-        // ── Truncated: 4 side quads + 1 top cap + bottom cap ─────
-        let tx = p.half_x * p.truncation;
-        let tz = p.half_z * p.truncation;
-        let t00 = pmg_to_world(-tx, p.height, -tz, cx, cz, co, si);
-        let t10 = pmg_to_world( tx, p.height, -tz, cx, cz, co, si);
-        let t11 = pmg_to_world( tx, p.height,  tz, cx, cz, co, si);
-        let t01 = pmg_to_world(-tx, p.height,  tz, cx, cz, co, si);
-
-        // Side quads: emit_quad(bases[(f+1)%4], bases[f], tops[f], tops[(f+1)%4])
-        // Face 0: b10, b00 → t00, t10
-        vi = pmg_emit_tri(slot_vb, slot_ib, vi, b10, b00, t00, cr, cg, cb, slot);
-        vi = pmg_emit_tri(slot_vb, slot_ib, vi, b10, t00, t10, cr, cg, cb, slot);
-        // Face 1: b11, b10 → t10, t11
-        vi = pmg_emit_tri(slot_vb, slot_ib, vi, b11, b10, t10, cr, cg, cb, slot);
-        vi = pmg_emit_tri(slot_vb, slot_ib, vi, b11, t10, t11, cr, cg, cb, slot);
-        // Face 2: b01, b11 → t11, t01
-        vi = pmg_emit_tri(slot_vb, slot_ib, vi, b01, b11, t11, cr, cg, cb, slot);
-        vi = pmg_emit_tri(slot_vb, slot_ib, vi, b01, t11, t01, cr, cg, cb, slot);
-        // Face 3: b00, b01 → t01, t00
-        vi = pmg_emit_tri(slot_vb, slot_ib, vi, b00, b01, t01, cr, cg, cb, slot);
-        vi = pmg_emit_tri(slot_vb, slot_ib, vi, b00, t01, t00, cr, cg, cb, slot);
-        // Top cap: t00, t01, t11, t10 (CCW from above → +Y normal)
-        vi = pmg_emit_tri(slot_vb, slot_ib, vi, t00, t01, t11, cr, cg, cb, slot);
-        vi = pmg_emit_tri(slot_vb, slot_ib, vi, t00, t11, t10, cr, cg, cb, slot);
-        // Bottom cap: b00, b11, b01 + b00, b10, b11 (CW from above → -Y normal)
-        vi = pmg_emit_tri(slot_vb, slot_ib, vi, b00, b11, b01, cr, cg, cb, slot);
-        vi = pmg_emit_tri(slot_vb, slot_ib, vi, b00, b10, b11, cr, cg, cb, slot);
-        // vi = 36
-    }
-
-    // ── Zero remaining indices (pointed: 12→30, truncated: fills 30) ─
-    for (var i = vi; i < PMG_MAX_INDICES_PER_SLOT; i++) {
-        pmg_indices[slot_ib + i] = slot_vb;
-    }
-}
+// ── Compute entry point: pyramid_mesh_gen CUT (C2 orphan sweep) ───────────
+// The kernel that realized the pyramid mesh is gone — it was never drawn
+// (draw_pyramid was caller-free; its compute pipeline + dispatch +
+// FAMILY_DISPATCH mesh hook were removed on the C++ side). The §9.0 machinery
+// above (PMG_* constants, PyramidMeshParams, bindings 190-192, the pmg_*
+// writer/geometry helpers) is now a write-only husk with no entry point:
+// retained here so the bindings + their C++ bind-group layout come out
+// together in the C6 layout-weld (see LADDER). The live pyramid path
+// (placement → ground atlas → patch-gen heightfield) is untouched.
 
 
 // ─── §9.1 ARCH MESH GENERATION (catenary barrel vault) ───────────────

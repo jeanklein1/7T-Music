@@ -3377,6 +3377,59 @@ cuts, unblocked as the graph is now clearer: C2 orphan sweep (+ pyramid ruling),
 C5 family/draw table, C6 binding registry (the storage-weld climax that also
 retires the parked TerrainState husk), C7/C8 ordering barriers. ===
 
+## CABLE MANAGEMENT C2 — ORPHAN SWEEP (verbs now, nouns → C6; the CAST
+## ruling made structural; own commit; glaw1 + pixel-identical rig)
+Jean's ruling: the pyramid mesh is dead-BY-DESIGN — never meant to render;
+the live pyramid path is buffer → ground atlas → patch-gen kernel → heightfield
+(untouched). VERIFY FIRST (grep-not-memory, both passes, all draw lists):
+the four orphans — draw_pyramid, draw_shadow_pyramid, draw_shadow_gallery_frames,
+draw_shadow_wall_paintings — carry ONLY their definitions, NO callers anywhere.
+The shadow trap held clear: render_passes.hpp shows pyramid ONLY as
+upload_pyramid_origins (the LIVE placement noun, lines 106-120), NOT a draw; the
+gallery-frame and wall-painting COLOR draws are live but their SHADOW variants
+were never called (frames/paintings never cast a mesh-shadow — the terrain bake
+already carries their footprint). Score census + glaw1 both GREEN post-cut.
+
+CUT (verbs; ~309 net lines): WGSL — pyramid_vs, shadow_pyramid_vs,
+shadow_gallery_frame_vs, shadow_wall_painting_vs, pyramid_mesh_gen kernel entry.
+renderer.hpp — 5 Entry:: strings, 5 pipeline members, dispatch_pyramid_mesh_gen,
+the 4 draw methods, 5 creation blocks (mesh-gen compute + makeEntity pyramid +
+makeShadow shadow_pyramid + the two bespoke shadow_gallery_frame/shadow_wall_
+painting blocks), and the pipelines_skipped() counts (pyramid line removed;
+gallery 6→4). cartridge.hpp — the two pyramid mesh wrappers deleted, the
+FAMILY_DISPATCH pyramid row's mesh hook routed to the none-fork
+(dispatch_prepare_mesh_none / dispatch_mesh_gen_none). entities.hpp —
+prepare_pyramid_mesh_gen (decl + def).
+
+LEFT (nouns, flagged DEAD → C6 layout-weld basket, joining the TerrainState
+husk): WGSL — the PMG_* constants / PyramidMeshParams / bindings 190-192 /
+pmg_* writer+geometry helpers (a write-only husk with no entry point), and the
+GROUND_ATLAS_PYRAMID=48 slot + its 5-pt placement-kernel sampling (now write-
+only; live blind WGSL, don't cut here). renderer.hpp — pyramidMeshGenLayout_.
+state.hpp — pyramid_index_buffer/count + set_pyramid_index_count,
+upload_pyramid_mesh_params_slot, pyramid_mesh_gen_layout/group + the underlying
+buffers/bind group. entities.hpp — pyramid_mesh_gen_pending + its three live
+writers, now harmless dead-stores. Every husk carries an inline DEAD (C2) → C6
+marker so the storage-weld cut finds them.
+
+DISCIPLINE 2 (collapse mechanism, never a distinction): the cut honored Jean's
+verb/noun line exactly — the entry point (the thing that makes the kernel a
+kernel) came out; the storage + its C++ bind-group layout stayed together as ONE
+future C6 unit rather than half-removed now. The pure pmg_* helpers were LEFT
+with the bindings (not split off as "cut the verbs too") — after the kernel they
+are unreachable, so leaving them is pixel-safe and keeps the C6 basket cohesive.
+
+GRAPH EDGE REVEALED — the CAST ruling made structural. Mesh-gen families 6→5
+(pyramid drops out; arch/column/palm/cactus/blade remain). ArchVertex (stride 40,
+C1 assert stands) is now shared by exactly FIVE render families, no longer six.
+And the deepest edge: the pyramid is the FIRST entity whose realization IS the
+terrain. Its roster row keeps select/place/commit/evict — placement is fully
+live, feeding the heightfield — but it has NO mesh realization of its own; the
+FAMILY_DISPATCH mesh hook is a none-fork. Every other family realizes as a mesh
+it draws; the pyramid realizes as a fold in the ground. Design + placement
+WITHOUT self-drawn realization — that is the CAST edge, and it now lives in the
+none-fork of the table rather than in a dead pipeline nobody named.
+
 ## TERRAIN-2 — SKIRTS (side excursion; weld #2; own rig-gated commit)
 Jean's order: skirt the terrain patch mesh (plain patch edges) to hide
 inter-patch cracks — precision AND LOD/T-junction — with ONE mechanism.
