@@ -170,6 +170,12 @@ inline const float* theme_tier_weights(uint32_t theme_idx, uint32_t family_id) {
     }
 }
 
+// Q4: the SPATIAL theme selector. Its bucket walk stays SEPARATE from
+// select_weighted (seed_utils) BY DESIGN — it normalizes inline against the
+// live theme weight-sum (select_weighted takes pre-normalized weights), and
+// together with evaluate_theme_envelope (the temporal, stateful-sequenced
+// selector) it forms the theme-sampler family — a different shape from the
+// stateless entity bucket walk. Documented-not-migrated (Q4 ruling).
 inline uint32_t select_theme_at_node(uint32_t node_seed) {
     float roll = cpu_hash_f(node_seed, 370u);
     float cumul = 0.0f;

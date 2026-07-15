@@ -2939,6 +2939,27 @@ alignment + zero dangling refs + call-site resolves); score census GREEN;
 encodings clean; residual get_theme_tier_weights refs are comments only.
 Behavior-identical.
 
+=== commit 8 — Q4: document the fork (REJECT — leave forked) ===
+Doc-only. select_weighted (seed_utils.hpp) is STATELESS (pre-normalized
+weights, one draw); the two theme selectors are a different shape:
+select_theme_at_node NORMALIZES inline against the live weight-sum, and
+evaluate_theme_envelope is a STATEFUL SEQUENCED sampler (its per-patch call
+sequence IS the biography). Added reciprocal comments at select_weighted
+and select_theme_at_node explaining why they stay separate (not one
+abstraction twice; merging would touch a draw path for a 2-site payoff with
+only rig-level bit-catch). No migration — Q4 REJECT ruling.
+GATE: gate-only (doc). glaw1 GREEN; score census GREEN; clean.
+
+=== AFTER-8 BREAKPOINT (dedups + guards complete) ===
+Commits 3-8 landed, all gate-only, behavior-identical: Q2 (kill fullRegen
+O(N^2)), Q3 (one build_mesh_params, parity-verified — no bug surfaced), Q9
+(resolution from Dim), Q8 (TILE_GRID static_assert), Q5 (9 tier-weight
+plugs -> one accessor, 6 files), Q4 (fork documented). Two premise
+corrections held (Q2 no persistent set; Q3 clean parity). REMAINING: the
+seam — [9] Q6a tile_key helper, [10] Q6b relocate TilePopulation (RIG,
+cross-module), [11] Q7 rename spatial_density/temporal_flavor. HELD for
+Jean's after-8 batch review.
+
 ## TERRAIN-2 — SKIRTS (side excursion; weld #2; own rig-gated commit)
 Jean's order: skirt the terrain patch mesh (plain patch edges) to hide
 inter-patch cracks — precision AND LOD/T-junction — with ONE mechanism.
