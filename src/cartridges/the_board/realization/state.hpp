@@ -69,34 +69,40 @@ namespace t7 {
             constexpr uint32_t PATCH_PREGEN_SIDE = 2 * PATCH_PREGEN_RADIUS + 1;     // 15
             constexpr uint32_t MAX_ACTIVE_PATCHES = PATCH_PREGEN_SIDE * PATCH_PREGEN_SIDE; // 225
 
-            // ═══ THE VEIL CHAIN (ruled) — the ONE visibility radius chain, ═══
-            // point-anchored, declared here (the registry pattern: authored
-            // once, checked by asserts, never computed). Every visibility
-            // author reads THIS chain — the fragment veil via config
-            // (veil_near/veil_far, tunable live, defaults below), the CPU
-            // LOD band via the config staging, the GPU LOD0 gate via the
-            // same config, existence eviction via EXIST_RADIUS (WGSL mirror).
-            //   NEAR (175 = the old LOD0 ring): the veil starts; inside it
-            //     the frame is PIXEL-IDENTICAL to the pre-veil world.
-            //   FAR  (275 = the old draw cylinder): the wall — fragments at
-            //     FAR are fully fog-walled (wall color = the fog/horizon).
-            //   EXIST (350 = the pregen ring): grounded + floater existence
-            //     eviction, unified (was agents 360 / floaters 400 — V1).
-            //   The CPU entity cull is DEMOTED to overdraw optimization at
-            //   EXIST; its sole law: cull ≥ FAR + max entity extent, so no
-            //   entity with in-veil fragments is ever CPU-culled.
-            constexpr float VEIL_NEAR_DEFAULT   = 3.5f * PATCH_EXTENT;   // 175
-            constexpr float VEIL_FAR_DEFAULT    = 5.5f * PATCH_EXTENT;   // 275
+            // ═══ THE VEIL CHAIN (re-ruled) — THE RING is the DRAW authority; ═══
+            // fog is ICING. Declared here (the registry pattern: authored
+            // once, checked by asserts, never computed); point-anchored.
+            //   RING (325 = 6.5 patches, Jean's enlargement from 5.5): the
+            //     SOLE draw authority — terrain banding, entity cull, flora,
+            //     agents, floaters all gate DRAW MEMBERSHIP on it. Metric:
+            //     nearest-edge for patches; center±extent for entities.
+            //     Nothing is drawn beyond the ring — no wall-colored
+            //     silhouettes against the orb sky.
+            //   ICING (δ 40): the NARROW fog band [RING−δ, RING] in shade_lit
+            //     — draw-set joins materialize inside the fade. Cosmetic
+            //     only; no geometry relies on it for concealment.
+            //   LOD0 (175): the full-mesh/half-mesh terrain split (unchanged).
+            //   EXIST (350 = the pregen ring): existence eviction (agents
+            //     unified at 350 — V1; floaters 400, the flagged spawn-
+            //     headroom fork).
+            // LIVE values ride config (veil_ring/veil_icing/lod0_radius,
+            // tunable — "ring at 6.5 feels right vs 5.5, config-tune live").
+            // NOTE the thin factory band EXIST−RING = 25 wu: if the rig shows
+            // rim-pops under fast flight, PREGEN-8 is the named storage-weld
+            // follow-on (225→289 layers, TILE_GRID, MAX_ACTIVE_PATCHES) —
+            // flagged, not started.
+            constexpr float LOD0_RADIUS_DEFAULT = 3.5f * PATCH_EXTENT;   // 175
+            constexpr float VEIL_RING_DEFAULT   = 6.5f * PATCH_EXTENT;   // 325 — THE RING
+            constexpr float VEIL_ICING_DEFAULT  = 40.0f;                 // δ (~25-50, tunable)
             constexpr float EXIST_RADIUS        = 7.0f * PATCH_EXTENT;   // 350
-            constexpr float ENTITY_MAX_EXTENT   = 75.0f;                 // tallest/widest half-footprint an entity may reach
             static_assert(PATCH_PREGEN_RADIUS * PATCH_EXTENT >= EXIST_RADIUS,
                 "VEIL CHAIN: PREGEN >= EXIST (nothing exists off resident ground)");
-            static_assert(EXIST_RADIUS > VEIL_FAR_DEFAULT,
-                "VEIL CHAIN: EXIST > FAR (existence outlives the wall)");
-            static_assert(VEIL_FAR_DEFAULT > VEIL_NEAR_DEFAULT,
-                "VEIL CHAIN: FAR > NEAR (the band has width)");
-            static_assert(EXIST_RADIUS >= VEIL_FAR_DEFAULT + ENTITY_MAX_EXTENT,
-                "VEIL CHAIN: the demoted CPU cull (at EXIST) never removes an entity with in-veil fragments");
+            static_assert(EXIST_RADIUS > VEIL_RING_DEFAULT,
+                "VEIL CHAIN: EXIST > RING (existence outlives the draw set)");
+            static_assert(VEIL_RING_DEFAULT > LOD0_RADIUS_DEFAULT,
+                "VEIL CHAIN: RING > LOD0 (the draw set contains the full-mesh core)");
+            static_assert(VEIL_RING_DEFAULT - VEIL_ICING_DEFAULT > LOD0_RADIUS_DEFAULT,
+                "VEIL CHAIN: the icing band sits wholly outside the LOD0 core");
             constexpr uint32_t PATCH_MESH_N = 64;      // mesh subdivisions per patch (LOD-0)
             constexpr uint32_t PATCH_INDEX_COUNT = PATCH_MESH_N * PATCH_MESH_N * 6;
             constexpr uint32_t PATCH_MESH_N_LOD1 = 32;  // LOD-1: half resolution
@@ -409,7 +415,7 @@ namespace t7 {
             // since p1b — the name was a fossil.) The CPU bands patches
             // into LOD0/LOD1 in stream_patches from player_.readback_x/z
             // (the point, 1 frame stale — law E-4). The GPU's frustum-cull
-            // shader applies the same NEAR distance gate; if it read the
+            // shader applies the same lod0_radius gate; if it read the
             // LIVE point instead, CPU banding and GPU gate would disagree
             // at the boundary annulus and patches would flicker/z-fight.
             // So the CPU pushes its banding point here and the cull shader
@@ -424,19 +430,20 @@ namespace t7 {
             uint32_t point_host;              // 0 = pawn (the kite), 1 = camera (free-fly)
             float point_fly_speed;            // W/S/A/D velocity; 0 → WGSL PAWN_SPEED fallback
 
-            // ─── THE VEIL (ruled) ────────────────────────────────────
-            // The point-anchored fog-wall band: fragments veil by
-            // smoothstep(veil_near, veil_far, distance(world_pos.xz,
-            // point.xz)) * veil_strength, composed AFTER the eye-fog in
-            // shade_lit. Wall color = fog_color (reads as sky). Defaults
-            // Dim::VEIL_NEAR/FAR_DEFAULT (175/275 — the old LOD0 ring and
-            // draw cylinder, reused not invented); tunable live.
+            // ─── THE VEIL (re-ruled: RING = draw authority, fog = icing) ──
+            // veil_ring: the SOLE draw authority (325 default) — terrain
+            //   banding, entity cull, flora/agent/floater VS gates all read
+            //   it; nothing draws beyond it. Live-tunable.
+            // veil_icing: δ — the narrow fade band [ring−δ, ring] in
+            //   shade_lit (cosmetic; joins materialize inside it).
             // veil_strength: 1 outdoors, 0 in finite/indoor (walls define
-            // the boundary there, not fog — staged per frame by U5).
-            float veil_near;
-            float veil_far;
+            //   the boundary there, not fog — staged per frame by U5).
+            // lod0_radius: the terrain full-mesh/half-mesh split (175) —
+            //   read by the CPU band AND the GPU LOD0 gate (one yardstick).
+            float veil_ring;
+            float veil_icing;
             float veil_strength;
-            float _veil_pad;
+            float lod0_radius;
         };
 
         struct alignas(16) GPUTileGridEntry {
@@ -2248,21 +2255,24 @@ namespace t7 {
             void stage_placement_patch_count(uint32_t n) { config_.placement_patch_count = n; }
             void stage_lod_point(float x, float z)       { config_.lod_point_x = x; config_.lod_point_z = z; }
 
-            // ── THE VEIL (ruled): the point-anchored fog-wall band. Dirty-
-            // gated config setters (ride the U8 drain); getters feed the CPU
-            // LOD band so CPU banding and the GPU gate share ONE live value.
-            void set_veil(float near_r, float far_r) {
-                if (config_.veil_near != near_r || config_.veil_far != far_r) {
-                    config_.veil_near = near_r;
-                    config_.veil_far  = far_r;
+            // ── THE VEIL (re-ruled): RING = draw authority, fog = icing.
+            // Dirty-gated config setters (ride the U8 drain); getters feed
+            // the CPU band + entity cull so every draw gate and the GPU
+            // share ONE live value.
+            void set_veil(float ring, float icing, float lod0) {
+                if (config_.veil_ring != ring || config_.veil_icing != icing ||
+                    config_.lod0_radius != lod0) {
+                    config_.veil_ring   = ring;
+                    config_.veil_icing  = icing;
+                    config_.lod0_radius = lod0;
                     configDirty_ = true;
                 }
             }
             void set_veil_strength(float s) {
                 if (config_.veil_strength != s) { config_.veil_strength = s; configDirty_ = true; }
             }
-            float veil_near() const { return config_.veil_near; }
-            float veil_far()  const { return config_.veil_far; }
+            float veil_ring()   const { return config_.veil_ring; }
+            float lod0_radius() const { return config_.lod0_radius; }
             void stage_floater_coordination(float v)     { config_.floater_coordination = v; }
             const GPUDesignConfig& config() const { return config_; }
             uint32_t get_fpv_mode() const { return config_.fpv_mode; }
@@ -5418,12 +5428,13 @@ namespace t7 {
                 config_.pawn_amp_scale = 1.0f;
                 config_.pawn_height_bias = 0.0f;
                 config_.pawn_aura_height = 0.0f;
-                // THE VEIL — chain defaults (Dim: 175/275); strength staged
-                // per frame by U5 (0 in finite/indoor). Boot outdoor-on.
-                config_.veil_near = Dim::VEIL_NEAR_DEFAULT;
-                config_.veil_far  = Dim::VEIL_FAR_DEFAULT;
+                // THE VEIL — chain defaults (Dim: ring 325 / icing 40 /
+                // lod0 175); strength staged per frame by U5 (0 in
+                // finite/indoor). Boot outdoor-on.
+                config_.veil_ring   = Dim::VEIL_RING_DEFAULT;
+                config_.veil_icing  = Dim::VEIL_ICING_DEFAULT;
                 config_.veil_strength = 1.0f;
-                config_._veil_pad = 0.0f;
+                config_.lod0_radius = Dim::LOD0_RADIUS_DEFAULT;
                 config_.fog_density = 0.003f;
                 config_.fog_color[0] = 0.85f;
                 config_.fog_color[1] = 0.78f;

@@ -4022,6 +4022,80 @@ ribbon still visible far; orbs intact; indoor unchanged (strength 0); and
 the camera-host check — fly away from your pawn and the world unveils around
 YOU while the body recedes into the wall. HELD for the gate.
 
+## THE VEIL — REEVALUATION FLIP (Jean's re-ruling: THE RING is the DRAW
+## authority, fog is ICING; glaw1 + census GREEN; HOLD for the rig)
+The gate showed the inversion: the fog-wall concealed only what had terrain
+behind it — beyond-FAR geometry painted wall-colored SILHOUETTES against the
+orb sky. Re-ruled: the DRAW SET is the authority; fog is cosmetic. KEPT from
+376115f: render_point_pos, the chain header/asserts/config plumbing, the
+lod_point rename, the fossil retirement, V1 (agents ≤350), the ribbon
+veil-scale machinery. FLIPPED:
+
+1. THE RING — one chain constant (Dim::VEIL_RING_DEFAULT = 6.5 patches = 325,
+   Jean's enlargement from 5.5/275), the SOLE draw authority, live via
+   config.veil_ring. Config quad re-authored: {veil_ring, veil_icing,
+   veil_strength, lod0_radius} (the old near/far/pad semantics retired; the
+   pad slot now carries lod0 — nothing wasted). ALL draw gates read it:
+   - terrain band outer gate (band_patches: d2 ≤ ring², nearest-edge);
+   - entity cull (below); flora/zone per-vertex kills; sphere/cube/pawn/
+     gallery instance gates. Same anchor everywhere: the STAGED point
+     (lod_point — the band's yardstick, so draw membership is synchronized
+     with terrain banding BY CONSTRUCTION); the icing alone reads the live
+     render_point_pos (a smooth fade; the 1-frame delta is invisible).
+2. FLORA'S FIRST DRAW GATE — the mechanism REPORT (ruled "verify the
+   derivation; fallback VS; report which"): the patch-list DERIVATION IS
+   structurally supported (patches record entity_refs{family,slot}; the
+   params-upload + pending-flag toggle verbs exist per family) BUT it costs
+   a mesh-gen dispatch per ring crossing + new per-slot draw state × 3
+   families. LANDED THE FALLBACK: a per-vertex VS kill (palm/cactus/blade —
+   the meshes are baked world-space with no instance channel; beyond-ring
+   verts clip to vec4(0,0,-1e4,1) far behind the near plane). POP-FREE BY
+   CONSTRUCTION: the kill boundary sits exactly where the icing is 1, so
+   any mixed-triangle sliver is fog-colored; the huge kill offset keeps
+   sliver screen extent negligible. The derivation stays named if the rig
+   disagrees. ZONES gained the same per-vertex kill (their extrusions had
+   NO self-fade — the GOL_FADE is the terrain tint, a recon correction).
+3. ARCH/COLUMN/ANTENNA — the cull RE-POINTED to the ring as a CORRECTNESS
+   gate: draw membership = center − extent ≤ ring (arch extent = half_span;
+   column = max(shaft_radius, THIN 5); antenna = THIN 5 — the "center±extent"
+   metric replaces the retired inset). HYSTERESIS FLIPPED OUTWARD, wholly
+   beyond the ring: show when nearest ≤ ring (entering fragments at icing=1
+   → invisible join), hide when nearest > ring+40 (fully iced the whole
+   band → invisible exit) — both toggle edges behind the fade.
+4. FOG → ICING — shade_lit's term is now smoothstep(ring − δ, ring, d), δ =
+   config.veil_icing (default 40, ruled ~25-50, tunable). Composed after the
+   untouched eye-fog; wall color still fog/horizon. Gallery FS same (staged-
+   point anchor, layout law). NOTHING relies on it for concealment.
+5. CHAIN RE-ASSERTED — PREGEN(350) ≥ EXIST(350) > RING(325) > LOD0(175), plus
+   RING − ICING > LOD0 (the band sits outside the full-mesh core). The old
+   EXIST ≥ FAR+75 law + ENTITY_MAX_EXTENT DISSOLVED (entities draw at the
+   ring; per-entity extents are real fields now). FLAGGED, NOT STARTED: the
+   thin factory band EXIST−RING = 25 wu — if the rig shows rim-pops under
+   fast flight, PREGEN-8 is the named storage-weld follow-on (225→289
+   layers, TILE_GRID 17→19, MAX_ACTIVE_PATCHES — a C6-registry-class cut).
+   Floaters: STAY 400 existence (the flagged spawn-headroom fork) but now
+   DRAW only inside the ring (the sphere/cube instance gates) — the
+   silhouette leak they caused is closed at the draw set, not the radius.
+
+NEWLY-SURFACED FOSSILS (flagged → sweep): EntityFamilyTraits.cull_base /
+cull_height_scale — ZERO readers (the old per-family cull columns; 9
+positional rows across 4 files carry dead values). Marked DEAD in
+entity_types.hpp; the row sweep is a trivial compiler-driven follow-on
+(removing the fields makes every stale row a too-many-initializers error).
+
+GATES: glaw1 GREEN; score census GREEN; encodings clean LF. HAND-VERIFIED
+(WGSL blind): config mirror field-for-field (ring/icing/strength/lod0);
+icing at 2 sites (shade_lit + gallery); draw gates at 8 sites (4 instance:
+pawn/sphere/monolith/gallery; 4 per-vertex: zone/palm/cactus/blade); the
+frustum LOD0 gate reads fc_config.lod0_radius (the same live value as the
+CPU band); finite/indoor: rooms (≤200) sit inside the ring → every gate a
+no-op; band's finite short-circuit + strength=0 unchanged.
+THE OBSERVABLE GATE (Jean's rig): palms/flora VANISH beyond the ring — no
+silhouettes against sky; entities and terrain appear TOGETHER at the ring,
+inside the icing fade; nothing visible stands on undrawn ground; ribbon
+still far-visible; indoor unchanged; the ring at 6.5 vs 5.5 — config-tune
+live. HELD for the gate.
+
 ## TERRAIN-2 — SKIRTS (side excursion; weld #2; own rig-gated commit)
 Jean's order: skirt the terrain patch mesh (plain patch edges) to hide
 inter-patch cracks — precision AND LOD/T-junction — with ONE mechanism.

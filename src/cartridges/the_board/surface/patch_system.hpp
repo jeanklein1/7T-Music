@@ -548,7 +548,7 @@ inline void generate_selected_patches(MachineCtx* c, const PatchCandidate* candi
 // the SAME point the CPU banded on (the anti-flicker contract).
 //   offer-face: GPUPatchInstance[] + lod0/render/all counts + lod_point.
 //   requires:   patches_ registry, the point readback, patch_distance_sq,
-//               the LIVE veil chain (config veil_near/veil_far),
+//               the LIVE veil chain (config veil_ring/lod0_radius),
 //               finite_mode; the upload doors.
 // Bit-safe: pack order = wire layout, not a draw. Separate from
 // build_patch_grid (different consumer/offer-face); they only coincided
@@ -569,10 +569,11 @@ inline void band_patches(MachineCtx* c, wgpu::Queue& queue) {
     float point_wz = c->player_.readback_z;
     float half = PATCH_EXTENT * 0.5f;
 
-    // THE VEIL CHAIN, live: the same config values the GPU gate + the
-    // fragment veil read — one yardstick on both sides by construction.
-    const float veil_near_sq = c->gpuState_.veil_near() * c->gpuState_.veil_near();
-    const float veil_far_sq  = c->gpuState_.veil_far()  * c->gpuState_.veil_far();
+    // THE VEIL CHAIN, live: THE RING is the draw authority (nothing draws
+    // beyond it); lod0 is the full/half-mesh split. The same config values
+    // the GPU gate + the fragment icing read — one yardstick everywhere.
+    const float ring_sq = c->gpuState_.veil_ring()   * c->gpuState_.veil_ring();
+    const float lod0_sq = c->gpuState_.lod0_radius() * c->gpuState_.lod0_radius();
 
     for (uint32_t i = 0; i < c->world_state_.active_patch_count; i++) {
         if (c->patch_system_state_.patches_[i].phase != PatchPhase::GENERATED &&
@@ -590,8 +591,8 @@ inline void band_patches(MachineCtx* c, wgpu::Queue& queue) {
         float d2 = patch_distance_sq(point_wx, point_wz, ox, oz, half);
 
         // Finite mode: all patches visible (walls define boundary, not fog)
-        if (c->world_state_.finite_mode || d2 <= veil_far_sq) {
-            if (d2 <= veil_near_sq) {
+        if (c->world_state_.finite_mode || d2 <= ring_sq) {
+            if (d2 <= lod0_sq) {
                 lod0[lod0Count++] = inst;
             }
             else {

@@ -1459,15 +1459,20 @@ struct DesignConfig {
     // precedent). Order matches GPUDesignConfig in state.hpp.
     point_host: u32,
     point_fly_speed: f32,
-    // THE VEIL (ruled) — the point-anchored fog-wall band. Mirrors
-    // GPUDesignConfig (state.hpp): fragments veil by smoothstep(
-    // veil_near, veil_far, distance(world_pos.xz, point.xz)) *
-    // veil_strength, composed AFTER the eye-fog in shade_lit; wall
-    // color = fog_color. strength: 1 outdoors, 0 finite/indoor.
-    veil_near: f32,
-    veil_far: f32,
+    // THE VEIL (re-ruled: RING = draw authority, fog = icing). Mirrors
+    // GPUDesignConfig (state.hpp):
+    //   veil_ring — the SOLE draw authority (325): the band's outer
+    //     gate, the entity cull, and every VS draw gate read it;
+    //     nothing draws beyond it.
+    //   veil_icing — δ: the narrow fade band [ring−δ, ring] in
+    //     shade_lit (cosmetic; joins materialize inside it).
+    //   veil_strength — 1 outdoors, 0 finite/indoor (staged by U5).
+    //   lod0_radius — the terrain full/half-mesh split (175), read by
+    //     the frustum-cull LOD0 gate + the CPU band (one yardstick).
+    veil_ring: f32,
+    veil_icing: f32,
     veil_strength: f32,
-    _veil_pad: f32,
+    lod0_radius: f32,
 }
 
 // §2.2 CONSTANTS
@@ -3663,14 +3668,14 @@ fn shade_lit(world_pos: vec3<f32>, normal: vec3<f32>, base_color: vec3<f32>, vei
     let fog = 1.0 - exp(-dist * config.fog_density);
     let fogged = mix(lit, config.fog_color, fog);
 
-    // THE VEIL (ruled) — the POINT-anchored fog-wall, composed AFTER the
-    // eye-fog. Per-fragment: the fragment IS the metric. Zero inside
-    // veil_near (smoothstep(NEAR,FAR, d<=NEAR) == 0 → pixel-identical to
-    // the pre-veil frame); a full wall at veil_far, in the fog/horizon
-    // color so the wall reads as sky. strength: 0 in finite/indoor
-    // (walls define the boundary, not fog).
+    // THE ICING (re-ruled) — the POINT-anchored fade band AT the ring,
+    // composed AFTER the eye-fog. Cosmetic, not concealment: the RING is
+    // the draw authority (nothing is drawn beyond it), and this narrow
+    // band [ring−δ, ring] is where draw-set joins materialize. Zero
+    // inside ring−δ (pixel-identical there); full fog/horizon color at
+    // the ring (the rim melts into sky). strength: 0 in finite/indoor.
     let point_d = distance(world_pos.xz, render_point_pos().xz);
-    let veil = smoothstep(config.veil_near, config.veil_far, point_d)
+    let veil = smoothstep(config.veil_ring - config.veil_icing, config.veil_ring, point_d)
              * config.veil_strength * veil_scale;
     return mix(fogged, config.fog_color, veil);
 }
@@ -4035,7 +4040,13 @@ fn pawn_vs(@builtin(vertex_index) vid: u32,
     let agent = render_agents[inst];
     // Collapse inactive slots to a degenerate point at the agent's pos.
     // (Same trick as sphere_vs: zero-scale local geometry → no fragments.)
-    let active_f = f32(agent.is_active);
+    // THE RING (draw authority): agents exist to 350 but DRAW only inside
+    // the ring. The pawn is NOT exempt (ruled): in camera-host the
+    // abandoned body leaves the draw set with everything else.
+    let agent_in_ring = distance(vec2(agent.pos_x, agent.pos_z),
+                                 vec2(config.lod_point_x, config.lod_point_z))
+                        - 5.0 <= config.veil_ring;   // 5 wu: agent body half-extent
+    let active_f = f32(agent.is_active) * f32(agent_in_ring);
 
     var local_pos: vec3<f32>;
     var local_normal: vec3<f32>;
@@ -4136,8 +4147,12 @@ fn pawn_vs(@builtin(vertex_index) vid: u32,
 @vertex
 fn sphere_vs(@builtin(instance_index) inst: u32, in: MeshVertexInput) -> EntityVarying {
     let fe = render_floating.entities[inst];
-    // Skip non-sphere geometry (degenerate triangle for rasterizer discard)
-    let r = select(0.0, fe.body_radius, fe.geometry_type == 0u && fe.is_active != 0u);
+    // Skip non-sphere geometry (degenerate triangle for rasterizer discard).
+    // THE RING (draw authority): floaters exist to 400 (the flagged spawn-
+    // headroom fork) but DRAW only inside the ring — center − extent ≤ ring.
+    let in_ring = distance(fe.pos.xz, vec2(config.lod_point_x, config.lod_point_z))
+                  - fe.body_radius <= config.veil_ring;
+    let r = select(0.0, fe.body_radius, fe.geometry_type == 0u && fe.is_active != 0u && in_ring);
     let world_pos = in.pos * r + fe.pos;
 
     var out: EntityVarying;
@@ -4165,8 +4180,12 @@ fn ribbon_fs(in: EntityVarying) -> @location(0) vec4<f32> {
 @vertex
 fn monolith_vs(@builtin(instance_index) inst: u32, in: MeshVertexInput) -> EntityVarying {
     let fe = render_floating.entities[inst];
-    // Skip non-monolith geometry
-    let r = select(0.0, fe.body_radius, fe.geometry_type == 1u && fe.is_active != 0u);
+    // Skip non-monolith geometry. THE RING (draw authority): draw only
+    // inside the ring — center − extent ≤ ring (extent 2r covers the
+    // aspect-stretched axes conservatively; overshoot is fully iced).
+    let in_ring = distance(fe.pos.xz, vec2(config.lod_point_x, config.lod_point_z))
+                  - fe.body_radius * 2.0 <= config.veil_ring;
+    let r = select(0.0, fe.body_radius, fe.geometry_type == 1u && fe.is_active != 0u && in_ring);
 
     // Apply orientation quaternion (monoliths spin)
     let scaled = in.pos * vec3(r, r * fe.aspect_y, r * fe.aspect_z);
@@ -7728,6 +7747,11 @@ fn zone_extrusion_vs(
     out.world_pos = world_pos;
     out.normal = normal;
     out.cell_color = color;
+    // THE RING (draw authority) — zone extrusions join the draw set like
+    // flora: per-vertex kill beyond the ring (baked world-space mesh).
+    if (distance(world_pos.xz, vec2(config.lod_point_x, config.lod_point_z)) > config.veil_ring) {
+        out.clip_pos = vec4(0.0, 0.0, -1e4, 1.0);
+    }
     return out;
 }
 
@@ -8346,7 +8370,7 @@ fn compute_entity_placement() {
 const FRUSTUM_PATCH_Y_MIN: f32 = -50.0;   // widened: terrain amplitude + entity heights
 const FRUSTUM_PATCH_Y_MAX: f32 = 200.0;   // widened: tall entities (towers, antennas, ribbons)
 // (FRUSTUM_LOD0_RADIUS_SQ REMOVED — the veil: the LOD0 gate now reads the
-//  LIVE chain value fc_config.veil_near, the SAME config value the CPU
+//  LIVE chain value fc_config.lod0_radius, the SAME config value the CPU
 //  band reads — the four hand-kept spellings of 175 collapse to one.)
 
 // Frustum cull compute bindings (dedicated bind group)
@@ -8428,13 +8452,13 @@ fn frustum_cull_patches(@builtin(global_invocation_id) id: vec3<u32>) {
     // so the GPU's LOD0 gate uses the same position the CPU used to
     // band patches into LOD0/LOD1 (else the two disagree at the
     // boundary annulus and patches flicker/z-fight). The radius is the
-    // LIVE chain value veil_near — the same config value the CPU band
+    // LIVE chain value lod0_radius — the same config value the CPU band
     // reads (one yardstick, both sides, by construction).
     let dx = max(0.0, abs(fc_config.lod_point_x - pi.origin.x) - half);
     let dz = max(0.0, abs(fc_config.lod_point_z - pi.origin.y) - half);
     let dist2 = dx * dx + dz * dz;
 
-    if (dist2 <= fc_config.veil_near * fc_config.veil_near) {
+    if (dist2 <= fc_config.lod0_radius * fc_config.lod0_radius) {
         // Append to LOD0 visible list, atomicAdd indirect[1] (instanceCount)
         let slot = atomicAdd(&fc_indirect[1], 1u);
         fc_visible[slot] = id.x;
@@ -8531,8 +8555,13 @@ fn gallery_frame_vs(
     var out: GalleryVarying;
     let slot = painting_slots[iid];
 
-    // Skip inactive or wall-frame slots (only terrain quads drawn here)
-    if (slot.is_active == 0u || slot.form_type != FORM_TERRAIN_QUAD) {
+    // Skip inactive or wall-frame slots (only terrain quads drawn here).
+    // THE RING (draw authority): outdoor frames draw only inside the ring
+    // (center − extent ≤ ring; 5 wu covers the frame's half-reach).
+    let frame_in_ring = distance(slot.position.xz,
+                                 vec2(config.lod_point_x, config.lod_point_z))
+                        - 5.0 <= config.veil_ring;
+    if (slot.is_active == 0u || slot.form_type != FORM_TERRAIN_QUAD || !frame_in_ring) {
         out.clip_pos = vec4(0.0, 0.0, 0.0, 1.0);
         out.uv = vec2(0.0);
         out.world_pos = vec3(0.0);
@@ -8617,18 +8646,18 @@ fn gallery_frame_fs(in: GalleryVarying) -> @location(0) vec4<f32> {
     let fog = 1.0 - exp(-dist * config.fog_density);
     color = mix(color, config.fog_color, fog);
 
-    // THE VEIL — outdoor terrain paintings join the band (own-FS family;
-    // same term as shade_lit's, point-anchored, after the eye-fog). The
-    // gallery/indoor EXEMPTION is the MODE (veil_strength = 0 in
-    // finite/indoor), not this family: outdoor frames spawn to the 350
-    // residency ring and would otherwise stand past the wall.
-    // ANCHOR NOTE: this FS reads the STAGED point (config.lod_point_*, the
-    // same value the CPU band + GPU LOD gate use) rather than
-    // render_point_pos() — the gallery pipeline's entity layout does not
-    // bind render_agents, and the staged copy IS the point (1 frame stale,
-    // law E-4; imperceptible across a 100 wu band).
+    // THE ICING — outdoor terrain paintings share the band (own-FS
+    // family; same term as shade_lit's). Their DRAW membership is the
+    // ring gate in gallery_frame_vs; this fade is where their join
+    // materializes. The gallery/indoor EXEMPTION is the MODE
+    // (veil_strength = 0 in finite/indoor), not this family.
+    // ANCHOR NOTE: this FS reads the STAGED point (config.lod_point_*,
+    // the band's yardstick) rather than render_point_pos() — the gallery
+    // pipeline's entity layout does not bind render_agents, and the
+    // staged copy IS the point (1 frame stale, law E-4).
     let point_d = distance(in.world_pos.xz, vec2(config.lod_point_x, config.lod_point_z));
-    let veil = smoothstep(config.veil_near, config.veil_far, point_d) * config.veil_strength;
+    let veil = smoothstep(config.veil_ring - config.veil_icing, config.veil_ring, point_d)
+             * config.veil_strength;
     color = mix(color, config.fog_color, veil);
 
     return vec4(color, 1.0);
@@ -10044,6 +10073,13 @@ fn palm_vs(in: ArchVertexInput) -> EntityVarying {
     out.world_pos = world_pos;
     out.normal = in.normal;
     out.entity_color = in.color;
+    // THE RING (draw authority) — flora's first draw gate: per-vertex kill
+    // beyond the ring (the mesh is baked world-space, no instance channel).
+    // Anchor = the STAGED point (the band's yardstick). The boundary sits
+    // where the icing is 1, so any mixed-triangle clip sliver is invisible.
+    if (distance(world_pos.xz, vec2(config.lod_point_x, config.lod_point_z)) > config.veil_ring) {
+        out.clip_pos = vec4(0.0, 0.0, -1e4, 1.0);   // far behind the near plane — clipped
+    }
     return out;
 }
 
@@ -10374,6 +10410,10 @@ fn cactus_vs(in: ArchVertexInput) -> EntityVarying {
     out.world_pos = world_pos;
     out.normal = in.normal;
     out.entity_color = in.color;
+    // THE RING (draw authority) — see palm_vs: per-vertex kill beyond the ring.
+    if (distance(world_pos.xz, vec2(config.lod_point_x, config.lod_point_z)) > config.veil_ring) {
+        out.clip_pos = vec4(0.0, 0.0, -1e4, 1.0);
+    }
     return out;
 }
 
@@ -10606,6 +10646,10 @@ fn blade_cluster_vs(in: ArchVertexInput) -> EntityVarying {
     out.world_pos = world_pos;
     out.normal = in.normal;
     out.entity_color = in.color;
+    // THE RING (draw authority) — see palm_vs: per-vertex kill beyond the ring.
+    if (distance(world_pos.xz, vec2(config.lod_point_x, config.lod_point_z)) > config.veil_ring) {
+        out.clip_pos = vec4(0.0, 0.0, -1e4, 1.0);
+    }
     return out;
 }
 

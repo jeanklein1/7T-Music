@@ -56,8 +56,8 @@ struct WorldState {
 
     // ── Patch counts (this frame) ──
     uint32_t active_patch_count = 0;
-    uint32_t render_patch_count = 0;    // visible patches (within the live veil_far cylinder)
-    uint32_t lod0_patch_count   = 0;    // subset of rendered: within veil_near (full mesh)
+    uint32_t render_patch_count = 0;    // drawn patches (within the live RING — the draw authority)
+    uint32_t lod0_patch_count   = 0;    // subset of drawn: within lod0_radius (full mesh)
     uint32_t all_patch_count    = 0;    // all generated patches (including pre-gen ring)
     uint32_t entities_culled    = 0;    // entities hidden by the EXIST-ring overdraw cull this frame
 
@@ -137,16 +137,18 @@ inline constexpr uint32_t PATCH_PENDING_TIER_3 = 20;
 inline constexpr uint32_t PATCH_PENDING_TIER_4 = 40;
 inline constexpr uint32_t PATCH_BUDGET_MOVE_THRESHOLD = 4;
 
-// ── Visibility — THE VEIL CHAIN (ruled) ────────────────────────────
+// ── Visibility — THE VEIL CHAIN (re-ruled: RING = draw authority) ──
 //
 // The old two-group vocabulary (VISIBLE_RADIUS/VISIBILITY_CYLINDER_* and
 // LOD_FULL_RADIUS/LOD0_CYLINDER_* — seven spellings of two numbers) is
-// RETIRED. The chain is declared ONCE in Dim (state.hpp: VEIL_NEAR_DEFAULT
-// 175 / VEIL_FAR_DEFAULT 275 / EXIST_RADIUS 350, chain static_asserts).
-// The LIVE values ride config (veil_near/veil_far, tunable): the CPU LOD
-// band reads gpuState_.veil_near()/veil_far(), the GPU frustum gate and
-// the fragment veil read config.veil_near/veil_far — one yardstick, by
-// construction, on both sides. Grid-based allocation/eviction unchanged.
+// RETIRED. The chain is declared ONCE in Dim (state.hpp: VEIL_RING_DEFAULT
+// 325 / VEIL_ICING_DEFAULT 40 / LOD0_RADIUS_DEFAULT 175 / EXIST_RADIUS
+// 350, chain static_asserts). The LIVE values ride config (veil_ring/
+// veil_icing/lod0_radius, tunable): the CPU band reads gpuState_.
+// veil_ring()/lod0_radius(), the entity cull reads veil_ring(), the GPU
+// LOD0 gate reads fc_config.lod0_radius, every VS draw gate + the
+// fragment icing read config — one yardstick, by construction,
+// everywhere. Grid-based allocation/eviction unchanged.
 
 // ── Distance-sorted patch scan helper ──
 

@@ -42,18 +42,20 @@
 namespace t7 {
 namespace the_board {
 
-// ─── Entity Distance Culling — DEMOTED by the veil (ruled) ─────────
+// ─── Entity Distance Culling — THE RING (re-ruled) ─────────────────
 //
-// The veil (the point-anchored fog-wall in shade_lit) is now the sole
-// VISUAL authority: fragments fade NEAR→FAR and are fully walled at FAR.
-// This CPU cull is an OVERDRAW OPTIMIZATION only, at the EXIST ring
-// (350 = the pregen/existence radius), far outside the wall. Its sole
-// law (static_asserted at the chain, state.hpp Dim): EXIST ≥ VEIL_FAR +
-// ENTITY_MAX_EXTENT — no entity with in-veil fragments is ever CPU-culled.
-// The old edge margin (25) and per-size inset (0.5/cap 60) are RETIRED —
-// they were anti-pop hacks whose visual role the veil replaced; hysteresis
-// stays as a toggle damper (mesh params upload on each flip).
-inline constexpr float ENTITY_CULL_HYSTERESIS     = 40.0f;   // toggle band: hide at EXIST, show 40 wu inside
+// THE RING is the draw authority (chain, state.hpp Dim; live value =
+// config veil_ring): an entity is IN the draw set iff any part of it
+// reaches inside the ring — center-distance MINUS its horizontal extent
+// ≤ ring (the "center±extent" metric; replaces the retired per-size
+// inset). Hysteresis sits OUTSIDE the ring, in the fully-iced zone:
+//   show when (dist − extent) ≤ ring        (entering fragments are at
+//                                            icing = 1 → invisible join)
+//   hide when (dist − extent) > ring + HYST (fragments fully iced for
+//                                            the whole band → invisible exit)
+// Both toggle edges are behind the icing — materialize inside the fade.
+inline constexpr float ENTITY_CULL_HYSTERESIS     = 40.0f;   // toggle band, wholly beyond the ring
+inline constexpr float ENTITY_THIN_EXTENT         = 5.0f;    // columns/antennas: conservative horizontal half-reach
 
 // ── Footprint registry vocabulary ──────────────────────────────────
 
@@ -369,14 +371,14 @@ inline GPUColumnMeshParams build_column_mesh_params(MachineCtx* c, uint32_t slot
 
 // Scan all active entities, toggle draw_visible with hysteresis,
 // and upload mesh param changes. Returns count of currently hidden entities.
-// DEMOTED by the veil: this is an overdraw optimization at the EXIST ring,
-// not a visual authority — anything it toggles is already fully fog-walled
-// (EXIST ≥ VEIL_FAR + ENTITY_MAX_EXTENT, the chain law). Anchor: the point.
+// THE RING is the correctness gate (re-ruled): draw membership = any part
+// of the entity inside the live ring (center − extent ≤ ring). Anchor: the
+// point (readback — the same yardstick as the terrain band). Both toggle
+// edges sit at/beyond the ring where the icing is already 1 — invisible.
 inline uint32_t update_entity_draw_visibility(MachineCtx* c, wgpu::Queue& queue) {
     uint32_t culled = 0;
 
-    const float cull_far  = Dim::EXIST_RADIUS;                    // 350 — the existence ring
-    const float cull_near = cull_far - ENTITY_CULL_HYSTERESIS;    // 310 — toggle damper only
+    const float ring = c->gpuState_.veil_ring();   // live chain value — the draw authority
 
     // Arches
     for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++) {
@@ -386,9 +388,10 @@ inline uint32_t update_entity_draw_visibility(MachineCtx* c, wgpu::Queue& queue)
         float dz = a.world_z - c->player_.readback_z;
         float dist = std::sqrt(dx * dx + dz * dz);
 
+        float nearest = dist - a.half_span;            // the arch's closest reach (center − extent)
         bool should_show = a.draw_visible
-            ? (dist <= cull_far)          // visible: hide at the existence ring
-            : (dist <= cull_near);        // hidden:  show when comfortably inside
+            ? (nearest <= ring + ENTITY_CULL_HYSTERESIS)  // visible: hide once fully iced past the band
+            : (nearest <= ring);                          // hidden:  show as fragments enter the icing
 
         if (should_show != a.draw_visible) {
             c->entities_state_.arches[i].draw_visible = should_show;
@@ -413,9 +416,10 @@ inline uint32_t update_entity_draw_visibility(MachineCtx* c, wgpu::Queue& queue)
         float dz = col.world_z - c->player_.readback_z;
         float dist = std::sqrt(dx * dx + dz * dz);
 
+        float nearest = dist - std::max(col.shaft_radius, ENTITY_THIN_EXTENT);
         bool should_show = col.draw_visible
-            ? (dist <= cull_far)
-            : (dist <= cull_near);
+            ? (nearest <= ring + ENTITY_CULL_HYSTERESIS)
+            : (nearest <= ring);
 
         if (should_show != col.draw_visible) {
             c->entities_state_.columns[i].draw_visible = should_show;
@@ -441,9 +445,10 @@ inline uint32_t update_entity_draw_visibility(MachineCtx* c, wgpu::Queue& queue)
         float dist = std::sqrt(dx * dx + dz * dz);
         uint32_t gpu_slot = i + Dim::ANTENNA_SLOT_OFFSET;
 
+        float nearest = dist - ENTITY_THIN_EXTENT;   // antennas are thin masts
         bool should_show = ant.draw_visible
-            ? (dist <= cull_far)
-            : (dist <= cull_near);
+            ? (nearest <= ring + ENTITY_CULL_HYSTERESIS)
+            : (nearest <= ring);
 
         if (should_show != ant.draw_visible) {
             c->entities_state_.antennas[i].draw_visible = should_show;
