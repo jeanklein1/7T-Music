@@ -4620,6 +4620,52 @@ WGSL half is glaw1-BLIND → RIG GATE: terrain + placement unchanged,
 pyramids still bake, boot clean (no layout/group mismatch).
 
 ════════════════════════════════════════════════════════════════════
+SIBLING PRUNE (ruled; one commit, T-minus-1 class — git holds
+everything; recon in audit/SIBLING_PRUNE_RECON.md)
+════════════════════════════════════════════════════════════════════
+
+RULING 1 — THE_CHORD DELETED (whole tree, ~36k lines). RECORDED AS:
+testbed retired, purpose served — it existed to dodge pipeline-creation
+cost while iterating; superseded by the roster/demo-matrix (cheap
+variation) and the C3/C6 pipeline-cost work itself. NOT a constitution
+amendment — the mirror law was the testbed's honesty constraint, and
+retires with it. WITH IT: the `incubator` target + the `the-chord`
+CMake preset pair + src/incubator.cpp (its only harness; recon §1:
+nothing else invoked it). ribbon.hpp's mirror banner → historical note
+(pairing RETIRED with the testbed; ribbon is now just a module, the
+mirror constraint lifts). THE COMPAT RAMP: the deferred the_chord
+reconciliation pass (COMPAT_CONSUMER_CENSUS / CLOSEOUT_CAMPAIGN_AB
+F-B3.3) DIES with its last live consumer — coupling/trajectory.hpp's
+COMPAT section is now consumer-free on the live tree (backup_board's
+copies are reference text, not consumers); it was never in the PARKED
+ledger, so nothing to strike there — the B3 cut is now unblocked
+whenever trajectory.hpp is next opened.
+
+RULING 2 — BACKUP_BOARD KEPT, REFRAMED: a frozen REFERENCE TEXT, not a
+build target. The broken `incubator_backup` target + its CMake block +
+INCUBATOR_BACKUP_* cache vars DELETED (keeping the text, not the
+pretense it builds — it hadn't since its stale musical/trajectory.hpp
+include). ADDED src/cartridges/backup_board/README.md: frozen snapshot
+of the_board (837d920 + a129960 rename), kept as readable fossil
+record (couplings, waving mechanism, rudimentary forms), excluded from
+sweeps/greps by design. FUTURE RECONS CITE THAT BANNER instead of
+re-deriving the exclusion.
+
+CMAKE FALLOUT: "Available render cartridges" comment → the_board (+
+the reference-text note); INCUBATOR_RENDER_CARTRIDGE deleted;
+INCUBATOR_ANALYSIS_CARTRIDGE KEPT (the_lab shares it — its docstring
+re-pointed); self-heal foreach + Active-cartridges message trimmed to
+the survivors (incubator_dual, the_lab).
+
+GATES: glaw1 + census GREEN (the_board untouched but for the ribbon
+banner comment); the live presets A/B-verified — `cmake --preset
+the-board-full` reaches the identical pre-existing Dawn-lib stop
+(CMakeLists:61, environmental) before and after the prune; preset
+resolution + the full var/target graph parse clean. Tree-wide grep:
+zero dangling the_chord / INCUBATOR_RENDER / INCUBATOR_BACKUP
+references outside historical audit prose.
+
+════════════════════════════════════════════════════════════════════
 THE PARKED LEDGER (standing section — the ONE place open flags live.
 Future sweeps read THIS, not the tree. Consolidated at residue-sweep
 T0. Discipline: when a flag lands or dies, strike it HERE in the same

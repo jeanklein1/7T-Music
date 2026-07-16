@@ -17,16 +17,11 @@
 // pen; the propagation law replays the head's past down the body at
 // P. Couple the head, and the rest follows.
 //
-// PAIRING (the mirror law, AMENDED at LADDER-3 c5): the constitution's
-// practiced convention — the_board/the_chord mirrored-module deltas are
-// byte-identical (ribbon.inl named first among them) — is SUSPENDED for
-// this module by the header ladder's declared structural divergence:
-// the_board's ribbon is header/impl split (this file + the repurposed
-// ribbon.inl); the_chord's ribbon.inl remains a class-body include under
-// the prior law. Same suspension class as pawn.inl (LADDER-2 c2). The
-// BOM stays with ribbon.inl on both sides; content deltas beyond the
-// split remain subject to the mirror law's spirit until the pairing is
-// re-ratified.
+// PAIRING (historical): the mirror law — byte-identical the_board/the_chord
+// mirrored-module deltas, SUSPENDED for this module at LADDER-3 c5 — is
+// RETIRED with the_chord itself (the sibling prune): the testbed served its
+// purpose, and the mirror law was the testbed's honesty constraint. Ribbon
+// is now just a module; no mirror constraint binds this file.
 //
 // The impl additionally reaches the spawn-engine services
 // (run_spawn_preamble, negotiate_position,

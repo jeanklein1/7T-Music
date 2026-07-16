@@ -29,19 +29,10 @@
         "INCUBATOR_DUAL_RENDER_CARTRIDGE": "the_board",
         "THE_BOARD_DEMO": "minimal"
       }
-    },
-    {
-      "name": "the-chord",
-      "displayName": "the_chord",
-      "inherits": "base",
-      "cacheVariables": {
-        "INCUBATOR_RENDER_CARTRIDGE": "the_chord"
-      }
     }
   ],
   "buildPresets": [
     { "name": "the-board-full",    "configurePreset": "the-board-full",    "targets": ["incubator_dual"] },
-    { "name": "the-board-minimal", "configurePreset": "the-board-minimal", "targets": ["incubator_dual"] },
-    { "name": "the-chord",         "configurePreset": "the-chord",         "targets": ["incubator"] }
+    { "name": "the-board-minimal", "configurePreset": "the-board-minimal", "targets": ["incubator_dual"] }
   ]
 }
