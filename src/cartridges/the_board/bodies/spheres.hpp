@@ -151,7 +151,7 @@ inline const TierProfile& sphere_get_tier_profile(uint32_t tier_idx) {
 inline constexpr EntityFamilyTraits SPHERE_TRAITS = {
     PopFamily::SPHERE, "sph", Dim::MAX_SPHERE_INSTANCES,
     false, false, 0,      // not grounded
-    true, 200.0f, 0.0f,
+    true,
     FloatingEntityProp::SPAWN_ROLL, SphereConfig::SPAWN_CHANCE,
     SphereConfig::MOOD_MULTIPLIER, SphereConfig::POSITION_JITTER,
     SPHERE_TIER_COUNT, FloatingEntityProp::TIER,

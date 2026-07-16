@@ -4584,6 +4584,19 @@ RIBBON RULING EXECUTED: SPAWN_CHANCE 0.900f is now the AUTHORED value
 the distributions pass revisits it properly). Gap-explainer tombstones
 KEPT per the stamp (RAYMARCH/SDF, husk-sweep gap markers).
 
+T1 — THE CULL PAIR + THE EMPTY BLOCK (compiler-driven, glaw1-gated).
+EntityFamilyTraits loses cull_base + cull_height_scale (DEAD since the
+veil flip made the RING the draw authority — zero readers tree-wide);
+the 9 positional rows each shed their 2 literals (COLUMN/ANTENNA/
+PYRAMID/ARCH in entity_pipeline, BLADE/PALM/CACTUS in entities,
+SPHERE in spheres, CUBE in cube_behaviors). COMPLETENESS PROOF: glaw1
+GREEN — any missed row would flag too-many-initializers; grep confirms
+zero cull_* references remain. Plus the empty private:/public: pair in
+the Cartridge class (all-public; structural dead weight). Behavior-
+identical; glaw1 + census GREEN. The traits struct is now 20 fields;
+the WIDE-TRAITS shrink (10 more zero-reader fields) stays HELD at
+P-1 in the PARKED LEDGER below.
+
 ════════════════════════════════════════════════════════════════════
 THE PARKED LEDGER (standing section — the ONE place open flags live.
 Future sweeps read THIS, not the tree. Consolidated at residue-sweep

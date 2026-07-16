@@ -950,7 +950,7 @@ inline constexpr EntityFamilyTraits BLADE_TRAITS = {
     PopFamily::BLADE, "blad",
     Dim::MAX_BLADE_INSTANCES,
     true, false, 0,                                    // grounded, no piers
-    true, 100.0f, 1.0f,                               // footprint, cull
+    true,                                             // footprint
     BladeProp::SPAWN_ROLL, BladeClusterConfig::SPAWN_CHANCE,
     BladeClusterConfig::MOOD_MULTIPLIER,
     BladeClusterConfig::POSITION_JITTER,
@@ -1148,7 +1148,7 @@ inline constexpr ColorPartDef PALM_COLOR_PARTS[] = {
 inline constexpr EntityFamilyTraits PALM_TRAITS = {
     PopFamily::PALM, "palm", Dim::MAX_PALM_INSTANCES,
     true, false, 0,
-    true, 100.0f, 1.0f,
+    true,
     PalmProp::SPAWN_ROLL, PalmConfig::SPAWN_CHANCE,
     PalmConfig::MOOD_MULTIPLIER, PalmConfig::POSITION_JITTER,
     PALM_TIER_COUNT, PalmProp::TIER,
@@ -1358,7 +1358,7 @@ inline constexpr ColorPartDef CACTUS_COLOR_PARTS[] = {
 inline constexpr EntityFamilyTraits CACTUS_TRAITS = {
     PopFamily::CACTUS, "cact", Dim::MAX_CACTUS_INSTANCES,
     true, false, 0,
-    true, 100.0f, 1.0f,
+    true,
     CactusProp::SPAWN_ROLL, CactusConfig::SPAWN_CHANCE,
     CactusConfig::MOOD_MULTIPLIER, CactusConfig::POSITION_JITTER,
     CACTUS_TIER_COUNT, CactusProp::TIER,

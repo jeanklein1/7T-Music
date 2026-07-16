@@ -137,8 +137,6 @@ struct EntityFamilyTraits {
     bool        creates_ground;
     uint32_t    piers_per_entity;
     bool        has_footprint;
-    float       cull_base;          // DEAD (the veil flip): zero readers — the ring is the draw authority; column + its row values → fossil sweep
-    float       cull_height_scale;  // DEAD (the veil flip): zero readers — ditto
     uint32_t    spawn_roll_prop;
     float       spawn_chance;
     const float* mood_multiplier;

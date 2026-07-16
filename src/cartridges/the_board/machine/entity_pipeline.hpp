@@ -368,7 +368,7 @@ inline const TierProfile& antenna_get_tier_profile(uint32_t tier_idx) {
 inline constexpr EntityFamilyTraits COLUMN_TRAITS = {
     PopFamily::COLUMN, "col", Dim::MAX_COLUMN_ONLY,
     true, true, 1,                                     // grounded, creates ground, 1 pier
-    true, 80.0f, 2.5f,
+    true,
     ColumnProp::SPAWN_ROLL, ColumnConfig::SPAWN_CHANCE,
     ColumnConfig::MOOD_MULTIPLIER, ColumnConfig::POSITION_JITTER,
     COLUMN_TIER_COUNT, ColumnProp::TIER,
@@ -380,7 +380,7 @@ inline constexpr EntityFamilyTraits COLUMN_TRAITS = {
 inline constexpr EntityFamilyTraits ANTENNA_TRAITS = {
     PopFamily::ANTENNA, "ant", Dim::MAX_ANTENNA_ONLY,
     true, true, 1,
-    true, 80.0f, 2.5f,
+    true,
     AntennaProp::SPAWN_ROLL, AntennaConfig::SPAWN_CHANCE,
     AntennaConfig::MOOD_MULTIPLIER, AntennaConfig::POSITION_JITTER,
     ANTENNA_TIER_COUNT, AntennaProp::TIER,
@@ -723,7 +723,7 @@ inline const TierProfile& pyramid_get_tier_profile(uint32_t tier_idx) {
 inline constexpr EntityFamilyTraits PYRAMID_TRAITS = {
     PopFamily::PYRAMID, "pyr", Dim::MAX_PYRAMID_INSTANCES,
     true, false, 0,       // grounded, no piers (bakes into heightfield instead)
-    true, 200.0f, 1.0f,
+    true,
     PyramidProp::SPAWN_ROLL, PyramidConfig::SPAWN_CHANCE,
     PyramidConfig::MOOD_MULTIPLIER, PyramidConfig::POSITION_JITTER,
     3, PyramidProp::TIER,
@@ -878,7 +878,7 @@ inline const TierProfile& arch_get_tier_profile(uint32_t tier_idx) {
 inline constexpr EntityFamilyTraits ARCH_TRAITS = {
     PopFamily::ARCH, "arch", Dim::MAX_ARCH_INSTANCES,
     true, true, 2,        // grounded, creates ground, 2 piers
-    true, 120.0f, 1.5f,
+    true,
     ArchProp::SPAWN_ROLL, ArchConfig::SPAWN_CHANCE,
     ArchConfig::MOOD_MULTIPLIER, ArchConfig::POSITION_JITTER,
     static_cast<uint32_t>(ArchTier::COUNT), ArchProp::TIER,

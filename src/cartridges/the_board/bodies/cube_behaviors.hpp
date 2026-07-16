@@ -509,7 +509,7 @@ inline const TierProfile& cube_get_tier_profile(uint32_t tier_idx) {
 inline constexpr EntityFamilyTraits CUBE_TRAITS = {
     PopFamily::CUBE, "cube", Dim::MAX_CUBE_INSTANCES,
     false, false, 0,
-    true, 200.0f, 0.0f,
+    true,
     CubeEntityProp::SPAWN_ROLL, CubeConfig::SPAWN_CHANCE,
     CubeConfig::MOOD_MULTIPLIER, CubeConfig::POSITION_JITTER,
     CUBE_TIER_COUNT, CubeEntityProp::TIER,

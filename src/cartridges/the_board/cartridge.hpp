@@ -1558,10 +1558,6 @@ namespace t7 {
                 }
             }
 
-        private:
-
-        public:
-
             void get_clear_color(float& r, float& g, float& b) const override {
                 r = clearColor_[0];
                 g = clearColor_[1];
