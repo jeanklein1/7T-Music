@@ -408,7 +408,12 @@ namespace t7 {
             // Slot index of the player's current body in agent_state[].
             // Piggybacks on the existing _pulse_pad triple (struct is now 400 bytes).
             uint32_t possessed_slot;          // slot 0 at session start
-            float _pulse_pad[2];
+            // THE RIM taste knob (config-gated): 0 = icing tints to fog
+            // (default); >0.5 = icing DITHER-dissolves (geometry condenses
+            // instead of tinting) at the two icing FS sites. Repurposes one
+            // of the pulse pad floats — no struct-size delta.
+            float veil_dither;
+            float _pulse_pad;
             float pulse_data[32];             // 8 × {origin_x, origin_z, onset_beats, amplitude}
             // ─── LOD-band point position ────────────────────────────────
             // (renamed lod_pawn → lod_point: the value has been THE POINT
@@ -2270,6 +2275,9 @@ namespace t7 {
             }
             void set_veil_strength(float s) {
                 if (config_.veil_strength != s) { config_.veil_strength = s; configDirty_ = true; }
+            }
+            void set_veil_dither(float d) {   // THE RIM knob: 0 tint / >0.5 dither-dissolve
+                if (config_.veil_dither != d) { config_.veil_dither = d; configDirty_ = true; }
             }
             float veil_ring()   const { return config_.veil_ring; }
             float lod0_radius() const { return config_.lod0_radius; }
@@ -5435,6 +5443,7 @@ namespace t7 {
                 config_.veil_icing  = Dim::VEIL_ICING_DEFAULT;
                 config_.veil_strength = 1.0f;
                 config_.lod0_radius = Dim::LOD0_RADIUS_DEFAULT;
+                config_.veil_dither = 0.0f;   // THE RIM: default = icing tints (mechanism 1 alone)
                 config_.fog_density = 0.003f;
                 config_.fog_color[0] = 0.85f;
                 config_.fog_color[1] = 0.78f;

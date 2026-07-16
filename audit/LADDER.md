@@ -4096,6 +4096,50 @@ inside the icing fade; nothing visible stands on undrawn ground; ribbon
 still far-visible; indoor unchanged; the ring at 6.5 vs 5.5 — config-tune
 live. HELD for the gate.
 
+## THE RIM — the continuous edge (small cut; glaw1 + census GREEN; HOLD
+## for the observable gate)
+The flip made flora/zone/entities vanish AT the ring, but terrain still
+ended on patch scallops (the banded set is patch-granular). THE RIM makes
+the terrain's VISIBLE edge a smooth circle — the last piece of "the horizon
+recedes continuously."
+
+1. patch_terrain_fs: discard beyond config.veil_ring, per-fragment — the
+   terrain SIBLING of the flora/zone per-vertex kill. Anchor = the STAGED
+   point (lod_point), so every hard draw-set edge (terrain FS + flora/zone
+   VS + sphere/cube/pawn/gallery instance gates) is CONCENTRIC — ONE circle,
+   no scallops, no slab joins, no silhouettes. The patch-granular banded set
+   (nearest-edge ≤ ring, so drawn coverage runs to ring + up to a patch
+   diagonal) is the circle's invisible SUPERSET — the discard always has
+   drawn geometry under it, never a hole.
+2. THE TASTE KNOB (config-gated, default OFF = mechanism 1 alone): a new
+   config.veil_dither (repurposed a free pulse-pad float — no struct-size
+   delta, offset-384 lod_point assert intact). >0.5 → the icing band
+   [ring−δ, ring] DITHER-dissolves (world-space stipple noise; geometry
+   condenses) instead of tinting to fog, at BOTH icing FS sites (shade_lit +
+   gallery_frame_fs). Jean tunes live; set_veil_dither the dirty-gated door.
+FLAGGED, NOT CHASED (Jean's call): the shadow passes are DEPTH-ONLY (no FS),
+so the per-fragment rim discard has no shadow equivalent — terrain (and
+flora/zone, whose shadow VS also omit the ring kill) cast shadows out to the
+patch-granular set, ~one patch (≤50wu) beyond the smooth visible rim. Logged
+at shadow_patch_terrain_vs; a shadow-side ring gate is a follow-on only if
+the rig reads it as a shadow with no caster.
+
+WHY IT'S SAFE: inside ring−δ the frame is unchanged (no discard, icing term
+zero — pixel-identical to the flip). The discard uses the same staged point
++ same veil_ring as the CPU band, so the FS never discards a fragment the
+band didn't cover (the band is the wider, patch-granular set). The dither
+default 0 keeps the tint path (the flip's behavior) exactly.
+
+GATES: glaw1 GREEN; score census GREEN; encodings clean LF. HAND-VERIFIED
+(WGSL blind): config mirror field-for-field (veil_dither slots into the old
+pulse-pad position on both sides; the tail veil_ring/icing/strength/lod0
+aligns); the rim discard reads config.veil_ring + lod_point (concentric with
+the flip's kills); the dither branch guards both FS sites; the shadow flag is
+a comment only (no shadow VS touched). THE OBSERVABLE GATE (Jean's rig):
+walking outward the horizon is a smooth CIRCLE that recedes continuously —
+no tile scallops, no slab joins, no silhouettes; the dither knob toggles
+tint↔condense live; the shadow rim (~40wu early) is the rig's call.
+
 ## TERRAIN-2 — SKIRTS (side excursion; weld #2; own rig-gated commit)
 Jean's order: skirt the terrain patch mesh (plain patch edges) to hide
 inter-patch cracks — precision AND LOD/T-junction — with ONE mechanism.

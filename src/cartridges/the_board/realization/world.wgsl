@@ -1444,7 +1444,7 @@ struct DesignConfig {
     // agent_state[]. Piggybacks on the radial-pulse pad triple (no
     // struct size delta). Order matches GPUDesignConfig in state.hpp.
     possessed_slot: u32,
-    _pulse_pad_0: f32,
+    veil_dither: f32,     // THE RIM taste knob: >0.5 → icing dither-dissolves (mirror of GPUDesignConfig)
     _pulse_pad_1: f32,
     pulse_data: array<vec4<f32>, 8>,  // each: (origin_x, origin_z, onset_seconds, amplitude)
     // CPU-banded POINT position for LOD0/LOD1 partition (renamed
@@ -3644,6 +3644,13 @@ fn calc_spot_light(world_pos: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
 }
 
 // --- Unified Shading
+// THE RIM dither knob's noise — world-space stipple so the dissolve sticks
+// to the geometry (it "condenses" rather than screen-crawls). Taste knob;
+// off by default.
+fn veil_dither_noise(p: vec2<f32>) -> f32 {
+    return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
+}
+
 // veil_scale: 1.0 = the family joins the veil (terrain + all entity_fs
 // users); 0.0 = a ruled exemption (ribbon — a flown structure that shares
 // ENTITY_FS but must stay visible at range). NOT an anchor knob — the
@@ -3677,6 +3684,12 @@ fn shade_lit(world_pos: vec3<f32>, normal: vec3<f32>, base_color: vec3<f32>, vei
     let point_d = distance(world_pos.xz, render_point_pos().xz);
     let veil = smoothstep(config.veil_ring - config.veil_icing, config.veil_ring, point_d)
              * config.veil_strength * veil_scale;
+    // THE RIM taste knob: veil_dither > 0.5 → the icing band DITHER-
+    // dissolves (geometry condenses) instead of tinting to fog.
+    if (config.veil_dither > 0.5) {
+        if (veil_dither_noise(world_pos.xz) < veil) { discard; }
+        return fogged;
+    }
     return mix(fogged, config.fog_color, veil);
 }
 
@@ -3796,6 +3809,15 @@ fn patch_terrain_vs(
 
 @fragment
 fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
+    // THE RIM — the terrain sibling of the flora/zone per-vertex kill:
+    // discard beyond the ring so the visible edge is a smooth CIRCLE (the
+    // patch-granular banded draw set is its invisible superset). Staged
+    // point (lod_point) — concentric with the flora/zone/instance kills, so
+    // every hard draw-set edge is ONE circle (no scallops, no silhouettes).
+    // Optional dither-dissolve inside the icing band handled in shade_lit.
+    if (distance(in.world_pos.xz, vec2(config.lod_point_x, config.lod_point_z)) > config.veil_ring) {
+        discard;
+    }
     var normal = normalize(vec3(-in.gradients.x, 1.0, -in.gradients.y));
 
     // Color fully composited at gen-time in the cell texture.
@@ -3899,6 +3921,12 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
 }
 
 // Shadow pass variant — same geometry, light VP instead of camera VP.
+// THE RIM (flagged, not chased): the shadow pass is DEPTH-ONLY (no FS), so
+// the visible rim's per-fragment discard has no equivalent here — terrain
+// (and flora/zone, whose shadow VS also omit the ring kill) cast shadows
+// out to the patch-granular banded set, ~one patch (≤50wu) beyond the
+// smooth visible rim. Logged for the rig; a shadow-side ring gate is a
+// follow-on only if it reads as a shadow with no visible caster.
 @vertex
 fn shadow_patch_terrain_vs(
     @builtin(vertex_index) vi: u32,
@@ -8658,7 +8686,12 @@ fn gallery_frame_fs(in: GalleryVarying) -> @location(0) vec4<f32> {
     let point_d = distance(in.world_pos.xz, vec2(config.lod_point_x, config.lod_point_z));
     let veil = smoothstep(config.veil_ring - config.veil_icing, config.veil_ring, point_d)
              * config.veil_strength;
-    color = mix(color, config.fog_color, veil);
+    // THE RIM taste knob (same as shade_lit): dither-dissolve or tint.
+    if (config.veil_dither > 0.5) {
+        if (veil_dither_noise(in.world_pos.xz) < veil) { discard; }
+    } else {
+        color = mix(color, config.fog_color, veil);
+    }
 
     return vec4(color, 1.0);
 }
