@@ -3563,6 +3563,64 @@ is identical (same skip), the pipeline-creation constexpr gates in the renderer
 (the FXC-skip DEMO-1c cares about) are untouched. GATES: glaw1 + boot-validation
 + score-census GREEN; pixel-identical rig pending (Jean's machine).
 
+## THE FRAME SPINE — CUT 3: C5-DRAW, THE DRAWABLE TABLE (glaw1 GREEN;
+## HOLD for the rig — shadows/main/snapshot pixel-identical)
+Jean's ruling: one row per drawable {name, shadow/main/snapshot membership,
+order, bind convention}; the three pass functions iterate it filtered. Kills the
+triplication + the ribbon's ordinal drift; a new drawable is ONE row. Discipline
+2 armed for any drawable that resists the row (the specials — gallery/orb/fade —
+may be the genuine forks; flag, don't force).
+
+WHAT LANDED. A new header realization/drawable_table.hpp carries the DRAWABLE
+TABLE: 11 rows (zone, pawn, sphere, monolith, ribbon, arch, column, palm, cactus,
+blade, shell), each {name, pass membership bits, a ctx-agnostic draw thunk}. The
+thunks take (Renderer&, GPUState&, pass, DrawBind) — DrawBind carries the pass's
+entity+texture bind groups + the two precomputed runtime guards (ribbon rendered,
+zone active), so the SAME thunks serve all three passes even though shadow/main
+run on MachineCtx and snapshot on GalleryDeps (both expose Renderer&/GPUState&).
+The three pass functions now: draw terrain (the fork), then draw_table(filter),
+then (main only) the trailing forks. draw_shadow_all -218-ish; render_main_pass's
+scattered entity draws collapse to one call; render_snapshot_pass's six draws to
+one. The header is included after renderer.hpp, BEFORE gallery.hpp + render_passes
+.hpp, so both the snapshot pass and shadow/main see it (no function relocation).
+
+THE PIXEL ARGUMENT (why the ribbon drift dies for FREE). Every drawable in the
+table is OPAQUE — depth-tested, depth-write, no blend, or an alpha=1.0 output
+making SrcAlpha a no-op. VERIFIED each: ribbon uses ENTITY_FS + the shared
+depthStencil/colorTarget (bespoke VS only, no blend); gallery_frame_fs and
+wall_painting_{canvas,frame}_fs all return alpha=1.0 with depth-write (discard
+for the transparent texels). Draw order among opaque geometry is IMMATERIAL (the
+depth test resolves visibility identically), so ONE canonical order (the shadow
+order) reproduces all three passes pixel-for-pixel. The lists' only real
+divergence was ribbon's position (main drew it late, at ~13; the table draws it
+with the entities, at ~5) — provably pixel-identical because ribbon and every
+draw between are opaque. Shadow is depth-only (order doubly immaterial); snapshot
+is opaque-only. Per-pass table order confirmed byte-identical to the originals
+except that one safe ribbon move.
+
+DISCIPLINE 2 — THE FORKS, FLAGGED NOT FORCED. Kept explicit in their pass
+functions, NOT crammed into a uniform row:
+  - terrain: THREE different per-pass codes (shadow LOD0 + manual LOD1; main LOD0
+    indirect/direct + LOD1 direct; snapshot one direct draw) — a genuine fork.
+  - wall_paintings / gallery_frames: their OWN gallery bind groups (galleryEntity
+    + galleryTexture), main-only.
+  - orbs (additive) / fade (alpha, no depth write): the ORDER-SENSITIVE pair —
+    they MUST stay last and in order; the table's opacity invariant does not hold
+    for them, so they are forks by construction. This is exactly the resister
+    Jean anticipated.
+
+GRAPH EDGE REVEALED — the draw enumeration is now single-sourced, and the frame's
+opacity structure is explicit. §1d's three hand-synced lists (recon) collapse to
+one table + three filtered iterations; the ribbon ordinal drift (recon §1d, the
+proof the lists had drifted) is gone. What the table makes legible: the frame's
+drawables partition into an OPAQUE core (order-free, tabled) and an ORDER-
+SENSITIVE tail (orbs/fade, forked) — the same opaque/blended boundary that
+governs any depth-buffered renderer, now named in the code. The C5 draw-list half
+is done; the family/mesh-gen half of C5 (a new family = one row feeding mesh-gen
++ draws + ROSTER) remains open but was never in this cut's scope. GATES: glaw1 +
+score-census GREEN; pixel-identical rig pending (Jean's machine — shadows, main,
+and snapshot).
+
 ## TERRAIN-2 — SKIRTS (side excursion; weld #2; own rig-gated commit)
 Jean's order: skirt the terrain patch mesh (plain patch edges) to hide
 inter-patch cracks — precision AND LOD/T-junction — with ONE mechanism.

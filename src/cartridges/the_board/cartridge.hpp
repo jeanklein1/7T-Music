@@ -64,6 +64,7 @@
 #include "cartridges/the_board/bodies/cube_behaviors.hpp"       // CubeBehaviorsState + CubeDeps + impl — MERGED (DISSOLVE-1 Batch B); after agents for AgentState
 #include "cartridges/the_board/bodies/spheres.hpp"              // SphereState + SphereDeps + impl — MERGED single file (DISSOLVE-1 Batch A d3); after entity_pipeline for the generic funnels
 #include "cartridges/the_board/realization/renderer.hpp"
+#include "cartridges/the_board/realization/drawable_table.hpp"  // C5-DRAW: the drawable table (one row per drawable; the 3 passes iterate it filtered) — after renderer/state, BEFORE gallery + render_passes so both the snapshot pass and shadow/main see it
 #include "cartridges/the_board/bodies/pawn.hpp"                 // PawnState + PawnDeps + impl — MERGED single file (DISSOLVE-1 Batch A d3); after renderer for Renderer/GPUState complete
 #include "cartridges/the_board/bodies/orbs.hpp"                 // OrbsState + OrbsDeps + impl — MERGED (DISSOLVE-1 Batch B); after renderer for Renderer
 #include "cartridges/the_board/bodies/gol_zones.hpp"            // GoLState + GolDeps (S5 device) + impl — MERGED (DISSOLVE-1 Batch B); after renderer/machine/tile

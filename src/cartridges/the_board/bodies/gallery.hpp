@@ -1166,45 +1166,14 @@ inline void render_snapshot_pass(GalleryState& gs, GalleryDeps* c, wgpu::Command
         c->gpuState_.patch_index_count(),
         c->world_state_.render_patch_count);
 
-    c->renderer_.draw_pawn(pass,
-        c->gpuState_.photographer_render_entity_group(),
-        c->gpuState_.render_texture_group(),
-        GPUState::pawn_vertex_count());
-
-    c->renderer_.draw_sphere(pass,
-        c->gpuState_.photographer_render_entity_group(),
-        c->gpuState_.render_texture_group(),
-        c->gpuState_.sphere_vertex_buffer(),
-        c->gpuState_.sphere_index_buffer(),
-        c->gpuState_.sphere_index_count());
-
-    if (c->ribbon_state_.rendered_slot != UINT32_MAX) {
-        c->renderer_.draw_ribbon(pass,
-            c->gpuState_.photographer_render_entity_group(),
-            c->gpuState_.render_texture_group(),
-            GPUState::ribbon_vertex_count());
-    }
-
-    c->renderer_.draw_arch(pass,
-        c->gpuState_.photographer_render_entity_group(),
-        c->gpuState_.render_texture_group(),
-        c->gpuState_.arch_vertex_buffer(),
-        c->gpuState_.arch_index_buffer(),
-        c->gpuState_.arch_index_count());
-
-    c->renderer_.draw_column(pass,
-        c->gpuState_.photographer_render_entity_group(),
-        c->gpuState_.render_texture_group(),
-        c->gpuState_.column_vertex_buffer(),
-        c->gpuState_.column_index_buffer(),
-        c->gpuState_.column_index_count());
-
-    c->renderer_.draw_shell(pass,
-        c->gpuState_.photographer_render_entity_group(),
-        c->gpuState_.render_texture_group(),
-        c->gpuState_.shell_vertex_buffer(),
-        c->gpuState_.shell_index_buffer(),
-        c->gpuState_.shell_index_count());
+    // The drawable table — snapshot members, canonical order (the photographer's
+    // own entity group). Terrain above is the per-pass FORK (a single direct
+    // draw over render_patch_count, no LOD split). Zone is not a snapshot member.
+    DrawBind b{ c->gpuState_.photographer_render_entity_group(), c->gpuState_.render_texture_group(),
+                /*shadow=*/false,
+                c->ribbon_state_.rendered_slot != UINT32_MAX,
+                /*zone_active=*/false };
+    draw_table(c->renderer_, c->gpuState_, pass, b, DRAW_SNAPSHOT);
 
     pass.End();
 

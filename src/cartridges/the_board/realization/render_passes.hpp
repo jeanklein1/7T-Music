@@ -311,9 +311,10 @@ inline void render_shadow_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
     }
 }
 
-// All shadow draws: terrain + entities
+// All shadow draws: terrain (FORK) + the drawable table (shadow filter).
+// A shadow pass is DEPTH-ONLY, so draw order is doubly immaterial here.
 inline void draw_shadow_all(MachineCtx* c, wgpu::RenderPassEncoder& pass) {
-    // Terrain (LOD-0 + LOD-1)
+    // FORK — terrain: LOD0 direct + a manual LOD1 DrawIndexed (per-pass shape).
     c->renderer_.draw_shadow_patch_terrain(
         pass,
         c->gpuState_.render_entity_group(),
@@ -328,105 +329,12 @@ inline void draw_shadow_all(MachineCtx* c, wgpu::RenderPassEncoder& pass) {
             c->world_state_.render_patch_count - c->world_state_.lod0_patch_count, 0, 0, c->world_state_.lod0_patch_count);
     }
 
-    // Entities
-    if (c->gol_state_.zone_count > 0) {
-        c->renderer_.draw_shadow_zone_extrusion(
-            pass,
-            c->gpuState_.render_entity_group(),
-            c->gpuState_.shadow_texture_group(),
-            c->gpuState_.zone_mesh_vertex_buffer(),
-            c->gpuState_.zone_mesh_index_buffer(),
-            c->gpuState_.zone_mesh_indirect_buffer()
-        );
-    }
-
-    c->renderer_.draw_shadow_pawn(
-        pass,
-        c->gpuState_.render_entity_group(),
-        c->gpuState_.shadow_texture_group(),
-        GPUState::pawn_vertex_count()
-    );
-
-    c->renderer_.draw_shadow_sphere(
-        pass,
-        c->gpuState_.render_entity_group(),
-        c->gpuState_.shadow_texture_group(),
-        c->gpuState_.sphere_vertex_buffer(),
-        c->gpuState_.sphere_index_buffer(),
-        c->gpuState_.sphere_index_count()
-    );
-
-    c->renderer_.draw_shadow_monolith(
-        pass,
-        c->gpuState_.render_entity_group(),
-        c->gpuState_.shadow_texture_group(),
-        c->gpuState_.monolith_vertex_buffer(),
-        c->gpuState_.monolith_index_buffer(),
-        c->gpuState_.monolith_index_count()
-    );
-
-    if (c->ribbon_state_.rendered_slot != UINT32_MAX) {
-        c->renderer_.draw_shadow_ribbon(
-            pass,
-            c->gpuState_.render_entity_group(),
-            c->gpuState_.shadow_texture_group(),
-            GPUState::ribbon_vertex_count()
-        );
-    }
-
-    c->renderer_.draw_shadow_arch(
-        pass,
-        c->gpuState_.render_entity_group(),
-        c->gpuState_.shadow_texture_group(),
-        c->gpuState_.arch_vertex_buffer(),
-        c->gpuState_.arch_index_buffer(),
-        c->gpuState_.arch_index_count()
-    );
-
-    c->renderer_.draw_shadow_column(
-        pass,
-        c->gpuState_.render_entity_group(),
-        c->gpuState_.shadow_texture_group(),
-        c->gpuState_.column_vertex_buffer(),
-        c->gpuState_.column_index_buffer(),
-        c->gpuState_.column_index_count()
-    );
-
-    c->renderer_.draw_shadow_palm(
-        pass,
-        c->gpuState_.render_entity_group(),
-        c->gpuState_.shadow_texture_group(),
-        c->gpuState_.palm_vertex_buffer(),
-        c->gpuState_.palm_index_buffer(),
-        c->gpuState_.palm_index_count()
-    );
-
-    c->renderer_.draw_shadow_cactus(
-        pass,
-        c->gpuState_.render_entity_group(),
-        c->gpuState_.shadow_texture_group(),
-        c->gpuState_.cactus_vertex_buffer(),
-        c->gpuState_.cactus_index_buffer(),
-        c->gpuState_.cactus_index_count()
-    );
-
-    c->renderer_.draw_shadow_blade(
-        pass,
-        c->gpuState_.render_entity_group(),
-        c->gpuState_.shadow_texture_group(),
-        c->gpuState_.blade_vertex_buffer(),
-        c->gpuState_.blade_index_buffer(),
-        c->gpuState_.blade_index_count()
-    );
-
-    c->renderer_.draw_shadow_shell(
-        pass,
-        c->gpuState_.render_entity_group(),
-        c->gpuState_.shadow_texture_group(),
-        c->gpuState_.shell_vertex_buffer(),
-        c->gpuState_.shell_index_buffer(),
-        c->gpuState_.shell_index_count()
-    );
+    // The drawable table — shadow members, canonical order.
+    DrawBind b{ c->gpuState_.render_entity_group(), c->gpuState_.shadow_texture_group(),
+                /*shadow=*/true,
+                c->ribbon_state_.rendered_slot != UINT32_MAX,
+                c->gol_state_.zone_count > 0 };
+    draw_table(c->renderer_, c->gpuState_, pass, b, DRAW_SHADOW);
 }
 
 // ═══ MAIN PASS ═══════════════════════════════════════════════════
@@ -490,95 +398,18 @@ inline void render_main_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
         );
     }
 
-    if (c->gol_state_.zone_count > 0) {
-        c->renderer_.draw_zone_extrusion(
-            pass,
-            c->gpuState_.render_entity_group(),
-            c->gpuState_.render_texture_group(),
-            c->gpuState_.zone_mesh_vertex_buffer(),
-            c->gpuState_.zone_mesh_index_buffer(),
-            c->gpuState_.zone_mesh_indirect_buffer()
-        );
-    }
+    // The drawable table — main members, canonical order. All opaque and
+    // depth-tested, so order among them is immaterial; this is where the
+    // ribbon's ordinal drift dies (it now draws with the entities, not late).
+    DrawBind b{ c->gpuState_.render_entity_group(), c->gpuState_.render_texture_group(),
+                /*shadow=*/false,
+                c->ribbon_state_.rendered_slot != UINT32_MAX,
+                c->gol_state_.zone_count > 0 };
+    draw_table(c->renderer_, c->gpuState_, pass, b, DRAW_MAIN);
 
-    c->renderer_.draw_pawn(
-        pass,
-        c->gpuState_.render_entity_group(),
-        c->gpuState_.render_texture_group(),
-        GPUState::pawn_vertex_count()
-    );
-
-    c->renderer_.draw_sphere(
-        pass,
-        c->gpuState_.render_entity_group(),
-        c->gpuState_.render_texture_group(),
-        c->gpuState_.sphere_vertex_buffer(),
-        c->gpuState_.sphere_index_buffer(),
-        c->gpuState_.sphere_index_count()
-    );
-
-    c->renderer_.draw_monolith(
-        pass,
-        c->gpuState_.render_entity_group(),
-        c->gpuState_.render_texture_group(),
-        c->gpuState_.monolith_vertex_buffer(),
-        c->gpuState_.monolith_index_buffer(),
-        c->gpuState_.monolith_index_count()
-    );
-
-    c->renderer_.draw_arch(
-        pass,
-        c->gpuState_.render_entity_group(),
-        c->gpuState_.render_texture_group(),
-        c->gpuState_.arch_vertex_buffer(),
-        c->gpuState_.arch_index_buffer(),
-        c->gpuState_.arch_index_count()
-    );
-
-    c->renderer_.draw_column(
-        pass,
-        c->gpuState_.render_entity_group(),
-        c->gpuState_.render_texture_group(),
-        c->gpuState_.column_vertex_buffer(),
-        c->gpuState_.column_index_buffer(),
-        c->gpuState_.column_index_count()
-    );
-
-    c->renderer_.draw_palm(
-        pass,
-        c->gpuState_.render_entity_group(),
-        c->gpuState_.render_texture_group(),
-        c->gpuState_.palm_vertex_buffer(),
-        c->gpuState_.palm_index_buffer(),
-        c->gpuState_.palm_index_count()
-    );
-
-    c->renderer_.draw_cactus(
-        pass,
-        c->gpuState_.render_entity_group(),
-        c->gpuState_.render_texture_group(),
-        c->gpuState_.cactus_vertex_buffer(),
-        c->gpuState_.cactus_index_buffer(),
-        c->gpuState_.cactus_index_count()
-    );
-
-    c->renderer_.draw_blade(
-        pass,
-        c->gpuState_.render_entity_group(),
-        c->gpuState_.render_texture_group(),
-        c->gpuState_.blade_vertex_buffer(),
-        c->gpuState_.blade_index_buffer(),
-        c->gpuState_.blade_index_count()
-    );
-
-    c->renderer_.draw_shell(
-        pass,
-        c->gpuState_.render_entity_group(),
-        c->gpuState_.render_texture_group(),
-        c->gpuState_.shell_vertex_buffer(),
-        c->gpuState_.shell_index_buffer(),
-        c->gpuState_.shell_index_count()
-    );
+    // FORKS — the specials, kept explicit. Wall paintings + gallery frames use
+    // their OWN gallery bind groups (opaque). Then the ORDER-SENSITIVE blended
+    // pair, LAST and in order: orbs (additive), fade (alpha, no depth write).
 
     // Wall-mounted framed paintings (indoor)
     c->renderer_.draw_wall_paintings(
@@ -587,15 +418,6 @@ inline void render_main_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
         c->gpuState_.gallery_texture_group(),
         c->gallery_state_.wall_frame_count
     );
-
-    if (c->ribbon_state_.rendered_slot != UINT32_MAX) {
-        c->renderer_.draw_ribbon(
-            pass,
-            c->gpuState_.render_entity_group(),
-            c->gpuState_.render_texture_group(),
-            GPUState::ribbon_vertex_count()
-        );
-    }
 
     // Gallery frames (self-portrait paintings on terrain)
     c->renderer_.draw_gallery_frames(
