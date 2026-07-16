@@ -180,7 +180,9 @@ namespace t7 {
             constexpr uint32_t GROUND_ATLAS_WIDTH = 256;
             constexpr uint32_t GROUND_ATLAS_ARCH = 0;    // 16 slots
             constexpr uint32_t GROUND_ATLAS_COLUMN = 16;   // 32 slots
-            constexpr uint32_t GROUND_ATLAS_PYRAMID = 48;   //  8 slots
+            // slots 48..55: DOCUMENTED HOLE — the retired pyramid range (readers
+            // cut at C2, the write path at residue T2). Do NOT re-pack; the
+            // offsets below are hand-mirrored with world.wgsl's atlas table.
             constexpr uint32_t GROUND_ATLAS_PALM = 56;   // 24 slots
             constexpr uint32_t GROUND_ATLAS_CACTUS = 80;   // 20 slots
             constexpr uint32_t GROUND_ATLAS_BLADE = 100;  // 32 slots
@@ -724,17 +726,9 @@ namespace t7 {
         static_assert(sizeof(GPUPyramidArray) == 16 + Dim::MAX_PYRAMID_INSTANCES * 32,
             "GPUPyramidArray must match WGSL layout");
 
-        struct alignas(16) GPUPyramidGroundEntry {
-            float center_x;
-            float center_z;
-            float ground_y;         // GPU writes: min terrain Y under base
-            float own_height;       // CPU writes: pyramid apex height (to subtract)
-            uint32_t is_active;
-            float half_x;           // CPU writes: base half extent X (for edge sampling)
-            float half_z;           // CPU writes: base half extent Z
-            float rotation;         // CPU writes: base rotation (for rotated edge points)
-        };
-        static_assert(sizeof(GPUPyramidGroundEntry) == 32, "GPUPyramidGroundEntry must be 32 bytes");
+        // (GPUPyramidGroundEntry REMOVED — residue T2: the pyramid ground-atlas
+        //  husk. Its computed ground_y fed atlas slot 48, reader-free since C2;
+        //  pyramids bake into terrain via the INSTANCE array, not this path.)
 
         //
         // MUST match world.wgsl::PyramidMeshParams (§9.0).
@@ -1470,7 +1464,6 @@ namespace t7 {
             // [0..23] palm, [24..43] cactus, [44..75] blade.  One storage binding.
             wgpu::Buffer plantComputeGroundBuffer_;
 
-            wgpu::Buffer pyramidGroundBuffer_;  // per-pyramid ground Y correction (LIVE)
             wgpu::Buffer pyramidInstancesBuffer_;  // GPU-side pyramid array for heightfield baking (LIVE)
 
             // Indoor shell (ceiling + walls)
@@ -2406,15 +2399,10 @@ namespace t7 {
 
             // --- Pyramid accessors and upload --- (mesh-gen VB/IB/params +
             //   index-count + the mesh-gen layout/group REMOVED by the husk sweep;
-            //   the pyramid INSTANCE array + ground buffer stay LIVE — terrain.)
-            wgpu::Buffer pyramid_ground_buffer() const { return pyramidGroundBuffer_; } // LIVE: placement → ground atlas → heightfield
-
+            //   the ground buffer + its atlas write REMOVED at residue T2 — only
+            //   the INSTANCE array stays LIVE: pyramids ARE terrain.)
             void upload_pyramids(wgpu::Queue& queue, const GPUPyramidArray& arr) {
                 writeStruct(queue, pyramidInstancesBuffer_, arr);
-            }
-
-            void upload_pyramid_origins(wgpu::Queue& queue, const GPUPyramidGroundEntry* entries, uint32_t count) {
-                writeArray(queue, pyramidGroundBuffer_, entries, std::min(count, Dim::MAX_PYRAMID_INSTANCES));
             }
 
             // Indoor shell accessors
@@ -3209,17 +3197,14 @@ namespace t7 {
 
             bool createPyramidMesh() {
                 // Pyramids are TERRAIN (not drawn geometry): the instance array is
-                // baked via contrib_pyramids_at, the ground buffer feeds placement
-                // Y-correction. Both LIVE. The GPU mesh-gen VB/IB/params were the
-                // husk-sweep target — no dispatch ever consumed them.
-                pyramidGroundBuffer_ = makeBuffer("Pyramid Ground Y",
-                    Dim::MAX_PYRAMID_INSTANCES * sizeof(GPUPyramidGroundEntry),
-                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
+                // baked via contrib_pyramids_at. The GPU mesh-gen VB/IB/params were
+                // the husk-sweep target; the ground-atlas buffer fell at residue T2
+                // (its slot-48 write was reader-free since C2).
                 pyramidInstancesBuffer_ = makeBuffer("Pyramid Instances (GPU uniform)",
                     sizeof(GPUPyramidArray),
                     wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);
 
-                if (!pyramidGroundBuffer_ || !pyramidInstancesBuffer_) return false;
+                if (!pyramidInstancesBuffer_) return false;
 
                 // Zero-init the instances buffer
                 GPUPyramidArray empty{};
@@ -4105,10 +4090,11 @@ namespace t7 {
                 // Runs every frame, unconditionally. Samples the baked heightfield
                 // and subtracts CPU-computed pier_correction to isolate each entity's
                 // own pier contribution (removing foreign pier contamination).
-                // 14 entries: config + pawn + painting slots + heightfield + entity grounds + GoL + ground atlas write + patch_grid.
+                // 13 entries: config + pawn + painting slots + heightfield + entity grounds + GoL + ground atlas write + patch_grid.
                 // Palm+cactus+blade share one buffer at binding 150: [0..23] palm, [24..43] cactus, [44..75] blade.
+                // (binding 149 pyramid_ground RETIRED — residue T2, the pyramid ground-atlas husk.)
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 14> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 13> entries{};
 
                     entries[0].binding = bind::g0::config;
                     entries[0].visibility = wgpu::ShaderStage::Compute;
@@ -4143,31 +4129,27 @@ namespace t7 {
                     entries[7].visibility = wgpu::ShaderStage::Compute;
                     entries[7].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    entries[8].binding = bind::g0::pyramid_ground;
+                    entries[8].binding = bind::g0::zone_config;
                     entries[8].visibility = wgpu::ShaderStage::Compute;
                     entries[8].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    entries[9].binding = bind::g0::zone_config;
+                    entries[9].binding = bind::g0::zone_life;
                     entries[9].visibility = wgpu::ShaderStage::Compute;
                     entries[9].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    entries[10].binding = bind::g0::zone_life;
+                    entries[10].binding = bind::g0::plant_ground;  // plant_ground: palm[0..23] + cactus[24..43] + blade[44..75]
                     entries[10].visibility = wgpu::ShaderStage::Compute;
                     entries[10].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    entries[11].binding = bind::g0::plant_ground;  // plant_ground: palm[0..23] + cactus[24..43] + blade[44..75]
+                    entries[11].binding = bind::g0::entity_ground_atlas_write;  // entity_ground_atlas_write (r32float storage texture)
                     entries[11].visibility = wgpu::ShaderStage::Compute;
-                    entries[11].buffer.type = wgpu::BufferBindingType::Storage;
+                    entries[11].storageTexture.access = wgpu::StorageTextureAccess::WriteOnly;
+                    entries[11].storageTexture.format = wgpu::TextureFormat::R32Float;
+                    entries[11].storageTexture.viewDimension = wgpu::TextureViewDimension::e2D;
 
-                    entries[12].binding = bind::g0::entity_ground_atlas_write;  // entity_ground_atlas_write (r32float storage texture)
+                    entries[12].binding = bind::g0::patch_grid;  // patch_grid (O(1) spatial index for sample_terrain_y_at)
                     entries[12].visibility = wgpu::ShaderStage::Compute;
-                    entries[12].storageTexture.access = wgpu::StorageTextureAccess::WriteOnly;
-                    entries[12].storageTexture.format = wgpu::TextureFormat::R32Float;
-                    entries[12].storageTexture.viewDimension = wgpu::TextureViewDimension::e2D;
-
-                    entries[13].binding = bind::g0::patch_grid;  // patch_grid (O(1) spatial index for sample_terrain_y_at)
-                    entries[13].visibility = wgpu::ShaderStage::Compute;
-                    entries[13].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+                    entries[12].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Entity Placement Compute Layout";
@@ -5040,7 +5022,7 @@ namespace t7 {
 
                 // Entity placement compute bind group (heightfield sampling + ground Y correction)
                 {
-                    std::array<wgpu::BindGroupEntry, 14> entries{};
+                    std::array<wgpu::BindGroupEntry, 13> entries{};
                     entries[0].binding = bind::g0::config;
                     entries[0].buffer = configBuffer_;
                     entries[0].size = sizeof(GPUDesignConfig);
@@ -5063,29 +5045,26 @@ namespace t7 {
                     entries[7].binding = bind::g0::column_ground;
                     entries[7].buffer = columnGroundBuffer_;
                     entries[7].size = sizeof(GPUColumnGroundEntry) * Dim::MAX_COLUMN_INSTANCES;
-                    entries[8].binding = bind::g0::pyramid_ground;
-                    entries[8].buffer = pyramidGroundBuffer_;
-                    entries[8].size = sizeof(GPUPyramidGroundEntry) * Dim::MAX_PYRAMID_INSTANCES;
-                    entries[9].binding = bind::g0::zone_config;
-                    entries[9].buffer = zoneConfigBuffer_;
-                    entries[9].size = sizeof(GPUGoLZoneArray);
-                    entries[10].binding = bind::g0::zone_life;
-                    entries[10].buffer = zoneLifeBuffer_;
-                    entries[10].size = Dim::MAX_GOL_ZONES * Dim::GOL_ZONE_LIFE_STRIDE * sizeof(float);
+                    entries[8].binding = bind::g0::zone_config;
+                    entries[8].buffer = zoneConfigBuffer_;
+                    entries[8].size = sizeof(GPUGoLZoneArray);
+                    entries[9].binding = bind::g0::zone_life;
+                    entries[9].buffer = zoneLifeBuffer_;
+                    entries[9].size = Dim::MAX_GOL_ZONES * Dim::GOL_ZONE_LIFE_STRIDE * sizeof(float);
 
                     // Combined plant ground: palm[0..23] + cactus[24..43] + blade[44..75]
                     static constexpr uint32_t PLANT_GROUND_COUNT =
                         Dim::MAX_PALM_INSTANCES + Dim::MAX_CACTUS_INSTANCES + Dim::MAX_BLADE_INSTANCES;
-                    entries[11].binding = bind::g0::plant_ground;
-                    entries[11].buffer = plantComputeGroundBuffer_;
-                    entries[11].size = sizeof(GPUPalmGroundEntry) * PLANT_GROUND_COUNT;
+                    entries[10].binding = bind::g0::plant_ground;
+                    entries[10].buffer = plantComputeGroundBuffer_;
+                    entries[10].size = sizeof(GPUPalmGroundEntry) * PLANT_GROUND_COUNT;
 
-                    entries[12].binding = bind::g0::entity_ground_atlas_write;
-                    entries[12].textureView = entityGroundAtlasWriteView_;
+                    entries[11].binding = bind::g0::entity_ground_atlas_write;
+                    entries[11].textureView = entityGroundAtlasWriteView_;
 
-                    entries[13].binding = bind::g0::patch_grid;
-                    entries[13].buffer = patchGridBuffer_;
-                    entries[13].size = sizeof(GPUPatchGrid);
+                    entries[12].binding = bind::g0::patch_grid;
+                    entries[12].buffer = patchGridBuffer_;
+                    entries[12].size = sizeof(GPUPatchGrid);
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Entity Placement Compute BindGroup";

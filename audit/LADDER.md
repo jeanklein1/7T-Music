@@ -4597,6 +4597,28 @@ identical; glaw1 + census GREEN. The traits struct is now 20 fields;
 the WIDE-TRAITS shrink (10 more zero-reader fields) stays HELD at
 P-1 in the PARKED LEDGER below.
 
+T2 — THE PYRAMID GROUND-ATLAS HUSK (§4b, corrects the husk-2 record;
+rig-gated). VERIFIED FIRST per the stamp: GROUND_ATLAS_PYRAMID sampled
+NOWHERE (3 sites tree-wide — a comment, the const, the write; zero
+textureLoads); the placement kernel's live arms (column/plant/arch)
+are self-contained loops untouched by removing the pyramid arm. THE
+UNIT, excised atomically: WGSL PyramidGroundEntry + pyramid_ground
+(binding 149) + the 5-point kernel arm + its slot-48 textureStore;
+C++ GPUPyramidGroundEntry + pyramidGroundBuffer_ (member/alloc/
+isReady) + pyramid_ground_buffer() accessor (zero callers) +
+upload_pyramid_origins + the render_passes pyramidOrigins builder;
+binding 149 re-indexed OUT of the Entity-Placement layout+group
+(14→13, entries [9..13]→[8..12]); bind::g0::pyramid_ground retired
+from the registry (number parked). THE ADDENDUM HONORED: atlas slot
+range 48..55 stays a DOCUMENTED HOLE both sides (state.hpp Dim table +
+world.wgsl consts) — PALM(56)/CACTUS(80)/BLADE(100)/USED(132) do NOT
+re-pack. Pyramids still bake via contrib_pyramids_at (binding 30,
+LIVE, separate). Husk-2's "kept LIVE: placement → ground atlas →
+heightfield" claim is hereby corrected: the heightfield never read the
+atlas; only pyramid_vs did, and C2 cut it. glaw1 + census GREEN; the
+WGSL half is glaw1-BLIND → RIG GATE: terrain + placement unchanged,
+pyramids still bake, boot clean (no layout/group mismatch).
+
 ════════════════════════════════════════════════════════════════════
 THE PARKED LEDGER (standing section — the ONE place open flags live.
 Future sweeps read THIS, not the tree. Consolidated at residue-sweep

@@ -90,7 +90,8 @@ namespace t7 {
                 inline constexpr uint32_t photo_sampler              = 146;
                 inline constexpr uint32_t arch_ground                = 147;
                 inline constexpr uint32_t column_ground              = 148;
-                inline constexpr uint32_t pyramid_ground             = 149;
+                // 149 RETIRED — pyramid_ground (residue T2: the ground-atlas husk;
+                // its slot-48 write was reader-free since C2). Number parked.
                 inline constexpr uint32_t plant_ground               = 150;
                 inline constexpr uint32_t entity_ground_atlas_write  = 151;
                 inline constexpr uint32_t patch_grid                 = 152;

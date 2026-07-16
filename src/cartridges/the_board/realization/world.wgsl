@@ -4417,9 +4417,9 @@ fn shadow_column_vs(in: ArchVertexInput) -> ShadowVarying {
 // --- Generative Pyramids: pyramid_vs + shadow_pyramid_vs CUT (C2 orphan
 //     sweep) — the pyramid mesh was never drawn (draw_pyramid /
 //     draw_shadow_pyramid were caller-free). Both read the
-//     GROUND_ATLAS_PYRAMID slot; with the readers gone that slot is now a
-//     write-only husk (still populated by the live placement kernel — see the
-//     atlas-write flag at the placement kernel).
+//     ground-atlas slot range (48..55); the write path followed at residue T2
+//     (the pyramid-ground husk) — the range stays a documented hole in the
+//     atlas table.
 
 // --- Indoor Shell (ceiling + walls)
 // Pre-baked world-space geometry, no per-instance transforms.
@@ -5044,9 +5044,9 @@ fn render_pawn_orientation() -> vec4<f32> {
 // Atlas slot offsets (must match Dim:: constants in state.hpp)
 const GROUND_ATLAS_ARCH: i32     = 0;
 const GROUND_ATLAS_COLUMN: i32   = 16;
-const GROUND_ATLAS_PYRAMID: i32  = 48;  // DEAD-READ (C2): slot still written by the
-                                        // placement kernel but its only readers
-                                        // (pyramid_vs/shadow_pyramid_vs) were cut → write-only husk
+// slots 48..55: DOCUMENTED HOLE — the retired pyramid range (readers cut at
+// C2, the write path at residue T2). Do NOT re-pack; these offsets are
+// hand-mirrored with state.hpp Dim::GROUND_ATLAS_*.
 const GROUND_ATLAS_PALM: i32     = 56;
 const GROUND_ATLAS_CACTUS: i32   = 80;
 const GROUND_ATLAS_BLADE: i32    = 100;
@@ -8049,17 +8049,8 @@ struct ColumnGroundEntry {
 };
 @group(0) @binding(148) var<storage, read_write> column_ground: array<ColumnGroundEntry, 32>;
 
-struct PyramidGroundEntry {
-    center_x: f32,
-    center_z: f32,
-    ground_y: f32,
-    own_height: f32,
-    is_active: u32,
-    half_x: f32,
-    half_z: f32,
-    rotation: f32,
-};
-@group(0) @binding(149) var<storage, read_write> pyramid_ground: array<PyramidGroundEntry, 8>;
+// (binding 149 RETIRED — pyramid_ground, the residue-T2 husk: its computed
+//  ground_y fed atlas slot 48, reader-free since C2. Number parked.)
 
 struct PalmGroundEntry {
     center_x: f32,
@@ -8349,30 +8340,9 @@ fn compute_entity_placement() {
         }
     }
 
-    // --- Pyramid: 5-point min at center + 4 rotated corners
-    // ground_y from CPU = 0 (no pier). Set to min of 5 terrain samples.
-    for (var i = 0u; i < 8u; i++) {
-        if (pyramid_ground[i].is_active != 0u) {
-            let cx = pyramid_ground[i].center_x;
-            let cz = pyramid_ground[i].center_z;
-            let hx = pyramid_ground[i].half_x;
-            let hz = pyramid_ground[i].half_z;
-            let rot = pyramid_ground[i].rotation;
-            let cr = cos(rot);
-            let sr = sin(rot);
-
-            let y_c  = sample_terrain_y_at(vec2(cx, cz));
-            let y_px = sample_terrain_y_at(vec2(cx + hx * cr, cz + hx * sr));
-            let y_mx = sample_terrain_y_at(vec2(cx - hx * cr, cz - hx * sr));
-            let y_pz = sample_terrain_y_at(vec2(cx - hz * sr, cz + hz * cr));
-            let y_mz = sample_terrain_y_at(vec2(cx + hz * sr, cz - hz * cr));
-
-            pyramid_ground[i].ground_y = min(min(y_c, min(y_px, y_mx)), min(y_pz, y_mz));
-            // DEAD-WRITE (C2): the atlas store below fed pyramid_vs (now cut) —
-            // write-only husk left in place (live blind WGSL).
-            textureStore(entity_ground_atlas_write, vec2<i32>(i32(i) + GROUND_ATLAS_PYRAMID, 0), vec4<f32>(pyramid_ground[i].ground_y, 0.0, 0.0, 0.0));
-        }
-    }
+    // (Pyramid arm REMOVED — residue T2: it computed a 5-point ground_y and
+    //  stored it to atlas slot 48, reader-free since C2. Pyramids bake into
+    //  the heightfield via contrib_pyramids_at — the live instance path.)
 }
 
 

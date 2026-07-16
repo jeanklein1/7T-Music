@@ -103,22 +103,6 @@ inline void upload_ground_entries(MachineCtx* c, wgpu::Queue& queue) {
     }
     c->gpuState_.upload_column_origins(queue, columnOrigins, Dim::MAX_COLUMN_INSTANCES);
 
-    // ── Pyramid ground entries ──
-    GPUPyramidGroundEntry pyramidOrigins[Dim::MAX_PYRAMID_INSTANCES]{};
-    for (uint32_t i = 0; i < Dim::MAX_PYRAMID_INSTANCES; i++) {
-        if (!c->entities_state_.pyramids[i].active) continue;
-        const auto& inst = c->entities_state_.cpu_pyramids.instances[i];
-        pyramidOrigins[i].center_x = inst.origin[0];
-        pyramidOrigins[i].center_z = inst.origin[1];
-        pyramidOrigins[i].is_active = 1;
-        pyramidOrigins[i].own_height = inst.height;
-        pyramidOrigins[i].half_x = inst.half_size[0];
-        pyramidOrigins[i].half_z = inst.half_size[1];
-        pyramidOrigins[i].rotation = inst.rotation;
-        pyramidOrigins[i].ground_y = c->entities_state_.pyramids[i].cached_ground_y;
-    }
-    c->gpuState_.upload_pyramid_origins(queue, pyramidOrigins, Dim::MAX_PYRAMID_INSTANCES);
-
     // ── Plant ground entries (palm + cactus + blade) ──
     // Combined compute buffer: [0..23] palm, [24..43] cactus, [44..75] blade.
     // Individual render uniform buffers kept for VS bindings (383, 384, 385).
