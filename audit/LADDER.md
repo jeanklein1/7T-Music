@@ -3777,6 +3777,55 @@ validation — a SNAPSHOT (photographer + exhibition groups), INDOOR/GALLERY ent
 derive) — with zero validation errors; pixel-identity is the secondary check.
 HELD for Jean's gate pass.
 
+## HUSK SWEEP 1/3 — TerrainState (the §4 re-index, compiler-driven; glaw1
+## GREEN; HOLD for the crash-aware launch pass)
+C6 stamped launch-validated; now the §4 re-index the registry was built to
+enable — DELETION on a verified base, and the FIRST cut to change array SIZES
+(the churn registry-first deferred, landing here under the crash gate, not a
+pixel-only proof). Husk 1: the dead GPUTerrainState buffer — bound at 20/220,
+read by no shader since 851ce68.
+
+STILL-DEAD RECONFIRMED AT HEAD (grep, not the old markers): terrainBuffer_/
+GPUTerrainState referenced only by decl + alloc + isReady + one boot dead-store
++ the 3 bind entries; world.wgsl terrain_state/render_terrain read by no shader
+body (only the decls + residue comments). No live consumer appeared since §6.
+
+COMPILER-DRIVEN, exactly as designed. Deleted bind::g0::terrain_state(20) +
+bind::g0::render_terrain(220) + their +200 witness from binding_registry.hpp
+FIRST; glaw1 then flagged EXACTLY five dangling refs — state.hpp:3566 (Compute
+Entity Layout), :3668 (Render Entity Layout), :4551 (Compute Entity group),
+:4649 (Render Entity group), :4971 (Photographer RE group) — no more, no less.
+That is the proof the registry converted a blind literal-hunt into a
+compiler-checked symbol removal: the compiler enumerated every site.
+
+THE RE-INDEX (array SIZES change here). All five were entries[3]; each block:
+removed the entries[3] block, renumbered entries[4..18] -> [3..17], shrank the
+std::array 19 -> 18. A scripted transform verified DENSE (every touched block
+entries[0..N-1], no gap/dup) — order-independence means the renumber is
+behavior-identical (the binding NUMBER is the key; only the array slot moved).
+Then the orphaned C++ residue: struct GPUTerrainState + its size static_assert,
+the terrainBuffer_ member + its makeBuffer alloc + the isReady term + the boot
+dead-store (10 lines writing a buffer no one read). WGSL (glaw1-blind, hand-
+verified reader-free): removed struct TerrainState + the two @binding vars +
+the stale module-list mention; residue "why-removed" comments kept as history.
+
+GRAPH EDGE REVEALED — the first dead binding-SLOT freed. Group 0 loses numbers
+20 and 220; the two 19-entry groups (Compute + Render Entity) and the
+Photographer render-entity group are now 18; two 19-entry layouts are 18. The
+registry made this a clean symbol deletion end to end — delete the name, follow
+the compiler to every site — the exact re-index §4 promised. terrain_state was
+also the last wire of the RAYMARCH storage-weld (the DEAD marker's "awaiting
+storage-weld removal" is now discharged).
+
+GATES: glaw1 GREEN (compiler drove the C++ deletion — zero dangling refs);
+score census GREEN (spine untouched); encodings clean UTF-8/LF, no CR. THE
+CRASH-AWARE LAUNCH PASS (same as C6, NOT pixel-only): the shrunk groups (18
+entries) must still validate against their layouts + every pipeline that binds
+them — re-run the cold paths (GoL, gallery, snapshot) under Dawn validation,
+zero errors. The WGSL @binding removal is blind — the launch gate is where the
+C++ layout (now 18) and the shader (now missing terrain_state/render_terrain)
+are proven consistent. Pixel-identity secondary. HELD for the gate.
+
 ## TERRAIN-2 — SKIRTS (side excursion; weld #2; own rig-gated commit)
 Jean's order: skirt the terrain patch mesh (plain patch edges) to hide
 inter-patch cracks — precision AND LOD/T-junction — with ONE mechanism.

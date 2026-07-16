@@ -25,7 +25,7 @@
 //   exists only for placement, picking, and step decisions; the
 //   visual reality is here.
 // SEAM[world.wgsl:contract] CPU/GPU struct contracts. §2.1 structs
-//   (FrameSignal, TerrainState, AgentState, AgentBehaviorParams,
+//   (FrameSignal, AgentState, AgentBehaviorParams,
 //   AgentTierParams) mirror state.hpp byte-for-byte. The
 //   PAIRED DECLARATIONS comment at AGENT REGISTRIES (line ~631)
 //   names the C++ counterparts. Drift would mean the GPU reads
@@ -663,16 +663,8 @@ struct FrameSignal {
     sky_roll: f32,        // bank into the lateral swing (rad, clamped)
 }
 
-// --- [STATE:terrain] TerrainState
-
-struct TerrainState {
-    amplitude_scale: f32,
-    max_amplitude: f32,
-    size: f32,
-    lipschitz_factor: f32,
-    tint: vec3<f32>,
-    _pad: f32,
-}
+// --- [STATE:terrain] TerrainState REMOVED (husk sweep) — the dead terrain
+//     buffer's struct + its bindings 20/220 are gone; no shader read them.
 
 // --- [STATE:agent] AgentState
 //
@@ -4871,7 +4863,7 @@ fn fade_overlay_fs(in: FadeVarying) -> @location(0) vec4<f32> {
 @group(0) @binding(0)   var<uniform>             signal: FrameSignal;
 @group(0) @binding(1)   var<uniform>             config: DesignConfig;
 @group(0) @binding(2)   var<storage, read_write> vp_data: VPMatrix;
-@group(0) @binding(20)  var<storage, read_write> terrain_state: TerrainState;
+// @binding(20) terrain_state REMOVED (husk sweep — dead terrain buffer)
 
 // Agent system — unified entity buffer. Slot 0 is the player's body;
 // slots 1..31 are mood-authored agents. The player's relationship
@@ -4934,7 +4926,7 @@ fn point_pos() -> vec3<f32> {
 // --- [BINDINGS:compute] Group 0 — Render entity mirrors (read-only, +200 offset)
 @group(0) @binding(200) var<storage, read> render_signal: FrameSignal;
 @group(0) @binding(201) var<storage, read> render_vp: VPMatrix;
-@group(0) @binding(220) var<storage, read> render_terrain: TerrainState;
+// @binding(220) render_terrain REMOVED (husk sweep — dead terrain buffer)
 @group(0) @binding(260) var<storage, read> render_agents: array<AgentState, 32>;
 @group(0) @binding(280) var<storage, read> render_camera: CameraState;
 @group(0) @binding(300) var<uniform> render_floating: FloatingEntityArray;

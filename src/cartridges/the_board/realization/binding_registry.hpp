@@ -52,7 +52,8 @@ namespace t7 {
                 inline constexpr uint32_t vp_data                    = 2;   // aka fc_vp (frustum-cull alias)
 
                 // terrain / patch lattice (20–30)
-                inline constexpr uint32_t terrain_state              = 20;
+                // (terrain_state @20 / render_terrain @220 REMOVED — husk sweep:
+                //  the dead GPUTerrainState buffer's bindings, no shader reader.)
                 inline constexpr uint32_t terrain_mesh_indices       = 22;
                 inline constexpr uint32_t patch_params               = 23;
                 inline constexpr uint32_t patch_heightfield_array_write = 24;
@@ -134,7 +135,6 @@ namespace t7 {
                 // render mirrors — the +200 band (200–361)
                 inline constexpr uint32_t render_signal              = 200;
                 inline constexpr uint32_t render_vp                  = 201;
-                inline constexpr uint32_t render_terrain             = 220;
                 inline constexpr uint32_t render_agents              = 260;
                 inline constexpr uint32_t render_camera              = 280;
                 inline constexpr uint32_t render_floating            = 300;
@@ -188,7 +188,6 @@ namespace t7 {
             // ─────────────────────────────────────────────────────────────
             static_assert(g0::render_signal  == g0::signal  + 200, "render band: signal");
             static_assert(g0::render_vp      == g0::vp_data  + 199, "render band: vp (2 -> 201)");
-            static_assert(g0::render_terrain == g0::terrain_state + 200, "render band: terrain");
             static_assert(g0::render_agents  == g0::agent_state  + 200, "render band: agents");
             static_assert(g0::render_camera  == g0::camera_state + 200, "render band: camera");
             static_assert(g0::render_floating == g0::floating_entities + 200, "render band: floating");
