@@ -3483,6 +3483,86 @@ toward a declared phase sequence is now half-resolved: the phases exist; the
 ORDER-AND-FACES-AS-LAW is the next cut. GATES: glaw1 + score-census GREEN;
 pixel-identical rig pending (Jean's machine).
 
+## THE FRAME SPINE — CUT 2: THE SPINE (the temporal dispatch table;
+## glaw1 + boot-validated + census-on-spine GREEN; HOLD for the rig)
+Jean's ruling (three bindings): (1) the census migrates WITH the table — its
+source of truth becomes the spine rows, the see-through shim retires; (2)
+uniform-row design from CUT 1's natural signatures, a resister is a REAL FORK to
+flag; (3) the validation block is the deliverable — every O-#/RC becomes a
+static/boot assert over row indices, C8 dissolves here, by-design lags declared
+as law lines. Behavior-identical by construction (same calls, same order, gates
+as row columns). glaw1 + boot validation + pixel rig.
+
+WHAT LANDED. update()/render() are now LOOPS over two constexpr spine tables
+(UPDATE_SPINE: 10 rows / RENDER_SPINE: 22 rows). Each row = {phase id, name,
+member fn (Cartridge::*), driver(§9), roster gate (constexpr-folded bool), face
+tags}. The conductor is `for (row : SPINE) if (row.enabled) (this->*row.fn)(ctx)`.
+The 32 phase methods were re-signatured to ONE uniform shape — `(UpdateCtx&)` /
+`(RenderCtx&)` — via a ctx struct bundling the frame-transient inputs (signal/
+aspect/queue/gpuSignal ; encoder/queue/backbuffer/depth); bodies unpack only what
+they read. Phase ids are enums whose DECLARATION ORDER == authored order == row
+index.
+
+DISCIPLINE 2 — NO REAL FORKS FOUND. Every phase fit the uniform ctx row. The
+one candidate resister, the GoL block (R12), fit after a verification: its
+compound call-site guard `if(zone_count>0){ counter++; flush; ...5 }` split into
+two rows (GolDeriveFlush = the hidden submit + the residue counter;
+GolZoneCompute = config/sync/evolve/mesh), each self-guarding on zone_count.
+BEHAVIOR-IDENTICAL because flush_zone_derive_requests provably does NOT touch
+zone_count (gol_zones.hpp:572-590; the only mutators are select/evict/teardown,
+none in the R12 block), so the two independent guards equal the original single
+one. The counter moved into GolDeriveFlush; the residue proof (G3) holds (gol
+off -> rows disabled -> never called -> pristine).
+
+THE VALIDATION BLOCK (binding 3, the deliverable). Every CROSS-PHASE ordering
+law is now a static_assert over row indices — a reorder fails the BUILD, not the
+pixel rig:
+  O-5a  FillSignal < AdvanceClock        (dt_beats read before clock advance)
+  E-3   SkyNeutral < StageFadeUpload      (neutral sky before the signal upload)
+  O-5e  ClearInputDeltas is dead-last
+  O-1   RibbonTick < DispatchCompute      (sky resync before compute reads it)
+  O-2   WitnessHarvest < DispatchCompute < WitnessCapture  (the witness ring)
+  RC-1/2 StreamPatches < RespawnAgents, < MotionCorral
+  O-4   GroundEntries < PlacementCorrection
+  O-7   FrustumCull < ShadowPass, < MainPass
+  draw  ShadowPass < MainPass < SnapshotPass ; GolDeriveFlush < GolZoneCompute
+BOOT asserts (validate_spine, wired into init_renderer — a constexpr member fn
+can't static_assert inside its own incomplete class): row-order integrity
+(row[i].id == i, both tables) + the O-5b/c FACE law (no F_SIGNAL/F_CONFIG
+staging phase may follow the StageFadeUpload drain — face-based, so a FUTURE
+staging phase placed after the drain fails to boot). INTRA-phase laws, not
+row-index laws: O-3 (teardown fixed sequence, inside phase_transition_machine)
+and O-6a (zone sync->evolve->mesh barrier = the three separate compute passes
+inside phase_gol_zone_compute). The by-design lags (E-3 sky write-order, E-4
+witness 1-frame lag, E-9 portal-spans-a-frame) are declared as LAW LINES in the
+spine header. **C8 is dissolved — nothing of it survives as a separate cut.**
+
+THE CENSUS MIGRATED WITH THE TABLE (binding 1). The CUT-1 see-through shim is
+GONE. score/run.py now PARSES the spine rows and audits them: Direction A =
+per-family frame work is a spine ROW gated by its bit (FRAME_ROWS/SHARED_ROWS) +
+the non-frame obligations (teardown/boot/mesh-prep/delegated doors, which live
+intra-phase or at boot and grep unchanged); Direction B = every ROW is
+attributed (gate is a ROSTER bit -> that family, or `true` -> a FOUNDATIONAL
+phase with a one-line justification) AND the phases<->rows bijection holds (32
+phases == 32 rows). An ungated spine phase is now UNWRITABLE. The manifest IS
+the table; attribution IS row membership.
+
+GRAPH EDGE REVEALED — the frame's DAG is now DECLARED, and its order is LAW.
+CUT 1 gave the movements names; CUT 2 gives them a table, a uniform face
+(the ctx), a driver tag, a gate column, and — the payload — an order that the
+compiler enforces. The recon §5 "straining toward a declared phase sequence" is
+resolved: the phases exist (CUT 1), the order-and-faces-are-law (CUT 2). What
+remains of the recon's model question is the C7 drain (E-1's silent staging
+drop — the ONE ordering hazard not yet structural, now the last cut) and the
+draw-list half of C5 (§1d's triplication, still three hand-synced lists — the
+spine governs the CONDUCTOR order, not yet the draw enumeration). ONE tradeoff
+flagged for the rig: the conductor's ROSTER gate is now a RUNTIME row column
+(row.enabled folds from the constexpr bit) rather than a compile-time
+`if constexpr` — Jean granted this ("gates preserved as row columns"); behavior
+is identical (same skip), the pipeline-creation constexpr gates in the renderer
+(the FXC-skip DEMO-1c cares about) are untouched. GATES: glaw1 + boot-validation
++ score-census GREEN; pixel-identical rig pending (Jean's machine).
+
 ## TERRAIN-2 — SKIRTS (side excursion; weld #2; own rig-gated commit)
 Jean's order: skirt the terrain patch mesh (plain patch edges) to hide
 inter-patch cracks — precision AND LOD/T-junction — with ONE mechanism.

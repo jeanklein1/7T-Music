@@ -430,6 +430,8 @@ namespace t7 {
                 colorFormat_ = colorFormat;
                 depthFormat_ = depthFormat;
 
+                validate_spine();  // BOOT: table-order + O-5b/c face law (the O-#/RC laws are static-asserted)
+
                 auto t0 = std::chrono::high_resolution_clock::now();
                 if (!renderer_.init(
                     device_,
@@ -566,22 +568,116 @@ namespace t7 {
             }
 
             // ═══════════════════════════════════════════════════════════════
-            // THE FRAME SPINE — update() phases (FRAME_CONDUCTOR_RECON §1a)
+            // THE FRAME SPINE (FRAME_CONDUCTOR_RECON §1) — the program's
+            // temporal dispatch table.
             //
-            // CUT 1 (the extraction): the recon's ten movements U1..U10 are now
-            // named phase methods; update() at the tail of this block is a page
-            // of calls. PURE LIFT — no reordering, no logic change. Shared local
-            // gpuSignal (U1/U2 fill it, U8 uploads it) is threaded by reference.
-            // A whole-movement `if constexpr(ROSTER.x)` gate stays at the CALL
-            // SITE (it becomes a CUT-2 spine-row column); runtime data-guards
-            // live inside their phase.
+            // The frame is an AUTHORED order, CHECKED by validation, never
+            // COMPUTED. update() and render() are LOOPS over two constexpr spine
+            // tables (UPDATE_SPINE / RENDER_SPINE, below the phase methods); each
+            // row is {phase id, name, member fn, driver (§9), roster gate, face
+            // tags}. The row order IS the frame order; the O-# / RC laws are
+            // static_asserts over the row indices (see § SPINE VALIDATION). No
+            // topo-solver — the deliberate stale-reads and write-order designs
+            // are LAWS, declared here (recon §2):
+            //
+            //   LAW E-4 (witness lag): the readback is 1 frame stale BY DESIGN.
+            //     R1 WitnessHarvest consumes the capture R11 WitnessCapture wrote
+            //     LAST frame (O-2). Player pos / portal trigger / owner mirrors
+            //     all lag one frame — every downstream consumer is written to
+            //     eat a one-frame-old point.
+            //   LAW E-9 (portal spans a frame): R2 PortalTrigger arms the
+            //     transition from a GPU-reported trigger; U7 TransitionMachine
+            //     consumes it NEXT frame (update precedes render within a frame).
+            //     A portal step is render N arms -> update N+1 advances; the
+            //     one-frame readback lag (E-4) stacks on top.
+            //   LAW E-3 (sky write-order): U2 SkyNeutral writes NEUTRAL sky
+            //     words; U8 StageFadeUpload uploads the whole signal; R7
+            //     RibbonTick's tail (resync_sky_head) OVERWRITES just the sky
+            //     words; R10 DispatchCompute reads them. The kernel sees the
+            //     corrected value BECAUSE queue writes apply in submission order
+            //     across update()->render(). Neutral-in-update makes a lost
+            //     resync fail LOUD (pawn to origin), not silently one frame late.
+            //
+            // Gates are ROW COLUMNS: a disabled family's row is skipped at
+            // runtime (row.enabled folds from its constexpr ROSTER bit). Runtime
+            // data-guards (zone_count>0, dirty flags) live INSIDE their phase.
             // ═══════════════════════════════════════════════════════════════
+
+            // Frame-transient inputs, bundled so every phase has ONE uniform
+            // signature (the row's fn type). A phase reads only what it needs.
+            struct UpdateCtx {
+                const AnalysisSignal& signal;
+                float                 aspect_ratio;
+                wgpu::Queue&          queue;
+                GPUFrameSignal&       gpuSignal;   // U1/U2 fill it; U8 uploads it
+            };
+            struct RenderCtx {
+                wgpu::CommandEncoder& encoder;
+                wgpu::Queue&          queue;
+                wgpu::TextureView     backbuffer;
+                wgpu::TextureView     depth;
+            };
+
+            // §9 driver law (input.hpp:102 — a driver writes intents through
+            // bodies it does not own). None = foundational spine work (no bit).
+            enum class Driver : uint8_t { Input, Algo, Music, WallClock, Mixed, None };
+
+            // Coarse face tags — the frame-truth axes a phase touches (recon §3).
+            enum FaceTag : uint32_t {
+                F_NONE       = 0,
+                F_SIGNAL     = 1u << 0,   // the GPU signal buffer (clock/input/stats)
+                F_CONFIG     = 1u << 1,   // the GPU config buffer (fog/world/fade/...)
+                F_CLOCK      = 1u << 2,   // time_state_ (beats/seconds/dt/prev_beats)
+                F_WITNESS    = 1u << 3,   // the readback record (agent/floater/camera)
+                F_GROUND     = 1u << 4,   // ground-entries / placement dirty cascade
+                F_COMPUTE    = 1u << 5,   // encodes a GPU compute pass
+                F_DRAW       = 1u << 6,   // encodes a GPU render pass
+                F_SUBMIT     = 1u << 7,   // issues its OWN queue submit (hidden)
+                F_TRANSITION = 1u << 8,   // the transition machine / mood
+                F_STREAM     = 1u << 9,   // patch streaming (S2)
+            };
+
+            // Phase ids — DECLARATION ORDER == AUTHORED ORDER == ROW INDEX.
+            // (The spine tables are asserted dense + in this order; the O-#/RC
+            //  laws are static_asserts over these indices.)
+            enum class UPhase : uint32_t {
+                FillSignal, SkyNeutral, AdvanceClock, MotionDrivers, MotionBodies,
+                StageWorld, TransitionMachine, StageFadeUpload, WitnessPhotographer,
+                ClearInputDeltas, COUNT
+            };
+            enum class RPhase : uint32_t {
+                WitnessHarvest, PortalTrigger, StreamPatches, RespawnAgents, MotionCorral,
+                CensusDumps, RibbonTick, EntityMeshGen, UploadPortalLights, DispatchCompute,
+                WitnessCapture, GolDeriveFlush, GolZoneCompute, PawnAura, OrbSky,
+                GroundEntries, PlacementCorrection, FrustumCull, ShadowPass, MainPass,
+                SnapshotPass, PromotionDrain, COUNT
+            };
+
+            // Row shapes (the FAMILY_DISPATCH shape, one clock per conductor).
+            struct URow {
+                UPhase                          id;
+                const char*                     name;
+                void (Cartridge::*fn)(UpdateCtx&);
+                Driver                          driver;
+                bool                            enabled;   // roster gate (constexpr-folded)
+                uint32_t                        face;
+            };
+            struct RRow {
+                RPhase                          id;
+                const char*                     name;
+                void (Cartridge::*fn)(RenderCtx&);
+                Driver                          driver;
+                bool                            enabled;
+                uint32_t                        face;
+            };
 
             // U1 — SIGNAL FILL (music+input+wall-clock). Build the GPU signal
             // from analysis + input. O-5a: dt_beats reads prev_beats BEFORE the
             // clock advances it at U3. Input deltas were harvested by on_input.
-            void phase_fill_signal(GPUFrameSignal& gpuSignal,
-                const AnalysisSignal& signal, float aspect_ratio) {
+            void phase_fill_signal(UpdateCtx& c) {
+                auto& gpuSignal = c.gpuSignal;
+                auto& signal = c.signal;
+                auto aspect_ratio = c.aspect_ratio;
                 gpuSignal.t_seconds = signal.t_seconds;
                 gpuSignal.t_beats = signal.t_beats;
                 gpuSignal.dt = signal.dt;
@@ -610,7 +706,8 @@ namespace t7 {
             // pose (the M5 skew); zeros instead make any future loss of the
             // resync fail LOUD (pawn to origin) rather than silently one frame
             // late. SEAM[ribbon:sky-mode].
-            void phase_sky_neutral(GPUFrameSignal& gpuSignal) {
+            void phase_sky_neutral(UpdateCtx& c) {
+                auto& gpuSignal = c.gpuSignal;
                 gpuSignal.sky_mode    = 0u;  // m6: the whole block is neutral now — the ribbon tick's tail resync is the sole author
                 gpuSignal.sky_head_x  = 0.0f;
                 gpuSignal.sky_head_y  = 0.0f;
@@ -623,7 +720,8 @@ namespace t7 {
 
             // U3 — ADVANCE CLOCK (music+wall-clock). The tempo follower; bumps
             // prev_beats (the O-5a partner of U1's dt_beats read).
-            void phase_advance_clock(const AnalysisSignal& signal) {
+            void phase_advance_clock(UpdateCtx& c) {
+                auto& signal = c.signal;
                 time_state_.beats = signal.t_beats;
                 time_state_.seconds = signal.t_seconds;
                 time_state_.dt = signal.dt;
@@ -638,7 +736,8 @@ namespace t7 {
             // U4 — MOTION DRIVERS (music). The music driver authors params
             // through the canvas; fog is its first staged consumer. (Input was
             // harvested by the on_input callbacks; its deltas rode U1.)
-            void phase_motion_drivers(const AnalysisSignal& signal) {
+            void phase_motion_drivers(UpdateCtx& c) {
+                auto& signal = c.signal;
                 visual_canvas_.tick(signal);
                 if (fog_density_dst_.valid && fog_color_dst_.valid) {
                     const VisualParams& fp = visual_canvas_.params();
@@ -652,7 +751,8 @@ namespace t7 {
             // U5 — MOTION BODIES (wall-clock). Pawn presence ramp + aura height
             // (pawn.inl real-time exponential tick; closes pawn:K1).
             // ROSTER-GATE pawn_aura (b) — guarded at the call site.
-            void phase_motion_bodies(wgpu::Queue& queue) {
+            void phase_motion_bodies(UpdateCtx& c) {
+                auto& queue = c.queue;
                 tick_pawn_couplings(pawn_state_, &pawn_deps_, queue);
             }
 
@@ -660,7 +760,7 @@ namespace t7 {
             // (RC policy): the TEARDOWN case re-stages the seed itself, and
             // moving the bounds after the machine would ship the NEW world's
             // bounds one frame early on the teardown frame.
-            void phase_stage_world() {
+            void phase_stage_world(UpdateCtx&) {
                 gpuState_.set_world_seed(world_state_.active_seed);
                 if (world_state_.finite_mode) {
                     float bmin = -(float)world_state_.finite_radius * PATCH_EXTENT;
@@ -676,7 +776,9 @@ namespace t7 {
             // ONE phase; internals untouched. FADE_OUT/TEARDOWN/FADE_IN; the
             // TEARDOWN arm owns the worldGen bump (P5 guard), return-state
             // capture, per-owner teardown verbs, agent reset, repopulation.
-            void phase_transition_machine(const AnalysisSignal& signal, wgpu::Queue& queue) {
+            void phase_transition_machine(UpdateCtx& c) {
+                auto& signal = c.signal;
+                auto& queue = c.queue;
                 if (transitionPhase_ != TransitionPhase::IDLE) {
                     mood_state_.transition_timer += signal.dt;
                     switch (transitionPhase_) {
@@ -795,7 +897,9 @@ namespace t7 {
             // (alpha is current-frame); upload_signal then upload_config AFTER
             // all staging setters. A setter placed after either upload is
             // silently dropped for the frame (recon E-1).
-            void phase_stage_fade_and_upload(const GPUFrameSignal& gpuSignal, wgpu::Queue& queue) {
+            void phase_stage_fade_and_upload(UpdateCtx& c) {
+                auto& gpuSignal = c.gpuSignal;
+                auto& queue = c.queue;
                 gpuState_.set_fade(mood_state_.transition_fade_alpha, 0.0f, 0.0f, 0.0f);
                 gpuState_.upload_signal(queue, gpuSignal);
                 gpuState_.upload_config(queue);
@@ -805,33 +909,25 @@ namespace t7 {
             // retired at p1b-e (skybox, eye-centered in the orb VS; no CPU
             // upload). ROSTER-GATE gallery (b) — P1 dies structurally in a
             // gallery-less demo; guarded at the call site.
-            void phase_witness_photographer(wgpu::Queue& queue) {
+            void phase_witness_photographer(UpdateCtx& c) {
+                auto& queue = c.queue;
                 update_photographer(gallery_state_, &gallery_deps_, queue);
             }
 
             // U10 — DRIVER BOOKKEEPING (O-5e, dead-last): U1's signal fill
             // consumed the deltas.
-            void phase_clear_input_deltas() {
+            void phase_clear_input_deltas(UpdateCtx&) {
                 clear_input_deltas(&input_deps_);
             }
 
-            // ── THE CONDUCTOR (update) — a page of calls (§1a order) ────────
+            // ── THE CONDUCTOR (update) — a LOOP over UPDATE_SPINE (§1a) ─────
             void update(const AnalysisSignal& signal,
                 float aspect_ratio,
                 wgpu::Queue& queue) override {
                 GPUFrameSignal gpuSignal;
-                phase_fill_signal(gpuSignal, signal, aspect_ratio);   // U1 signal fill
-                phase_sky_neutral(gpuSignal);                         // U2 sky neutral
-                phase_advance_clock(signal);                          // U3 advance clock
-                phase_motion_drivers(signal);                         // U4 motion drivers
-                if constexpr (ROSTER.pawn_aura)                       // U5 motion bodies
-                    phase_motion_bodies(queue);
-                phase_stage_world();                                  // U6 stage world
-                phase_transition_machine(signal, queue);              // U7 transition machine
-                phase_stage_fade_and_upload(gpuSignal, queue);        // U8 fade + two uploads
-                if constexpr (ROSTER.gallery)                         // U9 witness photographer
-                    phase_witness_photographer(queue);
-                phase_clear_input_deltas();                           // U10 driver bookkeeping
+                UpdateCtx ctx{signal, aspect_ratio, queue, gpuSignal};
+                for (const URow& row : UPDATE_SPINE)
+                    if (row.enabled) (this->*row.fn)(ctx);
             }
 
             // SEAM[spine:owns] render() is genuinely spine work: readback state
@@ -856,7 +952,7 @@ namespace t7 {
             // capture). Leads the score: every downstream consumer (stream
             // center, portal door, corral, sorts) eats its output. The CAPTURE
             // half (R11) sits after dispatch_compute (O-2).
-            void phase_witness_harvest() {
+            void phase_witness_harvest(RenderCtx&) {
                 if (pawnReadbackState_ == PawnReadbackState::COPIED) {
                     pawnReadbackState_ = PawnReadbackState::MAPPING;
                     gpuState_.agent_state_readback_staging().MapAsync(
@@ -966,7 +1062,7 @@ namespace t7 {
             // R2 — PORTAL TRIGGER (algo; GPU event). ENTRY door #2: a GPU-
             // reported trigger arms a transition (consumed next frame by U7 —
             // recon E-9). ROSTER-GATE transitions — guarded at the call site.
-            void phase_portal_trigger() {
+            void phase_portal_trigger(RenderCtx&) {
                 if (player_.readback_portal_trigger >= 0 && transitionPhase_ == TransitionPhase::IDLE) {
                     uint32_t arch_idx = static_cast<uint32_t>(player_.readback_portal_trigger);
                     player_.readback_portal_trigger = -1;
@@ -986,7 +1082,9 @@ namespace t7 {
             // R3 — STREAM PATCHES (S2 surface lifecycle, algo). The streaming
             // conductor; carries the S3-trigger seam (SEAM[patch:spawn-trigger]
             // — select/place/commit fire from the stream's own cadence).
-            void phase_stream_patches(wgpu::CommandEncoder& encoder, wgpu::Queue& queue) {
+            void phase_stream_patches(RenderCtx& c) {
+                auto& encoder = c.encoder;
+                auto& queue = c.queue;
                 stream_patches(&machine_ctx_, encoder, queue, tile_world_state_, themes_state_, tile_world_deps_, mood_deps_, inputState_);
             }
 
@@ -994,21 +1092,23 @@ namespace t7 {
             // the GPU evicted last frame; slots 1+ only (slot 0 never evicted),
             // and the stream's bubble center reads readback_x/z refreshed at
             // HARVEST — no data edge. ROSTER-GATE wanderers — call site.
-            void phase_respawn_agents(wgpu::Queue& queue) {
+            void phase_respawn_agents(RenderCtx& c) {
+                auto& queue = c.queue;
                 respawn_evicted_agents(agent_state_, &agents_deps_, mood_state_.active, world_state_.active_seed, queue);
             }
 
             // R5 — MOTION CORRAL (S4, wall-clock; RC-2: after stream). Corral
             // tick + patch eviction touch disjoint cube fields per frame.
             // ROSTER-GATE cube — guarded at the call site.
-            void phase_motion_corral(wgpu::Queue& queue) {
+            void phase_motion_corral(RenderCtx& c) {
+                auto& queue = c.queue;
                 tick_cube_corral_animations(cube_behaviors_state_, &cube_deps_, queue);
             }
 
             // R6 — CENSUS DUMPS (wall-clock interval, diagnostic). GoL residue
             // proof (G3, constexpr-gated intra-movement) + periodic agent census
             // + entity census. Autonomous stdout (constitution §5).
-            void phase_census_dumps() {
+            void phase_census_dumps(RenderCtx&) {
                 // ROSTER-RESIDUE gol (2e) — residue recipe. When gol is
                 // disabled it is never selected (b), so zone_count stays 0 and
                 // the sole writer of the zone GPU buffers (the compute block
@@ -1052,7 +1152,8 @@ namespace t7 {
             // in ribbon.inl. Its tail is the SNAP-1 sky resync (the sole author
             // of the sky words U2 left neutral — recon E-3). SEAM[ribbon:sky-mode].
             // ROSTER-GATE ribbon — guarded at the call site.
-            void phase_ribbon_tick(wgpu::Queue& queue) {
+            void phase_ribbon_tick(RenderCtx& c) {
+                auto& queue = c.queue;
                 ribbon_frame_tick(ribbon_state_, &ribbon_deps_, queue);
             }
 
@@ -1060,7 +1161,9 @@ namespace t7 {
             // prepare lines set dirty[]; one compute pass dispatches the dirty
             // families (branches on dirty-ness, not the enable bit). The
             // per-family gates are intra-movement.
-            void phase_entity_mesh_gen(wgpu::CommandEncoder& encoder, wgpu::Queue& queue) {
+            void phase_entity_mesh_gen(RenderCtx& c) {
+                auto& encoder = c.encoder;
+                auto& queue = c.queue;
                 bool dirty[PopFamily::COUNT] = {};
                 bool anyDirty = false;
                 // Twelve explicit prepare lines, one per family, each
@@ -1133,7 +1236,8 @@ namespace t7 {
             }
 
             // R9 — PORTAL + LIGHTS UPLOAD (algo).
-            void phase_upload_portal_lights(wgpu::Queue& queue) {
+            void phase_upload_portal_lights(RenderCtx& c) {
+                auto& queue = c.queue;
                 upload_portal_array(&mood_deps_, queue);
                 upload_lights(&mood_deps_, queue);
             }
@@ -1142,7 +1246,8 @@ namespace t7 {
             // update compute pass (7 dispatches; render_passes.hpp). O-1 by
             // construction: R7's resync writes before this reads (submission
             // order).
-            void phase_dispatch_compute(wgpu::CommandEncoder& encoder) {
+            void phase_dispatch_compute(RenderCtx& c) {
+                auto& encoder = c.encoder;
                 dispatch_compute(&machine_ctx_, encoder);
             }
 
@@ -1150,7 +1255,8 @@ namespace t7 {
             // next frame's HARVEST). The camera copy is CAMERA-HOST ONLY (the
             // pawn-host frame encodes no camera copy; that path stays
             // byte-untouched).
-            void phase_witness_capture(wgpu::CommandEncoder& encoder) {
+            void phase_witness_capture(RenderCtx& c) {
+                auto& encoder = c.encoder;
                 // Copy full agent buffer from GPU to staging (for readback next frame)
                 if (pawnReadbackState_ == PawnReadbackState::IDLE) {
                     encoder.CopyBufferToBuffer(
@@ -1185,14 +1291,19 @@ namespace t7 {
             // (gol_zones.hpp): its own encoder + Submit, before the host submit
             // (recon E-8). Its own named phase per the spine ruling. Guarded at
             // the call site (ROSTER.gol + zone_count>0).
-            void phase_gol_derive_flush(wgpu::Queue& queue) {
-                flush_zone_derive_requests(gol_state_, &gol_deps_, queue);
+            void phase_gol_derive_flush(RenderCtx& c) {
+                if (gol_state_.zone_count == 0) return;  // runtime data-guard, moved inside (was the call-site `if (zone_count>0)`)
+                rosterGolZoneRuns_++;  // ROSTER-RESIDUE gol (2e) — sole writer marker of the zone GPU buffers; the residue check proves pristine when disabled
+                flush_zone_derive_requests(gol_state_, &gol_deps_, c.queue);
             }
 
             // R12b — GOL ZONE COMPUTE (algo). Config upload + sync/evolve/mesh
             // in SEPARATE passes (O-6a barrier by pass boundary). Guarded at the
             // call site with the derive flush.
-            void phase_gol_zone_compute(wgpu::CommandEncoder& encoder, wgpu::Queue& queue) {
+            void phase_gol_zone_compute(RenderCtx& c) {
+                if (gol_state_.zone_count == 0) return;  // shares R12a's guard; flush_zone_derive_requests does NOT touch zone_count (verified), so the two independent checks are equivalent to the original single guard
+                auto& encoder = c.encoder;
+                auto& queue = c.queue;
                 upload_gol_zone_config(gol_state_, &gol_deps_, queue);
                 dispatch_zone_sync(gol_state_, &gol_deps_, encoder);
                 dispatch_zone_evolve(gol_state_, &gol_deps_, encoder);
@@ -1202,14 +1313,18 @@ namespace t7 {
             // R13 — PAWN AURA (wall-clock). Persistent terrain influence; the
             // runtime presence/clearing condition lives inside. ROSTER-GATE
             // pawn_aura — guarded at the call site.
-            void phase_pawn_aura(wgpu::CommandEncoder& encoder, wgpu::Queue& queue) {
+            void phase_pawn_aura(RenderCtx& c) {
+                auto& encoder = c.encoder;
+                auto& queue = c.queue;
                 dispatch_pawn_aura(pawn_state_, &pawn_deps_, encoder, queue);
             }
 
             // R14 — ORB SKY (algo+music). One-shot init, optional recolor,
             // snapshot-prev for flocking, advance dynamics. ROSTER-GATE orbs —
             // guarded at the call site.
-            void phase_orb_sky(wgpu::CommandEncoder& encoder, wgpu::Queue& queue) {
+            void phase_orb_sky(RenderCtx& c) {
+                auto& encoder = c.encoder;
+                auto& queue = c.queue;
                 dispatch_orb_init(orbs_state_, &orbs_deps_, encoder);
                 dispatch_orb_recolor(orbs_state_, &orbs_deps_, encoder);
                 dispatch_orb_copy_prev(orbs_state_, &orbs_deps_, encoder);
@@ -1219,7 +1334,8 @@ namespace t7 {
             // R15 — GROUND ENTRIES (algo; dirty-driven). On ground_entries_dirty:
             // stage per-family ground origins and raise placement_dirty (the E-6
             // same-frame cascade into R16). Runtime guard inside.
-            void phase_ground_entries(wgpu::Queue& queue) {
+            void phase_ground_entries(RenderCtx& c) {
+                auto& queue = c.queue;
                 if (world_state_.ground_entries_dirty) {
                     world_state_.ground_entries_dirty = false;
                     world_state_.placement_dirty = true;
@@ -1229,7 +1345,8 @@ namespace t7 {
 
             // R16 — PLACEMENT CORRECTION (algo; dirty-driven). On placement_dirty:
             // the entity Y-correction compute. Runtime guard inside.
-            void phase_placement_correction(wgpu::CommandEncoder& encoder) {
+            void phase_placement_correction(RenderCtx& c) {
+                auto& encoder = c.encoder;
                 if (world_state_.placement_dirty) {
                     world_state_.placement_dirty = false;
                     dispatch_placement_correction(&machine_ctx_, encoder);
@@ -1238,73 +1355,157 @@ namespace t7 {
 
             // R17 — FRUSTUM CULL (algo; O-7 tail). Cull before the draw passes —
             // the indirect draws consume the cull output (recon E-5).
-            void phase_frustum_cull(wgpu::CommandEncoder& encoder, wgpu::Queue& queue) {
+            void phase_frustum_cull(RenderCtx& c) {
+                auto& encoder = c.encoder;
+                auto& queue = c.queue;
                 dispatch_frustum_cull(&machine_ctx_, encoder, queue);
             }
 
             // R18 — SHADOW PASS. draw_shadow_all into the shadow map(s).
-            void phase_shadow_pass(wgpu::CommandEncoder& encoder) {
+            void phase_shadow_pass(RenderCtx& c) {
+                auto& encoder = c.encoder;
                 render_shadow_pass(&machine_ctx_, encoder, cpuSpotLights_);
             }
 
             // R19 — MAIN PASS. The rasterized scene into the backbuffer.
-            void phase_main_pass(wgpu::CommandEncoder& encoder,
-                wgpu::TextureView backbuffer, wgpu::TextureView depth) {
+            void phase_main_pass(RenderCtx& c) {
+                auto& encoder = c.encoder;
+                auto backbuffer = c.backbuffer;
+                auto depth = c.depth;
                 render_main_pass(&machine_ctx_, encoder, backbuffer, depth, clearColor_, orbs_state_, orbs_deps_);
             }
 
             // R20 — SNAPSHOT PASS (algo; gallery cadence). The photographer's
             // third draw list.
-            void phase_snapshot_pass(wgpu::CommandEncoder& encoder) {
+            void phase_snapshot_pass(RenderCtx& c) {
+                auto& encoder = c.encoder;
                 render_snapshot_pass(gallery_state_, &gallery_deps_, encoder);
             }
 
             // R21 — PROMOTION DRAIN (algo). ROSTER-GATE gallery+indoor_shell —
             // guarded at the call site.
-            void phase_promotion_drain(wgpu::CommandEncoder& encoder) {
+            void phase_promotion_drain(RenderCtx& c) {
+                auto& encoder = c.encoder;
                 drain_gallery_promotions(gallery_state_, &gallery_deps_, encoder);
             }
 
-            // ── THE CONDUCTOR (render) — a page of calls (§1b order) ────────
+            // ═══════════════════════════════════════════════════════════════
+            // THE SPINE TABLES — the AUTHORED order (row order == frame order).
+            // Row = {phase id, name, member fn, driver(§9), roster gate, face}.
+            // A gate is a constexpr-folded bool (ROSTER bit or `true` for
+            // foundational spine work). The census (audit/tools/score) audits
+            // THESE ROWS: manifest = the table, attribution = row membership.
+            // ═══════════════════════════════════════════════════════════════
+            static constexpr URow UPDATE_SPINE[] = {
+                { UPhase::FillSignal,          "fill_signal",           &Cartridge::phase_fill_signal,           Driver::Mixed,     true,             F_SIGNAL|F_CLOCK },
+                { UPhase::SkyNeutral,          "sky_neutral",           &Cartridge::phase_sky_neutral,           Driver::None,      true,             F_SIGNAL },
+                { UPhase::AdvanceClock,        "advance_clock",         &Cartridge::phase_advance_clock,         Driver::Music,     true,             F_CLOCK },
+                { UPhase::MotionDrivers,       "motion_drivers",        &Cartridge::phase_motion_drivers,        Driver::Music,     true,             F_CONFIG },
+                { UPhase::MotionBodies,        "motion_bodies",         &Cartridge::phase_motion_bodies,         Driver::WallClock, ROSTER.pawn_aura, F_NONE },
+                { UPhase::StageWorld,          "stage_world",           &Cartridge::phase_stage_world,           Driver::Algo,      true,             F_CONFIG },
+                { UPhase::TransitionMachine,   "transition_machine",    &Cartridge::phase_transition_machine,    Driver::Mixed,     true,             F_CONFIG|F_TRANSITION },
+                { UPhase::StageFadeUpload,     "stage_fade_and_upload", &Cartridge::phase_stage_fade_and_upload, Driver::None,      true,             F_SIGNAL|F_CONFIG },
+                { UPhase::WitnessPhotographer, "witness_photographer",  &Cartridge::phase_witness_photographer,  Driver::Algo,      ROSTER.gallery,   F_WITNESS },
+                { UPhase::ClearInputDeltas,    "clear_input_deltas",    &Cartridge::phase_clear_input_deltas,    Driver::None,      true,             F_NONE },
+            };
+            static constexpr RRow RENDER_SPINE[] = {
+                { RPhase::WitnessHarvest,      "witness_harvest",       &Cartridge::phase_witness_harvest,       Driver::Algo,      true,                                   F_WITNESS },
+                { RPhase::PortalTrigger,       "portal_trigger",        &Cartridge::phase_portal_trigger,        Driver::Algo,      ROSTER.transitions,                     F_WITNESS|F_TRANSITION },
+                { RPhase::StreamPatches,       "stream_patches",        &Cartridge::phase_stream_patches,        Driver::Algo,      true,                                   F_STREAM|F_COMPUTE },
+                { RPhase::RespawnAgents,       "respawn_agents",        &Cartridge::phase_respawn_agents,        Driver::Algo,      ROSTER.wanderers,                       F_NONE },
+                { RPhase::MotionCorral,        "motion_corral",         &Cartridge::phase_motion_corral,         Driver::WallClock, ROSTER.cube,                            F_NONE },
+                { RPhase::CensusDumps,         "census_dumps",          &Cartridge::phase_census_dumps,          Driver::WallClock, true,                                   F_NONE },
+                { RPhase::RibbonTick,          "ribbon_tick",           &Cartridge::phase_ribbon_tick,           Driver::Mixed,     ROSTER.ribbon,                          F_SIGNAL },
+                { RPhase::EntityMeshGen,       "entity_mesh_gen",       &Cartridge::phase_entity_mesh_gen,       Driver::Algo,      true,                                   F_COMPUTE },
+                { RPhase::UploadPortalLights,  "upload_portal_lights",  &Cartridge::phase_upload_portal_lights,  Driver::Algo,      true,                                   F_CONFIG },
+                { RPhase::DispatchCompute,     "dispatch_compute",      &Cartridge::phase_dispatch_compute,      Driver::Mixed,     true,                                   F_COMPUTE },
+                { RPhase::WitnessCapture,      "witness_capture",       &Cartridge::phase_witness_capture,       Driver::None,      true,                                   F_WITNESS },
+                { RPhase::GolDeriveFlush,      "gol_derive_flush",      &Cartridge::phase_gol_derive_flush,      Driver::Algo,      ROSTER.gol,                             F_COMPUTE|F_SUBMIT },
+                { RPhase::GolZoneCompute,      "gol_zone_compute",      &Cartridge::phase_gol_zone_compute,      Driver::Algo,      ROSTER.gol,                             F_COMPUTE },
+                { RPhase::PawnAura,            "pawn_aura",             &Cartridge::phase_pawn_aura,             Driver::WallClock, ROSTER.pawn_aura,                       F_COMPUTE },
+                { RPhase::OrbSky,              "orb_sky",               &Cartridge::phase_orb_sky,               Driver::Mixed,     ROSTER.orbs,                            F_COMPUTE },
+                { RPhase::GroundEntries,       "ground_entries",        &Cartridge::phase_ground_entries,        Driver::Algo,      true,                                   F_GROUND },
+                { RPhase::PlacementCorrection, "placement_correction",  &Cartridge::phase_placement_correction,  Driver::Algo,      true,                                   F_GROUND|F_COMPUTE },
+                { RPhase::FrustumCull,         "frustum_cull",          &Cartridge::phase_frustum_cull,          Driver::Algo,      true,                                   F_COMPUTE },
+                { RPhase::ShadowPass,          "shadow_pass",           &Cartridge::phase_shadow_pass,           Driver::None,      true,                                   F_DRAW },
+                { RPhase::MainPass,            "main_pass",             &Cartridge::phase_main_pass,             Driver::None,      true,                                   F_DRAW },
+                { RPhase::SnapshotPass,        "snapshot_pass",         &Cartridge::phase_snapshot_pass,         Driver::Algo,      true,                                   F_DRAW },
+                { RPhase::PromotionDrain,      "promotion_drain",       &Cartridge::phase_promotion_drain,       Driver::Algo,      (ROSTER.gallery || ROSTER.indoor_shell), F_NONE },
+            };
+
+            // ═══ SPINE VALIDATION — C8 dissolves here ═══════════════════════
+            // Every CROSS-PHASE O-# / RC law the recon named is a static_assert
+            // over the row indices: the frame CANNOT be authored out of its
+            // lawful order (a reorder fails the BUILD, not the pixel rig). The
+            // by-design lags (E-3/E-4/E-9) are declared as law lines in the
+            // spine header above. Two laws are INTRA-phase, not row-index laws,
+            // enforced by structure inside a single phase: O-3 (the TEARDOWN
+            // fixed sequence, inside phase_transition_machine) and O-6a (the
+            // zone sync->evolve->mesh barrier = the three SEPARATE compute
+            // passes inside phase_gol_zone_compute).
+            static constexpr bool spine_ordered_u() {
+                for (std::size_t i = 0; i < (std::size_t)UPhase::COUNT; i++)
+                    if ((std::size_t)UPDATE_SPINE[i].id != i) return false;
+                return true;
+            }
+            static constexpr bool spine_ordered_r() {
+                for (std::size_t i = 0; i < (std::size_t)RPhase::COUNT; i++)
+                    if ((std::size_t)RENDER_SPINE[i].id != i) return false;
+                return true;
+            }
+            // O-5b/c (face-based): no SIGNAL/CONFIG staging phase may follow the
+            // drain (StageFadeUpload) — a future staging phase placed after it
+            // fails to build, not silently drops for the frame.
+            static constexpr bool no_staging_after_drain() {
+                for (std::size_t i = 0; i < (std::size_t)UPhase::COUNT; i++)
+                    if (UPDATE_SPINE[i].id != UPhase::StageFadeUpload &&
+                        (UPDATE_SPINE[i].face & (F_SIGNAL | F_CONFIG)) &&
+                        i > (std::size_t)UPhase::StageFadeUpload) return false;
+                return true;
+            }
+
+            static_assert(sizeof(UPDATE_SPINE) / sizeof(URow) == (std::size_t)UPhase::COUNT, "update spine must be dense");
+            static_assert(sizeof(RENDER_SPINE) / sizeof(RRow) == (std::size_t)RPhase::COUNT, "render spine must be dense");
+            // Table-order integrity + the O-5b/c face law are BOOT asserts
+            // (validate_spine, called once at init): a constexpr member fn
+            // cannot be static_asserted inside its own incomplete class.
+            // update laws:
+            static_assert((uint32_t)UPhase::FillSignal < (uint32_t)UPhase::AdvanceClock,        "O-5a: dt_beats reads prev_beats before the clock advances it");
+            static_assert((uint32_t)UPhase::SkyNeutral < (uint32_t)UPhase::StageFadeUpload,     "E-3: neutral sky words written before the signal upload");
+            static_assert((uint32_t)UPhase::ClearInputDeltas + 1 == (uint32_t)UPhase::COUNT,    "O-5e: clear_input_deltas is dead-last");
+            // render laws:
+            static_assert((uint32_t)RPhase::RibbonTick     < (uint32_t)RPhase::DispatchCompute, "O-1: the sky resync (R7 tail) precedes the compute that reads it");
+            static_assert((uint32_t)RPhase::WitnessHarvest < (uint32_t)RPhase::DispatchCompute, "O-2: witness harvest before compute");
+            static_assert((uint32_t)RPhase::DispatchCompute< (uint32_t)RPhase::WitnessCapture,  "O-2: witness capture after compute (feeds next frame's harvest)");
+            static_assert((uint32_t)RPhase::StreamPatches  < (uint32_t)RPhase::RespawnAgents,   "RC-1: respawn after the stream (S3 after S2)");
+            static_assert((uint32_t)RPhase::StreamPatches  < (uint32_t)RPhase::MotionCorral,    "RC-2: corral after the stream (S4 after S2)");
+            static_assert((uint32_t)RPhase::GroundEntries  < (uint32_t)RPhase::PlacementCorrection, "O-4: ground entries (raises placement_dirty) before placement correction");
+            static_assert((uint32_t)RPhase::FrustumCull    < (uint32_t)RPhase::ShadowPass,      "O-7: frustum cull before the shadow pass");
+            static_assert((uint32_t)RPhase::FrustumCull    < (uint32_t)RPhase::MainPass,        "O-7: frustum cull before the main pass (indirect draws consume the cull)");
+            static_assert((uint32_t)RPhase::GolDeriveFlush < (uint32_t)RPhase::GolZoneCompute,  "gol: the derive flush (hidden submit) precedes the zone compute that reads it");
+            static_assert((uint32_t)RPhase::ShadowPass     < (uint32_t)RPhase::MainPass,        "draw: shadow before main");
+            static_assert((uint32_t)RPhase::MainPass       < (uint32_t)RPhase::SnapshotPass,    "draw: main before snapshot");
+
+            // BOOT VALIDATION (always-on): table-order integrity + the O-5b/c
+            // face law — the checks a constexpr member fn cannot static_assert
+            // inside its own incomplete class. Fails LOUD at boot, never silent.
+            void validate_spine() const {
+                if (!spine_ordered_u() || !spine_ordered_r() || !no_staging_after_drain()) {
+                    std::cerr << "[SPINE] VALIDATION FAILED — row order / O-5b/c face law violated\n";
+                    std::abort();
+                }
+                std::cout << "[SPINE] validated: " << (uint32_t)UPhase::COUNT << " update rows + "
+                          << (uint32_t)RPhase::COUNT << " render rows; O-#/RC laws static-asserted\n";
+            }
+
+            // ── THE CONDUCTOR (render) — a LOOP over RENDER_SPINE (§1b) ─────
             void render(wgpu::CommandEncoder& encoder,
                 wgpu::TextureView backbuffer,
                 wgpu::TextureView depth) override {
-
                 wgpu::Queue queue = device_.GetQueue();
-
-                phase_witness_harvest();                              // R1 witness harvest
-                if constexpr (ROSTER.transitions)                     // R2 portal trigger
-                    phase_portal_trigger();
-                phase_stream_patches(encoder, queue);                 // R3 stream patches (S2)
-                if constexpr (ROSTER.wanderers)                       // R4 respawn agents (S3)
-                    phase_respawn_agents(queue);
-                if constexpr (ROSTER.cube)                            // R5 motion corral (S4)
-                    phase_motion_corral(queue);
-                phase_census_dumps();                                 // R6 census dumps
-                if constexpr (ROSTER.ribbon)                          // R7 ribbon tick
-                    phase_ribbon_tick(queue);
-                phase_entity_mesh_gen(encoder, queue);                // R8 entity mesh gen
-                phase_upload_portal_lights(queue);                    // R9 portal + lights upload
-                phase_dispatch_compute(encoder);                      // R10 dispatch compute
-                phase_witness_capture(encoder);                       // R11 witness capture (O-2)
-                if constexpr (ROSTER.gol)                             // R12 gol zone compute
-                if (gol_state_.zone_count > 0) {
-                    rosterGolZoneRuns_++;  // ROSTER-RESIDUE gol (2e) — the only writer of the zone GPU buffers; counted so the disabled-piece residue check can prove pristine
-                    phase_gol_derive_flush(queue);                    // R12a hidden submit (its own phase)
-                    phase_gol_zone_compute(encoder, queue);           // R12b sync/evolve/mesh
-                }
-                if constexpr (ROSTER.pawn_aura)                       // R13 pawn aura
-                    phase_pawn_aura(encoder, queue);
-                if constexpr (ROSTER.orbs)                            // R14 orb sky
-                    phase_orb_sky(encoder, queue);
-                phase_ground_entries(queue);                          // R15 ground entries
-                phase_placement_correction(encoder);                  // R16 placement correction
-                phase_frustum_cull(encoder, queue);                   // R17 frustum cull (O-7)
-                phase_shadow_pass(encoder);                           // R18 shadow pass
-                phase_main_pass(encoder, backbuffer, depth);          // R19 main pass
-                phase_snapshot_pass(encoder);                         // R20 snapshot pass
-                if constexpr (ROSTER.gallery || ROSTER.indoor_shell)  // R21 promotion drain
-                    phase_promotion_drain(encoder);
+                RenderCtx ctx{encoder, queue, backbuffer, depth};
+                for (const RRow& row : RENDER_SPINE)
+                    if (row.enabled) (this->*row.fn)(ctx);
             }
 
             // Mood is VOCABULARY + APPLIERS + SIX DOORS: CeilingType /
