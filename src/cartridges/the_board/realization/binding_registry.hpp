@@ -121,10 +121,9 @@ namespace t7 {
                 inline constexpr uint32_t bladeg_vertices            = 187;
                 inline constexpr uint32_t bladeg_indices             = 188;
 
-                // mesh-gen scratch: pyramid/arch/column (190–198)
-                inline constexpr uint32_t pmg_params                 = 190;   // (dead husk — bound, never dispatched; §6)
-                inline constexpr uint32_t pmg_vertices               = 191;   // (dead husk)
-                inline constexpr uint32_t pmg_indices                = 192;   // (dead husk)
+                // mesh-gen scratch: arch/column (193–198)
+                // (pmg_* @190/191/192 REMOVED — husk sweep: the pyramid mesh-gen
+                //  basket, no entry point / pipeline / dispatch ever used it.)
                 inline constexpr uint32_t amg_params                 = 193;
                 inline constexpr uint32_t amg_vertices               = 194;
                 inline constexpr uint32_t amg_indices                = 195;

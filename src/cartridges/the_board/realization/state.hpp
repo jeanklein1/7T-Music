@@ -117,12 +117,10 @@ namespace t7 {
             constexpr uint32_t CMG_TOTAL_VERTICES = MAX_COLUMN_INSTANCES * CMG_MAX_VERTS_PER_SLOT;   // 48000
             constexpr uint32_t CMG_TOTAL_INDICES = MAX_COLUMN_INSTANCES * CMG_MAX_INDICES_PER_SLOT; // 192000
 
-            // Generative pyramids — GPU mesh gen (slot-based addressing)
+            // Generative pyramids — the instance array is LIVE (pyramids are
+            // terrain via contrib_pyramids_at); the PMG_* mesh-gen scratch counts
+            // are REMOVED (husk sweep — the mesh-gen basket had no dispatch).
             constexpr uint32_t MAX_PYRAMID_INSTANCES = 8;
-            constexpr uint32_t PMG_MAX_VERTS_PER_SLOT = 36;   // truncated: 12 tris × 3 (sides + top + bottom)
-            constexpr uint32_t PMG_MAX_INDICES_PER_SLOT = 36;  // unindexed triangles (1:1 vert:idx)
-            constexpr uint32_t PMG_TOTAL_VERTICES = MAX_PYRAMID_INSTANCES * PMG_MAX_VERTS_PER_SLOT;   // 288
-            constexpr uint32_t PMG_TOTAL_INDICES = MAX_PYRAMID_INSTANCES * PMG_MAX_INDICES_PER_SLOT; // 288
 
             // Generative palms — GPU mesh gen (slot-based addressing)
             constexpr uint32_t MAX_PALM_INSTANCES = 24;
@@ -687,24 +685,8 @@ namespace t7 {
 
         //
         // MUST match world.wgsl::PyramidMeshParams (§9.0).
-        // If this struct gains/loses a field, the WGSL side and
-        // its sizeof static_assert must be updated together.
-        struct alignas(16) GPUPyramidMeshParams {
-            float center_x;
-            float center_z;
-            float rotation;
-            float half_x;
-            float half_z;
-            float height;
-            float truncation;
-            float color_r;
-            float color_g;
-            float color_b;
-            uint32_t is_active;
-            uint32_t _pad;
-        };
-        static_assert(sizeof(GPUPyramidMeshParams) == 48,
-            "GPUPyramidMeshParams must be 48 bytes — keep in sync with world.wgsl::PyramidMeshParams");
+        // (GPUPyramidMeshParams REMOVED — husk sweep: the pyramid mesh-gen
+        //  params struct + its buffer had no consuming kernel.)
 
         //
         // MUST match world.wgsl::ArchMeshParams (§9.1).
@@ -1435,23 +1417,18 @@ namespace t7 {
             // [0..23] palm, [24..43] cactus, [44..75] blade.  One storage binding.
             wgpu::Buffer plantComputeGroundBuffer_;
 
-            wgpu::Buffer pyramidVertexBuffer_, pyramidIndexBuffer_;
-            wgpu::Buffer pyramidGroundBuffer_;  // per-pyramid ground Y correction
-            wgpu::Buffer pyramidInstancesBuffer_;  // GPU-side pyramid array for heightfield baking
-            wgpu::Buffer pyramidMeshParamsBuffer_;  // GPU mesh gen: per-slot parameters
-            uint32_t pyramidIndexCount_ = 0;
+            wgpu::Buffer pyramidGroundBuffer_;  // per-pyramid ground Y correction (LIVE)
+            wgpu::Buffer pyramidInstancesBuffer_;  // GPU-side pyramid array for heightfield baking (LIVE)
 
             // Indoor shell (ceiling + walls)
             wgpu::Buffer shellVertexBuffer_, shellIndexBuffer_;
             uint32_t shellIndexCount_ = 0;
 
-            wgpu::BindGroupLayout pyramidMeshGenLayout_;  // bindings 190-192
             wgpu::BindGroupLayout archMeshGenLayout_;    // bindings 193-195
             wgpu::BindGroupLayout columnMeshGenLayout_;  // bindings 196-198
             wgpu::BindGroupLayout palmMeshGenLayout_;    // bindings 180-182
             wgpu::BindGroupLayout cactusMeshGenLayout_;  // bindings 183-185
             wgpu::BindGroupLayout bladeMeshGenLayout_;   // bindings 186-188
-            wgpu::BindGroup pyramidMeshGenBindGroup_;
             wgpu::BindGroup archMeshGenBindGroup_;
             wgpu::BindGroup columnMeshGenBindGroup_;
             wgpu::BindGroup palmMeshGenBindGroup_;
@@ -2352,27 +2329,14 @@ namespace t7 {
             wgpu::BindGroupLayout blade_mesh_gen_layout() const { return bladeMeshGenLayout_; }
             wgpu::BindGroup blade_mesh_gen_group() const { return bladeMeshGenBindGroup_; }
 
-            // --- Pyramid accessors and upload ---
-            wgpu::Buffer pyramid_vertex_buffer() const { return pyramidVertexBuffer_; }
-            wgpu::Buffer pyramid_index_buffer() const { return pyramidIndexBuffer_; }   // DEAD (C2): mesh VB, no live draw → C6
+            // --- Pyramid accessors and upload --- (mesh-gen VB/IB/params +
+            //   index-count + the mesh-gen layout/group REMOVED by the husk sweep;
+            //   the pyramid INSTANCE array + ground buffer stay LIVE — terrain.)
             wgpu::Buffer pyramid_ground_buffer() const { return pyramidGroundBuffer_; } // LIVE: placement → ground atlas → heightfield
-            uint32_t pyramid_index_count() const { return pyramidIndexCount_; }         // DEAD (C2): fed only the cut draw → C6
-            void set_pyramid_index_count(uint32_t count) { pyramidIndexCount_ = count; } // DEAD (C2): writers are dead-stores → C6
 
             void upload_pyramids(wgpu::Queue& queue, const GPUPyramidArray& arr) {
                 writeStruct(queue, pyramidInstancesBuffer_, arr);
             }
-
-            // GPU mesh gen: write params for a single slot (48 bytes per spawn/evict)
-            // DEAD (C2): the pyramid_mesh_gen kernel that consumed these params was
-            // cut; the three live callers (spawn/commit/evict) are now dead-stores → C6.
-            void upload_pyramid_mesh_params_slot(wgpu::Queue& queue, uint32_t slot, const GPUPyramidMeshParams& params) {
-                writeSlot(queue, pyramidMeshParamsBuffer_, slot, params);
-            }
-
-            // GPU mesh gen bind group — DEAD (C2): no pipeline/dispatch uses it → C6 layout-weld
-            wgpu::BindGroupLayout pyramid_mesh_gen_layout() const { return pyramidMeshGenLayout_; }
-            wgpu::BindGroup pyramid_mesh_gen_group() const { return pyramidMeshGenBindGroup_; }
 
             void upload_pyramid_origins(wgpu::Queue& queue, const GPUPyramidGroundEntry* entries, uint32_t count) {
                 writeArray(queue, pyramidGroundBuffer_, entries, std::min(count, Dim::MAX_PYRAMID_INSTANCES));
@@ -3169,53 +3133,22 @@ namespace t7 {
             }
 
             bool createPyramidMesh() {
-                // LATENT[gate-a-shared] pyramid (SH·mb): mesh VB/IB/params + 3 pipelines droppable, but pyramidInstancesBuffer_ (Compute Entity) + pyramidGroundBuffer_ (Entity Placement) are exclusive-in-megabind. Retire = re-section both groups. See ROSTER_GATE_A.
-                // VB: Vertex + CopyDst (transition fallback) + Storage (GPU compute writes)
-                pyramidVertexBuffer_ = makeBuffer("Pyramid VB (GPU mesh gen)",
-                    Dim::PMG_TOTAL_VERTICES * sizeof(ArchVertex),
-                    wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Storage);
-                // IB: Index + CopyDst (transition fallback) + Storage (GPU compute writes)
-                pyramidIndexBuffer_ = makeBuffer("Pyramid IB (GPU mesh gen)",
-                    Dim::PMG_TOTAL_INDICES * sizeof(uint32_t),
-                    wgpu::BufferUsage::Index | wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Storage);
+                // Pyramids are TERRAIN (not drawn geometry): the instance array is
+                // baked via contrib_pyramids_at, the ground buffer feeds placement
+                // Y-correction. Both LIVE. The GPU mesh-gen VB/IB/params were the
+                // husk-sweep target — no dispatch ever consumed them.
                 pyramidGroundBuffer_ = makeBuffer("Pyramid Ground Y",
                     Dim::MAX_PYRAMID_INSTANCES * sizeof(GPUPyramidGroundEntry),
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
                 pyramidInstancesBuffer_ = makeBuffer("Pyramid Instances (GPU uniform)",
                     sizeof(GPUPyramidArray),
                     wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);
-                // Mesh gen params buffer (8 × 48 bytes)
-                pyramidMeshParamsBuffer_ = makeBuffer("Pyramid Mesh Params",
-                    Dim::MAX_PYRAMID_INSTANCES * sizeof(GPUPyramidMeshParams),
-                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
 
-                if (!pyramidVertexBuffer_ || !pyramidIndexBuffer_ ||
-                    !pyramidGroundBuffer_ || !pyramidInstancesBuffer_ ||
-                    !pyramidMeshParamsBuffer_) return false;
-
-                // Index count starts at 0 — updated by cartridge as pyramids spawn/evict
-                pyramidIndexCount_ = 0;
+                if (!pyramidGroundBuffer_ || !pyramidInstancesBuffer_) return false;
 
                 // Zero-init the instances buffer
                 GPUPyramidArray empty{};
                 device_.GetQueue().WriteBuffer(pyramidInstancesBuffer_, 0, &empty, sizeof(GPUPyramidArray));
-
-                // Zero-init params buffer (all slots inactive → degenerates on first dispatch)
-                {
-                    GPUPyramidMeshParams emptyParams[Dim::MAX_PYRAMID_INSTANCES]{};
-                    device_.GetQueue().WriteBuffer(pyramidMeshParamsBuffer_, 0, emptyParams,
-                        sizeof(GPUPyramidMeshParams) * Dim::MAX_PYRAMID_INSTANCES);
-                }
-
-                // Zero-init VB so degenerate indices have safe arch_index=0
-                {
-                    std::vector<uint8_t> zeros(Dim::PMG_TOTAL_VERTICES * sizeof(ArchVertex), 0);
-                    device_.GetQueue().WriteBuffer(pyramidVertexBuffer_, 0, zeros.data(), zeros.size());
-                }
-
-                std::cout << "[GPUState] Pyramid buffers (GPU mesh gen): "
-                    << Dim::PMG_TOTAL_VERTICES << " vert, "
-                    << Dim::PMG_TOTAL_INDICES << " index capacity\n";
                 return true;
             }
 
@@ -4380,30 +4313,8 @@ namespace t7 {
                     if (!orbCopyLayout_) return false;
                 }
 
-                // -- Pyramid mesh gen layout (Group 0) -- bindings 190-192 --
-                // Isolated from terrain evaluation: pure geometry generation.
-                {
-                    std::array<wgpu::BindGroupLayoutEntry, 3> entries{};
-
-                    entries[0].binding = bind::g0::pmg_params;  // pmg_params (read-only storage)
-                    entries[0].visibility = wgpu::ShaderStage::Compute;
-                    entries[0].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
-
-                    entries[1].binding = bind::g0::pmg_vertices;  // pmg_vertices (storage, rw)
-                    entries[1].visibility = wgpu::ShaderStage::Compute;
-                    entries[1].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    entries[2].binding = bind::g0::pmg_indices;  // pmg_indices (storage, rw)
-                    entries[2].visibility = wgpu::ShaderStage::Compute;
-                    entries[2].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    wgpu::BindGroupLayoutDescriptor desc{};
-                    desc.label = "Pyramid Mesh Gen Layout";
-                    desc.entryCount = entries.size();
-                    desc.entries = entries.data();
-                    pyramidMeshGenLayout_ = device_.CreateBindGroupLayout(&desc);
-                    if (!pyramidMeshGenLayout_) return false;
-                }
+                // (Pyramid mesh gen layout REMOVED — husk sweep: bindings 190-192,
+                //  no pipeline/dispatch ever used this layout.)
 
                 // -- Arch mesh gen layout (Group 0) -- bindings 193-195 --
                 {
@@ -5292,30 +5203,8 @@ namespace t7 {
                     if (!orbCopyGroup_) return false;
                 }
 
-                // Pyramid mesh gen bind group
-                {
-                    std::array<wgpu::BindGroupEntry, 3> entries{};
-
-                    entries[0].binding = bind::g0::pmg_params;
-                    entries[0].buffer = pyramidMeshParamsBuffer_;
-                    entries[0].size = sizeof(GPUPyramidMeshParams) * Dim::MAX_PYRAMID_INSTANCES;
-
-                    entries[1].binding = bind::g0::pmg_vertices;
-                    entries[1].buffer = pyramidVertexBuffer_;
-                    entries[1].size = Dim::PMG_TOTAL_VERTICES * sizeof(ArchVertex);
-
-                    entries[2].binding = bind::g0::pmg_indices;
-                    entries[2].buffer = pyramidIndexBuffer_;
-                    entries[2].size = Dim::PMG_TOTAL_INDICES * sizeof(uint32_t);
-
-                    wgpu::BindGroupDescriptor desc{};
-                    desc.label = "Pyramid Mesh Gen BindGroup";
-                    desc.layout = pyramidMeshGenLayout_;
-                    desc.entryCount = entries.size();
-                    desc.entries = entries.data();
-                    pyramidMeshGenBindGroup_ = device_.CreateBindGroup(&desc);
-                    if (!pyramidMeshGenBindGroup_) return false;
-                }
+                // (Pyramid mesh gen bind group REMOVED — husk sweep: bindings
+                //  190-192, no dispatch ever bound it.)
 
                 // Arch mesh gen bind group (dedicated layout — bindings 193-195)
                 {

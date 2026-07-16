@@ -135,7 +135,6 @@ namespace t7 {
             wgpu::BindGroupLayout pawnAuraComputeLayout_;
             wgpu::BindGroupLayout zoneGolComputeLayout_;
             wgpu::BindGroupLayout zoneMeshGenLayout_;
-            wgpu::BindGroupLayout pyramidMeshGenLayout_;  // DEAD (C2): mesh-gen pipeline cut; layout noun left for the C6 layout-weld
             wgpu::BindGroupLayout archMeshGenLayout_;
             wgpu::BindGroupLayout columnMeshGenLayout_;
             wgpu::BindGroupLayout palmMeshGenLayout_;
@@ -324,7 +323,6 @@ namespace t7 {
                 orbCopyLayout_    = gpuState.orb_copy_layout();
                 zoneGolComputeLayout_ = gpuState.zone_gol_compute_layout();
                 zoneMeshGenLayout_ = gpuState.zone_mesh_gen_layout();
-                pyramidMeshGenLayout_ = gpuState.pyramid_mesh_gen_layout();
                 archMeshGenLayout_ = gpuState.arch_mesh_gen_layout();
                 columnMeshGenLayout_ = gpuState.column_mesh_gen_layout();
                 palmMeshGenLayout_ = gpuState.palm_mesh_gen_layout();

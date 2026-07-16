@@ -8800,112 +8800,13 @@ fn wall_painting_frame_fs(in: WallPaintingVarying) -> @location(0) vec4<f32> {
 // Vertex format: matches ArchVertex (pos[3], normal[3], color[3], index:u32)
 // = 10 × f32 per vertex = 40 bytes. VB is accessed as array<f32>.
 
-// §9.0 PYRAMID MESH GENERATION
-// DEAD (C2 orphan sweep): the entry point `pyramid_mesh_gen` (below) is cut;
-// the constants/struct/bindings/helpers here are a write-only husk with no
-// live reader → C6 layout-weld with the C++ bind-group layout + buffers.
-
-const PMG_MAX_VERTS_PER_SLOT: u32  = 36u;   // truncated: 12 tris × 3 (sides + top + bottom)
-const PMG_MAX_INDICES_PER_SLOT: u32 = 36u;  // unindexed triangles (1:1 vert:idx)
-const PMG_FLOATS_PER_VERTEX: u32   = 10u;   // pos(3) + normal(3) + color(3) + index(1)
-const PMG_MAX_SLOTS: u32           = 8u;
-
-// Total index count for drawIndexed: all slots × max indices per slot.
-// Inactive slots have degenerate (index 0) entries → zero-area triangles.
-const PMG_TOTAL_INDICES: u32 = 288u;        // 8 × 36
-
-// ── Parameter buffer (CPU writes per-slot on spawn/evict) ─────────────
-//
-// MUST match state.hpp::GPUPyramidMeshParams (size: 48 bytes).
-// If this struct gains/loses a field, the CPU side and
-// its state.hpp sizeof static_assert must be updated together.
-
-struct PyramidMeshParams {
-    center_x: f32,
-    center_z: f32,
-    rotation: f32,
-    half_x: f32,
-    half_z: f32,
-    height: f32,
-    truncation: f32,
-    color_r: f32,
-    color_g: f32,
-    color_b: f32,
-    is_active: u32,
-    _pad: u32,
-}
-
-// ── Bindings (dedicated layout — isolated from terrain evaluation) ────
-
-@group(0) @binding(190) var<storage, read>       pmg_params: array<PyramidMeshParams, 8>;
-@group(0) @binding(191) var<storage, read_write>  pmg_vertices: array<f32>;
-@group(0) @binding(192) var<storage, read_write>  pmg_indices: array<u32>;
-
-// ── Vertex writer ─────────────────────────────────────────────────────
-
-fn pmg_write_vertex(
-    abs_idx: u32,
-    px: f32, py: f32, pz: f32,
-    nx: f32, ny: f32, nz: f32,
-    cr: f32, cg: f32, cb: f32,
-    entity_idx: u32
-) {
-    let i = abs_idx * PMG_FLOATS_PER_VERTEX;
-    pmg_vertices[i + 0u] = px;
-    pmg_vertices[i + 1u] = py;
-    pmg_vertices[i + 2u] = pz;
-    pmg_vertices[i + 3u] = nx;
-    pmg_vertices[i + 4u] = ny;
-    pmg_vertices[i + 5u] = nz;
-    pmg_vertices[i + 6u] = cr;
-    pmg_vertices[i + 7u] = cg;
-    pmg_vertices[i + 8u] = cb;
-    pmg_vertices[i + 9u] = f32(entity_idx);
-}
-
-// ── Geometry helpers ──────────────────────────────────────────────────
-
-fn pmg_to_world(lx: f32, ly: f32, lz: f32, cx: f32, cz: f32, co: f32, si: f32) -> vec3<f32> {
-    return vec3(cx + lx * co - lz * si, ly, cz + lx * si + lz * co);
-}
-
-fn pmg_face_normal(v0: vec3<f32>, v1: vec3<f32>, v2: vec3<f32>) -> vec3<f32> {
-    let n = cross(v1 - v0, v2 - v0);
-    let l = length(n);
-    if (l > 0.0001) { return n / l; }
-    return vec3(0.0, 1.0, 0.0);
-}
-
-// Emit one triangle: 3 vertices + 3 indices. Returns next cursor value.
-fn pmg_emit_tri(
-    slot_vb: u32, slot_ib: u32, cursor: u32,
-    v0: vec3<f32>, v1: vec3<f32>, v2: vec3<f32>,
-    cr: f32, cg: f32, cb: f32, slot: u32
-) -> u32 {
-    let n = pmg_face_normal(v0, v1, v2);
-    let abs_v = slot_vb + cursor;
-
-    pmg_write_vertex(abs_v + 0u, v0.x, v0.y, v0.z, n.x, n.y, n.z, cr, cg, cb, slot);
-    pmg_write_vertex(abs_v + 1u, v1.x, v1.y, v1.z, n.x, n.y, n.z, cr, cg, cb, slot);
-    pmg_write_vertex(abs_v + 2u, v2.x, v2.y, v2.z, n.x, n.y, n.z, cr, cg, cb, slot);
-
-    let abs_i = slot_ib + cursor;
-    pmg_indices[abs_i + 0u] = abs_v;
-    pmg_indices[abs_i + 1u] = abs_v + 1u;
-    pmg_indices[abs_i + 2u] = abs_v + 2u;
-
-    return cursor + 3u;
-}
-
-// ── Compute entry point: pyramid_mesh_gen CUT (C2 orphan sweep) ───────────
-// The kernel that realized the pyramid mesh is gone — it was never drawn
-// (draw_pyramid was caller-free; its compute pipeline + dispatch +
-// FAMILY_DISPATCH mesh hook were removed on the C++ side). The §9.0 machinery
-// above (PMG_* constants, PyramidMeshParams, bindings 190-192, the pmg_*
-// writer/geometry helpers) is now a write-only husk with no entry point:
-// retained here so the bindings + their C++ bind-group layout come out
-// together in the C6 layout-weld (see LADDER). The live pyramid path
-// (placement → ground atlas → patch-gen heightfield) is untouched.
+// §9.0 PYRAMID MESH GENERATION — REMOVED (husk sweep).
+// The entire mesh-gen island (PMG_* consts, PyramidMeshParams, bindings
+// 190-192, and the pmg_* writer/geometry helpers) was a write-only husk:
+// its entry point pyramid_mesh_gen was cut long ago and no kernel read the
+// buffers. Its C++ bind-group layout + buffers went with it. The LIVE pyramid
+// path (instance array baked via contrib_pyramids_at; placement ground Y) is
+// untouched.
 
 
 // ─── §9.1 ARCH MESH GENERATION (catenary barrel vault) ───────────────

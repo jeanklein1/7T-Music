@@ -3826,6 +3826,58 @@ zero errors. The WGSL @binding removal is blind — the launch gate is where the
 C++ layout (now 18) and the shader (now missing terrain_state/render_terrain)
 are proven consistent. Pixel-identity secondary. HELD for the gate.
 
+## HUSK SWEEP 2/3 — the PMG basket (pyramid mesh-gen; a whole layout+group
+## dropped; glaw1 GREEN; HOLD for the crash-aware launch pass)
+Husk 2: the pyramid mesh-gen basket — bindings 190/191/192, a dedicated
+layout + group + three buffers + a WGSL island — whose entry point
+(pyramid_mesh_gen) was cut in the C2 orphan sweep. Unlike husk 1 (one entry
+inside live groups), this is a WHOLE dead bind group: nothing dispatched it.
+
+STILL-DEAD RECONFIRMED AT HEAD (grep): no pyramidMeshGenPipeline_, no
+dispatch, no draw; pyramidMeshGenBindGroup_ built but never bound; the WGSL
+pmg_vertices/pmg_indices write-only, pmg_emit_tri uncalled (a closed island);
+the surviving upload_pyramid_mesh_params_slot / set_pyramid_index_count /
+pyramid_mesh_gen_pending calls all dead-stores (their reader was cut).
+
+THE CUT (spans 6 files; the LIVE pyramid-as-terrain path stays). Deleted
+bind::g0::pmg_params/pmg_vertices/pmg_indices from the registry; the compiler
+then flagged the layout + group bind entries. Because ALL three bindings were
+dead, the ENTIRE Pyramid Mesh Gen layout block + group block were removed (not
+shrunk) — a whole bind group gone. Then the residue:
+  - state.hpp: the pyramidVertexBuffer_/IndexBuffer_/MeshParamsBuffer_ members
+    + their alloc + zero-init + logging; pyramidIndexCount_; the GPUPyramidMesh-
+    Params struct + its sizeof assert; the PMG_* count consts; the vertex/index/
+    count accessors + upload_pyramid_mesh_params_slot + the mesh-gen layout/group
+    getters.
+  - renderer.hpp: the pyramidMeshGenLayout_ member + its assignment.
+  - entities.hpp: the pyramid_mesh_gen_pending flag + two dead-store sites
+    (evict + clear-all).
+  - entity_pipeline.hpp: the "write mesh gen params" tail of the commit path.
+  - world.wgsl: the whole §9.0 island (PMG_* consts, PyramidMeshParams, bindings
+    190-192, the pmg_* writer/geometry helpers) — 106 lines, spliced out.
+KEPT LIVE (the discipline's edge): MAX_PYRAMID_INSTANCES, pyramidInstancesBuffer_
+(baked via contrib_pyramids_at — pyramids ARE terrain), pyramidGroundBuffer_
+(placement ground-Y), upload_pyramids, upload_pyramid_origins, and every
+pyramid INSTANCE field on the live commit/evict paths. createPyramidMesh() now
+allocates only the two live buffers.
+
+GRAPH EDGE REVEALED — a whole dead bind group excised, group 0 loses 190/191/192.
+This is the §4 re-index at its cleanest: the registry symbol deletion led the
+compiler straight to the layout+group; because the group was wholly dead, it
+came out entire. The "pyramids are drawn geometry" reading (the mesh-gen basket)
+is now fully gone; the "pyramids are terrain" reading (instances + ground) is all
+that remains — the recon's L1-a pyramid-CAST ruling, realized. The RENDER_UPDATE
+recon's PMG husk (§6) is discharged.
+
+GATES: glaw1 GREEN (compiler drove the C++ deletion across 5 hpp/inl files —
+zero dangling); score census GREEN; encodings clean LF, no CR; net −236 lines.
+THE CRASH-AWARE LAUNCH PASS (same as husk 1): the surviving groups must still
+create + validate — but the specific check here is that REMOVING a whole bind
+group left createBindGroups() correct (one fewer group built) and no pipeline
+referenced pyramidMeshGenLayout_. Re-run full ROSTER + GoL + gallery + snapshot
+under Dawn validation, zero errors; spawn/evict a pyramid (the live commit path
+lost its mesh-gen tail). Pixel-identity secondary. HELD for the gate.
+
 ## TERRAIN-2 — SKIRTS (side excursion; weld #2; own rig-gated commit)
 Jean's order: skirt the terrain patch mesh (plain patch edges) to hide
 inter-patch cracks — precision AND LOD/T-junction — with ONE mechanism.

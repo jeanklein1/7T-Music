@@ -810,18 +810,7 @@ inline void pyramid_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Q
     }
     c->entities_state_.cpu_pyramids.count = max_idx;
     c->gpuState_.upload_pyramids(queue, c->entities_state_.cpu_pyramids);
-
-    // Write mesh gen params
-    GPUPyramidMeshParams mp{};
-    mp.center_x = inst.cx; mp.center_z = inst.cz;
-    mp.rotation = inst.rotation;
-    mp.half_x = half_x; mp.half_z = half_z;
-    mp.height = inst.params[PyrIdx::HEIGHT];
-    mp.truncation = inst.params[PyrIdx::TRUNCATION];
-    mp.color_r = inst.colors[0]; mp.color_g = inst.colors[1]; mp.color_b = inst.colors[2];
-    mp.is_active = 1;
-    c->gpuState_.upload_pyramid_mesh_params_slot(queue, inst.slot, mp);
-    c->entities_state_.pyramid_mesh_gen_pending = true;
+    // (pyramid mesh-gen param staging REMOVED — husk sweep: no dispatch consumed it)
 }
 
 inline void pyramid_post_commit(MachineCtx* c, const EntityInstance& inst, wgpu::Queue&) {

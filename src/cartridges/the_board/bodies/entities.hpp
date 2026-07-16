@@ -505,7 +505,6 @@ struct EntitiesState {
     // ── Pyramid ──────────────────────────────────────────────────
     ActivePyramid   pyramids[Dim::MAX_PYRAMID_INSTANCES]{};
     uint32_t        pyramid_count = 0;
-    bool            pyramid_mesh_gen_pending = false;  // DEAD (C2): consumer prepare_pyramid_mesh_gen cut; remaining writers are dead-stores → C6
     GPUPyramidArray cpu_pyramids{};                 // CPU mirror for heightfield baking
 };
 
@@ -769,8 +768,6 @@ inline void evict_pyramid(MachineCtx* self,
     self->entities_state_.pyramids[slot].active = false;
     self->entities_state_.pyramid_count--;
     self->world_state_.ground_entries_dirty = true;
-    { GPUPyramidMeshParams ep{}; self->gpuState_.upload_pyramid_mesh_params_slot(queue, slot, ep); }
-    self->entities_state_.pyramid_mesh_gen_pending = true;
 
     uint32_t max_idx = 0;
     for (uint32_t i = 0; i < Dim::MAX_PYRAMID_INSTANCES; i++) {
@@ -1546,15 +1543,6 @@ inline void teardown_entities(MachineCtx* c, wgpu::Queue& queue) {
     c->entities_state_.pyramid_count = 0;
     c->entities_state_.cpu_pyramids = GPUPyramidArray{};
     c->gpuState_.upload_pyramids(queue, c->entities_state_.cpu_pyramids);
-    c->gpuState_.set_pyramid_index_count(0);
-    // Clear all mesh gen param slots (inactive → degenerates on next dispatch)
-    {
-        GPUPyramidMeshParams emptyParams{};
-        for (uint32_t i = 0; i < Dim::MAX_PYRAMID_INSTANCES; i++) {
-            c->gpuState_.upload_pyramid_mesh_params_slot(queue, i, emptyParams);
-        }
-        c->entities_state_.pyramid_mesh_gen_pending = true;
-    }
 }
 
 } // namespace the_board
