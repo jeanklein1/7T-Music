@@ -142,6 +142,7 @@ void toggle_fpv_mode(InputDeps* c);
 void toggle_sky_mode(InputDeps* c);
 void toggle_point_host(InputDeps* c);
 void set_render_radius(InputDeps* c, uint32_t r);
+void toggle_veil_dither(InputDeps* c);   // THE RIM knob (key V): icing tint <-> dither-dissolve
 
 
 // ═══ MODULE IMPLEMENTATION (merged; was input.inl) ═══════════════
@@ -226,6 +227,9 @@ void set_render_radius(InputDeps* c, uint32_t r);
 #ifndef GLFW_KEY_D
 #define GLFW_KEY_D  68
 #endif
+#ifndef GLFW_KEY_V
+#define GLFW_KEY_V  86
+#endif
 #ifndef GLFW_KEY_F1
 #define GLFW_KEY_F1  290
 #endif
@@ -288,6 +292,7 @@ inline void on_key_down(InputDeps* c, int key,
     case GLFW_KEY_0:              cycle_orb_palette(orbs_state_, &orbs_deps_, q);          break;
     case GLFW_KEY_LEFT_BRACKET:   set_render_radius(c, c->world_state_.active_radius - 1); break;
     case GLFW_KEY_RIGHT_BRACKET:  set_render_radius(c, c->world_state_.active_radius + 1); break;
+    case GLFW_KEY_V:              toggle_veil_dither(c);                                   break;  // THE RIM: icing tint <-> dither-dissolve
 
     // ── Orb utilities (numpad) ───────────────────────────────────
     case GLFW_KEY_KP_8:       cycle_orb_motion_rule(orbs_state_, &orbs_deps_, q);            break;
@@ -431,6 +436,16 @@ inline void set_render_radius(InputDeps* c, uint32_t r) {
         << " (" << side << "x" << side << " = " << side * side << " patches)" << std::endl;
     // Force full re-evaluation on next frame — through the owner's door (m4)
     request_recenter(c->world_state_);
+}
+
+// THE RIM knob (key V): flip the veil's icing between TINT (fade to fog,
+// default) and DITHER-DISSOLVE (geometry condenses). Reads the current
+// config value and flips it — the dirty-gated setter rides the next U8
+// config drain (no queue needed here).
+inline void toggle_veil_dither(InputDeps* c) {
+    bool on = c->gpuState_.config().veil_dither > 0.5f;
+    c->gpuState_.set_veil_dither(on ? 0.0f : 1.0f);
+    std::cout << "[the_board] Veil rim: " << (on ? "TINT (fade to fog)" : "DITHER-DISSOLVE") << std::endl;
 }
 
 } // namespace the_board
