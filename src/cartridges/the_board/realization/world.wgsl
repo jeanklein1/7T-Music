@@ -1447,16 +1447,27 @@ struct DesignConfig {
     _pulse_pad_0: f32,
     _pulse_pad_1: f32,
     pulse_data: array<vec4<f32>, 8>,  // each: (origin_x, origin_z, onset_seconds, amplitude)
-    // CPU-banded pawn position for LOD0/LOD1 partition. Read by the
-    // frustum-cull shader so its dist² test agrees with the CPU's
-    // banding pawn (no 1-2 frame disagreement at the boundary).
-    lod_pawn_x: f32,
-    lod_pawn_z: f32,
+    // CPU-banded POINT position for LOD0/LOD1 partition (renamed
+    // lod_pawn → lod_point: the value has been THE POINT since p1b).
+    // Read by the frustum-cull shader so its dist² test agrees with
+    // the CPU's banding point (no 1-2 frame disagreement at the
+    // boundary annulus).
+    lod_point_x: f32,
+    lod_point_z: f32,
     // The point's host + fly speed (PANEL-0 p1a) — piggybacked on the
-    // lod-pawn pad pair (no struct size delta; the possessed_slot
+    // lod-point pad pair (no struct size delta; the possessed_slot
     // precedent). Order matches GPUDesignConfig in state.hpp.
     point_host: u32,
     point_fly_speed: f32,
+    // THE VEIL (ruled) — the point-anchored fog-wall band. Mirrors
+    // GPUDesignConfig (state.hpp): fragments veil by smoothstep(
+    // veil_near, veil_far, distance(world_pos.xz, point.xz)) *
+    // veil_strength, composed AFTER the eye-fog in shade_lit; wall
+    // color = fog_color. strength: 1 outdoors, 0 finite/indoor.
+    veil_near: f32,
+    veil_far: f32,
+    veil_strength: f32,
+    _veil_pad: f32,
 }
 
 // §2.2 CONSTANTS
@@ -3628,7 +3639,11 @@ fn calc_spot_light(world_pos: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
 }
 
 // --- Unified Shading
-fn shade_lit(world_pos: vec3<f32>, normal: vec3<f32>, base_color: vec3<f32>) -> vec3<f32> {
+// veil_scale: 1.0 = the family joins the veil (terrain + all entity_fs
+// users); 0.0 = a ruled exemption (ribbon — a flown structure that shares
+// ENTITY_FS but must stay visible at range). NOT an anchor knob — the
+// veil always measures from the point.
+fn shade_lit(world_pos: vec3<f32>, normal: vec3<f32>, base_color: vec3<f32>, veil_scale: f32) -> vec3<f32> {
     // Ambient (always present)
     let ambient = base_color * render_light.ambient;
 
@@ -3643,10 +3658,21 @@ fn shade_lit(world_pos: vec3<f32>, normal: vec3<f32>, base_color: vec3<f32>) -> 
 
     let lit = ambient + sun + points + spot;
 
-    // Fog
+    // Fog — the EYE-anchored atmospheric term (a view effect; stays).
     let dist = distance(world_pos, render_camera.pos);
     let fog = 1.0 - exp(-dist * config.fog_density);
-    return mix(lit, config.fog_color, fog);
+    let fogged = mix(lit, config.fog_color, fog);
+
+    // THE VEIL (ruled) — the POINT-anchored fog-wall, composed AFTER the
+    // eye-fog. Per-fragment: the fragment IS the metric. Zero inside
+    // veil_near (smoothstep(NEAR,FAR, d<=NEAR) == 0 → pixel-identical to
+    // the pre-veil frame); a full wall at veil_far, in the fog/horizon
+    // color so the wall reads as sky. strength: 0 in finite/indoor
+    // (walls define the boundary, not fog).
+    let point_d = distance(world_pos.xz, render_point_pos().xz);
+    let veil = smoothstep(config.veil_near, config.veil_far, point_d)
+             * config.veil_strength * veil_scale;
+    return mix(fogged, config.fog_color, veil);
 }
 
 
@@ -3864,7 +3890,7 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
         }
     }
 
-    return vec4(shade_lit(in.world_pos, normal, base_color), 1.0);
+    return vec4(shade_lit(in.world_pos, normal, base_color, 1.0), 1.0);
 }
 
 // Shadow pass variant — same geometry, light VP instead of camera VP.
@@ -4124,7 +4150,15 @@ fn sphere_vs(@builtin(instance_index) inst: u32, in: MeshVertexInput) -> EntityV
 
 @fragment
 fn entity_fs(in: EntityVarying) -> @location(0) vec4<f32> {
-    return vec4(shade_lit(in.world_pos, normalize(in.normal), in.entity_color), 1.0);
+    return vec4(shade_lit(in.world_pos, normalize(in.normal), in.entity_color, 1.0), 1.0);
+}
+
+// Ribbon FS — same shading as entity_fs but veil-EXEMPT (ruled fork): the
+// ribbon is a flown sky structure, meant to be seen/ridden far beyond the
+// band; veil_scale 0.0 keeps it whole while everything else condenses.
+@fragment
+fn ribbon_fs(in: EntityVarying) -> @location(0) vec4<f32> {
+    return vec4(shade_lit(in.world_pos, normalize(in.normal), in.entity_color, 0.0), 1.0);
 }
 
 // --- Monolith vertex shader (imperfect cube, per-face color from seed)
@@ -4934,6 +4968,16 @@ fn point_pos() -> vec3<f32> {
 fn render_pawn_pos() -> vec3<f32> {
     let a = render_agents[config.possessed_slot];
     return vec3(a.pos_x, a.pos_y, a.pos_z);
+}
+// THE POINT, render-stage (the veil's prerequisite — ruled). The render-
+// side twin of the compute-only point_pos(): camera-hosted → the live
+// camera; pawn-hosted → the possessed body. The veil anchors HERE — on
+// the point, never the eye (in pawn-host 3rd person the eye orbits off
+// the body; the eye-fog in shade_lit keeps the eye, the VEIL keeps the
+// point).
+fn render_point_pos() -> vec3<f32> {
+    if (point_camera_hosted()) { return render_camera.pos; }
+    return render_pawn_pos();
 }
 fn render_pawn_vel_xz() -> vec2<f32> {
     let a = render_agents[config.possessed_slot];
@@ -6316,26 +6360,25 @@ fn behavior_levy_flight(agent_in: AgentState) -> AgentState {
 //
 // MAX_AGENTS = 32 — must stay in sync with Dim::MAX_AGENTS.
 //
-// Eviction radius matches the entity cull base (350 = PREGEN_RADIUS *
-// PATCH_EXTENT) plus a small hysteresis margin. Agents share the
-// floaters' lifecycle: they exist anywhere in the loaded world out to
-// the patch pre-gen edge, and evict just beyond it. This is what makes
-// agents spawn at distance and disappear at the world's horizon
-// rather than popping into existence near the player.
-// MUST match AGENT_EVICTION_RADIUS in modules/agents.inl (TUNING
-// CONSOLE section). No runtime upload — this is a compile-time
-// constant. If you change this value, change the C++ side too;
-// they live apart only because the WGSL needs it as a const for
-// FXC inlining.
-const AGENT_EVICTION_RADIUS:    f32 = 360.0;
+// Eviction radius = THE VEIL CHAIN's EXIST ring (350 = the pregen edge;
+// V1 fixed — was 360, overshooting patch residency by 10). Agents share
+// the floaters' lifecycle: they exist anywhere in the loaded world out
+// to the patch pre-gen edge, and evict AT it — always past the fog wall
+// (chain law EXIST > FAR), so eviction is never visible.
+// MUST match Dim::EXIST_RADIUS + AGENT_EVICTION_RADIUS in
+// bodies/agents.hpp. No runtime upload — the WGSL needs it as a const.
+const AGENT_EVICTION_RADIUS:    f32 = 350.0;
 const AGENT_EVICTION_RADIUS_SQ: f32 = AGENT_EVICTION_RADIUS * AGENT_EVICTION_RADIUS;
 
 // FLOATER_EVICTION_RADIUS — spheres and cubes that drift further than
-// this from the pawn are evicted (set is_active=0 by their kernels).
-// Floaters and agents share the same "alive out to the patch pre-gen
-// edge" lifecycle. Floaters are no longer patch-coupled (commit no
-// longer registers entity_refs for them); distance from the pawn is
-// the sole eviction criterion.
+// this from the point are evicted (set is_active=0 by their kernels).
+// THE VEIL CHAIN FLAGGED FORK (ruled: "unify ≤ 350 unless a reason
+// surfaces — flag if so"): a reason stands, documented below — floaters
+// SPAWN out to the 350 pregen edge and need eviction headroom past it
+// or they evict-at-spawn. Floaters are SKY objects (they never stand on
+// unresident ground) and 400 > FAR(275) keeps every eviction behind the
+// fog wall, so the overshoot is invisible by construction. Grounded
+// existence (agents) is unified at EXIST = 350.
 //
 // Headroom over spawn radius. Floaters can spawn anywhere out to the
 // pre-gen edge at 350 units. Two ways a fresh floater can be over the
@@ -7720,7 +7763,7 @@ fn zone_extrusion_fs(in: ZoneExtrusionVarying) -> @location(0) vec4<f32> {
     let is_wall = abs(n.y) < 0.1;
     let wall_boost = select(vec3(0.0), block_color * 0.15, is_wall);
 
-    return vec4(shade_lit(in.world_pos, n, block_color) + wall_boost, 1.0);
+    return vec4(shade_lit(in.world_pos, n, block_color, 1.0) + wall_boost, 1.0);
 }
 
 @vertex
@@ -8302,7 +8345,9 @@ fn compute_entity_placement() {
 
 const FRUSTUM_PATCH_Y_MIN: f32 = -50.0;   // widened: terrain amplitude + entity heights
 const FRUSTUM_PATCH_Y_MAX: f32 = 200.0;   // widened: tall entities (towers, antennas, ribbons)
-const FRUSTUM_LOD0_RADIUS_SQ: f32 = 3.5 * 3.5 * PATCH_EXTENT * PATCH_EXTENT;  // 30625
+// (FRUSTUM_LOD0_RADIUS_SQ REMOVED — the veil: the LOD0 gate now reads the
+//  LIVE chain value fc_config.veil_near, the SAME config value the CPU
+//  band reads — the four hand-kept spellings of 175 collapse to one.)
 
 // Frustum cull compute bindings (dedicated bind group)
 @group(0) @binding(1)   var<uniform>             fc_config: DesignConfig;
@@ -8378,19 +8423,18 @@ fn frustum_cull_patches(@builtin(global_invocation_id) id: vec3<u32>) {
     // Re-enabled: frustum test rejects out-of-view patches
     if (!aabb_in_frustum(planes, bmin, bmax)) { return; }
 
-    // LOD0 only: nearest-edge distance² from PAWN XZ to patch edge.
-    // Reads the CPU-banded pawn (lod_pawn_*) — NOT the live agent
-    // pos_x/z — so the GPU's LOD0 distance gate uses the same pawn
-    // position the CPU used to band patches into LOD0/LOD1. Without
-    // this, the GPU pawn (current frame) and CPU pawn (1-2 frames
-    // back via pawnReadback) disagree at the boundary annulus
-    // (~3.5 patches × 50 = ~175 world units), causing patches to
-    // flicker in and out at that radius.
-    let dx = max(0.0, abs(fc_config.lod_pawn_x - pi.origin.x) - half);
-    let dz = max(0.0, abs(fc_config.lod_pawn_z - pi.origin.y) - half);
+    // LOD0 only: nearest-edge distance² from the POINT XZ to patch edge.
+    // Reads the CPU-banded point (lod_point_*) — NOT the live point —
+    // so the GPU's LOD0 gate uses the same position the CPU used to
+    // band patches into LOD0/LOD1 (else the two disagree at the
+    // boundary annulus and patches flicker/z-fight). The radius is the
+    // LIVE chain value veil_near — the same config value the CPU band
+    // reads (one yardstick, both sides, by construction).
+    let dx = max(0.0, abs(fc_config.lod_point_x - pi.origin.x) - half);
+    let dz = max(0.0, abs(fc_config.lod_point_z - pi.origin.y) - half);
     let dist2 = dx * dx + dz * dz;
 
-    if (dist2 <= FRUSTUM_LOD0_RADIUS_SQ) {
+    if (dist2 <= fc_config.veil_near * fc_config.veil_near) {
         // Append to LOD0 visible list, atomicAdd indirect[1] (instanceCount)
         let slot = atomicAdd(&fc_indirect[1], 1u);
         fc_visible[slot] = id.x;
@@ -8572,6 +8616,20 @@ fn gallery_frame_fs(in: GalleryVarying) -> @location(0) vec4<f32> {
     let dist = distance(in.world_pos, render_camera.pos);
     let fog = 1.0 - exp(-dist * config.fog_density);
     color = mix(color, config.fog_color, fog);
+
+    // THE VEIL — outdoor terrain paintings join the band (own-FS family;
+    // same term as shade_lit's, point-anchored, after the eye-fog). The
+    // gallery/indoor EXEMPTION is the MODE (veil_strength = 0 in
+    // finite/indoor), not this family: outdoor frames spawn to the 350
+    // residency ring and would otherwise stand past the wall.
+    // ANCHOR NOTE: this FS reads the STAGED point (config.lod_point_*, the
+    // same value the CPU band + GPU LOD gate use) rather than
+    // render_point_pos() — the gallery pipeline's entity layout does not
+    // bind render_agents, and the staged copy IS the point (1 frame stale,
+    // law E-4; imperceptible across a 100 wu band).
+    let point_d = distance(in.world_pos.xz, vec2(config.lod_point_x, config.lod_point_z));
+    let veil = smoothstep(config.veil_near, config.veil_far, point_d) * config.veil_strength;
+    color = mix(color, config.fog_color, veil);
 
     return vec4(color, 1.0);
 }

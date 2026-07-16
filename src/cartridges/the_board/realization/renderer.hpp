@@ -46,6 +46,7 @@ namespace t7 {
             constexpr const char* SPHERE_VS = "sphere_vs";
             constexpr const char* MONOLITH_VS = "monolith_vs";
             constexpr const char* ENTITY_FS = "entity_fs";
+            constexpr const char* RIBBON_FS = "ribbon_fs";   // the veil's ruled exemption: entity shading, veil_scale 0
             constexpr const char* SHADOW_PAWN_VS = "shadow_pawn_vs";
             constexpr const char* SHADOW_SPHERE_VS = "shadow_sphere_vs";
             constexpr const char* SHADOW_MONOLITH_VS = "shadow_monolith_vs";
@@ -1801,11 +1802,13 @@ namespace t7 {
                     }
                 }
 
-                // Ribbon pipeline -- sky ribbon, GPU-generated cubes from vertex_index
+                // Ribbon pipeline -- sky ribbon, GPU-generated cubes from vertex_index.
+                // RIBBON_FS = entity shading with veil_scale 0 (the ruled fork: a
+                // flown structure stays whole beyond the band).
                 {
                     wgpu::FragmentState fragment{};
                     fragment.module = shaderModule_;
-                    fragment.entryPoint = Entry::ENTITY_FS;
+                    fragment.entryPoint = Entry::RIBBON_FS;
                     fragment.targetCount = 1;
                     fragment.targets = &colorTarget;
 

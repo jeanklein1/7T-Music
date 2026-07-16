@@ -63,11 +63,40 @@ namespace t7 {
             constexpr uint32_t PATCH_CELL_N = 16;      // cell color texture side per patch
             constexpr uint32_t PATCH_GRID_RADIUS = 3;       // inner priority radius (7×7)
             constexpr uint32_t PATCH_GRID_SIDE = 2 * PATCH_GRID_RADIUS + 1;       // 7
-            constexpr uint32_t PATCH_RENDER_RADIUS = 5;       // outer render radius (11×11, 250 world units)
-            constexpr uint32_t PATCH_RENDER_SIDE = 2 * PATCH_RENDER_RADIUS + 1;     // 11
+            // (PATCH_RENDER_RADIUS/SIDE REMOVED — the veil: fossils of the
+            //  pre-cylinder grid-render generation, zero readers.)
             constexpr uint32_t PATCH_PREGEN_RADIUS = 7;                                // deep pre-gen buffer (15×15, 350 world units)
             constexpr uint32_t PATCH_PREGEN_SIDE = 2 * PATCH_PREGEN_RADIUS + 1;     // 15
             constexpr uint32_t MAX_ACTIVE_PATCHES = PATCH_PREGEN_SIDE * PATCH_PREGEN_SIDE; // 225
+
+            // ═══ THE VEIL CHAIN (ruled) — the ONE visibility radius chain, ═══
+            // point-anchored, declared here (the registry pattern: authored
+            // once, checked by asserts, never computed). Every visibility
+            // author reads THIS chain — the fragment veil via config
+            // (veil_near/veil_far, tunable live, defaults below), the CPU
+            // LOD band via the config staging, the GPU LOD0 gate via the
+            // same config, existence eviction via EXIST_RADIUS (WGSL mirror).
+            //   NEAR (175 = the old LOD0 ring): the veil starts; inside it
+            //     the frame is PIXEL-IDENTICAL to the pre-veil world.
+            //   FAR  (275 = the old draw cylinder): the wall — fragments at
+            //     FAR are fully fog-walled (wall color = the fog/horizon).
+            //   EXIST (350 = the pregen ring): grounded + floater existence
+            //     eviction, unified (was agents 360 / floaters 400 — V1).
+            //   The CPU entity cull is DEMOTED to overdraw optimization at
+            //   EXIST; its sole law: cull ≥ FAR + max entity extent, so no
+            //   entity with in-veil fragments is ever CPU-culled.
+            constexpr float VEIL_NEAR_DEFAULT   = 3.5f * PATCH_EXTENT;   // 175
+            constexpr float VEIL_FAR_DEFAULT    = 5.5f * PATCH_EXTENT;   // 275
+            constexpr float EXIST_RADIUS        = 7.0f * PATCH_EXTENT;   // 350
+            constexpr float ENTITY_MAX_EXTENT   = 75.0f;                 // tallest/widest half-footprint an entity may reach
+            static_assert(PATCH_PREGEN_RADIUS * PATCH_EXTENT >= EXIST_RADIUS,
+                "VEIL CHAIN: PREGEN >= EXIST (nothing exists off resident ground)");
+            static_assert(EXIST_RADIUS > VEIL_FAR_DEFAULT,
+                "VEIL CHAIN: EXIST > FAR (existence outlives the wall)");
+            static_assert(VEIL_FAR_DEFAULT > VEIL_NEAR_DEFAULT,
+                "VEIL CHAIN: FAR > NEAR (the band has width)");
+            static_assert(EXIST_RADIUS >= VEIL_FAR_DEFAULT + ENTITY_MAX_EXTENT,
+                "VEIL CHAIN: the demoted CPU cull (at EXIST) never removes an entity with in-veil fragments");
             constexpr uint32_t PATCH_MESH_N = 64;      // mesh subdivisions per patch (LOD-0)
             constexpr uint32_t PATCH_INDEX_COUNT = PATCH_MESH_N * PATCH_MESH_N * 6;
             constexpr uint32_t PATCH_MESH_N_LOD1 = 32;  // LOD-1: half resolution
@@ -375,25 +404,39 @@ namespace t7 {
             uint32_t possessed_slot;          // slot 0 at session start
             float _pulse_pad[2];
             float pulse_data[32];             // 8 × {origin_x, origin_z, onset_beats, amplitude}
-            // ─── LOD-band pawn position ─────────────────────────────────
-            // The CPU bands patches into LOD0/LOD1 in stream_patches based
-            // on player_.readback_x/z, which lags the GPU pawn by 1-2 frames.
-            // The GPU's frustum-cull shader applies the LOD0 distance
-            // gate, but if it reads the live GPU pawn position the CPU's
-            // banding and the GPU's gate disagree at the boundary annulus
-            // (~3.5 patches × 50 = ~175 world units from the pawn). The
-            // disagreement makes patches flicker in/out and z-fight as the
-            // camera moves. Solution: push the CPU's banding pawn here
-            // and have the cull shader read it instead, so both sides
-            // partition with the same yardstick by construction.
-            float lod_pawn_x;
-            float lod_pawn_z;
+            // ─── LOD-band point position ────────────────────────────────
+            // (renamed lod_pawn → lod_point: the value has been THE POINT
+            // since p1b — the name was a fossil.) The CPU bands patches
+            // into LOD0/LOD1 in stream_patches from player_.readback_x/z
+            // (the point, 1 frame stale — law E-4). The GPU's frustum-cull
+            // shader applies the same NEAR distance gate; if it read the
+            // LIVE point instead, CPU banding and GPU gate would disagree
+            // at the boundary annulus and patches would flicker/z-fight.
+            // So the CPU pushes its banding point here and the cull shader
+            // reads it — both sides partition with one yardstick by
+            // construction.
+            float lod_point_x;
+            float lod_point_z;
             // ─── The point (PANEL-0 p1a) ─────────────────────────────
-            // Host flag + fly speed — piggybacked on the lod-pawn pad
-            // pair (struct stays 400 bytes; the possessed_slot
-            // precedent). Mirror order matches world.wgsl's Config.
+            // Host flag + fly speed — piggybacked on the lod-point pad
+            // pair (the possessed_slot precedent). Mirror order matches
+            // world.wgsl's Config.
             uint32_t point_host;              // 0 = pawn (the kite), 1 = camera (free-fly)
             float point_fly_speed;            // W/S/A/D velocity; 0 → WGSL PAWN_SPEED fallback
+
+            // ─── THE VEIL (ruled) ────────────────────────────────────
+            // The point-anchored fog-wall band: fragments veil by
+            // smoothstep(veil_near, veil_far, distance(world_pos.xz,
+            // point.xz)) * veil_strength, composed AFTER the eye-fog in
+            // shade_lit. Wall color = fog_color (reads as sky). Defaults
+            // Dim::VEIL_NEAR/FAR_DEFAULT (175/275 — the old LOD0 ring and
+            // draw cylinder, reused not invented); tunable live.
+            // veil_strength: 1 outdoors, 0 in finite/indoor (walls define
+            // the boundary there, not fog — staged per frame by U5).
+            float veil_near;
+            float veil_far;
+            float veil_strength;
+            float _veil_pad;
         };
 
         struct alignas(16) GPUTileGridEntry {
@@ -1212,7 +1255,7 @@ namespace t7 {
         };
 
         static_assert(sizeof(GPUFrameSignal) == 336, "GPUFrameSignal must be 336 bytes");
-        static_assert(sizeof(GPUDesignConfig) == 400, "GPUDesignConfig must be 400 bytes");
+        static_assert(sizeof(GPUDesignConfig) == 416, "GPUDesignConfig must be 416 bytes (400 + the veil quad)");
 
         // Portal ellipse array — uploaded when portal set changes.
         // GPU behavior_player_controlled tests pawn against arch-shaped ellipses and writes portal_trigger.
@@ -1669,15 +1712,15 @@ namespace t7 {
                 queue.WriteBuffer(configBuffer_, 144, &config_.placement_patch_count, sizeof(uint32_t));
             }
 
-            // Targeted 8-byte upload of lod_pawn_x/z — called from stream_patches each
-            // frame so the GPU frustum-cull shader uses the same pawn position as the
+            // Targeted 8-byte upload of lod_point_x/z — called from stream_patches each
+            // frame so the GPU frustum-cull shader uses the same POINT position as the
             // CPU's LOD banding (eliminates LOD0/LOD1 boundary flicker).
-            void upload_lod_pawn(wgpu::Queue& queue) {
-                static_assert(offsetof(GPUDesignConfig, lod_pawn_x) == 384,
-                    "lod_pawn_x offset must be 384 for targeted upload");
+            void upload_lod_point(wgpu::Queue& queue) {
+                static_assert(offsetof(GPUDesignConfig, lod_point_x) == 384,
+                    "lod_point_x offset must be 384 for targeted upload");
                 queue.WriteBuffer(configBuffer_,
-                    offsetof(GPUDesignConfig, lod_pawn_x),
-                    &config_.lod_pawn_x, sizeof(float) * 2);
+                    offsetof(GPUDesignConfig, lod_point_x),
+                    &config_.lod_point_x, sizeof(float) * 2);
             }
 
             void upload_directional_light(wgpu::Queue& queue, const GPUDirectionalLight& light) {
@@ -2197,13 +2240,29 @@ namespace t7 {
             // ── Staged config writes (REBUILD-0 m3a: the poke idiom,
             // named). Deliberately NO configDirty_: these fields ride
             // targeted sub-range uploads (upload_pier_count /
-            // upload_placement_patch_count / upload_lod_pawn) or the
+            // upload_placement_patch_count / upload_lod_point) or the
             // next dirty/dynamic full upload (floater_coordination) —
             // exactly the raw config() pokes they replace, identical
             // in upload behavior.
             void stage_pier_count(uint32_t n)            { config_.pier_count = n; }
             void stage_placement_patch_count(uint32_t n) { config_.placement_patch_count = n; }
-            void stage_lod_pawn(float x, float z)        { config_.lod_pawn_x = x; config_.lod_pawn_z = z; }
+            void stage_lod_point(float x, float z)       { config_.lod_point_x = x; config_.lod_point_z = z; }
+
+            // ── THE VEIL (ruled): the point-anchored fog-wall band. Dirty-
+            // gated config setters (ride the U8 drain); getters feed the CPU
+            // LOD band so CPU banding and the GPU gate share ONE live value.
+            void set_veil(float near_r, float far_r) {
+                if (config_.veil_near != near_r || config_.veil_far != far_r) {
+                    config_.veil_near = near_r;
+                    config_.veil_far  = far_r;
+                    configDirty_ = true;
+                }
+            }
+            void set_veil_strength(float s) {
+                if (config_.veil_strength != s) { config_.veil_strength = s; configDirty_ = true; }
+            }
+            float veil_near() const { return config_.veil_near; }
+            float veil_far()  const { return config_.veil_far; }
             void stage_floater_coordination(float v)     { config_.floater_coordination = v; }
             const GPUDesignConfig& config() const { return config_; }
             uint32_t get_fpv_mode() const { return config_.fpv_mode; }
@@ -5359,6 +5418,12 @@ namespace t7 {
                 config_.pawn_amp_scale = 1.0f;
                 config_.pawn_height_bias = 0.0f;
                 config_.pawn_aura_height = 0.0f;
+                // THE VEIL — chain defaults (Dim: 175/275); strength staged
+                // per frame by U5 (0 in finite/indoor). Boot outdoor-on.
+                config_.veil_near = Dim::VEIL_NEAR_DEFAULT;
+                config_.veil_far  = Dim::VEIL_FAR_DEFAULT;
+                config_.veil_strength = 1.0f;
+                config_._veil_pad = 0.0f;
                 config_.fog_density = 0.003f;
                 config_.fog_color[0] = 0.85f;
                 config_.fog_color[1] = 0.78f;

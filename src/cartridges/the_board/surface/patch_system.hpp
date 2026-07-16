@@ -439,7 +439,7 @@ inline float patch_distance_sq(float px, float pz,
 
 template<typename Pred>
 inline uint32_t collect_sorted_patches(MachineCtx* c, PatchCandidate* out,
-    float pawn_wx, float pawn_wz, Pred&& pred, bool nearest_first)
+    float point_wx, float point_wz, Pred&& pred, bool nearest_first)
 {
     float half = PATCH_EXTENT * 0.5f;
     uint32_t count = 0;
@@ -448,7 +448,7 @@ inline uint32_t collect_sorted_patches(MachineCtx* c, PatchCandidate* out,
         if (!pred(c->patch_system_state_.patches_[i])) continue;
         float ox = (c->patch_system_state_.patches_[i].grid_x + 0.5f) * PATCH_EXTENT;
         float oz = (c->patch_system_state_.patches_[i].grid_z + 0.5f) * PATCH_EXTENT;
-        float d2 = patch_distance_sq(pawn_wx, pawn_wz, ox, oz, half);
+        float d2 = patch_distance_sq(point_wx, point_wz, ox, oz, half);
         out[count++] = { i, d2 };
     }
     for (uint32_t i = 1; i < count; i++) {
@@ -544,16 +544,16 @@ inline void generate_selected_patches(MachineCtx* c, const PatchCandidate* candi
 // define boundary, not fog"), split LOD0/LOD1/pregen, pack them
 // [lod0|lod1|pregen] (the draw-split contract the render reads by count),
 // upload the instance buffer + the lod0/render/all counts + the placement
-// patch count, and push lod_pawn so the frustum-cull shader re-bands on
-// the SAME pawn the CPU banded on (the anti-flicker contract).
-//   offer-face: GPUPatchInstance[] + lod0/render/all counts + lod_pawn.
-//   requires:   patches_ registry, player readback, patch_distance_sq,
-//               the cylinder thresholds, finite_mode; the upload doors.
+// patch count, and push lod_point so the frustum-cull shader re-bands on
+// the SAME point the CPU banded on (the anti-flicker contract).
+//   offer-face: GPUPatchInstance[] + lod0/render/all counts + lod_point.
+//   requires:   patches_ registry, the point readback, patch_distance_sq,
+//               the LIVE veil chain (config veil_near/veil_far),
+//               finite_mode; the upload doors.
 // Bit-safe: pack order = wire layout, not a draw. Separate from
 // build_patch_grid (different consumer/offer-face); they only coincided
-// in the same tail block. Does NOT touch the dead "render" radius
-// vocabulary (RENDER_RADIUS/VISIBLE_RADIUS_SQ) — the live gates are the
-// cylinder squares; those stay flagged in the dead register.
+// in the same tail block. (The dead "render" radius vocabulary was
+// RETIRED by the veil cut — the chain lives in Dim + config.)
 inline void band_patches(MachineCtx* c, wgpu::Queue& queue) {
     GPUPatchInstance instances[MAX_PATCHES]{};
     uint32_t lod0Count = 0;
@@ -565,9 +565,14 @@ inline void band_patches(MachineCtx* c, wgpu::Queue& queue) {
     GPUPatchInstance lod1[MAX_PATCHES]{};
     GPUPatchInstance pregen[MAX_PATCHES]{};
 
-    float pawn_wx = c->player_.readback_x;
-    float pawn_wz = c->player_.readback_z;
+    float point_wx = c->player_.readback_x;   // THE POINT (p1b-a; 1-frame stale by law E-4)
+    float point_wz = c->player_.readback_z;
     float half = PATCH_EXTENT * 0.5f;
+
+    // THE VEIL CHAIN, live: the same config values the GPU gate + the
+    // fragment veil read — one yardstick on both sides by construction.
+    const float veil_near_sq = c->gpuState_.veil_near() * c->gpuState_.veil_near();
+    const float veil_far_sq  = c->gpuState_.veil_far()  * c->gpuState_.veil_far();
 
     for (uint32_t i = 0; i < c->world_state_.active_patch_count; i++) {
         if (c->patch_system_state_.patches_[i].phase != PatchPhase::GENERATED &&
@@ -582,11 +587,11 @@ inline void band_patches(MachineCtx* c, wgpu::Queue& queue) {
         inst.extent = PATCH_EXTENT;
         inst.layer = c->patch_system_state_.patches_[i].layer;
 
-        float d2 = patch_distance_sq(pawn_wx, pawn_wz, ox, oz, half);
+        float d2 = patch_distance_sq(point_wx, point_wz, ox, oz, half);
 
         // Finite mode: all patches visible (walls define boundary, not fog)
-        if (c->world_state_.finite_mode || d2 <= VISIBILITY_CYLINDER_RADIUS_SQ) {
-            if (d2 <= LOD0_CYLINDER_RADIUS_SQ) {
+        if (c->world_state_.finite_mode || d2 <= veil_far_sq) {
+            if (d2 <= veil_near_sq) {
                 lod0[lod0Count++] = inst;
             }
             else {
@@ -614,8 +619,8 @@ inline void band_patches(MachineCtx* c, wgpu::Queue& queue) {
     c->gpuState_.stage_placement_patch_count(w);
     c->gpuState_.upload_placement_patch_count(queue);
 
-    c->gpuState_.stage_lod_pawn(pawn_wx, pawn_wz);
-    c->gpuState_.upload_lod_pawn(queue);
+    c->gpuState_.stage_lod_point(point_wx, point_wz);
+    c->gpuState_.upload_lod_point(queue);
 }
 
 // ── build_patch_grid (the (gx,gz)→layer index the baked sampler reads) ──
@@ -820,8 +825,8 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
         int32_t pawnGX = (int32_t)std::floor(c->player_.readback_x / PATCH_EXTENT);
         int32_t pawnGZ = (int32_t)std::floor(c->player_.readback_z / PATCH_EXTENT);
         int32_t rr = (int32_t)c->world_state_.active_radius;
-        float pawn_wx = c->player_.readback_x;
-        float pawn_wz = c->player_.readback_z;
+        float point_wx = c->player_.readback_x;
+        float point_wz = c->player_.readback_z;
         float half = PATCH_EXTENT * 0.5f;
 
         // O(1) patch existence lookup (replaces O(N) inner scan)
@@ -839,7 +844,7 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
                 if (!found && c->world_state_.free_layer_count > 0 && candidateCount < MAX_PATCHES) {
                     float ox = (gx + 0.5f) * PATCH_EXTENT;
                     float oz = (gz + 0.5f) * PATCH_EXTENT;
-                    float d2 = patch_distance_sq(pawn_wx, pawn_wz, ox, oz, half);
+                    float d2 = patch_distance_sq(point_wx, point_wz, ox, oz, half);
                     candidates[candidateCount++] = { gx, gz, d2 };
                 }
             }

@@ -3932,6 +3932,96 @@ gate. THE SWEEP CLOSES: three husks (TerrainState, PMG, complexity), the recon's
 §6 parked baskets, all discharged — two binding re-indexes the registry enabled,
 one WGSL channel cleanup beside it.
 
+## THE VEIL — THE CUT (ruled, all six; glaw1 + census GREEN; HOLD for the
+## OBSERVABLE-BY-DESIGN gate — the first since b2b)
+Jean ruled all six on the recon (VEIL_VISIBILITY_RECON): the point-anchored
+fog-wall as the ONE visual visibility authority. What landed, per ruling:
+
+1. PREREQUISITE — render_point_pos() (world.wgsl, beside render_pawn_pos):
+   point_camera_hosted() ? render_camera.pos : render_pawn_pos(). The veil
+   anchors on THE POINT, never the eye; the eye-fog stays eye-anchored (a
+   legitimate view-effect fork, untouched).
+2. METRIC — per-fragment distance(world_pos.xz, point.xz): the fragment IS
+   the metric. update_entity_draw_visibility DEMOTED to overdraw optimization
+   at the EXIST ring (350): the edge margin (25) + per-size inset (0.5/cap 60)
+   RETIRED (their visual role is dead); hysteresis (40) stays as a mesh-upload
+   toggle damper. Sole law, static_asserted: EXIST ≥ VEIL_FAR + ENTITY_MAX_
+   EXTENT (75) — no entity with in-veil fragments is ever CPU-culled.
+3. CHAIN — declared ONCE in Dim (state.hpp, the registry pattern):
+   VEIL_NEAR_DEFAULT 175 (the old LOD0 ring) / VEIL_FAR_DEFAULT 275 (the old
+   draw cylinder) / EXIST_RADIUS 350 (the pregen edge) — reused, not invented —
+   with static_asserts PREGEN ≥ EXIST > FAR > NEAR + the cull law. LIVE values
+   ride config (veil_near/veil_far, tunable): the CPU band reads the getters,
+   the GPU LOD0 gate reads fc_config.veil_near, the fragment veil reads both —
+   ONE yardstick on all three sides by construction. V1 FIXED: agents 360→350
+   (=EXIST, static_asserted; CPU mirror agents.hpp updated). FLAGGED FORK
+   (the ruling's "unless a reason surfaces"): FLOATERS STAY 400 — the in-code
+   contract documents why (floaters SPAWN to the 350 pregen edge; sphere pos
+   lands ~12u past its anchor + commit lag → a 350/360 line caused near-100%
+   eviction-at-spawn; 400 = 350 + 50 headroom). Floaters are SKY objects
+   (never stand on unresident ground) and 400 > FAR keeps every eviction
+   behind the wall — invisible by construction. Flagged, not forced.
+4. MECHANISM — the fog-wall as a NEW term in shade_lit, composed AFTER the
+   existing eye-fog: veil = smoothstep(veil_near, veil_far, point_d) *
+   veil_strength * veil_scale; return mix(fogged, fog_color, veil). Wall
+   color = the existing fog/horizon color (reads as sky, not a cylinder).
+   VERIFICATION LINE: inside NEAR the term is EXACTLY zero (smoothstep ≤ edge
+   → 0; mix(x, y, 0) = x) — pixel-identical to today by arithmetic.
+5. FORKS — orbs/fade overlay: untouched (no veil term reaches them). RIBBON:
+   exempt via the ruled veil-scale param — shade_lit gained veil_scale; a new
+   ribbon_fs (Entry::RIBBON_FS; the ribbon pipeline's one-line entryPoint
+   change) passes 0.0 while entity/terrain/zone pass 1.0. GALLERY/INDOOR: the
+   exemption IS the mode — U5 (StageWorld, F_CONFIG, pre-drain) stages
+   veil_strength = finite_mode ? 0 : 1 (the same law that makes all patches
+   visible in finite mode: walls define the boundary, not fog). The PAWN is
+   NOT exempt (ruled): in camera-host the abandoned body fades into the
+   horizon like anything else. ZONES join (their FS was found to route
+   through shade_lit after all — the recon's "own-FS" note corrected);
+   OUTDOOR GALLERY FRAMES join via their own FS (they spawn to the 350
+   residency ring — the mode-exemption covers indoor, not them).
+6. FOSSILS — retired: PATCH_RENDER_RADIUS/SIDE + RENDER_RADIUS/SIDE +
+   VISIBLE_RADIUS(_SQ) + LOD_FULL_RADIUS(_SQ) + VISIBILITY_CYLINDER_*(2) +
+   LOD0_CYLINDER_*(2) + GPU FRUSTUM_LOD0_RADIUS_SQ — the 4-spelling LOD0
+   group and 3-spelling draw group COLLAPSE into the declared chain (Dim +
+   config; the GPU gate now reads the same live value the CPU band uses).
+   RENAMED: lod_pawn → lod_point (config field, offset-384 assert intact;
+   stage_/upload_ setters; fc_config reads; pawn_wx/pawn_wz locals →
+   point_wx/point_wz; all "pawn" comments corrected — the name fossil dies).
+   Config grew 400 → 416 bytes (veil_near/far/strength/_veil_pad appended;
+   sizeof assert updated; WGSL DesignConfig mirrored field-for-field).
+
+HAND-VERIFICATION (WGSL blind — the law) that CAUGHT A CRASH: the first
+gallery veil draft called render_point_pos(), whose call graph statically
+references render_agents (binding 260) — but the Gallery Entity layout binds
+only {1,201,280,320}: pipeline creation would have FAILED at boot. Fixed:
+gallery_frame_fs anchors on config.lod_point_* — the SAME point (the staged
+anti-flicker copy the CPU band + GPU gate already share; 1 frame stale, law
+E-4, imperceptible across a 100 wu band) — no layout change. All shade_lit
+users verified layout-safe (entity/ribbon/shell/terrain/zone/snapshot bind
+260+280 already). Mirror verified field-for-field; all 4 shade_lit callers
+pass the new arity; render_point_pos defined once (out-of-order module scope
+is the shader's existing pattern); the frustum gate reads lod_point +
+veil_near².
+
+GRAPH EDGE REVEALED — visibility has ONE author. The 9-authority disagreement
+(recon §1) collapses: the veil (fragment fog-wall) is the visual truth for
+terrain + every entity_fs family + zones + outdoor gallery; the CPU band and
+GPU LOD gate are LOD mechanics on the same chain values; the CPU entity cull
+is overdraw hygiene at EXIST; existence eviction sits on (agents) or flagged
+above (floaters) the EXIST ring — every number either IS the chain or is
+static_asserted against it. The stage now ends where awareness ends, around
+the same anchor (§11: the veil is the bubble's visual face).
+
+GATES: glaw1 GREEN; score census GREEN (spine untouched — the strength
+staging rides U5's existing F_CONFIG face); encodings clean LF, no CR.
+THE OBSERVABLE-BY-DESIGN GATE (Jean's rig, the first since b2b): inside NEAR
+pixel-identical (the term is arithmetically zero); walking outward THE POPS
+ARE GONE — flora no longer stands on void, arches no longer materialize
+inside visible ground, the world condenses continuously with each step;
+ribbon still visible far; orbs intact; indoor unchanged (strength 0); and
+the camera-host check — fly away from your pawn and the world unveils around
+YOU while the body recedes into the wall. HELD for the gate.
+
 ## TERRAIN-2 — SKIRTS (side excursion; weld #2; own rig-gated commit)
 Jean's order: skirt the terrain patch mesh (plain patch edges) to hide
 inter-patch cracks — precision AND LOD/T-junction — with ONE mechanism.

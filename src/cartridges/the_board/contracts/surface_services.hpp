@@ -56,10 +56,10 @@ struct WorldState {
 
     // ── Patch counts (this frame) ──
     uint32_t active_patch_count = 0;
-    uint32_t render_patch_count = 0;    // visible patches (within circular VISIBLE_RADIUS)
-    uint32_t lod0_patch_count   = 0;    // subset of rendered: within LOD_FULL_RADIUS (full mesh)
+    uint32_t render_patch_count = 0;    // visible patches (within the live veil_far cylinder)
+    uint32_t lod0_patch_count   = 0;    // subset of rendered: within veil_near (full mesh)
     uint32_t all_patch_count    = 0;    // all generated patches (including pre-gen ring)
-    uint32_t entities_culled    = 0;    // entities hidden by distance culling this frame
+    uint32_t entities_culled    = 0;    // entities hidden by the EXIST-ring overdraw cull this frame
 
     // ── Dirty flags (deferred GPU uploads) ──
     bool pier_count_dirty       = false;  // defer recompute_and_upload_pier_count
@@ -76,8 +76,8 @@ inline constexpr float    PATCH_EXTENT = Dim::PATCH_EXTENT;
 inline constexpr float    PATCH_CELL_SIZE = (float)Dim::PATCH_EXTENT / 16.0f;  // 3.125 — patch-grid cell (graduated from gol_zones at DISSOLVE-1 Batch B; pawn aura + gol zones consume it)
 inline constexpr uint32_t GRID_RADIUS = Dim::PATCH_GRID_RADIUS;   // inner priority (3 → 7×7)
 inline constexpr uint32_t GRID_SIDE = Dim::PATCH_GRID_SIDE;
-inline constexpr uint32_t RENDER_RADIUS = Dim::PATCH_RENDER_RADIUS;  // visible radius (5)
-inline constexpr uint32_t RENDER_SIDE = Dim::PATCH_RENDER_SIDE;
+// (RENDER_RADIUS/RENDER_SIDE REMOVED — the veil: dead aliases of the retired
+//  grid-render generation.)
 inline constexpr uint32_t PREGEN_RADIUS = Dim::PATCH_PREGEN_RADIUS; // deep pre-gen buffer (7)
 inline constexpr uint32_t MAX_PATCHES = Dim::MAX_ACTIVE_PATCHES;    // 225
 
@@ -137,19 +137,16 @@ inline constexpr uint32_t PATCH_PENDING_TIER_3 = 20;
 inline constexpr uint32_t PATCH_PENDING_TIER_4 = 40;
 inline constexpr uint32_t PATCH_BUDGET_MOVE_THRESHOLD = 4;
 
-// ── Visibility cylinder ────────────────────────────────────────────
+// ── Visibility — THE VEIL CHAIN (ruled) ────────────────────────────
 //
-// Grid-based allocation/eviction is unchanged; only the
-// draw-list gate uses world-space distance.
-inline constexpr float VISIBLE_RADIUS = 5.5f;
-inline constexpr float VISIBLE_RADIUS_SQ = VISIBLE_RADIUS * VISIBLE_RADIUS;
-
-inline constexpr float LOD_FULL_RADIUS = 3.5f;
-inline constexpr float LOD_FULL_RADIUS_SQ = LOD_FULL_RADIUS * LOD_FULL_RADIUS;
-inline constexpr float VISIBILITY_CYLINDER_RADIUS = VISIBLE_RADIUS * PATCH_EXTENT;
-inline constexpr float VISIBILITY_CYLINDER_RADIUS_SQ = VISIBILITY_CYLINDER_RADIUS * VISIBILITY_CYLINDER_RADIUS;
-inline constexpr float LOD0_CYLINDER_RADIUS = LOD_FULL_RADIUS * PATCH_EXTENT;
-inline constexpr float LOD0_CYLINDER_RADIUS_SQ = LOD0_CYLINDER_RADIUS * LOD0_CYLINDER_RADIUS;
+// The old two-group vocabulary (VISIBLE_RADIUS/VISIBILITY_CYLINDER_* and
+// LOD_FULL_RADIUS/LOD0_CYLINDER_* — seven spellings of two numbers) is
+// RETIRED. The chain is declared ONCE in Dim (state.hpp: VEIL_NEAR_DEFAULT
+// 175 / VEIL_FAR_DEFAULT 275 / EXIST_RADIUS 350, chain static_asserts).
+// The LIVE values ride config (veil_near/veil_far, tunable): the CPU LOD
+// band reads gpuState_.veil_near()/veil_far(), the GPU frustum gate and
+// the fragment veil read config.veil_near/veil_far — one yardstick, by
+// construction, on both sides. Grid-based allocation/eviction unchanged.
 
 // ── Distance-sorted patch scan helper ──
 

@@ -111,9 +111,13 @@ inline constexpr float POSSESSION_RADIUS_SQ = POSSESSION_RADIUS * POSSESSION_RAD
 // SEAM[agents:L2] hardware mirror — AGENT_EVICTION_RADIUS must agree
 //   with world.wgsl's identically-named const. The compiler cannot
 //   catch drift; the prose below is the contract.
+// THE VEIL CHAIN (ruled, V1): grounded existence = Dim::EXIST_RADIUS
+//   (350, the pregen edge) — was 360, overshooting patch residency.
 //
-inline constexpr float AGENT_EVICTION_RADIUS    = 360.0f;
+inline constexpr float AGENT_EVICTION_RADIUS    = 350.0f;
 inline constexpr float AGENT_EVICTION_RADIUS_SQ = AGENT_EVICTION_RADIUS * AGENT_EVICTION_RADIUS;
+static_assert(AGENT_EVICTION_RADIUS == Dim::EXIST_RADIUS,
+    "VEIL CHAIN: grounded existence eviction sits ON the EXIST ring");
 
 // AGENT_CENSUS_INTERVAL — period (seconds) between automatic
 // [AGENTS] census log lines + the [Player] position emission.

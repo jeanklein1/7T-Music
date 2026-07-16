@@ -772,6 +772,10 @@ namespace t7 {
                 else {
                     gpuState_.set_world_bounds(0.0f, 0.0f, 0.0f, 0.0f);
                 }
+                // THE VEIL (ruled): OFF in finite/indoor — walls define the
+                // boundary there, not fog (the same law that makes all patches
+                // visible in finite mode). Dirty-gated; rides the U8 drain.
+                gpuState_.set_veil_strength(world_state_.finite_mode ? 0.0f : 1.0f);
             }
 
             // U7 — THE TRANSITION MACHINE (spine-owned; SEAM[spine:transitions]).
