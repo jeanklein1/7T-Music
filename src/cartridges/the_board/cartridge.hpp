@@ -16,8 +16,8 @@
 //   evict/prepare_mesh in the owning module, add wrappers below,
 //   add 1 row to FAMILY_DISPATCH.
 // SEAM[spine:K2-related] the dispatch_prepare_mesh_*,
-//   dispatch_mesh_gen_* wrappers (~400 lines below FamilyDispatch)
-//   are integration glue, not module work. They live here correctly.
+//   dispatch_mesh_gen_* wrappers are integration glue, not module
+//   work. They live here correctly.
 //   NOTE[seam-map] keep wrappers here; they're the integration layer
 //   between FAMILY_DISPATCH and per-family modules.
 // SEAM[spine:P5] readback state machines + world_state_.world_gen counter are
@@ -286,22 +286,19 @@ namespace t7 {
             uint64_t rosterGolZoneRuns_ = 0;
             float    rosterGolResidueDump_ = 0.0f;
 
-            // ── Terrain CPU mirror deleted ────────────────────────────────
-
-
             // ═══ FAMILY DISPATCH TABLE ═══════════════════════════════════
             //
             // SEAM[spine:owns] FAMILY_DISPATCH is the integration hub that
             //   ties the 12 families together. Each row's body lives in
             //   the family's owning module.
-            // SEAM[spine:K2-related] the six real dispatch_prepare_mesh_* /
+            // SEAM[spine:K2-related] the five real dispatch_prepare_mesh_* /
             //   dispatch_mesh_gen_* adapter pairs below are integration glue
             //   between FAMILY_DISPATCH and the per-family modules (their
             //   signatures adapt module preparers and renderer dispatches to
             //   the row slots). The bespoke select/place/commit funnels AND
             //   the twelve evictors live with their owners (§5 EVICTION
             //   THUNKS: retirement fulfilled); the no-op mesh adapters are
-            //   shared (family_dispatch.inl).
+            //   shared (inlined beside the table, post-class).
             // SEAM[spine:family-dispatch] anchor for cross-file references —
             //   eviction routes through FAMILY_DISPATCH[f].evict_slot to the
             //   owner-side evict_<family> functions.
@@ -313,11 +310,10 @@ namespace t7 {
             // ═══ DISPATCH WRAPPERS ═══════════════════════════════════════
 
             // ── Mesh gen wrappers ──
-            // pyramid mesh-gen wrappers CUT (C2 orphan sweep) — the pyramid row's
-            // FAMILY_DISPATCH mesh hook routes to the none-fork below;
-            // prepare_pyramid_mesh_gen removed. The pyramid is the first entity whose
-            // realization IS the terrain: it keeps its select/place/commit/evict verbs
-            // (placement feeds the heightfield) but has no mesh realization of its own.
+            // The pyramid has none: it is the first entity whose realization IS
+            // the terrain — it keeps its select/place/commit/evict verbs
+            // (placement feeds the heightfield) but has no mesh realization of
+            // its own; its FAMILY_DISPATCH mesh hook routes to the none-fork.
 
             static bool dispatch_prepare_mesh_arch(MachineCtx* self, wgpu::Queue& queue) {
                 return prepare_arch_mesh_gen(self->entities_state_, self, queue);
@@ -359,14 +355,14 @@ namespace t7 {
             }
 
             // ── The dispatch table (FAMILY_DISPATCH) is defined at file
-
-
+            //    scope after the class, beside the shared no-op adapters
+            //    (declared in entity_types.hpp). ──
             //
             // The spine-owned piece-enable manifest (struct Roster, the
             // ROSTER constant, the transitions=>portal edge, and the full doc
             // block — RIDER A / MATURITY DIAL / FOUNDATIONAL / LATENT /
             // gate-(a) status column) now lives in
-            // cartridges/the_board/roster.hpp. It met its SECOND CONSUMER —
+            // cartridges/the_board/contracts/roster.hpp. It met its SECOND CONSUMER —
             // GPUState::init (state.hpp) gates creation on the feature bits —
             // so the reading publishes at the shared header (the standing
             // law). ROSTER is visible here by namespace lookup
@@ -901,8 +897,8 @@ namespace t7 {
 
             // U8 — STAGE FADE + THE TWO UPLOADS (O-5b/c). Fade after the machine
             // (alpha is current-frame); upload_signal then upload_config AFTER
-            // all staging setters. A setter placed after either upload is
-            // silently dropped for the frame (recon E-1).
+            // all staging setters — the O-5b/c face law, enforced by
+            // validate_spine at boot.
             void phase_stage_fade_and_upload(UpdateCtx& c) {
                 auto& gpuSignal = c.gpuSignal;
                 auto& queue = c.queue;

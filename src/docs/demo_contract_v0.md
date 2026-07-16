@@ -66,7 +66,8 @@ Ruling: one word ratifies; DEMO-1's handoff follows it.
 ## STATUS AT LANDING (2026-07-12, appended at the REBUILD-0 stamp)
 Ratified with theory v3. Executed since drafting: DEMO-1 stage zero
 (the rehoming), the config spine (demos/ room; full.hpp and
-minimal.hpp; preset selection; the pipeline gate — minimal boots at
+minimal.hpp, since retired into the matrix — PANEL-0 p2, demos/matrix.hpp;
+preset selection; the pipeline gate — minimal boots at
 the speed of its contents). DEMO-2 (the surface's voice) and DEMO-3+
 remain pull-based as written. The minimal sentence's first readings
 became REBUILD proof obligations P1-P4 — the contract's instrument

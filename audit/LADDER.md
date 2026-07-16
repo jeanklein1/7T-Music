@@ -4560,3 +4560,65 @@ b3 finding (a)'s ruling — decided WHEN b3 lands, with the full
 following-window in hand. Stage 1 therefore closes with ONLY the two
 comment rulings (6ed3520) + b1/b1-cohort/b4; the origin-pin stays,
 harmless. b3 inherits the bounding decision intact.
+
+════════════════════════════════════════════════════════════════════
+RESIDUE SWEEP — EXECUTION (T0/T1/T2 per the stamped plan,
+RESIDUE_SWEEP_RECON §3; §4a/T3 HELD for its own ruling)
+════════════════════════════════════════════════════════════════════
+
+T0 — THE COMMENT SWEEP (one commit, zero behavior). All §2 STALE-
+BREADCRUMBs discharged: cartridge.hpp rows 1-7 (terrain-mirror divider
+dropped; "~400 lines below" prose fixed; six→five adapter pairs +
+family_dispatch.inl → "inlined beside the table"; pyramid mesh-gen
+narration trimmed to the rationale; ROSTER path → contracts/; the
+truncated dispatch-table comment completed; U8's "silently dropped"
+failure mode superseded → validate_spine boot law). world.wgsl: the 4
+"→ C6"/follow-on pointers dropped (4419/5049/5605/8372 regions), §9
+TOC + header now say two families (the pyramid's realization IS the
+terrain). Contracts veil tombstones dropped (surface_services, state).
+Demos-adjacent: CMake THE_BOARD_DEMO help names the matrix column (not
+demos/<name>.hpp), demo_contract_v0.md status note marks full/minimal
+retired into the matrix, matrix.hpp drops the "148" magic count.
+RIBBON RULING EXECUTED: SPAWN_CHANCE 0.900f is now the AUTHORED value
+(TESTING note deleted here + the spawn-engine summary bullet removed;
+the distributions pass revisits it properly). Gap-explainer tombstones
+KEPT per the stamp (RAYMARCH/SDF, husk-sweep gap markers).
+
+════════════════════════════════════════════════════════════════════
+THE PARKED LEDGER (standing section — the ONE place open flags live.
+Future sweeps read THIS, not the tree. Consolidated at residue-sweep
+T0. Discipline: when a flag lands or dies, strike it HERE in the same
+commit.)
+════════════════════════════════════════════════════════════════════
+
+P-1  WIDE-TRAITS RULING (residue recon §4a; T3, HELD) —
+     EntityFamilyTraits carries 10 zero-reader fields beyond the swept
+     cull_* pair (short_name, max_instances, grounded, creates_ground,
+     piers_per_entity, has_footprint, spawn_roll_prop, spawn_chance,
+     mood_multiplier, gpu_ground_y); the pipeline reads the per-family
+     *Config/*Prop constants directly, bypassing traits. Contract-face
+     shrink, each field cut re-columns 9 rows. Verify half-wired vs
+     vestigial PER FIELD (esp. creates_ground / gpu_ground_y) before
+     its own ruling.
+P-2  TEST-RIG PIERS (ship checklist) — patch_system.hpp
+     TESTING[test-rig-piers]: debug ground fixture (ramp + plateau +
+     block at pier slots 0-2), NOT a roster piece (ROSTER-1a §1
+     ruling). Mortal retirement: dies at ship.
+P-3  PREGEN-8 CONTINGENCY (rig-triggered) — the thin factory band
+     EXIST−RING = 25 wu. IF the rig shows rim-pops under fast flight,
+     the storage weld is the named follow-on: 225→289 layers,
+     TILE_GRID 17→19, MAX_ACTIVE_PATCHES — a C6-registry-class cut.
+     Sleeps until the rig says otherwise.
+P-4  OPTION-B WGSL PIN (registry follow-on) — C6 pinned the C++ side;
+     world.wgsl @binding literals stay hand-mirrored with
+     launch-validation as the net (Option A). Option B — ONE authored
+     source generating both sides — is the named "true pin"
+     (BINDING_REGISTRY_RECON §2).
+P-5  SILENT-CLOCK CONTRACT (driver-law hole) — the silent-BPM axis
+     (default-BPM-when-music-off) has no owner and no authored default
+     (FRAME_CONDUCTOR_RECON, time/clocks row). Wants an owner when the
+     driver law next opens.
+P-6  TERRAIN-2 b3 (the finite collapse) — parked at Stage-1 close; the
+     radius-bounding choice (raise pregen / lower finite_radius_max /
+     keep origin-pin degenerate) is b3 finding (a)'s ruling, decided
+     WHEN b3 lands with the full following-window in hand.

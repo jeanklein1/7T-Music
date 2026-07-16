@@ -259,7 +259,7 @@ set(INCUBATOR_RENDER_CARTRIDGE        "the_chord"        CACHE STRING "Render ca
 set(INCUBATOR_ANALYSIS_CARTRIDGE      "canvas_1"         CACHE STRING "Analysis cartridge for the 'incubator' target")
 
 set(INCUBATOR_DUAL_RENDER_CARTRIDGE   "the_board"        CACHE STRING "Render cartridge for the 'incubator_dual' target")
-set(THE_BOARD_DEMO                    "full"             CACHE STRING "the_board demo sentence (demos/<name>.hpp; compile-time door, DEMO-1). Default IS the golden path.")
+set(THE_BOARD_DEMO                    "full"             CACHE STRING "the_board demo sentence (a DemoCol column of demos/matrix.hpp; compile-time door, DEMO-1). Default IS the golden path.")
 set(INCUBATOR_DUAL_ANALYSIS_CARTRIDGE "canvas_1"         CACHE STRING "Analysis cartridge for the 'incubator_dual' target")
 
 # Dedicated A/B target: runs the frozen backup_board alongside incubator_dual's

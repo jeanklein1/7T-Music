@@ -123,7 +123,7 @@
 // §6    RENDERING           Lighting, terrain VS/FS, entity VS/FS, ribbon, shadows
 // §7    COMPUTE             Bindings, entry points, GoL zones, pawn aura
 // §8    GALLERY             Photographer, terrain paintings, wall paintings
-// §9    ENTITY MESH GEN     GPU-sovereign geometry: pyramids, arches, columns
+// §9    ENTITY MESH GEN     GPU-sovereign geometry: arches, columns
 //
 // Subsystem-specific bindings live with their consumers (§7, §8, §9).
 // Global bindings (signal, config, VP, render mirrors, lights) are in §7.0.
@@ -4419,7 +4419,7 @@ fn shadow_column_vs(in: ArchVertexInput) -> ShadowVarying {
 //     draw_shadow_pyramid were caller-free). Both read the
 //     GROUND_ATLAS_PYRAMID slot; with the readers gone that slot is now a
 //     write-only husk (still populated by the live placement kernel — see the
-//     atlas-write flag at the placement kernel and §9.0). → C6 layout-weld.
+//     atlas-write flag at the placement kernel).
 
 // --- Indoor Shell (ceiling + walls)
 // Pre-baked world-space geometry, no per-instance transforms.
@@ -5046,7 +5046,7 @@ const GROUND_ATLAS_ARCH: i32     = 0;
 const GROUND_ATLAS_COLUMN: i32   = 16;
 const GROUND_ATLAS_PYRAMID: i32  = 48;  // DEAD-READ (C2): slot still written by the
                                         // placement kernel but its only readers
-                                        // (pyramid_vs/shadow_pyramid_vs) were cut → write-only husk (→ C6)
+                                        // (pyramid_vs/shadow_pyramid_vs) were cut → write-only husk
 const GROUND_ATLAS_PALM: i32     = 56;
 const GROUND_ATLAS_CACTUS: i32   = 80;
 const GROUND_ATLAS_BLADE: i32    = 100;
@@ -5602,8 +5602,8 @@ const ZONE_MESH_MAX_INDICES: u32 = 75000u;
 // Execution order (critical for correctness):
 // RAYMARCH/SDF EXCAVATION: update_terrain_config removed — the writer kernel
 // of the dead TerrainState buffer (it wrote amplitude_scale + lipschitz_factor,
-// read by nobody). Its C++ dispatch + pipeline went with it. The terrain_state
-// buffer/bindings/struct husk is a flagged layout-weld follow-on.
+// read by nobody). Its C++ dispatch + pipeline went with it; the terrain_state
+// buffer/bindings/struct husk was swept (husk sweep 1).
 
 // --- Walker terrain normal (forward-difference)
 // POLICY_WALKER_TILT samples — static_base + pyramids + GoL zones
@@ -8369,7 +8369,7 @@ fn compute_entity_placement() {
 
             pyramid_ground[i].ground_y = min(min(y_c, min(y_px, y_mx)), min(y_pz, y_mz));
             // DEAD-WRITE (C2): the atlas store below fed pyramid_vs (now cut) —
-            // write-only husk left in place (live blind WGSL) → C6.
+            // write-only husk left in place (live blind WGSL).
             textureStore(entity_ground_atlas_write, vec2<i32>(i32(i) + GROUND_ATLAS_PYRAMID, 0), vec4<f32>(pyramid_ground[i].ground_y, 0.0, 0.0, 0.0));
         }
     }
@@ -8912,7 +8912,8 @@ fn wall_painting_frame_fs(in: WallPaintingVarying) -> @location(0) vec4<f32> {
 // Each entity family writes into fixed per-slot regions of pre-allocated
 // VB/IB buffers. Inactive slots receive degenerate (zero-area) triangles.
 //
-// Three families: pyramids (§9.0), arches (§9.1), columns (§9.2).
+// Two families: arches (§9.1), columns (§9.2) — the pyramid's realization
+// is the terrain itself (placement feeds the heightfield; no mesh, §9.0 retired).
 //
 // Vertex format: matches ArchVertex (pos[3], normal[3], color[3], index:u32)
 // = 10 × f32 per vertex = 40 bytes. VB is accessed as array<f32>.

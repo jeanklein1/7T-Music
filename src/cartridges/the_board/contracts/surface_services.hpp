@@ -76,8 +76,6 @@ inline constexpr float    PATCH_EXTENT = Dim::PATCH_EXTENT;
 inline constexpr float    PATCH_CELL_SIZE = (float)Dim::PATCH_EXTENT / 16.0f;  // 3.125 — patch-grid cell (graduated from gol_zones at DISSOLVE-1 Batch B; pawn aura + gol zones consume it)
 inline constexpr uint32_t GRID_RADIUS = Dim::PATCH_GRID_RADIUS;   // inner priority (3 → 7×7)
 inline constexpr uint32_t GRID_SIDE = Dim::PATCH_GRID_SIDE;
-// (RENDER_RADIUS/RENDER_SIDE REMOVED — the veil: dead aliases of the retired
-//  grid-render generation.)
 inline constexpr uint32_t PREGEN_RADIUS = Dim::PATCH_PREGEN_RADIUS; // deep pre-gen buffer (7)
 inline constexpr uint32_t MAX_PATCHES = Dim::MAX_ACTIVE_PATCHES;    // 225
 

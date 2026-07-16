@@ -33,8 +33,8 @@
 //   └────────────────────────────────────────────────────────────────┘
 //
 // The compile-time boolean FOLD is preserved end to end: column_to_roster
-// yields a constexpr Roster, so ROSTER (demos/demo.hpp) folds every one
-// of the 148 gate sites exactly as the hand-written brace-list did.
+// yields a constexpr Roster, so ROSTER (demos/demo.hpp) folds every
+// gate site exactly as the hand-written brace-list did.
 // DemoConfig is untouched — the seed + boot_mood consumers
 // (surface_services.hpp, spine_state.hpp) never know the difference.
 //

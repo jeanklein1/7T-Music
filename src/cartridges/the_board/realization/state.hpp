@@ -63,8 +63,6 @@ namespace t7 {
             constexpr uint32_t PATCH_CELL_N = 16;      // cell color texture side per patch
             constexpr uint32_t PATCH_GRID_RADIUS = 3;       // inner priority radius (7×7)
             constexpr uint32_t PATCH_GRID_SIDE = 2 * PATCH_GRID_RADIUS + 1;       // 7
-            // (PATCH_RENDER_RADIUS/SIDE REMOVED — the veil: fossils of the
-            //  pre-cylinder grid-render generation, zero readers.)
             constexpr uint32_t PATCH_PREGEN_RADIUS = 7;                                // deep pre-gen buffer (15×15, 350 world units)
             constexpr uint32_t PATCH_PREGEN_SIDE = 2 * PATCH_PREGEN_RADIUS + 1;     // 15
             constexpr uint32_t MAX_ACTIVE_PATCHES = PATCH_PREGEN_SIDE * PATCH_PREGEN_SIDE; // 225

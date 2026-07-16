@@ -90,7 +90,7 @@ struct RibbonDeps {
 
 // ── Spawn ────────────────────────────────────────────────────────
 struct RibbonConfig {
-    static constexpr float SPAWN_CHANCE = 0.900f;   // TESTING: was 0.400f -- bumped for ribbon-dev visibility; revert before ship (control-panel constant)
+    static constexpr float SPAWN_CHANCE = 0.900f;   // authored value (control-panel constant; the distributions pass revisits it)
     // SEAM[ribbon:P4] hygiene rows pattern — { open, sunset,
     //   [indoor_flat=0], [indoor_vault=0], [finite_outdoor=1],
     //   [finite_outdoor_ref=0] }. Same family as gol_zones:P4

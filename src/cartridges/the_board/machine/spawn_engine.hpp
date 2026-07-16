@@ -72,11 +72,6 @@ struct GroundFootprint {
 inline constexpr uint32_t MAX_FOOTPRINTS = 128;
 inline constexpr float CENSUS_DUMP_INTERVAL = 30.0f;
 
-// ─── Spawn Configuration Summary ────────────────────────────────
-//
-// * Ribbon CHANCE 0.900 is a TESTING bump for ribbon-dev visibility;
-//   ship value 0.400 (ribbon.inl SPAWN_CHANCE, reverted at ship).
-
 // ─── Property Index Registry ────────────────────────────────────
 
 // ── Proximity affinity ─────────────────────────────────────────────
