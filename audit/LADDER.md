@@ -3710,6 +3710,73 @@ census GREEN (phase_sky_neutral retired from FOUNDATIONAL_PHASES; bijection now
 (Jean's machine — ribbon-on: the possessed pawn snaps onto the flown head exactly
 as before; ribbon-off: nothing observable changed).
 
+## C6 — THE BINDING REGISTRY (single-source the binding NUMBERS; glaw1 +
+## byte-identity GREEN; HOLD for the launch gate — NOT pixel-only)
+Jean stamped all four rulings (recon BINDING_REGISTRY_RECON): (1) constexpr,
+GROUP-SCOPED; (2) authored literals, +200 band a static_assert witness only;
+(3) Option A — C++ registry + WGSL mirror on the launch gate — IS C6, the third
+(WGSL) copy stays a mirror the gate catches; (4) ONE constant PER SITE, named for
+the site, never one-per-buffer. Registry-first: single-source the NUMBERS only,
+behavior-identical, no husk removed.
+
+WHAT LANDED. A new header realization/binding_registry.hpp carries the single
+source of truth: `namespace bind { namespace g0 {…} namespace g1 {…} }`, 89 g0 +
+14 g1 = 103 named `inline constexpr uint32_t`, each the binding number authored
+ONCE, named for the WGSL variable it mirrors (so the const name is greppable in
+both state.hpp and world.wgsl). GROUP-SCOPED is FORCED, not stylistic: binding 22
+= terrain_mesh_indices (g0) AND bilinear_sampler (g1); 25 = tile_grid vs
+shadow_map; 26/30 likewise — a flat list would fuse distinct slots. state.hpp's
+createBindGroups: every `entries[k].binding = <literal>` (all 323, across 24
+layout + 24 group blocks + the offscreen gallery group) → `= bind::gX::<name>`.
+
+THE BEHAVIOR-IDENTITY PROOF (§3 contract, mechanically enforced). The rewrite was
+a scripted transform that touches ONLY the RHS integer of each `.binding =` line —
+block classified g0/g1 by its label ("Texture" ⟺ g1), number → site-name by the
+recon's extraction. TWO gates prove identity: (a) the DIFF — exactly 323 lines
+changed, every old side `entries[k].binding = <int>;` and every new side
+`entries[k].binding = bind::gX::<name>;`, same index k, same trailing comment; NO
+array size N, index, order, or resource line touched (grep-verified empty
+otherwise). (b) BYTE-IDENTITY — a checker resolved every new `bind::gX::name`
+against the registry and confirmed all 323 equal the original integer git HEAD
+had. Same integers emitted → the built bind-groups are byte-identical; glaw1
+proves the 103 names resolve on the real TU + the +200 witnesses hold.
+
+DISCIPLINE 2 — NO FORKS. Every binding took a single site-named constant cleanly.
+The same-buffer-different-number cases (patch_instances 340 / photo_patch_instances
+144 / zone_patch_instances 165; render_camera 280 / camera_state 80; the orb
+trio) are THREE site names for one buffer — the const names the (group, SLOT), the
+shared handle lives in the group entry's `.buffer` (ruling 4), so no collapse and
+no computed arithmetic. The 5 WGSL-aliased pairs (config/fc_config, vp_data/fc_vp,
+agent_state/fc_agents, camera_state/fc_camera, patch_instances/fc_patches) are ONE
+binding number each → ONE constant covers both aliases (the alias is a second WGSL
+var name for the same slot). Binding 201/280 binding DIFFERENT handles across
+Render-Entity vs Photographer-RE is the same story — one slot const, per-group
+handle. No binding needed a computed-at-runtime slot; nothing was forced.
+
+GRAPH EDGE REVEALED — the C++ layout↔group pair is now COMPILER-LINKED. L2-a (the
+"binding integer typed twice") collapses 2 of its 3 copies: a layout/group typo is
+now an undefined-symbol compile error, not a runtime crash. The frame's GPU
+address space, 323 scattered literals, is now a named (group, slot) map of 103
+symbols — and it makes two structures legible: the +200 render-mirror band (now a
+static_assert-witnessed law, authored not computed) and the same-buffer-different-
+slot aliasing (now explicit per-site names). It also readies the §4 husk re-index:
+`bind::g0::terrain_state` (20/220) and `bind::g0::pmg_*` (190-192) are now named
+symbols the compiler will flag when the follow-on deletes them (vs the blind
+literal hunt today). THE CEILING (accepted): the 108 WGSL @binding literals stay a
+mirror — the shader can't read a C++ const — kept in lockstep by the launch gate;
+closing the third copy (a generated/substituted shader, feasible because
+world.wgsl is runtime text) is the named "true pin" follow-on.
+
+GATES: glaw1 GREEN (103 names resolve + witnesses); byte-identity GREEN (323/323
+resolve to the original integer); score census GREEN (spine untouched — 9 update
++ 22 render). THE GATE THAT REPLACES PIXEL-ONLY (§5, Jean's ruling): a
+mis-single-sourced binding can render identical on the common path and
+crash/validate-fail off it, so the rig run MUST exercise every group under Dawn
+validation — a SNAPSHOT (photographer + exhibition groups), INDOOR/GALLERY entry
+(indoor_shell + gallery entity/texture), and a spawned GoL ZONE (zone + aura +
+derive) — with zero validation errors; pixel-identity is the secondary check.
+HELD for Jean's gate pass.
+
 ## TERRAIN-2 — SKIRTS (side excursion; weld #2; own rig-gated commit)
 Jean's order: skirt the terrain patch mesh (plain patch edges) to hide
 inter-patch cracks — precision AND LOD/T-junction — with ONE mechanism.
