@@ -1623,8 +1623,18 @@ namespace t7 {
                 queue.WriteBuffer(buf, 0, data, (size_t)sizeof(T) * count);
             }
 
+            // E-3 (mechanized): the eight contiguous sky_* words — the TRAILING
+            // 32 bytes of GPUFrameSignal — have ONE author, resync_sky_head, so
+            // they are NOT part of the whole-signal drain. The drain uploads
+            // everything UP TO the sky block; the sky block's sole per-frame
+            // writer is R7 (the ribbon tick), with a boot-neutral covering the
+            // ribbon-off case. No neutral-then-overwrite relay, no cross-function
+            // submission-order dance: the drain and the sky author write DISJOINT
+            // regions of the buffer.
             void upload_signal(wgpu::Queue& queue, const GPUFrameSignal& signal) {
-                writeStruct(queue, signalBuffer_, signal);
+                static_assert(offsetof(GPUFrameSignal, sky_mode) == 304,
+                    "sky_* must be the trailing 32 bytes for the split (sky-less) signal drain");
+                queue.WriteBuffer(signalBuffer_, 0, &signal, offsetof(GPUFrameSignal, sky_mode));
             }
 
             // Re-write only the sky_* block of the frame signal. Used to re-sync the

@@ -422,6 +422,17 @@ namespace t7 {
                     // (PANEL-0 p1a) — one dial, one writer, at boot.
                     gpuState_.set_point_fly_speed(CameraControls::MOVE_SPEED);
                 }
+
+                // E-3 (mechanized): boot-neutral the sky_* block ONCE. The signal
+                // drain no longer carries these words (upload_signal skips the
+                // trailing 32 bytes), so their sole per-frame author is
+                // resync_sky_head (R7, ribbon on). This one write covers the
+                // ribbon-OFF case: the block stays neutral 0 forever, matching the
+                // old per-frame sky-neutral placeholder exactly. One writer, one
+                // region — the neutral-then-overwrite relay is gone.
+                wgpu::Queue q = device_.GetQueue();
+                gpuState_.resync_sky_head(q, 0u,
+                    0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f);
             }
 
             bool init_renderer(
@@ -591,13 +602,17 @@ namespace t7 {
             //     consumes it NEXT frame (update precedes render within a frame).
             //     A portal step is render N arms -> update N+1 advances; the
             //     one-frame readback lag (E-4) stacks on top.
-            //   LAW E-3 (sky write-order): U2 SkyNeutral writes NEUTRAL sky
-            //     words; U8 StageFadeUpload uploads the whole signal; R7
-            //     RibbonTick's tail (resync_sky_head) OVERWRITES just the sky
-            //     words; R10 DispatchCompute reads them. The kernel sees the
-            //     corrected value BECAUSE queue writes apply in submission order
-            //     across update()->render(). Neutral-in-update makes a lost
-            //     resync fail LOUD (pawn to origin), not silently one frame late.
+            //   E-3 (sky write-order) — MECHANIZED (C7), NO LONGER A LAW. It was
+            //     a three-writer relay: U2 wrote neutral sky words, U8 uploaded
+            //     the whole signal, R7's tail (resync_sky_head) overwrote them,
+            //     and correctness rode submission order across update()->render().
+            //     Now the sky_* words are the TRAILING 32 bytes and upload_signal
+            //     skips them, so resync_sky_head is their SOLE author (R7 per
+            //     frame; a boot-neutral in initialize() covers ribbon-off). The
+            //     drain and the sky author write DISJOINT regions — there is no
+            //     ordering to preserve, so there is no law. Structure replaced the
+            //     paragraph. (E-1 dies with it on the signal side: a setter can no
+            //     longer land in the sky window and be clobbered by the relay.)
             //
             // Gates are ROW COLUMNS: a disabled family's row is skipped at
             // runtime (row.enabled folds from its constexpr ROSTER bit). Runtime
@@ -610,7 +625,7 @@ namespace t7 {
                 const AnalysisSignal& signal;
                 float                 aspect_ratio;
                 wgpu::Queue&          queue;
-                GPUFrameSignal&       gpuSignal;   // U1/U2 fill it; U8 uploads it
+                GPUFrameSignal&       gpuSignal;   // U1 fills it; U8 drains it (sky_* excluded — E-3 mechanized)
             };
             struct RenderCtx {
                 wgpu::CommandEncoder& encoder;
@@ -642,7 +657,7 @@ namespace t7 {
             // (The spine tables are asserted dense + in this order; the O-#/RC
             //  laws are static_asserts over these indices.)
             enum class UPhase : uint32_t {
-                FillSignal, SkyNeutral, AdvanceClock, MotionDrivers, MotionBodies,
+                FillSignal, AdvanceClock, MotionDrivers, MotionBodies,
                 StageWorld, TransitionMachine, StageFadeUpload, WitnessPhotographer,
                 ClearInputDeltas, COUNT
             };
@@ -698,26 +713,12 @@ namespace t7 {
                 gpuSignal.dt_beats = signal.t_beats - time_state_.prev_beats;  // beats since last frame -> step_trigger
             }
 
-            // U2 — SKY WORDS NEUTRAL (SNAP-1 / M5 same-frame coherence). The
-            // pose/frame words here are NEUTRAL placeholders. The authoritative
-            // author is resync_sky_head, ordered AFTER ribbon_frame_tick and
-            // BEFORE dispatch_compute (R7 then R10) — queue writes apply in
-            // submission order, so the kernel always reads THIS frame's advance.
-            // Filling from ribbon_head_pose here would carry the PREVIOUS frame's
-            // pose (the M5 skew); zeros instead make any future loss of the
-            // resync fail LOUD (pawn to origin) rather than silently one frame
-            // late. SEAM[ribbon:sky-mode].
-            void phase_sky_neutral(UpdateCtx& c) {
-                auto& gpuSignal = c.gpuSignal;
-                gpuSignal.sky_mode    = 0u;  // m6: the whole block is neutral now — the ribbon tick's tail resync is the sole author
-                gpuSignal.sky_head_x  = 0.0f;
-                gpuSignal.sky_head_y  = 0.0f;
-                gpuSignal.sky_head_z  = 0.0f;
-                gpuSignal.sky_heading = 0.0f;
-                gpuSignal.sky_yaw_off = 0.0f;
-                gpuSignal.sky_pitch   = 0.0f;
-                gpuSignal.sky_roll    = 0.0f;
-            }
+            // U2 (sky-neutral) REMOVED — E-3 MECHANIZED (C7). The sky block is no
+            // longer part of the signal drain: upload_signal skips the trailing
+            // 32 bytes, so the block's SOLE author is resync_sky_head (R7, the
+            // ribbon tick's tail), with a boot-neutral (initialize) covering the
+            // ribbon-off case. One writer of a disjoint region — no neutral-then-
+            // overwrite relay, no submission-order paragraph across two functions.
 
             // U3 — ADVANCE CLOCK (music+wall-clock). The tempo follower; bumps
             // prev_beats (the O-5a partner of U1's dt_beats read).
@@ -925,7 +926,7 @@ namespace t7 {
             void update(const AnalysisSignal& signal,
                 float aspect_ratio,
                 wgpu::Queue& queue) override {
-                GPUFrameSignal gpuSignal;
+                GPUFrameSignal gpuSignal{};   // sky_* stay zero — upload_signal skips them (E-3); resync_sky_head owns the block
                 UpdateCtx ctx{signal, aspect_ratio, queue, gpuSignal};
                 for (const URow& row : UPDATE_SPINE)
                     if (row.enabled) (this->*row.fn)(ctx);
@@ -1150,9 +1151,10 @@ namespace t7 {
             }
 
             // R7 — RIBBON TICK (music+wall-clock). One call; the conductor lives
-            // in ribbon.inl. Its tail is the SNAP-1 sky resync (the sole author
-            // of the sky words U2 left neutral — recon E-3). SEAM[ribbon:sky-mode].
-            // ROSTER-GATE ribbon — guarded at the call site.
+            // in ribbon.inl. Its tail is the SNAP-1 sky resync — the SOLE author of
+            // the sky_* block (E-3 mechanized C7: the drain skips those 32 bytes,
+            // and initialize() boot-neutrals them for the ribbon-off case).
+            // SEAM[ribbon:sky-mode]. ROSTER-GATE ribbon — guarded at the call site.
             void phase_ribbon_tick(RenderCtx& c) {
                 auto& queue = c.queue;
                 ribbon_frame_tick(ribbon_state_, &ribbon_deps_, queue);
@@ -1399,7 +1401,6 @@ namespace t7 {
             // ═══════════════════════════════════════════════════════════════
             static constexpr URow UPDATE_SPINE[] = {
                 { UPhase::FillSignal,          "fill_signal",           &Cartridge::phase_fill_signal,           Driver::Mixed,     true,             F_SIGNAL|F_CLOCK },
-                { UPhase::SkyNeutral,          "sky_neutral",           &Cartridge::phase_sky_neutral,           Driver::None,      true,             F_SIGNAL },
                 { UPhase::AdvanceClock,        "advance_clock",         &Cartridge::phase_advance_clock,         Driver::Music,     true,             F_CLOCK },
                 { UPhase::MotionDrivers,       "motion_drivers",        &Cartridge::phase_motion_drivers,        Driver::Music,     true,             F_CONFIG },
                 { UPhase::MotionBodies,        "motion_bodies",         &Cartridge::phase_motion_bodies,         Driver::WallClock, ROSTER.pawn_aura, F_NONE },
@@ -1472,7 +1473,9 @@ namespace t7 {
             // cannot be static_asserted inside its own incomplete class.
             // update laws:
             static_assert((uint32_t)UPhase::FillSignal < (uint32_t)UPhase::AdvanceClock,        "O-5a: dt_beats reads prev_beats before the clock advances it");
-            static_assert((uint32_t)UPhase::SkyNeutral < (uint32_t)UPhase::StageFadeUpload,     "E-3: neutral sky words written before the signal upload");
+            // E-3 (sky write-order) is now MECHANIZED, not an ordering assert:
+            // update writes the sky block NOWHERE (upload_signal skips it), so its
+            // sole author is resync_sky_head (R7). Structure replaced the paragraph.
             static_assert((uint32_t)UPhase::ClearInputDeltas + 1 == (uint32_t)UPhase::COUNT,    "O-5e: clear_input_deltas is dead-last");
             // render laws:
             static_assert((uint32_t)RPhase::RibbonTick     < (uint32_t)RPhase::DispatchCompute, "O-1: the sky resync (R7 tail) precedes the compute that reads it");

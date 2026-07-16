@@ -3621,6 +3621,95 @@ is done; the family/mesh-gen half of C5 (a new family = one row feeding mesh-gen
 score-census GREEN; pixel-identical rig pending (Jean's machine — shadows, main,
 and snapshot).
 
+## THE FRAME SPINE — CUT 4: C7, THE DRAIN AS SOLE UPLOADER + THE SKY
+## RELAY TO ONE AUTHOR (E-3 mechanized, E-1 dies on the signal side;
+## glaw1 GREEN; HOLD for the rig — pixel-identical)
+Jean's ruling: staged signal/config writes with ONE drain phase as the sole
+uploader (E-1 dies by construction); the sky relay (E-3) collapses from three
+writers to ONE author; the by-design witness lags (E-4/E-9) STAY declared law,
+not "fixed"; Discipline 2 armed — a setter that genuinely needs a post-drain
+write is a fork to FLAG, not force. This cut closes the recon's edge list.
+
+WHERE E-1 ALREADY STOOD (disclosed, not re-done). The CONFIG half was already
+mechanized (Cable Management C4): config_ is the CPU staging struct, every
+setter writes it + sets configDirty_, and upload_config is the sole whole-struct
+config drain (dirty-gated). The SIGNAL half's post-drain hazard was already
+structurally blocked at CUT 2: the O-5b/c face law (no_staging_after_drain)
+fails the BUILD if any F_SIGNAL/F_CONFIG phase is authored after the drain
+(StageFadeUpload). What REMAINED — the one legitimate post-drain write of the
+signal buffer — was the sky relay. This cut removes exactly that.
+
+WHAT LANDED (the sky relay, mechanized). The eight sky_* words are the TRAILING
+32 bytes of GPUFrameSignal (offsetof(sky_mode)==304, sizeof==336 — static-
+asserted at the split site). The relay was three writers: U2 phase_sky_neutral
+wrote neutral zeros into the per-frame signal, U8's upload_signal drained the
+WHOLE struct (sky words included), then R7's tail (resync_sky_head) OVERWROTE
+the sky words in render — correctness riding queue submission order across
+update()->render(). Now:
+  - upload_signal writes only the first 304 bytes (queue.WriteBuffer(.., 0, ..,
+    offsetof(sky_mode))) — the drain no longer carries the sky block.
+  - phase_sky_neutral is DELETED; UPhase::SkyNeutral is removed from the enum;
+    the SkyNeutral row is removed from UPDATE_SPINE (9 update rows now, was 10);
+    the E-3 ordering static_assert (SkyNeutral < StageFadeUpload) is replaced by
+    a "MECHANIZED, not an ordering assert" note.
+  - resync_sky_head is the SOLE author of the sky block: per-frame at R7 (ribbon
+    on), and a boot-neutral in initialize() (resync_sky_head(q, 0u, 0..0)) covers
+    the ribbon-OFF case. One writer, one disjoint region.
+  - update()'s gpuSignal is value-initialized (GPUFrameSignal{}) so the excluded
+    sky words are provably zero even though the drain never reads them.
+The spine-header LAW E-3 paragraph is rewritten from a preserved write-order law
+to "MECHANIZED — no longer a law" (disjoint regions have no order to preserve).
+
+THE PIXEL ARGUMENT (byte-identical at DispatchCompute). The sky block's contents
+at R10 (the kernel read) are provably unchanged. RIBBON-OFF: old wrote neutral 0
+every frame (U2) and R7 never ran (gated) → block is 0; new writes neutral 0
+ONCE at boot and R7 never runs → block is 0. Identical. RIBBON-ON: old wrote 0
+(U2), drained it, then R7 overwrote with this frame's real pose (submission
+order) → block is the real pose; new leaves boot-0 there, the drain writes the
+DISJOINT first 304 bytes (never touching the block), then R7 writes the same
+real pose → block is the real pose. Identical. The drain and the sky author now
+write NON-OVERLAPPING byte ranges, so their relative order is immaterial — the
+submission-order paragraph that made the old code correct is deleted because the
+structure can no longer be wrong. (WGSL is untouched: the GPU-side struct layout
+is unchanged; only the CPU write is split into two disjoint WriteBuffers.)
+
+E-1 DIES ON THE SIGNAL SIDE. The only post-drain toucher of the signal buffer
+was the sky resync; with the sky block disjoint from the drain, R7 is a sole
+author of its own region, not an overwrite of already-uploaded bytes. A staging
+setter can no longer land in the sky window and be silently clobbered by a
+neutral-then-overwrite relay — there is no relay. Combined with CUT 2's face law
+(no staging phase may follow the drain, enforced at BUILD), the signal-side E-1
+is now closed by construction.
+
+DISCIPLINE 2 — THE FORKS, FLAGGED NOT FORCED. Two config offset-writers refuse
+the staged-drain shape and are kept as genuine forks: upload_pier_count (offset
+124, from write_pier/clear_pier) and upload_placement_patch_count (offset 144,
+from stream_patches). Each is a targeted 4-byte direct write to configBuffer_ at
+its OWN moment — a count that must be visible to a same-frame dispatch AFTER the
+whole-struct drain has run (the "fastest clock"). These are real same-frame
+dependencies, exactly the resister Jean anticipated; they stay direct, offset-
+asserted, and are NOT folded into the dirty-gated drain. The sky resync itself
+(R7) is the third such fork on the signal side — a render-time write that MUST
+follow update's drain — now made safe by disjointness rather than ordering.
+
+GRAPH EDGE REVEALED — the recon's edge list CLOSES. E-3 (the sky write-order
+relay) is dissolved: three writers → one author, an ordering law → a structural
+guarantee. E-1 (setter-after-drain drop) is closed on both halves: config by the
+dirty-gated drain + the two flagged offset-forks, signal by the face law + the
+now-disjoint sky author. The by-design lags E-4 (witness 1-frame stale) and E-9
+(portal spans a frame) STAY declared as spine-header law lines — they are
+correct designs, not defects, and were never in scope to "fix." What the frame's
+write graph now says plainly: the signal buffer has TWO disjoint authoring
+regions (the per-frame drain over the first 304 bytes; the sky block owned solely
+by the ribbon tick, boot-neutral otherwise), and the config buffer has ONE
+dirty-gated drain plus two named same-frame offset-forks. No neutral placeholders,
+no cross-function submission-order dependencies. GATES: glaw1 GREEN (the split's
+offset static_asserts + the queue-lvalue idiom compile on the real TU); score
+census GREEN (phase_sky_neutral retired from FOUNDATIONAL_PHASES; bijection now
+31↔31, 20 foundational — 9 update + 22 render rows). Pixel-identical rig pending
+(Jean's machine — ribbon-on: the possessed pawn snaps onto the flown head exactly
+as before; ribbon-off: nothing observable changed).
+
 ## TERRAIN-2 — SKIRTS (side excursion; weld #2; own rig-gated commit)
 Jean's order: skirt the terrain patch mesh (plain patch edges) to hide
 inter-patch cracks — precision AND LOD/T-junction — with ONE mechanism.

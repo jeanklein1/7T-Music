@@ -90,7 +90,6 @@ SHARED_ROWS = [('phase_promotion_drain', {'gallery', 'indoor_shell'})]
 # ── DIRECTION B: foundational phases — gate MUST be `true`, justified ──
 FOUNDATIONAL_PHASES = {
     'phase_fill_signal':           'the clock+signal fill is unconditional (every frame)',
-    'phase_sky_neutral':           'SNAP-1 neutral placeholders — the sky words always exist',
     'phase_advance_clock':         'the tempo follower is unconditional',
     'phase_motion_drivers':        'the music driver + fog stage — atmosphere foundational (K4)',
     'phase_stage_world':           'world seed + finite bounds — surface foundational (S2)',
