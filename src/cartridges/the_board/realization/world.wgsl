@@ -3656,9 +3656,9 @@ struct PatchTerrainVarying {
     @builtin(position) clip_pos: vec4<f32>,
     @location(0) world_pos: vec3<f32>,
     @location(1) gradients: vec2<f32>,
-    @location(2) complexity: f32,        // local wave interference density [0,1]
-    @location(3) patch_uv: vec2<f32>,    // UV within the patch [0,1] for cell sampling
-    @location(4) @interpolate(flat) layer: u32,  // heightfield/cell array layer
+    // (complexity varying REMOVED — husk sweep: LATENT[complexity], read by no FS)
+    @location(2) patch_uv: vec2<f32>,    // UV within the patch [0,1] for cell sampling
+    @location(3) @interpolate(flat) layer: u32,  // heightfield/cell array layer
 }
 
 // patch_terrain_vs — hand-fused POLICY_TERRAIN_RENDER evaluation.
@@ -3720,7 +3720,7 @@ fn patch_terrain_vs(
     let sample_uv = (uv * (res - 1.0) + 0.5) / res;
 
     // Sample heightfield from this patch's array layer
-    // .x = height, .yz = gradients, .w = complexity
+    // .x = height, .yz = gradients, .w = unused (was complexity — husk sweep)
     let height_data = textureSampleLevel(
         patch_heightfield_array_read, bilinear_sampler,
         sample_uv, i32(pi.layer), 0.0
@@ -3756,10 +3756,8 @@ fn patch_terrain_vs(
     out.clip_pos = render_vp.m * vec4(world_pos, 1.0);
     out.world_pos = world_pos;
     out.gradients = height_data.yz + wave.yz;
-    // STATUS: LATENT[complexity] — baked and shipped per-vertex, read by
-    // no fragment shader today (palette calls hardcode 0.5). A future
-    // coupling target: wave-interference density → material.
-    out.complexity = height_data.w;
+    // (out.complexity REMOVED — husk sweep: the LATENT[complexity] varying;
+    //  the .w channel it read is now unused, no FS ever consumed it.)
     out.patch_uv = uv;
     out.layer = pi.layer;
     return out;
@@ -6935,13 +6933,14 @@ fn generate_terrain_indices(@builtin(global_invocation_id) id: vec3<u32>) {
 // --- Patch heightfield generation (two-pass, uses patchGen bind group layout)
 //
 // Pass 1: generate_patch_heights
-//   Evaluates ground_formed_with_complexity() once per texel, stores both
-//   height and complexity in the scratch buffer (stride 2).
+//   Evaluates ground_formed_with_complexity() once per texel, stores the
+//   height in the scratch buffer. (The stride-2 layout is kept; the +1
+//   complexity slot is no longer written — husk sweep, no reader.)
 //   This is the only expensive call — terrain waves + piers + pyramids.
 //
 // Pass 2: generate_patch_gradients
-//   Reads height from 5 scratch neighbors, reads complexity from 1.
-//   Pure arithmetic: finite-difference gradients + textureStore.
+//   Reads height from 5 scratch neighbors.
+//   Pure arithmetic: finite-difference gradients + textureStore (.w unused).
 //   No terrain evaluation at all.
 //
 // The compute pass boundary between them provides the storage buffer
@@ -6961,8 +6960,8 @@ fn generate_patch_heights(@builtin(global_invocation_id) id: vec3<u32>) {
 
     let hc = ground_formed_with_complexity(world_xz);
     let base = (id.y * res + id.x) * 2u;
-    patch_height_scratch[base]      = hc.x;   // height
-    patch_height_scratch[base + 1u] = hc.y;   // complexity
+    patch_height_scratch[base]      = hc.x;   // height (stride-2 layout kept; the
+    // +1 complexity slot is no longer written — husk sweep, no reader)
 }
 
 // Workgroup shared tile: 20×20 heights (16×16 interior + 2-texel halo for 3-point edge stencil)
@@ -6997,11 +6996,10 @@ fn generate_patch_gradients(
     // ── Bounds check AFTER barrier (all threads must participate in load) ─
     if (id.x >= res || id.y >= res) { return; }
 
-    // ── Read center height from shared, complexity from global (no neighbors) ─
+    // ── Read center height from shared (complexity readback REMOVED — husk sweep) ─
     let cx = lid.x + 2u;
     let cy = lid.y + 2u;
     let height = sh_height[cy * 20u + cx];
-    let complexity = patch_height_scratch[(id.y * res + id.x) * 2u + 1u];
 
     let texel = vec2<i32>(id.xy);
     let layer = i32(patch_params.layer);
@@ -7053,10 +7051,9 @@ fn generate_patch_gradients(
         grad_z = (h_pz - h_mz) / (2.0 * eps);
     }
 
-    // STATUS: LATENT[complexity] — the .w channel is baked here and
-    // carried to the terrain varying, but no consumer reads it today;
-    // a future coupling target (interference density → material).
-    textureStore(patch_heightfield_array_write, texel, layer, vec4(height, grad_x, grad_z, complexity));
+    // The .w channel is unused (was LATENT[complexity], removed by the husk
+    // sweep — no consumer ever read it; palette calls hardcode 0.5).
+    textureStore(patch_heightfield_array_write, texel, layer, vec4(height, grad_x, grad_z, 0.0));
 }
 
 // --- Patch cell color generation (uses patchGen bind group layout)

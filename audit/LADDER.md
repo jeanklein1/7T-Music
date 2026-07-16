@@ -3878,6 +3878,60 @@ referenced pyramidMeshGenLayout_. Re-run full ROSTER + GoL + gallery + snapshot
 under Dawn validation, zero errors; spawn/evict a pyramid (the live commit path
 lost its mesh-gen tail). Pixel-identity secondary. HELD for the gate.
 
+## HUSK SWEEP 3/3 — the complexity texel (WGSL-only channel; the ODD ONE
+## OUT; glaw1 GREEN + pixel-identity PRIMARY here; HOLD for the rig)
+Husk 3, the one that corrects the anchor: complexity is a DATA-CHANNEL husk
+riding LIVE buffers (the patch heightfield texture's .w + the height-scratch
++1 slot), NOT a binding-slot one. It frees NO binding, touches NO registry, no
+array size — a pure WGSL removal. Marker was LATENT[complexity] (baked +
+shipped per-vertex, read by no fragment shader; every palette call hardcodes
+0.5). This is why the gate INVERTS: for the binding husks the crash-aware
+launch was primary; here PIXEL-IDENTITY is primary (a WGSL varying/heightfield
+change), with launch-validation catching the VS→FS interface.
+
+STILL-DEAD RECONFIRMED AT HEAD (grep): no in.complexity read anywhere; the .w
+channel sampled only into the (removed) varying; all five palette call sites
+still pass 0.5. The dead chain: pass-1 stores complexity to scratch +1 →
+pass-2 reads it back → bakes it into the heightfield .w → the patch-terrain VS
+samples .w into out.complexity → no FS reads it.
+
+THE CUT (WGSL-only, C++ untouched, behavior-identical). Removed the whole dead
+data flow: the PatchTerrainVarying.complexity varying (@location(2), renumbered
+patch_uv/layer to 2/3 to keep locations contiguous — the VS out + FS in share
+one struct, so they stay matched); out.complexity = height_data.w in the VS;
+the pass-2 complexity readback; the pass-1 scratch +1 store; and the bake
+becomes vec4(height, grad_x, grad_z, 0.0). KEPT LIVE (the discipline's edge):
+terrain_height_and_complexity + ground_formed_with_complexity (they compute
+HEIGHT — the complexity is a free byproduct the compiler now DCEs), and the
+palette_color_smooth / palette_color / palette_target_color complexity PARAMETER
+(a live knob, hardcoded 0.5 today, a future coupling point). The height scratch
+stays STRIDE-2 (byte-identical height layout → the +1 slot simply goes
+unwritten): no C++ buffer resize, so genuinely WGSL-only.
+
+WHY BEHAVIOR-IDENTICAL: the .w channel and the complexity varying were read by
+nothing live (palette hardcodes 0.5), and the height plumbing (scratch base
+slots, pass-2 gradients, the .x/.yz heightfield channels) is byte-for-byte
+unchanged. The terrain renders the same pixels; only a dead interpolant + a
+dead texture channel are gone.
+
+GRAPH EDGE REVEALED — a data channel, not a binding, retired. This husk did NOT
+ride the registry (frees no binding) — it corrects RENDER_UPDATE_API §6's
+"TerrainState + complexity could ride the registry": TerrainState (husk 1) was
+a true binding re-index the registry de-risked; complexity is a parallel WGSL
+channel cleanup that needed no registry at all. The heightfield .w is now free
+for a future coupling (the LATENT note's "interference density → material") —
+but as a clean unused channel, not a shipped-and-ignored one.
+
+GATES: glaw1 GREEN (C++ untouched — WGSL-only); score census GREEN; encodings
+clean LF, no CR. THE RIG GATE (inverted from the binding husks): PIXEL-IDENTITY
+is primary — the terrain must render byte-identical (the removed varying + .w
+were dead) — with the launch validating the changed patch-terrain VS→FS varying
+interface (locations 0,1,2,3 matched on both sides) at pipeline creation. The
+WGSL is BLIND (glaw1 does not compile it); the rig is the proof. HELD for the
+gate. THE SWEEP CLOSES: three husks (TerrainState, PMG, complexity), the recon's
+§6 parked baskets, all discharged — two binding re-indexes the registry enabled,
+one WGSL channel cleanup beside it.
+
 ## TERRAIN-2 — SKIRTS (side excursion; weld #2; own rig-gated commit)
 Jean's order: skirt the terrain patch mesh (plain patch edges) to hide
 inter-patch cracks — precision AND LOD/T-junction — with ONE mechanism.
