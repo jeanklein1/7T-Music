@@ -75,13 +75,43 @@ inline constexpr float CENSUS_DUMP_INTERVAL = 30.0f;
 // ─── Property Index Registry ────────────────────────────────────
 
 // ── Proximity affinity ─────────────────────────────────────────────
+//
+// WHAT: the clustering system — five tables, one mechanism. When a
+//   family with a non-zero AFFINITY row is being placed, nearby
+//   attractor footprints (a) MULTIPLY its spawn chance (boost) and
+//   (b) SHRINK its required separation gap (gap reduction).
+// AXES: the four vectors are indexed by the PLACING family; the matrix
+//   is PROXIMITY_AFFINITY[placing][existing-neighbor] — e.g.
+//   [Palm][Palm]=0.65 means a palm being placed is strongly attracted
+//   to standing palms; [Palm][Cactus]=0.3 a milder pull.
+// UNITS: RADIUS = wu (neighbor-scan distance around the candidate);
+//   MAX_BOOST = multiplier ceiling on the spawn-chance boost;
+//   THRESHOLD = count (minimum qualifying neighbors before any boost);
+//   GAP_REDUCTION = fraction 0-1 of MIN_SEPARATION removed, scaled by
+//   the pair's affinity; AFFINITY = dimensionless weight 0-1, summed
+//   over neighbors into boost = min(1 + Σaff, MAX_BOOST).
+// ORDER: every axis follows PopFamily order (PYRAMID=0 … GALLERY=11).
+//   No compile-time pin — the header row below is the contract.
+// CONSUMERS: proximity_affinity_boost() below (RADIUS/MAX_BOOST/
+//   THRESHOLD/AFFINITY → the adj_mod spawn multiplier);
+//   check_position() (AFFINITY × GAP_REDUCTION → the effective gap);
+//   proximity_row_active() (constexpr row precheck).
+// SENTINELS: RADIUS 0 = family never scans (boost hard-disabled);
+//   MAX_BOOST 1.0 = no boost possible; THRESHOLD 0 = no minimum;
+//   GAP_REDUCTION 0 = gap never shrinks; an all-zero AFFINITY row
+//   short-circuits the whole mechanism for that family.
+// Spawn + placement determinant — frozen biography (§12): these numbers
+// shape both the rate and the geometry of every cluster ever born.
+// Only COLUMN and the flora trio (PALM/CACTUS/BLADE) cluster today.
 
 //                              Pyr    Arch   Col    Ant    Palm   Cact   Blad   Sph    Ribn   Cube   GoL    Gall
-inline constexpr float    PROXIMITY_RADIUS[PopFamily::COUNT] = { 0.0f,  0.0f, 60.0f,  0.0f,150.0f,120.0f,120.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f };
-inline constexpr float    PROXIMITY_MAX_BOOST[PopFamily::COUNT] = { 1.0f,  1.0f,  2.0f,  1.0f,  3.0f,  3.0f,  3.0f,  1.0f,  1.0f,  1.0f,  1.0f,  1.0f };
-inline constexpr uint32_t PROXIMITY_THRESHOLD[PopFamily::COUNT] = { 0,     0,     2,     0,     1,     1,     1,     0,     0,     0,     0,     0 };
-inline constexpr float    PROXIMITY_GAP_REDUCTION[PopFamily::COUNT] = { 0.0f, 0.0f, 0.3f, 0.0f, 0.6f, 0.6f, 0.6f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
+inline constexpr float    PROXIMITY_RADIUS[PopFamily::COUNT] = { 0.0f,  0.0f, 60.0f,  0.0f,150.0f,120.0f,120.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f };   // wu; 0 = never scans
+inline constexpr float    PROXIMITY_MAX_BOOST[PopFamily::COUNT] = { 1.0f,  1.0f,  2.0f,  1.0f,  3.0f,  3.0f,  3.0f,  1.0f,  1.0f,  1.0f,  1.0f,  1.0f };   // ×ceiling; 1 = no boost
+inline constexpr uint32_t PROXIMITY_THRESHOLD[PopFamily::COUNT] = { 0,     0,     2,     0,     1,     1,     1,     0,     0,     0,     0,     0 };   // min neighbors; 0 = none
+inline constexpr float    PROXIMITY_GAP_REDUCTION[PopFamily::COUNT] = { 0.0f, 0.0f, 0.3f, 0.0f, 0.6f, 0.6f, 0.6f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };   // fraction of MIN_SEPARATION; 0 = keep full gap
 
+// AFFINITY[placing][existing]: rows follow PopFamily; only Col + the
+// flora trio have non-zero rows (all others never cluster).
 inline constexpr float PROXIMITY_AFFINITY[PopFamily::COUNT][PopFamily::COUNT] = {
     //           near: Pyr   Arch  Col   Ant   Palm  Cact  Blad  Sph   Ribn  Cube  GoL   Gall
     /* Pyr   */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },

@@ -63,7 +63,7 @@ inline constexpr float ARCH_SANDSTONE_VARIANCE = 0.04f;
 struct ArchConfig {
     static constexpr float SPAWN_CHANCE = 0.030f;
     // Per-mood spawn multiplier (Bayesian: prior × mood_factor × adjacency_factor)
-    static constexpr float MOOD_MULTIPLIER[MOOD_COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f };
+    static constexpr float MOOD_MULTIPLIER[MOOD_COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f };  // per-mood spawn ×: open sunset ind_flat ind_vault finite fin_ref (mood_constants order)
     // Position jitter within patch (fraction of PATCH_EXTENT)
     static constexpr float POSITION_JITTER = 0.35f;
 };
@@ -154,7 +154,7 @@ inline constexpr float COLUMN_SANDSTONE_VARIANCE = 0.04f;
 // ── Spawn Configuration ──────────────────────────────────────────
 struct ColumnConfig {
     static constexpr float SPAWN_CHANCE = 0.030f;
-    static constexpr float MOOD_MULTIPLIER[MOOD_COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f };
+    static constexpr float MOOD_MULTIPLIER[MOOD_COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f };  // per-mood spawn ×: open sunset ind_flat ind_vault finite fin_ref (mood_constants order)
     static constexpr float POSITION_JITTER = 0.35f;
 };
 
@@ -196,7 +196,7 @@ inline constexpr uint32_t ANTENNA_TIER_COUNT = static_cast<uint32_t>(AntennaTier
 // ── Spawn Configuration ──────────────────────────────────────────
 struct AntennaConfig {
     static constexpr float SPAWN_CHANCE = 0.025f;
-    static constexpr float MOOD_MULTIPLIER[MOOD_COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f };
+    static constexpr float MOOD_MULTIPLIER[MOOD_COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f };  // per-mood spawn ×: open sunset ind_flat ind_vault finite fin_ref (mood_constants order)
     static constexpr float POSITION_JITTER = 0.35f;
 };
 
@@ -271,7 +271,7 @@ inline constexpr float PALM_AGED_BASE[3] = { 0.35f, 0.38f, 0.18f };
 // ── Spawn Configuration ──────────────────────────────────────────
 struct PalmConfig {
     static constexpr float SPAWN_CHANCE = 0.200f;
-    static constexpr float MOOD_MULTIPLIER[MOOD_COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f };
+    static constexpr float MOOD_MULTIPLIER[MOOD_COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f };  // per-mood spawn ×: open sunset ind_flat ind_vault finite fin_ref (mood_constants order)
     static constexpr float POSITION_JITTER = 0.45f;
 };
 
@@ -329,7 +329,7 @@ inline constexpr float CACTUS_RIB_BASE[3] = { 0.35f, 0.55f, 0.30f };
 // ── Spawn Configuration ──────────────────────────────────────────
 struct CactusConfig {
     static constexpr float SPAWN_CHANCE = 0.100f;
-    static constexpr float MOOD_MULTIPLIER[MOOD_COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f };
+    static constexpr float MOOD_MULTIPLIER[MOOD_COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f };  // per-mood spawn ×: open sunset ind_flat ind_vault finite fin_ref (mood_constants order)
     static constexpr float POSITION_JITTER = 0.35f;
 };
 
@@ -384,7 +384,7 @@ inline constexpr float BLADE_AGED_BASE[3] = { 0.48f, 0.45f, 0.28f };
 // ── Spawn Configuration ──────────────────────────────────────────
 struct BladeClusterConfig {
     static constexpr float SPAWN_CHANCE = 0.025f;
-    static constexpr float MOOD_MULTIPLIER[MOOD_COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f };
+    static constexpr float MOOD_MULTIPLIER[MOOD_COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f };  // per-mood spawn ×: open sunset ind_flat ind_vault finite fin_ref (mood_constants order)
     static constexpr float POSITION_JITTER = 0.30f;
 };
 
@@ -438,7 +438,7 @@ inline constexpr float PYRAMID_SANDSTONE_VARIANCE = 0.05f;
 // ── Spawn Configuration ──────────────────────────────────────────
 struct PyramidConfig {
     static constexpr float SPAWN_CHANCE = 0.030f;
-    static constexpr float MOOD_MULTIPLIER[MOOD_COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f };
+    static constexpr float MOOD_MULTIPLIER[MOOD_COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f };  // per-mood spawn ×: open sunset ind_flat ind_vault finite fin_ref (mood_constants order)
     static constexpr float POSITION_JITTER = 0.25f;
 };
 
@@ -911,6 +911,17 @@ struct BladeTierRow {
     uint32_t    blade_segs;
 };
 
+// ── Blade tier table ───────────────────────────────────────────────
+// Row = BladeClusterTier order (0 SPROUT / 1 CLUMP / 2 THICKET); each
+// row = { weight, color_var, { 8 {μ,σ} pairs in BladeIdx order, wrapped:
+//   line 1: BLADE_COUNT  BLADE_H  BLADE_H_VAR  BLADE_W
+//   line 2: SPLAY  CURVE  TWIST  TAPER } }, color_over, blade_segs.
+// UNITS: BLADE_COUNT = count (do_round); heights/width = wu;
+//   SPLAY/CURVE/TWIST = radians; TAPER = multiplier; weight =
+//   tier-selection weight; color_over = probability; blade_segs =
+//   mesh segments per blade.
+// CONSUMERS: blade_get_tier_profile (generic sampling); blade_segs at
+//   blade write_active. Biography determinant — frozen biography (§12).
 inline constexpr BladeTierRow BLADE_TIERS[] = {
     /* SPROUT  */ {
         { 0.50f, 0.06f, { {3.0f, 0.5f}, {1.8f, 0.4f}, {0.35f, 0.08f}, {0.30f, 0.06f},
@@ -1111,6 +1122,22 @@ struct PalmTierRow {
     uint32_t    frond_segs;
 };
 
+// ── Palm tier table ────────────────────────────────────────────────
+// Row = PalmTier order (0 SAPLING / 1 COASTAL / 2 ROYAL); each row =
+// { weight, color_var, { 16 {μ,σ} pairs in PalmIdx order, wrapped:
+//   line 1: HEIGHT  BASE_R  TOP_R  LEAN  LEAN_DIR
+//   line 2: BARK_RINGS  BARK_DEPTH  FROND_COUNT  FROND_LEN  FROND_WIDTH
+//   line 3: FROND_DROOP  FROND_ARCH  CROWN_SPREAD  CROWN_SKIRT  SOLID_PAD
+//   line 4: EDGE_BLEND } },
+//   then: color_over, burial, trunk_var, frond_var, trunk_segs, frond_segs.
+// UNITS: lengths = wu; LEAN/FROND_DROOP/FROND_ARCH = radians;
+//   BARK_RINGS/FROND_COUNT = counts (do_round); LEAN_DIR row is a {0,0}
+//   PLACEHOLDER — it samples ParamDist::UNIFORM_TAU, ignoring μ/σ;
+//   weight = tier-selection weight; burial = fraction sunk;
+//   trunk/frond_var = color variance; segs = mesh tessellation.
+// CONSUMERS: palm_get_tier_profile (generic sampling); burial at
+//   palm solid-half; trunk/frond_var at palm_compute_colors; segs at
+//   palm write_active. Biography determinant — frozen biography (§12).
 inline constexpr PalmTierRow PALM_TIERS[] = {
     /* SAPLING */ {
         { 0.50f, 0.0f, { {8.0f, 2.0f},  {0.25f, 0.05f}, {0.12f, 0.02f}, {0.15f, 0.05f}, {0.0f, 0.0f},
@@ -1325,6 +1352,20 @@ struct CactusTierRow {
     uint32_t    arm_segs;
 };
 
+// ── Cactus tier table ──────────────────────────────────────────────
+// Row = CactusTier order (0 FINGER / 1 SAGUARO / 2 CANDELABRA); each
+// row = { weight, color_var, { 13 {μ,σ} pairs in CactusIdx order, wrapped:
+//   line 1: HEIGHT  RADIUS  TAPER  RIBS  RIB_DEPTH
+//   line 2: LEAN  LEAN_DIR  CAP_ROUND  ARM_COUNT
+//   line 3: ARM_HEIGHT  ARM_LENGTH  ARM_RADIUS  ARM_CURVE } },
+//   then: color_over, trunk_segs, arm_segs.
+// UNITS: lengths = wu; TAPER/CAP_ROUND = multipliers; RIBS/ARM_COUNT =
+//   counts (do_round); LEAN/ARM_CURVE = radians; LEAN_DIR row is a
+//   {0,0} PLACEHOLDER (ParamDist::UNIFORM_TAU ignores μ/σ); weight =
+//   tier-selection weight; color_over = probability; segs = mesh
+//   tessellation.
+// CONSUMERS: cactus_get_tier_profile (generic sampling); segs at
+//   cactus write_active. Biography determinant — frozen biography (§12).
 inline constexpr CactusTierRow CACTUS_TIERS[] = {
     /* FINGER     */ {
         { 0.50f, 0.04f, { {3.0f, 1.0f},   {0.15f, 0.03f}, {0.85f, 0.05f}, {8.0f, 1.0f},   {0.04f, 0.01f},

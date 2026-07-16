@@ -723,7 +723,7 @@ struct AgentState {
 // Schema reminder — fields below match GPUAgentBehaviorDef and
 // GPUAgentTierDef in state.hpp, and AgentBehaviorDef / AgentTierDef
 // in modules/agents.inl. Field-by-field translation lives in
-// upload_agent_registries_to_gpu in agents.inl.
+// upload_agent_registries_to_gpu in bodies/agents.hpp.
 //
 //   AgentBehaviorParams columns:
 //     step_rate       — steps/beat (musical time)
@@ -1695,9 +1695,9 @@ const GOL_TIERS = array<GoLTierParams, 7>(
 // Pulse zones: periodic breathing of cell color/height, no neighbor rules.
 // Each cell oscillates between terrain base and a displaced target.
 // CPU selects tier and uploads parameters via GoLZoneConfig; these
-// definitions have a live CPU twin in gol_zones.inl (GOL_TIERS /
-// PULSE_TIERS) — the GPU renders from these, the CPU seeds/ticks from
-// the twin, so both are authoritative and a tuner must edit both.
+// definitions have a live CPU twin in bodies/gol_zones.hpp (GOL_TIERS
+// / PULSE_TIERS) — the GPU renders from these, the CPU seeds/ticks
+// from the twin, so both are authoritative and a tuner must edit both.
 //
 // Algorithm and boundary mode constants (shared CPU ↔ GPU):
 //   GOL_ALGORITHM_CONWAY = 0   GOL_ALGORITHM_PULSE = 1
@@ -5436,7 +5436,18 @@ const ZONE_DERIVE_CELL_SIZE: f32      = 3.125;     // PATCH_EXTENT / PATCH_CELL_
 const ZONE_DERIVE_LENS_LO: f32       = 0.2;       // LENS target color floor
 const ZONE_DERIVE_LENS_RANGE: f32     = 0.6;       // LENS target color range
 
-// Color mode weights: [neutral, lens, blackish]
+// ── Zone color-mode weight vectors ──────────────────────────────
+// WHAT: cumulative-weight distributions for a zone's color mode.
+// AXES: index = GoLColorMode order [0 neutral, 1 lens, 2 blackish]
+//   (must match CPU GoLColorMode, bodies/gol_zones.hpp). Which vector
+//   applies is chosen by the zone's actual_height flag: HEIGHT for
+//   extruding zones, NO_HEIGHT for flat ones.
+// UNITS: probability (each row sums to 1.0).
+// CONSUMER: zone_derive_params (the cumulative color-mode pick).
+// SENTINEL: NO_HEIGHT[neutral] = 0.00 — a flat zone can never be
+//   neutral (always lens or blackish, so flatness stays legible).
+// Biography-adjacent: the pick is seed-deterministic per zone.
+//                                              neutral  lens  blackish
 const GOL_COLOR_WEIGHTS_HEIGHT    = array<f32, 3>(0.30, 0.40, 0.30);
 const GOL_COLOR_WEIGHTS_NO_HEIGHT = array<f32, 3>(0.00, 0.55, 0.45);
 

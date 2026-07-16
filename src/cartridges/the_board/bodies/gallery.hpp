@@ -163,8 +163,10 @@ struct PhotographerCaptureConfig {
 };
 
 struct GalleryConfig {
+    // Spawn probability per terrain archetype id — galleries favor calm
+    // ground:                                     mountain varied basin  pool
     static constexpr float GALLERY_CHANCE_BY_ARCHETYPE[4] = { 0.03f, 0.06f, 0.30f, 0.40f };
-    static constexpr float MOOD_MULTIPLIER[MOOD_COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f };
+    static constexpr float MOOD_MULTIPLIER[MOOD_COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f };  // per-mood spawn ×: open sunset ind_flat ind_vault finite fin_ref (mood_constants order)
 
     // Painting count per gallery: gaussian, median 5, σ 2
     // Max varies by archetype — basin gets the largest galleries

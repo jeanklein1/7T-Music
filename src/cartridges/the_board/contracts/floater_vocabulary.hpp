@@ -59,7 +59,7 @@ inline constexpr float SPAWN_PROTECTION_S = 0.10f;
 // ── Spawn Configuration ──────────────────────────────────────────
 struct SphereConfig {
     static constexpr float SPAWN_CHANCE = 0.015f;
-    static constexpr float MOOD_MULTIPLIER[MOOD_COUNT] = { 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f };
+    static constexpr float MOOD_MULTIPLIER[MOOD_COUNT] = { 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f };  // per-mood spawn ×: open sunset ind_flat ind_vault finite fin_ref (mood_constants order)
     static constexpr float POSITION_JITTER = 0.4f;
 };
 
@@ -107,7 +107,7 @@ inline constexpr const char* CUBE_TIER_NAMES[] = { "SmallCube", "MedCube", "Larg
 // ── Spawn Configuration ──────────────────────────────────────────
 struct CubeConfig {
     static constexpr float SPAWN_CHANCE = 0.60f;
-    static constexpr float MOOD_MULTIPLIER[MOOD_COUNT] = { 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f };
+    static constexpr float MOOD_MULTIPLIER[MOOD_COUNT] = { 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f };  // per-mood spawn ×: open sunset ind_flat ind_vault finite fin_ref (mood_constants order)
     static constexpr float POSITION_JITTER = 0.4f;
 };
 

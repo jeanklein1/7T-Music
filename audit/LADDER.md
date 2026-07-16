@@ -4666,6 +4666,58 @@ zero dangling the_chord / INCUBATOR_RENDER / INCUBATOR_BACKUP
 references outside historical audit prose.
 
 ════════════════════════════════════════════════════════════════════
+THE TABLE ANNOTATION PASS (comment-only; one commit; the readability
+act — every numeric table readable without its consumer in hand)
+════════════════════════════════════════════════════════════════════
+
+THE CENSUS (coverage is the deliverable; A=annotated this pass,
+V=verified already-good, skipped):
+C++ — MIN_SEPARATION[12×12] A · PROXIMITY_RADIUS/MAX_BOOST/THRESHOLD/
+GAP_REDUCTION[12]×4 A · PROXIMITY_AFFINITY[12×12] A · ARCH_TIERS A ·
+COLUMN/ANTENNA/PYRAMID_TIERS A · COLUMN/ANTENNA/PYRAMID/ARCH_PARAM_DEFS
+V (enum-named rows; ANTENNA gained its header row A) · BLADE/PALM/
+CACTUS_TIERS A (+ the LEAN_DIR {0,0} UNIFORM_TAU placeholder named) ·
+BLADE/PALM/CACTUS_PARAM_DEFS + COLOR_PARTS V · SPHERE_PARAM_DEFS/TIERS
+V · CUBE_PARAM_DEFS V · CUBE_TIERS A · CUBE_TIER_GAINS/POPULATIONS V
+(the asserted exemplar) · THEMES[5] A (row-0 legend rule stated; patch-
+count units; PopFamily pin) · TilePopulation.spatial_density A ·
+MOOD_TABLE[6] V (full column header) · FAMILY_DISPATCH[12] A (verb-
+column key + positional-order statement) · UPDATE/RENDER_SPINE V
+(named + boot-validated) · DRAWABLES V (named) · demo GRID V (already
+reads well) · AGENT_BEHAVIORS/TIER_GAINS/POPULATIONS V · GOL_TIERS/
+PULSE_TIERS (C++) V · ORB_MOOD_TABLE + gesture/palette tables V ·
+SHOT_PARAMS/PAINTING_AREA V · GALLERY_CHANCE_BY_ARCHETYPE A ·
+RibbonColorMode::WEIGHTS + RIBBON_BASE_TIER_WEIGHTS A · RIBBON_TIERS/
+SMOOTH_PALETTE V · MOOD_MULTIPLIER ×12 sites A (one mood-axis line
+each) · ARCH/COLUMN palettes V · PALM_INDOOR_RESCALE_PARAMS V ·
+FLOATER_COORDINATION_STEPS V (trivial diagnostic).
+WGSL — TERRAIN_BANDS/WAVE_THRESHOLD V · PALETTE_CENTER/LIGHT/VARIANCE/
+WEIGHT V · ARCHETYPE_MODE_CHARACTER V (inert: MODE_COUPLING_MAGNITUDE
+= 0) · GOL_TIERS/PULSE_TIERS (GPU) V · OVERLAY_WAVES V ·
+GOL_COLOR_WEIGHTS_HEIGHT/NO_HEIGHT A (the least-annotated pair gained
+the full header + the NO_HEIGHT[neutral]=0 sentinel) · GROUND_ATLAS
+offsets V (the documented-hole exemplar) · stale twin-pointers FIXED:
+"gol_zones.inl"/"agents.inl" → bodies/*.hpp.
+
+GATES: strip-diff GREEN (every changed file code-identical after
+comment strip — the mechanical zero-code-change proof; 12 files) ·
+glaw1 GREEN · census GREEN · world.wgsl comment-only → compile-
+identical (no rig needed).
+
+FLAGGED, NOT ADDED (static_assert candidates — enum-order lockstep a
+compiler could pin; one-line follow-up each):
+  F-1 the 8 PopFamily-ordered spawn tables (MIN_SEPARATION, 4 proximity
+      vectors, PROXIMITY_AFFINITY, THEMES.spawn_weight, spatial_density)
+      — no compile-time pin anywhere; convention is load-bearing.
+  F-2 FAMILY_DISPATCH row ↔ PopFamily (assert rows[i].name matches).
+  F-3 MOOD_TABLE row index ↔ MOOD_* ids (CUBE_POPULATIONS already
+      models the pattern with 6 asserts).
+  F-4 per-family PARAM_DEFS count ↔ *Idx::COUNT (all 8 families).
+  F-5 the antenna GPU tier-slot offset (+COLUMN_TIER_COUNT lockstep).
+  F-6 GOL_TIERS/PULSE_TIERS C++↔WGSL twins — cross-language, no assert
+      possible; the hand-edit-both contract is now stated on both sides.
+
+════════════════════════════════════════════════════════════════════
 THE PARKED LEDGER (standing section — the ONE place open flags live.
 Future sweeps read THIS, not the tree. Consolidated at residue-sweep
 T0. Discipline: when a flag lands or dies, strike it HERE in the same

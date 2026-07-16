@@ -1606,7 +1606,15 @@ inline void dispatch_mesh_gen_none(MachineCtx* self, wgpu::ComputePassEncoder& p
 }
 
 // ─── The table ─────────────────────────────────────────────────────
-
+// AXES: one row per family, POSITIONAL in PopFamily order (PYRAMID=0,
+//   ARCH, COLUMN, ANTENNA, PALM, CACTUS, BLADE, SPHERE, RIBBON, CUBE,
+//   GOL, GALLERY=11) — no compile-time pin; the trailing name string
+//   is each row's label. Row columns (FamilyDispatch, entity_types.hpp):
+//     { try_select, try_place, try_commit, evict_slot,
+//       prepare_mesh, dispatch_mesh, name }
+// CONSUMERS: the machine tail walks select/place/commit per queue
+//   entry; eviction routes through evict_slot; the mesh pair feeds the
+//   RENDER_UPDATE mesh phases (none-fork = family has no mesh).
 inline const FamilyDispatch FAMILY_DISPATCH[PopFamily::COUNT] = {
     { dispatch_select_pyramid_generic, dispatch_place_pyramid_generic, dispatch_commit_pyramid_generic,
       evict_pyramid, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,   // mesh hook → none-fork (C2): pyramid mesh dead-by-design; placement feeds the heightfield

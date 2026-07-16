@@ -475,6 +475,18 @@ struct CubeTierRow {
     float       spin_tilt_sigma;
 };
 
+// ── Cube tier table ────────────────────────────────────────────────
+// Row = cube tier index (0 SmallCube / 1 MedCube / 2 LargeCube /
+// 3 Monolith — plain index, no enum class; CUBE_TIER_COUNT pinned in
+// floater_vocabulary.hpp). Each row = { weight, color_var, { 9 {μ,σ}
+// pairs in CubeIdx order:
+//   BODY_RADIUS ORBIT_HEIGHT INFLUENCE_RADIUS SPIN_SPEED BOB_AMPLITUDE
+//   BOB_PERIOD ASPECT_Y ASPECT_Z FACE_VARIANCE } }, spin_tilt_sigma.
+// UNITS: radii/height/amplitude = wu; SPIN_SPEED = rad/s; BOB_PERIOD =
+//   s; ASPECT_Y/Z / FACE_VARIANCE = multipliers; spin_tilt_sigma =
+//   radians. CONSUMERS: cube_get_tier_profile (generic sampling);
+//   spin_tilt_sigma at cube write_gpu.
+// Biography determinant — frozen biography (§12).
 inline constexpr CubeTierRow CUBE_TIERS[CUBE_TIER_COUNT] = {
     /* 0: SmallCube */ {
         { 0.40f, 0.0f, { {1.8f, 0.5f}, {25.0f, 20.0f}, {6.0f, 1.5f},  {0.04f, 0.015f},

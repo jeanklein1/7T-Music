@@ -65,9 +65,24 @@ inline constexpr float GLOBAL_ENTITY_DENSITY = 1.0f;
 
 // ── Minimum Separation Matrix ─────────────────────────────────────
 //
-// Read as: row = entity being placed, column = existing entity.
-// The check is asymmetric: placing an arch near a pyramid may have a
-// different minimum than placing a pyramid near an arch.
+// WHAT: the extra edge-to-edge gap a candidate placement must keep from
+//   every registered footprint, per ordered family pair.
+// AXES: MIN_SEPARATION[placing][existing] — row = family being PLACED,
+//   column = the EXISTING footprint's family. ASYMMETRIC: [Antenna][Arch]
+//   = 60 (an antenna being placed keeps 60 wu from a standing arch) but
+//   [Arch][Antenna] = 8 (an arch being placed tolerates 8 wu to a
+//   standing antenna).
+// UNITS: world-units, ADDITIVE — the consumer sums the two footprint
+//   radii first, then adds this gap on top (and may shrink it by
+//   PROXIMITY_GAP_REDUCTION × affinity for clustering families).
+// ORDER: rows and columns both follow PopFamily order (PYRAMID=0 …
+//   GALLERY=11). No compile-time pin — the order is load-bearing
+//   convention; the labels below are the contract's only statement.
+// CONSUMER: check_position(), machine/spawn_engine.hpp (sole reader).
+// SENTINEL: 0.0 = no gap constraint for that pair (only the radii sum
+//   applies; the consumer skips the gap term entirely).
+// Placement determinant — frozen biography (§12): changing a number
+// changes which candidate positions survive, i.e. changes worlds.
 inline constexpr float MIN_SEPARATION[PopFamily::COUNT][PopFamily::COUNT] = {
     //                near:  Pyr    Arch   Col    Ant    Palm   Cact   Blad   Sph    Ribn   Cube   GoL    Gall
     /* placing Pyramid  */ { 65.0f, 60.0f,  5.0f, 55.0f,  5.0f,  5.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f },
@@ -111,7 +126,27 @@ struct ArchTierRow {
     uint32_t    segs_v;
 };
 
+// ── Arch tier table ────────────────────────────────────────────────
+// WHAT: per-tier arch recipe — tier-selection weight + the Gaussian
+//   {mean, sigma} of each geometry parameter + mesh tessellation.
+// AXES: row = arch tier, in enum class ArchTier order
+//   (0 DOORWAY / 1 STANDARD / 2 MONUMENTAL); inner params[] column =
+//   ArchIdx order (the MUST-match note above).
+// UNITS: weight = relative tier-selection weight (normalized over rows
+//   by select_tier); {μ,σ} = world-units for SPAN/RISE/DEPTH/THICKNESS/
+//   PIER_HEIGHT, dimensionless ratio for PIER_PADDING/EDGE_BLEND;
+//   burial = fraction of pier_height sunk below ground; segs_u/v =
+//   mesh tessellation counts.
+// CONSUMERS: entity_pipeline.hpp (arch_tier_profile, burial, segs into
+//   mesh params); entities.hpp force-spawn portal (DOORWAY row);
+//   mood.hpp portal/doorway geometry (DOORWAY row).
+// SENTINELS: color_var 0 = fall back to ColorPartDef.variance;
+//   color_override 0 = no override.
+// Biography determinant — frozen biography (§12): weight feeds
+// select_tier(gate.seed), {μ,σ} feed cpu_sample_gaussian(gate.seed);
+// changing a number changes every arch ever born.
 inline constexpr ArchTierRow ARCH_TIERS[] = {
+    //   {  weight, color_var, { {μ,σ}: SPAN      RISE        DEPTH       THICKNESS     PIER_HEIGHT  PIER_PAD     EDGE_BLEND } },  col_ovr  burial  segs_u  segs_v
     /* DOORWAY    */ {
         { 0.50f, 0.0f, { {12.0f, 2.4f}, {12.0f, 2.4f}, {4.5f, 0.9f}, {1.2f, 0.18f}, {1.5f, 0.9f}, {0.9f, 0.3f}, {0.9f, 0.15f} }},
         0.15f, 0.20f, 16, 4

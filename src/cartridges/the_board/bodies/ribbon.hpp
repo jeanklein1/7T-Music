@@ -90,7 +90,7 @@ struct RibbonConfig {
     //   [indoor_flat=0], [indoor_vault=0], [finite_outdoor=1],
     //   [finite_outdoor_ref=0] }. Same family as gol_zones:P4
     //   and floaters:P4.
-    static constexpr float MOOD_MULTIPLIER[MOOD_COUNT] = { 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f };
+    static constexpr float MOOD_MULTIPLIER[MOOD_COUNT] = { 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f };  // per-mood spawn ×: open sunset ind_flat ind_vault finite fin_ref (mood_constants order)
     static constexpr float POSITION_JITTER = 0.3f;
 };
 
@@ -152,6 +152,7 @@ struct RibbonColorMode {
     static constexpr uint32_t TINTED = 1;  // warm/cool hue shift
     static constexpr uint32_t CONTRAST = 2;  // cell skin: per-cell coloring — pair-contrast species (two medians, parity) or median-field species (one median, terrain-patch texture); see fill
     static constexpr uint32_t COUNT = 3;
+    //                                     SMOOTH TINTED CONTRAST (selection probabilities, sum 1.0)
     static constexpr float WEIGHTS[COUNT] = { 0.40f, 0.35f, 0.25f };
 };
 
@@ -269,6 +270,7 @@ struct RibbonProp {
 // ═══ TIER PROFILE + MATRIX ═══════════════════════════════════════
 
 inline constexpr uint32_t RIBBON_TIER_COUNT = 3;
+//                                        Serpentine  Helix  Streamer (RIBBON_TIERS row order; theme tier_wt_ribbon multiplies these)
 inline constexpr float RIBBON_BASE_TIER_WEIGHTS[RIBBON_TIER_COUNT] = {
     0.45f, 0.30f, 0.25f
 };

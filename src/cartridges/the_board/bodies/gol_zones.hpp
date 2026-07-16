@@ -120,7 +120,7 @@ struct GoLZoneSpawnConfig {
     //   intentionally suppresses them. Same family as
     //   floaters:P4 (cube populations). Defensive declaration.
     // Mood gate (suppressed in flat/vault/finR — same as spheres/cubes)
-    static constexpr float MOOD_MULTIPLIER[MOOD_COUNT] = { 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f };
+    static constexpr float MOOD_MULTIPLIER[MOOD_COUNT] = { 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f };  // per-mood spawn ×: open sunset ind_flat ind_vault finite fin_ref (mood_constants order)
 };
 
 // ── Color Modes ──────────────────────────────────────────────────

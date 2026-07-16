@@ -64,6 +64,25 @@ struct PopulationTheme {
 // THE S2/S3 BOUNDARY FACE: THEMES is read across the boundary by the
 // theme_tier_weights accessor (the interface trio's vocabulary member —
 // theory v2 §4; formalized at the A-era; Q5 unified the per-family plugs).
+//
+// ── The theme table ────────────────────────────────────────────────
+// AXES: row = theme id (0 TRANSITION / 1 MONUMENTAL / 2 COLONNADE /
+//   3 ANTENNA / 4 BARREN — theme_short_name order); row 0 below carries
+//   the full per-line column legend; rows 1-4 read by that legend.
+//   spawn_weight's inner axis is PopFamily order (PYRAMID=0 …
+//   GALLERY=11, no compile-time pin); each tier_* inner axis is that
+//   family's own tier order (member names in the struct above).
+// UNITS: spawn_weight / tier_* / density = multipliers (1.0 = neutral);
+//   spike = envelope weight at full intensity; sustain / decay /
+//   cooldown = PATCH COUNTS (envelope lifetime; cooldown 0 =
+//   immediately re-eligible); weight = lattice-node selection weight.
+// CONSUMERS: generate_tile_population (spawn_weight → spatial_density;
+//   density_mult → entity_density); select_theme_at_node (weight);
+//   theme_envelope_weight / evaluate_theme_envelope (spike/sustain/
+//   decay/cooldown); theme_tier_weights → the generic pipeline's tier
+//   selection (ribbon reads tier_wt_ribbon directly).
+// Biography determinant — frozen biography (§12): every number here
+// shifts spawn rates or tier draws; changing one changes worlds.
 inline constexpr PopulationTheme THEMES[THEME_COUNT] = {
     // ── 0: TRANSITION — sparse connective tissue ─────────────────
     {   { 0.4f, 0.3f, 0.7f, 0.3f, 0.3f, 0.3f, 0.5f, 0.3f, 1.0f, 0.5f, 0.5f, 0.5f },   // spawn_weight [pyr..sph, ribn, cube, gol, gall]
@@ -208,7 +227,7 @@ inline uint32_t select_theme_at_node(uint32_t node_seed) {
 struct TilePopulation {
     float entity_density = 1.0f; // spatial density multiplier for entity spawning
     // Theme: evaluated from theme lattice at tile generation time
-    float spatial_density[PopFamily::COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f }; // Q7 SPATIAL axis: per-family, position-locked density (applied by F3 tile_apply_spawn_mult). Independent of temporal_flavor — a different axis, not a duplicate.
+    float spatial_density[PopFamily::COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f }; // Q7 SPATIAL axis: per-family (PopFamily order), position-locked density multiplier (applied by F3 tile_apply_spawn_mult; 1.0 = neutral default). Independent of temporal_flavor — a different axis, not a duplicate.
     uint32_t theme_idx = 0;      // dominant theme index (for tier bias)
 };
 

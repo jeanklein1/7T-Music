@@ -277,6 +277,7 @@ inline constexpr TierParamDef COLUMN_PARAM_DEFS[] = {
 inline constexpr uint32_t COLUMN_PARAM_COUNT = sizeof(COLUMN_PARAM_DEFS) / sizeof(TierParamDef);
 
 // Antenna param defs (AntennaProp indices, same layout)
+//                                                    prop                         floor   ceil   round  dist
 inline constexpr TierParamDef ANTENNA_PARAM_DEFS[] = {
     { AntennaProp::HEIGHT,          1.0f, 1e30f, false, ParamDist::GAUSSIAN },
     { AntennaProp::SHAFT_RADIUS,    0.1f, 1e30f, false, ParamDist::GAUSSIAN },
@@ -308,6 +309,26 @@ struct ColumnTierRow {
     uint32_t    shaft_rings;
 };
 
+// ── Column tier table ──────────────────────────────────────────────
+// WHAT: per-tier column recipe — selection weight + Gaussian {μ,σ} per
+//   geometry parameter + mesh tessellation.
+// AXES: row = enum class ColumnTier order (0 PILLAR / 1 DORIC /
+//   2 ORNATE); the 13 {μ,σ} pairs are in ColIdx order, WRAPPED:
+//     line 1: HEIGHT  SHAFT_RADIUS  TAPER  ENTASIS
+//     line 2: BASE_LAYERS  BASE_HEIGHT  BASE_OVERHANG
+//     line 3: CAP_LAYERS   CAP_HEIGHT   CAP_OVERHANG
+//     line 4: SOLID_PADDING  SOLID_HEIGHT  EDGE_BLEND
+//   then: color_override, burial, segs_around, shaft_rings.
+// UNITS: wu except TAPER/ENTASIS (multipliers) and *_LAYERS (counts,
+//   do_round); weight = tier-selection weight; color_override =
+//   probability; burial = fraction of height sunk; segs/rings = mesh
+//   tessellation counts.
+// CONSUMERS: the generic pipeline (column_get_tier_profile → weight +
+//   {μ,σ} sampling); column_compute_solid_half (burial);
+//   column_compute_colors (color_override); column_write_active
+//   (segs_around/shaft_rings).
+// Biography determinant — frozen biography (§12): changing a number
+// changes every column ever born.
 inline constexpr ColumnTierRow COLUMN_TIERS[] = {
     /* PILLAR */ {
         { 0.05f, 0.0f, { {6.5f, 1.2f}, {1.80f, 0.30f}, {1.00f, 0.0f},  {0.00f, 0.0f},
@@ -332,6 +353,12 @@ inline constexpr ColumnTierRow COLUMN_TIERS[] = {
     },
 };
 
+// ── Antenna tier table ─────────────────────────────────────────────
+// Same shape + legend as COLUMN_TIERS above (shared ColumnTierRow /
+// ColIdx wrap layout). Row = enum class AntennaTier order (0 ANTENNA /
+// 1 SQUAT / 2 COLOSSAL). LOCKSTEP HAZARD: on the GPU these rows live at
+// tier slots 3..5 — antenna_compute_solid_half adds COLUMN_TIER_COUNT
+// to tier_idx, and every antenna consumer subtracts it back.
 inline constexpr ColumnTierRow ANTENNA_TIERS[] = {
     /* ANTENNA  */ {
         { 0.10f, 0.0f, { {17.5f, 3.5f}, {0.30f, 0.05f}, {0.85f, 0.05f}, {0.00f, 0.0f},
@@ -701,6 +728,20 @@ struct PyramidTierRow {
     float color_variance;
 };
 
+// ── Pyramid tier table ─────────────────────────────────────────────
+// WHAT: per-tier pyramid recipe (the pyramid's realization IS the
+//   terrain — these numbers shape the heightfield bake).
+// AXES: row = PyramidTier order (0 OBELISK / 1 TEMPLE / 2 COLOSSUS);
+//   the 5 {μ,σ} pairs are in PyrIdx order:
+//     HEIGHT  BASE_HALF  ASPECT  TRUNCATION  EDGE_BLEND
+//   then: color_override, color_variance.
+// UNITS: HEIGHT/BASE_HALF/EDGE_BLEND = wu; ASPECT = multiplier
+//   (ceiling 2.0); TRUNCATION = fraction (ceiling 0.5); weight =
+//   tier-selection weight.
+// CONSUMERS: pyramid_get_tier_profile (weight + {μ,σ} sampling).
+//   color_override/color_variance are retained but unread today —
+//   see pyramid_compute_colors' dead-code note.
+// Biography determinant — frozen biography (§12).
 inline constexpr PyramidTierRow PYRAMID_TIERS[] = {
     /* OBELISK  */ {
         { 0.50f, 0.0f, { {28.0f, 6.0f},  {16.0f, 3.0f},  {1.0f, 0.15f}, {0.00f, 0.00f}, {1.5f, 0.3f}  }},
