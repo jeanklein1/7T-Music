@@ -194,3 +194,50 @@ this file. RECOMMENDED SEQUENCE: T0 (one safe comment commit) → T1 (cull sweep
 empty block, glaw1) → §4b verify → T2 (pyramid-ground husk, rig) → §4a ruling → T3.
 The two escalations (§4a wide-traits, §4b the missed husk) want your nod before the
 cut. Full stop for the stamp.
+
+---
+
+## §7 APPENDIX — THE ORPHAN-FILE CHECK (closes the structural blind spot)
+
+Symbol-level reader-greps can't see a whole file no include reaches. This appendix
+computes the real closure and diffs it against disk. Method: `g++ -MM` on the glaw1
+TU (the REAL root — `incubator.cpp` reaches the cartridge via
+`#include RENDER_HEADER(INCUBATE_RENDER)` → `cartridges/the_board/cartridge.hpp`,
+the exact header glaw1's `tu.cpp` compiles), same `-I` flags, stubs generated.
+
+### §7a THE DIFF — ZERO ORPHANS
+
+| on disk (find) | reachable | via |
+|---|---|---|
+| 36 `.hpp` | 36 | transitive include closure from `cartridge.hpp` (g++ -MM, exact preprocessor) |
+| 1 `.wgsl` (`world.wgsl`) | 1 | RUNTIME-LOADED — `renderer.hpp:1244-1245` disk-search list (the only runtime file-path literal in the tree) |
+| 0 `.inl` | — | none exist under the_board |
+
+**Disk minus reachable = ∅. T-minus-1 is EMPTY** — the cheapest cut class has zero
+members. Every one of the 37 files is load-bearing.
+
+### §7b THE SPECIFIC ASKS
+- **keyhole.hpp** — EXISTS at `contracts/keyhole.hpp` (the COMPACT-1 boilerplate
+  consolidation, since relocated modules/ → contracts/). **18 includers** (every
+  body/ + machine/ + surface/ file, mood, render_passes, entity_types,
+  spawn/surface_services) — it IS the `Cartridge` + `wgpu::Queue` forward-decl
+  contract. LIVE, in-closure, protected.
+- **demos/** — exactly `matrix.hpp` + `demo.hpp` at HEAD. ✔ Both in-closure.
+
+### §7c WHY THE CLOSURE IS DEFINE-INVARIANT (no hidden file behind a flag)
+- ZERO `#if`-gated `#include` lines anywhere under the_board — the file set cannot
+  change with preprocessor state.
+- The demo door (`INCUBATE_DEMO`, CMake `THE_BOARD_DEMO`) is a **token-paste
+  enumerator** (`DemoCol::<name>`, demo.hpp), NOT a file include — no demo name can
+  pull a hidden header. (Re-confirms §2's T0 row: the CMake:262 help text
+  "demos/<name>.hpp" describes the retired per-file mechanism.)
+- CMake references the_board only via `file(GLOB ...)` of `*.hpp/*.inl/*.wgsl`
+  (target-source/IDE listing — lists whatever exists, confers no liveness; exactly
+  why this check was needed) + the `INCUBATE_RENDER/INCUBATE_DEMO` defines.
+- Tools: glaw1 compiles `cartridge.hpp` (the closure root itself); the score census
+  GLOBS `**/*.hpp` + reads `cartridge.hpp`/`spine_state.hpp` by name — all
+  in-closure. No tool reaches a file the TU doesn't.
+
+### §7d VERDICT
+No orphan files. The sweep's cut plan gains no T-minus-1 tier; §3 stands as the
+complete plan. Read-only; nothing moved.
