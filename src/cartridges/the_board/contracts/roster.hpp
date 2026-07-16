@@ -70,6 +70,24 @@ struct PopFamily {
     static constexpr uint32_t COUNT = 12;
 };
 
+// F-1 (the annotation-pass pin): the family ORDER is load-bearing — eight
+// spawn tables are POSITIONAL in it (MIN_SEPARATION, the four PROXIMITY_*
+// vectors, PROXIMITY_AFFINITY, THEMES[].spawn_weight,
+// TilePopulation::spatial_density), as is FAMILY_DISPATCH (whose rows are
+// additionally name-checked at boot by validate_spine, F-2). Renumbering
+// ANY family re-columns them ALL — this assert turns that into a compile
+// error instead of a silent world-change (placement biography rides it).
+static_assert(PopFamily::PYRAMID == 0 && PopFamily::ARCH    == 1
+           && PopFamily::COLUMN  == 2 && PopFamily::ANTENNA == 3
+           && PopFamily::PALM    == 4 && PopFamily::CACTUS  == 5
+           && PopFamily::BLADE   == 6 && PopFamily::SPHERE  == 7
+           && PopFamily::RIBBON  == 8 && PopFamily::CUBE    == 9
+           && PopFamily::GOL     == 10 && PopFamily::GALLERY == 11
+           && PopFamily::COUNT   == 12,
+    "PopFamily ORDER is the spawn tables' row/column contract (F-1): "
+    "re-column all eight PopFamily-ordered tables + FAMILY_DISPATCH "
+    "before renumbering any family");
+
 struct Roster {
     bool pyramid, arch, column, antenna, palm, cactus, blade,
          sphere, ribbon, cube, gol, gallery;

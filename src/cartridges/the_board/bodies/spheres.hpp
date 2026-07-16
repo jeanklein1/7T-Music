@@ -106,6 +106,8 @@ inline constexpr TierParamDef SPHERE_PARAM_DEFS[] = {
     { FloatingEntityProp::INFLUENCE_RADIUS, 3.0f,  1e30f, false, ParamDist::GAUSSIAN },
 };
 inline constexpr uint32_t SPHERE_PARAM_COUNT = sizeof(SPHERE_PARAM_DEFS) / sizeof(TierParamDef);
+static_assert(SPHERE_PARAM_COUNT == SphIdx::COUNT,
+    "F-4: SPHERE_PARAM_DEFS must cover SphIdx exactly (row order IS the index)");
 
 // params[] order MUST match SPHERE_PARAM_DEFS:
 //   [0]BODY_RADIUS [1]ORBIT_RADIUS [2]ORBIT_HEIGHT [3]ORBIT_SPEED

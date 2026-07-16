@@ -90,8 +90,8 @@ inline constexpr float CENSUS_DUMP_INTERVAL = 30.0f;
 //   GAP_REDUCTION = fraction 0-1 of MIN_SEPARATION removed, scaled by
 //   the pair's affinity; AFFINITY = dimensionless weight 0-1, summed
 //   over neighbors into boost = min(1 + Σaff, MAX_BOOST).
-// ORDER: every axis follows PopFamily order (PYRAMID=0 … GALLERY=11).
-//   No compile-time pin — the header row below is the contract.
+// ORDER: every axis follows PopFamily order (PYRAMID=0 … GALLERY=11),
+//   PINNED by the F-1 static_assert at roster.hpp.
 // CONSUMERS: proximity_affinity_boost() below (RADIUS/MAX_BOOST/
 //   THRESHOLD/AFFINITY → the adj_mod spawn multiplier);
 //   check_position() (AFFINITY × GAP_REDUCTION → the effective gap);

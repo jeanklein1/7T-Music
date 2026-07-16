@@ -466,6 +466,8 @@ inline constexpr TierParamDef CUBE_PARAM_DEFS[] = {
     { CubeEntityProp::FACE_VARIANCE,    0.0f, 1e30f, false, ParamDist::GAUSSIAN },
 };
 inline constexpr uint32_t CUBE_PARAM_COUNT = sizeof(CUBE_PARAM_DEFS) / sizeof(TierParamDef);
+static_assert(CUBE_PARAM_COUNT == CubeIdx::COUNT,
+    "F-4: CUBE_PARAM_DEFS must cover CubeIdx exactly (row order IS the index)");
 
 // params[] order MUST match CUBE_PARAM_DEFS:
 //   [0]BODY_RADIUS [1]ORBIT_HEIGHT [2]INFLUENCE_RADIUS [3]SPIN_SPEED

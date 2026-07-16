@@ -1498,8 +1498,31 @@ namespace t7 {
                     std::cerr << "[SPINE] VALIDATION FAILED — row order / O-5b/c face law violated\n";
                     std::abort();
                 }
+                // F-2 (the annotation-pass pin): FAMILY_DISPATCH rows are
+                // POSITIONAL in PopFamily order and each carries its name —
+                // check every row's name against the canonical
+                // family_short_name list, so a row swap fails LOUD at boot,
+                // never silent (the table is inline const, not constexpr, so
+                // this cannot be a static_assert).
+                for (uint32_t f = 0; f < PopFamily::COUNT; f++) {
+                    const char* have = FAMILY_DISPATCH[f].name;
+                    const char* want = family_short_name(f);
+                    bool eq = (have != nullptr);
+                    for (uint32_t i = 0; eq; i++) {
+                        if (have[i] != want[i]) { eq = false; break; }
+                        if (have[i] == '\0') break;
+                    }
+                    if (!eq) {
+                        std::cerr << "[SPINE] FAMILY_DISPATCH row " << f << " name '"
+                                  << (have ? have : "<null>") << "' != PopFamily order '"
+                                  << want << "' (F-2)\n";
+                        std::abort();
+                    }
+                }
                 std::cout << "[SPINE] validated: " << (uint32_t)UPhase::COUNT << " update rows + "
-                          << (uint32_t)RPhase::COUNT << " render rows; O-#/RC laws static-asserted\n";
+                          << (uint32_t)RPhase::COUNT << " render rows + "
+                          << (uint32_t)PopFamily::COUNT << " dispatch rows name-checked; "
+                          << "O-#/RC laws static-asserted\n";
             }
 
             // ── THE CONDUCTOR (render) — a LOOP over RENDER_SPINE (§1b) ─────
@@ -1608,8 +1631,10 @@ inline void dispatch_mesh_gen_none(MachineCtx* self, wgpu::ComputePassEncoder& p
 // ─── The table ─────────────────────────────────────────────────────
 // AXES: one row per family, POSITIONAL in PopFamily order (PYRAMID=0,
 //   ARCH, COLUMN, ANTENNA, PALM, CACTUS, BLADE, SPHERE, RIBBON, CUBE,
-//   GOL, GALLERY=11) — no compile-time pin; the trailing name string
-//   is each row's label. Row columns (FamilyDispatch, entity_types.hpp):
+//   GOL, GALLERY=11) — the enum values are pinned at roster.hpp (F-1)
+//   and every row's trailing name string is boot-checked against
+//   family_short_name by validate_spine (F-2), so a row swap fails
+//   LOUD. Row columns (FamilyDispatch, entity_types.hpp):
 //     { try_select, try_place, try_commit, evict_slot,
 //       prepare_mesh, dispatch_mesh, name }
 // CONSUMERS: the machine tail walks select/place/commit per queue

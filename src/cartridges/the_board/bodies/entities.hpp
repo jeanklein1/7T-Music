@@ -901,6 +901,8 @@ inline constexpr TierParamDef BLADE_PARAM_DEFS[] = {
     { BladeProp::TAPER,                        0.3f, 1e30f,  false, ParamDist::GAUSSIAN },
 };
 inline constexpr uint32_t BLADE_PARAM_COUNT = sizeof(BLADE_PARAM_DEFS) / sizeof(TierParamDef);
+static_assert(BLADE_PARAM_COUNT == BladeIdx::COUNT,
+    "F-4: BLADE_PARAM_DEFS must cover BladeIdx exactly (row order IS the index)");
 
 // params[] order MUST match BLADE_PARAM_DEFS:
 //   [0]BLADE_COUNT [1]BLADE_H [2]BLADE_H_VAR [3]BLADE_W
@@ -939,6 +941,8 @@ inline constexpr BladeTierRow BLADE_TIERS[] = {
         0.25f, 7
     },
 };
+static_assert(sizeof(BLADE_TIERS) / sizeof(BladeTierRow) == static_cast<uint32_t>(BladeClusterTier::COUNT),
+    "F-5: BLADE_TIERS must have exactly one row per BladeClusterTier");
 
 inline const TierProfile& blade_get_tier_profile(uint32_t tier_idx) {
     return BLADE_TIERS[tier_idx].profile;
@@ -1103,6 +1107,8 @@ inline constexpr TierParamDef PALM_PARAM_DEFS[] = {
     { PalmProp::EDGE_BLEND,   0.1f, 1e30f,  false, ParamDist::GAUSSIAN },
 };
 inline constexpr uint32_t PALM_PARAM_COUNT = sizeof(PALM_PARAM_DEFS) / sizeof(TierParamDef);
+static_assert(PALM_PARAM_COUNT == PalmIdx::COUNT,
+    "F-4: PALM_PARAM_DEFS must cover PalmIdx exactly (row order IS the index)");
 
 // params[] order MUST match PALM_PARAM_DEFS:
 //   [0]HEIGHT [1]BASE_R [2]TOP_R [3]LEAN [4]LEAN_DIR(uniform — {0,0})
@@ -1161,6 +1167,8 @@ inline constexpr PalmTierRow PALM_TIERS[] = {
         0.20f, 0.2f, 0.04f, 0.03f, 20, 6
     },
 };
+static_assert(sizeof(PALM_TIERS) / sizeof(PalmTierRow) == static_cast<uint32_t>(PalmTier::COUNT),
+    "F-5: PALM_TIERS must have exactly one row per PalmTier");
 
 inline const TierProfile& palm_get_tier_profile(uint32_t tier_idx) {
     return PALM_TIERS[tier_idx].profile;
@@ -1340,6 +1348,8 @@ inline constexpr TierParamDef CACTUS_PARAM_DEFS[] = {
     { CactusProp::ARM_CURVE,  0.0f, 1e30f,  false, ParamDist::GAUSSIAN },
 };
 inline constexpr uint32_t CACTUS_PARAM_COUNT = sizeof(CACTUS_PARAM_DEFS) / sizeof(TierParamDef);
+static_assert(CACTUS_PARAM_COUNT == CactusIdx::COUNT,
+    "F-4: CACTUS_PARAM_DEFS must cover CactusIdx exactly (row order IS the index)");
 
 // params[] order MUST match CACTUS_PARAM_DEFS:
 //   [0]HEIGHT [1]RADIUS [2]TAPER [3]RIBS [4]RIB_DEPTH [5]LEAN
@@ -1386,6 +1396,8 @@ inline constexpr CactusTierRow CACTUS_TIERS[] = {
         0.2f, 20, 10
     },
 };
+static_assert(sizeof(CACTUS_TIERS) / sizeof(CactusTierRow) == static_cast<uint32_t>(CactusTier::COUNT),
+    "F-5: CACTUS_TIERS must have exactly one row per CactusTier");
 
 inline const TierProfile& cactus_get_tier_profile(uint32_t tier_idx) {
     return CACTUS_TIERS[tier_idx].profile;

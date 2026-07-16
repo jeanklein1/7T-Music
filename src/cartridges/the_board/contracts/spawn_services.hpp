@@ -76,8 +76,8 @@ inline constexpr float GLOBAL_ENTITY_DENSITY = 1.0f;
 //   radii first, then adds this gap on top (and may shrink it by
 //   PROXIMITY_GAP_REDUCTION × affinity for clustering families).
 // ORDER: rows and columns both follow PopFamily order (PYRAMID=0 …
-//   GALLERY=11). No compile-time pin — the order is load-bearing
-//   convention; the labels below are the contract's only statement.
+//   GALLERY=11), PINNED by the F-1 static_assert at roster.hpp —
+//   renumbering a family is a compile error, not a silent re-column.
 // CONSUMER: check_position(), machine/spawn_engine.hpp (sole reader).
 // SENTINEL: 0.0 = no gap constraint for that pair (only the radii sum
 //   applies; the consumer skips the gap term entirely).

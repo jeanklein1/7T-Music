@@ -229,6 +229,17 @@ inline constexpr MoodProfile MOOD_TABLE[MOOD_COUNT] = {
     /* MOOD_FINITE_OUTDOOR_REF */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true  },
 };
 
+// F-3 (the annotation-pass pin): MOOD_TABLE rows are POSITIONAL in
+// mood-id order and carry no id field (the CUBE_POPULATIONS-style
+// per-row assert is impossible here) — so pin the ids AT the table:
+// drift in mood_constants.hpp fails HERE, where the rows live.
+static_assert(MOOD_OPEN_DEFAULT       == 0 && MOOD_OPEN_SUNSET        == 1
+           && MOOD_INDOOR_FLAT        == 2 && MOOD_INDOOR_VAULT       == 3
+           && MOOD_FINITE_OUTDOOR     == 4 && MOOD_FINITE_OUTDOOR_REF == 5
+           && MOOD_COUNT == 6,
+    "MOOD_TABLE rows are positional in mood-id order (F-3): "
+    "reorder the table together with the ids");
+
 // ═══ THE TRANSITION REQUEST DOOR (decl; def rides merged mood.hpp) ═
 // The single canonical transition entry point — one door, many keys.
 // DEPS-FORM (Batch C): the driver world holds no keyhole; the door

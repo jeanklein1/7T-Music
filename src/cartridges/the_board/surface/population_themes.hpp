@@ -70,8 +70,9 @@ struct PopulationTheme {
 //   3 ANTENNA / 4 BARREN — theme_short_name order); row 0 below carries
 //   the full per-line column legend; rows 1-4 read by that legend.
 //   spawn_weight's inner axis is PopFamily order (PYRAMID=0 …
-//   GALLERY=11, no compile-time pin); each tier_* inner axis is that
-//   family's own tier order (member names in the struct above).
+//   GALLERY=11, pinned by the F-1 static_assert at roster.hpp); each
+//   tier_* inner axis is that family's own tier order (member names in
+//   the struct above).
 // UNITS: spawn_weight / tier_* / density = multipliers (1.0 = neutral);
 //   spike = envelope weight at full intensity; sustain / decay /
 //   cooldown = PATCH COUNTS (envelope lifetime; cooldown 0 =

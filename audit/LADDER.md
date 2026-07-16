@@ -4717,6 +4717,36 @@ compiler could pin; one-line follow-up each):
   F-6 GOL_TIERS/PULSE_TIERS C++↔WGSL twins — cross-language, no assert
       possible; the hand-edit-both contract is now stated on both sides.
 
+THE F-PIN (ruled at the annotation-pass stamp; ONE glaw1-gated commit;
+OPENS the distribution work — no distribution edits ride this).
+Convention was carrying placement biography; now the compiler carries it:
+  F-1  PopFamily ORDER pinned (roster.hpp, at the enum): the 8
+       PopFamily-ordered spawn tables + FAMILY_DISPATCH named in the
+       assert's charter — renumbering a family is now a compile error,
+       not a silent world-change. The 4 table headers re-pointed from
+       "no compile-time pin" to the pin.
+  F-2  FAMILY_DISPATCH name-check at BOOT (validate_spine — the table
+       is inline const, not constexpr, so no static_assert can read
+       it): every row's name compared against the canonical
+       family_short_name list; a row swap fails LOUD. Boot log now
+       counts the 12 dispatch rows.
+  F-3  MOOD ids pinned AT MOOD_TABLE (spine_state.hpp) — the rows carry
+       no id field (CUBE_POPULATIONS-style per-row asserts impossible),
+       so the ids are pinned where the rows live.
+  F-4  ×9: every family's PARAM_DEFS row count == its *Idx::COUNT
+       (COLUMN/ANTENNA share ColIdx; PYRAMID, ARCH, BLADE, PALM,
+       CACTUS, SPHERE, CUBE).
+  F-5  ×7: every unsized tier table's extent == its tier enum's COUNT
+       (ARCH/COLUMN/ANTENNA/PYRAMID/BLADE/PALM/CACTUS; the antenna
+       assert names the GPU slot-offset contract it protects).
+  F-6  stays contract-stated on both sides (cross-language; the
+       binding-registry ceiling) — per the ruling, no change.
+GATES: glaw1 GREEN (which IS the proof all 19 static_asserts hold — a
+false one cannot compile) + census GREEN + diff-neutrality verified
+(only asserts, the boot loop, the boot log line, and header comment
+re-pointers; zero initializer/declaration/WGSL change). Tomorrow's
+distribution redesign starts on asserted ground.
+
 ════════════════════════════════════════════════════════════════════
 THE PARKED LEDGER (standing section — the ONE place open flags live.
 Future sweeps read THIS, not the tree. Consolidated at residue-sweep

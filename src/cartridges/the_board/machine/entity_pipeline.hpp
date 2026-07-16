@@ -275,6 +275,8 @@ inline constexpr TierParamDef COLUMN_PARAM_DEFS[] = {
     { ColumnProp::EDGE_BLEND,      0.1f, 1e30f, false, ParamDist::GAUSSIAN },
 };
 inline constexpr uint32_t COLUMN_PARAM_COUNT = sizeof(COLUMN_PARAM_DEFS) / sizeof(TierParamDef);
+static_assert(COLUMN_PARAM_COUNT == ColIdx::COUNT,
+    "F-4: COLUMN_PARAM_DEFS must cover ColIdx exactly (row order IS the index)");
 
 // Antenna param defs (AntennaProp indices, same layout)
 //                                                    prop                         floor   ceil   round  dist
@@ -293,6 +295,8 @@ inline constexpr TierParamDef ANTENNA_PARAM_DEFS[] = {
     { AntennaProp::SOLID_HEIGHT,    0.6f, 1e30f, false, ParamDist::GAUSSIAN },
     { AntennaProp::EDGE_BLEND,      0.1f, 1e30f, false, ParamDist::GAUSSIAN },
 };
+static_assert(sizeof(ANTENNA_PARAM_DEFS) / sizeof(TierParamDef) == ColIdx::COUNT,
+    "F-4: ANTENNA_PARAM_DEFS shares ColIdx — must cover it exactly");
 
 // params[] order MUST match COLUMN_PARAM_DEFS / ANTENNA_PARAM_DEFS:
 //   [0]HEIGHT [1]SHAFT_R [2]TAPER [3]ENTASIS [4]BASE_LAYERS [5]BASE_H
@@ -352,6 +356,8 @@ inline constexpr ColumnTierRow COLUMN_TIERS[] = {
         0.85f, 0.20f, 28, 12
     },
 };
+static_assert(sizeof(COLUMN_TIERS) / sizeof(ColumnTierRow) == static_cast<uint32_t>(ColumnTier::COUNT),
+    "F-5: COLUMN_TIERS must have exactly one row per ColumnTier");
 
 // ── Antenna tier table ─────────────────────────────────────────────
 // Same shape + legend as COLUMN_TIERS above (shared ColumnTierRow /
@@ -382,6 +388,9 @@ inline constexpr ColumnTierRow ANTENNA_TIERS[] = {
         0.40f, 0.20f, 20, 8
     },
 };
+static_assert(sizeof(ANTENNA_TIERS) / sizeof(ColumnTierRow) == static_cast<uint32_t>(AntennaTier::COUNT),
+    "F-5: ANTENNA_TIERS must have exactly one row per AntennaTier — "
+    "the GPU tier slots [COLUMN_TIER_COUNT..) ride this extent");
 
 inline const TierProfile& column_get_tier_profile(uint32_t tier_idx) {
     return COLUMN_TIERS[tier_idx].profile;
@@ -715,6 +724,8 @@ inline constexpr TierParamDef PYRAMID_PARAM_DEFS[] = {
     { PyramidProp::EDGE_BLEND, 0.5f,  1e30f, false, ParamDist::GAUSSIAN },
 };
 inline constexpr uint32_t PYRAMID_PARAM_COUNT = sizeof(PYRAMID_PARAM_DEFS) / sizeof(TierParamDef);
+static_assert(PYRAMID_PARAM_COUNT == PyrIdx::COUNT,
+    "F-4: PYRAMID_PARAM_DEFS must cover PyrIdx exactly (row order IS the index)");
 
 // params[] order MUST match PYRAMID_PARAM_DEFS:
 //   [0]HEIGHT [1]BASE_HALF [2]ASPECT [3]TRUNCATION [4]EDGE_BLEND
@@ -756,6 +767,8 @@ inline constexpr PyramidTierRow PYRAMID_TIERS[] = {
         0.20f, 0.04f
     },
 };
+static_assert(sizeof(PYRAMID_TIERS) / sizeof(PyramidTierRow) == static_cast<uint32_t>(PyramidTier::COUNT),
+    "F-5: PYRAMID_TIERS must have exactly one row per PyramidTier");
 
 inline const TierProfile& pyramid_get_tier_profile(uint32_t tier_idx) {
     return PYRAMID_TIERS[tier_idx].profile;
@@ -911,6 +924,10 @@ inline constexpr TierParamDef ARCH_PARAM_DEFS[] = {
     { ArchProp::EDGE_BLEND,   0.1f, 1e30f, false, ParamDist::GAUSSIAN },
 };
 inline constexpr uint32_t ARCH_PARAM_COUNT = sizeof(ARCH_PARAM_DEFS) / sizeof(TierParamDef);
+static_assert(ARCH_PARAM_COUNT == ArchIdx::COUNT,
+    "F-4: ARCH_PARAM_DEFS must cover ArchIdx exactly (row order IS the index)");
+static_assert(sizeof(ARCH_TIERS) / sizeof(ArchTierRow) == static_cast<uint32_t>(ArchTier::COUNT),
+    "F-5: ARCH_TIERS must have exactly one row per ArchTier");
 
 inline const TierProfile& arch_get_tier_profile(uint32_t tier_idx) {
     return ARCH_TIERS[tier_idx].profile;
