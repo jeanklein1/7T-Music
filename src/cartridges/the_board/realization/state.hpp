@@ -62,9 +62,9 @@ namespace t7 {
             constexpr uint32_t PATCH_CELL_N = 16;      // cell color texture side per patch
             constexpr uint32_t PATCH_GRID_RADIUS = 3;       // inner priority radius (7×7)
             constexpr uint32_t PATCH_GRID_SIDE = 2 * PATCH_GRID_RADIUS + 1;       // 7
-            constexpr uint32_t PATCH_PREGEN_RADIUS = 7;                                // deep pre-gen buffer (15×15, 350 world units)
-            constexpr uint32_t PATCH_PREGEN_SIDE = 2 * PATCH_PREGEN_RADIUS + 1;     // 15
-            constexpr uint32_t MAX_ACTIVE_PATCHES = PATCH_PREGEN_SIDE * PATCH_PREGEN_SIDE; // 225
+            constexpr uint32_t PATCH_PREGEN_RADIUS = 8;                                // deep pre-gen buffer (17×17, 400 world units)
+            constexpr uint32_t PATCH_PREGEN_SIDE = 2 * PATCH_PREGEN_RADIUS + 1;     // 17
+            constexpr uint32_t MAX_ACTIVE_PATCHES = PATCH_PREGEN_SIDE * PATCH_PREGEN_SIDE; // 289
 
             // TILE_GRID ceiling — the pinned capacity pair's C++ half;
             // twin: world.wgsl TILE_GRID_CAPACITY. Authored, NOT derived
@@ -85,19 +85,21 @@ namespace t7 {
             //     — draw-set joins materialize inside the fade. Cosmetic
             //     only; no geometry relies on it for concealment.
             //   LOD0 (175): the full-mesh/half-mesh terrain split (unchanged).
-            //   EXIST (350 = the pregen ring): existence eviction (agents
-            //     unified at 350 — V1; floaters 400, the flagged spawn-
-            //     headroom fork).
+            //   EXIST (350; the pregen ring now reaches 400 — the
+            //     deepened buffer): existence eviction (agents unified at
+            //     350 — V1; floaters 400, the flagged spawn-headroom fork).
             // LIVE values ride config (veil_ring/veil_icing/lod0_radius,
             // tunable — "ring at 6.5 feels right vs 5.5, config-tune live").
-            // NOTE the thin factory band EXIST−RING = 25 wu: if the rig shows
-            // rim-pops under fast flight, PREGEN-8 is the named storage-weld
-            // follow-on (225→289 layers, TILE_GRID, MAX_ACTIVE_PATCHES) —
-            // flagged, not started.
+            // PREGEN-8 LANDED: the pre-gen buffer deepened to radius 8
+            // (289 layers); the factory band behind the veil widened
+            // EXIST−RING = 25 wu -> pregen−RING = 75 wu. Presence (EXIST)
+            // unchanged — widening EXIST is a separate, parked dial.
             constexpr float LOD0_RADIUS_DEFAULT = 3.5f * PATCH_EXTENT;   // 175
             constexpr float VEIL_RING_DEFAULT   = 6.5f * PATCH_EXTENT;   // 325 — THE RING
             constexpr float VEIL_ICING_DEFAULT  = 40.0f;                 // δ (~25-50, tunable)
             constexpr float EXIST_RADIUS        = 7.0f * PATCH_EXTENT;   // 350
+            // pregen coverage >= EXIST — buffer deepened at PREGEN-8;
+            // widening EXIST is a separate, parked dial.
             static_assert(PATCH_PREGEN_RADIUS * PATCH_EXTENT >= EXIST_RADIUS,
                 "VEIL CHAIN: PREGEN >= EXIST (nothing exists off resident ground)");
             static_assert(EXIST_RADIUS > VEIL_RING_DEFAULT,
@@ -477,8 +479,8 @@ namespace t7 {
         };
         static_assert(sizeof(GPUTileGridEntry) == 16, "GPUTileGridEntry must be 16 bytes");
 
-        static constexpr uint32_t TILE_GRID_SIDE = 2 * (Dim::PATCH_PREGEN_RADIUS + 1) + 1;  // 17 (pregen + 1 pad each side)
-        static constexpr uint32_t TILE_GRID_MAX = TILE_GRID_SIDE * TILE_GRID_SIDE;  // 289
+        static constexpr uint32_t TILE_GRID_SIDE = 2 * (Dim::PATCH_PREGEN_RADIUS + 1) + 1;  // 19 (pregen + 1 pad each side)
+        static constexpr uint32_t TILE_GRID_MAX = TILE_GRID_SIDE * TILE_GRID_SIDE;  // 361
         static_assert(TILE_GRID_MAX <= Dim::TILE_GRID_CAPACITY,
             "TILE_GRID ceiling exceeded: raise TILE_GRID_CAPACITY in BOTH "
             "rooms (state.hpp Dim + world.wgsl) — the pair is pinned, not "
@@ -486,7 +488,7 @@ namespace t7 {
         struct alignas(16) GPUTileGrid {
             int32_t origin_x;          // grid-space X of entry [0][0]
             int32_t origin_z;          // grid-space Z of entry [0][0]
-            uint32_t side;             // grid dimension (17)
+            uint32_t side;             // grid dimension (19)
             float cell_extent;         // world units per cell (50.0)
             // Capacity-sized (the pinned ceiling); the live extent is
             // side² — slots beyond are uploaded as zeros, never read.
@@ -1438,18 +1440,18 @@ namespace t7 {
             uint32_t patchIndexCount_ = 0;
             uint32_t patchIndexCountLOD1_ = 0;
 
-            // Patch heightfield texture array (225 layers × 256×256, RGBA16Float)
+            // Patch heightfield texture array (289 layers × 256×256, RGBA16Float)
             wgpu::Texture patchHeightfieldArrayTexture_;
             wgpu::TextureView patchHeightfieldArrayWriteView_;  // full array for storage write
             wgpu::TextureView patchHeightfieldArrayReadView_;   // full array for sampling
 
-            // Patch cell color texture array (225 layers × 16×16, RGBA8Unorm)
+            // Patch cell color texture array (289 layers × 16×16, RGBA8Unorm)
             // RGB = cell color, A = mode (0=smooth, 1=discrete)
             wgpu::Texture patchCellColorArrayTexture_;
             wgpu::TextureView patchCellColorArrayWriteView_;
             wgpu::TextureView patchCellColorArrayReadView_;
 
-            // Cell spatial field LUT (225 layers × 16×16, RGBA16Float)
+            // Cell spatial field LUT (289 layers × 16×16, RGBA16Float)
             // Baked in generate_patch_cells. R=mode(post-coupling), G=style, B=sparse, A=reserved
             wgpu::Texture cellFieldsArrayTexture_;
             wgpu::TextureView cellFieldsArrayWriteView_;
