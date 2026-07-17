@@ -7,6 +7,25 @@
 // Terrain grid is GPU-derived from vertex_index — zero geometry uploaded.
 //
 // Binding numbers: realization/binding_registry.hpp (C6 — the single source).
+//
+// ─── INTERIOR MAP (grep the names; no line anchors) ───────────────
+//   Dim::                world dimensions & capacities (veil-chain law)
+//   Idle:: / Coupling::  boot-rest values / the mute-bit registry
+//   GPUFrameSignal       the per-frame hot uniform (sky tail: E-3)
+//   GPUDesignConfig      the design mirror — paneled by ─── system
+//                        groups; GROWTH LAW at its head
+//   GPU* DTO region      the mirror vocabulary, per-family banners,
+//                        every struct sizeof-witnessed
+//   class GPUState
+//     init()             create{Buffers,MeshBuffers,Textures,
+//                        Samplers,BindGroups} → initializeState
+//     UPLOAD COLLAPSE    the three write shapes — the cadence
+//                        taxonomy (dirty / commit / count); the
+//                        per-frame hot tier stays bespoke, offsetof-
+//                        witnessed
+//     upload_signal/config   the drains (disjoint-region law)
+//     set_* surface      grouped by ─── system headers
+//     bind groups        bind::g0/g1 only — the registry is the map
 
 #include "analysis/analysis_signal.hpp"
 #include "cartridges/the_board/demos/demo.hpp"   // ROSTER via the selected sentence (GPUState::init gates creation)
@@ -339,6 +358,19 @@ namespace t7 {
             float    sky_roll;       // bank into the lateral swing (rad, clamped)
         };
 
+        // ─── GROWTH LAW (how a config knob is born) ──────────────
+        // Field ORDER is the cross-room contract — world.wgsl's
+        // DesignConfig mirrors this struct field-for-field. To add a
+        // knob: (1) prefer re-using a _pad slot inside the right ───
+        // system group; else append within the group and let padding
+        // re-flow. (2) Edit BOTH rooms in the SAME commit — same
+        // position, same type. (3) Bump the sizeof witness (the
+        // number in the assert IS the handshake). (4) Targeted
+        // sub-writers carry offsetof witnesses — glaw1 re-proves
+        // them, so a silent shift is impossible. (5) The knob's REST
+        // value is authored at the boot block / its panel room,
+        // never here. New knobs join a cadence: dirty-config for
+        // slow dials, a bespoke hot writer for per-frame voices.
         struct alignas(16) GPUDesignConfig {
             // ─── Debug mutes ────────────────────────────────────────
             uint32_t mute_dynamics_0d;
