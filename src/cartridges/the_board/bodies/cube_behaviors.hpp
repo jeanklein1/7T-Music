@@ -2,7 +2,7 @@
 #include <cstdint>
 #include <array>
 #include "cartridges/the_board/realization/state.hpp"                       // Dim::MAX_CUBE_INSTANCES, GPUState, GPUFloatingEntityState, wgpu
-#include "cartridges/the_board/contracts/floater_vocabulary.hpp"  // ActiveCube, CUBE_TIER_COUNT
+#include "cartridges/the_board/contracts/floaters.hpp"  // ActiveCube, CUBE_TIER_COUNT
 #include "cartridges/the_board/contracts/mood_constants.hpp"      // MOOD_COUNT + the Mood IDs
 #include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 #include "cartridges/the_board/contracts/entity_types.hpp"   // queue types (the funnel signatures)
@@ -98,7 +98,7 @@ static_assert(sizeof(CUBE_TIER_GAINS) / sizeof(CUBE_TIER_GAINS[0]) == CUBE_TIER_
 // ═══ REGISTRY: POPULATIONS ═══════════════════════════════════════
 //
 // Mood ordering matches MOOD_TABLE in cartridge.hpp. Cubes are gated
-// by CubeConfig::MOOD_MULTIPLIER (in floater_vocabulary.hpp) which is
+// by CubeConfig::MOOD_MULTIPLIER (in floaters.hpp) which is
 // {1, 1, 0, 0, 1, 0} — cubes don't spawn in indoor moods or in
 // MOOD_FINITE_OUTDOOR_REF, so those rows here are never consulted in
 // practice. We declare them anyway for hygiene; if the spawn gate
@@ -480,7 +480,7 @@ struct CubeTierRow {
 // ── Cube tier table ────────────────────────────────────────────────
 // Row = cube tier index (0 SmallCube / 1 MedCube / 2 LargeCube /
 // 3 Monolith — plain index, no enum class; CUBE_TIER_COUNT pinned in
-// floater_vocabulary.hpp). Each row = { weight, color_var, { 9 {μ,σ}
+// floaters.hpp). Each row = { weight, color_var, { 9 {μ,σ}
 // pairs in CubeIdx order:
 //   BODY_RADIUS ORBIT_HEIGHT INFLUENCE_RADIUS SPIN_SPEED BOB_AMPLITUDE
 //   BOB_PERIOD ASPECT_Y ASPECT_Z FACE_VARIANCE } }, spin_tilt_sigma.

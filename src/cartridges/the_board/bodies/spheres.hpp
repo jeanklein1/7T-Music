@@ -1,6 +1,6 @@
 #pragma once
 #include "cartridges/the_board/realization/state.hpp"                    // Dim::*, GPUState, GPUFloatingEntityState, wgpu
-#include "cartridges/the_board/contracts/floater_vocabulary.hpp"  // ActiveSphere
+#include "cartridges/the_board/contracts/floaters.hpp"  // ActiveSphere
 #include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 #include "cartridges/the_board/contracts/entity_types.hpp"  // queue types (the funnel signatures) + MachineCtx + organ fwds
 #include <iostream>   // [DIAG:EVICT] logging (flag-gated)   // (impl)
@@ -13,11 +13,11 @@
 // orbital-sphere floaters.
 //
 // The SphereState CONTENT is the ActiveSphere array. The ActiveSphere
-// TYPE stays shared vocabulary (floater_vocabulary.hpp); renamed from
+// TYPE stays shared vocabulary (floaters.hpp); renamed from
 // ActiveFloater this sweep (props numeric at every hash site — seed-free).
 //
 // SEAM[sphere:P5] the ActiveSphere last_alloc_time race protection lives
-//   with the type (floater_vocabulary.hpp); this owner holds the array the
+//   with the type (floaters.hpp); this owner holds the array the
 //   render() floater-sync block and the evict path read.
 // ─────────────────────────────────────────────────────────────────
 
@@ -247,7 +247,7 @@ inline void dispatch_commit_sphere_generic(MachineCtx* self, PlacementEntry& pe,
 // ─── Readback mirror reconciliation (owner verb) ─
 // the sphere half of the floater-readback
 // funnel: release CPU mirror slots the GPU deactivated, honoring the
-// spawn-protection window (SPAWN_PROTECTION_S, floater_vocabulary.hpp).
+// spawn-protection window (SPAWN_PROTECTION_S, floaters.hpp).
 inline void reconcile_sphere_mirror(SphereState& ss, SphereDeps* c, const GPUFloatingEntityState* data) {
     float now = c->time_state_.seconds;
     // Spheres: slots [0, MAX_SPHERE_INSTANCES)

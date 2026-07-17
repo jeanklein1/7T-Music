@@ -2,10 +2,8 @@
 #include <cstdint>
 #include "cartridges/the_board/contracts/mood_constants.hpp"   // MOOD_COUNT (sizes the configs' MOOD_MULTIPLIER)
 
-// ─── floater_vocabulary.hpp ──────────────────────────────────────
+// ─── floaters.hpp ────────────────────────────────────────────────
 // History: audit/LADDER.md
-// LATENT[naming]: lives in contracts/ despite the name —
-// shared floater TYPES, not a module. Debt flagged, not paid.
 //
 // Vocabulary for the two generic-pipeline floater families: Sphere
 // (orbital, PGA motor-driven) and Cube (hover-bob monoliths).
@@ -14,7 +12,7 @@
 // identifier names never feed seeds — the values below are the
 // frozen contract, pinned by the static_assert.
 //
-// SEAM[floater_vocabulary:taxonomy] generic-pipeline floater families
+// SEAM[floaters:taxonomy] generic-pipeline floater families
 //   parallel grounded families (grounded.hpp) but live here because
 //   their tier shapes differ (sphere has orbit_radius/orbit_speed,
 //   cube doesn't). Three concerns, three files: vocabulary here,

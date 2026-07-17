@@ -17,7 +17,7 @@
 //   the cookie-cutter — it's intentional specificity per family.
 // SEAM[entities:taxonomy] this block holds vocabulary for the seven
 //   grounded families that share machine/entity_pipeline.hpp. Sphere/Cube
-//   vocabulary is in floater_vocabulary.hpp; Ribbon, Gallery, and
+//   vocabulary is in floaters.hpp; Ribbon, Gallery, and
 //   GoL are complete subsystems in their own files.
 // Tier sampling profiles + extras live as a single per-family TierRow
 //   struct in machine/entity_pipeline.hpp (single source of truth, no
