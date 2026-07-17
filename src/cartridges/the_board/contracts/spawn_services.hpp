@@ -54,7 +54,6 @@ struct PositionResult {
 
 struct SpawnPreamble {
     uint32_t seed;          // tile_seed(world_state_.active_seed, gx, gz)
-    uint32_t archetype;     // 0=mountainous, 1=varied, 2=basin, 3=pool
     bool passed;            // false if spawn gate failed
 };
 

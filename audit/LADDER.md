@@ -4748,6 +4748,34 @@ re-pointers; zero initializer/declaration/WGSL change). Tomorrow's
 distribution redesign starts on asserted ground.
 
 ════════════════════════════════════════════════════════════════════
+THE COMPOSITION RULINGS (R1-R5 on COMPOSITION_RECON; executed in
+dependency order — riders first, collapse second, panel third)
+════════════════════════════════════════════════════════════════════
+
+R5+R4 — THE RIDERS (one glaw1-gated commit):
+  · pop.theme_idx DEAD WRITE cut (member + write + the best_w/
+    dominant_theme tracking that existed only to feed it) — the live
+    theme axis is temporal_flavor; tombstone left at the write site.
+  · the generic preamble's per-gate ARCHETYPE cut (SpawnPreamble loses
+    the field; evaluate_spawn_gate loses the tile_archetype call) —
+    computed every gate, read by nobody; gallery, the sole archetype
+    consumer, calls tile_archetype itself. Behavior-identical: a pure
+    lookup, no RNG state consumed.
+  · tile_apply_spawn_mult's silent cache-miss no-op is now LOUD
+    (cerr + abort): the allocation→spawn ordering the theme layer
+    rides is asserted at the seam, not assumed (§4.4 discharged).
+  · F-1 CHARTER EXTENDED (§4.2 named): the PopFamily order is
+    PLACEMENT PRIORITY — the enum allocates ground, not just table
+    columns; the pin's message now says so.
+  · THE JOURNEY LAW DECLARED (R4, keep-and-declare): the envelope
+    header now states that the player's path writes the tier
+    biography, deliberately — do not determinize; spawn PROBABILITY
+    stays path-independent (gates roll on tile_seed).
+R3 — DEFERRED BY ITS OWN TERMS: waking the DENSITY band /
+  density_mult / GLOBAL_ENTITY_DENSITY is a behavior change (new
+  worlds) — rig-gated; the panel (R2b) is where values get proposed.
+
+════════════════════════════════════════════════════════════════════
 THE PARKED LEDGER (standing section — the ONE place open flags live.
 Future sweeps read THIS, not the tree. Consolidated at residue-sweep
 T0. Discipline: when a flag lands or dies, strike it HERE in the same

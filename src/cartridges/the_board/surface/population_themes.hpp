@@ -229,7 +229,6 @@ struct TilePopulation {
     float entity_density = 1.0f; // spatial density multiplier for entity spawning
     // Theme: evaluated from theme lattice at tile generation time
     float spatial_density[PopFamily::COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f }; // Q7 SPATIAL axis: per-family (PopFamily order), position-locked density multiplier (applied by F3 tile_apply_spawn_mult; 1.0 = neutral default). Independent of temporal_flavor — a different axis, not a duplicate.
-    uint32_t theme_idx = 0;      // dominant theme index (for tier bias)
 };
 
 // The population-half authoring (Q6b: relocated verbatim from generate_
@@ -276,11 +275,8 @@ inline TilePopulation generate_tile_population(uint32_t active_seed, int32_t gx,
         float twz = tfz * tfz * (3.0f - 2.0f * tfz);
 
         // Blend spawn weights across 4 lattice nodes.
-        // Track dominant node for discrete tier bias lookup.
         float blended_spawn[PopFamily::COUNT] = { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
         float blended_density = 0.0f;
-        float best_w = -1.0f;
-        uint32_t dominant_theme = 0;
 
         for (int dz = 0; dz <= 1; dz++) for (int dx = 0; dx <= 1; dx++) {
             uint32_t ns = cpu_lattice_node_seed(active_seed, tbx + dx, tbz + dz, THEME_SEED_BAND);
@@ -291,12 +287,13 @@ inline TilePopulation generate_tile_population(uint32_t active_seed, int32_t gx,
                 blended_spawn[f] += theme.spawn_weight[f] * w;
             }
             blended_density += theme.density_mult * w;
-            if (w > best_w) { best_w = w; dominant_theme = tidx; }
         }
 
         for (uint32_t f = 0; f < PopFamily::COUNT; f++)
             pop.spatial_density[f] = blended_spawn[f];
-        pop.theme_idx = dominant_theme;
+        // (pop.theme_idx dead write CUT — composition recon R5: the spatial
+        //  dominant-theme was authored and read nowhere; the LIVE theme axis
+        //  is the temporal one, evaluate_theme_envelope → temporal_flavor.)
         pop.entity_density *= blended_density;  // theme density stacks with spatial density
     }
 
@@ -342,6 +339,15 @@ inline const char* theme_short_name(uint32_t theme) {
     return (theme < THEME_COUNT) ? NAMES[theme] : "???";
 }
 
+// ═══ THE JOURNEY LAW (ruled at the composition recon, R4) ══════════
+// This sampler is STATEFUL and advances once per SPAWNED PATCH, in
+// streaming order (nearest-first, budget-paced) — so the player's PATH
+// through the world writes the tier biography: which patches spawn
+// first determines every tile's temporal_flavor, and with it which
+// TIERS its entities draw. DELIBERATE — keep-and-declare: do NOT
+// determinize this by keying it to (gx,gz); the journey is the author.
+// (Spawn PROBABILITY stays path-independent — the gates roll on
+// tile_seed; only the tier axis rides the journey.)
 inline uint32_t evaluate_theme_envelope(ThemesState& ts, MachineCtx* c, uint32_t tile_seed_value) {
     (void)c;
     auto& env = ts.envelope_;

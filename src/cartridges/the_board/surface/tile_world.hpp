@@ -4,6 +4,8 @@
 #include <unordered_map>  // the tile cache
 #include <cmath>           // std::floor, std::pow, std::abs (impl)
 #include <algorithm>      // std::min (impl)
+#include <iostream>       // std::cerr (the R5 loud tile-cache assert)
+#include <cstdlib>        // std::abort (ditto)
 #include "cartridges/the_board/contracts/roster.hpp"                // PopFamily (TileState theme columns)
 #include "cartridges/the_board/contracts/keyhole.hpp"       // Cartridge + wgpu::Queue fwds (the keyhole)
 
@@ -465,10 +467,17 @@ inline bool terrain_tile_warm(const TileWorldState& tw, float wx, float wz) {
 inline void tile_apply_spawn_mult(const TileWorldState& tw, int32_t gx, int32_t gz,
                                   uint32_t family, float& adj_mod) {
     auto it = tw.tileCache_.find({ gx, gz });
-    if (it != tw.tileCache_.end()) {
-        adj_mod *= it->second.pop.entity_density;
-        adj_mod *= it->second.pop.spatial_density[family];
+    if (it == tw.tileCache_.end()) {
+        // LOUD (composition recon R5, §4.4): the gate's theme layer silently
+        // depended on ensure_tile having run at patch allocation. A miss here
+        // means the allocation→spawn ordering broke — fail at the seam, not
+        // by quietly dropping the theme layer from the spawn stack.
+        std::cerr << "[SPAWN] tile_apply_spawn_mult MISS at (" << gx << "," << gz
+                  << ") family " << family << " — ensure_tile did not precede the gate\n";
+        std::abort();
     }
+    adj_mod *= it->second.pop.entity_density;
+    adj_mod *= it->second.pop.spatial_density[family];
 }
 
 // F4 (m3b): the archetype face, bool-out — the miss default stays

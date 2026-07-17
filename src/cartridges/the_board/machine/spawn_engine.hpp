@@ -608,9 +608,9 @@ inline SpawnPreamble evaluate_spawn_gate(MachineCtx* c, int32_t gx, int32_t gz,
     float spawn_chance,
     float adjacency_mod) {
     SpawnPreamble result{};
-    result.archetype = 1;
-    tile_archetype(c->tile_world_state_, gx, gz, result.archetype);  // F4 (m3b): miss keeps 1
-
+    // (per-gate archetype lookup CUT — composition recon R5: computed for
+    //  every generic gate, read by nobody; the sole archetype consumer
+    //  (gallery) calls tile_archetype itself in its bespoke funnel.)
     result.seed = tile_seed(c->world_state_.active_seed, gx, gz);
     float chance = std::min(spawn_chance * adjacency_mod, 1.0f);
     result.passed = cpu_hash_f(result.seed, spawn_roll_prop) < chance;

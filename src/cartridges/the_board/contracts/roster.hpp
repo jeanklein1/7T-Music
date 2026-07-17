@@ -74,9 +74,14 @@ struct PopFamily {
 // spawn tables are POSITIONAL in it (MIN_SEPARATION, the four PROXIMITY_*
 // vectors, PROXIMITY_AFFINITY, THEMES[].spawn_weight,
 // TilePopulation::spatial_density), as is FAMILY_DISPATCH (whose rows are
-// additionally name-checked at boot by validate_spine, F-2). Renumbering
-// ANY family re-columns them ALL — this assert turns that into a compile
-// error instead of a silent world-change (placement biography rides it).
+// additionally name-checked at boot by validate_spine, F-2). AND (charter
+// extended, composition recon R5/§4.2): the enum order IS PLACEMENT
+// PRIORITY — select_entities_for_patch loops f=0..COUNT and the queue
+// places in push order, so within a patch PYRAMID's footprint registers
+// before ARCH's separation check, ARCH's before COLUMN's… the order
+// allocates GROUND, not just table columns. Renumbering ANY family
+// re-columns the tables AND reorders who wins contested ground — this
+// assert turns both into a compile error instead of a silent world-change.
 static_assert(PopFamily::PYRAMID == 0 && PopFamily::ARCH    == 1
            && PopFamily::COLUMN  == 2 && PopFamily::ANTENNA == 3
            && PopFamily::PALM    == 4 && PopFamily::CACTUS  == 5
