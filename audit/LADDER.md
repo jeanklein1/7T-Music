@@ -4857,6 +4857,44 @@ uniform mags, zero-vector rest, transposition-invariant mags, phase
 range. Publish budget: 48 of MAX_PUBLISHED 64. glaw1 + census GREEN
 (trivially — analysis-side cut); canvas full-include syntax gate GREEN.
 
+STEP 2 — THE COLOR WORKBENCH (three sub-cuts, one commit each):
+  2a ANNOTATION — the palette quartet to the table standard (axes/
+     units/consumers/coupling tier), the dominant branch documented as
+     the implicit 4×4 row-stochastic matrix it is, tint_strength 0.15
+     flagged as a pinned couplable literal. Comment-only; strip-diff +
+     glaw1 + census GREEN.
+  2b GRADUATION — PALETTE_CENTER/LIGHT/WEIGHT move from WGSL consts to
+     the config uniform: GPUDesignConfig 416→560 (2× array<vec4,4> +
+     one vec4 weight; asserts updated), set_palette_* setters beside
+     the mode_* trio, boot init = the pre-graduation literals (REST),
+     three live consumers re-pointed. BIT-IDENTICAL by construction.
+     THE VARIANCE FORK RESOLVED: RETIRE — palette_color (the sole
+     consumer) had no live caller; reviving it would have been a pixel
+     change, violating the cut's own law. Values (.08/.14/.20/.12)
+     tombstoned + carried by the designer as design space. The color
+     voice's write surface is now COMPLETE: three mode_* uniforms
+     (drivers away) + the graduated medians. glaw1 + census GREEN;
+     WGSL half RIG-GATED (pixels must not move — boot values ARE the
+     old consts).
+  2c THE INSTRUMENT — 7t_terrain_color_designer.jsx (the 13th tool,
+     #terrain_color_designer): median/light editors + weight sliders
+     (the graduated tables), the driverless mode_* uniforms as preview
+     dials, complexity as a dial (the pinned 0.5 named), EXACT-port
+     palette-geography map (hash → lattice → dominant → Hermite → mix),
+     composite preview with slider-set field values (fidelity boundary
+     DECLARED in the header: the color/composite math is exact, the
+     mode/style/sparse lattices stay the engine's), C++ export in
+     setter + boot-block shapes. esbuild + math smoke GREEN
+     (cumulative bands, weight sum, mix endpoints, hash determinism).
+
+STEP 3 — THE MAPPING CONVERSATION: HELD, as ruled, until 1+2 land —
+they have. The two legible surfaces now stand: the analyzer speaks
+six interval families per channel (mag+phase, slots 64-75, REST
+declared); the color stack listens at the graduated medians + the
+three driver-ready mode_* uniforms. The conversation — which families
+speak, which parameters listen, ranges/smoothing/rests between — is
+the next sitting; the first wire lands as a §2 row after it.
+
 ════════════════════════════════════════════════════════════════════
 THE PARKED LEDGER (standing section — the ONE place open flags live.
 Future sweeps read THIS, not the tree. Consolidated at residue-sweep

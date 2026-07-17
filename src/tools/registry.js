@@ -16,6 +16,13 @@ const TOOLS = [
     load:  () => import("./7t_population_designer.jsx"),
   },
   {
+    id:    "terrain_color_designer",
+    name:  "Terrain Color Designer",
+    desc:  "The graduated palette mirror as an instrument — median/light editors, weight + mode_* sliders, exact palette-geography preview, C++ export (STEP 2c)",
+    color: "#c88c50",
+    load:  () => import("./7t_terrain_color_designer.jsx"),
+  },
+  {
     id:    "theme_tool",
     name:  "Theme Tool",
     desc:  "Entity distribution designer — 4-pass procedural placement synced with the C++ engine",
