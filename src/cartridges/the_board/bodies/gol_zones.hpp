@@ -2,7 +2,7 @@
 #include <cstdint>
 #include "cartridges/the_board/realization/state.hpp"                    // Dim::*, GPUZoneDeriveRequestArray, wgpu
 #include "cartridges/the_board/contracts/mood_constants.hpp"   // MOOD_COUNT (sizes the mood gate)
-#include "cartridges/the_board/contracts/keyhole.hpp"          // Cartridge + wgpu::Queue fwds (the keyhole)
+#include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 #include "cartridges/the_board/contracts/entity_types.hpp"     // GoLSelection/GoLPlacement (the boundary DTOs) + queue types
 
 // ─── gol_zones.hpp (HEADER: vocabulary + state + decls) ──────────
@@ -278,7 +278,7 @@ bool place_gol_from_selection(MachineCtx* c,
 void commit_gol(GoLState& gs, MachineCtx* c,
     const GoLPlacement& plan,
     int32_t trigger_gx, int32_t trigger_gz, wgpu::Queue& queue);
-// The evictor — keyhole-shaped
+// The evictor — MachineCtx-shaped
 // to match the FAMILY_DISPATCH evict slot (table in cartridge.hpp, post-class)
 void evict_gol(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
 // Dispatch funnels (table-shaped; the FAMILY_DISPATCH rows point here)

@@ -3,6 +3,7 @@
 #include "cartridges/the_board/contracts/spine_state.hpp"      // PlayerState (the anchor's organ) + TransitionPhase (the transition channel) + InputState (graduated)
 #include "cartridges/the_board/contracts/mood_constants.hpp"   // MOOD_* IDs (the mood keys) + PortalDestination
 #include "cartridges/the_board/contracts/point.hpp"             // PointState/PointHost (the point — the driver toggles its host)
+#include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 #include <algorithm>       // std::max, std::min   // (impl, merged)
 #include <cmath>           // std::sqrt   // (impl, merged)
 #include <iostream>        // toggle / radius logs   // (impl, merged)
@@ -29,10 +30,8 @@
 // PREGEN_RADIUS — patch_system.hpp vocabulary).
 // ─────────────────────────────────────────────────────────────────
 
-// LOCKSTEP INSURANCE (keyhole.hpp's form): the Device declaration
-// mirrors webgpu_cpp.h's (`class Device`, in namespace wgpu). The
-// deps face holds the queue-fetch handle (the S5 pattern, gol).
-namespace wgpu { class Device; }
+// The deps face holds the queue-fetch handle (the S5 pattern, gol);
+// the wgpu::Device fwd rides contracts/wgpu_fwd.hpp (include block).
 
 namespace t7 {
 namespace the_board {

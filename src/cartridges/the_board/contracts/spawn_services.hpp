@@ -2,7 +2,7 @@
 #include <cstdint>
 #include <cstddef>                                            // size_t (the rescale template's array extent)
 #include "cartridges/the_board/contracts/roster.hpp"          // PopFamily (sizes MIN_SEPARATION)
-#include "cartridges/the_board/contracts/keyhole.hpp"         // wgpu::Queue fwd (the keyhole's insurance form)
+#include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 #include "cartridges/the_board/contracts/entity_types.hpp"    // MachineCtx + EntityInstance + traits/adapter + TierProfile
 
 // ─── spawn_services.hpp (CONTRACT: the machine's decl tier) ───────

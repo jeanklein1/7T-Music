@@ -27,13 +27,7 @@
 #include <cstdint>
 #include <cstring>                                        // std::memset (queue-entry ctors)
 #include "cartridges/the_board/contracts/roster.hpp"                // PopFamily (sizes the dispatch table)
-#include "cartridges/the_board/contracts/keyhole.hpp"       // Cartridge + wgpu::Queue fwds (the keyhole)
-
-// fwd — FamilyDispatch::dispatch_mesh takes wgpu::ComputePassEncoder&
-// (reference; forward decl suffices). LOCKSTEP INSURANCE (same
-// construct as keyhole.hpp): mirrors webgpu_cpp.h's declaration form.
-// If Dawn ever changes that form, replace this with the include.
-namespace wgpu { class ComputePassEncoder; }
+#include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 
 namespace t7 {
 namespace the_board {
@@ -42,7 +36,7 @@ namespace the_board {
 // ONE declared struct carrying what the machine may hand a family —
 // the requirements face made literal at the machine's boundary.
 // Members are NAMED AS THE ORGANS: the deduced-C conversion leaves
-// every row and verb body byte-identical (the template keyhole's
+// every row and verb body byte-identical (the template doorway's
 // escape clause, executed). References bound ONCE at the root.
 // THE CONST TRIO is the arrow law's compiler teeth at this boundary:
 // the machine reads the surface only through the m3b faces, reads

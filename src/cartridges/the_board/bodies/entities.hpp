@@ -2,7 +2,7 @@
 #include <cstdint>
 #include "cartridges/the_board/realization/state.hpp"                    // Dim::*, GPUPyramidArray, wgpu
 #include "cartridges/the_board/contracts/mood_constants.hpp"   // MOOD_COUNT, PortalDestination
-#include "cartridges/the_board/contracts/keyhole.hpp"          // Cartridge + wgpu::Queue fwds (the keyhole)
+#include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 #include "cartridges/the_board/contracts/entity_types.hpp"     // queue types (the clean three's funnel signatures)
 
 // ─── entities.hpp (HEADER: vocabulary + state + declarations) ────

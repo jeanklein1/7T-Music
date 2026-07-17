@@ -1,7 +1,7 @@
 #pragma once
 #include <cstdint>
 #include "cartridges/the_board/contracts/mood_constants.hpp"   // MOOD_COUNT (sizes ORB_MOOD_TABLE)
-#include "cartridges/the_board/contracts/keyhole.hpp"          // Cartridge + wgpu::Queue fwds (the keyhole)
+#include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 
 // ─── orbs.hpp (HEADER: console + registries + state + decls) ─────
 // History: audit/LADDER.md
@@ -11,12 +11,6 @@
 // The impl additionally needs state.hpp (GPUOrbConfig, Dim::MAX_ORBS)
 // and renderer.hpp — both precede it in the TU.
 // ─────────────────────────────────────────────────────────────────
-
-// LOCKSTEP INSURANCE (same construct as keyhole.hpp): mirrors
-// webgpu_cpp.h's declaration forms (`class CommandEncoder` /
-// `class RenderPassEncoder`, in namespace wgpu). If Dawn ever changes
-// those forms, replace these forward declarations with the include.
-namespace wgpu { class CommandEncoder; class RenderPassEncoder; }
 
 #include <cmath>      // std::sqrt (rotation-axis normalization)   // (impl, merged)
 #include <iostream>   // operator feedback prints   // (impl, merged)

@@ -3,7 +3,7 @@
 #include "cartridges/the_board/realization/state.hpp"                    // wgpu, GPUSpotLightArray, MAX_SPOT_LIGHTS
 #include "cartridges/the_board/contracts/mood_constants.hpp"   // MOOD_COUNT, the Mood IDs, PortalDestination
 #include "cartridges/the_board/contracts/spine_state.hpp"      // TransitionPhase (the transition channel — the driver door's param)
-#include "cartridges/the_board/contracts/keyhole.hpp"          // Cartridge + wgpu::Queue fwds (the keyhole)
+#include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 #include <algorithm>   // std::max, std::min, std::clamp   // (impl, merged)
 #include <cmath>       // std::sqrt, std::sin, std::cos, std::cosh, std::floor, std::abs   // (impl, merged)
 #include <cstring>     // std::memcpy (anchor-ribbon placement copy)   // (impl, merged)
@@ -79,7 +79,7 @@
 //   point. Bails if a transition is already in flight. Lives in the
 //   mood module rather than input because portal crossings and other
 //   code paths can also drive mood transitions. One door, many keys.
-//   DEPS-FORM: the driver world holds no keyhole
+//   DEPS-FORM: the driver world holds no MachineCtx
 //   — the door takes the transition channel explicitly (the m3
 //   precedent class, clear_spheres).
 // ─────────────────────────────────────────────────────────────────

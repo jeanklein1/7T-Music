@@ -1,7 +1,7 @@
 #pragma once
 #include "cartridges/the_board/realization/state.hpp"                    // Dim::*, GPUState, GPUFloatingEntityState, wgpu
 #include "cartridges/the_board/contracts/floater_vocabulary.hpp"  // ActiveFloater
-#include "cartridges/the_board/contracts/keyhole.hpp"          // Cartridge + wgpu::Queue fwds (the evictor decl)
+#include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 #include "cartridges/the_board/contracts/entity_types.hpp"  // queue types (the funnel signatures) + MachineCtx + organ fwds
 #include <iostream>   // [DIAG:EVICT] logging (flag-gated)   // (impl)
 
@@ -44,7 +44,7 @@ struct SphereDeps {
 // DEPS-FORM PRECEDENT (m3 ruling): the explicit GPUState& parameter
 // is the deps form's first citizen, born-converted — boundary-honest,
 // callable WITHOUT the complete Cartridge. Reclassified from
-// "keyhole bypass" by the stamp; not to be re-shaped keyhole-ward.
+// "bypass" by the stamp; not to be re-shaped MachineCtx-ward.
 inline void clear_spheres(SphereState& ss, GPUState& gpu, wgpu::Queue& queue) {
     for (uint32_t i = 0; i < Dim::MAX_SPHERE_INSTANCES; i++) {
         ss.activeFloaters_[i] = ActiveFloater{};

@@ -1,6 +1,6 @@
 #pragma once
 #include "cartridges/the_board/realization/state.hpp"   // wgpu, GPUSpotLight (the light-VP helper's parameter)
-#include "cartridges/the_board/contracts/keyhole.hpp"  // Cartridge + wgpu::Queue fwds (the keyhole)
+#include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 #include <algorithm>   // std::max, std::min   // (impl, merged)
 #include <cmath>       // std::sqrt, std::abs, std::acos, std::tan   // (impl, merged)
 #include <cstdint>   // (impl, merged)
@@ -45,7 +45,7 @@ void draw_shadow_all(MachineCtx* c, wgpu::RenderPassEncoder& pass);
 void render_main_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
     wgpu::TextureView backbuffer, wgpu::TextureView depth,
     const float (&clearColor_)[3], OrbsState& orbs_state_, OrbsDeps& orbs_deps_);
-// Light matrix helpers (pure math — no keyhole)
+// Light matrix helpers (pure math — no MachineCtx)
 void compute_spot_light_vp(const GPUSpotLight& light, float* view_proj_out);
 void compute_sun_matrices(const float* direction, float* view_proj_out,
     float center_x = 0.0f, float center_z = 0.0f);

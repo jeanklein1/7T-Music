@@ -235,7 +235,7 @@ static_assert(MOOD_OPEN_DEFAULT       == 0 && MOOD_OPEN_SUNSET        == 1
 
 // ═══ THE TRANSITION REQUEST DOOR (decl; def rides merged mood.hpp) ═
 // The single canonical transition entry point — one door, many keys.
-// DEPS-FORM: the driver world holds no keyhole; the door
+// DEPS-FORM: the driver world holds no MachineCtx; the door
 // takes the transition channel explicitly (the m3 precedent class).
 void request_mood_transition(TransitionPhase& phase, PortalDestination& pending,
     MoodState& ms, const WorldState& ws, uint32_t mood);

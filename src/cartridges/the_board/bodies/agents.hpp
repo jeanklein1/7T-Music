@@ -3,7 +3,7 @@
 #include <array>
 #include "cartridges/the_board/realization/state.hpp"                    // Dim::MAX_AGENTS, GPUAgentState, GPU_AGENT_*_COUNT, wgpu
 #include "cartridges/the_board/contracts/mood_constants.hpp"   // MOOD_COUNT + the Mood IDs
-#include "cartridges/the_board/contracts/keyhole.hpp"          // Cartridge + wgpu::Queue fwds (the keyhole)
+#include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 
 // ─── agents.hpp (HEADER: registries + console + state + decls) ───
 // History: audit/LADDER.md

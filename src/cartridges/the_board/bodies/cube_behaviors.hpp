@@ -4,7 +4,7 @@
 #include "cartridges/the_board/realization/state.hpp"                       // Dim::MAX_CUBE_INSTANCES, GPUState, GPUFloatingEntityState, wgpu
 #include "cartridges/the_board/contracts/floater_vocabulary.hpp"  // ActiveCube, CUBE_TIER_COUNT
 #include "cartridges/the_board/contracts/mood_constants.hpp"      // MOOD_COUNT + the Mood IDs
-#include "cartridges/the_board/contracts/keyhole.hpp"             // Cartridge + wgpu::Queue fwds (the keyhole)
+#include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 #include "cartridges/the_board/contracts/entity_types.hpp"   // queue types (the funnel signatures)
 
 // ─── cube_behaviors.hpp (HEADER: registries + console + state + decls) ─
@@ -169,7 +169,7 @@ void apply_cube_tier_gains(float& spring_stiffness, float& drag, uint32_t tier_i
 uint32_t pick_cube_behavior_for_spawn(uint32_t mood_id, uint32_t seed);
 // Teardown owner-clear
 void clear_cubes(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue);  // DEPS-FORM PRECEDENT (m3 ruling): explicit GPUState& param, born-converted
-// The evictor — keyhole-shaped
+// The evictor — MachineCtx-shaped
 // to match the FAMILY_DISPATCH evict slot (table in cartridge.hpp, post-class)
 void evict_cube(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
 // Dispatch funnels (table-shaped; defined below beside the recipe)
@@ -239,7 +239,7 @@ inline uint32_t pick_cube_behavior_for_spawn(uint32_t mood_id, uint32_t seed) {
 // from where the cube was hovering).
 
 // DEPS-FORM PRECEDENT (m3 ruling): explicit GPUState& parameter —
-// the deps form's first citizen; not a keyhole bypass.
+// the deps form's first citizen; not a MachineCtx bypass.
 inline void clear_cubes(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue) {
     for (uint32_t i = 0; i < Dim::MAX_CUBE_INSTANCES; i++) {
         cbs.activeCubes_[i] = ActiveCube{};

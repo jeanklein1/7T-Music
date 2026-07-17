@@ -2,7 +2,7 @@
 #include <cstdint>
 #include <cmath>      // std::round, std::min/max, std::cos/sin/abs   // (impl, merged)
 #include <cstring>    // std::memcpy (drum colors)   // (impl, merged)
-#include "cartridges/the_board/contracts/keyhole.hpp"       // Cartridge + wgpu::Queue fwds (the keyhole)
+#include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 
 // ─── entity_pipeline.hpp (S3 · MERGED: the rescale law + impl) ─────
 // History: audit/LADDER.md

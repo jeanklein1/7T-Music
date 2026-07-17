@@ -3,13 +3,12 @@
 #include <cmath>      // std::exp (the presence ramp)
 #include <algorithm>  // std::min (aura config assembly)
 #include <iostream>   // command-door logs
-#include "cartridges/the_board/contracts/keyhole.hpp"  // Cartridge + wgpu::Queue fwds (the keyhole)
+#include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 
 // ─── pawn.hpp (MERGED single file) ────────────────────────────────
 // History: audit/LADDER.md
 // hpp+inl collapsed: struct + deps + inline impl, one pre-class file.
-// The .inl is retired; the keyhole include stays only for the
-// wgpu::Queue/CommandEncoder fwd forms the signatures name.
+// The wgpu handle fwds the signatures name ride contracts/wgpu_fwd.hpp.
 //
 // Player-relative state: aura field (toroidal 64×64 spring grid that
 // activates near the pawn and releases when it moves away), presence

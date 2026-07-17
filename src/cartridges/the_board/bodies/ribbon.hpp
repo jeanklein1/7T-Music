@@ -3,7 +3,7 @@
 #include <array>      // RibbonHead propagation history
 #include "cartridges/the_board/realization/state.hpp"                    // Dim::*, GPURibbonState, wgpu
 #include "cartridges/the_board/contracts/mood_constants.hpp"   // MOOD_COUNT (sizes the mood gate)
-#include "cartridges/the_board/contracts/keyhole.hpp"          // Cartridge + wgpu::Queue fwds (the keyhole)
+#include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 #include "cartridges/the_board/contracts/entity_types.hpp"     // RibbonSelection/RibbonPlacement (the boundary DTOs) + queue types
 
 // ─── ribbon.hpp (HEADER: console + vocabulary + state + decls) ───
@@ -444,7 +444,7 @@ bool place_ribbon_from_selection(MachineCtx* c,
 void commit_ribbon(RibbonState& rs, MachineCtx* c,
     const RibbonPlacement& plan,
     int32_t trigger_gx, int32_t trigger_gz, wgpu::Queue& queue);
-// The evictor — keyhole-shaped
+// The evictor — MachineCtx-shaped
 // to match the FAMILY_DISPATCH evict slot (table in cartridge.hpp, post-class);
 // carries the sky-mode pin (SEAM[ribbon:sky-mode]) and ref-count law
 void evict_ribbon(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);

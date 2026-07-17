@@ -1,10 +1,6 @@
 #pragma once
 #include <cstdint>
-#include "cartridges/the_board/contracts/keyhole.hpp"       // Cartridge + wgpu::Queue fwds (the keyhole)
-
-// LOCKSTEP INSURANCE (mirrors orbs.hpp): the encoder handle named in
-// the conductor/generation decls, forward-declared in webgpu_cpp.h's form.
-namespace wgpu { class CommandEncoder; }
+#include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 
 // ─── surface_services.hpp (CONTRACT: the surface's decl tier) ─────
 // History: audit/LADDER.md
@@ -166,7 +162,7 @@ struct PatchSystemState {
 // ═══ MODULE FUNCTIONS — DECLARATIONS ═══════════════════════════════
 //
 // DEFINED in surface/patch_system.hpp (merged, cohort tail): the machine stands on
-// THE MACHINE FACE (no keyhole), the S3 dispatch seam
+// THE MACHINE FACE (MachineCtx), the S3 dispatch seam
 // (select/place/commit — contracts/spawn_services.hpp), and the GPU
 // wire (gpuState_ / renderer_). The reaches outside the face ride
 // the call sites: the tile doors' deps, the mood deps, the driver's
@@ -196,7 +192,7 @@ void init_patch_system(MachineCtx* c, TileWorldState& tile_world_state_);
 // The recenter door (m4): names the hidden regen request — the
 // streaming conductor re-evaluates the full window next frame.
 // Caller: the radius command (direction/input). DEPS-FORM: the
-// driver world holds no keyhole — the door takes its
+// driver world holds no MachineCtx — the door takes its
 // one organ explicitly (the m3 precedent class, clear_spheres).
 void request_recenter(WorldState& ws);
 void write_pier(MachineCtx* c, wgpu::Queue& queue, uint32_t slot, const GPUPierInstance& pier);

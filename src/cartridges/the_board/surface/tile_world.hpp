@@ -7,7 +7,7 @@
 #include <iostream>       // std::cerr (the R5 loud tile-cache assert)
 #include <cstdlib>        // std::abort (ditto)
 #include "cartridges/the_board/contracts/roster.hpp"                // PopFamily (TileState theme columns)
-#include "cartridges/the_board/contracts/keyhole.hpp"       // Cartridge + wgpu::Queue fwds (the keyhole)
+#include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 
 // ─── tile_world.hpp (S2 · MERGED single file) ─────────────────────────
 // History: audit/LADDER.md
@@ -169,8 +169,8 @@ struct TileWorldState {
 
 // ═══ MODULE FUNCTIONS — DECLARATIONS ═══════════════════════════════
 //
-// DEFINED in tile_world.inl (post-class): generate reaches the
-// keyhole's mood/world state; upload reaches the GPU wire.
+// DEFINED below (the merged impl): generate reaches the
+// machine's mood/world state; upload reaches the GPU wire.
 // THE S2/S3 BOUNDARY FACE: the tile cache is read across the boundary
 // by the spawn preamble and the surface samplers (estimate_terrain_
 // height / terrain_tile_warm) — the interface trio's memory member.

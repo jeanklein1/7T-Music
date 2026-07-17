@@ -5,7 +5,7 @@
 #include <cmath>      // std::floor, std::sqrt, std::min/max companions   // (impl, merged)
 #include <algorithm>  // std::min, std::max   // (impl, merged)
 #include <iomanip>    // census column formatting   // (impl, merged)
-#include "cartridges/the_board/contracts/keyhole.hpp"       // Cartridge + wgpu::Queue fwds (the keyhole)
+#include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 
 // ─── spawn_engine.hpp (S3 · MERGED: vocabulary + state + impl) ─────
 // History: audit/LADDER.md

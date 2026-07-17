@@ -6,7 +6,7 @@
 #include "cartridges/the_board/realization/state.hpp"                    // Dim::*, GPUPaintingSlot, GPUPhotographerConfig, wgpu
 #include "cartridges/the_board/contracts/mood_constants.hpp"   // MOOD_COUNT (sizes the mood gate)
 #include "cartridges/the_board/primitives/seed_utils.hpp"       // select_weighted (PhotographerState::sample_shot_type)
-#include "cartridges/the_board/contracts/keyhole.hpp"          // Cartridge + wgpu::Queue fwds (the keyhole)
+#include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 #include "external/stb_image.h"                                // stbi_load/stbi_image_free — authored painting loader (dependency named here)
 #include "cartridges/the_board/contracts/entity_types.hpp"     // GallerySelection/GalleryPlacement (the boundary DTOs) + queue types
 
@@ -16,7 +16,7 @@
 // The art system.
 //
 // The impl additionally reaches the spawn-engine services and
-// GLOBAL_ENTITY_DENSITY (spawn_engine.hpp, keyhole form), PATCH_EXTENT
+// GLOBAL_ENTITY_DENSITY (contracts/spawn_services.hpp), PATCH_EXTENT
 // (patch_system.hpp), PopFamily (roster.hpp vocabulary), and
 // stb_image (authored disk loading).
 //
@@ -482,7 +482,7 @@ void commit_gallery(GalleryState& gs, MachineCtx* c,
     int32_t trigger_gx, int32_t trigger_gz, wgpu::Queue& queue);
 void evict_paintings_for_patch(GalleryState& gs, MachineCtx* c,
     int32_t gx, int32_t gz, wgpu::Queue& queue);
-// The evictor — keyhole-shaped
+// The evictor — MachineCtx-shaped
 // to match the FAMILY_DISPATCH evict slot (table in cartridge.hpp, post-class)
 void evict_gallery(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
 // Dispatch funnels (table-shaped; the FAMILY_DISPATCH rows point here)

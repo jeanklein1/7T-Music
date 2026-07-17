@@ -1,6 +1,6 @@
 #pragma once
 #include <cstdint>
-#include "cartridges/the_board/contracts/keyhole.hpp"       // wgpu::Queue fwd (the keyhole's insurance form)
+#include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 #include "cartridges/the_board/contracts/surface_services.hpp"  // the surface's decl tier (this module's own contract)
 #include <cmath>          // std::floor, std::sqrt, std::abs   // (impl, merged)
 #include <algorithm>      // std::min, std::max   // (impl, merged)

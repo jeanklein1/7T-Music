@@ -3,8 +3,8 @@
 #include <cmath>                                                     // std::floor/std::pow (tile-population lattice, Q6b)
 #include "cartridges/the_board/contracts/roster.hpp"                // PopFamily (spawn_weight indexing)
 #include "cartridges/the_board/primitives/seed_utils.hpp"    // cpu_hash_f (theme rolls)
-// keyhole include RETIRED at the merge (d3 #1) — nothing here names Cartridge;
-// MachineCtx arrives from contracts/entity_types.hpp earlier in the cohort.
+// Nothing here names Cartridge; MachineCtx arrives from
+// contracts/entity_types.hpp earlier in the cohort.
 
 // ─── population_themes.hpp (S2 · HEADER: vocabulary + state + decls) ─
 // History: audit/LADDER.md
@@ -316,14 +316,13 @@ uint32_t evaluate_theme_envelope(ThemesState& ts, MachineCtx* c, uint32_t tile_s
 void reset_theme_envelope(ThemesState& ts);
 
 
-// ═══ IMPL (ZERO keyhole residue in any signature, no dispatch
+// ═══ IMPL (every body takes the machine face; no dispatch
 // rows). COHORT PROOF: every callee is
 // declared earlier in the cohort — cpu_hash_f (seed_utils, contracts
 // side), THEMES/theme_envelope_weight (above), EXCEPT the DIAG-gated
 // census dump, fwd-declared here under its own flag (spawn_engine.hpp
 // follows this header in the cohort; disclosed per the cohort law).
-// The keyhole include is RETIRED with the merge — nothing here names
-// Cartridge. MachineCtx's type precedes via contracts/entity_types.hpp
+// Nothing here names Cartridge. MachineCtx's type precedes via contracts/entity_types.hpp
 // (the patch_system.hpp cohort precedent). ═══════════════════════════
 
 #ifdef DIAG_ENTITY_CENSUS
