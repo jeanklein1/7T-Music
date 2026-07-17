@@ -1,0 +1,1634 @@
+diff -ruN a/cartridges/the_board/bodies/agents.hpp b/cartridges/the_board/bodies/agents.hpp
+--- a/cartridges/the_board/bodies/agents.hpp	2026-07-17 18:11:36.495049000 +0000
++++ b/cartridges/the_board/bodies/agents.hpp	2026-07-17 19:28:21.304454339 +0000
+@@ -471,7 +471,7 @@
+     if (beh_sum <= 0.0f || tier_sum <= 0.0f) return;
+ 
+     const uint32_t possessed = c->player_.possessed_slot;
+-    // THE POINT (p1b-b): fresh agents cluster around the point —
++    // THE POINT: fresh agents cluster around the point —
+     // readback_x/z, host-authored. Pawn-host value-identical (the
+     // slot mirror and the readback come from the same P5 harvest
+     // snapshot); in free-fly the population spawns in the xz plane
+@@ -517,7 +517,7 @@
+     }
+ 
+     const uint32_t cur = c->player_.possessed_slot;
+-    // THE POINT (p1b-b): possession reaches from the point — the
++    // THE POINT: possession reaches from the point — the
+     // nearest agent to where you ARE. Pawn-host value-identical (same
+     // harvest snapshot as the slot mirror); in free-fly Caps Lock
+     // grabs a body wherever you flew (xz-plane reach, per the spawn
+diff -ruN a/cartridges/the_board/bodies/cube_behaviors.hpp b/cartridges/the_board/bodies/cube_behaviors.hpp
+--- a/cartridges/the_board/bodies/cube_behaviors.hpp	2026-07-17 18:11:36.693225000 +0000
++++ b/cartridges/the_board/bodies/cube_behaviors.hpp	2026-07-17 19:29:01.825564451 +0000
+@@ -26,7 +26,7 @@
+ 
+ // ═══ MODULE DEPS ════════════════════════════════════════════════════
+ // The cube commands' requirements face: corral/kite center on THE
+-// POINT through the witness record (readback_x/z, p1b-b — the agent
++// POINT through the witness record (readback_x/z — the agent
+ // slot reach retired with it); all reads except the GPU wire.
+ struct CubeDeps {
+     GPUState&        gpuState_;
+@@ -168,7 +168,7 @@
+ void apply_cube_tier_gains(float& spring_stiffness, float& drag, uint32_t tier_idx);
+ uint32_t pick_cube_behavior_for_spawn(uint32_t mood_id, uint32_t seed);
+ // Teardown owner-clear
+-void clear_cubes(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue);  // DEPS-FORM PRECEDENT (m3 ruling): explicit GPUState& param, born-converted
++void clear_cubes(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue);  // DEPS-FORM PRECEDENT: explicit GPUState& param, born-converted
+ // The evictor — MachineCtx-shaped
+ // to match the FAMILY_DISPATCH evict slot (table in cartridge.hpp, post-class)
+ void evict_cube(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
+@@ -234,11 +234,11 @@
+ // ─── Kite mode ─────────────────────────────────────────────────────
+ //
+ // Toggle on  — captures each cube's current xz as a point-relative
+-// offset (p1b-b: the kite leashes to the point). Cube xz is preserved exactly; y resets to pawn.y +
++// offset (the kite leashes to the point). Cube xz is preserved exactly; y resets to pawn.y +
+ // orbit_height (small visible jump only if pawn's altitude differs
+ // from where the cube was hovering).
+ 
+-// DEPS-FORM PRECEDENT (m3 ruling): explicit GPUState& parameter —
++// DEPS-FORM PRECEDENT: explicit GPUState& parameter —
+ // the deps form's first citizen; not a MachineCtx bypass.
+ inline void clear_cubes(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue) {
+     for (uint32_t i = 0; i < Dim::MAX_CUBE_INSTANCES; i++) {
+@@ -276,7 +276,7 @@
+ 
+ inline void corral_cubes(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& queue) {
+     (void)queue;
+-    // THE POINT (p1b-b): the corral ring forms around the point —
++    // THE POINT: the corral ring forms around the point —
+     // readback_x/z, host-authored (pawn-host value-identical: same
+     // P5 harvest snapshot as the slot mirror).
+     const float px = c->player_.readback_x;
+@@ -376,7 +376,7 @@
+ 
+ inline void toggle_cube_kite_mode(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& queue) {
+     cbs.kite_mode = !cbs.kite_mode;
+-    // THE POINT (p1b-b): the kite leashes to the point — the offset
++    // THE POINT: the kite leashes to the point — the offset
+     // capture here and the GPU kite home (update_cube) moved in
+     // LOCK-STEP, so the F7 toggle still preserves world position
+     // exactly. Pawn-host value-identical (same harvest snapshot).
+@@ -455,15 +455,15 @@
+ };
+ 
+ inline constexpr TierParamDef CUBE_PARAM_DEFS[] = {
+-    { CubeEntityProp::BODY_RADIUS,      0.5f, 1e30f, false, ParamDist::GAUSSIAN },
+-    { CubeEntityProp::ORBIT_HEIGHT,     3.0f, 1e30f, false, ParamDist::GAUSSIAN },
+-    { CubeEntityProp::INFLUENCE_RADIUS, 3.0f, 1e30f, false, ParamDist::GAUSSIAN },
+-    { CubeEntityProp::SPIN_SPEED,       0.0f, 1e30f, false, ParamDist::GAUSSIAN },
+-    { CubeEntityProp::BOB_AMPLITUDE,    0.0f, 1e30f, false, ParamDist::GAUSSIAN },
+-    { CubeEntityProp::BOB_PERIOD,       0.5f, 1e30f, false, ParamDist::GAUSSIAN },
+-    { CubeEntityProp::ASPECT_Y,         0.2f, 1e30f, false, ParamDist::GAUSSIAN },
+-    { CubeEntityProp::ASPECT_Z,         0.1f, 1e30f, false, ParamDist::GAUSSIAN },
+-    { CubeEntityProp::FACE_VARIANCE,    0.0f, 1e30f, false, ParamDist::GAUSSIAN },
++    { CubeProp::BODY_RADIUS,      0.5f, 1e30f, false, ParamDist::GAUSSIAN },
++    { CubeProp::ORBIT_HEIGHT,     3.0f, 1e30f, false, ParamDist::GAUSSIAN },
++    { CubeProp::INFLUENCE_RADIUS, 3.0f, 1e30f, false, ParamDist::GAUSSIAN },
++    { CubeProp::SPIN_SPEED,       0.0f, 1e30f, false, ParamDist::GAUSSIAN },
++    { CubeProp::BOB_AMPLITUDE,    0.0f, 1e30f, false, ParamDist::GAUSSIAN },
++    { CubeProp::BOB_PERIOD,       0.5f, 1e30f, false, ParamDist::GAUSSIAN },
++    { CubeProp::ASPECT_Y,         0.2f, 1e30f, false, ParamDist::GAUSSIAN },
++    { CubeProp::ASPECT_Z,         0.1f, 1e30f, false, ParamDist::GAUSSIAN },
++    { CubeProp::FACE_VARIANCE,    0.0f, 1e30f, false, ParamDist::GAUSSIAN },
+ };
+ inline constexpr uint32_t CUBE_PARAM_COUNT = sizeof(CUBE_PARAM_DEFS) / sizeof(TierParamDef);
+ static_assert(CUBE_PARAM_COUNT == CubeIdx::COUNT,
+@@ -524,17 +524,17 @@
+     PopFamily::CUBE, "cube", Dim::MAX_CUBE_INSTANCES,
+     false, false, 0,
+     true,
+-    CubeEntityProp::SPAWN_ROLL, CubeConfig::SPAWN_CHANCE,
++    CubeProp::SPAWN_ROLL, CubeConfig::SPAWN_CHANCE,
+     CubeConfig::MOOD_MULTIPLIER, CubeConfig::POSITION_JITTER,
+-    CUBE_TIER_COUNT, CubeEntityProp::TIER,
++    CUBE_TIER_COUNT, CubeProp::TIER,
+     CUBE_PARAM_DEFS, CUBE_PARAM_COUNT,
+-    CubeEntityProp::ANCHOR_X, CubeEntityProp::ANCHOR_Z, CubeEntityProp::ROTATION, false,
++    CubeProp::ANCHOR_X, CubeProp::ANCHOR_Z, CubeProp::ROTATION, false,
+     0, nullptr,
+ };
+ 
+ inline SpawnGateOutput cube_run_gate(MachineCtx* c, int32_t gx, int32_t gz) {
+     auto gate = run_spawn_preamble(c, gx, gz, c->cube_behaviors_state_.activeCubes_, Dim::MAX_CUBE_INSTANCES,
+-        CubeEntityProp::SPAWN_ROLL, CubeConfig::SPAWN_CHANCE,
++        CubeProp::SPAWN_ROLL, CubeConfig::SPAWN_CHANCE,
+         CubeConfig::MOOD_MULTIPLIER, PopFamily::CUBE, "cube");
+     return { gate.ok, gate.seed, gate.slot, gate.theme_idx };
+ }
+@@ -546,9 +546,9 @@
+ }
+ 
+ inline void cube_compute_colors(EntityInstance& inst, const EntityFamilyTraits&, const TierProfile& /*tier*/) {
+-    inst.colors[0] = cpu_hash_f(inst.seed, CubeEntityProp::COLOR_R) * 0.55f + 0.35f;
+-    inst.colors[1] = cpu_hash_f(inst.seed, CubeEntityProp::COLOR_G) * 0.50f + 0.30f;
+-    inst.colors[2] = cpu_hash_f(inst.seed, CubeEntityProp::COLOR_B) * 0.60f + 0.20f;
++    inst.colors[0] = cpu_hash_f(inst.seed, CubeProp::COLOR_R) * 0.55f + 0.35f;
++    inst.colors[1] = cpu_hash_f(inst.seed, CubeProp::COLOR_G) * 0.50f + 0.30f;
++    inst.colors[2] = cpu_hash_f(inst.seed, CubeProp::COLOR_B) * 0.60f + 0.20f;
+ }
+ 
+ inline void cube_write_active(MachineCtx* c, const EntityInstance& inst) {
+@@ -564,8 +564,8 @@
+ inline void cube_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Queue& queue) {
+     // Spin tilt: custom derivation from tier constant (not a sampled param)
+     float tilt_sigma = CUBE_TIERS[inst.tier_idx].spin_tilt_sigma;
+-    float tilt_x = (cpu_hash_f(inst.seed, CubeEntityProp::SPIN_TILT_X) - 0.5f) * 2.0f * tilt_sigma;
+-    float tilt_z = (cpu_hash_f(inst.seed, CubeEntityProp::SPIN_TILT_Z) - 0.5f) * 2.0f * tilt_sigma;
++    float tilt_x = (cpu_hash_f(inst.seed, CubeProp::SPIN_TILT_X) - 0.5f) * 2.0f * tilt_sigma;
++    float tilt_z = (cpu_hash_f(inst.seed, CubeProp::SPIN_TILT_Z) - 0.5f) * 2.0f * tilt_sigma;
+ 
+     GPUFloatingEntityState fe{};
+     fe.anchor[0] = inst.cx; fe.anchor[1] = 0.0f; fe.anchor[2] = inst.cz;
+diff -ruN a/cartridges/the_board/bodies/gallery.hpp b/cartridges/the_board/bodies/gallery.hpp
+--- a/cartridges/the_board/bodies/gallery.hpp	2026-07-17 18:11:36.906286000 +0000
++++ b/cartridges/the_board/bodies/gallery.hpp	2026-07-17 19:29:01.770919457 +0000
+@@ -138,7 +138,7 @@
+ 
+ struct PhotographerCaptureConfig {
+     // Trigger: how far THE POINT travels between capture events
+-    // (p1b-c: the body's walk in pawn-host — identical; the flight in
++    // (the body's walk in pawn-host — identical; the flight in
+     // free-fly — the travelogue)
+     static constexpr float TRIGGER_DISTANCE_MEAN = 50.0f;
+     static constexpr float TRIGGER_DISTANCE_SIGMA = 8.0f;
+@@ -621,7 +621,7 @@
+         int32_t tx = (int32_t)std::floor(px / Dim::PATCH_EXTENT);
+         int32_t tz = (int32_t)std::floor(pz / Dim::PATCH_EXTENT);
+         uint32_t pace_archetype = 0;
+-        if (tile_archetype(c->tile_world_state_, tx, tz, pace_archetype)) {  // F4 (m3b): miss keeps pace 1.0
++        if (tile_archetype(c->tile_world_state_, tx, tz, pace_archetype)) {  // F4: miss keeps pace 1.0
+             pace = GalleryConfig::PHOTO_PACE_BY_ARCHETYPE[pace_archetype];
+         }
+ 
+@@ -712,13 +712,13 @@
+     // Content gate: minimum snapshot pool
+     if (gs.snapshot_count < GalleryConfig::MIN_POOL_SIZE) return false;
+ 
+-    // THE COMPOSITION LAW (R1): base authority is ARCHETYPE-INDEXED —
++    // THE COMPOSITION LAW: base authority is ARCHETYPE-INDEXED —
+     // resolved first, passed as data. Mood = explicit veto; proximity
+     // OFF (gallery's affinity row is zero); clamp NONE — the absent
+     // clamp is CARRIED AS DATA per the sub-ruling (behavior-identical;
+     // ruling a clamp IN is a separate taste gate).
+     uint32_t archetype = 1;
+-    tile_archetype(c->tile_world_state_, gx, gz, archetype);   // F4 (m3b): miss keeps 1
++    tile_archetype(c->tile_world_state_, gx, gz, archetype);   // F4: miss keeps 1
+     auto composed = compose_spawn_chance(c, gx, gz, PopFamily::GALLERY,
+         GalleryConfig::GALLERY_CHANCE_BY_ARCHETYPE[archetype],
+         GalleryConfig::MOOD_MULTIPLIER,
+diff -ruN a/cartridges/the_board/bodies/gol_zones.hpp b/cartridges/the_board/bodies/gol_zones.hpp
+--- a/cartridges/the_board/bodies/gol_zones.hpp	2026-07-17 18:11:36.584418000 +0000
++++ b/cartridges/the_board/bodies/gol_zones.hpp	2026-07-17 19:28:21.303817953 +0000
+@@ -307,7 +307,7 @@
+ 
+ inline bool select_gol_for_patch(GoLState& gs, MachineCtx* c,
+     int32_t gx, int32_t gz, GoLSelection& sel) {
+-    // THE COMPOSITION LAW (R1): the shared stack — mood (explicit veto)
++    // THE COMPOSITION LAW: the shared stack — mood (explicit veto)
+     // → global → tile (F3); proximity OFF (GoL's affinity row is zero);
+     // clamp [0,1]. The per-lattice-node roll stays below (its own seed
+     // domain, cpu_lattice_node_seed — a consumer fact, not the law's).
+diff -ruN a/cartridges/the_board/bodies/grounded.hpp b/cartridges/the_board/bodies/grounded.hpp
+--- a/cartridges/the_board/bodies/grounded.hpp	2026-07-17 18:11:36.855243000 +0000
++++ b/cartridges/the_board/bodies/grounded.hpp	2026-07-17 19:28:21.267808858 +0000
+@@ -512,7 +512,7 @@
+ bool prepare_blade_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue& queue);
+ bool prepare_column_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue& queue);
+ bool prepare_arch_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue& queue);
+-// prepare_pyramid_mesh_gen CUT (C2 orphan sweep) — pyramid mesh dead-by-design
++// prepare_pyramid_mesh_gen CUT (orphan sweep) — pyramid mesh dead-by-design
+ 
+ // ═══ THE EVICTORS — DECLARATIONS ═══════════════════════════════════
+ 
+@@ -629,7 +629,7 @@
+     return true;
+ }
+ 
+-// prepare_pyramid_mesh_gen CUT (C2 orphan sweep) — the pyramid mesh-gen driver
++// prepare_pyramid_mesh_gen CUT (orphan sweep) — the pyramid mesh-gen driver
+ // is gone (mesh never drawn). Its sole caller (the FAMILY_DISPATCH wrapper) was
+ // removed; the pyramid_mesh_gen_pending flag + set_pyramid_index_count it drove
+ // are now a dead-store husk (→ C6).
+diff -ruN a/cartridges/the_board/bodies/orbs.hpp b/cartridges/the_board/bodies/orbs.hpp
+--- a/cartridges/the_board/bodies/orbs.hpp	2026-07-17 18:11:36.658784000 +0000
++++ b/cartridges/the_board/bodies/orbs.hpp	2026-07-17 19:28:21.271188814 +0000
+@@ -35,7 +35,7 @@
+ // ═══ TUNING CONSOLE ══════════════════════════════════════════════
+ 
+ // ── Dome geometry ────────────────────────────────────────────────
+-inline constexpr float ORB_DOME_RADIUS = 500.0f;   // p1b-e skybox radius; 700 fell into the fog, 500 the visible dial (Jean)
++inline constexpr float ORB_DOME_RADIUS = 500.0f;   // skybox radius — 700 fell into the fog; 500 is the visible dial (Jean's dial)
+ inline constexpr float ORB_BASE_SIZE = 3.0f;
+ 
+ // ── Noise floor ──────────────────────────────────────────────────
+@@ -383,7 +383,7 @@
+ 
+ // Apply mood's first-run defaults to player-owned state. The flock
+ // gesture is "mood seeds once, player wins after." (The anchor seed
+-// retired at p1b-e — the dome is a skybox, eye-centered always.)
++// retired — the dome is a skybox, eye-centered always.)
+ inline void apply_mood_first_run_defaults_(OrbsState& os, const OrbMoodConfig& cfg) {
+     if (!os.gesture_initialized[ORB_RULE_BROWNIAN]) {
+         os.gesture_idx[ORB_RULE_BROWNIAN] = std::min(
+@@ -615,7 +615,7 @@
+     gpuCfg.color_surge = 0.0f;
+     gpuCfg.hue_converge_target = cfg.hue_converge_target;
+ 
+-    // Dome center — DEAD WIRE (p1b-e): the orb VS eye-centers the
++    // Dome center — DEAD WIRE: the orb VS eye-centers the
+     // dome (the skybox); these bytes are zero-filled for the ABI only.
+     gpuCfg.dome_center_x = 0.0f;
+     gpuCfg.dome_center_y = 0.0f;
+@@ -735,7 +735,7 @@
+     std::cout << "[Orbs] Frozen has no gestures (stillness is the rule).\n";
+ }
+ 
+-// (The dome anchor commands retired at p1b-e — the dome is a SKYBOX,
++// (The dome anchor commands retired — the dome is a SKYBOX,
+ // eye-centered in the orb VS every frame; KP_9 freed.)
+ 
+ // ═══ GPU DISPATCHES ══════════════════════════════════════════════
+diff -ruN a/cartridges/the_board/bodies/ribbon.hpp b/cartridges/the_board/bodies/ribbon.hpp
+--- a/cartridges/the_board/bodies/ribbon.hpp	2026-07-17 18:11:36.920711000 +0000
++++ b/cartridges/the_board/bodies/ribbon.hpp	2026-07-17 19:28:21.306106769 +0000
+@@ -455,7 +455,7 @@
+ // Frame conductor
+ void ribbon_frame_tick(RibbonState& rs, RibbonDeps* c, wgpu::Queue& queue);
+ // Head mover
+-// DEPS-FORM PRECEDENT (m3 ruling): the head mover and its body
++// DEPS-FORM PRECEDENT: the head mover and its body
+ // uploader take GPUState& explicitly — born-converted, callable
+ // without the complete Cartridge.
+ void ribbon_advance_head(RibbonState& rs, GPUState& gpuState,
+diff -ruN a/cartridges/the_board/bodies/spheres.hpp b/cartridges/the_board/bodies/spheres.hpp
+--- a/cartridges/the_board/bodies/spheres.hpp	2026-07-17 18:11:36.268899000 +0000
++++ b/cartridges/the_board/bodies/spheres.hpp	2026-07-17 19:28:21.279571981 +0000
+@@ -14,7 +14,7 @@
+ //
+ // The SphereState CONTENT is the ActiveSphere array. The ActiveSphere
+ // TYPE stays shared vocabulary (floater_vocabulary.hpp); renamed from
+-// ActiveSphere this sweep (props numeric at every hash site — seed-free).
++// ActiveFloater this sweep (props numeric at every hash site — seed-free).
+ //
+ // SEAM[sphere:P5] the ActiveSphere last_alloc_time race protection lives
+ //   with the type (floater_vocabulary.hpp); this owner holds the array the
+@@ -39,7 +39,7 @@
+ 
+ // Teardown owner-clear: the sphere half of the score's TEARDOWN
+ // movement — CPU clear + per-slot GPU clear, paired.
+-// DEPS-FORM PRECEDENT (m3 ruling): the explicit GPUState& parameter
++// DEPS-FORM PRECEDENT: the explicit GPUState& parameter
+ // is the deps form's first citizen, born-converted — boundary-honest,
+ // callable WITHOUT the complete Cartridge. Reclassified from
+ // "bypass" by the stamp; not to be re-shaped MachineCtx-ward.
+@@ -65,7 +65,7 @@
+ // contracts/spawn_services.hpp (generic_select/place/commit +
+ // run_spawn_preamble + negotiate_position DECLS — the machine bodies
+ // ride the cohort tail); WorldState/MoodState complete upstream.
+-// clear_spheres keeps its deps-form GPUState& (m3 precedent). ═════════
++// clear_spheres keeps its deps-form GPUState& (the stamped precedent). ═════════
+ 
+ inline void evict_sphere(MachineCtx* self,
+     uint32_t slot, wgpu::Queue& queue) {
+diff -ruN a/cartridges/the_board/cartridge.hpp b/cartridges/the_board/cartridge.hpp
+--- a/cartridges/the_board/cartridge.hpp	2026-07-17 17:55:54.661397000 +0000
++++ b/cartridges/the_board/cartridge.hpp	2026-07-17 19:28:21.265433843 +0000
+@@ -610,7 +610,7 @@
+             //     consumes it NEXT frame (update precedes render within a frame).
+             //     A portal step is render N arms -> update N+1 advances; the
+             //     one-frame readback lag (E-4) stacks on top.
+-            //   E-3 (sky write-order) — MECHANIZED (C7), NO LONGER A LAW. It was
++            //   E-3 (sky write-order) — MECHANIZED, NO LONGER A LAW. It was
+             //     a three-writer relay: U2 wrote neutral sky words, U8 uploaded
+             //     the whole signal, R7's tail (resync_sky_head) overwrote them,
+             //     and correctness rode submission order across update()->render().
+@@ -721,7 +721,7 @@
+                 gpuSignal.dt_beats = signal.t_beats - time_state_.prev_beats;  // beats since last frame -> step_trigger
+             }
+ 
+-            // U2 (sky-neutral) REMOVED — E-3 MECHANIZED (C7). The sky block is no
++            // U2 (sky-neutral) REMOVED — E-3 MECHANIZED. The sky block is no
+             // longer part of the signal drain: upload_signal skips the trailing
+             // 32 bytes, so the block's SOLE author is resync_sky_head (R7, the
+             // ribbon tick's tail), with a boot-neutral (initialize) covering the
+@@ -918,7 +918,7 @@
+             }
+ 
+             // U9 — WITNESS: PHOTOGRAPHER (algo). The orb dome anchor movement
+-            // retired at p1b-e (skybox, eye-centered in the orb VS; no CPU
++            // retired (skybox — eye-centered in the orb VS; no CPU
+             // upload). ROSTER-GATE gallery (b) — P1 dies structurally in a
+             // gallery-less demo; guarded at the call site.
+             void phase_witness_photographer(UpdateCtx& c) {
+@@ -951,7 +951,7 @@
+             // ═══════════════════════════════════════════════════════════════
+             // THE FRAME SPINE — render() phases
+             //
+-            // CUT 1 (the extraction): the recon's movements R1..R21 are now
++            // THE EXTRACTION: the movements R1..R21 are now
+             // named phase methods; render() at the tail of this block is a page
+             // of calls. PURE LIFT — no reordering, no logic change. A whole-
+             // movement `if constexpr(ROSTER.x)` gate stays at the CALL SITE
+@@ -986,12 +986,12 @@
+                                         std::memcpy(agent_state_.slots, data,
+                                             GPUState::agent_state_buffer_size());
+                                         const auto& p = agent_state_.slots[player_.possessed_slot];
+-                                        // THE POINT (p1b-a): readback_x/z is the
++                                        // THE POINT: readback_x/z is the
+                                         // POINT's position — the body authors it
+                                         // only when the pawn hosts; the camera
+                                         // harvest below authors it in camera-host.
+                                         // The portal trigger is the point's BUBBLE
+-                                        // sensor (p1b-d), riding the possessed
++                                        // sensor, riding the possessed
+                                         // slot's wire in both hosts.
+                                         if (point_.host == PointHost::PAWN) {
+                                             player_.readback_x = p.pos_x;
+@@ -1035,7 +1035,7 @@
+                         });
+                 }
+ 
+-                // THE POINT's camera-host harvest (p1b-a, option A): when
++                // THE POINT's camera-host harvest (option A): when
+                 // the camera hosts the point, its GPU-resident position is
+                 // the point's position — read it back so the CPU viewpoint
+                 // set (streaming center, recenter, LOD banding, lod stage,
+@@ -1286,7 +1286,7 @@
+                     floaterReadbackState_ = FloaterReadbackState::COPIED;
+                 }
+ 
+-                // The point readback copy (p1b-a): CAMERA-HOST ONLY — the
++                // The point readback copy: CAMERA-HOST ONLY — the
+                 // pawn-host frame encodes no camera copy (option A; the
+                 // pawn path stays byte-untouched).
+                 if (point_.host == PointHost::CAMERA &&
+@@ -1444,7 +1444,7 @@
+                 { RPhase::PromotionDrain,      "promotion_drain",       &Cartridge::phase_promotion_drain,       Driver::Algo,      (ROSTER.gallery || ROSTER.indoor_shell), F_NONE },
+             };
+ 
+-            // ═══ SPINE VALIDATION — C8 dissolves here ═══════════════════════
++            // ═══ SPINE VALIDATION ═══════════════════════
+             // Every CROSS-PHASE O-# / RC law the recon named is a static_assert
+             // over the row indices: the frame CANNOT be authored out of its
+             // lawful order (a reorder fails the BUILD, not the pixel rig). The
+@@ -1564,7 +1564,7 @@
+                 case InputEvent::Type::KeyDown:
+                     // The command fan's TARGET organs ride the call site:
+                     // the root addresses the fan's
+-                    // bodies per event, through the m4 doors — the driver
++                    // bodies per event, through the owner doors — the driver
+                     // owns none of them (v3 §9 Act I). The F6 socket stays
+                     // RESERVED for a real addressing need.
+                     on_key_down(&input_deps_, event.key,
+@@ -1647,7 +1647,7 @@
+ //   RENDER_UPDATE mesh phases (none-fork = family has no mesh).
+ inline const FamilyDispatch FAMILY_DISPATCH[PopFamily::COUNT] = {
+     { dispatch_select_pyramid_generic, dispatch_place_pyramid_generic, dispatch_commit_pyramid_generic,
+-      evict_pyramid, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,   // mesh hook → none-fork (C2): pyramid mesh dead-by-design; placement feeds the heightfield
++      evict_pyramid, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,   // mesh hook → none-fork: pyramid mesh dead-by-design; placement feeds the heightfield
+       "pyr" },
+     { dispatch_select_arch_generic, dispatch_place_arch_generic, dispatch_commit_arch_generic,
+       evict_arch,    Cartridge::dispatch_prepare_mesh_arch,    Cartridge::dispatch_mesh_gen_arch,
+diff -ruN a/cartridges/the_board/contracts/entity_types.hpp b/cartridges/the_board/contracts/entity_types.hpp
+--- a/cartridges/the_board/contracts/entity_types.hpp	2026-07-17 17:55:54.170107000 +0000
++++ b/cartridges/the_board/contracts/entity_types.hpp	2026-07-17 19:28:21.266508066 +0000
+@@ -8,7 +8,7 @@
+ //
+ // THE CONTRACT HOME: pipeline contracts, the boundary DTOs (a DTO
+ // that exists to cross a boundary belongs to the boundary's contract,
+-// not to either side — theory v2 §8), and the dispatch contract (the
++// not to either side — the program theory), and the dispatch contract (the
+ // queue-entry unions + row type + table declaration). The DTOs are
+ // plain aggregates of built-ins, so this header carries no owner
+ // vocabulary and every owner header may include it.
+diff -ruN a/cartridges/the_board/contracts/floater_vocabulary.hpp b/cartridges/the_board/contracts/floater_vocabulary.hpp
+--- a/cartridges/the_board/contracts/floater_vocabulary.hpp	2026-07-17 17:55:53.479093000 +0000
++++ b/cartridges/the_board/contracts/floater_vocabulary.hpp	2026-07-17 19:29:01.824948927 +0000
+@@ -113,7 +113,7 @@
+ 
+ // ── Property Index Registry ──────────────────────────────────────
+ // Range: 130–156 (avoids sphere's 100–126).
+-struct CubeEntityProp {
++struct CubeProp {
+     static constexpr uint32_t SPAWN_ROLL = 130u;
+     static constexpr uint32_t ANCHOR_X = 131u;
+     static constexpr uint32_t ANCHOR_Z = 132u;
+@@ -134,9 +134,9 @@
+     static constexpr uint32_t FACE_VARIANCE = 155u;
+     static constexpr uint32_t ROTATION = 156u;
+ };
+-static_assert(CubeEntityProp::SPAWN_ROLL == 130u && CubeEntityProp::ANCHOR_X == 131u
+-           && CubeEntityProp::ANCHOR_Z == 132u && CubeEntityProp::TIER == 133u,
+-    "CubeEntityProp values are the cube seed contract — frozen biography");
++static_assert(CubeProp::SPAWN_ROLL == 130u && CubeProp::ANCHOR_X == 131u
++           && CubeProp::ANCHOR_Z == 132u && CubeProp::TIER == 133u,
++    "CubeProp values are the cube seed contract — frozen biography");
+ 
+ // ── Active Cube Tracking (TYPE — state lives in CubeBehaviorsState) ─
+ struct ActiveCube {
+diff -ruN a/cartridges/the_board/contracts/point.hpp b/cartridges/the_board/contracts/point.hpp
+--- a/cartridges/the_board/contracts/point.hpp	2026-07-17 17:55:53.514556000 +0000
++++ b/cartridges/the_board/contracts/point.hpp	2026-07-17 19:28:21.272606933 +0000
+@@ -29,7 +29,7 @@
+ // was always a host pointer restricted to agent slots; this contract
+ // names the general form.
+ //
+-// REALIZATION (p1a; p1b landed): POSITION lives in the HOST's GPU
++// REALIZATION: POSITION lives in the HOST's GPU
+ // storage — the agent slot when the pawn hosts
+ // (agent_state[possessed_slot]), the camera state when the camera
+ // hosts — read through point_pos() (world.wgsl) on the GPU and the
+@@ -37,13 +37,13 @@
+ // point buffer was needed (the point readback, option A, Jean's
+ // stamp). The host flag (config.point_host) routes reads and the
+ // input intent channel. PRESENCE FOLLOWS THE POINT (the ratified
+-// p1b rule): streaming, LOD/cull, the shadow box, the orb dome, the
++// rule): streaming, LOD/cull, the shadow box, the orb dome, the
+ // living population's existence (agent + floater spawn/evict/
+ // possess-reach/kite/corral), the photographer's record. EMANATION
+ // STAYS THE BODY'S: the walk, the aura dome, the forcefield, the
+ // AI-pursuit-target role — all idle in free-fly by construction.
+ // THE BUBBLE is real (below): its first field and first sensor
+-// landed at p1b-d.
++// are live (below).
+ // ─────────────────────────────────────────────────────────────────
+ 
+ namespace t7 {
+@@ -77,10 +77,10 @@
+     PointTerrainRule::NONE,   // CAMERA — pure fly; every clamp skipped
+ };
+ 
+-// ═══ THE BUBBLE (first field + first sensor live — p1b-d) ══════════
++// ═══ THE BUBBLE (first field + first sensor live) ══════════
+ // The bounded awareness region around the point (v3 §11): proximity,
+ // the portal trigger, the coming event source. Its FIRST FIELD is the
+-// radius; its FIRST SENSOR is the portal (p1b-d, pulled by Jean's
++// radius; its FIRST SENSOR is the portal (pulled by Jean's
+ // altitude question): in camera-host an arch fires only when it sits
+ // within the bubble — the xz ellipse as ever, gated vertically by
+ // this radius (skim over → fire; fly high → no fire). In pawn-host
+diff -ruN a/cartridges/the_board/contracts/roster.hpp b/cartridges/the_board/contracts/roster.hpp
+--- a/cartridges/the_board/contracts/roster.hpp	2026-07-17 17:55:53.500666000 +0000
++++ b/cartridges/the_board/contracts/roster.hpp	2026-07-17 19:28:21.278080712 +0000
+@@ -26,13 +26,13 @@
+ //
+ // MATURITY DIAL: the GATES are the stable contract; the table's
+ //   CONSTNESS is the dial — v0 constexpr -> boot-time table ->
+-//   requirements-face resolver (theory v2 §5).
++//   requirements-face resolver (the program theory).
+ //
+ // LATENT[roster-split:photographer]: the photographer (capture cadence +
+ //   snapshot pass) rides gallery's bit for v0. Split into its own bit the
+ //   day authored-only exhibits with a dead camera are wanted.
+ //
+-// ─── GATE-(a) STATUS (the M-j cost column) ──────────────────────────
++// ─── GATE-(a) STATUS (the cost column) ──────────────────────────
+ //   The creation-side classification (full cost table with buffers/
+ //   groups/pipelines and retirement per piece: history, audit/LADDER.md).
+ //   SEP     = separable now: creation skipped atomically, boot+draws safe.
+@@ -74,7 +74,7 @@
+ // vectors, PROXIMITY_AFFINITY, THEMES[].spawn_weight,
+ // TilePopulation::spatial_density), as is FAMILY_DISPATCH (whose rows are
+ // additionally name-checked at boot by validate_spine, F-2). AND (charter
+-// extended, R5): the enum order IS PLACEMENT
++// extended): the enum order IS PLACEMENT
+ // PRIORITY — select_entities_for_patch loops f=0..COUNT and the queue
+ // places in push order, so within a patch PYRAMID's footprint registers
+ // before ARCH's separation check, ARCH's before COLUMN's… the order
+diff -ruN a/cartridges/the_board/contracts/spawn_services.hpp b/cartridges/the_board/contracts/spawn_services.hpp
+--- a/cartridges/the_board/contracts/spawn_services.hpp	2026-07-17 17:55:53.485218000 +0000
++++ b/cartridges/the_board/contracts/spawn_services.hpp	2026-07-17 19:28:21.279147373 +0000
+@@ -166,7 +166,7 @@
+ // mood/themes/tile state, entities_state_, the GPU wire) and routes
+ // the twelve families through FAMILY_DISPATCH.
+ 
+-// ═══ THE COMPOSITION LAW (R1 — the collapse) ═════════════════════
++// ═══ THE COMPOSITION LAW — the collapse ═════════════════════
+ // ONE stack, authored once, called by all three spawn authors (the
+ // generic preamble, GoL, Gallery). Per-consumer FACTS travel as DATA:
+ // base-chance authority (scalar, or archetype-indexed — resolved by
+diff -ruN a/cartridges/the_board/contracts/spine_state.hpp b/cartridges/the_board/contracts/spine_state.hpp
+--- a/cartridges/the_board/contracts/spine_state.hpp	2026-07-17 17:55:53.507393000 +0000
++++ b/cartridges/the_board/contracts/spine_state.hpp	2026-07-17 19:28:21.279987864 +0000
+@@ -6,7 +6,7 @@
+ // History: audit/LADDER.md
+ //
+ // The in-class trio graduates to file scope so module deps structs
+-// (m3) can name the types without the complete Cartridge. The
++// can name the types without the complete Cartridge. The
+ // INSTANCES (time_state_, player_, transitionPhase_) stay at the
+ // composition root; the residency rulings (SEAM[spine:P8],
+ // SEAM[spine:transitions]) are unchanged — this is a type move, not
+@@ -46,7 +46,7 @@
+ //     option A, Jean's stamp). SOLE AUTHOR is still the P5 HARVEST;
+ //     the spine's only other touches are the TEARDOWN reset and the
+ //     portal door's consume. No module writes them, ever.
+-//   · readback_portal_trigger — THE POINT'S BUBBLE SENSOR (p1b-d):
++//   · readback_portal_trigger — THE POINT'S BUBBLE SENSOR:
+ //     the probe is host-sourced (the body's own crossing in
+ //     pawn-host, byte-identical; the camera + the bubble's vertical
+ //     gate in free-fly). The trigger RIDES the possessed slot's wire
+@@ -60,13 +60,13 @@
+ //   · aura_presence — P8, the pawn is the semantic owner (writes in
+ //     bodies/pawn.hpp only).
+ //   · THE CAMERA HAS NO CPU MIRROR — it lives GPU-resident, keyed on
+-//     config.possessed_slot. The ONE sanctioned window (p1b-a): in
++//     config.possessed_slot. The ONE sanctioned window: in
+ //     CAMERA-HOST the P5 harvest reads camera pos.xz back as the
+ //     point's position — a two-float harvest into the trio above,
+ //     not a mirror. There is still NO readback_y (the witness
+ //     altitude is GPU-only); it is not to be invented.
+ //   · the sky trio (mode / mode_prev / yaw_eased) LEFT this record
+-//     at m6 per Option A — it lives in RibbonState.sky, with its
++//     per Option A — it lives in RibbonState.sky, with its
+ //     single CPU owner (SEAM[ribbon:sky-mode], closed player-side).
+ //
+ // SEAM[spine:P8] PlayerState commented "Future (deferred)" fields
+@@ -78,9 +78,9 @@
+ 
+     // ── Camera + readback ──
+     bool    fpv_mode = false;                // first-person view toggle
+-    float   readback_x = 0.0f;               // THE POINT's world X (host-authored — p1b-a)
+-    float   readback_z = 0.0f;               // THE POINT's world Z (host-authored — p1b-a)
+-    int32_t readback_portal_trigger = -1;    // the point's bubble sensor (p1b-d), on the possessed slot's wire
++    float   readback_x = 0.0f;               // THE POINT's world X (host-authored)
++    float   readback_z = 0.0f;               // THE POINT's world Z (host-authored)
++    int32_t readback_portal_trigger = -1;    // the point's bubble sensor, on the possessed slot's wire
+ 
+     // ── Aura presence (closes SEAM[spine:P8]) ──
+     float aura_presence = 0.0f;                  // pawn aura ramp (was pawn_state_.aura_presence)
+@@ -148,7 +148,7 @@
+     // ── Sun orbit (musical coupling) ──
+     float sun_orbit_phase = 0.0f;
+ 
+-    // ── Light re-upload flag (re-homed from entities_state_ at m4:
++    // ── Light re-upload flag (re-homed from entities_state_:
+     //    mood was both producer and consumer — the organ was wrong,
+     //    not the channel). Set true at init/teardown/apply, cleared
+     //    after upload. ──
+@@ -235,7 +235,7 @@
+ // ═══ THE TRANSITION REQUEST DOOR (decl; def rides merged mood.hpp) ═
+ // The single canonical transition entry point — one door, many keys.
+ // DEPS-FORM: the driver world holds no MachineCtx; the door
+-// takes the transition channel explicitly (the m3 precedent class).
++// takes the transition channel explicitly (the deps-form precedent).
+ void request_mood_transition(TransitionPhase& phase, PortalDestination& pending,
+     MoodState& ms, const WorldState& ws, uint32_t mood);
+ 
+diff -ruN a/cartridges/the_board/contracts/surface_services.hpp b/cartridges/the_board/contracts/surface_services.hpp
+--- a/cartridges/the_board/contracts/surface_services.hpp	2026-07-17 17:55:53.600229000 +0000
++++ b/cartridges/the_board/contracts/surface_services.hpp	2026-07-17 19:28:21.301272858 +0000
+@@ -170,7 +170,7 @@
+ // wire (gpuState_ / renderer_). The reaches outside the face ride
+ // the call sites: the tile doors' deps, the mood deps, the driver's
+ // intent organ.
+-struct TileWorldState;  // tile_world.hpp — the tile cache organ (fwd: the lifecycle owner mutates it through the m4 doors; the machine face's view is const)
++struct TileWorldState;  // tile_world.hpp — the tile cache organ (fwd: the lifecycle owner mutates it through the owner doors; the machine face's view is const)
+ struct ThemesState;     // population_themes.hpp — the theme envelope organ (fwd: same law)
+ struct TileWorldDeps;   // tile_world.hpp — the tile doors' face (fwd: reference param)
+ struct MoodDeps;        // mood.hpp — the back-portal door's face (fwd: reference param)
+@@ -186,17 +186,17 @@
+ uint32_t count_pending_patches(MachineCtx* c);
+ uint32_t patches_budget_this_frame(MachineCtx* c, const InputState& inputState);
+ 
+-// Keyhole form. CALLER: the transition machine
++// Root-called owner verb. CALLER: the transition machine
+ // (root); OWNER: patch_system.
+ void teardown_surface(MachineCtx* c, wgpu::Queue& queue,
+     TileWorldState& tile_world_state, ThemesState& themes_state);  // was teardown_world; reduced to the surface core
+ 
+ void init_patch_system(MachineCtx* c, TileWorldState& tile_world_state);
+-// The recenter door (m4): names the hidden regen request — the
++// The recenter door: names the hidden regen request — the
+ // streaming conductor re-evaluates the full window next frame.
+ // Caller: the radius command (direction/input). DEPS-FORM: the
+ // driver world holds no MachineCtx — the door takes its
+-// one organ explicitly (the m3 precedent class, clear_spheres).
++// one organ explicitly (the deps-form precedent, clear_spheres).
+ void request_recenter(WorldState& ws);
+ void write_pier(MachineCtx* c, wgpu::Queue& queue, uint32_t slot, const GPUPierInstance& pier);
+ void clear_pier(MachineCtx* c, wgpu::Queue& queue, uint32_t slot);
+diff -ruN a/cartridges/the_board/demos/demo.hpp b/cartridges/the_board/demos/demo.hpp
+--- a/cartridges/the_board/demos/demo.hpp	2026-07-17 18:11:36.121031000 +0000
++++ b/cartridges/the_board/demos/demo.hpp	2026-07-17 19:28:21.266005283 +0000
+@@ -17,7 +17,7 @@
+ // DemoConfig. A bad name (INCUBATE_DEMO=xyz) becomes DemoCol::xyz — an
+ // unknown enumerator, a clean compile error. There are no per-demo
+ // header FILES any more; adding a demo is adding a column to the
+-// matrix (Jean's p2 stamp: the grid is the single authoring surface).
++// matrix (Jean's stamp: the grid is the single authoring surface).
+ //
+ // ROSTER (the selected sentence's manifest) is DEFINED here: the type
+ // and the gate law live in contracts/roster.hpp; the constant
+diff -ruN a/cartridges/the_board/demos/matrix.hpp b/cartridges/the_board/demos/matrix.hpp
+--- a/cartridges/the_board/demos/matrix.hpp	2026-07-17 18:11:36.151224000 +0000
++++ b/cartridges/the_board/demos/matrix.hpp	2026-07-17 19:28:21.268961469 +0000
+@@ -15,18 +15,18 @@
+ // instant you save.
+ //
+ // COMPLETE CENSUS: the four FOUNDATIONAL pieces — the surface, the sun,
+-// the point (the witness/camera, p1b's parent), the pawn body (slot-0)
++// the point (the witness/camera's parent), the pawn body (slot-0)
+ // — are ALWAYS ON in every sentence, so they are NOT tickable cells;
+ // they ride the LOCKED banner below so the census reads whole without
+ // pretending they can be turned off. (The pawn body is locked-AND-NOTED
+-// per Jean's p2 stamp: it always exists today, and BECOMES a tickable
++// per Jean's stamp: it always exists today, and BECOMES a tickable
+ // row the day a demo pulls the deferred body-tickable cut — then
+ // terrain gains a cleaner column with no rework, one cell flipped off.)
+ //
+ //   ┌──────────────── LOCKED (always on, every column) ─────────────┐
+ //   │  THE SURFACE   the stage — terrain streams in every sentence   │
+ //   │  THE SUN       the atmosphere — the sun-VP computed every frame │
+-//   │  THE POINT     the parent (p1b) — the camera is its witness     │
++//   │  THE POINT     the parent — the camera is its witness     │
+ //   │  THE PAWN BODY slot-0 — never evicted; idles in free-fly        │
+ //   │                (locked-and-noted: tickable when a demo needs    │
+ //   │                 it gone — the deferred body-tickable cut)       │
+@@ -139,7 +139,7 @@
+ static_assert(Piece::COUNT == 19,
+     "matrix: Piece row count must equal Roster's 19 fields (12 families + 7 features)");
+ 
+-// (2) THE BYTE-EQUIVALENCE GOLDEN (Jean's mandatory p2 gate). The two
++// (2) THE BYTE-EQUIVALENCE GOLDEN (Jean's mandatory gate). The two
+ //     migrated columns are pinned to the retired headers' exact values,
+ //     so the retirement is provably lossless — now and forever (the
+ //     old full.hpp / minimal.hpp are gone; these asserts are what keep
+diff -ruN a/cartridges/the_board/direction/input.hpp b/cartridges/the_board/direction/input.hpp
+--- a/cartridges/the_board/direction/input.hpp	2026-07-17 18:11:36.362313000 +0000
++++ b/cartridges/the_board/direction/input.hpp	2026-07-17 19:28:21.268586224 +0000
+@@ -23,7 +23,7 @@
+ // face below (inputState / keys_ / mouse_ / player_ / world_state_ /
+ // ribbon_state / gpuState_ / device_), the command fan's TARGET
+ // organs (on_key_down's parameters — pawn / orbs / agents / cubes +
+-// the transition channel), the m4 command doors (pawn.hpp / orbs.hpp
++// the transition channel), the owner command doors (pawn.hpp / orbs.hpp
+ // / agents.hpp / cube_behaviors.hpp / mood.hpp's
+ // request_mood_transition / patch_system.hpp's request_recenter) +
+ // mood_constants.hpp's MOOD_* IDs, and the patch radii (Dim::PATCH_GRID_RADIUS /
+@@ -60,7 +60,7 @@
+     // W/S/A/D velocity in free-fly (world units per second) — the
+     // camera host's MOVE_SPEED, wired to config.point_fly_speed at
+     // boot. The pawn host's walk speed is Idle::PAWN_SPEED (state.hpp),
+-    // untouched by this dial. (30 = 2× the p1a default — Jean's dial.)
++    // untouched by this dial. (30 = 2× the original default — Jean's dial.)
+     static constexpr float MOVE_SPEED = 30.0f;
+ 
+     // Scroll → zoom-delta scale (orbit distance per wheel notch).
+@@ -73,7 +73,7 @@
+ // ribbon's sky flight, so it precedes them in the cohort). KeyState /
+ // MouseState stay here: the driver's private organs.
+ 
+-// Held movement keys (W/S/A/D — THE UNIVERSAL MOVE CHANNEL, p1a-fix):
++// Held movement keys (W/S/A/D — THE UNIVERSAL MOVE CHANNEL):
+ // one key set authors the driver's move-intent; WHOEVER HOSTS THE
+ // POINT consumes it, under that host's own constraint AND mapping —
+ // the constraint-and-mapping IS the host's behavioral identity (pawn:
+@@ -103,8 +103,8 @@
+ // §9 Act I: a driver writes intents through bodies it does not own).
+ // The command fan's TARGET organs are deliberately NOT members: they
+ // ride on_key_down's parameters — the root addresses the fan's
+-// targets at the call site, through the m4 command doors. THE F6
+-// SOCKET stays RESERVED (m4 registry): when a driver must address a
++// targets at the call site, through the owner command doors. THE F6
++// SOCKET stays RESERVED (the door registry): when a driver must address a
+ // body it does not own by synchronous command beyond this fan, the
+ // addressed-intent socket (v3 §9 Act II, §13) is where it routes.
+ struct InputDeps {
+@@ -113,7 +113,7 @@
+     MouseState&   mouse_;
+     PlayerState&  player_;        // fpv — the anchor toggle (v3 §9 Act III)
+     WorldState&   world_state_;   // active_radius — the radius command
+-    RibbonState&  ribbon_state_;  // sky.mode — the ribbon's fixture (m6, Option A)
++    RibbonState&  ribbon_state_;  // sky.mode — the ribbon's fixture (Option A)
+     GPUState&     gpuState_;      // the freeze toggle + the fpv wire
+     wgpu::Device& device_;        // the queue fetch (the S5-style declared handle)
+     PointState&   point_;         // the point — the host toggle (key 4)
+@@ -123,7 +123,7 @@
+ 
+ // GLFW callbacks (routed by the spine's on_input override). The
+ // command fan's targets are parameters — organ-named, so the fan's
+-// door calls read as organ addressing (m4 registry order).
++// door calls read as organ addressing (door-registry order).
+ void on_key_down(InputDeps* c, int key,
+     PawnState& pawn_state, PawnDeps& pawn_deps,
+     OrbsState& orbs_state, OrbsDeps& orbs_deps,
+@@ -266,8 +266,8 @@
+     case GLFW_KEY_1:
+         c->gpuState_.toggle_freeze_sphere();
+         break;
+-    case GLFW_KEY_2: toggle_aura_height(pawn_state, &pawn_deps);  break;  // pawn command door (m4)
+-    case GLFW_KEY_3: toggle_aura(pawn_state, &pawn_deps);          break;  // pawn command door (m4)
++    case GLFW_KEY_2: toggle_aura_height(pawn_state, &pawn_deps);  break;  // pawn command door
++    case GLFW_KEY_3: toggle_aura(pawn_state, &pawn_deps);          break;  // pawn command door
+     case GLFW_KEY_4: toggle_point_host(c);                                break;  // the point's host: pawn (kite) <-> camera (free-fly)
+     case GLFW_KEY_5: request_mood_transition(transitionPhase, pendingDestination, mood_state, c->world_state_, MOOD_OPEN_SUNSET);        break;
+     case GLFW_KEY_6: request_mood_transition(transitionPhase, pendingDestination, mood_state, c->world_state_, MOOD_INDOOR_FLAT);        break;
+@@ -281,7 +281,7 @@
+ 
+     // ── Orb utilities (numpad) ───────────────────────────────────
+     case GLFW_KEY_KP_8:       cycle_orb_motion_rule(orbs_state, &orbs_deps, q);            break;
+-    // KP_9 freed (p1b-e): the dome anchor toggle retired — the dome is
++    // KP_9 freed: the dome anchor toggle retired — the dome is
+     // a skybox, eye-centered always.
+     case GLFW_KEY_KP_DECIMAL: cycle_orb_gesture(orbs_state, &orbs_deps, q);                break;
+ 
+@@ -304,7 +304,7 @@
+         // ROSTER-GATE ribbon (b): sky-flight's entry
+         // door rides the ribbon bit. Ungated, F8 in a ribbon-less demo snaps
+         // the pawn to origin (the fail-LOUD zeros turned player-facing —
+-        // recon §5). m6 re-homes the machinery (Option A); this closes the
++        // earlier recon). The sky machinery re-homed (Option A); this closes the
+         // trap early.
+         if constexpr (ROSTER.ribbon) toggle_sky_mode(c);
+         break;
+@@ -351,7 +351,7 @@
+     c->inputState_.move_x = 0.0f;
+     c->inputState_.move_z = 0.0f;
+ 
+-    // THE UNIVERSAL MOVE CHANNEL (p1a-fix): W/S/A/D author this fold;
++    // THE UNIVERSAL MOVE CHANNEL: W/S/A/D author this fold;
+     // consumption is host-routed downstream (the pawn kernel's
+     // point_camera_hosted guard, the camera's fly branch, the ribbon's
+     // sky steering) — no CPU-side routing needed with one key set.
+@@ -387,14 +387,14 @@
+ 
+ // Sky-flight toggle. While ON, the move channel (W/S = throttle,
+ // A/D = yaw) steers the rendered ribbon's head — the ribbon consumes
+-// the ONE channel under its own forward-biased grammar (p1a-fix: the
++// the ONE channel under its own forward-biased grammar (the
+ // host owns its mapping; sky mode's arrow special case retired into
+ // the general rule); the sky altitude
+ // is held by a critically damped pen, not fixed. While OFF, the ribbon
+ // holds its stationary arc. The pawn snap and camera follow have landed;
+ // only the fade transition remains unbuilt. SEAM[ribbon:sky-mode].
+ inline void toggle_sky_mode(InputDeps* c) {
+-    c->ribbon_state_.sky.mode = !c->ribbon_state_.sky.mode;  // the ribbon's fixture (m6, Option A)
++    c->ribbon_state_.sky.mode = !c->ribbon_state_.sky.mode;  // the ribbon's fixture (Option A)
+     std::cout << "[the_board] Sky mode: "
+         << (c->ribbon_state_.sky.mode ? "ON (fly the ribbon with W/S/A/D)" : "OFF") << std::endl;
+ }
+@@ -419,7 +419,7 @@
+     uint32_t side = 2 * r + 1;
+     std::cout << "[the_board] Render radius: " << r
+         << " (" << side << "x" << side << " = " << side * side << " patches)" << std::endl;
+-    // Force full re-evaluation on next frame — through the owner's door (m4)
++    // Force full re-evaluation on next frame — through the owner's door
+     request_recenter(c->world_state_);
+ }
+ 
+diff -ruN a/cartridges/the_board/direction/mood.hpp b/cartridges/the_board/direction/mood.hpp
+--- a/cartridges/the_board/direction/mood.hpp	2026-07-17 18:11:36.564458000 +0000
++++ b/cartridges/the_board/direction/mood.hpp	2026-07-17 19:28:21.270360284 +0000
+@@ -80,7 +80,7 @@
+ //   mood module rather than input because portal crossings and other
+ //   code paths can also drive mood transitions. One door, many keys.
+ //   DEPS-FORM: the driver world holds no MachineCtx
+-//   — the door takes the transition channel explicitly (the m3
++//   — the door takes the transition channel explicitly (the deps-form
+ //   precedent class, clear_spheres).
+ // ─────────────────────────────────────────────────────────────────
+ 
+@@ -164,18 +164,18 @@
+ // face: the mood organ, the sun/clear channel, the CPU light + portal
+ // staging arrays, the back-portal anchor, the realization pokes
+ // (GPUState uploads, the frustum-cull flag), the gol mood gate (the
+-// m4 FLAG CHANNEL [mood -> gol]), and a const view of entities (the
++// THE FLAG CHANNEL [mood -> gol]), and a const view of entities (the
+ // portal-array upload reads arch positions). The fan's TARGET organs
+ // are deliberately NOT members (the B ruling, input's precedent):
+ // ribbon/orbs/gallery/pawn pairs + the machine face ride apply_mood's
+ // parameters — the spine addresses the fan's bodies at the call site,
+-// through the m4 command doors.
++// through the owner command doors.
+ struct MoodDeps {
+     MoodState&           mood_state_;
+     const WorldState&    world_state_;
+     GPUState&            gpuState_;
+     Renderer&            renderer_;          // set_frustum_cull_active (per-mood realization poke)
+-    GoLState&            gol_state_;         // mood_allowed — the m4 flag channel [mood -> gol]
++    GoLState&            gol_state_;         // mood_allowed — the flag channel [mood -> gol]
+     const EntitiesState& entities_state_;    // upload_portal_array reads arch positions
+     float (&sunDirection_)[3];
+     float (&sunColor_)[3];
+@@ -699,7 +699,7 @@
+     // Commit through the standard path
+     commit_ribbon(ribbon_state, &machine_ctx, plan, 0, 0, queue);
+ 
+-    // Immediate promotion through the owner's door (m4).
++    // Immediate promotion through the owner's door.
+     promote_ribbon_to_rendered(ribbon_state, &ribbon_deps, 0, queue);
+ }
+ 
+@@ -721,7 +721,7 @@
+     // Per-mood feature gates: GoL zones, aura.
+     // Aura policy: respect player preference when permitted, force off when forbidden.
+     c->gol_state_.mood_allowed     = m.allow_gol_zones;
+-    apply_aura_mood_policy(pawn_state, m.allow_pawn_aura);  // the pawn door (m4); byte-identical semantics
++    apply_aura_mood_policy(pawn_state, m.allow_pawn_aura);  // the pawn door; byte-identical semantics
+ 
+     apply_mood_lighting(c, m, queue);          // sun + fog + amp ceiling (foundational — sun is not a piece)
+     if constexpr (ROSTER.spot_lights)          // ROSTER-GATE spot_lights (b) — indoor spot array never configured
+diff -ruN a/cartridges/the_board/machine/entity_pipeline.hpp b/cartridges/the_board/machine/entity_pipeline.hpp
+--- a/cartridges/the_board/machine/entity_pipeline.hpp	2026-07-17 17:55:54.345351000 +0000
++++ b/cartridges/the_board/machine/entity_pipeline.hpp	2026-07-17 19:29:01.770033970 +0000
+@@ -862,7 +862,7 @@
+     }
+     c->entities_state_.cpu_pyramids.count = max_idx;
+     c->gpuState_.upload_pyramids(queue, c->entities_state_.cpu_pyramids);
+-    // (pyramid mesh-gen param staging REMOVED — husk sweep: no dispatch consumed it)
++    // (pyramid mesh-gen param staging REMOVED: no dispatch consumed it)
+ }
+ 
+ inline void pyramid_post_commit(MachineCtx* c, const EntityInstance& inst, wgpu::Queue&) {
+diff -ruN a/cartridges/the_board/machine/spawn_engine.hpp b/cartridges/the_board/machine/spawn_engine.hpp
+--- a/cartridges/the_board/machine/spawn_engine.hpp	2026-07-17 17:55:54.231460000 +0000
++++ b/cartridges/the_board/machine/spawn_engine.hpp	2026-07-17 19:28:21.278802118 +0000
+@@ -199,7 +199,7 @@
+         }
+     }
+ 
+-    // 2-6. THE COMPOSITION LAW (R1): the stack, authored once —
++    // 2-6. THE COMPOSITION LAW: the stack, authored once —
+     // mood → global → tile (F3) → proximity → base × adj → min(·,1).
+     // Generic semantics: multiply-through on mood zero (no veto flag),
+     // proximity ON, MIN1 clamp.
+@@ -598,7 +598,7 @@
+ // Evaluate the spawn gate: seed + flat probability check.
+ // adjacency_mod is a multiplier from the full spawn cascade.
+ // ═══ THE COMPOSITION LAW — definition (decl: spawn_services.hpp) ═══
+-// The ONE place the spawn-probability stack is authored (R1). The
++// The ONE place the spawn-probability stack is authored. The
+ // float multiplication ORDER below is the bit-identity contract
+ // — do not reorder a multiply, do not move a
+ // clamp. Exact argument orders of min/max preserved per policy.
+@@ -627,7 +627,7 @@
+     uint32_t spawn_roll_prop,
+     float chance) {
+     SpawnPreamble result{};
+-    // (per-gate archetype lookup CUT — R5: computed for
++    // (per-gate archetype lookup CUT: computed for
+     //  every generic gate, read by nobody; the sole archetype consumer
+     //  (gallery) calls tile_archetype itself in its bespoke funnel.)
+     result.seed = tile_seed(c->world_state_.active_seed, gx, gz);
+diff -ruN a/cartridges/the_board/realization/binding_registry.hpp b/cartridges/the_board/realization/binding_registry.hpp
+--- a/cartridges/the_board/realization/binding_registry.hpp	2026-07-17 17:55:53.407111000 +0000
++++ b/cartridges/the_board/realization/binding_registry.hpp	2026-07-17 19:28:21.258288529 +0000
+@@ -3,7 +3,7 @@
+ // THE BINDING REGISTRY (C6) — the single source of truth for GPU binding
+ // NUMBERS. Every bind-group layout entry AND its matching group entry
+ // reference the SAME named constant here, so the "binding integer typed
+-// twice" hazard (L2-a) is a compile error, not a
++// twice" hazard is a compile error, not a
+ // runtime crash: a typo is an undefined symbol glaw1 catches.
+ //
+ // GROUP-SCOPED (forced, not stylistic). A binding number is a per-@group
+@@ -52,7 +52,7 @@
+                 inline constexpr uint32_t vp_data                    = 2;   // aka fc_vp (frustum-cull alias)
+ 
+                 // terrain / patch lattice (20–30)
+-                // (terrain_state @20 / render_terrain @220 REMOVED — husk sweep:
++                // (terrain_state @20 / render_terrain @220 REMOVED:
+                 //  the dead GPUTerrainState buffer's bindings, no shader reader.)
+                 inline constexpr uint32_t terrain_mesh_indices       = 22;
+                 inline constexpr uint32_t patch_params               = 23;
+@@ -90,8 +90,8 @@
+                 inline constexpr uint32_t photo_sampler              = 146;
+                 inline constexpr uint32_t arch_ground                = 147;
+                 inline constexpr uint32_t column_ground              = 148;
+-                // 149 RETIRED — pyramid_ground (residue T2: the ground-atlas husk;
+-                // its slot-48 write was reader-free since C2). Number parked.
++                // 149 RETIRED — pyramid_ground (the ground-atlas residue;
++                // its slot-48 write was reader-free). Number parked.
+                 inline constexpr uint32_t plant_ground               = 150;
+                 inline constexpr uint32_t entity_ground_atlas_write  = 151;
+                 inline constexpr uint32_t patch_grid                 = 152;
+@@ -123,7 +123,7 @@
+                 inline constexpr uint32_t bladeg_indices             = 188;
+ 
+                 // mesh-gen scratch: arch/column (193–198)
+-                // (pmg_* @190/191/192 REMOVED — husk sweep: the pyramid mesh-gen
++                // (pmg_* @190/191/192 REMOVED: the pyramid mesh-gen
+                 //  basket, no entry point / pipeline / dispatch ever used it.)
+                 inline constexpr uint32_t amg_params                 = 193;
+                 inline constexpr uint32_t amg_vertices               = 194;
+diff -ruN a/cartridges/the_board/realization/renderer.hpp b/cartridges/the_board/realization/renderer.hpp
+--- a/cartridges/the_board/realization/renderer.hpp	2026-07-17 17:55:54.653762000 +0000
++++ b/cartridges/the_board/realization/renderer.hpp	2026-07-17 19:28:21.277437409 +0000
+@@ -92,7 +92,7 @@
+             constexpr const char* ZONE_EXTRUSION_FS = "zone_extrusion_fs";
+             constexpr const char* SHADOW_ZONE_EXTRUSION_VS = "shadow_zone_extrusion_vs";
+ 
+-            // GPU Entity Mesh Gen (Phase 2: Arches, Phase 3: Columns — pyramid mesh-gen CUT in C2)
++            // GPU Entity Mesh Gen (Phase 2: Arches, Phase 3: Columns — pyramid mesh-gen CUT)
+             constexpr const char* ARCH_MESH_GEN = "arch_mesh_gen";
+             constexpr const char* COLUMN_MESH_GEN = "column_mesh_gen";
+             constexpr const char* PALM_MESH_GEN = "palm_mesh_gen";
+@@ -162,7 +162,7 @@
+                 return ok;
+             }
+ 
+-            // C3 (cable management): the two collapses every compute pipeline shared.
++            // THE SHARED BUILDERS (cable management): the two collapses every compute pipeline shared.
+             // computeLayoutFor wraps a single bind-group layout into a pipeline layout
+             // (the ~24 dedicated compute pipelines each repeated this 4-line boilerplate).
+             // makeComputePipeline is the uniform creation ALL 30 compute pipelines shared —
+@@ -285,7 +285,7 @@
+             // Fade overlay (fullscreen alpha-blended triangle)
+             wgpu::RenderPipeline fadeOverlayPipeline_;
+ 
+-            // GPU entity mesh gen (Phase 2: arches, Phase 3: columns — pyramid mesh-gen CUT in C2)
++            // GPU entity mesh gen (Phase 2: arches, Phase 3: columns — pyramid mesh-gen CUT)
+             wgpu::ComputePipeline archMeshGenPipeline_;
+             wgpu::ComputePipeline columnMeshGenPipeline_;
+             wgpu::ComputePipeline palmMeshGenPipeline_;
+@@ -1193,7 +1193,7 @@
+                 if (!(ROSTER.blade)) n += 3;
+                 // pyramid: 0 pipelines (mesh-gen + render + shadow all cut)
+                 if (!(ROSTER.gol)) n += 7;
+-                if (!(ROSTER.gallery)) n += 4;  // was 6; shadow_gallery_frame + shadow_wall_painting cut (C2)
++                if (!(ROSTER.gallery)) n += 4;  // was 6; shadow_gallery_frame + shadow_wall_painting cut
+                 if (!(ROSTER.orbs)) n += 5;
+                 if (!(ROSTER.pawn_aura)) n += 1;
+                 if (!(ROSTER.indoor_shell)) n += 2;
+@@ -1549,7 +1549,7 @@
+                 colorTarget.format = colorFormat_;
+                 colorTarget.writeMask = wgpu::ColorWriteMask::All;
+ 
+-                // C3-render (entity category): the builder every ENTITY_FS pipeline shares —
++                // THE SHARED BUILDER (entity category): the builder every ENTITY_FS pipeline shares —
+                 // renderLayout + depthStencil + colorTarget + ENTITY_FS + TriangleList + CCW.
+                 // The genuine forks are parameters: the VS entry (passed VERBATIM), the
+                 // vertex-buffer layout (nullptr = bufferless, GPU-generated from vertex_index),
+@@ -2038,7 +2038,7 @@
+                     shadowDepth.depthWriteEnabled = true;
+                     shadowDepth.depthCompare = wgpu::CompareFunction::Less;
+ 
+-                    // C3-render (shadow/depth category): the builder every shadow pipeline
++                    // THE SHARED BUILDER (shadow/depth category): the builder every shadow pipeline
+                     // shares — shadowRenderLayout + shadowDepth (Depth32Float shadow map) +
+                     // NO fragment (depth-only) + TriangleList + CCW. It is a SEPARATE builder
+                     // from makeEntity (not one with an isShadow flag): color-vs-depth is a
+@@ -2122,7 +2122,7 @@
+ 
+                         // arch/column/palm/cactus/blade shadows — same ArchVertex
+                         // format; cull matches the color pass (arch Back, the
+-                        // single-sided column/palm/cactus/blade None). pyramid shadow cut (C2).
++                        // single-sided column/palm/cactus/blade None). pyramid shadow cut.
+                         if constexpr (ROSTER.arch) {  // ROSTER-GATE arch (a') — FXC skipped when disabled
+                         if (!makeShadow("shadow_arch", "Shadow Catenary Arch", Entry::SHADOW_ARCH_VS,
+                             &shadowArchVBL, wgpu::CullMode::Back, shadowArchPipeline_)) return false;
+diff -ruN a/cartridges/the_board/realization/state.hpp b/cartridges/the_board/realization/state.hpp
+--- a/cartridges/the_board/realization/state.hpp	2026-07-17 17:55:54.746473000 +0000
++++ b/cartridges/the_board/realization/state.hpp	2026-07-17 19:28:21.299881587 +0000
+@@ -9,7 +9,7 @@
+ // Binding numbers: realization/binding_registry.hpp (C6 — the single source).
+ 
+ #include "analysis/analysis_signal.hpp"
+-#include "cartridges/the_board/demos/demo.hpp"   // ROSTER via the selected sentence (GPUState::init gates creation)  // feature bits (GPUState::init gates creation)
++#include "cartridges/the_board/demos/demo.hpp"   // ROSTER via the selected sentence (GPUState::init gates creation)
+ #include "cartridges/the_board/realization/binding_registry.hpp"  // C6: bind::g0::* / bind::g1::* — the single source of truth for binding NUMBERS (the layout+group pair references one named const)
+ #include "cartridges/the_board/surface/terrain_looks.hpp"          // THE TERRAIN_LOOKS PANEL (C++ room): palette quartet REST + motion/mode rest pins — boot init reads the panel
+ #include <webgpu/webgpu_cpp.h>
+@@ -151,7 +151,7 @@
+ 
+             // Generative pyramids — the instance array is LIVE (pyramids are
+             // terrain via contrib_pyramids_at); the PMG_* mesh-gen scratch counts
+-            // are REMOVED (husk sweep — the mesh-gen basket had no dispatch).
++            // are REMOVED (the mesh-gen basket had no dispatch).
+             constexpr uint32_t MAX_PYRAMID_INSTANCES = 8;
+ 
+             // Generative palms — GPU mesh gen (slot-based addressing)
+@@ -180,7 +180,7 @@
+             constexpr uint32_t GROUND_ATLAS_ARCH = 0;    // 16 slots
+             constexpr uint32_t GROUND_ATLAS_COLUMN = 16;   // 32 slots
+             // slots 48..55: DOCUMENTED HOLE — the retired pyramid range (readers
+-            // cut at C2, the write path at residue T2). Do NOT re-pack; the
++            // cut, then the write path — the ground-atlas residue). Do NOT re-pack; the
+             // offsets below are hand-mirrored with world.wgsl's atlas table.
+             constexpr uint32_t GROUND_ATLAS_PALM = 56;   // 24 slots
+             constexpr uint32_t GROUND_ATLAS_CACTUS = 80;   // 20 slots
+@@ -416,7 +416,7 @@
+             float pulse_data[32];             // 8 × {origin_x, origin_z, onset_seconds, amplitude}
+             // ─── LOD-band point position ────────────────────────────────
+             // (renamed lod_pawn → lod_point: the value has been THE POINT
+-            // since p1b — the name was a fossil.) The CPU bands patches
++            // — the name was a fossil.) The CPU bands patches
+             // into LOD0/LOD1 in stream_patches from player_.readback_x/z
+             // (the point, 1 frame stale — law E-4). The GPU's frustum-cull
+             // shader applies the same lod0_radius gate; if it read the
+@@ -489,7 +489,7 @@
+             float _pad1;
+         };
+ 
+-        // (GPUTerrainState REMOVED — husk sweep: the dead terrain buffer's CPU
++        // (GPUTerrainState REMOVED: the dead terrain buffer's CPU
+         //  mirror. No writer/reader; its bindings 20/220 + the buffer are gone.)
+ 
+         //
+@@ -738,13 +738,13 @@
+         static_assert(sizeof(GPUPyramidArray) == 16 + Dim::MAX_PYRAMID_INSTANCES * 32,
+             "GPUPyramidArray must match WGSL layout");
+ 
+-        // (GPUPyramidGroundEntry REMOVED — residue T2: the pyramid ground-atlas
+-        //  husk. Its computed ground_y fed atlas slot 48, reader-free since C2;
++        // (GPUPyramidGroundEntry REMOVED — the pyramid ground-atlas
++        //  husk. Its computed ground_y fed atlas slot 48, reader-free;
+         //  pyramids bake into terrain via the INSTANCE array, not this path.)
+ 
+         //
+         // MUST match world.wgsl::PyramidMeshParams (§9.0).
+-        // (GPUPyramidMeshParams REMOVED — husk sweep: the pyramid mesh-gen
++        // (GPUPyramidMeshParams REMOVED: the pyramid mesh-gen
+         //  params struct + its buffer had no consuming kernel.)
+ 
+         //
+@@ -1065,7 +1065,7 @@
+             float    color_surge;        //152: saturation-surge intensity (0..1)
+             float    hue_converge_target;//156: target hue for convergence (0..1)
+             // ── Pass 7: pawn-anchored dome ────────────────────────
+-            float    dome_center_x;      //160: DEAD WIRE (p1b-e: orb VS eye-centers; ABI bytes)
++            float    dome_center_x;      //160: DEAD WIRE (orb VS eye-centers; ABI bytes)
+             float    dome_center_y;      //164: dead wire
+             float    dome_center_z;      //168: dead wire
+             float    _pad_anchor;        //172: reserved (future anchor mode/rate)
+@@ -1394,7 +1394,7 @@
+             wgpu::Buffer agentStateBuffer_;
+             wgpu::Buffer agentStateReadbackStaging_;
+             wgpu::Buffer floatingEntityReadbackStaging_;
+-            wgpu::Buffer cameraStateReadbackStaging_;   // the point readback (p1b-a; camera-host only)
++            wgpu::Buffer cameraStateReadbackStaging_;   // the point readback (camera-host only)
+             // Agent registries — uploaded once at world-init from the C++
+             // AGENT_BEHAVIORS / AGENT_TIER_GAINS tables. The single source
+             // of truth lives in bodies/agents.hpp; the GPU side reads
+@@ -2442,8 +2442,8 @@
+             wgpu::BindGroup blade_mesh_gen_group() const { return bladeMeshGenBindGroup_; }
+ 
+             // --- Pyramid accessors and upload --- (mesh-gen VB/IB/params +
+-            //   index-count + the mesh-gen layout/group REMOVED by the husk sweep;
+-            //   the ground buffer + its atlas write REMOVED at residue T2 — only
++            //   index-count + the mesh-gen layout/group REMOVED;
++            //   the ground buffer + its atlas write REMOVED — only
+             //   the INSTANCE array stays LIVE: pyramids ARE terrain.)
+             void upload_pyramids(wgpu::Queue& queue, const GPUPyramidArray& arr) {
+                 writeStruct(queue, pyramidInstancesBuffer_, arr);
+@@ -2633,7 +2633,7 @@
+                     offsetof(GPUOrbConfig, color_pulse),
+                     &packed, sizeof(packed));
+             }
+-            // (upload_orb_dome_center retired at p1b-e — the orb VS
++            // (upload_orb_dome_center retired — the orb VS
+             // eye-centers the dome; dome_center_* is dead wire.)
+             // Partial upload of the palette slice (palette_count..pal3_weight).
+             // 72 bytes contiguous from offset 72. Preserves per-frame fields
+@@ -2755,7 +2755,7 @@
+                     GPU_AGENT_TIER_COUNT * sizeof(GPUAgentTierDef),
+                     wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);
+                 cameraBuffer_ = makeBuffer("Camera State", sizeof(GPUCameraState),
+-                    SU | wgpu::BufferUsage::CopySrc);   // CopySrc: the point readback (p1b-a; camera-host)
++                    SU | wgpu::BufferUsage::CopySrc);   // CopySrc: the point readback (camera-host)
+                 floatingEntityBuffer_ = makeBuffer("Floating Entity Array",
+                     Dim::TOTAL_FLOATING_SLOTS * sizeof(GPUFloatingEntityState),
+                     SU | wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopySrc);
+@@ -3247,8 +3247,8 @@
+             bool createPyramidMesh() {
+                 // Pyramids are TERRAIN (not drawn geometry): the instance array is
+                 // baked via contrib_pyramids_at. The GPU mesh-gen VB/IB/params were
+-                // the husk-sweep target; the ground-atlas buffer fell at residue T2
+-                // (its slot-48 write was reader-free since C2).
++                // the sweep's target; the ground-atlas buffer fell as residue
++                // (its slot-48 write was reader-free).
+                 pyramidInstancesBuffer_ = makeBuffer("Pyramid Instances (GPU uniform)",
+                     sizeof(GPUPyramidArray),
+                     wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);
+@@ -3754,7 +3754,7 @@
+                     entries[15].visibility = wgpu::ShaderStage::Vertex;
+                     entries[15].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+ 
+-                    // Orb config (radius/palette/tiers; dome_center dead wire — p1b-e, Pass 7)
++                    // Orb config (radius/palette/tiers; dome_center dead wire — Pass 7)
+                     entries[16].binding = bind::g0::orb_config;
+                     entries[16].visibility = wgpu::ShaderStage::Vertex;
+                     entries[16].buffer.type = wgpu::BufferBindingType::Uniform;
+@@ -4079,7 +4079,7 @@
+                 }
+ 
+                 // -- Photographer compute layout (Group 0) -- VP + terrain clamp --
+-                // Reads THE POINT's position (host-sourced, p1b-c) + config →
++                // Reads THE POINT's position (host-sourced) + config →
+                 // builds VP, clamps camera above terrain.
+                 // Entity Y-correction is handled separately by compute_entity_placement.
+                 // 1 config uniform + 4 storage + 1 read-only + 1 uniform + 1 texture + 1 sampler + 1 patch_grid = 10 entries.
+@@ -4094,7 +4094,7 @@
+                     entries[1].visibility = wgpu::ShaderStage::Compute;
+                     entries[1].buffer.type = wgpu::BufferBindingType::Storage;
+ 
+-                    entries[9].binding = bind::g0::camera_state;   // camera_state (point_pos — the point's camera-host source, p1b-c)
++                    entries[9].binding = bind::g0::camera_state;   // camera_state (point_pos — the point's camera-host source)
+                     entries[9].visibility = wgpu::ShaderStage::Compute;
+                     entries[9].buffer.type = wgpu::BufferBindingType::Storage;
+ 
+@@ -4141,7 +4141,7 @@
+                 // own pier contribution (removing foreign pier contamination).
+                 // 13 entries: config + pawn + painting slots + heightfield + entity grounds + GoL + ground atlas write + patch_grid.
+                 // Palm+cactus+blade share one buffer at binding 150: [0..23] palm, [24..43] cactus, [44..75] blade.
+-                // (binding 149 pyramid_ground RETIRED — residue T2, the pyramid ground-atlas husk.)
++                // (binding 149 pyramid_ground RETIRED — the pyramid ground-atlas residue.)
+                 {
+                     std::array<wgpu::BindGroupLayoutEntry, 13> entries{};
+ 
+@@ -4419,7 +4419,7 @@
+                     if (!orbCopyLayout_) return false;
+                 }
+ 
+-                // (Pyramid mesh gen layout REMOVED — husk sweep: bindings 190-192,
++                // (Pyramid mesh gen layout REMOVED: bindings 190-192,
+                 //  no pipeline/dispatch ever used this layout.)
+ 
+                 // -- Arch mesh gen layout (Group 0) -- bindings 193-195 --
+@@ -4701,7 +4701,7 @@
+                     entries[15].buffer = orbStateBuffer_;
+                     entries[15].size = Dim::MAX_ORBS * sizeof(GPUOrbState);
+ 
+-                    // Orb config (radius/palette/tiers; dome_center dead wire — p1b-e)
++                    // Orb config (radius/palette/tiers; dome_center dead wire)
+                     entries[16].binding = bind::g0::orb_config;
+                     entries[16].buffer = orbConfigBuffer_;
+                     entries[16].size = sizeof(GPUOrbConfig);
+@@ -5008,7 +5008,7 @@
+                     entries[15].buffer = orbStateBuffer_;
+                     entries[15].size = Dim::MAX_ORBS * sizeof(GPUOrbState);
+ 
+-                    // Orb config (dome_center dead wire — p1b-e) — same buffer as main path
++                    // Orb config (dome_center dead wire) — same buffer as main path
+                     entries[16].binding = bind::g0::orb_config;
+                     entries[16].buffer = orbConfigBuffer_;
+                     entries[16].size = sizeof(GPUOrbConfig);
+@@ -5306,7 +5306,7 @@
+                     if (!orbCopyGroup_) return false;
+                 }
+ 
+-                // (Pyramid mesh gen bind group REMOVED — husk sweep: bindings
++                // (Pyramid mesh gen bind group REMOVED: bindings
+                 //  190-192, no dispatch ever bound it.)
+ 
+                 // Arch mesh gen bind group (dedicated layout — bindings 193-195)
+diff -ruN a/cartridges/the_board/realization/world.wgsl b/cartridges/the_board/realization/world.wgsl
+--- a/cartridges/the_board/realization/world.wgsl	2026-07-17 17:55:54.985075000 +0000
++++ b/cartridges/the_board/realization/world.wgsl	2026-07-17 19:29:01.783842013 +0000
+@@ -656,7 +656,7 @@
+     sky_roll: f32,        // bank into the lateral swing (rad, clamped)
+ }
+ 
+-// --- [STATE:terrain] TerrainState REMOVED (husk sweep) — the dead terrain
++// --- [STATE:terrain] TerrainState REMOVED — the dead terrain
+ //     buffer's struct + its bindings 20/220 are gone; no shader read them.
+ 
+ // --- [STATE:agent] AgentState
+@@ -1425,7 +1425,7 @@
+     _pulse_pad_1: f32,
+     pulse_data: array<vec4<f32>, 8>,  // each: (origin_x, origin_z, onset_seconds, amplitude)
+     // CPU-banded POINT position for LOD0/LOD1 partition (renamed
+-    // lod_pawn → lod_point: the value has been THE POINT since p1b).
++    // lod_pawn → lod_point: the value has been THE POINT).
+     // Read by the frustum-cull shader so its dist² test agrees with
+     // the CPU's banding point (no 1-2 frame disagreement at the
+     // boundary annulus).
+@@ -3838,7 +3838,7 @@
+     @builtin(position) clip_pos: vec4<f32>,
+     @location(0) world_pos: vec3<f32>,
+     @location(1) gradients: vec2<f32>,
+-    // (complexity varying REMOVED — husk sweep: LATENT[complexity], read by no FS)
++    // (complexity varying REMOVED — LATENT[complexity], read by no FS)
+     @location(2) patch_uv: vec2<f32>,    // UV within the patch [0,1] for cell sampling
+     @location(3) @interpolate(flat) layer: u32,  // heightfield/cell array layer
+ }
+@@ -3902,7 +3902,7 @@
+     let sample_uv = (uv * (res - 1.0) + 0.5) / res;
+ 
+     // Sample heightfield from this patch's array layer
+-    // .x = height, .yz = gradients, .w = unused (was complexity — husk sweep)
++    // .x = height, .yz = gradients, .w = unused (was complexity — swept)
+     let height_data = textureSampleLevel(
+         patch_heightfield_array_read, bilinear_sampler,
+         sample_uv, i32(pi.layer), 0.0
+@@ -3938,7 +3938,7 @@
+     out.clip_pos = render_vp.m * vec4(world_pos, 1.0);
+     out.world_pos = world_pos;
+     out.gradients = height_data.yz + wave.yz;
+-    // (out.complexity REMOVED — husk sweep: the LATENT[complexity] varying;
++    // (out.complexity REMOVED — the LATENT[complexity] varying;
+     //  the .w channel it read is now unused, no FS ever consumed it.)
+     out.patch_uv = uv;
+     out.layer = pi.layer;
+@@ -4552,10 +4552,10 @@
+     return out;
+ }
+ 
+-// --- Generative Pyramids: pyramid_vs + shadow_pyramid_vs CUT (C2 orphan
++// --- Generative Pyramids: pyramid_vs + shadow_pyramid_vs CUT (orphan
+ //     sweep) — the pyramid mesh was never drawn (draw_pyramid /
+ //     draw_shadow_pyramid were caller-free). Both read the
+-//     ground-atlas slot range (48..55); the write path followed at residue T2
++//     ground-atlas slot range (48..55); the write path followed as residue
+ //     (the pyramid-ground husk) — the range stays a documented hole in the
+ //     atlas table.
+ 
+@@ -5079,7 +5079,7 @@
+ @group(0) @binding(0)   var<uniform>             signal: FrameSignal;
+ @group(0) @binding(1)   var<uniform>             config: DesignConfig;
+ @group(0) @binding(2)   var<storage, read_write> vp_data: VPMatrix;
+-// @binding(20) terrain_state REMOVED (husk sweep — dead terrain buffer)
++// @binding(20) terrain_state REMOVED (dead terrain buffer)
+ 
+ // Agent system — unified entity buffer. Slot 0 is the player's body;
+ // slots 1..31 are mood-authored agents. The player's relationship
+@@ -5142,7 +5142,7 @@
+ // --- [BINDINGS:compute] Group 0 — Render entity mirrors (read-only, +200 offset)
+ @group(0) @binding(200) var<storage, read> render_signal: FrameSignal;
+ @group(0) @binding(201) var<storage, read> render_vp: VPMatrix;
+-// @binding(220) render_terrain REMOVED (husk sweep — dead terrain buffer)
++// @binding(220) render_terrain REMOVED (dead terrain buffer)
+ @group(0) @binding(260) var<storage, read> render_agents: array<AgentState, 32>;
+ @group(0) @binding(280) var<storage, read> render_camera: CameraState;
+ @group(0) @binding(300) var<uniform> render_floating: FloatingEntityArray;
+@@ -5182,7 +5182,7 @@
+ const GROUND_ATLAS_ARCH: i32     = 0;
+ const GROUND_ATLAS_COLUMN: i32   = 16;
+ // slots 48..55: DOCUMENTED HOLE — the retired pyramid range (readers cut at
+-// C2, the write path at residue T2). Do NOT re-pack; these offsets are
++// cut; the write path followed as residue). Do NOT re-pack; these offsets are
+ // hand-mirrored with state.hpp Dim::GROUND_ATLAS_*.
+ const GROUND_ATLAS_PALM: i32     = 56;
+ const GROUND_ATLAS_CACTUS: i32   = 80;
+@@ -5755,7 +5755,7 @@
+ // RAYMARCH/SDF EXCAVATION: update_terrain_config removed — the writer kernel
+ // of the dead TerrainState buffer (it wrote amplitude_scale + lipschitz_factor,
+ // read by nobody). Its C++ dispatch + pipeline went with it; the terrain_state
+-// buffer/bindings/struct husk was swept (husk sweep 1).
++// buffer/bindings/struct husk was swept.
+ 
+ // --- Walker terrain normal (forward-difference)
+ // POLICY_WALKER_TILT samples — static_base + pyramids + GoL zones
+@@ -6052,10 +6052,10 @@
+     // --- Portal ellipse detection (GPU-authoritative)
+     // Ellipse spans the arch opening: lateral = half_span, forward = depth/2.
+     //
+-    // THE POINT'S BUBBLE (p1b-d): the portal is the bubble's FIRST
++    // THE POINT'S BUBBLE: the portal is the bubble's FIRST
+     // SENSOR — the probe is host-sourced. When the pawn hosts, the
+     // probe is the body's pos THIS FRAME (agent.pos, the local —
+-    // byte-identical to the pre-p1b test; point_pos() is deliberately
++    // byte-identical to the pre-point test; point_pos() is deliberately
+     // NOT used here: it reads the storage copy, one frame stale).
+     // When the camera hosts, the probe is the point (the camera) and
+     // the bubble's VERTICAL GATE applies: the arch must sit within
+@@ -6551,11 +6551,11 @@
+ //                           behavior switch for algorithmic behaviors.
+ //                           The walker policy is NOT inlined here.
+ //
+-// Dispatch order: player first, then others. THE POINT (p1b-b) is
++// Dispatch order: player first, then others. THE POINT is
+ // the eviction reference for this frame's other agents — the
+ // player's updated position when the pawn hosts, the camera when it
+ // hosts. Matches the semantic "the point moves, the world adjusts
+-// around it" (presence follows the point; the ratified p1b rule).
++// around it" (presence follows the point; the ratified rule).
+ //
+ // MAX_AGENTS = 32 — must stay in sync with Dim::MAX_AGENTS.
+ //
+@@ -6602,7 +6602,7 @@
+ const FLOATER_EVICTION_RADIUS_SQ: f32 = FLOATER_EVICTION_RADIUS * FLOATER_EVICTION_RADIUS;
+ 
+ // POINT_BUBBLE_RADIUS — the point's bounded awareness (v3 §11; the
+-// bubble's first field, p1b-d). Today its one sensor is the portal's
++// bubble's first field). Today its one sensor is the portal's
+ // vertical gate in camera-host: an arch fires only within this many
+ // units of the point's altitude. MUST match POINT_BUBBLE_RADIUS in
+ // contracts/point.hpp (compile-time const, the eviction-radius
+@@ -6667,7 +6667,7 @@
+         default: { /* unknown behavior — no-op */ }
+     }
+ 
+-    // Point-centered eviction (p1b-b: was the possessed slot).
++    // Point-centered eviction (was the possessed slot).
+     // Non-player agents that wander too far from THE POINT are
+     // deactivated; the CPU readback path detects them on the next
+     // frame and respawns fresh agents in a disk around the point.
+@@ -6810,7 +6810,7 @@
+         var fe = floating_entities.entities[slot];
+         if (fe.is_active == 0u) { continue; }
+ 
+-        // Lifecycle: point-distance eviction (p1b-b: was the pawn —
++        // Lifecycle: point-distance eviction (was the pawn —
+         // floaters follow the point, Jean's ruling). A sphere stays
+         // alive within FLOATER_EVICTION_RADIUS of THE POINT.
+         // Patch eviction no longer touches floaters (commit path skips
+@@ -6974,7 +6974,7 @@
+         var fe = floating_entities.entities[slot];
+         if (fe.is_active == 0u) { continue; }
+ 
+-        // Lifecycle: point-distance eviction (p1b-b: was the pawn —
++        // Lifecycle: point-distance eviction (was the pawn —
+         // floaters follow the point). Cube stays alive as long as its
+         // current position (home + drift) is within range of THE
+         // POINT. Patch eviction no longer touches cubes — see the
+@@ -7023,7 +7023,7 @@
+             //   follow_pawn = 0 (default): home.xz = anchor.xz; home.y
+             //     terrain-relative at home.xz.
+             //   follow_pawn = 1 (kite mode): home.xz = POINT.xz +
+-            //     offset (p1b-b: was the pawn — the kite target is the
++            //     offset (was the pawn — the kite target is the
+             //     point, Jean's ruling; the CPU offset capture in
+             //     cube_behaviors.hpp moved in lock-step, so the F7
+             //     toggle still preserves world position exactly).
+@@ -7141,7 +7141,7 @@
+     );
+ 
+     // Sun VP: kite coupling — the sun orbits THE POINT at fixed
+-    // offset (p1b-a: was the pawn; the 300-unit shadow box must cover
++    // offset (was the pawn; the 300-unit shadow box must cover
+     // what the eye sees, so it follows the point's host — identical
+     // when the pawn hosts, tracks the camera in free-fly).
+     if (coupling_active(COUPLING_PAWN_TO_SUN_VP)) {
+@@ -7177,7 +7177,7 @@
+ // Pass 1: generate_patch_heights
+ //   Evaluates ground_formed_with_complexity() once per texel, stores the
+ //   height in the scratch buffer. (The stride-2 layout is kept; the +1
+-//   complexity slot is no longer written — husk sweep, no reader.)
++//   complexity slot is no longer written — no reader.)
+ //   This is the only expensive call — terrain waves + piers + pyramids.
+ //
+ // Pass 2: generate_patch_gradients
+@@ -7203,7 +7203,7 @@
+     let hc = ground_formed_with_complexity(world_xz);
+     let base = (id.y * res + id.x) * 2u;
+     patch_height_scratch[base]      = hc.x;   // height (stride-2 layout kept; the
+-    // +1 complexity slot is no longer written — husk sweep, no reader)
++    // +1 complexity slot is no longer written — no reader)
+ }
+ 
+ // Workgroup shared tile: 20×20 heights (16×16 interior + 2-texel halo for 3-point edge stencil)
+@@ -7238,7 +7238,7 @@
+     // ── Bounds check AFTER barrier (all threads must participate in load) ─
+     if (id.x >= res || id.y >= res) { return; }
+ 
+-    // ── Read center height from shared (complexity readback REMOVED — husk sweep) ─
++    // ── Read center height from shared (complexity readback REMOVED) ─
+     let cx = lid.x + 2u;
+     let cy = lid.y + 2u;
+     let height = sh_height[cy * 20u + cx];
+@@ -8153,7 +8153,7 @@
+ 
+ 
+ // §8 SELF-PORTRAIT GALLERY — Paintings of the point's journey over terrain
+-// (the body's self-portraits in pawn-host; the travelogue in free-fly — p1b-c)
++// (the body's self-portraits in pawn-host; the travelogue in free-fly)
+ // §8.0 PHOTOGRAPHER COMPUTE — GPU-coupled snapshot camera
+ struct PhotographerConfig {
+     sun_direction: vec3<f32>,
+@@ -8207,7 +8207,7 @@
+ @group(0) @binding(148) var<storage, read_write> column_ground: array<ColumnGroundEntry, 32>;
+ 
+ // (binding 149 RETIRED — pyramid_ground, the residue-T2 husk: its computed
+-//  ground_y fed atlas slot 48, reader-free since C2. Number parked.)
++//  ground_y fed atlas slot 48, reader-free. Number parked.)
+ 
+ struct PalmGroundEntry {
+     center_x: f32,
+@@ -8301,7 +8301,7 @@
+ @compute @workgroup_size(1)
+ fn compute_photographer_vp() {
+     let cfg = photographer_config;
+-    // THE POINT (p1b-c): the photographer frames the point — the body
++    // THE POINT: the photographer frames the point — the body
+     // when the pawn hosts (the self-portrait, identical to before),
+     // the camera's vantage in free-fly (the travelogue — Jean's
+     // ruling; the trigger already accumulates flight distance through
+@@ -8498,8 +8498,8 @@
+         }
+     }
+ 
+-    // (Pyramid arm REMOVED — residue T2: it computed a 5-point ground_y and
+-    //  stored it to atlas slot 48, reader-free since C2. Pyramids bake into
++    // (Pyramid arm REMOVED — the ground-atlas residue: it computed a 5-point ground_y and
++    //  stored it to atlas slot 48, reader-free. Pyramids bake into
+     //  the heightfield via contrib_pyramids_at — the live instance path.)
+ }
+ 
+@@ -8784,7 +8784,7 @@
+     return out;
+ }
+ 
+-// §8.1.1 GALLERY FRAME SHADOW — CUT (C2 orphan sweep): shadow_gallery_frame_vs
++// §8.1.1 GALLERY FRAME SHADOW — CUT (orphan sweep): shadow_gallery_frame_vs
+ // was caller-free (draw_shadow_gallery_frames had no caller — gallery frames
+ // are drawn in the color pass but never cast a mesh-shadow). Shared helper
+ // deform_gallery_frame is retained (used by the live gallery_frame_vs).
+@@ -9026,7 +9026,7 @@
+     return vec4(mix(lit, config.fog_color, fog), 1.0);
+ }
+ 
+-// §8.3 WALL PAINTING SHADOW — CUT (C2 orphan sweep): shadow_wall_painting_vs
++// §8.3 WALL PAINTING SHADOW — CUT (orphan sweep): shadow_wall_painting_vs
+ // was caller-free (draw_shadow_wall_paintings had no caller). Shared helper
+ // compute_wall_painting_geometry is retained (used by the live wall-painting
+ // color pass).
+@@ -9046,7 +9046,7 @@
+ // Vertex format: matches ArchVertex (pos[3], normal[3], color[3], index:u32)
+ // = 10 × f32 per vertex = 40 bytes. VB is accessed as array<f32>.
+ 
+-// §9.0 PYRAMID MESH GENERATION — REMOVED (husk sweep).
++// §9.0 PYRAMID MESH GENERATION — REMOVED.
+ // The entire mesh-gen island (PMG_* consts, PyramidMeshParams, bindings
+ // 190-192, and the pmg_* writer/geometry helpers) was a write-only husk:
+ // its entry point pyramid_mesh_gen was cut long ago and no kernel read the
+@@ -10935,7 +10935,7 @@
+     color_surge:         f32,   // 0..1
+     hue_converge_target: f32,   // mood-scoped, changes at mood entry
+ 
+-    // ── Dome anchor — DEAD WIRE (p1b-e: the VS eye-centers the
++    // ── Dome anchor — DEAD WIRE (the VS eye-centers the
+     // dome; bytes retained for ABI, zero-filled by configure) ──
+     dome_center_x:       f32,
+     dome_center_y:       f32,
+@@ -11660,7 +11660,7 @@
+     let cam_right = vec3<f32>(cos_az, 0.0, -sin_az);
+     let cam_up = cross(orbital, cam_right);
+ 
+-    // orb.pos is dome-local; the dome is a SKYBOX (p1b-e, Jean's
++    // orb.pos is dome-local; the dome is a SKYBOX (Jean's
+     // ruling): centered on the camera EYE, all three axes, every
+     // frame — the sky rises when you fly and never parallaxes away.
+     // render_camera is already in this VS (the billboard basis above);
+diff -ruN a/cartridges/the_board/surface/patch_system.hpp b/cartridges/the_board/surface/patch_system.hpp
+--- a/cartridges/the_board/surface/patch_system.hpp	2026-07-17 18:11:36.540438000 +0000
++++ b/cartridges/the_board/surface/patch_system.hpp	2026-07-17 19:28:21.272144108 +0000
+@@ -19,7 +19,7 @@
+ // wire (c->gpuState_ / c->renderer_). The reaches OUTSIDE the face
+ // ride the call site (the B law): the WRITABLE tile-cache + theme
+ // organs (the face's views are const — the lifecycle owner mutates
+-// them through the m4 doors), the tile doors' deps, the mood deps
++// them through the owner doors), the tile doors' deps, the mood deps
+ // (the back-portal door), and the driver's intent organ (the movement
+ // budget read). COHORT: the tail's last — after the machine natives
+ // (spawn service defs) and mood (the back-portal door's def).
+@@ -187,7 +187,7 @@
+ 
+ // ── World lifecycle ────────────────────────────────────────────────
+ //
+-// Keyhole form. CALLER: the transition machine
++// Root-called owner verb. CALLER: the transition machine
+ // (root); OWNER: patch_system. The bulk
+ // sweep over sibling organs dissolved into per-owner teardown verbs
+ // called by the score's TEARDOWN movement; this core keeps the
+@@ -206,13 +206,13 @@
+     c->world_state_.last_center_x = INT32_MAX;  // force full regen on next frame
+     c->world_state_.last_center_z = INT32_MAX;
+ 
+-    // Terrain tokens — through the owner's door (m4)
++    // Terrain tokens — through the owner's door
+     reset_terrain_memory(tile_world_state);
+ 
+     c->spawn_engine_state_.entityQueue_.clear();
+     c->spawn_engine_state_.placementResults_.clear();
+ 
+-    // Theme envelope — through the owner's door (m4)
++    // Theme envelope — through the owner's door
+     reset_theme_envelope(themes_state);
+ 
+     // Clear all entity piers (keep test rig at slots 0-2)
+@@ -299,7 +299,7 @@
+     c->world_state_.lod0_patch_count = 0;
+     c->world_state_.all_patch_count = 0;
+     c->gpuState_.stage_placement_patch_count(0);
+-    reset_tile_cache(tile_world_state);  // owner door (m4)
++    reset_tile_cache(tile_world_state);  // owner door
+     c->world_state_.pier_count_dirty = true;
+     c->world_state_.ground_entries_dirty = true;
+     c->world_state_.patch_instances_dirty = true;
+@@ -492,7 +492,7 @@
+         uint32_t pi = candidates[s].idx;
+         int32_t gx = c->patch_system_state_.patches_[pi].grid_x;
+         int32_t gz = c->patch_system_state_.patches_[pi].grid_z;
+-        // Two-tip registration through the owner's door (m4): the
++        // Two-tip registration through the owner's door: the
+         // ref-count protocol lives whole in bodies/ribbon.hpp now.
+         ribbon_register_tips_at(c->ribbon_state_, c->patch_system_state_.patches_[pi], gx, gz);
+     }
+@@ -563,7 +563,7 @@
+     GPUPatchInstance lod1[Dim::MAX_ACTIVE_PATCHES]{};
+     GPUPatchInstance pregen[Dim::MAX_ACTIVE_PATCHES]{};
+ 
+-    float point_wx = c->player_.readback_x;   // THE POINT (p1b-a; 1-frame stale by law E-4)
++    float point_wx = c->player_.readback_x;   // THE POINT (1-frame stale by law E-4)
+     float point_wz = c->player_.readback_z;
+     float half = Dim::PATCH_EXTENT * 0.5f;
+ 
+@@ -741,7 +741,7 @@
+             int32_t rp = rr + TILE_PAD;
+             for (int32_t gz = centerZ - rp; gz <= centerZ + rp; gz++) {
+                 for (int32_t gx = centerX - rp; gx <= centerX + rp; gx++) {
+-                    ensure_tile(tile_world_state, &tile_world_deps, gx, gz);  // owner door (m4)
++                    ensure_tile(tile_world_state, &tile_world_deps, gx, gz);  // owner door
+                 }
+             }
+ 
+@@ -867,7 +867,7 @@
+             int32_t gz = candidates[a].gz;
+             // Ensure tile cache entry (primary — ticks terrain tokens),
+             // then cache neighbors for tile grid padding — both through
+-            // the owner's doors (m4).
++            // the owner's doors.
+             ensure_tile(tile_world_state, &tile_world_deps, gx, gz);
+             for (int dz = -1; dz <= 1; dz++) for (int dx = -1; dx <= 1; dx++) {
+                 ensure_tile_padding(tile_world_state, &tile_world_deps, gx + dx, gz + dz);
+diff -ruN a/cartridges/the_board/surface/population_themes.hpp b/cartridges/the_board/surface/population_themes.hpp
+--- a/cartridges/the_board/surface/population_themes.hpp	2026-07-17 18:11:36.539833000 +0000
++++ b/cartridges/the_board/surface/population_themes.hpp	2026-07-17 19:28:21.273315907 +0000
+@@ -63,7 +63,7 @@
+ 
+ // THE S2/S3 BOUNDARY FACE: THEMES is read across the boundary by the
+ // theme_tier_weights accessor (the interface trio's vocabulary member —
+-// theory v2 §4; formalized at the A-era; Q5 unified the per-family plugs).
++// the program theory; Q5 unified the per-family plugs).
+ //
+ // ── The theme table ────────────────────────────────────────────────
+ // AXES: row = theme id (0 TRANSITION / 1 MONUMENTAL / 2 COLONNADE /
+@@ -291,7 +291,7 @@
+ 
+         for (uint32_t f = 0; f < PopFamily::COUNT; f++)
+             pop.spatial_density[f] = blended_spawn[f];
+-        // (pop.theme_idx dead write CUT — R5: the spatial
++        // (pop.theme_idx dead write CUT: the spatial
+         //  dominant-theme was authored and read nowhere; the LIVE theme axis
+         //  is the temporal one, evaluate_theme_envelope → temporal_flavor.)
+         pop.entity_density *= blended_density;  // theme density stacks with spatial density
+@@ -312,7 +312,7 @@
+ // Called ONCE per patch, inside the spawn loop, BEFORE per-family gates.
+ // Returns the theme index to use for this patch. DEFINED below
+ // (the flag-gated census dump reaches the machine via MachineCtx).
+-uint32_t evaluate_theme_envelope(ThemesState& ts, MachineCtx* c, uint32_t tile_seed_value);  // stores its own result (m4); takes the face (d2)
++uint32_t evaluate_theme_envelope(ThemesState& ts, MachineCtx* c, uint32_t tile_seed_value);  // stores its own result ; takes the face
+ void reset_theme_envelope(ThemesState& ts);
+ 
+ 
+@@ -407,7 +407,7 @@
+         if (env.cooldowns[i] > 0) env.cooldowns[i]--;
+     }
+ 
+-    ts.temporal_flavor = selected;  // stores its own result (m4) — the caller no longer writes the organ
++    ts.temporal_flavor = selected;  // stores its own result — the caller no longer writes the organ
+     return selected;
+ }
+ 
+diff -ruN a/cartridges/the_board/surface/tile_world.hpp b/cartridges/the_board/surface/tile_world.hpp
+--- a/cartridges/the_board/surface/tile_world.hpp	2026-07-17 18:11:36.516494000 +0000
++++ b/cartridges/the_board/surface/tile_world.hpp	2026-07-17 19:29:01.771373958 +0000
+@@ -4,7 +4,7 @@
+ #include <unordered_map>  // the tile cache
+ #include <cmath>           // std::floor, std::pow, std::abs (impl)
+ #include <algorithm>      // std::min (impl)
+-#include <iostream>       // std::cerr (the R5 loud tile-cache assert)
++#include <iostream>       // std::cerr (the loud tile-cache assert)
+ #include <cstdlib>        // std::abort (ditto)
+ #include "cartridges/the_board/contracts/roster.hpp"                // PopFamily (TileState theme columns)
+ #include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
+@@ -178,7 +178,7 @@
+ void evict_distant_tiles(TileWorldState& tw, int32_t centerX, int32_t centerZ);
+ void upload_tile_grid_now(TileWorldState& tw, TileWorldDeps* c, wgpu::Queue& queue, int32_t cx, int32_t cz);
+ TileState generate_tile_state(TileWorldState& tw, TileWorldDeps* c, int32_t gx, int32_t gz);
+-// The cache-authoring doors (m4): the streaming conductor demands,
++// The cache-authoring doors: the streaming conductor demands,
+ // the owner fills. ensure_tile ticks the terrain tokens (primary);
+ // ensure_tile_padding does NOT (padding must not advance the
+ // terrain's memory). reset_* are the teardown/init counterparts.
+@@ -461,13 +461,13 @@
+     return tw.tileCache_.find(tile_key(wx, wz)) != tw.tileCache_.end();
+ }
+ 
+-// F3 (m3b): the spawn-modifier face. The two multiplies preserve the
++// F3: the spawn-modifier face. The two multiplies preserve the
+ // consumers' original operation order exactly (density, then theme).
+ inline void tile_apply_spawn_mult(const TileWorldState& tw, int32_t gx, int32_t gz,
+                                   uint32_t family, float& adj_mod) {
+     auto it = tw.tileCache_.find({ gx, gz });
+     if (it == tw.tileCache_.end()) {
+-        // LOUD (R5): the gate's theme layer silently
++        // LOUD: the gate's theme layer silently
+         // depended on ensure_tile having run at patch allocation. A miss here
+         // means the allocation→spawn ordering broke — fail at the seam, not
+         // by quietly dropping the theme layer from the spawn stack.
+@@ -479,7 +479,7 @@
+     adj_mod *= it->second.pop.spatial_density[family];
+ }
+ 
+-// F4 (m3b): the archetype face, bool-out — the miss default stays
++// F4: the archetype face, bool-out — the miss default stays
+ // with the caller (pace keeps 1.0, placement keeps archetype 1).
+ inline bool tile_archetype(const TileWorldState& tw, int32_t gx, int32_t gz, uint32_t& out) {
+     auto it = tw.tileCache_.find({ gx, gz });
