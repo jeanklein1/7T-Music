@@ -66,6 +66,12 @@ namespace t7 {
             constexpr uint32_t PATCH_PREGEN_SIDE = 2 * PATCH_PREGEN_RADIUS + 1;     // 15
             constexpr uint32_t MAX_ACTIVE_PATCHES = PATCH_PREGEN_SIDE * PATCH_PREGEN_SIDE; // 225
 
+            // TILE_GRID ceiling — the pinned capacity pair's C++ half;
+            // twin: world.wgsl TILE_GRID_CAPACITY. Authored, NOT derived
+            // from the radius — the dial never touches it. Raise it in
+            // BOTH rooms or glaw1/Dawn objects.
+            constexpr uint32_t TILE_GRID_CAPACITY = 1024;
+
             // ═══ THE VEIL CHAIN (re-ruled) — THE RING is the DRAW authority; ═══
             // fog is ICING. Declared here (the registry pattern: authored
             // once, checked by asserts, never computed); point-anchored.
@@ -473,14 +479,20 @@ namespace t7 {
 
         static constexpr uint32_t TILE_GRID_SIDE = 2 * (Dim::PATCH_PREGEN_RADIUS + 1) + 1;  // 17 (pregen + 1 pad each side)
         static constexpr uint32_t TILE_GRID_MAX = TILE_GRID_SIDE * TILE_GRID_SIDE;  // 289
+        static_assert(TILE_GRID_MAX <= Dim::TILE_GRID_CAPACITY,
+            "TILE_GRID ceiling exceeded: raise TILE_GRID_CAPACITY in BOTH "
+            "rooms (state.hpp Dim + world.wgsl) — the pair is pinned, not "
+            "derived");
         struct alignas(16) GPUTileGrid {
             int32_t origin_x;          // grid-space X of entry [0][0]
             int32_t origin_z;          // grid-space Z of entry [0][0]
             uint32_t side;             // grid dimension (17)
             float cell_extent;         // world units per cell (50.0)
-            GPUTileGridEntry entries[TILE_GRID_MAX];
+            // Capacity-sized (the pinned ceiling); the live extent is
+            // side² — slots beyond are uploaded as zeros, never read.
+            GPUTileGridEntry entries[Dim::TILE_GRID_CAPACITY];
         };
-        static_assert(sizeof(GPUTileGrid) == 16 + TILE_GRID_MAX * 16, "GPUTileGrid must match WGSL layout");
+        static_assert(sizeof(GPUTileGrid) == 16 + Dim::TILE_GRID_CAPACITY * 16, "GPUTileGrid must match WGSL layout");
 
         struct alignas(16) GPUTrajectory {
             float value;

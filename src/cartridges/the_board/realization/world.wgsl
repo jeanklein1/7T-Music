@@ -895,12 +895,18 @@ struct TileGridEntry {
     archetype: u32,            // 0=mountainous, 1=varied, 2=basin, 3=pool
 }
 
+// TILE_GRID ceiling — the pinned capacity pair's WGSL half; twin:
+// Dim::TILE_GRID_CAPACITY (state.hpp). Authored, NOT derived from the
+// radius — the dial never touches it. Raise it in BOTH rooms or
+// glaw1/Dawn objects.
+const TILE_GRID_CAPACITY: u32 = 1024u;
+
 struct TileGrid {
     origin_x: i32,         // grid-space X of entry [0][0]
     origin_z: i32,         // grid-space Z of entry [0][0]
     side: u32,             // grid dimension (up to 17)
     cell_extent: f32,      // world units per cell (50.0)
-    entries: array<TileGridEntry, 289>,
+    entries: array<TileGridEntry, TILE_GRID_CAPACITY>,
 }
 
 // Look up a tile grid entry by grid coordinate.
