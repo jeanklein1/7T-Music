@@ -307,13 +307,15 @@ void dispatch_zone_mesh(GoLState& gs, GolDeps* c, wgpu::CommandEncoder& encoder)
 
 inline bool select_gol_for_patch(GoLState& gs, MachineCtx* c,
     int32_t gx, int32_t gz, GoLSelection& sel) {
-    // Mood gate
-    float adj_mod = GoLZoneSpawnConfig::MOOD_MULTIPLIER[c->mood_state_.active];
-    if (adj_mod <= 0.0f) return false;
-
-    // Density + theme modifiers
-    adj_mod *= GLOBAL_ENTITY_DENSITY;
-    tile_apply_spawn_mult(c->tile_world_state_, gx, gz, PopFamily::GOL, adj_mod);  // F3 (m3b)
+    // THE COMPOSITION LAW (R1): the shared stack — mood (explicit veto)
+    // → global → tile (F3); proximity OFF (GoL's affinity row is zero);
+    // clamp [0,1]. The per-lattice-node roll stays below (its own seed
+    // domain, cpu_lattice_node_seed — a consumer fact, not the law's).
+    auto composed = compose_spawn_chance(c, gx, gz, PopFamily::GOL,
+        GoLZoneSpawnConfig::SPAWN_CHANCE, GoLZoneSpawnConfig::MOOD_MULTIPLIER,
+        /*use_proximity=*/false, /*veto_on_zero_mood=*/true,
+        SpawnClamp::RANGE01);
+    if (composed.vetoed) return false;
 
     // Scan lattice nodes overlapping this patch
     float wx0 = gx * PATCH_EXTENT;
@@ -347,12 +349,10 @@ inline bool select_gol_for_patch(GoLState& gs, MachineCtx* c,
             }
             if (exists) continue;
 
-            // Spawn roll with modifiers
+            // Spawn roll (the chance arrived composed — loop-invariant)
             uint32_t seed = cpu_lattice_node_seed(c->world_state_.active_seed, nx, nz, GoLZoneProp::SEED_BAND);
             float roll = cpu_hash_f(seed, GoLZoneProp::SPAWN_ROLL);
-            float chance = GoLZoneSpawnConfig::SPAWN_CHANCE * adj_mod;
-            chance = std::max(0.0f, std::min(1.0f, chance));
-            if (roll >= chance) continue;
+            if (roll >= composed.chance) continue;
 
             // Find free slot
             uint32_t slot = UINT32_MAX;

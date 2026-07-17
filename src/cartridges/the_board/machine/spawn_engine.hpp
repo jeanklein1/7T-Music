@@ -201,22 +201,18 @@ SpawnGatePreambleResult run_spawn_preamble(C* c,
         }
     }
 
-    // 2-6. Spawn modifier chain
-    float adj_mod = mood_mult[c->mood_state_.active];
-    adj_mod *= GLOBAL_ENTITY_DENSITY;
+    // 2-6. THE COMPOSITION LAW (R1): the stack, authored once —
+    // mood → global → tile (F3) → proximity → base × adj → min(·,1).
+    // Generic semantics: multiply-through on mood zero (no veto flag),
+    // proximity ON, MIN1 clamp.
     r.theme_idx = c->themes_state_.temporal_flavor;
-    tile_apply_spawn_mult(c->tile_world_state_, gx, gz, family, adj_mod);  // F3 (m3b): the S2 boundary face
+    auto composed = compose_spawn_chance(c, gx, gz, family,
+        spawn_chance, mood_mult,
+        /*use_proximity=*/true, /*veto_on_zero_mood=*/false,
+        SpawnClamp::MIN1);
 
-    // 6b. Proximity affinity boost (nearby entities attract)
-    {
-        float pcx = (gx + 0.5f) * PATCH_EXTENT;
-        float pcz = (gz + 0.5f) * PATCH_EXTENT;
-        adj_mod *= proximity_affinity_boost(c, pcx, pcz, family);
-    }
-
-    // 7. Spawn gate
-    auto ctx = evaluate_spawn_gate(c, gx, gz, spawn_roll_prop,
-        spawn_chance, adj_mod);
+    // 7. Spawn gate (seed + roll; the chance arrives composed)
+    auto ctx = evaluate_spawn_gate(c, gx, gz, spawn_roll_prop, composed.chance);
     if (!ctx.passed) return r;
 
     // 8-9. Find and reserve slot
@@ -603,16 +599,40 @@ inline void dump_entity_census(MachineCtx* c, const char* trigger) {
 
 // Evaluate the spawn gate: seed + flat probability check.
 // adjacency_mod is a multiplier from the full spawn cascade.
+// ═══ THE COMPOSITION LAW — definition (decl: spawn_services.hpp) ═══
+// The ONE place the spawn-probability stack is authored (R1). The
+// float multiplication ORDER below is the bit-identity contract
+// (composition recon §4.7) — do not reorder a multiply, do not move a
+// clamp. Exact argument orders of min/max preserved per policy.
+inline SpawnChanceResult compose_spawn_chance(MachineCtx* c, int32_t gx, int32_t gz,
+    uint32_t family, float base_chance, const float* mood_mult,
+    bool use_proximity, bool veto_on_zero_mood, SpawnClamp clamp) {
+    float adj_mod = mood_mult[c->mood_state_.active];
+    if (veto_on_zero_mood && adj_mod <= 0.0f) return { 0.0f, true };
+    adj_mod *= GLOBAL_ENTITY_DENSITY;
+    tile_apply_spawn_mult(c->tile_world_state_, gx, gz, family, adj_mod);  // F3: the S2 boundary face
+    if (use_proximity) {
+        float pcx = (gx + 0.5f) * PATCH_EXTENT;
+        float pcz = (gz + 0.5f) * PATCH_EXTENT;
+        adj_mod *= proximity_affinity_boost(c, pcx, pcz, family);
+    }
+    float chance = base_chance * adj_mod;
+    switch (clamp) {
+        case SpawnClamp::MIN1:    chance = std::min(chance, 1.0f); break;
+        case SpawnClamp::RANGE01: chance = std::max(0.0f, std::min(1.0f, chance)); break;
+        case SpawnClamp::NONE:    break;
+    }
+    return { chance, false };
+}
+
 inline SpawnPreamble evaluate_spawn_gate(MachineCtx* c, int32_t gx, int32_t gz,
     uint32_t spawn_roll_prop,
-    float spawn_chance,
-    float adjacency_mod) {
+    float chance) {
     SpawnPreamble result{};
     // (per-gate archetype lookup CUT — composition recon R5: computed for
     //  every generic gate, read by nobody; the sole archetype consumer
     //  (gallery) calls tile_archetype itself in its bespoke funnel.)
     result.seed = tile_seed(c->world_state_.active_seed, gx, gz);
-    float chance = std::min(spawn_chance * adjacency_mod, 1.0f);
     result.passed = cpu_hash_f(result.seed, spawn_roll_prop) < chance;
     return result;
 }

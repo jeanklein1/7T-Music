@@ -4775,6 +4775,33 @@ R3 — DEFERRED BY ITS OWN TERMS: waking the DENSITY band /
   density_mult / GLOBAL_ENTITY_DENSITY is a behavior change (new
   worlds) — rig-gated; the panel (R2b) is where values get proposed.
 
+R1 — THE COLLAPSE (own commit; bit-identity by construction, goldens
+confirm at the rig). compose_spawn_chance is now the ONE author of the
+spawn-probability stack — declared at the decl tier
+(spawn_services.hpp, beside SpawnClamp + SpawnChanceResult), defined in
+spawn_engine.hpp, called by all three authors:
+  · the generic preamble (10 families): proximity ON, multiply-through
+    mood, MIN1 clamp — evaluate_spawn_gate shrinks to seed + roll (the
+    chance arrives composed);
+  · GoL: proximity OFF, explicit mood veto, RANGE01 clamp — the
+    per-lattice-node roll keeps its own seed domain; the loop-invariant
+    chance is now composed once;
+  · Gallery: base authority ARCHETYPE-INDEXED (tile_archetype resolved
+    first, base passed as data), explicit mood veto, clamp NONE — the
+    SUB-RULING executed: the absent clamp is CARRIED AS DATA
+    (behavior-identical); clamp-in remains a separate taste gate.
+BIT-IDENTITY LEDGER: float order mood → GLOBAL → tile(F3) →
+[proximity] → base × adj → clamp preserved exactly; min/max argument
+orders copied verbatim per policy (min(chance,1) generic;
+max(0,min(1,chance)) GoL); gallery's archetype lookup moved ahead of
+the mood veto (pure read, no float effect); GoL's chance hoisted out
+of the node loop (loop-invariant, same operands); the preamble's
+theme_idx read precedes the law (pure read). Seed domains and rolls
+untouched. PROOF OF SINGULARITY: post-cut grep — adj_mod arithmetic
+exists ONLY in compose_spawn_chance + the F3 face; zero re-authors
+remain. glaw1 + census GREEN; RIG GATE: frozen-world goldens must not
+notice.
+
 ════════════════════════════════════════════════════════════════════
 THE PARKED LEDGER (standing section — the ONE place open flags live.
 Future sweeps read THIS, not the tree. Consolidated at residue-sweep

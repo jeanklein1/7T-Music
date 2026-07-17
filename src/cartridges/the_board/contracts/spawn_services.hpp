@@ -167,10 +167,37 @@ inline constexpr ArchTierRow ARCH_TIERS[] = {
 // mood/themes/tile state, entities_state_, the GPU wire) and routes
 // the twelve families through FAMILY_DISPATCH.
 
+// ═══ THE COMPOSITION LAW (R1 — the collapse) ═════════════════════
+// ONE stack, authored once, called by all three spawn authors (the
+// generic preamble, GoL, Gallery). Per-consumer FACTS travel as DATA:
+// base-chance authority (scalar, or archetype-indexed — resolved by
+// the caller before the call), clamp policy, proximity on/off, and
+// the mood-zero veto style. The float multiplication ORDER inside the
+// definition is the bit-identity contract (composition recon §4.7):
+// mood → GLOBAL_ENTITY_DENSITY → tile (entity_density →
+// spatial_density) → [proximity] → base × adj → clamp. Seed domains
+// and the rolls themselves stay with the consumers.
+
+enum class SpawnClamp : uint32_t {
+    MIN1,     // min(chance, 1.0)        — the generic preamble
+    RANGE01,  // max(0, min(1, chance))  — GoL
+    NONE,     // raw base × adj          — Gallery. Sub-ruling: the
+              //   absent clamp is CARRIED AS DATA (behavior-identical);
+              //   ruling a clamp IN is a separate taste gate.
+};
+
+struct SpawnChanceResult {
+    float chance;   // the composed probability (post clamp policy)
+    bool  vetoed;   // true only under veto_on_zero_mood with mood ≤ 0
+};
+
+SpawnChanceResult compose_spawn_chance(MachineCtx* c, int32_t gx, int32_t gz,
+    uint32_t family, float base_chance, const float* mood_mult,
+    bool use_proximity, bool veto_on_zero_mood, SpawnClamp clamp);
+
 SpawnPreamble evaluate_spawn_gate(MachineCtx* c, int32_t gx, int32_t gz,
     uint32_t spawn_roll_prop,
-    float spawn_chance,
-    float adjacency_mod = 1.0f);
+    float chance);
 void jittered_position(uint32_t seed, int32_t gx, int32_t gz,
     uint32_t prop_x, uint32_t prop_z, float jitter,
     float& out_x, float& out_z);

@@ -712,15 +712,19 @@ inline bool select_gallery_for_patch(GalleryState& gs, MachineCtx* c, int32_t gx
     // Content gate: minimum snapshot pool
     if (gs.snapshot_count < GalleryConfig::MIN_POOL_SIZE) return false;
 
-    // Mood gate
-    float adj_mod = GalleryConfig::MOOD_MULTIPLIER[c->mood_state_.active];
-    if (adj_mod <= 0.0f) return false;
-
-    // Density + theme modifiers
-    adj_mod *= GLOBAL_ENTITY_DENSITY;
+    // THE COMPOSITION LAW (R1): base authority is ARCHETYPE-INDEXED —
+    // resolved first, passed as data. Mood = explicit veto; proximity
+    // OFF (gallery's affinity row is zero); clamp NONE — the absent
+    // clamp is CARRIED AS DATA per the sub-ruling (behavior-identical;
+    // ruling a clamp IN is a separate taste gate).
     uint32_t archetype = 1;
-    tile_apply_spawn_mult(c->tile_world_state_, gx, gz, PopFamily::GALLERY, adj_mod);  // F3 (m3b)
-    tile_archetype(c->tile_world_state_, gx, gz, archetype);                           // F4 (m3b): miss keeps 1
+    tile_archetype(c->tile_world_state_, gx, gz, archetype);   // F4 (m3b): miss keeps 1
+    auto composed = compose_spawn_chance(c, gx, gz, PopFamily::GALLERY,
+        GalleryConfig::GALLERY_CHANCE_BY_ARCHETYPE[archetype],
+        GalleryConfig::MOOD_MULTIPLIER,
+        /*use_proximity=*/false, /*veto_on_zero_mood=*/true,
+        SpawnClamp::NONE);
+    if (composed.vetoed) return false;
 
     // Idempotency: skip if paintings already exist at this patch
     for (uint32_t i = 0; i < Dim::PAINTING_MAX_SLOTS; i++) {
@@ -737,11 +741,10 @@ inline bool select_gallery_for_patch(GalleryState& gs, MachineCtx* c, int32_t gx
             return false;
     }
 
-    // Spawn roll
+    // Spawn roll (the chance arrived composed)
     uint32_t seed = tile_seed(c->world_state_.active_seed, gx, gz);
     float gallery_roll = cpu_hash_f(seed, GalleryProp::SPAWN_ROLL);
-    float gallery_chance = GalleryConfig::GALLERY_CHANCE_BY_ARCHETYPE[archetype] * adj_mod;
-    if (gallery_roll >= gallery_chance) return false;
+    if (gallery_roll >= composed.chance) return false;
 
     // Gallery center (jittered within patch)
     float patch_cx = (gx + 0.5f) * PATCH_EXTENT;
