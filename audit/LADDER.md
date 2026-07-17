@@ -4944,6 +4944,81 @@ C++), and its net is Dawn validation + the beacon. GATE: rebuild →
 the triplet gone, boot clean → the 2b pixel-identity rig resumes.
 
 ════════════════════════════════════════════════════════════════════
+TERRAIN_LOOKS — THE SURFACE-VOICE PANEL (consolidation cut;
+movement-only, behavior-identical; the D2 axis gets its address)
+════════════════════════════════════════════════════════════════════
+
+TWO ROOMS, ONE PANEL: surface/terrain_looks.hpp (C++ room, NEW —
+included by state.hpp beside the C6 binding registry, its exact
+precedent) + world.wgsl §2.2 rebuilt as ONE contiguous panel region
+(banner → ROW 1..ROW 9 → end-marker, lines ~1461-1715). Same rows,
+same order; the mirror contract stated at the top of BOTH rooms
+honestly (the binding-registry ceiling): no machine gate crosses the
+language gap — glaw1 is WGSL-blind, WGSL cannot include headers — so
+every VALUE lives in exactly ONE room and the other room carries the
+row as a pointer; no cross-language number exists to drift. The only
+shared text is the row index. Nets: the boot rig for values, Dawn
+binding validation for layout, C6 for binding numbers.
+
+THE GATHER:
+- ROW 1 (C++): the palette quartet REST arrays — boot init now reads
+  the panel (the state.hpp literal block deleted); mechanical
+  extract-and-compare vs HEAD: centers/lights/weights IDENTICAL.
+- ROW 2 (C++): the cartridge boot-pin block's terrain rows migrated
+  to terrain_looks::REST_* (terrain_time 0, band blend -1×6, phase
+  origins 0, mode trio zeros — value-checked vs HEAD); the boot-pin
+  reads the panel. set_mode_gol_scales + pulse stay inline (GoL's
+  jurisdiction, ROW 9 pointer).
+- ROW 3 (WGSL): the dominant-branch matrix NAMED
+  (PALETTE_DOMINANT_WEIGHT .85 / PALETTE_MINOR_WEIGHT .05);
+  PALETTE_COMPLEXITY 0.5 stated ONCE — the brief said three call
+  sites; the census found FIVE (3× palette_color_smooth + 2×
+  palette_target_color), all re-pointed, count corrected in the row.
+- ROW 4 (WGSL): the *_LATTICE_SPACING block, retitled in place.
+- ROW 5 (WGSL): composite cuts & edges promoted WITH NAMES — the mode
+  blend/scatter edges (±offsets on MODE_DISCRETE_THRESHOLD,
+  previously DUPLICATED across composite_cell_color and its biased
+  twin — now stated once), sparse survival .22/.35, chess cuts
+  .45/.65, mono cuts .35/.20, DISCRETE_TINT_STRENGTH .15 (both tint
+  sites: discrete_cell_color + discrete_cell_color_at_tier).
+- ROW 6 (WGSL): the coupling block in place; MODE_COUPLING_MAGNITUDE
+  0.0 carried with its label (the parked archetype gain).
+- ROW 7 (WGSL): the movement third — OVERLAY_WAVES struct + table +
+  design matrix, WAVE_THRESHOLD[6] + softness, ACTIVITY_LATTICE_
+  SPACING + BEAT_FREQ_LO/HI moved in; seed plumbing (ACTIVITY_SEED_
+  BAND / *_PROP_*) stays with the field fns at §1.6.
+- ROW 8 (WGSL): palette_color_smooth RELOCATED into the panel;
+  composite_cell_color NOT moved — Discipline 2 judgment, flagged not
+  forced: relocating one twin would split the duplicated pair away
+  from the cell-field pipeline; its governing contract is stated in
+  the row with pointers.
+- ROW 9: the contributor roster — DAG seam, GoL tint funnel, aura
+  tint (a different tint_strength: a uniform field, named to prevent
+  conflation), population panel. Navigable, NOT annexed.
+
+GATES: glaw1 + census GREEN (the C++ gather). WGSL: every MOVED block
+diff-verified BYTE-IDENTICAL vs HEAD (OverlayWave struct, OVERLAY_
+WAVES, WAVE_THRESHOLD, palette_color_smooth body, five single-line
+consts); every PROMOTED const carries the exact literal/expression it
+replaced (greps: zero leftover magic numbers at the re-pointed
+sites); single-declaration census clean; bracket balance clean.
+FLAGGED token changes beyond pure relocation (anticipated by the
+brief — promotion was requested): the named-const re-points, and
+palette_weights_at_node's branch matrix now reads two locals bound to
+the ROW 3 consts (same f32 values, same expression shape). Out-of-
+order module-scope references are PRE-EXISTING idiom in this file
+(palette_field_at has always read PALETTE_LATTICE_SPACING from §2.2
+below it) — no new compile-order risk class. RIG (Jean's side): one
+boot — the world must look EXACTLY as it does now; the panel changed
+where truth lives, not what it says.
+
+THE PATTERN + THE PAYOFF: third foundational panel — CameraControls
+(PANEL-0 p1a), population_themes, now terrain_looks. STEP 3 (the
+mapping conversation) convenes OVER this file: wires get written as
+rows beside the parameters they drive; the rest column already lives
+where the parameters live (§2 shape, pre-built for the wires).
+
+════════════════════════════════════════════════════════════════════
 THE PARKED LEDGER (standing section — the ONE place open flags live.
 Future sweeps read THIS, not the tree. Consolidated at residue-sweep
 T0. Discipline: when a flag lands or dies, strike it HERE in the same

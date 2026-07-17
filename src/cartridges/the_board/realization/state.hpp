@@ -13,6 +13,7 @@
 #include "analysis/analysis_signal.hpp"
 #include "cartridges/the_board/demos/demo.hpp"   // ROSTER via the selected sentence (GPUState::init gates creation)  // feature bits (GPUState::init gates creation)
 #include "cartridges/the_board/realization/binding_registry.hpp"  // C6: bind::g0::* / bind::g1::* — the single source of truth for binding NUMBERS (the layout+group pair references one named const)
+#include "cartridges/the_board/surface/terrain_looks.hpp"          // THE TERRAIN_LOOKS PANEL (C++ room): palette quartet REST + motion/mode rest pins — boot init reads the panel
 #include <webgpu/webgpu_cpp.h>
 #include <cstring>
 #include <array>
@@ -5466,23 +5467,20 @@ namespace t7 {
                 config_.pawn_aura_height = 0.0f;
                 // THE PALETTE MIRROR — rest = the pre-graduation WGSL
                 // literals (STEP 2b; bit-identical by construction).
+                // Values authored at THE TERRAIN_LOOKS PANEL ROW 1
+                // (surface/terrain_looks.hpp) — boot reads the panel.
                 {
-                    const float centers[4][3] = { {0.85f,0.70f,0.50f}, {0.88f,0.58f,0.48f},
-                                                  {0.45f,0.58f,0.38f}, {0.82f,0.55f,0.42f} };
-                    const float lights[4][3]  = { {0.92f,0.82f,0.65f}, {0.95f,0.72f,0.62f},
-                                                  {0.62f,0.72f,0.52f}, {0.92f,0.72f,0.58f} };
                     for (uint32_t i = 0; i < 4; i++) {
                         for (uint32_t c = 0; c < 3; c++) {
-                            config_.palette_center[i][c] = centers[i][c];
-                            config_.palette_light[i][c]  = lights[i][c];
+                            config_.palette_center[i][c] = terrain_looks::PALETTE_CENTER_REST[i][c];
+                            config_.palette_light[i][c]  = terrain_looks::PALETTE_LIGHT_REST[i][c];
                         }
                         config_.palette_center[i][3] = 0.0f;
                         config_.palette_light[i][3]  = 0.0f;
                     }
-                    config_.palette_weight[0] = 0.42f;
-                    config_.palette_weight[1] = 0.28f;
-                    config_.palette_weight[2] = 0.04f;
-                    config_.palette_weight[3] = 0.26f;
+                    for (uint32_t i = 0; i < 4; i++) {
+                        config_.palette_weight[i] = terrain_looks::PALETTE_WEIGHT_REST[i];
+                    }
                 }
                 // THE VEIL — chain defaults (Dim: ring 325 / icing 40 /
                 // lod0 175); strength staged per frame by U5 (0 in

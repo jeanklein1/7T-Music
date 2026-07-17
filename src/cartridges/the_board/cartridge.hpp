@@ -404,14 +404,20 @@ namespace t7 {
                     << " ms\n";
 
                 {
-                    float inactive[6] = { -1.f, -1.f, -1.f, -1.f, -1.f, -1.f };
-                    float zeros6[6] = {};
-                    gpuState_.set_band_motion(inactive, zeros6);
-                    gpuState_.set_terrain_time(0.0f);
-                    gpuState_.set_mode_color_shift(0.0f);
-                    gpuState_.set_mode_checker_scatter(0.0f);
-                    gpuState_.set_mode_palette_drift(0.0f, 0.0f, 0.0f);
-                    gpuState_.set_mode_gol_scales(1.0f, 1.0f);
+                    // The surface voice's terrain rows read THE
+                    // TERRAIN_LOOKS PANEL ROW 2 (surface/
+                    // terrain_looks.hpp) — the rest column lives where
+                    // the parameters live. Values unchanged: blend -1
+                    // = inactive, everything else 0.
+                    gpuState_.set_band_motion(terrain_looks::REST_BAND_BLEND,
+                                              terrain_looks::REST_BAND_PHASE_ORIGIN);
+                    gpuState_.set_terrain_time(terrain_looks::REST_TERRAIN_TIME);
+                    gpuState_.set_mode_color_shift(terrain_looks::REST_MODE_COLOR_SHIFT);
+                    gpuState_.set_mode_checker_scatter(terrain_looks::REST_MODE_CHECKER_SCATTER);
+                    gpuState_.set_mode_palette_drift(terrain_looks::REST_MODE_PALETTE_DRIFT_TARGET,
+                                                     terrain_looks::REST_MODE_PALETTE_DRIFT_INTENSITY,
+                                                     terrain_looks::REST_MODE_PALETTE_DRIFT_TIER);
+                    gpuState_.set_mode_gol_scales(1.0f, 1.0f);   // GoL's jurisdiction — stays inline (ROW 9 pointer)
                     float zero_pulses[32] = {};
                     gpuState_.set_pulse_data(0, zero_pulses);
                     // The CameraControls panel authors the fly speed

@@ -65,6 +65,10 @@
 // Change a number, recompile, see the result. No logic edits needed.
 // Section references (§N.M) are stable; search by section number.
 //
+// The surface voice's color + movement rows are consolidated at THE
+// TERRAIN_LOOKS PANEL (§2.2, the WGSL room; C++ room = surface/
+// terrain_looks.hpp — palette REST + motion/mode rest pins).
+//
 // ── Color Palettes (§2.2 — GRADUATED to the config uniform, 2b) ────
 //   config.palette_center[4]      Sand/salmon/green/warm RGB medians
 //   config.palette_light[4]       Light variant per palette
@@ -89,9 +93,10 @@
 //   MODE_COUPLING_MAGNITUDE       0.0 — max mode shift (DISABLED)
 //   ARCHETYPE_MODE_CHARACTER[4]   Per-archetype coupling direction
 //
-// ── Terrain Waves (§1.6) ──────────────────────────────────────────
+// ── Terrain Waves (→ §2.2 TERRAIN_LOOKS ROW 7) ────────────────────
 //   WAVE_THRESHOLD[6]             Per-band activity gate
 //   ACTIVITY_LATTICE_SPACING      400 wu — activity envelope
+//   OVERLAY_WAVES[6]              Band amp/freq/period/jitter table
 //
 // ── GoL Zones (§2.2, §7.0b) ──────────────────────────────────────
 //   GOL_TIERS[7]                  Tier params (density, tick, spring)
@@ -368,25 +373,13 @@ const WAVE_PROP_PHASE: u32     = 206u;  // initial phase offset
 const WAVE_PROP_ACTIVE: u32    = 208u;  // activation gate (uniform draw vs band activation)
 
 
-// SPATIAL FIELD MANIFEST
-const ACTIVITY_LATTICE_SPACING: f32 = 400.0;    // world units between activity nodes
+// SPATIAL FIELD MANIFEST — seed plumbing only. The tunable activity/
+// band values (ACTIVITY_LATTICE_SPACING, ACTIVITY_BEAT_FREQ_LO/HI,
+// WAVE_THRESHOLD[6] + softness) moved to THE TERRAIN_LOOKS PANEL
+// ROW 7 (§2.2) — the movement third of the surface voice.
 const ACTIVITY_SEED_BAND: u32       = 50u;      // lattice seed band (separate from terrain)
 const ACTIVITY_PROP_LEVEL: u32      = 220u;     // property index: activity intensity
 const ACTIVITY_PROP_BEAT_FREQ: u32  = 221u;     // property index: beat frequency
-const ACTIVITY_BEAT_FREQ_LO: f32    = 0.25;     // lowest beat frequency (cycles/beat)
-const ACTIVITY_BEAT_FREQ_HI: f32    = 2.0;      // highest beat frequency (cycles/beat)
-
-// Per-band activity thresholds — which terrain bands respond at what intensity.
-// Index matches TERRAIN_BANDS: 0=continental, 5=tectonic.
-const WAVE_THRESHOLD = array<f32, 6>(
-    0.85,  // 0: continental — only the most active pools move the bones
-    0.70,  // 1: regional
-    0.50,  // 2: local
-    0.35,  // 3: detail
-    0.20,  // 4: fine — responds to even mild pools
-    0.90,  // 5: tectonic — almost geological, only extreme activity animates
-);
-const WAVE_THRESHOLD_SOFTNESS: f32 = 0.15;      // crossfade width at threshold boundary
 
 fn band_activity_level(raw_activity: f32, band_index: u32) -> f32 {
     let threshold = WAVE_THRESHOLD[band_index];
@@ -982,7 +975,8 @@ fn color_lattice_seed(node: vec2<i32>, band: u32) -> u32 {
 
 // At each palette lattice node: roll which palette dominates.
 // Returns vec4(sand_weight, salmon_weight, green_weight, grey_weight).
-// The dominant palette gets ~0.80, remainder distributed.
+// The dominant palette gets PALETTE_DOMINANT_WEIGHT, each other
+// PALETTE_MINOR_WEIGHT (TERRAIN_LOOKS ROW 3, §2.2).
 fn palette_weights_at_node(node: vec2<i32>) -> vec4<f32> {
     let seed = color_lattice_seed(node, 0u);
     let roll = hash_property(seed, 500u);
@@ -995,19 +989,21 @@ fn palette_weights_at_node(node: vec2<i32>) -> vec4<f32> {
         if (roll < cumul) { dominant = i; break; }
     }
 
-    // Build weights: the dominant palette takes 0.85, the other three
-    // 0.05 each (rows = dominant id, columns = palette id — an implicit
-    // 4×4 constant matrix written as branches; sums 1.0 per row).
-    // Sharpness knob: raise 0.85 for harder palette regions.
+    // Build weights: the dominant palette takes PALETTE_DOMINANT_WEIGHT,
+    // the other three PALETTE_MINOR_WEIGHT each (rows = dominant id,
+    // columns = palette id — an implicit 4×4 constant matrix written as
+    // branches; sums 1.0 per row). Dials at TERRAIN_LOOKS ROW 3 (§2.2).
+    let dw = PALETTE_DOMINANT_WEIGHT;
+    let mw = PALETTE_MINOR_WEIGHT;
     var w: vec4<f32>;
     if (dominant == 0u) {
-        w = vec4(0.85, 0.05, 0.05, 0.05);
+        w = vec4(dw, mw, mw, mw);
     } else if (dominant == 1u) {
-        w = vec4(0.05, 0.85, 0.05, 0.05);
+        w = vec4(mw, dw, mw, mw);
     } else if (dominant == 2u) {
-        w = vec4(0.05, 0.05, 0.85, 0.05);
+        w = vec4(mw, mw, dw, mw);
     } else {
-        w = vec4(0.05, 0.05, 0.05, 0.85);
+        w = vec4(mw, mw, mw, dw);
     }
     return w;
 }
@@ -1204,24 +1200,10 @@ fn chess_field_at(world_xz: vec2<f32>) -> ChessField {
     return ChessField(tendency, color_a, color_b);
 }
 
-// Smooth palette color: weighted blend modulated by complexity only.
-// No per-cell noise — produces continuous gradients.
-fn palette_color_smooth(weights: vec4<f32>, complexity: f32) -> vec3<f32> {
-    var color = vec3(0.0);
-    let w = array<f32, 4>(weights.x, weights.y, weights.z, weights.w);
-    for (var i: u32 = 0u; i < 4u; i++) {
-        color += mix(config.palette_light[i].rgb, config.palette_center[i].rgb, complexity) * w[i];
-    }
-    return clamp(color, vec3(0.0), vec3(1.0));
-}
-
-// Discrete palette color: weighted blend with per-cell random offset.
-// (palette_color + PALETTE_VARIANCE RETIRED — STEP 2b: the fn had no
-//  live caller (only palette_color_smooth ships) and the VARIANCE
-//  array's only consumer was this fn. The 2b fork — revive or retire —
-//  resolved RETIRE under the cut's bit-identical law: reviving would
-//  have been a pixel change. git holds both; the designer tool carries
-//  variance as design space.)
+// (palette_color_smooth — the palette's governing expression —
+//  relocated to THE TERRAIN_LOOKS PANEL ROW 8, §2.2: it lives beside
+//  its dials. The palette_color + PALETTE_VARIANCE retirement record
+//  (STEP 2b, fork resolved RETIRE) is carried by the panel's ROW 1.)
 
 // --- Discrete cell color system
 // (DISCRETE_*_LATTICE_SPACING defined in Color Field Spatial Config block)
@@ -1293,11 +1275,11 @@ fn discrete_cell_color(world_xz: vec2<f32>, cell_gx: i32, cell_gz: i32, cell_see
     // --- Chess board tier
     let chess = chess_field_at(world_xz);
     let chess_jitter = (hash_property(cell_seed, 815u) - 0.5) * 0.03;
-    if (chess.tendency + chess_jitter > 0.45) {
+    if (chess.tendency + chess_jitter > CHESS_TENDENCY_CUT) {
         let parity = (cell_gx + cell_gz) & 1;
         // Colorful chess: only at the absolute peak of tendency.
         // Even among chess regions, colorful is the exception.
-        if (chess.tendency > 0.65) {
+        if (chess.tendency > CHESS_COLORFUL_CUT) {
             return select(chess.color_a, chess.color_b, parity == 1);
         }
         // Default chess: black and white.
@@ -1313,21 +1295,20 @@ fn discrete_cell_color(world_xz: vec2<f32>, cell_gx: i32, cell_gz: i32, cell_see
     let mono_jitter = (hash_property(cell_seed, 820u) - 0.5) * 0.15;
     let effective_mono = mono + mono_jitter;
 
-    if (effective_mono > 0.35) {
+    if (effective_mono > MONO_BW_CUT) {
         // Pure black or white
         let bw_roll = hash_property(cell_seed, 830u);
         return select(vec3(0.02), vec3(0.95), bw_roll > 0.5);
     }
 
-    if (effective_mono > 0.20) {
-        // Tinted monochrome. tint_strength is a PINNED LITERAL — a
-        // mix-weight (grey→palette mean) with no uniform behind it;
-        // flagged by the color-stack recon as a couplable literal
-        // (structural today; would need graduation to move).
+    if (effective_mono > MONO_TINT_CUT) {
+        // Tinted monochrome. DISCRETE_TINT_STRENGTH (TERRAIN_LOOKS
+        // ROW 5) is a PINNED constant — a mix-weight (grey→palette
+        // mean) with no uniform behind it; flagged by the color-stack
+        // recon as a couplable literal (graduation needed to move).
         let bw_roll = hash_property(cell_seed, 830u);
         let base_grey = select(0.12, 0.85, bw_roll > 0.5);
-        let tint_strength = 0.15;
-        return mix(vec3(base_grey), rgb_mean, tint_strength);
+        return mix(vec3(base_grey), rgb_mean, DISCRETE_TINT_STRENGTH);
     }
 
     // Full color
@@ -1365,7 +1346,7 @@ fn discrete_cell_color_at_tier(
         case 1u: {
             let region = discrete_region_at(world_xz);
             let base_grey = select(0.12, 0.85, bw_roll > 0.5);
-            return mix(vec3(base_grey), region.xyz, 0.15);
+            return mix(vec3(base_grey), region.xyz, DISCRETE_TINT_STRENGTH);
         }
         default: {
             let region = discrete_region_at(world_xz);
@@ -1477,9 +1458,40 @@ struct DesignConfig {
     palette_weight: vec4<f32>,
 }
 
-// §2.2 CONSTANTS
-
-// --- Terrain constants
+// §2.2 — THE TERRAIN_LOOKS PANEL (WGSL room)
+// ═══════════════════════════════════════════════════════════════════
+// The D2 surface-voice authoring surface: geometry, color, movement —
+// what the terrain LOOKS like. Third foundational panel, after
+// CameraControls (PANEL-0 p1a) and population_themes (the population
+// panel). STEP 3 (the mapping conversation) convenes OVER this panel:
+// wires land as rows beside the parameters they drive.
+//
+// TWO ROOMS, ONE PANEL — the mirror rule (the binding-registry
+// ceiling, said honestly): the C++ room is surface/terrain_looks.hpp.
+// Same rows, same order. No machine gate crosses the language gap —
+// glaw1 is WGSL-blind and WGSL cannot include headers — so the
+// discipline is: every VALUE lives in exactly ONE room, and the other
+// room carries the row as a named pointer only (no cross-language
+// number exists to drift). The only shared text is the row index
+// below. Nets: the boot rig (the world must look identical) for
+// values; Dawn binding validation for uniform layout; the C6 registry
+// for binding numbers.
+//
+// ROW INDEX (identical in both rooms):
+//   ROW 1 — THE PALETTE QUARTET        values in the C++ room (REST) → config uniform
+//   ROW 2 — MOTION & MODE REST PINS    values in the C++ room → setters at boot
+//   ROW 3 — PALETTE COMPOSITION        values HERE
+//   ROW 4 — FIELD LATTICES             values HERE
+//   ROW 5 — COMPOSITE CUTS & EDGES     values HERE
+//   ROW 6 — TERRAIN-MODE COUPLING      values HERE
+//   ROW 7 — THE MOVEMENT THIRD         values HERE
+//   ROW 8 — GOVERNING EXPRESSIONS      text HERE
+//   ROW 9 — THE CONTRIBUTOR ROSTER     pointers, both rooms
+//
+// STAYS OUT (machinery / other jurisdictions): streaming, the tile
+// cache, manifold dispatch, bake kernel bodies, spawn/population
+// (population_themes' panel), the veil (visibility's jurisdiction),
+// GoL/pulse internals (ROW 9 points at the shared tint funnel).
 
 // RAYMARCH/SDF EXCAVATION: the legacy WAVES table + WAVE_COUNT +
 // HEIGHT_MAX_AMPLITUDE + the amplitude-trajectory feeder constants
@@ -1490,7 +1502,7 @@ struct DesignConfig {
 // SAND_DUNE_CENTER / SAND_DUNE_VARIANCE removed — used only by the
 // (removed) coupling_sphere_to_terrain_tint. (RAYMARCH/SDF excavation)
 
-// ── The terrain palette tables (GRADUATED — STEP 2b) ───────────────
+// ── ROW 1 — THE PALETTE QUARTET (GRADUATED — STEP 2b) ──────────────
 // The four palettes now live in the CONFIG UNIFORM (config.palette_center
 // / palette_light / palette_weight — C++ twin GPUDesignConfig, setters
 // set_palette_*): the FORK-tier graduation that makes the MEDIANS
@@ -1500,9 +1512,10 @@ struct DesignConfig {
 // UNITS: center/light = rgb 0-1 (vec4, w pad); weight = selection
 //   probability, component i = palette i (sums 1.0).
 // CONSUMERS: palette_color_smooth (center/light mixed by complexity —
-//   pinned 0.5 today); palette_target_color (drift); palette_weights_
-//   at_node (weight).
-// REST (the boot values, bit-identical to the pre-graduation consts):
+//   pinned at PALETTE_COMPLEXITY, ROW 3); palette_target_color (drift);
+//   palette_weights_at_node (weight).
+// REST (the boot values, bit-identical to the pre-graduation consts —
+//   authored at the C++ room's ROW 1, terrain_looks::PALETTE_*_REST):
 //   center: sand {.85,.70,.50} · salmon {.88,.58,.48} ·
 //           green {.45,.58,.38} (rare) · warm {.82,.55,.42}
 //   light:  {.92,.82,.65} · {.95,.72,.62} · {.62,.72,.52} · {.92,.72,.58}
@@ -1511,7 +1524,31 @@ struct DesignConfig {
 //  2b fork resolved RETIRE under the bit-identical law; values were
 //  .08/.14/.20/.12, held by git + the designer tool's design space.)
 
-// --- Color Field Spatial Config
+// ── ROW 2 — MOTION & MODE REST PINS (values in the C++ room) ───────
+// The surface voice's silence. config.terrain_time / the band
+// blend+phase-origin arrays / mode_color_shift / mode_checker_scatter
+// / mode_palette_{target,intensity,discrete_tier} rest at
+// terrain_looks::REST_* (C++ ROW 2), written once by the cartridge
+// boot-pin block; nothing else authors them today. terrain_time ≤ 0
+// freezes both overlay-wave evaluators (ROW 7's consumers) — rest IS
+// today's stillness. The mode trio is DRIVERLESS since the gen-1
+// retirement: driver-ready dials held at rest, read by
+// animated_cell_color / _lut (mode_bias, sparse_bias, drift).
+
+// ── ROW 3 — PALETTE COMPOSITION ─────────────────────────────────────
+// How the quartet becomes a color: the dominant-branch matrix weights
+// + the complexity mix dial.
+const PALETTE_DOMINANT_WEIGHT: f32 = 0.85;  // dominant palette's share at a lattice node — sharpness dial (raise for harder palette regions)
+const PALETTE_MINOR_WEIGHT: f32 = 0.05;     // each non-dominant share; dominant + 3×minor sums 1.0 per row (palette_weights_at_node's row-stochastic matrix)
+// The center/light mix dial — palette_color_smooth's and
+// palette_target_color's `complexity` argument, PINNED since the husk
+// sweep removed the live complexity channel. Stated ONCE here; every
+// call site (5 today: 3× palette_color_smooth, 2× palette_target_color)
+// reads this constant. The terrain_color_designer carries it as a
+// preview dial.
+const PALETTE_COMPLEXITY: f32 = 0.5;
+
+// ── ROW 4 — FIELD LATTICES (Color Field Spatial Config) ────────────
 const PALETTE_LATTICE_SPACING: f32 = 300.0;     // ~6 patches — large palette blobs
 const MODE_LATTICE_SPACING:    f32 = 120.0;      // ~2.4 patches — smooth/discrete clusters
 const MODE_DISCRETE_THRESHOLD: f32 = 0.70;       // above → discrete cells
@@ -1524,7 +1561,31 @@ const CHESS_LATTICE_SPACING: f32 = 55.0;          // very small B&W alternation 
 const DISCRETE_COLOR_LATTICE_SPACING: f32 = 80.0; // medium colored cell blobs
 const DISCRETE_MONO_LATTICE_SPACING: f32 = 250.0; // large B&W tendency zones
 
-// ── Terrain-Mode Coupling ─────────────────────────────────────────
+// ── ROW 5 — COMPOSITE CUTS & EDGES ──────────────────────────────────
+// The decision thresholds of the color composite, promoted OUT of the
+// stage bodies WITH NAMES (TERRAIN_LOOKS gather; behavior-identical —
+// each const carries the exact expression/literal it replaced).
+// UNITS: cuts on [0,1] field values unless noted.
+// CONSUMERS: composite_cell_color + composite_cell_color_biased (mode
+//   edges, sparse survival); discrete_cell_color (chess/mono cuts,
+//   tint); discrete_cell_color_at_tier (tint).
+// Mode edges — where smooth hands over to discrete, anchored on
+// MODE_DISCRETE_THRESHOLD (ROW 4's gate):
+const MODE_BLEND_EDGE_LO: f32 = MODE_DISCRETE_THRESHOLD - 0.15;      // blend ramp start
+const MODE_BLEND_EDGE_HI: f32 = MODE_DISCRETE_THRESHOLD + 0.05;      // blend ramp end
+const MODE_SCATTER_CORE_EDGE: f32 = MODE_DISCRETE_THRESHOLD + 0.05;  // scatter: full survival
+const MODE_SCATTER_FLOOR_EDGE: f32 = MODE_DISCRETE_THRESHOLD - 0.35; // scatter: zero survival; also the mode-zone floor for sparse exclusion
+// Sparse survival — isolated cells outside mode zones:
+const SPARSE_SURVIVAL_THRESHOLD: f32 = 0.22;   // sparse field value where cells begin to survive
+const SPARSE_SURVIVAL_WINDOW: f32 = 0.35;      // smoothstep width above the threshold
+// Chess / mono tiers — discrete_cell_color's ladder:
+const CHESS_TENDENCY_CUT: f32 = 0.45;     // chess field gate (per-cell jittered)
+const CHESS_COLORFUL_CUT: f32 = 0.65;     // above → colored pair; below → B&W chess
+const MONO_BW_CUT: f32 = 0.35;            // mono field gate → pure black/white cells
+const MONO_TINT_CUT: f32 = 0.20;          // mono field gate → tinted monochrome cells
+const DISCRETE_TINT_STRENGTH: f32 = 0.15; // grey→palette-mean mix weight; PINNED — no uniform behind it (couplable literal, flagged by the color-stack recon)
+
+// ── ROW 6 — TERRAIN-MODE COUPLING ─────────────────────────────────
 //
 // Spatial coupling between terrain archetype and mode field.
 // A separate lattice determines WHERE coupling is active.
@@ -1561,6 +1622,97 @@ const ARCHETYPE_MODE_CHARACTER = array<f32, 4>(
     -0.6,    // 2: basin       — moderate opposing push to mountains
     -0.3,    // 3: pool        — mild opposing push
 );
+
+// ── ROW 7 — THE MOVEMENT THIRD ──────────────────────────────────────
+// The surface voice's motion vocabulary (moved here from §1.6 —
+// TERRAIN_LOOKS gather; values unchanged). REST pins live in the C++
+// room (ROW 2): terrain_time ≤ 0 freezes both overlay evaluators —
+// rest IS today's stillness; band blend -1 = inactive.
+
+// Activity envelope — the authorless static field that gates band
+// motion (its seed plumbing — ACTIVITY_SEED_BAND / ACTIVITY_PROP_* —
+// stays with the field fn at §1.6).
+const ACTIVITY_LATTICE_SPACING: f32 = 400.0;    // world units between activity nodes
+const ACTIVITY_BEAT_FREQ_LO: f32    = 0.25;     // lowest beat frequency (cycles/beat)
+const ACTIVITY_BEAT_FREQ_HI: f32    = 2.0;      // highest beat frequency (cycles/beat)
+
+// Per-band activity thresholds — which terrain bands respond at what intensity.
+// Index matches TERRAIN_BANDS: 0=continental, 5=tectonic.
+const WAVE_THRESHOLD = array<f32, 6>(
+    0.85,  // 0: continental — only the most active pools move the bones
+    0.70,  // 1: regional
+    0.50,  // 2: local
+    0.35,  // 3: detail
+    0.20,  // 4: fine — responds to even mild pools
+    0.90,  // 5: tectonic — almost geological, only extreme activity animates
+);
+const WAVE_THRESHOLD_SOFTNESS: f32 = 0.15;      // crossfade width at threshold boundary
+
+// ─── Overlay Wave Design Matrix ─────────────────────────────────────
+// (moved from the wave evaluators' side, §1.6; the two consumers —
+//  contrib_terrain_waves_at / terrain_wave_overlay_with_gradient —
+//  stay with the deformation machinery.)
+//
+//   amp        World-unit displacement at full blend.
+//   freq       Spatial frequency (cycles per world unit). Higher = tighter ripples.
+//   period     Temporal period in beats. One full sine cycle per this many beats.
+//   direction  Propagation angle (radians). 0 = +X, π/2 = +Z. Negative = seed-derived.
+//   amp_jit    Amplitude jitter range. Seed scales amp by (1 ± jit/2).
+//   freq_jit   Frequency jitter range. Seed scales freq by (1 ± jit/2).
+
+struct OverlayWave {
+    amp: f32,
+    freq: f32,
+    period: f32,
+    direction: f32,
+    amp_jit: f32,
+    freq_jit: f32,
+}
+
+const OVERLAY_WAVE_COUNT: u32 = 6u;
+
+//                                amp    freq    period  dir     amp_jit  freq_jit
+const OVERLAY_WAVES = array<OverlayWave, 6>(
+    OverlayWave(                  0.12,  1.00,   3.0,   -1.0,   0.4,     0.4  ),  // 0: fine ripple
+    OverlayWave(                  0.25,  0.50,   4.5,   -1.0,   0.4,     0.4  ),  // 1: detail
+    OverlayWave(                  0.50,  0.25,   6.0,   -1.0,   0.4,     0.4  ),  // 2: local swell
+    OverlayWave(                  1.00,  0.12,   9.0,   -1.0,   0.4,     0.4  ),  // 3: regional
+    OverlayWave(                  2.00,  0.06,  13.0,   -1.0,   0.4,     0.4  ),  // 4: broad
+    OverlayWave(                  3.50,  0.03,  18.0,   -1.0,   0.4,     0.4  ),  // 5: tectonic
+);
+
+// ── ROW 8 — GOVERNING EXPRESSIONS ───────────────────────────────────
+// The palette's governing expression lives in-room (below). The
+// composite's governing contract — composite_cell_color(s): blend
+// smooth→discrete at the ROW 5 mode edges; scatter-survive by
+// cell_roll; mix the two styles by the transition field; sparse cells
+// survive outside mode zones — STAYS with its biased twin and the
+// cell-field pipeline (evaluate_cell_fields → composite, patch-gen
+// §7.x): relocating one twin would split a duplicated pair.
+// Discipline 2 — flagged, not forced.
+
+// Smooth palette color: weighted blend modulated by complexity only.
+// No per-cell noise — produces continuous gradients. (Relocated from
+// the field-function neighborhood — TERRAIN_LOOKS gather.)
+fn palette_color_smooth(weights: vec4<f32>, complexity: f32) -> vec3<f32> {
+    var color = vec3(0.0);
+    let w = array<f32, 4>(weights.x, weights.y, weights.z, weights.w);
+    for (var i: u32 = 0u; i < 4u; i++) {
+        color += mix(config.palette_light[i].rgb, config.palette_center[i].rgb, complexity) * w[i];
+    }
+    return clamp(color, vec3(0.0), vec3(1.0));
+}
+
+// ── ROW 9 — THE CONTRIBUTOR ROSTER (pointers; navigable, NOT annexed)─
+//   Static landform: CONTRIBUTOR_DAG / POLICIES[] — the §3.4 Ground
+//     Architecture seam (CPU twin: contracts/ground_architecture.hpp).
+//   GoL zone tint: gol_composite_cell_color (§7.0b) — reads ROW 1/3
+//     through palette_color_smooth; GoL/pulse keep their own panel.
+//   Pawn aura tint: pawn_aura_cfg.tint_strength — a uniform field of
+//     the aura system, NOT this panel's DISCRETE_TINT_STRENGTH.
+//   Population (what stands on the surface): population_themes.hpp +
+//     the spawn panel (compose_spawn_chance).
+// ═══════════════════════════════════════════════════════════ end §2.2
 
 // --- Pawn constants
 
@@ -2407,42 +2559,18 @@ fn ground_formed_with_complexity(world_xz: vec2<f32>) -> vec2<f32> {
 //
 // Cost: 6 sin() calls per evaluation point. Called in VS + pawn + camera.
 //
-// ─── Overlay Wave Design Matrix ─────────────────────────────────────────
-//
-//   amp        World-unit displacement at full blend.
-//   freq       Spatial frequency (cycles per world unit). Higher = tighter ripples.
-//   period     Temporal period in beats. One full sine cycle per this many beats.
-//   direction  Propagation angle (radians). 0 = +X, π/2 = +Z. Negative = seed-derived.
-//   amp_jit    Amplitude jitter range. Seed scales amp by (1 ± jit/2).
-//   freq_jit   Frequency jitter range. Seed scales freq by (1 ± jit/2).
-
-struct OverlayWave {
-    amp: f32,
-    freq: f32,
-    period: f32,
-    direction: f32,
-    amp_jit: f32,
-    freq_jit: f32,
-}
-
-const OVERLAY_WAVE_COUNT: u32 = 6u;
-
-//                                amp    freq    period  dir     amp_jit  freq_jit
-const OVERLAY_WAVES = array<OverlayWave, 6>(
-    OverlayWave(                  0.12,  1.00,   3.0,   -1.0,   0.4,     0.4  ),  // 0: fine ripple
-    OverlayWave(                  0.25,  0.50,   4.5,   -1.0,   0.4,     0.4  ),  // 1: detail
-    OverlayWave(                  0.50,  0.25,   6.0,   -1.0,   0.4,     0.4  ),  // 2: local swell
-    OverlayWave(                  1.00,  0.12,   9.0,   -1.0,   0.4,     0.4  ),  // 3: regional
-    OverlayWave(                  2.00,  0.06,  13.0,   -1.0,   0.4,     0.4  ),  // 4: broad
-    OverlayWave(                  3.50,  0.03,  18.0,   -1.0,   0.4,     0.4  ),  // 5: tectonic
-);
+// ─── Overlay wave band table → THE TERRAIN_LOOKS PANEL ─────────────
+// (OverlayWave struct + OVERLAY_WAVE_COUNT + OVERLAY_WAVES + the
+//  design matrix moved to ROW 7, §2.2 — the movement third of the
+//  surface voice. The two evaluators below stay with the deformation
+//  machinery.)
 
 // CONTRIB_TERRAIN_WAVES — deformation_field, global.
 // Contributes: sum of 6 polyphony-driven directional sine waves.
 // Dependencies (via DAG): none — orthogonal to the static stack.
 // Notes: blend ramps activate bands progressively with polyphony count.
-//   Seed-derived direction/freq/amp jitter per band. See OVERLAY_WAVES
-//   table above for tuning.
+//   Seed-derived direction/freq/amp jitter per band. See the
+//   OVERLAY_WAVES table at TERRAIN_LOOKS ROW 7 (§2.2) for tuning.
 fn contrib_terrain_waves_at(world_xz: vec2<f32>) -> f32 {
     if (config.terrain_time <= 0.0) { return 0.0; }
 
@@ -5222,7 +5350,7 @@ fn gol_composite_cell_color(world_xz: vec2<f32>) -> vec3<f32> {
     var s: CellFieldState;
     s.world_xz = world_xz;
     let palette_w = palette_field_at(world_xz);
-    s.smooth_color = palette_color_smooth(palette_w, 0.5);
+    s.smooth_color = palette_color_smooth(palette_w, PALETTE_COMPLEXITY);
     s.discrete_color = discrete_cell_color(world_xz, cell_gx, cell_gz, cell_seed);
     s.mode = mode_field_at(world_xz);
     s.style = transition_style_at(world_xz);
@@ -7150,7 +7278,8 @@ fn generate_patch_gradients(
     }
 
     // The .w channel is unused (was LATENT[complexity], removed by the husk
-    // sweep — no consumer ever read it; palette calls hardcode 0.5).
+    // sweep — no consumer ever read it; palette calls read the pinned
+    // PALETTE_COMPLEXITY, TERRAIN_LOOKS ROW 3).
     textureStore(patch_heightfield_array_write, texel, layer, vec4(height, grad_x, grad_z, 0.0));
 }
 
@@ -7180,7 +7309,7 @@ fn evaluate_cell_fields(
 
     // Palette → smooth base color
     let palette_w = palette_field_at(world_xz);
-    s.smooth_color = palette_color_smooth(palette_w, 0.5);
+    s.smooth_color = palette_color_smooth(palette_w, PALETTE_COMPLEXITY);
 
     // Discrete per-cell color (chess + color lattice + mono lattice)
     s.discrete_color = discrete_cell_color(world_xz, cell_gx, cell_gz, cell_seed);
@@ -7221,15 +7350,17 @@ fn evaluate_cell_fields(
 
 // Stage 2: Composite final terrain color from evaluated field state.
 fn composite_cell_color(s: CellFieldState) -> vec3<f32> {
+    // (Edges + cuts live at TERRAIN_LOOKS ROW 5, §2.2 — this fn and its
+    //  biased twin read the same named constants.)
     // Blend style: smooth → discrete (gradual transition at mode boundary)
-    let blend_edge_lo = MODE_DISCRETE_THRESHOLD - 0.15;
-    let blend_edge_hi = MODE_DISCRETE_THRESHOLD + 0.05;
+    let blend_edge_lo = MODE_BLEND_EDGE_LO;
+    let blend_edge_hi = MODE_BLEND_EDGE_HI;
     let blend_t = smoothstep(blend_edge_lo, blend_edge_hi, s.mode);
     let blend_color = mix(s.smooth_color, s.discrete_color, blend_t);
 
     // Scatter style: cell survives or is replaced by smooth background
-    let core_edge = MODE_DISCRETE_THRESHOLD + 0.05;
-    let scatter_edge = MODE_DISCRETE_THRESHOLD - 0.35;
+    let core_edge = MODE_SCATTER_CORE_EDGE;
+    let scatter_edge = MODE_SCATTER_FLOOR_EDGE;
     let survival = smoothstep(scatter_edge, core_edge, s.mode);
     let cell_visible_scatter = s.cell_roll < survival;
     let scatter_color = select(s.smooth_color, s.discrete_color, cell_visible_scatter);
@@ -7238,8 +7369,8 @@ fn composite_cell_color(s: CellFieldState) -> vec3<f32> {
     let mode_color = mix(blend_color, scatter_color, s.style);
 
     // Sparse scatter: isolated cells and small clusters outside mode zones
-    let sparse_threshold = 0.22;
-    let sparse_survival = smoothstep(sparse_threshold, sparse_threshold + 0.35, s.sparse);
+    let sparse_threshold = SPARSE_SURVIVAL_THRESHOLD;
+    let sparse_survival = smoothstep(sparse_threshold, sparse_threshold + SPARSE_SURVIVAL_WINDOW, s.sparse);
     let cell_visible_sparse = s.sparse_roll < sparse_survival;
 
     let is_in_mode_zone = s.mode > scatter_edge;
@@ -7253,14 +7384,14 @@ fn composite_cell_color_biased(s: CellFieldState, mode_bias: f32, sparse_bias: f
     let biased_mode = clamp(s.mode + mode_bias, 0.0, 1.0);
 
     // Blend style: smooth → discrete (gradual transition at mode boundary)
-    let blend_edge_lo = MODE_DISCRETE_THRESHOLD - 0.15;
-    let blend_edge_hi = MODE_DISCRETE_THRESHOLD + 0.05;
+    let blend_edge_lo = MODE_BLEND_EDGE_LO;
+    let blend_edge_hi = MODE_BLEND_EDGE_HI;
     let blend_t = smoothstep(blend_edge_lo, blend_edge_hi, biased_mode);
     let blend_color = mix(s.smooth_color, s.discrete_color, blend_t);
 
     // Scatter style: cell survives or is replaced by smooth background
-    let core_edge = MODE_DISCRETE_THRESHOLD + 0.05;
-    let scatter_edge = MODE_DISCRETE_THRESHOLD - 0.35;
+    let core_edge = MODE_SCATTER_CORE_EDGE;
+    let scatter_edge = MODE_SCATTER_FLOOR_EDGE;
     let survival = smoothstep(scatter_edge, core_edge, biased_mode);
     let cell_visible_scatter = s.cell_roll < survival;
     let scatter_color = select(s.smooth_color, s.discrete_color, cell_visible_scatter);
@@ -7269,8 +7400,8 @@ fn composite_cell_color_biased(s: CellFieldState, mode_bias: f32, sparse_bias: f
     let mode_color = mix(blend_color, scatter_color, s.style);
 
     // Sparse scatter: threshold lowered by sparse_bias → more cells survive
-    let sparse_threshold = max(0.22 - sparse_bias, 0.0);
-    let sparse_survival = smoothstep(sparse_threshold, sparse_threshold + 0.35, s.sparse);
+    let sparse_threshold = max(SPARSE_SURVIVAL_THRESHOLD - sparse_bias, 0.0);
+    let sparse_survival = smoothstep(sparse_threshold, sparse_threshold + SPARSE_SURVIVAL_WINDOW, s.sparse);
     let cell_visible_sparse = s.sparse_roll < sparse_survival;
 
     let is_in_mode_zone = biased_mode > scatter_edge;
@@ -7322,7 +7453,7 @@ fn animated_cell_color(world_xz: vec2<f32>) -> vec3<f32> {
         var drifted = fields;
 
         // Smooth areas → target smooth palette tier
-        drifted.smooth_color = palette_target_color(config.mode_palette_target, 0.5);
+        drifted.smooth_color = palette_target_color(config.mode_palette_target, PALETTE_COMPLEXITY);
 
         // Discrete areas → target discrete color tier (chess/mono/color)
         let tier = u32(round(config.mode_discrete_tier));
@@ -7350,7 +7481,7 @@ fn animated_cell_color_lut(world_xz: vec2<f32>, baked_mode: f32, baked_style: f3
     fields.mode = baked_mode;
     fields.style = baked_style;
     fields.sparse = baked_sparse;
-    fields.smooth_color = palette_color_smooth(palette_field_at(world_xz), 0.5);
+    fields.smooth_color = palette_color_smooth(palette_field_at(world_xz), PALETTE_COMPLEXITY);
     fields.discrete_color = discrete_cell_color(world_xz, cell_gx, cell_gz, cell_seed);
     fields.cell_roll = hash_property(cell_seed, 900u);
     fields.sparse_roll = hash_property(cell_seed, 910u);
@@ -7367,7 +7498,7 @@ fn animated_cell_color_lut(world_xz: vec2<f32>, baked_mode: f32, baked_style: f3
     let drift = config.mode_palette_intensity;
     if (drift > 0.001) {
         var drifted = fields;
-        drifted.smooth_color = palette_target_color(config.mode_palette_target, 0.5);
+        drifted.smooth_color = palette_target_color(config.mode_palette_target, PALETTE_COMPLEXITY);
         let tier = u32(round(config.mode_discrete_tier));
         drifted.discrete_color = discrete_cell_color_at_tier(world_xz, cell_gx, cell_gz, cell_seed, tier);
         let drifted_color = composite_cell_color_biased(drifted, mode_bias, sparse_bias);
