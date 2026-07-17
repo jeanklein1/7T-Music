@@ -10,11 +10,9 @@
 // Vocabulary for the two generic-pipeline floater families: Sphere
 // (orbital, PGA motor-driven) and Cube (hover-bob monoliths).
 //
-// STATUS: LATENT[naming] — ActiveFloater is the sphere family's active
-//   struct; the ActiveFloater -> ActiveSphere rename is flagged, not
-//   performed (seed-stable churn rides a later stage; the
-//   "FloatingEntity" property name is likewise preserved for hash
-//   stability — see the registry note below).
+// Renamed (this sweep): props are numeric at every hash site, so
+// identifier names never feed seeds — the values below are the
+// frozen contract, pinned by the static_assert.
 //
 // SEAM[floater_vocabulary:taxonomy] generic-pipeline floater families
 //   parallel grounded families (grounded.hpp) but live here because
@@ -63,7 +61,7 @@ struct SphereConfig {
 };
 
 // ── Property Index Registry ──────────────────────────────────────
-struct FloatingEntityProp {
+struct SphereProp {
     static constexpr uint32_t SPAWN_ROLL = 100u;
     static constexpr uint32_t ANCHOR_X = 101u;
     static constexpr uint32_t ANCHOR_Z = 102u;
@@ -86,9 +84,12 @@ struct FloatingEntityProp {
     static constexpr uint32_t FACE_VARIANCE = 125u;
     static constexpr uint32_t ROTATION = 126u;
 };
+static_assert(SphereProp::SPAWN_ROLL == 100u && SphereProp::ANCHOR_X == 101u
+           && SphereProp::ANCHOR_Z == 102u && SphereProp::TIER == 103u,
+    "SphereProp values are the sphere seed contract — frozen biography");
 
 // ── Active Sphere Tracking (TYPE — state lives in spheres.hpp) ───
-struct ActiveFloater {
+struct ActiveSphere {
     int32_t patch_gx = 0, patch_gz = 0;
     int32_t host_gx = 0, host_gz = 0;
     float   last_alloc_time = -1000.0f;
@@ -133,6 +134,9 @@ struct CubeEntityProp {
     static constexpr uint32_t FACE_VARIANCE = 155u;
     static constexpr uint32_t ROTATION = 156u;
 };
+static_assert(CubeEntityProp::SPAWN_ROLL == 130u && CubeEntityProp::ANCHOR_X == 131u
+           && CubeEntityProp::ANCHOR_Z == 132u && CubeEntityProp::TIER == 133u,
+    "CubeEntityProp values are the cube seed contract — frozen biography");
 
 // ── Active Cube Tracking (TYPE — state lives in CubeBehaviorsState) ─
 struct ActiveCube {

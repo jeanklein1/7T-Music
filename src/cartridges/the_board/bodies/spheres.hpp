@@ -1,6 +1,6 @@
 #pragma once
 #include "cartridges/the_board/realization/state.hpp"                    // Dim::*, GPUState, GPUFloatingEntityState, wgpu
-#include "cartridges/the_board/contracts/floater_vocabulary.hpp"  // ActiveFloater
+#include "cartridges/the_board/contracts/floater_vocabulary.hpp"  // ActiveSphere
 #include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 #include "cartridges/the_board/contracts/entity_types.hpp"  // queue types (the funnel signatures) + MachineCtx + organ fwds
 #include <iostream>   // [DIAG:EVICT] logging (flag-gated)   // (impl)
@@ -12,13 +12,11 @@
 // The Sphere family's runtime STATE — the active-slot mirror for the
 // orbital-sphere floaters.
 //
-// The SphereState CONTENT (the ActiveFloater array) was the class-body
-// `activeFloaters_[]` / `activeFloaterCount_` in floater_vocabulary.inl;
-// it moves here whole. The ActiveFloater TYPE stays shared vocabulary
-// (floater_vocabulary.hpp). ActiveFloater -> ActiveSphere rename is
-// flagged there (STATUS: LATENT[naming]), not performed.
+// The SphereState CONTENT is the ActiveSphere array. The ActiveSphere
+// TYPE stays shared vocabulary (floater_vocabulary.hpp); renamed from
+// ActiveSphere this sweep (props numeric at every hash site — seed-free).
 //
-// SEAM[sphere:P5] the ActiveFloater last_alloc_time race protection lives
+// SEAM[sphere:P5] the ActiveSphere last_alloc_time race protection lives
 //   with the type (floater_vocabulary.hpp); this owner holds the array the
 //   render() floater-sync block and the evict path read.
 // ─────────────────────────────────────────────────────────────────
@@ -27,8 +25,8 @@ namespace t7 {
 namespace the_board {
 
 struct SphereState {
-    ActiveFloater activeFloaters_[Dim::MAX_SPHERE_INSTANCES]{};
-    uint32_t      activeFloaterCount_ = 0;
+    ActiveSphere activeSpheres_[Dim::MAX_SPHERE_INSTANCES]{};
+    uint32_t      activeSphereCount_ = 0;
 };
 
 // ═══ MODULE DEPS ════════════════════════════════════════════════════
@@ -47,11 +45,11 @@ struct SphereDeps {
 // "bypass" by the stamp; not to be re-shaped MachineCtx-ward.
 inline void clear_spheres(SphereState& ss, GPUState& gpu, wgpu::Queue& queue) {
     for (uint32_t i = 0; i < Dim::MAX_SPHERE_INSTANCES; i++) {
-        ss.activeFloaters_[i] = ActiveFloater{};
+        ss.activeSpheres_[i] = ActiveSphere{};
         GPUFloatingEntityState empty{};
         gpu.upload_sphere_entity_slot(queue, i, empty);
     }
-    ss.activeFloaterCount_ = 0;
+    ss.activeSphereCount_ = 0;
 }
 
 void evict_sphere(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
@@ -71,8 +69,8 @@ void dispatch_commit_sphere_generic(MachineCtx* self, PlacementEntry& pe, wgpu::
 
 inline void evict_sphere(MachineCtx* self,
     uint32_t slot, wgpu::Queue& queue) {
-    self->sphere_state_.activeFloaters_[slot].active = false;  // sphere state owned by SphereState
-    self->sphere_state_.activeFloaterCount_--;
+    self->sphere_state_.activeSpheres_[slot].active = false;  // sphere state owned by SphereState
+    self->sphere_state_.activeSphereCount_--;
     GPUFloatingEntityState empty{};
     self->gpuState_.upload_sphere_entity_slot(queue, slot, empty);
 #ifdef DIAG_ENTITY_LIFECYCLE
@@ -99,11 +97,11 @@ struct SphIdx {
 };
 
 inline constexpr TierParamDef SPHERE_PARAM_DEFS[] = {
-    { FloatingEntityProp::BODY_RADIUS,      0.5f,  1e30f, false, ParamDist::GAUSSIAN },
-    { FloatingEntityProp::ORBIT_RADIUS,     0.0f,  1e30f, false, ParamDist::GAUSSIAN },
-    { FloatingEntityProp::ORBIT_HEIGHT,     3.0f,  1e30f, false, ParamDist::GAUSSIAN },
-    { FloatingEntityProp::ORBIT_SPEED,      0.05f, 1e30f, false, ParamDist::GAUSSIAN },
-    { FloatingEntityProp::INFLUENCE_RADIUS, 3.0f,  1e30f, false, ParamDist::GAUSSIAN },
+    { SphereProp::BODY_RADIUS,      0.5f,  1e30f, false, ParamDist::GAUSSIAN },
+    { SphereProp::ORBIT_RADIUS,     0.0f,  1e30f, false, ParamDist::GAUSSIAN },
+    { SphereProp::ORBIT_HEIGHT,     3.0f,  1e30f, false, ParamDist::GAUSSIAN },
+    { SphereProp::ORBIT_SPEED,      0.05f, 1e30f, false, ParamDist::GAUSSIAN },
+    { SphereProp::INFLUENCE_RADIUS, 3.0f,  1e30f, false, ParamDist::GAUSSIAN },
 };
 inline constexpr uint32_t SPHERE_PARAM_COUNT = sizeof(SPHERE_PARAM_DEFS) / sizeof(TierParamDef);
 static_assert(SPHERE_PARAM_COUNT == SphIdx::COUNT,
@@ -154,17 +152,17 @@ inline constexpr EntityFamilyTraits SPHERE_TRAITS = {
     PopFamily::SPHERE, "sph", Dim::MAX_SPHERE_INSTANCES,
     false, false, 0,      // not grounded
     true,
-    FloatingEntityProp::SPAWN_ROLL, SphereConfig::SPAWN_CHANCE,
+    SphereProp::SPAWN_ROLL, SphereConfig::SPAWN_CHANCE,
     SphereConfig::MOOD_MULTIPLIER, SphereConfig::POSITION_JITTER,
-    SPHERE_TIER_COUNT, FloatingEntityProp::TIER,
+    SPHERE_TIER_COUNT, SphereProp::TIER,
     SPHERE_PARAM_DEFS, SPHERE_PARAM_COUNT,
-    FloatingEntityProp::ANCHOR_X, FloatingEntityProp::ANCHOR_Z, FloatingEntityProp::ROTATION, false,
+    SphereProp::ANCHOR_X, SphereProp::ANCHOR_Z, SphereProp::ROTATION, false,
     0, nullptr,
 };
 
 inline SpawnGateOutput sphere_run_gate(MachineCtx* c, int32_t gx, int32_t gz) {
-    auto gate = run_spawn_preamble(c, gx, gz, c->sphere_state_.activeFloaters_, Dim::MAX_SPHERE_INSTANCES,
-        FloatingEntityProp::SPAWN_ROLL, SphereConfig::SPAWN_CHANCE,
+    auto gate = run_spawn_preamble(c, gx, gz, c->sphere_state_.activeSpheres_, Dim::MAX_SPHERE_INSTANCES,
+        SphereProp::SPAWN_ROLL, SphereConfig::SPAWN_CHANCE,
         SphereConfig::MOOD_MULTIPLIER, PopFamily::SPHERE, "sph");
     return { gate.ok, gate.seed, gate.slot, gate.theme_idx };
 }
@@ -176,18 +174,18 @@ inline void sphere_compute_solid_half(EntityInstance& inst, const TierProfile&) 
 }
 
 inline void sphere_compute_colors(EntityInstance& inst, const EntityFamilyTraits&, const TierProfile& /*tier*/) {
-    inst.colors[0] = cpu_hash_f(inst.seed, FloatingEntityProp::COLOR_R) * 0.55f + 0.35f;
-    inst.colors[1] = cpu_hash_f(inst.seed, FloatingEntityProp::COLOR_G) * 0.50f + 0.30f;
-    inst.colors[2] = cpu_hash_f(inst.seed, FloatingEntityProp::COLOR_B) * 0.60f + 0.20f;
+    inst.colors[0] = cpu_hash_f(inst.seed, SphereProp::COLOR_R) * 0.55f + 0.35f;
+    inst.colors[1] = cpu_hash_f(inst.seed, SphereProp::COLOR_G) * 0.50f + 0.30f;
+    inst.colors[2] = cpu_hash_f(inst.seed, SphereProp::COLOR_B) * 0.60f + 0.20f;
 }
 
 inline void sphere_write_active(MachineCtx* c, const EntityInstance& inst) {
-    auto& af = c->sphere_state_.activeFloaters_[inst.slot];
+    auto& af = c->sphere_state_.activeSpheres_[inst.slot];
     af.patch_gx = inst.trigger_gx; af.patch_gz = inst.trigger_gz;
     af.host_gx = inst.host_gx; af.host_gz = inst.host_gz;
     af.last_alloc_time = c->time_state_.seconds;
     af.active = true;
-    c->sphere_state_.activeFloaterCount_++;
+    c->sphere_state_.activeSphereCount_++;
 }
 
 inline void sphere_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Queue& queue) {
@@ -227,7 +225,7 @@ inline bool dispatch_select_sphere_generic(MachineCtx* self, int32_t gx, int32_t
 inline bool dispatch_place_sphere_generic(MachineCtx* self, EntityQueueEntry& e, PlacementEntry& pe) {
     pe.family = e.family; pe.gx = e.gx; pe.gz = e.gz;
     if (generic_place(self, SPHERE_TRAITS, e.generic)) { pe.generic = e.generic; return true; }
-    self->sphere_state_.activeFloaters_[e.generic.slot].active = false; return false;
+    self->sphere_state_.activeSpheres_[e.generic.slot].active = false; return false;
 }
 inline void dispatch_commit_sphere_generic(MachineCtx* self, PlacementEntry& pe, wgpu::Queue& queue) {
     auto* host = find_patch(self, pe.generic.host_gx, pe.generic.host_gz);
@@ -242,7 +240,7 @@ inline void dispatch_commit_sphere_generic(MachineCtx* self, PlacementEntry& pe,
         // just don't link the sphere into the patch's eviction list.
         //
     }
-    else { self->sphere_state_.activeFloaters_[pe.generic.slot].active = false; }
+    else { self->sphere_state_.activeSpheres_[pe.generic.slot].active = false; }
 }
 
 
@@ -256,10 +254,10 @@ inline void reconcile_sphere_mirror(SphereState& ss, SphereDeps* c, const GPUFlo
     for (uint32_t i = 0; i < Dim::MAX_SPHERE_INSTANCES; i++) {
         bool gpu_active = (data[i].is_active != 0u);
         // sphere active-slot mirror owned by SphereState (spheres.hpp)
-        if (ss.activeFloaters_[i].active && !gpu_active &&
-            (now - ss.activeFloaters_[i].last_alloc_time) > SPAWN_PROTECTION_S) {
-            ss.activeFloaters_[i].active = false;
-            if (ss.activeFloaterCount_ > 0) ss.activeFloaterCount_--;
+        if (ss.activeSpheres_[i].active && !gpu_active &&
+            (now - ss.activeSpheres_[i].last_alloc_time) > SPAWN_PROTECTION_S) {
+            ss.activeSpheres_[i].active = false;
+            if (ss.activeSphereCount_ > 0) ss.activeSphereCount_--;
         }
     }
 }
