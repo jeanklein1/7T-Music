@@ -995,7 +995,10 @@ fn palette_weights_at_node(node: vec2<i32>) -> vec4<f32> {
         if (roll < cumul) { dominant = i; break; }
     }
 
-    // Build weights: dominant gets 0.85, rest share 0.05 each
+    // Build weights: the dominant palette takes 0.85, the other three
+    // 0.05 each (rows = dominant id, columns = palette id — an implicit
+    // 4×4 constant matrix written as branches; sums 1.0 per row).
+    // Sharpness knob: raise 0.85 for harder palette regions.
     var w: vec4<f32>;
     if (dominant == 0u) {
         w = vec4(0.85, 0.05, 0.05, 0.05);
@@ -1327,7 +1330,10 @@ fn discrete_cell_color(world_xz: vec2<f32>, cell_gx: i32, cell_gz: i32, cell_see
     }
 
     if (effective_mono > 0.20) {
-        // Tinted monochrome
+        // Tinted monochrome. tint_strength is a PINNED LITERAL — a
+        // mix-weight (grey→palette mean) with no uniform behind it;
+        // flagged by the color-stack recon as a couplable literal
+        // (structural today; would need graduation to move).
         let bw_roll = hash_property(cell_seed, 830u);
         let base_grey = select(0.12, 0.85, bw_roll > 0.5);
         let tint_strength = 0.15;
@@ -1488,7 +1494,25 @@ struct DesignConfig {
 // SAND_DUNE_CENTER / SAND_DUNE_VARIANCE removed — used only by the
 // (removed) coupling_sphere_to_terrain_tint. (RAYMARCH/SDF excavation)
 
-// --- Terrain palette system
+// ── The terrain palette tables ─────────────────────────────────────
+// WHAT: the four terrain palettes — each a CENTER color (the median a
+//   color voice would move), a LIGHT endpoint, a per-cell VARIANCE
+//   spread, and a lattice-selection WEIGHT.
+// AXES: index = palette id (0 sand / 1 salmon / 2 green / 3 warm),
+//   shared across all four tables + the dominant-weight branch in
+//   palette_weights_at_node.
+// UNITS: CENTER/LIGHT = rgb 0-1; VARIANCE = per-cell rgb jitter scale
+//   (dimensionless); WEIGHT = selection probability (sums 1.0).
+// CONSUMERS: palette_color_smooth (CENTER/LIGHT mixed by the complexity
+//   arg — pinned 0.5 today); palette_target_color (CENTER, the drift
+//   path); palette_weights_at_node (WEIGHT, cumulative pick).
+//   PALETTE_VARIANCE's only consumer is palette_color — DEAD at HEAD
+//   (only _smooth is live): the 2b fork — revive palette_color or
+//   retire the array — is HELD for the ruling.
+// COUPLING (color-stack recon §4): these are the FORK tier — WGSL
+//   consts with no C++ mirror; "a spectrum moves the median" writes
+//   PALETTE_CENTER once graduated (STEP 2b graduates CENTER/LIGHT/
+//   WEIGHT to config uniforms, rest = these literals).
 const PALETTE_CENTER = array<vec3<f32>, 4>(
     vec3(0.85, 0.70, 0.50),   // 0: sand    — warm Mars baseline
     vec3(0.88, 0.58, 0.48),   // 1: salmon  — pink-coral
