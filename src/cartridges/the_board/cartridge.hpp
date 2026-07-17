@@ -2,6 +2,10 @@
 
 // ─── cartridge.hpp ───────────────────────────────────────────────
 // History: audit/LADDER.md
+// glaw1 — the compile gate: the C++ compiler as witness-runner. Every
+// static_assert in the tree is a glaw1 check; "glaw1 catches X" means
+// the build fails loud. WGSL sits outside its reach — the two-rooms
+// mirror rule and the boot rig are the nets there.
 //
 // THE_BOARD — Generative world engine.
 //
