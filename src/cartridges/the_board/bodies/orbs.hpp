@@ -35,7 +35,7 @@ struct OrbsDeps {
 // ═══ TUNING CONSOLE ══════════════════════════════════════════════
 
 // ── Dome geometry ────────────────────────────────────────────────
-inline constexpr float ORB_DOME_RADIUS = 500.0f;   // p1b-e skybox radius; 700 fell into the fog, 500 the visible dial (Jean)
+inline constexpr float ORB_DOME_RADIUS = 500.0f;   // skybox radius — 700 fell into the fog; 500 is the visible dial (Jean's dial)
 inline constexpr float ORB_BASE_SIZE = 3.0f;
 
 // ── Noise floor ──────────────────────────────────────────────────
@@ -383,7 +383,7 @@ inline float* orb_tier_flock_ptr(GPUOrbConfig& cfg, uint32_t i) {
 
 // Apply mood's first-run defaults to player-owned state. The flock
 // gesture is "mood seeds once, player wins after." (The anchor seed
-// retired at p1b-e — the dome is a skybox, eye-centered always.)
+// retired — the dome is a skybox, eye-centered always.)
 inline void apply_mood_first_run_defaults_(OrbsState& os, const OrbMoodConfig& cfg) {
     if (!os.gesture_initialized[ORB_RULE_BROWNIAN]) {
         os.gesture_idx[ORB_RULE_BROWNIAN] = std::min(
@@ -615,7 +615,7 @@ inline void configure_orbs(OrbsState& os, OrbsDeps* c, const OrbMoodConfig& cfg,
     gpuCfg.color_surge = 0.0f;
     gpuCfg.hue_converge_target = cfg.hue_converge_target;
 
-    // Dome center — DEAD WIRE (p1b-e): the orb VS eye-centers the
+    // Dome center — DEAD WIRE: the orb VS eye-centers the
     // dome (the skybox); these bytes are zero-filled for the ABI only.
     gpuCfg.dome_center_x = 0.0f;
     gpuCfg.dome_center_y = 0.0f;
@@ -735,7 +735,7 @@ inline void cycle_orb_gesture(OrbsState& os, OrbsDeps* c, wgpu::Queue& queue) {
     std::cout << "[Orbs] Frozen has no gestures (stillness is the rule).\n";
 }
 
-// (The dome anchor commands retired at p1b-e — the dome is a SKYBOX,
+// (The dome anchor commands retired — the dome is a SKYBOX,
 // eye-centered in the orb VS every frame; KP_9 freed.)
 
 // ═══ GPU DISPATCHES ══════════════════════════════════════════════

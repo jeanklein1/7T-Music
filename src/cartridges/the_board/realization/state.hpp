@@ -9,7 +9,7 @@
 // Binding numbers: realization/binding_registry.hpp (C6 — the single source).
 
 #include "analysis/analysis_signal.hpp"
-#include "cartridges/the_board/demos/demo.hpp"   // ROSTER via the selected sentence (GPUState::init gates creation)  // feature bits (GPUState::init gates creation)
+#include "cartridges/the_board/demos/demo.hpp"   // ROSTER via the selected sentence (GPUState::init gates creation)
 #include "cartridges/the_board/realization/binding_registry.hpp"  // C6: bind::g0::* / bind::g1::* — the single source of truth for binding NUMBERS (the layout+group pair references one named const)
 #include "cartridges/the_board/surface/terrain_looks.hpp"          // THE TERRAIN_LOOKS PANEL (C++ room): palette quartet REST + motion/mode rest pins — boot init reads the panel
 #include <webgpu/webgpu_cpp.h>
@@ -151,7 +151,7 @@ namespace t7 {
 
             // Generative pyramids — the instance array is LIVE (pyramids are
             // terrain via contrib_pyramids_at); the PMG_* mesh-gen scratch counts
-            // are REMOVED (husk sweep — the mesh-gen basket had no dispatch).
+            // are REMOVED (the mesh-gen basket had no dispatch).
             constexpr uint32_t MAX_PYRAMID_INSTANCES = 8;
 
             // Generative palms — GPU mesh gen (slot-based addressing)
@@ -180,7 +180,7 @@ namespace t7 {
             constexpr uint32_t GROUND_ATLAS_ARCH = 0;    // 16 slots
             constexpr uint32_t GROUND_ATLAS_COLUMN = 16;   // 32 slots
             // slots 48..55: DOCUMENTED HOLE — the retired pyramid range (readers
-            // cut at C2, the write path at residue T2). Do NOT re-pack; the
+            // cut, then the write path — the ground-atlas residue). Do NOT re-pack; the
             // offsets below are hand-mirrored with world.wgsl's atlas table.
             constexpr uint32_t GROUND_ATLAS_PALM = 56;   // 24 slots
             constexpr uint32_t GROUND_ATLAS_CACTUS = 80;   // 20 slots
@@ -416,7 +416,7 @@ namespace t7 {
             float pulse_data[32];             // 8 × {origin_x, origin_z, onset_seconds, amplitude}
             // ─── LOD-band point position ────────────────────────────────
             // (renamed lod_pawn → lod_point: the value has been THE POINT
-            // since p1b — the name was a fossil.) The CPU bands patches
+            // — the name was a fossil.) The CPU bands patches
             // into LOD0/LOD1 in stream_patches from player_.readback_x/z
             // (the point, 1 frame stale — law E-4). The GPU's frustum-cull
             // shader applies the same lod0_radius gate; if it read the
@@ -489,7 +489,7 @@ namespace t7 {
             float _pad1;
         };
 
-        // (GPUTerrainState REMOVED — husk sweep: the dead terrain buffer's CPU
+        // (GPUTerrainState REMOVED: the dead terrain buffer's CPU
         //  mirror. No writer/reader; its bindings 20/220 + the buffer are gone.)
 
         //
@@ -738,13 +738,13 @@ namespace t7 {
         static_assert(sizeof(GPUPyramidArray) == 16 + Dim::MAX_PYRAMID_INSTANCES * 32,
             "GPUPyramidArray must match WGSL layout");
 
-        // (GPUPyramidGroundEntry REMOVED — residue T2: the pyramid ground-atlas
-        //  husk. Its computed ground_y fed atlas slot 48, reader-free since C2;
+        // (GPUPyramidGroundEntry REMOVED — the pyramid ground-atlas
+        //  husk. Its computed ground_y fed atlas slot 48, reader-free;
         //  pyramids bake into terrain via the INSTANCE array, not this path.)
 
         //
         // MUST match world.wgsl::PyramidMeshParams (§9.0).
-        // (GPUPyramidMeshParams REMOVED — husk sweep: the pyramid mesh-gen
+        // (GPUPyramidMeshParams REMOVED: the pyramid mesh-gen
         //  params struct + its buffer had no consuming kernel.)
 
         //
@@ -1065,7 +1065,7 @@ namespace t7 {
             float    color_surge;        //152: saturation-surge intensity (0..1)
             float    hue_converge_target;//156: target hue for convergence (0..1)
             // ── Pass 7: pawn-anchored dome ────────────────────────
-            float    dome_center_x;      //160: DEAD WIRE (p1b-e: orb VS eye-centers; ABI bytes)
+            float    dome_center_x;      //160: DEAD WIRE (orb VS eye-centers; ABI bytes)
             float    dome_center_y;      //164: dead wire
             float    dome_center_z;      //168: dead wire
             float    _pad_anchor;        //172: reserved (future anchor mode/rate)
@@ -1394,7 +1394,7 @@ namespace t7 {
             wgpu::Buffer agentStateBuffer_;
             wgpu::Buffer agentStateReadbackStaging_;
             wgpu::Buffer floatingEntityReadbackStaging_;
-            wgpu::Buffer cameraStateReadbackStaging_;   // the point readback (p1b-a; camera-host only)
+            wgpu::Buffer cameraStateReadbackStaging_;   // the point readback (camera-host only)
             // Agent registries — uploaded once at world-init from the C++
             // AGENT_BEHAVIORS / AGENT_TIER_GAINS tables. The single source
             // of truth lives in bodies/agents.hpp; the GPU side reads
@@ -2442,8 +2442,8 @@ namespace t7 {
             wgpu::BindGroup blade_mesh_gen_group() const { return bladeMeshGenBindGroup_; }
 
             // --- Pyramid accessors and upload --- (mesh-gen VB/IB/params +
-            //   index-count + the mesh-gen layout/group REMOVED by the husk sweep;
-            //   the ground buffer + its atlas write REMOVED at residue T2 — only
+            //   index-count + the mesh-gen layout/group REMOVED;
+            //   the ground buffer + its atlas write REMOVED — only
             //   the INSTANCE array stays LIVE: pyramids ARE terrain.)
             void upload_pyramids(wgpu::Queue& queue, const GPUPyramidArray& arr) {
                 writeStruct(queue, pyramidInstancesBuffer_, arr);
@@ -2633,7 +2633,7 @@ namespace t7 {
                     offsetof(GPUOrbConfig, color_pulse),
                     &packed, sizeof(packed));
             }
-            // (upload_orb_dome_center retired at p1b-e — the orb VS
+            // (upload_orb_dome_center retired — the orb VS
             // eye-centers the dome; dome_center_* is dead wire.)
             // Partial upload of the palette slice (palette_count..pal3_weight).
             // 72 bytes contiguous from offset 72. Preserves per-frame fields
@@ -2755,7 +2755,7 @@ namespace t7 {
                     GPU_AGENT_TIER_COUNT * sizeof(GPUAgentTierDef),
                     wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);
                 cameraBuffer_ = makeBuffer("Camera State", sizeof(GPUCameraState),
-                    SU | wgpu::BufferUsage::CopySrc);   // CopySrc: the point readback (p1b-a; camera-host)
+                    SU | wgpu::BufferUsage::CopySrc);   // CopySrc: the point readback (camera-host)
                 floatingEntityBuffer_ = makeBuffer("Floating Entity Array",
                     Dim::TOTAL_FLOATING_SLOTS * sizeof(GPUFloatingEntityState),
                     SU | wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopySrc);
@@ -3247,8 +3247,8 @@ namespace t7 {
             bool createPyramidMesh() {
                 // Pyramids are TERRAIN (not drawn geometry): the instance array is
                 // baked via contrib_pyramids_at. The GPU mesh-gen VB/IB/params were
-                // the husk-sweep target; the ground-atlas buffer fell at residue T2
-                // (its slot-48 write was reader-free since C2).
+                // the sweep's target; the ground-atlas buffer fell as residue
+                // (its slot-48 write was reader-free).
                 pyramidInstancesBuffer_ = makeBuffer("Pyramid Instances (GPU uniform)",
                     sizeof(GPUPyramidArray),
                     wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);
@@ -3754,7 +3754,7 @@ namespace t7 {
                     entries[15].visibility = wgpu::ShaderStage::Vertex;
                     entries[15].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
-                    // Orb config (radius/palette/tiers; dome_center dead wire — p1b-e, Pass 7)
+                    // Orb config (radius/palette/tiers; dome_center dead wire — Pass 7)
                     entries[16].binding = bind::g0::orb_config;
                     entries[16].visibility = wgpu::ShaderStage::Vertex;
                     entries[16].buffer.type = wgpu::BufferBindingType::Uniform;
@@ -4079,7 +4079,7 @@ namespace t7 {
                 }
 
                 // -- Photographer compute layout (Group 0) -- VP + terrain clamp --
-                // Reads THE POINT's position (host-sourced, p1b-c) + config →
+                // Reads THE POINT's position (host-sourced) + config →
                 // builds VP, clamps camera above terrain.
                 // Entity Y-correction is handled separately by compute_entity_placement.
                 // 1 config uniform + 4 storage + 1 read-only + 1 uniform + 1 texture + 1 sampler + 1 patch_grid = 10 entries.
@@ -4094,7 +4094,7 @@ namespace t7 {
                     entries[1].visibility = wgpu::ShaderStage::Compute;
                     entries[1].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    entries[9].binding = bind::g0::camera_state;   // camera_state (point_pos — the point's camera-host source, p1b-c)
+                    entries[9].binding = bind::g0::camera_state;   // camera_state (point_pos — the point's camera-host source)
                     entries[9].visibility = wgpu::ShaderStage::Compute;
                     entries[9].buffer.type = wgpu::BufferBindingType::Storage;
 
@@ -4141,7 +4141,7 @@ namespace t7 {
                 // own pier contribution (removing foreign pier contamination).
                 // 13 entries: config + pawn + painting slots + heightfield + entity grounds + GoL + ground atlas write + patch_grid.
                 // Palm+cactus+blade share one buffer at binding 150: [0..23] palm, [24..43] cactus, [44..75] blade.
-                // (binding 149 pyramid_ground RETIRED — residue T2, the pyramid ground-atlas husk.)
+                // (binding 149 pyramid_ground RETIRED — the pyramid ground-atlas residue.)
                 {
                     std::array<wgpu::BindGroupLayoutEntry, 13> entries{};
 
@@ -4419,7 +4419,7 @@ namespace t7 {
                     if (!orbCopyLayout_) return false;
                 }
 
-                // (Pyramid mesh gen layout REMOVED — husk sweep: bindings 190-192,
+                // (Pyramid mesh gen layout REMOVED: bindings 190-192,
                 //  no pipeline/dispatch ever used this layout.)
 
                 // -- Arch mesh gen layout (Group 0) -- bindings 193-195 --
@@ -4701,7 +4701,7 @@ namespace t7 {
                     entries[15].buffer = orbStateBuffer_;
                     entries[15].size = Dim::MAX_ORBS * sizeof(GPUOrbState);
 
-                    // Orb config (radius/palette/tiers; dome_center dead wire — p1b-e)
+                    // Orb config (radius/palette/tiers; dome_center dead wire)
                     entries[16].binding = bind::g0::orb_config;
                     entries[16].buffer = orbConfigBuffer_;
                     entries[16].size = sizeof(GPUOrbConfig);
@@ -5008,7 +5008,7 @@ namespace t7 {
                     entries[15].buffer = orbStateBuffer_;
                     entries[15].size = Dim::MAX_ORBS * sizeof(GPUOrbState);
 
-                    // Orb config (dome_center dead wire — p1b-e) — same buffer as main path
+                    // Orb config (dome_center dead wire) — same buffer as main path
                     entries[16].binding = bind::g0::orb_config;
                     entries[16].buffer = orbConfigBuffer_;
                     entries[16].size = sizeof(GPUOrbConfig);
@@ -5306,7 +5306,7 @@ namespace t7 {
                     if (!orbCopyGroup_) return false;
                 }
 
-                // (Pyramid mesh gen bind group REMOVED — husk sweep: bindings
+                // (Pyramid mesh gen bind group REMOVED: bindings
                 //  190-192, no dispatch ever bound it.)
 
                 // Arch mesh gen bind group (dedicated layout — bindings 193-195)

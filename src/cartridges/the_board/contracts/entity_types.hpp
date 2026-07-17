@@ -8,7 +8,7 @@
 //
 // THE CONTRACT HOME: pipeline contracts, the boundary DTOs (a DTO
 // that exists to cross a boundary belongs to the boundary's contract,
-// not to either side — theory v2 §8), and the dispatch contract (the
+// not to either side — the program theory), and the dispatch contract (the
 // queue-entry unions + row type + table declaration). The DTOs are
 // plain aggregates of built-ins, so this header carries no owner
 // vocabulary and every owner header may include it.

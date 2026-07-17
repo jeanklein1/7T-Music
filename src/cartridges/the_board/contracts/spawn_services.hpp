@@ -166,7 +166,7 @@ inline constexpr ArchTierRow ARCH_TIERS[] = {
 // mood/themes/tile state, entities_state_, the GPU wire) and routes
 // the twelve families through FAMILY_DISPATCH.
 
-// ═══ THE COMPOSITION LAW (R1 — the collapse) ═════════════════════
+// ═══ THE COMPOSITION LAW — the collapse ═════════════════════
 // ONE stack, authored once, called by all three spawn authors (the
 // generic preamble, GoL, Gallery). Per-consumer FACTS travel as DATA:
 // base-chance authority (scalar, or archetype-indexed — resolved by

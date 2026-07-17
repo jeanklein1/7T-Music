@@ -23,7 +23,7 @@
 // face below (inputState / keys_ / mouse_ / player_ / world_state_ /
 // ribbon_state / gpuState_ / device_), the command fan's TARGET
 // organs (on_key_down's parameters — pawn / orbs / agents / cubes +
-// the transition channel), the m4 command doors (pawn.hpp / orbs.hpp
+// the transition channel), the owner command doors (pawn.hpp / orbs.hpp
 // / agents.hpp / cube_behaviors.hpp / mood.hpp's
 // request_mood_transition / patch_system.hpp's request_recenter) +
 // mood_constants.hpp's MOOD_* IDs, and the patch radii (Dim::PATCH_GRID_RADIUS /
@@ -60,7 +60,7 @@ struct CameraControls {
     // W/S/A/D velocity in free-fly (world units per second) — the
     // camera host's MOVE_SPEED, wired to config.point_fly_speed at
     // boot. The pawn host's walk speed is Idle::PAWN_SPEED (state.hpp),
-    // untouched by this dial. (30 = 2× the p1a default — Jean's dial.)
+    // untouched by this dial. (30 = 2× the original default — Jean's dial.)
     static constexpr float MOVE_SPEED = 30.0f;
 
     // Scroll → zoom-delta scale (orbit distance per wheel notch).
@@ -73,7 +73,7 @@ struct CameraControls {
 // ribbon's sky flight, so it precedes them in the cohort). KeyState /
 // MouseState stay here: the driver's private organs.
 
-// Held movement keys (W/S/A/D — THE UNIVERSAL MOVE CHANNEL, p1a-fix):
+// Held movement keys (W/S/A/D — THE UNIVERSAL MOVE CHANNEL):
 // one key set authors the driver's move-intent; WHOEVER HOSTS THE
 // POINT consumes it, under that host's own constraint AND mapping —
 // the constraint-and-mapping IS the host's behavioral identity (pawn:
@@ -103,8 +103,8 @@ struct MouseState {
 // §9 Act I: a driver writes intents through bodies it does not own).
 // The command fan's TARGET organs are deliberately NOT members: they
 // ride on_key_down's parameters — the root addresses the fan's
-// targets at the call site, through the m4 command doors. THE F6
-// SOCKET stays RESERVED (m4 registry): when a driver must address a
+// targets at the call site, through the owner command doors. THE F6
+// SOCKET stays RESERVED (the door registry): when a driver must address a
 // body it does not own by synchronous command beyond this fan, the
 // addressed-intent socket (v3 §9 Act II, §13) is where it routes.
 struct InputDeps {
@@ -113,7 +113,7 @@ struct InputDeps {
     MouseState&   mouse_;
     PlayerState&  player_;        // fpv — the anchor toggle (v3 §9 Act III)
     WorldState&   world_state_;   // active_radius — the radius command
-    RibbonState&  ribbon_state_;  // sky.mode — the ribbon's fixture (m6, Option A)
+    RibbonState&  ribbon_state_;  // sky.mode — the ribbon's fixture (Option A)
     GPUState&     gpuState_;      // the freeze toggle + the fpv wire
     wgpu::Device& device_;        // the queue fetch (the S5-style declared handle)
     PointState&   point_;         // the point — the host toggle (key 4)
@@ -123,7 +123,7 @@ struct InputDeps {
 
 // GLFW callbacks (routed by the spine's on_input override). The
 // command fan's targets are parameters — organ-named, so the fan's
-// door calls read as organ addressing (m4 registry order).
+// door calls read as organ addressing (door-registry order).
 void on_key_down(InputDeps* c, int key,
     PawnState& pawn_state, PawnDeps& pawn_deps,
     OrbsState& orbs_state, OrbsDeps& orbs_deps,
@@ -266,8 +266,8 @@ inline void on_key_down(InputDeps* c, int key,
     case GLFW_KEY_1:
         c->gpuState_.toggle_freeze_sphere();
         break;
-    case GLFW_KEY_2: toggle_aura_height(pawn_state, &pawn_deps);  break;  // pawn command door (m4)
-    case GLFW_KEY_3: toggle_aura(pawn_state, &pawn_deps);          break;  // pawn command door (m4)
+    case GLFW_KEY_2: toggle_aura_height(pawn_state, &pawn_deps);  break;  // pawn command door
+    case GLFW_KEY_3: toggle_aura(pawn_state, &pawn_deps);          break;  // pawn command door
     case GLFW_KEY_4: toggle_point_host(c);                                break;  // the point's host: pawn (kite) <-> camera (free-fly)
     case GLFW_KEY_5: request_mood_transition(transitionPhase, pendingDestination, mood_state, c->world_state_, MOOD_OPEN_SUNSET);        break;
     case GLFW_KEY_6: request_mood_transition(transitionPhase, pendingDestination, mood_state, c->world_state_, MOOD_INDOOR_FLAT);        break;
@@ -281,7 +281,7 @@ inline void on_key_down(InputDeps* c, int key,
 
     // ── Orb utilities (numpad) ───────────────────────────────────
     case GLFW_KEY_KP_8:       cycle_orb_motion_rule(orbs_state, &orbs_deps, q);            break;
-    // KP_9 freed (p1b-e): the dome anchor toggle retired — the dome is
+    // KP_9 freed: the dome anchor toggle retired — the dome is
     // a skybox, eye-centered always.
     case GLFW_KEY_KP_DECIMAL: cycle_orb_gesture(orbs_state, &orbs_deps, q);                break;
 
@@ -304,7 +304,7 @@ inline void on_key_down(InputDeps* c, int key,
         // ROSTER-GATE ribbon (b): sky-flight's entry
         // door rides the ribbon bit. Ungated, F8 in a ribbon-less demo snaps
         // the pawn to origin (the fail-LOUD zeros turned player-facing —
-        // recon §5). m6 re-homes the machinery (Option A); this closes the
+        // earlier recon). The sky machinery re-homed (Option A); this closes the
         // trap early.
         if constexpr (ROSTER.ribbon) toggle_sky_mode(c);
         break;
@@ -351,7 +351,7 @@ inline void update_movement_intent(InputDeps* c) {
     c->inputState_.move_x = 0.0f;
     c->inputState_.move_z = 0.0f;
 
-    // THE UNIVERSAL MOVE CHANNEL (p1a-fix): W/S/A/D author this fold;
+    // THE UNIVERSAL MOVE CHANNEL: W/S/A/D author this fold;
     // consumption is host-routed downstream (the pawn kernel's
     // point_camera_hosted guard, the camera's fly branch, the ribbon's
     // sky steering) — no CPU-side routing needed with one key set.
@@ -387,14 +387,14 @@ inline void toggle_fpv_mode(InputDeps* c) {
 
 // Sky-flight toggle. While ON, the move channel (W/S = throttle,
 // A/D = yaw) steers the rendered ribbon's head — the ribbon consumes
-// the ONE channel under its own forward-biased grammar (p1a-fix: the
+// the ONE channel under its own forward-biased grammar (the
 // host owns its mapping; sky mode's arrow special case retired into
 // the general rule); the sky altitude
 // is held by a critically damped pen, not fixed. While OFF, the ribbon
 // holds its stationary arc. The pawn snap and camera follow have landed;
 // only the fade transition remains unbuilt. SEAM[ribbon:sky-mode].
 inline void toggle_sky_mode(InputDeps* c) {
-    c->ribbon_state_.sky.mode = !c->ribbon_state_.sky.mode;  // the ribbon's fixture (m6, Option A)
+    c->ribbon_state_.sky.mode = !c->ribbon_state_.sky.mode;  // the ribbon's fixture (Option A)
     std::cout << "[the_board] Sky mode: "
         << (c->ribbon_state_.sky.mode ? "ON (fly the ribbon with W/S/A/D)" : "OFF") << std::endl;
 }
@@ -419,7 +419,7 @@ inline void set_render_radius(InputDeps* c, uint32_t r) {
     uint32_t side = 2 * r + 1;
     std::cout << "[the_board] Render radius: " << r
         << " (" << side << "x" << side << " = " << side * side << " patches)" << std::endl;
-    // Force full re-evaluation on next frame — through the owner's door (m4)
+    // Force full re-evaluation on next frame — through the owner's door
     request_recenter(c->world_state_);
 }
 

@@ -15,18 +15,18 @@
 // instant you save.
 //
 // COMPLETE CENSUS: the four FOUNDATIONAL pieces — the surface, the sun,
-// the point (the witness/camera, p1b's parent), the pawn body (slot-0)
+// the point (the witness/camera's parent), the pawn body (slot-0)
 // — are ALWAYS ON in every sentence, so they are NOT tickable cells;
 // they ride the LOCKED banner below so the census reads whole without
 // pretending they can be turned off. (The pawn body is locked-AND-NOTED
-// per Jean's p2 stamp: it always exists today, and BECOMES a tickable
+// per Jean's stamp: it always exists today, and BECOMES a tickable
 // row the day a demo pulls the deferred body-tickable cut — then
 // terrain gains a cleaner column with no rework, one cell flipped off.)
 //
 //   ┌──────────────── LOCKED (always on, every column) ─────────────┐
 //   │  THE SURFACE   the stage — terrain streams in every sentence   │
 //   │  THE SUN       the atmosphere — the sun-VP computed every frame │
-//   │  THE POINT     the parent (p1b) — the camera is its witness     │
+//   │  THE POINT     the parent — the camera is its witness     │
 //   │  THE PAWN BODY slot-0 — never evicted; idles in free-fly        │
 //   │                (locked-and-noted: tickable when a demo needs    │
 //   │                 it gone — the deferred body-tickable cut)       │
@@ -139,7 +139,7 @@ constexpr DemoConfig demo_config(DemoCol d) {
 static_assert(Piece::COUNT == 19,
     "matrix: Piece row count must equal Roster's 19 fields (12 families + 7 features)");
 
-// (2) THE BYTE-EQUIVALENCE GOLDEN (Jean's mandatory p2 gate). The two
+// (2) THE BYTE-EQUIVALENCE GOLDEN (Jean's mandatory gate). The two
 //     migrated columns are pinned to the retired headers' exact values,
 //     so the retirement is provably lossless — now and forever (the
 //     old full.hpp / minimal.hpp are gone; these asserts are what keep

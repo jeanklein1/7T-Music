@@ -14,7 +14,7 @@
 //
 // The SphereState CONTENT is the ActiveSphere array. The ActiveSphere
 // TYPE stays shared vocabulary (floater_vocabulary.hpp); renamed from
-// ActiveSphere this sweep (props numeric at every hash site — seed-free).
+// ActiveFloater this sweep (props numeric at every hash site — seed-free).
 //
 // SEAM[sphere:P5] the ActiveSphere last_alloc_time race protection lives
 //   with the type (floater_vocabulary.hpp); this owner holds the array the
@@ -39,7 +39,7 @@ struct SphereDeps {
 
 // Teardown owner-clear: the sphere half of the score's TEARDOWN
 // movement — CPU clear + per-slot GPU clear, paired.
-// DEPS-FORM PRECEDENT (m3 ruling): the explicit GPUState& parameter
+// DEPS-FORM PRECEDENT: the explicit GPUState& parameter
 // is the deps form's first citizen, born-converted — boundary-honest,
 // callable WITHOUT the complete Cartridge. Reclassified from
 // "bypass" by the stamp; not to be re-shaped MachineCtx-ward.
@@ -65,7 +65,7 @@ void dispatch_commit_sphere_generic(MachineCtx* self, PlacementEntry& pe, wgpu::
 // contracts/spawn_services.hpp (generic_select/place/commit +
 // run_spawn_preamble + negotiate_position DECLS — the machine bodies
 // ride the cohort tail); WorldState/MoodState complete upstream.
-// clear_spheres keeps its deps-form GPUState& (m3 precedent). ═════════
+// clear_spheres keeps its deps-form GPUState& (the stamped precedent). ═════════
 
 inline void evict_sphere(MachineCtx* self,
     uint32_t slot, wgpu::Queue& queue) {

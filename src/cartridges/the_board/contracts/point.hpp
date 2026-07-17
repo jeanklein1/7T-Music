@@ -29,7 +29,7 @@
 // was always a host pointer restricted to agent slots; this contract
 // names the general form.
 //
-// REALIZATION (p1a; p1b landed): POSITION lives in the HOST's GPU
+// REALIZATION: POSITION lives in the HOST's GPU
 // storage — the agent slot when the pawn hosts
 // (agent_state[possessed_slot]), the camera state when the camera
 // hosts — read through point_pos() (world.wgsl) on the GPU and the
@@ -37,13 +37,13 @@
 // point buffer was needed (the point readback, option A, Jean's
 // stamp). The host flag (config.point_host) routes reads and the
 // input intent channel. PRESENCE FOLLOWS THE POINT (the ratified
-// p1b rule): streaming, LOD/cull, the shadow box, the orb dome, the
+// rule): streaming, LOD/cull, the shadow box, the orb dome, the
 // living population's existence (agent + floater spawn/evict/
 // possess-reach/kite/corral), the photographer's record. EMANATION
 // STAYS THE BODY'S: the walk, the aura dome, the forcefield, the
 // AI-pursuit-target role — all idle in free-fly by construction.
 // THE BUBBLE is real (below): its first field and first sensor
-// landed at p1b-d.
+// are live (below).
 // ─────────────────────────────────────────────────────────────────
 
 namespace t7 {
@@ -77,10 +77,10 @@ inline constexpr PointTerrainRule POINT_HOST_TERRAIN_RULE[2] = {
     PointTerrainRule::NONE,   // CAMERA — pure fly; every clamp skipped
 };
 
-// ═══ THE BUBBLE (first field + first sensor live — p1b-d) ══════════
+// ═══ THE BUBBLE (first field + first sensor live) ══════════
 // The bounded awareness region around the point (v3 §11): proximity,
 // the portal trigger, the coming event source. Its FIRST FIELD is the
-// radius; its FIRST SENSOR is the portal (p1b-d, pulled by Jean's
+// radius; its FIRST SENSOR is the portal (pulled by Jean's
 // altitude question): in camera-host an arch fires only when it sits
 // within the bubble — the xz ellipse as ever, gated vertically by
 // this radius (skim over → fire; fly high → no fire). In pawn-host

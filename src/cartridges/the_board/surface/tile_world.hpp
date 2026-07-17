@@ -4,7 +4,7 @@
 #include <unordered_map>  // the tile cache
 #include <cmath>           // std::floor, std::pow, std::abs (impl)
 #include <algorithm>      // std::min (impl)
-#include <iostream>       // std::cerr (the R5 loud tile-cache assert)
+#include <iostream>       // std::cerr (the loud tile-cache assert)
 #include <cstdlib>        // std::abort (ditto)
 #include "cartridges/the_board/contracts/roster.hpp"                // PopFamily (TileState theme columns)
 #include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
@@ -178,7 +178,7 @@ struct TileWorldState {
 void evict_distant_tiles(TileWorldState& tw, int32_t centerX, int32_t centerZ);
 void upload_tile_grid_now(TileWorldState& tw, TileWorldDeps* c, wgpu::Queue& queue, int32_t cx, int32_t cz);
 TileState generate_tile_state(TileWorldState& tw, TileWorldDeps* c, int32_t gx, int32_t gz);
-// The cache-authoring doors (m4): the streaming conductor demands,
+// The cache-authoring doors: the streaming conductor demands,
 // the owner fills. ensure_tile ticks the terrain tokens (primary);
 // ensure_tile_padding does NOT (padding must not advance the
 // terrain's memory). reset_* are the teardown/init counterparts.
@@ -461,13 +461,13 @@ inline bool terrain_tile_warm(const TileWorldState& tw, float wx, float wz) {
     return tw.tileCache_.find(tile_key(wx, wz)) != tw.tileCache_.end();
 }
 
-// F3 (m3b): the spawn-modifier face. The two multiplies preserve the
+// F3: the spawn-modifier face. The two multiplies preserve the
 // consumers' original operation order exactly (density, then theme).
 inline void tile_apply_spawn_mult(const TileWorldState& tw, int32_t gx, int32_t gz,
                                   uint32_t family, float& adj_mod) {
     auto it = tw.tileCache_.find({ gx, gz });
     if (it == tw.tileCache_.end()) {
-        // LOUD (R5): the gate's theme layer silently
+        // LOUD: the gate's theme layer silently
         // depended on ensure_tile having run at patch allocation. A miss here
         // means the allocation→spawn ordering broke — fail at the seam, not
         // by quietly dropping the theme layer from the spawn stack.
@@ -479,7 +479,7 @@ inline void tile_apply_spawn_mult(const TileWorldState& tw, int32_t gx, int32_t 
     adj_mod *= it->second.pop.spatial_density[family];
 }
 
-// F4 (m3b): the archetype face, bool-out — the miss default stays
+// F4: the archetype face, bool-out — the miss default stays
 // with the caller (pace keeps 1.0, placement keeps archetype 1).
 inline bool tile_archetype(const TileWorldState& tw, int32_t gx, int32_t gz, uint32_t& out) {
     auto it = tw.tileCache_.find({ gx, gz });

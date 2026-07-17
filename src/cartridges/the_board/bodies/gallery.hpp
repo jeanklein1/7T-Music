@@ -138,7 +138,7 @@ inline constexpr float PAINTING_AREA[] = {
 
 struct PhotographerCaptureConfig {
     // Trigger: how far THE POINT travels between capture events
-    // (p1b-c: the body's walk in pawn-host — identical; the flight in
+    // (the body's walk in pawn-host — identical; the flight in
     // free-fly — the travelogue)
     static constexpr float TRIGGER_DISTANCE_MEAN = 50.0f;
     static constexpr float TRIGGER_DISTANCE_SIGMA = 8.0f;
@@ -621,7 +621,7 @@ inline void update_photographer(GalleryState& gs, GalleryDeps* c, wgpu::Queue& q
         int32_t tx = (int32_t)std::floor(px / Dim::PATCH_EXTENT);
         int32_t tz = (int32_t)std::floor(pz / Dim::PATCH_EXTENT);
         uint32_t pace_archetype = 0;
-        if (tile_archetype(c->tile_world_state_, tx, tz, pace_archetype)) {  // F4 (m3b): miss keeps pace 1.0
+        if (tile_archetype(c->tile_world_state_, tx, tz, pace_archetype)) {  // F4: miss keeps pace 1.0
             pace = GalleryConfig::PHOTO_PACE_BY_ARCHETYPE[pace_archetype];
         }
 
@@ -712,13 +712,13 @@ inline bool select_gallery_for_patch(GalleryState& gs, MachineCtx* c, int32_t gx
     // Content gate: minimum snapshot pool
     if (gs.snapshot_count < GalleryConfig::MIN_POOL_SIZE) return false;
 
-    // THE COMPOSITION LAW (R1): base authority is ARCHETYPE-INDEXED —
+    // THE COMPOSITION LAW: base authority is ARCHETYPE-INDEXED —
     // resolved first, passed as data. Mood = explicit veto; proximity
     // OFF (gallery's affinity row is zero); clamp NONE — the absent
     // clamp is CARRIED AS DATA per the sub-ruling (behavior-identical;
     // ruling a clamp IN is a separate taste gate).
     uint32_t archetype = 1;
-    tile_archetype(c->tile_world_state_, gx, gz, archetype);   // F4 (m3b): miss keeps 1
+    tile_archetype(c->tile_world_state_, gx, gz, archetype);   // F4: miss keeps 1
     auto composed = compose_spawn_chance(c, gx, gz, PopFamily::GALLERY,
         GalleryConfig::GALLERY_CHANCE_BY_ARCHETYPE[archetype],
         GalleryConfig::MOOD_MULTIPLIER,

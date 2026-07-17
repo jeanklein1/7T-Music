@@ -6,7 +6,7 @@
 // History: audit/LADDER.md
 //
 // The in-class trio graduates to file scope so module deps structs
-// (m3) can name the types without the complete Cartridge. The
+// can name the types without the complete Cartridge. The
 // INSTANCES (time_state_, player_, transitionPhase_) stay at the
 // composition root; the residency rulings (SEAM[spine:P8],
 // SEAM[spine:transitions]) are unchanged — this is a type move, not
@@ -46,7 +46,7 @@ struct TimeState {
 //     option A, Jean's stamp). SOLE AUTHOR is still the P5 HARVEST;
 //     the spine's only other touches are the TEARDOWN reset and the
 //     portal door's consume. No module writes them, ever.
-//   · readback_portal_trigger — THE POINT'S BUBBLE SENSOR (p1b-d):
+//   · readback_portal_trigger — THE POINT'S BUBBLE SENSOR:
 //     the probe is host-sourced (the body's own crossing in
 //     pawn-host, byte-identical; the camera + the bubble's vertical
 //     gate in free-fly). The trigger RIDES the possessed slot's wire
@@ -60,13 +60,13 @@ struct TimeState {
 //   · aura_presence — P8, the pawn is the semantic owner (writes in
 //     bodies/pawn.hpp only).
 //   · THE CAMERA HAS NO CPU MIRROR — it lives GPU-resident, keyed on
-//     config.possessed_slot. The ONE sanctioned window (p1b-a): in
+//     config.possessed_slot. The ONE sanctioned window: in
 //     CAMERA-HOST the P5 harvest reads camera pos.xz back as the
 //     point's position — a two-float harvest into the trio above,
 //     not a mirror. There is still NO readback_y (the witness
 //     altitude is GPU-only); it is not to be invented.
 //   · the sky trio (mode / mode_prev / yaw_eased) LEFT this record
-//     at m6 per Option A — it lives in RibbonState.sky, with its
+//     per Option A — it lives in RibbonState.sky, with its
 //     single CPU owner (SEAM[ribbon:sky-mode], closed player-side).
 //
 // SEAM[spine:P8] PlayerState commented "Future (deferred)" fields
@@ -78,9 +78,9 @@ struct PlayerState {
 
     // ── Camera + readback ──
     bool    fpv_mode = false;                // first-person view toggle
-    float   readback_x = 0.0f;               // THE POINT's world X (host-authored — p1b-a)
-    float   readback_z = 0.0f;               // THE POINT's world Z (host-authored — p1b-a)
-    int32_t readback_portal_trigger = -1;    // the point's bubble sensor (p1b-d), on the possessed slot's wire
+    float   readback_x = 0.0f;               // THE POINT's world X (host-authored)
+    float   readback_z = 0.0f;               // THE POINT's world Z (host-authored)
+    int32_t readback_portal_trigger = -1;    // the point's bubble sensor, on the possessed slot's wire
 
     // ── Aura presence (closes SEAM[spine:P8]) ──
     float aura_presence = 0.0f;                  // pawn aura ramp (was pawn_state_.aura_presence)
@@ -148,7 +148,7 @@ struct MoodState {
     // ── Sun orbit (musical coupling) ──
     float sun_orbit_phase = 0.0f;
 
-    // ── Light re-upload flag (re-homed from entities_state_ at m4:
+    // ── Light re-upload flag (re-homed from entities_state_:
     //    mood was both producer and consumer — the organ was wrong,
     //    not the channel). Set true at init/teardown/apply, cleared
     //    after upload. ──
@@ -235,7 +235,7 @@ static_assert(MOOD_OPEN_DEFAULT       == 0 && MOOD_OPEN_SUNSET        == 1
 // ═══ THE TRANSITION REQUEST DOOR (decl; def rides merged mood.hpp) ═
 // The single canonical transition entry point — one door, many keys.
 // DEPS-FORM: the driver world holds no MachineCtx; the door
-// takes the transition channel explicitly (the m3 precedent class).
+// takes the transition channel explicitly (the deps-form precedent).
 void request_mood_transition(TransitionPhase& phase, PortalDestination& pending,
     MoodState& ms, const WorldState& ws, uint32_t mood);
 

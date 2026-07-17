@@ -656,7 +656,7 @@ struct FrameSignal {
     sky_roll: f32,        // bank into the lateral swing (rad, clamped)
 }
 
-// --- [STATE:terrain] TerrainState REMOVED (husk sweep) — the dead terrain
+// --- [STATE:terrain] TerrainState REMOVED — the dead terrain
 //     buffer's struct + its bindings 20/220 are gone; no shader read them.
 
 // --- [STATE:agent] AgentState
@@ -1425,7 +1425,7 @@ struct DesignConfig {
     _pulse_pad_1: f32,
     pulse_data: array<vec4<f32>, 8>,  // each: (origin_x, origin_z, onset_seconds, amplitude)
     // CPU-banded POINT position for LOD0/LOD1 partition (renamed
-    // lod_pawn → lod_point: the value has been THE POINT since p1b).
+    // lod_pawn → lod_point: the value has been THE POINT).
     // Read by the frustum-cull shader so its dist² test agrees with
     // the CPU's banding point (no 1-2 frame disagreement at the
     // boundary annulus).
@@ -3838,7 +3838,7 @@ struct PatchTerrainVarying {
     @builtin(position) clip_pos: vec4<f32>,
     @location(0) world_pos: vec3<f32>,
     @location(1) gradients: vec2<f32>,
-    // (complexity varying REMOVED — husk sweep: LATENT[complexity], read by no FS)
+    // (complexity varying REMOVED — LATENT[complexity], read by no FS)
     @location(2) patch_uv: vec2<f32>,    // UV within the patch [0,1] for cell sampling
     @location(3) @interpolate(flat) layer: u32,  // heightfield/cell array layer
 }
@@ -3902,7 +3902,7 @@ fn patch_terrain_vs(
     let sample_uv = (uv * (res - 1.0) + 0.5) / res;
 
     // Sample heightfield from this patch's array layer
-    // .x = height, .yz = gradients, .w = unused (was complexity — husk sweep)
+    // .x = height, .yz = gradients, .w = unused (was complexity — swept)
     let height_data = textureSampleLevel(
         patch_heightfield_array_read, bilinear_sampler,
         sample_uv, i32(pi.layer), 0.0
@@ -3938,7 +3938,7 @@ fn patch_terrain_vs(
     out.clip_pos = render_vp.m * vec4(world_pos, 1.0);
     out.world_pos = world_pos;
     out.gradients = height_data.yz + wave.yz;
-    // (out.complexity REMOVED — husk sweep: the LATENT[complexity] varying;
+    // (out.complexity REMOVED — the LATENT[complexity] varying;
     //  the .w channel it read is now unused, no FS ever consumed it.)
     out.patch_uv = uv;
     out.layer = pi.layer;
@@ -4552,10 +4552,10 @@ fn shadow_column_vs(in: ArchVertexInput) -> ShadowVarying {
     return out;
 }
 
-// --- Generative Pyramids: pyramid_vs + shadow_pyramid_vs CUT (C2 orphan
+// --- Generative Pyramids: pyramid_vs + shadow_pyramid_vs CUT (orphan
 //     sweep) — the pyramid mesh was never drawn (draw_pyramid /
 //     draw_shadow_pyramid were caller-free). Both read the
-//     ground-atlas slot range (48..55); the write path followed at residue T2
+//     ground-atlas slot range (48..55); the write path followed as residue
 //     (the pyramid-ground husk) — the range stays a documented hole in the
 //     atlas table.
 
@@ -5079,7 +5079,7 @@ fn fade_overlay_fs(in: FadeVarying) -> @location(0) vec4<f32> {
 @group(0) @binding(0)   var<uniform>             signal: FrameSignal;
 @group(0) @binding(1)   var<uniform>             config: DesignConfig;
 @group(0) @binding(2)   var<storage, read_write> vp_data: VPMatrix;
-// @binding(20) terrain_state REMOVED (husk sweep — dead terrain buffer)
+// @binding(20) terrain_state REMOVED (dead terrain buffer)
 
 // Agent system — unified entity buffer. Slot 0 is the player's body;
 // slots 1..31 are mood-authored agents. The player's relationship
@@ -5142,7 +5142,7 @@ fn point_pos() -> vec3<f32> {
 // --- [BINDINGS:compute] Group 0 — Render entity mirrors (read-only, +200 offset)
 @group(0) @binding(200) var<storage, read> render_signal: FrameSignal;
 @group(0) @binding(201) var<storage, read> render_vp: VPMatrix;
-// @binding(220) render_terrain REMOVED (husk sweep — dead terrain buffer)
+// @binding(220) render_terrain REMOVED (dead terrain buffer)
 @group(0) @binding(260) var<storage, read> render_agents: array<AgentState, 32>;
 @group(0) @binding(280) var<storage, read> render_camera: CameraState;
 @group(0) @binding(300) var<uniform> render_floating: FloatingEntityArray;
@@ -5182,7 +5182,7 @@ fn render_pawn_orientation() -> vec4<f32> {
 const GROUND_ATLAS_ARCH: i32     = 0;
 const GROUND_ATLAS_COLUMN: i32   = 16;
 // slots 48..55: DOCUMENTED HOLE — the retired pyramid range (readers cut at
-// C2, the write path at residue T2). Do NOT re-pack; these offsets are
+// cut; the write path followed as residue). Do NOT re-pack; these offsets are
 // hand-mirrored with state.hpp Dim::GROUND_ATLAS_*.
 const GROUND_ATLAS_PALM: i32     = 56;
 const GROUND_ATLAS_CACTUS: i32   = 80;
@@ -5755,7 +5755,7 @@ const ZONE_MESH_MAX_INDICES: u32 = 75000u;
 // RAYMARCH/SDF EXCAVATION: update_terrain_config removed — the writer kernel
 // of the dead TerrainState buffer (it wrote amplitude_scale + lipschitz_factor,
 // read by nobody). Its C++ dispatch + pipeline went with it; the terrain_state
-// buffer/bindings/struct husk was swept (husk sweep 1).
+// buffer/bindings/struct husk was swept.
 
 // --- Walker terrain normal (forward-difference)
 // POLICY_WALKER_TILT samples — static_base + pyramids + GoL zones
@@ -6052,10 +6052,10 @@ fn behavior_player_controlled(agent_in: AgentState) -> AgentState {
     // --- Portal ellipse detection (GPU-authoritative)
     // Ellipse spans the arch opening: lateral = half_span, forward = depth/2.
     //
-    // THE POINT'S BUBBLE (p1b-d): the portal is the bubble's FIRST
+    // THE POINT'S BUBBLE: the portal is the bubble's FIRST
     // SENSOR — the probe is host-sourced. When the pawn hosts, the
     // probe is the body's pos THIS FRAME (agent.pos, the local —
-    // byte-identical to the pre-p1b test; point_pos() is deliberately
+    // byte-identical to the pre-point test; point_pos() is deliberately
     // NOT used here: it reads the storage copy, one frame stale).
     // When the camera hosts, the probe is the point (the camera) and
     // the bubble's VERTICAL GATE applies: the arch must sit within
@@ -6551,11 +6551,11 @@ fn behavior_levy_flight(agent_in: AgentState) -> AgentState {
 //                           behavior switch for algorithmic behaviors.
 //                           The walker policy is NOT inlined here.
 //
-// Dispatch order: player first, then others. THE POINT (p1b-b) is
+// Dispatch order: player first, then others. THE POINT is
 // the eviction reference for this frame's other agents — the
 // player's updated position when the pawn hosts, the camera when it
 // hosts. Matches the semantic "the point moves, the world adjusts
-// around it" (presence follows the point; the ratified p1b rule).
+// around it" (presence follows the point; the ratified rule).
 //
 // MAX_AGENTS = 32 — must stay in sync with Dim::MAX_AGENTS.
 //
@@ -6602,7 +6602,7 @@ const FLOATER_EVICTION_RADIUS:    f32 = 400.0;
 const FLOATER_EVICTION_RADIUS_SQ: f32 = FLOATER_EVICTION_RADIUS * FLOATER_EVICTION_RADIUS;
 
 // POINT_BUBBLE_RADIUS — the point's bounded awareness (v3 §11; the
-// bubble's first field, p1b-d). Today its one sensor is the portal's
+// bubble's first field). Today its one sensor is the portal's
 // vertical gate in camera-host: an arch fires only within this many
 // units of the point's altitude. MUST match POINT_BUBBLE_RADIUS in
 // contracts/point.hpp (compile-time const, the eviction-radius
@@ -6667,7 +6667,7 @@ fn update_other_agents(@builtin(global_invocation_id) gid: vec3<u32>) {
         default: { /* unknown behavior — no-op */ }
     }
 
-    // Point-centered eviction (p1b-b: was the possessed slot).
+    // Point-centered eviction (was the possessed slot).
     // Non-player agents that wander too far from THE POINT are
     // deactivated; the CPU readback path detects them on the next
     // frame and respawns fresh agents in a disk around the point.
@@ -6810,7 +6810,7 @@ fn update_sphere() {
         var fe = floating_entities.entities[slot];
         if (fe.is_active == 0u) { continue; }
 
-        // Lifecycle: point-distance eviction (p1b-b: was the pawn —
+        // Lifecycle: point-distance eviction (was the pawn —
         // floaters follow the point, Jean's ruling). A sphere stays
         // alive within FLOATER_EVICTION_RADIUS of THE POINT.
         // Patch eviction no longer touches floaters (commit path skips
@@ -6974,7 +6974,7 @@ fn update_cube() {
         var fe = floating_entities.entities[slot];
         if (fe.is_active == 0u) { continue; }
 
-        // Lifecycle: point-distance eviction (p1b-b: was the pawn —
+        // Lifecycle: point-distance eviction (was the pawn —
         // floaters follow the point). Cube stays alive as long as its
         // current position (home + drift) is within range of THE
         // POINT. Patch eviction no longer touches cubes — see the
@@ -7023,7 +7023,7 @@ fn update_cube() {
             //   follow_pawn = 0 (default): home.xz = anchor.xz; home.y
             //     terrain-relative at home.xz.
             //   follow_pawn = 1 (kite mode): home.xz = POINT.xz +
-            //     offset (p1b-b: was the pawn — the kite target is the
+            //     offset (was the pawn — the kite target is the
             //     point, Jean's ruling; the CPU offset capture in
             //     cube_behaviors.hpp moved in lock-step, so the F7
             //     toggle still preserves world position exactly).
@@ -7141,7 +7141,7 @@ fn compute_vp() {
     );
 
     // Sun VP: kite coupling — the sun orbits THE POINT at fixed
-    // offset (p1b-a: was the pawn; the 300-unit shadow box must cover
+    // offset (was the pawn; the 300-unit shadow box must cover
     // what the eye sees, so it follows the point's host — identical
     // when the pawn hosts, tracks the camera in free-fly).
     if (coupling_active(COUPLING_PAWN_TO_SUN_VP)) {
@@ -7177,7 +7177,7 @@ fn generate_terrain_indices(@builtin(global_invocation_id) id: vec3<u32>) {
 // Pass 1: generate_patch_heights
 //   Evaluates ground_formed_with_complexity() once per texel, stores the
 //   height in the scratch buffer. (The stride-2 layout is kept; the +1
-//   complexity slot is no longer written — husk sweep, no reader.)
+//   complexity slot is no longer written — no reader.)
 //   This is the only expensive call — terrain waves + piers + pyramids.
 //
 // Pass 2: generate_patch_gradients
@@ -7203,7 +7203,7 @@ fn generate_patch_heights(@builtin(global_invocation_id) id: vec3<u32>) {
     let hc = ground_formed_with_complexity(world_xz);
     let base = (id.y * res + id.x) * 2u;
     patch_height_scratch[base]      = hc.x;   // height (stride-2 layout kept; the
-    // +1 complexity slot is no longer written — husk sweep, no reader)
+    // +1 complexity slot is no longer written — no reader)
 }
 
 // Workgroup shared tile: 20×20 heights (16×16 interior + 2-texel halo for 3-point edge stencil)
@@ -7238,7 +7238,7 @@ fn generate_patch_gradients(
     // ── Bounds check AFTER barrier (all threads must participate in load) ─
     if (id.x >= res || id.y >= res) { return; }
 
-    // ── Read center height from shared (complexity readback REMOVED — husk sweep) ─
+    // ── Read center height from shared (complexity readback REMOVED) ─
     let cx = lid.x + 2u;
     let cy = lid.y + 2u;
     let height = sh_height[cy * 20u + cx];
@@ -8153,7 +8153,7 @@ fn compute_pawn_aura(@builtin(global_invocation_id) gid: vec3<u32>) {
 
 
 // §8 SELF-PORTRAIT GALLERY — Paintings of the point's journey over terrain
-// (the body's self-portraits in pawn-host; the travelogue in free-fly — p1b-c)
+// (the body's self-portraits in pawn-host; the travelogue in free-fly)
 // §8.0 PHOTOGRAPHER COMPUTE — GPU-coupled snapshot camera
 struct PhotographerConfig {
     sun_direction: vec3<f32>,
@@ -8207,7 +8207,7 @@ struct ColumnGroundEntry {
 @group(0) @binding(148) var<storage, read_write> column_ground: array<ColumnGroundEntry, 32>;
 
 // (binding 149 RETIRED — pyramid_ground, the residue-T2 husk: its computed
-//  ground_y fed atlas slot 48, reader-free since C2. Number parked.)
+//  ground_y fed atlas slot 48, reader-free. Number parked.)
 
 struct PalmGroundEntry {
     center_x: f32,
@@ -8301,7 +8301,7 @@ fn build_lookat_vp(eye: vec3<f32>, aim_pt: vec3<f32>, fov_rad: f32, aspect: f32)
 @compute @workgroup_size(1)
 fn compute_photographer_vp() {
     let cfg = photographer_config;
-    // THE POINT (p1b-c): the photographer frames the point — the body
+    // THE POINT: the photographer frames the point — the body
     // when the pawn hosts (the self-portrait, identical to before),
     // the camera's vantage in free-fly (the travelogue — Jean's
     // ruling; the trigger already accumulates flight distance through
@@ -8498,8 +8498,8 @@ fn compute_entity_placement() {
         }
     }
 
-    // (Pyramid arm REMOVED — residue T2: it computed a 5-point ground_y and
-    //  stored it to atlas slot 48, reader-free since C2. Pyramids bake into
+    // (Pyramid arm REMOVED — the ground-atlas residue: it computed a 5-point ground_y and
+    //  stored it to atlas slot 48, reader-free. Pyramids bake into
     //  the heightfield via contrib_pyramids_at — the live instance path.)
 }
 
@@ -8784,7 +8784,7 @@ fn gallery_frame_vs(
     return out;
 }
 
-// §8.1.1 GALLERY FRAME SHADOW — CUT (C2 orphan sweep): shadow_gallery_frame_vs
+// §8.1.1 GALLERY FRAME SHADOW — CUT (orphan sweep): shadow_gallery_frame_vs
 // was caller-free (draw_shadow_gallery_frames had no caller — gallery frames
 // are drawn in the color pass but never cast a mesh-shadow). Shared helper
 // deform_gallery_frame is retained (used by the live gallery_frame_vs).
@@ -9026,7 +9026,7 @@ fn wall_painting_frame_fs(in: WallPaintingVarying) -> @location(0) vec4<f32> {
     return vec4(mix(lit, config.fog_color, fog), 1.0);
 }
 
-// §8.3 WALL PAINTING SHADOW — CUT (C2 orphan sweep): shadow_wall_painting_vs
+// §8.3 WALL PAINTING SHADOW — CUT (orphan sweep): shadow_wall_painting_vs
 // was caller-free (draw_shadow_wall_paintings had no caller). Shared helper
 // compute_wall_painting_geometry is retained (used by the live wall-painting
 // color pass).
@@ -9046,7 +9046,7 @@ fn wall_painting_frame_fs(in: WallPaintingVarying) -> @location(0) vec4<f32> {
 // Vertex format: matches ArchVertex (pos[3], normal[3], color[3], index:u32)
 // = 10 × f32 per vertex = 40 bytes. VB is accessed as array<f32>.
 
-// §9.0 PYRAMID MESH GENERATION — REMOVED (husk sweep).
+// §9.0 PYRAMID MESH GENERATION — REMOVED.
 // The entire mesh-gen island (PMG_* consts, PyramidMeshParams, bindings
 // 190-192, and the pmg_* writer/geometry helpers) was a write-only husk:
 // its entry point pyramid_mesh_gen was cut long ago and no kernel read the
@@ -10935,7 +10935,7 @@ struct OrbConfig {
     color_surge:         f32,   // 0..1
     hue_converge_target: f32,   // mood-scoped, changes at mood entry
 
-    // ── Dome anchor — DEAD WIRE (p1b-e: the VS eye-centers the
+    // ── Dome anchor — DEAD WIRE (the VS eye-centers the
     // dome; bytes retained for ABI, zero-filled by configure) ──
     dome_center_x:       f32,
     dome_center_y:       f32,
@@ -11660,7 +11660,7 @@ fn orb_vs(
     let cam_right = vec3<f32>(cos_az, 0.0, -sin_az);
     let cam_up = cross(orbital, cam_right);
 
-    // orb.pos is dome-local; the dome is a SKYBOX (p1b-e, Jean's
+    // orb.pos is dome-local; the dome is a SKYBOX (Jean's
     // ruling): centered on the camera EYE, all three axes, every
     // frame — the sky rises when you fly and never parallaxes away.
     // render_camera is already in this VS (the billboard basis above);

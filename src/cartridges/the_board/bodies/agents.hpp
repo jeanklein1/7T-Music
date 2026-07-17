@@ -471,7 +471,7 @@ inline void respawn_evicted_agents(AgentState& as, AgentsDeps* c,
     if (beh_sum <= 0.0f || tier_sum <= 0.0f) return;
 
     const uint32_t possessed = c->player_.possessed_slot;
-    // THE POINT (p1b-b): fresh agents cluster around the point —
+    // THE POINT: fresh agents cluster around the point —
     // readback_x/z, host-authored. Pawn-host value-identical (the
     // slot mirror and the readback come from the same P5 harvest
     // snapshot); in free-fly the population spawns in the xz plane
@@ -517,7 +517,7 @@ inline void try_possess_nearest(AgentState& as, AgentsDeps* c, wgpu::Queue& queu
     }
 
     const uint32_t cur = c->player_.possessed_slot;
-    // THE POINT (p1b-b): possession reaches from the point — the
+    // THE POINT: possession reaches from the point — the
     // nearest agent to where you ARE. Pawn-host value-identical (same
     // harvest snapshot as the slot mirror); in free-fly Caps Lock
     // grabs a body wherever you flew (xz-plane reach, per the spawn

@@ -92,7 +92,7 @@ namespace t7 {
             constexpr const char* ZONE_EXTRUSION_FS = "zone_extrusion_fs";
             constexpr const char* SHADOW_ZONE_EXTRUSION_VS = "shadow_zone_extrusion_vs";
 
-            // GPU Entity Mesh Gen (Phase 2: Arches, Phase 3: Columns — pyramid mesh-gen CUT in C2)
+            // GPU Entity Mesh Gen (Phase 2: Arches, Phase 3: Columns — pyramid mesh-gen CUT)
             constexpr const char* ARCH_MESH_GEN = "arch_mesh_gen";
             constexpr const char* COLUMN_MESH_GEN = "column_mesh_gen";
             constexpr const char* PALM_MESH_GEN = "palm_mesh_gen";
@@ -162,7 +162,7 @@ namespace t7 {
                 return ok;
             }
 
-            // C3 (cable management): the two collapses every compute pipeline shared.
+            // THE SHARED BUILDERS (cable management): the two collapses every compute pipeline shared.
             // computeLayoutFor wraps a single bind-group layout into a pipeline layout
             // (the ~24 dedicated compute pipelines each repeated this 4-line boilerplate).
             // makeComputePipeline is the uniform creation ALL 30 compute pipelines shared —
@@ -285,7 +285,7 @@ namespace t7 {
             // Fade overlay (fullscreen alpha-blended triangle)
             wgpu::RenderPipeline fadeOverlayPipeline_;
 
-            // GPU entity mesh gen (Phase 2: arches, Phase 3: columns — pyramid mesh-gen CUT in C2)
+            // GPU entity mesh gen (Phase 2: arches, Phase 3: columns — pyramid mesh-gen CUT)
             wgpu::ComputePipeline archMeshGenPipeline_;
             wgpu::ComputePipeline columnMeshGenPipeline_;
             wgpu::ComputePipeline palmMeshGenPipeline_;
@@ -1193,7 +1193,7 @@ namespace t7 {
                 if (!(ROSTER.blade)) n += 3;
                 // pyramid: 0 pipelines (mesh-gen + render + shadow all cut)
                 if (!(ROSTER.gol)) n += 7;
-                if (!(ROSTER.gallery)) n += 4;  // was 6; shadow_gallery_frame + shadow_wall_painting cut (C2)
+                if (!(ROSTER.gallery)) n += 4;  // was 6; shadow_gallery_frame + shadow_wall_painting cut
                 if (!(ROSTER.orbs)) n += 5;
                 if (!(ROSTER.pawn_aura)) n += 1;
                 if (!(ROSTER.indoor_shell)) n += 2;
@@ -1549,7 +1549,7 @@ namespace t7 {
                 colorTarget.format = colorFormat_;
                 colorTarget.writeMask = wgpu::ColorWriteMask::All;
 
-                // C3-render (entity category): the builder every ENTITY_FS pipeline shares —
+                // THE SHARED BUILDER (entity category): the builder every ENTITY_FS pipeline shares —
                 // renderLayout + depthStencil + colorTarget + ENTITY_FS + TriangleList + CCW.
                 // The genuine forks are parameters: the VS entry (passed VERBATIM), the
                 // vertex-buffer layout (nullptr = bufferless, GPU-generated from vertex_index),
@@ -2038,7 +2038,7 @@ namespace t7 {
                     shadowDepth.depthWriteEnabled = true;
                     shadowDepth.depthCompare = wgpu::CompareFunction::Less;
 
-                    // C3-render (shadow/depth category): the builder every shadow pipeline
+                    // THE SHARED BUILDER (shadow/depth category): the builder every shadow pipeline
                     // shares — shadowRenderLayout + shadowDepth (Depth32Float shadow map) +
                     // NO fragment (depth-only) + TriangleList + CCW. It is a SEPARATE builder
                     // from makeEntity (not one with an isShadow flag): color-vs-depth is a
@@ -2122,7 +2122,7 @@ namespace t7 {
 
                         // arch/column/palm/cactus/blade shadows — same ArchVertex
                         // format; cull matches the color pass (arch Back, the
-                        // single-sided column/palm/cactus/blade None). pyramid shadow cut (C2).
+                        // single-sided column/palm/cactus/blade None). pyramid shadow cut.
                         if constexpr (ROSTER.arch) {  // ROSTER-GATE arch (a') — FXC skipped when disabled
                         if (!makeShadow("shadow_arch", "Shadow Catenary Arch", Entry::SHADOW_ARCH_VS,
                             &shadowArchVBL, wgpu::CullMode::Back, shadowArchPipeline_)) return false;

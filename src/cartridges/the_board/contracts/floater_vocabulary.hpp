@@ -113,7 +113,7 @@ struct CubeConfig {
 
 // ── Property Index Registry ──────────────────────────────────────
 // Range: 130–156 (avoids sphere's 100–126).
-struct CubeEntityProp {
+struct CubeProp {
     static constexpr uint32_t SPAWN_ROLL = 130u;
     static constexpr uint32_t ANCHOR_X = 131u;
     static constexpr uint32_t ANCHOR_Z = 132u;
@@ -134,9 +134,9 @@ struct CubeEntityProp {
     static constexpr uint32_t FACE_VARIANCE = 155u;
     static constexpr uint32_t ROTATION = 156u;
 };
-static_assert(CubeEntityProp::SPAWN_ROLL == 130u && CubeEntityProp::ANCHOR_X == 131u
-           && CubeEntityProp::ANCHOR_Z == 132u && CubeEntityProp::TIER == 133u,
-    "CubeEntityProp values are the cube seed contract — frozen biography");
+static_assert(CubeProp::SPAWN_ROLL == 130u && CubeProp::ANCHOR_X == 131u
+           && CubeProp::ANCHOR_Z == 132u && CubeProp::TIER == 133u,
+    "CubeProp values are the cube seed contract — frozen biography");
 
 // ── Active Cube Tracking (TYPE — state lives in CubeBehaviorsState) ─
 struct ActiveCube {

@@ -862,7 +862,7 @@ inline void pyramid_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Q
     }
     c->entities_state_.cpu_pyramids.count = max_idx;
     c->gpuState_.upload_pyramids(queue, c->entities_state_.cpu_pyramids);
-    // (pyramid mesh-gen param staging REMOVED — husk sweep: no dispatch consumed it)
+    // (pyramid mesh-gen param staging REMOVED: no dispatch consumed it)
 }
 
 inline void pyramid_post_commit(MachineCtx* c, const EntityInstance& inst, wgpu::Queue&) {

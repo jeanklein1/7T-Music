@@ -17,7 +17,7 @@
 // DemoConfig. A bad name (INCUBATE_DEMO=xyz) becomes DemoCol::xyz — an
 // unknown enumerator, a clean compile error. There are no per-demo
 // header FILES any more; adding a demo is adding a column to the
-// matrix (Jean's p2 stamp: the grid is the single authoring surface).
+// matrix (Jean's stamp: the grid is the single authoring surface).
 //
 // ROSTER (the selected sentence's manifest) is DEFINED here: the type
 // and the gate law live in contracts/roster.hpp; the constant

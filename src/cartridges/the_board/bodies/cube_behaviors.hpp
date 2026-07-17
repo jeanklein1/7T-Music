@@ -26,7 +26,7 @@ namespace the_board {
 
 // ═══ MODULE DEPS ════════════════════════════════════════════════════
 // The cube commands' requirements face: corral/kite center on THE
-// POINT through the witness record (readback_x/z, p1b-b — the agent
+// POINT through the witness record (readback_x/z — the agent
 // slot reach retired with it); all reads except the GPU wire.
 struct CubeDeps {
     GPUState&        gpuState_;
@@ -168,7 +168,7 @@ struct CubeBehaviorsState {
 void apply_cube_tier_gains(float& spring_stiffness, float& drag, uint32_t tier_idx);
 uint32_t pick_cube_behavior_for_spawn(uint32_t mood_id, uint32_t seed);
 // Teardown owner-clear
-void clear_cubes(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue);  // DEPS-FORM PRECEDENT (m3 ruling): explicit GPUState& param, born-converted
+void clear_cubes(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue);  // DEPS-FORM PRECEDENT: explicit GPUState& param, born-converted
 // The evictor — MachineCtx-shaped
 // to match the FAMILY_DISPATCH evict slot (table in cartridge.hpp, post-class)
 void evict_cube(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
@@ -234,11 +234,11 @@ inline uint32_t pick_cube_behavior_for_spawn(uint32_t mood_id, uint32_t seed) {
 // ─── Kite mode ─────────────────────────────────────────────────────
 //
 // Toggle on  — captures each cube's current xz as a point-relative
-// offset (p1b-b: the kite leashes to the point). Cube xz is preserved exactly; y resets to pawn.y +
+// offset (the kite leashes to the point). Cube xz is preserved exactly; y resets to pawn.y +
 // orbit_height (small visible jump only if pawn's altitude differs
 // from where the cube was hovering).
 
-// DEPS-FORM PRECEDENT (m3 ruling): explicit GPUState& parameter —
+// DEPS-FORM PRECEDENT: explicit GPUState& parameter —
 // the deps form's first citizen; not a MachineCtx bypass.
 inline void clear_cubes(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue) {
     for (uint32_t i = 0; i < Dim::MAX_CUBE_INSTANCES; i++) {
@@ -276,7 +276,7 @@ inline void cycle_cube_behavior_override(CubeBehaviorsState& cbs, CubeDeps* c, w
 
 inline void corral_cubes(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& queue) {
     (void)queue;
-    // THE POINT (p1b-b): the corral ring forms around the point —
+    // THE POINT: the corral ring forms around the point —
     // readback_x/z, host-authored (pawn-host value-identical: same
     // P5 harvest snapshot as the slot mirror).
     const float px = c->player_.readback_x;
@@ -376,7 +376,7 @@ inline void tick_cube_corral_animations(CubeBehaviorsState& cbs, CubeDeps* c, wg
 
 inline void toggle_cube_kite_mode(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& queue) {
     cbs.kite_mode = !cbs.kite_mode;
-    // THE POINT (p1b-b): the kite leashes to the point — the offset
+    // THE POINT: the kite leashes to the point — the offset
     // capture here and the GPU kite home (update_cube) moved in
     // LOCK-STEP, so the F7 toggle still preserves world position
     // exactly. Pawn-host value-identical (same harvest snapshot).
@@ -455,15 +455,15 @@ struct CubeIdx {
 };
 
 inline constexpr TierParamDef CUBE_PARAM_DEFS[] = {
-    { CubeEntityProp::BODY_RADIUS,      0.5f, 1e30f, false, ParamDist::GAUSSIAN },
-    { CubeEntityProp::ORBIT_HEIGHT,     3.0f, 1e30f, false, ParamDist::GAUSSIAN },
-    { CubeEntityProp::INFLUENCE_RADIUS, 3.0f, 1e30f, false, ParamDist::GAUSSIAN },
-    { CubeEntityProp::SPIN_SPEED,       0.0f, 1e30f, false, ParamDist::GAUSSIAN },
-    { CubeEntityProp::BOB_AMPLITUDE,    0.0f, 1e30f, false, ParamDist::GAUSSIAN },
-    { CubeEntityProp::BOB_PERIOD,       0.5f, 1e30f, false, ParamDist::GAUSSIAN },
-    { CubeEntityProp::ASPECT_Y,         0.2f, 1e30f, false, ParamDist::GAUSSIAN },
-    { CubeEntityProp::ASPECT_Z,         0.1f, 1e30f, false, ParamDist::GAUSSIAN },
-    { CubeEntityProp::FACE_VARIANCE,    0.0f, 1e30f, false, ParamDist::GAUSSIAN },
+    { CubeProp::BODY_RADIUS,      0.5f, 1e30f, false, ParamDist::GAUSSIAN },
+    { CubeProp::ORBIT_HEIGHT,     3.0f, 1e30f, false, ParamDist::GAUSSIAN },
+    { CubeProp::INFLUENCE_RADIUS, 3.0f, 1e30f, false, ParamDist::GAUSSIAN },
+    { CubeProp::SPIN_SPEED,       0.0f, 1e30f, false, ParamDist::GAUSSIAN },
+    { CubeProp::BOB_AMPLITUDE,    0.0f, 1e30f, false, ParamDist::GAUSSIAN },
+    { CubeProp::BOB_PERIOD,       0.5f, 1e30f, false, ParamDist::GAUSSIAN },
+    { CubeProp::ASPECT_Y,         0.2f, 1e30f, false, ParamDist::GAUSSIAN },
+    { CubeProp::ASPECT_Z,         0.1f, 1e30f, false, ParamDist::GAUSSIAN },
+    { CubeProp::FACE_VARIANCE,    0.0f, 1e30f, false, ParamDist::GAUSSIAN },
 };
 inline constexpr uint32_t CUBE_PARAM_COUNT = sizeof(CUBE_PARAM_DEFS) / sizeof(TierParamDef);
 static_assert(CUBE_PARAM_COUNT == CubeIdx::COUNT,
@@ -524,17 +524,17 @@ inline constexpr EntityFamilyTraits CUBE_TRAITS = {
     PopFamily::CUBE, "cube", Dim::MAX_CUBE_INSTANCES,
     false, false, 0,
     true,
-    CubeEntityProp::SPAWN_ROLL, CubeConfig::SPAWN_CHANCE,
+    CubeProp::SPAWN_ROLL, CubeConfig::SPAWN_CHANCE,
     CubeConfig::MOOD_MULTIPLIER, CubeConfig::POSITION_JITTER,
-    CUBE_TIER_COUNT, CubeEntityProp::TIER,
+    CUBE_TIER_COUNT, CubeProp::TIER,
     CUBE_PARAM_DEFS, CUBE_PARAM_COUNT,
-    CubeEntityProp::ANCHOR_X, CubeEntityProp::ANCHOR_Z, CubeEntityProp::ROTATION, false,
+    CubeProp::ANCHOR_X, CubeProp::ANCHOR_Z, CubeProp::ROTATION, false,
     0, nullptr,
 };
 
 inline SpawnGateOutput cube_run_gate(MachineCtx* c, int32_t gx, int32_t gz) {
     auto gate = run_spawn_preamble(c, gx, gz, c->cube_behaviors_state_.activeCubes_, Dim::MAX_CUBE_INSTANCES,
-        CubeEntityProp::SPAWN_ROLL, CubeConfig::SPAWN_CHANCE,
+        CubeProp::SPAWN_ROLL, CubeConfig::SPAWN_CHANCE,
         CubeConfig::MOOD_MULTIPLIER, PopFamily::CUBE, "cube");
     return { gate.ok, gate.seed, gate.slot, gate.theme_idx };
 }
@@ -546,9 +546,9 @@ inline void cube_compute_solid_half(EntityInstance& inst, const TierProfile&) {
 }
 
 inline void cube_compute_colors(EntityInstance& inst, const EntityFamilyTraits&, const TierProfile& /*tier*/) {
-    inst.colors[0] = cpu_hash_f(inst.seed, CubeEntityProp::COLOR_R) * 0.55f + 0.35f;
-    inst.colors[1] = cpu_hash_f(inst.seed, CubeEntityProp::COLOR_G) * 0.50f + 0.30f;
-    inst.colors[2] = cpu_hash_f(inst.seed, CubeEntityProp::COLOR_B) * 0.60f + 0.20f;
+    inst.colors[0] = cpu_hash_f(inst.seed, CubeProp::COLOR_R) * 0.55f + 0.35f;
+    inst.colors[1] = cpu_hash_f(inst.seed, CubeProp::COLOR_G) * 0.50f + 0.30f;
+    inst.colors[2] = cpu_hash_f(inst.seed, CubeProp::COLOR_B) * 0.60f + 0.20f;
 }
 
 inline void cube_write_active(MachineCtx* c, const EntityInstance& inst) {
@@ -564,8 +564,8 @@ inline void cube_write_active(MachineCtx* c, const EntityInstance& inst) {
 inline void cube_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Queue& queue) {
     // Spin tilt: custom derivation from tier constant (not a sampled param)
     float tilt_sigma = CUBE_TIERS[inst.tier_idx].spin_tilt_sigma;
-    float tilt_x = (cpu_hash_f(inst.seed, CubeEntityProp::SPIN_TILT_X) - 0.5f) * 2.0f * tilt_sigma;
-    float tilt_z = (cpu_hash_f(inst.seed, CubeEntityProp::SPIN_TILT_Z) - 0.5f) * 2.0f * tilt_sigma;
+    float tilt_x = (cpu_hash_f(inst.seed, CubeProp::SPIN_TILT_X) - 0.5f) * 2.0f * tilt_sigma;
+    float tilt_z = (cpu_hash_f(inst.seed, CubeProp::SPIN_TILT_Z) - 0.5f) * 2.0f * tilt_sigma;
 
     GPUFloatingEntityState fe{};
     fe.anchor[0] = inst.cx; fe.anchor[1] = 0.0f; fe.anchor[2] = inst.cz;

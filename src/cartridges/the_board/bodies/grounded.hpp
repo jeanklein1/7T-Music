@@ -512,7 +512,7 @@ bool prepare_cactus_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue& queu
 bool prepare_blade_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue& queue);
 bool prepare_column_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue& queue);
 bool prepare_arch_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue& queue);
-// prepare_pyramid_mesh_gen CUT (C2 orphan sweep) — pyramid mesh dead-by-design
+// prepare_pyramid_mesh_gen CUT (orphan sweep) — pyramid mesh dead-by-design
 
 // ═══ THE EVICTORS — DECLARATIONS ═══════════════════════════════════
 
@@ -629,7 +629,7 @@ inline bool prepare_arch_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue&
     return true;
 }
 
-// prepare_pyramid_mesh_gen CUT (C2 orphan sweep) — the pyramid mesh-gen driver
+// prepare_pyramid_mesh_gen CUT (orphan sweep) — the pyramid mesh-gen driver
 // is gone (mesh never drawn). Its sole caller (the FAMILY_DISPATCH wrapper) was
 // removed; the pyramid_mesh_gen_pending flag + set_pyramid_index_count it drove
 // are now a dead-store husk (→ C6).

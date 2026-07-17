@@ -610,7 +610,7 @@ namespace t7 {
             //     consumes it NEXT frame (update precedes render within a frame).
             //     A portal step is render N arms -> update N+1 advances; the
             //     one-frame readback lag (E-4) stacks on top.
-            //   E-3 (sky write-order) — MECHANIZED (C7), NO LONGER A LAW. It was
+            //   E-3 (sky write-order) — MECHANIZED, NO LONGER A LAW. It was
             //     a three-writer relay: U2 wrote neutral sky words, U8 uploaded
             //     the whole signal, R7's tail (resync_sky_head) overwrote them,
             //     and correctness rode submission order across update()->render().
@@ -721,7 +721,7 @@ namespace t7 {
                 gpuSignal.dt_beats = signal.t_beats - time_state_.prev_beats;  // beats since last frame -> step_trigger
             }
 
-            // U2 (sky-neutral) REMOVED — E-3 MECHANIZED (C7). The sky block is no
+            // U2 (sky-neutral) REMOVED — E-3 MECHANIZED. The sky block is no
             // longer part of the signal drain: upload_signal skips the trailing
             // 32 bytes, so the block's SOLE author is resync_sky_head (R7, the
             // ribbon tick's tail), with a boot-neutral (initialize) covering the
@@ -918,7 +918,7 @@ namespace t7 {
             }
 
             // U9 — WITNESS: PHOTOGRAPHER (algo). The orb dome anchor movement
-            // retired at p1b-e (skybox, eye-centered in the orb VS; no CPU
+            // retired (skybox — eye-centered in the orb VS; no CPU
             // upload). ROSTER-GATE gallery (b) — P1 dies structurally in a
             // gallery-less demo; guarded at the call site.
             void phase_witness_photographer(UpdateCtx& c) {
@@ -951,7 +951,7 @@ namespace t7 {
             // ═══════════════════════════════════════════════════════════════
             // THE FRAME SPINE — render() phases
             //
-            // CUT 1 (the extraction): the recon's movements R1..R21 are now
+            // THE EXTRACTION: the movements R1..R21 are now
             // named phase methods; render() at the tail of this block is a page
             // of calls. PURE LIFT — no reordering, no logic change. A whole-
             // movement `if constexpr(ROSTER.x)` gate stays at the CALL SITE
@@ -986,12 +986,12 @@ namespace t7 {
                                         std::memcpy(agent_state_.slots, data,
                                             GPUState::agent_state_buffer_size());
                                         const auto& p = agent_state_.slots[player_.possessed_slot];
-                                        // THE POINT (p1b-a): readback_x/z is the
+                                        // THE POINT: readback_x/z is the
                                         // POINT's position — the body authors it
                                         // only when the pawn hosts; the camera
                                         // harvest below authors it in camera-host.
                                         // The portal trigger is the point's BUBBLE
-                                        // sensor (p1b-d), riding the possessed
+                                        // sensor, riding the possessed
                                         // slot's wire in both hosts.
                                         if (point_.host == PointHost::PAWN) {
                                             player_.readback_x = p.pos_x;
@@ -1035,7 +1035,7 @@ namespace t7 {
                         });
                 }
 
-                // THE POINT's camera-host harvest (p1b-a, option A): when
+                // THE POINT's camera-host harvest (option A): when
                 // the camera hosts the point, its GPU-resident position is
                 // the point's position — read it back so the CPU viewpoint
                 // set (streaming center, recenter, LOD banding, lod stage,
@@ -1286,7 +1286,7 @@ namespace t7 {
                     floaterReadbackState_ = FloaterReadbackState::COPIED;
                 }
 
-                // The point readback copy (p1b-a): CAMERA-HOST ONLY — the
+                // The point readback copy: CAMERA-HOST ONLY — the
                 // pawn-host frame encodes no camera copy (option A; the
                 // pawn path stays byte-untouched).
                 if (point_.host == PointHost::CAMERA &&
@@ -1444,7 +1444,7 @@ namespace t7 {
                 { RPhase::PromotionDrain,      "promotion_drain",       &Cartridge::phase_promotion_drain,       Driver::Algo,      (ROSTER.gallery || ROSTER.indoor_shell), F_NONE },
             };
 
-            // ═══ SPINE VALIDATION — C8 dissolves here ═══════════════════════
+            // ═══ SPINE VALIDATION ═══════════════════════
             // Every CROSS-PHASE O-# / RC law the recon named is a static_assert
             // over the row indices: the frame CANNOT be authored out of its
             // lawful order (a reorder fails the BUILD, not the pixel rig). The
@@ -1564,7 +1564,7 @@ namespace t7 {
                 case InputEvent::Type::KeyDown:
                     // The command fan's TARGET organs ride the call site:
                     // the root addresses the fan's
-                    // bodies per event, through the m4 doors — the driver
+                    // bodies per event, through the owner doors — the driver
                     // owns none of them (v3 §9 Act I). The F6 socket stays
                     // RESERVED for a real addressing need.
                     on_key_down(&input_deps_, event.key,
@@ -1647,7 +1647,7 @@ inline void dispatch_mesh_gen_none(MachineCtx* self, wgpu::ComputePassEncoder& p
 //   RENDER_UPDATE mesh phases (none-fork = family has no mesh).
 inline const FamilyDispatch FAMILY_DISPATCH[PopFamily::COUNT] = {
     { dispatch_select_pyramid_generic, dispatch_place_pyramid_generic, dispatch_commit_pyramid_generic,
-      evict_pyramid, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,   // mesh hook → none-fork (C2): pyramid mesh dead-by-design; placement feeds the heightfield
+      evict_pyramid, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,   // mesh hook → none-fork: pyramid mesh dead-by-design; placement feeds the heightfield
       "pyr" },
     { dispatch_select_arch_generic, dispatch_place_arch_generic, dispatch_commit_arch_generic,
       evict_arch,    Cartridge::dispatch_prepare_mesh_arch,    Cartridge::dispatch_mesh_gen_arch,

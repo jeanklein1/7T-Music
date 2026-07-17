@@ -19,7 +19,7 @@
 // wire (c->gpuState_ / c->renderer_). The reaches OUTSIDE the face
 // ride the call site (the B law): the WRITABLE tile-cache + theme
 // organs (the face's views are const — the lifecycle owner mutates
-// them through the m4 doors), the tile doors' deps, the mood deps
+// them through the owner doors), the tile doors' deps, the mood deps
 // (the back-portal door), and the driver's intent organ (the movement
 // budget read). COHORT: the tail's last — after the machine natives
 // (spawn service defs) and mood (the back-portal door's def).
@@ -187,7 +187,7 @@ inline uint32_t patches_budget_this_frame(MachineCtx* c, const InputState& input
 
 // ── World lifecycle ────────────────────────────────────────────────
 //
-// Keyhole form. CALLER: the transition machine
+// Root-called owner verb. CALLER: the transition machine
 // (root); OWNER: patch_system. The bulk
 // sweep over sibling organs dissolved into per-owner teardown verbs
 // called by the score's TEARDOWN movement; this core keeps the
@@ -206,13 +206,13 @@ inline void teardown_surface(MachineCtx* c, wgpu::Queue& queue,
     c->world_state_.last_center_x = INT32_MAX;  // force full regen on next frame
     c->world_state_.last_center_z = INT32_MAX;
 
-    // Terrain tokens — through the owner's door (m4)
+    // Terrain tokens — through the owner's door
     reset_terrain_memory(tile_world_state);
 
     c->spawn_engine_state_.entityQueue_.clear();
     c->spawn_engine_state_.placementResults_.clear();
 
-    // Theme envelope — through the owner's door (m4)
+    // Theme envelope — through the owner's door
     reset_theme_envelope(themes_state);
 
     // Clear all entity piers (keep test rig at slots 0-2)
@@ -299,7 +299,7 @@ inline void init_patch_system(MachineCtx* c, TileWorldState& tile_world_state) {
     c->world_state_.lod0_patch_count = 0;
     c->world_state_.all_patch_count = 0;
     c->gpuState_.stage_placement_patch_count(0);
-    reset_tile_cache(tile_world_state);  // owner door (m4)
+    reset_tile_cache(tile_world_state);  // owner door
     c->world_state_.pier_count_dirty = true;
     c->world_state_.ground_entries_dirty = true;
     c->world_state_.patch_instances_dirty = true;
@@ -492,7 +492,7 @@ inline void spawn_selected_patches(MachineCtx* c, const PatchCandidate* candidat
         uint32_t pi = candidates[s].idx;
         int32_t gx = c->patch_system_state_.patches_[pi].grid_x;
         int32_t gz = c->patch_system_state_.patches_[pi].grid_z;
-        // Two-tip registration through the owner's door (m4): the
+        // Two-tip registration through the owner's door: the
         // ref-count protocol lives whole in bodies/ribbon.hpp now.
         ribbon_register_tips_at(c->ribbon_state_, c->patch_system_state_.patches_[pi], gx, gz);
     }
@@ -563,7 +563,7 @@ inline void band_patches(MachineCtx* c, wgpu::Queue& queue) {
     GPUPatchInstance lod1[Dim::MAX_ACTIVE_PATCHES]{};
     GPUPatchInstance pregen[Dim::MAX_ACTIVE_PATCHES]{};
 
-    float point_wx = c->player_.readback_x;   // THE POINT (p1b-a; 1-frame stale by law E-4)
+    float point_wx = c->player_.readback_x;   // THE POINT (1-frame stale by law E-4)
     float point_wz = c->player_.readback_z;
     float half = Dim::PATCH_EXTENT * 0.5f;
 
@@ -741,7 +741,7 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
             int32_t rp = rr + TILE_PAD;
             for (int32_t gz = centerZ - rp; gz <= centerZ + rp; gz++) {
                 for (int32_t gx = centerX - rp; gx <= centerX + rp; gx++) {
-                    ensure_tile(tile_world_state, &tile_world_deps, gx, gz);  // owner door (m4)
+                    ensure_tile(tile_world_state, &tile_world_deps, gx, gz);  // owner door
                 }
             }
 
@@ -867,7 +867,7 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
             int32_t gz = candidates[a].gz;
             // Ensure tile cache entry (primary — ticks terrain tokens),
             // then cache neighbors for tile grid padding — both through
-            // the owner's doors (m4).
+            // the owner's doors.
             ensure_tile(tile_world_state, &tile_world_deps, gx, gz);
             for (int dz = -1; dz <= 1; dz++) for (int dx = -1; dx <= 1; dx++) {
                 ensure_tile_padding(tile_world_state, &tile_world_deps, gx + dx, gz + dz);

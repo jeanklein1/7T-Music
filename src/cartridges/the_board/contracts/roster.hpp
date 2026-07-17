@@ -26,13 +26,13 @@
 //
 // MATURITY DIAL: the GATES are the stable contract; the table's
 //   CONSTNESS is the dial — v0 constexpr -> boot-time table ->
-//   requirements-face resolver (theory v2 §5).
+//   requirements-face resolver (the program theory).
 //
 // LATENT[roster-split:photographer]: the photographer (capture cadence +
 //   snapshot pass) rides gallery's bit for v0. Split into its own bit the
 //   day authored-only exhibits with a dead camera are wanted.
 //
-// ─── GATE-(a) STATUS (the M-j cost column) ──────────────────────────
+// ─── GATE-(a) STATUS (the cost column) ──────────────────────────
 //   The creation-side classification (full cost table with buffers/
 //   groups/pipelines and retirement per piece: history, audit/LADDER.md).
 //   SEP     = separable now: creation skipped atomically, boot+draws safe.
@@ -74,7 +74,7 @@ struct PopFamily {
 // vectors, PROXIMITY_AFFINITY, THEMES[].spawn_weight,
 // TilePopulation::spatial_density), as is FAMILY_DISPATCH (whose rows are
 // additionally name-checked at boot by validate_spine, F-2). AND (charter
-// extended, R5): the enum order IS PLACEMENT
+// extended): the enum order IS PLACEMENT
 // PRIORITY — select_entities_for_patch loops f=0..COUNT and the queue
 // places in push order, so within a patch PYRAMID's footprint registers
 // before ARCH's separation check, ARCH's before COLUMN's… the order

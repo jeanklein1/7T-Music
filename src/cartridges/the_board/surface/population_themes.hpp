@@ -63,7 +63,7 @@ struct PopulationTheme {
 
 // THE S2/S3 BOUNDARY FACE: THEMES is read across the boundary by the
 // theme_tier_weights accessor (the interface trio's vocabulary member —
-// theory v2 §4; formalized at the A-era; Q5 unified the per-family plugs).
+// the program theory; Q5 unified the per-family plugs).
 //
 // ── The theme table ────────────────────────────────────────────────
 // AXES: row = theme id (0 TRANSITION / 1 MONUMENTAL / 2 COLONNADE /
@@ -291,7 +291,7 @@ inline TilePopulation generate_tile_population(uint32_t active_seed, int32_t gx,
 
         for (uint32_t f = 0; f < PopFamily::COUNT; f++)
             pop.spatial_density[f] = blended_spawn[f];
-        // (pop.theme_idx dead write CUT — R5: the spatial
+        // (pop.theme_idx dead write CUT: the spatial
         //  dominant-theme was authored and read nowhere; the LIVE theme axis
         //  is the temporal one, evaluate_theme_envelope → temporal_flavor.)
         pop.entity_density *= blended_density;  // theme density stacks with spatial density
@@ -312,7 +312,7 @@ inline float theme_envelope_weight(const PopulationTheme& theme, uint32_t elapse
 // Called ONCE per patch, inside the spawn loop, BEFORE per-family gates.
 // Returns the theme index to use for this patch. DEFINED below
 // (the flag-gated census dump reaches the machine via MachineCtx).
-uint32_t evaluate_theme_envelope(ThemesState& ts, MachineCtx* c, uint32_t tile_seed_value);  // stores its own result (m4); takes the face (d2)
+uint32_t evaluate_theme_envelope(ThemesState& ts, MachineCtx* c, uint32_t tile_seed_value);  // stores its own result ; takes the face
 void reset_theme_envelope(ThemesState& ts);
 
 
@@ -407,7 +407,7 @@ inline uint32_t evaluate_theme_envelope(ThemesState& ts, MachineCtx* c, uint32_t
         if (env.cooldowns[i] > 0) env.cooldowns[i]--;
     }
 
-    ts.temporal_flavor = selected;  // stores its own result (m4) — the caller no longer writes the organ
+    ts.temporal_flavor = selected;  // stores its own result — the caller no longer writes the organ
     return selected;
 }
 

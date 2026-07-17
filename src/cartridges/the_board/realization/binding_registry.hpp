@@ -3,7 +3,7 @@
 // THE BINDING REGISTRY (C6) — the single source of truth for GPU binding
 // NUMBERS. Every bind-group layout entry AND its matching group entry
 // reference the SAME named constant here, so the "binding integer typed
-// twice" hazard (L2-a) is a compile error, not a
+// twice" hazard is a compile error, not a
 // runtime crash: a typo is an undefined symbol glaw1 catches.
 //
 // GROUP-SCOPED (forced, not stylistic). A binding number is a per-@group
@@ -52,7 +52,7 @@ namespace t7 {
                 inline constexpr uint32_t vp_data                    = 2;   // aka fc_vp (frustum-cull alias)
 
                 // terrain / patch lattice (20–30)
-                // (terrain_state @20 / render_terrain @220 REMOVED — husk sweep:
+                // (terrain_state @20 / render_terrain @220 REMOVED:
                 //  the dead GPUTerrainState buffer's bindings, no shader reader.)
                 inline constexpr uint32_t terrain_mesh_indices       = 22;
                 inline constexpr uint32_t patch_params               = 23;
@@ -90,8 +90,8 @@ namespace t7 {
                 inline constexpr uint32_t photo_sampler              = 146;
                 inline constexpr uint32_t arch_ground                = 147;
                 inline constexpr uint32_t column_ground              = 148;
-                // 149 RETIRED — pyramid_ground (residue T2: the ground-atlas husk;
-                // its slot-48 write was reader-free since C2). Number parked.
+                // 149 RETIRED — pyramid_ground (the ground-atlas residue;
+                // its slot-48 write was reader-free). Number parked.
                 inline constexpr uint32_t plant_ground               = 150;
                 inline constexpr uint32_t entity_ground_atlas_write  = 151;
                 inline constexpr uint32_t patch_grid                 = 152;
@@ -123,7 +123,7 @@ namespace t7 {
                 inline constexpr uint32_t bladeg_indices             = 188;
 
                 // mesh-gen scratch: arch/column (193–198)
-                // (pmg_* @190/191/192 REMOVED — husk sweep: the pyramid mesh-gen
+                // (pmg_* @190/191/192 REMOVED: the pyramid mesh-gen
                 //  basket, no entry point / pipeline / dispatch ever used it.)
                 inline constexpr uint32_t amg_params                 = 193;
                 inline constexpr uint32_t amg_vertices               = 194;

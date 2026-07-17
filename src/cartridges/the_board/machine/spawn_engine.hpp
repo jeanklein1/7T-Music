@@ -199,7 +199,7 @@ SpawnGatePreambleResult run_spawn_preamble(C* c,
         }
     }
 
-    // 2-6. THE COMPOSITION LAW (R1): the stack, authored once —
+    // 2-6. THE COMPOSITION LAW: the stack, authored once —
     // mood → global → tile (F3) → proximity → base × adj → min(·,1).
     // Generic semantics: multiply-through on mood zero (no veto flag),
     // proximity ON, MIN1 clamp.
@@ -598,7 +598,7 @@ inline void dump_entity_census(MachineCtx* c, const char* trigger) {
 // Evaluate the spawn gate: seed + flat probability check.
 // adjacency_mod is a multiplier from the full spawn cascade.
 // ═══ THE COMPOSITION LAW — definition (decl: spawn_services.hpp) ═══
-// The ONE place the spawn-probability stack is authored (R1). The
+// The ONE place the spawn-probability stack is authored. The
 // float multiplication ORDER below is the bit-identity contract
 // — do not reorder a multiply, do not move a
 // clamp. Exact argument orders of min/max preserved per policy.
@@ -627,7 +627,7 @@ inline SpawnPreamble evaluate_spawn_gate(MachineCtx* c, int32_t gx, int32_t gz,
     uint32_t spawn_roll_prop,
     float chance) {
     SpawnPreamble result{};
-    // (per-gate archetype lookup CUT — R5: computed for
+    // (per-gate archetype lookup CUT: computed for
     //  every generic gate, read by nobody; the sole archetype consumer
     //  (gallery) calls tile_archetype itself in its bespoke funnel.)
     result.seed = tile_seed(c->world_state_.active_seed, gx, gz);

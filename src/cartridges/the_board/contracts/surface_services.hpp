@@ -170,7 +170,7 @@ struct PatchSystemState {
 // wire (gpuState_ / renderer_). The reaches outside the face ride
 // the call sites: the tile doors' deps, the mood deps, the driver's
 // intent organ.
-struct TileWorldState;  // tile_world.hpp — the tile cache organ (fwd: the lifecycle owner mutates it through the m4 doors; the machine face's view is const)
+struct TileWorldState;  // tile_world.hpp — the tile cache organ (fwd: the lifecycle owner mutates it through the owner doors; the machine face's view is const)
 struct ThemesState;     // population_themes.hpp — the theme envelope organ (fwd: same law)
 struct TileWorldDeps;   // tile_world.hpp — the tile doors' face (fwd: reference param)
 struct MoodDeps;        // mood.hpp — the back-portal door's face (fwd: reference param)
@@ -186,17 +186,17 @@ void audit_entity_integrity(MachineCtx* c);
 uint32_t count_pending_patches(MachineCtx* c);
 uint32_t patches_budget_this_frame(MachineCtx* c, const InputState& inputState);
 
-// Keyhole form. CALLER: the transition machine
+// Root-called owner verb. CALLER: the transition machine
 // (root); OWNER: patch_system.
 void teardown_surface(MachineCtx* c, wgpu::Queue& queue,
     TileWorldState& tile_world_state, ThemesState& themes_state);  // was teardown_world; reduced to the surface core
 
 void init_patch_system(MachineCtx* c, TileWorldState& tile_world_state);
-// The recenter door (m4): names the hidden regen request — the
+// The recenter door: names the hidden regen request — the
 // streaming conductor re-evaluates the full window next frame.
 // Caller: the radius command (direction/input). DEPS-FORM: the
 // driver world holds no MachineCtx — the door takes its
-// one organ explicitly (the m3 precedent class, clear_spheres).
+// one organ explicitly (the deps-form precedent, clear_spheres).
 void request_recenter(WorldState& ws);
 void write_pier(MachineCtx* c, wgpu::Queue& queue, uint32_t slot, const GPUPierInstance& pier);
 void clear_pier(MachineCtx* c, wgpu::Queue& queue, uint32_t slot);

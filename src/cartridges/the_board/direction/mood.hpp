@@ -80,7 +80,7 @@
 //   mood module rather than input because portal crossings and other
 //   code paths can also drive mood transitions. One door, many keys.
 //   DEPS-FORM: the driver world holds no MachineCtx
-//   — the door takes the transition channel explicitly (the m3
+//   — the door takes the transition channel explicitly (the deps-form
 //   precedent class, clear_spheres).
 // ─────────────────────────────────────────────────────────────────
 
@@ -164,18 +164,18 @@ inline constexpr float INDOOR_ENTITY_WALL_MARGIN = 20.0f;
 // face: the mood organ, the sun/clear channel, the CPU light + portal
 // staging arrays, the back-portal anchor, the realization pokes
 // (GPUState uploads, the frustum-cull flag), the gol mood gate (the
-// m4 FLAG CHANNEL [mood -> gol]), and a const view of entities (the
+// THE FLAG CHANNEL [mood -> gol]), and a const view of entities (the
 // portal-array upload reads arch positions). The fan's TARGET organs
 // are deliberately NOT members (the B ruling, input's precedent):
 // ribbon/orbs/gallery/pawn pairs + the machine face ride apply_mood's
 // parameters — the spine addresses the fan's bodies at the call site,
-// through the m4 command doors.
+// through the owner command doors.
 struct MoodDeps {
     MoodState&           mood_state_;
     const WorldState&    world_state_;
     GPUState&            gpuState_;
     Renderer&            renderer_;          // set_frustum_cull_active (per-mood realization poke)
-    GoLState&            gol_state_;         // mood_allowed — the m4 flag channel [mood -> gol]
+    GoLState&            gol_state_;         // mood_allowed — the flag channel [mood -> gol]
     const EntitiesState& entities_state_;    // upload_portal_array reads arch positions
     float (&sunDirection_)[3];
     float (&sunColor_)[3];
@@ -699,7 +699,7 @@ inline void apply_mood_anchor_ribbon(MoodDeps* c, uint32_t mood, wgpu::Queue& qu
     // Commit through the standard path
     commit_ribbon(ribbon_state, &machine_ctx, plan, 0, 0, queue);
 
-    // Immediate promotion through the owner's door (m4).
+    // Immediate promotion through the owner's door.
     promote_ribbon_to_rendered(ribbon_state, &ribbon_deps, 0, queue);
 }
 
@@ -721,7 +721,7 @@ inline void apply_mood(MoodDeps* c, uint32_t mood, wgpu::Queue& queue,
     // Per-mood feature gates: GoL zones, aura.
     // Aura policy: respect player preference when permitted, force off when forbidden.
     c->gol_state_.mood_allowed     = m.allow_gol_zones;
-    apply_aura_mood_policy(pawn_state, m.allow_pawn_aura);  // the pawn door (m4); byte-identical semantics
+    apply_aura_mood_policy(pawn_state, m.allow_pawn_aura);  // the pawn door; byte-identical semantics
 
     apply_mood_lighting(c, m, queue);          // sun + fog + amp ceiling (foundational — sun is not a piece)
     if constexpr (ROSTER.spot_lights)          // ROSTER-GATE spot_lights (b) — indoor spot array never configured

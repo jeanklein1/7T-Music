@@ -307,7 +307,7 @@ void dispatch_zone_mesh(GoLState& gs, GolDeps* c, wgpu::CommandEncoder& encoder)
 
 inline bool select_gol_for_patch(GoLState& gs, MachineCtx* c,
     int32_t gx, int32_t gz, GoLSelection& sel) {
-    // THE COMPOSITION LAW (R1): the shared stack — mood (explicit veto)
+    // THE COMPOSITION LAW: the shared stack — mood (explicit veto)
     // → global → tile (F3); proximity OFF (GoL's affinity row is zero);
     // clamp [0,1]. The per-lattice-node roll stays below (its own seed
     // domain, cpu_lattice_node_seed — a consumer fact, not the law's).
