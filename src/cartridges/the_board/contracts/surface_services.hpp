@@ -184,14 +184,14 @@ void evict_patch(MachineCtx* c, uint32_t pi, wgpu::Queue& queue);
 void evict_patch_entities(MachineCtx* c, ActivePatch& patch, wgpu::Queue& queue);
 void audit_entity_integrity(MachineCtx* c);
 uint32_t count_pending_patches(MachineCtx* c);
-uint32_t patches_budget_this_frame(MachineCtx* c, const InputState& inputState_);
+uint32_t patches_budget_this_frame(MachineCtx* c, const InputState& inputState);
 
 // Keyhole form. CALLER: the transition machine
 // (root); OWNER: patch_system.
 void teardown_surface(MachineCtx* c, wgpu::Queue& queue,
-    TileWorldState& tile_world_state_, ThemesState& themes_state_);  // was teardown_world; reduced to the surface core
+    TileWorldState& tile_world_state, ThemesState& themes_state);  // was teardown_world; reduced to the surface core
 
-void init_patch_system(MachineCtx* c, TileWorldState& tile_world_state_);
+void init_patch_system(MachineCtx* c, TileWorldState& tile_world_state);
 // The recenter door (m4): names the hidden regen request — the
 // streaming conductor re-evaluates the full window next frame.
 // Caller: the radius command (direction/input). DEPS-FORM: the
@@ -220,17 +220,17 @@ uint32_t collect_sorted_patches(MachineCtx* c, PatchCandidate* out,
 bool in_priority_window(MachineCtx* c, int32_t gx, int32_t gz, int32_t cx, int32_t cz);
 void spawn_selected_patches(MachineCtx* c, const PatchCandidate* candidates, uint32_t count,
     wgpu::Queue& queue,
-    ThemesState& themes_state_);
+    ThemesState& themes_state);
 void on_patch_first_generated(MachineCtx* c, uint32_t pi, wgpu::Queue& queue);
 void generate_selected_patches(MachineCtx* c, const PatchCandidate* candidates, uint32_t count,
     wgpu::CommandEncoder& encoder, wgpu::Queue& queue,
     uint32_t& patchStagingOffset, bool& tileGridDirty,
-    TileWorldState& tile_world_state_, TileWorldDeps& tile_world_deps_);
+    TileWorldState& tile_world_state, TileWorldDeps& tile_world_deps);
 
 // THE CONDUCTOR: the per-frame streaming step.
 void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Queue& queue,
-    TileWorldState& tile_world_state_, ThemesState& themes_state_,
-    TileWorldDeps& tile_world_deps_, MoodDeps& mood_deps_, const InputState& inputState_);
+    TileWorldState& tile_world_state, ThemesState& themes_state,
+    TileWorldDeps& tile_world_deps, MoodDeps& mood_deps, const InputState& inputState);
 
 } // namespace the_board
 } // namespace t7

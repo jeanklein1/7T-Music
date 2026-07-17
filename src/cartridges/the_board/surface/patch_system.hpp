@@ -169,7 +169,7 @@ inline uint32_t count_pending_patches(MachineCtx* c) {
     return n;
 }
 
-inline uint32_t patches_budget_this_frame(MachineCtx* c, const InputState& inputState_) {
+inline uint32_t patches_budget_this_frame(MachineCtx* c, const InputState& inputState) {
     uint32_t pending = count_pending_patches(c);
     uint32_t budget = PATCH_BUDGET_MIN;
     if (pending >= PATCH_PENDING_TIER_4) budget = 6;
@@ -177,8 +177,8 @@ inline uint32_t patches_budget_this_frame(MachineCtx* c, const InputState& input
     else if (pending >= PATCH_PENDING_TIER_2) budget = 3;
     else if (pending >= PATCH_PENDING_TIER_1) budget = 2;
 
-    bool moving = (std::abs(inputState_.move_x) > 0.01f ||
-        std::abs(inputState_.move_z) > 0.01f);
+    bool moving = (std::abs(inputState.move_x) > 0.01f ||
+        std::abs(inputState.move_z) > 0.01f);
     if (moving && pending > PATCH_BUDGET_MOVE_THRESHOLD)
         budget += 1;
 
@@ -200,20 +200,20 @@ inline void request_recenter(WorldState& ws) {
 }
 
 inline void teardown_surface(MachineCtx* c, wgpu::Queue& queue,
-    TileWorldState& tile_world_state_, ThemesState& themes_state_) {
+    TileWorldState& tile_world_state, ThemesState& themes_state) {
     // Patches + tile cache
-    init_patch_system(c, tile_world_state_);
+    init_patch_system(c, tile_world_state);
     c->world_state_.last_center_x = INT32_MAX;  // force full regen on next frame
     c->world_state_.last_center_z = INT32_MAX;
 
     // Terrain tokens — through the owner's door (m4)
-    reset_terrain_memory(tile_world_state_);
+    reset_terrain_memory(tile_world_state);
 
     c->spawn_engine_state_.entityQueue_.clear();
     c->spawn_engine_state_.placementResults_.clear();
 
     // Theme envelope — through the owner's door (m4)
-    reset_theme_envelope(themes_state_);
+    reset_theme_envelope(themes_state);
 
     // Clear all entity piers (keep test rig at slots 0-2)
     for (uint32_t i = Dim::PIER_ARCH_BASE; i < Dim::PIER_TOTAL; i++) {
@@ -289,7 +289,7 @@ inline void mark_patches_for_regen(MachineCtx* c, float min_wx, float min_wz,
 
 // ── Patch subsystem setup ──────────────────────────────────────────
 
-inline void init_patch_system(MachineCtx* c, TileWorldState& tile_world_state_) {
+inline void init_patch_system(MachineCtx* c, TileWorldState& tile_world_state) {
     for (uint32_t i = 0; i < Dim::MAX_ACTIVE_PATCHES; i++) {
         c->patch_system_state_.freeLayerStack_[i] = Dim::MAX_ACTIVE_PATCHES - 1 - i;
     }
@@ -299,7 +299,7 @@ inline void init_patch_system(MachineCtx* c, TileWorldState& tile_world_state_) 
     c->world_state_.lod0_patch_count = 0;
     c->world_state_.all_patch_count = 0;
     c->gpuState_.stage_placement_patch_count(0);
-    reset_tile_cache(tile_world_state_);  // owner door (m4)
+    reset_tile_cache(tile_world_state);  // owner door (m4)
     c->world_state_.pier_count_dirty = true;
     c->world_state_.ground_entries_dirty = true;
     c->world_state_.patch_instances_dirty = true;
@@ -477,10 +477,10 @@ inline bool in_priority_window(MachineCtx* c, int32_t gx, int32_t gz, int32_t cx
 // Process entity spawn for pre-collected patch candidates.
 inline void spawn_selected_patches(MachineCtx* c, const PatchCandidate* candidates, uint32_t count,
     wgpu::Queue& queue,
-    ThemesState& themes_state_) {
+    ThemesState& themes_state) {
     for (uint32_t s = 0; s < count; s++) {
         uint32_t pi = candidates[s].idx;
-        evaluate_theme_envelope(themes_state_, c,
+        evaluate_theme_envelope(themes_state, c,
             tile_seed(c->world_state_.active_seed, c->patch_system_state_.patches_[pi].grid_x, c->patch_system_state_.patches_[pi].grid_z));
         select_entities_for_patch(c, c->patch_system_state_.patches_[pi].grid_x, c->patch_system_state_.patches_[pi].grid_z);
         c->patch_system_state_.patches_[pi].phase = PatchPhase::SPAWNED;
@@ -509,10 +509,10 @@ inline void on_patch_first_generated(MachineCtx* c, uint32_t pi, wgpu::Queue& qu
 inline void generate_selected_patches(MachineCtx* c, const PatchCandidate* candidates, uint32_t count,
     wgpu::CommandEncoder& encoder, wgpu::Queue& queue,
     uint32_t& patchStagingOffset, bool& tileGridDirty,
-    TileWorldState& tile_world_state_, TileWorldDeps& tile_world_deps_) {
+    TileWorldState& tile_world_state, TileWorldDeps& tile_world_deps) {
     if (count == 0) return;
     if (tileGridDirty) {
-        upload_tile_grid_now(tile_world_state_, &tile_world_deps_, queue, c->world_state_.last_center_x, c->world_state_.last_center_z);
+        upload_tile_grid_now(tile_world_state, &tile_world_deps, queue, c->world_state_.last_center_x, c->world_state_.last_center_z);
         tileGridDirty = false;
     }
     GPUPatchParams batchParams[Dim::MAX_ACTIVE_PATCHES];
@@ -694,8 +694,8 @@ inline std::unordered_set<GridKey, GridKeyHash> build_active_patch_set(MachineCt
 //   update_entity_draw_visibility + flush_pier_count at the
 //   frame tail — the surface machine waking the occupier machine.
 inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Queue& queue,
-    TileWorldState& tile_world_state_, ThemesState& themes_state_,
-    TileWorldDeps& tile_world_deps_, MoodDeps& mood_deps_, const InputState& inputState_) {
+    TileWorldState& tile_world_state, ThemesState& themes_state,
+    TileWorldDeps& tile_world_deps, MoodDeps& mood_deps, const InputState& inputState) {
     // ─── Patch Generation Pipeline ─────────────────────────────────
 
     int32_t centerX, centerZ;
@@ -727,7 +727,7 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
         bool fullRegen = (oldCX == INT32_MAX);  // first frame
 
         // Lightweight cache maintenance (no GPU buffer writes)
-        evict_distant_tiles(tile_world_state_, centerX, centerZ);
+        evict_distant_tiles(tile_world_state, centerX, centerZ);
 
         if (!fullRegen) {
             tileGridDirty = true;
@@ -741,13 +741,13 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
             int32_t rp = rr + TILE_PAD;
             for (int32_t gz = centerZ - rp; gz <= centerZ + rp; gz++) {
                 for (int32_t gx = centerX - rp; gx <= centerX + rp; gx++) {
-                    ensure_tile(tile_world_state_, &tile_world_deps_, gx, gz);  // owner door (m4)
+                    ensure_tile(tile_world_state, &tile_world_deps, gx, gz);  // owner door (m4)
                 }
             }
 
             // NOW spawn portals — tile cache is populated, terrain heights are correct
             if (c->mood_state_.back_portal_pending) {
-                force_spawn_back_portal(&mood_deps_, queue, *c);
+                force_spawn_back_portal(&mood_deps, queue, *c);
             }
             // Built ONCE before the window loop: bit-identical to the old
             // per-cell O(N) scan (each cell is unique, so a patch added at an
@@ -777,7 +777,7 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
                     return p.phase == PatchPhase::ALLOCATED &&
                         in_priority_window(c, p.grid_x, p.grid_z, centerX, centerZ);
                 }, true);
-            spawn_selected_patches(c, spawnCands, spawnCount, queue, themes_state_);
+            spawn_selected_patches(c, spawnCands, spawnCount, queue, themes_state);
 
             // Generate inner patches
             PatchCandidate genCands[Dim::MAX_ACTIVE_PATCHES];
@@ -788,7 +788,7 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
                         in_priority_window(c, p.grid_x, p.grid_z, centerX, centerZ);
                 }, true);
             generate_selected_patches(c, genCands, genCount,
-                encoder, queue, patchStagingOffset, tileGridDirty, tile_world_state_, tile_world_deps_);
+                encoder, queue, patchStagingOffset, tileGridDirty, tile_world_state, tile_world_deps);
         }
     }
 
@@ -868,9 +868,9 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
             // Ensure tile cache entry (primary — ticks terrain tokens),
             // then cache neighbors for tile grid padding — both through
             // the owner's doors (m4).
-            ensure_tile(tile_world_state_, &tile_world_deps_, gx, gz);
+            ensure_tile(tile_world_state, &tile_world_deps, gx, gz);
             for (int dz = -1; dz <= 1; dz++) for (int dx = -1; dx <= 1; dx++) {
-                ensure_tile_padding(tile_world_state_, &tile_world_deps_, gx + dx, gz + dz);
+                ensure_tile_padding(tile_world_state, &tile_world_deps, gx + dx, gz + dz);
             }
             uint32_t layer = alloc_layer(c);
             c->patch_system_state_.patches_[c->world_state_.active_patch_count] = ActivePatch{};
@@ -899,7 +899,7 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
                 return p.phase == PatchPhase::ALLOCATED;
             }, true);
         spawn_selected_patches(c, candidates,
-            std::min(count, SPAWN_BUDGET_PER_FRAME), queue, themes_state_);
+            std::min(count, SPAWN_BUDGET_PER_FRAME), queue, themes_state);
     }
 
     // ─── DISTANCE-DRIVEN HEIGHTFIELD GENERATION ──────────────────
@@ -913,8 +913,8 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
                     p.phase == PatchPhase::NEEDS_REGEN;
             }, true);
         generate_selected_patches(c, candidates,
-            std::min(count, patches_budget_this_frame(c, inputState_)),
-            encoder, queue, patchStagingOffset, tileGridDirty, tile_world_state_, tile_world_deps_);
+            std::min(count, patches_budget_this_frame(c, inputState)),
+            encoder, queue, patchStagingOffset, tileGridDirty, tile_world_state, tile_world_deps);
     }
 
     // The conductor tail as a sequence of named units (was one inline block).
@@ -931,7 +931,7 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
     c->world_state_.entities_culled = update_entity_draw_visibility(c, queue);
 
     // ─── Deferred uploads (one per frame max) ────────────────
-    if (tileGridDirty) upload_tile_grid_now(tile_world_state_, &tile_world_deps_, queue, c->world_state_.last_center_x, c->world_state_.last_center_z);
+    if (tileGridDirty) upload_tile_grid_now(tile_world_state, &tile_world_deps, queue, c->world_state_.last_center_x, c->world_state_.last_center_z);
     flush_pier_count(c, queue);
 
     audit_entity_integrity(c);
