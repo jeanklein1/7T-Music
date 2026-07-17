@@ -207,11 +207,18 @@ uint32_t register_footprint(MachineCtx* c, float x, float z, float radius,
     int32_t gx, int32_t gz, uint32_t family = UINT32_MAX,
     uint32_t tier = 0);
 void unregister_footprints_for_patch(MachineCtx* c, int32_t gx, int32_t gz);
+// The indoor bounds law (INDOOR_TREATMENT.bounds — contracts/
+// indoor_module.hpp): MARGIN clamps footprint_r inside the wall
+// margin; FULL clamps containment_r (the family's whole extent);
+// FREE skips. Returns false when a FULL legal box collapses — the
+// caller skips the spawn (the loud line prints in the law).
+bool indoor_bounds_clamp(MachineCtx* c, uint32_t family,
+    float footprint_r, float containment_r, float& cx, float& cz);
 PositionResult negotiate_position(MachineCtx* c,
     uint32_t seed, int32_t trigger_gx, int32_t trigger_gz,
     uint32_t pos_x_prop, uint32_t pos_z_prop, float jitter,
     uint32_t rotation_seed_prop,
-    float footprint_r, uint32_t family, uint32_t tier = 0);
+    float footprint_r, float containment_r, uint32_t family, uint32_t tier = 0);
 void record_placement_bookkeeping(uint32_t family, uint32_t tier_idx);
 GPUArchMeshParams build_arch_mesh_params(MachineCtx* c, uint32_t slot);
 GPUColumnMeshParams build_column_mesh_params_from(const ActiveColumn& c);

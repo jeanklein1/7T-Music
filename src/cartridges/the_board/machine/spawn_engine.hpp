@@ -245,13 +245,66 @@ SpawnGatePreambleResult run_spawn_preamble(C* c,
 // through FAMILY_DISPATCH with the machine face as the row argument.
 
 
+// ── Helper 1b: the indoor bounds law ────────────────────────
+//
+// One law for every placement site (negotiate_position + the
+// gallery's own site). In finite indoor worlds, push the
+// candidate inward so the clamped radius stays at least
+// INDOOR_ENTITY_WALL_MARGIN from every wall. We clamp instead of
+// rejecting because rejection would silently drop entities
+// anchored to corner patches (their seed-determined position
+// keeps landing in the wall margin and never recovers). Clamping
+// shifts the candidate to the boundary of the legal box, then
+// the existing footprint-overlap check handles any pile-ups.
+//
+// MARGIN clamps footprint_r (today's law; a collapsed box falls
+// back to the room center — max footprint at radius=1 is 65,
+// capped entities are well under that). FULL clamps
+// containment_r — the family's WHOLE extent stays inside
+// (ribbon: scaled lateral_amp + the scaled cube span; gallery:
+// the fan formula) — and a collapsed box SKIPS the spawn with
+// one loud line: cramming is worse than absence. FREE never
+// clamps (gol may straddle).
+inline bool indoor_bounds_clamp(MachineCtx* c, uint32_t family,
+    float footprint_r, float containment_r, float& cx, float& cz)
+{
+    if (!(c->world_state_.finite_mode && MOOD_TABLE[c->mood_state_.active].indoor))
+        return true;
+    const IndoorBounds bounds = INDOOR_TREATMENT[family].bounds;
+    if (bounds == IndoorBounds::FREE) return true;
+
+    float bmin = -(float)c->world_state_.finite_radius * Dim::PATCH_EXTENT;
+    float bmax = ((float)c->world_state_.finite_radius + 1.0f) * Dim::PATCH_EXTENT;
+    float clearance = INDOOR_ENTITY_WALL_MARGIN
+        + (bounds == IndoorBounds::FULL ? containment_r : footprint_r);
+    float lo = bmin + clearance;
+    float hi = bmax - clearance;
+    if (lo > hi) {
+        if (bounds == IndoorBounds::FULL) {
+            std::cout << "[DIAG:INDOOR-SKIP] " << family_short_name(family)
+                      << " containment_r=" << containment_r
+                      << " exceeds the room — spawn skipped\n";
+            return false;
+        }
+        float center = (bmin + bmax) * 0.5f;
+        cx = center;
+        cz = center;
+        return true;
+    }
+    if (cx < lo) cx = lo;
+    else if (cx > hi) cx = hi;
+    if (cz < lo) cz = lo;
+    else if (cz > hi) cz = hi;
+    return true;
+}
+
 // ── Helper 2: NegotiatePosition ─────────────────────────────
 
 inline PositionResult negotiate_position(MachineCtx* c,
     uint32_t seed, int32_t trigger_gx, int32_t trigger_gz,
     uint32_t pos_x_prop, uint32_t pos_z_prop, float jitter,
     uint32_t rotation_seed_prop,
-    float footprint_r, uint32_t family, uint32_t tier)
+    float footprint_r, float containment_r, uint32_t family, uint32_t tier)
 {
     PositionResult r{};
     r.ok = false;
@@ -261,39 +314,14 @@ inline PositionResult negotiate_position(MachineCtx* c,
         pos_x_prop, pos_z_prop, jitter, r.cx, r.cz);
     r.rotation = cpu_hash_f(seed, rotation_seed_prop) * 6.283185f;
 
-    //
-    // In finite indoor worlds, push the candidate inward so the
-    // entity's footprint stays at least INDOOR_ENTITY_WALL_MARGIN
-    // from every wall. We clamp instead of rejecting because
-    // rejection would silently drop entities anchored to corner
-    // patches (their seed-determined position keeps landing in
-    // the wall margin and never recovers). Clamping shifts the
-    // candidate to the boundary of the legal box, then the
-    // existing footprint-overlap check handles any pile-ups.
-    //
-    // If the room is too small for the entity plus margins on
-    // both sides (lo > hi), we clamp to the room center —
-    // shouldn't happen for typical indoor entities (max
-    // footprint at radius=1 is 65; rescaled entities are well
-    // under that).
-    if (c->world_state_.finite_mode && MOOD_TABLE[c->mood_state_.active].indoor) {
-        float bmin = -(float)c->world_state_.finite_radius * Dim::PATCH_EXTENT;
-        float bmax = ((float)c->world_state_.finite_radius + 1.0f) * Dim::PATCH_EXTENT;
-        float clearance = INDOOR_ENTITY_WALL_MARGIN + footprint_r;
-        float lo = bmin + clearance;
-        float hi = bmax - clearance;
-        if (lo > hi) {
-            float center = (bmin + bmax) * 0.5f;
-            r.cx = center;
-            r.cz = center;
-        }
-        else {
-            if (r.cx < lo) r.cx = lo;
-            else if (r.cx > hi) r.cx = hi;
-            if (r.cz < lo) r.cz = lo;
-            else if (r.cz > hi) r.cz = hi;
-        }
-    }
+    // The indoor bounds law rides INDOOR_TREATMENT (contracts/
+    // indoor_module.hpp): MARGIN keeps the standing wall-margin
+    // clamp; FULL (ribbon on this path) clamps the caller-supplied
+    // containment extent so the whole family stays inside; FREE
+    // skips (gol never crosses this negotiation — it places by
+    // patch cell). A collapsed FULL box skips the spawn.
+    if (!indoor_bounds_clamp(c, family, footprint_r, containment_r, r.cx, r.cz))
+        return r;
 
     // 2. Separation + footprint check (single pass)
     if (!check_position(c, r.cx, r.cz, footprint_r, family))

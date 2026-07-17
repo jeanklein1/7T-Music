@@ -1179,7 +1179,13 @@ inline bool place_ribbon_from_selection(MachineCtx* c,
         RibbonProp::ANCHOR_X, RibbonProp::ANCHOR_Z,
         RibbonConfig::POSITION_JITTER,
         RibbonProp::ORIENTATION,
-        sel.footprint_r, PopFamily::RIBBON, sel.tier_idx);
+        sel.footprint_r,
+        // FULL containment (INDOOR_TREATMENT): the MINIATURE extent —
+        // scaled lateral_amp + the scaled cube span (S-4's scale ran
+        // at selection, before this clamp: a small ribbon needs only
+        // a small room). Outdoors the clamp never fires.
+        /*containment_r*/ sel.lateral_amp + (float)sel.cube_count * sel.cube_size,
+        PopFamily::RIBBON, sel.tier_idx);
     if (!pos.ok) return false;
 
     plan = RibbonPlacement{};

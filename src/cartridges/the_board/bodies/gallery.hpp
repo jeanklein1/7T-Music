@@ -824,13 +824,23 @@ inline bool select_gallery_for_patch(GalleryState& gs, MachineCtx* c, int32_t gx
 // ── place_gallery_from_selection ──
 
 inline bool place_gallery_from_selection(MachineCtx* c, const GallerySelection& sel, GalleryPlacement& plan) {
-    if (!check_position(c, sel.cx, sel.cz, sel.footprint_r, PopFamily::GALLERY))
+    // FULL containment (INDOOR_TREATMENT): the sand-standing fan
+    // stays wholly inside the walls. The containment extent is
+    // sel.footprint_r — its authored formula IS the fan law
+    // (max-count half-span + the painting allowance). Wall-hung
+    // frames are the shell's and never cross this site. A
+    // collapsed box skips the gallery (loud line in the clamp).
+    float cx = sel.cx, cz = sel.cz;
+    if (!indoor_bounds_clamp(c, PopFamily::GALLERY,
+        sel.footprint_r, sel.footprint_r, cx, cz))
+        return false;
+    if (!check_position(c, cx, cz, sel.footprint_r, PopFamily::GALLERY))
         return false;
 
-    int32_t host_gx = (int32_t)std::floor(sel.cx / Dim::PATCH_EXTENT);
-    int32_t host_gz = (int32_t)std::floor(sel.cz / Dim::PATCH_EXTENT);
+    int32_t host_gx = (int32_t)std::floor(cx / Dim::PATCH_EXTENT);
+    int32_t host_gz = (int32_t)std::floor(cz / Dim::PATCH_EXTENT);
 
-    if (register_footprint(c, sel.cx, sel.cz, sel.footprint_r,
+    if (register_footprint(c, cx, cz, sel.footprint_r,
         host_gx, host_gz, PopFamily::GALLERY, sel.archetype) == UINT32_MAX)
         return false;
 
@@ -841,8 +851,8 @@ inline bool place_gallery_from_selection(MachineCtx* c, const GallerySelection& 
     plan.host_gx = host_gx;
     plan.host_gz = host_gz;
     plan.tier_idx = sel.archetype;
-    plan.cx = sel.cx;
-    plan.cz = sel.cz;
+    plan.cx = cx;
+    plan.cz = cz;
     plan.footprint_r = sel.footprint_r;
     plan.archetype = sel.archetype;
     plan.painting_count = sel.painting_count;
