@@ -10,7 +10,7 @@
 //   analysis (source)               visual (target)
 //   ─────────────────               ───────────────
 //   AnalysisSignal.stats[]     ↔     VisualParams.v[]
-//   StatGroup / StatShape      ↔     ParamSlot / ParamShape
+//   StatGroup / StatShape      ↔     ParamSlot (width = count)
 //   StatLayoutView             ↔     ParamLayoutView
 //   SignalLayout/SourceBinding ↔     ParamLayout/TargetBinding
 //
@@ -82,16 +82,11 @@ namespace t7 {
     // the view is the key it publishes so the canvas and entities resolve pipes
     // by name at runtime.
 
-    enum class ParamShape {
-        Scalar,   // single value
-        Vector,   // run of `count` values
-    };
 
     struct ParamSlot {
         const char* name;    // entity-namespaced, e.g. "orb.speed"
         int         base;    // first slot in the bank
-        int         count;   // number of slots (1 for scalar)
-        ParamShape  shape;
+        int         count;   // number of slots (1 for scalar; width IS the shape)
         float       rest;    // value at boot or when uncoupled; reset() lays the bank to it
     };
 

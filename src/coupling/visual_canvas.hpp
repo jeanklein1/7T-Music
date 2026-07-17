@@ -143,19 +143,35 @@ namespace t7 {
     // is one value across its channels; for fog.color the bind() seed sets the true
     // per-channel start, so the rest is only the pre-first-tick placeholder.)
     //
-    //                          name           base count  shape               rest
+    //                          name           base count   rest
     inline constexpr ParamSlot PARAM_LAYOUT[] = {
-        { "fog.density",          0,    1,    ParamShape::Scalar, FOG_DENSITY_NONE },
-        { "fog.color",            1,    3,    ParamShape::Vector, 0.80f            },
+        { "fog.density",          0,    1,    FOG_DENSITY_NONE },
+        { "fog.color",            1,    3,    0.80f            },
         // ── ribbon (pitch compass) ── deviations composed over the seed
         // draws at the entity flush; rest = identity (1 = the seed's dance).
-        { "ribbon.amp_lateral_mult",  4, 1, ParamShape::Scalar, 1.0f },
-        { "ribbon.amp_vertical_mult", 5, 1, ParamShape::Scalar, 1.0f },
-        { "ribbon.color_stim", 6, 3, ParamShape::Vector, 0.0f },
-        { "ribbon.color_mix",  9, 1, ParamShape::Scalar, 0.0f },
+        { "ribbon.amp_lateral_mult",  4, 1, 1.0f },
+        { "ribbon.amp_vertical_mult", 5, 1, 1.0f },
+        { "ribbon.color_stim", 6, 3, 0.0f },
+        { "ribbon.color_mix",  9, 1, 0.0f },
     };
     inline constexpr uint32_t PARAM_LAYOUT_COUNT =
         sizeof(PARAM_LAYOUT) / sizeof(PARAM_LAYOUT[0]);
+
+    // WITNESS — the register map's teeth: every pipe within the bank,
+    // no two pipes overlapping. Hand-laying stays; a collision is now a
+    // build error, not a silent cross-write.
+    static_assert([] {
+        for (uint32_t i = 0; i < PARAM_LAYOUT_COUNT; ++i) {
+            const ParamSlot& a = PARAM_LAYOUT[i];
+            if (a.count < 1) return false;
+            if (a.base < 0 || a.base + a.count > VISUAL_PARAM_SLOTS) return false;
+            for (uint32_t j = i + 1; j < PARAM_LAYOUT_COUNT; ++j) {
+                const ParamSlot& b = PARAM_LAYOUT[j];
+                if (a.base < b.base + b.count && b.base < a.base + a.count) return false;
+            }
+        }
+        return true;
+    }(), "PARAM_LAYOUT: a pipe leaves the bank or two pipes overlap");
 
     // ═══ VISUAL CANVAS ═══════════════════════════════════════════════════════════
 
