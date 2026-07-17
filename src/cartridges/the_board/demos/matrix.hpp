@@ -35,8 +35,8 @@
 // The compile-time boolean FOLD is preserved end to end: column_to_roster
 // yields a constexpr Roster, so ROSTER (demos/demo.hpp) folds every
 // gate site exactly as the hand-written brace-list did.
-// DemoConfig is untouched — the seed + boot_mood consumers
-// (surface_services.hpp, spine_state.hpp) never know the difference.
+// DemoConfig is untouched — seed + boot_mood are authored onto the
+// root organs in the Cartridge ctor.
 //
 // FREE TICKING: the grid encodes NO dependency edges. The roster's one
 // legality edge (transitions ⇒ portal) stays the FIRST EDGE static_assert

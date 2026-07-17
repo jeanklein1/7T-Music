@@ -386,7 +386,12 @@ namespace t7 {
                 , ribbon_deps_{ gpuState_, time_state_, tile_world_state_, player_, inputState_, world_state_, mood_state_, visual_canvas_, ribbon_amp_lat_dst_, ribbon_amp_vert_dst_, ribbon_tint_stim_dst_, ribbon_tint_mix_dst_ }
                 , gallery_deps_{ gpuState_, renderer_, world_state_, tile_world_state_, ribbon_state_, player_, mood_state_, sunDirection_, clearColor_ }
                 , input_deps_{ inputState_, keys_, mouse_, player_, world_state_, ribbon_state_, gpuState_, device_, point_ }
-                , mood_deps_{ mood_state_, world_state_, gpuState_, renderer_, gol_state_, entities_state_, sunDirection_, sunColor_, clearColor_, cpuSpotLights_, cpuPortalArray_, backPortalPosition_ } {}
+                , mood_deps_{ mood_state_, world_state_, gpuState_, renderer_, gol_state_, entities_state_, sunDirection_, sunColor_, clearColor_, cpuSpotLights_, cpuPortalArray_, backPortalPosition_ } {
+                // THE ROOT AUTHORS THE BOOT VALUES (the demo sentence lands
+                // here, not via in-struct defaults — no include-order cable).
+                world_state_.active_seed = DEMO.seed;
+                mood_state_.active       = DEMO.boot_mood;
+            }
 
             Cartridge(const Cartridge&) = delete;
             Cartridge& operator=(const Cartridge&) = delete;

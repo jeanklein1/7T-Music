@@ -119,12 +119,11 @@ struct WorldState;   // contracts/surface_services.hpp — the request door read
 
 // ═══ MOOD STATE (the spine's mood organ; instance at the root) ════
 // Type at the contract tier; the instance was ALWAYS spine-resident with the
-// transition machine (SEAM[spine:transitions], K4). The boot default
-// reads the demo sentence; demos/demo.hpp precedes this header in the
-// cartridge include cohort (the patch_system.hpp DEMO.seed precedent).
+// transition machine (SEAM[spine:transitions], K4). The boot value is
+// authored at the composition root — no include-order cable.
 struct MoodState {
     // ── Currently active mood ──
-    uint32_t active = DEMO.boot_mood;  // boots from the demo sentence (DEMO-1)
+    uint32_t active = 0;  // authored at the composition root (Cartridge ctor) from DEMO.boot_mood
 
     // ── Mood-applied values (re-set on each apply_mood) ──
     float sun_intensity = 0.8f;
