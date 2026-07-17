@@ -2578,6 +2578,34 @@ fn ground_formed_with_complexity(world_xz: vec2<f32>) -> vec2<f32> {
 // Notes: blend ramps activate bands progressively with polyphony count.
 //   Seed-derived direction/freq/amp jitter per band. See the
 //   OVERLAY_WAVES table at TERRAIN_LOOKS ROW 7 (§2.2) for tuning.
+// One derivation, two evaluators: the per-band overlay parameters
+// (direction, jittered freq/amp) drawn once from seed + the ROW 7
+// design matrix. Height and fused-gradient consume the same law.
+struct OverlayBandParams {
+    dir:  vec2<f32>,
+    freq: f32,
+    amp:  f32,
+}
+
+fn overlay_band_params(i: u32, seed: u32) -> OverlayBandParams {
+    let ow = OVERLAY_WAVES[i];
+
+    // Direction: explicit angle or seed-derived when negative
+    var angle: f32;
+    if (ow.direction < 0.0) {
+        angle = hash_property(seed, OVERLAY_PROP_DIR_ANGLE + i * OVERLAY_PROP_STRIDE) * 2.0 * PI;
+    } else {
+        angle = ow.direction;
+    }
+    let dir = vec2(cos(angle), sin(angle));
+
+    // Seed-derived jitter on frequency and amplitude
+    let freq = ow.freq * (1.0 + (hash_property(seed, OVERLAY_PROP_FREQ_JIT + i * OVERLAY_PROP_STRIDE) - 0.5) * ow.freq_jit);
+    let amp  = ow.amp  * (1.0 + (hash_property(seed, OVERLAY_PROP_AMP_JIT + i * OVERLAY_PROP_STRIDE) - 0.5) * ow.amp_jit);
+
+    return OverlayBandParams(dir, freq, amp);
+}
+
 fn contrib_terrain_waves_at(world_xz: vec2<f32>) -> f32 {
     if (config.terrain_time <= 0.0) { return 0.0; }
 
@@ -2592,23 +2620,12 @@ fn contrib_terrain_waves_at(world_xz: vec2<f32>) -> f32 {
         let origin = get_band_phase_origin(i);
         let t = config.terrain_time - origin;
 
-        // Direction: explicit angle or seed-derived when negative
-        var angle: f32;
-        if (ow.direction < 0.0) {
-            angle = hash_property(seed, OVERLAY_PROP_DIR_ANGLE + i * OVERLAY_PROP_STRIDE) * 2.0 * PI;
-        } else {
-            angle = ow.direction;
-        }
-        let dir = vec2(cos(angle), sin(angle));
-
-        // Seed-derived jitter on frequency and amplitude
-        let freq = ow.freq * (1.0 + (hash_property(seed, OVERLAY_PROP_FREQ_JIT + i * OVERLAY_PROP_STRIDE) - 0.5) * ow.freq_jit);
-        let amp  = ow.amp  * (1.0 + (hash_property(seed, OVERLAY_PROP_AMP_JIT + i * OVERLAY_PROP_STRIDE) - 0.5) * ow.amp_jit);
+        let bp = overlay_band_params(i, seed);
 
         let temporal = (2.0 * PI / ow.period) * t;
-        let spatial  = freq * dot(dir, world_xz);
+        let spatial  = bp.freq * dot(bp.dir, world_xz);
 
-        h += blend * amp * sin(spatial + temporal);
+        h += blend * bp.amp * sin(spatial + temporal);
     }
 
     return h;
@@ -2638,32 +2655,21 @@ fn terrain_wave_overlay_with_gradient(world_xz: vec2<f32>) -> vec3<f32> {
         let origin = get_band_phase_origin(i);
         let t = config.terrain_time - origin;
 
-        // Direction: explicit angle or seed-derived when negative
-        var angle: f32;
-        if (ow.direction < 0.0) {
-            angle = hash_property(seed, OVERLAY_PROP_DIR_ANGLE + i * OVERLAY_PROP_STRIDE) * 2.0 * PI;
-        } else {
-            angle = ow.direction;
-        }
-        let dir = vec2(cos(angle), sin(angle));
-
-        // Seed-derived jitter on frequency and amplitude
-        let freq = ow.freq * (1.0 + (hash_property(seed, OVERLAY_PROP_FREQ_JIT + i * OVERLAY_PROP_STRIDE) - 0.5) * ow.freq_jit);
-        let amp  = ow.amp  * (1.0 + (hash_property(seed, OVERLAY_PROP_AMP_JIT + i * OVERLAY_PROP_STRIDE) - 0.5) * ow.amp_jit);
+        let bp = overlay_band_params(i, seed);
 
         let temporal = (2.0 * PI / ow.period) * t;
-        let phase    = freq * dot(dir, world_xz) + temporal;
+        let phase    = bp.freq * dot(bp.dir, world_xz) + temporal;
 
         // h  += B * A * sin(phase)
         // dh/dx = B * A * freq * dir.x * cos(phase)
         // dh/dz = B * A * freq * dir.y * cos(phase)
-        let ba = blend * amp;
+        let ba = blend * bp.amp;
         let s  = sin(phase);
         let c  = cos(phase);
 
         h  += ba * s;
-        gx += ba * freq * dir.x * c;
-        gz += ba * freq * dir.y * c;
+        gx += ba * bp.freq * bp.dir.x * c;
+        gz += ba * bp.freq * bp.dir.y * c;
     }
 
     return vec3(h, gx, gz);
