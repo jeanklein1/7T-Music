@@ -449,6 +449,20 @@ namespace t7 {
             float veil_icing;
             float veil_strength;
             float lod0_radius;
+
+            // ─── The palette mirror (STEP 2b graduation — FORK tier) ─────
+            // The four terrain palettes, graduated from WGSL consts so a
+            // color voice can move the MEDIANS (color-stack recon §4: "a
+            // spectrum moves the median" writes palette_center). Layout
+            // matches WGSL: array<vec4,4> stride 16 (rgb in xyz, w pad);
+            // weight = one vec4, component i = palette i (sums 1.0).
+            // REST = the pre-graduation literals (boot init) — bit-identical.
+            // (PALETTE_VARIANCE not graduated: its consumer was dead —
+            //  retired with palette_color this same cut; the fork stands
+            //  recorded in the LADDER.)
+            float palette_center[4][4];   // [palette] = {r,g,b,pad}
+            float palette_light[4][4];    // [palette] = {r,g,b,pad}
+            float palette_weight[4];      // selection probabilities
         };
 
         struct alignas(16) GPUTileGridEntry {
@@ -1259,7 +1273,7 @@ namespace t7 {
         };
 
         static_assert(sizeof(GPUFrameSignal) == 336, "GPUFrameSignal must be 336 bytes");
-        static_assert(sizeof(GPUDesignConfig) == 416, "GPUDesignConfig must be 416 bytes (400 + the veil quad)");
+        static_assert(sizeof(GPUDesignConfig) == 560, "GPUDesignConfig must be 560 bytes (416 + the palette mirror: 2×64 vec4-quads + 16 weights)");
 
         // Portal ellipse array — uploaded when portal set changes.
         // GPU behavior_player_controlled tests pawn against arch-shaped ellipses and writes portal_trigger.
@@ -2191,6 +2205,38 @@ namespace t7 {
             void set_mode_checker_scatter(float v) {
                 if (config_.mode_checker_scatter != v) { config_.mode_checker_scatter = v; configDirty_ = true; }
             }
+            // ─── The palette mirror setters (STEP 2b) ────────────────────
+            void set_palette_center(uint32_t i, float r, float g, float b) {
+                if (i >= 4) return;
+                if (config_.palette_center[i][0] != r || config_.palette_center[i][1] != g
+                    || config_.palette_center[i][2] != b) {
+                    config_.palette_center[i][0] = r;
+                    config_.palette_center[i][1] = g;
+                    config_.palette_center[i][2] = b;
+                    configDirty_ = true;
+                }
+            }
+            void set_palette_light(uint32_t i, float r, float g, float b) {
+                if (i >= 4) return;
+                if (config_.palette_light[i][0] != r || config_.palette_light[i][1] != g
+                    || config_.palette_light[i][2] != b) {
+                    config_.palette_light[i][0] = r;
+                    config_.palette_light[i][1] = g;
+                    config_.palette_light[i][2] = b;
+                    configDirty_ = true;
+                }
+            }
+            void set_palette_weight(float w0, float w1, float w2, float w3) {
+                if (config_.palette_weight[0] != w0 || config_.palette_weight[1] != w1
+                    || config_.palette_weight[2] != w2 || config_.palette_weight[3] != w3) {
+                    config_.palette_weight[0] = w0;
+                    config_.palette_weight[1] = w1;
+                    config_.palette_weight[2] = w2;
+                    config_.palette_weight[3] = w3;
+                    configDirty_ = true;
+                }
+            }
+
             void set_mode_palette_drift(float target, float intensity, float discrete_tier) {
                 if (config_.mode_palette_target != target || config_.mode_palette_intensity != intensity
                     || config_.mode_discrete_tier != discrete_tier) {
@@ -5413,6 +5459,26 @@ namespace t7 {
                 config_.pawn_amp_scale = 1.0f;
                 config_.pawn_height_bias = 0.0f;
                 config_.pawn_aura_height = 0.0f;
+                // THE PALETTE MIRROR — rest = the pre-graduation WGSL
+                // literals (STEP 2b; bit-identical by construction).
+                {
+                    const float centers[4][3] = { {0.85f,0.70f,0.50f}, {0.88f,0.58f,0.48f},
+                                                  {0.45f,0.58f,0.38f}, {0.82f,0.55f,0.42f} };
+                    const float lights[4][3]  = { {0.92f,0.82f,0.65f}, {0.95f,0.72f,0.62f},
+                                                  {0.62f,0.72f,0.52f}, {0.92f,0.72f,0.58f} };
+                    for (uint32_t i = 0; i < 4; i++) {
+                        for (uint32_t c = 0; c < 3; c++) {
+                            config_.palette_center[i][c] = centers[i][c];
+                            config_.palette_light[i][c]  = lights[i][c];
+                        }
+                        config_.palette_center[i][3] = 0.0f;
+                        config_.palette_light[i][3]  = 0.0f;
+                    }
+                    config_.palette_weight[0] = 0.42f;
+                    config_.palette_weight[1] = 0.28f;
+                    config_.palette_weight[2] = 0.04f;
+                    config_.palette_weight[3] = 0.26f;
+                }
                 // THE VEIL — chain defaults (Dim: ring 325 / icing 40 /
                 // lod0 175); strength staged per frame by U5 (0 in
                 // finite/indoor). Boot outdoor-on.

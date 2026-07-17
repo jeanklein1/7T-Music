@@ -65,11 +65,11 @@
 // Change a number, recompile, see the result. No logic edits needed.
 // Section references (§N.M) are stable; search by section number.
 //
-// ── Color Palettes (§2.2) ─────────────────────────────────────────
-//   PALETTE_CENTER[4]             Sand/salmon/green/warm RGB
-//   PALETTE_LIGHT[4]              Light variant per palette
-//   PALETTE_VARIANCE[4]           Per-cell noise amplitude
-//   PALETTE_WEIGHT[4]             Selection probability
+// ── Color Palettes (§2.2 — GRADUATED to the config uniform, 2b) ────
+//   config.palette_center[4]      Sand/salmon/green/warm RGB medians
+//   config.palette_light[4]       Light variant per palette
+//   config.palette_weight         Selection probability (vec4)
+//   (PALETTE_VARIANCE retired with its dead consumer palette_color)
 //
 // ── Spatial Field Lattices (§2.2) ─────────────────────────────────
 //   PALETTE_LATTICE_SPACING       300 wu — palette blob size
@@ -991,7 +991,7 @@ fn palette_weights_at_node(node: vec2<i32>) -> vec4<f32> {
     var dominant: u32 = 3u;
     var cumul: f32 = 0.0;
     for (var i: u32 = 0u; i < 4u; i++) {
-        cumul += PALETTE_WEIGHT[i];
+        cumul += config.palette_weight[i];
         if (roll < cumul) { dominant = i; break; }
     }
 
@@ -1210,28 +1210,18 @@ fn palette_color_smooth(weights: vec4<f32>, complexity: f32) -> vec3<f32> {
     var color = vec3(0.0);
     let w = array<f32, 4>(weights.x, weights.y, weights.z, weights.w);
     for (var i: u32 = 0u; i < 4u; i++) {
-        color += mix(PALETTE_LIGHT[i], PALETTE_CENTER[i], complexity) * w[i];
+        color += mix(config.palette_light[i].rgb, config.palette_center[i].rgb, complexity) * w[i];
     }
     return clamp(color, vec3(0.0), vec3(1.0));
 }
 
 // Discrete palette color: weighted blend with per-cell random offset.
-// Each cell gets a unique noise contribution for mosaic variety.
-fn palette_color(weights: vec4<f32>, complexity: f32, cell_seed: u32) -> vec3<f32> {
-    // Per-cell noise direction (shared across all palettes)
-    let r0 = hash_property(cell_seed, 600u) - 0.5;  // [-0.5, 0.5]
-    let r1 = hash_property(cell_seed, 601u) - 0.5;
-    let r2 = hash_property(cell_seed, 602u) - 0.5;
-    let noise = vec3(r0, r1, r2);
-
-    var color = vec3(0.0);
-    let w = array<f32, 4>(weights.x, weights.y, weights.z, weights.w);
-    for (var i: u32 = 0u; i < 4u; i++) {
-        let base = mix(PALETTE_LIGHT[i], PALETTE_CENTER[i], complexity);
-        color += (base + noise * PALETTE_VARIANCE[i]) * w[i];
-    }
-    return clamp(color, vec3(0.0), vec3(1.0));
-}
+// (palette_color + PALETTE_VARIANCE RETIRED — STEP 2b: the fn had no
+//  live caller (only palette_color_smooth ships) and the VARIANCE
+//  array's only consumer was this fn. The 2b fork — revive or retire —
+//  resolved RETIRE under the cut's bit-identical law: reviving would
+//  have been a pixel change. git holds both; the designer tool carries
+//  variance as design space.)
 
 // --- Discrete cell color system
 // (DISCRETE_*_LATTICE_SPACING defined in Color Field Spatial Config block)
@@ -1479,6 +1469,12 @@ struct DesignConfig {
     veil_icing: f32,
     veil_strength: f32,
     lod0_radius: f32,
+    // ── The palette mirror (STEP 2b graduation) — C++ twin in
+    //    GPUDesignConfig; rest = the pre-graduation literals. rgb in
+    //    xyz (w pad); weight component i = palette i.
+    palette_center: array<vec4<f32>, 4>,
+    palette_light: array<vec4<f32>, 4>,
+    palette_weight: vec4<f32>,
 }
 
 // §2.2 CONSTANTS
@@ -1494,49 +1490,26 @@ struct DesignConfig {
 // SAND_DUNE_CENTER / SAND_DUNE_VARIANCE removed — used only by the
 // (removed) coupling_sphere_to_terrain_tint. (RAYMARCH/SDF excavation)
 
-// ── The terrain palette tables ─────────────────────────────────────
-// WHAT: the four terrain palettes — each a CENTER color (the median a
-//   color voice would move), a LIGHT endpoint, a per-cell VARIANCE
-//   spread, and a lattice-selection WEIGHT.
+// ── The terrain palette tables (GRADUATED — STEP 2b) ───────────────
+// The four palettes now live in the CONFIG UNIFORM (config.palette_center
+// / palette_light / palette_weight — C++ twin GPUDesignConfig, setters
+// set_palette_*): the FORK-tier graduation that makes the MEDIANS
+// couplable ("a spectrum moves the median" writes palette_center).
 // AXES: index = palette id (0 sand / 1 salmon / 2 green / 3 warm),
-//   shared across all four tables + the dominant-weight branch in
-//   palette_weights_at_node.
-// UNITS: CENTER/LIGHT = rgb 0-1; VARIANCE = per-cell rgb jitter scale
-//   (dimensionless); WEIGHT = selection probability (sums 1.0).
-// CONSUMERS: palette_color_smooth (CENTER/LIGHT mixed by the complexity
-//   arg — pinned 0.5 today); palette_target_color (CENTER, the drift
-//   path); palette_weights_at_node (WEIGHT, cumulative pick).
-//   PALETTE_VARIANCE's only consumer is palette_color — DEAD at HEAD
-//   (only _smooth is live): the 2b fork — revive palette_color or
-//   retire the array — is HELD for the ruling.
-// COUPLING (color-stack recon §4): these are the FORK tier — WGSL
-//   consts with no C++ mirror; "a spectrum moves the median" writes
-//   PALETTE_CENTER once graduated (STEP 2b graduates CENTER/LIGHT/
-//   WEIGHT to config uniforms, rest = these literals).
-const PALETTE_CENTER = array<vec3<f32>, 4>(
-    vec3(0.85, 0.70, 0.50),   // 0: sand    — warm Mars baseline
-    vec3(0.88, 0.58, 0.48),   // 1: salmon  — pink-coral
-    vec3(0.45, 0.58, 0.38),   // 2: green   — olive to jade (rare)
-    vec3(0.82, 0.55, 0.42),   // 3: warm    — dusty terracotta
-);
-const PALETTE_LIGHT = array<vec3<f32>, 4>(
-    vec3(0.92, 0.82, 0.65),   // 0: sand
-    vec3(0.95, 0.72, 0.62),   // 1: salmon
-    vec3(0.62, 0.72, 0.52),   // 2: green
-    vec3(0.92, 0.72, 0.58),   // 3: warm
-);
-const PALETTE_VARIANCE = array<f32, 4>(
-    0.08,                      // 0: sand    — tight
-    0.14,                      // 1: salmon  — moderate
-    0.20,                      // 2: green   — wide
-    0.12,                      // 3: warm    — moderate
-);
-const PALETTE_WEIGHT = array<f32, 4>(
-    0.42,                      // 0: sand
-    0.28,                      // 1: salmon
-    0.04,                      // 2: green   — rare
-    0.26,                      // 3: warm    — common (was grey 0.07)
-);
+//   shared with the dominant-weight branch in palette_weights_at_node.
+// UNITS: center/light = rgb 0-1 (vec4, w pad); weight = selection
+//   probability, component i = palette i (sums 1.0).
+// CONSUMERS: palette_color_smooth (center/light mixed by complexity —
+//   pinned 0.5 today); palette_target_color (drift); palette_weights_
+//   at_node (weight).
+// REST (the boot values, bit-identical to the pre-graduation consts):
+//   center: sand {.85,.70,.50} · salmon {.88,.58,.48} ·
+//           green {.45,.58,.38} (rare) · warm {.82,.55,.42}
+//   light:  {.92,.82,.65} · {.95,.72,.62} · {.62,.72,.52} · {.92,.72,.58}
+//   weight: .42 · .28 · .04 (green rare) · .26
+// (PALETTE_VARIANCE retired with its dead consumer palette_color — the
+//  2b fork resolved RETIRE under the bit-identical law; values were
+//  .08/.14/.20/.12, held by git + the designer tool's design space.)
 
 // --- Color Field Spatial Config
 const PALETTE_LATTICE_SPACING: f32 = 300.0;     // ~6 patches — large palette blobs
@@ -7312,8 +7285,8 @@ fn palette_target_color(palette_idx: f32, complexity: f32) -> vec3<f32> {
     let lo = u32(floor(t));
     let hi = min(lo + 1u, 3u);
     let frac = t - floor(t);
-    let color_lo = mix(PALETTE_LIGHT[lo], PALETTE_CENTER[lo], complexity);
-    let color_hi = mix(PALETTE_LIGHT[hi], PALETTE_CENTER[hi], complexity);
+    let color_lo = mix(config.palette_light[lo].rgb, config.palette_center[lo].rgb, complexity);
+    let color_hi = mix(config.palette_light[hi].rgb, config.palette_center[hi].rgb, complexity);
     return mix(color_lo, color_hi, frac);
 }
 
