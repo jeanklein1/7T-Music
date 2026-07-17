@@ -3,8 +3,8 @@
 // Converted (LADDER-1 c3): history in audit/LADDER.md.
 //
 // Type definitions for the generic entity pipeline: pure declarations,
-// no functions, no coupling beyond the Cartridge forward reference in
-// adapter signatures.
+// no functions, no coupling beyond the MachineCtx face the adapter
+// signatures name.
 //
 // THE CONTRACT HOME: pipeline contracts, the boundary DTOs (a DTO
 // that exists to cross a boundary belongs to the boundary's contract,

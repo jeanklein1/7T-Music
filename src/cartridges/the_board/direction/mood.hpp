@@ -43,7 +43,7 @@
 // machine natives (they call pick_portal_mood / derive_finite_radius
 // and read PORTAL_COLORS / INDOOR_ENTITY_WALL_MARGIN).
 //
-// The impl additionally reaches the keyhole's spine-resident state
+// The impl additionally reaches the spine-resident state
 // (mood_state_ / transitionPhase_ / pendingDestination_ /
 // backPortalPosition_ / cpuSpotLights_ / cpuPortalArray_ / sun + clear
 // colors / world_state_ and the feature-gate flags), the converted

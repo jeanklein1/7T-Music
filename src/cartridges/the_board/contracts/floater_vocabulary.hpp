@@ -20,8 +20,8 @@
 //   parallel grounded families (entities.hpp) but live here because
 //   their tier shapes differ (sphere has orbit_radius/orbit_speed,
 //   cube doesn't). Three concerns, three files: vocabulary here,
-//   sampling profile in entity_pipeline.inl, cube behavior in
-//   cube_behaviors.inl. Spheres have no behavior layer.
+//   sampling profile in machine/entity_pipeline.hpp, cube behavior in
+//   bodies/cube_behaviors.hpp. Spheres have no behavior layer.
 // SEAM[sphere:taxonomy] sphere VOCABULARY lives here, not in
 //   entities.hpp. Generic-pipeline floater family — vocabulary class
 //   distinct from grounded families.
@@ -32,10 +32,10 @@
 //   race protection) — CPU-timestamp variant. When GPU readback arrives
 //   stale ("kernel evicted this slot"), the timestamp protects freshly-
 //   allocated slots from being incorrectly marked inactive. Same intent as
-//   cube_behaviors.inl::toggle_cube_kite_mode's GPU sentinel; different
+//   cube_behaviors.hpp::toggle_cube_kite_mode's GPU sentinel; different
 //   mechanism.
 // SEAM[cube:cx-cz-mirror] ActiveCube has cx, cz fields — CPU mirror of GPU
-//   anchor for cube_behaviors.inl::corral_cubes / toggle_cube_kite_mode to
+//   anchor for cube_behaviors.hpp::corral_cubes / toggle_cube_kite_mode to
 //   read without GPU readback. Same family as agents:D2 (slot-0 reads);
 //   when the pawn module provides accessors, corral/kite could analogously
 //   have cube_anchor(slot) accessors.
@@ -135,7 +135,7 @@ struct CubeEntityProp {
     static constexpr uint32_t ROTATION = 156u;
 };
 
-// ── Active Cube Tracking (TYPE — state lives in cube_behaviors.inl) ─
+// ── Active Cube Tracking (TYPE — state lives in CubeBehaviorsState) ─
 struct ActiveCube {
     int32_t patch_gx = 0, patch_gz = 0;
     int32_t host_gx = 0, host_gz = 0;

@@ -864,10 +864,10 @@ inline void evict_blade(MachineCtx* self,
 // ═══ THE CLEAN THREE — BLADE / PALM / CACTUS RECIPES ══════════════
 //
 // Per-family tier tables, traits, adapters, and dispatch funnels.
-// Each funnels into the machine's generic three-phase verbs via the
-// keyhole; THEMES is reached as THEMES
+// Each funnels into the machine's generic three-phase verbs via
+// MachineCtx; THEMES is reached as THEMES
 // (INTENT[services:themes] at its definition); the table rows point
-// here (family_dispatch.inl).
+// here (FAMILY_DISPATCH, cartridge.hpp post-class).
 
 // ═══ FAMILY: BLADE ════════════════════════════════════════════════
 

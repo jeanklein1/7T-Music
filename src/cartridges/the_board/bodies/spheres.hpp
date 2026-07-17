@@ -56,12 +56,12 @@ inline void clear_spheres(SphereState& ss, GPUState& gpu, wgpu::Queue& queue) {
 
 void evict_sphere(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
 void reconcile_sphere_mirror(SphereState& ss, SphereDeps* c, const GPUFloatingEntityState* data);
-// Dispatch funnels (table-shaped; defined in spheres.inl beside the recipe)
+// Dispatch funnels (table-shaped; defined below beside the recipe)
 bool dispatch_select_sphere_generic(MachineCtx* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
 bool dispatch_place_sphere_generic(MachineCtx* self, EntityQueueEntry& e, PlacementEntry& pe);
 void dispatch_commit_sphere_generic(MachineCtx* self, PlacementEntry& pe, wgpu::Queue& queue);
 
-// ═══ IMPL (merged from spheres.inl — DISSOLVE-1 Batch A d3): the row
+// ═══ IMPL: the row
 // bodies deref sphere_state_ + world/mood/gpu/time via MachineCtx;
 // reconcile via SphereDeps. COHORT PROOF: sits AFTER
 // contracts/spawn_services.hpp (generic_select/place/commit +
@@ -83,8 +83,8 @@ inline void evict_sphere(MachineCtx* self,
 // ═══ THE SPHERE RECIPE ════════════════════════════════════════════
 //
 // Tier tables, traits, adapter, and dispatch funnels — beside the
-// evictor. Funnels declared in spheres.hpp; table rows point here
-// (family_dispatch.inl). THEMES is reached as THEMES
+// evictor. Funnels declared above; the FAMILY_DISPATCH rows
+// (cartridge.hpp, post-class) point here. THEMES is reached as THEMES
 // (INTENT[services:themes] at its definition).
 
 // ═══ FAMILY: SPHERE ═══════════════════════════════════════════════

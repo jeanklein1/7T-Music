@@ -15,7 +15,7 @@
 // activates near the pawn and releases when it moves away), presence
 // trajectory, per-frame coupling tick.
 //
-// The aura ramp is a self-contained real-time exponential (std::exp, in the .inl).
+// The aura ramp is a self-contained real-time exponential (std::exp, below).
 // ─────────────────────────────────────────────────────────────────
 
 namespace t7 {

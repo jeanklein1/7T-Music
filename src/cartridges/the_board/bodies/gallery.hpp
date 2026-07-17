@@ -483,7 +483,7 @@ void commit_gallery(GalleryState& gs, MachineCtx* c,
 void evict_paintings_for_patch(GalleryState& gs, MachineCtx* c,
     int32_t gx, int32_t gz, wgpu::Queue& queue);
 // The evictor — keyhole-shaped
-// to match the FAMILY_DISPATCH evict slot (table in family_dispatch.inl)
+// to match the FAMILY_DISPATCH evict slot (table in cartridge.hpp, post-class)
 void evict_gallery(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
 // Dispatch funnels (table-shaped; the FAMILY_DISPATCH rows point here)
 bool dispatch_select_gallery(MachineCtx* self, int32_t gx, int32_t gz, EntityQueueEntry& e);

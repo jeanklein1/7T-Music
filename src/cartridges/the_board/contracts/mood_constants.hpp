@@ -29,7 +29,7 @@ struct PortalDestination {
     uint32_t seed = 0;
     bool finite = false;
     uint32_t finite_radius = 2;
-    uint32_t mood = 0;               // 0=open, 1=finite (expandable)
+    uint32_t mood = 0;               // destination mood id (MOOD_* above)
 };
 
 } // namespace the_board

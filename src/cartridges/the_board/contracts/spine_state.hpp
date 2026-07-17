@@ -119,7 +119,7 @@ struct InputState {
 };
 
 
-struct WorldState;   // patch_system.hpp — the request door reads active_seed (fwd: reference param)
+struct WorldState;   // contracts/surface_services.hpp — the request door reads active_seed (fwd: reference param)
 
 // ═══ MOOD STATE (the spine's mood organ; instance at the root) ════
 // REBUILD-0 m1 (stamp D3) placed the struct with mood (the WorldState

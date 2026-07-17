@@ -111,24 +111,24 @@ namespace t7 {
             //
             SphereState sphere_state_;
 
-            //   cube_behaviors_state_ — CubeBehaviorsState (cube_behaviors.hpp),
+            //   cube_behaviors_state_ — CubeBehaviorsState:
             //     the cube diagnostics + the cube active-slot mirror.
             CubeBehaviorsState cube_behaviors_state_;
 
-            //   pawn_state_ — PawnState (pawn.hpp), the pawn aura + presence state.
+            //   pawn_state_ — PawnState: the pawn aura + presence state.
             PawnState pawn_state_;
 
             EntitiesState entities_state_;
 
-            //   orbs_state_ — OrbsState (orbs.hpp), the sky-dome lifecycle +
+            //   orbs_state_ — OrbsState: the sky-dome lifecycle +
             //     player-owned anchor/rule/gesture state.
             OrbsState orbs_state_;
 
-            //   gol_state_ — GoLState (gol_zones.hpp), the zone slots + counts +
+            //   gol_state_ — GoLState: the zone slots + counts +
             //     mood gate + derive-request queue.
             GoLState gol_state_;
 
-            //   agent_state_ — AgentState (agents.hpp), the 32-slot CPU mirror +
+            //   agent_state_ — AgentState: the 32-slot CPU mirror +
             //     respawn counters + diagnostic overrides.
             AgentState agent_state_;
 
@@ -136,25 +136,25 @@ namespace t7 {
 
             RibbonState ribbon_state_;
 
-            //   themes_state_ — ThemesState (population_themes.hpp), the theme
+            //   themes_state_ — ThemesState: the theme
             //     envelope machine + the per-patch selection.
             ThemesState themes_state_;
 
-            //   tile_world_state_ — TileWorldState (tile_world.hpp), the tile
+            //   tile_world_state_ — TileWorldState: the tile
             //     cache + the terrain tokens (what the terrain remembers).
             TileWorldState tile_world_state_;
 
-            //   patch_system_state_ — PatchSystemState (patch_system.hpp), the
+            //   patch_system_state_ — PatchSystemState: the
             //     active-patch registry + the free-layer pool.
             PatchSystemState patch_system_state_;
 
-            //   world_state_ — WorldState (patch_system.hpp), the world seed +
+            //   world_state_ — WorldState: the world seed +
             //     radii + patch counts + dirty flags. ROOT ORGAN (Phase R
             //     stamp, R-a): the struct lives with patch_system; the
             //     instance stays here at the root.
             WorldState world_state_;
 
-            //   spawn_engine_state_ — SpawnEngineState (spawn_engine.hpp), the
+            //   spawn_engine_state_ — SpawnEngineState: the
             //     two dispatch queues + the footprint registry + the census clock.
             SpawnEngineState spawn_engine_state_;
 
@@ -183,9 +183,8 @@ namespace t7 {
 
             // ═══ MOOD STATE ═════════════════════════════════════════════
             //
-            // Struct MoodState lives with its semantic owner
-            // (direction/mood.hpp — the WorldState pattern, R-a; REBUILD-0
-            // m1, stamp D3). The INSTANCE stays spine-resident because
+            // Struct MoodState lives in contracts/spine_state.hpp.
+            // The INSTANCE stays spine-resident because
             // mood-applied values feed every other subsystem
             // (SEAM[spine:transitions], K4).
             MoodState mood_state_;
@@ -235,11 +234,10 @@ namespace t7 {
             //   pendingDestination_, backPortalPosition_, cpuPortalArray_,
             //   mood_state_ and kin — are DECLARED SPINE-OWNED
             //   ORCHESTRATION per the §2 residency law, the same legitimacy
-            //   class as the P5 readbacks. Mood (mood.hpp/.inl) supplies
+            //   class as the P5 readbacks. Mood (direction/mood.hpp) supplies
             //   vocabulary + appliers + six doors and owns NO instance;
-            //   struct MoodState's TYPE lives with its semantic owner
-            //   (direction/mood.hpp — the WorldState pattern, R-a) per the
-            //   REBUILD-0 stamp (D3). Constitution §2 carries the K4 line.
+            //   struct MoodState's TYPE lives in contracts/spine_state.hpp.
+            //   Constitution §2 carries the K4 line.
             // SEAM[spine:portal-system] consumed by the mood module
             //   (force_spawn_* functions read pendingDestination_), input.inl
             //   (keypress mood transitions request via mood.hpp's
@@ -1617,7 +1615,7 @@ namespace t7 {
 // decl tier at the contracts. What remains below is the spine's own
 // table — FAMILY_DISPATCH — which was never a module.
 // ═══ THE TABLE — FAMILY_DISPATCH (DISSOLVE-1 Batch A, A1) ══════════
-// Inlined from machine/family_dispatch.inl (retired): the definition
+// The definition
 // is SEAM[spine:owns] spine work — it takes the Cartridge mesh-wrapper
 // static ADDRESSES and the family row addresses, so it lives with its
 // owner, the composition root, at the post-class point where its

@@ -7,9 +7,9 @@
 // this file is what the GPU runs every frame. All struct shapes in
 // §2.1 must mirror their C++ counterparts in state.hpp byte-for-byte;
 // all per-policy contributor masks in §3.4 must mirror POLICIES[]
-// in modules/ground_architecture.inl; the deterministic-randomness
+// in contracts/ground_architecture.hpp; the deterministic-randomness
 // helpers in §1.5 must produce bit-identical results to the CPU
-// mirrors in modules/seed_utils.inl.
+// mirrors in primitives/seed_utils.hpp.
 //
 // Navigation: §1-§9 chapter-numbered structure. Section numbers
 // reflect file order — search by section number to jump.
@@ -27,13 +27,13 @@
 // SEAM[world.wgsl:contract] CPU/GPU struct contracts. §2.1 structs
 //   (FrameSignal, AgentState, AgentBehaviorParams,
 //   AgentTierParams) mirror state.hpp byte-for-byte. The
-//   PAIRED DECLARATIONS comment at AGENT REGISTRIES (line ~631)
+//   PAIRED DECLARATIONS comment at §2.1 AGENT REGISTRIES
 //   names the C++ counterparts. Drift would mean the GPU reads
 //   different fields than CPU writes. Same family as
 //   seed_utils:contract and ground_architecture:contract.
 // SEAM[world.wgsl:ground-architecture-mirror] the §3.4 Ground
-//   Architecture block (line ~2102) is the GPU companion to
-//   modules/ground_architecture.inl. The CPU file declares
+//   Architecture block (§3.4) is the GPU companion to
+//   contracts/ground_architecture.hpp. The CPU file declares
 //   ContributorId / PolicyId / CONTRIBUTOR_DAG / POLICIES[] +
 //   compile-time DAG closure validation; this file declares the
 //   contrib_*_at functions, the per-policy POLICY_*_MASK constants
@@ -668,7 +668,7 @@ struct FrameSignal {
 // alignment surprises. Orientation stored (not derived) to preserve
 // terrain-tilt transparency for the possessed slot.
 //
-// See modules/agents.inl for rationale.
+// See bodies/agents.hpp for rationale.
 struct AgentState {
     pos_x: f32,
     pos_y: f32,
@@ -704,7 +704,7 @@ struct AgentState {
 //
 // Both struct shapes must match field-for-field. The C++ side is
 // authoritative — the values come from AGENT_BEHAVIORS / AGENT_TIER_GAINS
-// in modules/agents.inl, uploaded once at world-init via the translator
+// in bodies/agents.hpp, uploaded once at world-init via the translator
 // upload_agent_registries_to_gpu (which bridges CPU AgentBehaviorDef /
 // AgentTierDef → GPU structs → these uniform buffers).
 //
@@ -715,7 +715,7 @@ struct AgentState {
 //
 // Schema reminder — fields below match GPUAgentBehaviorDef and
 // GPUAgentTierDef in state.hpp, and AgentBehaviorDef / AgentTierDef
-// in modules/agents.inl. Field-by-field translation lives in
+// in bodies/agents.hpp. Field-by-field translation lives in
 // upload_agent_registries_to_gpu in bodies/agents.hpp.
 //
 //   AgentBehaviorParams columns:
@@ -1392,7 +1392,7 @@ struct DesignConfig {
     ceiling_height: f32,          // indoor ceiling Y for camera clamp (0 = no ceiling)
     terrain_time: f32,            // t_beats for terrain evaluation (0 = frozen)
     // ─── Polyphony-driven band motion ────────────────────────────
-    // Per-band blend: < 0 = use activity field, [0,1] = direct mix factor.
+    // Per-band blend: -1 = inactive sentinel (the evaluators skip the band); [0,1] = activation.
     band_blend_0: f32,            // continental
     band_blend_1: f32,            // regional
     band_blend_2: f32,            // local
@@ -2268,11 +2268,11 @@ fn contrib_gol_suppression_at(world_xz: vec2<f32>, consumer_pos: vec3<f32>) -> f
 
 // --- Ground Architecture: contributor and policy ids ---
 //
-// Mirror of modules/ground_architecture.inl. Shader code references
+// Mirror of contracts/ground_architecture.hpp. Shader code references
 // contributors and policies by these symbols. The canonical ids and
 // policy bitmasks live on the C++ side; these consts exist so WGSL
 // can refer to the same numeric values. Keep in sync with POLICIES[]
-// in the .inl.
+// in that header.
 
 const CONTRIB_TERRAIN_LATTICE   : u32 = 0u;
 const CONTRIB_TILE_MODIFIERS    : u32 = 1u;
@@ -2311,7 +2311,7 @@ const GROUND_STATIC_BASE_MASK: u32 =
   | (1u << CONTRIB_SOLIDS);
 
 // Per-policy contributor masks — kept in sync with POLICIES[] in
-// modules/ground_architecture.inl. The query specializations in
+// contracts/ground_architecture.hpp. The query specializations in
 // Step 3 select their contributors at compile time from these.
 const POLICY_PLACEMENT_PYRAMID_MASK    : u32 = GROUND_STATIC_BASE_MASK;
 const POLICY_PLACEMENT_PAINTING_MASK   : u32 = GROUND_STATIC_BASE_MASK
@@ -2365,7 +2365,7 @@ const POLICY_TERRAIN_RENDER_MASK       : u32 = GROUND_STATIC_BASE_MASK
 // ═══ Ground Architecture ═══════════════════════════════════════════
 //
 // SEAM[world.wgsl:ground-architecture-mirror] anchor — this is the
-//   GPU companion to modules/ground_architecture.inl. The .inl
+//   GPU companion to contracts/ground_architecture.hpp. The header
 //   declares ContributorId / PolicyId / CONTRIBUTOR_DAG / POLICIES[]
 //   plus compile-time DAG closure validation; this block declares
 //   the contrib_*_at functions, per-policy POLICY_*_MASK constants
@@ -2380,7 +2380,7 @@ const POLICY_TERRAIN_RENDER_MASK       : u32 = GROUND_STATIC_BASE_MASK
 // policy-selected contributor sum.
 //
 // See:
-//   modules/ground_architecture.inl      — ContributorId / PolicyId /
+//   contracts/ground_architecture.hpp    — ContributorId / PolicyId /
 //                                          CONTRIBUTOR_DAG / POLICIES[]
 //                                          plus compile-time DAG closure
 //                                          validation
@@ -2542,7 +2542,7 @@ fn contrib_vegetation_base_at(world_xz: vec2<f32>) -> f32 {
 // because the complexity metric is a free byproduct of the same lattice
 // pass and per-texel cost dominates patch generation. If the baked policy's
 // contributor set ever changes, update this function to match.
-// See modules/ground_architecture.inl (fused inline evaluations).
+// See contracts/ground_architecture.hpp (fused inline evaluations).
 fn ground_formed_with_complexity(world_xz: vec2<f32>) -> vec2<f32> {
     let hc = terrain_height_and_complexity(world_xz, config.world_seed, 0.0);
     let mods = tile_modifiers_at(world_xz);
@@ -2762,9 +2762,9 @@ fn contrib_pawn_aura_at_self() -> f32 {
 // its own call site (a compile-time constant choice of function) so
 // FXC sees uniform branching and can dead-code-eliminate anything
 // outside that policy's contributor set. Runtime policy dispatch is
-// deliberately avoided — see modules/ground_architecture.inl (POLICIES[]).
+// deliberately avoided — see contracts/ground_architecture.hpp (POLICIES[]).
 //
-// Contributor sets mirror POLICIES[] in modules/ground_architecture.inl.
+// Contributor sets mirror POLICIES[] in contracts/ground_architecture.hpp.
 // The architecture overview above this section explains classes, DAG,
 // extension patterns, and the fused-inline hot paths that bypass this
 // API for performance.
@@ -3851,7 +3851,7 @@ struct PatchTerrainVarying {
 // invocations per patch, so a function-call-per-contributor dispatch
 // would dominate frame time; that's why this stays hand-fused.
 //
-// See modules/ground_architecture.inl (fused inline evaluations).
+// See contracts/ground_architecture.hpp (fused inline evaluations).
 @vertex
 fn patch_terrain_vs(
     @builtin(vertex_index) vi: u32,
@@ -5911,7 +5911,7 @@ fn agent_post_step(agent_in: AgentState, drag: f32, speed_cap: f32, speed_gain: 
 // modifies velocity only — drag, integration, ground snap, heading
 // are factored into agent_post_step above. The kernel switch
 // dispatches on agent.behavior_id; slot numbers must match the
-// AgentBehaviorId enum in modules/agents.inl. Behavior parameters
+// AgentBehaviorId enum in bodies/agents.hpp. Behavior parameters
 // come from agent_behaviors[behavior_id] (uploaded once at world
 // init from the C++ AGENT_BEHAVIORS table).
 
@@ -6857,7 +6857,7 @@ const CUBE_BEHAVIOR_STATIONARY: u32 = 0u;
 const CUBE_BEHAVIOR_CURLFIELD:  u32 = 1u;
 const CUBE_BEHAVIOR_PHASEWAVE:  u32 = 2u;
 
-// MUST match modules/cube_behaviors.inl::CUBE_BEHAVIOR_COUNT
+// MUST match bodies/cube_behaviors.hpp::CUBE_BEHAVIOR_COUNT
 // (mirrors the agents pattern at AGENT_BEHAVIOR_COUNT_WGSL above).
 const CUBE_BEHAVIOR_COUNT_WGSL: u32 = 3u;
 
@@ -6923,7 +6923,7 @@ fn cube_force_phasewave(rest_xz: vec2<f32>, t: f32, behavior_phase: u32, coordin
 
 // ─ Dispatch ──────────────────────────────────────────────────────
 // Switch by behavior_id. New behaviors land here as additional cases
-// alongside their authoring registry rows in modules/cube_behaviors.inl.
+// alongside their authoring registry rows in bodies/cube_behaviors.hpp.
 fn cube_behavior_force(fe: FloatingEntityState, t: f32, point_xz: vec2<f32>, coordination: f32) -> vec3<f32> {
     let rest_xz = vec2<f32>(fe.anchor.x, fe.anchor.z);
     switch (fe.behavior_id) {

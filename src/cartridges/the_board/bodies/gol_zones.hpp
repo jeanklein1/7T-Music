@@ -279,7 +279,7 @@ void commit_gol(GoLState& gs, MachineCtx* c,
     const GoLPlacement& plan,
     int32_t trigger_gx, int32_t trigger_gz, wgpu::Queue& queue);
 // The evictor — keyhole-shaped
-// to match the FAMILY_DISPATCH evict slot (table in family_dispatch.inl)
+// to match the FAMILY_DISPATCH evict slot (table in cartridge.hpp, post-class)
 void evict_gol(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
 // Dispatch funnels (table-shaped; the FAMILY_DISPATCH rows point here)
 bool dispatch_select_gol(MachineCtx* self, int32_t gx, int32_t gz, EntityQueueEntry& e);

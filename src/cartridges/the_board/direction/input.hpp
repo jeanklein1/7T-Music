@@ -153,21 +153,6 @@ void toggle_veil_dither(InputDeps* c);   // THE RIM knob (key V): icing tint <->
 // The fallback #defines below are preprocessor — namespace-blind,
 // byte-carried from the .inl.
 
-// ═══ KEY BINDING REGISTRY ════════════════════════════════════════
-//
-// ── Movement (held; W/S/A/D — the universal move channel) ────────
-//
-// ── World / aura toggles ─────────────────────────────────────────
-//
-// ── Orb utilities (numpad) ───────────────────────────────────────
-//
-// ── Camera / possession ──────────────────────────────────────────
-//
-// ── Diagnostics (function keys) ──────────────────────────────────
-//
-// ── Mouse / scroll ───────────────────────────────────────────────
-// ─────────────────────────────────────────────────────────────────
-
 // ═══ GLFW KEY CODE FALLBACKS ═════════════════════════════════════
 
 #ifndef GLFW_KEY_KP_0

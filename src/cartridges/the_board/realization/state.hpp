@@ -6,9 +6,7 @@
 // CPU/GPU data contract: structs, buffers, textures, bind groups.
 // Terrain grid is GPU-derived from vertex_index — zero geometry uploaded.
 //
-// ─── BINDING MAP ────────────────────────────────────────────────────────────
-//
-//   ───────   ──────               ───────          ──────
+// Binding numbers: realization/binding_registry.hpp (C6 — the single source).
 
 #include "analysis/analysis_signal.hpp"
 #include "cartridges/the_board/demos/demo.hpp"   // ROSTER via the selected sentence (GPUState::init gates creation)  // feature bits (GPUState::init gates creation)
@@ -407,7 +405,7 @@ namespace t7 {
             uint32_t pulse_count;             // active entries (0–8)
             // ─── Agent system ────────────────────────────────────────────
             // Slot index of the player's current body in agent_state[].
-            // Piggybacks on the existing _pulse_pad triple (struct is now 400 bytes).
+            // Piggybacks on the existing _pulse_pad triple (size witnessed by the sizeof static_assert below — 560).
             uint32_t possessed_slot;          // slot 0 at session start
             // THE RIM taste knob (config-gated): 0 = icing tints to fog
             // (default); >0.5 = icing DITHER-dissolves (geometry condenses
@@ -415,7 +413,7 @@ namespace t7 {
             // of the pulse pad floats — no struct-size delta.
             float veil_dither;
             float _pulse_pad;
-            float pulse_data[32];             // 8 × {origin_x, origin_z, onset_beats, amplitude}
+            float pulse_data[32];             // 8 × {origin_x, origin_z, onset_seconds, amplitude}
             // ─── LOD-band point position ────────────────────────────────
             // (renamed lod_pawn → lod_point: the value has been THE POINT
             // since p1b — the name was a fossil.) The CPU bands patches

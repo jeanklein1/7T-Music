@@ -12,9 +12,9 @@
 //
 // Cube behavior system.
 //
-// The impl additionally hashes with seed_utils and reaches the keyhole;
-// the cube recipe (cube_behaviors.inl) calls into the two spawn
-// helpers; world.wgsl holds the force functions and dispatch switch.
+// The impl additionally hashes with seed_utils; the cube recipe
+// (below) calls into the two spawn helpers; world.wgsl holds the
+// force functions and dispatch switch.
 // ──────────────────────────────────────────────────────────────────
 
 #include <cmath>      // std::cos, std::sin   // (impl, merged)
@@ -170,9 +170,9 @@ uint32_t pick_cube_behavior_for_spawn(uint32_t mood_id, uint32_t seed);
 // Teardown owner-clear
 void clear_cubes(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue);  // DEPS-FORM PRECEDENT (m3 ruling): explicit GPUState& param, born-converted
 // The evictor — keyhole-shaped
-// to match the FAMILY_DISPATCH evict slot (table in family_dispatch.inl)
+// to match the FAMILY_DISPATCH evict slot (table in cartridge.hpp, post-class)
 void evict_cube(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
-// Dispatch funnels (table-shaped; defined in cube_behaviors.inl beside the recipe)
+// Dispatch funnels (table-shaped; defined below beside the recipe)
 bool dispatch_select_cube_generic(MachineCtx* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
 bool dispatch_place_cube_generic(MachineCtx* self, EntityQueueEntry& e, PlacementEntry& pe);
 void dispatch_commit_cube_generic(MachineCtx* self, PlacementEntry& pe, wgpu::Queue& queue);
@@ -185,7 +185,7 @@ void toggle_cube_kite_mode(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& qu
 void tick_cube_corral_animations(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& queue);
 void reconcile_cube_mirror(CubeBehaviorsState& cs, CubeDeps* c, const GPUFloatingEntityState* data);
 
-// ═══ IMPL (merged from cube_behaviors.inl — DISSOLVE-1 Batch B):
+// ═══ IMPL:
 // rows deref cube_state(own) + mood/time/world via MachineCtx; corral/kite
 // read AgentState + player_ via CubeDeps. COHORT: after agents (AgentState)
 // + entity_pipeline (generic_*) + spawn_engine (preamble) + mood/state.
@@ -435,8 +435,8 @@ inline void evict_cube(MachineCtx* self,
 // ═══ THE CUBE RECIPE ══════════════════════════════════════════════
 //
 // Tier tables, traits, adapter, and dispatch funnels — beside the
-// evictor. Funnels declared in cube_behaviors.hpp; table rows point
-// here (family_dispatch.inl). THEMES is reached as THEMES
+// evictor. Funnels declared above; the FAMILY_DISPATCH rows
+// (cartridge.hpp, post-class) point here. THEMES is reached as THEMES
 // (INTENT[services:themes] at its definition).
 
 // ═══ FAMILY: CUBE ═════════════════════════════════════════════════
@@ -598,7 +598,7 @@ inline void cube_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Queu
     fe.behavior_id    = pick_cube_behavior_for_spawn(c->mood_state_.active, inst.seed);
     fe.behavior_phase = cpu_hash(inst.seed, 0xF10A7E70u);
     // Kite mode starts disabled — cube is anchored to its spawn patch
-    // until the user explicitly toggles kite mode via cube_behaviors.inl.
+    // until the user explicitly toggles kite mode via toggle_cube_kite_mode (below).
     fe.follow_pawn = 0;
     fe.pawn_offset[0] = 0.0f; fe.pawn_offset[1] = 0.0f; fe.pawn_offset[2] = 0.0f;
     c->gpuState_.upload_cube_entity_slot(queue, inst.slot, fe);

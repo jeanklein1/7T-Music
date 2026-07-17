@@ -29,7 +29,7 @@
 // surface samplers (estimate_terrain_height / terrain_tile_warm),
 // seed_utils.hpp, cartridge core (time_state_.seconds/dt/beat_rate,
 // THEMES / PATCH_EXTENT (file-scope vocabulary), the four ribbon
-// canvas bindings; the sky trio is OWN state since m6) through the keyhole, and the GPU wires
+// canvas bindings ride RibbonDeps; the sky trio is OWN state), and the GPU wires
 // (upload_ribbon_time / _color / _wave_amps / _head_poses — the flush +
 // head laws write through).
 //
@@ -445,7 +445,7 @@ void commit_ribbon(RibbonState& rs, MachineCtx* c,
     const RibbonPlacement& plan,
     int32_t trigger_gx, int32_t trigger_gz, wgpu::Queue& queue);
 // The evictor — keyhole-shaped
-// to match the FAMILY_DISPATCH evict slot (table in family_dispatch.inl);
+// to match the FAMILY_DISPATCH evict slot (table in cartridge.hpp, post-class);
 // carries the sky-mode pin (SEAM[ribbon:sky-mode]) and ref-count law
 void evict_ribbon(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
 // Dispatch funnels (table-shaped; the FAMILY_DISPATCH rows point here)

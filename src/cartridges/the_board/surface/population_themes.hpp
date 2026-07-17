@@ -12,7 +12,7 @@
 // Compositional intent per region: what spawns, how densely, in which
 // tier mix — THEMES rows selected per patch by the envelope machine.
 //
-// The impl reaches the keyhole only for the flag-gated census dump.
+// The impl's only machine reach is the flag-gated census dump (MachineCtx).
 
 namespace t7 {
 namespace the_board {
@@ -310,9 +310,8 @@ inline float theme_envelope_weight(const PopulationTheme& theme, uint32_t elapse
 }
 
 // Called ONCE per patch, inside the spawn loop, BEFORE per-family gates.
-// Returns the theme index to use for this patch. DEFINED in
-// population_themes.inl (post-class — the flag-gated census dump
-// reaches the keyhole).
+// Returns the theme index to use for this patch. DEFINED below
+// (the flag-gated census dump reaches the machine via MachineCtx).
 uint32_t evaluate_theme_envelope(ThemesState& ts, MachineCtx* c, uint32_t tile_seed_value);  // stores its own result (m4); takes the face (d2)
 void reset_theme_envelope(ThemesState& ts);
 
