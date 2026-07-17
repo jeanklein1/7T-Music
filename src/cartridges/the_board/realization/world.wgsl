@@ -260,7 +260,7 @@ const PATCH_EXTENT: f32 = 50.0;         // world units per patch side
 const PATCH_MESH_N: u32 = 64u;          // mesh subdivisions per patch (VS bilinear-samples 256-texel heightfield)
 const PATCH_MESH_STRIDE: u32 = PATCH_MESH_N + 1u;
 
-// ─── Patch skirts (weld #2, TERRAIN-2 SKIRTS) ───────────────────────
+// ─── Patch skirts (weld #2, SKIRTS) ─────────────────────────────────
 // Each patch skirts its FULL perimeter to hide inter-patch cracks
 // (precision + LOD/T-junction) with one mechanism: duplicate the edge
 // ring, drop the copies below the composited surface, quad-strip
@@ -648,7 +648,7 @@ struct FrameSignal {
     sky_head_y: f32,
     sky_head_z: f32,
     sky_heading: f32,
-    // The saddle's FRAME (BNK-2) — CPU-computed beside the mount point
+    // The saddle's FRAME — CPU-computed beside the mount point
     // (ribbon.inl MOUNT_* mirrors); composed into the possessed agent's
     // quaternion in behavior_player_controlled. Zeros = level.
     sky_yaw_off: f32,     // tangent-align yaw deflection (rad)
@@ -1203,7 +1203,7 @@ fn chess_field_at(world_xz: vec2<f32>) -> ChessField {
 // (palette_color_smooth — the palette's governing expression —
 //  relocated to THE TERRAIN_LOOKS PANEL ROW 8, §2.2: it lives beside
 //  its dials. The palette_color + PALETTE_VARIANCE retirement record
-//  (STEP 2b, fork resolved RETIRE) is carried by the panel's ROW 1.)
+//  (fork resolved RETIRE) is carried by the panel's ROW 1.)
 
 // --- Discrete cell color system
 // (DISCRETE_*_LATTICE_SPACING defined in Color Field Spatial Config block)
@@ -1431,7 +1431,7 @@ struct DesignConfig {
     // boundary annulus).
     lod_point_x: f32,
     lod_point_z: f32,
-    // The point's host + fly speed (PANEL-0 p1a) — piggybacked on the
+    // The point's host + fly speed — piggybacked on the
     // lod-point pad pair (no struct size delta; the possessed_slot
     // precedent). Order matches GPUDesignConfig in state.hpp.
     point_host: u32,
@@ -1450,7 +1450,7 @@ struct DesignConfig {
     veil_icing: f32,
     veil_strength: f32,
     lod0_radius: f32,
-    // ── The palette mirror (STEP 2b graduation) — C++ twin in
+    // ── The palette mirror (FORK-tier graduation) — C++ twin in
     //    GPUDesignConfig; rest = the pre-graduation literals. rgb in
     //    xyz (w pad); weight component i = palette i.
     palette_center: array<vec4<f32>, 4>,
@@ -1462,8 +1462,8 @@ struct DesignConfig {
 // ═══════════════════════════════════════════════════════════════════
 // The D2 surface-voice authoring surface: geometry, color, movement —
 // what the terrain LOOKS like. Third foundational panel, after
-// CameraControls (PANEL-0 p1a) and population_themes (the population
-// panel). STEP 3 (the mapping conversation) convenes OVER this panel:
+// CameraControls and population_themes (the population
+// panel). THE MAPPING CONVERSATION convenes OVER this panel:
 // wires land as rows beside the parameters they drive.
 //
 // TWO ROOMS, ONE PANEL — the mirror rule (the binding-registry
@@ -1502,7 +1502,7 @@ struct DesignConfig {
 // SAND_DUNE_CENTER / SAND_DUNE_VARIANCE removed — used only by the
 // (removed) coupling_sphere_to_terrain_tint. (RAYMARCH/SDF excavation)
 
-// ── ROW 1 — THE PALETTE QUARTET (GRADUATED — STEP 2b) ──────────────
+// ── ROW 1 — THE PALETTE QUARTET (GRADUATED) ────────────────────────
 // The four palettes now live in the CONFIG UNIFORM (config.palette_center
 // / palette_light / palette_weight — C++ twin GPUDesignConfig, setters
 // set_palette_*): the FORK-tier graduation that makes the MEDIANS
@@ -1955,7 +1955,7 @@ fn fpv_mode_active() -> bool {
     return config.fpv_mode != 0u;
 }
 
-// The point's host flag (PANEL-0 p1a; contracts/point.hpp mirror):
+// The point's host flag (contracts/point.hpp mirror):
 // true = the CAMERA hosts the point (free-fly); false = the pawn
 // hosts (the kite — every body-path read below is unchanged).
 fn point_camera_hosted() -> bool {
@@ -2287,8 +2287,8 @@ const CONTRIB_PAWN_AURA         : u32 = 9u;
 const CONTRIB_GOL_SUPPRESSION   : u32 = 10u;
 const CONTRIB_COUNT             : u32 = 11u;
 
-// Policy IDs — the manifold interface's policy selector (TERRAIN-2
-// Stage 1 b1). MUST mirror enum PolicyId in ground_architecture.hpp
+// Policy IDs — the manifold interface's policy selector (b1).
+// MUST mirror enum PolicyId in ground_architecture.hpp
 // byte-for-byte (same order/values); the masks above are per-policy
 // contributor sets, these are the discrete ids manifold_resolve
 // switches on.
@@ -2338,7 +2338,7 @@ const POLICY_WALKER_TILT_MASK          : u32 = GROUND_STATIC_BASE_MASK
                                               | (1u << CONTRIB_GOL_ZONES)
                                               | (1u << CONTRIB_TERRAIN_WAVES)
                                               | (1u << CONTRIB_RADIAL_PULSES)
-                                              | (1u << CONTRIB_GOL_SUPPRESSION);  // pawn-centered; same suppression walker applies (truth-fix TER-2)
+                                              | (1u << CONTRIB_GOL_SUPPRESSION);  // pawn-centered; same suppression walker applies (truth-fix)
 const POLICY_WALKER_AGENT_MASK         : u32 = GROUND_STATIC_BASE_MASK
                                               | (1u << CONTRIB_PYRAMIDS)
                                               | (1u << CONTRIB_GOL_ZONES)
@@ -2836,7 +2836,7 @@ fn query_ground_baked_heightfield(xz: vec2<f32>) -> f32 {
     return h;
 }
 
-// ─── The shared dynamic-overlay stack (TERRAIN-2 b2a) ───────────────
+// ─── The shared dynamic-overlay stack (b2a) ─────────────────────────
 // The additive fold every DYNAMIC ground policy shares, authored ONCE:
 //   contrib_static_base_at + contrib_pyramids_at + <gol_term>
 //     + contrib_terrain_waves_at + contrib_radial_pulses_at
@@ -3078,7 +3078,7 @@ fn query_ground_walker_walkable(xz: vec2<f32>, qi: QueryInputs, eps: f32, step_h
 }
 
 // ════════════════════════════════════════════════════════════════
-// THE MANIFOLD INTERFACE (TERRAIN-2 Stage 1, ratified Phase A).
+// THE MANIFOLD INTERFACE (ratified).
 //
 // The ONE query every consumer uses to ask "where is the surface, and
 // how is it oriented, at this coordinate, within this boundary?" The
@@ -3094,7 +3094,7 @@ fn query_ground_walker_walkable(xz: vec2<f32>, qi: QueryInputs, eps: f32, step_h
 // its own parameter space (the heightfield reads .xz). No coordinate
 // generic — a world position is the universal coordinate.
 // BOUNDARY: Boundary{center, extent} + valid stay DECLARED-DORMANT.
-// TERRAIN-2 b3 RULING (Stage 1 close-out): containment (the finite
+// b3 RULING: containment (the finite
 // world_bound) is a SEPARATE flat-manifold shell — an "am I allowed
 // here?" clamp AROUND the query — NOT folded into this "where is the
 // surface?" query, which stays PURE. On the heightfield the ground
@@ -3125,7 +3125,7 @@ struct Boundary {
 // is groundless — both fall to the static base. The switch arms go
 // live as consumers migrate onto manifold_resolve across the b1 cohort.
 //
-// THE FOLD (TERRAIN-2 b2 RULING, Stage 1 close-out): this switch IS the
+// THE FOLD (b2 RULING): this switch IS the
 // ONE declared place the composition fold runs — in the order the
 // POLICIES[] masks declare (contracts/ground_architecture.hpp). b2a's
 // structural goal (one declared fold, every live consumer running it)
@@ -3151,7 +3151,7 @@ fn manifold_height_hf(xz: vec2<f32>, policy: u32, qi: QueryInputs) -> f32 {
     }
 }
 
-// THE POSITION-ONLY FACE (TERRAIN-2 b1-cohort). The surface POINT
+// THE POSITION-ONLY FACE (b1-cohort). The surface POINT
 // without its orientation — for consumers that snap to the surface but
 // do not orient to it (the camera clearance clamp, flyer/entity
 // ground). PERF-NEUTRAL BY CONSTRUCTION: exactly one height evaluation,
@@ -4681,9 +4681,8 @@ fn ribbon_ring_motor(ring_idx: u32, ribbon: RibbonState) -> Motor {
     // and the ring's lateral axis on (−sin w, 0, cos w) — identical to the
     // spine wave's explicit right and the mount's right. One convention,
     // three consumers, coherent.
-    // BNK-1 aimed the frame along the displaced tangent and banked it.
-    // BNK-2 has since landed: the saddle now wears the full frame (CPU
-    // mount angles composed in the sky branch), no longer gimbal-level.
+    // The saddle wears the full frame (CPU mount angles composed in
+    // the sky branch), no longer gimbal-level.
 
     // Phase age for THIS ring: the exact expression ribbon_spine_at uses,
     // shared via ribbon_phase_age (refactored to a helper, not mirrored,
@@ -5117,7 +5116,7 @@ fn compute_pawn_heading() -> f32 {
 }
 
 // THE POINT's position (compute stage) — host-sourced, per the point
-// contract (contracts/point.hpp; PANEL-0 p1b): the possessed body
+// contract (contracts/point.hpp): the possessed body
 // when the pawn hosts, the camera eye when the camera hosts.
 // VIEWPOINT-serving reads (the shadow-VP here; the CPU streaming
 // center via the point readback) go through this; ENTITY-EMANATING
@@ -5751,7 +5750,7 @@ const ZONE_MESH_MAX_INDICES: u32 = 75000u;
 // manufactured. The pawn still stands on full POLICY_WALKER ground;
 // only the tilt direction reads the tilt-safe policy.
 fn terrain_normal_at(xz: vec2<f32>, qi: QueryInputs) -> vec3<f32> {
-    // TERRAIN-2 Stage 1 b1: the pawn's tilt normal now flows through
+    // b1: the pawn's tilt normal now flows through
     // the manifold interface (POLICY_WALKER_TILT). BYTE-IDENTICAL — the
     // cast's normal is the same eps=0.5 finite-diff of
     // query_ground_walker_tilt this body computed inline (same three
@@ -5934,7 +5933,7 @@ fn behavior_player_controlled(agent_in: AgentState) -> AgentState {
         agent.vel_x = 0.0;
         agent.vel_y = 0.0;
         agent.vel_z = 0.0;
-        // The saddle joins the frame law (BNK-2): the rider wears the FULL
+        // The saddle joins the frame law: the rider wears the FULL
         // frame — heading deflected by the tangent-align yaw, pitch with
         // the vertical wave, roll into the bank. Angles arrive CPU-computed
         // in the sky block (ribbon.inl MOUNT_* mirrors); composed here in
@@ -5959,7 +5958,7 @@ fn behavior_player_controlled(agent_in: AgentState) -> AgentState {
     let prev_xz = vec2(agent.pos_x, agent.pos_z);
     let prev_y  = agent.pos_y;
 
-    // PANEL-0 p1a: the intent channel routes to the point's HOST —
+    // The intent channel routes to the point's HOST —
     // when the camera hosts (free-fly) the body idles (the else arm
     // zeroes velocity; the pawn stands, snapped where it is).
     if (coupling_active(COUPLING_INPUT_MOVES_PLAYER) && !point_camera_hosted()) {
@@ -6673,7 +6672,7 @@ fn update_camera() {
 
     var camera = camera_state;
 
-    // ─── THE CAMERA HOSTS THE POINT (free-fly — PANEL-0 p1a) ─────
+    // ─── THE CAMERA HOSTS THE POINT (free-fly) ───────────────────
     // The point is hosted here: input moves it and the camera
     // coincides with it (the point's permanent witness). One intent
     // channel: W/A/S/D author signal.move in this mode (the pawn's
@@ -8363,7 +8362,7 @@ fn compute_photographer_vp() {
 //   (The blade GPU path IS live — this compute writes GROUND_ATLAS_BLADE
 //   and the blade VS reads it; the old "excluded/CPU-mirror" note was stale.)
 //
-// b2b — WORLD-ANCHORED OVERLAY RIDE (TERRAIN-2). The surface-STANDING
+// b2b — WORLD-ANCHORED OVERLAY RIDE. The surface-STANDING
 // families (paintings, column/antenna, palm/cactus/blade, arch feet) add
 // contrib_gol_zones_at so they sit on the LIVE zone surface the mesh
 // renders, not the baked static height — the sink/float fix. Raw GoL, no

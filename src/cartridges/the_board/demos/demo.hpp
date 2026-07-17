@@ -2,9 +2,8 @@
 #include "cartridges/the_board/demos/matrix.hpp"   // THE MATRIX: Piece rows × DemoCol columns → demo_config
 
 // ─── demo.hpp (THE SELECTOR: which column of the matrix builds) ────
-// Born at DEMO-1 (the config spine); the per-demo headers retired into
-// the MATRIX at PANEL-0 p2 (history in audit/LADDER.md, design record
-// in audit/PANEL0_P2_MATRIX_RECON.md).
+// History: audit/LADDER.md
+// The config spine; the per-demo headers retired into the MATRIX.
 //
 // DEMO SELECTION IS COMPILE-TIME in v0: pass INCUBATE_DEMO=<name> (a
 // DemoCol enumerator — a column of the matrix) as a define; default

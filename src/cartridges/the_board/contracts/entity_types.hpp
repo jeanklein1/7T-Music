@@ -1,6 +1,6 @@
 #pragma once
 // ─── entity_types.hpp ────────────────────────────────────────────
-// Converted (LADDER-1 c3): history in audit/LADDER.md.
+// History: audit/LADDER.md
 //
 // Type definitions for the generic entity pipeline: pure declarations,
 // no functions, no coupling beyond the MachineCtx face the adapter
@@ -38,7 +38,7 @@ namespace wgpu { class ComputePassEncoder; }
 namespace t7 {
 namespace the_board {
 
-// ═══ THE MACHINE FACE (DISSOLVE-1 d1; stamp S1) ═══════════════════
+// ═══ THE MACHINE FACE ═════════════════════════════════════════════
 // ONE declared struct carrying what the machine may hand a family —
 // the requirements face made literal at the machine's boundary.
 // Members are NAMED AS THE ORGANS: the deduced-C conversion leaves

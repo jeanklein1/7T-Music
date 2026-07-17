@@ -6,10 +6,10 @@
 #include "cartridges/the_board/contracts/entity_types.hpp"     // queue types (the clean three's funnel signatures)
 
 // ─── entities.hpp (HEADER: vocabulary + state + declarations) ────
-// LATENT[naming] (DEMO-1 s0): the worst-named file in the tree now
+// History: audit/LADDER.md
+// LATENT[naming]: the worst-named file in the tree now
 // that it sits in bodies/ — it is the grounded-seven registry.
 // Debt flagged, not paid; rename queues behind Jean's word.
-// Converted (LADDER-2 c1; the LADDER-4 channel): history in audit/LADDER.md.
 //
 // Vocabulary for the grounded entity families that share the generic dispatch pipeline.
 //
@@ -37,7 +37,7 @@ namespace the_board {
 
 // ═══ SHARED CONSTANTS ════════════════════════════════════════════
 
-// STATUS: LATENT[unused] (LADDER-2 c1 census) — zero callers in the tree;
+// STATUS: LATENT[unused] — zero callers in the tree;
 // declared as the CPU mirror of WGSL PAWN_HEIGHT. Kept per flag-don't-
 // delete; revive-or-delete when the pawn-height coupling is next worked.
 inline constexpr float PAWN_HEIGHT_UNITS = 1.5f;     // matches WGSL PAWN_HEIGHT
@@ -546,10 +546,10 @@ uint32_t force_spawn_portal_arch(EntitiesState& es, MachineCtx* c, wgpu::Queue& 
     const PortalDestination& dest, bool is_back_portal,
     const float portal_color[3]);
 
-// ═══ IMPL (merged from entities.inl — DISSOLVE-1 Batch B):
+// ═══ IMPL:
 // bodies deref EntitiesState(own) + World/Mood/GPU via MachineCtx; no
 // Cartridge. COHORT: after contracts/spawn_services.hpp (generic_* +
-// preamble DECLS — the machine bodies ride the cohort tail, Batch C) +
+// preamble DECLS — the machine bodies ride the cohort tail) +
 // patch_system.hpp (WorldState, write_pier/find_patch) + mood.hpp.
 
 // ═══ MESH-GEN PREPARERS ═══════════════════════════════════════════
@@ -644,11 +644,11 @@ inline uint32_t force_spawn_portal_arch(EntitiesState& es, MachineCtx* c, wgpu::
     const PortalDestination& dest, bool is_back_portal,
     const float portal_color[3]) {
     // ROSTER-GATE portal (b) — THE SECOND DOOR. Portals force-spawn arches
-    // directly (bypassing FAMILY_DISPATCH — ROSTER_RECON R3), so this is the
+    // directly (bypassing FAMILY_DISPATCH — R3), so this is the
     // single choke point every portal spawner routes through (back, finite,
     // future). Disabled: spawn nothing (no arch, no piers, no mesh-pending),
     // return the no-free-slot sentinel so callers treat it as "none placed".
-    // HOME (LADDER-4 / K4): MIGRATED here from mood's force_spawn_portal_at —
+    // HOME (K4): MIGRATED here from mood's force_spawn_portal_at —
     // the door's written retirement condition ("when mood converts and
     // force-spawn becomes a request channel, this door MIGRATES INTO that
     // channel"), fulfilled. The arch's owner holds the door to the arch's
@@ -1504,7 +1504,7 @@ inline void dispatch_commit_cactus_generic(MachineCtx* self, PlacementEntry& pe,
 }
 
 
-// ─── Teardown (owner verb; REBUILD-0 m2, stamp D4) ────────────────
+// ─── Teardown (owner verb) ────────────────────────────────────────
 // The grounded families' half of the world-teardown sweep — CPU slot
 // clears + GPU param-slot clears + mesh-gen re-arm, seven families in
 // their one organ. UNGATED by design: the seven families share this

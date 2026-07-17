@@ -3,9 +3,9 @@
 #include "cartridges/the_board/contracts/mood_constants.hpp"   // MOOD_COUNT (sizes the configs' MOOD_MULTIPLIER)
 
 // ─── floater_vocabulary.hpp ──────────────────────────────────────
-// LATENT[naming] (DEMO-1 s0): lives in contracts/ despite the name —
+// History: audit/LADDER.md
+// LATENT[naming]: lives in contracts/ despite the name —
 // shared floater TYPES, not a module. Debt flagged, not paid.
-// Converted (LADDER-2 c0/c4): history in audit/LADDER.md.
 //
 // Vocabulary for the two generic-pipeline floater families: Sphere
 // (orbital, PGA motor-driven) and Cube (hover-bob monoliths).
@@ -52,8 +52,7 @@ inline constexpr uint32_t SPHERE_TIER_COUNT = 2;
 inline constexpr float SPHERE_BASE_TIER_WEIGHTS[SPHERE_TIER_COUNT] = { 0.65f, 0.35f };
 inline constexpr const char* SPHERE_TIER_NAMES[] = { "Sentinel", "Anomaly" };
 
-// ── Readback spawn-protection window (shared sphere/cube vocabulary;
-//    REBUILD-0 m2 — rode home with the mirror-reconciliation verbs) ──
+// ── Readback spawn-protection window (shared sphere/cube vocabulary) ──
 inline constexpr float SPAWN_PROTECTION_S = 0.10f;
 
 // ── Spawn Configuration ──────────────────────────────────────────

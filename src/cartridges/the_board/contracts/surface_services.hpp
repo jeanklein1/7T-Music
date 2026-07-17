@@ -7,10 +7,7 @@
 namespace wgpu { class CommandEncoder; }
 
 // ─── surface_services.hpp (CONTRACT: the surface's decl tier) ─────
-// Born at LADDER-6 as patch_system.hpp (S2 extraction; conductor
-// rides whole by the stamped map, R-c); became the surface's CONTRACT
-// at the patch merge (DISSOLVE-1 Batch D, the B ruling — the contract
-// split, spawn_services' sibling): history in audit/LADDER.md.
+// History: audit/LADDER.md
 //
 // WorldState (the root organ every stratum reads), the patch registry
 // vocabulary (ActivePatch + the S2/S3 boundary face), PatchSystemState,
@@ -40,7 +37,7 @@ namespace the_board {
 
 // ── World state ────────────────────────────────────────────────────
 
-// ROOT ORGAN (Phase R stamp, R-a): the struct's home is here; the
+// ROOT ORGAN: the struct's home is here; the
 // instance (world_state_) stays at the composition root.
 struct WorldState {
     // ── Seed + dimensions ──
@@ -73,7 +70,7 @@ struct WorldState {
 
 // Patch dimensions aliased from Dim:: for local readability
 inline constexpr float    PATCH_EXTENT = Dim::PATCH_EXTENT;
-inline constexpr float    PATCH_CELL_SIZE = (float)Dim::PATCH_EXTENT / 16.0f;  // 3.125 — patch-grid cell (graduated from gol_zones at DISSOLVE-1 Batch B; pawn aura + gol zones consume it)
+inline constexpr float    PATCH_CELL_SIZE = (float)Dim::PATCH_EXTENT / 16.0f;  // 3.125 — patch-grid cell (pawn aura + gol zones consume it)
 inline constexpr uint32_t GRID_RADIUS = Dim::PATCH_GRID_RADIUS;   // inner priority (3 → 7×7)
 inline constexpr uint32_t GRID_SIDE = Dim::PATCH_GRID_SIDE;
 inline constexpr uint32_t PREGEN_RADIUS = Dim::PATCH_PREGEN_RADIUS; // deep pre-gen buffer (7)
@@ -162,15 +159,14 @@ struct PatchSystemState {
     ActivePatch patches_[MAX_PATCHES]{};
     // Free-list of available texture layers
     uint32_t freeLayerStack_[MAX_PATCHES]{};
-    // The unified pier mirror (rode in from spawn_engine at its
-    // conversion — Phase R stamp: PIERS ride patch_system)
+    // The unified pier mirror (PIERS ride patch_system)
     GPUPierInstance cpuPiers_[Dim::PIER_TOTAL]{};
 };
 
 // ═══ MODULE FUNCTIONS — DECLARATIONS ═══════════════════════════════
 //
 // DEFINED in surface/patch_system.hpp (merged, cohort tail): the machine stands on
-// THE MACHINE FACE (Batch D — no keyhole), the S3 dispatch seam
+// THE MACHINE FACE (no keyhole), the S3 dispatch seam
 // (select/place/commit — contracts/spawn_services.hpp), and the GPU
 // wire (gpuState_ / renderer_). The reaches outside the face ride
 // the call sites: the tile doors' deps, the mood deps, the driver's
@@ -191,16 +187,16 @@ void audit_entity_integrity(MachineCtx* c);
 uint32_t count_pending_patches(MachineCtx* c);
 uint32_t patches_budget_this_frame(MachineCtx* c, const InputState& inputState_);
 
-// Keyhole form (Phase R stamp, R-b). CALLER: the transition machine
+// Keyhole form. CALLER: the transition machine
 // (root); OWNER: patch_system.
 void teardown_surface(MachineCtx* c, wgpu::Queue& queue,
-    TileWorldState& tile_world_state_, ThemesState& themes_state_);  // was teardown_world; reduced to the surface core (REBUILD-0 m2, stamp D4)
+    TileWorldState& tile_world_state_, ThemesState& themes_state_);  // was teardown_world; reduced to the surface core
 
 void init_patch_system(MachineCtx* c, TileWorldState& tile_world_state_);
 // The recenter door (m4): names the hidden regen request — the
 // streaming conductor re-evaluates the full window next frame.
-// Caller: the radius command (direction/input). DEPS-FORM (DISSOLVE-1
-// Batch C): the driver world holds no keyhole — the door takes its
+// Caller: the radius command (direction/input). DEPS-FORM: the
+// driver world holds no keyhole — the door takes its
 // one organ explicitly (the m3 precedent class, clear_spheres).
 void request_recenter(WorldState& ws);
 void write_pier(MachineCtx* c, wgpu::Queue& queue, uint32_t slot, const GPUPierInstance& pier);
@@ -232,7 +228,7 @@ void generate_selected_patches(MachineCtx* c, const PatchCandidate* candidates, 
     uint32_t& patchStagingOffset, bool& tileGridDirty,
     TileWorldState& tile_world_state_, TileWorldDeps& tile_world_deps_);
 
-// THE CONDUCTOR (Phase R stamp, R-c): the per-frame streaming step.
+// THE CONDUCTOR: the per-frame streaming step.
 void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Queue& queue,
     TileWorldState& tile_world_state_, ThemesState& themes_state_,
     TileWorldDeps& tile_world_deps_, MoodDeps& mood_deps_, const InputState& inputState_);

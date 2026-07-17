@@ -5,8 +5,8 @@
 #include <iostream>   // command-door logs
 #include "cartridges/the_board/contracts/keyhole.hpp"  // Cartridge + wgpu::Queue fwds (the keyhole)
 
-// ─── pawn.hpp (MERGED single file — DISSOLVE-1 Batch A d3) ────────
-// Converted LADDER-2 c2; deps-converted + merged DISSOLVE-1 Batch A.
+// ─── pawn.hpp (MERGED single file) ────────────────────────────────
+// History: audit/LADDER.md
 // hpp+inl collapsed: struct + deps + inline impl, one pre-class file.
 // The .inl is retired; the keyhole include stays only for the
 // wgpu::Queue/CommandEncoder fwd forms the signatures name.
@@ -81,7 +81,7 @@ struct PawnState {
     bool            aura_cfg_dirty      = true;
 };
 
-// ═══ MODULE DEPS (DISSOLVE-1 Batch A d2) ═══════════════════════════
+// ═══ MODULE DEPS ════════════════════════════════════════════════════
 // The pawn's requirements face. player_ is NON-const — the P8 door
 // (aura_presence is pawn-written, SEAM[spine:P8]); census W allows it
 // here. (GPUState/Renderer fwd — state.hpp/renderer.hpp follow this
@@ -97,7 +97,7 @@ struct PawnDeps {
     Renderer&        renderer_;
 };
 
-// ─── IMPL (merged from pawn.inl — DISSOLVE-1 Batch A d3):
+// ─── IMPL:
 // bodies deref only PawnDeps members; no Cartridge. The merged file
 // sits after renderer.hpp in the cohort (Renderer/GPUState complete;
 // PATCH_CELL_SIZE from patch_system.hpp). ───────────────────────────
@@ -130,7 +130,7 @@ inline void tick_pawn_couplings(PawnState& ps, PawnDeps* c, wgpu::Queue& queue) 
 }
 
 
-// ─── Teardown (owner verb; REBUILD-0 m2, stamp D4) ────────────────
+// ─── Teardown (owner verb) ────────────────────────────────────────
 // The pawn half of the world-teardown sweep: schedule a one-frame
 // aura clear + full config re-upload for the new world.
 inline void teardown_pawn_aura(PawnState& ps) {
@@ -138,7 +138,7 @@ inline void teardown_pawn_aura(PawnState& ps) {
     ps.aura_cfg_dirty = true;
 }
 
-// ─── Aura compute (owner verb; REBUILD-0 m2 — stray (2) comes home) ─
+// ─── Aura compute (owner verb) ──────────────────────────────────────
 // Persistent terrain influence. Runs while presence > 0 (ramping down
 // after toggle-off) or clearing; no-op otherwise. DEFERRED-UPLOAD FLAG
 // aura_cfg_dirty (O-4): full config upload on change, dt/t_beats-only
@@ -193,7 +193,7 @@ inline void dispatch_pawn_aura(PawnState& ps, PawnDeps* c,
 }
 
 
-// ─── Player commands (owner verbs; REBUILD-0 m4 — the input fan's
+// ─── Player commands (owner verbs — the input fan's
 // pawn pair, matching the orbs/agents/cube command pattern) ────────
 inline void toggle_aura_height(PawnState& ps, PawnDeps* c) {
     (void)c;
@@ -209,7 +209,7 @@ inline void toggle_aura(PawnState& ps, PawnDeps* c) {
     std::cout << "[Aura] Field: " << (ps.aura_enabled ? "ON" : "OFF") << "\n";
 }
 
-// ─── Mood policy door (REBUILD-0 m4): respect player preference when
+// ─── Mood policy door: respect player preference when
 // permitted, force off when forbidden — the mood driver speaks through
 // the pawn's own door instead of writing the organ. Semantics
 // byte-identical to the direct write it replaces (disclosure rule).

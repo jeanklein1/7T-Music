@@ -6,7 +6,7 @@
 #include "cartridges/the_board/contracts/entity_types.hpp"     // GoLSelection/GoLPlacement (the boundary DTOs) + queue types
 
 // ─── gol_zones.hpp (HEADER: vocabulary + state + decls) ──────────
-// Converted (LADDER-3 c1): history in audit/LADDER.md.
+// History: audit/LADDER.md
 //
 // Zone-local Game of Life + Pulse automata.
 //
@@ -35,7 +35,7 @@
 namespace t7 {
 namespace the_board {
 
-// ═══ MODULE DEPS (DISSOLVE-1 Batch B; S5) ══════════════════════════
+// ═══ MODULE DEPS (S5) ═══════════════════════════════════════════════
 // The GoL score-verbs' requirements face. device_ is the DECLARED
 // handover (stamp S5): flush_zone_derive_requests submits its derive
 // pass on its OWN encoder, MID-RENDER, and it MUST execute before the
@@ -295,7 +295,7 @@ void dispatch_zone_sync(GoLState& gs, GolDeps* c, wgpu::CommandEncoder& encoder)
 void dispatch_zone_evolve(GoLState& gs, GolDeps* c, wgpu::CommandEncoder& encoder);
 void dispatch_zone_mesh(GoLState& gs, GolDeps* c, wgpu::CommandEncoder& encoder);
 
-// ═══ IMPL (merged from gol_zones.inl — DISSOLVE-1 Batch B):
+// ═══ IMPL:
 // rows deref gol_state_(own) + mood/world/time + tile faces via MachineCtx;
 // score-verbs deref gpu/renderer/device/time via GolDeps (S5 device).
 // COHORT: after renderer (Renderer) + entity_pipeline/spawn_engine (funnels,
@@ -639,7 +639,7 @@ inline void evict_gol(MachineCtx* self,
 }
 
 
-// ─── Teardown (owner verb; REBUILD-0 m2, stamp D4) ────────────────
+// ─── Teardown (owner verb) ────────────────────────────────────────
 inline void teardown_gol(GoLState& gs, GolDeps* c, wgpu::Queue& queue) {
     // GoL zones (gs is the own organ, explicit; c is the external face)
     for (uint32_t i = 0; i < Dim::MAX_GOL_ZONES; i++) {
@@ -652,8 +652,8 @@ inline void teardown_gol(GoLState& gs, GolDeps* c, wgpu::Queue& queue) {
     c->gpuState_.upload_zone_config(queue, emptyZones);
 }
 
-// ─── Zone compute passes (owner verbs; REBUILD-0 m2 — stray (6)
-// comes home) ─ derive params + sync + evolve + mesh, SEPARATE passes
+// ─── Zone compute passes (owner verbs) ─
+// derive params + sync + evolve + mesh, SEPARATE passes
 // for the GPU barrier (O-6a). Callers order them sync -> evolve ->
 // mesh after flush_zone_derive_requests + upload_gol_zone_config.
 inline void dispatch_zone_sync(GoLState& gs, GolDeps* c, wgpu::CommandEncoder& encoder) {

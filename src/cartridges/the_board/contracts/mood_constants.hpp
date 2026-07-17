@@ -2,7 +2,7 @@
 #include <cstdint>
 
 // ─── mood_constants.hpp ──────────────────────────────────────────
-// Born of the graduations (LADDER-2 prereq, LADDER-3 G1): history in audit/LADDER.md.
+// History: audit/LADDER.md
 //
 // The mood-count constant, the Mood IDs, and PortalDestination at file
 // scope: the config-bearing module headers size their per-mood tables

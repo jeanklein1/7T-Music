@@ -1,6 +1,6 @@
 #pragma once
 // ═══════════════════════════════════════════════════════════════════════
-// THE DRAWABLE TABLE (FRAME_CONDUCTOR C5-DRAW) — one row per drawable; the
+// THE DRAWABLE TABLE — one row per drawable; the
 // three render passes (shadow / main / snapshot) iterate it FILTERED by
 // membership. Kills the triplication (a drawable was enumerated once per
 // list, ~3 hand-synced sites) and the ribbon's ordinal DRIFT (the lists had

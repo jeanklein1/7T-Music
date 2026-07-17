@@ -11,7 +11,7 @@
 // tagged ROSTER-RESIDUE; shared creation sites are tagged
 // LATENT[gate-a-shared].
 //
-// HOME (ROSTER-1b 3a): this lived as a Cartridge static member until the
+// HOME: this lived as a Cartridge static member until the
 //   roster met its SECOND CONSUMER — GPUState::init (state.hpp) needs the
 //   feature bits to gate creation. The standing law (readings publish at
 //   the second consumer) graduates it here, included by state.hpp and
@@ -33,9 +33,8 @@
 //   day authored-only exhibits with a dead camera are wanted.
 //
 // ─── GATE-(a) STATUS (the M-j cost column) ──────────────────────────
-// ROSTER-1a/1b: creation + graduation history in audit/LADDER.md.
-//   The creation-side classification (see audit/ROSTER_GATE_A.md for the
-//   full cost table with buffers/groups/pipelines and retirement per piece).
+//   The creation-side classification (full cost table with buffers/
+//   groups/pipelines and retirement per piece: history, audit/LADDER.md).
 //   SEP     = separable now: creation skipped atomically, boot+draws safe.
 //   SH·mb   = shared, an EXCLUSIVE buffer/texture is bound into a megabind
 //             (created-pristine; retirement = re-section the group).
@@ -70,12 +69,12 @@ struct PopFamily {
     static constexpr uint32_t COUNT = 12;
 };
 
-// F-1 (the annotation-pass pin): the family ORDER is load-bearing — eight
+// F-1: the family ORDER is load-bearing — eight
 // spawn tables are POSITIONAL in it (MIN_SEPARATION, the four PROXIMITY_*
 // vectors, PROXIMITY_AFFINITY, THEMES[].spawn_weight,
 // TilePopulation::spatial_density), as is FAMILY_DISPATCH (whose rows are
 // additionally name-checked at boot by validate_spine, F-2). AND (charter
-// extended, composition recon R5/§4.2): the enum order IS PLACEMENT
+// extended, R5): the enum order IS PLACEMENT
 // PRIORITY — select_entities_for_patch loops f=0..COUNT and the queue
 // places in push order, so within a patch PYRAMID's footprint registers
 // before ARCH's separation check, ARCH's before COLUMN's… the order
@@ -143,9 +142,9 @@ struct Roster {
 };
 
 // ROSTER (the selected constant) is defined in demos/demo.hpp as
-// DEMO.roster — the demo sentence selected at compile time (DEMO-1,
-// the config spine; the sentence's bits authored in the MATRIX,
-// demos/matrix.hpp, since PANEL-0 p2). The TYPE and the gate law live
+// DEMO.roster — the demo sentence selected at compile time (the
+// config spine; the sentence's bits authored in the MATRIX,
+// demos/matrix.hpp). The TYPE and the gate law live
 // here; the FIRST EDGE static_assert rides the selector, where the
 // sentence lands. All-enabled (the matrix's full column) remains
 // byte-identical to the pre-spine build — the constexpr chain is

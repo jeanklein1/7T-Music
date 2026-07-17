@@ -9,8 +9,8 @@
 #include <iostream>       // DIAG blocks (lifecycle audit + evict trace)   // (impl, merged)
 
 // ─── patch_system.hpp (S2 · MERGED: the active-patch machine) ──────
-// The campaign's LAST merge (DISSOLVE-1 Batch D, d3 complete): the
-// decl tier lives in contracts/surface_services.hpp; this file is the
+// History: audit/LADDER.md
+// The decl tier lives in contracts/surface_services.hpp; this file is the
 // machine's bodies whole — the registry lifecycle (allocate → spawn →
 // generate → evict), the frame budgets, world teardown, the layer
 // allocator, and the streaming conductor. Stands on THE MACHINE FACE
@@ -187,13 +187,13 @@ inline uint32_t patches_budget_this_frame(MachineCtx* c, const InputState& input
 
 // ── World lifecycle ────────────────────────────────────────────────
 //
-// Keyhole form (Phase R stamp, R-b). CALLER: the transition machine
-// (root); OWNER: patch_system. REBUILD-0 m2 (stamp D4): the bulk
+// Keyhole form. CALLER: the transition machine
+// (root); OWNER: patch_system. The bulk
 // sweep over sibling organs dissolved into per-owner teardown verbs
 // called by the score's TEARDOWN movement; this core keeps the
 // surface's own concerns — patches, tiles, themes, dispatch queues,
 // piers, footprints — plus the world-rebirth GPU staging lines.
-// ── The recenter door (m4; deps-form, DISSOLVE-1 Batch C) ─────────
+// ── The recenter door (deps-form) ─────────────────────────────────
 inline void request_recenter(WorldState& ws) {
     ws.last_center_x = INT32_MAX;
     ws.last_center_z = INT32_MAX;
@@ -237,8 +237,7 @@ inline void teardown_surface(MachineCtx* c, wgpu::Queue& queue,
 
 // ── The pier writers ───────────────────────────────────────────────
 //
-// Rode in from spawn_engine at its conversion (Phase R stamp: PIERS
-// ride patch_system); cpuPiers_ is module state (patch_system_state_).
+// PIERS ride patch_system; cpuPiers_ is module state (patch_system_state_).
 inline void write_pier(MachineCtx* c, wgpu::Queue& queue, uint32_t slot, const GPUPierInstance& pier) {
     c->patch_system_state_.cpuPiers_[slot] = pier;
     c->gpuState_.upload_pier_slot(queue, slot, pier);
@@ -269,8 +268,7 @@ inline void flush_pier_count(MachineCtx* c, wgpu::Queue& queue) {
     recompute_and_upload_pier_count(c, queue);
 }
 
-// Rode in from spawn_engine at its conversion (Phase R stamp): the
-// pier writers' regen fan-out over the registry.
+// The pier writers' regen fan-out over the registry.
 inline void mark_patches_for_regen(MachineCtx* c, float min_wx, float min_wz,
     float max_wx, float max_wz,
     int32_t home_gx, int32_t home_gz) {
@@ -310,7 +308,7 @@ inline void init_patch_system(MachineCtx* c, TileWorldState& tile_world_state_) 
 
 // Test rig piers: ramp + plateau + block at pier slots 0-2.
 // Same geometry as the old test rig solids, now as GPUPierInstance.
-// TESTING[test-rig-piers] (ROSTER-1a §1 ruling): a debug ground
+// TESTING[test-rig-piers] (ruled): a debug ground
 //   fixture, NOT a roster piece (roster rows are design pieces,
 //   not scaffolds). Mortal retirement: dies at ship (checklist).
 //   Joins the future exhibition-guard discussion alongside
@@ -687,7 +685,7 @@ inline std::unordered_set<GridKey, GridKeyHash> build_active_patch_set(MachineCt
 }
 
 // --- Patch streaming: determine active 7×7 grid, generate new patches ---
-// THE CONDUCTOR (Phase R stamp, R-c): the per-frame step — recenter,
+// THE CONDUCTOR: the per-frame step — recenter,
 // eviction, allocation, spawn + generation budgets, visibility
 // banding, deferred uploads.
 // SEAM[patch:spawn-trigger] the S3-trigger calls are the declared

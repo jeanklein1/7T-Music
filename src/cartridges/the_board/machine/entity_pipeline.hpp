@@ -5,9 +5,7 @@
 #include "cartridges/the_board/contracts/keyhole.hpp"       // Cartridge + wgpu::Queue fwds (the keyhole)
 
 // ─── entity_pipeline.hpp (S3 · MERGED: the rescale law + impl) ─────
-// Converted at LADDER-6 (the LAST class-body citizen — §1's
-// completion sentence executes this commit): history in
-// audit/LADDER.md.
+// History: audit/LADDER.md
 //
 // Generic entity lifecycle for the cookie-cutter families: the
 // three-phase verbs (select → place → commit) driven per family by
@@ -24,7 +22,7 @@
 // tier enums — COMPLETE, the merged bodies deref them), state.hpp
 // (GPU mesh params), mood.hpp (MOOD_TABLE / PORTAL_DENSITY / portal
 // doors), machine/spawn_engine.hpp (the services, defined just above
-// in the cohort). MERGED at the cohort tail (DISSOLVE-1 Batch C, the
+// in the cohort). MERGED at the cohort tail (the
 // B ruling): the decl tier (generic_* + rescale decls, the arch
 // vocabulary) lives in contracts/spawn_services.hpp.
 
@@ -71,8 +69,8 @@ inline void rescale_to_rolled_target(EntityInstance& inst, float ceiling_h,
 
 // ═══ MODULE FUNCTIONS ══════════════════════════════════════════════
 //
-// DECLARATIONS graduated to contracts/spawn_services.hpp (the
-// machine's decl tier — DISSOLVE-1 Batch C) with the arch vocabulary
+// DECLARATIONS live in contracts/spawn_services.hpp (the
+// machine's decl tier) with the arch vocabulary
 // (ArchIdx / ArchTierRow / ARCH_TIERS) and the rescale decl. The
 // definitions — the rescale template above, the three-phase verbs and
 // the welded four below — all live HERE.

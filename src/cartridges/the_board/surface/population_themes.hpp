@@ -7,7 +7,7 @@
 // MachineCtx arrives from contracts/entity_types.hpp earlier in the cohort.
 
 // ─── population_themes.hpp (S2 · HEADER: vocabulary + state + decls) ─
-// Born at LADDER-6 (S2 extraction): history in audit/LADDER.md.
+// History: audit/LADDER.md
 //
 // Compositional intent per region: what spawns, how densely, in which
 // tier mix — THEMES rows selected per patch by the envelope machine.
@@ -291,7 +291,7 @@ inline TilePopulation generate_tile_population(uint32_t active_seed, int32_t gx,
 
         for (uint32_t f = 0; f < PopFamily::COUNT; f++)
             pop.spatial_density[f] = blended_spawn[f];
-        // (pop.theme_idx dead write CUT — composition recon R5: the spatial
+        // (pop.theme_idx dead write CUT — R5: the spatial
         //  dominant-theme was authored and read nowhere; the LIVE theme axis
         //  is the temporal one, evaluate_theme_envelope → temporal_flavor.)
         pop.entity_density *= blended_density;  // theme density stacks with spatial density
@@ -316,9 +316,8 @@ uint32_t evaluate_theme_envelope(ThemesState& ts, MachineCtx* c, uint32_t tile_s
 void reset_theme_envelope(ThemesState& ts);
 
 
-// ═══ IMPL (merged from population_themes.inl — DISSOLVE-1 d3, merge
-// #1; the parked definition met its condition: ZERO keyhole residue
-// in any signature, no dispatch rows). COHORT PROOF: every callee is
+// ═══ IMPL (ZERO keyhole residue in any signature, no dispatch
+// rows). COHORT PROOF: every callee is
 // declared earlier in the cohort — cpu_hash_f (seed_utils, contracts
 // side), THEMES/theme_envelope_weight (above), EXCEPT the DIAG-gated
 // census dump, fwd-declared here under its own flag (spawn_engine.hpp
@@ -331,14 +330,14 @@ void reset_theme_envelope(ThemesState& ts);
 void dump_entity_census(MachineCtx* c, const char* trigger);  // fwd (cohort law disclosure)
 #endif
 
-// Census home (LADDER-6 3b): sole consumer is the census dump below;
+// Census home: sole consumer is the census dump below;
 // the names are this module's vocabulary.
 inline const char* theme_short_name(uint32_t theme) {
     static const char* NAMES[] = { "transition", "monumental", "colonnade", "antenna", "barren" };
     return (theme < THEME_COUNT) ? NAMES[theme] : "???";
 }
 
-// ═══ THE JOURNEY LAW (ruled at the composition recon, R4) ══════════
+// ═══ THE JOURNEY LAW (ruled, R4) ═══════════════════════════════════
 // This sampler is STATEFUL and advances once per SPAWNED PATCH, in
 // streaming order (nearest-first, budget-paced) — so the player's PATH
 // through the world writes the tier biography: which patches spawn
@@ -413,7 +412,7 @@ inline uint32_t evaluate_theme_envelope(ThemesState& ts, MachineCtx* c, uint32_t
     return selected;
 }
 
-// ─── Teardown reset (owner verb; REBUILD-0 m4) ────────────────────
+// ─── Teardown reset (owner verb) ──────────────────────────────────
 inline void reset_theme_envelope(ThemesState& ts) {
     ts = ThemesState{};
 }

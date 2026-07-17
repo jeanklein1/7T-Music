@@ -8,8 +8,8 @@
 // what the terrain LOOKS like. Every rest value and authored constant
 // of the surface voice, consolidated where a designer (or a coupling
 // wire) can read it in one sitting. Third foundational panel, after
-// CameraControls (PANEL-0 p1a) and population_themes (the population
-// panel). STEP 3 (the mapping conversation) convenes OVER this file:
+// CameraControls and population_themes (the population
+// panel). THE MAPPING CONVERSATION convenes OVER this file:
 // wires get written as rows beside the parameters they drive.
 //
 // TWO ROOMS, ONE PANEL — the mirror rule (the binding-registry
@@ -46,7 +46,7 @@ namespace terrain_looks {
 
 // ── ROW 1 — THE PALETTE QUARTET (REST) ──────────────────────────────
 // WHAT: the four terrain palettes' boot values — the pre-graduation
-//   WGSL literals (STEP 2b), bit-identical by construction. LIVE
+//   WGSL literals, bit-identical by construction. LIVE
 //   values ride the config uniform (config.palette_center / _light /
 //   _weight, GPUDesignConfig), authored per-frame by set_palette_*;
 //   these arrays are what boot writes there (GPUState::initializeState).
@@ -76,7 +76,7 @@ inline constexpr float PALETTE_WEIGHT_REST[4] = {
     0.26f,   // 3: warm
 };
 // (PALETTE_VARIANCE retired with its dead consumer palette_color —
-//  STEP 2b fork resolved RETIRE; values .08/.14/.20/.12 held by git
+//  fork resolved RETIRE; values .08/.14/.20/.12 held by git
 //  and the terrain_color_designer's design space.)
 
 // ── ROW 2 — MOTION & MODE REST PINS ─────────────────────────────────

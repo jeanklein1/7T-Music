@@ -4,7 +4,7 @@
 #include "cartridges/the_board/contracts/keyhole.hpp"          // Cartridge + wgpu::Queue fwds (the keyhole)
 
 // ─── orbs.hpp (HEADER: console + registries + state + decls) ─────
-// Converted (LADDER-2 c3): history in audit/LADDER.md.
+// History: audit/LADDER.md
 //
 // Sky orb layer — luminous points on a dome above the world.
 //
@@ -25,7 +25,7 @@ namespace wgpu { class CommandEncoder; class RenderPassEncoder; }
 namespace t7 {
 namespace the_board {
 
-// ═══ MODULE DEPS (DISSOLVE-1 Batch B) ══════════════════════════════
+// ═══ MODULE DEPS ════════════════════════════════════════════════════
 // The sky-dome feature's requirements face. const trio: witness +
 // clock + world read-only; GPU wire + renderer writable.
 struct PlayerState; struct TimeState; struct WorldState;
@@ -369,7 +369,7 @@ inline constexpr OrbMoodConfig ORB_MOOD_TABLE[MOOD_COUNT] = {
     /* 5 finite_outdoor_ref  */ {  true,  128, 0.08f, 0.06f, 0.85f, 0.4f,  0u,  0.012f, {0.15f, 0.97f, 0.10f},  0.0f, 0u,  0.12f, 0u,           50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
 };
 
-// ═══ IMPL (merged from orbs.inl — DISSOLVE-1 Batch B):
+// ═══ IMPL:
 // bodies deref orbs_state_(own) + gpu/renderer/player/time/world via OrbsDeps.
 // COHORT: after renderer (Renderer) + patch_system (WorldState) + state/spine.
 

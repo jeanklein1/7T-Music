@@ -3,19 +3,16 @@
 #include "cartridges/the_board/contracts/mood_constants.hpp"   // MOOD_COUNT (sizes MOOD_TABLE) + the Mood IDs + PortalDestination (the request door)
 
 // ─── spine_state.hpp (CONTRACT: the spine's organ types) ─────────
-// Born of REBUILD-0 m1 (services graduation; recon §2.1, stamp D3):
-// history in audit/LADDER.md, decision record in audit/REBUILD0_RECON.md.
+// History: audit/LADDER.md
 //
 // The in-class trio graduates to file scope so module deps structs
 // (m3) can name the types without the complete Cartridge. The
 // INSTANCES (time_state_, player_, transitionPhase_) stay at the
 // composition root; the residency rulings (SEAM[spine:P8],
 // SEAM[spine:transitions]) are unchanged — this is a type move, not
-// an ownership move. MoodState lived with mood (m1, the WorldState
-// pattern) until the mood MERGE sent mood's bodies to the cohort tail
-// (DISSOLVE-1 Batch D) — the spine-resident organ TYPE now lives here
-// with its transition machine, beside InputState (the Batch C
-// precedent), along with the atmosphere vocabulary its early readers
+// an ownership move. MoodState — the spine-resident organ TYPE —
+// lives here with its transition machine, beside InputState,
+// along with the atmosphere vocabulary its early readers
 // need (CeilingType / MoodProfile / MOOD_TABLE) and the transition
 // request door's DECLARATION (the def rides merged mood.hpp).
 //
@@ -38,12 +35,12 @@ struct TimeState {
     float prev_beats  = 0.0f;
 };
 
-// ═══ PLAYER STATE — THE WITNESS RECORD (REBUILD-0 m5; v3 §11) ═════
+// ═══ PLAYER STATE — THE WITNESS RECORD (v3 §11) ═══════════════════
 //
 // THE WITNESS CONTRACT, declared and census-checked (the score
 // census, Direction W):
-//   · readback_x/z — THE POINT's position (PANEL-0 p1b-a; the point
-//     contract, contracts/point.hpp): HOST-AUTHORED by the spine's
+//   · readback_x/z — THE POINT's position (the point contract,
+//     contracts/point.hpp): HOST-AUTHORED by the spine's
 //     P5 HARVEST — the possessed body's pos when the pawn hosts, the
 //     camera's pos.xz when the camera hosts (the point readback,
 //     option A, Jean's stamp). SOLE AUTHOR is still the P5 HARVEST;
@@ -100,9 +97,8 @@ struct PlayerState {
 // it unqualified instead of paying the Cartridge:: tax.
 enum class TransitionPhase { IDLE, FADE_OUT, TEARDOWN, FADE_IN };
 
-// ═══ INPUT STATE — THE DRIVER'S INTENT ORGAN (DISSOLVE-1 Batch C) ═
-// Graduated from direction/input.hpp at the input merge (the m1
-// pattern: type at the contract tier, instance at the root). The
+// ═══ INPUT STATE — THE DRIVER'S INTENT ORGAN ══════════════════════
+// Type at the contract tier, instance at the root. The
 // driver WRITES it (the callbacks + update_movement_intent); the
 // spine's signal fill and the ribbon's sky flight READ it (v3 §9
 // Act I: drivers write intents; bodies translate them). KeyState /
@@ -122,10 +118,7 @@ struct InputState {
 struct WorldState;   // contracts/surface_services.hpp — the request door reads active_seed (fwd: reference param)
 
 // ═══ MOOD STATE (the spine's mood organ; instance at the root) ════
-// REBUILD-0 m1 (stamp D3) placed the struct with mood (the WorldState
-// pattern); the mood MERGE (DISSOLVE-1 Batch D) moved mood's bodies to
-// the cohort tail, so the TYPE graduates here — the InputState
-// precedent, and the instance was ALWAYS spine-resident with the
+// Type at the contract tier; the instance was ALWAYS spine-resident with the
 // transition machine (SEAM[spine:transitions], K4). The boot default
 // reads the demo sentence; demos/demo.hpp precedes this header in the
 // cartridge include cohort (the patch_system.hpp DEMO.seed precedent).
@@ -229,7 +222,7 @@ inline constexpr MoodProfile MOOD_TABLE[MOOD_COUNT] = {
     /* MOOD_FINITE_OUTDOOR_REF */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true  },
 };
 
-// F-3 (the annotation-pass pin): MOOD_TABLE rows are POSITIONAL in
+// F-3: MOOD_TABLE rows are POSITIONAL in
 // mood-id order and carry no id field (the CUBE_POPULATIONS-style
 // per-row assert is impossible here) — so pin the ids AT the table:
 // drift in mood_constants.hpp fails HERE, where the rows live.
@@ -242,7 +235,7 @@ static_assert(MOOD_OPEN_DEFAULT       == 0 && MOOD_OPEN_SUNSET        == 1
 
 // ═══ THE TRANSITION REQUEST DOOR (decl; def rides merged mood.hpp) ═
 // The single canonical transition entry point — one door, many keys.
-// DEPS-FORM (Batch C): the driver world holds no keyhole; the door
+// DEPS-FORM: the driver world holds no keyhole; the door
 // takes the transition channel explicitly (the m3 precedent class).
 void request_mood_transition(TransitionPhase& phase, PortalDestination& pending,
     MoodState& ms, const WorldState& ws, uint32_t mood);

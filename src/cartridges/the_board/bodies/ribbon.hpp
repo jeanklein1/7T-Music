@@ -7,7 +7,7 @@
 #include "cartridges/the_board/contracts/entity_types.hpp"     // RibbonSelection/RibbonPlacement (the boundary DTOs) + queue types
 
 // ─── ribbon.hpp (HEADER: console + vocabulary + state + decls) ───
-// Converted (LADDER-3 c5): history in audit/LADDER.md.
+// History: audit/LADDER.md
 //
 // Sky Ribbon: complete subsystem (vocabulary + machinery in one module).
 //
@@ -18,8 +18,8 @@
 // P. Couple the head, and the rest follows.
 //
 // PAIRING (historical): the mirror law — byte-identical the_board/the_chord
-// mirrored-module deltas, SUSPENDED for this module at LADDER-3 c5 — is
-// RETIRED with the_chord itself (the sibling prune): the testbed served its
+// mirrored-module deltas — is
+// RETIRED with the_chord itself: the testbed served its
 // purpose, and the mirror law was the testbed's honesty constraint. Ribbon
 // is now just a module; no mirror constraint binds this file.
 //
@@ -60,7 +60,7 @@ namespace t7 { class VisualCanvas; struct TargetBinding; }  // coupling face (t7
 namespace t7 {
 namespace the_board {
 
-// ═══ MODULE DEPS (DISSOLVE-1 Batch C) ══════════════════════════════
+// ═══ MODULE DEPS ════════════════════════════════════════════════════
 // The ribbon conductor's requirements face — including the coupling
 // face made typed (the canvas + its four resolved pipes). All reads
 // except the GPU wire. (Organ fwds arrive via entity_types.hpp; the
@@ -121,7 +121,7 @@ inline constexpr float RIBBON_MOUNT_SETBACK  = 1.5f;    // pawn seat setback tow
 inline constexpr float RIBBON_SKY_YAW_TAU    = 0.6f;    // s; first-order ease on the PLAYER's yaw hand — the body replays the heading history, so bang-bang key input must become curves; short tau keeps it immediate
 inline constexpr float RIBBON_REFERENCE_BPM  = 100.0f;  // the tempo at which the tiers' authored sway is DEFINED; phase advances at live-tempo/this (control-panel)
 
-// ── Frame-law mirrors (BNK-2) ── LOCKSTEP MIRRORS of world.wgsl's
+// ── Frame-law mirrors ── LOCKSTEP MIRRORS of world.wgsl's
 inline constexpr float MOUNT_TANGENT_ALIGN = 1.0f;
 inline constexpr float MOUNT_BANK_GAIN     = 0.9f;
 inline constexpr float MOUNT_BANK_MAX      = 0.6f;
@@ -421,7 +421,7 @@ struct RibbonState {
 
     float          mood_offset[2] = { 0.0f, 0.0f };
 
-    // ── Sky-flight fixture (REBUILD-0 m6, Option A): the rider state,
+    // ── Sky-flight fixture (Option A): the rider state,
     //    re-homed from PlayerState — the mount was always ribbon-owned;
     //    this completes the ownership. F8 (D9-gated on ROSTER.ribbon)
     //    flips mode; the exit edge reads mode_prev; yaw_eased is the
@@ -477,7 +477,7 @@ void ribbon_register_tips_at(RibbonState& rs, ActivePatch& host, int32_t gx, int
 void fill_ribbon_selection_geometry(uint32_t seed, uint32_t tier_idx,
     RibbonSelection& sel);
 
-// ═══ IMPL (merged from ribbon.inl — DISSOLVE-1 Batch B):
+// ═══ IMPL:
 // bodies deref rs (RibbonState, own via param) + tile faces/player/input/
 // canvas/pipes/world/mood via RibbonDeps. COHORT: after visual_canvas.hpp
 // (VisualCanvas + TargetBinding complete) + renderer + patch/tile + machine.
@@ -959,8 +959,7 @@ inline void ribbon_frame_tick(RibbonState& rs, RibbonDeps* c, wgpu::Queue& queue
         }
     }
 
-    // ── SNAP-1 resync, the tick's tail (REBUILD-0 m6, Option A —
-    // moved from the score; O-1 holds BY CONSTRUCTION now: the head
+    // ── The sky resync, the tick's tail (O-1 holds BY CONSTRUCTION: the head
     // advanced above, dispatch_compute follows the tick in the score,
     // and queue writes apply in submission order). Re-writes the
     // sky_* signal block so the pawn and the ribbon are sampled at
@@ -1391,7 +1390,7 @@ inline void evict_ribbon(MachineCtx* self,
 }
 
 
-// ─── Teardown (owner verb; REBUILD-0 m2, stamp D4) ────────────────
+// ─── Teardown (owner verb) ────────────────────────────────────────
 inline void teardown_ribbon(RibbonState& rs, RibbonDeps* c, wgpu::Queue& queue) {
     // Ribbon — clear all slots
     {
@@ -1406,8 +1405,8 @@ inline void teardown_ribbon(RibbonState& rs, RibbonDeps* c, wgpu::Queue& queue) 
     }
 }
 
-// ─── Finite-mode release (owner verb; REBUILD-0 m2 — stray (4) comes
-// home) ─ deactivate ribbons in finite mode unless the mood spawns its
+// ─── Finite-mode release (owner verb) ─
+// deactivate ribbons in finite mode unless the mood spawns its
 // own anchor ribbon in apply_mood. ORDER (O-3): must run AFTER
 // apply_mood set mood_state_.active (and possibly spawned the anchor).
 inline void release_finite_ribbons(RibbonState& rs, RibbonDeps* c, wgpu::Queue& queue) {
@@ -1424,7 +1423,7 @@ inline void release_finite_ribbons(RibbonState& rs, RibbonDeps* c, wgpu::Queue& 
 }
 
 
-// ─── Promote-to-rendered (owner verb; REBUILD-0 m4 — the anchor
+// ─── Promote-to-rendered (owner verb — the anchor
 // ribbon's immediate promotion, folded out of mood's applier: the
 // trailing rendered_slot write now lives with its owner) ───────────
 // Immediate GPU upload: the per-frame loop may not run before the
@@ -1435,7 +1434,7 @@ inline void promote_ribbon_to_rendered(RibbonState& rs, RibbonDeps* c, uint32_t 
 }
 
 
-// ─── Tip registration (owner verb; REBUILD-0 m4): called by the
+// ─── Tip registration (owner verb): called by the
 // streaming conductor when a patch spawns — registers whichever of a
 // ribbon's two anchor tips lives at (gx,gz) into the host patch and
 // takes the reference. The inverse (the ref_count decrement) already

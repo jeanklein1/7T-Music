@@ -8,9 +8,7 @@
 #include "cartridges/the_board/contracts/keyhole.hpp"       // Cartridge + wgpu::Queue fwds (the keyhole)
 
 // ─── spawn_engine.hpp (S3 · MERGED: vocabulary + state + impl) ─────
-// Converted at LADDER-6 (the first of the last two class-body
-// citizens); payload relocations (LADDER-3) and conversion history
-// in audit/LADDER.md.
+// History: audit/LADDER.md
 //
 // How and when things appear: shared spawn helpers, footprint
 // registry, proximity affinity, mesh-param rebuilds, distance
@@ -35,7 +33,7 @@
 // entities.hpp (ActiveColumn/EntitiesState — COMPLETE, the merged
 // bodies deref them), patch_system.hpp (PATCH_EXTENT — the preamble
 // template reads it at definition), renderer.hpp. MERGED at the
-// cohort tail (DISSOLVE-1 Batch C, the B ruling): the decl tier
+// cohort tail (the B ruling): the decl tier
 // lives in contracts/spawn_services.hpp; every pre-tail caller binds
 // by same-TU late definition (templates at end-of-TU).
 
@@ -166,8 +164,8 @@ struct SpawnEngineState {
 
 // ═══ MODULE FUNCTIONS ══════════════════════════════════════════════
 //
-// DECLARATIONS graduated to contracts/spawn_services.hpp (the
-// machine's decl tier — DISSOLVE-1 Batch C) with the boundary DTOs
+// DECLARATIONS live in contracts/spawn_services.hpp (the
+// machine's decl tier) with the boundary DTOs
 // (SpawnGatePreambleResult / PositionResult / SpawnPreamble), the
 // ActiveColumn fwd, MIN_SEPARATION, and GLOBAL_ENTITY_DENSITY (gol +
 // gallery read it pre-tail). Definitions are all below.
@@ -175,7 +173,7 @@ struct SpawnEngineState {
 // ── Helper 1: SpawnGatePreamble ──────────────────────────────
 
 // SEAM[spawn_engine:P11] the canonical templated active-array helper.
-// THE TEMPLATE KEYHOLE, retired to a doorway (DISSOLVE-1 Batch C):
+// THE TEMPLATE KEYHOLE, retired to a doorway:
 // every instantiation now deduces C = MachineCtx (the machine face);
 // the DECLARATION lives in contracts/spawn_services.hpp so the ten
 // pre-tail callers bind here at end-of-TU instantiation. The typename
@@ -602,7 +600,7 @@ inline void dump_entity_census(MachineCtx* c, const char* trigger) {
 // ═══ THE COMPOSITION LAW — definition (decl: spawn_services.hpp) ═══
 // The ONE place the spawn-probability stack is authored (R1). The
 // float multiplication ORDER below is the bit-identity contract
-// (composition recon §4.7) — do not reorder a multiply, do not move a
+// — do not reorder a multiply, do not move a
 // clamp. Exact argument orders of min/max preserved per policy.
 inline SpawnChanceResult compose_spawn_chance(MachineCtx* c, int32_t gx, int32_t gz,
     uint32_t family, float base_chance, const float* mood_mult,
@@ -629,7 +627,7 @@ inline SpawnPreamble evaluate_spawn_gate(MachineCtx* c, int32_t gx, int32_t gz,
     uint32_t spawn_roll_prop,
     float chance) {
     SpawnPreamble result{};
-    // (per-gate archetype lookup CUT — composition recon R5: computed for
+    // (per-gate archetype lookup CUT — R5: computed for
     //  every generic gate, read by nobody; the sole archetype consumer
     //  (gallery) calls tile_archetype itself in its bespoke funnel.)
     result.seed = tile_seed(c->world_state_.active_seed, gx, gz);

@@ -8,7 +8,7 @@
 #include "cartridges/the_board/contracts/entity_types.hpp"   // queue types (the funnel signatures)
 
 // ─── cube_behaviors.hpp (HEADER: registries + console + state + decls) ─
-// Converted (LADDER-3 c3): history in audit/LADDER.md.
+// History: audit/LADDER.md
 //
 // Cube behavior system.
 //
@@ -24,7 +24,7 @@
 namespace t7 {
 namespace the_board {
 
-// ═══ MODULE DEPS (DISSOLVE-1 Batch B) ══════════════════════════════
+// ═══ MODULE DEPS ════════════════════════════════════════════════════
 // The cube commands' requirements face: corral/kite center on THE
 // POINT through the witness record (readback_x/z, p1b-b — the agent
 // slot reach retired with it); all reads except the GPU wire.
@@ -633,8 +633,8 @@ inline void dispatch_commit_cube_generic(MachineCtx* self, PlacementEntry& pe, w
 }
 
 
-// ─── Readback mirror reconciliation (owner verb; REBUILD-0 m2 —
-// stray (1) comes home) ─ the cube half of the floater-readback funnel.
+// ─── Readback mirror reconciliation (owner verb) ─
+// the cube half of the floater-readback funnel.
 inline void reconcile_cube_mirror(CubeBehaviorsState& cs, CubeDeps* c, const GPUFloatingEntityState* data) {
     float now = c->time_state_.seconds;
     // Cubes: slots [CUBE_SLOT_OFFSET, TOTAL_FLOATING_SLOTS)

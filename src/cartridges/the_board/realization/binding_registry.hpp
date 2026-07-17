@@ -3,7 +3,7 @@
 // THE BINDING REGISTRY (C6) — the single source of truth for GPU binding
 // NUMBERS. Every bind-group layout entry AND its matching group entry
 // reference the SAME named constant here, so the "binding integer typed
-// twice" hazard (RENDER_UPDATE_API_RECON L2-a) is a compile error, not a
+// twice" hazard (L2-a) is a compile error, not a
 // runtime crash: a typo is an undefined symbol glaw1 catches.
 //
 // GROUP-SCOPED (forced, not stylistic). A binding number is a per-@group

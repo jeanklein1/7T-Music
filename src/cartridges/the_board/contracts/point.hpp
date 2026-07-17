@@ -2,8 +2,8 @@
 #include <cstdint>
 
 // ─── point.hpp (CONTRACT: the point — the parent of the player system) ─
-// Born of PANEL-0 p1a (Jean's correction, ratified — the point model):
-// history in audit/LADDER.md, design record in audit/PANEL0_RECON.md.
+// History: audit/LADDER.md
+// Jean's correction, ratified — the point model.
 //
 // THE POINT IS THE PARENT. The anchor IS a point; THE POINT OWNS THE
 // BUBBLE. The camera is the point's permanent witness — it renders

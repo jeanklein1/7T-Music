@@ -11,7 +11,7 @@
 #include <vector>      // shell mesh staging   // (impl, merged)
 
 // ─── mood.hpp (MERGED: deps + portal/palette vocabulary + impl) ────
-// Converted (LADDER-4, per K4): history in audit/LADDER.md.
+// History: audit/LADDER.md
 //
 // Atmosphere, indoor lighting, shell geometry, portals.
 //
@@ -23,17 +23,17 @@
 // upload_lights, upload_portal_array, mood_name) plus the appliers and
 // derivers. The Mood IDs are file-scope vocabulary
 // (mood_constants.hpp), consumed here. MOOD OWNS NO INSTANCE: struct
-// MoodState's TYPE lives here (REBUILD-0 m1, stamp D3 — the WorldState
-// pattern, R-a); the instance mood_state_ and the transition machine
+// MoodState's TYPE lives in contracts/spine_state.hpp; the instance
+// mood_state_ and the transition machine
 // (transitionPhase_ / pendingDestination_ and kin) are SPINE-OWNED
 // orchestration (SEAM[spine:transitions] at the machine's banner;
-// constitution §2, K4 as amended by the stamp). The force-spawn
+// constitution §2, K4 as amended). The force-spawn
 // mutation of the arch belongs to the arch's owner — mood's
 // force_spawn_* internals COMPUTE VALUES and call entities'
 // force_spawn_portal_arch.
-// MERGED at the cohort tail (DISSOLVE-1 Batch D, the B ruling):
+// MERGED at the cohort tail:
 // MoodState / CeilingType / MoodProfile / MOOD_TABLE + the request
-// door decl graduated to contracts/spine_state.hpp (the spine's organ
+// door decl live in contracts/spine_state.hpp (the spine's organ
 // contract — the demo sentence includes mood_constants, so the
 // DEMO-reading MoodState rides the spine tier; tile_world/ribbon/the
 // config tables read them early);
@@ -79,7 +79,7 @@
 //   point. Bails if a transition is already in flight. Lives in the
 //   mood module rather than input because portal crossings and other
 //   code paths can also drive mood transitions. One door, many keys.
-//   DEPS-FORM (DISSOLVE-1 Batch C): the driver world holds no keyhole
+//   DEPS-FORM: the driver world holds no keyhole
 //   — the door takes the transition channel explicitly (the m3
 //   precedent class, clear_spheres).
 // ─────────────────────────────────────────────────────────────────
@@ -101,8 +101,8 @@ struct PawnState;
 
 // ═══ MOOD STATE + PROFILE VOCABULARY — GRADUATED ═════════════════
 // MoodState / CeilingType / MoodProfile / MOOD_TABLE live in
-// contracts/spine_state.hpp (Batch D): the early consumers read the
-// contract; the instance stays at the root (m1, stamp D3).
+// contracts/spine_state.hpp: the early consumers read the
+// contract; the instance stays at the root.
 
 // ═══ PORTAL VOCABULARY ═══════════════════════════════════════════
 
@@ -158,7 +158,7 @@ inline constexpr uint32_t INDOOR_PALETTE_COUNT =
 // the wall surface and any artwork on it.
 inline constexpr float INDOOR_ENTITY_WALL_MARGIN = 20.0f;
 
-// ═══ THE DEPS FACE (DISSOLVE-1 Batch D d2) ═══════════════════════
+// ═══ THE DEPS FACE ═══════════════════════════════════════════════
 //
 // Mood's own organs plus its true reaches — the atmosphere author's
 // face: the mood organ, the sun/clear channel, the CPU light + portal

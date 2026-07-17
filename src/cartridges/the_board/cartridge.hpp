@@ -1,12 +1,11 @@
 #pragma once
 
 // ─── cartridge.hpp ───────────────────────────────────────────────
-// MOD campaign (ROSTER-1a/1b + LADDER-1..4): conversion history in audit/LADDER.md.
+// History: audit/LADDER.md
 //
 // THE_BOARD — Generative world engine.
 //
-// ONE REGIME (constitution §1, completion executed 2026-07-12,
-// LADDER-6): every module is a file-scope pair around the class;
+// ONE REGIME (constitution §1): every module is a file-scope pair around the class;
 // the cartridge is the composition root alone.
 //
 // SEAM[spine:owns] FAMILY_DISPATCH is genuinely spine work — the
@@ -30,8 +29,8 @@
 //   the other deferred fields await the unified entity layer.
 //   Pattern P8 visible in source.
 // SEAM[spine:portal-system] portal/transition state machine. Owns
-//   transitionPhase_ (enum type in contracts/spine_state.hpp, REBUILD-0
-//   m1), mood_state_.transition_timer, pendingDestination_, the
+//   transitionPhase_ (enum type in contracts/spine_state.hpp),
+//   mood_state_.transition_timer, pendingDestination_, the
 //   PORTAL_COLORS table, the back-portal pending state, and the
 //   trigger-detection hooks called by readback. Mood.inl drives portal
 //   spawning (force_spawn_portal_at, force_spawn_back_portal,
@@ -50,33 +49,33 @@
 #include "cartridges/the_board/primitives/seed_utils.hpp"           // hash/gaussian/tier-select helpers (pure-math leaf)
 #include "cartridges/the_board/contracts/ground_architecture.hpp"  // ground contributor/policy tables + compile-time DAG checks
 #include "cartridges/the_board/contracts/entity_types.hpp"         // THE CONTRACT HOME: pipeline contracts + boundary DTOs + queue unions + dispatch row/table decl
-#include "cartridges/the_board/contracts/spawn_services.hpp"      // THE MACHINE'S DECL TIER: spawn/pipeline service decls + boundary DTOs + arch vocabulary + MIN_SEPARATION (DISSOLVE-1 Batch C — bodies ride the merged machine headers at the cohort tail)
+#include "cartridges/the_board/contracts/spawn_services.hpp"      // THE MACHINE'S DECL TIER: spawn/pipeline service decls + boundary DTOs + arch vocabulary + MIN_SEPARATION (bodies ride the merged machine headers at the cohort tail)
 #include "cartridges/the_board/contracts/mood_constants.hpp"       // MOOD_COUNT + the Mood IDs + PortalDestination
-#include "cartridges/the_board/contracts/spine_state.hpp"          // TimeState + PlayerState + TransitionPhase + InputState + MoodState/MoodProfile/MOOD_TABLE + the request door decl (spine organ TYPES; instances stay at the root — m1 D3, Batch C/D graduations)
-#include "cartridges/the_board/contracts/point.hpp"                // THE POINT (PANEL-0 p1a): the parent of the player system — host enum + terrain rule + the bubble decl; instance at the root
+#include "cartridges/the_board/contracts/spine_state.hpp"          // TimeState + PlayerState + TransitionPhase + InputState + MoodState/MoodProfile/MOOD_TABLE + the request door decl (spine organ TYPES; instances stay at the root)
+#include "cartridges/the_board/contracts/point.hpp"                // THE POINT: the parent of the player system — host enum + terrain rule + the bubble decl; instance at the root
 #include "cartridges/the_board/contracts/floater_vocabulary.hpp"   // floater TYPES (ActiveFloater/ActiveCube), file scope
 #include "cartridges/the_board/realization/state.hpp"
-#include "cartridges/the_board/surface/population_themes.hpp"  // S2: THEMES + ThemeEnvelope + ThemesState — MERGED single file (DISSOLVE-1 d3 #1)
-#include "cartridges/the_board/contracts/surface_services.hpp"  // THE SURFACE'S DECL TIER: WorldState + the patch registry + budgets/visibility + PatchSystemState + the surface service decls (DISSOLVE-1 Batch D — bodies ride surface/patch_system.hpp at the cohort tail)
-#include "cartridges/the_board/surface/tile_world.hpp"          // S2: archetypes + tokens + TileState/cache + TileWorldDeps + impl — MERGED single file (DISSOLVE-1 Batch A d3); after patch_system for WorldState/PATCH_EXTENT
-#include "cartridges/the_board/bodies/entities.hpp"             // grounded-family vocabulary + EntitiesState + impl — MERGED (DISSOLVE-1 Batch B); after entity_pipeline for generic_*
-#include "cartridges/the_board/bodies/agents.hpp"               // AgentState + AgentsDeps + impl — MERGED (DISSOLVE-1 Batch B); after entities for COLUMN_PALETTE
-#include "cartridges/the_board/bodies/cube_behaviors.hpp"       // CubeBehaviorsState + CubeDeps + impl — MERGED (DISSOLVE-1 Batch B); after agents for AgentState
-#include "cartridges/the_board/bodies/spheres.hpp"              // SphereState + SphereDeps + impl — MERGED single file (DISSOLVE-1 Batch A d3); after entity_pipeline for the generic funnels
+#include "cartridges/the_board/surface/population_themes.hpp"  // S2: THEMES + ThemeEnvelope + ThemesState — MERGED single file
+#include "cartridges/the_board/contracts/surface_services.hpp"  // THE SURFACE'S DECL TIER: WorldState + the patch registry + budgets/visibility + PatchSystemState + the surface service decls (bodies ride surface/patch_system.hpp at the cohort tail)
+#include "cartridges/the_board/surface/tile_world.hpp"          // S2: archetypes + tokens + TileState/cache + TileWorldDeps + impl — MERGED single file; after patch_system for WorldState/PATCH_EXTENT
+#include "cartridges/the_board/bodies/entities.hpp"             // grounded-family vocabulary + EntitiesState + impl — MERGED; after entity_pipeline for generic_*
+#include "cartridges/the_board/bodies/agents.hpp"               // AgentState + AgentsDeps + impl — MERGED; after entities for COLUMN_PALETTE
+#include "cartridges/the_board/bodies/cube_behaviors.hpp"       // CubeBehaviorsState + CubeDeps + impl — MERGED; after agents for AgentState
+#include "cartridges/the_board/bodies/spheres.hpp"              // SphereState + SphereDeps + impl — MERGED single file; after entity_pipeline for the generic funnels
 #include "cartridges/the_board/realization/renderer.hpp"
-#include "cartridges/the_board/realization/drawable_table.hpp"  // C5-DRAW: the drawable table (one row per drawable; the 3 passes iterate it filtered) — after renderer/state, BEFORE gallery + render_passes so both the snapshot pass and shadow/main see it
-#include "cartridges/the_board/bodies/pawn.hpp"                 // PawnState + PawnDeps + impl — MERGED single file (DISSOLVE-1 Batch A d3); after renderer for Renderer/GPUState complete
-#include "cartridges/the_board/bodies/orbs.hpp"                 // OrbsState + OrbsDeps + impl — MERGED (DISSOLVE-1 Batch B); after renderer for Renderer
-#include "cartridges/the_board/bodies/gol_zones.hpp"            // GoLState + GolDeps (S5 device) + impl — MERGED (DISSOLVE-1 Batch B); after renderer/machine/tile
+#include "cartridges/the_board/realization/drawable_table.hpp"  // The drawable table (one row per drawable; the 3 passes iterate it filtered) — after renderer/state, BEFORE gallery + render_passes so both the snapshot pass and shadow/main see it
+#include "cartridges/the_board/bodies/pawn.hpp"                 // PawnState + PawnDeps + impl — MERGED single file; after renderer for Renderer/GPUState complete
+#include "cartridges/the_board/bodies/orbs.hpp"                 // OrbsState + OrbsDeps + impl — MERGED; after renderer for Renderer
+#include "cartridges/the_board/bodies/gol_zones.hpp"            // GoLState + GolDeps (S5 device) + impl — MERGED; after renderer/machine/tile
 #include "coupling/visual_canvas.hpp"
-#include "cartridges/the_board/bodies/ribbon.hpp"               // RibbonState + RibbonDeps + impl — MERGED (DISSOLVE-1 Batch C); after visual_canvas for the coupling face
-#include "cartridges/the_board/bodies/gallery.hpp"              // GalleryState + GalleryDeps + impl — MERGED (DISSOLVE-1 Batch C); after ribbon for RibbonState
-#include "cartridges/the_board/direction/input.hpp"             // KeyState/MouseState + InputDeps + impl — MERGED (DISSOLVE-1 Batch C); after ribbon for RibbonState (the sky fixture); InputState graduated to spine_state
-#include "cartridges/the_board/realization/render_passes.hpp"   // the pass/dispatch bodies on THE MACHINE FACE + light-VP helpers — MERGED (DISSOLVE-1 Batch D); before mood (compute_spot_light_vp)
-#include "cartridges/the_board/direction/mood.hpp"              // MoodDeps + portal/palette vocabulary + impl — MERGED (DISSOLVE-1 Batch D); after ribbon/gallery/input (fan targets), before the machine natives (they call its derivers); MoodState/MoodProfile/MOOD_TABLE graduated to spine_state
-#include "cartridges/the_board/machine/spawn_engine.hpp"        // S3: proximity tables + footprints + SpawnEngineState + the preamble template + impl — MERGED (DISSOLVE-1 Batch C); after entities/renderer for complete organs; decl tier in contracts/spawn_services.hpp
-#include "cartridges/the_board/machine/entity_pipeline.hpp"     // S3: the rescale template + the three-phase verbs + the welded four — MERGED (DISSOLVE-1 Batch C); after spawn_engine (services) + entities (vocab)
-#include "cartridges/the_board/surface/patch_system.hpp"        // S2: the active-patch machine's bodies on THE MACHINE FACE — MERGED (DISSOLVE-1 Batch D, the campaign's LAST); decl tier in contracts/surface_services.hpp
+#include "cartridges/the_board/bodies/ribbon.hpp"               // RibbonState + RibbonDeps + impl — MERGED; after visual_canvas for the coupling face
+#include "cartridges/the_board/bodies/gallery.hpp"              // GalleryState + GalleryDeps + impl — MERGED; after ribbon for RibbonState
+#include "cartridges/the_board/direction/input.hpp"             // KeyState/MouseState + InputDeps + impl — MERGED; after ribbon for RibbonState (the sky fixture); InputState graduated to spine_state
+#include "cartridges/the_board/realization/render_passes.hpp"   // the pass/dispatch bodies on THE MACHINE FACE + light-VP helpers — MERGED; before mood (compute_spot_light_vp)
+#include "cartridges/the_board/direction/mood.hpp"              // MoodDeps + portal/palette vocabulary + impl — MERGED; after ribbon/gallery/input (fan targets), before the machine natives (they call its derivers); MoodState/MoodProfile/MOOD_TABLE graduated to spine_state
+#include "cartridges/the_board/machine/spawn_engine.hpp"        // S3: proximity tables + footprints + SpawnEngineState + the preamble template + impl — MERGED; after entities/renderer for complete organs; decl tier in contracts/spawn_services.hpp
+#include "cartridges/the_board/machine/entity_pipeline.hpp"     // S3: the rescale template + the three-phase verbs + the welded four — MERGED; after spawn_engine (services) + entities (vocab)
+#include "cartridges/the_board/surface/patch_system.hpp"        // S2: the active-patch machine's bodies on THE MACHINE FACE — MERGED; decl tier in contracts/surface_services.hpp
 #include <cmath>
 #include <cstring>
 #include <iostream>
@@ -149,8 +148,8 @@ namespace t7 {
             PatchSystemState patch_system_state_;
 
             //   world_state_ — WorldState: the world seed +
-            //     radii + patch counts + dirty flags. ROOT ORGAN (Phase R
-            //     stamp, R-a): the struct lives with patch_system; the
+            //     radii + patch counts + dirty flags. ROOT ORGAN: the struct
+            //     lives in contracts/surface_services.hpp; the
             //     instance stays here at the root.
             WorldState world_state_;
 
@@ -163,8 +162,8 @@ namespace t7 {
             MouseState mouse_;
 
             // ═══ TIME STATE ═════════════════════════════════════════════
-            // Struct TimeState graduated to contracts/spine_state.hpp
-            // (REBUILD-0 m1, stamp D3); the instance stays here.
+            // Struct TimeState lives in contracts/spine_state.hpp;
+            // the instance stays here.
             TimeState time_state_;
 
             VisualCanvas  visual_canvas_;
@@ -191,12 +190,12 @@ namespace t7 {
 
             // ═══ PLAYER STATE ════════════════════════════════════════════
             //
-            // Struct PlayerState graduated to contracts/spine_state.hpp
-            // (REBUILD-0 m1, stamp D3) — SEAM[spine:P8] rides with the
+            // Struct PlayerState lives in contracts/spine_state.hpp
+            // — SEAM[spine:P8] rides with the
             // struct; the instance stays here.
             PlayerState player_{};
 
-            // ═══ THE POINT (PANEL-0 p1a) ═════════════════════════════════
+            // ═══ THE POINT ═══════════════════════════════════════════════
             //
             // The parent of the player system (contracts/point.hpp): the
             // camera is its permanent witness; the pawn is its default
@@ -205,13 +204,13 @@ namespace t7 {
             // point-host command (key 4).
             PointState point_{};
 
-            // ═══ THE MACHINE FACE (DISSOLVE-1 d1) ═══════════════════════
+            // ═══ THE MACHINE FACE ═══════════════════════════════════════
             // The one declared context the dispatch contract hands the
             // rows — references bound once, in the constructor, to the
             // organs above (contracts/entity_types.hpp owns the type).
             MachineCtx machine_ctx_;
 
-            // Per-module deps faces (DISSOLVE-1 Batch A d2) — bound once
+            // Per-module deps faces — bound once
             // in the ctor, each the module's requirements made literal.
             TileWorldDeps tile_world_deps_;
             SphereDeps    sphere_deps_;
@@ -246,8 +245,8 @@ namespace t7 {
             //   portal color is mood vocabulary; the machine keeps the
             //   pending state and the trigger hooks.
 
-            // enum TransitionPhase graduated to contracts/spine_state.hpp
-            // (REBUILD-0 m1, stamp D3); the machine member stays here.
+            // enum TransitionPhase lives in contracts/spine_state.hpp;
+            // the machine member stays here.
             TransitionPhase transitionPhase_ = TransitionPhase::IDLE;
 
             PortalDestination pendingDestination_{};
@@ -270,7 +269,7 @@ namespace t7 {
             PawnReadbackState pawnReadbackState_ = PawnReadbackState::IDLE;
             enum class FloaterReadbackState { IDLE, COPIED, MAPPING };
             FloaterReadbackState floaterReadbackState_ = FloaterReadbackState::IDLE;
-            // The point readback (PANEL-0 p1b-a, option A): runs ONLY in
+            // The point readback (option A): runs ONLY in
             // camera-host — the camera's GPU position IS the point's, so
             // it must reach the CPU for the viewpoint set (streaming,
             // LOD, cull, orb). Pawn-host never arms this machine.
@@ -419,7 +418,7 @@ namespace t7 {
                     float zero_pulses[32] = {};
                     gpuState_.set_pulse_data(0, zero_pulses);
                     // The CameraControls panel authors the fly speed
-                    // (PANEL-0 p1a) — one dial, one writer, at boot.
+                    // — one dial, one writer, at boot.
                     gpuState_.set_point_fly_speed(CameraControls::MOVE_SPEED);
                 }
 
@@ -504,7 +503,7 @@ namespace t7 {
                 // ═══ MOVEMENT: BOOT — S3 PLACEMENT ══════════════════════════
                 {
                     // Slot 0, the pawn — ungated: the player body is
-                    // unconditional (owner verb; REBUILD-0 m2, stray (3) home).
+                    // unconditional (owner verb).
                     seed_player_body(agent_state_, &agents_deps_);
 
                     wgpu::Queue q = device_.GetQueue();
@@ -518,7 +517,7 @@ namespace t7 {
 
                 // ═══ MOVEMENT: BOOT — PER-PIECE BOOT VERBS (part two) ═══════
                 // Eager-load authored paintings at boot (avoids mid-frame stall on first gallery).
-                // ROSTER-GATE gallery (c) — P2 DIES STRUCTURALLY (REBUILD-0):
+                // ROSTER-GATE gallery (c) — P2 DIES STRUCTURALLY:
                 // disabled, the authored-staging textures stay pristine.
                 if constexpr (ROSTER.gallery) {
                     wgpu::Queue q = device_.GetQueue();
@@ -553,7 +552,7 @@ namespace t7 {
                     mark(ROSTER.portal, "portal");       mark(ROSTER.transitions, "transitions");
                     mark(ROSTER.wanderers, "wanderers");
                     // Buffer creation: only indoor_shell (SEP) skips in v0;
-                    // pipelines gate per piece (gate a', DEMO-1c).
+                    // pipelines gate per piece (gate a').
                     const char* skipped = ROSTER.indoor_shell
                         ? "(none — every disabled piece is SH-shared, created-pristine)"
                         : "indoor_shell (shell VB/IB)";
@@ -580,7 +579,7 @@ namespace t7 {
             }
 
             // ═══════════════════════════════════════════════════════════════
-            // THE FRAME SPINE (FRAME_CONDUCTOR_RECON §1) — the program's
+            // THE FRAME SPINE — the program's
             // temporal dispatch table.
             //
             // The frame is an AUTHORED order, CHECKED by validation, never
@@ -800,9 +799,8 @@ namespace t7 {
                         // This TEARDOWN block owns the integration concerns:
                         //   worldGen bump (P5 stale-callback guard),
                         //   return-state capture, per-owner teardown verbs
-                        //   (REBUILD-0 m2, stamp D4 — the owner-verb pattern
-                        //   that already lived inside teardown_world,
-                        //   completed), agent reset, repopulation.
+                        //   (the owner-verb pattern that already lived
+                        //   inside teardown_world), agent reset, repopulation.
                         // SEAM[spine:P5] world_state_.world_gen++ at top of TEARDOWN is the
                         //   stale-callback guard (P5 family). Genuinely
                         //   spine-owned.
@@ -855,8 +853,7 @@ namespace t7 {
                         gpuState_.reset_player_agent(queue, preserved_tier,
                             preserved_color_r, preserved_color_g, preserved_color_b);
                         gpuState_.set_possessed_slot(0);
-                        // CPU mirror reseed rides with its owner (agents;
-                        // REBUILD-0 m2, stray (3)'s transition twin).
+                        // CPU mirror reseed rides with its owner (agents).
                         reseed_player_body(agent_state_, &agents_deps_, preserved_tier,
                             preserved_color_r, preserved_color_g, preserved_color_b);
                         gpuState_.set_world_seed(world_state_.active_seed);
@@ -870,7 +867,7 @@ namespace t7 {
                                 Idle::PAWN_POS_X, Idle::PAWN_POS_Z, queue);
                         dump_agent_census(agent_state_, &agents_deps_, "mood-transition");
                         // ROSTER-GATE ribbon (c) — finite-mode release, owner
-                        // verb (REBUILD-0 m2, stray (4) home). Zero effect
+                        // verb. Zero effect
                         // when ribbon is off (active_count stays 0). ORDER
                         // (O-3): after apply_mood set mood_state_.active.
                         if constexpr (ROSTER.ribbon)
@@ -943,7 +940,7 @@ namespace t7 {
             //   render() mixes orchestration (correct) with smaller per-module
             //   GPU upload calls (each lives in its module already).
             // ═══════════════════════════════════════════════════════════════
-            // THE FRAME SPINE — render() phases (FRAME_CONDUCTOR_RECON §1b)
+            // THE FRAME SPINE — render() phases
             //
             // CUT 1 (the extraction): the recon's movements R1..R21 are now
             // named phase methods; render() at the tail of this block is a page
@@ -1015,9 +1012,8 @@ namespace t7 {
                                         gpuState_.floating_entity_readback_staging().GetConstMappedRange(
                                             0, GPUState::floating_entity_buffer_size()));
                                     if (data) {
-                                        // Owner mirror reconciliation (REBUILD-0
-                                        // m2 — stray (1) home; funnels live with
-                                        // spheres / cube_behaviors).
+                                        // Owner mirror reconciliation (funnels
+                                        // live with spheres / cube_behaviors).
                                         if constexpr (ROSTER.sphere)  // ROSTER-GATE sphere (b) — no spheres, no mirror to release
                                             reconcile_sphere_mirror(sphere_state_, &sphere_deps_, data);
                                         if constexpr (ROSTER.cube)    // ROSTER-GATE cube (b)
@@ -1155,8 +1151,8 @@ namespace t7 {
             }
 
             // R7 — RIBBON TICK (music+wall-clock). One call; the conductor lives
-            // in ribbon.inl. Its tail is the SNAP-1 sky resync — the SOLE author of
-            // the sky_* block (E-3 mechanized C7: the drain skips those 32 bytes,
+            // in bodies/ribbon.hpp. Its tail is the sky resync — the SOLE author of
+            // the sky_* block (E-3 mechanized: the drain skips those 32 bytes,
             // and initialize() boot-neutrals them for the ribbon-off case).
             // SEAM[ribbon:sky-mode]. ROSTER-GATE ribbon — guarded at the call site.
             void phase_ribbon_tick(RenderCtx& c) {
@@ -1174,8 +1170,8 @@ namespace t7 {
                 bool dirty[PopFamily::COUNT] = {};
                 bool anyDirty = false;
                 // Twelve explicit prepare lines, one per family, each
-                // presence constexpr-gated — THE SCORE RULING (REBUILD-0
-                // m2): the typelist fold dissolved into prose. A disabled
+                // presence constexpr-gated — THE SCORE RULING: the typelist
+                // fold dissolved into prose. A disabled
                 // family's prepare is eliminated at COMPILE TIME (no call,
                 // no runtime branch); all-enabled compiles to the same 12
                 // calls in the same order.
@@ -1502,7 +1498,7 @@ namespace t7 {
                     std::cerr << "[SPINE] VALIDATION FAILED — row order / O-5b/c face law violated\n";
                     std::abort();
                 }
-                // F-2 (the annotation-pass pin): FAMILY_DISPATCH rows are
+                // F-2: FAMILY_DISPATCH rows are
                 // POSITIONAL in PopFamily order and each carries its name —
                 // check every row's name against the canonical
                 // family_short_name list, so a row swap fails LOUD at boot,
@@ -1558,8 +1554,8 @@ namespace t7 {
             void on_input(const InputEvent& event) override {
                 switch (event.type) {
                 case InputEvent::Type::KeyDown:
-                    // The command fan's TARGET organs ride the call site
-                    // (DISSOLVE-1 Batch C): the root addresses the fan's
+                    // The command fan's TARGET organs ride the call site:
+                    // the root addresses the fan's
                     // bodies per event, through the m4 doors — the driver
                     // owns none of them (v3 §9 Act I). The F6 socket stays
                     // RESERVED for a real addressing need.
@@ -1607,19 +1603,16 @@ namespace t7 {
     } // namespace the_board
 } // namespace t7
 
-// ═══ THE POST-CLASS ZONE — EMPTY OF MODULES (DISSOLVE-1 d4) ═══════════
+// ═══ THE POST-CLASS ZONE — EMPTY OF MODULES ═══════════════════════════
 //
-// The .inl era ended HERE: eighteen module impl includes once stood at
-// this file scope (WIRING FORM fix-2, SELF-WRAPPING — law in
-// audit/LADDER.md); every module now rides ONE pre-class header, its
-// decl tier at the contracts. What remains below is the spine's own
-// table — FAMILY_DISPATCH — which was never a module.
-// ═══ THE TABLE — FAMILY_DISPATCH (DISSOLVE-1 Batch A, A1) ══════════
+// Every module rides ONE pre-class header, its decl tier at the
+// contracts (history: audit/LADDER.md). What remains below is the
+// spine's own table — FAMILY_DISPATCH — which was never a module.
+// ═══ THE TABLE — FAMILY_DISPATCH ═══════════════════════════════════
 // The definition
 // is SEAM[spine:owns] spine work — it takes the Cartridge mesh-wrapper
 // static ADDRESSES and the family row addresses, so it lives with its
-// owner, the composition root, at the post-class point where its
-// include sat. No struct, no pair — the file simply comes home.
+// owner, the composition root, at the post-class point.
 namespace t7 {
 namespace the_board {
 // ─── Shared no-op adapters ────────────────────────────────────────

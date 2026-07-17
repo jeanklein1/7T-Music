@@ -7,11 +7,11 @@
 #include "cartridges/the_board/contracts/mood_constants.hpp"   // MOOD_COUNT (sizes the mood gate)
 #include "cartridges/the_board/primitives/seed_utils.hpp"       // select_weighted (PhotographerState::sample_shot_type)
 #include "cartridges/the_board/contracts/keyhole.hpp"          // Cartridge + wgpu::Queue fwds (the keyhole)
-#include "external/stb_image.h"                                // stbi_load/stbi_image_free — authored painting loader (dependency named here, fix-2; DISSOLVE-1 Batch C merge)
+#include "external/stb_image.h"                                // stbi_load/stbi_image_free — authored painting loader (dependency named here)
 #include "cartridges/the_board/contracts/entity_types.hpp"     // GallerySelection/GalleryPlacement (the boundary DTOs) + queue types
 
 // ─── gallery.hpp (HEADER: vocabulary + configs + state + decls) ──
-// Converted (LADDER-3 c4): history in audit/LADDER.md.
+// History: audit/LADDER.md
 //
 // The art system.
 //
@@ -50,7 +50,7 @@
 namespace t7 {
 namespace the_board {
 
-// ═══ MODULE DEPS (DISSOLVE-1 Batch C) ══════════════════════════════
+// ═══ MODULE DEPS ════════════════════════════════════════════════════
 // The photographer + exhibition's requirements face. sun/clear are
 // the root cosmetic arrays (by reference); ribbon_state_ read for the
 // snapshot draw gate. All reads except GPU wire + renderer.
@@ -494,12 +494,12 @@ void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& queue,
     float bmin, float bmax, float ceiling_h);
 void clear_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& queue);
 // Authored image loading
-void load_authored_textures(GalleryState& gs, GPUState& gpu, wgpu::Queue& queue);  // GPUState& deps-form (DISSOLVE-1 Batch C): context-agnostic dual-entry door
+void load_authored_textures(GalleryState& gs, GPUState& gpu, wgpu::Queue& queue);  // GPUState& deps-form: context-agnostic dual-entry door
 void rotate_authored_staging(GalleryState& gs, GalleryDeps* c, wgpu::Queue& queue);
 void teardown_gallery(GalleryState& gs, GalleryDeps* c, wgpu::Queue& queue);
 void drain_gallery_promotions(GalleryState& gs, GalleryDeps* c, wgpu::CommandEncoder& encoder);
 
-// ═══ IMPL (merged from gallery.inl — DISSOLVE-1 Batch B):
+// ═══ IMPL:
 // bodies deref gallery_state_(own) + world/tile/ribbon/player/mood via
 // GalleryDeps + sun/clear root arrays; rows via MachineCtx. COHORT: after
 // ribbon (RibbonState) + renderer + machine + tile/patch. stb_image/fs local.
@@ -1761,7 +1761,7 @@ inline void evict_gallery(MachineCtx* self,
 }
 
 
-// ─── Teardown (owner verb; REBUILD-0 m2, stamp D4) ────────────────
+// ─── Teardown (owner verb) ────────────────────────────────────────
 // NOTE the organ is SHARED with the indoor_shell feature (wall frames
 // live in the same painting slots — form_type); the score gates the
 // call on (ROSTER.gallery || ROSTER.indoor_shell).
@@ -1789,8 +1789,7 @@ inline void teardown_gallery(GalleryState& gs, GalleryDeps* c, wgpu::Queue& queu
     for (uint32_t i = 0; i < Dim::STAGING_LAYERS; i++) gs.authored_staging[i].consumed = false;
 }
 
-// ─── Promotion drain (owner verb; REBUILD-0 m2 — stray (5) comes
-// home) ─ copy staged snapshot/authored layers into the exhibition
+// ─── Promotion drain (owner verb) ─ copy staged snapshot/authored layers into the exhibition
 // array. ORDER (O-7): after render_snapshot_pass, so the snapshot
 // staging texture holds this frame's shot.
 inline void drain_gallery_promotions(GalleryState& gs, GalleryDeps* c, wgpu::CommandEncoder& encoder) {

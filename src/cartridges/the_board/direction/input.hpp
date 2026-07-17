@@ -2,15 +2,14 @@
 #include <cstdint>
 #include "cartridges/the_board/contracts/spine_state.hpp"      // PlayerState (the anchor's organ) + TransitionPhase (the transition channel) + InputState (graduated)
 #include "cartridges/the_board/contracts/mood_constants.hpp"   // MOOD_* IDs (the mood keys) + PortalDestination
-#include "cartridges/the_board/contracts/point.hpp"             // PointState/PointHost (the point — the driver toggles its host; PANEL-0 p1a)
+#include "cartridges/the_board/contracts/point.hpp"             // PointState/PointHost (the point — the driver toggles its host)
 #include <algorithm>       // std::max, std::min   // (impl, merged)
 #include <cmath>           // std::sqrt   // (impl, merged)
 #include <iostream>        // toggle / radius logs   // (impl, merged)
 #include <GLFW/glfw3.h>    // the key codes (unpapered — c6)   // (impl, merged)
 
 // ─── input.hpp (MERGED: state + deps + decls + impl) ──────────────
-// Converted (LADDER-3 c6, G2); keyhole dissolved + hpp/inl MERGED
-// (DISSOLVE-1 Batch C — input.inl retired): history in audit/LADDER.md.
+// History: audit/LADDER.md
 // COHORT: after ribbon.hpp (toggle_sky_mode derefs RibbonState.sky) +
 // the door owners (pawn/orbs/agents/cube 66-71); InputState graduated
 // to contracts/spine_state.hpp (it precedes ribbon in the cohort).
@@ -48,8 +47,8 @@ struct AgentState; struct AgentsDeps;
 struct CubeBehaviorsState; struct CubeDeps;
 struct MoodState;
 
-// ═══ CameraControls — PARAMETER PANEL (PANEL-0 p1a; the campaign's
-// first, deliberately MINIMAL — the FORM TEST for p3's per-module
+// ═══ CameraControls — PARAMETER PANEL (the first panel, deliberately
+// MINIMAL — the FORM TEST for per-module
 // panels: one organized block, clear names, editable without hunting.
 // Terrain inherits this convention.) ═══════════════════════════════
 //
@@ -96,7 +95,7 @@ struct MouseState {
     bool right_dragging = false;
 };
 
-// ═══ THE DEPS FACE (DISSOLVE-1 Batch C d2) ═══════════════════════
+// ═══ THE DEPS FACE ═══════════════════════════════════════════════
 //
 // Input's own organs plus its true reaches — the driver's face (v3
 // §9 Act I: a driver writes intents through bodies it does not own).
@@ -115,7 +114,7 @@ struct InputDeps {
     RibbonState&  ribbon_state_;  // sky.mode — the ribbon's fixture (m6, Option A)
     GPUState&     gpuState_;      // the freeze toggle + the fpv wire
     wgpu::Device& device_;        // the queue fetch (the S5-style declared handle)
-    PointState&   point_;         // the point (PANEL-0 p1a) — the host toggle (key 4)
+    PointState&   point_;         // the point — the host toggle (key 4)
 };
 
 // ═══ MODULE FUNCTIONS — DECLARATIONS ═════════════════════════════
@@ -147,8 +146,8 @@ void toggle_veil_dither(InputDeps* c);   // THE RIM knob (key V): icing tint <->
 
 // ═══ MODULE IMPLEMENTATION (merged; was input.inl) ═══════════════
 //
-// WRAPPING FORM history (fix-2) in audit/LADDER.md; the impl now
-// rides its own header (DISSOLVE-1 Batch C). GLFW is named here —
+// WRAPPING FORM history in audit/LADDER.md; the impl now
+// rides its own header. GLFW is named here —
 // the dependency is the module's, not inherited from the host TU.
 // The fallback #defines below are preprocessor — namespace-blind,
 // byte-carried from the .inl.
@@ -268,7 +267,7 @@ inline void on_key_down(InputDeps* c, int key,
         break;
     case GLFW_KEY_2: toggle_aura_height(pawn_state_, &pawn_deps_);  break;  // pawn command door (m4)
     case GLFW_KEY_3: toggle_aura(pawn_state_, &pawn_deps_);          break;  // pawn command door (m4)
-    case GLFW_KEY_4: toggle_point_host(c);                                break;  // the point's host: pawn (kite) <-> camera (free-fly) — PANEL-0 p1a
+    case GLFW_KEY_4: toggle_point_host(c);                                break;  // the point's host: pawn (kite) <-> camera (free-fly)
     case GLFW_KEY_5: request_mood_transition(transitionPhase_, pendingDestination_, mood_state_, c->world_state_, MOOD_OPEN_SUNSET);        break;
     case GLFW_KEY_6: request_mood_transition(transitionPhase_, pendingDestination_, mood_state_, c->world_state_, MOOD_INDOOR_FLAT);        break;
     case GLFW_KEY_7: request_mood_transition(transitionPhase_, pendingDestination_, mood_state_, c->world_state_, MOOD_INDOOR_VAULT);       break;
@@ -301,7 +300,7 @@ inline void on_key_down(InputDeps* c, int key,
     case GLFW_KEY_F6: corral_cubes(cube_behaviors_state_, &cube_deps_, q);                   break;
     case GLFW_KEY_F7: toggle_cube_kite_mode(cube_behaviors_state_, &cube_deps_, q);          break;
     case GLFW_KEY_F8:
-        // ROSTER-GATE ribbon (b) — D9 (REBUILD-0 stamp): sky-flight's entry
+        // ROSTER-GATE ribbon (b): sky-flight's entry
         // door rides the ribbon bit. Ungated, F8 in a ribbon-less demo snaps
         // the pawn to origin (the fail-LOUD zeros turned player-facing —
         // recon §5). m6 re-homes the machinery (Option A); this closes the
@@ -325,7 +324,7 @@ inline void on_key_up(InputDeps* c, int key) {
 // ═══ MOUSE / SCROLL ══════════════════════════════════════════════
 
 inline void on_mouse_move(InputDeps* c, float dx, float dy) {
-    constexpr float sensitivity = CameraControls::LOOK_SENSITIVITY;  // the panel dial (PANEL-0 p1a)
+    constexpr float sensitivity = CameraControls::LOOK_SENSITIVITY;  // the panel dial
     if (c->mouse_.left_dragging) {
         c->inputState_.look_az_delta += dx * sensitivity;
         c->inputState_.look_el_delta += dy * sensitivity;
@@ -399,7 +398,7 @@ inline void toggle_sky_mode(InputDeps* c) {
         << (c->ribbon_state_.sky.mode ? "ON (fly the ribbon with W/S/A/D)" : "OFF") << std::endl;
 }
 
-// The point's host toggle (PANEL-0 p1a) — the driver's iteration
+// The point's host toggle — the driver's iteration
 // tool, key 4: PAWN (the kite — today's follow, byte-untouched) <->
 // CAMERA (free-fly: W/A/S/D + mouse, terrain rule NONE, bubble
 // sensors dormant). Not roster-gated: the camera always exists.

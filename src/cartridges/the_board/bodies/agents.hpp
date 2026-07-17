@@ -6,7 +6,7 @@
 #include "cartridges/the_board/contracts/keyhole.hpp"          // Cartridge + wgpu::Queue fwds (the keyhole)
 
 // ─── agents.hpp (HEADER: registries + console + state + decls) ───
-// Converted (LADDER-3 c2, G1): history in audit/LADDER.md.
+// History: audit/LADDER.md
 //
 // Unified entity registry: the control panel for the agent system.
 //
@@ -21,7 +21,7 @@
 namespace t7 {
 namespace the_board {
 
-// ═══ MODULE DEPS (DISSOLVE-1 Batch B) ══════════════════════════════
+// ═══ MODULE DEPS ════════════════════════════════════════════════════
 // The agent population's requirements face. player_ is NON-const —
 // possession re-anchors (agents door, v3 §9 Act III); the rest is
 // read-only. (fwds: spine_state / patch_system types follow in the
@@ -295,7 +295,7 @@ void reseed_player_body(AgentState& as, AgentsDeps* c, uint32_t preserved_tier,
 // Logging
 void dump_agent_census(const AgentState& as, const AgentsDeps* c, const char* trigger);
 
-// ═══ IMPL (merged from agents.inl — DISSOLVE-1 Batch B):
+// ═══ IMPL:
 // bodies deref agent_state_(own) + gpu/player/transitionPhase/world/time
 // via AgentsDeps; read COLUMN_PALETTE (entities). COHORT: after entities
 // (COLUMN_PALETTE) + patch_system (WorldState) + spine/state. No machine.
@@ -705,8 +705,8 @@ inline void dump_agent_census(const AgentState& as, const AgentsDeps* c, const c
 }
 
 
-// ─── Player-body seeding (owner verbs; REBUILD-0 m2 — stray (3)
-// comes home) ─ boot twin: slot 0 at the Idle pose, WORKER tier (the
+// ─── Player-body seeding (owner verbs) ─
+// boot twin: slot 0 at the Idle pose, WORKER tier (the
 // GPU-side twin is seeded by GPUState::initializeState).
 inline void seed_player_body(AgentState& as, AgentsDeps* c) {
     (void)c;

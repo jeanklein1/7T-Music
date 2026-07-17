@@ -1,6 +1,6 @@
 #pragma once
 // ─── seed_utils.hpp ──────────────────────────────────────────────
-// Converted (LADDER-1 c1): history in audit/LADDER.md.
+// History: audit/LADDER.md
 //
 // Pure math.
 //
@@ -77,7 +77,7 @@ inline float cpu_sample_gaussian(uint32_t seed, uint32_t property, float mean, f
 //   and gallery.inl now call select_weighted / select_tier. The
 //   generic entity pipeline was never a separate copy — it now
 //   calls select_tier directly (its thin biased forwarder was
-//   retired in campaign A2).
+//   retired).
 
 // The bucket walk. Takes a pre-rolled uniform in [0,1); returns the
 // first index whose cumulative weight exceeds it; count-1 on the
@@ -111,7 +111,7 @@ inline uint32_t select_tier(uint32_t seed, uint32_t tier_prop,
 
 // Precompute catenary parameter 'a' from (half_span, rise).
 // 50-iteration bisection, passed to GPU in ArchMeshParams.
-// Census home (LADDER-6 3b): pure math with four cross-module
+// Census home: pure math with four cross-module
 // consumers (spawn_engine, entity_pipeline, entities, mood) — the
 // pure-math leaf is the shared header.
 inline float solve_catenary_a(float half_span, float target_h) {

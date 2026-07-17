@@ -6,12 +6,11 @@
 #include <cstdint>   // (impl, merged)
 
 // ─── render_passes.hpp (MERGED: decls + impl) ──────────────────────
-// Converted (LADDER-3 c7): history in audit/LADDER.md.
+// History: audit/LADDER.md
 //
 // GPU dispatch and draw calls.
 //
-// Converted to THE MACHINE FACE + merged (DISSOLVE-1 Batch D, the B
-// ruling): the realization conductor stands on MachineCtx — its nine
+// THE MACHINE FACE (the B ruling): the realization conductor stands on MachineCtx — its nine
 // organ reaches are all machine members, byte-identical through the
 // face. The three reaches OUTSIDE the face ride the call site (the B
 // law): render_shadow_pass takes the CPU spot-light array (const

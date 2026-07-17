@@ -9,8 +9,8 @@
 #include "cartridges/the_board/contracts/roster.hpp"                // PopFamily (TileState theme columns)
 #include "cartridges/the_board/contracts/keyhole.hpp"       // Cartridge + wgpu::Queue fwds (the keyhole)
 
-// ─── tile_world.hpp (S2 · MERGED single file — DISSOLVE-1 Batch A d3) ─
-// Born LADDER-6 (S2 extraction); deps-converted + merged Batch A.
+// ─── tile_world.hpp (S2 · MERGED single file) ─────────────────────────
+// History: audit/LADDER.md
 // hpp+inl collapsed: vocabulary + state + deps + inline impl.
 //
 // What the terrain remembers: per-tile archetype character (amp/bias/
@@ -98,7 +98,7 @@ inline constexpr float AMP_MOMENTUM_CARRY = 0.6f;       // fraction of excess ca
 
 // ── Tile State ─────────────────────────────────────────────────────
 
-// TERRAIN-2 Stage 1 b4 (A5, the tile_world cross-cut split): one tile's
+// b4 (the tile_world cross-cut split): one tile's
 // memory carried TWO concerns welded under one name (TERRAIN-0 Law 2) —
 // landform SHAPE and entity POPULATION. Split by concern here so the
 // SHAPE half is the heightfield CAST's (the sphere replaces it at Stage
@@ -145,7 +145,7 @@ struct GridKeyHash {
     }
 };
 
-// ═══ MODULE DEPS (DISSOLVE-1 Batch A d2) ═══════════════════════════
+// ═══ MODULE DEPS ════════════════════════════════════════════════════
 // The requirements face made literal: what tile_world's authoring
 // verbs consume beyond their own state. Organ-named members, bound
 // once at the root. const trio law: world + mood read-only, the GPU
@@ -187,8 +187,8 @@ void ensure_tile_padding(TileWorldState& tw, TileWorldDeps* c, int32_t gx, int32
 void reset_tile_cache(TileWorldState& tw);
 void reset_terrain_memory(TileWorldState& tw);
 void tick_terrain_tokens(TileWorldState& tw, const TileState& outcome, uint32_t seed);
-// THE S2 BOUNDARY FACE, four surfaces (REBUILD-0 m3b — v3 §7's first
-// toolbox pull, justified by D1). INVARIANT AT EVERY FACE: callable
+// THE S2 BOUNDARY FACE, four surfaces (v3 §7's first
+// toolbox pull). INVARIANT AT EVERY FACE: callable
 // WITHOUT the complete Cartridge — a generated-once surface cast
 // could implement these four and the occupiers would never know.
 //   F1 HEIGHT · F2 WARMTH · F3 SPAWN-MULT · F4 ARCHETYPE
@@ -205,7 +205,7 @@ void tile_apply_spawn_mult(const TileWorldState& tw, int32_t gx, int32_t gz,
 // (they differ: pace keeps 1.0, placement keeps archetype 1).
 bool tile_archetype(const TileWorldState& tw, int32_t gx, int32_t gz, uint32_t& out);
 
-// ═══ IMPL (merged from tile_world.inl — DISSOLVE-1 Batch A d3): the
+// ═══ IMPL: the
 // bodies deref WorldState/MoodState/GPUState via TileWorldDeps (no
 // Cartridge). COHORT PROOF: the merged file sits AFTER patch_system.hpp
 // (WorldState complete + PATCH_EXTENT/PREGEN_RADIUS) and after
@@ -440,8 +440,7 @@ inline void tick_terrain_tokens(TileWorldState& tw, const TileState& outcome, ui
 }
 
 // THE S2/S3 BOUNDARY FACE: the surface samplers — the occupiers ask
-// the terrain's memory for height and warmth (rode in from
-// spawn_engine at its conversion, per the Phase R stamp).
+// the terrain's memory for height and warmth.
 // Q6a: the world-xz → tile grid key. The ONE place a boundary-face reader
 // turns world coords into (x,z), so every reader reproduces the SAME
 // (int)floor(w/PATCH_EXTENT) derivation (it was recomputed at each site).
@@ -468,7 +467,7 @@ inline void tile_apply_spawn_mult(const TileWorldState& tw, int32_t gx, int32_t 
                                   uint32_t family, float& adj_mod) {
     auto it = tw.tileCache_.find({ gx, gz });
     if (it == tw.tileCache_.end()) {
-        // LOUD (composition recon R5, §4.4): the gate's theme layer silently
+        // LOUD (R5): the gate's theme layer silently
         // depended on ensure_tile having run at patch allocation. A miss here
         // means the allocation→spawn ordering broke — fail at the seam, not
         // by quietly dropping the theme layer from the spawn stack.
@@ -489,7 +488,7 @@ inline bool tile_archetype(const TileWorldState& tw, int32_t gx, int32_t gz, uin
 }
 
 
-// ─── The cache-authoring doors (owner verbs; REBUILD-0 m4) ─────────
+// ─── The cache-authoring doors (owner verbs) ───────────────────────
 inline void ensure_tile(TileWorldState& tw, TileWorldDeps* c, int32_t gx, int32_t gz) {
     GridKey key{ gx, gz };
     if (tw.tileCache_.find(key) == tw.tileCache_.end()) {

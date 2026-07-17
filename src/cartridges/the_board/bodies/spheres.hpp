@@ -5,8 +5,8 @@
 #include "cartridges/the_board/contracts/entity_types.hpp"  // queue types (the funnel signatures) + MachineCtx + organ fwds
 #include <iostream>   // [DIAG:EVICT] logging (flag-gated)   // (impl)
 
-// ─── spheres.hpp (MERGED single file — DISSOLVE-1 Batch A d3) ─────
-// Born converted LADDER-2 c0; deps-converted + merged Batch A.
+// ─── spheres.hpp (MERGED single file) ─────────────────────────────
+// History: audit/LADDER.md
 // hpp+inl collapsed: SphereState + SphereDeps + inline impl.
 //
 // The Sphere family's runtime STATE — the active-slot mirror for the
@@ -31,7 +31,7 @@ struct SphereState {
     uint32_t      activeFloaterCount_ = 0;
 };
 
-// ═══ MODULE DEPS (DISSOLVE-1 Batch A d2) ═══════════════════════════
+// ═══ MODULE DEPS ════════════════════════════════════════════════════
 // The sphere half's non-machine requirements face: the readback
 // mirror reconciler reads the clock. (TimeState fwd arrives via
 // entity_types.hpp / spine_state.hpp earlier in the cohort.)
@@ -40,7 +40,7 @@ struct SphereDeps {
 };
 
 // Teardown owner-clear: the sphere half of the score's TEARDOWN
-// movement (REBUILD-0 m2) — CPU clear + per-slot GPU clear, paired.
+// movement — CPU clear + per-slot GPU clear, paired.
 // DEPS-FORM PRECEDENT (m3 ruling): the explicit GPUState& parameter
 // is the deps form's first citizen, born-converted — boundary-honest,
 // callable WITHOUT the complete Cartridge. Reclassified from
@@ -66,7 +66,7 @@ void dispatch_commit_sphere_generic(MachineCtx* self, PlacementEntry& pe, wgpu::
 // reconcile via SphereDeps. COHORT PROOF: sits AFTER
 // contracts/spawn_services.hpp (generic_select/place/commit +
 // run_spawn_preamble + negotiate_position DECLS — the machine bodies
-// ride the cohort tail, Batch C); WorldState/MoodState complete upstream.
+// ride the cohort tail); WorldState/MoodState complete upstream.
 // clear_spheres keeps its deps-form GPUState& (m3 precedent). ═════════
 
 inline void evict_sphere(MachineCtx* self,
@@ -246,8 +246,8 @@ inline void dispatch_commit_sphere_generic(MachineCtx* self, PlacementEntry& pe,
 }
 
 
-// ─── Readback mirror reconciliation (owner verb; REBUILD-0 m2 —
-// stray (1) comes home) ─ the sphere half of the floater-readback
+// ─── Readback mirror reconciliation (owner verb) ─
+// the sphere half of the floater-readback
 // funnel: release CPU mirror slots the GPU deactivated, honoring the
 // spawn-protection window (SPAWN_PROTECTION_S, floater_vocabulary.hpp).
 inline void reconcile_sphere_mirror(SphereState& ss, SphereDeps* c, const GPUFloatingEntityState* data) {

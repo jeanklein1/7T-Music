@@ -6,8 +6,8 @@
 #include "cartridges/the_board/contracts/entity_types.hpp"    // MachineCtx + EntityInstance + traits/adapter + TierProfile
 
 // ─── spawn_services.hpp (CONTRACT: the machine's decl tier) ───────
-// Born of DISSOLVE-1 Batch C (the B ruling — the contract split):
-// the machine natives (spawn_engine, entity_pipeline) each held a
+// History: audit/LADDER.md
+// The machine natives (spawn_engine, entity_pipeline) each held a
 // two-tier shape — a DECL tier consumed BEFORE entities (the preamble
 // + generic + rescale templates, the service decls, the arch
 // vocabulary, MIN_SEPARATION) and a BODY tier that needs entities
@@ -26,8 +26,8 @@
 namespace t7 {
 namespace the_board {
 
-// fwd — entities vocabulary named in a declaration only (the Batch B
-// cohort proof, graduated here with the decl that names it); the
+// fwd — entities vocabulary named in a declaration only (graduated
+// here with the decl that names it); the
 // definitions, at the cohort tail, see the complete type.
 struct ActiveColumn;
 // fwd — state.hpp's GPU mesh-param records (return values below; a
@@ -173,7 +173,7 @@ inline constexpr ArchTierRow ARCH_TIERS[] = {
 // base-chance authority (scalar, or archetype-indexed — resolved by
 // the caller before the call), clamp policy, proximity on/off, and
 // the mood-zero veto style. The float multiplication ORDER inside the
-// definition is the bit-identity contract (composition recon §4.7):
+// definition is the bit-identity contract:
 // mood → GLOBAL_ENTITY_DENSITY → tile (entity_density →
 // spatial_density) → [proximity] → base × adj → clamp. Seed domains
 // and the rolls themselves stay with the consumers.

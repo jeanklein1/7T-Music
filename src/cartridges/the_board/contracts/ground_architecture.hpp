@@ -1,11 +1,11 @@
 #pragma once
 // ─── ground_architecture.hpp ─────────────────────────────────────
-// Converted (LADDER-1 c2): history in audit/LADDER.md.
+// History: audit/LADDER.md
 //
 // Canonical registry for the ground query architecture: contributors,
 // explicit dependency DAG, and policies.
 // ── Vocabulary ──────────────────────────────────────────────────
-// ── STATUS convention (TER-2 alignment) ─────────────────────────
+// ── STATUS convention ────────────────────────────────────────────
 //
 //   STATUS: REALIZED      — wired and live (the consumer is cited).
 //   STATUS: LATENT[name]  — capability with a plausible future; kept
@@ -63,7 +63,7 @@ enum ContributorId : uint32_t {
     CONTRIB_COUNT             = 11,
 };
 
-// MIRROR (TERRAIN-2 Stage 1 b1): these ids are mirrored byte-for-byte
+// MIRROR (b1): these ids are mirrored byte-for-byte
 // as the WGSL POLICY_* consts (world.wgsl, above the POLICY_*_MASK
 // block) — the manifold interface's manifold_resolve switches on them.
 // Keep the two in lock-step (same order/values), as with CONTRIB_*.
@@ -192,7 +192,7 @@ inline constexpr PolicyDef POLICIES[] = {
     // computation and step-climb decisions. Excludes CONTRIB_PAWN_AURA
     // (the self form is a zero-gradient scalar; excluded so self-centered
     // fields never drive tilt). It CARRIES the same pawn-centered GoL
-    // suppression the walker applies (truth-fix TER-2: the mask now
+    // suppression the walker applies (truth-fix: the mask now
     // states what the body computes) — the suppression is flat
     // (supp_factor = 1, zero gradient) within the eps = 0.5 tilt-sample
     // ring, so no slope is manufactured. The pawn still STANDS on full

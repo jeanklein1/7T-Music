@@ -4,8 +4,8 @@
 #include "cartridges/the_board/contracts/mood_constants.hpp"    // MOOD_OPEN_DEFAULT
 
 // ─── matrix.hpp (THE DEMO MATRIX: pieces × demos, cells booleans) ──
-// Born at PANEL-0 p2 (Jean's ratified grid): history in audit/LADDER.md,
-// design record in audit/PANEL0_P2_MATRIX_RECON.md.
+// History: audit/LADDER.md
+// Jean's ratified grid.
 //
 // ONE constexpr grid replaces the hand-written per-demo headers. ROWS
 // are PIECES (named down the left, Roster field order); COLUMNS are
