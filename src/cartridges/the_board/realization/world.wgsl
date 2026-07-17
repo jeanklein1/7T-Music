@@ -1681,6 +1681,13 @@ const OVERLAY_WAVES = array<OverlayWave, 6>(
     OverlayWave(                  3.50,  0.03,  18.0,   -1.0,   0.4,     0.4  ),  // 5: tectonic
 );
 
+// Overlay-wave seed properties (900-band — clear of entity 0–156 and
+// wave-lattice 200–221; stride separates the six bands).
+const OVERLAY_PROP_DIR_ANGLE: u32 = 900u;
+const OVERLAY_PROP_FREQ_JIT:  u32 = 901u;
+const OVERLAY_PROP_AMP_JIT:   u32 = 902u;
+const OVERLAY_PROP_STRIDE:    u32 = 10u;
+
 // ── ROW 8 — GOVERNING EXPRESSIONS ───────────────────────────────────
 // The palette's governing expression lives in-room (below). The
 // composite's governing contract — composite_cell_color(s): blend
@@ -2588,15 +2595,15 @@ fn contrib_terrain_waves_at(world_xz: vec2<f32>) -> f32 {
         // Direction: explicit angle or seed-derived when negative
         var angle: f32;
         if (ow.direction < 0.0) {
-            angle = hash_property(seed, 900u + i * 10u) * 2.0 * PI;
+            angle = hash_property(seed, OVERLAY_PROP_DIR_ANGLE + i * OVERLAY_PROP_STRIDE) * 2.0 * PI;
         } else {
             angle = ow.direction;
         }
         let dir = vec2(cos(angle), sin(angle));
 
         // Seed-derived jitter on frequency and amplitude
-        let freq = ow.freq * (1.0 + (hash_property(seed, 901u + i * 10u) - 0.5) * ow.freq_jit);
-        let amp  = ow.amp  * (1.0 + (hash_property(seed, 902u + i * 10u) - 0.5) * ow.amp_jit);
+        let freq = ow.freq * (1.0 + (hash_property(seed, OVERLAY_PROP_FREQ_JIT + i * OVERLAY_PROP_STRIDE) - 0.5) * ow.freq_jit);
+        let amp  = ow.amp  * (1.0 + (hash_property(seed, OVERLAY_PROP_AMP_JIT + i * OVERLAY_PROP_STRIDE) - 0.5) * ow.amp_jit);
 
         let temporal = (2.0 * PI / ow.period) * t;
         let spatial  = freq * dot(dir, world_xz);
@@ -2634,15 +2641,15 @@ fn terrain_wave_overlay_with_gradient(world_xz: vec2<f32>) -> vec3<f32> {
         // Direction: explicit angle or seed-derived when negative
         var angle: f32;
         if (ow.direction < 0.0) {
-            angle = hash_property(seed, 900u + i * 10u) * 2.0 * PI;
+            angle = hash_property(seed, OVERLAY_PROP_DIR_ANGLE + i * OVERLAY_PROP_STRIDE) * 2.0 * PI;
         } else {
             angle = ow.direction;
         }
         let dir = vec2(cos(angle), sin(angle));
 
         // Seed-derived jitter on frequency and amplitude
-        let freq = ow.freq * (1.0 + (hash_property(seed, 901u + i * 10u) - 0.5) * ow.freq_jit);
-        let amp  = ow.amp  * (1.0 + (hash_property(seed, 902u + i * 10u) - 0.5) * ow.amp_jit);
+        let freq = ow.freq * (1.0 + (hash_property(seed, OVERLAY_PROP_FREQ_JIT + i * OVERLAY_PROP_STRIDE) - 0.5) * ow.freq_jit);
+        let amp  = ow.amp  * (1.0 + (hash_property(seed, OVERLAY_PROP_AMP_JIT + i * OVERLAY_PROP_STRIDE) - 0.5) * ow.amp_jit);
 
         let temporal = (2.0 * PI / ow.period) * t;
         let phase    = freq * dot(dir, world_xz) + temporal;
