@@ -26,8 +26,8 @@
 // the transition channel), the m4 command doors (pawn.hpp / orbs.hpp
 // / agents.hpp / cube_behaviors.hpp / mood.hpp's
 // request_mood_transition / patch_system.hpp's request_recenter) +
-// mood_constants.hpp's MOOD_* IDs, and the patch radii (GRID_RADIUS /
-// PREGEN_RADIUS — patch_system.hpp vocabulary).
+// mood_constants.hpp's MOOD_* IDs, and the patch radii (Dim::PATCH_GRID_RADIUS /
+// Dim::PATCH_PREGEN_RADIUS — patch_system.hpp vocabulary).
 // ─────────────────────────────────────────────────────────────────
 
 // The deps face holds the queue-fetch handle (the S5 pattern, gol);
@@ -410,8 +410,8 @@ inline void toggle_point_host(InputDeps* c) {
 }
 
 inline void set_render_radius(InputDeps* c, uint32_t r) {
-    r = std::max(r, GRID_RADIUS);
-    r = std::min(r, PREGEN_RADIUS);
+    r = std::max(r, Dim::PATCH_GRID_RADIUS);
+    r = std::min(r, Dim::PATCH_PREGEN_RADIUS);
     if (r == c->world_state_.active_radius) return;
     c->world_state_.active_radius = r;
     uint32_t side = 2 * r + 1;

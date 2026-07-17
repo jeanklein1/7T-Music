@@ -61,7 +61,7 @@ struct ArchConfig {
     static constexpr float SPAWN_CHANCE = 0.030f;
     // Per-mood spawn multiplier (Bayesian: prior × mood_factor × adjacency_factor)
     static constexpr float MOOD_MULTIPLIER[MOOD_COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f };  // per-mood spawn ×: open sunset ind_flat ind_vault finite fin_ref (mood_constants order)
-    // Position jitter within patch (fraction of PATCH_EXTENT)
+    // Position jitter within patch (fraction of Dim::PATCH_EXTENT)
     static constexpr float POSITION_JITTER = 0.35f;
 };
 
@@ -670,8 +670,8 @@ inline uint32_t force_spawn_portal_arch(EntitiesState& es, MachineCtx* c, wgpu::
     float pier_half_x = thickness * 0.5f + pier_padding + edge_blend;
     float pier_half_z = depth * 0.5f + pier_padding + edge_blend;
 
-    int32_t gx = static_cast<int32_t>(std::floor(cx / PATCH_EXTENT));
-    int32_t gz = static_cast<int32_t>(std::floor(cz / PATCH_EXTENT));
+    int32_t gx = static_cast<int32_t>(std::floor(cx / Dim::PATCH_EXTENT));
+    int32_t gz = static_cast<int32_t>(std::floor(cz / Dim::PATCH_EXTENT));
 
     float cos_r = std::cos(rotation);
     float sin_r = std::sin(rotation);

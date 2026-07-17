@@ -51,8 +51,8 @@ inline void evict_patch(MachineCtx* c, uint32_t pi, wgpu::Queue& queue) {
 inline void evict_patch_entities(MachineCtx* c, ActivePatch& patch, wgpu::Queue& queue) {
 #ifdef DIAG_ENTITY_LIFECYCLE
     if (patch.entity_ref_count > 0) {
-        float wx = (patch.grid_x + 0.5f) * PATCH_EXTENT;
-        float wz = (patch.grid_z + 0.5f) * PATCH_EXTENT;
+        float wx = (patch.grid_x + 0.5f) * Dim::PATCH_EXTENT;
+        float wz = (patch.grid_z + 0.5f) * Dim::PATCH_EXTENT;
         float dx = wx - c->player_.readback_x, dz = wz - c->player_.readback_z;
         std::cout << "[DIAG:EVICT] patch(" << patch.grid_x << "," << patch.grid_z
             << ") dist=" << std::sqrt(dx * dx + dz * dz)
@@ -272,10 +272,10 @@ inline void flush_pier_count(MachineCtx* c, wgpu::Queue& queue) {
 inline void mark_patches_for_regen(MachineCtx* c, float min_wx, float min_wz,
     float max_wx, float max_wz,
     int32_t home_gx, int32_t home_gz) {
-    int32_t pg_x0 = (int32_t)std::floor(min_wx / PATCH_EXTENT);
-    int32_t pg_x1 = (int32_t)std::floor(max_wx / PATCH_EXTENT);
-    int32_t pg_z0 = (int32_t)std::floor(min_wz / PATCH_EXTENT);
-    int32_t pg_z1 = (int32_t)std::floor(max_wz / PATCH_EXTENT);
+    int32_t pg_x0 = (int32_t)std::floor(min_wx / Dim::PATCH_EXTENT);
+    int32_t pg_x1 = (int32_t)std::floor(max_wx / Dim::PATCH_EXTENT);
+    int32_t pg_z0 = (int32_t)std::floor(min_wz / Dim::PATCH_EXTENT);
+    int32_t pg_z1 = (int32_t)std::floor(max_wz / Dim::PATCH_EXTENT);
 
     for (uint32_t p = 0; p < c->world_state_.active_patch_count; p++) {
         if (c->patch_system_state_.patches_[p].phase != PatchPhase::GENERATED) continue;
@@ -290,10 +290,10 @@ inline void mark_patches_for_regen(MachineCtx* c, float min_wx, float min_wz,
 // ── Patch subsystem setup ──────────────────────────────────────────
 
 inline void init_patch_system(MachineCtx* c, TileWorldState& tile_world_state_) {
-    for (uint32_t i = 0; i < MAX_PATCHES; i++) {
-        c->patch_system_state_.freeLayerStack_[i] = MAX_PATCHES - 1 - i;
+    for (uint32_t i = 0; i < Dim::MAX_ACTIVE_PATCHES; i++) {
+        c->patch_system_state_.freeLayerStack_[i] = Dim::MAX_ACTIVE_PATCHES - 1 - i;
     }
-    c->world_state_.free_layer_count = MAX_PATCHES;
+    c->world_state_.free_layer_count = Dim::MAX_ACTIVE_PATCHES;
     c->world_state_.active_patch_count = 0;
     c->world_state_.render_patch_count = 0;
     c->world_state_.lod0_patch_count = 0;
@@ -389,9 +389,9 @@ inline void generate_patch_batch(MachineCtx* c, wgpu::CommandEncoder& encoder, w
 
 inline GPUPatchParams make_patch_params(MachineCtx* c, int32_t gx, int32_t gz, uint32_t layer) {
     GPUPatchParams p{};
-    p.origin[0] = (gx + 0.5f) * PATCH_EXTENT;
-    p.origin[1] = (gz + 0.5f) * PATCH_EXTENT;
-    p.extent = PATCH_EXTENT;
+    p.origin[0] = (gx + 0.5f) * Dim::PATCH_EXTENT;
+    p.origin[1] = (gz + 0.5f) * Dim::PATCH_EXTENT;
+    p.extent = Dim::PATCH_EXTENT;
     p.resolution = Dim::PATCH_HEIGHTFIELD_N;  // Q9: one source of truth (was a 256 literal decoupled from the Dim const that sizes the write texture + the dispatch divisor)
     p.master_seed = c->world_state_.active_seed;
     p.time = 0.0f;
@@ -415,7 +415,7 @@ inline void free_layer(MachineCtx* c, uint32_t layer) {
     c->patch_system_state_.freeLayerStack_[c->world_state_.free_layer_count++] = layer;
 }
 
-// Check if grid coordinate is within the allocation window (world_state_.active_radius = PREGEN_RADIUS)
+// Check if grid coordinate is within the allocation window (world_state_.active_radius = Dim::PATCH_PREGEN_RADIUS)
 inline bool in_render_window(MachineCtx* c, int32_t gx, int32_t gz, int32_t cx, int32_t cz) {
     int32_t r = (int32_t)c->world_state_.active_radius;
     return gx >= cx - r && gx <= cx + r &&
@@ -439,13 +439,13 @@ template<typename Pred>
 inline uint32_t collect_sorted_patches(MachineCtx* c, PatchCandidate* out,
     float point_wx, float point_wz, Pred&& pred, bool nearest_first)
 {
-    float half = PATCH_EXTENT * 0.5f;
+    float half = Dim::PATCH_EXTENT * 0.5f;
     uint32_t count = 0;
     for (uint32_t i = 0; i < c->world_state_.active_patch_count; i++) {
         if (!c->patch_system_state_.patches_[i].valid) continue;
         if (!pred(c->patch_system_state_.patches_[i])) continue;
-        float ox = (c->patch_system_state_.patches_[i].grid_x + 0.5f) * PATCH_EXTENT;
-        float oz = (c->patch_system_state_.patches_[i].grid_z + 0.5f) * PATCH_EXTENT;
+        float ox = (c->patch_system_state_.patches_[i].grid_x + 0.5f) * Dim::PATCH_EXTENT;
+        float oz = (c->patch_system_state_.patches_[i].grid_z + 0.5f) * Dim::PATCH_EXTENT;
         float d2 = patch_distance_sq(point_wx, point_wz, ox, oz, half);
         out[count++] = { i, d2 };
     }
@@ -467,9 +467,9 @@ inline uint32_t collect_sorted_patches(MachineCtx* c, PatchCandidate* out,
     return count;
 }
 
-// Check if grid coordinate is within the priority window (GRID_RADIUS)
+// Check if grid coordinate is within the priority window (Dim::PATCH_GRID_RADIUS)
 inline bool in_priority_window(MachineCtx* c, int32_t gx, int32_t gz, int32_t cx, int32_t cz) {
-    int32_t r = (int32_t)GRID_RADIUS;
+    int32_t r = (int32_t)Dim::PATCH_GRID_RADIUS;
     return gx >= cx - r && gx <= cx + r &&
         gz >= cz - r && gz <= cz + r;
 }
@@ -515,8 +515,8 @@ inline void generate_selected_patches(MachineCtx* c, const PatchCandidate* candi
         upload_tile_grid_now(tile_world_state_, &tile_world_deps_, queue, c->world_state_.last_center_x, c->world_state_.last_center_z);
         tileGridDirty = false;
     }
-    GPUPatchParams batchParams[MAX_PATCHES];
-    uint32_t batchIdx[MAX_PATCHES];
+    GPUPatchParams batchParams[Dim::MAX_ACTIVE_PATCHES];
+    uint32_t batchIdx[Dim::MAX_ACTIVE_PATCHES];
     for (uint32_t i = 0; i < count; i++) {
         uint32_t pi = candidates[i].idx;
         batchParams[i] = make_patch_params(c, 
@@ -553,19 +553,19 @@ inline void generate_selected_patches(MachineCtx* c, const PatchCandidate* candi
 // in the same tail block. (The dead "render" radius vocabulary was
 // RETIRED by the veil cut — the chain lives in Dim + config.)
 inline void band_patches(MachineCtx* c, wgpu::Queue& queue) {
-    GPUPatchInstance instances[MAX_PATCHES]{};
+    GPUPatchInstance instances[Dim::MAX_ACTIVE_PATCHES]{};
     uint32_t lod0Count = 0;
     uint32_t lod1Count = 0;
     uint32_t pregenCount = 0;
 
     // Temporary arrays for each band
-    GPUPatchInstance lod0[MAX_PATCHES]{};
-    GPUPatchInstance lod1[MAX_PATCHES]{};
-    GPUPatchInstance pregen[MAX_PATCHES]{};
+    GPUPatchInstance lod0[Dim::MAX_ACTIVE_PATCHES]{};
+    GPUPatchInstance lod1[Dim::MAX_ACTIVE_PATCHES]{};
+    GPUPatchInstance pregen[Dim::MAX_ACTIVE_PATCHES]{};
 
     float point_wx = c->player_.readback_x;   // THE POINT (p1b-a; 1-frame stale by law E-4)
     float point_wz = c->player_.readback_z;
-    float half = PATCH_EXTENT * 0.5f;
+    float half = Dim::PATCH_EXTENT * 0.5f;
 
     // THE VEIL CHAIN, live: THE RING is the draw authority (nothing draws
     // beyond it); lod0 is the full/half-mesh split. The same config values
@@ -577,13 +577,13 @@ inline void band_patches(MachineCtx* c, wgpu::Queue& queue) {
         if (c->patch_system_state_.patches_[i].phase != PatchPhase::GENERATED &&
             c->patch_system_state_.patches_[i].phase != PatchPhase::NEEDS_REGEN) continue;
 
-        float ox = (c->patch_system_state_.patches_[i].grid_x + 0.5f) * PATCH_EXTENT;
-        float oz = (c->patch_system_state_.patches_[i].grid_z + 0.5f) * PATCH_EXTENT;
+        float ox = (c->patch_system_state_.patches_[i].grid_x + 0.5f) * Dim::PATCH_EXTENT;
+        float oz = (c->patch_system_state_.patches_[i].grid_z + 0.5f) * Dim::PATCH_EXTENT;
 
         GPUPatchInstance inst{};
         inst.origin[0] = ox;
         inst.origin[1] = oz;
-        inst.extent = PATCH_EXTENT;
+        inst.extent = Dim::PATCH_EXTENT;
         inst.layer = c->patch_system_state_.patches_[i].layer;
 
         float d2 = patch_distance_sq(point_wx, point_wz, ox, oz, half);
@@ -631,13 +631,13 @@ inline void band_patches(MachineCtx* c, wgpu::Queue& queue) {
 // shared the walk.
 //   offer-face: GPUPatchGrid (origin_x/z, side, entries[]) uploaded.
 //   requires:   patches_ registry (grid_x/grid_z/layer/valid/phase),
-//               PATCH_PREGEN_SIDE, PATCH_EXTENT; upload_patch_grid.
+//               PATCH_PREGEN_SIDE, Dim::PATCH_EXTENT; upload_patch_grid.
 // Bit-safe: index layout = wire layout, not a draw. entries = layer+1
 // (0 = empty) is the frozen convention the WGSL sampler decodes.
 inline void build_patch_grid(MachineCtx* c, wgpu::Queue& queue) {
     GPUPatchGrid grid{};
     grid.side = Dim::PATCH_PREGEN_SIDE;
-    grid.cell_extent = PATCH_EXTENT;
+    grid.cell_extent = Dim::PATCH_EXTENT;
 
     int32_t min_gx = INT32_MAX;
     int32_t min_gz = INT32_MAX;
@@ -706,8 +706,8 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
         centerZ = 0;
     }
     else {
-        centerX = (int32_t)std::floor(c->player_.readback_x / PATCH_EXTENT);
-        centerZ = (int32_t)std::floor(c->player_.readback_z / PATCH_EXTENT);
+        centerX = (int32_t)std::floor(c->player_.readback_x / Dim::PATCH_EXTENT);
+        centerZ = (int32_t)std::floor(c->player_.readback_z / Dim::PATCH_EXTENT);
     }
 
     // In finite mode, cap the effective radius
@@ -770,7 +770,7 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
             tileGridDirty = true;
 
             // Spawn inner patches
-            PatchCandidate spawnCands[MAX_PATCHES];
+            PatchCandidate spawnCands[Dim::MAX_ACTIVE_PATCHES];
             uint32_t spawnCount = collect_sorted_patches(c, spawnCands,
                 c->player_.readback_x, c->player_.readback_z,
                 [&](const ActivePatch& p) {
@@ -780,7 +780,7 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
             spawn_selected_patches(c, spawnCands, spawnCount, queue, themes_state_);
 
             // Generate inner patches
-            PatchCandidate genCands[MAX_PATCHES];
+            PatchCandidate genCands[Dim::MAX_ACTIVE_PATCHES];
             uint32_t genCount = collect_sorted_patches(c, genCands,
                 c->player_.readback_x, c->player_.readback_z,
                 [&](const ActivePatch& p) {
@@ -795,7 +795,7 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
     // ─── CONTINUOUS PATCH EVICTION ────────────────────────────────
     //
     {
-        PatchCandidate candidates[MAX_PATCHES];
+        PatchCandidate candidates[Dim::MAX_ACTIVE_PATCHES];
         uint32_t count = collect_sorted_patches(c, candidates,
             c->player_.readback_x, c->player_.readback_z,
             [&](const ActivePatch& p) {
@@ -821,18 +821,18 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
     // ─── CONTINUOUS PATCH ALLOCATION ──────────────────────────────
     //
     {
-        int32_t pawnGX = (int32_t)std::floor(c->player_.readback_x / PATCH_EXTENT);
-        int32_t pawnGZ = (int32_t)std::floor(c->player_.readback_z / PATCH_EXTENT);
+        int32_t pawnGX = (int32_t)std::floor(c->player_.readback_x / Dim::PATCH_EXTENT);
+        int32_t pawnGZ = (int32_t)std::floor(c->player_.readback_z / Dim::PATCH_EXTENT);
         int32_t rr = (int32_t)c->world_state_.active_radius;
         float point_wx = c->player_.readback_x;
         float point_wz = c->player_.readback_z;
-        float half = PATCH_EXTENT * 0.5f;
+        float half = Dim::PATCH_EXTENT * 0.5f;
 
         // O(1) patch existence lookup (replaces O(N) inner scan)
         auto activePatchSet = build_active_patch_set(c);
 
         struct AllocCandidate { int32_t gx, gz; float dist2; };
-        AllocCandidate candidates[MAX_PATCHES];
+        AllocCandidate candidates[Dim::MAX_ACTIVE_PATCHES];
         uint32_t candidateCount = 0;
 
         for (int32_t gz = pawnGZ - rr; gz <= pawnGZ + rr; gz++) {
@@ -840,9 +840,9 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
                 // Must be within allocation window of grid center
                 if (!in_render_window(c, gx, gz, c->world_state_.last_center_x, c->world_state_.last_center_z)) continue;
                 bool found = activePatchSet.count({ gx, gz }) > 0;
-                if (!found && c->world_state_.free_layer_count > 0 && candidateCount < MAX_PATCHES) {
-                    float ox = (gx + 0.5f) * PATCH_EXTENT;
-                    float oz = (gz + 0.5f) * PATCH_EXTENT;
+                if (!found && c->world_state_.free_layer_count > 0 && candidateCount < Dim::MAX_ACTIVE_PATCHES) {
+                    float ox = (gx + 0.5f) * Dim::PATCH_EXTENT;
+                    float oz = (gz + 0.5f) * Dim::PATCH_EXTENT;
                     float d2 = patch_distance_sq(point_wx, point_wz, ox, oz, half);
                     candidates[candidateCount++] = { gx, gz, d2 };
                 }
@@ -892,7 +892,7 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
     // ─── DISTANCE-DRIVEN ENTITY SPAWNING ─────────────────────────
     //
     {
-        PatchCandidate candidates[MAX_PATCHES];
+        PatchCandidate candidates[Dim::MAX_ACTIVE_PATCHES];
         uint32_t count = collect_sorted_patches(c, candidates,
             c->player_.readback_x, c->player_.readback_z,
             [](const ActivePatch& p) {
@@ -905,7 +905,7 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
     // ─── DISTANCE-DRIVEN HEIGHTFIELD GENERATION ──────────────────
     //
     {
-        PatchCandidate candidates[MAX_PATCHES];
+        PatchCandidate candidates[Dim::MAX_ACTIVE_PATCHES];
         uint32_t count = collect_sorted_patches(c, candidates,
             c->player_.readback_x, c->player_.readback_z,
             [](const ActivePatch& p) {

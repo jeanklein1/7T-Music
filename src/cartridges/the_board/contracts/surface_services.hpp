@@ -64,13 +64,8 @@ struct WorldState {
     uint32_t free_layer_count = Dim::MAX_ACTIVE_PATCHES;
 };
 
-// Patch dimensions aliased from Dim:: for local readability
-inline constexpr float    PATCH_EXTENT = Dim::PATCH_EXTENT;
-inline constexpr float    PATCH_CELL_SIZE = (float)Dim::PATCH_EXTENT / 16.0f;  // 3.125 — patch-grid cell (pawn aura + gol zones consume it)
-inline constexpr uint32_t GRID_RADIUS = Dim::PATCH_GRID_RADIUS;   // inner priority (3 → 7×7)
-inline constexpr uint32_t GRID_SIDE = Dim::PATCH_GRID_SIDE;
-inline constexpr uint32_t PREGEN_RADIUS = Dim::PATCH_PREGEN_RADIUS; // deep pre-gen buffer (7)
-inline constexpr uint32_t MAX_PATCHES = Dim::MAX_ACTIVE_PATCHES;    // 225
+// One spelling: patch dimensions are Dim:: everywhere (the veil-chain law).
+inline constexpr float PATCH_CELL_SIZE = (float)Dim::PATCH_EXTENT / 16.0f;  // 3.125 — patch-grid cell; pawn aura + gol zones consume it
 
 // ── The patch registry ─────────────────────────────────────────────
 
@@ -152,9 +147,9 @@ struct PatchCandidate {
 
 // Instance (patch_system_state_) lives at the composition root.
 struct PatchSystemState {
-    ActivePatch patches_[MAX_PATCHES]{};
+    ActivePatch patches_[Dim::MAX_ACTIVE_PATCHES]{};
     // Free-list of available texture layers
-    uint32_t freeLayerStack_[MAX_PATCHES]{};
+    uint32_t freeLayerStack_[Dim::MAX_ACTIVE_PATCHES]{};
     // The unified pier mirror (PIERS ride patch_system)
     GPUPierInstance cpuPiers_[Dim::PIER_TOTAL]{};
 };

@@ -31,7 +31,7 @@
 // Depends on cohort include order: roster.hpp (PopFamily),
 // entity_types.hpp (queue unions), state.hpp (GPU mesh params),
 // grounded.hpp (ActiveColumn/EntitiesState — COMPLETE, the merged
-// bodies deref them), patch_system.hpp (PATCH_EXTENT — the preamble
+// bodies deref them), patch_system.hpp (Dim::PATCH_EXTENT — the preamble
 // template reads it at definition), renderer.hpp. MERGED at the
 // cohort tail (the B ruling): the decl tier
 // lives in contracts/spawn_services.hpp; every pre-tail caller binds
@@ -277,8 +277,8 @@ inline PositionResult negotiate_position(MachineCtx* c,
     // footprint at radius=1 is 65; rescaled entities are well
     // under that).
     if (c->world_state_.finite_mode && MOOD_TABLE[c->mood_state_.active].indoor) {
-        float bmin = -(float)c->world_state_.finite_radius * PATCH_EXTENT;
-        float bmax = ((float)c->world_state_.finite_radius + 1.0f) * PATCH_EXTENT;
+        float bmin = -(float)c->world_state_.finite_radius * Dim::PATCH_EXTENT;
+        float bmax = ((float)c->world_state_.finite_radius + 1.0f) * Dim::PATCH_EXTENT;
         float clearance = INDOOR_ENTITY_WALL_MARGIN + footprint_r;
         float lo = bmin + clearance;
         float hi = bmax - clearance;
@@ -610,8 +610,8 @@ inline SpawnChanceResult compose_spawn_chance(MachineCtx* c, int32_t gx, int32_t
     adj_mod *= GLOBAL_ENTITY_DENSITY;
     tile_apply_spawn_mult(c->tile_world_state_, gx, gz, family, adj_mod);  // F3: the S2 boundary face
     if (use_proximity) {
-        float pcx = (gx + 0.5f) * PATCH_EXTENT;
-        float pcz = (gz + 0.5f) * PATCH_EXTENT;
+        float pcx = (gx + 0.5f) * Dim::PATCH_EXTENT;
+        float pcz = (gz + 0.5f) * Dim::PATCH_EXTENT;
         adj_mod *= proximity_affinity_boost(c, pcx, pcz, family);
     }
     float chance = base_chance * adj_mod;
@@ -639,8 +639,8 @@ inline SpawnPreamble evaluate_spawn_gate(MachineCtx* c, int32_t gx, int32_t gz,
 inline void jittered_position(uint32_t seed, int32_t gx, int32_t gz,
     uint32_t prop_x, uint32_t prop_z, float jitter,
     float& out_x, float& out_z) {
-    out_x = (gx + 0.5f) * PATCH_EXTENT + (cpu_hash_f(seed, prop_x) - 0.5f) * PATCH_EXTENT * jitter;
-    out_z = (gz + 0.5f) * PATCH_EXTENT + (cpu_hash_f(seed, prop_z) - 0.5f) * PATCH_EXTENT * jitter;
+    out_x = (gx + 0.5f) * Dim::PATCH_EXTENT + (cpu_hash_f(seed, prop_x) - 0.5f) * Dim::PATCH_EXTENT * jitter;
+    out_z = (gz + 0.5f) * Dim::PATCH_EXTENT + (cpu_hash_f(seed, prop_z) - 0.5f) * Dim::PATCH_EXTENT * jitter;
 }
 
 inline float proximity_affinity_boost(MachineCtx* c, float cx, float cz, uint32_t family) {

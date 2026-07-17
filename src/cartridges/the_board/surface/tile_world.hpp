@@ -208,12 +208,12 @@ bool tile_archetype(const TileWorldState& tw, int32_t gx, int32_t gz, uint32_t& 
 // ═══ IMPL: the
 // bodies deref WorldState/MoodState/GPUState via TileWorldDeps (no
 // Cartridge). COHORT PROOF: the merged file sits AFTER patch_system.hpp
-// (WorldState complete + PATCH_EXTENT/PREGEN_RADIUS) and after
+// (WorldState complete + Dim::PATCH_EXTENT/Dim::PATCH_PREGEN_RADIUS) and after
 // population_themes.hpp (THEMES) and mood.hpp (MOOD_TABLE); the S2
 // faces stay declared before the machine templates instantiate. ══════
 
 // Forgetting radius: tiles beyond this many grid cells get evicted
-inline constexpr int32_t FORGET_RADIUS = (int32_t)PREGEN_RADIUS + 2;  // eviction radius (beyond pre-gen)
+inline constexpr int32_t FORGET_RADIUS = (int32_t)Dim::PATCH_PREGEN_RADIUS + 2;  // eviction radius (beyond pre-gen)
 
 inline void evict_distant_tiles(TileWorldState& tw, int32_t centerX, int32_t centerZ) {
     auto it = tw.tileCache_.begin();
@@ -251,7 +251,7 @@ inline void upload_tile_grid_now(TileWorldState& tw, TileWorldDeps* c, wgpu::Que
     grid.origin_x = cx - rp;
     grid.origin_z = cz - rp;
     grid.side = tileGridSide;
-    grid.cell_extent = PATCH_EXTENT;
+    grid.cell_extent = Dim::PATCH_EXTENT;
 
     for (int32_t gz = cz - rp; gz <= cz + rp; gz++) {
         for (int32_t gx = cx - rp; gx <= cx + rp; gx++) {
@@ -443,11 +443,11 @@ inline void tick_terrain_tokens(TileWorldState& tw, const TileState& outcome, ui
 // the terrain's memory for height and warmth.
 // Q6a: the world-xz → tile grid key. The ONE place a boundary-face reader
 // turns world coords into (x,z), so every reader reproduces the SAME
-// (int)floor(w/PATCH_EXTENT) derivation (it was recomputed at each site).
+// (int)floor(w/Dim::PATCH_EXTENT) derivation (it was recomputed at each site).
 // NOTE: this is a container LOOKUP key — GridKeyHash's primes are a bucket
 // hash, NOT a (seed,prop)→value biography path.
 inline GridKey tile_key(float wx, float wz) {
-    return { (int32_t)std::floor(wx / PATCH_EXTENT), (int32_t)std::floor(wz / PATCH_EXTENT) };
+    return { (int32_t)std::floor(wx / Dim::PATCH_EXTENT), (int32_t)std::floor(wz / Dim::PATCH_EXTENT) };
 }
 
 inline float estimate_terrain_height(const TileWorldState& tw, float wx, float wz) {

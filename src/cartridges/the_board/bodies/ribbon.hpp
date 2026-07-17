@@ -28,7 +28,7 @@
 // record_placement_bookkeeping — spawn_engine.hpp), the tile_world
 // surface samplers (estimate_terrain_height / terrain_tile_warm),
 // seed_utils.hpp, cartridge core (time_state_.seconds/dt/beat_rate,
-// THEMES / PATCH_EXTENT (file-scope vocabulary), the four ribbon
+// THEMES / Dim::PATCH_EXTENT (file-scope vocabulary), the four ribbon
 // canvas bindings ride RibbonDeps; the sky trio is OWN state), and the GPU wires
 // (upload_ribbon_time / _color / _wave_amps / _head_poses — the flush +
 // head laws write through).
@@ -1136,8 +1136,8 @@ inline bool select_ribbon_for_patch(RibbonState& rs, MachineCtx* c,
     fill_ribbon_selection_geometry(gate.seed, tier_idx, sel);
 
     {
-        float patch_cx = (gx + 0.5f) * PATCH_EXTENT;
-        float patch_cz = (gz + 0.5f) * PATCH_EXTENT;
+        float patch_cx = (gx + 0.5f) * Dim::PATCH_EXTENT;
+        float patch_cz = (gz + 0.5f) * Dim::PATCH_EXTENT;
         float away_angle = std::atan2(patch_cz - c->player_.readback_z,
             patch_cx - c->player_.readback_x);
         float hash_spread = cpu_hash_f(gate.seed, RibbonProp::ORIENTATION);
@@ -1272,10 +1272,10 @@ inline void commit_ribbon(RibbonState& rs, MachineCtx* c,
 
     const float far_x = plan.cx + dir_x * total_length;
     const float far_z = plan.cz + dir_z * total_length;
-    ar.near_tip_gx = (int32_t)std::floor(plan.cx / PATCH_EXTENT);
-    ar.near_tip_gz = (int32_t)std::floor(plan.cz / PATCH_EXTENT);
-    ar.far_tip_gx = (int32_t)std::floor(far_x / PATCH_EXTENT);
-    ar.far_tip_gz = (int32_t)std::floor(far_z / PATCH_EXTENT);
+    ar.near_tip_gx = (int32_t)std::floor(plan.cx / Dim::PATCH_EXTENT);
+    ar.near_tip_gz = (int32_t)std::floor(plan.cz / Dim::PATCH_EXTENT);
+    ar.far_tip_gx = (int32_t)std::floor(far_x / Dim::PATCH_EXTENT);
+    ar.far_tip_gz = (int32_t)std::floor(far_z / Dim::PATCH_EXTENT);
 
     ar.near_tip_registered = false;
     ar.far_tip_registered = false;

@@ -235,7 +235,7 @@ struct TilePopulation {
 // tile_state's two population blocks). BIT-IDENTITY LIVE — hash draws off
 // the density/theme seed bands, disjoint from the shape draws (tile_seed
 // props) that stay in tile_world; the caller passes active_seed so this
-// stays free of WorldState (later in the cohort). PATCH_EXTENT is read as
+// stays free of WorldState (later in the cohort). Dim::PATCH_EXTENT is read as
 // Dim::PATCH_EXTENT (same constexpr 50.0f; state.hpp precedes this header).
 inline TilePopulation generate_tile_population(uint32_t active_seed, int32_t gx, int32_t gz) {
     TilePopulation pop;

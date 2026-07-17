@@ -16,7 +16,7 @@
 // The art system.
 //
 // The impl additionally reaches the spawn-engine services and
-// GLOBAL_ENTITY_DENSITY (contracts/spawn_services.hpp), PATCH_EXTENT
+// GLOBAL_ENTITY_DENSITY (contracts/spawn_services.hpp), Dim::PATCH_EXTENT
 // (patch_system.hpp), PopFamily (roster.hpp vocabulary), and
 // stb_image (authored disk loading).
 //
@@ -205,7 +205,7 @@ struct GalleryConfig {
     // Photographer pacing by archetype
     static constexpr float PHOTO_PACE_BY_ARCHETYPE[4] = { 0.7f, 0.8f, 1.5f, 1.5f };
 
-    // Gallery center jitter (fraction of PATCH_EXTENT)
+    // Gallery center jitter (fraction of Dim::PATCH_EXTENT)
     static constexpr float POSITION_JITTER = 0.30f;
 };
 
@@ -618,8 +618,8 @@ inline void update_photographer(GalleryState& gs, GalleryDeps* c, wgpu::Queue& q
 
         // Pace modulation: less active in sand/basin, more in colored terrain
         float pace = 1.0f;
-        int32_t tx = (int32_t)std::floor(px / PATCH_EXTENT);
-        int32_t tz = (int32_t)std::floor(pz / PATCH_EXTENT);
+        int32_t tx = (int32_t)std::floor(px / Dim::PATCH_EXTENT);
+        int32_t tz = (int32_t)std::floor(pz / Dim::PATCH_EXTENT);
         uint32_t pace_archetype = 0;
         if (tile_archetype(c->tile_world_state_, tx, tz, pace_archetype)) {  // F4 (m3b): miss keeps pace 1.0
             pace = GalleryConfig::PHOTO_PACE_BY_ARCHETYPE[pace_archetype];
@@ -747,9 +747,9 @@ inline bool select_gallery_for_patch(GalleryState& gs, MachineCtx* c, int32_t gx
     if (gallery_roll >= composed.chance) return false;
 
     // Gallery center (jittered within patch)
-    float patch_cx = (gx + 0.5f) * PATCH_EXTENT;
-    float patch_cz = (gz + 0.5f) * PATCH_EXTENT;
-    float center_offset = cpu_hash_f(seed, GalleryProp::CENTER_OFFSET) * PATCH_EXTENT * GalleryConfig::POSITION_JITTER;
+    float patch_cx = (gx + 0.5f) * Dim::PATCH_EXTENT;
+    float patch_cz = (gz + 0.5f) * Dim::PATCH_EXTENT;
+    float center_offset = cpu_hash_f(seed, GalleryProp::CENTER_OFFSET) * Dim::PATCH_EXTENT * GalleryConfig::POSITION_JITTER;
     float center_angle = cpu_hash_f(seed, GalleryProp::CENTER_ANGLE) * 6.283185f;
     float gallery_cx = patch_cx + std::cos(center_angle) * center_offset;
     float gallery_cz = patch_cz + std::sin(center_angle) * center_offset;
@@ -828,8 +828,8 @@ inline bool place_gallery_from_selection(MachineCtx* c, const GallerySelection& 
     if (!check_position(c, sel.cx, sel.cz, sel.footprint_r, PopFamily::GALLERY))
         return false;
 
-    int32_t host_gx = (int32_t)std::floor(sel.cx / PATCH_EXTENT);
-    int32_t host_gz = (int32_t)std::floor(sel.cz / PATCH_EXTENT);
+    int32_t host_gx = (int32_t)std::floor(sel.cx / Dim::PATCH_EXTENT);
+    int32_t host_gz = (int32_t)std::floor(sel.cz / Dim::PATCH_EXTENT);
 
     if (register_footprint(c, sel.cx, sel.cz, sel.footprint_r,
         host_gx, host_gz, PopFamily::GALLERY, sel.archetype) == UINT32_MAX)

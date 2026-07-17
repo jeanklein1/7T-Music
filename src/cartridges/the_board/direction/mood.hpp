@@ -52,7 +52,7 @@
 // render_passes' compute_spot_light_vp), TransitionPhase
 // (contracts/spine_state.hpp), ARCH_TIERS / ArchIdx
 // (entity_pipeline.hpp), solve_catenary_a (seed_utils.hpp), and
-// PATCH_EXTENT (patch_system.hpp).
+// Dim::PATCH_EXTENT (patch_system.hpp).
 //
 // SEAM[mood:K1] apply_mood is the single canonical mood entry point.
 //   All mood transitions — keyboard, portal crossings, world
@@ -233,7 +233,7 @@ uint32_t pick_portal_mood(MachineCtx* c, uint32_t seed, uint32_t prop);
 // TARGET organs (parameters — ribbon/orbs/gallery/pawn + the machine
 // face), TransitionPhase (contracts/spine_state.hpp), ARCH_TIERS /
 // ArchIdx (contracts/spawn_services.hpp), solve_catenary_a
-// (seed_utils.hpp), and PATCH_EXTENT (patch_system.hpp).
+// (seed_utils.hpp), and Dim::PATCH_EXTENT (patch_system.hpp).
 //
 // THE CHANNEL: the force-spawn mutation of the arch belongs to the
 // arch's owner. The indoor lighting-scheme tables live impl-side:
@@ -589,8 +589,8 @@ inline void apply_mood_spot_lights(MoodDeps* c, const MoodProfile& m, wgpu::Queu
     if (m.indoor) {
         c->gpuState_.set_mute_coupling(Coupling::PAWN_TO_SUN_VP, true);
 
-        const float bmin = -(float)c->world_state_.finite_radius * PATCH_EXTENT;
-        const float bmax = ((float)c->world_state_.finite_radius + 1.0f) * PATCH_EXTENT;
+        const float bmin = -(float)c->world_state_.finite_radius * Dim::PATCH_EXTENT;
+        const float bmax = ((float)c->world_state_.finite_radius + 1.0f) * Dim::PATCH_EXTENT;
         derive_indoor_lights(c, c->world_state_.active_seed, bmin, bmax, m.ceiling_height, m.ceiling_type);
 
         for (uint32_t i = 0; i < c->cpuSpotLights_.count; i++) {
@@ -626,8 +626,8 @@ inline void apply_mood_indoor_shell(MoodDeps* c, const MoodProfile& m, wgpu::Que
     if (m.indoor) {
         float effective_ceiling = m.ceiling_height;
         if (m.ceiling_type == CeilingType::VAULT) {
-            const float bmin = -(float)c->world_state_.finite_radius * PATCH_EXTENT;
-            const float bmax = ((float)c->world_state_.finite_radius + 1.0f) * PATCH_EXTENT;
+            const float bmin = -(float)c->world_state_.finite_radius * Dim::PATCH_EXTENT;
+            const float bmax = ((float)c->world_state_.finite_radius + 1.0f) * Dim::PATCH_EXTENT;
             const float half_span = (bmax - bmin) * 0.5f;
             const float paint_top = m.ceiling_height * 0.45f + 5.5f;
             const float spring_h  = paint_top + 8.0f;
@@ -652,9 +652,9 @@ inline void apply_mood_anchor_ribbon(MoodDeps* c, uint32_t mood, wgpu::Queue& qu
     const uint32_t rseed = tile_seed(c->world_state_.active_seed, 0, 0);
 
     // Anchor: seed-derived position spread across the finite world + margin
-    const float spread   = ((float)c->world_state_.finite_radius + 1.5f) * PATCH_EXTENT;
-    const float world_cx = 0.5f * PATCH_EXTENT;
-    const float world_cz = 0.5f * PATCH_EXTENT;
+    const float spread   = ((float)c->world_state_.finite_radius + 1.5f) * Dim::PATCH_EXTENT;
+    const float world_cx = 0.5f * Dim::PATCH_EXTENT;
+    const float world_cz = 0.5f * Dim::PATCH_EXTENT;
     const float ax = world_cx + (cpu_hash_f(rseed, RibbonProp::ANCHOR_X) - 0.5f) * spread + ribbon_state_.mood_offset[0];
     const float az = world_cz + (cpu_hash_f(rseed, RibbonProp::ANCHOR_Z) - 0.5f) * spread + ribbon_state_.mood_offset[1];
 
@@ -678,8 +678,8 @@ inline void apply_mood_anchor_ribbon(MoodDeps* c, uint32_t mood, wgpu::Queue& qu
     plan.seed           = sel.seed;   // wander channels sample this — without it every mood-forced ribbon draws from seed 0
     plan.trigger_gx     = 0;
     plan.trigger_gz     = 0;
-    plan.host_gx        = (int32_t)std::floor(ax / PATCH_EXTENT);
-    plan.host_gz        = (int32_t)std::floor(az / PATCH_EXTENT);
+    plan.host_gx        = (int32_t)std::floor(ax / Dim::PATCH_EXTENT);
+    plan.host_gz        = (int32_t)std::floor(az / Dim::PATCH_EXTENT);
     plan.tier_idx       = tier_idx;
     plan.cx             = ax;
     plan.cz             = az;
@@ -768,8 +768,8 @@ inline void push_quad(
 
 inline void generate_indoor_shell(MoodDeps* c, wgpu::Queue& queue, const MoodProfile& m,
     GalleryState& gallery_state_, GalleryDeps& gallery_deps_) {
-    float bmin = -(float)c->world_state_.finite_radius * PATCH_EXTENT;
-    float bmax = ((float)c->world_state_.finite_radius + 1.0f) * PATCH_EXTENT;
+    float bmin = -(float)c->world_state_.finite_radius * Dim::PATCH_EXTENT;
+    float bmax = ((float)c->world_state_.finite_radius + 1.0f) * Dim::PATCH_EXTENT;
     float ch = m.ceiling_height;
 
     std::vector<ShellVertex> verts;
@@ -942,8 +942,8 @@ inline void force_spawn_back_portal(MoodDeps* c, wgpu::Queue& queue, MachineCtx&
     // ─── Seed-driven placement ───────────────────────────────────────
     //
     if (c->world_state_.finite_mode) {
-        float bmin = -(float)c->world_state_.finite_radius * PATCH_EXTENT;
-        float bmax = ((float)c->world_state_.finite_radius + 1.0f) * PATCH_EXTENT;
+        float bmin = -(float)c->world_state_.finite_radius * Dim::PATCH_EXTENT;
+        float bmax = ((float)c->world_state_.finite_radius + 1.0f) * Dim::PATCH_EXTENT;
         float room_center = (bmin + bmax) * 0.5f;
         float room_half = (bmax - bmin) * 0.5f;
 
@@ -1061,8 +1061,8 @@ inline void force_spawn_back_portal(MoodDeps* c, wgpu::Queue& queue, MachineCtx&
 // ── force_spawn_finite_portals ──
 //
 inline void force_spawn_finite_portals(MoodDeps* c, wgpu::Queue& queue, MachineCtx& machine_ctx_) {
-    float bmin = -(float)c->world_state_.finite_radius * PATCH_EXTENT;
-    float bmax = ((float)c->world_state_.finite_radius + 1.0f) * PATCH_EXTENT;
+    float bmin = -(float)c->world_state_.finite_radius * Dim::PATCH_EXTENT;
+    float bmax = ((float)c->world_state_.finite_radius + 1.0f) * Dim::PATCH_EXTENT;
     float room_center = (bmin + bmax) * 0.5f;
     float room_half = (bmax - bmin) * 0.5f;
 

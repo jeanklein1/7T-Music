@@ -57,7 +57,7 @@
 #include "cartridges/the_board/realization/state.hpp"
 #include "cartridges/the_board/surface/population_themes.hpp"  // S2: THEMES + ThemeEnvelope + ThemesState — MERGED single file
 #include "cartridges/the_board/contracts/surface_services.hpp"  // THE SURFACE'S DECL TIER: WorldState + the patch registry + budgets/visibility + PatchSystemState + the surface service decls (bodies ride surface/patch_system.hpp at the cohort tail)
-#include "cartridges/the_board/surface/tile_world.hpp"          // S2: archetypes + tokens + TileState/cache + TileWorldDeps + impl — MERGED single file; after patch_system for WorldState/PATCH_EXTENT
+#include "cartridges/the_board/surface/tile_world.hpp"          // S2: archetypes + tokens + TileState/cache + TileWorldDeps + impl — MERGED single file; after patch_system for WorldState/Dim::PATCH_EXTENT
 #include "cartridges/the_board/bodies/grounded.hpp"             // grounded-family vocabulary + EntitiesState + impl — MERGED; after entity_pipeline for generic_*
 #include "cartridges/the_board/bodies/agents.hpp"               // AgentState + AgentsDeps + impl — MERGED; after entities for COLUMN_PALETTE
 #include "cartridges/the_board/bodies/cube_behaviors.hpp"       // CubeBehaviorsState + CubeDeps + impl — MERGED; after agents for AgentState
@@ -764,8 +764,8 @@ namespace t7 {
             void phase_stage_world(UpdateCtx&) {
                 gpuState_.set_world_seed(world_state_.active_seed);
                 if (world_state_.finite_mode) {
-                    float bmin = -(float)world_state_.finite_radius * PATCH_EXTENT;
-                    float bmax = ((float)world_state_.finite_radius + 1.0f) * PATCH_EXTENT;
+                    float bmin = -(float)world_state_.finite_radius * Dim::PATCH_EXTENT;
+                    float bmax = ((float)world_state_.finite_radius + 1.0f) * Dim::PATCH_EXTENT;
                     gpuState_.set_world_bounds(bmin, bmin, bmax, bmax);
                 }
                 else {
