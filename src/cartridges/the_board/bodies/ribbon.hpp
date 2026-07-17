@@ -90,7 +90,6 @@ struct RibbonConfig {
     //   [indoor_flat=0], [indoor_vault=0], [finite_outdoor=1],
     //   [finite_outdoor_ref=0] }. Same family as gol_zones:P4
     //   and floaters:P4.
-    static constexpr float MOOD_MULTIPLIER[MOOD_COUNT] = { 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f };  // per-mood spawn ×: open sunset ind_flat ind_vault finite fin_ref (mood_constants order)
     static constexpr float POSITION_JITTER = 0.3f;
 };
 
@@ -1114,7 +1113,7 @@ inline bool select_ribbon_for_patch(RibbonState& rs, MachineCtx* c,
     auto gate = run_spawn_preamble(c, gx, gz,
         rs.active, MAX_RIBBON_INSTANCES,
         RibbonProp::SPAWN_ROLL, RibbonConfig::SPAWN_CHANCE,
-        RibbonConfig::MOOD_MULTIPLIER,
+        mood_mult_for(PopFamily::RIBBON),
         PopFamily::RIBBON, "ribn");
     if (!gate.ok) return false;
 

@@ -113,14 +113,11 @@ struct GoLZoneSpawnConfig {
     static constexpr float LENS_TARGET_RANGE = 0.6f;
     // Footprint: inscribed circle of 100×100 zone
     static constexpr float FOOTPRINT_RADIUS = 50.0f;
-    // SEAM[gol_zones:P4] hygiene rows pattern (P4): MOOD_MULTIPLIER
-    //   is { open, sunset, [indoor_flat=0], [indoor_vault=0],
-    //   [finite_outdoor=1], [finite_outdoor_ref=0] }. The 0
-    //   entries are reachable via mood IDs but the gate
-    //   intentionally suppresses them. Same family as
-    //   floaters:P4 (cube populations). Defensive declaration.
-    // Mood gate (suppressed in flat/vault/finR — same as spheres/cubes)
-    static constexpr float MOOD_MULTIPLIER[MOOD_COUNT] = { 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f };  // per-mood spawn ×: open sunset ind_flat ind_vault finite fin_ref (mood_constants order)
+    // SEAM[gol_zones:P4] hygiene rows pattern (P4): the gol mood row
+    //   lives in MOOD_SPAWN_MULT (population_themes.hpp — the GOL
+    //   column). Zero entries are reachable via mood IDs but the gate
+    //   intentionally suppresses them. Same family as floaters:P4
+    //   (cube populations). Defensive declaration.
 };
 
 // ── Color Modes ──────────────────────────────────────────────────
@@ -312,7 +309,7 @@ inline bool select_gol_for_patch(GoLState& gs, MachineCtx* c,
     // clamp [0,1]. The per-lattice-node roll stays below (its own seed
     // domain, cpu_lattice_node_seed — a consumer fact, not the law's).
     auto composed = compose_spawn_chance(c, gx, gz, PopFamily::GOL,
-        GoLZoneSpawnConfig::SPAWN_CHANCE, GoLZoneSpawnConfig::MOOD_MULTIPLIER,
+        GoLZoneSpawnConfig::SPAWN_CHANCE, mood_mult_for(PopFamily::GOL),
         /*use_proximity=*/false, /*veto_on_zero_mood=*/true,
         SpawnClamp::RANGE01);
     if (composed.vetoed) return false;

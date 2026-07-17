@@ -60,7 +60,6 @@ inline constexpr float ARCH_SANDSTONE_VARIANCE = 0.04f;
 struct ArchConfig {
     static constexpr float SPAWN_CHANCE = 0.030f;
     // Per-mood spawn multiplier (Bayesian: prior × mood_factor × adjacency_factor)
-    static constexpr float MOOD_MULTIPLIER[MOOD_COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f };  // per-mood spawn ×: open sunset ind_flat ind_vault finite fin_ref (mood_constants order)
     // Position jitter within patch (fraction of Dim::PATCH_EXTENT)
     static constexpr float POSITION_JITTER = 0.35f;
 };
@@ -151,7 +150,6 @@ inline constexpr float COLUMN_SANDSTONE_VARIANCE = 0.04f;
 // ── Spawn Configuration ──────────────────────────────────────────
 struct ColumnConfig {
     static constexpr float SPAWN_CHANCE = 0.030f;
-    static constexpr float MOOD_MULTIPLIER[MOOD_COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f };  // per-mood spawn ×: open sunset ind_flat ind_vault finite fin_ref (mood_constants order)
     static constexpr float POSITION_JITTER = 0.35f;
 };
 
@@ -193,7 +191,6 @@ inline constexpr uint32_t ANTENNA_TIER_COUNT = static_cast<uint32_t>(AntennaTier
 // ── Spawn Configuration ──────────────────────────────────────────
 struct AntennaConfig {
     static constexpr float SPAWN_CHANCE = 0.025f;
-    static constexpr float MOOD_MULTIPLIER[MOOD_COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f };  // per-mood spawn ×: open sunset ind_flat ind_vault finite fin_ref (mood_constants order)
     static constexpr float POSITION_JITTER = 0.35f;
 };
 
@@ -268,7 +265,6 @@ inline constexpr float PALM_AGED_BASE[3] = { 0.35f, 0.38f, 0.18f };
 // ── Spawn Configuration ──────────────────────────────────────────
 struct PalmConfig {
     static constexpr float SPAWN_CHANCE = 0.200f;
-    static constexpr float MOOD_MULTIPLIER[MOOD_COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f };  // per-mood spawn ×: open sunset ind_flat ind_vault finite fin_ref (mood_constants order)
     static constexpr float POSITION_JITTER = 0.45f;
 };
 
@@ -326,7 +322,6 @@ inline constexpr float CACTUS_RIB_BASE[3] = { 0.35f, 0.55f, 0.30f };
 // ── Spawn Configuration ──────────────────────────────────────────
 struct CactusConfig {
     static constexpr float SPAWN_CHANCE = 0.100f;
-    static constexpr float MOOD_MULTIPLIER[MOOD_COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f };  // per-mood spawn ×: open sunset ind_flat ind_vault finite fin_ref (mood_constants order)
     static constexpr float POSITION_JITTER = 0.35f;
 };
 
@@ -381,7 +376,6 @@ inline constexpr float BLADE_AGED_BASE[3] = { 0.48f, 0.45f, 0.28f };
 // ── Spawn Configuration ──────────────────────────────────────────
 struct BladeClusterConfig {
     static constexpr float SPAWN_CHANCE = 0.025f;
-    static constexpr float MOOD_MULTIPLIER[MOOD_COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f };  // per-mood spawn ×: open sunset ind_flat ind_vault finite fin_ref (mood_constants order)
     static constexpr float POSITION_JITTER = 0.30f;
 };
 
@@ -435,7 +429,6 @@ inline constexpr float PYRAMID_SANDSTONE_VARIANCE = 0.05f;
 // ── Spawn Configuration ──────────────────────────────────────────
 struct PyramidConfig {
     static constexpr float SPAWN_CHANCE = 0.030f;
-    static constexpr float MOOD_MULTIPLIER[MOOD_COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f };  // per-mood spawn ×: open sunset ind_flat ind_vault finite fin_ref (mood_constants order)
     static constexpr float POSITION_JITTER = 0.25f;
 };
 
@@ -964,7 +957,7 @@ inline constexpr EntityFamilyTraits BLADE_TRAITS = {
     true, false, 0,                                    // grounded, no piers
     true,                                             // footprint
     BladeProp::SPAWN_ROLL, BladeClusterConfig::SPAWN_CHANCE,
-    BladeClusterConfig::MOOD_MULTIPLIER,
+    mood_mult_for(PopFamily::BLADE),
     BladeClusterConfig::POSITION_JITTER,
     BLADE_TIER_COUNT, BladeProp::TIER,
     BLADE_PARAM_DEFS, BLADE_PARAM_COUNT,
@@ -979,7 +972,7 @@ inline SpawnGateOutput blade_run_gate(MachineCtx* c,
     auto gate = run_spawn_preamble(c, gx, gz,
         c->entities_state_.blades, Dim::MAX_BLADE_INSTANCES,
         BladeProp::SPAWN_ROLL, BladeClusterConfig::SPAWN_CHANCE,
-        BladeClusterConfig::MOOD_MULTIPLIER,
+        mood_mult_for(PopFamily::BLADE),
         PopFamily::BLADE, "blad");
     return { gate.ok, gate.seed, gate.slot, gate.theme_idx };
 }
@@ -1182,7 +1175,7 @@ inline constexpr EntityFamilyTraits PALM_TRAITS = {
     true, false, 0,
     true,
     PalmProp::SPAWN_ROLL, PalmConfig::SPAWN_CHANCE,
-    PalmConfig::MOOD_MULTIPLIER, PalmConfig::POSITION_JITTER,
+    mood_mult_for(PopFamily::PALM), PalmConfig::POSITION_JITTER,
     PALM_TIER_COUNT, PalmProp::TIER,
     PALM_PARAM_DEFS, PALM_PARAM_COUNT,
     PalmProp::POSITION_X, PalmProp::POSITION_Z, PalmProp::ROTATION, true,
@@ -1195,7 +1188,7 @@ inline SpawnGateOutput palm_run_gate(MachineCtx* c, int32_t gx, int32_t gz) {
     auto gate = run_spawn_preamble(c, gx, gz,
         c->entities_state_.palms, Dim::MAX_PALM_INSTANCES,
         PalmProp::SPAWN_ROLL, PalmConfig::SPAWN_CHANCE,
-        PalmConfig::MOOD_MULTIPLIER, PopFamily::PALM, "palm");
+        mood_mult_for(PopFamily::PALM), PopFamily::PALM, "palm");
     return { gate.ok, gate.seed, gate.slot, gate.theme_idx };
 }
 
@@ -1410,7 +1403,7 @@ inline constexpr EntityFamilyTraits CACTUS_TRAITS = {
     true, false, 0,
     true,
     CactusProp::SPAWN_ROLL, CactusConfig::SPAWN_CHANCE,
-    CactusConfig::MOOD_MULTIPLIER, CactusConfig::POSITION_JITTER,
+    mood_mult_for(PopFamily::CACTUS), CactusConfig::POSITION_JITTER,
     CACTUS_TIER_COUNT, CactusProp::TIER,
     CACTUS_PARAM_DEFS, CACTUS_PARAM_COUNT,
     CactusProp::POSITION_X, CactusProp::POSITION_Z, CactusProp::ROTATION, true,
@@ -1423,7 +1416,7 @@ inline SpawnGateOutput cactus_run_gate(MachineCtx* c, int32_t gx, int32_t gz) {
     auto gate = run_spawn_preamble(c, gx, gz,
         c->entities_state_.cacti, Dim::MAX_CACTUS_INSTANCES,
         CactusProp::SPAWN_ROLL, CactusConfig::SPAWN_CHANCE,
-        CactusConfig::MOOD_MULTIPLIER, PopFamily::CACTUS, "cact");
+        mood_mult_for(PopFamily::CACTUS), PopFamily::CACTUS, "cact");
     return { gate.ok, gate.seed, gate.slot, gate.theme_idx };
 }
 

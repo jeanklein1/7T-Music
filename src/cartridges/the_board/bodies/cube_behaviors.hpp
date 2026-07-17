@@ -98,7 +98,7 @@ static_assert(sizeof(CUBE_TIER_GAINS) / sizeof(CUBE_TIER_GAINS[0]) == CUBE_TIER_
 // ═══ REGISTRY: POPULATIONS ═══════════════════════════════════════
 //
 // Mood ordering matches MOOD_TABLE in cartridge.hpp. Cubes are gated
-// by CubeConfig::MOOD_MULTIPLIER (in floaters.hpp) which is
+// by mood_mult_for(PopFamily::CUBE) (in floaters.hpp) which is
 // {1, 1, 0, 0, 1, 0} — cubes don't spawn in indoor moods or in
 // MOOD_FINITE_OUTDOOR_REF, so those rows here are never consulted in
 // practice. We declare them anyway for hygiene; if the spawn gate
@@ -525,7 +525,7 @@ inline constexpr EntityFamilyTraits CUBE_TRAITS = {
     false, false, 0,
     true,
     CubeProp::SPAWN_ROLL, CubeConfig::SPAWN_CHANCE,
-    CubeConfig::MOOD_MULTIPLIER, CubeConfig::POSITION_JITTER,
+    mood_mult_for(PopFamily::CUBE), CubeConfig::POSITION_JITTER,
     CUBE_TIER_COUNT, CubeProp::TIER,
     CUBE_PARAM_DEFS, CUBE_PARAM_COUNT,
     CubeProp::ANCHOR_X, CubeProp::ANCHOR_Z, CubeProp::ROTATION, false,
@@ -535,7 +535,7 @@ inline constexpr EntityFamilyTraits CUBE_TRAITS = {
 inline SpawnGateOutput cube_run_gate(MachineCtx* c, int32_t gx, int32_t gz) {
     auto gate = run_spawn_preamble(c, gx, gz, c->cube_behaviors_state_.activeCubes_, Dim::MAX_CUBE_INSTANCES,
         CubeProp::SPAWN_ROLL, CubeConfig::SPAWN_CHANCE,
-        CubeConfig::MOOD_MULTIPLIER, PopFamily::CUBE, "cube");
+        mood_mult_for(PopFamily::CUBE), PopFamily::CUBE, "cube");
     return { gate.ok, gate.seed, gate.slot, gate.theme_idx };
 }
 

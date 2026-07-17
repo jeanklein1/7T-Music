@@ -153,7 +153,7 @@ inline constexpr EntityFamilyTraits SPHERE_TRAITS = {
     false, false, 0,      // not grounded
     true,
     SphereProp::SPAWN_ROLL, SphereConfig::SPAWN_CHANCE,
-    SphereConfig::MOOD_MULTIPLIER, SphereConfig::POSITION_JITTER,
+    mood_mult_for(PopFamily::SPHERE), SphereConfig::POSITION_JITTER,
     SPHERE_TIER_COUNT, SphereProp::TIER,
     SPHERE_PARAM_DEFS, SPHERE_PARAM_COUNT,
     SphereProp::ANCHOR_X, SphereProp::ANCHOR_Z, SphereProp::ROTATION, false,
@@ -163,7 +163,7 @@ inline constexpr EntityFamilyTraits SPHERE_TRAITS = {
 inline SpawnGateOutput sphere_run_gate(MachineCtx* c, int32_t gx, int32_t gz) {
     auto gate = run_spawn_preamble(c, gx, gz, c->sphere_state_.activeSpheres_, Dim::MAX_SPHERE_INSTANCES,
         SphereProp::SPAWN_ROLL, SphereConfig::SPAWN_CHANCE,
-        SphereConfig::MOOD_MULTIPLIER, PopFamily::SPHERE, "sph");
+        mood_mult_for(PopFamily::SPHERE), PopFamily::SPHERE, "sph");
     return { gate.ok, gate.seed, gate.slot, gate.theme_idx };
 }
 

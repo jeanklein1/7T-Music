@@ -404,7 +404,7 @@ inline constexpr EntityFamilyTraits COLUMN_TRAITS = {
     true, true, 1,                                     // grounded, creates ground, 1 pier
     true,
     ColumnProp::SPAWN_ROLL, ColumnConfig::SPAWN_CHANCE,
-    ColumnConfig::MOOD_MULTIPLIER, ColumnConfig::POSITION_JITTER,
+    mood_mult_for(PopFamily::COLUMN), ColumnConfig::POSITION_JITTER,
     COLUMN_TIER_COUNT, ColumnProp::TIER,
     COLUMN_PARAM_DEFS, COLUMN_PARAM_COUNT,
     ColumnProp::POSITION_X, ColumnProp::POSITION_Z, 355u, true,
@@ -416,7 +416,7 @@ inline constexpr EntityFamilyTraits ANTENNA_TRAITS = {
     true, true, 1,
     true,
     AntennaProp::SPAWN_ROLL, AntennaConfig::SPAWN_CHANCE,
-    AntennaConfig::MOOD_MULTIPLIER, AntennaConfig::POSITION_JITTER,
+    mood_mult_for(PopFamily::ANTENNA), AntennaConfig::POSITION_JITTER,
     ANTENNA_TIER_COUNT, AntennaProp::TIER,
     ANTENNA_PARAM_DEFS, COLUMN_PARAM_COUNT,
     AntennaProp::POSITION_X, AntennaProp::POSITION_Z, 355u, true,
@@ -429,7 +429,7 @@ inline SpawnGateOutput column_run_gate(MachineCtx* c, int32_t gx, int32_t gz) {
     auto gate = run_spawn_preamble(c, gx, gz,
         c->entities_state_.columns, Dim::MAX_COLUMN_ONLY,
         ColumnProp::SPAWN_ROLL, ColumnConfig::SPAWN_CHANCE,
-        ColumnConfig::MOOD_MULTIPLIER, PopFamily::COLUMN, "col");
+        mood_mult_for(PopFamily::COLUMN), PopFamily::COLUMN, "col");
     return { gate.ok, gate.seed, gate.slot, gate.theme_idx };
 }
 
@@ -566,7 +566,7 @@ inline SpawnGateOutput antenna_run_gate(MachineCtx* c, int32_t gx, int32_t gz) {
     auto gate = run_spawn_preamble(c, gx, gz,
         c->entities_state_.antennas, Dim::MAX_ANTENNA_ONLY,
         AntennaProp::SPAWN_ROLL, AntennaConfig::SPAWN_CHANCE,
-        AntennaConfig::MOOD_MULTIPLIER, PopFamily::ANTENNA, "ant");
+        mood_mult_for(PopFamily::ANTENNA), PopFamily::ANTENNA, "ant");
     return { gate.ok, gate.seed, gate.slot, gate.theme_idx };
 }
 
@@ -777,7 +777,7 @@ inline constexpr EntityFamilyTraits PYRAMID_TRAITS = {
     true, false, 0,       // grounded, no piers (bakes into heightfield instead)
     true,
     PyramidProp::SPAWN_ROLL, PyramidConfig::SPAWN_CHANCE,
-    PyramidConfig::MOOD_MULTIPLIER, PyramidConfig::POSITION_JITTER,
+    mood_mult_for(PopFamily::PYRAMID), PyramidConfig::POSITION_JITTER,
     3, PyramidProp::TIER,
     PYRAMID_PARAM_DEFS, PYRAMID_PARAM_COUNT,
     PyramidProp::POSITION_X, PyramidProp::POSITION_Z, PyramidProp::ROTATION, true,
@@ -788,7 +788,7 @@ inline SpawnGateOutput pyramid_run_gate(MachineCtx* c, int32_t gx, int32_t gz) {
     auto gate = run_spawn_preamble(c, gx, gz,
         c->entities_state_.pyramids, Dim::MAX_PYRAMID_INSTANCES,
         PyramidProp::SPAWN_ROLL, PyramidConfig::SPAWN_CHANCE,
-        PyramidConfig::MOOD_MULTIPLIER, PopFamily::PYRAMID, "pyr");
+        mood_mult_for(PopFamily::PYRAMID), PopFamily::PYRAMID, "pyr");
     return { gate.ok, gate.seed, gate.slot, gate.theme_idx };
 }
 
@@ -936,7 +936,7 @@ inline constexpr EntityFamilyTraits ARCH_TRAITS = {
     true, true, 2,        // grounded, creates ground, 2 piers
     true,
     ArchProp::SPAWN_ROLL, ArchConfig::SPAWN_CHANCE,
-    ArchConfig::MOOD_MULTIPLIER, ArchConfig::POSITION_JITTER,
+    mood_mult_for(PopFamily::ARCH), ArchConfig::POSITION_JITTER,
     static_cast<uint32_t>(ArchTier::COUNT), ArchProp::TIER,
     ARCH_PARAM_DEFS, ARCH_PARAM_COUNT,
     ArchProp::POSITION_X, ArchProp::POSITION_Z, ArchProp::ROTATION, true,
@@ -946,7 +946,7 @@ inline constexpr EntityFamilyTraits ARCH_TRAITS = {
 inline SpawnGateOutput arch_run_gate(MachineCtx* c, int32_t gx, int32_t gz) {
     auto gate = run_spawn_preamble(c, gx, gz, c->entities_state_.arches, Dim::MAX_ARCH_INSTANCES,
         ArchProp::SPAWN_ROLL, ArchConfig::SPAWN_CHANCE,
-        ArchConfig::MOOD_MULTIPLIER, PopFamily::ARCH, "arch");
+        mood_mult_for(PopFamily::ARCH), PopFamily::ARCH, "arch");
     return { gate.ok, gate.seed, gate.slot, gate.theme_idx };
 }
 

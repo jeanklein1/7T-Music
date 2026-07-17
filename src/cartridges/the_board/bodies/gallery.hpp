@@ -166,7 +166,6 @@ struct GalleryConfig {
     // Spawn probability per terrain archetype id — galleries favor calm
     // ground:                                     mountain varied basin  pool
     static constexpr float GALLERY_CHANCE_BY_ARCHETYPE[4] = { 0.03f, 0.06f, 0.30f, 0.40f };
-    static constexpr float MOOD_MULTIPLIER[MOOD_COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f };  // per-mood spawn ×: open sunset ind_flat ind_vault finite fin_ref (mood_constants order)
 
     // Painting count per gallery: gaussian, median 5, σ 2
     // Max varies by archetype — basin gets the largest galleries
@@ -721,7 +720,7 @@ inline bool select_gallery_for_patch(GalleryState& gs, MachineCtx* c, int32_t gx
     tile_archetype(c->tile_world_state_, gx, gz, archetype);   // F4: miss keeps 1
     auto composed = compose_spawn_chance(c, gx, gz, PopFamily::GALLERY,
         GalleryConfig::GALLERY_CHANCE_BY_ARCHETYPE[archetype],
-        GalleryConfig::MOOD_MULTIPLIER,
+        mood_mult_for(PopFamily::GALLERY),
         /*use_proximity=*/false, /*veto_on_zero_mood=*/true,
         SpawnClamp::NONE);
     if (composed.vetoed) return false;

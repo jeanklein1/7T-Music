@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <cmath>                                                     // std::floor/std::pow (tile-population lattice, Q6b)
 #include "cartridges/the_board/contracts/roster.hpp"                // PopFamily (spawn_weight indexing)
+#include "cartridges/the_board/contracts/mood_constants.hpp"        // MOOD_COUNT (the mood axis of MOOD_SPAWN_MULT)
 #include "cartridges/the_board/primitives/seed_utils.hpp"    // cpu_hash_f (theme rolls)
 // Nothing here names Cartridge; MachineCtx arrives from
 // contracts/entity_types.hpp earlier in the cohort.
@@ -30,6 +31,40 @@ inline constexpr uint32_t DENSITY_SEED_BAND = 160u;
 inline constexpr float DENSITY_EXPONENT = 0.6f;
 inline constexpr float DENSITY_MIN = 1.0f;
 inline constexpr float DENSITY_MAX = 1.0f;
+
+// ═══ MOOD × FAMILY SPAWN MULTIPLIERS ═══════════════════════════════
+// WHAT: the mood term of the composition law — presence × proportion
+//   per family per mood. 0 = absent (the gol/gallery-class veto).
+// AXES: row = mood id (mood_constants order, F-3 kin); column =
+//   PopFamily order, PINNED by F-1 (roster.hpp).
+// Frozen biography: values feed the spawn gates.
+//                              pyr   arch  col   ant   palm  cact  blade sph   rib   cube  gol   gal
+inline constexpr float MOOD_SPAWN_MULT[MOOD_COUNT][PopFamily::COUNT] = {
+    /* MOOD_OPEN_DEFAULT    */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
+    /* MOOD_OPEN_SUNSET     */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
+    /* MOOD_INDOOR_FLAT     */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f },
+    /* MOOD_INDOOR_VAULT    */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f },
+    /* MOOD_FINITE_OUTDOOR  */ { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },
+    /* MOOD_FIN_OUTDOOR_REF */ { 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+};
+
+// The per-family column view, contiguous for the const float* funnels
+// (the spawn gates index by mood id): a compile-time transpose — the
+// matrix above stays the ONE authored home.
+namespace detail {
+struct MoodMultTransposed { float v[PopFamily::COUNT][MOOD_COUNT]; };
+inline constexpr MoodMultTransposed build_mood_mult_transposed() {
+    MoodMultTransposed r{};
+    for (uint32_t fam = 0; fam < PopFamily::COUNT; fam++)
+        for (uint32_t mood = 0; mood < MOOD_COUNT; mood++)
+            r.v[fam][mood] = MOOD_SPAWN_MULT[mood][fam];
+    return r;
+}
+inline constexpr MoodMultTransposed MOOD_MULT_T = build_mood_mult_transposed();
+}  // namespace detail
+inline constexpr const float* mood_mult_for(uint32_t family) {
+    return detail::MOOD_MULT_T.v[family];
+}
 
 struct ThemeEnvelope {
     int32_t  active = -1;              // theme index, or -1 (no bias)
