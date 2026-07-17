@@ -580,8 +580,8 @@ inline void apply_mood_lighting(MoodDeps* c, const MoodProfile& m, wgpu::Queue& 
     c->clearColor_[1] = m.clear_color[1];
     c->clearColor_[2] = m.clear_color[2];
 
-    c->gpuState_.set_terrain_amp_ceiling(m.indoor ? 0.5f : 0.0f);
-    c->mood_state_.terrain_amp_ceiling = m.indoor ? 0.5f : 0.0f;
+    c->gpuState_.set_terrain_amp_ceiling(m.terrain_amp_ceiling);
+    c->mood_state_.terrain_amp_ceiling = m.terrain_amp_ceiling;
     c->mood_state_.lights_dirty = true;
 }
 
@@ -606,6 +606,31 @@ inline void apply_mood_spot_lights(MoodDeps* c, const MoodProfile& m, wgpu::Queu
     }
 }
 
+// ═══ THE CROWN LAW — one spelling of the vault arithmetic ═════════
+// Spring (wall top), rise, crown for a VAULT room over the finite
+// bounds [bmin, bmax]. The generator and the camera ceiling clamp
+// both consume THIS — no bare-literal twin survives at either site.
+struct VaultCrown { float spring_h; float rise; float crown_h; };
+inline VaultCrown vault_crown(const MoodProfile& m, float bmin, float bmax) {
+    static constexpr float VAULT_RISE_FRACTION  = 0.30f;
+    static constexpr float SPRING_MARGIN        = 8.0f;
+    static constexpr float PAINT_CENTER_FRACTION = 0.45f;
+    static constexpr float PAINT_TOP_MARGIN     = 5.5f;
+    static constexpr float MIN_RISE_FLOOR       = 5.0f;
+    const float ch = m.ceiling_height;
+    const float half_span = (bmax - bmin) * 0.5f;
+    const float paint_center = ch * PAINT_CENTER_FRACTION;
+    const float paint_top = paint_center + PAINT_TOP_MARGIN;
+    const float spring_h = paint_top + SPRING_MARGIN;
+    const float min_rise = ch - spring_h;
+    const float rise = std::max(half_span * VAULT_RISE_FRACTION,
+                                std::max(min_rise, MIN_RISE_FLOOR));
+    return VaultCrown{ spring_h, rise, spring_h + rise };
+}
+inline float vault_crown_height(const MoodProfile& m, float bmin, float bmax) {
+    return vault_crown(m, bmin, bmax).crown_h;
+}
+
 inline void apply_mood_indoor_shell(MoodDeps* c, const MoodProfile& m, wgpu::Queue& queue,
     GalleryState& gallery_state, GalleryDeps& gallery_deps) {
     if (m.indoor && m.ceiling_type != CeilingType::NONE) {
@@ -618,18 +643,13 @@ inline void apply_mood_indoor_shell(MoodDeps* c, const MoodProfile& m, wgpu::Que
         clear_indoor_shell(c, queue, gallery_state, gallery_deps);
     }
 
-    // Camera ceiling clamp (matches crown computation in generate_indoor_shell).
+    // Camera ceiling clamp — consumes THE CROWN LAW (vault_crown_height).
     if (m.indoor) {
         float effective_ceiling = m.ceiling_height;
         if (m.ceiling_type == CeilingType::VAULT) {
             const float bmin = -(float)c->world_state_.finite_radius * Dim::PATCH_EXTENT;
             const float bmax = ((float)c->world_state_.finite_radius + 1.0f) * Dim::PATCH_EXTENT;
-            const float half_span = (bmax - bmin) * 0.5f;
-            const float paint_top = m.ceiling_height * 0.45f + 5.5f;
-            const float spring_h  = paint_top + 8.0f;
-            const float min_rise  = m.ceiling_height - spring_h;
-            const float rise = std::max(half_span * 0.30f, std::max(min_rise, 5.0f));
-            effective_ceiling = spring_h + rise;
+            effective_ceiling = vault_crown_height(m, bmin, bmax);
         }
         c->gpuState_.set_ceiling_height(effective_ceiling);
     } else {
@@ -784,17 +804,10 @@ inline void generate_indoor_shell(MoodDeps* c, wgpu::Queue& queue, const MoodPro
     float rise = 0.0f;
 
     if (m.ceiling_type == CeilingType::VAULT) {
-        static constexpr float VAULT_RISE_FRACTION = 0.30f;
-        static constexpr float SPRING_MARGIN = 8.0f;
-
-        float half_span = (bmax - bmin) * 0.5f;
-        float paint_center = ch * 0.45f;
-        float paint_top = paint_center + 5.5f;
-        wall_h = paint_top + SPRING_MARGIN;
-
-        float min_rise = ch - wall_h;
-        rise = std::max(half_span * VAULT_RISE_FRACTION, std::max(min_rise, 5.0f));
-        crown_h = wall_h + rise;
+        const VaultCrown vc = vault_crown(m, bmin, bmax);   // THE CROWN LAW
+        wall_h  = vc.spring_h;
+        rise    = vc.rise;
+        crown_h = vc.crown_h;
     }
 
     float wall_top = wall_h + JOINT_OVERLAP;
