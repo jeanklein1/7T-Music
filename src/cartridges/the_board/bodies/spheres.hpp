@@ -209,9 +209,25 @@ inline void sphere_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Qu
     c->gpuState_.upload_sphere_entity_slot(queue, inst.slot, fe);
 }
 
+inline constexpr uint32_t SPHERE_INDOOR_RESCALE_PARAMS[] = {
+    SphIdx::BODY_RADIUS, SphIdx::ORBIT_RADIUS, SphIdx::ORBIT_HEIGHT,
+    SphIdx::INFLUENCE_RADIUS,
+    // ORBIT_SPEED (a rate) intentionally not scaled.
+};
+
+// Sphere policy: CAP (INDOOR_TREATMENT). Vertical extent =
+// orbit_height + body_radius (the orbit ring is horizontal at
+// orbit_height; the body's top adds its radius). Every length param
+// rides the one ratio — a miniature, not a squash.
+inline void sphere_apply_indoor_rescale(EntityInstance& inst, float ceiling_h) {
+    cap_to_ceiling(inst, ceiling_h, INDOOR_HEIGHT_CAP_FRACTION,
+        /*current_h*/ inst.params[SphIdx::ORBIT_HEIGHT] + inst.params[SphIdx::BODY_RADIUS],
+        SPHERE_INDOOR_RESCALE_PARAMS);
+}
+
 inline constexpr EntityFamilyAdapter SPHERE_ADAPTER = {
     sphere_run_gate,
-    nullptr,                              // apply_indoor_rescale → not eligible (floaters, not grounded)
+    sphere_apply_indoor_rescale,          // CAP (INDOOR_TREATMENT): the floaters joined the module
     sphere_compute_solid_half, sphere_compute_colors,
     sphere_write_active, sphere_write_gpu, nullptr,
     sphere_get_tier_profile,

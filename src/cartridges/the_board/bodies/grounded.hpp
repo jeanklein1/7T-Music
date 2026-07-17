@@ -1029,7 +1029,7 @@ inline void blade_write_gpu(MachineCtx* c,
 
 inline constexpr EntityFamilyAdapter BLADE_ADAPTER = {
     blade_run_gate,
-    nullptr,                  // apply_indoor_rescale → not eligible (outdoor < ceiling)
+    nullptr,                  // apply_indoor_rescale → NATURAL (INDOOR_TREATMENT): keeps size
     blade_compute_solid_half,
     nullptr,                  // compute_colors → use generic (Q24)
     blade_write_active,
@@ -1201,11 +1201,11 @@ inline constexpr uint32_t PALM_INDOOR_RESCALE_PARAMS[] = {
     // FROND_DROOP/FROND_ARCH (angles) intentionally not scaled.
 };
 
-// Palms read as canopy-defining architectural anchors and look wrong
-// when too small — tighter target range than other indoor families.
+// Palm policy: CAP (INDOOR_TREATMENT) — outdoor size stands unless
+// taller than the cap. The old tighter rolled band ([0.80, 0.95],
+// canopy-anchor rationale) is held by git.
 inline void palm_apply_indoor_rescale(EntityInstance& inst, float ceiling_h) {
-    rescale_to_rolled_target(inst, ceiling_h,
-        /*target_lo*/ 0.80f, /*target_hi*/ 0.95f,
+    cap_to_ceiling(inst, ceiling_h, INDOOR_HEIGHT_CAP_FRACTION,
         /*current_h*/ inst.params[PalmIdx::HEIGHT],
         PALM_INDOOR_RESCALE_PARAMS);
 }
@@ -1469,7 +1469,7 @@ inline void cactus_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Qu
 
 inline constexpr EntityFamilyAdapter CACTUS_ADAPTER = {
     cactus_run_gate,
-    nullptr,                              // apply_indoor_rescale → not eligible
+    nullptr,                              // apply_indoor_rescale → NATURAL (INDOOR_TREATMENT): keeps size
     cactus_compute_solid_half, nullptr,   // compute_colors → use generic (Q24)
     cactus_write_active, cactus_write_gpu, nullptr,
     cactus_get_tier_profile,

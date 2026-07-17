@@ -255,13 +255,5 @@ void generic_commit(MachineCtx* c,
     const EntityInstance& inst,
     wgpu::Queue& queue);
 
-// The rescale template — DECLARATION only; the definition (and its
-// hand-curated per-family param-index law) rides
-// machine/entity_pipeline.hpp.
-template<size_t N>
-inline void rescale_to_rolled_target(EntityInstance& inst, float ceiling_h,
-    float target_lo, float target_hi, float current_h,
-    const uint32_t (&params_to_scale)[N]);
-
 } // namespace the_board
 } // namespace t7

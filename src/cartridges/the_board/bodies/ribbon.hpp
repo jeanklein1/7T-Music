@@ -1134,6 +1134,30 @@ inline bool select_ribbon_for_patch(RibbonState& rs, MachineCtx* c,
 
     fill_ribbon_selection_geometry(gate.seed, tier_idx, sel);
 
+    // THE MINIATURE (indoor_module): gate-spawned ribbons pre-scale
+    // by RIBBON_INDOOR_SCALE ("incredibly diminished"), then the cap
+    // law — belt and braces; the cap never bites at 0.15. The
+    // sampler's floors (MIN_CUBE_SIZE / MIN_ADDED_HEIGHT / 0.1 amps)
+    // still hold. The ANCHOR ribbon (fin_ref) enters through
+    // apply_mood_anchor_ribbon → fill_ribbon_selection_geometry and
+    // never crosses this block — untouched by construction.
+    if (MOOD_TABLE[c->mood_state_.active].indoor) {
+        sel.cube_size    = std::max(MIN_CUBE_SIZE,    sel.cube_size    * RIBBON_INDOOR_SCALE);
+        sel.height       = std::max(MIN_ADDED_HEIGHT, sel.height       * RIBBON_INDOOR_SCALE);
+        sel.lateral_amp  = std::max(0.1f,             sel.lateral_amp  * RIBBON_INDOOR_SCALE);
+        sel.vertical_amp = std::max(0.1f,             sel.vertical_amp * RIBBON_INDOOR_SCALE);
+        // The cap law, ribbon-shaped: extent = clearance + vertical
+        // wave + half a cube; all four dimensions ride one ratio.
+        const float cap_h  = INDOOR_HEIGHT_CAP_FRACTION
+                           * MOOD_TABLE[c->mood_state_.active].ceiling_height;
+        const float extent = sel.height + sel.vertical_amp + 0.5f * sel.cube_size;
+        if (extent > cap_h) {
+            const float s = cap_h / extent;
+            sel.cube_size   *= s; sel.height       *= s;
+            sel.lateral_amp *= s; sel.vertical_amp *= s;
+        }
+    }
+
     {
         float patch_cx = (gx + 0.5f) * Dim::PATCH_EXTENT;
         float patch_cz = (gz + 0.5f) * Dim::PATCH_EXTENT;

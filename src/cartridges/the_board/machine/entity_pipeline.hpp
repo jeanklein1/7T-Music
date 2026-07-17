@@ -4,7 +4,7 @@
 #include <cstring>    // std::memcpy (drum colors)   // (impl, merged)
 #include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 
-// ─── entity_pipeline.hpp (S3 · MERGED: the rescale law + impl) ─────
+// ─── entity_pipeline.hpp (S3 · MERGED: the pipeline law + impl) ─────
 // History: audit/LADDER.md
 //
 // Generic entity lifecycle for the cookie-cutter families: the
@@ -23,49 +23,32 @@
 // (GPU mesh params), mood.hpp (MOOD_TABLE / PORTAL_DENSITY / portal
 // doors), machine/spawn_engine.hpp (the services, defined just above
 // in the cohort). MERGED at the cohort tail (the
-// B ruling): the decl tier (generic_* + rescale decls, the arch
+// B ruling): the decl tier (the generic_* decls, the arch
 // vocabulary) lives in contracts/spawn_services.hpp.
 
 namespace t7 {
 namespace the_board {
 
-// ─── Indoor Rescale Helper ───────────────────────────────────────
+// ─── Indoor Sizing (THE INDOOR MODULE's per-family hooks) ────────
 //
-//   • Columns: HEIGHT is set to ceiling_height exactly, and every
-//     other length param scales by the same ratio so proportions
-//     hold. The capital meets the ceiling — the column reads as
-//     part of the room's architecture, not a freestanding object.
-//
-// Param indices below are hand-curated per family — only LENGTH
-// dimensions get scaled, never ratios (TAPER, ENTASIS, ASPECT...),
-// counts (BASE_LAYERS, RIBS, ARM_COUNT...), or angles (LEAN_DIR,
-// FROND_DROOP...). Adding a new eligible family means picking which
-// pattern it follows, declaring its own
-// <family>_apply_indoor_rescale, and registering it in the adapter.
-// Property index 7777u is reserved for the rescale-target hash
-// (no other family uses it).
+// Policy rides INDOOR_TREATMENT + the dials
+// (contracts/indoor_module.hpp); the families below keep only their
+// hand-curated param-index lists — only LENGTH dimensions get
+// scaled, never ratios (TAPER, ENTASIS, ASPECT...), counts
+// (BASE_LAYERS, RIBS, ARM_COUNT...), or angles (LEAN_DIR,
+// FROND_DROOP...). CAP families call the shared cap_to_ceiling law;
+// column's EXACT hook snaps HEIGHT to ceiling_height and scales
+// every other length param by the same ratio so proportions hold.
+// Adding a new eligible family means declaring its own
+// <family>_apply_indoor_rescale (a cap_to_ceiling call + its list),
+// registering it in the adapter, and rowing INDOOR_TREATMENT.
 //
 // SEAM[entity_pipeline:rescale-per-family] DONE — was a free-function
 //   switch on family_id; lifted to per-family adapter slot during
-//   Pass 7 of the modularity rollout.
-
-//
-// Column does NOT use this helper — its policy is "snap to ceiling
-// exactly" rather than "roll a target ratio."
-//
-// The templated array reference avoids needing <initializer_list>;
-// each caller passes a constexpr uint32_t array of param indices.
-template<size_t N>
-inline void rescale_to_rolled_target(EntityInstance& inst, float ceiling_h,
-    float target_lo, float target_hi, float current_h,
-    const uint32_t (&params_to_scale)[N]) {
-    if (current_h <= 1e-3f) return;
-    constexpr uint32_t RESCALE_TARGET_PROP = 7777u;
-    const float t = cpu_hash_f(inst.seed, RESCALE_TARGET_PROP);
-    const float target_h = ceiling_h * (target_lo + (target_hi - target_lo) * t);
-    const float scale = target_h / current_h;
-    for (size_t i = 0; i < N; i++) inst.params[params_to_scale[i]] *= scale;
-}
+//   Pass 7 of the modularity rollout. The rolled-band helper
+//   (rescale_to_rolled_target: target in [lo,hi]×ceiling, property
+//   index 7777u for the roll) lost its callers to the module's cap
+//   law — held by git.
 
 // ═══ MODULE FUNCTIONS ══════════════════════════════════════════════
 //
@@ -170,9 +153,13 @@ inline bool generic_select(MachineCtx* c,
     inst.tier_idx   = tier;
     inst.theme_idx  = gate.theme_idx;
 
-    // ── Indoor rescale (must run before compute_solid_half so the
-    //    solid extents are derived from the scaled params) ──
-    if (MOOD_TABLE[c->mood_state_.active].indoor && adapter.apply_indoor_rescale) {
+    // ── Indoor sizing (must run before compute_solid_half so the
+    //    solid extents are derived from the scaled params). THE
+    //    INDOOR MODULE dispatches on its policy table: NATURAL
+    //    skips; EXACT and CAP run the family's adapter hook. ──
+    if (MOOD_TABLE[c->mood_state_.active].indoor
+        && INDOOR_TREATMENT[traits.family_id].size != IndoorSize::NATURAL
+        && adapter.apply_indoor_rescale) {
         adapter.apply_indoor_rescale(inst, MOOD_TABLE[c->mood_state_.active].ceiling_height);
     }
 
@@ -442,10 +429,10 @@ inline constexpr uint32_t COLUMN_INDOOR_RESCALE_PARAMS[] = {
     // (counts) intentionally not scaled.
 };
 
-// Column policy: snap to ceiling exactly. The capital meets the
-// ceiling — column reads as part of the room's architecture, not a
-// freestanding object. Does NOT use rescale_to_rolled_target — its
-// scale factor is ceiling_h/current_h, not a rolled ratio.
+// Column policy: EXACT (INDOOR_TREATMENT) — snap to ceiling exactly.
+// The capital meets the ceiling — column reads as part of the room's
+// architecture, not a freestanding object. Does NOT use the shared
+// cap law — its scale factor is ceiling_h/current_h, cap or no cap.
 inline void column_apply_indoor_rescale(EntityInstance& inst, float ceiling_h) {
     const float current_h = inst.params[ColIdx::HEIGHT];
     if (current_h <= 1e-3f) return;
@@ -571,8 +558,7 @@ inline SpawnGateOutput antenna_run_gate(MachineCtx* c, int32_t gx, int32_t gz) {
 }
 
 inline void antenna_apply_indoor_rescale(EntityInstance& inst, float ceiling_h) {
-    rescale_to_rolled_target(inst, ceiling_h,
-        /*target_lo*/ 0.50f, /*target_hi*/ 0.95f,
+    cap_to_ceiling(inst, ceiling_h, INDOOR_HEIGHT_CAP_FRACTION,
         /*current_h*/ inst.params[ColIdx::HEIGHT],
         COLUMN_INDOOR_RESCALE_PARAMS);
 }
@@ -798,8 +784,7 @@ inline constexpr uint32_t PYRAMID_INDOOR_RESCALE_PARAMS[] = {
 };
 
 inline void pyramid_apply_indoor_rescale(EntityInstance& inst, float ceiling_h) {
-    rescale_to_rolled_target(inst, ceiling_h,
-        /*target_lo*/ 0.50f, /*target_hi*/ 0.95f,
+    cap_to_ceiling(inst, ceiling_h, INDOOR_HEIGHT_CAP_FRACTION,
         /*current_h*/ inst.params[PyrIdx::HEIGHT],
         PYRAMID_INDOOR_RESCALE_PARAMS);
 }
@@ -955,11 +940,10 @@ inline constexpr uint32_t ARCH_INDOOR_RESCALE_PARAMS[] = {
     ArchIdx::PIER_HEIGHT, ArchIdx::PIER_PADDING, ArchIdx::EDGE_BLEND,
 };
 
-// Arch total height = pier_height + rise (catenary apex). Rolled
-// target in [0.50, 0.95] × ceiling_h, scale every length param.
+// Arch total height = pier_height + rise (catenary apex). CAP at
+// the module's fraction, scale every length param.
 inline void arch_apply_indoor_rescale(EntityInstance& inst, float ceiling_h) {
-    rescale_to_rolled_target(inst, ceiling_h,
-        /*target_lo*/ 0.50f, /*target_hi*/ 0.95f,
+    cap_to_ceiling(inst, ceiling_h, INDOOR_HEIGHT_CAP_FRACTION,
         /*current_h*/ inst.params[ArchIdx::PIER_HEIGHT] + inst.params[ArchIdx::RISE],
         ARCH_INDOOR_RESCALE_PARAMS);
 }

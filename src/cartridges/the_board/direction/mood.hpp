@@ -17,8 +17,9 @@
 //
 // Mood is VOCABULARY + APPLIERS + SIX DOORS. This header owns the
 // vocabulary — CeilingType, MoodProfile, MOOD_TABLE, the portal color
-// table, the indoor wall palettes, INDOOR_ENTITY_WALL_MARGIN (also
-// read by negotiate_position) — and the DECLARATIONS of the six doors
+// table, the indoor wall palettes (the indoor treatment — sizes,
+// bounds, dials — graduated to contracts/indoor_module.hpp) — and
+// the DECLARATIONS of the six doors
 // (apply_mood, request_mood_transition, force_spawn_back_portal,
 // upload_lights, upload_portal_array, mood_name) plus the appliers and
 // derivers. The Mood IDs are file-scope vocabulary
@@ -41,7 +42,7 @@
 // decls, and every definition. COHORT: after ribbon/gallery/input
 // (the fan's door owners + RibbonProp/ORB_MOOD_TABLE), before the
 // machine natives (they call pick_portal_mood / derive_finite_radius
-// and read PORTAL_COLORS / INDOOR_ENTITY_WALL_MARGIN).
+// and read PORTAL_COLORS).
 //
 // The impl additionally reaches the spine-resident state
 // (mood_state / transitionPhase / pendingDestination /
@@ -144,19 +145,15 @@ inline constexpr IndoorPalette INDOOR_PALETTES[] = {
 inline constexpr uint32_t INDOOR_PALETTE_COUNT =
     sizeof(INDOOR_PALETTES) / sizeof(INDOOR_PALETTES[0]);
 
-// ═══ INDOOR ENTITY PLACEMENT ═════════════════════════════════════
+// ═══ INDOOR ENTITY PLACEMENT → THE INDOOR MODULE ═════════════════
 //
-// Clamp (not reject) is intentional: rejection-based logic
-// would silently drop entities anchored to corner patches,
-// because their seed-determined position keeps landing in the
-// wall margin and never recovers. Clamping shifts the candidate
-// to the legal-box edge and lets the existing footprint-overlap
-// check handle any pile-ups that result.
-// Margin doubled (was 10) so that paintings and snapshots
-// mounted on indoor walls are visibly separated from spawning
-// entities — the entity's footprint now reads as distinct from
-// the wall surface and any artwork on it.
-inline constexpr float INDOOR_ENTITY_WALL_MARGIN = 20.0f;
+// The whole indoor treatment — the size/bounds policy table and
+// the three dials (INDOOR_HEIGHT_CAP_FRACTION, RIBBON_INDOOR_SCALE,
+// INDOOR_ENTITY_WALL_MARGIN) — lives in contracts/indoor_module.hpp:
+// mood's insert on the spawn chain, graduated to the contracts tier
+// because its consumers (grounded/spheres/cube_behaviors/ribbon)
+// precede this header in the cohort. One table, three dials — the
+// tuning session edits rows and dials, never wiring.
 
 // ═══ THE DEPS FACE ═══════════════════════════════════════════════
 //
