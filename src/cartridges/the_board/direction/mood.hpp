@@ -209,6 +209,7 @@ void apply_mood_anchor_ribbon(MoodDeps* c, uint32_t mood, wgpu::Queue& queue,
 void derive_indoor_lights(MoodDeps* c, uint32_t seed, float bmin, float bmax,
     float ceiling_height, CeilingType ceiling_type = CeilingType::FLAT);
 void generate_indoor_shell(MoodDeps* c, wgpu::Queue& queue, const MoodProfile& m,
+    const IndoorPalette& pal,
     GalleryState& gallery_state, GalleryDeps& gallery_deps);
 void clear_indoor_shell(MoodDeps* c, wgpu::Queue& queue,
     GalleryState& gallery_state, GalleryDeps& gallery_deps);
@@ -610,14 +611,9 @@ inline void apply_mood_indoor_shell(MoodDeps* c, const MoodProfile& m, wgpu::Que
     if (m.indoor && m.ceiling_type != CeilingType::NONE) {
         const uint32_t pal_idx = cpu_hash(c->world_state_.active_seed, 5800u) % INDOOR_PALETTE_COUNT;
         const auto& pal = INDOOR_PALETTES[pal_idx];
-        MoodProfile localMood = m;
-        for (int k = 0; k < 3; k++) {
-            localMood.wall_color[k]    = pal.wall_color[k];
-            localMood.ceiling_color[k] = pal.ceiling_color[k];
-        }
         std::cout << "[Mood] Indoor palette: " << pal.name
                   << " (idx=" << pal_idx << ")\n";
-        generate_indoor_shell(c, queue, localMood, gallery_state, gallery_deps);
+        generate_indoor_shell(c, queue, m, pal, gallery_state, gallery_deps);
     } else {
         clear_indoor_shell(c, queue, gallery_state, gallery_deps);
     }
@@ -767,6 +763,7 @@ inline void push_quad(
 }
 
 inline void generate_indoor_shell(MoodDeps* c, wgpu::Queue& queue, const MoodProfile& m,
+    const IndoorPalette& pal,
     GalleryState& gallery_state, GalleryDeps& gallery_deps) {
     float bmin = -(float)c->world_state_.finite_radius * Dim::PATCH_EXTENT;
     float bmax = ((float)c->world_state_.finite_radius + 1.0f) * Dim::PATCH_EXTENT;
@@ -807,29 +804,29 @@ inline void generate_indoor_shell(MoodDeps* c, wgpu::Queue& queue, const MoodPro
     push_quad(verts, indices,
         bmin, WALL_FLOOR, bmin, bmax, WALL_FLOOR, bmin,
         bmax, wall_top, bmin, bmin, wall_top, bmin,
-        0.0f, 0.0f, 1.0f, m.wall_color);
+        0.0f, 0.0f, 1.0f, pal.wall_color);
     // North wall (z = bmax, facing -Z into room)
     push_quad(verts, indices,
         bmax, WALL_FLOOR, bmax, bmin, WALL_FLOOR, bmax,
         bmin, wall_top, bmax, bmax, wall_top, bmax,
-        0.0f, 0.0f, -1.0f, m.wall_color);
+        0.0f, 0.0f, -1.0f, pal.wall_color);
     // West wall (x = bmin, facing +X into room)
     push_quad(verts, indices,
         bmin, WALL_FLOOR, bmax, bmin, WALL_FLOOR, bmin,
         bmin, wall_top, bmin, bmin, wall_top, bmax,
-        1.0f, 0.0f, 0.0f, m.wall_color);
+        1.0f, 0.0f, 0.0f, pal.wall_color);
     // East wall (x = bmax, facing -X into room)
     push_quad(verts, indices,
         bmax, WALL_FLOOR, bmin, bmax, WALL_FLOOR, bmax,
         bmax, wall_top, bmax, bmax, wall_top, bmin,
-        -1.0f, 0.0f, 0.0f, m.wall_color);
+        -1.0f, 0.0f, 0.0f, pal.wall_color);
 
     // ─── Ceiling ─────────────────────────────────────────────
     if (m.ceiling_type == CeilingType::FLAT) {
         push_quad(verts, indices,
             bmin, ch, bmin, bmax, ch, bmin,
             bmax, ch, bmax, bmin, ch, bmax,
-            0.0f, -1.0f, 0.0f, m.ceiling_color);
+            0.0f, -1.0f, 0.0f, pal.ceiling_color);
     }
     else if (m.ceiling_type == CeilingType::VAULT) {
         // ─── Groin vault (cross vault) ───────────────────────
@@ -884,7 +881,7 @@ inline void generate_indoor_shell(MoodDeps* c, wgpu::Queue& queue, const MoodPro
                 if (on_edge) { fnx = 0.0f; fny = -1.0f; fnz = 0.0f; }
 
                 verts.push_back({ { x, y, z }, { fnx, fny, fnz },
-                    { m.ceiling_color[0], m.ceiling_color[1], m.ceiling_color[2] } });
+                    { pal.ceiling_color[0], pal.ceiling_color[1], pal.ceiling_color[2] } });
             }
         }
 
