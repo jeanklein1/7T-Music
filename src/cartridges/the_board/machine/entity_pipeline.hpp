@@ -76,7 +76,7 @@ inline void rescale_to_rolled_target(EntityInstance& inst, float ceiling_h,
 // the welded four below — all live HERE.
 
 
-// ═══ MODULE IMPLEMENTATION (merged; was entity_pipeline.inl) ══════
+// ═══ MODULE IMPLEMENTATION ════════════════════════════════════════
 //
 // The three-phase verbs and the welded four family blocks (column,
 // antenna, pyramid, arch — the families that weld to the pier/regen
@@ -1147,7 +1147,7 @@ inline void dispatch_commit_arch_generic(MachineCtx* self, PlacementEntry& pe, w
 
 // ─── FAMILY_DISPATCH Integration ─────────────────────────────────
 
-// ═══ END entity_pipeline.inl ═════════════════════════════════════
+// ═══ END MODULE IMPLEMENTATION ═══════════════════════════════════
 
 } // namespace the_board
 } // namespace t7

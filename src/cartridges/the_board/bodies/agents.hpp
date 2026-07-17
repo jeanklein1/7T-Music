@@ -285,7 +285,7 @@ void respawn_evicted_agents(AgentState& as, AgentsDeps* c,
                             wgpu::Queue& queue);
 // Player commands
 void try_possess_nearest(AgentState& as, AgentsDeps* c, wgpu::Queue& queue);
-// Diagnostic cycling (wired in input.inl)
+// Diagnostic cycling (wired in direction/input.hpp)
 void cycle_agent_behavior_override(AgentState& as, AgentsDeps* c, wgpu::Queue& queue);
 void cycle_agent_tier_override(AgentState& as, AgentsDeps* c, wgpu::Queue& queue);
 void force_respawn_population(AgentState& as, AgentsDeps* c, wgpu::Queue& queue);

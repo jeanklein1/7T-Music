@@ -58,7 +58,7 @@ struct TimeState {
 //     writes live behind the agents door (try_possess_nearest,
 //     reseed_player_body), paired with the GPU selector.
 //   · aura_presence — P8, the pawn is the semantic owner (writes in
-//     pawn.inl only).
+//     bodies/pawn.hpp only).
 //   · THE CAMERA HAS NO CPU MIRROR — it lives GPU-resident, keyed on
 //     config.possessed_slot. The ONE sanctioned window (p1b-a): in
 //     CAMERA-HOST the P5 harvest reads camera pos.xz back as the

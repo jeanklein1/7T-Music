@@ -42,7 +42,7 @@
 //   section retired with its last legacy consumer).
 // SEAM[ribbon:dual-entry] commit_ribbon has TWO callers:
 //   FAMILY_DISPATCH[RIBBON].try_commit during patch streaming, AND
-//   mood.inl::apply_mood for mood-5 forced spawn. The dual entry
+//   mood.hpp::apply_mood for mood-5 forced spawn. The dual entry
 //   point is owned by mood:K4 (mood-5 reference clone), not by
 //   ribbon machinery. Tag-only awareness.
 // ─────────────────────────────────────────────────────────────────
@@ -1189,7 +1189,7 @@ inline bool place_ribbon_from_selection(MachineCtx* c,
 
 // ─── commit_ribbon ───────────────────────────────────────────
 //
-// Dual entry: also called from mood.inl::apply_mood for mood-5
+// Dual entry: also called from mood.hpp::apply_mood for mood-5
 // forced spawn (SEAM[ribbon:dual-entry]).
 inline void commit_ribbon(RibbonState& rs, MachineCtx* c,
     const RibbonPlacement& plan,

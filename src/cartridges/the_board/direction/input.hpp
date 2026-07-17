@@ -146,13 +146,12 @@ void set_render_radius(InputDeps* c, uint32_t r);
 void toggle_veil_dither(InputDeps* c);   // THE RIM knob (key V): icing tint <-> dither-dissolve
 
 
-// ═══ MODULE IMPLEMENTATION (merged; was input.inl) ═══════════════
+// ═══ MODULE IMPLEMENTATION ═══════════════════════════════════════
 //
 // WRAPPING FORM history in audit/LADDER.md; the impl now
 // rides its own header. GLFW is named here —
 // the dependency is the module's, not inherited from the host TU.
-// The fallback #defines below are preprocessor — namespace-blind,
-// byte-carried from the .inl.
+// The fallback #defines below are preprocessor — namespace-blind.
 
 // ═══ GLFW KEY CODE FALLBACKS ═════════════════════════════════════
 

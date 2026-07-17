@@ -15,8 +15,7 @@
 // headers ride the cohort tail whole. The bodies bind by the TU's own
 // law: an inline function or template declared before its callers may
 // be DEFINED later in the same TU (templates instantiate at
-// end-of-TU) — the mechanism the .inl zone always relied on, now
-// named at the contract.
+// end-of-TU) — named at the contract.
 //
 // OWNERS: every DEFINITION lives in machine/spawn_engine.hpp or
 // machine/entity_pipeline.hpp (merged, cohort tail). This file owns
@@ -99,7 +98,7 @@ inline constexpr float MIN_SEPARATION[PopFamily::COUNT][PopFamily::COUNT] = {
 };
 
 // ── Arch vocabulary (graduated with the decl tier: read by entities'
-//    recipes and mood.inl's portal/doorway geometry) ──
+//    recipes and direction/mood.hpp's portal/doorway geometry) ──
 
 struct ArchIdx {
     static constexpr uint32_t SPAN         = 0;  // full span (halved in compute_solid_half)

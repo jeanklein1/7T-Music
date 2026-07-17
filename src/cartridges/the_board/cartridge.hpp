@@ -32,14 +32,14 @@
 //   transitionPhase_ (enum type in contracts/spine_state.hpp),
 //   mood_state_.transition_timer, pendingDestination_, the
 //   PORTAL_COLORS table, the back-portal pending state, and the
-//   trigger-detection hooks called by readback. Mood.inl drives portal
+//   trigger-detection hooks called by readback. direction/mood.hpp drives portal
 //   spawning (force_spawn_portal_at, force_spawn_back_portal,
 //   force_spawn_finite_portals); spine owns the request → activation
 //   flow.
 // SEAM[spine:family-dispatch] all evict_<family> (owner-side),
 //   dispatch_prepare_mesh_<family>, dispatch_mesh_gen_<family>
 //   wrapper functions land here — referenced by FAMILY_DISPATCH and
-//   by spawn_engine.inl's commit/evict pipelines.
+//   by machine/spawn_engine.hpp's commit/evict pipelines.
 // ─────────────────────────────────────────────────────────────────
 
 #include "render/render_cartridge.hpp"
@@ -238,7 +238,7 @@ namespace t7 {
             //   struct MoodState's TYPE lives in contracts/spine_state.hpp.
             //   Constitution §2 carries the K4 line.
             // SEAM[spine:portal-system] consumed by the mood module
-            //   (force_spawn_* functions read pendingDestination_), input.inl
+            //   (force_spawn_* functions read pendingDestination_), direction/input.hpp
             //   (keypress mood transitions request via mood.hpp's
             //   request_mood_transition), render() (readback callback drives
             //   portal trigger detection). PORTAL_COLORS lives in mood.hpp —
@@ -495,7 +495,7 @@ namespace t7 {
                     configure_orbs(orbs_state_, &orbs_deps_, ORB_MOOD_TABLE[mood_state_.active], q);
                 }
 
-                // Agent registries — single source of truth in bodies/agents.inl
+                // Agent registries — single source of truth in bodies/agents.hpp
                 // (AGENT_BEHAVIORS / AGENT_TIER_GAINS), uploaded once to GPU
                 // storage buffers at bindings 110 + 111. Values are
                 // constexpr-equivalent and never change during a session,
@@ -755,7 +755,7 @@ namespace t7 {
             }
 
             // U5 — MOTION BODIES (wall-clock). Pawn presence ramp + aura height
-            // (pawn.inl real-time exponential tick; closes pawn:K1).
+            // (bodies/pawn.hpp real-time exponential tick; closes pawn:K1).
             // ROSTER-GATE pawn_aura (b) — guarded at the call site.
             void phase_motion_bodies(UpdateCtx& c) {
                 auto& queue = c.queue;
@@ -1543,10 +1543,9 @@ namespace t7 {
             // Mood is VOCABULARY + APPLIERS + SIX DOORS: CeilingType /
             // MoodProfile / MOOD_TABLE / portal colors / indoor palettes +
             // the door, applier, and deriver declarations are in mood.hpp
-            // (file scope, above the class); the definitions (which reach
-            // the spine-owned state + in-class statics via the complete
-            // type) are in mood.inl, included at FILE SCOPE in the
-            // post-class MODULE IMPLEMENTATIONS zone. MOOD OWNS NO STATE —
+            // (file scope, above the class); the definitions live in the
+            // same header's MODULE IMPLEMENTATION zone (the merged file,
+            // pre-class in the cohort). MOOD OWNS NO STATE —
             // nothing at the COMPOSITION ROOT; mood_state_ and the
             // transition machine are spine-resident
             // (SEAM[spine:transitions], constitution §2). The force-spawn

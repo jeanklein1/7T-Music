@@ -51,7 +51,7 @@ void compute_sun_matrices(const float* direction, float* view_proj_out,
     float center_x = 0.0f, float center_z = 0.0f);
 
 
-// ═══ MODULE IMPLEMENTATION (merged; was render_passes.inl) ════════
+// ═══ MODULE IMPLEMENTATION ════════════════════════════════════════
 //
 // The dispatch/pass bodies + the two pure light-matrix helpers. The
 // bodies reach the machine face (c->gpuState_ / c->renderer_ /

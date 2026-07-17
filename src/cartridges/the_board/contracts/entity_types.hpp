@@ -16,11 +16,11 @@
 // SEAM[entity_types:P9] this file is the canonical home of pattern
 //   P9 (type definitions extracted to header-style file) — a real
 //   file-scope header. Pure declarations; the implementations they
-//   describe live in entity_pipeline.inl (generic functions, family
+//   describe live in machine/entity_pipeline.hpp (generic functions, family
 //   data, adapters, dispatch wrappers). Same family as seed_utils (P9
 //   instance for hashing primitives).
 // Tier sampling profiles + extras live in per-family TierRow structs
-//   in entity_pipeline.inl, reached via adapter.get_tier_profile —
+//   in machine/entity_pipeline.hpp, reached via adapter.get_tier_profile —
 //   not on EntityFamilyTraits.
 // ─────────────────────────────────────────────────────────────────
 

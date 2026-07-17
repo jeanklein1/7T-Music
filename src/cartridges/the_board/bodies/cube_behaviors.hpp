@@ -164,7 +164,7 @@ struct CubeBehaviorsState {
 
 // ═══ MODULE FUNCTIONS — DECLARATIONS ═════════════════════════════
 
-// Spawn-side (stateless — consumed by entity_pipeline.inl's cube_write_gpu)
+// Spawn-side (stateless — consumed by entity_pipeline.hpp's cube_write_gpu)
 void apply_cube_tier_gains(float& spring_stiffness, float& drag, uint32_t tier_idx);
 uint32_t pick_cube_behavior_for_spawn(uint32_t mood_id, uint32_t seed);
 // Teardown owner-clear

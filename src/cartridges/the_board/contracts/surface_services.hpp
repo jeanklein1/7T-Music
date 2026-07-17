@@ -20,9 +20,9 @@
 // SEAM[spine:active-patch-system] the ActivePatch struct, the
 //   patches_ registry, find_patch / evict_patch / evict_patch_entities /
 //   audit_entity_integrity, plus the entity_refs registry on each
-//   ActivePatch. Cross-module readers: spawn_engine.inl (commit
-//   functions call host->record_entity), ribbon.inl (two-tip late
-//   registration), gallery.inl (evict_paintings_for_patch via the
+//   ActivePatch. Cross-module readers: machine/spawn_engine.hpp (commit
+//   functions call host->record_entity), bodies/ribbon.hpp (two-tip late
+//   registration), bodies/gallery.hpp (evict_paintings_for_patch via the
 //   owner-side evict_gallery), and the family dispatch eviction rows.
 //
 // Depends on cohort include order: state.hpp (Dim:: + the GPU patch

@@ -73,8 +73,8 @@ inline float cpu_sample_gaussian(uint32_t seed, uint32_t property, float mean, f
 //
 // SEAM[seed_utils:Q10-target] the ONE cumulative-weight bucket walk,
 //   shared across every domain. The Q10 consolidation has LANDED:
-//   the hand-rolled copies in agents.inl, gol_zones.inl, ribbon.inl,
-//   and gallery.inl now call select_weighted / select_tier. The
+//   the hand-rolled copies in agents.hpp, gol_zones.hpp, ribbon.hpp,
+//   and gallery.hpp now call select_weighted / select_tier. The
 //   generic entity pipeline was never a separate copy — it now
 //   calls select_tier directly (its thin biased forwarder was
 //   retired).

@@ -22,7 +22,7 @@
 //
 // SEAM[gallery:complete-subsystem] complete bespoke pipeline in one
 //   module — vocabulary + state + lifecycle + dispatch all together.
-//   Same family as gol_zones.inl and ribbon.inl.
+//   Same family as gol_zones.hpp and ribbon.hpp.
 // SEAM[gallery:dual-role] two named sub-systems sharing infrastructure:
 //   painting-on-terrain (outdoor) and painting-on-wall (indoor) with
 //   shared image loading + frame rendering, divergent spawn paths.
@@ -34,7 +34,7 @@
 //   ribbon harmonic-ratio palettes (ribbon:P8).
 // NOTE[gallery:shadows-missing] paintings (terrain quads) and wall
 //   frames are not currently drawn in the shadow pass
-//   (render_passes.inl::draw_shadow_all). They render in the main
+//   (render_passes.hpp::draw_shadow_all). They render in the main
 //   pass via draw_wall_paintings + draw_gallery_frames but cast no
 //   shadows. Known gap; not addressed in this pass.
 // ─────────────────────────────────────────────────────────────────
@@ -128,7 +128,7 @@ inline constexpr float PAINTING_AREA[] = {
 // SEAM[gallery:L2] this is a clean instance of pattern P3 (player
 //   state vs mood state, explicit) — concerns separated into
 //   named sub-structures rather than mixed in one big config.
-//   Same shape as orbs.inl's player-state vs mood-state split.
+//   Same shape as orbs.hpp's player-state vs mood-state split.
 //
 // SEAM[gallery:wall-art] WallArtConfig + WALL_ART are the indoor
 //   half of gallery's :dual-role surface. They live here (not in
@@ -489,7 +489,7 @@ void evict_gallery(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
 bool dispatch_select_gallery(MachineCtx* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
 bool dispatch_place_gallery(MachineCtx* self, EntityQueueEntry& e, PlacementEntry& pe);
 void dispatch_commit_gallery(MachineCtx* self, PlacementEntry& pe, wgpu::Queue& queue);
-// Indoor entry (called by mood.inl::apply_mood)
+// Indoor entry (called by mood.hpp::apply_mood)
 void place_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& queue,
     float bmin, float bmax, float ceiling_h);
 void clear_wall_paintings(GalleryState& gs, GalleryDeps* c, wgpu::Queue& queue);

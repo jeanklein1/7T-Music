@@ -16,11 +16,11 @@
 //   palette / Config / Prop registry / Active tracking. Don't fight
 //   the cookie-cutter — it's intentional specificity per family.
 // SEAM[entities:taxonomy] this block holds vocabulary for the seven
-//   grounded families that share entity_pipeline.inl. Sphere/Cube
-//   vocabulary is in floater_vocabulary.hpp/.inl; Ribbon, Gallery, and
+//   grounded families that share machine/entity_pipeline.hpp. Sphere/Cube
+//   vocabulary is in floater_vocabulary.hpp; Ribbon, Gallery, and
 //   GoL are complete subsystems in their own files.
 // Tier sampling profiles + extras live as a single per-family TierRow
-//   struct in entity_pipeline.inl (single source of truth, no
+//   struct in machine/entity_pipeline.hpp (single source of truth, no
 //   converters, no derived tables). The tier enum classes (ArchTier,
 //   ColumnTier, etc.) stay here — they're indexing semantics, not data.
 // ─────────────────────────────────────────────────────────────────
@@ -523,8 +523,8 @@ void evict_antenna(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
 void evict_palm(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
 void evict_cactus(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
 void evict_blade(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
-// Dispatch funnels for the clean three (table-shaped; defined in
-// entities.inl beside their recipes)
+// Dispatch funnels for the clean three (table-shaped; defined below
+// beside their recipes)
 bool dispatch_select_blade_generic(MachineCtx* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
 bool dispatch_place_blade_generic(MachineCtx* self, EntityQueueEntry& e, PlacementEntry& pe);
 void dispatch_commit_blade_generic(MachineCtx* self, PlacementEntry& pe, wgpu::Queue& queue);

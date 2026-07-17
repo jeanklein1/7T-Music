@@ -233,7 +233,7 @@ SpawnGatePreambleResult run_spawn_preamble(C* c,
 }
 
 
-// ═══ MODULE IMPLEMENTATION (merged; was spawn_engine.inl) ═════════
+// ═══ MODULE IMPLEMENTATION ════════════════════════════════════════
 //
 // The engine's verbs: position negotiation, the footprint registry,
 // mesh-param rebuilds + distance culling, the census, gate

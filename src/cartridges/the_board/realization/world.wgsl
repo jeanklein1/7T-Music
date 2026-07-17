@@ -649,7 +649,7 @@ struct FrameSignal {
     sky_head_z: f32,
     sky_heading: f32,
     // The saddle's FRAME — CPU-computed beside the mount point
-    // (ribbon.inl MOUNT_* mirrors); composed into the possessed agent's
+    // (bodies/ribbon.hpp MOUNT_* mirrors); composed into the possessed agent's
     // quaternion in behavior_player_controlled. Zeros = level.
     sky_yaw_off: f32,     // tangent-align yaw deflection (rad)
     sky_pitch: f32,       // tangent-align pitch (rad)
@@ -2470,7 +2470,7 @@ const POLICY_TERRAIN_RENDER_MASK       : u32 = GROUND_STATIC_BASE_MASK
 // ── Extension patterns ────────────────────────────────────────────
 //
 // Add a new contributor:
-//   1. Add a ContributorId in ground_architecture.inl; bump CONTRIB_COUNT.
+//   1. Add a ContributorId in contracts/ground_architecture.hpp; bump CONTRIB_COUNT.
 //   2. Declare its DAG edges (if static_landform) in CONTRIBUTOR_DAG;
 //      the closure assert iterates the table — no further edit there.
 //   3. Implement contrib_<name>_at in world.wgsl with a header comment
@@ -2483,7 +2483,7 @@ const POLICY_TERRAIN_RENDER_MASK       : u32 = GROUND_STATIC_BASE_MASK
 //      update those too.
 //
 // Add a new policy:
-//   1. Add a PolicyId in ground_architecture.inl; bump POLICY_COUNT.
+//   1. Add a PolicyId in contracts/ground_architecture.hpp; bump POLICY_COUNT.
 //   2. Add a row to POLICIES[] with the contributor mask.
 //   3. Add the matching WGSL const POLICY_*_MASK.
 //   4. Implement query_ground_<policy> in world.wgsl.
@@ -4670,7 +4670,7 @@ fn ribbon_spine_at(t: f32, ribbon: RibbonState) -> vec3<f32> {
 //   the extremes, clamped. Slope scales with amplitude, so the sustain
 //   swell deepens the carve and the lean with no extra pipe.
 // Identity at 0/0. Hot-reloadable; tune by save.
-// MIRRORED in ribbon.inl (MOUNT_*) — keep in lockstep; the rider is the drift test.
+// MIRRORED in bodies/ribbon.hpp (MOUNT_*) — keep in lockstep; the rider is the drift test.
 const RIBBON_TANGENT_ALIGN: f32 = 1.0;
 const RIBBON_BANK_GAIN: f32 = 0.9;
 const RIBBON_BANK_MAX: f32 = 0.6;   // radians, clamp
@@ -5949,7 +5949,7 @@ fn behavior_player_controlled(agent_in: AgentState) -> AgentState {
         // The saddle joins the frame law: the rider wears the FULL
         // frame — heading deflected by the tangent-align yaw, pitch with
         // the vertical wave, roll into the bank. Angles arrive CPU-computed
-        // in the sky block (ribbon.inl MOUNT_* mirrors); composed here in
+        // in the sky block (bodies/ribbon.hpp MOUNT_* mirrors); composed here in
         // ribbon_ring_motor's verified order — roll first, then pitch,
         // then yaw (quat_multiply applies its SECOND argument first).
         // SEAM[ribbon:sky-mode].
@@ -8365,7 +8365,7 @@ fn compute_photographer_vp() {
 // query. The analytical query_ground_placement_* functions have NO
 // live caller today (STATUS: LATENT[policy-surface]): CPU spawn
 // decisions stay on estimate_terrain_height (the tile-cache proxy in
-// spawn_engine.inl), and this GPU pass is the live Y path via the
+// machine/spawn_engine.hpp), and this GPU pass is the live Y path via the
 // baked heightfield.
 //
 // Paintings: terrain + GoL zone extrusion.
@@ -8417,7 +8417,7 @@ fn compute_entity_placement() {
             // against pawn position — placement does not depend on where
             // the pawn happens to stand. (Pre-refactor the subtraction
             // was present, but the policy declaration is the contract;
-            // the code was wrong. See ground_architecture.inl.)
+            // the code was wrong. See contracts/ground_architecture.hpp.)
             let ground = sample_terrain_y_at(slot_xz)
                        + contrib_gol_zones_at(slot_xz);
             // Terrain quads: center at ground + half-height (bottom at ground)

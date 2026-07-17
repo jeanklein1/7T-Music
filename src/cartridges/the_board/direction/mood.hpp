@@ -125,7 +125,7 @@ inline constexpr float PORTAL_COLOR_BACK[3] = { 0.35f, 0.55f, 0.90f };  // back-
 // SEAM[mood:tuning-data] the palettes are consumed only by
 //   apply_mood_indoor_shell; the indoor lighting SCHEMES (the other
 //   half of this seam) are consumed only by derive_indoor_lights and
-//   stay impl-side (mood.inl) — module-internal authoring tables.
+//   stay impl-side (the MODULE IMPLEMENTATION below) — module-internal authoring tables.
 struct IndoorPalette {
     const char* name;
     float wall_color[3];
@@ -224,7 +224,7 @@ uint32_t derive_finite_radius(uint32_t seed, const MoodProfile& mood);
 uint32_t pick_portal_mood(MachineCtx* c, uint32_t seed, uint32_t prop);
 
 
-// ═══ MODULE IMPLEMENTATION (merged; was mood.inl) ═════════════════
+// ═══ MODULE IMPLEMENTATION ════════════════════════════════════════
 //
 // The doors + appliers + derivers. The bodies reach the deps face
 // (c->mood_state_ / c->world_state_ / c->gpuState_ / c->renderer_ /
