@@ -2742,6 +2742,11 @@ namespace t7 {
                 auto UU = wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst;
                 signalBuffer_ = makeBuffer("Frame Signal", sizeof(GPUFrameSignal), wgpu::BufferUsage::Uniform | wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
                 configBuffer_ = makeBuffer("Design Config", sizeof(GPUDesignConfig), UU);
+                // Skew beacon: creation + every bind entry derive from sizeof(GPUDesignConfig) —
+                // if Dawn reports "bound with size N ... requires M" for this buffer, the binary
+                // is STALE against the hot-loaded world.wgsl mirror. Rebuild; do not edit sizes.
+                std::cout << "[GPUState] Design Config: " << sizeof(GPUDesignConfig)
+                    << " B (C++ side; WGSL DesignConfig mirror must match)\n";
                 agentStateBuffer_ = makeBuffer("Agent State",
                     Dim::MAX_AGENTS * sizeof(GPUAgentState),
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::CopySrc);

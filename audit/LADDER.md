@@ -4896,6 +4896,54 @@ speak, which parameters listen, ranges/smoothing/rests between — is
 the next sitting; the first wire lands as a §2 row after it.
 
 ════════════════════════════════════════════════════════════════════
+2b HOTFIX — "Design Config bound with size 416, requires 560":
+the DIAGNOSIS, not a code fix (the suggested premise REFUTED)
+════════════════════════════════════════════════════════════════════
+
+THE REPORT: Dawn dropped every submit — "[Buffer "Design Config"]
+bound with size 416 at group 0, binding 1 is too small. The pipeline
+requires a buffer binding which is at least 560 bytes." The suggested
+fix: find the stale hand-synced creation size, derive it from sizeof.
+
+THE PREMISE REFUTED, WITH EVIDENCE: there is no hand-typed size to
+fix. The creation site (state.hpp createBuffers) is
+  configBuffer_ = makeBuffer("Design Config", sizeof(GPUDesignConfig), UU);
+— it already DERIVES. Every bind-group entry for this buffer (11+)
+uses .size = sizeof(GPUDesignConfig). No ".size = 416", no "560", no
+minBindingSize literal exists anywhere in the tree.
+
+THE CLASS SWEEP (point 3 of the ruling, executed): every makeBuffer/
+CreateBuffer in state.hpp audited — ALL struct-shaped buffer sizes
+derive from sizeof(T) or count × sizeof(T) (Frame Signal, Agent
+State/Behaviors/Tier Gains, Camera, Floating Entity, GoL zones, patch
+params, mesh buffers — the lot). Hand-typed struct-size literals
+found: ZERO. The class was already closed. The three offset-writers
+that could skew (pier_count 124, placement_patch_count 144,
+lod_point_x 384) are offsetof-static_asserted.
+
+THE REAL MECHANISM — BINARY/SHADER VERSION SKEW: world.wgsl hot-loads
+from disk at boot (renderer.hpp search list). A binary compiled
+BEFORE the 2b graduation binds sizeof(old GPUDesignConfig) = 416; the
+fresh on-disk shader's DesignConfig mirror demands 560. Dawn's
+binding validation rejects the pair — which is the C6 Option-A net
+WORKING AS DESIGNED. A fresh build of this tree cannot produce 416.
+
+THE FIX: rebuild the C++ past the 2b commit. Nothing to write —
+"do NOT write 560" is satisfied vacuously; the derivation already IS
+the guard.
+
+THE HARDENING (this commit): a one-line boot beacon at the creation
+site — "[GPUState] Design Config: <sizeof> B (C++ side; WGSL
+DesignConfig mirror must match)" — so boot-log-vs-Dawn-error reads as
+the diagnosis in one glance next time the shader outruns the binary.
+
+THE LESSON (C6, extended): binding NUMBERS single-sourced closed
+group/binding indices; buffer SIZES were never open — they derive.
+The residual skew channel is TEMPORAL (hot-loaded WGSL vs compiled
+C++), and its net is Dawn validation + the beacon. GATE: rebuild →
+the triplet gone, boot clean → the 2b pixel-identity rig resumes.
+
+════════════════════════════════════════════════════════════════════
 THE PARKED LEDGER (standing section — the ONE place open flags live.
 Future sweeps read THIS, not the tree. Consolidated at residue-sweep
 T0. Discipline: when a flag lands or dies, strike it HERE in the same
