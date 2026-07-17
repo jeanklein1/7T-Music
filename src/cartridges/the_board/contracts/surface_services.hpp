@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <cstdio>    // the loud drop (record_entity overflow)
 #include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 
 // ─── surface_services.hpp (CONTRACT: the surface's decl tier) ─────
@@ -90,13 +91,19 @@ struct ActivePatch {
         uint32_t family;   // PopFamily index
         uint32_t slot;     // index into Active* array
     };
-    static constexpr uint32_t MAX_ENTITY_REFS = 10;
+    static constexpr uint32_t MAX_ENTITY_REFS = 16;   // 10 recording families; host-side clustering can stack triggers — headroom + the loud drop below
     EntityRef entity_refs[MAX_ENTITY_REFS]{};
     uint32_t entity_ref_count = 0;
 
     void record_entity(uint32_t family, uint32_t slot) {
         if (entity_ref_count < MAX_ENTITY_REFS) {
             entity_refs[entity_ref_count++] = { family, slot };
+        } else {
+            // LOUD DROP (always-on): an unrecorded entity outlives this
+            // patch's eviction — a leak, never silent.
+            std::fprintf(stderr,
+                "[ActivePatch] entity_ref OVERFLOW patch(%d,%d) family=%u slot=%u dropped (cap %u)\n",
+                grid_x, grid_z, family, slot, MAX_ENTITY_REFS);
         }
     }
 
