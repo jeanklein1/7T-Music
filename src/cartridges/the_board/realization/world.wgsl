@@ -100,7 +100,7 @@
 //
 // ── GoL Zones (§2.2, §7.0b) ──────────────────────────────────────
 //   GOL_TIERS[7]                  Tier params (density, tick, spring)
-//   PULSE_TIERS[3]                Pulse algorithm params
+//   GOL_PULSE_TIERS[3]                Pulse algorithm params
 //   GOL_ZONE_SPAWN_CHANCE         0.15 — fraction of discrete zones
 //   GOL_ZONE_HEIGHT_CHANCE        0.30 — fraction with extrusion
 //   GOL_COLOR_WEIGHTS             Color mode probabilities
@@ -1879,7 +1879,7 @@ const GOL_TIERS = array<GoLTierParams, 7>(
 // Each cell oscillates between terrain base and a displaced target.
 // CPU selects tier and uploads parameters via GoLZoneConfig; these
 // definitions have a live CPU twin in bodies/gol_zones.hpp (GOL_TIERS
-// / PULSE_TIERS) — the GPU renders from these, the CPU seeds/ticks
+// / GOL_PULSE_TIERS) — the GPU renders from these, the CPU seeds/ticks
 // from the twin, so both are authoritative and a tuner must edit both.
 //
 // Algorithm and boundary mode constants (shared CPU ↔ GPU):
@@ -1887,7 +1887,7 @@ const GOL_TIERS = array<GoLTierParams, 7>(
 //   GOL_BOUNDARY_REFLECT = 0   GOL_BOUNDARY_WRAP   = 1
 // (defined below in the GoL zone system section)
 
-struct PulseTierParams {
+struct GolPulseTierParams {
     // --- Temporal
     tick_period_mean: f32,
     tick_period_sigma: f32,
@@ -1916,17 +1916,17 @@ struct PulseTierParams {
     boundary_mode: u32,       // 0 = reflect, 1 = wrap
 }
 
-const PULSE_TIER_COUNT: u32 = 3u;
+const GOL_PULSE_TIER_COUNT: u32 = 3u;
 
 //                                                       tick_μ   σ    spring_μ σ    trans_μ  σ    phase_μ  σ    tempo_μ σ    ht_μ   σ    wand_μ  σ    sv    wt    no_h  bnd
-const PULSE_TIERS = array<PulseTierParams, 3>(
-    /* 0: Breathe  */ PulseTierParams( 2.0, 0.5,   4.0, 1.0,   0.20, 0.05,   0.15, 0.05,   0.10, 0.03,   2.0, 0.8,  10.0, 3.0,   0.20,  0.45, 0u, 0u ),
-    /* 1: Sparkle  */ PulseTierParams( 0.5, 0.15, 12.0, 3.0,   0.25, 0.05,   0.90, 0.10,   0.60, 0.15,   0.0, 0.0,   5.0, 2.0,   0.50,  0.30, 1u, 0u ),
-    /* 2: Drift    */ PulseTierParams( 4.0, 1.0,   1.5, 0.4,   0.10, 0.03,   0.50, 0.15,   0.40, 0.10,   4.0, 1.5,  25.0, 8.0,   0.35,  0.25, 0u, 1u ),
+const GOL_PULSE_TIERS = array<GolPulseTierParams, 3>(
+    /* 0: Breathe  */ GolPulseTierParams( 2.0, 0.5,   4.0, 1.0,   0.20, 0.05,   0.15, 0.05,   0.10, 0.03,   2.0, 0.8,  10.0, 3.0,   0.20,  0.45, 0u, 0u ),
+    /* 1: Sparkle  */ GolPulseTierParams( 0.5, 0.15, 12.0, 3.0,   0.25, 0.05,   0.90, 0.10,   0.60, 0.15,   0.0, 0.0,   5.0, 2.0,   0.50,  0.30, 1u, 0u ),
+    /* 2: Drift    */ GolPulseTierParams( 4.0, 1.0,   1.5, 0.4,   0.10, 0.03,   0.50, 0.15,   0.40, 0.10,   4.0, 1.5,  25.0, 8.0,   0.35,  0.25, 0u, 1u ),
 );
 
-// Probability of a zone being Pulse (vs Conway) — must match CPU PULSE_ALGORITHM_CHANCE.
-const PULSE_ALGORITHM_CHANCE: f32 = 0.35;
+// Probability of a zone being Pulse (vs Conway) — must match CPU GOL_PULSE_ALGORITHM_CHANCE.
+const GOL_PULSE_ALGORITHM_CHANCE: f32 = 0.35;
 
 // --- Pawn Safety Force Field
 const PAWN_FORCEFIELD_ENABLED: bool = true;
@@ -5713,13 +5713,13 @@ fn zone_derive_params(@builtin(global_invocation_id) gid: vec3<u32>) {
     } else {
         // Pulse tier selection
         let tier_roll = hash_property(seed, ZONE_PROP_PULSE_TIER);
-        var tier_idx: u32 = PULSE_TIER_COUNT - 1u;
+        var tier_idx: u32 = GOL_PULSE_TIER_COUNT - 1u;
         var cumul: f32 = 0.0;
-        for (var t: u32 = 0u; t < PULSE_TIER_COUNT; t++) {
-            cumul += PULSE_TIERS[t].weight;
+        for (var t: u32 = 0u; t < GOL_PULSE_TIER_COUNT; t++) {
+            cumul += GOL_PULSE_TIERS[t].weight;
             if (tier_roll < cumul) { tier_idx = t; break; }
         }
-        let pp = PULSE_TIERS[tier_idx];
+        let pp = GOL_PULSE_TIERS[tier_idx];
 
         let actual_height = height_enabled && (pp.force_no_height == 0u);
 

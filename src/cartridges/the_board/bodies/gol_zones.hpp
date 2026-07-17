@@ -21,8 +21,8 @@
 //   commands); this is single-lifecycle bespoke. Same family as
 //   gallery and ribbon.
 // SEAM[gol_zones:dual-algorithm] this module houses two algorithms —
-//   Conway (GoLTierProfile, GOL_TIERS[]) and Pulse (PulseTierProfile,
-//   PULSE_TIERS[]) — gated by PULSE_ALGORITHM_CHANCE. The shared
+//   Conway (GoLTierProfile, GOL_TIERS[]) and Pulse (GolPulseTierProfile,
+//   GOL_PULSE_TIERS[]) — gated by GOL_PULSE_ALGORITHM_CHANCE. The shared
 //   infrastructure (zone state, seeding, dispatch) is single-track;
 //   only the parameter sampling and life initialization branch.
 // ─────────────────────────────────────────────────────────────────
@@ -59,7 +59,7 @@ struct GolDeps {
 inline constexpr float MODE_LATTICE_SPACING = 120.0f;
 
 // ── Algorithm gate ───────────────────────────────────────────────
-inline constexpr float PULSE_ALGORITHM_CHANCE = 0.35f;
+inline constexpr float GOL_PULSE_ALGORITHM_CHANCE = 0.35f;
 
 // ═══ ALGORITHM TYPES (shared) ════════════════════════════════════
 
@@ -190,9 +190,9 @@ struct PulseZoneProp {
 };
 
 // ── Pulse Tier Profile ───────────────────────────────────────────
-inline constexpr uint32_t PULSE_TIER_COUNT = 3;
+inline constexpr uint32_t GOL_PULSE_TIER_COUNT = 3;
 
-struct PulseTierProfile {
+struct GolPulseTierProfile {
     // ─── Temporal ────────────────────────────────────────────
     float tick_period_mean, tick_period_sigma;
 
@@ -222,13 +222,13 @@ struct PulseTierProfile {
 };
 
 //                                              tick_μ   σ    spring_μ σ    trans_μ  σ    phase_μ  σ    tempo_μ σ    ht_μ   σ    wand_μ  σ    sv    wt    no_h  bnd
-inline constexpr PulseTierProfile PULSE_TIERS[PULSE_TIER_COUNT] = {
+inline constexpr GolPulseTierProfile GOL_PULSE_TIERS[GOL_PULSE_TIER_COUNT] = {
     /* 0: Breathe  */ { 2.0f, 0.5f,   4.0f, 1.0f,   0.20f, 0.05f,   0.15f, 0.05f,   0.10f, 0.03f,   2.0f, 0.8f,  10.0f, 3.0f,   0.20f,  0.45f, false, BoundaryMode::REFLECT },
     /* 1: Sparkle  */ { 0.5f, 0.15f, 12.0f, 3.0f,   0.25f, 0.05f,   0.90f, 0.10f,   0.60f, 0.15f,   0.0f, 0.0f,   5.0f, 2.0f,   0.50f,  0.30f, true,  BoundaryMode::REFLECT },
     /* 2: Drift    */ { 4.0f, 1.0f,   1.5f, 0.4f,   0.10f, 0.03f,   0.50f, 0.15f,   0.40f, 0.10f,   4.0f, 1.5f,  25.0f, 8.0f,   0.35f,  0.25f, false, BoundaryMode::WRAP    },
 };
 
-inline constexpr const char* PULSE_TIER_NAMES[] = {
+inline constexpr const char* GOL_PULSE_TIER_NAMES[] = {
     "Breathe", "Sparkle", "Drift"
 };
 
@@ -369,7 +369,7 @@ inline bool select_gol_for_patch(GoLState& gs, MachineCtx* c,
 
             // Algorithm selection
             float algo_roll = cpu_hash_f(seed, PulseZoneProp::ALGORITHM_ROLL);
-            uint32_t algorithm = (algo_roll < PULSE_ALGORITHM_CHANCE)
+            uint32_t algorithm = (algo_roll < GOL_PULSE_ALGORITHM_CHANCE)
                 ? AlgorithmType::PULSE : AlgorithmType::CONWAY;
 
             // Height enabled
@@ -396,10 +396,10 @@ inline bool select_gol_for_patch(GoLState& gs, MachineCtx* c,
                 tier_idx = tier;  // Conway: 0–6
             }
             else {
-                float w[PULSE_TIER_COUNT];
-                for (uint32_t t = 0; t < PULSE_TIER_COUNT; t++) w[t] = PULSE_TIERS[t].weight;
-                uint32_t tier = select_tier(seed, PulseZoneProp::PULSE_TIER, w, PULSE_TIER_COUNT);
-                const auto& pp = PULSE_TIERS[tier];
+                float w[GOL_PULSE_TIER_COUNT];
+                for (uint32_t t = 0; t < GOL_PULSE_TIER_COUNT; t++) w[t] = GOL_PULSE_TIERS[t].weight;
+                uint32_t tier = select_tier(seed, PulseZoneProp::PULSE_TIER, w, GOL_PULSE_TIER_COUNT);
+                const auto& pp = GOL_PULSE_TIERS[tier];
                 if (pp.force_no_height) height_enabled = false;
                 tick_period = std::max(0.1f,
                     cpu_sample_gaussian(seed, GoLZoneProp::TICK_PERIOD,
