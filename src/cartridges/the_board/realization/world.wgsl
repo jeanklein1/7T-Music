@@ -5534,11 +5534,11 @@ struct PawnAuraCell {
 // --- Zone heightfield sampling (mesh gen terrain alignment)
 @group(0) @binding(163) var zone_heightfield: texture_2d_array<f32>;
 @group(0) @binding(164) var zone_hf_sampler: sampler;
-// Twin of CPU Dim::MAX_ACTIVE_PATCHES (PATCH_PREGEN_SIDE² = 15² = 225).
+// Runtime-sized: capacity is the bound buffer's — the CPU side
+// (Dim::MAX_ACTIVE_PATCHES) is the single source; no WGSL twin exists.
 // Zone terrain scan covers every active patch slot; overflow to the
 // analytic fallback is thereby eliminated, not merely bounded.
-const ZONE_PATCH_CAP: u32 = 225u;
-@group(0) @binding(165) var<storage, read> zone_patch_instances: array<PatchInstance, ZONE_PATCH_CAP>;
+@group(0) @binding(165) var<storage, read> zone_patch_instances: array<PatchInstance>;
 
 // --- Zone Parameter Derivation (GPU-authoritative) ──────────────────────
 //
@@ -5723,7 +5723,7 @@ fn zone_derive_params(@builtin(global_invocation_id) gid: vec3<u32>) {
 // Sample baked heightfield at world XZ — exact terrain as rendered.
 // Searches patch instances for the covering patch and samples its layer.
 fn zone_sample_baked_terrain_y(world_xz: vec2<f32>) -> f32 {
-    for (var i = 0u; i < ZONE_PATCH_CAP; i++) {
+    for (var i = 0u; i < arrayLength(&zone_patch_instances); i++) {
         let pi = zone_patch_instances[i];
         if (pi.extent < 0.01) { continue; }  // empty slot
         let local = world_xz - pi.origin;
@@ -8219,13 +8219,14 @@ struct PalmGroundEntry {
 // Spatial index for O(1) patch lookup. CPU populates entries[lz*side + lx]
 // with (layer + 1) for GENERATED/NEEDS_REGEN patches; 0 means empty slot.
 // Replaces the linear scan over photo_patch_instances in sample_terrain_y_at.
-// Sized to MAX_ACTIVE_PATCHES (PATCH_PREGEN_SIDE² = 15² = 225).
+// Runtime-sized: capacity is the bound buffer's — the CPU side
+// (Dim::MAX_ACTIVE_PATCHES) is the single source; no WGSL twin exists.
 struct PatchGrid {
     origin_x: i32,
     origin_z: i32,
     side: u32,
     cell_extent: f32,
-    entries: array<u32, 225>,
+    entries: array<u32>,
 }
 @group(0) @binding(152) var<storage, read> patch_grid: PatchGrid;
 
