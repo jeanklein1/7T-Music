@@ -130,6 +130,19 @@
 // §8    GALLERY             Photographer, terrain paintings, wall paintings
 // §9    ENTITY MESH GEN     GPU-sovereign geometry: arches, columns
 //
+// PANELS (the federation's strips — one sitting each; grep the names,
+// no line anchors):
+//   §2.2   TERRAIN_LOOKS — the master terrain panel; ROW 9 is the
+//          roster of pointers to every other strip.
+//   §7.0b  GOL ZONE panel — per-zone config struct + named visual
+//          constants (enums pinned to their CPU twins).
+//   PULSE_SPEED..PULSE_AGE_DECAY — the RADIAL PULSE panel, directly
+//          above fn contrib_radial_pulses_at.
+//   pawn_aura_cfg (§7.4) — the aura's uniform strip.
+//   CPU rooms: terrain_looks.hpp (rest pins), population_themes.hpp
+//          (population), state.hpp GPUDesignConfig (paneled by system
+//          groups; GROWTH LAW at its head).
+//
 // Subsystem-specific bindings live with their consumers (§7, §8, §9).
 // Global bindings (signal, config, VP, render mirrors, lights) are in §7.0.
 
@@ -1366,6 +1379,12 @@ fn discrete_cell_color_at_tier(
 
 // --- [STATE:config] DesignConfig
 
+// ─── GROWTH LAW ── this struct mirrors state.hpp GPUDesignConfig
+// FIELD-FOR-FIELD; grow only in lockstep with the C++ room — same
+// commit, same position, same type; the C++ sizeof witness is the
+// handshake. Comments here carry sentinels/semantics; VALUES rest in
+// the ROW blocks (§2.2) or the CPU boot pins — never as kernel
+// literals.
 struct DesignConfig {
     mute_dynamics_0d: u32,
     mute_dynamics_2d: u32,
@@ -1721,6 +1740,8 @@ fn palette_color_smooth(weights: vec4<f32>, complexity: f32) -> vec3<f32> {
 //     Architecture seam (CPU twin: contracts/ground_architecture.hpp).
 //   GoL zone tint: gol_composite_cell_color (§7.0b) — reads ROW 1/3
 //     through palette_color_smooth; GoL/pulse keep their own panel.
+//   Radial pulses (music-onset rings): the PULSE_SPEED..PULSE_AGE_DECAY
+//     dials directly above fn contrib_radial_pulses_at.
 //   Pawn aura tint: pawn_aura_cfg.tint_strength — a uniform field of
 //     the aura system, NOT this panel's DISCRETE_TINT_STRENGTH.
 //   Population (what stands on the surface): population_themes.hpp +
