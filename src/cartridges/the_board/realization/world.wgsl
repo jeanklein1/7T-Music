@@ -1428,7 +1428,7 @@ struct DesignConfig {
     // struct size delta). Order matches GPUDesignConfig in state.hpp.
     possessed_slot: u32,
     veil_dither: f32,     // THE RIM taste knob: >0.5 → icing dither-dissolves (mirror of GPUDesignConfig)
-    _pulse_pad_1: f32,
+    indoor_height_cap: f32,  // indoor GoL height cap, 0 = disabled (mirror of GPUDesignConfig — last pulse pad repurposed)
     pulse_data: array<vec4<f32>, 8>,  // each: (origin_x, origin_z, onset_seconds, amplitude)
     // CPU-banded POINT position for LOD0/LOD1 partition (renamed
     // lod_pawn → lod_point: the value has been THE POINT).
@@ -7774,7 +7774,10 @@ fn zone_mesh_gen_cell(zone_id: u32, cx: u32, cy: u32) {
     // Height from visual value × alive_height × per-cell height factor
     let visual = zone_life[base + GOL_CELL_VISUAL + idx];
     let height_factor = zone_life[base + GOL_CELL_HEIGHT_FACTOR + idx];
-    let h = z.alive_height * visual * height_factor * config.mode_gol_height_scale;
+    var h = z.alive_height * visual * height_factor * config.mode_gol_height_scale;
+    // Indoor GoL cap: branchless clamp; cap = 0 disables (the select's
+    // false arm keeps outdoor byte-identical).
+    h = select(h, min(h, config.indoor_height_cap), config.indoor_height_cap > 0.0);
     if (h < 0.05) { return; }
 
     let cell_size = z.extent / f32(z.grid_size);

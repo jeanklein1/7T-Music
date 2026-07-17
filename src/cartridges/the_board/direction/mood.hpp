@@ -579,6 +579,11 @@ inline void apply_mood_lighting(MoodDeps* c, const MoodProfile& m, wgpu::Queue& 
 
     c->gpuState_.set_terrain_amp_ceiling(m.terrain_amp_ceiling);
     c->mood_state_.terrain_amp_ceiling = m.terrain_amp_ceiling;
+    // The GoL cap rides beside the amp column: indoors the zone mesh
+    // caps at the module's fraction of the ceiling; 0 disables (the
+    // kernel select's false arm — outdoor byte-identical).
+    c->gpuState_.set_indoor_height_cap(
+        m.indoor ? INDOOR_HEIGHT_CAP_FRACTION * m.ceiling_height : 0.0f);
     c->mood_state_.lights_dirty = true;
 }
 

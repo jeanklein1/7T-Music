@@ -420,7 +420,13 @@ namespace t7 {
             // instead of tinting) at the two icing FS sites. Repurposes one
             // of the pulse pad floats — no struct-size delta.
             float veil_dither;
-            float _pulse_pad;
+            // Indoor GoL height cap (0 = disabled): the zone mesh kernel
+            // clamps its extrusion height to this. Staged by
+            // apply_mood_lighting — INDOOR_HEIGHT_CAP_FRACTION ×
+            // ceiling_height indoors, 0 elsewhere. Repurposes the last
+            // pulse pad float — no struct-size delta (the sizeof witness
+            // 560 stands).
+            float indoor_height_cap;
             float pulse_data[32];             // 8 × {origin_x, origin_z, onset_seconds, amplitude}
             // ─── LOD-band point position ────────────────────────────────
             // (renamed lod_pawn → lod_point: the value has been THE POINT
@@ -2177,6 +2183,12 @@ namespace t7 {
             void set_ceiling_height(float h) {
                 if (config_.ceiling_height != h) {
                     config_.ceiling_height = h;
+                    configDirty_ = true;
+                }
+            }
+            void set_indoor_height_cap(float cap) {
+                if (config_.indoor_height_cap != cap) {
+                    config_.indoor_height_cap = cap;
                     configDirty_ = true;
                 }
             }
