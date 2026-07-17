@@ -74,6 +74,7 @@
 #include "musical/context_spec.hpp"
 #include "musical/context_realize.hpp"
 #include "musical/pc_count.hpp"
+#include "musical/pc_dft.hpp"
 #include "musical/spine_ops.hpp"
 #include "musical/field.hpp"
 #include "musical/vector_dressing.hpp"
@@ -120,6 +121,10 @@ public:
             publish_reading(Reading::PresentCount, Source::channel(v), NAME_PRESENT_COUNT[v]);
             publish_reading(Reading::WindowLength, Source::channel(v), NAME_WINDOW_LENGTH[v]);
             publish_reading(Reading::Distance,     Source::channel(v), NAME_DISTANCE[v]);
+            // The pc-DFT capability (compound stratum) — the six interval
+            // families over this voice's published present-count vector.
+            publish_reading(Reading::DftMag,       Source::channel(v), NAME_DFT_MAG[v]);
+            publish_reading(Reading::DftPhase,     Source::channel(v), NAME_DFT_PHASE[v]);
         }
 
         // Compound readings over the union of all voices, in the group band: the
@@ -131,6 +136,8 @@ public:
         publish_reading(Reading::CurrentPC,    all, "all.current_pc");
         publish_reading(Reading::PresentCount, all, "all.present_count");
         publish_reading(Reading::WindowLength, all, "all.window_length");
+        publish_reading(Reading::DftMag,       all, "all.dft_mag");
+        publish_reading(Reading::DftPhase,     all, "all.dft_phase");
 
         port_.open_by_name("loopMIDI");   // the DAW's virtual port
     }
@@ -163,7 +170,8 @@ public:
     // publish_reading; a render side never needs them, resolving by name.
     enum class Reading : uint8_t {
         PresentCount, PresentLength, WindowCount, WindowLength,
-        CurrentPC, Distance, Field, Polyphony
+        CurrentPC, Distance, Field, Polyphony,
+        DftMag, DftPhase
     };
 
     struct Source {
@@ -288,6 +296,11 @@ private:
     static constexpr int SLOT_DISTANCE       = 60;   // 1   signed registral interval
     static constexpr int SLOT_FIELD          = 61;   // 1   held field index 1..6
     static constexpr int SLOT_POLYPHONY      = 62;   // 1   present voice count
+    static constexpr int SLOT_DFT_MAG        = 64;   // 6   pc-DFT |X1..X6| ÷ L1, [0,1]
+                                                     //     (f3 triadicity · f5 fifths/diatonic · f6 whole-tone)
+    static constexpr int SLOT_DFT_PHASE      = 70;   // 6   pc-DFT arg(X1..X6), radians [−π,π],
+                                                     //     origin = the published D origin;
+                                                     //     REST: zero vector → mags 0, phases HOLD-LAST
 
     // Per-voice reading names, positional — the index is the channel. Static, so
     // the layout may hold pointers into them for the program's life. Compound
@@ -308,6 +321,14 @@ private:
         "ch0.distance","ch1.distance","ch2.distance","ch3.distance",
         "ch4.distance","ch5.distance","ch6.distance","ch7.distance"
     };
+    static constexpr const char* NAME_DFT_MAG[MAX_CHANNELS] = {
+        "ch0.dft_mag","ch1.dft_mag","ch2.dft_mag","ch3.dft_mag",
+        "ch4.dft_mag","ch5.dft_mag","ch6.dft_mag","ch7.dft_mag"
+    };
+    static constexpr const char* NAME_DFT_PHASE[MAX_CHANNELS] = {
+        "ch0.dft_phase","ch1.dft_phase","ch2.dft_phase","ch3.dft_phase",
+        "ch4.dft_phase","ch5.dft_phase","ch6.dft_phase","ch7.dft_phase"
+    };
 
     struct ReadingSpec { int slot; int width; StatShape shape; };
 
@@ -321,6 +342,8 @@ private:
             case Reading::Distance:      return { SLOT_DISTANCE,        1, StatShape::Scalar };
             case Reading::Field:         return { SLOT_FIELD,           1, StatShape::Scalar };
             case Reading::Polyphony:     return { SLOT_POLYPHONY,       1, StatShape::Scalar };
+            case Reading::DftMag:        return { SLOT_DFT_MAG,         6, StatShape::Vector };
+            case Reading::DftPhase:      return { SLOT_DFT_PHASE,       6, StatShape::Vector };
         }
         return { 0, 1, StatShape::Scalar };   // unreachable; quiets the compiler
     }
@@ -346,7 +369,8 @@ private:
     static bool writer_wired(Reading r) {
         return r == Reading::Field || r == Reading::CurrentPC
             || r == Reading::PresentCount
-            || r == Reading::WindowLength || r == Reading::Distance;
+            || r == Reading::WindowLength || r == Reading::Distance
+            || r == Reading::DftMag || r == Reading::DftPhase;
     }
 
     // One published reading: its kind, the channels it draws from, the band it
@@ -358,6 +382,9 @@ private:
         uint32_t  source_mask = 0;
         int       band        = 0;
         HeldField field{};     // stateful; used only when reading == Field
+        float     held_phase[6] = {};   // stateful; used only when reading ==
+                                        // DftPhase — the REST's hold-last half
+                                        // (zero vector → phases keep last value)
     };
 
     // The reserved band for cross-channel (group) readings: the last index, the
@@ -407,9 +434,34 @@ private:
     // capability in the modules (pc_count, spine_ops, vector_dressing) and gain
     // their line here when first published. The field ships as a one-based rank;
     // silence reads as the top of the hierarchy, never zero.
-    void write_reading(const Published& p) {
+    void write_reading(Published& p) {
         const int slot = reading_spec(p.reading).slot;
         switch (p.reading) {
+            case Reading::DftMag:
+            case Reading::DftPhase: {
+                // THE COMPOUND STRATUM: the pc-DFT of the PUBLISHED
+                // present-count vector — the same 12 floats slots 0-11
+                // carry, dressed to D first (the DFT reads what ships,
+                // not raw state). REST: zero vector → mags 0, phases
+                // HOLD-LAST per channel (the hold lives with the entry,
+                // like the held field — consumers fading on mag never
+                // see phase snap).
+                const VectorDressing to_D{ /*reorigin*/ true, PROJECT_PC_ORIGIN, VectorDressing::Scale::None };
+                const PitchClassVector v = dress(reading_vector(Reading::PresentCount, p.source_mask), to_D);
+                float l1 = 0.0f;
+                for (int i = 0; i < 12; ++i) l1 += v.v[i];
+                const PcDft d = pc_dft(v);
+                if (p.reading == Reading::DftMag) {
+                    for (int i = 0; i < 6; ++i)
+                        output_.set_stat(p.band, slot + i, d.mag[i]);
+                } else {
+                    for (int i = 0; i < 6; ++i) {
+                        if (l1 > 0.0f) p.held_phase[i] = d.phase[i];
+                        output_.set_stat(p.band, slot + i, p.held_phase[i]);
+                    }
+                }
+                break;
+            }
             case Reading::Field:
                 output_.set_stat(p.band, slot, static_cast<float>(field_index(p.field)));
                 break;

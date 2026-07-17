@@ -4827,6 +4827,37 @@ each block cites its C++ home. The engine stays the authority — the
 tool is an instrument, not a second truth.
 
 ════════════════════════════════════════════════════════════════════
+THE COMPOSED COUPLING HANDOFFS (STEP 1 analysis / STEP 2 color
+workbench / STEP 3 the mapping conversation — HELD until 1+2 land)
+════════════════════════════════════════════════════════════════════
+
+STEP 1 — THE PC-DFT CAPABILITY (analysis side; compound stratum; ALL
+channels). pc_dft(PitchClassVector) → {mag[6], phase[6]} — pure fn,
+musical/pc_dft.hpp, one stratum above pc_count (capability over
+PUBLISHED slots: the DFT reads what ships — the dressed-to-D
+present-count vector — not raw state). Published ONCE PER CHANNEL:
+voices 0-6 + the group union, same slot offsets every band
+(SLOT_DFT_MAG=64, SLOT_DFT_PHASE=70 — named in the canonical map
+beside the others, outside the (dead) 0-63 GPU relay window). UNITS in
+the map: mag = |X_k| ÷ L1, [0,1], 0-safe; phase = radians [−π,π], pc
+circle, origin = the published D. REST declared in the capability +
+held by the publisher: zero vector → mags 0, phases HOLD-LAST per
+channel (held_phase lives in the Published entry — the HeldField
+precedent; consumers fading on mag never see phase snap). the_lab
+gains 16 dashboards free (two 6-bar Vector groups × 8 bands, the
+StatShape dispatch). Zero cartridge involvement — the_board untouched.
+GATE + A CORRECTION THE GATE CAUGHT: the pure-fn unit check
+(check_pc_dft, new CMake target, compiled and RUN green this session)
+REFUTED the handoff's "C major triad peaks f5" on first run — the
+triad's argmax is f3 (|X3| = √5 ≈ 2.236, the triadicity coefficient;
+f5 runs second at 1.932). f5's true signature set is the DIATONIC
+SCALE (|X5| ≈ 3.732, every other family ≤ 1) — the check asserts BOTH
+corrected facts, plus whole-tone → f6 total energy, single-pc →
+uniform mags, zero-vector rest, transposition-invariant mags, phase
+range. Publish budget: 48 of MAX_PUBLISHED 64. glaw1 + census GREEN
+(trivially — analysis-side cut); canvas full-include syntax gate GREEN.
+
+════════════════════════════════════════════════════════════════════
 THE PARKED LEDGER (standing section — the ONE place open flags live.
 Future sweeps read THIS, not the tree. Consolidated at residue-sweep
 T0. Discipline: when a flag lands or dies, strike it HERE in the same

@@ -667,6 +667,11 @@ endif()
 add_executable(check_field_union src/analysis/canvas_1/check_field_union.cpp)
 target_include_directories(check_field_union PRIVATE src)
 
+# check_pc_dft — the pc-DFT capability's pure-fn gate: known vectors →
+# known interval families, over pc_dft.hpp alone; no canvas, no RtMidi.
+add_executable(check_pc_dft src/analysis/canvas_1/check_pc_dft.cpp)
+target_include_directories(check_pc_dft PRIVATE src)
+
 add_executable(check_canvas_compound src/analysis/canvas_1/check_canvas_compound.cpp src/external/RtMidi.cpp)
 target_include_directories(check_canvas_compound PRIVATE src)
 if(MSVC)
