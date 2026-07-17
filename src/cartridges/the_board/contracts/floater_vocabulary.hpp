@@ -17,15 +17,15 @@
 //   stability — see the registry note below).
 //
 // SEAM[floater_vocabulary:taxonomy] generic-pipeline floater families
-//   parallel grounded families (entities.hpp) but live here because
+//   parallel grounded families (grounded.hpp) but live here because
 //   their tier shapes differ (sphere has orbit_radius/orbit_speed,
 //   cube doesn't). Three concerns, three files: vocabulary here,
 //   sampling profile in machine/entity_pipeline.hpp, cube behavior in
 //   bodies/cube_behaviors.hpp. Spheres have no behavior layer.
 // SEAM[sphere:taxonomy] sphere VOCABULARY lives here, not in
-//   entities.hpp. Generic-pipeline floater family — vocabulary class
+//   grounded.hpp. Generic-pipeline floater family — vocabulary class
 //   distinct from grounded families.
-// SEAM[cube:taxonomy] cube VOCABULARY lives here, not in entities.hpp.
+// SEAM[cube:taxonomy] cube VOCABULARY lives here, not in grounded.hpp.
 //   Three concerns, three files (vocabulary / sampling profile /
 //   behavior gains), each correct.
 // SEAM[sphere:P5] last_alloc_time is pattern P5 (release-pending sentinel /

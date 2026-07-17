@@ -10,7 +10,7 @@
 //
 // Unified entity registry: the control panel for the agent system.
 //
-// The impl additionally reads COLUMN_PALETTE (entities.hpp).
+// The impl additionally reads COLUMN_PALETTE (grounded.hpp).
 // ─────────────────────────────────────────────────────────────────
 
 #include <cmath>      // std::sqrt, std::cos, std::sin   // (impl, merged)

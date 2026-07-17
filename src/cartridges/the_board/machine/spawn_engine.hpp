@@ -30,7 +30,7 @@
 //
 // Depends on cohort include order: roster.hpp (PopFamily),
 // entity_types.hpp (queue unions), state.hpp (GPU mesh params),
-// entities.hpp (ActiveColumn/EntitiesState — COMPLETE, the merged
+// grounded.hpp (ActiveColumn/EntitiesState — COMPLETE, the merged
 // bodies deref them), patch_system.hpp (PATCH_EXTENT — the preamble
 // template reads it at definition), renderer.hpp. MERGED at the
 // cohort tail (the B ruling): the decl tier

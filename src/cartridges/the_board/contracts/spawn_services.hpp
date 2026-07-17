@@ -116,7 +116,7 @@ struct ArchIdx {
 //   [0]SPAN [1]RISE [2]DEPTH [3]THICKNESS [4]PIER_HEIGHT [5]PIER_PADDING [6]EDGE_BLEND
 //
 // Note: name is ArchTierRow, not ArchTier — the enum class ArchTier
-// (DOORWAY/STANDARD/MONUMENTAL) already occupies that name in entities.hpp.
+// (DOORWAY/STANDARD/MONUMENTAL) already occupies that name in grounded.hpp.
 struct ArchTierRow {
     TierProfile profile;
     float       color_override;
@@ -137,7 +137,7 @@ struct ArchTierRow {
 //   burial = fraction of pier_height sunk below ground; segs_u/v =
 //   mesh tessellation counts.
 // CONSUMERS: entity_pipeline.hpp (arch_tier_profile, burial, segs into
-//   mesh params); entities.hpp force-spawn portal (DOORWAY row);
+//   mesh params); grounded.hpp force-spawn portal (DOORWAY row);
 //   mood.hpp portal/doorway geometry (DOORWAY row).
 // SENTINELS: color_var 0 = fall back to ColorPartDef.variance;
 //   color_override 0 = no override.

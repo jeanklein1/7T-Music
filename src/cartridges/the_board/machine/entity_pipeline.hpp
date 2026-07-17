@@ -18,7 +18,7 @@
 //   truth — no converters, no derived tables.
 //
 // Depends on cohort include order: entity_types.hpp (traits/adapter/
-// instance vocabulary), entities.hpp (props/configs/palettes + the
+// instance vocabulary), grounded.hpp (props/configs/palettes + the
 // tier enums — COMPLETE, the merged bodies deref them), state.hpp
 // (GPU mesh params), mood.hpp (MOOD_TABLE / PORTAL_DENSITY / portal
 // doors), machine/spawn_engine.hpp (the services, defined just above
@@ -301,7 +301,7 @@ static_assert(sizeof(ANTENNA_PARAM_DEFS) / sizeof(TierParamDef) == ColIdx::COUNT
 //   [6]BASE_OH [7]CAP_LAYERS [8]CAP_H [9]CAP_OH [10]SOLID_PAD
 //   [11]SOLID_H [12]EDGE_BLEND
 //
-// Note: name is ColumnTierRow, not ColumnTier — entities.hpp declares
+// Note: name is ColumnTierRow, not ColumnTier — grounded.hpp declares
 // `enum class ColumnTier`, occupying that name.
 struct ColumnTierRow {
     TierProfile profile;
@@ -727,7 +727,7 @@ static_assert(PYRAMID_PARAM_COUNT == PyrIdx::COUNT,
 
 // params[] order MUST match PYRAMID_PARAM_DEFS:
 //   [0]HEIGHT [1]BASE_HALF [2]ASPECT [3]TRUNCATION [4]EDGE_BLEND
-// Note: cannot reuse `PyramidTier` as the struct name — entities.hpp
+// Note: cannot reuse `PyramidTier` as the struct name — grounded.hpp
 // declares `enum class PyramidTier`, which occupies the same name slot.
 // `PyramidTierRow` keeps the new struct distinct without renaming the
 // enum (used widely as PyramidTier::OBELISK etc.).

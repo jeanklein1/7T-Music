@@ -152,7 +152,7 @@ GREP_MANIFEST = {
     # DELEGATED pieces: the gate lives at the module door (cited), not the spine.
     'spot_lights': [('direction/mood.hpp', 'apply door', rf'if constexpr \(ROSTER\.spot_lights\)')],
     'indoor_shell':[('direction/mood.hpp', 'apply door', rf'if constexpr \(ROSTER\.indoor_shell\)')],
-    'portal':      [('bodies/entities.hpp', 'force-spawn door', rf'if constexpr \(!ROSTER\.portal\)')],
+    'portal':      [('bodies/grounded.hpp', 'force-spawn door', rf'if constexpr \(!ROSTER\.portal\)')],
     'transitions': [('direction/mood.hpp', 'request door #1', rf'if constexpr \(!ROSTER\.transitions\)')],
     'wanderers':   [('cartridge.hpp', 'boot population', imm(r'ROSTER\.wanderers', r'spawn_population_for_mood'))],
 }

@@ -5,11 +5,8 @@
 #include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 #include "cartridges/the_board/contracts/entity_types.hpp"     // queue types (the clean three's funnel signatures)
 
-// ─── entities.hpp (HEADER: vocabulary + state + declarations) ────
+// ─── grounded.hpp (HEADER: the grounded-seven registry) ──────────
 // History: audit/LADDER.md
-// LATENT[naming]: the worst-named file in the tree now
-// that it sits in bodies/ — it is the grounded-seven registry.
-// Debt flagged, not paid; rename queues behind Jean's word.
 //
 // Vocabulary for the grounded entity families that share the generic dispatch pipeline.
 //
