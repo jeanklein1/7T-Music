@@ -4802,6 +4802,30 @@ exists ONLY in compose_spawn_chance + the F3 face; zero re-authors
 remain. glaw1 + census GREEN; RIG GATE: frozen-world goldens must not
 notice.
 
+R2b — THE POPULATION DESIGNER (the panel form, ruled (b): the toolset
+tradition). NEW TOOL src/tools/7t_population_designer.jsx + registry
+entry (#population_designer) — the 12th instrument. What it is: the
+composition recon §2 worked-example table, ALIVE. Pick family + mood +
+tile (click the map) + seed; the stack multiplies out row by row
+through an exact port of compose_spawn_chance (same order, same clamp
+policies as data, identity factors labeled), ending at the real roll
+(bit-exact integer hashes via Math.imul — cpu_hash/tile_seed/
+lattice_node_seed ported verbatim) and a SPAWN / no-spawn verdict.
+Spatial-density map: 44×28 patches, four view modes (chance /
+spatial_density / theme field / rolls-that-PASS), theme lattice nodes
+drawn as rings, live PASS-rate census. Sliders per factor: per-family
+SPAWN_CHANCE, GLOBAL_ENTITY_DENSITY (master volume), per-theme
+spawn_weight[family], and THE DEAD DENSITY BAND (min/max/exponent —
+wake-PREVIEW only; the export brands a woken band and R3 keeps the
+actual wake rig-gated). Cluster-hypothesis slider models the proximity
+boost (the §2 scenarios). C++ export emits table-shaped, paste-ready
+blocks with homes cited, changed values flagged. GATES: esbuild parse
+GREEN (tool + registry); math smoke GREEN — the port reproduces every
+§2 scenario number (0.030/0.120/0.075/0.216/0.240/0.015) and the
+COLUMN proximity curve. Constants mirror the tree at the R1 collapse;
+each block cites its C++ home. The engine stays the authority — the
+tool is an instrument, not a second truth.
+
 ════════════════════════════════════════════════════════════════════
 THE PARKED LEDGER (standing section — the ONE place open flags live.
 Future sweeps read THIS, not the tree. Consolidated at residue-sweep

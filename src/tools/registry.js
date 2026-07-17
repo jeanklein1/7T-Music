@@ -9,6 +9,13 @@
 
 const TOOLS = [
   {
+    id:    "population_designer",
+    name:  "Population Designer",
+    desc:  "The spawn-probability stack as a living instrument — per-factor sliders, live composition trace, spatial-density map, C++ export (composition recon R2b)",
+    color: "#e8d8b0",
+    load:  () => import("./7t_population_designer.jsx"),
+  },
+  {
     id:    "theme_tool",
     name:  "Theme Tool",
     desc:  "Entity distribution designer — 4-pass procedural placement synced with the C++ engine",
