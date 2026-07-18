@@ -56,6 +56,10 @@ Produce `web/PORT_MAP.md` containing:
    that could ever justify WASM later.
 5. **Portability flags.** Dawn-specific or non-core WGSL (extensions, f16, etc.).
 6. **Proposed module layout** for `web/` (shader files, host modules, entry page).
+7. **Propose the final `U` uniform struct** in PORT_MAP.md — current harness fields
+   plus bpm/beatPhase plus whatever item 3 (uniform feed mapping) shows the shaders
+   actually consume. Freeze this struct before Phase 1 so shader lifts happen once,
+   against the final layout.
 
 ## Phase 1 — Lift shaders
 
@@ -73,6 +77,9 @@ groups, dispatch order, resize with devicePixelRatio clamped to 2.
 
 Wire `bpm`/`beatPhase` into the uniform block. Keep the drone as default; stub the
 soundtrack path behind the same analyser so swapping is a one-line change.
+Ambient `time` stays on performance.now(); only bpm/beatPhase derive from
+AudioContext.currentTime and hold at 0 until the start gesture — a suspended
+context's clock doesn't advance, and the scene must still drift before entry.
 
 ## Phase 4 — Fit and finish
 
