@@ -52,8 +52,20 @@ if (!('gpu' in navigator)) fail('WebGPU not available. Open in Chrome/Edge over 
 
 const tBoot = performance.now();
 let t0 = performance.now();
-const adapter = await navigator.gpu.requestAdapter();
-if (!adapter) fail('no GPU adapter');
+/* requestAdapter() hangs (never resolves) when the GPU process is wedged —
+   e.g. Chrome disabled the GPU after repeated crashes — which otherwise leaves
+   the page frozen at "booting…" with no clue. Race it against a timeout and
+   turn both the hang and a null result into one actionable message. */
+const GPU_UNAVAILABLE =
+  'no GPU adapter — WebGPU is unavailable or disabled.\n' +
+  'Open chrome://gpu → check the "WebGPU" row and "Problems Detected".\n' +
+  'After repeated GPU crashes Chrome disables it: fully quit Chrome (all\n' +
+  'windows) and reopen, or reboot, to restore the adapter.';
+const adapter = await Promise.race([
+  navigator.gpu.requestAdapter(),
+  new Promise((res) => setTimeout(() => res(null), 8000)),
+]);
+if (!adapter) fail(GPU_UNAVAILABLE);
 timed('adapter request', performance.now() - t0);
 
 const L = adapter.limits;
