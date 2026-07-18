@@ -179,6 +179,9 @@ namespace t7 {
             TargetBinding ribbon_tint_stim_dst_{};
             TargetBinding ribbon_tint_mix_dst_{};
             TargetBinding fog_color_dst_{};      // resolved "fog.color" pipe (3 wide)
+            // Checker pipes (CHECKER-1) — resolved once at bind.
+            TargetBinding checker_mean_dst_{};
+            TargetBinding checker_var_dst_{};
 
             // Sun + atmosphere (driven by active mood — see apply_mood)
             float sunDirection_[3] = { 0.69f, -0.71f, -0.14f };
@@ -424,6 +427,8 @@ namespace t7 {
                     gpuState_.set_mode_palette_drift(terrain_looks::REST_MODE_PALETTE_DRIFT_TARGET,
                                                      terrain_looks::REST_MODE_PALETTE_DRIFT_INTENSITY,
                                                      terrain_looks::REST_MODE_PALETTE_DRIFT_TIER);
+                    gpuState_.set_checker_color_field(terrain_looks::REST_CHECKER_MEAN_OFFSET,
+                                                      terrain_looks::REST_CHECKER_VARIANCE_GAIN);
                     gpuState_.set_mode_gol_scales(1.0f, 1.0f);   // GoL's jurisdiction — stays inline (ROW 9 pointer)
                     float zero_pulses[32] = {};
                     gpuState_.set_pulse_data(0, zero_pulses);
@@ -582,6 +587,8 @@ namespace t7 {
                 ribbon_amp_vert_dst_ = visual_canvas_.layout().resolve("ribbon.amp_vertical_mult");
                 ribbon_tint_stim_dst_ = visual_canvas_.layout().resolve("ribbon.color_stim");
                 ribbon_tint_mix_dst_  = visual_canvas_.layout().resolve("ribbon.color_mix");
+                checker_mean_dst_ = visual_canvas_.layout().resolve("terrain.checker_mean");
+                checker_var_dst_  = visual_canvas_.layout().resolve("terrain.checker_var");
                 std::fprintf(stderr,
                     "[the_board] fog.density base=%d valid=%d | fog.color base=%d count=%d valid=%d\n",
                     fog_density_dst_.base, (int)fog_density_dst_.valid,
@@ -756,6 +763,12 @@ namespace t7 {
                                       fp.get(fog_color_dst_.base + 0),
                                       fp.get(fog_color_dst_.base + 1),
                                       fp.get(fog_color_dst_.base + 2));
+                }
+                // CHECKER-1: the checker field's flush — one setter, the fan.
+                if (checker_mean_dst_.valid && checker_var_dst_.valid) {
+                    const VisualParams& cp = visual_canvas_.params();
+                    gpuState_.set_checker_color_field(cp.run(checker_mean_dst_.base),
+                                                      cp.get(checker_var_dst_.base));
                 }
             }
 
