@@ -1229,14 +1229,27 @@ fn chess_field_at(world_xz: vec2<f32>) -> ChessField {
 
 // Per-node: roll RGB mean and variance for a discrete color region.
 // Returns vec4(r_mean, g_mean, b_mean, variance).
-fn discrete_region_at_node(node: vec2<i32>) -> vec4<f32> {
+// CHECKER-2: the region's full anatomy — seed color mean, spread, and
+// RECEPTIVITY (prop 804, the reserved seat): how much this region
+// listens when the music turns the wheel. Authorless seeded geography
+// (the activity-field idiom): one line plays, the land decides where
+// it takes.
+struct DiscreteRegion {
+    mean: vec3<f32>,
+    variance: f32,
+    receptivity: f32,   // raw [0,1]; the floor is a ROW 5 dial, applied at the mix
+}
+
+fn discrete_region_at_node(node: vec2<i32>) -> DiscreteRegion {
     let seed = color_lattice_seed(node, 10u);
-    let r = hash_property(seed, 800u);
-    let g = hash_property(seed, 801u);
-    let b = hash_property(seed, 802u);
+    var out: DiscreteRegion;
+    out.mean = vec3(hash_property(seed, 800u),
+                    hash_property(seed, 801u),
+                    hash_property(seed, 802u));
     // Variance: how much cells spread from the mean. [0.02 .. 0.25]
-    let v = 0.02 + hash_property(seed, 803u) * 0.23;
-    return vec4(r, g, b, v);
+    out.variance = 0.02 + hash_property(seed, 803u) * 0.23;
+    out.receptivity = hash_property(seed, 804u);
+    return out;
 }
 
 // Per-node: monochrome tendency [0, 1].
@@ -1252,22 +1265,31 @@ fn discrete_mono_at_node(node: vec2<i32>) -> f32 {
 }
 
 // Interpolated discrete region parameters at a world position.
-fn discrete_region_at(world_xz: vec2<f32>) -> vec4<f32> {
+fn discrete_region_at(world_xz: vec2<f32>) -> DiscreteRegion {
     let gpos = world_xz / DISCRETE_COLOR_LATTICE_SPACING;
     let gbase = vec2<i32>(floor(gpos));
     let frac = fract(gpos);
     let w = frac * frac * (3.0 - 2.0 * frac);
 
-    var result = vec4(0.0);
+    var mean = vec3(0.0);
+    var variance = 0.0;
+    var receptivity = 0.0;
     for (var dz: i32 = 0; dz <= 1; dz++) {
         for (var dx: i32 = 0; dx <= 1; dx++) {
             let val = discrete_region_at_node(gbase + vec2(dx, dz));
             let wx = select(1.0 - w.x, w.x, dx == 1);
             let wz = select(1.0 - w.y, w.y, dz == 1);
-            result += val * wx * wz;
+            let ww = wx * wz;
+            mean += val.mean * ww;
+            variance += val.variance * ww;
+            receptivity += val.receptivity * ww;
         }
     }
-    return result;
+    var out: DiscreteRegion;
+    out.mean = mean;
+    out.variance = variance;
+    out.receptivity = receptivity;
+    return out;
 }
 
 // Interpolated monochrome tendency at a world position. [0,1]
@@ -1290,8 +1312,18 @@ fn discrete_mono_at(world_xz: vec2<f32>) -> f32 {
 }
 
 // Generate a discrete cell color from the region field + per-cell seed.
+// CHECKER-2: hue rotation about the gray axis (Rodrigues, axis =
+// normalize(1,1,1)), driven by a unit direction (cos α, sin α) taken
+// from the wheel vector's own normalization — no trig in the FS. An
+// ISOMETRY of color space: every cell departs from its own seed color
+// and distinctness is preserved exactly — one ride, many riders.
+fn rotate_hue(c: vec3<f32>, cosa: f32, sina: f32) -> vec3<f32> {
+    let g = vec3(0.57735026919);   // the gray axis, unit
+    return c * cosa + cross(g, c) * sina + g * dot(g, c) * (1.0 - cosa);
+}
+
 fn discrete_cell_color(world_xz: vec2<f32>, cell_gx: i32, cell_gz: i32, cell_seed: u32,
-                       mean_offset: vec3<f32>, var_gain: f32) -> vec3<f32> {
+                       wheel: vec3<f32>, var_gain: f32) -> vec3<f32> {
     // --- Chess board tier
     let chess = chess_field_at(world_xz);
     let chess_jitter = (hash_property(cell_seed, 815u) - 0.5) * 0.03;
@@ -1633,6 +1665,14 @@ const CHESS_COLORFUL_CUT: f32 = 0.65;     // above → colored pair; below → B
 const MONO_BW_CUT: f32 = 0.35;            // mono field gate → pure black/white cells
 const MONO_TINT_CUT: f32 = 0.20;          // mono field gate → tinted monochrome cells
 const DISCRETE_TINT_STRENGTH: f32 = 0.15; // grey→palette-mean mix weight; PINNED — no uniform behind it (couplable literal, flagged by the color-stack recon)
+
+// CHECKER-2 (the wheel) — the checker vocabulary's response dials:
+//   COMMIT_CURVE shapes commitment→mix (1 = linear; >1 demands more
+//   gathered harmony before the mosaic leans);
+//   RECEPTIVITY_FLOOR keeps every region minimally awake (0 = true
+//   deaf spots allowed; 1 = geography off, uniform response).
+const CHECKER_COMMIT_CURVE: f32 = 1.0;
+const CHECKER_RECEPTIVITY_FLOOR: f32 = 0.15;
 
 // ── ROW 6 — TERRAIN-MODE COUPLING ─────────────────────────────────
 //
