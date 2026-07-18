@@ -660,6 +660,14 @@ render 164), 0 errors / 0 warnings**; stage-2 first pixel ~1.3 s (software).
 > deciding evidence. Dev bisect params: `?skip=draw|cull|lod0|lod1|gen`,
 > `?capture=1` (canvas → console data URL).
 
+> **Second finding:** the loss follows the FIRST canvas present, not workload or
+> wall time — staged boot presents at 32 ms and dies immediately, and the
+> untouched reference `harness.html` dies identically in the container. Verdict:
+> this Linux-headless-SwiftShader environment cannot present WebGPU at all
+> (Linux WebGPU is Chrome-experimental); container smoke is validation-only via
+> `?skip=present`. Whether Jean's Windows device-loss shares a cause is decided
+> by his harness.html control run.
+
 Census-check catch: `patch_terrain_fs` statically uses `tile_grid` (g0 b25) —
 missed in the hand-authored layout, caught by `createRenderPipelineAsync`
 exactly as §2b.3 intends; reflector ub-counts were right.

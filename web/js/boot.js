@@ -101,6 +101,20 @@ function resize() {
 window.addEventListener('resize', resize);
 resize();
 
+/* Present clear frames IMMEDIATELY — staged boot stage 1. The canvas must
+   never sit configured-but-unpresented while pipelines compile (8 s on an
+   iGPU): the first present after a long gap is exactly where the device
+   loss lands on both test machines. `frame` is hoisted; its full path is
+   gated on `ready`, armed at the end of init below. */
+let ready = false;
+let firstClearLogged = false;
+let last = performance.now();
+let firstTerrainFrame = true;
+let streamed = 0;
+/* ?skip=present defers all presents until after init — validation-only smoke
+   for environments whose compositor kills the instance on first present. */
+if (!SKIP.includes('present')) requestAnimationFrame(frame);
+
 /* --- mirror module (the stride assertion) ------------------------------------ */
 t0 = performance.now();
 const resp = await fetch('./shaders/world.wgsl');
@@ -175,9 +189,10 @@ config.flush();
 
 const terrain = new TerrainStreamer(device, R, config);
 
-timed('time to first pixel — stage 1 (clear)', performance.now() - tBoot);
+ready = true;   // stage 2 arms: next frame streams and draws terrain
 log('boot ok — streaming terrain…');
 console.log('[7T] BOOT OK');
+if (SKIP.includes('present')) requestAnimationFrame(frame);
 
 /* --- diagnostics (dev; runs once when the window completes) -------------------
    Reads back (a) the frustum-cull instance count — a broken VP culls everything,
@@ -228,15 +243,31 @@ async function runDiagnosticsInner() {
 }
 
 /* --- frame -------------------------------------------------------------------- */
-let last = performance.now();
-let firstTerrainFrame = true;
-let streamed = 0;
 if (SKIP.includes('gen')) setTimeout(runDiagnostics, 4000);   // dev: probe device survival with no work submitted
 
 function frame(now) {
   const dt = Math.min((now - last) / 1000, 0.05); last = now;
   resize();
   if (canvas.width === 0 || canvas.height === 0) { requestAnimationFrame(frame); return; }
+
+  if (!ready) {
+    // stage 1: color-only clear present while the mirror compiles
+    const enc = device.createCommandEncoder({ label: 'boot clear' });
+    enc.beginRenderPass({
+      colorAttachments: [{
+        view: ctx.getCurrentTexture().createView(),
+        clearValue: { r: PALETTE.ink[0], g: PALETTE.ink[1], b: PALETTE.ink[2], a: 1 },
+        loadOp: 'clear', storeOp: 'store',
+      }],
+    }).end();
+    device.queue.submit([enc.finish()]);
+    if (!firstClearLogged) {
+      firstClearLogged = true;
+      timed('time to first pixel — stage 1 (clear)', performance.now() - tBoot);
+    }
+    requestAnimationFrame(frame);
+    return;
+  }
 
   signal.frame(now / 1000, dt, canvas.width / Math.max(canvas.height, 1));
 
@@ -265,7 +296,6 @@ function frame(now) {
   }
   requestAnimationFrame(frame);
 }
-requestAnimationFrame(frame);
 
 /* ?capture=1 holds the module (and so the page load event) open until the
    canvas capture has been logged — the headless harness exits on load, and
