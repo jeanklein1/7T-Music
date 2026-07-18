@@ -4504,9 +4504,9 @@ namespace t7 {
                     if (!archMeshGenLayout_) return false;
                 }
 
-                // -- Column mesh gen layout (Group 0) -- bindings 196-198 --
+                // -- Column mesh gen layout (Group 0) -- bindings 190/191 + 196-198 --
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 3> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 5> entries{};
 
                     entries[0].binding = bind::g0::cmg_params;  // cmg_params (read-only storage)
                     entries[0].visibility = wgpu::ShaderStage::Compute;
@@ -4519,6 +4519,17 @@ namespace t7 {
                     entries[2].binding = bind::g0::cmg_indices;  // cmg_indices (storage, rw)
                     entries[2].visibility = wgpu::ShaderStage::Compute;
                     entries[2].buffer.type = wgpu::BufferBindingType::Storage;
+
+                    // COLUMN CEILING FIT: the kernel derives effective column
+                    // height = ceiling − ground_y (indoors), so the cmg strip
+                    // reads the design config + the correction pass's output.
+                    entries[3].binding = bind::g0::cmg_config;  // DesignConfig (the ceiling gate)
+                    entries[3].visibility = wgpu::ShaderStage::Compute;
+                    entries[3].buffer.type = wgpu::BufferBindingType::Uniform;
+
+                    entries[4].binding = bind::g0::cmg_column_ground;  // column_ground, read-only view
+                    entries[4].visibility = wgpu::ShaderStage::Compute;
+                    entries[4].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Column Mesh Gen Layout";
@@ -5392,9 +5403,9 @@ namespace t7 {
                     if (!archMeshGenBindGroup_) return false;
                 }
 
-                // Column mesh gen bind group (dedicated layout — bindings 196-198)
+                // Column mesh gen bind group (dedicated layout — bindings 190/191 + 196-198)
                 {
-                    std::array<wgpu::BindGroupEntry, 3> entries{};
+                    std::array<wgpu::BindGroupEntry, 5> entries{};
 
                     entries[0].binding = bind::g0::cmg_params;
                     entries[0].buffer = columnMeshParamsBuffer_;
@@ -5407,6 +5418,14 @@ namespace t7 {
                     entries[2].binding = bind::g0::cmg_indices;
                     entries[2].buffer = columnIndexBuffer_;
                     entries[2].size = Dim::CMG_TOTAL_INDICES * sizeof(uint32_t);
+
+                    entries[3].binding = bind::g0::cmg_config;
+                    entries[3].buffer = configBuffer_;
+                    entries[3].size = sizeof(GPUDesignConfig);
+
+                    entries[4].binding = bind::g0::cmg_column_ground;
+                    entries[4].buffer = columnGroundBuffer_;
+                    entries[4].size = sizeof(GPUColumnGroundEntry) * Dim::MAX_COLUMN_INSTANCES;
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Column Mesh Gen BindGroup";

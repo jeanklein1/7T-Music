@@ -122,9 +122,13 @@ namespace t7 {
                 inline constexpr uint32_t bladeg_vertices            = 187;
                 inline constexpr uint32_t bladeg_indices             = 188;
 
-                // mesh-gen scratch: arch/column (193–198)
+                // mesh-gen scratch: arch/column (190–198)
                 // (pmg_* @190/191/192 REMOVED: the pyramid mesh-gen
-                //  basket, no entry point / pipeline / dispatch ever used it.)
+                //  basket, no entry point / pipeline / dispatch ever used it.
+                //  190/191 REBORN as the cmg ceiling-fit pair — parked-number
+                //  reuse per the 149 precedent; 192 stays parked.)
+                inline constexpr uint32_t cmg_config                 = 190;  // DesignConfig view for the cmg kernel (the ceiling gate)
+                inline constexpr uint32_t cmg_column_ground          = 191;  // read-only column_ground view (the terrain delta)
                 inline constexpr uint32_t amg_params                 = 193;
                 inline constexpr uint32_t amg_vertices               = 194;
                 inline constexpr uint32_t amg_indices                = 195;

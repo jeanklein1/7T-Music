@@ -49,6 +49,15 @@ inline constexpr float RIBBON_INDOOR_SCALE        = 0.15f; // Jean's dial — tu
 // the wall surface and any artwork on it.
 inline constexpr float INDOOR_ENTITY_WALL_MARGIN  = 20.0f; // existing, re-homed here
 
+// The ceiling-fit floor (COLUMN CEILING FIT): indoors the cmg kernel
+// derives effective column height = ceiling_height − ground_y(center)
+// — the capital sits flush with the ceiling plane across topography —
+// but never below this floor. PINNED PAIR: world.wgsl declares the
+// same value as const COLUMN_MIN_INDOOR_HEIGHT beside the cmg kernel
+// bindings (authored in both rooms, named the same, never
+// dial-derived — the TILE_GRID_CAPACITY pattern).
+inline constexpr float COLUMN_MIN_INDOOR_HEIGHT   = 1.0f;  // extreme-terrain floor: a column never collapses below this
+
 // AXES: PopFamily order, PINNED by F-1. gol size is NATURAL here —
 // its height cap is GPU-side (the zone mesh kernel), noted on the row.
 inline constexpr IndoorTreatment INDOOR_TREATMENT[PopFamily::COUNT] = {

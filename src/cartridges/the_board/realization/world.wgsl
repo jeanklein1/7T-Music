@@ -9501,6 +9501,17 @@ struct ColumnMeshParams {
 @group(0) @binding(196) var<storage, read>       cmg_params: array<ColumnMeshParams, 32>;
 @group(0) @binding(197) var<storage, read_write>  cmg_vertices: array<f32>;
 @group(0) @binding(198) var<storage, read_write>  cmg_indices: array<u32>;
+// COLUMN CEILING FIT: the ceiling gate + the correction pass's ground
+// output (read-only view of binding 148's buffer — slot-aligned with
+// cmg_params: columns 0.., antennas at ANTENNA_SLOT_OFFSET).
+@group(0) @binding(190) var<uniform>             cmg_config: DesignConfig;
+@group(0) @binding(191) var<storage, read>       cmg_column_ground: array<ColumnGroundEntry, 32>;
+
+// COLUMN_MIN_INDOOR_HEIGHT: extreme-terrain floor — a column never
+// collapses below this. PINNED PAIR with COLUMN_MIN_INDOOR_HEIGHT in
+// contracts/indoor_module.hpp (authored in both rooms, named the
+// same, never dial-derived — the TILE_GRID_CAPACITY pattern).
+const COLUMN_MIN_INDOOR_HEIGHT: f32 = 1.0;
 
 // ── Helpers ───────────────────────────────────────────────────────────
 
@@ -9535,6 +9546,19 @@ fn column_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
     let slot_vb = slot * CMG_MAX_VERTS_PER_SLOT;
     let slot_ib = slot * CMG_MAX_INDICES_PER_SLOT;
 
+    const TIER_ANTENNA_FIRST: u32 = 3u;  // ANTENNA=3, ANTENNA_SQUAT=4, ANTENNA_COLOSSAL=5
+
+    // COLUMN CEILING FIT (columns only — antennas keep CPU height:
+    // CAP-law, not ceiling-flush): indoors the column's visual height
+    // is ceiling-plane-relative — derived HERE, where ground_y is
+    // known (GPU sovereignty; the CPU adapter fits proportions only).
+    // Outdoors ceiling_height == 0: the select's false arm keeps
+    // eff_h = p.height byte-identical. One select, one max.
+    let eff_h = select(p.height,
+                       max(cmg_config.ceiling_height - cmg_column_ground[slot].ground_y,
+                           COLUMN_MIN_INDOOR_HEIGHT),
+                       cmg_config.ceiling_height > 0.0 && p.tier < TIER_ANTENNA_FIRST);
+
     // ── Inactive: zero all indices ─────────────────────────────
     if (p.is_active == 0u) {
         for (var i = 0u; i < CMG_MAX_INDICES_PER_SLOT; i++) {
@@ -9554,7 +9578,7 @@ fn column_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
 
     let top_radius = p.shaft_radius * p.taper;
     let base_top_y = p.base_height;
-    let shaft_top_y = p.height - p.capital_height;
+    let shaft_top_y = eff_h - p.capital_height;
     let bl = p.base_layers;
     let cl = p.capital_layers;
     let sr = p.shaft_rings;
@@ -9571,8 +9595,6 @@ fn column_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
     drum_cr[0] = p.drum_color_r1; drum_cg[0] = p.drum_color_g1; drum_cb[0] = p.drum_color_b1;
     drum_cr[1] = p.drum_color_r2; drum_cg[1] = p.drum_color_g2; drum_cb[1] = p.drum_color_b2;
     drum_cr[2] = p.drum_color_r3; drum_cg[2] = p.drum_color_g3; drum_cb[2] = p.drum_color_b3;
-
-    const TIER_ANTENNA_FIRST: u32 = 3u;  // ANTENNA=3, ANTENNA_SQUAT=4, ANTENNA_COLOSSAL=5
 
     if (p.tier >= TIER_ANTENNA_FIRST) {
         // ── ANTENNA profile: post → (drum + spacer) × N ─────
@@ -9683,10 +9705,10 @@ fn column_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
                 prof_cr[pc] = base_cr; prof_cg[pc] = base_cg; prof_cb[pc] = base_cb; pc++;
             }
             let r_final = top_radius + p.capital_overhang;
-            prof_r[pc] = r_final; prof_y[pc] = p.height - p.burial;
+            prof_r[pc] = r_final; prof_y[pc] = eff_h - p.burial;
             prof_cr[pc] = base_cr; prof_cg[pc] = base_cg; prof_cb[pc] = base_cb; pc++;
         } else {
-            prof_r[pc] = top_radius; prof_y[pc] = p.height - p.burial;
+            prof_r[pc] = top_radius; prof_y[pc] = eff_h - p.burial;
             prof_cr[pc] = base_cr; prof_cg[pc] = base_cg; prof_cb[pc] = base_cb; pc++;
         }
     }
@@ -9738,13 +9760,13 @@ fn column_mesh_gen(@builtin(global_invocation_id) gid: vec3<u32>) {
             // Top cap (full disc)
             let r_final = top_radius + p.capital_overhang;
             disc_ri[dc] = 0.0; disc_ro[dc] = r_final;
-            disc_y[dc] = p.height - p.burial; disc_ny[dc] = 1.0;
+            disc_y[dc] = eff_h - p.burial; disc_ny[dc] = 1.0;
             disc_cr[dc] = base_cr; disc_cg[dc] = base_cg; disc_cb[dc] = base_cb;
             dc++;
         } else {
             // Simple top cap
             disc_ri[dc] = 0.0; disc_ro[dc] = top_radius;
-            disc_y[dc] = p.height - p.burial; disc_ny[dc] = 1.0;
+            disc_y[dc] = eff_h - p.burial; disc_ny[dc] = 1.0;
             disc_cr[dc] = base_cr; disc_cg[dc] = base_cg; disc_cb[dc] = base_cb;
             dc++;
         }

@@ -505,6 +505,11 @@ inline void column_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Qu
     c->entities_state_.column_mesh_gen_pending = true;
 }
 
+// Pier/collision height stays CPU-authored (SOLID_HEIGHT below): the
+// blocker is a full-height wall either way, so the GPU's indoor
+// ceiling-fit of the VISUAL height (the cmg kernel's COLUMN CEILING
+// FIT) deliberately does not feed back here — visual-top precision
+// is immaterial to a blocker.
 inline void column_post_commit(MachineCtx* c, const EntityInstance& inst, wgpu::Queue& queue) {
     uint32_t pier_slot = Dim::PIER_COLUMN_BASE + inst.slot;
     GPUPierInstance pier{};

@@ -1363,6 +1363,22 @@ namespace t7 {
                 if (world_state_.placement_dirty) {
                     world_state_.placement_dirty = false;
                     dispatch_placement_correction(&machine_ctx_, encoder);
+                    // THE RE-RAISE (COLUMN CEILING FIT): this frame's
+                    // correction rewrites column ground_y; the cmg kernel
+                    // bakes ceiling-relative height from it, so a corrected
+                    // ground demands ONE rebake — bake raw at N, correct at
+                    // N's R16, rebake true at N+1's R8. Gated on an active
+                    // column (the population the fit touches; antennas are
+                    // tier-gated out in the kernel) and on the SAME dirty
+                    // consumption that dispatched the correction — NEVER
+                    // unconditional: a perpetual rebake is the failure mode
+                    // (idle rig = zero mesh-gen dispatches at steady state).
+                    for (uint32_t i = 0; i < Dim::MAX_COLUMN_ONLY; i++) {
+                        if (entities_state_.columns[i].active) {
+                            entities_state_.column_mesh_gen_pending = true;
+                            break;
+                        }
+                    }
                 }
             }
 
