@@ -507,6 +507,20 @@ namespace t7 {
             float palette_center[4][4];   // [palette] = {r,g,b,pad}
             float palette_light[4][4];    // [palette] = {r,g,b,pad}
             float palette_weight[4];      // selection probabilities
+
+            // ─── CHECKER-1: the spectrum color field ────────────────
+            // The checker vocabulary's live deviation, composed over
+            // the seed draws at the vocabulary's consumption point
+            // (world.wgsl discrete_cell_color / _at_tier):
+            //   mean' = region_mean + checker_mean_offset   (+)
+            //   var'  = region_var  × checker_variance_gain (×)
+            // REST = (0,0,0 / 1) — the identity elements of + and ×;
+            // bake callers pass identity literals, so patches bake at
+            // rest by construction (seam-proof). Driver: the visual
+            // canvas (CHECKER-1 matrix), flushed at U4. Mirrors
+            // world.wgsl DesignConfig: vec3 + f32, one 16-byte slot.
+            float checker_mean_offset[3];
+            float checker_variance_gain;
         };
 
         struct alignas(16) GPUTileGridEntry {
@@ -1323,7 +1337,7 @@ namespace t7 {
         };
 
         static_assert(sizeof(GPUFrameSignal) == 336, "GPUFrameSignal must be 336 bytes");
-        static_assert(sizeof(GPUDesignConfig) == 560, "GPUDesignConfig must be 560 bytes (416 + the palette mirror: 2×64 vec4-quads + 16 weights)");
+        static_assert(sizeof(GPUDesignConfig) == 576, "GPUDesignConfig must be 576 bytes (560 + the CHECKER-1 spectrum color field: vec3 offset + gain, one 16-byte slot)");
 
         // Portal ellipse array — uploaded when portal set changes.
         // GPU behavior_player_controlled tests pawn against arch-shaped ellipses and writes portal_trigger.
@@ -2299,6 +2313,21 @@ namespace t7 {
                     config_.mode_palette_target = target;
                     config_.mode_palette_intensity = intensity;
                     config_.mode_discrete_tier = discrete_tier;
+                    configDirty_ = true;
+                }
+            }
+            // CHECKER-1: the spectrum color field — one call carries
+            // the fan (offset rgb + variance gain travel on one span).
+            // Clamping lives in the coupling decode, never here.
+            void set_checker_color_field(const float offset[3], float gain) {
+                if (config_.checker_mean_offset[0] != offset[0]
+                    || config_.checker_mean_offset[1] != offset[1]
+                    || config_.checker_mean_offset[2] != offset[2]
+                    || config_.checker_variance_gain != gain) {
+                    config_.checker_mean_offset[0] = offset[0];
+                    config_.checker_mean_offset[1] = offset[1];
+                    config_.checker_mean_offset[2] = offset[2];
+                    config_.checker_variance_gain = gain;
                     configDirty_ = true;
                 }
             }

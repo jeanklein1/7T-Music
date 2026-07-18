@@ -1481,6 +1481,13 @@ struct DesignConfig {
     palette_center: array<vec4<f32>, 4>,
     palette_light: array<vec4<f32>, 4>,
     palette_weight: vec4<f32>,
+    // ── CHECKER-1: the spectrum color field — C++ twin in
+    //    GPUDesignConfig (float[3] + float, same 16-byte slot).
+    //    mean offset composes (+), variance gain composes (×) over
+    //    the seed draws in discrete_cell_color / _at_tier. REST =
+    //    (0,0,0 / 1) — identity; bake passes identity literals.
+    checker_mean_offset: vec3<f32>,
+    checker_variance_gain: f32,
 }
 
 // §2.2 — THE TERRAIN_LOOKS PANEL (WGSL room)
