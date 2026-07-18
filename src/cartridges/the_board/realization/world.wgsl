@@ -1600,7 +1600,7 @@ const PALETTE_COMPLEXITY: f32 = 0.5;
 // ── ROW 4 — FIELD LATTICES (Color Field Spatial Config) ────────────
 const PALETTE_LATTICE_SPACING: f32 = 300.0;     // ~6 patches — large palette blobs
 const MODE_LATTICE_SPACING:    f32 = 120.0;      // ~2.4 patches — smooth/discrete clusters
-const MODE_DISCRETE_THRESHOLD: f32 = 0.25;       // SCOPE (temp): flooded stage for calibration — RESTORE 0.70
+const MODE_DISCRETE_THRESHOLD: f32 = 0.70;       // above → discrete cells
 const MODE_BIAS_EXPONENT: f32 = 5.0;             // quintic — vast majority smooth
 const TRANSITION_LATTICE_SPACING: f32 = 200.0;   // large blend/scatter zones
 const SPARSE_BASE_SPACING: f32 = 160.0;          // broad sparse tendency regions
@@ -4031,7 +4031,7 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
                      || (abs(config.checker_mean_offset.y) > 0.001)
                      || (abs(config.checker_mean_offset.z) > 0.001)
                      || (abs(config.checker_variance_gain - 1.0) > 0.001);
-    if (true) {   // SCOPE (temp): gate forced open — restore `if (has_mode_bias)` when calibrated
+    if (has_mode_bias) {
         // Load baked spatial fields from LUT (skips 3 lattice noise chains)
         let cell_texel = clamp(
             vec2<i32>(in.patch_uv * f32(PATCH_CELL_N)),
@@ -7568,28 +7568,8 @@ fn animated_cell_color_lut(world_xz: vec2<f32>, baked_mode: f32, baked_style: f3
     fields.style = baked_style;
     fields.sparse = baked_sparse;
     fields.smooth_color = palette_color_smooth(palette_field_at(world_xz), PALETTE_COMPLEXITY);
-    // ── SCOPE (temporary instrument) ─────────────────────────────────
-    // Every checker swings on a 2-beat LINEAR triangle (SCOPE_AMP) and the
-    // musical offset rides a hot-reload gain (MUSIC_GAIN). Injected HERE,
-    // at the render-only caller, because render_signal is a render-stage
-    // binding — inside discrete_cell_color it would break the bake
-    // pipeline's validation (the compute stage has no binding 200).
-    // PROTOCOL:
-    //   A. SCOPE_AMP 0.25, MUSIC_GAIN 1 → the pulsing ground IS the
-    //      coverage map. Halve SCOPE_AMP per reload until the swing just
-    //      vanishes → that number is the PERCEPTUAL FLOOR.
-    //   B. SCOPE_AMP 0.0, raise MUSIC_GAIN (2, 3, 4…) and play → the
-    //      gain where the music reads clearly is the PLEASING GAIN.
-    // Remove this block, restore the gate, restore ROW 4's threshold
-    // (0.70) when both numbers are known.
-    let scope_ph  = fract(render_signal.t_beats * 0.5);        // 2-beat period
-    let scope_tri = abs(scope_ph * 2.0 - 1.0) * 2.0 - 1.0;     // linear, [-1,1]
-    let SCOPE_AMP  = 0.25;
-    let MUSIC_GAIN = 1.0;
     fields.discrete_color = discrete_cell_color(world_xz, cell_gx, cell_gz, cell_seed,
-                                                config.checker_mean_offset * MUSIC_GAIN
-                                                    + vec3(scope_tri * SCOPE_AMP),
-                                                config.checker_variance_gain);
+                                                config.checker_mean_offset, config.checker_variance_gain);
     fields.cell_roll = hash_property(cell_seed, 900u);
     fields.sparse_roll = hash_property(cell_seed, 910u);
 
