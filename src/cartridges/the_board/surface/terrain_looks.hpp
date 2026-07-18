@@ -92,7 +92,8 @@ inline constexpr float PALETTE_WEIGHT_REST[4] = {
 //   intensity [0,1], discrete tier id).
 // CONSUMER: cartridge.hpp boot-pin → set_band_motion / set_terrain_time
 //   / set_mode_color_shift / set_mode_checker_scatter /
-//   set_mode_palette_drift → config uniform → WGSL rows 3/5/7 readers.
+//   set_mode_palette_drift / set_checker_color_field → config uniform
+//   → WGSL rows 3/5/7 readers.
 inline constexpr float REST_TERRAIN_TIME = 0.0f;                    // frozen clock
 inline constexpr float REST_BAND_BLEND[6] =                        // all bands inactive
     { -1.0f, -1.0f, -1.0f, -1.0f, -1.0f, -1.0f };
@@ -102,6 +103,17 @@ inline constexpr float REST_MODE_CHECKER_SCATTER = 0.0f;           // no sparse 
 inline constexpr float REST_MODE_PALETTE_DRIFT_TARGET = 0.0f;      // (unread while
 inline constexpr float REST_MODE_PALETTE_DRIFT_INTENSITY = 0.0f;   //  intensity 0)
 inline constexpr float REST_MODE_PALETTE_DRIFT_TIER = 0.0f;
+// CHECKER-1 (LIVE, gen-2 — the first driven surface wire): the checker
+// vocabulary's deviation. Mean offset composes (+) over the seed
+// region means, variance gain composes (×) over the seed spreads
+// (world.wgsl discrete_cell_color / _at_tier). RESTS are the identity
+// elements of + and × — law, not taste. THE WIRE:
+// <CHECKER_VOICE>.dft_mag → CHECKER_MATRIX (coupling/visual_canvas.hpp,
+// the tunable home) → terrain.checker_* bank pipes →
+// set_checker_color_field (U4) → config → WGSL. Read every 4 beats,
+// full-span portamento.
+inline constexpr float REST_CHECKER_MEAN_OFFSET[3] = { 0.0f, 0.0f, 0.0f };
+inline constexpr float REST_CHECKER_VARIANCE_GAIN = 1.0f;
 
 // ── ROWS 3-8 — see the WGSL room (world.wgsl §2.2 TERRAIN_LOOKS) ────
 //   ROW 3 PALETTE COMPOSITION: PALETTE_DOMINANT_WEIGHT / _MINOR_WEIGHT

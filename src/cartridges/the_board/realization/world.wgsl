@@ -1577,6 +1577,12 @@ struct DesignConfig {
 // today's stillness. The mode trio is DRIVERLESS since the gen-1
 // retirement: driver-ready dials held at rest, read by
 // animated_cell_color / _lut (mode_bias, sparse_bias, drift).
+// CHECKER-1 (LIVE, gen-2): config.checker_mean_offset /
+// checker_variance_gain rest at REST_CHECKER_* (C++ ROW 2); driver =
+// the visual canvas's spectrum matrix (<voice>.dft_mag, 4-beat
+// sample-and-hold, full-span portamento); consumed by
+// discrete_cell_color / _at_tier — mean (+), variance (×); the bake
+// passes identity (seam-proof by law).
 
 // ── ROW 3 — PALETTE COMPOSITION ─────────────────────────────────────
 // How the quartet becomes a color: the dominant-branch matrix weights
