@@ -85,6 +85,7 @@
 
 #include <array>
 #include <cstdint>
+#include <cstdio>
 #include <initializer_list>
 
 namespace t7 {
@@ -140,6 +141,8 @@ public:
         publish_reading(Reading::DftPhase,     all, "all.dft_phase");
 
         port_.open_by_name("loopMIDI");   // the DAW's virtual port
+
+        std::fprintf(stderr, "[canvas] loopMIDI open=%d\n", (int)port_.is_open());
     }
 
     void update(float dt) override {
@@ -148,6 +151,25 @@ public:
         const float beat = static_cast<float>(port_.beats());   // the DAW's clock
         MidiEvent ev[256];
         const int n = port_.poll(beat, ev, 256);
+
+        // ── PROBE (temporary — chord forensics at the port's mouth) ──
+        // Prints every event the port delivers, RAW, before routing —
+        // below every reading, so whatever appears here is the parser's
+        // own testimony. Hold ONE triad once: three distinct "on"
+        // pitches (one frame or split across two) = the parser is
+        // innocent and suspicion moves up-chain; one "on" per chord =
+        // simultaneity dies in the parser — convicted. A non-on event
+        // prints as "off" (the stream's own reading of it). `beat`
+        // rides along to witness the DAW clock. Remove after verdict.
+        if (n > 0) {
+            std::fprintf(stderr, "[port] beat=%.2f n=%d :", beat, n);
+            for (int i = 0; i < n && i < 8; ++i)
+                std::fprintf(stderr, " %s ch%d p%d v%.2f",
+                    ev[i].type == MidiEvent::NOTE_ON ? "on" : "off",
+                    (int)ev[i].channel, (int)ev[i].pitch, ev[i].velocity);
+            std::fprintf(stderr, "\n");
+        }
+
         for (int i = 0; i < n; ++i) route(ev[i]);
         advance(beat);
     }
@@ -350,11 +372,13 @@ private:
 
     // What an analysis must supply for a reading to be available. The present is
     // always maintained, so present-only readings need nothing; the window
-    // readings — and the field, which reads the present-and-window set — need a
-    // wagon; the line readings need the spine.
+    // readings — the field (present-and-window set) and the pc-DFT
+    // (window-length vector) among them — need a wagon; the line
+    // readings need the spine.
     static bool reading_needs_window(Reading r) {
         return r == Reading::WindowCount || r == Reading::WindowLength
-            || r == Reading::Field;
+            || r == Reading::Field
+            || r == Reading::DftMag || r == Reading::DftPhase;
     }
     static bool reading_needs_spine(Reading r) {
         return r == Reading::CurrentPC || r == Reading::Distance;
@@ -440,14 +464,19 @@ private:
             case Reading::DftMag:
             case Reading::DftPhase: {
                 // THE COMPOUND STRATUM: the pc-DFT of the PUBLISHED
-                // present-count vector — the same 12 floats slots 0-11
-                // carry, dressed to D first (the DFT reads what ships,
-                // not raw state). REST: zero vector → mags 0, phases
+                // window-length vector — pc_length(playhead, wagon(0)):
+                // the whole 4-beat collection, present + completed,
+                // duration-weighted, dressed to D first (the DFT reads
+                // what ships, not raw state). THE APERTURE IS PART OF
+                // THE INSTRUMENT'S MEANING: a spectrum is a property of
+                // a body of material, and the instant is not a body —
+                // the present-count feed (gen-1) was starved by design
+                // and is retired. REST: zero vector → mags 0, phases
                 // HOLD-LAST per channel (the hold lives with the entry,
                 // like the held field — consumers fading on mag never
                 // see phase snap).
                 const VectorDressing to_D{ /*reorigin*/ true, PROJECT_PC_ORIGIN, VectorDressing::Scale::None };
-                const PitchClassVector v = dress(reading_vector(Reading::PresentCount, p.source_mask), to_D);
+                const PitchClassVector v = dress(reading_vector(Reading::WindowLength, p.source_mask), to_D);
                 float l1 = 0.0f;
                 for (int i = 0; i < 12; ++i) l1 += v.v[i];
                 const PcDft d = pc_dft(v);
