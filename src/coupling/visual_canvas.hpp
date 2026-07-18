@@ -30,6 +30,15 @@
 // update() after the signal, and flushes fog — density and color —
 // from params() to set_fog. Fog has one driver: the field.
 //
+// CHECKER-1 — the terrain's checker voice. <CHECKER_VOICE>.dft_mag
+// (six interval-family magnitudes) → THE SPECTRUM MATRIX → checker
+// median offset (rgb) + variance gain, sample-and-held on the
+// absolute CHECKER_READ_SPAN grid with a full-span portamento (each
+// glide LANDS exactly as the next reading is taken). The cartridge
+// flushes terrain.checker_* through set_checker_color_field in U4,
+// beside fog; the GPU composes the pair over the seed draws (+ / ×)
+// in discrete_cell_color / _at_tier.
+//
 // USAGE
 //   visual_canvas_.bind(analysis_layout);          // startup
 //   visual_canvas_.tick(signal);                   // per frame, after analysis
@@ -39,13 +48,16 @@
 //   float density = visual_canvas_.params().get(d.base);       // entity flush
 //
 // Depends on: coupling/visual_params.hpp, coupling/trajectory.hpp,
-//             musical/signal_layout.hpp, analysis/analysis_signal.hpp.
+//             musical/signal_layout.hpp, analysis/analysis_signal.hpp,
+//             <string>, <cmath>, <algorithm>.
 
 #include "coupling/visual_params.hpp"
 #include "coupling/trajectory.hpp"
 #include "musical/signal_layout.hpp"
 #include "analysis/analysis_signal.hpp"
-#include <string>   // casting-sheet name composition ("<voice>.present_count")
+#include <string>    // casting-sheet name composition ("<voice>.present_count")
+#include <cmath>     // std::floor — CHECKER-1's grid cursor
+#include <algorithm> // std::min/std::max — CHECKER-1's decode clamps
 
 namespace t7 {
 
@@ -135,6 +147,49 @@ namespace t7 {
     inline constexpr float TINT_D1[3] = { 0.8165f, -0.4082f, -0.4082f };
     inline constexpr float TINT_D2[3] = { 0.0f,     0.7071f, -0.7071f };
 
+    // ── CHECKER-1 (color gen-2, the terrain's checker voice) ─────────
+    // THE SPECTRUM MATRIX: <voice>.dft_mag (six interval families,
+    // L1-normalized [0,1], origin D) → checker median offset (rgb) +
+    // variance gain, composed over the seed draws GPU-side (+ / ×).
+    //
+    //   offset_c = clamp( Σ_k RGB[c][k]·mag[k],  ±CHECKER_MEAN_MAX )
+    //   gain     = clamp( 1 + Σ_k V[k]·mag[k],   GAIN_MIN..GAIN_MAX )
+    //
+    // SAMPLE-AND-HOLD: goals re-read on the absolute CHECKER_READ_SPAN
+    // beat grid; trajectory_release spans the full cycle, so each
+    // portamento LANDS exactly as the next reading is taken. Silence
+    // publishes zero mags → identity in one cycle, no branch.
+    inline constexpr const char* CHECKER_VOICE = "ch2";   // casting sheet; live prefix verified (chN)
+    inline constexpr float CHECKER_READ_SPAN = 4.0f;      // beats — read cadence AND glide span (one number)
+    //
+    // RGB ROWS — the hexagonal seating, stated as a recipe so a
+    // reseating regenerates the numbers mechanically:
+    //   col_k = CHROMA · ( cos(θ_k)·TINT_D1 + sin(θ_k)·TINT_D2 ),
+    //   θ_k = CHECKER_ORIGIN + (k−1)·60°  (shared basis ⇒ cross-voice
+    //   hue equivariance with the ribbon's compass).
+    // Antipodal columns ⇒ every RGB row sums to ZERO: a lone sustained
+    // note (all six bins = 1) displaces NOTHING — only harmonic SHAPE
+    // moves the color. The V row is authored free-hand, also zero-sum
+    // (same lone-note identity): clusters (f1) scatter the checkers,
+    // diatonic clarity (f5) tightens them. Tunable — edit cells
+    // directly, or re-run the recipe after moving ORIGIN/CHROMA.
+    inline constexpr float CHECKER_ORIGIN = 0.0f;   // radians — rotates the family seating
+    inline constexpr float CHECKER_CHROMA = 0.30f;  // hexagon radius (offset strength)
+    //                                            f1        f2        f3        f4        f5        f6
+    //                                          chroma     dyads    triads     octa    fifths   whole-t
+    inline constexpr float CHECKER_MATRIX_RGB[3][6] = {
+        /* ΔR */ {  0.2450f,  0.1225f, -0.1225f, -0.2450f, -0.1225f,  0.1225f },
+        /* ΔG */ { -0.1225f,  0.1225f,  0.2450f,  0.1225f, -0.1225f, -0.2450f },
+        /* ΔB */ { -0.1225f, -0.2450f, -0.1225f,  0.1225f,  0.2450f,  0.1225f },
+    };
+    inline constexpr float CHECKER_MATRIX_V[6] =
+        /* V  */ {  0.60f,    0.10f,   -0.20f,    0.30f,   -0.60f,   -0.20f  };
+    // CPU clamps — the pathology fence lives in the decode, never the
+    // shader (the shader only adds and multiplies):
+    inline constexpr float CHECKER_MEAN_MAX = 0.35f;   // per-channel |offset| ceiling
+    inline constexpr float CHECKER_GAIN_MIN = 0.25f;   // variance-gain floor
+    inline constexpr float CHECKER_GAIN_MAX = 2.50f;   //   and ceiling (seed var .02–.25 × this)
+
     // ═══ MASTER CONTROL PANEL ════════════════════════════════════════════════════
     // The one place every exposed pipe is declared — name, slot, width, and the
     // value it rests at. Slots are assigned here, by hand, in this single table, so
@@ -153,6 +208,12 @@ namespace t7 {
         { "ribbon.amp_vertical_mult", 5, 1, 1.0f },
         { "ribbon.color_stim", 6, 3, 0.0f },
         { "ribbon.color_mix",  9, 1, 0.0f },
+        // ── terrain (CHECKER-1) ── the checker vocabulary's deviation,
+        // composed GPU-side over the seed draws; rests are the identity
+        // elements of + and × (law, not taste — the_board's authored
+        // home: terrain_looks ROW 2 REST_CHECKER_*).
+        { "terrain.checker_mean", 10, 3, 0.0f },
+        { "terrain.checker_var",  13, 1, 1.0f },
     };
     inline constexpr uint32_t PARAM_LAYOUT_COUNT =
         sizeof(PARAM_LAYOUT) / sizeof(PARAM_LAYOUT[0]);
@@ -214,6 +275,22 @@ namespace t7 {
             for (int c2 = 0; c2 < 3; ++c2)
                 tint_stim_seg_[c2] = Segment{ 0.0f, 0.0f, 0.0f, 0.0f };
             tint_mix_seg_ = Segment{ 0.0f, 0.0f, 0.0f, 0.0f };
+
+            // CHECKER-1 (the terrain's checker voice): the voice's
+            // spectrum drives the checker field.
+            {
+                std::string v(CHECKER_VOICE);
+                checker_dft_ = signal_layout_.resolve((v + ".dft_mag").c_str());
+            }
+            checker_mean_ = param_layout_.resolve("terrain.checker_mean");
+            checker_var_  = param_layout_.resolve("terrain.checker_var");
+            for (int c2 = 0; c2 < 3; ++c2) {
+                checker_mean_goal_[c2] = 0.0f;
+                checker_mean_seg_[c2] = Segment{ 0.0f, 0.0f, 0.0f, 0.0f };
+            }
+            checker_var_goal_ = 1.0f;
+            checker_var_seg_  = Segment{ 1.0f, 1.0f, 0.0f, 0.0f };
+            checker_next_read_ = 0.0f;   // first frame reads, then grid-locks
         }
 
         // One frame: run every coupling — read its source, decode inline, carry the
@@ -318,6 +395,41 @@ namespace t7 {
                         (mix_goal == 0.0f ? TINT_MIX_RELEASE : TINT_MIX_ATTACK)));
             }
 
+            // ── CHECKER-1 (spectrum → checker median + spread) ──────
+            // SAMPLE-AND-HOLD on the absolute beat grid: at each
+            // crossing, read the six family magnitudes, form goals
+            // through the matrix (CPU clamps), re-anchor the cursor.
+            // Every frame the Segments glide on the full span — MOVE's
+            // exact arrival lands each portamento precisely as the
+            // next reading is taken. Silence → zero mags → identity in
+            // one cycle, no branch.
+            if (checker_dft_.valid && checker_mean_.valid && checker_var_.valid) {
+                if (beat >= checker_next_read_) {
+                    float mag[6];
+                    for (int k = 0; k < 6; ++k)
+                        mag[k] = signal.stat(checker_dft_.channel, checker_dft_.base + k);
+                    for (int c2 = 0; c2 < 3; ++c2) {
+                        float o = 0.0f;
+                        for (int k = 0; k < 6; ++k) o += CHECKER_MATRIX_RGB[c2][k] * mag[k];
+                        checker_mean_goal_[c2] =
+                            std::max(-CHECKER_MEAN_MAX, std::min(CHECKER_MEAN_MAX, o));
+                    }
+                    float g = 1.0f;
+                    for (int k = 0; k < 6; ++k) g += CHECKER_MATRIX_V[k] * mag[k];
+                    checker_var_goal_ =
+                        std::max(CHECKER_GAIN_MIN, std::min(CHECKER_GAIN_MAX, g));
+                    checker_next_read_ =
+                        (std::floor(beat / CHECKER_READ_SPAN) + 1.0f) * CHECKER_READ_SPAN;
+                }
+                for (int c2 = 0; c2 < 3; ++c2)
+                    params_.set(checker_mean_.base + c2,
+                        trajectory_release(checker_mean_seg_[c2],
+                            checker_mean_goal_[c2], beat, CHECKER_READ_SPAN));
+                params_.set(checker_var_.base,
+                    trajectory_release(checker_var_seg_,
+                        checker_var_goal_, beat, CHECKER_READ_SPAN));
+            }
+
             last_beat_ = beat;   // single write, shared by the swell's hold clock
         }
 
@@ -352,6 +464,16 @@ namespace t7 {
         TargetBinding tint_mix_{};
         Segment       tint_stim_seg_[3]{};
         Segment       tint_mix_seg_{};
+
+        // ── checker coupling state (CHECKER-1: spectrum color field) ─
+        SourceBinding checker_dft_{};        // "<CHECKER_VOICE>.dft_mag" — six family magnitudes
+        float    checker_next_read_ = 0.0f;  // next absolute grid beat (sample-and-hold cursor)
+        float    checker_mean_goal_[3] = {}; // goals held between reads (offset rgb)
+        float    checker_var_goal_ = 1.0f;   //   and the variance gain
+        TargetBinding checker_mean_{};
+        TargetBinding checker_var_{};
+        Segment       checker_mean_seg_[3]{};
+        Segment       checker_var_seg_{};
     };
 
 } // namespace t7
