@@ -190,10 +190,11 @@ namespace t7 {
         { "ribbon.amp_vertical_mult", 5, 1, 1.0f },
         { "ribbon.color_stim", 6, 3, 0.0f },
         { "ribbon.color_mix",  9, 1, 0.0f },
-        // ── terrain (CHECKER-1) ── the checker vocabulary's deviation,
-        // composed GPU-side over the seed draws; rests are the identity
-        // elements of + and × (law, not taste — the_board's authored
-        // home: terrain_looks ROW 2 REST_CHECKER_*).
+        // ── terrain (CHECKER-2, the wheel) ── the checker vocabulary's
+        // response vector (x, y, spare) + the dormant spread gain;
+        // rests are the identities of the rotation-mix and of × (law,
+        // not taste — the_board's authored home: terrain_looks ROW 2
+        // REST_CHECKER_*).
         { "terrain.checker_mean", 10, 3, 0.0f },
         { "terrain.checker_var",  13, 1, 1.0f },
     };

@@ -508,17 +508,20 @@ namespace t7 {
             float palette_light[4][4];    // [palette] = {r,g,b,pad}
             float palette_weight[4];      // selection probabilities
 
-            // ─── CHECKER-1: the spectrum color field ────────────────
-            // The checker vocabulary's live deviation, composed over
-            // the seed draws at the vocabulary's consumption point
-            // (world.wgsl discrete_cell_color / _at_tier):
-            //   mean' = region_mean + checker_mean_offset   (+)
-            //   var'  = region_var  × checker_variance_gain (×)
-            // REST = (0,0,0 / 1) — the identity elements of + and ×;
-            // bake callers pass identity literals, so patches bake at
-            // rest by construction (seam-proof). Driver: the visual
-            // canvas (CHECKER-1 matrix), flushed at U4. Mirrors
-            // world.wgsl DesignConfig: vec3 + f32, one 16-byte slot.
+            // ─── CHECKER-2: THE WHEEL ───────────────────────────────
+            // The 16-byte slot RE-SEMANTICIZED, not resized (layout
+            // frozen; the sizeof witness stands). [0..1] = the chroma-
+            // circle resultant of the voice's window spectrum, FIRST
+            // MOMENT: angle = where the collection's mass sits (origin
+            // D = home = zero turn), length = commitment [0,1]. [2]
+            // spare. w = variance gain (DORMANT, rest 1 — the spread
+            // wire awaits its own stamp). GPU applies a per-cell hue
+            // ROTATION about the gray axis, mixed by commitment ×
+            // region receptivity (world.wgsl discrete_cell_color /
+            // _at_tier). REST = the zero vector — identity by anatomy;
+            // bake callers pass identity literals (seam-proof). Driver:
+            // the visual canvas, flushed at U4. Mirrors world.wgsl
+            // DesignConfig: vec3 + f32, one 16-byte slot.
             float checker_mean_offset[3];
             float checker_variance_gain;
         };
@@ -2316,8 +2319,8 @@ namespace t7 {
                     configDirty_ = true;
                 }
             }
-            // CHECKER-1: the spectrum color field — one call carries
-            // the fan (offset rgb + variance gain travel on one span).
+            // CHECKER-2: the wheel — one call carries the fan (wheel
+            // x, y, spare + variance gain travel on one span).
             // Clamping lives in the coupling decode, never here.
             void set_checker_color_field(const float offset[3], float gain) {
                 if (config_.checker_mean_offset[0] != offset[0]

@@ -103,15 +103,17 @@ inline constexpr float REST_MODE_CHECKER_SCATTER = 0.0f;           // no sparse 
 inline constexpr float REST_MODE_PALETTE_DRIFT_TARGET = 0.0f;      // (unread while
 inline constexpr float REST_MODE_PALETTE_DRIFT_INTENSITY = 0.0f;   //  intensity 0)
 inline constexpr float REST_MODE_PALETTE_DRIFT_TIER = 0.0f;
-// CHECKER-1 (LIVE, gen-2 — the first driven surface wire): the checker
-// vocabulary's deviation. Mean offset composes (+) over the seed
-// region means, variance gain composes (×) over the seed spreads
-// (world.wgsl discrete_cell_color / _at_tier). RESTS are the identity
-// elements of + and × — law, not taste. THE WIRE:
-// <CHECKER_VOICE>.dft_mag → CHECKER_MATRIX (coupling/visual_canvas.hpp,
-// the tunable home) → terrain.checker_* bank pipes →
+// CHECKER-2 (THE WHEEL): the checker vocabulary's live response —
+// the window spectrum's first-moment resultant (angle = the
+// collection's median seat, origin D = home; length = commitment)
+// turns each cell's own seed color about the gray axis, mixed by
+// commitment × region receptivity (world.wgsl discrete_cell_color /
+// _at_tier; dials §2.2 ROW 5). RESTS unchanged and still law: the
+// zero vector is the rotation-mix identity, 1 the dormant gain's.
+// WIRE: <voice>.dft_phase[0] + dft_mag[0] → the wheel vector
+// (coupling/visual_canvas.hpp) → terrain.checker_* bank pipes →
 // set_checker_color_field (U4) → config → WGSL. Read every 4 beats,
-// full-span portamento.
+// full-span vector glide (through gray, never a wrap).
 inline constexpr float REST_CHECKER_MEAN_OFFSET[3] = { 0.0f, 0.0f, 0.0f };
 inline constexpr float REST_CHECKER_VARIANCE_GAIN = 1.0f;
 
