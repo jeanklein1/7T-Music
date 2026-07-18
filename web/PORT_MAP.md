@@ -648,6 +648,18 @@ staged PatchParams copies) → frustum cull (4 wg) + indirect copy → LOD0
 rehearsal: BOOT OK, census check passed, **225/225 patches generated (lod0 52,
 render 164), 0 errors / 0 warnings**; stage-2 first pixel ~1.3 s (software).
 
+> **Correction (post-investigation):** the container harness loses the WebGPU
+> device ~1.3 s in **regardless of workload** (clear-only frames die too — an
+> environmental SwiftShader/headless teardown, twice-created Vulkan instance in
+> the logs). So the rehearsal proves validation, pipeline creation, and the
+> first submits — it does NOT prove full GPU execution; post-loss "generation"
+> was no-op'd. The page now surfaces device-loss and GPU errors in the on-page
+> overlay plus a diag line (cull count, heights near origin), so a single
+> screenshot from real hardware settles execution truth. Jean's first hardware
+> run showed the same silent-blank signature; his instrumented re-run is the
+> deciding evidence. Dev bisect params: `?skip=draw|cull|lod0|lod1|gen`,
+> `?capture=1` (canvas → console data URL).
+
 Census-check catch: `patch_terrain_fs` statically uses `tile_grid` (g0 b25) —
 missed in the hand-authored layout, caught by `createRenderPipelineAsync`
 exactly as §2b.3 intends; reflector ub-counts were right.

@@ -3,6 +3,11 @@
 ###############################################################################
 * text=auto
 
+# WGSL stays LF on every platform: web/shaders/world.wgsl is a byte-identical
+# MIRROR of the desktop shader (see CLAUDE.md mirror doctrine) and the sidecar
+# records its sha256 — CRLF checkout on Windows would silently break both.
+*.wgsl text eol=lf
+
 ###############################################################################
 # Set default behavior for command prompt diff.
 #

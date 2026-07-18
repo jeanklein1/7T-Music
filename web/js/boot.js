@@ -17,6 +17,9 @@ import { TerrainStreamer, encodeCullAndDraw } from './passes/terrain.js';
 
 const statusEl = document.getElementById('status');
 const canvas   = document.getElementById('stage');
+const CAPTURE  = new URLSearchParams(location.search).has('capture');
+const SKIP     = new URLSearchParams(location.search).get('skip') || '';   // dev bisect: draw|cull|lod0|lod1
+let finishCapture = null;
 
 const statusLines = [];
 function show(line) {
@@ -63,8 +66,16 @@ if (adapter.info) log(`adapter info — ${adapter.info.vendor || '?'} / ${adapte
 t0 = performance.now();
 const device = await adapter.requestDevice();
 timed('device request', performance.now() - t0);
-device.lost.then((info) => console.error('[7T] device lost: ' + info.message));
-device.addEventListener('uncapturederror', (e) => console.error('[7T] uncaptured error: ' + e.error.message));
+/* Surface GPU failures in the on-page overlay too — a lost device otherwise
+   looks like a silently blank canvas while the JS keeps narrating. */
+device.lost.then((info) => {
+  console.error('[7T] device lost: ' + info.message);
+  show('*** DEVICE LOST (' + info.reason + '): ' + info.message + ' ***');
+});
+device.addEventListener('uncapturederror', (e) => {
+  console.error('[7T] uncaptured error: ' + e.error.message);
+  show('*** GPU ERROR: ' + e.error.message.slice(0, 160) + ' ***');
+});
 
 /* --- surface ----------------------------------------------------------------- */
 const ctx    = canvas.getContext('webgpu');
@@ -158,7 +169,7 @@ clearShadowMaps(device, R);
 const config = makeConfig(device, R.config);
 const signal = makeSignal(device, R.signal, PALETTE);
 R.aspect = canvas.width / Math.max(canvas.height, 1);
-writeInterimCamera(device, R);
+const EYE_Y = writeInterimCamera(device, R)[1];
 writeLights(device, R);
 config.flush();
 
@@ -168,10 +179,59 @@ timed('time to first pixel — stage 1 (clear)', performance.now() - tBoot);
 log('boot ok — streaming terrain…');
 console.log('[7T] BOOT OK');
 
+/* --- diagnostics (dev; runs once when the window completes) -------------------
+   Reads back (a) the frustum-cull instance count — a broken VP culls everything,
+   and (b) heightfield texels around the origin — tells us if the interim camera
+   sits inside the terrain. f16 decode is inline (rgba16float texels). */
+function f16(bits) {
+  const s = (bits & 0x8000) ? -1 : 1, e = (bits >> 10) & 0x1f, m = bits & 0x3ff;
+  if (e === 0) return s * m * 2 ** -24;
+  if (e === 31) return m ? NaN : s * Infinity;
+  return s * (1 + m / 1024) * 2 ** (e - 15);
+}
+async function runDiagnostics() {
+  try {
+    await runDiagnosticsInner();
+  } catch (e) {
+    console.warn('[7T] diag skipped: ' + e.message);
+    finishCapture?.();
+  }
+}
+async function runDiagnosticsInner() {
+  const cullStg = device.createBuffer({ label: 'diag cull', size: 20, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
+  const texStg  = device.createBuffer({ label: 'diag tex', size: 256, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
+  const layer = terrain.patches.get('0,0')?.layer ?? 0;
+  const enc = device.createCommandEncoder({ label: 'diag' });
+  enc.copyBufferToBuffer(R.frustumCompute, 0, cullStg, 0, 20);
+  enc.copyTextureToBuffer(
+    { texture: R.heightfield, origin: { x: 0, y: 0, z: layer } },
+    { buffer: texStg, bytesPerRow: 256 }, { width: 32, height: 1 });
+  device.queue.submit([enc.finish()]);
+  await Promise.all([cullStg.mapAsync(GPUMapMode.READ), texStg.mapAsync(GPUMapMode.READ)]);
+  const cull = new Uint32Array(cullStg.getMappedRange());
+  const tx = new Uint16Array(texStg.getMappedRange());
+  const heights = [0, 8, 16, 24, 31].map((i) => f16(tx[i * 4]).toFixed(2));
+  log(`diag — cull kept ${cull[1]} of ${terrain.counts.lod0} lod0; ` +
+      `heights near origin: ${heights.join(', ')} (eye y ${EYE_Y.toFixed(1)})`);
+  cullStg.unmap(); texStg.unmap();
+  // dev capture (?capture=1): downscaled canvas → data URL in the console, so
+  // the headless harness (or a bug report) carries the actual pixels
+  if (CAPTURE) {
+    setTimeout(() => {
+      const c2 = document.createElement('canvas');
+      c2.width = 320; c2.height = 200;
+      c2.getContext('2d').drawImage(canvas, 0, 0, 320, 200);
+      console.log('[7T] CAPTURE ' + c2.toDataURL('image/png'));
+      finishCapture?.();
+    }, 800);
+  }
+}
+
 /* --- frame -------------------------------------------------------------------- */
 let last = performance.now();
 let firstTerrainFrame = true;
 let streamed = 0;
+if (SKIP.includes('gen')) setTimeout(runDiagnostics, 4000);   // dev: probe device survival with no work submitted
 
 function frame(now) {
   const dt = Math.min((now - last) / 1000, 0.05); last = now;
@@ -181,12 +241,12 @@ function frame(now) {
   signal.frame(now / 1000, dt, canvas.width / Math.max(canvas.height, 1));
 
   const enc = device.createCommandEncoder();
-  const n = terrain.encode(enc);           // stream_patches: params copy + 3 dispatches per patch
+  const n = SKIP.includes('gen') ? 0 : terrain.encode(enc);   // stream_patches: params copy + 3 dispatches per patch
   config.flush();                          // placement_patch_count / lod_point after banding
   encodeCullAndDraw(device, R, enc,
     ctx.getCurrentTexture().createView(), depthTex.createView(),
     { r: PALETTE.ink[0], g: PALETTE.ink[1], b: PALETTE.ink[2], a: 1 },
-    terrain.counts);
+    terrain.counts, SKIP);
   device.queue.submit([enc.finish()]);
 
   if (n > 0) {
@@ -194,6 +254,7 @@ function frame(now) {
     if (streamed >= terrain.patches.size && terrain.pending.length === 0) {
       log(`terrain window complete — ${streamed} patches (lod0 ${terrain.counts.lod0}, ` +
           `render ${terrain.counts.render}, all ${terrain.counts.all})`);
+      runDiagnostics();
     }
   }
   if (firstTerrainFrame && terrain.counts.render > 0) {
@@ -205,3 +266,14 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
+
+/* ?capture=1 holds the module (and so the page load event) open until the
+   canvas capture has been logged — the headless harness exits on load, and
+   an early exit tears the device down mid-diagnostics. Normal loads skip
+   this entirely. */
+if (CAPTURE) {
+  await new Promise((res) => {
+    finishCapture = res;
+    setTimeout(res, 60000);   // safety: never hold load forever
+  });
+}

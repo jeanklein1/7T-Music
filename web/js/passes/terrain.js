@@ -181,15 +181,20 @@ export class TerrainStreamer {
 /* Frustum cull + terrain draws — RENDER_SPINE R17/R19 terrain slice. */
 const INDIRECT_RESET = new Uint32Array([D.PATCH_INDEX_COUNT, 0, 0, 0, 0]);
 
-export function encodeCullAndDraw(device, R, enc, colorView, depthView, clearValue, counts) {
+export function encodeCullAndDraw(device, R, enc, colorView, depthView, clearValue, counts, skip = '') {
   // R17 — reset args, cull, copy to the indirect buffer
   device.queue.writeBuffer(R.frustumCompute, 0, INDIRECT_RESET);
-  const cpass = enc.beginComputePass({ label: 'frustum cull' });
-  cpass.setPipeline(R.pipeCull);
-  cpass.setBindGroup(0, R.frustumBG);
-  cpass.dispatchWorkgroups(4, 1, 1);   // 256 threads; LOD0 packs first (desktop-matched)
-  cpass.end();
+  if (!skip.includes('cull')) {
+    const cpass = enc.beginComputePass({ label: 'frustum cull' });
+    cpass.setPipeline(R.pipeCull);
+    cpass.setBindGroup(0, R.frustumBG);
+    cpass.dispatchWorkgroups(4, 1, 1);   // 256 threads; LOD0 packs first (desktop-matched)
+    cpass.end();
+  }
   enc.copyBufferToBuffer(R.frustumCompute, 0, R.frustumIndirect, 0, 20);
+  if (skip.includes('draw')) counts = { lod0: 0, render: 0, all: counts.all };
+  if (skip.includes('lod0')) counts = { ...counts, lod0: 0, render: counts.render };   // still draws LOD1 direct
+  if (skip.includes('lod1')) counts = { ...counts, render: counts.lod0 };              // only LOD0 indirect
 
   // R19 — main pass: LOD0 indirect + LOD1 direct
   const rpass = enc.beginRenderPass({
@@ -202,9 +207,11 @@ export function encodeCullAndDraw(device, R, enc, colorView, depthView, clearVal
   if (counts.render > 0) {
     rpass.setBindGroup(0, R.renderEntityBG);
     rpass.setBindGroup(1, R.renderTextureBG);
-    rpass.setPipeline(R.pipeTerrainIndirect);
-    rpass.setIndexBuffer(R.patchIB, 'uint32');
-    rpass.drawIndexedIndirect(R.frustumIndirect, 0);
+    if (counts.lod0 > 0) {
+      rpass.setPipeline(R.pipeTerrainIndirect);
+      rpass.setIndexBuffer(R.patchIB, 'uint32');
+      rpass.drawIndexedIndirect(R.frustumIndirect, 0);
+    }
     const lod1Count = counts.render - counts.lod0;
     if (lod1Count > 0) {
       rpass.setPipeline(R.pipeTerrainDirect);

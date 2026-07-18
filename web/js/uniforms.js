@@ -88,7 +88,13 @@ export function makeSignal(device, buffer, palette) {
    column-major column-vector (clip = m * world). light_vp = identity
    (shadow maps are neutral 1.0 until the shadow pass lifts). */
 export function writeInterimCamera(device, R) {
-  const az = 0.0, el = 0.4, dist = 30.0;
+  /* Raised from the desktop boot orbit (el 0.4, dist 30 → eye y ≈ 11.7): the
+     desktop camera ground-clamps every frame and this interim one cannot, so
+     a mountainous origin tile could swallow it. dist 130 puts the eye at
+     y ≈ 50 — above any boot-state terrain (amp ≤ ~2.3, bias ≤ ~4.5, waves
+     frozen) — looking down at the window center. Replaced by the camera/vp
+     family next in the lift order. */
+  const az = 0.0, el = 0.4, dist = 130.0;
   const eye = [Math.sin(az) * Math.cos(el) * dist, Math.sin(el) * dist, Math.cos(az) * Math.cos(el) * dist];
   const target = [0, 0, 0], up = [0, 1, 0];
 
