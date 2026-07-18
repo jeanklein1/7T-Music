@@ -13,7 +13,7 @@ function normalize3(x, y, z) {
 }
 
 export function makeConfig(device, buffer) {
-  const ab = new ArrayBuffer(560);
+  const ab = new ArrayBuffer(576);   // 560 + CHECKER-1 checker pair (see @560 below)
   const f = new Float32Array(ab), u = new Uint32Array(ab);
   let dirty = true;
 
@@ -44,6 +44,10 @@ export function makeConfig(device, buffer) {
   f.set([0.92, 0.82, 0.65, 0,  0.95, 0.72, 0.62, 0,
          0.62, 0.72, 0.52, 0,  0.92, 0.72, 0.58, 0], 120);
   f.set([0.42, 0.28, 0.04, 0.26], 136);
+  // CHECKER-1 spectrum pair @560 — checker_mean_offset(0,0,0) zero-init;
+  // checker_variance_gain=1.0 @572 → coupling inert (REST_CHECKER_*, a beat-driven
+  // pipe; the audio wiring belongs to Phase 3 like the other music couplings).
+  f[143] = 1.0;
 
   return {
     setPlacementPatchCount(n) { u[36] = n; dirty = true; },     // @144

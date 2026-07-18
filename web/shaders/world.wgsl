@@ -1294,7 +1294,8 @@ fn discrete_mono_at(world_xz: vec2<f32>) -> f32 {
 }
 
 // Generate a discrete cell color from the region field + per-cell seed.
-fn discrete_cell_color(world_xz: vec2<f32>, cell_gx: i32, cell_gz: i32, cell_seed: u32) -> vec3<f32> {
+fn discrete_cell_color(world_xz: vec2<f32>, cell_gx: i32, cell_gz: i32, cell_seed: u32,
+                       mean_offset: vec3<f32>, var_gain: f32) -> vec3<f32> {
     // --- Chess board tier
     let chess = chess_field_at(world_xz);
     let chess_jitter = (hash_property(cell_seed, 815u) - 0.5) * 0.03;
@@ -1310,9 +1311,14 @@ fn discrete_cell_color(world_xz: vec2<f32>, cell_gx: i32, cell_gz: i32, cell_see
     }
 
     // --- Monochrome / tinted / full color tiers
+    // CHECKER-1: the spectrum field composes over the seed draws at
+    // the vocabulary's consumption point — mean shifts (+), spread
+    // scales (×). Identity at (0,0,0 / 1) by construction. The tinted
+    // tier inherits the moved mean through its existing mix; chess
+    // pairs, pure B&W, and the grey bases stay seed-pure anchors.
     let region = discrete_region_at(world_xz);
-    let rgb_mean = region.xyz;
-    let variance = region.w;
+    let rgb_mean = region.xyz + mean_offset;
+    let variance = region.w * var_gain;
     let mono = discrete_mono_at(world_xz);
 
     let mono_jitter = (hash_property(cell_seed, 820u) - 0.5) * 0.15;
@@ -1350,7 +1356,8 @@ fn discrete_cell_color(world_xz: vec2<f32>, cell_gx: i32, cell_gz: i32, cell_see
 //   3 = chess B&W        (0.03 or 0.95 by parity)
 //   4 = chess colorful   (chess.color_a/b by parity)
 fn discrete_cell_color_at_tier(
-    world_xz: vec2<f32>, cell_gx: i32, cell_gz: i32, cell_seed: u32, tier: u32
+    world_xz: vec2<f32>, cell_gx: i32, cell_gz: i32, cell_seed: u32, tier: u32,
+    mean_offset: vec3<f32>, var_gain: f32
 ) -> vec3<f32> {
     let bw_roll = hash_property(cell_seed, 830u);
     let parity = (cell_gx + cell_gz) & 1;
@@ -1369,14 +1376,18 @@ fn discrete_cell_color_at_tier(
         case 1u: {
             let region = discrete_region_at(world_xz);
             let base_grey = select(0.12, 0.85, bw_roll > 0.5);
-            return mix(vec3(base_grey), region.xyz, DISCRETE_TINT_STRENGTH);
+            // CHECKER-1: tint target = the moved mean (grey base stays
+            // a seed-pure anchor).
+            return mix(vec3(base_grey), region.xyz + mean_offset, DISCRETE_TINT_STRENGTH);
         }
         default: {
             let region = discrete_region_at(world_xz);
             let nr = (hash_property(cell_seed, 840u) - 0.5) * 2.0;
             let ng = (hash_property(cell_seed, 841u) - 0.5) * 2.0;
             let nb = (hash_property(cell_seed, 842u) - 0.5) * 2.0;
-            return clamp(region.xyz + vec3(nr, ng, nb) * region.w, vec3(0.0), vec3(1.0));
+            // CHECKER-1: mean (+) and spread (×) over the seed draws.
+            return clamp((region.xyz + mean_offset) + vec3(nr, ng, nb) * (region.w * var_gain),
+                         vec3(0.0), vec3(1.0));
         }
     }
 }
@@ -1490,6 +1501,13 @@ struct DesignConfig {
     palette_center: array<vec4<f32>, 4>,
     palette_light: array<vec4<f32>, 4>,
     palette_weight: vec4<f32>,
+    // ── CHECKER-1: the spectrum color field — C++ twin in
+    //    GPUDesignConfig (float[3] + float, same 16-byte slot).
+    //    mean offset composes (+), variance gain composes (×) over
+    //    the seed draws in discrete_cell_color / _at_tier. REST =
+    //    (0,0,0 / 1) — identity; bake passes identity literals.
+    checker_mean_offset: vec3<f32>,
+    checker_variance_gain: f32,
 }
 
 // §2.2 — THE TERRAIN_LOOKS PANEL (WGSL room)
@@ -1568,6 +1586,12 @@ struct DesignConfig {
 // today's stillness. The mode trio is DRIVERLESS since the gen-1
 // retirement: driver-ready dials held at rest, read by
 // animated_cell_color / _lut (mode_bias, sparse_bias, drift).
+// CHECKER-1 (LIVE, gen-2): config.checker_mean_offset /
+// checker_variance_gain rest at REST_CHECKER_* (C++ ROW 2); driver =
+// the visual canvas's spectrum matrix (<voice>.dft_mag, 4-beat
+// sample-and-hold, full-span portamento); consumed by
+// discrete_cell_color / _at_tier — mean (+), variance (×); the bake
+// passes identity (seam-proof by law).
 
 // ── ROW 3 — PALETTE COMPOSITION ─────────────────────────────────────
 // How the quartet becomes a color: the dominant-branch matrix weights
@@ -4004,10 +4028,18 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
     var base_color = color_sample.rgb;
 
     // --- Musical animation modes: re-evaluate cell color with biases
-    // Runtime guard: when the mood doesn't drive these config values, skip the LUT read.
+    // Runtime guard: every live color channel at rest -> skip the LUT
+    // read (the baked gen-time composite stands). Drivers are gen-2
+    // couplings through the visual canvas; the mood retired as author.
+    // CHECKER-1 terms use abs(): the RGB matrix is zero-sum, offsets
+    // are signed.
     let has_mode_bias = (config.mode_color_shift > 0.001)
                      || (config.mode_checker_scatter > 0.001)
-                     || (config.mode_palette_intensity > 0.001);
+                     || (config.mode_palette_intensity > 0.001)
+                     || (abs(config.checker_mean_offset.x) > 0.001)
+                     || (abs(config.checker_mean_offset.y) > 0.001)
+                     || (abs(config.checker_mean_offset.z) > 0.001)
+                     || (abs(config.checker_variance_gain - 1.0) > 0.001);
     if (has_mode_bias) {
         // Load baked spatial fields from LUT (skips 3 lattice noise chains)
         let cell_texel = clamp(
@@ -5403,7 +5435,13 @@ fn gol_composite_cell_color(world_xz: vec2<f32>) -> vec3<f32> {
     s.world_xz = world_xz;
     let palette_w = palette_field_at(world_xz);
     s.smooth_color = palette_color_smooth(palette_w, PALETTE_COMPLEXITY);
-    s.discrete_color = discrete_cell_color(world_xz, cell_gx, cell_gz, cell_seed);
+    // CHECKER-1: IDENTITY here — GoL keeps its own panel (ROW 9);
+    // RULED separate at the CHECKER-1 cut (Jean): the zones' own
+    // coupling pass is coming. STATUS: INTENT — one-line revive when
+    // that pass convenes: pass config.checker_mean_offset /
+    // config.checker_variance_gain.
+    s.discrete_color = discrete_cell_color(world_xz, cell_gx, cell_gz, cell_seed,
+                                           vec3(0.0), 1.0);
     s.mode = mode_field_at(world_xz);
     s.style = transition_style_at(world_xz);
     s.sparse = sparse_field_at(world_xz);
@@ -7354,7 +7392,9 @@ fn evaluate_cell_fields(
     world_xz: vec2<f32>,
     cell_gx: i32,
     cell_gz: i32,
-    cell_seed: u32
+    cell_seed: u32,
+    mean_offset: vec3<f32>,   // CHECKER-1: bake passes identity, live passes config
+    var_gain: f32
 ) -> CellFieldState {
     var s: CellFieldState;
     s.world_xz = world_xz;
@@ -7364,7 +7404,8 @@ fn evaluate_cell_fields(
     s.smooth_color = palette_color_smooth(palette_w, PALETTE_COMPLEXITY);
 
     // Discrete per-cell color (chess + color lattice + mono lattice)
-    s.discrete_color = discrete_cell_color(world_xz, cell_gx, cell_gz, cell_seed);
+    s.discrete_color = discrete_cell_color(world_xz, cell_gx, cell_gz, cell_seed,
+                                           mean_offset, var_gain);
 
     // Spatial fields
     s.mode = mode_field_at(world_xz);
@@ -7488,7 +7529,8 @@ fn animated_cell_color(world_xz: vec2<f32>) -> vec3<f32> {
     let cell_gz = i32(floor(world_xz.y / cell_size));
     let cell_seed = lattice_node_seed(config.world_seed, vec2(cell_gx, cell_gz), 200u);
 
-    let fields = evaluate_cell_fields(world_xz, cell_gx, cell_gz, cell_seed);
+    let fields = evaluate_cell_fields(world_xz, cell_gx, cell_gz, cell_seed,
+                                      config.checker_mean_offset, config.checker_variance_gain);
     // DRIVERLESS since gen-1 retirement — held at neutral by the boot
     // block; revive via a gen-2 coupling or delete on the next pass here.
     let mode_bias = config.mode_color_shift;
@@ -7510,7 +7552,8 @@ fn animated_cell_color(world_xz: vec2<f32>) -> vec3<f32> {
         // Discrete areas → target discrete color tier (chess/mono/color)
         let tier = u32(round(config.mode_discrete_tier));
         drifted.discrete_color = discrete_cell_color_at_tier(
-            world_xz, cell_gx, cell_gz, cell_seed, tier);
+            world_xz, cell_gx, cell_gz, cell_seed, tier,
+            config.checker_mean_offset, config.checker_variance_gain);
 
         let drifted_color = composite_cell_color_biased(drifted, mode_bias, sparse_bias);
         return mix(base, drifted_color, drift * 0.95);
@@ -7534,7 +7577,8 @@ fn animated_cell_color_lut(world_xz: vec2<f32>, baked_mode: f32, baked_style: f3
     fields.style = baked_style;
     fields.sparse = baked_sparse;
     fields.smooth_color = palette_color_smooth(palette_field_at(world_xz), PALETTE_COMPLEXITY);
-    fields.discrete_color = discrete_cell_color(world_xz, cell_gx, cell_gz, cell_seed);
+    fields.discrete_color = discrete_cell_color(world_xz, cell_gx, cell_gz, cell_seed,
+                                                config.checker_mean_offset, config.checker_variance_gain);
     fields.cell_roll = hash_property(cell_seed, 900u);
     fields.sparse_roll = hash_property(cell_seed, 910u);
 
@@ -7552,7 +7596,8 @@ fn animated_cell_color_lut(world_xz: vec2<f32>, baked_mode: f32, baked_style: f3
         var drifted = fields;
         drifted.smooth_color = palette_target_color(config.mode_palette_target, PALETTE_COMPLEXITY);
         let tier = u32(round(config.mode_discrete_tier));
-        drifted.discrete_color = discrete_cell_color_at_tier(world_xz, cell_gx, cell_gz, cell_seed, tier);
+        drifted.discrete_color = discrete_cell_color_at_tier(world_xz, cell_gx, cell_gz, cell_seed, tier,
+                                                             config.checker_mean_offset, config.checker_variance_gain);
         let drifted_color = composite_cell_color_biased(drifted, mode_bias, sparse_bias);
         return mix(base, drifted_color, drift * 0.95);
     }
@@ -7613,7 +7658,10 @@ fn generate_patch_cells(@builtin(global_invocation_id) id: vec3<u32>) {
     let cell_seed = lattice_node_seed(patch_params.master_seed, vec2(cell_gx, cell_gz), 200u);
 
     // Stage 1: Evaluate all spatial fields
-    let fields = evaluate_cell_fields(world_xz, cell_gx, cell_gz, cell_seed);
+    // CHECKER-1: THE BAKE PASSES IDENTITY — patches bake at rest by
+    // construction; the live deviation rides the FS gate only.
+    let fields = evaluate_cell_fields(world_xz, cell_gx, cell_gz, cell_seed,
+                                      vec3(0.0), 1.0);
 
     // Stage 2: Composite final color
     let final_color = composite_cell_color(fields);

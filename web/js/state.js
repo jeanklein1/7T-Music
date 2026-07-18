@@ -21,7 +21,7 @@ export const D = {
   MAX_PATCHES_WEB: 225,         // desktop 289; see capacity note above
   WINDOW_RADIUS: 7,             // 15×15 patch window (desktop PREGEN_RADIUS=8)
   MAX_AGENTS: 32,
-  CONFIG_SIZE: 560,
+  CONFIG_SIZE: 576,   // 560 + CHECKER-1 spectrum field (vec3 offset + f32 gain, one 16 B slot)
   SIGNAL_SIZE: 336,
 };
 
