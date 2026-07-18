@@ -1361,7 +1361,10 @@ fn discrete_cell_color(world_xz: vec2<f32>, cell_gx: i32, cell_gz: i32, cell_see
     let rec = mix(CHECKER_RECEPTIVITY_FLOOR, 1.0, region.receptivity);
     let wmix = pow(clamp(wl, 0.0, 1.0), CHECKER_COMMIT_CURVE) * rec;
     let rgb_mean = mix(region.mean, rotate_hue(region.mean, cs.x, cs.y), wmix);
-    let variance = region.variance * var_gain;
+    // CHECKER-3: the musical spread rides each region's own listening —
+    // variance = seed spread × the gain THROUGH receptivity. The
+    // variation for the variations; gain 1 → identity everywhere.
+    let variance = region.variance * mix(1.0, var_gain, rec);
     let mono = discrete_mono_at(world_xz);
 
     let mono_jitter = (hash_property(cell_seed, 820u) - 0.5) * 0.15;
@@ -1440,7 +1443,8 @@ fn discrete_cell_color_at_tier(
             let rec = mix(CHECKER_RECEPTIVITY_FLOOR, 1.0, region.receptivity);
             let wmix = pow(clamp(wl, 0.0, 1.0), CHECKER_COMMIT_CURVE) * rec;
             let turned = mix(region.mean, rotate_hue(region.mean, cs.x, cs.y), wmix);
-            return clamp(turned + vec3(nr, ng, nb) * (region.variance * var_gain),
+            return clamp(turned + vec3(nr, ng, nb)
+                             * (region.variance * mix(1.0, var_gain, rec)),
                          vec3(0.0), vec3(1.0));
         }
     }
@@ -1644,17 +1648,20 @@ struct DesignConfig {
 // today's stillness. The mode trio is DRIVERLESS since the gen-1
 // retirement: driver-ready dials held at rest, read by
 // animated_cell_color / _lut (mode_bias, sparse_bias, drift).
-// CHECKER-2 THE WHEEL (LIVE, gen-2): config.checker_mean_offset.xy
-// carries the window spectrum's first-moment resultant (dft_phase[0]
-// / dft_mag[0]: angle = the collection's median seat, origin D = home
-// = zero turn; length = commitment), rest at REST_CHECKER_* (C++
-// ROW 2); driver = the visual canvas (4-beat sample-and-hold, full-
-// span VECTOR glide — transitions pass through gray, the wheel never
-// wraps); consumed by discrete_cell_color / _at_tier as a per-cell
-// hue ROTATION mixed by commitment^CURVE × region receptivity (prop
-// 804). Dials: ROW 5 CHECKER_COMMIT_CURVE / CHECKER_RECEPTIVITY_FLOOR.
-// Variance gain dormant (rest 1). Bake passes identity (seam-proof
-// by law).
+// CHECKER-3 THE SEATED WHEEL (LIVE, gen-2): config.checker_mean_offset
+// .xy carries the resultant of the voice's WINDOW pc-vector (Playhead
+// + Wagon compound) over Jean's authored interval→color seat table
+// (coupling/visual_canvas.hpp; seat 0 = home = silent by law; angle =
+// the musical median's hue, length = commitment; low-gain seats
+// shorten the wheel — darkness as non-commitment), rest at
+// REST_CHECKER_* (C++ ROW 2); driver = the visual canvas (4-beat
+// sample-and-hold, full-span VECTOR glide — through gray, never a
+// wrap); consumed by discrete_cell_color / _at_tier as a per-cell hue
+// ROTATION mixed by commitment^CURVE × region receptivity (prop 804).
+// The variance gain is LIVE (distinct-pc count), applied THROUGH
+// receptivity — the variation for the variations. Dials: ROW 5
+// CHECKER_COMMIT_CURVE / CHECKER_RECEPTIVITY_FLOOR /
+// CHECKER_DEBUG_VIEW. Bake passes identity (seam-proof by law).
 
 // ── ROW 3 — PALETTE COMPOSITION ─────────────────────────────────────
 // How the quartet becomes a color: the dominant-branch matrix weights
@@ -1713,6 +1720,14 @@ const DISCRETE_TINT_STRENGTH: f32 = 0.15; // grey→palette-mean mix weight; PIN
 //   deaf spots allowed; 1 = geography off, uniform response).
 const CHECKER_COMMIT_CURVE: f32 = 1.0;
 const CHECKER_RECEPTIVITY_FLOOR: f32 = 0.15;
+// CHECKER_DEBUG_VIEW — the institutionalized instrument (hot-reload):
+//   0 = the art. 1 = WHEEL METER: all ground painted by the wheel as
+//   the shader receives it (angle → hue on the same recipe as the
+//   seat table: 0° red · 60° yellow · 240° blue; length → vividness).
+//   Static gray under music = the CPU→GPU path is cut. 2 = the
+//   RECEPTIVITY MAP: the land's listening geography, static grayscale.
+//   Branches on a module const — folded out at 0, zero cost.
+const CHECKER_DEBUG_VIEW: u32 = 0u;
 
 // ── ROW 6 — TERRAIN-MODE COUPLING ─────────────────────────────────
 //
@@ -4111,7 +4126,17 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
                      || (abs(config.checker_mean_offset.y) > 0.001)
                      || (abs(config.checker_mean_offset.z) > 0.001)
                      || (abs(config.checker_variance_gain - 1.0) > 0.001);
-    if (has_mode_bias) {
+    if (CHECKER_DEBUG_VIEW == 1u) {
+        // WHEEL METER: angle → hue via the Rodrigues basis (the seat
+        // table's own ruler), length → vividness.
+        base_color = clamp(vec3(0.5)
+            + (vec3( 0.8165, -0.4082, -0.4082) * config.checker_mean_offset.x
+             + vec3( 0.0,     0.7071, -0.7071) * config.checker_mean_offset.y) * 1.5,
+            vec3(0.0), vec3(1.0));
+    } else if (CHECKER_DEBUG_VIEW == 2u) {
+        // RECEPTIVITY MAP: the land's listening geography.
+        base_color = vec3(discrete_region_at(in.world_pos.xz).receptivity);
+    } else if (has_mode_bias) {
         // Load baked spatial fields from LUT (skips 3 lattice noise chains)
         let cell_texel = clamp(
             vec2<i32>(in.patch_uv * f32(PATCH_CELL_N)),
