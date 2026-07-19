@@ -550,6 +550,12 @@ so the order is semantically load-bearing. The charter proposes adopting the
 current order as declared law verbatim, written above the FS as the fold
 comment is written above manifold_height_hf.
 
+*(RESOLVED Phase 2, D3: ruling 4 declared the order law — THE
+COMPOSITION ORDER comment now stands above patch_terrain_fs, verbatim
+from the table above. The FF-tint scaling inconsistency (C6-F1) was
+harmonized the same commit: the extrusion FF tints scale by the color
+spring, gol-enabled verification flagged for Jean.)*
+
 GoL-keeps-its-own-panel ruling recorded at L5528–32, L1859–60, L137–38.
 
 ---
@@ -589,6 +595,23 @@ if (n > 0) {
     std::fprintf(stderr, "\n");
 }
 ```
+
+### Standing verification laws (Phase 2, D5.3)
+
+- **VOICE-COHERENCE** — held chord, camera straddling a patch border:
+  the border must be invisible. Patches are windows, music on or off.
+  This class is INVISIBLE to silence-identity by definition — the live
+  path only runs under music — which is the reason the canon needed a
+  second eye. Instrument: the (temporary) tier view, then the art
+  itself.
+- **PAWN-WALK** — a fixed dune walk in silence as the PHYSICS face of
+  silence-identity: the framebuffer watches pixels, the pawn watches
+  the manifold. Prediction stated per phase; any deviation is
+  diagnostic (see OPEN INCIDENTS #1).
+- **glaw2** — the WGSL parse gate, CC-side, every world.wgsl handback:
+  Tint CLI or naga (current tool: naga-cli 30.0.0) runs before the
+  handback reaches Jean. glaw1 is C++-blind to WGSL and Jean is not
+  the parser; the `id` incident is the reason this law exists.
 
 ### Gaps (seams with no witness)
 
@@ -678,6 +701,21 @@ construction. Pairs with CONTINUITY as the two axes of one law: no
 steps in time, no seams in space.
 *(Appended Phase 1, per the Phase 1 handoff D6.1.)*
 
+**THE ONE-ADDRESS COROLLARY** (appended Phase 2, D5.2 — the corollary
+as it stands in code, §1.3 world.wgsl, verbatim):
+
+```wgsl
+// THE ONE-ADDRESS LAW (SEAMLESSNESS corollary — charter C8). A cell
+// has exactly ONE address: its world cell index. Every consumer —
+// hash, roll, noise, LUT texel, bake write — derives from it. A
+// texel is COMPUTED FROM the address; patch_uv never addresses
+// anything by itself again.
+fn cell_address(world_xz: vec2<f32>) -> vec2<i32> {
+    let cs = PATCH_EXTENT / f32(PATCH_CELL_N);
+    return vec2<i32>(floor(world_xz / cs));
+}
+```
+
 ---
 
 ## C9. DISPOSITIONS + PHASE PLAN
@@ -711,6 +749,68 @@ steps in time, no seams in space.
 4. **WITNESS registry + invariants.** TERRAIN_DEBUG_VIEW slots 0–7;
    [FLUSH] grows a per-N-seconds heartbeat variant; SILENCE-IDENTITY becomes
    a boot-rig test; PROVENANCE stays a documented recipe.
+
+---
+
+## THE SUBSTRATE — RATIFIED HORIZON (STATUS: INTENT — Phase 2, D5.1)
+
+**RULING: stack, not volume.** Truth stays analytic (functions +
+caches); DEVIATION gains one body: a single world-windowed, scrolling,
+layered resource — height-delta · color-delta · pattern-bias ·
+presence — one scroll window, one decay pass, one deposit discipline,
+one debug-view family. The aura is recorded as the substrate's first
+citizen avant la lettre, not an exception.
+
+**THE WINDOW LAW.** A finite window onto a conceptually infinite
+rest-field — scroll-in initializes to rest; effects fade inside the
+window radius; toroidal wrap (the aura's proven mechanics,
+generalized).
+
+**THE DECAY LAW.** Every layer decays to EXACT zero (snap at epsilon,
+never asymptotic); the bake ignores the substrate entirely; silence
+therefore still equals the bake, bit for bit.
+
+**ADMISSION DISCIPLINE.** A layer enters like a VOICE channel —
+declared address, rest = zero, decay law stated — or not at all.
+
+**STAGING.** Color/pattern/presence layers first (fragment-stage only,
+zero FXC exposure); height-delta second, GATED on the feasibility
+errand below. Build after Phase 2+3 give it clean insertion points.
+
+**FEASIBILITY ERRAND — receipts (run Phase 2).** Question: does the
+aura's HEIGHT contribution texture-sample INSIDE the walker/ground
+chain (the FXC-sensitive family), or is it analytic there? Answer:
+**YES — samples and compiles.** The chain:
+
+```wgsl
+// world.wgsl:5595 (inside sample_pawn_aura)
+return textureSampleLevel(pawn_aura_read, bilinear_sampler, aura_uv, 0.0);
+
+// world.wgsl:2784-2786
+fn contrib_pawn_aura_at_external(world_xz: vec2<f32>) -> f32 {
+    return sample_pawn_aura(world_xz, compute_pawn_pos().xz).r * config.pawn_aura_height;
+}
+```
+
+`contrib_pawn_aura_at_external` is a declared contributor of
+POLICY_FLYER (`world.wgsl:2936`) and POLICY_WALKER_AGENT
+(`world.wgsl:3055`) — ground-query policies evaluated in compute
+stages — and every build to date is green. This IS the precedent the
+substrate height layer rides. One caveat for the height layer's own
+ruling: the pawn's OWN standing Y deliberately avoids the grid —
+POLICY_WALKER uses the analytic scalar peak `contrib_pawn_aura_at_self()
+= config.pawn_aura_height` (world.wgsl:2806-2808) because sampling the
+directionally-biased grid at the pawn's own XZ produces locomotion
+bobbing (documented at the fn). That is a FEEL ruling, not a compiler
+limit — a substrate height layer under the pawn's feet needs the same
+self-treatment decision, not a routing workaround.
+
+**FIRST CITIZEN: the out-of-phase checkers.** Bounded cast NOW-able
+(VOICE.event): ship events (target, t0); each cell evaluates an
+analytic envelope at its own offset — phase from a static world-cell
+hash (random mode) or from distance to a pulse origin (traveling-wave
+mode). Unbounded cast LATER (substrate): deposits + per-cell decay —
+stains that outlive the ring.
 
 ---
 
@@ -792,3 +892,25 @@ Dated 2026-07-19, stamped by Jean (the Phase 1 handoff).
   the local `cell_id`. Same selective rename, same scope; spelling
   differs. Recorded, not blocking — the gate's substance (fix landed,
   module parses) is confirmed by the green build.
+
+---
+
+## OPEN INCIDENTS (Phase 2, D5.4)
+
+### #1 — pawn-climb (dune climbing compromised)
+
+- **Symptoms**: dune climbing compromised — live AND silence;
+  suspected walkability threshold. (Jean's ongoing observation.)
+- **Suspects**: the step_h/eps literals at the walker_walkable call
+  sites; the web-port "stride fix" era. NOT the Phase-1 activity
+  dedupe — the pre-P1 body was already Hermite-identical (verified by
+  reading at P1-C3).
+- **Parked recipes**: the no-rebuild hot-swap bisection vs `d2a045c`;
+  `git log -S "step_h"` / `git log -S "walker_walkable"`.
+- **Observation protocol**: record WHERE (dune vs pier), music or
+  silence, and the approach angle each time it reproduces.
+- **STATUS: open — deferred post-terrain by Jean's ruling.** Phase 2
+  is grounding-inert by its scope fence (zero edits in the ground
+  chain: walker/manifold queries, heights, activity, waves, piers,
+  step_h/eps all untouched), so any change in climbing behavior
+  across Phase 2 is itself evidence.
