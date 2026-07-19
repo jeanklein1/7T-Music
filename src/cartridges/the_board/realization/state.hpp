@@ -4419,9 +4419,11 @@ namespace t7 {
                     if (!zoneGolComputeLayout_) return false;
                 }
 
-                // -- Pawn aura compute layout (Group 0) -- bindings 1, 60, 170-172 --
+                // -- Pawn aura compute layout (Group 0) -- bindings 1, 25, 60, 170-172 --
+                // (tile_grid joined at TERRAIN PROGRAM Phase 1: gol_composite_cell_color
+                //  collapsed into the one evaluator, which reads the tile archetype.)
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 5> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 6> entries{};
 
                     entries[0].binding = bind::g0::config;    // config (uniform — world_seed for cell color)
                     entries[0].visibility = wgpu::ShaderStage::Compute;
@@ -4444,6 +4446,10 @@ namespace t7 {
                     entries[4].storageTexture.access = wgpu::StorageTextureAccess::WriteOnly;
                     entries[4].storageTexture.format = wgpu::TextureFormat::RGBA16Float;
                     entries[4].storageTexture.viewDimension = wgpu::TextureViewDimension::e2D;
+
+                    entries[5].binding = bind::g0::tile_grid;   // tile_grid (uniform — evaluator's archetype lookup)
+                    entries[5].visibility = wgpu::ShaderStage::Compute;
+                    entries[5].buffer.type = wgpu::BufferBindingType::Uniform;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Pawn Aura Compute Layout";
@@ -5323,9 +5329,9 @@ namespace t7 {
                     if (!zoneGolComputeBindGroup_) return false;
                 }
 
-                // Pawn aura compute bind group (5 entries: 1, 60, 170-172)
+                // Pawn aura compute bind group (6 entries: 1, 25, 60, 170-172)
                 {
-                    std::array<wgpu::BindGroupEntry, 5> entries{};
+                    std::array<wgpu::BindGroupEntry, 6> entries{};
 
                     entries[0].binding = bind::g0::config;
                     entries[0].buffer = configBuffer_;
@@ -5345,6 +5351,10 @@ namespace t7 {
 
                     entries[4].binding = bind::g0::pawn_aura_tex_write;
                     entries[4].textureView = pawnAuraWriteView_;
+
+                    entries[5].binding = bind::g0::tile_grid;
+                    entries[5].buffer = tileGridBuffer_;
+                    entries[5].size = sizeof(GPUTileGrid);
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Pawn Aura Compute BindGroup";

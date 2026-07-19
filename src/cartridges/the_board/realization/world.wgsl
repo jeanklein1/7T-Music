@@ -1337,61 +1337,38 @@ fn checker_region_median(world_xz: vec2<f32>, seed_mean: vec3<f32>,
     return mix(seed_mean, music_median, music_amount);   // S1: pull by presence
 }
 
-// Generate a discrete cell color from the region field + per-cell seed.
-
-fn discrete_cell_color(world_xz: vec2<f32>, cell_gx: i32, cell_gz: i32, cell_seed: u32,
+// The PIGMENT resolver — Phase 1 (charter D1.3): a thin switch on the
+// identity's tier. NO cascade re-derivation here — FIELD already decided
+// the vocabulary (evaluate_cell_fields, or the baked LUT .w). The music
+// enters exactly as before: checker_region_median (unchanged, law-marked)
+// turns the tinted + full-color tiers; chess pairs, pure B&W, and the
+// grey bases stay seed-pure anchors. (_at_tier remains the forced-tier
+// twin this phase; Phase 2 merges the pair.)
+fn discrete_cell_color(world_xz: vec2<f32>, id: CellIdentity,
                        resultant: vec3<f32>, music_amount: f32, music_variance: f32) -> vec3<f32> {
-    // --- Chess board tier
-    let chess = chess_field_at(world_xz);
-    let chess_jitter = (hash_property(cell_seed, 815u) - 0.5) * 0.03;
-    if (chess.tendency + chess_jitter > CHESS_TENDENCY_CUT) {
-        let parity = (cell_gx + cell_gz) & 1;
-        // Colorful chess: only at the absolute peak of tendency.
-        // Even among chess regions, colorful is the exception.
-        if (chess.tendency > CHESS_COLORFUL_CUT) {
-            return select(chess.color_a, chess.color_b, parity == 1);
+    switch (id.tier) {
+        case 4u: {   // chess colorful — seed-pure anchor
+            return select(id.chess_color_a, id.chess_color_b, id.parity == 1u);
         }
-        // Default chess: black and white.
-        return select(vec3(0.03), vec3(0.95), parity == 1);
+        case 3u: {   // chess B&W — seed-pure anchor
+            return select(vec3(0.03), vec3(0.95), id.parity == 1u);
+        }
+        case 2u: {   // pure B&W — seed-pure anchor
+            return select(vec3(0.02), vec3(0.95), id.bw_roll > 0.5);
+        }
+        case 1u: {   // tinted monochrome — grey base anchored, tint target turned.
+            // DISCRETE_TINT_STRENGTH (TERRAIN_LOOKS ROW 5) is a PINNED
+            // constant — a couplable literal (graduation needed to move).
+            let base_grey = select(0.12, 0.85, id.bw_roll > 0.5);
+            let rgb_mean = checker_region_median(world_xz, id.region_mean, resultant, music_amount);
+            return mix(vec3(base_grey), rgb_mean, DISCRETE_TINT_STRENGTH);
+        }
+        default: {   // full color — turned median + widened spread
+            let rgb_mean = checker_region_median(world_xz, id.region_mean, resultant, music_amount);
+            let variance = id.region_variance + min(CHECKER_VAR_MAX, music_variance * CHECKER_VAR_PER_NOTE);
+            return clamp(rgb_mean + id.color_noise * variance, vec3(0.0), vec3(1.0));
+        }
     }
-
-    // --- Monochrome / tinted / full color tiers
-    // CHECKER-REBUILD: the music PAINTS. rgb_mean = the region's music-
-    // driven median (S1 pull toward the resultant + S2 per-window wander),
-    // and variance = the seed spread WIDENED by the distinct-pc count (S3).
-    // At rest (music_amount 0, music_variance 0) both reduce to the seed —
-    // identity by construction. Chess pairs, pure B&W, and the grey bases
-    // stay seed-pure anchors; the tinted + full-color tiers take the color.
-    let region = discrete_region_at(world_xz);
-    let rgb_mean = checker_region_median(world_xz, region.mean, resultant, music_amount);
-    let variance = region.variance + min(CHECKER_VAR_MAX, music_variance * CHECKER_VAR_PER_NOTE);
-    let mono = discrete_mono_at(world_xz);
-
-    let mono_jitter = (hash_property(cell_seed, 820u) - 0.5) * 0.15;
-    let effective_mono = mono + mono_jitter;
-
-    if (effective_mono > MONO_BW_CUT) {
-        // Pure black or white
-        let bw_roll = hash_property(cell_seed, 830u);
-        return select(vec3(0.02), vec3(0.95), bw_roll > 0.5);
-    }
-
-    if (effective_mono > MONO_TINT_CUT) {
-        // Tinted monochrome. DISCRETE_TINT_STRENGTH (TERRAIN_LOOKS
-        // ROW 5) is a PINNED constant — a mix-weight (grey→palette
-        // mean) with no uniform behind it; flagged by the color-stack
-        // recon as a couplable literal (graduation needed to move).
-        let bw_roll = hash_property(cell_seed, 830u);
-        let base_grey = select(0.12, 0.85, bw_roll > 0.5);
-        return mix(vec3(base_grey), rgb_mean, DISCRETE_TINT_STRENGTH);
-    }
-
-    // Full color
-    let nr = (hash_property(cell_seed, 840u) - 0.5) * 2.0;
-    let ng = (hash_property(cell_seed, 841u) - 0.5) * 2.0;
-    let nb = (hash_property(cell_seed, 842u) - 0.5) * 2.0;
-    let color = rgb_mean + vec3(nr, ng, nb) * variance;
-    return clamp(color, vec3(0.0), vec3(1.0));
 }
 
 // Evaluate a cell's discrete color as if it belonged to a specific tier,
@@ -1833,13 +1810,13 @@ const OVERLAY_PROP_STRIDE:    u32 = 10u;
 
 // ── ROW 8 — GOVERNING EXPRESSIONS ───────────────────────────────────
 // The palette's governing expression lives in-room (below). The
-// composite's governing contract — composite_cell_color(s): blend
-// smooth→discrete at the ROW 5 mode edges; scatter-survive by
+// composite's governing contract — composite_cell_color(id, discrete):
+// blend smooth→discrete at the ROW 5 mode edges; scatter-survive by
 // cell_roll; mix the two styles by the transition field; sparse cells
-// survive outside mode zones — STAYS with its biased twin and the
-// cell-field pipeline (evaluate_cell_fields → composite, patch-gen
-// §7.x): relocating one twin would split a duplicated pair.
-// Discipline 2 — flagged, not forced.
+// survive outside mode zones. Phase 1: the doors are FIELD outputs
+// (door_values, fed from evaluate_cell_fields or the LUT
+// reconstruction); the biased twin is a pass-through alias awaiting
+// Phase 2 deletion.
 
 // Smooth palette color: weighted blend modulated by complexity only.
 // No per-cell noise — produces continuous gradients. (Relocated from
@@ -4136,7 +4113,7 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
             vec2<i32>(in.patch_uv * f32(PATCH_CELL_N)),
             vec2(0), vec2(i32(PATCH_CELL_N) - 1));
         let baked = textureLoad(cell_fields_read, cell_texel, i32(in.layer), 0);
-        base_color = animated_cell_color_lut(in.world_pos.xz, baked.r, baked.g, baked.b);
+        base_color = animated_cell_color_lut(in.world_pos.xz, baked.r, baked.g, baked.b, baked.a);
     }
 
     // --- GoL zone visualization
@@ -5520,26 +5497,19 @@ fn gol_composite_cell_color(world_xz: vec2<f32>) -> vec3<f32> {
     let cell_gz = i32(floor(world_xz.y / GOL_TERRAIN_CELL_SIZE));
     let cell_seed = lattice_node_seed(config.world_seed, vec2(cell_gx, cell_gz), 200u);
 
-    // Evaluate all fields (same as evaluate_cell_fields, minus archetype)
-    var s: CellFieldState;
-    s.world_xz = world_xz;
-    let palette_w = palette_field_at(world_xz);
-    s.smooth_color = palette_color_smooth(palette_w, PALETTE_COMPLEXITY);
-    // CHECKER-REBUILD: IDENTITY here — GoL keeps its own panel (ROW 9);
-    // RULED separate at the CHECKER cut (Jean): the zones' own coupling
-    // pass is coming. STATUS: INTENT — revive when it convenes by passing
-    // config.checker_resultant / _music_amount / _music_variance. Here
-    // amount 0 -> each cell's seed color.
-    s.discrete_color = discrete_cell_color(world_xz, cell_gx, cell_gz, cell_seed,
-                                           vec3(0.0), 0.0, 0.0);
-    s.mode = mode_field_at(world_xz);
-    s.style = transition_style_at(world_xz);
-    s.sparse = sparse_field_at(world_xz);
-    s.cell_roll = hash_property(cell_seed, 900u);
-    s.sparse_roll = hash_property(cell_seed, 910u);
-    s.archetype = 1u;  // unused by composite_cell_color
-
-    return composite_cell_color(s);
+    // Phase 1 (charter D3.2): the manual field duplicate collapsed to the
+    // ONE evaluator (bias 0 — no live door bias on the GoL path).
+    // CHECKER-REBUILD ruling preserved verbatim: IDENTITY VOICE here —
+    // GoL keeps its own panel (ROW 9); RULED separate at the CHECKER cut
+    // (Jean): the zones' own coupling pass is coming. STATUS: INTENT —
+    // revive when it convenes by passing config.checker_resultant /
+    // _music_amount / _music_variance. Here amount 0 -> each cell's seed
+    // color. (The identity's archetype is now the real tile lookup — the
+    // aura compute layout gained tile_grid for it; archetype is unread by
+    // the composite, so output is unchanged.)
+    let id = evaluate_cell_fields(world_xz, cell_gx, cell_gz, cell_seed, 0.0, 0.0);
+    let dcol = discrete_cell_color(world_xz, id, vec3(0.0), 0.0, 0.0);
+    return composite_cell_color(id, dcol);
 }
 
 // --- Shared color application (called by terrain FS and extrusion FS)
@@ -7464,16 +7434,59 @@ fn generate_patch_gradients(
 }
 
 // --- Patch cell color generation (uses patchGen bind group layout)
-struct CellFieldState {
-    smooth_color: vec3<f32>,       // palette-interpolated base color
-    discrete_color: vec3<f32>,     // per-cell flat color (chess + discrete)
-    mode: f32,                     // [0,1] smooth → discrete tendency
-    style: f32,                    // [0,1] blend → scatter transition style
-    sparse: f32,                   // [0,1] sparse scatter field value
-    cell_roll: f32,                // per-cell random [0,1] for survival tests
-    sparse_roll: f32,              // per-cell random [0,1] for sparse survival
-    archetype: u32,                // terrain type (0=mountain, 1=varied, 2=basin, 3=pool)
-    world_xz: vec2<f32>,          // world-space position (for zone-level seed derivation)
+// CELLIDENTITY — Phase 1 contract (charter C2, ratified + amended).
+// FIELD's complete answer for one cell: vocabulary, rolls, continuous
+// door weights, region anatomy. PIGMENT realizes color from this and
+// VOICE only. Receptivity retired (ruling 6). chess_eff/mono_eff ride
+// so future cascade-glide never reshapes the struct (ruling 3).
+struct CellIdentity {
+    tier: u32,               // 0 full · 1 tint · 2 BW · 3 chess-BW · 4 chess-color
+    parity: u32,             // (gx+gz)&1
+    cell_roll: f32,          // prop 900
+    sparse_roll: f32,        // prop 910
+    bw_roll: f32,            // prop 830
+    color_noise: vec3<f32>,  // props 840–842
+    chess_eff: f32,          // tendency+jitter (the cascade's raw input)
+    mono_eff: f32,           // mono+jitter
+    blend_t: f32,            // door: smoothstep(.55,.75,mode)
+    scatter_survival: f32,   // door: smoothstep(.35,.75,mode)
+    sparse_survival: f32,    // door: smoothstep(thr,thr+.35,sparse)
+    style: f32,
+    in_mode_zone: f32,       // door: carried CONTINUOUS (fade form), not bool
+    region_mean: vec3<f32>,
+    region_variance: f32,
+    region_wander: vec3<f32>,
+    chess_color_a: vec3<f32>,
+    chess_color_b: vec3<f32>,
+    smooth_color: vec3<f32>,
+    archetype: u32,
+    mode: f32,
+    sparse: f32,
+}
+
+// The four door values from the (biased) fields — ONE derivation, shared
+// by the evaluator and the LUT reconstruction so the two paths cannot
+// drift. x = blend_t, y = scatter_survival, z = sparse_survival,
+// w = in_mode_zone (step form this phase; fade form arrives with the
+// door_fade commit).
+fn door_values(biased_mode: f32, sparse: f32, sparse_bias: f32) -> vec4<f32> {
+    let blend_t = smoothstep(MODE_BLEND_EDGE_LO, MODE_BLEND_EDGE_HI, biased_mode);
+    let scatter_survival = smoothstep(MODE_SCATTER_FLOOR_EDGE, MODE_SCATTER_CORE_EDGE, biased_mode);
+    let sparse_threshold = max(SPARSE_SURVIVAL_THRESHOLD - sparse_bias, 0.0);
+    let sparse_survival = smoothstep(sparse_threshold, sparse_threshold + SPARSE_SURVIVAL_WINDOW, sparse);
+    let in_mode_zone = select(0.0, 1.0, biased_mode > MODE_SCATTER_FLOOR_EDGE);
+    return vec4(blend_t, scatter_survival, sparse_survival, in_mode_zone);
+}
+
+// The S2 wander's raw static offset for the region owning world_xz —
+// the same node/seed/props checker_region_median derives internally
+// (kept in lockstep; the median fn's body is law-marked and unchanged).
+fn region_wander_raw(world_xz: vec2<f32>) -> vec3<f32> {
+    let node = vec2<i32>(floor(world_xz / DISCRETE_COLOR_LATTICE_SPACING));
+    let rid = color_lattice_seed(node, 20u);
+    return (vec3(hash_property(rid, 601u),
+                 hash_property(rid, 602u),
+                 hash_property(rid, 603u)) - 0.5) * 2.0;
 }
 
 // Stage 1: Evaluate all spatial fields at a cell's world position.
@@ -7483,36 +7496,35 @@ fn evaluate_cell_fields(
     cell_gx: i32,
     cell_gz: i32,
     cell_seed: u32,
-    resultant: vec3<f32>,   // CHECKER-REBUILD: bake passes identity (amount 0), live passes config
-    music_amount: f32,
-    music_variance: f32
-) -> CellFieldState {
-    var s: CellFieldState;
-    s.world_xz = world_xz;
+    mode_bias: f32,     // live path passes config biases; the bake passes 0 —
+    sparse_bias: f32    //   bias is a FIELD input now (charter Phase 1), not a composite arg
+) -> CellIdentity {
+    var id: CellIdentity;
 
     // Palette → smooth base color
     let palette_w = palette_field_at(world_xz);
-    s.smooth_color = palette_color_smooth(palette_w, PALETTE_COMPLEXITY);
-
-    // Discrete per-cell color (chess + color lattice + mono lattice)
-    s.discrete_color = discrete_cell_color(world_xz, cell_gx, cell_gz, cell_seed,
-                                           resultant, music_amount, music_variance);
+    id.smooth_color = palette_color_smooth(palette_w, PALETTE_COMPLEXITY);
 
     // Spatial fields
-    s.mode = mode_field_at(world_xz);
-    s.style = transition_style_at(world_xz);
-    s.sparse = sparse_field_at(world_xz);
+    id.mode = mode_field_at(world_xz);
+    id.style = transition_style_at(world_xz);
+    id.sparse = sparse_field_at(world_xz);
 
-    // Per-cell rolls for survival tests (deterministic from seed)
-    s.cell_roll = hash_property(cell_seed, 900u);
-    s.sparse_roll = hash_property(cell_seed, 910u);
+    // Per-cell rolls (deterministic from seed)
+    id.cell_roll = hash_property(cell_seed, 900u);
+    id.sparse_roll = hash_property(cell_seed, 910u);
+    id.bw_roll = hash_property(cell_seed, 830u);
+    id.color_noise = vec3((hash_property(cell_seed, 840u) - 0.5) * 2.0,
+                          (hash_property(cell_seed, 841u) - 0.5) * 2.0,
+                          (hash_property(cell_seed, 842u) - 0.5) * 2.0);
+    id.parity = u32((cell_gx + cell_gz) & 1);
 
     // Archetype from tile grid (nearest-cell lookup, not interpolated)
     let cell_extent = tile_grid.cell_extent;
     let tile_gx = i32(floor(world_xz.x / cell_extent));
     let tile_gz = i32(floor(world_xz.y / cell_extent));
     let tile = tile_grid_lookup(tile_gx, tile_gz);
-    s.archetype = tile.archetype;
+    id.archetype = tile.archetype;
 
     // ── Terrain-mode coupling ────────────────────────────────────
     // Where coupling is active, the terrain archetype shifts the mode
@@ -7524,78 +7536,78 @@ fn evaluate_cell_fields(
     let c_strength = coupling.x;
     let c_direction = coupling.y;
     if (c_strength > 0.05) {
-        let character = ARCHETYPE_MODE_CHARACTER[s.archetype];
+        let character = ARCHETYPE_MODE_CHARACTER[id.archetype];
         let shift = character * c_direction * c_strength * MODE_COUPLING_MAGNITUDE;
-        s.mode = clamp(s.mode + shift, 0.0, 1.0);
+        id.mode = clamp(id.mode + shift, 0.0, 1.0);
     }
 
-    return s;
+    // ── Region anatomy + the wander's static offset ──────────────
+    let region = discrete_region_at(world_xz);
+    id.region_mean = region.mean;
+    id.region_variance = region.variance;
+    id.region_wander = region_wander_raw(world_xz);
+
+    // ── The tier cascade (charter C3 order; first gate wins) ─────
+    // chess_eff carries the per-cell jitter; the colorful sub-cut reads
+    // RAW tendency (today's law, preserved exactly). mono_eff likewise.
+    let chess = chess_field_at(world_xz);
+    id.chess_color_a = chess.color_a;
+    id.chess_color_b = chess.color_b;
+    id.chess_eff = chess.tendency + (hash_property(cell_seed, 815u) - 0.5) * 0.03;
+    id.mono_eff = discrete_mono_at(world_xz) + (hash_property(cell_seed, 820u) - 0.5) * 0.15;
+    if (id.chess_eff > CHESS_TENDENCY_CUT) {
+        id.tier = select(3u, 4u, chess.tendency > CHESS_COLORFUL_CUT);
+    } else if (id.mono_eff > MONO_BW_CUT) {
+        id.tier = 2u;
+    } else if (id.mono_eff > MONO_TINT_CUT) {
+        id.tier = 1u;
+    } else {
+        id.tier = 0u;
+    }
+
+    // ── The doors (bias applied here — upstream of the composite) ─
+    let biased_mode = clamp(id.mode + mode_bias, 0.0, 1.0);
+    let doors = door_values(biased_mode, id.sparse, sparse_bias);
+    id.blend_t = doors.x;
+    id.scatter_survival = doors.y;
+    id.sparse_survival = doors.z;
+    id.in_mode_zone = doors.w;
+
+    return id;
 }
 
 // Stage 2: Composite final terrain color from evaluated field state.
-fn composite_cell_color(s: CellFieldState) -> vec3<f32> {
-    // (Edges + cuts live at TERRAIN_LOOKS ROW 5, §2.2 — this fn and its
-    //  biased twin read the same named constants.)
+// The composite — Phase 1 (charter): pure arithmetic over the identity's
+// precomputed door values. The doors were derived in evaluate_cell_fields
+// (or the LUT reconstruction) via door_values — bias is a FIELD input now.
+// (Edges + cuts live at TERRAIN_LOOKS ROW 5, §2.2, read by door_values.)
+fn composite_cell_color(id: CellIdentity, discrete_color: vec3<f32>) -> vec3<f32> {
     // Blend style: smooth → discrete (gradual transition at mode boundary)
-    let blend_edge_lo = MODE_BLEND_EDGE_LO;
-    let blend_edge_hi = MODE_BLEND_EDGE_HI;
-    let blend_t = smoothstep(blend_edge_lo, blend_edge_hi, s.mode);
-    let blend_color = mix(s.smooth_color, s.discrete_color, blend_t);
+    let blend_color = mix(id.smooth_color, discrete_color, id.blend_t);
 
     // Scatter style: cell survives or is replaced by smooth background
-    let core_edge = MODE_SCATTER_CORE_EDGE;
-    let scatter_edge = MODE_SCATTER_FLOOR_EDGE;
-    let survival = smoothstep(scatter_edge, core_edge, s.mode);
-    let cell_visible_scatter = s.cell_roll < survival;
-    let scatter_color = select(s.smooth_color, s.discrete_color, cell_visible_scatter);
+    let cell_visible_scatter = id.cell_roll < id.scatter_survival;
+    let scatter_color = select(id.smooth_color, discrete_color, cell_visible_scatter);
 
     // Combine the two transition styles (blend vs scatter) via style field
-    let mode_color = mix(blend_color, scatter_color, s.style);
+    let mode_color = mix(blend_color, scatter_color, id.style);
 
     // Sparse scatter: isolated cells and small clusters outside mode zones
-    let sparse_threshold = SPARSE_SURVIVAL_THRESHOLD;
-    let sparse_survival = smoothstep(sparse_threshold, sparse_threshold + SPARSE_SURVIVAL_WINDOW, s.sparse);
-    let cell_visible_sparse = s.sparse_roll < sparse_survival;
-
-    let is_in_mode_zone = s.mode > scatter_edge;
-    let show_cell = cell_visible_sparse && !is_in_mode_zone;
-    return select(mode_color, s.discrete_color, show_cell);
+    // CHECKER-TUNE A2 (standing): the mode field's own gating decides which
+    // cells show discrete — the music colors the checkers it already places
+    // between smooth sections, it does NOT convert smooth ground.
+    let cell_visible_sparse = id.sparse_roll < id.sparse_survival;
+    let show_cell = cell_visible_sparse && (id.in_mode_zone < 0.5);
+    return select(mode_color, discrete_color, show_cell);
 }
 
 // Biased variant: applies musical animation mode shifts to the compositing.
 // mode_bias shifts smooth→discrete boundary; sparse_bias lowers scatter threshold.
-fn composite_cell_color_biased(s: CellFieldState, mode_bias: f32, sparse_bias: f32) -> vec3<f32> {
-    let biased_mode = clamp(s.mode + mode_bias, 0.0, 1.0);
-
-    // Blend style: smooth → discrete (gradual transition at mode boundary)
-    let blend_edge_lo = MODE_BLEND_EDGE_LO;
-    let blend_edge_hi = MODE_BLEND_EDGE_HI;
-    let blend_t = smoothstep(blend_edge_lo, blend_edge_hi, biased_mode);
-    let blend_color = mix(s.smooth_color, s.discrete_color, blend_t);
-
-    // Scatter style: cell survives or is replaced by smooth background
-    let core_edge = MODE_SCATTER_CORE_EDGE;
-    let scatter_edge = MODE_SCATTER_FLOOR_EDGE;
-    let survival = smoothstep(scatter_edge, core_edge, biased_mode);
-    let cell_visible_scatter = s.cell_roll < survival;
-    let scatter_color = select(s.smooth_color, s.discrete_color, cell_visible_scatter);
-
-    // Combine the two transition styles (blend vs scatter) via style field
-    let mode_color = mix(blend_color, scatter_color, s.style);
-
-    // Sparse scatter: threshold lowered by sparse_bias → more cells survive
-    let sparse_threshold = max(SPARSE_SURVIVAL_THRESHOLD - sparse_bias, 0.0);
-    let sparse_survival = smoothstep(sparse_threshold, sparse_threshold + SPARSE_SURVIVAL_WINDOW, s.sparse);
-    let cell_visible_sparse = s.sparse_roll < sparse_survival;
-
-    let is_in_mode_zone = biased_mode > scatter_edge;
-    let show_cell = cell_visible_sparse && !is_in_mode_zone;
-    // CHECKER-TUNE A2: the mode field's own gating decides which cells show
-    // discrete — the music colors the checkers it already places between
-    // smooth sections, it does NOT convert smooth ground. Visibility is
-    // solved by the direct application inside discrete_cell_color, not by
-    // widening this door.
-    return select(mode_color, s.discrete_color, show_cell);
+// The biased twin — Phase 1: an ALIAS. Bias moved upstream into
+// evaluate_cell_fields (a FIELD input), so both twins are one arithmetic
+// body. Phase 2 deletes this name (charter C3, composite's fate).
+fn composite_cell_color_biased(id: CellIdentity, discrete_color: vec3<f32>) -> vec3<f32> {
+    return composite_cell_color(id, discrete_color);
 }
 
 // Target palette color from a continuous index [0,3].
@@ -7625,35 +7637,36 @@ fn animated_cell_color(world_xz: vec2<f32>) -> vec3<f32> {
     let cell_gz = i32(floor(world_xz.y / cell_size));
     let cell_seed = lattice_node_seed(config.world_seed, vec2(cell_gx, cell_gz), 200u);
 
-    let fields = evaluate_cell_fields(world_xz, cell_gx, cell_gz, cell_seed,
-                                      config.checker_resultant, config.checker_music_amount,
-                                      config.checker_music_variance);
     // DRIVERLESS since gen-1 retirement — held at neutral by the boot
     // block; revive via a gen-2 coupling or delete on the next pass here.
-    let mode_bias = config.mode_color_shift;
-    let sparse_bias = config.mode_checker_scatter;
+    // Phase 1: bias is a FIELD input (evaluate args), not a composite arg.
+    let id = evaluate_cell_fields(world_xz, cell_gx, cell_gz, cell_seed,
+                                  config.mode_color_shift, config.mode_checker_scatter);
+    let dcol = discrete_cell_color(world_xz, id,
+                                   config.checker_resultant, config.checker_music_amount,
+                                   config.checker_music_variance);
 
-    // Pass 1: original colors, biased thresholds
-    let base = composite_cell_color_biased(fields, mode_bias, sparse_bias);
+    // Pass 1: original colors, biased doors
+    let base = composite_cell_color(id, dcol);
 
     // Pass 2: palette drift — each system drifts within its own vocabulary
     // DRIVERLESS since gen-1 retirement — held at neutral by the boot
     // block; revive via a gen-2 coupling or delete on the next pass here.
     let drift = config.mode_palette_intensity;
     if (drift > 0.001) {
-        var drifted = fields;
+        var drifted = id;
 
         // Smooth areas → target smooth palette tier
         drifted.smooth_color = palette_target_color(config.mode_palette_target, PALETTE_COMPLEXITY);
 
         // Discrete areas → target discrete color tier (chess/mono/color)
         let tier = u32(round(config.mode_discrete_tier));
-        drifted.discrete_color = discrete_cell_color_at_tier(
+        let drifted_dcol = discrete_cell_color_at_tier(
             world_xz, cell_gx, cell_gz, cell_seed, tier,
             config.checker_resultant, config.checker_music_amount,
             config.checker_music_variance);
 
-        let drifted_color = composite_cell_color_biased(drifted, mode_bias, sparse_bias);
+        let drifted_color = composite_cell_color(drifted, drifted_dcol);
         return mix(base, drifted_color, drift * 0.95);
     }
 
@@ -7663,42 +7676,74 @@ fn animated_cell_color(world_xz: vec2<f32>) -> vec3<f32> {
 // LUT-accelerated variant: reads baked mode/style/sparse from cell fields texture,
 // skipping mode_field_at, transition_style_at, sparse_field_at, and terrain_coupling_at.
 // palette_field_at still runs (1 lattice noise chain) for smooth_color derivation.
-fn animated_cell_color_lut(world_xz: vec2<f32>, baked_mode: f32, baked_style: f32, baked_sparse: f32) -> vec3<f32> {
+fn animated_cell_color_lut(world_xz: vec2<f32>, baked_mode: f32, baked_style: f32, baked_sparse: f32,
+                           baked_tier: f32) -> vec3<f32> {
     let cell_size = PATCH_EXTENT / f32(PATCH_CELL_N);
     let cell_gx = i32(floor(world_xz.x / cell_size));
     let cell_gz = i32(floor(world_xz.y / cell_size));
     let cell_seed = lattice_node_seed(config.world_seed, vec2(cell_gx, cell_gz), 200u);
 
-    var fields: CellFieldState;
-    fields.world_xz = world_xz;
-    fields.mode = baked_mode;
-    fields.style = baked_style;
-    fields.sparse = baked_sparse;
-    fields.smooth_color = palette_color_smooth(palette_field_at(world_xz), PALETTE_COMPLEXITY);
-    fields.discrete_color = discrete_cell_color(world_xz, cell_gx, cell_gz, cell_seed,
-                                                config.checker_resultant, config.checker_music_amount,
-                                                config.checker_music_variance);
-    fields.cell_roll = hash_property(cell_seed, 900u);
-    fields.sparse_roll = hash_property(cell_seed, 910u);
+    // Phase 1 (charter D1.4): reconstruct the identity from the baked LUT.
+    // The TIER comes from the .w channel — the tendency/mono lattices and
+    // the cascade are NOT re-run here (the LUT's win). Rolls, jitter-free
+    // per-cell draws, chess colors, and region anatomy recompute from
+    // cell_seed/world as before — cheap. NOTE (ruled, Jean): the baked
+    // tier is the CELL CENTER's; fragments of a cell whose tendency
+    // straddles a cascade cut inside the cell take the center's
+    // vocabulary — the cell is the unit. chess_eff/mono_eff are not
+    // reconstructible without the lattices; 0 here (no consumer on the
+    // LUT path — evaluator-path inputs for the future cascade-glide).
+    var id: CellIdentity;
+    id.tier = u32(round(baked_tier));
+    id.parity = u32((cell_gx + cell_gz) & 1);
+    id.mode = baked_mode;
+    id.style = baked_style;
+    id.sparse = baked_sparse;
+    id.smooth_color = palette_color_smooth(palette_field_at(world_xz), PALETTE_COMPLEXITY);
+    id.cell_roll = hash_property(cell_seed, 900u);
+    id.sparse_roll = hash_property(cell_seed, 910u);
+    id.bw_roll = hash_property(cell_seed, 830u);
+    id.color_noise = vec3((hash_property(cell_seed, 840u) - 0.5) * 2.0,
+                          (hash_property(cell_seed, 841u) - 0.5) * 2.0,
+                          (hash_property(cell_seed, 842u) - 0.5) * 2.0);
+    id.chess_eff = 0.0;
+    id.mono_eff = 0.0;
+    let region = discrete_region_at(world_xz);
+    id.region_mean = region.mean;
+    id.region_variance = region.variance;
+    id.region_wander = region_wander_raw(world_xz);
+    let chess = chess_field_at(world_xz);
+    id.chess_color_a = chess.color_a;
+    id.chess_color_b = chess.color_b;
 
     let tile_gx = i32(floor(world_xz.x / tile_grid.cell_extent));
     let tile_gz = i32(floor(world_xz.y / tile_grid.cell_extent));
     let tile = tile_grid_lookup(tile_gx, tile_gz);
-    fields.archetype = tile.archetype;
+    id.archetype = tile.archetype;
 
-    let mode_bias = config.mode_color_shift;
-    let sparse_bias = config.mode_checker_scatter;
-    let base = composite_cell_color_biased(fields, mode_bias, sparse_bias);
+    // The doors — same ONE derivation the evaluator uses (door_values),
+    // fed the biased baked fields.
+    let biased_mode = clamp(baked_mode + config.mode_color_shift, 0.0, 1.0);
+    let doors = door_values(biased_mode, baked_sparse, config.mode_checker_scatter);
+    id.blend_t = doors.x;
+    id.scatter_survival = doors.y;
+    id.sparse_survival = doors.z;
+    id.in_mode_zone = doors.w;
+
+    let dcol = discrete_cell_color(world_xz, id,
+                                   config.checker_resultant, config.checker_music_amount,
+                                   config.checker_music_variance);
+    let base = composite_cell_color(id, dcol);
 
     let drift = config.mode_palette_intensity;
     if (drift > 0.001) {
-        var drifted = fields;
+        var drifted = id;
         drifted.smooth_color = palette_target_color(config.mode_palette_target, PALETTE_COMPLEXITY);
         let tier = u32(round(config.mode_discrete_tier));
-        drifted.discrete_color = discrete_cell_color_at_tier(world_xz, cell_gx, cell_gz, cell_seed, tier,
-                                                             config.checker_resultant, config.checker_music_amount,
-                                                             config.checker_music_variance);
-        let drifted_color = composite_cell_color_biased(drifted, mode_bias, sparse_bias);
+        let drifted_dcol = discrete_cell_color_at_tier(world_xz, cell_gx, cell_gz, cell_seed, tier,
+                                                       config.checker_resultant, config.checker_music_amount,
+                                                       config.checker_music_variance);
+        let drifted_color = composite_cell_color(drifted, drifted_dcol);
         return mix(base, drifted_color, drift * 0.95);
     }
 
@@ -7706,12 +7751,12 @@ fn animated_cell_color_lut(world_xz: vec2<f32>, baked_mode: f32, baked_style: f3
 }
 
 // Stage 3: Tag cell behavior mode from field state.
-fn tag_cell_behavior(s: CellFieldState) -> f32 {
+fn tag_cell_behavior(id: CellIdentity, world_xz: vec2<f32>) -> f32 {
     // Only cells in clearly discrete zones are eligible
-    if (s.mode < GOL_ZONE_MODE_THRESHOLD) { return 0.0; }
+    if (id.mode < GOL_ZONE_MODE_THRESHOLD) { return 0.0; }
 
     // Zone-level seed: all cells in the same mode lattice cell share this
-    let zone_node = vec2<i32>(floor(s.world_xz / MODE_LATTICE_SPACING));
+    let zone_node = vec2<i32>(floor(world_xz / MODE_LATTICE_SPACING));
     let zone_seed = lattice_node_seed(patch_params.master_seed, zone_node, GOL_ZONE_SEED_BAND);
 
     // GoL activation roll (per-zone, not per-cell)
@@ -7757,26 +7802,27 @@ fn generate_patch_cells(@builtin(global_invocation_id) id: vec3<u32>) {
     let cell_gz = i32(floor(world_xz.y / cell_size));
     let cell_seed = lattice_node_seed(patch_params.master_seed, vec2(cell_gx, cell_gz), 200u);
 
-    // Stage 1: Evaluate all spatial fields
-    // CHECKER-REBUILD: THE BAKE PASSES IDENTITY (amount 0 -> seed color) —
-    // patches bake at rest by construction; the live pull rides the FS
-    // gate only (seam-proof).
-    let fields = evaluate_cell_fields(world_xz, cell_gx, cell_gz, cell_seed,
-                                      vec3(0.0), 0.0, 0.0);
+    // Stage 1: Evaluate the cell's identity (bias 0 — the bake is unbiased)
+    let id = evaluate_cell_fields(world_xz, cell_gx, cell_gz, cell_seed, 0.0, 0.0);
 
-    // Stage 2: Composite final color
-    let final_color = composite_cell_color(fields);
+    // Stage 2: Resolve + composite. CHECKER-REBUILD: THE BAKE PASSES
+    // IDENTITY VOICE (amount 0 -> seed color) — patches bake at rest by
+    // construction; the live pull rides the FS gate only (seam-proof).
+    let dcol = discrete_cell_color(world_xz, id, vec3(0.0), 0.0, 0.0);
+    let final_color = composite_cell_color(id, dcol);
 
     // Stage 3: Behavior tag — packed into alpha channel
     // 0.0 = static (no animation), nonzero = animation mode + tier + flags
-    let behavior_tag = tag_cell_behavior(fields);
+    let behavior_tag = tag_cell_behavior(id, world_xz);
 
     // Store: RGB = fully composited color, A = behavior tag
     textureStore(patch_cell_color_array_write, texel, layer, vec4(final_color, behavior_tag));
 
     // Bake spatial field values into LUT for terrain FS (skips 3 lattice noise chains).
-    // mode is post-coupling (evaluate_cell_fields applies terrain_coupling_at internally).
-    textureStore(cell_fields_write, texel, layer, vec4(fields.mode, fields.style, fields.sparse, 0.0));
+    // mode is post-coupling. Phase 1: the free .w channel now carries the
+    // TIER (the cascade's verdict at the cell center) — the live path
+    // reads it instead of re-running the tendency/mono lattices.
+    textureStore(cell_fields_write, texel, layer, vec4(id.mode, id.style, id.sparse, f32(id.tier)));
 }
 
 
