@@ -126,15 +126,15 @@ namespace t7 {
     // t ramps over the hold; silence gives 1 from the formula itself —
     // no branch, identity by construction. Music only ever gives;
     // idleness is inviolate. RULED: ceiling 2× idle at 8 beats.
-    inline constexpr float RIBBON_SWELL_CEILING  = 2.00f;  // × idle (ruled)
-    inline constexpr float RIBBON_SWELL_RAMP     = 8.0f;   // beats (ruled)
+    inline constexpr float RIBBON_SWELL_CEILING = 2.00f;  // × idle (ruled)
+    inline constexpr float RIBBON_SWELL_RAMP = 8.0f;   // beats (ruled)
     // Envelope: the swell's goal is continuous during the ramp, so ATTACK
     // engages only at discontinuities (rare); RELEASE governs the breath
     // on re-articulation and the let-go after silence. Fast catch, slow
     // let-go. (A separate BREATH span for re-articulation is one line if
     // the dip wants independence from the final release — say the word.)
-    inline constexpr float RIBBON_SWELL_ATTACK   = 0.35f;  // beats
-    inline constexpr float RIBBON_SWELL_RELEASE  = 2.0f;   // beats
+    inline constexpr float RIBBON_SWELL_ATTACK = 0.35f;  // beats
+    inline constexpr float RIBBON_SWELL_RELEASE = 2.0f;   // beats
 
     // PITCH_VEC_ORIGIN survives the compass redesign: the tint's angle
     // law and the swappable seating live on it.
@@ -146,14 +146,14 @@ namespace t7 {
     // is a TINTING VOICE at authored luma/chroma, mixed over the spawn
     // color; mix rises while the line sounds, releases to 0 in silence —
     // rest = the seed-drawn ribbon exactly. Compositional dials.
-    inline constexpr float TINT_LUMA    = 0.55f;
-    inline constexpr float TINT_CHROMA  = 0.35f;
+    inline constexpr float TINT_LUMA = 0.55f;
+    inline constexpr float TINT_CHROMA = 0.35f;
     inline constexpr float TINT_MIX_MAX = 0.85f;
     // Envelope: the mix catches the room quickly and fades long on its
     // last hue; the hue itself re-aims between actives on one span.
-    inline constexpr float TINT_MIX_ATTACK  = 0.5f;   // beats
+    inline constexpr float TINT_MIX_ATTACK = 0.5f;   // beats
     inline constexpr float TINT_MIX_RELEASE = 3.0f;   // beats
-    inline constexpr float TINT_HUE_SPAN    = 2.0f;   // beats
+    inline constexpr float TINT_HUE_SPAN = 2.0f;   // beats
     // Rodrigues basis about the gray axis (canvas-side twin of the skin's):
     inline constexpr float TINT_D1[3] = { 0.8165f, -0.4082f, -0.4082f };
     inline constexpr float TINT_D2[3] = { 0.0f,     0.7071f, -0.7071f };
@@ -254,7 +254,7 @@ namespace t7 {
             }
         }
         return true;
-    }(), "PARAM_LAYOUT: a pipe leaves the bank or two pipes overlap");
+        }(), "PARAM_LAYOUT: a pipe leaves the bank or two pipes overlap");
 
     // ═══ VISUAL CANVAS ═══════════════════════════════════════════════════════════
 
@@ -286,14 +286,14 @@ namespace t7 {
                 std::string v(RIBBON_VOICE);
                 voice_playhead_ = signal_layout_.resolve((v + ".present_count").c_str());
             }
-            room_wagon_    = signal_layout_.resolve("all.window_length");
+            room_wagon_ = signal_layout_.resolve("all.window_length");
             room_playhead_ = signal_layout_.resolve("all.present_count");
-            amp_lat_  = param_layout_.resolve("ribbon.amp_lateral_mult");
+            amp_lat_ = param_layout_.resolve("ribbon.amp_lateral_mult");
             amp_vert_ = param_layout_.resolve("ribbon.amp_vertical_mult");
-            amp_lat_seg_  = Segment{ 1.0f, 1.0f, 0.0f, 0.0f };
+            amp_lat_seg_ = Segment{ 1.0f, 1.0f, 0.0f, 0.0f };
             amp_vert_seg_ = Segment{ 1.0f, 1.0f, 0.0f, 0.0f };
             tint_stim_ = param_layout_.resolve("ribbon.color_stim");
-            tint_mix_  = param_layout_.resolve("ribbon.color_mix");
+            tint_mix_ = param_layout_.resolve("ribbon.color_mix");
             for (int c2 = 0; c2 < 3; ++c2)
                 tint_stim_seg_[c2] = Segment{ 0.0f, 0.0f, 0.0f, 0.0f };
             tint_mix_seg_ = Segment{ 0.0f, 0.0f, 0.0f, 0.0f };
@@ -306,13 +306,13 @@ namespace t7 {
                 checker_win_ = signal_layout_.resolve((v + ".window_length").c_str());
             }
             checker_mean_ = param_layout_.resolve("terrain.checker_mean");
-            checker_var_  = param_layout_.resolve("terrain.checker_var");
+            checker_var_ = param_layout_.resolve("terrain.checker_var");
             for (int c2 = 0; c2 < 3; ++c2) {
                 checker_mean_goal_[c2] = 0.0f;                     // the wheel goal (x, y, 0)
                 checker_mean_seg_[c2] = Segment{ 0.0f, 0.0f, 0.0f, 0.0f };
             }
             checker_var_goal_ = 1.0f;                              // dormant spread wire
-            checker_var_seg_  = Segment{ 1.0f, 1.0f, 0.0f, 0.0f };
+            checker_var_seg_ = Segment{ 1.0f, 1.0f, 0.0f, 0.0f };
             checker_next_read_ = 0.0f;   // first frame reads, then grid-locks
         }
 
@@ -352,7 +352,7 @@ namespace t7 {
                 uint32_t mask = 0u;
                 for (int i = 0; i < 12; ++i)
                     if (signal.stat(voice_playhead_.channel,
-                                    voice_playhead_.base + i) > 0.0f)
+                        voice_playhead_.base + i) > 0.0f)
                         mask |= (1u << i);
                 const float dbeats = beat - last_beat_;
                 if (mask == 0u || mask != hold_mask_) hold_beats_ = 0.0f;
@@ -365,7 +365,7 @@ namespace t7 {
                     ? hold_beats_ / RIBBON_SWELL_RAMP : 1.0f;
                 const float goal = 1.0f + (RIBBON_SWELL_CEILING - 1.0f) * t;
                 params_.set(amp_lat_.base,
-                    trajectory_release(amp_lat_seg_,  goal, beat,
+                    trajectory_release(amp_lat_seg_, goal, beat,
                         (goal == 1.0f ? RIBBON_SWELL_RELEASE : RIBBON_SWELL_ATTACK)));
                 params_.set(amp_vert_.base,
                     trajectory_release(amp_vert_seg_, goal, beat,
@@ -389,16 +389,17 @@ namespace t7 {
                     vx += w * std::cos(th); vy += w * std::sin(th);
                     energy += w;
                 }
-                const float len = std::sqrt(vx*vx + vy*vy);
+                const float len = std::sqrt(vx * vx + vy * vy);
                 if (len > 1e-4f) {
                     const float ca = vx / len, sa = vy / len;   // hue direction, no atan needed
                     for (int c2 = 0; c2 < 3; ++c2) {
                         const float v = TINT_LUMA
-                            + (TINT_D1[c2]*ca + TINT_D2[c2]*sa) * TINT_CHROMA;
+                            + (TINT_D1[c2] * ca + TINT_D2[c2] * sa) * TINT_CHROMA;
                         params_.set(tint_stim_.base + c2,
                             trajectory_release(tint_stim_seg_[c2], v, beat, TINT_HUE_SPAN));
                     }
-                } else {
+                }
+                else {
                     // window drained: stim segments hold their last hue; the
                     // MIX below is what releases — fade, not gray-out.
                     for (int c2 = 0; c2 < 3; ++c2)
@@ -411,7 +412,7 @@ namespace t7 {
                 if (room_playhead_.valid)
                     for (int i = 0; i < 12; ++i)
                         room_sounding += signal.stat(room_playhead_.channel,
-                                                     room_playhead_.base + i);
+                            room_playhead_.base + i);
                 const float mix_goal = (room_sounding > 0.0f) ? TINT_MIX_MAX : 0.0f;
                 params_.set(tint_mix_.base,
                     trajectory_release(tint_mix_seg_, mix_goal, beat,
@@ -430,32 +431,49 @@ namespace t7 {
             // nulls hold). Every frame each component glides on the
             // full span. [WHEEL] prints one witness line per read.
             if (checker_win_.valid && checker_mean_.valid && checker_var_.valid) {
+                // F3 (CADENCE): re-anchor on a BACKWARD beat jump. The grid
+                // cursor only moves forward, so a transport LOOP back below
+                // next_read would leave the guard false for the whole loop —
+                // the wheel dead while fog (gridless) stays live. THIS was the
+                // "sometimes it breathes, sometimes it doesn't": a looped
+                // rehearsal froze the reader on wrap. If beat has fallen more
+                // than one span behind the cursor, the transport jumped — reset
+                // the cursor so the next crossing reads.
+                if (beat < checker_next_read_ - CHECKER_READ_SPAN)
+                    checker_next_read_ = std::floor(beat / CHECKER_READ_SPAN) * CHECKER_READ_SPAN;
                 if (beat >= checker_next_read_) {
                     float vx = 0.0f, vy = 0.0f, total = 0.0f;
                     int   n = 0;
                     for (int i = 0; i < 12; ++i) {
                         const float w = signal.stat(checker_win_.channel,
-                                                    checker_win_.base + i);
+                            checker_win_.base + i);
                         if (w <= 0.0f) continue;
                         const float th = CHECKER_SEAT_DEG[i] * CHECKER_DEG2RAD;
-                        const float g  = CHECKER_SEAT_GAIN[i];
+                        const float g = CHECKER_SEAT_GAIN[i];
                         vx += w * g * std::cos(th);
                         vy += w * g * std::sin(th);
                         total += w;
                         ++n;
                     }
-                    const float len = std::sqrt(vx*vx + vy*vy);
+                    const float len = std::sqrt(vx * vx + vy * vy);
                     if (len > 1e-6f && total > 1e-6f) {
                         const float commit = std::min(CHECKER_COMMIT_MAX, len / total);
                         checker_mean_goal_[0] = commit * (vx / len);
                         checker_mean_goal_[1] = commit * (vy / len);
-                    } else {
-                        checker_mean_goal_[0] = 0.0f;
-                        checker_mean_goal_[1] = 0.0f;
+                        checker_mean_goal_[2] = 0.0f;
                     }
-                    checker_mean_goal_[2] = 0.0f;
-                    checker_var_goal_ = std::min(CHECKER_VAR_GAIN_MAX,
-                        1.0f + CHECKER_VAR_PER_NOTE * (float)std::max(0, n - 1));
+                    // F2 (HOLD-LAST): an EMPTY ch1 window (total 0 — the piano
+                    // rests while other voices carry) keeps the LAST lean rather
+                    // than snapping the mosaic back to seed. The tint's own idiom
+                    // (a drained window holds its hue). Goal is simply left
+                    // unwritten — the glide finishes to the held target and rests.
+                    // Silence at BOOT still starts at the rest zero (seeded goal).
+                    // Variance gain follows the same hold-last: only rewritten
+                    // when the window has content (n>0). Silence holds the last
+                    // spread, matching the held hue.
+                    if (n > 0)
+                        checker_var_goal_ = std::min(CHECKER_VAR_GAIN_MAX,
+                            1.0f + CHECKER_VAR_PER_NOTE * (float)std::max(0, n - 1));
                     // THE WITNESS: one line per read — the decode's own
                     // testimony, upstream of the GPU. angle in the hue
                     // recipe's degrees (0 red · 60 yellow · 240 blue …).
@@ -463,7 +481,7 @@ namespace t7 {
                         "[WHEEL] n=%d commit=%.2f angle=%+.0fdeg vargain=%.2f\n",
                         n,
                         (len > 1e-6f && total > 1e-6f)
-                            ? std::min(CHECKER_COMMIT_MAX, len / total) : 0.0f,
+                        ? std::min(CHECKER_COMMIT_MAX, len / total) : 0.0f,
                         std::atan2(vy, vx) * 57.29578f,
                         checker_var_goal_);
                     checker_next_read_ =

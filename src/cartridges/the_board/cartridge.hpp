@@ -99,9 +99,9 @@ namespace t7 {
 
         class Cartridge : public RenderCartridge {
 
-        // COMPOSITION ROOT — ORGANS ARE PUBLIC: sight is free; writes pass
-        // through declared seams; the census enforces the seam law, not
-        // access control.
+            // COMPOSITION ROOT — ORGANS ARE PUBLIC: sight is free; writes pass
+            // through declared seams; the census enforces the seam law, not
+            // access control.
         public:
 
             wgpu::Device device_;
@@ -398,7 +398,7 @@ namespace t7 {
                 // THE ROOT AUTHORS THE BOOT VALUES (the demo sentence lands
                 // here, not via in-struct defaults — no include-order cable).
                 world_state_.active_seed = DEMO.seed;
-                mood_state_.active       = DEMO.boot_mood;
+                mood_state_.active = DEMO.boot_mood;
             }
 
             Cartridge(const Cartridge&) = delete;
@@ -420,15 +420,15 @@ namespace t7 {
                     // the parameters live. Values unchanged: blend -1
                     // = inactive, everything else 0.
                     gpuState_.set_band_motion(terrain_looks::REST_BAND_BLEND,
-                                              terrain_looks::REST_BAND_PHASE_ORIGIN);
+                        terrain_looks::REST_BAND_PHASE_ORIGIN);
                     gpuState_.set_terrain_time(terrain_looks::REST_TERRAIN_TIME);
                     gpuState_.set_mode_color_shift(terrain_looks::REST_MODE_COLOR_SHIFT);
                     gpuState_.set_mode_checker_scatter(terrain_looks::REST_MODE_CHECKER_SCATTER);
                     gpuState_.set_mode_palette_drift(terrain_looks::REST_MODE_PALETTE_DRIFT_TARGET,
-                                                     terrain_looks::REST_MODE_PALETTE_DRIFT_INTENSITY,
-                                                     terrain_looks::REST_MODE_PALETTE_DRIFT_TIER);
+                        terrain_looks::REST_MODE_PALETTE_DRIFT_INTENSITY,
+                        terrain_looks::REST_MODE_PALETTE_DRIFT_TIER);
                     gpuState_.set_checker_color_field(terrain_looks::REST_CHECKER_MEAN_OFFSET,
-                                                      terrain_looks::REST_CHECKER_VARIANCE_GAIN);
+                        terrain_looks::REST_CHECKER_VARIANCE_GAIN);
                     gpuState_.set_mode_gol_scales(1.0f, 1.0f);   // GoL's jurisdiction — stays inline (ROW 9 pointer)
                     float zero_pulses[32] = {};
                     gpuState_.set_pulse_data(0, zero_pulses);
@@ -554,7 +554,7 @@ namespace t7 {
                     std::string off;
                     auto mark = [&](bool enabled, const char* name) {
                         if (!enabled) { if (!off.empty()) off += ", "; off += name; }
-                    };
+                        };
                     mark(ROSTER.pyramid, "pyramid");     mark(ROSTER.arch, "arch");
                     mark(ROSTER.column, "column");       mark(ROSTER.antenna, "antenna");
                     mark(ROSTER.palm, "palm");           mark(ROSTER.cactus, "cactus");
@@ -582,17 +582,21 @@ namespace t7 {
             void bind_signal_layout(StatLayoutView v) {
                 visual_canvas_.bind(v);
                 fog_density_dst_ = visual_canvas_.layout().resolve("fog.density");
-                fog_color_dst_   = visual_canvas_.layout().resolve("fog.color");
-                ribbon_amp_lat_dst_  = visual_canvas_.layout().resolve("ribbon.amp_lateral_mult");
+                fog_color_dst_ = visual_canvas_.layout().resolve("fog.color");
+                ribbon_amp_lat_dst_ = visual_canvas_.layout().resolve("ribbon.amp_lateral_mult");
                 ribbon_amp_vert_dst_ = visual_canvas_.layout().resolve("ribbon.amp_vertical_mult");
                 ribbon_tint_stim_dst_ = visual_canvas_.layout().resolve("ribbon.color_stim");
-                ribbon_tint_mix_dst_  = visual_canvas_.layout().resolve("ribbon.color_mix");
+                ribbon_tint_mix_dst_ = visual_canvas_.layout().resolve("ribbon.color_mix");
                 checker_mean_dst_ = visual_canvas_.layout().resolve("terrain.checker_mean");
-                checker_var_dst_  = visual_canvas_.layout().resolve("terrain.checker_var");
+                checker_var_dst_ = visual_canvas_.layout().resolve("terrain.checker_var");
                 std::fprintf(stderr,
                     "[the_board] fog.density base=%d valid=%d | fog.color base=%d count=%d valid=%d\n",
                     fog_density_dst_.base, (int)fog_density_dst_.valid,
                     fog_color_dst_.base, fog_color_dst_.count, (int)fog_color_dst_.valid);
+                std::fprintf(stderr,
+                    "[the_board] terrain.checker_mean base=%d count=%d valid=%d | terrain.checker_var base=%d valid=%d\n",
+                    checker_mean_dst_.base, checker_mean_dst_.count, (int)checker_mean_dst_.valid,
+                    checker_var_dst_.base, (int)checker_var_dst_.valid);
             }
 
             // ═══════════════════════════════════════════════════════════════
@@ -640,12 +644,12 @@ namespace t7 {
             struct UpdateCtx {
                 const AnalysisSignal& signal;
                 float                 aspect_ratio;
-                wgpu::Queue&          queue;
-                GPUFrameSignal&       gpuSignal;   // U1 fills it; U8 drains it (sky_* excluded — E-3 mechanized)
+                wgpu::Queue& queue;
+                GPUFrameSignal& gpuSignal;   // U1 fills it; U8 drains it (sky_* excluded — E-3 mechanized)
             };
             struct RenderCtx {
                 wgpu::CommandEncoder& encoder;
-                wgpu::Queue&          queue;
+                wgpu::Queue& queue;
                 wgpu::TextureView     backbuffer;
                 wgpu::TextureView     depth;
             };
@@ -656,17 +660,17 @@ namespace t7 {
 
             // Coarse face tags — the frame-truth axes a phase touches (recon §3).
             enum FaceTag : uint32_t {
-                F_NONE       = 0,
-                F_SIGNAL     = 1u << 0,   // the GPU signal buffer (clock/input/stats)
-                F_CONFIG     = 1u << 1,   // the GPU config buffer (fog/world/fade/...)
-                F_CLOCK      = 1u << 2,   // time_state_ (beats/seconds/dt/prev_beats)
-                F_WITNESS    = 1u << 3,   // the readback record (agent/floater/camera)
-                F_GROUND     = 1u << 4,   // ground-entries / placement dirty cascade
-                F_COMPUTE    = 1u << 5,   // encodes a GPU compute pass
-                F_DRAW       = 1u << 6,   // encodes a GPU render pass
-                F_SUBMIT     = 1u << 7,   // issues its OWN queue submit (hidden)
+                F_NONE = 0,
+                F_SIGNAL = 1u << 0,   // the GPU signal buffer (clock/input/stats)
+                F_CONFIG = 1u << 1,   // the GPU config buffer (fog/world/fade/...)
+                F_CLOCK = 1u << 2,   // time_state_ (beats/seconds/dt/prev_beats)
+                F_WITNESS = 1u << 3,   // the readback record (agent/floater/camera)
+                F_GROUND = 1u << 4,   // ground-entries / placement dirty cascade
+                F_COMPUTE = 1u << 5,   // encodes a GPU compute pass
+                F_DRAW = 1u << 6,   // encodes a GPU render pass
+                F_SUBMIT = 1u << 7,   // issues its OWN queue submit (hidden)
                 F_TRANSITION = 1u << 8,   // the transition machine / mood
-                F_STREAM     = 1u << 9,   // patch streaming (S2)
+                F_STREAM = 1u << 9,   // patch streaming (S2)
             };
 
             // Phase ids — DECLARATION ORDER == AUTHORED ORDER == ROW INDEX.
@@ -688,16 +692,16 @@ namespace t7 {
             // Row shapes (the FAMILY_DISPATCH shape, one clock per conductor).
             struct URow {
                 UPhase                          id;
-                const char*                     name;
-                void (Cartridge::*fn)(UpdateCtx&);
+                const char* name;
+                void (Cartridge::* fn)(UpdateCtx&);
                 Driver                          driver;
                 bool                            enabled;   // roster gate (constexpr-folded)
                 uint32_t                        face;
             };
             struct RRow {
                 RPhase                          id;
-                const char*                     name;
-                void (Cartridge::*fn)(RenderCtx&);
+                const char* name;
+                void (Cartridge::* fn)(RenderCtx&);
                 Driver                          driver;
                 bool                            enabled;
                 uint32_t                        face;
@@ -760,15 +764,31 @@ namespace t7 {
                 if (fog_density_dst_.valid && fog_color_dst_.valid) {
                     const VisualParams& fp = visual_canvas_.params();
                     gpuState_.set_fog(fp.get(fog_density_dst_.base),
-                                      fp.get(fog_color_dst_.base + 0),
-                                      fp.get(fog_color_dst_.base + 1),
-                                      fp.get(fog_color_dst_.base + 2));
+                        fp.get(fog_color_dst_.base + 0),
+                        fp.get(fog_color_dst_.base + 1),
+                        fp.get(fog_color_dst_.base + 2));
                 }
                 // CHECKER-1: the checker field's flush — one setter, the fan.
                 if (checker_mean_dst_.valid && checker_var_dst_.valid) {
                     const VisualParams& cp = visual_canvas_.params();
                     gpuState_.set_checker_color_field(cp.run(checker_mean_dst_.base),
-                                                      cp.get(checker_var_dst_.base));
+                        cp.get(checker_var_dst_.base));
+                    // [FLUSH] one-shot: fires the first time a live wheel value
+                    // actually crosses the CPU->GPU seam. If [WHEEL] is singing
+                    // in the console and this line never prints, the bindings
+                    // above are invalid or the two params_ objects disagree —
+                    // name it here, don't infer it.
+                    static bool checker_flush_seen = false;
+                    if (!checker_flush_seen
+                        && (std::fabs(cp.get(checker_mean_dst_.base)) > 0.05f
+                            || std::fabs(cp.get(checker_mean_dst_.base + 1)) > 0.05f)) {
+                        std::fprintf(stderr,
+                            "[FLUSH] checker -> config: (%.2f %.2f) gain=%.2f\n",
+                            cp.get(checker_mean_dst_.base),
+                            cp.get(checker_mean_dst_.base + 1),
+                            cp.get(checker_var_dst_.base));
+                        checker_flush_seen = true;
+                    }
                 }
             }
 
@@ -951,7 +971,7 @@ namespace t7 {
                 float aspect_ratio,
                 wgpu::Queue& queue) override {
                 GPUFrameSignal gpuSignal{};   // sky_* stay zero — upload_signal skips them (E-3); resync_sky_head owns the block
-                UpdateCtx ctx{signal, aspect_ratio, queue, gpuSignal};
+                UpdateCtx ctx{ signal, aspect_ratio, queue, gpuSignal };
                 for (const URow& row : UPDATE_SPINE)
                     if (row.enabled) (this->*row.fn)(ctx);
             }
@@ -1145,7 +1165,8 @@ namespace t7 {
                         if (gol_state_.zone_count != 0 || rosterGolZoneRuns_ != 0) {
                             std::cerr << "[ROSTER residue] VIOLATION: gol disabled but zone_count="
                                 << gol_state_.zone_count << " runs=" << rosterGolZoneRuns_ << "\n";
-                        } else {
+                        }
+                        else {
                             std::cout << "[ROSTER residue] gol disabled: zone buffers pristine"
                                 << " (zone_count=0, zone-compute runs this session=0)\n";
                         }
@@ -1439,20 +1460,20 @@ namespace t7 {
             // THESE ROWS: manifest = the table, attribution = row membership.
             // ═══════════════════════════════════════════════════════════════
             static constexpr URow UPDATE_SPINE[] = {
-                { UPhase::FillSignal,          "fill_signal",           &Cartridge::phase_fill_signal,           Driver::Mixed,     true,             F_SIGNAL|F_CLOCK },
+                { UPhase::FillSignal,          "fill_signal",           &Cartridge::phase_fill_signal,           Driver::Mixed,     true,             F_SIGNAL | F_CLOCK },
                 { UPhase::AdvanceClock,        "advance_clock",         &Cartridge::phase_advance_clock,         Driver::Music,     true,             F_CLOCK },
                 { UPhase::MotionDrivers,       "motion_drivers",        &Cartridge::phase_motion_drivers,        Driver::Music,     true,             F_CONFIG },
                 { UPhase::MotionBodies,        "motion_bodies",         &Cartridge::phase_motion_bodies,         Driver::WallClock, ROSTER.pawn_aura, F_NONE },
                 { UPhase::StageWorld,          "stage_world",           &Cartridge::phase_stage_world,           Driver::Algo,      true,             F_CONFIG },
-                { UPhase::TransitionMachine,   "transition_machine",    &Cartridge::phase_transition_machine,    Driver::Mixed,     true,             F_CONFIG|F_TRANSITION },
-                { UPhase::StageFadeUpload,     "stage_fade_and_upload", &Cartridge::phase_stage_fade_and_upload, Driver::None,      true,             F_SIGNAL|F_CONFIG },
+                { UPhase::TransitionMachine,   "transition_machine",    &Cartridge::phase_transition_machine,    Driver::Mixed,     true,             F_CONFIG | F_TRANSITION },
+                { UPhase::StageFadeUpload,     "stage_fade_and_upload", &Cartridge::phase_stage_fade_and_upload, Driver::None,      true,             F_SIGNAL | F_CONFIG },
                 { UPhase::WitnessPhotographer, "witness_photographer",  &Cartridge::phase_witness_photographer,  Driver::Algo,      ROSTER.gallery,   F_WITNESS },
                 { UPhase::ClearInputDeltas,    "clear_input_deltas",    &Cartridge::phase_clear_input_deltas,    Driver::None,      true,             F_NONE },
             };
             static constexpr RRow RENDER_SPINE[] = {
                 { RPhase::WitnessHarvest,      "witness_harvest",       &Cartridge::phase_witness_harvest,       Driver::Algo,      true,                                   F_WITNESS },
-                { RPhase::PortalTrigger,       "portal_trigger",        &Cartridge::phase_portal_trigger,        Driver::Algo,      ROSTER.transitions,                     F_WITNESS|F_TRANSITION },
-                { RPhase::StreamPatches,       "stream_patches",        &Cartridge::phase_stream_patches,        Driver::Algo,      true,                                   F_STREAM|F_COMPUTE },
+                { RPhase::PortalTrigger,       "portal_trigger",        &Cartridge::phase_portal_trigger,        Driver::Algo,      ROSTER.transitions,                     F_WITNESS | F_TRANSITION },
+                { RPhase::StreamPatches,       "stream_patches",        &Cartridge::phase_stream_patches,        Driver::Algo,      true,                                   F_STREAM | F_COMPUTE },
                 { RPhase::RespawnAgents,       "respawn_agents",        &Cartridge::phase_respawn_agents,        Driver::Algo,      ROSTER.wanderers,                       F_NONE },
                 { RPhase::MotionCorral,        "motion_corral",         &Cartridge::phase_motion_corral,         Driver::WallClock, ROSTER.cube,                            F_NONE },
                 { RPhase::CensusDumps,         "census_dumps",          &Cartridge::phase_census_dumps,          Driver::WallClock, true,                                   F_NONE },
@@ -1461,12 +1482,12 @@ namespace t7 {
                 { RPhase::UploadPortalLights,  "upload_portal_lights",  &Cartridge::phase_upload_portal_lights,  Driver::Algo,      true,                                   F_CONFIG },
                 { RPhase::DispatchCompute,     "dispatch_compute",      &Cartridge::phase_dispatch_compute,      Driver::Mixed,     true,                                   F_COMPUTE },
                 { RPhase::WitnessCapture,      "witness_capture",       &Cartridge::phase_witness_capture,       Driver::None,      true,                                   F_WITNESS },
-                { RPhase::GolDeriveFlush,      "gol_derive_flush",      &Cartridge::phase_gol_derive_flush,      Driver::Algo,      ROSTER.gol,                             F_COMPUTE|F_SUBMIT },
+                { RPhase::GolDeriveFlush,      "gol_derive_flush",      &Cartridge::phase_gol_derive_flush,      Driver::Algo,      ROSTER.gol,                             F_COMPUTE | F_SUBMIT },
                 { RPhase::GolZoneCompute,      "gol_zone_compute",      &Cartridge::phase_gol_zone_compute,      Driver::Algo,      ROSTER.gol,                             F_COMPUTE },
                 { RPhase::PawnAura,            "pawn_aura",             &Cartridge::phase_pawn_aura,             Driver::WallClock, ROSTER.pawn_aura,                       F_COMPUTE },
                 { RPhase::OrbSky,              "orb_sky",               &Cartridge::phase_orb_sky,               Driver::Mixed,     ROSTER.orbs,                            F_COMPUTE },
                 { RPhase::GroundEntries,       "ground_entries",        &Cartridge::phase_ground_entries,        Driver::Algo,      true,                                   F_GROUND },
-                { RPhase::PlacementCorrection, "placement_correction",  &Cartridge::phase_placement_correction,  Driver::Algo,      true,                                   F_GROUND|F_COMPUTE },
+                { RPhase::PlacementCorrection, "placement_correction",  &Cartridge::phase_placement_correction,  Driver::Algo,      true,                                   F_GROUND | F_COMPUTE },
                 { RPhase::FrustumCull,         "frustum_cull",          &Cartridge::phase_frustum_cull,          Driver::Algo,      true,                                   F_COMPUTE },
                 { RPhase::ShadowPass,          "shadow_pass",           &Cartridge::phase_shadow_pass,           Driver::None,      true,                                   F_DRAW },
                 { RPhase::MainPass,            "main_pass",             &Cartridge::phase_main_pass,             Driver::None,      true,                                   F_DRAW },
@@ -1511,23 +1532,23 @@ namespace t7 {
             // (validate_spine, called once at init): a constexpr member fn
             // cannot be static_asserted inside its own incomplete class.
             // update laws:
-            static_assert((uint32_t)UPhase::FillSignal < (uint32_t)UPhase::AdvanceClock,        "O-5a: dt_beats reads prev_beats before the clock advances it");
+            static_assert((uint32_t)UPhase::FillSignal < (uint32_t)UPhase::AdvanceClock, "O-5a: dt_beats reads prev_beats before the clock advances it");
             // E-3 (sky write-order) is now MECHANIZED, not an ordering assert:
             // update writes the sky block NOWHERE (upload_signal skips it), so its
             // sole author is resync_sky_head (R7). Structure replaced the paragraph.
-            static_assert((uint32_t)UPhase::ClearInputDeltas + 1 == (uint32_t)UPhase::COUNT,    "O-5e: clear_input_deltas is dead-last");
+            static_assert((uint32_t)UPhase::ClearInputDeltas + 1 == (uint32_t)UPhase::COUNT, "O-5e: clear_input_deltas is dead-last");
             // render laws:
-            static_assert((uint32_t)RPhase::RibbonTick     < (uint32_t)RPhase::DispatchCompute, "O-1: the sky resync (R7 tail) precedes the compute that reads it");
+            static_assert((uint32_t)RPhase::RibbonTick < (uint32_t)RPhase::DispatchCompute, "O-1: the sky resync (R7 tail) precedes the compute that reads it");
             static_assert((uint32_t)RPhase::WitnessHarvest < (uint32_t)RPhase::DispatchCompute, "O-2: witness harvest before compute");
-            static_assert((uint32_t)RPhase::DispatchCompute< (uint32_t)RPhase::WitnessCapture,  "O-2: witness capture after compute (feeds next frame's harvest)");
-            static_assert((uint32_t)RPhase::StreamPatches  < (uint32_t)RPhase::RespawnAgents,   "RC-1: respawn after the stream (S3 after S2)");
-            static_assert((uint32_t)RPhase::StreamPatches  < (uint32_t)RPhase::MotionCorral,    "RC-2: corral after the stream (S4 after S2)");
-            static_assert((uint32_t)RPhase::GroundEntries  < (uint32_t)RPhase::PlacementCorrection, "O-4: ground entries (raises placement_dirty) before placement correction");
-            static_assert((uint32_t)RPhase::FrustumCull    < (uint32_t)RPhase::ShadowPass,      "O-7: frustum cull before the shadow pass");
-            static_assert((uint32_t)RPhase::FrustumCull    < (uint32_t)RPhase::MainPass,        "O-7: frustum cull before the main pass (indirect draws consume the cull)");
-            static_assert((uint32_t)RPhase::GolDeriveFlush < (uint32_t)RPhase::GolZoneCompute,  "gol: the derive flush (hidden submit) precedes the zone compute that reads it");
-            static_assert((uint32_t)RPhase::ShadowPass     < (uint32_t)RPhase::MainPass,        "draw: shadow before main");
-            static_assert((uint32_t)RPhase::MainPass       < (uint32_t)RPhase::SnapshotPass,    "draw: main before snapshot");
+            static_assert((uint32_t)RPhase::DispatchCompute < (uint32_t)RPhase::WitnessCapture, "O-2: witness capture after compute (feeds next frame's harvest)");
+            static_assert((uint32_t)RPhase::StreamPatches < (uint32_t)RPhase::RespawnAgents, "RC-1: respawn after the stream (S3 after S2)");
+            static_assert((uint32_t)RPhase::StreamPatches < (uint32_t)RPhase::MotionCorral, "RC-2: corral after the stream (S4 after S2)");
+            static_assert((uint32_t)RPhase::GroundEntries < (uint32_t)RPhase::PlacementCorrection, "O-4: ground entries (raises placement_dirty) before placement correction");
+            static_assert((uint32_t)RPhase::FrustumCull < (uint32_t)RPhase::ShadowPass, "O-7: frustum cull before the shadow pass");
+            static_assert((uint32_t)RPhase::FrustumCull < (uint32_t)RPhase::MainPass, "O-7: frustum cull before the main pass (indirect draws consume the cull)");
+            static_assert((uint32_t)RPhase::GolDeriveFlush < (uint32_t)RPhase::GolZoneCompute, "gol: the derive flush (hidden submit) precedes the zone compute that reads it");
+            static_assert((uint32_t)RPhase::ShadowPass < (uint32_t)RPhase::MainPass, "draw: shadow before main");
+            static_assert((uint32_t)RPhase::MainPass < (uint32_t)RPhase::SnapshotPass, "draw: main before snapshot");
 
             // BOOT VALIDATION (always-on): table-order integrity + the O-5b/c
             // face law — the checks a constexpr member fn cannot static_assert
@@ -1553,15 +1574,15 @@ namespace t7 {
                     }
                     if (!eq) {
                         std::cerr << "[SPINE] FAMILY_DISPATCH row " << f << " name '"
-                                  << (have ? have : "<null>") << "' != PopFamily order '"
-                                  << want << "' (F-2)\n";
+                            << (have ? have : "<null>") << "' != PopFamily order '"
+                            << want << "' (F-2)\n";
                         std::abort();
                     }
                 }
                 std::cout << "[SPINE] validated: " << (uint32_t)UPhase::COUNT << " update rows + "
-                          << (uint32_t)RPhase::COUNT << " render rows + "
-                          << (uint32_t)PopFamily::COUNT << " dispatch rows name-checked; "
-                          << "O-#/RC laws static-asserted\n";
+                    << (uint32_t)RPhase::COUNT << " render rows + "
+                    << (uint32_t)PopFamily::COUNT << " dispatch rows name-checked; "
+                    << "O-#/RC laws static-asserted\n";
             }
 
             // ── THE CONDUCTOR (render) — a LOOP over RENDER_SPINE (§1b) ─────
@@ -1569,7 +1590,7 @@ namespace t7 {
                 wgpu::TextureView backbuffer,
                 wgpu::TextureView depth) override {
                 wgpu::Queue queue = device_.GetQueue();
-                RenderCtx ctx{encoder, queue, backbuffer, depth};
+                RenderCtx ctx{ encoder, queue, backbuffer, depth };
                 for (const RRow& row : RENDER_SPINE)
                     if (row.enabled) (this->*row.fn)(ctx);
             }
@@ -1652,66 +1673,66 @@ namespace t7 {
 // static ADDRESSES and the family row addresses, so it lives with its
 // owner, the composition root, at the post-class point.
 namespace t7 {
-namespace the_board {
-// ─── Shared no-op adapters ────────────────────────────────────────
+    namespace the_board {
+        // ─── Shared no-op adapters ────────────────────────────────────────
 
-inline bool dispatch_prepare_mesh_none(MachineCtx* self, wgpu::Queue& queue) {
-    (void)self; (void)queue;
-    return false;
-}
-inline void dispatch_mesh_gen_none(MachineCtx* self, wgpu::ComputePassEncoder& pass) {
-    (void)self; (void)pass;
-}
+        inline bool dispatch_prepare_mesh_none(MachineCtx* self, wgpu::Queue& queue) {
+            (void)self; (void)queue;
+            return false;
+        }
+        inline void dispatch_mesh_gen_none(MachineCtx* self, wgpu::ComputePassEncoder& pass) {
+            (void)self; (void)pass;
+        }
 
-// ─── The table ─────────────────────────────────────────────────────
-// AXES: one row per family, POSITIONAL in PopFamily order (PYRAMID=0,
-//   ARCH, COLUMN, ANTENNA, PALM, CACTUS, BLADE, SPHERE, RIBBON, CUBE,
-//   GOL, GALLERY=11) — the enum values are pinned at roster.hpp (F-1)
-//   and every row's trailing name string is boot-checked against
-//   family_short_name by validate_spine (F-2), so a row swap fails
-//   LOUD. Row columns (FamilyDispatch, entity_types.hpp):
-//     { try_select, try_place, try_commit, evict_slot,
-//       prepare_mesh, dispatch_mesh, name }
-// CONSUMERS: the machine tail walks select/place/commit per queue
-//   entry; eviction routes through evict_slot; the mesh pair feeds the
-//   RENDER_UPDATE mesh phases (none-fork = family has no mesh).
-inline const FamilyDispatch FAMILY_DISPATCH[PopFamily::COUNT] = {
-    { dispatch_select_pyramid_generic, dispatch_place_pyramid_generic, dispatch_commit_pyramid_generic,
-      evict_pyramid, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,   // mesh hook → none-fork: pyramid mesh dead-by-design; placement feeds the heightfield
-      "pyr" },
-    { dispatch_select_arch_generic, dispatch_place_arch_generic, dispatch_commit_arch_generic,
-      evict_arch,    Cartridge::dispatch_prepare_mesh_arch,    Cartridge::dispatch_mesh_gen_arch,
-      "arch" },
-    { dispatch_select_column_generic, dispatch_place_column_generic, dispatch_commit_column_generic,
-      evict_column,  Cartridge::dispatch_prepare_mesh_column,  Cartridge::dispatch_mesh_gen_column,
-      "col" },
-    { dispatch_select_antenna_generic, dispatch_place_antenna_generic, dispatch_commit_antenna_generic,
-      evict_antenna, Cartridge::dispatch_prepare_mesh_column,  Cartridge::dispatch_mesh_gen_column,
-      "ant" },
-    { dispatch_select_palm_generic, dispatch_place_palm_generic, dispatch_commit_palm_generic,
-      evict_palm,   Cartridge::dispatch_prepare_mesh_palm,   Cartridge::dispatch_mesh_gen_palm,
-      "palm" },
-    { dispatch_select_cactus_generic, dispatch_place_cactus_generic, dispatch_commit_cactus_generic,
-      evict_cactus, Cartridge::dispatch_prepare_mesh_cactus, Cartridge::dispatch_mesh_gen_cactus,
-      "cact" },
-    { dispatch_select_blade_generic, dispatch_place_blade_generic, dispatch_commit_blade_generic,
-      evict_blade, Cartridge::dispatch_prepare_mesh_blade, Cartridge::dispatch_mesh_gen_blade,
-      "blad" },
-    { dispatch_select_sphere_generic, dispatch_place_sphere_generic, dispatch_commit_sphere_generic,
-      evict_sphere, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
-      "sph" },   // no CPU mesh gen — GPU compute handles update_sphere
-    { dispatch_select_ribbon, dispatch_place_ribbon, dispatch_commit_ribbon,
-      evict_ribbon, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
-      "ribn" },  // no CPU mesh gen — GPU compute handles ribbon rendering
-    { dispatch_select_cube_generic, dispatch_place_cube_generic, dispatch_commit_cube_generic,
-      evict_cube, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
-      "cube" },  // no CPU mesh gen — GPU compute handles update_cube
-    { dispatch_select_gol, dispatch_place_gol, dispatch_commit_gol,
-      evict_gol, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
-      "gol" },   // zone mesh gen is a separate compute pass
-    { dispatch_select_gallery, dispatch_place_gallery, dispatch_commit_gallery,
-      evict_gallery, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
-      "gall" },
-};
-} // namespace the_board
+        // ─── The table ─────────────────────────────────────────────────────
+        // AXES: one row per family, POSITIONAL in PopFamily order (PYRAMID=0,
+        //   ARCH, COLUMN, ANTENNA, PALM, CACTUS, BLADE, SPHERE, RIBBON, CUBE,
+        //   GOL, GALLERY=11) — the enum values are pinned at roster.hpp (F-1)
+        //   and every row's trailing name string is boot-checked against
+        //   family_short_name by validate_spine (F-2), so a row swap fails
+        //   LOUD. Row columns (FamilyDispatch, entity_types.hpp):
+        //     { try_select, try_place, try_commit, evict_slot,
+        //       prepare_mesh, dispatch_mesh, name }
+        // CONSUMERS: the machine tail walks select/place/commit per queue
+        //   entry; eviction routes through evict_slot; the mesh pair feeds the
+        //   RENDER_UPDATE mesh phases (none-fork = family has no mesh).
+        inline const FamilyDispatch FAMILY_DISPATCH[PopFamily::COUNT] = {
+            { dispatch_select_pyramid_generic, dispatch_place_pyramid_generic, dispatch_commit_pyramid_generic,
+              evict_pyramid, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,   // mesh hook → none-fork: pyramid mesh dead-by-design; placement feeds the heightfield
+              "pyr" },
+            { dispatch_select_arch_generic, dispatch_place_arch_generic, dispatch_commit_arch_generic,
+              evict_arch,    Cartridge::dispatch_prepare_mesh_arch,    Cartridge::dispatch_mesh_gen_arch,
+              "arch" },
+            { dispatch_select_column_generic, dispatch_place_column_generic, dispatch_commit_column_generic,
+              evict_column,  Cartridge::dispatch_prepare_mesh_column,  Cartridge::dispatch_mesh_gen_column,
+              "col" },
+            { dispatch_select_antenna_generic, dispatch_place_antenna_generic, dispatch_commit_antenna_generic,
+              evict_antenna, Cartridge::dispatch_prepare_mesh_column,  Cartridge::dispatch_mesh_gen_column,
+              "ant" },
+            { dispatch_select_palm_generic, dispatch_place_palm_generic, dispatch_commit_palm_generic,
+              evict_palm,   Cartridge::dispatch_prepare_mesh_palm,   Cartridge::dispatch_mesh_gen_palm,
+              "palm" },
+            { dispatch_select_cactus_generic, dispatch_place_cactus_generic, dispatch_commit_cactus_generic,
+              evict_cactus, Cartridge::dispatch_prepare_mesh_cactus, Cartridge::dispatch_mesh_gen_cactus,
+              "cact" },
+            { dispatch_select_blade_generic, dispatch_place_blade_generic, dispatch_commit_blade_generic,
+              evict_blade, Cartridge::dispatch_prepare_mesh_blade, Cartridge::dispatch_mesh_gen_blade,
+              "blad" },
+            { dispatch_select_sphere_generic, dispatch_place_sphere_generic, dispatch_commit_sphere_generic,
+              evict_sphere, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
+              "sph" },   // no CPU mesh gen — GPU compute handles update_sphere
+            { dispatch_select_ribbon, dispatch_place_ribbon, dispatch_commit_ribbon,
+              evict_ribbon, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
+              "ribn" },  // no CPU mesh gen — GPU compute handles ribbon rendering
+            { dispatch_select_cube_generic, dispatch_place_cube_generic, dispatch_commit_cube_generic,
+              evict_cube, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
+              "cube" },  // no CPU mesh gen — GPU compute handles update_cube
+            { dispatch_select_gol, dispatch_place_gol, dispatch_commit_gol,
+              evict_gol, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
+              "gol" },   // zone mesh gen is a separate compute pass
+            { dispatch_select_gallery, dispatch_place_gallery, dispatch_commit_gallery,
+              evict_gallery, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
+              "gall" },
+        };
+    } // namespace the_board
 } // namespace t7

@@ -1359,7 +1359,7 @@ fn discrete_cell_color(world_xz: vec2<f32>, cell_gx: i32, cell_gz: i32, cell_see
     let wl = length(wheel.xy);
     let cs = wheel.xy / max(wl, 0.001);                    // (cos α, sin α); weight 0 at rest
     let rec = mix(CHECKER_RECEPTIVITY_FLOOR, 1.0, region.receptivity);
-    let wmix = clamp(pow(clamp(wl, 0.0, 1.0), CHECKER_COMMIT_CURVE) * rec * CHECKER_STRENGTH, 0.0, 1.0);
+    let wmix = pow(clamp(wl, 0.0, 1.0), CHECKER_COMMIT_CURVE) * rec;
     let rgb_mean = mix(region.mean, rotate_hue(region.mean, cs.x, cs.y), wmix);
     // CHECKER-3: the musical spread rides each region's own listening —
     // variance = seed spread × the gain THROUGH receptivity. The
@@ -1427,7 +1427,7 @@ fn discrete_cell_color_at_tier(
             let wl = length(wheel.xy);
             let cs = wheel.xy / max(wl, 0.001);
             let rec = mix(CHECKER_RECEPTIVITY_FLOOR, 1.0, region.receptivity);
-            let wmix = clamp(pow(clamp(wl, 0.0, 1.0), CHECKER_COMMIT_CURVE) * rec * CHECKER_STRENGTH, 0.0, 1.0);
+            let wmix = pow(clamp(wl, 0.0, 1.0), CHECKER_COMMIT_CURVE) * rec;
             let turned = mix(region.mean, rotate_hue(region.mean, cs.x, cs.y), wmix);
             return mix(vec3(base_grey), turned, DISCRETE_TINT_STRENGTH);
         }
@@ -1441,7 +1441,7 @@ fn discrete_cell_color_at_tier(
             let wl = length(wheel.xy);
             let cs = wheel.xy / max(wl, 0.001);
             let rec = mix(CHECKER_RECEPTIVITY_FLOOR, 1.0, region.receptivity);
-            let wmix = clamp(pow(clamp(wl, 0.0, 1.0), CHECKER_COMMIT_CURVE) * rec * CHECKER_STRENGTH, 0.0, 1.0);
+            let wmix = pow(clamp(wl, 0.0, 1.0), CHECKER_COMMIT_CURVE) * rec;
             let turned = mix(region.mean, rotate_hue(region.mean, cs.x, cs.y), wmix);
             return clamp(turned + vec3(nr, ng, nb)
                              * (region.variance * mix(1.0, var_gain, rec)),
@@ -1718,15 +1718,8 @@ const DISCRETE_TINT_STRENGTH: f32 = 0.15; // grey→palette-mean mix weight; PIN
 //   gathered harmony before the mosaic leans);
 //   RECEPTIVITY_FLOOR keeps every region minimally awake (0 = true
 //   deaf spots allowed; 1 = geography off, uniform response).
-const CHECKER_COMMIT_CURVE: f32 = 0.50;
-const CHECKER_RECEPTIVITY_FLOOR: f32 = 1.0;
-// CHECKER_STRENGTH — the honest amplitude dial (the audit's fix). The
-// per-cell hue rotation was reaching ~42% of ground but displacing only
-// ~0.03 RGB — real, but buried under the seed cells' own ±0.02–0.25
-// scatter. This multiplies the mix so a committed chord clears the noise
-// floor. 1.0 = the old (near-invisible) level; 4.0–8.0 makes the mosaic
-// read. Tune by eye against a held note. Hot-reloadable.
-const CHECKER_STRENGTH: f32 = 6.0;
+const CHECKER_COMMIT_CURVE: f32 = 1.0;
+const CHECKER_RECEPTIVITY_FLOOR: f32 = 0.15;
 // CHECKER_DEBUG_VIEW — the institutionalized instrument (hot-reload):
 //   0 = the art. 1 = WHEEL METER: all ground painted by the wheel as
 //   the shader receives it (angle → hue on the same recipe as the
