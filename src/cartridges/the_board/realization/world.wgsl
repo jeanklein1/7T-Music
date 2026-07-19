@@ -1364,7 +1364,7 @@ fn discrete_cell_color(world_xz: vec2<f32>, cell_gx: i32, cell_gz: i32, cell_see
     // stay seed-pure anchors; the tinted + full-color tiers take the color.
     let region = discrete_region_at(world_xz);
     let rgb_mean = checker_region_median(world_xz, region.mean, resultant, music_amount);
-    let variance = region.variance + music_variance;
+    let variance = region.variance + min(CHECKER_VAR_MAX, music_variance * CHECKER_VAR_PER_NOTE);
     let mono = discrete_mono_at(world_xz);
 
     let mono_jitter = (hash_property(cell_seed, 820u) - 0.5) * 0.15;
@@ -1435,7 +1435,8 @@ fn discrete_cell_color_at_tier(
             // CHECKER-REBUILD: median = pull + wander; spread widened by
             // the distinct-pc count (S3).
             let turned = checker_region_median(world_xz, region.mean, resultant, music_amount);
-            return clamp(turned + vec3(nr, ng, nb) * (region.variance + music_variance),
+            return clamp(turned + vec3(nr, ng, nb)
+                             * (region.variance + min(CHECKER_VAR_MAX, music_variance * CHECKER_VAR_PER_NOTE)),
                          vec3(0.0), vec3(1.0));
         }
     }
@@ -1711,7 +1712,13 @@ const DISCRETE_TINT_STRENGTH: f32 = 0.15; // grey→palette-mean mix weight; PIN
 //     region, held for the whole session), scaled by presence. 0 = every
 //     region sits exactly on the resultant. All time-variation is CPU-
 //     enveloped; no GPU-side time stepping (a stepped hash teleports).
-const CHECKER_WANDER: f32 = 0.35;
+const CHECKER_WANDER: f32 = 0.12;
+// S3 within-patch spread (hot-reloadable): the CPU ships the enveloped
+// distinct-pc-count surplus (music_variance = glided max(0, n-1)); the
+// GPU scales it here and adds it to each region's seed spread. 0 or 1
+// distinct → 0 extra. Tune by eye.
+const CHECKER_VAR_PER_NOTE: f32 = 0.025;   // seed-var add per distinct pc beyond the first
+const CHECKER_VAR_MAX: f32 = 0.30;         // ceiling on the music spread add
 // CHECKER_DEBUG_VIEW — the institutionalized instrument (hot-reload):
 //   0 = the art. 1 = WHEEL METER: all ground painted by the wheel as
 //   the shader receives it (angle → hue on the same recipe as the

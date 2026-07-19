@@ -192,11 +192,10 @@ namespace t7 {
         /* 10  C  */ { 0.85f, 0.25f, 0.70f },   // magenta
         /* 11  C# */ { 0.85f, 0.25f, 0.45f },   // crimson
     };
-    // Within-patch spread (S3): each distinct pitch class beyond the first
-    // widens the region's own cell scatter by this much, up to the ceiling.
-    // 0 or 1 distinct → 0 extra (a single sustained note keeps the seed spread).
-    inline constexpr float CHECKER_VAR_PER_NOTE = 0.05f;  // seed-var add per distinct pc beyond the first
-    inline constexpr float CHECKER_VAR_MAX      = 0.30f;  // ceiling on the music spread add
+    // Within-patch spread (S3): this side ships the ENVELOPED distinct-pc
+    // count surplus (max(0, n-1), glided). The per-note gain and the ceiling
+    // live GPU-side (world.wgsl §2.2 ROW 5: CHECKER_VAR_PER_NOTE /
+    // CHECKER_VAR_MAX) so they hot-reload. 0 or 1 distinct → 0 extra spread.
 
     // ═══ MASTER CONTROL PANEL ════════════════════════════════════════════════════
     // The one place every exposed pipe is declared — name, slot, width, and the
@@ -445,16 +444,14 @@ namespace t7 {
                         checker_res_goal_[1] = acc[1] / total;
                         checker_res_goal_[2] = acc[2] / total;
                     }
-                    // Presence drives the pull; distinct-pc count the spread.
-                    // 0 or 1 distinct → 0 extra spread (a lone note keeps seed).
+                    // Presence drives the pull; distinct-pc count surplus the
+                    // spread (raw — the GPU scales + clamps it, hot-reloadable).
+                    // 0 or 1 distinct → 0 (a lone note keeps the seed spread).
                     checker_amount_goal_ = present ? 1.0f : 0.0f;
-                    checker_var_goal_ = present
-                        ? std::min(CHECKER_VAR_MAX,
-                            (float)std::max(0, n - 1) * CHECKER_VAR_PER_NOTE)
-                        : 0.0f;
+                    checker_var_goal_ = present ? (float)std::max(0, n - 1) : 0.0f;
                     // THE WITNESS: one line per read, upstream of the GPU.
                     std::fprintf(stderr,
-                        "[CHECKER] n=%d total=%.2f resultant=(%.2f %.2f %.2f) var=%.2f\n",
+                        "[CHECKER] n=%d total=%.2f resultant=(%.2f %.2f %.2f) distinct-1=%.0f\n",
                         n, total,
                         checker_res_goal_[0], checker_res_goal_[1], checker_res_goal_[2],
                         checker_var_goal_);
