@@ -109,10 +109,11 @@ inline constexpr float REST_MODE_PALETTE_DRIFT_TIER = 0.0f;
 // RGB) gives a length-weighted RESULTANT color; presence + distinct-pc
 // count ride alongside, enveloped (2-beat attack, 8-beat release). The GPU
 // pulls each discrete cell toward the resultant, wanders each region
-// around it per window, and widens each region's spread by the count; the
-// door reveals the color across the mode field by presence (world.wgsl
-// discrete_cell_color / _at_tier; dials §2.2 ROW 5: CHECKER_WANDER /
-// CHECKER_DOOR / CHECKER_DEBUG_VIEW). RESTS are law: amount 0 (the GPU
+// around it by a STATIC per-region offset, and widens each region's spread
+// by the count; the mode field's own gating decides which cells (between
+// smooth sections) show it (world.wgsl discrete_cell_color / _at_tier;
+// dials §2.2 ROW 5: CHECKER_WANDER / CHECKER_VAR_PER_NOTE / CHECKER_VAR_MAX
+// / CHECKER_DEBUG_VIEW). RESTS are law: amount 0 (the GPU
 // maps that to each cell's seed color) and variance 0 — a return to seed,
 // not gray. WIRE: <voice>.window_length → PC_COLOR (coupling/visual_
 // canvas.hpp, the tunable home) → terrain.checker_* bank pipes →
