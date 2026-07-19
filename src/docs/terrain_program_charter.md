@@ -1,0 +1,726 @@
+# THE TERRAIN PROGRAM — CHARTER (Phase 0)
+
+Founding document of the terrain reorganization campaign.
+Audited against the LIVE tree at `e06fbc2` (branch `COUPLING_SAGA_SWEEP_CHECKERS`).
+Sibling of `7t_program_theory_v3.md`; the model it imitates is
+`contracts/ground_architecture.hpp`.
+
+CENSUS LAW: every count in this document ships with its recipe — the exact
+command that produced it, runnable from repo root — so any future auditor
+reproduces every number. Function names are the stable addresses; line
+anchors are secondary and dated to `e06fbc2`.
+
+`world.wgsl` throughout = `src/cartridges/the_board/realization/world.wgsl`
+(11905 lines; recipe: `wc -l src/cartridges/the_board/realization/world.wgsl`).
+
+---
+
+## PREFACE — WHY
+
+The checker saga's five nights of wrong fixes were one condition:
+the terrain cannot currently be STATED. Its laws live in four homes at
+once — seed hashes, panel constants, live uniforms, gating braided
+through the composite — with the bake/live relationship nowhere
+written. Illegibility was the bug. The terrain program's goal is to
+make the terrain stateable: one sentence per stratum, and the code
+arranged so the sentences are checkably true. The campaign's standing
+reframe: the baked texture is not a second authority — it is a CACHE
+of one function at rest. pixel = same function, two moments.
+
+---
+
+## THE PIXEL EQUATION (the spine)
+
+```
+pixel = LIGHT( GUESTS( PIGMENT( FIELD(x, z, seed, voice),
+                                voice ),
+                       aura, pulse, gol ),
+               sun, fog )
+```
+
+…with MOTION deforming the geometry underneath by the same voice,
+and GROUND as the static truth MOTION composes over.
+
+### The strata
+
+- **GROUND** — the manifold: baked heightfield at t=0, contributors,
+  policies. Static truth. (`ground_architecture.hpp` is the model the
+  whole charter imitates.)
+- **FIELD** — the distribution: seeded functions answering WHAT is at
+  (x,z) — vocabulary (smooth/checker/chess/mono), palette weights,
+  region anatomy, receptivity, survival. Stationary by default, WITH a
+  declared live surface (coverage/spread/edge — the revived mode dials'
+  true home).
+- **PIGMENT** — one function CellIdentity → RGB: all color vocabularies,
+  the tier cascade, the anchors. Voice enters as parameters.
+- **MOTION** — the deformation voice: terrain_time, band blends, phase
+  origins, overlay-wave evaluators, pulse SHAPE contributors.
+- **GUESTS** — external writers onto the surface: aura (tint/height/
+  normal), pulse VISUAL, GoL tint, force-field tints. The terrain owns
+  the receiving seam, not the guests' internals (GoL keeps its own
+  panel — standing ruling).
+- **VOICE** — the single live-modulation bus: every music/live channel
+  the terrain accepts, one struct, one setter, one mirror, one witness.
+  Couplings write VOICE and nothing else.
+- **WITNESS** — permanent instruments: numbered debug views, console
+  lines at every seam, and the standing invariant: SILENCE IS
+  PIXEL-IDENTICAL.
+- **LIGHT** — sun/fog/shading: SHARED with the whole scene. The terrain
+  CONSUMES light; it does not own it. The fog coupling stays outside
+  the terrain program. This boundary is explicit.
+
+---
+
+## C1. THE EQUATION TABLE
+
+Every function that touches terrain shape or color, assigned to exactly one
+stage. Base recipe: `grep -n '^fn ' world.wgsl` (220 fns total; recipe:
+`grep -c '^fn ' world.wgsl`), filtered to terrain-relevant; CPU side censused
+via the setter/boot/flush greps quoted in §C1-recipes. Functions that resist
+one stage are FINDINGS (§C1-F), not forced.
+
+### GPU (world.wgsl)
+
+| function | stage | one-line role |
+|---|---|---|
+| terrain_activity_at (L404) | GROUND | activity+beat_freq lattice gating wave frozen/moving mix |
+| band_activity_level (L397) | GROUND | per-band smoothstep threshold on raw activity |
+| evaluate_directional_wave (L447) | GROUND | directional sine primitive w/ perpendicular damping |
+| evaluate_radial_wave (L465) | GROUND | concentric-ring sine primitive w/ radial damping |
+| evaluate_lattice_wave (L481) | GROUND | per-node seeded wave draw; frozen/moving phase mix |
+| terrain_band_contribution (L560) | GROUND | 2×2 Hermite blend of node waves per band |
+| terrain_height_at (L607) | GROUND | total lattice height = Σ 6 band contributions |
+| terrain_height_and_complexity (L620) | GROUND | fused height + complexity for the two-pass bake |
+| tile_grid_lookup (L932) | GROUND | per-tile archetype/amp/bias entry lookup |
+| tile_modifiers_at (L949) | GROUND | Hermite tile amp/bias (+latent activation) modifiers |
+| evaluate_pier (L2237) | GROUND | one pier instance's rotated-footprint height delta |
+| structure_height_at (L2281) | GROUND | max over pier instances (CONTRIB_SOLIDS) |
+| evaluate_pyramid (L2315) | GROUND | one pyramid instance's tapered height |
+| contrib_pyramids_at (L2359) | GROUND | max active pyramid height (CONTRIB_PYRAMIDS) |
+| contrib_gol_zones_at (L2373) | GROUND | raw GoL cell extrusion height contributor |
+| contrib_gol_suppression_at (L2414) | GROUND | pawn-local GoL flattening (LATENT, 0 callers) |
+| contrib_static_base_at (L2661) | GROUND | fused lattice×tile_mods+bias+piers static base |
+| contrib_paintings_base_at (L2673) | GROUND | stub 0.0 contributor (declared intent) |
+| contrib_vegetation_base_at (L2683) | GROUND | stub 0.0 contributor (declared intent) |
+| ground_formed_with_complexity (L2698) | GROUND | baked-heightfield contributor set, hand-fused |
+| query_ground_placement_pyramid/painting/vegetation (L2948/2961/2979) | GROUND | placement policies (LATENT; live via manifold_height_hf) |
+| query_ground_baked_heightfield (L2991) | GROUND | static+pyramids analytic form of the cached texture |
+| manifold_overlay_stack (L3017) | GROUND | shared additive fold: static+pyramids+gol+waves+pulses |
+| query_ground_flyer/walker/walker_tilt/walker_pair/walker_agent/celestial (L3038–3171) | GROUND | per-policy height queries |
+| query_ground_flyer_gradient/walker_gradient/walker_walkable (L3184–3221) | GROUND | finite-diff gradients / cliff-clamped variant |
+| manifold_height_hf (L3298) | GROUND | policy-id switch — THE FOLD's one declared home |
+| manifold_position / manifold_resolve (L3323/3332) | GROUND | surface cast; cast + finite-diff normal |
+| terrain_normal_at (L5933) | GROUND | walker tilt normal via manifold_resolve |
+| zone_sample_baked_terrain_y (L5893) | GROUND | baked heightfield scan for zone-mesh alignment |
+| sample_terrain_y_at (L8431) | GROUND | baked heightfield sample for placement/camera |
+| patch_skirt_grid (L293) | GROUND | skirt vertex → perimeter grid mapping |
+| generate_terrain_indices (L7321) | GROUND | compute: patch index winding |
+| generate_patch_heights (L7356) | GROUND | compute bake pass 1: heights per texel |
+| generate_patch_gradients (L7377) | GROUND | compute bake pass 2: gradients |
+| patch_terrain_vs (L4014) | GROUND | render VS: heightfield tex + aura + waves + pulses (see F6) |
+| lattice_coord / lattice_weight (L981/989) | FIELD | world→lattice cell + Hermite weights |
+| lattice_node_seed / color_lattice_seed (L435/996) | FIELD | the seed primitives for every lattice |
+| hash_property / sample_gaussian (L325/336) | FIELD | seeded uniform / Gaussian draw primitives |
+| palette_weights_at_node / palette_field_at (L1004/1045) | FIELD | palette dominance lattice + interpolation |
+| mode_tendency_at_node / mode_field_at (L1038/1057) | FIELD | smooth↔discrete tendency (quintic) |
+| transition_style_at_node / transition_style_at (L1071/1082) | FIELD | blend/hybrid/scatter trimodal style |
+| sparse_base_at_node / sparse_cluster_at_node / sparse_field_at (L1094/1100/1105) | FIELD | sparse envelope × cluster boost |
+| coupling_strength_at_node / coupling_direction_at_node / terrain_coupling_at (L1138/1146/1156) | FIELD | terrain→mode coupling lattice (DISABLED — magnitude 0, C2-F1) |
+| chess_tendency_at_node / chess_color_a/b_at_node / chess_field_at (L1173–1208) | FIELD | chess tendency (pow-25) + pair colors |
+| discrete_region_at_node / discrete_region_at (L1248/1273) | FIELD | region mean+variance+receptivity anatomy |
+| discrete_mono_at_node / discrete_mono_at (L1262/1301) | FIELD | mono tendency (pow-20) |
+| evaluate_cell_fields (L7481) | FIELD | all fields at a cell → CellFieldState |
+| checker_region_median (L1327) | PIGMENT | music median: S1 pull + S2 static per-region wander |
+| discrete_cell_color (L1342) | PIGMENT | the tier cascade, music-painted |
+| discrete_cell_color_at_tier (L1404) | PIGMENT | forced-tier flat switch (drift target) |
+| palette_color_smooth (L1847) | PIGMENT | weighted palette blend (ROW 8 governing expression) |
+| palette_target_color (L7603) | PIGMENT | palette index → drift target color |
+| composite_cell_color / composite_cell_color_biased (L7536/7567) | PIGMENT | the doors: blend/scatter/sparse compositor (twins) |
+| animated_cell_color (L7622) | PIGMENT | live re-composite — ZERO callers (F10) |
+| animated_cell_color_lut (L7666) | PIGMENT | LUT-accelerated live re-composite (the live path) |
+| pack_cell_tag / unpack_cell_tag_mode/tier/height (L1927–1940) | PIGMENT | behavior tag ↔ alpha channel |
+| generate_patch_cells (L7738) | PIGMENT | compute: bake color+tag texture + mode/style/sparse LUT |
+| patch_terrain_fs (L4094) | PIGMENT | terrain FS: bake → live recolor → guests → light (see F5) |
+| get_band_blend / get_band_phase_origin (L535/547) | MOTION | per-band overlay accessors (DRIVERLESS) |
+| overlay_band_params (L2735) | MOTION | overlay dir/freq/amp derivation (ROW 7 matrix) |
+| contrib_terrain_waves_at (L2754) | MOTION | Σ 6 overlay sines, gated by terrain_time>0 |
+| terrain_wave_overlay_with_gradient (L2787) | MOTION | fused overlay height + analytic gradient |
+| contrib_radial_pulses_at (L2846) | MOTION | 8-slot expanding onset rings (DRIVERLESS) |
+| sample_pawn_aura (L5648) | GUESTS | toroidal aura texture sample |
+| contrib_pawn_aura_at_external / _self (L2890/2912) | GUESTS | aura as height contributor (see F4) |
+| compute_pawn_aura (L8198) | GUESTS | compute: aura spring grid (calls gol_composite_cell_color) |
+| zone_pawn_ff / zone_sphere_ff (L2189/2198) | GUESTS | force-field falloffs for tint sites |
+| gol_cell_hash / gol_cell_variation (L5464/5468) | GUESTS | per-GoL-cell variation |
+| reflect01 / wrap01 / apply_boundary (L5473–5483) | GUESTS | pulse-zone boundary modes |
+| pulse_cell_target (L5491) | GUESTS | Pulse per-cell target (uses mode_gol_tick_scale) |
+| gol_composite_cell_color (L5518) | GUESTS | terrain cell color under GoL (identity music — INTENT) |
+| apply_gol_color / apply_gol_extrusion_color (L5546/5572) | GUESTS | GoL tint onto terrain / extrusion color |
+| tag_cell_behavior (L7709) | GUESTS | seeded GoL eligibility tag (see F8) |
+| zone_derive_params / zone_gol_sync / zone_gol_evolve (L5781/7795/7810) | GUESTS | zone config derive / life sync / Conway-Pulse tick |
+| coupling_gol_next_state (L3475) | GUESTS | Conway B3/S23 rule |
+| zone_emit_quad / zone_mesh_gen_cell / zone_gol_mesh_reset / zone_gol_mesh_gen (L7927–8060) | GUESTS | extrusion mesh generation |
+| zone_extrusion_vs / zone_extrusion_fs / shadow_zone_extrusion_vs (L8082/8132/8167) | GUESTS | extrusion draw (suppression mirrors — F14) |
+| coupling_active (L2090) | VOICE | mute_couplings bitmask gate |
+| coupling_terrain_to_sphere_orbit_height (L3354) | VOICE | consumes terrain to move the sphere (see F9) |
+| sample_shadow_pcf / calc_directional_light / calc_point_lights / sample_spot_shadow_pcf / calc_spot_light (L3724–3898) | LIGHT | sun/point/spot lighting |
+| veil_dither_noise / shade_lit (L3933/3941) | LIGHT | dither noise; ambient+lights+fog+veil (can discard — F17) |
+| coupling_pawn_to_sun_vp (L3388) | LIGHT | snapped ortho sun VP (shadow stability) |
+| shadow_patch_terrain_vs (L4227) | LIGHT | terrain shadow geometry (heightfield + waves) |
+| CHECKER_DEBUG_VIEW branches (const L1729; branches L4125–4132) | WITNESS | view 1 = resultant meter, 2 = receptivity map |
+
+### CPU
+
+| function / block | file | stage | role |
+|---|---|---|---|
+| VisualCanvas::tick fog block + FOG_* tables | src/coupling/visual_canvas.hpp | VOICE (LIGHT-bound) | held field → fog density+tint, Segment-glided |
+| VisualCanvas::tick checker block + PC_COLOR + CHECKER_* | src/coupling/visual_canvas.hpp | VOICE | 12-pc window lengths → resultant+amount+variance, 4-beat S&H, 2/8 envelope |
+| VisualCanvas::bind | src/coupling/visual_canvas.hpp | VOICE | one-time source/target resolution |
+| PARAM_LAYOUT terrain.checker_mean/var rows | src/coupling/visual_canvas.hpp | VOICE | bank slots 10–12 / 13–14 (names are DFT-era fossils — C5) |
+| set_fog · set_terrain_time · set_band_motion · set_mode_color_shift · set_mode_checker_scatter · set_palette_center/light/weight · set_mode_palette_drift · set_checker_color_field · set_mode_gol_scales · set_pulse_data · set_terrain_amp_ceiling · set_aura_enabled · set_pawn_aura_height/amp_scale/height_bias · set_world_seed · set_indoor_height_cap | src/cartridges/the_board/realization/state.hpp | VOICE | dirty-flagged writers into the GPUDesignConfig mirror |
+| Cartridge::initialize boot-pin block (L416–439) | src/cartridges/the_board/cartridge.hpp | VOICE | writes terrain_looks ROW 2 rests at boot |
+| Cartridge::phase_motion_drivers U4 (L762–796) | src/cartridges/the_board/cartridge.hpp | VOICE | per-frame flush: canvas tick → set_fog + set_checker_color_field |
+| [CHECKER] fprintf · [FLUSH] one-shot | visual_canvas.hpp / cartridge.hpp | WITNESS | decode line per read; first seam crossing |
+| terrain_looks.hpp (whole file) | src/cartridges/the_board/surface/terrain_looks.hpp | constants panel | ROW 1 palette rests, ROW 2 rest pins, ROWS 3–9 pointers |
+| ContributorId / PolicyId / CONTRIBUTOR_DAG / POLICIES[] | src/cartridges/the_board/contracts/ground_architecture.hpp | GROUND | the contract the WGSL mirrors (L2429–2456) |
+| write_pier / clear_pier / recompute_and_upload_pier_count / setup_test_rig_piers | src/cartridges/the_board/surface/patch_system.hpp | GROUND | CPU authoring of pier instances |
+| generate_patch_batch / make_patch_params / mark_patches_for_regen | src/cartridges/the_board/surface/patch_system.hpp | GROUND | bake dispatch orchestration |
+
+### C1-F. COMPLETENESS FINDINGS (the discoveries — functions resisting one stage)
+
+| # | item | why it resists |
+|---|---|---|
+| F2 | hash_property, sample_gaussian, lattice_node_seed | seed primitives used by GROUND waves, FIELD lattices, GUESTS zones, orbs — assigned FIELD as the seed vocabulary home |
+| F3 | contrib_terrain_waves_at / contrib_radial_pulses_at | registered DAG contributors (GROUND) yet ARE the MOTION shapes — genuinely GROUND∧MOTION; they sit inside every policy stack |
+| F4 | aura contribs + sample_pawn_aura | simultaneously a GROUND height contributor (CONTRIB_PAWN_AURA) and a GUESTS tint writer |
+| F5 | patch_terrain_fs | spans PIGMENT + GUESTS + WITNESS + LIGHT in one body — the single largest illegibility site |
+| F6 | patch_terrain_vs | GROUND + GUESTS(aura) + MOTION(waves,pulses) hand-fused |
+| F7 | gol_composite_cell_color | PIGMENT machinery invoked only from GUESTS; music inputs deliberately identity (STATUS: INTENT, L5528–5533) |
+| F8 | tag_cell_behavior | FIELD-style rolls producing a GUESTS eligibility tag baked into the PIGMENT texture alpha |
+| F9 | coupling_terrain_to_sphere_orbit_height | consumes terrain, writes nothing onto it — VOICE only nominally |
+| F10 | animated_cell_color | ZERO callers (recipe: `grep -n '[= ]animated_cell_color(' world.wgsl` → def only) — dead twin of _lut |
+| F11 | contrib_gol_suppression_at | zero call sites; self-documented LATENT[policy-surface] |
+| F12 | query_ground_placement_* | LATENT; live placement is the baked hybrid |
+| F13 | tile_modifiers_at .z | computed, consumed by no caller (LATENT[tile-activation]) |
+| F14 | GoL suppression law in 4 places | contrib_gol_suppression_at + walker inline + zone_extrusion_vs + shadow twin — documented sync hazard (L8102–8111) |
+| F15 | DRIVERLESS trio+ | `grep -c 'DRIVERLESS since gen-1' world.wgsl` → 5 sites — VOICE channels held at rest, revive-or-delete flagged in-file |
+| F16 | zone_pawn_ff / zone_sphere_ff | named zone_* but are pure GUESTS tints |
+| F17 | shade_lit carries the veil and can discard | a LIGHT function holding a visibility jurisdiction |
+| F18 | WITNESS has no dedicated functions | the instrument is an embedded const branch + scattered fprintf — not factored |
+| F19 | consumers excluded by boundary (read terrain, author nothing) | pawn_ground_resolve, compute_entity_placement, update_camera clamp, agent behaviors — seen, not missed |
+
+### C1-recipes
+
+```
+wc -l world.wgsl                                      # 11905
+grep -c '^fn ' world.wgsl                             # 220
+grep -n '^fn ' world.wgsl                             # inventory base
+grep -n '[= ]animated_cell_color(' world.wgsl         # F10 (0 call sites)
+grep -n 'contrib_gol_suppression_at(' world.wgsl      # F11
+grep -n 'DRIVERLESS since gen-1' world.wgsl           # F15 (5 sites)
+grep -n 'set_[a-z_]*' src/cartridges/the_board/realization/state.hpp
+sed -n '416,439p;762,796p' src/cartridges/the_board/cartridge.hpp
+```
+
+---
+
+## C2. FIELD CENSUS
+
+All lattices share `lattice_node_seed` (L435); color lattices route through
+`color_lattice_seed(node, band)` = `lattice_node_seed(world_seed, node, band+100)`.
+Interpolation: bilinear Hermite (`lattice_coord`/`lattice_weight`), EXCEPT
+`discrete_region_at`, `discrete_mono_at`, `terrain_activity_at`, which
+hand-inline the identical math (duplication finding C2-F2).
+
+| # | lattice | node fn | spacing | seed band | props | shaping | consuming door/function |
+|---|---|---|---|---|---|---|---|
+| 1 | palette | palette_weights_at_node | PALETTE_LATTICE_SPACING = 300 | 0 | 500 | dominant .85 / minor .05 select | smooth_color via palette_color_smooth |
+| 2 | mode | mode_tendency_at_node | MODE_LATTICE_SPACING = 120 | 1 | 501 | raw^5 (MODE_BIAS_EXPONENT) | blend + scatter doors; GoL eligibility; zone node reuse |
+| 3 | style | transition_style_at_node | TRANSITION_LATTICE_SPACING = 200 | 2 | 510 | trimodal 0 / 0.5 / 1 | blend↔scatter mix |
+| 4 | sparse base | sparse_base_at_node | SPARSE_BASE_SPACING = 160 | 3 | 520 | raw^3 | sparse door |
+| 5 | sparse cluster | sparse_cluster_at_node | SPARSE_CLUSTER_SPACING = 40 | 4 | 521 | raw; base×(1+2·cluster) | sparse door |
+| 6 | chess | chess_tendency/color_a/color_b_at_node | CHESS_LATTICE_SPACING = 55 | 12/13/14 | 850; 860–862; 870–872 | tendency raw^25; colors raw RGB | chess tier of the cascade |
+| 7 | region | discrete_region_at_node | DISCRETE_COLOR_LATTICE_SPACING = 80 | 10 (wander id: 20) | 800–804; wander 601–603 | var = .02+raw·.23; receptivity raw | tinted + full-color tiers |
+| 8 | mono | discrete_mono_at_node | DISCRETE_MONO_LATTICE_SPACING = 250 | 11 | 810 | raw^20 | BW/tint cuts |
+| 9 | terrain-mode coupling | coupling_strength/direction_at_node | COUPLING_LATTICE_SPACING = 250 | 15/16 | 530/531 | strength raw^3; direction trimodal ±1/0 | evaluate_cell_fields mode shift — DISABLED (C2-F1) |
+| 10 | activity (non-color) | inline in terrain_activity_at | ACTIVITY_LATTICE_SPACING = 400 | 50 (direct) | 220/221 | beat_freq log-interp | wave gating |
+
+### The doors (composite_cell_color L7536 / _biased L7567) — CONTINUITY CLASSIFICATION
+
+Edge constants (all anchored on MODE_DISCRETE_THRESHOLD = 0.70, ROW 4 L1673):
+BLEND_EDGE 0.55→0.75 · SCATTER 0.35→0.75 · SPARSE_SURVIVAL 0.22 window 0.35.
+
+| door | decision | verdict | the quoted comparison |
+|---|---|---|---|
+| BLEND | blend_t = smoothstep(.55,.75,mode); mix | **GLIDE-SAFE** | L7573 `let blend_t = smoothstep(blend_edge_lo, blend_edge_hi, biased_mode);` |
+| SCATTER | survival smoothstep, then binary roll | **FLIP** | L7580 `let cell_visible_scatter = s.cell_roll < survival;` |
+| STYLE MIX | mix(blend, scatter, style) | glide-safe itself; transmits the scatter flip at weight `style` | L7584 |
+| SPARSE | survival roll + hard mode-zone boolean | **FLIP ×2** | L7589 `s.sparse_roll < sparse_survival;` · L7591 `biased_mode > scatter_edge;` |
+
+Tier-cascade cuts in discrete_cell_color — all **FLIP** under any future
+moving bias (jitter-dithered chess ±0.015 and mono ±0.075 stagger the pop
+front spatially but each cell still pops): chess L1347, colorful L1351
+(hard, no jitter — flips coherent areas at once), BW L1373, tint L1379.
+The drift tier select `u32(round(config.mode_discrete_tier))` is a FLIP at
+every .5 boundary. **Status:** no runtime bias currently reaches these cuts
+(tendency and mono are seed-static) — the classification is the design
+constraint for the collapse: doors must be glide-safe BEFORE their biases
+couple (Treaty: CONTINUITY).
+
+GLIDE-SAFE today and surviving the collapse unchanged: the checker S1 pull,
+S2 static wander, S3 variance widening — all continuous in CPU-enveloped
+drivers (L1337/1335/1367).
+
+### The glide law (ruling tee-up — the flip fix, choose one)
+
+- **(i) Stateless per-cell fade band (RECOMMENDED):** replace each binary
+  roll comparison with a narrow smoothstep around the roll:
+  `visible = smoothstep(roll − W, roll + W, survival)` and mix by it. Every
+  cell fades in/out over a W-wide band as the bias moves; zero state, pure
+  function of (roll, survival); the pop front becomes a dissolve. The
+  mode-zone boolean gets the same treatment (smoothstep around scatter_edge).
+- **(ii) Hysteresis:** two thresholds (enter/exit) so cells latch — requires
+  per-cell memory (a state texture) the pipeline does not have; adds a
+  write path and an ordering question per frame. More faithful to "cells
+  hold their decision," but stateful and bake-incompatible.
+  Recommendation: (i) — it preserves the pure-function law (bake = live at
+  rest is provable by substitution) and costs two smoothsteps.
+
+### CellIdentity (draft — ratify shape before Phase 1)
+
+Basis: `struct CellFieldState` (L7467–7477) + everything the doors/cascade
+compute internally. Collapsing the doors means identity carries vocabulary +
+rolls + continuous weights; color realization moves to one pure resolver.
+
+```wgsl
+struct CellIdentity {
+    tier: u32,              // 0 full · 1 tint · 2 BW · 3 chess-BW · 4 chess-color
+    parity: u32,            // (gx+gz)&1
+    cell_roll: f32,         // prop 900 — scatter survival test
+    sparse_roll: f32,       // prop 910 — sparse survival test
+    bw_roll: f32,           // prop 830 — black/white pick
+    color_noise: vec3<f32>, // props 840–842 — spread around region median
+    chess_jitter: f32,      // prop 815 (±.015)
+    mono_jitter: f32,       // prop 820 (±.075)
+    blend_t: f32,           // smoothstep(.55,.75,mode)
+    scatter_survival: f32,  // smoothstep(.35,.75,mode)
+    sparse_survival: f32,   // smoothstep(thr,thr+.35,sparse)
+    style: f32,
+    in_mode_zone: f32,      // carry as smoothstep, not bool — the FLIP fix
+    region_mean: vec3<f32>, region_variance: f32, region_receptivity: f32,
+    region_wander: vec3<f32>,        // band-20 static per-region offset
+    chess_color_a: vec3<f32>, chess_color_b: vec3<f32>,
+    smooth_color: vec3<f32>, archetype: u32, mode: f32, sparse: f32,
+}
+```
+
+### C2 findings
+
+- **C2-F1** coupling lattice is live machinery, dead effect: `MODE_COUPLING_MAGNITUDE = 0.0 // DISABLED` (L1755).
+- **C2-F2** three hand-inlined Hermite interpolators duplicate lattice_coord/weight — divergence risk on collapse.
+- **C2-F4** MODE_SCATTER_FLOOR_EDGE is double-duty (scatter floor AND sparse exclusion floor) — one const, two doors; splitting changes behavior.
+- **C2-F5** the composite twins (biased/unbiased) are duplicated bodies — deliberate, flagged at ROW 8 (L1834–1842); the collapse resolves them.
+
+Recipes: `awk 'NR>=7536 && NR<=7599' world.wgsl` · `grep -n '_at_node\|_SPACING' world.wgsl` · `grep -n 'chess_jitter\|mono_jitter\|round(config.mode_discrete_tier' world.wgsl`.
+
+---
+
+## C3. PIGMENT CENSUS
+
+### Vocabularies
+
+| # | vocabulary | authored | consumed | values / source |
+|---|---|---|---|---|
+| V1–V3 | smooth palette quartet (center/light/weight) | terrain_looks ROW 1 `PALETTE_*_REST` → boot copy → config | palette_color_smooth; palette_weights_at_node; palette_target_color | sand/salmon/green(rare)/warm; weights .42/.28/.04/.26 |
+| V4 | region seed colors | discrete_region_at_node props 800–804 | tinted+full tiers; receptivity → DEBUG_VIEW 2 ONLY (C3-F1) | raw hash³ per 80-unit node |
+| V5 | chess pairs | chess_color_a/b_at_node (bands 13/14) | colorful-chess tier | raw hash³ — not palette-derived |
+| V6 | monos | inline literals at the tier sites | same lines (author = consumer) | 0.03/0.95 · 0.02/0.95 · greys 0.12/0.85 — UNNAMED (C3-F2) |
+| V7 | drift targets | REST_MODE_PALETTE_DRIFT_* → config | palette_target_color + at_tier via animated paths | all 0 — DRIVERLESS |
+| V8 | checker music resultant | PC_COLOR[12] (visual_canvas.hpp:181–193, Jean's hues, pc 0 = D = red) | checker_region_median → tinted+full tiers; DEBUG_VIEW 1 | 2/8 envelope; rest 0 → seed |
+| V9 | GoL zone tint (adjacent) | GoLZoneConfig target_r/g/b — own panel §7.0b by ruling | apply_gol_color (GOL_TINT_STRENGTH .70) | per-zone uniform |
+
+### Tier cascade (discrete_cell_color, first gate wins)
+
+1. chess (`tendency + jitter > .45`) → 1a colorful (`> .65`) pair-by-parity; 1b B&W 0.03/0.95
+2. pure-BW (`mono_eff > .35`) 0.02/0.95 by bw_roll
+3. tinted (`mono_eff > .20`) mix(grey base, MUSIC-TURNED mean, 0.15)
+4. full color: MUSIC-TURNED mean + noise × (seed var + music var)
+
+Note: cascade order is the REVERSE of `_at_tier` id order (0=full … 4=chess-color).
+
+### The seed-pure anchors (the protected set)
+
+chess pair colors (L1352/1414) · chess-BW (L1355/1417) · pure-BW
+(L1376/1420) · tinted-tier grey bases (L1385/1424) · smooth palette color
+(palette_color_smooth reads only config.palette_*) · the whole bake
+(generate_patch_cells passes identity, L7764–65) · the GoL path
+(gol_composite_cell_color identity, RULED, L5528–32).
+
+### Color constants and homes
+
+PALETTE_DOMINANT/MINOR_WEIGHT .85/.05 (ROW 3) · PALETTE_COMPLEXITY .5
+(pinned; 5 call sites) · door edges (C2) · cascade cuts .45/.65/.35/.20 ·
+DISCRETE_TINT_STRENGTH .15 (PINNED couplable literal — GRADUATE candidate) ·
+CHECKER_WANDER .12 · CHECKER_VAR_PER_NOTE .025 / VAR_MAX .30 ·
+CHECKER_DEBUG_VIEW 0 · GoL: GOL_TINT_STRENGTH .70 (own panel).
+
+### C3 findings
+
+- **C3-F1 (receptivity orphan):** `DiscreteRegion.receptivity` (prop 804) is
+  computed and interpolated but has NO live consumer except DEBUG_VIEW 2.
+  The struct comment promises "the floor is a ROW 5 dial, applied at the
+  mix" — but RECEPTIVITY_FLOOR retired with the wheel and
+  checker_region_median never reads receptivity. Recipe:
+  `grep -n 'receptivity' world.wgsl` → 1245–1296 + 4132 only.
+  Ruling needed: re-wire into the pc-color mix, or retire prop 804.
+- **C3-F2 (unnamed monos):** the grey/B&W literals are the only ROW 5-
+  jurisdiction cuts NOT promoted to named constants.
+
+### The composite's fate (Phase 1/2 work items)
+
+| function | Phase 1 (doors → FIELD outputs) | Phase 2 (pigment → flat switch) |
+|---|---|---|
+| evaluate_cell_fields | gains door outputs: blend_t, survivals, tier id | ships tier id instead of eager discrete_color |
+| composite_cell_color | shrinks to arithmetic over precomputed doors | collapses to mix(smooth, switch(tier), door); twins merge |
+| composite_cell_color_biased | bias moves upstream into field evaluation | deletes as a separate body |
+| discrete_cell_color | cascade exits into the tier resolver | deletes; _at_tier becomes sole authority |
+| discrete_cell_color_at_tier | unchanged — already the flat switch | THE pigment function (anchors live inside its cases) |
+| animated_cell_color | reads baked door outputs | converges with _lut (or deletes now — F10, zero callers) |
+| animated_cell_color_lut | door outputs bake into LUT free .w channel (L7779) | one fn; LUT vs live = data-source flag |
+| gol_composite_cell_color | its manual field-duplicate collapses to a call | unchanged semantics (identity by ruling) |
+| generate_patch_cells | bakes tier id in free .w | bakes switch output; identity law unaffected |
+
+---
+
+## C4. MOTION CENSUS
+
+### Graduated channels
+
+| channel | config field | rest | setter | driver | consumers |
+|---|---|---|---|---|---|
+| terrain_time | terrain_time | 0 (REST_TERRAIN_TIME — "frozen clock") | set_terrain_time | **DRIVERLESS** (boot pin only) | both overlay evaluators' master gate |
+| band_blend 0–5 | band_blend_* | −1 ×6 (inactive sentinel) | set_band_motion | **DRIVERLESS** | get_band_blend → both evaluators (`blend <= 0 → continue`) |
+| band_phase_origin 0–5 | band_phase_origin_* | 0 ×6 | set_band_motion | **DRIVERLESS** | `t = terrain_time − origin` |
+| pulse ring | pulse_count + pulse_data[8×vec4] | count 0, zeros — NOT paneled (C4-F1) | set_pulse_data | **DRIVERLESS** | contrib_radial_pulses_at |
+
+Historical driver shape (evidence): `backup_board/modules/musical.inl:298–300`
+wrote band_motion + terrain_time per frame — the gen-1 coupling.
+
+### Two wave systems, not one (C4-F2)
+
+The `evaluate_*_wave` / `terrain_band_contribution` chain is the LATTICE/BAKE
+system — every live call passes literal `t_beats = 0.0` (L2662/2699), so it
+is static in practice. The OVERLAY system (contrib_terrain_waves_at /
+terrain_wave_overlay_with_gradient) is a separate inline-sine chain over
+OVERLAY_WAVES. The charter's MOTION stratum is the overlay system; the
+lattice system is GROUND with a dormant time parameter.
+
+### Coherence blessing (CONFIRMED)
+
+FLYER/WALKER physics (pawn_ground_resolve → query_ground_walker_pair;
+manifold_height_hf dispatch) and RENDER (patch_terrain_vs + 13 entity/veg
+VS sites) all ride the same wave+pulse deformation; the bake
+(query_ground_baked_heightfield, generate_patch_heights, sample_terrain_y_at)
+stays static truth. Recorded seams if revived: structures don't ride
+(L8580–88, RULED); the 13 entity VS sites ride waves only, not pulses (L2508).
+
+### THE BALLAST — sentenced
+
+Recipe: `grep -rn 'wave_enable_mask\|wave_freeze_mask\|wave_frozen\|wave_time_scale' src/ | grep -v backup_board`
+
+| field | reads in WGSL | reads in C++ | verdict |
+|---|---|---|---|
+| wave_time_scale | 0 | 0 (setter removed; comment state.hpp:2142) | **declaration-only → DELETE** |
+| wave_enable_mask | 0 | 0 | **declaration-only → DELETE** |
+| wave_freeze_mask | 0 | 0 | **declaration-only → DELETE** |
+| wave_frozen_t0/1/2 | 0 | 0 | **declaration-only → DELETE** |
+
+24 dead bytes early in GPUDesignConfig (bytes 16, 40–56). Deleting shifts
+every later offset in a 592-byte struct with hard witnesses
+(`sizeof == 592` state.hpp:1342; offsetof pins at 124/144/384, recipe:
+`grep -n 'offsetof(GPUDesignConfig\|sizeof(GPUDesignConfig) ==' state.hpp`)
+plus the raw-offset WriteBuffer calls at state.hpp:1787/1796/1805. A paired
+two-room re-lay with witness re-pin — **Phase 3, beside the VOICE re-lay**,
+never a casual delete.
+
+### THE CLOCK — ruling teed up for Jean
+
+Today: `set_terrain_time` has one caller (the boot pin, writing 0). Both
+overlay evaluators return zero outright at `terrain_time <= 0` (L2755/2788).
+Second gate: all blends rest at −1 and the loops `continue` on `blend <= 0`
+— motion needs BOTH keys.
+
+- **(a) Run the clock continuously; stillness = blends at rest (RECOMMENDED).**
+  Zero visual change at rest (the blend gate already yields exactly 0).
+  Activation becomes single-key (a coupling raises a blend). Removes the
+  authoring foot-gun where a blend-only driver silently does nothing.
+  Cost/architecture: a per-frame terrain_time through the dirty-config
+  setter would re-upload 592 B/frame — so (a) implies moving the clock read
+  to `signal.t_beats` (FrameSignal already carries it) and retiring
+  config.terrain_time's clock role; the ≤0 guard becomes a debug mute.
+  The evaluators run their 6-continue loop at rest instead of one compare
+  (small, hot-path — measure at Phase 3).
+- **(b) Keep time-zero stillness.** Identical visuals today; preserves the
+  cheap early-out; retains the clock+enable conflation and the two-key
+  foot-gun; any future driver inherits the per-frame-flush problem anyway.
+
+Either way the bake stays static (its literal 0.0 is independent).
+
+---
+
+## C5. VOICE — THE BUS
+
+### Channel table (every live channel the terrain accepts today)
+
+| bus address (proposed) | config field | rest | stratum | driver | identity-at-rest |
+|---|---|---|---|---|---|
+| voice.color.resultant | checker_resultant[3] | {0,0,0} | PIGMENT | checker coupling (U4) | **YES** — L1337 `mix(seed_mean, music_median, music_amount)` → amount 0 = seed |
+| voice.presence.amount | checker_music_amount | 0 | PIGMENT (+FS gate) | checker coupling (U4) | **YES** — mix weight 0 + FS gate skips at ≤.001 (L4124) |
+| voice.field.variance | checker_music_variance | 0 | PIGMENT | checker coupling (U4) | **YES** — +0 at 0 (L1367) |
+| voice.field.mode_shift | mode_color_shift | 0 | FIELD | **DRIVERLESS** | **YES** — clamp(mode+0)=mode (L7568) |
+| voice.field.scatter | mode_checker_scatter | 0 | FIELD | **DRIVERLESS** | **YES** — max(thr−0,0)=thr (L7587) |
+| voice.color.drift_target | mode_palette_target | 0 | PIGMENT | **DRIVERLESS** | YES (vacuous — unread while intensity 0) |
+| voice.color.drift_intensity | mode_palette_intensity | 0 | PIGMENT | **DRIVERLESS** | **YES** — `drift > 0.001` false → base (L7643) |
+| voice.color.drift_tier | mode_discrete_tier | 0 | PIGMENT | **DRIVERLESS** | YES (vacuous — same gate) |
+| voice.motion.gol_tick / gol_height | mode_gol_tick_scale / _height_scale | 1 / 1 | GUESTS (GoL jurisdiction — pointer row only) | **DRIVERLESS** | **YES** — pure ×1.0 multipliers |
+| voice.motion.band_blend[6] | band_blend_* | −1 ×6 | MOTION | **DRIVERLESS** | **YES** — `blend <= 0 → continue` (L2762/2797) |
+| voice.motion.band_origin[6] | band_phase_origin_* | 0 ×6 | MOTION | **DRIVERLESS** | YES (vacuous — behind the blend gate) |
+| voice.motion.time | terrain_time | 0 | MOTION | **DRIVERLESS** | **YES** — `<= 0 → return 0` (L2755/2788) |
+| voice.event.pulse | pulse_count + pulse_data | 0 / zeros | MOTION | **DRIVERLESS** | **YES** — `count == 0 → 0` (L2847) |
+| voice.color.palette[c/l/w] | palette_center/light/weight | ROW 1 rests | PIGMENT | **DRIVERLESS** (setters have ZERO callers; boot writes config directly) | **YES** — rest ≡ pre-graduation literals "bit-identical by construction" |
+| (LIGHT — outside the program) | fog_density + fog_color | boot ≡ field-0 entry | LIGHT | fog coupling (U4) | N/A by design — held source, no idle |
+| voice.presence.aura_enabled | aura_enabled | boot 1.0 | GUESTS | tick_pawn_couplings (U5) | YES for OFF; boot is ON (presence-ramped, body jurisdiction) |
+| voice.presence.aura_height | pawn_aura_height | 0 | GUESTS/GROUND | tick_pawn_couplings (U5) | **YES** — pure ×0 |
+| (DEAD — no address) | pawn_amp_scale, pawn_height_bias | 1 / 0 | — | **NONE** (zero setter callers) | **C5-F1: dead BOTH directions** — zero WGSL readers too; padding wearing channel names |
+
+Driverless proof recipe (yields ONLY the boot-pin block):
+```
+grep -rn 'set_terrain_time\|set_band_motion\|set_mode_color_shift\|set_mode_checker_scatter\|set_mode_palette_drift\|set_mode_gol_scales\|set_pulse_data\|set_palette_center\|set_palette_light\|set_palette_weight\|set_pawn_amp_scale\|set_pawn_height_bias' src --include='*.hpp' --include='*.inl' --include='*.cpp' | grep -v backup_board | grep -v 'src/docs' | grep -v 'realization/state.hpp' | grep -v terrain_looks.hpp | grep -v visual_canvas.hpp
+```
+
+### Honest-rename flags (Phase 3)
+
+Config/setter names are honest post-rebuild. The fossils are the BANK PIPES:
+`"terrain.checker_mean"` carries a resultant COLOR, not a mean;
+`"terrain.checker_var"`[0] carries music_amount — a presence riding a pipe
+named var. Only comments hold the meaning. Rename beside the bus re-lay.
+
+### Proposed bus (design sketch — NOT an edit)
+
+Initially an ALIAS TABLE (fields stay physically where they sit; moving
+mid-struct breaks the mirror): a `VOICE_LAYOUT[]` table shaped exactly like
+`PARAM_LAYOUT[]` (name · config offset · width · rest, rests sourced from
+terrain_looks ROWS 1–2) making "boot pin = reset(rests)" one loop instead of
+seven calls; one `set_voice(channel, span)` door; the WGSL DesignConfig
+block IS the mirror and gains a ROW 2 sub-index naming each field's bus
+address; one `[VOICE]` boot witness enumerating every channel with rest +
+DRIVEN(coupling)/DRIVERLESS(pinned) status; `pawn_amp_scale`/`pawn_height_bias`
+retire or become the first free slots. The physical re-lay (ballast delete +
+grouping) happens once, at Phase 3, with the witness re-pinned.
+
+---
+
+## C6. GUESTS
+
+| guest | writes | reads | guard |
+|---|---|---|---|
+| GoL tint | patch_terrain_fs L4174–78 → apply_gol_color | cell tag alpha, zone_params, zone_life_read, §7.0b consts | 4-deep: tag>.001 → GOL bit → fade>.01 → zone match + color_val>.01 |
+| Pawn FF tint | L4181–84 mix toward ZONE_PAWN_TINT | zone_pawn_ff, render_pawn state | **nested inside GoL** and ×color_val (C6-F1) |
+| Sphere FF tint | L4187–90 mix toward ZONE_SPHERE_TINT | zone_sphere_ff, floating entity 0 | same nesting (C6-F1) |
+| Pawn aura | L4202–14: +aura.gba, +r×0.15 brighten, normal perturb | pawn_aura_read texture, aura_enabled | enabled ≥.5; footprint bounds; active>.01. FS magic 0.15/0.3 unpaneled |
+| Radial pulse VISUAL | **NONE** — pulses are HEIGHT-only (patch_terrain_vs L4074) | — | count==0 → 0; DRIVERLESS |
+
+**C6-F1:** the FF tints are not independent guests — they are subordinate
+tenants of GoL, tinting only living GoL cells (×color_val). The extrusion FS
+applies the same tints UNSCALED (L8139/8145) — an inconsistency to rule on.
+
+### Composition order (as the code stands)
+
+```
+0 rim discard → 1 baked color → 2 live LUT recolor (REPLACES)
+→ 3 GoL tint → 4 pawn FF (nested) → 5 sphere FF (nested)
+→ 6 aura color delta → 7 aura brighten → 8 aura normal perturb
+→ 9 shade_lit (fog/veil last)
+```
+
+**Verdict: EMERGENT — a ruling for Jean.** The FS has section banners, not
+an order declaration. The repo DOES declare order for HEIGHT (THE FOLD,
+L3286–88; manifold_overlay_stack ORDER note L3010–16) — the color side has
+no equivalent, and color guests do NOT commute (mix vs additive vs replace),
+so the order is semantically load-bearing. The charter proposes adopting the
+current order as declared law verbatim, written above the FS as the fold
+comment is written above manifold_height_hf.
+
+GoL-keeps-its-own-panel ruling recorded at L5528–32, L1859–60, L137–38.
+
+---
+
+## C7. WITNESS
+
+### Existing instruments (selected; full census recipe below)
+
+| instrument | where | witnesses | class |
+|---|---|---|---|
+| CHECKER_DEBUG_VIEW 0/1/2 | world.wgsl L1729 + L4125–32 | art / resultant meter / receptivity map | permanent, hot-reload |
+| [CHECKER] | visual_canvas.hpp:453 | one line per 4-beat decode read | permanent |
+| [FLUSH] | cartridge.hpp:786 | FIRST live seam crossing (one-shot — gap 7) | permanent, once |
+| [the_board] bind echo | cartridge.hpp:593 | resolved pipes at boot | boot |
+| [GPUState] skew beacon | state.hpp:2837 | sizeof(GPUDesignConfig) — stale-binary detector | boot |
+| [SPINE] | cartridge.hpp:1561+ | row order + face law (abort on fail) | boot, fail-loud |
+| [Hot Reload] / [FileWatcher] / [Renderer] timings | renderer.hpp:1209 / incubator_dual.cpp:209 / renderer.hpp:348 | reload success / change detect / compile ms | permanent |
+| [port] | canvas.hpp:165 | raw MIDI at the port's mouth | **session-temp by its own comment, still in tree (C7-F1)** |
+| [canvas], [SignalLayout], [ParamLayout], [ROSTER], [ROSTER residue], body tags | various | boot + event witnesses | permanent |
+
+Census recipe: `grep -rhoE '"\[[A-Za-z: _-]+\]' src/ --include='*.hpp' --include='*.cpp' --include='*.inl' | sort | uniq -c | sort -rn`
+
+### Gaps (seams with no witness)
+
+1. The bake dispatch — no count/echo at dispatch_generate_patch_cells; a
+   patch baking with stale config is invisible.
+2. The LUT contents — mode/style/sparse never witnessed post-bake.
+3. The door decisions — which cells the gating admits is invisible except as art.
+4. The S2 wander/S3 spread actually applied per region — no witness.
+5. VOICE at the GPU end — only view 1; no numeric readback.
+6. Receptivity — view-only (and orphaned: C3-F1).
+7. [FLUSH] is one-shot — the seam runs unwitnessed after the first note.
+8. Bake-vs-live identity — asserted in comments, never tested.
+
+### TERRAIN_DEBUG_VIEW registry (proposal)
+
+| slot | name | shows |
+|---|---|---|
+| 0 | ART | fold-out (existing) |
+| 1 | VOICE METER | resultant × presence (existing) |
+| 2 | RECEPTIVITY | existing |
+| 3 | FIELD COVERAGE | cells taking the live LUT path vs baked |
+| 4 | MODE FIELD | LUT .r grayscale + threshold contour |
+| 5 | SPARSE SURVIVAL | LUT .b vs survival window |
+| 6 | MOTION PHASE | band blend/phase state |
+| 7 | GUEST MASKS | wander offset + spread magnitude |
+
+### The two standing invariants as named tests
+
+**SILENCE-IDENTITY** — silence ⇒ pixel-identical to the bake. Today
+comment-only ("seam-proof by law", L1655/7761–63; "RESTS are law",
+terrain_looks 116–23) plus the structural half: the has_mode_bias door skips
+the live path at rest. The UNTESTED half: that the live path at amount→0+
+converges to the baked color (the door is a step at 0.001, not a proven
+limit). Named test: boot rig, silence, framebuffer hash equals bake hash.
+
+**PROVENANCE** — the magenta probe, kept as a documented one-liner recipe,
+never improvised again. Paste immediately above the final return of
+patch_terrain_fs (L4216):
+
+```wgsl
+return vec4(1.0, 0.0, 1.0, 1.0);  // PROVENANCE PROBE — remove after reading
+```
+
+All ground magenta → this FS owns the pixels; some not → another pipeline
+draws them; none → the reload chain is cut ([Hot Reload] line absent).
+Scoped variant: paste inside the `else if (has_mode_bias)` branch → magenta
+marks exactly the live-path cells (doubles as registry slot 3).
+
+---
+
+## C8. THE TREATIES
+
+**BAKE/LIVE** — Per quantity: frozen-at-spawn vs live, declared (the C5
+table is the declaration). The cache law: bake = PIGMENT(FIELD, VOICE=rest);
+live = the SAME function, VOICE=now; silence ⇒ cache equals recompute, bit
+for bit. The baked texture is never a second authority.
+
+**CONTINUITY** — All time-variation enters through CPU envelopes (Segments);
+the GPU receives only glided values and static seeds. A stepped GPU-side
+hash is a teleport by construction and is banned in this program (the law
+already stands in checker_region_median's comment, L1331–36). Doors must be
+glide-safe before their biases couple (C2's classification is the work list).
+
+**THE FACE** — Three crossings only: ground queries (manifold_*), the VOICE
+setter(s), and the draw. Nothing else crosses the terrain's boundary.
+
+**SOVEREIGNTY** — No shader reads of the analysis signal for color or field
+decisions (the §3.1 ruling, restated as this program's article). The
+analysis signal reaches the terrain only through VOICE. (Status: holds
+today — the checker path's render_signal read was removed at CHECKER-TUNE
+A1; recipe: `grep -n 'render_signal' world.wgsl` → height/pulse clock and
+FS radial-pulse t_seconds only, no color/field reads.)
+
+---
+
+## C9. DISPOSITIONS + PHASE PLAN
+
+### Dispositions (the TERRAIN-1 M6 pattern)
+
+| tag | items |
+|---|---|
+| **KEEP** | ground_architecture contract + THE FOLD; all lattices and their seeds; the tier anchors (protected set, C3); the checker coupling (decode, envelope, S1–S3); the boot-pin law; the skew beacon; GoL's own panel (ruling) |
+| **MOVE(→FIELD)** | door decisions out of the composite into evaluate_cell_fields outputs (Phase 1); tier resolution out of discrete_cell_color's cascade (Phase 1) |
+| **MOVE(→WITNESS)** | CHECKER_DEBUG_VIEW → TERRAIN_DEBUG_VIEW registry (Phase 4); the embedded debug branches → numbered slots |
+| **COLLAPSE** | composite twins (biased/unbiased) → one body (Phase 2); animated_cell_color + _lut → one fn (Phase 2); three hand-inlined Hermite interpolators → lattice_coord/weight (Phase 1); gol_composite_cell_color's manual field duplicate → a call (Phase 1) |
+| **GRADUATE(literal→dial)** | DISCRETE_TINT_STRENGTH (flagged couplable); the unnamed mono/grey literals → named consts (C3-F2); aura FS magic 0.15/0.3 → panel consts |
+| **DELETE** | THE BALLAST wave_* (24 B, Phase 3 re-lay); animated_cell_color if not converged (F10, zero callers); pawn_amp_scale + pawn_height_bias (C5-F1, dead both directions); [port] probe (C7-F1, verdict served); stale header comment `MODE_DISCRETE_THRESHOLD 0.05` at world.wgsl:81 + web mirror (arch-F1) |
+| **RULE(Jean)** | the clock law (C4); the flip-door glide mechanism (C2); CellIdentity shape (C2); guest composition order + FF-tint scaling inconsistency (C6); receptivity orphan (C3-F1); MODE_COUPLING_MAGNITUDE=0 lattice (revive or retire); pulse rest not paneled (C4-F1) |
+
+### Phases (each BEHAVIOR-IDENTICAL, verified by SILENCE-IDENTITY + PROVENANCE)
+
+1. **FIELD extraction + door continuity.** CellIdentity lands; doors emit
+   continuous outputs; the glide law (as ruled) replaces the flip
+   comparisons; Hermite dedupe; gol_composite dedupe. Bit-identical at rest
+   by substitution.
+2. **PIGMENT unification.** The cascade exits into the tier resolver;
+   _at_tier becomes the sole pigment authority; composite twins merge;
+   animated pair converges. The bake and the live path provably call one
+   function at two moments.
+3. **VOICE bus + ballast delete + honest renames.** VOICE_LAYOUT table +
+   one setter + [VOICE] witness; the 592-byte re-lay deletes the 24 ballast
+   bytes and regroups; witnesses re-pinned; pipe fossils renamed; dead
+   channels retired. One commit, two rooms, one witness bump.
+4. **WITNESS registry + invariants.** TERRAIN_DEBUG_VIEW slots 0–7;
+   [FLUSH] grows a per-N-seconds heartbeat variant; SILENCE-IDENTITY becomes
+   a boot-rig test; PROVENANCE stays a documented recipe.
+
+---
+
+## ARCHAEOLOGY — the per-beat flicker (VOICE.event's ancestor)
+
+**FOUND (historical, removed).** The remembered effect is the CHECKER-1
+calibration SCOPE instrument: a LINEAR triangle, period 2 beats, range
+[−1,1], amplitude SCOPE_AMP 0.25, added achromatically (same scalar, all
+channels, all cells in unison) to the checker mean offset — injected in
+`animated_cell_color_lut` (the render-only caller, to dodge the bake
+pipeline's binding-200 validation), with companion MUSIC_GAIN and a flooded
+threshold. Born `ca2b93c` ("canvas and world"), retired ~3h later `a5f1aa2`
+("instruments retired — the calibration protocol served its purpose").
+Recipes: `git log --all --oneline -S 'scope_tri'` → exactly those two
+commits. Nothing per-beat touches terrain color in the live tree; the live
+envelope is smooth 2/8. Adjacent-not-terrain: orb `color_pulse` (dormant,
+hardcoded 0). If VOICE.event revives the idea, the ancestor's shape is:
+beat-locked additive swing on checker color, injected at the render-only
+caller. Note arch-F3: the SCOPE was achromatic and unison — if the memory
+is of per-cell or hue flicker, no such effect exists in history.
+
+Residue to clean (DELETE row): the stale `0.05` header comment at
+world.wgsl:81 (and its web mirror) — a ca2b93c fossil the retirement missed.
+
+---
+
+## OPEN RULINGS (gathered for Jean)
+
+1. **The clock law** — (a) continuous clock, stillness = blends at rest
+   (recommended; implies the clock reads signal.t_beats) vs (b) time-zero
+   stillness stays.
+2. **The flip-door glide mechanism** — (i) stateless per-cell fade band
+   (recommended) vs (ii) hysteresis with per-cell memory.
+3. **CellIdentity's shape** — ratify/amend the C2 draft before Phase 1.
+4. **Guest composition order** — currently EMERGENT; adopt the current
+   order as declared law, or re-order deliberately. Include the FF-tint
+   scaling inconsistency (terrain FS ×color_val vs extrusion FS unscaled).
+5. **C1 orphans** — the dual-stage residents (aura GROUND∧GUESTS,
+   waves/pulses GROUND∧MOTION, patch_terrain_fs four-stage, tag_cell_behavior,
+   coupling_terrain_to_sphere_orbit_height) — accept as declared seams or
+   split in Phase 1/2.
+6. **The receptivity orphan** (C3-F1) — re-wire prop 804 into the pc-color
+   mix, or retire it.
+7. **MODE_COUPLING_MAGNITUDE = 0** — revive the terrain→mode coupling
+   lattice or retire lattice 9.
+8. **Housekeeping rulings** — [port] probe removal; pulse rest panel row;
+   the state.hpp:5621 "-1 = use activity field" fossil comment.
