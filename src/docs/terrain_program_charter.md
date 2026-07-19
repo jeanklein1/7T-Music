@@ -914,3 +914,24 @@ Dated 2026-07-19, stamped by Jean (the Phase 1 handoff).
   chain: walker/manifold queries, heights, activity, waves, piers,
   step_h/eps all untouched), so any change in climbing behavior
   across Phase 2 is itself evidence.
+
+### #2 — the border strip (music-only washed band at patch borders)
+
+- **Opened**: with the INCIDENT #2 handoff (post-Phase-2 tree).
+- **Evidence** (Jean's canonical pair + walk test): same camera, music
+  vs silence — silence SEAMLESS; music shows a full-width horizontal
+  band of washed/desaturated cells, ~one cell tall, soft edges. The
+  band does NOT follow the pawn — world-anchored, sits on a patch
+  border. Aura-delta hypothesis dead (pawn-anchored mechanisms
+  excluded). Silence-clean ⇒ the bake agrees with itself; the LIVE
+  path disagrees with the bake exactly in a border strip.
+- **Suspects**: C1 texel derivation at the edge (OOB → robustness
+  zeros → mode 0 → smooth wash) · C2 bake edge-row write · C3
+  center-vs-corner registration · C4 the skirt wall · C5 LOD ring
+  density (EXCLUDED by R1: rings share extent and CELL_N).
+- **Instruments**: TERRAIN_DEBUG_VIEW 1/2/3 (I1 texel audit, I2 LUT
+  field audit, I3 skirt paint) — temporary, hot-reload, removed after
+  conviction.
+- **STATUS: open — instruments landed, awaiting Jean's three
+  screenshots at the canonical spot (music playing).** Closes with
+  the conviction + fix hash.

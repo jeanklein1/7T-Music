@@ -1652,6 +1652,12 @@ const DOOR_FADE_W_ZONE: f32 = 0.0;
 //   patch borders = the one-address law holds.
 //   Branches on a module const — folded out at 0, zero cost.
 const CHECKER_DEBUG_VIEW: u32 = 0u;
+// TERRAIN_DEBUG_VIEW — INCIDENT #2 instruments (TEMPORARY; remove
+// after conviction). 0 = off. 1 = I1 TEXEL AUDIT (parity board of the
+// derived texel, RED = OOB pre-clamp). 2 = I2 LUT FIELD AUDIT
+// (baked.r mode as grayscale). 3 = I3 SKIRT PAINT (skirt fragments
+// magenta). Hot-reload; shoot each at the canonical spot, music on.
+const TERRAIN_DEBUG_VIEW: u32 = 0u;
 
 // ── ROW 6 — RETIRED (Phase 1, ruling 6) ───────────────────────────
 // Terrain-mode coupling. The magnitude dial was parked at 0.0 — every
@@ -3880,6 +3886,10 @@ struct PatchTerrainVarying {
     // (complexity varying REMOVED — LATENT[complexity], read by no FS)
     @location(2) patch_uv: vec2<f32>,    // UV within the patch [0,1] for cell sampling
     @location(3) @interpolate(flat) layer: u32,  // heightfield/cell array layer
+    // TEMPORARY (INCIDENT #2, I3): 1.0 on skirt ring-copy verts, 0.0 on
+    // the surface — wall fragments interpolate toward 1. Remove with
+    // the instruments after conviction.
+    @location(4) skirt: f32,
 }
 
 // patch_terrain_vs — hand-fused POLICY_TERRAIN_RENDER evaluation.
@@ -3981,6 +3991,7 @@ fn patch_terrain_vs(
     //  the .w channel it read is now unused, no FS ever consumed it.)
     out.patch_uv = uv;
     out.layer = pi.layer;
+    out.skirt = select(0.0, 1.0, is_skirt);   // TEMPORARY (INCIDENT #2, I3)
     return out;
 }
 
@@ -4022,9 +4033,8 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
     // interpolation noise; patch_uv recovers only the per-patch CONSTANT —
     // it never addresses a texel by itself again.
     let patch_grid = vec2<i32>(round((in.world_pos.xz - in.patch_uv * PATCH_EXTENT) / PATCH_EXTENT));
-    let cell_texel = clamp(
-        cell_address(in.world_pos.xz) - patch_grid * i32(PATCH_CELL_N),
-        vec2(0), vec2(i32(PATCH_CELL_N) - 1));
+    let raw_texel = cell_address(in.world_pos.xz) - patch_grid * i32(PATCH_CELL_N);
+    let cell_texel = clamp(raw_texel, vec2(0), vec2(i32(PATCH_CELL_N) - 1));
 
     // Color fully composited at gen-time in the cell texture.
     // Alpha carries the cell behavior tag (0.0 = static, nonzero = animated).
@@ -4074,6 +4084,39 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
         // vocabulary (world-hashed) and the LUT can no longer disagree.
         let baked = textureLoad(cell_fields_read, cell_texel, i32(in.layer), 0);
         base_color = animated_cell_color_lut(in.world_pos.xz, baked.r, baked.g, baked.b, baked.a);
+    }
+
+    // ── TERRAIN_DEBUG_VIEW — INCIDENT #2 instruments (TEMPORARY;
+    //    hot-reload; remove after conviction). Painted AFTER the music
+    //    branch so each view shows the live-path truth with music
+    //    playing. Shading/fog still compose after — legible, same as
+    //    the CHECKER views.
+    if (TERRAIN_DEBUG_VIEW == 1u) {
+        // I1 TEXEL AUDIT — parity checkerboard of the DERIVED texel;
+        // RED = texel out of [0, PATCH_CELL_N) BEFORE the clamp.
+        //   red strip at the border       → C1 (OOB) convicted
+        //   doubled/skipped parity row    → C1 (clamp/off-by-one)
+        //   clean continuous checkerboard → texel law holds; go I2.
+        if (raw_texel.x < 0 || raw_texel.x >= i32(PATCH_CELL_N) ||
+            raw_texel.y < 0 || raw_texel.y >= i32(PATCH_CELL_N)) {
+            base_color = vec3(1.0, 0.0, 0.0);
+        } else {
+            base_color = vec3(f32((raw_texel.x + raw_texel.y) & 1));
+        }
+    } else if (TERRAIN_DEBUG_VIEW == 2u) {
+        // I2 LUT FIELD AUDIT — the mode value the live path actually
+        // loads (baked.r), as grayscale.
+        //   distinct edge row vs interior → C2 convicted
+        //   contours displaced ~half cell → C3 convicted
+        //   continuous and sane           → go I3.
+        base_color = vec3(textureLoad(cell_fields_read, cell_texel, i32(in.layer), 0).r);
+    } else if (TERRAIN_DEBUG_VIEW == 3u) {
+        // I3 SKIRT PAINT — skirt fragments magenta over the art.
+        //   the band IS magenta                    → C4 convicted
+        //   magenta only in cracks away from band  → C4 cleared.
+        if (in.skirt > 0.01) {
+            base_color = vec3(1.0, 0.0, 1.0);
+        }
     }
 
     // --- GoL zone visualization
