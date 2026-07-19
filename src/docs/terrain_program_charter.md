@@ -567,10 +567,28 @@ GoL-keeps-its-own-panel ruling recorded at L5528–32, L1859–60, L137–38.
 | [GPUState] skew beacon | state.hpp:2837 | sizeof(GPUDesignConfig) — stale-binary detector | boot |
 | [SPINE] | cartridge.hpp:1561+ | row order + face law (abort on fail) | boot, fail-loud |
 | [Hot Reload] / [FileWatcher] / [Renderer] timings | renderer.hpp:1209 / incubator_dual.cpp:209 / renderer.hpp:348 | reload success / change detect / compile ms | permanent |
-| [port] | canvas.hpp:165 | raw MIDI at the port's mouth | **session-temp by its own comment, still in tree (C7-F1)** |
+| [port] | canvas.hpp (was :165) | raw MIDI at the port's mouth | **RETIRED Phase 1 (ruling 8) — re-paste recipe below** |
 | [canvas], [SignalLayout], [ParamLayout], [ROSTER], [ROSTER residue], body tags | various | boot + event witnesses | permanent |
 
 Census recipe: `grep -rhoE '"\[[A-Za-z: _-]+\]' src/ --include='*.hpp' --include='*.cpp' --include='*.inl' | sort | uniq -c | sort -rn`
+
+### Retired instruments — re-paste recipes
+
+**[port]** — chord forensics at the port's mouth (retired Phase 1,
+ruling 8; verdict served: the parser is innocent). To re-arm, paste
+into `Canvas::update` (analysis/canvas_1/canvas.hpp) immediately after
+`const int n = port_.poll(beat, ev, 256);`:
+
+```cpp
+if (n > 0) {
+    std::fprintf(stderr, "[port] beat=%.2f n=%d :", beat, n);
+    for (int i = 0; i < n && i < 8; ++i)
+        std::fprintf(stderr, " %s ch%d p%d v%.2f",
+            ev[i].type == MidiEvent::NOTE_ON ? "on" : "off",
+            (int)ev[i].channel, (int)ev[i].pitch, ev[i].velocity);
+    std::fprintf(stderr, "\n");
+}
+```
 
 ### Gaps (seams with no witness)
 

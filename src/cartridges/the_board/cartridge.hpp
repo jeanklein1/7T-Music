@@ -431,8 +431,10 @@ namespace t7 {
                         terrain_looks::REST_CHECKER_AMOUNT,
                         terrain_looks::REST_CHECKER_VARIANCE);
                     gpuState_.set_mode_gol_scales(1.0f, 1.0f);   // GoL's jurisdiction — stays inline (ROW 9 pointer)
+                    // Pulse ring rest — the count is a ROW 2 pin; the
+                    // zeroed ring is the rest (Phase 1, C4-F1).
                     float zero_pulses[32] = {};
-                    gpuState_.set_pulse_data(0, zero_pulses);
+                    gpuState_.set_pulse_data(terrain_looks::REST_PULSE_COUNT, zero_pulses);
                     // The CameraControls panel authors the fly speed
                     // — one dial, one writer, at boot.
                     gpuState_.set_point_fly_speed(CameraControls::MOVE_SPEED);

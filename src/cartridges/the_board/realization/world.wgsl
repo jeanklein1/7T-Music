@@ -78,7 +78,7 @@
 // ── Spatial Field Lattices (§2.2) ─────────────────────────────────
 //   PALETTE_LATTICE_SPACING       300 wu — palette blob size
 //   MODE_LATTICE_SPACING          120 wu — smooth/discrete clusters
-//   MODE_DISCRETE_THRESHOLD       0.05 — gate for checkerboard
+//   MODE_DISCRETE_THRESHOLD       0.70 — gate for checkerboard
 //   MODE_BIAS_EXPONENT            5.0 — quintic: ~83% smooth
 //   TRANSITION_LATTICE_SPACING    200 wu — blend/scatter zones
 //   SPARSE_BASE_SPACING           160 wu — isolated cell regions
@@ -87,11 +87,7 @@
 //   DISCRETE_COLOR_LATTICE_SPACING  80 wu — colored cell blobs
 //   DISCRETE_MONO_LATTICE_SPACING   250 wu — B&W tendency zones
 //
-// ── Terrain-Mode Coupling (§2.2) ──────────────────────────────────
-//   COUPLING_LATTICE_SPACING      250 wu — where coupling is active
-//   COUPLING_STRENGTH_EXPONENT    3.0 — cubic: ~50% coupled
-//   MODE_COUPLING_MAGNITUDE       0.0 — max mode shift (DISABLED)
-//   ARCHETYPE_MODE_CHARACTER[4]   Per-archetype coupling direction
+// (Terrain-Mode Coupling section RETIRED — Phase 1, ruling 6.)
 //
 // ── Terrain Waves (→ §2.2 TERRAIN_LOOKS ROW 7) ────────────────────
 //   WAVE_THRESHOLD[6]             Per-band activity gate
@@ -1123,46 +1119,13 @@ fn sparse_field_at(world_xz: vec2<f32>) -> f32 {
     return base_val * cluster_boost;
 }
 
-// --- Terrain-mode coupling field
-//
-// Two per-node rolls on a coarse lattice:
-//   strength: how much terrain influences mode here (0 = independent, 1 = fully coupled)
-//   direction: which way the coupling pushes (-1 = mountains→smooth, +1 = mountains→discrete)
-//
-// The result is Hermite-interpolated so coupling zones have soft edges.
-// Combined with ARCHETYPE_MODE_CHARACTER in evaluate_cell_fields to shift the mode value.
-
-fn coupling_strength_at_node(node: vec2<i32>) -> f32 {
-    let seed = color_lattice_seed(node, 15u);
-    let raw = hash_property(seed, 530u);
-    // Cubic bias: raw^3 — about half the world has meaningful coupling.
-    // Tunable via COUPLING_STRENGTH_EXPONENT.
-    return pow(raw, COUPLING_STRENGTH_EXPONENT);
-}
-
-fn coupling_direction_at_node(node: vec2<i32>) -> f32 {
-    let seed = color_lattice_seed(node, 16u);
-    // Map [0,1] → [-1,1]. Trimodal snap: commit to a direction per region.
-    let raw = hash_property(seed, 531u);
-    if (raw < 0.35) { return -1.0; }  // 35% mountains → smooth
-    if (raw > 0.65) { return 1.0; }   // 35% mountains → discrete
-    return 0.0;                         // 30% no directional coupling (strength still applies as damping)
-}
-
-// Returns vec2(strength, direction) at a world position.
-fn terrain_coupling_at(world_xz: vec2<f32>) -> vec2<f32> {
-    let lc = lattice_coord(world_xz, COUPLING_LATTICE_SPACING);
-    var strength: f32 = 0.0;
-    var direction: f32 = 0.0;
-    for (var dz: i32 = 0; dz <= 1; dz++) {
-        for (var dx: i32 = 0; dx <= 1; dx++) {
-            let w = lattice_weight(lc, dx, dz);
-            strength += coupling_strength_at_node(lc.base + vec2(dx, dz)) * w;
-            direction += coupling_direction_at_node(lc.base + vec2(dx, dz)) * w;
-        }
-    }
-    return vec2(strength, direction);
-}
+// (Terrain-mode coupling field RETIRED — Phase 1, ruling 6. Lattice 9
+//  — seeds 15/16, props 530/531 — sat behind a magnitude dial parked
+//  at 0.0: three evaluators computed on every bake and multiplied to
+//  zero. Retired whole: the evaluators, the ROW 6 dials, and the shift
+//  block in evaluate_cell_fields. The seeds and property IDs stay
+//  reserved — do not reuse 15/16 or 530/531. The identifiers and the
+//  ledger live in the charter (lattice table row 9, ruling 6).)
 
 // --- Chess board field: strict two-color alternation
 // (CHESS_LATTICE_SPACING defined in Color Field Spatial Config block below)
@@ -1229,17 +1192,14 @@ fn chess_field_at(world_xz: vec2<f32>) -> ChessField {
 // --- Discrete cell color system
 // (DISCRETE_*_LATTICE_SPACING defined in Color Field Spatial Config block)
 
-// Per-node: roll RGB mean and variance for a discrete color region.
-// Returns vec4(r_mean, g_mean, b_mean, variance).
-// CHECKER-2: the region's full anatomy — seed color mean, spread, and
-// RECEPTIVITY (prop 804, the reserved seat): how much this region
-// listens when the music turns the wheel. Authorless seeded geography
-// (the activity-field idiom): one line plays, the land decides where
-// it takes.
+// Per-node: roll RGB mean and variance for a discrete color region —
+// the region's anatomy: seed color mean and spread.
+// (Prop 804 "receptivity" RETIRED — Phase 1, ruling 3: the pc-color
+//  field ships without it; chess_eff/mono_eff carry the listening
+//  geography. The property ID stays reserved — do not reuse 804.)
 struct DiscreteRegion {
     mean: vec3<f32>,
     variance: f32,
-    receptivity: f32,   // raw [0,1]; the floor is a ROW 5 dial, applied at the mix
 }
 
 fn discrete_region_at_node(node: vec2<i32>) -> DiscreteRegion {
@@ -1250,7 +1210,6 @@ fn discrete_region_at_node(node: vec2<i32>) -> DiscreteRegion {
                     hash_property(seed, 802u));
     // Variance: how much cells spread from the mean. [0.02 .. 0.25]
     out.variance = 0.02 + hash_property(seed, 803u) * 0.23;
-    out.receptivity = hash_property(seed, 804u);
     return out;
 }
 
@@ -1274,20 +1233,17 @@ fn discrete_region_at(world_xz: vec2<f32>) -> DiscreteRegion {
 
     var mean = vec3(0.0);
     var variance = 0.0;
-    var receptivity = 0.0;
     for (var dz: i32 = 0; dz <= 1; dz++) {
         for (var dx: i32 = 0; dx <= 1; dx++) {
             let val = discrete_region_at_node(lc.base + vec2(dx, dz));
             let ww = lattice_weight(lc, dx, dz);
             mean += val.mean * ww;
             variance += val.variance * ww;
-            receptivity += val.receptivity * ww;
         }
     }
     var out: DiscreteRegion;
     out.mean = mean;
     out.variance = variance;
-    out.receptivity = receptivity;
     return out;
 }
 
@@ -1698,47 +1654,18 @@ const DOOR_FADE_W_ZONE: f32 = 0.0;
 //   the shader receives it (angle → hue on the same recipe as the
 //   seat table: 0° red · 60° yellow · 240° blue; length → vividness).
 //   Static gray under music = the CPU→GPU path is cut. 2 = the
-//   RECEPTIVITY MAP: the land's listening geography, static grayscale.
+//   FIELD-COVERAGE view (re-pointed Phase 1; receptivity map retired
+//   with prop 804): green = live path, gray = baked composite. The
+//   full instrument registry arrives Phase 4.
 //   Branches on a module const — folded out at 0, zero cost.
 const CHECKER_DEBUG_VIEW: u32 = 0u;
 
-// ── ROW 6 — TERRAIN-MODE COUPLING ─────────────────────────────────
-//
-// Spatial coupling between terrain archetype and mode field.
-// A separate lattice determines WHERE coupling is active.
-// Where active, the local terrain archetype shifts the mode value:
-//   - positive character + positive direction → more discrete (checkerboard on peaks)
-//   - positive character + negative direction → more smooth (smooth peaks)
-// The direction is per-region (stochastic), so mountains sometimes get
-// checkerboard and sometimes stay smooth — but within a region, it's coherent.
-//
-// Where coupling strength is near zero, terrain and mode are fully independent
-// (identical to the pre-coupling behavior).
-//
-//  ┌─────────────────────────────┬────────────────────────────────────────────┐
-//  │ Constant                    │ Effect                                     │
-//  ├─────────────────────────────┼────────────────────────────────────────────┤
-//  │ COUPLING_LATTICE_SPACING    │ Zone size: larger = broader coupled areas  │
-//  │ COUPLING_STRENGTH_EXPONENT  │ Rarity: higher = less coupling overall     │
-//  │ MODE_COUPLING_MAGNITUDE     │ Intensity: max mode shift when coupled     │
-//  │ ARCHETYPE_MODE_CHARACTER    │ Direction: which archetypes push how hard  │
-//  └─────────────────────────────┴────────────────────────────────────────────┘
-
-const COUPLING_LATTICE_SPACING: f32 = 250.0;      // ~5 patches — broad coupling zones
-const COUPLING_STRENGTH_EXPONENT: f32 = 3.0;      // cubic — ~50% of world has meaningful coupling
-const MODE_COUPLING_MAGNITUDE: f32 = 0.0;        // DISABLED — zero correlation between terrain and mode
-
-// Per-archetype terrain character for coupling.
-// Magnitude = how strongly this archetype pushes. Sign = direction.
-//   Positive → when coupling direction > 0, pushes mode UP (toward discrete)
-//   Negative → when coupling direction > 0, pushes mode DOWN (toward smooth)
-// Varied is zero: neutral terrain never couples regardless of region.
-const ARCHETYPE_MODE_CHARACTER = array<f32, 4>(
-     1.0,    // 0: mountainous — strong push (direction-dependent)
-     0.0,    // 1: varied      — neutral (never couples)
-    -0.6,    // 2: basin       — moderate opposing push to mountains
-    -0.3,    // 3: pool        — mild opposing push
-);
+// ── ROW 6 — RETIRED (Phase 1, ruling 6) ───────────────────────────
+// Terrain-mode coupling. The magnitude dial was parked at 0.0 — every
+// dial here multiplied to zero. The row retired whole with its
+// lattice (9: seeds 15/16, props 530/531) and evaluators (§1.6). If
+// terrain-mode coupling ever returns, it returns as a FIELD under the
+// SEAMLESSNESS treaty, not as this mechanism. Ledger: the charter.
 
 // ── ROW 7 — THE MOVEMENT THIRD ──────────────────────────────────────
 // The surface voice's motion vocabulary (moved here from §1.6 —
@@ -4102,8 +4029,10 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
         // CPU->GPU path is cut.
         base_color = mix(vec3(0.5), config.checker_resultant, config.checker_music_amount);
     } else if (CHECKER_DEBUG_VIEW == 2u) {
-        // RECEPTIVITY MAP: the land's listening geography.
-        base_color = vec3(discrete_region_at(in.world_pos.xz).receptivity);
+        // FIELD-COVERAGE VIEW: green where the live path runs
+        // (has_mode_bias), gray where the baked composite stands.
+        // The full instrument registry arrives Phase 4.
+        base_color = select(vec3(0.45), vec3(0.25, 0.7, 0.35), has_mode_bias);
     } else if (has_mode_bias) {
         // Load baked spatial fields from LUT (skips 3 lattice noise chains)
         let cell_texel = clamp(
@@ -7434,7 +7363,7 @@ fn generate_patch_gradients(
 // CELLIDENTITY — Phase 1 contract (charter C2, ratified + amended).
 // FIELD's complete answer for one cell: vocabulary, rolls, continuous
 // door weights, region anatomy. PIGMENT realizes color from this and
-// VOICE only. Receptivity retired (ruling 6). chess_eff/mono_eff ride
+// VOICE only. Receptivity retired (ruling 3). chess_eff/mono_eff ride
 // so future cascade-glide never reshapes the struct (ruling 3).
 struct CellIdentity {
     tier: u32,               // 0 full · 1 tint · 2 BW · 3 chess-BW · 4 chess-color
@@ -7532,20 +7461,9 @@ fn evaluate_cell_fields(
     let tile = tile_grid_lookup(tile_gx, tile_gz);
     id.archetype = tile.archetype;
 
-    // ── Terrain-mode coupling ────────────────────────────────────
-    // Where coupling is active, the terrain archetype shifts the mode
-    // field toward smooth or discrete. The coupling direction is per-region
-    // (stochastic), so the same archetype can push either way depending
-    // on where in the world you are. Where coupling is near zero,
-    // mode and terrain are independent (pre-coupling behavior).
-    let coupling = terrain_coupling_at(world_xz);
-    let c_strength = coupling.x;
-    let c_direction = coupling.y;
-    if (c_strength > 0.05) {
-        let character = ARCHETYPE_MODE_CHARACTER[id.archetype];
-        let shift = character * c_direction * c_strength * MODE_COUPLING_MAGNITUDE;
-        id.mode = clamp(id.mode + shift, 0.0, 1.0);
-    }
+    // (Terrain-mode coupling shift RETIRED here — Phase 1, ruling 6.
+    //  The magnitude sat at 0.0: the shift was always zero. id.mode is
+    //  the mode field verbatim.)
 
     // ── Region anatomy + the wander's static offset ──────────────
     let region = discrete_region_at(world_xz);
@@ -7684,7 +7602,7 @@ fn animated_cell_color(world_xz: vec2<f32>) -> vec3<f32> {
 }
 
 // LUT-accelerated variant: reads baked mode/style/sparse from cell fields texture,
-// skipping mode_field_at, transition_style_at, sparse_field_at, and terrain_coupling_at.
+// skipping mode_field_at, transition_style_at, and sparse_field_at.
 // palette_field_at still runs (1 lattice noise chain) for smooth_color derivation.
 fn animated_cell_color_lut(world_xz: vec2<f32>, baked_mode: f32, baked_style: f32, baked_sparse: f32,
                            baked_tier: f32) -> vec3<f32> {
@@ -7829,9 +7747,9 @@ fn generate_patch_cells(@builtin(global_invocation_id) id: vec3<u32>) {
     textureStore(patch_cell_color_array_write, texel, layer, vec4(final_color, behavior_tag));
 
     // Bake spatial field values into LUT for terrain FS (skips 3 lattice noise chains).
-    // mode is post-coupling. Phase 1: the free .w channel now carries the
-    // TIER (the cascade's verdict at the cell center) — the live path
-    // reads it instead of re-running the tendency/mono lattices.
+    // Phase 1: the free .w channel now carries the TIER (the cascade's
+    // verdict at the cell center) — the live path reads it instead of
+    // re-running the tendency/mono lattices.
     textureStore(cell_fields_write, texel, layer, vec4(id.mode, id.style, id.sparse, f32(id.tier)));
 }
 

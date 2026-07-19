@@ -5628,7 +5628,7 @@ namespace t7 {
                 config_.terrain_amp_ceiling = 0.0f;  // 0 = unlimited (outdoor default)
                 config_.ceiling_height = 0.0f;       // 0 = no ceiling (outdoor default)
                 config_.terrain_time = 0.0f;         // 0 = frozen terrain (default)
-                // Band motion: -1 = use activity field (default for all moods at boot)
+                // Band motion: -1 = inactive sentinel (default for all moods at boot)
                 config_.band_blend_0 = -1.0f;
                 config_.band_blend_1 = -1.0f;
                 config_.band_blend_2 = -1.0f;

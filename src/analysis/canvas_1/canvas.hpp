@@ -152,24 +152,9 @@ public:
         MidiEvent ev[256];
         const int n = port_.poll(beat, ev, 256);
 
-        // ── PROBE (temporary — chord forensics at the port's mouth) ──
-        // Prints every event the port delivers, RAW, before routing —
-        // below every reading, so whatever appears here is the parser's
-        // own testimony. Hold ONE triad once: three distinct "on"
-        // pitches (one frame or split across two) = the parser is
-        // innocent and suspicion moves up-chain; one "on" per chord =
-        // simultaneity dies in the parser — convicted. A non-on event
-        // prints as "off" (the stream's own reading of it). `beat`
-        // rides along to witness the DAW clock. Remove after verdict.
-        if (n > 0) {
-            std::fprintf(stderr, "[port] beat=%.2f n=%d :", beat, n);
-            for (int i = 0; i < n && i < 8; ++i)
-                std::fprintf(stderr, " %s ch%d p%d v%.2f",
-                    ev[i].type == MidiEvent::NOTE_ON ? "on" : "off",
-                    (int)ev[i].channel, (int)ev[i].pitch, ev[i].velocity);
-            std::fprintf(stderr, "\n");
-        }
-
+        // ([port] chord-forensics probe RETIRED — Phase 1: verdict was
+        //  delivered (parser innocent). Re-paste recipe: the charter's
+        //  archaeology appendix carries the probe verbatim.)
         for (int i = 0; i < n; ++i) route(ev[i]);
         advance(beat);
     }

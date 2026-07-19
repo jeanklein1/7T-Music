@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+
 // ═══════════════════════════════════════════════════════════════════
 // THE TERRAIN_LOOKS PANEL — C++ room (surface/terrain_looks.hpp)
 // ═══════════════════════════════════════════════════════════════════
@@ -121,6 +123,9 @@ inline constexpr float REST_MODE_PALETTE_DRIFT_TIER = 0.0f;
 inline constexpr float REST_CHECKER_RESULTANT[3] = { 0.0f, 0.0f, 0.0f };
 inline constexpr float REST_CHECKER_AMOUNT = 0.0f;
 inline constexpr float REST_CHECKER_VARIANCE = 0.0f;
+// Pulse ring rest: count 0 with a zeroed ring IS the rest (Phase 1,
+// ruling C4-F1 — the rest paneled; the boot pin sources it from here).
+inline constexpr std::uint32_t REST_PULSE_COUNT = 0;
 
 // ── ROWS 3-8 — see the WGSL room (world.wgsl §2.2 TERRAIN_LOOKS) ────
 //   ROW 3 PALETTE COMPOSITION: PALETTE_DOMINANT_WEIGHT / _MINOR_WEIGHT
@@ -129,8 +134,8 @@ inline constexpr float REST_CHECKER_VARIANCE = 0.0f;
 //   ROW 4 FIELD LATTICES: the *_LATTICE_SPACING family.
 //   ROW 5 COMPOSITE CUTS & EDGES: mode blend/scatter edges, sparse
 //     survival, chess/mono cuts, DISCRETE_TINT_STRENGTH.
-//   ROW 6 TERRAIN-MODE COUPLING: spacings/exponents +
-//     MODE_COUPLING_MAGNITUDE (0.0 — the parked archetype gain).
+//   ROW 6 — RETIRED (Phase 1, ruling 6): terrain-mode coupling went
+//     out with its lattice and evaluators; the tombstone is in-room.
 //   ROW 7 THE MOVEMENT THIRD: OVERLAY_WAVES + WAVE_THRESHOLD +
 //     activity motion-rate vocabulary (REST pins live in ROW 2 here).
 //   ROW 8 GOVERNING EXPRESSIONS: palette_color_smooth (in-room);
