@@ -427,8 +427,9 @@ namespace t7 {
                     gpuState_.set_mode_palette_drift(terrain_looks::REST_MODE_PALETTE_DRIFT_TARGET,
                         terrain_looks::REST_MODE_PALETTE_DRIFT_INTENSITY,
                         terrain_looks::REST_MODE_PALETTE_DRIFT_TIER);
-                    gpuState_.set_checker_color_field(terrain_looks::REST_CHECKER_MEAN_OFFSET,
-                        terrain_looks::REST_CHECKER_VARIANCE_GAIN);
+                    gpuState_.set_checker_color_field(terrain_looks::REST_CHECKER_RESULTANT,
+                        terrain_looks::REST_CHECKER_AMOUNT,
+                        terrain_looks::REST_CHECKER_VARIANCE);
                     gpuState_.set_mode_gol_scales(1.0f, 1.0f);   // GoL's jurisdiction — stays inline (ROW 9 pointer)
                     float zero_pulses[32] = {};
                     gpuState_.set_pulse_data(0, zero_pulses);
@@ -768,25 +769,27 @@ namespace t7 {
                         fp.get(fog_color_dst_.base + 1),
                         fp.get(fog_color_dst_.base + 2));
                 }
-                // CHECKER-1: the checker field's flush — one setter, the fan.
+                // CHECKER-REBUILD: the pc-color field's flush — one setter,
+                // the fan (resultant rgb + music amount + music variance).
                 if (checker_mean_dst_.valid && checker_var_dst_.valid) {
                     const VisualParams& cp = visual_canvas_.params();
                     gpuState_.set_checker_color_field(cp.run(checker_mean_dst_.base),
-                        cp.get(checker_var_dst_.base));
-                    // [FLUSH] one-shot: fires the first time a live wheel value
-                    // actually crosses the CPU->GPU seam. If [WHEEL] is singing
-                    // in the console and this line never prints, the bindings
-                    // above are invalid or the two params_ objects disagree —
-                    // name it here, don't infer it.
+                        cp.get(checker_var_dst_.base),        // [0] = music_amount
+                        cp.get(checker_var_dst_.base + 1));   // [1] = music_variance
+                    // [FLUSH] one-shot: fires the first time a live resultant
+                    // crosses the CPU->GPU seam. If [CHECKER] is singing in the
+                    // console and this line never prints, the bindings above are
+                    // invalid or the two params_ objects disagree — name it.
                     static bool checker_flush_seen = false;
                     if (!checker_flush_seen
-                        && (std::fabs(cp.get(checker_mean_dst_.base)) > 0.05f
-                            || std::fabs(cp.get(checker_mean_dst_.base + 1)) > 0.05f)) {
+                        && cp.get(checker_var_dst_.base) > 0.05f) {   // music_amount up
                         std::fprintf(stderr,
-                            "[FLUSH] checker -> config: (%.2f %.2f) gain=%.2f\n",
+                            "[FLUSH] checker -> config: resultant=(%.2f %.2f %.2f) amount=%.2f var=%.2f\n",
                             cp.get(checker_mean_dst_.base),
                             cp.get(checker_mean_dst_.base + 1),
-                            cp.get(checker_var_dst_.base));
+                            cp.get(checker_mean_dst_.base + 2),
+                            cp.get(checker_var_dst_.base),
+                            cp.get(checker_var_dst_.base + 1));
                         checker_flush_seen = true;
                     }
                 }
