@@ -662,6 +662,22 @@ today — the checker path's render_signal read was removed at CHECKER-TUNE
 A1; recipe: `grep -n 'render_signal' world.wgsl` → height/pulse clock and
 FS radial-pulse t_seconds only, no color/field reads.)
 
+**SEAMLESSNESS (the window treaty)** — An effect is ONE continuous
+field over (world, time). Frames sample it in time; patches sample it
+in space; NEITHER sampling grid may appear in its value. Patch
+identity and bake moment are banned inputs to any live quantity. The
+geometry precedent: the patch meshes read one heightfield and share
+perimeter evaluation — continuity by shared function. The color/field
+side achieves the same by pure world-space functions (lattices +
+Hermite, global voice values, world-grid cells); the bake side's
+guarantee is identity-at-rest — patches baked at different moments
+agree because both bake the SAME function at VOICE = rest.
+Enforcement: every new effect declares its world-field; per-patch
+state, per-patch envelopes, or per-patch random targets are seams by
+construction. Pairs with CONTINUITY as the two axes of one law: no
+steps in time, no seams in space.
+*(Appended Phase 1, per the Phase 1 handoff D6.1.)*
+
 ---
 
 ## C9. DISPOSITIONS + PHASE PLAN
@@ -742,3 +758,18 @@ world.wgsl:81 (and its web mirror) — a ca2b93c fossil the retirement missed.
    lattice or retire lattice 9.
 8. **Housekeeping rulings** — [port] probe removal; pulse rest panel row;
    the state.hpp:5621 "-1 = use activity field" fossil comment.
+
+### RULING LEDGER — all eight CLOSED (Phase 1)
+
+| # | ruling | verdict |
+|---|---|---|
+| 1 | the clock law | **(a)** — continuous clock; stillness = blends at rest |
+| 2 | the flip-door glide | **(i)** — stateless per-cell fade band (door_fade; W dials at ROW 5, landed 0) |
+| 3 | CellIdentity's shape | **ratified + amended** — chess_eff/mono_eff ride the struct; receptivity OUT |
+| 4 | guest composition order | **declared law** — current order adopted; FF-tint scaling harmonized Phase 2 |
+| 5 | C1 orphans | **declared seams** — accepted as-is; F9 re-classed consumer |
+| 6 | the receptivity orphan | **retired** — prop 804 out (P1-C4; ID stays reserved) |
+| 7 | MODE_COUPLING_MAGNITUDE = 0 | **retired** — lattice 9 out whole (P1-C4; seeds 15/16, props 530/531 stay reserved) |
+| 8 | housekeeping | **all approved** — [port] out (re-paste recipe in C7), pulse rest paneled (ROW 2), fossils fixed |
+
+Dated 2026-07-19, stamped by Jean (the Phase 1 handoff).
