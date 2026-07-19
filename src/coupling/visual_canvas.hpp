@@ -30,24 +30,23 @@
 // update() after the signal, and flushes fog — density and color —
 // from params() to set_fog. Fog has one driver: the field.
 //
-// CHECKER-3 — THE SEATED WHEEL (the terrain's checker voice). The
-// voice's WINDOW pc-vector — pc_length(playhead, wagon(0)): the
-// Playhead + Wagon compound, duration-weighted, dressed to D — is
-// read every CHECKER_READ_SPAN beats and seated on Jean's AUTHORED
-// interval→color table (angle + gain per interval-from-origin; the
-// origin's own seat is gain 0 — home contributes nothing). Resultant
-// angle = the musical median's hue; resultant length ÷ total weight
-// = commitment (low-gain seats like m2 "blackish" shorten the wheel:
-// darkness as non-commitment). A second scalar wakes the variance
-// wire: distinct-pc count → checker_variance_gain (silence and a
-// lone note give 1). Full-span glides per component (through gray;
-// the wheel never wraps). The cartridge flushes terrain.checker_*
-// through set_checker_color_field in U4; the GPU turns each
-// checker's own seed color about the gray axis by the wheel's angle,
-// mixed by commitment × region receptivity, and scales each region's
-// own seed spread by the gain THROUGH its receptivity — one ride,
-// many riders; a variation for the variations. Console witness:
-// [WHEEL] per read.
+// CHECKER-REBUILD — THE PITCH-CLASS COLOR FIELD (the terrain's checker
+// voice). The voice's WINDOW pc-LENGTH vector — pc_length(playhead,
+// wagon(0)): the Playhead + Wagon compound, duration-weighted, dressed
+// to D — is read every CHECKER_READ_SPAN beats. NO DFT, no interval
+// math: each ABSOLUTE pitch class (index 0 = D) has an authored RGB
+// (PC_COLOR), and the decode is the length-weighted average color,
+// resultant = (Σ length_i · PC_COLOR[i]) / Σ length_i. Two enveloped
+// scalars ride with it: music_amount (presence [0,1]) and music_variance
+// (distinct-pc count). The ENVELOPE is Jean's: LINEAR 2-beat attack to
+// the new 4-beat target, LINEAR 8-beat release to rest — a return to
+// SEED (music_amount → 0, which the GPU maps to the cell's own seed
+// color), not to gray. The cartridge flushes terrain.checker_* through
+// set_checker_color_field in U4; the GPU (discrete_cell_color) pulls
+// each discrete cell toward the resultant, wanders each region around
+// it (re-rolled per window), and widens each region's own spread by the
+// count — applied DIRECTLY to the checker cells. Console witness:
+// [CHECKER] per read.
 //
 // USAGE
 //   visual_canvas_.bind(analysis_layout);          // startup
@@ -68,7 +67,7 @@
 #include <string>    // casting-sheet name composition ("<voice>.present_count")
 #include <cmath>     // std::floor / cos / sin / sqrt / atan2 — decode math
 #include <algorithm> // std::min/std::max — decode clamps
-#include <cstdio>    // std::fprintf — the [WHEEL] witness line
+#include <cstdio>    // std::fprintf — the [CHECKER] witness line
 
 namespace t7 {
 
@@ -158,58 +157,46 @@ namespace t7 {
     inline constexpr float TINT_D1[3] = { 0.8165f, -0.4082f, -0.4082f };
     inline constexpr float TINT_D2[3] = { 0.0f,     0.7071f, -0.7071f };
 
-    // ── CHECKER-3 — THE SEATED WHEEL (color gen-2, the checker voice) ──
-    // Source: the voice's WINDOW pc-vector (window_length, 12-wide,
+    // ── CHECKER-REBUILD — the pitch-class color field (the checker voice) ──
+    // Source: the voice's WINDOW pc-LENGTH vector (window_length, 12-wide,
     // duration-weighted, dressed to D — the Playhead + Wagon compound,
-    // pc_length(playhead, wagon(0))). Each interval-from-origin has an
-    // AUTHORED SEAT: an angle on the chroma wheel and a gain. The
-    // decode is the weighted resultant:
-    //     v = Σ_i  w_i · gain_i · ( cos θ_i , sin θ_i )
-    //     commitment = |v| ÷ Σ_i w_i   (raw weight — so low-gain seats
-    //                   genuinely SHORTEN the wheel: darkness as
-    //                   non-commitment), clamped to CHECKER_COMMIT_MAX
-    //     wheel goal = commitment · v/|v|
-    // HUE RECIPE (the Rodrigues D1/D2 basis the GPU rotates in):
-    //   0° red · 30° orange · 60° yellow · 120° green · 165° turquoise
-    //   · 240° blue · 285° violet · 300° magenta. Edit angles by eye
-    //   with this ruler; edit gains for pull strength. Seat 0 (the
-    //   origin itself) is gain 0 BY LAW: a note's distance to itself
-    //   is nothing — the wheel measures the intervals AROUND home, and
-    //   a lone D stays stillness. Silence and full 12-pc smear give a
-    //   zero-length wheel — identity by anatomy. This table
-    //   generalizes every seating we tried: angles at i·210° = the
-    //   fifths circle; the DFT bins are other fillings. One mechanism,
-    //   swappable seating — this filling is Jean's ear.
+    // pc_length(playhead, wagon(0))). NO DFT, no interval math: each PITCH
+    // CLASS (ABSOLUTE, index 0 = D after the dress) has an authored RGB, and
+    // the decode is the length-weighted average color —
+    //     resultant = ( Σ_i length_i · PC_COLOR[i] ) / max(Σ length_i, eps)
+    // Read every CHECKER_READ_SPAN beats. ENVELOPE (per Jean): LINEAR 2-beat
+    // attack to the new target; LINEAR 8-beat release to rest (music_amount →
+    // 0, which the GPU maps to each cell's OWN seed color — a return to seed,
+    // not to gray). Two enveloped scalars ride alongside the resultant:
+    //   music_amount  = presence [0,1] — the GPU's S1 pull + S2 wander scale;
+    //   music_variance = distinct-pc count — the GPU's S3 within-patch spread.
+    // The GPU (world.wgsl discrete_cell_color) owns pull / wander / spread;
+    // this side ships the resultant + the two scalars through terrain.checker_*.
+    // PC_COLOR is JEAN'S — twelve hues, one per pitch class. Tune it here.
     inline constexpr const char* CHECKER_VOICE = "ch1";   // the chordal piano; chN = wire = Ableton − 1
-    inline constexpr float CHECKER_READ_SPAN = 4.0f;      // beats — read cadence AND glide span (one number)
-    inline constexpr float CHECKER_COMMIT_MAX = 1.0f;     // wheel-length ceiling (headroom dial)
-    //                                       angle°   gain     interval — Jean's word
-    inline constexpr float CHECKER_SEAT_DEG[12] = {
-        /* i0  unison */     0.0f,   //  (gain 0 — home; angle unused)
-        /* i1  m2     */   250.0f,   //  blackish (cold seat, weak pull)
-        /* i2  M2     */    60.0f,   //  yellow
-        /* i3  m3     */   240.0f,   //  dark blue
-        /* i4  M3     */    30.0f,   //  orange
-        /* i5  P4     */     0.0f,   //  red
-        /* i6  TT     */   165.0f,   //  turquoise
-        /* i7  P5     */   285.0f,   //  violet
-        /* i8  m6     */   260.0f,   //  iris
-        /* i9  M6     */    35.0f,   //  brown (dark-orange seat)
-        /* i10 m7     */   135.0f,   //  emerald
-        /* i11 M7     */    80.0f,   //  greenish brown
+    inline constexpr float CHECKER_READ_SPAN = 4.0f;      // beats — read cadence
+    inline constexpr float CHECKER_ATTACK    = 2.0f;      // beats — LINEAR rise to the new target
+    inline constexpr float CHECKER_RELEASE   = 8.0f;      // beats — LINEAR fall to rest (→ seed color)
+    //                          pc (dressed, 0 = D)      R      G      B    — Jean's twelve hues
+    inline constexpr float PC_COLOR[12][3] = {
+        /*  0  D  */ { 0.85f, 0.20f, 0.20f },   // red
+        /*  1  D# */ { 0.85f, 0.45f, 0.15f },   // orange
+        /*  2  E  */ { 0.90f, 0.80f, 0.20f },   // yellow
+        /*  3  F  */ { 0.55f, 0.80f, 0.25f },   // yellow-green
+        /*  4  F# */ { 0.25f, 0.75f, 0.30f },   // green
+        /*  5  G  */ { 0.20f, 0.75f, 0.65f },   // teal
+        /*  6  G# */ { 0.20f, 0.65f, 0.85f },   // cyan
+        /*  7  A  */ { 0.25f, 0.40f, 0.85f },   // blue
+        /*  8  A# */ { 0.45f, 0.30f, 0.85f },   // indigo
+        /*  9  B  */ { 0.65f, 0.25f, 0.85f },   // violet
+        /* 10  C  */ { 0.85f, 0.25f, 0.70f },   // magenta
+        /* 11  C# */ { 0.85f, 0.25f, 0.45f },   // crimson
     };
-    inline constexpr float CHECKER_SEAT_GAIN[12] = {
-        /* i0 */ 0.00f, /* i1 */ 0.15f, /* i2 */ 1.00f, /* i3 */ 0.85f,
-        /* i4 */ 1.00f, /* i5 */ 1.00f, /* i6 */ 0.90f, /* i7 */ 1.00f,
-        /* i8 */ 0.90f, /* i9 */ 0.70f, /* i10 */ 0.90f, /* i11 */ 0.70f,
-    };
-    inline constexpr float CHECKER_DEG2RAD = 0.01745329252f;
-    // ── the variance wire (LIVE): distinct-pc count in the window →
-    // spread. Silence (n=0) and a lone note (n=1) give exactly 1 —
-    // the nulls hold. The GPU applies the gain THROUGH each region's
-    // receptivity (the variation for the variations).
-    inline constexpr float CHECKER_VAR_PER_NOTE = 0.12f;  // gain step per pc beyond the first
-    inline constexpr float CHECKER_VAR_GAIN_MAX = 2.50f;  // ceiling (seed var .02–.25 × this)
+    // Within-patch spread (S3): each distinct pitch class beyond the first
+    // widens the region's own cell scatter by this much, up to the ceiling.
+    // 0 or 1 distinct → 0 extra (a single sustained note keeps the seed spread).
+    inline constexpr float CHECKER_VAR_PER_NOTE = 0.05f;  // seed-var add per distinct pc beyond the first
+    inline constexpr float CHECKER_VAR_MAX      = 0.30f;  // ceiling on the music spread add
 
     // ═══ MASTER CONTROL PANEL ════════════════════════════════════════════════════
     // The one place every exposed pipe is declared — name, slot, width, and the
@@ -229,13 +216,13 @@ namespace t7 {
         { "ribbon.amp_vertical_mult", 5, 1, 1.0f },
         { "ribbon.color_stim", 6, 3, 0.0f },
         { "ribbon.color_mix",  9, 1, 0.0f },
-        // ── terrain (CHECKER-3, the seated wheel) ── the checker
-        // vocabulary's response vector (x, y, spare) + the LIVE spread
-        // gain (distinct-pc count); rests are the identities of the
-        // rotation-mix and of × (law, not taste — the_board's authored
-        // home: terrain_looks ROW 2 REST_CHECKER_*).
+        // ── terrain (CHECKER-REBUILD, the pc-color field) ── checker_mean
+        // now carries the resultant COLOR (rgb); checker_var widens to TWO —
+        // [0] = music_amount (presence), [1] = music_variance (distinct-pc
+        // count). All rest at 0 (amount 0 → the GPU shows each cell's seed
+        // color; the_board's authored rests: terrain_looks ROW 2 REST_CHECKER_*).
         { "terrain.checker_mean", 10, 3, 0.0f },
-        { "terrain.checker_var",  13, 1, 1.0f },
+        { "terrain.checker_var",  13, 2, 0.0f },
     };
     inline constexpr uint32_t PARAM_LAYOUT_COUNT =
         sizeof(PARAM_LAYOUT) / sizeof(PARAM_LAYOUT[0]);
@@ -298,21 +285,23 @@ namespace t7 {
                 tint_stim_seg_[c2] = Segment{ 0.0f, 0.0f, 0.0f, 0.0f };
             tint_mix_seg_ = Segment{ 0.0f, 0.0f, 0.0f, 0.0f };
 
-            // CHECKER-3 source + targets (the terrain's checker voice):
-            // the voice's WINDOW pc-vector (Playhead + Wagon compound)
-            // turns the SEATED wheel and drives the variance wire.
+            // CHECKER-REBUILD source + targets (the terrain's checker voice):
+            // the voice's WINDOW pc-length vector becomes the resultant color;
+            // presence + distinct-pc count envelope the pull and the spread.
             {
                 std::string v(CHECKER_VOICE);
                 checker_win_ = signal_layout_.resolve((v + ".window_length").c_str());
             }
-            checker_mean_ = param_layout_.resolve("terrain.checker_mean");
-            checker_var_ = param_layout_.resolve("terrain.checker_var");
+            checker_mean_ = param_layout_.resolve("terrain.checker_mean");   // 3: resultant rgb
+            checker_var_  = param_layout_.resolve("terrain.checker_var");    // 2: amount, variance
             for (int c2 = 0; c2 < 3; ++c2) {
-                checker_mean_goal_[c2] = 0.0f;                     // the wheel goal (x, y, 0)
-                checker_mean_seg_[c2] = Segment{ 0.0f, 0.0f, 0.0f, 0.0f };
+                checker_res_goal_[c2] = 0.0f;                     // resultant color, held between reads
+                checker_res_seg_[c2] = Segment{ 0.0f, 0.0f, 0.0f, 0.0f };
             }
-            checker_var_goal_ = 1.0f;                              // dormant spread wire
-            checker_var_seg_ = Segment{ 1.0f, 1.0f, 0.0f, 0.0f };
+            checker_amount_goal_ = 0.0f;                          // presence (rest 0 → seed)
+            checker_amount_seg_  = Segment{ 0.0f, 0.0f, 0.0f, 0.0f };
+            checker_var_goal_ = 0.0f;                             // distinct-pc spread (rest 0)
+            checker_var_seg_  = Segment{ 0.0f, 0.0f, 0.0f, 0.0f };
             checker_next_read_ = 0.0f;   // first frame reads, then grid-locks
         }
 
@@ -419,81 +408,72 @@ namespace t7 {
                         (mix_goal == 0.0f ? TINT_MIX_RELEASE : TINT_MIX_ATTACK)));
             }
 
-            // ── CHECKER-3 (the seated wheel + the variance wire) ────
-            // SAMPLE-AND-HOLD on the absolute beat grid: at each
-            // crossing, read the voice's 12-pc WINDOW vector (Playhead
-            // + Wagon compound), seat each interval on Jean's table
-            // (angle + gain; seat 0 = home = silent by law), take the
-            // weighted resultant. Angle = the musical median's hue;
-            // |v| ÷ Σw = commitment (low-gain seats shorten the wheel
-            // — darkness as non-commitment). Distinct-pc count drives
-            // the variance gain (n=0 and n=1 give exactly 1 — the
-            // nulls hold). Every frame each component glides on the
-            // full span. [WHEEL] prints one witness line per read.
+            // ── CHECKER-REBUILD (the window pc-lengths → a resultant color) ──
+            // SAMPLE-AND-HOLD on the absolute beat grid: at each crossing,
+            // read the voice's 12-pc WINDOW LENGTH vector, form the length-
+            // weighted average color over Jean's PC_COLOR table (NO DFT, no
+            // interval math — absolute pitch class → hue). Presence sets the
+            // pull; distinct-pc count sets the spread. The ENVELOPE is on the
+            // OUTPUT (below): each component glides LINEAR 2-beat attack to the
+            // new target, and amount/variance release LINEAR over 8 beats to
+            // rest — which the GPU maps to each cell's seed color. [CHECKER]
+            // prints one witness line per read.
             if (checker_win_.valid && checker_mean_.valid && checker_var_.valid) {
-                // F3 (CADENCE): re-anchor on a BACKWARD beat jump. The grid
-                // cursor only moves forward, so a transport LOOP back below
-                // next_read would leave the guard false for the whole loop —
-                // the wheel dead while fog (gridless) stays live. THIS was the
-                // "sometimes it breathes, sometimes it doesn't": a looped
-                // rehearsal froze the reader on wrap. If beat has fallen more
-                // than one span behind the cursor, the transport jumped — reset
-                // the cursor so the next crossing reads.
+                // CADENCE: re-anchor on a BACKWARD beat jump (a transport loop
+                // back below next_read would otherwise freeze the reader).
                 if (beat < checker_next_read_ - CHECKER_READ_SPAN)
                     checker_next_read_ = std::floor(beat / CHECKER_READ_SPAN) * CHECKER_READ_SPAN;
                 if (beat >= checker_next_read_) {
-                    float vx = 0.0f, vy = 0.0f, total = 0.0f;
+                    float acc[3] = { 0.0f, 0.0f, 0.0f };
+                    float total = 0.0f;
                     int   n = 0;
                     for (int i = 0; i < 12; ++i) {
                         const float w = signal.stat(checker_win_.channel,
                             checker_win_.base + i);
                         if (w <= 0.0f) continue;
-                        const float th = CHECKER_SEAT_DEG[i] * CHECKER_DEG2RAD;
-                        const float g = CHECKER_SEAT_GAIN[i];
-                        vx += w * g * std::cos(th);
-                        vy += w * g * std::sin(th);
+                        acc[0] += w * PC_COLOR[i][0];
+                        acc[1] += w * PC_COLOR[i][1];
+                        acc[2] += w * PC_COLOR[i][2];
                         total += w;
                         ++n;
                     }
-                    const float len = std::sqrt(vx * vx + vy * vy);
-                    if (len > 1e-6f && total > 1e-6f) {
-                        const float commit = std::min(CHECKER_COMMIT_MAX, len / total);
-                        checker_mean_goal_[0] = commit * (vx / len);
-                        checker_mean_goal_[1] = commit * (vy / len);
-                        checker_mean_goal_[2] = 0.0f;
+                    const bool present = (total > 1e-6f);
+                    if (present) {
+                        // The length-weighted average color. On silence we hold
+                        // the last resultant (amount fades it to seed anyway).
+                        checker_res_goal_[0] = acc[0] / total;
+                        checker_res_goal_[1] = acc[1] / total;
+                        checker_res_goal_[2] = acc[2] / total;
                     }
-                    // F2 (HOLD-LAST): an EMPTY ch1 window (total 0 — the piano
-                    // rests while other voices carry) keeps the LAST lean rather
-                    // than snapping the mosaic back to seed. The tint's own idiom
-                    // (a drained window holds its hue). Goal is simply left
-                    // unwritten — the glide finishes to the held target and rests.
-                    // Silence at BOOT still starts at the rest zero (seeded goal).
-                    // Variance gain follows the same hold-last: only rewritten
-                    // when the window has content (n>0). Silence holds the last
-                    // spread, matching the held hue.
-                    if (n > 0)
-                        checker_var_goal_ = std::min(CHECKER_VAR_GAIN_MAX,
-                            1.0f + CHECKER_VAR_PER_NOTE * (float)std::max(0, n - 1));
-                    // THE WITNESS: one line per read — the decode's own
-                    // testimony, upstream of the GPU. angle in the hue
-                    // recipe's degrees (0 red · 60 yellow · 240 blue …).
+                    // Presence drives the pull; distinct-pc count the spread.
+                    // 0 or 1 distinct → 0 extra spread (a lone note keeps seed).
+                    checker_amount_goal_ = present ? 1.0f : 0.0f;
+                    checker_var_goal_ = present
+                        ? std::min(CHECKER_VAR_MAX,
+                            (float)std::max(0, n - 1) * CHECKER_VAR_PER_NOTE)
+                        : 0.0f;
+                    // THE WITNESS: one line per read, upstream of the GPU.
                     std::fprintf(stderr,
-                        "[WHEEL] n=%d commit=%.2f angle=%+.0fdeg vargain=%.2f\n",
-                        n,
-                        (len > 1e-6f && total > 1e-6f)
-                        ? std::min(CHECKER_COMMIT_MAX, len / total) : 0.0f,
-                        std::atan2(vy, vx) * 57.29578f,
+                        "[CHECKER] n=%d total=%.2f resultant=(%.2f %.2f %.2f) var=%.2f\n",
+                        n, total,
+                        checker_res_goal_[0], checker_res_goal_[1], checker_res_goal_[2],
                         checker_var_goal_);
                     checker_next_read_ =
                         (std::floor(beat / CHECKER_READ_SPAN) + 1.0f) * CHECKER_READ_SPAN;
                 }
+                // ENVELOPE. Resultant glides on the 2-beat attack span (its goal
+                // holds through silence, so no re-aim there). Amount + variance
+                // rise on 2 beats and release to rest on 8 — the return-to-seed.
                 for (int c2 = 0; c2 < 3; ++c2)
                     params_.set(checker_mean_.base + c2,
-                        trajectory_release(checker_mean_seg_[c2],
-                            checker_mean_goal_[c2], beat, CHECKER_READ_SPAN));
+                        trajectory_release(checker_res_seg_[c2],
+                            checker_res_goal_[c2], beat, CHECKER_ATTACK));
                 params_.set(checker_var_.base,
-                    trajectory_release(checker_var_seg_,
-                        checker_var_goal_, beat, CHECKER_READ_SPAN));
+                    trajectory_release(checker_amount_seg_, checker_amount_goal_, beat,
+                        (checker_amount_goal_ > 0.0f ? CHECKER_ATTACK : CHECKER_RELEASE)));
+                params_.set(checker_var_.base + 1,
+                    trajectory_release(checker_var_seg_, checker_var_goal_, beat,
+                        (checker_var_goal_ > 0.0f ? CHECKER_ATTACK : CHECKER_RELEASE)));
             }
 
             last_beat_ = beat;   // single write, shared by the swell's hold clock
@@ -531,14 +511,16 @@ namespace t7 {
         Segment       tint_stim_seg_[3]{};
         Segment       tint_mix_seg_{};
 
-        // ── checker coupling state (CHECKER-2: the wheel) ───────────
-        SourceBinding checker_win_{};        // "<CHECKER_VOICE>.window_length" — the 12-pc window vector
-        float    checker_next_read_ = 0.0f;  // next absolute grid beat (sample-and-hold cursor)
-        float    checker_mean_goal_[3] = {}; // the wheel goal held between reads (x, y, 0)
-        float    checker_var_goal_ = 1.0f;   // the spread wire (LIVE: distinct-pc count)
-        TargetBinding checker_mean_{};
-        TargetBinding checker_var_{};
-        Segment       checker_mean_seg_[3]{};
+        // ── checker coupling state (CHECKER-REBUILD: the pc-color field) ─
+        SourceBinding checker_win_{};         // "<CHECKER_VOICE>.window_length" — the 12-pc length vector
+        float    checker_next_read_ = 0.0f;   // next absolute grid beat (sample-and-hold cursor)
+        float    checker_res_goal_[3] = {};   // resultant color goal, held between reads
+        float    checker_amount_goal_ = 0.0f; // presence goal [0,1]
+        float    checker_var_goal_ = 0.0f;    // distinct-pc spread goal
+        TargetBinding checker_mean_{};        // "terrain.checker_mean" (3): resultant rgb
+        TargetBinding checker_var_{};         // "terrain.checker_var"  (2): [0]=amount [1]=variance
+        Segment       checker_res_seg_[3]{};
+        Segment       checker_amount_seg_{};
         Segment       checker_var_seg_{};
     };
 
