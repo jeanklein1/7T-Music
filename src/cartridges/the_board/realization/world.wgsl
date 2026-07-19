@@ -3984,6 +3984,18 @@ fn patch_terrain_vs(
     return out;
 }
 
+// THE COMPOSITION ORDER (Phase 2 D3 — ruling 4, now declared law; the
+// color sibling of THE FOLD above manifold_height_hf): this FS IS the
+// one declared place the color composition runs, in this order —
+//
+//   0 rim discard → 1 baked color → 2 live LUT recolor (REPLACES)
+//   → 3 GoL tint → 4 pawn FF (nested) → 5 sphere FF (nested)
+//   → 6 aura color delta → 7 aura brighten → 8 aura normal perturb
+//   → 9 shade_lit (fog/veil last)
+//
+// Color guests do NOT commute (mix vs additive vs replace) — the order
+// is semantically load-bearing. Adopted verbatim from the emergent
+// order (charter C6). Reordering is a RULING, not a refactor.
 @fragment
 fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
     // THE RIM — the terrain sibling of the flora/zone per-vertex kill:
@@ -8083,16 +8095,42 @@ fn zone_extrusion_fs(in: ZoneExtrusionVarying) -> @location(0) vec4<f32> {
     let n = normalize(in.normal);
     var block_color = clamp(in.cell_color, vec3(0.0), vec3(1.0));
 
+    // FF HARMONIZATION (Phase 2 D4 — ruling 4's pixel-visible half,
+    // charter C6-F1): the block's color spring (life_sample G channel)
+    // scales the FF tints, matching the terrain FS's life-proportional
+    // semantics — a dying block's tint now fades WITH the block instead
+    // of holding full strength. Wall faces sit ON cell boundaries, so
+    // the sample point nudges half a cell inward along the face normal
+    // to land in the OWNING cell (top faces: n.xz ≈ 0, no nudge).
+    // VERIFICATION FLAGGED: the minimal roster runs gol DISABLED (this
+    // pipeline is ROSTER-gated out) — the visual before/after rides
+    // Jean's next gol-enabled session.
+    var color_val = 0.0;
+    for (var z: u32 = 0u; z < zone_params.count; z++) {
+        let zp = zone_params.zones[z];
+        if (zp.transition_fraction <= 0.0) { continue; }
+        let zone_corner = zp.origin - zp.extent * 0.5;
+        let cell_size = zp.extent / f32(zp.grid_size);
+        let sample_xz = in.world_pos.xz - n.xz * cell_size * 0.5;
+        let rel = sample_xz - zone_corner;
+        let local_cell = vec2<i32>(floor(rel / cell_size));
+        if (local_cell.x < 0 || local_cell.x >= i32(zp.grid_size) ||
+            local_cell.y < 0 || local_cell.y >= i32(zp.grid_size)) { continue; }
+        let uv = (vec2<f32>(local_cell) + 0.5) / f32(zp.grid_size);
+        color_val = textureSampleLevel(zone_life_read, nearest_sampler, uv, i32(z), 0.0).y;
+        break;
+    }
+
     // Pawn force field tint on extrusion blocks (render context)
     let pawn_ff = 1.0 - zone_pawn_ff(in.world_pos.xz, render_pawn_pos(), render_pawn_vel_xz());
     if (pawn_ff > 0.01) {
-        block_color = mix(block_color, ZONE_PAWN_TINT, pawn_ff * ZONE_PAWN_TINT_STRENGTH);
+        block_color = mix(block_color, ZONE_PAWN_TINT, pawn_ff * ZONE_PAWN_TINT_STRENGTH * color_val);
     }
 
     // Sphere force field tint on extrusion blocks (render context)
     let sphere_ff = 1.0 - zone_sphere_ff(in.world_pos.xz, render_floating.entities[0].pos);
     if (sphere_ff > 0.01) {
-        block_color = mix(block_color, ZONE_SPHERE_TINT, sphere_ff * ZONE_SPHERE_TINT_STRENGTH);
+        block_color = mix(block_color, ZONE_SPHERE_TINT, sphere_ff * ZONE_SPHERE_TINT_STRENGTH * color_val);
     }
 
     // Pawn aura: persistent tinting from toroidal spring grid
