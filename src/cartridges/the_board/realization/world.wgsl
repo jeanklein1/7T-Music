@@ -1736,22 +1736,6 @@ const CHECKER_STRENGTH: f32 = 6.0;
 //   Branches on a module const — folded out at 0, zero cost.
 const CHECKER_DEBUG_VIEW: u32 = 0u;
 
-// ── TEMPORARY AUDIT PROBE (revert when done) ─────────────────────────
-// Proves WHERE the wheel dies in the checker-color path. Hot-reloadable;
-// keep CHECKER_DEBUG_VIEW = 0u while using this. Run one value at a time:
-//   0 = off — the normal art path.
-//   1 = P1 — solid magenta, ignoring lighting and every downstream
-//            stage. Terrain magenta => patch_terrain_fs owns the visible
-//            pixels; continue. NOT magenta => the running shader is not
-//            this file (stale build / failed hot-reload) — stop here.
-//   2 = P3 — force discrete_cell_color (the checker color) with the LIVE
-//            wheel, bypassing the composite blend/scatter/sparse gating.
-//            Whole ground shows checker color; it must ROTATE with the
-//            music. Turns => the composite was masking it (fix = scope).
-//            Static => rotation broken downstream of a live config.
-//            No pattern => seed/lattice mismatch vs the bake.
-const CHECKER_PROBE: u32 = 0u;
-
 // ── ROW 6 — TERRAIN-MODE COUPLING ─────────────────────────────────
 //
 // Spatial coupling between terrain archetype and mode field.
@@ -4149,17 +4133,7 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
                      || (abs(config.checker_mean_offset.y) > 0.001)
                      || (abs(config.checker_mean_offset.z) > 0.001)
                      || (abs(config.checker_variance_gain - 1.0) > 0.001);
-    if (CHECKER_PROBE == 2u) {
-        // P3 (temporary): force the checker color with the live wheel,
-        // bypassing the composite. in.world_pos is a vec3 — index .x/.z
-        // (.y is height), the fix over the naive .y/.z slip.
-        let probe_cs = PATCH_EXTENT / f32(PATCH_CELL_N);
-        let probe_gx = i32(floor(in.world_pos.x / probe_cs));
-        let probe_gz = i32(floor(in.world_pos.z / probe_cs));
-        let probe_seed = lattice_node_seed(config.world_seed, vec2(probe_gx, probe_gz), 200u);
-        base_color = discrete_cell_color(in.world_pos.xz, probe_gx, probe_gz, probe_seed,
-                                         config.checker_mean_offset, config.checker_variance_gain);
-    } else if (CHECKER_DEBUG_VIEW == 1u) {
+    if (CHECKER_DEBUG_VIEW == 1u) {
         // WHEEL METER: angle → hue via the Rodrigues basis (the seat
         // table's own ruler), length → vividness.
         base_color = clamp(vec3(0.5)
@@ -4250,12 +4224,6 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
             // Perturb normal slightly upward (simulates raised terrain catching more light)
             normal = normalize(normal + vec3(0.0, aura.r * 0.3, 0.0));
         }
-    }
-
-    // P1 (temporary): does this FS own the visible terrain pixels?
-    // Solid magenta, overriding lighting and every stage above.
-    if (CHECKER_PROBE == 1u) {
-        return vec4(1.0, 0.0, 1.0, 1.0);
     }
 
     return vec4(shade_lit(in.world_pos, normal, base_color, 1.0), 1.0);
