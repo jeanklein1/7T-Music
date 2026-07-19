@@ -1696,6 +1696,13 @@ const CHECKER_WANDER: f32 = 0.12;
 // distinct → 0 extra. Tune by eye.
 const CHECKER_VAR_PER_NOTE: f32 = 0.025;   // seed-var add per distinct pc beyond the first
 const CHECKER_VAR_MAX: f32 = 0.30;         // ceiling on the music spread add
+// DOOR FADE WIDTHS — ruling 2i (charter C2), the flip→glide law's dials.
+// 0 = today's step, bit-for-bit (door_fade saturates); the dials open at
+// the coverage era, when a moving bias must dissolve cells across a soft
+// front instead of popping them (SEAMLESSNESS in time). One per door.
+const DOOR_FADE_W_SCATTER: f32 = 0.0;
+const DOOR_FADE_W_SPARSE: f32 = 0.0;
+const DOOR_FADE_W_ZONE: f32 = 0.0;
 // CHECKER_DEBUG_VIEW — the institutionalized instrument (hot-reload):
 //   0 = the art. 1 = WHEEL METER: all ground painted by the wheel as
 //   the shader receives it (angle → hue on the same recipe as the
@@ -7464,17 +7471,26 @@ struct CellIdentity {
     sparse: f32,
 }
 
+// DOOR_FADE — ruling 2i (charter C2). The flip→glide law: a binary
+// roll comparison becomes a linear band of width 2W around the roll.
+// W = 0 reproduces the step EXACTLY (behavior-identical); W > 0 makes
+// a moving bias dissolve cells across a soft front instead of popping
+// them (SEAMLESSNESS in time). One dial per door, ROW 5.
+fn door_fade(roll: f32, survival: f32, w: f32) -> f32 {
+    return clamp((survival - roll) / max(2.0 * w, 1e-6) + 0.5, 0.0, 1.0);
+}
+
 // The four door values from the (biased) fields — ONE derivation, shared
 // by the evaluator and the LUT reconstruction so the two paths cannot
 // drift. x = blend_t, y = scatter_survival, z = sparse_survival,
-// w = in_mode_zone (step form this phase; fade form arrives with the
-// door_fade commit).
+// w = in_mode_zone (FADE form: rises as biased_mode exceeds the scatter
+// floor, width DOOR_FADE_W_ZONE; 0 there = today's hard boolean).
 fn door_values(biased_mode: f32, sparse: f32, sparse_bias: f32) -> vec4<f32> {
     let blend_t = smoothstep(MODE_BLEND_EDGE_LO, MODE_BLEND_EDGE_HI, biased_mode);
     let scatter_survival = smoothstep(MODE_SCATTER_FLOOR_EDGE, MODE_SCATTER_CORE_EDGE, biased_mode);
     let sparse_threshold = max(SPARSE_SURVIVAL_THRESHOLD - sparse_bias, 0.0);
     let sparse_survival = smoothstep(sparse_threshold, sparse_threshold + SPARSE_SURVIVAL_WINDOW, sparse);
-    let in_mode_zone = select(0.0, 1.0, biased_mode > MODE_SCATTER_FLOOR_EDGE);
+    let in_mode_zone = door_fade(MODE_SCATTER_FLOOR_EDGE, biased_mode, DOOR_FADE_W_ZONE);
     return vec4(blend_t, scatter_survival, sparse_survival, in_mode_zone);
 }
 
@@ -7585,9 +7601,10 @@ fn composite_cell_color(id: CellIdentity, discrete_color: vec3<f32>) -> vec3<f32
     // Blend style: smooth → discrete (gradual transition at mode boundary)
     let blend_color = mix(id.smooth_color, discrete_color, id.blend_t);
 
-    // Scatter style: cell survives or is replaced by smooth background
-    let cell_visible_scatter = id.cell_roll < id.scatter_survival;
-    let scatter_color = select(id.smooth_color, discrete_color, cell_visible_scatter);
+    // Scatter style: cell survives or is replaced by smooth background.
+    // Ruling 2i: the roll comparison is a fade band (W = 0 → the step).
+    let scatter_vis = door_fade(id.cell_roll, id.scatter_survival, DOOR_FADE_W_SCATTER);
+    let scatter_color = mix(id.smooth_color, discrete_color, scatter_vis);
 
     // Combine the two transition styles (blend vs scatter) via style field
     let mode_color = mix(blend_color, scatter_color, id.style);
@@ -7596,9 +7613,12 @@ fn composite_cell_color(id: CellIdentity, discrete_color: vec3<f32>) -> vec3<f32
     // CHECKER-TUNE A2 (standing): the mode field's own gating decides which
     // cells show discrete — the music colors the checkers it already places
     // between smooth sections, it does NOT convert smooth ground.
-    let cell_visible_sparse = id.sparse_roll < id.sparse_survival;
-    let show_cell = cell_visible_sparse && (id.in_mode_zone < 0.5);
-    return select(mode_color, discrete_color, show_cell);
+    // Ruling 2i: fade band × the zone fade's complement (products, not
+    // booleans — at W = 0 each factor is exactly 0 or 1, so the product
+    // IS today's AND).
+    let sparse_vis = door_fade(id.sparse_roll, id.sparse_survival, DOOR_FADE_W_SPARSE);
+    let show_cell = sparse_vis * (1.0 - id.in_mode_zone);
+    return mix(mode_color, discrete_color, show_cell);
 }
 
 // Biased variant: applies musical animation mode shifts to the compositing.
