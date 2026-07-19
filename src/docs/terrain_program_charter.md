@@ -773,3 +773,22 @@ world.wgsl:81 (and its web mirror) — a ca2b93c fossil the retirement missed.
 | 8 | housekeeping | **all approved** — [port] out (re-paste recipe in C7), pulse rest paneled (ROW 2), fossils fixed |
 
 Dated 2026-07-19, stamped by Jean (the Phase 1 handoff).
+
+---
+
+## PHASE 2 — GATE RECORD (S0)
+
+- **Baseline**: commit `b94c99c` (the `id`-redeclaration fix, build
+  confirmed green by Jean); world.wgsl sha256
+  `21f88f8d94771077b12884012fc211b9986852c6678e1a7186c2b8a8a295f29f`.
+- **glaw2 adopted as standing law**: every handback touching
+  world.wgsl runs a WGSL parse gate CC-side before it reaches Jean.
+  Tool: `naga-cli` 30.0.0 (`naga world.wgsl` — parse + validation).
+  Baseline run: green. The `id` incident is the reason; glaw1 is
+  WGSL-blind and Jean is not the parser. (Standing-law text lands in
+  C7 WITNESS with the Phase 2 amendments.)
+- **Drift note (handoff vs tree)**: the Phase 2 handoff describes the
+  landed fix as "local → `ci`"; the live tree's fix (`b94c99c`) named
+  the local `cell_id`. Same selective rename, same scope; spelling
+  differs. Recorded, not blocking — the gate's substance (fix landed,
+  module parses) is confirmed by the green build.
