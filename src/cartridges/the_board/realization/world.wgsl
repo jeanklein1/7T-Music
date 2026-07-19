@@ -1712,14 +1712,6 @@ const DISCRETE_TINT_STRENGTH: f32 = 0.15; // grey→palette-mean mix weight; PIN
 //     region sits exactly on the resultant. All time-variation is CPU-
 //     enveloped; no GPU-side time stepping (a stepped hash teleports).
 const CHECKER_WANDER: f32 = 0.35;
-// CHECKER_DOOR (T4) — how far the music color overrides the mode field's
-// smooth/discrete structure in the LIVE path. Composited over the normal
-// (mode-gated) result by music presence: 0 = keep the mode structure
-// (music only reaches cells the sparse door already admits, ~40%); 1 =
-// every full-color + tinted cell takes the music color while music plays
-// (chess / B&W discrete_color IS the seed anchor, so those stay put). The
-// bake path (composite_cell_color) is untouched — seam-proof.
-const CHECKER_DOOR: f32 = 1.0;
 // CHECKER_DEBUG_VIEW — the institutionalized instrument (hot-reload):
 //   0 = the art. 1 = WHEEL METER: all ground painted by the wheel as
 //   the shader receives it (angle → hue on the same recipe as the
@@ -7591,14 +7583,12 @@ fn composite_cell_color_biased(s: CellFieldState, mode_bias: f32, sparse_bias: f
 
     let is_in_mode_zone = biased_mode > scatter_edge;
     let show_cell = cell_visible_sparse && !is_in_mode_zone;
-    let normal = select(mode_color, s.discrete_color, show_cell);
-    // CHECKER-REBUILD door (T4): when music is active, reveal the discrete
-    // (music-colored) cell everywhere, blended in by presence — the mode
-    // field's smooth/discrete structure yields to the music. s.discrete_color
-    // for a chess / B&W cell IS its seed anchor, so those stay put. LIVE only
-    // (this biased twin); the bake's composite_cell_color is unchanged.
-    return mix(normal, s.discrete_color,
-               clamp(config.checker_music_amount * CHECKER_DOOR, 0.0, 1.0));
+    // CHECKER-TUNE A2: the mode field's own gating decides which cells show
+    // discrete — the music colors the checkers it already places between
+    // smooth sections, it does NOT convert smooth ground. Visibility is
+    // solved by the direct application inside discrete_cell_color, not by
+    // widening this door.
+    return select(mode_color, s.discrete_color, show_cell);
 }
 
 // Target palette color from a continuous index [0,3].
