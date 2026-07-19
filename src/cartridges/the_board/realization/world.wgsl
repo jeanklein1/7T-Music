@@ -1559,17 +1559,17 @@ struct DesignConfig {
     palette_center: array<vec4<f32>, 4>,
     palette_light: array<vec4<f32>, 4>,
     palette_weight: vec4<f32>,
-    // ── CHECKER-2: THE WHEEL — C++ twin in GPUDesignConfig (float[3]
-    //    + float; the 16-byte slot is RE-SEMANTICIZED, not resized —
-    //    layout frozen, sizeof witness untouched). xy = the chroma-
-    //    circle resultant of the voice's window spectrum, FIRST
-    //    MOMENT (angle = where the mass sits, origin D = home = zero
-    //    turn; length = commitment). z spare. w = variance gain
-    //    (DORMANT, rest 1 — the spread wire awaits its own stamp).
-    //    REST = the zero vector — identity by anatomy; bake passes
-    //    identity literals.
-    checker_mean_offset: vec3<f32>,
-    checker_variance_gain: f32,
+    // ── CHECKER-REBUILD: the pitch-class color field — C++ twin in
+    //    GPUDesignConfig (vec3 + f32 + f32; the config GREW a second
+    //    16-byte slot, sizeof witness 576 -> 592, Jean OK'd). resultant =
+    //    the music color (a weighted pc-length average, enveloped);
+    //    music_amount = presence [0,1] (S1 pull + S2 wander scale);
+    //    music_variance = distinct-pc count (S3 within-patch spread).
+    //    REST = amount 0 -> the cell's seed color; the bake passes
+    //    amount 0 (seam-proof).
+    checker_resultant: vec3<f32>,
+    checker_music_amount: f32,
+    checker_music_variance: f32,
 }
 
 // §2.2 — THE TERRAIN_LOOKS PANEL (WGSL room)

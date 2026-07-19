@@ -508,22 +508,21 @@ namespace t7 {
             float palette_light[4][4];    // [palette] = {r,g,b,pad}
             float palette_weight[4];      // selection probabilities
 
-            // ─── CHECKER-2: THE WHEEL ───────────────────────────────
-            // The 16-byte slot RE-SEMANTICIZED, not resized (layout
-            // frozen; the sizeof witness stands). [0..1] = the chroma-
-            // circle resultant of the voice's window spectrum, FIRST
-            // MOMENT: angle = where the collection's mass sits (origin
-            // D = home = zero turn), length = commitment [0,1]. [2]
-            // spare. w = variance gain (DORMANT, rest 1 — the spread
-            // wire awaits its own stamp). GPU applies a per-cell hue
-            // ROTATION about the gray axis, mixed by commitment ×
-            // region receptivity (world.wgsl discrete_cell_color /
-            // _at_tier). REST = the zero vector — identity by anatomy;
-            // bake callers pass identity literals (seam-proof). Driver:
-            // the visual canvas, flushed at U4. Mirrors world.wgsl
-            // DesignConfig: vec3 + f32, one 16-byte slot.
-            float checker_mean_offset[3];
-            float checker_variance_gain;
+            // ─── CHECKER-REBUILD: the pitch-class color field ───────
+            // Re-semanticized AND resized (Jean OK'd the witness move).
+            // The checker voice's window pc-length vector becomes a
+            // weighted-average COLOR (resultant), enveloped 2-beat attack
+            // / 8-beat release. The GPU pulls each discrete cell toward
+            // the resultant, wanders each region around it (re-rolled per
+            // 4-beat window), and widens each region's own spread by the
+            // distinct-pc count. REST = amount 0 (the GPU maps that to the
+            // cell's seed color) + variance 0 — identity by construction;
+            // the bake passes amount 0 (seam-proof). Mirrors world.wgsl
+            // DesignConfig: vec3 + f32 + f32 (two 16-byte slots, 12 B tail
+            // pad). Driver: the visual canvas, flushed at U4.
+            float checker_resultant[3];    // the music color (weighted pc-average), enveloped
+            float checker_music_amount;    // enveloped presence [0,1] — S1 pull + S2 wander scale
+            float checker_music_variance;  // enveloped distinct-pc count — S3 within-patch spread
         };
 
         struct alignas(16) GPUTileGridEntry {
@@ -1340,7 +1339,7 @@ namespace t7 {
         };
 
         static_assert(sizeof(GPUFrameSignal) == 336, "GPUFrameSignal must be 336 bytes");
-        static_assert(sizeof(GPUDesignConfig) == 576, "GPUDesignConfig must be 576 bytes (560 + the CHECKER-1 spectrum color field: vec3 offset + gain, one 16-byte slot)");
+        static_assert(sizeof(GPUDesignConfig) == 592, "GPUDesignConfig must be 592 bytes (576 + the CHECKER-REBUILD music_variance float: the vec3 resultant + amount fill the first slot, music_variance opens a second 16-byte slot with 12 B tail pad — Jean OK'd the witness move)");
 
         // Portal ellipse array — uploaded when portal set changes.
         // GPU behavior_player_controlled tests pawn against arch-shaped ellipses and writes portal_trigger.
@@ -2319,18 +2318,20 @@ namespace t7 {
                     configDirty_ = true;
                 }
             }
-            // CHECKER-2: the wheel — one call carries the fan (wheel
-            // x, y, spare + variance gain travel on one span).
-            // Clamping lives in the coupling decode, never here.
-            void set_checker_color_field(const float offset[3], float gain) {
-                if (config_.checker_mean_offset[0] != offset[0]
-                    || config_.checker_mean_offset[1] != offset[1]
-                    || config_.checker_mean_offset[2] != offset[2]
-                    || config_.checker_variance_gain != gain) {
-                    config_.checker_mean_offset[0] = offset[0];
-                    config_.checker_mean_offset[1] = offset[1];
-                    config_.checker_mean_offset[2] = offset[2];
-                    config_.checker_variance_gain = gain;
+            // CHECKER-REBUILD: the pc-color field — one call carries the
+            // fan (resultant rgb + music amount + music variance travel on
+            // one span). Enveloping lives in the coupling decode, never here.
+            void set_checker_color_field(const float resultant[3], float amount, float variance) {
+                if (config_.checker_resultant[0] != resultant[0]
+                    || config_.checker_resultant[1] != resultant[1]
+                    || config_.checker_resultant[2] != resultant[2]
+                    || config_.checker_music_amount != amount
+                    || config_.checker_music_variance != variance) {
+                    config_.checker_resultant[0] = resultant[0];
+                    config_.checker_resultant[1] = resultant[1];
+                    config_.checker_resultant[2] = resultant[2];
+                    config_.checker_music_amount = amount;
+                    config_.checker_music_variance = variance;
                     configDirty_ = true;
                 }
             }
