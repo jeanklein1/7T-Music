@@ -269,6 +269,16 @@ const PATCH_EXTENT: f32 = 50.0;         // world units per patch side
 const PATCH_MESH_N: u32 = 64u;          // mesh subdivisions per patch (VS bilinear-samples 256-texel heightfield)
 const PATCH_MESH_STRIDE: u32 = PATCH_MESH_N + 1u;
 
+// THE ONE-ADDRESS LAW (SEAMLESSNESS corollary — charter C8). A cell
+// has exactly ONE address: its world cell index. Every consumer —
+// hash, roll, noise, LUT texel, bake write — derives from it. A
+// texel is COMPUTED FROM the address; patch_uv never addresses
+// anything by itself again.
+fn cell_address(world_xz: vec2<f32>) -> vec2<i32> {
+    let cs = PATCH_EXTENT / f32(PATCH_CELL_N);
+    return vec2<i32>(floor(world_xz / cs));
+}
+
 // ─── Patch skirts (weld #2, SKIRTS) ─────────────────────────────────
 // Each patch skirts its FULL perimeter to hide inter-patch cracks
 // (precision + LOD/T-junction) with one mechanism: duplicate the edge
@@ -1656,7 +1666,10 @@ const DOOR_FADE_W_ZONE: f32 = 0.0;
 //   Static gray under music = the CPU→GPU path is cut. 2 = the
 //   FIELD-COVERAGE view (re-pointed Phase 1; receptivity map retired
 //   with prop 804): green = live path, gray = baked composite. The
-//   full instrument registry arrives Phase 4.
+//   full instrument registry arrives Phase 4. 3 = TIER VIEW
+//   (TEMPORARY — Phase 2 VOICE-COHERENCE screenshot; remove after):
+//   LUT tier as five flat colors; whole squares continuous across
+//   patch borders = the one-address law holds.
 //   Branches on a module const — folded out at 0, zero cost.
 const CHECKER_DEBUG_VIEW: u32 = 0u;
 
@@ -4004,12 +4017,29 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
     }
     var normal = normalize(vec3(-in.gradients.x, 1.0, -in.gradients.y));
 
+    // THE ONE-ADDRESS LAW (charter C8, SEAMLESSNESS corollary): this
+    // fragment's cell is cell_address(world_pos.xz) — the SAME address
+    // every hash and roll derives from. The texel is COMPUTED FROM that
+    // address by inverting the VS mapping (§6.2 patch_terrain_vs):
+    //     world_pos.xz = pi.origin + (uv - 0.5) * pi.extent
+    //     out.patch_uv = uv
+    // so min_corner = world_pos.xz - patch_uv * PATCH_EXTENT, and the
+    // patch grid index = round(min_corner / PATCH_EXTENT) — exact, because
+    // origins are (g + 0.5) * PATCH_EXTENT and extent ≡ PATCH_EXTENT for
+    // every LOD ring (patch_system.hpp:392/586). round() snaps
+    // interpolation noise; patch_uv recovers only the per-patch CONSTANT —
+    // it never addresses a texel by itself again.
+    let patch_grid = vec2<i32>(round((in.world_pos.xz - in.patch_uv * PATCH_EXTENT) / PATCH_EXTENT));
+    let cell_texel = clamp(
+        cell_address(in.world_pos.xz) - patch_grid * i32(PATCH_CELL_N),
+        vec2(0), vec2(i32(PATCH_CELL_N) - 1));
+
     // Color fully composited at gen-time in the cell texture.
     // Alpha carries the cell behavior tag (0.0 = static, nonzero = animated).
-    let color_sample = textureSampleLevel(
-        patch_cell_color_array_read, nearest_sampler,
-        in.patch_uv, i32(in.layer), 0.0
-    );
+    // One-address: loaded at the law texel (was a nearest-neighbor SAMPLE
+    // by patch_uv — the second addressing that made the seam expressible).
+    let color_sample = textureLoad(
+        patch_cell_color_array_read, cell_texel, i32(in.layer), 0);
 
     var base_color = color_sample.rgb;
 
@@ -4033,11 +4063,23 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
         // (has_mode_bias), gray where the baked composite stands.
         // The full instrument registry arrives Phase 4.
         base_color = select(vec3(0.45), vec3(0.25, 0.7, 0.35), has_mode_bias);
+    } else if (CHECKER_DEBUG_VIEW == 3u) {
+        // TIER VIEW (TEMPORARY — the Phase 2 VOICE-COHERENCE instrument;
+        // remove after Jean's screenshot). Paints the LUT tier as five
+        // flat colors. Whole squares, continuous across patch borders,
+        // music on or off = the one-address law holds.
+        let baked_tier = textureLoad(cell_fields_read, cell_texel, i32(in.layer), 0).a;
+        switch u32(baked_tier + 0.5) {
+            case 0u: { base_color = vec3(0.85, 0.35, 0.25); }  // full-color
+            case 1u: { base_color = vec3(0.90, 0.75, 0.30); }  // tinted
+            case 2u: { base_color = vec3(0.60, 0.60, 0.60); }  // pure BW
+            case 3u: { base_color = vec3(0.15, 0.15, 0.15); }  // chess BW
+            default: { base_color = vec3(0.30, 0.55, 0.85); }  // chess color
+        }
     } else if (has_mode_bias) {
-        // Load baked spatial fields from LUT (skips 3 lattice noise chains)
-        let cell_texel = clamp(
-            vec2<i32>(in.patch_uv * f32(PATCH_CELL_N)),
-            vec2(0), vec2(i32(PATCH_CELL_N) - 1));
+        // Load baked spatial fields from LUT (skips 3 lattice noise chains).
+        // One-address: the SAME law texel as the color load above — the
+        // vocabulary (world-hashed) and the LUT can no longer disagree.
         let baked = textureLoad(cell_fields_read, cell_texel, i32(in.layer), 0);
         base_color = animated_cell_color_lut(in.world_pos.xz, baked.r, baked.g, baked.b, baked.a);
     }
@@ -5416,11 +5458,13 @@ fn pulse_cell_target(cell_x: u32, cell_y: u32, t_beats: f32,
 }
 
 // --- Terrain cell color at a world position
-const GOL_TERRAIN_CELL_SIZE: f32 = 3.125;  // PATCH_EXTENT / 16
+// (GOL_TERRAIN_CELL_SIZE retired — a second spelling of the cell size;
+//  the ONE-ADDRESS LAW's cell_address is the only address derivation.)
 
 fn gol_composite_cell_color(world_xz: vec2<f32>) -> vec3<f32> {
-    let cell_gx = i32(floor(world_xz.x / GOL_TERRAIN_CELL_SIZE));
-    let cell_gz = i32(floor(world_xz.y / GOL_TERRAIN_CELL_SIZE));
+    let addr = cell_address(world_xz);
+    let cell_gx = addr.x;
+    let cell_gz = addr.y;
     let cell_seed = lattice_node_seed(config.world_seed, vec2(cell_gx, cell_gz), 200u);
 
     // Phase 1 (charter D3.2): the manual field duplicate collapsed to the
@@ -7560,9 +7604,9 @@ fn palette_target_color(palette_idx: f32, complexity: f32) -> vec3<f32> {
 // The compositor naturally routes smooth targets to smooth areas and discrete
 // targets to discrete areas. No color bleeds across domain boundaries.
 fn animated_cell_color(world_xz: vec2<f32>) -> vec3<f32> {
-    let cell_size = PATCH_EXTENT / f32(PATCH_CELL_N);
-    let cell_gx = i32(floor(world_xz.x / cell_size));
-    let cell_gz = i32(floor(world_xz.y / cell_size));
+    let addr = cell_address(world_xz);   // THE address (one-address law)
+    let cell_gx = addr.x;
+    let cell_gz = addr.y;
     let cell_seed = lattice_node_seed(config.world_seed, vec2(cell_gx, cell_gz), 200u);
 
     // DRIVERLESS since gen-1 retirement — held at neutral by the boot
@@ -7606,9 +7650,9 @@ fn animated_cell_color(world_xz: vec2<f32>) -> vec3<f32> {
 // palette_field_at still runs (1 lattice noise chain) for smooth_color derivation.
 fn animated_cell_color_lut(world_xz: vec2<f32>, baked_mode: f32, baked_style: f32, baked_sparse: f32,
                            baked_tier: f32) -> vec3<f32> {
-    let cell_size = PATCH_EXTENT / f32(PATCH_CELL_N);
-    let cell_gx = i32(floor(world_xz.x / cell_size));
-    let cell_gz = i32(floor(world_xz.y / cell_size));
+    let addr = cell_address(world_xz);   // THE address (one-address law)
+    let cell_gx = addr.x;
+    let cell_gz = addr.y;
     let cell_seed = lattice_node_seed(config.world_seed, vec2(cell_gx, cell_gz), 200u);
 
     // Phase 1 (charter D1.4): reconstruct the identity from the baked LUT.
@@ -7724,10 +7768,17 @@ fn generate_patch_cells(@builtin(global_invocation_id) id: vec3<u32>) {
         patch_params.origin.y + (uv.y - 0.5) * patch_params.extent
     );
 
-    // Per-cell unique seed (from world grid position)
-    let cell_size = patch_params.extent / f32(cell_n);
-    let cell_gx = i32(floor(world_xz.x / cell_size));
-    let cell_gz = i32(floor(world_xz.y / cell_size));
+    // THE ONE-ADDRESS LAW, inverted: write texel T colors the cell at
+    // address patch_origin_address + T — the SAME derivation the FS
+    // uses, run backward. The patch grid index comes from the min
+    // corner (origin is the patch CENTER: (g + 0.5) * extent,
+    // patch_system.hpp make_patch_params); round() is exact on the
+    // aligned grid. world_xz above stays the cell-center FIELD sample
+    // point — bit-identical to the pre-law bake.
+    let patch_grid = vec2<i32>(round((patch_params.origin - 0.5 * patch_params.extent) / patch_params.extent));
+    let addr = patch_grid * i32(cell_n) + vec2<i32>(id.xy);
+    let cell_gx = addr.x;
+    let cell_gz = addr.y;
     let cell_seed = lattice_node_seed(patch_params.master_seed, vec2(cell_gx, cell_gz), 200u);
 
     // Stage 1: Evaluate the cell's identity (bias 0 — the bake is unbiased).
