@@ -402,26 +402,23 @@ fn band_activity_level(raw_activity: f32, band_index: u32) -> f32 {
 // Evaluate the activity field at a world position.
 // Returns vec2(activity [0,1], beat_freq [0.25, 2.0] cycles/beat).
 fn terrain_activity_at(world_xz: vec2<f32>, master_seed: u32) -> vec2<f32> {
-    let lattice_pos = world_xz / ACTIVITY_LATTICE_SPACING;
-    let lattice_base = vec2<i32>(floor(lattice_pos));
-    let frac = fract(lattice_pos);
-    let w = frac * frac * (3.0 - 2.0 * frac);
+    // Phase 1 dedupe (charter D3.1): routed through lattice_coord /
+    // lattice_weight. The log-interp beat_freq draw stays its own line.
+    let lc = lattice_coord(world_xz, ACTIVITY_LATTICE_SPACING);
 
     var activity: f32 = 0.0;
     var beat_freq: f32 = 0.0;
 
     for (var dz: i32 = 0; dz <= 1; dz++) {
         for (var dx: i32 = 0; dx <= 1; dx++) {
-            let node = lattice_base + vec2<i32>(dx, dz);
+            let node = lc.base + vec2<i32>(dx, dz);
             let seed = lattice_node_seed(master_seed, node, ACTIVITY_SEED_BAND);
 
             let node_activity = hash_property(seed, ACTIVITY_PROP_LEVEL);
             let node_beat_freq = ACTIVITY_BEAT_FREQ_LO
                 * pow(ACTIVITY_BEAT_FREQ_HI / ACTIVITY_BEAT_FREQ_LO, hash_property(seed, ACTIVITY_PROP_BEAT_FREQ));
 
-            let wx = select(1.0 - w.x, w.x, dx == 1);
-            let wz = select(1.0 - w.y, w.y, dz == 1);
-            let weight = wx * wz;
+            let weight = lattice_weight(lc, dx, dz);
 
             activity += node_activity * weight;
             beat_freq += node_beat_freq * weight;
@@ -1270,21 +1267,18 @@ fn discrete_mono_at_node(node: vec2<i32>) -> f32 {
 }
 
 // Interpolated discrete region parameters at a world position.
+// Phase 1 dedupe (charter D3.1): routed through lattice_coord /
+// lattice_weight — the same Hermite math the hand-inlined form carried.
 fn discrete_region_at(world_xz: vec2<f32>) -> DiscreteRegion {
-    let gpos = world_xz / DISCRETE_COLOR_LATTICE_SPACING;
-    let gbase = vec2<i32>(floor(gpos));
-    let frac = fract(gpos);
-    let w = frac * frac * (3.0 - 2.0 * frac);
+    let lc = lattice_coord(world_xz, DISCRETE_COLOR_LATTICE_SPACING);
 
     var mean = vec3(0.0);
     var variance = 0.0;
     var receptivity = 0.0;
     for (var dz: i32 = 0; dz <= 1; dz++) {
         for (var dx: i32 = 0; dx <= 1; dx++) {
-            let val = discrete_region_at_node(gbase + vec2(dx, dz));
-            let wx = select(1.0 - w.x, w.x, dx == 1);
-            let wz = select(1.0 - w.y, w.y, dz == 1);
-            let ww = wx * wz;
+            let val = discrete_region_at_node(lc.base + vec2(dx, dz));
+            let ww = lattice_weight(lc, dx, dz);
             mean += val.mean * ww;
             variance += val.variance * ww;
             receptivity += val.receptivity * ww;
@@ -1298,19 +1292,15 @@ fn discrete_region_at(world_xz: vec2<f32>) -> DiscreteRegion {
 }
 
 // Interpolated monochrome tendency at a world position. [0,1]
+// Phase 1 dedupe (charter D3.1): routed through lattice_coord / lattice_weight.
 fn discrete_mono_at(world_xz: vec2<f32>) -> f32 {
-    let gpos = world_xz / DISCRETE_MONO_LATTICE_SPACING;
-    let gbase = vec2<i32>(floor(gpos));
-    let frac = fract(gpos);
-    let w = frac * frac * (3.0 - 2.0 * frac);
+    let lc = lattice_coord(world_xz, DISCRETE_MONO_LATTICE_SPACING);
 
     var result: f32 = 0.0;
     for (var dz: i32 = 0; dz <= 1; dz++) {
         for (var dx: i32 = 0; dx <= 1; dx++) {
-            let val = discrete_mono_at_node(gbase + vec2(dx, dz));
-            let wx = select(1.0 - w.x, w.x, dx == 1);
-            let wz = select(1.0 - w.y, w.y, dz == 1);
-            result += val * wx * wz;
+            let val = discrete_mono_at_node(lc.base + vec2(dx, dz));
+            result += val * lattice_weight(lc, dx, dz);
         }
     }
     return result;
