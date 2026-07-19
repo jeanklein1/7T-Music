@@ -1318,17 +1318,18 @@ fn discrete_mono_at(world_xz: vec2<f32>) -> f32 {
 
 // CHECKER-REBUILD: the region's music-driven median (S1 + S2). Pull the
 // region from its seed color toward the resultant by presence (S1), and
-// wander it AROUND the resultant with a per-region, per-window hue-space
-// offset scaled by presence (S2 — re-rolled every window so a region's
-// colour changes each 4-beat read; only silence, amount → 0, returns it
-// to seed). The caller adds per-cell noise widened by music_variance (S3).
+// wander it AROUND the resultant with a per-region hue-space offset scaled
+// by presence (S2). CONSTITUTIONAL: the wander seeds on the region node
+// ONLY — a STATIC, one-per-region personality held for the whole session.
+// All time-variation enters through the CPU envelope (Segments); the GPU
+// receives only glided values and static seeds. A stepped GPU-side hash is
+// a teleport by construction and is BANNED in this module.
 fn checker_region_median(world_xz: vec2<f32>, seed_mean: vec3<f32>,
-                         resultant: vec3<f32>, music_amount: f32, window_index: f32) -> vec3<f32> {
+                         resultant: vec3<f32>, music_amount: f32) -> vec3<f32> {
     // Region id = the 80-unit discrete color lattice node (the same lattice
-    // discrete_region_at interpolates) fused with the window index, so the
-    // wander is one-per-region and re-rolls each window.
+    // discrete_region_at interpolates) — one fixed wander per region.
     let node = vec2<i32>(floor(world_xz / DISCRETE_COLOR_LATTICE_SPACING));
-    let rid = color_lattice_seed(node, 20u) ^ (u32(max(window_index, 0.0)) * 2654435761u);
+    let rid = color_lattice_seed(node, 20u);
     let wander = (vec3(hash_property(rid, 601u),
                        hash_property(rid, 602u),
                        hash_property(rid, 603u)) - 0.5) * 2.0 * CHECKER_WANDER * music_amount;
@@ -1339,8 +1340,7 @@ fn checker_region_median(world_xz: vec2<f32>, seed_mean: vec3<f32>,
 // Generate a discrete cell color from the region field + per-cell seed.
 
 fn discrete_cell_color(world_xz: vec2<f32>, cell_gx: i32, cell_gz: i32, cell_seed: u32,
-                       resultant: vec3<f32>, music_amount: f32, music_variance: f32,
-                       window_index: f32) -> vec3<f32> {
+                       resultant: vec3<f32>, music_amount: f32, music_variance: f32) -> vec3<f32> {
     // --- Chess board tier
     let chess = chess_field_at(world_xz);
     let chess_jitter = (hash_property(cell_seed, 815u) - 0.5) * 0.03;
@@ -1363,7 +1363,7 @@ fn discrete_cell_color(world_xz: vec2<f32>, cell_gx: i32, cell_gz: i32, cell_see
     // identity by construction. Chess pairs, pure B&W, and the grey bases
     // stay seed-pure anchors; the tinted + full-color tiers take the color.
     let region = discrete_region_at(world_xz);
-    let rgb_mean = checker_region_median(world_xz, region.mean, resultant, music_amount, window_index);
+    let rgb_mean = checker_region_median(world_xz, region.mean, resultant, music_amount);
     let variance = region.variance + music_variance;
     let mono = discrete_mono_at(world_xz);
 
@@ -1403,7 +1403,7 @@ fn discrete_cell_color(world_xz: vec2<f32>, cell_gx: i32, cell_gz: i32, cell_see
 //   4 = chess colorful   (chess.color_a/b by parity)
 fn discrete_cell_color_at_tier(
     world_xz: vec2<f32>, cell_gx: i32, cell_gz: i32, cell_seed: u32, tier: u32,
-    resultant: vec3<f32>, music_amount: f32, music_variance: f32, window_index: f32
+    resultant: vec3<f32>, music_amount: f32, music_variance: f32
 ) -> vec3<f32> {
     let bw_roll = hash_property(cell_seed, 830u);
     let parity = (cell_gx + cell_gz) & 1;
@@ -1424,7 +1424,7 @@ fn discrete_cell_color_at_tier(
             let base_grey = select(0.12, 0.85, bw_roll > 0.5);
             // CHECKER-REBUILD: tint target = the region's music median
             // (grey base stays a seed-pure anchor).
-            let turned = checker_region_median(world_xz, region.mean, resultant, music_amount, window_index);
+            let turned = checker_region_median(world_xz, region.mean, resultant, music_amount);
             return mix(vec3(base_grey), turned, DISCRETE_TINT_STRENGTH);
         }
         default: {
@@ -1434,7 +1434,7 @@ fn discrete_cell_color_at_tier(
             let nb = (hash_property(cell_seed, 842u) - 0.5) * 2.0;
             // CHECKER-REBUILD: median = pull + wander; spread widened by
             // the distinct-pc count (S3).
-            let turned = checker_region_median(world_xz, region.mean, resultant, music_amount, window_index);
+            let turned = checker_region_median(world_xz, region.mean, resultant, music_amount);
             return clamp(turned + vec3(nr, ng, nb) * (region.variance + music_variance),
                          vec3(0.0), vec3(1.0));
         }
@@ -1647,11 +1647,11 @@ struct DesignConfig {
 // 8-beat release); config.checker_music_variance = distinct-pc count.
 // Rest at REST_CHECKER_* (C++ ROW 2). Consumed by discrete_cell_color /
 // _at_tier: each discrete cell is PULLED toward the resultant (S1, by
-// amount), its region WANDERS around it per window (S2), and its own
-// spread WIDENS by the count (S3); the composite door (T4) reveals the
-// music color across the mode field by presence. Dials: ROW 5
-// CHECKER_WANDER / CHECKER_WINDOW_BEATS / CHECKER_DOOR /
-// CHECKER_DEBUG_VIEW. Bake passes amount 0 → seed (seam-proof by law).
+// amount), its region WANDERS around it by a STATIC per-region offset
+// (S2), and its own spread WIDENS by the count (S3); the mode field's
+// composite gating decides which cells (between smooth sections) show
+// it. Dials: ROW 5 CHECKER_WANDER / CHECKER_DEBUG_VIEW. Bake passes
+// amount 0 → seed (seam-proof by law).
 
 // ── ROW 3 — PALETTE COMPOSITION ─────────────────────────────────────
 // How the quartet becomes a color: the dominant-branch matrix weights
@@ -1706,14 +1706,12 @@ const DISCRETE_TINT_STRENGTH: f32 = 0.15; // grey→palette-mean mix weight; PIN
 // CHECKER-REBUILD — the pc-color field's GPU dials (the wheel's
 // COMMIT_CURVE / RECEPTIVITY_FLOOR / STRENGTH are retired):
 //   CHECKER_WANDER — S2, the between-patch spread. Each region's median
-//     is placed AROUND the resultant by a per-region hue-space offset,
-//     RE-ROLLED every 4-beat window (seeded on region + window index),
-//     scaled by presence. Substantial by design — "variations of the
-//     color." 0 = every region sits exactly on the resultant.
-//   CHECKER_WINDOW_BEATS — the wander's re-roll period; matches the CPU
-//     read cadence (CHECKER_READ_SPAN). window_index = floor(t_beats/this).
+//     is placed AROUND the resultant by a STATIC per-region hue-space
+//     offset (seeded on the region node ONLY — one fixed personality per
+//     region, held for the whole session), scaled by presence. 0 = every
+//     region sits exactly on the resultant. All time-variation is CPU-
+//     enveloped; no GPU-side time stepping (a stepped hash teleports).
 const CHECKER_WANDER: f32 = 0.35;
-const CHECKER_WINDOW_BEATS: f32 = 4.0;
 // CHECKER_DOOR (T4) — how far the music color overrides the mode field's
 // smooth/discrete structure in the LIVE path. Composited over the normal
 // (mode-gated) result by music presence: 0 = keep the mode structure
@@ -5531,10 +5529,10 @@ fn gol_composite_cell_color(world_xz: vec2<f32>) -> vec3<f32> {
     // CHECKER-REBUILD: IDENTITY here — GoL keeps its own panel (ROW 9);
     // RULED separate at the CHECKER cut (Jean): the zones' own coupling
     // pass is coming. STATUS: INTENT — revive when it convenes by passing
-    // config.checker_resultant / _music_amount / _music_variance + a
-    // window index. Compute-stage: no render_signal, so amount 0 -> seed.
+    // config.checker_resultant / _music_amount / _music_variance. Here
+    // amount 0 -> each cell's seed color.
     s.discrete_color = discrete_cell_color(world_xz, cell_gx, cell_gz, cell_seed,
-                                           vec3(0.0), 0.0, 0.0, 0.0);
+                                           vec3(0.0), 0.0, 0.0);
     s.mode = mode_field_at(world_xz);
     s.style = transition_style_at(world_xz);
     s.sparse = sparse_field_at(world_xz);
@@ -7488,8 +7486,7 @@ fn evaluate_cell_fields(
     cell_seed: u32,
     resultant: vec3<f32>,   // CHECKER-REBUILD: bake passes identity (amount 0), live passes config
     music_amount: f32,
-    music_variance: f32,
-    window_index: f32
+    music_variance: f32
 ) -> CellFieldState {
     var s: CellFieldState;
     s.world_xz = world_xz;
@@ -7500,7 +7497,7 @@ fn evaluate_cell_fields(
 
     // Discrete per-cell color (chess + color lattice + mono lattice)
     s.discrete_color = discrete_cell_color(world_xz, cell_gx, cell_gz, cell_seed,
-                                           resultant, music_amount, music_variance, window_index);
+                                           resultant, music_amount, music_variance);
 
     // Spatial fields
     s.mode = mode_field_at(world_xz);
@@ -7631,12 +7628,9 @@ fn animated_cell_color(world_xz: vec2<f32>) -> vec3<f32> {
     let cell_gz = i32(floor(world_xz.y / cell_size));
     let cell_seed = lattice_node_seed(config.world_seed, vec2(cell_gx, cell_gz), 200u);
 
-    // CHECKER-REBUILD: window index for the S2 wander re-roll (render
-    // stage only — render_signal is binding 200, absent in the bake).
-    let checker_win = max(0.0, floor(render_signal.t_beats / CHECKER_WINDOW_BEATS));
     let fields = evaluate_cell_fields(world_xz, cell_gx, cell_gz, cell_seed,
                                       config.checker_resultant, config.checker_music_amount,
-                                      config.checker_music_variance, checker_win);
+                                      config.checker_music_variance);
     // DRIVERLESS since gen-1 retirement — held at neutral by the boot
     // block; revive via a gen-2 coupling or delete on the next pass here.
     let mode_bias = config.mode_color_shift;
@@ -7660,7 +7654,7 @@ fn animated_cell_color(world_xz: vec2<f32>) -> vec3<f32> {
         drifted.discrete_color = discrete_cell_color_at_tier(
             world_xz, cell_gx, cell_gz, cell_seed, tier,
             config.checker_resultant, config.checker_music_amount,
-            config.checker_music_variance, checker_win);
+            config.checker_music_variance);
 
         let drifted_color = composite_cell_color_biased(drifted, mode_bias, sparse_bias);
         return mix(base, drifted_color, drift * 0.95);
@@ -7684,10 +7678,9 @@ fn animated_cell_color_lut(world_xz: vec2<f32>, baked_mode: f32, baked_style: f3
     fields.style = baked_style;
     fields.sparse = baked_sparse;
     fields.smooth_color = palette_color_smooth(palette_field_at(world_xz), PALETTE_COMPLEXITY);
-    let checker_win = max(0.0, floor(render_signal.t_beats / CHECKER_WINDOW_BEATS));
     fields.discrete_color = discrete_cell_color(world_xz, cell_gx, cell_gz, cell_seed,
                                                 config.checker_resultant, config.checker_music_amount,
-                                                config.checker_music_variance, checker_win);
+                                                config.checker_music_variance);
     fields.cell_roll = hash_property(cell_seed, 900u);
     fields.sparse_roll = hash_property(cell_seed, 910u);
 
@@ -7707,7 +7700,7 @@ fn animated_cell_color_lut(world_xz: vec2<f32>, baked_mode: f32, baked_style: f3
         let tier = u32(round(config.mode_discrete_tier));
         drifted.discrete_color = discrete_cell_color_at_tier(world_xz, cell_gx, cell_gz, cell_seed, tier,
                                                              config.checker_resultant, config.checker_music_amount,
-                                                             config.checker_music_variance, checker_win);
+                                                             config.checker_music_variance);
         let drifted_color = composite_cell_color_biased(drifted, mode_bias, sparse_bias);
         return mix(base, drifted_color, drift * 0.95);
     }
@@ -7770,9 +7763,9 @@ fn generate_patch_cells(@builtin(global_invocation_id) id: vec3<u32>) {
     // Stage 1: Evaluate all spatial fields
     // CHECKER-REBUILD: THE BAKE PASSES IDENTITY (amount 0 -> seed color) —
     // patches bake at rest by construction; the live pull rides the FS
-    // gate only. Compute stage has no render_signal, so window index 0.
+    // gate only (seam-proof).
     let fields = evaluate_cell_fields(world_xz, cell_gx, cell_gz, cell_seed,
-                                      vec3(0.0), 0.0, 0.0, 0.0);
+                                      vec3(0.0), 0.0, 0.0);
 
     // Stage 2: Composite final color
     let final_color = composite_cell_color(fields);
