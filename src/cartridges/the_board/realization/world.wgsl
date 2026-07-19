@@ -7730,18 +7730,19 @@ fn generate_patch_cells(@builtin(global_invocation_id) id: vec3<u32>) {
     let cell_gz = i32(floor(world_xz.y / cell_size));
     let cell_seed = lattice_node_seed(patch_params.master_seed, vec2(cell_gx, cell_gz), 200u);
 
-    // Stage 1: Evaluate the cell's identity (bias 0 — the bake is unbiased)
-    let id = evaluate_cell_fields(world_xz, cell_gx, cell_gz, cell_seed, 0.0, 0.0);
+    // Stage 1: Evaluate the cell's identity (bias 0 — the bake is unbiased).
+    // (Named cell_id: `id` is this entry point's invocation builtin.)
+    let cell_id = evaluate_cell_fields(world_xz, cell_gx, cell_gz, cell_seed, 0.0, 0.0);
 
     // Stage 2: Resolve + composite. CHECKER-REBUILD: THE BAKE PASSES
     // IDENTITY VOICE (amount 0 -> seed color) — patches bake at rest by
     // construction; the live pull rides the FS gate only (seam-proof).
-    let dcol = discrete_cell_color(world_xz, id, vec3(0.0), 0.0, 0.0);
-    let final_color = composite_cell_color(id, dcol);
+    let dcol = discrete_cell_color(world_xz, cell_id, vec3(0.0), 0.0, 0.0);
+    let final_color = composite_cell_color(cell_id, dcol);
 
     // Stage 3: Behavior tag — packed into alpha channel
     // 0.0 = static (no animation), nonzero = animation mode + tier + flags
-    let behavior_tag = tag_cell_behavior(id, world_xz);
+    let behavior_tag = tag_cell_behavior(cell_id, world_xz);
 
     // Store: RGB = fully composited color, A = behavior tag
     textureStore(patch_cell_color_array_write, texel, layer, vec4(final_color, behavior_tag));
@@ -7750,7 +7751,8 @@ fn generate_patch_cells(@builtin(global_invocation_id) id: vec3<u32>) {
     // Phase 1: the free .w channel now carries the TIER (the cascade's
     // verdict at the cell center) — the live path reads it instead of
     // re-running the tendency/mono lattices.
-    textureStore(cell_fields_write, texel, layer, vec4(id.mode, id.style, id.sparse, f32(id.tier)));
+    textureStore(cell_fields_write, texel, layer,
+        vec4(cell_id.mode, cell_id.style, cell_id.sparse, f32(cell_id.tier)));
 }
 
 
