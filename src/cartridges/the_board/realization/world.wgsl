@@ -1056,9 +1056,41 @@ fn palette_field_at(world_xz: vec2<f32>) -> vec4<f32> {
     return result;
 }
 
+// ZONE-GEOMETRY WARP — the vocabulary fields (mode, style, sparse)
+// sample a warped domain: world' = world + vocab_warp(world). Two
+// low-frequency value noises (lattice_coord/lattice_weight, fresh
+// seed bands 17/18, prop 540) shear the square lattice's axis-aligned
+// plateaus into organic coastlines. AMP = 0 → warp ≡ 0 → today's
+// world, bit-exact. STRUCTURAL (world authorship): turning the dial
+// redraws geography; baked patches show it only after regen — tune in
+// DEBUG VIEW 4 (live), commit once. SEAMLESS by construction (pure
+// world-space). THE FENCE: NOT applied to palette, region, chess,
+// mono lattices; NOT to terrain_activity_at or any ground/height
+// lattice. Color-side vocabulary only.
+fn vocab_warp_channel(world_xz: vec2<f32>, band: u32) -> f32 {
+    let lc = lattice_coord(world_xz, MODE_WARP_SCALE);
+    var v: f32 = 0.0;
+    for (var dz: i32 = 0; dz <= 1; dz++) {
+        for (var dx: i32 = 0; dx <= 1; dx++) {
+            let seed = color_lattice_seed(lc.base + vec2(dx, dz), band);
+            v += hash_property(seed, 540u) * lattice_weight(lc, dx, dz);
+        }
+    }
+    return v * 2.0 - 1.0;   // [-1, 1]
+}
+
+fn vocab_warp(world_xz: vec2<f32>) -> vec2<f32> {
+    if (MODE_WARP_AMP <= 0.0) { return vec2(0.0); }   // identity, folded out at 0
+    return vec2(vocab_warp_channel(world_xz, 17u),
+                vocab_warp_channel(world_xz, 18u)) * MODE_WARP_AMP;
+}
+
 // Hermite-interpolated mode tendency at a world position. [0,1]
+// Samples the WARPED domain (zone-geometry warp) — every caller
+// (bake, live, instrument) gets the same geography automatically.
 fn mode_field_at(world_xz: vec2<f32>) -> f32 {
-    let lc = lattice_coord(world_xz, MODE_LATTICE_SPACING);
+    let wp = world_xz + vocab_warp(world_xz);
+    let lc = lattice_coord(wp, MODE_LATTICE_SPACING);
     var result: f32 = 0.0;
     for (var dz: i32 = 0; dz <= 1; dz++) {
         for (var dx: i32 = 0; dx <= 1; dx++) {
@@ -1082,8 +1114,11 @@ fn transition_style_at_node(node: vec2<i32>) -> f32 {
 
 // Hermite-interpolated transition style at world position.
 // 0.0 = smooth color blend, 1.0 = probability scatter.
+// Samples the WARPED domain (one warp with mode/sparse — transition
+// character stays registered to the zones it dresses).
 fn transition_style_at(world_xz: vec2<f32>) -> f32 {
-    let lc = lattice_coord(world_xz, TRANSITION_LATTICE_SPACING);
+    let wp = world_xz + vocab_warp(world_xz);
+    let lc = lattice_coord(wp, TRANSITION_LATTICE_SPACING);
     var result: f32 = 0.0;
     for (var dz: i32 = 0; dz <= 1; dz++) {
         for (var dx: i32 = 0; dx <= 1; dx++) {
@@ -1106,8 +1141,13 @@ fn sparse_cluster_at_node(node: vec2<i32>) -> f32 {
 }
 
 fn sparse_field_at(world_xz: vec2<f32>) -> f32 {
+    // Samples the WARPED domain — ONE warp evaluation for base AND
+    // cluster (and the same warp mode/style ride), keeping the sparse
+    // texture registered to the zone geography.
+    let wp = world_xz + vocab_warp(world_xz);
+
     // Base: broad sparse tendency
-    let lc_b = lattice_coord(world_xz, SPARSE_BASE_SPACING);
+    let lc_b = lattice_coord(wp, SPARSE_BASE_SPACING);
     var base_val: f32 = 0.0;
     for (var dz: i32 = 0; dz <= 1; dz++) {
         for (var dx: i32 = 0; dx <= 1; dx++) {
@@ -1116,7 +1156,7 @@ fn sparse_field_at(world_xz: vec2<f32>) -> f32 {
     }
 
     // Cluster: small-scale density modulation within sparse regions
-    let lc_c = lattice_coord(world_xz, SPARSE_CLUSTER_SPACING);
+    let lc_c = lattice_coord(wp, SPARSE_CLUSTER_SPACING);
     var cluster_val: f32 = 0.0;
     for (var dz: i32 = 0; dz <= 1; dz++) {
         for (var dx: i32 = 0; dx <= 1; dx++) {
@@ -1592,6 +1632,13 @@ const CHESS_LATTICE_SPACING: f32 = 55.0;          // very small B&W alternation 
 const DISCRETE_COLOR_LATTICE_SPACING: f32 = 80.0; // medium colored cell blobs
 const DISCRETE_MONO_LATTICE_SPACING: f32 = 250.0; // large B&W tendency zones
 
+// ── ZONE-GEOMETRY (ROW 4 group) — the vocabulary domain warp ────────
+// STRUCTURAL dials: they redraw where checkers may live. AMP 0 =
+// identity (today's world, bit-exact; the warp folds out). Tune LIVE
+// in TERRAIN_DEBUG_VIEW 4 — the art shows it only after patch regen.
+const MODE_WARP_AMP: f32 = 0.0;      // wu displacement; 0 = identity
+const MODE_WARP_SCALE: f32 = 240.0;  // wavelength (~2× mode spacing)
+
 // ── ROW 5 — COMPOSITE CUTS & EDGES ──────────────────────────────────
 // The decision thresholds of the color composite, promoted OUT of the
 // stage bodies WITH NAMES (TERRAIN_LOOKS gather; behavior-identical —
@@ -1645,18 +1692,18 @@ const DOOR_FADE_W_ZONE: f32 = 0.0;
 //   seat table: 0° red · 60° yellow · 240° blue; length → vividness).
 //   Static gray under music = the CPU→GPU path is cut. 2 = the
 //   FIELD-COVERAGE view (re-pointed Phase 1; receptivity map retired
-//   with prop 804): green = live path, gray = baked composite. The
-//   full instrument registry arrives Phase 4. 3 = TIER VIEW
-//   (TEMPORARY — Phase 2 VOICE-COHERENCE screenshot; remove after):
-//   LUT tier as five flat colors; whole squares continuous across
-//   patch borders = the one-address law holds.
+//   with prop 804): green = live path, gray = baked composite.
+//   (Phase-2 TIER VIEW retired — VOICE-COHERENCE shot served; the
+//   one-address law verified.)
 //   Branches on a module const — folded out at 0, zero cost.
 const CHECKER_DEBUG_VIEW: u32 = 0u;
-// TERRAIN_DEBUG_VIEW — INCIDENT #2 instruments (TEMPORARY; remove
-// after conviction). 0 = off. 1 = I1 TEXEL AUDIT (parity board of the
-// derived texel, RED = OOB pre-clamp). 2 = I2 LUT FIELD AUDIT
-// (baked.r mode as grayscale). 3 = I3 SKIRT PAINT (skirt fragments
-// magenta). Hot-reload; shoot each at the canonical spot, music on.
+// TERRAIN_DEBUG_VIEW — the registry's terrain slots (target layout:
+// 0 art · 1 wheel meter · 2 coverage · 3 skirt · 4 zone geometry;
+// full single-registry migration is Phase 4). 0 = off. 3 = SKIRT
+// PAINT (permanent): skirt fragments magenta. 4 = ZONE-GEOMETRY
+// SCULPTING ROOM (permanent): live mode field grayscale + patch
+// border lines + red coastline isoline — the warp tuning view.
+// (INCIDENT #2's I1/I2 audits retired — suspects exonerated.)
 const TERRAIN_DEBUG_VIEW: u32 = 0u;
 
 // ── ROW 6 — RETIRED (Phase 1, ruling 6) ───────────────────────────
@@ -4033,8 +4080,9 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
     // interpolation noise; patch_uv recovers only the per-patch CONSTANT —
     // it never addresses a texel by itself again.
     let patch_grid = vec2<i32>(round((in.world_pos.xz - in.patch_uv * PATCH_EXTENT) / PATCH_EXTENT));
-    let raw_texel = cell_address(in.world_pos.xz) - patch_grid * i32(PATCH_CELL_N);
-    let cell_texel = clamp(raw_texel, vec2(0), vec2(i32(PATCH_CELL_N) - 1));
+    let cell_texel = clamp(
+        cell_address(in.world_pos.xz) - patch_grid * i32(PATCH_CELL_N),
+        vec2(0), vec2(i32(PATCH_CELL_N) - 1));
 
     // Color fully composited at gen-time in the cell texture.
     // Alpha carries the cell behavior tag (0.0 = static, nonzero = animated).
@@ -4065,19 +4113,6 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
         // (has_mode_bias), gray where the baked composite stands.
         // The full instrument registry arrives Phase 4.
         base_color = select(vec3(0.45), vec3(0.25, 0.7, 0.35), has_mode_bias);
-    } else if (CHECKER_DEBUG_VIEW == 3u) {
-        // TIER VIEW (TEMPORARY — the Phase 2 VOICE-COHERENCE instrument;
-        // remove after Jean's screenshot). Paints the LUT tier as five
-        // flat colors. Whole squares, continuous across patch borders,
-        // music on or off = the one-address law holds.
-        let baked_tier = textureLoad(cell_fields_read, cell_texel, i32(in.layer), 0).a;
-        switch u32(baked_tier + 0.5) {
-            case 0u: { base_color = vec3(0.85, 0.35, 0.25); }  // full-color
-            case 1u: { base_color = vec3(0.90, 0.75, 0.30); }  // tinted
-            case 2u: { base_color = vec3(0.60, 0.60, 0.60); }  // pure BW
-            case 3u: { base_color = vec3(0.15, 0.15, 0.15); }  // chess BW
-            default: { base_color = vec3(0.30, 0.55, 0.85); }  // chess color
-        }
     } else if (has_mode_bias) {
         // Load baked spatial fields from LUT (skips 3 lattice noise chains).
         // One-address: the SAME law texel as the color load above — the
@@ -4086,37 +4121,38 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
         base_color = animated_cell_color_lut(in.world_pos.xz, baked.r, baked.g, baked.b, baked.a);
     }
 
-    // ── TERRAIN_DEBUG_VIEW — INCIDENT #2 instruments (TEMPORARY;
-    //    hot-reload; remove after conviction). Painted AFTER the music
+    // ── TERRAIN_DEBUG_VIEW — the instrument registry's terrain slots.
+    //    (INCIDENT #2's I1 texel audit / I2 LUT field audit RETIRED —
+    //    duty served, all five suspects exonerated; the skirt paint
+    //    stays as the permanent slot 3.) Painted AFTER the music
     //    branch so each view shows the live-path truth with music
-    //    playing. Shading/fog still compose after — legible, same as
-    //    the CHECKER views.
-    if (TERRAIN_DEBUG_VIEW == 1u) {
-        // I1 TEXEL AUDIT — parity checkerboard of the DERIVED texel;
-        // RED = texel out of [0, PATCH_CELL_N) BEFORE the clamp.
-        //   red strip at the border       → C1 (OOB) convicted
-        //   doubled/skipped parity row    → C1 (clamp/off-by-one)
-        //   clean continuous checkerboard → texel law holds; go I2.
-        if (raw_texel.x < 0 || raw_texel.x >= i32(PATCH_CELL_N) ||
-            raw_texel.y < 0 || raw_texel.y >= i32(PATCH_CELL_N)) {
-            base_color = vec3(1.0, 0.0, 0.0);
-        } else {
-            base_color = vec3(f32((raw_texel.x + raw_texel.y) & 1));
-        }
-    } else if (TERRAIN_DEBUG_VIEW == 2u) {
-        // I2 LUT FIELD AUDIT — the mode value the live path actually
-        // loads (baked.r), as grayscale.
-        //   distinct edge row vs interior → C2 convicted
-        //   contours displaced ~half cell → C3 convicted
-        //   continuous and sane           → go I3.
-        base_color = vec3(textureLoad(cell_fields_read, cell_texel, i32(in.layer), 0).r);
-    } else if (TERRAIN_DEBUG_VIEW == 3u) {
-        // I3 SKIRT PAINT — skirt fragments magenta over the art.
-        //   the band IS magenta                    → C4 convicted
-        //   magenta only in cracks away from band  → C4 cleared.
+    //    playing. Shading/fog still compose after — legible.
+    if (TERRAIN_DEBUG_VIEW == 3u) {
+        // SKIRT PAINT (permanent) — skirt fragments magenta over the
+        // art: shows where the perimeter curtains present as pixels.
         if (in.skirt > 0.01) {
             base_color = vec3(1.0, 0.0, 1.0);
         }
+    } else if (TERRAIN_DEBUG_VIEW == 4u) {
+        // ZONE-GEOMETRY SCULPTING ROOM (permanent) — computed LIVE in
+        // the FS, never from the LUT, so it shows the field AS
+        // CURRENTLY DEFINED (post-warp) at the current dials with no
+        // rebake:
+        //   grayscale = the mode field · thin dark lines = actual
+        //   patch borders (world grid every PATCH_EXTENT) · red
+        //   isoline = the zone coastline (|mode − threshold| < eps).
+        // Conviction key: zone edges IGNORE the border lines →
+        // lattice anisotropy convicted (warp aimed right); edges HUG
+        // the lines → STOP, send the shot — new hunt.
+        let m = mode_field_at(in.world_pos.xz);
+        var c = vec3(m);
+        let bf = vec2(fract(in.world_pos.x / PATCH_EXTENT),
+                      fract(in.world_pos.z / PATCH_EXTENT));
+        let border_d = min(min(bf.x, 1.0 - bf.x), min(bf.y, 1.0 - bf.y)) * PATCH_EXTENT;
+        if (border_d < 0.15) { c = vec3(0.05); }
+        const COAST_EPS: f32 = 0.015;
+        if (abs(m - MODE_DISCRETE_THRESHOLD) < COAST_EPS) { c = vec3(0.9, 0.1, 0.1); }
+        base_color = c;
     }
 
     // --- GoL zone visualization
