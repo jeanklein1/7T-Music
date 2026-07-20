@@ -1,5 +1,5 @@
 source: src/cartridges/the_board/realization/world.wgsl
-source-commit: 1f14b65e5b3d332f23161aa1d4023cb80017d638
-sha256: cb77e7751176d74036bd2b70c091d99d0c409c018a18dcca1c62e70147404e07
-mirrored: 2026-07-18 (post CHECKER-3)
+source-commit: f1b16f5d2ee2860d34fce08beb7b80b8b4d8af81
+sha256: 1c8e5e225f00c0c1325b902a24087abd4f2c2b1416209295f5267ed59fb0e4a0
+mirrored: 2026-07-19 (post TERRAIN P2 + CHECKER-REBUILD)
 ritual: CLAUDE.md "Resync ritual" — never edit this mirror; changes land upstream first

@@ -13,7 +13,7 @@ function normalize3(x, y, z) {
 }
 
 export function makeConfig(device, buffer) {
-  const ab = new ArrayBuffer(576);   // 560 + CHECKER-1 checker pair (see @560 below)
+  const ab = new ArrayBuffer(592);   // 560 + CHECKER checker fields (see @560 below)
   const f = new Float32Array(ab), u = new Uint32Array(ab);
   let dirty = true;
 
@@ -44,10 +44,12 @@ export function makeConfig(device, buffer) {
   f.set([0.92, 0.82, 0.65, 0,  0.95, 0.72, 0.62, 0,
          0.62, 0.72, 0.52, 0,  0.92, 0.72, 0.58, 0], 120);
   f.set([0.42, 0.28, 0.04, 0.26], 136);
-  // CHECKER-1 spectrum pair @560 — checker_mean_offset(0,0,0) zero-init;
-  // checker_variance_gain=1.0 @572 → coupling inert (REST_CHECKER_*, a beat-driven
-  // pipe; the audio wiring belongs to Phase 3 like the other music couplings).
-  f[143] = 1.0;
+  // CHECKER pitch-class color field @560 — checker_resultant(vec3 @560),
+  // checker_music_amount(f32 @572), checker_music_variance(f32 @576). REST =
+  // music_amount 0 → the cell's seed color (shader gate world.wgsl:4125), so
+  // all three rest at 0 (zero-init). The audio wiring belongs to Phase 3 with
+  // the other music couplings. (Was checker_variance_gain rested at 1.0 pre-
+  // CHECKER-REBUILD; the field is now amount-rested-at-0 — do NOT set it to 1.)
 
   return {
     setPlacementPatchCount(n) { u[36] = n; dirty = true; },     // @144
