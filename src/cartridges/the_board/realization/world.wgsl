@@ -1100,6 +1100,23 @@ fn mode_field_at(world_xz: vec2<f32>) -> f32 {
     return result;
 }
 
+// TEMPERAMENT — each mode node's static bias gain [FLOOR, 1]: how
+// eagerly that country answers the tide. Samples the SAME warped
+// domain as mode_field_at (one geography, coherently deformed).
+// Prop 502 on the mode node seed (band 1) — declared here, reserved.
+fn temperament_at(world_xz: vec2<f32>) -> f32 {
+    let wp = world_xz + vocab_warp(world_xz);
+    let lc = lattice_coord(wp, MODE_LATTICE_SPACING);
+    var result: f32 = 0.0;
+    for (var dz: i32 = 0; dz <= 1; dz++) {
+        for (var dx: i32 = 0; dx <= 1; dx++) {
+            let raw = hash_property(color_lattice_seed(lc.base + vec2(dx, dz), 1u), 502u);
+            result += mix(TEMPERAMENT_FLOOR, 1.0, raw) * lattice_weight(lc, dx, dz);
+        }
+    }
+    return result;
+}
+
 // Transition style at each lattice node: blend vs scatter.
 // Trimodal: nodes commit to blend (0.0), scatter (1.0), or hybrid (0.5).
 // Scatter slightly favored so probability fade-outs are more common.
@@ -1647,6 +1664,17 @@ const DISCRETE_MONO_LATTICE_SPACING: f32 = 250.0; // large B&W tendency zones
 // in TERRAIN_DEBUG_VIEW 4 — the art shows it only after patch regen.
 const MODE_WARP_AMP: f32 = 0.0;      // wu displacement; 0 = identity
 const MODE_WARP_SCALE: f32 = 240.0;  // wavelength (~2× mode spacing)
+
+// ── TEMPERAMENT (ROW 4 group) — per-zone bias gain ─────────────────
+// Each mode node rolls a static gain in [FLOOR, 1] (prop 502 on the
+// mode node's own seed): how eagerly that country answers the tide,
+// in BOTH directions of the signed axis. FLOOR 1.0 = uniform
+// (identity, landed — the warp precedent); sculpt DOWN to hear
+// personality (0.6 mild, 0.3 strong). Effective flood ≈ the uniform
+// flood mark ÷ FLOOR at the most reluctant country — re-mark after
+// sculpting. Hot-reloadable. The rain's twin temperament (a gain on
+// sparse_bias, own prop) is a noted margin item, not built here.
+const TEMPERAMENT_FLOOR: f32 = 1.0;  // 1 = uniform / identity
 
 // ── ROW 5 — COMPOSITE CUTS & EDGES ──────────────────────────────────
 // The decision thresholds of the color composite, promoted OUT of the
@@ -7644,8 +7672,9 @@ fn evaluate_cell_fields(
     }
 
     // ── The doors (bias applied here — upstream of the composite;
-    //    the zone gate reads the REST field — THE MONOTONE AXIS) ─
-    let biased_mode = clamp(id.mode + mode_bias, 0.0, 1.0);
+    //    the zone gate reads the REST field — THE MONOTONE AXIS;
+    //    the tide lands through TEMPERAMENT — per-zone gain, ROW 4) ─
+    let biased_mode = clamp(id.mode + mode_bias * temperament_at(world_xz), 0.0, 1.0);
     let doors = door_values(biased_mode, id.mode, id.sparse, sparse_bias);
     id.blend_t = doors.x;
     id.scatter_survival = doors.y;
