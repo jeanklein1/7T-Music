@@ -812,16 +812,24 @@ namespace t7 {
                 //   0 = off
                 //   1 = mode_color_shift    (THE TIDE — coastlines advance)
                 //   2 = mode_checker_scatter (THE RAIN — open country speckles)
+                //   3 = COMPOSED — one axis, both doors, same v:
+                //       −ceiling = whole terrain smooth · +ceiling =
+                //       whole terrain checkers. Gains 1:1 for the
+                //       trial (the countryside saturates before the
+                //       coastlines on the way up); per-direction
+                //       gains graduate from the marks. The tide half
+                //       rides TEMPERAMENT if its floor < 1.
                 {
-                    static constexpr int   DOORS_SCOPE_CHANNEL      = 2;
+                    static constexpr int   DOORS_SCOPE_CHANNEL      = 3;
                     static constexpr float DOORS_SCOPE_PERIOD_BEATS = 32.0f;  // ~19 s breath — slow read for the extinction mark
                     static constexpr float DOORS_SCOPE_CEILING      = 0.80f;  // deliberately PAST the useful range
                     if constexpr (DOORS_SCOPE_CHANNEL != 0) {
                         const float phase = time_state_.beats / DOORS_SCOPE_PERIOD_BEATS;
                         const float tri = 1.0f - std::fabs(2.0f * (phase - std::floor(phase)) - 1.0f);
                         const float v = (2.0f * tri - 1.0f) * DOORS_SCOPE_CEILING;
-                        if constexpr (DOORS_SCOPE_CHANNEL == 1) { gpuState_.set_mode_color_shift(v); }
-                        else                                    { gpuState_.set_mode_checker_scatter(v); }
+                        if constexpr (DOORS_SCOPE_CHANNEL == 1)      { gpuState_.set_mode_color_shift(v); }
+                        else if constexpr (DOORS_SCOPE_CHANNEL == 2) { gpuState_.set_mode_checker_scatter(v); }
+                        else { gpuState_.set_mode_color_shift(v); gpuState_.set_mode_checker_scatter(v); }
                         // [DOORS_SCOPE] meter: one line per 0.05 step —
                         // the console number pairs with the look on
                         // screen; the ceiling is read off this meter.
