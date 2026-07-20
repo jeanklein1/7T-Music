@@ -797,7 +797,9 @@ namespace t7 {
                 }
 
                 // ── DOORS SCOPE (Movement 1 calibration — TEMPORARY).
-                // A slow CPU triangle on ONE door channel at a time,
+                // A slow SIGNED CPU triangle on ONE door channel at a
+                // time — the sweep runs −CEILING → +CEILING → −CEILING,
+                // crossing IDLE (0, the axis center) twice per period,
                 // through the REAL setters — the wire Movement 2's
                 // couplings will ride, exercised end to end. Repeatable
                 // and music-free: time_state_.beats is the held-last
@@ -817,7 +819,7 @@ namespace t7 {
                     if constexpr (DOORS_SCOPE_CHANNEL != 0) {
                         const float phase = time_state_.beats / DOORS_SCOPE_PERIOD_BEATS;
                         const float tri = 1.0f - std::fabs(2.0f * (phase - std::floor(phase)) - 1.0f);
-                        const float v = tri * DOORS_SCOPE_CEILING;
+                        const float v = (2.0f * tri - 1.0f) * DOORS_SCOPE_CEILING;
                         if constexpr (DOORS_SCOPE_CHANNEL == 1) { gpuState_.set_mode_color_shift(v); }
                         else                                    { gpuState_.set_mode_checker_scatter(v); }
                         // [DOORS_SCOPE] meter: one line per 0.05 step —
