@@ -1320,11 +1320,20 @@ fn discrete_mono_at(world_xz: vec2<f32>) -> f32 {
 // All time-variation enters through the CPU envelope (Segments); the GPU
 // receives only glided values and static seeds. A stepped GPU-side hash is
 // a teleport by construction and is BANNED in this module.
-fn checker_region_median(world_xz: vec2<f32>, seed_mean: vec3<f32>,
+// THE QUANTUM CLAUSE (charter C8, INCIDENT #3b conviction): the region
+// node derives from the CELL, never from a fragment position — the
+// signature enforces the law by type. The 80-unit personality boundary
+// now lands BETWEEN cells, never through one; the sub-cell sliver is
+// inexpressible. amount 0 annihilates the whole term, so
+// SILENCE-IDENTITY holds by the same arithmetic as before.
+fn checker_region_median(cell: vec2<i32>, seed_mean: vec3<f32>,
                          resultant: vec3<f32>, music_amount: f32) -> vec3<f32> {
-    // Region id = the 80-unit discrete color lattice node (the same lattice
-    // discrete_region_at interpolates) — one fixed wander per region.
-    let node = vec2<i32>(floor(world_xz / DISCRETE_COLOR_LATTICE_SPACING));
+    // Region id = the 80-unit discrete color lattice node containing the
+    // CELL CENTER (the same lattice discrete_region_at interpolates) —
+    // one fixed wander per region, coastline snapped to the cell grid.
+    let cs = PATCH_EXTENT / f32(PATCH_CELL_N);
+    let center = (vec2<f32>(cell) + 0.5) * cs;
+    let node = vec2<i32>(floor(center / DISCRETE_COLOR_LATTICE_SPACING));
     let rid = color_lattice_seed(node, 20u);
     let wander = (vec3(hash_property(rid, 601u),
                        hash_property(rid, 602u),
@@ -1374,7 +1383,7 @@ fn discrete_cell_color_at_tier(
             let base_grey = select(0.12, 0.85, bw_roll > 0.5);
             // CHECKER-REBUILD: tint target = the region's music median
             // (grey base stays a seed-pure anchor).
-            let turned = checker_region_median(world_xz, region.mean, resultant, music_amount);
+            let turned = checker_region_median(vec2(cell_gx, cell_gz), region.mean, resultant, music_amount);
             return mix(vec3(base_grey), turned, DISCRETE_TINT_STRENGTH);
         }
         default: {
@@ -1384,7 +1393,7 @@ fn discrete_cell_color_at_tier(
             let nb = (hash_property(cell_seed, 842u) - 0.5) * 2.0;
             // CHECKER-REBUILD: median = pull + wander; spread widened by
             // the distinct-pc count (S3).
-            let turned = checker_region_median(world_xz, region.mean, resultant, music_amount);
+            let turned = checker_region_median(vec2(cell_gx, cell_gz), region.mean, resultant, music_amount);
             return clamp(turned + vec3(nr, ng, nb)
                              * (region.variance + min(CHECKER_VAR_MAX, music_variance * CHECKER_VAR_PER_NOTE)),
                          vec3(0.0), vec3(1.0));
@@ -4198,7 +4207,7 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
                 // REGION MEDIAN ONLY — the pull + wander, continuous.
                 // Strip → the median/wander path.
                 base_color = checker_region_median(
-                    in.world_pos.xz, discrete_region_at(in.world_pos.xz).mean,
+                    addr_used, discrete_region_at(in.world_pos.xz).mean,
                     config.checker_resultant, config.checker_music_amount);
             }
             case 2u: {
