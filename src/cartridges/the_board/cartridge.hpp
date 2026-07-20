@@ -813,8 +813,8 @@ namespace t7 {
                 //   1 = mode_color_shift    (THE TIDE — coastlines advance)
                 //   2 = mode_checker_scatter (THE RAIN — open country speckles)
                 {
-                    static constexpr int   DOORS_SCOPE_CHANNEL      = 1;
-                    static constexpr float DOORS_SCOPE_PERIOD_BEATS = 16.0f;  // ~9.6 s breath at rest tempo
+                    static constexpr int   DOORS_SCOPE_CHANNEL      = 2;
+                    static constexpr float DOORS_SCOPE_PERIOD_BEATS = 32.0f;  // ~19 s breath — slow read for the extinction mark
                     static constexpr float DOORS_SCOPE_CEILING      = 0.80f;  // deliberately PAST the useful range
                     if constexpr (DOORS_SCOPE_CHANNEL != 0) {
                         const float phase = time_state_.beats / DOORS_SCOPE_PERIOD_BEATS;
