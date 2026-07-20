@@ -4147,7 +4147,13 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
         // One-address: the SAME law texel as the color load above — the
         // vocabulary (world-hashed) and the LUT can no longer disagree.
         let baked = textureLoad(cell_fields_read, cell_texel, i32(in.layer), 0);
-        base_color = animated_cell_color_lut(in.world_pos.xz, addr_used, baked.r, baked.g, baked.b, baked.a);
+        // THE SAMPLE-POINT LAW (charter C8): the cell is the unit — every
+        // live term samples at the CELL CENTER, the same point the bake
+        // evaluated. live(VOICE→rest) equals the bake by identical
+        // arguments; every fragment of a cell is one color; sub-cell
+        // structure is inexpressible on the live path.
+        let cell_center = (vec2<f32>(addr_used) + 0.5) * (PATCH_EXTENT / f32(PATCH_CELL_N));
+        base_color = animated_cell_color_lut(cell_center, addr_used, baked.r, baked.g, baked.b, baked.a);
     }
 
     // ── TERRAIN_DEBUG_VIEW — the instrument registry's terrain slots.
@@ -7767,13 +7773,13 @@ fn palette_target_color(palette_idx: f32, complexity: f32) -> vec3<f32> {
 fn animated_cell_color_lut(world_xz: vec2<f32>, addr_used: vec2<i32>,
                            baked_mode: f32, baked_style: f32, baked_sparse: f32,
                            baked_tier: f32) -> vec3<f32> {
-    // OWNERSHIP (INCIDENT #3): the cell identity comes from addr_used —
-    // the FS's OWNED cell (the clamped texel's address), so hashes and
-    // the baked fields share ONE cell for every fragment. world_xz
-    // remains the sample point for the CONTINUOUS interpolations
-    // (palette / chess / region / median) — continuous fields cannot
-    // express a chimera, and keeping them per-fragment preserves
-    // bit-identity for every in-domain fragment.
+    // OWNERSHIP (INCIDENT #3) + THE SAMPLE-POINT LAW (charter C8): the
+    // cell identity comes from addr_used — the FS's OWNED cell — and
+    // world_xz is that cell's CENTER (the FS derives it; the bake passes
+    // the same point by construction). Hashes, baked fields, and every
+    // CONTINUOUS interpolation (palette / chess / region / median) share
+    // ONE cell and ONE sample point: live at rest equals the bake by
+    // identical arguments, and no sub-cell structure can exist here.
     let cell_gx = addr_used.x;
     let cell_gz = addr_used.y;
     let cell_seed = lattice_node_seed(config.world_seed, vec2(cell_gx, cell_gz), 200u);
