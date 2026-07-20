@@ -8,8 +8,8 @@
 //
 // GROUP-SCOPED (forced, not stylistic). A binding number is a per-@group
 // key: 22 = terrain_mesh_indices in group 0 AND bilinear_sampler in group
-// 1; 25 = tile_grid vs shadow_map; 26 = pier_instances vs shadow_sampler;
-// 30 = pyramid_instances vs cell_fields_read. A flat list would fuse
+// 1; 25 = tile_grid vs shadow_map; 26 = pier_instances vs shadow_sampler.
+// A flat list would fuse
 // distinct slots — so g0:: and g1:: are separate namespaces.
 //
 // AUTHORED, not computed (Frame-Spine law, one layer down). Every constant
@@ -61,7 +61,8 @@ namespace t7 {
                 inline constexpr uint32_t pier_instances             = 26;
                 inline constexpr uint32_t patch_cell_color_array_write = 27;
                 inline constexpr uint32_t patch_height_scratch       = 28;
-                inline constexpr uint32_t cell_fields_write          = 29;
+                // (cell_fields_write = 29 RETIRED — Commit C, the LUT retirement.
+                //  Number reserved; do not reuse.)
                 inline constexpr uint32_t pyramid_instances          = 30;
 
                 // agents / camera (60–101)
@@ -175,7 +176,7 @@ namespace t7 {
                 inline constexpr uint32_t spot_shadow_map            = 27;
                 inline constexpr uint32_t patch_heightfield_array_read = 28;
                 inline constexpr uint32_t patch_cell_color_array_read  = 29;
-                inline constexpr uint32_t cell_fields_read           = 30;
+                // (cell_fields_read = 30 RETIRED — Commit C. Number reserved.)
                 inline constexpr uint32_t zone_life_read             = 31;
                 inline constexpr uint32_t zone_params                = 32;
                 inline constexpr uint32_t pawn_aura_read             = 33;

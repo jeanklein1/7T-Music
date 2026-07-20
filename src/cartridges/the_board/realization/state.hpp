@@ -1505,11 +1505,8 @@ namespace t7 {
             wgpu::TextureView patchCellColorArrayWriteView_;
             wgpu::TextureView patchCellColorArrayReadView_;
 
-            // Cell spatial field LUT (289 layers × 16×16, RGBA16Float)
-            // Baked in generate_patch_cells. R=mode(post-coupling), G=style, B=sparse, A=reserved
-            wgpu::Texture cellFieldsArrayTexture_;
-            wgpu::TextureView cellFieldsArrayWriteView_;
-            wgpu::TextureView cellFieldsArrayReadView_;
+            // (Cell spatial field LUT members RETIRED — Commit C, the LUT
+            //  retirement: the live path evaluates the fields analytically.)
 
             wgpu::Buffer terrainIndexBuffer_;
             // (legacy cell mesh buffers removed — bindings 43-45 reserved)
@@ -3574,24 +3571,7 @@ namespace t7 {
                     patchCellColorArrayReadView_ = patchCellColorArrayTexture_.CreateView(&viewDesc);
                 }
 
-                {
-                    wgpu::TextureDescriptor desc{};
-                    desc.label = "Cell Fields LUT (RGBA16Float 16x16)";
-                    desc.size = { Dim::PATCH_CELL_N, Dim::PATCH_CELL_N, Dim::MAX_ACTIVE_PATCHES };
-                    desc.dimension = wgpu::TextureDimension::e2D;
-                    desc.format = wgpu::TextureFormat::RGBA16Float;
-                    desc.usage = wgpu::TextureUsage::StorageBinding | wgpu::TextureUsage::TextureBinding;
-                    cellFieldsArrayTexture_ = device_.CreateTexture(&desc);
-                    if (!cellFieldsArrayTexture_) return false;
-
-                    wgpu::TextureViewDescriptor viewDesc{};
-                    viewDesc.dimension = wgpu::TextureViewDimension::e2DArray;
-                    viewDesc.arrayLayerCount = Dim::MAX_ACTIVE_PATCHES;
-                    viewDesc.label = "Cell Fields LUT Write";
-                    cellFieldsArrayWriteView_ = cellFieldsArrayTexture_.CreateView(&viewDesc);
-                    viewDesc.label = "Cell Fields LUT Read";
-                    cellFieldsArrayReadView_ = cellFieldsArrayTexture_.CreateView(&viewDesc);
-                }
+                // (Cell Fields LUT texture RETIRED — Commit C, the LUT retirement.)
 
                 // Shadow map (Depth32Float: directional light depth)
                 {
@@ -3913,11 +3893,11 @@ namespace t7 {
                     if (!shadowTextureBindGroupLayout_) return false;
                 }
 
-                // -- Render texture layout (Group 1) -- bindings 22-23, 25-27, 28-30, 31-33 -
-                // Used during main render pass: samplers + shadow maps + patches + field LUT + GoL zones + pawn aura.
+                // -- Render texture layout (Group 1) -- bindings 22-23, 25-27, 28-29, 31-33 -
+                // Used during main render pass: samplers + shadow maps + patches + GoL zones + pawn aura.
                 // (bindings 20, 21, 24 removed — formerly legacy stub textures)
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 11> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 10> entries{};
 
                     entries[0].binding = bind::g1::bilinear_sampler;
                     entries[0].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
@@ -3968,12 +3948,6 @@ namespace t7 {
                     entries[9].visibility = wgpu::ShaderStage::Fragment | wgpu::ShaderStage::Vertex;
                     entries[9].texture.sampleType = wgpu::TextureSampleType::Float;
                     entries[9].texture.viewDimension = wgpu::TextureViewDimension::e2D;
-
-                    // Cell spatial field LUT (FS reads baked mode/style/sparse via textureLoad)
-                    entries[10].binding = bind::g1::cell_fields_read;
-                    entries[10].visibility = wgpu::ShaderStage::Fragment;
-                    entries[10].texture.sampleType = wgpu::TextureSampleType::UnfilterableFloat;
-                    entries[10].texture.viewDimension = wgpu::TextureViewDimension::e2DArray;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Render Texture Layout";
@@ -4030,7 +4004,7 @@ namespace t7 {
                 // Per-patch compute pass: fills one heightfield layer.
                 // Dispatched when a patch enters the active set.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 9> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 8> entries{};
 
                     entries[0].binding = bind::g0::config;    // config (uniform — world_seed for cell color gen)
                     entries[0].visibility = wgpu::ShaderStage::Compute;
@@ -4067,12 +4041,6 @@ namespace t7 {
                     entries[7].binding = bind::g0::patch_height_scratch;  // patch_height_scratch (two-pass heightfield gen)
                     entries[7].visibility = wgpu::ShaderStage::Compute;
                     entries[7].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    entries[8].binding = bind::g0::cell_fields_write;  // cell_fields_write (spatial field LUT, RGBA16Float)
-                    entries[8].visibility = wgpu::ShaderStage::Compute;
-                    entries[8].storageTexture.access = wgpu::StorageTextureAccess::WriteOnly;
-                    entries[8].storageTexture.format = wgpu::TextureFormat::RGBA16Float;
-                    entries[8].storageTexture.viewDimension = wgpu::TextureViewDimension::e2DArray;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Patch Gen Layout";
@@ -4870,9 +4838,9 @@ namespace t7 {
                     if (!shadowTextureBindGroup_) return false;
                 }
 
-                // Render texture bind group (11 entries: 22-23, 25-27, 28-30, 31-33)
+                // Render texture bind group (10 entries: 22-23, 25-27, 28-29, 31-33)
                 {
-                    std::array<wgpu::BindGroupEntry, 11> entries{};
+                    std::array<wgpu::BindGroupEntry, 10> entries{};
 
                     entries[0].binding = bind::g1::bilinear_sampler;
                     entries[0].sampler = bilinearSampler_;
@@ -4904,9 +4872,6 @@ namespace t7 {
 
                     entries[9].binding = bind::g1::pawn_aura_read;
                     entries[9].textureView = pawnAuraReadView_;
-
-                    entries[10].binding = bind::g1::cell_fields_read;  // cell_fields_read (spatial field LUT)
-                    entries[10].textureView = cellFieldsArrayReadView_;
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Render Texture BindGroup";
@@ -4956,9 +4921,9 @@ namespace t7 {
                     if (!terrainIndexGenBindGroup_) return false;
                 }
 
-                // Patch gen bind group (9 entries: binding 1, 23, 24, 25, 26, 27, 28, 29, 30)
+                // Patch gen bind group (8 entries: binding 1, 23, 24, 25, 26, 27, 28, 30)
                 {
-                    std::array<wgpu::BindGroupEntry, 9> entries{};
+                    std::array<wgpu::BindGroupEntry, 8> entries{};
 
                     entries[0].binding = bind::g0::config;
                     entries[0].buffer = configBuffer_;
@@ -4989,9 +4954,6 @@ namespace t7 {
                     entries[7].binding = bind::g0::patch_height_scratch;  // patch_height_scratch
                     entries[7].buffer = patchHeightScratchBuffer_;
                     entries[7].size = Dim::PATCH_HEIGHTFIELD_N * Dim::PATCH_HEIGHTFIELD_N * 2 * sizeof(float);
-
-                    entries[8].binding = bind::g0::cell_fields_write;  // cell_fields_write
-                    entries[8].textureView = cellFieldsArrayWriteView_;
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Patch Gen BindGroup";

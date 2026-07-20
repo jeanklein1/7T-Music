@@ -271,7 +271,7 @@ const PATCH_MESH_STRIDE: u32 = PATCH_MESH_N + 1u;
 
 // THE ONE-ADDRESS LAW (SEAMLESSNESS corollary — charter C8). A cell
 // has exactly ONE address: its world cell index. Every consumer —
-// hash, roll, noise, LUT texel, bake write — derives from it. A
+// hash, roll, noise, color/tag texel, bake write — derives from it. A
 // texel is COMPUTED FROM the address; patch_uv never addresses
 // anything by itself again.
 fn cell_address(world_xz: vec2<f32>) -> vec2<i32> {
@@ -1350,7 +1350,7 @@ fn checker_region_median(cell: vec2<i32>, seed_mean: vec3<f32>,
 
 // THE PIGMENT AUTHORITY (Phase 2, D2.1). Resolves a cell's discrete
 // color for a tier FIELD already decided (the cascade in
-// evaluate_cell_fields, the baked LUT .w — or a forced tier: the
+// evaluate_cell_fields — or a forced tier: the
 // palette-drift pass targets one) — no cascade re-derivation here. Each tier derives from the cell's own seeds/fields; the music
 // enters only through checker_region_median (unchanged, law-marked) and
 // the variance widening. The anchors — chess pair, chess B&W, pure B&W,
@@ -1598,8 +1598,8 @@ struct DesignConfig {
 // freezes both overlay-wave evaluators (ROW 7's consumers) — rest IS
 // today's stillness. The mode trio is DRIVERLESS since the gen-1
 // retirement: driver-ready dials held at rest, read by
-// animated_cell_color_lut — the one live composite body since Phase 2
-// (mode_bias, sparse_bias, drift).
+// animated_cell_color — the one live composite body (analytic since
+// Commit C) — (mode_bias, sparse_bias, drift).
 // CHECKER-REBUILD THE PITCH-CLASS COLOR FIELD (LIVE, gen-2):
 // config.checker_resultant carries the length-weighted average of the
 // voice's WINDOW pc-length vector over Jean's authored PC_COLOR table
@@ -1712,20 +1712,11 @@ const CHECKER_DEBUG_VIEW: u32 = 0u;
 // PAINT (permanent): skirt fragments magenta. 4 = ZONE-GEOMETRY
 // SCULPTING ROOM (permanent): live mode field grayscale + patch
 // border lines + red coastline isoline — the warp tuning view.
-// 5 = THE SLIVER MICROSCOPE (INCIDENT #3b, TEMPORARY): paints the
-// live color path ONE TERM at a time — select with MICROSCOPE_TERM
-// below; one save per term, five shots, music playing, near-overhead.
-// (INCIDENT #2's I1/I2 audits retired — suspects exonerated.)
+// (View 5, the sliver microscope, RETIRED — INCIDENT #3b CLOSED:
+// term 1 convicted the wander's 80-unit floor; the quantum fix and
+// the sample-point law landed; the LUT retired with the incident.
+// INCIDENT #2's I1/I2 audits retired earlier — suspects exonerated.)
 const TERRAIN_DEBUG_VIEW: u32 = 0u;
-// MICROSCOPE_TERM (view 5's selector — INCIDENT #3b, TEMPORARY):
-//   0 = TIER MAP (five flat colors; strip visible → fields/tier side)
-//   1 = REGION MEDIAN ONLY (pull + wander; strip → median/wander path)
-//   2 = OWNED NOISE ONLY (strip → owned-hash path — would contradict
-//       the falsification; report loudly)
-//   3 = DOORS ONLY (R = blend_t · G = scatter_vis · B = show_cell)
-//   4 = PROVENANCE + ADDRESS (addr_used parity, RED = raw OOB, and an
-//       unconditional 50 px MAGENTA corner swatch = build provenance)
-const MICROSCOPE_TERM: u32 = 0u;
 
 // ── ROW 6 — RETIRED (Phase 1, ruling 6) ───────────────────────────
 // Terrain-mode coupling. The magnitude dial was parked at 0.0 — every
@@ -1805,9 +1796,9 @@ const OVERLAY_PROP_STRIDE:    u32 = 10u;
 // blend smooth→discrete at the ROW 5 mode edges; scatter-survive by
 // cell_roll; mix the two styles by the transition field; sparse cells
 // survive outside mode zones. Phase 1: the doors are FIELD outputs
-// (door_values, fed from evaluate_cell_fields or the LUT
-// reconstruction); the biased twin is a pass-through alias awaiting
-// Phase 2 deletion.
+// (door_values, fed from evaluate_cell_fields — the ONE derivation,
+// bake and live alike since Commit C retired the LUT reconstruction;
+// the biased twin deleted at Phase 2).
 
 // Smooth palette color: weighted blend modulated by complexity only.
 // No per-cell noise — produces continuous gradients. (Relocated from
@@ -4067,7 +4058,7 @@ fn patch_terrain_vs(
 // color sibling of THE FOLD above manifold_height_hf): this FS IS the
 // one declared place the color composition runs, in this order —
 //
-//   0 rim discard → 1 baked color → 2 live LUT recolor (REPLACES)
+//   0 rim discard → 1 baked color → 2 live analytic recolor (REPLACES)
 //   → 3 GoL tint → 4 pawn FF (nested) → 5 sphere FF (nested)
 //   → 6 aura color delta → 7 aura brighten → 8 aura normal perturb
 //   → 9 shade_lit (fog/veil last)
@@ -4123,8 +4114,8 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
     var base_color = color_sample.rgb;
 
     // --- Musical animation modes: re-evaluate cell color with biases
-    // Runtime guard: every live color channel at rest -> skip the LUT
-    // read (the baked gen-time composite stands). Drivers are gen-2
+    // Runtime guard: every live color channel at rest -> skip the live
+    // re-evaluation (the baked gen-time composite stands). Drivers are gen-2
     // couplings through the visual canvas; the mood retired as author.
     // CHECKER-REBUILD: the checker field is live whenever music_amount
     // rises off 0 (the pull, the wander, and the door all key off it).
@@ -4143,17 +4134,18 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
         // The full instrument registry arrives Phase 4.
         base_color = select(vec3(0.45), vec3(0.25, 0.7, 0.35), has_mode_bias);
     } else if (has_mode_bias) {
-        // Load baked spatial fields from LUT (skips 3 lattice noise chains).
-        // One-address: the SAME law texel as the color load above — the
-        // vocabulary (world-hashed) and the LUT can no longer disagree.
-        let baked = textureLoad(cell_fields_read, cell_texel, i32(in.layer), 0);
         // THE SAMPLE-POINT LAW (charter C8): the cell is the unit — every
         // live term samples at the CELL CENTER, the same point the bake
         // evaluated. live(VOICE→rest) equals the bake by identical
         // arguments; every fragment of a cell is one color; sub-cell
         // structure is inexpressible on the live path.
+        // ANALYTIC since Commit C (the LUT retirement): the live path
+        // calls THE SAME evaluator the bake calls — no cache between the
+        // two moments, and no patch-indexed input remains in the live
+        // color path (the color/tag texel above is the bake's own art,
+        // cell-aligned by the one-address law).
         let cell_center = (vec2<f32>(addr_used) + 0.5) * (PATCH_EXTENT / f32(PATCH_CELL_N));
-        base_color = animated_cell_color_lut(cell_center, addr_used, baked.r, baked.g, baked.b, baked.a);
+        base_color = animated_cell_color(cell_center, addr_used);
     }
 
     // ── TERRAIN_DEBUG_VIEW — the instrument registry's terrain slots.
@@ -4170,9 +4162,10 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
         }
     } else if (TERRAIN_DEBUG_VIEW == 4u) {
         // ZONE-GEOMETRY SCULPTING ROOM (permanent) — computed LIVE in
-        // the FS, never from the LUT, so it shows the field AS
+        // the FS, never from a bake, so it shows the field AS
         // CURRENTLY DEFINED (post-warp) at the current dials with no
-        // rebake:
+        // rebake (since Commit C the art's live path evaluates the
+        // SAME field — the instrument and the artwork agree):
         //   grayscale = the mode field · thin dark lines = actual
         //   patch borders (world grid every PATCH_EXTENT) · red
         //   isoline = the zone coastline (|mode − threshold| < eps).
@@ -4188,72 +4181,6 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
         const COAST_EPS: f32 = 0.015;
         if (abs(m - MODE_DISCRETE_THRESHOLD) < COAST_EPS) { c = vec3(0.9, 0.1, 0.1); }
         base_color = c;
-    } else if (TERRAIN_DEBUG_VIEW == 5u) {
-        // THE SLIVER MICROSCOPE (INCIDENT #3b — TEMPORARY; remove
-        // after conviction). Paints the live color path ONE TERM at a
-        // time (MICROSCOPE_TERM selects; shoot each with music
-        // playing, near-overhead at the sliver). Ungated by
-        // has_mode_bias — the term quantities themselves carry the
-        // music dependency, so the strip can appear where it lives.
-        let baked5 = textureLoad(cell_fields_read, cell_texel, i32(in.layer), 0);
-        let seed5 = lattice_node_seed(config.world_seed, addr_used, 200u);
-        switch MICROSCOPE_TERM {
-            case 0u: {
-                // TIER MAP — identity.tier as five flat colors.
-                // Strip visible → the FIELDS/tier carry it.
-                switch u32(baked5.a + 0.5) {
-                    case 0u: { base_color = vec3(0.85, 0.35, 0.25); }
-                    case 1u: { base_color = vec3(0.90, 0.75, 0.30); }
-                    case 2u: { base_color = vec3(0.60, 0.60, 0.60); }
-                    case 3u: { base_color = vec3(0.15, 0.15, 0.15); }
-                    default: { base_color = vec3(0.30, 0.55, 0.85); }
-                }
-            }
-            case 1u: {
-                // REGION MEDIAN ONLY — the pull + wander, continuous.
-                // Strip → the median/wander path.
-                base_color = checker_region_median(
-                    addr_used, discrete_region_at(in.world_pos.xz).mean,
-                    config.checker_resultant, config.checker_music_amount);
-            }
-            case 2u: {
-                // OWNED NOISE ONLY — 0.5 + color_noise(addr_used)·var.
-                // Strip → the owned-hash path (contradicts the
-                // falsification — report loudly).
-                let noise5 = vec3((hash_property(seed5, 840u) - 0.5) * 2.0,
-                                  (hash_property(seed5, 841u) - 0.5) * 2.0,
-                                  (hash_property(seed5, 842u) - 0.5) * 2.0);
-                let var5 = discrete_region_at(in.world_pos.xz).variance
-                         + min(CHECKER_VAR_MAX, config.checker_music_variance * CHECKER_VAR_PER_NOTE);
-                base_color = clamp(vec3(0.5) + noise5 * var5, vec3(0.0), vec3(1.0));
-            }
-            case 3u: {
-                // DOORS ONLY — the composite's mixing weights:
-                // R = blend_t · G = scatter_vis · B = show_cell.
-                let doors5 = door_values(
-                    clamp(baked5.r + config.mode_color_shift, 0.0, 1.0),
-                    baked5.b, config.mode_checker_scatter);
-                let scatter_vis5 = door_fade(hash_property(seed5, 900u), doors5.y, DOOR_FADE_W_SCATTER);
-                let sparse_vis5 = door_fade(hash_property(seed5, 910u), doors5.z, DOOR_FADE_W_SPARSE);
-                base_color = vec3(doors5.x, scatter_vis5, sparse_vis5 * (1.0 - doors5.w));
-            }
-            default: {
-                // PROVENANCE + ADDRESS — addr_used parity board, RED
-                // where the raw texel is out of domain, and a fixed
-                // 50 px MAGENTA corner swatch drawn unconditionally:
-                // the swatch proves THIS build is the one on screen.
-                let raw5 = cell_address(in.world_pos.xz) - patch_grid * i32(PATCH_CELL_N);
-                if (raw5.x < 0 || raw5.x >= i32(PATCH_CELL_N) ||
-                    raw5.y < 0 || raw5.y >= i32(PATCH_CELL_N)) {
-                    base_color = vec3(1.0, 0.0, 0.0);
-                } else {
-                    base_color = vec3(f32((addr_used.x + addr_used.y) & 1));
-                }
-                if (in.clip_pos.x < 50.0 && in.clip_pos.y < 50.0) {
-                    base_color = vec3(1.0, 0.0, 1.0);
-                }
-            }
-        }
     }
 
     // --- GoL zone visualization
@@ -5509,15 +5436,16 @@ struct CellMeshVertex {
 @group(0) @binding(24) var patch_heightfield_array_write: texture_storage_2d_array<rgba16float, write>;
 @group(0) @binding(25) var<uniform> tile_grid: TileGrid;
 @group(0) @binding(27) var patch_cell_color_array_write: texture_storage_2d_array<rgba8unorm, write>;
-@group(0) @binding(29) var cell_fields_write: texture_storage_2d_array<rgba16float, write>;
+// (binding 29, cell_fields_write, RETIRED — Commit C, the LUT
+//  retirement. Number reserved; do not reuse.)
 @group(0) @binding(28) var<storage, read_write> patch_height_scratch: array<f32>;
 
-// --- Patch rendering (Group 0: binding 340, 391; Group 1: bindings 28-30)
+// --- Patch rendering (Group 0: binding 340, 391; Group 1: bindings 28-29)
 @group(0) @binding(340) var<storage, read> patch_instances: array<PatchInstance>;
 @group(0) @binding(391) var<storage, read> visible_patch_indices: array<u32>;
 @group(1) @binding(28) var patch_heightfield_array_read: texture_2d_array<f32>;
 @group(1) @binding(29) var patch_cell_color_array_read: texture_2d_array<f32>;
-@group(1) @binding(30) var cell_fields_read: texture_2d_array<f32>;
+// (binding 30, cell_fields_read, RETIRED — Commit C. Number reserved.)
 
 // §7.0b GOL ZONE DEFINITIONS
 
@@ -7620,8 +7548,9 @@ fn door_fade(roll: f32, survival: f32, w: f32) -> f32 {
     return clamp((survival - roll) / max(2.0 * w, 1e-6) + 0.5, 0.0, 1.0);
 }
 
-// The four door values from the (biased) fields — ONE derivation, shared
-// by the evaluator and the LUT reconstruction so the two paths cannot
+// The four door values from the (biased) fields — ONE derivation, the
+// evaluator's alone (bake and live alike since Commit C retired the LUT
+// reconstruction), so the paths cannot
 // drift. x = blend_t, y = scatter_survival, z = sparse_survival,
 // w = in_mode_zone (FADE form: rises as biased_mode exceeds the scatter
 // floor, width DOOR_FADE_W_ZONE; 0 there = today's hard boolean).
@@ -7716,7 +7645,8 @@ fn evaluate_cell_fields(
 // Stage 2: Composite final terrain color from evaluated field state.
 // The composite — Phase 1 (charter): pure arithmetic over the identity's
 // precomputed door values. The doors were derived in evaluate_cell_fields
-// (or the LUT reconstruction) via door_values — bias is a FIELD input now.
+// via door_values (the ONE derivation since Commit C retired the LUT
+// reconstruction) — bias is a FIELD input now.
 // (Edges + cuts live at TERRAIN_LOOKS ROW 5, §2.2, read by door_values.)
 fn composite_cell_color(id: CellIdentity, discrete_color: vec3<f32>) -> vec3<f32> {
     // Blend style: smooth → discrete (gradual transition at mode boundary)
@@ -7758,70 +7688,27 @@ fn palette_target_color(palette_idx: f32, complexity: f32) -> vec3<f32> {
     return mix(color_lo, color_hi, frac);
 }
 
-// (animated_cell_color — the non-LUT twin, F10, ZERO callers since the
-//  FS went LUT — DELETED, Phase 2 D2.3: the pair converged by deletion.
-//  animated_cell_color_lut below IS the one live composite body. A
-//  revival is a five-line wrapper: evaluate_cell_fields identity →
-//  the same tail.)
+// (animated_cell_color_lut — the LUT reconstruction body — RETIRED,
+//  Commit C: the Phase-2 deletion note's prophecy fulfilled ("a
+//  revival is a five-line wrapper"). The cell_fields LUT died with
+//  it; the name animated_cell_color returns, now THE one live
+//  composite body.)
 
-// THE ONE LIVE COMPOSITE BODY (Phase 2, D2.3). Reads baked
-// mode/style/sparse/tier from the cell fields texture, skipping
-// mode_field_at, transition_style_at, sparse_field_at, and the cascade.
-// palette_field_at still runs (1 lattice noise chain) for smooth_color.
-// Pigment resolves through discrete_cell_color_at_tier — the same
-// authority the bake calls at rest (one function, two moments).
-fn animated_cell_color_lut(world_xz: vec2<f32>, addr_used: vec2<i32>,
-                           baked_mode: f32, baked_style: f32, baked_sparse: f32,
-                           baked_tier: f32) -> vec3<f32> {
-    // OWNERSHIP (INCIDENT #3) + THE SAMPLE-POINT LAW (charter C8): the
-    // cell identity comes from addr_used — the FS's OWNED cell — and
-    // world_xz is that cell's CENTER (the FS derives it; the bake passes
-    // the same point by construction). Hashes, baked fields, and every
-    // CONTINUOUS interpolation (palette / chess / region / median) share
-    // ONE cell and ONE sample point: live at rest equals the bake by
-    // identical arguments, and no sub-cell structure can exist here.
-    let cell_gx = addr_used.x;
-    let cell_gz = addr_used.y;
-    let cell_seed = lattice_node_seed(config.world_seed, vec2(cell_gx, cell_gz), 200u);
-
-    // Reconstruct the FIELD identity from the baked LUT (Phase 1,
-    // charter D1.4). The TIER comes from the .w channel — the
-    // tendency/mono lattices and the cascade are NOT re-run here (the
-    // LUT's win). NOTE (ruled, Jean): the baked tier is the CELL
-    // CENTER's; fragments of a cell whose tendency straddles a cascade
-    // cut inside the cell take the center's vocabulary — the cell is
-    // the unit. chess_eff/mono_eff are not reconstructible without the
-    // lattices; 0 here (no consumer on the LUT path — evaluator-path
-    // inputs for the future cascade-glide). Phase 2 (D2.1): the
-    // pigment payload — parity, bw_roll, color_noise, chess colors,
-    // region anatomy — derives inside discrete_cell_color_at_tier;
-    // the reconstruction fills only what FIELD owns.
-    var id: CellIdentity;
-    id.tier = u32(round(baked_tier));
-    id.mode = baked_mode;
-    id.style = baked_style;
-    id.sparse = baked_sparse;
-    id.smooth_color = palette_color_smooth(palette_field_at(world_xz), PALETTE_COMPLEXITY);
-    id.cell_roll = hash_property(cell_seed, 900u);
-    id.sparse_roll = hash_property(cell_seed, 910u);
-    id.chess_eff = 0.0;
-    id.mono_eff = 0.0;
-
-    let tile_gx = i32(floor(world_xz.x / tile_grid.cell_extent));
-    let tile_gz = i32(floor(world_xz.y / tile_grid.cell_extent));
-    let tile = tile_grid_lookup(tile_gx, tile_gz);
-    id.archetype = tile.archetype;
-
-    // The doors — same ONE derivation the evaluator uses (door_values),
-    // fed the biased baked fields.
-    let biased_mode = clamp(baked_mode + config.mode_color_shift, 0.0, 1.0);
-    let doors = door_values(biased_mode, baked_sparse, config.mode_checker_scatter);
-    id.blend_t = doors.x;
-    id.scatter_survival = doors.y;
-    id.sparse_survival = doors.z;
-    id.in_mode_zone = doors.w;
-
-    let dcol = discrete_cell_color_at_tier(world_xz, cell_gx, cell_gz, cell_seed, id.tier,
+// THE ONE LIVE COMPOSITE BODY — ANALYTIC (Commit C, the LUT
+// retirement). The live path calls THE SAME evaluator the bake calls,
+// at the SAME point (the cell center), with VOICE = now and the field
+// biases as FIELD inputs (charter Phase 1). bake = this function at
+// VOICE = rest — one function, two moments, no cache between. Doors
+// and tier follow the CURRENT field definition (the sculpting room
+// and the art agree); the rest look catches up on patch regen, as
+// always. OWNERSHIP (INCIDENT #3) + SAMPLE-POINT (charter C8): the
+// caller passes the OWNED cell and that cell's CENTER — one address,
+// one sample point, no sub-cell structure expressible here.
+fn animated_cell_color(world_center: vec2<f32>, cell: vec2<i32>) -> vec3<f32> {
+    let cell_seed = lattice_node_seed(config.world_seed, cell, 200u);
+    let id = evaluate_cell_fields(world_center, cell.x, cell.y, cell_seed,
+                                  config.mode_color_shift, config.mode_checker_scatter);
+    let dcol = discrete_cell_color_at_tier(world_center, cell.x, cell.y, cell_seed, id.tier,
                                            config.checker_resultant, config.checker_music_amount,
                                            config.checker_music_variance);
     let base = composite_cell_color(id, dcol);
@@ -7831,7 +7718,7 @@ fn animated_cell_color_lut(world_xz: vec2<f32>, addr_used: vec2<i32>,
         var drifted = id;
         drifted.smooth_color = palette_target_color(config.mode_palette_target, PALETTE_COMPLEXITY);
         let tier = u32(round(config.mode_discrete_tier));
-        let drifted_dcol = discrete_cell_color_at_tier(world_xz, cell_gx, cell_gz, cell_seed, tier,
+        let drifted_dcol = discrete_cell_color_at_tier(world_center, cell.x, cell.y, cell_seed, tier,
                                                        config.checker_resultant, config.checker_music_amount,
                                                        config.checker_music_variance);
         let drifted_color = composite_cell_color(drifted, drifted_dcol);
@@ -7920,12 +7807,10 @@ fn generate_patch_cells(@builtin(global_invocation_id) id: vec3<u32>) {
     // Store: RGB = fully composited color, A = behavior tag
     textureStore(patch_cell_color_array_write, texel, layer, vec4(final_color, behavior_tag));
 
-    // Bake spatial field values into LUT for terrain FS (skips 3 lattice noise chains).
-    // Phase 1: the free .w channel now carries the TIER (the cascade's
-    // verdict at the cell center) — the live path reads it instead of
-    // re-running the tendency/mono lattices.
-    textureStore(cell_fields_write, texel, layer,
-        vec4(cell_id.mode, cell_id.style, cell_id.sparse, f32(cell_id.tier)));
+    // (cell_fields LUT store RETIRED — Commit C: the live path
+    //  evaluates the same fields analytically at the cell center. The
+    //  bake's one artifact is the color+tag texture — the cache of
+    //  this function at VOICE = rest.)
 }
 
 
