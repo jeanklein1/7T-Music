@@ -1461,8 +1461,8 @@ struct DesignConfig {
     band_phase_origin_4: f32,
     band_phase_origin_5: f32,
     // ─── Musical animation modes ─────────────────────────────────
-    mode_color_shift: f32,        // [0,~0.6] bias on smooth→discrete mode field
-    mode_checker_scatter: f32,    // [0,~0.5] reduction of sparse survival threshold
+    mode_color_shift: f32,        // SIGNED axis on the mode field; rest 0 is the CENTER (− retreats, + advances); range graduates at Movement 1 close
+    mode_checker_scatter: f32,    // SIGNED axis on sparse survival; rest 0 the center (− extinguishes, + populates); range graduates at Movement 1 close
     mode_palette_target: f32,     // [0,3] target palette (0=sand 1=salmon 2=green 3=warm)
     mode_palette_intensity: f32,  // [0,1] drift strength toward target palette
     mode_discrete_tier: f32,      // [0,4] target discrete tier (0=color 1=tinted 2=BW 3=chessBW 4=chessColor)
@@ -4119,8 +4119,13 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
     // couplings through the visual canvas; the mood retired as author.
     // CHECKER-REBUILD: the checker field is live whenever music_amount
     // rises off 0 (the pull, the wander, and the door all key off it).
-    let has_mode_bias = (config.mode_color_shift > 0.001)
-                     || (config.mode_checker_scatter > 0.001)
+    // SIGNED DOORS (the bipolar coverage ruling): the two door biases
+    // are axes centered on rest — negative retreats what positive
+    // advances. The doors' algebra was born signed; the gate now
+    // hears magnitude. (intensity and amount stay one-sided by
+    // design.)
+    let has_mode_bias = (abs(config.mode_color_shift) > 0.001)
+                     || (abs(config.mode_checker_scatter) > 0.001)
                      || (config.mode_palette_intensity > 0.001)
                      || (config.checker_music_amount > 0.001);
     if (CHECKER_DEBUG_VIEW == 1u) {

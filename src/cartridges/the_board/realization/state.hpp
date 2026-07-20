@@ -431,8 +431,8 @@ namespace t7 {
             // ─── Musical animation modes ─────────────────────────────────
             // Each mode is an independently toggleable coupling circuit.
             // Values are [0,1] intensity, driven by polyphony through trajectory ramp.
-            float mode_color_shift;           // bias added to smooth→discrete mode field
-            float mode_checker_scatter;       // bias subtracted from sparse survival threshold
+            float mode_color_shift;           // SIGNED axis on the mode field; rest 0 is the CENTER (− retreats, + advances); range graduates at Movement 1 close
+            float mode_checker_scatter;       // SIGNED axis on sparse survival; rest 0 the center (− extinguishes, + populates); range graduates at Movement 1 close
             float mode_palette_target;        // [0,3] target palette index (0=sand 1=salmon 2=green 3=warm)
             float mode_palette_intensity;     // [0,1] how strongly to override spatial palette weights
             float mode_discrete_tier;         // [0,4] target discrete tier (0=color 1=tinted 2=BW 3=chessBW 4=chessColor)
