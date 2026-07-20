@@ -53,7 +53,9 @@ function buildPatchIndices(step) {
 
 export function createState(device) {
   const B = GPUBufferUsage, T = GPUTextureUsage, V = GPUShaderStage;
-  const buf = (label, size, usage) => device.createBuffer({ label, size, usage });
+  let totalBytes = 0;   // boot-report §6: total allocated buffer+texture bytes
+  const buf = (label, size, usage) => { totalBytes += size; return device.createBuffer({ label, size, usage }); };
+  const bytesOf = (fmt, w, h, layers) => ({ rgba16float: 8, rgba8unorm: 4, rg32float: 8, depth32float: 4 }[fmt] ?? 4) * w * h * layers;
 
   /* --- buffers (sizes from the terrain build sheet) ------------------------ */
   const R = {
@@ -92,8 +94,10 @@ export function createState(device) {
   device.queue.writeBuffer(R.patchIBLOD1, 0, idx1);
 
   /* --- textures ------------------------------------------------------------ */
-  const tex = (label, format, w, h, layers, usage) =>
-    device.createTexture({ label, format, size: { width: w, height: h, depthOrArrayLayers: layers }, usage });
+  const tex = (label, format, w, h, layers, usage) => {
+    totalBytes += bytesOf(format, w, h, layers);
+    return device.createTexture({ label, format, size: { width: w, height: h, depthOrArrayLayers: layers }, usage });
+  };
 
   R.heightfield = tex('Patch heightfield', 'rgba16float', D.HF_N, D.HF_N, D.MAX_PATCHES_WEB,
     T.STORAGE_BINDING | T.TEXTURE_BINDING);
@@ -220,6 +224,7 @@ export function createState(device) {
     ],
   });
 
+  R.totalBytes = totalBytes;
   return R;
 }
 

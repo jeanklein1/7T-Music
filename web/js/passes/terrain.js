@@ -42,7 +42,7 @@ const ARCHETYPES = [
 const POOL_WEIGHT_OUTDOOR = 0.05;
 
 export class TerrainStreamer {
-  constructor(device, R, config, worldSeed = 42) {
+  constructor(device, R, config, worldSeed = 42, maxCells = 0) {
     this.device = device;
     this.R = R;
     this.config = config;
@@ -60,7 +60,22 @@ export class TerrainStreamer {
     for (let gz = -rad; gz <= rad; gz++) for (let gx = -rad; gx <= rad; gx++) this.pending.push([gx, gz]);
     const c = (g) => (g + 0.5) * D.PATCH_EXTENT;
     this.pending.sort((a, b) => (c(a[0]) ** 2 + c(a[1]) ** 2) - (c(b[0]) ** 2 + c(b[1]) ** 2));
+    // maxCells caps the window (nearest-first) for the software pacing test —
+    // SwiftShader is too slow to fill 225; the pacing logic is window-size-agnostic.
+    if (maxCells > 0) this.pending = this.pending.slice(0, maxCells);
+    this.targetCount = this.pending.length;
     this.staged = 0;                 // staging slots used (monotonic; window is generated once)
+
+    // lod0 ring size — the stage-2-first-pixel target (§1): count cells whose
+    // nearest edge sits within lod0_radius (175). Pending is nearest-first, so
+    // these generate first; the ring is "complete" when counts.lod0 hits this.
+    const half = D.PATCH_EXTENT / 2;
+    this.targetLod0 = this.pending.filter(([gx, gz]) => {
+      const dx = Math.max(0, Math.abs(c(gx)) - half), dz = Math.max(0, Math.abs(c(gz)) - half);
+      return dx * dx + dz * dz <= 175 * 175;
+    }).length;
+    this.lod0Done = false;
+    this.done = false;               // whole window generated
   }
 
   ensureTile(gx, gz) {
@@ -95,8 +110,9 @@ export class TerrainStreamer {
   }
 
   /* per-frame: allocate + generate up to `budget` patches (desktop
-     patches_budget_this_frame analogue), then band if anything changed */
-  encode(enc, budget = 6) {
+     patches_budget_this_frame analogue), then band if anything changed.
+     `passLevel` (§5 bisect lever): 1=heights only, 2=+gradients, 3=+cells. */
+  encode(enc, budget = 2, passLevel = 3) {
     let n = 0;
     while (this.pending.length && n < budget) {
       const [gx, gz] = this.pending.shift();
@@ -117,8 +133,8 @@ export class TerrainStreamer {
       const pass = enc.beginComputePass({ label: `patch gen ${gx},${gz}` });
       pass.setBindGroup(0, this.R.patchGenBG);
       pass.setPipeline(this.R.pipeHeights);   pass.dispatchWorkgroups(16, 16, 1);
-      pass.setPipeline(this.R.pipeGradients); pass.dispatchWorkgroups(16, 16, 1);
-      pass.setPipeline(this.R.pipeCells);     pass.dispatchWorkgroups(2, 2, 1);
+      if (passLevel >= 2) { pass.setPipeline(this.R.pipeGradients); pass.dispatchWorkgroups(16, 16, 1); }
+      if (passLevel >= 3) { pass.setPipeline(this.R.pipeCells);     pass.dispatchWorkgroups(2, 2, 1); }
       pass.end();
 
       this.patches.set(`${gx},${gz}`, { gx, gz, layer });
@@ -127,6 +143,8 @@ export class TerrainStreamer {
     }
     if (this.bandDirty) this.band();
     if (this.tileGridDirty) this.uploadTileGrid();
+    if (this.counts.lod0 >= this.targetLod0) this.lod0Done = true;
+    if (this.pending.length === 0) this.done = true;
     return n;
   }
 

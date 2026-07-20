@@ -689,3 +689,45 @@ Recorded deviations/parity questions:
   buffers); recorded as a JS-host cut of a desktop husk.
 - Seed parity: cpu_hash/tile_seed are u32-exact ports; world_seed 42 tile
   archetypes match desktop.
+
+### Terrain pacing (post first-hardware-boot) — TDR fix
+
+Jean's Intel gen-8 boot posted `DEVICE LOST` right after the first terrain frame:
+the conductor bursted 6 patches × 3 dispatches per rAF with **no back-pressure**,
+the queue grew faster than the iGPU drained it, and a submit tripped the driver's
+watchdog (TDR-class reset). The capability report was clean (census, stride, module
+validation all passed at default limits) — this was pacing, not portability.
+
+Fix (boot.js + terrain.js), Jean's 9-point plan:
+- **Budget**: B patches/frame (start 2), one encoder + one submit per frame, and —
+  the load-bearing part — **while a gen batch is in flight the loop yields and
+  submits nothing**. (First cut still drew every tick during the wait, flooding the
+  queue so each `onSubmittedWorkDone` drained the whole backlog; submit times went
+  865 ms → 5.9 s → 80 s. Yielding fixed it: stable 250–870 ms batches.)
+- **Adaptive**: time each gen submit via `onSubmittedWorkDone`; >150 ms halves B
+  (min 1), <50 ms ×10 grows B ×1.25 (cap 8). No per-device tuning.
+- **Device-lost discipline**: `device.lost` halts the loop, logs reason+message to
+  the boot report, then ONE auto-recovery (re-acquire, rebuild state, resume from
+  the tile cache with B halved); a second loss shows the fallback card, no spinning.
+- **Fallback card** (§4): no `navigator.gpu` / no adapter / double-loss → static
+  card (palette-only placeholder; Jean supplies the visual + copy), "best in
+  Chrome/Edge". Launch gate.
+- **Bisect lever**: `?passes=heights|+gradients|+cells|+draws` caps patch passes;
+  `?patches=N` caps the window (software test); `?skip=present` runs headless.
+- **Boot report**: per-submit max ms, live B, total allocated bytes (**113.9 MB**),
+  device-lost events with reasons.
+- **Stage-2 first pixel redefined** = lod0 ring only (nearest 52), the rest fills in
+  background under the attract camera.
+- **Compression** (§8): mirror served `.gz` (141 KB), fetched `.gz`-first via
+  DecompressionStream, plain fallback; regenerated in the resync ritual.
+
+Container validation (SwiftShader, `?skip=present` — the software adapter is the
+harshest pacing test): **HEADLESS PASS** — capped window fills, B adapts 2→1 on the
+first breach, no device loss, stable per-batch times. The container also exercises
+recovery+fallback for free (its compositor kills the device on first present):
+observed loss → single rebuild (B→1) → second loss → fallback card, exactly as
+specified. Full-225 fill in software is impractically slow (~6 s/patch); real
+window-fill timing is Jean's hardware to post.
+
+Pending (unchanged gate): no family beyond terrain lands until Jean's gen-8 posts a
+clean full boot report (paced fill, no device-loss).

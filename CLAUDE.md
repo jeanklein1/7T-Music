@@ -41,9 +41,17 @@ stays green throughout; the desktop source is upstream for every shader change
 ## Resync ritual (standing; for the every-few-days coupling updates)
 
 1. `cp src/cartridges/the_board/realization/world.wgsl web/shaders/world.wgsl`
-2. Record the source commit hash in the sidecar `web/shaders/world.wgsl.source`.
-3. Emit a diff summary (what changed since the last mirror) in the commit message.
-4. Smoke-test the page — boot clean, no console errors — before pushing.
+2. Regenerate the served-compressed copy: `gzip -9 -c web/shaders/world.wgsl >
+   web/shaders/world.wgsl.gz` (the page fetches `.gz`-first via DecompressionStream).
+3. Record the source commit hash + sha256 in the sidecar `web/shaders/world.wgsl.source`.
+4. Emit a diff summary (what changed since the last mirror) in the commit message.
+5. Smoke-test the page — boot clean, no console errors — before pushing.
+
+Note: `*.wgsl` is pinned to LF in `.gitattributes` so the mirror stays byte-identical
+across platforms (Windows CRLF checkout would break the sidecar sha256). Any branch that
+wholesale-imports `world.wgsl` from an older tree must carry the two uniform-stride
+conformance declarations (`stats: array<vec4<f32>,16>`, `wave_frozen_t` as three scalars),
+or released-Chrome Tint rejects it.
 
 ## Reference implementation
 
@@ -104,7 +112,11 @@ context's clock doesn't advance, and the scene must still drift before entry.
 
 ## Acceptance
 
-- Runs in released Chrome with no flags and no console errors.
+- Runs in released Chrome with no flags and no console errors, **on integrated
+  laptop GPUs** — Jean's Intel gen-8 is the reference machine. No family beyond
+  terrain lands until it posts a clean full boot report there (paced stream fills
+  the window with no device-loss). GPU work is budgeted so a burst can't trip the
+  driver's watchdog (TDR); a lost device recovers once, then shows the fallback.
 - Storage buffers ≤8 per stage, or the exception documented in PORT_MAP.md.
 - Visual behavior matches desktop at default BPM within reason; when a parity call
   is uncertain, match desktop and note the question in PORT_MAP.md — don't invent.
