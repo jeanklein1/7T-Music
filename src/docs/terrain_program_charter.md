@@ -1069,3 +1069,29 @@ Dated 2026-07-19, stamped by Jean (the Phase 1 handoff).
 - **STATUS: fix landed — closes on the re-shot pair** (Jean's exact
   spot, music playing: the crossing seams gone, border cells whole;
   silence unchanged).
+
+### #3b — the sliver microscope (the OOB-chimera theory FALSIFIED)
+
+- **The falsification**: post-`f916678`, a border-strip fragment's
+  owned reads make it IDENTICAL to its edge-cell neighbor (same
+  addr_used, same LUT texel; continuous terms differ by epsilon) —
+  yet Jean's post-fix crop shows the sliver differing from BOTH
+  neighbors. The visible sliver was never the OOB-chimera; `f916678`
+  closed a real but sub-pixel hole and stands on its own merits.
+- **Facts on file**: sliver ≈ 0.6–0.8 wu wide, vertical (constant
+  world X), runs through many cell rows, music-only, world-anchored,
+  differs from both neighbors. Camera: near-overhead (the viewing
+  conditions the earlier grazing shots lacked).
+- **Method — no new theory**: bisect the live color TERM BY TERM.
+  TERRAIN_DEBUG_VIEW = 5 + MICROSCOPE_TERM (both hot): 0 tier map ·
+  1 region median only · 2 owned noise only · 3 doors only ·
+  4 provenance + address (with the unconditional magenta build
+  swatch). Five shots, same spot, music playing. PLUS one number:
+  the [Player] pos line — the sliver sits ~2–3 cells right of the
+  pawn; if its world X is NOT a multiple of PATCH_EXTENT = 50, the
+  "patch border" premise itself dies and the owning lattice gets
+  named by arithmetic (candidates by spacing: cells 3.125 · chess 55
+  · region 80 · mode 120 · sparse base 160 · style 200 · mono 250 ·
+  warp 240 (parked) · palette 300 · activity 400).
+- **STATUS: open — microscope landed, awaiting the five shots + the
+  pos number. No fix in this pass by design.**

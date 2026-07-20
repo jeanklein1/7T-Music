@@ -1703,8 +1703,20 @@ const CHECKER_DEBUG_VIEW: u32 = 0u;
 // PAINT (permanent): skirt fragments magenta. 4 = ZONE-GEOMETRY
 // SCULPTING ROOM (permanent): live mode field grayscale + patch
 // border lines + red coastline isoline — the warp tuning view.
+// 5 = THE SLIVER MICROSCOPE (INCIDENT #3b, TEMPORARY): paints the
+// live color path ONE TERM at a time — select with MICROSCOPE_TERM
+// below; one save per term, five shots, music playing, near-overhead.
 // (INCIDENT #2's I1/I2 audits retired — suspects exonerated.)
 const TERRAIN_DEBUG_VIEW: u32 = 0u;
+// MICROSCOPE_TERM (view 5's selector — INCIDENT #3b, TEMPORARY):
+//   0 = TIER MAP (five flat colors; strip visible → fields/tier side)
+//   1 = REGION MEDIAN ONLY (pull + wander; strip → median/wander path)
+//   2 = OWNED NOISE ONLY (strip → owned-hash path — would contradict
+//       the falsification; report loudly)
+//   3 = DOORS ONLY (R = blend_t · G = scatter_vis · B = show_cell)
+//   4 = PROVENANCE + ADDRESS (addr_used parity, RED = raw OOB, and an
+//       unconditional 50 px MAGENTA corner swatch = build provenance)
+const MICROSCOPE_TERM: u32 = 0u;
 
 // ── ROW 6 — RETIRED (Phase 1, ruling 6) ───────────────────────────
 // Terrain-mode coupling. The magnitude dial was parked at 0.0 — every
@@ -4161,6 +4173,72 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
         const COAST_EPS: f32 = 0.015;
         if (abs(m - MODE_DISCRETE_THRESHOLD) < COAST_EPS) { c = vec3(0.9, 0.1, 0.1); }
         base_color = c;
+    } else if (TERRAIN_DEBUG_VIEW == 5u) {
+        // THE SLIVER MICROSCOPE (INCIDENT #3b — TEMPORARY; remove
+        // after conviction). Paints the live color path ONE TERM at a
+        // time (MICROSCOPE_TERM selects; shoot each with music
+        // playing, near-overhead at the sliver). Ungated by
+        // has_mode_bias — the term quantities themselves carry the
+        // music dependency, so the strip can appear where it lives.
+        let baked5 = textureLoad(cell_fields_read, cell_texel, i32(in.layer), 0);
+        let seed5 = lattice_node_seed(config.world_seed, addr_used, 200u);
+        switch MICROSCOPE_TERM {
+            case 0u: {
+                // TIER MAP — identity.tier as five flat colors.
+                // Strip visible → the FIELDS/tier carry it.
+                switch u32(baked5.a + 0.5) {
+                    case 0u: { base_color = vec3(0.85, 0.35, 0.25); }
+                    case 1u: { base_color = vec3(0.90, 0.75, 0.30); }
+                    case 2u: { base_color = vec3(0.60, 0.60, 0.60); }
+                    case 3u: { base_color = vec3(0.15, 0.15, 0.15); }
+                    default: { base_color = vec3(0.30, 0.55, 0.85); }
+                }
+            }
+            case 1u: {
+                // REGION MEDIAN ONLY — the pull + wander, continuous.
+                // Strip → the median/wander path.
+                base_color = checker_region_median(
+                    in.world_pos.xz, discrete_region_at(in.world_pos.xz).mean,
+                    config.checker_resultant, config.checker_music_amount);
+            }
+            case 2u: {
+                // OWNED NOISE ONLY — 0.5 + color_noise(addr_used)·var.
+                // Strip → the owned-hash path (contradicts the
+                // falsification — report loudly).
+                let noise5 = vec3((hash_property(seed5, 840u) - 0.5) * 2.0,
+                                  (hash_property(seed5, 841u) - 0.5) * 2.0,
+                                  (hash_property(seed5, 842u) - 0.5) * 2.0);
+                let var5 = discrete_region_at(in.world_pos.xz).variance
+                         + min(CHECKER_VAR_MAX, config.checker_music_variance * CHECKER_VAR_PER_NOTE);
+                base_color = clamp(vec3(0.5) + noise5 * var5, vec3(0.0), vec3(1.0));
+            }
+            case 3u: {
+                // DOORS ONLY — the composite's mixing weights:
+                // R = blend_t · G = scatter_vis · B = show_cell.
+                let doors5 = door_values(
+                    clamp(baked5.r + config.mode_color_shift, 0.0, 1.0),
+                    baked5.b, config.mode_checker_scatter);
+                let scatter_vis5 = door_fade(hash_property(seed5, 900u), doors5.y, DOOR_FADE_W_SCATTER);
+                let sparse_vis5 = door_fade(hash_property(seed5, 910u), doors5.z, DOOR_FADE_W_SPARSE);
+                base_color = vec3(doors5.x, scatter_vis5, sparse_vis5 * (1.0 - doors5.w));
+            }
+            default: {
+                // PROVENANCE + ADDRESS — addr_used parity board, RED
+                // where the raw texel is out of domain, and a fixed
+                // 50 px MAGENTA corner swatch drawn unconditionally:
+                // the swatch proves THIS build is the one on screen.
+                let raw5 = cell_address(in.world_pos.xz) - patch_grid * i32(PATCH_CELL_N);
+                if (raw5.x < 0 || raw5.x >= i32(PATCH_CELL_N) ||
+                    raw5.y < 0 || raw5.y >= i32(PATCH_CELL_N)) {
+                    base_color = vec3(1.0, 0.0, 0.0);
+                } else {
+                    base_color = vec3(f32((addr_used.x + addr_used.y) & 1));
+                }
+                if (in.clip_pos.x < 50.0 && in.clip_pos.y < 50.0) {
+                    base_color = vec3(1.0, 0.0, 1.0);
+                }
+            }
+        }
     }
 
     // --- GoL zone visualization
