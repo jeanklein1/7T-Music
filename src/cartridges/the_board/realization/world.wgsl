@@ -4083,6 +4083,14 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
     let cell_texel = clamp(
         cell_address(in.world_pos.xz) - patch_grid * i32(PATCH_CELL_N),
         vec2(0), vec2(i32(PATCH_CELL_N) - 1));
+    // OWNERSHIP RESOLUTION (INCIDENT #3): the cell this fragment READS
+    // is the cell it is PAINTED FROM — the clamped texel's cell. A
+    // border-sliver fragment (rendered by this patch, world floor in
+    // the neighbor's first cell) re-homes to the owned edge cell, so
+    // FIELDS (this texel) and HASHES (this address) can never mix
+    // cells — the chimera is inexpressible. In-domain fragments:
+    // raw == clamped ⇒ addr_used == the world floor, bit-identical.
+    let addr_used = patch_grid * i32(PATCH_CELL_N) + cell_texel;
 
     // Color fully composited at gen-time in the cell texture.
     // Alpha carries the cell behavior tag (0.0 = static, nonzero = animated).
@@ -4118,7 +4126,7 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
         // One-address: the SAME law texel as the color load above — the
         // vocabulary (world-hashed) and the LUT can no longer disagree.
         let baked = textureLoad(cell_fields_read, cell_texel, i32(in.layer), 0);
-        base_color = animated_cell_color_lut(in.world_pos.xz, baked.r, baked.g, baked.b, baked.a);
+        base_color = animated_cell_color_lut(in.world_pos.xz, addr_used, baked.r, baked.g, baked.b, baked.a);
     }
 
     // ── TERRAIN_DEBUG_VIEW — the instrument registry's terrain slots.
@@ -7669,11 +7677,18 @@ fn palette_target_color(palette_idx: f32, complexity: f32) -> vec3<f32> {
 // palette_field_at still runs (1 lattice noise chain) for smooth_color.
 // Pigment resolves through discrete_cell_color_at_tier — the same
 // authority the bake calls at rest (one function, two moments).
-fn animated_cell_color_lut(world_xz: vec2<f32>, baked_mode: f32, baked_style: f32, baked_sparse: f32,
+fn animated_cell_color_lut(world_xz: vec2<f32>, addr_used: vec2<i32>,
+                           baked_mode: f32, baked_style: f32, baked_sparse: f32,
                            baked_tier: f32) -> vec3<f32> {
-    let addr = cell_address(world_xz);   // THE address (one-address law)
-    let cell_gx = addr.x;
-    let cell_gz = addr.y;
+    // OWNERSHIP (INCIDENT #3): the cell identity comes from addr_used —
+    // the FS's OWNED cell (the clamped texel's address), so hashes and
+    // the baked fields share ONE cell for every fragment. world_xz
+    // remains the sample point for the CONTINUOUS interpolations
+    // (palette / chess / region / median) — continuous fields cannot
+    // express a chimera, and keeping them per-fragment preserves
+    // bit-identity for every in-domain fragment.
+    let cell_gx = addr_used.x;
+    let cell_gz = addr_used.y;
     let cell_seed = lattice_node_seed(config.world_seed, vec2(cell_gx, cell_gz), 200u);
 
     // Reconstruct the FIELD identity from the baked LUT (Phase 1,

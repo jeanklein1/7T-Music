@@ -1036,3 +1036,36 @@ Dated 2026-07-19, stamped by Jean (the Phase 1 handoff).
   border at the canonical spot). Smooth stays off-wheel by Jean's
   ruling; transition width remains an open STRUCTURAL item in the
   PIGMENT CONTROL MAP (RULING PENDING).
+- **Canon caveat (added at INCIDENT #3)**: I1's clean shot was true
+  at its camera but the C1 strip is fractions of a cell wide —
+  SUB-PIXEL at that distance. Instruments have viewing conditions;
+  a clean instrument shot clears a mechanism only at the scale the
+  camera can resolve.
+
+### #3 — the border chimera (music-only slivers at patch borders)
+
+- **Opened**: with Jean's pixel-analyzed screenshot — two straight
+  world-axis seams crossing at the pawn (a patch corner); border
+  cells sliced into thin slivers painted with colors belonging to
+  NEITHER neighbor. Music-only; silence clean.
+- **Mechanism (convicted)**: a fragment rendered by patch A whose
+  world position floors into patch B's first cell — its derived texel
+  clamps to A's edge row, so FIELDS (mode/style/sparse/tier) come
+  from A's edge cell while HASHES (rolls, noise, chess parity) came
+  from B's cell via cell_address(world). Two addresses, one fragment
+  — the split brain reborn on a strip only the LIVE path can produce
+  (the bake is world-pure, hence silence clean). Sub-pixel at I1's
+  camera — see the canon caveat above. Cross-reference: the
+  border-strip hunt's C1 fix-shape, now applied.
+- **Fix — OWNERSHIP RESOLUTION**: `addr_used = patch_origin_address +
+  clamped_texel` in patch_terrain_fs; animated_cell_color_lut takes
+  addr_used and derives cell_gx/gz/cell_seed (hence every hash, roll,
+  and noise, including inside discrete_cell_color_at_tier) from it.
+  Continuous interpolations (palette/chess/region/median) keep the
+  fragment's world_xz — continuous fields cannot express a chimera,
+  and in-domain fragments stay bit-identical (raw == clamped ⇒
+  addr_used == the world floor). Live color path only; bake, ground
+  chain, doors, and the parked warp untouched.
+- **STATUS: fix landed — closes on the re-shot pair** (Jean's exact
+  spot, music playing: the crossing seams gone, border cells whole;
+  silence unchanged).
