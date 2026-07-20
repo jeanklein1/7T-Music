@@ -7553,18 +7553,25 @@ fn door_fade(roll: f32, survival: f32, w: f32) -> f32 {
     return clamp((survival - roll) / max(2.0 * w, 1e-6) + 0.5, 0.0, 1.0);
 }
 
-// The four door values from the (biased) fields — ONE derivation, the
-// evaluator's alone (bake and live alike since Commit C retired the LUT
-// reconstruction), so the paths cannot
-// drift. x = blend_t, y = scatter_survival, z = sparse_survival,
-// w = in_mode_zone (FADE form: rises as biased_mode exceeds the scatter
-// floor, width DOOR_FADE_W_ZONE; 0 there = today's hard boolean).
-fn door_values(biased_mode: f32, sparse: f32, sparse_bias: f32) -> vec4<f32> {
+// The four door values — ONE derivation (bake and live alike since
+// Commit C). x = blend_t, y = scatter_survival, z = sparse_survival,
+// w = in_mode_zone.
+// THE MONOTONE AXIS (the moat fix, Jean's ruling): the sparse
+// exclusion keys on the REST field — the countryside's territory is
+// seed-static, like its cells; the tide PAINTS OVER standing sparse
+// cells instead of evicting them (both layers resolve to the same
+// dcol, so absorption is convergence). No single live driver may feed
+// opposing factors of one visible quantity — biased_mode drives the
+// paint UP only; mode_rest holds the gate still. At bias 0 the two
+// arguments are equal: rest and bake bit-identical. DOOR_FADE_W_ZONE
+// is now a STATIC-mask softness dial (territory edge), not a live
+// fade.
+fn door_values(biased_mode: f32, mode_rest: f32, sparse: f32, sparse_bias: f32) -> vec4<f32> {
     let blend_t = smoothstep(MODE_BLEND_EDGE_LO, MODE_BLEND_EDGE_HI, biased_mode);
     let scatter_survival = smoothstep(MODE_SCATTER_FLOOR_EDGE, MODE_SCATTER_CORE_EDGE, biased_mode);
     let sparse_threshold = max(SPARSE_SURVIVAL_THRESHOLD - sparse_bias, 0.0);
     let sparse_survival = smoothstep(sparse_threshold, sparse_threshold + SPARSE_SURVIVAL_WINDOW, sparse);
-    let in_mode_zone = door_fade(MODE_SCATTER_FLOOR_EDGE, biased_mode, DOOR_FADE_W_ZONE);
+    let in_mode_zone = door_fade(MODE_SCATTER_FLOOR_EDGE, mode_rest, DOOR_FADE_W_ZONE);
     return vec4(blend_t, scatter_survival, sparse_survival, in_mode_zone);
 }
 
@@ -7636,9 +7643,10 @@ fn evaluate_cell_fields(
         id.tier = 0u;
     }
 
-    // ── The doors (bias applied here — upstream of the composite) ─
+    // ── The doors (bias applied here — upstream of the composite;
+    //    the zone gate reads the REST field — THE MONOTONE AXIS) ─
     let biased_mode = clamp(id.mode + mode_bias, 0.0, 1.0);
-    let doors = door_values(biased_mode, id.sparse, sparse_bias);
+    let doors = door_values(biased_mode, id.mode, id.sparse, sparse_bias);
     id.blend_t = doors.x;
     id.scatter_survival = doors.y;
     id.sparse_survival = doors.z;
