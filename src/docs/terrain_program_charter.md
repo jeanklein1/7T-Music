@@ -241,8 +241,10 @@ hand-inline the identical math (duplication finding C2-F2).
 | 6 | chess | chess_tendency/color_a/color_b_at_node | CHESS_LATTICE_SPACING = 55 | 12/13/14 | 850; 860–862; 870–872 | tendency raw^25; colors raw RGB | chess tier of the cascade |
 | 7 | region | discrete_region_at_node | DISCRETE_COLOR_LATTICE_SPACING = 80 | 10 (wander id: 20) | 800–804; wander 601–603 | var = .02+raw·.23; receptivity raw | tinted + full-color tiers |
 | 8 | mono | discrete_mono_at_node | DISCRETE_MONO_LATTICE_SPACING = 250 | 11 | 810 | raw^20 | BW/tint cuts |
-| 9 | terrain-mode coupling | coupling_strength/direction_at_node | COUPLING_LATTICE_SPACING = 250 | 15/16 | 530/531 | strength raw^3; direction trimodal ±1/0 | evaluate_cell_fields mode shift — DISABLED (C2-F1) |
+| 9 | terrain-mode coupling | coupling_strength/direction_at_node | COUPLING_LATTICE_SPACING = 250 | 15/16 | 530/531 | strength raw^3; direction trimodal ±1/0 | RETIRED whole (P1-C4, ruling 6); bands/props stay reserved |
 | 10 | activity (non-color) | inline in terrain_activity_at | ACTIVITY_LATTICE_SPACING = 400 | 50 (direct) | 220/221 | beat_freq log-interp | wave gating |
+| 11 | vocab warp X (ZONE GEOMETRY) | vocab_warp_channel band 17 | MODE_WARP_SCALE = 240 | 17 | 540 | raw·2−1 → [−1,1] × MODE_WARP_AMP | domain warp of mode/style/sparse (AMP = 0 = identity) |
+| 12 | vocab warp Y (ZONE GEOMETRY) | vocab_warp_channel band 18 | MODE_WARP_SCALE = 240 | 18 | 540 | raw·2−1 → [−1,1] × MODE_WARP_AMP | domain warp of mode/style/sparse (AMP = 0 = identity) |
 
 ### The doors (composite_cell_color L7536 / _biased L7567) — CONTINUITY CLASSIFICATION
 
@@ -627,13 +629,21 @@ if (n > 0) {
 
 ### TERRAIN_DEBUG_VIEW registry (proposal)
 
+*(W3.4 status — the registry as it stands after the zone-geometry
+work: 0 art · 1 wheel meter (CHECKER 1) · 2 coverage (CHECKER 2) ·
+3 skirt paint (TERRAIN 3, permanent) · 4 zone-geometry sculpting room
+(TERRAIN 4, permanent: live post-warp mode field + patch border lines
++ red coastline isoline). INCIDENT #2's I1/I2 audits and the Phase-2
+tier view retired after their shots. The full single-registry
+migration — one const, the layout below — is still Phase 4.)*
+
 | slot | name | shows |
 |---|---|---|
 | 0 | ART | fold-out (existing) |
 | 1 | VOICE METER | resultant × presence (existing) |
-| 2 | RECEPTIVITY | existing |
-| 3 | FIELD COVERAGE | cells taking the live LUT path vs baked |
-| 4 | MODE FIELD | LUT .r grayscale + threshold contour |
+| 2 | FIELD COVERAGE | cells taking the live LUT path vs baked (existing) |
+| 3 | SKIRT PAINT | perimeter curtain fragments (existing) |
+| 4 | ZONE GEOMETRY | live mode field + borders + coastline (existing) |
 | 5 | SPARSE SURVIVAL | LUT .b vs survival window |
 | 6 | MOTION PHASE | band blend/phase state |
 | 7 | GUEST MASKS | wander offset + spread magnitude |
@@ -814,6 +824,89 @@ stains that outlive the ring.
 
 ---
 
+## THE PIGMENT CONTROL MAP (W3.1 — the decision tree, every knob tagged)
+
+Tags: **S** = STRUCTURAL (redraws geography; regen to see; a ruling to
+move) · **C** = COUPLABLE (voice-drivable, glided, rest = identity) ·
+**D** = DERIVED (no knobs by law).
+
+**VOCABULARY SELECT**
+- zone geometry: lattice spacing **S** (`MODE_LATTICE_SPACING`, ROW 4)
+  · warp amp **S** (`MODE_WARP_AMP`, ROW 4 ZONE-GEOMETRY — new, landed
+  0) · warp scale **S** (`MODE_WARP_SCALE`, same group) · node bias
+  **S** (`MODE_BIAS_EXPONENT`, ROW 4)
+- coverage: threshold **S** (`MODE_DISCRETE_THRESHOLD`, ROW 4) ·
+  threshold bias **C** (voice.field → `mode_color_shift` /
+  `mode_checker_scatter` — driverless today; fade-band prerequisite
+  already LANDED at W = 0, ROW 5 DOOR_FADE_W_*)
+- transition: blend width **S** (`MODE_BLEND_EDGE_LO/HI`, ROW 5 —
+  **RULING PENDING**: Jean's open taste call from INCIDENT #2) ·
+  character doors **S** (`MODE_SCATTER_*`, `SPARSE_SURVIVAL_*`, ROW 5)
+  · door fade widths **C-adjacent** (`DOOR_FADE_W_*`, ROW 5)
+
+**SMOOTH**
+- palette centers/lights/weights **C** (graduated to config, ROW 1 —
+  driverless today) · complexity **S** (`PALETTE_COMPLEXITY`, ROW 3)
+
+**CHECKER**
+- tier cuts **S** (`CHESS_TENDENCY_CUT` / `CHESS_COLORFUL_CUT` /
+  `MONO_BW_CUT` / `MONO_TINT_CUT`, ROW 5) · tint strength **S**
+  (`DISCRETE_TINT_STRENGTH`, ROW 5, pinned) · per-tier vocabularies
+  **S** (the anchors in discrete_cell_color_at_tier — the protected
+  set) · the music wheel **C** (voice.color — LIVE: `checker_resultant`
+  + `checker_music_amount` + `checker_music_variance`, ROW 5 dials
+  CHECKER_WANDER / VAR_PER_NOTE / VAR_MAX)
+
+**DERIVED** — blend_t, scatter/sparse survivals, the composite:
+no knobs by law (door_values + composite_cell_color are arithmetic
+over FIELD + the dials above).
+
+---
+
+## ARCHAEOLOGY — the zone-geometry dig (W0, Route verdict: B)
+
+The memory ("this exact gridded-zone look was solved months ago") was
+dug before building. **Verdict: ROUTE B — no ancestor mechanism ever
+existed; the memory maps to constant-taming.** So the next person
+doesn't re-dig:
+
+- **Recipes run**: `git log --oneline --all --follow -- …world.wgsl`;
+  pickaxe `-S` over all branches for `warp` / `rotate` / `jitter` /
+  `skew` / `mode_field` / `mode_tendency` / `MODE_LATTICE_SPACING` /
+  `MODE_DISCRETE_THRESHOLD: f32 = 0.05` / `flooded stage`; full-body
+  reads of the mode chain at `1d954e7` (2026-04-04), `bb11a1d`,
+  `ca2b93c^`, `ca2b93c`, HEAD.
+- **Finding 1 — the field never had geometry machinery.** At every
+  point in history the mode field is the same square lattice +
+  separable Hermite (lattice_coord/lattice_weight) + quintic node bias
+  (`MODE_BIAS_EXPONENT = 5.0`), spacing 120, threshold 0.70. The
+  pickaxe `warp`/`skew` hits are orbs/lab code; `rotate`/`jitter` hits
+  in world.wgsl are quaternions, per-cell tier jitters (props 815/820,
+  still present), and wave seed jitter — none touch the vocabulary
+  sampling domain.
+- **Finding 2 — the overwrite event was real but lost only a tuning
+  excursion.** `297e670`'s own message convicts CHECKER-2's
+  `ca2b93c` ("canvas and world") of replacing world.wgsl from an older
+  tree. Its mode-region hunk, quoted:
+
+  ```
+  -const MODE_DISCRETE_THRESHOLD: f32 = 0.70;       // above → discrete cells
+  +const MODE_DISCRETE_THRESHOLD: f32 = 0.25;       // SCOPE (temp): flooded stage for calibration — RESTORE 0.70
+  ```
+
+  plus the header stamp `0.70 → 0.05` (the arch-F1 fossil, fixed
+  P1-C4). `a5f1aa2` ("CHECKER-2 S1: instruments retired") restored
+  0.70. The stride-fix commits themselves (`951faf4`/`3665ed6`/
+  `297e670`) are 13–14-line uniform-struct diffs — not a loss event.
+- **Conclusion**: the solved look lived in the dials (high threshold +
+  quintic bias keeping zones rare and small); the coupling era's
+  stronger contrasts un-hid the lattice's native axis-aligned
+  anisotropy. The new SYSTEM (the zone-geometry warp, lattices 11/12,
+  seed bands 17/18) is the right answer — landed at identity, Jean
+  sculpts in view 4.
+
+---
+
 ## ARCHAEOLOGY — the per-beat flicker (VOICE.event's ancestor)
 
 **FOUND (historical, removed).** The remembered effect is the CHECKER-1
@@ -932,6 +1025,14 @@ Dated 2026-07-19, stamped by Jean (the Phase 1 handoff).
 - **Instruments**: TERRAIN_DEBUG_VIEW 1/2/3 (I1 texel audit, I2 LUT
   field audit, I3 skirt paint) — temporary, hot-reload, removed after
   conviction.
-- **STATUS: open — instruments landed, awaiting Jean's three
-  screenshots at the canonical spot (music playing).** Closes with
-  the conviction + fix hash.
+- **STATUS: CLOSED (W3.2).** The three instruments exonerated all
+  five mechanical suspects: I1 parity clean and continuous across
+  borders (C1 cleared), I2 mode continuous and organic at the sampled
+  spots (C2/C3 cleared), I3 skirts clean away from the band (C4
+  cleared), C5 excluded by R1 (rings share extent and CELL_N). Cause
+  RECLASSIFIED — no defect: the band is the blend zone's honest face
+  under voice divergence (the live recolor mixes off-wheel smooth
+  with pulled discrete inside the blend band, which near-parallels a
+  border at the canonical spot). Smooth stays off-wheel by Jean's
+  ruling; transition width remains an open STRUCTURAL item in the
+  PIGMENT CONTROL MAP (RULING PENDING).
