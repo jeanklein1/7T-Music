@@ -157,6 +157,14 @@ namespace t7 {
     inline constexpr float TINT_D1[3] = { 0.8165f, -0.4082f, -0.4082f };
     inline constexpr float TINT_D2[3] = { 0.0f,     0.7071f, -0.7071f };
 
+    // ── DOOR AXES (Movement 1 harvest) ── signed coverage spans from the
+    // door algebra at the tested ±0.80 sweep; the Movement-2 coupling
+    // maps goals into these. Dials — nudge by taste.
+    inline constexpr float TIDE_SHIFT_MIN   = -0.65f;  // zones fully closed
+    inline constexpr float TIDE_SHIFT_MAX   =  0.75f;  // full flood
+    inline constexpr float RAIN_SCATTER_MIN = -0.80f;  // countryside extinct (densest clusters linger)
+    inline constexpr float RAIN_SCATTER_MAX =  0.25f;  // storm saturation
+
     // ── CHECKER-REBUILD — the pitch-class color field (the checker voice) ──
     // Source: the voice's WINDOW pc-LENGTH vector (window_length, 12-wide,
     // duration-weighted, dressed to D — the Playhead + Wagon compound,
