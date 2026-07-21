@@ -1100,23 +1100,6 @@ fn mode_field_at(world_xz: vec2<f32>) -> f32 {
     return result;
 }
 
-// TEMPERAMENT — each mode node's static bias gain [FLOOR, 1]: how
-// eagerly that country answers the tide. Samples the SAME warped
-// domain as mode_field_at (one geography, coherently deformed).
-// Prop 502 on the mode node seed (band 1) — declared here, reserved.
-fn temperament_at(world_xz: vec2<f32>) -> f32 {
-    let wp = world_xz + vocab_warp(world_xz);
-    let lc = lattice_coord(wp, MODE_LATTICE_SPACING);
-    var result: f32 = 0.0;
-    for (var dz: i32 = 0; dz <= 1; dz++) {
-        for (var dx: i32 = 0; dx <= 1; dx++) {
-            let raw = hash_property(color_lattice_seed(lc.base + vec2(dx, dz), 1u), 502u);
-            result += mix(TEMPERAMENT_FLOOR, 1.0, raw) * lattice_weight(lc, dx, dz);
-        }
-    }
-    return result;
-}
-
 // Transition style at each lattice node: blend vs scatter.
 // Trimodal: nodes commit to blend (0.0), scatter (1.0), or hybrid (0.5).
 // Scatter slightly favored so probability fade-outs are more common.
@@ -1337,17 +1320,10 @@ fn discrete_mono_at(world_xz: vec2<f32>) -> f32 {
 // All time-variation enters through the CPU envelope (Segments); the GPU
 // receives only glided values and static seeds. A stepped GPU-side hash is
 // a teleport by construction and is BANNED in this module.
-// THE QUANTUM CLAUSE (charter C8, INCIDENT #3b conviction): the region
-// node derives from the CELL, never from a fragment position — the
-// signature enforces the law by type. The 80-unit personality boundary
-// now lands BETWEEN cells, never through one; the sub-cell sliver is
-// inexpressible. amount 0 annihilates the whole term, so
-// SILENCE-IDENTITY holds by the same arithmetic as before.
+// QUANTUM CLAUSE (charter C8): the node derives from the CELL — by type.
 fn checker_region_median(cell: vec2<i32>, seed_mean: vec3<f32>,
                          resultant: vec3<f32>, music_amount: f32) -> vec3<f32> {
-    // Region id = the 80-unit discrete color lattice node containing the
-    // CELL CENTER (the same lattice discrete_region_at interpolates) —
-    // one fixed wander per region, coastline snapped to the cell grid.
+    // Region id: the 80-unit node containing the CELL CENTER.
     let cs = PATCH_EXTENT / f32(PATCH_CELL_N);
     let center = (vec2<f32>(cell) + 0.5) * cs;
     let node = vec2<i32>(floor(center / DISCRETE_COLOR_LATTICE_SPACING));
@@ -1665,16 +1641,7 @@ const DISCRETE_MONO_LATTICE_SPACING: f32 = 250.0; // large B&W tendency zones
 const MODE_WARP_AMP: f32 = 0.0;      // wu displacement; 0 = identity
 const MODE_WARP_SCALE: f32 = 240.0;  // wavelength (~2× mode spacing)
 
-// ── TEMPERAMENT (ROW 4 group) — per-zone bias gain ─────────────────
-// Each mode node rolls a static gain in [FLOOR, 1] (prop 502 on the
-// mode node's own seed): how eagerly that country answers the tide,
-// in BOTH directions of the signed axis. FLOOR 1.0 = uniform
-// (identity, landed — the warp precedent); sculpt DOWN to hear
-// personality (0.6 mild, 0.3 strong). Effective flood ≈ the uniform
-// flood mark ÷ FLOOR at the most reluctant country — re-mark after
-// sculpting. Hot-reloadable. The rain's twin temperament (a gain on
-// sparse_bias, own prop) is a noted margin item, not built here.
-const TEMPERAMENT_FLOOR: f32 = 1.0;  // 1 = uniform / identity
+// (temperament retired — YAGNI, Movement 1 close; prop 502 reserved. charter.)
 
 // ── ROW 5 — COMPOSITE CUTS & EDGES ──────────────────────────────────
 // The decision thresholds of the color composite, promoted OUT of the
@@ -1716,13 +1683,11 @@ const CHECKER_WANDER: f32 = 0.12;
 // distinct → 0 extra. Tune by eye.
 const CHECKER_VAR_PER_NOTE: f32 = 0.025;   // seed-var add per distinct pc beyond the first
 const CHECKER_VAR_MAX: f32 = 0.30;         // ceiling on the music spread add
-// DOOR FADE WIDTHS — ruling 2i (charter C2), the flip→glide law's dials.
-// 0 = today's step, bit-for-bit (door_fade saturates); the dials open at
-// the coverage era, when a moving bias must dissolve cells across a soft
-// front instead of popping them (SEAMLESSNESS in time). One per door.
-const DOOR_FADE_W_SCATTER: f32 = 0.0;
-const DOOR_FADE_W_SPARSE: f32 = 0.0;
-const DOOR_FADE_W_ZONE: f32 = 0.0;
+// DOOR FADE WIDTHS — roll-band half-widths (flip→glide, charter C2/2i).
+// Ruled 0.07 (Movement 1). _ZONE softens the static sparse-territory mask.
+const DOOR_FADE_W_SCATTER: f32 = 0.07;
+const DOOR_FADE_W_SPARSE: f32 = 0.07;
+const DOOR_FADE_W_ZONE: f32 = 0.07;
 // CHECKER_DEBUG_VIEW — the institutionalized instrument (hot-reload):
 //   0 = the art. 1 = WHEEL METER: all ground painted by the wheel as
 //   the shader receives it (angle → hue on the same recipe as the
@@ -4147,11 +4112,7 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
     // couplings through the visual canvas; the mood retired as author.
     // CHECKER-REBUILD: the checker field is live whenever music_amount
     // rises off 0 (the pull, the wander, and the door all key off it).
-    // SIGNED DOORS (the bipolar coverage ruling): the two door biases
-    // are axes centered on rest — negative retreats what positive
-    // advances. The doors' algebra was born signed; the gate now
-    // hears magnitude. (intensity and amount stay one-sided by
-    // design.)
+    // SIGNED DOORS (charter): the door biases are axes centered on rest.
     let has_mode_bias = (abs(config.mode_color_shift) > 0.001)
                      || (abs(config.mode_checker_scatter) > 0.001)
                      || (config.mode_palette_intensity > 0.001)
@@ -4167,16 +4128,8 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
         // The full instrument registry arrives Phase 4.
         base_color = select(vec3(0.45), vec3(0.25, 0.7, 0.35), has_mode_bias);
     } else if (has_mode_bias) {
-        // THE SAMPLE-POINT LAW (charter C8): the cell is the unit — every
-        // live term samples at the CELL CENTER, the same point the bake
-        // evaluated. live(VOICE→rest) equals the bake by identical
-        // arguments; every fragment of a cell is one color; sub-cell
-        // structure is inexpressible on the live path.
-        // ANALYTIC since Commit C (the LUT retirement): the live path
-        // calls THE SAME evaluator the bake calls — no cache between the
-        // two moments, and no patch-indexed input remains in the live
-        // color path (the color/tag texel above is the bake's own art,
-        // cell-aligned by the one-address law).
+        // SAMPLE-POINT + ANALYTIC (charter C8): the bake's evaluator,
+        // at the cell center — one function, two moments, no cache.
         let cell_center = (vec2<f32>(addr_used) + 0.5) * (PATCH_EXTENT / f32(PATCH_CELL_N));
         base_color = animated_cell_color(cell_center, addr_used);
     }
@@ -7581,19 +7534,9 @@ fn door_fade(roll: f32, survival: f32, w: f32) -> f32 {
     return clamp((survival - roll) / max(2.0 * w, 1e-6) + 0.5, 0.0, 1.0);
 }
 
-// The four door values — ONE derivation (bake and live alike since
-// Commit C). x = blend_t, y = scatter_survival, z = sparse_survival,
-// w = in_mode_zone.
-// THE MONOTONE AXIS (the moat fix, Jean's ruling): the sparse
-// exclusion keys on the REST field — the countryside's territory is
-// seed-static, like its cells; the tide PAINTS OVER standing sparse
-// cells instead of evicting them (both layers resolve to the same
-// dcol, so absorption is convergence). No single live driver may feed
-// opposing factors of one visible quantity — biased_mode drives the
-// paint UP only; mode_rest holds the gate still. At bias 0 the two
-// arguments are equal: rest and bake bit-identical. DOOR_FADE_W_ZONE
-// is now a STATIC-mask softness dial (territory edge), not a live
-// fade.
+// The four doors — ONE derivation, bake and live alike.
+// x blend_t · y scatter_survival · z sparse_survival · w in_mode_zone.
+// MONOTONE AXIS (charter C8): the zone gate reads mode_rest.
 fn door_values(biased_mode: f32, mode_rest: f32, sparse: f32, sparse_bias: f32) -> vec4<f32> {
     let blend_t = smoothstep(MODE_BLEND_EDGE_LO, MODE_BLEND_EDGE_HI, biased_mode);
     let scatter_survival = smoothstep(MODE_SCATTER_FLOOR_EDGE, MODE_SCATTER_CORE_EDGE, biased_mode);
@@ -7671,10 +7614,9 @@ fn evaluate_cell_fields(
         id.tier = 0u;
     }
 
-    // ── The doors (bias applied here — upstream of the composite;
-    //    the zone gate reads the REST field — THE MONOTONE AXIS;
-    //    the tide lands through TEMPERAMENT — per-zone gain, ROW 4) ─
-    let biased_mode = clamp(id.mode + mode_bias * temperament_at(world_xz), 0.0, 1.0);
+    // Doors — bias upstream of the composite; zone gate reads the
+    // REST field (MONOTONE AXIS, charter C8).
+    let biased_mode = clamp(id.mode + mode_bias, 0.0, 1.0);
     let doors = door_values(biased_mode, id.mode, id.sparse, sparse_bias);
     id.blend_t = doors.x;
     id.scatter_survival = doors.y;
@@ -7736,16 +7678,9 @@ fn palette_target_color(palette_idx: f32, complexity: f32) -> vec3<f32> {
 //  it; the name animated_cell_color returns, now THE one live
 //  composite body.)
 
-// THE ONE LIVE COMPOSITE BODY — ANALYTIC (Commit C, the LUT
-// retirement). The live path calls THE SAME evaluator the bake calls,
-// at the SAME point (the cell center), with VOICE = now and the field
-// biases as FIELD inputs (charter Phase 1). bake = this function at
-// VOICE = rest — one function, two moments, no cache between. Doors
-// and tier follow the CURRENT field definition (the sculpting room
-// and the art agree); the rest look catches up on patch regen, as
-// always. OWNERSHIP (INCIDENT #3) + SAMPLE-POINT (charter C8): the
-// caller passes the OWNED cell and that cell's CENTER — one address,
-// one sample point, no sub-cell structure expressible here.
+// THE ONE LIVE COMPOSITE BODY — the bake's evaluator at VOICE = now,
+// sampled at the owned cell's center (charter C8). Rest look catches
+// up on regen.
 fn animated_cell_color(world_center: vec2<f32>, cell: vec2<i32>) -> vec3<f32> {
     let cell_seed = lattice_node_seed(config.world_seed, cell, 200u);
     let id = evaluate_cell_fields(world_center, cell.x, cell.y, cell_seed,
