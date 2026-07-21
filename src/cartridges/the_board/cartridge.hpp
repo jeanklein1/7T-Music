@@ -796,52 +796,6 @@ namespace t7 {
                     }
                 }
 
-                // ── DOORS SCOPE (Movement 1 calibration — TEMPORARY).
-                // A slow SIGNED CPU triangle on ONE door channel at a
-                // time — the sweep runs −CEILING → +CEILING → −CEILING,
-                // crossing IDLE (0, the axis center) twice per period,
-                // through the REAL setters — the wire Movement 2's
-                // couplings will ride, exercised end to end. Repeatable
-                // and music-free: time_state_.beats is the held-last
-                // clock (100 BPM at rest), so the instrument breathes
-                // through silence and stopped transport. CHECKER-1
-                // SCOPE lineage. RETIREMENT RECIPE: when both ceilings
-                // are read, DELETE this whole block — the boot pins
-                // (Cartridge::initialize) restore the rests on the next
-                // run. Channel switch is constexpr: one glaw1 build.
-                //   0 = off
-                //   1 = mode_color_shift    (THE TIDE — coastlines advance)
-                //   2 = mode_checker_scatter (THE RAIN — open country speckles)
-                //   3 = COMPOSED — one axis, both doors, same v:
-                //       −ceiling = whole terrain smooth · +ceiling =
-                //       whole terrain checkers. Gains 1:1 for the
-                //       trial (the countryside saturates before the
-                //       coastlines on the way up); per-direction
-                //       gains graduate from the marks. The tide half
-                //       rides TEMPERAMENT if its floor < 1.
-                {
-                    static constexpr int   DOORS_SCOPE_CHANNEL      = 3;
-                    static constexpr float DOORS_SCOPE_PERIOD_BEATS = 32.0f;  // ~19 s breath — slow read for the extinction mark
-                    static constexpr float DOORS_SCOPE_CEILING      = 0.80f;  // deliberately PAST the useful range
-                    if constexpr (DOORS_SCOPE_CHANNEL != 0) {
-                        const float phase = time_state_.beats / DOORS_SCOPE_PERIOD_BEATS;
-                        const float tri = 1.0f - std::fabs(2.0f * (phase - std::floor(phase)) - 1.0f);
-                        const float v = (2.0f * tri - 1.0f) * DOORS_SCOPE_CEILING;
-                        if constexpr (DOORS_SCOPE_CHANNEL == 1)      { gpuState_.set_mode_color_shift(v); }
-                        else if constexpr (DOORS_SCOPE_CHANNEL == 2) { gpuState_.set_mode_checker_scatter(v); }
-                        else { gpuState_.set_mode_color_shift(v); gpuState_.set_mode_checker_scatter(v); }
-                        // [DOORS_SCOPE] meter: one line per 0.05 step —
-                        // the console number pairs with the look on
-                        // screen; the ceiling is read off this meter.
-                        static int doors_scope_last_step = -1;
-                        const int doors_scope_step = (int)(v * 20.0f);
-                        if (doors_scope_step != doors_scope_last_step) {
-                            std::fprintf(stderr, "[DOORS_SCOPE] ch=%d v=%.2f\n",
-                                DOORS_SCOPE_CHANNEL, v);
-                            doors_scope_last_step = doors_scope_step;
-                        }
-                    }
-                }
             }
 
             // U5 — MOTION BODIES (wall-clock). Pawn presence ramp + aura height
