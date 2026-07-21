@@ -1,0 +1,92 @@
+═══════════════════════════════════════════════════════════════════════
+CC HANDOFF H5 — STAGE 4: THE COMPUTE REWIRE + THE EVICTIONS
+The walls fall here. Order inside this handoff is LOAD-BEARING:
+[5a] plumbing → [5b] WGSL rewiring + MACHINE GATE → [5c] evictions.
+Do not start [5c] until [5b]'s analyzer gate passes.
+═══════════════════════════════════════════════════════════════════════
+
+COMMIT [5a] — compute read plumbing + comment flips
+1. CLASS B — state.hpp, Compute Texture Layout + group: APPEND entry
+   bind::g1::live_card_read (34), sampled Float, e2D, COMPUTE;
+   group binds liveCardView_. (bilinear g1:22 + nearest g1:23 are
+   already this group's samplers; nearest was retained in H1 for
+   exactly this moment.)
+2. CLASS B — Compute Entity Layout: flip the three future-live comments
+   (145/146/152) and Compute Texture's nearest (23) from "dead today"
+   to "LIVE — the agents' baked ground path / the card's cell-exact
+   GoL fetch (GROUND_CARD_1 H5)."
+3. CLASS B — Entity Placement pipeline gains group 1: in renderer.hpp,
+   the placement pipeline layout becomes [placement layout,
+   compute_texture_layout]; in render_passes.hpp the placement dispatch
+   adds SetBindGroup(1, compute_texture_group). (Shared @group(1)
+   declarations serve; unused group members are legal — the layout must
+   cover the shader, not vice versa.)
+
+COMMIT [5b] — WGSL: the query family speaks card
+Target compositions (campaign v2 §4). `base(p)` = sample_terrain_y_at(p);
+`live(p)` = sample_live_card(p); `gol(p)` = sample_live_card_gol(p);
+`supp` = the body's OWN existing suppression smoothstep (unchanged).
+4. CLASS B — for EACH of the live-query bodies (paste each fn verbatim
+   in the log, then transform; the family: the walker query, the
+   walker PAIR query, the walker-tilt/camera form, the agent form, the
+   flyer form — use the tree's actual names; they live in the §3.4
+   query/manifold region):
+     - REPLACE the [static-base + pyramids] evaluation with base(p).
+     - REPLACE the [waves + pulses] evaluations with live(p).x.
+     - REPLACE the [GoL zone loop / contrib_gol_zones_at] term with
+         gol(p)            where the body had no suppression, and
+         gol(p) * (1.0 - supp)   where it did.
+     - AURA terms untouched (self scalar for walker; external texture
+       sample for agent/flyer).
+     - PAIR form: two points ⇒ two base + two live + two gol fetches,
+       per-point supp, exactly mirroring its current two-point shape.
+5. CLASS B — the manifold dispatch (the policy switch): VERIFY its arms
+   call the query bodies (expected). If any arm inlines contributors
+   directly, apply transform 4 to that arm too. Paste the switch in the
+   log either way.
+6. CLASS B — compute_entity_placement: its terrain reads already ride
+   sample_terrain_y_at (audit cc4). REPLACE only its GoL term(s)
+   (zone loop / contrib_gol_zones_at at the placement points and arch
+   feet) with gol(point) — RAW, no suppression, per the placement
+   ruling. Paste before/after.
+7. MACHINE GATE — rerun audit/cc4_wgsl_static_usage.py on the edited
+   world.wgsl. REQUIRED RESULT: the five agent entry points
+   (update_player_agent / update_other_agents / update_camera /
+   update_sphere / update_cube) reference NONE of
+   {pier_instances, tile_grid, pyramid_instances, zone_config,
+   zone_life}; compute_entity_placement references neither zone
+   binding. Paste the five entry points' binding sets in the log.
+   FAIL ⇒ the transform missed a path: STOP, report the residue chain,
+   do not proceed to [5c].
+8. Residue census: remaining callers of contrib_static_base_at /
+   contrib_pyramids_at / contrib_gol_zones_at / the wave + pulse
+   evaluators must be exactly: the bake (ground_formed chain), the two
+   SKIP-DOOMED zone-mesh sites (incl. the zone baked-sampler fallback
+   chain), and write_live_card. Grep, paste the list.
+
+COMMIT [5c] — the evictions (probe_b certified shapes)
+9. CLASS B — Compute Entity Layout + group: REMOVE the entry pairs for
+   pier_instances (26), zone_config (160), zone_life (161),
+   tile_grid (25), pyramid_instances (30). audit probe_b's per-evictee
+   diffs are the model shapes.
+10. CLASS B — Entity Placement Layout + group: REMOVE zone_config +
+    zone_life entry pairs.
+11. Comment truths at both sites: the zone pair's home line ("now bound
+    only by the GoL sim layouts and the live-card writer —
+    GROUND_CARD_1"); pier/tile/pyramid exits point at the card + baked
+    path.
+12. DO NOT touch: the GoL Zone layout (pier stays until Stage 5), the
+    Patch Gen layout (the bake keeps its full analytic set), the
+    writer's layout (zone pair lives there now), Render Entity
+    (unchanged this campaign).
+
+glaw1 after [5c].
+EXPECTED POST-H5 (H6 recounts): Compute Entity 5 storage {vp, agents,
+camera, floaters, patch_grid} / 5 uniform {signal, config, portals,
+behaviors, tier_gains} / heightfield tex + sampler live; Compute Texture
+2 sampled (aura, card) / 2 samplers; Placement 5 storage + card via g1.
+DISCLOSURES riding this handoff (log them): agents move analytic→baked
+(same surface the pixels stand on — the deeper agreement); transient
+NEEDS_REGEN staleness — a freshly placed pier reads pre-bake ground for
+the few frames until patch regen (placement already lived with this).
+═══════════════════════════════════════════════════════════════════════

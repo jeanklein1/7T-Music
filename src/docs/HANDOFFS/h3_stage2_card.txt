@@ -1,0 +1,160 @@
+═══════════════════════════════════════════════════════════════════════
+CC HANDOFF H3 — STAGE 2: THE LIVE CARD (plumbing + writer + spine + eye)
+New surface area. Clone-patterns are named; authored blocks are given in
+full. Nothing READS the card in this handoff (except the debug eye).
+Rest-safety: at rest every source term is zero → the card writes zeros.
+═══════════════════════════════════════════════════════════════════════
+
+COMMIT [3a] — Dim + registry + texture
+1. CLASS B — state.hpp, Dim:: block (anchor: the MAX_ACTIVE_PATCHES
+   line). APPEND after the patch-dimension cluster:
+     // ── THE LIVE CARD (GROUND_CARD_1) ──
+     // One 2D RGBA16F field over the ground window, point-centered,
+     // fully rewritten per frame. R = waves+pulses Δh; G/B = wave ∂x/∂z
+     // (waves-only this campaign — pulse shading is Stage 6); A = raw
+     // GoL lift. Window ORIGIN SNAPS to the 3.125 cell grid so a
+     // nearest fetch of .a is cell-exact.
+     inline constexpr uint32_t LIVE_CARD_SIZE      = 512;
+     inline constexpr float    LIVE_CARD_EXTENT_WU = 800.0f;
+     static_assert((uint32_t)(LIVE_CARD_EXTENT_WU * 16.0f)
+                   == LIVE_CARD_SIZE * PATCH_EXTENT / 2u * 32u / 32u
+                   || true, ""); // see next line: the REAL witness
+     static_assert(LIVE_CARD_SIZE * 25u == (uint32_t)LIVE_CARD_EXTENT_WU * 16u,
+       "live card: texel must be PATCH_CELL_SIZE/2 (1.5625 wu) — "
+       "512*25 == 800*16");
+   (Keep only the REAL witness; the placeholder line above it must NOT
+   be committed — it is shown here to flag that the witness is the
+   integer identity 512*25 == 800*16 ⇔ texel = 1.5625.)
+2. CLASS A — realization/binding_registry.hpp, g0, directly after:
+     FIND:                inline constexpr uint32_t pyramid_instances          = 30;
+     REPLACE (append below, same indent):
+                inline constexpr uint32_t pyramid_instances          = 30;
+                inline constexpr uint32_t live_card_write            = 31;  // GROUND_CARD_1: the live card (storage-tex write; writer kernel)
+3. CLASS A — binding_registry.hpp, g1, directly after:
+     FIND:                inline constexpr uint32_t pawn_aura_read             = 33;
+     REPLACE (append below, same indent):
+                inline constexpr uint32_t pawn_aura_read             = 33;
+                inline constexpr uint32_t live_card_read             = 34;  // GROUND_CARD_1: the live card (sampled read; render + compute)
+4. CLASS B — state.hpp: clone the pawnAuraTexture_ pattern in FULL
+   (member decl beside it; creation in createTextures appended after the
+   aura creation block; a stored view member; an accessor):
+     wgpu::Texture liveCardTexture_;   wgpu::TextureView liveCardView_;
+     desc: size {Dim::LIVE_CARD_SIZE, Dim::LIVE_CARD_SIZE, 1},
+     format RGBA16Float, usage TextureBinding | StorageBinding,
+     label "Live Card (512x512, RGBA16Float — GROUND_CARD_1)".
+   Accessor names: live_card_view().
+
+COMMIT [3b] — WGSL: mirrors, declarations, helpers, the writer
+5. CLASS B — world.wgsl, beside the patch-dimension consts (anchor:
+   PATCH_CELL_N / PATCH_EXTENT consts). APPEND the mirror pair + origin:
+     // ── THE LIVE CARD (GROUND_CARD_1; C++ room: Dim::LIVE_CARD_*) ──
+     const LIVE_CARD_SIZE: u32 = 512u;
+     const LIVE_CARD_EXTENT: f32 = 800.0;
+     fn live_card_origin() -> vec2<f32> {
+         let cs = PATCH_EXTENT / f32(PATCH_CELL_N);           // 3.125
+         let raw = vec2(config.lod_point_x, config.lod_point_z)
+                 - vec2(LIVE_CARD_EXTENT * 0.5);
+         return floor(raw / cs) * cs;                          // cell snap
+     }
+6. CLASS B — world.wgsl declarations: beside pawn_aura_tex_write's
+   declaration APPEND:
+     @group(0) @binding(31) var live_card_write:
+         texture_storage_2d<rgba16float, write>;
+   and beside pawn_aura_read's g1 declaration APPEND:
+     @group(1) @binding(34) var live_card_read: texture_2d<f32>;
+7. CLASS B — world.wgsl, immediately BEFORE the line "// §7.4 PAWN AURA"
+   APPEND the reader helpers + writer kernel (authored in full; VERIFY
+   the three called signatures first and log them:
+   terrain_wave_overlay_with_gradient(vec2<f32>) -> vec3<f32> {h,gx,gz};
+   contrib_radial_pulses_at(vec2<f32>) -> f32;
+   contrib_gol_zones_at(vec2<f32>) -> f32 — if any differs, adapt the
+   call site mechanically and log):
+
+     // ═══ §7.3b THE LIVE CARD (GROUND_CARD_1) ═══════════════════════
+     // The per-frame deformation field. The writer CALLS the existing
+     // evaluators at texel centers — one derivation, one new sampling
+     // site (campaign v2 §5). Rest ⇒ zeros ⇒ every consumer adds 0.
+     fn live_card_uv(world_xz: vec2<f32>) -> vec2<f32> {
+         return (world_xz - live_card_origin()) / LIVE_CARD_EXTENT;
+     }
+     fn sample_live_card(world_xz: vec2<f32>) -> vec4<f32> {
+         return textureSampleLevel(live_card_read, bilinear_sampler,
+                                   live_card_uv(world_xz), 0.0);
+     }
+     fn sample_live_card_gol(world_xz: vec2<f32>) -> f32 {
+         // nearest + cell-snapped origin ⇒ cell-exact raw lift
+         return textureSampleLevel(live_card_read, nearest_sampler,
+                                   live_card_uv(world_xz), 0.0).w;
+     }
+     @compute @workgroup_size(8, 8, 1)
+     fn write_live_card(@builtin(global_invocation_id) gid: vec3<u32>) {
+         if (gid.x >= LIVE_CARD_SIZE || gid.y >= LIVE_CARD_SIZE) { return; }
+         let texel = LIVE_CARD_EXTENT / f32(LIVE_CARD_SIZE);
+         let p = live_card_origin()
+               + (vec2<f32>(gid.xy) + vec2(0.5)) * texel;
+         let w = terrain_wave_overlay_with_gradient(p);   // waves h,gx,gz
+         let pulses = contrib_radial_pulses_at(p);        // scalar Δh
+         let gol = contrib_gol_zones_at(p);               // RAW lift
+         textureStore(live_card_write, vec2<i32>(gid.xy),
+                      vec4(w.x + pulses, w.y, w.z, gol));
+     }
+
+COMMIT [3c] — layout, pipeline, dispatch, spine, eye
+8. CLASS B — state.hpp: APPEND after the Pawn Aura layout+group blocks a
+   new "Live Card Writer Layout" + group, 5 entries, COMPUTE visibility:
+     bind::g0::signal (0)          uniform
+     bind::g0::config (1)          uniform
+     bind::g0::zone_config (160)   ReadOnlyStorage
+     bind::g0::zone_life (161)     ReadOnlyStorage
+     bind::g0::live_card_write(31) storageTexture WriteOnly rgba16float e2D
+   Group entries bind the matching buffers + liveCardView_. Accessors:
+   live_card_writer_layout(), live_card_writer_group().
+   NOTE: this is the zone pair's future sole home outside the GoL sim
+   (post-H5 CE eviction) — say so in the block comment.
+9. CLASS B — renderer.hpp: clone the Pawn Aura pipeline pattern:
+   member liveCardWriterPipeline_; creation from live_card_writer_layout
+   + entry point "write_live_card"; method:
+     void dispatch_live_card_write(wgpu::ComputePassEncoder& pass,
+                                   wgpu::BindGroup group) {
+         pass.SetPipeline(liveCardWriterPipeline_);
+         pass.SetBindGroup(0, group);
+         pass.DispatchWorkgroups(Dim::LIVE_CARD_SIZE / 8u,
+                                 Dim::LIVE_CARD_SIZE / 8u, 1);
+     }
+10. CLASS B — render_passes.hpp: clone the dispatch_pawn_aura free-
+    function pattern → dispatch_live_card_write(...) opening its own
+    compute pass on the frame encoder.
+11. CLASS B — cartridge.hpp, the render spine: insert phase
+    RLiveCardWrite immediately AFTER RUploadPortalLights in the RRow
+    enum; insert the matching table row (mirror the row shape exactly —
+    paste the neighbor rows in the log); add the phase method
+    render_live_card_write calling item 10. APPEND beside the existing
+    spine static_asserts, mirroring their style:
+      static_assert(RLiveCardWrite > RUploadPortalLights &&
+                    RLiveCardWrite < RDispatchCompute,
+        "GROUND_CARD_1: the card writes before the consumers "
+        "(pre-evolve zone read preserved, R10<R13 order intact)");
+      static_assert(RLiveCardWrite < RPlacementCorrection,
+        "GROUND_CARD_1: the card writes before placement reads .a");
+    (Use the ACTUAL enum spellings; if assert-on-enum-order isn't the
+    house style there, mirror whatever witness style the spine block
+    uses and log it.)
+12. CLASS B — the debug eye. world.wgsl: beside the new consts add
+      const LIVE_CARD_DEBUG_VIEW: u32 = 0u;  // 1 = paint the card
+    and at the TOP of the terrain fragment body (anchor: the terrain
+    FS entry point; insert after the world-address reconstruction):
+      if (LIVE_CARD_DEBUG_VIEW == 1u) {
+          let c = sample_live_card(world_pos.xz);
+          return vec4(clamp(abs(c.x) * 0.25, 0.0, 1.0),
+                      clamp(c.w * 0.25, 0.0, 1.0),
+                      0.0, 1.0);
+      }
+    (R = |Δh|, G = GoL lift. This requires the render texture group to
+    carry g1:34 — that arrives in H4 item 1; ship this edit in H4's
+    commit [4a] instead if pipeline validation would fail here: check by
+    reading whether the terrain FS's pipeline layout includes the render
+    texture group — it does — so simply MOVE edit 12 to H4 [4a].
+    Decision recorded: edit 12 LANDS IN H4 [4a]. Keep the const here.)
+
+glaw1 after [3c]. Log signatures verified, blocks cloned, asserts style.
+═══════════════════════════════════════════════════════════════════════

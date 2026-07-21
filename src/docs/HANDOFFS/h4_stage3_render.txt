@@ -1,0 +1,62 @@
+═══════════════════════════════════════════════════════════════════════
+CC HANDOFF H4 — STAGE 3: THE RENDER REWIRE
+Every render-side wave/pulse evaluation becomes one card sample. Card is
+at overlay parity (H3), so motion differs only by bilinear (1.5625 wu)
+and REST is bit-identical (card = zeros). ZONE-ERA SITES ARE SKIPPED —
+they die at Stage 5 (Unified Ground); do not touch a doomed layout.
+═══════════════════════════════════════════════════════════════════════
+
+COMMIT [4a] — the read side of the groups (+ the debug eye)
+1. CLASS B — state.hpp, Render Texture Layout + group: APPEND entry
+   bind::g1::live_card_read (34), sampled Float, viewDim e2D,
+   visibility Vertex|Fragment; group entry binds liveCardView_.
+2. CLASS B — Shadow Texture Layout + group: APPEND the same entry with
+   visibility Vertex. VERIFY the shadow group carries bilinear_sampler
+   (g1:22); if it does NOT, APPEND that sampler entry too (paste the
+   render-group's 22 entry as the model). Log which case held.
+3. Land H3's edit 12 here (the FS debug eye), per H3's recorded decision.
+
+COMMIT [4b] — the patch pair
+4. CLASS B — world.wgsl, patch_terrain_vs: the live-overlay block
+   currently (i) calls terrain_wave_overlay_with_gradient(world_xz),
+   adds .x to height and .yz to the two gradient accumulators, and
+   (ii) adds contrib_radial_pulses_at(world_xz) to height. PASTE the
+   actual block in the log, then REPLACE the pair with:
+     let live = sample_live_card(<same xz expression>);
+     <height> += live.x;            // waves + pulses, one field
+     <grad_x> += live.y;            // waves-only gradient (parity;
+     <grad_z> += live.z;            //  pulse shading = Stage 6)
+   using the block's own variable spellings. The separate pulse line is
+   DELETED (pulses ride live.x). Aura lines: UNTOUCHED.
+5. CLASS B — the shadow patch VS: same transform, same rules (it has no
+   gradient accumulators — height term only; paste + transform + log).
+
+COMMIT [4c] — the entity sites
+6. Enumerate ALL call sites of contrib_terrain_waves_at( in world.wgsl
+   at the CURRENT tree (grep; expect ~16). Partition and log:
+     TOUCH (this commit): the entity/wall VS sites — shadow arch /
+       shadow column / shadow palm / shadow cactus (the ~4690–4740
+       cluster), wall_painting_vs (~9225), arch + column mains
+       (~10470–10510), palm + cactus (~10810–10840), blade pair
+       (~11050–11075). Expected 11–12 sites.
+     SKIP-DOOMED: the two zone-extrusion sites (zone mesh gen +
+       zone_extrusion_vs region, ~8100 / ~8210) — Stage 5 retires them.
+     DO-NOT-TOUCH (compute side; H5's jurisdiction): the §3.4/query
+       family occurrences (~2755, ~2974, ~3083) and any occurrence
+       inside write_live_card (H3's own call).
+   For every TOUCH site: FIND the full expression
+       contrib_terrain_waves_at(<ARG>)
+   REPLACE with
+       sample_live_card(<ARG>).x
+   Paste each before/after in the log with file:line. If any TOUCH site
+   also carries a separate pulse call (none expected — pulses never rode
+   entity VS, campaign v2 §4), ABORT that site and report.
+7. Sanity: after [4c], contrib_terrain_waves_at's remaining callers must
+   be exactly {the two SKIP-DOOMED zone sites, the compute-side query
+   family, write_live_card}. Grep and log the residue list verbatim.
+
+glaw1 after [4c].
+GATE NOTE for the batch-end session: REST bit-identity (terrain_time ≤ 0,
+pulse ring 0, no zones ⇒ card zeros ⇒ pixel-identical stills) + motion
+motif review + the debug eye (card black at rest; paints under music).
+═══════════════════════════════════════════════════════════════════════

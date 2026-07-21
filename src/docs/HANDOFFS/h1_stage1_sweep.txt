@@ -1,0 +1,63 @@
+═══════════════════════════════════════════════════════════════════════
+CC HANDOFF H1 — STAGE 1a: THE DEAD-ENTRY SWEEP
+All removals below are Dawn-certified removable (audit cc3_output.json /
+probe_results.json). Every removal = paired layout+group edit per H0 law.
+All edits in realization/state.hpp unless noted.
+═══════════════════════════════════════════════════════════════════════
+
+COMMIT [1a] — Compute Entity + Compute Texture
+1. CLASS B — Compute Entity Layout (desc.label anchor) + its bind-group
+   entries block: REMOVE the entry pair for bind::g0::trajectories (101).
+   Decrement both array sizes; renumber.
+2. CLASS B — Compute Entity Layout, comment truth on the RETAINED
+   future-live entries (do NOT remove the entries):
+   - the photo_heightfield (145) / photo_sampler (146) / patch_grid (152)
+     entry comments currently claim per-frame baked-path Y lookups by
+     update_camera / update_agents. Replace each comment with:
+     "// dead today (agents are analytic; sole baked readers are
+      photographer + placement — audit cc4). Goes LIVE at Stage 4:
+      the agents' baked ground path (GROUND_CARD_1 H5)."
+3. CLASS B — Compute Texture Layout: nearest_sampler (g1:23) RETAINED;
+   correct its comment to:
+     "// dead today; goes LIVE at Stage 4 — the live card's
+      cell-exact GoL fetch (GROUND_CARD_1 H5)."
+
+COMMIT [1b] — Placement + Photographer + Frustum Cull
+4. CLASS B — Entity Placement Compute Layout: REMOVE entry pairs for
+   bind::g0::agent_state (60) and bind::g0::photo_patch_instances (144).
+5. CLASS B — Photographer Compute Layout: REMOVE the entry pair for
+   bind::g0::photo_patch_instances (144). Also delete/adjust the WGSL
+   side if a matching @binding declaration exists ONLY for this layout's
+   pipeline — check world.wgsl ~8401 (the comment "unused —
+   sample_terrain_y_at now reads patch_grid at binding 152"): if the
+   photographer shader still DECLARES photo_patch_instances, remove that
+   declaration too (Dawn allows extra layout entries but we are removing
+   the layout side; a shader-side declaration with no layout entry is a
+   validation error — verify with a grep for its var name and remove the
+   dead declaration + its comment).
+6. CLASS B — Frustum Cull Compute Layout: REMOVE entry pairs for
+   fc_agents (g0:60) and fc_camera (g0:80). Same shader-side check as 5:
+   if frustum_cull_patches declares fc_agents / fc_camera vars, remove
+   those declarations (audit cc3 certifies the kernel does not use them).
+
+COMMIT [1c] — Ribbon
+7. CLASS A/B — Ribbon Compute Layout: REMOVE entry pairs for
+   tile_grid (g0:25) and pier_instances (g0:26). audit/probe_a.patch
+   contains this exact diff — you may re-derive from it, RESTRICTED to
+   the ribbon blocks only (the probe's GoL-pier and aura-tile hunks are
+   REFUTED and must NOT be applied).
+8. CLASS B — the Ribbon layout/group HEADER comment (state.hpp ~4053–
+   4055) still enumerates "tile_grid @25, pier_instances @26" — delete
+   those lines from the comment.
+9. WGSL side: compute_ribbon_rings declares no tile_grid/pier vars of
+   its own (they are the shared g0 declarations used by other
+   pipelines) — make NO world.wgsl edit for this item. The shared
+   declarations stay (other pipelines' layouts still carry them).
+
+glaw1 after [1c]. Log all before/afters.
+
+EXPECTED POST-H1 SHAPE (informational; recount happens at H6):
+Compute Entity 8 storage (trajectories gone; three future-live retained
+but dead) / 7 uniform; Placement 7 storage; Photographer 5; Cull 4;
+Ribbon 2 storage / 1 uniform.
+═══════════════════════════════════════════════════════════════════════
