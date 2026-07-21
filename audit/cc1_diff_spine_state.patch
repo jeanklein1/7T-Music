@@ -1,0 +1,109 @@
+diff --git a/src/cartridges/the_board/contracts/spine_state.hpp b/src/cartridges/the_board/contracts/spine_state.hpp
+index 09ac66a..cf89a14 100644
+--- a/src/cartridges/the_board/contracts/spine_state.hpp
++++ b/src/cartridges/the_board/contracts/spine_state.hpp
+@@ -6,7 +6,7 @@
+ // History: audit/LADDER.md
+ //
+ // The in-class trio graduates to file scope so module deps structs
+-// (m3) can name the types without the complete Cartridge. The
++// can name the types without the complete Cartridge. The
+ // INSTANCES (time_state_, player_, transitionPhase_) stay at the
+ // composition root; the residency rulings (SEAM[spine:P8],
+ // SEAM[spine:transitions]) are unchanged — this is a type move, not
+@@ -46,7 +46,7 @@ struct TimeState {
+ //     option A, Jean's stamp). SOLE AUTHOR is still the P5 HARVEST;
+ //     the spine's only other touches are the TEARDOWN reset and the
+ //     portal door's consume. No module writes them, ever.
+-//   · readback_portal_trigger — THE POINT'S BUBBLE SENSOR (p1b-d):
++//   · readback_portal_trigger — THE POINT'S BUBBLE SENSOR:
+ //     the probe is host-sourced (the body's own crossing in
+ //     pawn-host, byte-identical; the camera + the bubble's vertical
+ //     gate in free-fly). The trigger RIDES the possessed slot's wire
+@@ -58,15 +58,15 @@ struct TimeState {
+ //     writes live behind the agents door (try_possess_nearest,
+ //     reseed_player_body), paired with the GPU selector.
+ //   · aura_presence — P8, the pawn is the semantic owner (writes in
+-//     pawn.inl only).
++//     bodies/pawn.hpp only).
+ //   · THE CAMERA HAS NO CPU MIRROR — it lives GPU-resident, keyed on
+-//     config.possessed_slot. The ONE sanctioned window (p1b-a): in
++//     config.possessed_slot. The ONE sanctioned window: in
+ //     CAMERA-HOST the P5 harvest reads camera pos.xz back as the
+ //     point's position — a two-float harvest into the trio above,
+ //     not a mirror. There is still NO readback_y (the witness
+ //     altitude is GPU-only); it is not to be invented.
+ //   · the sky trio (mode / mode_prev / yaw_eased) LEFT this record
+-//     at m6 per Option A — it lives in RibbonState.sky, with its
++//     per Option A — it lives in RibbonState.sky, with its
+ //     single CPU owner (SEAM[ribbon:sky-mode], closed player-side).
+ //
+ // SEAM[spine:P8] PlayerState commented "Future (deferred)" fields
+@@ -78,9 +78,9 @@ struct PlayerState {
+ 
+     // ── Camera + readback ──
+     bool    fpv_mode = false;                // first-person view toggle
+-    float   readback_x = 0.0f;               // THE POINT's world X (host-authored — p1b-a)
+-    float   readback_z = 0.0f;               // THE POINT's world Z (host-authored — p1b-a)
+-    int32_t readback_portal_trigger = -1;    // the point's bubble sensor (p1b-d), on the possessed slot's wire
++    float   readback_x = 0.0f;               // THE POINT's world X (host-authored)
++    float   readback_z = 0.0f;               // THE POINT's world Z (host-authored)
++    int32_t readback_portal_trigger = -1;    // the point's bubble sensor, on the possessed slot's wire
+ 
+     // ── Aura presence (closes SEAM[spine:P8]) ──
+     float aura_presence = 0.0f;                  // pawn aura ramp (was pawn_state_.aura_presence)
+@@ -148,7 +148,7 @@ struct MoodState {
+     // ── Sun orbit (musical coupling) ──
+     float sun_orbit_phase = 0.0f;
+ 
+-    // ── Light re-upload flag (re-homed from entities_state_ at m4:
++    // ── Light re-upload flag (re-homed from entities_state_:
+     //    mood was both producer and consumer — the organ was wrong,
+     //    not the channel). Set true at init/teardown/apply, cleared
+     //    after upload. ──
+@@ -187,11 +187,12 @@ struct MoodProfile {
+     bool   indoor;                 // true = enclosed space with ceiling
+     CeilingType ceiling_type;      // NONE / FLAT / VAULT
+     float  ceiling_height;         // ceiling Y (world units)
++    float  terrain_amp_ceiling;    // indoor terrain-amp cap (0 = uncapped, outdoor)
+ 
+     // ─── Background ─────────────────────────────────────────
+     float  clear_color[3];         // sky or dark ceiling RGB
+-    float  wall_color[3];          // indoor wall surface RGB
+-    float  ceiling_color[3];       // indoor ceiling surface RGB
++    // wall/ceiling colors: INDOOR_PALETTES (mood.hpp) is the authority —
++    // seed-picked per world; the profile never authored them in effect.
+ 
+     // ─── Feature selection (per-mood) ───────────────────────
+     bool   allow_gol_zones;        // GoL zone spawning + visualization
+@@ -211,14 +212,14 @@ struct MoodProfile {
+ //   is the only row that sets it true. The mood ID is an identifier,
+ //   not a discriminator — atmospheric data is profile-driven. See
+ //   SEAM[mood:L1] above for the gating call site.
+-//                                  fin  r_min r_max  sun_dir                sun_color              int   amb   fog_d   fog_color               indoor  ceil       ceil_h  clear_color            wall_color             ceil_color               zones  aura   cull   ribbon
++//                                  fin  r_min r_max  sun_dir                sun_color              int   amb   fog_d   fog_color               indoor  ceil       ceil_h  amp_c  clear_color            zones  aura   cull   ribbon
+ inline constexpr MoodProfile MOOD_TABLE[MOOD_COUNT] = {
+-    /* MOOD_OPEN_DEFAULT       */  { false, 2, 2, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  false },
+-    /* MOOD_OPEN_SUNSET        */  { false, 2, 2, { 0.96f,-0.26f,-0.13f}, {1.0f, 0.75f, 0.45f}, 0.90f, 0.20f, 0.0050f, {0.95f, 0.70f, 0.45f},  false, CeilingType::NONE,  0.0f,  {0.95f, 0.70f, 0.45f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  false },
+-    /* MOOD_INDOOR_FLAT        */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f, 0.0003f, {0.15f, 0.12f, 0.10f},  true,  CeilingType::FLAT,  20.0f, {0.15f, 0.12f, 0.10f}, {0.65f,0.58f,0.50f}, {0.60f,0.55f,0.48f},   true,  true,  false, false },
+-    /* MOOD_INDOOR_VAULT       */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f, 0.0003f, {0.15f, 0.12f, 0.10f},  true,  CeilingType::VAULT, 25.0f, {0.15f, 0.12f, 0.10f}, {0.70f,0.62f,0.52f}, {0.65f,0.58f,0.50f},   true,  true,  false, false },
+-    /* MOOD_FINITE_OUTDOOR     */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  false },
+-    /* MOOD_FINITE_OUTDOOR_REF */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  {0.85f, 0.78f, 0.72f}, {0.75f,0.68f,0.60f}, {0.75f,0.68f,0.60f},   true,  true,  true,  true  },
++    /* MOOD_OPEN_DEFAULT       */  { false, 2, 2, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  0.0f,  {0.85f, 0.78f, 0.72f}, true,  true,  true,  false },
++    /* MOOD_OPEN_SUNSET        */  { false, 2, 2, { 0.96f,-0.26f,-0.13f}, {1.0f, 0.75f, 0.45f}, 0.90f, 0.20f, 0.0050f, {0.95f, 0.70f, 0.45f},  false, CeilingType::NONE,  0.0f,  0.0f,  {0.95f, 0.70f, 0.45f}, true,  true,  true,  false },
++    /* MOOD_INDOOR_FLAT        */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f, 0.0003f, {0.15f, 0.12f, 0.10f},  true,  CeilingType::FLAT,  20.0f, 0.5f,  {0.15f, 0.12f, 0.10f}, true,  true,  false, false },
++    /* MOOD_INDOOR_VAULT       */  { true,  1, 4, { 0.20f,-0.90f, 0.00f}, {1.0f, 0.90f, 0.80f}, 0.35f, 0.35f, 0.0003f, {0.15f, 0.12f, 0.10f},  true,  CeilingType::VAULT, 25.0f, 0.5f,  {0.15f, 0.12f, 0.10f}, true,  true,  false, false },
++    /* MOOD_FINITE_OUTDOOR     */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  0.0f,  {0.85f, 0.78f, 0.72f}, true,  true,  true,  false },
++    /* MOOD_FINITE_OUTDOOR_REF */  { true,  1, 4, { 0.69f,-0.71f,-0.14f}, {1.0f, 0.95f, 0.90f}, 0.80f, 0.25f, 0.0030f, {0.85f, 0.78f, 0.72f},  false, CeilingType::NONE,  0.0f,  0.0f,  {0.85f, 0.78f, 0.72f}, true,  true,  true,  true  },
+ };
+ 
+ // F-3: MOOD_TABLE rows are POSITIONAL in
+@@ -235,7 +236,7 @@ static_assert(MOOD_OPEN_DEFAULT       == 0 && MOOD_OPEN_SUNSET        == 1
+ // ═══ THE TRANSITION REQUEST DOOR (decl; def rides merged mood.hpp) ═
+ // The single canonical transition entry point — one door, many keys.
+ // DEPS-FORM: the driver world holds no MachineCtx; the door
+-// takes the transition channel explicitly (the m3 precedent class).
++// takes the transition channel explicitly (the deps-form precedent).
+ void request_mood_transition(TransitionPhase& phase, PortalDestination& pending,
+     MoodState& ms, const WorldState& ws, uint32_t mood);
+ 

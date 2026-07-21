@@ -1,0 +1,77 @@
+diff --git a/src/cartridges/the_board/realization/binding_registry.hpp b/src/cartridges/the_board/realization/binding_registry.hpp
+index 81cb723..83f8184 100644
+--- a/src/cartridges/the_board/realization/binding_registry.hpp
++++ b/src/cartridges/the_board/realization/binding_registry.hpp
+@@ -3,13 +3,13 @@
+ // THE BINDING REGISTRY (C6) — the single source of truth for GPU binding
+ // NUMBERS. Every bind-group layout entry AND its matching group entry
+ // reference the SAME named constant here, so the "binding integer typed
+-// twice" hazard (L2-a) is a compile error, not a
++// twice" hazard is a compile error, not a
+ // runtime crash: a typo is an undefined symbol glaw1 catches.
+ //
+ // GROUP-SCOPED (forced, not stylistic). A binding number is a per-@group
+ // key: 22 = terrain_mesh_indices in group 0 AND bilinear_sampler in group
+-// 1; 25 = tile_grid vs shadow_map; 26 = pier_instances vs shadow_sampler;
+-// 30 = pyramid_instances vs cell_fields_read. A flat list would fuse
++// 1; 25 = tile_grid vs shadow_map; 26 = pier_instances vs shadow_sampler.
++// A flat list would fuse
+ // distinct slots — so g0:: and g1:: are separate namespaces.
+ //
+ // AUTHORED, not computed (Frame-Spine law, one layer down). Every constant
+@@ -52,7 +52,7 @@ namespace t7 {
+                 inline constexpr uint32_t vp_data                    = 2;   // aka fc_vp (frustum-cull alias)
+ 
+                 // terrain / patch lattice (20–30)
+-                // (terrain_state @20 / render_terrain @220 REMOVED — husk sweep:
++                // (terrain_state @20 / render_terrain @220 REMOVED:
+                 //  the dead GPUTerrainState buffer's bindings, no shader reader.)
+                 inline constexpr uint32_t terrain_mesh_indices       = 22;
+                 inline constexpr uint32_t patch_params               = 23;
+@@ -61,7 +61,8 @@ namespace t7 {
+                 inline constexpr uint32_t pier_instances             = 26;
+                 inline constexpr uint32_t patch_cell_color_array_write = 27;
+                 inline constexpr uint32_t patch_height_scratch       = 28;
+-                inline constexpr uint32_t cell_fields_write          = 29;
++                // (cell_fields_write = 29 RETIRED — Commit C, the LUT retirement.
++                //  Number reserved; do not reuse.)
+                 inline constexpr uint32_t pyramid_instances          = 30;
+ 
+                 // agents / camera (60–101)
+@@ -90,8 +91,8 @@ namespace t7 {
+                 inline constexpr uint32_t photo_sampler              = 146;
+                 inline constexpr uint32_t arch_ground                = 147;
+                 inline constexpr uint32_t column_ground              = 148;
+-                // 149 RETIRED — pyramid_ground (residue T2: the ground-atlas husk;
+-                // its slot-48 write was reader-free since C2). Number parked.
++                // 149 RETIRED — pyramid_ground (the ground-atlas residue;
++                // its slot-48 write was reader-free). Number parked.
+                 inline constexpr uint32_t plant_ground               = 150;
+                 inline constexpr uint32_t entity_ground_atlas_write  = 151;
+                 inline constexpr uint32_t patch_grid                 = 152;
+@@ -122,9 +123,13 @@ namespace t7 {
+                 inline constexpr uint32_t bladeg_vertices            = 187;
+                 inline constexpr uint32_t bladeg_indices             = 188;
+ 
+-                // mesh-gen scratch: arch/column (193–198)
+-                // (pmg_* @190/191/192 REMOVED — husk sweep: the pyramid mesh-gen
+-                //  basket, no entry point / pipeline / dispatch ever used it.)
++                // mesh-gen scratch: arch/column (190–198)
++                // (pmg_* @190/191/192 REMOVED: the pyramid mesh-gen
++                //  basket, no entry point / pipeline / dispatch ever used it.
++                //  190/191 REBORN as the cmg ceiling-fit pair — parked-number
++                //  reuse per the 149 precedent; 192 stays parked.)
++                inline constexpr uint32_t cmg_config                 = 190;  // DesignConfig view for the cmg kernel (the ceiling gate)
++                inline constexpr uint32_t cmg_column_ground          = 191;  // read-only column_ground view (the terrain delta)
+                 inline constexpr uint32_t amg_params                 = 193;
+                 inline constexpr uint32_t amg_vertices               = 194;
+                 inline constexpr uint32_t amg_indices                = 195;
+@@ -171,7 +176,7 @@ namespace t7 {
+                 inline constexpr uint32_t spot_shadow_map            = 27;
+                 inline constexpr uint32_t patch_heightfield_array_read = 28;
+                 inline constexpr uint32_t patch_cell_color_array_read  = 29;
+-                inline constexpr uint32_t cell_fields_read           = 30;
++                // (cell_fields_read = 30 RETIRED — Commit C. Number reserved.)
+                 inline constexpr uint32_t zone_life_read             = 31;
+                 inline constexpr uint32_t zone_params                = 32;
+                 inline constexpr uint32_t pawn_aura_read             = 33;

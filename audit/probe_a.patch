@@ -1,0 +1,297 @@
+diff --git a/src/cartridges/the_board/realization/state.hpp b/src/cartridges/the_board/realization/state.hpp
+index fc0f763..bc6b017 100644
+--- a/src/cartridges/the_board/realization/state.hpp
++++ b/src/cartridges/the_board/realization/state.hpp
+@@ -4054,27 +4054,19 @@ namespace t7 {
+                 // Bindings: tile_grid @25, pier_instances @26, ribbon_state @120,
+                 // ring_xforms @121, head_poses @122.
+                 {
+-                    std::array<wgpu::BindGroupLayoutEntry, 5> entries{};
++                    std::array<wgpu::BindGroupLayoutEntry, 3> entries{};
+ 
+-                    entries[0].binding = bind::g0::tile_grid;
++                    entries[0].binding = bind::g0::ribbon_state;
+                     entries[0].visibility = wgpu::ShaderStage::Compute;
+                     entries[0].buffer.type = wgpu::BufferBindingType::Uniform;
+ 
+-                    entries[1].binding = bind::g0::pier_instances;   // pier_instances (storage, read)
++                    entries[1].binding = bind::g0::ring_xforms;
+                     entries[1].visibility = wgpu::ShaderStage::Compute;
+-                    entries[1].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
++                    entries[1].buffer.type = wgpu::BufferBindingType::Storage;
+ 
+-                    entries[2].binding = bind::g0::ribbon_state;
++                    entries[2].binding = bind::g0::head_poses;  // head_poses (storage, read) — ribbon head-path
+                     entries[2].visibility = wgpu::ShaderStage::Compute;
+-                    entries[2].buffer.type = wgpu::BufferBindingType::Uniform;
+-
+-                    entries[3].binding = bind::g0::ring_xforms;
+-                    entries[3].visibility = wgpu::ShaderStage::Compute;
+-                    entries[3].buffer.type = wgpu::BufferBindingType::Storage;
+-
+-                    entries[4].binding = bind::g0::head_poses;  // head_poses (storage, read) — ribbon head-path
+-                    entries[4].visibility = wgpu::ShaderStage::Compute;
+-                    entries[4].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
++                    entries[2].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+ 
+                     wgpu::BindGroupLayoutDescriptor desc{};
+                     desc.label = "Ribbon Compute Layout";
+@@ -4314,7 +4306,7 @@ namespace t7 {
+                 // Mesh gen also samples the baked heightfield for exact terrain alignment.
+                 // derive_params writes zone_config.zones[slot] from tier tables.
+                 {
+-                    std::array<wgpu::BindGroupLayoutEntry, 14> entries{};
++                    std::array<wgpu::BindGroupLayoutEntry, 13> entries{};
+ 
+                     entries[0].binding = bind::g0::config;    // config (uniform — world_seed, fog, etc.)
+                     entries[0].visibility = wgpu::ShaderStage::Compute;
+@@ -4325,59 +4317,55 @@ namespace t7 {
+                     entries[1].visibility = wgpu::ShaderStage::Compute;
+                     entries[1].buffer.type = wgpu::BufferBindingType::Uniform;
+ 
+-                    entries[2].binding = bind::g0::pier_instances;   // pier_instances (storage, read)
++                    entries[2].binding = bind::g0::pyramid_instances;   // pyramid_instances (uniform)
+                     entries[2].visibility = wgpu::ShaderStage::Compute;
+-                    entries[2].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
++                    entries[2].buffer.type = wgpu::BufferBindingType::Uniform;
+ 
+-                    entries[3].binding = bind::g0::pyramid_instances;   // pyramid_instances (uniform)
++                    // Zone state (storage — derive_params writes, sync/evolve/mesh read-write)
++                    entries[3].binding = bind::g0::zone_config;  // zone_config (storage, rw)
+                     entries[3].visibility = wgpu::ShaderStage::Compute;
+-                    entries[3].buffer.type = wgpu::BufferBindingType::Uniform;
++                    entries[3].buffer.type = wgpu::BufferBindingType::Storage;
+ 
+-                    // Zone state (storage — derive_params writes, sync/evolve/mesh read-write)
+-                    entries[4].binding = bind::g0::zone_config;  // zone_config (storage, rw)
++                    entries[4].binding = bind::g0::zone_life;  // zone_life (storage, read/write)
+                     entries[4].visibility = wgpu::ShaderStage::Compute;
+                     entries[4].buffer.type = wgpu::BufferBindingType::Storage;
+ 
+-                    entries[5].binding = bind::g0::zone_life;  // zone_life (storage, read/write)
++                    entries[5].binding = bind::g0::zone_life_tex_write;  // zone_life_tex (storage texture, write)
+                     entries[5].visibility = wgpu::ShaderStage::Compute;
+-                    entries[5].buffer.type = wgpu::BufferBindingType::Storage;
++                    entries[5].storageTexture.access = wgpu::StorageTextureAccess::WriteOnly;
++                    entries[5].storageTexture.format = wgpu::TextureFormat::RG32Float;
++                    entries[5].storageTexture.viewDimension = wgpu::TextureViewDimension::e2DArray;
+ 
+-                    entries[6].binding = bind::g0::zone_life_tex_write;  // zone_life_tex (storage texture, write)
++                    // Mesh output
++                    entries[6].binding = bind::g0::zone_mesh_vertices;  // zone_mesh_vertices (storage, rw)
+                     entries[6].visibility = wgpu::ShaderStage::Compute;
+-                    entries[6].storageTexture.access = wgpu::StorageTextureAccess::WriteOnly;
+-                    entries[6].storageTexture.format = wgpu::TextureFormat::RG32Float;
+-                    entries[6].storageTexture.viewDimension = wgpu::TextureViewDimension::e2DArray;
++                    entries[6].buffer.type = wgpu::BufferBindingType::Storage;
+ 
+-                    // Mesh output
+-                    entries[7].binding = bind::g0::zone_mesh_vertices;  // zone_mesh_vertices (storage, rw)
++                    entries[7].binding = bind::g0::zone_mesh_indices;  // zone_mesh_indices (storage, rw)
+                     entries[7].visibility = wgpu::ShaderStage::Compute;
+                     entries[7].buffer.type = wgpu::BufferBindingType::Storage;
+ 
+-                    entries[8].binding = bind::g0::zone_mesh_indices;  // zone_mesh_indices (storage, rw)
++                    entries[8].binding = bind::g0::zone_mesh_indirect;  // zone_mesh_indirect (storage, rw)
+                     entries[8].visibility = wgpu::ShaderStage::Compute;
+                     entries[8].buffer.type = wgpu::BufferBindingType::Storage;
+ 
+-                    entries[9].binding = bind::g0::zone_mesh_indirect;  // zone_mesh_indirect (storage, rw)
++                    // Heightfield sampling (mesh gen uses baked terrain for exact alignment)
++                    entries[9].binding = bind::g0::zone_heightfield;  // patch_heightfield_array (sampled texture)
+                     entries[9].visibility = wgpu::ShaderStage::Compute;
+-                    entries[9].buffer.type = wgpu::BufferBindingType::Storage;
++                    entries[9].texture.sampleType = wgpu::TextureSampleType::Float;
++                    entries[9].texture.viewDimension = wgpu::TextureViewDimension::e2DArray;
+ 
+-                    // Heightfield sampling (mesh gen uses baked terrain for exact alignment)
+-                    entries[10].binding = bind::g0::zone_heightfield;  // patch_heightfield_array (sampled texture)
++                    entries[10].binding = bind::g0::zone_hf_sampler; // heightfield_sampler (bilinear)
+                     entries[10].visibility = wgpu::ShaderStage::Compute;
+-                    entries[10].texture.sampleType = wgpu::TextureSampleType::Float;
+-                    entries[10].texture.viewDimension = wgpu::TextureViewDimension::e2DArray;
++                    entries[10].sampler.type = wgpu::SamplerBindingType::Filtering;
+ 
+-                    entries[11].binding = bind::g0::zone_hf_sampler; // heightfield_sampler (bilinear)
++                    entries[11].binding = bind::g0::zone_patch_instances; // patch_instances (read-only storage)
+                     entries[11].visibility = wgpu::ShaderStage::Compute;
+-                    entries[11].sampler.type = wgpu::SamplerBindingType::Filtering;
++                    entries[11].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+ 
+-                    entries[12].binding = bind::g0::zone_patch_instances; // patch_instances (read-only storage)
++                    entries[12].binding = bind::g0::zone_derive_requests; // zone_derive_requests (uniform)
+                     entries[12].visibility = wgpu::ShaderStage::Compute;
+-                    entries[12].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+-
+-                    entries[13].binding = bind::g0::zone_derive_requests; // zone_derive_requests (uniform)
+-                    entries[13].visibility = wgpu::ShaderStage::Compute;
+-                    entries[13].buffer.type = wgpu::BufferBindingType::Uniform;
++                    entries[12].buffer.type = wgpu::BufferBindingType::Uniform;
+ 
+                     wgpu::BindGroupLayoutDescriptor desc{};
+                     desc.label = "GoL Zone Compute Layout";
+@@ -4391,7 +4379,7 @@ namespace t7 {
+                 // (tile_grid joined at TERRAIN PROGRAM Phase 1: gol_composite_cell_color
+                 //  collapsed into the one evaluator, which reads the tile archetype.)
+                 {
+-                    std::array<wgpu::BindGroupLayoutEntry, 6> entries{};
++                    std::array<wgpu::BindGroupLayoutEntry, 5> entries{};
+ 
+                     entries[0].binding = bind::g0::config;    // config (uniform — world_seed for cell color)
+                     entries[0].visibility = wgpu::ShaderStage::Compute;
+@@ -4415,10 +4403,6 @@ namespace t7 {
+                     entries[4].storageTexture.format = wgpu::TextureFormat::RGBA16Float;
+                     entries[4].storageTexture.viewDimension = wgpu::TextureViewDimension::e2D;
+ 
+-                    entries[5].binding = bind::g0::tile_grid;   // tile_grid (uniform — evaluator's archetype lookup)
+-                    entries[5].visibility = wgpu::ShaderStage::Compute;
+-                    entries[5].buffer.type = wgpu::BufferBindingType::Uniform;
+-
+                     wgpu::BindGroupLayoutDescriptor desc{};
+                     desc.label = "Pawn Aura Compute Layout";
+                     desc.entryCount = entries.size();
+@@ -4966,27 +4950,19 @@ namespace t7 {
+ 
+                 // Ribbon compute bind group (5 entries: dedicated ring transform pass)
+                 {
+-                    std::array<wgpu::BindGroupEntry, 5> entries{};
+-
+-                    entries[0].binding = bind::g0::tile_grid;  // tile_grid (matches @binding(25))
+-                    entries[0].buffer = tileGridBuffer_;
+-                    entries[0].size = sizeof(GPUTileGrid);
+-
+-                    entries[1].binding = bind::g0::pier_instances;  // pier_instances (matches @binding(26))
+-                    entries[1].buffer = pierBuffer_;
+-                    entries[1].size = Dim::PIER_TOTAL * sizeof(GPUPierInstance);
++                    std::array<wgpu::BindGroupEntry, 3> entries{};
+ 
+-                    entries[2].binding = bind::g0::ribbon_state; // ribbon_state (matches @binding(120))
+-                    entries[2].buffer = ribbonBuffer_;
+-                    entries[2].size = sizeof(GPURibbonState);
++                    entries[0].binding = bind::g0::ribbon_state; // ribbon_state (matches @binding(120))
++                    entries[0].buffer = ribbonBuffer_;
++                    entries[0].size = sizeof(GPURibbonState);
+ 
+-                    entries[3].binding = bind::g0::ring_xforms; // ring_transforms (matches @binding(121))
+-                    entries[3].buffer = ringTransformsBuffer_;
+-                    entries[3].size = sizeof(GPURibbonRingTransform) * Dim::RIBBON_MAX_RINGS;
++                    entries[1].binding = bind::g0::ring_xforms; // ring_transforms (matches @binding(121))
++                    entries[1].buffer = ringTransformsBuffer_;
++                    entries[1].size = sizeof(GPURibbonRingTransform) * Dim::RIBBON_MAX_RINGS;
+ 
+-                    entries[4].binding = bind::g0::head_poses; // head_poses (matches @binding(122))
+-                    entries[4].buffer = headPosesBuffer_;
+-                    entries[4].size = sizeof(float) * 4 * Dim::RIBBON_MAX_RINGS;
++                    entries[2].binding = bind::g0::head_poses; // head_poses (matches @binding(122))
++                    entries[2].buffer = headPosesBuffer_;
++                    entries[2].size = sizeof(float) * 4 * Dim::RIBBON_MAX_RINGS;
+ 
+                     wgpu::BindGroupDescriptor desc{};
+                     desc.label = "Ribbon Compute BindGroup";
+@@ -5230,7 +5206,7 @@ namespace t7 {
+ 
+                 // GoL zone compute bind group (14 entries: config + terrain eval + zone state + mesh output + heightfield + derive requests)
+                 {
+-                    std::array<wgpu::BindGroupEntry, 14> entries{};
++                    std::array<wgpu::BindGroupEntry, 13> entries{};
+ 
+                     entries[0].binding = bind::g0::config;
+                     entries[0].buffer = configBuffer_;
+@@ -5240,47 +5216,44 @@ namespace t7 {
+                     entries[1].binding = bind::g0::tile_grid;
+                     entries[1].buffer = tileGridBuffer_;
+                     entries[1].size = sizeof(GPUTileGrid);
+-                    entries[2].binding = bind::g0::pier_instances;
+-                    entries[2].buffer = pierBuffer_;
+-                    entries[2].size = Dim::PIER_TOTAL * sizeof(GPUPierInstance);
+-                    entries[3].binding = bind::g0::pyramid_instances;
+-                    entries[3].buffer = pyramidInstancesBuffer_;
+-                    entries[3].size = sizeof(GPUPyramidArray);
++                    entries[2].binding = bind::g0::pyramid_instances;
++                    entries[2].buffer = pyramidInstancesBuffer_;
++                    entries[2].size = sizeof(GPUPyramidArray);
+ 
+                     // Zone state
+-                    entries[4].binding = bind::g0::zone_config;
+-                    entries[4].buffer = zoneConfigBuffer_;
+-                    entries[4].size = sizeof(GPUGoLZoneArray);
+-                    entries[5].binding = bind::g0::zone_life;
+-                    entries[5].buffer = zoneLifeBuffer_;
+-                    entries[5].size = Dim::MAX_GOL_ZONES * Dim::GOL_ZONE_LIFE_STRIDE * sizeof(float);
+-                    entries[6].binding = bind::g0::zone_life_tex_write;
+-                    entries[6].textureView = zoneLifeWriteView_;
++                    entries[3].binding = bind::g0::zone_config;
++                    entries[3].buffer = zoneConfigBuffer_;
++                    entries[3].size = sizeof(GPUGoLZoneArray);
++                    entries[4].binding = bind::g0::zone_life;
++                    entries[4].buffer = zoneLifeBuffer_;
++                    entries[4].size = Dim::MAX_GOL_ZONES * Dim::GOL_ZONE_LIFE_STRIDE * sizeof(float);
++                    entries[5].binding = bind::g0::zone_life_tex_write;
++                    entries[5].textureView = zoneLifeWriteView_;
+ 
+                     // Mesh output
+-                    entries[7].binding = bind::g0::zone_mesh_vertices;
+-                    entries[7].buffer = zoneMeshVertexBuffer_;
+-                    entries[7].size = Dim::ZONE_MESH_MAX_VERTICES * 44;
+-                    entries[8].binding = bind::g0::zone_mesh_indices;
+-                    entries[8].buffer = zoneMeshIndexBuffer_;
+-                    entries[8].size = Dim::ZONE_MESH_MAX_INDICES * sizeof(uint32_t);
+-                    entries[9].binding = bind::g0::zone_mesh_indirect;
+-                    entries[9].buffer = zoneMeshIndirectBuffer_;
+-                    entries[9].size = 6 * sizeof(uint32_t);
++                    entries[6].binding = bind::g0::zone_mesh_vertices;
++                    entries[6].buffer = zoneMeshVertexBuffer_;
++                    entries[6].size = Dim::ZONE_MESH_MAX_VERTICES * 44;
++                    entries[7].binding = bind::g0::zone_mesh_indices;
++                    entries[7].buffer = zoneMeshIndexBuffer_;
++                    entries[7].size = Dim::ZONE_MESH_MAX_INDICES * sizeof(uint32_t);
++                    entries[8].binding = bind::g0::zone_mesh_indirect;
++                    entries[8].buffer = zoneMeshIndirectBuffer_;
++                    entries[8].size = 6 * sizeof(uint32_t);
+ 
+                     // Heightfield sampling
+-                    entries[10].binding = bind::g0::zone_heightfield;
+-                    entries[10].textureView = patchHeightfieldArrayReadView_;
+-                    entries[11].binding = bind::g0::zone_hf_sampler;
+-                    entries[11].sampler = bilinearSampler_;
+-                    entries[12].binding = bind::g0::zone_patch_instances;
+-                    entries[12].buffer = patchInstancesBuffer_;
+-                    entries[12].size = sizeof(GPUPatchInstance) * Dim::MAX_ACTIVE_PATCHES;
++                    entries[9].binding = bind::g0::zone_heightfield;
++                    entries[9].textureView = patchHeightfieldArrayReadView_;
++                    entries[10].binding = bind::g0::zone_hf_sampler;
++                    entries[10].sampler = bilinearSampler_;
++                    entries[11].binding = bind::g0::zone_patch_instances;
++                    entries[11].buffer = patchInstancesBuffer_;
++                    entries[11].size = sizeof(GPUPatchInstance) * Dim::MAX_ACTIVE_PATCHES;
+ 
+                     // Derive request buffer
+-                    entries[13].binding = bind::g0::zone_derive_requests;
+-                    entries[13].buffer = zoneDeriveRequestBuffer_;
+-                    entries[13].size = sizeof(GPUZoneDeriveRequestArray);
++                    entries[12].binding = bind::g0::zone_derive_requests;
++                    entries[12].buffer = zoneDeriveRequestBuffer_;
++                    entries[12].size = sizeof(GPUZoneDeriveRequestArray);
+ 
+                     wgpu::BindGroupDescriptor desc{};
+                     desc.label = "GoL Zone Compute BindGroup";
+@@ -5293,7 +5266,7 @@ namespace t7 {
+ 
+                 // Pawn aura compute bind group (6 entries: 1, 25, 60, 170-172)
+                 {
+-                    std::array<wgpu::BindGroupEntry, 6> entries{};
++                    std::array<wgpu::BindGroupEntry, 5> entries{};
+ 
+                     entries[0].binding = bind::g0::config;
+                     entries[0].buffer = configBuffer_;
+@@ -5314,10 +5287,6 @@ namespace t7 {
+                     entries[4].binding = bind::g0::pawn_aura_tex_write;
+                     entries[4].textureView = pawnAuraWriteView_;
+ 
+-                    entries[5].binding = bind::g0::tile_grid;
+-                    entries[5].buffer = tileGridBuffer_;
+-                    entries[5].size = sizeof(GPUTileGrid);
+-
+                     wgpu::BindGroupDescriptor desc{};
+                     desc.label = "Pawn Aura Compute BindGroup";
+                     desc.layout = pawnAuraComputeLayout_;

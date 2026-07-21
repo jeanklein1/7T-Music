@@ -1,0 +1,127 @@
+{
+  "bf50300 (pyramid_instances b30, glaw1=GREEN)": {
+    "update_player_agent": {
+      "ok": false,
+      "error": "Binding doesn't exist in [BindGroupLayoutInternal (unlabeled)].\n - While validating that the entry-point's declaration for @group(0) @binding(30) matches [BindGroupLayoutInternal (unlabeled)]\n - While validating the entry-point's compatibility for group 0 with [BindGroupLayoutInternal (unlabeled)]\n - While validating compute stage ([ShaderModule \"world.wgsl (audit witness)\"], entryPoint: \"update_player_agent\").\n"
+    },
+    "update_other_agents": {
+      "ok": false,
+      "error": "Binding doesn't exist in [BindGroupLayoutInternal (unlabeled)].\n - While validating that the entry-point's declaration for @group(0) @binding(30) matches [BindGroupLayoutInternal (unlabeled)]\n - While validating the entry-point's compatibility for group 0 with [BindGroupLayoutInternal (unlabeled)]\n - While validating compute stage ([ShaderModule \"world.wgsl (audit witness)\"], entryPoint: \"update_other_agents\").\n"
+    },
+    "update_camera": {
+      "ok": false,
+      "error": "Binding doesn't exist in [BindGroupLayoutInternal (unlabeled)].\n - While validating that the entry-point's declaration for @group(0) @binding(30) matches [BindGroupLayoutInternal (unlabeled)]\n - While validating the entry-point's compatibility for group 0 with [BindGroupLayoutInternal (unlabeled)]\n - While validating compute stage ([ShaderModule \"world.wgsl (audit witness)\"], entryPoint: \"update_camera\").\n"
+    },
+    "update_sphere": {
+      "ok": false,
+      "error": "Binding doesn't exist in [BindGroupLayoutInternal (unlabeled)].\n - While validating that the entry-point's declaration for @group(0) @binding(30) matches [BindGroupLayoutInternal (unlabeled)]\n - While validating the entry-point's compatibility for group 0 with [BindGroupLayoutInternal (unlabeled)]\n - While validating compute stage ([ShaderModule \"world.wgsl (audit witness)\"], entryPoint: \"update_sphere\").\n"
+    },
+    "update_cube": {
+      "ok": false,
+      "error": "Binding doesn't exist in [BindGroupLayoutInternal (unlabeled)].\n - While validating that the entry-point's declaration for @group(0) @binding(30) matches [BindGroupLayoutInternal (unlabeled)]\n - While validating the entry-point's compatibility for group 0 with [BindGroupLayoutInternal (unlabeled)]\n - While validating compute stage ([ShaderModule \"world.wgsl (audit witness)\"], entryPoint: \"update_cube\").\n"
+    },
+    "compute_vp": {
+      "ok": true
+    }
+  },
+  "15def24 (tile_grid b25, glaw1=GREEN)": {
+    "update_player_agent": {
+      "ok": false,
+      "error": "Binding doesn't exist in [BindGroupLayoutInternal (unlabeled)].\n - While validating that the entry-point's declaration for @group(0) @binding(25) matches [BindGroupLayoutInternal (unlabeled)]\n - While validating the entry-point's compatibility for group 0 with [BindGroupLayoutInternal (unlabeled)]\n - While validating compute stage ([ShaderModule \"world.wgsl (audit witness)\"], entryPoint: \"update_player_agent\").\n"
+    },
+    "update_other_agents": {
+      "ok": false,
+      "error": "Binding doesn't exist in [BindGroupLayoutInternal (unlabeled)].\n - While validating that the entry-point's declaration for @group(0) @binding(25) matches [BindGroupLayoutInternal (unlabeled)]\n - While validating the entry-point's compatibility for group 0 with [BindGroupLayoutInternal (unlabeled)]\n - While validating compute stage ([ShaderModule \"world.wgsl (audit witness)\"], entryPoint: \"update_other_agents\").\n"
+    },
+    "update_camera": {
+      "ok": false,
+      "error": "Binding doesn't exist in [BindGroupLayoutInternal (unlabeled)].\n - While validating that the entry-point's declaration for @group(0) @binding(25) matches [BindGroupLayoutInternal (unlabeled)]\n - While validating the entry-point's compatibility for group 0 with [BindGroupLayoutInternal (unlabeled)]\n - While validating compute stage ([ShaderModule \"world.wgsl (audit witness)\"], entryPoint: \"update_camera\").\n"
+    },
+    "update_sphere": {
+      "ok": false,
+      "error": "Binding doesn't exist in [BindGroupLayoutInternal (unlabeled)].\n - While validating that the entry-point's declaration for @group(0) @binding(25) matches [BindGroupLayoutInternal (unlabeled)]\n - While validating the entry-point's compatibility for group 0 with [BindGroupLayoutInternal (unlabeled)]\n - While validating compute stage ([ShaderModule \"world.wgsl (audit witness)\"], entryPoint: \"update_sphere\").\n"
+    },
+    "update_cube": {
+      "ok": false,
+      "error": "Binding doesn't exist in [BindGroupLayoutInternal (unlabeled)].\n - While validating that the entry-point's declaration for @group(0) @binding(25) matches [BindGroupLayoutInternal (unlabeled)]\n - While validating the entry-point's compatibility for group 0 with [BindGroupLayoutInternal (unlabeled)]\n - While validating compute stage ([ShaderModule \"world.wgsl (audit witness)\"], entryPoint: \"update_cube\").\n"
+    },
+    "compute_vp": {
+      "ok": true
+    }
+  },
+  "fe7db38 (pier_instances b26, glaw1=GREEN)": {
+    "update_player_agent": {
+      "ok": false,
+      "error": "Binding doesn't exist in [BindGroupLayoutInternal (unlabeled)].\n - While validating that the entry-point's declaration for @group(0) @binding(26) matches [BindGroupLayoutInternal (unlabeled)]\n - While validating the entry-point's compatibility for group 0 with [BindGroupLayoutInternal (unlabeled)]\n - While validating compute stage ([ShaderModule \"world.wgsl (audit witness)\"], entryPoint: \"update_player_agent\").\n"
+    },
+    "update_other_agents": {
+      "ok": false,
+      "error": "Binding doesn't exist in [BindGroupLayoutInternal (unlabeled)].\n - While validating that the entry-point's declaration for @group(0) @binding(26) matches [BindGroupLayoutInternal (unlabeled)]\n - While validating the entry-point's compatibility for group 0 with [BindGroupLayoutInternal (unlabeled)]\n - While validating compute stage ([ShaderModule \"world.wgsl (audit witness)\"], entryPoint: \"update_other_agents\").\n"
+    },
+    "update_camera": {
+      "ok": false,
+      "error": "Binding doesn't exist in [BindGroupLayoutInternal (unlabeled)].\n - While validating that the entry-point's declaration for @group(0) @binding(26) matches [BindGroupLayoutInternal (unlabeled)]\n - While validating the entry-point's compatibility for group 0 with [BindGroupLayoutInternal (unlabeled)]\n - While validating compute stage ([ShaderModule \"world.wgsl (audit witness)\"], entryPoint: \"update_camera\").\n"
+    },
+    "update_sphere": {
+      "ok": false,
+      "error": "Binding doesn't exist in [BindGroupLayoutInternal (unlabeled)].\n - While validating that the entry-point's declaration for @group(0) @binding(26) matches [BindGroupLayoutInternal (unlabeled)]\n - While validating the entry-point's compatibility for group 0 with [BindGroupLayoutInternal (unlabeled)]\n - While validating compute stage ([ShaderModule \"world.wgsl (audit witness)\"], entryPoint: \"update_sphere\").\n"
+    },
+    "update_cube": {
+      "ok": false,
+      "error": "Binding doesn't exist in [BindGroupLayoutInternal (unlabeled)].\n - While validating that the entry-point's declaration for @group(0) @binding(26) matches [BindGroupLayoutInternal (unlabeled)]\n - While validating the entry-point's compatibility for group 0 with [BindGroupLayoutInternal (unlabeled)]\n - While validating compute stage ([ShaderModule \"world.wgsl (audit witness)\"], entryPoint: \"update_cube\").\n"
+    },
+    "compute_vp": {
+      "ok": true
+    }
+  },
+  "9b90d0c (zone_config b160, glaw1=GREEN)": {
+    "update_player_agent": {
+      "ok": false,
+      "error": "Binding doesn't exist in [BindGroupLayoutInternal (unlabeled)].\n - While validating that the entry-point's declaration for @group(0) @binding(160) matches [BindGroupLayoutInternal (unlabeled)]\n - While validating the entry-point's compatibility for group 0 with [BindGroupLayoutInternal (unlabeled)]\n - While validating compute stage ([ShaderModule \"world.wgsl (audit witness)\"], entryPoint: \"update_player_agent\").\n"
+    },
+    "update_other_agents": {
+      "ok": false,
+      "error": "Binding doesn't exist in [BindGroupLayoutInternal (unlabeled)].\n - While validating that the entry-point's declaration for @group(0) @binding(160) matches [BindGroupLayoutInternal (unlabeled)]\n - While validating the entry-point's compatibility for group 0 with [BindGroupLayoutInternal (unlabeled)]\n - While validating compute stage ([ShaderModule \"world.wgsl (audit witness)\"], entryPoint: \"update_other_agents\").\n"
+    },
+    "update_camera": {
+      "ok": false,
+      "error": "Binding doesn't exist in [BindGroupLayoutInternal (unlabeled)].\n - While validating that the entry-point's declaration for @group(0) @binding(160) matches [BindGroupLayoutInternal (unlabeled)]\n - While validating the entry-point's compatibility for group 0 with [BindGroupLayoutInternal (unlabeled)]\n - While validating compute stage ([ShaderModule \"world.wgsl (audit witness)\"], entryPoint: \"update_camera\").\n"
+    },
+    "update_sphere": {
+      "ok": false,
+      "error": "Binding doesn't exist in [BindGroupLayoutInternal (unlabeled)].\n - While validating that the entry-point's declaration for @group(0) @binding(160) matches [BindGroupLayoutInternal (unlabeled)]\n - While validating the entry-point's compatibility for group 0 with [BindGroupLayoutInternal (unlabeled)]\n - While validating compute stage ([ShaderModule \"world.wgsl (audit witness)\"], entryPoint: \"update_sphere\").\n"
+    },
+    "update_cube": {
+      "ok": false,
+      "error": "Binding doesn't exist in [BindGroupLayoutInternal (unlabeled)].\n - While validating that the entry-point's declaration for @group(0) @binding(160) matches [BindGroupLayoutInternal (unlabeled)]\n - While validating the entry-point's compatibility for group 0 with [BindGroupLayoutInternal (unlabeled)]\n - While validating compute stage ([ShaderModule \"world.wgsl (audit witness)\"], entryPoint: \"update_cube\").\n"
+    },
+    "compute_vp": {
+      "ok": true
+    }
+  },
+  "f95ec9f (zone_life b161, glaw1=GREEN)": {
+    "update_player_agent": {
+      "ok": false,
+      "error": "Binding doesn't exist in [BindGroupLayoutInternal (unlabeled)].\n - While validating that the entry-point's declaration for @group(0) @binding(161) matches [BindGroupLayoutInternal (unlabeled)]\n - While validating the entry-point's compatibility for group 0 with [BindGroupLayoutInternal (unlabeled)]\n - While validating compute stage ([ShaderModule \"world.wgsl (audit witness)\"], entryPoint: \"update_player_agent\").\n"
+    },
+    "update_other_agents": {
+      "ok": false,
+      "error": "Binding doesn't exist in [BindGroupLayoutInternal (unlabeled)].\n - While validating that the entry-point's declaration for @group(0) @binding(161) matches [BindGroupLayoutInternal (unlabeled)]\n - While validating the entry-point's compatibility for group 0 with [BindGroupLayoutInternal (unlabeled)]\n - While validating compute stage ([ShaderModule \"world.wgsl (audit witness)\"], entryPoint: \"update_other_agents\").\n"
+    },
+    "update_camera": {
+      "ok": false,
+      "error": "Binding doesn't exist in [BindGroupLayoutInternal (unlabeled)].\n - While validating that the entry-point's declaration for @group(0) @binding(161) matches [BindGroupLayoutInternal (unlabeled)]\n - While validating the entry-point's compatibility for group 0 with [BindGroupLayoutInternal (unlabeled)]\n - While validating compute stage ([ShaderModule \"world.wgsl (audit witness)\"], entryPoint: \"update_camera\").\n"
+    },
+    "update_sphere": {
+      "ok": false,
+      "error": "Binding doesn't exist in [BindGroupLayoutInternal (unlabeled)].\n - While validating that the entry-point's declaration for @group(0) @binding(161) matches [BindGroupLayoutInternal (unlabeled)]\n - While validating the entry-point's compatibility for group 0 with [BindGroupLayoutInternal (unlabeled)]\n - While validating compute stage ([ShaderModule \"world.wgsl (audit witness)\"], entryPoint: \"update_sphere\").\n"
+    },
+    "update_cube": {
+      "ok": false,
+      "error": "Binding doesn't exist in [BindGroupLayoutInternal (unlabeled)].\n - While validating that the entry-point's declaration for @group(0) @binding(161) matches [BindGroupLayoutInternal (unlabeled)]\n - While validating the entry-point's compatibility for group 0 with [BindGroupLayoutInternal (unlabeled)]\n - While validating compute stage ([ShaderModule \"world.wgsl (audit witness)\"], entryPoint: \"update_cube\").\n"
+    },
+    "compute_vp": {
+      "ok": true
+    }
+  }
+}

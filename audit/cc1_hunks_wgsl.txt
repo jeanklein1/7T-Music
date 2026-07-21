@@ -1,0 +1,142 @@
+diff --git a/src/cartridges/the_board/realization/world.wgsl b/src/cartridges/the_board/realization/world.wgsl
+index bd95eba..1f1b07e 100644
+--- a/src/cartridges/the_board/realization/world.wgsl
++++ b/src/cartridges/the_board/realization/world.wgsl
+@@ -130,6 +126,19 @@
+ // §8    GALLERY             Photographer, terrain paintings, wall paintings
+ // §9    ENTITY MESH GEN     GPU-sovereign geometry: arches, columns
+ //
++// PANELS (the federation's strips — one sitting each; grep the names,
++// no line anchors):
++//   §2.2   TERRAIN_LOOKS — the master terrain panel; ROW 9 is the
++//          roster of pointers to every other strip.
++//   §7.0b  GOL ZONE panel — per-zone config struct + named visual
++//          constants (enums pinned to their CPU twins).
++//   PULSE_SPEED..PULSE_AGE_DECAY — the RADIAL PULSE panel, directly
++//          above fn contrib_radial_pulses_at.
++//   pawn_aura_cfg (§7.4) — the aura's uniform strip.
++//   CPU rooms: terrain_looks.hpp (rest pins), population_themes.hpp
++//          (population), state.hpp GPUDesignConfig (paneled by system
++//          groups; GROWTH LAW at its head).
++//
+ // Subsystem-specific bindings live with their consumers (§7, §8, §9).
+ // Global bindings (signal, config, VP, render mirrors, lights) are in §7.0.
+ 
+@@ -895,12 +916,18 @@ struct TileGridEntry {
+     archetype: u32,            // 0=mountainous, 1=varied, 2=basin, 3=pool
+ }
+ 
++// TILE_GRID ceiling — the pinned capacity pair's WGSL half; twin:
++// Dim::TILE_GRID_CAPACITY (state.hpp). Authored, NOT derived from the
++// radius — the dial never touches it. Raise it in BOTH rooms or
++// glaw1/Dawn objects.
++const TILE_GRID_CAPACITY: u32 = 1024u;
++
+ struct TileGrid {
+     origin_x: i32,         // grid-space X of entry [0][0]
+     origin_z: i32,         // grid-space Z of entry [0][0]
+-    side: u32,             // grid dimension (up to 17)
++    side: u32,             // grid dimension (up to 19)
+     cell_extent: f32,      // world units per cell (50.0)
+-    entries: array<TileGridEntry, 289>,
++    entries: array<TileGridEntry, TILE_GRID_CAPACITY>,
+ }
+ 
+ // Look up a tile grid entry by grid coordinate.
+@@ -1715,6 +1810,8 @@ fn palette_color_smooth(weights: vec4<f32>, complexity: f32) -> vec3<f32> {
+ //     Architecture seam (CPU twin: contracts/ground_architecture.hpp).
+ //   GoL zone tint: gol_composite_cell_color (§7.0b) — reads ROW 1/3
+ //     through palette_color_smooth; GoL/pulse keep their own panel.
++//   Radial pulses (music-onset rings): the PULSE_SPEED..PULSE_AGE_DECAY
++//     dials directly above fn contrib_radial_pulses_at.
+ //   Pawn aura tint: pawn_aura_cfg.tint_strength — a uniform field of
+ //     the aura system, NOT this panel's DISCRETE_TINT_STRENGTH.
+ //   Population (what stands on the surface): population_themes.hpp +
+@@ -5079,7 +5267,7 @@ fn fade_overlay_fs(in: FadeVarying) -> @location(0) vec4<f32> {
+ @group(0) @binding(0)   var<uniform>             signal: FrameSignal;
+ @group(0) @binding(1)   var<uniform>             config: DesignConfig;
+ @group(0) @binding(2)   var<storage, read_write> vp_data: VPMatrix;
+-// @binding(20) terrain_state REMOVED (husk sweep — dead terrain buffer)
++// @binding(20) terrain_state REMOVED (dead terrain buffer)
+ 
+ // Agent system — unified entity buffer. Slot 0 is the player's body;
+ // slots 1..31 are mood-authored agents. The player's relationship
+@@ -5142,7 +5330,7 @@ fn point_pos() -> vec3<f32> {
+ // --- [BINDINGS:compute] Group 0 — Render entity mirrors (read-only, +200 offset)
+ @group(0) @binding(200) var<storage, read> render_signal: FrameSignal;
+ @group(0) @binding(201) var<storage, read> render_vp: VPMatrix;
+-// @binding(220) render_terrain REMOVED (husk sweep — dead terrain buffer)
++// @binding(220) render_terrain REMOVED (dead terrain buffer)
+ @group(0) @binding(260) var<storage, read> render_agents: array<AgentState, 32>;
+ @group(0) @binding(280) var<storage, read> render_camera: CameraState;
+ @group(0) @binding(300) var<uniform> render_floating: FloatingEntityArray;
+@@ -5234,15 +5422,16 @@ struct CellMeshVertex {
+ @group(0) @binding(24) var patch_heightfield_array_write: texture_storage_2d_array<rgba16float, write>;
+ @group(0) @binding(25) var<uniform> tile_grid: TileGrid;
+ @group(0) @binding(27) var patch_cell_color_array_write: texture_storage_2d_array<rgba8unorm, write>;
+-@group(0) @binding(29) var cell_fields_write: texture_storage_2d_array<rgba16float, write>;
++// (binding 29, cell_fields_write, RETIRED — Commit C, the LUT
++//  retirement. Number reserved; do not reuse.)
+ @group(0) @binding(28) var<storage, read_write> patch_height_scratch: array<f32>;
+ 
+-// --- Patch rendering (Group 0: binding 340, 391; Group 1: bindings 28-30)
++// --- Patch rendering (Group 0: binding 340, 391; Group 1: bindings 28-29)
+ @group(0) @binding(340) var<storage, read> patch_instances: array<PatchInstance>;
+ @group(0) @binding(391) var<storage, read> visible_patch_indices: array<u32>;
+ @group(1) @binding(28) var patch_heightfield_array_read: texture_2d_array<f32>;
+ @group(1) @binding(29) var patch_cell_color_array_read: texture_2d_array<f32>;
+-@group(1) @binding(30) var cell_fields_read: texture_2d_array<f32>;
++// (binding 30, cell_fields_read, RETIRED — Commit C. Number reserved.)
+ 
+ // §7.0b GOL ZONE DEFINITIONS
+ 
+@@ -5534,11 +5729,11 @@ struct PawnAuraCell {
+ // --- Zone heightfield sampling (mesh gen terrain alignment)
+ @group(0) @binding(163) var zone_heightfield: texture_2d_array<f32>;
+ @group(0) @binding(164) var zone_hf_sampler: sampler;
+-// Twin of CPU Dim::MAX_ACTIVE_PATCHES (PATCH_PREGEN_SIDE² = 15² = 225).
++// Runtime-sized: capacity is the bound buffer's — the CPU side
++// (Dim::MAX_ACTIVE_PATCHES) is the single source; no WGSL twin exists.
+ // Zone terrain scan covers every active patch slot; overflow to the
+ // analytic fallback is thereby eliminated, not merely bounded.
+-const ZONE_PATCH_CAP: u32 = 225u;
+-@group(0) @binding(165) var<storage, read> zone_patch_instances: array<PatchInstance, ZONE_PATCH_CAP>;
++@group(0) @binding(165) var<storage, read> zone_patch_instances: array<PatchInstance>;
+ 
+ // --- Zone Parameter Derivation (GPU-authoritative) ──────────────────────
+ //
+@@ -8219,13 +8450,14 @@ struct PalmGroundEntry {
+ // Spatial index for O(1) patch lookup. CPU populates entries[lz*side + lx]
+ // with (layer + 1) for GENERATED/NEEDS_REGEN patches; 0 means empty slot.
+ // Replaces the linear scan over photo_patch_instances in sample_terrain_y_at.
+-// Sized to MAX_ACTIVE_PATCHES (PATCH_PREGEN_SIDE² = 15² = 225).
++// Runtime-sized: capacity is the bound buffer's — the CPU side
++// (Dim::MAX_ACTIVE_PATCHES) is the single source; no WGSL twin exists.
+ struct PatchGrid {
+     origin_x: i32,
+     origin_z: i32,
+     side: u32,
+     cell_extent: f32,
+-    entries: array<u32, 225>,
++    entries: array<u32>,
+ }
+ @group(0) @binding(152) var<storage, read> patch_grid: PatchGrid;
+ 
+@@ -9464,6 +9696,17 @@ struct ColumnMeshParams {
+ @group(0) @binding(196) var<storage, read>       cmg_params: array<ColumnMeshParams, 32>;
+ @group(0) @binding(197) var<storage, read_write>  cmg_vertices: array<f32>;
+ @group(0) @binding(198) var<storage, read_write>  cmg_indices: array<u32>;
++// COLUMN CEILING FIT: the ceiling gate + the correction pass's ground
++// output (read-only view of binding 148's buffer — slot-aligned with
++// cmg_params: columns 0.., antennas at ANTENNA_SLOT_OFFSET).
++@group(0) @binding(190) var<uniform>             cmg_config: DesignConfig;
++@group(0) @binding(191) var<storage, read>       cmg_column_ground: array<ColumnGroundEntry, 32>;
++
++// COLUMN_MIN_INDOOR_HEIGHT: extreme-terrain floor — a column never
++// collapses below this. PINNED PAIR with COLUMN_MIN_INDOOR_HEIGHT in
++// contracts/indoor_module.hpp (authored in both rooms, named the
++// same, never dial-derived — the TILE_GRID_CAPACITY pattern).
++const COLUMN_MIN_INDOOR_HEIGHT: f32 = 1.0;
+ 
+ // ── Helpers ───────────────────────────────────────────────────────────
+ 
