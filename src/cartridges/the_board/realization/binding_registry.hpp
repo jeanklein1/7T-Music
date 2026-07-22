@@ -25,8 +25,9 @@
 // / orb_state_ro(413). Each name = one (group, slot).
 //
 // THE CEILING (Option A). This single-sources the two C++ copies (layout +
-// group). The WGSL @binding literals in world.wgsl (102 declarations over 97
-// slots — audit cc7; five documented fc_ aliases share slots) stay a MIRROR — the
+// group). The WGSL @binding literals in world.wgsl (100 declarations over 97
+// slots at the Stage-5 opening — audit A2 recount; three fc_ aliases share
+// slots: fc_config/fc_vp/fc_patches) stay a MIRROR — the
 // shader cannot read a C++ constant — kept in lockstep by the crash-aware
 // launch gate (bind-group + pipeline validation), NOT the compiler. The
 // name here deliberately equals the WGSL var so the mirror is greppable in
@@ -68,9 +69,9 @@ namespace t7 {
                 inline constexpr uint32_t live_card_write            = 31;  // GROUND_CARD_1: the live card (storage-tex write; writer kernel)
 
                 // agents / camera (60–101)
-                inline constexpr uint32_t agent_state                = 60;   // aka fc_agents
+                inline constexpr uint32_t agent_state                = 60;
                 inline constexpr uint32_t portal_array               = 62;
-                inline constexpr uint32_t camera_state               = 80;   // aka fc_camera
+                inline constexpr uint32_t camera_state               = 80;
                 inline constexpr uint32_t floating_entities          = 100;
 
                 // agent registries (110–111)

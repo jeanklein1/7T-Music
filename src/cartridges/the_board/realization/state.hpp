@@ -3877,7 +3877,7 @@ namespace t7 {
                     if (!meshGenEntityBindGroupLayout_) return false;
                 }
 
-                // -- Shadow texture layout (Group 1) -- bindings 22-23, 28 --
+                // -- Shadow texture layout (Group 1) -- bindings 22-23, 28, 34 --
                 // Used during shadow pass: samplers + patch heightfield only, NO shadow map.
                 // Avoids read/write conflict (shadow map is depth attachment).
                 // (bindings 20, 21, 24 removed — formerly legacy stub textures)
@@ -3911,7 +3911,7 @@ namespace t7 {
                     if (!shadowTextureBindGroupLayout_) return false;
                 }
 
-                // -- Render texture layout (Group 1) -- bindings 22-23, 25-27, 28-29, 31-33 -
+                // -- Render texture layout (Group 1) -- bindings 22-23, 25-29, 31-34 -
                 // Used during main render pass: samplers + shadow maps + patches + GoL zones + pawn aura.
                 // (bindings 20, 21, 24 removed — formerly legacy stub textures)
                 {
@@ -4735,7 +4735,7 @@ namespace t7 {
                     if (!computeEntityBindGroup_) return false;
                 }
 
-                // Render entity bind group (19 entries: config + spaced by system +200, plus shared agent_tier_gains at 111)
+                // Render entity bind group (18 entries: config + spaced by system +200, plus shared agent_tier_gains at 111)
                 {
                     std::array<wgpu::BindGroupEntry, 18> entries{};
 
@@ -4846,7 +4846,7 @@ namespace t7 {
                     if (!meshGenEntityBindGroup_) return false;
                 }
 
-                // Shadow texture bind group (3 entries: bindings 22-23, 28)
+                // Shadow texture bind group (4 entries: bindings 22-23, 28, 34)
                 {
                     std::array<wgpu::BindGroupEntry, 4> entries{};
 
@@ -4871,7 +4871,7 @@ namespace t7 {
                     if (!shadowTextureBindGroup_) return false;
                 }
 
-                // Render texture bind group (10 entries: 22-23, 25-27, 28-29, 31-33)
+                // Render texture bind group (11 entries: 22-23, 25-29, 31-34)
                 {
                     std::array<wgpu::BindGroupEntry, 11> entries{};
 
