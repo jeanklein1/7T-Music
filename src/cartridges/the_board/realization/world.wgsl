@@ -311,6 +311,78 @@ fn patch_skirt_grid(k: u32) -> vec2<u32> {
     else               { return vec2<u32>(0u, n - (k - 3u*n)); }
 }
 
+// The n=4 perimeter walk of a cell's 5×5 cap grid — same CW shape
+// as patch_skirt_grid; mirrors the CPU emission's cell_perimeter.
+fn ug_cell_perimeter(k: u32) -> vec2<u32> {
+    let n = UG_QUADS;
+    if (k < n)         { return vec2<u32>(k, 0u); }
+    else if (k < 2u*n) { return vec2<u32>(n, k - n); }
+    else if (k < 3u*n) { return vec2<u32>(n - (k - 2u*n), n); }
+    else               { return vec2<u32>(0u, n - (k - 3u*n)); }
+}
+
+// THE UNIFIED DECODE (UNIFIED_GROUND_1; bands: Dim::UG_*)
+// Comparisons only — the A2-5(i) blessed shape (no loops, no tables).
+struct UgVert {
+    vx: u32,
+    vz: u32,
+    cellx: u32,
+    cellz: u32,
+    lift_scale: f32,   // 1 cap/legacy/skirt, 0 base (no lift — the gap IS the curtain)
+    drop: f32,         // PATCH_SKIRT_DEPTH on skirt ring copies
+    wall: f32,         // 1 on curtain-bottom + skirt copies
+}
+fn ug_decode(vi: u32) -> UgVert {
+    var d: UgVert;
+    d.lift_scale = 1.0;
+    d.drop = 0.0;
+    d.wall = 0.0;
+    if (vi < PATCH_GRID_VERT_COUNT) {
+        // legacy grid (the LOD1/soft space)
+        d.vx = vi % PATCH_MESH_STRIDE;
+        d.vz = vi / PATCH_MESH_STRIDE;
+    } else if (vi < UG_CAP_BASE) {
+        // skirt ring copy — keeps its legacy slot, drops after compositing
+        let g = patch_skirt_grid(vi - PATCH_GRID_VERT_COUNT);
+        d.vx = g.x;
+        d.vz = g.y;
+        d.drop = PATCH_SKIRT_DEPTH;
+        d.wall = 1.0;
+    } else if (vi < UG_BASE_BASE) {
+        // cap band: cell-owned 5×5 vert
+        let r = vi - UG_CAP_BASE;
+        let cell = r / 25u;          // UG_CAP_VERTS_PER_CELL
+        let k = r % 25u;
+        let lx = k % UG_CAP_STRIDE;
+        let lz = k / UG_CAP_STRIDE;
+        d.vx = (cell % PATCH_CELL_N) * UG_QUADS + lx;
+        d.vz = (cell / PATCH_CELL_N) * UG_QUADS + lz;
+    } else {
+        // base band: curtain-bottom twin of a cap perimeter vert
+        let r = vi - UG_BASE_BASE;
+        let cell = r / 16u;          // UG_BASE_VERTS_PER_CELL
+        let g = ug_cell_perimeter(r % 16u);
+        d.vx = (cell % PATCH_CELL_N) * UG_QUADS + g.x;
+        d.vz = (cell / PATCH_CELL_N) * UG_QUADS + g.y;
+        d.lift_scale = 0.0;
+        d.wall = 1.0;
+    }
+    // the uniform cell-assignment rule (legacy/skirt verts included)
+    d.cellx = min(d.vx / UG_QUADS, PATCH_CELL_N - 1u);
+    d.cellz = min(d.vz / UG_QUADS, PATCH_CELL_N - 1u);
+    return d;
+}
+
+// The cell-lift fetch: the card's raw GoL (.a, nearest) at the CELL
+// CENTER — every vert of a cell reads one value; cells lift as slabs.
+fn ug_cell_lift(pi_origin: vec2<f32>, pi_extent: f32,
+                cellx: u32, cellz: u32) -> f32 {
+    let cs = pi_extent / f32(PATCH_CELL_N);
+    let center = pi_origin - vec2(pi_extent * 0.5)
+               + (vec2(f32(cellx), f32(cellz)) + vec2(0.5)) * cs;
+    return sample_live_card_gol(center);   // nearest, cell-snapped
+}
+
 
 // §1.4 UTILITIES
 
@@ -2175,6 +2247,16 @@ const ZONE_SPHERE_TINT_STRENGTH: f32 = 0.5;
 const ZONE_SUPPRESS_INNER: f32 = 4.0;   // full suppression inside this radius
 const ZONE_SUPPRESS_OUTER: f32 = 15.0;  // zero suppression beyond this radius
 
+// THE ONE SUPPRESSION FORM (UNIFIED_GROUND_1) — the walker's exact
+// inline shape, extracted. pawn_xz is the caller's stage-appropriate
+// point source: compute passes qi.consumer_pos.xz, render passes
+// render_pawn_pos().xz. Returns the suppression FACTOR (1 at the
+// pawn, 0 beyond OUTER).
+fn pawn_gol_suppression(world_xz: vec2<f32>, pawn_xz: vec2<f32>) -> f32 {
+    return 1.0 - smoothstep(ZONE_SUPPRESS_INNER, ZONE_SUPPRESS_OUTER,
+                            distance(world_xz, pawn_xz));
+}
+
 // --- [COUPLING:cells→terrain:height]
 const PIER_TOTAL: u32 = 68u;
 
@@ -2374,9 +2456,7 @@ fn contrib_gol_zones_at(world_xz: vec2<f32>) -> f32 {
 // wants suppression as a separate value.
 fn contrib_gol_suppression_at(world_xz: vec2<f32>, consumer_pos: vec3<f32>) -> f32 {
     let h = contrib_gol_zones_at(world_xz);
-    let d = distance(world_xz, consumer_pos.xz);
-    let factor = 1.0 - smoothstep(ZONE_SUPPRESS_INNER, ZONE_SUPPRESS_OUTER, d);
-    return h * factor;
+    return h * pawn_gol_suppression(world_xz, consumer_pos.xz);
 }
 
 // --- Ground Architecture: contributor and policy ids ---
@@ -3038,8 +3118,7 @@ fn query_ground_walker(xz: vec2<f32>, qi: QueryInputs) -> f32 {
     // intent: "GoL doesn't push me up into the air while I'm standing on it."
     // Kept a SINGLE term (gol*(1−supp)) so the walker stays bit-identical.
     let gol = sample_live_card_gol(xz);
-    let d = distance(xz, qi.consumer_pos.xz);
-    let supp_factor = 1.0 - smoothstep(ZONE_SUPPRESS_INNER, ZONE_SUPPRESS_OUTER, d);
+    let supp_factor = pawn_gol_suppression(xz, qi.consumer_pos.xz);
     // Shared world stack + the mover-anchored self-aura (added after so the
     // pawn stands on its own aura peak without reading the grid).
     return manifold_overlay_stack(xz, qi, gol * (1.0 - supp_factor))
@@ -3066,8 +3145,7 @@ fn query_ground_walker_tilt(xz: vec2<f32>, qi: QueryInputs) -> f32 {
     // constant scalar with zero tilt gradient — excluded for clarity). Just
     // the shared world stack.
     let gol = sample_live_card_gol(xz);
-    let d = distance(xz, qi.consumer_pos.xz);
-    let supp_factor = 1.0 - smoothstep(ZONE_SUPPRESS_INNER, ZONE_SUPPRESS_OUTER, d);
+    let supp_factor = pawn_gol_suppression(xz, qi.consumer_pos.xz);
     return manifold_overlay_stack(xz, qi, gol * (1.0 - supp_factor));
 }
 
@@ -3099,8 +3177,7 @@ fn query_ground_walker_pair(xz: vec2<f32>, qi: QueryInputs) -> vec2<f32> {
     // applied to the tilt so it doesn't lean on cells the pawn stands flat
     // on. Walker is that same tilt plus the pawn-self aura peak; they now
     // differ only by the aura.
-    let d = distance(xz, qi.consumer_pos.xz);
-    let supp_factor = 1.0 - smoothstep(ZONE_SUPPRESS_INNER, ZONE_SUPPRESS_OUTER, d);
+    let supp_factor = pawn_gol_suppression(xz, qi.consumer_pos.xz);
     let gol_supp = gol * (1.0 - supp_factor);
     let tilt   = base + gol_supp + live_h;
     let walker = tilt + contrib_pawn_aura_at_self();
