@@ -407,7 +407,7 @@ inline void populate_agent_slot_(const AgentState& as,
     out.color_r = COLUMN_PALETTE[ci][0];
     out.color_g = COLUMN_PALETTE[ci][1];
     out.color_b = COLUMN_PALETTE[ci][2];
-    out._pad0   = 0.0f;
+    out.skin_id = 0u;     // placeholder (regular); H4 replaces with the roll
 }
 
 // ═══ SPAWN ════════════════════════════════════════════════════════

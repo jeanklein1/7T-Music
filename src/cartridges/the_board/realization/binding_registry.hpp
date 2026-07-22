@@ -75,9 +75,10 @@ namespace t7 {
                 inline constexpr uint32_t camera_state               = 80;
                 inline constexpr uint32_t floating_entities          = 100;
 
-                // agent registries (110–111)
+                // agent registries (110–112)
                 inline constexpr uint32_t agent_behaviors            = 110;
                 inline constexpr uint32_t agent_tier_gains           = 111;
+                inline constexpr uint32_t agent_figure_profiles      = 112;  // uniform: PawnFigure[14] (render VS only)
 
                 // ribbon (120–122)
                 inline constexpr uint32_t ribbon_state               = 120;

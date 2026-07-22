@@ -31,6 +31,7 @@
 #include "cartridges/the_board/demos/demo.hpp"   // ROSTER via the selected sentence (GPUState::init gates creation)
 #include "cartridges/the_board/realization/binding_registry.hpp"  // C6: bind::g0::* / bind::g1::* — the single source of truth for binding NUMBERS (the layout+group pair references one named const)
 #include "cartridges/the_board/surface/terrain_looks.hpp"          // THE TERRAIN_LOOKS PANEL (C++ room): palette quartet REST + motion/mode rest pins — boot init reads the panel
+#include "cartridges/the_board/bodies/pawn_figures.hpp"            // typed figure registry (H1: PawnFigureDef / PAWN_FIGURES) — constexpr-only, self-contained
 #include <webgpu/webgpu_cpp.h>
 #include <cstring>
 #include <array>
@@ -604,7 +605,7 @@ namespace t7 {
             float color_r;         // 80 — per-agent body color (palette pick at spawn)
             float color_g;         // 84
             float color_b;         // 88
-            float _pad0;           // 92
+            uint32_t skin_id;      // 92 — PawnFigureDef row (0 = regular pawn). Was _pad0.
         };                         // 96 total
 
         // ─── Agent registry GPU structs ──────────────────────────────
@@ -654,6 +655,89 @@ namespace t7 {
             float contact_radius;  // 24 — TRUEBAND_CONTACT_1: body radius (wu)
             float contact_mass;    // 28 — relative yield authority
         };                         // 32 total (16-byte aligned)
+
+        // ── Pawn figure table (GPU) ──────────────────────────────────────────
+        // Flat pack of PawnFigureDef (bodies/pawn_figures.hpp, H1) so ONE uniform
+        // buffer serves both profile idioms.
+        //
+        // UNIFORM ADDRESS SPACE MIRROR (H3): WGSL declares prof/pal as
+        // array<vec4<f32>, 8> — the uniform address space forces a 16-byte array
+        // stride, so array<f32,32> would pad each float to 16 B (512 B) and break
+        // this layout. float[32] here and array<vec4<f32>,8> there are the SAME
+        // 128 contiguous bytes, so this C++ struct and the pack below need no
+        // change — only the WGSL declaration and its indexing differ.
+        //   struct total: 16 (header) + 128 (prof) + 128 (pal) + 16 (drift) = 288,
+        //   and 288 % 16 == 0 satisfies the uniform array-stride rule for
+        //   array<PawnFigure, 14>.
+        //
+        // Interpreted per-family in world.wgsl (H3):
+        //   prof[] : FAM_SMOOTH  → 16 SmoothProfile fields, order-identical to H1.
+        //            FAM_HERALDIC → seg k at prof[k*4 + {0:h, 1:r_bot, 2:r_top, 3:shape}].
+        //            FAM_REGULAR  → unused (WGSL uses the hardcoded pawn_profile_radius).
+        //   pal[]  : up to 8 stops × {t,r,g,b}; first stop with t < 0 ends the list.
+        //            pal[0] < 0 means "no palette" (regular → legacy color path).
+        //   drift  : {hue_deg, sat, val, _pad}.
+        struct alignas(16) GPUPawnFigure {
+            uint32_t family;     //   0
+            uint32_t seg_count;  //   4  (heraldic only; 0 otherwise)
+            float    height;     //   8
+            float    radius;     //  12
+            float    prof[32];   //  16
+            float    pal[32];    // 144
+            float    drift[4];   // 272
+        };                       // 288
+
+        // Typed registry → GPU array. Call once at world-init (H4 wires the call).
+        inline void pack_pawn_figures(GPUPawnFigure out[PAWN_FIGURE_COUNT]) {
+            for (uint32_t i = 0; i < PAWN_FIGURE_COUNT; ++i) {
+                const PawnFigureDef& f = PAWN_FIGURES[i];
+                GPUPawnFigure& g = out[i];
+                g = GPUPawnFigure{};
+                g.family = static_cast<uint32_t>(f.family);
+                g.height = f.height;
+                g.radius = f.radius;
+
+                if (f.smooth) {   // FAM_SMOOTH — 16 fields, order matches H1 SmoothProfile
+                    const SmoothProfile& s = *f.smooth;
+                    const float src[16] = {
+                        s.start_r, s.flare_r, s.flare_t, s.peak_r, s.peak_t,
+                        s.base_t, s.body_start_r, s.body_t, s.waist_r,
+                        s.neck_t, s.neck_r, s.collar_t, s.collar_bulge,
+                        s.head_t, s.head_base_r, s.head_sphere_r,
+                    };
+                    for (int k = 0; k < 16; ++k) g.prof[k] = src[k];
+                } else if (f.heraldic) {   // FAM_HERALDIC — packed segments
+                    const HeraldicProfile& h = *f.heraldic;
+                    g.seg_count = h.seg_count;
+                    for (uint32_t k = 0; k < h.seg_count && k < 7u; ++k) {
+                        g.prof[k*4 + 0] = h.seg[k].height;
+                        g.prof[k*4 + 1] = h.seg[k].r_bot;
+                        g.prof[k*4 + 2] = h.seg[k].r_top;
+                        g.prof[k*4 + 3] = static_cast<float>(h.seg[k].shape);
+                    }
+                }
+                // else FAM_REGULAR: prof left zero — WGSL uses the hardcoded path.
+
+                // palette (≤8 stops, t<0 sentinel). Regular figures have palette==null.
+                if (f.palette) {
+                    int k = 0;
+                    for (; k < 8 && f.palette[k].t >= 0.0f; ++k) {
+                        g.pal[k*4 + 0] = f.palette[k].t;
+                        g.pal[k*4 + 1] = f.palette[k].r;
+                        g.pal[k*4 + 2] = f.palette[k].g;
+                        g.pal[k*4 + 3] = f.palette[k].b;
+                    }
+                    if (k < 8) g.pal[k*4 + 0] = -1.0f;   // terminator
+                } else {
+                    g.pal[0] = -1.0f;                    // no palette → legacy color
+                }
+
+                g.drift[0] = f.drift.hue_deg;
+                g.drift[1] = f.drift.sat;
+                g.drift[2] = f.drift.val;
+                g.drift[3] = 0.0f;
+            }
+        }
 
         struct alignas(16) GPUCameraState {
             float pos[3];
@@ -1391,6 +1475,8 @@ namespace t7 {
         static_assert(sizeof(GPUAgentBehaviorDef) % 16 == 0, "GPUAgentBehaviorDef must be 16-byte aligned");
         static_assert(sizeof(GPUAgentTierDef) == 32, "GPUAgentTierDef must be 32 bytes");
         static_assert(sizeof(GPUAgentTierDef) % 16 == 0, "GPUAgentTierDef must be 16-byte aligned");
+        static_assert(sizeof(GPUPawnFigure) == 288, "GPUPawnFigure must be 288 bytes");
+        static_assert(sizeof(GPUPawnFigure) % 16 == 0, "GPUPawnFigure must be 16-byte aligned");
         static_assert(sizeof(GPUCameraState) == 48, "GPUCameraState must be 48 bytes");
         static_assert(sizeof(GPUFloatingEntityState) == 208, "GPUFloatingEntityState must be 208 bytes");
         static_assert(sizeof(GPURibbonState) == 112, "GPURibbonState must be 112 bytes");
@@ -1492,6 +1578,7 @@ namespace t7 {
             // these buffers via storage bindings 110 / 111.
             wgpu::Buffer agentBehaviorsBuffer_;
             wgpu::Buffer agentTierGainsBuffer_;
+            wgpu::Buffer figureProfilesBuffer_;   // GPUPawnFigure[PAWN_FIGURE_COUNT] — uniform, render VS only (H2)
             wgpu::Buffer cameraBuffer_, floatingEntityBuffer_;
             wgpu::Buffer ribbonBuffer_;
             wgpu::Buffer ringTransformsBuffer_;
@@ -1797,6 +1884,14 @@ namespace t7 {
                 uint32_t tier_count) {
                 writeArray(queue, agentBehaviorsBuffer_, behaviors, behavior_count);
                 writeArray(queue, agentTierGainsBuffer_, tiers, tier_count);
+            }
+
+            // One-shot upload of the pawn figure table (values are constexpr; H4
+            // wires the boot call). Packs PAWN_FIGURES → GPUPawnFigure[14] → buffer.
+            void upload_pawn_figures(wgpu::Queue& queue) {
+                GPUPawnFigure figs[PAWN_FIGURE_COUNT];
+                pack_pawn_figures(figs);
+                queue.WriteBuffer(figureProfilesBuffer_, 0, figs, sizeof(figs));
             }
 
             void upload_config(wgpu::Queue& queue) {
@@ -2877,6 +2972,11 @@ namespace t7 {
                 agentTierGainsBuffer_ = makeBuffer("Agent Tier Gains Table",
                     GPU_AGENT_TIER_COUNT * sizeof(GPUAgentTierDef),
                     wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);
+                // Pawn figure table — UNIFORM (not storage): the render VS storage cap
+                // is full (see Render Entity Layout entry[17/18]). 14 × 288 B = 4032 B.
+                figureProfilesBuffer_ = makeBuffer("Figure Profiles Table",
+                    PAWN_FIGURE_COUNT * sizeof(GPUPawnFigure),
+                    wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);
                 cameraBuffer_ = makeBuffer("Camera State", sizeof(GPUCameraState),
                     SU | wgpu::BufferUsage::CopySrc);   // CopySrc: the point readback (camera-host)
                 floatingEntityBuffer_ = makeBuffer("Floating Entity Array",
@@ -3823,7 +3923,7 @@ namespace t7 {
                 // Vertex shaders need entity state for positioning + VP for transform.
                 // Fragment shaders need camera for fog distance.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 18> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 19> entries{};
 
                     entries[0].binding = bind::g0::config;    // config (uniform — fog, world_seed, aura_enabled, fade)
                     entries[0].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
@@ -3909,6 +4009,13 @@ namespace t7 {
                     entries[17].binding = bind::g0::agent_tier_gains;
                     entries[17].visibility = wgpu::ShaderStage::Vertex;
                     entries[17].buffer.type = wgpu::BufferBindingType::Uniform;
+
+                    // Pawn figure table — read by pawn_vs / shadow_pawn_vs for per-figure
+                    // profile + palette. Uniform (not storage) for the same reason as
+                    // entry[17]: the VS storage-buffer cap is full. 4032 B, session-constant.
+                    entries[18].binding = bind::g0::agent_figure_profiles;
+                    entries[18].visibility = wgpu::ShaderStage::Vertex;
+                    entries[18].buffer.type = wgpu::BufferBindingType::Uniform;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Render Entity Layout";
@@ -4795,9 +4902,9 @@ namespace t7 {
                     if (!computeEntityBindGroup_) return false;
                 }
 
-                // Render entity bind group (18 entries: config + spaced by system +200, plus shared agent_tier_gains at 111)
+                // Render entity bind group (19 entries: config + spaced by system +200, plus shared agent_tier_gains at 111 and agent_figure_profiles at 112)
                 {
-                    std::array<wgpu::BindGroupEntry, 18> entries{};
+                    std::array<wgpu::BindGroupEntry, 19> entries{};
 
                     entries[0].binding = bind::g0::config;
                     entries[0].buffer = configBuffer_;
@@ -4879,6 +4986,12 @@ namespace t7 {
                     entries[17].binding = bind::g0::agent_tier_gains;
                     entries[17].buffer = agentTierGainsBuffer_;
                     entries[17].size = GPU_AGENT_TIER_COUNT * sizeof(GPUAgentTierDef);
+
+                    // Pawn figure table (uniform, binding 112). Shares the render
+                    // entity layout, so this group MUST bind it or CreateBindGroup fails.
+                    entries[18].binding = bind::g0::agent_figure_profiles;
+                    entries[18].buffer = figureProfilesBuffer_;
+                    entries[18].size = PAWN_FIGURE_COUNT * sizeof(GPUPawnFigure);
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Render Entity BindGroup";
@@ -5115,7 +5228,7 @@ namespace t7 {
 
                 // Photographer render entity bind group (same layout as main, different VP)
                 {
-                    std::array<wgpu::BindGroupEntry, 18> entries{};
+                    std::array<wgpu::BindGroupEntry, 19> entries{};
                     entries[0].binding = bind::g0::config;
                     entries[0].buffer = configBuffer_;
                     entries[0].size = sizeof(GPUDesignConfig);
@@ -5179,6 +5292,12 @@ namespace t7 {
                     entries[17].binding = bind::g0::agent_tier_gains;
                     entries[17].buffer = agentTierGainsBuffer_;
                     entries[17].size = GPU_AGENT_TIER_COUNT * sizeof(GPUAgentTierDef);
+
+                    // Pawn figure table (uniform, binding 112) — same shared layout,
+                    // so the photographer group must bind it too.
+                    entries[18].binding = bind::g0::agent_figure_profiles;
+                    entries[18].buffer = figureProfilesBuffer_;
+                    entries[18].size = PAWN_FIGURE_COUNT * sizeof(GPUPawnFigure);
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Photographer Render Entity BindGroup";
