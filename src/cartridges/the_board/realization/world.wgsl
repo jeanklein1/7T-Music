@@ -4083,6 +4083,17 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
     if (distance(in.world_pos.xz, vec2(config.lod_point_x, config.lod_point_z)) > config.veil_ring) {
         discard;
     }
+
+    // THE DEBUG EYE (GROUND_CARD_1): R = |Δh|, G = GoL lift. Card black
+    // at rest; paints under music / near zones. After the rim discard so
+    // the eye respects the veil ring.
+    if (LIVE_CARD_DEBUG_VIEW == 1u) {
+        let c = sample_live_card(in.world_pos.xz);
+        return vec4(clamp(abs(c.x) * 0.25, 0.0, 1.0),
+                    clamp(c.w * 0.25, 0.0, 1.0),
+                    0.0, 1.0);
+    }
+
     var normal = normalize(vec3(-in.gradients.x, 1.0, -in.gradients.y));
 
     // THE ONE-ADDRESS LAW (charter C8, SEAMLESSNESS corollary): this

@@ -3907,7 +3907,7 @@ namespace t7 {
                 // Avoids read/write conflict (shadow map is depth attachment).
                 // (bindings 20, 21, 24 removed — formerly legacy stub textures)
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 3> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 4> entries{};
 
                     entries[0].binding = bind::g1::bilinear_sampler;
                     entries[0].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
@@ -3922,6 +3922,12 @@ namespace t7 {
                     entries[2].texture.sampleType = wgpu::TextureSampleType::Float;
                     entries[2].texture.viewDimension = wgpu::TextureViewDimension::e2DArray;
 
+                    // The live card (GROUND_CARD_1) — shadow VS height term
+                    entries[3].binding = bind::g1::live_card_read;
+                    entries[3].visibility = wgpu::ShaderStage::Vertex;
+                    entries[3].texture.sampleType = wgpu::TextureSampleType::Float;
+                    entries[3].texture.viewDimension = wgpu::TextureViewDimension::e2D;
+
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Shadow Texture Layout";
                     desc.entryCount = entries.size();
@@ -3934,7 +3940,7 @@ namespace t7 {
                 // Used during main render pass: samplers + shadow maps + patches + GoL zones + pawn aura.
                 // (bindings 20, 21, 24 removed — formerly legacy stub textures)
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 10> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 11> entries{};
 
                     entries[0].binding = bind::g1::bilinear_sampler;
                     entries[0].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
@@ -3985,6 +3991,12 @@ namespace t7 {
                     entries[9].visibility = wgpu::ShaderStage::Fragment | wgpu::ShaderStage::Vertex;
                     entries[9].texture.sampleType = wgpu::TextureSampleType::Float;
                     entries[9].texture.viewDimension = wgpu::TextureViewDimension::e2D;
+
+                    // The live card (GROUND_CARD_1) — VS height/gradient + FS debug eye
+                    entries[10].binding = bind::g1::live_card_read;
+                    entries[10].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
+                    entries[10].texture.sampleType = wgpu::TextureSampleType::Float;
+                    entries[10].texture.viewDimension = wgpu::TextureViewDimension::e2D;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Render Texture Layout";
@@ -4864,7 +4876,7 @@ namespace t7 {
 
                 // Shadow texture bind group (3 entries: bindings 22-23, 28)
                 {
-                    std::array<wgpu::BindGroupEntry, 3> entries{};
+                    std::array<wgpu::BindGroupEntry, 4> entries{};
 
                     entries[0].binding = bind::g1::bilinear_sampler;
                     entries[0].sampler = bilinearSampler_;
@@ -4874,6 +4886,9 @@ namespace t7 {
 
                     entries[2].binding = bind::g1::patch_heightfield_array_read;
                     entries[2].textureView = patchHeightfieldArrayReadView_;
+
+                    entries[3].binding = bind::g1::live_card_read;
+                    entries[3].textureView = liveCardView_;
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Shadow Texture BindGroup";
@@ -4886,7 +4901,7 @@ namespace t7 {
 
                 // Render texture bind group (10 entries: 22-23, 25-27, 28-29, 31-33)
                 {
-                    std::array<wgpu::BindGroupEntry, 10> entries{};
+                    std::array<wgpu::BindGroupEntry, 11> entries{};
 
                     entries[0].binding = bind::g1::bilinear_sampler;
                     entries[0].sampler = bilinearSampler_;
@@ -4918,6 +4933,9 @@ namespace t7 {
 
                     entries[9].binding = bind::g1::pawn_aura_read;
                     entries[9].textureView = pawnAuraReadView_;
+
+                    entries[10].binding = bind::g1::live_card_read;
+                    entries[10].textureView = liveCardView_;
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Render Texture BindGroup";
