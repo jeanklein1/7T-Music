@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <array>
 #include "cartridges/the_board/realization/state.hpp"                    // Dim::MAX_AGENTS, GPUAgentState, GPU_AGENT_*_COUNT, wgpu
+#include "cartridges/the_board/bodies/pawn_figures.hpp"        // PAWN_FIGURES, FIGURE_SHARES, family spans (H1) — this TU names them directly
 #include "cartridges/the_board/contracts/mood_constants.hpp"   // MOOD_COUNT + the Mood IDs
 #include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 
@@ -343,6 +344,8 @@ inline void upload_agent_registries_to_gpu(AgentsDeps* c, wgpu::Queue& queue) {
     c->gpuState_.upload_agent_registries(queue,
         gpu_behaviors, AGENT_BEHAVIOR_COUNT,
         gpu_tiers,     AGENT_TIER_COUNT);
+
+    c->gpuState_.upload_pawn_figures(queue);   // one-shot; packs PAWN_FIGURES -> GPU (H2)
 }
 
 // ═══ SHARED POPULATION HELPER ════════════════════════════════════
@@ -407,7 +410,29 @@ inline void populate_agent_slot_(const AgentState& as,
     out.color_r = COLUMN_PALETTE[ci][0];
     out.color_g = COLUMN_PALETTE[ci][1];
     out.color_b = COLUMN_PALETTE[ci][2];
-    out.skin_id = 0u;     // placeholder (regular); H4 replaces with the roll
+    // ── Roll figure (skin_id) — global distribution, deterministic from seed ──
+    // Family weighted by FIGURE_SHARES (salt 8u); member uniform within family
+    // (salt 9u). Independent of the behavior/tier rolls (distinct salts).
+    {
+        float fw[FAM_COUNT];
+        float fsum = 0.0f;
+        for (uint32_t i = 0; i < FAM_COUNT; ++i) fsum += FIGURE_SHARES[i].share_pct;
+        for (uint32_t i = 0; i < FAM_COUNT; ++i) fw[i] = FIGURE_SHARES[i].share_pct / fsum;
+
+        uint32_t fam_i = select_tier(agent_seed, 8u, fw, FAM_COUNT);
+        PawnFamilyId fam = FIGURE_SHARES[fam_i].family;   // FIGURE_SHARES is ordered REGULAR,SMOOTH,HERALDIC
+
+        uint32_t base = figure_family_base(fam);
+        uint32_t n    = figure_family_member_count(fam);
+        if (n <= 1u) {
+            out.skin_id = base;                            // single-member family (regular)
+        } else {
+            float mw[16];                                  // max 7 members; 16 is slack
+            for (uint32_t i = 0; i < n; ++i) mw[i] = 1.0f / static_cast<float>(n);
+            uint32_t m = select_tier(agent_seed, 9u, mw, n);
+            out.skin_id = base + m;
+        }
+    }
 }
 
 // ═══ SPAWN ════════════════════════════════════════════════════════
@@ -720,6 +745,7 @@ inline void seed_player_body(AgentState& as, AgentsDeps* c) {
     as.slots[0].is_active = 1u;
     as.slots[0].behavior_id = AGENT_BEHAVIOR_PLAYER_CONTROLLED;
     as.slots[0].tier_idx = AGENT_TIER_WORKER;
+    as.slots[0].skin_id = 0u;   // player is always the regular pawn
     as.slots[0].portal_trigger = -1;
 }
 
@@ -743,6 +769,7 @@ inline void reseed_player_body(AgentState& as, AgentsDeps* c, uint32_t preserved
     as.slots[0].color_r = preserved_color_r;
     as.slots[0].color_g = preserved_color_g;
     as.slots[0].color_b = preserved_color_b;
+    as.slots[0].skin_id = 0u;   // regular pawn (memset already zeroed; explicit)
     as.slots[0].portal_trigger = -1;
     c->player_.possessed_slot = 0;
 }

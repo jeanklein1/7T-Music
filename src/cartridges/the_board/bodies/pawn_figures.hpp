@@ -242,6 +242,20 @@ inline constexpr PawnFigureDef PAWN_FIGURES[] = {
 
 inline constexpr uint32_t PAWN_FIGURE_COUNT = sizeof(PAWN_FIGURES) / sizeof(PAWN_FIGURES[0]);
 
+// ── Family spans — derived from PAWN_FIGURES (for the spawn roll) ────────────
+// skin_id layout is contiguous per family: [regular | smooth | heraldic].
+inline constexpr uint32_t figure_family_member_count(PawnFamilyId fam) {
+    uint32_t n = 0;
+    for (uint32_t i = 0; i < PAWN_FIGURE_COUNT; ++i)
+        if (PAWN_FIGURES[i].family == fam) ++n;
+    return n;
+}
+inline constexpr uint32_t figure_family_base(PawnFamilyId fam) {
+    for (uint32_t i = 0; i < PAWN_FIGURE_COUNT; ++i)
+        if (PAWN_FIGURES[i].family == fam) return i;
+    return 0u;
+}
+
 // ── Witnesses ────────────────────────────────────────────────────────────────
 static_assert(PAWN_FIGURE_COUNT == 14, "PAWN_FIGURES must declare 14 figures");
 static_assert(FIGURE_SHARES[FAM_REGULAR].share_pct
@@ -250,6 +264,14 @@ static_assert(FIGURE_SHARES[FAM_REGULAR].share_pct
             "family shares must sum to 100%");
 static_assert(PAWN_FIGURES[0].family == FAM_REGULAR && PAWN_FIGURES[0].palette == nullptr,
             "figure 0 is the regular pawn: legacy path, no palette");
+static_assert(figure_family_member_count(FAM_REGULAR)  == 1
+           && figure_family_member_count(FAM_SMOOTH)   == 6
+           && figure_family_member_count(FAM_HERALDIC) == 7,
+           "figure roll assumes 1/6/7 members per family");
+static_assert(figure_family_base(FAM_REGULAR) == 0u
+           && figure_family_base(FAM_SMOOTH)  == 1u
+           && figure_family_base(FAM_HERALDIC) == 7u,
+           "figure families must be contiguous in PAWN_FIGURES order");
 
 } // namespace the_board
 } // namespace t7
