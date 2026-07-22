@@ -65,6 +65,7 @@ namespace t7 {
                 // (cell_fields_write = 29 RETIRED — Commit C, the LUT retirement.
                 //  Number reserved; do not reuse.)
                 inline constexpr uint32_t pyramid_instances          = 30;
+                inline constexpr uint32_t live_card_write            = 31;  // GROUND_CARD_1: the live card (storage-tex write; writer kernel)
 
                 // agents / camera (60–101)
                 inline constexpr uint32_t agent_state                = 60;   // aka fc_agents
@@ -181,6 +182,7 @@ namespace t7 {
                 inline constexpr uint32_t zone_life_read             = 31;
                 inline constexpr uint32_t zone_params                = 32;
                 inline constexpr uint32_t pawn_aura_read             = 33;
+                inline constexpr uint32_t live_card_read             = 34;  // GROUND_CARD_1: the live card (sampled read; render + compute)
                 inline constexpr uint32_t painting_slots             = 50;
                 inline constexpr uint32_t painting_array             = 51;
                 inline constexpr uint32_t painting_sampler_filt      = 52;

@@ -85,6 +85,18 @@ namespace t7 {
             constexpr uint32_t PATCH_PREGEN_SIDE = 2 * PATCH_PREGEN_RADIUS + 1;     // 17
             constexpr uint32_t MAX_ACTIVE_PATCHES = PATCH_PREGEN_SIDE * PATCH_PREGEN_SIDE; // 289
 
+            // ── THE LIVE CARD (GROUND_CARD_1) ──
+            // One 2D RGBA16F field over the ground window, point-centered,
+            // fully rewritten per frame. R = waves+pulses Δh; G/B = wave ∂x/∂z
+            // (waves-only this campaign — pulse shading is Stage 6); A = raw
+            // GoL lift. Window ORIGIN SNAPS to the 3.125 cell grid so a
+            // nearest fetch of .a is cell-exact.
+            constexpr uint32_t LIVE_CARD_SIZE      = 512;
+            constexpr float    LIVE_CARD_EXTENT_WU = 800.0f;
+            static_assert(LIVE_CARD_SIZE * 25u == (uint32_t)LIVE_CARD_EXTENT_WU * 16u,
+                "live card: texel must be PATCH_CELL_SIZE/2 (1.5625 wu) — "
+                "512*25 == 800*16");
+
             // TILE_GRID ceiling — the pinned capacity pair's C++ half;
             // twin: world.wgsl TILE_GRID_CAPACITY. Authored, NOT derived
             // from the radius — the dial never touches it. Raise it in
@@ -1584,6 +1596,11 @@ namespace t7 {
             wgpu::BindGroupLayout pawnAuraComputeLayout_;
             wgpu::BindGroup pawnAuraComputeGroup_;
 
+            // Live card (GROUND_CARD_1) — 512×512 RGBA16Float deformation field
+            wgpu::Texture liveCardTexture_;         // compute writes, VS/FS/compute read
+            wgpu::TextureView liveCardWriteView_;   // storage texture write (writer kernel)
+            wgpu::TextureView liveCardView_;        // sampled read (render + compute)
+
             // ── Orb sky layer ────────────────────────────────────────
             wgpu::Buffer orbStateBuffer_;          // MAX_ORBS × GPUOrbState (storage, read_write)
             wgpu::Buffer orbStatePrevBuffer_;      // MAX_ORBS × GPUOrbState (snapshot for flocking)
@@ -2645,6 +2662,9 @@ namespace t7 {
             }
             static constexpr uint32_t pawn_aura_workgroups() { return PAWN_AURA_N / 8; }
 
+            // Live card accessors (GROUND_CARD_1)
+            wgpu::TextureView live_card_view() const { return liveCardView_; }
+
             // Orb sky layer accessors
             wgpu::Buffer orb_state_buffer() const { return orbStateBuffer_; }
             wgpu::Buffer orb_config_buffer() const { return orbConfigBuffer_; }
@@ -3519,6 +3539,20 @@ namespace t7 {
                     if (!pawnAuraTexture_) return false;
                     pawnAuraWriteView_ = pawnAuraTexture_.CreateView();
                     pawnAuraReadView_ = pawnAuraTexture_.CreateView();
+                }
+
+                // Live card (512×512 RGBA16Float — GROUND_CARD_1; writer kernel
+                // rewrites it per frame, render + compute sample it)
+                {
+                    wgpu::TextureDescriptor desc{};
+                    desc.label = "Live Card (512x512, RGBA16Float — GROUND_CARD_1)";
+                    desc.size = { Dim::LIVE_CARD_SIZE, Dim::LIVE_CARD_SIZE, 1 };
+                    desc.format = wgpu::TextureFormat::RGBA16Float;
+                    desc.usage = wgpu::TextureUsage::StorageBinding | wgpu::TextureUsage::TextureBinding;
+                    liveCardTexture_ = device_.CreateTexture(&desc);
+                    if (!liveCardTexture_) return false;
+                    liveCardWriteView_ = liveCardTexture_.CreateView();
+                    liveCardView_ = liveCardTexture_.CreateView();
                 }
 
                 // Entity ground atlas (r32float 256×1 — compute writes ground_y, VS textureLoad)
