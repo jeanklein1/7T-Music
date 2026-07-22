@@ -1,0 +1,166 @@
+diff --git a/src/cartridges/the_board/realization/binding_registry.hpp b/src/cartridges/the_board/realization/binding_registry.hpp
+index 72af922..0f75a6d 100644
+--- a/src/cartridges/the_board/realization/binding_registry.hpp
++++ b/src/cartridges/the_board/realization/binding_registry.hpp
+@@ -20,8 +20,8 @@
+ // ONE CONSTANT PER SITE, named for the site (the WGSL variable it mirrors),
+ // NOT one-per-buffer. The number addresses a (group, slot); the shared
+ // buffer handle lives in the group entry's `.buffer`, not here. So the same
+-// buffer wears several names: patch_instances(340) / photo_patch_instances
+-// (144) / zone_patch_instances(165); orb_state(410) / render_orb_state(400)
++// buffer wears several names: patch_instances(340) /
++// zone_patch_instances(165); orb_state(410) / render_orb_state(400)
+ // / orb_state_ro(413). Each name = one (group, slot).
+ //
+ // THE CEILING (Option A). This single-sources the two C++ copies (layout +
+@@ -72,7 +72,6 @@ namespace t7 {
+                 inline constexpr uint32_t portal_array               = 62;
+                 inline constexpr uint32_t camera_state               = 80;   // aka fc_camera
+                 inline constexpr uint32_t floating_entities          = 100;
+-                inline constexpr uint32_t trajectories               = 101;
+ 
+                 // agent registries (110–111)
+                 inline constexpr uint32_t agent_behaviors            = 110;
+@@ -88,7 +87,6 @@ namespace t7 {
+                 inline constexpr uint32_t photographer_vp            = 141;
+                 inline constexpr uint32_t photographer_camera_out    = 142;
+                 inline constexpr uint32_t photo_painting_slots       = 143;
+-                inline constexpr uint32_t photo_patch_instances      = 144;
+                 inline constexpr uint32_t photo_heightfield          = 145;
+                 inline constexpr uint32_t photo_sampler              = 146;
+                 inline constexpr uint32_t arch_ground                = 147;
+diff --git a/src/cartridges/the_board/realization/state.hpp b/src/cartridges/the_board/realization/state.hpp
+index 573759d..36bd72d 100644
+--- a/src/cartridges/the_board/realization/state.hpp
++++ b/src/cartridges/the_board/realization/state.hpp
+@@ -43,7 +43,6 @@ namespace t7 {
+         namespace Dim {
+             // Grid dimensions
+             // (bindings 21, 40 reserved — formerly proximity_field, cell_states)
+-            constexpr int      MAX_TRAJECTORIES = 16;
+ 
+             // Terrain mesh — GPU-derived grid, GPU-generated index buffer
+             constexpr uint32_t TERRAIN_MESH_N = 256;
+@@ -280,10 +279,6 @@ namespace t7 {
+             constexpr float SPHERE_ORBIT_SPEED = 0.3f;
+             constexpr float SPHERE_HOVER_HEIGHT = 8.0f;
+             constexpr float SPHERE_INFLUENCE_RADIUS = 12.0f;
+-            constexpr float TRAJECTORY_VALUE = 1.0f;
+-            constexpr float TRAJECTORY_VELOCITY = 0.0f;
+-            constexpr float TRAJECTORY_FIELD_VALUE = 0.0f;
+-            constexpr float TRAJECTORY_FIELD_VELOCITY = 0.0f;
+             constexpr float WAVE_TIME_SCALE = 1.0f;
+             constexpr float PAWN_SPEED = 15.0f;
+             constexpr float CAMERA_SENSITIVITY = 0.005f;
+@@ -562,12 +557,6 @@ namespace t7 {
+         };
+         static_assert(sizeof(GPUTileGrid) == 16 + Dim::TILE_GRID_CAPACITY * 16, "GPUTileGrid must match WGSL layout");
+ 
+-        struct alignas(16) GPUTrajectory {
+-            float value;
+-            float velocity;
+-            float _pad0;
+-            float _pad1;
+-        };
+ 
+         // (GPUTerrainState REMOVED: the dead terrain buffer's CPU
+         //  mirror. No writer/reader; its bindings 20/220 + the buffer are gone.)
+@@ -1377,7 +1366,6 @@ namespace t7 {
+         };
+         static_assert(sizeof(GPUPortalArray) == 16 + MAX_GPU_PORTALS * 32,
+             "GPUPortalArray layout check");
+-        static_assert(sizeof(GPUTrajectory) == 16, "GPUTrajectory must be 16 bytes");
+         static_assert(sizeof(GPUAgentState) == 96, "GPUAgentState must be 96 bytes");
+         static_assert(sizeof(GPUAgentState) % 16 == 0, "GPUAgentState must be 16-byte aligned");
+         static_assert(sizeof(GPUAgentBehaviorDef) == 32, "GPUAgentBehaviorDef must be 32 bytes");
+@@ -1485,7 +1473,7 @@ namespace t7 {
+             // these buffers via storage bindings 110 / 111.
+             wgpu::Buffer agentBehaviorsBuffer_;
+             wgpu::Buffer agentTierGainsBuffer_;
+-            wgpu::Buffer cameraBuffer_, floatingEntityBuffer_, trajectoriesBuffer_;
++            wgpu::Buffer cameraBuffer_, floatingEntityBuffer_;
+             wgpu::Buffer ribbonBuffer_;
+             wgpu::Buffer ringTransformsBuffer_;
+             wgpu::Buffer headPosesBuffer_;  // ribbon body poses — written via upload_ribbon_head_poses (the head mover lives in bodies/ribbon.hpp); read by ribbon_centerline_at
+@@ -2887,7 +2875,6 @@ namespace t7 {
+                 headPosesBuffer_ = makeBuffer("Ribbon Head Poses",
+                     sizeof(float) * 4 * Dim::RIBBON_MAX_RINGS,
+                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
+-                trajectoriesBuffer_ = makeBuffer("Trajectories", sizeof(GPUTrajectory) * Dim::MAX_TRAJECTORIES, SU);
+                 // (proximity_field and terrain_cells stubs removed — bindings 21, 40 reserved)
+                 vpBuffer_ = makeBuffer("VP Matrix", sizeof(GPUVPMatrix),
+                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
+@@ -2974,7 +2961,7 @@ namespace t7 {
+ 
+                 return signalBuffer_ && configBuffer_ &&
+                     agentStateBuffer_ && agentStateReadbackStaging_ &&
+-                    cameraBuffer_ && floatingEntityBuffer_ && trajectoriesBuffer_ && ringTransformsBuffer_ && headPosesBuffer_ &&
++                    cameraBuffer_ && floatingEntityBuffer_ && ringTransformsBuffer_ && headPosesBuffer_ &&
+                     vpBuffer_ && spotLightArrayBuffer_ && spotVPStagingBuffer_ && directionalLightBuffer_ && pointLightsBuffer_ && patchParamsBuffer_ &&
+                     patchStagingBuffer_ && tileGridBuffer_ && pierBuffer_ && patchInstancesBuffer_ &&
+                     patchGridBuffer_ &&
+@@ -5775,13 +5762,6 @@ namespace t7 {
+                 ribbon.is_visible = 0u;  // hidden until spawning system activates one
+                 queue.WriteBuffer(ribbonBuffer_, 0, &ribbon, sizeof(ribbon));
+ 
+-                GPUTrajectory trajectories[Dim::MAX_TRAJECTORIES]{};
+-                for (int i = 0; i < Dim::MAX_TRAJECTORIES; ++i) {
+-                    trajectories[i].value = Idle::TRAJECTORY_VALUE;
+-                    trajectories[i].velocity = Idle::TRAJECTORY_VELOCITY;
+-                }
+-                queue.WriteBuffer(trajectoriesBuffer_, 0, trajectories, sizeof(trajectories));
+-
+                 // Pier instances (all inactive — cartridge uploads test rig at setup)
+                 {
+                     std::vector<GPUPierInstance> emptyPiers(Dim::PIER_TOTAL);
+diff --git a/src/cartridges/the_board/realization/world.wgsl b/src/cartridges/the_board/realization/world.wgsl
+index 5d695b9..a87db87 100644
+--- a/src/cartridges/the_board/realization/world.wgsl
++++ b/src/cartridges/the_board/realization/world.wgsl
+@@ -116,7 +116,7 @@
+ // SECTION MAP
+ // ═══════════════════════════════════════════════════════════════════════
+ //
+-// §1    FOUNDATIONS         PGA algebra, trajectories, utilities, terrain height
++// §1    FOUNDATIONS         PGA algebra, utilities, terrain height
+ // §2    STATE               Structs, constants, muting control
+ // §3    COUPLINGS           Signal/input/terrain/entity cross-wiring
+ // §4    DYNAMICS            PGA motor integration (pawn, camera)
+@@ -240,20 +240,6 @@ fn sw_motor_point(m: Motor, p: Point) -> Point {
+ }
+ 
+ 
+-// §1.2 TRAJECTORY PRIMITIVES
+-
+-struct Trajectory {
+-    value: f32,
+-    velocity: f32,
+-    _pad0: f32,
+-    _pad1: f32,
+-}
+-
+-fn trajectory_release(t: Trajectory, goal: f32, dt: f32, rate: f32) -> Trajectory {
+-    let new_val = t.value + (goal - t.value) * (1.0 - exp(-rate * dt));
+-    return Trajectory(new_val, 0.0, 0.0, 0.0);
+-}
+-
+ 
+ // §1.3 COORDINATE SYSTEMS
+ 
+@@ -5324,7 +5310,6 @@ struct PortalArray {
+ 
+ @group(0) @binding(80)  var<storage, read_write> camera_state: CameraState;
+ @group(0) @binding(100) var<storage, read_write> floating_entities: FloatingEntityArray;
+-@group(0) @binding(101) var<storage, read_write> trajectories: array<Trajectory, 16>;
+ @group(0) @binding(120) var<uniform>             ribbon_state: RibbonState;
+ 
+ // Possessed-agent helpers (compute stage). Every kernel that used to
+@@ -8503,7 +8488,7 @@ struct PalmGroundEntry {
+ 
+ // Spatial index for O(1) patch lookup. CPU populates entries[lz*side + lx]
+ // with (layer + 1) for GENERATED/NEEDS_REGEN patches; 0 means empty slot.
+-// Replaces the linear scan over photo_patch_instances in sample_terrain_y_at.
++// Replaces the old linear patch-instance scan in sample_terrain_y_at.
+ // Runtime-sized: capacity is the bound buffer's — the CPU side
+ // (Dim::MAX_ACTIVE_PATCHES) is the single source; no WGSL twin exists.
+ struct PatchGrid {
