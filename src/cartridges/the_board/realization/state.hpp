@@ -4047,30 +4047,21 @@ namespace t7 {
                 }
 
                 //
-                // Bindings: tile_grid @25, pier_instances @26, ribbon_state @120,
-                // ring_xforms @121, head_poses @122.
+                // Bindings: ribbon_state @120, ring_xforms @121, head_poses @122.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 5> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 3> entries{};
 
-                    entries[0].binding = bind::g0::tile_grid;
+                    entries[0].binding = bind::g0::ribbon_state;
                     entries[0].visibility = wgpu::ShaderStage::Compute;
                     entries[0].buffer.type = wgpu::BufferBindingType::Uniform;
 
-                    entries[1].binding = bind::g0::pier_instances;   // pier_instances (storage, read)
+                    entries[1].binding = bind::g0::ring_xforms;
                     entries[1].visibility = wgpu::ShaderStage::Compute;
-                    entries[1].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+                    entries[1].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    entries[2].binding = bind::g0::ribbon_state;
+                    entries[2].binding = bind::g0::head_poses;  // head_poses (storage, read) — ribbon head-path
                     entries[2].visibility = wgpu::ShaderStage::Compute;
-                    entries[2].buffer.type = wgpu::BufferBindingType::Uniform;
-
-                    entries[3].binding = bind::g0::ring_xforms;
-                    entries[3].visibility = wgpu::ShaderStage::Compute;
-                    entries[3].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    entries[4].binding = bind::g0::head_poses;  // head_poses (storage, read) — ribbon head-path
-                    entries[4].visibility = wgpu::ShaderStage::Compute;
-                    entries[4].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+                    entries[2].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Ribbon Compute Layout";
@@ -4937,29 +4928,21 @@ namespace t7 {
                     if (!patchGenBindGroup_) return false;
                 }
 
-                // Ribbon compute bind group (5 entries: dedicated ring transform pass)
+                // Ribbon compute bind group (3 entries: dedicated ring transform pass)
                 {
-                    std::array<wgpu::BindGroupEntry, 5> entries{};
+                    std::array<wgpu::BindGroupEntry, 3> entries{};
 
-                    entries[0].binding = bind::g0::tile_grid;  // tile_grid (matches @binding(25))
-                    entries[0].buffer = tileGridBuffer_;
-                    entries[0].size = sizeof(GPUTileGrid);
+                    entries[0].binding = bind::g0::ribbon_state; // ribbon_state (matches @binding(120))
+                    entries[0].buffer = ribbonBuffer_;
+                    entries[0].size = sizeof(GPURibbonState);
 
-                    entries[1].binding = bind::g0::pier_instances;  // pier_instances (matches @binding(26))
-                    entries[1].buffer = pierBuffer_;
-                    entries[1].size = Dim::PIER_TOTAL * sizeof(GPUPierInstance);
+                    entries[1].binding = bind::g0::ring_xforms; // ring_transforms (matches @binding(121))
+                    entries[1].buffer = ringTransformsBuffer_;
+                    entries[1].size = sizeof(GPURibbonRingTransform) * Dim::RIBBON_MAX_RINGS;
 
-                    entries[2].binding = bind::g0::ribbon_state; // ribbon_state (matches @binding(120))
-                    entries[2].buffer = ribbonBuffer_;
-                    entries[2].size = sizeof(GPURibbonState);
-
-                    entries[3].binding = bind::g0::ring_xforms; // ring_transforms (matches @binding(121))
-                    entries[3].buffer = ringTransformsBuffer_;
-                    entries[3].size = sizeof(GPURibbonRingTransform) * Dim::RIBBON_MAX_RINGS;
-
-                    entries[4].binding = bind::g0::head_poses; // head_poses (matches @binding(122))
-                    entries[4].buffer = headPosesBuffer_;
-                    entries[4].size = sizeof(float) * 4 * Dim::RIBBON_MAX_RINGS;
+                    entries[2].binding = bind::g0::head_poses; // head_poses (matches @binding(122))
+                    entries[2].buffer = headPosesBuffer_;
+                    entries[2].size = sizeof(float) * 4 * Dim::RIBBON_MAX_RINGS;
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Ribbon Compute BindGroup";
