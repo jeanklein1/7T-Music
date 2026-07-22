@@ -266,6 +266,16 @@ const TERRAIN_MESH_STRIDE: u32 = TERRAIN_MESH_N + 1u;  // vertices per row (fenc
 const PATCH_HEIGHTFIELD_N: u32 = 256u;  // texels per patch heightfield side
 const PATCH_CELL_N: u32 = 16u;          // cell color texture side per patch
 const PATCH_EXTENT: f32 = 50.0;         // world units per patch side
+
+// ── THE LIVE CARD (GROUND_CARD_1; C++ room: Dim::LIVE_CARD_*) ──
+const LIVE_CARD_SIZE: u32 = 512u;
+const LIVE_CARD_EXTENT: f32 = 800.0;
+fn live_card_origin() -> vec2<f32> {
+    let cs = PATCH_EXTENT / f32(PATCH_CELL_N);           // 3.125
+    let raw = vec2(config.lod_point_x, config.lod_point_z)
+            - vec2(LIVE_CARD_EXTENT * 0.5);
+    return floor(raw / cs) * cs;                          // cell snap
+}
 const PATCH_MESH_N: u32 = 64u;          // mesh subdivisions per patch (VS bilinear-samples 256-texel heightfield)
 const PATCH_MESH_STRIDE: u32 = PATCH_MESH_N + 1u;
 
@@ -5716,12 +5726,14 @@ struct PawnAuraCell {
 @group(1) @binding(31) var zone_life_read: texture_2d_array<f32>;
 @group(1) @binding(32) var<storage, read> zone_params: GoLZoneArray;
 @group(1) @binding(33) var pawn_aura_read: texture_2d<f32>;
+@group(1) @binding(34) var live_card_read: texture_2d<f32>;  // GROUND_CARD_1: the live card (sampled; render + compute)
 
 // --- Pawn Aura compute bindings
 // (Group 0: dedicated layout with bindings 60, 170-172)
 @group(0) @binding(170) var<uniform> pawn_aura_cfg: PawnAuraConfig;
 @group(0) @binding(171) var<storage, read_write> pawn_aura_cells: array<PawnAuraCell>;
 @group(0) @binding(172) var pawn_aura_tex_write: texture_storage_2d<rgba16float, write>;
+@group(0) @binding(31) var live_card_write: texture_storage_2d<rgba16float, write>;  // GROUND_CARD_1: writer kernel
 
 // --- Zone mesh gen output (Group 0: bindings 167-169, same layout as GoL compute)
 @group(0) @binding(167) var<storage, read_write> zone_mesh_vertices: array<CellMeshVertex>;
@@ -8228,6 +8240,35 @@ fn shadow_zone_extrusion_vs(
     return out;
 }
 
+
+// ═══ §7.3b THE LIVE CARD (GROUND_CARD_1) ═══════════════════════════════
+// The per-frame deformation field. The writer CALLS the existing
+// evaluators at texel centers — one derivation, one new sampling
+// site (campaign v2 §5). Rest ⇒ zeros ⇒ every consumer adds 0.
+fn live_card_uv(world_xz: vec2<f32>) -> vec2<f32> {
+    return (world_xz - live_card_origin()) / LIVE_CARD_EXTENT;
+}
+fn sample_live_card(world_xz: vec2<f32>) -> vec4<f32> {
+    return textureSampleLevel(live_card_read, bilinear_sampler,
+                              live_card_uv(world_xz), 0.0);
+}
+fn sample_live_card_gol(world_xz: vec2<f32>) -> f32 {
+    // nearest + cell-snapped origin ⇒ cell-exact raw lift
+    return textureSampleLevel(live_card_read, nearest_sampler,
+                              live_card_uv(world_xz), 0.0).w;
+}
+@compute @workgroup_size(8, 8, 1)
+fn write_live_card(@builtin(global_invocation_id) gid: vec3<u32>) {
+    if (gid.x >= LIVE_CARD_SIZE || gid.y >= LIVE_CARD_SIZE) { return; }
+    let texel = LIVE_CARD_EXTENT / f32(LIVE_CARD_SIZE);
+    let p = live_card_origin()
+          + (vec2<f32>(gid.xy) + vec2(0.5)) * texel;
+    let w = terrain_wave_overlay_with_gradient(p);   // waves h,gx,gz
+    let pulses = contrib_radial_pulses_at(p, signal.t_seconds);  // scalar Δh
+    let gol = contrib_gol_zones_at(p);               // RAW lift
+    textureStore(live_card_write, vec2<i32>(gid.xy),
+                 vec4(w.x + pulses, w.y, w.z, gol));
+}
 
 // §7.4 PAWN AURA — Persistent terrain influence via toroidal spring grid
 // Single dispatch over 64×64 toroidal grid. Each thread:
