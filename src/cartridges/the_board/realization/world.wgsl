@@ -4713,7 +4713,7 @@ fn arch_vs(in: ArchVertexInput) -> EntityVarying {
     let idx = u32(in.arch_index);
     let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(idx) + GROUND_ATLAS_ARCH, 0), 0).r;
     var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
-    world_pos.y += contrib_terrain_waves_at(world_pos.xz);
+    world_pos.y += sample_live_card(world_pos.xz).x;
 
     var out: EntityVarying;
     out.clip_pos = render_vp.m * vec4(world_pos, 1.0);
@@ -4728,7 +4728,7 @@ fn shadow_arch_vs(in: ArchVertexInput) -> ShadowVarying {
     let idx = u32(in.arch_index);
     let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(idx) + GROUND_ATLAS_ARCH, 0), 0).r;
     var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
-    world_pos.y += contrib_terrain_waves_at(world_pos.xz);
+    world_pos.y += sample_live_card(world_pos.xz).x;
 
     var out: ShadowVarying;
     out.clip_pos = render_vp.light_vp * vec4(world_pos, 1.0);
@@ -4741,7 +4741,7 @@ fn column_vs(in: ArchVertexInput) -> EntityVarying {
     let idx = u32(in.arch_index);
     let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(idx) + GROUND_ATLAS_COLUMN, 0), 0).r;
     var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
-    world_pos.y += contrib_terrain_waves_at(world_pos.xz);
+    world_pos.y += sample_live_card(world_pos.xz).x;
 
     var out: EntityVarying;
     out.clip_pos = render_vp.m * vec4(world_pos, 1.0);
@@ -4756,7 +4756,7 @@ fn shadow_column_vs(in: ArchVertexInput) -> ShadowVarying {
     let idx = u32(in.arch_index);
     let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(idx) + GROUND_ATLAS_COLUMN, 0), 0).r;
     var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
-    world_pos.y += contrib_terrain_waves_at(world_pos.xz);
+    world_pos.y += sample_live_card(world_pos.xz).x;
 
     var out: ShadowVarying;
     out.clip_pos = render_vp.light_vp * vec4(world_pos, 1.0);
@@ -9270,7 +9270,7 @@ fn wall_painting_vs(@builtin(vertex_index) vid: u32) -> WallPaintingVarying {
     }
 
     var out = compute_wall_painting_geometry(slot, pidx, local_vid);
-    out.world_pos.y += contrib_terrain_waves_at(out.world_pos.xz);
+    out.world_pos.y += sample_live_card(out.world_pos.xz).x;
     out.clip_pos = render_vp.m * vec4(out.world_pos, 1.0);
     return out;
 }
@@ -10524,7 +10524,7 @@ fn palm_vs(in: ArchVertexInput) -> EntityVarying {
     let idx = u32(in.arch_index);
     let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(idx) + GROUND_ATLAS_PALM, 0), 0).r;
     var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
-    world_pos.y += contrib_terrain_waves_at(world_pos.xz);
+    world_pos.y += sample_live_card(world_pos.xz).x;
     var out: EntityVarying;
     out.clip_pos = render_vp.m * vec4(world_pos, 1.0);
     out.world_pos = world_pos;
@@ -10545,7 +10545,7 @@ fn shadow_palm_vs(in: ArchVertexInput) -> ShadowVarying {
     let idx = u32(in.arch_index);
     let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(idx) + GROUND_ATLAS_PALM, 0), 0).r;
     var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
-    world_pos.y += contrib_terrain_waves_at(world_pos.xz);
+    world_pos.y += sample_live_card(world_pos.xz).x;
     var out: ShadowVarying;
     out.clip_pos = render_vp.light_vp * vec4(world_pos, 1.0);
     return out;
@@ -10861,7 +10861,7 @@ fn cactus_vs(in: ArchVertexInput) -> EntityVarying {
     let idx = u32(in.arch_index);
     let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(idx) + GROUND_ATLAS_CACTUS, 0), 0).r;
     var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
-    world_pos.y += contrib_terrain_waves_at(world_pos.xz);
+    world_pos.y += sample_live_card(world_pos.xz).x;
     var out: EntityVarying;
     out.clip_pos = render_vp.m * vec4(world_pos, 1.0);
     out.world_pos = world_pos;
@@ -10879,7 +10879,7 @@ fn shadow_cactus_vs(in: ArchVertexInput) -> ShadowVarying {
     let idx = u32(in.arch_index);
     let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(idx) + GROUND_ATLAS_CACTUS, 0), 0).r;
     var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
-    world_pos.y += contrib_terrain_waves_at(world_pos.xz);
+    world_pos.y += sample_live_card(world_pos.xz).x;
     var out: ShadowVarying;
     out.clip_pos = render_vp.light_vp * vec4(world_pos, 1.0);
     return out;
@@ -11097,7 +11097,7 @@ fn blade_cluster_vs(in: ArchVertexInput) -> EntityVarying {
     let idx = u32(in.arch_index);
     let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(idx) + GROUND_ATLAS_BLADE, 0), 0).r;
     var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
-    world_pos.y += contrib_terrain_waves_at(world_pos.xz);
+    world_pos.y += sample_live_card(world_pos.xz).x;
     var out: EntityVarying;
     out.clip_pos = render_vp.m * vec4(world_pos, 1.0);
     out.world_pos = world_pos;
@@ -11115,7 +11115,7 @@ fn shadow_blade_cluster_vs(in: ArchVertexInput) -> ShadowVarying {
     let idx = u32(in.arch_index);
     let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(idx) + GROUND_ATLAS_BLADE, 0), 0).r;
     var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
-    world_pos.y += contrib_terrain_waves_at(world_pos.xz);
+    world_pos.y += sample_live_card(world_pos.xz).x;
     var out: ShadowVarying;
     out.clip_pos = render_vp.light_vp * vec4(world_pos, 1.0);
     return out;

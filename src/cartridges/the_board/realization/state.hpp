@@ -2104,7 +2104,7 @@ namespace t7 {
 
                 // Recreate gallery texture bind group with exhibition view
                 {
-                    std::array<wgpu::BindGroupEntry, 3> entries{};
+                    std::array<wgpu::BindGroupEntry, 5> entries{};
                     entries[0].binding = bind::g1::painting_slots;
                     entries[0].buffer = paintingSlotsBuffer_;
                     entries[0].size = sizeof(GPUPaintingSlot) * Dim::PAINTING_MAX_SLOTS;
@@ -2112,6 +2112,10 @@ namespace t7 {
                     entries[1].textureView = exhibitionReadView_;
                     entries[2].binding = bind::g1::painting_sampler_filt;
                     entries[2].sampler = paintingSampler_;
+                    entries[3].binding = bind::g1::bilinear_sampler;
+                    entries[3].sampler = bilinearSampler_;
+                    entries[4].binding = bind::g1::live_card_read;
+                    entries[4].textureView = liveCardView_;
 
                     wgpu::BindGroupDescriptor bd{};
                     bd.label = "Gallery Texture BindGroup";
@@ -4155,7 +4159,7 @@ namespace t7 {
 
                 // -- Gallery texture layout (Group 1) -- unified painting data --
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 3> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 5> entries{};
 
                     entries[0].binding = bind::g1::painting_slots;
                     entries[0].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
@@ -4169,6 +4173,18 @@ namespace t7 {
                     entries[2].binding = bind::g1::painting_sampler_filt;
                     entries[2].visibility = wgpu::ShaderStage::Fragment;
                     entries[2].sampler.type = wgpu::SamplerBindingType::Filtering;
+
+                    // The live card (GROUND_CARD_1) + its sampler — wall_painting_vs
+                    // now rides the card for its ground term (H4 [4c]); this pipeline
+                    // family binds gallery groups, so the pair lives here too.
+                    entries[3].binding = bind::g1::bilinear_sampler;
+                    entries[3].visibility = wgpu::ShaderStage::Vertex;
+                    entries[3].sampler.type = wgpu::SamplerBindingType::Filtering;
+
+                    entries[4].binding = bind::g1::live_card_read;
+                    entries[4].visibility = wgpu::ShaderStage::Vertex;
+                    entries[4].texture.sampleType = wgpu::TextureSampleType::Float;
+                    entries[4].texture.viewDimension = wgpu::TextureViewDimension::e2D;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Gallery Texture Layout";
