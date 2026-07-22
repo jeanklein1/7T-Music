@@ -3751,9 +3751,8 @@ namespace t7 {
                     entries[11].visibility = wgpu::ShaderStage::Compute;
                     entries[11].buffer.type = wgpu::BufferBindingType::Uniform;
 
-                    // dead today (agents are analytic; sole baked readers are
-                    // photographer + placement — audit cc4). Goes LIVE at Stage 4:
-                    // the agents' baked ground path (GROUND_CARD_1 H5).
+                    // LIVE — the agents' baked ground path (sample_terrain_y_at
+                    // in the rewired query family — GROUND_CARD_1 H5).
                     entries[12].binding = bind::g0::photo_heightfield;  // photo_heightfield (texture_2d_array)
                     entries[12].visibility = wgpu::ShaderStage::Compute;
                     entries[12].texture.sampleType = wgpu::TextureSampleType::Float;
@@ -4012,14 +4011,14 @@ namespace t7 {
 
                 //
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 3> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 4> entries{};
 
                     entries[0].binding = bind::g1::bilinear_sampler;   // bilinear_sampler (used by sample_pawn_aura)
                     entries[0].visibility = wgpu::ShaderStage::Compute;
                     entries[0].sampler.type = wgpu::SamplerBindingType::Filtering;
 
-                    entries[1].binding = bind::g1::nearest_sampler;   // dead today; goes LIVE at Stage 4 — the live card's
-                                                                      // cell-exact GoL fetch (GROUND_CARD_1 H5).
+                    entries[1].binding = bind::g1::nearest_sampler;   // LIVE — the card's cell-exact GoL fetch
+                                                                      // (sample_live_card_gol — GROUND_CARD_1 H5).
                     entries[1].visibility = wgpu::ShaderStage::Compute;
                     entries[1].sampler.type = wgpu::SamplerBindingType::NonFiltering;
 
@@ -4027,6 +4026,11 @@ namespace t7 {
                     entries[2].visibility = wgpu::ShaderStage::Compute;
                     entries[2].texture.sampleType = wgpu::TextureSampleType::Float;
                     entries[2].texture.viewDimension = wgpu::TextureViewDimension::e2D;
+
+                    entries[3].binding = bind::g1::live_card_read;   // LIVE — the card (agents' live surface + cell-exact GoL; GROUND_CARD_1 H5)
+                    entries[3].visibility = wgpu::ShaderStage::Compute;
+                    entries[3].texture.sampleType = wgpu::TextureSampleType::Float;
+                    entries[3].texture.viewDimension = wgpu::TextureViewDimension::e2D;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Compute Texture Layout";
@@ -4746,9 +4750,8 @@ namespace t7 {
                     entries[11].buffer = portalArrayBuffer_;
                     entries[11].size = sizeof(GPUPortalArray);
 
-                    // dead today (agents are analytic; sole baked readers are
-                    // photographer + placement — audit cc4). Goes LIVE at Stage 4:
-                    // the agents' baked ground path (GROUND_CARD_1 H5).
+                    // LIVE — the agents' baked ground path (sample_terrain_y_at
+                    // in the rewired query family — GROUND_CARD_1 H5).
                     entries[12].binding = bind::g0::photo_heightfield;
                     entries[12].textureView = patchHeightfieldArrayReadView_;
 
@@ -4962,9 +4965,9 @@ namespace t7 {
                     if (!renderTextureBindGroup_) return false;
                 }
 
-                // Compute texture bind group (3 entries: 22 = bilinear_sampler, 23 = nearest_sampler, 33 = pawn_aura_read)
+                // Compute texture bind group (4 entries: 22 = bilinear_sampler, 23 = nearest_sampler, 33 = pawn_aura_read, 34 = live_card_read)
                 {
-                    std::array<wgpu::BindGroupEntry, 3> entries{};
+                    std::array<wgpu::BindGroupEntry, 4> entries{};
 
                     entries[0].binding = bind::g1::bilinear_sampler;
                     entries[0].sampler = bilinearSampler_;
@@ -4974,6 +4977,9 @@ namespace t7 {
 
                     entries[2].binding = bind::g1::pawn_aura_read;
                     entries[2].textureView = pawnAuraReadView_;
+
+                    entries[3].binding = bind::g1::live_card_read;
+                    entries[3].textureView = liveCardView_;
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Compute Texture BindGroup";

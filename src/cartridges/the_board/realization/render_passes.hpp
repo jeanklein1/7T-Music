@@ -143,6 +143,9 @@ inline void dispatch_placement_correction(MachineCtx* c, wgpu::CommandEncoder& e
     wgpu::ComputePassDescriptor cpd{};
     cpd.label = "Entity Placement Y Correction";
     wgpu::ComputePassEncoder compute = encoder.BeginComputePass(&cpd);
+    // Group 1: compute textures — the card's cell-exact GoL fetch (H5).
+    // Bound before the dispatch inside; bind-group state is sticky.
+    compute.SetBindGroup(1, c->gpuState_.compute_texture_group());
     c->renderer_.dispatch_entity_placement(
         compute, c->gpuState_.entity_placement_compute_group()
     );

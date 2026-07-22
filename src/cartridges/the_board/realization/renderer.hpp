@@ -1427,7 +1427,18 @@ namespace t7 {
 
                 // Entity placement Y-correction pipeline (0D, decoupled from photographer)
                 {
-                    wgpu::PipelineLayout pl = computeLayoutFor(entityPlacementComputeLayout_);
+                    // Placement gains Group 1 (compute textures): the card's
+                    // cell-exact GoL fetch (GROUND_CARD_1 H5). Shared @group(1)
+                    // declarations serve; unused group members are legal — the
+                    // layout must cover the shader, not vice versa.
+                    std::array<wgpu::BindGroupLayout, 2> placementLayouts = {
+                        entityPlacementComputeLayout_,
+                        computeTextureLayout_
+                    };
+                    wgpu::PipelineLayoutDescriptor pld{};
+                    pld.bindGroupLayoutCount = placementLayouts.size();
+                    pld.bindGroupLayouts = placementLayouts.data();
+                    wgpu::PipelineLayout pl = device_.CreatePipelineLayout(&pld);
                     if (!pl) return false;
                     if (!makeComputePipeline("compute_entity_placement", "Compute Entity Placement (0D)",
                         pl, Entry::COMPUTE_ENTITY_PLACEMENT, entityPlacementPipeline_)) return false;
