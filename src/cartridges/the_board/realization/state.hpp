@@ -3653,7 +3653,7 @@ namespace t7 {
 
                 //
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 18> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 17> entries{};
 
                     entries[0].binding = bind::g0::signal;
                     entries[0].visibility = wgpu::ShaderStage::Compute;
@@ -3680,51 +3680,46 @@ namespace t7 {
                     entries[5].visibility = wgpu::ShaderStage::Compute;
                     entries[5].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    entries[6].binding = bind::g0::trajectories;
+                    entries[6].binding = bind::g0::tile_grid;
                     entries[6].visibility = wgpu::ShaderStage::Compute;
-                    entries[6].buffer.type = wgpu::BufferBindingType::Storage;
+                    entries[6].buffer.type = wgpu::BufferBindingType::Uniform;
 
-                    entries[7].binding = bind::g0::tile_grid;
+                    entries[7].binding = bind::g0::pier_instances;   // pier_instances (storage, read)
                     entries[7].visibility = wgpu::ShaderStage::Compute;
-                    entries[7].buffer.type = wgpu::BufferBindingType::Uniform;
+                    entries[7].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
-                    entries[8].binding = bind::g0::pier_instances;   // pier_instances (storage, read)
+                    entries[8].binding = bind::g0::pyramid_instances;   // pyramid_instances (uniform — used by effective_ground_y)
                     entries[8].visibility = wgpu::ShaderStage::Compute;
-                    entries[8].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
-
-                    entries[9].binding = bind::g0::pyramid_instances;   // pyramid_instances (uniform — used by effective_ground_y)
-                    entries[9].visibility = wgpu::ShaderStage::Compute;
-                    entries[9].buffer.type = wgpu::BufferBindingType::Uniform;
+                    entries[8].buffer.type = wgpu::BufferBindingType::Uniform;
 
                     // GoL zone state — used by effective_ground_y for cell height contribution
-                    entries[10].binding = bind::g0::zone_config;  // zone_config (storage — matches var<storage, read_write>)
+                    entries[9].binding = bind::g0::zone_config;  // zone_config (storage — matches var<storage, read_write>)
+                    entries[9].visibility = wgpu::ShaderStage::Compute;
+                    entries[9].buffer.type = wgpu::BufferBindingType::Storage;
+
+                    entries[10].binding = bind::g0::zone_life;  // zone_life (storage, rw — matches WGSL var declaration)
                     entries[10].visibility = wgpu::ShaderStage::Compute;
                     entries[10].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    entries[11].binding = bind::g0::zone_life;  // zone_life (storage, rw — matches WGSL var declaration)
+                    entries[11].binding = bind::g0::portal_array;   // portal_array (uniform — proximity check in behavior_player_controlled)
                     entries[11].visibility = wgpu::ShaderStage::Compute;
-                    entries[11].buffer.type = wgpu::BufferBindingType::Storage;
+                    entries[11].buffer.type = wgpu::BufferBindingType::Uniform;
 
-                    entries[12].binding = bind::g0::portal_array;   // portal_array (uniform — proximity check in behavior_player_controlled)
+                    // dead today (agents are analytic; sole baked readers are
+                    // photographer + placement — audit cc4). Goes LIVE at Stage 4:
+                    // the agents' baked ground path (GROUND_CARD_1 H5).
+                    entries[12].binding = bind::g0::photo_heightfield;  // photo_heightfield (texture_2d_array)
                     entries[12].visibility = wgpu::ShaderStage::Compute;
-                    entries[12].buffer.type = wgpu::BufferBindingType::Uniform;
+                    entries[12].texture.sampleType = wgpu::TextureSampleType::Float;
+                    entries[12].texture.viewDimension = wgpu::TextureViewDimension::e2DArray;
 
-                    // Cached patch heightfield + sampler + spatial index — sample_terrain_y_at
-                    // (POLICY_BAKED_HEIGHTFIELD via texture). Required by compute pipelines that
-                    // do per-frame baked-path Y lookups: update_camera, update_agents,
-                    // and any future cached-heightfield consumer that lives on this shared layout.
-                    entries[13].binding = bind::g0::photo_heightfield;  // photo_heightfield (texture_2d_array)
+                    entries[13].binding = bind::g0::photo_sampler;  // photo_sampler (filtering)
                     entries[13].visibility = wgpu::ShaderStage::Compute;
-                    entries[13].texture.sampleType = wgpu::TextureSampleType::Float;
-                    entries[13].texture.viewDimension = wgpu::TextureViewDimension::e2DArray;
+                    entries[13].sampler.type = wgpu::SamplerBindingType::Filtering;
 
-                    entries[14].binding = bind::g0::photo_sampler;  // photo_sampler (filtering)
+                    entries[14].binding = bind::g0::patch_grid;  // patch_grid (O(1) spatial index for sample_terrain_y_at)
                     entries[14].visibility = wgpu::ShaderStage::Compute;
-                    entries[14].sampler.type = wgpu::SamplerBindingType::Filtering;
-
-                    entries[15].binding = bind::g0::patch_grid;  // patch_grid (O(1) spatial index for sample_terrain_y_at)
-                    entries[15].visibility = wgpu::ShaderStage::Compute;
-                    entries[15].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+                    entries[14].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
                     // Agent registries (uniform — read-only, fixed size,
                     // never changes during a session). Originally tried as
@@ -3732,13 +3727,13 @@ namespace t7 {
                     // count past the 10-per-stage limit; uniform has its
                     // own 12-per-stage budget and these tables (≤ 512 B
                     // total) fit comfortably.
-                    entries[16].binding = bind::g0::agent_behaviors;  // agent_behaviors
+                    entries[15].binding = bind::g0::agent_behaviors;  // agent_behaviors
+                    entries[15].visibility = wgpu::ShaderStage::Compute;
+                    entries[15].buffer.type = wgpu::BufferBindingType::Uniform;
+
+                    entries[16].binding = bind::g0::agent_tier_gains;  // agent_tier_gains
                     entries[16].visibility = wgpu::ShaderStage::Compute;
                     entries[16].buffer.type = wgpu::BufferBindingType::Uniform;
-
-                    entries[17].binding = bind::g0::agent_tier_gains;  // agent_tier_gains
-                    entries[17].visibility = wgpu::ShaderStage::Compute;
-                    entries[17].buffer.type = wgpu::BufferBindingType::Uniform;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Compute Entity Layout";
@@ -3965,7 +3960,8 @@ namespace t7 {
                     entries[0].visibility = wgpu::ShaderStage::Compute;
                     entries[0].sampler.type = wgpu::SamplerBindingType::Filtering;
 
-                    entries[1].binding = bind::g1::nearest_sampler;   // nearest_sampler (matches render texture layout; retained for future compute consumers)
+                    entries[1].binding = bind::g1::nearest_sampler;   // dead today; goes LIVE at Stage 4 — the live card's
+                                                                      // cell-exact GoL fetch (GROUND_CARD_1 H5).
                     entries[1].visibility = wgpu::ShaderStage::Compute;
                     entries[1].sampler.type = wgpu::SamplerBindingType::NonFiltering;
 
@@ -4610,9 +4606,9 @@ namespace t7 {
                     if (!bladeMeshGenLayout_) return false;
                 }
 
-                // Compute entity bind group (19 entries: systems + terrain + GoL zones + portals + cached heightfield)
+                // Compute entity bind group (17 entries: systems + terrain + GoL zones + portals + cached heightfield)
                 {
-                    std::array<wgpu::BindGroupEntry, 18> entries{};
+                    std::array<wgpu::BindGroupEntry, 17> entries{};
 
                     entries[0].binding = bind::g0::signal;
                     entries[0].buffer = signalBuffer_;
@@ -4639,62 +4635,56 @@ namespace t7 {
                     entries[5].buffer = floatingEntityBuffer_;
                     entries[5].size = Dim::TOTAL_FLOATING_SLOTS * sizeof(GPUFloatingEntityState);
 
-                    entries[6].binding = bind::g0::trajectories;
-                    entries[6].buffer = trajectoriesBuffer_;
-                    entries[6].size = sizeof(GPUTrajectory) * Dim::MAX_TRAJECTORIES;
-
-                    entries[7].binding = bind::g0::tile_grid;
-                    entries[7].buffer = tileGridBuffer_;
-                    entries[7].size = sizeof(GPUTileGrid);
+                    entries[6].binding = bind::g0::tile_grid;
+                    entries[6].buffer = tileGridBuffer_;
+                    entries[6].size = sizeof(GPUTileGrid);
 
                     // Pier Instances — unified terrain-raising volumes
-                    entries[8].binding = bind::g0::pier_instances;
-                    entries[8].buffer = pierBuffer_;
-                    entries[8].size = Dim::PIER_TOTAL * sizeof(GPUPierInstance);
+                    entries[7].binding = bind::g0::pier_instances;
+                    entries[7].buffer = pierBuffer_;
+                    entries[7].size = Dim::PIER_TOTAL * sizeof(GPUPierInstance);
 
                     // Pyramid Instances — tapered height in effective_ground_y
-                    entries[9].binding = bind::g0::pyramid_instances;
-                    entries[9].buffer = pyramidInstancesBuffer_;
-                    entries[9].size = sizeof(GPUPyramidArray);
+                    entries[8].binding = bind::g0::pyramid_instances;
+                    entries[8].buffer = pyramidInstancesBuffer_;
+                    entries[8].size = sizeof(GPUPyramidArray);
 
                     // GoL zone state — cell height in effective_ground_y
-                    entries[10].binding = bind::g0::zone_config;
-                    entries[10].buffer = zoneConfigBuffer_;
-                    entries[10].size = sizeof(GPUGoLZoneArray);
+                    entries[9].binding = bind::g0::zone_config;
+                    entries[9].buffer = zoneConfigBuffer_;
+                    entries[9].size = sizeof(GPUGoLZoneArray);
 
-                    entries[11].binding = bind::g0::zone_life;
-                    entries[11].buffer = zoneLifeBuffer_;
-                    entries[11].size = Dim::MAX_GOL_ZONES * Dim::GOL_ZONE_LIFE_STRIDE * sizeof(float);
+                    entries[10].binding = bind::g0::zone_life;
+                    entries[10].buffer = zoneLifeBuffer_;
+                    entries[10].size = Dim::MAX_GOL_ZONES * Dim::GOL_ZONE_LIFE_STRIDE * sizeof(float);
 
-                    entries[12].binding = bind::g0::portal_array;
-                    entries[12].buffer = portalArrayBuffer_;
-                    entries[12].size = sizeof(GPUPortalArray);
+                    entries[11].binding = bind::g0::portal_array;
+                    entries[11].buffer = portalArrayBuffer_;
+                    entries[11].size = sizeof(GPUPortalArray);
 
-                    // Cached patch heightfield — sample_terrain_y_at consumed by
-                    // update_camera, update_agents, and any future
-                    // POLICY_BAKED_HEIGHTFIELD compute consumer. Photographer
-                    // and entity placement keep their dedicated layouts that
-                    // also bind these — same handles, different layout slots.
-                    entries[13].binding = bind::g0::photo_heightfield;
-                    entries[13].textureView = patchHeightfieldArrayReadView_;
+                    // dead today (agents are analytic; sole baked readers are
+                    // photographer + placement — audit cc4). Goes LIVE at Stage 4:
+                    // the agents' baked ground path (GROUND_CARD_1 H5).
+                    entries[12].binding = bind::g0::photo_heightfield;
+                    entries[12].textureView = patchHeightfieldArrayReadView_;
 
-                    entries[14].binding = bind::g0::photo_sampler;
-                    entries[14].sampler = bilinearSampler_;
+                    entries[13].binding = bind::g0::photo_sampler;
+                    entries[13].sampler = bilinearSampler_;
 
-                    entries[15].binding = bind::g0::patch_grid;
-                    entries[15].buffer = patchGridBuffer_;
-                    entries[15].size = sizeof(GPUPatchGrid);
+                    entries[14].binding = bind::g0::patch_grid;
+                    entries[14].buffer = patchGridBuffer_;
+                    entries[14].size = sizeof(GPUPatchGrid);
 
                     // Agent registries — see bodies/agents.hpp for the
                     // authoring tables and GPUAgentBehaviorDef /
                     // GPUAgentTierDef in this file for GPU layout.
-                    entries[16].binding = bind::g0::agent_behaviors;
-                    entries[16].buffer = agentBehaviorsBuffer_;
-                    entries[16].size = GPU_AGENT_BEHAVIOR_COUNT * sizeof(GPUAgentBehaviorDef);
+                    entries[15].binding = bind::g0::agent_behaviors;
+                    entries[15].buffer = agentBehaviorsBuffer_;
+                    entries[15].size = GPU_AGENT_BEHAVIOR_COUNT * sizeof(GPUAgentBehaviorDef);
 
-                    entries[17].binding = bind::g0::agent_tier_gains;
-                    entries[17].buffer = agentTierGainsBuffer_;
-                    entries[17].size = GPU_AGENT_TIER_COUNT * sizeof(GPUAgentTierDef);
+                    entries[16].binding = bind::g0::agent_tier_gains;
+                    entries[16].buffer = agentTierGainsBuffer_;
+                    entries[16].size = GPU_AGENT_TIER_COUNT * sizeof(GPUAgentTierDef);
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Compute Entity BindGroup";
