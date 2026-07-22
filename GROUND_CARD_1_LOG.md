@@ -62,3 +62,78 @@ batch-end build.
    H1; they go live at H5.
 2. Card G/B = WAVES-ONLY gradient this batch (exact parity with current
    VS normals). Pulse-shaded normals are Stage 6 work.
+
+---
+
+## H1 — STAGE 1a: THE DEAD-ENTRY SWEEP
+
+All removals paired (layout + group), array sizes decremented, indices
+renumbered contiguous 0..N-1 (machine-verified per block). All edits in
+realization/state.hpp unless noted. Audit cross-check before editing:
+cc4_output.json confirms compute_entity_placement uses neither 60 nor
+144; frustum_cull_patches uses neither 60(fc_agents) nor 80(fc_camera);
+compute_photographer_vp uses 60/80 but NOT 144.
+
+### Commit [1a] — 6490b47
+
+1. CLASS B, Compute Entity Layout + BindGroup (desc.label anchors):
+   REMOVED entry pair bind::g0::trajectories (101). Arrays 18→17.
+   BEFORE (layout): `entries[6].binding = bind::g0::trajectories;` +
+   visibility Compute + buffer.type Storage. AFTER: block deleted,
+   [7..17]→[6..16]. Group side identical shape (buffer =
+   trajectoriesBuffer_). Group header comment claimed "19 entries"
+   while the array held 18 — pre-existing drift; corrected to 17.
+2. CLASS B, retained future-live comment truth (H0 amendment 1): the
+   claim comment over 145/146/152 in BOTH the layout and the group
+   ("Required by compute pipelines that do per-frame baked-path Y
+   lookups: update_camera, update_agents…") REPLACED with:
+   "dead today (agents are analytic; sole baked readers are
+   photographer + placement — audit cc4). Goes LIVE at Stage 4: the
+   agents' baked ground path (GROUND_CARD_1 H5)."
+3. CLASS B, Compute Texture Layout g1:23 nearest_sampler comment
+   BEFORE: "nearest_sampler (matches render texture layout; retained
+   for future compute consumers)" AFTER: "dead today; goes LIVE at
+   Stage 4 — the live card's cell-exact GoL fetch (GROUND_CARD_1 H5)."
+
+### Commit [1b] — a70375e
+
+4. CLASS B, Entity Placement Compute Layout + BindGroup: REMOVED pairs
+   agent_state (60) and photo_patch_instances (144). Arrays 13→11;
+   [2]→[1], [4..12]→[2..10]. Header count comment folded to 11 with
+   removal note.
+5. CLASS B, Photographer Compute Layout + BindGroup: REMOVED pair
+   photo_patch_instances (144). Arrays 10→9; [6..9]→[5..8] (the
+   out-of-order entries[9] camera_state renumbered to [8] by index,
+   position untouched). WGSL side: world.wgsl:8406 declaration
+   `@group(0) @binding(144) var<storage, read> photo_patch_instances`
+   REMOVED together with its TODO[seam-map:cleanup] block — this is
+   exactly the coordinated edit that TODO called for; grep confirms
+   zero remaining code references (only a historical prose mention at
+   the patch_grid helper comment, retained).
+6. CLASS B, Frustum Cull Compute Layout + BindGroup: REMOVED pairs
+   fc_camera/camera_state (80) and fc_agents/agent_state (60). Arrays
+   7→5; [3..5]→[2..4]. WGSL side: dedicated declarations
+   `fc_camera` (world.wgsl:8760) and `fc_agents` (world.wgsl:8764)
+   REMOVED — cc3/cc4 certify frustum_cull_patches never references
+   them; grep confirms zero remaining references.
+
+### Commit [1c] — 1c86e13
+
+7. CLASS B (probe_a-modeled), Ribbon Compute Layout + BindGroup:
+   REMOVED pairs tile_grid (25) and pier_instances (26). Arrays 5→3;
+   [2..4]→[0..2]. Matches audit/probe_a.patch ribbon hunks; probe_a's
+   REFUTED GoL-pier and aura-tile hunks NOT applied.
+8. CLASS B, ribbon header comment: enumeration "tile_grid @25,
+   pier_instances @26, ribbon_state @120, ring_xforms @121, head_poses
+   @122" trimmed to "ribbon_state @120, ring_xforms @121, head_poses
+   @122". Group header count 5→3.
+9. WGSL: NO edit (per handoff — compute_ribbon_rings uses only shared
+   g0 declarations still carried by other layouts).
+
+### Gate
+
+glaw1 after [1c]: `G-LAW 1: GREEN`.
+
+Post-H1 shape (informational; formal recount at H6): Compute Entity 17
+entries (8 storage incl. 3 future-live dead / 7 uniform + tex +
+sampler); Placement 11; Photographer 9; Cull 5; Ribbon 3.
