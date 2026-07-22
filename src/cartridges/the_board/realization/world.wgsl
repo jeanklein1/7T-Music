@@ -1999,19 +1999,24 @@ struct GoLTierParams {
     // --- Selection
     weight: f32,                   // tier probability (must sum to 1.0)
     force_no_height: u32,          // 1 = height always disabled for this tier
+
+    // --- Size (UNIFIED_GROUND_1 U5; cells, not world units)
+    grid_cells: u32,               // zone side in cells ∈ {8..32} (Jean-tunable)
 }
 
 const GOL_TIER_COUNT: u32 = 7u;
 
-//                                                 dens_μ  σ     tick_μ  σ    spring_μ σ    trans_μ  σ     ht_μ    σ    sv    wt    no_h
+//                                                 dens_μ  σ     tick_μ  σ    spring_μ σ    trans_μ  σ     ht_μ    σ    sv    wt    no_h  cells
+// (cells column: UNIFIED_GROUND_1 U5 — authored defaults by weight
+//  order thirds, 32/24/16; Jean-tunable per row.)
 const GOL_TIERS = array<GoLTierParams, 7>(
-    /* 0: PILLARS  */ GoLTierParams(0.30, 0.05,   8.0, 2.0,   0.5, 0.1,   0.05, 0.01,  30.0, 9.0,  0.30,  0.10, 0u),
-    /* 1: SPARSE   */ GoLTierParams(0.15, 0.05,   2.0, 0.5,   4.0, 1.0,   0.12, 0.03,  18.0, 6.0,  0.20,  0.20, 0u),
-    /* 2: MODERATE */ GoLTierParams(0.30, 0.08,   1.0, 0.3,   8.0, 2.0,   0.15, 0.03,   9.0, 3.0,  0.15,  0.18, 0u),
-    /* 3: DENSE    */ GoLTierParams(0.45, 0.10,   0.5, 0.15, 12.0, 3.0,   0.25, 0.05,   6.0, 1.5,  0.10,  0.10, 0u),
-    /* 4: FLASH    */ GoLTierParams(0.35, 0.10,  0.25, 0.05, 20.0, 5.0,   0.30, 0.05,   0.0, 0.0,  0.40,  0.17, 1u),
-    /* 5: MONOLITH */ GoLTierParams(0.20, 0.03,  12.0, 3.0,   0.3, 0.05,  0.03, 0.01,  42.0, 12.0, 0.05,  0.12, 0u),
-    /* 6: GLACIER  */ GoLTierParams(0.12, 0.03,   4.0, 1.0,   2.0, 0.5,   0.08, 0.02,  24.0, 7.5,  0.25,  0.13, 0u),
+    /* 0: PILLARS  */ GoLTierParams(0.30, 0.05,   8.0, 2.0,   0.5, 0.1,   0.05, 0.01,  30.0, 9.0,  0.30,  0.10, 0u, 16u),
+    /* 1: SPARSE   */ GoLTierParams(0.15, 0.05,   2.0, 0.5,   4.0, 1.0,   0.12, 0.03,  18.0, 6.0,  0.20,  0.20, 0u, 32u),
+    /* 2: MODERATE */ GoLTierParams(0.30, 0.08,   1.0, 0.3,   8.0, 2.0,   0.15, 0.03,   9.0, 3.0,  0.15,  0.18, 0u, 32u),
+    /* 3: DENSE    */ GoLTierParams(0.45, 0.10,   0.5, 0.15, 12.0, 3.0,   0.25, 0.05,   6.0, 1.5,  0.10,  0.10, 0u, 16u),
+    /* 4: FLASH    */ GoLTierParams(0.35, 0.10,  0.25, 0.05, 20.0, 5.0,   0.30, 0.05,   0.0, 0.0,  0.40,  0.17, 1u, 24u),
+    /* 5: MONOLITH */ GoLTierParams(0.20, 0.03,  12.0, 3.0,   0.3, 0.05,  0.03, 0.01,  42.0, 12.0, 0.05,  0.12, 0u, 16u),
+    /* 6: GLACIER  */ GoLTierParams(0.12, 0.03,   4.0, 1.0,   2.0, 0.5,   0.08, 0.02,  24.0, 7.5,  0.25,  0.13, 0u, 24u),
 );
 
 // --- Pulse Algorithm Tier Definitions ────────────────────────────────────
@@ -2055,15 +2060,18 @@ struct GolPulseTierParams {
     weight: f32,
     force_no_height: u32,     // 0 = allow height, 1 = force no height
     boundary_mode: u32,       // 0 = reflect, 1 = wrap
+    // --- Size (UNIFIED_GROUND_1 U5; cells, not world units)
+    grid_cells: u32,          // zone side in cells (Jean-tunable)
 }
 
 const GOL_PULSE_TIER_COUNT: u32 = 3u;
 
-//                                                       tick_μ   σ    spring_μ σ    trans_μ  σ    phase_μ  σ    tempo_μ σ    ht_μ   σ    wand_μ  σ    sv    wt    no_h  bnd
+//                                                       tick_μ   σ    spring_μ σ    trans_μ  σ    phase_μ  σ    tempo_μ σ    ht_μ   σ    wand_μ  σ    sv    wt    no_h  bnd  cells
+// (cells column: UNIFIED_GROUND_1 U5 — 32/16/8 by weight order; Jean-tunable.)
 const GOL_PULSE_TIERS = array<GolPulseTierParams, 3>(
-    /* 0: Breathe  */ GolPulseTierParams( 2.0, 0.5,   4.0, 1.0,   0.20, 0.05,   0.15, 0.05,   0.10, 0.03,   2.0, 0.8,  10.0, 3.0,   0.20,  0.45, 0u, 0u ),
-    /* 1: Sparkle  */ GolPulseTierParams( 0.5, 0.15, 12.0, 3.0,   0.25, 0.05,   0.90, 0.10,   0.60, 0.15,   0.0, 0.0,   5.0, 2.0,   0.50,  0.30, 1u, 0u ),
-    /* 2: Drift    */ GolPulseTierParams( 4.0, 1.0,   1.5, 0.4,   0.10, 0.03,   0.50, 0.15,   0.40, 0.10,   4.0, 1.5,  25.0, 8.0,   0.35,  0.25, 0u, 1u ),
+    /* 0: Breathe  */ GolPulseTierParams( 2.0, 0.5,   4.0, 1.0,   0.20, 0.05,   0.15, 0.05,   0.10, 0.03,   2.0, 0.8,  10.0, 3.0,   0.20,  0.45, 0u, 0u, 32u ),
+    /* 1: Sparkle  */ GolPulseTierParams( 0.5, 0.15, 12.0, 3.0,   0.25, 0.05,   0.90, 0.10,   0.60, 0.15,   0.0, 0.0,   5.0, 2.0,   0.50,  0.30, 1u, 0u, 16u ),
+    /* 2: Drift    */ GolPulseTierParams( 4.0, 1.0,   1.5, 0.4,   0.10, 0.03,   0.50, 0.15,   0.40, 0.10,   4.0, 1.5,  25.0, 8.0,   0.35,  0.25, 0u, 1u, 8u ),
 );
 
 // Probability of a zone being Pulse (vs Conway) — must match CPU GOL_PULSE_ALGORITHM_CHANCE.
@@ -5783,7 +5791,8 @@ struct ZoneDeriveRequestArray {
 @group(0) @binding(166) var<uniform> zone_derive_requests: ZoneDeriveRequestArray;
 
 // Constants for zone derivation (must match CPU GoLZoneSpawnConfig / GoLColorMode)
-const ZONE_DERIVE_EXTENT: f32         = 100.0;     // zone side length (32 × 3.125)
+// (ZONE_DERIVE_EXTENT RETIRED — extent is tier-derived, grid_cells ×
+//  ZONE_DERIVE_CELL_SIZE — UNIFIED_GROUND_1 U5; const parked.)
 const ZONE_DERIVE_CELL_SIZE: f32      = 3.125;     // PATCH_EXTENT / PATCH_CELL_N
 const ZONE_DERIVE_LENS_LO: f32       = 0.2;       // LENS target color floor
 const ZONE_DERIVE_LENS_RANGE: f32     = 0.6;       // LENS target color range
@@ -5832,16 +5841,12 @@ fn zone_derive_params(@builtin(global_invocation_id) gid: vec3<u32>) {
 
     let seed = lattice_node_seed(req.world_seed, vec2(req.nx, req.nz), GOL_ZONE_SEED_BAND);
 
-    // Zone origin: snap corner to cell grid, then center
+    // Raw center from the lattice node; the corner snap moves BELOW the
+    // tier selection — extent is tier-derived (UNIFIED_GROUND_1 U5).
     let raw_cx = (f32(req.nx) + 0.5) * MODE_LATTICE_SPACING;
     let raw_cz = (f32(req.nz) + 0.5) * MODE_LATTICE_SPACING;
-    let corner_x = floor((raw_cx - ZONE_DERIVE_EXTENT * 0.5) / ZONE_DERIVE_CELL_SIZE) * ZONE_DERIVE_CELL_SIZE;
-    let corner_z = floor((raw_cz - ZONE_DERIVE_EXTENT * 0.5) / ZONE_DERIVE_CELL_SIZE) * ZONE_DERIVE_CELL_SIZE;
 
     var zc: GoLZoneConfig;
-    zc.origin = vec2(corner_x + ZONE_DERIVE_EXTENT * 0.5, corner_z + ZONE_DERIVE_EXTENT * 0.5);
-    zc.extent = ZONE_DERIVE_EXTENT;
-    zc.grid_size = 32u;
     zc.algorithm = req.algorithm;
 
     // Target colors (shared by both algorithms)
@@ -5861,6 +5866,10 @@ fn zone_derive_params(@builtin(global_invocation_id) gid: vec3<u32>) {
             if (tier_roll < cumul) { tier_idx = t; break; }
         }
         let tp = GOL_TIERS[tier_idx];
+
+        // Size: cells, not world units (UNIFIED_GROUND_1 U5)
+        zc.grid_size = tp.grid_cells;
+        zc.extent    = f32(zc.grid_size) * ZONE_DERIVE_CELL_SIZE;
 
         let actual_height = height_enabled && (tp.force_no_height == 0u);
 
@@ -5905,6 +5914,10 @@ fn zone_derive_params(@builtin(global_invocation_id) gid: vec3<u32>) {
         }
         let pp = GOL_PULSE_TIERS[tier_idx];
 
+        // Size: cells, not world units (UNIFIED_GROUND_1 U5)
+        zc.grid_size = pp.grid_cells;
+        zc.extent    = f32(zc.grid_size) * ZONE_DERIVE_CELL_SIZE;
+
         let actual_height = height_enabled && (pp.force_no_height == 0u);
 
         zc.tick_period = max(0.1,
@@ -5931,6 +5944,12 @@ fn zone_derive_params(@builtin(global_invocation_id) gid: vec3<u32>) {
         // Pulse zones always use LENS color mode
         zc.color_mode = GOL_COLOR_LENS;
     }
+
+    // Zone origin: snap corner to the cell grid with the TIER-DERIVED
+    // extent, then center (the same snap formula; extent now varies).
+    let corner_x = floor((raw_cx - zc.extent * 0.5) / ZONE_DERIVE_CELL_SIZE) * ZONE_DERIVE_CELL_SIZE;
+    let corner_z = floor((raw_cz - zc.extent * 0.5) / ZONE_DERIVE_CELL_SIZE) * ZONE_DERIVE_CELL_SIZE;
+    zc.origin = vec2(corner_x + zc.extent * 0.5, corner_z + zc.extent * 0.5);
 
     zone_config.zones[req.slot] = zc;
 }
