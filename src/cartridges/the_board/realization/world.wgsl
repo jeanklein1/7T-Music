@@ -4035,13 +4035,11 @@ fn patch_terrain_vs(
     let aura = sample_pawn_aura(world_pos.xz, render_pawn_pos().xz);
     world_pos.y += aura.r * config.pawn_aura_height;
 
-    // Polyphony-driven wave overlay — fused height + analytical gradient (1 loop, not 5)
-    let wave = terrain_wave_overlay_with_gradient(world_pos.xz);
-    world_pos.y += wave.x;
-
-    // Radial pulses: expanding ring wavefronts from note onsets
-    let pulse_h = contrib_radial_pulses_at(world_pos.xz, render_signal.t_seconds);
-    world_pos.y += pulse_h;
+    // The live card (GROUND_CARD_1): waves + pulses ride one field —
+    // live.x = Δh (waves+pulses), live.yz = waves-only gradient
+    // (parity with the old fused overlay; pulse shading = Stage 6).
+    let live = sample_live_card(world_pos.xz);
+    world_pos.y += live.x;
 
     // Skirt curtain: drop the ring copy below the surface it just inherited
     // (heightfield + aura + wave + pulse — no recompute; the curtain tracks
@@ -4051,7 +4049,7 @@ fn patch_terrain_vs(
     var out: PatchTerrainVarying;
     out.clip_pos = render_vp.m * vec4(world_pos, 1.0);
     out.world_pos = world_pos;
-    out.gradients = height_data.yz + wave.yz;
+    out.gradients = height_data.yz + live.yz;
     // (out.complexity REMOVED — the LATENT[complexity] varying;
     //  the .w channel it read is now unused, no FS ever consumed it.)
     out.patch_uv = uv;
@@ -4315,8 +4313,9 @@ fn shadow_patch_terrain_vs(
 
     let wx = pi.origin.x + (uv.x - 0.5) * pi.extent;
     let wz = pi.origin.y + (uv.y - 0.5) * pi.extent;
-    var world_pos = vec3(wx, height_data.x + contrib_terrain_waves_at(vec2(wx, wz)), wz);
-    // Skirt curtain drop (shadow surface = heightfield + waves only).
+    var world_pos = vec3(wx, height_data.x + sample_live_card(vec2(wx, wz)).x, wz);
+    // Skirt curtain drop (shadow surface = heightfield + the card:
+    // waves+pulses one field — GROUND_CARD_1).
     if (is_skirt) { world_pos.y -= PATCH_SKIRT_DEPTH; }
 
     var out: ShadowVarying;
