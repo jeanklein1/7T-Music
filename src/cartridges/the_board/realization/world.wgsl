@@ -289,6 +289,16 @@ const PATCH_SKIRT_RING: u32 = 4u * PATCH_MESH_N;                           // 25
 // the outer rim — so start generous; rig-tuned.
 const PATCH_SKIRT_DEPTH: f32 = 8.0;
 
+// ── THE UNIFIED GROUND (UNIFIED_GROUND_1; C++ room: Dim::UG_*) ──
+// Bands stacked ABOVE the legacy grid+skirt space [0, UG_CAP_BASE):
+// CAP [UG_CAP_BASE, UG_BASE_BASE) = 256 cells × 25 cell-owned verts
+// (5×5 — cells lift independently); BASE [UG_BASE_BASE, …) = 256 × 16
+// curtain-bottom twins (no lift — the gap IS the curtain).
+const UG_QUADS: u32 = 4u;         // quads per cell edge (PATCH_MESH_N / PATCH_CELL_N)
+const UG_CAP_STRIDE: u32 = 5u;    // cap verts per cell edge (UG_QUADS + 1)
+const UG_CAP_BASE: u32 = 4481u;   // (65*65) + 4*64 — first cap vert
+const UG_BASE_BASE: u32 = 10881u; // UG_CAP_BASE + 256*25 — first base vert
+
 // Skirt ring index k in [0, PATCH_SKIRT_RING) -> its perimeter grid vertex
 // (vx, vz), each in [0, PATCH_MESH_N]. CW walk: bottom, right, top, left.
 // MIRROR of the C++ skirt_grid_index (state.hpp patch IB) — the two MUST

@@ -143,6 +143,25 @@ namespace t7 {
             constexpr uint32_t PATCH_MESH_N_LOD1 = 32;  // LOD-1: half resolution
             constexpr uint32_t PATCH_INDEX_COUNT_LOD1 = PATCH_MESH_N_LOD1 * PATCH_MESH_N_LOD1 * 6;
 
+            // ── THE UNIFIED GROUND (UNIFIED_GROUND_1) ──
+            // Vertex-index bands. Legacy space [0, UG_CAP_BASE) keeps its
+            // decode (grid+skirt — the LOD1/soft space). CAP band: 25 cell-
+            // owned verts per cell (5×5, cells lift independently). BASE
+            // band: 16 curtain-bottom twins per cell (no lift — the gap IS
+            // the curtain). Emission: caps 16 quads/cell + curtains 16
+            // quads/cell + the legacy skirt ring re-aimed at cap outer verts.
+            constexpr uint32_t UG_CELLS_PER_PATCH = PATCH_CELL_N * PATCH_CELL_N;   // 256
+            constexpr uint32_t UG_QUADS_PER_CELL  = PATCH_MESH_N / PATCH_CELL_N;   // 4 (quads per cell edge)
+            constexpr uint32_t UG_CAP_VERTS_PER_CELL  = (UG_QUADS_PER_CELL + 1) * (UG_QUADS_PER_CELL + 1); // 25
+            constexpr uint32_t UG_BASE_VERTS_PER_CELL = 4 * UG_QUADS_PER_CELL;     // 16
+            constexpr uint32_t UG_CAP_BASE  = (PATCH_MESH_N + 1) * (PATCH_MESH_N + 1) + 4 * PATCH_MESH_N; // 4481
+            constexpr uint32_t UG_BASE_BASE = UG_CAP_BASE + UG_CELLS_PER_PATCH * UG_CAP_VERTS_PER_CELL;   // 10881
+            constexpr uint32_t UG_DECODE_VERTS = UG_BASE_BASE + UG_CELLS_PER_PATCH * UG_BASE_VERTS_PER_CELL; // 14977
+            static_assert(UG_QUADS_PER_CELL == 4 && UG_CAP_BASE == 4481
+                       && UG_BASE_BASE == 10881 && UG_DECODE_VERTS == 14977,
+              "unified ground: band arithmetic — cell borders must lie on "
+              "mesh vertex lines (PATCH_MESH_N divisible by PATCH_CELL_N)");
+
             // Mathematical constants
             constexpr float    PI = 3.14159265359f;
 
