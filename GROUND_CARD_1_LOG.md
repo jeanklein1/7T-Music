@@ -370,3 +370,110 @@ GATE NOTE for the batch-end session (carried): REST bit-identity
 (terrain_time ≤ 0, pulse ring 0, no zones ⇒ card zeros ⇒
 pixel-identical stills) + motion motif review + the debug eye (card
 black at rest; paints under music).
+
+---
+
+## H5 — STAGE 4: THE COMPUTE REWIRE + THE EVICTIONS
+
+Order held: [5a] plumbing → [5b] rewire + MACHINE GATE → [5c] evictions.
+
+### Commit [5a] — 84e429e
+
+1. CLASS B, Compute Texture Layout + BindGroup 3→4: live_card_read (34)
+   sampled Float e2D COMPUTE; group binds liveCardView_ (bilinear 22 +
+   nearest 23 already this group's samplers — nearest retained in H1
+   for exactly this moment).
+2. CLASS B, comment flips dead→LIVE: CE layout + CE group (145/146/152),
+   CT nearest (23).
+3. CLASS B, placement gains group 1: renderer.hpp placement pipeline
+   layout → [placement layout, compute_texture_layout] (the
+   liveContrib two-group shape); render_passes.hpp binds
+   SetBindGroup(1, compute_texture_group) before the dispatch (sticky
+   bind-group state; bound at DispatchWorkgroups time).
+
+### Commit [5b] — e393bed
+
+4. CLASS B, the query family (each body pasted in the pre-edit tree;
+   transforms per campaign v2 §4):
+   - manifold_overlay_stack (the shared fold, authored once):
+     [static base + pyramids] → sample_terrain_y_at(xz); [waves +
+     pulses] → sample_live_card(xz).x; gol_term parameter shape kept;
+     qi retained for signature stability.
+   - query_ground_flyer / query_ground_walker_agent: gol term →
+     sample_live_card_gol(xz); external-aura tail untouched.
+   - query_ground_walker / query_ground_walker_tilt: `let gol =` →
+     sample_live_card_gol(xz); the bodies' OWN suppression smoothstep
+     unchanged; self-aura tail untouched.
+   - query_ground_walker_pair: ADAPTATION (logged) — the handoff
+     described a "two-point shape"; the actual body is ONE point with
+     two outputs sharing one contributor evaluation. Transformed to
+     one baked + one card + one gol fetch shared by both outputs,
+     exactly mirroring its actual shape. Per-point supp unchanged.
+5. CLASS B, the manifold dispatch (switch pasted pre-edit): arms call
+   the query bodies (the expected case) — but the LATENT placement
+   bodies and the baked/default arms statically reach the forbidden
+   bindings from the agent kernels (a switch references ALL its arms).
+   Applied transform 4 through them:
+   - query_ground_placement_pyramid/vegetation → sample_terrain_y_at
+     (JUDGMENT, logged: the baked path INCLUDES pyramids; the declared
+     no-pyramids intent is preserved in comments — LATENT, zero live
+     callers, returns when placement moves onto the policy API).
+   - query_ground_placement_painting → sample_terrain_y_at +
+     sample_live_card_gol (the same composition the live placement
+     hybrid runs).
+   - switch case 3u → sample_terrain_y_at directly (texture form,
+     byte-consistent by construction); query_ground_baked_heightfield's
+     analytic BODY stays — it is the zone baked-sampler fallback
+     chain's form (zone_sample_baked_terrain_y), whose layout has no
+     heightfield trio.
+   - switch default arm (an inline contrib_static_base_at — the
+     handoff's inline-contributor clause) → sample_terrain_y_at.
+6. CLASS B, compute_entity_placement: its 7 GoL terms (painting,
+   column, palm, cactus, blade, arch left+right) →
+   sample_live_card_gol(point), RAW, no suppression, per the placement
+   ruling. Terrain reads already rode sample_terrain_y_at (cc4).
+7. MACHINE GATE (cc4 rerun on the edited world.wgsl) — PASS. The five
+   agent entry points' binding sets, verbatim:
+       update_player_agent:  [0, 1, 22, 23, 33, 34, 60, 62, 80, 145, 146, 152]
+       update_other_agents:  [0, 1, 22, 23, 33, 34, 60, 80, 110, 111, 145, 146, 152]
+       update_camera:        [0, 1, 22, 23, 33, 34, 60, 80, 145, 146, 152]
+       update_sphere:        [0, 1, 22, 23, 33, 34, 60, 80, 100, 145, 146, 152]
+       update_cube:          [0, 1, 22, 23, 33, 34, 60, 80, 100, 145, 146, 152]
+   None references {25, 26, 30, 160, 161}. compute_entity_placement:
+   [1, 23, 34, 143, 145, 146, 147, 148, 150, 151, 152] — neither zone
+   binding. Additionally EVERY compute kernel's reference set was
+   checked against its layout(s): all covered (compute_vp,
+   photographer, zone kernels, aura, ribbon, cull, writer included).
+8. Residue census (grep, verbatim; code sites only):
+   - contrib_static_base_at: 2961 (query_ground_baked_heightfield —
+     the zone fallback chain).
+   - contrib_pyramids_at: 2666 (ground_formed bake chain), 2962 (zone
+     fallback chain).
+   - contrib_gol_zones_at: 2380 (contrib_gol_suppression_at — LATENT
+     standalone form, zero callers, unreachable from any entry point),
+     8283 (write_live_card).
+   - contrib_terrain_waves_at: 8132, 8241 (the two SKIP-DOOMED zone
+     sites).
+   - contrib_radial_pulses_at: 8282 (write_live_card).
+   - terrain_wave_overlay_with_gradient: 8281 (write_live_card).
+   = the allowed set {bake chain, zone-mesh/fallback sites,
+   write_live_card} + one LATENT zero-caller form (noted).
+
+### Commit [5c] — e2866c3
+
+9. CLASS B (probe_b-modeled shapes), Compute Entity Layout + BindGroup
+   17→12: REMOVED pier_instances (26), zone_config (160), zone_life
+   (161), tile_grid (25), pyramid_instances (30); renumbered; exit
+   comment records the new homes.
+10. CLASS B, Entity Placement Layout + BindGroup 11→9: REMOVED the
+    zone pair; exit comment.
+11. Comment truths landed at both eviction sites ("zone pair now bound
+    only by the GoL sim layouts and the live-card writer").
+12. NOT touched: GoL Zone layout, Patch Gen layout, the writer's
+    layout, Render Entity.
+
+### Gate
+
+glaw1 after [5c]: `G-LAW 1: GREEN`.
+DISCLOSURES riding this handoff: agents analytic→baked (same surface
+the pixels stand on); transient NEEDS_REGEN staleness on fresh piers.
