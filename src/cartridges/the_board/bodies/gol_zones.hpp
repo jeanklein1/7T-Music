@@ -527,7 +527,11 @@ inline void seed_gol_zone(GoLState& gs, MachineCtx* c,
         }
     }
 
-    // Generate per-cell height factors: Gaussian draw, clamped
+    // Generate per-cell height factors: Gaussian draw, clamped.
+    // (UNIFIED_GROUND_1 U5: the GPU mask multiplies at birth
+    //  (zone_seed_mask) — smooth ground does not extrude, lift, or
+    //  carry walker height; STATIC at birth (the dynamic, tide-
+    //  following form is Layer E — campaign v2 §9).)
     std::vector<float> height_factors(Dim::GOL_ZONE_CELLS);
     for (uint32_t i = 0; i < Dim::GOL_ZONE_CELLS; i++) {
         float hf = cpu_sample_gaussian(seed + i, GoLZoneProp::HEIGHT_FACTOR,
@@ -577,6 +581,13 @@ inline void flush_zone_derive_requests(GoLState& gs, GolDeps* c, wgpu::Queue& qu
     c->renderer_.dispatch_zone_derive_params(
         pass,
         c->gpuState_.zone_gol_compute_group(),
+        gs.pending_derive_requests.count);
+    // ORDERING LAW: derive writes zone_config[slot]; the mask reads it —
+    // sequential dispatches in one pass suffice (storage-buffer
+    // visibility between dispatches is guaranteed). (UNIFIED_GROUND_1 U5)
+    c->renderer_.dispatch_zone_seed_mask(
+        pass,
+        c->gpuState_.zone_mask_group(),
         gs.pending_derive_requests.count);
     pass.End();
     wgpu::CommandBuffer cmd = encoder.Finish();

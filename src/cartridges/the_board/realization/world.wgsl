@@ -5935,6 +5935,35 @@ fn zone_derive_params(@builtin(global_invocation_id) gid: vec3<u32>) {
     zone_config.zones[req.slot] = zc;
 }
 
+// THE VOCABULARY MASK (UNIFIED_GROUND_1 U5) — the birth-moment kernel.
+// Multiplies the color system's REST discrete-visibility predicate into
+// the CPU-Gaussian-seeded height_factor plane: smooth ground does not
+// extrude, lift, or carry walker height. STATIC at birth (the dynamic,
+// tide-following form is Layer E — campaign v2 §9).
+// GRANULARITY TRUTH: the predicate is evaluated at ZONE-cell centers,
+// which ARE color-mosaic cells (extent = grid × 3.125, corner cell-
+// snapped) — one address, no resampling.
+// ORDERING LAW: derive writes zone_config[slot]; this kernel reads it —
+// sequential dispatches in ONE pass suffice (storage-buffer visibility
+// between dispatches is guaranteed).
+@compute @workgroup_size(8, 8, 1)
+fn zone_seed_mask(@builtin(global_invocation_id) gid: vec3<u32>) {
+    let req_idx = gid.z;
+    if (req_idx >= zone_derive_requests.count) { return; }
+    let req = zone_derive_requests.requests[req_idx];
+    let zp = zone_config.zones[req.slot];
+    if (gid.x >= zp.grid_size || gid.y >= zp.grid_size) { return; }
+    let cs = zp.extent / f32(zp.grid_size);
+    let corner = zp.origin - vec2(zp.extent * 0.5);
+    let center = corner + (vec2(f32(gid.x), f32(gid.y)) + vec2(0.5)) * cs;
+    let vis = step(0.5, discrete_visibility_rest(center, cell_address(center)));
+    // the sim kernels' own dense row-major (idx = y * grid_size + x) —
+    // NOT a fixed-32 stride; the U5b gate (a) verified convention.
+    let idx = req.slot * GOL_ZONE_STRIDE + GOL_CELL_HEIGHT_FACTOR
+            + gid.y * zp.grid_size + gid.x;
+    zone_life[idx] = zone_life[idx] * vis;   // Gaussian seed × mask
+}
+
 // Sample baked heightfield at world XZ — exact terrain as rendered.
 // Searches patch instances for the covering patch and samples its layer.
 // (fn zone_sample_baked_terrain_y RETIRED — UNIFIED_GROUND_1 U4; A2-3 census)
@@ -7633,28 +7662,51 @@ fn evaluate_cell_fields(
 // via door_values (the ONE derivation since Commit C retired the LUT
 // reconstruction) — bias is a FIELD input now.
 // (Edges + cuts live at TERRAIN_LOOKS ROW 5, §2.2, read by door_values.)
+// THE DISCRETE-VISIBILITY DOORS (UNIFIED_GROUND_1 U5) — the ONE
+// derivation of the door math (Ruling 2i fade bands + the sparse
+// product), extracted verbatim so the composite and the vocabulary
+// mask read the SAME body. Bit-exact: the composite's own mix chain
+// below is untouched (the U6 rest gate is bitwise).
+struct DiscreteDoors {
+    scatter_vis: f32,   // Ruling 2i fade band (W = 0 → the step)
+    show_cell: f32,     // sparse fade × the zone fade's complement
+}
+fn discrete_visibility_doors(id: CellIdentity) -> DiscreteDoors {
+    let scatter_vis = door_fade(id.cell_roll, id.scatter_survival, DOOR_FADE_W_SCATTER);
+    let sparse_vis = door_fade(id.sparse_roll, id.sparse_survival, DOOR_FADE_W_SPARSE);
+    return DiscreteDoors(scatter_vis, sparse_vis * (1.0 - id.in_mode_zone));
+}
+
+// THE REST PREDICATE (UNIFIED_GROUND_1 U5): the discrete-visibility
+// WEIGHT at rest (bias 0), as one scalar — algebraically the exact
+// weight the composite's affine mix chain applies (mix-linearity in
+// the weight; s,d fixed). Consumers threshold it (step), so the
+// float-order difference vs the composite's chain is immaterial
+// HERE; the composite keeps its own chain for bitwise identity.
+fn discrete_visibility_rest(cell_center: vec2<f32>, cell: vec2<i32>) -> f32 {
+    let cell_seed = lattice_node_seed(config.world_seed, cell, 200u);
+    let id = evaluate_cell_fields(cell_center, cell.x, cell.y, cell_seed, 0.0, 0.0);
+    let d = discrete_visibility_doors(id);
+    let mode_w = mix(id.blend_t, d.scatter_vis, id.style);
+    return mix(mode_w, 1.0, d.show_cell);
+}
+
 fn composite_cell_color(id: CellIdentity, discrete_color: vec3<f32>) -> vec3<f32> {
+    // The doors — the ONE derivation (discrete_visibility_doors above).
+    let d = discrete_visibility_doors(id);
+
     // Blend style: smooth → discrete (gradual transition at mode boundary)
     let blend_color = mix(id.smooth_color, discrete_color, id.blend_t);
 
     // Scatter style: cell survives or is replaced by smooth background.
-    // Ruling 2i: the roll comparison is a fade band (W = 0 → the step).
-    let scatter_vis = door_fade(id.cell_roll, id.scatter_survival, DOOR_FADE_W_SCATTER);
-    let scatter_color = mix(id.smooth_color, discrete_color, scatter_vis);
+    let scatter_color = mix(id.smooth_color, discrete_color, d.scatter_vis);
 
     // Combine the two transition styles (blend vs scatter) via style field
     let mode_color = mix(blend_color, scatter_color, id.style);
 
     // Sparse scatter: isolated cells and small clusters outside mode zones
-    // CHECKER-TUNE A2 (standing): the mode field's own gating decides which
-    // cells show discrete — the music colors the checkers it already places
-    // between smooth sections, it does NOT convert smooth ground.
-    // Ruling 2i: fade band × the zone fade's complement (products, not
-    // booleans — at W = 0 each factor is exactly 0 or 1, so the product
-    // IS today's AND).
-    let sparse_vis = door_fade(id.sparse_roll, id.sparse_survival, DOOR_FADE_W_SPARSE);
-    let show_cell = sparse_vis * (1.0 - id.in_mode_zone);
-    return mix(mode_color, discrete_color, show_cell);
+    // (CHECKER-TUNE A2 standing; Ruling 2i products — see the doors fn).
+    return mix(mode_color, discrete_color, d.show_cell);
 }
 
 // (composite_cell_color_biased — the Phase-1 pass-through alias —

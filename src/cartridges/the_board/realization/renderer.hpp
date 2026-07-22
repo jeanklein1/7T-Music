@@ -38,6 +38,7 @@ namespace t7 {
             constexpr const char* COMPUTE_RIBBON_RINGS = "compute_ribbon_rings";              // 1D -- per ring
             constexpr const char* COMPUTE_PAWN_AURA = "compute_pawn_aura";                  // 2D -- toroidal grid
             constexpr const char* WRITE_LIVE_CARD = "write_live_card";                      // 2D -- the live card (GROUND_CARD_1)
+            constexpr const char* ZONE_SEED_MASK = "zone_seed_mask";                        // 2D -- the vocabulary mask (UNIFIED_GROUND_1)
 
             // Render
             constexpr const char* PATCH_TERRAIN_VS = "patch_terrain_vs";
@@ -131,6 +132,7 @@ namespace t7 {
             wgpu::BindGroupLayout photographerComputeLayout_;
             wgpu::BindGroupLayout pawnAuraComputeLayout_;
             wgpu::BindGroupLayout liveCardWriterLayout_;   // GROUND_CARD_1
+            wgpu::BindGroupLayout zoneMaskLayout_;         // UNIFIED_GROUND_1 U5
             wgpu::BindGroupLayout zoneGolComputeLayout_;
             wgpu::BindGroupLayout archMeshGenLayout_;
             wgpu::BindGroupLayout columnMeshGenLayout_;
@@ -256,6 +258,7 @@ namespace t7 {
             wgpu::BindGroupLayout entityPlacementComputeLayout_;
             wgpu::ComputePipeline pawnAuraPipeline_;
             wgpu::ComputePipeline liveCardWriterPipeline_;   // GROUND_CARD_1
+            wgpu::ComputePipeline zoneSeedMaskPipeline_;     // UNIFIED_GROUND_1 U5
 
             // Orb sky layer pipelines
             wgpu::BindGroupLayout orbComputeLayout_;
@@ -314,6 +317,7 @@ namespace t7 {
                 frustumCullLayout_ = gpuState.frustum_cull_layout();
                 pawnAuraComputeLayout_ = gpuState.pawn_aura_compute_layout();
                 liveCardWriterLayout_ = gpuState.live_card_writer_layout();
+                zoneMaskLayout_ = gpuState.zone_mask_layout();
                 orbComputeLayout_ = gpuState.orb_compute_layout();
                 orbCopyLayout_    = gpuState.orb_copy_layout();
                 zoneGolComputeLayout_ = gpuState.zone_gol_compute_layout();
@@ -631,6 +635,18 @@ namespace t7 {
                 pass.SetPipeline(zoneDeriveParamsPipeline_);
                 pass.SetBindGroup(0, zoneGroup);
                 pass.DispatchWorkgroups(request_count, 1, 1);
+            }
+
+            void dispatch_zone_seed_mask(
+                wgpu::ComputePassEncoder& pass,
+                wgpu::BindGroup maskGroup,
+                uint32_t request_count
+            ) {
+                if constexpr (!(ROSTER.gol)) return;  // ROSTER-GATE gol (a') — pipeline never created; the holder tolerates
+                if (request_count == 0) return;
+                pass.SetPipeline(zoneSeedMaskPipeline_);
+                pass.SetBindGroup(0, maskGroup);
+                pass.DispatchWorkgroups(4, 4, request_count);
             }
 
             // dispatch_pyramid_mesh_gen CUT — mesh never drawn;
@@ -1434,6 +1450,14 @@ namespace t7 {
                     wgpu::PipelineLayout pl = computeLayoutFor(zoneGolComputeLayout_);
                     if (!pl) return false;
                     if (!makeComputePipeline("zone_derive_params", "Zone Derive Params", pl, Entry::ZONE_DERIVE_PARAMS, zoneDeriveParamsPipeline_)) return false;
+                }
+
+                // Zone mask pipeline (dedicated layout — UNIFIED_GROUND_1 U5)
+                if constexpr (ROSTER.gol) {  // ROSTER-GATE gol (a') — FXC skipped when disabled
+                    wgpu::PipelineLayout pl = computeLayoutFor(zoneMaskLayout_);
+                    if (!pl) return false;
+                    if (!makeComputePipeline("zone_seed_mask", "Zone Seed Mask (2D)",
+                        pl, Entry::ZONE_SEED_MASK, zoneSeedMaskPipeline_)) return false;
                 }
 
                 // Mesh-gen compute pipelines — one dedicated single-group layout each,

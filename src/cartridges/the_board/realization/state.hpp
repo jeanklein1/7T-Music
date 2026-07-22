@@ -1605,6 +1605,8 @@ namespace t7 {
             wgpu::TextureView liveCardView_;        // sampled read (render + compute)
             wgpu::BindGroupLayout liveCardWriterLayout_;
             wgpu::BindGroup liveCardWriterGroup_;
+            wgpu::BindGroupLayout zoneMaskLayout_;      // UNIFIED_GROUND_1 U5
+            wgpu::BindGroup zoneMaskGroup_;
 
             // ── Orb sky layer ────────────────────────────────────────
             wgpu::Buffer orbStateBuffer_;          // MAX_ORBS × GPUOrbState (storage, read_write)
@@ -2672,6 +2674,8 @@ namespace t7 {
             wgpu::TextureView live_card_view() const { return liveCardView_; }
             wgpu::BindGroupLayout live_card_writer_layout() const { return liveCardWriterLayout_; }
             wgpu::BindGroup live_card_writer_group() const { return liveCardWriterGroup_; }
+            wgpu::BindGroupLayout zone_mask_layout() const { return zoneMaskLayout_; }
+            wgpu::BindGroup zone_mask_group() const { return zoneMaskGroup_; }
 
             // Orb sky layer accessors
             wgpu::Buffer orb_state_buffer() const { return orbStateBuffer_; }
@@ -4490,6 +4494,42 @@ namespace t7 {
                     if (!liveCardWriterLayout_) return false;
                 }
 
+                // -- Zone mask layout (Group 0) -- bindings 1, 25, 160, 161, 166 --
+                // (UNIFIED_GROUND_1 U5) The birth-moment mask kernel: config +
+                // tile_grid feed the color system's rest predicate; the zone pair
+                // is Storage (their declarations are var<storage, read_write> —
+                // the H-batch precedent); derive requests scope the dispatch.
+                {
+                    std::array<wgpu::BindGroupLayoutEntry, 5> entries{};
+
+                    entries[0].binding = bind::g0::config;    // config (uniform — the field evaluators)
+                    entries[0].visibility = wgpu::ShaderStage::Compute;
+                    entries[0].buffer.type = wgpu::BufferBindingType::Uniform;
+
+                    entries[1].binding = bind::g0::tile_grid;   // tile_grid (uniform — archetype lookup)
+                    entries[1].visibility = wgpu::ShaderStage::Compute;
+                    entries[1].buffer.type = wgpu::BufferBindingType::Uniform;
+
+                    entries[2].binding = bind::g0::zone_config;  // zone_config (storage — matches var<storage, read_write>)
+                    entries[2].visibility = wgpu::ShaderStage::Compute;
+                    entries[2].buffer.type = wgpu::BufferBindingType::Storage;
+
+                    entries[3].binding = bind::g0::zone_life;  // zone_life (storage, rw — the height_factor plane)
+                    entries[3].visibility = wgpu::ShaderStage::Compute;
+                    entries[3].buffer.type = wgpu::BufferBindingType::Storage;
+
+                    entries[4].binding = bind::g0::zone_derive_requests;  // zone_derive_requests (uniform)
+                    entries[4].visibility = wgpu::ShaderStage::Compute;
+                    entries[4].buffer.type = wgpu::BufferBindingType::Uniform;
+
+                    wgpu::BindGroupLayoutDescriptor desc{};
+                    desc.label = "Zone Mask Layout";
+                    desc.entryCount = entries.size();
+                    desc.entries = entries.data();
+                    zoneMaskLayout_ = device_.CreateBindGroupLayout(&desc);
+                    if (!zoneMaskLayout_) return false;
+                }
+
                 // -- Orb compute layout (Group 0) -- bindings 410 RW, 411 U, 412 RO --
                 // Used by init / dynamics / recolor. orb_state is read_write so these
                 // kernels can update it; orb_state_prev is read-only because only the
@@ -5344,6 +5384,39 @@ namespace t7 {
                     desc.entries = entries.data();
                     liveCardWriterGroup_ = device_.CreateBindGroup(&desc);
                     if (!liveCardWriterGroup_) return false;
+                }
+
+                // Zone mask bind group (5 entries: 1, 25, 160, 161, 166)
+                {
+                    std::array<wgpu::BindGroupEntry, 5> entries{};
+
+                    entries[0].binding = bind::g0::config;
+                    entries[0].buffer = configBuffer_;
+                    entries[0].size = sizeof(GPUDesignConfig);
+
+                    entries[1].binding = bind::g0::tile_grid;
+                    entries[1].buffer = tileGridBuffer_;
+                    entries[1].size = sizeof(GPUTileGrid);
+
+                    entries[2].binding = bind::g0::zone_config;
+                    entries[2].buffer = zoneConfigBuffer_;
+                    entries[2].size = sizeof(GPUGoLZoneArray);
+
+                    entries[3].binding = bind::g0::zone_life;
+                    entries[3].buffer = zoneLifeBuffer_;
+                    entries[3].size = Dim::MAX_GOL_ZONES * Dim::GOL_ZONE_LIFE_STRIDE * sizeof(float);
+
+                    entries[4].binding = bind::g0::zone_derive_requests;
+                    entries[4].buffer = zoneDeriveRequestBuffer_;
+                    entries[4].size = sizeof(GPUZoneDeriveRequestArray);
+
+                    wgpu::BindGroupDescriptor desc{};
+                    desc.label = "Zone Mask BindGroup";
+                    desc.layout = zoneMaskLayout_;
+                    desc.entryCount = entries.size();
+                    desc.entries = entries.data();
+                    zoneMaskGroup_ = device_.CreateBindGroup(&desc);
+                    if (!zoneMaskGroup_) return false;
                 }
 
                 // Orb compute bind group (3 entries: state storage rw + config uniform)
