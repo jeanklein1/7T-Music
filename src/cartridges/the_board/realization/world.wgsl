@@ -2911,7 +2911,10 @@ struct QueryInputs {
 //   possible future aesthetic ruling; see the POLICIES[] row). Rewiring
 //   candidate when placement moves onto the policy API.
 fn query_ground_placement_pyramid(xz: vec2<f32>) -> f32 {
-    return contrib_static_base_at(xz);
+    // GROUND_CARD_1: rides the baked path (which INCLUDES pyramids). The
+    // declared no-pyramids intent predates the baked hybrid and returns
+    // when placement moves onto the policy API — see STATUS above.
+    return sample_terrain_y_at(xz);
 }
 
 // POLICY_PLACEMENT_PAINTING — painting spawn-time Y correction.
@@ -2924,10 +2927,9 @@ fn query_ground_placement_pyramid(xz: vec2<f32>) -> f32 {
 //   baked + analytic-GoL hybrid (same contributor set). Rewiring
 //   candidate when placement moves onto the policy API.
 fn query_ground_placement_painting(xz: vec2<f32>) -> f32 {
-    var h = contrib_static_base_at(xz);
-    h += contrib_pyramids_at(xz);
-    h += contrib_gol_zones_at(xz);
-    return h;
+    // GROUND_CARD_1: base(p) + raw cell-exact GoL — the same composition
+    // compute_entity_placement's painting hybrid runs.
+    return sample_terrain_y_at(xz) + sample_live_card_gol(xz);
 }
 
 // POLICY_PLACEMENT_VEGETATION — tree / column / arch spawn-time Y correction.
@@ -2942,7 +2944,9 @@ fn query_ground_placement_painting(xz: vec2<f32>) -> f32 {
 //   possible future aesthetic ruling; see the POLICIES[] row). Rewiring
 //   candidate when placement moves onto the policy API.
 fn query_ground_placement_vegetation(xz: vec2<f32>) -> f32 {
-    return contrib_static_base_at(xz);
+    // GROUND_CARD_1: rides the baked path (includes pyramids — the live
+    // vegetation Y path already did; see STATUS above).
+    return sample_terrain_y_at(xz);
 }
 
 // --- Baked heightfield: all static, no dynamic, no deformation ---
@@ -2960,9 +2964,10 @@ fn query_ground_baked_heightfield(xz: vec2<f32>) -> f32 {
 }
 
 // ─── The shared dynamic-overlay stack (b2a) ─────────────────────────
-// The additive fold every DYNAMIC ground policy shares, authored ONCE:
-//   contrib_static_base_at + contrib_pyramids_at + <gol_term>
-//     + contrib_terrain_waves_at + contrib_radial_pulses_at
+// The additive fold every DYNAMIC ground policy shares, authored ONCE
+// (GROUND_CARD_1 — the compute rewire):
+//   sample_terrain_y_at (base: static + pyramids, the baked path)
+//     + <gol_term> + sample_live_card(xz).x (waves + pulses — the card)
 // The mover-anchored pawn aura is NOT here — callers add their own aura
 // form (external / self / none) AFTER this stack, so the per-body
 // divergence stays explicit at the call site (world-anchored terms live
@@ -2980,11 +2985,10 @@ fn query_ground_baked_heightfield(xz: vec2<f32>) -> f32 {
 // shifts float round-off, so it is deferred until a layer stops being a
 // plain add (reordered then under its own rig gate).
 fn manifold_overlay_stack(xz: vec2<f32>, qi: QueryInputs, gol_term: f32) -> f32 {
-    var h = contrib_static_base_at(xz);
-    h += contrib_pyramids_at(xz);
-    h += gol_term;
-    h += contrib_terrain_waves_at(xz);
-    h += contrib_radial_pulses_at(xz, qi.t_seconds);
+    // (qi retained for signature stability; pulses now ride the card.)
+    var h = sample_terrain_y_at(xz);   // base(p): static base + pyramids (baked)
+    h += gol_term;                     // GoL before waves — historical operand order kept
+    h += sample_live_card(xz).x;       // live(p).x: waves + pulses (the card)
     return h;
 }
 
@@ -3003,7 +3007,7 @@ fn manifold_overlay_stack(xz: vec2<f32>, qi: QueryInputs, gol_term: f32) -> f32 
 fn query_ground_flyer(xz: vec2<f32>, qi: QueryInputs) -> f32 {
     // Raw GoL (flyers don't self-suppress) over the shared stack; external
     // aura (sampled away from the pawn) added after as the mover term.
-    return manifold_overlay_stack(xz, qi, contrib_gol_zones_at(xz))
+    return manifold_overlay_stack(xz, qi, sample_live_card_gol(xz))
          + contrib_pawn_aura_at_external(xz);
 }
 
@@ -3037,7 +3041,7 @@ fn query_ground_walker(xz: vec2<f32>, qi: QueryInputs) -> f32 {
     // factor pulls the GoL lift toward zero near the consumer — walker
     // intent: "GoL doesn't push me up into the air while I'm standing on it."
     // Kept a SINGLE term (gol*(1−supp)) so the walker stays bit-identical.
-    let gol = contrib_gol_zones_at(xz);
+    let gol = sample_live_card_gol(xz);
     let d = distance(xz, qi.consumer_pos.xz);
     let supp_factor = 1.0 - smoothstep(ZONE_SUPPRESS_INNER, ZONE_SUPPRESS_OUTER, d);
     // Shared world stack + the mover-anchored self-aura (added after so the
@@ -3065,7 +3069,7 @@ fn query_ground_walker_tilt(xz: vec2<f32>, qi: QueryInputs) -> f32 {
     // Same pawn-suppressed GoL as the walker; NO aura (the self field is a
     // constant scalar with zero tilt gradient — excluded for clarity). Just
     // the shared world stack.
-    let gol = contrib_gol_zones_at(xz);
+    let gol = sample_live_card_gol(xz);
     let d = distance(xz, qi.consumer_pos.xz);
     let supp_factor = 1.0 - smoothstep(ZONE_SUPPRESS_INNER, ZONE_SUPPRESS_OUTER, d);
     return manifold_overlay_stack(xz, qi, gol * (1.0 - supp_factor));
@@ -3086,14 +3090,14 @@ fn query_ground_walker_tilt(xz: vec2<f32>, qi: QueryInputs) -> f32 {
 //
 // Shape of the return vec2:
 //   .x = walker      = tilt + pawn_aura_self
-//   .y = walker_tilt = base + pyramids + gol*(1 − supp_factor) + waves + pulses
+//   .y = walker_tilt = base(baked: static+pyramids) + gol*(1 − supp_factor) + live.x(waves+pulses)
 fn query_ground_walker_pair(xz: vec2<f32>, qi: QueryInputs) -> vec2<f32> {
-    // Shared base (GoL not yet suppressed).
-    let base     = contrib_static_base_at(xz);
-    let pyramids = contrib_pyramids_at(xz);
-    let gol      = contrib_gol_zones_at(xz);
-    let waves    = contrib_terrain_waves_at(xz);
-    let pulses   = contrib_radial_pulses_at(xz, qi.t_seconds);
+    // Shared base (GoL not yet suppressed) — GROUND_CARD_1: one baked
+    // fetch + one card fetch + one cell-exact GoL fetch, shared by both
+    // outputs exactly as the analytic quintet was.
+    let base   = sample_terrain_y_at(xz);   // static base + pyramids (baked)
+    let gol    = sample_live_card_gol(xz);
+    let live_h = sample_live_card(xz).x;    // waves + pulses (the card)
 
     // Pawn-centered GoL suppression — zero within the immediate radius —
     // applied to the tilt so it doesn't lean on cells the pawn stands flat
@@ -3102,7 +3106,7 @@ fn query_ground_walker_pair(xz: vec2<f32>, qi: QueryInputs) -> vec2<f32> {
     let d = distance(xz, qi.consumer_pos.xz);
     let supp_factor = 1.0 - smoothstep(ZONE_SUPPRESS_INNER, ZONE_SUPPRESS_OUTER, d);
     let gol_supp = gol * (1.0 - supp_factor);
-    let tilt   = base + pyramids + gol_supp + waves + pulses;
+    let tilt   = base + gol_supp + live_h;
     let walker = tilt + contrib_pawn_aura_at_self();
 
     return vec2(walker, tilt);
@@ -3122,7 +3126,7 @@ fn query_ground_walker_pair(xz: vec2<f32>, qi: QueryInputs) -> vec2<f32> {
 fn query_ground_walker_agent(xz: vec2<f32>, qi: QueryInputs) -> f32 {
     // Full GoL lift (agents don't self-suppress) over the shared stack;
     // external aura (the agent is not the pawn) added after as the mover term.
-    return manifold_overlay_stack(xz, qi, contrib_gol_zones_at(xz))
+    return manifold_overlay_stack(xz, qi, sample_live_card_gol(xz))
          + contrib_pawn_aura_at_external(xz);
 }
 
@@ -3265,12 +3269,12 @@ fn manifold_height_hf(xz: vec2<f32>, policy: u32, qi: QueryInputs) -> f32 {
         case 0u:  { return query_ground_placement_pyramid(xz); }     // POLICY_PLACEMENT_PYRAMID
         case 1u:  { return query_ground_placement_painting(xz); }    // POLICY_PLACEMENT_PAINTING
         case 2u:  { return query_ground_placement_vegetation(xz); }  // POLICY_PLACEMENT_VEGETATION
-        case 3u:  { return query_ground_baked_heightfield(xz); }     // POLICY_BAKED_HEIGHTFIELD (analytic form)
+        case 3u:  { return sample_terrain_y_at(xz); }                // POLICY_BAKED_HEIGHTFIELD (texture form — byte-consistent by construction; the analytic body stays for the zone baked-sampler fallback chain)
         case 4u:  { return query_ground_flyer(xz, qi); }             // POLICY_FLYER
         case 5u:  { return query_ground_walker(xz, qi); }            // POLICY_WALKER
         case 6u:  { return query_ground_walker_tilt(xz, qi); }       // POLICY_WALKER_TILT
         case 7u:  { return query_ground_walker_agent(xz, qi); }      // POLICY_WALKER_AGENT
-        default:  { return contrib_static_base_at(xz); }             // CELESTIAL/RENDER: static base fallback
+        default:  { return sample_terrain_y_at(xz); }                // CELESTIAL/RENDER: baked-path fallback (GROUND_CARD_1 — the inline contributor arm rewired per H5)
     }
 }
 
@@ -8688,9 +8692,9 @@ fn compute_entity_placement() {
             );
             // Painting Y-correction — hybrid POLICY_PLACEMENT_PAINTING
             // evaluation. The cached heightfield (sample_terrain_y_at)
-            // covers static_base + pyramids; contrib_gol_zones_at is
-            // evaluated analytically because GoL is not cached in the
-            // heightfield. Equivalent in value to
+            // covers static_base + pyramids; GoL rides the card's
+            // cell-exact raw lift (sample_live_card_gol — GROUND_CARD_1;
+            // was an analytic zone loop). Equivalent in value to
             // query_ground_placement_painting(slot_xz) but cheaper per
             // call (baked texture lookup for the static portion).
             //
@@ -8701,7 +8705,7 @@ fn compute_entity_placement() {
             // was present, but the policy declaration is the contract;
             // the code was wrong. See contracts/ground_architecture.hpp.)
             let ground = sample_terrain_y_at(slot_xz)
-                       + contrib_gol_zones_at(slot_xz);
+                       + sample_live_card_gol(slot_xz);
             // Terrain quads: center at ground + half-height (bottom at ground)
             // Wall frames: also lift by frame_width so the frame border clears the ground
             var lift = photo_painting_slots[i].scale_y * 0.5;
@@ -8722,7 +8726,7 @@ fn compute_entity_placement() {
             // seats the structure on the live zone surface instead of floating
             // on the baked static height. (Waves/pulses: see the b2b note at
             // compute_entity_placement's banner.)
-            column_ground[i].ground_y = sample_terrain_y_at(xz) + contrib_gol_zones_at(xz);
+            column_ground[i].ground_y = sample_terrain_y_at(xz) + sample_live_card_gol(xz);
             textureStore(entity_ground_atlas_write, vec2<i32>(i32(i) + GROUND_ATLAS_COLUMN, 0), vec4<f32>(column_ground[i].ground_y, 0.0, 0.0, 0.0));
         }
     }
@@ -8732,7 +8736,7 @@ fn compute_entity_placement() {
         if (plant_ground[i].is_active != 0u) {
             let xz = vec2(plant_ground[i].center_x, plant_ground[i].center_z);
             // b2b: + world-anchored GoL (see column).
-            plant_ground[i].ground_y = sample_terrain_y_at(xz) + contrib_gol_zones_at(xz);
+            plant_ground[i].ground_y = sample_terrain_y_at(xz) + sample_live_card_gol(xz);
             textureStore(entity_ground_atlas_write, vec2<i32>(i32(i) + GROUND_ATLAS_PALM, 0), vec4<f32>(plant_ground[i].ground_y, 0.0, 0.0, 0.0));
         }
     }
@@ -8743,7 +8747,7 @@ fn compute_entity_placement() {
         if (plant_ground[slot].is_active != 0u) {
             let xz = vec2(plant_ground[slot].center_x, plant_ground[slot].center_z);
             // b2b: + world-anchored GoL (see column).
-            plant_ground[slot].ground_y = sample_terrain_y_at(xz) + contrib_gol_zones_at(xz);
+            plant_ground[slot].ground_y = sample_terrain_y_at(xz) + sample_live_card_gol(xz);
             textureStore(entity_ground_atlas_write, vec2<i32>(i32(i) + GROUND_ATLAS_CACTUS, 0), vec4<f32>(plant_ground[slot].ground_y, 0.0, 0.0, 0.0));
         }
     }
@@ -8754,7 +8758,7 @@ fn compute_entity_placement() {
         if (plant_ground[slot].is_active != 0u) {
             let xz = vec2(plant_ground[slot].center_x, plant_ground[slot].center_z);
             // b2b: + world-anchored GoL (see column).
-            plant_ground[slot].ground_y = sample_terrain_y_at(xz) + contrib_gol_zones_at(xz);
+            plant_ground[slot].ground_y = sample_terrain_y_at(xz) + sample_live_card_gol(xz);
             textureStore(entity_ground_atlas_write, vec2<i32>(i32(i) + GROUND_ATLAS_BLADE, 0), vec4<f32>(plant_ground[slot].ground_y, 0.0, 0.0, 0.0));
         }
     }
@@ -8766,8 +8770,8 @@ fn compute_entity_placement() {
             let left_xz = vec2(arch_ground[i].pier_left_x, arch_ground[i].pier_left_z);
             let right_xz = vec2(arch_ground[i].pier_right_x, arch_ground[i].pier_right_z);
             // b2b: each pier foot rides its own local GoL, then min (see column).
-            let tl = sample_terrain_y_at(left_xz) + contrib_gol_zones_at(left_xz);
-            let tr = sample_terrain_y_at(right_xz) + contrib_gol_zones_at(right_xz);
+            let tl = sample_terrain_y_at(left_xz) + sample_live_card_gol(left_xz);
+            let tr = sample_terrain_y_at(right_xz) + sample_live_card_gol(right_xz);
             arch_ground[i].ground_y = min(tl, tr);
             textureStore(entity_ground_atlas_write, vec2<i32>(i32(i) + GROUND_ATLAS_ARCH, 0), vec4<f32>(arch_ground[i].ground_y, 0.0, 0.0, 0.0));
         }
