@@ -514,8 +514,10 @@ namespace t7 {
             ) {
                 pass.SetPipeline(frustumCullPipeline_);
                 pass.SetBindGroup(0, frustumCullBindGroup);
-                // ceil(MAX_ACTIVE_PATCHES / 64) = ceil(225/64) = 4
-                pass.DispatchWorkgroups(4, 1, 1);
+                // ceil(MAX_ACTIVE_PATCHES / 64) — derived, never hardcoded again
+                // (was hardcoded 4 = 256 threads vs 289 slots: slots 256–288 were
+                //  never culled at full window — audit CC-8a).
+                pass.DispatchWorkgroups((Dim::MAX_ACTIVE_PATCHES + 63u) / 64u, 1, 1);
             }
 
             void dispatch_compute_pawn_aura(
