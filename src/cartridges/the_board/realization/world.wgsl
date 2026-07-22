@@ -886,7 +886,9 @@ struct RibbonRingTransform {
     motor_p0: vec4<f32>,    // PGA motor rotor part
     motor_p1: vec4<f32>,    // PGA motor translator part
     center: vec3<f32>,      // ring world-space center (extracted from motor)
-    terrain_y: f32,         // tile-modified terrain height at center XZ
+    terrain_y: f32,         // always 0.0 — flying ribbons (no terrain follow);
+                            // retained for 48-byte stride (cleanup-campaign
+                            // item: VS input layout stride)
 }
 
 // --- [STATE:patch] PatchParams

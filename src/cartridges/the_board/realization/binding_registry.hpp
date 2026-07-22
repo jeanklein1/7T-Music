@@ -25,7 +25,8 @@
 // / orb_state_ro(413). Each name = one (group, slot).
 //
 // THE CEILING (Option A). This single-sources the two C++ copies (layout +
-// group). The 108 WGSL @binding literals in world.wgsl stay a MIRROR — the
+// group). The WGSL @binding literals in world.wgsl (102 declarations over 97
+// slots — audit cc7; five documented fc_ aliases share slots) stay a MIRROR — the
 // shader cannot read a C++ constant — kept in lockstep by the crash-aware
 // launch gate (bind-group + pipeline validation), NOT the compiler. The
 // name here deliberately equals the WGSL var so the mirror is greppable in

@@ -719,12 +719,16 @@ namespace t7 {
             float hue_spread;                                                   // 108 — radians; per-cell hue rotation amplitude (CONTRAST skin; 0 = CB-1 look)
         };                                                                      // 112 total (mirrors world.wgsl RibbonState)
 
-        // Pre-computed per-ring transform (compute pass output, VS + update_world input)
+        // Pre-computed per-ring transform (compute_ribbon_rings output;
+        // ribbon_vs + shadow_ribbon_vs input via render_ring_xforms)
         struct alignas(16) GPURibbonRingTransform {
             float motor_p0[4];         // PGA motor rotor part        (16)
             float motor_p1[4];         // PGA motor translator part   (16)
             float center[3];           // ring world-space center     (12)
-            float terrain_y;           // tile-modified terrain height ( 4) = 48
+            float terrain_y;           // ( 4) = 48 — always 0.0: flying ribbons
+                                       // (no terrain follow). Field retained for
+                                       // the 48-byte stride; removal is a cleanup-
+                                       // campaign item (VS input layout stride).
         };
         static_assert(sizeof(GPURibbonRingTransform) == 48, "GPURibbonRingTransform must be 48 bytes");
 
@@ -3535,7 +3539,7 @@ namespace t7 {
 
                 {
                     wgpu::TextureDescriptor desc{};
-                    desc.label = "Patch Heightfield Array (225x256x256, RGBA16Float)";
+                    desc.label = "Patch Heightfield Array (289x256x256, RGBA16Float; 289 = Dim::MAX_ACTIVE_PATCHES)";
                     desc.size = { Dim::PATCH_HEIGHTFIELD_N, Dim::PATCH_HEIGHTFIELD_N, Dim::MAX_ACTIVE_PATCHES };
                     desc.dimension = wgpu::TextureDimension::e2D;
                     desc.format = wgpu::TextureFormat::RGBA16Float;
@@ -3554,7 +3558,7 @@ namespace t7 {
 
                 {
                     wgpu::TextureDescriptor desc{};
-                    desc.label = "Patch Cell Color Array (225x16x16, RGBA8Unorm)";
+                    desc.label = "Patch Cell Color Array (289x16x16, RGBA8Unorm; 289 = Dim::MAX_ACTIVE_PATCHES)";
                     desc.size = { Dim::PATCH_CELL_N, Dim::PATCH_CELL_N, Dim::MAX_ACTIVE_PATCHES };
                     desc.dimension = wgpu::TextureDimension::e2D;
                     desc.format = wgpu::TextureFormat::RGBA8Unorm;
