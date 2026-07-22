@@ -1,0 +1,171 @@
+═══════════════════════════════════════════════════════════════════════════
+CC HANDOFF — CLOSURE_PAWN [4]  ·  SAMPLER ROLL + BOOT UPLOAD
+BRANCH: master (trunk-based — 7T git law). Campaign: CLOSURE_PAWN. Commit [4/4]: sampler-boot
+Work ON master, commit to master, push to GitHub. Do NOT cut a feature branch.
+If CC's checkout is behind, `git fetch && git checkout master && git pull` FIRST —
+an earlier attempt failed from a stale master ~737 commits back.
+Encoding: LF only, NO BOM.
+Depends on: H1 (registry), H2 (skin_id field + upload_pawn_figures + pack),
+            H3 (WGSL reads skin_id). Land LAST — this turns the feature on.
+Touches: pawn_figures.hpp (addendum), agents.hpp.
+═══════════════════════════════════════════════════════════════════════════
+
+GOAL
+  Roll each ambient agent's figure from FIGURE_SHARES (global, deterministic from
+  the agent's seed, same idiom as the behavior/tier rolls), pin the player/seed
+  bodies to the regular pawn, and upload the figure table at boot. After this
+  handoff the 70/15/15 split is live on screen.
+
+VERIFY-FIRST
+  - select_tier(seed, salt, float* weights_normalized, count) — confirm signature
+    against the live behavior/tier calls (agents.hpp populate_agent_slot_). The
+    roll below matches that call form; salts 8u/9u are unused (existing: behavior 1,
+    tier 2, hashes 3–6, color 7).
+  - After H2, GPUAgentState._pad0 is now skin_id, and H2 EDIT 2b already turned
+    the one writer into the placeholder `out.skin_id = 0u;`. This handoff upgrades
+    that placeholder to the roll. Grep agents.hpp for any stray `_pad0` and
+    resolve it.
+  - Confirm the pawn_figures.hpp include path and the gpuState_ accessor name
+    (reuse whatever upload_agent_registries_to_gpu already uses).
+
+═══════════════════════════════════════════════════════════════════════════
+EDIT 1 — pawn_figures.hpp : family-span accessors (addendum to H1's file)
+═══════════════════════════════════════════════════════════════════════════
+INSERT just ABOVE the `// ── Witnesses ──` block (still inside
+namespace t7::the_board):
+
+// ── Family spans — derived from PAWN_FIGURES (for the spawn roll) ────────────
+// skin_id layout is contiguous per family: [regular | smooth | heraldic].
+inline constexpr uint32_t figure_family_member_count(PawnFamilyId fam) {
+    uint32_t n = 0;
+    for (uint32_t i = 0; i < PAWN_FIGURE_COUNT; ++i)
+        if (PAWN_FIGURES[i].family == fam) ++n;
+    return n;
+}
+inline constexpr uint32_t figure_family_base(PawnFamilyId fam) {
+    for (uint32_t i = 0; i < PAWN_FIGURE_COUNT; ++i)
+        if (PAWN_FIGURES[i].family == fam) return i;
+    return 0u;
+}
+
+ADD a witness beside the existing ones (documents the layout the roll assumes):
+
+static_assert(figure_family_member_count(FAM_REGULAR)  == 1
+           && figure_family_member_count(FAM_SMOOTH)   == 6
+           && figure_family_member_count(FAM_HERALDIC) == 7,
+           "figure roll assumes 1/6/7 members per family");
+static_assert(figure_family_base(FAM_REGULAR) == 0u
+           && figure_family_base(FAM_SMOOTH)  == 1u
+           && figure_family_base(FAM_HERALDIC) == 7u,
+           "figure families must be contiguous in PAWN_FIGURES order");
+
+═══════════════════════════════════════════════════════════════════════════
+EDIT 2 — agents.hpp : include the registry
+═══════════════════════════════════════════════════════════════════════════
+LOCATE the top include block (near the state.hpp include, ~line 4) and ADD:
+
+    #include "cartridges/the_board/bodies/pawn_figures.hpp"  // PAWN_FIGURES, FIGURE_SHARES, family spans (H1)
+
+  (Transitively pulled via state.hpp after H2, but make it explicit — this TU
+   names the symbols directly.)
+
+═══════════════════════════════════════════════════════════════════════════
+EDIT 3 — agents.hpp : the figure roll (replaces the old _pad0 write)
+═══════════════════════════════════════════════════════════════════════════
+In populate_agent_slot_, at the tail of the slot write (~line 408). NOTE: after
+H2 EDIT 2b this line reads `out.skin_id = 0u;` (the placeholder), NOT `_pad0`.
+
+FIND:
+
+    out.skin_id = 0u;     // placeholder (regular); H4 replaces with the roll
+}
+
+REPLACE WITH:
+
+    // ── Roll figure (skin_id) — global distribution, deterministic from seed ──
+    // Family weighted by FIGURE_SHARES (salt 8u); member uniform within family
+    // (salt 9u). Independent of the behavior/tier rolls (distinct salts).
+    {
+        float fw[FAM_COUNT];
+        float fsum = 0.0f;
+        for (uint32_t i = 0; i < FAM_COUNT; ++i) fsum += FIGURE_SHARES[i].share_pct;
+        for (uint32_t i = 0; i < FAM_COUNT; ++i) fw[i] = FIGURE_SHARES[i].share_pct / fsum;
+
+        uint32_t fam_i = select_tier(agent_seed, 8u, fw, FAM_COUNT);
+        PawnFamilyId fam = FIGURE_SHARES[fam_i].family;   // FIGURE_SHARES is ordered REGULAR,SMOOTH,HERALDIC
+
+        uint32_t base = figure_family_base(fam);
+        uint32_t n    = figure_family_member_count(fam);
+        if (n <= 1u) {
+            out.skin_id = base;                            // single-member family (regular)
+        } else {
+            float mw[16];                                  // max 7 members; 16 is slack
+            for (uint32_t i = 0; i < n; ++i) mw[i] = 1.0f / static_cast<float>(n);
+            uint32_t m = select_tier(agent_seed, 9u, mw, n);
+            out.skin_id = base + m;
+        }
+    }
+}
+
+═══════════════════════════════════════════════════════════════════════════
+EDIT 4 — agents.hpp : pin the player / seed bodies to the regular pawn
+═══════════════════════════════════════════════════════════════════════════
+4a. seed_player_body (~line 711) — ADD after the tier_idx line:
+
+        as.slots[0].skin_id = 0u;   // player is always the regular pawn
+
+4b. reseed_player_body (~line 731) — the leading std::memset already zeroes
+    skin_id, so this is belt-and-suspenders; ADD after the color writes for
+    explicitness (matches "no silent frozen state"):
+
+        as.slots[0].skin_id = 0u;   // regular pawn (memset already zeroed; explicit)
+
+═══════════════════════════════════════════════════════════════════════════
+EDIT 5 — agents.hpp : upload the figure table at boot
+═══════════════════════════════════════════════════════════════════════════
+In upload_agent_registries_to_gpu (~line 314) — it already holds `c` and
+`queue` and calls c->gpuState_.upload_agent_registries(...). ADD alongside that
+call (same gpuState_ accessor):
+
+        c->gpuState_.upload_pawn_figures(queue);   // one-shot; packs PAWN_FIGURES → GPU (H2)
+
+  If figure upload should be independent of the registry upload's call site,
+  instead call it wherever world-init uploads the static tables — but riding
+  this function guarantees it runs once at the same boot phase. Confirm this
+  function is the registry boot path (grep its callers) before choosing.
+
+═══════════════════════════════════════════════════════════════════════════
+POST-VERIFY (glaw1 + eyes on screen)
+  - Builds; the four new static_asserts (H1 witnesses + the two span asserts
+    here) pass.
+  - Deterministic: same world seed → identical figure field over agents across
+    runs (select_tier is pure). Re-seeding the same agent yields the same skin_id.
+  - Distribution sanity: over MAX_AGENTS spawns, ~70% skin_id 0, the rest spread
+    across 1..13. A quick census print (behind the existing census flag) should
+    show the split; ship the count with its recipe per census convention, then
+    remove the print.
+  - The player body (slot 0) is skin_id 0 → renders as the regular pawn,
+    pixel-identical to today.
+  - Figures appear with per-figure silhouette + palette + subtle per-agent color
+    drift; no two same-figure agents are identical clones over a long capture.
+
+═══════════════════════════════════════════════════════════════════════════
+CAMPAIGN CLOSE — CLOSURE_PAWN (four commits, all on master)
+  Land order: [1] registry → [2] gpu-state → [3] wgsl → [4] sampler-boot, each a
+  separate commit on master, pushed. Every commit compiles (the skin_id rename is
+  healed in [2] 2b), so history stays bisectable without branches.
+
+  TWO GATES, DIFFERENT KINDS — do not conflate them:
+    [2] fails at LAUNCH, not compile. The bind-group budget is the risk; the
+        figure table MUST be uniform, not storage. A green build proves nothing
+        here — run the app.
+    [3] fails at COMPILE, and the failure mode is an FXC hang, not an error.
+        If it hangs: unroll the ≤7 seg loops to fixed 7 with an active mask.
+        Report before/after timing per the post-mortem rule.
+
+  Everything else is bounded, byte-preserving for the regular pawn (skin_id 0
+  routes through the untouched pawn_profile_radius + legacy color), and modeled
+  on paths that already ship.
+─────────────────────────────────────────────────────────────────────────────
+END H4.
+─────────────────────────────────────────────────────────────────────────────
