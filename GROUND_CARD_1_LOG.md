@@ -137,3 +137,61 @@ glaw1 after [1c]: `G-LAW 1: GREEN`.
 Post-H1 shape (informational; formal recount at H6): Compute Entity 17
 entries (8 storage incl. 3 future-live dead / 7 uniform + tex +
 sampler); Placement 11; Photographer 9; Cull 5; Ribbon 3.
+
+---
+
+## H2 — STAGE 1b: THE FRUSTUM FIX + THE TEXT FOLD
+
+### Commit [2a] — a323dc2 (CLASS A; the live bug, audit CC-8a)
+
+FIND (renderer.hpp:517–518, adjacent exactly as specified):
+    // ceil(MAX_ACTIVE_PATCHES / 64) = ceil(225/64) = 4
+    pass.DispatchWorkgroups(4, 1, 1);
+REPLACED with the derived dispatch:
+    pass.DispatchWorkgroups((Dim::MAX_ACTIVE_PATCHES + 63u) / 64u, 1, 1);
+`Dim::` is visible at this site (renderer.hpp already uses Dim:: at 14
+sites; state.hpp defines Dim::MAX_ACTIVE_PATCHES = 17*17 = 289).
+DISCLOSURE (campaign v2 §7.7): at a full 289-slot window this may
+visibly restore patches that were previously never culled/emitted —
+correctness delta. New workgroup count: 5 (320 threads ≥ 289 slots;
+kernel's own gid bound check covers the tail).
+
+### Commit [2b] — 5f180fb (text fold)
+
+2. CLASS A, state.hpp:3538: "Patch Heightfield Array (225x256x256,
+   RGBA16Float)" → "(289x256x256, RGBA16Float; 289 =
+   Dim::MAX_ACTIVE_PATCHES)".
+3. CLASS A, state.hpp:3557: "Patch Cell Color Array (225x16x16,
+   RGBA8Unorm)" → "(289x16x16, RGBA8Unorm; 289 =
+   Dim::MAX_ACTIVE_PATCHES)".
+4. CLASS B, binding_registry.hpp banner: "The 108 WGSL @binding
+   literals in world.wgsl stay a MIRROR" → "The WGSL @binding literals
+   in world.wgsl (102 declarations over 97 slots — audit cc7; five
+   documented fc_ aliases share slots) stay a MIRROR"; rest of the
+   sentence intact. NOTE (timing): the parenthetical cites the cc7
+   audit taken at CLOSURE_GPU HEAD; H1 removed 3 declarations and
+   H3/H5 add 2 — the H6 cc7 recount (_post_gc1) records the batch-end
+   truth beside this citation.
+5. CLASS B, state.hpp GPURibbonRingTransform.terrain_y.
+   BEFORE (pasted): `float terrain_y;           // tile-modified terrain height ( 4) = 48`
+   AFTER: "( 4) = 48 — always 0.0: flying ribbons (no terrain follow).
+   Field retained for the 48-byte stride; removal is a cleanup-campaign
+   item (VS input layout stride)."
+6. CLASS B, state.hpp struct banner.
+   BEFORE (pasted): `// Pre-computed per-ring transform (compute pass output, VS + update_world input)`
+   AFTER: "(compute_ribbon_rings output; ribbon_vs + shadow_ribbon_vs
+   input via render_ring_xforms)". JUDGMENT NOTE: update_world's split
+   successors (the five agent kernels) do NOT consume this struct —
+   cc4 shows its only compute toucher is compute_ribbon_rings (writer)
+   and its readers are the two ribbon VS entry points via
+   render_ring_xforms@361; the banner now names the real ones.
+7. CLASS B, world.wgsl:889 RibbonRingTransform mirror.
+   BEFORE (pasted): `terrain_y: f32,         // tile-modified terrain height at center XZ`
+   AFTER: same truth as edit 5, WGSL phrasing.
+8. NOT touched (per handoff): Pawn Aura tile_grid entry + its
+   "archetype lookup" comment (CC-8d LIVE, refuted seed); g0:29 /
+   g1:30 tombstones.
+
+### Gate
+
+glaw1 after [2b]: `G-LAW 1: GREEN`.
