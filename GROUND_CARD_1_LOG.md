@@ -282,3 +282,91 @@ glaw1 after [3c]: `G-LAW 1: GREEN`.
 Rest-safety note: at rest terrain_time <= 0 zeroes the wave overlay,
 pulse_count = 0 zeroes pulses, zone count 0 zeroes GoL — the card
 writes zeros; nothing reads it yet (except the eye, off by default).
+
+---
+
+## H4 — STAGE 3: THE RENDER REWIRE
+
+### Commit [4a] — f7e689d
+
+1. CLASS B, Render Texture Layout + BindGroup 10→11: appended
+   bind::g1::live_card_read (34), sampled Float, e2D, Vertex|Fragment;
+   group binds liveCardView_.
+2. CLASS B, Shadow Texture Layout + BindGroup 3→4: same entry,
+   visibility Vertex. SAMPLER CHECK (logged per handoff): the shadow
+   layout ALREADY carries bilinear_sampler g1:22 at Vertex|Fragment —
+   case A held; no sampler append needed.
+3. The debug eye (H3 edit 12, landed here per the recorded decision):
+   patch_terrain_fs gains the LIVE_CARD_DEBUG_VIEW == 1u branch
+   (R = |Δh|·0.25, G = GoL·0.25). JUDGMENT NOTE: inserted immediately
+   AFTER the rim discard (not above it) so the eye respects the veil
+   ring; the world address is the in.world_pos.xz varying, live from
+   the top of the body. Spec's `world_pos.xz` spelled `in.world_pos.xz`
+   per the block's own naming.
+
+### Commit [4b] — 3269bb8
+
+4. CLASS B, patch_terrain_vs. BEFORE (pasted):
+       let wave = terrain_wave_overlay_with_gradient(world_pos.xz);
+       world_pos.y += wave.x;
+       let pulse_h = contrib_radial_pulses_at(world_pos.xz, render_signal.t_seconds);
+       world_pos.y += pulse_h;
+       ... out.gradients = height_data.yz + wave.yz;
+   AFTER:
+       let live = sample_live_card(world_pos.xz);
+       world_pos.y += live.x;
+       ... out.gradients = height_data.yz + live.yz;
+   The separate pulse line DELETED (pulses ride live.x). Aura lines
+   untouched.
+5. CLASS B, shadow_patch_terrain_vs. BEFORE (pasted):
+       var world_pos = vec3(wx, height_data.x + contrib_terrain_waves_at(vec2(wx, wz)), wz);
+   AFTER:
+       var world_pos = vec3(wx, height_data.x + sample_live_card(vec2(wx, wz)).x, wz);
+   No gradient accumulators in this VS. Its "waves only" comment folded
+   to truth (the card carries pulses too — motif-preserving per ruling).
+
+### Commit [4c] — ac73c2c
+
+6. Enumeration at the current tree: 16 occurrences of
+   contrib_terrain_waves_at( — 1 definition (2719) + 15 call sites.
+   Partition (verbatim):
+   - TOUCH (11): arch_vs:4716, shadow_arch_vs:4731, column_vs:4744,
+     shadow_column_vs:4759, wall_painting_vs:9273, palm_vs:10527,
+     shadow_palm_vs:10548, cactus_vs:10864, shadow_cactus_vs:10882,
+     blade_cluster_vs:11100, shadow_blade_cluster_vs:11118.
+     (The handoff's location guesses differed slightly — arch/column
+     mains sit in the 4700s beside their shadows, palm/cactus at
+     10527/10864 — but the partition RULE (entity/wall VS) matches
+     these 11 exactly; count in the expected 11–12 band.)
+   - SKIP-DOOMED (2): zone_extrusion_vs:8128,
+     shadow_zone_extrusion_vs:8237 — untouched, Stage 5 retires them.
+   - DO-NOT-TOUCH (2, compute side): manifold_overlay_stack:2986,
+     query_ground_walker_pair:3095 — H5's jurisdiction.
+   No TOUCH site carried a separate pulse call (pulses never rode
+   entity VS — confirmed by grep).
+   Every TOUCH site: contrib_terrain_waves_at(<ARG>) →
+   sample_live_card(<ARG>).x with the block's own <ARG> spelling
+   (world_pos.xz ×10; out.world_pos.xz ×1).
+7. Residue census after [4c] (grep, verbatim):
+       2719: fn contrib_terrain_waves_at(world_xz: vec2<f32>) -> f32 {
+       2986: h += contrib_terrain_waves_at(xz);
+       3095: let waves    = contrib_terrain_waves_at(xz);
+       8128: let wave_y = contrib_terrain_waves_at(pos.xz);
+       8237: let wave_y = contrib_terrain_waves_at(pos.xz);
+   = exactly {definition, compute-side query family ×2, SKIP-DOOMED
+   zone sites ×2}. (write_live_card calls the overlay evaluator, not
+   contrib_terrain_waves_at, so it correctly does not appear.)
+   ADAPTATION (logged): wall_painting_vs rides the gallery pipeline
+   layout [galleryEntity, galleryTexture] — Gallery Texture Layout +
+   BindGroup grew bilinear_sampler (22, Vertex) + live_card_read
+   (34, Vertex), 3→5, or wall-painting pipeline validation would fail.
+   Same contingency shape the handoff prescribed for the shadow
+   sampler check.
+
+### Gate
+
+glaw1 after [4c]: `G-LAW 1: GREEN`.
+GATE NOTE for the batch-end session (carried): REST bit-identity
+(terrain_time ≤ 0, pulse ring 0, no zones ⇒ card zeros ⇒
+pixel-identical stills) + motion motif review + the debug eye (card
+black at rest; paints under music).
