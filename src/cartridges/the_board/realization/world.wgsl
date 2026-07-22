@@ -841,7 +841,7 @@ struct AgentState {
     color_r: f32,   // per-agent body color (palette pick at spawn; 0 = tier fallback)
     color_g: f32,
     color_b: f32,
-    _pad0: f32,
+    skin_id: u32,   // PawnFigure row (0 = regular). Mirrors GPUAgentState.skin_id (H2).
 }
 
 // ═══ AGENT REGISTRIES (read-only uniform buffers) ═══════════════════════
@@ -910,6 +910,44 @@ struct AgentTierParams {
 const AGENT_TIER_COUNT_WGSL: u32 = 4u;
 
 @group(0) @binding(111) var<uniform> agent_tier_gains: array<AgentTierParams, 4>;
+
+// --- Pawn figure table (CLOSURE_PAWN) ----------------------------------
+// UNIFORM, render VS only — same address space and same reason as
+// agent_tier_gains above: the render entity group's VERTEX stage is at the
+// per-stage STORAGE cap. Uniform has its own budget. Do not "upgrade" this to
+// var<storage>; it fails CreateBindGroupLayout at launch.
+//
+// vec4 PACKING IS MANDATORY, not cosmetic: the uniform address space forces a
+// 16-byte array stride, so array<f32,32> would pad each float to 16 B and
+// desync from the C++ float[32]. array<vec4<f32>,8> is the same 128 bytes.
+//
+//   prof[] FAM_SMOOTH   -> 16 fields as 4 vec4s, in H1 SmoothProfile order:
+//                          prof[0] = (start_r, flare_r, flare_t, peak_r)
+//                          prof[1] = (peak_t, base_t, body_start_r, body_t)
+//                          prof[2] = (waist_r, neck_t, neck_r, collar_t)
+//                          prof[3] = (collar_bulge, head_t, head_base_r, head_sphere_r)
+//          FAM_HERALDIC -> segment k IS prof[k] = (height, r_bot, r_top, shape)
+//          FAM_REGULAR  -> unused (hardcoded pawn_profile_radius).
+//   pal[]  -> stop k IS pal[k] = (t, r, g, b); first t < 0 ends the list;
+//            pal[0].x < 0 means "no palette" (regular -> legacy color).
+//   drift  -> (hue_deg, sat, val, _pad).
+struct PawnFigure {
+    family:    u32,
+    seg_count: u32,
+    height:    f32,
+    radius:    f32,
+    prof:      array<vec4<f32>, 8>,
+    pal:       array<vec4<f32>, 8>,
+    drift:     vec4<f32>,
+}
+
+const PAWN_FIGURE_COUNT_WGSL: u32 = 14u;
+
+@group(0) @binding(112) var<uniform> agent_figure_profiles: array<PawnFigure, 14>;
+
+const FAM_REGULAR_W:  u32 = 0u;
+const FAM_SMOOTH_W:   u32 = 1u;
+const FAM_HERALDIC_W: u32 = 2u;
 
 // --- [STATE:camera] CameraState
 
@@ -4409,24 +4447,172 @@ fn pawn_profile_normal_2d(t: f32) -> vec2<f32> {
 }
 
 
+// --- Pawn figure helpers (CLOSURE_PAWN) --------------------------------
+// Placed below pawn_profile_radius / pawn_profile_normal_2d (WGSL requires
+// declaration-before-use; eval_profile_radius calls pawn_profile_radius) and
+// above pawn_vs / shadow_pawn_vs so both entry points see them.
+
+// Segment shape vocabulary — mirrors STACKED_SHAPES / PawnShape (H1).
+fn profile_shape(shape: u32, u: f32, rb: f32, rt: f32) -> f32 {
+    let line = rb + (rt - rb) * u;
+    let mid  = (rb + rt) * 0.5;
+    switch (shape) {
+        case 0u:  { return line; }                                        // linear
+        case 1u:  { return line - 0.25 * mid * sin(u * PI); }             // concave
+        case 2u:  { return line + 0.25 * mid * sin(u * PI); }             // convex
+        case 3u:  { if (u < 0.85) { return rb; } return rb + (rt - rb) * ((u - 0.85) / 0.15); } // step
+        case 4u:  { let r = max(max(rb, rt), 0.05); return line + 0.55 * r * sin(u * PI); }      // bell
+        case 5u:  { return rb + (rt - rb) * (u * u); }                    // flare
+        case 6u:  { return line + 0.18 * mid * sin(u * PI * 2.0); }       // ogee
+        case 7u:  { let R = max(rb, rt); let x = 2.0 * u - 1.0; return R * sqrt(max(0.0, 1.0 - x * x)); } // sphere
+        default:  { return line; }
+    }
+}
+
+// Smooth: parametric (16 fields as 4 vec4s). For PROF_PAWN values this is
+// identical to pawn_profile_radius — the regular pawn never routes here, but
+// the parity holds.
+fn smooth_profile_radius(fig: PawnFigure, t: f32) -> f32 {
+    let p0 = fig.prof[0]; let p1 = fig.prof[1];
+    let p2 = fig.prof[2]; let p3 = fig.prof[3];
+    let start_r = p0.x;  let flare_r = p0.y;  let flare_t = p0.z;
+    let peak_r  = p0.w;  let peak_t  = p1.x;
+    let base_t  = p1.y;  let body_start_r = p1.z;
+    let body_t  = p1.w;  let waist_r = p2.x;
+    let neck_t  = p2.y;  let neck_r  = p2.z;
+    let collar_t = p2.w; let collar_bulge = p3.x;
+    let head_t  = p3.y;  let head_base_r = p3.z; let head_sphere_r = p3.w;
+    if (t < flare_t)  { return mix(start_r, flare_r, t / flare_t); }
+    if (t < peak_t)   { let u = (t - flare_t) / (peak_t - flare_t); return mix(flare_r, peak_r, sin(u * PI * 0.5)); }
+    if (t < base_t)   { let u = (t - peak_t) / (base_t - peak_t); return mix(peak_r, body_start_r, u * u); }
+    if (t < body_t)   { let u = (t - base_t) / (body_t - base_t); let e = smoothstep(0.0, 1.0, u); return mix(body_start_r, waist_r, e); }
+    if (t < neck_t)   { let u = (t - body_t) / (neck_t - body_t); return mix(waist_r, neck_r, u); }
+    if (t < collar_t) { let u = (t - neck_t) / (collar_t - neck_t); return neck_r + collar_bulge * sin(u * PI); }
+    if (t < head_t)   { let u = (t - collar_t) / (head_t - collar_t); let y = u * 2.0 - 1.0; let sr = sqrt(max(0.0, 1.0 - y * y)); return head_base_r + head_sphere_r * sr; }
+    let u = (t - head_t) / (1.0 - head_t); return mix(head_base_r, 0.0, smoothstep(0.0, 1.0, u));
+}
+
+// Heraldic: segment walk (<=7), mirrors heraldicRadiusAt().
+// Segment k IS prof[k] = (height, r_bot, r_top, shape) — one vec4, no stride math.
+fn heraldic_profile_radius(fig: PawnFigure, t: f32) -> f32 {
+    if (t > 1.0) { return 0.0; }
+    let n = fig.seg_count;
+    if (n == 0u) { return 0.0; }
+    var total_h = 0.0;
+    for (var k = 0u; k < n; k = k + 1u) { total_h = total_h + fig.prof[k].x; }
+    if (total_h < 1e-6) { total_h = 1.0; }
+    var acc = 0.0;
+    for (var k = 0u; k < n; k = k + 1u) {
+        let sg = fig.prof[k];
+        let h  = sg.x;
+        let rb = sg.y;
+        let rt = sg.z;
+        let sh = u32(sg.w);
+        let seg_frac = h / total_h;
+        if (t <= acc + seg_frac || k == n - 1u) {
+            let u = select((t - acc) / seg_frac, 0.0, seg_frac < 1e-8);
+            return max(0.0, profile_shape(sh, clamp(u, 0.0, 1.0), rb, rt));
+        }
+        acc = acc + seg_frac;
+    }
+    return 0.0;
+}
+
+// NORMALIZED radius dispatcher (caller multiplies by the figure's radius).
+fn eval_profile_radius(fig: PawnFigure, is_regular: bool, t: f32) -> f32 {
+    if (is_regular) { return pawn_profile_radius(t); }
+    if (fig.family == FAM_HERALDIC_W) { return heraldic_profile_radius(fig, t); }
+    return smooth_profile_radius(fig, t);
+}
+
+// Profile normal in (t, r) space — same finite-diff scheme as
+// pawn_profile_normal_2d (normalized; aspect-correct normals are a later nicety).
+fn eval_profile_normal_2d(fig: PawnFigure, is_regular: bool, t: f32) -> vec2<f32> {
+    let eps = 0.005;
+    let t0 = max(0.0, t - eps);
+    let t1 = min(1.0, t + eps);
+    let r0 = eval_profile_radius(fig, is_regular, t0);
+    let r1 = eval_profile_radius(fig, is_regular, t1);
+    let dr = r1 - r0;
+    let dh = t1 - t0;
+    let len = sqrt(dr * dr + dh * dh);
+    if (len < 0.0001) { return vec2(1.0, 0.0); }
+    return vec2(dh / len, -dr / len);
+}
+
+// --- Color: palette gradient at t + bounded seeded HSV drift --
+// Uses the existing hash_property(seed, property) hash (distinct salts per channel).
+fn rgb2hsv(c: vec3<f32>) -> vec3<f32> {
+    let K = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
+    let p = mix(vec4(c.b, c.g, K.w, K.z), vec4(c.g, c.b, K.x, K.y), step(c.b, c.g));
+    let q = mix(vec4(p.x, p.y, p.w, c.r), vec4(c.r, p.y, p.z, p.x), step(p.x, c.r));
+    let d = q.x - min(q.w, q.y);
+    let e = 1e-10;
+    return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);
+}
+fn hsv2rgb(c: vec3<f32>) -> vec3<f32> {
+    let K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+    let p = abs(fract(vec3(c.x, c.x, c.x) + K.xyz) * 6.0 - vec3(K.w, K.w, K.w));
+    return c.z * mix(vec3(K.x, K.x, K.x), clamp(p - vec3(K.x, K.x, K.x), vec3(0.0), vec3(1.0)), c.y);
+}
+
+// Stop k IS pal[k] = (t, r, g, b).
+fn eval_palette(fig: PawnFigure, t: f32) -> vec3<f32> {
+    let s0 = fig.pal[0];
+    var prev_t = s0.x;
+    var prev_c = s0.yzw;
+    if (t <= prev_t) { return prev_c; }
+    for (var k = 1u; k < 8u; k = k + 1u) {
+        let sk = fig.pal[k];
+        if (sk.x < 0.0) { return prev_c; }
+        if (t <= sk.x) {
+            let u = (t - prev_t) / max(sk.x - prev_t, 1e-6);
+            return mix(prev_c, sk.yzw, u);
+        }
+        prev_t = sk.x; prev_c = sk.yzw;
+    }
+    return prev_c;
+}
+
+fn figure_color(fig: PawnFigure, t: f32, seed: u32) -> vec3<f32> {
+    let base = eval_palette(fig, t);
+    let jh = hash_property(seed, 41u) * 2.0 - 1.0;
+    let js = hash_property(seed, 42u) * 2.0 - 1.0;
+    let jv = hash_property(seed, 43u) * 2.0 - 1.0;
+    var hsv = rgb2hsv(base);
+    hsv.x = fract(hsv.x + jh * (fig.drift.x / 360.0));
+    hsv.y = clamp(hsv.y * (1.0 + js * fig.drift.y), 0.0, 1.0);
+    hsv.z = clamp(hsv.z * (1.0 + jv * fig.drift.z), 0.0, 1.0);
+    return hsv2rgb(hsv);
+}
+
+
 // --- Pawn Vertex Shader (chess pawn, GPU-generated)
 
 @vertex
 fn pawn_vs(@builtin(vertex_index) vid: u32,
            @builtin(instance_index) inst: u32) -> EntityVarying {
     let agent = render_agents[inst];
-    // Collapse inactive slots to a degenerate point at the agent's pos.
-    // (Same trick as sphere_vs: zero-scale local geometry → no fragments.)
-    // THE RING (draw authority): agents exist to 350 but DRAW only inside
-    // the ring. The pawn is NOT exempt (ruled): in camera-host the
-    // abandoned body leaves the draw set with everything else.
+
+    // THE RING (draw authority): agents exist to 350 but DRAW only inside the
+    // ring; the pawn is NOT exempt (ruled). Inactive/out-of-ring slots collapse
+    // to a degenerate point at the agent's pos (local geometry * active_f = 0).
     let agent_in_ring = distance(vec2(agent.pos_x, agent.pos_z),
                                  vec2(config.lod_point_x, config.lod_point_z))
                         - 5.0 <= config.veil_ring;   // 5 wu: agent body half-extent
     let active_f = f32(agent.is_active) * f32(agent_in_ring);
 
+    // -- Figure selection (0 = regular pawn: hardcoded profile + legacy color) --
+    // Uniform arrays are fixed-size: use the count const, NOT arrayLength().
+    let sid = select(agent.skin_id, 0u, agent.skin_id >= PAWN_FIGURE_COUNT_WGSL);
+    let fig = agent_figure_profiles[sid];
+    let is_regular = sid == 0u;
+    let scale_r = select(fig.radius, PAWN_RADIUS, is_regular);
+    let scale_h = select(fig.height, PAWN_HEIGHT, is_regular);
+
     var local_pos: vec3<f32>;
     var local_normal: vec3<f32>;
+    var vt: f32 = 0.0;   // this vertex's profile parameter (for the palette)
 
     if (vid < PAWN_BODY_VERTICES) {
         // Body quads: each band connects ring[i] to ring[i+1]
@@ -4446,19 +4632,19 @@ fn pawn_vs(@builtin(vertex_index) vid: u32,
         let t_lo = f32(ring_lo) / f32(PAWN_RINGS - 1u);
         let t_hi = f32(ring_hi) / f32(PAWN_RINGS - 1u);
 
-        let r_lo = pawn_profile_radius(t_lo) * PAWN_RADIUS;
-        let r_hi = pawn_profile_radius(t_hi) * PAWN_RADIUS;
+        let r_lo = eval_profile_radius(fig, is_regular, t_lo) * scale_r;
+        let r_hi = eval_profile_radius(fig, is_regular, t_hi) * scale_r;
 
-        let y_lo = t_lo * PAWN_HEIGHT;
-        let y_hi = t_hi * PAWN_HEIGHT;
+        let y_lo = t_lo * scale_h;
+        let y_hi = t_hi * scale_h;
 
         let p00 = vec3(cos(angle0) * r_lo, y_lo, sin(angle0) * r_lo);
         let p10 = vec3(cos(angle1) * r_lo, y_lo, sin(angle1) * r_lo);
         let p01 = vec3(cos(angle0) * r_hi, y_hi, sin(angle0) * r_hi);
         let p11 = vec3(cos(angle1) * r_hi, y_hi, sin(angle1) * r_hi);
 
-        let n2d_lo = pawn_profile_normal_2d(t_lo);
-        let n2d_hi = pawn_profile_normal_2d(t_hi);
+        let n2d_lo = eval_profile_normal_2d(fig, is_regular, t_lo);
+        let n2d_hi = eval_profile_normal_2d(fig, is_regular, t_hi);
 
         let n00 = normalize(vec3(n2d_lo.x * cos(angle0), n2d_lo.y, n2d_lo.x * sin(angle0)));
         let n10 = normalize(vec3(n2d_lo.x * cos(angle1), n2d_lo.y, n2d_lo.x * sin(angle1)));
@@ -4466,13 +4652,13 @@ fn pawn_vs(@builtin(vertex_index) vid: u32,
         let n11 = normalize(vec3(n2d_hi.x * cos(angle1), n2d_hi.y, n2d_hi.x * sin(angle1)));
 
         switch tri_vert {
-            case 0u: { local_pos = p00; local_normal = n00; }
-            case 1u: { local_pos = p10; local_normal = n10; }
-            case 2u: { local_pos = p01; local_normal = n01; }
-            case 3u: { local_pos = p01; local_normal = n01; }
-            case 4u: { local_pos = p10; local_normal = n10; }
-            case 5u: { local_pos = p11; local_normal = n11; }
-            default: { local_pos = p00; local_normal = n00; }
+            case 0u: { local_pos = p00; local_normal = n00; vt = t_lo; }
+            case 1u: { local_pos = p10; local_normal = n10; vt = t_lo; }
+            case 2u: { local_pos = p01; local_normal = n01; vt = t_hi; }
+            case 3u: { local_pos = p01; local_normal = n01; vt = t_hi; }
+            case 4u: { local_pos = p10; local_normal = n10; vt = t_lo; }
+            case 5u: { local_pos = p11; local_normal = n11; vt = t_hi; }
+            default: { local_pos = p00; local_normal = n00; vt = t_lo; }
         }
 
     } else {
@@ -4485,9 +4671,10 @@ fn pawn_vs(@builtin(vertex_index) vid: u32,
         let angle0 = f32(seg) / f32(PAWN_SEGMENTS) * 2.0 * PI;
         let angle1 = f32(seg_next) / f32(PAWN_SEGMENTS) * 2.0 * PI;
 
-        let r = pawn_profile_radius(0.0) * PAWN_RADIUS;
+        let r = eval_profile_radius(fig, is_regular, 0.0) * scale_r;
 
         local_normal = vec3(0.0, -1.0, 0.0);
+        vt = 0.0;
 
         switch tri_vert {
             case 0u: { local_pos = vec3(0.0, 0.0, 0.0); }
@@ -4504,14 +4691,21 @@ fn pawn_vs(@builtin(vertex_index) vid: u32,
     let rotated_pos = quat_rotate(pawn_q, local_pos * active_f);
     let rotated_normal = quat_rotate(pawn_q, local_normal);
 
-    // Body color — per-agent palette pick (resolved CPU-side at spawn and
-    // carried per-instance). The per-tier color is the fallback when a slot
-    // carries no per-agent color (all-zero) — e.g. the never-possessed player.
+    // -- Body color --
+    // Regular (figure 0): legacy per-agent pick + tier fallback (UNCHANGED).
+    //   per-tier color is the fallback when a slot carries no per-agent color.
+    // Figures 1..13: per-vertex palette gradient + seeded HSV drift.
     let tier = min(agent.tier_idx, AGENT_TIER_COUNT_WGSL - 1u);
     let tg = agent_tier_gains[tier];
     let agent_color = vec3(agent.color_r, agent.color_g, agent.color_b);
-    let body_color = select(vec3(tg.color_r, tg.color_g, tg.color_b),
-                            agent_color, any(agent_color > vec3(0.0)));
+    let legacy_color = select(vec3(tg.color_r, tg.color_g, tg.color_b),
+                              agent_color, any(agent_color > vec3(0.0)));
+    var body_color: vec3<f32>;
+    if (is_regular) {
+        body_color = legacy_color;
+    } else {
+        body_color = figure_color(fig, vt, agent.seed);
+    }
 
     var out: EntityVarying;
     out.clip_pos = render_vp.m * vec4(rotated_pos + pawn_p, 1.0);
@@ -4605,6 +4799,13 @@ fn shadow_pawn_vs(@builtin(vertex_index) vid: u32,
     let agent = render_agents[inst];
     let active_f = f32(agent.is_active);
 
+    // Figure lookup — shadow silhouette must track the figure or shadows detach.
+    let sid = select(agent.skin_id, 0u, agent.skin_id >= PAWN_FIGURE_COUNT_WGSL);
+    let fig = agent_figure_profiles[sid];
+    let is_regular = sid == 0u;
+    let scale_r = select(fig.radius, PAWN_RADIUS, is_regular);
+    let scale_h = select(fig.height, PAWN_HEIGHT, is_regular);
+
     var local_pos: vec3<f32>;
 
     if (vid < PAWN_BODY_VERTICES) {
@@ -4621,10 +4822,10 @@ fn shadow_pawn_vs(@builtin(vertex_index) vid: u32,
         let t_lo = f32(band) / f32(PAWN_RINGS - 1u);
         let t_hi = f32(band + 1u) / f32(PAWN_RINGS - 1u);
 
-        let r_lo = pawn_profile_radius(t_lo) * PAWN_RADIUS;
-        let r_hi = pawn_profile_radius(t_hi) * PAWN_RADIUS;
-        let y_lo = t_lo * PAWN_HEIGHT;
-        let y_hi = t_hi * PAWN_HEIGHT;
+        let r_lo = eval_profile_radius(fig, is_regular, t_lo) * scale_r;
+        let r_hi = eval_profile_radius(fig, is_regular, t_hi) * scale_r;
+        let y_lo = t_lo * scale_h;
+        let y_hi = t_hi * scale_h;
 
         let p00 = vec3(cos(angle0) * r_lo, y_lo, sin(angle0) * r_lo);
         let p10 = vec3(cos(angle1) * r_lo, y_lo, sin(angle1) * r_lo);
@@ -4648,7 +4849,7 @@ fn shadow_pawn_vs(@builtin(vertex_index) vid: u32,
         let seg_next = (seg + 1u) % PAWN_SEGMENTS;
         let angle0 = f32(seg) / f32(PAWN_SEGMENTS) * 2.0 * PI;
         let angle1 = f32(seg_next) / f32(PAWN_SEGMENTS) * 2.0 * PI;
-        let r = pawn_profile_radius(0.0) * PAWN_RADIUS;
+        let r = eval_profile_radius(fig, is_regular, 0.0) * scale_r;
 
         switch tri_vert {
             case 0u: { local_pos = vec3(0.0, 0.0, 0.0); }
