@@ -686,7 +686,7 @@ namespace t7 {
             };
             enum class RPhase : uint32_t {
                 WitnessHarvest, PortalTrigger, StreamPatches, RespawnAgents, MotionCorral,
-                CensusDumps, RibbonTick, EntityMeshGen, UploadPortalLights, DispatchCompute,
+                CensusDumps, RibbonTick, EntityMeshGen, UploadPortalLights, LiveCardWrite, DispatchCompute,
                 WitnessCapture, GolDeriveFlush, GolZoneCompute, PawnAura, OrbSky,
                 GroundEntries, PlacementCorrection, FrustumCull, ShadowPass, MainPass,
                 SnapshotPass, PromotionDrain, COUNT
@@ -1295,6 +1295,16 @@ namespace t7 {
                 upload_lights(&mood_deps_, queue);
             }
 
+            // LIVE CARD WRITE (GROUND_CARD_1; between R9 and R10). The per-frame
+            // deformation field: the writer calls the existing evaluators at
+            // texel centers; every consumer then samples one card. Before
+            // DispatchCompute (the consumers) and before PlacementCorrection
+            // (reads .a at H5).
+            void phase_live_card_write(RenderCtx& c) {
+                auto& encoder = c.encoder;
+                dispatch_live_card_write(&machine_ctx_, encoder);
+            }
+
             // R10 — DISPATCH COMPUTE (music+input+algo). The per-frame world-
             // update compute pass (7 dispatches; render_passes.hpp). O-1 by
             // construction: R7's resync writes before this reads (submission
@@ -1486,6 +1496,7 @@ namespace t7 {
                 { RPhase::RibbonTick,          "ribbon_tick",           &Cartridge::phase_ribbon_tick,           Driver::Mixed,     ROSTER.ribbon,                          F_SIGNAL },
                 { RPhase::EntityMeshGen,       "entity_mesh_gen",       &Cartridge::phase_entity_mesh_gen,       Driver::Algo,      true,                                   F_COMPUTE },
                 { RPhase::UploadPortalLights,  "upload_portal_lights",  &Cartridge::phase_upload_portal_lights,  Driver::Algo,      true,                                   F_CONFIG },
+                { RPhase::LiveCardWrite,       "live_card_write",       &Cartridge::phase_live_card_write,       Driver::Mixed,     true,                                   F_COMPUTE },
                 { RPhase::DispatchCompute,     "dispatch_compute",      &Cartridge::phase_dispatch_compute,      Driver::Mixed,     true,                                   F_COMPUTE },
                 { RPhase::WitnessCapture,      "witness_capture",       &Cartridge::phase_witness_capture,       Driver::None,      true,                                   F_WITNESS },
                 { RPhase::GolDeriveFlush,      "gol_derive_flush",      &Cartridge::phase_gol_derive_flush,      Driver::Algo,      ROSTER.gol,                             F_COMPUTE | F_SUBMIT },
@@ -1552,6 +1563,12 @@ namespace t7 {
             static_assert((uint32_t)RPhase::GroundEntries < (uint32_t)RPhase::PlacementCorrection, "O-4: ground entries (raises placement_dirty) before placement correction");
             static_assert((uint32_t)RPhase::FrustumCull < (uint32_t)RPhase::ShadowPass, "O-7: frustum cull before the shadow pass");
             static_assert((uint32_t)RPhase::FrustumCull < (uint32_t)RPhase::MainPass, "O-7: frustum cull before the main pass (indirect draws consume the cull)");
+            static_assert((uint32_t)RPhase::LiveCardWrite > (uint32_t)RPhase::UploadPortalLights &&
+                          (uint32_t)RPhase::LiveCardWrite < (uint32_t)RPhase::DispatchCompute,
+                "GROUND_CARD_1: the card writes before the consumers "
+                "(pre-evolve zone read preserved, R10<R13 order intact)");
+            static_assert((uint32_t)RPhase::LiveCardWrite < (uint32_t)RPhase::PlacementCorrection,
+                "GROUND_CARD_1: the card writes before placement reads .a");
             static_assert((uint32_t)RPhase::GolDeriveFlush < (uint32_t)RPhase::GolZoneCompute, "gol: the derive flush (hidden submit) precedes the zone compute that reads it");
             static_assert((uint32_t)RPhase::ShadowPass < (uint32_t)RPhase::MainPass, "draw: shadow before main");
             static_assert((uint32_t)RPhase::MainPass < (uint32_t)RPhase::SnapshotPass, "draw: main before snapshot");

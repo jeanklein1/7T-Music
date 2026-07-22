@@ -270,6 +270,7 @@ const PATCH_EXTENT: f32 = 50.0;         // world units per patch side
 // ── THE LIVE CARD (GROUND_CARD_1; C++ room: Dim::LIVE_CARD_*) ──
 const LIVE_CARD_SIZE: u32 = 512u;
 const LIVE_CARD_EXTENT: f32 = 800.0;
+const LIVE_CARD_DEBUG_VIEW: u32 = 0u;  // 1 = paint the card (terrain FS eye — lands with H4 [4a])
 fn live_card_origin() -> vec2<f32> {
     let cs = PATCH_EXTENT / f32(PATCH_CELL_N);           // 3.125
     let raw = vec2(config.lod_point_x, config.lod_point_z)

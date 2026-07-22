@@ -1600,6 +1600,8 @@ namespace t7 {
             wgpu::Texture liveCardTexture_;         // compute writes, VS/FS/compute read
             wgpu::TextureView liveCardWriteView_;   // storage texture write (writer kernel)
             wgpu::TextureView liveCardView_;        // sampled read (render + compute)
+            wgpu::BindGroupLayout liveCardWriterLayout_;
+            wgpu::BindGroup liveCardWriterGroup_;
 
             // ── Orb sky layer ────────────────────────────────────────
             wgpu::Buffer orbStateBuffer_;          // MAX_ORBS × GPUOrbState (storage, read_write)
@@ -2664,6 +2666,8 @@ namespace t7 {
 
             // Live card accessors (GROUND_CARD_1)
             wgpu::TextureView live_card_view() const { return liveCardView_; }
+            wgpu::BindGroupLayout live_card_writer_layout() const { return liveCardWriterLayout_; }
+            wgpu::BindGroup live_card_writer_group() const { return liveCardWriterGroup_; }
 
             // Orb sky layer accessors
             wgpu::Buffer orb_state_buffer() const { return orbStateBuffer_; }
@@ -4435,6 +4439,46 @@ namespace t7 {
                     if (!pawnAuraComputeLayout_) return false;
                 }
 
+                // -- Live card writer layout (Group 0) -- bindings 0, 1, 160, 161, 31 --
+                // (GROUND_CARD_1) The writer kernel calls the existing evaluators at
+                // texel centers: signal (band blends + pulse clock), config (waves +
+                // pulses + lod_point origin), the zone pair (raw GoL lift), and the
+                // card's storage-texture write. NOTE: this layout is the zone pair's
+                // future sole home outside the GoL sim (post-H5 Compute Entity
+                // eviction — GROUND_CARD_1).
+                {
+                    std::array<wgpu::BindGroupLayoutEntry, 5> entries{};
+
+                    entries[0].binding = bind::g0::signal;    // signal (uniform — band blends, t_seconds)
+                    entries[0].visibility = wgpu::ShaderStage::Compute;
+                    entries[0].buffer.type = wgpu::BufferBindingType::Uniform;
+
+                    entries[1].binding = bind::g0::config;    // config (uniform — waves, pulses, lod_point)
+                    entries[1].visibility = wgpu::ShaderStage::Compute;
+                    entries[1].buffer.type = wgpu::BufferBindingType::Uniform;
+
+                    entries[2].binding = bind::g0::zone_config;  // zone_config (storage — matches var<storage, read_write>)
+                    entries[2].visibility = wgpu::ShaderStage::Compute;
+                    entries[2].buffer.type = wgpu::BufferBindingType::Storage;
+
+                    entries[3].binding = bind::g0::zone_life;  // zone_life (storage, rw — matches WGSL var declaration)
+                    entries[3].visibility = wgpu::ShaderStage::Compute;
+                    entries[3].buffer.type = wgpu::BufferBindingType::Storage;
+
+                    entries[4].binding = bind::g0::live_card_write;  // live_card_write (storage texture, write)
+                    entries[4].visibility = wgpu::ShaderStage::Compute;
+                    entries[4].storageTexture.access = wgpu::StorageTextureAccess::WriteOnly;
+                    entries[4].storageTexture.format = wgpu::TextureFormat::RGBA16Float;
+                    entries[4].storageTexture.viewDimension = wgpu::TextureViewDimension::e2D;
+
+                    wgpu::BindGroupLayoutDescriptor desc{};
+                    desc.label = "Live Card Writer Layout";
+                    desc.entryCount = entries.size();
+                    desc.entries = entries.data();
+                    liveCardWriterLayout_ = device_.CreateBindGroupLayout(&desc);
+                    if (!liveCardWriterLayout_) return false;
+                }
+
                 // -- Orb compute layout (Group 0) -- bindings 410 RW, 411 U, 412 RO --
                 // Used by init / dynamics / recolor. orb_state is read_write so these
                 // kernels can update it; orb_state_prev is read-only because only the
@@ -5304,6 +5348,38 @@ namespace t7 {
                     desc.entries = entries.data();
                     pawnAuraComputeGroup_ = device_.CreateBindGroup(&desc);
                     if (!pawnAuraComputeGroup_) return false;
+                }
+
+                // Live card writer bind group (5 entries: 0, 1, 160, 161, 31)
+                {
+                    std::array<wgpu::BindGroupEntry, 5> entries{};
+
+                    entries[0].binding = bind::g0::signal;
+                    entries[0].buffer = signalBuffer_;
+                    entries[0].size = sizeof(GPUFrameSignal);
+
+                    entries[1].binding = bind::g0::config;
+                    entries[1].buffer = configBuffer_;
+                    entries[1].size = sizeof(GPUDesignConfig);
+
+                    entries[2].binding = bind::g0::zone_config;
+                    entries[2].buffer = zoneConfigBuffer_;
+                    entries[2].size = sizeof(GPUGoLZoneArray);
+
+                    entries[3].binding = bind::g0::zone_life;
+                    entries[3].buffer = zoneLifeBuffer_;
+                    entries[3].size = Dim::MAX_GOL_ZONES * Dim::GOL_ZONE_LIFE_STRIDE * sizeof(float);
+
+                    entries[4].binding = bind::g0::live_card_write;
+                    entries[4].textureView = liveCardWriteView_;
+
+                    wgpu::BindGroupDescriptor desc{};
+                    desc.label = "Live Card Writer BindGroup";
+                    desc.layout = liveCardWriterLayout_;
+                    desc.entryCount = entries.size();
+                    desc.entries = entries.data();
+                    liveCardWriterGroup_ = device_.CreateBindGroup(&desc);
+                    if (!liveCardWriterGroup_) return false;
                 }
 
                 // Orb compute bind group (3 entries: state storage rw + config uniform)

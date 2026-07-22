@@ -149,6 +149,18 @@ inline void dispatch_placement_correction(MachineCtx* c, wgpu::CommandEncoder& e
     compute.End();
 }
 
+// The live card write (GROUND_CARD_1) — its own pass, before the
+// consumers (dispatch_compute) and before placement reads .a (H5).
+inline void dispatch_live_card_write(MachineCtx* c, wgpu::CommandEncoder& encoder) {
+    wgpu::ComputePassDescriptor cpd{};
+    cpd.label = "Live Card Write";
+    wgpu::ComputePassEncoder compute = encoder.BeginComputePass(&cpd);
+    c->renderer_.dispatch_live_card_write(
+        compute, c->gpuState_.live_card_writer_group()
+    );
+    compute.End();
+}
+
 // ═══ GPU COMPUTE DISPATCH ════════════════════════════════════════
 
 // Per-frame compute: ribbon transforms, agents, camera, VP.

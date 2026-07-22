@@ -37,6 +37,7 @@ namespace t7 {
             constexpr const char* GENERATE_PATCH_CELLS = "generate_patch_cells";              // 2D -- per-patch
             constexpr const char* COMPUTE_RIBBON_RINGS = "compute_ribbon_rings";              // 1D -- per ring
             constexpr const char* COMPUTE_PAWN_AURA = "compute_pawn_aura";                  // 2D -- toroidal grid
+            constexpr const char* WRITE_LIVE_CARD = "write_live_card";                      // 2D -- the live card (GROUND_CARD_1)
 
             // Render
             constexpr const char* PATCH_TERRAIN_VS = "patch_terrain_vs";
@@ -134,6 +135,7 @@ namespace t7 {
             wgpu::BindGroupLayout meshGenEntityLayout_;  // binding 1 only (config) — reused by fade overlay
             wgpu::BindGroupLayout photographerComputeLayout_;
             wgpu::BindGroupLayout pawnAuraComputeLayout_;
+            wgpu::BindGroupLayout liveCardWriterLayout_;   // GROUND_CARD_1
             wgpu::BindGroupLayout zoneGolComputeLayout_;
             wgpu::BindGroupLayout zoneMeshGenLayout_;
             wgpu::BindGroupLayout archMeshGenLayout_;
@@ -259,6 +261,7 @@ namespace t7 {
             wgpu::BindGroupLayout frustumCullLayout_;
             wgpu::BindGroupLayout entityPlacementComputeLayout_;
             wgpu::ComputePipeline pawnAuraPipeline_;
+            wgpu::ComputePipeline liveCardWriterPipeline_;   // GROUND_CARD_1
 
             // Orb sky layer pipelines
             wgpu::BindGroupLayout orbComputeLayout_;
@@ -320,6 +323,7 @@ namespace t7 {
                 entityPlacementComputeLayout_ = gpuState.entity_placement_compute_layout();
                 frustumCullLayout_ = gpuState.frustum_cull_layout();
                 pawnAuraComputeLayout_ = gpuState.pawn_aura_compute_layout();
+                liveCardWriterLayout_ = gpuState.live_card_writer_layout();
                 orbComputeLayout_ = gpuState.orb_compute_layout();
                 orbCopyLayout_    = gpuState.orb_copy_layout();
                 zoneGolComputeLayout_ = gpuState.zone_gol_compute_layout();
@@ -529,6 +533,14 @@ namespace t7 {
                 pass.SetPipeline(pawnAuraPipeline_);
                 pass.SetBindGroup(0, auraComputeBindGroup);
                 pass.DispatchWorkgroups(workgroups, workgroups, 1);
+            }
+
+            void dispatch_live_card_write(wgpu::ComputePassEncoder& pass,
+                                          wgpu::BindGroup group) {
+                pass.SetPipeline(liveCardWriterPipeline_);
+                pass.SetBindGroup(0, group);
+                pass.DispatchWorkgroups(Dim::LIVE_CARD_SIZE / 8u,
+                                        Dim::LIVE_CARD_SIZE / 8u, 1);
             }
 
             void dispatch_orb_init(
@@ -1435,6 +1447,14 @@ namespace t7 {
                     if (!pl) return false;
                     if (!makeComputePipeline("compute_pawn_aura", "Compute Pawn Aura (2D)",
                         pl, Entry::COMPUTE_PAWN_AURA, pawnAuraPipeline_)) return false;
+                }
+
+                // Live card writer pipeline (dedicated layout — GROUND_CARD_1)
+                {
+                    wgpu::PipelineLayout pl = computeLayoutFor(liveCardWriterLayout_);
+                    if (!pl) return false;
+                    if (!makeComputePipeline("write_live_card", "Live Card Writer (2D)",
+                        pl, Entry::WRITE_LIVE_CARD, liveCardWriterPipeline_)) return false;
                 }
 
                 // Orb compute pipelines (init + dynamics + recolor share the dedicated orb layout)
