@@ -8397,13 +8397,9 @@ struct PhotographerConfig {
 @group(0) @binding(141) var<storage, read_write> photographer_vp: VPMatrix;
 @group(0) @binding(142) var<storage, read_write> photographer_camera_out: CameraState;
 @group(0) @binding(143) var<storage, read_write> photo_painting_slots: array<UnifiedPaintingSlot, 32>;
-// TODO[seam-map:cleanup] binding 144 (photo_patch_instances) is currently
-//   unused — sample_terrain_y_at now reads patch_grid at binding 152.
-//   Retained only so the photographer + placement compute bind groups
-//   keep their layouts unchanged. Safe to drop in a coordinated edit:
-//   remove this binding here AND remove binding 144 from the
-//   photographer + placement layouts and bind groups in state.hpp.
-@group(0) @binding(144) var<storage, read> photo_patch_instances: array<PatchInstance>;
+// (binding 144 photo_patch_instances removed — the coordinated edit the old
+//  TODO[seam-map:cleanup] here called for; layouts dropped it in the same
+//  commit — GROUND_CARD_1 H1.)
 @group(0) @binding(145) var photo_heightfield: texture_2d_array<f32>;
 @group(0) @binding(146) var photo_sampler: sampler;
 
@@ -8757,11 +8753,9 @@ const FRUSTUM_PATCH_Y_MAX: f32 = 200.0;   // widened: tall entities (towers, ant
 // Frustum cull compute bindings (dedicated bind group)
 @group(0) @binding(1)   var<uniform>             fc_config: DesignConfig;
 @group(0) @binding(2)   var<storage, read>       fc_vp: VPMatrix;
-@group(0) @binding(80)  var<storage, read>       fc_camera: CameraState;
 @group(0) @binding(340) var<storage, read>       fc_patches: array<PatchInstance>;
 @group(0) @binding(500) var<storage, read_write> fc_visible: array<u32>;
 @group(0) @binding(501) var<storage, read_write> fc_indirect: array<atomic<u32>, 5>;
-@group(0) @binding(60)  var<storage, read>       fc_agents: array<AgentState, 32>;
 
 // Extract frustum plane from VP matrix row combination.
 // Row i of column-major M: (M[0][i], M[1][i], M[2][i], M[3][i])

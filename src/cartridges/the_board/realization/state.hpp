@@ -4137,9 +4137,10 @@ namespace t7 {
                 // Reads THE POINT's position (host-sourced) + config →
                 // builds VP, clamps camera above terrain.
                 // Entity Y-correction is handled separately by compute_entity_placement.
-                // 1 config uniform + 4 storage + 1 read-only + 1 uniform + 1 texture + 1 sampler + 1 patch_grid = 10 entries.
+                // 1 config uniform + 4 storage + 1 uniform + 1 texture + 1 sampler + 1 patch_grid = 9 entries.
+                // (photo_patch_instances 144 removed — dead, audit cc3/cc4; GROUND_CARD_1 H1.)
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 10> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 9> entries{};
 
                     entries[0].binding = bind::g0::config;    // config (DesignConfig — possessed_slot lookup via compute_pawn_pos)
                     entries[0].visibility = wgpu::ShaderStage::Compute;
@@ -4149,9 +4150,9 @@ namespace t7 {
                     entries[1].visibility = wgpu::ShaderStage::Compute;
                     entries[1].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    entries[9].binding = bind::g0::camera_state;   // camera_state (point_pos — the point's camera-host source)
-                    entries[9].visibility = wgpu::ShaderStage::Compute;
-                    entries[9].buffer.type = wgpu::BufferBindingType::Storage;
+                    entries[8].binding = bind::g0::camera_state;   // camera_state (point_pos — the point's camera-host source)
+                    entries[8].visibility = wgpu::ShaderStage::Compute;
+                    entries[8].buffer.type = wgpu::BufferBindingType::Storage;
 
                     entries[2].binding = bind::g0::photographer_config;  // photographer_config (camera params)
                     entries[2].visibility = wgpu::ShaderStage::Compute;
@@ -4165,22 +4166,18 @@ namespace t7 {
                     entries[4].visibility = wgpu::ShaderStage::Compute;
                     entries[4].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    entries[5].binding = bind::g0::photo_patch_instances;  // patch_instances (terrain lookup)
+                    entries[5].binding = bind::g0::photo_heightfield;  // patch_heightfield (terrain texture)
                     entries[5].visibility = wgpu::ShaderStage::Compute;
-                    entries[5].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+                    entries[5].texture.sampleType = wgpu::TextureSampleType::Float;
+                    entries[5].texture.viewDimension = wgpu::TextureViewDimension::e2DArray;
 
-                    entries[6].binding = bind::g0::photo_heightfield;  // patch_heightfield (terrain texture)
+                    entries[6].binding = bind::g0::photo_sampler;  // bilinear_sampler
                     entries[6].visibility = wgpu::ShaderStage::Compute;
-                    entries[6].texture.sampleType = wgpu::TextureSampleType::Float;
-                    entries[6].texture.viewDimension = wgpu::TextureViewDimension::e2DArray;
+                    entries[6].sampler.type = wgpu::SamplerBindingType::Filtering;
 
-                    entries[7].binding = bind::g0::photo_sampler;  // bilinear_sampler
+                    entries[7].binding = bind::g0::patch_grid;  // patch_grid (O(1) spatial index for sample_terrain_y_at)
                     entries[7].visibility = wgpu::ShaderStage::Compute;
-                    entries[7].sampler.type = wgpu::SamplerBindingType::Filtering;
-
-                    entries[8].binding = bind::g0::patch_grid;  // patch_grid (O(1) spatial index for sample_terrain_y_at)
-                    entries[8].visibility = wgpu::ShaderStage::Compute;
-                    entries[8].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+                    entries[7].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Photographer Compute Layout";
@@ -4194,66 +4191,59 @@ namespace t7 {
                 // Runs every frame, unconditionally. Samples the baked heightfield
                 // and subtracts CPU-computed pier_correction to isolate each entity's
                 // own pier contribution (removing foreign pier contamination).
-                // 13 entries: config + pawn + painting slots + heightfield + entity grounds + GoL + ground atlas write + patch_grid.
+                // 11 entries: config + painting slots + heightfield + entity grounds + GoL + ground atlas write + patch_grid.
+                // (agent_state 60 + photo_patch_instances 144 removed — dead in this kernel, audit cc3/cc4; GROUND_CARD_1 H1.)
                 // Palm+cactus+blade share one buffer at binding 150: [0..23] palm, [24..43] cactus, [44..75] blade.
                 // (binding 149 pyramid_ground RETIRED — the pyramid ground-atlas residue.)
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 13> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 11> entries{};
 
                     entries[0].binding = bind::g0::config;
                     entries[0].visibility = wgpu::ShaderStage::Compute;
                     entries[0].buffer.type = wgpu::BufferBindingType::Uniform;
 
-                    entries[1].binding = bind::g0::agent_state;
+                    entries[1].binding = bind::g0::photo_painting_slots;
                     entries[1].visibility = wgpu::ShaderStage::Compute;
                     entries[1].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    entries[2].binding = bind::g0::photo_painting_slots;
+                    entries[2].binding = bind::g0::photo_heightfield;
                     entries[2].visibility = wgpu::ShaderStage::Compute;
-                    entries[2].buffer.type = wgpu::BufferBindingType::Storage;
+                    entries[2].texture.sampleType = wgpu::TextureSampleType::Float;
+                    entries[2].texture.viewDimension = wgpu::TextureViewDimension::e2DArray;
 
-                    entries[3].binding = bind::g0::photo_patch_instances;
+                    entries[3].binding = bind::g0::photo_sampler;
                     entries[3].visibility = wgpu::ShaderStage::Compute;
-                    entries[3].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+                    entries[3].sampler.type = wgpu::SamplerBindingType::Filtering;
 
-                    entries[4].binding = bind::g0::photo_heightfield;
+                    entries[4].binding = bind::g0::arch_ground;
                     entries[4].visibility = wgpu::ShaderStage::Compute;
-                    entries[4].texture.sampleType = wgpu::TextureSampleType::Float;
-                    entries[4].texture.viewDimension = wgpu::TextureViewDimension::e2DArray;
+                    entries[4].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    entries[5].binding = bind::g0::photo_sampler;
+                    entries[5].binding = bind::g0::column_ground;
                     entries[5].visibility = wgpu::ShaderStage::Compute;
-                    entries[5].sampler.type = wgpu::SamplerBindingType::Filtering;
+                    entries[5].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    entries[6].binding = bind::g0::arch_ground;
+                    entries[6].binding = bind::g0::zone_config;
                     entries[6].visibility = wgpu::ShaderStage::Compute;
                     entries[6].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    entries[7].binding = bind::g0::column_ground;
+                    entries[7].binding = bind::g0::zone_life;
                     entries[7].visibility = wgpu::ShaderStage::Compute;
                     entries[7].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    entries[8].binding = bind::g0::zone_config;
+                    entries[8].binding = bind::g0::plant_ground;  // plant_ground: palm[0..23] + cactus[24..43] + blade[44..75]
                     entries[8].visibility = wgpu::ShaderStage::Compute;
                     entries[8].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    entries[9].binding = bind::g0::zone_life;
+                    entries[9].binding = bind::g0::entity_ground_atlas_write;  // entity_ground_atlas_write (r32float storage texture)
                     entries[9].visibility = wgpu::ShaderStage::Compute;
-                    entries[9].buffer.type = wgpu::BufferBindingType::Storage;
+                    entries[9].storageTexture.access = wgpu::StorageTextureAccess::WriteOnly;
+                    entries[9].storageTexture.format = wgpu::TextureFormat::R32Float;
+                    entries[9].storageTexture.viewDimension = wgpu::TextureViewDimension::e2D;
 
-                    entries[10].binding = bind::g0::plant_ground;  // plant_ground: palm[0..23] + cactus[24..43] + blade[44..75]
+                    entries[10].binding = bind::g0::patch_grid;  // patch_grid (O(1) spatial index for sample_terrain_y_at)
                     entries[10].visibility = wgpu::ShaderStage::Compute;
-                    entries[10].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    entries[11].binding = bind::g0::entity_ground_atlas_write;  // entity_ground_atlas_write (r32float storage texture)
-                    entries[11].visibility = wgpu::ShaderStage::Compute;
-                    entries[11].storageTexture.access = wgpu::StorageTextureAccess::WriteOnly;
-                    entries[11].storageTexture.format = wgpu::TextureFormat::R32Float;
-                    entries[11].storageTexture.viewDimension = wgpu::TextureViewDimension::e2D;
-
-                    entries[12].binding = bind::g0::patch_grid;  // patch_grid (O(1) spatial index for sample_terrain_y_at)
-                    entries[12].visibility = wgpu::ShaderStage::Compute;
-                    entries[12].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+                    entries[10].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Entity Placement Compute Layout";
@@ -4264,9 +4254,10 @@ namespace t7 {
                 }
 
                 // -- Frustum cull compute layout (Group 0) -- GPU patch visibility --
-                // Reads VP + camera + pawn + config + patch instances, writes visible indices + indirect draw args.
+                // Reads VP + config + patch instances, writes visible indices + indirect draw args.
+                // (fc_camera 80 + fc_agents 60 removed — dead in the kernel, audit cc3/cc4; GROUND_CARD_1 H1.)
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 7> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 5> entries{};
 
                     entries[0].binding = bind::g0::config;     // config (uniform — render_patch_count)
                     entries[0].visibility = wgpu::ShaderStage::Compute;
@@ -4276,25 +4267,17 @@ namespace t7 {
                     entries[1].visibility = wgpu::ShaderStage::Compute;
                     entries[1].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
-                    entries[2].binding = bind::g0::camera_state;    // camera_state (storage — retained for future use)
+                    entries[2].binding = bind::g0::patch_instances;   // patch_instances (storage — all patches)
                     entries[2].visibility = wgpu::ShaderStage::Compute;
                     entries[2].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
-                    entries[3].binding = bind::g0::patch_instances;   // patch_instances (storage — all patches)
+                    entries[3].binding = bind::g0::fc_visible;   // visible_patch_indices (storage, rw — output)
                     entries[3].visibility = wgpu::ShaderStage::Compute;
-                    entries[3].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+                    entries[3].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    entries[4].binding = bind::g0::fc_visible;   // visible_patch_indices (storage, rw — output)
+                    entries[4].binding = bind::g0::fc_indirect;   // frustum_indirect (storage, rw — atomic draw args)
                     entries[4].visibility = wgpu::ShaderStage::Compute;
                     entries[4].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    entries[5].binding = bind::g0::fc_indirect;   // frustum_indirect (storage, rw — atomic draw args)
-                    entries[5].visibility = wgpu::ShaderStage::Compute;
-                    entries[5].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    entries[6].binding = bind::g0::agent_state;    // agent_state (LOD distance reads possessed_slot)
-                    entries[6].visibility = wgpu::ShaderStage::Compute;
-                    entries[6].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Frustum Cull Compute Layout";
@@ -5088,18 +5071,18 @@ namespace t7 {
                     if (!photographerRenderEntityBindGroup_) return false;
                 }
 
-                // Photographer compute bind group (10 entries: config + agents + camera + outputs + terrain + patch_grid)
+                // Photographer compute bind group (9 entries: config + agents + camera + outputs + terrain + patch_grid)
                 {
-                    std::array<wgpu::BindGroupEntry, 10> entries{};
+                    std::array<wgpu::BindGroupEntry, 9> entries{};
                     entries[0].binding = bind::g0::config;
                     entries[0].buffer = configBuffer_;
                     entries[0].size = sizeof(GPUDesignConfig);
                     entries[1].binding = bind::g0::agent_state;
                     entries[1].buffer = agentStateBuffer_;
                     entries[1].size = Dim::MAX_AGENTS * sizeof(GPUAgentState);
-                    entries[9].binding = bind::g0::camera_state;
-                    entries[9].buffer = cameraBuffer_;
-                    entries[9].size = sizeof(GPUCameraState);
+                    entries[8].binding = bind::g0::camera_state;
+                    entries[8].buffer = cameraBuffer_;
+                    entries[8].size = sizeof(GPUCameraState);
                     entries[2].binding = bind::g0::photographer_config;
                     entries[2].buffer = photographerConfigBuffer_;
                     entries[2].size = sizeof(GPUPhotographerConfig);
@@ -5109,16 +5092,13 @@ namespace t7 {
                     entries[4].binding = bind::g0::photographer_camera_out;
                     entries[4].buffer = photographerCameraBuffer_;
                     entries[4].size = sizeof(GPUCameraState);
-                    entries[5].binding = bind::g0::photo_patch_instances;
-                    entries[5].buffer = patchInstancesBuffer_;
-                    entries[5].size = sizeof(GPUPatchInstance) * Dim::MAX_ACTIVE_PATCHES;
-                    entries[6].binding = bind::g0::photo_heightfield;
-                    entries[6].textureView = patchHeightfieldArrayReadView_;
-                    entries[7].binding = bind::g0::photo_sampler;
-                    entries[7].sampler = bilinearSampler_;
-                    entries[8].binding = bind::g0::patch_grid;
-                    entries[8].buffer = patchGridBuffer_;
-                    entries[8].size = sizeof(GPUPatchGrid);
+                    entries[5].binding = bind::g0::photo_heightfield;
+                    entries[5].textureView = patchHeightfieldArrayReadView_;
+                    entries[6].binding = bind::g0::photo_sampler;
+                    entries[6].sampler = bilinearSampler_;
+                    entries[7].binding = bind::g0::patch_grid;
+                    entries[7].buffer = patchGridBuffer_;
+                    entries[7].size = sizeof(GPUPatchGrid);
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Photographer Compute BindGroup";
@@ -5131,49 +5111,43 @@ namespace t7 {
 
                 // Entity placement compute bind group (heightfield sampling + ground Y correction)
                 {
-                    std::array<wgpu::BindGroupEntry, 13> entries{};
+                    std::array<wgpu::BindGroupEntry, 11> entries{};
                     entries[0].binding = bind::g0::config;
                     entries[0].buffer = configBuffer_;
                     entries[0].size = sizeof(GPUDesignConfig);
-                    entries[1].binding = bind::g0::agent_state;
-                    entries[1].buffer = agentStateBuffer_;
-                    entries[1].size = Dim::MAX_AGENTS * sizeof(GPUAgentState);
-                    entries[2].binding = bind::g0::photo_painting_slots;
-                    entries[2].buffer = paintingSlotsBuffer_;
-                    entries[2].size = sizeof(GPUPaintingSlot) * Dim::PAINTING_MAX_SLOTS;
-                    entries[3].binding = bind::g0::photo_patch_instances;
-                    entries[3].buffer = patchInstancesBuffer_;
-                    entries[3].size = sizeof(GPUPatchInstance) * Dim::MAX_ACTIVE_PATCHES;
-                    entries[4].binding = bind::g0::photo_heightfield;
-                    entries[4].textureView = patchHeightfieldArrayReadView_;
-                    entries[5].binding = bind::g0::photo_sampler;
-                    entries[5].sampler = bilinearSampler_;
-                    entries[6].binding = bind::g0::arch_ground;
-                    entries[6].buffer = archGroundBuffer_;
-                    entries[6].size = sizeof(GPUArchGroundEntry) * Dim::MAX_ARCH_INSTANCES;
-                    entries[7].binding = bind::g0::column_ground;
-                    entries[7].buffer = columnGroundBuffer_;
-                    entries[7].size = sizeof(GPUColumnGroundEntry) * Dim::MAX_COLUMN_INSTANCES;
-                    entries[8].binding = bind::g0::zone_config;
-                    entries[8].buffer = zoneConfigBuffer_;
-                    entries[8].size = sizeof(GPUGoLZoneArray);
-                    entries[9].binding = bind::g0::zone_life;
-                    entries[9].buffer = zoneLifeBuffer_;
-                    entries[9].size = Dim::MAX_GOL_ZONES * Dim::GOL_ZONE_LIFE_STRIDE * sizeof(float);
+                    entries[1].binding = bind::g0::photo_painting_slots;
+                    entries[1].buffer = paintingSlotsBuffer_;
+                    entries[1].size = sizeof(GPUPaintingSlot) * Dim::PAINTING_MAX_SLOTS;
+                    entries[2].binding = bind::g0::photo_heightfield;
+                    entries[2].textureView = patchHeightfieldArrayReadView_;
+                    entries[3].binding = bind::g0::photo_sampler;
+                    entries[3].sampler = bilinearSampler_;
+                    entries[4].binding = bind::g0::arch_ground;
+                    entries[4].buffer = archGroundBuffer_;
+                    entries[4].size = sizeof(GPUArchGroundEntry) * Dim::MAX_ARCH_INSTANCES;
+                    entries[5].binding = bind::g0::column_ground;
+                    entries[5].buffer = columnGroundBuffer_;
+                    entries[5].size = sizeof(GPUColumnGroundEntry) * Dim::MAX_COLUMN_INSTANCES;
+                    entries[6].binding = bind::g0::zone_config;
+                    entries[6].buffer = zoneConfigBuffer_;
+                    entries[6].size = sizeof(GPUGoLZoneArray);
+                    entries[7].binding = bind::g0::zone_life;
+                    entries[7].buffer = zoneLifeBuffer_;
+                    entries[7].size = Dim::MAX_GOL_ZONES * Dim::GOL_ZONE_LIFE_STRIDE * sizeof(float);
 
                     // Combined plant ground: palm[0..23] + cactus[24..43] + blade[44..75]
                     static constexpr uint32_t PLANT_GROUND_COUNT =
                         Dim::MAX_PALM_INSTANCES + Dim::MAX_CACTUS_INSTANCES + Dim::MAX_BLADE_INSTANCES;
-                    entries[10].binding = bind::g0::plant_ground;
-                    entries[10].buffer = plantComputeGroundBuffer_;
-                    entries[10].size = sizeof(GPUPalmGroundEntry) * PLANT_GROUND_COUNT;
+                    entries[8].binding = bind::g0::plant_ground;
+                    entries[8].buffer = plantComputeGroundBuffer_;
+                    entries[8].size = sizeof(GPUPalmGroundEntry) * PLANT_GROUND_COUNT;
 
-                    entries[11].binding = bind::g0::entity_ground_atlas_write;
-                    entries[11].textureView = entityGroundAtlasWriteView_;
+                    entries[9].binding = bind::g0::entity_ground_atlas_write;
+                    entries[9].textureView = entityGroundAtlasWriteView_;
 
-                    entries[12].binding = bind::g0::patch_grid;
-                    entries[12].buffer = patchGridBuffer_;
-                    entries[12].size = sizeof(GPUPatchGrid);
+                    entries[10].binding = bind::g0::patch_grid;
+                    entries[10].buffer = patchGridBuffer_;
+                    entries[10].size = sizeof(GPUPatchGrid);
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Entity Placement Compute BindGroup";
@@ -5184,30 +5158,24 @@ namespace t7 {
                     if (!entityPlacementComputeBindGroup_) return false;
                 }
 
-                // Frustum cull compute bind group (7 entries: +agent_state at binding 60)
+                // Frustum cull compute bind group (5 entries)
                 {
-                    std::array<wgpu::BindGroupEntry, 7> entries{};
+                    std::array<wgpu::BindGroupEntry, 5> entries{};
                     entries[0].binding = bind::g0::config;
                     entries[0].buffer = configBuffer_;
                     entries[0].size = sizeof(GPUDesignConfig);
                     entries[1].binding = bind::g0::vp_data;
                     entries[1].buffer = vpBuffer_;
                     entries[1].size = sizeof(GPUVPMatrix);
-                    entries[2].binding = bind::g0::camera_state;
-                    entries[2].buffer = cameraBuffer_;
-                    entries[2].size = sizeof(GPUCameraState);
-                    entries[3].binding = bind::g0::patch_instances;
-                    entries[3].buffer = patchInstancesBuffer_;
-                    entries[3].size = sizeof(GPUPatchInstance) * Dim::MAX_ACTIVE_PATCHES;
-                    entries[4].binding = bind::g0::fc_visible;
-                    entries[4].buffer = visiblePatchIndicesBuffer_;
-                    entries[4].size = Dim::MAX_ACTIVE_PATCHES * sizeof(uint32_t);
-                    entries[5].binding = bind::g0::fc_indirect;
-                    entries[5].buffer = frustumComputeBuffer_;
-                    entries[5].size = 5 * sizeof(uint32_t);
-                    entries[6].binding = bind::g0::agent_state;
-                    entries[6].buffer = agentStateBuffer_;
-                    entries[6].size = Dim::MAX_AGENTS * sizeof(GPUAgentState);
+                    entries[2].binding = bind::g0::patch_instances;
+                    entries[2].buffer = patchInstancesBuffer_;
+                    entries[2].size = sizeof(GPUPatchInstance) * Dim::MAX_ACTIVE_PATCHES;
+                    entries[3].binding = bind::g0::fc_visible;
+                    entries[3].buffer = visiblePatchIndicesBuffer_;
+                    entries[3].size = Dim::MAX_ACTIVE_PATCHES * sizeof(uint32_t);
+                    entries[4].binding = bind::g0::fc_indirect;
+                    entries[4].buffer = frustumComputeBuffer_;
+                    entries[4].size = 5 * sizeof(uint32_t);
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Frustum Cull Compute BindGroup";
