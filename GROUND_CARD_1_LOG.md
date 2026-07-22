@@ -1,0 +1,64 @@
+# GROUND_CARD_1 — CAMPAIGN LOG
+
+Campaign: GROUND_CARD_1 (ground_card_campaign_v2.md Stages 1–4, per
+src/docs/HANDOFFS/ h0–h6, with H0's two approved amendments folded).
+Branch: `GROUND_CARD_1`.
+
+---
+
+## H0 — INDEX + PREFLIGHT
+
+### Base
+
+- CLOSURE_GPU HEAD at cut time: `bd405d927a3de8ae47da9b719ad441a31e5c326e`
+  (matches H0's expected base exactly).
+- GROUND_CARD_1 cut from `c7f4ef4bedad906ff37f40560571836f8c80fe9b`
+  (current master tip), a **verified descendant** of bd405d92 per H0's
+  "or a verified descendant" clause. Chosen because the audit instruments
+  (glaw1, cc4/cc6/cc7, probes) and the campaign doc live only in the
+  descendant commits; H6 requires committing recount outputs "beside the
+  originals", which is only possible on this base.
+- Drift report, bd405d92 → c7f4ef4 (per-file, exhaustive classes):
+  - `AUDIT_REPORT.md` + `audit/**` ADDED (instruments + campaign doc).
+  - `src/cartridges/backup_board/**` DELETED (moved to Jean's local
+    backup; the H6 note about backup_board BOMs is therefore moot).
+  - `src/docs/**` doc adds/moves (HANDOFFS, campaign doc, `old docs/`).
+  - `src/cartridges/the_board/**`: **ZERO changes** — the code tree the
+    anchors bind to is byte-identical to CLOSURE_GPU HEAD.
+
+### Anchor table (a–i)
+
+| # | File | Anchor | Expect | Found | Verdict |
+|---|------|--------|--------|-------|---------|
+| a | realization/binding_registry.hpp | `pyramid_instances          = 30` | 1 | 1 | PASS |
+| b | realization/binding_registry.hpp | `pawn_aura_read             = 33` | 1 | 1 | PASS |
+| c | realization/state.hpp | `Patch Heightfield Array (225x256x256` | 1 | 1 | PASS |
+| d | realization/renderer.hpp | `DispatchWorkgroups(4, 1, 1)` | 1 @ frustum-cull site | 1, at renderer.hpp:518, directly under `SetBindGroup(0, frustumCullBindGroup)` and the `// ceil(MAX_ACTIVE_PATCHES / 64) = ceil(225/64) = 4` comment; no other occurrences in the file | PASS |
+| e | realization/world.wgsl | `Only flying ribbons now; no terrain-following needed.` | 1 | 1 | PASS |
+| f | realization/world.wgsl | `// §7.4 PAWN AURA` | 1 | 1 | PASS |
+| g | realization/world.wgsl | `fn query_ground_walker(` | 1 | 1 | PASS |
+| h | realization/world.wgsl | `fn compute_entity_placement(` | 1 | 1 | PASS |
+| i | realization/state.hpp | nine `desc.label` strings (Compute Entity / Compute Texture / Entity Placement Compute / Photographer Compute / Frustum Cull Compute / Ribbon Compute / Render Texture / Shadow Texture / Pawn Aura Compute Layout) | 1 each | 1 each (desc.label form; no stray duplicates anywhere in state.hpp) | PASS |
+
+All anchors PASS → proceeding to H1.
+
+### Baseline gate
+
+- glaw1 (audit/tools/glaw1/run.sh) at base c7f4ef4, before any edit:
+  `G-LAW 1: GREEN` (stub webgpu: 73 types, 64 statics, 117 members).
+
+### NOTE for Jean (copied per H0 item 4)
+
+The 5-minute Windows witness run (audit/probe_dawn_witness.mjs in Chrome
+on the design machine, plus the wgslLanguageFeatures query) is the
+campaign's remaining precondition; it can run any time before the
+batch-end build.
+
+### Amendments in force (H0, approved)
+
+1. FUTURE-LIVE entries RETAINED, not removed-then-readded: Compute
+   Entity 145 photo_heightfield / 146 photo_sampler / 152 patch_grid,
+   Compute Texture 23 nearest_sampler. Comments corrected to truth in
+   H1; they go live at H5.
+2. Card G/B = WAVES-ONLY gradient this batch (exact parity with current
+   VS normals). Pulse-shaded normals are Stage 6 work.
