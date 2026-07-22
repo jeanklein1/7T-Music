@@ -1,0 +1,75 @@
+═══════════════════════════════════════════════════════════════════════
+CC HANDOFF U3 — THE DECODE + THE LIFT (both VS; the A2-5(i) shape)
+world.wgsl. Select-only band split, no loops, no tables. After this
+handoff the terrain itself lifts under living cells; the old extrusion
+still draws (double-render until U4 — accepted).
+═══════════════════════════════════════════════════════════════════════
+
+COMMIT [U3a] — the shared pieces
+1. CLASS B — beside ZONE_SUPPRESS_INNER/OUTER (A2-4g cites 2176–2186):
+   extract the pawn suppression into ONE shared form:
+     fn pawn_gol_suppression(world_xz: vec2<f32>) -> f32 {
+         let d = distance(world_xz, point_pos().xz);
+         return 1.0 - smoothstep(ZONE_SUPPRESS_INNER, ZONE_SUPPRESS_OUTER, d);
+     }
+   (VERIFY the walker's inline form first — mirror ITS exact distance
+   source and smoothstep orientation so the extraction is behavior-
+   identical; then re-point the walker's inline to this fn. The zone-VS
+   mirror dies at U4. The suppression triple is now ONE form.)
+2. CLASS B — the band decode, added beside patch_skirt_grid:
+     // THE UNIFIED DECODE (UNIFIED_GROUND_1; bands: Dim::UG_*)
+     struct UgVert { vx: u32, vz: u32, cellx: u32, cellz: u32,
+                     lift_scale: f32,   // 1 cap/legacy/skirt, 0 base
+                     drop: f32,         // PATCH_SKIRT_DEPTH on skirt copies
+                     wall: f32 }        // 1 on base + skirt copies
+     fn ug_decode(vi: u32) -> UgVert
+   implementing, by comparisons only (the A2-5(i) probe shape):
+     vi < 4225           → legacy grid: vx = vi % 65, vz = vi / 65
+     vi < UG_CAP_BASE    → skirt copy: (vx,vz) = patch_skirt_grid(vi−4225);
+                            drop = PATCH_SKIRT_DEPTH; wall = 1
+     vi < UG_BASE_BASE   → cap: r = vi − UG_CAP_BASE; cell = r / 25u;
+                            k = r % 25u; lx = k % 5u; lz = k / 5u;
+                            vx = (cell%16u)*4u + lx; vz = (cell/16u)*4u + lz
+     else                → base: r = vi − UG_BASE_BASE; cell = r / 16u;
+                            (lx,lz) = the n=4 skirt walk of (r % 16u);
+                            vx/vz as cap; lift_scale = 0; wall = 1
+   Every branch also fills cellx = min(vx/4u,15u), cellz likewise (the
+   uniform cell-assignment rule for legacy/skirt verts).
+3. CLASS B — the cell-lift fetch:
+     fn ug_cell_lift(pi_origin: vec2<f32>, pi_extent: f32,
+                     cellx: u32, cellz: u32) -> f32 {
+         let cs = pi_extent / f32(PATCH_CELL_N);
+         let center = pi_origin - vec2(pi_extent*0.5)
+                    + (vec2(f32(cellx), f32(cellz)) + vec2(0.5)) * cs;
+         return sample_live_card_gol(center);   // nearest, cell-snapped
+     }
+
+COMMIT [U3b] — both VS ride the decode
+4. CLASS B — patch_terrain_vs (A2-4b shows the current decode block):
+   REPLACE the vx/vz/is_skirt decode with `let d = ug_decode(vi);`
+   (uv from d.vx/d.vz as today). After the full composited surface
+   (heightfield + card.r/gb + aura — all unchanged), ADD:
+     let lift = ug_cell_lift(pi.origin, pi.extent, d.cellx, d.cellz)
+              * pawn_gol_suppression(world_pos.xz);
+     world_pos.y += lift * d.lift_scale - d.drop;
+   and the varying write becomes `out.skirt = d.wall;` (comment: the
+   INCIDENT-#2 instrument, generalized — 1 on curtain-bottom + skirt
+   copies; wall fragments interpolate toward 1).
+   The old `is_skirt … PATCH_SKIRT_DEPTH` drop line is SUBSUMED by
+   d.drop — delete it. Normals: unchanged (heightfield .yz + card.gb;
+   cap faces stay ground-shaded; wall shading is the FS's existing
+   skirt-varying treatment — v1 scope).
+5. CLASS B — shadow_patch_terrain_vs: the same replacement, same lift
+   lines (it composites height only; A2-4b shows its block).
+6. CLASS A/B — the ruling lockstep (one commit, both rooms):
+   ground_architecture.hpp POLICY row for TERRAIN_RENDER — the mask
+   gains CONTRIB_GOL_ZONES with the note "(realized as the card's .a,
+   cell-nearest, pawn-suppressed — UNIFIED_GROUND_1)"; the world.wgsl
+   §3.4 mirror seam comment gains the same line. (DAG closure: GoL has
+   no ancestors — assert nothing, state it in the comment.)
+glaw1 after [U3b]. REST PROOF (log it as arithmetic, not pixels): lift
+0 at rest ⇒ cap verts ≡ legacy verts at the same grid pos (same uv →
+same samples → same composited y), base ≡ cap, skirt drop unchanged ⇒
+the raster of CLOSURE_GPU. Duplicated borders decode to identical
+positions ⇒ no cracks between equally-lifted neighbors.
+═══════════════════════════════════════════════════════════════════════

@@ -1,0 +1,167 @@
+═══════════════════════════════════════════════════════════════════════
+CC HANDOFF U4 — THE RETIREMENT (A2-3 census; model: A2_P2, 999 lines)
+The old zone-render stack dies; the ground is the one surface. Apply
+the P2 rehearsal as real edits, hunk-verified, PLUS the two rehearsal
+lessons and the re-pin.
+═══════════════════════════════════════════════════════════════════════
+
+COMMIT [U4a] — WGSL retirement
+1. Re-derive A2_P2's world.wgsl hunks against the U3 tree: remove the
+   five doomed entry points WITH their @compute/@vertex/@fragment
+   attribute lines (rehearsal lesson #2) and the machine-closure
+   helpers: apply_gol_extrusion_color, zone_mesh_gen_cell,
+   zone_emit_quad, zone_sample_baked_terrain_y,
+   query_ground_baked_heightfield, contrib_static_base_at,
+   contrib_terrain_waves_at, terrain_height_at. VERIFY first (grep)
+   that U3 didn't add callers to any of these — it must not have; a
+   hit is an ABORT-and-report.
+2. Retire the doomed declarations + registry constants: zone_heightfield
+   163 / zone_hf_sampler 164 / zone_patch_instances 165 / zone_mesh_*
+   167–169 → registry tombstones per the 29-precedent ("RETIRED —
+   UNIFIED_GROUND_1; number parked"). The switch's 3u arm and every
+   surviving site must reference none of them (closure says so; grep
+   confirms).
+3. The manifold switch: with query_ground_baked_heightfield gone,
+   remove/repoint its case per the P2 shape (paste the arm before/after).
+
+COMMIT [U4b] — layouts, pipelines, C++
+4. GoL Zone Compute Layout + group: drop pier_instances(26),
+   tile_grid(25), pyramid_instances(30), zone_heightfield(163),
+   zone_hf_sampler(164), zone_patch_instances(165), and the mesh trio
+   167–169 (paired, renumbered). Expected landing: 5 entries —
+   zone_config, zone_life, config, zone_derive_requests,
+   zone_life_tex_write (A2-3e's P2 recount).
+5. zone_derive_params RE-PIN: its creation shares the block with the
+   dying mesh pipelines (renderer.hpp 1497–1506) — keep derive, re-pin
+   its layout per the P2 shape; delete zoneGolMeshReset/GenPipeline_
+   members + creation + dispatch methods (renderer.hpp 633–654).
+6. Buffers + Dim: zoneMeshVertex/Index/IndirectBuffer_ (state.hpp
+   1586–1588 / 3457–3469) + accessors (2774–2776) +
+   Dim::MAX_ZONE_MESH_VERTICES/INDICES (246–247) — out.
+7. Draw path: dt_zone thunk + the DRAWABLES "zone" row + DrawBind
+   zone_active field + BOTH fills (render_passes 334, 405) + the FIFTH
+   site bodies/gallery.hpp:1189 (rehearsal lesson #1) + draw verbs
+   (renderer 725–758) + both render pipelines (members 285–286,
+   creations ~1668–1728, 2238–2241).
+8. Dispatch half: gol_zones.hpp dispatch_zone_mesh (293 proto,
+   674–685) + its call in cartridge phase_gol_zone_compute (1373).
+   sync/evolve/derive + the GolZoneCompute spine row STAY.
+9. Comment truths at every cut site; the freed indexed-indirect budget
+   lines (main + shadow passes) get one line each: "zone indirect
+   retired — UNIFIED_GROUND_1; slot free under the banner law."
+glaw1. Rerun the Dawn witness with the U4 family roster (gol_zone =
+sync/evolve/derive; no zone render pipelines) — ALL GREEN expected
+(P2 already proved this shape).
+
+═══════════════════════════════════════════════════════════════════════
+CC HANDOFF U5 — THE MASK + THE SIZE TIERS (amendment: veto-able)
+═══════════════════════════════════════════════════════════════════════
+
+COMMIT [U5a] — the vocabulary mask (the birth-moment kernel)
+1. CLASS B — extract the predicate: from the composite/animated color
+   path, factor the REST discrete-visibility into a shared helper
+     fn discrete_visibility_rest(cell_center: vec2<f32>,
+                                 cell: vec2<i32>) -> f32
+   that computes, by CALLING the existing pieces (evaluate_cell_fields
+   at zero bias, the blend/scatter/sparse doors, the style mix —
+   exactly the weights composite_cell_color derives at rest; refactor
+   composite to call the same helper so ONE body serves both — the
+   one-derivation law). No new math; a re-plumb of existing lines.
+   Paste the extraction before/after.
+2. CLASS B — the kernel, beside zone_derive_params:
+     @compute @workgroup_size(8, 8, 1)
+     fn zone_seed_mask(@builtin(global_invocation_id) gid: vec3<u32>) {
+         let req_idx = gid.z;
+         if (req_idx >= zone_derive_requests.count) { return; }
+         let req = zone_derive_requests.requests[req_idx];
+         let zp = zone_config.zones[req.slot];
+         if (gid.x >= zp.grid_size || gid.y >= zp.grid_size) { return; }
+         let cs = zp.extent / f32(zp.grid_size);
+         let corner = zp.origin - vec2(zp.extent * 0.5);
+         let center = corner + (vec2(f32(gid.x), f32(gid.y)) + vec2(0.5)) * cs;
+         let vis = step(0.5, discrete_visibility_rest(center, cell_address(center)));
+         let idx = req.slot * GOL_ZONE_STRIDE + GOL_CELL_HEIGHT_FACTOR
+                 + gid.y * 32u + gid.x;
+         zone_life[idx] = zone_life[idx] * vis;   // Gaussian seed × mask
+     }
+   Layout: a new small "Zone Mask Layout" — config, tile_grid,
+   zone_derive_requests, zone_config (RO), zone_life (read_write; the
+   pair's declarations are read_write — the H-batch precedent).
+   Dispatch: in flush_zone_derive_requests, AFTER the derive dispatch,
+   SAME encoder: DispatchWorkgroups(4, 4, request_count). Ordering law
+   in a comment: derive writes config[slot]; mask reads it — sequential
+   dispatches in one pass suffice (storage-buffer visibility between
+   dispatches is guaranteed).
+   VERIFY (Class B gate): the cell-index convention gid.y*32+gid.x vs
+   the sim kernels' own indexing — mirror THEIR row-major exactly.
+   NOTE the granularity truth in the kernel banner: the predicate is
+   evaluated at ZONE-cell centers, which ARE color-mosaic cells
+   (extent = grid × 3.125, corner cell-snapped) — one address, no
+   resampling.
+3. Consequence line in gol_zones.hpp beside the Gaussian seed: "the
+   GPU mask multiplies at birth (zone_seed_mask) — smooth ground does
+   not extrude, lift, or carry walker height; STATIC at birth (the
+   dynamic, tide-following form is Layer E — campaign v2 §9)."
+
+COMMIT [U5b] — size tiers (cells, not world units)
+4. CLASS B — locate GOL_TIERS / GOL_PULSE_TIERS (world.wgsl §7.2
+   region): add a `grid_cells: u32` column ∈ {8..32}. Authored
+   defaults (Jean-tunable, say so in-row): Conway rows 32 / 24 / 16 in
+   weight order; Pulse rows 32 / 16 / 8.
+5. CLASS B — zone_derive_params (A2-4f pastes the body): after tier
+   selection, replace the pinned pair:
+     zc.grid_size = tp.grid_cells;                  // (pp. for pulse)
+     zc.extent    = f32(zc.grid_size) * ZONE_DERIVE_CELL_SIZE;
+   and the corner snap uses zc.extent (the formula already does —
+   verify the const ZONE_DERIVE_EXTENT's remaining uses and replace
+   them with the derived extent; tombstone the const if orphaned).
+6. VERIFY-FIRST (Class B gates, report each): (a) does ANY consumer
+   index the life planes with a hardcoded 32 stride vs zp.grid_size?
+   (Conway neighbors, sync, evolve, FS tint, contrib — expected: all
+   read zp.grid_size for bounds but the PLANE STRIDE is fixed 1024
+   row-major-32: cells beyond grid_size are dead tail — confirm the
+   sim kernels' index math uses the FIXED 32 row stride, as
+   zone_seed_mask does; any consumer deriving row stride from
+   grid_size is a FINDING to fix in this commit). (b) does the HOST
+   spawn path (gol_zones.hpp 362–370) also author origin/extent?
+   If yes, mirror the tier-driven extent there (the tier id must then
+   ride the request — smallest coherent change, paste it); if config
+   is derive-authored only, no host edit.
+glaw1 after [U5b].
+
+═══════════════════════════════════════════════════════════════════════
+CC HANDOFF U6 — CLOSEOUT
+═══════════════════════════════════════════════════════════════════════
+1. Instruments rerun → _post_ug1 outputs: cc6 (GoL row expected
+   5 entries / 2 storage / 2 uniform / 1 storage-tex — plus the new
+   Zone Mask layout; flags EMPTY), cc7 + mirror (tombstones 163–165,
+   167–169 parked; zero orphans; write the true declaration count),
+   cc4 (agent sets unchanged; no entry point references the retired
+   set), Dawn witness ALL GREEN with the U-roster (+ zone_seed_mask
+   family).
+2. BATCH_REPORT_UG1.md: base/final hashes; commit list; recount vs
+   expectations; the U3 rest-identity ARITHMETIC proof restated; the
+   retirement census diff vs A2-3 (line-for-line); deviations log;
+   encoding sweep; the freed indirect lines named.
+3. Push. Append JEAN'S GATE LIST:
+   [ ] Windows build + boot. FXC watch: the unified decode in BOTH
+       patch VS (select-only — A2-5 blessed the shape on Tint; FXC's
+       word lands here), zone_seed_mask (standalone-writer family),
+       and the ABSENCE of the retired pipelines.
+   [ ] REST IDENTITY, bitwise: stills A/B vs pre-batch at rest — the
+       arithmetic proof made pixels.
+   [ ] THE ZONE WALKTHROUGH: a Conway zone's birth (ground cracks
+       upward — the transit shear, no coplanar shimmer); plateau
+       joins between equal neighbors (seamless); the pawn bow-wave
+       (now VISIBLE in the terrain — walk into a zone); cells wear
+       the ground's own colors + tint; mask silhouettes (smooth cells
+       inside a zone stay flat — organic coastline shapes); tier
+       sizes (small pulse zones ~25 wu; big Conway 100 wu); LOD1
+       distance look (soft steps, no curtains — by design).
+   [ ] The five carried-over batch gates (idle rig / debug eye /
+       motion motif / walkabout / frustum full-window) — one pass
+       covers both campaigns.
+4. Seeds: AUDIT-3 = instruments post-merge + the parked-number census;
+   then Stage 6 (the true-band swap) and Stage 7 (contact collision)
+   per campaign v2 — both handoff-ready on this tree.
+═══════════════════════════════════════════════════════════════════════
