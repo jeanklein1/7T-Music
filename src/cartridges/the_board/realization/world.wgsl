@@ -2553,6 +2553,7 @@ const POLICY_TERRAIN_RENDER_MASK       : u32 = GROUND_STATIC_BASE_MASK
                                               | (1u << CONTRIB_PYRAMIDS)
                                               | (1u << CONTRIB_TERRAIN_WAVES)
                                               | (1u << CONTRIB_RADIAL_PULSES)
+                                              | (1u << CONTRIB_GOL_ZONES)   // realized as the card's .a, cell-nearest, pawn-suppressed — UNIFIED_GROUND_1 (DAG: GoL has no ancestors)
                                               | (1u << CONTRIB_PAWN_AURA);
 
 // ═══ Ground Architecture ═══════════════════════════════════════════
@@ -4066,26 +4067,14 @@ fn patch_terrain_vs(
     if (USE_PATCH_INDIRECTION) { actual_id = visible_patch_indices[patch_id]; }
     let pi = patch_instances[actual_id];
 
-    // Decode grid position from vertex index. Skirt verts (index >=
-    // PATCH_GRID_VERT_COUNT) map to a perimeter grid vertex; they inherit the
-    // full composited surface below and get dropped by PATCH_SKIRT_DEPTH after.
-    var vx: u32;
-    var vz: u32;
-    var is_skirt = false;
-    if (vi >= PATCH_GRID_VERT_COUNT) {
-        let g = patch_skirt_grid(vi - PATCH_GRID_VERT_COUNT);
-        vx = g.x;
-        vz = g.y;
-        is_skirt = true;
-    } else {
-        vx = vi % PATCH_MESH_STRIDE;
-        vz = vi / PATCH_MESH_STRIDE;
-    }
+    // THE UNIFIED DECODE (UNIFIED_GROUND_1): legacy grid + skirt copies
+    // + cap band + curtain-bottom band — one arithmetic split (Dim::UG_*).
+    let d = ug_decode(vi);
 
     // UV within the patch [0, 1]
     let uv = vec2(
-        f32(vx) / f32(PATCH_MESH_N),
-        f32(vz) / f32(PATCH_MESH_N)
+        f32(d.vx) / f32(PATCH_MESH_N),
+        f32(d.vz) / f32(PATCH_MESH_N)
     );
 
     // Remap UV to align with texel centers in the heightfield.
@@ -4118,10 +4107,13 @@ fn patch_terrain_vs(
     let live = sample_live_card(world_pos.xz);
     world_pos.y += live.x;
 
-    // Skirt curtain: drop the ring copy below the surface it just inherited
-    // (heightfield + aura + wave + pulse — no recompute; the curtain tracks
-    // the live surface). GoL is a separate extrusion mesh (untouched).
-    if (is_skirt) { world_pos.y -= PATCH_SKIRT_DEPTH; }
+    // THE CELL LIFT (UNIFIED_GROUND_1): GoL rides the ground itself —
+    // the card's .a, nearest at the vertex's OWN cell center, pawn-
+    // suppressed. BASE verts take no lift (that gap IS the curtain);
+    // d.drop subsumes the old skirt ring drop.
+    let lift = ug_cell_lift(pi.origin, pi.extent, d.cellx, d.cellz)
+             * pawn_gol_suppression(world_pos.xz, render_pawn_pos().xz);
+    world_pos.y += lift * d.lift_scale - d.drop;
 
     var out: PatchTerrainVarying;
     out.clip_pos = render_vp.m * vec4(world_pos, 1.0);
@@ -4131,7 +4123,9 @@ fn patch_terrain_vs(
     //  the .w channel it read is now unused, no FS ever consumed it.)
     out.patch_uv = uv;
     out.layer = pi.layer;
-    out.skirt = select(0.0, 1.0, is_skirt);   // TEMPORARY (INCIDENT #2, I3)
+    out.skirt = d.wall;   // the INCIDENT-#2 instrument, generalized — 1 on
+                          // curtain-bottom + skirt copies (wall fragments
+                          // interpolate toward 1)
     return out;
 }
 
@@ -4359,25 +4353,13 @@ fn shadow_patch_terrain_vs(
 ) -> ShadowVarying {
     let pi = patch_instances[patch_id];
 
-    // Same skirt decode as patch_terrain_vs — the shadow pass shares the
-    // patch index buffers (which now carry skirt indices), so it must map
-    // and drop skirt verts too, else vi >= grid count reads garbage.
-    var vx: u32;
-    var vz: u32;
-    var is_skirt = false;
-    if (vi >= PATCH_GRID_VERT_COUNT) {
-        let g = patch_skirt_grid(vi - PATCH_GRID_VERT_COUNT);
-        vx = g.x;
-        vz = g.y;
-        is_skirt = true;
-    } else {
-        vx = vi % PATCH_MESH_STRIDE;
-        vz = vi / PATCH_MESH_STRIDE;
-    }
+    // Same unified decode as patch_terrain_vs — the shadow pass shares
+    // the patch index buffers (cap + curtain + skirt bands).
+    let d = ug_decode(vi);
 
     let uv = vec2(
-        f32(vx) / f32(PATCH_MESH_N),
-        f32(vz) / f32(PATCH_MESH_N)
+        f32(d.vx) / f32(PATCH_MESH_N),
+        f32(d.vz) / f32(PATCH_MESH_N)
     );
 
     let res = f32(PATCH_HEIGHTFIELD_N);
@@ -4391,9 +4373,12 @@ fn shadow_patch_terrain_vs(
     let wx = pi.origin.x + (uv.x - 0.5) * pi.extent;
     let wz = pi.origin.y + (uv.y - 0.5) * pi.extent;
     var world_pos = vec3(wx, height_data.x + sample_live_card(vec2(wx, wz)).x, wz);
-    // Skirt curtain drop (shadow surface = heightfield + the card:
-    // waves+pulses one field — GROUND_CARD_1).
-    if (is_skirt) { world_pos.y -= PATCH_SKIRT_DEPTH; }
+    // THE CELL LIFT (UNIFIED_GROUND_1) — shadow surface = heightfield +
+    // the card + the pawn-suppressed cell lift; d.drop subsumes the old
+    // skirt ring drop.
+    let lift = ug_cell_lift(pi.origin, pi.extent, d.cellx, d.cellz)
+             * pawn_gol_suppression(world_pos.xz, render_pawn_pos().xz);
+    world_pos.y += lift * d.lift_scale - d.drop;
 
     var out: ShadowVarying;
     out.clip_pos = render_vp.light_vp * vec4(world_pos, 1.0);

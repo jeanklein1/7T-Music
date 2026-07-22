@@ -77,7 +77,7 @@ enum PolicyId : uint32_t {
     POLICY_WALKER_TILT          = 6,   // walker minus the self aura; carries walker's pawn-centered GoL suppression
     POLICY_WALKER_AGENT         = 7,
     POLICY_CELESTIAL            = 8,
-    POLICY_TERRAIN_RENDER       = 9,   // the fused render set: baked + aura + waves + pulses (no GoL)
+    POLICY_TERRAIN_RENDER       = 9,   // the fused render set: baked + aura + waves + pulses + GoL-via-the-card (UNIFIED_GROUND_1)
     POLICY_COUNT                = 10,
 };
 
@@ -244,6 +244,7 @@ inline constexpr PolicyDef POLICIES[] = {
         | (1u << CONTRIB_PYRAMIDS)
         | (1u << CONTRIB_TERRAIN_WAVES)
         | (1u << CONTRIB_RADIAL_PULSES)
+        | (1u << CONTRIB_GOL_ZONES)   // realized as the card's .a, cell-nearest, pawn-suppressed — UNIFIED_GROUND_1 (DAG: GoL has no ancestors)
         | (1u << CONTRIB_PAWN_AURA),
       /*gradient=*/true },                  // realized in the fused VS (texture .yz + analytic wave gradient)
 };
