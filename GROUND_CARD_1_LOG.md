@@ -195,3 +195,90 @@ kernel's own gid bound check covers the tail).
 ### Gate
 
 glaw1 after [2b]: `G-LAW 1: GREEN`.
+
+---
+
+## H3 — STAGE 2: THE LIVE CARD
+
+### Commit [3a] — 4f38cf7
+
+1. CLASS B, Dim:: cluster (anchor: MAX_ACTIVE_PATCHES line): appended
+   the LIVE CARD block. ADAPTATION (house style): plain `constexpr`
+   like every sibling in Dim (spec wrote `inline constexpr`). Only the
+   REAL witness committed (512*25 == 800*16 ⇔ texel = 1.5625 wu); the
+   handoff's placeholder assert dropped as instructed.
+2. CLASS A, binding_registry.hpp g0: live_card_write = 31 appended
+   directly under pyramid_instances = 30.
+3. CLASS A, binding_registry.hpp g1: live_card_read = 34 appended
+   directly under pawn_aura_read = 33.
+4. CLASS B, texture: pawnAuraTexture_ pattern cloned in full — members
+   (liveCardTexture_/liveCardWriteView_/liveCardView_), createTextures
+   block (512x512 RGBA16Float, TextureBinding|StorageBinding, label
+   "Live Card (512x512, RGBA16Float — GROUND_CARD_1)"), accessor
+   live_card_view().
+
+### Commit [3b] — 26f5b55
+
+5. CLASS B, world.wgsl beside PATCH_CELL_N/PATCH_EXTENT: mirror pair
+   LIVE_CARD_SIZE/LIVE_CARD_EXTENT + live_card_origin() (3.125 cell
+   snap of the point-centered window).
+6. CLASS B, declarations: g1:34 live_card_read beside pawn_aura_read
+   (g1:33); g0:31 live_card_write beside pawn_aura_tex_write (g0:172).
+   Slot check: g0:31 and g1:34 both free pre-edit (the only @binding(31)
+   was GROUP 1's zone_life_read — different group, no collision).
+7. CLASS B, §7.3b block inserted immediately before "// §7.4 PAWN
+   AURA": live_card_uv, sample_live_card (bilinear), sample_live_card_gol
+   (nearest, cell-exact), write_live_card @8x8.
+   SIGNATURES VERIFIED (logged per handoff):
+   - terrain_wave_overlay_with_gradient(world_xz: vec2<f32>) -> vec3<f32>
+     {h,gx,gz} — matches spec.
+   - contrib_gol_zones_at(world_xz: vec2<f32>) -> f32 — matches spec.
+   - contrib_radial_pulses_at(world_xz: vec2<f32>, t_seconds: f32) -> f32
+     — DIFFERS from spec (extra t_seconds param). Call site adapted
+     mechanically: contrib_radial_pulses_at(p, signal.t_seconds), per
+     the contributor's own doc ("compute stages (signal.t_seconds)").
+   Transitive binding needs of the writer verified: config (waves,
+   pulses, origin, band blends — get_band_blend reads config.band_blend_*),
+   signal (t_seconds), zone_config/zone_life (GoL). All in the H3 layout.
+
+### Commit [3c] — 26d38dd
+
+8. CLASS B, Live Card Writer Layout + BindGroup appended after the
+   Pawn Aura blocks; 5 entries (0 signal U, 1 config U, 160 zone_config,
+   161 zone_life, 31 storage-tex write); zone-pair home note in the
+   block comment. DEVIATION (logged): spec said ReadOnlyStorage for the
+   zone pair; the WGSL declarations are var<storage, read_write>
+   (world.wgsl:5711–5712) and ReadOnlyStorage against read_write fails
+   createComputePipeline validation — used Storage, exactly as the
+   Compute Entity layout documents for the same pair.
+9. CLASS B, renderer.hpp: aura pipeline pattern cloned —
+   Entry::WRITE_LIVE_CARD, liveCardWriterLayout_/Pipeline_ members,
+   layout pulled via live_card_writer_layout(), creation block (not
+   roster-gated — always on), dispatch_live_card_write(pass, group)
+   dispatching (LIVE_CARD_SIZE/8)^2 x1 = 64x64x1.
+10. CLASS B, render_passes.hpp: own-pass free function
+    dispatch_live_card_write(MachineCtx*, encoder), label "Live Card
+    Write". JUDGMENT NOTE: spec said clone "the dispatch_pawn_aura
+    free-function pattern" — no such free function exists (aura is
+    dispatched from bodies/pawn.hpp); cloned dispatch_placement_correction,
+    the house own-pass shape.
+11. CLASS B, cartridge.hpp spine: LiveCardWrite inserted in RPhase
+    after UploadPortalLights; table row mirrors the neighbor shape
+    (pasted neighbors: UploadPortalLights row Driver::Algo/F_CONFIG,
+    DispatchCompute row Driver::Mixed/F_COMPUTE; the card row uses
+    Driver::Mixed + F_COMPUTE — it is a music-driven compute dispatch);
+    phase_live_card_write calls the free function; the two order
+    static_asserts appended beside the existing spine asserts (house
+    style IS assert-on-enum-order — verbatim messages from the spec).
+    Spine density assert (RENDER_SPINE size == RPhase::COUNT) holds —
+    glaw1 compiles it.
+12. Debug eye: LIVE_CARD_DEBUG_VIEW = 0u const landed beside the new
+    consts (in [3c] per the handoff's item numbering); the terrain-FS
+    branch lands in H4 [4a] per H3's recorded decision.
+
+### Gate
+
+glaw1 after [3c]: `G-LAW 1: GREEN`.
+Rest-safety note: at rest terrain_time <= 0 zeroes the wave overlay,
+pulse_count = 0 zeroes pulses, zone count 0 zeroes GoL — the card
+writes zeros; nothing reads it yet (except the eye, off by default).
