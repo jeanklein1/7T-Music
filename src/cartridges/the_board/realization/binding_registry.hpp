@@ -20,9 +20,9 @@
 // ONE CONSTANT PER SITE, named for the site (the WGSL variable it mirrors),
 // NOT one-per-buffer. The number addresses a (group, slot); the shared
 // buffer handle lives in the group entry's `.buffer`, not here. So the same
-// buffer wears several names: patch_instances(340) /
-// zone_patch_instances(165); orb_state(410) / render_orb_state(400)
-// / orb_state_ro(413). Each name = one (group, slot).
+// buffer wears several names: patch_instances(340) / fc_patches(340);
+// orb_state(410) / render_orb_state(400) / orb_state_ro(413). Each
+// name = one (group, slot).
 //
 // THE CEILING (Option A). This single-sources the two C++ copies (layout +
 // group). The WGSL @binding literals in world.wgsl (100 declarations over 97
@@ -102,13 +102,13 @@ namespace t7 {
                 inline constexpr uint32_t zone_config                = 160;
                 inline constexpr uint32_t zone_life                  = 161;
                 inline constexpr uint32_t zone_life_tex_write        = 162;
-                inline constexpr uint32_t zone_heightfield           = 163;
-                inline constexpr uint32_t zone_hf_sampler            = 164;
-                inline constexpr uint32_t zone_patch_instances       = 165;
+                // 163/164/165 RETIRED — zone_heightfield / zone_hf_sampler /
+                // zone_patch_instances (the zone-mesh terrain-eval trio;
+                // UNIFIED_GROUND_1 U4 — numbers parked per the 149 precedent).
                 inline constexpr uint32_t zone_derive_requests       = 166;
-                inline constexpr uint32_t zone_mesh_vertices         = 167;
-                inline constexpr uint32_t zone_mesh_indices          = 168;
-                inline constexpr uint32_t zone_mesh_indirect         = 169;
+                // 167/168/169 RETIRED — zone_mesh_vertices / zone_mesh_indices /
+                // zone_mesh_indirect (the extrusion mesh trio; UNIFIED_GROUND_1 U4
+                // — numbers parked per the 149 precedent).
                 inline constexpr uint32_t pawn_aura_cfg              = 170;
                 inline constexpr uint32_t pawn_aura_cells            = 171;
                 inline constexpr uint32_t pawn_aura_tex_write        = 172;
