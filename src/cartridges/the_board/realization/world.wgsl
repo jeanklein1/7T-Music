@@ -2185,6 +2185,11 @@ const STEER_GRAD_HI: f32 = 1.4;        // above: full whisper (the wall's shadow
 const NONPLAYER_FLEE_GAIN: f32 = 0.8;   // < 1.0: body-to-body flee cascades CONTRACT
 const BUBBLE_PART_SPEED: f32 = 4.0;     // camera-host parting speed (the C3 fallback — no camera velocity field)
 
+// The social shell's FLEE expression is a FRACTION of its SENSING
+// expression — sensing (flock) is a long-range perception, fleeing is a
+// short-range reflex. 30+30 sensing -> 15 wu flee trigger. Jean-tunable.
+const FLEE_SHELL_FRAC: f32 = 0.25;   // CONTACT_3 K2a
+
 
 // §2.3 MUTING CONTROL
 
@@ -7185,7 +7190,7 @@ fn update_player_agent() {
             // APPROACH speed along dir (dir = other->me); the handoff's
             // dot(other.vel, -dir) measured RECEDING — sign-corrected to
             // +dir so the matador fires on approach (the C4 gate).
-            let pr = g_self.personal_radius + og.personal_radius;
+            let pr = (g_self.personal_radius + og.personal_radius) * FLEE_SHELL_FRAC;
             if (d2 < pr * pr && d2 > 0.0001 && k != config.possessed_slot) {
                 let fdpl = sqrt(max(dx * dx + dz * dz, 0.0001));
                 let dir = vec2(dx, dz) / fdpl;
@@ -7308,7 +7313,7 @@ fn update_other_agents(@builtin(global_invocation_id) gid: vec3<u32>) {
             // APPROACH speed along dir (dir = other->me); the handoff's
             // dot(other.vel, -dir) measured RECEDING — sign-corrected to
             // +dir so the matador fires on approach (the C4 gate).
-            let pr = g_self.personal_radius + og.personal_radius;
+            let pr = (g_self.personal_radius + og.personal_radius) * FLEE_SHELL_FRAC;
             if (d2 < pr * pr && d2 > 0.0001 && k != config.possessed_slot) {
                 let fdpl = sqrt(max(dx * dx + dz * dz, 0.0001));
                 let dir = vec2(dx, dz) / fdpl;
