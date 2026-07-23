@@ -303,6 +303,9 @@ namespace t7 {
             constexpr float PAWN_SPEED = 15.0f;
             constexpr float CAMERA_SENSITIVITY = 0.005f;
             constexpr float ACTIVE_CELL_SIZE = 64.0f;
+            constexpr float CUBE_PLASTICITY_DEFAULT = 0.6f;  // CONTACT_3: the live λ master;
+                                                             // Jean-tunable; 0 = elastic
+                                                             // (pre-CONTACT_3), 1 = fully sculptable
         }
 
         // Reserved-slot annotations mirrored from world.wgsl §2 — the
@@ -551,6 +554,7 @@ namespace t7 {
             float checker_music_amount;    // enveloped presence [0,1] — S1 pull + S2 wander scale
             float checker_music_variance;  // enveloped distinct-pc count — S3 within-patch spread
             float point_bubble_radius;     // CONTACT_2 C3a: the point's bounded awareness (rest 20; boot-pinned from contracts/point.hpp POINT_BUBBLE_RADIUS). Fills the checker tail pad — sizeof unchanged.
+            float cube_plasticity;         // CONTACT_3 K2c: global λ master (rest 0.6; boot-pinned from Idle::CUBE_PLASTICITY_DEFAULT). Also fills the checker tail pad — sizeof unchanged.
         };
 
         struct alignas(16) GPUTileGridEntry {
@@ -1453,7 +1457,7 @@ namespace t7 {
         };
 
         static_assert(sizeof(GPUFrameSignal) == 336, "GPUFrameSignal must be 336 bytes");
-        static_assert(sizeof(GPUDesignConfig) == 592, "GPUDesignConfig must be 592 bytes (576 + the CHECKER-REBUILD music_variance float: the vec3 resultant + amount fill the first slot, music_variance opens a second 16-byte slot with 12 B tail pad — Jean OK'd the witness move)");
+        static_assert(sizeof(GPUDesignConfig) == 592, "GPUDesignConfig must be 592 bytes (576 + the CHECKER-REBUILD music_variance float: the vec3 resultant + amount fill the first slot, music_variance opens a second 16-byte slot with 12 B tail pad, which CONTACT_2/3 filled with point_bubble_radius + cube_plasticity — 4 B tail pad remains, sizeof unchanged)");
 
         // Portal ellipse array — uploaded when portal set changes.
         // GPU behavior_player_controlled tests pawn against arch-shaped ellipses and writes portal_trigger.
@@ -2288,6 +2292,9 @@ namespace t7 {
             }
             void set_point_bubble_radius(float r) {   // CONTACT_2: the coupling campaign's wire
                 if (config_.point_bubble_radius != r) { config_.point_bubble_radius = r; configDirty_ = true; }
+            }
+            void set_cube_plasticity(float p) {        // CONTACT_3 K2c: the live λ master
+                if (config_.cube_plasticity != p) { config_.cube_plasticity = p; configDirty_ = true; }
             }
             void set_fpv_mode(uint32_t m) {
                 if (config_.fpv_mode != m) { config_.fpv_mode = m; configDirty_ = true; }
@@ -5763,6 +5770,7 @@ namespace t7 {
                 config_.point_host = 0;             // the pawn hosts (the kite)
                 config_.point_fly_speed = 0.0f;     // 0 → WGSL PAWN_SPEED fallback (the panel authors it)
                 config_.point_bubble_radius = POINT_BUBBLE_RADIUS;  // CONTACT_2: boot-pin the bubble from contracts/point.hpp (source of truth); rest 20.0
+                config_.cube_plasticity = Idle::CUBE_PLASTICITY_DEFAULT;  // CONTACT_3 K2c: boot-pin the live λ master; rest 0.6
                 config_.freeze_sphere = 0;
                 config_.active_cell_size = Idle::ACTIVE_CELL_SIZE;
                 config_.fpv_mode = 0;

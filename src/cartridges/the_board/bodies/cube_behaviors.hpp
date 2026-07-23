@@ -82,16 +82,19 @@ struct CubeTierGain {
     float spring_stiffness_mult;
     float drag_mult;
     float behavior_amp_mult;   // reserved; not yet consumed by kernel
-    float plasticity;          // CONTACT_2 λ: 0 = elastic (today, bit-exact);
-                               // 1 = fully sculptable. Jean-tunable.
+    float plasticity;          // CONTACT_3 K2c: per-tier RELATIVE λ character;
+                               // the live master is config.cube_plasticity.
+                               // Baked per-instance at spawn — changing a
+                               // ROW needs a respawn; the MASTER is live.
+                               // Jean-tunable in-row.
 };
 
 inline constexpr CubeTierGain CUBE_TIER_GAINS[CUBE_TIER_COUNT] = {
-    //                            spring  drag   amp   λ (plasticity — Jean-tunable)
-    /* 0 SmallCube */ { 0, "SmallCube", 1.0f, 1.0f, 1.0f, 0.0f },
-    /* 1 MedCube   */ { 1, "MedCube",   1.0f, 1.0f, 1.0f, 0.0f },
-    /* 2 LargeCube */ { 2, "LargeCube", 1.0f, 1.0f, 1.0f, 0.0f },
-    /* 3 Monolith  */ { 3, "Monolith",  1.0f, 1.0f, 1.0f, 0.0f },
+    //                            spring  drag   amp   λ (relative character — K2c; master = config.cube_plasticity)
+    /* 0 SmallCube */ { 0, "SmallCube", 1.0f, 1.0f, 1.0f, 1.0f },
+    /* 1 MedCube   */ { 1, "MedCube",   1.0f, 1.0f, 1.0f, 0.8f },
+    /* 2 LargeCube */ { 2, "LargeCube", 1.0f, 1.0f, 1.0f, 1.2f },
+    /* 3 Monolith  */ { 3, "Monolith",  1.0f, 1.0f, 1.0f, 0.5f },
 };
 
 static_assert(sizeof(CUBE_TIER_GAINS) / sizeof(CUBE_TIER_GAINS[0]) == CUBE_TIER_COUNT,

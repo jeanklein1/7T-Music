@@ -1686,6 +1686,7 @@ struct DesignConfig {
     checker_music_amount: f32,
     checker_music_variance: f32,
     point_bubble_radius: f32,   // CONTACT_2 C3a: the point's bounded awareness (rest 20 = contracts/point.hpp)
+    cube_plasticity: f32,       // CONTACT_3 K2c: global λ master (rest 0.6 = Idle::CUBE_PLASTICITY_DEFAULT)
 }
 
 // §2.2 — THE TERRAIN_LOOKS PANEL (WGSL room)
@@ -7910,7 +7911,8 @@ fn update_cube() {
             // anchor, so the anchor is dormant. (GPU anchor mutation
             // precedent: the kite-release freeze.)
             if (fe.follow_pawn == 0u) {
-                let leak = clamp(fe.plasticity * dt, 0.0, 1.0);
+                let lam = fe.plasticity * config.cube_plasticity;   // K2c: per-tier character x live master
+                let leak = clamp(lam * dt, 0.0, 1.0);
                 fe.anchor.x = fe.anchor.x + fe.drift.x * leak;
                 fe.anchor.z = fe.anchor.z + fe.drift.z * leak;
                 fe.drift.x = fe.drift.x - fe.drift.x * leak;
