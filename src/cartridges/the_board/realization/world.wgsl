@@ -2164,6 +2164,15 @@ const CONTACT_SPHERE_RADIUS: f32 = 12.0; // = Idle::SPHERE_INFLUENCE_RADIUS (C++
 const CONTACT_CUBE_RADIUS: f32 = 3.0;
 const PAWN_CONTACT_MASS_MULT: f32 = 4.0; // the pawn is heavy: agents yield, the player barely feels it
 
+// --- Gradient steering (CONTACT_2 C2a; the whisper before the wall)
+const STEER_LOOKAHEAD_WU: f32 = 4.0;   // sensing distance ahead of velocity
+const STEER_GAIN: f32 = 3.0;           // lateral accel per unit gradient
+// The walkable clamp (query_ground_walker_walkable) gates on a height
+// STEP (step_h), not a gradient-magnitude const, so there is no shared
+// steepness truth to re-point to; authored here (Jean-tunable):
+const STEER_GRAD_LO: f32 = 0.7;        // below: no whisper
+const STEER_GRAD_HI: f32 = 1.4;        // above: full whisper (the wall's shadow)
+
 
 // §2.3 MUTING CONTROL
 
@@ -8749,6 +8758,33 @@ fn sample_terrain_y_at(world_xz: vec2<f32>) -> f32 {
     let sample_uv = (uv * (res - 1.0) + 0.5) / res;
     return textureSampleLevel(photo_heightfield, photo_sampler,
                               sample_uv, layer, 0.0).x;
+}
+
+// CONTACT_2 C2a — gradient sibling of sample_terrain_y_at. Same patch_grid
+// lookup + uv math; returns the baked .yz slope (out-of-window => vec2(0),
+// per the original's convention). The whisper reader (steering); it adds
+// no binding — patch_grid/photo_heightfield/photo_sampler already resolve
+// in the agent kernels' closures. Living plateaus (card.a) are NOT steered
+// this batch — the card carries no GoL gradient (the deferred sibling).
+fn sample_terrain_grad_at(world_xz: vec2<f32>) -> vec2<f32> {
+    let gx = i32(floor(world_xz.x / patch_grid.cell_extent));
+    let gz = i32(floor(world_xz.y / patch_grid.cell_extent));
+    let lx = gx - patch_grid.origin_x;
+    let lz = gz - patch_grid.origin_z;
+    let s = i32(patch_grid.side);
+    if (lx < 0 || lz < 0 || lx >= s || lz >= s) { return vec2(0.0); }
+
+    let packed = patch_grid.entries[lz * s + lx];
+    if (packed == 0u) { return vec2(0.0); }
+    let layer = i32(packed - 1u);
+
+    let origin = vec2(f32(gx) + 0.5, f32(gz) + 0.5) * patch_grid.cell_extent;
+    let local = world_xz - origin;
+    let uv = local / patch_grid.cell_extent + 0.5;
+    let res = f32(PATCH_HEIGHTFIELD_N);
+    let sample_uv = (uv * (res - 1.0) + 0.5) / res;
+    return textureSampleLevel(photo_heightfield, photo_sampler,
+                              sample_uv, layer, 0.0).yz;
 }
 
 // --- Look-At VP Matrix
