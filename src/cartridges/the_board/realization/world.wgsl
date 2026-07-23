@@ -2245,17 +2245,16 @@ const FLEE_SHELL_FRAC: f32 = 0.25;   // CONTACT_3 K2a
 // Cube parting (CONTACT_3 K2b): contact-scale, not bubble-scale, and
 // capped — the C3b parting was radius 23 with force proportional to the
 // player's full speed, uncapped, into a spring integrator (it flung).
-// reference: cube altitude. Indoor cap = INDOOR_HEIGHT_CAP_FRACTION(0.75)
-// x VAULT ceiling(25) = 18.75 wu is the strict supremum on a cube's
-// vertical extent (center sits below it). The gate is 3D, so usable
-// lateral reach = sqrt(R^2 - H^2), R MUST exceed H. At R = 8 < 18.75 the
-// gate is DEAD (imaginary reach). S2b: R = 30 (18.75 + ~11 lateral);
-// reach directly under the tallest indoor cube = sqrt(30^2 - 18.75^2)
-// ~= 23.4 wu. OUTDOOR CAVEAT: outdoor moods do NOT cap (orbit_height
-// raw Gaussian, means 25/45/75) -> outdoor cubes above 30 stay beyond
-// this radius; a per-instance radius (fe.orbit_height + margin) is the
-// deferred fix.
-const CUBE_PART_RADIUS: f32 = 8.0;   // parting reach (was 3 + 20 bubble)
+// DERIVED from cube altitude (CONTACT_4 S2b). Indoor cap =
+// INDOOR_HEIGHT_CAP_FRACTION(0.75) x VAULT ceiling(25) = 18.75 wu is the
+// strict supremum on a cube's vertical extent (center sits below it). The
+// gate is 3D, so usable lateral reach = sqrt(R^2 - H^2), R MUST exceed H.
+// R = 18.75 + ~11 lateral = 30; reach directly under the tallest indoor
+// cube = sqrt(30^2 - 18.75^2) ~= 23.4 wu. (Was 8 < 18.75 => gate DEAD.)
+// OUTDOOR CAVEAT: outdoor moods do NOT cap (orbit_height raw Gaussian,
+// means 25/45/75) -> outdoor cubes above 30 stay beyond this radius; a
+// per-instance radius (fe.orbit_height + margin) is the deferred fix.
+const CUBE_PART_RADIUS: f32 = 30.0;  // parting reach (indoor cap 18.75 + 11 lateral)
 const CUBE_PART_CAP: f32 = 12.0;     // units: max parting force magnitude (accel). Not a radius.
 const CUBE_PART_GAIN: f32 = 1.0;     // dimensionless: force per unit approach speed
 
@@ -7923,8 +7922,10 @@ fn update_cube() {
                         let pawn = agent_state[config.possessed_slot];
                         v_ap = max(0.0, (pawn.vel_x * qdx + pawn.vel_z * qdz) / qdpl);
                     }
-                    // K2b: capped + falloff-shaped — parting, not launching.
-                    let falloff = clamp(1.0 - qdpl / CUBE_PART_RADIUS, 0.0, 1.0);
+                    // CONTACT_4 S2b: 3D falloff (matches the 3D gate — a cube
+                    // directly overhead reads its true distance, not planar 0).
+                    // Response stays planar (qdx/qdpl). Capped, parting not launching.
+                    let falloff = clamp(1.0 - sqrt(qd2) / CUBE_PART_RADIUS, 0.0, 1.0);
                     let f = min(v_ap * CUBE_PART_GAIN * falloff, CUBE_PART_CAP);
                     parting_force = vec3(qdx / qdpl, 0.0, qdz / qdpl) * f;
                 }
