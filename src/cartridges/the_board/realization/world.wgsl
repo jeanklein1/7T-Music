@@ -7149,6 +7149,31 @@ fn update_player_agent() {
                 agent.vel_x += (dx / d_pl) * push;
                 agent.vel_z += (dz / d_pl) * push;
             }
+            // ── flee servo (CONTACT_2 C3b): 3D gate, planar response ──
+            // Body-to-body flee within the personal-shell radii, gain
+            // NONPLAYER_FLEE_GAIN (<1: cascades CONTRACT). The pawn pair
+            // (possessed slot) keeps ONLY the contact spring — in
+            // update_other_agents the point-source term below flees the
+            // pawn's PRESENCE (in update_player_agent this pair never
+            // occurs, so the skip is a no-op). SIGN NOTE: v_ap is other's
+            // APPROACH speed along dir (dir = other->me); the handoff's
+            // dot(other.vel, -dir) measured RECEDING — sign-corrected to
+            // +dir so the matador fires on approach (the C4 gate).
+            let pr = g_self.personal_radius + og.personal_radius;
+            if (d2 < pr * pr && d2 > 0.0001 && k != config.possessed_slot) {
+                let fdpl = sqrt(max(dx * dx + dz * dz, 0.0001));
+                let dir = vec2(dx, dz) / fdpl;
+                let v_ap = max(0.0, dot(vec2(other.vel_x, other.vel_z), dir));
+                let deficit = v_ap * NONPLAYER_FLEE_GAIN
+                            - dot(vec2(agent.vel_x, agent.vel_z), dir);
+                if (v_ap > 0.001 && deficit > 0.0) {
+                    let tang = vec2(-dir.y, dir.x)
+                             * sign(other.vel_x * dir.y - other.vel_z * dir.x + 0.000001);
+                    let esc = normalize(dir + tang * 0.6);   // the matador split
+                    agent.vel_x += esc.x * deficit;
+                    agent.vel_z += esc.y * deficit;
+                }
+            }
         }
         // spheres push walkers (celestial-massive: only self yields)
         for (var sph = 0u; sph < SPHERE_SLOT_COUNT; sph++) {
@@ -7239,6 +7264,31 @@ fn update_other_agents(@builtin(global_invocation_id) gid: vec3<u32>) {
                 agent.vel_x += (dx / d_pl) * push;
                 agent.vel_z += (dz / d_pl) * push;
             }
+            // ── flee servo (CONTACT_2 C3b): 3D gate, planar response ──
+            // Body-to-body flee within the personal-shell radii, gain
+            // NONPLAYER_FLEE_GAIN (<1: cascades CONTRACT). The pawn pair
+            // (possessed slot) keeps ONLY the contact spring — in
+            // update_other_agents the point-source term below flees the
+            // pawn's PRESENCE (in update_player_agent this pair never
+            // occurs, so the skip is a no-op). SIGN NOTE: v_ap is other's
+            // APPROACH speed along dir (dir = other->me); the handoff's
+            // dot(other.vel, -dir) measured RECEDING — sign-corrected to
+            // +dir so the matador fires on approach (the C4 gate).
+            let pr = g_self.personal_radius + og.personal_radius;
+            if (d2 < pr * pr && d2 > 0.0001 && k != config.possessed_slot) {
+                let fdpl = sqrt(max(dx * dx + dz * dz, 0.0001));
+                let dir = vec2(dx, dz) / fdpl;
+                let v_ap = max(0.0, dot(vec2(other.vel_x, other.vel_z), dir));
+                let deficit = v_ap * NONPLAYER_FLEE_GAIN
+                            - dot(vec2(agent.vel_x, agent.vel_z), dir);
+                if (v_ap > 0.001 && deficit > 0.0) {
+                    let tang = vec2(-dir.y, dir.x)
+                             * sign(other.vel_x * dir.y - other.vel_z * dir.x + 0.000001);
+                    let esc = normalize(dir + tang * 0.6);   // the matador split
+                    agent.vel_x += esc.x * deficit;
+                    agent.vel_z += esc.y * deficit;
+                }
+            }
         }
         // spheres push walkers (celestial-massive: only self yields)
         for (var sph = 0u; sph < SPHERE_SLOT_COUNT; sph++) {
@@ -7256,6 +7306,44 @@ fn update_other_agents(@builtin(global_invocation_id) gid: vec3<u32>) {
                                CONTACT_IMPULSE_CAP);
                 agent.vel_x += (dx / d_pl) * push;
                 agent.vel_z += (dz / d_pl) * push;
+            }
+        }
+
+        // ── THE POINT SOURCE (CONTACT_2 C3b): flee is the point's ──
+        // Presence, not a body: agents part around the POINT within
+        // (personal + bubble) radius. Host-routed source velocity —
+        // pawn-host: the possessed slot's velocity; camera-host has NO
+        // velocity field, so v_ap := BUBBLE_PART_SPEED (the documented
+        // fallback; TODO(camera-velocity): the real field is the
+        // upgrade). "flee is the POINT's (presence); shove is the BODY's
+        // (emanation) — the point contract's split." 3D gate, planar
+        // response; v_ap sign-corrected as above.
+        {
+            let pt = point_pos();
+            let pdx = agent.pos_x - pt.x;
+            let pdy = agent.pos_y - pt.y;
+            let pdz = agent.pos_z - pt.z;
+            let pd2 = pdx * pdx + pdy * pdy + pdz * pdz;   // 3D gate
+            let ppr = g_self.personal_radius + config.point_bubble_radius;
+            if (pd2 < ppr * ppr && pd2 > 0.0001) {
+                let pdpl = sqrt(max(pdx * pdx + pdz * pdz, 0.0001));
+                let pdir = vec2(pdx, pdz) / pdpl;          // point -> me
+                var pvel = vec2(0.0);
+                var v_ap = BUBBLE_PART_SPEED;
+                if (!point_camera_hosted()) {
+                    let pawn = agent_state[config.possessed_slot];
+                    pvel = vec2(pawn.vel_x, pawn.vel_z);
+                    v_ap = max(0.0, dot(pvel, pdir));
+                }
+                let deficit = v_ap * g_self.flee_gain_player
+                            - dot(vec2(agent.vel_x, agent.vel_z), pdir);
+                if (v_ap > 0.001 && deficit > 0.0) {
+                    let tang = vec2(-pdir.y, pdir.x)
+                             * sign(pvel.x * pdir.y - pvel.y * pdir.x + 0.000001);
+                    let esc = normalize(pdir + tang * 0.6);
+                    agent.vel_x += esc.x * deficit;
+                    agent.vel_z += esc.y * deficit;
+                }
             }
         }
     }
@@ -7687,8 +7775,31 @@ fn update_cube() {
                     contact_force = vec3((cdx / cd_pl) * mag, 0.0, (cdz / cd_pl) * mag);
                 }
             }
+            // ── THE POINT SOURCE parting (CONTACT_2 C3b): cubes part ──
+            // like water — a drift force away from the point scaled by
+            // its approach speed; the drift spring (or λ) decides the
+            // return. Host-routed v_ap; camera-host fallback
+            // BUBBLE_PART_SPEED (no camera velocity field).
+            var parting_force = vec3(0.0);
+            {
+                let pt = point_pos();
+                let qdx = fe.pos.x - pt.x;
+                let qdy = fe.pos.y - pt.y;
+                let qdz = fe.pos.z - pt.z;
+                let qd2 = qdx * qdx + qdy * qdy + qdz * qdz;
+                let qpr = CONTACT_CUBE_RADIUS + config.point_bubble_radius;
+                if (qd2 < qpr * qpr && qd2 > 0.0001) {
+                    let qdpl = sqrt(max(qdx * qdx + qdz * qdz, 0.0001));
+                    var v_ap = BUBBLE_PART_SPEED;
+                    if (!point_camera_hosted()) {
+                        let pawn = agent_state[config.possessed_slot];
+                        v_ap = max(0.0, (pawn.vel_x * qdx + pawn.vel_z * qdz) / qdpl);
+                    }
+                    parting_force = vec3(qdx / qdpl, 0.0, qdz / qdpl) * v_ap * CONTACT_SPRING;
+                }
+            }
             let spring_a = -fe.drift * fe.spring_stiffness;
-            fe.drift_vel = fe.drift_vel + (spring_a + behavior_force + contact_force) * dt;
+            fe.drift_vel = fe.drift_vel + (spring_a + behavior_force + contact_force + parting_force) * dt;
             fe.drift_vel = fe.drift_vel * exp(-fe.drag * dt);
             fe.drift = fe.drift + fe.drift_vel * dt;
 
