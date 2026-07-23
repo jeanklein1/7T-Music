@@ -6305,11 +6305,14 @@ fn step_trigger(step_rate: f32) -> StepTrigger {
     return StepTrigger(step_idx > prev_step_idx, step_idx);
 }
 
-// ─── Shared post-step ────────────────────────────────────────────
-// Behaviors only modify a.vel_x / a.vel_z. This helper applies the
-// rest: exponential drag, speed cap, position integration, ground
-// snap, and heading-from-velocity. Pulled out of each behavior body
-// so FXC compiles it once per kernel rather than ten times.
+// ─── Shared post-step (VELOCITY shaping only) ────────────────────
+// agent_post_step applies drag, the speed cap, and the C2b steering
+// block — velocity shaping ONLY. Integration + ground snap + heading
+// moved to agent_settle (CONTACT_3 K1a), which the KERNEL calls AFTER
+// the contact gather: THE SPEED CAP GOVERNS INTENT, NOT IMPOSITION — a
+// body chooses how fast it WALKS, not how fast it is DISPLACED by
+// another body. Behaviors' call sites are unchanged (same name, same
+// params); only the contract narrowed.
 //
 // Each behavior reads its own (drag, speed_cap) from
 // agent_behaviors[id], with tier scaling applied via
@@ -6318,7 +6321,6 @@ fn step_trigger(step_rate: f32) -> StepTrigger {
 fn agent_post_step(agent_in: AgentState, drag: f32, speed_cap: f32, speed_gain: f32) -> AgentState {
     var a = agent_in;
     let dt = signal.dt;
-    let t  = signal.t_seconds;
 
     // Drag (physical, in seconds).
     let decay = exp(-drag * dt);
@@ -6357,6 +6359,21 @@ fn agent_post_step(agent_in: AgentState, drag: f32, speed_cap: f32, speed_gain: 
         a.vel_z += perp.y * f;
     }
 
+    return a;
+}
+
+// agent_settle — INTEGRATION + ground snap + heading, moved out of
+// agent_post_step at CONTACT_3 K1a. The KERNEL calls this AFTER the
+// contact gather, so the speed cap governs INTENT, not imposition — a
+// body does not choose how fast it is displaced by another body. sp2 is
+// recomputed from the POST-gather velocity so the integration and the
+// heading reflect the imposed motion too.
+fn agent_settle(agent_in: AgentState) -> AgentState {
+    var a = agent_in;
+    let dt = signal.dt;
+    let t  = signal.t_seconds;
+    let sp2 = a.vel_x * a.vel_x + a.vel_z * a.vel_z;
+
     // Position integration.
     a.pos_x += a.vel_x * dt;
     a.pos_z += a.vel_z * dt;
@@ -6381,8 +6398,9 @@ fn agent_post_step(agent_in: AgentState, drag: f32, speed_cap: f32, speed_gain: 
 // ═══ BEHAVIOR IMPLEMENTATIONS ════════════════════════════════════
 //
 // Each behavior is a pure function (AgentState) -> AgentState that
-// modifies velocity only — drag, integration, ground snap, heading
-// are factored into agent_post_step above. The kernel switch
+// modifies velocity only — drag, cap, and steering are factored into
+// agent_post_step; integration, ground snap, and heading into
+// agent_settle (the kernel calls it AFTER the gather). The kernel switch
 // dispatches on agent.behavior_id; slot numbers must match the
 // AgentBehaviorId enum in bodies/agents.hpp. Behavior parameters
 // come from agent_behaviors[behavior_id] (uploaded once at world
@@ -7347,6 +7365,15 @@ fn update_other_agents(@builtin(global_invocation_id) gid: vec3<u32>) {
             }
         }
     }
+
+    // ── CONTACT_3 K1a: integrate + snap AFTER the gather ───────────
+    // Order: behavior (velocity shaped) -> gather (imposed velocity) ->
+    // settle (integrate + ground snap) -> evict. The speed cap governs
+    // intent, not imposition — imposed motion lands the same frame and
+    // is never capped. (The gather read a pre-settle pos = last frame's
+    // snapped position for the 3D gate; dy changes slowly, a one-frame-
+    // stale y is immaterial to a soft field — named, accepted.)
+    agent = agent_settle(agent);
 
     // Point-centered eviction (was the possessed slot).
     // Non-player agents that wander too far from THE POINT are
