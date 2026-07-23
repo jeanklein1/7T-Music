@@ -2317,20 +2317,26 @@ fn influence_response(self_pos: vec3<f32>, self_vel: vec2<f32>,
                       p: InfluenceProfile, dt: f32,
                       approach_floor: f32) -> vec2<f32> {
     let d3 = self_pos - other_pos;
-    let d2_3d = dot(d3, d3);
+    // Explicit sum (NOT dot(d3,d3)) so the fma lowering matches the inline
+    // sites' `dx*dx + dy*dy + dz*dz` bit-for-bit (CONTACT_5 P1 verify).
+    let d2_3d = d3.x * d3.x + d3.y * d3.y + d3.z * d3.z;
     // Degenerate coincidence -- every current site skips at d2 <= 0.0001.
     if (d2_3d <= 0.0001) { return vec2<f32>(0.0, 0.0); }
     let d_pl = sqrt(max(d3.x * d3.x + d3.z * d3.z, 0.0001));
     // THE GATE -- spherical (a ball is a ball) or cylindrical (the column
     // beneath a hovering body: you shove a floating cube by walking under it).
-    var d_gate = d_pl;
-    if (p.vwindow <= 0.0) {
-        d_gate = sqrt(d2_3d);
-    } else if (abs(d3.y) > p.vwindow) {
-        return vec2<f32>(0.0, 0.0);
+    // Compared in SQUARED space (d2 >= r*r), exactly as the inline sites did
+    // (d2 < r*r): comparing sqrt(d2) < r flips a thin f32 band at the shell
+    // edge, and on the FLAT flee shell that flip is a full-magnitude impulse
+    // (CONTACT_5 P1 verify found this — the reason the gate is squared).
+    var d2_gate = d2_3d;
+    if (p.vwindow > 0.0) {
+        if (abs(d3.y) > p.vwindow) { return vec2<f32>(0.0, 0.0); }
+        d2_gate = d3.x * d3.x + d3.z * d3.z;             // cylindrical: planar
     }
-    if (d_gate >= p.radius) { return vec2<f32>(0.0, 0.0); }
-    let dir = vec2<f32>(d3.x, d3.z) / d_pl;              // other -> self
+    if (d2_gate >= p.radius * p.radius) { return vec2<f32>(0.0, 0.0); }
+    let d_gate = sqrt(d2_gate);
+    let dir = vec2<f32>(d3.x, d3.z) / d_pl;              // other -> self (RAW; not re-normalized)
     let fall = mix(1.0, clamp(1.0 - d_gate / p.radius, 0.0, 1.0),
                    clamp(p.falloff_mix, 0.0, 1.0));
     // PRESENCE -- occupancy. Impulse: dt-scaled (K1). fall = 1 for the
@@ -2345,13 +2351,24 @@ fn influence_response(self_pos: vec3<f32>, self_vel: vec2<f32>,
             let deficit = v_ap * p.approach_gain * fall - dot(self_vel, dir);
             if (deficit > 0.0) {
                 mag += deficit;
-                let tang = vec2<f32>(-dir.y, dir.x)
-                         * sign(other_vel.x * dir.y - other_vel.y * dir.x + 0.000001);
-                esc = normalize(dir + tang * p.tangential);   // the matador split
+                // The matador tangential split ONLY when tangential > 0 (the
+                // flees, which normalize dir+tang). The cube parting is radial
+                // (tangential 0) and used the RAW dir, never re-normalized --
+                // leave esc = dir (CONTACT_5 P1 verify: normalize() diverged
+                // macroscopically when a cube sat nearly overhead, |dir| < 1).
+                if (p.tangential > 0.0) {
+                    let tang = vec2<f32>(-dir.y, dir.x)
+                             * sign(other_vel.x * dir.y - other_vel.y * dir.x + 0.000001);
+                    esc = normalize(dir + tang * p.tangential);   // the matador split
+                }
             }
         }
     }
-    return esc * min(mag, p.cap) * p.yield_share;
+    // Scalar-first: fold (min*yield) BEFORE the vec multiply, matching the
+    // inline dir*(scalar) grouping (f32 * is non-associative -- CONTACT_5 P1
+    // verify: (dir*m)*y vs dir*(m*y) diverged by 1 ULP on ~15% of pairs).
+    let s = min(mag, p.cap) * p.yield_share;
+    return esc * s;
 }
 
 
@@ -7352,44 +7369,33 @@ fn update_player_agent() {
             let og = agent_tier_gains[min(other.tier_idx, 3u)];
             var m_other = og.contact_mass;
             if (k == config.possessed_slot) { m_other *= PAWN_CONTACT_MASS_MULT; }
-            let dx = agent.pos_x - other.pos_x;
-            let dy = agent.pos_y - other.pos_y;
-            let dz = agent.pos_z - other.pos_z;
-            let d2 = dx * dx + dy * dy + dz * dz;
-            let r  = g_self.contact_radius + og.contact_radius;
-            if (d2 < r * r && d2 > 0.0001) {
-                let d = sqrt(d2);
-                let d_pl = sqrt(max(dx * dx + dz * dz, 0.0001));
-                let push = min((r - d) * CONTACT_SPRING * signal.dt,
-                               CONTACT_IMPULSE_CAP)
-                         * (m_other / (m_self + m_other));
-                agent.vel_x += (dx / d_pl) * push;
-                agent.vel_z += (dz / d_pl) * push;
-            }
-            // ── flee servo (CONTACT_2 C3b): 3D gate, planar response ──
-            // Body-to-body flee within the personal-shell radii, gain
-            // NONPLAYER_FLEE_GAIN (<1: cascades CONTRACT). The pawn pair
-            // (possessed slot) keeps ONLY the contact spring — in
-            // update_other_agents the point-source term below flees the
-            // pawn's PRESENCE (in update_player_agent this pair never
-            // occurs, so the skip is a no-op). SIGN NOTE: v_ap is other's
-            // APPROACH speed along dir (dir = other->me); the handoff's
-            // dot(other.vel, -dir) measured RECEDING — sign-corrected to
-            // +dir so the matador fires on approach (the C4 gate).
-            let pr = (g_self.personal_radius + og.personal_radius) * FLEE_SHELL_FRAC;
-            if (d2 < pr * pr && d2 > 0.0001 && k != config.possessed_slot) {
-                let fdpl = sqrt(max(dx * dx + dz * dz, 0.0001));
-                let dir = vec2(dx, dz) / fdpl;
-                let v_ap = max(0.0, dot(vec2(other.vel_x, other.vel_z), dir));
-                let deficit = v_ap * NONPLAYER_FLEE_GAIN
-                            - dot(vec2(agent.vel_x, agent.vel_z), dir);
-                if (v_ap > 0.001 && deficit > 0.0) {
-                    let tang = vec2(-dir.y, dir.x)
-                             * sign(other.vel_x * dir.y - other.vel_z * dir.x + 0.000001);
-                    let esc = normalize(dir + tang * 0.6);   // the matador split
-                    agent.vel_x += esc.x * deficit;
-                    agent.vel_z += esc.y * deficit;
-                }
+            let self_p = vec3(agent.pos_x, agent.pos_y, agent.pos_z);
+            let other_p = vec3(other.pos_x, other.pos_y, other.pos_z);
+            // CONTACT_5 P1b: agent-agent contact (PRESENCE) through the one
+            // body, all pairs. Reproduces the C1a spring exactly (cap before
+            // the mass weight -- min() then * yield_share). Bit-proof: LOG.
+            let c_prof = InfluenceProfile(
+                g_self.contact_radius + og.contact_radius, 0.0,
+                CONTACT_SPRING, 0.0, 0.0, CONTACT_IMPULSE_CAP,
+                m_other / (m_self + m_other), 0.0);
+            let c_r = influence_response(self_p, vec2(0.0), other_p, vec2(0.0),
+                                         c_prof, signal.dt, 0.0);
+            agent.vel_x += c_r.x;
+            agent.vel_z += c_r.y;
+            // CONTACT_5 P1b: body-to-body flee (APPROACH) -- skip the possessed
+            // pair. self_vel reads the POST-contact velocity (the same
+            // sequential dependency the inline blocks had). falloff_mix 0 = the
+            // flat shell the audit found here, kept as a VISIBLE column beside
+            // the point row's falloff_mix 1 (Jean's call whether it softens).
+            if (k != config.possessed_slot) {
+                let f_prof = InfluenceProfile(
+                    (g_self.personal_radius + og.personal_radius) * FLEE_SHELL_FRAC, 0.0,
+                    0.0, NONPLAYER_FLEE_GAIN, 0.0, INFLUENCE_NO_CAP, 1.0, 0.6);
+                let f_r = influence_response(self_p, vec2(agent.vel_x, agent.vel_z),
+                                             other_p, vec2(other.vel_x, other.vel_z),
+                                             f_prof, signal.dt, 0.0);
+                agent.vel_x += f_r.x;
+                agent.vel_z += f_r.y;
             }
         }
         // spheres do not move the point's body (CONTACT_4 S2c, Jean's
@@ -7459,117 +7465,78 @@ fn update_other_agents(@builtin(global_invocation_id) gid: vec3<u32>) {
             let og = agent_tier_gains[min(other.tier_idx, 3u)];
             var m_other = og.contact_mass;
             if (k == config.possessed_slot) { m_other *= PAWN_CONTACT_MASS_MULT; }
-            let dx = agent.pos_x - other.pos_x;
-            let dy = agent.pos_y - other.pos_y;
-            let dz = agent.pos_z - other.pos_z;
-            let d2 = dx * dx + dy * dy + dz * dz;
-            let r  = g_self.contact_radius + og.contact_radius;
-            if (d2 < r * r && d2 > 0.0001) {
-                let d = sqrt(d2);
-                let d_pl = sqrt(max(dx * dx + dz * dz, 0.0001));
-                let push = min((r - d) * CONTACT_SPRING * signal.dt,
-                               CONTACT_IMPULSE_CAP)
-                         * (m_other / (m_self + m_other));
-                agent.vel_x += (dx / d_pl) * push;
-                agent.vel_z += (dz / d_pl) * push;
-            }
-            // ── flee servo (CONTACT_2 C3b): 3D gate, planar response ──
-            // Body-to-body flee within the personal-shell radii, gain
-            // NONPLAYER_FLEE_GAIN (<1: cascades CONTRACT). The pawn pair
-            // (possessed slot) keeps ONLY the contact spring — in
-            // update_other_agents the point-source term below flees the
-            // pawn's PRESENCE (in update_player_agent this pair never
-            // occurs, so the skip is a no-op). SIGN NOTE: v_ap is other's
-            // APPROACH speed along dir (dir = other->me); the handoff's
-            // dot(other.vel, -dir) measured RECEDING — sign-corrected to
-            // +dir so the matador fires on approach (the C4 gate).
-            let pr = (g_self.personal_radius + og.personal_radius) * FLEE_SHELL_FRAC;
-            if (d2 < pr * pr && d2 > 0.0001 && k != config.possessed_slot) {
-                let fdpl = sqrt(max(dx * dx + dz * dz, 0.0001));
-                let dir = vec2(dx, dz) / fdpl;
-                let v_ap = max(0.0, dot(vec2(other.vel_x, other.vel_z), dir));
-                let deficit = v_ap * NONPLAYER_FLEE_GAIN
-                            - dot(vec2(agent.vel_x, agent.vel_z), dir);
-                if (v_ap > 0.001 && deficit > 0.0) {
-                    let tang = vec2(-dir.y, dir.x)
-                             * sign(other.vel_x * dir.y - other.vel_z * dir.x + 0.000001);
-                    let esc = normalize(dir + tang * 0.6);   // the matador split
-                    agent.vel_x += esc.x * deficit;
-                    agent.vel_z += esc.y * deficit;
-                }
+            let self_p = vec3(agent.pos_x, agent.pos_y, agent.pos_z);
+            let other_p = vec3(other.pos_x, other.pos_y, other.pos_z);
+            // CONTACT_5 P1b: agent-agent contact (PRESENCE) through the one
+            // body, all pairs. Reproduces the C1a spring exactly (cap before
+            // the mass weight -- min() then * yield_share). Bit-proof: LOG.
+            let c_prof = InfluenceProfile(
+                g_self.contact_radius + og.contact_radius, 0.0,
+                CONTACT_SPRING, 0.0, 0.0, CONTACT_IMPULSE_CAP,
+                m_other / (m_self + m_other), 0.0);
+            let c_r = influence_response(self_p, vec2(0.0), other_p, vec2(0.0),
+                                         c_prof, signal.dt, 0.0);
+            agent.vel_x += c_r.x;
+            agent.vel_z += c_r.y;
+            // CONTACT_5 P1b: body-to-body flee (APPROACH) -- skip the possessed
+            // pair. self_vel reads the POST-contact velocity (the same
+            // sequential dependency the inline blocks had). falloff_mix 0 = the
+            // flat shell the audit found here, kept as a VISIBLE column beside
+            // the point row's falloff_mix 1 (Jean's call whether it softens).
+            if (k != config.possessed_slot) {
+                let f_prof = InfluenceProfile(
+                    (g_self.personal_radius + og.personal_radius) * FLEE_SHELL_FRAC, 0.0,
+                    0.0, NONPLAYER_FLEE_GAIN, 0.0, INFLUENCE_NO_CAP, 1.0, 0.6);
+                let f_r = influence_response(self_p, vec2(agent.vel_x, agent.vel_z),
+                                             other_p, vec2(other.vel_x, other.vel_z),
+                                             f_prof, signal.dt, 0.0);
+                agent.vel_x += f_r.x;
+                agent.vel_z += f_r.y;
             }
         }
         // spheres push walkers (celestial-massive: only self yields)
         for (var sph = 0u; sph < SPHERE_SLOT_COUNT; sph++) {
             let fe = floating_entities.entities[sph];
             if (fe.is_active == 0u) { continue; }
-            let dx = agent.pos_x - fe.pos.x;
-            let dy = agent.pos_y - fe.pos.y;
-            let dz = agent.pos_z - fe.pos.z;
-            let d2 = dx * dx + dy * dy + dz * dz;
-            // CONTACT_4 S2c: reference is the sphere's OWN body (fe.body_radius,
-            // per-instance ~1.2-1.5 wu). The retired CONTACT_SPHERE_RADIUS 12.0
-            // was the sphere's INFLUENCE radius (colour/terrain field), so agents
-            // were pushed from well outside the sphere they could see. Closes the
-            // deferred per-slot-floater-radii item.
-            let r  = g_self.contact_radius + fe.body_radius;
-            if (d2 < r * r && d2 > 0.0001) {
-                let d = sqrt(d2);
-                let d_pl = sqrt(max(dx * dx + dz * dz, 0.0001));
-                let push = min((r - d) * CONTACT_SPRING * signal.dt,
-                               CONTACT_IMPULSE_CAP);
-                agent.vel_x += (dx / d_pl) * push;
-                agent.vel_z += (dz / d_pl) * push;
-            }
+            // CONTACT_5 P1b: agent-vs-sphere contact (PRESENCE) through the one
+            // body. Reference is the sphere's OWN body (fe.body_radius, S2c);
+            // yield 1 -- the agent takes the whole push, the sphere is unmoved
+            // here (P2a gives the sphere authority over the POINT, not agents).
+            let s_prof = InfluenceProfile(
+                g_self.contact_radius + fe.body_radius, 0.0,
+                CONTACT_SPRING, 0.0, 0.0, CONTACT_IMPULSE_CAP, 1.0, 0.0);
+            let s_r = influence_response(
+                vec3(agent.pos_x, agent.pos_y, agent.pos_z), vec2(0.0),
+                fe.pos, vec2(0.0), s_prof, signal.dt, 0.0);
+            agent.vel_x += s_r.x;
+            agent.vel_z += s_r.y;
         }
 
-        // ── THE POINT SOURCE (CONTACT_2 C3b): flee is the point's ──
-        // Presence, not a body: agents part around the POINT within
-        // (personal + bubble) radius. Host-routed source velocity —
-        // pawn-host: the possessed slot's velocity; camera-host has NO
-        // velocity field, so v_ap := BUBBLE_PART_SPEED (the documented
-        // fallback; TODO(camera-velocity): the real field is the
-        // upgrade). "flee is the POINT's (presence); shove is the BODY's
-        // (emanation) — the point contract's split." 3D gate, planar
-        // response; v_ap sign-corrected as above.
+        // ── THE POINT SOURCE (CONTACT_5 P1b): flee is the point's ──
+        // Presence, not a body: agents part around the POINT within the bubble.
+        // One body now -- the APPROACH profile with falloff_mix 1 (the S2a
+        // proximity reflex, a VISIBLE column beside the flat body-to-body row).
+        // Host-routed: pawn-host passes the pawn's velocity; camera-host passes
+        // approach_floor = BUBBLE_PART_SPEED (the isotropic fallback -- no
+        // camera velocity field yet; the deferred config.point_vel_x/z retires
+        // it). point_pos() is the emitter -- PRESENCE FOLLOWS THE POINT.
         {
-            let pt = point_pos();
-            let pdx = agent.pos_x - pt.x;
-            let pdy = agent.pos_y - pt.y;
-            let pdz = agent.pos_z - pt.z;
-            let pd2 = pdx * pdx + pdy * pdy + pdz * pdz;   // 3D gate
-            // CONTACT_4 S2a: the point's social shell IS the bubble — the
-            // semantic radius of presence (contracts/point.hpp). personal_radius
-            // is a BODY shell and was double-counting a body into a presence
-            // term (30+20 = 50 wu = a whole patch; agents fled uncatchably).
-            let ppr = config.point_bubble_radius;     // 20 wu (was 30+20 = 50)
-            if (pd2 < ppr * ppr && pd2 > 0.0001) {
-                let pdpl = sqrt(max(pdx * pdx + pdz * pdz, 0.0001));
-                let pdir = vec2(pdx, pdz) / pdpl;          // point -> me
-                var pvel = vec2(0.0);
-                var v_ap = BUBBLE_PART_SPEED;
-                if (!point_camera_hosted()) {
-                    let pawn = agent_state[config.possessed_slot];
-                    pvel = vec2(pawn.vel_x, pawn.vel_z);
-                    v_ap = max(0.0, dot(pvel, pdir));
-                }
-                // CONTACT_4 S2a: the PROXIMITY FALLOFF the servo never had.
-                // behavior_flee uses this exact 1 - dist/radius shape. The flee
-                // is a REFLEX, not a policy: full at contact, nil at the shell
-                // edge. Without it the floor is constant across the whole shell
-                // and the crowd flees a walking player from a patch away.
-                let pd = sqrt(pd2);
-                let prox = clamp(1.0 - pd / ppr, 0.0, 1.0);
-                let deficit = v_ap * g_self.flee_gain_player * prox
-                            - dot(vec2(agent.vel_x, agent.vel_z), pdir);
-                if (v_ap > 0.001 && deficit > 0.0) {
-                    let tang = vec2(-pdir.y, pdir.x)
-                             * sign(pvel.x * pdir.y - pvel.y * pdir.x + 0.000001);
-                    let esc = normalize(pdir + tang * 0.6);
-                    agent.vel_x += esc.x * deficit;
-                    agent.vel_z += esc.y * deficit;
-                }
+            var src_vel = vec2(0.0);
+            var a_floor = BUBBLE_PART_SPEED;
+            if (!point_camera_hosted()) {
+                let pawn = agent_state[config.possessed_slot];
+                src_vel = vec2(pawn.vel_x, pawn.vel_z);
+                a_floor = 0.0;
             }
+            let p_prof = InfluenceProfile(
+                config.point_bubble_radius, 0.0,
+                0.0, g_self.flee_gain_player, 1.0, INFLUENCE_NO_CAP, 1.0, 0.6);
+            let p_r = influence_response(
+                vec3(agent.pos_x, agent.pos_y, agent.pos_z),
+                vec2(agent.vel_x, agent.vel_z),
+                point_pos(), src_vel, p_prof, signal.dt, a_floor);
+            agent.vel_x += p_r.x;
+            agent.vel_z += p_r.y;
         }
     }
 
@@ -7985,57 +7952,48 @@ fn update_cube() {
             let behavior_force = cube_behavior_force(
                 fe, signal.t_seconds, point_xz, config.floater_coordination);
 
-            // ── CONTACT: cube-vs-pawn (TRUEBAND_CONTACT_1) ────────────
-            // A pawn repulsion joins the drift forces when the pawn is
-            // inside CONTACT_CUBE_RADIUS + the pawn's tier radius — the
-            // drift's own spring-to-zero returns the cube after the pawn
-            // passes: soft by the substrate's construction, zero new
-            // state. (cube-vs-cube stays deferred — campaign v2 ruling.)
-            // 3D gate (cdy), planar push — CONTACT_2 C1a: a cube
-            // overhead feels nothing from a pawn beneath.
+            // ── CONTACT: cube-vs-pawn (CONTACT_5 P1b) ────────────────
+            // The pawn's BODY emanation -- other is the possessed slot, NOT the
+            // point (a body pair). PRESENCE profile through the one body; dt =
+            // 1.0 so it returns a FORCE (the drift integrator applies x dt
+            // below). Bit-identical to the C1a/K2b cube shove. (P2b retires
+            // this row -- the presence column reaches floating cubes; a body
+            // contact never did.)
             var contact_force = vec3(0.0);
             {
                 let pawn = agent_state[config.possessed_slot];
                 let pg = agent_tier_gains[min(pawn.tier_idx, 3u)];
-                let cdx = fe.pos.x - pawn.pos_x;
-                let cdy = fe.pos.y - pawn.pos_y;
-                let cdz = fe.pos.z - pawn.pos_z;
-                let cd2 = cdx * cdx + cdy * cdy + cdz * cdz;
-                let cr = CONTACT_CUBE_RADIUS + pg.contact_radius;
-                if (cd2 < cr * cr && cd2 > 0.0001) {
-                    let cd = sqrt(cd2);
-                    let cd_pl = sqrt(max(cdx * cdx + cdz * cdz, 0.0001));
-                    let mag = min((cr - cd) * CONTACT_SPRING, CUBE_PART_CAP);   // K2b: cap the shove
-                    contact_force = vec3((cdx / cd_pl) * mag, 0.0, (cdz / cd_pl) * mag);
-                }
+                let cc_prof = InfluenceProfile(
+                    CONTACT_CUBE_RADIUS + pg.contact_radius, 0.0,
+                    CONTACT_SPRING, 0.0, 0.0, CUBE_PART_CAP, 1.0, 0.0);
+                let cc = influence_response(
+                    fe.pos, vec2(0.0),
+                    vec3(pawn.pos_x, pawn.pos_y, pawn.pos_z), vec2(0.0),
+                    cc_prof, 1.0, 0.0);
+                contact_force = vec3(cc.x, 0.0, cc.y);
             }
-            // ── THE POINT SOURCE parting (CONTACT_2 C3b): cubes part ──
-            // like water — a drift force away from the point scaled by
-            // its approach speed; the drift spring (or λ) decides the
-            // return. Host-routed v_ap; camera-host fallback
-            // BUBBLE_PART_SPEED (no camera velocity field).
+            // ── THE POINT SOURCE parting (CONTACT_5 P1b): cubes part ──
+            // The POINT's presence (point_pos, host-routed). APPROACH profile,
+            // radial (tangential 0 -- cubes part straight out, no matador),
+            // falloff_mix 1 (the S2b 3D-distance softness). dt = 1.0 returns a
+            // FORCE (the drift integrator applies x dt below). Bit-identical to
+            // the CONTACT_4 parting. (P2b REPLACES this row with the presence
+            // cylinder -- cubes shoved by occupancy, not by approach.)
             var parting_force = vec3(0.0);
             {
-                let pt = point_pos();
-                let qdx = fe.pos.x - pt.x;
-                let qdy = fe.pos.y - pt.y;
-                let qdz = fe.pos.z - pt.z;
-                let qd2 = qdx * qdx + qdy * qdy + qdz * qdz;
-                let qpr = CUBE_PART_RADIUS;   // K2b: contact-scale, not bubble-scale
-                if (qd2 < qpr * qpr && qd2 > 0.0001) {
-                    let qdpl = sqrt(max(qdx * qdx + qdz * qdz, 0.0001));
-                    var v_ap = BUBBLE_PART_SPEED;
-                    if (!point_camera_hosted()) {
-                        let pawn = agent_state[config.possessed_slot];
-                        v_ap = max(0.0, (pawn.vel_x * qdx + pawn.vel_z * qdz) / qdpl);
-                    }
-                    // CONTACT_4 S2b: 3D falloff (matches the 3D gate — a cube
-                    // directly overhead reads its true distance, not planar 0).
-                    // Response stays planar (qdx/qdpl). Capped, parting not launching.
-                    let falloff = clamp(1.0 - sqrt(qd2) / CUBE_PART_RADIUS, 0.0, 1.0);
-                    let f = min(v_ap * CUBE_PART_GAIN * falloff, CUBE_PART_CAP);
-                    parting_force = vec3(qdx / qdpl, 0.0, qdz / qdpl) * f;
+                var src_vel = vec2(0.0);
+                var a_floor = BUBBLE_PART_SPEED;
+                if (!point_camera_hosted()) {
+                    let pawn = agent_state[config.possessed_slot];
+                    src_vel = vec2(pawn.vel_x, pawn.vel_z);
+                    a_floor = 0.0;
                 }
+                let q_prof = InfluenceProfile(
+                    CUBE_PART_RADIUS, 0.0,
+                    0.0, CUBE_PART_GAIN, 1.0, CUBE_PART_CAP, 1.0, 0.0);
+                let q_r = influence_response(
+                    fe.pos, vec2(0.0), point_pos(), src_vel, q_prof, 1.0, a_floor);
+                parting_force = vec3(q_r.x, 0.0, q_r.y);
             }
             let spring_a = -fe.drift * fe.spring_stiffness;
             fe.drift_vel = fe.drift_vel + (spring_a + behavior_force + contact_force + parting_force) * dt;

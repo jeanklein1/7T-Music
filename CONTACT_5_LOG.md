@@ -271,6 +271,41 @@ plus a degenerate guard reproducing every site's `d2 > 0.0001` skip. Signature:
 | cube parting | **1.0** | CUBE_PART_RADIUS · 0 · 0 · CUBE_PART_GAIN · 1 · CUBE_PART_CAP · 1 · **0** | caller ×dt, self_vel=0 ⇒ `dir·min(v_ap·gain·falloff, CAP)·dt` ✓ (radial — defect 2 fixed) |
 
 `INFLUENCE_NO_CAP` = a named large const (the uncapped flee rows have no empty
-cell). All six rows proven bit-identical. Agent rows (1,2,3,4) — the HARD gate —
-match to the last operation. Cube rows (5,6) match via the dt=1 + caller-×dt
-convention. Adversarial verification panel to follow before commit.
+cell). Agent rows (1,2,3,4) — the HARD gate. Cube rows (5,6) match via the dt=1
++ caller-×dt convention.
+
+## P1 VERIFY — the adversarial panel + the 4 fixes it forced
+
+A 6-skeptic adversarial panel (one per row, each told to REFUTE bit-identity
+with a concrete f32 counterexample) ran against the FIRST P1b lift. It did its
+job — it found **four** real divergence sources the symbolic proof had glossed,
+all in the shared body, all now fixed and re-verified:
+
+1. **Square-vs-root gate (all rows).** The inline sites gate `d2 < r*r`
+   (squared); the first body gated `sqrt(d2) < radius` (root). These disagree in
+   a thin f32 band at the shell edge. Harmless for the contact rows (there
+   `(r−d)≈0`, so the magnitude is ≈0 anyway — the cube-contact row was already
+   bit-identical) and for the point flee (falloff_mix=1 tapers the edge to ≈0),
+   but on the **flat** body-to-body flee shell (falloff_mix=0) a gate flip toggles
+   a FULL ~1.6 wu/s impulse on/off. **FIX:** gate in squared space
+   `d2_gate >= radius*radius`.
+2. **`dot(d3,d3)` vs the explicit sum.** `dot()` may lower to a different fma
+   contraction than the inline `dx*dx + dy*dy + dz*dz`. **FIX:** explicit sum.
+3. **Product reassociation.** The inline sites fold the scalar first
+   (`dir*(min*yield)`); the first body wrote `esc*min(...)*yield` →
+   `(dir*min)*yield`. f32 `*` is non-associative ⇒ 1 ULP on ~15% of contact
+   pairs (mass-weighted). **FIX:** `let s = min(mag,cap)*yield; return esc*s;`.
+4. **Cube-parting re-normalization (macroscopic).** The inline cube parting uses
+   the RAW `dir = (qdx/qdpl, qdz/qdpl)` — which is NOT unit when the point sits
+   nearly under the cube (planar dist < 0.01 ⇒ `qdpl` floors to 0.01 ⇒ `|dir|<1`).
+   The first body ran every approach through `normalize(dir+tang*tangential)`,
+   so a near-overhead cube got a full unit push instead of the tiny raw one — a
+   MACROSCOPIC divergence. **FIX:** normalize ONLY when `tangential > 0` (the
+   flees); radial parting (tangential 0) keeps the raw `dir`.
+
+The point-flee "double falloff" worry (the P1a Defect 1 I had pre-empted) was
+confirmed CLEAN by the panel — `fall` multiplies the v_ap term once, never again
+at the return. After the 4 fixes, a fresh 6-skeptic panel re-tested every prior
+counterexample against the corrected body (results appended below on pass). The
+gate is the whole campaign's bisection line, so P1b does not commit until every
+row returns bit-identical.
