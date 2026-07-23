@@ -111,3 +111,80 @@ makes this scale visible for Jean's judgment.
   the FS scope.
 
 All resolved → S1. glaw1 baseline GREEN.
+
+---
+
+## S1 — THE SCALE LEDGER
+
+### [S1a] — 11ea14e (documentation only, zero behavior)
+
+THE SCALE LEDGER above the contact/steering const cluster: the world's
+scales as the reference column, every influence radius as
+{value·reference·derivation}, and THE GATE-FEASIBILITY RULE (a 3D gate
+against a body at altitude H fires only if R > H; reach = sqrt(R²−H²)).
+The three deaths written as `[DEAD]`/`[UNREACHABLE]`/`[WRONG SPACE]`
+rows. Worked derivation comments on every influence-radius const + the
+point-source composed radius. `git diff` comment-only (every const VALUE
+byte-identical). glaw1 GREEN.
+
+---
+
+## S2 — THE THREE CORRECTIONS
+
+### [S2a] — 7aa84cd (point-source flee: shell, falloff, gains)
+
+`ppr = config.point_bubble_radius` (20, was 30+20=50 — dropped the BODY
+shell from a PRESENCE term). Added the proximity falloff
+`prox = clamp(1−pd/ppr,0,1)` (full at contact, nil at the edge —
+`behavior_flee`'s shape). `flee_gain_player < 1` every row {0.70, 0.85,
+0.50, 0.60} — the CATCHABILITY LAW (a floor gain ≥ 1 is uncatchable and
+unpossessable). Worked: worker at 6 wu in a 20 bubble → gap closes at
+~8.7 wu/s (catchable); at the edge, no reaction. glaw1 GREEN.
+
+### [S2b] — bec106c (cube parting: derived radius, 3D falloff)
+
+`CUBE_PART_RADIUS = 30` DERIVED from the indoor ceiling cap
+(`INDOOR_HEIGHT_CAP_FRACTION 0.75 × VAULT 25 = 18.75` wu envelope + ~11
+lateral; reach under the tallest indoor cube ≈ 23.4 wu). Falloff now uses
+the 3D distance the gate uses (was planar — disagreed with the 3D gate).
+Worked: player beneath a cube at ~18 wu → before: gate dead; after
+(R=30): prox 0.40, force 6.0 → swings aside. **OUTDOOR CAVEAT** (spotted
+at S0): the cap fires INDOORS only; outdoor cubes (raw Gaussian 25/45/75)
+stay beyond 30 — per-instance radius is the deferred fix. glaw1 GREEN.
+
+### [S2c] — bedcb2f (spheres: delete player loop; body radius; tombstone)
+
+The player sphere loop DELETED (spheres do not move the point's body —
+Jean's ruling). The agents' loop uses `fe.body_radius` (per-instance
+~1.2–1.5 wu) instead of `CONTACT_SPHERE_RADIUS` (the INFLUENCE field 12,
+~8× the body). `CONTACT_SPHERE_RADIUS` tombstoned (reference-free).
+Closes the per-slot-floater-radii deferred item. glaw1 GREEN; Dawn
+witness ALL FAMILIES GREEN.
+
+---
+
+## S3 — THE SHELL INSTRUMENT + CLOSEOUT
+
+### [S3a] — c396aea (the shells, drawn on the ground)
+
+`CONTACT_SHELL_DEBUG` (0u) + `SHELL_RING_WIDTH` (0.35). In
+`patch_terrain_fs`, after the final colour compose, the rings blend over
+the world: bubble (cyan, 20), cube parting (amber, 30), one patch (grey,
+50 — the yardstick). Zero bindings, zero layout (uses `config.lod_point_x/z`
++ module consts already in the FS). glaw1 GREEN; witness ALL FAMILIES GREEN.
+
+### [S3b] — closeout
+
+Instruments → `_post_c4`, diffed against the S0 base `df3d8e8`:
+- **cc6:** zero substantive layout diffs; flags EMPTY.
+- **cc7:** 96 → 96 declarations (+0) — `CONTACT_SPHERE_RADIUS` was a
+  const (not a declaration); the shell consts likewise.
+- **cc7 mirror:** zero orphans both directions.
+- **cc4:** `update_player_agent` **LOST binding 100** (floating_entities)
+  with the sphere loop — exactly as predicted; the other three kernels
+  unchanged. The player kernel now uses fewer bindings than the CE
+  layout provides (allowed; witness confirms).
+- **Dawn witness** (`_post_c4`): ALL FAMILIES GREEN, zero module messages.
+
+Encoding sweep: world.wgsl / agents.hpp no-BOM, LF-only; FXC banner
+byte-untouched. Final glaw1 GREEN.
