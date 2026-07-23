@@ -7128,6 +7128,14 @@ fn update_player_agent() {
         agent = behavior_player_controlled(agent);
     }
 
+    // ── CONTACT_3 K1b: the player owns its own integration ─────────
+    // behavior_player_controlled already integrated the voluntary
+    // velocity and ground-resolved; snapshot it so the gather's IMPOSED
+    // delta can land on position DIRECTLY (acts this frame, never
+    // capped). This is the handoff's per-term paired pos-add unified:
+    // the sum of imposed deltas * dt (linearity). Snapped next frame.
+    let imp_v0 = vec2(agent.vel_x, agent.vel_z);
+
     // ── CONTACT (TRUEBAND_CONTACT_1): the bounded pair gather ──────────
     // Impulses land on VELOCITY only — position is already ground-
     // resolved this frame; the springs realize next frame (soft by
@@ -7212,6 +7220,14 @@ fn update_player_agent() {
             }
         }
     }
+
+    // CONTACT_3 K1b: imposed motion acts THIS frame — the imposed delta
+    // (post-gather velocity minus the voluntary snapshot) lands on
+    // position directly. Bypasses this frame's ground resolve, snapped
+    // next frame; displacements are small (the pawn's 4x mass makes its
+    // share of every pair tiny). Named, accepted.
+    agent.pos_x += (agent.vel_x - imp_v0.x) * signal.dt;
+    agent.pos_z += (agent.vel_z - imp_v0.y) * signal.dt;
 
     // The player is never evicted — their slot is the reference
     // frame for eviction, not subject to it.
