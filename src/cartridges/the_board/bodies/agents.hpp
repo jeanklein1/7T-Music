@@ -172,11 +172,17 @@ struct AgentTierDef {
 };
 
 inline constexpr AgentTierDef AGENT_TIER_GAINS[AGENT_TIER_COUNT] = {
-    //  id                     name        step  persist  speed  color                 c_radius c_mass  p_radius flee_g (CONTACT_2 — Jean-tunable; p_radius 30 = flock neighbor_radius, bit-neutral re-point)
-    { AGENT_TIER_WORKER,   "worker",   1.0f, 1.0f, 1.0f, 0.60f, 0.62f, 0.65f, 1.6f, 1.0f, 30.0f, 1.2f },  // slate gray
-    { AGENT_TIER_SCOUT,    "scout",    1.8f, 0.4f, 1.4f, 0.85f, 0.65f, 0.40f, 1.4f, 0.8f, 30.0f, 1.4f },  // bronze
-    { AGENT_TIER_SENTINEL, "sentinel", 0.6f, 1.2f, 0.5f, 0.30f, 0.40f, 0.70f, 2.0f, 1.5f, 30.0f, 1.0f },  // deep blue
-    { AGENT_TIER_LEADER,   "leader",   1.2f, 0.9f, 1.1f, 0.95f, 0.85f, 0.55f, 1.8f, 1.2f, 30.0f, 1.1f },  // pale gold
+    //  id                     name        step  persist  speed  color                 c_radius c_mass  p_radius flee_g (CONTACT_2 p_radius 30; CONTACT_4 S2a flee_g < 1 — the CATCHABILITY LAW)
+    // CATCHABILITY LAW (CONTACT_4): the escape is a velocity FLOOR, so a gain
+    // >= 1.0 means the agent matches or beats the player's radial speed and can
+    // NEVER be approached (nor possessed). Gains < 1 close the gap at
+    // (1 - gain*radial_share) of player speed. The tangential split
+    // (esc = normalize(dir + tang*0.6), radial share ~= 0.86) makes the dodge
+    // read as evasive at gains well under 1. Jean-tunable; keep every row < 1.0.
+    { AGENT_TIER_WORKER,   "worker",   1.0f, 1.0f, 1.0f, 0.60f, 0.62f, 0.65f, 1.6f, 1.0f, 30.0f, 0.70f },  // slate gray
+    { AGENT_TIER_SCOUT,    "scout",    1.8f, 0.4f, 1.4f, 0.85f, 0.65f, 0.40f, 1.4f, 0.8f, 30.0f, 0.85f },  // bronze
+    { AGENT_TIER_SENTINEL, "sentinel", 0.6f, 1.2f, 0.5f, 0.30f, 0.40f, 0.70f, 2.0f, 1.5f, 30.0f, 0.50f },  // deep blue
+    { AGENT_TIER_LEADER,   "leader",   1.2f, 0.9f, 1.1f, 0.95f, 0.85f, 0.55f, 1.8f, 1.2f, 30.0f, 0.60f },  // pale gold
 };
 
 static_assert(sizeof(AGENT_TIER_GAINS) / sizeof(AGENT_TIER_GAINS[0]) == AGENT_TIER_COUNT,

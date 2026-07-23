@@ -7432,12 +7432,11 @@ fn update_other_agents(@builtin(global_invocation_id) gid: vec3<u32>) {
             let pdy = agent.pos_y - pt.y;
             let pdz = agent.pos_z - pt.z;
             let pd2 = pdx * pdx + pdy * pdy + pdz * pdz;   // 3D gate
-            // [DEAD] (CONTACT_4 S0): ppr = personal_radius(30, a BODY shell)
-            // + point_bubble_radius(20, the PRESENCE shell) = 50 wu = one
-            // PATCH_EXTENT. A constant floor (no proximity) with gain >= 1 =>
-            // agents flee from a patch away, uncatchable and unpossessable
-            // (POSSESSION_RADIUS 20). S2a fixes this.
-            let ppr = g_self.personal_radius + config.point_bubble_radius;
+            // CONTACT_4 S2a: the point's social shell IS the bubble — the
+            // semantic radius of presence (contracts/point.hpp). personal_radius
+            // is a BODY shell and was double-counting a body into a presence
+            // term (30+20 = 50 wu = a whole patch; agents fled uncatchably).
+            let ppr = config.point_bubble_radius;     // 20 wu (was 30+20 = 50)
             if (pd2 < ppr * ppr && pd2 > 0.0001) {
                 let pdpl = sqrt(max(pdx * pdx + pdz * pdz, 0.0001));
                 let pdir = vec2(pdx, pdz) / pdpl;          // point -> me
@@ -7448,7 +7447,14 @@ fn update_other_agents(@builtin(global_invocation_id) gid: vec3<u32>) {
                     pvel = vec2(pawn.vel_x, pawn.vel_z);
                     v_ap = max(0.0, dot(pvel, pdir));
                 }
-                let deficit = v_ap * g_self.flee_gain_player
+                // CONTACT_4 S2a: the PROXIMITY FALLOFF the servo never had.
+                // behavior_flee uses this exact 1 - dist/radius shape. The flee
+                // is a REFLEX, not a policy: full at contact, nil at the shell
+                // edge. Without it the floor is constant across the whole shell
+                // and the crowd flees a walking player from a patch away.
+                let pd = sqrt(pd2);
+                let prox = clamp(1.0 - pd / ppr, 0.0, 1.0);
+                let deficit = v_ap * g_self.flee_gain_player * prox
                             - dot(vec2(agent.vel_x, agent.vel_z), pdir);
                 if (v_ap > 0.001 && deficit > 0.0) {
                     let tang = vec2(-pdir.y, pdir.x)
