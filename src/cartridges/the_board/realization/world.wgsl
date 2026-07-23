@@ -2215,12 +2215,10 @@ const CONTACT_IMPULSE_CAP: f32 = 6.0;    // max Δv per pair per frame
 //  instance, ~1.2-1.5 wu); the player's sphere loop was deleted entirely
 //  (spheres don't move the point's body). Reference-free at S2c. The C++
 //  Idle::SPHERE_INFLUENCE_RADIUS stays as the colour/terrain field range.)
-// reference: cube altitude H (indoor cap <= 18.75 wu; outdoor 25-75). The
-// gate is 3D, so pdy ~= H is paid before any lateral reach. At 3.0 + pawn
-// 1.6 = 4.6 < H this term is UNREACHABLE for any floating cube; reserved
-// for low/kited cubes. The parting field (CUBE_PART_RADIUS) reaches the
-// rest. Named, not a bug.
-const CONTACT_CUBE_RADIUS: f32 = 3.0;
+// (CONTACT_CUBE_RADIUS 3.0 RETIRED -- CONTACT_5 P2b. The cube's interaction
+//  is now the PRESENCE column (CUBE_PUSH_*); a body-contact shell never
+//  reached a hovering cube -- the CONTACT_4 ledger flagged it [UNREACHABLE]
+//  at 3.0 + 1.6 = 4.6 < H. Reference-free at P2b.)
 // dimensionless -- the pawn's yield authority in the pair weight
 // m_other/(m_self+m_other). Not a radius.
 const PAWN_CONTACT_MASS_MULT: f32 = 4.0; // the pawn is heavy: agents yield, the player barely feels it
@@ -2250,21 +2248,31 @@ const BUBBLE_PART_SPEED: f32 = 4.0;     // camera-host parting speed (the C3 fal
 // separate and was DEAD at 50 wu until S2a.
 const FLEE_SHELL_FRAC: f32 = 0.25;   // CONTACT_3 K2a
 
-// Cube parting (CONTACT_3 K2b): contact-scale, not bubble-scale, and
-// capped — the C3b parting was radius 23 with force proportional to the
-// player's full speed, uncapped, into a spring integrator (it flung).
-// DERIVED from cube altitude (CONTACT_4 S2b). Indoor cap =
-// INDOOR_HEIGHT_CAP_FRACTION(0.75) x VAULT ceiling(25) = 18.75 wu is the
-// strict supremum on a cube's vertical extent (center sits below it). The
-// gate is 3D, so usable lateral reach = sqrt(R^2 - H^2), R MUST exceed H.
-// R = 18.75 + ~11 lateral = 30; reach directly under the tallest indoor
-// cube = sqrt(30^2 - 18.75^2) ~= 23.4 wu. (Was 8 < 18.75 => gate DEAD.)
-// OUTDOOR CAVEAT: outdoor moods do NOT cap (orbit_height raw Gaussian,
-// means 25/45/75) -> outdoor cubes above 30 stay beyond this radius; a
-// per-instance radius (fe.orbit_height + margin) is the deferred fix.
-const CUBE_PART_RADIUS: f32 = 30.0;  // parting reach (indoor cap 18.75 + 11 lateral)
-const CUBE_PART_CAP: f32 = 12.0;     // units: max parting force magnitude (accel). Not a radius.
-const CUBE_PART_GAIN: f32 = 1.0;     // dimensionless: force per unit approach speed
+// Cube PUSH (CONTACT_5 P2b): the point's PRESENCE shoves cubes by
+// OCCUPANCY, not approach -- stand under a floating cube and it keeps moving
+// until you leave its column. A CYLINDRICAL shell (planar radius + vertical
+// window): a hovering body's interaction shell is the COLUMN beneath it, so
+// you shove it by walking under it. A spherical gate would need a radius
+// larger than the altitude, dragging the planar reach out with it -- the
+// CONTACT_4 [DEAD]/outdoor-caveat trap. The cylinder escapes it.
+//   CUBE_PUSH_RADIUS  -- planar reach, shoulder-scale. A TOOL, not a field:
+//     small on purpose (~2x the pawn contact shell); a large presence shell
+//     plus persistence (lambda=1) would permanently clear a wide disc around
+//     the point -- "cubes avoid you", not "shove them freely".
+//   CUBE_PUSH_VWINDOW -- vertical half-window of the column, DERIVED from the
+//     authored cube altitude: max orbit_height mu (75, LargeCube) + bob mu
+//     (2) + 8 margin = 85. Reaches every cube up to the tallest authored
+//     mean; the large-sigma tail above ~85 stays above the column (disclosed
+//     -- a per-instance vwindow is the deferred refinement).
+//   CUBE_PUSH_GAIN    -- presence force per wu overlap (dt-scaled).
+const CUBE_PUSH_RADIUS:  f32 = 7.0;   // planar reach (~2x pawn contact shell; a tool, not a field)
+const CUBE_PUSH_VWINDOW: f32 = 85.0;  // vertical column half-window (75 orbit mu + 2 bob + 8)
+const CUBE_PUSH_GAIN:    f32 = 25.0;  // presence force per wu overlap
+const CUBE_PART_CAP: f32 = 12.0;      // units: max cube force magnitude (accel). Not a radius.
+// (CUBE_PART_RADIUS 30 / CUBE_PART_GAIN 1.0 RETIRED -- CONTACT_5 P2b. They
+//  were the CONTACT_4 approach-parting reach + gain; the parting became a
+//  PRESENCE push (CUBE_PUSH_*), so both are reference-free. The S3a shell
+//  instrument now draws CUBE_PUSH_RADIUS -- the planar column footprint.)
 
 // Spheres push the POINT (CONTACT_5 P2a). Presence gain authored 40.0 =
 // CONTACT_SPRING's shape, so the restored feel matches what Jean liked
@@ -4537,9 +4545,9 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
         // the bubble — the point's social shell (the flee trigger)
         ring += vec3(0.2, 0.9, 1.0)
               * step(abs(d - config.point_bubble_radius), SHELL_RING_WIDTH);
-        // the cube parting reach
+        // the cube PUSH reach (planar column footprint -- CONTACT_5 P2b)
         ring += vec3(1.0, 0.7, 0.2)
-              * step(abs(d - CUBE_PART_RADIUS), SHELL_RING_WIDTH);
+              * step(abs(d - CUBE_PUSH_RADIUS), SHELL_RING_WIDTH);
         // one patch, for scale
         ring += vec3(0.5, 0.5, 0.5)
               * step(abs(d - PATCH_EXTENT), SHELL_RING_WIDTH);
@@ -8002,51 +8010,43 @@ fn update_cube() {
             let behavior_force = cube_behavior_force(
                 fe, signal.t_seconds, point_xz, config.floater_coordination);
 
-            // ── CONTACT: cube-vs-pawn (CONTACT_5 P1b) ────────────────
-            // The pawn's BODY emanation -- other is the possessed slot, NOT the
-            // point (a body pair). PRESENCE profile through the one body; dt =
-            // 1.0 so it returns a FORCE (the drift integrator applies x dt
-            // below). Bit-identical to the C1a/K2b cube shove. (P2b retires
-            // this row -- the presence column reaches floating cubes; a body
-            // contact never did.)
-            var contact_force = vec3(0.0);
+            // ── THE POINT SOURCE push (CONTACT_5 P2b): cubes are SHOVED ──
+            // The point's PRESENCE, not its approach: stand under a floating
+            // cube and it moves ahead of you until you step out of the column
+            // (OCCUPANCY, not motion -- the beach-ball Jean asked for). The
+            // gate is a CYLINDER (planar CUBE_PUSH_RADIUS, |dy| < CUBE_PUSH_
+            // VWINDOW): a hovering body's shell is the column beneath it.
+            // Radial (tangential 0), falloff_mix 1 (soft at the rim). Replaces
+            // the CONTACT_4 approach-parting; the cube-vs-pawn CONTACT row is
+            // RETIRED (a body contact never reached a hovering cube -- the
+            // ledger's [UNREACHABLE] 4.6 < H; the presence column does).
+            // Persistence: config.cube_plasticity default is raised to 1.0
+            // (Idle::CUBE_PLASTICITY_DEFAULT) so a shove RELOCATES rather than
+            // partially returns -- lambda=1 semantics (the leak below).
+            //
+            // The push is an IMPULSE (PRESENCE is dt-scaled inside -- the K1
+            // law), added STRAIGHT to drift_vel exactly as the agent contact
+            // adds to velocity; spring_a + behavior_force stay accelerations
+            // (x dt). (P1b passed dt=1.0 to bit-preserve the OLD force-parting;
+            // P2b's presence push is the impulse K1 names, so it takes signal.dt
+            // and a DIRECT add -- now the soft falloff actually bites, and
+            // CUBE_PART_CAP is a velocity-delta safety, ~never reached at the
+            // ~0.95 wu/s typical.) Worked: cube 18 wu up, pawn 3 wu planar
+            // beneath -> |dy|=18 < vwindow; overlap 4, fall = 1-3/7 = 0.57 ->
+            // impulse = 4*25*(1/60)*0.57 ~= 0.95 wu/s of drift velocity per
+            // frame, accumulating while you stay under the column, STOPPING the
+            // instant you step out; standing still inside still pushes.
+            var push_impulse = vec3(0.0);
             {
-                let pawn = agent_state[config.possessed_slot];
-                let pg = agent_tier_gains[min(pawn.tier_idx, 3u)];
-                let cc_prof = InfluenceProfile(
-                    CONTACT_CUBE_RADIUS + pg.contact_radius, 0.0,
-                    CONTACT_SPRING, 0.0, 0.0, CUBE_PART_CAP, 1.0, 0.0);
-                let cc = influence_response(
-                    fe.pos, vec2(0.0),
-                    vec3(pawn.pos_x, pawn.pos_y, pawn.pos_z), vec2(0.0),
-                    cc_prof, 1.0, 0.0);
-                contact_force = vec3(cc.x, 0.0, cc.y);
-            }
-            // ── THE POINT SOURCE parting (CONTACT_5 P1b): cubes part ──
-            // The POINT's presence (point_pos, host-routed). APPROACH profile,
-            // radial (tangential 0 -- cubes part straight out, no matador),
-            // falloff_mix 1 (the S2b 3D-distance softness). dt = 1.0 returns a
-            // FORCE (the drift integrator applies x dt below). Bit-identical to
-            // the CONTACT_4 parting. (P2b REPLACES this row with the presence
-            // cylinder -- cubes shoved by occupancy, not by approach.)
-            var parting_force = vec3(0.0);
-            {
-                var src_vel = vec2(0.0);
-                var a_floor = BUBBLE_PART_SPEED;
-                if (!point_camera_hosted()) {
-                    let pawn = agent_state[config.possessed_slot];
-                    src_vel = vec2(pawn.vel_x, pawn.vel_z);
-                    a_floor = 0.0;
-                }
                 let q_prof = InfluenceProfile(
-                    CUBE_PART_RADIUS, 0.0,
-                    0.0, CUBE_PART_GAIN, 1.0, CUBE_PART_CAP, 1.0, 0.0);
+                    CUBE_PUSH_RADIUS, CUBE_PUSH_VWINDOW,
+                    CUBE_PUSH_GAIN, 0.0, 1.0, CUBE_PART_CAP, 1.0, 0.0);
                 let q_r = influence_response(
-                    fe.pos, vec2(0.0), point_pos(), src_vel, q_prof, 1.0, a_floor);
-                parting_force = vec3(q_r.x, 0.0, q_r.y);
+                    fe.pos, vec2(0.0), point_pos(), vec2(0.0), q_prof, dt, 0.0);
+                push_impulse = vec3(q_r.x, 0.0, q_r.y);
             }
             let spring_a = -fe.drift * fe.spring_stiffness;
-            fe.drift_vel = fe.drift_vel + (spring_a + behavior_force + contact_force + parting_force) * dt;
+            fe.drift_vel = fe.drift_vel + (spring_a + behavior_force) * dt + push_impulse;
             fe.drift_vel = fe.drift_vel * exp(-fe.drag * dt);
             fe.drift = fe.drift + fe.drift_vel * dt;
 

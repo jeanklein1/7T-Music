@@ -303,9 +303,14 @@ namespace t7 {
             constexpr float PAWN_SPEED = 15.0f;
             constexpr float CAMERA_SENSITIVITY = 0.005f;
             constexpr float ACTIVE_CELL_SIZE = 64.0f;
-            constexpr float CUBE_PLASTICITY_DEFAULT = 0.6f;  // CONTACT_3: the live λ master;
-                                                             // Jean-tunable; 0 = elastic
-                                                             // (pre-CONTACT_3), 1 = fully sculptable
+            constexpr float CUBE_PLASTICITY_DEFAULT = 1.0f;  // CONTACT_5 P2b: the live λ master;
+                                                             // raised 0.6 -> 1.0 so a shove RELOCATES
+                                                             // rather than partially returns -- "shove
+                                                             // them freely all over the scene" is λ=1.
+                                                             // Jean-tunable; 0 = elastic (pre-CONTACT_3),
+                                                             // 1 = fully sculptable (the shove relocates).
+                                                             // The per-tier CUBE_TIER_GAINS.plasticity
+                                                             // column keeps the character spread.
         }
 
         // Reserved-slot annotations mirrored from world.wgsl §2 — the
