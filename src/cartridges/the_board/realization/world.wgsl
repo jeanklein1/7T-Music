@@ -2266,6 +2266,11 @@ const CUBE_PART_RADIUS: f32 = 30.0;  // parting reach (indoor cap 18.75 + 11 lat
 const CUBE_PART_CAP: f32 = 12.0;     // units: max parting force magnitude (accel). Not a radius.
 const CUBE_PART_GAIN: f32 = 1.0;     // dimensionless: force per unit approach speed
 
+// Spheres push the POINT (CONTACT_5 P2a). Presence gain authored 40.0 =
+// CONTACT_SPRING's shape, so the restored feel matches what Jean liked
+// pre-S2c. Not a radius (the shell is fe.influence_radius, per-instance).
+const SPHERE_PUSH_GAIN: f32 = 40.0;
+
 // ═══ THE INFLUENCE LAW (CONTACT_5) ══════════════════════════════════
 // One body, many callers. The PROFILE selects the shape; the law is
 // written once. See the authority table in the P0 banner (CONTACT_5_LOG).
@@ -7398,8 +7403,30 @@ fn update_player_agent() {
                 agent.vel_z += f_r.y;
             }
         }
-        // spheres do not move the point's body (CONTACT_4 S2c, Jean's
-        // ruling). Agents still avoid them — see update_other_agents.
+        // ── SPHERES PUSH THE POINT (CONTACT_5 P2a) ─────────────────
+        // The restore, host-agnostic. A sphere's authority is ABOVE the
+        // point's: yield_share 1.0 with no mass weight IS the reversed
+        // inequality — the point takes the WHOLE response and the sphere
+        // takes none (CONTACT_5 authority table). PRESENCE (occupancy):
+        // stand inside the shell and it keeps easing you out until you
+        // clear it. Reference = the sphere's OWN influence shell
+        // (fe.influence_radius, per-instance ~6-8 wu; a celestial object's
+        // influence IS its reach). Applied to the point's HOST body (the
+        // pawn here); the camera-host twin is in update_camera. K1b: the
+        // impulse lands on velocity and the inline pos-add below carries it
+        // to position this frame. (Reverses CONTACT_4 S2c — Jean's ruling.)
+        for (var sph = 0u; sph < SPHERE_SLOT_COUNT; sph++) {
+            let fe = floating_entities.entities[sph];
+            if (fe.is_active == 0u) { continue; }
+            let sp_prof = InfluenceProfile(
+                fe.influence_radius, 0.0,
+                SPHERE_PUSH_GAIN, 0.0, 0.0, CONTACT_IMPULSE_CAP, 1.0, 0.0);
+            let sp_r = influence_response(
+                vec3(agent.pos_x, agent.pos_y, agent.pos_z), vec2(0.0),
+                fe.pos, vec2(0.0), sp_prof, signal.dt, 0.0);
+            agent.vel_x += sp_r.x;
+            agent.vel_z += sp_r.y;
+        }
     }
 
     // CONTACT_3 K1b: imposed motion acts THIS frame — the imposed delta
@@ -7599,6 +7626,29 @@ fn update_camera() {
         // Pan translates the point in the view plane (rotate + pan —
         // the fly's mouse; the orbit's pan scale kept for feel).
         camera.pos += (fly_right * signal.pan_x_delta + fly_up * signal.pan_y_delta) * camera.distance * 0.5;
+
+        // ── SPHERES PUSH THE POINT (CONTACT_5 P2a, camera-host twin) ──
+        // The SAME sphere-row profile, applied to the camera position (the
+        // point's other host). self_vel = 0 — the PRESENCE term needs no
+        // velocity, which is exactly why this works with no camera-velocity
+        // field (the deferred config.point_vel_x/z is NOT needed for it). In
+        // free-fly the terrain rule is NONE (the revision camera clips
+        // freely), so spheres are the ONLY solid things in the point's world
+        // here — a deliberate percept (Jean's ruling). influence_response
+        // returns the impulse; the camera integrates it * dt to position
+        // (no persistent velocity to accumulate). No later writer authors
+        // camera.pos in this branch (verified P0), so it has the last word.
+        for (var sph = 0u; sph < SPHERE_SLOT_COUNT; sph++) {
+            let fe = floating_entities.entities[sph];
+            if (fe.is_active == 0u) { continue; }
+            let sp_prof = InfluenceProfile(
+                fe.influence_radius, 0.0,
+                SPHERE_PUSH_GAIN, 0.0, 0.0, CONTACT_IMPULSE_CAP, 1.0, 0.0);
+            let sp_r = influence_response(
+                camera.pos, vec2(0.0), fe.pos, vec2(0.0), sp_prof, signal.dt, 0.0);
+            camera.pos.x += sp_r.x * signal.dt;
+            camera.pos.z += sp_r.y * signal.dt;
+        }
 
         camera_state = camera;
         return;
