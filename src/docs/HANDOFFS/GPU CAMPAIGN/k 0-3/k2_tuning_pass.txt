@@ -1,0 +1,74 @@
+═══════════════════════════════════════════════════════════════════════
+CC HANDOFF K2 — THE TUNING PASS
+Three numbers and one dial. Every value below is authored — Jean-tunable
+in-row; the comments must say so.
+═══════════════════════════════════════════════════════════════════════
+
+COMMIT [K2a] — the flee shell (stop the crowd fleeing itself)
+1. DIAGNOSIS for the log: `personal_radius = 30` on every tier means
+   body-to-body flee triggers at the SUM — 60 wu. With 32 agents in a
+   cluster every agent is permanently fleeing every other, spending its
+   small velocity budget on incoherent mutual repulsion. The shell is
+   one radius with THREE expressions and they want different scales:
+   sensing (flock, 30) ≠ fleeing (shoulder-scale).
+2. CLASS B — beside the contact consts:
+     // The social shell's flee expression is a FRACTION of its sensing
+     // expression — sensing is a long-range perception, fleeing is a
+     // short-range reflex. Jean-tunable.
+     const FLEE_SHELL_FRAC: f32 = 0.25;   // 30+30 → 15 wu trigger
+3. CLASS B — in BOTH walker kernels' body-to-body flee gate ONLY
+   (not the contact spring, not the flock sense, not the point source):
+     let pr = (g_self.personal_radius + og.personal_radius) * FLEE_SHELL_FRAC;
+   Paste before/after at each site.
+
+COMMIT [K2b] — the cube parting (stop the fling)
+4. DIAGNOSIS for the log: the cube's point-source parting radius was
+   specced as self + BUBBLE (3 + 20 = 23 wu) with an uncapped force
+   proportional to the player's full speed, fed into a spring
+   integrator — hence "springs too widely", in both senses.
+5. CLASS B — consts:
+     const CUBE_PART_RADIUS: f32 = 8.0;   // contact-scale, not bubble-scale
+     const CUBE_PART_CAP: f32 = 12.0;     // max parting force magnitude
+6. CLASS B — `update_cube`: the point-parting term uses
+   CUBE_PART_RADIUS (replacing the bubble-derived radius) and its
+   force is clamped:
+     let f = min(v_ap * CUBE_PART_GAIN * falloff, CUBE_PART_CAP);
+   (author CUBE_PART_GAIN 1.0 beside the others if the current term has
+   no gain factor; keep the existing falloff shape). Likewise CLAMP the
+   cube-vs-pawn repulsion force to CUBE_PART_CAP — it is currently
+   uncapped by the T2c spec.
+   WORKED EXAMPLE for the commit message: player at 15 wu/s, 5 wu from
+   a cube — before: radius 23, force ∝ 15, uncapped; after: radius 8,
+   force ≤ 12, falloff-shaped. Parting, not launching.
+
+COMMIT [K2c] — plasticity as a live dial (cubes that STAY moved)
+7. DIAGNOSIS for the log: cubes return because λ = 0 on every
+   CUBE_TIER_GAINS row — shipped at rest for bit-neutrality — and λ
+   bakes per-instance at spawn, so the table alone cannot be tuned
+   live. This commit gives per-tier CHARACTER × a live global MASTER.
+8. CLASS B — `CUBE_TIER_GAINS` plasticity column becomes per-tier
+   RELATIVE character (Jean-tunable in-row; the master scales them):
+     tier 0: 1.0 · tier 1: 0.8 · tier 2: 1.2 · tier 3: 0.5
+   Comment: "relative plasticity; the live master is
+   config.cube_plasticity. Baked per-instance at spawn — changing a
+   ROW needs a respawn; changing the MASTER is live."
+9. CLASS B — `GPUDesignConfig` + WGSL `DesignConfig` gain
+     float cube_plasticity;   // CONTACT_3: global λ master
+   per the growth law (fill a tail pad if one remains — paste the
+   sizeof witness before/after; update the assert message, and the
+   number only if the size truly moves). Boot-pinned through a new
+   `set_cube_plasticity` from a named constant beside the other Idle/
+   panel rest pins:
+     CUBE_PLASTICITY_DEFAULT = 0.6f   // Jean-tunable; 0 = elastic
+                                      // (pre-CONTACT_3), 1 = fully sculptable
+10. CLASS B — the leak in `update_cube` multiplies both:
+      let lam = fe.plasticity * config.cube_plasticity;
+      let leak = clamp(lam * signal.dt, 0.0, 1.0);
+    (keep the three C1b refinements exactly: after the compose,
+    xz-only, anchor-mode-only.)
+11. DISCLOSE: with the default 0.6 this is a DELIBERATE behavior
+    change — shoved cubes stay shoved. Cube rest identity no longer
+    holds and is not a gate this batch (terrain/pixel rest identity
+    still is).
+glaw1 + witness after [K2c].
+═══════════════════════════════════════════════════════════════════════

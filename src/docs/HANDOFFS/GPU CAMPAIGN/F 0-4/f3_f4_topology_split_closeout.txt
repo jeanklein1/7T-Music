@@ -1,0 +1,127 @@
+═══════════════════════════════════════════════════════════════════════
+CC HANDOFF F3 — THE ZONE-AWARE TOPOLOGY SPLIT  ★ CONDITIONAL ★
+GATE: do NOT begin until Jean's F0-item-3 diagnostic is reported in
+the log AND it confirms LOD0 vertex work as the bottleneck (framerate
+recovering roughly with the lod0_radius² patch-count drop), AND the
+BREATH-pin check came back at rest. If either fails, STOP and report —
+the design side re-investigates rather than spending here blind.
+═══════════════════════════════════════════════════════════════════════
+
+THE PRINCIPLE: pay for the unified topology ONLY where life exists.
+A patch containing no zone has lift = 0 at every vertex, so the legacy
+grid+skirt mesh renders its surface IDENTICALLY at ~40% of the vertex
+cost. With ≤8 zones of ≤100 wu, a handful of LOD0 patches out of ~38
+need the cap/curtain bands; the rest do not.
+
+  per LOD0 patch   verts    triangles
+  unified (now)    10,752   16,896
+  legacy (plain)    4,481    8,192
+
+COMMIT [F3a] — the second index buffer (the legacy emission, restored)
+1. CLASS B — recover the PRE-U2b LOD0 emission verbatim from history:
+     git show <U2b-parent>:src/.../state.hpp
+   (find U2b = 226e29f in UNIFIED_GROUND_1; its parent holds the
+   original block). Paste the recovered block in the log.
+2. Add it back as a SECOND buffer beside the unified one — do NOT
+   replace anything:
+     patchIndexBuffer_        (unified: cap + curtain + re-aimed skirt,
+                               50,688) — unchanged, keep its name
+     patchIndexBufferPlain_   (legacy: grid quads + legacy skirt ring,
+                               24,576) + patchIndexCountPlain_
+   The legacy skirt ring aims at LEGACY GRID verts (its original form)
+   — this is why the block must be recovered rather than derived: the
+   unified IB's skirt was re-aimed at cap outer verts at U2b.
+   Banner: "TWO TOPOLOGIES, ONE SURFACE — a patch with no zone has
+   lift 0 everywhere, so the legacy mesh draws its surface identically
+   at ~40% the vertex cost. The unified mesh is bought only where
+   cells must lift independently (GROUND_FIX_1)."
+   FALLBACK (log the choice if taken): if the legacy block cannot be
+   cleanly recovered, reorder the unified IB as [cap | skirt | curtain]
+   and let plain patches draw the prefix (cap+skirt) — a smaller win
+   (6,656 verts) with no second buffer. Primary spec is the two-IB form.
+
+COMMIT [F3b] — the classification + the sub-sort
+3. CLASS B — patch_system.hpp, in the LOD sort that fills
+   patch_instances (the patch_instances_dirty path — paste it): after
+   the existing LOD0-first ordering, SUB-SORT the LOD0 run so that
+   ZONE-TOUCHING patches come first. Classification (CPU-side, exact —
+   zones are CPU-known in gol_state_.zones with origin + extent):
+     a patch (origin ± PATCH_EXTENT/2) is zone-touching iff its AABB
+     overlaps ANY active zone's AABB expanded by one cell (3.125 wu).
+   The margin is belt-and-braces: patch borders are cell-aligned, so
+   exact overlap suffices; the margin covers float edges. Publish the
+   resulting count as `zoned_lod0_count` (WorldState field beside
+   lod0_patch_count).
+   CORRECTNESS NOTE for the banner: a zone straddling a patch border
+   marks BOTH patches — otherwise the un-marked side cannot lift and a
+   crack opens at the border. This test is the crack's only guard.
+4. CLASS B — GPUDesignConfig gains `zoned_lod0_count: u32` under the
+   growth law (both rooms + the size witness); authored each frame
+   beside the existing LOD counts.
+
+COMMIT [F3c] — the draws
+5. CLASS B — the frustum-cull kernel: skip the zoned prefix, so the
+   indirect list carries PLAIN LOD0 patches only:
+     if (idx < fc_config.zoned_lod0_count) { return; }
+   (one comparison; comment: "the zoned prefix draws direct with the
+   unified mesh — GROUND_FIX_1").
+6. CLASS B — the MAIN pass terrain fork (drawable_table's documented
+   terrain fork; renderer verbs at F0 anchor i):
+     - ZONED draw: the DIRECT LOD0 pipeline variant
+       (USE_PATCH_INDIRECTION = false), UNIFIED index buffer,
+       instances [0, zoned_lod0_count).
+     - PLAIN draw: the existing path (indirect when culling is
+       allowed, else direct with firstInstance = zoned_lod0_count and
+       instanceCount = lod0_patch_count − zoned_lod0_count), PLAIN
+       index buffer.
+     - LOD1: unchanged (legacy decode + soft lift, as ruled at U6).
+7. CLASS B — the SHADOW pass: same split, both draws direct (the
+   shadow path does not cull).
+8. CLASS B — the SNAPSHOT pass (photographer, one frame): use the
+   UNIFIED buffer for all LOD0 — a single frame's cost is irrelevant
+   and the photograph must show lifted zones correctly. One comment.
+9. VERIFY: the indirect-draw budget. UG1 freed one indexed-indirect
+   slot per pass when the zone extrusion retired; this split spends at
+   most that. Confirm against the world.wgsl banner law and say so.
+glaw1 + Dawn witness (both terrain pipeline variants revalidate).
+
+═══════════════════════════════════════════════════════════════════════
+CC HANDOFF F4 — CLOSEOUT
+═══════════════════════════════════════════════════════════════════════
+1. Instruments → _post_gf1: cc6 (layout deltas ONLY where F2/F3 grew a
+   struct or the cull gained a field — flags EMPTY), cc7 (+0 or the
+   documented deltas), cc4 (entry-point closures; the two patch VS
+   unchanged in bindings), Dawn witness ALL FAMILIES GREEN.
+2. BATCH_REPORT_GF1.md:
+   - The three symptoms, the two authoring errors, the structural cost
+     — stated plainly, with the fix per symptom.
+   - The F1 verification list (every pawn_gol_suppression call site
+     with its composition form).
+   - F2's default-off statement + the no-migration note.
+   - F3: Jean's diagnostic result verbatim; the two-topology table;
+     the crack-guard note; whether the fallback shape was taken.
+   - THE GATE LESSON, recorded for future campaigns: "A rest-identity
+     gate cannot validate a multiplicative factor whose multiplicand
+     is zero at rest. Any future term of the form A × f(x) where A is
+     zero at rest requires a MOTION gate against a known-truth
+     reference — the debug eye is that reference for the card."
+   - Deviations; encoding sweep.
+3. Push. JEAN'S GATE LIST:
+   [ ] Build + boot.
+   [ ] THE EYE: LIVE_CARD_DEBUG_VIEW = 1u → zone lift painted across
+       the map, pawn-independent. Flip back.
+   [ ] ZONES EXIST: walk the world — zones stand and live at distance;
+       cells wear the mosaic; the ground presses DOWN under the pawn
+       (the bow-wave, right way round) and springs back behind.
+   [ ] MASK OFF: zone cells lift regardless of smooth/checker ground.
+       Then (tuning, optional) set one Conway tier's mask_mode = 1 and
+       compare — coastline-shaped life is the feature the column buys.
+   [ ] PERFORMANCE: framerate vs pre-batch, at lod0_radius = 175.
+       If [F3] landed, most of the UG1 cost should be back.
+   [ ] REST: still world still identical to pre-batch stills.
+4. Seeds: CONTACT_2 (already drafted, unblocked by this batch) — then
+   the coupling campaign per the bridge. The GoL directions from the
+   design session (mask_mode as the general "where may life show" door,
+   XL zone stride, the glider emissaries) sit on top of a corrected
+   Unified Ground.
+═══════════════════════════════════════════════════════════════════════
