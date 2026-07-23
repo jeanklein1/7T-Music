@@ -1,0 +1,87 @@
+═══════════════════════════════════════════════════════════════════════
+CC HANDOFF S3 — THE SHELL INSTRUMENT + CLOSEOUT
+Make influence visible. A 50 wu ring drawn on the ground would have
+made the CONTACT_2/3 error obvious in one frame, with no walkthrough.
+The rings use ONLY what the terrain fragment stage already has —
+config.lod_point_x/z is the point's own position — so this costs zero
+bindings and zero layout edits.
+═══════════════════════════════════════════════════════════════════════
+
+COMMIT [S3a] — the point's shells, drawn on the ground
+1. CLASS B — beside the existing debug-view const block:
+     // THE SHELL INSTRUMENT (CONTACT_4). 1 = draw the point's
+     // influence shells as rings on the terrain. The rings BLEND over
+     // the world (they do not replace it) so scale is read in context.
+     const CONTACT_SHELL_DEBUG: u32 = 0u;
+     const SHELL_RING_WIDTH: f32 = 0.35;   // wu, half-width of a ring band
+2. CLASS B — in the terrain fragment body, AFTER the final colour is
+   composed and after any rim/veil discard (mirror where the live-card
+   debug eye sits), insert:
+     if (CONTACT_SHELL_DEBUG == 1u) {
+         let pxz = vec2(config.lod_point_x, config.lod_point_z);
+         let d = distance(in.world_pos.xz, pxz);
+         var ring = vec3(0.0);
+         // the bubble — the point's social shell (the flee trigger)
+         ring += vec3(0.2, 0.9, 1.0)
+               * step(abs(d - config.point_bubble_radius), SHELL_RING_WIDTH);
+         // the cube parting reach
+         ring += vec3(1.0, 0.7, 0.2)
+               * step(abs(d - CUBE_PART_RADIUS), SHELL_RING_WIDTH);
+         // one patch, for scale
+         ring += vec3(0.5, 0.5, 0.5)
+               * step(abs(d - PATCH_EXTENT), SHELL_RING_WIDTH);
+         colour = mix(colour, ring, min(1.0, ring.r + ring.g + ring.b) * 0.75);
+     }
+   (Adapt `colour` / `in.world_pos` to the block's own spellings. If
+   PATCH_EXTENT is not visible in that scope, use its true name.)
+   Comment: "each ring is an influence radius the code actually uses;
+   the grey patch ring is the world's own yardstick. If a shell ring
+   sits outside the patch ring, ask whether that influence should
+   really reach a whole patch."
+3. Log a note for Jean: flip `CONTACT_SHELL_DEBUG` to 1u to read the
+   shells; the S2 corrections should show the bubble ring well INSIDE
+   the grey patch ring, and the cube ring between them.
+
+COMMIT [S3b] — closeout
+4. Instruments → `_post_c4`: cc6 (no layout deltas; flags EMPTY), cc7
+   (+0 declarations), cc4 (closures unchanged EXCEPT `update_player_agent`,
+   which should LOSE floating_entities/100 with the sphere loop —
+   report the diff and confirm it against the CE layout), Dawn witness
+   ALL FAMILIES GREEN.
+5. BATCH_REPORT_C4.md: the diagnosis (three radii in the wrong space) ·
+   the ledger as installed · each correction with its worked example ·
+   the closure delta at item 4 · deviations · encoding sweep · the
+   UPDATED TUNING TABLE (carry C3's table forward with the new values
+   and add a REFERENCE column — the ledger's, so the table itself is
+   now reviewable).
+6. Push. JEAN'S GATE LIST (Windows):
+   [ ] Build + boot. Nothing structural changed; the player kernel got
+       SMALLER (one loop removed).
+   [ ] THE SHELLS: flip CONTACT_SHELL_DEBUG = 1u, stand still, look
+       down. Read the rings against the grey patch ring. Revert after.
+   [ ] THE APPROACH: walk at an agent. It should ignore you until the
+       bubble, then dart aside — and you should be able to WALK IT
+       DOWN and possess it (Caps Lock). This is the gate S2a exists
+       for; if you still cannot close, report flee_gain_player and
+       your pawn speed.
+   [ ] THE CROWD: sprint through a cluster — a wake that settles; at
+       rest, no reaction at all.
+   [ ] THE CUBES: walk beneath one — it should swing aside and (with
+       λ) keep some displacement; sweep a drone show and rearrange it.
+   [ ] THE SPHERES: walk into a sphere's path — it must NOT push you.
+       Watch an agent near one — it still gives way, now at the
+       sphere's true body size rather than its influence field.
+   [ ] The whisper + geometry gates, unchanged.
+7. DEFERRED REGISTER (carried; two items CLOSED by this batch):
+   - CLOSED: per-slot floater radii (S2c item 8).
+   - CLOSED: the sphere-pushes-player behaviour (S2c item 7).
+   - still open: figure-scaled contact radius (binding 112 → COMPUTE
+     visibility) · CPU-authored point velocity (`config.point_vel_x/z`
+     from the P5 harvest — retires BUBBLE_PART_SPEED and restores "a
+     still camera parts no one"; note the camera-host path has no
+     proximity falloff input either until this lands) · aggregate
+     impulse clamp (per-pair cap has no total) · AgentState pad debt
+     (96→112) · living-plateau steering · the bubble's coupling wire ·
+     the ribbon floor · emissaries · the frame-time instrument
+     (timestamp queries — still the one unmeasured axis).
+═══════════════════════════════════════════════════════════════════════
