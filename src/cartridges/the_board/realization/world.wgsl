@@ -1010,7 +1010,7 @@ struct FloatingEntityState {
     pawn_offset: vec3<f32>,    // 176/180/184: cube position relative to pawn
     behavior_phase: u32,       // 188: per-slot phase hash for behavior diversity
     follow_pawn: u32,          // 192: 0=anchor-relative, 1=pawn-relative
-    _pad0: u32,                // 196: align to 208 (13×16)
+    plasticity: f32,           // 196: CONTACT_2 λ (0=elastic; drift→anchor leak rate). Was _pad0.
     _pad1: u32,                // 200
     _pad2: u32,                // 204
 }                              // 208 total
@@ -7656,6 +7656,29 @@ fn update_cube() {
 
             // ── Compose final position ────────────────────────────
             fe.pos = home + fe.drift;
+
+            // ── PLASTICITY (CONTACT_2 C1b) ─────────────────────────
+            // Displacement leaks from drift (temporary) into anchor
+            // (permanent). fe.pos is already composed above, so the
+            // transfer moves no pixels this instant — the present
+            // becomes the next configuration's initial condition (the
+            // continuity law). λ = 0 reproduces the elastic cube
+            // bit-exactly. Three refinements make the stated law TRUE on
+            // this code (all bit-neutral at λ=0): (1) placed AFTER the
+            // compose, since `home` is a local from the PRE-leak anchor
+            // — leaking before it would jump pos this frame; (2) XZ-only
+            // — home.y is terrain-relative (not anchor.y), so a .y leak
+            // would move pixels (contact is planar anyway, C1a); (3)
+            // anchor mode only — in kite mode home tracks the point, not
+            // anchor, so the anchor is dormant. (GPU anchor mutation
+            // precedent: the kite-release freeze.)
+            if (fe.follow_pawn == 0u) {
+                let leak = clamp(fe.plasticity * dt, 0.0, 1.0);
+                fe.anchor.x = fe.anchor.x + fe.drift.x * leak;
+                fe.anchor.z = fe.anchor.z + fe.drift.z * leak;
+                fe.drift.x = fe.drift.x - fe.drift.x * leak;
+                fe.drift.z = fe.drift.z - fe.drift.z * leak;
+            }
 
             // Spin around tilted Y axis (unchanged)
             let spin_angle = fe.t * fe.spin_speed;

@@ -82,14 +82,16 @@ struct CubeTierGain {
     float spring_stiffness_mult;
     float drag_mult;
     float behavior_amp_mult;   // reserved; not yet consumed by kernel
+    float plasticity;          // CONTACT_2 λ: 0 = elastic (today, bit-exact);
+                               // 1 = fully sculptable. Jean-tunable.
 };
 
 inline constexpr CubeTierGain CUBE_TIER_GAINS[CUBE_TIER_COUNT] = {
-    //                            spring  drag   amp
-    /* 0 SmallCube */ { 0, "SmallCube", 1.0f, 1.0f, 1.0f },
-    /* 1 MedCube   */ { 1, "MedCube",   1.0f, 1.0f, 1.0f },
-    /* 2 LargeCube */ { 2, "LargeCube", 1.0f, 1.0f, 1.0f },
-    /* 3 Monolith  */ { 3, "Monolith",  1.0f, 1.0f, 1.0f },
+    //                            spring  drag   amp   λ (plasticity — Jean-tunable)
+    /* 0 SmallCube */ { 0, "SmallCube", 1.0f, 1.0f, 1.0f, 0.0f },
+    /* 1 MedCube   */ { 1, "MedCube",   1.0f, 1.0f, 1.0f, 0.0f },
+    /* 2 LargeCube */ { 2, "LargeCube", 1.0f, 1.0f, 1.0f, 0.0f },
+    /* 3 Monolith  */ { 3, "Monolith",  1.0f, 1.0f, 1.0f, 0.0f },
 };
 
 static_assert(sizeof(CUBE_TIER_GAINS) / sizeof(CUBE_TIER_GAINS[0]) == CUBE_TIER_COUNT,
@@ -593,6 +595,10 @@ inline void cube_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Queu
     fe.drag             = CUBE_DEFAULT_DRAG;
     fe.tier_idx = inst.tier_idx;
     apply_cube_tier_gains(fe.spring_stiffness, fe.drag, inst.tier_idx);
+    // CONTACT_2 C1b: bake the tier's plasticity λ per-instance (no GPU
+    // cube-tier array + no new bindings this batch — rides the fe pad).
+    fe.plasticity = (inst.tier_idx < CUBE_TIER_COUNT)
+                        ? CUBE_TIER_GAINS[inst.tier_idx].plasticity : 0.0f;
     fe.drift[0] = 0.0f; fe.drift[1] = 0.0f; fe.drift[2] = 0.0f;
     fe.drift_vel[0] = 0.0f; fe.drift_vel[1] = 0.0f; fe.drift_vel[2] = 0.0f;
     fe.behavior_id    = pick_cube_behavior_for_spawn(c->mood_state_.active, inst.seed);

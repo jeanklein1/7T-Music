@@ -793,7 +793,7 @@ namespace t7 {
             float    pawn_offset[3];   // 176/180/184: cube position relative to pawn
             uint32_t behavior_phase;   // 188: per-slot phase hash for behavior diversity
             uint32_t follow_pawn;      // 192: 0=anchor-relative, 1=pawn-relative
-            uint32_t _pad0;            // 196
+            float plasticity;          // 196 — CONTACT_2 λ (0=elastic; drift→anchor leak). Was _pad0.
             uint32_t _pad1;            // 200
             uint32_t _pad2;            // 204
         };                             // 208 total (13×16)
