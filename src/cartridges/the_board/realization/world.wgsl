@@ -2190,6 +2190,13 @@ const BUBBLE_PART_SPEED: f32 = 4.0;     // camera-host parting speed (the C3 fal
 // short-range reflex. 30+30 sensing -> 15 wu flee trigger. Jean-tunable.
 const FLEE_SHELL_FRAC: f32 = 0.25;   // CONTACT_3 K2a
 
+// Cube parting (CONTACT_3 K2b): contact-scale, not bubble-scale, and
+// capped — the C3b parting was radius 23 with force proportional to the
+// player's full speed, uncapped, into a spring integrator (it flung).
+const CUBE_PART_RADIUS: f32 = 8.0;   // parting reach (was 3 + 20 bubble)
+const CUBE_PART_CAP: f32 = 12.0;     // max parting force magnitude
+const CUBE_PART_GAIN: f32 = 1.0;     // force per unit approach speed
+
 
 // §2.3 MUTING CONTROL
 
@@ -7819,7 +7826,7 @@ fn update_cube() {
                 if (cd2 < cr * cr && cd2 > 0.0001) {
                     let cd = sqrt(cd2);
                     let cd_pl = sqrt(max(cdx * cdx + cdz * cdz, 0.0001));
-                    let mag = (cr - cd) * CONTACT_SPRING;
+                    let mag = min((cr - cd) * CONTACT_SPRING, CUBE_PART_CAP);   // K2b: cap the shove
                     contact_force = vec3((cdx / cd_pl) * mag, 0.0, (cdz / cd_pl) * mag);
                 }
             }
@@ -7835,7 +7842,7 @@ fn update_cube() {
                 let qdy = fe.pos.y - pt.y;
                 let qdz = fe.pos.z - pt.z;
                 let qd2 = qdx * qdx + qdy * qdy + qdz * qdz;
-                let qpr = CONTACT_CUBE_RADIUS + config.point_bubble_radius;
+                let qpr = CUBE_PART_RADIUS;   // K2b: contact-scale, not bubble-scale
                 if (qd2 < qpr * qpr && qd2 > 0.0001) {
                     let qdpl = sqrt(max(qdx * qdx + qdz * qdz, 0.0001));
                     var v_ap = BUBBLE_PART_SPEED;
@@ -7843,7 +7850,10 @@ fn update_cube() {
                         let pawn = agent_state[config.possessed_slot];
                         v_ap = max(0.0, (pawn.vel_x * qdx + pawn.vel_z * qdz) / qdpl);
                     }
-                    parting_force = vec3(qdx / qdpl, 0.0, qdz / qdpl) * v_ap * CONTACT_SPRING;
+                    // K2b: capped + falloff-shaped — parting, not launching.
+                    let falloff = clamp(1.0 - qdpl / CUBE_PART_RADIUS, 0.0, 1.0);
+                    let f = min(v_ap * CUBE_PART_GAIN * falloff, CUBE_PART_CAP);
+                    parting_force = vec3(qdx / qdpl, 0.0, qdz / qdpl) * f;
                 }
             }
             let spring_a = -fe.drift * fe.spring_stiffness;
