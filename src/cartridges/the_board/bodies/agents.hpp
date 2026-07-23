@@ -294,7 +294,8 @@ void cycle_agent_tier_override(AgentState& as, AgentsDeps* c, wgpu::Queue& queue
 void force_respawn_population(AgentState& as, AgentsDeps* c, wgpu::Queue& queue);
 void seed_player_body(AgentState& as, AgentsDeps* c);
 void reseed_player_body(AgentState& as, AgentsDeps* c, uint32_t preserved_tier,
-                        float preserved_color_r, float preserved_color_g, float preserved_color_b);
+                        float preserved_color_r, float preserved_color_g, float preserved_color_b,
+                        uint32_t preserved_skin);
 // Logging
 void dump_agent_census(const AgentState& as, const AgentsDeps* c, const char* trigger);
 
@@ -752,12 +753,14 @@ inline void seed_player_body(AgentState& as, AgentsDeps* c) {
 // Transition twin: keep the CPU mirror in sync with the GPU reset so
 // patch streaming + ribbon + Caps Lock see current state; possession
 // re-anchors to slot 0 (the possessed_slot write stays with the
-// declared possession door's owner). Tier + colors preserved by the
-// caller across the reset. The twins stay twins — byte-exactness
+// declared possession door's owner). Tier + colors + figure (skin_id)
+// preserved by the caller across the reset — the possessed body's
+// appearance set. The twins stay twins — byte-exactness
 // outranks unification (PRIME INVARIANT); merging them is later
 // material if ever pulled.
 inline void reseed_player_body(AgentState& as, AgentsDeps* c, uint32_t preserved_tier,
-                               float preserved_color_r, float preserved_color_g, float preserved_color_b) {
+                               float preserved_color_r, float preserved_color_g, float preserved_color_b,
+                               uint32_t preserved_skin) {
     std::memset(as.slots, 0, sizeof(as.slots));
     as.slots[0].pos_x = 0.0f;  // Idle::PAWN_POS_X
     as.slots[0].pos_y = 0.0f;
@@ -769,7 +772,7 @@ inline void reseed_player_body(AgentState& as, AgentsDeps* c, uint32_t preserved
     as.slots[0].color_r = preserved_color_r;
     as.slots[0].color_g = preserved_color_g;
     as.slots[0].color_b = preserved_color_b;
-    as.slots[0].skin_id = 0u;   // regular pawn (memset already zeroed; explicit)
+    as.slots[0].skin_id = preserved_skin;   // the figure rides with tier + color
     as.slots[0].portal_trigger = -1;
     c->player_.possessed_slot = 0;
 }

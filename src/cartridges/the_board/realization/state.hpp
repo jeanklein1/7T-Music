@@ -2293,8 +2293,11 @@ namespace t7 {
                 if (config_.world_seed != seed) { config_.world_seed = seed; configDirty_ = true; }
             }
             //
+            // skin_id rides with tier + color: the preserved-body set (CLOSURE_PAWN [5]).
+            // Default 0 = regular pawn, for callers with no prior body (boot).
             void reset_player_agent(wgpu::Queue& queue, uint32_t tier_idx = 0u,
-                                    float color_r = 0.0f, float color_g = 0.0f, float color_b = 0.0f) {
+                                    float color_r = 0.0f, float color_g = 0.0f, float color_b = 0.0f,
+                                    uint32_t skin_id = 0u) {
                 GPUAgentState buf[Dim::MAX_AGENTS] = {};
                 auto& p = buf[0];
                 p.pos_x = Idle::PAWN_POS_X;
@@ -2312,6 +2315,7 @@ namespace t7 {
                 p.color_r = color_r;
                 p.color_g = color_g;
                 p.color_b = color_b;
+                p.skin_id = skin_id;
                 queue.WriteBuffer(agentStateBuffer_, 0, buf, sizeof(buf));
             }
             // Upload the full 32-slot agent array. Slot 0 (player) is rewritten

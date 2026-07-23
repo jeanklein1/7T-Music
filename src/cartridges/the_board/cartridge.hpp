@@ -898,13 +898,17 @@ namespace t7 {
                         float preserved_color_r = agent_state_.slots[player_.possessed_slot].color_r;
                         float preserved_color_g = agent_state_.slots[player_.possessed_slot].color_g;
                         float preserved_color_b = agent_state_.slots[player_.possessed_slot].color_b;
+                        // The figure travels with the body you inhabit (CLOSURE_PAWN [5]).
+                        uint32_t preserved_skin = agent_state_.slots[player_.possessed_slot].skin_id;
 
                         gpuState_.reset_player_agent(queue, preserved_tier,
-                            preserved_color_r, preserved_color_g, preserved_color_b);
+                            preserved_color_r, preserved_color_g, preserved_color_b,
+                            preserved_skin);
                         gpuState_.set_possessed_slot(0);
                         // CPU mirror reseed rides with its owner (agents).
                         reseed_player_body(agent_state_, &agents_deps_, preserved_tier,
-                            preserved_color_r, preserved_color_g, preserved_color_b);
+                            preserved_color_r, preserved_color_g, preserved_color_b,
+                            preserved_skin);
                         gpuState_.set_world_seed(world_state_.active_seed);
                         apply_mood(&mood_deps_, pendingDestination_.mood, queue,
                             machine_ctx_, ribbon_state_, ribbon_deps_,
