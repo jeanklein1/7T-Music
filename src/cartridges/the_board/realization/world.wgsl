@@ -6322,6 +6322,29 @@ fn agent_post_step(agent_in: AgentState, drag: f32, speed_cap: f32, speed_gain: 
         a.vel_z *= inv;
     }
 
+    // ── CONTACT_2 C2b — potential-field steering (the whisper) ─────
+    // Read the ground's own slope ahead and deflect ALONG the level-
+    // set — velocity-shaping only, nothing inside the ground-resolve
+    // chain (the FXC sanctum). Branchless: smoothstep is 0 below LO and
+    // min(1,sp2) quiets it at standstill; the max(glen,eps) hardens the
+    // handoff's normalize against a flat-ground zero. The walkable
+    // cliff-clamp stays the wall (dead-center local minimum is the
+    // clamp's case, by design: hard in spirit, soft in essence).
+    {
+        let sp2s = a.vel_x * a.vel_x + a.vel_z * a.vel_z;
+        let inv_sp = inverseSqrt(max(sp2s, 0.0001));
+        let ahead = vec2(a.pos_x, a.pos_z)
+                  + vec2(a.vel_x, a.vel_z) * inv_sp * STEER_LOOKAHEAD_WU;
+        let g = sample_terrain_grad_at(ahead);
+        let glen = length(g);
+        let steep = smoothstep(STEER_GRAD_LO, STEER_GRAD_HI, glen);
+        let side = sign(a.vel_x * g.y - a.vel_z * g.x + 0.000001);
+        let perp = (vec2(-g.y, g.x) / max(glen, 0.0001)) * side;
+        let f = steep * STEER_GAIN * signal.dt * min(1.0, sp2s);
+        a.vel_x += perp.x * f;
+        a.vel_z += perp.y * f;
+    }
+
     // Position integration.
     a.pos_x += a.vel_x * dt;
     a.pos_z += a.vel_z * dt;
@@ -6402,7 +6425,29 @@ fn behavior_player_controlled(agent_in: AgentState) -> AgentState {
     // zeroes velocity; the pawn stands, snapped where it is).
     if (coupling_active(COUPLING_INPUT_MOVES_PLAYER) && !point_camera_hosted()) {
         let input_dir = vec2(signal.move_x, signal.move_z);
-        let world_vel = coupling_input_to_pawn_velocity(input_dir, camera_state.azimuth);
+        var world_vel = coupling_input_to_pawn_velocity(input_dir, camera_state.azimuth);
+
+        // ── CONTACT_2 C2b — potential-field steering (the whisper) ─
+        // The pawn reads the ground's slope ahead and bends around
+        // monuments BEFORE the walkable clamp (the wall) ever fires; a
+        // dead-center approach still stops. Steers the input intent
+        // (world_vel) before it integrates, so the PATH bends this
+        // frame. Branchless (see agent_post_step); world_vel.y is the
+        // z-axis component.
+        {
+            let sp2s = world_vel.x * world_vel.x + world_vel.y * world_vel.y;
+            let inv_sp = inverseSqrt(max(sp2s, 0.0001));
+            let ahead = vec2(agent.pos_x, agent.pos_z)
+                      + world_vel * inv_sp * STEER_LOOKAHEAD_WU;
+            let g = sample_terrain_grad_at(ahead);
+            let glen = length(g);
+            let steep = smoothstep(STEER_GRAD_LO, STEER_GRAD_HI, glen);
+            let side = sign(world_vel.x * g.y - world_vel.y * g.x + 0.000001);
+            let perp = (vec2(-g.y, g.x) / max(glen, 0.0001)) * side;
+            let f = steep * STEER_GAIN * signal.dt * min(1.0, sp2s);
+            world_vel.x += perp.x * f;
+            world_vel.y += perp.y * f;
+        }
 
         let speed = select(PAWN_SPEED, config.pawn_speed, config.pawn_speed > 0.0);
         agent.pos_x += world_vel.x * speed * dt;
