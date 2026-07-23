@@ -2284,6 +2284,22 @@ const SPHERE_PUSH_GAIN: f32 = 40.0;
 // written once. See the authority table in the P0 banner (CONTACT_5_LOG).
 // PRESENCE follows the POINT; EMANATION stays the BODY's (contracts/point.hpp).
 //
+// THE POINT-CENTERING LEDGER (CONTACT_5 P2c) — every profile below whose
+// 'other' is the point reads point_pos() (host-routed: pawn-host -> the
+// possessed slot's pos, camera-host -> the camera). The possessed slot is
+// read directly ONLY where the term is genuinely the BODY's emanation:
+//   point-source flee (others) . other = point_pos()   [PRESENCE -> POINT]
+//   cube push (update_cube) ..... other = point_pos()   [PRESENCE -> POINT]
+//   sphere push (player/camera) . self  = the point's HOST body; other = the
+//                                 sphere (fe.pos)        [emanation of the sphere]
+//   agent<->agent contact/flee .. other = agent_state[k] [BODY pair -- stays]
+//   contact mass weight ......... k == possessed_slot -> PAWN_CONTACT_MASS_MULT
+//                                 [the pawn BODY's yield authority -- stays]
+// The one remaining possessed-slot read for a point term is the point's
+// VELOCITY in the point-source flee's pawn-host branch (the point's velocity
+// IS its host's; camera-host uses the BUBBLE_PART_SPEED floor). The deferred
+// config.point_vel_x/z would retire even that into a host-agnostic field.
+//
 // Two response shapes, both already in the tree — the profile selects:
 //   PRESENCE (the shove) — force proportional to overlap (r-d); a reaction
 //                          to OCCUPANCY; impulse, dt-scaled (the K1 law).
