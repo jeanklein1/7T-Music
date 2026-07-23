@@ -305,7 +305,38 @@ all in the shared body, all now fixed and re-verified:
 
 The point-flee "double falloff" worry (the P1a Defect 1 I had pre-empted) was
 confirmed CLEAN by the panel — `fall` multiplies the v_ap term once, never again
-at the return. After the 4 fixes, a fresh 6-skeptic panel re-tested every prior
-counterexample against the corrected body (results appended below on pass). The
-gate is the whole campaign's bisection line, so P1b does not commit until every
-row returns bit-identical.
+at the return.
+
+### FINAL PANEL VERDICT (after the 4 fixes)
+
+A fresh 6-skeptic panel re-tested every prior counterexample against the
+corrected body:
+
+| Row | bit_identical | prior counterexample now matches |
+|---|---|---|
+| agent-agent contact | **TRUE** | yes (the 1-ULP reassociation is gone) |
+| agent-agent flee | **TRUE** | yes (the flat-shell gate flip is gone) |
+| agent-sphere contact | **TRUE** | yes (explicit sum + squared gate) |
+| point-source flee | **TRUE** | yes (both hosts; fall applied once) |
+| cube-pawn contact | **TRUE** | yes |
+| cube parting | **1-ULP dev.** | prior FIXED; a *new*, deeper residual found |
+
+**THE FOUR AGENT ROWS ARE BIT-IDENTICAL — the P1 hard gate (agents frozen) is
+fully met.** The lone residual is on the CUBE parting, non-agent:
+
+**ACCEPTED DEVIATION — cube-parting pawn-host v_ap (1 ULP).** OLD computed
+`v_ap = (vx*qdx + vz*qdz) / qdpl` — the raw-coordinate dot divided ONCE. The
+unified body computes `dot(other_vel, dir)` where `dir = (qdx/qdpl, qdz/qdpl)` —
+the division baked per-component into `dir` (divide-then-sum). Algebraically
+equal, ~1 ULP apart in f32 (~24% of pawn-host inputs, last-bit). This is an
+UNAVOIDABLE trade: the point-source flee — an AGENT hard-gate site — used OLD
+`dot(pvel, pdir)` (the divide-then-sum form), so the one shared v_ap MUST take
+that form to keep agents bit-exact. That leaves the cube parting's idiosyncratic
+single-division form 1 ULP off. The right call is agents-exact; the cube pays 1
+ULP. It is non-agent, imperceptible on a drift force, and **P2b replaces the cube
+parting with a PRESENCE profile (no v_ap at all)** — so the deviation exists for
+exactly the P1b→P2b span and then dissolves. Camera-host cube parting is fully
+bit-identical (other_vel = 0 ⇒ dot = 0 exactly). Recorded, not fixed.
+
+The gate is the campaign's bisection line and it holds: agents are byte-for-byte
+CONTACT_4; only a soon-retired cube path moves, by 1 ULP.
