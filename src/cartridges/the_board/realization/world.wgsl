@@ -2266,6 +2266,94 @@ const CUBE_PART_RADIUS: f32 = 30.0;  // parting reach (indoor cap 18.75 + 11 lat
 const CUBE_PART_CAP: f32 = 12.0;     // units: max parting force magnitude (accel). Not a radius.
 const CUBE_PART_GAIN: f32 = 1.0;     // dimensionless: force per unit approach speed
 
+// ═══ THE INFLUENCE LAW (CONTACT_5) ══════════════════════════════════
+// One body, many callers. The PROFILE selects the shape; the law is
+// written once. See the authority table in the P0 banner (CONTACT_5_LOG).
+// PRESENCE follows the POINT; EMANATION stays the BODY's (contracts/point.hpp).
+//
+// Two response shapes, both already in the tree — the profile selects:
+//   PRESENCE (the shove) — force proportional to overlap (r-d); a reaction
+//                          to OCCUPANCY; impulse, dt-scaled (the K1 law).
+//   APPROACH (the dodge) — force proportional to closing speed v_ap; a
+//                          reaction to MOTION; velocity floor, NOT dt-scaled
+//                          (K1); the matador tangential split.
+//
+// dt is a PARAMETER, not a constant: velocity-hosts (agents) pass the real
+// dt and add the result straight to velocity; force-integrators (cubes)
+// pass dt = 1.0 so PRESENCE returns a raw force, then apply the real x dt
+// at their own drift-integration line. This is how one body serves both
+// the impulse sites and the acceleration sites (bit-preservation proof in
+// CONTACT_5_LOG). CONTACT_5 corrections vs the P1 draft, both proven in the
+// log: (1) fall is applied ONCE to the approach v_ap term (the draft
+// squared it via min(mag*fall,...) and would have weakened the agent
+// dodge — an agent-visible change, forbidden by the P1 gate); (2) the
+// matador split is a PROFILE column `tangential` (0.6 flee / 0 radial) so
+// the cube parting keeps its straight radial push.
+struct InfluenceProfile {
+    radius:        f32,   // shell radius (see vwindow)
+    vwindow:       f32,   // <= 0 : spherical gate (3D distance)
+                          //  > 0 : CYLINDRICAL gate -- planar radius, |dy| < vwindow
+    presence_gain: f32,   // overlap term (r-d)*gain, dt-scaled, 0 = off
+    approach_gain: f32,   // approach term v_ap*gain, NOT dt-scaled, 0 = off
+    falloff_mix:   f32,   // 0 = flat across the shell, 1 = linear (1-d/r)
+    cap:           f32,   // max magnitude of the summed response
+    yield_share:   f32,   // 0..1 -- how much of it THIS body takes
+    tangential:    f32,   // matador split coefficient (0.6 flee, 0 = radial)
+}
+
+// The uncapped flee rows carry this so the profile table has no empty cell.
+const INFLUENCE_NO_CAP: f32 = 1.0e9;
+
+// Returns the PLANAR response for `self`, in wu/s. The caller adds it to
+// velocity (and, where it integrates inline, to position * dt per K1b);
+// force-integrators pass dt = 1.0 and scale externally.
+// `approach_floor` is the isotropic approach-speed the point emanates when
+// its host has no velocity field (camera-host: BUBBLE_PART_SPEED). Pawn-host
+// and the body-to-body flee pass 0 (the real closing speed via other_vel).
+// It is the exact camera-host fallback the deferred config.point_vel_x/z
+// would retire; a scalar floor because the fallback is direction-agnostic.
+fn influence_response(self_pos: vec3<f32>, self_vel: vec2<f32>,
+                      other_pos: vec3<f32>, other_vel: vec2<f32>,
+                      p: InfluenceProfile, dt: f32,
+                      approach_floor: f32) -> vec2<f32> {
+    let d3 = self_pos - other_pos;
+    let d2_3d = dot(d3, d3);
+    // Degenerate coincidence -- every current site skips at d2 <= 0.0001.
+    if (d2_3d <= 0.0001) { return vec2<f32>(0.0, 0.0); }
+    let d_pl = sqrt(max(d3.x * d3.x + d3.z * d3.z, 0.0001));
+    // THE GATE -- spherical (a ball is a ball) or cylindrical (the column
+    // beneath a hovering body: you shove a floating cube by walking under it).
+    var d_gate = d_pl;
+    if (p.vwindow <= 0.0) {
+        d_gate = sqrt(d2_3d);
+    } else if (abs(d3.y) > p.vwindow) {
+        return vec2<f32>(0.0, 0.0);
+    }
+    if (d_gate >= p.radius) { return vec2<f32>(0.0, 0.0); }
+    let dir = vec2<f32>(d3.x, d3.z) / d_pl;              // other -> self
+    let fall = mix(1.0, clamp(1.0 - d_gate / p.radius, 0.0, 1.0),
+                   clamp(p.falloff_mix, 0.0, 1.0));
+    // PRESENCE -- occupancy. Impulse: dt-scaled (K1). fall = 1 for the
+    // contact rows (falloff_mix 0), so they stay byte-identical.
+    var mag = (p.radius - d_gate) * p.presence_gain * dt * fall;
+    var esc = dir;
+    // APPROACH -- motion. Velocity floor: NOT dt-scaled (K1). fall weights
+    // the v_ap term ONLY (once -- the point-flee's proximity, not squared).
+    if (p.approach_gain > 0.0) {
+        let v_ap = max(approach_floor, dot(other_vel, dir));
+        if (v_ap > 0.001) {
+            let deficit = v_ap * p.approach_gain * fall - dot(self_vel, dir);
+            if (deficit > 0.0) {
+                mag += deficit;
+                let tang = vec2<f32>(-dir.y, dir.x)
+                         * sign(other_vel.x * dir.y - other_vel.y * dir.x + 0.000001);
+                esc = normalize(dir + tang * p.tangential);   // the matador split
+            }
+        }
+    }
+    return esc * min(mag, p.cap) * p.yield_share;
+}
+
 
 // §2.3 MUTING CONTROL
 
