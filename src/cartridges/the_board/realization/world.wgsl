@@ -2165,15 +2165,61 @@ const PAWN_FORCEFIELD_RADIUS_MOVING: f32 = 2.0;      // Radius at max speed
 const PAWN_FORCEFIELD_FALLOFF: f32 = 2.0;            // Edge softness (smoothstep width)
 const PAWN_FORCEFIELD_SPEED_SCALE: f32 = 1.0;        // How quickly radius shrinks with speed
 
+// === THE SCALE LEDGER (CONTACT_4) ==================================
+// Every influence radius, beside the world dimension it derives from.
+// A radius with no stated reference is not reviewable -- three below
+// were not, and three bodies died of it (the S0 diagnosis).
+//
+// THE WORLD'S SCALES (the reference column -- cite the owning constant):
+//   mosaic cell ........ PATCH_CELL_SIZE            3.125 wu
+//   patch .............. PATCH_EXTENT               50 wu
+//   pawn body (visual) . PAWN_FIGURES radius        ~0.5 wu
+//   cube altitude ...... orbit_height (Gaussian)    indoor <18.75, outdoor 25-75 wu
+//   the bubble ......... config.point_bubble_radius 20 wu
+//   possess reach ...... POSSESSION_RADIUS          20 wu (agents.hpp)
+//   agent eviction ..... AGENT_EVICTION_RADIUS      350 wu
+//   floater eviction ... FLOATER_EVICTION_RADIUS    400 wu
+//   veil ring / LOD0 ... config.veil_ring / lod0    325 / 175 wu
+//   sphere body ........ fe.body_radius (per-inst)  ~1.2-1.5 wu
+//
+// THE INFLUENCE RADII  (name . value . reference . derivation):
+//   CONTACT_CUBE_RADIUS   3.0  . cube alt H<=18.75 . [UNREACHABLE] 3+1.6=4.6 < H (floating cubes)
+//   CONTACT_SPHERE_RADIUS 12.0 . sphere body ~1.5  . [WRONG SPACE] influence, not body (S2c retires)
+//   CUBE_PART_RADIUS      8.0  . cube alt H<=18.75 . [DEAD] 3D gate: sqrt(64-H^2) imaginary (S2b -> 30)
+//   point-source ppr      50   . patch 50 = 1.0P   . [DEAD] personal(30)+bubble(20); uncatchable (S2a -> 20)
+//   FLEE_SHELL_FRAC*sum   15   . bubble/poss 20    . body-to-body only (ok)
+//   STEER_LOOKAHEAD_WU    4.0  . cell 3.125        . ~1.3 cells of anticipation (a distance, not a gate)
+//   BUBBLE_PART_SPEED     4.0  . -- (wu/s)         . camera-host fallback speed, not a radius
+//
+// THE GATE-FEASIBILITY RULE (the CONTACT_4 lesson): a 3D gate against a
+// body at altitude H can only fire if the radius EXCEEDS H. Radius < H
+// => dead code, silently. Usable lateral reach = sqrt(R^2 - H^2).
+// (S2 removes the flags by fixing the values; these rows stay the record.)
+// ===================================================================
+
 // --- Contact collision (TRUEBAND_CONTACT_1; the population panel owns
 //     these numbers' biography)
+// CONTACT_SPRING/_IMPULSE_CAP are not radii -- units below.
 const CONTACT_SPRING: f32 = 40.0;        // impulse per wu overlap per s
 const CONTACT_IMPULSE_CAP: f32 = 6.0;    // max Δv per pair per frame
+// reference: the sphere's INFLUENCE field (colour/terrain range), NOT its
+// body (~1.2-1.5 wu, SPHERE_TIERS). WRONG SPACE: agents were pushed from
+// 12 + contact_radius wu, well outside the visible sphere. S2c retires
+// this for fe.body_radius (per-instance). (= Idle::SPHERE_INFLUENCE_RADIUS.)
 const CONTACT_SPHERE_RADIUS: f32 = 12.0; // = Idle::SPHERE_INFLUENCE_RADIUS (C++ twin — verified 12.0f)
+// reference: cube altitude H (indoor cap <= 18.75 wu; outdoor 25-75). The
+// gate is 3D, so pdy ~= H is paid before any lateral reach. At 3.0 + pawn
+// 1.6 = 4.6 < H this term is UNREACHABLE for any floating cube; reserved
+// for low/kited cubes. The parting field (CUBE_PART_RADIUS) reaches the
+// rest. Named, not a bug.
 const CONTACT_CUBE_RADIUS: f32 = 3.0;
+// dimensionless -- the pawn's yield authority in the pair weight
+// m_other/(m_self+m_other). Not a radius.
 const PAWN_CONTACT_MASS_MULT: f32 = 4.0; // the pawn is heavy: agents yield, the player barely feels it
 
 // --- Gradient steering (CONTACT_2 C2a; the whisper before the wall)
+// reference: mosaic cell PATCH_CELL_SIZE 3.125 wu -> ~1.3 cells of
+// anticipation ahead of the walker. A distance, not a gate.
 const STEER_LOOKAHEAD_WU: f32 = 4.0;   // sensing distance ahead of velocity
 const STEER_GAIN: f32 = 3.0;           // lateral accel per unit gradient
 // The walkable clamp (query_ground_walker_walkable) gates on a height
@@ -2183,20 +2229,35 @@ const STEER_GRAD_LO: f32 = 0.7;        // below: no whisper
 const STEER_GRAD_HI: f32 = 1.4;        // above: full whisper (the wall's shadow)
 
 // --- The social split (CONTACT_2 C3a; flee is the point's, shove the body's)
+// dimensionless escape gain (body-to-body). < 1 => the wake contracts.
 const NONPLAYER_FLEE_GAIN: f32 = 0.8;   // < 1.0: body-to-body flee cascades CONTRACT
+// units: wu/s. Camera-host parting fallback (no camera velocity field). Not a radius.
 const BUBBLE_PART_SPEED: f32 = 4.0;     // camera-host parting speed (the C3 fallback — no camera velocity field)
 
 // The social shell's FLEE expression is a FRACTION of its SENSING
 // expression — sensing (flock) is a long-range perception, fleeing is a
 // short-range reflex. 30+30 sensing -> 15 wu flee trigger. Jean-tunable.
+// reference: bubble/possess reach 20 wu; 15 < 20 (a shoulder-scale reflex).
+// NOTE: this scopes the BODY-TO-BODY gate ONLY; the POINT-source gate is
+// separate and was DEAD at 50 wu until S2a.
 const FLEE_SHELL_FRAC: f32 = 0.25;   // CONTACT_3 K2a
 
 // Cube parting (CONTACT_3 K2b): contact-scale, not bubble-scale, and
 // capped — the C3b parting was radius 23 with force proportional to the
 // player's full speed, uncapped, into a spring integrator (it flung).
+// reference: cube altitude. Indoor cap = INDOOR_HEIGHT_CAP_FRACTION(0.75)
+// x VAULT ceiling(25) = 18.75 wu is the strict supremum on a cube's
+// vertical extent (center sits below it). The gate is 3D, so usable
+// lateral reach = sqrt(R^2 - H^2), R MUST exceed H. At R = 8 < 18.75 the
+// gate is DEAD (imaginary reach). S2b: R = 30 (18.75 + ~11 lateral);
+// reach directly under the tallest indoor cube = sqrt(30^2 - 18.75^2)
+// ~= 23.4 wu. OUTDOOR CAVEAT: outdoor moods do NOT cap (orbit_height
+// raw Gaussian, means 25/45/75) -> outdoor cubes above 30 stay beyond
+// this radius; a per-instance radius (fe.orbit_height + margin) is the
+// deferred fix.
 const CUBE_PART_RADIUS: f32 = 8.0;   // parting reach (was 3 + 20 bubble)
-const CUBE_PART_CAP: f32 = 12.0;     // max parting force magnitude
-const CUBE_PART_GAIN: f32 = 1.0;     // force per unit approach speed
+const CUBE_PART_CAP: f32 = 12.0;     // units: max parting force magnitude (accel). Not a radius.
+const CUBE_PART_GAIN: f32 = 1.0;     // dimensionless: force per unit approach speed
 
 
 // §2.3 MUTING CONTROL
@@ -7371,6 +7432,11 @@ fn update_other_agents(@builtin(global_invocation_id) gid: vec3<u32>) {
             let pdy = agent.pos_y - pt.y;
             let pdz = agent.pos_z - pt.z;
             let pd2 = pdx * pdx + pdy * pdy + pdz * pdz;   // 3D gate
+            // [DEAD] (CONTACT_4 S0): ppr = personal_radius(30, a BODY shell)
+            // + point_bubble_radius(20, the PRESENCE shell) = 50 wu = one
+            // PATCH_EXTENT. A constant floor (no proximity) with gain >= 1 =>
+            // agents flee from a patch away, uncatchable and unpossessable
+            // (POSSESSION_RADIUS 20). S2a fixes this.
             let ppr = g_self.personal_radius + config.point_bubble_radius;
             if (pd2 < ppr * ppr && pd2 > 0.0001) {
                 let pdpl = sqrt(max(pdx * pdx + pdz * pdz, 0.0001));
