@@ -32,6 +32,7 @@
 #include "cartridges/the_board/realization/binding_registry.hpp"  // C6: bind::g0::* / bind::g1::* — the single source of truth for binding NUMBERS (the layout+group pair references one named const)
 #include "cartridges/the_board/surface/terrain_looks.hpp"          // THE TERRAIN_LOOKS PANEL (C++ room): palette quartet REST + motion/mode rest pins — boot init reads the panel
 #include "cartridges/the_board/bodies/pawn_figures.hpp"            // typed figure registry (H1: PawnFigureDef / PAWN_FIGURES) — constexpr-only, self-contained
+#include "cartridges/the_board/contracts/point.hpp"                 // POINT_BUBBLE_RADIUS — source of truth for the CONTACT_2 boot pin
 #include <webgpu/webgpu_cpp.h>
 #include <cstring>
 #include <array>
@@ -544,11 +545,12 @@ namespace t7 {
             // distinct-pc count. REST = amount 0 (the GPU maps that to the
             // cell's seed color) + variance 0 — identity by construction;
             // the bake passes amount 0 (seam-proof). Mirrors world.wgsl
-            // DesignConfig: vec3 + f32 + f32 (two 16-byte slots, 12 B tail
-            // pad). Driver: the visual canvas, flushed at U4.
+            // DesignConfig: vec3 + f32 + f32 + f32 (two 16-byte slots, 8 B tail
+            // pad — CONTACT_2 added point_bubble_radius). Driver: the visual canvas, flushed at U4.
             float checker_resultant[3];    // the music color (weighted pc-average), enveloped
             float checker_music_amount;    // enveloped presence [0,1] — S1 pull + S2 wander scale
             float checker_music_variance;  // enveloped distinct-pc count — S3 within-patch spread
+            float point_bubble_radius;     // CONTACT_2 C3a: the point's bounded awareness (rest 20; boot-pinned from contracts/point.hpp POINT_BUBBLE_RADIUS). Fills the checker tail pad — sizeof unchanged.
         };
 
         struct alignas(16) GPUTileGridEntry {
@@ -654,7 +656,11 @@ namespace t7 {
             float color_b;         // 20
             float contact_radius;  // 24 — TRUEBAND_CONTACT_1: body radius (wu)
             float contact_mass;    // 28 — relative yield authority
-        };                         // 32 total (16-byte aligned)
+            float personal_radius; // 32 — CONTACT_2: social shell (flock sense + flee trigger)
+            float flee_gain_player;// 36 — CONTACT_2: flee response gain vs the point-source
+            float _pad0;           // 40 — pad to 48 (uniform array stride, 16-aligned)
+            float _pad1;           // 44
+        };                         // 48 total (16-byte aligned)
 
         // ── Pawn figure table (GPU) ──────────────────────────────────────────
         // Flat pack of PawnFigureDef (bodies/pawn_figures.hpp, H1) so ONE uniform
@@ -1473,7 +1479,7 @@ namespace t7 {
         static_assert(sizeof(GPUAgentState) % 16 == 0, "GPUAgentState must be 16-byte aligned");
         static_assert(sizeof(GPUAgentBehaviorDef) == 32, "GPUAgentBehaviorDef must be 32 bytes");
         static_assert(sizeof(GPUAgentBehaviorDef) % 16 == 0, "GPUAgentBehaviorDef must be 16-byte aligned");
-        static_assert(sizeof(GPUAgentTierDef) == 32, "GPUAgentTierDef must be 32 bytes");
+        static_assert(sizeof(GPUAgentTierDef) == 48, "GPUAgentTierDef must be 48 bytes (CONTACT_2 added personal_radius + flee_gain_player; 40 data -> 48 with 8 B pad — the uniform array stride)");
         static_assert(sizeof(GPUAgentTierDef) % 16 == 0, "GPUAgentTierDef must be 16-byte aligned");
         static_assert(sizeof(GPUPawnFigure) == 288, "GPUPawnFigure must be 288 bytes");
         static_assert(sizeof(GPUPawnFigure) % 16 == 0, "GPUPawnFigure must be 16-byte aligned");
@@ -2279,6 +2285,9 @@ namespace t7 {
             }
             void set_point_fly_speed(float s) {
                 if (config_.point_fly_speed != s) { config_.point_fly_speed = s; configDirty_ = true; }
+            }
+            void set_point_bubble_radius(float r) {   // CONTACT_2: the coupling campaign's wire
+                if (config_.point_bubble_radius != r) { config_.point_bubble_radius = r; configDirty_ = true; }
             }
             void set_fpv_mode(uint32_t m) {
                 if (config_.fpv_mode != m) { config_.fpv_mode = m; configDirty_ = true; }
@@ -5753,6 +5762,7 @@ namespace t7 {
                 config_.camera_sensitivity = Idle::CAMERA_SENSITIVITY;
                 config_.point_host = 0;             // the pawn hosts (the kite)
                 config_.point_fly_speed = 0.0f;     // 0 → WGSL PAWN_SPEED fallback (the panel authors it)
+                config_.point_bubble_radius = POINT_BUBBLE_RADIUS;  // CONTACT_2: boot-pin the bubble from contracts/point.hpp (source of truth); rest 20.0
                 config_.freeze_sphere = 0;
                 config_.active_cell_size = Idle::ACTIVE_CELL_SIZE;
                 config_.fpv_mode = 0;

@@ -905,6 +905,10 @@ struct AgentTierParams {
     color_b:       f32,
     contact_radius: f32, // 24 — TRUEBAND_CONTACT_1: body radius (wu)
     contact_mass:   f32, // 28 — relative yield authority
+    personal_radius: f32,// 32 — CONTACT_2: the social shell (flock sense + flee trigger); seed 30 = flock neighbor_radius
+    flee_gain_player: f32,//36 — CONTACT_2: flee response gain vs the point-source
+    _pad0: f32,          // 40 — pad AgentTierParams to 48 (uniform array stride)
+    _pad1: f32,          // 44
 }
 
 const AGENT_TIER_COUNT_WGSL: u32 = 4u;
@@ -1681,6 +1685,7 @@ struct DesignConfig {
     checker_resultant: vec3<f32>,
     checker_music_amount: f32,
     checker_music_variance: f32,
+    point_bubble_radius: f32,   // CONTACT_2 C3a: the point's bounded awareness (rest 20 = contracts/point.hpp)
 }
 
 // §2.2 — THE TERRAIN_LOOKS PANEL (WGSL room)
@@ -2151,6 +2156,9 @@ const PAWN_FORCEFIELD_ENABLED: bool = true;
 // (PAWN_GOL_GROUND_ENABLED RETIRED — compile-time gate for the pre-card
 //  analytic chain; GROUND_CARD_1 retired the chain. Reference-free at T0
 //  — TRUEBAND_CONTACT_1 T2a.)
+// PAWN_FORCEFIELD_RADIUS_* stay as-is — the pawn's own visual forcefield
+// expression, distinct from the CONTACT_2 personal-shell family
+// (AgentTierParams.personal_radius: the flock + flee social radius).
 const PAWN_FORCEFIELD_RADIUS_STATIONARY: f32 = 6.0;  // Radius when not moving
 const PAWN_FORCEFIELD_RADIUS_MOVING: f32 = 2.0;      // Radius at max speed
 const PAWN_FORCEFIELD_FALLOFF: f32 = 2.0;            // Edge softness (smoothstep width)
@@ -2172,6 +2180,10 @@ const STEER_GAIN: f32 = 3.0;           // lateral accel per unit gradient
 // steepness truth to re-point to; authored here (Jean-tunable):
 const STEER_GRAD_LO: f32 = 0.7;        // below: no whisper
 const STEER_GRAD_HI: f32 = 1.4;        // above: full whisper (the wall's shadow)
+
+// --- The social split (CONTACT_2 C3a; flee is the point's, shove the body's)
+const NONPLAYER_FLEE_GAIN: f32 = 0.8;   // < 1.0: body-to-body flee cascades CONTRACT
+const BUBBLE_PART_SPEED: f32 = 4.0;     // camera-host parting speed (the C3 fallback — no camera velocity field)
 
 
 // §2.3 MUTING CONTROL
@@ -6546,7 +6558,7 @@ fn behavior_player_controlled(agent_in: AgentState) -> AgentState {
             if (point_camera_hosted()) {
                 let qi = QueryInputs(vec3(p.x, 0.0, p.z), signal.t_seconds);
                 let arch_ground = manifold_position(vec3(p.x, 0.0, p.z), POLICY_FLYER, qi).y;
-                in_bubble = abs(probe.y - arch_ground) < POINT_BUBBLE_RADIUS;
+                in_bubble = abs(probe.y - arch_ground) < config.point_bubble_radius;
             }
             if (in_bubble) {
                 agent.portal_trigger = i32(p.arch_index);
@@ -6920,7 +6932,7 @@ fn behavior_flock2d(agent_in: AgentState) -> AgentState {
             let odx = other.pos_x - a.pos_x;
             let odz = other.pos_z - a.pos_z;
             let od2 = odx * odx + odz * odz;
-            if (od2 < b.neighbor_radius * b.neighbor_radius && od2 > 0.001) {
+            if (od2 < g.personal_radius * g.personal_radius && od2 > 0.001) {
                 cx = cx + other.pos_x;
                 cz = cz + other.pos_z;
                 ax = ax + other.vel_x;
@@ -7069,12 +7081,14 @@ const FLOATER_EVICTION_RADIUS:    f32 = 400.0;
 const FLOATER_EVICTION_RADIUS_SQ: f32 = FLOATER_EVICTION_RADIUS * FLOATER_EVICTION_RADIUS;
 
 // POINT_BUBBLE_RADIUS — the point's bounded awareness (v3 §11; the
-// bubble's first field). Today its one sensor is the portal's
-// vertical gate in camera-host: an arch fires only within this many
-// units of the point's altitude. MUST match POINT_BUBBLE_RADIUS in
-// contracts/point.hpp (compile-time const, the eviction-radius
-// pattern — no runtime upload).
-const POINT_BUBBLE_RADIUS: f32 = 20.0;
+// bubble's first field). Sensors: the portal's vertical gate in
+// camera-host, AND (CONTACT_2 C3b) the point-source flee trigger.
+// REST MIRROR: the value is 20.0, now boot-pinned into
+// config.point_bubble_radius from contracts/point.hpp POINT_BUBBLE_RADIUS
+// (the source of truth) via set_point_bubble_radius — a runtime upload,
+// no longer a compile-time const (CONTACT_2 C3a). DISCLOSE: the bubble
+// is ONE thing — coupling its radius later breathes portal sensitivity
+// too.
 
 // ─── Player kernel ───────────────────────────────────────────────
 // Single thread, runs once per frame on config.possessed_slot.
