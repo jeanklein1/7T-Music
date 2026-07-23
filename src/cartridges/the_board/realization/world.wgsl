@@ -2202,11 +2202,12 @@ const PAWN_FORCEFIELD_SPEED_SCALE: f32 = 1.0;        // How quickly radius shrin
 // CONTACT_SPRING/_IMPULSE_CAP are not radii -- units below.
 const CONTACT_SPRING: f32 = 40.0;        // impulse per wu overlap per s
 const CONTACT_IMPULSE_CAP: f32 = 6.0;    // max Δv per pair per frame
-// reference: the sphere's INFLUENCE field (colour/terrain range), NOT its
-// body (~1.2-1.5 wu, SPHERE_TIERS). WRONG SPACE: agents were pushed from
-// 12 + contact_radius wu, well outside the visible sphere. S2c retires
-// this for fe.body_radius (per-instance). (= Idle::SPHERE_INFLUENCE_RADIUS.)
-const CONTACT_SPHERE_RADIUS: f32 = 12.0; // = Idle::SPHERE_INFLUENCE_RADIUS (C++ twin — verified 12.0f)
+// (CONTACT_SPHERE_RADIUS RETIRED — CONTACT_4 S2c. It was the sphere's
+//  INFLUENCE field 12.0 (colour/terrain range), wrongly used as a physical
+//  body radius. The agents' sphere loop now uses fe.body_radius (per-
+//  instance, ~1.2-1.5 wu); the player's sphere loop was deleted entirely
+//  (spheres don't move the point's body). Reference-free at S2c. The C++
+//  Idle::SPHERE_INFLUENCE_RADIUS stays as the colour/terrain field range.)
 // reference: cube altitude H (indoor cap <= 18.75 wu; outdoor 25-75). The
 // gate is 3D, so pdy ~= H is paid before any lateral reach. At 3.0 + pawn
 // 1.6 = 4.6 < H this term is UNREACHABLE for any floating cube; reserved
@@ -7274,24 +7275,8 @@ fn update_player_agent() {
                 }
             }
         }
-        // spheres push walkers (celestial-massive: only self yields)
-        for (var sph = 0u; sph < SPHERE_SLOT_COUNT; sph++) {
-            let fe = floating_entities.entities[sph];
-            if (fe.is_active == 0u) { continue; }
-            let dx = agent.pos_x - fe.pos.x;
-            let dy = agent.pos_y - fe.pos.y;
-            let dz = agent.pos_z - fe.pos.z;
-            let d2 = dx * dx + dy * dy + dz * dz;
-            let r  = g_self.contact_radius + CONTACT_SPHERE_RADIUS;
-            if (d2 < r * r && d2 > 0.0001) {
-                let d = sqrt(d2);
-                let d_pl = sqrt(max(dx * dx + dz * dz, 0.0001));
-                let push = min((r - d) * CONTACT_SPRING * signal.dt,
-                               CONTACT_IMPULSE_CAP);
-                agent.vel_x += (dx / d_pl) * push;
-                agent.vel_z += (dz / d_pl) * push;
-            }
-        }
+        // spheres do not move the point's body (CONTACT_4 S2c, Jean's
+        // ruling). Agents still avoid them — see update_other_agents.
     }
 
     // CONTACT_3 K1b: imposed motion acts THIS frame — the imposed delta
@@ -7405,7 +7390,12 @@ fn update_other_agents(@builtin(global_invocation_id) gid: vec3<u32>) {
             let dy = agent.pos_y - fe.pos.y;
             let dz = agent.pos_z - fe.pos.z;
             let d2 = dx * dx + dy * dy + dz * dz;
-            let r  = g_self.contact_radius + CONTACT_SPHERE_RADIUS;
+            // CONTACT_4 S2c: reference is the sphere's OWN body (fe.body_radius,
+            // per-instance ~1.2-1.5 wu). The retired CONTACT_SPHERE_RADIUS 12.0
+            // was the sphere's INFLUENCE radius (colour/terrain field), so agents
+            // were pushed from well outside the sphere they could see. Closes the
+            // deferred per-slot-floater-radii item.
+            let r  = g_self.contact_radius + fe.body_radius;
             if (d2 < r * r && d2 > 0.0001) {
                 let d = sqrt(d2);
                 let d_pl = sqrt(max(dx * dx + dz * dz, 0.0001));
