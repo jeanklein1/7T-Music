@@ -1,0 +1,69 @@
+═══════════════════════════════════════════════════════════════════════
+CC HANDOFF P3 — CONTACT_5 CLOSEOUT
+═══════════════════════════════════════════════════════════════════════
+1. Instruments → `_post_c5`: cc6 (no layout deltas — zero bindings
+   added; flags EMPTY), cc7 (+0 declarations), cc4 (report the closure
+   deltas honestly: `update_player_agent` REGAINS floating_entities
+   with the sphere row; `update_camera` may gain it — confirm every new
+   number is already bound in its layout), Dawn witness ALL FAMILIES
+   GREEN. Report the `update_other_agents` / `update_cube` pipeline
+   timings against `_post_c4` — the P1 collapse should not raise them
+   and may lower them.
+2. BATCH_REPORT_C5.md:
+   - The architecture banner verbatim (one body, not one emitter; the
+     point is the emitter; the two response shapes; the authority
+     table).
+   - **THE PROFILE TABLE** as shipped — one row per call site, every
+     column (radius · vwindow · presence_gain · approach_gain ·
+     falloff_mix · cap · yield_share) with file:line. This table
+     replaces C3's tuning table as the single control surface for
+     "how bodies react," and it is the deliverable Jean will live in.
+     Mark the FROZEN rows (agents) explicitly.
+   - The P1 bit-preservation proof per row.
+   - The P2 changes with their worked examples.
+   - The known drift now visible as a column: agent↔agent flee ships
+     falloff_mix = 0 while the point row ships 1. Named as a TUNABLE,
+     not a defect — Jean's call whether the crowd gets a falloff.
+   - Deviations · encoding sweep.
+3. Push. JEAN'S GATE LIST (Windows):
+   [ ] Build + boot. FXC watch: `influence_response` is called from
+       four kernels; it is small and branchless-ish, but this is the
+       first shared body in the contact chain — report the pipeline
+       timings.
+   [ ] AGENTS UNCHANGED (the P1 gate, felt): walk at an agent, sprint
+       a cluster, possess one. It must feel exactly like CONTACT_4.
+       If it does not, P1 is at fault, not P2 — bisect there.
+   [ ] THE SPHERES, restored: walk into a sphere's path — it eases you
+       out and keeps pushing while you stand inside its shell. Then
+       press 4 (camera-only) and fly INTO a sphere — it should push
+       the camera too. In free-fly the spheres are the only solid
+       things there; that is the design.
+   [ ] THE CUBES, shoveable: walk under a floating cube — it moves
+       ahead of you while you are in its column, stops when you step
+       out, and STAYS where you left it (λ = 1). Herd one across a
+       patch. Then try to shove one from 20 wu away — nothing should
+       happen (the column is small on purpose).
+   [ ] THE PROFILE TABLE: open it and confirm every knob you would
+       want to turn is in one place, in one file.
+4. DEFERRED REGISTER (carried; two items CLOSED):
+   - CLOSED: the four-copy flee drift (one body now).
+   - CLOSED: sphere-pushes-the-player (restored, host-agnostic, and
+     the camera-velocity gap is moot for it — presence needs no
+     velocity).
+   - still open: the presence CARD (named destination — build it when
+     a consumer needs a FIELD rather than a value: many emitters, or
+     persistence. Probe evidence banked in AUDIT-4: writer is the
+     aura's shape, `rg16float` is NOT storage-writable so it inherits
+     `rgba16float`. Open design question when it comes: whether it
+     rides free channels on the aura card or needs its own — the aura
+     is the BODY's emanation and presence is the POINT's, so they
+     diverge in free-fly).
+   - the dead flock `neighbor_radius` knob (AUDIT-4 cluster d) · the
+     two ungated eviction mirrors (promote to config, the C3a shape) ·
+     `config.point_vel_x/z` (now only needed for the agents' dodge in
+     camera-host) · the `tile_apply_spawn_mult` contract ruling +
+     the ordering bug behind it · figure-scaled contact radius ·
+     aggregate impulse clamp · AgentState pad debt · living-plateau
+     steering · the ribbon floor · emissaries · the frame-time
+     instrument.
+═══════════════════════════════════════════════════════════════════════

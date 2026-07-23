@@ -1,0 +1,107 @@
+═══════════════════════════════════════════════════════════════════════
+CC HANDOFF P2 — THE POINT LAW (the deliberate change)
+Three edits, all profiles and callers on the P1 body. The point becomes
+the emitter; spheres come back with the inequality reversed; cubes stop
+dodging and start being shoved.
+═══════════════════════════════════════════════════════════════════════
+
+COMMIT [P2a] — spheres push the POINT (the restore, host-agnostic)
+1. CLASS B — in `update_player_agent`, add a sphere loop over
+   SPHERE_SLOT_COUNT calling `influence_response` with the SPHERE-ROW
+   profile, applied to the POINT'S HOST BODY:
+     radius = fe.influence_radius   (per-instance — the sphere's
+              presence shell, not its body; a celestial object's
+              influence IS its reach. Use fe.body_radius instead ONLY
+              if the P0 preflight shows influence_radius is unauthored
+              or wildly out of the 8–15 wu band — report which shipped.)
+     vwindow = 0 (spherical — a sphere is a sphere)
+     presence_gain = SPHERE_PUSH_GAIN (new const, authored 40.0 =
+              CONTACT_SPRING's shape, so the restored feel matches what
+              Jean liked), approach_gain = 0, falloff_mix = 0,
+              cap = CONTACT_IMPULSE_CAP, yield_share = 1.0
+   AUTHORITY NOTE in the comment: "yield_share 1.0 with no mass weight
+   IS the reversed inequality — the sphere's authority is above the
+   point's, so the point takes the whole response and the sphere takes
+   none (CONTACT_5 authority table)."
+   Apply per K1b: add to velocity AND to position ×dt (the player
+   integrates inline).
+2. CLASS B — in `update_camera`, inside the CAMERA-HOST branch only
+   (gate on the point's host flag), after input has authored the
+   camera's position, apply the SAME sphere-row profile to the camera
+   position:
+     camera.pos.x += r.x * dt;   camera.pos.z += r.y * dt;
+   (self_vel = vec2(0) — the presence term needs no velocity, which is
+   exactly why this works with no camera-velocity field; the deferred
+   `config.point_vel_x/z` item is NOT needed for this.)
+   Comment: "in free-fly the terrain rule is NONE (the revision camera
+   clips freely), so spheres are the ONLY solid things in the point's
+   world here — a deliberate percept, Jean's ruling."
+   WORKED EXAMPLE (commit message): sphere influence_radius 12, camera
+   4 wu from its centre ⇒ overlap 8 ⇒ mag = 8·40·(1/60) = 5.3 wu/s,
+   capped at 6 ⇒ the camera is eased out of the sphere at ~5 wu/s and
+   stops the instant it clears the shell. Stationary inside the shell
+   still gets pushed (presence, not approach) — that is the point.
+3. VERIFY-AND-LOG: does any OTHER writer author camera.pos after this
+   point in the same kernel (a clamp, a lerp)? If so, place the push
+   BEFORE it so existing clamps still have the last word, and say so.
+
+COMMIT [P2b] — cubes: presence, cylinder, persistence
+4. CLASS B — REPLACE the cube parting profile (approach) with the
+   CUBE-ROW profile (presence, cylindrical):
+     radius  = CUBE_PUSH_RADIUS   (new const, authored 7.0 — planar,
+               shoulder-scale: this is a TOOL, not a field. Derivation
+               comment: "planar reach ≈ 2× the pawn's contact shell;
+               small on purpose — a large presence shell plus
+               persistence would permanently clear a wide disc around
+               the point, which is 'cubes avoid you', not 'shove them
+               freely'.")
+     vwindow = CUBE_PUSH_VWINDOW  (new const — DERIVED at P0 from the
+               authored orbit_height range + bob: author
+               max_orbit_height + bob + 8 and write the arithmetic in
+               the derivation comment. THE CYLINDER IS THE RULING:
+               a hovering body's interaction shell is the COLUMN
+               beneath it — you shove a floating cube by walking under
+               it. A spherical gate would need a radius larger than the
+               altitude, which drags the planar reach out with it.)
+     presence_gain = CUBE_PUSH_GAIN (new const, authored 25.0),
+     approach_gain = 0, falloff_mix = 1 (linear — soft at the rim),
+     cap = CUBE_PART_CAP, yield_share = 1.0
+   The response feeds the cube's DRIFT integrator exactly as the
+   parting force did (same accumulation line).
+   WORKED EXAMPLE (commit message): cube at 18 wu altitude, pawn walks
+   to 3 wu planar beneath-ish it. |dy| = 18 < vwindow ⇒ gate open;
+   d_pl = 3 ⇒ overlap 4, fall = 1−3/7 = 0.57 ⇒ mag = 4·25·(1/60)·0.57
+   ≈ 0.95 wu/s of drift velocity per frame, accumulating while you stay
+   under it, and STOPPING when you step out of the column. Standing
+   still inside the column keeps pushing (presence) — the beach-ball
+   behaviour Jean asked for.
+5. CLASS B — persistence: the plasticity leak already ships live at
+   `config.cube_plasticity` (default 0.6) × per-tier character. Raise
+   the boot default to **1.0** (`Idle::CUBE_PLASTICITY_DEFAULT`) so a
+   shove RELOCATES rather than partially returns — "shove them freely
+   all over the scene" is λ = 1 semantics. Comment the dial: "1.0 =
+   fully sculptable (the shove relocates); 0 = elastic (pre-CONTACT_3);
+   the per-tier column keeps the character spread." DISCLOSE as a
+   deliberate behaviour change.
+6. CLASS B — the cube↔pawn CONTACT row: with the presence push now
+   reaching them, the old contact block (radius 4.6, unreachable for a
+   floating cube per the CONTACT_4 ledger) is redundant. RETIRE it and
+   tombstone `CONTACT_CUBE_RADIUS` with the epitaph: "the cube's
+   interaction is the presence column (CUBE_PUSH_*); a body-contact
+   shell never reached a hovering cube — CONTACT_5." Verify no other
+   reader; report.
+
+COMMIT [P2c] — the point-centering sweep
+7. CLASS B — every point-side term must read `point_pos()` (host-routed)
+   and NOT `agent_state[config.possessed_slot]`. Grep every influence
+   site; list each and its current source; convert any that reads the
+   possessed slot for a PRESENCE purpose. The possessed slot stays the
+   source only where the term is genuinely the BODY's emanation
+   (agent↔agent contact — that pair is a body pair). Paste the audit.
+   Comment at the top of the influence cluster: "presence follows the
+   POINT; emanation stays the BODY's — contracts/point.hpp. Every
+   profile below whose 'other' is the point reads point_pos()."
+8. AGENTS REMAIN FROZEN: no agent profile value changes in P2. If any
+   agent-visible number moves, that is a defect — report, do not ship.
+glaw1 + Dawn witness after [P2c].
+═══════════════════════════════════════════════════════════════════════
