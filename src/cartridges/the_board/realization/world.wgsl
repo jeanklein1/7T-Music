@@ -7053,6 +7053,13 @@ fn update_player_agent() {
         // The pawn's authority: the pair weight m_other/(m_self+m_other)
         // stays small — the player feels a nudge, never a shove.
         let m_self = g_self.contact_mass * PAWN_CONTACT_MASS_MULT;
+        // ── CONTACT_2 C1a — 3D gate, planar push ──────────────────
+        // The distance GATE is 3D (a sphere is a sphere: dy counts),
+        // but the RESPONSE stays planar (dx,dz via d_pl) — influence
+        // is vertically bounded (the bubble's portal-gate law,
+        // contracts/point.hpp): walkers are never pushed into the air;
+        // a cube overhead feels nothing from a pawn beneath. Overlap
+        // (r - d) uses the true 3D distance; direction uses d_pl.
         for (var k = 0u; k < 32u; k++) {
             if (k == slot) { continue; }
             let other = agent_state[k];
@@ -7061,16 +7068,18 @@ fn update_player_agent() {
             var m_other = og.contact_mass;
             if (k == config.possessed_slot) { m_other *= PAWN_CONTACT_MASS_MULT; }
             let dx = agent.pos_x - other.pos_x;
+            let dy = agent.pos_y - other.pos_y;
             let dz = agent.pos_z - other.pos_z;
-            let d2 = dx * dx + dz * dz;
+            let d2 = dx * dx + dy * dy + dz * dz;
             let r  = g_self.contact_radius + og.contact_radius;
             if (d2 < r * r && d2 > 0.0001) {
                 let d = sqrt(d2);
+                let d_pl = sqrt(max(dx * dx + dz * dz, 0.0001));
                 let push = min((r - d) * CONTACT_SPRING * signal.dt,
                                CONTACT_IMPULSE_CAP)
                          * (m_other / (m_self + m_other));
-                agent.vel_x += (dx / d) * push;
-                agent.vel_z += (dz / d) * push;
+                agent.vel_x += (dx / d_pl) * push;
+                agent.vel_z += (dz / d_pl) * push;
             }
         }
         // spheres push walkers (celestial-massive: only self yields)
@@ -7078,15 +7087,17 @@ fn update_player_agent() {
             let fe = floating_entities.entities[sph];
             if (fe.is_active == 0u) { continue; }
             let dx = agent.pos_x - fe.pos.x;
+            let dy = agent.pos_y - fe.pos.y;
             let dz = agent.pos_z - fe.pos.z;
-            let d2 = dx * dx + dz * dz;
+            let d2 = dx * dx + dy * dy + dz * dz;
             let r  = g_self.contact_radius + CONTACT_SPHERE_RADIUS;
             if (d2 < r * r && d2 > 0.0001) {
                 let d = sqrt(d2);
+                let d_pl = sqrt(max(dx * dx + dz * dz, 0.0001));
                 let push = min((r - d) * CONTACT_SPRING * signal.dt,
                                CONTACT_IMPULSE_CAP);
-                agent.vel_x += (dx / d) * push;
-                agent.vel_z += (dz / d) * push;
+                agent.vel_x += (dx / d_pl) * push;
+                agent.vel_z += (dz / d_pl) * push;
             }
         }
     }
@@ -7138,6 +7149,7 @@ fn update_other_agents(@builtin(global_invocation_id) gid: vec3<u32>) {
     {
         let g_self = agent_tier_gains[min(agent.tier_idx, 3u)];
         let m_self = g_self.contact_mass;
+        // 3D gate, planar push — CONTACT_2 C1a (see update_player_agent).
         for (var k = 0u; k < 32u; k++) {
             if (k == slot) { continue; }
             let other = agent_state[k];
@@ -7146,16 +7158,18 @@ fn update_other_agents(@builtin(global_invocation_id) gid: vec3<u32>) {
             var m_other = og.contact_mass;
             if (k == config.possessed_slot) { m_other *= PAWN_CONTACT_MASS_MULT; }
             let dx = agent.pos_x - other.pos_x;
+            let dy = agent.pos_y - other.pos_y;
             let dz = agent.pos_z - other.pos_z;
-            let d2 = dx * dx + dz * dz;
+            let d2 = dx * dx + dy * dy + dz * dz;
             let r  = g_self.contact_radius + og.contact_radius;
             if (d2 < r * r && d2 > 0.0001) {
                 let d = sqrt(d2);
+                let d_pl = sqrt(max(dx * dx + dz * dz, 0.0001));
                 let push = min((r - d) * CONTACT_SPRING * signal.dt,
                                CONTACT_IMPULSE_CAP)
                          * (m_other / (m_self + m_other));
-                agent.vel_x += (dx / d) * push;
-                agent.vel_z += (dz / d) * push;
+                agent.vel_x += (dx / d_pl) * push;
+                agent.vel_z += (dz / d_pl) * push;
             }
         }
         // spheres push walkers (celestial-massive: only self yields)
@@ -7163,15 +7177,17 @@ fn update_other_agents(@builtin(global_invocation_id) gid: vec3<u32>) {
             let fe = floating_entities.entities[sph];
             if (fe.is_active == 0u) { continue; }
             let dx = agent.pos_x - fe.pos.x;
+            let dy = agent.pos_y - fe.pos.y;
             let dz = agent.pos_z - fe.pos.z;
-            let d2 = dx * dx + dz * dz;
+            let d2 = dx * dx + dy * dy + dz * dz;
             let r  = g_self.contact_radius + CONTACT_SPHERE_RADIUS;
             if (d2 < r * r && d2 > 0.0001) {
                 let d = sqrt(d2);
+                let d_pl = sqrt(max(dx * dx + dz * dz, 0.0001));
                 let push = min((r - d) * CONTACT_SPRING * signal.dt,
                                CONTACT_IMPULSE_CAP);
-                agent.vel_x += (dx / d) * push;
-                agent.vel_z += (dz / d) * push;
+                agent.vel_x += (dx / d_pl) * push;
+                agent.vel_z += (dz / d_pl) * push;
             }
         }
     }
@@ -7585,18 +7601,22 @@ fn update_cube() {
             // drift's own spring-to-zero returns the cube after the pawn
             // passes: soft by the substrate's construction, zero new
             // state. (cube-vs-cube stays deferred — campaign v2 ruling.)
+            // 3D gate (cdy), planar push — CONTACT_2 C1a: a cube
+            // overhead feels nothing from a pawn beneath.
             var contact_force = vec3(0.0);
             {
                 let pawn = agent_state[config.possessed_slot];
                 let pg = agent_tier_gains[min(pawn.tier_idx, 3u)];
                 let cdx = fe.pos.x - pawn.pos_x;
+                let cdy = fe.pos.y - pawn.pos_y;
                 let cdz = fe.pos.z - pawn.pos_z;
-                let cd2 = cdx * cdx + cdz * cdz;
+                let cd2 = cdx * cdx + cdy * cdy + cdz * cdz;
                 let cr = CONTACT_CUBE_RADIUS + pg.contact_radius;
                 if (cd2 < cr * cr && cd2 > 0.0001) {
                     let cd = sqrt(cd2);
+                    let cd_pl = sqrt(max(cdx * cdx + cdz * cdz, 0.0001));
                     let mag = (cr - cd) * CONTACT_SPRING;
-                    contact_force = vec3((cdx / cd) * mag, 0.0, (cdz / cd) * mag);
+                    contact_force = vec3((cdx / cd_pl) * mag, 0.0, (cdz / cd_pl) * mag);
                 }
             }
             let spring_a = -fe.drift * fe.spring_stiffness;
