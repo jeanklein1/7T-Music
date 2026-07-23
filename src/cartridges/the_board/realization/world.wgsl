@@ -256,6 +256,13 @@ const PATCH_EXTENT: f32 = 50.0;         // world units per patch side
 const LIVE_CARD_SIZE: u32 = 512u;
 const LIVE_CARD_EXTENT: f32 = 800.0;
 const LIVE_CARD_DEBUG_VIEW: u32 = 0u;  // 1 = paint the card (terrain FS eye — lands with H4 [4a])
+// THE SHELL INSTRUMENT (CONTACT_4 S3a). 1 = draw the point's influence
+// shells as rings on the terrain. The rings BLEND over the world (they
+// do not replace it) so scale is read in context. Zero bindings, zero
+// layout: the rings use config.lod_point_x/z (the point's own position),
+// already in the terrain FS.
+const CONTACT_SHELL_DEBUG: u32 = 0u;
+const SHELL_RING_WIDTH: f32 = 0.35;   // wu, half-width of a ring band
 fn live_card_origin() -> vec2<f32> {
     let cs = PATCH_EXTENT / f32(PATCH_CELL_N);           // 3.125
     let raw = vec2(config.lod_point_x, config.lod_point_z)
@@ -4407,7 +4414,29 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
         }
     }
 
-    return vec4(shade_lit(in.world_pos, normal, base_color, 1.0), 1.0);
+    var out_colour = shade_lit(in.world_pos, normal, base_color, 1.0);
+
+    // THE SHELL INSTRUMENT (CONTACT_4 S3a): each ring is an influence
+    // radius the code actually uses; the grey patch ring is the world's
+    // own yardstick. If a shell ring sits OUTSIDE the patch ring, ask
+    // whether that influence should really reach a whole patch.
+    if (CONTACT_SHELL_DEBUG == 1u) {
+        let pxz = vec2(config.lod_point_x, config.lod_point_z);
+        let d = distance(in.world_pos.xz, pxz);
+        var ring = vec3(0.0);
+        // the bubble — the point's social shell (the flee trigger)
+        ring += vec3(0.2, 0.9, 1.0)
+              * step(abs(d - config.point_bubble_radius), SHELL_RING_WIDTH);
+        // the cube parting reach
+        ring += vec3(1.0, 0.7, 0.2)
+              * step(abs(d - CUBE_PART_RADIUS), SHELL_RING_WIDTH);
+        // one patch, for scale
+        ring += vec3(0.5, 0.5, 0.5)
+              * step(abs(d - PATCH_EXTENT), SHELL_RING_WIDTH);
+        out_colour = mix(out_colour, ring, min(1.0, ring.r + ring.g + ring.b) * 0.75);
+    }
+
+    return vec4(out_colour, 1.0);
 }
 
 // Shadow pass variant — same geometry, light VP instead of camera VP.
