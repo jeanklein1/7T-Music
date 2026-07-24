@@ -4561,18 +4561,21 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
             let fade = 1.0 - smoothstep(GOL_FADE_NEAR, GOL_FADE_FAR, cam_dist);
 
             if (fade > 0.01) {
-                let zone_node = vec2<i32>(floor(in.world_pos.xz / MODE_LATTICE_SPACING));
-
                 for (var z: u32 = 0u; z < zone_params.count; z++) {
                     let zp = zone_params.zones[z];
                     if (zp.transition_fraction <= 0.0) { continue; }
-                    let zn = vec2<i32>(floor(zp.origin / MODE_LATTICE_SPACING));
-                    if (zn.x == zone_node.x && zn.y == zone_node.y) {
-                        let zone_corner = zp.origin - zp.extent * 0.5;
-                        let local_cell = addr_used - cell_address(zone_corner);
-
-                        if (local_cell.x < 0 || local_cell.x >= i32(zp.grid_size) ||
-                            local_cell.y < 0 || local_cell.y >= i32(zp.grid_size)) { break; }
+                    let zone_corner = zp.origin - zp.extent * 0.5;
+                    let local_cell = addr_used - cell_address(zone_corner);
+                    // COVERAGE, NOT LATTICE (UG_FIELDS_1 S1). The bounds
+                    // test IS the membership test. The retired pre-filter
+                    // compared lattice nodes, which assumes a zone never
+                    // leaves its 120 wu node; a 32-cell zone is already
+                    // 100 wu and fragments across the boundary lost it.
+                    // This is also the FS's last MODE_LATTICE_SPACING
+                    // reader — the zone's SIZE is now free of the lattice
+                    // that places it.
+                    if (local_cell.x >= 0 && local_cell.x < i32(zp.grid_size) &&
+                        local_cell.y >= 0 && local_cell.y < i32(zp.grid_size)) {
 
                         let uv = (vec2<f32>(local_cell) + 0.5) / GOL_ZONE_TEX_N;
                         let life_sample = textureSampleLevel(
