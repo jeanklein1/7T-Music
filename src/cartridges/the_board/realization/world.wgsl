@@ -2185,7 +2185,7 @@ const PAWN_FORCEFIELD_SPEED_SCALE: f32 = 1.0;        // How quickly radius shrin
 //   the bubble ......... config.point_bubble_radius 20 wu
 //   possess reach ...... POSSESSION_RADIUS          20 wu (agents.hpp)
 //   agent eviction ..... AGENT_EVICTION_RADIUS      350 wu
-//   floater eviction ... FLOATER_EVICTION_RADIUS    400 wu
+//   floater eviction ... FLOATER_EVICTION_RADIUS    800 wu
 //   veil ring / LOD0 ... config.veil_ring / lod0    325 / 175 wu
 //   sphere body ........ fe.body_radius (per-inst)  ~1.2-1.5 wu
 //
@@ -7355,36 +7355,18 @@ fn behavior_levy_flight(agent_in: AgentState) -> AgentState {
 const AGENT_EVICTION_RADIUS:    f32 = 350.0;
 const AGENT_EVICTION_RADIUS_SQ: f32 = AGENT_EVICTION_RADIUS * AGENT_EVICTION_RADIUS;
 
-// FLOATER_EVICTION_RADIUS — spheres and cubes that drift further than
-// this from the point are evicted (set is_active=0 by their kernels).
-// THE VEIL CHAIN FLAGGED FORK (ruled: "unify ≤ 350 unless a reason
-// surfaces — flag if so"): a reason stands, documented below — floaters
-// SPAWN out to the 350 pregen edge and need eviction headroom past it
-// or they evict-at-spawn. Floaters are SKY objects (they never stand on
-// unresident ground) and 400 > FAR(275) keeps every eviction behind the
-// fog wall, so the overshoot is invisible by construction. Grounded
-// existence (agents) is unified at EXIST = 350.
-//
-// Headroom over spawn radius. Floaters can spawn anywhere out to the
-// pre-gen edge at 350 units. Two ways a fresh floater can be over the
-// eviction line on its first kernel frame if the radii are too close:
-//
-//   1. Commit runs N frames after the trigger fires, while the player
-//      keeps moving. At ~14 units/sec, even a 1-frame commit lag costs
-//      ~0.25 units of headroom; busy-queue lags eat several units.
-//   2. Sphere spawn places pos at `anchor + (orbit_radius, 0, 0)`,
-//      which can put pos up to ~12 units further from the pawn than
-//      anchor. A sphere spawned at 350-unit anchor distance can land
-//      at 362-unit pos distance immediately.
-//
-// 400 = 350 spawn radius + 50 headroom covers both cases with margin.
-// Earlier value of 360 (only +10 over spawn radius) caused near-100%
-// eviction-at-spawn while the player was moving.
-//
-// GPU-only: no C++ constant mirrors this today. The CPU learns of
-// kernel evictions through the is_active readback, not a duplicated
-// radius (cartridge.hpp names this constant only in comments).
-const FLOATER_EVICTION_RADIUS:    f32 = 400.0;
+// The eviction radius MUST exceed the patch allocation radius, or every
+// floater committed at the streaming frontier is evicted the frame it
+// spawns — silently, since per-patch spawn is idempotent and never retries.
+// Allocation reaches active_radius (<= PATCH_PREGEN_RADIUS 8) x
+// PATCH_EXTENT 50 = 400 wu at the near edge, ~566 at the diagonal corner.
+// 800 clears it with margin at the current radius. NOT DERIVED: this is a
+// CPU quantity (active_radius x PATCH_EXTENT) and a GPU const in different
+// rooms, so the relation cannot be asserted in either. Raising the render
+// radius silently breaks this again. Queued: derive it CPU-side and upload
+// through config, which puts both values in one room and makes the
+// relation assertable (COLLISION_CHARTER, the feasibility corollary).
+const FLOATER_EVICTION_RADIUS:    f32 = 800.0;
 const FLOATER_EVICTION_RADIUS_SQ: f32 = FLOATER_EVICTION_RADIUS * FLOATER_EVICTION_RADIUS;
 
 // POINT_BUBBLE_RADIUS — the point's bounded awareness (v3 §11; the
