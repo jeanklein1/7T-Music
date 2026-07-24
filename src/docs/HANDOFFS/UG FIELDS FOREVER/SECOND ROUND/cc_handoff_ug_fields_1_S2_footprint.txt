@@ -1,0 +1,209 @@
+UG_FIELDS_1 — HANDOFF S2: THE FOOTPRINT TELLS THE TRUTH
+=======================================================
+
+FILE(S):     src/cartridges/the_board/bodies/gol_zones.hpp
+             (+ possibly a tier-table mirror — see the pre-flight branch)
+COMMITS:     one
+LAND ORDER:  after S1. Build here; this is the batch's last commit.
+BRANCH:      same branch as S1.
+ENCODING:    LF-only, no BOM.
+
+
+WHY — this is no longer housekeeping
+--------------------------------------------------------------------
+A0 §5f corrected the plan. The stale footprint does not displace a zone:
+ZONE_EXTENT/2 = 50 = 16 x 3.125 is an exact multiple of the snap grid,
+so the CPU's centre already coincides with the GPU's origin. Verified
+for grids 8/16/24/32/64.
+
+The defect is the RADIUS, and it runs both ways:
+
+  - at 16 cells (50 wu) a fixed r=50 over-reserves sixteenfold in area,
+    so the spawn engine rejects neighbours it should accept;
+  - at 64 cells (200 wu) it UNDER-reserves. The inscribed circle would
+    be 100. With r=50, two zones on adjacent 120 wu lattice nodes can
+    overlap by up to 80 wu.
+
+The second is the dangerous one and the plan did not anticipate it.
+
+Overlap is not a cosmetic problem. contrib_gol_zones_at RETURNS on its
+first covering zone; the tint BREAKS on its first. Neither defines an
+order, and they do not even filter alike — contrib skips zones with
+alive_height < 0.01 before matching, the tint does not. Two overlapping
+zones can therefore give a cell its height from one and its colour from
+the other. That chimera is currently unreachable only because no zone
+is large enough to overlap. S3 makes it reachable.
+
+The footprint registry already exists to prevent exactly this
+(check_position / register_footprint, PopFamily::GOL). It is not
+broken - it is being told a lie. Tell it the truth and the overlap
+question closes without a new mechanism, and first-match-wins becomes
+deterministic because at most one zone can cover any cell.
+
+Use the CIRCUMSCRIBED radius, not the inscribed one: 0.5 * hypot(w, h).
+Conservative in the safe direction. It over-reserves for thin-and-long
+zones, which is a density cost Jean has been told about and accepted as
+the first move; rectangles in the registry are a later question.
+
+
+[anchor-1]  PRE-FLIGHT — and the branch this handoff turns on
+--------------------------------------------------------------------
+  a) HEAD carries S1. Confirm.
+
+  b) THE DECIDING QUESTION. The CPU rolls the tier already — it reads
+     per-tier params such as tick_period_mean (A0 saw
+     cpu_sample_gaussian(seed, GoLZoneProp::TICK_PERIOD,
+     pp.tick_period_mean, pp.tick_period_sigma)). Find that C++ tier
+     table and report:
+
+       - its declaration site and full contents
+       - whether it carries U5's grid_cells column
+       - whether Conway and Pulse each have one
+       - how tier_idx maps into it (A0 noted Pulse uses the compound
+         index GOL_TIER_COUNT + tier)
+
+     PATH A — the mirror carries grid_cells.
+       Proceed to the edits below as written.
+
+     PATH B — the mirror exists but has no grid_cells column.
+       STOP AND REPORT. Do not invent the column. The fix is to mirror
+       WGSL's cells values (A0 §6f: Conway 16/32/32/16/24/16/24, Pulse
+       32/16/8) into the C++ table as a twin, with the same
+       "change both sides" banner MODE_LATTICE_SPACING carries at
+       bodies/gol_zones.hpp:59 — and that mirror is its own commit,
+       landing before this one. Report the exact table shape you would
+       need to extend and wait.
+
+     PATH C — no C++ tier table at all (contradicts A0). STOP.
+
+  c) string  static constexpr float ZONE_EXTENT = 100.0f;
+     Report the exact line verbatim with its comment.
+  d) string  static constexpr float FOOTPRINT_RADIUS = 50.0f;
+     Report the exact line verbatim with its comment.
+  e) Report verbatim, with 3 lines of context each:
+       - the sel.footprint_r assignment (~:424)
+       - the cx/cz computation in place_gol_from_selection (~:436-437)
+       - the check_position call (~:439)
+       - the register_footprint call (~:445)
+       - the corner_x/corner_z snap in the selection path (~:456)
+       - the boot-log line that consumes plan.corner_* (~:506)
+  f) Confirm whether check_position gates PopFamily::GOL against OTHER
+     GOL footprints, or only across families. If GOL is not checked
+     against GOL, say so — the whole overlap argument depends on it and
+     the remedy changes.
+
+
+THE SHAPE OF THE EDIT (Path A)
+--------------------------------------------------------------------
+Author the edits yourself from the verbatim text you just reported; the
+plan below is normative, the exact FIND strings are yours to lift.
+
+  1. RETIRE  GoLZoneSpawnConfig::ZONE_EXTENT.
+     Every reader recomputes from the tier's cells:
+         extent_x = cells_x * PATCH_CELL_SIZE
+         extent_z = cells_z * PATCH_CELL_SIZE
+     (cells_x == cells_z until S3; write it as two values now so S3
+     touches nothing here.)
+     Leave a one-line tombstone comment naming U5 as the reason, in the
+     house style used for the retired WGSL constants.
+
+  2. RETIRE  GoLZoneSpawnConfig::FOOTPRINT_RADIUS.
+     Replace with a derivation at the selection site:
+         sel.footprint_r = 0.5f * std::hypot(extent_x, extent_z);
+     Comment it as the CIRCUMSCRIBED radius and say why: the registry
+     must never permit an overlap, so the reservation is conservative;
+     an inscribed circle would allow corner overlap and a fixed radius
+     allowed 80 wu of it at 64 cells.
+
+  3. FIX  the corner snap and the centre.
+     corner_* currently subtracts ZONE_EXTENT * 0.5f for every tier.
+     It must subtract the tier's own extent * 0.5f per axis. A0 §5f
+     records that plan.corner_* reaches only the boot log today, so
+     this is a diagnostic correction — but it becomes load-bearing the
+     moment anything else reads it, and a wrong number in a log is a
+     trap for the next auditor.
+     cx/cz keep their present meaning (corner + extent/2) and must come
+     out numerically unchanged for 32-cell zones — that is the no-op
+     check below.
+
+  4. DO NOT touch the GPU snap in zone_derive_params. The GPU already
+     uses the tier-derived extent (A0 §6b). This commit makes the CPU
+     agree with it, not the reverse.
+
+
+[anchor-2]  POST-EDIT AUDIT
+--------------------------------------------------------------------
+  a) token  ZONE_EXTENT        EXPECT 0 (outside the tombstone comment)
+  b) token  FOOTPRINT_RADIUS   EXPECT 0 (outside the tombstone comment)
+  c) THE NO-OP PROOF. For a 32-cell zone, hand-evaluate and report:
+       - extent_x, extent_z            EXPECT 100.0, 100.0
+       - corner_x for one worked node  EXPECT bit-identical to before
+       - cx, cz                        EXPECT bit-identical to before
+       - footprint_r    EXPECT 70.71 (was 50) — this one CHANGES, and
+                        it is the only behavioural change in the commit
+     A 32-cell zone now reserves a circumscribed circle instead of an
+     inscribed one, so spawn density drops slightly at the largest
+     tier and rises at the smallest. That is intended and is the visual
+     gate below.
+  d) For 16 and 24 cells report extent, corner, cx/cz and footprint_r.
+     16 cells: extent 50, r 35.36 (was 50) — reserves LESS.
+     24 cells: extent 75, r 53.03 (was 50) — reserves slightly MORE.
+  e) Every arithmetic path uses PATCH_CELL_SIZE
+     (contracts/surface_services.hpp:70), never a literal 3.125.
+  f) git diff --stat — report it; no expected value, this one is
+     authored rather than transcribed.
+  g) LF-only, no BOM.
+
+
+FXC / BUDGET
+--------------------------------------------------------------------
+CPU-only. No shader, no binding, no struct, no upload format. The GPU
+side of the spawn path is untouched.
+
+
+COMMIT MESSAGE
+--------------------------------------------------------------------
+UG_FIELDS_1 S2 - the GoL footprint tells the truth
+
+ZONE_EXTENT and FOOTPRINT_RADIUS survived U5, which made a zone's extent
+tier-derived. The centre was never wrong - 50 wu is an exact multiple of
+the 3.125 snap, so the CPU's centre already coincided with the GPU's
+origin. The radius was.
+
+A fixed inscribed circle of a 100 wu square over-reserves sixteenfold in
+area at 16 cells and UNDER-reserves at 64, where two zones on adjacent
+120 wu lattice nodes could overlap by 80. Overlap is not cosmetic:
+contrib_gol_zones_at returns on its first covering zone and the tint
+breaks on its first, with no defined order and unequal filters, so
+overlapping zones could give one cell its height from one zone and its
+colour from another. Unreachable today; reachable the moment S3 lands.
+
+Both constants retire. The footprint is now the circumscribed radius of
+the tier's own rectangle - conservative, so the registry can never
+permit an overlap, and first-match-wins becomes deterministic because at
+most one zone covers any cell. The corner snap uses the tier's extent
+per axis instead of a fixed 100.
+
+
+BUILD + VISUAL GATE (Jean; after S2)
+--------------------------------------------------------------------
+glaw1, then:
+
+  1. S1 is a no-op by construction. Zones tint exactly as before. If
+     anything about the tint changed, the fault is S1 and it is a
+     surprise worth stopping for.
+  2. Zone density shifts: small zones (16 cells) become slightly more
+     common, the largest tier slightly less. Zones themselves look
+     identical - same size, same place, same colours.
+  3. No zone should sit visibly inside another. There were none before
+     either; this is the baseline for S3.
+  4. Boot log: the GoL placement line now prints a corner matching the
+     zone's actual size rather than always 50 wu off centre.
+
+
+DRIFT PROTOCOL
+--------------------------------------------------------------------
+Pre-flight (b) resolving to PATH B or C ends this handoff. Report and
+wait - do not author a tier column, and do not fall back to a fixed
+conservative radius for the largest tier, which would silently starve
+the small ones.

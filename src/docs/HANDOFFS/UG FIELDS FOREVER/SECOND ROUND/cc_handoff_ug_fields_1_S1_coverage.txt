@@ -1,0 +1,170 @@
+UG_FIELDS_1 — HANDOFF S1: COVERAGE, NOT LATTICE
+===============================================
+
+FILE:        src/cartridges/the_board/realization/world.wgsl
+COMMITS:     one
+BASELINE:    40ea580 (A0's baseline). Confirm HEAD before starting.
+LAND ORDER:  S1, then S2. Build after S2.
+BRANCH:      cut from master, merge + delete same day.
+ENCODING:    LF-only, no BOM. All FIND text is transcribed from A0 §6d.
+
+
+WHY
+---
+The tint pre-filters candidate zones by lattice-node equality:
+
+    floor(zp.origin / MODE_LATTICE_SPACING) == floor(world_xz / 120)
+
+That assumes a zone never leaves its own 120 wu node. At 32 cells a zone
+is already 100 wu; above ~38 cells it cannot hold, and fragments across
+the node boundary stop finding their zone entirely. The bounds test that
+follows the pre-filter IS the membership test — the pre-filter adds
+nothing but the assumption.
+
+Its out-of-bounds exit is also `break`, which abandons the remaining
+slots instead of trying the next zone.
+
+THIS COMMIT IS A PROVABLE NO-OP TODAY. Every authored tier is 16, 24 or
+32 cells = 50, 75 or 100 wu, centred on a node at (n+0.5)*120 with at
+least 10 wu of margin per side; the corner snap moves a zone by at most
+one cell (3.125). No zone in the current tables can straddle a node
+boundary, and no node bears two zones (the CPU's `exists` check). So
+neither the pre-filter nor the break/continue distinction can fire.
+
+That is the point. The gate for this commit is that NOTHING CHANGES.
+What it buys is S3: this is the FS's last dependency on
+MODE_LATTICE_SPACING, and removing it is what lets a zone exceed 120 wu.
+
+
+DO NOT TOUCH — the three surviving lattice readers
+--------------------------------------------------------------------
+A0 §5c found six MODE_LATTICE_SPACING readers in world.wgsl. Only two
+are in patch_terrain_fs and only those two retire. The others derive a
+zone's SEED and CENTRE from its node — identity, not coverage:
+
+    ~1277   (outside the zone system; leave alone)
+    ~6352   zone_derive_params: raw_cx from the node
+    ~6353   zone_derive_params: raw_cz from the node
+    ~8625   tag_cell_behavior: the zone_node seed
+
+Touching any of these reshuffles every zone in the world. If an edit
+below appears to match near those lines, you are in the wrong function.
+STOP.
+
+
+[anchor-1]  PRE-FLIGHT
+--------------------------------------------------------------------
+  a) HEAD is 40ea580 (or say what it is and stop if world.wgsl differs)
+  b) token  zone_node
+     EXPECT 4  = 1 declaration + 1 use in the tint + 2 in
+                 tag_cell_behavior (a DIFFERENT local of the same name)
+     Report the line numbers. The two in tag_cell_behavior are not
+     yours.
+  c) token  MODE_LATTICE_SPACING
+     EXPECT 7  = 1 declaration + 6 readers
+  d) string  if (zn.x == zone_node.x && zn.y == zone_node.y) {
+     EXPECT 1
+  e) string  let zone_node = vec2<i32>(floor(in.world_pos.xz / MODE_LATTICE_SPACING));
+     EXPECT 1
+
+
+EDIT 1 of 2 — the guard becomes the coverage test
+--------------------------------------------------------------------
+The body below the guard is NOT re-indented. zone_corner and local_cell
+move out one level (24 -> 20 spaces); everything from `let uv` onward
+keeps its exact indentation, and the trailing `break;` and closing
+braces are untouched.
+
+FIND (exactly 1 occurrence; line 1 matched without its leading
+whitespace, the rest carry their exact indentation, and the blank line
+inside the block is part of the match):
+let zn = vec2<i32>(floor(zp.origin / MODE_LATTICE_SPACING));
+                    if (zn.x == zone_node.x && zn.y == zone_node.y) {
+                        let zone_corner = zp.origin - zp.extent * 0.5;
+                        let local_cell = addr_used - cell_address(zone_corner);
+
+                        if (local_cell.x < 0 || local_cell.x >= i32(zp.grid_size) ||
+                            local_cell.y < 0 || local_cell.y >= i32(zp.grid_size)) { break; }
+
+REPLACE:
+let zone_corner = zp.origin - zp.extent * 0.5;
+                    let local_cell = addr_used - cell_address(zone_corner);
+                    // COVERAGE, NOT LATTICE (UG_FIELDS_1 S1). The bounds
+                    // test IS the membership test. The retired pre-filter
+                    // compared lattice nodes, which assumes a zone never
+                    // leaves its 120 wu node; a 32-cell zone is already
+                    // 100 wu and fragments across the boundary lost it.
+                    // This is also the FS's last MODE_LATTICE_SPACING
+                    // reader — the zone's SIZE is now free of the lattice
+                    // that places it.
+                    if (local_cell.x >= 0 && local_cell.x < i32(zp.grid_size) &&
+                        local_cell.y >= 0 && local_cell.y < i32(zp.grid_size)) {
+
+
+EDIT 2 of 2 — delete the dead local
+--------------------------------------------------------------------
+This is a LINE DELETION, not a FIND/REPLACE. Delete the line whose
+content is exactly:
+
+    let zone_node = vec2<i32>(floor(in.world_pos.xz / MODE_LATTICE_SPACING));
+
+together with its leading indentation and the blank line immediately
+following it. It is inside patch_terrain_fs, directly above the
+`for (var z: u32 = 0u; z < zone_params.count; z++) {` line — confirm
+that adjacency before deleting.
+
+Leave no trailing whitespace behind.
+
+The identically-named locals in tag_cell_behavior stay.
+
+
+[anchor-2]  POST-EDIT AUDIT
+--------------------------------------------------------------------
+  a) token  zone_node
+     EXPECT 2  (both inside tag_cell_behavior)
+  b) token  zn
+     EXPECT 0 as a standalone identifier in patch_terrain_fs
+  c) token  MODE_LATTICE_SPACING
+     EXPECT 5  = 1 declaration + 4 readers (~1277, ~6352, ~6353, ~8625)
+     Report all five line numbers. If any sits inside
+     patch_terrain_fs, STOP.
+  d) `break;` still terminates the matched-zone body (first match wins).
+     Confirm by reading the block once end to end.
+  e) the `if (fade > 0.01) {` scope still closes correctly — brace
+     balance unchanged, since one `if` was replaced by another.
+  f) git diff --stat
+     EXPECT 1 file changed, 12 insertions(+), 9 deletions(-)
+  g) LF-only, no BOM.
+
+
+FXC / BUDGET
+--------------------------------------------------------------------
+One comparison chain replaces another; two locals and one branch
+removed. No bindings, no slots, no loops. Strictly cheaper per fragment.
+
+
+COMMIT MESSAGE
+--------------------------------------------------------------------
+UG_FIELDS_1 S1 - the tint tests coverage, not lattice nodes
+
+The zone match pre-filtered by lattice-node equality, which assumes a
+zone never leaves its own 120 wu node. A 32-cell zone is already 100 wu.
+The bounds test that followed was always the real membership test; the
+pre-filter contributed only the assumption, and its out-of-bounds exit
+was `break`, abandoning the remaining slots.
+
+Provable no-op on the current tables: every tier is 50, 75 or 100 wu,
+centred with at least 10 wu of margin, and no node bears two zones, so
+neither the pre-filter nor the break could fire. What this buys is S3 -
+patch_terrain_fs no longer reads MODE_LATTICE_SPACING, so a zone's size
+is free of the lattice that places it.
+
+The lattice readers in zone_derive_params and tag_cell_behavior stay:
+those derive a zone's seed and centre from its node. Identity, not
+coverage.
+
+
+DRIFT PROTOCOL
+--------------------------------------------------------------------
+Any census disagreement, any FIND absent: STOP, report the whole GoL
+tint block plus the ten lines above it verbatim, edit nothing.
