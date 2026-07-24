@@ -118,6 +118,38 @@ only when the terms cannot be brought into one room.
 
 ---
 
+## The containment rule (generalized from FIX_TILE_PATCH_CONTAINMENT)
+
+> Where two independently-authored bounds must **nest**, the nesting is a **LAW,
+> not a margin**. State which bound contains which, and enforce it
+> **structurally** — by construction or by predicate — never by choosing a number
+> with slack in it.
+
+Two instances, one shape, a day apart:
+
+- A **lifecycle radius must exceed the spawn radius**, or every entity committed
+  at the frontier dies the frame it spawns — `FLOATER_EVICTION_RADIUS` 400 → 800:
+  the eviction line has to sit outside the allocation frontier (~400 wu near-edge,
+  ~566 at the diagonal corner).
+- A **tile's lifetime must contain every patch that stands on it**, or a centre
+  jump orphans the patch — `FORGET_RADIUS`. Tile eviction is unbudgeted and
+  immediate; patch eviction is budgeted and lags. In steady state the
+  `FORGET_RADIUS = PATCH_PREGEN_RADIUS + 2` slack hides the gap; a world-transition
+  centre jump consumes it in one unbudgeted call while patch eviction still
+  drains. Fixed by a keep-predicate (`build_active_patch_set`) so a load-bearing
+  tile is spared however far the centre moved — containment is now a predicate,
+  not a slack number.
+
+Both failed **silently**. Both were guarded only by slack, and slack is consumed
+by whatever moves fastest. And the retired `FLOATER_EVICTION_RADIUS` comment was
+not unreasoned — it justified 400 against a "350 spawn radius + 50 headroom"
+premise that had since drifted to 400 near-edge / ~566 corner. A constant reasoned
+against a value that moved is the argument for **deriving both numbers rather than
+authoring them** (see the feasibility corollary; the derivation is queued in
+`DEFERRED_REGISTER.md`).
+
+---
+
 ## Tombstone policy
 
 Retirement leaves a **one-line epitaph at the code site**; the full lesson lives
