@@ -2248,25 +2248,28 @@ const BUBBLE_PART_SPEED: f32 = 4.0;     // camera-host parting speed (the C3 fal
 // separate and was DEAD at 50 wu until S2a.
 const FLEE_SHELL_FRAC: f32 = 0.25;   // CONTACT_3 K2a
 
-// Cube PUSH (CONTACT_5 P2b): the point's PRESENCE shoves cubes by
-// OCCUPANCY, not approach -- stand under a floating cube and it keeps moving
-// until you leave its column. A CYLINDRICAL shell (planar radius + vertical
-// window): a hovering body's interaction shell is the COLUMN beneath it, so
-// you shove it by walking under it. A spherical gate would need a radius
-// larger than the altitude, dragging the planar reach out with it -- the
-// CONTACT_4 [DEAD]/outdoor-caveat trap. The cylinder escapes it.
-//   CUBE_PUSH_RADIUS  -- planar reach, shoulder-scale. A TOOL, not a field:
+// Cube PUSH (CONTACT_5 P2b, reformulated TIDY_1 T2b): the point's PRESENCE
+// shoves cubes by OCCUPANCY, not approach -- stand under a floating cube and it
+// keeps moving until you leave its column. The gate is an INFINITE CYLINDER
+// (planar radius, NO vertical window), admitted by a separate REACH test on the
+// cube's AUTHORED altitude. A spherical gate would need a radius larger than the
+// altitude, dragging the planar reach out with it -- the CONTACT_4 [DEAD]/
+// outdoor-caveat trap; the cylinder escapes it. The reach test replaces the old
+// CUBE_PUSH_VWINDOW, whose |dy| gate folded ground relief into eligibility
+// (audit #7 -- OVERTURNED: authored altitude is terrain-independent).
+//   CUBE_PUSH_RADIUS   -- planar reach, shoulder-scale. A TOOL, not a field:
 //     small on purpose (~2x the pawn contact shell); a large presence shell
 //     plus persistence (lambda=1) would permanently clear a wide disc around
 //     the point -- "cubes avoid you", not "shove them freely".
-//   CUBE_PUSH_VWINDOW -- vertical half-window of the column, DERIVED from the
-//     authored cube altitude: max orbit_height mu (75, LargeCube) + bob mu
-//     (2) + 8 margin = 85. Reaches every cube up to the tallest authored
-//     mean; the large-sigma tail above ~85 stays above the column (disclosed
-//     -- a per-instance vwindow is the deferred refinement).
-//   CUBE_PUSH_GAIN    -- presence force per wu overlap (dt-scaled).
+//   CUBE_REACH_CEILING -- altitude eligibility. A cube is shoveable iff its
+//     authored mean altitude (orbit_height + bob_amplitude, terrain-independent)
+//     is within the ceiling; above it the cube is canopy, left alone. At 30:
+//     monoliths (~12) and small cubes (~25) are in reach, medium (~45) and
+//     large (~75) are canopy. Raise toward INFLUENCE_PLANAR_ONLY to make every
+//     cube shoveable. Jean-tunable.
+//   CUBE_PUSH_GAIN     -- presence force per wu overlap (dt-scaled).
 const CUBE_PUSH_RADIUS:  f32 = 7.0;   // planar reach (~2x pawn contact shell; a tool, not a field)
-const CUBE_PUSH_VWINDOW: f32 = 85.0;  // vertical column half-window (75 orbit mu + 2 bob + 8)
+const CUBE_REACH_CEILING: f32 = 30.0; // authored-altitude eligibility (T2b); retires CUBE_PUSH_VWINDOW 85 -- its |dy| window coupled terrain relief (audit #7)
 const CUBE_PUSH_GAIN:    f32 = 25.0;  // presence force per wu overlap
 // units: max Δv per frame on the cube's drift. A FRAME-HITCH GUARD, not a
 // tuning knob: unreachable at 60 Hz (max 7*25/60 = 2.92); first engages at
@@ -2345,6 +2348,12 @@ struct InfluenceProfile {
 
 // The uncapped flee rows carry this so the profile table has no empty cell.
 const INFLUENCE_NO_CAP: f32 = 1.0e9;
+// Sibling sentinel (TIDY_1 T2b): the cube row carries this as vwindow to select
+// the CYLINDRICAL gate with an unbounded vertical half-window -- a planar-only
+// column. Same 1e9 magnitude as INFLUENCE_NO_CAP, different column (a cap vs a
+// vwindow); vwindow <= 0 would flip to the SPHERICAL gate and reinstate the
+// CONTACT_4 altitude-vs-reach trap.
+const INFLUENCE_PLANAR_ONLY: f32 = 1.0e9;
 
 // Returns the PLANAR response for `self`, in wu/s. The caller adds it to
 // velocity (and, where it integrates inline, to position * dt per K1b);
@@ -2441,8 +2450,17 @@ fn row_point_flee(g_self: AgentTierParams, approach_floor: f32) -> InfluenceProf
     return InfluenceProfile(config.point_bubble_radius, 0.0,
                             0.0, g_self.flee_gain_player, 1.0, INFLUENCE_NO_CAP, 1.0, 0.6, approach_floor);
 }
-fn row_cube_push() -> InfluenceProfile {
-    return InfluenceProfile(CUBE_PUSH_RADIUS, CUBE_PUSH_VWINDOW,
+fn row_cube_push(fe: FloatingEntityState) -> InfluenceProfile {
+    // Test A -- REACH: shove only cubes whose AUTHORED mean altitude
+    // (orbit_height + bob_amplitude; terrain-independent, NOT the instantaneous
+    // bob) is within the ceiling. Folded into radius via select (branchless):
+    // out of reach -> radius 0 -> the gate never opens.
+    let reach_ok = (fe.orbit_height + fe.bob_amplitude) <= CUBE_REACH_CEILING;
+    // Test B -- PLANAR: INFLUENCE_PLANAR_ONLY as vwindow keeps the CYLINDRICAL
+    // gate (positive vwindow) with an unbounded vertical half-window, so once
+    // Test A admits the cube the gate is purely planar (vwindow <= 0 would flip
+    // to the spherical gate and reinstate the CONTACT_4 trap).
+    return InfluenceProfile(select(0.0, CUBE_PUSH_RADIUS, reach_ok), INFLUENCE_PLANAR_ONLY,
                             CUBE_PUSH_GAIN, 0.0, 1.0, CUBE_PUSH_CAP, 1.0, 0.0, 0.0);
 }
 
@@ -8047,8 +8065,10 @@ fn update_cube() {
             // The point's PRESENCE, not its approach: stand under a floating
             // cube and it moves ahead of you until you step out of the column
             // (OCCUPANCY, not motion -- the beach-ball Jean asked for). The
-            // gate is a CYLINDER (planar CUBE_PUSH_RADIUS, |dy| < CUBE_PUSH_
-            // VWINDOW): a hovering body's shell is the column beneath it.
+            // gate is an INFINITE CYLINDER (planar CUBE_PUSH_RADIUS, no vertical
+            // window), admitted by a REACH test on the cube's authored altitude
+            // (row_cube_push, T2b): a hovering body's shell is the column
+            // beneath it, and only in-reach cubes have a column at all.
             // Radial (tangential 0), falloff_mix 1 (soft at the rim). Replaces
             // the CONTACT_4 approach-parting; the cube-vs-pawn CONTACT row is
             // RETIRED (a body contact never reached a hovering cube -- the
@@ -8064,14 +8084,15 @@ fn update_cube() {
             // P2b's presence push is the impulse K1 names, so it takes signal.dt
             // and a DIRECT add -- now the soft falloff actually bites, and
             // CUBE_PUSH_CAP is a velocity-delta safety, ~never reached at the
-            // ~0.95 wu/s typical.) Worked: cube 18 wu up, pawn 3 wu planar
-            // beneath -> |dy|=18 < vwindow; overlap 4, fall = 1-3/7 = 0.57 ->
-            // impulse = 4*25*(1/60)*0.57 ~= 0.95 wu/s of drift velocity per
-            // frame, accumulating while you stay under the column, STOPPING the
-            // instant you step out; standing still inside still pushes.
+            // ~0.95 wu/s typical.) Worked: a small cube (orbit_height ~25 <=
+            // ceiling 30 -> in reach), pawn 3 wu planar beneath -> planar
+            // overlap 4, fall = 1-3/7 = 0.57 -> impulse = 4*25*(1/60)*0.57
+            // ~= 0.95 wu/s of drift velocity per frame, accumulating while you
+            // stay under the column, STOPPING the instant you step out (or the
+            // cube rises past the ceiling); standing still inside still pushes.
             var push_impulse = vec3(0.0);
             {
-                let q_prof = row_cube_push();
+                let q_prof = row_cube_push(fe);
                 let q_r = influence_response(
                     fe.pos, vec2(0.0), point_pos(), vec2(0.0), q_prof, dt);
                 push_impulse = vec3(q_r.x, 0.0, q_r.y);

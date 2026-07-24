@@ -182,3 +182,43 @@ the other 4 kernels byte-identical. Within it, exactly two functions changed —
    faster. The exact ring radius is a balance of `neighbor_radius`/`home_pull`
    against `point_bubble_radius`/`flee_gain_player` — Jean's visual call (not
    asserted here).
+
+### [T2b] Cube reach — ceiling + planar sentinel (OVERTURNS audit #7)
+
+The old cube gate was a single vertical window `|dy| < CUBE_PUSH_VWINDOW` (85),
+where `dy = fe.pos.y − point.y` and `fe.pos.y = ground_at(xz) + orbit_height +
+bob + drift.y` — so **ground relief leaked into eligibility** (audit #7). Split
+into two clean tests:
+- **Test A — REACH:** `reach_ok = (fe.orbit_height + fe.bob_amplitude) <=
+  CUBE_REACH_CEILING` — the AUTHORED mean altitude, terrain-INDEPENDENT (uses
+  `bob_amplitude`, not the instantaneous bob). Folded into radius via
+  `select(0.0, CUBE_PUSH_RADIUS, reach_ok)` — branchless; out of reach ⇒ radius
+  0 ⇒ the gate never opens.
+- **Test B — PLANAR:** new sentinel `INFLUENCE_PLANAR_ONLY = 1.0e9` as `vwindow`
+  keeps the CYLINDRICAL gate (positive vwindow) with an unbounded vertical
+  half-window ⇒ purely planar. `vwindow <= 0` would flip to the SPHERICAL gate
+  and reinstate the CONTACT_4 altitude-vs-reach trap — so a huge positive, not a
+  zero. Retired `CUBE_PUSH_VWINDOW 85` (inline epitaph).
+
+**Scope (backend-confirmed):** SPIR-V changes in **`update_cube` ONLY**; the
+other 4 kernels byte-identical. Within it, exactly `row_cube_push` + the caller
+changed. The `row_cube_push` body decompiles to exactly the spec: two field
+extracts (`orbit_height`, `bob_amplitude`) → add → `<=` ceiling → `OpSelect`
+(7.0 in reach / 0.0 out) → construct `(select, PLANAR_ONLY, GAIN, 0, 1, CAP, 1,
+0, 0)`. modcheck 0 messages.
+
+**Percept to visual-gate (both hosts):** with ceiling 30, monoliths (~12) and
+small cubes (~25) stay shoveable; medium (~45) and large (~75) become **canopy**
+(unresponsive) — before T2b nearly every cube within ±85 vertical responded, so
+**fewer** cubes shove now by default (the deliberate reach ceiling, Jean-tunable
+— raise toward `INFLUENCE_PLANAR_ONLY` for all-shoveable). The repair: a cube on
+a hill vs flat ground now has the SAME eligibility (authored altitude), where the
+old `|dy|` gate coupled the terrain beneath it.
+
+## END-OF-T2 BUILD GATE
+
+- **glaw1: `G-LAW 1: GREEN`** — desktop compiles the reformulated `world.wgsl`
+  (the `select()` reach gate, `INFLUENCE_PLANAR_ONLY`, the point-routed
+  behaviors, the retired `CUBE_PUSH_VWINDOW`).
+- **Dawn witness: `ALL PIPELINE FAMILIES GREEN`** — module 0 messages, no
+  pipeline-family failures under real Dawn/Tint.
