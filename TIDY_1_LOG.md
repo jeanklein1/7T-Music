@@ -47,3 +47,16 @@ survives); the manifold API-listing line removed; the walker-height-note
 
 **Gate:** SPIR-V diff vs pre = **EMPTY across all 5 kernels** (the delete touched
 no live closure — Tint compiles only reachable fns). modcheck 0 messages.
+
+### [T1b] RENAME `CUBE_PART_CAP` → `CUBE_PUSH_CAP` + the honest label
+
+The name outlived the mechanism it named (the approach-parting, retired at P2b);
+it now caps a presence impulse. Renamed the const + its two references
+(world.wgsl) and gave it the hitch-guard biography: "max Δv per frame on the
+cube's drift. A FRAME-HITCH GUARD, not a tuning knob: unreachable at 60 Hz (max
+7·25/60 = 2.92); first engages at dt = 0.0686 s (14.6 fps). Raising it changes
+nothing you can see." Code refs of the old name: **ZERO** (the remaining
+mentions are in historical handoff .txt specs — input, not code).
+
+**Gate:** SPIR-V diff vs [T1a] = **EMPTY** (rename, value 12.0 unchanged);
+modcheck 0 messages.

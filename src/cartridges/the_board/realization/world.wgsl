@@ -2268,7 +2268,10 @@ const FLEE_SHELL_FRAC: f32 = 0.25;   // CONTACT_3 K2a
 const CUBE_PUSH_RADIUS:  f32 = 7.0;   // planar reach (~2x pawn contact shell; a tool, not a field)
 const CUBE_PUSH_VWINDOW: f32 = 85.0;  // vertical column half-window (75 orbit mu + 2 bob + 8)
 const CUBE_PUSH_GAIN:    f32 = 25.0;  // presence force per wu overlap
-const CUBE_PART_CAP: f32 = 12.0;      // units: max cube force magnitude (accel). Not a radius.
+// units: max Δv per frame on the cube's drift. A FRAME-HITCH GUARD, not a
+// tuning knob: unreachable at 60 Hz (max 7*25/60 = 2.92); first engages at
+// dt = 0.0686 s (14.6 fps). Raising it changes nothing you can see.
+const CUBE_PUSH_CAP: f32 = 12.0;
 // (CUBE_PART_RADIUS 30 / CUBE_PART_GAIN 1.0 RETIRED -- CONTACT_5 P2b. They
 //  were the CONTACT_4 approach-parting reach + gain; the parting became a
 //  PRESENCE push (CUBE_PUSH_*), so both are reference-free. The S3a shell
@@ -8000,7 +8003,7 @@ fn update_cube() {
             // (x dt). (P1b passed dt=1.0 to bit-preserve the OLD force-parting;
             // P2b's presence push is the impulse K1 names, so it takes signal.dt
             // and a DIRECT add -- now the soft falloff actually bites, and
-            // CUBE_PART_CAP is a velocity-delta safety, ~never reached at the
+            // CUBE_PUSH_CAP is a velocity-delta safety, ~never reached at the
             // ~0.95 wu/s typical.) Worked: cube 18 wu up, pawn 3 wu planar
             // beneath -> |dy|=18 < vwindow; overlap 4, fall = 1-3/7 = 0.57 ->
             // impulse = 4*25*(1/60)*0.57 ~= 0.95 wu/s of drift velocity per
@@ -8010,7 +8013,7 @@ fn update_cube() {
             {
                 let q_prof = InfluenceProfile(
                     CUBE_PUSH_RADIUS, CUBE_PUSH_VWINDOW,
-                    CUBE_PUSH_GAIN, 0.0, 1.0, CUBE_PART_CAP, 1.0, 0.0);
+                    CUBE_PUSH_GAIN, 0.0, 1.0, CUBE_PUSH_CAP, 1.0, 0.0);
                 let q_r = influence_response(
                     fe.pos, vec2(0.0), point_pos(), vec2(0.0), q_prof, dt, 0.0);
                 push_impulse = vec3(q_r.x, 0.0, q_r.y);
