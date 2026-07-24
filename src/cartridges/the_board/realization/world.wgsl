@@ -4372,7 +4372,7 @@ fn patch_terrain_vs(
     // suppressed. BASE verts take no lift (that gap IS the curtain);
     // d.drop subsumes the old skirt ring drop.
     let lift = ug_cell_lift(pi.origin, pi.extent, d.cellx, d.cellz)
-             * pawn_gol_suppression(world_pos.xz, render_pawn_pos().xz);
+             * (1.0 - pawn_gol_suppression(world_pos.xz, render_pawn_pos().xz));
     world_pos.y += lift * d.lift_scale - d.drop;
 
     var out: PatchTerrainVarying;
@@ -4659,7 +4659,7 @@ fn shadow_patch_terrain_vs(
     // the card + the pawn-suppressed cell lift; d.drop subsumes the old
     // skirt ring drop.
     let lift = ug_cell_lift(pi.origin, pi.extent, d.cellx, d.cellz)
-             * pawn_gol_suppression(world_pos.xz, render_pawn_pos().xz);
+             * (1.0 - pawn_gol_suppression(world_pos.xz, render_pawn_pos().xz));
     world_pos.y += lift * d.lift_scale - d.drop;
 
     var out: ShadowVarying;
