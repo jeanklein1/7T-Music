@@ -4557,9 +4557,7 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
                     let zn = vec2<i32>(floor(zp.origin / MODE_LATTICE_SPACING));
                     if (zn.x == zone_node.x && zn.y == zone_node.y) {
                         let zone_corner = zp.origin - zp.extent * 0.5;
-                        let cell_size = zp.extent / f32(zp.grid_size);
-                        let rel = in.world_pos.xz - zone_corner;
-                        let local_cell = vec2<i32>(floor(rel / cell_size));
+                        let local_cell = addr_used - cell_address(zone_corner);
 
                         if (local_cell.x < 0 || local_cell.x >= i32(zp.grid_size) ||
                             local_cell.y < 0 || local_cell.y >= i32(zp.grid_size)) { break; }
