@@ -88,3 +88,23 @@ name-suffix + whitespace normalized), across all 5 kernels:
   on `update_camera` as the representative single-site case).
 - **Float-constant set per kernel: IDENTICAL** (guards against a fat-fingered
   column value — none). modcheck 0 messages.
+
+### [T1d] PROMOTE `approach_floor` to the 9th `InfluenceProfile` column
+
+`approach_floor` stops being `influence_response`'s 7th parameter and becomes the
+struct's 9th field, constructed at the row: `0.0` for every row except
+`row_point_flee`, which takes it as an arg (`BUBBLE_PART_SPEED` camera-host /
+`0.0` pawn-host — the branch still decides at the call site, then passes the
+local into the builder). The signature drops the param; the body reads
+`max(p.approach_floor, dot(other_vel, dir))`. The whole profile now travels as
+one value — the table has no out-of-band column.
+
+**Gate (reviewed benign):** per-function backend SPIR-V, canonicalized, T1d vs
+T1c. `update_sphere` byte-identical; the changed set is exactly
+`influence_response` + the profile rows + the callers. In `influence_response`
+the ONLY delta is the consuming line: `NMax %approach_floor_param %dot` →
+`%m8 = OpCompositeExtract %p 8` then `NMax %m8 %dot` — **every other
+`OpCompositeExtract %p N` keeps its index** (0,2,3,4,5,6,7), so appending member
+8 shifted no existing field. Each row's `OpCompositeConstruct` grew 8→9 operands:
+`row_point_flee`'s 9th operand is the incoming param, all other rows' is the `0.0`
+constant. Float-constant set per kernel IDENTICAL; modcheck 0 messages.

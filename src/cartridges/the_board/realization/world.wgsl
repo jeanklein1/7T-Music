@@ -2331,6 +2331,10 @@ struct InfluenceProfile {
     cap:           f32,   // max magnitude of the summed response
     yield_share:   f32,   // 0..1 -- how much of it THIS body takes
     tangential:    f32,   // matador split coefficient (0.6 flee, 0 = radial)
+    approach_floor: f32,  // isotropic approach-speed the point emanates when its
+                          // host has no velocity field (camera-host: BUBBLE_
+                          // PART_SPEED); every other row carries 0 (real closing
+                          // speed via other_vel). Was the 7th call param (T1d).
 }
 
 // The uncapped flee rows carry this so the profile table has no empty cell.
@@ -2339,15 +2343,15 @@ const INFLUENCE_NO_CAP: f32 = 1.0e9;
 // Returns the PLANAR response for `self`, in wu/s. The caller adds it to
 // velocity (and, where it integrates inline, to position * dt per K1b);
 // force-integrators pass dt = 1.0 and scale externally.
-// `approach_floor` is the isotropic approach-speed the point emanates when
-// its host has no velocity field (camera-host: BUBBLE_PART_SPEED). Pawn-host
-// and the body-to-body flee pass 0 (the real closing speed via other_vel).
-// It is the exact camera-host fallback the deferred config.point_vel_x/z
-// would retire; a scalar floor because the fallback is direction-agnostic.
+// The approach floor is now a PROFILE column (p.approach_floor, T1d): the
+// isotropic approach-speed the point emanates when its host has no velocity
+// field (camera-host: BUBBLE_PART_SPEED). Every other row carries 0 (the real
+// closing speed arrives via other_vel). It is the exact camera-host fallback
+// the deferred config.point_vel_x/z would retire; a scalar floor because the
+// fallback is direction-agnostic.
 fn influence_response(self_pos: vec3<f32>, self_vel: vec2<f32>,
                       other_pos: vec3<f32>, other_vel: vec2<f32>,
-                      p: InfluenceProfile, dt: f32,
-                      approach_floor: f32) -> vec2<f32> {
+                      p: InfluenceProfile, dt: f32) -> vec2<f32> {
     let d3 = self_pos - other_pos;
     // Explicit sum (NOT dot(d3,d3)) so the fma lowering matches the inline
     // sites' `dx*dx + dy*dy + dz*dz` bit-for-bit (CONTACT_5 P1 verify).
@@ -2378,7 +2382,7 @@ fn influence_response(self_pos: vec3<f32>, self_vel: vec2<f32>,
     // APPROACH -- motion. Velocity floor: NOT dt-scaled (K1). fall weights
     // the v_ap term ONLY (once -- the point-flee's proximity, not squared).
     if (p.approach_gain > 0.0) {
-        let v_ap = max(approach_floor, dot(other_vel, dir));
+        let v_ap = max(p.approach_floor, dot(other_vel, dir));
         if (v_ap > 0.001) {
             let deficit = v_ap * p.approach_gain * fall - dot(self_vel, dir);
             if (deficit > 0.0) {
@@ -2413,27 +2417,27 @@ fn influence_response(self_pos: vec3<f32>, self_vel: vec2<f32>,
 fn row_agent_contact(g_self: AgentTierParams, og: AgentTierParams, m_self: f32, m_other: f32) -> InfluenceProfile {
     return InfluenceProfile(g_self.contact_radius + og.contact_radius, 0.0,
                             CONTACT_SPRING, 0.0, 0.0, CONTACT_IMPULSE_CAP,
-                            m_other / (m_self + m_other), 0.0);
+                            m_other / (m_self + m_other), 0.0, 0.0);
 }
 fn row_agent_flee(g_self: AgentTierParams, og: AgentTierParams) -> InfluenceProfile {
     return InfluenceProfile((g_self.personal_radius + og.personal_radius) * FLEE_SHELL_FRAC, 0.0,
-                            0.0, NONPLAYER_FLEE_GAIN, 0.0, INFLUENCE_NO_CAP, 1.0, 0.6);
+                            0.0, NONPLAYER_FLEE_GAIN, 0.0, INFLUENCE_NO_CAP, 1.0, 0.6, 0.0);
 }
 fn row_sphere_push(fe: FloatingEntityState) -> InfluenceProfile {
     return InfluenceProfile(fe.influence_radius, 0.0,
-                            SPHERE_PUSH_GAIN, 0.0, 0.0, CONTACT_IMPULSE_CAP, 1.0, 0.0);
+                            SPHERE_PUSH_GAIN, 0.0, 0.0, CONTACT_IMPULSE_CAP, 1.0, 0.0, 0.0);
 }
 fn row_agent_sphere(g_self: AgentTierParams, fe: FloatingEntityState) -> InfluenceProfile {
     return InfluenceProfile(g_self.contact_radius + fe.body_radius, 0.0,
-                            CONTACT_SPRING, 0.0, 0.0, CONTACT_IMPULSE_CAP, 1.0, 0.0);
+                            CONTACT_SPRING, 0.0, 0.0, CONTACT_IMPULSE_CAP, 1.0, 0.0, 0.0);
 }
-fn row_point_flee(g_self: AgentTierParams) -> InfluenceProfile {
+fn row_point_flee(g_self: AgentTierParams, approach_floor: f32) -> InfluenceProfile {
     return InfluenceProfile(config.point_bubble_radius, 0.0,
-                            0.0, g_self.flee_gain_player, 1.0, INFLUENCE_NO_CAP, 1.0, 0.6);
+                            0.0, g_self.flee_gain_player, 1.0, INFLUENCE_NO_CAP, 1.0, 0.6, approach_floor);
 }
 fn row_cube_push() -> InfluenceProfile {
     return InfluenceProfile(CUBE_PUSH_RADIUS, CUBE_PUSH_VWINDOW,
-                            CUBE_PUSH_GAIN, 0.0, 1.0, CUBE_PUSH_CAP, 1.0, 0.0);
+                            CUBE_PUSH_GAIN, 0.0, 1.0, CUBE_PUSH_CAP, 1.0, 0.0, 0.0);
 }
 
 
@@ -7395,7 +7399,7 @@ fn update_player_agent() {
             // the mass weight -- min() then * yield_share). Bit-proof: LOG.
             let c_prof = row_agent_contact(g_self, og, m_self, m_other);
             let c_r = influence_response(self_p, vec2(0.0), other_p, vec2(0.0),
-                                         c_prof, signal.dt, 0.0);
+                                         c_prof, signal.dt);
             agent.vel_x += c_r.x;
             agent.vel_z += c_r.y;
             // CONTACT_5 P1b: body-to-body flee (APPROACH) -- skip the possessed
@@ -7407,7 +7411,7 @@ fn update_player_agent() {
                 let f_prof = row_agent_flee(g_self, og);
                 let f_r = influence_response(self_p, vec2(agent.vel_x, agent.vel_z),
                                              other_p, vec2(other.vel_x, other.vel_z),
-                                             f_prof, signal.dt, 0.0);
+                                             f_prof, signal.dt);
                 agent.vel_x += f_r.x;
                 agent.vel_z += f_r.y;
             }
@@ -7430,7 +7434,7 @@ fn update_player_agent() {
             let sp_prof = row_sphere_push(fe);
             let sp_r = influence_response(
                 vec3(agent.pos_x, agent.pos_y, agent.pos_z), vec2(0.0),
-                fe.pos, vec2(0.0), sp_prof, signal.dt, 0.0);
+                fe.pos, vec2(0.0), sp_prof, signal.dt);
             agent.vel_x += sp_r.x;
             agent.vel_z += sp_r.y;
         }
@@ -7506,7 +7510,7 @@ fn update_other_agents(@builtin(global_invocation_id) gid: vec3<u32>) {
             // the mass weight -- min() then * yield_share). Bit-proof: LOG.
             let c_prof = row_agent_contact(g_self, og, m_self, m_other);
             let c_r = influence_response(self_p, vec2(0.0), other_p, vec2(0.0),
-                                         c_prof, signal.dt, 0.0);
+                                         c_prof, signal.dt);
             agent.vel_x += c_r.x;
             agent.vel_z += c_r.y;
             // CONTACT_5 P1b: body-to-body flee (APPROACH) -- skip the possessed
@@ -7518,7 +7522,7 @@ fn update_other_agents(@builtin(global_invocation_id) gid: vec3<u32>) {
                 let f_prof = row_agent_flee(g_self, og);
                 let f_r = influence_response(self_p, vec2(agent.vel_x, agent.vel_z),
                                              other_p, vec2(other.vel_x, other.vel_z),
-                                             f_prof, signal.dt, 0.0);
+                                             f_prof, signal.dt);
                 agent.vel_x += f_r.x;
                 agent.vel_z += f_r.y;
             }
@@ -7534,7 +7538,7 @@ fn update_other_agents(@builtin(global_invocation_id) gid: vec3<u32>) {
             let s_prof = row_agent_sphere(g_self, fe);
             let s_r = influence_response(
                 vec3(agent.pos_x, agent.pos_y, agent.pos_z), vec2(0.0),
-                fe.pos, vec2(0.0), s_prof, signal.dt, 0.0);
+                fe.pos, vec2(0.0), s_prof, signal.dt);
             agent.vel_x += s_r.x;
             agent.vel_z += s_r.y;
         }
@@ -7543,10 +7547,11 @@ fn update_other_agents(@builtin(global_invocation_id) gid: vec3<u32>) {
         // Presence, not a body: agents part around the POINT within the bubble.
         // One body now -- the APPROACH profile with falloff_mix 1 (the S2a
         // proximity reflex, a VISIBLE column beside the flat body-to-body row).
-        // Host-routed: pawn-host passes the pawn's velocity; camera-host passes
-        // approach_floor = BUBBLE_PART_SPEED (the isotropic fallback -- no
-        // camera velocity field yet; the deferred config.point_vel_x/z retires
-        // it). point_pos() is the emitter -- PRESENCE FOLLOWS THE POINT.
+        // Host-routed: pawn-host passes the pawn's velocity; camera-host feeds
+        // approach_floor = BUBBLE_PART_SPEED into the point row's 9th column
+        // (the isotropic fallback -- no camera velocity field yet; the deferred
+        // config.point_vel_x/z retires it). point_pos() is the emitter --
+        // PRESENCE FOLLOWS THE POINT.
         {
             var src_vel = vec2(0.0);
             var a_floor = BUBBLE_PART_SPEED;
@@ -7555,11 +7560,11 @@ fn update_other_agents(@builtin(global_invocation_id) gid: vec3<u32>) {
                 src_vel = vec2(pawn.vel_x, pawn.vel_z);
                 a_floor = 0.0;
             }
-            let p_prof = row_point_flee(g_self);
+            let p_prof = row_point_flee(g_self, a_floor);
             let p_r = influence_response(
                 vec3(agent.pos_x, agent.pos_y, agent.pos_z),
                 vec2(agent.vel_x, agent.vel_z),
-                point_pos(), src_vel, p_prof, signal.dt, a_floor);
+                point_pos(), src_vel, p_prof, signal.dt);
             agent.vel_x += p_r.x;
             agent.vel_z += p_r.y;
         }
@@ -7641,7 +7646,7 @@ fn update_camera() {
             if (fe.is_active == 0u) { continue; }
             let sp_prof = row_sphere_push(fe);
             let sp_r = influence_response(
-                camera.pos, vec2(0.0), fe.pos, vec2(0.0), sp_prof, signal.dt, 0.0);
+                camera.pos, vec2(0.0), fe.pos, vec2(0.0), sp_prof, signal.dt);
             camera.pos.x += sp_r.x * signal.dt;
             camera.pos.z += sp_r.y * signal.dt;
         }
@@ -8028,7 +8033,7 @@ fn update_cube() {
             {
                 let q_prof = row_cube_push();
                 let q_r = influence_response(
-                    fe.pos, vec2(0.0), point_pos(), vec2(0.0), q_prof, dt, 0.0);
+                    fe.pos, vec2(0.0), point_pos(), vec2(0.0), q_prof, dt);
                 push_impulse = vec3(q_r.x, 0.0, q_r.y);
             }
             let spring_a = -fe.drift * fe.spring_stiffness;
