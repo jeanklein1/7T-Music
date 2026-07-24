@@ -174,10 +174,8 @@ inline constexpr PolicyDef POLICIES[] = {
     // Walker — the pawn. Everything flyer includes, plus the
     // consumer-local GoL suppression that flattens the zone under
     // the querying consumer's feet.
-    // STATUS: REALIZED — pawn_ground_resolve via query_ground_walker_pair.
-    // gradient=true is intent: query_ground_walker_gradient and
-    // query_ground_walker_walkable exist with zero callers (the live
-    // tilt path is terrain_normal_at's 3-tap over walker_tilt).
+    // STATUS: REALIZED — pawn_ground_resolve via query_ground_walker_pair;
+    // the live tilt path is terrain_normal_at's 3-tap over walker_tilt.
     { POLICY_WALKER, "walker",
       GROUND_STATIC_BASE_MASK
         | (1u << CONTRIB_PYRAMIDS)

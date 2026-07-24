@@ -2228,9 +2228,9 @@ const PAWN_CONTACT_MASS_MULT: f32 = 4.0; // the pawn is heavy: agents yield, the
 // anticipation ahead of the walker. A distance, not a gate.
 const STEER_LOOKAHEAD_WU: f32 = 4.0;   // sensing distance ahead of velocity
 const STEER_GAIN: f32 = 3.0;           // lateral accel per unit gradient
-// The walkable clamp (query_ground_walker_walkable) gates on a height
-// STEP (step_h), not a gradient-magnitude const, so there is no shared
-// steepness truth to re-point to; authored here (Jean-tunable):
+// The wall is pawn_ground_resolve's PAWN_STEP_HEIGHT gate (a height STEP,
+// not a gradient-magnitude const), so there is no shared steepness truth
+// to re-point to; these are authored here (Jean-tunable):
 const STEER_GRAD_LO: f32 = 0.7;        // below: no whisper
 const STEER_GRAD_HI: f32 = 1.4;        // above: full whisper (the wall's shadow)
 
@@ -2958,7 +2958,6 @@ const POLICY_TERRAIN_RENDER_MASK       : u32 = GROUND_STATIC_BASE_MASK
 // Query entry points — one per policy:
 //   query_ground_<policy>(xz [, QueryInputs])           -> f32
 //   query_ground_<policy>_gradient(xz, qi, eps)         -> vec3 (h, dh/dx, dh/dz)
-//   query_ground_walker_walkable(xz, qi, eps, step_h)   -> vec3 (cliff-clamped)
 // QueryInputs bundles consumer_pos + t_seconds so future additions
 // don't break call signatures. Placement queries skip QueryInputs
 // (no deformation fields consumed at spawn time).
@@ -3311,7 +3310,6 @@ fn query_ground_flyer(xz: vec2<f32>, qi: QueryInputs) -> f32 {
 //   produces bobbing under locomotion; see the aura contributor header).
 //   Gradient: use query_ground_walker_tilt for tilt/step-climb to avoid
 //   manufactured slopes from gol_suppression (which IS position-dependent).
-//   Walkable variant: query_ground_walker_walkable (cliff-clamped).
 //
 // Implementation: evaluates contrib_gol_zones_at ONCE and applies the
 // pawn-centered suppression factor inline — algebraically identical to
@@ -3441,50 +3439,6 @@ fn query_ground_flyer_gradient(xz: vec2<f32>, qi: QueryInputs, eps: f32) -> vec3
     let hmz = query_ground_flyer(xz - vec2(0.0,  eps),   qi);
     let inv_2eps = 0.5 / eps;
     return vec3(h, (hpx - hmx) * inv_2eps, (hpz - hmz) * inv_2eps);
-}
-
-// POLICY_WALKER gradient (full walker, including self-centered fields).
-// Returns vec3(h, dh/dx, dh/dz). Five samples of query_ground_walker.
-// Notes: for tilt and step-climb, prefer query_ground_walker_tilt to
-//   avoid manufactured slopes from the pawn's own aura/suppression.
-// STATUS: LATENT[policy-surface] — zero callers; the live tilt path is
-//   terrain_normal_at's 3-tap over walker_tilt. Plausible consumer:
-//   full-walker slope users that want the self fields included.
-fn query_ground_walker_gradient(xz: vec2<f32>, qi: QueryInputs, eps: f32) -> vec3<f32> {
-    let h   = query_ground_walker(xz,                     qi);
-    let hpx = query_ground_walker(xz + vec2(eps,  0.0),   qi);
-    let hmx = query_ground_walker(xz - vec2(eps,  0.0),   qi);
-    let hpz = query_ground_walker(xz + vec2(0.0,  eps),   qi);
-    let hmz = query_ground_walker(xz - vec2(0.0,  eps),   qi);
-    let inv_2eps = 0.5 / eps;
-    return vec3(h, (hpx - hmx) * inv_2eps, (hpz - hmz) * inv_2eps);
-}
-
-// POLICY_WALKER walkable gradient — cliff-clamped variant.
-// Returns vec3(h0, dh/dx, dh/dz) with neighbor heights clamped to h0
-// when |neighbor - h0| > step_h, treating cliffs as flat for gradient
-// purposes.
-// Notes: as with query_ground_walker_gradient, the self-centered
-//   fields can produce noisy gradients near the pawn — prefer the
-//   tilt-policy variant for tilt and step-climb decisions.
-// STATUS: LATENT[policy-surface] — zero callers; plausible consumer:
-//   cliff-aware locomotion (walkability tests that must not read a
-//   cliff face as a slope).
-fn query_ground_walker_walkable(xz: vec2<f32>, qi: QueryInputs, eps: f32, step_h: f32) -> vec3<f32> {
-    let h0 = query_ground_walker(xz, qi);
-
-    var hpx = query_ground_walker(xz + vec2(eps,  0.0), qi);
-    var hmx = query_ground_walker(xz - vec2(eps,  0.0), qi);
-    var hpz = query_ground_walker(xz + vec2(0.0,  eps), qi);
-    var hmz = query_ground_walker(xz - vec2(0.0,  eps), qi);
-
-    if (abs(hpx - h0) > step_h) { hpx = h0; }
-    if (abs(hmx - h0) > step_h) { hmx = h0; }
-    if (abs(hpz - h0) > step_h) { hpz = h0; }
-    if (abs(hmz - h0) > step_h) { hmz = h0; }
-
-    let inv_2eps = 0.5 / eps;
-    return vec3(h0, (hpx - hmx) * inv_2eps, (hpz - hmz) * inv_2eps);
 }
 
 // ════════════════════════════════════════════════════════════════
