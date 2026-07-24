@@ -438,6 +438,11 @@ namespace t7 {
                     // The CameraControls panel authors the fly speed
                     // — one dial, one writer, at boot.
                     gpuState_.set_point_fly_speed(CameraControls::MOVE_SPEED);
+                    // Tilt lag rest = the pawn's response (CLOSURE_PAWN [6]).
+                    // Matches zero-init; stated here so the rest lives with the
+                    // other rest pins rather than in the struct. U1 re-authors
+                    // it from the possessed figure every frame.
+                    gpuState_.set_pawn_tilt_tau(PAWN_FIGURES[0].tilt_tau);
                 }
 
                 // E-3 (mechanized): boot-neutral the sky_* block ONCE. The signal
@@ -734,6 +739,16 @@ namespace t7 {
                 gpuSignal.pan_x_delta = inputState_.pan_x_delta;
                 gpuSignal.pan_y_delta = inputState_.pan_y_delta;
                 gpuSignal.dt_beats = signal.t_beats - time_state_.prev_beats;  // beats since last frame -> step_trigger
+
+                // Possessed body's tilt lag rides the config's slow-dial cadence
+                // (CLOSURE_PAWN [6]). Idempotent: set_pawn_tilt_tau only dirties on a
+                // real change, so the per-frame call costs nothing while the figure
+                // stays put.
+                {
+                    const uint32_t sid = agent_state_.slots[player_.possessed_slot].skin_id;
+                    gpuState_.set_pawn_tilt_tau(
+                        sid < PAWN_FIGURE_COUNT ? PAWN_FIGURES[sid].tilt_tau : 0.0f);
+                }
             }
 
             // U2 (sky-neutral) REMOVED — E-3 MECHANIZED. The sky block is no

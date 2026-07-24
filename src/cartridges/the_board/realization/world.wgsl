@@ -1597,6 +1597,9 @@ struct DesignConfig {
     freeze_sphere: u32,
     active_cell_size: f32,
     fpv_mode: u32,
+    // (pawn_tilt_tau belongs to this Interaction run semantically — it sits in
+    //  the struct's trailing pad instead; see the note at the tail. Inserting
+    //  here would push sun_direction off its 16-byte boundary in THIS room only.)
     wave_enable_mask: u32,
     wave_freeze_mask: u32,
     // three scalars, not array<f32,3>: core WGSL rejects stride-4 arrays in
@@ -1700,6 +1703,15 @@ struct DesignConfig {
     checker_music_variance: f32,
     point_bubble_radius: f32,   // CONTACT_2 C3a: the point's bounded awareness (rest 20 = contracts/point.hpp)
     cube_plasticity: f32,       // CONTACT_3 K2c: global λ master (rest 0.6 = Idle::CUBE_PLASTICITY_DEFAULT)
+    // CLOSURE_PAWN [6] — possessed body's terrain-tilt lag, seconds (0 =
+    // instant). Lands at offset 588, the struct's last 4 bytes, in BOTH rooms;
+    // size stays 592. It reads as an Interaction knob and is grouped with them
+    // in spirit, but it cannot sit there: this room aligns vec3<f32> to 16 and
+    // the C++ room aligns float[3] to 4, so a field inserted above
+    // sun_direction shifts the two mirrors by different amounts. Grow at the
+    // TAIL, or pad each vec3 back onto its boundary. (state.hpp carries the
+    // matching static_assert.)
+    pawn_tilt_tau: f32,
 }
 
 // §2.2 — THE TERRAIN_LOOKS PANEL (WGSL room)
@@ -6839,7 +6851,25 @@ fn behavior_player_controlled(agent_in: AgentState) -> AgentState {
         }
 
         let heading_quat = quat_from_axis_angle(vec3(0.0, 1.0, 0.0), agent.heading);
-        let orient = quat_multiply(tilt_quat, heading_quat);
+        // (orient_target, not target: `target` is a WGSL RESERVED WORD — naga
+        //  and Tint both reject it as an identifier.)
+        let orient_target = quat_multiply(tilt_quat, heading_quat);
+
+        // Per-figure tilt lag (CLOSURE_PAWN [6]). The stored orientation is the
+        // state this walks from — see the AgentState comment on why orientation
+        // is stored rather than derived. tau = 0 collapses to the previous hard
+        // assignment, so the regular pawn is byte-identical. CPU authors tau
+        // from the possessed body's figure (config.pawn_tilt_tau).
+        var orient = orient_target;
+        let tau = config.pawn_tilt_tau;
+        if (tau > 0.0001) {
+            let cur = vec4(agent.orient_x, agent.orient_y, agent.orient_z, agent.orient_w);
+            // Shortest arc: q and -q are the same rotation; pick the near twin.
+            let c = select(cur, -cur, dot(cur, orient_target) < 0.0);
+            // Frame-rate independent: same settle time at any dt.
+            let a = 1.0 - exp(-dt / tau);
+            orient = normalize(mix(c, orient_target, a));
+        }
         agent.orient_x = orient.x;
         agent.orient_y = orient.y;
         agent.orient_z = orient.z;

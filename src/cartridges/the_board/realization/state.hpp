@@ -420,6 +420,9 @@ namespace t7 {
             uint32_t freeze_sphere;
             float active_cell_size;
             uint32_t fpv_mode;
+            // (pawn_tilt_tau belongs to THIS group semantically — it sits in
+            //  the struct's trailing 4-byte pad instead. See the note at the
+            //  tail of the struct for why appending here is not available.)
 
             // ─── Terrain wave control ───────────────────────────────
             uint32_t wave_enable_mask;        // per-band enable bits
@@ -560,6 +563,24 @@ namespace t7 {
             float checker_music_variance;  // enveloped distinct-pc count — S3 within-patch spread
             float point_bubble_radius;     // CONTACT_2 C3a: the point's bounded awareness (rest 20; boot-pinned from contracts/point.hpp POINT_BUBBLE_RADIUS). Fills the checker tail pad — sizeof unchanged.
             float cube_plasticity;         // CONTACT_3 K2c: global λ master (rest 0.6; boot-pinned from Idle::CUBE_PLASTICITY_DEFAULT). Also fills the checker tail pad — sizeof unchanged.
+            // CLOSURE_PAWN [6] — possessed body's terrain-tilt lag, seconds.
+            // 0 = instant (the pawn's response, byte-identical to the pre-[6]
+            // hard assignment). The CPU picks it from the possessed figure's
+            // PAWN_FIGURES row each frame; the setter's guard keeps that free.
+            //
+            // WHY IT LIVES HERE AND NOT IN ─── Interaction ───, where it
+            // belongs: growth law (1) says re-use a pad, and the LAST 4 bytes
+            // are that pad (the sizeof witness below names them). Appending
+            // inside Interaction is NOT available — it would push
+            // sun_direction from 64 to 68, and the WGSL mirror declares that
+            // field vec3<f32>, whose uniform-layout alignment is 16. WGSL
+            // would round 68 up to 80 while C++ sits at 68, silently
+            // diverging every field from there to the end of the struct.
+            // sizeof stays 592 in both rooms, so neither the sizeof witness
+            // nor any compiler would have caught it. The tail pad costs
+            // nothing and shifts nothing — the same move point_bubble_radius
+            // (CONTACT_2) and cube_plasticity (CONTACT_3) made above.
+            float pawn_tilt_tau;
         };
 
         struct alignas(16) GPUTileGridEntry {
@@ -1462,7 +1483,24 @@ namespace t7 {
         };
 
         static_assert(sizeof(GPUFrameSignal) == 336, "GPUFrameSignal must be 336 bytes");
-        static_assert(sizeof(GPUDesignConfig) == 592, "GPUDesignConfig must be 592 bytes (576 + the CHECKER-REBUILD music_variance float: the vec3 resultant + amount fill the first slot, music_variance opens a second 16-byte slot with 12 B tail pad, which CONTACT_2/3 filled with point_bubble_radius + cube_plasticity — 4 B tail pad remains, sizeof unchanged)");
+        static_assert(sizeof(GPUDesignConfig) == 592, "GPUDesignConfig must be 592 bytes (576 + the CHECKER-REBUILD music_variance float: the vec3 resultant + amount fill the first slot, music_variance opens a second 16-byte slot with 12 B tail pad, which CONTACT_2/3 filled with point_bubble_radius + cube_plasticity, and CLOSURE_PAWN [6] filled with pawn_tilt_tau — the pad is now SPENT: the next knob grows the struct and this number moves)");
+        // CLOSURE_PAWN [6] — the pad is spent, so name the trap the next knob
+        // will walk into. The C++ room packs f32/u32 at align 4; the WGSL room
+        // packs vec3<f32> at align 16 (sun_direction 64, fog_color 96,
+        // fade_color 112, checker_resultant 560). Those four offsets are the
+        // only places the two layouts can disagree, and today each vec3 lands
+        // already-16-aligned. A field inserted BEFORE one of them shifts C++ by
+        // 4/8/12 and WGSL by a full 16 — sizeof can stay equal while every
+        // following field diverges, so no witness here fires. Grow the struct at
+        // the TAIL (after checker_resultant's group), or insert a matching pad
+        // so each vec3 stays on its 16-byte boundary in both rooms.
+        static_assert(offsetof(GPUDesignConfig, sun_direction)     % 16 == 0
+                   && offsetof(GPUDesignConfig, fog_color)         % 16 == 0
+                   && offsetof(GPUDesignConfig, fade_color)        % 16 == 0
+                   && offsetof(GPUDesignConfig, checker_resultant) % 16 == 0,
+            "every float[3] whose WGSL twin is vec3<f32> must sit on a 16-byte "
+            "boundary — WGSL rounds vec3 up to align 16 and C++ does not, so an "
+            "off-boundary one silently shifts the whole mirror (see GROWTH LAW)");
 
         // Portal ellipse array — uploaded when portal set changes.
         // GPU behavior_player_controlled tests pawn against arch-shaped ellipses and writes portal_trigger.
@@ -2364,6 +2402,14 @@ namespace t7 {
             void set_aura_enabled(bool on) {
                 float v = on ? 1.0f : 0.0f;
                 if (config_.aura_enabled != v) { config_.aura_enabled = v; configDirty_ = true; }
+            }
+            // Possessed body's tilt lag. Called every frame; the guard means the
+            // config only dirties when the possessed figure actually changes.
+            void set_pawn_tilt_tau(float tau) {
+                if (config_.pawn_tilt_tau != tau) {
+                    config_.pawn_tilt_tau = tau;
+                    configDirty_ = true;
+                }
             }
             void set_world_bounds(float min_x, float min_z, float max_x, float max_z) {
                 if (config_.world_bound_min[0] != min_x || config_.world_bound_min[1] != min_z ||

@@ -210,6 +210,27 @@ inline constexpr PawnStop PAL_H_DIVINE[] = {
 // Each figure moves only where its design tolerates it. Regular pawn = 0 (legacy).
 struct PawnDrift { float hue_deg, sat, val; };
 
+// ═══ TILT LAG — how fast the possessed body follows the ground normal ═══════
+// Consumed CPU-side only: the cartridge reads PAWN_FIGURES[skin].tilt_tau for
+// the POSSESSED slot each frame and ships it in GPUDesignConfig.pawn_tilt_tau.
+// Never packed into GPUPawnFigure.
+//
+//   tau = 0  → instant snap to the terrain normal (the pawn's response).
+//   tau > 0  → first-order lag, alpha = 1 - exp(-dt/tau) per frame.
+//              Settles in roughly 3·tau: 0.10 → ~0.3 s, 0.14 → ~0.42 s.
+//
+// THREE CLASSES, NOT A GRADIENT. A per-figure ramp differing by a few percent
+// per row is below the threshold of legibility; classes read. The break follows
+// the SILHOUETTE, not head ornament: sway is a distance percept, and at the
+// range where sway is legible a finial has long since stopped resolving. By
+// aspect (h/r) the roster runs 8.00, 5.00, 4.67, then a gap down to 3.45 and
+// below — Spire and Stele are the only figures that stand like sticks, and
+// Colossal is the only monolith. Everything else reads as a pawn and responds
+// as one.
+inline constexpr float TILT_LAG_NONE  = 0.00f;   // reads as a pawn — 11 of 14
+inline constexpr float TILT_LAG_STICK = 0.10f;   // slender uprights: Spire, Stele
+inline constexpr float TILT_LAG_TALL  = 0.14f;   // the monolith: Colossal
+
 // ═══ THE MASTER MATRIX ══════════════════════════════════════════════════════
 // smooth / heraldic / palette are null where not applicable to the family.
 struct PawnFigureDef {
@@ -220,24 +241,25 @@ struct PawnFigureDef {
     const HeraldicProfile*  heraldic;         // set iff FAM_HERALDIC
     const PawnStop*         palette;          // null for FAM_REGULAR (legacy color)
     PawnDrift               drift;
+    float                   tilt_tau;         // possessed-body tilt lag, seconds. CPU-only.
 };
 
 inline constexpr PawnFigureDef PAWN_FIGURES[] = {
-  //  family        name        H      R      smooth          heraldic         palette         drift{hue,sat,val}
-  { FAM_REGULAR,  "Pawn",     1.50f, 0.50f, nullptr,        nullptr,         nullptr,        { 0.0f, 0.00f, 0.00f} }, // 0  legacy profile + legacy color
-  { FAM_SMOOTH,   "Squat",    1.90f, 0.55f, &PROF_SQUAT,    nullptr,         PAL_BRONZE,     {10.0f, 0.15f, 0.12f} }, // 1
-  { FAM_SMOOTH,   "Colossal", 3.50f, 0.75f, &PROF_COLOSSAL, nullptr,         PAL_BLACKGOLD,  { 8.0f, 0.10f, 0.20f} }, // 2  vary contrast, not hue
-  { FAM_SMOOTH,   "Acorn",    1.70f, 0.50f, &PROF_ACORN,    nullptr,         PAL_ACORN,      {12.0f, 0.15f, 0.10f} }, // 3  scale arc, keep the cap dip
-  { FAM_SMOOTH,   "Spire",    2.80f, 0.35f, &PROF_SPIRE,    nullptr,         PAL_STEELBLUE,  {10.0f, 0.12f, 0.12f} }, // 4
-  { FAM_SMOOTH,   "Idol",     1.80f, 0.55f, &PROF_IDOL,     nullptr,         PAL_JADE,       {10.0f, 0.15f, 0.10f} }, // 5
-  { FAM_SMOOTH,   "Stele",    2.00f, 0.40f, &PROF_STELE,    nullptr,         PAL_LIMESTONE,  { 6.0f, 0.08f, 0.15f} }, // 6  value is the lever
-  { FAM_HERALDIC, "Bronze",   1.00f, 0.50f, nullptr,        &PROF_H_BRONZE,  PAL_H_BRONZE,   {10.0f, 0.15f, 0.12f} }, // 7  patina↔polished
-  { FAM_HERALDIC, "Silver",   1.10f, 0.50f, nullptr,        &PROF_H_SILVER,  PAL_H_SILVER,   { 4.0f, 0.06f, 0.15f} }, // 8  stays neutral
-  { FAM_HERALDIC, "Gold",     1.15f, 0.50f, nullptr,        &PROF_H_GOLD,    PAL_H_GOLD,     { 6.0f, 0.10f, 0.12f} }, // 9
-  { FAM_HERALDIC, "Steel",    1.30f, 0.55f, nullptr,        &PROF_H_STEEL,   PAL_H_STEEL,    { 8.0f, 0.10f, 0.12f} }, // 10
-  { FAM_HERALDIC, "Crystal",  1.35f, 0.55f, nullptr,        &PROF_H_CRYSTAL, PAL_H_CRYSTAL,  { 8.0f, 0.08f, 0.10f} }, // 11 hue at base, value near white tip
-  { FAM_HERALDIC, "Star",     1.45f, 0.55f, nullptr,        &PROF_H_STAR,    PAL_H_STAR,     {10.0f, 0.06f, 0.08f} }, // 12
-  { FAM_HERALDIC, "Divine",   1.55f, 0.55f, nullptr,        &PROF_H_DIVINE,  PAL_H_DIVINE,   { 4.0f, 0.05f, 0.06f} }, // 13 radiant by design — least drift
+  //  family        name        H      R      smooth          heraldic         palette         drift{hue,sat,val}      tilt_tau
+  { FAM_REGULAR,  "Pawn",     1.50f, 0.50f, nullptr,        nullptr,         nullptr,        { 0.0f, 0.00f, 0.00f}, TILT_LAG_NONE  }, // 0  legacy profile + legacy color
+  { FAM_SMOOTH,   "Squat",    1.90f, 0.55f, &PROF_SQUAT,    nullptr,         PAL_BRONZE,     {10.0f, 0.15f, 0.12f}, TILT_LAG_NONE  }, // 1  aspect 3.45 — pawn-proportioned
+  { FAM_SMOOTH,   "Colossal", 3.50f, 0.75f, &PROF_COLOSSAL, nullptr,         PAL_BLACKGOLD,  { 8.0f, 0.10f, 0.20f}, TILT_LAG_TALL  }, // 2  the monolith
+  { FAM_SMOOTH,   "Acorn",    1.70f, 0.50f, &PROF_ACORN,    nullptr,         PAL_ACORN,      {12.0f, 0.15f, 0.10f}, TILT_LAG_NONE  }, // 3  aspect 3.40
+  { FAM_SMOOTH,   "Spire",    2.80f, 0.35f, &PROF_SPIRE,    nullptr,         PAL_STEELBLUE,  {10.0f, 0.12f, 0.12f}, TILT_LAG_STICK }, // 4  aspect 8.00 — the stick
+  { FAM_SMOOTH,   "Idol",     1.80f, 0.55f, &PROF_IDOL,     nullptr,         PAL_JADE,       {10.0f, 0.15f, 0.10f}, TILT_LAG_NONE  }, // 5  aspect 3.27
+  { FAM_SMOOTH,   "Stele",    2.00f, 0.40f, &PROF_STELE,    nullptr,         PAL_LIMESTONE,  { 6.0f, 0.08f, 0.15f}, TILT_LAG_STICK }, // 6  aspect 5.00 — the slab
+  { FAM_HERALDIC, "Bronze",   1.00f, 0.50f, nullptr,        &PROF_H_BRONZE,  PAL_H_BRONZE,   {10.0f, 0.15f, 0.12f}, TILT_LAG_NONE  }, // 7  short + stout
+  { FAM_HERALDIC, "Silver",   1.10f, 0.50f, nullptr,        &PROF_H_SILVER,  PAL_H_SILVER,   { 4.0f, 0.06f, 0.15f}, TILT_LAG_NONE  }, // 8
+  { FAM_HERALDIC, "Gold",     1.15f, 0.50f, nullptr,        &PROF_H_GOLD,    PAL_H_GOLD,     { 6.0f, 0.10f, 0.12f}, TILT_LAG_NONE  }, // 9
+  { FAM_HERALDIC, "Steel",    1.30f, 0.55f, nullptr,        &PROF_H_STEEL,   PAL_H_STEEL,    { 8.0f, 0.10f, 0.12f}, TILT_LAG_NONE  }, // 10
+  { FAM_HERALDIC, "Crystal",  1.35f, 0.55f, nullptr,        &PROF_H_CRYSTAL, PAL_H_CRYSTAL,  { 8.0f, 0.08f, 0.10f}, TILT_LAG_NONE  }, // 11
+  { FAM_HERALDIC, "Star",     1.45f, 0.55f, nullptr,        &PROF_H_STAR,    PAL_H_STAR,     {10.0f, 0.06f, 0.08f}, TILT_LAG_NONE  }, // 12
+  { FAM_HERALDIC, "Divine",   1.55f, 0.55f, nullptr,        &PROF_H_DIVINE,  PAL_H_DIVINE,   { 4.0f, 0.05f, 0.06f}, TILT_LAG_NONE  }, // 13
 };
 
 inline constexpr uint32_t PAWN_FIGURE_COUNT = sizeof(PAWN_FIGURES) / sizeof(PAWN_FIGURES[0]);
