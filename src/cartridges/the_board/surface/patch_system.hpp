@@ -726,8 +726,15 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
 
         bool fullRegen = (oldCX == INT32_MAX);  // first frame
 
-        // Lightweight cache maintenance (no GPU buffer writes)
-        evict_distant_tiles(tile_world_state, centerX, centerZ);
+        // Lightweight cache maintenance (no GPU buffer writes). CONTAINMENT
+        // (FIX_TILE_PATCH_CONTAINMENT): spare every tile a live patch stands on.
+        // build_active_patch_set enumerates the registry with no .valid filter
+        // and runs BEFORE the budgeted patch-eviction pass below, so it includes
+        // patches already out of the render window but not yet drained -- exactly
+        // the ones a centre jump would orphan.
+        auto liveTiles = build_active_patch_set(c);
+        evict_distant_tiles(tile_world_state, centerX, centerZ,
+            [&](const GridKey& k) { return liveTiles.count(k) > 0; });
 
         if (!fullRegen) {
             tileGridDirty = true;

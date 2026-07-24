@@ -175,6 +175,12 @@ struct TileWorldState {
 // by the spawn preamble and the surface samplers (estimate_terrain_
 // height / terrain_tile_warm) — the interface trio's memory member.
 
+// evict_distant_tiles: the tile eviction sweep. The KeepFn overload spares
+// tiles a caller marks load-bearing (a live patch stands on them); the 3-arg
+// form forwards with an always-false keep (nothing spared) -- its historical
+// behavior, so no other call site changes.
+template <typename KeepFn>
+void evict_distant_tiles(TileWorldState& tw, int32_t centerX, int32_t centerZ, KeepFn keep);
 void evict_distant_tiles(TileWorldState& tw, int32_t centerX, int32_t centerZ);
 void upload_tile_grid_now(TileWorldState& tw, TileWorldDeps* c, wgpu::Queue& queue, int32_t cx, int32_t cz);
 TileState generate_tile_state(TileWorldState& tw, TileWorldDeps* c, int32_t gx, int32_t gz);
@@ -215,19 +221,27 @@ bool tile_archetype(const TileWorldState& tw, int32_t gx, int32_t gz, uint32_t& 
 // Forgetting radius: tiles beyond this many grid cells get evicted
 inline constexpr int32_t FORGET_RADIUS = (int32_t)Dim::PATCH_PREGEN_RADIUS + 2;  // eviction radius (beyond pre-gen)
 
-inline void evict_distant_tiles(TileWorldState& tw, int32_t centerX, int32_t centerZ) {
+template <typename KeepFn>
+inline void evict_distant_tiles(TileWorldState& tw, int32_t centerX, int32_t centerZ, KeepFn keep) {
     auto it = tw.tileCache_.begin();
     while (it != tw.tileCache_.end()) {
         int32_t dx = it->first.x - centerX;
         int32_t dz = it->first.z - centerZ;
-        if (dx < -FORGET_RADIUS || dx > FORGET_RADIUS ||
-            dz < -FORGET_RADIUS || dz > FORGET_RADIUS) {
-            it = tw.tileCache_.erase(it);
-        }
-        else {
-            ++it;
-        }
+        bool out_of_range = (dx < -FORGET_RADIUS || dx > FORGET_RADIUS ||
+                             dz < -FORGET_RADIUS || dz > FORGET_RADIUS);
+        // CONTAINMENT: a tile hosting a live patch is load-bearing and is never
+        // evicted, however far the centre has moved. The two lifetimes were
+        // bridged only by FORGET_RADIUS slack, which a centre jump consumes in
+        // one unbudgeted call while patch eviction still drains under its
+        // per-frame budget -- orphaning the patch's tile mid-drain.
+        if (out_of_range && !keep(it->first)) { it = tw.tileCache_.erase(it); }
+        else { ++it; }
     }
+}
+// 3-arg forwarder: historical behavior (nothing spared). Kept so any caller
+// that does not know about load-bearing tiles is unchanged.
+inline void evict_distant_tiles(TileWorldState& tw, int32_t centerX, int32_t centerZ) {
+    evict_distant_tiles(tw, centerX, centerZ, [](const GridKey&) { return false; });
 }
 
 // Build and upload GPUTileGrid from tile cache, centered on (cx, cz).
