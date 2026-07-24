@@ -1,0 +1,168 @@
+UG_REPAIR_2 — HANDOFF B: THE CARRIED ADDRESS
+============================================
+
+FILE:        src/cartridges/the_board/realization/world.wgsl
+COMMITS:     one
+LAND ORDER:  after A, before C. No build yet.
+BRANCH:      same branch as A.
+ENCODING:    LF-only, no BOM. All FIND strings are ASCII and single-line
+             except EDIT 1, whose FIND is one line.
+
+
+WHY
+---
+A curtain quad welds a cap perimeter vertex to its base twin at the SAME
+world XZ, so the wall is a vertical face standing exactly ON the cell
+boundary. Every fragment on it has world_pos.x = (N+1) * 3.125, and
+cell_address floors that to N+1: the neighbour. 3.125 is 25/8 and exact
+in f32, so this is deterministic, not jitter — the east and north walls
+of every extruded checker render solidly in the neighbour's colour.
+
+This is invisible today only because those walls are DEGENERATE before
+handoff A: the cap vertex at lx = 4 already sits at the neighbour's
+height, so the quad has zero drop and never rasterizes. Handoff A gives
+them full height. A alone therefore makes this symptom appear. A and B
+must land together.
+
+The INCIDENT #3 clamp does not help — it re-homes patch-border slivers
+only, and mid-patch the neighbour's texel is in-domain.
+
+The remedy is the charter's own: ONE-ADDRESS LAW (C8). The VS knows the
+owning cell exactly. Making the FS re-derive it from an interpolated
+position that is deliberately ambiguous is the same second addressing
+INCIDENT #3 already convicted for patch_uv. Carry it.
+
+Legacy and skirt fragments keep the world floor plus the clamp. Their
+band is the LOD1/soft space, the existing path is correct there, and a
+legacy quad's four vertices do NOT share one cell — so a flat varying
+would depend on the provoking vertex. The .z flag makes the two
+topologies explicit instead of relying on index-buffer winding.
+
+
+[anchor-1]  PRE-FLIGHT — verify before editing
+--------------------------------------------------------------------
+If ANY of these disagrees, STOP and report.
+
+  a) handoff A is landed: string  d.cellx =   EXPECT 4
+  b) string  @location(4) skirt: f32,          EXPECT 1
+  c) token  cell_local                          EXPECT 0 (name is new)
+  d) string  out.patch_uv = uv;                 EXPECT 1
+  e) string  let addr_used = patch_grid * i32(PATCH_CELL_N) + cell_texel;
+     EXPECT 1
+  f) string  patch_cell_color_array_read, cell_texel, i32(in.layer), 0);
+     EXPECT 1
+  g) PatchTerrainVarying's highest @location is 4. CONFIRM by eye —
+     the new field takes 5.
+
+
+EDIT 1 of 4 — the varying
+--------------------------------------------------------------------
+FIND (exactly 1 occurrence):
+@location(4) skirt: f32,
+
+REPLACE:
+@location(4) skirt: f32,
+    // THE CARRIED ADDRESS (ONE-ADDRESS LAW, charter C8). xy = the owning
+    // cell, patch-local, decoded in the VS. z = 1 on the cap and base
+    // bands, where every vertex of a primitive shares one cell so flat is
+    // exact; 0 on legacy and skirt, whose quads straddle cells and whose
+    // fragments keep the world floor. A curtain face stands exactly ON
+    // the cell boundary, where cell_address floors into the neighbour.
+    @location(5) @interpolate(flat) cell_local: vec3<u32>,
+
+
+EDIT 2 of 4 — set it in the VS
+--------------------------------------------------------------------
+FIND (exactly 1 occurrence):
+out.patch_uv = uv;
+
+REPLACE:
+out.patch_uv = uv;
+    out.cell_local = vec3<u32>(d.cellx, d.cellz,
+                               select(0u, 1u, vi >= UG_CAP_BASE));
+
+
+EDIT 3 of 4 — resolve the owning texel in the FS
+--------------------------------------------------------------------
+cell_texel keeps its present meaning: the world floor, clamped into this
+patch. owned_texel is the cell the fragment is PAINTED FROM. Two names
+because there are two topologies — the same lesson as handoff A.
+
+FIND (exactly 1 occurrence):
+let addr_used = patch_grid * i32(PATCH_CELL_N) + cell_texel;
+
+REPLACE:
+let owned_texel = select(cell_texel, vec2<i32>(in.cell_local.xy),
+                             in.cell_local.z == 1u);
+    let addr_used = patch_grid * i32(PATCH_CELL_N) + owned_texel;
+
+
+EDIT 4 of 4 — load from the owning texel
+--------------------------------------------------------------------
+FIND (exactly 1 occurrence):
+patch_cell_color_array_read, cell_texel, i32(in.layer), 0);
+
+REPLACE:
+patch_cell_color_array_read, owned_texel, i32(in.layer), 0);
+
+
+[anchor-2]  POST-EDIT AUDIT
+--------------------------------------------------------------------
+  a) token  cell_local
+     EXPECT 3   = 1 declaration + 1 VS write + 1 FS read (.xy and .z on
+                  the same statement count as one occurrence of the name
+                  twice — accept 4 if your tool counts member accesses
+                  separately; record which)
+  b) token  owned_texel
+     EXPECT 3   = 1 definition + addr_used + textureLoad
+  c) token  cell_texel
+     EXPECT 2   = 1 definition + 1 use inside the select
+  d) PatchTerrainVarying now declares locations 0..5, no duplicates.
+  e) Inter-stage budget: 6 variables, 12 components
+     (world_pos 3 + gradients 2 + patch_uv 2 + layer 1 + skirt 1 +
+      cell_local 3). Well inside the 16-variable / 60-component limits.
+     If Dawn objects at pipeline creation, STOP and report the message
+     verbatim — do not start evicting varyings.
+  f) ShadowVarying is UNTOUCHED (depth-only, no FS, no address needed).
+  g) git diff --stat
+     EXPECT 1 file changed, 15 insertions(+), 3 deletions(-)
+  h) LF-only, no BOM; the inserted comment renders without mojibake.
+
+
+FXC / BUDGET
+--------------------------------------------------------------------
+One inter-stage variable, one select in the VS, one select in the FS.
+No bindings, no storage or uniform slots, no loops, no new branching.
+Nothing in the world.wgsl banner FXC block is touched.
+
+Note for the record: integer varyings MUST be flat in WGSL, so the
+@interpolate(flat) on a vec3<u32> is required, not stylistic.
+
+
+COMMIT MESSAGE
+--------------------------------------------------------------------
+UG_REPAIR_2 B - the FS carries the owning cell, it does not re-derive it
+
+A curtain face stands exactly on the cell boundary, so every fragment on
+it has world_pos.x = (N+1) * 3.125 and cell_address floors to N+1. The
+east and north walls of an extruded checker therefore read the
+neighbour's colour. 3.125 is exact in f32, so this is deterministic. The
+INCIDENT #3 clamp only re-homes patch-border slivers and does nothing
+mid-patch.
+
+Handoff A gives those walls their full height, which is what makes the
+fault visible; before A they were degenerate and never rasterized.
+
+PatchTerrainVarying gains the owning cell as a flat varying, with a band
+flag: cap and base fragments take the carried address, legacy and skirt
+keep the world floor and the clamp. This is the ONE-ADDRESS LAW applied
+to the new topology - the same second addressing INCIDENT #3 convicted
+for patch_uv. The chimera is now inexpressible by construction rather
+than repaired by clamp.
+
+
+DRIFT PROTOCOL
+--------------------------------------------------------------------
+Any pre-flight disagreement, any FIND absent: STOP, report the whole
+PatchTerrainVarying struct and the first 30 lines of patch_terrain_fs
+verbatim, edit nothing.

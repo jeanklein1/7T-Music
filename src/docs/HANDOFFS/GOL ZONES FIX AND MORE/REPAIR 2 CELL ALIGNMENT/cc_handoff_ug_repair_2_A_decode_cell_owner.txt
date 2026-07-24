@@ -1,0 +1,207 @@
+UG_REPAIR_2 — HANDOFF A: THE DECODE'S OWNING CELL
+=================================================
+
+FILE:        src/cartridges/the_board/realization/world.wgsl
+COMMITS:     one
+LAND ORDER:  A, then B, then C. NO build between them. One build after C.
+BRANCH:      cut from master, merge + delete same day (7T git law).
+ENCODING:    LF-only, no BOM. Every FIND below is pure ASCII by design —
+             the neighbouring comments carry U+00D7 and em dashes and are
+             deliberately NOT matched.
+
+
+WHY
+---
+ug_decode holds the owning cell in `cell` and then discards it:
+
+    d.cellx = min(d.vx / UG_QUADS, PATCH_CELL_N - 1u);
+
+For a cap vertex at lx = 4, d.vx = cell_x*4 + 4, so d.vx / 4 = cell_x + 1.
+The cap's east column is assigned to the EAST neighbour, its north row to
+the NORTH neighbour, its NE corner vertex to the DIAGONAL.
+
+The rule is correct for the legacy grid: a legacy quad lies wholly inside
+one cell and its min-corner vertex names that cell. It is wrong for the
+cap band, where lx = 4 is the cell's own MAXIMUM edge, not the next cell's
+minimum. One rule, two topologies.
+
+Consequences, both reported from the rig:
+
+  - The raised footprint is the checker square displaced one quad
+    (PATCH_EXTENT / PATCH_MESH_N = 0.78125 wu = a quarter cell) toward
+    -X and -Z. A lifted cell borrows a quarter-cell fringe of its WEST
+    and SOUTH neighbours' colour and loses the same width of its own on
+    EAST and NORTH.
+
+  - A lifted cell's NE corner vertex takes the diagonal's lift, while the
+    two dead cells between take that same lift along one edge each. The
+    three strips form a continuous raised ribbon from one checker's
+    corner to its diagonal's plateau: the observed membrane.
+
+  - Render and physics disagree by that quarter cell:
+    query_ground_walker_pair reads sample_live_card_gol at the pawn's own
+    XZ, cell-exact. The pawn walks the true square; the rendered square
+    is displaced.
+
+GEOMETRY IS UNCHANGED BY THIS HANDOFF. d.vx / d.vz are not touched, so
+vertex POSITIONS and the C++ index buffers are byte-identical. Only which
+cell's lift each vertex takes changes. No C++ edit in this commit.
+
+
+[anchor-1]  PRE-FLIGHT CENSUS — verify before editing
+--------------------------------------------------------------------
+If ANY count differs, STOP and report the actual text.
+
+  a) string  d.cellx =
+     EXPECT 1     (the single trailing rule)
+  b) string  d.cellz =
+     EXPECT 1
+  c) string  // the uniform cell-assignment rule (legacy/skirt verts included)
+     EXPECT 1
+  d) token  ug_decode
+     EXPECT 3     = 1 definition + 2 call sites (patch_terrain_vs,
+                    shadow_patch_terrain_vs)
+  e) the four band branches are present in this order: legacy grid,
+     skirt ring copy, cap band, base band. CONFIRM by eye.
+
+
+EDIT ORDER IS LOAD-BEARING
+--------------------------------------------------------------------
+Edit 1 REMOVES the trailing rule while it is still textually unique.
+Edits 2-5 then reintroduce the same statement text inside two branches.
+Run them in the order given. Do not reorder.
+
+
+EDIT 1 of 6 — remove the uniform rule
+--------------------------------------------------------------------
+FIND (exactly 1 occurrence):
+    // the uniform cell-assignment rule (legacy/skirt verts included)
+    d.cellx = min(d.vx / UG_QUADS, PATCH_CELL_N - 1u);
+    d.cellz = min(d.vz / UG_QUADS, PATCH_CELL_N - 1u);
+    return d;
+
+REPLACE:
+    return d;
+
+
+EDIT 2 of 6 — legacy grid branch
+--------------------------------------------------------------------
+FIND (exactly 1 occurrence):
+d.vx = vi % PATCH_MESH_STRIDE;
+        d.vz = vi / PATCH_MESH_STRIDE;
+
+REPLACE:
+d.vx = vi % PATCH_MESH_STRIDE;
+        d.vz = vi / PATCH_MESH_STRIDE;
+        d.cellx = min(d.vx / UG_QUADS, PATCH_CELL_N - 1u);
+        d.cellz = min(d.vz / UG_QUADS, PATCH_CELL_N - 1u);
+
+
+EDIT 3 of 6 — skirt ring branch
+--------------------------------------------------------------------
+FIND (exactly 1 occurrence):
+d.vx = g.x;
+        d.vz = g.y;
+        d.drop = PATCH_SKIRT_DEPTH;
+
+REPLACE:
+d.vx = g.x;
+        d.vz = g.y;
+        d.cellx = min(d.vx / UG_QUADS, PATCH_CELL_N - 1u);
+        d.cellz = min(d.vz / UG_QUADS, PATCH_CELL_N - 1u);
+        d.drop = PATCH_SKIRT_DEPTH;
+
+
+EDIT 4 of 6 — cap band
+--------------------------------------------------------------------
+FIND (exactly 1 occurrence):
+d.vx = (cell % PATCH_CELL_N) * UG_QUADS + lx;
+        d.vz = (cell / PATCH_CELL_N) * UG_QUADS + lz;
+
+REPLACE:
+d.vx = (cell % PATCH_CELL_N) * UG_QUADS + lx;
+        d.vz = (cell / PATCH_CELL_N) * UG_QUADS + lz;
+        d.cellx = cell % PATCH_CELL_N;
+        d.cellz = cell / PATCH_CELL_N;
+
+
+EDIT 5 of 6 — base band
+--------------------------------------------------------------------
+FIND (exactly 1 occurrence):
+d.vx = (cell % PATCH_CELL_N) * UG_QUADS + g.x;
+        d.vz = (cell / PATCH_CELL_N) * UG_QUADS + g.y;
+
+REPLACE:
+d.vx = (cell % PATCH_CELL_N) * UG_QUADS + g.x;
+        d.vz = (cell / PATCH_CELL_N) * UG_QUADS + g.y;
+        d.cellx = cell % PATCH_CELL_N;
+        d.cellz = cell / PATCH_CELL_N;
+
+
+EDIT 6 of 6 — name the split in the struct
+--------------------------------------------------------------------
+The bug existed because one rule served two topologies with nothing
+saying so. State it where the fields are declared.
+
+FIND (exactly 1 occurrence):
+    cellx: u32,
+    cellz: u32,
+
+REPLACE:
+    cellx: u32,        // owning cell, patch-local. Cap and base decode it
+    cellz: u32,        // directly; legacy and skirt derive it from the
+                       // min-corner grid vert, which names their quad's cell.
+
+
+[anchor-2]  POST-EDIT AUDIT
+--------------------------------------------------------------------
+  a) string  d.cellx =
+     EXPECT 4     (one per branch)
+  b) string  d.cellz =
+     EXPECT 4
+  c) string  // the uniform cell-assignment rule
+     EXPECT 0
+  d) string  cell % PATCH_CELL_N
+     EXPECT 4     = 2 vx lines + 2 cellx lines
+  e) every branch of ug_decode assigns both cellx and cellz before the
+     closing brace. CONFIRM by reading the whole function once.
+  f) git diff --stat
+     EXPECT 1 file changed, 14 insertions(+), 5 deletions(-)
+     Any second file in the diff = STOP.
+  g) file is still LF-only, no BOM.
+
+
+FXC / BUDGET
+--------------------------------------------------------------------
+No bindings, no slots, no new control flow. The if/else chain keeps the
+A2-5(i) shape (comparisons only, no loops, no tables). Four integer
+div/mod per vertex are replaced by four already-computed values, so the
+cap and base branches get marginally cheaper.
+
+
+COMMIT MESSAGE
+--------------------------------------------------------------------
+UG_REPAIR_2 A - ug_decode uses the cell it already has
+
+The uniform rule d.cellx = d.vx / UG_QUADS is correct for the legacy
+grid, whose quads lie wholly inside one cell and whose min-corner vertex
+names that cell. It is wrong for the cap band: at lx = 4, d.vx / 4 gives
+cell_x + 1, so a cap's east column took the east neighbour's lift, its
+north row the north neighbour's, and its NE corner vertex the diagonal's.
+
+The raised footprint was therefore the checker square displaced one quad
+(0.78125 wu) toward -X and -Z, which is both reported artifacts: the
+quarter-cell colour fringe borrowed from the west and south neighbours,
+and the raised ribbon bridging a checker to its diagonal. It also put
+render a quarter cell away from query_ground_walker_pair, which reads the
+card cell-exact at the pawn's own XZ.
+
+Each branch now states its own rule. Vertex positions and the index
+buffers are byte-identical; only the lift attribution changes.
+
+
+DRIFT PROTOCOL
+--------------------------------------------------------------------
+Any census disagreement, any FIND absent: STOP. Report the whole
+ug_decode function verbatim. Do not widen a match, do not guess an
+equivalent, do not edit adjacent code.
