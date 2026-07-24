@@ -108,3 +108,38 @@ the ONLY delta is the consuming line: `NMax %approach_floor_param %dot` →
 8 shifted no existing field. Each row's `OpCompositeConstruct` grew 8→9 operands:
 `row_point_flee`'s 9th operand is the incoming param, all other rows' is the `0.0`
 constant. Float-constant set per kernel IDENTICAL; modcheck 0 messages.
+
+### [T1e] The feasibility ledger — one `const_assert` + the cap ledger
+
+**P-check (does Tint accept `const_assert`?): YES, and it is EVALUATED.** A
+passing assert compiles with 0 errors; a *false* one errors `L4:1 const assertion
+failed` — so it is a real machine-check, not silently dropped. (Probed on the
+target Dawn/Tint via modcheck.)
+
+Shipped two things, both zero-behavior:
+1. **The cube `const_assert`** at `CUBE_PUSH_CAP`:
+   `const_assert CUBE_PUSH_RADIUS * CUBE_PUSH_GAIN < CUBE_PUSH_CAP * 60.0;`
+   (175 < 720). The cube row is the ONLY cap whose three terms are all module
+   consts, so it compiles its own hitch-guard proof — the cap binds only on a
+   frame hitch (~14.6 fps), never at 60 Hz.
+2. **THE CAP LEDGER** by the row builders: CONTACT rows are **unassertable**
+   (`contact_radius` is an `agent_tier_gains` UNIFORM field, split from the const
+   caps — a uniform×const is not a const-expression; the first concrete argument
+   for value consolidation). SPHERE row is a **LIVE limiter** (max impulse
+   `influence_radius*SPHERE_PUSH_GAIN*dt` = 5.33 at μ=8/60 Hz, crosses the cap 6
+   below 53.3 fps and at μ≥9 at 60 Hz — a real clamp, no value change). FLEE rows
+   are **uncapped** (`INFLUENCE_NO_CAP`): pure APPROACH (dt-invariant) cannot run
+   away, so there is nothing for a cap to guard. **No C++ mirror** of these
+   consts (that reintroduces the ungated cross-language duplication AUDIT-4
+   flagged).
+
+**Gate:** SPIR-V diff vs [T1d] = **EMPTY across all 5 kernels** (compile-time
+assert + comments = zero runtime effect); modcheck 0 messages.
+
+## END-OF-T1 BUILD GATE
+
+- **glaw1: `G-LAW 1: GREEN`** — the desktop build compiles the modified
+  `world.wgsl` (const_assert, variant B, the 9th column) through the desktop
+  toolchain. Desktop stays green.
+- **Dawn witness: `ALL PIPELINE FAMILIES GREEN`** — module compiles with 0
+  messages, no pipeline-family failures under real Dawn/Tint.

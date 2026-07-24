@@ -2272,6 +2272,12 @@ const CUBE_PUSH_GAIN:    f32 = 25.0;  // presence force per wu overlap
 // tuning knob: unreachable at 60 Hz (max 7*25/60 = 2.92); first engages at
 // dt = 0.0686 s (14.6 fps). Raising it changes nothing you can see.
 const CUBE_PUSH_CAP: f32 = 12.0;
+// [TIDY_1 T1e] The hitch-guard claim above, machine-checked: at 60 Hz the max
+// cube presence impulse (radius*gain*dt) stays below the cap, so the cap binds
+// only on a frame hitch. All three terms are consts, so Tint const-evaluates
+// it (a false assertion errors -- verified T1e). The ONE cap that proves
+// itself; the other three rows are split across rooms (see the ledger below).
+const_assert CUBE_PUSH_RADIUS * CUBE_PUSH_GAIN < CUBE_PUSH_CAP * 60.0;
 // (CUBE_PART_RADIUS 30 / CUBE_PART_GAIN 1.0 RETIRED -- CONTACT_5 P2b. They
 //  were the CONTACT_4 approach-parting reach + gain; the parting became a
 //  PRESENCE push (CUBE_PUSH_*), so both are reference-free. The S3a shell
@@ -2439,6 +2445,36 @@ fn row_cube_push() -> InfluenceProfile {
     return InfluenceProfile(CUBE_PUSH_RADIUS, CUBE_PUSH_VWINDOW,
                             CUBE_PUSH_GAIN, 0.0, 1.0, CUBE_PUSH_CAP, 1.0, 0.0, 0.0);
 }
+
+// [TIDY_1 T1e] THE CAP LEDGER -- what each `cap` column guards, and whether the
+// guard is machine-checkable. A cap on a PRESENCE row (dt-scaled) guards against
+// a frame hitch inflating one impulse; a cap on an APPROACH row would guard a
+// dt-INVARIANT term, which cannot run away -- so the flees carry none.
+//   CUBE row     -- FRAME-HITCH GUARD. Max impulse at 60 Hz is radius*gain*dt =
+//     CUBE_PUSH_RADIUS*CUBE_PUSH_GAIN/60 = 2.92, below CUBE_PUSH_CAP (12); it
+//     engages only on a hitch (~14.6 fps). All three terms are consts, so the
+//     claim ships as a `const_assert` at the CUBE_PUSH_CAP definition -- the one
+//     row that compiles its own feasibility proof.
+//   CONTACT rows -- UNASSERTABLE. The bound is contact_radius*CONTACT_SPRING*dt
+//     < CONTACT_IMPULSE_CAP, but contact_radius is a field of the
+//     agent_tier_gains UNIFORM (runtime, per-tier) while CONTACT_SPRING and
+//     CONTACT_IMPULSE_CAP are module consts. A uniform x const is not a
+//     const-expression, so no const_assert can see it. This is the first
+//     concrete cost of a value split across rooms: move the tier radii next to
+//     the caps and the row becomes checkable (T3 charter generalizes the rule).
+//   SPHERE row   -- LIVE LIMITER, not a guard. Max impulse is
+//     fe.influence_radius*SPHERE_PUSH_GAIN*dt; at the typical mu=8 that is 5.33
+//     at 60 Hz (under CONTACT_IMPULSE_CAP 6) but crosses it below 53.3 fps, and
+//     at mu>=9 it binds at 60 Hz. This cap is a real clamp on the restore speed,
+//     engaged in normal play -- labelled, no value change. (Also uniform-gated
+//     by influence_radius, hence likewise unassertable.)
+//   FLEE rows    -- UNCAPPED (INFLUENCE_NO_CAP 1e9). presence_gain is 0: the
+//     flees are pure APPROACH (a velocity floor, NOT dt-scaled), so no hitch can
+//     inflate them -- there is nothing for a cap to guard. The 1e9 sentinel is
+//     the table's "no cell is empty" placeholder, not a real ceiling.
+// No C++ mirror of these WGSL consts: that reintroduces the ungated
+// cross-language duplication AUDIT-4 flagged. The const_assert lives with the
+// WGSL that uses it; consolidation (contact/sphere) is the enforcement path.
 
 
 // §2.3 MUTING CONTROL
