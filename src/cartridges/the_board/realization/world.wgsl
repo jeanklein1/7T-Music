@@ -4547,7 +4547,7 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
                         if (local_cell.x < 0 || local_cell.x >= i32(zp.grid_size) ||
                             local_cell.y < 0 || local_cell.y >= i32(zp.grid_size)) { break; }
 
-                        let uv = (vec2<f32>(local_cell) + 0.5) / f32(zp.grid_size);
+                        let uv = (vec2<f32>(local_cell) + 0.5) / GOL_ZONE_TEX_N;
                         let life_sample = textureSampleLevel(
                             zone_life_read, nearest_sampler, uv, i32(z), 0.0
                         );
@@ -8659,6 +8659,11 @@ fn generate_patch_cells(@builtin(global_invocation_id) id: vec3<u32>) {
 
 // §7.2 GOL ZONE COMPUTE — Zone-local Game of Life
 // Two compute passes per frame (when zones are active):
+// The zone life texture's side — twin of Dim::GOL_ZONE_GRID
+// (state.hpp). FIXED at 32 while zp.grid_size is tier-derived over
+// {8..32}: the sim writes texels [0, grid_size)² of a 32² layer, so
+// every fetch normalizes by THIS, never by the zone's own grid.
+const GOL_ZONE_TEX_N: f32 = 32.0;
 const GOL_ZONE_STRIDE: u32 = 7168u;     // floats per zone (7 slots × 1024 cells)
 const GOL_CELL_VISUAL: u32 = 0u;        // slot 0: height spring visual [0,1]
 const GOL_CELL_VELOCITY: u32 = 1024u;   // slot 1: height spring velocity
