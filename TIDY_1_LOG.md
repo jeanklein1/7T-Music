@@ -222,3 +222,32 @@ old `|dy|` gate coupled the terrain beneath it.
   behaviors, the retired `CUBE_PUSH_VWINDOW`).
 - **Dawn witness: `ALL PIPELINE FAMILIES GREEN`** — module 0 messages, no
   pipeline-family failures under real Dawn/Tint.
+
+---
+
+## T3 — THE CHARTER + BATCH REPORT (doc-only)
+
+### [T3] `COLLISION_CHARTER.md` + `BATCH_REPORT_TIDY1.md`
+
+Doc-only commit, zero WGSL/C++ change. Two new root docs:
+
+- **`COLLISION_CHARTER.md`** — the four laws of altered motion, each a boundary
+  statement + invariants: **Law 1 BODY↔BODY** (`influence_response` +
+  `InfluenceProfile`, the 9-column table, the cylindrical-gate invariant, the
+  cap→PRESENCE rule) with its **spawn-time sibling** (CPU spawn-footprint
+  separation, `spawn_services.hpp`); **Law 2 BODY↔WORLD** (`manifold_position` +
+  `POLICY_*`, revert/pin/steer); **Law 3 AGGREGATE FIELD** (agent + orb flock);
+  **Law 4 ATTACHMENT/FOLLOW** (kite cube, sky-mode ribbon mount, camera
+  aim-follow, sun-VP snap). Plus the **generalized feasibility rule** (a value
+  split across rooms cannot be asserted in either → consolidation is enforcement,
+  not preference) with its corollary; the **tombstone policy** (one-line epitaph
+  at the site, lesson in the charter) with the three TIDY_1 tombstones; and the
+  **two disclosed softnesses** (cube ~2.5% same-frame damping; one-frame
+  point-velocity leak).
+- **`BATCH_REPORT_TIDY1.md`** — P0 dump-path = YES (the recipe + soundness);
+  per-T1-commit diff results (T1a/b/e empty, T1c/d reviewed-benign); Tint
+  `const_assert` accepted AND evaluated (false errors); the two T2 percepts as
+  observed; the two overturns (#7 full, #6 half-declined — no C++ mirror); the
+  gates summary; the outstanding visual gate for Jean.
+
+Push follows.
