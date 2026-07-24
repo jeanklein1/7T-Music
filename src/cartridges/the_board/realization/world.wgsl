@@ -7102,10 +7102,13 @@ fn behavior_pursuit(agent_in: AgentState) -> AgentState {
     let tier = min(a.tier_idx, AGENT_TIER_COUNT_WGSL - 1u);
     let g = agent_tier_gains[tier];
 
-    // Read the player position (live, not staged).
-    let player = agent_state[config.possessed_slot];
-    let dx = player.pos_x - a.pos_x;
-    let dz = player.pos_z - a.pos_z;
+    // Steer toward THE POINT (the emitter), not the raw possessed slot:
+    // point_pos() is the possessed body in pawn-host (identical target there)
+    // and the flown camera-eye in free-fly, so pursuers track what the player
+    // controls instead of clustering the idle statue (TIDY_1 T2a).
+    let p = point_pos();
+    let dx = p.x - a.pos_x;
+    let dz = p.z - a.pos_z;
     let dist_sq = dx * dx + dz * dz;
     let detect_sq = b.neighbor_radius * b.neighbor_radius;
 
@@ -7146,9 +7149,10 @@ fn behavior_flee(agent_in: AgentState) -> AgentState {
     let tier = min(a.tier_idx, AGENT_TIER_COUNT_WGSL - 1u);
     let g = agent_tier_gains[tier];
 
-    let player = agent_state[config.possessed_slot];
-    let dx = a.pos_x - player.pos_x;  // away vector
-    let dz = a.pos_z - player.pos_z;
+    // Flee THE POINT, not the raw possessed slot (TIDY_1 T2a; see pursuit).
+    let p = point_pos();
+    let dx = a.pos_x - p.x;  // away vector from the point
+    let dz = a.pos_z - p.z;
     let dist_sq = dx * dx + dz * dz;
     let alarm_sq = b.neighbor_radius * b.neighbor_radius;
 

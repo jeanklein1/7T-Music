@@ -143,3 +143,42 @@ assert + comments = zero runtime effect); modcheck 0 messages.
   toolchain. Desktop stays green.
 - **Dawn witness: `ALL PIPELINE FAMILIES GREEN`** — module compiles with 0
   messages, no pipeline-family failures under real Dawn/Tint.
+
+---
+
+## T2 — THE PERCEPT BATCH (visual gate on BOTH hosts — Jean)
+
+### [T2a] Route `behavior_pursuit` + `behavior_flee` through `point_pos()`
+
+Both behaviors read the raw possessed slot (`agent_state[config.possessed_slot]`).
+Now they read `point_pos()` — the emitter. `neighbor_radius`
+(`agent_behaviors[6u]`/`[7u]`) is untouched; only the target moves.
+
+**Scope (backend-confirmed):** SPIR-V changes in **`update_other_agents` ONLY**;
+the other 4 kernels byte-identical. Within it, exactly two functions changed —
+`behavior_pursuit`, `behavior_flee` — the two edited. modcheck 0 messages.
+
+**Two percepts to visual-gate (both hosts):**
+
+1. **Near-field repair (the fix).** In pawn-host, `point_pos()` ==
+   `compute_pawn_pos()` == the possessed slot's position, so pursuit/flee are
+   **behaviourally identical** there. The change is **camera-host only**: in
+   free-fly the possessed pawn sits idle while the player flies the camera-point
+   elsewhere — before T2a, pursuers clustered that abandoned statue and fleers
+   avoided it, both ignoring where the player actually was. Now they track the
+   point. This is the common failure the point-law repairs.
+
+2. **The standoff annulus (the new interaction).** A PURSUER (behavior 6) is
+   pulled INWARD toward the point by `behavior_pursuit` (within
+   `agent_behaviors[6].neighbor_radius`) and simultaneously pushed OUTWARD by the
+   point-flee bubble (`row_point_flee`, applied to every agent in the gather
+   within `config.point_bubble_radius`). Where they balance is a standoff ring.
+   **Camera-host:** the bubble carries `approach_floor = BUBBLE_PART_SPEED` (a
+   permanent isotropic outward push even when the point is still), so the ring is
+   **permanent** — pursuers orbit a fixed standoff rather than reaching the point.
+   **Pawn-host:** the floor is 0, so the outward push acts only on real closing
+   speed — pursuers **converge when the point is still, scatter when it moves.**
+   Fleers (behavior 7) feel both forces outward → no standoff, they just leave
+   faster. The exact ring radius is a balance of `neighbor_radius`/`home_pull`
+   against `point_bubble_radius`/`flee_gain_player` — Jean's visual call (not
+   asserted here).
