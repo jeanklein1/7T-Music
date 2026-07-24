@@ -1,0 +1,153 @@
+UG_REPAIR_1 — HANDOFF A: THE CELL LIFT'S SIGN
+=============================================
+
+FILE:        src/cartridges/the_board/realization/world.wgsl
+COMMITS:     one
+LAND ORDER:  A, then B. NO build between them. One build after B.
+BRANCH:      cut from master, merge + delete same day (7T git law, July 2026).
+ENCODING:    LF-only, no BOM. Do not introduce CRLF.
+
+
+WHY
+---
+pawn_gol_suppression returns the suppression FACTOR: 1 at the pawn,
+0 beyond ZONE_SUPPRESS_OUTER (15 wu). Its own banner says so, and the
+three walker-family consumers all multiply the GoL lift by its
+COMPLEMENT:
+
+    gol * (1.0 - supp_factor)          query_ground_walker
+    gol * (1.0 - supp_factor)          query_ground_walker_tilt
+    gol * (1.0 - supp_factor)          query_ground_walker_pair
+
+The two UNIFIED_GROUND_1 render sites multiply by the factor itself.
+The consequence is total and exact:
+
+    d >= 15 wu from pawn   factor 0   lift 0     cap sits on the base
+                                                 surface, curtain quads
+                                                 degenerate -> NO GoL
+                                                 anywhere in the world
+    4 -> 15 wu             ramp       ramp       an inverted bow wave
+    d <= 4 wu              factor 1   full       the cell under the
+                                                 pawn's feet EXTRUDES
+
+Reported symptom, verbatim: cells and extrusions gone from the map, and
+rarely one extrudes when the pawn passes by. "Rarely" is the spawn
+arithmetic, not a second bug: SPAWN_CHANCE 0.15 x HEIGHT_CHANCE 0.30 x
+force_no_height tier rows x the U5 vocabulary mask, and then the pawn
+must physically walk onto one.
+
+The repair restores the ratified UNIFIED_GROUND_1 semantics: GoL
+de-extrudes under the pawn so he passes smoothly, and render agrees
+with query_ground_walker_pair, which already de-extrudes correctly.
+
+
+[anchor-1]  PRE-FLIGHT CENSUS — verify before editing
+--------------------------------------------------------------------
+Run these against world.wgsl. If ANY count differs, STOP and report
+the actual text; do not improvise a match.
+
+  a) token  pawn_gol_suppression(
+     EXPECT 6  = 1 fn signature + 5 call sites
+
+  b) string  pawn_gol_suppression(world_xz, pawn_xz)
+     EXPECT 0  (the signature uses these names; calls do not)
+
+  c) string  pawn_gol_suppression(world_pos.xz, render_pawn_pos().xz)
+     EXPECT 2  <- the two sites this handoff repairs
+
+  d) string  pawn_gol_suppression(xz, qi.consumer_pos.xz)
+     EXPECT 3  <- the walker family; NOT TOUCHED by this handoff
+
+  e) string  1.0 - supp_factor
+     EXPECT 3  <- confirms the walker family is already correct
+
+  f) the fn body reads, verbatim:
+        return 1.0 - smoothstep(ZONE_SUPPRESS_INNER, ZONE_SUPPRESS_OUTER,
+                                distance(world_xz, pawn_xz));
+
+  Sanity: (c) + (d) = 5 = the call sites in (a).
+
+
+EDIT — single replace-all, 2 occurrences
+--------------------------------------------------------------------
+The expression is byte-identical at both sites (patch_terrain_vs and
+shadow_patch_terrain_vs), and both need the same repair. Replace ALL
+occurrences. The FIND carries no leading whitespace and no trailing
+semicolon, so indentation and line-break placement cannot cause drift.
+
+FIND (all occurrences; expected count 2):
+pawn_gol_suppression(world_pos.xz, render_pawn_pos().xz)
+
+REPLACE:
+(1.0 - pawn_gol_suppression(world_pos.xz, render_pawn_pos().xz))
+
+
+The two sites afterwards read:
+
+  patch_terrain_vs
+      // THE CELL LIFT (UNIFIED_GROUND_1): GoL rides the ground itself -
+      // the card's .a, nearest at the vertex's OWN cell center, pawn-
+      // suppressed. BASE verts take no lift (that gap IS the curtain);
+      // d.drop subsumes the old skirt ring drop.
+      let lift = ug_cell_lift(pi.origin, pi.extent, d.cellx, d.cellz)
+               * (1.0 - pawn_gol_suppression(world_pos.xz, render_pawn_pos().xz));
+      world_pos.y += lift * d.lift_scale - d.drop;
+
+  shadow_patch_terrain_vs
+      // THE CELL LIFT (UNIFIED_GROUND_1) - shadow surface = heightfield +
+      // the card + the pawn-suppressed cell lift; d.drop subsumes the old
+      // skirt ring drop.
+      let lift = ug_cell_lift(pi.origin, pi.extent, d.cellx, d.cellz)
+               * (1.0 - pawn_gol_suppression(world_pos.xz, render_pawn_pos().xz));
+      world_pos.y += lift * d.lift_scale - d.drop;
+
+NO COMMENT EDITS. Both banners already say "pawn-suppressed" — they
+were describing the intent the code failed to carry. After this edit
+they describe present behaviour, which is the standing law.
+
+
+[anchor-2]  POST-EDIT AUDIT
+--------------------------------------------------------------------
+  a) string  (1.0 - pawn_gol_suppression(world_pos.xz, render_pawn_pos().xz))
+     EXPECT 2
+
+  b) regex   \*\s*pawn_gol_suppression\(world_pos
+     EXPECT 0   (no bare multiply survives)
+
+  c) string  pawn_gol_suppression(xz, qi.consumer_pos.xz)
+     EXPECT 3   (walker family unchanged)
+
+  d) git diff --stat
+     EXPECT 1 file changed, 2 insertions(+), 2 deletions(-)
+     Any other file or line in the diff = STOP.
+
+  e) grep the file for CRLF: EXPECT none.
+
+
+FXC / BUDGET
+--------------------------------------------------------------------
+No new bindings, no new storage/uniform slots, no new runtime
+branching. Two vertex stages each gain one subtract on an already-live
+value. Nothing in the world.wgsl banner FXC block is touched.
+
+
+COMMIT MESSAGE
+--------------------------------------------------------------------
+UG_REPAIR_1 A - the cell lift's sign
+
+patch_terrain_vs and shadow_patch_terrain_vs multiplied the cell lift
+by the suppression FACTOR instead of its complement. The factor is 1 at
+the pawn and 0 beyond ZONE_SUPPRESS_OUTER, so GoL lifted only under the
+pawn's feet and nowhere else: zero extrusion in the world, plus an
+inverted bow wave - a cell rising as the pawn stepped onto it.
+
+Both sites now carry (1.0 - pawn_gol_suppression(...)), the exact form
+query_ground_walker / _tilt / _pair already use. Render and walker
+agree again: the pawn walks on what it sees.
+
+
+DRIFT PROTOCOL
+--------------------------------------------------------------------
+If any census count in [anchor-1] disagrees, or the FIND string is
+absent, STOP. Report the surrounding 20 lines verbatim. Do not widen
+the match, do not guess an equivalent, do not edit adjacent code.
