@@ -332,8 +332,9 @@ fn ug_cell_perimeter(k: u32) -> vec2<u32> {
 struct UgVert {
     vx: u32,
     vz: u32,
-    cellx: u32,
-    cellz: u32,
+    cellx: u32,        // owning cell, patch-local. Cap and base decode it
+    cellz: u32,        // directly; legacy and skirt derive it from the
+                       // min-corner grid vert, which names their quad's cell.
     lift_scale: f32,   // 1 cap/legacy/skirt, 0 base (no lift — the gap IS the curtain)
     drop: f32,         // PATCH_SKIRT_DEPTH on skirt ring copies
     wall: f32,         // 1 on curtain-bottom + skirt copies
@@ -347,11 +348,15 @@ fn ug_decode(vi: u32) -> UgVert {
         // legacy grid (the LOD1/soft space)
         d.vx = vi % PATCH_MESH_STRIDE;
         d.vz = vi / PATCH_MESH_STRIDE;
+        d.cellx = min(d.vx / UG_QUADS, PATCH_CELL_N - 1u);
+        d.cellz = min(d.vz / UG_QUADS, PATCH_CELL_N - 1u);
     } else if (vi < UG_CAP_BASE) {
         // skirt ring copy — keeps its legacy slot, drops after compositing
         let g = patch_skirt_grid(vi - PATCH_GRID_VERT_COUNT);
         d.vx = g.x;
         d.vz = g.y;
+        d.cellx = min(d.vx / UG_QUADS, PATCH_CELL_N - 1u);
+        d.cellz = min(d.vz / UG_QUADS, PATCH_CELL_N - 1u);
         d.drop = PATCH_SKIRT_DEPTH;
         d.wall = 1.0;
     } else if (vi < UG_BASE_BASE) {
@@ -363,6 +368,8 @@ fn ug_decode(vi: u32) -> UgVert {
         let lz = k / UG_CAP_STRIDE;
         d.vx = (cell % PATCH_CELL_N) * UG_QUADS + lx;
         d.vz = (cell / PATCH_CELL_N) * UG_QUADS + lz;
+        d.cellx = cell % PATCH_CELL_N;
+        d.cellz = cell / PATCH_CELL_N;
     } else {
         // base band: curtain-bottom twin of a cap perimeter vert
         let r = vi - UG_BASE_BASE;
@@ -370,12 +377,11 @@ fn ug_decode(vi: u32) -> UgVert {
         let g = ug_cell_perimeter(r % 16u);
         d.vx = (cell % PATCH_CELL_N) * UG_QUADS + g.x;
         d.vz = (cell / PATCH_CELL_N) * UG_QUADS + g.y;
+        d.cellx = cell % PATCH_CELL_N;
+        d.cellz = cell / PATCH_CELL_N;
         d.lift_scale = 0.0;
         d.wall = 1.0;
     }
-    // the uniform cell-assignment rule (legacy/skirt verts included)
-    d.cellx = min(d.vx / UG_QUADS, PATCH_CELL_N - 1u);
-    d.cellz = min(d.vz / UG_QUADS, PATCH_CELL_N - 1u);
     return d;
 }
 
