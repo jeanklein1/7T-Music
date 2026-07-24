@@ -60,3 +60,31 @@ mentions are in historical handoff .txt specs — input, not code).
 
 **Gate:** SPIR-V diff vs [T1a] = **EMPTY** (rename, value 12.0 unchanged);
 modcheck 0 messages.
+
+### [T1c] VARIANT B — the profile table as contiguous `row_*()` builders
+
+Collapsed the nine scattered `InfluenceProfile(...)` constructors into six named
+`fn row_*() -> InfluenceProfile` builders sited in one block right after
+`influence_response`. Dynamic columns (radii, the pair mass weight
+`m_other/(m_self+m_other)`, tier gains) stay parameters; the constant columns
+live once. The nine sites (contact x2, flee x2, sphere-push x2, agent-sphere,
+point-flee, cube-push) now read `row_agent_contact(...)` / `row_agent_flee(...)`
+/ `row_sphere_push(fe)` / `row_agent_sphere(...)` / `row_point_flee(...)` /
+`row_cube_push()`. STRUCTURE, not VALUES — variant B is the prerequisite for a
+master-panel *structure*, irrelevant to the *numbers* (those still live in the
+five files A5-4 mapped). FXC-safe: a fn returning a constructed struct is not the
+runtime-indexed `const` array the banner forbids.
+
+**Gate (reviewed, not empty — variant B ADDS reachable fns, so growth is
+expected):** per-function backend SPIR-V, canonicalized (per-fn SSA renumber,
+name-suffix + whitespace normalized), across all 5 kernels:
+- `update_sphere`: **byte-identical** (touches no profile — the determinism control).
+- The **six row builders**: added pure constructors, each returning the struct
+  its inline site built (guaranteed by count-asserted text substitution).
+- The **four profile-callers** (`update_player_agent`, `update_other_agents_inner`,
+  `update_camera`, `update_cube`): the *only* body change is inline
+  `OpCompositeConstruct` → `OpFunctionCall %row_*`, passed to `influence_response`
+  in the identical operand slot; every other instruction bit-identical (verified
+  on `update_camera` as the representative single-site case).
+- **Float-constant set per kernel: IDENTICAL** (guards against a fat-fingered
+  column value — none). modcheck 0 messages.

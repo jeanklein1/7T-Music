@@ -2403,6 +2403,39 @@ fn influence_response(self_pos: vec3<f32>, self_vel: vec2<f32>,
     return esc * s;
 }
 
+// [TIDY_1 T1c] The profile table AS CODE -- one contiguous block of row_*()
+// builders, called from the sites. Dynamic columns (radii, the pair mass
+// weight, tier gains) stay parameters; the constant columns live here once.
+// STRUCTURE, not values: each row returns the exact struct its site inlined
+// (T1c gate: the kernels' backend SPIR-V is unchanged). FXC-safe -- a fn
+// returning a constructed struct is not the runtime-indexed const array the
+// banner forbids.
+fn row_agent_contact(g_self: AgentTierParams, og: AgentTierParams, m_self: f32, m_other: f32) -> InfluenceProfile {
+    return InfluenceProfile(g_self.contact_radius + og.contact_radius, 0.0,
+                            CONTACT_SPRING, 0.0, 0.0, CONTACT_IMPULSE_CAP,
+                            m_other / (m_self + m_other), 0.0);
+}
+fn row_agent_flee(g_self: AgentTierParams, og: AgentTierParams) -> InfluenceProfile {
+    return InfluenceProfile((g_self.personal_radius + og.personal_radius) * FLEE_SHELL_FRAC, 0.0,
+                            0.0, NONPLAYER_FLEE_GAIN, 0.0, INFLUENCE_NO_CAP, 1.0, 0.6);
+}
+fn row_sphere_push(fe: FloatingEntityState) -> InfluenceProfile {
+    return InfluenceProfile(fe.influence_radius, 0.0,
+                            SPHERE_PUSH_GAIN, 0.0, 0.0, CONTACT_IMPULSE_CAP, 1.0, 0.0);
+}
+fn row_agent_sphere(g_self: AgentTierParams, fe: FloatingEntityState) -> InfluenceProfile {
+    return InfluenceProfile(g_self.contact_radius + fe.body_radius, 0.0,
+                            CONTACT_SPRING, 0.0, 0.0, CONTACT_IMPULSE_CAP, 1.0, 0.0);
+}
+fn row_point_flee(g_self: AgentTierParams) -> InfluenceProfile {
+    return InfluenceProfile(config.point_bubble_radius, 0.0,
+                            0.0, g_self.flee_gain_player, 1.0, INFLUENCE_NO_CAP, 1.0, 0.6);
+}
+fn row_cube_push() -> InfluenceProfile {
+    return InfluenceProfile(CUBE_PUSH_RADIUS, CUBE_PUSH_VWINDOW,
+                            CUBE_PUSH_GAIN, 0.0, 1.0, CUBE_PUSH_CAP, 1.0, 0.0);
+}
+
 
 // §2.3 MUTING CONTROL
 
@@ -7360,10 +7393,7 @@ fn update_player_agent() {
             // CONTACT_5 P1b: agent-agent contact (PRESENCE) through the one
             // body, all pairs. Reproduces the C1a spring exactly (cap before
             // the mass weight -- min() then * yield_share). Bit-proof: LOG.
-            let c_prof = InfluenceProfile(
-                g_self.contact_radius + og.contact_radius, 0.0,
-                CONTACT_SPRING, 0.0, 0.0, CONTACT_IMPULSE_CAP,
-                m_other / (m_self + m_other), 0.0);
+            let c_prof = row_agent_contact(g_self, og, m_self, m_other);
             let c_r = influence_response(self_p, vec2(0.0), other_p, vec2(0.0),
                                          c_prof, signal.dt, 0.0);
             agent.vel_x += c_r.x;
@@ -7374,9 +7404,7 @@ fn update_player_agent() {
             // flat shell the audit found here, kept as a VISIBLE column beside
             // the point row's falloff_mix 1 (Jean's call whether it softens).
             if (k != config.possessed_slot) {
-                let f_prof = InfluenceProfile(
-                    (g_self.personal_radius + og.personal_radius) * FLEE_SHELL_FRAC, 0.0,
-                    0.0, NONPLAYER_FLEE_GAIN, 0.0, INFLUENCE_NO_CAP, 1.0, 0.6);
+                let f_prof = row_agent_flee(g_self, og);
                 let f_r = influence_response(self_p, vec2(agent.vel_x, agent.vel_z),
                                              other_p, vec2(other.vel_x, other.vel_z),
                                              f_prof, signal.dt, 0.0);
@@ -7399,9 +7427,7 @@ fn update_player_agent() {
         for (var sph = 0u; sph < SPHERE_SLOT_COUNT; sph++) {
             let fe = floating_entities.entities[sph];
             if (fe.is_active == 0u) { continue; }
-            let sp_prof = InfluenceProfile(
-                fe.influence_radius, 0.0,
-                SPHERE_PUSH_GAIN, 0.0, 0.0, CONTACT_IMPULSE_CAP, 1.0, 0.0);
+            let sp_prof = row_sphere_push(fe);
             let sp_r = influence_response(
                 vec3(agent.pos_x, agent.pos_y, agent.pos_z), vec2(0.0),
                 fe.pos, vec2(0.0), sp_prof, signal.dt, 0.0);
@@ -7478,10 +7504,7 @@ fn update_other_agents(@builtin(global_invocation_id) gid: vec3<u32>) {
             // CONTACT_5 P1b: agent-agent contact (PRESENCE) through the one
             // body, all pairs. Reproduces the C1a spring exactly (cap before
             // the mass weight -- min() then * yield_share). Bit-proof: LOG.
-            let c_prof = InfluenceProfile(
-                g_self.contact_radius + og.contact_radius, 0.0,
-                CONTACT_SPRING, 0.0, 0.0, CONTACT_IMPULSE_CAP,
-                m_other / (m_self + m_other), 0.0);
+            let c_prof = row_agent_contact(g_self, og, m_self, m_other);
             let c_r = influence_response(self_p, vec2(0.0), other_p, vec2(0.0),
                                          c_prof, signal.dt, 0.0);
             agent.vel_x += c_r.x;
@@ -7492,9 +7515,7 @@ fn update_other_agents(@builtin(global_invocation_id) gid: vec3<u32>) {
             // flat shell the audit found here, kept as a VISIBLE column beside
             // the point row's falloff_mix 1 (Jean's call whether it softens).
             if (k != config.possessed_slot) {
-                let f_prof = InfluenceProfile(
-                    (g_self.personal_radius + og.personal_radius) * FLEE_SHELL_FRAC, 0.0,
-                    0.0, NONPLAYER_FLEE_GAIN, 0.0, INFLUENCE_NO_CAP, 1.0, 0.6);
+                let f_prof = row_agent_flee(g_self, og);
                 let f_r = influence_response(self_p, vec2(agent.vel_x, agent.vel_z),
                                              other_p, vec2(other.vel_x, other.vel_z),
                                              f_prof, signal.dt, 0.0);
@@ -7510,9 +7531,7 @@ fn update_other_agents(@builtin(global_invocation_id) gid: vec3<u32>) {
             // body. Reference is the sphere's OWN body (fe.body_radius, S2c);
             // yield 1 -- the agent takes the whole push, the sphere is unmoved
             // here (P2a gives the sphere authority over the POINT, not agents).
-            let s_prof = InfluenceProfile(
-                g_self.contact_radius + fe.body_radius, 0.0,
-                CONTACT_SPRING, 0.0, 0.0, CONTACT_IMPULSE_CAP, 1.0, 0.0);
+            let s_prof = row_agent_sphere(g_self, fe);
             let s_r = influence_response(
                 vec3(agent.pos_x, agent.pos_y, agent.pos_z), vec2(0.0),
                 fe.pos, vec2(0.0), s_prof, signal.dt, 0.0);
@@ -7536,9 +7555,7 @@ fn update_other_agents(@builtin(global_invocation_id) gid: vec3<u32>) {
                 src_vel = vec2(pawn.vel_x, pawn.vel_z);
                 a_floor = 0.0;
             }
-            let p_prof = InfluenceProfile(
-                config.point_bubble_radius, 0.0,
-                0.0, g_self.flee_gain_player, 1.0, INFLUENCE_NO_CAP, 1.0, 0.6);
+            let p_prof = row_point_flee(g_self);
             let p_r = influence_response(
                 vec3(agent.pos_x, agent.pos_y, agent.pos_z),
                 vec2(agent.vel_x, agent.vel_z),
@@ -7622,9 +7639,7 @@ fn update_camera() {
         for (var sph = 0u; sph < SPHERE_SLOT_COUNT; sph++) {
             let fe = floating_entities.entities[sph];
             if (fe.is_active == 0u) { continue; }
-            let sp_prof = InfluenceProfile(
-                fe.influence_radius, 0.0,
-                SPHERE_PUSH_GAIN, 0.0, 0.0, CONTACT_IMPULSE_CAP, 1.0, 0.0);
+            let sp_prof = row_sphere_push(fe);
             let sp_r = influence_response(
                 camera.pos, vec2(0.0), fe.pos, vec2(0.0), sp_prof, signal.dt, 0.0);
             camera.pos.x += sp_r.x * signal.dt;
@@ -8011,9 +8026,7 @@ fn update_cube() {
             // instant you step out; standing still inside still pushes.
             var push_impulse = vec3(0.0);
             {
-                let q_prof = InfluenceProfile(
-                    CUBE_PUSH_RADIUS, CUBE_PUSH_VWINDOW,
-                    CUBE_PUSH_GAIN, 0.0, 1.0, CUBE_PUSH_CAP, 1.0, 0.0);
+                let q_prof = row_cube_push();
                 let q_r = influence_response(
                     fe.pos, vec2(0.0), point_pos(), vec2(0.0), q_prof, dt, 0.0);
                 push_impulse = vec3(q_r.x, 0.0, q_r.y);
