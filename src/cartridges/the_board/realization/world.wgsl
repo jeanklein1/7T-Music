@@ -4296,6 +4296,13 @@ struct PatchTerrainVarying {
     // the surface — wall fragments interpolate toward 1. Remove with
     // the instruments after conviction.
     @location(4) skirt: f32,
+    // THE CARRIED ADDRESS (ONE-ADDRESS LAW, charter C8). xy = the owning
+    // cell, patch-local, decoded in the VS. z = 1 on the cap and base
+    // bands, where every vertex of a primitive shares one cell so flat is
+    // exact; 0 on legacy and skirt, whose quads straddle cells and whose
+    // fragments keep the world floor. A curtain face stands exactly ON
+    // the cell boundary, where cell_address floors into the neighbour.
+    @location(5) @interpolate(flat) cell_local: vec3<u32>,
 }
 
 // patch_terrain_vs — hand-fused POLICY_TERRAIN_RENDER evaluation.
@@ -4388,6 +4395,8 @@ fn patch_terrain_vs(
     // (out.complexity REMOVED — the LATENT[complexity] varying;
     //  the .w channel it read is now unused, no FS ever consumed it.)
     out.patch_uv = uv;
+    out.cell_local = vec3<u32>(d.cellx, d.cellz,
+                               select(0u, 1u, vi >= UG_CAP_BASE));
     out.layer = pi.layer;
     out.skirt = d.wall;   // the INCIDENT-#2 instrument, generalized — 1 on
                           // curtain-bottom + skirt copies (wall fragments
@@ -4454,14 +4463,16 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
     // FIELDS (this texel) and HASHES (this address) can never mix
     // cells — the chimera is inexpressible. In-domain fragments:
     // raw == clamped ⇒ addr_used == the world floor, bit-identical.
-    let addr_used = patch_grid * i32(PATCH_CELL_N) + cell_texel;
+    let owned_texel = select(cell_texel, vec2<i32>(in.cell_local.xy),
+                             in.cell_local.z == 1u);
+    let addr_used = patch_grid * i32(PATCH_CELL_N) + owned_texel;
 
     // Color fully composited at gen-time in the cell texture.
     // Alpha carries the cell behavior tag (0.0 = static, nonzero = animated).
     // One-address: loaded at the law texel (was a nearest-neighbor SAMPLE
     // by patch_uv — the second addressing that made the seam expressible).
     let color_sample = textureLoad(
-        patch_cell_color_array_read, cell_texel, i32(in.layer), 0);
+        patch_cell_color_array_read, owned_texel, i32(in.layer), 0);
 
     var base_color = color_sample.rgb;
 
