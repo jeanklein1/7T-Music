@@ -332,8 +332,9 @@ fn ug_cell_perimeter(k: u32) -> vec2<u32> {
 struct UgVert {
     vx: u32,
     vz: u32,
-    cellx: u32,
-    cellz: u32,
+    cellx: u32,        // owning cell, patch-local. Cap and base decode it
+    cellz: u32,        // directly; legacy and skirt derive it from the
+                       // min-corner grid vert, which names their quad's cell.
     lift_scale: f32,   // 1 cap/legacy/skirt, 0 base (no lift — the gap IS the curtain)
     drop: f32,         // PATCH_SKIRT_DEPTH on skirt ring copies
     wall: f32,         // 1 on curtain-bottom + skirt copies
@@ -347,11 +348,15 @@ fn ug_decode(vi: u32) -> UgVert {
         // legacy grid (the LOD1/soft space)
         d.vx = vi % PATCH_MESH_STRIDE;
         d.vz = vi / PATCH_MESH_STRIDE;
+        d.cellx = min(d.vx / UG_QUADS, PATCH_CELL_N - 1u);
+        d.cellz = min(d.vz / UG_QUADS, PATCH_CELL_N - 1u);
     } else if (vi < UG_CAP_BASE) {
         // skirt ring copy — keeps its legacy slot, drops after compositing
         let g = patch_skirt_grid(vi - PATCH_GRID_VERT_COUNT);
         d.vx = g.x;
         d.vz = g.y;
+        d.cellx = min(d.vx / UG_QUADS, PATCH_CELL_N - 1u);
+        d.cellz = min(d.vz / UG_QUADS, PATCH_CELL_N - 1u);
         d.drop = PATCH_SKIRT_DEPTH;
         d.wall = 1.0;
     } else if (vi < UG_BASE_BASE) {
@@ -363,6 +368,8 @@ fn ug_decode(vi: u32) -> UgVert {
         let lz = k / UG_CAP_STRIDE;
         d.vx = (cell % PATCH_CELL_N) * UG_QUADS + lx;
         d.vz = (cell / PATCH_CELL_N) * UG_QUADS + lz;
+        d.cellx = cell % PATCH_CELL_N;
+        d.cellz = cell / PATCH_CELL_N;
     } else {
         // base band: curtain-bottom twin of a cap perimeter vert
         let r = vi - UG_BASE_BASE;
@@ -370,12 +377,11 @@ fn ug_decode(vi: u32) -> UgVert {
         let g = ug_cell_perimeter(r % 16u);
         d.vx = (cell % PATCH_CELL_N) * UG_QUADS + g.x;
         d.vz = (cell / PATCH_CELL_N) * UG_QUADS + g.y;
+        d.cellx = cell % PATCH_CELL_N;
+        d.cellz = cell / PATCH_CELL_N;
         d.lift_scale = 0.0;
         d.wall = 1.0;
     }
-    // the uniform cell-assignment rule (legacy/skirt verts included)
-    d.cellx = min(d.vx / UG_QUADS, PATCH_CELL_N - 1u);
-    d.cellz = min(d.vz / UG_QUADS, PATCH_CELL_N - 1u);
     return d;
 }
 
@@ -4290,6 +4296,13 @@ struct PatchTerrainVarying {
     // the surface — wall fragments interpolate toward 1. Remove with
     // the instruments after conviction.
     @location(4) skirt: f32,
+    // THE CARRIED ADDRESS (ONE-ADDRESS LAW, charter C8). xy = the owning
+    // cell, patch-local, decoded in the VS. z = 1 on the cap and base
+    // bands, where every vertex of a primitive shares one cell so flat is
+    // exact; 0 on legacy and skirt, whose quads straddle cells and whose
+    // fragments keep the world floor. A curtain face stands exactly ON
+    // the cell boundary, where cell_address floors into the neighbour.
+    @location(5) @interpolate(flat) cell_local: vec3<u32>,
 }
 
 // patch_terrain_vs — hand-fused POLICY_TERRAIN_RENDER evaluation.
@@ -4382,6 +4395,8 @@ fn patch_terrain_vs(
     // (out.complexity REMOVED — the LATENT[complexity] varying;
     //  the .w channel it read is now unused, no FS ever consumed it.)
     out.patch_uv = uv;
+    out.cell_local = vec3<u32>(d.cellx, d.cellz,
+                               select(0u, 1u, vi >= UG_CAP_BASE));
     out.layer = pi.layer;
     out.skirt = d.wall;   // the INCIDENT-#2 instrument, generalized — 1 on
                           // curtain-bottom + skirt copies (wall fragments
@@ -4448,14 +4463,16 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
     // FIELDS (this texel) and HASHES (this address) can never mix
     // cells — the chimera is inexpressible. In-domain fragments:
     // raw == clamped ⇒ addr_used == the world floor, bit-identical.
-    let addr_used = patch_grid * i32(PATCH_CELL_N) + cell_texel;
+    let owned_texel = select(cell_texel, vec2<i32>(in.cell_local.xy),
+                             in.cell_local.z == 1u);
+    let addr_used = patch_grid * i32(PATCH_CELL_N) + owned_texel;
 
     // Color fully composited at gen-time in the cell texture.
     // Alpha carries the cell behavior tag (0.0 = static, nonzero = animated).
     // One-address: loaded at the law texel (was a nearest-neighbor SAMPLE
     // by patch_uv — the second addressing that made the seam expressible).
     let color_sample = textureLoad(
-        patch_cell_color_array_read, cell_texel, i32(in.layer), 0);
+        patch_cell_color_array_read, owned_texel, i32(in.layer), 0);
 
     var base_color = color_sample.rgb;
 
@@ -4540,9 +4557,7 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
                     let zn = vec2<i32>(floor(zp.origin / MODE_LATTICE_SPACING));
                     if (zn.x == zone_node.x && zn.y == zone_node.y) {
                         let zone_corner = zp.origin - zp.extent * 0.5;
-                        let cell_size = zp.extent / f32(zp.grid_size);
-                        let rel = in.world_pos.xz - zone_corner;
-                        let local_cell = vec2<i32>(floor(rel / cell_size));
+                        let local_cell = addr_used - cell_address(zone_corner);
 
                         if (local_cell.x < 0 || local_cell.x >= i32(zp.grid_size) ||
                             local_cell.y < 0 || local_cell.y >= i32(zp.grid_size)) { break; }
