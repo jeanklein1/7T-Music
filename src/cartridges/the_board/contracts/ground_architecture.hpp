@@ -53,14 +53,12 @@ enum ContributorId : uint32_t {
     CONTRIB_TILE_MODIFIERS    = 1,   // fused into contrib_static_base_at
     CONTRIB_SOLIDS            = 2,   // piers, ramps; fused into contrib_static_base_at
     CONTRIB_PYRAMIDS          = 3,
-    CONTRIB_PAINTINGS_BASES   = 4,   // STATUS: INTENT — 0.0 stub (contrib_paintings_base_at); in no policy mask
-    CONTRIB_VEGETATION_BASES  = 5,   // STATUS: INTENT — 0.0 stub (contrib_vegetation_base_at); in no policy mask
-    CONTRIB_GOL_ZONES         = 6,   // slow_dynamic
-    CONTRIB_TERRAIN_WAVES     = 7,   // deformation_field, global
-    CONTRIB_RADIAL_PULSES     = 8,   // deformation_field, global
-    CONTRIB_PAWN_AURA         = 9,   // deformation_field, global pawn-centered (two consumer forms: _at_self scalar peak / _at_external grid — see world.wgsl's contributor notes)
-    CONTRIB_GOL_SUPPRESSION   = 10,  // deformation_field, consumer-local (subtractive)
-    CONTRIB_COUNT             = 11,
+    CONTRIB_GOL_ZONES         = 4,   // slow_dynamic
+    CONTRIB_TERRAIN_WAVES     = 5,   // deformation_field, global
+    CONTRIB_RADIAL_PULSES     = 6,   // deformation_field, global
+    CONTRIB_PAWN_AURA         = 7,   // deformation_field, global pawn-centered (two consumer forms: _at_self scalar peak / _at_external grid — see world.wgsl's contributor notes)
+    CONTRIB_GOL_SUPPRESSION   = 8,  // deformation_field, consumer-local (subtractive)
+    CONTRIB_COUNT             = 9,
 };
 
 // MIRROR (b1): these ids are mirrored byte-for-byte
@@ -93,9 +91,6 @@ inline constexpr ContributorEdge CONTRIBUTOR_DAG[] = {
     // STATUS: INTENT — endpoints are 0.0 stubs today; real composition
     // pending paintings/vegetation bases. Kept: closure over them is
     // well-defined (currently vacuous — no mask includes the stubs).
-    { CONTRIB_PYRAMIDS,         CONTRIB_PAINTINGS_BASES  },
-    { CONTRIB_SOLIDS,           CONTRIB_PAINTINGS_BASES  },
-    { CONTRIB_SOLIDS,           CONTRIB_VEGETATION_BASES },
 };
 inline constexpr uint32_t CONTRIBUTOR_DAG_EDGE_COUNT =
     sizeof(CONTRIBUTOR_DAG) / sizeof(CONTRIBUTOR_DAG[0]);
@@ -106,7 +101,6 @@ struct PolicyDef {
     PolicyId    id;
     const char* name;
     uint32_t    contributors;       // bitmask: bit k set iff contributor k is in the policy
-    bool        gradient_supported;
 };
 
 // The three fused static-base contributors travel together in every
@@ -122,28 +116,33 @@ inline constexpr PolicyDef POLICIES[] = {
 
     // Baked heightfield — cached static ground texture consumed by
     // patch VS interpolation and CPU readbacks.
-    // STATUS: REALIZED — fused twin ground_formed_with_complexity feeds
-    // the bake; analytic form is the zone-mesh fallback; texture variant
-    // is sample_terrain_y_at.
+    // STATUS: REALIZED (no arm) — the baked path is consumed DIRECTLY, not
+    // through the dispatcher: fused twin ground_formed_with_complexity
+    // feeds the bake, the analytic form is the zone-mesh fallback, and
+    // sample_terrain_y_at is the texture variant (which is also what the
+    // switch's default arm returns). R8: the switch holds exactly the
+    // policies that travel through it, and this id never does — its WGSL
+    // constant and its arm went in PRUNING_1 P1 5b. The row stays because
+    // the contributor set is real and the DAG still validates it.
     { POLICY_BAKED_HEIGHTFIELD, "baked_heightfield",
       GROUND_STATIC_BASE_MASK
-        | (1u << CONTRIB_PYRAMIDS),
-      /*gradient=*/false },
+        | (1u << CONTRIB_PYRAMIDS) },
 
     // Fly-over policy — spheres, cubes, cameras. Includes all global
     // deformation fields so flyers ride pulses and auras.
     // STATUS: REALIZED — camera clamp, sphere orbit clearance, cube
-    // hover + clearance (query_ground_flyer). gradient=true is intent:
-    // query_ground_flyer_gradient exists with zero callers — see its
-    // LATENT[policy-surface] tag.
+    // hover + clearance (query_ground_flyer). Gradients, where a consumer
+    // wants them, come from manifold_resolve's finite difference over this
+    // same policy; there is no per-policy gradient function and there is
+    // no need for one. (query_ground_flyer_gradient existed with zero
+    // callers and was deleted — PRUNING_1 P1 5b.)
     { POLICY_FLYER, "flyer",
       GROUND_STATIC_BASE_MASK
         | (1u << CONTRIB_PYRAMIDS)
         | (1u << CONTRIB_GOL_ZONES)
         | (1u << CONTRIB_TERRAIN_WAVES)
         | (1u << CONTRIB_RADIAL_PULSES)
-        | (1u << CONTRIB_PAWN_AURA),
-      /*gradient=*/true },                  // (intent; gradient path uncalled — see status)
+        | (1u << CONTRIB_PAWN_AURA) },                  // (intent; gradient path uncalled — see status)
 
     // Walker — the pawn. Everything flyer includes, plus the
     // consumer-local GoL suppression that flattens the zone under
@@ -157,8 +156,7 @@ inline constexpr PolicyDef POLICIES[] = {
         | (1u << CONTRIB_TERRAIN_WAVES)
         | (1u << CONTRIB_RADIAL_PULSES)
         | (1u << CONTRIB_PAWN_AURA)
-        | (1u << CONTRIB_GOL_SUPPRESSION),
-      /*gradient=*/true },                  // (intent; gradient path uncalled — see status)
+        | (1u << CONTRIB_GOL_SUPPRESSION) },                  // (intent; gradient path uncalled — see status)
 
     // Walker-tilt — walker minus the self aura, used for tilt/normal
     // computation and step-climb decisions. Excludes CONTRIB_PAWN_AURA
@@ -177,8 +175,7 @@ inline constexpr PolicyDef POLICIES[] = {
         | (1u << CONTRIB_GOL_ZONES)
         | (1u << CONTRIB_TERRAIN_WAVES)
         | (1u << CONTRIB_RADIAL_PULSES)
-        | (1u << CONTRIB_GOL_SUPPRESSION),  // pawn-centered; same suppression walker applies
-      /*gradient=*/true },
+        | (1u << CONTRIB_GOL_SUPPRESSION) },  // pawn-centered; same suppression walker applies
 
     // Walker-agent — agents feel the full GoL lift (no suppression).
     // STATUS: REALIZED — agent_post_step ground snap (scalar only).
@@ -188,8 +185,7 @@ inline constexpr PolicyDef POLICIES[] = {
         | (1u << CONTRIB_GOL_ZONES)
         | (1u << CONTRIB_TERRAIN_WAVES)
         | (1u << CONTRIB_RADIAL_PULSES)
-        | (1u << CONTRIB_PAWN_AURA),
-      /*gradient=*/true },                  // (intent; gradient path unrealized — no gradient fn, no multi-sample consumer)
+        | (1u << CONTRIB_PAWN_AURA) },                  // (intent; gradient path unrealized — no gradient fn, no multi-sample consumer)
 
 
     // Terrain-render — the fused render-side set: the baked heightfield
@@ -204,15 +200,18 @@ inline constexpr PolicyDef POLICIES[] = {
     // that add contrib_terrain_waves_at alone atop the entity ground
     // atlas are sanctioned single-contributor consumptions of this same
     // render set.
-    // STATUS: REALIZED (fused-only).
+    // STATUS: REALIZED (fused-only, no arm) — hand-fused into
+    // patch_terrain_vs and shadow_patch_terrain_vs, never dispatched. R8:
+    // the row and its contributor set stay and the DAG still validates
+    // them; the WGSL constant went in PRUNING_1 P1 5b, having never had an
+    // arm to lose.
     { POLICY_TERRAIN_RENDER, "terrain_render",
       GROUND_STATIC_BASE_MASK
         | (1u << CONTRIB_PYRAMIDS)
         | (1u << CONTRIB_TERRAIN_WAVES)
         | (1u << CONTRIB_RADIAL_PULSES)
         | (1u << CONTRIB_GOL_ZONES)   // realized as the card's .a, cell-nearest, pawn-suppressed — UNIFIED_GROUND_1 (DAG: GoL has no ancestors)
-        | (1u << CONTRIB_PAWN_AURA),
-      /*gradient=*/true },                  // realized in the fused VS (texture .yz + analytic wave gradient)
+        | (1u << CONTRIB_PAWN_AURA) },                  // realized in the fused VS (texture .yz + analytic wave gradient)
 };
 inline constexpr uint32_t POLICY_COUNT_IN_TABLE =
     sizeof(POLICIES) / sizeof(POLICIES[0]);

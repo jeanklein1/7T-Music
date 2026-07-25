@@ -195,6 +195,27 @@ def main():
             elif c != w:
                 errs.append("policy mirror: `%s` is %d in C++ and %d in WGSL"
                             % (n, c, w))
+        # The contributor enum is the same species: its values are shift
+        # counts (`1u << CONTRIB_X`), so a one-room renumber silently
+        # re-points every mask bit.
+        ec = re.search(r"enum ContributorId\s*:\s*uint32_t\s*\{(.*?)\}", hpp, re.S)
+        cpp_c = {}
+        if ec:
+            for n, v in re.findall(r"(CONTRIB_\w+)\s*=\s*(\d+)", ec.group(1)):
+                cpp_c[n] = int(v)
+        wgsl_c = {n: int(v) for n, v in
+                  re.findall(r"^const\s+(CONTRIB_\w+)\s*:\s*u32\s*=\s*(\d+)u;",
+                             cur["text"], re.M)}
+        for n in sorted(set(cpp_c) & set(wgsl_c)):
+            if cpp_c[n] != wgsl_c[n]:
+                errs.append("contributor mirror: `%s` is %d in C++ and %d in WGSL"
+                            % (n, cpp_c[n], wgsl_c[n]))
+        # One-room existence is legal for contributors as for policies: the
+        # WGSL copy was an unreferenced documentation mirror and PRUNING_1 P1
+        # 5b deleted it, leaving the C++ table — which the DAG assert actually
+        # validates — as the single authority. Only a VALUE disagreement
+        # between two live copies is an error.
+
         rows = len(re.findall(r"^    \{ POLICY_", hpp, re.M))
         cnt = re.search(r"POLICY_COUNT\s*=\s*(\d+)", hpp)
         if cnt and rows and int(cnt.group(1)) != rows:
