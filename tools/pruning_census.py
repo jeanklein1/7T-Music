@@ -801,12 +801,21 @@ def governed_symbol(lines, idx, wgsl=False):
     confused with the governed one."""
     governs = "(unattributed)"
     scanned = 0
-    for k in range(idx, len(lines)):
+    # A HARD DISTANCE CAP as well as a statement budget. Skipping comment
+    # lines without consuming budget is right for an 8-line doc block; with
+    # no cap it walks the length of a 40-line banner and attributes the tag
+    # to whatever declaration eventually turns up, which is a different
+    # symbol entirely.
+    LOOKAHEAD = 24
+    for k in range(idx, min(idx + LOOKAHEAD, len(lines))):
         s = lines[k]
         if not s.strip() or _is_comment(s) or ATTR_ONLY.match(s):
             continue
         scanned += 1
         if scanned > 3:
+            break
+        if k - idx > 12:
+            governs = "(unattributed — nearest declaration is %d lines away)" % (k - idx)
             break
         for pat in DECL_NAME:
             m = pat.match(s)
@@ -878,16 +887,28 @@ def scan_status_tags(files):
                 before = line[: m.start()]
                 if "//" not in before and not line.strip().startswith(("*", "//", "/*")):
                     continue
+                bracketed = ("INTENT[" in line) or ("LATENT[" in line)
                 if i in legend_lines:
                     kind = "LEGEND (defines the vocabulary)"
-                elif TOMBSTONE_RE.search(line):
+                elif re.search(r"\b(?:REMOVED|RETIRED|removed|retired)\b", line) \
+                        and "STATUS:" not in line:
+                    # §6.1's tombstone census keys on UPPERCASE because that is
+                    # the house marker. But for CLASSIFYING a tag site, the
+                    # lowercase form is just as decisive: "was LATENT[complexity],
+                    # removed by the husk sweep" is a record of something already
+                    # gone, whatever the case.
                     kind = "tombstone-ref (already removed)"
-                elif label == "INTENT (bare)" and "INTENT[" not in line:
-                    kind = "**prose — not a tag**"
-                elif label == "LATENT[...]" and "LATENT[" not in line:
+                elif re.search(r"see its\b|\bat its definition\b|\btag\.\s*$"
+                               r"|\bcross-ref", line):
+                    # A pointer to a tag that lives elsewhere is not itself a
+                    # tag site; counting it double-counts the same capability.
+                    kind = "**cross-reference — the tag lives elsewhere**"
+                elif not bracketed and label in ("INTENT (bare)", "LATENT[...]"):
                     kind = "**prose — not a tag**"
                 else:
                     kind = "TAG"
+                if bracketed and label == "INTENT (bare)":
+                    label = "INTENT[...]"
                 gov, inside = governed_symbol(lines, i, wgsl)
                 # A tag in the file's opening banner governs the FILE, not the
                 # `#include` or `namespace` that happens to follow it.
@@ -1160,11 +1181,14 @@ def main():
     R("handoff scoped, and that is the reason several §7 verdicts read")
     R("RULE(Jean) where the handoff would have expected DELETE.")
     R()
-    R("Sized honestly, because the correction is worth only what it measures:")
-    R("the shader mirror is cheap to fix today (§5.3 shows the web host")
-    R("dispatches two entry points and both still exist on the desktop), while")
-    R("the config packer is the one that actually bites (§3.3 — five deletion")
-    R("candidates are written there at hand-typed offsets that nothing checks).")
+    R("Sized, because the correction is worth only what it measures — and the")
+    R("measurement is worse than the obvious reading. §5.3 shows the web host")
+    R("dispatches SIX entry points of the shared shader, and that the desktop")
+    R("versions of two of them now reach a binding (`g1:34 live_card_read`) the")
+    R("mirror never declared. **A `cp` resync would fail pipeline creation at")
+    R("boot.** The resync is a port task, not a copy. §3.3 is a second and")
+    R("independent hazard: five deletion candidates are written into")
+    R("`%s` at hand-typed offsets that nothing checks." % WEB_UNIFORMS)
     R()
     R("---")
     R()
@@ -1345,11 +1369,18 @@ def main():
 
     R("### §1.4 — `struct` declarations with zero references")
     R()
-    dead_structs = [(n, l) for n, l in sorted(w.structs.items())
+    dead_structs = [(n, l, mirror_status(n)[0], mirror_status(n)[1])
+                    for n, l in sorted(w.structs.items())
                     if w.references_outside_decl(n, l) == 0]
-    R("Unreferenced: **%d** of %d." % (len(dead_structs), len(w.structs)))
+    R("Unreferenced: **%d** of %d — of which **%d are still used by the web" %
+      (len(dead_structs), len(w.structs),
+       sum(1 for d in dead_structs if d[2].startswith("**"))))
+    R("mirror**, and are therefore not free deletions (same gate as §1.2/§1.3).")
     R()
-    R.table(["struct", "line"], dead_structs)
+    R.table(["struct", "line", "web mirror", "mirror detail", "class"],
+            [(n, l, st, det or "—",
+              "**LIVE IN THE WEB MIRROR — RULE(Jean)**" if st.startswith("**")
+              else "orphan — DELETE") for n, l, st, det in dead_structs])
 
     R("### §1.5 — `override` declarations")
     R()
@@ -1799,7 +1830,9 @@ def main():
     R("> 16 B alignment, so the buffer only shrinks in 16 B steps: %d B of dead" % running)
     R("> field yields `592 → %d`, a **%d B** real reduction of the upload." %
       (roundup(cpp_size - running, 16), realised))
-    R("> (3) The config is uploaded once per dirty-flag flush, not per draw —")
+    R("> (3) Every one of these is **RULE(Jean)**, not DELETE, because of §3.3:")
+    R("> the JS packer indexes the same buffer by hand and nothing checks it.")
+    R("> (4) The config is uploaded once per dirty-flag flush, not per draw —")
     R("> so even that %d B is a *bandwidth* saving of the smallest kind. **The" % realised)
     R("> reason to do this is legibility, not frames.** Say so to Jean rather")
     R("> than letting a byte count imply a performance claim.")
@@ -1811,6 +1844,7 @@ def main():
     # with the byte offsets hard-coded in JS. Nothing checks it. A field
     # deletion re-flows every later offset and silently corrupts it.
     web_u = read(WEB_UNIFORMS)
+    web_offsets, hazards = [], []
     zero_names = {z[0] for z in zero_readers}
     R("### §3.3 — THE THIRD ROOM ⚠ (`%s`)" % WEB_UNIFORMS)
     R()
@@ -1895,6 +1929,9 @@ def main():
                 hazards.append((nm, lineno(web_u, lo_off + wm.start()), a * 4))
         rows.sort(key=lambda r: (r[2], r[0]))
         hazards = sorted(set(hazards))
+        # Captured HERE: `rows` is a name later sections reassign, and reading
+        # it from §7 silently picked up a different table.
+        web_offsets = sorted({r[2] for r in rows})
         R("**The config mirror has THREE rooms, not two.** `%s` packs the same" % WEB_UNIFORMS)
         R("buffer for the web port by **raw word index**, with the byte offsets")
         R("written into the source as comments. Nothing checks it against either")
@@ -1932,6 +1969,15 @@ def main():
             R("room by the shared struct — **the JS room is protected by nothing**.")
             R("It would keep writing the old offsets and the web demo would boot")
             R("with silently wrong palette, veil and LOD values.")
+            R()
+            R("**And the hazard is wider than those five.** Being *written* by the")
+            R("packer is not the test. Deleting ANY field re-flows every offset")
+            R("above it, so every one of the **%d** hand-written indices sitting" % len(web_offsets))
+            R("higher than the deleted field starts pointing one slot early. For")
+            R("the lowest candidate (`mute_dynamics_2d` @4) that is essentially the")
+            R("whole packer. So **all %d §3.2 candidates are RULE(Jean)**, not just" % len(zero_readers))
+            R("the five the packer names — the five are merely the ones where the")
+            R("breakage is visible at the deletion site rather than 300 bytes away.")
             R()
             R("**This changes the §3 verdict from DELETE to RULE(Jean).** The cut is")
             R("still right; it is a *three-room* commit, and the third room needs")
@@ -2006,8 +2052,14 @@ def main():
     R.table(["tag class", "raw sites", "of which TAG (the ruling surface)"],
             sorted((c, n, sum(1 for t in actionable if t["tag"] == c))
                    for c, n in counts.items()))
+    mirror_tags = 0
+    if exists(WEB_WGSL):
+        for ln in splitlines_exact(read(WEB_WGSL)):
+            if any(p2.search(ln) for _l, p2 in TAG_PATTERNS):
+                mirror_tags += 1
     R("**%d raw matches, of which %d are the actual ruling surface.**" %
       (len(tags), len(actionable)))
+
     R("The rest are not tags at all, and counting them would inflate the")
     R("campaign's apparent size:")
     R()
@@ -2023,7 +2075,15 @@ def main():
                 "**prose — not a tag**":
                     "an unbracketed LATENT/INTENT in an English sentence or a "
                     "banner, e.g. “THE DRIVER'S INTENT ORGAN”",
+                "**cross-reference — the tag lives elsewhere**":
+                    "a pointer to a tag declared somewhere else (“see its "
+                    "LATENT[...] tag”); counting it double-counts one capability",
             }.get(k, "—")) for k, n in sorted(kinds.items())])
+    R("**Scope, disclosed:** `src/**` `.hpp/.cpp/.h/.wgsl` only. `%s`" % WEB_WGSL)
+    R("carries a further **%d** tag-word lines and is deliberately NOT counted" % mirror_tags)
+    R("here — it is a mirror, so its tags are copies of desktop tags at an older")
+    R("commit, and ruling on them is the resync's business (§5.3), not §4's.")
+    R()
     shallow = exists(".git/shallow")
     R("**Dating caveat — read this before treating age as evidence.** This")
     R("checkout is a **%sclone %s commits deep, rooted at %s**." %
@@ -2123,7 +2183,9 @@ def main():
     R()
     R.table(["fn", "line", "callers", "called by", "reachable from a live entry?"],
             [(n, w.functions[n]["line"], len(w.callers_of(n)),
-              ", ".join(w.callers_of(n)[:3]) or "— **none**",
+              (", ".join(w.callers_of(n)[:3]) +
+               (" …(+%d)" % (len(w.callers_of(n)) - 3) if len(w.callers_of(n)) > 3 else ""))
+              or "— **none**",
               "yes" if n in live_fns else "**no**") for n in qg])
 
     pm = sorted(n for n in w.consts if re.match(r"POLICY_\w*MASK", n))
@@ -2179,6 +2241,16 @@ def main():
                     r"\{\s*(POLICY_\w+)\s*,\s*\"([^\"]*)\"(.*?)/\*gradient=\*/\s*(true|false)",
                     seg, re.S):
                 pid, pname, _mid, grad = m.groups()
+                # THE ROW'S OWN CLAIM. Each POLICIES[] entry is preceded by a
+                # comment block that ends in `STATUS: <word>`. Ignoring it and
+                # ruling purely on "is there a query_ground_<name> fn" gets
+                # POLICY_TERRAIN_RENDER exactly wrong — the tree says
+                # "STATUS: REALIZED (fused-only)" and explains that the policy
+                # has no query fn BY DESIGN, being hand-fused into
+                # patch_terrain_vs for per-vertex cost.
+                head = seg[:m.start()]
+                sm = re.findall(r"STATUS:\s*([A-Z]+)([^\n]*)", head)
+                authored = ("%s%s" % (sm[-1][0], sm[-1][1][:28].rstrip())) if sm else "—"
                 qfn = "query_ground_" + pname
                 gfn = qfn + "_gradient"
                 served_by = arm_policy.get(pid)
@@ -2198,6 +2270,10 @@ def main():
                 elif dispatched:
                     real = "REALIZED — arm dispatches `%s`" % served_by
                     verdict = "KEEP"
+                elif qfn not in w.functions and authored.startswith("REALIZED"):
+                    real = ("no `%s` and no arm — but the row declares "
+                            "**%s**, i.e. hand-fused elsewhere" % (qfn, authored))
+                    verdict = "KEEP — realized by fusion, not by a query fn"
                 elif qfn not in w.functions:
                     real = "**declared only — no `%s`, no arm**" % qfn
                     verdict = "**RULE(Jean)** — declared interface, zero realization"
@@ -2207,21 +2283,46 @@ def main():
                 else:
                     real = "fn exists, called from %d site(s), not via the switch" % callers
                     verdict = "KEEP"
+                # GRADIENTS ARE REALIZED GENERICALLY. `manifold_resolve` takes a
+                # policy id and returns a normal by finite-differencing
+                # `manifold_height_hf` — so "there is no query_ground_X_gradient
+                # fn" does NOT mean the gradient is unrealized. Look for the
+                # generic path and for named consumers before saying "intent".
                 gstat = "—"
                 if grad == "true":
-                    if gfn in w.functions:
-                        gc = len(w.callers_of(gfn))
-                        gstat = ("`%s` ×%d callers" % (gfn, gc)) if gc else \
-                            "**`%s` exists, ZERO callers — intent, not realization**" % gfn
+                    _pid_re = re.compile(r"\b" + re.escape(pid) + r"\b")
+                    generic = [c for c in w.callers_of("manifold_resolve")
+                               if _pid_re.search(w.functions.get(c, {}).get("body", ""))]
+                    if gfn in w.functions and w.callers_of(gfn):
+                        gstat = "`%s` ×%d callers" % (gfn, len(w.callers_of(gfn)))
+                    elif generic:
+                        gstat = ("realized **generically** — `manifold_resolve` "
+                                 "finite-differences it for this policy, via %s" %
+                                 ", ".join("`%s`" % c for c in generic[:2]))
+                    elif "manifold_resolve" in w.functions:
+                        gstat = ("no per-policy fn; `manifold_resolve` can "
+                                 "finite-difference any policy, but no site "
+                                 "does so for this one")
+                    elif gfn in w.functions:
+                        gstat = "**`%s` exists, ZERO callers — intent**" % gfn
                     else:
-                        gstat = "**no `%s` fn at all — intent, not realization**" % gfn
-                pol_rows.append((pid, pname, "yes" if dispatched else "**no**",
+                        gstat = "**no `%s`, no generic path — intent**" % gfn
+                pol_rows.append((pid, pname, authored, "yes" if dispatched else "**no**",
                                  callers if qfn in w.functions else "—",
                                  mask_refs if mask_refs is not None else "—",
                                  grad, gstat, real, verdict))
-    R.table(["POLICIES[] row", "name", "dispatched by the switch?", "WGSL callers",
+    R.table(["POLICIES[] row", "name", "the row's own `STATUS:`",
+             "dispatched by the switch?", "WGSL callers",
              "`_MASK` refs", "gradient=", "gradient realization",
-             "realization", "recommendation"], pol_rows)
+             "realization (computed)", "recommendation"], pol_rows)
+    R("The **`STATUS:`** column is the tree's own claim, read from the comment")
+    R("block above each row; the **realization** column is what this instrument")
+    R("computes. Where they agree, the row is honest. Where they disagree, read")
+    R("the row before ruling — `POLICY_TERRAIN_RENDER` is the case that matters:")
+    R("it has no `query_ground_*` function *by design* (hand-fused into")
+    R("`patch_terrain_vs` for per-vertex cost) and says so, so \"no query fn\" is")
+    R("not evidence against it.")
+    R()
     R("`PolicyDef::gradient_supported` is **declared and never read** — the field")
     R("exists on the struct (`%s:113`) with zero readers tree-wide; the" % GROUND_ARCH)
     R("`gradient=` column above is the authored value, and the column beside it")
@@ -2255,14 +2356,18 @@ def main():
 
     CUT = {"pga_color_motor"}
     after = reach_without(CUT)
-    after_idents = set()
+    before = reach_without(set())
+    after_idents, before_idents = set(), set()
     for f in after:
         after_idents |= w.direct_idents.get(f, set())
+    for f in before:
+        before_idents |= w.direct_idents.get(f, set())
     after_idents = w.expand_decl_refs(after_idents)
+    before_idents = w.expand_decl_refs(before_idents)
 
     color_motor_closure = w.closure("pga_color_motor") if "pga_color_motor" in w.functions else set()
     prows = []
-    fell = []
+    fell, already = [], []
     for s in PGA:
         line, kind = "—", "—"
         if s in w.functions:
@@ -2277,17 +2382,29 @@ def main():
                 line, kind = lineno(w.text, m.start()), "reference"
         callers = w.callers_of(s) if s in w.functions else []
         survives = (s in after) if kind == "fn" else (s in after_idents)
+        alive_before = (s in before) if kind == "fn" else (s in before_idents)
         if s in CUT:
             part = "**THE CUT** (Jean's ruling)"
         elif survives:
-            keeps = sorted(c for c in callers if c in after)[:3]
-            part = "**SURVIVES** — still reached via %s" % (", ".join(
-                "`%s`" % k for k in keeps) or "a live reference")
+            keeps = sorted(c for c in callers if c in after)
+            shown = ", ".join("`%s`" % k for k in keeps[:3])
+            part = "**SURVIVES** — still reached via %s%s" % (
+                shown or "a live reference",
+                " …(+%d)" % (len(keeps) - 3) if len(keeps) > 3 else "")
+        elif not alive_before:
+            # It was already unreachable BEFORE the cut. Attributing it to the
+            # colour motor would credit the cut with a deletion it does not
+            # make, and would contradict §1.4, which already lists it as
+            # unreferenced at HEAD.
+            part = "**already dead at HEAD** — not the cut's doing (see §1.4)"
+            already.append(s)
         else:
             part = "falls with the colour motor"
             fell.append(s)
         prows.append((s, kind, line, len(callers),
-                      ", ".join(callers[:3]) or "—", part))
+                      (", ".join(callers[:3]) +
+                       (" …(+%d)" % (len(callers) - 3) if len(callers) > 3 else ""))
+                      or "—", part))
     R.table(["symbol", "kind", "line", "callers", "called by", "partition"], prows)
     R()
     R("**Method.** The partition is a *simulated deletion*: remove")
@@ -2306,9 +2423,17 @@ def main():
     R()
     R("**Falls with the cut (%d): %s**" %
       (len(fell), ", ".join("`%s`" % s for s in fell) or "nothing"))
+    R("**Already dead at HEAD, independent of the cut (%d): %s**" %
+      (len(already), ", ".join("`%s`" % s for s in already) or "none"))
     R("**Survives on the ribbon + sphere-orbit paths (%d): %s**" %
-      (len(prows) - len(fell) - 1,
+      (sum(1 for r in prows if r[5].startswith("**SURVIVES")),
        ", ".join("`%s`" % r[0] for r in prows if r[5].startswith("**SURVIVES"))))
+    if already:
+        R()
+        R("The third row matters: crediting an already-unreachable symbol to the")
+        R("cut would overstate what retiring `pga_color_motor` buys, and would")
+        R("contradict §1.4, which lists %s as unreferenced at HEAD." %
+          ", ".join("`%s`" % s for s in already))
     R()
     R("> Note for P1: the caller `%s` does not" %
       (w.callers_of("pga_color_motor")[0] if w.callers_of("pga_color_motor") else "—"))
@@ -2334,7 +2459,7 @@ def main():
     R()
     scan_files = walk_src(
         exts={".hpp", ".cpp", ".h", ".wgsl", ".md", ".txt", ".js", ".mjs", ".py", ".json"},
-        roots=("src", "audit", "web", "tools"),
+        roots=("src", "audit", "web", "tools", "CLAUDE CODE"),
         extra=(CMAKE, "README.md", "DEFERRED_REGISTER.md"),
     )
     scan_files = [p for p in scan_files if "package-lock" not in p]
@@ -2369,6 +2494,16 @@ def main():
         if path in SELF_PATHS:
             return "self"
         if path.startswith("audit/") or path.startswith("src/docs/"):
+            return "archival"
+        # `CLAUDE CODE/` is the campaign-log room: same status as audit/,
+        # EXCEPT CLAUDE.md, which §5.3 elevates to a live governing document
+        # and which therefore has to be scanned like one.
+        if path.startswith("CLAUDE CODE/"):
+            return "load-bearing" if path.endswith("/CLAUDE.md") else "archival"
+        # A past handoff/recon transcript is archival WHEREVER it sits — the
+        # rule is what the file is, not which directory it landed in.
+        base = path.rsplit("/", 1)[-1].lower()
+        if path.endswith(".txt") and ("handoff" in base or "recon" in base):
             return "archival"
         if path.startswith("web/PORT_MAP") or path.endswith(".json"):
             return "archival"
@@ -2410,14 +2545,23 @@ def main():
                 elif room == "archival":
                     archival[(path, label)] += 1
                 elif room == "mirror":
-                    mirror_hits[label] += 1
+                    # Count only NON-COMMENT hits: this table's whole claim is
+                    # "these are LIVE in the mirror", and a tombstone comment
+                    # in the mirror (animated_cell_color is one) is the exact
+                    # opposite of live.
+                    if path == WEB_WGSL:
+                        stripped_line = strip_wgsl(line + "\n").strip()
+                        if stripped_line and pat.search(stripped_line):
+                            mirror_hits[label] += 1
+                    else:
+                        mirror_hits[label] += 1
                 else:
                     dang_counts[(label, ex)] += 1
                     dang_rows.append((path, i + 1, label, "yes" if ex else "**NO**",
                                       line.strip()[:96]))
                 break
-    R("Scanned %d files (src/, audit/, web/, tools/, CMakeLists.txt), excluding" % len(scan_files))
-    R("`src/external/` and `package-lock.json`.")
+    R("Scanned %d files (src/, audit/, web/, tools/, `CLAUDE CODE/`," % len(scan_files))
+    R("CMakeLists.txt), excluding `src/external/` and `package-lock.json`.")
     R()
     R("**Rooms are split, and the split is the point.** The constitution's own")
     R("line is *\"git keeps every word; audit/ is the sole map.\"* An audit report")
@@ -2425,7 +2569,11 @@ def main():
     R("it is the map. So `audit/` and `src/docs/` (past handoffs, past reports)")
     R("are counted below and then left alone. What P1+ acts on is the")
     R("**load-bearing** room: code, code comments, `CMakeLists.txt`, and the")
-    R("living docs.")
+    R("living docs. Routed to archival, stated so the split is auditable:")
+    R("`audit/**`, `src/docs/**`, `CLAUDE CODE/**` *except* `CLAUDE.md` (which")
+    R("§5.3 elevates to a live governing document), `web/PORT_MAP.md`, every")
+    R("`*.json`, and any `*.txt` whose name contains \"handoff\" or \"recon\"")
+    R("wherever it sits — a past transcript is a record, not a reference.")
     R()
     summ = defaultdict(lambda: [0, 0])
     for (label, ex), n in dang_counts.items():
@@ -2532,34 +2680,79 @@ def main():
         R()
         # How much does the staleness actually cost TODAY? Only the entry
         # points the web host dispatches can break, and the port is early.
+        # WHAT A RESYNC WOULD ACTUALLY COST. Not "do the host's entry points
+        # still exist" — that is necessary and nowhere near sufficient. The
+        # host builds each pipeline against a bind-group LAYOUT it writes by
+        # hand. If the desktop version of a dispatched entry point reaches a
+        # binding the mirror never declared, the host's layout no longer
+        # satisfies the shader and pipeline creation FAILS at boot.
         host_files = walk_src(exts={".js", ".mjs", ".html"}, roots=("web",))
         host_named = set()
         for hp in host_files:
-            host_named |= set(re.findall(r"entryPoint\s*:\s*[\"'](\w+)[\"']", read(hp)))
+            src_js = read(hp)
+            host_named |= set(re.findall(r"entryPoint\s*:\s*[\"'](\w+)[\"']", src_js))
+            # helper form: `cpipe('generate_patch_heights', layout)`
+            for hm in re.finditer(r"\b(\w*pipe\w*)\s*\(\s*[\"'](\w+)[\"']", src_js):
+                host_named.add(hm.group(2))
         shared = sorted(n for n in host_named if n in w.entry_points or n in mw.entry_points)
         local = sorted(n for n in host_named if n not in w.entry_points
                        and n not in mw.entry_points)
-        R("**How much does the staleness cost today?** Only the entry points the")
-        R("web host actually dispatches can break on a resync:")
+        mirror_slots = {(r["group"], r["binding"]) for r in mw.resources.values()}
+        rows_h, breaks = [], []
+        for n in shared:
+            in_d = n in w.entry_points
+            new_slots = set()
+            if in_d:
+                for f in w.closure(n):
+                    for rn2 in w.direct_res.get(f, ()):  # noqa: SIM118
+                        r2 = w.resources[rn2]
+                        if (r2["group"], r2["binding"]) not in mirror_slots:
+                            new_slots.add((r2["group"], r2["binding"], rn2))
+            if new_slots:
+                breaks.append((n, sorted(new_slots)))
+            rows_h.append((n, "yes" if in_d else "**no**",
+                           "yes" if n in mw.entry_points else "**no**",
+                           ", ".join("g%d:%d `%s`" % s for s in sorted(new_slots))
+                           or "—"))
+        R("**How much would a resync actually cost?** Not \"do the host's entry")
+        R("points still exist\" — that is necessary and nowhere near sufficient.")
+        R("The web host builds each pipeline against a bind-group layout it writes")
+        R("by hand. If the DESKTOP version of a dispatched entry point reaches a")
+        R("binding the mirror never declared, the host's layout no longer satisfies")
+        R("the shader and **pipeline creation fails at boot**.")
         R()
-        R.table(["entry point named by the web host", "in desktop?", "in mirror?"],
-                [(n, "yes" if n in w.entry_points else "**no**",
-                  "yes" if n in mw.entry_points else "**no**") for n in shared] +
-                [(n + " *(harness placeholder)*", "—", "—") for n in local])
-        risky = [n for n in shared if n not in w.entry_points]
-        R("The port is early: it dispatches **%d** of the shared shader's %d entry" %
+        R.table(["entry point the web host dispatches", "in desktop?", "in mirror?",
+                 "bindings the desktop version adds that the mirror lacks"],
+                rows_h + [(n + " *(harness placeholder, not the shared shader)*",
+                           "—", "—", "—") for n in local])
+        R("The port dispatches **%d** of the shared shader's %d entry points." %
           (len(shared), len(w.entry_points)))
-        R("points%s. %s" % (
-            (" (%s)" % ", ".join("`%s`" % n for n in shared)) if shared else "",
-            "**Every one of them still exists on the desktop, so a resync would "
-            "not break the demo today.**" if not risky else
-            "**%d of them are GONE from the desktop — a resync breaks the demo.**"
-            % len(risky)))
-        R("So the honest reading is: the doctrine is violated and the mirror is")
-        R("%s entry points behind, but the *shader* resync is low-risk right now." %
+        if breaks:
+            R()
+            R("### ⚠ A `cp` RESYNC WOULD BREAK THE WEB DEMO TODAY")
+            R()
+            for n, slots in breaks:
+                R("- `%s` — the desktop version reaches %s, absent from the mirror" %
+                  (n, ", ".join("**g%d:%d** (`%s`)" % s for s in slots)))
+            R()
+            R("The host's layout for those pipelines does not declare %s, so" %
+              ("that binding" if sum(len(s) for _, s in breaks) == 1 else "those bindings"))
+            R("`createRenderPipelineAsync` / `createComputePipelineAsync` rejects the")
+            R("module. **The resync is not a `cp`; it is a port task.**")
+            R()
+            R("This corrects the obvious-but-wrong reading — *\"both entry points")
+            R("still exist, so the resync is cheap\"*. Entry-point existence is the")
+            R("wrong test; the binding closure is the right one.")
+        else:
+            R("No dispatched entry point reaches a binding the mirror lacks, so a")
+            R("`cp` resync would not break pipeline creation today.")
+        R()
+        R("So: the doctrine is violated, the divergence is **%d entry points in" %
           (len(added) + len(removed)))
-        R("**The part that actually bites is `%s` (§3.3)** — its hand-written" % WEB_UNIFORMS)
-        R("offsets are consumed by the host on every boot, and nothing checks them.")
+        R("both directions** (%d desktop-only, %d mirror-only — not \"%d behind\")," %
+          (len(added), len(removed), len(added) + len(removed)))
+        R("and **`%s` (§3.3) is a second, independent hazard**: its" % WEB_UNIFORMS)
+        R("hand-written offsets are consumed on every boot and nothing checks them.")
         R()
         R("**The correction to the P0 premise.** The handoff says \"`the_chord` is")
         R("retired ⇒ `world.wgsl` is SINGLE-COPY. Every WGSL deletion is a one-room")
@@ -2567,17 +2760,19 @@ def main():
         R("exists under a live doctrine, so a P1 WGSL deletion is a **two-room**")
         R("edit and P1 would inherit a divergence it did not create.")
         R()
-        R("**But state the size honestly, or the correction becomes its own kind")
-        R("of error.** The measurement above says the shader half of this is cheap")
-        R("today: the port dispatches two entry points and both still exist. What")
-        R("Jean has to rule is narrower than \"stop the campaign\":")
+        R("**And the size is worse than the obvious reading**, which is why the")
+        R("measurement above exists. What Jean has to rule:")
         R()
-        R("1. **Before P1 (WGSL deletions)** — either run the resync ritual once")
-        R("   (`cp` + `gzip -9` + sidecar sha256, per `CLAUDE.md`), or record that")
-        R("   the mirror doctrine is suspended for the duration. Either is a")
-        R("   one-line decision; leaving it unstated is what costs.")
-        R("2. **Before P3 (config-field deletions)** — the real blocker, and it is")
-        R("   `%s`, not the shader. See §3.3." % WEB_UNIFORMS)
+        R("1. **Before P1 (WGSL deletions)** — the resync ritual as written")
+        R("   (`cp` + `gzip -9` + sidecar sha256) **does not currently work**: it")
+        R("   would hand the web host a shader needing `g1:34`, which its layout")
+        R("   does not declare. So the choice is (a) do the port work to carry the")
+        R("   live-card binding, or (b) formally suspend the mirror doctrine for")
+        R("   the duration of PRUNING_1 and let the mirror sit at its 2026-07-19")
+        R("   snapshot. **(b) is cheap and honest; (a) is a project.** What is not")
+        R("   available is pretending the ritual is a one-liner.")
+        R("2. **Before P3 (config-field deletions)** — a second, independent")
+        R("   blocker: `%s`. See §3.3." % WEB_UNIFORMS)
         R()
 
     R("### §5.4 — CMakeLists.txt: `backup_board` and the `probe_*` targets")
@@ -2615,8 +2810,14 @@ def main():
     R("A COMMENT LINE is a line whose entire payload is comment — a trailing")
     R("`// note` on a code line is not counted, because it is not removable mass.")
     R()
+    mass_no_eol = sum(1 for p2, *_ in mass if read(p2) and not read(p2).endswith("\n"))
     R("**Totals over %s: %d lines, %d comment lines (%.1f%%).**" %
       (", ".join("`%s`" % d for d in MASS_DIRS), tot_l, tot_c, 100.0 * tot_c / max(1, tot_l)))
+    if mass_no_eol:
+        R()
+        R("(LINES, not newlines: %d of these %d files have no trailing newline, so" %
+          (mass_no_eol, len(mass)))
+        R("`sum(wc -l)` reads %d. Same convention as §8.)" % (tot_l - mass_no_eol))
     R()
     R("Top 15 by comment MASS:")
     R()
@@ -2648,7 +2849,24 @@ def main():
             camp = CAMPAIGN_TAG_RE.search(line)
             tomb.append((p.replace("src/cartridges/the_board/", "…/"), i + 1,
                          camp.group(1) if camp else "(uncited)", s[:100]))
+    lower_tomb = 0
+    for p2 in src_files:
+        for ln2 in splitlines_exact(read(p2)):
+            st2 = ln2.strip()
+            if (st2.startswith("//") or "//" in ln2) and \
+                    re.search(r"\b(?:removed|retired)\b", ln2) and \
+                    not TOMBSTONE_RE.search(ln2):
+                lower_tomb += 1
     R("Tombstone sites: **%d**." % len(tomb))
+    R()
+    R("**This is a floor, and the floor is deliberate.** The count keys on the")
+    R("house's UPPERCASE marker (`RETIRED`/`REMOVED`/`Number reserved`); matching")
+    R("case-insensitively drags in every prose use of the words and inflated an")
+    R("earlier draft of this table by 116 false rows. A further **%d** comment" % lower_tomb)
+    R("lines spell it lowercase — `// (meshGenBindGroupLayout_ removed — legacy")
+    R("cell mesh gen)` is structurally the same tombstone. Some of those are real")
+    R("markers; separating them from prose needs a human, which is P4's job. The")
+    R("number above is what can be claimed mechanically.")
     R()
     bycamp = Counter(t[2] for t in tomb)
     # ── SHIPPED vs IN-FLIGHT, with the evidence named ─────────────────
@@ -2761,6 +2979,43 @@ def main():
             if DIAG_RE.search(line):
                 diag.append((p.replace("src/cartridges/the_board/", "…/"), i + 1,
                              line.strip()[:100]))
+    # DEAD PREPROCESSOR GUARDS. A `#ifdef X` whose X is never defined anywhere
+    # — not in the tree, not in CMakeLists — is a block that can never compile.
+    # It is the same species as an unreachable fn, and nothing else censuses it.
+    guard_use, guard_def = defaultdict(list), set()
+    cmake_txt = read(CMAKE)
+    for p2 in src_files:
+        raw2 = read(p2)
+        for i2, ln2 in enumerate(splitlines_exact(raw2)):
+            for gm in re.finditer(r"#\s*(?:ifdef|if\s+defined)\s*\(?\s*([A-Z_][A-Z0-9_]*)", ln2):
+                guard_use[gm.group(1)].append("%s:%d" % (p2, i2 + 1))
+            dm = re.match(r"\s*#\s*define\s+([A-Z_][A-Z0-9_]*)", ln2)
+            if dm:
+                guard_def.add(dm.group(1))
+    for dm in re.finditer(r"(?:add_compile_definitions|target_compile_definitions|-D)\s*\(?\s*"
+                          r"([A-Z_][A-Z0-9_]*)", cmake_txt):
+        guard_def.add(dm.group(1))
+    # Guards a compiler or the standard library supplies are not ours to rule on.
+    EXTERNAL = re.compile(r"^(?:_|__|NDEBUG|WIN32|_WIN32|__APPLE__|__linux__|"
+                          r"IMGUI|STB_|RTMIDI|GLFW|VK_|WGPU)")
+    dead_guards = sorted((g, sites) for g, sites in guard_use.items()
+                         if g not in guard_def and not EXTERNAL.match(g))
+    R("### Dead preprocessor guards")
+    R()
+    R("A `#ifdef X` whose `X` is defined **nowhere** — not in the tree, not in")
+    R("`CMakeLists.txt` — guards a block that can never compile. It is the same")
+    R("species as an unreachable `fn`, and nothing in this tree censused it")
+    R("before. Compiler- and library-supplied guards are excluded.")
+    R()
+    R.table(["guard", "#ifdef sites", "defined anywhere?", "first sites"],
+            [(g, len(sites), "**NO**", ", ".join(
+                s.replace("src/cartridges/the_board/", "…/") for s in sites[:3]) +
+              (" …(+%d)" % (len(sites) - 3) if len(sites) > 3 else ""))
+             for g, sites in dead_guards])
+    if dead_guards:
+        R("Each is dead C++ that reads as live to anyone grepping for the feature.")
+        R()
+
     R("`[DIAG:AUDIT]` blocks: **%d**." % len(diag))
     R()
     R.table(["file", "line", "text"], sorted(diag))
@@ -2809,8 +3064,28 @@ def main():
                   "DELETE"))
 
     # Tier 2 — WGSL dead symbols
+    # A fn named in contracts/ is the declared realization of a contract node
+    # (a CONTRIBUTOR_DAG endpoint, a POLICIES row). Deleting it silently
+    # unrealizes a compile-time-checked declaration — over-reach.
+    contracts_blob = "\n".join(read(p2) for p2 in walk_src(
+        exts={".hpp"}, roots=("src/cartridges/the_board/contracts",)))
+    tag_at = {}
+    for t in tags:
+        if t["file"] == WGSL and t["symbol"]:
+            tag_at.setdefault(t["symbol"], t["text"][:70])
     for n in unreachable_fns:
         st, det = mirror_status(n)
+        in_contract = re.search(r"\b" + re.escape(n) + r"\b", contracts_blob)
+        claimed = tag_at.get(n)
+        if in_contract and not st.startswith("**"):
+            V.append(("2", n, "wgsl", "%s:%d" % (WGSL, w.functions[n]["line"]),
+                      claimed or "unreachable; **named in `contracts/`**", "0",
+                      "glaw2 (Tint parse) **+ re-read the contract**",
+                      "none at runtime; but `contracts/` names it as the "
+                      "realization of a declared node",
+                      "**RULE(Jean)** — deleting it unrealizes a contract "
+                      "the DAG validates at compile time"))
+            continue
         if st.startswith("**"):
             V.append(("2", n, "wgsl", "%s:%d" % (WGSL, w.functions[n]["line"]),
                       "unreachable on the DESKTOP; **live in the web mirror** (%s)" % det,
@@ -2821,8 +3096,11 @@ def main():
                       "**RULE(Jean)** — resolve the mirror (§5.3) first"))
         else:
             V.append(("2", n, "wgsl", "%s:%d" % (WGSL, w.functions[n]["line"]),
-                      "unreachable (mirror: %s)" % st, "0", "glaw2 (Tint parse)",
-                      "none — DCE'd per entry point; zero runtime cost today", "DELETE"))
+                      claimed or ("unreachable (mirror: %s)" % st), "0",
+                      "glaw2 (Tint parse)",
+                      "none — DCE'd per entry point; zero runtime cost today",
+                      "**RULE(Jean)** — it carries an explicit in-tree STATUS tag"
+                      if claimed else "DELETE"))
     for n, ln, twin, web in dead_consts:
         if web.startswith("**"):
             V.append(("2", n, "wgsl const", "%s:%d" % (WGSL, ln),
@@ -2843,10 +3121,19 @@ def main():
                       "unreferenced (mirror: %s)" % web, "0",
                       "glaw2 (Tint parse)", "none — behaviour-identical by construction",
                       "DELETE"))
-    for n, ln in dead_structs:
-        V.append(("2", n, "wgsl struct", "%s:%d" % (WGSL, ln), "unreferenced", "0",
-                  "glaw2 (Tint parse)", "none — behaviour-identical by construction",
-                  "DELETE"))
+    for n, ln, st, det in dead_structs:
+        if st.startswith("**"):
+            V.append(("2", n, "wgsl struct", "%s:%d" % (WGSL, ln),
+                      "unreferenced on the DESKTOP; **used by the web mirror** (%s)" % det,
+                      "0", "glaw2 (Tint parse) **+ a web smoke test**",
+                      "none on the desktop; the next resync would delete a struct "
+                      "the web port instantiates",
+                      "**RULE(Jean)** — resolve the mirror (§5.3) first"))
+        else:
+            V.append(("2", n, "wgsl struct", "%s:%d" % (WGSL, ln),
+                      "unreferenced (mirror: %s)" % st, "0",
+                      "glaw2 (Tint parse)", "none — behaviour-identical by construction",
+                      "DELETE"))
 
     # Tier 3 — bindings
     for slot, rn, space, ln, bound, mst, mdet in unread:
@@ -2860,8 +3147,14 @@ def main():
                   "RULE(Jean)"))
 
     # Tier 3 — config fields
+    # THE RIGHT DISCRIMINATOR. "Is this field itself written by the JS packer"
+    # is the WRONG question: the packer hard-codes an index for ~25 fields, and
+    # deleting ANY field re-flows every offset above it. What matters is
+    # whether a hand-written JS index sits at a HIGHER offset than the field
+    # being removed — and for the lowest candidate that is nearly all of them.
     web_written = {h[0] for h in hazards} if web_u else set()
     for name, ty, size, off, nwrites, sname, ncalls, nguard in zero_readers:
+        above = [o for o in web_offsets if o > off]
         V.append(("3", name + (" (+ `%s`)" % sname if sname else ""), "config mirror",
                   "%s:%d (GPUDesignConfig)" % (STATE, cpp_by_name[name]["line"]),
                   "zero live reads in BOTH C++/WGSL rooms (%d write%s%s)" %
@@ -2870,12 +3163,17 @@ def main():
                   "rest bit-identity + glaw1 offsetof witnesses "
                   "+ **a web offset witness that does not yet exist**",
                   "GPU: %d B of the uniform; re-flows every later offset in "
-                  "THREE rooms" % size,
-                  ("**RULE(Jean)** — the web port writes this offset by hand "
-                   "(§3.3); deleting it corrupts the demo silently"
-                   if name in web_written else
-                   "DELETE — but only in the same commit as the rest, and only "
-                   "after §3.3's third room is re-mapped")))
+                  "THREE rooms, invalidating **%d** hand-written JS index%s "
+                  "above it (§3.3)" % (size, len(above), "" if len(above) == 1 else "es"),
+                  ("**RULE(Jean)** — %d hand-written JS index%s sit%s above this "
+                   "field's offset (%s); removing it silently shifts them all"
+                   % (len(above), "" if len(above) == 1 else "es",
+                      "s" if len(above) == 1 else "",
+                      "and the port writes this field itself" if name in web_written
+                      else "the port does not write this field, but that is not "
+                           "the hazard")
+                   if above else
+                   "DELETE — nothing the JS packer writes sits above it")))
 
     # Tier 4 — status tags
     tag_by_file = Counter(t["file"] for t in actionable)
@@ -2890,6 +3188,17 @@ def main():
                   "comments", "tree-wide — §4", "not tags", "n/a", "none-needed",
                   "deleting the legend deletes the vocabulary the other tags use",
                   "KEEP — excluded from the ruling surface by classification"))
+
+    # Tier 2 — dead preprocessor guards
+    for g, sites in dead_guards:
+        V.append(("2", "`#ifdef %s`" % g, "C++ preprocessor",
+                  "%d site(s) — §6.3" % len(sites),
+                  "guard defined NOWHERE — the block cannot compile", "0",
+                  "glaw1 (C++ compile — the blocks are already excluded)",
+                  "none — the guarded code has never been in a build",
+                  "DELETE" if len(sites) <= 4 else
+                  "**RULE(Jean)** — %d sites; it may be a diagnostic Jean still "
+                  "switches on locally" % len(sites)))
 
     # Tier 4 — tombstones of shipped campaigns
     for t, n in sorted(bycamp.items()):
@@ -2928,11 +3237,17 @@ def main():
     R.table(["tier", "symbol", "room", "file:line", "claimed STATUS",
              "reachable callers", "removal instrument", "disclosure",
              "recommended verdict"], V)
-    R("Verdict rows: **%d** (DELETE %d · RULE(Jean) %d · KEEP %d)." % (
+    distinct = {(v[1], v[3]) for v in V}
+    R("Verdict rows: **%d** (DELETE %d · RULE(Jean) %d · KEEP %d) over **%d" % (
         len(V),
         sum(1 for v in V if v[8].startswith("DELETE")),
         sum(1 for v in V if "RULE(Jean)" in v[8]),
-        sum(1 for v in V if v[8].startswith("KEEP"))))
+        sum(1 for v in V if v[8].startswith("KEEP")),
+        len(distinct)))
+    R("distinct candidates** — a few symbols appear under two tiers on purpose")
+    R("(`query_ground_celestial` is both an unreachable `fn` and a policy-surface")
+    R("row), because the two tiers are ruled by different people at different")
+    R("times. Count candidates, not rows, when sizing the work.")
     R()
 
     R("---")
@@ -3007,6 +3322,8 @@ def main():
              ("status-tag sites (§4, TAG class only)", "—", len(actionable)),
              ("tombstone sites (§6.1)", "—", len(tomb)),
              ("coordinate sites (§6.2, a floor)", "—", sum(coord.values())),
+             ("dead `#ifdef` guard sites (§6.3)", "—",
+              sum(len(sites) for _g, sites in dead_guards)),
              ("dangling reference sites (§5.1)",
               "—", sum(1 for r in dang_rows if r[3].startswith("**")))])
     if no_eol:
