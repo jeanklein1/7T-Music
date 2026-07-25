@@ -6,7 +6,7 @@
 | anchor | value |
 |---|---|
 | audited tree state | `1ec6c5595795ad1e67bba44c0a389fa83e701e5d` |
-| generated at HEAD | `5847ddffa60b` |
+| generated at HEAD | `d54119a1cc8e` |
 | branch | `claude/pruning-handoff-review-c1opab` |
 | audited state date | 2026-07-25 |
 | history depth | 62 commits (root dated 2026-07-23) |
