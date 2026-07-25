@@ -285,11 +285,6 @@ namespace t7 {
             constexpr float CAMERA_AZIMUTH = 0.0f;
             constexpr float CAMERA_ELEVATION = 0.4f;
             constexpr float CAMERA_DISTANCE = 30.0f;
-            constexpr float SPHERE_RADIUS = 2.5f;
-            constexpr float SPHERE_ORBIT_RADIUS = 25.0f;
-            constexpr float SPHERE_ORBIT_SPEED = 0.3f;
-            constexpr float SPHERE_HOVER_HEIGHT = 8.0f;
-            constexpr float SPHERE_INFLUENCE_RADIUS = 12.0f;
             constexpr float PAWN_SPEED = 15.0f;
             constexpr float CUBE_PLASTICITY_DEFAULT = 1.0f;  // CONTACT_5 P2b: the live λ master;
                                                              // raised 0.6 -> 1.0 so a shove RELOCATES
@@ -5743,57 +5738,6 @@ namespace t7 {
                 {
                     std::vector<uint8_t> zeros(Dim::TOTAL_FLOATING_SLOTS * sizeof(GPUFloatingEntityState), 0);
                     queue.WriteBuffer(floatingEntityBuffer_, 0, zeros.data(), zeros.size());
-                }
-                // Populate slot 0 with default sphere (idle orbit around origin)
-                {
-                    GPUFloatingEntityState fe{};
-                    fe.pos[0] = Idle::SPHERE_ORBIT_RADIUS;
-                    fe.pos[1] = Idle::SPHERE_HOVER_HEIGHT;
-                    fe.pos[2] = 0.0f;
-                    fe.body_radius = Idle::SPHERE_RADIUS;
-                    fe.orientation[0] = 0.0f;
-                    fe.orientation[1] = 0.0f;
-                    fe.orientation[2] = 0.0f;
-                    fe.orientation[3] = 1.0f;
-                    fe.influence_radius = Idle::SPHERE_INFLUENCE_RADIUS;
-                    fe.t = 0.0f;
-                    fe.orbit_radius = Idle::SPHERE_ORBIT_RADIUS;
-                    fe.orbit_speed = Idle::SPHERE_ORBIT_SPEED;
-                    fe.color[0] = 0.95f;
-                    fe.color[1] = 0.75f;
-                    fe.color[2] = 0.4f;
-                    fe.orbit_height = Idle::SPHERE_HOVER_HEIGHT;
-                    fe.anchor[0] = 0.0f;
-                    fe.anchor[1] = 0.0f;
-                    fe.anchor[2] = 0.0f;
-                    fe.face_variance = 0.0f;
-                    fe.base_color[0] = 0.95f;
-                    fe.base_color[1] = 0.75f;
-                    fe.base_color[2] = 0.4f;
-                    fe.geometry_type = 0;    // sphere
-                    fe.motion_type = 0;      // orbit
-                    fe.spin_speed = 0.0f;
-                    fe.bob_amplitude = 0.0f;
-                    fe.bob_period = 0.0f;
-                    fe.spin_tilt_x = 0.0f;
-                    fe.spin_tilt_z = 0.0f;
-                    fe.entity_seed = 0;
-                    fe.is_active = 1;
-                    fe.aspect_y = 1.0f;
-                    fe.aspect_z = 1.0f;
-                    fe.spring_stiffness = 0.0f;
-                    fe.drag = 0.0f;
-                    fe.tier_idx = 0;
-                    fe.drift[0] = 0.0f; fe.drift[1] = 0.0f; fe.drift[2] = 0.0f;
-                    fe.drift_vel[0] = 0.0f; fe.drift_vel[1] = 0.0f; fe.drift_vel[2] = 0.0f;
-                    // Behavior registry fields — unused on spheres; zero
-                    // means CUBE_BEHAVIOR_STATIONARY (no behavior force).
-                    fe.behavior_id = 0;
-                    fe.behavior_phase = 0;
-                    // Kite-mode fields — unused on spheres.
-                    fe.follow_pawn = 0;
-                    fe.pawn_offset[0] = 0.0f; fe.pawn_offset[1] = 0.0f; fe.pawn_offset[2] = 0.0f;
-                    queue.WriteBuffer(floatingEntityBuffer_, 0, &fe, sizeof(fe));
                 }
 
                 // Default state — overwritten by spawner
