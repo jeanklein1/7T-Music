@@ -1,0 +1,497 @@
+═══════════════════════════════════════════════════════════════════════════
+CAMPAIGN: BOOT_ONE_VOICE — initialization + mood-transition cleanup
+CARTRIDGE: the_board (incubator_dual tree)   ·   GIT: master only
+═══════════════════════════════════════════════════════════════════════════
+
+GIT LAW (7T, ruled July 2026)
+  Trunk-based on master. Every commit lands on master and pushes straight
+  to GitHub. If you work on a claude/* branch, merge it to master and delete
+  it the same day. No campaign branches.
+
+CADENCE
+  Four commits: A, B, C, D. Separate for bisection. ONE glaw1 at the end of
+  the batch, then Jean's visual gate. If the build fails, bisect A..D.
+
+DISCIPLINE
+  Every FIND block below is transcribed from the verified tree. VERIFY the
+  byte-match BEFORE editing. If any anchor differs — even whitespace — STOP
+  and report the actual text. Do not "fix up" a near-match.
+
+  Each handoff carries [anchor-N] audit hooks. Report findings for each.
+
+───────────────────────────────────────────────────────────────────────────
+HANDOFF A — THE CONFIG OFFSET FIX  (correctness; land first)
+───────────────────────────────────────────────────────────────────────────
+
+WHY
+  Two targeted config uploads write to literal byte offsets that no longer
+  match their fields. The static_assert value and the WriteBuffer literal
+  disagree by exactly 32 in both cases; the message strings still carry the
+  stale numbers. The build passes, therefore the asserts are true and the
+  WRITES ARE WRONG.
+
+    upload_pier_count            writes into  terrain_time    (offset 124)
+    upload_placement_patch_count writes into  band_blend_4    (offset 144)
+
+  Invisible today only because terrain_time's rest value is 0. It becomes a
+  live bug the moment terrain_time is music-driven. band_blend_4 is already
+  wrong: the positive denormal defeats the `blend <= 0 -> skip` sentinel, so
+  band 4 is evaluated at every terrain sample for zero contribution.
+
+  The fix DERIVES the offset. A derived offset cannot drift again, which
+  makes the static_assert tautological — it goes.
+
+FILE: src/cartridges/the_board/realization/state.hpp
+
+A1. FIND:
+            // Targeted 4-byte upload of pier_count only — called from write_pier/clear_pier.
+            // Bypasses the config dirty flag since pier changes happen mid-frame during spawn.
+            void upload_pier_count(wgpu::Queue& queue) {
+                static_assert(offsetof(GPUDesignConfig, pier_count) == 92,
+                    "pier_count offset must be 124 for targeted upload");
+                queue.WriteBuffer(configBuffer_, 124, &config_.pier_count, sizeof(uint32_t));
+            }
+
+A1. REPLACE:
+            // Targeted 4-byte upload of pier_count only — called from write_pier/clear_pier.
+            // Bypasses the config dirty flag since pier changes happen mid-frame during spawn.
+            // THE OFFSET IS DERIVED, NEVER LITERAL: a literal drifted here once and
+            // wrote pier_count into terrain_time. offsetof cannot drift.
+            void upload_pier_count(wgpu::Queue& queue) {
+                queue.WriteBuffer(configBuffer_, offsetof(GPUDesignConfig, pier_count),
+                    &config_.pier_count, sizeof(uint32_t));
+            }
+
+A2. FIND:
+            // Targeted 4-byte upload of placement_patch_count — called from stream_patches
+            // after world_state_.all_patch_count is finalized, so the placement compute pass reads the
+            // current frame's patch set (decoupled from the photographer config).
+            void upload_placement_patch_count(wgpu::Queue& queue) {
+                static_assert(offsetof(GPUDesignConfig, placement_patch_count) == 112,
+                    "placement_patch_count offset must be 144 for targeted upload");
+                queue.WriteBuffer(configBuffer_, 144, &config_.placement_patch_count, sizeof(uint32_t));
+            }
+
+A2. REPLACE:
+            // Targeted 4-byte upload of placement_patch_count — called from stream_patches
+            // after world_state_.all_patch_count is finalized, so the placement compute pass reads the
+            // current frame's patch set (decoupled from the photographer config).
+            // THE OFFSET IS DERIVED (see upload_pier_count).
+            void upload_placement_patch_count(wgpu::Queue& queue) {
+                queue.WriteBuffer(configBuffer_, offsetof(GPUDesignConfig, placement_patch_count),
+                    &config_.placement_patch_count, sizeof(uint32_t));
+            }
+
+[anchor-A3] SWEEP THE FAMILY. Every targeted sub-range WriteBuffer in the
+  tree must derive its offset. Grep for `WriteBuffer(` followed by a numeric
+  literal offset in the second argument, across src/cartridges/the_board/.
+  Known members of this family to check by name: upload_lod_point,
+  upload_ribbon_time, upload_ribbon_color, upload_ribbon_wave_amps,
+  upload_cube_behavior_id, upload_cube_anchor, resync_sky_head, and any
+  kite-mode partial writes. REPORT the full list with a PASS/FAIL per site.
+  Convert any FAIL in this same commit. Report; do not silently expand scope
+  beyond literal-offset conversion.
+
+[anchor-A4] Report the true values of offsetof(GPUDesignConfig, pier_count)
+  and offsetof(GPUDesignConfig, placement_patch_count) so the numbers enter
+  the record.
+
+COMMIT A: "config: derive targeted upload offsets, retire the drifted literals"
+
+───────────────────────────────────────────────────────────────────────────
+HANDOFF B — THE BOOT SPHERE  (the yellow flash)
+───────────────────────────────────────────────────────────────────────────
+
+WHY
+  GPUState::initializeState zero-inits every floating slot and then writes an
+  ACTIVE sphere into slot 0 at (25, 8, 0), colour (0.95, 0.75, 0.40). The
+  camera boots at (0, 15, 30) aimed at the origin, so it is in frame from
+  frame one. Nobody owns it: sphere_state_.activeSpheres_[0].active is false
+  and activeSphereCount_ is 0 — the GPU draws an entity the CPU census does
+  not know exists. It vanishes when the first real spawn claims slot 0.
+
+  It is the last inhabitant of the pre-spawner era. The zero-init that
+  precedes it is correct and STAYS.
+
+FILE: src/cartridges/the_board/realization/state.hpp
+
+B1. DELETE the block bounded by the two lines below, INCLUSIVE.
+    Expected content is transcribed in full — confirm the byte-match first.
+
+    FIRST LINE OF THE RANGE:
+                // Populate slot 0 with default sphere (idle orbit around origin)
+
+    LAST LINE OF THE RANGE:
+                }
+
+    (the closing brace immediately following the WriteBuffer to
+     floatingEntityBuffer_ shown at the tail of the expected content)
+
+    EXPECTED CONTENT (verbatim):
+                // Populate slot 0 with default sphere (idle orbit around origin)
+                {
+                    GPUFloatingEntityState fe{};
+                    fe.pos[0] = Idle::SPHERE_ORBIT_RADIUS;
+                    fe.pos[1] = Idle::SPHERE_HOVER_HEIGHT;
+                    fe.pos[2] = 0.0f;
+                    fe.body_radius = Idle::SPHERE_RADIUS;
+                    fe.orientation[0] = 0.0f;
+                    fe.orientation[1] = 0.0f;
+                    fe.orientation[2] = 0.0f;
+                    fe.orientation[3] = 1.0f;
+                    fe.influence_radius = Idle::SPHERE_INFLUENCE_RADIUS;
+                    fe.t = 0.0f;
+                    fe.orbit_radius = Idle::SPHERE_ORBIT_RADIUS;
+                    fe.orbit_speed = Idle::SPHERE_ORBIT_SPEED;
+                    fe.color[0] = 0.95f;
+                    fe.color[1] = 0.75f;
+                    fe.color[2] = 0.4f;
+                    fe.orbit_height = Idle::SPHERE_HOVER_HEIGHT;
+                    fe.anchor[0] = 0.0f;
+                    fe.anchor[1] = 0.0f;
+                    fe.anchor[2] = 0.0f;
+                    fe.face_variance = 0.0f;
+                    fe.base_color[0] = 0.95f;
+                    fe.base_color[1] = 0.75f;
+                    fe.base_color[2] = 0.4f;
+                    fe.geometry_type = 0;    // sphere
+                    fe.motion_type = 0;      // orbit
+                    fe.spin_speed = 0.0f;
+                    fe.bob_amplitude = 0.0f;
+                    fe.bob_period = 0.0f;
+                    fe.spin_tilt_x = 0.0f;
+                    fe.spin_tilt_z = 0.0f;
+                    fe.entity_seed = 0;
+                    fe.is_active = 1;
+                    fe.aspect_y = 1.0f;
+                    fe.aspect_z = 1.0f;
+                    fe.spring_stiffness = 0.0f;
+                    fe.drag = 0.0f;
+                    fe.tier_idx = 0;
+                    fe.drift[0] = 0.0f; fe.drift[1] = 0.0f; fe.drift[2] = 0.0f;
+                    fe.drift_vel[0] = 0.0f; fe.drift_vel[1] = 0.0f; fe.drift_vel[2] = 0.0f;
+                    // Behavior registry fields — unused on spheres; zero
+                    // means CUBE_BEHAVIOR_STATIONARY (no behavior force).
+                    fe.behavior_id = 0;
+                    fe.behavior_phase = 0;
+                    // Kite-mode fields — unused on spheres.
+                    fe.follow_pawn = 0;
+                    fe.pawn_offset[0] = 0.0f; fe.pawn_offset[1] = 0.0f; fe.pawn_offset[2] = 0.0f;
+                    queue.WriteBuffer(floatingEntityBuffer_, 0, &fe, sizeof(fe));
+                }
+
+    DO NOT TOUCH the preceding block:
+                // Zero-init all floating entity slots (inactive)
+                {
+                    std::vector<uint8_t> zeros(Dim::TOTAL_FLOATING_SLOTS * sizeof(GPUFloatingEntityState), 0);
+                    queue.WriteBuffer(floatingEntityBuffer_, 0, zeros.data(), zeros.size());
+                }
+    That one is correct and is now the whole story: every floating slot boots
+    inactive, and the spawner is the sole author of every sphere that exists.
+
+B2. THE CONSTANTS. In the same file, namespace Idle:
+                constexpr float SPHERE_RADIUS = 2.5f;
+                constexpr float SPHERE_ORBIT_RADIUS = 25.0f;
+                constexpr float SPHERE_ORBIT_SPEED = 0.3f;
+                constexpr float SPHERE_HOVER_HEIGHT = 8.0f;
+                constexpr float SPHERE_INFLUENCE_RADIUS = 12.0f;
+
+    Grep the whole tree (excluding src/docs and any backup_board) for each of
+    the five names. DELETE ONLY the ones with zero remaining readers after B1.
+    REPORT the reader count for each of the five before deleting. If any has a
+    live reader, leave it and say which site holds it.
+
+[anchor-B3] While in the file: does anything else in initializeState write an
+  is_active = 1 into an entity buffer? Report any other boot-time entity that
+  exists without a CPU-side owner.
+
+COMMIT B: "boot: retire the default slot-0 sphere; the spawner is the sole author"
+VISUAL GATE: no amber orb near the origin at boot.
+
+───────────────────────────────────────────────────────────────────────────
+HANDOFF C — THE TEST RIG  (retire; ship is now)
+───────────────────────────────────────────────────────────────────────────
+
+WHY
+  Three piers at slots 0-2 (ramp / plateau / block) spanning world
+  x in [5.5, 24.5], z in [-3, 3]. The pawn spawns at (0,0,0). Written at
+  every boot, and teardown_surface EXPLICITLY PRESERVES it across every mood
+  transition, so it follows the player into indoor moods, finite worlds, and
+  every seed. It also floors pier_count at 3 forever.
+
+  Classified TESTING with retirement "dies at ship." Roadmap items 1, 2 and 4
+  all say the same thing: ship is now.
+
+  SCOPE GUARD: this handoff retires the rig. It does NOT renumber pier slots.
+  Dim::PIER_ARCH_BASE stays 4; slots 0-3 become unassigned. Reclaiming them is
+  a separate, riskier commit and is not authorized here.
+
+C1. FILE: src/cartridges/the_board/surface/patch_system.hpp
+    DELETE the whole function AND its comment block, from the line
+        // Test rig piers: ramp + plateau + block at pier slots 0-2.
+    through its closing brace after
+        write_pier(c, queue, 2, block);
+    inclusive.
+
+    EXPECTED CONTENT (verbatim — confirm before deleting):
+// Test rig piers: ramp + plateau + block at pier slots 0-2.
+// Same geometry as the old test rig solids, now as GPUPierInstance.
+// TESTING[test-rig-piers] (ruled): a debug ground
+//   fixture, NOT a roster piece (roster rows are design pieces,
+//   not scaffolds). Mortal retirement: dies at ship (checklist).
+//   Joins the future exhibition-guard discussion. Constitution §5
+//   TESTING class.
+inline void setup_test_rig_piers(MachineCtx* c, wgpu::Queue queue) {
+    // Ramp: height 0→3 along +X.
+    GPUPierInstance ramp{};
+    ramp.origin[0] = 12.0f;  ramp.origin[1] = 0.0f;
+    ramp.half_size[0] = 6.5f; ramp.half_size[1] = 3.0f;
+    ramp.height_near = 0.0f;  ramp.height_far = 3.0f;
+    ramp.rotation = 0.0f;
+    ramp.edge_blend = 0.5f;
+    ramp.tier = PierTier::TEST_RIG;
+    ramp.is_active = 1;
+    write_pier(c, queue, 0, ramp);
+
+    // Plateau: flat at height 3, overlaps ramp at x=18.
+    GPUPierInstance plat{};
+    plat.origin[0] = 21.0f;  plat.origin[1] = 0.0f;
+    plat.half_size[0] = 3.5f; plat.half_size[1] = 3.0f;
+    plat.height_near = 3.0f;  plat.height_far = 3.0f;
+    plat.rotation = 0.0f;
+    plat.edge_blend = 0.5f;
+    plat.tier = PierTier::TEST_RIG;
+    plat.is_active = 1;
+    write_pier(c, queue, 1, plat);
+
+    // Block: sharp edges → step-height walls (impassable).
+    GPUPierInstance block{};
+    block.origin[0] = 21.0f;  block.origin[1] = 0.0f;
+    block.half_size[0] = 1.2f; block.half_size[1] = 1.2f;
+    block.height_near = 5.0f;  block.height_far = 5.0f;
+    block.rotation = 0.0f;
+    block.edge_blend = 0.0f;
+    block.tier = PierTier::TEST_RIG;
+    block.is_active = 1;
+    write_pier(c, queue, 2, block);
+}
+
+C2. SAME FILE — teardown_surface loses its exception.
+
+    FIND:
+    // Clear all entity piers (keep test rig at slots 0-2)
+    for (uint32_t i = Dim::PIER_ARCH_BASE; i < Dim::PIER_TOTAL; i++) {
+        clear_pier(c, queue, i);
+    }
+
+    REPLACE:
+    // Clear every pier.
+    for (uint32_t i = 0; i < Dim::PIER_TOTAL; i++) {
+        clear_pier(c, queue, i);
+    }
+
+C3. FILE: src/cartridges/the_board/contracts/surface_services.hpp
+    FIND:
+void setup_test_rig_piers(MachineCtx* c, wgpu::Queue queue);
+    REPLACE: (delete the line entirely)
+
+C4. FILE: src/cartridges/the_board/cartridge.hpp
+    FIND:
+                // ═══ MOVEMENT: BOOT — S2 THE SURFACE ════════════════════════
+                init_patch_system(&machine_ctx_, tile_world_state_);
+                setup_test_rig_piers(&machine_ctx_, device_.GetQueue());
+
+    REPLACE:
+                // ═══ MOVEMENT: BOOT — S2 THE SURFACE ════════════════════════
+                init_patch_system(&machine_ctx_, tile_world_state_);
+
+C5. FILE: src/cartridges/the_board/realization/state.hpp
+    Two comments describe a fixture that no longer exists. Comments describe
+    present behaviour only.
+
+    C5a. FIND:
+        // Unified pier instance — terrain-raising volume with tier metadata.
+        // Replaces the old GPUSolidInstance/GPUSolidArray. Deterministic slot
+        // addressing: test rig at 0-2, arches at 4-35, columns at 36-67.
+        // Must match WGSL PierInstance exactly.
+
+    C5a. REPLACE:
+        // Unified pier instance — terrain-raising volume with tier metadata.
+        // Deterministic slot addressing: arches at 4-35, columns at 36-67.
+        // Slots 0-3 are unassigned.
+        // Must match WGSL PierInstance exactly.
+
+    C5b. FIND:
+                // Pier instances (all inactive — cartridge uploads test rig at setup)
+
+    C5b. REPLACE:
+                // Pier instances — all inactive.
+
+    C5c. FIND:
+        // Pier tier enum (carried in tier field, not read by evaluation today)
+        namespace PierTier {
+            constexpr uint32_t TEST_RIG = 0;
+            constexpr uint32_t ARCH_DOORWAY = 1;
+
+    C5c. REPLACE:
+        // Pier tier enum (carried in tier field, not read by evaluation today).
+        // Tier 0 is unassigned.
+        namespace PierTier {
+            constexpr uint32_t ARCH_DOORWAY = 1;
+
+    Before applying C5c: grep the tree for PierTier::TEST_RIG. After C1 there
+    must be ZERO readers. If any survive, STOP and report.
+
+C6. THE CENSUS RIDES THE SAME COMMIT.
+    "Fix the tree, then count it, then document the count, one commit."
+    Grep the tree for the census line reading approximately
+        - TESTING (2): ribbon SPAWN_CHANCE 0.9; test-rig piers ...
+    REPORT which file holds it and whether that path is live or archived
+    (a path under a directory named "old docs" is a red flag — report, do
+    not assume). If live: amend to TESTING (1), keeping only the ribbon
+    SPAWN_CHANCE entry, and delete the test-rig sentence. If the only hit is
+    archived, report and make no edit.
+
+[anchor-C7] Grep for any other reader of pier slots 0..3 or of the literal
+  "test rig" / "test_rig" across src/cartridges/the_board/. Report all hits.
+
+COMMIT C: "surface: retire the test-rig piers; the origin is clean ground"
+VISUAL GATE: no ramp/plateau/block near the origin, in any mood, on any seed.
+
+───────────────────────────────────────────────────────────────────────────
+HANDOFF D — STALE COMMENTS + ONE TWIN HARDENED
+───────────────────────────────────────────────────────────────────────────
+
+WHY
+  Two comments still describe work as pending that has landed. One twin pair
+  relies on memset instead of saying what it means.
+
+D1. FILE: src/cartridges/the_board/realization/state.hpp
+    H4 landed — the boot call lives in upload_agent_registries_to_gpu
+    (bodies/agents.hpp). The comment now lies about the tree.
+
+    FIND:
+            // One-shot upload of the pawn figure table (values are constexpr; H4
+            // wires the boot call). Packs PAWN_FIGURES → GPUPawnFigure[14] → buffer.
+
+    REPLACE:
+            // One-shot upload of the pawn figure table. Packs PAWN_FIGURES →
+            // GPUPawnFigure[PAWN_FIGURE_COUNT] → buffer. Called once at world-init
+            // from upload_agent_registries_to_gpu (bodies/agents.hpp).
+
+D2. SAME FILE.
+    FIND:
+        // Typed registry → GPU array. Call once at world-init (H4 wires the call).
+
+    REPLACE:
+        // Typed registry → GPU array. Called once at world-init by
+        // GPUState::upload_pawn_figures.
+
+D3. FILE: src/cartridges/the_board/bodies/agents.hpp
+    reseed_player_body is the transition twin of seed_player_body. It relies
+    on the preceding memset for heading and spells its position as bare
+    zeros with the Idle constant demoted to a comment. Byte-identical today
+    (all three Idle values are 0) — but the twins part silently the day any
+    of them moves. Say what is meant.
+
+    FIND:
+    std::memset(as.slots, 0, sizeof(as.slots));
+    as.slots[0].pos_x = 0.0f;  // Idle::PAWN_POS_X
+    as.slots[0].pos_y = 0.0f;
+    as.slots[0].pos_z = 0.0f;
+    as.slots[0].orient_w = 1.0f;
+
+    REPLACE:
+    std::memset(as.slots, 0, sizeof(as.slots));
+    as.slots[0].pos_x   = Idle::PAWN_POS_X;
+    as.slots[0].pos_y   = Idle::PAWN_POS_Y;
+    as.slots[0].pos_z   = Idle::PAWN_POS_Z;
+    as.slots[0].heading = Idle::PAWN_HEADING;
+    as.slots[0].orient_w = 1.0f;
+
+    This is byte-identical to the current build (PRIME INVARIANT holds). If
+    any of the four Idle constants is non-zero in the live tree, STOP and
+    report — that would mean the twins already disagree.
+
+COMMIT D: "comments: retire landed-work notes; spell the player-body twin"
+
+───────────────────────────────────────────────────────────────────────────
+COMMISSION E — AUDIT ONLY, NO EDITS
+   "Is apply_mood inert at boot?"
+───────────────────────────────────────────────────────────────────────────
+
+CONTEXT
+  Boot does not call apply_mood. It hand-copies one of apply_mood's five
+  calls (configure_orbs) and omits the rest. The omissions are papered over
+  by SIX hand-maintained copies of MOOD_TABLE[0] across three files:
+
+    cartridge.hpp   sunDirection_[3]  = { 0.69f,-0.71f,-0.14f }
+    cartridge.hpp   sunColor_[3]      = { 1.0f, 0.95f, 0.90f }
+    cartridge.hpp   clearColor_[3]    = { 0.85f, 0.78f, 0.72f }
+    spine_state.hpp MoodState::sun_intensity 0.8f / sun_ambient 0.25f /
+                                terrain_amp_ceiling 0.0f
+    state.hpp       initializeState config_.sun_direction
+                    (its own comment says "matches MOOD_TABLE[0].sun_direction")
+    state.hpp       initializeState config_.fog_density 0.003f +
+                                fog_color { 0.85f, 0.78f, 0.72f }
+
+  The intended fix is that BOOT CALLS apply_mood and all six copies die. That
+  edit is NOT authorized until this audit lands.
+
+THE QUESTION
+  Enumerate every write apply_mood makes, for mood = MOOD_OPEN_DEFAULT, at
+  the point in init_renderer where the configure_orbs boot one-shot sits
+  today. For each write, state:
+    (a) the value it would write,
+    (b) the value present at that moment without it,
+    (c) EQUAL or DIVERGENT.
+
+  Cover all of: mood_state_.active; renderer_.set_frustum_cull_active;
+  gol_state_.mood_allowed; apply_aura_mood_policy; apply_mood_lighting (sun
+  direction CPU + GPU, sun colour, intensity, ambient, clear colour,
+  terrain_amp_ceiling, indoor_height_cap); apply_mood_spot_lights;
+  apply_mood_indoor_shell; apply_mood_anchor_ribbon; configure_orbs.
+
+THE HAZARDS TO RULE ON EXPLICITLY
+  1. apply_mood_indoor_shell for an outdoor mood — does it reduce to
+     clear_indoor_shell, and is clear_indoor_shell safe with zero patches,
+     zero painting slots, and a gallery organ that has not booted?
+  2. apply_mood_anchor_ribbon — has_anchor_ribbon is false for mood 0, but
+     confirm the gate is checked BEFORE any ribbon state is touched.
+  3. Does anything on apply_mood's path force-spawn an arch or portal, which
+     at boot would run before the first patch exists?
+  4. Ordering: apply_mood at that point sits AFTER init_patch_system and
+     BEFORE seed_player_body / spawn_population_for_mood. Does any applier
+     read agent or player state?
+  5. Does apply_mood's [Mood] Applied stdout line change the boot log
+     contract anything depends on?
+
+DELIVERABLE
+  A table plus a single verdict sentence: INERT (safe to call at boot,
+  boot frame pixel-identical) or NOT INERT (with the precise blocking site).
+  No edits. Jean rules on the result.
+
+───────────────────────────────────────────────────────────────────────────
+BUILD + GATE
+───────────────────────────────────────────────────────────────────────────
+
+  After A, B, C, D are committed and pushed to master: Jean runs glaw1 ONCE.
+
+  VISUAL GATE (Jean):
+    1. No amber sphere anywhere near the origin at boot.          [B]
+    2. No ramp / plateau / block near the origin, any seed.       [C]
+    3. Terrain, entity placement and lighting otherwise unchanged
+       from the pre-campaign build.                          [A, B, C, D]
+
+  A is expected to be visually inert today. If anything in the terrain's
+  motion or banding changes after A, that is a REAL finding — the drifted
+  offsets were masking something — and it should be reported, not patched.
+
+  STILL OPEN (not in this batch):
+    [4] boot calls apply_mood + delete the six MOOD_TABLE[0] copies
+        — blocked on Commission E.
+    [5] teardown_surface -> reset_surface, called at boot
+        — follows [4].
+    Spawn-engine rulings pending from Jean: dump_entity_census (30s stdout,
+    ungated, absent from the DIAG census) and the O(MAX_FOOTPRINTS) spawn
+    scans.
