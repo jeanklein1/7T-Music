@@ -5,19 +5,19 @@
 
 | anchor | value |
 |---|---|
-| HEAD | `1ec6c5595795ad1e67bba44c0a389fa83e701e5d` |
-| HEAD (short) | `1ec6c5595795` |
+| HEAD | `ba575a00bc0af159839c282a9604b59744f8c0b5` |
+| HEAD (short) | `ba575a00bc0a` |
 | branch | `claude/pruning-handoff-review-c1opab` |
 | HEAD date | 2026-07-25 |
-| history depth | 62 commits (root dated 2026-07-23) |
+| history depth | 63 commits (root dated 2026-07-23) |
 | shader | `src/cartridges/the_board/realization/world.wgsl` — 12744 lines |
 
 **Every finding below cites this hash.** If HEAD has moved, re-run:
 `python tools/pruning_census.py`.
 
 > **ANCHOR NOTICE — read before citing this census as "master".**
-> `origin/master` is `60818b0abcbd`, and HEAD is **36 commit(s) ahead / 0 behind**
-> it. Every count in this report is taken at HEAD (`1ec6c5595795`), which
+> `origin/master` is `60818b0abcbd`, and HEAD is **37 commit(s) ahead / 0 behind**
+> it. Every count in this report is taken at HEAD (`ba575a00bc0a`), which
 > carries the shipped ground-campaign work that `origin/master` does not.
 > A census run on `origin/master` would give different numbers. The
 > handoff's instruction — *anchor by HASH, never by remembered name* —
@@ -32,13 +32,23 @@
 | `the_chord` is retired ⇒ every WGSL edit is a one-room edit | CONFIRMED | no `src/cartridges/the_chord/` directory; 52 textual mentions remain (§5) |
 | `world.wgsl` is SINGLE-COPY | **FALSE — a second copy exists** | `src/cartridges/the_board/realization/world.wgsl` (12744 lines) vs `web/shaders/world.wgsl` (12065 lines); sha differ (5fe5136032… vs 1c8e5e225f…). Sidecar: source: src/cartridges/the_board/realization/world.wgsl · source-commit: f1b16f5d2ee2860d34fce08beb7b80b8b4d8af81 · sha256: 1c8e5e225f00c0c1325b902a24087abd4f2c2b1416209295f5267ed59fb0e4a0 · mirrored: |
 | `backup_board` is gone from the tree | CONFIRMED | no such directory; remaining references are dangling — see §5 |
+| the config is a TWO-room mirror (C++ ↔ WGSL) | **FALSE — there is a third room** | `web/js/uniforms.js` packs the same 592-byte buffer by hand-written word index, checked by nothing — §3.3 |
 
 **Consequence for the campaign.** The one-room claim holds for the
-`the_board`↔`the_chord` axis (that mirror law IS fossil). It does NOT
-hold for the desktop↔web axis: `web/shaders/world.wgsl` is a LIVE port
-mirror governed by a different, non-fossil doctrine. Any P1+ WGSL
-deletion is a **two-room** edit until Jean rules on the web port.
-Detail and staleness measurement in §5.3.
+`the_board`↔`the_chord` axis — that mirror law IS fossil, exactly as the
+handoff says. It does NOT hold for the desktop↔web axis. There the tree
+has two more rooms, both live and neither compiler-checked:
+
+1. `web/shaders/world.wgsl` — a byte-identical shader mirror under `CLAUDE.md`'s
+   Mirror doctrine, currently **stale** (§5.3);
+2. `web/js/uniforms.js` — a hand-indexed packer for the same config
+   buffer, with the offsets typed into the source (§3.3).
+
+So a P1 WGSL deletion is a **two-room** edit and a P3 config-field
+deletion is a **three-room** one. Neither is the one-room edit the
+handoff scoped. This is the single most consequential correction in this
+report, and it is the reason several §7 verdicts read RULE(Jean) where
+the handoff would have expected DELETE.
 
 ---
 
@@ -529,7 +539,77 @@ is visible: pinning is not consumption.
 > reason to do this is legibility, not frames.** Say so to Jean rather
 > than letting a byte count imply a performance claim.
 
-### §3.3 — the handoff's expected candidates, verified one by one
+### §3.3 — THE THIRD ROOM ⚠ (`web/js/uniforms.js`)
+
+**The config mirror has THREE rooms, not two.** `web/js/uniforms.js` packs the same
+buffer for the web port by **raw word index**, with the byte offsets
+written into the source as comments. Nothing checks it against either
+struct — no `static_assert`, no generator, no test.
+
+|  | value |
+|---|---|
+| `new ArrayBuffer(N)` | 592 B |
+| C++ `sizeof(GPUDesignConfig)` | 592 B |
+| WGSL `DesignConfig` | 592 B |
+| sizes agree | **YES** |
+| indexed writes found | 27 |
+
+Every indexed write, resolved to the field it lands in:
+
+| js line | write | byte | lands in C++ field | comment vs computed | hazard |
+|---|---|---|---|---|---|
+| 21 | f[4] | 16 | wave_time_scale | AGREE | **⚠ ON A DELETION CANDIDATE** |
+| 22 | f[5] | 20 | pawn_speed | AGREE |  |
+| 23 | f[6] | 24 | camera_sensitivity | AGREE | **⚠ ON A DELETION CANDIDATE** |
+| 24 | f[8] | 32 | active_cell_size | AGREE | **⚠ ON A DELETION CANDIDATE** |
+| 25 | u[10] | 40 | wave_enable_mask | AGREE | **⚠ ON A DELETION CANDIDATE** |
+| 26 | u[15] | 60 | world_seed | AGREE |  |
+| 28 | f[19] | 76 | aura_enabled | AGREE |  |
+| 29 | f[20] | 80 | pawn_amp_scale | AGREE | **⚠ ON A DELETION CANDIDATE** |
+| 30 | f[23] | 92 | fog_density | AGREE |  |
+| 31 | f[24] | 96 | fog_color | AGREE |  |
+| 31 | f[25] | 100 | fog_color | — (covered by this line's first annotation) |  |
+| 31 | f[26] | 104 | fog_color | — (covered by this line's first annotation) |  |
+| 32 | u[31] | 124 | pier_count | AGREE |  |
+| 55 | u[36] | 144 | placement_patch_count | AGREE |  |
+| 36 | f[40..45] | 160 | band_blend_0 | — |  |
+| 33 | f[57] | 228 | mode_gol_tick_scale | AGREE |  |
+| 34 | f[58] | 232 | mode_gol_height_scale | AGREE |  |
+| 35 | u[61] | 244 | possessed_slot | AGREE |  |
+| 56 | f[96] | 384 | lod_point_x | AGREE |  |
+| 56 | f[97] | 388 | lod_point_z | — (covered by this line's first annotation) |  |
+| 37 | f[100] | 400 | veil_ring | AGREE |  |
+| 38 | f[101] | 404 | veil_icing | AGREE |  |
+| 39 | f[102] | 408 | veil_strength | AGREE |  |
+| 40 | f[103] | 412 | lod0_radius | AGREE |  |
+| 42 | f.set(…, 104) | 416 | palette_center | — |  |
+| 44 | f.set(…, 120) | 480 | palette_light | — |  |
+| 46 | f.set(…, 136) | 544 | palette_weight | — |  |
+
+**20 of 20 hand-annotated offsets AGREE with the offsets this tool
+computed from `state.hpp`; 0 disagree.** That is worth stating in its
+own right: the web port's byte map was authored by hand, independently
+of this instrument, and it lands on the same numbers. It is a genuine
+**third witness** that §3.1's offset arithmetic is correct — and, at
+the same time, the reason a deletion here is dangerous.
+
+### ⚠ THE BLOCKER
+
+**5 of the §3.2 deletion candidates are WRITTEN BY THE WEB PORT** at
+a hard-coded offset: `active_cell_size` (web/js/uniforms.js:24, @32), `camera_sensitivity` (web/js/uniforms.js:23, @24), `pawn_amp_scale` (web/js/uniforms.js:29, @80), `wave_enable_mask` (web/js/uniforms.js:25, @40), `wave_time_scale` (web/js/uniforms.js:21, @16).
+
+Deleting them re-flows every later offset in the 592-byte buffer.
+The C++ room is protected by `offsetof` static_asserts and the WGSL
+room by the shared struct — **the JS room is protected by nothing**.
+It would keep writing the old offsets and the web demo would boot
+with silently wrong palette, veil and LOD values.
+
+**This changes the §3 verdict from DELETE to RULE(Jean).** The cut is
+still right; it is a *three-room* commit, and the third room needs
+either a regenerated offset map or an offset witness of its own.
+Recipe: `grep -nE '\b[fu]\[[0-9]+\]' web/js/uniforms.js`.
+
+### §3.4 — the handoff's expected candidates, verified one by one
 
 The handoff lists these as expected zero-reader candidates and says
 *verify, do not assume*. Verified:
@@ -572,11 +652,16 @@ the exceptions.
 | STATUS: LATENT | 11 |
 
 **Dating caveat — read this before treating age as evidence.** This
-repository's history is **62 commits deep, rooted at 2026-07-23**. Every
-first-appearance date below is therefore floored at the graft point: a tag
-that reads "2026-07-23" may be far older upstream. In this tree, **age is not
-yet evidence** — the handoff's "a LATENT tag that has waited months" test
-cannot be run against this history. Rule on reachability, not on dates.
+checkout is a **SHALLOW clone 63 commits deep, rooted at 2026-07-23**.
+`.git/shallow` exists, so the history is *truncated by construction* —
+the pickaxe cannot see past the graft no matter how the query is written.
+Every first-appearance date below is therefore floored at that point: a tag
+dated "2026-07-23" may be far older upstream and there is no way to tell from
+here. **In this tree, age is not evidence.** The handoff's test — *"a
+LATENT tag that has waited months for a consumer is a fossil"* — cannot be
+run against this history at all. Rule on reachability, which §1–§3 measure
+directly, and treat the date column as decoration until someone runs this
+instrument on a full clone.
 
 | file | line | symbol | tag | reachable callers | first seen | text |
 |---|---|---|---|---|---|---|
@@ -928,7 +1013,7 @@ Sites: **24**. These are the campaign's actual §5 surface.
 ### §5.2 — the constitution §0 mirror law (FOSSIL)
 
 `src/docs/old docs/cartridge_constitution.md` — this paragraph describes a two-cartridge world that no longer
-exists (`src/cartridges/the_chord/` is absent at `1ec6c5595795`):
+exists (`src/cartridges/the_chord/` is absent at `ba575a00bc0a`):
 
 | line | text |
 |---|---|
@@ -989,7 +1074,7 @@ mirror doctrine for the duration of PRUNING_1.
 | 247 | #     (backup_board exists on disk as a frozen REFERENCE TEXT, not a build |
 | 248 | #      target — see src/cartridges/backup_board/README.md. the_chord retired: |
 
-`src/cartridges/backup_board/` does not exist at `1ec6c5595795` — every line above
+`src/cartridges/backup_board/` does not exist at `ba575a00bc0a` — every line above
 is dangling.
 
 | target | source | source exists? | line |
@@ -1378,15 +1463,15 @@ anything short of certain is `RULE(Jean)`.
 | 2 | Plane | wgsl struct | src/cartridges/the_board/realization/world.wgsl:163 | unreferenced | 0 | glaw2 (Tint parse) | none — behaviour-identical by construction | DELETE |
 | 2 | ZoneExtrusionVarying | wgsl struct | src/cartridges/the_board/realization/world.wgsl:8867 | unreferenced | 0 | glaw2 (Tint parse) | none — behaviour-identical by construction | DELETE |
 | 3 | render_signal | binding 0/200 | src/cartridges/the_board/realization/world.wgsl:5890 | bound, zero reachable readers | 0 | Dawn enumeration probe | GPU: one binding slot + its buffer | RULE(Jean) |
-| 3 | mute_dynamics_2d | config mirror | src/cartridges/the_board/realization/state.hpp:412 (GPUDesignConfig) | zero live reads in BOTH rooms (1 write) | 0 | rest bit-identity + glaw1 offsetof witnesses | GPU: 4 B of the uniform; re-flows every later offset | DELETE (as ONE commit, not one at a time) |
-| 3 | wave_time_scale | config mirror | src/cartridges/the_board/realization/state.hpp:417 (GPUDesignConfig) | zero live reads in BOTH rooms (1 write) | 0 | rest bit-identity + glaw1 offsetof witnesses | GPU: 4 B of the uniform; re-flows every later offset | DELETE (as ONE commit, not one at a time) |
-| 3 | camera_sensitivity (+ `set_camera_sensitivity`) | config mirror | src/cartridges/the_board/realization/state.hpp:419 (GPUDesignConfig) | zero live reads in BOTH rooms (2 writes, 1 guard-only read) | 0 | rest bit-identity + glaw1 offsetof witnesses | GPU: 4 B of the uniform; re-flows every later offset | DELETE (as ONE commit, not one at a time) |
-| 3 | active_cell_size | config mirror | src/cartridges/the_board/realization/state.hpp:421 (GPUDesignConfig) | zero live reads in BOTH rooms (1 write) | 0 | rest bit-identity + glaw1 offsetof witnesses | GPU: 4 B of the uniform; re-flows every later offset | DELETE (as ONE commit, not one at a time) |
-| 3 | wave_enable_mask | config mirror | src/cartridges/the_board/realization/state.hpp:428 (GPUDesignConfig) | zero live reads in BOTH rooms (1 write) | 0 | rest bit-identity + glaw1 offsetof witnesses | GPU: 4 B of the uniform; re-flows every later offset | DELETE (as ONE commit, not one at a time) |
-| 3 | wave_freeze_mask | config mirror | src/cartridges/the_board/realization/state.hpp:429 (GPUDesignConfig) | zero live reads in BOTH rooms (1 write) | 0 | rest bit-identity + glaw1 offsetof witnesses | GPU: 4 B of the uniform; re-flows every later offset | DELETE (as ONE commit, not one at a time) |
-| 3 | wave_frozen_t | config mirror | src/cartridges/the_board/realization/state.hpp:430 (GPUDesignConfig) | zero live reads in BOTH rooms (3 writes) | 0 | rest bit-identity + glaw1 offsetof witnesses | GPU: 12 B of the uniform; re-flows every later offset | DELETE (as ONE commit, not one at a time) |
-| 3 | pawn_amp_scale (+ `set_pawn_amp_scale`) | config mirror | src/cartridges/the_board/realization/state.hpp:436 (GPUDesignConfig) | zero live reads in BOTH rooms (2 writes, 1 guard-only read) | 0 | rest bit-identity + glaw1 offsetof witnesses | GPU: 4 B of the uniform; re-flows every later offset | DELETE (as ONE commit, not one at a time) |
-| 3 | pawn_height_bias (+ `set_pawn_height_bias`) | config mirror | src/cartridges/the_board/realization/state.hpp:437 (GPUDesignConfig) | zero live reads in BOTH rooms (2 writes, 1 guard-only read) | 0 | rest bit-identity + glaw1 offsetof witnesses | GPU: 4 B of the uniform; re-flows every later offset | DELETE (as ONE commit, not one at a time) |
+| 3 | mute_dynamics_2d | config mirror | src/cartridges/the_board/realization/state.hpp:412 (GPUDesignConfig) | zero live reads in BOTH C++/WGSL rooms (1 write) | 0 | rest bit-identity + glaw1 offsetof witnesses + **a web offset witness that does not yet exist** | GPU: 4 B of the uniform; re-flows every later offset in THREE rooms | DELETE — but only in the same commit as the rest, and only after §3.3's third room is re-mapped |
+| 3 | wave_time_scale | config mirror | src/cartridges/the_board/realization/state.hpp:417 (GPUDesignConfig) | zero live reads in BOTH C++/WGSL rooms (1 write) | 0 | rest bit-identity + glaw1 offsetof witnesses + **a web offset witness that does not yet exist** | GPU: 4 B of the uniform; re-flows every later offset in THREE rooms | **RULE(Jean)** — the web port writes this offset by hand (§3.3); deleting it corrupts the demo silently |
+| 3 | camera_sensitivity (+ `set_camera_sensitivity`) | config mirror | src/cartridges/the_board/realization/state.hpp:419 (GPUDesignConfig) | zero live reads in BOTH C++/WGSL rooms (2 writes, 1 guard-only read) | 0 | rest bit-identity + glaw1 offsetof witnesses + **a web offset witness that does not yet exist** | GPU: 4 B of the uniform; re-flows every later offset in THREE rooms | **RULE(Jean)** — the web port writes this offset by hand (§3.3); deleting it corrupts the demo silently |
+| 3 | active_cell_size | config mirror | src/cartridges/the_board/realization/state.hpp:421 (GPUDesignConfig) | zero live reads in BOTH C++/WGSL rooms (1 write) | 0 | rest bit-identity + glaw1 offsetof witnesses + **a web offset witness that does not yet exist** | GPU: 4 B of the uniform; re-flows every later offset in THREE rooms | **RULE(Jean)** — the web port writes this offset by hand (§3.3); deleting it corrupts the demo silently |
+| 3 | wave_enable_mask | config mirror | src/cartridges/the_board/realization/state.hpp:428 (GPUDesignConfig) | zero live reads in BOTH C++/WGSL rooms (1 write) | 0 | rest bit-identity + glaw1 offsetof witnesses + **a web offset witness that does not yet exist** | GPU: 4 B of the uniform; re-flows every later offset in THREE rooms | **RULE(Jean)** — the web port writes this offset by hand (§3.3); deleting it corrupts the demo silently |
+| 3 | wave_freeze_mask | config mirror | src/cartridges/the_board/realization/state.hpp:429 (GPUDesignConfig) | zero live reads in BOTH C++/WGSL rooms (1 write) | 0 | rest bit-identity + glaw1 offsetof witnesses + **a web offset witness that does not yet exist** | GPU: 4 B of the uniform; re-flows every later offset in THREE rooms | DELETE — but only in the same commit as the rest, and only after §3.3's third room is re-mapped |
+| 3 | wave_frozen_t | config mirror | src/cartridges/the_board/realization/state.hpp:430 (GPUDesignConfig) | zero live reads in BOTH C++/WGSL rooms (3 writes) | 0 | rest bit-identity + glaw1 offsetof witnesses + **a web offset witness that does not yet exist** | GPU: 12 B of the uniform; re-flows every later offset in THREE rooms | DELETE — but only in the same commit as the rest, and only after §3.3's third room is re-mapped |
+| 3 | pawn_amp_scale (+ `set_pawn_amp_scale`) | config mirror | src/cartridges/the_board/realization/state.hpp:436 (GPUDesignConfig) | zero live reads in BOTH C++/WGSL rooms (2 writes, 1 guard-only read) | 0 | rest bit-identity + glaw1 offsetof witnesses + **a web offset witness that does not yet exist** | GPU: 4 B of the uniform; re-flows every later offset in THREE rooms | **RULE(Jean)** — the web port writes this offset by hand (§3.3); deleting it corrupts the demo silently |
+| 3 | pawn_height_bias (+ `set_pawn_height_bias`) | config mirror | src/cartridges/the_board/realization/state.hpp:437 (GPUDesignConfig) | zero live reads in BOTH C++/WGSL rooms (2 writes, 1 guard-only read) | 0 | rest bit-identity + glaw1 offsetof witnesses + **a web offset witness that does not yet exist** | GPU: 4 B of the uniform; re-flows every later offset in THREE rooms | DELETE — but only in the same commit as the rest, and only after §3.3's third room is re-mapped |
 | 4 | 1 STATUS/LATENT/INTENT tags | comments | src/cartridges/the_board/bodies/cube_behaviors.hpp | LATENT/INTENT | n/a | none-needed | none — comment text only | DELETE-AND-RECORD (standing ruling) |
 | 4 | 2 STATUS/LATENT/INTENT tags | comments | src/cartridges/the_board/bodies/grounded.hpp | LATENT/INTENT | n/a | none-needed | none — comment text only | DELETE-AND-RECORD (standing ruling) |
 | 4 | 1 STATUS/LATENT/INTENT tags | comments | src/cartridges/the_board/bodies/spheres.hpp | LATENT/INTENT | n/a | none-needed | none — comment text only | DELETE-AND-RECORD (standing ruling) |
@@ -1407,7 +1492,7 @@ anything short of certain is `RULE(Jean)`.
 | 5 | pga_color_motor + tail | PGA | src/cartridges/the_board/realization/world.wgsl:3810 | RULED to retire (Jean) | 1 | glaw2 + rest bit-identity | colour-space movement must relocate to src/coupling/visual_canvas.hpp first | DELETE **after** the relocation lands |
 | keep | CONTRIBUTOR_DAG + its closure static_asserts | contracts | src/cartridges/the_board/contracts/ground_architecture.hpp | load-bearing | compile-time | n/a | n/a | KEEP — the one declared, checked statement of the composition |
 
-Verdict rows: **115** (DELETE 92 · RULE(Jean) 22 · KEEP 1).
+Verdict rows: **115** (DELETE 87 · RULE(Jean) 27 · KEEP 1).
 
 ---
 
@@ -1476,5 +1561,5 @@ in §6 is prose that needs a human ruling, which is P4's job, not P0's.
 | no verdict EXECUTION | ✅ — §7 recommends, Jean rules, P1 executes |
 
 
-Anchored at `1ec6c5595795ad1e67bba44c0a389fa83e701e5d` on `claude/pruning-handoff-review-c1opab`.
+Anchored at `ba575a00bc0af159839c282a9604b59744f8c0b5` on `claude/pruning-handoff-review-c1opab`.
 

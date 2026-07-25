@@ -41,6 +41,7 @@ GROUND_ARCH = "src/cartridges/the_board/contracts/ground_architecture.hpp"
 CONSTITUTION = "src/docs/old docs/cartridge_constitution.md"
 CMAKE = "CMakeLists.txt"
 CANVAS = "src/coupling/visual_canvas.hpp"
+WEB_UNIFORMS = "web/js/uniforms.js"
 TOOL = "tools/pruning_census.py"
 OUT = "audit/PRUNING_1_CENSUS.md"
 # The instrument and its own report are excluded from every tree-wide scan.
@@ -196,6 +197,8 @@ class WgslModule:
         self.path = path
         self.raw = read(path)
         self.text = strip_wgsl(self.raw)
+        self._closures = {}
+        self._ident_lines = None
         self.total, self.comment_lines, self.blank_lines = comment_line_stats(self.raw, wgsl=True)
         self._parse_functions()
         self._parse_decls()
@@ -305,6 +308,12 @@ class WgslModule:
             self.direct_res[name] = (idents & res_names) - shadowed
 
     def closure(self, root):
+        """Transitive callee closure, memoised. §2 asks it once per
+        (resource × entry point) — 96 × 64 — so without the cache the tool
+        recomputes the same 64 closures six thousand times."""
+        cached = self._closures.get(root)
+        if cached is not None:
+            return cached
         seen, stack = set(), [root]
         while stack:
             n = stack.pop()
@@ -312,6 +321,7 @@ class WgslModule:
                 continue
             seen.add(n)
             stack.extend(self.calls.get(n, ()))
+        self._closures[root] = seen
         return seen
 
     def callers_of(self, name):
@@ -325,17 +335,29 @@ class WgslModule:
                 out |= self.closure(r)
         return out
 
+    def _index_idents(self):
+        """One pass over the stripped text builds ident -> [line, ...].
+        Without it, §1.3/§1.4 rescan the whole 12 k-line shader once per
+        symbol — 400+ full scans, and the tool takes 15 s instead of 3."""
+        if getattr(self, "_ident_lines", None) is not None:
+            return
+        self._ident_lines = defaultdict(list)
+        line = 1
+        pos = 0
+        t = self.text
+        for m in IDENT_RE.finditer(t):
+            line += t.count("\n", pos, m.start())
+            pos = m.start()
+            self._ident_lines[m.group(0)].append(line)
+
     def references_outside_decl(self, ident, decl_line=None):
-        """Count whole-word references to `ident` in the comment-stripped
-        text, excluding the line the declaration sits on."""
-        n = 0
-        pat = re.compile(r"\b" + re.escape(ident) + r"\b")
-        for m in pat.finditer(self.text):
-            ln = lineno(self.text, m.start())
-            if decl_line is not None and ln == decl_line:
-                continue
-            n += 1
-        return n
+        """Whole-word references to `ident` in the comment-stripped text,
+        excluding the line the declaration sits on."""
+        self._index_idents()
+        lines = self._ident_lines.get(ident, ())
+        if decl_line is None:
+            return len(lines)
+        return sum(1 for ln in lines if ln != decl_line)
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -927,13 +949,29 @@ def main():
         "CONFIRMED" if not exists("src/cartridges/backup_board") else "FALSE",
         "no such directory; remaining references are dangling — see §5",
     ))
+    if exists(WEB_UNIFORMS):
+        prem.append((
+            "the config is a TWO-room mirror (C++ ↔ WGSL)",
+            "**FALSE — there is a third room**",
+            "`%s` packs the same 592-byte buffer by hand-written word index, "
+            "checked by nothing — §3.3" % WEB_UNIFORMS,
+        ))
     R.table(["premise", "verdict", "evidence"], prem)
     R("**Consequence for the campaign.** The one-room claim holds for the")
-    R("`the_board`↔`the_chord` axis (that mirror law IS fossil). It does NOT")
-    R("hold for the desktop↔web axis: `web/shaders/world.wgsl` is a LIVE port")
-    R("mirror governed by a different, non-fossil doctrine. Any P1+ WGSL")
-    R("deletion is a **two-room** edit until Jean rules on the web port.")
-    R("Detail and staleness measurement in §5.3.")
+    R("`the_board`↔`the_chord` axis — that mirror law IS fossil, exactly as the")
+    R("handoff says. It does NOT hold for the desktop↔web axis. There the tree")
+    R("has two more rooms, both live and neither compiler-checked:")
+    R()
+    R("1. `%s` — a byte-identical shader mirror under `CLAUDE.md`'s" % WEB_WGSL)
+    R("   Mirror doctrine, currently **stale** (§5.3);")
+    R("2. `%s` — a hand-indexed packer for the same config" % WEB_UNIFORMS)
+    R("   buffer, with the offsets typed into the source (§3.3).")
+    R()
+    R("So a P1 WGSL deletion is a **two-room** edit and a P3 config-field")
+    R("deletion is a **three-room** one. Neither is the one-room edit the")
+    R("handoff scoped. This is the single most consequential correction in this")
+    R("report, and it is the reason several §7 verdicts read RULE(Jean) where")
+    R("the handoff would have expected DELETE.")
     R()
     R("---")
     R()
@@ -1036,12 +1074,13 @@ def main():
     # GO is not: several are deliberate MIRRORS of a C++ enum, declared so the
     # two rooms read alike. Deleting a mirror is a policy change, not a
     # pruning — so the mirror is detected and routed to RULE(Jean) instead.
-    cpp_all = "\n".join(strip_cpp(read(p))
-                        for p in walk_src(exts={".hpp", ".cpp"}, roots=("src",)))
+    cpp_idents = set()
+    for p in walk_src(exts={".hpp", ".cpp"}, roots=("src",)):
+        cpp_idents |= set(IDENT_RE.findall(strip_cpp(read(p))))
 
     def cpp_twin(name):
         for cand in (name, re.sub(r"_WGSL$", "", name)):
-            if re.search(r"\b" + re.escape(cand) + r"\b", cpp_all):
+            if cand in cpp_idents:
                 return cand
         return None
 
@@ -1300,18 +1339,27 @@ def main():
     def in_boot(path, line):
         return path == BOOT[0] and BOOT[1] <= line <= BOOT[2]
 
-    def cpp_sites(field):
-        """(reads, writes, boot_writes) — each a sorted list of file:line."""
-        pat = re.compile(r"\b(?:" + ROOT_ALT + r")\s*\.\s*" + re.escape(field) + r"\b")
-        reads, writes, boot = [], [], []
+    # ONE pass over every C++ blob, matching every config field at once via a
+    # single alternation. Scanning ~2 MB once per field instead is the whole
+    # difference between a 3 s gate and a 15 s one.
+    _sites = defaultdict(lambda: ([], [], []))
+    if cpp_fields:
+        ALL_FIELDS = "|".join(sorted((re.escape(f["name"]) for f in cpp_fields),
+                                     key=len, reverse=True))
+        SITE_RE = re.compile(r"\b(?:" + ROOT_ALT + r")\s*\.\s*(" + ALL_FIELDS + r")\b")
         for p, blob in cpp_blobs.items():
-            for m in pat.finditer(blob):
+            for m in SITE_RE.finditer(blob):
                 ln = lineno(blob, m.start())
                 site = "%s:%d" % (p, ln)
+                reads, writes, boot = _sites[m.group(1)]
                 if WRITE_TAIL.match(blob[m.end():m.end() + 24]):
                     (boot if in_boot(p, ln) else writes).append(site)
                 else:
                     reads.append(site)
+
+    def cpp_sites(field):
+        """(reads, writes, boot_writes) — each a sorted list of file:line."""
+        reads, writes, boot = _sites.get(field, ([], [], []))
         return sorted(reads), sorted(writes), sorted(boot)
 
     def wgsl_readers(field):
@@ -1352,22 +1400,27 @@ def main():
         for fm in re.finditer(r"\b(?:" + ROOT_ALT + r")\s*\.\s*(\w+)", body):
             setter_defs.setdefault(fm.group(1), m.group(1))
 
-    def setter_callers(field):
-        name = setter_defs.get(field)
-        if not name:
-            return None, []
-        pat = re.compile(r"\b" + re.escape(name) + r"\s*\(")
-        lo, hi = setter_span.get(name, (0, 0))
-        hits = []
+    # Same one-pass treatment for setter call sites.
+    _setter_calls = defaultdict(list)
+    if setter_span:
+        CALL_RE = re.compile(r"\b(" + "|".join(sorted(map(re.escape, setter_span),
+                                                      key=len, reverse=True)) + r")\s*\(")
         for p, blob in cpp_blobs.items():
-            for m in pat.finditer(blob):
+            for m in CALL_RE.finditer(blob):
+                name = m.group(1)
                 ln = lineno(blob, m.start())
+                lo, hi = setter_span[name]
                 if p == STATE and lo <= ln <= hi:
                     continue          # the definition itself
                 if in_boot(p, ln):
                     continue          # boot pins are not consumers
-                hits.append("%s:%d" % (p, ln))
-        return name, sorted(hits)
+                _setter_calls[name].append("%s:%d" % (p, ln))
+
+    def setter_callers(field):
+        name = setter_defs.get(field)
+        if not name:
+            return None, []
+        return name, sorted(_setter_calls.get(name, ()))
 
     def live_reads(field, reads):
         """Split reads into LIVE and self-referential. A read inside the body
@@ -1467,7 +1520,140 @@ def main():
     R("> than letting a byte count imply a performance claim.")
     R()
 
-    R("### §3.3 — the handoff's expected candidates, verified one by one")
+    # ── §3.3 THE THIRD ROOM ───────────────────────────────────────────
+    # The handoff frames the config as a two-room mirror. It is a THREE-room
+    # mirror: the web port packs the same 592-byte buffer by raw word index,
+    # with the byte offsets hard-coded in JS. Nothing checks it. A field
+    # deletion re-flows every later offset and silently corrupts it.
+    web_u = read(WEB_UNIFORMS)
+    zero_names = {z[0] for z in zero_readers}
+    R("### §3.3 — THE THIRD ROOM ⚠ (`%s`)" % WEB_UNIFORMS)
+    R()
+    if web_u:
+        m = re.search(r"new\s+ArrayBuffer\s*\(\s*(\d+)\s*\)", web_u)
+        web_size = int(m.group(1)) if m else None
+        cover = []                       # (byte, field) for each C++ field
+        for f in cpp_fields:
+            cover.append((f["offset"], f["offset"] + f["size"], f["name"]))
+
+        def field_at(byte):
+            for lo, hi, nm in cover:
+                if lo <= byte < hi:
+                    return nm
+            return None
+
+        # SCOPE TO makeConfig. The same file also has makeSignal(), which
+        # indexes a DIFFERENT 336-byte buffer with the same `f[n]`/`u[n]`
+        # spelling — scanning the whole file reports FrameSignal writes as
+        # config hazards.
+        fm = re.search(r"export\s+function\s+makeConfig\s*\([^)]*\)\s*\{", web_u)
+        if fm:
+            depth, i = 1, fm.end()
+            while i < len(web_u) and depth:
+                if web_u[i] == "{":
+                    depth += 1
+                elif web_u[i] == "}":
+                    depth -= 1
+                i += 1
+            lo_off, hi_off = fm.start(), i
+        else:
+            lo_off, hi_off = 0, len(web_u)
+        body = web_u[lo_off:hi_off]
+
+        rows, hazards, seen_line = [], [], set()
+        for wm in re.finditer(r"\b([fu])\s*\[\s*(\d+)\s*\]\s*=", body):
+            idx = int(wm.group(2))
+            byte = idx * 4
+            ln = lineno(web_u, lo_off + wm.start())
+            tail = body[wm.end(): body.find("\n", wm.end())]
+            ann = re.search(r"@(\d+)", tail)
+            nm = field_at(byte)
+            # A trailing `// name @N` annotates the FIRST write on its line;
+            # `f[24]=…; f[25]=…; f[26]=…;  // fog_color @96` is one comment for
+            # three contiguous words, not three disagreements.
+            if ln in seen_line:
+                agree = "— (covered by this line's first annotation)"
+            elif not ann:
+                agree = "—"
+            else:
+                agree = ("AGREE" if int(ann.group(1)) == byte else
+                         "**DISAGREE (comment says @%s)**" % ann.group(1))
+            seen_line.add(ln)
+            rows.append((ln, "%s[%d]" % (wm.group(1), idx), byte,
+                         nm or "**outside every field**", agree,
+                         "**⚠ ON A DELETION CANDIDATE**" if nm in zero_names else ""))
+            if nm in zero_names:
+                hazards.append((nm, ln, byte))
+        for wm in re.finditer(r"\bf\.set\s*\(\s*\[[^\]]*\]\s*,\s*(\d+)\s*\)", body):
+            idx = int(wm.group(1))
+            nm = field_at(idx * 4)
+            rows.append((lineno(web_u, lo_off + wm.start()), "f.set(…, %d)" % idx,
+                         idx * 4, nm or "**outside every field**", "—",
+                         "**⚠ ON A DELETION CANDIDATE**" if nm in zero_names else ""))
+            if nm in zero_names:
+                hazards.append((nm, lineno(web_u, lo_off + wm.start()), idx * 4))
+        # loop-written ranges (`for (let i = 40; i < 46; i++) f[i] = ...`)
+        for wm in re.finditer(
+                r"for\s*\(\s*let\s+\w+\s*=\s*(\d+)\s*;\s*\w+\s*<\s*(\d+)\s*;[^)]*\)\s*"
+                r"([fu])\s*\[\s*\w+\s*\]\s*=", body):
+            a, b = int(wm.group(1)), int(wm.group(2))
+            nm = field_at(a * 4)
+            rows.append((lineno(web_u, lo_off + wm.start()),
+                         "%s[%d..%d]" % (wm.group(3), a, b - 1), a * 4,
+                         nm or "**outside every field**", "—",
+                         "**⚠ ON A DELETION CANDIDATE**" if nm in zero_names else ""))
+            if nm in zero_names:
+                hazards.append((nm, lineno(web_u, lo_off + wm.start()), a * 4))
+        rows.sort(key=lambda r: (r[2], r[0]))
+        hazards = sorted(set(hazards))
+        R("**The config mirror has THREE rooms, not two.** `%s` packs the same" % WEB_UNIFORMS)
+        R("buffer for the web port by **raw word index**, with the byte offsets")
+        R("written into the source as comments. Nothing checks it against either")
+        R("struct — no `static_assert`, no generator, no test.")
+        R()
+        R.table(["", "value"],
+                [("`new ArrayBuffer(N)`", "%s B" % web_size),
+                 ("C++ `sizeof(GPUDesignConfig)`", "%d B" % cpp_size),
+                 ("WGSL `DesignConfig`", "%d B" % wgsl_size),
+                 ("sizes agree", "**YES**" if web_size == cpp_size else "**NO**"),
+                 ("indexed writes found", str(len(rows)))])
+        R("Every indexed write, resolved to the field it lands in:")
+        R()
+        R.table(["js line", "write", "byte", "lands in C++ field",
+                 "comment vs computed", "hazard"], rows)
+        ann_rows = [r for r in rows if r[4] in ("AGREE",) or r[4].startswith("**DIS")]
+        dis = [r for r in ann_rows if r[4].startswith("**DIS")]
+        R("**%d of %d hand-annotated offsets AGREE with the offsets this tool" %
+          (len(ann_rows) - len(dis), len(ann_rows)))
+        R("computed from `state.hpp`; %d disagree.** That is worth stating in its" % len(dis))
+        R("own right: the web port's byte map was authored by hand, independently")
+        R("of this instrument, and it lands on the same numbers. It is a genuine")
+        R("**third witness** that §3.1's offset arithmetic is correct — and, at")
+        R("the same time, the reason a deletion here is dangerous.")
+        R()
+        if hazards:
+            R("### ⚠ THE BLOCKER")
+            R()
+            R("**%d of the §3.2 deletion candidates are WRITTEN BY THE WEB PORT** at" % len(set(h[0] for h in hazards)))
+            R("a hard-coded offset: %s." %
+              ", ".join("`%s` (%s:%d, @%d)" % (n, WEB_UNIFORMS, l, b) for n, l, b in hazards))
+            R()
+            R("Deleting them re-flows every later offset in the 592-byte buffer.")
+            R("The C++ room is protected by `offsetof` static_asserts and the WGSL")
+            R("room by the shared struct — **the JS room is protected by nothing**.")
+            R("It would keep writing the old offsets and the web demo would boot")
+            R("with silently wrong palette, veil and LOD values.")
+            R()
+            R("**This changes the §3 verdict from DELETE to RULE(Jean).** The cut is")
+            R("still right; it is a *three-room* commit, and the third room needs")
+            R("either a regenerated offset map or an offset witness of its own.")
+            R("Recipe: `grep -nE '\\b[fu]\\[[0-9]+\\]' %s`." % WEB_UNIFORMS)
+            R()
+    else:
+        R("_(not present — the config mirror is two rooms at this HEAD)_")
+        R()
+
+    R("### §3.4 — the handoff's expected candidates, verified one by one")
     R()
     R("The handoff lists these as expected zero-reader candidates and says")
     R("*verify, do not assume*. Verified:")
@@ -1527,12 +1713,20 @@ def main():
     R("the exceptions.")
     R()
     R.table(["tag class", "sites"], sorted(counts.items()))
+    shallow = exists(".git/shallow")
     R("**Dating caveat — read this before treating age as evidence.** This")
-    R("repository's history is **%s commits deep, rooted at %s**. Every" % (hist_depth, root_commit))
-    R("first-appearance date below is therefore floored at the graft point: a tag")
-    R("that reads \"%s\" may be far older upstream. In this tree, **age is not" % root_commit)
-    R("yet evidence** — the handoff's \"a LATENT tag that has waited months\" test")
-    R("cannot be run against this history. Rule on reachability, not on dates.")
+    R("checkout is a **%sclone %s commits deep, rooted at %s**." %
+      ("SHALLOW " if shallow else "", hist_depth, root_commit))
+    if shallow:
+        R("`.git/shallow` exists, so the history is *truncated by construction* —")
+        R("the pickaxe cannot see past the graft no matter how the query is written.")
+    R("Every first-appearance date below is therefore floored at that point: a tag")
+    R("dated \"%s\" may be far older upstream and there is no way to tell from" % root_commit)
+    R("here. **In this tree, age is not evidence.** The handoff's test — *\"a")
+    R("LATENT tag that has waited months for a consumer is a fossil\"* — cannot be")
+    R("run against this history at all. Rule on reachability, which §1–§3 measure")
+    R("directly, and treat the date column as decoration until someone runs this")
+    R("instrument on a full clone.")
     R()
     trows = []
     for t in tags:
@@ -2267,15 +2461,22 @@ def main():
                   "RULE(Jean)"))
 
     # Tier 3 — config fields
+    web_written = {h[0] for h in hazards} if web_u else set()
     for name, ty, size, off, nwrites, sname, ncalls, nguard in zero_readers:
         V.append(("3", name + (" (+ `%s`)" % sname if sname else ""), "config mirror",
                   "%s:%d (GPUDesignConfig)" % (STATE, cpp_by_name[name]["line"]),
-                  "zero live reads in BOTH rooms (%d write%s%s)" %
+                  "zero live reads in BOTH C++/WGSL rooms (%d write%s%s)" %
                   (nwrites, "" if nwrites == 1 else "s",
                    ", %d guard-only read" % nguard if nguard else ""), "0",
-                  "rest bit-identity + glaw1 offsetof witnesses",
-                  "GPU: %d B of the uniform; re-flows every later offset" % size,
-                  "DELETE (as ONE commit, not one at a time)"))
+                  "rest bit-identity + glaw1 offsetof witnesses "
+                  "+ **a web offset witness that does not yet exist**",
+                  "GPU: %d B of the uniform; re-flows every later offset in "
+                  "THREE rooms" % size,
+                  ("**RULE(Jean)** — the web port writes this offset by hand "
+                   "(§3.3); deleting it corrupts the demo silently"
+                   if name in web_written else
+                   "DELETE — but only in the same commit as the rest, and only "
+                   "after §3.3's third room is re-mapped")))
 
     # Tier 4 — status tags
     tag_by_file = Counter(t["file"] for t in tags)
