@@ -496,12 +496,24 @@ export default function BladeClusterDesigner() {
     return () => cancelAnimationFrame(animRef.current);
   }, [RT, rotY, tilt, autoRot, seed]);
 
-  useEffect(() => {
-    const el = cv3dRef.current?.parentElement;
-    if (!el) return;
-    const onDown = (e) => { if (e.button === 0) { const sx = e.clientX, sy = e.clientY, sr = rotY, st = tilt; setAutoRot(false); const onMove = ev => { setRotY(sr + (ev.clientX - sx) * 0.01); setTilt(st - (ev.clientY - sy) * 0.008); }; const onUp = () => { window.removeEventListener("pointermove", onMove); window.removeEventListener("pointerup", onUp); }; window.addEventListener("pointermove", onMove); window.addEventListener("pointerup", onUp); } };
-    el.addEventListener("pointerdown", onDown);
-    return () => { el.removeEventListener("pointerdown", onDown); };
+  // Camera. Attached via the canvas's onPointerDown JSX prop, NOT
+  // addEventListener — React binds at render time, so the listener cannot be
+  // lost to the Loading… placeholder's mount ordering (see the note on the
+  // wheel effect). Left/middle drag rotates.
+  const onPointerDown3D = useCallback(e => {
+    const sx = e.clientX, sy = e.clientY;
+    const sr = rotY, st = tilt;
+    setAutoRot(false);
+    const onMove = ev => {
+      setRotY(sr + (ev.clientX - sx) * 0.01);
+      setTilt(st - (ev.clientY - sy) * 0.008);
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
   }, [rotY, tilt]);
 
   if (!loaded) return <div style={{ padding: 20, fontFamily: "monospace", fontSize: 11, color: "#555" }}>Loading…</div>;
@@ -529,7 +541,12 @@ export default function BladeClusterDesigner() {
           <span style={{ width: 16, height: 16, borderRadius: 3, background: rgb01(...resolved.agedCol), border: "1px solid var(--color-border-tertiary)", display: "inline-block" }} />
         </div>
         <div style={{ flex: "1 1 65%", background: "#1a1a1e", borderRadius: 8, overflow: "hidden", cursor: "grab", minHeight: 180 }}>
-          <canvas ref={cv3dRef} style={{ width: "100%", height: "100%", display: "block" }} />
+          <canvas
+            ref={cv3dRef}
+            onPointerDown={onPointerDown3D}
+            onContextMenu={e => e.preventDefault()}
+            style={{ width: "100%", height: "100%", display: "block", cursor: "grab" }}
+          />
         </div>
         <div style={{ flex: "0 0 28%", background: "#111114", borderRadius: 8, overflow: "hidden", minHeight: 100 }}>
           <canvas ref={cv2dRef} style={{ width: "100%", height: "100%", display: "block" }} />

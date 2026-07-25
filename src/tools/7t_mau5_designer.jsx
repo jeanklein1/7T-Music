@@ -880,7 +880,11 @@ export default function Mau5Designer() {
     window.addEventListener("pointerup", onUp);
   }, [rotY, tilt, roll, zoom]);
 
-  // Scroll-to-zoom: non-passive listener so preventDefault() works.
+  // Scroll-wheel zoom on the 3D preview. The [loaded] dep is critical: at first mount
+  // `loaded` is false and the canvas isn't in the DOM yet (the component returns a
+  // Loading… placeholder), so the ref is null. When the load completes and the canvas
+  // mounts, this effect re-runs and binds the listener for real. Non-passive so we can
+  // preventDefault and stop the page from scrolling.
   useEffect(() => {
     const cv = cv3dRef.current;
     if (!cv) return;
@@ -890,7 +894,7 @@ export default function Mau5Designer() {
     };
     cv.addEventListener("wheel", handler, { passive: false });
     return () => cv.removeEventListener("wheel", handler);
-  }, []);
+  }, [loaded]);
 
   const onCopy = async () => {
     const ok = await copyText(cppCode);
