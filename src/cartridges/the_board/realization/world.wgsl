@@ -2851,21 +2851,12 @@ const CONTRIB_PAWN_AURA         : u32 = 9u;
 const CONTRIB_GOL_SUPPRESSION   : u32 = 10u;
 const CONTRIB_COUNT             : u32 = 11u;
 
-// Policy IDs — the manifold interface's policy selector (b1).
-// MUST mirror enum PolicyId in ground_architecture.hpp
-// byte-for-byte (same order/values); the masks above are per-policy
-// contributor sets, these are the discrete ids manifold_resolve
-// switches on.
-const POLICY_PLACEMENT_PYRAMID    : u32 = 0u;
-const POLICY_PLACEMENT_PAINTING   : u32 = 1u;
-const POLICY_PLACEMENT_VEGETATION : u32 = 2u;
-const POLICY_BAKED_HEIGHTFIELD    : u32 = 3u;
-const POLICY_FLYER                : u32 = 4u;
-const POLICY_WALKER               : u32 = 5u;
-const POLICY_WALKER_TILT          : u32 = 6u;
-const POLICY_WALKER_AGENT         : u32 = 7u;
-const POLICY_CELESTIAL            : u32 = 8u;
-const POLICY_TERRAIN_RENDER       : u32 = 9u;
+const POLICY_BAKED_HEIGHTFIELD    : u32 = 0u;
+const POLICY_FLYER                : u32 = 1u;
+const POLICY_WALKER               : u32 = 2u;
+const POLICY_WALKER_TILT          : u32 = 3u;
+const POLICY_WALKER_AGENT         : u32 = 4u;
+const POLICY_TERRAIN_RENDER       : u32 = 5u;
 
 // Fused-static-base bitmask: lattice + tile_modifiers + solids travel
 // together in every policy that wants a landform base.
@@ -3567,9 +3558,6 @@ fn manifold_height_hf(xz: vec2<f32>, policy: u32, qi: QueryInputs) -> f32 {
     // neighbour. (PRUNING_1 P1 5a-i — the renumber trap, removed rather
     // than handled.)
     switch policy {
-        case POLICY_PLACEMENT_PYRAMID:    { return query_ground_placement_pyramid(xz); }
-        case POLICY_PLACEMENT_PAINTING:   { return query_ground_placement_painting(xz); }
-        case POLICY_PLACEMENT_VEGETATION: { return query_ground_placement_vegetation(xz); }
         // texture form — byte-consistent by construction; the analytic body
         // stays for the zone baked-sampler fallback chain
         case POLICY_BAKED_HEIGHTFIELD:    { return sample_terrain_y_at(xz); }

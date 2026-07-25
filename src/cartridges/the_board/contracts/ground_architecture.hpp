@@ -68,17 +68,13 @@ enum ContributorId : uint32_t {
 // block) — the manifold interface's manifold_resolve switches on them.
 // Keep the two in lock-step (same order/values), as with CONTRIB_*.
 enum PolicyId : uint32_t {
-    POLICY_PLACEMENT_PYRAMID    = 0,
-    POLICY_PLACEMENT_PAINTING   = 1,
-    POLICY_PLACEMENT_VEGETATION = 2,
-    POLICY_BAKED_HEIGHTFIELD    = 3,
-    POLICY_FLYER                = 4,
-    POLICY_WALKER               = 5,
-    POLICY_WALKER_TILT          = 6,   // walker minus the self aura; carries walker's pawn-centered GoL suppression
-    POLICY_WALKER_AGENT         = 7,
-    POLICY_CELESTIAL            = 8,
-    POLICY_TERRAIN_RENDER       = 9,   // the fused render set: baked + aura + waves + pulses + GoL-via-the-card (UNIFIED_GROUND_1)
-    POLICY_COUNT                = 10,
+    POLICY_BAKED_HEIGHTFIELD    = 0,
+    POLICY_FLYER                = 1,
+    POLICY_WALKER               = 2,
+    POLICY_WALKER_TILT          = 3,   // walker minus the self aura; carries walker's pawn-centered GoL suppression
+    POLICY_WALKER_AGENT         = 4,
+    POLICY_TERRAIN_RENDER       = 5,   // the fused render set: baked + aura + waves + pulses + GoL-via-the-card (UNIFIED_GROUND_1)
+    POLICY_COUNT                = 6,
 };
 
 // ═══ DEPENDENCY DAG ══════════════════════════════════════════════
@@ -121,30 +117,8 @@ inline constexpr uint32_t GROUND_STATIC_BASE_MASK =
     (1u << CONTRIB_SOLIDS);
 
 inline constexpr PolicyDef POLICIES[] = {
-    //
-    // STATUS: LATENT[policy-surface] (all three placement rows) — the
-    // declared placement queries have no live caller; the live Y path is
-    // compute_entity_placement's baked-heightfield hybrid (world.wgsl
-    // §compute_entity_placement). These rows are the future interface's
-    // landing sites — rewiring candidates when placement moves onto the
-    // policy API. NOTE where a declared mask EXCLUDES a contributor the
-    // live baked path includes (pyramid / vegetation exclude
-    // CONTRIB_PYRAMIDS; the bake caches it): the declared-intent
-    // exclusion is a possible future aesthetic ruling (Jean's); changing
-    // behavior is a BEHAVIOR stage, not a truth-fix.
-    { POLICY_PLACEMENT_PYRAMID, "placement_pyramid",
-      GROUND_STATIC_BASE_MASK,               // declared intent: "pyramids don't see themselves"; live baked path includes pyramids
-      /*gradient=*/false },
 
-    { POLICY_PLACEMENT_PAINTING, "placement_painting",
-      GROUND_STATIC_BASE_MASK
-        | (1u << CONTRIB_PYRAMIDS)
-        | (1u << CONTRIB_GOL_ZONES),       // paintings sit on current GoL (preserves pre-refactor behavior)
-      /*gradient=*/false },                 // realized-of-record: the documented baked+analytic-GoL hybrid matches this set
 
-    { POLICY_PLACEMENT_VEGETATION, "placement_vegetation",
-      GROUND_STATIC_BASE_MASK,              // declared intent: "trees don't stand on pyramids"; live baked path includes pyramids
-      /*gradient=*/false },
 
     // Baked heightfield — cached static ground texture consumed by
     // patch VS interpolation and CPU readbacks.
@@ -217,12 +191,6 @@ inline constexpr PolicyDef POLICIES[] = {
         | (1u << CONTRIB_PAWN_AURA),
       /*gradient=*/true },                  // (intent; gradient path unrealized — no gradient fn, no multi-sample consumer)
 
-    // Celestial — no ground (sun, stars). Symmetry slot.
-    // STATUS: INTENT — declared, zero realization ("none today");
-    // kept for symmetry.
-    { POLICY_CELESTIAL, "celestial",
-      0u,
-      /*gradient=*/false },
 
     // Terrain-render — the fused render-side set: the baked heightfield
     // (static base + pyramids) + pawn aura + terrain waves + radial
@@ -274,15 +242,11 @@ static_assert(POLICY_COUNT_IN_TABLE == POLICY_COUNT,
         POLICY_NAME ": contributor mask not closed under CONTRIBUTOR_DAG"       \
                     " (a masked contributor is missing a DAG ancestor)")
 
-ASSERT_POLICY_DAG_CLOSED(POLICY_PLACEMENT_PYRAMID,    "POLICY_PLACEMENT_PYRAMID");
-ASSERT_POLICY_DAG_CLOSED(POLICY_PLACEMENT_PAINTING,   "POLICY_PLACEMENT_PAINTING");
-ASSERT_POLICY_DAG_CLOSED(POLICY_PLACEMENT_VEGETATION, "POLICY_PLACEMENT_VEGETATION");
 ASSERT_POLICY_DAG_CLOSED(POLICY_BAKED_HEIGHTFIELD,    "POLICY_BAKED_HEIGHTFIELD");
 ASSERT_POLICY_DAG_CLOSED(POLICY_FLYER,                "POLICY_FLYER");
 ASSERT_POLICY_DAG_CLOSED(POLICY_WALKER,               "POLICY_WALKER");
 ASSERT_POLICY_DAG_CLOSED(POLICY_WALKER_TILT,          "POLICY_WALKER_TILT");
 ASSERT_POLICY_DAG_CLOSED(POLICY_WALKER_AGENT,         "POLICY_WALKER_AGENT");
-ASSERT_POLICY_DAG_CLOSED(POLICY_CELESTIAL,            "POLICY_CELESTIAL");
 ASSERT_POLICY_DAG_CLOSED(POLICY_TERRAIN_RENDER,       "POLICY_TERRAIN_RENDER");
 
 #undef ASSERT_POLICY_DAG_CLOSED

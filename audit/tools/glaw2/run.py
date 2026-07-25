@@ -163,6 +163,44 @@ def main():
     for n in ent_new:
         errs.append("entry point ADDED: `%s`" % n)
 
+    # ── THE POLICY MIRROR ─────────────────────────────────────────────
+    # The C++ `enum PolicyId` and the WGSL `const POLICY_* : u32` are two
+    # independent literal lists, and the enum value doubles as the row index
+    # into POLICIES[] (ASSERT_POLICY_DAG_CLOSED indexes with it). Naming the
+    # switch selectors binds arm to constant WITHIN the shader; nothing binds
+    # the shader's numbers to the header's. A renumber that updates one room
+    # and not the other is silent in both. This is that check.
+    GA = "src/cartridges/the_board/contracts/ground_architecture.hpp"
+    if os.path.exists(GA):
+        hpp = io.open(GA, encoding="utf-8").read()
+        em = re.search(r"enum PolicyId\s*:\s*uint32_t\s*\{(.*?)\}", hpp, re.S)
+        cpp_pol = {}
+        if em:
+            for n, v in re.findall(r"(POLICY_\w+)\s*=\s*(\d+)", em.group(1)):
+                if n != "POLICY_COUNT":
+                    cpp_pol[n] = int(v)
+        wgsl_pol = {n: int(v) for n, v in
+                    re.findall(r"^const\s+(POLICY_\w+?)\s*:\s*u32\s*=\s*(\d+)u;",
+                               cur["text"], re.M)
+                    if not n.endswith("_MASK")}
+        for n in sorted(set(cpp_pol) | set(wgsl_pol)):
+            c, w = cpp_pol.get(n), wgsl_pol.get(n)
+            if c is None:
+                errs.append("policy mirror: `%s` = %d in WGSL, absent from the "
+                            "C++ enum" % (n, w))
+            elif w is None:
+                # a C++ policy with no WGSL constant is legal — it is realized
+                # by another mechanism and has no arm (R8 class B)
+                pass
+            elif c != w:
+                errs.append("policy mirror: `%s` is %d in C++ and %d in WGSL"
+                            % (n, c, w))
+        rows = len(re.findall(r"^    \{ POLICY_", hpp, re.M))
+        cnt = re.search(r"POLICY_COUNT\s*=\s*(\d+)", hpp)
+        if cnt and rows and int(cnt.group(1)) != rows:
+            errs.append("policy mirror: POLICY_COUNT = %s but POLICIES[] has %d "
+                        "rows (the id is the row index)" % (cnt.group(1), rows))
+
     if errs:
         sys.stderr.write("G-LAW 2: RED\n")
         for e in errs[:40]:
