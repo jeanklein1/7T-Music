@@ -2052,13 +2052,7 @@ fn unpack_cell_tag_mode(alpha: f32) -> u32 {
     return u32(alpha * 255.0 + 0.5) & 0xFu;
 }
 
-fn unpack_cell_tag_tier(alpha: f32) -> u32 {
-    return (u32(alpha * 255.0 + 0.5) >> 4u) & 0x7u;
-}
 
-fn unpack_cell_tag_height(alpha: f32) -> bool {
-    return (u32(alpha * 255.0 + 0.5) & 0x80u) != 0u;
-}
 
 // --- Game of Life Zone Config
 const GOL_ZONE_SEED_BAND: u32      = 250u;      // lattice seed for zone decisions
@@ -2857,28 +2851,6 @@ fn contrib_gol_zones_at(world_xz: vec2<f32>) -> f32 {
     return 0.0;
 }
 
-// CONTRIB_GOL_SUPPRESSION — deformation_field, consumer-local (subtractive).
-// Contributes: subtractive GoL height that flattens the zone near consumer_pos.
-// Dependencies (via DAG): none — orthogonal to the static stack.
-// Notes: returns h * (1 - smoothstep(SUPPRESS_INNER, SUPPRESS_OUTER, dist)),
-//   so contrib_gol_zones_at(xz) - contrib_gol_suppression_at(xz, pos)
-//   == h * smoothstep(...), matching the pre-refactor h *= (1 - supp).
-//   Evaluates raw GoL internally (calls contrib_gol_zones_at).
-//
-// USED ONLY BY: standalone consumers that want the subtractive form as
-// a separate value. The walker-family queries (query_ground_walker,
-// query_ground_walker_pair) inline the GoL + suppression math together
-// to avoid double-evaluating the zone loop, which compounds
-// significantly under FXC loop unrolling. New walker-side consumers
-// should do the same.
-// STATUS: LATENT[policy-surface] — the standalone form has zero callers
-// today (the contributor is realized inline in walker/tilt/pair per the
-// FXC fusion above); kept as the reference form for any consumer that
-// wants suppression as a separate value.
-fn contrib_gol_suppression_at(world_xz: vec2<f32>, consumer_pos: vec3<f32>) -> f32 {
-    let h = contrib_gol_zones_at(world_xz);
-    return h * pawn_gol_suppression(world_xz, consumer_pos.xz);
-}
 
 // --- Ground Architecture: contributor and policy ids ---
 //
@@ -4761,26 +4733,6 @@ fn pawn_profile_radius(t: f32) -> f32 {
     return mix(0.15, 0.0, smoothstep(0.0, 1.0, u));
 }
 
-// Compute outward-facing normal from profile slope via finite differences
-fn pawn_profile_normal_2d(t: f32) -> vec2<f32> {
-    let eps = 0.005;
-    let t0 = max(0.0, t - eps);
-    let t1 = min(1.0, t + eps);
-
-    let r0 = pawn_profile_radius(t0);
-    let r1 = pawn_profile_radius(t1);
-    let h0 = t0;
-    let h1 = t1;
-
-    let dr = r1 - r0;
-    let dh = h1 - h0;
-
-    let len = sqrt(dr * dr + dh * dh);
-    if (len < 0.0001) {
-        return vec2(1.0, 0.0);
-    }
-    return vec2(dh / len, -dr / len);
-}
 
 
 // --- Pawn figure helpers (CLOSURE_PAWN) --------------------------------
@@ -5867,10 +5819,6 @@ fn compute_pawn_pos() -> vec3<f32> {
     let a = agent_state[config.possessed_slot];
     return vec3(a.pos_x, a.pos_y, a.pos_z);
 }
-fn compute_pawn_vel_xz() -> vec2<f32> {
-    let a = agent_state[config.possessed_slot];
-    return vec2(a.vel_x, a.vel_z);
-}
 fn compute_pawn_heading() -> f32 {
     return agent_state[config.possessed_slot].heading;
 }
@@ -5913,10 +5861,6 @@ fn render_point_pos() -> vec3<f32> {
 fn render_pawn_vel_xz() -> vec2<f32> {
     let a = render_agents[config.possessed_slot];
     return vec2(a.vel_x, a.vel_z);
-}
-fn render_pawn_orientation() -> vec4<f32> {
-    let a = render_agents[config.possessed_slot];
-    return vec4(a.orient_x, a.orient_y, a.orient_z, a.orient_w);
 }
 
 // --- Ribbon (Group 0: render, binding 360)
