@@ -6,7 +6,7 @@
 | anchor | value |
 |---|---|
 | audited tree state | `1ec6c5595795ad1e67bba44c0a389fa83e701e5d` |
-| generated at HEAD | `4aa455d730bd` |
+| generated at HEAD | `c8342c4f5030` |
 | branch | `master` |
 | audited state date | 2026-07-25 |
 | history depth | 62 commits (root dated 2026-07-23) |
@@ -20,10 +20,12 @@ gate. `--check` re-derives the whole report and exits 1 if the copy on
 disk has drifted from the tree; the provenance line is normalized out of
 that comparison, everything else must match byte for byte.
 
-> **Anchor check.** `origin/master` is `4aa455d730bd` and the audited state is
-> `1ec6c5595795` — 0 ahead / 16 behind, but **none of those commits touch
-> `src/`, `web/` or `CMakeLists.txt`**. They are this report's own
-> commits. The census and the trunk describe the same tree.
+> **Anchor check.** The audited state and `origin/master` differ
+> only by commits that touch **none** of `src/`, `web/` or
+> `CMakeLists.txt` — this report's own. The census and the trunk
+> describe the same tree. (Hashes and distances are deliberately
+> not printed here: they move with every commit to this file, and
+> a report that quotes its own commit can never settle.)
 
 ---
 

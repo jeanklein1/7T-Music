@@ -1141,12 +1141,18 @@ def main():
             R("> exactly why this notice exists.")
             R()
         else:
-            R("> **Anchor check.** `origin/master` is `%s` and the audited state is" %
-              om[:12])
-            R("> `%s` — %s ahead / %s behind, but **none of those commits touch" %
-              (subject[:12], ahead or "0", behind or "0"))
-            R("> `src/`, `web/` or `CMakeLists.txt`**. They are this report's own")
-            R("> commits. The census and the trunk describe the same tree.")
+            # Deliberately hash-free and count-free. Those move every time
+            # this report is committed, and embedding them would make the
+            # report describe its own commit — the same self-reference that
+            # SELF_PATHS exists to break. The stable fact is the only one
+            # worth printing: nothing between here and the trunk touches the
+            # audited surface.
+            R("> **Anchor check.** The audited state and `origin/master` differ")
+            R("> only by commits that touch **none** of `src/`, `web/` or")
+            R("> `CMakeLists.txt` — this report's own. The census and the trunk")
+            R("> describe the same tree. (Hashes and distances are deliberately")
+            R("> not printed here: they move with every commit to this file, and")
+            R("> a report that quotes its own commit can never settle.)")
             R()
     R("---")
     R()
