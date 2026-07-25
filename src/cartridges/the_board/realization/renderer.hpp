@@ -1645,9 +1645,6 @@ namespace t7 {
                     })) return false;
                 }
 
-                // Zone cell extrusion pipeline (GoL alive cells with height)
-                // (zone extrusion render pipeline RETIRED — UNIFIED_GROUND_1 U4)
-
                 // Pawn pipeline -- chess pawn, GPU-generated from vertex_index (bufferless, cull None)
                 if (!makeEntity("pawn", "Pawn Entity (Chess Pawn)", Entry::PAWN_VS,
                     nullptr, wgpu::CullMode::None, pawnPipeline_)) return false;

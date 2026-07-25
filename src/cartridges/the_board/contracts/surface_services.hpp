@@ -131,11 +131,9 @@ inline constexpr uint32_t PATCH_PENDING_TIER_3 = 20;
 inline constexpr uint32_t PATCH_PENDING_TIER_4 = 40;
 inline constexpr uint32_t PATCH_BUDGET_MOVE_THRESHOLD = 4;
 
-// ── Visibility — THE VEIL CHAIN (re-ruled: RING = draw authority) ──
+// ── Visibility — THE VEIL CHAIN (RING = draw authority) ────────────
 //
-// The old two-group vocabulary (VISIBLE_RADIUS/VISIBILITY_CYLINDER_* and
-// LOD_FULL_RADIUS/LOD0_CYLINDER_* — seven spellings of two numbers) is
-// RETIRED. The chain is declared ONCE in Dim (state.hpp: VEIL_RING_DEFAULT
+// The chain is declared ONCE in Dim (state.hpp: VEIL_RING_DEFAULT
 // 325 / VEIL_ICING_DEFAULT 40 / LOD0_RADIUS_DEFAULT 175 / EXIST_RADIUS
 // 350, chain static_asserts). The LIVE values ride config (veil_ring/
 // veil_icing/lod0_radius, tunable): the CPU band reads gpuState_.

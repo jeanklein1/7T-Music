@@ -4,55 +4,29 @@
 //
 // Counterpart to cartridge.hpp. The CPU spine authors intent (mood
 // transitions, entity lifecycle, dispatch tables, signal preparation);
-// this file is what the GPU runs every frame. All struct shapes in
-// §2.1 must mirror their C++ counterparts in state.hpp byte-for-byte;
-// all per-policy contributor masks in §3.4 must mirror POLICIES[]
-// in contracts/ground_architecture.hpp; the deterministic-randomness
-// helpers in §1.5 must produce bit-identical results to the CPU
-// mirrors in primitives/seed_utils.hpp.
+// this file is what the GPU runs every frame — terrain evaluation,
+// entity compute, render pipelines, mesh generation. GPU is
+// sovereign: CPU dead-reckoning exists only for placement, picking,
+// and step decisions; the visual reality is here.
+//
+// THE LAWS THAT GOVERN THIS FILE — src/docs/LAWS.md:
+//   L1  encoding — BOM-free LF.
+//   L2  FXC — the Windows D3D12 backend's hard limits, honored by
+//       structure. READ L2 BEFORE adding a branch to the collision/
+//       ground chain, a texture-array stamp anywhere near it, or a
+//       second indirect draw in one pass.
+//   L3  mirror — §2.1 structs ↔ state.hpp byte-for-byte; §3.4
+//       POLICY_*_MASK ↔ POLICIES[] in contracts/
+//       ground_architecture.hpp; §1.5 randomness ↔ primitives/
+//       seed_utils.hpp, bit-identical. Both rooms, same commit.
+//   L6  binding numbers — realization/binding_registry.hpp is the
+//       source; the @binding literals here are its mirror.
 //
 // Navigation: §1-§9 chapter-numbered structure. Section numbers
 // reflect file order — search by section number to jump.
 // TUNING SURFACE DIRECTORY (below) lists the constants that shape
 // terrain, color, and entity behavior. SECTION MAP gives the
 // chapter outline.
-//
-// SEAM[world.wgsl:owns] this file is the canonical source of truth
-//   for everything the GPU does — terrain evaluation, entity
-//   compute, render pipelines, mesh generation. CPU code (cartridge
-//   spine + modules) authors intent; this file realizes geometry
-//   and pixels. The motto: GPU is sovereign. CPU dead-reckoning
-//   exists only for placement, picking, and step decisions; the
-//   visual reality is here.
-// SEAM[world.wgsl:contract] CPU/GPU struct contracts. §2.1 structs
-//   (FrameSignal, AgentState, AgentBehaviorParams,
-//   AgentTierParams) mirror state.hpp byte-for-byte. The
-//   PAIRED DECLARATIONS comment at §2.1 AGENT REGISTRIES
-//   names the C++ counterparts. Drift would mean the GPU reads
-//   different fields than CPU writes. Same family as
-//   seed_utils:contract and ground_architecture:contract.
-// SEAM[world.wgsl:ground-architecture-mirror] the §3.4 Ground
-//   Architecture block (§3.4) is the GPU companion to
-//   contracts/ground_architecture.hpp. The CPU file declares
-//   ContributorId / PolicyId / CONTRIBUTOR_DAG / POLICIES[] +
-//   compile-time DAG closure validation; this file declares the
-//   contrib_*_at functions, the per-policy POLICY_*_MASK constants
-//   (which must match POLICIES[].contributors bitmasks exactly),
-//   and the query_ground_<policy> dispatch functions. Adding a
-//   contributor or policy: see "Extension patterns" subsection
-//   below for the exact step list across both files.
-// SEAM[world.wgsl:fxc-constraints] the Windows D3D12/FXC backend
-//   imposes hard limits, honored by structure in this file:
-//     - instance structs in hot loops stay lean and byte-pinned
-//       (GPUPierInstance: 48 B, static_assert in state.hpp — the
-//       successor of the retired 32-byte SolidInstance rule)
-//     - the collision/ground chain admits no new runtime branching;
-//       evaluate_pier's caller bounds its loop by a uniform
-//       (config.pier_count) and dispatch is by uniform function
-//       choice, not branches
-//     - texture-array stamps in the collision chain hang FXC
-//     - one DrawIndexedIndirect per render pass maximum
-//     - storage buffers / stage = 10; uniform buffers / stage = 12
 // ─────────────────────────────────────────────────────────────────────
 
 // THE_BOARD CARTRIDGE — GPU Scroll
@@ -73,7 +47,6 @@
 //   config.palette_center[4]      Sand/salmon/green/warm RGB medians
 //   config.palette_light[4]       Light variant per palette
 //   config.palette_weight         Selection probability (vec4)
-//   (PALETTE_VARIANCE retired with its dead consumer palette_color)
 //
 // ── Spatial Field Lattices (§2.2) ─────────────────────────────────
 //   PALETTE_LATTICE_SPACING       300 wu — palette blob size
@@ -86,8 +59,6 @@
 //   CHESS_LATTICE_SPACING         55 wu — B&W alternation zones
 //   DISCRETE_COLOR_LATTICE_SPACING  80 wu — colored cell blobs
 //   DISCRETE_MONO_LATTICE_SPACING   250 wu — B&W tendency zones
-//
-// (Terrain-Mode Coupling section RETIRED — Phase 1, ruling 6.)
 //
 // ── Terrain Waves (→ §2.2 TERRAIN_LOOKS ROW 7) ────────────────────
 //   WAVE_THRESHOLD[6]             Per-band activity gate
@@ -252,14 +223,7 @@ const PATCH_EXTENT: f32 = 50.0;         // world units per patch side
 // ── THE LIVE CARD (GROUND_CARD_1; C++ room: Dim::LIVE_CARD_*) ──
 const LIVE_CARD_SIZE: u32 = 512u;
 const LIVE_CARD_EXTENT: f32 = 800.0;
-const LIVE_CARD_DEBUG_VIEW: u32 = 0u;  // 1 = paint the card (terrain FS eye — lands with H4 [4a])
-// THE SHELL INSTRUMENT (CONTACT_4 S3a). 1 = draw the point's influence
-// shells as rings on the terrain. The rings BLEND over the world (they
-// do not replace it) so scale is read in context. Zero bindings, zero
-// layout: the rings use config.lod_point_x/z (the point's own position),
-// already in the terrain FS.
-const CONTACT_SHELL_DEBUG: u32 = 0u;
-const SHELL_RING_WIDTH: f32 = 0.35;   // wu, half-width of a ring band
+const SHELL_RING_WIDTH: f32 = 0.35;   // wu, half-width of a ring band (DEBUG_VIEW 6)
 fn live_card_origin() -> vec2<f32> {
     let cs = PATCH_EXTENT / f32(PATCH_CELL_N);           // 3.125
     let raw = vec2(config.lod_point_x, config.lod_point_z)
@@ -752,9 +716,6 @@ fn true_band_delta_contribution(world_xz: vec2<f32>, seed: u32,
     return delta;
 }
 
-// --- Total Height
-// (fn terrain_height_at RETIRED — UNIFIED_GROUND_1 U4; A2-3 census)
-
 // --- Height + Complexity
 fn terrain_height_and_complexity(world_xz: vec2<f32>, master_seed: u32, t_beats: f32) -> vec2<f32> {
     let af = terrain_activity_at(world_xz, master_seed);
@@ -812,9 +773,6 @@ struct FrameSignal {
     sky_pitch: f32,       // tangent-align pitch (rad)
     sky_roll: f32,        // bank into the lateral swing (rad, clamped)
 }
-
-// --- [STATE:terrain] TerrainState REMOVED — the dead terrain
-//     buffer's struct + its bindings 20/220 are gone; no shader read them.
 
 // --- [STATE:agent] AgentState
 //
@@ -1346,14 +1304,6 @@ fn sparse_field_at(world_xz: vec2<f32>) -> f32 {
     return base_val * cluster_boost;
 }
 
-// (Terrain-mode coupling field RETIRED — Phase 1, ruling 6. Lattice 9
-//  — seeds 15/16, props 530/531 — sat behind a magnitude dial parked
-//  at 0.0: three evaluators computed on every bake and multiplied to
-//  zero. Retired whole: the evaluators, the ROW 6 dials, and the shift
-//  block in evaluate_cell_fields. The seeds and property IDs stay
-//  reserved — do not reuse 15/16 or 530/531. The identifiers and the
-//  ledger live in the charter (lattice table row 9, ruling 6).)
-
 // --- Chess board field: strict two-color alternation
 // (CHESS_LATTICE_SPACING defined in Color Field Spatial Config block below)
 
@@ -1411,19 +1361,14 @@ fn chess_field_at(world_xz: vec2<f32>) -> ChessField {
     return ChessField(tendency, color_a, color_b);
 }
 
-// (palette_color_smooth — the palette's governing expression —
-//  relocated to THE TERRAIN_LOOKS PANEL ROW 8, §2.2: it lives beside
-//  its dials. The palette_color + PALETTE_VARIANCE retirement record
-//  (fork resolved RETIRE) is carried by the panel's ROW 1.)
+// (palette_color_smooth — the palette's governing expression — lives
+//  beside its dials at THE TERRAIN_LOOKS PANEL ROW 8, §2.2.)
 
 // --- Discrete cell color system
 // (DISCRETE_*_LATTICE_SPACING defined in Color Field Spatial Config block)
 
 // Per-node: roll RGB mean and variance for a discrete color region —
 // the region's anatomy: seed color mean and spread.
-// (Prop 804 "receptivity" RETIRED — Phase 1, ruling 3: the pc-color
-//  field ships without it; chess_eff/mono_eff carry the listening
-//  geography. The property ID stays reserved — do not reuse 804.)
 struct DiscreteRegion {
     mean: vec3<f32>,
     variance: f32,
@@ -1721,7 +1666,6 @@ struct DesignConfig {
 //   ROW 3 — PALETTE COMPOSITION        values HERE
 //   ROW 4 — FIELD LATTICES             values HERE
 //   ROW 5 — COMPOSITE CUTS & EDGES     values HERE
-//   ROW 6 — TERRAIN-MODE COUPLING      values HERE
 //   ROW 7 — THE MOVEMENT THIRD         values HERE
 //   ROW 8 — GOVERNING EXPRESSIONS      text HERE
 //   ROW 9 — THE CONTRIBUTOR ROSTER     pointers, both rooms
@@ -1756,9 +1700,6 @@ struct DesignConfig {
 //           green {.45,.58,.38} (rare) · warm {.82,.55,.42}
 //   light:  {.92,.82,.65} · {.95,.72,.62} · {.62,.72,.52} · {.92,.72,.58}
 //   weight: .42 · .28 · .04 (green rare) · .26
-// (PALETTE_VARIANCE retired with its dead consumer palette_color — the
-//  2b fork resolved RETIRE under the bit-identical law; values were
-//  .08/.14/.20/.12, held by git + the designer tool's design space.)
 
 // ── ROW 2 — MOTION & MODE REST PINS (values in the C++ room) ───────
 // The surface voice's silence. config.terrain_time / the band
@@ -1783,7 +1724,7 @@ struct DesignConfig {
 // amount), its region WANDERS around it by a STATIC per-region offset
 // (S2), and its own spread WIDENS by the count (S3); the mode field's
 // composite gating decides which cells (between smooth sections) show
-// it. Dials: ROW 5 CHECKER_WANDER / CHECKER_DEBUG_VIEW. Bake passes
+// it. Dials: ROW 5 CHECKER_WANDER / DEBUG_VIEW. Bake passes
 // amount 0 → seed (seam-proof by law).
 
 // ── ROW 3 — PALETTE COMPOSITION ─────────────────────────────────────
@@ -1815,7 +1756,7 @@ const DISCRETE_MONO_LATTICE_SPACING: f32 = 250.0; // large B&W tendency zones
 // ── ZONE-GEOMETRY (ROW 4 group) — the vocabulary domain warp ────────
 // STRUCTURAL dials: they redraw where checkers may live. AMP 0 =
 // identity (today's world, bit-exact; the warp folds out). Tune LIVE
-// in TERRAIN_DEBUG_VIEW 4 — the art shows it only after patch regen.
+// in DEBUG_VIEW 4 — the art shows it only after patch regen.
 const MODE_WARP_AMP: f32 = 0.0;      // wu displacement; 0 = identity
 const MODE_WARP_SCALE: f32 = 240.0;  // wavelength (~2× mode spacing)
 
@@ -1866,35 +1807,35 @@ const CHECKER_VAR_MAX: f32 = 0.30;         // ceiling on the music spread add
 const DOOR_FADE_W_SCATTER: f32 = 0.07;
 const DOOR_FADE_W_SPARSE: f32 = 0.07;
 const DOOR_FADE_W_ZONE: f32 = 0.07;
-// CHECKER_DEBUG_VIEW — the institutionalized instrument (hot-reload):
-//   0 = the art. 1 = WHEEL METER: all ground painted by the wheel as
-//   the shader receives it (angle → hue on the same recipe as the
-//   seat table: 0° red · 60° yellow · 240° blue; length → vividness).
-//   Static gray under music = the CPU→GPU path is cut. 2 = the
-//   FIELD-COVERAGE view (re-pointed Phase 1; receptivity map retired
-//   with prop 804): green = live path, gray = baked composite.
-//   (Phase-2 TIER VIEW retired — VOICE-COHERENCE shot served; the
-//   one-address law verified.)
-//   Branches on a module const — folded out at 0, zero cost.
-const CHECKER_DEBUG_VIEW: u32 = 0u;
-// TERRAIN_DEBUG_VIEW — the registry's terrain slots (target layout:
-// 0 art · 1 wheel meter · 2 coverage · 3 skirt · 4 zone geometry;
-// full single-registry migration is Phase 4). 0 = off. 3 = SKIRT
-// PAINT (permanent): skirt fragments magenta. 4 = ZONE-GEOMETRY
-// SCULPTING ROOM (permanent): live mode field grayscale + patch
-// border lines + red coastline isoline — the warp tuning view.
-// (View 5, the sliver microscope, RETIRED — INCIDENT #3b CLOSED:
-// term 1 convicted the wander's 80-unit floor; the quantum fix and
-// the sample-point law landed; the LUT retired with the incident.
-// INCIDENT #2's I1/I2 audits retired earlier — suspects exonerated.)
-const TERRAIN_DEBUG_VIEW: u32 = 0u;
-
-// ── ROW 6 — RETIRED (Phase 1, ruling 6) ───────────────────────────
-// Terrain-mode coupling. The magnitude dial was parked at 0.0 — every
-// dial here multiplied to zero. The row retired whole with its
-// lattice (9: seeds 15/16, props 530/531) and evaluators (§1.6). If
-// terrain-mode coupling ever returns, it returns as a FIELD under the
-// SEAMLESSNESS treaty, not as this mechanism. Ledger: the charter.
+// ═══ DEBUG_VIEW — THE INSTRUMENT REGISTRY (one const, hot-reload) ═══
+// Every instrument branches on this module const, so at 0 each one
+// folds out per entry point and costs nothing at runtime.
+//   0  ART             the fold-out — no instrument.
+//   1  WHEEL METER     all ground painted by the checker wheel as the
+//                      shader receives it (angle → hue on the seat
+//                      table's recipe: 0° red · 60° yellow · 240°
+//                      blue; length → vividness). Static gray under
+//                      music = the CPU→GPU path is cut.
+//   2  FIELD COVERAGE  green where the live path runs, gray where the
+//                      baked composite stands.
+//   3  SKIRT PAINT     skirt fragments magenta over the art — where
+//                      the perimeter curtains present as pixels.
+//   4  ZONE GEOMETRY   the sculpting room: live post-warp mode field
+//                      grayscale + patch border lines + red coastline
+//                      isoline. The warp tuning view.
+//   5  LIVE CARD EYE   the card itself: R = |Δh|, G = GoL lift. Black
+//                      at rest; paints under music / near zones.
+//   6  SHELL RINGS     the point's influence radii as rings on the
+//                      terrain, blended (not replacing) so scale reads
+//                      in context. Zero bindings, zero layout — the
+//                      rings use config.lod_point_x/z, already in the
+//                      terrain FS.
+// Slots 3-6 are permanent. Slots 1-2 replace the old CHECKER_DEBUG_VIEW,
+// 3-4 the old TERRAIN_DEBUG_VIEW, 5 LIVE_CARD_DEBUG_VIEW, 6
+// CONTACT_SHELL_DEBUG. The archived charter penciled 5-7 as SPARSE
+// SURVIVAL / MOTION PHASE / GUEST MASKS; none was built and 5-6 are
+// spent here.
+const DEBUG_VIEW: u32 = 0u;
 
 // ── ROW 7 — THE MOVEMENT THIRD ──────────────────────────────────────
 // The surface voice's motion vocabulary (moved here from §1.6 —
@@ -1921,13 +1862,11 @@ const WAVE_THRESHOLD = array<f32, 6>(
 );
 const WAVE_THRESHOLD_SOFTNESS: f32 = 0.15;      // crossfade width at threshold boundary
 
-// ─── The Movement Third — THE TRUE BANDS (TRUEBAND_CONTACT_1) ───────
-// The overlay matrix is RETIRED: the terrain animates with its OWN
-// waves — the card writer's heights pass sums per-band
-// true_band_delta_contribution (TERRAIN_BANDS, §1.5), shaped by the
-// WAVE_THRESHOLD pools above and gated by get_band_blend's per-band
-// wires. WAVE_THRESHOLD + softness STAY — they are the true-band pool
-// thresholds.
+// ─── The Movement Third — THE TRUE BANDS ───────────────────────────
+// The terrain animates with its OWN waves: the card writer's heights
+// pass sums per-band true_band_delta_contribution (TERRAIN_BANDS,
+// §1.5), shaped by the WAVE_THRESHOLD pools above and gated by
+// get_band_blend's per-band wires. That is what those thresholds are.
 
 // ── ROW 8 — GOVERNING EXPRESSIONS ───────────────────────────────────
 // The palette's governing expression lives in-room (below). The
@@ -2013,9 +1952,6 @@ const SPHERE_MIN_TERRAIN_CLEARANCE: f32 = 5.0;
 // below to keep the cube's base (center minus half-height) at least this
 // far above local ground.
 const CUBE_TERRAIN_CLEARANCE: f32 = 3.0;
-
-// Bindings 21 and 40 reserved (currently unused — kept open for
-// future cell-system features).
 
 // --- Cell Behavior Tag Encoding
 const CELL_ANIM_GOL:  u32 = 1u;     // bit 0: Game of Life
@@ -2149,9 +2085,6 @@ const PAWN_FORCEFIELD_ENABLED: bool = true;
 // --- Compile-time feature gates
 // These prune heavy dependency chains from update_player_agent's pipeline compilation.
 // Set to false to cut compile time when iterating on unrelated features.
-// (PAWN_GOL_GROUND_ENABLED RETIRED — compile-time gate for the pre-card
-//  analytic chain; GROUND_CARD_1 retired the chain. Reference-free at T0
-//  — TRUEBAND_CONTACT_1 T2a.)
 // PAWN_FORCEFIELD_RADIUS_* stay as-is — the pawn's own visual forcefield
 // expression, distinct from the CONTACT_2 personal-shell family
 // (AgentTierParams.personal_radius: the flock + flee social radius).
@@ -2197,16 +2130,6 @@ const PAWN_FORCEFIELD_SPEED_SCALE: f32 = 1.0;        // How quickly radius shrin
 // CONTACT_SPRING/_IMPULSE_CAP are not radii -- units below.
 const CONTACT_SPRING: f32 = 40.0;        // impulse per wu overlap per s
 const CONTACT_IMPULSE_CAP: f32 = 6.0;    // max Δv per pair per frame
-// (CONTACT_SPHERE_RADIUS RETIRED — CONTACT_4 S2c. It was the sphere's
-//  INFLUENCE field 12.0 (colour/terrain range), wrongly used as a physical
-//  body radius. The agents' sphere loop now uses fe.body_radius (per-
-//  instance, ~1.2-1.5 wu); the player's sphere loop was deleted entirely
-//  (spheres don't move the point's body). Reference-free at S2c. The C++
-//  Idle::SPHERE_INFLUENCE_RADIUS stays as the colour/terrain field range.)
-// (CONTACT_CUBE_RADIUS 3.0 RETIRED -- CONTACT_5 P2b. The cube's interaction
-//  is now the PRESENCE column (CUBE_PUSH_*); a body-contact shell never
-//  reached a hovering cube -- the CONTACT_4 ledger flagged it [UNREACHABLE]
-//  at 3.0 + 1.6 = 4.6 < H. Reference-free at P2b.)
 // dimensionless -- the pawn's yield authority in the pair weight
 // m_other/(m_self+m_other). Not a radius.
 const PAWN_CONTACT_MASS_MULT: f32 = 4.0; // the pawn is heavy: agents yield, the player barely feels it
@@ -2257,7 +2180,7 @@ const FLEE_SHELL_FRAC: f32 = 0.25;   // CONTACT_3 K2a
 //     cube shoveable. Jean-tunable.
 //   CUBE_PUSH_GAIN     -- presence force per wu overlap (dt-scaled).
 const CUBE_PUSH_RADIUS:  f32 = 7.0;   // planar reach (~2x pawn contact shell; a tool, not a field)
-const CUBE_REACH_CEILING: f32 = 30.0; // authored-altitude eligibility (T2b); retires CUBE_PUSH_VWINDOW 85 -- its |dy| window coupled terrain relief (audit #7)
+const CUBE_REACH_CEILING: f32 = 30.0; // authored-altitude eligibility; a |dy| window would couple terrain relief instead
 const CUBE_PUSH_GAIN:    f32 = 25.0;  // presence force per wu overlap
 // units: max Δv per frame on the cube's drift. A FRAME-HITCH GUARD, not a
 // tuning knob: unreachable at 60 Hz (max 7*25/60 = 2.92); first engages at
@@ -2269,10 +2192,6 @@ const CUBE_PUSH_CAP: f32 = 12.0;
 // it (a false assertion errors -- verified T1e). The ONE cap that proves
 // itself; the other three rows are split across rooms (see the ledger below).
 const_assert CUBE_PUSH_RADIUS * CUBE_PUSH_GAIN < CUBE_PUSH_CAP * 60.0;
-// (CUBE_PART_RADIUS 30 / CUBE_PART_GAIN 1.0 RETIRED -- CONTACT_5 P2b. They
-//  were the CONTACT_4 approach-parting reach + gain; the parting became a
-//  PRESENCE push (CUBE_PUSH_*), so both are reference-free. The S3a shell
-//  instrument now draws CUBE_PUSH_RADIUS -- the planar column footprint.)
 
 // Spheres push the POINT (CONTACT_5 P2a). Presence gain authored 40.0 =
 // CONTACT_SPRING's shape, so the restored feel matches what Jean liked
@@ -2331,7 +2250,7 @@ struct InfluenceProfile {
     approach_floor: f32,  // isotropic approach-speed the point emanates when its
                           // host has no velocity field (camera-host: BUBBLE_
                           // PART_SPEED); every other row carries 0 (real closing
-                          // speed via other_vel). Was the 7th call param (T1d).
+                          // speed via other_vel).
 }
 
 // The uncapped flee rows carry this so the profile table has no empty cell.
@@ -2860,18 +2779,6 @@ fn ground_formed_with_complexity(world_xz: vec2<f32>) -> vec2<f32> {
 // Seed-derived jitter makes each finite outdoor world feel different.
 //
 // Cost: 6 sin() calls per evaluation point. Called in VS + pawn + camera.
-//
-
-
-
-// (fn contrib_terrain_waves_at RETIRED — UNIFIED_GROUND_1 U4; A2-3 census)
-
-// (terrain_wave_overlay forwarder and terrain_wave_overlay_gradient
-// removed in Step 5. Callers now invoke contrib_terrain_waves_at
-// directly; nothing referenced the gradient-only helper.)
-
-// (fn terrain_wave_overlay_with_gradient RETIRED — TRUEBAND_CONTACT_1 T1c;
-//  the true-band writer replaced the overlay; A3-3d certified the sole caller.)
 
 // ─── Radial pulses: expanding ring wavefronts from note onsets ──────────
 //
@@ -2997,9 +2904,8 @@ struct QueryInputs {
 //   the ground-without-dynamics. The texture variant is sample_terrain_y_at.
 // Notes: must stay consistent with ground_formed_with_complexity (the
 //   two-pass patch heightfield generator) — same contributor set.
-// (fn query_ground_baked_heightfield RETIRED — UNIFIED_GROUND_1 U4; A2-3 census)
 
-// ─── The shared dynamic-overlay stack (b2a) ─────────────────────────
+// ─── The shared dynamic-overlay stack ───────────────────────────────
 // The additive fold every DYNAMIC ground policy shares, authored ONCE
 // (GROUND_CARD_1 — the compute rewire):
 //   sample_terrain_y_at (base: static + pyramids, the baked path)
@@ -3912,7 +3818,6 @@ struct PatchTerrainVarying {
     @builtin(position) clip_pos: vec4<f32>,
     @location(0) world_pos: vec3<f32>,
     @location(1) gradients: vec2<f32>,
-    // (complexity varying REMOVED — LATENT[complexity], read by no FS)
     @location(2) patch_uv: vec2<f32>,    // UV within the patch [0,1] for cell sampling
     @location(3) @interpolate(flat) layer: u32,  // heightfield/cell array layer
     // TEMPORARY (INCIDENT #2, I3): 1.0 on skirt ring-copy verts, 0.0 on
@@ -4015,8 +3920,6 @@ fn patch_terrain_vs(
     out.clip_pos = render_vp.m * vec4(world_pos, 1.0);
     out.world_pos = world_pos;
     out.gradients = height_data.yz + live.yz;
-    // (out.complexity REMOVED — the LATENT[complexity] varying;
-    //  the .w channel it read is now unused, no FS ever consumed it.)
     out.patch_uv = uv;
     out.cell_local = vec3<u32>(d.cellx, d.cellz,
                                select(0u, 1u, vi >= UG_CAP_BASE));
@@ -4051,10 +3954,9 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
         discard;
     }
 
-    // THE DEBUG EYE (GROUND_CARD_1): R = |Δh|, G = GoL lift. Card black
-    // at rest; paints under music / near zones. After the rim discard so
-    // the eye respects the veil ring.
-    if (LIVE_CARD_DEBUG_VIEW == 1u) {
+    // DEBUG_VIEW 5 — THE LIVE CARD EYE. After the rim discard, so the
+    // eye respects the veil ring.
+    if (DEBUG_VIEW == 5u) {
         let c = sample_live_card(in.world_pos.xz);
         return vec4(clamp(abs(c.x) * 0.25, 0.0, 1.0),
                     clamp(c.w * 0.25, 0.0, 1.0),
@@ -4110,15 +4012,14 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
                      || (abs(config.mode_checker_scatter) > 0.001)
                      || (config.mode_palette_intensity > 0.001)
                      || (config.checker_music_amount > 0.001);
-    if (CHECKER_DEBUG_VIEW == 1u) {
-        // COLOR METER: the resultant color as the shader receives it,
+    if (DEBUG_VIEW == 1u) {
+        // WHEEL METER: the resultant color as the shader receives it,
         // faded by presence (gray at rest). Static gray under music = the
         // CPU->GPU path is cut.
         base_color = mix(vec3(0.5), config.checker_resultant, config.checker_music_amount);
-    } else if (CHECKER_DEBUG_VIEW == 2u) {
-        // FIELD-COVERAGE VIEW: green where the live path runs
+    } else if (DEBUG_VIEW == 2u) {
+        // FIELD COVERAGE: green where the live path runs
         // (has_mode_bias), gray where the baked composite stands.
-        // The full instrument registry arrives Phase 4.
         base_color = select(vec3(0.45), vec3(0.25, 0.7, 0.35), has_mode_bias);
     } else if (has_mode_bias) {
         // SAMPLE-POINT + ANALYTIC (charter C8): the bake's evaluator,
@@ -4127,20 +4028,17 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
         base_color = animated_cell_color(cell_center, addr_used);
     }
 
-    // ── TERRAIN_DEBUG_VIEW — the instrument registry's terrain slots.
-    //    (INCIDENT #2's I1 texel audit / I2 LUT field audit RETIRED —
-    //    duty served, all five suspects exonerated; the skirt paint
-    //    stays as the permanent slot 3.) Painted AFTER the music
-    //    branch so each view shows the live-path truth with music
-    //    playing. Shading/fog still compose after — legible.
-    if (TERRAIN_DEBUG_VIEW == 3u) {
-        // SKIRT PAINT (permanent) — skirt fragments magenta over the
-        // art: shows where the perimeter curtains present as pixels.
+    // ── The terrain slots, painted AFTER the music branch so each view
+    //    shows the live-path truth with music playing. Shading and fog
+    //    still compose after — legible.
+    if (DEBUG_VIEW == 3u) {
+        // SKIRT PAINT — skirt fragments magenta over the art: shows
+        // where the perimeter curtains present as pixels.
         if (in.skirt > 0.01) {
             base_color = vec3(1.0, 0.0, 1.0);
         }
-    } else if (TERRAIN_DEBUG_VIEW == 4u) {
-        // ZONE-GEOMETRY SCULPTING ROOM (permanent) — computed LIVE in
+    } else if (DEBUG_VIEW == 4u) {
+        // ZONE GEOMETRY — the sculpting room, computed LIVE in
         // the FS, never from a bake, so it shows the field AS
         // CURRENTLY DEFINED (post-warp) at the current dials with no
         // rebake (since Commit C the art's live path evaluates the
@@ -4239,11 +4137,11 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
 
     var out_colour = shade_lit(in.world_pos, normal, base_color, 1.0);
 
-    // THE SHELL INSTRUMENT (CONTACT_4 S3a): each ring is an influence
-    // radius the code actually uses; the grey patch ring is the world's
-    // own yardstick. If a shell ring sits OUTSIDE the patch ring, ask
+    // DEBUG_VIEW 6 — THE SHELL RINGS: each ring is an influence radius
+    // the code actually uses; the grey patch ring is the world's own
+    // yardstick. If a shell ring sits OUTSIDE the patch ring, ask
     // whether that influence should really reach a whole patch.
-    if (CONTACT_SHELL_DEBUG == 1u) {
+    if (DEBUG_VIEW == 6u) {
         let pxz = vec2(config.lod_point_x, config.lod_point_z);
         let d = distance(in.world_pos.xz, pxz);
         var ring = vec3(0.0);
@@ -5418,7 +5316,6 @@ fn fade_overlay_fs(in: FadeVarying) -> @location(0) vec4<f32> {
 @group(0) @binding(0)   var<uniform>             signal: FrameSignal;
 @group(0) @binding(1)   var<uniform>             config: DesignConfig;
 @group(0) @binding(2)   var<storage, read_write> vp_data: VPMatrix;
-// @binding(20) terrain_state REMOVED (dead terrain buffer)
 
 // Agent system — unified entity buffer. Slot 0 is the player's body;
 // slots 1..31 are mood-authored agents. The player's relationship
@@ -5475,7 +5372,6 @@ fn point_pos() -> vec3<f32> {
 
 // --- [BINDINGS:compute] Group 0 — Render entity mirrors (read-only, +200 offset)
 @group(0) @binding(201) var<storage, read> render_vp: VPMatrix;
-// @binding(220) render_terrain REMOVED (dead terrain buffer)
 @group(0) @binding(260) var<storage, read> render_agents: array<AgentState, 32>;
 @group(0) @binding(280) var<storage, read> render_camera: CameraState;
 @group(0) @binding(300) var<uniform> render_floating: FloatingEntityArray;
@@ -5533,7 +5429,6 @@ const GROUND_ATLAS_BLADE: i32    = 100;
 @group(0) @binding(322) var<storage, read> render_spot_lights: SpotLightArray;
 
 // --- Render textures (Group 1: bindings 22-23, 25-26)
-// (bindings 20, 21, 24 reserved — formerly legacy stub textures)
 @group(1) @binding(22) var bilinear_sampler: sampler;
 @group(1) @binding(23) var nearest_sampler: sampler;
 @group(1) @binding(25) var shadow_map: texture_depth_2d;           // sun shadows (outdoor) / spot atlas lights 0-1 (indoor)
@@ -5555,8 +5450,6 @@ const GROUND_ATLAS_BLADE: i32    = 100;
 @group(0) @binding(24) var patch_heightfield_array_write: texture_storage_2d_array<rgba16float, write>;
 @group(0) @binding(25) var<uniform> tile_grid: TileGrid;
 @group(0) @binding(27) var patch_cell_color_array_write: texture_storage_2d_array<rgba8unorm, write>;
-// (binding 29, cell_fields_write, RETIRED — Commit C, the LUT
-//  retirement. Number reserved; do not reuse.)
 @group(0) @binding(28) var<storage, read_write> patch_height_scratch: array<f32>;
 
 // --- Patch rendering (Group 0: binding 340, 391; Group 1: bindings 28-29)
@@ -5564,7 +5457,6 @@ const GROUND_ATLAS_BLADE: i32    = 100;
 @group(0) @binding(391) var<storage, read> visible_patch_indices: array<u32>;
 @group(1) @binding(28) var patch_heightfield_array_read: texture_2d_array<f32>;
 @group(1) @binding(29) var patch_cell_color_array_read: texture_2d_array<f32>;
-// (binding 30, cell_fields_read, RETIRED — Commit C. Number reserved.)
 
 // §7.0b GOL ZONE DEFINITIONS
 
@@ -5682,16 +5574,11 @@ fn gol_composite_cell_color(world_xz: vec2<f32>) -> vec3<f32> {
     let cell_gz = addr.y;
     let cell_seed = lattice_node_seed(config.world_seed, vec2(cell_gx, cell_gz), 200u);
 
-    // Phase 1 (charter D3.2): the manual field duplicate collapsed to the
-    // ONE evaluator (bias 0 — no live door bias on the GoL path).
-    // CHECKER-REBUILD ruling preserved verbatim: IDENTITY VOICE here —
-    // GoL keeps its own panel (ROW 9); RULED separate at the CHECKER cut
-    // (Jean): the zones' own coupling pass is coming. STATUS: INTENT —
-    // revive when it convenes by passing config.checker_resultant /
-    // _music_amount / _music_variance. Here amount 0 -> each cell's seed
-    // color. (The identity's archetype is now the real tile lookup — the
-    // aura compute layout gained tile_grid for it; archetype is unread by
-    // the composite, so output is unchanged.)
+    // IDENTITY VOICE: GoL keeps its own panel (ROW 9), so the door bias
+    // args are 0 here — amount 0 maps each cell to its seed color. When
+    // the zones' own coupling pass convenes (Jean's, STATUS: INTENT), it
+    // revives by passing config.checker_resultant / _music_amount /
+    // _music_variance in place of those zeros.
     let id = evaluate_cell_fields(world_xz, cell_gx, cell_gz, cell_seed, 0.0, 0.0);
     let dcol = discrete_cell_color_at_tier(world_xz, cell_gx, cell_gz, cell_seed,
                                            id.tier, vec3(0.0), 0.0, 0.0);
@@ -5867,8 +5754,7 @@ struct ZoneDeriveRequestArray {
 @group(0) @binding(166) var<uniform> zone_derive_requests: ZoneDeriveRequestArray;
 
 // Constants for zone derivation (must match CPU GoLZoneSpawnConfig / GoLColorMode)
-// (ZONE_DERIVE_EXTENT RETIRED — extent is tier-derived, grid_cells ×
-//  ZONE_DERIVE_CELL_SIZE — UNIFIED_GROUND_1 U5; const parked.)
+// A zone's extent is tier-derived: grid_cells × ZONE_DERIVE_CELL_SIZE.
 const ZONE_DERIVE_CELL_SIZE: f32      = 3.125;     // PATCH_EXTENT / PATCH_CELL_N
 const ZONE_DERIVE_LENS_LO: f32       = 0.2;       // LENS target color floor
 const ZONE_DERIVE_LENS_RANGE: f32     = 0.6;       // LENS target color range
@@ -6057,12 +5943,6 @@ fn zone_seed_mask(@builtin(global_invocation_id) gid: vec3<u32>) {
             + gid.y * zp.grid_size + gid.x;
     zone_life[idx] = zone_life[idx] * vis;   // Gaussian seed × mask
 }
-
-// Sample baked heightfield at world XZ — exact terrain as rendered.
-// Searches patch instances for the covering patch and samples its layer.
-// (fn zone_sample_baked_terrain_y RETIRED — UNIFIED_GROUND_1 U4; A2-3 census)
-
-
 
 // §7.1 COMPUTE ENTRY POINTS
 // Execution order (critical for correctness):
@@ -7879,7 +7759,7 @@ fn generate_patch_gradients(
     // ── Bounds check AFTER barrier (all threads must participate in load) ─
     if (id.x >= res || id.y >= res) { return; }
 
-    // ── Read center height from shared (complexity readback REMOVED) ─
+    // ── Read center height from shared ──────────────────────────────
     let cx = lid.x + 2u;
     let cy = lid.y + 2u;
     let height = sh_height[cy * 20u + cx];
@@ -7934,9 +7814,8 @@ fn generate_patch_gradients(
         grad_z = (h_pz - h_mz) / (2.0 * eps);
     }
 
-    // The .w channel is unused (was LATENT[complexity], removed by the husk
-    // sweep — no consumer ever read it; palette calls read the pinned
-    // PALETTE_COMPLEXITY, TERRAIN_LOOKS ROW 3).
+    // The .w channel is unused — stored 0.0. Palette calls read the
+    // pinned PALETTE_COMPLEXITY (TERRAIN_LOOKS ROW 3) instead.
     textureStore(patch_heightfield_array_write, texel, layer, vec4(height, grad_x, grad_z, 0.0));
 }
 
@@ -8037,14 +7916,6 @@ fn evaluate_cell_fields(
     let tile_gz = i32(floor(world_xz.y / cell_extent));
     let tile = tile_grid_lookup(tile_gx, tile_gz);
     id.archetype = tile.archetype;
-
-    // (Terrain-mode coupling shift RETIRED here — Phase 1, ruling 6.
-    //  The magnitude sat at 0.0: the shift was always zero. id.mode is
-    //  the mode field verbatim.)
-
-    // (Region anatomy fills — region_mean/variance/wander — moved
-    //  inside the pigment authority, Phase 2 D2.1: only the tinted +
-    //  full-color tiers pay for them now.)
 
     // ── The tier cascade (charter C3 order; first gate wins) ─────
     // chess_eff carries the per-cell jitter; the colorful sub-cut reads
@@ -8399,25 +8270,6 @@ fn zone_gol_evolve(@builtin(global_invocation_id) gid: vec3<u32>) {
 
 
 
-
-
-
-
-// (fn zone_emit_quad RETIRED — UNIFIED_GROUND_1 U4; A2-3 census)
-
-
-// (fn zone_gol_mesh_reset RETIRED — UNIFIED_GROUND_1 U4; A2-3 census)
-
-// (fn zone_gol_mesh_gen RETIRED — UNIFIED_GROUND_1 U4; A2-3 census)
-
-// --- Zone extrusion render shaders
-
-
-
-
-// (fn shadow_zone_extrusion_vs RETIRED — UNIFIED_GROUND_1 U4; A2-3 census)
-
-
 // ═══ §7.3b THE LIVE CARD (GROUND_CARD_1) ═══════════════════════════════
 // The per-frame deformation field. The writer CALLS the existing
 // evaluators at texel centers — one derivation, one new sampling
@@ -8748,9 +8600,6 @@ struct ColumnGroundEntry {
 };
 @group(0) @binding(148) var<storage, read_write> column_ground: array<ColumnGroundEntry, 32>;
 
-// (binding 149 RETIRED — pyramid_ground, the residue-T2 husk: its computed
-//  ground_y fed atlas slot 48, reader-free. Number parked.)
-
 struct PalmGroundEntry {
     center_x: f32,
     center_z: f32,
@@ -8938,11 +8787,9 @@ fn compute_photographer_vp() {
 // (static_base + pyramids) once per texel and caches the result.
 // This Y-correction pass samples the cache rather than re-evaluating
 // contributors analytically — it is *not* a spawn-time placement
-// query. The analytical placement queries had NO
-// live caller today (STATUS: LATENT[policy-surface]): CPU spawn
-// decisions stay on estimate_terrain_height (the tile-cache proxy in
-// machine/spawn_engine.hpp), and this GPU pass is the live Y path via the
-// baked heightfield.
+// query: CPU spawn decisions stay on estimate_terrain_height (the
+// tile-cache proxy in machine/spawn_engine.hpp), and this GPU pass is
+// the live Y path via the baked heightfield.
 //
 // Paintings: terrain + GoL zone extrusion.
 // Arch: 2-point min at pier feet + pier_height offset.
@@ -9066,10 +8913,6 @@ fn compute_entity_placement() {
             textureStore(entity_ground_atlas_write, vec2<i32>(i32(i) + GROUND_ATLAS_ARCH, 0), vec4<f32>(arch_ground[i].ground_y, 0.0, 0.0, 0.0));
         }
     }
-
-    // (Pyramid arm REMOVED — the ground-atlas residue: it computed a 5-point ground_y and
-    //  stored it to atlas slot 48, reader-free. Pyramids bake into
-    //  the heightfield via contrib_pyramids_at — the live instance path.)
 }
 
 
@@ -9094,9 +8937,8 @@ fn compute_entity_placement() {
 
 const FRUSTUM_PATCH_Y_MIN: f32 = -50.0;   // widened: terrain amplitude + entity heights
 const FRUSTUM_PATCH_Y_MAX: f32 = 200.0;   // widened: tall entities (towers, antennas, ribbons)
-// (FRUSTUM_LOD0_RADIUS_SQ REMOVED — the veil: the LOD0 gate now reads the
-//  LIVE chain value fc_config.lod0_radius, the SAME config value the CPU
-//  band reads — the four hand-kept spellings of 175 collapse to one.)
+// The LOD0 gate reads fc_config.lod0_radius — the SAME config value the
+// CPU band reads, so the radius has one spelling in the whole program.
 
 // Frustum cull compute bindings (dedicated bind group)
 @group(0) @binding(1)   var<uniform>             fc_config: DesignConfig;
@@ -9593,11 +9435,6 @@ fn wall_painting_frame_fs(in: WallPaintingVarying) -> @location(0) vec4<f32> {
     return vec4(mix(lit, config.fog_color, fog), 1.0);
 }
 
-// §8.3 WALL PAINTING SHADOW — CUT (orphan sweep): shadow_wall_painting_vs
-// was caller-free (draw_shadow_wall_paintings had no caller). Shared helper
-// compute_wall_painting_geometry is retained (used by the live wall-painting
-// color pass).
-
 
 // ═══════════════════════════════════════════════════════════════════════
 // §9 GPU ENTITY MESH GENERATION
@@ -9608,18 +9445,10 @@ fn wall_painting_frame_fs(in: WallPaintingVarying) -> @location(0) vec4<f32> {
 // VB/IB buffers. Inactive slots receive degenerate (zero-area) triangles.
 //
 // Two families: arches (§9.1), columns (§9.2) — the pyramid's realization
-// is the terrain itself (placement feeds the heightfield; no mesh, §9.0 retired).
+// is the terrain itself: placement feeds the heightfield, there is no mesh.
 //
 // Vertex format: matches ArchVertex (pos[3], normal[3], color[3], index:u32)
 // = 10 × f32 per vertex = 40 bytes. VB is accessed as array<f32>.
-
-// §9.0 PYRAMID MESH GENERATION — REMOVED.
-// The entire mesh-gen island (PMG_* consts, PyramidMeshParams, bindings
-// 190-192, and the pmg_* writer/geometry helpers) was a write-only husk:
-// its entry point pyramid_mesh_gen was cut long ago and no kernel read the
-// buffers. Its C++ bind-group layout + buffers went with it. The LIVE pyramid
-// path (instance array baked via contrib_pyramids_at; placement ground Y) is
-// untouched.
 
 
 // ─── §9.1 ARCH MESH GENERATION (catenary barrel vault) ───────────────

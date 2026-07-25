@@ -13,7 +13,7 @@
 //   Idle:: / Coupling::  boot-rest values / the mute-bit registry
 //   GPUFrameSignal       the per-frame hot uniform (sky tail: E-3)
 //   GPUDesignConfig      the design mirror — paneled by ─── system
-//                        groups; GROWTH LAW at its head
+//                        groups; grown per L5/L4 (src/docs/LAWS.md)
 //   GPU* DTO region      the mirror vocabulary, per-family banners,
 //                        every struct sizeof-witnessed
 //   class GPUState
@@ -44,7 +44,6 @@ namespace t7 {
 
         namespace Dim {
             // Grid dimensions
-            // (bindings 21, 40 reserved — formerly proximity_field, cell_states)
 
             // Terrain mesh — GPU-derived grid, GPU-generated index buffer
             constexpr uint32_t TERRAIN_MESH_N = 256;
@@ -68,7 +67,6 @@ namespace t7 {
             constexpr uint32_t RIBBON_CAP_VERTS = 12;    // 2 caps × 2 tri × 3 verts
             constexpr uint32_t RIBBON_VERTEX_COUNT = (RIBBON_MAX_RINGS - 1) * RIBBON_TUBE_VERTS_PER_SEG + RIBBON_CAP_VERTS;
 
-            // (legacy cell mesh constants removed — bindings 40-45 reserved)
             // Unified pier system (deterministic slot addressing)
             constexpr uint32_t PIER_TEST_RIG_BASE = 0;     // slots 0-2 (ramp, plateau, block)
             constexpr uint32_t PIER_TEST_RIG_COUNT = 3;
@@ -122,16 +120,10 @@ namespace t7 {
             //     350 — V1; floaters 400, the flagged spawn-headroom fork).
             // LIVE values ride config (veil_ring/veil_icing/lod0_radius,
             // tunable — "ring at 6.5 feels right vs 5.5, config-tune live").
-            // PREGEN-8 LANDED: the pre-gen buffer deepened to radius 8
-            // (289 layers); the factory band behind the veil widened
-            // EXIST−RING = 25 wu -> pregen−RING = 75 wu. Presence (EXIST)
-            // unchanged — widening EXIST is a separate, parked dial.
             constexpr float LOD0_RADIUS_DEFAULT = 3.5f * PATCH_EXTENT;   // 175
             constexpr float VEIL_RING_DEFAULT   = 6.5f * PATCH_EXTENT;   // 325 — THE RING
             constexpr float VEIL_ICING_DEFAULT  = 40.0f;                 // δ (~25-50, tunable)
             constexpr float EXIST_RADIUS        = 7.0f * PATCH_EXTENT;   // 350
-            // pregen coverage >= EXIST — buffer deepened at PREGEN-8;
-            // widening EXIST is a separate, parked dial.
             static_assert(PATCH_PREGEN_RADIUS * PATCH_EXTENT >= EXIST_RADIUS,
                 "VEIL CHAIN: PREGEN >= EXIST (nothing exists off resident ground)");
             static_assert(EXIST_RADIUS > VEIL_RING_DEFAULT,
@@ -209,9 +201,8 @@ namespace t7 {
             constexpr uint32_t CMG_TOTAL_VERTICES = MAX_COLUMN_INSTANCES * CMG_MAX_VERTS_PER_SLOT;   // 48000
             constexpr uint32_t CMG_TOTAL_INDICES = MAX_COLUMN_INSTANCES * CMG_MAX_INDICES_PER_SLOT; // 192000
 
-            // Generative pyramids — the instance array is LIVE (pyramids are
-            // terrain via contrib_pyramids_at); the PMG_* mesh-gen scratch counts
-            // are REMOVED (the mesh-gen basket had no dispatch).
+            // Generative pyramids — the instance array IS terrain
+            // (contrib_pyramids_at); there is no mesh-gen scratch.
             constexpr uint32_t MAX_PYRAMID_INSTANCES = 8;
 
             // Generative palms — GPU mesh gen (slot-based addressing)
@@ -313,11 +304,6 @@ namespace t7 {
         // Mirrors world.wgsl's COUPLING_* bit-flag block. MUST match those
         // bit values 1:1 — semantic drift here would corrupt every GPU-side
         // coupling read silently.
-        // PRUNING_1 P1 3c: the twelve "reserved — legacy" bits and the seven
-        // aggregates over them are gone from BOTH rooms. The claim that kept
-        // them ("their bits flow through legacy code paths") was false: they
-        // flowed nowhere, in either room. Bit VALUES of the survivors are
-        // unchanged — this removes names, never renumbers.
         namespace Coupling {
             constexpr uint32_t TERRAIN_TO_PAWN_Y         = 1u << 1;
             constexpr uint32_t TERRAIN_TO_PAWN_TILT      = 1u << 2;
@@ -370,19 +356,10 @@ namespace t7 {
             float    sky_roll;       // bank into the lateral swing (rad, clamped)
         };
 
-        // ─── GROWTH LAW (how a config knob is born) ──────────────
         // Field ORDER is the cross-room contract — world.wgsl's
-        // DesignConfig mirrors this struct field-for-field. To add a
-        // knob: (1) prefer re-using a _pad slot inside the right ───
-        // system group; else append within the group and let padding
-        // re-flow. (2) Edit BOTH rooms in the SAME commit — same
-        // position, same type. (3) Bump the sizeof witness (the
-        // number in the assert IS the handshake). (4) Targeted
-        // sub-writers carry offsetof witnesses — glaw1 re-proves
-        // them, so a silent shift is impossible. (5) The knob's REST
-        // value is authored at the boot block / its panel room,
-        // never here. New knobs join a cadence: dirty-config for
-        // slow dials, a bespoke hot writer for per-frame voices.
+        // DesignConfig mirrors this struct field-for-field. Adding a
+        // knob: THE GROWTH LAW, L5 in src/docs/LAWS.md. Choosing where
+        // to put it: THE ALIGNMENT LAW, L4.
         struct alignas(16) GPUDesignConfig {
             // ─── Debug mutes ────────────────────────────────────────
             uint32_t mute_dynamics_0d;
@@ -511,8 +488,6 @@ namespace t7 {
             // matches WGSL: array<vec4,4> stride 16 (rgb in xyz, w pad);
             // weight = one vec4, component i = palette i (sums 1.0).
             // REST = the pre-graduation literals (boot init) — bit-identical.
-            // (PALETTE_VARIANCE not graduated: its consumer was dead —
-            //  retired with palette_color; history: audit/LADDER.md.)
             float palette_center[4][4];   // [palette] = {r,g,b,pad}
             float palette_light[4][4];    // [palette] = {r,g,b,pad}
             float palette_weight[4];      // selection probabilities
@@ -579,11 +554,6 @@ namespace t7 {
         };
         static_assert(sizeof(GPUTileGrid) == 16 + Dim::TILE_GRID_CAPACITY * 16, "GPUTileGrid must match WGSL layout");
 
-
-        // (GPUTerrainState REMOVED: the dead terrain buffer's CPU
-        //  mirror. No writer/reader; its bindings 20/220 + the buffer are gone.)
-
-        //
         struct alignas(16) GPUAgentState {
             float pos_x;           //  0
             float pos_y;           //  4
@@ -921,16 +891,6 @@ namespace t7 {
         static_assert(sizeof(GPUPyramidArray) == 16 + Dim::MAX_PYRAMID_INSTANCES * 32,
             "GPUPyramidArray must match WGSL layout");
 
-        // (GPUPyramidGroundEntry REMOVED — the pyramid ground-atlas
-        //  husk. Its computed ground_y fed atlas slot 48, reader-free;
-        //  pyramids bake into terrain via the INSTANCE array, not this path.)
-
-        //
-        // MUST match world.wgsl::PyramidMeshParams (§9.0).
-        // (GPUPyramidMeshParams REMOVED: the pyramid mesh-gen
-        //  params struct + its buffer had no consuming kernel.)
-
-        //
         // MUST match world.wgsl::ArchMeshParams (§9.1).
         // If this struct gains/loses a field, the WGSL side and
         // its sizeof static_assert must be updated together.
@@ -1461,16 +1421,10 @@ namespace t7 {
             "44 B moved all four vec3 members off their boundaries. "
             "592 - 44 + 12 = 560. The pads ARE the mirror, not waste — the "
             "offsetof asserts below are what prove it.");
-        // CLOSURE_PAWN [6] — the pad is spent, so name the trap the next knob
-        // will walk into. The C++ room packs f32/u32 at align 4; the WGSL room
-        // packs vec3<f32> at align 16 (sun_direction 64, fog_color 96,
-        // fade_color 112, checker_resultant 560). Those four offsets are the
-        // only places the two layouts can disagree, and today each vec3 lands
-        // already-16-aligned. A field inserted BEFORE one of them shifts C++ by
-        // 4/8/12 and WGSL by a full 16 — sizeof can stay equal while every
-        // following field diverges, so no witness here fires. Grow the struct at
-        // the TAIL (after checker_resultant's group), or insert a matching pad
-        // so each vec3 stays on its 16-byte boundary in both rooms.
+        // THE ALIGNMENT LAW (L4, src/docs/LAWS.md). These four are the only
+        // offsets where the two rooms can disagree, and no witness here fires
+        // when they do — grow at the TAIL (after checker_resultant's group) or
+        // pad. The trailing 4-byte pad is spent, so the next knob meets this.
         static_assert(offsetof(GPUDesignConfig, sun_direction)     % 16 == 0
                    && offsetof(GPUDesignConfig, fog_color)         % 16 == 0
                    && offsetof(GPUDesignConfig, fade_color)        % 16 == 0
@@ -1645,11 +1599,7 @@ namespace t7 {
             wgpu::TextureView patchCellColorArrayWriteView_;
             wgpu::TextureView patchCellColorArrayReadView_;
 
-            // (Cell spatial field LUT members RETIRED — Commit C, the LUT
-            //  retirement: the live path evaluates the fields analytically.)
-
             wgpu::Buffer terrainIndexBuffer_;
-            // (legacy cell mesh buffers removed — bindings 43-45 reserved)
             wgpu::Buffer sphereVertexBuffer_, sphereIndexBuffer_;
             uint32_t sphereIndexCount_ = 0;
             wgpu::Buffer monolithVertexBuffer_, monolithIndexBuffer_;
@@ -2624,7 +2574,6 @@ namespace t7 {
                 queue.WriteBuffer(frustumComputeBuffer_, 0, args, sizeof(args));
             }
 
-            // (legacy cell mesh accessors removed — bindings 43-45 reserved)
             static constexpr uint32_t pawn_vertex_count() { return Dim::PAWN_VERTEX_COUNT; }
             wgpu::Buffer sphere_vertex_buffer() const { return sphereVertexBuffer_; }
             wgpu::Buffer sphere_index_buffer() const { return sphereIndexBuffer_; }
@@ -2697,10 +2646,8 @@ namespace t7 {
             wgpu::BindGroupLayout blade_mesh_gen_layout() const { return bladeMeshGenLayout_; }
             wgpu::BindGroup blade_mesh_gen_group() const { return bladeMeshGenBindGroup_; }
 
-            // --- Pyramid accessors and upload --- (mesh-gen VB/IB/params +
-            //   index-count + the mesh-gen layout/group REMOVED;
-            //   the ground buffer + its atlas write REMOVED — only
-            //   the INSTANCE array stays LIVE: pyramids ARE terrain.)
+            // --- Pyramid accessors and upload --- (the instance array only:
+            //   pyramids ARE terrain, so there is no mesh to generate.)
             void upload_pyramids(wgpu::Queue& queue, const GPUPyramidArray& arr) {
                 writeStruct(queue, pyramidInstancesBuffer_, arr);
             }
@@ -3032,7 +2979,6 @@ namespace t7 {
                 headPosesBuffer_ = makeBuffer("Ribbon Head Poses",
                     sizeof(float) * 4 * Dim::RIBBON_MAX_RINGS,
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
-                // (proximity_field and terrain_cells stubs removed — bindings 21, 40 reserved)
                 vpBuffer_ = makeBuffer("VP Matrix", sizeof(GPUVPMatrix),
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
                 directionalLightBuffer_ = makeBuffer("Directional Light", sizeof(GPUDirectionalLight), SU);
@@ -3805,8 +3751,6 @@ namespace t7 {
                     patchCellColorArrayReadView_ = patchCellColorArrayTexture_.CreateView(&viewDesc);
                 }
 
-                // (Cell Fields LUT texture RETIRED — Commit C, the LUT retirement.)
-
                 // Shadow map (Depth32Float: directional light depth)
                 {
                     wgpu::TextureDescriptor desc{};
@@ -4432,10 +4376,8 @@ namespace t7 {
                 // and subtracts CPU-computed pier_correction to isolate each entity's
                 // own pier contribution (removing foreign pier contamination).
                 // 9 entries: config + painting slots + heightfield + entity grounds + ground atlas write + patch_grid.
-                // (GoL rides group 1 — the card — since GROUND_CARD_1 H5.)
-                // (agent_state 60 + photo_patch_instances 144 removed — dead in this kernel, audit cc3/cc4; GROUND_CARD_1 H1.)
+                // GoL rides group 1 — the card.
                 // Palm+cactus+blade share one buffer at binding 150: [0..23] palm, [24..43] cactus, [44..75] blade.
-                // (binding 149 pyramid_ground RETIRED — the pyramid ground-atlas residue.)
                 {
                     std::array<wgpu::BindGroupLayoutEntry, 9> entries{};
 
@@ -4741,9 +4683,6 @@ namespace t7 {
                     orbCopyLayout_ = device_.CreateBindGroupLayout(&desc);
                     if (!orbCopyLayout_) return false;
                 }
-
-                // (Pyramid mesh gen layout REMOVED: bindings 190-192,
-                //  no pipeline/dispatch ever used this layout.)
 
                 // -- Arch mesh gen layout (Group 0) -- bindings 193-195 --
                 {
@@ -5634,9 +5573,6 @@ namespace t7 {
                     orbCopyGroup_ = device_.CreateBindGroup(&desc);
                     if (!orbCopyGroup_) return false;
                 }
-
-                // (Pyramid mesh gen bind group REMOVED: bindings
-                //  190-192, no dispatch ever bound it.)
 
                 // Arch mesh gen bind group (dedicated layout — bindings 193-195)
                 {

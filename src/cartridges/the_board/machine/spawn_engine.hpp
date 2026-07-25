@@ -18,10 +18,9 @@
 // SEAM[spawn_engine:P11] home of pattern P11 (templated active-array
 //   helper) — run_spawn_preamble<C, ActiveT> is the canonical
 //   instance. One implementation, ten callers.
-// SEAM[spawn_engine:structural] RETIRED. The EntityQueueEntry /
-//   PlacementEntry unions and every type they embed live together in
-//   entity_types.hpp (the contract home); this module holds only the
-//   queues and loops. spawn_engine stays ONE pair, never split.
+// The EntityQueueEntry / PlacementEntry unions and every type they
+//   embed live in entity_types.hpp (the contract home); this module
+//   holds only the queues and loops. spawn_engine stays ONE pair.
 //
 // Depends on cohort include order: roster.hpp (PopFamily),
 // entity_types.hpp (queue unions), state.hpp (GPU mesh params),

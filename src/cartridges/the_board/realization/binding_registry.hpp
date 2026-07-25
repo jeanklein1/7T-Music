@@ -1,41 +1,24 @@
 #pragma once
 // ═══════════════════════════════════════════════════════════════════════
 // THE BINDING REGISTRY (C6) — the single source of truth for GPU binding
-// NUMBERS. Every bind-group layout entry AND its matching group entry
-// reference the SAME named constant here, so the "binding integer typed
-// twice" hazard is a compile error, not a
-// runtime crash: a typo is an undefined symbol glaw1 catches.
+// NUMBERS. Governed by L6, src/docs/LAWS.md; read it before adding,
+// moving, or reusing a number.
 //
-// GROUP-SCOPED (forced, not stylistic). A binding number is a per-@group
-// key: 22 = terrain_mesh_indices in group 0 AND bilinear_sampler in group
-// 1; 25 = tile_grid vs shadow_map; 26 = pier_instances vs shadow_sampler.
-// A flat list would fuse
-// distinct slots — so g0:: and g1:: are separate namespaces.
+// The shape of the table, so it reads correctly: numbers are GROUP-SCOPED
+// (g0:: and g1:: are separate namespaces — 22 is terrain_mesh_indices in
+// group 0 and bilinear_sampler in group 1), AUTHORED (the render = compute
+// + 200 band at the bottom is a witness over the literals, never their
+// source), and ONE CONSTANT PER SITE rather than per buffer — the same
+// buffer wears several names because each name is one (group, slot):
+// patch_instances(340) / fc_patches(340); orb_state(410) /
+// render_orb_state(400) / orb_state_ro(413).
 //
-// AUTHORED, not computed (Frame-Spine law, one layer down). Every constant
-// is the literal number authored ONCE. The render = compute + 200 band is
-// a static_assert WITNESS at the bottom — it CHECKS the authored literals,
-// it is never their SOURCE.
-//
-// ONE CONSTANT PER SITE, named for the site (the WGSL variable it mirrors),
-// NOT one-per-buffer. The number addresses a (group, slot); the shared
-// buffer handle lives in the group entry's `.buffer`, not here. So the same
-// buffer wears several names: patch_instances(340) / fc_patches(340);
-// orb_state(410) / render_orb_state(400) / orb_state_ro(413). Each
-// name = one (group, slot).
-//
-// THE CEILING (Option A). This single-sources the two C++ copies (layout +
-// group). The WGSL @binding literals in world.wgsl (100 declarations over 97
-// slots at the Stage-5 opening — audit A2 recount; three fc_ aliases share
-// slots: fc_config/fc_vp/fc_patches) stay a MIRROR — the
-// shader cannot read a C++ constant — kept in lockstep by the crash-aware
-// launch gate (bind-group + pipeline validation), NOT the compiler. The
-// name here deliberately equals the WGSL var so the mirror is greppable in
-// both files. Closing the third copy (a generated block / token-substituted
-// shader — feasible since world.wgsl is loaded as runtime text) is the
-// named "true pin" follow-on, not this cut.
+// The WGSL @binding literals in world.wgsl (95 declarations over 92 slots;
+// three fc_ aliases share slots: fc_config / fc_vp / fc_patches) are a
+// MIRROR of this file, kept in lockstep by the boot-time bind-group and
+// pipeline validation, not by the compiler. The names here deliberately
+// equal the WGSL variable names so the mirror is greppable in both.
 // ═══════════════════════════════════════════════════════════════════════
-
 #include <cstdint>
 
 namespace t7 {
@@ -54,8 +37,6 @@ namespace t7 {
                 inline constexpr uint32_t vp_data                    = 2;   // aka fc_vp (frustum-cull alias)
 
                 // terrain / patch lattice (20–30)
-                // (terrain_state @20 / render_terrain @220 REMOVED:
-                //  the dead GPUTerrainState buffer's bindings, no shader reader.)
                 inline constexpr uint32_t terrain_mesh_indices       = 22;
                 inline constexpr uint32_t patch_params               = 23;
                 inline constexpr uint32_t patch_heightfield_array_write = 24;
@@ -63,8 +44,6 @@ namespace t7 {
                 inline constexpr uint32_t pier_instances             = 26;
                 inline constexpr uint32_t patch_cell_color_array_write = 27;
                 inline constexpr uint32_t patch_height_scratch       = 28;
-                // (cell_fields_write = 29 RETIRED — Commit C, the LUT retirement.
-                //  Number reserved; do not reuse.)
                 inline constexpr uint32_t pyramid_instances          = 30;
                 inline constexpr uint32_t live_card_write            = 31;  // GROUND_CARD_1: the live card (storage-tex write; writer kernel)
                 inline constexpr uint32_t live_card_scratch          = 32;  // TRUEBAND_CONTACT_1: two-pass writer scratch (stride-2: Δh, gol)
@@ -94,8 +73,6 @@ namespace t7 {
                 inline constexpr uint32_t photo_sampler              = 146;
                 inline constexpr uint32_t arch_ground                = 147;
                 inline constexpr uint32_t column_ground              = 148;
-                // 149 RETIRED — pyramid_ground (the ground-atlas residue;
-                // its slot-48 write was reader-free). Number parked.
                 inline constexpr uint32_t plant_ground               = 150;
                 inline constexpr uint32_t entity_ground_atlas_write  = 151;
                 inline constexpr uint32_t patch_grid                 = 152;
@@ -104,9 +81,7 @@ namespace t7 {
                 inline constexpr uint32_t zone_config                = 160;
                 inline constexpr uint32_t zone_life                  = 161;
                 inline constexpr uint32_t zone_life_tex_write        = 162;
-                // 163/164/165 free (UNIFIED_GROUND_1 U4).
                 inline constexpr uint32_t zone_derive_requests       = 166;
-                // 167/168/169 free (UNIFIED_GROUND_1 U4).
                 inline constexpr uint32_t pawn_aura_cfg              = 170;
                 inline constexpr uint32_t pawn_aura_cells            = 171;
                 inline constexpr uint32_t pawn_aura_tex_write        = 172;
@@ -122,11 +97,7 @@ namespace t7 {
                 inline constexpr uint32_t bladeg_vertices            = 187;
                 inline constexpr uint32_t bladeg_indices             = 188;
 
-                // mesh-gen scratch: arch/column (190–198)
-                // (pmg_* @190/191/192 REMOVED: the pyramid mesh-gen
-                //  basket, no entry point / pipeline / dispatch ever used it.
-                //  190/191 REBORN as the cmg ceiling-fit pair — parked-number
-                //  reuse per the 149 precedent; 192 stays parked.)
+                // mesh-gen scratch: arch/column (190–198; 192 unassigned)
                 inline constexpr uint32_t cmg_config                 = 190;  // DesignConfig view for the cmg kernel (the ceiling gate)
                 inline constexpr uint32_t cmg_column_ground          = 191;  // read-only column_ground view (the terrain delta)
                 inline constexpr uint32_t amg_params                 = 193;
@@ -174,7 +145,6 @@ namespace t7 {
                 inline constexpr uint32_t spot_shadow_map            = 27;
                 inline constexpr uint32_t patch_heightfield_array_read = 28;
                 inline constexpr uint32_t patch_cell_color_array_read  = 29;
-                // (cell_fields_read = 30 RETIRED — Commit C. Number reserved.)
                 inline constexpr uint32_t zone_life_read             = 31;
                 inline constexpr uint32_t zone_params                = 32;
                 inline constexpr uint32_t pawn_aura_read             = 33;

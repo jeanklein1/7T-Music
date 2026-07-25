@@ -4,43 +4,13 @@
 //
 // Canonical registry for the ground query architecture: contributors,
 // explicit dependency DAG, and policies.
-// ── Vocabulary ──────────────────────────────────────────────────
-// ── STATUS convention ────────────────────────────────────────────
 //
-//   STATUS: REALIZED      — wired and live (the consumer is cited).
-//   STATUS: LATENT[name]  — capability with a plausible future; kept
-//                           and tagged; revive-or-rewire when this
-//                           region is next worked (the DRIVERLESS
-//                           pattern, generalized).
-//   STATUS: INTENT        — declared, zero realization yet; kept in
-//                           the declaration with the status stated
-//                           (honest futures, not lies).
-// ── What this file declares ─────────────────────────────────────
-// ── Compile-time validation ─────────────────────────────────────
-//
-// The check ITERATES CONTRIBUTOR_DAG[] itself (over
-// CONTRIBUTOR_DAG_EDGE_COUNT), so the edge table is load-bearing:
-// adding an edge to the table re-validates every policy with no
-// further edits here. It is expressed as an immediately-invoked
-// constexpr lambda inside each static_assert; the restyle to a
-// namespace constexpr function is a NAMED LATER STAGE. The lambda's
-// body is parsed in place and reads only the already-initialized
-// inline constexpr tables above it.
-//
-// SEAM[ground_architecture:P9] header-style file: pure declarations
-//   (enums + tables) + compile-time validation macros, zero runtime
-//   logic, no class-member coupling — a real file-scope header. Same
-//   family as entity_types, coupling/trajectory.hpp, seed_utils as P9
-//   instances.
-//   The ASSERT_POLICY_DAG_CLOSED macro pattern is the unique
-//   contribution of this file — compile-time relational integrity
-//   over a registry table.
-// SEAM[ground_architecture:contract] CONTRIBUTOR_COUNT, POLICY_COUNT,
-//   the contributor enum values, and POLICIES bitmasks must mirror
-//   identical const values in world.wgsl. Drift would mean
-//   query_ground_<policy> evaluates a different contributor set on
-//   GPU than what CPU placement believed. Same family as agents:L2
-//   and seed_utils:contract.
+// L3 (src/docs/LAWS.md) governs this file: CONTRIBUTOR_COUNT,
+// POLICY_COUNT, the enum values, and the POLICIES bitmasks are
+// mirrored by const values in world.wgsl. Drift means
+// query_ground_<policy> evaluates a different contributor set on the
+// GPU than CPU placement believed. L9 defines the STATUS: tags the
+// rows below carry.
 // ─────────────────────────────────────────────────────────────────
 
 #include <cstdint>
@@ -61,10 +31,10 @@ enum ContributorId : uint32_t {
     CONTRIB_COUNT             = 9,
 };
 
-// MIRROR (b1): these ids are mirrored byte-for-byte
-// as the WGSL POLICY_* consts (world.wgsl, above the POLICY_*_MASK
-// block) — the manifold interface's manifold_resolve switches on them.
-// Keep the two in lock-step (same order/values), as with CONTRIB_*.
+// These ids are mirrored byte-for-byte as the WGSL POLICY_* consts
+// (world.wgsl, above the POLICY_*_MASK block) — manifold_resolve
+// switches on them. Keep the two in lock-step (same order/values), as
+// with CONTRIB_*. audit/tools/glaw2/run.py checks both mirrors.
 enum PolicyId : uint32_t {
     POLICY_BAKED_HEIGHTFIELD    = 0,
     POLICY_FLYER                = 1,
@@ -88,9 +58,6 @@ inline constexpr ContributorEdge CONTRIBUTOR_DAG[] = {
     { CONTRIB_TERRAIN_LATTICE,  CONTRIB_PYRAMIDS         },
     { CONTRIB_TILE_MODIFIERS,   CONTRIB_PYRAMIDS         },
     { CONTRIB_SOLIDS,           CONTRIB_PYRAMIDS         },
-    // STATUS: INTENT — endpoints are 0.0 stubs today; real composition
-    // pending paintings/vegetation bases. Kept: closure over them is
-    // well-defined (currently vacuous — no mask includes the stubs).
 };
 inline constexpr uint32_t CONTRIBUTOR_DAG_EDGE_COUNT =
     sizeof(CONTRIBUTOR_DAG) / sizeof(CONTRIBUTOR_DAG[0]);
@@ -111,8 +78,6 @@ inline constexpr uint32_t GROUND_STATIC_BASE_MASK =
     (1u << CONTRIB_SOLIDS);
 
 inline constexpr PolicyDef POLICIES[] = {
-
-
 
     // Baked heightfield — cached static ground texture consumed by
     // patch VS interpolation and CPU readbacks.
@@ -142,7 +107,7 @@ inline constexpr PolicyDef POLICIES[] = {
         | (1u << CONTRIB_GOL_ZONES)
         | (1u << CONTRIB_TERRAIN_WAVES)
         | (1u << CONTRIB_RADIAL_PULSES)
-        | (1u << CONTRIB_PAWN_AURA) },                  // (intent; gradient path uncalled — see status)
+        | (1u << CONTRIB_PAWN_AURA) },
 
     // Walker — the pawn. Everything flyer includes, plus the
     // consumer-local GoL suppression that flattens the zone under
@@ -156,7 +121,7 @@ inline constexpr PolicyDef POLICIES[] = {
         | (1u << CONTRIB_TERRAIN_WAVES)
         | (1u << CONTRIB_RADIAL_PULSES)
         | (1u << CONTRIB_PAWN_AURA)
-        | (1u << CONTRIB_GOL_SUPPRESSION) },                  // (intent; gradient path uncalled — see status)
+        | (1u << CONTRIB_GOL_SUPPRESSION) },
 
     // Walker-tilt — walker minus the self aura, used for tilt/normal
     // computation and step-climb decisions. Excludes CONTRIB_PAWN_AURA
@@ -185,8 +150,7 @@ inline constexpr PolicyDef POLICIES[] = {
         | (1u << CONTRIB_GOL_ZONES)
         | (1u << CONTRIB_TERRAIN_WAVES)
         | (1u << CONTRIB_RADIAL_PULSES)
-        | (1u << CONTRIB_PAWN_AURA) },                  // (intent; gradient path unrealized — no gradient fn, no multi-sample consumer)
-
+        | (1u << CONTRIB_PAWN_AURA) },
 
     // Terrain-render — the fused render-side set: the baked heightfield
     // (static base + pyramids) + pawn aura + terrain waves + radial

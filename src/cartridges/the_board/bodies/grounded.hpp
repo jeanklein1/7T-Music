@@ -834,9 +834,8 @@ inline void evict_blade(MachineCtx* self,
 //
 // Per-family tier tables, traits, adapters, and dispatch funnels.
 // Each funnels into the machine's generic three-phase verbs via
-// MachineCtx; THEMES is reached as THEMES
-// (INTENT[services:themes] at its definition); the table rows point
-// here (FAMILY_DISPATCH, cartridge.hpp post-class).
+// MachineCtx; the table rows point here (FAMILY_DISPATCH,
+// cartridge.hpp post-class).
 
 // ═══ FAMILY: BLADE ════════════════════════════════════════════════
 

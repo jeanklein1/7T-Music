@@ -31,7 +31,6 @@
 //   ROW 3 — PALETTE COMPOSITION        values in the WGSL room
 //   ROW 4 — FIELD LATTICES             values in the WGSL room
 //   ROW 5 — COMPOSITE CUTS & EDGES     values in the WGSL room
-//   ROW 6 — TERRAIN-MODE COUPLING      values in the WGSL room
 //   ROW 7 — THE MOVEMENT THIRD         values in the WGSL room
 //   ROW 8 — GOVERNING EXPRESSIONS      text in the WGSL room
 //   ROW 9 — THE CONTRIBUTOR ROSTER     pointers, both rooms
@@ -77,9 +76,6 @@ inline constexpr float PALETTE_WEIGHT_REST[4] = {
     0.04f,   // 2: green — rare
     0.26f,   // 3: warm
 };
-// (PALETTE_VARIANCE retired with its dead consumer palette_color —
-//  fork resolved RETIRE; values .08/.14/.20/.12 held by git
-//  and the terrain_color_designer's design space.)
 
 // ── ROW 2 — MOTION & MODE REST PINS ─────────────────────────────────
 // WHAT: the surface voice's silence. The cartridge boot-pin block
@@ -115,7 +111,7 @@ inline constexpr float REST_MODE_PALETTE_DRIFT_TIER = 0.0f;
 // by the count; the mode field's own gating decides which cells (between
 // smooth sections) show it (world.wgsl discrete_cell_color / _at_tier;
 // dials §2.2 ROW 5: CHECKER_WANDER / CHECKER_VAR_PER_NOTE / CHECKER_VAR_MAX
-// / CHECKER_DEBUG_VIEW). RESTS are law: amount 0 (the GPU
+// / DEBUG_VIEW). RESTS are law: amount 0 (the GPU
 // maps that to each cell's seed color) and variance 0 — a return to seed,
 // not gray. WIRE: <voice>.window_length → PC_COLOR (coupling/visual_
 // canvas.hpp, the tunable home) → terrain.checker_* bank pipes →
@@ -123,8 +119,8 @@ inline constexpr float REST_MODE_PALETTE_DRIFT_TIER = 0.0f;
 inline constexpr float REST_CHECKER_RESULTANT[3] = { 0.0f, 0.0f, 0.0f };
 inline constexpr float REST_CHECKER_AMOUNT = 0.0f;
 inline constexpr float REST_CHECKER_VARIANCE = 0.0f;
-// Pulse ring rest: count 0 with a zeroed ring IS the rest (Phase 1,
-// ruling C4-F1 — the rest paneled; the boot pin sources it from here).
+// Pulse ring rest: count 0 with a zeroed ring IS the rest (the boot
+// pin sources it from here).
 inline constexpr std::uint32_t REST_PULSE_COUNT = 0;
 
 // ── ROWS 3-8 — see the WGSL room (world.wgsl §2.2 TERRAIN_LOOKS) ────
@@ -134,8 +130,6 @@ inline constexpr std::uint32_t REST_PULSE_COUNT = 0;
 //   ROW 4 FIELD LATTICES: the *_LATTICE_SPACING family.
 //   ROW 5 COMPOSITE CUTS & EDGES: mode blend/scatter edges, sparse
 //     survival, chess/mono cuts, DISCRETE_TINT_STRENGTH.
-//   ROW 6 — RETIRED (Phase 1, ruling 6): terrain-mode coupling went
-//     out with its lattice and evaluators; the tombstone is in-room.
 //   ROW 7 THE MOVEMENT THIRD: the TRUE bands (TERRAIN_BANDS) +
 //     WAVE_THRESHOLD pool gates +
 //     activity motion-rate vocabulary (REST pins live in ROW 2 here).

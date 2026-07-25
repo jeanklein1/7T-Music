@@ -80,9 +80,8 @@ struct CameraControls {
 // camera-relative full-directional, snap; camera: camera-relative
 // full-directional, rule none; ribbon in sky mode: its own
 // forward-biased grammar — a ribbon that could reverse and strafe
-// wouldn't be a ribbon). Arrows RETIRED completely (census: no
-// non-movement arrow use existed). update_movement_intent folds
-// these into inputState.move_x/move_z.
+// wouldn't be a ribbon). update_movement_intent folds these into
+// inputState.move_x/move_z.
 struct KeyState {
     bool forward = false;
     bool backward = false;

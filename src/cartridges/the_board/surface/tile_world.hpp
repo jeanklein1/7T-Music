@@ -61,7 +61,7 @@ struct ArchetypeSelectionRules {
 
 // ── Entity Density Field ───────────────────────────────────────────
 // The DENSITY_* lattice constants + TilePopulation + its authoring moved
-// to population_themes.hpp (Q6b) — the density/theme half of the tile is
+// to population_themes.hpp — the density/theme half of the tile is
 // a population concern. Only TileState (below) still names TilePopulation.
 
 // ── Terrain Tokens ─────────────────────────────────────────────────
@@ -125,7 +125,7 @@ struct TileShape {
 };
 
 // THE POPULATION HALF — TilePopulation (spawn density + per-family theme
-// weights) lives in population_themes.hpp (Q6b), beside the authoring that
+// weights) lives in population_themes.hpp, beside the authoring that
 // fills it and the theme vocabulary it samples. It is complete here: that
 // header precedes this one in the cohort. Read by tile_apply_spawn_mult (F3).
 
@@ -370,11 +370,11 @@ inline TileState generate_tile_state(TileWorldState& tw, TileWorldDeps* c, int32
     ts.shape.activation_scale = profile.activation_scale;
     ts.shape.amp_momentum = amp_jitter - 1.0f;  // signed: positive = amplified, negative = dampened
 
-    // ── The population half (Q6b) ────────────────────────────
+    // ── The population half ──────────────────────────────────
     // Authored by population_themes.hpp off the density/theme seed bands
     // (active_seed passed in) — disjoint from the shape draws above, which
     // consume tile_seed props. Same one (gx,gz) generation moment; the
-    // TYPE-line split (b4) still holds, the authoring now lives with its
+    // TYPE-line split still holds, the authoring now lives with its
     // vocabulary.
     ts.pop = generate_tile_population(c->world_state_.active_seed, gx, gz);
 

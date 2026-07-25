@@ -453,8 +453,7 @@ inline void generate_selected_patches(MachineCtx* c, const PatchCandidate* candi
 //               finite_mode; the upload doors.
 // Bit-safe: pack order = wire layout, not a draw. Separate from
 // build_patch_grid (different consumer/offer-face); they only coincided
-// in the same tail block. (The dead "render" radius vocabulary was
-// RETIRED by the veil cut — the chain lives in Dim + config.)
+// in the same tail block.
 inline void band_patches(MachineCtx* c, wgpu::Queue& queue) {
     GPUPatchInstance instances[Dim::MAX_ACTIVE_PATCHES]{};
     uint32_t lod0Count = 0;

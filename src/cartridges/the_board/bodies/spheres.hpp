@@ -79,8 +79,7 @@ inline void evict_sphere(MachineCtx* self,
 //
 // Tier tables, traits, adapter, and dispatch funnels — beside the
 // evictor. Funnels declared above; the FAMILY_DISPATCH rows
-// (cartridge.hpp, post-class) point here. THEMES is reached as THEMES
-// (INTENT[services:themes] at its definition).
+// (cartridge.hpp, post-class) point here.
 
 // ═══ FAMILY: SPHERE ═══════════════════════════════════════════════
 

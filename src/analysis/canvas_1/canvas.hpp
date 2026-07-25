@@ -152,9 +152,6 @@ public:
         MidiEvent ev[256];
         const int n = port_.poll(beat, ev, 256);
 
-        // ([port] chord-forensics probe RETIRED — Phase 1: verdict was
-        //  delivered (parser innocent). Re-paste recipe: the charter's
-        //  archaeology appendix carries the probe verbatim.)
         for (int i = 0; i < n; ++i) route(ev[i]);
         advance(beat);
     }

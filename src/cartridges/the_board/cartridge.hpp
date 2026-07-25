@@ -751,12 +751,10 @@ namespace t7 {
                 }
             }
 
-            // U2 (sky-neutral) REMOVED — E-3 MECHANIZED. The sky block is no
-            // longer part of the signal drain: upload_signal skips the trailing
-            // 32 bytes, so the block's SOLE author is resync_sky_head (R7, the
-            // ribbon tick's tail), with a boot-neutral (initialize) covering the
-            // ribbon-off case. One writer of a disjoint region — no neutral-then-
-            // overwrite relay, no submission-order paragraph across two functions.
+            // The sky block is NOT part of the signal drain: upload_signal
+            // skips the trailing 32 bytes, so its SOLE author is
+            // resync_sky_head (the ribbon tick's tail), with a boot-neutral
+            // covering the ribbon-off case. One writer, one disjoint region.
 
             // U3 — ADVANCE CLOCK (music+wall-clock). The tempo follower; bumps
             // prev_beats (the O-5a partner of U1's dt_beats read).

@@ -176,10 +176,10 @@ struct MoodProfile {
     float  sun_ambient;            // ambient fill strength
 
     // ─── Atmosphere ─────────────────────────────────────────
-    // INTENT[mood-fog-baseline] fog_density/fog_color have ZERO readers —
-    //   fog retired from apply_mood when it went field-driven (the
-    //   visual-canvas fog flush owns it per-frame). The authored per-mood
-    //   baselines are kept as intent: revive-or-delete at the panel era.
+    // STATUS: INTENT — fog_density/fog_color have ZERO readers. Fog left
+    //   apply_mood when it went field-driven (the visual-canvas fog flush
+    //   owns it per-frame); the authored per-mood baselines are kept as
+    //   intent. Revive-or-delete at the panel era.
     float  fog_density;            // exponential fog coefficient
     float  fog_color[3];           // fog/horizon RGB
 

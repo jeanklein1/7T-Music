@@ -100,11 +100,10 @@ struct GoLZoneProp {
 // ── Spawn Configuration ──────────────────────────────────────────
 struct GoLZoneSpawnConfig {
     static constexpr float SPAWN_CHANCE = 0.15f;  // fraction of checkerboard zones
-    static constexpr float HEIGHT_CHANCE = 0.30f;  // fraction of zones that get extrusion
-    // (ZONE_EXTENT RETIRED — UNIFIED_GROUND_1 U5 made a zone's extent
-    //  tier-derived; it is now gol_tier_extent(tier_idx), grid_cells ×
-    //  PATCH_CELL_SIZE per axis. The fixed 100 wu was 32 × 3.125, true
-    //  only for the 32-cell tiers.)
+    // Fraction of zones that get extrusion — but two tiers (Conway
+    // Flash, Pulse Sparkle) set force_no_height, so the delivered rate
+    // is 0.2353, not 0.30. See the tier tables below.
+    static constexpr float HEIGHT_CHANCE = 0.30f;
     static constexpr float MODE_THRESHOLD = 0.50f;  // min interpolated mode for eligibility
     // Per-cell height factor seeding (Gaussian draw per cell)
     static constexpr float HEIGHT_FACTOR_MEAN = 1.0f;
@@ -114,11 +113,6 @@ struct GoLZoneSpawnConfig {
     // Lens target color range: color = hash * RANGE + LO
     static constexpr float LENS_TARGET_LO = 0.2f;
     static constexpr float LENS_TARGET_RANGE = 0.6f;
-    // (FOOTPRINT_RADIUS RETIRED — UNIFIED_GROUND_1 U5. It was the
-    //  INSCRIBED circle of a fixed 100×100 zone, which over-reserved at
-    //  16 cells and would UNDER-reserve at 64. The reservation is now
-    //  the CIRCUMSCRIBED radius of the tier's own rectangle, derived at
-    //  the selection site.)
     // SEAM[gol_zones:P4] hygiene rows pattern (P4): the gol mood row
     //   lives in MOOD_SPAWN_MULT (population_themes.hpp — the GOL
     //   column). Zero entries are reachable via mood IDs but the gate
