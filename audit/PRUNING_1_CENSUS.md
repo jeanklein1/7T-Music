@@ -5,12 +5,12 @@
 
 | anchor | value |
 |---|---|
-| audited tree state | `59fc17f8d6ff95973b295be6b09a03edeea73736` |
-| generated at HEAD | `59fc17f8d6ff` |
-| branch | `claude/pruning-1-p1` |
+| audited tree state | `29a9c471c6d3642f49eda4c67e6bf55ecf4e54c6` |
+| generated at HEAD | `29a9c471c6d3` |
+| branch | `master` |
 | audited state date | 2026-07-25 |
-| history depth | 93 commits (root dated 2026-07-23) |
-| shader | `src/cartridges/the_board/realization/world.wgsl` — 12285 lines |
+| history depth | 96 commits (root dated 2026-07-23) |
+| shader | `src/cartridges/the_board/realization/world.wgsl` — 12274 lines |
 
 **Every finding below cites the audited tree state.** That is the last
 commit touching anything this census reads (`src/`, `web/`,
@@ -21,8 +21,8 @@ disk has drifted from the tree; the provenance line is normalized out of
 that comparison, everything else must match byte for byte.
 
 > **ANCHOR NOTICE — read before citing this census as "master".**
-> `origin/master` is `15600388d51f`; the audited state `59fc17f8d6ff` is
-> **12 ahead / 0 behind** it, and **10 of those commits touch the
+> `origin/master` is `9b95baa17362`; the audited state `29a9c471c6d3` is
+> **2 ahead / 0 behind** it, and **2 of those commits touch the
 > audited surface** (`src/`, `web/`, `CMakeLists.txt`). **A census run
 > on `origin/master` would give different numbers.** The handoff's
 > instruction — *anchor by HASH, never by remembered name* — is
@@ -53,8 +53,8 @@ verdicts that read RULE(Jean) for mirror reasons are now unblocked.
 
 | metric | count |
 |---|---|
-| file lines | 12285 |
-| comment lines (whole-line) | 3615 (29.4%) |
+| file lines | 12274 |
+| comment lines (whole-line) | 3621 (29.5%) |
 | blank lines | 1489 |
 | `fn` declarations | 281 |
 | entry points (`@compute`/`@vertex`/`@fragment`) | 64 — compute 30 · vertex 26 · fragment 8 |
@@ -66,7 +66,7 @@ verdicts that read RULE(Jean) for mirror reasons are now unblocked.
 | `const` declarations (module-scope; 3 function-local excluded) | 266 |
 | `struct` declarations | 71 |
 | `override` declarations | 1 |
-| `@group/@binding` declarations | 96 |
+| `@group/@binding` declarations | 95 |
 | duplicate `fn` names | 0 |
 
 Function-name uniqueness holds (the handoff's premise): `\bNAME\s*\(` is a
@@ -157,19 +157,19 @@ entries (`src/cartridges/the_board/realization/state.hpp`), and the shader decla
 
 | metric | count |
 |---|---|
-| registry constants | 93 |
-| WGSL `@group/@binding` declarations | 96 |
-| `bind::` references in `state.hpp` | 299 |
+| registry constants | 92 |
+| WGSL `@group/@binding` declarations | 95 |
+| `bind::` references in `state.hpp` | 296 |
 | distinct bind-group layouts | 25 |
 | distinct bind groups | 26 |
 
 **The registry header describes itself, and the description is stale.**
 | claimed in `binding_registry.hpp`'s header | true at this HEAD |
 |---|---|
-| 100 WGSL `@binding` declarations | **96**  ← differs |
-| 97 distinct slots | **93**  ← differs |
+| 100 WGSL `@binding` declarations | **95**  ← differs |
+| 97 distinct slots | **92**  ← differs |
 
-Prose does not recompile. The header's own recount is off by 4 and 4;
+Prose does not recompile. The header's own recount is off by 5 and 5;
 it is scaffolding of exactly the kind this campaign exists to find, and
 it is the file whose *whole purpose* is to be the single source of truth
 for these numbers. Recipe: this table.
@@ -244,7 +244,6 @@ constant at the same slot and are **not** orphans.
 | 0/196 | cmg_params | cmg_params | storage, read | columnMeshGenBindGroup_, columnMeshGenLayout_ | 1 | 1 |
 | 0/197 | cmg_vertices | cmg_vertices | storage, read_write | columnMeshGenBindGroup_, columnMeshGenLayout_ | 1 | 1 |
 | 0/198 | cmg_indices | cmg_indices | storage, read_write | columnMeshGenBindGroup_, columnMeshGenLayout_ | 1 | 1 |
-| 0/200 | render_signal | render_signal | storage, read | photographerRenderEntityBindGroup_, renderEntityBindGroupLayout_, renderEntityBindGroup_ | 0 | 0 |
 | 0/201 | render_vp | render_vp | storage, read | galleryEntityBindGroupLayout_, galleryEntityBindGroup_, photographerRenderEntityBindGroup_ … | 26 | 28 |
 | 0/260 | render_agents | render_agents | storage, read | photographerRenderEntityBindGroup_, renderEntityBindGroupLayout_, renderEntityBindGroup_ | 4 | 7 |
 | 0/280 | render_camera | render_camera | storage, read | galleryEntityBindGroupLayout_, galleryEntityBindGroup_, photographerRenderEntityBindGroup_ … | 7 | 7 |
@@ -293,9 +292,9 @@ are legitimate ALIASES named for a *different* site on the same buffer
 
 | group | binding | WGSL var | wgsl line | type | constant at the same slot |
 |---|---|---|---|---|---|
-| g0 | 1 | fc_config | 9113 | DesignConfig | config |
-| g0 | 340 | fc_patches | 9115 | array<PatchInstance> | patch_instances |
-| g0 | 2 | fc_vp | 9114 | VPMatrix | vp_data |
+| g0 | 1 | fc_config | 9102 | DesignConfig | config |
+| g0 | 340 | fc_patches | 9104 | array<PatchInstance> | patch_instances |
+| g0 | 2 | fc_vp | 9103 | VPMatrix | vp_data |
 
 **3 of 3 are covered by a differently-named constant at the SAME slot**
 — exactly the `fc_`-alias set the registry header predicts by name. So
@@ -311,9 +310,10 @@ no pipeline names cannot keep a binding alive. The web mirror is checked
 too, for the same reason it is checked in §1.2: a binding that is dead
 here and read there is not a free removal.
 
-| (group,binding) | WGSL var | space | wgsl line | bound in | web mirror | mirror detail |
-|---|---|---|---|---|---|---|
-| 0/200 | render_signal | storage, read | 5487 | photographerRenderEntityBindGroup_, renderEntityBindGroupLayout_, renderEntityBindGroup_ | — | — |
+_(none)_
+
+Every declared binding is read by at least one function reachable from a
+live entry point. **§2 yields no unread-binding prize either.**
 
 ### §2.5 — flag (d): reserved / parked / do-not-reuse comments
 
@@ -332,17 +332,17 @@ Sites: **15**
 | binding_registry.hpp | 98 | // its slot-48 write was reader-free). Number parked. |
 | binding_registry.hpp | 128 | //  190/191 REBORN as the cmg ceiling-fit pair — parked-number |
 | binding_registry.hpp | 129 | //  reuse per the 149 precedent; 192 stays parked.) |
-| binding_registry.hpp | 178 | // (cell_fields_read = 30 RETIRED — Commit C. Number reserved.) |
+| binding_registry.hpp | 177 | // (cell_fields_read = 30 RETIRED — Commit C. Number reserved.) |
 | state.hpp | 47 | // (bindings 21, 40 reserved — formerly proximity_field, cell_states) |
 | state.hpp | 71 | // (legacy cell mesh constants removed — bindings 40-45 reserved) |
 | state.hpp | 128 | // unchanged — widening EXIST is a separate, parked dial. |
 | state.hpp | 134 | // widening EXIST is a separate, parked dial. |
 | state.hpp | 319 | // PRUNING_1 P1 3c: the twelve "reserved — legacy" bits and the seven |
-| state.hpp | 1263 | float    _pad_anchor;        //172: reserved (future anchor mode/rate) |
+| state.hpp | 1257 | float    _pad_anchor;        //172: reserved (future anchor mode/rate) |
 | state.hpp | 1619 | // (bindings 21, 40 reserved — formerly proximity_field, cell_states) |
 | state.hpp | 1655 | // (legacy cell mesh buffers removed — bindings 43-45 reserved) |
-| state.hpp | 2639 | // (legacy cell mesh accessors removed — bindings 43-45 reserved) |
-| state.hpp | 3044 | // (proximity_field and terrain_cells stubs removed — bindings 21, 40 reserved) |
+| state.hpp | 2630 | // (legacy cell mesh accessors removed — bindings 43-45 reserved) |
+| state.hpp | 3038 | // (proximity_field and terrain_cells stubs removed — bindings 21, 40 reserved) |
 
 ---
 
@@ -350,11 +350,11 @@ Sites: **15**
 
 | metric | value |
 |---|---|
-| C++ `GPUDesignConfig` fields | 72 |
-| WGSL `DesignConfig` fields | 74 |
-| C++ computed size | 592 B (align 16) |
-| WGSL computed size | 592 B (align 16) |
-| declared `sizeof` witness | 592 |
+| C++ `GPUDesignConfig` fields | 65 |
+| WGSL `DesignConfig` fields | 63 |
+| C++ computed size | 560 B (align 16) |
+| WGSL computed size | 560 B (align 16) |
+| declared `sizeof` witness | 560 |
 | computed == witness | YES |
 | WGSL uniform aliases of the struct | cmg_config, config, fc_config |
 | C++ member / accessor | config_ / config() |
@@ -367,7 +367,7 @@ members are exactly where the rooms can silently diverge — C++ packs a
 carries `offsetof(...) %% 16 == 0` static_asserts on them.
 
 The boot-pin block is `state.hpp::initializeState()`, located by name and
-brace-matched: **lines 5791–6025**. Writes inside it are pins, not consumers,
+brace-matched: **lines 5772–5995**. Writes inside it are pins, not consumers,
 and are counted in their own column. **A field pinned at boot and never
 read is not alive — it is a value nobody asks for.**
 
@@ -376,80 +376,77 @@ read is not alive — it is a value nobody asks for.**
 | # | C++ name | C++ type | C++ off | WGSL name | WGSL type | WGSL off | verdict | C++ reads | WGSL reads | C++ writes | boot pins | setter ×callers |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
 | 1 | mute_dynamics_0d | uint32_t | 0 | mute_dynamics_0d | u32 | 0 | AGREE | 0 (+1 guard) | 1 | 1 | 1 | `set_mute_dynamics_0d` ×0 |
-| 2 | mute_dynamics_2d | uint32_t | 4 | mute_dynamics_2d | u32 | 4 | AGREE | 0 | 0 | 0 | 1 | — |
-| 3 | mute_signal | uint32_t | 8 | mute_signal | u32 | 8 | AGREE | 2 (+1 guard) | 1 | 3 | 1 | `set_mute_signal` ×0 |
-| 4 | mute_couplings | uint32_t | 12 | mute_couplings | u32 | 12 | AGREE | 5 | 1 | 5 | 1 | `set_mute_coupling` ×2 |
-| 5 | wave_time_scale | float | 16 | wave_time_scale | f32 | 16 | AGREE | 0 | 0 | 0 | 1 | — |
-| 6 | pawn_speed | float | 20 | pawn_speed | f32 | 20 | AGREE | 0 (+1 guard) | 2 | 1 | 1 | `set_pawn_speed` ×0 |
-| 7 | camera_sensitivity | float | 24 | camera_sensitivity | f32 | 24 | AGREE | 0 (+1 guard) | 0 | 1 | 1 | `set_camera_sensitivity` ×0 |
-| 8 | freeze_sphere | uint32_t | 28 | freeze_sphere | u32 | 28 | AGREE | 1 (+1 guard) | 1 | 2 | 1 | `set_freeze_sphere` ×0 |
-| 9 | active_cell_size | float | 32 | active_cell_size | f32 | 32 | AGREE | 0 | 0 | 0 | 1 | — |
-| 10 | fpv_mode | uint32_t | 36 | fpv_mode | u32 | 36 | AGREE | 2 | 1 | 1 | 1 | `set_fpv_mode` ×1 |
-| 11 | wave_enable_mask | uint32_t | 40 | wave_enable_mask | u32 | 40 | AGREE | 0 | 0 | 0 | 1 | — |
-| 12 | wave_freeze_mask | uint32_t | 44 | wave_freeze_mask | u32 | 44 | AGREE | 0 | 0 | 0 | 1 | — |
-| 13 | wave_frozen_t | float[3] | 48 | wave_frozen_t0+wave_frozen_t1+wave_frozen_t2 | f32 | 48 | AGREE | 0 | 0 | 0 | 3 | — |
-| 14 | world_seed | uint32_t | 60 | world_seed | u32 | 60 | AGREE | 1 | 7 | 1 | 1 | `set_world_seed` ×2 |
-| 15 | sun_direction | float[3] | 64 | sun_direction | vec3<f32> | 64 | AGREE | 3 | 1 | 3 | 3 | `set_sun_direction` ×1 |
-| 16 | aura_enabled | float | 76 | aura_enabled | f32 | 76 | AGREE | 1 | 1 | 1 | 1 | `set_aura_enabled` ×1 |
-| 17 | pawn_amp_scale | float | 80 | pawn_amp_scale | f32 | 80 | AGREE | 0 (+1 guard) | 0 | 1 | 1 | `set_pawn_amp_scale` ×0 |
-| 18 | pawn_height_bias | float | 84 | pawn_height_bias | f32 | 84 | AGREE | 0 (+1 guard) | 0 | 1 | 1 | `set_pawn_height_bias` ×0 |
-| 19 | pawn_aura_height | float | 88 | pawn_aura_height | f32 | 88 | AGREE | 1 | 3 | 1 | 1 | `set_pawn_aura_height` ×1 |
-| 20 | fog_density | float | 92 | fog_density | f32 | 92 | AGREE | 1 | 4 | 1 | 1 | `set_fog` ×1 |
-| 21 | fog_color | float[3] | 96 | fog_color | vec3<f32> | 96 | AGREE | 3 | 6 | 3 | 3 | `set_fog` ×1 |
-| 22 | fade_alpha | float | 108 | fade_alpha | f32 | 108 | AGREE | 1 | 1 | 1 | 1 | `set_fade` ×1 |
-| 23 | fade_color | float[3] | 112 | fade_color | vec3<f32> | 112 | AGREE | 3 | 1 | 3 | 3 | `set_fade` ×1 |
-| 24 | pier_count | uint32_t | 124 | pier_count | u32 | 124 | AGREE | 1 | 1 | 1 | 1 | — |
-| 25 | world_bound_min | float[2] | 128 | world_bound_min | vec2<f32> | 128 | AGREE | 2 | 3 | 2 | 2 | `set_world_bounds` ×2 |
-| 26 | world_bound_max | float[2] | 136 | world_bound_max | vec2<f32> | 136 | AGREE | 2 | 4 | 2 | 2 | `set_world_bounds` ×2 |
-| 27 | placement_patch_count | uint32_t | 144 | placement_patch_count | u32 | 144 | AGREE | 1 | 1 | 1 | 0 | — |
-| 28 | terrain_amp_ceiling | float | 148 | terrain_amp_ceiling | f32 | 148 | AGREE | 1 | 2 | 1 | 1 | `set_terrain_amp_ceiling` ×1 |
-| 29 | ceiling_height | float | 152 | ceiling_height | f32 | 152 | AGREE | 1 | 4 | 1 | 1 | `set_ceiling_height` ×2 |
-| 30 | terrain_time | float | 156 | terrain_time | f32 | 156 | AGREE | 1 | 2 | 1 | 1 | `set_terrain_time` ×1 |
-| 31 | band_blend_0 | float | 160 | band_blend_0 | f32 | 160 | AGREE | 0 | 1 | 1 | 1 | `set_band_motion` ×1 |
-| 32 | band_blend_1 | float | 164 | band_blend_1 | f32 | 164 | AGREE | 0 | 1 | 1 | 1 | `set_band_motion` ×1 |
-| 33 | band_blend_2 | float | 168 | band_blend_2 | f32 | 168 | AGREE | 0 | 1 | 1 | 1 | `set_band_motion` ×1 |
-| 34 | band_blend_3 | float | 172 | band_blend_3 | f32 | 172 | AGREE | 0 | 1 | 1 | 1 | `set_band_motion` ×1 |
-| 35 | band_blend_4 | float | 176 | band_blend_4 | f32 | 176 | AGREE | 0 | 1 | 1 | 1 | `set_band_motion` ×1 |
-| 36 | band_blend_5 | float | 180 | band_blend_5 | f32 | 180 | AGREE | 0 | 1 | 1 | 1 | `set_band_motion` ×1 |
-| 37 | band_phase_origin_0 | float | 184 | band_phase_origin_0 | f32 | 184 | AGREE | 0 | 1 | 1 | 1 | `set_band_motion` ×1 |
-| 38 | band_phase_origin_1 | float | 188 | band_phase_origin_1 | f32 | 188 | AGREE | 0 | 1 | 1 | 1 | `set_band_motion` ×1 |
-| 39 | band_phase_origin_2 | float | 192 | band_phase_origin_2 | f32 | 192 | AGREE | 0 | 1 | 1 | 1 | `set_band_motion` ×1 |
-| 40 | band_phase_origin_3 | float | 196 | band_phase_origin_3 | f32 | 196 | AGREE | 0 | 1 | 1 | 1 | `set_band_motion` ×1 |
-| 41 | band_phase_origin_4 | float | 200 | band_phase_origin_4 | f32 | 200 | AGREE | 0 | 1 | 1 | 1 | `set_band_motion` ×1 |
-| 42 | band_phase_origin_5 | float | 204 | band_phase_origin_5 | f32 | 204 | AGREE | 0 | 1 | 1 | 1 | `set_band_motion` ×1 |
-| 43 | mode_color_shift | float | 208 | mode_color_shift | f32 | 208 | AGREE | 1 | 2 | 1 | 0 | `set_mode_color_shift` ×1 |
-| 44 | mode_checker_scatter | float | 212 | mode_checker_scatter | f32 | 212 | AGREE | 1 | 2 | 1 | 0 | `set_mode_checker_scatter` ×1 |
-| 45 | mode_palette_target | float | 216 | mode_palette_target | f32 | 216 | AGREE | 1 | 1 | 1 | 0 | `set_mode_palette_drift` ×1 |
-| 46 | mode_palette_intensity | float | 220 | mode_palette_intensity | f32 | 220 | AGREE | 1 | 2 | 1 | 0 | `set_mode_palette_drift` ×1 |
-| 47 | mode_discrete_tier | float | 224 | mode_discrete_tier | f32 | 224 | AGREE | 1 | 1 | 1 | 0 | `set_mode_palette_drift` ×1 |
-| 48 | mode_gol_tick_scale | float | 228 | mode_gol_tick_scale | f32 | 228 | AGREE | 1 | 1 | 1 | 1 | `set_mode_gol_scales` ×1 |
-| 49 | mode_gol_height_scale | float | 232 | mode_gol_height_scale | f32 | 232 | AGREE | 1 | 1 | 1 | 1 | `set_mode_gol_scales` ×1 |
-| 50 | floater_coordination | float | 236 | floater_coordination | f32 | 236 | AGREE | 0 | 1 | 1 | 0 | — |
-| 51 | pulse_count | uint32_t | 240 | pulse_count | u32 | 240 | AGREE | 0 | 2 | 1 | 1 | `set_pulse_data` ×1 |
-| 52 | possessed_slot | uint32_t | 244 | possessed_slot | u32 | 244 | AGREE | 1 | 13 | 1 | 1 | `set_possessed_slot` ×2 |
-| 53 | veil_dither | float | 248 | veil_dither | f32 | 248 | AGREE | 2 | 2 | 1 | 1 | `set_veil_dither` ×1 |
-| 54 | indoor_height_cap | float | 252 | indoor_height_cap | f32 | 252 | AGREE | 1 | 0 | 1 | 0 | `set_indoor_height_cap` ×1 |
-| 55 | pulse_data | float[32] | 256 | pulse_data | array<vec4<f32>, 8> | 256 | AGREE | 1 | 1 | 0 | 1 | `set_pulse_data` ×1 |
-| 56 | lod_point_x | float | 384 | lod_point_x | f32 | 384 | AGREE | 1 | 12 | 1 | 0 | — |
-| 57 | lod_point_z | float | 388 | lod_point_z | f32 | 388 | AGREE | 0 | 12 | 1 | 0 | — |
-| 58 | point_host | uint32_t | 392 | point_host | u32 | 392 | AGREE | 1 | 1 | 1 | 1 | `set_point_host` ×1 |
-| 59 | point_fly_speed | float | 396 | point_fly_speed | f32 | 396 | AGREE | 1 | 2 | 1 | 1 | `set_point_fly_speed` ×1 |
-| 60 | veil_ring | float | 400 | veil_ring | f32 | 400 | AGREE | 1 (+1 guard) | 12 | 1 | 1 | `set_veil` ×0 |
-| 61 | veil_icing | float | 404 | veil_icing | f32 | 404 | AGREE | 0 (+1 guard) | 2 | 1 | 1 | `set_veil` ×0 |
-| 62 | veil_strength | float | 408 | veil_strength | f32 | 408 | AGREE | 1 | 2 | 1 | 1 | `set_veil_strength` ×1 |
-| 63 | lod0_radius | float | 412 | lod0_radius | f32 | 412 | AGREE | 1 (+1 guard) | 2 | 1 | 1 | `set_veil` ×0 |
-| 64 | palette_center | float[4][4] | 416 | palette_center | array<vec4<f32>, 4> | 416 | AGREE | 0 (+3 guard) | 3 | 3 | 2 | `set_palette_center` ×0 |
-| 65 | palette_light | float[4][4] | 480 | palette_light | array<vec4<f32>, 4> | 480 | AGREE | 0 (+3 guard) | 3 | 3 | 2 | `set_palette_light` ×0 |
-| 66 | palette_weight | float[4] | 544 | palette_weight | vec4<f32> | 544 | AGREE | 0 (+4 guard) | 1 | 4 | 1 | `set_palette_weight` ×0 |
-| 67 | checker_resultant | float[3] | 560 | checker_resultant | vec3<f32> | 560 | AGREE | 3 | 3 | 3 | 0 | `set_checker_color_field` ×2 |
-| 68 | checker_music_amount | float | 572 | checker_music_amount | f32 | 572 | AGREE | 1 | 4 | 1 | 0 | `set_checker_color_field` ×2 |
-| 69 | checker_music_variance | float | 576 | checker_music_variance | f32 | 576 | AGREE | 1 | 2 | 1 | 0 | `set_checker_color_field` ×2 |
-| 70 | point_bubble_radius | float | 580 | point_bubble_radius | f32 | 580 | AGREE | 0 (+1 guard) | 3 | 1 | 1 | `set_point_bubble_radius` ×0 |
-| 71 | cube_plasticity | float | 584 | cube_plasticity | f32 | 584 | AGREE | 0 (+1 guard) | 1 | 1 | 1 | `set_cube_plasticity` ×0 |
-| 72 | pawn_tilt_tau | float | 588 | pawn_tilt_tau | f32 | 588 | AGREE | 1 | 1 | 1 | 0 | `set_pawn_tilt_tau` ×2 |
+| 2 | mute_signal | uint32_t | 4 | mute_signal | u32 | 4 | AGREE | 2 (+1 guard) | 1 | 3 | 1 | `set_mute_signal` ×0 |
+| 3 | mute_couplings | uint32_t | 8 | mute_couplings | u32 | 8 | AGREE | 5 | 1 | 5 | 1 | `set_mute_coupling` ×2 |
+| 4 | pawn_speed | float | 12 | pawn_speed | f32 | 12 | AGREE | 0 (+1 guard) | 2 | 1 | 1 | `set_pawn_speed` ×0 |
+| 5 | freeze_sphere | uint32_t | 16 | freeze_sphere | u32 | 16 | AGREE | 1 (+1 guard) | 1 | 2 | 1 | `set_freeze_sphere` ×0 |
+| 6 | fpv_mode | uint32_t | 20 | fpv_mode | u32 | 20 | AGREE | 2 | 1 | 1 | 1 | `set_fpv_mode` ×1 |
+| 7 | world_seed | uint32_t | 24 | world_seed | u32 | 24 | AGREE | 1 | 7 | 1 | 1 | `set_world_seed` ×2 |
+| 8 | _pad_sun | uint32_t | 28 | — | — |  | PAD — no twin by construction | 0 | 0 | 0 | 0 | — |
+| 9 | sun_direction | float[3] | 32 | sun_direction | vec3<f32> | 32 | AGREE | 3 | 1 | 3 | 3 | `set_sun_direction` ×1 |
+| 10 | aura_enabled | float | 44 | aura_enabled | f32 | 44 | AGREE | 1 | 1 | 1 | 1 | `set_aura_enabled` ×1 |
+| 11 | pawn_aura_height | float | 48 | pawn_aura_height | f32 | 48 | AGREE | 1 | 3 | 1 | 1 | `set_pawn_aura_height` ×1 |
+| 12 | fog_density | float | 52 | fog_density | f32 | 52 | AGREE | 1 | 4 | 1 | 1 | `set_fog` ×1 |
+| 13 | _pad_fog | uint32_t[2] | 56 | — | — |  | PAD — no twin by construction | 0 | 0 | 0 | 0 | — |
+| 14 | fog_color | float[3] | 64 | fog_color | vec3<f32> | 64 | AGREE | 3 | 6 | 3 | 3 | `set_fog` ×1 |
+| 15 | fade_alpha | float | 76 | fade_alpha | f32 | 76 | AGREE | 1 | 1 | 1 | 1 | `set_fade` ×1 |
+| 16 | fade_color | float[3] | 80 | fade_color | vec3<f32> | 80 | AGREE | 3 | 1 | 3 | 3 | `set_fade` ×1 |
+| 17 | pier_count | uint32_t | 92 | pier_count | u32 | 92 | AGREE | 1 | 1 | 1 | 1 | — |
+| 18 | world_bound_min | float[2] | 96 | world_bound_min | vec2<f32> | 96 | AGREE | 2 | 3 | 2 | 2 | `set_world_bounds` ×2 |
+| 19 | world_bound_max | float[2] | 104 | world_bound_max | vec2<f32> | 104 | AGREE | 2 | 4 | 2 | 2 | `set_world_bounds` ×2 |
+| 20 | placement_patch_count | uint32_t | 112 | placement_patch_count | u32 | 112 | AGREE | 1 | 1 | 1 | 0 | — |
+| 21 | terrain_amp_ceiling | float | 116 | terrain_amp_ceiling | f32 | 116 | AGREE | 1 | 2 | 1 | 1 | `set_terrain_amp_ceiling` ×1 |
+| 22 | ceiling_height | float | 120 | ceiling_height | f32 | 120 | AGREE | 1 | 4 | 1 | 1 | `set_ceiling_height` ×2 |
+| 23 | terrain_time | float | 124 | terrain_time | f32 | 124 | AGREE | 1 | 2 | 1 | 1 | `set_terrain_time` ×1 |
+| 24 | band_blend_0 | float | 128 | band_blend_0 | f32 | 128 | AGREE | 0 | 1 | 1 | 1 | `set_band_motion` ×1 |
+| 25 | band_blend_1 | float | 132 | band_blend_1 | f32 | 132 | AGREE | 0 | 1 | 1 | 1 | `set_band_motion` ×1 |
+| 26 | band_blend_2 | float | 136 | band_blend_2 | f32 | 136 | AGREE | 0 | 1 | 1 | 1 | `set_band_motion` ×1 |
+| 27 | band_blend_3 | float | 140 | band_blend_3 | f32 | 140 | AGREE | 0 | 1 | 1 | 1 | `set_band_motion` ×1 |
+| 28 | band_blend_4 | float | 144 | band_blend_4 | f32 | 144 | AGREE | 0 | 1 | 1 | 1 | `set_band_motion` ×1 |
+| 29 | band_blend_5 | float | 148 | band_blend_5 | f32 | 148 | AGREE | 0 | 1 | 1 | 1 | `set_band_motion` ×1 |
+| 30 | band_phase_origin_0 | float | 152 | band_phase_origin_0 | f32 | 152 | AGREE | 0 | 1 | 1 | 1 | `set_band_motion` ×1 |
+| 31 | band_phase_origin_1 | float | 156 | band_phase_origin_1 | f32 | 156 | AGREE | 0 | 1 | 1 | 1 | `set_band_motion` ×1 |
+| 32 | band_phase_origin_2 | float | 160 | band_phase_origin_2 | f32 | 160 | AGREE | 0 | 1 | 1 | 1 | `set_band_motion` ×1 |
+| 33 | band_phase_origin_3 | float | 164 | band_phase_origin_3 | f32 | 164 | AGREE | 0 | 1 | 1 | 1 | `set_band_motion` ×1 |
+| 34 | band_phase_origin_4 | float | 168 | band_phase_origin_4 | f32 | 168 | AGREE | 0 | 1 | 1 | 1 | `set_band_motion` ×1 |
+| 35 | band_phase_origin_5 | float | 172 | band_phase_origin_5 | f32 | 172 | AGREE | 0 | 1 | 1 | 1 | `set_band_motion` ×1 |
+| 36 | mode_color_shift | float | 176 | mode_color_shift | f32 | 176 | AGREE | 1 | 2 | 1 | 0 | `set_mode_color_shift` ×1 |
+| 37 | mode_checker_scatter | float | 180 | mode_checker_scatter | f32 | 180 | AGREE | 1 | 2 | 1 | 0 | `set_mode_checker_scatter` ×1 |
+| 38 | mode_palette_target | float | 184 | mode_palette_target | f32 | 184 | AGREE | 1 | 1 | 1 | 0 | `set_mode_palette_drift` ×1 |
+| 39 | mode_palette_intensity | float | 188 | mode_palette_intensity | f32 | 188 | AGREE | 1 | 2 | 1 | 0 | `set_mode_palette_drift` ×1 |
+| 40 | mode_discrete_tier | float | 192 | mode_discrete_tier | f32 | 192 | AGREE | 1 | 1 | 1 | 0 | `set_mode_palette_drift` ×1 |
+| 41 | mode_gol_tick_scale | float | 196 | mode_gol_tick_scale | f32 | 196 | AGREE | 1 | 1 | 1 | 1 | `set_mode_gol_scales` ×1 |
+| 42 | mode_gol_height_scale | float | 200 | mode_gol_height_scale | f32 | 200 | AGREE | 1 | 1 | 1 | 1 | `set_mode_gol_scales` ×1 |
+| 43 | floater_coordination | float | 204 | floater_coordination | f32 | 204 | AGREE | 0 | 1 | 1 | 0 | — |
+| 44 | pulse_count | uint32_t | 208 | pulse_count | u32 | 208 | AGREE | 0 | 2 | 1 | 1 | `set_pulse_data` ×1 |
+| 45 | possessed_slot | uint32_t | 212 | possessed_slot | u32 | 212 | AGREE | 1 | 13 | 1 | 1 | `set_possessed_slot` ×2 |
+| 46 | veil_dither | float | 216 | veil_dither | f32 | 216 | AGREE | 2 | 2 | 1 | 1 | `set_veil_dither` ×1 |
+| 47 | indoor_height_cap | float | 220 | indoor_height_cap | f32 | 220 | AGREE | 1 | 0 | 1 | 0 | `set_indoor_height_cap` ×1 |
+| 48 | pulse_data | float[32] | 224 | pulse_data | array<vec4<f32>, 8> | 224 | AGREE | 1 | 1 | 0 | 1 | `set_pulse_data` ×1 |
+| 49 | lod_point_x | float | 352 | lod_point_x | f32 | 352 | AGREE | 1 | 12 | 1 | 0 | — |
+| 50 | lod_point_z | float | 356 | lod_point_z | f32 | 356 | AGREE | 0 | 12 | 1 | 0 | — |
+| 51 | point_host | uint32_t | 360 | point_host | u32 | 360 | AGREE | 1 | 1 | 1 | 1 | `set_point_host` ×1 |
+| 52 | point_fly_speed | float | 364 | point_fly_speed | f32 | 364 | AGREE | 1 | 2 | 1 | 1 | `set_point_fly_speed` ×1 |
+| 53 | veil_ring | float | 368 | veil_ring | f32 | 368 | AGREE | 1 (+1 guard) | 12 | 1 | 1 | `set_veil` ×0 |
+| 54 | veil_icing | float | 372 | veil_icing | f32 | 372 | AGREE | 0 (+1 guard) | 2 | 1 | 1 | `set_veil` ×0 |
+| 55 | veil_strength | float | 376 | veil_strength | f32 | 376 | AGREE | 1 | 2 | 1 | 1 | `set_veil_strength` ×1 |
+| 56 | lod0_radius | float | 380 | lod0_radius | f32 | 380 | AGREE | 1 (+1 guard) | 2 | 1 | 1 | `set_veil` ×0 |
+| 57 | palette_center | float[4][4] | 384 | palette_center | array<vec4<f32>, 4> | 384 | AGREE | 0 (+3 guard) | 3 | 3 | 2 | `set_palette_center` ×0 |
+| 58 | palette_light | float[4][4] | 448 | palette_light | array<vec4<f32>, 4> | 448 | AGREE | 0 (+3 guard) | 3 | 3 | 2 | `set_palette_light` ×0 |
+| 59 | palette_weight | float[4] | 512 | palette_weight | vec4<f32> | 512 | AGREE | 0 (+4 guard) | 1 | 4 | 1 | `set_palette_weight` ×0 |
+| 60 | checker_resultant | float[3] | 528 | checker_resultant | vec3<f32> | 528 | AGREE | 3 | 3 | 3 | 0 | `set_checker_color_field` ×2 |
+| 61 | checker_music_amount | float | 540 | checker_music_amount | f32 | 540 | AGREE | 1 | 4 | 1 | 0 | `set_checker_color_field` ×2 |
+| 62 | checker_music_variance | float | 544 | checker_music_variance | f32 | 544 | AGREE | 1 | 2 | 1 | 0 | `set_checker_color_field` ×2 |
+| 63 | point_bubble_radius | float | 548 | point_bubble_radius | f32 | 548 | AGREE | 0 (+1 guard) | 3 | 1 | 1 | `set_point_bubble_radius` ×0 |
+| 64 | cube_plasticity | float | 552 | cube_plasticity | f32 | 552 | AGREE | 0 (+1 guard) | 1 | 1 | 1 | `set_cube_plasticity` ×0 |
+| 65 | pawn_tilt_tau | float | 556 | pawn_tilt_tau | f32 | 556 | AGREE | 1 | 1 | 1 | 0 | `set_pawn_tilt_tau` ×2 |
 
-**72 of 72 rows AGREE on offset and extent; 0 DISAGREE.** Total: C++ 592 B,
-WGSL 592 B, declared witness 592. The two rooms are in lockstep at this HEAD.
+**63 of 65 rows AGREE on offset and extent; 0 DISAGREE; 2 are pads.**
+A pad has no WGSL twin on purpose — it reproduces in C++ an alignment
+WGSL applies for free (`vec3` -> 16). It is the mirror's mechanism, and
+it is why the four `vec3` members still land on their boundaries after
+P3 removed 44 B. Total: C++ 560 B,
+WGSL 560 B, declared witness 560. The two rooms are in lockstep at this HEAD.
 
 ### §3.2 — fields with ZERO READS in BOTH rooms (deletion candidates)
 
@@ -459,19 +456,9 @@ come from the declared member and accessor of type `GPUDesignConfig`
 (`config_, config()`). Writes and boot pins are shown so the reason a field looks busy
 is visible: pinning is not consumption.
 
-| field | type | bytes | offset | writes+pins | setter ×callers (excl. boot) | guard-only reads | running total |
-|---|---|---|---|---|---|---|---|
-| mute_dynamics_2d | uint32_t | 4 | 4 | 1 | — | — | 4 |
-| wave_time_scale | float | 4 | 16 | 1 | — | — | 8 |
-| camera_sensitivity | float | 4 | 24 | 2 | `set_camera_sensitivity` ×0 — dies with the field | 1 | 12 |
-| active_cell_size | float | 4 | 32 | 1 | — | — | 16 |
-| wave_enable_mask | uint32_t | 4 | 40 | 1 | — | — | 20 |
-| wave_freeze_mask | uint32_t | 4 | 44 | 1 | — | — | 24 |
-| wave_frozen_t | float[3] | 12 | 48 | 3 | — | — | 36 |
-| pawn_amp_scale | float | 4 | 80 | 2 | `set_pawn_amp_scale` ×0 — dies with the field | 1 | 40 |
-| pawn_height_bias | float | 4 | 84 | 2 | `set_pawn_height_bias` ×0 — dies with the field | 1 | 44 |
+_(none)_
 
-**Reclaimable config bytes: 44 B** of 592 (7.4%).
+**Reclaimable config bytes: 0 B** of 560 (0.0%).
 
 > Caveat, stated plainly. (1) Removing a field mid-struct **re-flows every
 > offset after it in ALL THREE rooms** — C++, WGSL, and the hand-written
@@ -479,12 +466,12 @@ is visible: pinning is not consumption.
 > them go in ONE commit; taken one at a time the cost is a full mirror
 > re-verification each time, and the `offsetof` witnesses in `state.hpp`
 > are what makes that survivable at all. (2) The uniform is padded to its
-> 16 B alignment, so the buffer only shrinks in 16 B steps: 44 B of dead
-> field yields `592 → 560`, a **32 B** real reduction of the upload.
+> 16 B alignment, so the buffer only shrinks in 16 B steps: 0 B of dead
+> field yields `592 → 560`, a **0 B** real reduction of the upload.
 > (3) Every one of these is **RULE(Jean)**, not DELETE, because of §3.3:
 > the JS packer indexes the same buffer by hand and nothing checks it.
 > (4) The config is uploaded once per dirty-flag flush, not per draw —
-> so even that 32 B is a *bandwidth* saving of the smallest kind. **The
+> so even that 0 B is a *bandwidth* saving of the smallest kind. **The
 > reason to do this is legibility, not frames.** Say so to Jean rather
 > than letting a byte count imply a performance claim.
 
@@ -510,14 +497,14 @@ The handoff lists these as expected zero-reader candidates and says
 
 | expected field | type | bytes | C++ live reads | WGSL reads | C++ writes | boot pins | guard-only reads | setter ×callers | verdict | sites |
 |---|---|---|---|---|---|---|---|---|---|---|
-| wave_time_scale | float | 4 | 0 | 0 | 0 | 1 | 0 | — | **ZERO READS — confirmed candidate** | — |
-| wave_enable_mask | uint32_t | 4 | 0 | 0 | 0 | 1 | 0 | — | **ZERO READS — confirmed candidate** | — |
-| wave_freeze_mask | uint32_t | 4 | 0 | 0 | 0 | 1 | 0 | — | **ZERO READS — confirmed candidate** | — |
-| wave_frozen_t | float[3] | 12 | 0 | 0 | 0 | 3 | 0 | — | **ZERO READS — confirmed candidate** | — |
-| pawn_amp_scale | float | 4 | 0 | 0 | 1 | 1 | 1 | `set_pawn_amp_scale` ×0 | **ZERO LIVE READS** — only its own dead setter's guard | src/cartridges/the_board/realization/state.hpp:2546 |
-| pawn_height_bias | float | 4 | 0 | 0 | 1 | 1 | 1 | `set_pawn_height_bias` ×0 | **ZERO LIVE READS** — only its own dead setter's guard | src/cartridges/the_board/realization/state.hpp:2549 |
-| mute_dynamics_2d | uint32_t | 4 | 0 | 0 | 0 | 1 | 0 | — | **ZERO READS — confirmed candidate** | — |
-| active_cell_size | float | 4 | 0 | 0 | 0 | 1 | 0 | — | **ZERO READS — confirmed candidate** | — |
+| wave_time_scale | (absent) | - | 0 | 0 | 0 | 0 | 0 | — | **ZERO READS — confirmed candidate** | — |
+| wave_enable_mask | (absent) | - | 0 | 0 | 0 | 0 | 0 | — | **ZERO READS — confirmed candidate** | — |
+| wave_freeze_mask | (absent) | - | 0 | 0 | 0 | 0 | 0 | — | **ZERO READS — confirmed candidate** | — |
+| wave_frozen_t | (absent) | - | 0 | 0 | 0 | 0 | 0 | — | **ZERO READS — confirmed candidate** | — |
+| pawn_amp_scale | (absent) | - | 0 | 0 | 0 | 0 | 0 | — | **ZERO READS — confirmed candidate** | — |
+| pawn_height_bias | (absent) | - | 0 | 0 | 0 | 0 | 0 | — | **ZERO READS — confirmed candidate** | — |
+| mute_dynamics_2d | (absent) | - | 0 | 0 | 0 | 0 | 0 | — | **ZERO READS — confirmed candidate** | — |
+| active_cell_size | (absent) | - | 0 | 0 | 0 | 0 | 0 | — | **ZERO READS — confirmed candidate** | — |
 
 **8 of 8 confirmed as zero-live-read; 0 refuted.**
 
@@ -564,7 +551,7 @@ here — it is a mirror, so its tags are copies of desktop tags at an older
 commit, and ruling on them is the resync's business (§5.3), not §4's.
 
 **Dating caveat — read this before treating age as evidence.** This
-checkout is a **SHALLOW clone 93 commits deep, rooted at 2026-07-23**.
+checkout is a **SHALLOW clone 96 commits deep, rooted at 2026-07-23**.
 `.git/shallow` exists, so the history is *truncated by construction* —
 the pickaxe cannot see past the graft no matter how the query is written.
 Every first-appearance date below is therefore floored at that point: a tag
@@ -597,50 +584,50 @@ disagree the tag is worth reading by eye before ruling on it.
 | …/contracts/spine_state.hpp | 100 | InputState | — | INTENT (bare) | **prose — not a tag** | — | 2026-07-23 | // ═══ INPUT STATE — THE DRIVER'S INTENT ORGAN ═════════════════ |
 | …/contracts/spine_state.hpp | 179 | fog_density | — | INTENT[...] | TAG | — | 2026-07-23 | // INTENT[mood-fog-baseline] fog_density/fog_color have ZERO rea |
 | …/direction/input.hpp | 348 | update_movement_intent | on_scroll | INTENT (bare) | **prose — not a tag** | — | 2026-07-23 | // ═══ MOVEMENT INTENT + DELTA CLEAR ═══════════════════════════ |
-| …/realization/state.hpp | 3036 | ribbonBuffer_ = makeBuffer("Ribbon State", sizeo | createBuffers | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] ribbon (SH·mb): ribbonRing pipeline + r |
-| …/realization/state.hpp | 3049 | spotLightArrayBuffer_ = makeBuffer("Spot Light A | createBuffers | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] spot_lights (SH·mb): spotVPStagingBuffe |
-| …/realization/state.hpp | 3116 | paintingSlotsBuffer_ = makeBuffer("Painting Slot | createBuffers | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] gallery (SH·mb): gallery/wall-painting/ |
-| …/realization/state.hpp | 3299 | std | createSphereMesh | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] sphere (SH·dc): VB/IB exclusive+droppab |
-| …/realization/state.hpp | 3328 | J | createMonolithMesh | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] cube (SH·dc): monolith VB/IB exclusive+ |
-| …/realization/state.hpp | 3405 | archVertexBuffer_ = makeBuffer("Arch VB (GPU mes | createArchMesh | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] arch (SH·mb): mesh VB/IB/params + 3 pip |
-| …/realization/state.hpp | 3450 | columnVertexBuffer_ = makeBuffer("Column VB (GPU | createColumnMesh | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] column (SH·mb): mesh VB/IB/params + 3 p |
-| …/realization/state.hpp | 3489 | palmVertexBuffer_ = makeBuffer("Palm VB (GPU mes | createPalmMesh | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] palm (SH·dc): VB/IB/params exclusive+dr |
-| …/realization/state.hpp | 3517 | cactusVertexBuffer_ = makeBuffer("Cactus VB (GPU | createCactusMesh | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] cactus (SH·dc): VB/IB/params exclusive+ |
-| …/realization/state.hpp | 3543 | bladeVertexBuffer_ = makeBuffer("Blade VB (GPU m | createBladeMesh | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] blade (SH·dc): VB/IB/params exclusive+d |
-| …/realization/state.hpp | 3619 | zoneConfigBuffer_ = makeBuffer("GoL Zone Config" | createGoLZoneBuffers | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] gol (SH·mb): zone-mesh buffers + zoneLi |
-| …/realization/state.hpp | 3673 | pawnAuraConfigBuffer_ = makeBuffer("Pawn Aura Co | createGoLZoneBuffers | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] pawn_aura (SH·mb): config/cells buffers |
-| …/realization/state.hpp | 3695 | orbStateBuffer_ = makeBuffer("Orb State", | createGoLZoneBuffers | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] orbs (SH·mb): orbStatePrev + quad VB/IB |
+| …/realization/state.hpp | 3030 | ribbonBuffer_ = makeBuffer("Ribbon State", sizeo | createBuffers | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] ribbon (SH·mb): ribbonRing pipeline + r |
+| …/realization/state.hpp | 3043 | spotLightArrayBuffer_ = makeBuffer("Spot Light A | createBuffers | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] spot_lights (SH·mb): spotVPStagingBuffe |
+| …/realization/state.hpp | 3110 | paintingSlotsBuffer_ = makeBuffer("Painting Slot | createBuffers | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] gallery (SH·mb): gallery/wall-painting/ |
+| …/realization/state.hpp | 3293 | std | createSphereMesh | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] sphere (SH·dc): VB/IB exclusive+droppab |
+| …/realization/state.hpp | 3322 | J | createMonolithMesh | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] cube (SH·dc): monolith VB/IB exclusive+ |
+| …/realization/state.hpp | 3399 | archVertexBuffer_ = makeBuffer("Arch VB (GPU mes | createArchMesh | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] arch (SH·mb): mesh VB/IB/params + 3 pip |
+| …/realization/state.hpp | 3444 | columnVertexBuffer_ = makeBuffer("Column VB (GPU | createColumnMesh | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] column (SH·mb): mesh VB/IB/params + 3 p |
+| …/realization/state.hpp | 3483 | palmVertexBuffer_ = makeBuffer("Palm VB (GPU mes | createPalmMesh | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] palm (SH·dc): VB/IB/params exclusive+dr |
+| …/realization/state.hpp | 3511 | cactusVertexBuffer_ = makeBuffer("Cactus VB (GPU | createCactusMesh | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] cactus (SH·dc): VB/IB/params exclusive+ |
+| …/realization/state.hpp | 3537 | bladeVertexBuffer_ = makeBuffer("Blade VB (GPU m | createBladeMesh | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] blade (SH·dc): VB/IB/params exclusive+d |
+| …/realization/state.hpp | 3613 | zoneConfigBuffer_ = makeBuffer("GoL Zone Config" | createGoLZoneBuffers | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] gol (SH·mb): zone-mesh buffers + zoneLi |
+| …/realization/state.hpp | 3667 | pawnAuraConfigBuffer_ = makeBuffer("Pawn Aura Co | createGoLZoneBuffers | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] pawn_aura (SH·mb): config/cells buffers |
+| …/realization/state.hpp | 3689 | orbStateBuffer_ = makeBuffer("Orb State", | createGoLZoneBuffers | LATENT[...] | TAG | — | 2026-07-23 | // LATENT[gate-a-shared] orbs (SH·mb): orbStatePrev + quad VB/IB |
 | …/realization/world.wgsl | 786 | stats | terrain_height_and_complexity | DRIVERLESS | TAG | `terrain_height_and_complexity`: 1 | 2026-07-23 | // DRIVERLESS: no shader consumer since M1-C. Kept as infrastruc |
 | …/realization/world.wgsl | 1123 | tile_modifiers_at | tile_grid_lookup | STATUS: LATENT | TAG | `tile_modifiers_at`: 1 | 2026-07-23 | // STATUS: LATENT[tile-activation] — the .z channel (activation_ |
-| …/realization/world.wgsl | 1781 | (unattributed — nearest declaration is 22 lines away) | discrete_cell_color_at_tier | DRIVERLESS | TAG | `discrete_cell_color_at_tier`: 3 | 2026-07-23 | // pass; TRUEBAND_CONTACT_1) — rest IS today's stillness. The mo |
-| …/realization/world.wgsl | 2546 | coupling_signal_polyphony_to_sphere_color | point_camera_hosted | DRIVERLESS | TAG | `coupling_signal_polyphony_to_sphere_color`: 2 | 2026-07-23 | // DRIVERLESS since gen-1 retirement (the 8th capability — raw |
-| …/realization/world.wgsl | 2908 | contrib_radial_pulses_at | ground_formed_with_complexity | DRIVERLESS | TAG | `contrib_radial_pulses_at`: 1 | 2026-07-23 | // DRIVERLESS since gen-1 retirement — held at neutral by the bo |
-| …/realization/world.wgsl | 3925 | @location(2) patch_uv: vec2<f32>,    // UV withi | shade_lit | LATENT[...] | tombstone-ref (already removed) | `shade_lit`: 3 | 2026-07-23 | // (complexity varying REMOVED — LATENT[complexity], read by no  |
-| …/realization/world.wgsl | 4028 | out.patch_uv = uv; | patch_terrain_vs | LATENT[...] | tombstone-ref (already removed) | `patch_terrain_vs`: 0 | 2026-07-23 | // (out.complexity REMOVED — the LATENT[complexity] varying; |
-| …/realization/world.wgsl | 5674 | freq | pulse_cell_target | DRIVERLESS | TAG | `pulse_cell_target`: 1 | 2026-07-23 | // DRIVERLESS since gen-1 retirement — held at neutral by the bo |
-| …/realization/world.wgsl | 5700 | id | gol_composite_cell_color | STATUS: INTENT | TAG | `gol_composite_cell_color`: 1 | 2026-07-23 | // (Jean): the zones' own coupling pass is coming. STATUS: INTEN |
-| …/realization/world.wgsl | 6203 | agent_post_step | step_trigger | INTENT (bare) | **prose — not a tag** | `agent_post_step`: 9 | (not in history) | // the contact gather: THE SPEED CAP GOVERNS INTENT, NOT IMPOSIT |
-| …/realization/world.wgsl | 6258 | agent_settle | agent_post_step | INTENT (bare) | **prose — not a tag** | `agent_settle`: 1 | (not in history) | // contact gather, so the speed cap governs INTENT, not impositi |
-| …/realization/world.wgsl | 7433 | floating_entities.entities[slot].color = couplin | update_sphere | DRIVERLESS | TAG | `update_sphere`: 0 | 2026-07-23 | // DRIVERLESS (M1-C): raw signal.stats[0] substituted with the |
-| …/realization/world.wgsl | 7773 | floating_entities.entities[slot].color = couplin | update_cube | DRIVERLESS | TAG | `update_cube`: 0 | 2026-07-23 | // DRIVERLESS (M1-C): raw signal.stats[0] substituted with the |
-| …/realization/world.wgsl | 7948 | textureStore(patch_heightfield_array_write, texe | generate_patch_gradients | LATENT[...] | tombstone-ref (already removed) | `generate_patch_gradients`: 0 | 2026-07-23 | // The .w channel is unused (was LATENT[complexity], removed by  |
-| …/realization/world.wgsl | 8953 | (unattributed) | compute_photographer_vp | STATUS: LATENT | TAG | `compute_photographer_vp`: 0 | 2026-07-23 | // live caller today (STATUS: LATENT[policy-surface]): CPU spawn |
-| …/realization/world.wgsl | 11490 | force_radial | shadow_blade_cluster_vs | DRIVERLESS | TAG | `shadow_blade_cluster_vs`: 0 | 2026-07-23 | // DRIVERLESS since gen-1 retirement (force/color/flock/speed co |
+| …/realization/world.wgsl | 1770 | (unattributed — nearest declaration is 22 lines away) | discrete_cell_color_at_tier | DRIVERLESS | TAG | `discrete_cell_color_at_tier`: 3 | 2026-07-23 | // pass; TRUEBAND_CONTACT_1) — rest IS today's stillness. The mo |
+| …/realization/world.wgsl | 2535 | coupling_signal_polyphony_to_sphere_color | point_camera_hosted | DRIVERLESS | TAG | `coupling_signal_polyphony_to_sphere_color`: 2 | 2026-07-23 | // DRIVERLESS since gen-1 retirement (the 8th capability — raw |
+| …/realization/world.wgsl | 2897 | contrib_radial_pulses_at | ground_formed_with_complexity | DRIVERLESS | TAG | `contrib_radial_pulses_at`: 1 | 2026-07-23 | // DRIVERLESS since gen-1 retirement — held at neutral by the bo |
+| …/realization/world.wgsl | 3915 | @location(2) patch_uv: vec2<f32>,    // UV withi | shade_lit | LATENT[...] | tombstone-ref (already removed) | `shade_lit`: 3 | 2026-07-23 | // (complexity varying REMOVED — LATENT[complexity], read by no  |
+| …/realization/world.wgsl | 4018 | out.patch_uv = uv; | patch_terrain_vs | LATENT[...] | tombstone-ref (already removed) | `patch_terrain_vs`: 0 | 2026-07-23 | // (out.complexity REMOVED — the LATENT[complexity] varying; |
+| …/realization/world.wgsl | 5663 | freq | pulse_cell_target | DRIVERLESS | TAG | `pulse_cell_target`: 1 | 2026-07-23 | // DRIVERLESS since gen-1 retirement — held at neutral by the bo |
+| …/realization/world.wgsl | 5689 | id | gol_composite_cell_color | STATUS: INTENT | TAG | `gol_composite_cell_color`: 1 | 2026-07-23 | // (Jean): the zones' own coupling pass is coming. STATUS: INTEN |
+| …/realization/world.wgsl | 6192 | agent_post_step | step_trigger | INTENT (bare) | **prose — not a tag** | `agent_post_step`: 9 | (not in history) | // the contact gather: THE SPEED CAP GOVERNS INTENT, NOT IMPOSIT |
+| …/realization/world.wgsl | 6247 | agent_settle | agent_post_step | INTENT (bare) | **prose — not a tag** | `agent_settle`: 1 | (not in history) | // contact gather, so the speed cap governs INTENT, not impositi |
+| …/realization/world.wgsl | 7422 | floating_entities.entities[slot].color = couplin | update_sphere | DRIVERLESS | TAG | `update_sphere`: 0 | 2026-07-23 | // DRIVERLESS (M1-C): raw signal.stats[0] substituted with the |
+| …/realization/world.wgsl | 7762 | floating_entities.entities[slot].color = couplin | update_cube | DRIVERLESS | TAG | `update_cube`: 0 | 2026-07-23 | // DRIVERLESS (M1-C): raw signal.stats[0] substituted with the |
+| …/realization/world.wgsl | 7937 | textureStore(patch_heightfield_array_write, texe | generate_patch_gradients | LATENT[...] | tombstone-ref (already removed) | `generate_patch_gradients`: 0 | 2026-07-23 | // The .w channel is unused (was LATENT[complexity], removed by  |
+| …/realization/world.wgsl | 8942 | (unattributed) | compute_photographer_vp | STATUS: LATENT | TAG | `compute_photographer_vp`: 0 | 2026-07-23 | // live caller today (STATUS: LATENT[policy-surface]): CPU spawn |
+| …/realization/world.wgsl | 11479 | force_radial | shadow_blade_cluster_vs | DRIVERLESS | TAG | `shadow_blade_cluster_vs`: 0 | 2026-07-23 | // DRIVERLESS since gen-1 retirement (force/color/flock/speed co |
 | …/surface/terrain_looks.hpp | 87 | REST_TERRAIN_TIME | — | DRIVERLESS | TAG | — | 2026-07-23 | //   nothing else authors them today (the mode trio is DRIVERLES |
 | …/surface/tile_world.hpp | 119 | activation_scale | — | STATUS: LATENT | TAG | — | 2026-07-23 | // STATUS: LATENT[tile-activation] — authored here (per-archetyp |
 
 ### §4a — THE POLICY SURFACE (Tier 3)
 
-`manifold_height_hf` — `src/cartridges/the_board/realization/world.wgsl:3233`–3249, 2 callers. It is a `switch` over
+`manifold_height_hf` — `src/cartridges/the_board/realization/world.wgsl:3223`–3239, 2 callers. It is a `switch` over
 the policy id with **5 arms**.
 
 | arm | policy | dispatches | decl line | callers | live? | realization |
 |---|---|---|---|---|---|---|
-| case `POLICY_FLYER` | POLICY_FLYER | `query_ground_flyer` | 3053 | 1 | yes | policy-specific |
-| case `POLICY_WALKER` | POLICY_WALKER | `query_ground_walker` | 3082 | 1 | yes | policy-specific |
-| case `POLICY_WALKER_TILT` | POLICY_WALKER_TILT | `query_ground_walker_tilt` | 3112 | 1 | yes | policy-specific |
-| case `POLICY_WALKER_AGENT` | POLICY_WALKER_AGENT | `query_ground_walker_agent` | 3168 | 1 | yes | policy-specific |
-| default | — | `sample_terrain_y_at` | 8796 | 5 | yes | **generic fallback — the arm is a no-op distinction** |
+| case `POLICY_FLYER` | POLICY_FLYER | `query_ground_flyer` | 3042 | 1 | yes | policy-specific |
+| case `POLICY_WALKER` | POLICY_WALKER | `query_ground_walker` | 3071 | 1 | yes | policy-specific |
+| case `POLICY_WALKER_TILT` | POLICY_WALKER_TILT | `query_ground_walker_tilt` | 3090 | 1 | yes | policy-specific |
+| case `POLICY_WALKER_AGENT` | POLICY_WALKER_AGENT | `query_ground_walker_agent` | 3158 | 1 | yes | policy-specific |
+| default | — | `sample_terrain_y_at` | 8785 | 5 | yes | **generic fallback — the arm is a no-op distinction** |
 
 **4 of 5 arms dispatch a policy-specific function; 1 fall through to
 the generic baked sampler.** An arm whose body is the same call as the
@@ -666,18 +653,18 @@ analysis over it is a fixed point.
 
 | line | callee | policy argument | kind | inside fn |
 |---|---|---|---|---|
-| 3264 | `manifold_height_hf` | `policy` | forward | `manifold_position` |
-| 3274 | `manifold_position` | `policy` | forward | `manifold_resolve` |
-| 3276 | `manifold_height_hf` | `policy` | forward | `manifold_resolve` |
-| 3277 | `manifold_height_hf` | `policy` | forward | `manifold_resolve` |
-| 3304 | `manifold_position` | `POLICY_FLYER` | LITERAL | `coupling_terrain_to_sphere_orbit_height` |
-| 6103 | `manifold_resolve` | `POLICY_WALKER_TILT` | LITERAL | `terrain_normal_at` |
-| 6274 | `manifold_position` | `POLICY_WALKER_AGENT` | LITERAL | `agent_settle` |
-| 6487 | `manifold_position` | `POLICY_FLYER` | LITERAL | `behavior_player_controlled` |
-| 7374 | `manifold_position` | `POLICY_WALKER_TILT` | LITERAL | `update_camera` |
-| 7643 | `manifold_position` | `POLICY_FLYER` | LITERAL | `update_cube` |
-| 7648 | `manifold_position` | `POLICY_FLYER` | LITERAL | `update_cube` |
-| 7727 | `manifold_position` | `POLICY_FLYER` | LITERAL | `update_cube` |
+| 3254 | `manifold_height_hf` | `policy` | forward | `manifold_position` |
+| 3264 | `manifold_position` | `policy` | forward | `manifold_resolve` |
+| 3266 | `manifold_height_hf` | `policy` | forward | `manifold_resolve` |
+| 3267 | `manifold_height_hf` | `policy` | forward | `manifold_resolve` |
+| 3294 | `manifold_position` | `POLICY_FLYER` | LITERAL | `coupling_terrain_to_sphere_orbit_height` |
+| 6092 | `manifold_resolve` | `POLICY_WALKER_TILT` | LITERAL | `terrain_normal_at` |
+| 6263 | `manifold_position` | `POLICY_WALKER_AGENT` | LITERAL | `agent_settle` |
+| 6476 | `manifold_position` | `POLICY_FLYER` | LITERAL | `behavior_player_controlled` |
+| 7363 | `manifold_position` | `POLICY_WALKER_TILT` | LITERAL | `update_camera` |
+| 7632 | `manifold_position` | `POLICY_FLYER` | LITERAL | `update_cube` |
+| 7637 | `manifold_position` | `POLICY_FLYER` | LITERAL | `update_cube` |
+| 7716 | `manifold_position` | `POLICY_FLYER` | LITERAL | `update_cube` |
 
 All four provenance checks PASS, so the conclusion is available.
 
@@ -705,11 +692,11 @@ The two columns are exact complements: **THEY DISAGREE — read the rows above b
 
 | fn | line | callers | called by | reachable from a live entry? |
 |---|---|---|---|---|
-| query_ground_flyer | 3053 | 1 | manifold_height_hf | yes |
-| query_ground_walker | 3082 | 1 | manifold_height_hf | yes |
-| query_ground_walker_agent | 3168 | 1 | manifold_height_hf | yes |
-| query_ground_walker_pair | 3137 | 1 | pawn_ground_resolve | yes |
-| query_ground_walker_tilt | 3112 | 1 | manifold_height_hf | yes |
+| query_ground_flyer | 3042 | 1 | manifold_height_hf | yes |
+| query_ground_walker | 3071 | 1 | manifold_height_hf | yes |
+| query_ground_walker_agent | 3158 | 1 | manifold_height_hf | yes |
+| query_ground_walker_pair | 3127 | 3 | pawn_ground_resolve, query_ground_walker, query_ground_walker_tilt | yes |
+| query_ground_walker_tilt | 3090 | 1 | manifold_height_hf | yes |
 
 **`POLICY_*_MASK` constants**
 
@@ -766,7 +753,7 @@ intent, not capability.
 
 | symbol | kind | line | callers | called by | partition |
 |---|---|---|---|---|---|
-| pga_color_motor | fn | 3431 | 1 | coupling_signal_polyphony_to_sphere_color | **THE CUT** (Jean's ruling) |
+| pga_color_motor | fn | 3421 | 1 | coupling_signal_polyphony_to_sphere_color | **THE CUT** (Jean's ruling) |
 | Motor | struct | 153 | 0 | — | **SURVIVES** — still reached via a live reference |
 | rotor | fn | 187 | 3 | dynamics_sphere_motor_orbit, pga_color_motor, ribbon_ring_motor | **SURVIVES** — still reached via `dynamics_sphere_motor_orbit`, `ribbon_ring_motor` |
 | translator | fn | 200 | 1 | pga_color_motor | falls with the colour motor |
@@ -790,7 +777,7 @@ The shortcut of "ignore every entry point whose closure contains the
 colour motor" gives the WRONG answer here, because the colour motor and
 the sphere-orbit path share an entry point.
 
-`pga_color_motor` — `src/cartridges/the_board/realization/world.wgsl:3431`, 1 caller(s): `coupling_signal_polyphony_to_sphere_color`. Its closure is 8 fn.
+`pga_color_motor` — `src/cartridges/the_board/realization/world.wgsl:3421`, 1 caller(s): `coupling_signal_polyphony_to_sphere_color`. Its closure is 8 fn.
 
 **Falls with the cut (1): `translator`**
 **Already dead at HEAD, independent of the cut (1): `Plane`**
@@ -906,7 +893,7 @@ _(none)_
 ### §5.2 — the constitution §0 mirror law (FOSSIL)
 
 `src/docs/old docs/cartridge_constitution.md` — this paragraph describes a two-cartridge world that no longer
-exists (`src/cartridges/the_chord/` is absent at `59fc17f8d6ff`):
+exists (`src/cartridges/the_chord/` is absent at `29a9c471c6d3`):
 
 | line | text |
 |---|---|
@@ -970,17 +957,17 @@ _(none)_
 A COMMENT LINE is a line whose entire payload is comment — a trailing
 `// note` on a code line is not counted, because it is not removable mass.
 
-**Totals over `src/cartridges/the_board`, `src/coupling`, `src/musical`: 43119 lines, 10530 comment lines (24.4%).**
+**Totals over `src/cartridges/the_board`, `src/coupling`, `src/musical`: 43076 lines, 10540 comment lines (24.5%).**
 
 (LINES, not newlines: 9 of these 59 files have no trailing newline, so
-`sum(wc -l)` reads 43110. Same convention as §8.)
+`sum(wc -l)` reads 43067. Same convention as §8.)
 
 Top 15 by comment MASS:
 
 | file | lines | comment | blank | ratio |
 |---|---|---|---|---|
-| src/cartridges/the_board/realization/world.wgsl | 12285 | 3615 | 1489 | 29.4% |
-| src/cartridges/the_board/realization/state.hpp | 6029 | 904 | 690 | 15.0% |
+| src/cartridges/the_board/realization/world.wgsl | 12274 | 3621 | 1489 | 29.5% |
+| src/cartridges/the_board/realization/state.hpp | 5999 | 908 | 686 | 15.1% |
 | src/cartridges/the_board/cartridge.hpp | 1773 | 576 | 149 | 32.5% |
 | src/cartridges/the_board/bodies/ribbon.hpp | 1486 | 349 | 133 | 23.5% |
 | src/cartridges/the_board/direction/mood.hpp | 1287 | 263 | 149 | 20.4% |
@@ -1049,12 +1036,12 @@ Full table, alphabetical:
 | src/cartridges/the_board/machine/entity_pipeline.hpp | 1142 | 193 | 122 | 16.9% |
 | src/cartridges/the_board/machine/spawn_engine.hpp | 721 | 194 | 80 | 26.9% |
 | src/cartridges/the_board/primitives/seed_utils.hpp | 129 | 46 | 14 | 35.7% |
-| src/cartridges/the_board/realization/binding_registry.hpp | 202 | 76 | 16 | 37.6% |
+| src/cartridges/the_board/realization/binding_registry.hpp | 200 | 76 | 16 | 38.0% |
 | src/cartridges/the_board/realization/drawable_table.hpp | 125 | 37 | 9 | 29.6% |
 | src/cartridges/the_board/realization/render_passes.hpp | 588 | 89 | 83 | 15.1% |
 | src/cartridges/the_board/realization/renderer.hpp | 2195 | 231 | 239 | 10.5% |
-| src/cartridges/the_board/realization/state.hpp | 6029 | 904 | 690 | 15.0% |
-| src/cartridges/the_board/realization/world.wgsl | 12285 | 3615 | 1489 | 29.4% |
+| src/cartridges/the_board/realization/state.hpp | 5999 | 908 | 686 | 15.1% |
+| src/cartridges/the_board/realization/world.wgsl | 12274 | 3621 | 1489 | 29.5% |
 | src/cartridges/the_board/surface/patch_system.hpp | 854 | 165 | 103 | 19.3% |
 | src/cartridges/the_board/surface/population_themes.hpp | 450 | 116 | 41 | 25.8% |
 | src/cartridges/the_board/surface/terrain_looks.hpp | 156 | 109 | 8 | 69.9% |
@@ -1127,55 +1114,55 @@ Every tombstone site:
 | …/realization/binding_registry.hpp | 67 | (uncited) | //  Number reserved; do not reuse.) |
 | …/realization/binding_registry.hpp | 97 | (uncited) | // 149 RETIRED — pyramid_ground (the ground-atlas residue; |
 | …/realization/binding_registry.hpp | 126 | (uncited) | // (pmg_* @190/191/192 REMOVED: the pyramid mesh-gen |
-| …/realization/binding_registry.hpp | 178 | (uncited) | // (cell_fields_read = 30 RETIRED — Commit C. Number reserved.) |
+| …/realization/binding_registry.hpp | 177 | (uncited) | // (cell_fields_read = 30 RETIRED — Commit C. Number reserved.) |
 | …/realization/renderer.hpp | 1649 | UNIFIED_GROUND_1 | // (zone extrusion render pipeline RETIRED — UNIFIED_GROUND_1 U4) |
 | …/realization/state.hpp | 214 | (uncited) | // are REMOVED (the mesh-gen basket had no dispatch). |
-| …/realization/state.hpp | 592 | (uncited) | // (GPUTerrainState REMOVED: the dead terrain buffer's CPU |
-| …/realization/state.hpp | 933 | (uncited) | // (GPUPyramidGroundEntry REMOVED — the pyramid ground-atlas |
-| …/realization/state.hpp | 939 | (uncited) | // (GPUPyramidMeshParams REMOVED: the pyramid mesh-gen |
+| …/realization/state.hpp | 586 | (uncited) | // (GPUTerrainState REMOVED: the dead terrain buffer's CPU |
+| …/realization/state.hpp | 927 | (uncited) | // (GPUPyramidGroundEntry REMOVED — the pyramid ground-atlas |
+| …/realization/state.hpp | 933 | (uncited) | // (GPUPyramidMeshParams REMOVED: the pyramid mesh-gen |
 | …/realization/state.hpp | 1651 | (uncited) | // (Cell spatial field LUT members RETIRED — Commit C, the LUT |
-| …/realization/state.hpp | 2713 | (uncited) | //   index-count + the mesh-gen layout/group REMOVED; |
-| …/realization/state.hpp | 2714 | (uncited) | //   the ground buffer + its atlas write REMOVED — only |
-| …/realization/state.hpp | 3817 | (uncited) | // (Cell Fields LUT texture RETIRED — Commit C, the LUT retirement.) |
-| …/realization/state.hpp | 4452 | (uncited) | // (binding 149 pyramid_ground RETIRED — the pyramid ground-atlas residue.) |
-| …/realization/state.hpp | 4759 | (uncited) | // (Pyramid mesh gen layout REMOVED: bindings 190-192, |
-| …/realization/state.hpp | 5660 | (uncited) | // (Pyramid mesh gen bind group REMOVED: bindings |
+| …/realization/state.hpp | 2704 | (uncited) | //   index-count + the mesh-gen layout/group REMOVED; |
+| …/realization/state.hpp | 2705 | (uncited) | //   the ground buffer + its atlas write REMOVED — only |
+| …/realization/state.hpp | 3811 | (uncited) | // (Cell Fields LUT texture RETIRED — Commit C, the LUT retirement.) |
+| …/realization/state.hpp | 4441 | (uncited) | // (binding 149 pyramid_ground RETIRED — the pyramid ground-atlas residue.) |
+| …/realization/state.hpp | 4748 | (uncited) | // (Pyramid mesh gen layout REMOVED: bindings 190-192, |
+| …/realization/state.hpp | 5641 | (uncited) | // (Pyramid mesh gen bind group REMOVED: bindings |
 | …/realization/world.wgsl | 90 | (uncited) | // (Terrain-Mode Coupling section RETIRED — Phase 1, ruling 6.) |
 | …/realization/world.wgsl | 756 | UNIFIED_GROUND_1 | // (fn terrain_height_at RETIRED — UNIFIED_GROUND_1 U4; A2-3 census) |
 | …/realization/world.wgsl | 816 | (uncited) | // --- [STATE:terrain] TerrainState REMOVED — the dead terrain |
 | …/realization/world.wgsl | 1349 | (uncited) | // (Terrain-mode coupling field RETIRED — Phase 1, ruling 6. Lattice 9 |
 | …/realization/world.wgsl | 1424 | (uncited) | // (Prop 804 "receptivity" RETIRED — Phase 1, ruling 3: the pc-color |
-| …/realization/world.wgsl | 1897 | (uncited) | // (View 5, the sliver microscope, RETIRED — INCIDENT #3b CLOSED: |
-| …/realization/world.wgsl | 1903 | (uncited) | // ── ROW 6 — RETIRED (Phase 1, ruling 6) ─────────────────────────── |
-| …/realization/world.wgsl | 1936 | (uncited) | // The overlay matrix is RETIRED: the terrain animates with its OWN |
-| …/realization/world.wgsl | 2163 | (uncited) | // (PAWN_GOL_GROUND_ENABLED RETIRED — compile-time gate for the pre-card |
-| …/realization/world.wgsl | 2211 | CONTACT_4 | // (CONTACT_SPHERE_RADIUS RETIRED — CONTACT_4 S2c. It was the sphere's |
-| …/realization/world.wgsl | 2217 | CONTACT_5 | // (CONTACT_CUBE_RADIUS 3.0 RETIRED -- CONTACT_5 P2b. The cube's interaction |
-| …/realization/world.wgsl | 2283 | CONTACT_5 | // (CUBE_PART_RADIUS 30 / CUBE_PART_GAIN 1.0 RETIRED -- CONTACT_5 P2b. They |
-| …/realization/world.wgsl | 2878 | UNIFIED_GROUND_1 | // (fn contrib_terrain_waves_at RETIRED — UNIFIED_GROUND_1 U4; A2-3 census) |
-| …/realization/world.wgsl | 2884 | TRUEBAND_CONTACT_1 | // (fn terrain_wave_overlay_with_gradient RETIRED — TRUEBAND_CONTACT_1 T1c; |
-| …/realization/world.wgsl | 3011 | UNIFIED_GROUND_1 | // (fn query_ground_baked_heightfield RETIRED — UNIFIED_GROUND_1 U4; A2-3 census) |
-| …/realization/world.wgsl | 3925 | (uncited) | // (complexity varying REMOVED — LATENT[complexity], read by no FS) |
-| …/realization/world.wgsl | 4028 | (uncited) | // (out.complexity REMOVED — the LATENT[complexity] varying; |
-| …/realization/world.wgsl | 4141 | (uncited) | //    (INCIDENT #2's I1 texel audit / I2 LUT field audit RETIRED — |
-| …/realization/world.wgsl | 5431 | (uncited) | // @binding(20) terrain_state REMOVED (dead terrain buffer) |
-| …/realization/world.wgsl | 5489 | (uncited) | // @binding(220) render_terrain REMOVED (dead terrain buffer) |
-| …/realization/world.wgsl | 5569 | (uncited) | // (binding 29, cell_fields_write, RETIRED — Commit C, the LUT |
-| …/realization/world.wgsl | 5570 | (uncited) | //  retirement. Number reserved; do not reuse.) |
-| …/realization/world.wgsl | 5578 | (uncited) | // (binding 30, cell_fields_read, RETIRED — Commit C. Number reserved.) |
-| …/realization/world.wgsl | 5881 | (uncited) | // (ZONE_DERIVE_EXTENT RETIRED — extent is tier-derived, grid_cells × |
-| …/realization/world.wgsl | 6074 | UNIFIED_GROUND_1 | // (fn zone_sample_baked_terrain_y RETIRED — UNIFIED_GROUND_1 U4; A2-3 census) |
-| …/realization/world.wgsl | 7674 | (uncited) | // RETIRED (a body contact never reached a hovering cube -- the |
-| …/realization/world.wgsl | 7893 | (uncited) | // ── Read center height from shared (complexity readback REMOVED) ─ |
-| …/realization/world.wgsl | 8052 | (uncited) | // (Terrain-mode coupling shift RETIRED here — Phase 1, ruling 6. |
-| …/realization/world.wgsl | 8417 | UNIFIED_GROUND_1 | // (fn zone_emit_quad RETIRED — UNIFIED_GROUND_1 U4; A2-3 census) |
-| …/realization/world.wgsl | 8420 | UNIFIED_GROUND_1 | // (fn zone_gol_mesh_reset RETIRED — UNIFIED_GROUND_1 U4; A2-3 census) |
-| …/realization/world.wgsl | 8422 | UNIFIED_GROUND_1 | // (fn zone_gol_mesh_gen RETIRED — UNIFIED_GROUND_1 U4; A2-3 census) |
-| …/realization/world.wgsl | 8429 | UNIFIED_GROUND_1 | // (fn shadow_zone_extrusion_vs RETIRED — UNIFIED_GROUND_1 U4; A2-3 census) |
-| …/realization/world.wgsl | 8762 | (uncited) | // (binding 149 RETIRED — pyramid_ground, the residue-T2 husk: its computed |
-| …/realization/world.wgsl | 9081 | (uncited) | // (Pyramid arm REMOVED — the ground-atlas residue: it computed a 5-point ground_y and |
-| …/realization/world.wgsl | 9108 | (uncited) | // (FRUSTUM_LOD0_RADIUS_SQ REMOVED — the veil: the LOD0 gate now reads the |
-| …/realization/world.wgsl | 9627 | (uncited) | // §9.0 PYRAMID MESH GENERATION — REMOVED. |
+| …/realization/world.wgsl | 1886 | (uncited) | // (View 5, the sliver microscope, RETIRED — INCIDENT #3b CLOSED: |
+| …/realization/world.wgsl | 1892 | (uncited) | // ── ROW 6 — RETIRED (Phase 1, ruling 6) ─────────────────────────── |
+| …/realization/world.wgsl | 1925 | (uncited) | // The overlay matrix is RETIRED: the terrain animates with its OWN |
+| …/realization/world.wgsl | 2152 | (uncited) | // (PAWN_GOL_GROUND_ENABLED RETIRED — compile-time gate for the pre-card |
+| …/realization/world.wgsl | 2200 | CONTACT_4 | // (CONTACT_SPHERE_RADIUS RETIRED — CONTACT_4 S2c. It was the sphere's |
+| …/realization/world.wgsl | 2206 | CONTACT_5 | // (CONTACT_CUBE_RADIUS 3.0 RETIRED -- CONTACT_5 P2b. The cube's interaction |
+| …/realization/world.wgsl | 2272 | CONTACT_5 | // (CUBE_PART_RADIUS 30 / CUBE_PART_GAIN 1.0 RETIRED -- CONTACT_5 P2b. They |
+| …/realization/world.wgsl | 2867 | UNIFIED_GROUND_1 | // (fn contrib_terrain_waves_at RETIRED — UNIFIED_GROUND_1 U4; A2-3 census) |
+| …/realization/world.wgsl | 2873 | TRUEBAND_CONTACT_1 | // (fn terrain_wave_overlay_with_gradient RETIRED — TRUEBAND_CONTACT_1 T1c; |
+| …/realization/world.wgsl | 3000 | UNIFIED_GROUND_1 | // (fn query_ground_baked_heightfield RETIRED — UNIFIED_GROUND_1 U4; A2-3 census) |
+| …/realization/world.wgsl | 3915 | (uncited) | // (complexity varying REMOVED — LATENT[complexity], read by no FS) |
+| …/realization/world.wgsl | 4018 | (uncited) | // (out.complexity REMOVED — the LATENT[complexity] varying; |
+| …/realization/world.wgsl | 4131 | (uncited) | //    (INCIDENT #2's I1 texel audit / I2 LUT field audit RETIRED — |
+| …/realization/world.wgsl | 5421 | (uncited) | // @binding(20) terrain_state REMOVED (dead terrain buffer) |
+| …/realization/world.wgsl | 5478 | (uncited) | // @binding(220) render_terrain REMOVED (dead terrain buffer) |
+| …/realization/world.wgsl | 5558 | (uncited) | // (binding 29, cell_fields_write, RETIRED — Commit C, the LUT |
+| …/realization/world.wgsl | 5559 | (uncited) | //  retirement. Number reserved; do not reuse.) |
+| …/realization/world.wgsl | 5567 | (uncited) | // (binding 30, cell_fields_read, RETIRED — Commit C. Number reserved.) |
+| …/realization/world.wgsl | 5870 | (uncited) | // (ZONE_DERIVE_EXTENT RETIRED — extent is tier-derived, grid_cells × |
+| …/realization/world.wgsl | 6063 | UNIFIED_GROUND_1 | // (fn zone_sample_baked_terrain_y RETIRED — UNIFIED_GROUND_1 U4; A2-3 census) |
+| …/realization/world.wgsl | 7663 | (uncited) | // RETIRED (a body contact never reached a hovering cube -- the |
+| …/realization/world.wgsl | 7882 | (uncited) | // ── Read center height from shared (complexity readback REMOVED) ─ |
+| …/realization/world.wgsl | 8041 | (uncited) | // (Terrain-mode coupling shift RETIRED here — Phase 1, ruling 6. |
+| …/realization/world.wgsl | 8406 | UNIFIED_GROUND_1 | // (fn zone_emit_quad RETIRED — UNIFIED_GROUND_1 U4; A2-3 census) |
+| …/realization/world.wgsl | 8409 | UNIFIED_GROUND_1 | // (fn zone_gol_mesh_reset RETIRED — UNIFIED_GROUND_1 U4; A2-3 census) |
+| …/realization/world.wgsl | 8411 | UNIFIED_GROUND_1 | // (fn zone_gol_mesh_gen RETIRED — UNIFIED_GROUND_1 U4; A2-3 census) |
+| …/realization/world.wgsl | 8418 | UNIFIED_GROUND_1 | // (fn shadow_zone_extrusion_vs RETIRED — UNIFIED_GROUND_1 U4; A2-3 census) |
+| …/realization/world.wgsl | 8751 | (uncited) | // (binding 149 RETIRED — pyramid_ground, the residue-T2 husk: its computed |
+| …/realization/world.wgsl | 9070 | (uncited) | // (Pyramid arm REMOVED — the ground-atlas residue: it computed a 5-point ground_y and |
+| …/realization/world.wgsl | 9097 | (uncited) | // (FRUSTUM_LOD0_RADIUS_SQ REMOVED — the veil: the LOD0 gate now reads the |
+| …/realization/world.wgsl | 9616 | (uncited) | // §9.0 PYRAMID MESH GENERATION — REMOVED. |
 | …/surface/patch_system.hpp | 457 | (uncited) | // RETIRED by the veil cut — the chain lives in Dim + config.) |
 | …/surface/terrain_looks.hpp | 137 | (uncited) | //   ROW 6 — RETIRED (Phase 1, ruling 6): terrain-mode coupling went |
 
@@ -1187,11 +1174,11 @@ deliberately NOT matched: in prose it collides with ordinary text and the
 false-positive rate is not worth the count. **The number below is therefore
 a floor, not a total** — stated so the §4 sizing is not overread.
 
-Coordinate sites: **117** across 10 files.
+Coordinate sites: **118** across 10 files.
 
 | file | coordinates | examples |
 |---|---|---|
-| …/realization/world.wgsl | 75 | 256: CONTACT_4 S3a; 571: TRUEBAND_CONTACT_1 T1a |
+| …/realization/world.wgsl | 76 | 256: CONTACT_4 S3a; 571: TRUEBAND_CONTACT_1 T1a |
 | …/realization/state.hpp | 17 | 306: CONTACT_5 P2b; 319: PRUNING_1 P1 |
 | …/bodies/gol_zones.hpp | 9 | 104: UNIFIED_GROUND_1 U5; 117: UNIFIED_GROUND_1 U5 |
 | …/realization/renderer.hpp | 6 | 136: UNIFIED_GROUND_1 U5; 263: UNIFIED_GROUND_1 U5 |
@@ -1206,10 +1193,10 @@ Coordinate sites: **117** across 10 files.
 
 | debug constant | declared at | current value | branches | branch sites | instrument status |
 |---|---|---|---|---|---|
-| TERRAIN_DEBUG_VIEW | src/cartridges/the_board/realization/world.wgsl:1901 | `0u` | 2 | world.wgsl:4146, world.wgsl:4152 | branch(es) still present |
-| CHECKER_DEBUG_VIEW | src/cartridges/the_board/realization/world.wgsl:1890 | `0u` | 2 | world.wgsl:4123, world.wgsl:4128 | branch(es) still present |
-| LIVE_CARD_DEBUG_VIEW | src/cartridges/the_board/realization/world.wgsl:255 | `0u` | 1 | world.wgsl:4067 | branch(es) still present |
-| CONTACT_SHELL_DEBUG | src/cartridges/the_board/realization/world.wgsl:261 | `0u` | 1 | world.wgsl:4256 | branch(es) still present |
+| TERRAIN_DEBUG_VIEW | src/cartridges/the_board/realization/world.wgsl:1890 | `0u` | 2 | world.wgsl:4136, world.wgsl:4142 | branch(es) still present |
+| CHECKER_DEBUG_VIEW | src/cartridges/the_board/realization/world.wgsl:1879 | `0u` | 2 | world.wgsl:4113, world.wgsl:4118 | branch(es) still present |
+| LIVE_CARD_DEBUG_VIEW | src/cartridges/the_board/realization/world.wgsl:255 | `0u` | 1 | world.wgsl:4057 | branch(es) still present |
+| CONTACT_SHELL_DEBUG | src/cartridges/the_board/realization/world.wgsl:261 | `0u` | 1 | world.wgsl:4246 | branch(es) still present |
 
 A debug constant pinned at its off value costs **zero runtime** (the
 branch is folded away per entry point) and N lines of shader text. The
@@ -1247,16 +1234,6 @@ anything short of certain is `RULE(Jean)`.
 | tier | symbol | room | file:line | claimed STATUS | reachable callers | removal instrument | disclosure | recommended verdict |
 |---|---|---|---|---|---|---|---|---|
 | 1 | constitution §0 mirror law | docs | src/docs/old docs/cartridge_constitution.md | fossil (the_chord retired) | 0 | none-needed | none — a document, not code | DELETE (or mark SUPERSEDED) |
-| 3 | render_signal | binding 0/200 | src/cartridges/the_board/realization/world.wgsl:5487 | bound, zero reachable readers | 0 | Dawn enumeration probe | GPU: one binding slot + its buffer | RULE(Jean) |
-| 3 | mute_dynamics_2d | config mirror | src/cartridges/the_board/realization/state.hpp:392 (GPUDesignConfig) | zero live reads in BOTH C++/WGSL rooms (1 write) | 0 | rest bit-identity + glaw1 offsetof witnesses + **a web offset witness that does not yet exist** | GPU: 4 B of the uniform; re-flows every later offset in THREE rooms, invalidating **0** hand-written JS indexes above it (§3.3) | DELETE — nothing the JS packer writes sits above it |
-| 3 | wave_time_scale | config mirror | src/cartridges/the_board/realization/state.hpp:397 (GPUDesignConfig) | zero live reads in BOTH C++/WGSL rooms (1 write) | 0 | rest bit-identity + glaw1 offsetof witnesses + **a web offset witness that does not yet exist** | GPU: 4 B of the uniform; re-flows every later offset in THREE rooms, invalidating **0** hand-written JS indexes above it (§3.3) | DELETE — nothing the JS packer writes sits above it |
-| 3 | camera_sensitivity (+ `set_camera_sensitivity`) | config mirror | src/cartridges/the_board/realization/state.hpp:399 (GPUDesignConfig) | zero live reads in BOTH C++/WGSL rooms (2 writes, 1 guard-only read) | 0 | rest bit-identity + glaw1 offsetof witnesses + **a web offset witness that does not yet exist** | GPU: 4 B of the uniform; re-flows every later offset in THREE rooms, invalidating **0** hand-written JS indexes above it (§3.3) | DELETE — nothing the JS packer writes sits above it |
-| 3 | active_cell_size | config mirror | src/cartridges/the_board/realization/state.hpp:401 (GPUDesignConfig) | zero live reads in BOTH C++/WGSL rooms (1 write) | 0 | rest bit-identity + glaw1 offsetof witnesses + **a web offset witness that does not yet exist** | GPU: 4 B of the uniform; re-flows every later offset in THREE rooms, invalidating **0** hand-written JS indexes above it (§3.3) | DELETE — nothing the JS packer writes sits above it |
-| 3 | wave_enable_mask | config mirror | src/cartridges/the_board/realization/state.hpp:408 (GPUDesignConfig) | zero live reads in BOTH C++/WGSL rooms (1 write) | 0 | rest bit-identity + glaw1 offsetof witnesses + **a web offset witness that does not yet exist** | GPU: 4 B of the uniform; re-flows every later offset in THREE rooms, invalidating **0** hand-written JS indexes above it (§3.3) | DELETE — nothing the JS packer writes sits above it |
-| 3 | wave_freeze_mask | config mirror | src/cartridges/the_board/realization/state.hpp:409 (GPUDesignConfig) | zero live reads in BOTH C++/WGSL rooms (1 write) | 0 | rest bit-identity + glaw1 offsetof witnesses + **a web offset witness that does not yet exist** | GPU: 4 B of the uniform; re-flows every later offset in THREE rooms, invalidating **0** hand-written JS indexes above it (§3.3) | DELETE — nothing the JS packer writes sits above it |
-| 3 | wave_frozen_t | config mirror | src/cartridges/the_board/realization/state.hpp:410 (GPUDesignConfig) | zero live reads in BOTH C++/WGSL rooms (3 writes) | 0 | rest bit-identity + glaw1 offsetof witnesses + **a web offset witness that does not yet exist** | GPU: 12 B of the uniform; re-flows every later offset in THREE rooms, invalidating **0** hand-written JS indexes above it (§3.3) | DELETE — nothing the JS packer writes sits above it |
-| 3 | pawn_amp_scale (+ `set_pawn_amp_scale`) | config mirror | src/cartridges/the_board/realization/state.hpp:416 (GPUDesignConfig) | zero live reads in BOTH C++/WGSL rooms (2 writes, 1 guard-only read) | 0 | rest bit-identity + glaw1 offsetof witnesses + **a web offset witness that does not yet exist** | GPU: 4 B of the uniform; re-flows every later offset in THREE rooms, invalidating **0** hand-written JS indexes above it (§3.3) | DELETE — nothing the JS packer writes sits above it |
-| 3 | pawn_height_bias (+ `set_pawn_height_bias`) | config mirror | src/cartridges/the_board/realization/state.hpp:417 (GPUDesignConfig) | zero live reads in BOTH C++/WGSL rooms (2 writes, 1 guard-only read) | 0 | rest bit-identity + glaw1 offsetof witnesses + **a web offset witness that does not yet exist** | GPU: 4 B of the uniform; re-flows every later offset in THREE rooms, invalidating **0** hand-written JS indexes above it (§3.3) | DELETE — nothing the JS packer writes sits above it |
 | 4 | 1 STATUS/LATENT/INTENT tag | comments | src/cartridges/the_board/bodies/grounded.hpp | LATENT/INTENT | n/a | none-needed | none — comment text only | DELETE-AND-RECORD (standing ruling) |
 | 4 | 1 STATUS/LATENT/INTENT tag | comments | src/cartridges/the_board/contracts/ground_architecture.hpp | LATENT/INTENT | n/a | none-needed | none — comment text only | DELETE-AND-RECORD (standing ruling) |
 | 4 | 3 STATUS/LATENT/INTENT tags | comments | src/cartridges/the_board/contracts/roster.hpp | LATENT/INTENT | n/a | none-needed | none — comment text only | DELETE-AND-RECORD (standing ruling) |
@@ -1270,10 +1247,10 @@ anything short of certain is `RULE(Jean)`.
 | 4 | 2 tombstones citing CONTACT_5 | comments | tree-wide — §6.1 | campaign SHIPPED | n/a | none-needed | none — comment text only | DELETE |
 | 4 | 1 tombstone citing TRUEBAND_CONTACT_1 | comments | tree-wide — §6.1 | campaign SHIPPED | n/a | none-needed | none — comment text only | DELETE |
 | 4 | 11 tombstones citing UNIFIED_GROUND_1 | comments | tree-wide — §6.1 | campaign SHIPPED | n/a | none-needed | none — comment text only | DELETE |
-| 5 | pga_color_motor + tail | PGA | src/cartridges/the_board/realization/world.wgsl:3431 | RULED to retire (Jean) | 1 | glaw2 + rest bit-identity | colour-space movement must relocate to src/coupling/visual_canvas.hpp first | DELETE **after** the relocation lands |
+| 5 | pga_color_motor + tail | PGA | src/cartridges/the_board/realization/world.wgsl:3421 | RULED to retire (Jean) | 1 | glaw2 + rest bit-identity | colour-space movement must relocate to src/coupling/visual_canvas.hpp first | DELETE **after** the relocation lands |
 | keep | CONTRIBUTOR_DAG + its closure static_asserts | contracts | src/cartridges/the_board/contracts/ground_architecture.hpp | load-bearing | compile-time | n/a | n/a | KEEP — the one declared, checked statement of the composition |
 
-Verdict rows: **26** (DELETE 23 · RULE(Jean) 1 · KEEP 2) over **26
+Verdict rows: **16** (DELETE 14 · RULE(Jean) 0 · KEEP 2) over **16
 distinct candidates** — a few symbols appear under two tiers on purpose
 (`query_ground_celestial` is both an unreachable `fn` and a policy-surface
 row), because the two tiers are ruled by different people at different
@@ -1289,9 +1266,9 @@ Three separate columns. **They do not add up and must not be merged.**
 
 | item | value | note |
 |---|---|---|
-| config bytes | 44 B of 592 → **32 B** realised after 16 B padding | the only column that moves the uniform upload, and it moves it once per dirty flush, not per draw |
-| bindings read by zero reachable fn | 1 — `render_signal` (0/200) | each is a bind-group slot plus whatever buffer backs it; **this is the one place §2 has a real GPU prize** |
-| buffers freed | 0 until the line above is ruled | the binding is bound in 3 group(s); freeing the buffer needs Jean |
+| config bytes | 0 B of 560 → **0 B** realised after 16 B padding | the only column that moves the uniform upload, and it moves it once per dirty flush, not per draw |
+| bindings read by zero reachable fn | 0 — none | each is a bind-group slot plus whatever buffer backs it; **this is the one place §2 has a real GPU prize** |
+| buffers freed | 0 until the line above is ruled | the binding is bound in 0 group(s); freeing the buffer needs Jean |
 | textures freed | 0 | no storage-texture binding is unread |
 | indirect slots | unchanged | no dead entry points to remove |
 | **unreachable WGSL `fn`** | 0 | **ZERO runtime cost** — Tint DCEs per entry point before the driver sees the module |
@@ -1301,7 +1278,7 @@ Three separate columns. **They do not add up and must not be merged.**
 move:** unreachable WGSL functions are dead-code-eliminated per entry point
 and cost **zero** at runtime. Deleting 0 unreachable `fn` buys tree mass
 and read-time, not frames. The GPU prize in this tree is the config bytes
-(44 B) and whatever the flag-(c) list yields once ruled — nothing else.
+(0 B) and whatever the flag-(c) list yields once ruled — nothing else.
 
 ### Build time
 
@@ -1318,22 +1295,22 @@ cost of this tree is the single translation unit, not the shader.
 
 | item | files | lines |
 |---|---|---|
-| src/ excluding src/external/ | 84 | 48806 |
-| comment lines in the §6 scope | — | 10530 |
-| world.wgsl comment lines | — | 3615 |
+| src/ excluding src/external/ | 84 | 48763 |
+| comment lines in the §6 scope | — | 10540 |
+| world.wgsl comment lines | — | 3621 |
 | status-tag sites (§4, TAG class only) | — | 32 |
 | tombstone sites (§6.1) | — | 64 |
-| coordinate sites (§6.2, a floor) | — | 117 |
+| coordinate sites (§6.2, a floor) | — | 118 |
 | dead `#ifdef` guard sites (§6.3) | — | 0 |
 | dangling reference sites (§5.1) | — | 0 |
 
 > These are LINES, not newlines. **13 of the 84 files under `src/` have
-> no trailing newline**, so `sum(wc -l)` reports 48793 — exactly 13 fewer.
+> no trailing newline**, so `sum(wc -l)` reports 48750 — exactly 13 fewer.
 > Said here so a cross-check does not look like a discrepancy.
 
-**The honest payoff of PRUNING_1 is tree mass, not frames.** 10530 comment
+**The honest payoff of PRUNING_1 is tree mass, not frames.** 10540 comment
 lines in the §6 scope, of which the tag/tombstone/coordinate/dangling sites
-above are the mechanically identifiable fraction (213 sites). Everything else
+above are the mechanically identifiable fraction (214 sites). Everything else
 in §6 is prose that needs a human ruling, which is P4's job, not P0's.
 
 ---
@@ -1351,5 +1328,5 @@ in §6 is prose that needs a human ruling, which is P4's job, not P0's.
 | no verdict EXECUTION | ✅ — §7 recommends, Jean rules, P1 executes |
 
 
-Anchored at audited tree state `59fc17f8d6ff95973b295be6b09a03edeea73736` (branch `claude/pruning-1-p1`).
+Anchored at audited tree state `29a9c471c6d3642f49eda4c67e6bf55ecf4e54c6` (branch `master`).
 

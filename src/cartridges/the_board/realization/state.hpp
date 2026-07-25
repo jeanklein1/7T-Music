@@ -389,34 +389,28 @@ namespace t7 {
         struct alignas(16) GPUDesignConfig {
             // ─── Debug mutes ────────────────────────────────────────
             uint32_t mute_dynamics_0d;
-            uint32_t mute_dynamics_2d;
             uint32_t mute_signal;
             uint32_t mute_couplings;
 
             // ─── Interaction ────────────────────────────────────────
-            float wave_time_scale;
             float pawn_speed;
-            float camera_sensitivity;
             uint32_t freeze_sphere;
-            float active_cell_size;
             uint32_t fpv_mode;
             // (pawn_tilt_tau belongs to THIS group semantically — it sits in
             //  the struct's trailing 4-byte pad instead. See the note at the
             //  tail of the struct for why appending here is not available.)
 
             // ─── Terrain wave control ───────────────────────────────
-            uint32_t wave_enable_mask;        // per-band enable bits
-            uint32_t wave_freeze_mask;        // per-band freeze bits
-            float wave_frozen_t[3];           // frozen time per band triplet
             uint32_t world_seed;              // master seed for GPU-side terrain/zone generation
 
             // ─── Lighting & atmosphere ──────────────────────────────
+            uint32_t _pad_sun;                // WGSL aligns vec3 to 16, C++ packs
+                                              // float[3] at 4 — see the GROWTH LAW
             float sun_direction[3];
             float aura_enabled;               // 0.0 = off, 1.0 = on (guards all aura sampling)
-            float pawn_amp_scale;
-            float pawn_height_bias;
             float pawn_aura_height;           // 0.0 = no aura extrusion, >0 = world units of rise
             float fog_density;                // exponential fog coefficient (default 0.003)
+            uint32_t _pad_fog[2];             // ditto
             float fog_color[3];               // fog/sky color RGB
 
             // ─── Transition overlay ─────────────────────────────────
@@ -1463,7 +1457,13 @@ namespace t7 {
         };
 
         static_assert(sizeof(GPUFrameSignal) == 336, "GPUFrameSignal must be 336 bytes");
-        static_assert(sizeof(GPUDesignConfig) == 592, "GPUDesignConfig must be 592 bytes (576 + the CHECKER-REBUILD music_variance float: the vec3 resultant + amount fill the first slot, music_variance opens a second 16-byte slot with 12 B tail pad, which CONTACT_2/3 filled with point_bubble_radius + cube_plasticity, and CLOSURE_PAWN [6] filled with pawn_tilt_tau — the pad is now SPENT: the next knob grows the struct and this number moves)");
+        static_assert(sizeof(GPUDesignConfig) == 560,
+            "GPUDesignConfig must be 560 bytes. PRUNING_1 P3 removed nine "
+            "zero-read fields (44 B) and added 12 B of DECLARED PAD: WGSL "
+            "aligns vec3 to 16 while C++ packs float[3] at 4, and dropping "
+            "44 B moved all four vec3 members off their boundaries. "
+            "592 - 44 + 12 = 560. The pads ARE the mirror, not waste — the "
+            "offsetof asserts below are what prove it.");
         // CLOSURE_PAWN [6] — the pad is spent, so name the trap the next knob
         // will walk into. The C++ room packs f32/u32 at align 4; the WGSL room
         // packs vec3<f32> at align 16 (sun_direction 64, fog_color 96,
@@ -1936,7 +1936,7 @@ namespace t7 {
             // Targeted 4-byte upload of pier_count only — called from write_pier/clear_pier.
             // Bypasses the config dirty flag since pier changes happen mid-frame during spawn.
             void upload_pier_count(wgpu::Queue& queue) {
-                static_assert(offsetof(GPUDesignConfig, pier_count) == 124,
+                static_assert(offsetof(GPUDesignConfig, pier_count) == 92,
                     "pier_count offset must be 124 for targeted upload");
                 queue.WriteBuffer(configBuffer_, 124, &config_.pier_count, sizeof(uint32_t));
             }
@@ -1945,7 +1945,7 @@ namespace t7 {
             // after world_state_.all_patch_count is finalized, so the placement compute pass reads the
             // current frame's patch set (decoupled from the photographer config).
             void upload_placement_patch_count(wgpu::Queue& queue) {
-                static_assert(offsetof(GPUDesignConfig, placement_patch_count) == 144,
+                static_assert(offsetof(GPUDesignConfig, placement_patch_count) == 112,
                     "placement_patch_count offset must be 144 for targeted upload");
                 queue.WriteBuffer(configBuffer_, 144, &config_.placement_patch_count, sizeof(uint32_t));
             }
@@ -1954,7 +1954,7 @@ namespace t7 {
             // frame so the GPU frustum-cull shader uses the same POINT position as the
             // CPU's LOD banding (eliminates LOD0/LOD1 boundary flicker).
             void upload_lod_point(wgpu::Queue& queue) {
-                static_assert(offsetof(GPUDesignConfig, lod_point_x) == 384,
+                static_assert(offsetof(GPUDesignConfig, lod_point_x) == 352,
                     "lod_point_x offset must be 384 for targeted upload");
                 queue.WriteBuffer(configBuffer_,
                     offsetof(GPUDesignConfig, lod_point_x),
@@ -2302,9 +2302,6 @@ namespace t7 {
             void set_pawn_speed(float s) {
                 if (config_.pawn_speed != s) { config_.pawn_speed = s; configDirty_ = true; }
             }
-            void set_camera_sensitivity(float s) {
-                if (config_.camera_sensitivity != s) { config_.camera_sensitivity = s; configDirty_ = true; }
-            }
 
             // ─── The point's host + fly speed ────────────────────────
             void set_point_host(uint32_t h) {
@@ -2541,12 +2538,6 @@ namespace t7 {
             // --- Config field setters (dirty-flagged) ---
             void set_pawn_aura_height(float h) {
                 if (config_.pawn_aura_height != h) { config_.pawn_aura_height = h; configDirty_ = true; }
-            }
-            void set_pawn_amp_scale(float s) {
-                if (config_.pawn_amp_scale != s) { config_.pawn_amp_scale = s; configDirty_ = true; }
-            }
-            void set_pawn_height_bias(float b) {
-                if (config_.pawn_height_bias != b) { config_.pawn_height_bias = b; configDirty_ = true; }
             }
 
             // --- Config ---
@@ -5782,24 +5773,15 @@ namespace t7 {
                 wgpu::Queue queue = device_.GetQueue();
 
                 config_.mute_dynamics_0d = 0;
-                config_.mute_dynamics_2d = 0;
                 config_.mute_signal = 0;
                 config_.mute_couplings = Coupling::NONE;
-                config_.wave_time_scale = Idle::WAVE_TIME_SCALE;
                 config_.pawn_speed = Idle::PAWN_SPEED;
-                config_.camera_sensitivity = Idle::CAMERA_SENSITIVITY;
                 config_.point_host = 0;             // the pawn hosts (the kite)
                 config_.point_fly_speed = 0.0f;     // 0 → WGSL PAWN_SPEED fallback (the panel authors it)
                 config_.point_bubble_radius = POINT_BUBBLE_RADIUS;  // CONTACT_2: boot-pin the bubble from contracts/point.hpp (source of truth); rest 20.0
                 config_.cube_plasticity = Idle::CUBE_PLASTICITY_DEFAULT;  // CONTACT_3 K2c: boot-pin the live λ master; rest 0.6
                 config_.freeze_sphere = 0;
-                config_.active_cell_size = Idle::ACTIVE_CELL_SIZE;
                 config_.fpv_mode = 0;
-                config_.wave_enable_mask = 0x7;  // All 3 waves enabled
-                config_.wave_freeze_mask = 0;
-                config_.wave_frozen_t[0] = 0.0f;
-                config_.wave_frozen_t[1] = 0.0f;
-                config_.wave_frozen_t[2] = 0.0f;
                 config_.world_seed = 42;
                 // Default sun direction (normalized) — matches MOOD_TABLE[0].sun_direction
                 {
@@ -5810,8 +5792,6 @@ namespace t7 {
                     config_.sun_direction[2] = d[2] / len;
                 }
                 config_.aura_enabled = 1.0f;
-                config_.pawn_amp_scale = 1.0f;
-                config_.pawn_height_bias = 0.0f;
                 config_.pawn_aura_height = 0.0f;
                 // THE PALETTE MIRROR — rest = the pre-graduation WGSL
                 // literals (bit-identical by construction).

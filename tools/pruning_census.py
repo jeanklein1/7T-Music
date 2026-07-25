@@ -730,6 +730,15 @@ def pair_fields(cpp, wg):
     while i < len(cpp) or j < len(wg):
         c = cpp[i] if i < len(cpp) else None
         w = wg[j] if j < len(wg) else None
+        # A C++ `_pad*` member has no WGSL twin BY CONSTRUCTION: it exists to
+        # reproduce an alignment WGSL applies automatically (vec3 -> 16). It is
+        # the mirror's mechanism, not a field. Consuming it without advancing
+        # the WGSL cursor is what keeps the two lists in step; treating it as a
+        # field desynchronises every row after it.
+        if c and c["name"].startswith("_pad"):
+            rows.append((c, []))
+            i += 1
+            continue
         if c and w and c["name"] == w["name"]:
             rows.append((c, [w]))
             i += 1
@@ -1950,7 +1959,12 @@ def main():
         woff = wl[0]["offset"] if wl else None
         csz = c["size"] if c else None
         wsz = (wl[-1]["offset"] + wl[-1]["size"] - wl[0]["offset"]) if wl else None
-        agree = "AGREE" if (c and wl and coff == woff and csz == wsz) else "**DISAGREE**"
+        if c and c["name"].startswith("_pad"):
+            agree = "PAD — no twin by construction"
+        elif c and wl and coff == woff and csz == wsz:
+            agree = "AGREE"
+        else:
+            agree = "**DISAGREE**"
         cr, cw, cb = cpp_sites(cname) if c else ([], [], [])
         wr = wgsl_readers_for(wl, cname)
         sname, scalls = setter_callers(cname) if c else (None, [])
@@ -1961,16 +1975,21 @@ def main():
                                " (+%d guard)" % len(cr_guard) if cr_guard else ""),
                      len(wr), len(cw), len(cb),
                      ("`%s` ×%d" % (sname, len(scalls))) if sname else "—"))
-        if c and not cr_live and not wr:
+        if c and not cr_live and not wr and not c["name"].startswith("_pad"):
             zero_readers.append((cname, c["type"], c["size"], coff, len(cb) + len(cw),
                                  sname, len(scalls), len(cr_guard)))
     R.table(["#", "C++ name", "C++ type", "C++ off",
              "WGSL name", "WGSL type", "WGSL off", "verdict",
              "C++ reads", "WGSL reads", "C++ writes", "boot pins",
              "setter ×callers"], rows)
-    dis = sum(1 for r in rows if r[7].startswith("**"))
-    R("**%d of %d rows AGREE on offset and extent; %d DISAGREE.** Total: C++ %d B," %
-      (len(rows) - dis, len(rows), dis, cpp_size))
+    dis = sum(1 for r in rows if str(r[7]).startswith("**"))
+    pad = sum(1 for r in rows if str(r[7]).startswith("PAD"))
+    R("**%d of %d rows AGREE on offset and extent; %d DISAGREE; %d are pads.**" %
+      (len(rows) - dis - pad, len(rows), dis, pad))
+    R("A pad has no WGSL twin on purpose — it reproduces in C++ an alignment")
+    R("WGSL applies for free (`vec3` -> 16). It is the mirror's mechanism, and")
+    R("it is why the four `vec3` members still land on their boundaries after")
+    R("P3 removed 44 B. Total: C++ %d B," % cpp_size)
     R("WGSL %d B, declared witness %s. The two rooms are in lockstep at this HEAD." %
       (wgsl_size, declared))
     R()

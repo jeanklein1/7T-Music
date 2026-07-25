@@ -1581,31 +1581,20 @@ fn discrete_cell_color_at_tier(
 // literals.
 struct DesignConfig {
     mute_dynamics_0d: u32,
-    mute_dynamics_2d: u32,
     mute_signal: u32,
     mute_couplings: u32,
-    wave_time_scale: f32,
     pawn_speed: f32,
-    camera_sensitivity: f32,
     freeze_sphere: u32,
-    active_cell_size: f32,
     fpv_mode: u32,
     // (pawn_tilt_tau belongs to this Interaction run semantically — it sits in
     //  the struct's trailing pad instead; see the note at the tail. Inserting
     //  here would push sun_direction off its 16-byte boundary in THIS room only.)
-    wave_enable_mask: u32,
-    wave_freeze_mask: u32,
     // three scalars, not array<f32,3>: core WGSL rejects stride-4 arrays in
     // uniform address space. Same 12 bytes, same offsets; CPU mirror stays
     // float[3].
-    wave_frozen_t0: f32,
-    wave_frozen_t1: f32,
-    wave_frozen_t2: f32,
     world_seed: u32,              // master seed for terrain/zone generation
     sun_direction: vec3<f32>,
     aura_enabled: f32,            // 0.0 = off, 1.0 = on (guards all aura sampling)
-    pawn_amp_scale: f32,
-    pawn_height_bias: f32,
     pawn_aura_height: f32,
     fog_density: f32,             // exponential fog coefficient (default 0.003)
     fog_color: vec3<f32>,         // fog/sky color RGB
