@@ -3080,18 +3080,7 @@ fn query_ground_flyer(xz: vec2<f32>, qi: QueryInputs) -> f32 {
 // compounds significantly under FXC loop unrolling). See
 // contrib_gol_suppression_at for the standalone subtractive form.
 fn query_ground_walker(xz: vec2<f32>, qi: QueryInputs) -> f32 {
-    // GoL with inline pawn-centered suppression. Equivalent to
-    //   contrib_gol_zones_at(xz) - contrib_gol_suppression_at(xz, consumer_pos)
-    // but evaluates the zone loop once instead of twice. The suppression
-    // factor pulls the GoL lift toward zero near the consumer — walker
-    // intent: "GoL doesn't push me up into the air while I'm standing on it."
-    // Kept a SINGLE term (gol*(1−supp)) so the walker stays bit-identical.
-    let gol = sample_live_card_gol(xz);
-    let supp_factor = pawn_gol_suppression(xz, qi.consumer_pos.xz);
-    // Shared world stack + the mover-anchored self-aura (added after so the
-    // pawn stands on its own aura peak without reading the grid).
-    return manifold_overlay_stack(xz, qi, gol * (1.0 - supp_factor))
-         + contrib_pawn_aura_at_self();
+    return query_ground_walker_pair(xz, qi).x;
 }
 
 // POLICY_WALKER_TILT — walker minus the self-centered pawn aura.
@@ -3110,12 +3099,7 @@ fn query_ground_walker(xz: vec2<f32>, qi: QueryInputs) -> f32 {
 //     INNER = 4, where supp_factor = 1 with zero gradient — the smoothstep
 //     only ramps over 4→15, which the normal samples never reach.
 fn query_ground_walker_tilt(xz: vec2<f32>, qi: QueryInputs) -> f32 {
-    // Same pawn-suppressed GoL as the walker; NO aura (the self field is a
-    // constant scalar with zero tilt gradient — excluded for clarity). Just
-    // the shared world stack.
-    let gol = sample_live_card_gol(xz);
-    let supp_factor = pawn_gol_suppression(xz, qi.consumer_pos.xz);
-    return manifold_overlay_stack(xz, qi, gol * (1.0 - supp_factor));
+    return query_ground_walker_pair(xz, qi).y;
 }
 
 // Paired walker + walker_tilt query.
@@ -3134,6 +3118,23 @@ fn query_ground_walker_tilt(xz: vec2<f32>, qi: QueryInputs) -> f32 {
 // Shape of the return vec2:
 //   .x = walker      = tilt + pawn_aura_self
 //   .y = walker_tilt = base(baked: static+pyramids) + gol*(1 − supp_factor) + live.x(waves+pulses)
+// THE WALKER LAW, STATED ONCE. query_ground_walker and
+// query_ground_walker_tilt are the .x and .y of this function; the policy
+// arms reach the law through them. Before PRUNING_1 P2 the law was written
+// out three times — here, and again in each of those two — and the claim
+// that the three agreed was held by a comment. Now it is held by there
+// being one of them.
+//
+// .x = walker: the shared world stack + the mover-anchored self-aura, so
+//      the pawn stands on its own aura peak without reading the grid.
+// .y = tilt:   the same stack WITHOUT the aura — the self field is a
+//      constant scalar with zero tilt gradient, excluded for clarity.
+//
+// GoL carries inline pawn-centered suppression, equivalent to
+//   contrib_gol_zones_at(xz) - contrib_gol_suppression_at(xz, consumer_pos)
+// but evaluating the zone loop once instead of twice, kept as the SINGLE
+// term gol*(1-supp) so the arithmetic is bit-stable. Walker intent: "GoL
+// doesn't push me up into the air while I'm standing on it."
 fn query_ground_walker_pair(xz: vec2<f32>, qi: QueryInputs) -> vec2<f32> {
     // Shared base (GoL not yet suppressed) — GROUND_CARD_1: one baked
     // fetch + one card fetch + one cell-exact GoL fetch, shared by both
