@@ -2135,31 +2135,6 @@ namespace t7 {
                         nullptr, wgpu::CullMode::None, shadowRibbonPipeline_)) return false;
                     }
 
-                    // Shadow Zone Extrusion (CellMeshVertex buffer, GoL zones)
-                    {
-                        std::array<wgpu::VertexAttribute, 4> attrs{};
-                        attrs[0].format = wgpu::VertexFormat::Float32x3;
-                        attrs[0].offset = 0;
-                        attrs[0].shaderLocation = 0;   // pos
-                        attrs[1].format = wgpu::VertexFormat::Float32x3;
-                        attrs[1].offset = 12;
-                        attrs[1].shaderLocation = 1;   // normal
-                        attrs[2].format = wgpu::VertexFormat::Float32x2;
-                        attrs[2].offset = 24;
-                        attrs[2].shaderLocation = 2;   // uv
-                        attrs[3].format = wgpu::VertexFormat::Float32x3;
-                        attrs[3].offset = 32;
-                        attrs[3].shaderLocation = 3;   // color
-
-                        wgpu::VertexBufferLayout vbl{};
-                        vbl.arrayStride = 44;
-                        vbl.stepMode = wgpu::VertexStepMode::Vertex;
-                        vbl.attributeCount = attrs.size();
-                        vbl.attributes = attrs.data();
-
-                        // (shadow zone extrusion RETIRED — A2_P2; vbl left unused)
-                        (void)vbl;
-                    }
                 }
 
                 // ─── Fade Overlay Pipeline ───────────────────────────────────────

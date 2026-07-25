@@ -160,9 +160,6 @@ struct Line {
     m: vec3<f32>,   // [e01, e02, e03] — moment
 }
 
-struct Plane {
-    v: vec4<f32>,   // [e0, e1, e2, e3] = [d, nx, ny, nz]
-}
 
 struct Point {
     v: vec4<f32>,   // [e123, e032, e013, e021] = [w, x, y, z]
@@ -3561,10 +3558,6 @@ struct SurfaceHit {
     valid:    u32,         // stays 1u — containment is a separate layer, not folded in (b3 ruling)
 }
 
-struct Boundary {
-    center: vec3<f32>,
-    extent: f32,           // 0 = infinite (mirrors config.world_bound's (0,0,0,0) convention)
-}
 
 // THE HEIGHTFIELD CAST — the scalar height for a policy at an xz.
 // Dispatches to the existing per-policy query functions (delegation =
@@ -5904,14 +5897,6 @@ const GROUND_ATLAS_BLADE: i32    = 100;
 
 // §7.0a PATCH GENERATION BINDINGS
 
-// --- Shared mesh vertex struct (used by zone extrusion mesh gen)
-// Bindings 40-45 reserved (currently unused).
-struct CellMeshVertex {
-    px: f32, py: f32, pz: f32,
-    nx: f32, ny: f32, nz: f32,
-    ux: f32, uy: f32,
-    cr: f32, cg: f32, cb: f32,
-}
 
 // --- Terrain index generation (Group 0: binding 22, one-shot)
 // Separate pipeline layout with a single storage buffer.
@@ -8808,12 +8793,6 @@ fn zone_gol_evolve(@builtin(global_invocation_id) gid: vec3<u32>) {
 
 // --- Zone extrusion render shaders
 
-struct ZoneExtrusionVarying {
-    @builtin(position) clip_pos: vec4<f32>,
-    @location(0) world_pos: vec3<f32>,
-    @location(1) normal: vec3<f32>,
-    @location(2) cell_color: vec3<f32>,    // pre-computed in compute pass
-}
 
 // (fn zone_extrusion_vs RETIRED — UNIFIED_GROUND_1 U4; A2-3 census)
 
